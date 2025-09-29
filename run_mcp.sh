@@ -1,3 +1,3 @@
 #!/bin/bash
 cd /app/taptap-minigame-mcp-server
-/app/.venv/bin/python standalone_server.py
+/app/.venv/bin/python server.py

@@ -9,7 +9,7 @@ class TapTapSettings(BaseSettings):
     """TapTap API 配置"""
 
     # TapTap API 配置
-    api_key: str = Field(..., description="TapTap API 密钥")
+    api_key: Optional[str] = Field(default=None, description="TapTap API 密钥（可选）")
     api_base_url: str = Field(
         default="https://api.taptap.com/v1",
         description="TapTap API 基础 URL"

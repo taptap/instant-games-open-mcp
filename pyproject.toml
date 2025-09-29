@@ -32,8 +32,6 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "structlog>=23.0.0",
     "python-dotenv>=1.0.0",
-    "fastmcp>=0.2.0",
-    "uvicorn>=0.20.0",
 ]
 
 [project.optional-dependencies]

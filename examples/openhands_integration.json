@@ -4,7 +4,7 @@
       "command": "python",
       "args": ["/path/to/taptap-minigame-mcp-server/server.py"],
       "env": {
-        "TAPTAP_API_KEY": "${TAPTAP_API_KEY}",
+        "TAPTAP_API_KEY": "${TAPTAP_API_KEY:-}",
         "TAPTAP_ENVIRONMENT": "${TAPTAP_ENV:-production}",
         "TAPTAP_LOG_LEVEL": "INFO"
       },

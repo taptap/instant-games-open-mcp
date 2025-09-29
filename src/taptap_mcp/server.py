@@ -8,25 +8,28 @@ from mcp.server import Server
 from mcp.types import Tool, TextContent
 
 from .config import settings
-from .tools import (
-    MINIGAME_TOOLS,
-    handle_search_minigames,
-    handle_get_minigame_details,
-    handle_get_minigame_reviews,
-    handle_get_featured_minigames
+# 导入新的文档工具
+from .tools.auth_tools import (
+    handle_search_auth_docs,
+    handle_get_auth_methods,
+    handle_get_auth_category_docs
 )
-from .tools.documentation_tools import (
-    handle_search_api_docs,
-    handle_get_api_categories,
-    handle_get_code_examples,
-    handle_get_api_best_practices
+from .tools.cloud_save_tools import (
+    handle_search_cloud_save_docs,
+    handle_get_cloud_save_overview,
+    handle_get_cloud_save_category_docs
 )
-from .tools.leaderboard_docs_tools import (
+from .tools.leaderboard_tools import (
     handle_search_leaderboard_docs,
-    handle_get_leaderboard_methods,
-    handle_get_leaderboard_method_docs,
-    handle_get_leaderboard_patterns,
-    handle_get_leaderboard_best_practices
+    handle_get_leaderboard_overview,
+    handle_get_leaderboard_category_docs,
+    handle_get_leaderboard_patterns
+)
+from .tools.sdk_tools import (
+    handle_search_sdk_docs,
+    handle_get_sdk_platforms,
+    handle_get_sdk_platform_docs,
+    handle_get_sdk_best_practices
 )
 
 # 配置日志
@@ -52,71 +55,101 @@ logger = structlog.get_logger(__name__)
 # 创建 MCP 服务器实例
 app = Server(name=settings.server_name)
 
-# 文档工具定义
-DOCUMENTATION_TOOLS = [
+# 认证文档工具
+AUTH_TOOLS = [
     Tool(
-        name="search_api_docs",
-        description="搜索 TapTap 小游戏 API 文档",
+        name="search_auth_docs",
+        description="搜索 TapTap 认证相关文档",
         inputSchema={
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "搜索关键词，如：登录、认证、游戏、用户等"
+                    "description": "搜索关键词，如：认证、登录、授权、令牌等"
                 },
                 "category": {
                     "type": "string",
-                    "description": "文档分类，如：authentication、user_system、game_lifecycle 等",
-                    "enum": ["authentication", "game_lifecycle", "asset_management",
-                            "user_system", "analytics", "monetization", "sdk_integration", "common_patterns"]
+                    "description": "认证分类",
+                    "enum": ["oauth", "api_key", "token_management"]
                 }
             }
         }
     ),
     Tool(
-        name="get_api_categories",
-        description="获取所有 API 文档分类和概览",
+        name="get_auth_methods",
+        description="获取所有 TapTap 认证方式概览",
         inputSchema={
             "type": "object",
             "properties": {}
         }
     ),
     Tool(
-        name="get_code_examples",
-        description="获取特定分类的详细代码示例",
+        name="get_auth_category_docs",
+        description="获取指定认证分类的详细文档",
         inputSchema={
             "type": "object",
             "properties": {
                 "category": {
                     "type": "string",
-                    "description": "API 分类名称",
-                    "enum": ["authentication", "game_lifecycle", "asset_management",
-                            "user_system", "analytics", "monetization", "sdk_integration", "common_patterns"]
-                },
-                "platform": {
-                    "type": "string",
-                    "description": "平台名称（仅用于 SDK 集成），如：unity、cocos",
-                    "enum": ["unity", "cocos"]
+                    "description": "认证分类名称",
+                    "enum": ["oauth", "api_key", "token_management"]
                 }
             },
             "required": ["category"]
         }
+    )
+]
+
+# 云存档文档工具
+CLOUD_SAVE_TOOLS = [
+    Tool(
+        name="search_cloud_save_docs",
+        description="搜索 TapTap 云存档相关文档",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "搜索关键词，如：云存档、同步、备份等"
+                },
+                "category": {
+                    "type": "string",
+                    "description": "云存档功能分类",
+                    "enum": ["basic_operations", "advanced_features", "best_practices"]
+                }
+            }
+        }
     ),
     Tool(
-        name="get_api_best_practices",
-        description="获取 TapTap API 使用的最佳实践和开发建议",
+        name="get_cloud_save_overview",
+        description="获取 TapTap 云存档功能概览",
         inputSchema={
             "type": "object",
             "properties": {}
         }
+    ),
+    Tool(
+        name="get_cloud_save_category_docs",
+        description="获取指定云存档分类的详细文档",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "description": "云存档分类名称",
+                    "enum": ["basic_operations", "advanced_features", "best_practices"]
+                }
+            },
+            "required": ["category"]
+        }
     )
 ]
 
-# 排行榜文档工具定义
+# 排行榜文档工具
 LEADERBOARD_TOOLS = [
     Tool(
-        name="search_minigame_leaderboard_docs",
-        description="搜索 TapTap 小游戏内排行榜 API 文档 - 专用于游戏内玩家竞技排名功能",
+        name="search_leaderboard_docs",
+        description="搜索 TapTap 排行榜相关文档",
         inputSchema={
             "type": "object",
             "properties": {
@@ -124,57 +157,93 @@ LEADERBOARD_TOOLS = [
                     "type": "string",
                     "description": "搜索关键词，如：排行榜、分数、排名等"
                 },
-                "method": {
+                "category": {
                     "type": "string",
-                    "description": "具体方法名",
-                    "enum": ["openLeaderboard", "submitScores", "loadLeaderboardScores",
-                            "loadCurrentPlayerLeaderboardScore", "loadPlayerCenteredScores"]
+                    "description": "排行榜功能分类",
+                    "enum": ["score_submission", "ranking_query", "leaderboard_ui"]
                 }
             }
         }
     ),
     Tool(
-        name="get_minigame_leaderboard_methods",
-        description="获取小游戏内排行榜系统的所有方法概览 - 专用于游戏内玩家竞技排名功能",
+        name="get_leaderboard_overview",
+        description="获取 TapTap 排行榜功能概览",
         inputSchema={
             "type": "object",
             "properties": {}
         }
     ),
     Tool(
-        name="get_minigame_leaderboard_method_docs",
-        description="获取指定小游戏内排行榜方法的详细文档和代码示例 - 专用于游戏内玩家竞技排名功能",
+        name="get_leaderboard_category_docs",
+        description="获取指定排行榜分类的详细文档",
         inputSchema={
             "type": "object",
             "properties": {
-                "method": {
+                "category": {
                     "type": "string",
-                    "description": "排行榜方法名",
-                    "enum": ["openLeaderboard", "submitScores", "loadLeaderboardScores",
-                            "loadCurrentPlayerLeaderboardScore", "loadPlayerCenteredScores"],
-                    "required": True
+                    "description": "排行榜分类名称",
+                    "enum": ["score_submission", "ranking_query", "leaderboard_ui"]
                 }
             },
-            "required": ["method"]
+            "required": ["category"]
         }
     ),
     Tool(
         name="get_leaderboard_patterns",
-        description="获取排行榜常用开发模式和完整示例",
+        description="获取排行榜集成模式和最佳实践",
+        inputSchema={
+            "type": "object",
+            "properties": {}
+        }
+    )
+]
+
+# SDK 文档工具
+SDK_TOOLS = [
+    Tool(
+        name="search_sdk_docs",
+        description="搜索 TapTap SDK 集成相关文档",
         inputSchema={
             "type": "object",
             "properties": {
-                "pattern": {
+                "query": {
                     "type": "string",
-                    "description": "开发模式类型",
-                    "enum": ["leaderboard_integration", "real_time_leaderboard"]
+                    "description": "搜索关键词，如：SDK、集成、Unity、Cocos等"
+                },
+                "platform": {
+                    "type": "string",
+                    "description": "开发平台",
+                    "enum": ["unity", "cocos", "web"]
                 }
             }
         }
     ),
     Tool(
-        name="get_minigame_leaderboard_best_practices",
-        description="获取排行榜开发最佳实践和错误处理指南",
+        name="get_sdk_platforms",
+        description="获取支持的 SDK 平台列表",
+        inputSchema={
+            "type": "object",
+            "properties": {}
+        }
+    ),
+    Tool(
+        name="get_sdk_platform_docs",
+        description="获取指定平台的 SDK 集成文档",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "platform": {
+                    "type": "string",
+                    "description": "开发平台名称",
+                    "enum": ["unity", "cocos", "web"]
+                }
+            },
+            "required": ["platform"]
+        }
+    ),
+    Tool(
+        name="get_sdk_best_practices",
+        description="获取 SDK 集成的最佳实践",
         inputSchema={
             "type": "object",
             "properties": {}
@@ -184,33 +253,42 @@ LEADERBOARD_TOOLS = [
 
 # 工具处理函数映射
 TOOL_HANDLERS = {
-    "search_minigames": handle_search_minigames,
-    "get_minigame_details": handle_get_minigame_details,
-    "get_minigame_reviews": handle_get_minigame_reviews,
-    "get_featured_minigames": handle_get_featured_minigames,
-    "search_api_docs": handle_search_api_docs,
-    "get_api_categories": handle_get_api_categories,
-    "get_code_examples": handle_get_code_examples,
-    "get_api_best_practices": handle_get_api_best_practices,
-    "search_minigame_leaderboard_docs": handle_search_leaderboard_docs,
-    "get_minigame_leaderboard_methods": handle_get_leaderboard_methods,
-    "get_minigame_leaderboard_method_docs": handle_get_leaderboard_method_docs,
+    # 认证文档工具
+    "search_auth_docs": handle_search_auth_docs,
+    "get_auth_methods": handle_get_auth_methods,
+    "get_auth_category_docs": handle_get_auth_category_docs,
+
+    # 云存档文档工具
+    "search_cloud_save_docs": handle_search_cloud_save_docs,
+    "get_cloud_save_overview": handle_get_cloud_save_overview,
+    "get_cloud_save_category_docs": handle_get_cloud_save_category_docs,
+
+    # 排行榜文档工具
+    "search_leaderboard_docs": handle_search_leaderboard_docs,
+    "get_leaderboard_overview": handle_get_leaderboard_overview,
+    "get_leaderboard_category_docs": handle_get_leaderboard_category_docs,
     "get_leaderboard_patterns": handle_get_leaderboard_patterns,
-    "get_minigame_leaderboard_best_practices": handle_get_leaderboard_best_practices,
+
+    # SDK 文档工具
+    "search_sdk_docs": handle_search_sdk_docs,
+    "get_sdk_platforms": handle_get_sdk_platforms,
+    "get_sdk_platform_docs": handle_get_sdk_platform_docs,
+    "get_sdk_best_practices": handle_get_sdk_best_practices,
 }
 
 
 @app.list_tools()
 async def list_tools() -> List[Tool]:
     """列出所有可用的工具"""
-    logger.info("列出可用工具", tool_count=len(MINIGAME_TOOLS))
 
-    # 合并所有工具
+    # 合并所有文档工具
     all_tools = []
-    all_tools.extend(MINIGAME_TOOLS)
-    all_tools.extend(DOCUMENTATION_TOOLS)
+    all_tools.extend(AUTH_TOOLS)
+    all_tools.extend(CLOUD_SAVE_TOOLS)
     all_tools.extend(LEADERBOARD_TOOLS)
+    all_tools.extend(SDK_TOOLS)
 
+    logger.info("列出可用工具", tool_count=len(all_tools))
     return all_tools
 
 
@@ -271,10 +349,9 @@ async def main():
 
 
 if __name__ == "__main__":
-    # 检查必需的配置
+    # 检查配置并给出提示
     if not settings.api_key:
-        logger.error("缺少 TAPTAP_API_KEY 环境变量")
-        sys.exit(1)
+        logger.warning("未设置 TAPTAP_API_KEY，小游戏搜索功能将不可用，但文档查询功能仍然可用")
 
     # 运行服务器
     asyncio.run(main())
