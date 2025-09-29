@@ -6,34 +6,24 @@
 
 ## 🌟 功能特性
 
-### 🔐 认证和授权
-- OAuth 2.0 授权流程完整指南
-- API Key 认证最佳实践
-- 令牌管理和刷新机制
-- 安全认证代码示例
-
 ### ☁️ 云存档系统
 - 跨设备存档同步方案
 - 版本冲突智能处理
 - 多槽位存档管理
 - 数据安全和备份
+- 完整的 API 调用示例
 
 ### 🏆 排行榜系统
 - 分数提交和批量操作
 - 排名查询和实时更新
 - 排行榜界面集成
 - 竞技系统设计模式
-
-### 🔧 SDK 集成指南
-- Unity 引擎完整集成
-- Cocos Creator 详细指南
-- Web 平台 SDK 使用
-- 多平台最佳实践
+- 实时排名显示方案
 
 ### ✨ 核心优势
+- **专注用户功能** - 云存档和排行榜等需要用户 token 的核心功能
+- **完整代码示例** - 可直接复制使用的实现代码
 - **零配置启动** - 无需 API 密钥或外部依赖
-- **完整代码示例** - 可直接复制使用的代码
-- **模块化设计** - 按功能分离，便于查找
 - **即开即用** - 通过 npx 一键启动
 
 ## 🚀 快速开始
@@ -110,11 +100,6 @@ const transport = new StdioClientTransport({
 
 ## 📖 可用工具
 
-### 🔐 认证和授权工具
-- `search_auth_docs` - 搜索认证相关文档（OAuth、API Key、令牌管理）
-- `get_auth_methods` - 获取所有认证方式概览
-- `get_auth_category_docs` - 获取指定认证分类的详细文档和代码示例
-
 ### ☁️ 云存档功能工具
 - `search_cloud_save_docs` - 搜索云存档相关文档（同步、备份、冲突处理）
 - `get_cloud_save_overview` - 获取云存档功能概览
@@ -126,31 +111,9 @@ const transport = new StdioClientTransport({
 - `get_leaderboard_category_docs` - 获取指定排行榜分类的详细文档
 - `get_leaderboard_patterns` - 获取排行榜集成模式和最佳实践
 
-### 🔧 SDK 集成工具
-- `search_sdk_docs` - 搜索 SDK 集成相关文档（Unity、Cocos、Web）
-- `get_sdk_platforms` - 获取支持的 SDK 平台列表
-- `get_sdk_platform_docs` - 获取指定平台的 SDK 集成指南
-- `get_sdk_best_practices` - 获取 SDK 集成的最佳实践
+> **注意**: 这些功能都需要用户 token 来执行实际的 API 请求
 
 ## 💡 使用示例
-
-### 认证相关查询
-```
-开发者: 我想了解 TapTap 的 OAuth 登录流程
-
-MCP 工具: search_auth_docs
-参数: { "query": "OAuth", "category": "oauth" }
-→ 返回完整的 OAuth 2.0 授权流程和代码示例
-```
-
-### SDK 集成指南
-```
-开发者: 请给我 Unity 集成 TapTap SDK 的详细步骤
-
-MCP 工具: get_sdk_platform_docs
-参数: { "platform": "unity" }
-→ 返回完整的 Unity 集成代码和配置步骤
-```
 
 ### 云存档开发
 ```
@@ -169,12 +132,13 @@ MCP 工具: get_leaderboard_patterns
 → 返回完整的排行榜集成模式和游戏结束提交分数的完整代码示例
 ```
 
-### 最佳实践查询
+### 功能概览查询
 ```
-开发者: TapTap SDK 集成有什么最佳实践？
+开发者: TapTap 有哪些用户功能可以集成？
 
-MCP 工具: get_sdk_best_practices
-→ 返回初始化、用户登录、错误处理、性能优化等各方面的最佳实践
+MCP 工具: get_cloud_save_overview
+MCP 工具: get_leaderboard_overview
+→ 返回云存档和排行榜功能的完整概览和使用方法
 ```
 
 ## 🔧 开发和构建
@@ -218,15 +182,11 @@ npm publish --registry https://npm.taptap.com/
 ├── src/                          # TypeScript 源码
 │   ├── server.ts                 # 主服务器入口
 │   ├── data/                     # 静态文档数据
-│   │   ├── authDocs.ts          # 认证文档
 │   │   ├── cloudSaveDocs.ts     # 云存档文档
-│   │   ├── leaderboardDocs.ts   # 排行榜文档
-│   │   └── sdkDocs.ts           # SDK 文档
+│   │   └── leaderboardDocs.ts   # 排行榜文档
 │   └── tools/                   # 工具处理函数
-│       ├── authTools.ts         # 认证工具
 │       ├── cloudSaveTools.ts    # 云存档工具
-│       ├── leaderboardTools.ts  # 排行榜工具
-│       └── sdkTools.ts          # SDK 工具
+│       └── leaderboardTools.ts  # 排行榜工具
 ├── bin/                         # 可执行文件
 │   └── taptap-docs-mcp          # NPM 启动脚本
 ├── dist/                        # 编译输出（自动生成）

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-这是一个基于 Model Context Protocol (MCP) 的 TapTap 小游戏开发文档服务器（Node.js 版本）。该项目专注为 AI 助手提供完整的 TapTap 小游戏开发文档和代码示例，包括认证、云存档、排行榜、SDK 集成等核心功能的详细指南。项目使用 TypeScript 开发，零依赖配置，即开即用。
+这是一个基于 Model Context Protocol (MCP) 的 TapTap 小游戏开发文档服务器（Node.js 版本）。该项目专注为 AI 助手提供需要用户身份的核心功能文档，包括云存档和排行榜系统的完整开发指南和代码示例。项目使用 TypeScript 开发，零依赖配置，即开即用。
 
 ## 架构概览
 
@@ -16,17 +16,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 文档工具层
 - **`src/tools/`** - 按功能分离的文档工具集
-  - `authTools.ts` - 认证和授权相关文档工具
   - `cloudSaveTools.ts` - 云存档功能文档工具
   - `leaderboardTools.ts` - 排行榜系统文档工具
-  - `sdkTools.ts` - SDK 集成指南工具
 
 ### 数据层
 - **`src/data/`** - 按功能分离的静态文档数据（TypeScript）
-  - `authDocs.ts` - 认证系统完整文档和代码示例
   - `cloudSaveDocs.ts` - 云存档功能文档和最佳实践
   - `leaderboardDocs.ts` - 排行榜系统文档和集成模式
-  - `sdkDocs.ts` - 多平台 SDK 集成指南
 
 ## 常用命令
 
@@ -105,11 +101,6 @@ npm run build
 
 ### 文档工具分类
 
-#### 🔐 认证和授权工具
-- **`search_auth_docs`** - 搜索认证相关文档（OAuth、API Key、令牌管理）
-- **`get_auth_methods`** - 获取所有认证方式概览
-- **`get_auth_category_docs`** - 获取指定认证分类的详细文档和代码示例
-
 #### ☁️ 云存档功能工具
 - **`search_cloud_save_docs`** - 搜索云存档相关文档（同步、备份、冲突处理）
 - **`get_cloud_save_overview`** - 获取云存档功能概览
@@ -121,11 +112,7 @@ npm run build
 - **`get_leaderboard_category_docs`** - 获取指定排行榜分类的详细文档
 - **`get_leaderboard_patterns`** - 获取排行榜集成模式和最佳实践
 
-#### 🔧 SDK 集成工具
-- **`search_sdk_docs`** - 搜索 SDK 集成相关文档（Unity、Cocos、Web）
-- **`get_sdk_platforms`** - 获取支持的 SDK 平台列表
-- **`get_sdk_platform_docs`** - 获取指定平台的 SDK 集成指南
-- **`get_sdk_best_practices`** - 获取 SDK 集成的最佳实践
+> **注意**: 这些功能的实际 API 调用都需要用户的访问 token
 
 ## 核心技术栈
 
@@ -180,16 +167,14 @@ npm run build
 ### 纯文档服务设计
 项目专注于提供高质量的开发文档和代码示例，所有内容都是静态数据，无需外部 API 依赖。
 
-### 按功能模块化组织
-- **🔐 认证授权** - OAuth 2.0、API Key、令牌管理的完整指南
-- **☁️ 云存档** - 跨设备存档同步、冲突处理、最佳实践
-- **🏆 排行榜** - 分数提交、排名查询、界面集成的完整方案
-- **🔧 SDK 集成** - Unity、Cocos Creator、Web 的详细集成指南
+### 专注用户功能文档
+- **☁️ 云存档** - 跨设备存档同步、冲突处理、最佳实践的完整方案
+- **🏆 排行榜** - 分数提交、排名查询、界面集成的详细指南
 
 ### 即开即用特性
-- **零配置启动** - 无需任何 API 密钥或外部依赖
+- **专注用户功能** - 专门提供需要用户 token 的核心功能文档
 - **完整代码示例** - 每个功能都包含可直接使用的代码示例
-- **最佳实践指南** - 包含性能优化、错误处理、用户体验的建议
+- **零配置启动** - 无需任何配置文件或外部依赖
 - **搜索友好** - 支持关键词搜索和分类浏览，快速定位所需文档
 
-这种设计让开发者能够快速获取准确的开发指南，无需担心网络连接或 API 配置问题。
+这种设计让开发者能够快速获取云存档和排行榜功能的准确开发指南，专注于需要用户身份验证的核心功能实现。

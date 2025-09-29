@@ -15,10 +15,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 // 导入工具处理器
-import { authTools } from './tools/authTools.js';
 import { cloudSaveTools } from './tools/cloudSaveTools.js';
 import { leaderboardTools } from './tools/leaderboardTools.js';
-import { sdkTools } from './tools/sdkTools.js';
 
 /**
  * MCP 服务器类
@@ -50,49 +48,6 @@ class TapTapDocsMCPServer {
    */
   private setupTools(): void {
     this.tools = [
-      // 🔐 认证工具
-      {
-        name: 'search_auth_docs',
-        description: '搜索 TapTap 认证相关文档（OAuth、API Key、令牌管理）',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: '搜索关键词，如：认证、授权、登录、令牌等'
-            },
-            category: {
-              type: 'string',
-              description: '认证分类',
-              enum: ['oauth', 'api_key', 'token_management']
-            }
-          }
-        }
-      },
-      {
-        name: 'get_auth_methods',
-        description: '获取所有 TapTap 认证方式概览',
-        inputSchema: {
-          type: 'object',
-          properties: {}
-        }
-      },
-      {
-        name: 'get_auth_category_docs',
-        description: '获取指定认证分类的详细文档和代码示例',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            category: {
-              type: 'string',
-              description: '认证分类名称',
-              enum: ['oauth', 'api_key', 'token_management']
-            }
-          },
-          required: ['category']
-        }
-      },
-
       // ☁️ 云存档工具
       {
         name: 'search_cloud_save_docs',
@@ -185,57 +140,6 @@ class TapTapDocsMCPServer {
           type: 'object',
           properties: {}
         }
-      },
-
-      // 🔧 SDK 工具
-      {
-        name: 'search_sdk_docs',
-        description: '搜索 TapTap SDK 集成相关文档（Unity、Cocos、Web）',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: '搜索关键词，如：SDK、集成、Unity、Cocos等'
-            },
-            platform: {
-              type: 'string',
-              description: '开发平台',
-              enum: ['unity', 'cocos', 'web']
-            }
-          }
-        }
-      },
-      {
-        name: 'get_sdk_platforms',
-        description: '获取支持的 SDK 平台列表',
-        inputSchema: {
-          type: 'object',
-          properties: {}
-        }
-      },
-      {
-        name: 'get_sdk_platform_docs',
-        description: '获取指定平台的 SDK 集成指南',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            platform: {
-              type: 'string',
-              description: '开发平台名称',
-              enum: ['unity', 'cocos', 'web']
-            }
-          },
-          required: ['platform']
-        }
-      },
-      {
-        name: 'get_sdk_best_practices',
-        description: '获取 SDK 集成的最佳实践',
-        inputSchema: {
-          type: 'object',
-          properties: {}
-        }
       }
     ];
   }
@@ -244,11 +148,6 @@ class TapTapDocsMCPServer {
    * 设置工具处理器
    */
   private setupHandlers(): void {
-    // 认证工具处理器
-    this.toolHandlers.set('search_auth_docs', authTools.searchAuthDocs);
-    this.toolHandlers.set('get_auth_methods', authTools.getAuthMethods);
-    this.toolHandlers.set('get_auth_category_docs', authTools.getAuthCategoryDocs);
-
     // 云存档工具处理器
     this.toolHandlers.set('search_cloud_save_docs', cloudSaveTools.searchCloudSaveDocs);
     this.toolHandlers.set('get_cloud_save_overview', cloudSaveTools.getCloudSaveOverview);
@@ -259,12 +158,6 @@ class TapTapDocsMCPServer {
     this.toolHandlers.set('get_leaderboard_overview', leaderboardTools.getLeaderboardOverview);
     this.toolHandlers.set('get_leaderboard_category_docs', leaderboardTools.getLeaderboardCategoryDocs);
     this.toolHandlers.set('get_leaderboard_patterns', leaderboardTools.getLeaderboardPatterns);
-
-    // SDK 工具处理器
-    this.toolHandlers.set('search_sdk_docs', sdkTools.searchSDKDocs);
-    this.toolHandlers.set('get_sdk_platforms', sdkTools.getSDKPlatforms);
-    this.toolHandlers.set('get_sdk_platform_docs', sdkTools.getSDKPlatformDocs);
-    this.toolHandlers.set('get_sdk_best_practices', sdkTools.getSDKBestPractices);
 
     // 设置 MCP 服务器处理器
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -310,7 +203,7 @@ class TapTapDocsMCPServer {
 
     console.error('🚀 TapTap 文档 MCP 服务器已启动');
     console.error(`📚 提供 ${this.tools.length} 个文档工具`);
-    console.error('🔧 支持功能: 认证、云存档、排行榜、SDK集成');
+    console.error('🔧 支持功能: 云存档、排行榜');
   }
 }
 
