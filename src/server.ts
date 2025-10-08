@@ -18,8 +18,14 @@ import process from 'node:process';
 // 导入工具处理器
 import { leaderboardTools } from './tools/leaderboardTools.js';
 
+// 导入网络API
+import { createLeaderboard, ensureAppInfo, PeriodType, ScoreType, ScoreOrder, CalcType } from './network/leaderboardApi.js';
+import { ApiConfig } from './network/httpClient.js';
+
 // 环境变量配置
-const TAPTAP_USER_TOKEN = process.env.TAPTAP_USER_TOKEN;
+const apiConfig = ApiConfig.getInstance();
+const TAPTAP_USER_TOKEN = apiConfig.userToken;
+const TAPTAP_CLIENT_ID = apiConfig.clientId;
 const TAPTAP_PROJECT_PATH = process.env.TAPTAP_PROJECT_PATH;
 
 /**
@@ -137,10 +143,66 @@ class TapTapDocsMCPServer {
       // 🔧 Environment Check Tool
       {
         name: 'check_environment',
-        description: 'Check environment configuration and user authentication status. Use this to verify if TAPTAP_USER_TOKEN is configured and whether API mode is enabled.',
+        description: 'Check environment configuration and user authentication status. Use this to verify if TAPTAP_USER_TOKEN and TAPTAP_CLIENT_ID are configured.',
         inputSchema: {
           type: 'object',
           properties: {}
+        }
+      },
+
+      // ⚙️ Leaderboard Management Tools (requires TAPTAP_USER_TOKEN and TAPTAP_CLIENT_ID)
+      {
+        name: 'create_leaderboard',
+        description: 'Create a new leaderboard on TapTap server. Use this when user needs to create a leaderboard before using it in their minigame. If developer_id and app_id are not provided, they will be automatically fetched and cached.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            developer_id: {
+              type: 'number',
+              description: 'Developer ID (optional, will be auto-fetched if not provided)'
+            },
+            app_id: {
+              type: 'number',
+              description: 'Application/Game ID (optional, will be auto-fetched if not provided)'
+            },
+            title: {
+              type: 'string',
+              description: 'Leaderboard title/name (required)'
+            },
+            period_type: {
+              type: 'number',
+              description: 'Period type: 0=Daily, 1=Weekly, 2=Monthly, 3=Always, 4=Custom (required)',
+              enum: [0, 1, 2, 3, 4]
+            },
+            score_type: {
+              type: 'number',
+              description: 'Score type: 0=Integer, 1=Float, 2=Time (required)',
+              enum: [0, 1, 2]
+            },
+            score_order: {
+              type: 'number',
+              description: 'Score order: 0=Ascending (lower is better), 1=Descending (higher is better), 2=None (required)',
+              enum: [0, 1, 2]
+            },
+            calc_type: {
+              type: 'number',
+              description: 'Calculation type: 0=Best, 1=Latest, 2=Sum, 3=First (required)',
+              enum: [0, 1, 2, 3]
+            },
+            display_limit: {
+              type: 'number',
+              description: 'Display limit for leaderboard entries (optional, default 100)'
+            },
+            period_time: {
+              type: 'string',
+              description: 'Period reset time in HH:MM:SS format (optional, for periodic leaderboards)'
+            },
+            score_unit: {
+              type: 'string',
+              description: 'Score unit display text (optional, e.g., "points", "seconds")'
+            }
+          },
+          required: ['title', 'period_type', 'score_type', 'score_order', 'calc_type']
         }
       },
 
@@ -186,6 +248,9 @@ class TapTapDocsMCPServer {
     // 环境检查工具处理器
     this.toolHandlers.set('check_environment', this.checkEnvironment.bind(this));
 
+    // 排行榜管理工具处理器（需要 token 和 client_id）
+    this.toolHandlers.set('create_leaderboard', this.createLeaderboard.bind(this));
+
     // 用户数据工具处理器（需要 token）
     this.toolHandlers.set('get_user_leaderboard_scores', this.getUserLeaderboardScores.bind(this));
 
@@ -228,21 +293,89 @@ class TapTapDocsMCPServer {
    * 环境检查工具
    */
   private async checkEnvironment(): Promise<string> {
+    const configStatus = apiConfig.getConfigStatus();
     const envInfo = {
-      'TAPTAP_USER_TOKEN': TAPTAP_USER_TOKEN ? '✅ 已配置' : '❌ 未配置',
-      'TAPTAP_PROJECT_PATH': TAPTAP_PROJECT_PATH ? '✅ 已配置' : '❌ 未配置',
-      '服务模式': TAPTAP_USER_TOKEN ? '🔑 API 模式（可调用实际 TapTap API）' : '📚 文档模式（仅提供静态文档）'
+      ...configStatus,
+      'TAPTAP_PROJECT_PATH': TAPTAP_PROJECT_PATH ? '✅ 已配置' : '❌ 未配置 (可选)'
     };
 
     const envResult = Object.entries(envInfo)
       .map(([key, value]) => `${key}: ${value}`)
       .join('\n');
 
-    return `🔧 环境配置检查结果:\n\n${envResult}\n\n${
-      TAPTAP_USER_TOKEN
-        ? '✨ 用户已认证，可以调用需要登录的功能'
-        : '💡 设置 TAPTAP_USER_TOKEN 环境变量以启用 API 功能'
-    }`;
+    return `🔧 环境配置检查结果:\n\n${envResult}\n\n✨ 所有必需配置已就绪，可以使用完整功能`;
+  }
+
+  /**
+   * 创建排行榜
+   */
+  private async createLeaderboard(args: {
+    developer_id?: number;
+    app_id?: number;
+    title: string;
+    period_type: number;
+    score_type: number;
+    score_order: number;
+    calc_type: number;
+    display_limit?: number;
+    period_time?: string;
+    score_unit?: string;
+  }): Promise<string> {
+    try {
+      // Ensure developer_id and app_id are available
+      let developerId = args.developer_id;
+      let appId = args.app_id;
+
+      // If not provided, try to get from cache or API
+      if (!developerId || !appId) {
+        const appInfo = await ensureAppInfo(TAPTAP_PROJECT_PATH);
+
+        if (!developerId) {
+          developerId = appInfo.developer_id;
+        }
+
+        if (!appId) {
+          appId = appInfo.app_id;
+        }
+
+        if (!developerId || !appId) {
+          return `❌ 无法获取 developer_id 或 app_id\n\n` +
+                 `系统会自动从 /level/v1/list 接口获取您的应用信息。\n` +
+                 `如果失败，请检查：\n` +
+                 `1. 用户是否已创建应用/游戏\n` +
+                 `2. TAPTAP_USER_TOKEN 是否有效\n` +
+                 `3. 您也可以手动指定 developer_id 和 app_id 参数`;
+        }
+      }
+
+      const result = await createLeaderboard({
+        developer_id: developerId,
+        app_id: appId,
+        title: args.title,
+        period_type: args.period_type as PeriodType,
+        score_type: args.score_type as ScoreType,
+        score_order: args.score_order as ScoreOrder,
+        calc_type: args.calc_type as CalcType,
+        display_limit: args.display_limit,
+        period_time: args.period_time,
+        score_unit: args.score_unit
+      });
+
+      return `✅ 排行榜创建成功!\n\n` +
+             `📊 排行榜信息:\n` +
+             `- Leaderboard ID: ${result.leaderboard_id}\n` +
+             `- Open ID: ${result.open_id}\n` +
+             `- Title: ${result.title}\n` +
+             `- Status: ${result.default_status}\n\n` +
+             `📝 应用信息（已缓存）:\n` +
+             `- Developer ID: ${developerId}\n` +
+             `- App ID: ${appId}\n\n` +
+             `🎮 使用方法:\n` +
+             `在小游戏中使用 leaderboardId "${result.leaderboard_id}" 来调用排行榜 API`;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return `❌ 创建排行榜失败:\n${errorMsg}\n\n请检查:\n1. 环境变量是否正确配置（TAPTAP_USER_TOKEN, TAPTAP_CLIENT_ID, TAPTAP_CLIENT_SECRET）\n2. 用户是否已创建应用/游戏\n3. 用户是否有创建排行榜的权限`;
+    }
   }
 
   /**
@@ -289,13 +422,9 @@ class TapTapDocsMCPServer {
 
     process.stderr.write('🚀 TapTap Leaderboard MCP Server Started\n');
     process.stderr.write(`📚 Providing ${this.tools.length} tools\n`);
-    process.stderr.write('🏆 Features: Leaderboard Documentation & API\n');
-
-    if (TAPTAP_USER_TOKEN) {
-      process.stderr.write('🔑 API Mode Enabled\n');
-    } else {
-      process.stderr.write('📚 Documentation Mode (Set TAPTAP_USER_TOKEN to enable API)\n');
-    }
+    process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
+    process.stderr.write(`🌍 Environment: ${apiConfig.environment}\n`);
+    process.stderr.write(`🔗 API Base: ${apiConfig.apiBaseUrl}\n`);
   }
 }
 
