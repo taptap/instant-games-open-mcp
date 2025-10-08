@@ -219,6 +219,81 @@ export async function getAllDevelopersAndApps(): Promise<LevelListResponse> {
 }
 
 /**
+ * Leaderboard item in list
+ */
+export interface LeaderboardItem {
+  id: number;
+  leaderboard_open_id: string;
+  title: string;
+  is_default: boolean;
+  period: string;
+  whitelist_only: boolean;
+}
+
+/**
+ * Leaderboard list response
+ */
+export interface LeaderboardListResponse {
+  list: LeaderboardItem[];
+  total: number;
+}
+
+/**
+ * List leaderboards query parameters
+ */
+export interface ListLeaderboardsParams {
+  developer_id?: number;
+  app_id?: number;
+  page?: number;
+  page_size?: number;
+}
+
+/**
+ * List all leaderboards for a specific app
+ * @param params - Query parameters (developer_id and app_id will be auto-filled if not provided)
+ * @param projectPath - Optional project path for cache lookup
+ * @returns List of leaderboards and total count
+ */
+export async function listLeaderboards(
+  params: ListLeaderboardsParams = {},
+  projectPath?: string
+): Promise<LeaderboardListResponse> {
+  const client = new HttpClient();
+
+  try {
+    // Ensure developer_id and app_id are available
+    let developerId = params.developer_id;
+    let appId = params.app_id;
+
+    if (!developerId || !appId) {
+      const appInfo = await ensureAppInfo(projectPath);
+      if (!developerId) developerId = appInfo.developer_id;
+      if (!appId) appId = appInfo.app_id;
+    }
+
+    if (!developerId || !appId) {
+      throw new Error('developer_id and app_id are required');
+    }
+
+    const response = await client.get<LeaderboardListResponse>('/open/leaderboard/v1/list', {
+      params: {
+        developer_id: developerId.toString(),
+        app_id: appId.toString(),
+        page: (params.page || 1).toString(),
+        page_size: (params.page_size || 10).toString()
+      }
+    });
+
+    return response;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to list leaderboards: ${error.message}`);
+    }
+    throw new Error(`Failed to list leaderboards: ${String(error)}`);
+  }
+}
+
+/**
  * Get enum descriptions for user-friendly display
  */
 export const EnumDescriptions = {

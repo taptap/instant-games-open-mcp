@@ -19,7 +19,15 @@ import process from 'node:process';
 import { leaderboardTools } from './tools/leaderboardTools.js';
 
 // 导入网络API
-import { createLeaderboard, ensureAppInfo, PeriodType, ScoreType, ScoreOrder, CalcType } from './network/leaderboardApi.js';
+import {
+  createLeaderboard,
+  listLeaderboards,
+  ensureAppInfo,
+  PeriodType,
+  ScoreType,
+  ScoreOrder,
+  CalcType
+} from './network/leaderboardApi.js';
 import { ApiConfig } from './network/httpClient.js';
 
 // 环境变量配置
@@ -205,6 +213,31 @@ class TapTapDocsMCPServer {
           required: ['title', 'period_type', 'score_type', 'score_order', 'calc_type']
         }
       },
+      {
+        name: 'list_leaderboards',
+        description: 'List all leaderboards created for the current app/game. Use this when user wants to see existing leaderboards, check leaderboard IDs, or manage their leaderboards. Auto-fetches developer_id and app_id if not provided.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            developer_id: {
+              type: 'number',
+              description: 'Developer ID (optional, will be auto-fetched if not provided)'
+            },
+            app_id: {
+              type: 'number',
+              description: 'Application/Game ID (optional, will be auto-fetched if not provided)'
+            },
+            page: {
+              type: 'number',
+              description: 'Page number, starts from 1 (optional, default 1)'
+            },
+            page_size: {
+              type: 'number',
+              description: 'Results per page (optional, default 10)'
+            }
+          }
+        }
+      },
 
       // 🔑 User Data Tools (requires TAPTAP_USER_TOKEN)
       {
@@ -250,6 +283,7 @@ class TapTapDocsMCPServer {
 
     // 排行榜管理工具处理器（需要 token 和 client_id）
     this.toolHandlers.set('create_leaderboard', this.createLeaderboard.bind(this));
+    this.toolHandlers.set('list_leaderboards', this.listLeaderboards.bind(this));
 
     // 用户数据工具处理器（需要 token）
     this.toolHandlers.set('get_user_leaderboard_scores', this.getUserLeaderboardScores.bind(this));
@@ -375,6 +409,56 @@ class TapTapDocsMCPServer {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       return `❌ 创建排行榜失败:\n${errorMsg}\n\n请检查:\n1. 环境变量是否正确配置（TAPTAP_USER_TOKEN, TAPTAP_CLIENT_ID, TAPTAP_CLIENT_SECRET）\n2. 用户是否已创建应用/游戏\n3. 用户是否有创建排行榜的权限`;
+    }
+  }
+
+  /**
+   * 查询排行榜列表
+   */
+  private async listLeaderboards(args: {
+    developer_id?: number;
+    app_id?: number;
+    page?: number;
+    page_size?: number;
+  }): Promise<string> {
+    try {
+      const result = await listLeaderboards({
+        developer_id: args.developer_id,
+        app_id: args.app_id,
+        page: args.page,
+        page_size: args.page_size
+      }, TAPTAP_PROJECT_PATH);
+
+      if (!result.list || result.list.length === 0) {
+        return `📋 暂无排行榜\n\n您还没有创建任何排行榜。使用 create_leaderboard 工具创建第一个排行榜。`;
+      }
+
+      let output = `📋 排行榜列表 (共 ${result.total} 个)\n\n`;
+
+      result.list.forEach((item, index) => {
+        output += `${index + 1}. **${item.title}**\n`;
+        output += `   - ID: ${item.id}\n`;
+        output += `   - Open ID: ${item.leaderboard_open_id}\n`;
+        output += `   - Period: ${item.period}\n`;
+        output += `   - Default: ${item.is_default ? 'Yes' : 'No'}\n`;
+        output += `   - Whitelist Only: ${item.whitelist_only ? 'Yes' : 'No'}\n\n`;
+      });
+
+      const currentPage = args.page || 1;
+      const pageSize = args.page_size || 10;
+      const totalPages = Math.ceil(result.total / pageSize);
+
+      if (totalPages > 1) {
+        output += `\n📄 Page ${currentPage} of ${totalPages}\n`;
+        if (currentPage < totalPages) {
+          output += `Use page=${currentPage + 1} to see more results.\n`;
+        }
+      }
+
+      return output;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return `❌ 查询排行榜列表失败:\n${errorMsg}`;
     }
   }
 
