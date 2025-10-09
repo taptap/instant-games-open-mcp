@@ -23,6 +23,9 @@ import {
   createLeaderboard,
   listLeaderboards,
   ensureAppInfo,
+  getAllDevelopersAndApps,
+  selectApp,
+  SelectionRequiredError,
   PeriodType,
   ScoreType,
   ScoreOrder,
@@ -168,6 +171,34 @@ class TapTapDocsMCPServer {
         }
       },
 
+      // 📱 Developer & App Management Tools
+      {
+        name: 'list_developers_and_apps',
+        description: 'List all developers and their apps/games for the current user. Use this when multiple developers or apps exist and you need to let user/AI choose which one to use.',
+        inputSchema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'select_app',
+        description: 'Select a specific developer and app to use for subsequent operations. This will cache the selection. Use this after listing developers and apps with list_developers_and_apps.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            developer_id: {
+              type: 'number',
+              description: 'Developer ID to select (required)'
+            },
+            app_id: {
+              type: 'number',
+              description: 'App/Game ID to select (required)'
+            }
+          },
+          required: ['developer_id', 'app_id']
+        }
+      },
+
       // ⚙️ Leaderboard Management Tools (requires TAPTAP_MAC_TOKEN, TAPTAP_CLIENT_ID, TAPTAP_CLIENT_SECRET)
       {
         name: 'create_leaderboard',
@@ -294,6 +325,10 @@ class TapTapDocsMCPServer {
     // 环境检查工具处理器
     this.toolHandlers.set('check_environment', this.checkEnvironment.bind(this));
 
+    // 开发者和应用管理工具处理器
+    this.toolHandlers.set('list_developers_and_apps', this.listDevelopersAndApps.bind(this));
+    this.toolHandlers.set('select_app', this.selectApp.bind(this));
+
     // 排行榜管理工具处理器（需要 token 和 client_id）
     this.toolHandlers.set('create_leaderboard', this.createLeaderboard.bind(this));
     this.toolHandlers.set('list_leaderboards', this.listLeaderboards.bind(this));
@@ -341,8 +376,23 @@ class TapTapDocsMCPServer {
    */
   private async startLeaderboardIntegration(args: { purpose?: string }): Promise<string> {
     try {
-      // Step 1: Check existing leaderboards
-      const leaderboardsResult = await listLeaderboards({}, TAPTAP_PROJECT_PATH);
+      // Step 1: Check existing leaderboards (autoSelect = false to detect multiple apps)
+      let leaderboardsResult;
+      try {
+        leaderboardsResult = await listLeaderboards({}, TAPTAP_PROJECT_PATH);
+      } catch (error) {
+        // Check if this is a SelectionRequiredError
+        if (error instanceof SelectionRequiredError) {
+          return `🎯 排行榜接入流程\n\n` +
+                 `⚠️ **检测到多个开发者或应用**\n\n` +
+                 error.message + `\n\n` +
+                 `**流程说明：**\n` +
+                 `1. 使用 list_developers_and_apps 查看所有开发者和应用\n` +
+                 `2. 使用 select_app 选择要使用的应用\n` +
+                 `3. 再次运行 start_leaderboard_integration 继续排行榜接入流程`;
+        }
+        throw error;
+      }
 
       if (!leaderboardsResult.list || leaderboardsResult.list.length === 0) {
         // No leaderboards exist - guide to create one
@@ -376,19 +426,22 @@ class TapTapDocsMCPServer {
         output += `**推荐使用现有排行榜：**\n`;
         output += `- 名称: ${lb.title}\n`;
         output += `- ID: ${lb.leaderboard_open_id}\n`;
-        output += `- 周期: ${lb.period}\n\n`;
+        output += `- 周期: ${lb.period}\n`;
+        output += `- 默认: ${lb.is_default ? '是' : '否'}\n\n`;
         output += `**下一步：选择要实现的功能**\n`;
         output += `请告诉我您想实现以下哪个功能，我会提供相应的代码示例：\n\n`;
       } else {
         // Multiple leaderboards - let AI/user choose
         output += `**现有排行榜列表：**\n\n`;
         leaderboardsResult.list.forEach((lb, index) => {
-          output += `${index + 1}. **${lb.title}** (ID: ${lb.leaderboard_open_id})\n`;
+          output += `${index + 1}. **${lb.title}**\n`;
+          output += `   - ID: ${lb.leaderboard_open_id}\n`;
           output += `   - 周期: ${lb.period}\n`;
-          output += `   - 默认: ${lb.is_default ? '是' : '否'}\n\n`;
+          output += `   - 默认: ${lb.is_default ? '是' : '否'}\n`;
+          output += `   - 白名单: ${lb.whitelist_only ? '是' : '否'}\n\n`;
         });
         output += `**下一步：**\n`;
-        output += `请选择要使用的排行榜，或者告诉我您想创建新的排行榜。\n\n`;
+        output += `请选择要使用的排行榜 (通过 leaderboard_open_id)，或者告诉我您想创建新的排行榜。\n\n`;
       }
 
       output += `**可实现的功能：**\n`;
@@ -404,8 +457,75 @@ class TapTapDocsMCPServer {
       return `❌ 无法获取排行榜信息:\n${errorMsg}\n\n` +
              `这可能是因为：\n` +
              `1. 用户还没有创建应用/游戏\n` +
-             `2. 环境变量配置不正确\n\n` +
-             `请先确保用户已在 TapTap 平台创建了应用。`;
+             `2. 环境变量配置不正确\n` +
+             `3. 有多个开发者或应用需要选择\n\n` +
+             `请使用 list_developers_and_apps 查看可用的开发者和应用列表。`;
+    }
+  }
+
+  /**
+   * 列出所有开发者和应用
+   */
+  private async listDevelopersAndApps(): Promise<string> {
+    try {
+      const result = await getAllDevelopersAndApps();
+
+      if (!result.list || result.list.length === 0) {
+        return `📋 暂无开发者或应用\n\n您还没有创建任何开发者账号或应用。请先在 TapTap 开放平台创建应用。`;
+      }
+
+      let output = `📋 开发者和应用列表\n\n`;
+
+      result.list.forEach((developer, devIndex) => {
+        output += `**开发者 ${devIndex + 1}: ${developer.developer_name}**\n`;
+        output += `- Developer ID: ${developer.developer_id}\n`;
+
+        if (!developer.crafts || developer.crafts.length === 0) {
+          output += `- 暂无应用\n\n`;
+        } else {
+          output += `- 应用列表:\n`;
+          developer.crafts.forEach((app, appIndex) => {
+            output += `  ${appIndex + 1}. **${app.app_title}** (App ID: ${app.app_id})\n`;
+            if (app.category) {
+              output += `     类别: ${app.category}\n`;
+            }
+            if (app.is_published !== undefined) {
+              output += `     已发布: ${app.is_published ? '是' : '否'}\n`;
+            }
+          });
+          output += `\n`;
+        }
+      });
+
+      output += `\n💡 **下一步:**\n`;
+      output += `使用 select_app 工具选择要使用的开发者和应用，例如:\n`;
+      output += `- developer_id: ${result.list[0].developer_id}\n`;
+      output += `- app_id: ${result.list[0].crafts[0]?.app_id || 'N/A'}\n`;
+
+      return output;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return `❌ 获取开发者和应用列表失败:\n${errorMsg}`;
+    }
+  }
+
+  /**
+   * 选择开发者和应用
+   */
+  private async selectApp(args: { developer_id: number; app_id: number }): Promise<string> {
+    try {
+      const result = await selectApp(args.developer_id, args.app_id, TAPTAP_PROJECT_PATH);
+
+      return `✅ 已选择应用!\n\n` +
+             `📱 应用信息:\n` +
+             `- 开发者: ${result.developer_name} (ID: ${result.developer_id})\n` +
+             `- 应用: ${result.app_title} (ID: ${result.app_id})\n\n` +
+             `💾 此选择已缓存，后续操作将默认使用此应用。\n\n` +
+             `🎮 下一步:\n` +
+             `您现在可以使用 create_leaderboard 或 list_leaderboards 等工具来管理排行榜了。`;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return `❌ 选择应用失败:\n${errorMsg}\n\n请使用 list_developers_and_apps 查看可用的开发者和应用列表。`;
     }
   }
 
@@ -448,14 +568,26 @@ class TapTapDocsMCPServer {
 
       // If not provided, try to get from cache or API
       if (!developerId || !appId) {
-        const appInfo = await ensureAppInfo(TAPTAP_PROJECT_PATH);
+        try {
+          const appInfo = await ensureAppInfo(TAPTAP_PROJECT_PATH, true);
 
-        if (!developerId) {
-          developerId = appInfo.developer_id;
-        }
+          if (!developerId) {
+            developerId = appInfo.developer_id;
+          }
 
-        if (!appId) {
-          appId = appInfo.app_id;
+          if (!appId) {
+            appId = appInfo.app_id;
+          }
+        } catch (error) {
+          if (error instanceof SelectionRequiredError) {
+            return `❌ 无法创建排行榜：需要选择应用\n\n` +
+                   error.message + `\n\n` +
+                   `**操作步骤：**\n` +
+                   `1. 使用 list_developers_and_apps 查看所有可用的应用\n` +
+                   `2. 使用 select_app 选择要使用的应用\n` +
+                   `3. 再次调用 create_leaderboard 创建排行榜`;
+          }
+          throw error;
         }
 
         if (!developerId || !appId) {
@@ -494,7 +626,7 @@ class TapTapDocsMCPServer {
              `在小游戏中使用 leaderboardId "${result.leaderboard_id}" 来调用排行榜 API`;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      return `❌ 创建排行榜失败:\n${errorMsg}\n\n请检查:\n1. 环境变量是否正确配置（TAPTAP_MAC_TOKEN, TAPTAP_CLIENT_ID, TAPTAP_CLIENT_SECRET）\n2. 用户是否已创建应用/游戏\n3. 用户是否有创建排行榜的权限`;
+      return `❌ 创建排行榜失败:\n${errorMsg}\n\n请检查:\n1. 环境变量是否正确配置（TAPTAP_MAC_TOKEN, TAPTAP_CLIENT_ID, TAPTAP_CLIENT_SECRET）\n2. 用户是否已创建应用/游戏\n3. 用户是否有创建排行榜的权限\n4. 是否有多个应用需要选择 (使用 list_developers_and_apps 查看)`;
     }
   }
 
@@ -543,6 +675,15 @@ class TapTapDocsMCPServer {
 
       return output;
     } catch (error) {
+      if (error instanceof SelectionRequiredError) {
+        return `❌ 无法查询排行榜列表：需要选择应用\n\n` +
+               error.message + `\n\n` +
+               `**操作步骤：**\n` +
+               `1. 使用 list_developers_and_apps 查看所有可用的应用\n` +
+               `2. 使用 select_app 选择要使用的应用\n` +
+               `3. 再次调用 list_leaderboards 查询排行榜列表`;
+      }
+
       const errorMsg = error instanceof Error ? error.message : String(error);
       return `❌ 查询排行榜列表失败:\n${errorMsg}`;
     }
