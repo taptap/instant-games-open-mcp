@@ -29,11 +29,12 @@ export async function listDevelopersAndApps(context: HandlerContext): Promise<st
       output += `**开发者 ${devIndex + 1}: ${developer.developer_name}**\n`;
       output += `- Developer ID: ${developer.developer_id}\n`;
 
-      if (!developer.crafts || developer.crafts.length === 0) {
+      // 检查 levels 字段（而不是 crafts）
+      if (!developer.levels || developer.levels.length === 0) {
         output += `- 暂无应用\n\n`;
       } else {
         output += `- 应用列表:\n`;
-        developer.crafts.forEach((app, appIndex) => {
+        developer.levels.forEach((app, appIndex) => {
           output += `  ${appIndex + 1}. **${app.app_title}** (App ID: ${app.app_id})\n`;
           if (app.category) {
             output += `     类别: ${app.category}\n`;
@@ -49,7 +50,7 @@ export async function listDevelopersAndApps(context: HandlerContext): Promise<st
     output += `\n💡 **下一步:**\n`;
     output += `使用 select_app 工具选择要使用的开发者和应用，例如:\n`;
     output += `- developer_id: ${result.list[0].developer_id}\n`;
-    output += `- app_id: ${result.list[0].crafts[0]?.app_id || 'N/A'}\n`;
+    output += `- app_id: ${result.list[0].levels[0]?.app_id || 'N/A'}\n`;
 
     return output;
   } catch (error) {

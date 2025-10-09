@@ -118,12 +118,13 @@ export interface CraftItem {
 }
 
 /**
- * Developer with crafts list
+ * Developer with levels/apps list
  */
 export interface DeveloperCraftList {
   developer_id: number;
   developer_name: string;
-  crafts: CraftItem[];
+  levels: CraftItem[];  // API returns 'levels' not 'crafts'
+  crafts?: CraftItem[]; // Keep for backward compatibility
 }
 
 /**
@@ -167,7 +168,7 @@ export async function getAppInfo(projectPath?: string, autoSelect: boolean = tru
 
     // Count total developers and apps
     const totalDevelopers = response.list.length;
-    const totalApps = response.list.reduce((sum, dev) => sum + (dev.crafts?.length || 0), 0);
+    const totalApps = response.list.reduce((sum, dev) => sum + (dev.levels?.length || dev.crafts?.length || 0), 0);
 
     // If multiple options exist and autoSelect is false, throw error for AI to decide
     if (!autoSelect && (totalDevelopers > 1 || totalApps > 1)) {
@@ -180,11 +181,14 @@ export async function getAppInfo(projectPath?: string, autoSelect: boolean = tru
 
     const firstDeveloper = response.list[0];
 
-    if (!firstDeveloper.crafts || firstDeveloper.crafts.length === 0) {
+    // Support both 'levels' (actual API response) and 'crafts' (backward compatibility)
+    const apps = firstDeveloper.levels || firstDeveloper.crafts || [];
+
+    if (apps.length === 0) {
       throw new Error(`Developer ${firstDeveloper.developer_name} has no apps/games`);
     }
 
-    const firstApp = firstDeveloper.crafts[0];
+    const firstApp = apps[0];
 
     const appInfo: AppCacheInfo = {
       developer_id: firstDeveloper.developer_id,
@@ -259,7 +263,9 @@ export async function selectApp(developerId: number, appId: number, projectPath?
       throw new Error(`Developer with ID ${developerId} not found`);
     }
 
-    const app = developer.crafts.find(craft => craft.app_id === appId);
+    // Support both 'levels' (actual API response) and 'crafts' (backward compatibility)
+    const apps = developer.levels || developer.crafts || [];
+    const app = apps.find(craft => craft.app_id === appId);
     if (!app) {
       throw new Error(`App with ID ${appId} not found for developer ${developer.developer_name}`);
     }
