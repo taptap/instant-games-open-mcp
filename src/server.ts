@@ -17,6 +17,7 @@ import process from 'node:process';
 // 导入配置和工具定义
 import { ApiConfig } from './network/httpClient.js';
 import { getToolDefinitions } from './config/toolDefinitions.js';
+import { logger } from './utils/logger.js';
 
 // 导入文档工具
 import { leaderboardTools } from './tools/leaderboardTools.js';
@@ -50,7 +51,7 @@ class TapTapMinigameMCPServer {
     this.server = new Server(
       {
         name: 'taptap-minigame-mcp',
-        version: '1.0.2',
+        version: '1.0.3',
       }
     );
 
@@ -75,8 +76,15 @@ class TapTapMinigameMCPServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
+      // Log tool call input
+      logger.logToolCall(name, args || {});
+
       try {
         const result = await this.handleToolCall(name, args || {});
+
+        // Log tool call output
+        logger.logToolResponse(name, result, true);
+
         return {
           content: [
             {
@@ -86,6 +94,9 @@ class TapTapMinigameMCPServer {
           ]
         };
       } catch (error) {
+        // Log tool call error
+        logger.logToolResponse(name, error instanceof Error ? error.message : String(error), false);
+
         throw new McpError(
           ErrorCode.InternalError,
           `工具执行失败: ${error instanceof Error ? error.message : String(error)}`
@@ -180,6 +191,14 @@ class TapTapMinigameMCPServer {
     process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
     process.stderr.write(`🌍 Environment: ${apiConfig.environment}\n`);
     process.stderr.write(`🔗 API Base: ${apiConfig.apiBaseUrl}\n`);
+
+    if (logger.isVerbose()) {
+      process.stderr.write('🔍 Verbose logging enabled (TAPTAP_MINIGAME_MCP_VERBOSE=true)\n');
+      process.stderr.write('   - Tool call inputs and outputs will be logged\n');
+      process.stderr.write('   - HTTP requests and responses will be logged\n');
+    } else {
+      process.stderr.write('💡 Tip: Set TAPTAP_MINIGAME_MCP_VERBOSE=true for detailed logs\n');
+    }
   }
 }
 

@@ -60,13 +60,33 @@ Add to `~/.config/claude-desktop/config.json`:
 ```json
 {
   "mcpServers": {
-    "taptap-leaderboard": {
+    "taptap-minigame": {
       "command": "npx",
-      "args": ["minigame-open-mcp"],
+      "args": ["@mikoto_zero/minigame-open-mcp"],
       "env": {
-        "TAPTAP_USER_TOKEN": "your_user_token",
+        "TAPTAP_MAC_TOKEN": "{\"kid\":\"your_kid\",\"token_type\":\"mac\",\"mac_key\":\"your_key\",\"mac_algorithm\":\"hmac-sha-1\"}",
         "TAPTAP_CLIENT_ID": "your_client_id",
-        "TAPTAP_CLIENT_SECRET": "your_client_secret"
+        "TAPTAP_CLIENT_SECRET": "your_client_secret",
+        "TAPTAP_MINIGAME_MCP_VERBOSE": "false"
+      }
+    }
+  }
+}
+```
+
+**With debugging enabled:**
+
+```json
+{
+  "mcpServers": {
+    "taptap-minigame": {
+      "command": "npx",
+      "args": ["@mikoto_zero/minigame-open-mcp"],
+      "env": {
+        "TAPTAP_MAC_TOKEN": "{\"kid\":\"your_kid\",\"token_type\":\"mac\",\"mac_key\":\"your_key\",\"mac_algorithm\":\"hmac-sha-1\"}",
+        "TAPTAP_CLIENT_ID": "your_client_id",
+        "TAPTAP_CLIENT_SECRET": "your_client_secret",
+        "TAPTAP_MINIGAME_MCP_VERBOSE": "true"
       }
     }
   }
@@ -78,14 +98,15 @@ Add to `~/.config/claude-desktop/config.json`:
 ```json
 {
   "mcpServers": {
-    "taptap-leaderboard": {
+    "taptap-minigame": {
       "command": "npx",
-      "args": ["minigame-open-mcp"],
+      "args": ["@mikoto_zero/minigame-open-mcp"],
       "env": {
-        "TAPTAP_USER_TOKEN": "${CURRENT_USER_TAPTAP_TOKEN}",
+        "TAPTAP_MAC_TOKEN": "${CURRENT_USER_MAC_TOKEN}",
         "TAPTAP_CLIENT_ID": "your_client_id",
         "TAPTAP_CLIENT_SECRET": "your_client_secret",
-        "TAPTAP_PROJECT_PATH": "${CURRENT_PROJECT_PATH}"
+        "TAPTAP_PROJECT_PATH": "${CURRENT_PROJECT_PATH}",
+        "TAPTAP_MINIGAME_MCP_VERBOSE": "false"
       }
     }
   }
@@ -95,13 +116,29 @@ Add to `~/.config/claude-desktop/config.json`:
 ### Environment Variables
 
 **Required:**
-- `TAPTAP_USER_TOKEN` - User authentication token
+- `TAPTAP_MAC_TOKEN` - MAC Token in JSON format for authentication
 - `TAPTAP_CLIENT_ID` - Client ID for API access
 - `TAPTAP_CLIENT_SECRET` - Client secret for request signing
 
 **Optional:**
 - `TAPTAP_ENV` - Environment: `production` (default) or `rnd`
 - `TAPTAP_PROJECT_PATH` - Project path for local caching
+- `TAPTAP_MINIGAME_MCP_VERBOSE` - Detailed logging: `true` or `false` (default)
+
+**Debugging:**
+
+Enable detailed logging to see all tool calls, HTTP requests/responses:
+
+```bash
+export TAPTAP_MINIGAME_MCP_VERBOSE=true
+npm start
+```
+
+The verbose mode logs:
+- 📥 Tool call inputs and outputs
+- 📤 HTTP request headers and body
+- 📥 HTTP response status and data
+- 🔒 Sensitive data automatically masked
 
 ## Usage
 

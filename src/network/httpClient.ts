@@ -6,6 +6,7 @@
 import process from 'node:process';
 import cryptoJS from 'crypto-js';
 import { MacToken } from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Environment configuration
@@ -195,6 +196,9 @@ export class HttpClient {
     const signature = this.generateSignature(method, signUrl, headers, bodyString);
     headers['X-Tap-Sign'] = signature;
 
+    // Log request
+    logger.logRequest(method, fullUrl, headers, bodyString);
+
     // Set up timeout
     const controller = new AbortController();
     const timeout = options.timeout || 30000;
@@ -215,14 +219,20 @@ export class HttpClient {
       if (!response.ok) {
         const contentType = response.headers.get('content-type');
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        let errorBody: any = null;
 
         if (contentType?.includes('application/json')) {
           const errorData = await response.json() as any;
+          errorBody = errorData;
           errorMessage += ` - ${errorData.message || errorData.error || JSON.stringify(errorData)}`;
         } else {
           const errorText = await response.text();
+          errorBody = errorText;
           errorMessage += ` - ${errorText}`;
         }
+
+        // Log error response
+        logger.logResponse(method, fullUrl, response.status, response.statusText, errorBody, false);
 
         throw new Error(errorMessage);
       }
@@ -232,6 +242,9 @@ export class HttpClient {
 
       if (contentType?.includes('application/json')) {
         const jsonData = await response.json() as ApiResponse<T>;
+
+        // Log successful response
+        logger.logResponse(method, fullUrl, response.status, response.statusText, jsonData, true);
 
         // Handle API response format
         if (jsonData.success === false) {
@@ -244,6 +257,10 @@ export class HttpClient {
 
       // If not JSON, return text
       const text = await response.text();
+
+      // Log text response
+      logger.logResponse(method, fullUrl, response.status, response.statusText, text, true);
+
       return text as T;
 
     } catch (error) {
@@ -251,12 +268,17 @@ export class HttpClient {
 
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new Error(`Request timeout after ${timeout}ms`);
+          const timeoutError = new Error(`Request timeout after ${timeout}ms`);
+          logger.error(`HTTP Request timeout: ${method} ${fullUrl}`, timeoutError);
+          throw timeoutError;
         }
+        logger.error(`HTTP Request failed: ${method} ${fullUrl}`, error);
         throw error;
       }
 
-      throw new Error(`Request failed: ${String(error)}`);
+      const genericError = new Error(`Request failed: ${String(error)}`);
+      logger.error(`HTTP Request failed: ${method} ${fullUrl}`, genericError);
+      throw genericError;
     }
   }
 

@@ -73,6 +73,9 @@ npm start
 
 # 通过 npx 直接运行（推荐）
 npx @mikoto_zero/minigame-open-mcp
+
+# 启用详细日志模式（用于调试）
+TAPTAP_MINIGAME_MCP_VERBOSE=true npm start
 ```
 
 ### 环境配置
@@ -103,7 +106,28 @@ npm start
         "TAPTAP_CLIENT_ID": "your_client_id",
         "TAPTAP_CLIENT_SECRET": "your_client_secret",
         "TAPTAP_ENV": "production",
-        "TAPTAP_PROJECT_PATH": "${CURRENT_PROJECT_PATH}"
+        "TAPTAP_PROJECT_PATH": "${CURRENT_PROJECT_PATH}",
+        "TAPTAP_MINIGAME_MCP_VERBOSE": "false"
+      }
+    }
+  }
+}
+```
+
+**开启调试模式：**
+```json
+{
+  "mcpServers": {
+    "taptap-minigame": {
+      "command": "npx",
+      "args": ["@mikoto_zero/minigame-open-mcp"],
+      "env": {
+        "TAPTAP_MAC_TOKEN": "${CURRENT_USER_MAC_TOKEN}",
+        "TAPTAP_CLIENT_ID": "your_client_id",
+        "TAPTAP_CLIENT_SECRET": "your_client_secret",
+        "TAPTAP_ENV": "production",
+        "TAPTAP_PROJECT_PATH": "${CURRENT_PROJECT_PATH}",
+        "TAPTAP_MINIGAME_MCP_VERBOSE": "true"
       }
     }
   }
@@ -141,7 +165,26 @@ node dist/server.js
       "env": {
         "TAPTAP_MAC_TOKEN": "{\"kid\":\"your_kid\",\"token_type\":\"mac\",\"mac_key\":\"your_key\",\"mac_algorithm\":\"hmac-sha-1\"}",
         "TAPTAP_CLIENT_ID": "your_client_id",
-        "TAPTAP_CLIENT_SECRET": "your_secret"
+        "TAPTAP_CLIENT_SECRET": "your_secret",
+        "TAPTAP_MINIGAME_MCP_VERBOSE": "false"
+      }
+    }
+  }
+}
+```
+
+**开启调试模式：**
+```json
+{
+  "mcpServers": {
+    "taptap-minigame": {
+      "command": "npx",
+      "args": ["@mikoto_zero/minigame-open-mcp"],
+      "env": {
+        "TAPTAP_MAC_TOKEN": "{\"kid\":\"your_kid\",\"token_type\":\"mac\",\"mac_key\":\"your_key\",\"mac_algorithm\":\"hmac-sha-1\"}",
+        "TAPTAP_CLIENT_ID": "your_client_id",
+        "TAPTAP_CLIENT_SECRET": "your_secret",
+        "TAPTAP_MINIGAME_MCP_VERBOSE": "true"
       }
     }
   }
@@ -214,9 +257,105 @@ node dist/server.js
   - production: `https://agent.tapapis.cn`
   - rnd: `https://agent.api.xdrnd.cn`
 - `TAPTAP_PROJECT_PATH`: 项目路径，用于本地缓存
+- `TAPTAP_MINIGAME_MCP_VERBOSE`: 详细日志模式，设置为 `true` 或 `1` 启用
+  - 记录所有工具调用的输入和输出
+  - 记录所有 HTTP 请求和响应
+  - 用于调试和问题排查
 
 **环境检查**：
 使用 `check_environment` 工具检查所有环境变量的配置状态。
+
+## 日志和调试
+
+### 详细日志模式
+
+项目支持详细日志模式，通过环境变量 `TAPTAP_MINIGAME_MCP_VERBOSE` 控制。
+
+**启用方式：**
+```bash
+# 启用详细日志
+export TAPTAP_MINIGAME_MCP_VERBOSE=true
+# 或
+export TAPTAP_MINIGAME_MCP_VERBOSE=1
+
+# 然后启动服务器
+npm start
+```
+
+**日志内容：**
+
+1. **工具调用日志** - 记录每个 MCP 工具的调用
+   - 工具名称和时间戳
+   - 输入参数（完整 JSON）
+   - 输出结果（前 500 字符）
+   - 执行状态（成功/失败）
+
+2. **HTTP 请求日志** - 记录所有 TapTap API 请求
+   - 请求方法和 URL
+   - 请求头（敏感信息已脱敏）
+   - 请求体
+   - 请求时间戳
+
+3. **HTTP 响应日志** - 记录所有 API 响应
+   - 响应状态码和状态文本
+   - 响应体（完整 JSON）
+   - 响应时间戳
+   - 成功/失败标识
+
+**日志格式示例：**
+```
+================================================================================
+[2025-01-15T10:30:45.123Z] [TOOL CALL] create_leaderboard
+================================================================================
+📥 Input:
+{
+  "name": "Weekly Ranking",
+  "score_type": "better_than"
+}
+
+--------------------------------------------------------------------------------
+[2025-01-15T10:30:45.456Z] [TOOL RESPONSE] create_leaderboard - ✅ SUCCESS
+--------------------------------------------------------------------------------
+📤 Output:
+Leaderboard created successfully!
+Leaderboard ID: 123456
+================================================================================
+
+================================================================================
+[2025-01-15T10:30:45.500Z] [HTTP REQUEST] POST /level/v1/create
+================================================================================
+📤 Headers:
+{
+  "Content-Type": "application/json",
+  "Authorization": "MAC id=\"abc123\", ts=\"1234567890\", nonce=\"random123\", mac=\"***\"",
+  "X-Tap-Sign": "***"
+}
+📤 Body:
+{"name":"Weekly Ranking","score_type":"better_than"}
+
+--------------------------------------------------------------------------------
+[2025-01-15T10:30:45.789Z] [HTTP RESPONSE] POST /level/v1/create - 200 OK ✅
+--------------------------------------------------------------------------------
+📥 Response:
+{
+  "success": true,
+  "data": {
+    "leaderboard_id": "123456"
+  }
+}
+================================================================================
+```
+
+**安全性：**
+- MAC Token 的 `mac` 字段自动脱敏为 `***`
+- `X-Tap-Sign` 签名自动脱敏为 `***`
+- 其他敏感信息根据需要进行脱敏
+
+**使用场景：**
+- 开发和调试新功能
+- 排查 API 调用问题
+- 了解请求和响应的完整内容
+- 验证认证和签名是否正确
 
 ## 开发注意事项
 
