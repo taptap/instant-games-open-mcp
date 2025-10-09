@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2025-10-09
+
+### Fixed
+- 🐛 **Critical bug fix** - Fixed API field name mismatch (`levels` vs `crafts`)
+  - API returns `levels` field, but code was accessing `crafts` field
+  - Caused "Cannot read properties of undefined (reading '0')" error
+  - Updated type definitions and all field accesses
+  - Added backward compatibility support for both field names
+
 ## [1.0.4] - 2025-10-09
 
 ### Enhanced
