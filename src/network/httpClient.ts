@@ -1,10 +1,11 @@
 /**
  * HTTP Client for TapTap API Requests
- * Handles authentication, request signing, headers, and error responses
+ * Handles MAC authentication, request signing, headers, and error responses
  */
 
 import process from 'node:process';
 import cryptoJS from 'crypto-js';
+import { MacToken } from '../types/index.js';
 
 /**
  * Environment configuration
@@ -12,7 +13,7 @@ import cryptoJS from 'crypto-js';
 export class ApiConfig {
   private static instance: ApiConfig;
 
-  public readonly userToken: string;
+  public readonly macToken: MacToken;
   public readonly clientId: string;
   public readonly clientSecret: string;
   public readonly apiBaseUrl: string;
@@ -20,9 +21,17 @@ export class ApiConfig {
 
   private constructor() {
     // Required environment variables
-    this.userToken = process.env.TAPTAP_USER_TOKEN || '';
+    const macTokenStr = process.env.TAPTAP_MAC_TOKEN || '';
     this.clientId = process.env.TAPTAP_CLIENT_ID || '';
     this.clientSecret = process.env.TAPTAP_CLIENT_SECRET || '';
+
+    // Parse MAC Token from JSON string
+    try {
+      this.macToken = macTokenStr ? JSON.parse(macTokenStr) : {} as MacToken;
+    } catch (error) {
+      process.stderr.write('❌ Failed to parse TAPTAP_MAC_TOKEN: Invalid JSON format\n');
+      process.exit(1);
+    }
 
     // Optional: default to production
     this.environment = (process.env.TAPTAP_ENV === 'rnd') ? 'rnd' : 'production';
@@ -39,8 +48,8 @@ export class ApiConfig {
   private validateConfig(): void {
     const missing: string[] = [];
 
-    if (!this.userToken) {
-      missing.push('TAPTAP_USER_TOKEN');
+    if (!this.macToken.kid || !this.macToken.mac_key) {
+      missing.push('TAPTAP_MAC_TOKEN (must be valid JSON with kid and mac_key)');
     }
 
     if (!this.clientId) {
@@ -53,7 +62,8 @@ export class ApiConfig {
 
     if (missing.length > 0) {
       process.stderr.write(`❌ Missing required environment variables: ${missing.join(', ')}\n`);
-      process.stderr.write('Please configure these variables in your MCP server settings.\n');
+      process.stderr.write('\nExample TAPTAP_MAC_TOKEN format:\n');
+      process.stderr.write('{"kid":"abc123","token_type":"mac","mac_key":"secret_key","mac_algorithm":"hmac-sha-1"}\n');
       process.exit(1);
     }
   }
@@ -66,12 +76,12 @@ export class ApiConfig {
   }
 
   public isConfigured(): boolean {
-    return !!(this.userToken && this.clientId && this.clientSecret);
+    return !!(this.macToken.kid && this.macToken.mac_key && this.clientId && this.clientSecret);
   }
 
   public getConfigStatus(): Record<string, string> {
     return {
-      'TAPTAP_USER_TOKEN': this.userToken ? '✅ 已配置' : '❌ 未配置',
+      'TAPTAP_MAC_TOKEN': this.macToken.kid ? `✅ 已配置 (kid: ${this.macToken.kid.substring(0, 8)}...)` : '❌ 未配置',
       'TAPTAP_CLIENT_ID': this.clientId ? '✅ 已配置' : '❌ 未配置',
       'TAPTAP_CLIENT_SECRET': this.clientSecret ? '✅ 已配置' : '❌ 未配置',
       'TAPTAP_ENV': `${this.environment} (${this.apiBaseUrl})`,
@@ -124,7 +134,7 @@ export class HttpClient {
   }
 
   /**
-   * Generic request method with signature
+   * Generic request method with MAC authentication and signature
    */
   private async request<T>(
     method: string,
@@ -152,7 +162,6 @@ export class HttpClient {
     let bodyString = method === 'POST' ? '{}' : '';
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.config.userToken}`,
       ...(options.headers || {})
     };
 
@@ -171,6 +180,10 @@ export class HttpClient {
         bodyString = JSON.stringify(options.body);
       }
     }
+
+    // Generate MAC Authorization header
+    const authorization = this.generateMacAuthorization(fullUrl, method);
+    headers['Authorization'] = authorization;
 
     // Add timestamp and nonce headers
     const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -248,7 +261,53 @@ export class HttpClient {
   }
 
   /**
-   * Generate request signature
+   * Generate MAC Authorization header
+   * Format: MAC id="kid", ts="timestamp", nonce="random", mac="signature"
+   */
+  private generateMacAuthorization(requestUrl: string, method: string): string {
+    const url = new URL(requestUrl);
+    const timestamp = Math.floor(Date.now() / 1000).toString().padStart(10, '0');
+    const nonce = this.generateRandomString(16);
+    const host = url.hostname;
+    const uri = url.pathname + url.search;
+    const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+    const other = '';
+
+    // Build MAC signature base string
+    const signatureBase = this.buildMacSignatureBase(timestamp, nonce, method, uri, host, port, other);
+
+    // Sign with mac_key using HMAC-SHA1
+    const hmac = cryptoJS.HmacSHA1(signatureBase, this.config.macToken.mac_key);
+    const macSignature = cryptoJS.enc.Base64.stringify(hmac);
+
+    return `MAC id="${this.config.macToken.kid}", ts="${timestamp}", nonce="${nonce}", mac="${macSignature}"`;
+  }
+
+  /**
+   * Build MAC signature base string
+   */
+  private buildMacSignatureBase(
+    time: string,
+    nonce: string,
+    method: string,
+    uri: string,
+    host: string,
+    port: string,
+    other: string
+  ): string {
+    let base = `${time}\n${nonce}\n${method}\n${uri}\n${host}\n${port}\n`;
+
+    if (!other) {
+      base += '\n';
+    } else {
+      base += `${other}\n`;
+    }
+
+    return base;
+  }
+
+  /**
+   * Generate request signature for X-Tap-Sign header
    * Format: HMAC-SHA256(method + url + headers + body, CLIENT_SECRET)
    */
   private generateSignature(

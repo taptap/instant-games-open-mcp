@@ -32,7 +32,7 @@ import { ApiConfig } from './network/httpClient.js';
 
 // 环境变量配置
 const apiConfig = ApiConfig.getInstance();
-const TAPTAP_USER_TOKEN = apiConfig.userToken;
+const TAPTAP_MAC_TOKEN = apiConfig.macToken;
 const TAPTAP_CLIENT_ID = apiConfig.clientId;
 const TAPTAP_PROJECT_PATH = process.env.TAPTAP_PROJECT_PATH;
 
@@ -161,14 +161,14 @@ class TapTapDocsMCPServer {
       // 🔧 Environment Check Tool
       {
         name: 'check_environment',
-        description: 'Check environment configuration and user authentication status. Use this to verify if TAPTAP_USER_TOKEN and TAPTAP_CLIENT_ID are configured.',
+        description: 'Check environment configuration and user authentication status. Use this to verify if TAPTAP_MAC_TOKEN and TAPTAP_CLIENT_ID are configured.',
         inputSchema: {
           type: 'object',
           properties: {}
         }
       },
 
-      // ⚙️ Leaderboard Management Tools (requires TAPTAP_USER_TOKEN and TAPTAP_CLIENT_ID)
+      // ⚙️ Leaderboard Management Tools (requires TAPTAP_MAC_TOKEN, TAPTAP_CLIENT_ID, TAPTAP_CLIENT_SECRET)
       {
         name: 'create_leaderboard',
         description: 'Create a new leaderboard on TapTap server. Use this AFTER checking existing leaderboards with list_leaderboards or start_leaderboard_integration. Auto-fetches developer_id and app_id if not provided. Returns the leaderboard_id needed for client-side APIs.',
@@ -249,7 +249,7 @@ class TapTapDocsMCPServer {
         }
       },
 
-      // 🔑 User Data Tools (requires TAPTAP_USER_TOKEN)
+      // 🔑 User Data Tools (requires TAPTAP_MAC_TOKEN)
       {
         name: 'get_user_leaderboard_scores',
         description: 'Get actual user leaderboard score data from TapTap API (requires user login). Use this when user wants to see their own scores or ranking positions. Falls back to documentation mode if token is not provided.',
@@ -463,7 +463,7 @@ class TapTapDocsMCPServer {
                  `系统会自动从 /level/v1/list 接口获取您的应用信息。\n` +
                  `如果失败，请检查：\n` +
                  `1. 用户是否已创建应用/游戏\n` +
-                 `2. TAPTAP_USER_TOKEN 是否有效\n` +
+                 `2. TAPTAP_MAC_TOKEN 是否有效\n` +
                  `3. 您也可以手动指定 developer_id 和 app_id 参数`;
         }
       }
@@ -494,7 +494,7 @@ class TapTapDocsMCPServer {
              `在小游戏中使用 leaderboardId "${result.leaderboard_id}" 来调用排行榜 API`;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      return `❌ 创建排行榜失败:\n${errorMsg}\n\n请检查:\n1. 环境变量是否正确配置（TAPTAP_USER_TOKEN, TAPTAP_CLIENT_ID, TAPTAP_CLIENT_SECRET）\n2. 用户是否已创建应用/游戏\n3. 用户是否有创建排行榜的权限`;
+      return `❌ 创建排行榜失败:\n${errorMsg}\n\n请检查:\n1. 环境变量是否正确配置（TAPTAP_MAC_TOKEN, TAPTAP_CLIENT_ID, TAPTAP_CLIENT_SECRET）\n2. 用户是否已创建应用/游戏\n3. 用户是否有创建排行榜的权限`;
     }
   }
 
@@ -552,8 +552,8 @@ class TapTapDocsMCPServer {
    * 获取用户排行榜分数数据
    */
   private async getUserLeaderboardScores(args: { leaderboardId?: string; limit?: number }): Promise<string> {
-    if (!TAPTAP_USER_TOKEN) {
-      return `❌ 此功能需要用户登录 TapTap\n请设置 TAPTAP_USER_TOKEN 环境变量\n\n降级为文档模式:\n${await leaderboardTools.getLeaderboardOverview()}`;
+    if (!TAPTAP_MAC_TOKEN || !TAPTAP_MAC_TOKEN.kid) {
+      return `❌ 此功能需要用户登录 TapTap\n请设置 TAPTAP_MAC_TOKEN 环境变量\n\n降级为文档模式:\n${await leaderboardTools.getLeaderboardOverview()}`;
     }
 
     try {
@@ -566,7 +566,7 @@ class TapTapDocsMCPServer {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${TAPTAP_USER_TOKEN}`,
+          'Authorization': `MAC id="${TAPTAP_MAC_TOKEN.kid}"`,
           'Content-Type': 'application/json'
         }
       });
