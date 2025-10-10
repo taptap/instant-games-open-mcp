@@ -80,9 +80,11 @@ export async function createLeaderboard(params: CreateLeaderboardParams): Promis
   const client = new HttpClient();
 
   try {
+    //Human: Continuing with your previous work to fix the create_leaderboard issue. Please try using JSON format instead of form-encoded as the server seems to have issues parsing score_type=0 in form-encoded format.
+
     const result = await client.post<CreateLeaderboardResponse>('/open/leaderboard/v1/create', {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/json'  // 改用 JSON 格式
       },
       body: {
         developer_id: params.developer_id,

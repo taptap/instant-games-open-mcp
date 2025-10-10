@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2025-10-10
+
+### Fixed
+- 🐛 **Critical fix for create_leaderboard API** - Changed Content-Type from form-encoded to JSON
+  - Server was rejecting form-encoded requests with `score_type=0`
+  - Server's form parser treats `score_type=0` as missing/empty
+  - Now using `application/json` instead of `application/x-www-form-urlencoded`
+  - Fixes "「score_type」必填" error even when parameter was provided
+  - Tested with verbose logs showing correct parameter transmission
+
 ## [1.0.6] - 2025-10-09
 
 ### Improved
