@@ -84,27 +84,29 @@ export async function createLeaderboard(params: CreateLeaderboardParams): Promis
   const client = new HttpClient();
 
   try {
-    // Server expects string values for all fields in JSON format
-    // Convert all numbers to strings to match Go backend expectations
-    const requestBody: Record<string, string> = {
-      developer_id: String(params.developer_id),
-      app_id: String(params.app_id),
-      title: params.title,
-      period_type: String(params.period_type),
-      score_type: String(params.score_type),
-      score_order: String(params.score_order),
-      calc_type: String(params.calc_type)
+    // Build request body with correct types:
+    // - IDs (developer_id, app_id, display_limit) remain as numbers
+    // - Enum values (period_type, score_type, etc.) converted to strings
+    // - Text fields (title, period_time, score_unit) remain as strings
+    const requestBody: Record<string, string | number> = {
+      developer_id: params.developer_id,              // number (ID)
+      app_id: params.app_id,                          // number (ID)
+      title: params.title,                            // string
+      period_type: String(params.period_type),        // string (enum)
+      score_type: String(params.score_type),          // string (enum)
+      score_order: String(params.score_order),        // string (enum)
+      calc_type: String(params.calc_type)             // string (enum)
     };
 
     // Add optional fields only if provided
     if (params.display_limit !== undefined) {
-      requestBody.display_limit = String(params.display_limit);
+      requestBody.display_limit = params.display_limit;  // number (ID)
     }
     if (params.period_time) {
-      requestBody.period_time = params.period_time;
+      requestBody.period_time = params.period_time;      // string
     }
     if (params.score_unit) {
-      requestBody.score_unit = params.score_unit;
+      requestBody.score_unit = params.score_unit;        // string
     }
 
     const result = await client.post<CreateLeaderboardResponse>('/open/leaderboard/v1/create', {
