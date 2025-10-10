@@ -148,53 +148,67 @@ export function getToolDefinitions(): Tool[] {
     // ⚙️ Leaderboard Management Tools (requires TAPTAP_MAC_TOKEN, TAPTAP_CLIENT_ID, TAPTAP_CLIENT_SECRET)
     {
       name: 'create_leaderboard',
-      description: 'Create a new leaderboard on TapTap server. Use this AFTER checking existing leaderboards with list_leaderboards or start_leaderboard_integration. Auto-fetches developer_id and app_id if not provided. Returns the leaderboard_id needed for client-side APIs.',
+      description: `Create a new leaderboard on TapTap server. Use this AFTER checking existing leaderboards with list_leaderboards.
+
+IMPORTANT - Required parameters (MUST provide all 5):
+1. title: Leaderboard name/title
+2. period_type: Period type (0=Daily, 1=Weekly, 2=Monthly, 3=Always, 4=Custom)
+3. score_type: Score type (0=Integer, 1=Float, 2=Time) - MUST be a number (0, 1, or 2)
+4. score_order: Score order (0=Ascending/lower better, 1=Descending/higher better, 2=None)
+5. calc_type: Calculation type (0=Best, 1=Latest, 2=Sum, 3=First)
+
+Common configurations:
+- High score game: period_type=1(Weekly), score_type=0(Integer), score_order=1(Descending), calc_type=0(Best)
+- Racing game: period_type=1(Weekly), score_type=2(Time), score_order=0(Ascending), calc_type=0(Best)
+- Cumulative: period_type=3(Always), score_type=0(Integer), score_order=1(Descending), calc_type=2(Sum)
+
+Auto-fetches developer_id and app_id if not provided. Returns leaderboard_id for client-side APIs.`,
       inputSchema: {
         type: 'object',
         properties: {
           developer_id: {
             type: 'number',
-            description: 'Developer ID (optional, will be auto-fetched if not provided)'
+            description: 'Developer ID (optional, auto-fetched from /level/v1/list API if not provided)'
           },
           app_id: {
             type: 'number',
-            description: 'Application/Game ID (optional, will be auto-fetched if not provided)'
+            description: 'Application/Game ID (optional, auto-fetched from /level/v1/list API if not provided)'
           },
           title: {
             type: 'string',
-            description: 'Leaderboard title/name (required)'
+            description: 'Leaderboard title/name, e.g., "Weekly High Score", "Best Time Trial" (REQUIRED)'
           },
           period_type: {
             type: 'number',
-            description: 'Period type: 0=Daily, 1=Weekly, 2=Monthly, 3=Always, 4=Custom (required)',
+            description: 'Reset period: 0=Daily, 1=Weekly, 2=Monthly, 3=Always (no reset), 4=Custom period (REQUIRED)',
             enum: [0, 1, 2, 3, 4]
           },
           score_type: {
             type: 'number',
-            description: 'Score type: 0=Integer, 1=Float, 2=Time (required)',
+            description: 'Score data type: 0=Integer (e.g., points, kills), 1=Float (decimal scores), 2=Time (milliseconds) (REQUIRED - must be 0, 1, or 2)',
             enum: [0, 1, 2]
           },
           score_order: {
             type: 'number',
-            description: 'Score order: 0=Ascending (lower is better), 1=Descending (higher is better), 2=None (required)',
+            description: 'Ranking order: 0=Ascending (lower score is better, e.g., race time), 1=Descending (higher score is better, e.g., points), 2=None (no ordering) (REQUIRED)',
             enum: [0, 1, 2]
           },
           calc_type: {
             type: 'number',
-            description: 'Calculation type: 0=Best, 1=Latest, 2=Sum, 3=First (required)',
+            description: 'Score calculation when player submits multiple times: 0=Best (keep highest/lowest), 1=Latest (keep most recent), 2=Sum (add all scores), 3=First (keep first submission) (REQUIRED)',
             enum: [0, 1, 2, 3]
           },
           display_limit: {
             type: 'number',
-            description: 'Display limit for leaderboard entries (optional, default 100)'
+            description: 'Maximum number of entries to display in leaderboard UI (optional, default 100, range 1-1000)'
           },
           period_time: {
             type: 'string',
-            description: 'Period reset time in HH:MM:SS format (optional, for periodic leaderboards)'
+            description: 'Daily/weekly/monthly reset time in HH:MM:SS format, e.g., "00:00:00" for midnight (optional, only for period_type 0/1/2)'
           },
           score_unit: {
             type: 'string',
-            description: 'Score unit display text (optional, e.g., "points", "seconds")'
+            description: 'Unit text displayed with score, e.g., "分" (points), "秒" (seconds), "kills" (optional)'
           }
         },
         required: ['title', 'period_type', 'score_type', 'score_order', 'calc_type']

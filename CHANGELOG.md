@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Improved
+- 📝 **Enhanced tool descriptions** - Significantly improved `create_leaderboard` tool description
+  - Added clear list of 5 REQUIRED parameters with explanations
+  - Added common configuration examples (high score, racing, cumulative)
+  - Emphasized that score_type MUST be a number (0, 1, or 2)
+  - Added detailed parameter descriptions with real-world examples
+  - Better guidance for AI agents to provide correct parameters
+
 ## [1.0.5] - 2025-10-09
 
 ### Fixed
