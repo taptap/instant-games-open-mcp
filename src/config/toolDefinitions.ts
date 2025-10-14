@@ -161,7 +161,40 @@ Use this as the first step for any leaderboard integration request.`,
     // ⚙️ Leaderboard Management Tools (requires TDS_MCP_MAC_TOKEN, TDS_MCP_CLIENT_ID, TDS_MCP_CLIENT_TOKEN)
     {
       name: 'create_leaderboard',
-      description: `Create a new leaderboard on TapTap server. Use this AFTER checking existing leaderboards with list_leaderboards.
+      description: `Create a new leaderboard on TapTap server.
+
+⚠️ IMPORTANT AI AGENT BEHAVIOR:
+DO NOT create a leaderboard without user confirmation!
+
+SMART WORKFLOW (use context to make suggestions):
+1. 🔍 **Analyze the context** - Look at project files, code, game name, etc. to infer game type
+2. 💡 **Provide intelligent suggestions** - Based on context, suggest appropriate leaderboard configuration
+3. ✅ **Get user confirmation** - Present your suggestion and ask user to confirm or modify
+
+Example smart interaction:
+User: "I want to create a leaderboard"
+AI (after analyzing context): "Based on your project files, I see this is a racing game. I suggest creating a 'Weekly Best Time Leaderboard' with these settings:
+- Type: Best time (faster is better)
+- Reset: Every Monday at 8:00 AM
+- Calculation: Keep best score
+
+Does this work for you? Or would you like to adjust any settings?"
+
+HANDLING USER RESPONSES:
+- ✅ If user confirms (e.g., "yes", "okay", "sounds good") → Create leaderboard immediately
+- 🔄 If user wants modifications (e.g., "change to daily", "I want high score instead") → Adjust settings and confirm again
+- ❌ If user rejects (e.g., "no", "not suitable", "I want something different") → Ask detailed questions to understand their needs:
+  1. What type of ranking do they actually want?
+  2. What reset period would be better?
+  3. Any other specific requirements?
+  Then provide a new suggestion based on their feedback.
+
+FALLBACK (when context is unclear or after user rejection):
+If you cannot infer the game type from context, ask these questions:
+1. 📝 What type of game is this?
+2. 🎯 What kind of ranking: high score, best time, or cumulative points?
+3. 🔄 Reset period: never, daily, weekly, or monthly?
+4. ⏰ Reset time (if applicable)?
 
 ⚠️ CRITICAL RULES:
 1. ALL enum values CANNOT be 0 (0 = UNSPECIFIED/invalid)! Use values 1-4 only!
@@ -169,25 +202,14 @@ Use this as the first step for any leaderboard integration request.`,
    - Auto-defaults to "08:00:00" (8 AM) if not provided
    - period_type=1 (Always) does NOT need period_time
 
-Required parameters (MUST provide all 5 with VALID values):
-1. title: Leaderboard name/title (string)
-2. period_type: MUST be 1-4 (DO NOT use 0!)
-   - 1=Always/永久(no reset)
-   - 2=Daily/每天(resets daily at period_time)
-   - 3=Weekly/每周一(resets every Monday at period_time)
-   - 4=Monthly/每月1日(resets on 1st at period_time)
-3. score_type: MUST be 1-2 (DO NOT use 0!)
-   - 1=Integer/数值型, 2=Time/时间型
-4. score_order: MUST be 1-2 (DO NOT use 0!)
-   - 1=Descending/降序(higher better), 2=Ascending/升序(lower better)
-5. calc_type: MUST be 1-3 (DO NOT use 0!)
-   - 1=Sum/累计分, 2=Best/最佳分, 3=Latest/最新分
-6. period_time: REQUIRED if period_type is 2/3/4 (HH:MM:SS format, e.g., "08:00:00")
-
-Example configurations:
-- High score game: period_type=3, score_type=1, score_order=1, calc_type=2, period_time="08:00:00"
-- Racing game: period_type=3, score_type=2, score_order=2, calc_type=2, period_time="08:00:00"
-- Cumulative points: period_type=1, score_type=1, score_order=1, calc_type=1 (no period_time needed)
+Parameter mapping based on user answers:
+- High score game → period_type=3, score_type=1, score_order=1, calc_type=2
+- Racing/Time trial → period_type=3, score_type=2, score_order=2, calc_type=2
+- Cumulative points → period_type=1, score_type=1, score_order=1, calc_type=1
+- Never reset → period_type=1
+- Daily reset → period_type=2, period_time required
+- Weekly reset → period_type=3, period_time required
+- Monthly reset → period_type=4, period_time required
 
 Auto-fetches developer_id and app_id if not provided. Returns leaderboard_id for client-side APIs.`,
       inputSchema: {

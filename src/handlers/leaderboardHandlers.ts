@@ -28,7 +28,7 @@ export interface HandlerContext {
  * Start leaderboard integration workflow - guides user through the process
  */
 export async function startLeaderboardIntegration(
-  args: { purpose?: string },
+  _args: { purpose?: string },
   context: HandlerContext
 ): Promise<string> {
   try {
@@ -51,37 +51,33 @@ export async function startLeaderboardIntegration(
     }
 
     if (!leaderboardsResult.list || leaderboardsResult.list.length === 0) {
-      // No leaderboards exist - guide to create one
+      // No leaderboards exist - prompt AI to analyze context and make suggestions
       return `🎯 排行榜接入流程\n\n` +
              `📋 **当前状态：** 暂无排行榜\n\n` +
-             `**下一步操作：**\n` +
-             `您需要先在服务器端创建一个排行榜（使用 create_leaderboard 工具）。\n\n` +
-             `⚠️ **重要：** TapTap 排行榜不需要引入任何 npm 包或 JS SDK！\n` +
+             `**⚠️ AI Agent 智能引导流程：**\n\n` +
+             `**第一步：分析上下文** 🔍\n` +
+             `- 查看项目文件、代码、注释\n` +
+             `- 识别游戏类型（如：跑酷、射击、益智、卡牌等）\n` +
+             `- 推测排行榜需求\n\n` +
+             `**第二步：提供智能建议** 💡\n` +
+             `根据分析结果，向用户提供具体的排行榜配置建议。例如：\n` +
+             `"根据您的项目分析，这是一个【游戏类型】。我建议创建【排行榜类型】：\n` +
+             `- 类型：【高分榜/最佳时间/累计积分】\n` +
+             `- 重置周期：【永久/每天/每周/每月】\n` +
+             `- 重置时间：【具体时间】\n` +
+             `这样的配置是否合适？"\n\n` +
+             `**第三步：确认并创建** ✅\n` +
+             `- 等待用户确认或提出修改\n` +
+             `- 根据用户反馈调整配置\n` +
+             `- 确认后调用 create_leaderboard 工具\n\n` +
+             `**如果无法从上下文推测，则直接询问：**\n` +
+             `1. 游戏类型是什么？\n` +
+             `2. 需要什么类型的排名？\n` +
+             `3. 是否需要定期重置？\n\n` +
+             `💡 **提示：** TapTap 排行榜不需要引入任何 npm 包或 JS SDK！\n` +
              `- 客户端直接使用全局 tap 对象\n` +
              `- 无需 import 或 require\n` +
-             `- TapTap 运行环境自动提供\n\n` +
-             `**创建排行榜需要配置（所有值不能为 0）：**\n` +
-             `1. title - 排行榜名称（如 "每周高分榜"）\n` +
-             `2. period_type - 周期类型：\n` +
-             `   - 1=永久（不重置）\n` +
-             `   - 2=每天（每天重置）\n` +
-             `   - 3=每周（每周一重置）\n` +
-             `   - 4=每月（每月1日重置）\n` +
-             `3. score_type - 分数类型：1=数值型, 2=时间型\n` +
-             `4. score_order - 排序：1=降序（越高越好）, 2=升序（越低越好）\n` +
-             `5. calc_type - 计算：1=累计, 2=最佳, 3=最新\n` +
-             `6. period_time - 重置时间（⚠️ 当 period_type 为 2/3/4 时必填！）\n` +
-             `   - 格式：HH:MM:SS（如 "08:00:00" 表示早上8点）\n` +
-             `   - 如果不提供，系统会自动设置为 "08:00:00"\n\n` +
-             `💡 **示例配置（每周高分榜）：**\n` +
-             `\`\`\`\n` +
-             `title: "每周高分榜"\n` +
-             `period_type: 3 (每周一重置)\n` +
-             `score_type: 1 (数值型)\n` +
-             `score_order: 1 (降序，分数越高越好)\n` +
-             `calc_type: 2 (保留最佳成绩)\n` +
-             `period_time: "08:00:00" (每周一早上8点重置)\n` +
-             `\`\`\``;
+             `- TapTap 运行环境自动提供`;
     }
 
     // Leaderboards exist - present options

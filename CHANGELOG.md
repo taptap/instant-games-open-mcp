@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.16] - 2025-10-14
+
+### Improved
+- 🤖 **Smart AI Agent behavior** - Context-aware leaderboard creation with intelligent suggestions
+  - AI now analyzes project files and code to infer game type
+  - Provides intelligent configuration suggestions based on context
+  - Only requires user confirmation instead of answering multiple questions
+  - Supports three response modes:
+    - ✅ User confirms → Create immediately
+    - 🔄 User wants modifications → Adjust settings and confirm again
+    - ❌ User rejects → Ask detailed questions and provide new suggestions
+  - Fallback to detailed questions when context is unclear
+  - Significantly improved user experience with fewer steps
+
+### Fixed
+- 🐛 **Fixed TypeScript warning** - Renamed unused `args` parameter to `_args` in startLeaderboardIntegration
+
 ## [1.0.15] - 2025-10-14
 
 ### Fixed
