@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.0] - 2025-10-14
 
 ### ⚠️ BREAKING CHANGES
+- Based on v1.1.2 (includes all changes from v1.1.0 and v1.1.2)
 - 🗑️ **Removed 9 deprecated documentation Tools** - Forces AI agents to use Resources and Prompts
   - Removed: `start_leaderboard_integration` → Use Prompt `leaderboard-integration`
   - Removed: `get_leaderboard_manager` → Use Resource `docs://leaderboard/api/get-manager`
@@ -39,6 +40,20 @@ If you were using the removed Tools, update to:
 - Documentation: Use `readResource("docs://leaderboard/api/...")`
 - Workflows: Use `getPrompt("leaderboard-integration")`
 - Operations: Continue using Tools like `create_leaderboard`
+
+## [1.1.2] - 2025-10-14
+
+### Fixed
+- 🔄 **Republish v1.1.0 as stable version** - Skip the deprecated warnings from v1.1.1
+  - This version is identical to v1.1.0 in functionality
+  - Provides clean Tools, Resources, and Prompts without deprecation warnings
+  - Recommended for production use (v1.1.1 skipped)
+  - All 17 Tools remain available and fully functional
+
+### Note
+- v1.1.1 introduced deprecation warnings but has been skipped
+- v1.1.2 provides the same features as v1.1.0 without warnings
+- For experimental breaking changes, see v1.2.0-beta.1
 
 ## [1.1.1] - 2025-10-14
 
