@@ -16,54 +16,56 @@ export interface ResourceDefinition {
 export function getResourceDefinitions(): ResourceDefinition[] {
   return [
     // LeaderboardManager API Documentation Resources
+    // Read these when user asks HOW to implement a specific feature
     {
       uri: 'docs://leaderboard/api/get-manager',
-      name: 'LeaderboardManager 实例获取',
-      description: '如何获取 LeaderboardManager 实例以访问排行榜功能',
+      name: 'API: tap.getLeaderboardManager()',
+      description: 'How to get LeaderboardManager instance - READ THIS when user asks how to initialize or access leaderboard system',
       mimeType: 'text/markdown'
     },
     {
       uri: 'docs://leaderboard/api/open',
-      name: '打开排行榜 UI',
-      description: 'openLeaderboard() API - 打开并显示排行榜页面',
+      name: 'API: openLeaderboard()',
+      description: 'How to display leaderboard UI - READ THIS when user asks how to show/open/display leaderboard to players',
       mimeType: 'text/markdown'
     },
     {
       uri: 'docs://leaderboard/api/submit-scores',
-      name: '提交玩家分数',
-      description: 'submitScores() API - 向排行榜提交玩家分数',
+      name: 'API: submitScores()',
+      description: 'How to submit player scores - READ THIS when user asks how to upload/submit/save scores to leaderboard',
       mimeType: 'text/markdown'
     },
     {
       uri: 'docs://leaderboard/api/load-scores',
-      name: '加载排行榜数据',
-      description: 'loadLeaderboardScores() API - 加载排行榜分数列表',
+      name: 'API: loadLeaderboardScores()',
+      description: 'How to load leaderboard data - READ THIS when user asks how to fetch/get/retrieve top scores or ranking list',
       mimeType: 'text/markdown'
     },
     {
       uri: 'docs://leaderboard/api/load-player-score',
-      name: '获取当前玩家分数',
-      description: 'loadCurrentPlayerLeaderboardScore() API - 获取当前玩家的分数和排名',
+      name: 'API: loadCurrentPlayerLeaderboardScore()',
+      description: 'How to get current player score and rank - READ THIS when user asks how to get/show player\'s own score/rank/position',
       mimeType: 'text/markdown'
     },
     {
       uri: 'docs://leaderboard/api/load-centered-scores',
-      name: '加载玩家周围分数',
-      description: 'loadPlayerCenteredScores() API - 加载当前玩家周围的其他玩家分数',
+      name: 'API: loadPlayerCenteredScores()',
+      description: 'How to load scores around current player - READ THIS when user asks how to show nearby/surrounding players or competitors',
       mimeType: 'text/markdown'
     },
 
     // Overview and Best Practices
+    // Read these FIRST for general understanding, then read specific APIs above
     {
       uri: 'docs://leaderboard/overview',
-      name: '排行榜系统完整概览',
-      description: '排行榜 API 的完整概览，包括所有功能和使用场景',
+      name: 'Leaderboard Complete Overview',
+      description: 'Complete overview of all leaderboard APIs - READ THIS FIRST when user wants to understand what leaderboard features are available. Then read specific API docs above for implementation details.',
       mimeType: 'text/markdown'
     },
     {
       uri: 'docs://leaderboard/patterns',
-      name: '集成模式和最佳实践',
-      description: '常见使用场景、集成模式和最佳实践指南',
+      name: 'Integration Patterns & Best Practices',
+      description: 'Common scenarios, integration patterns and best practices - READ THIS after overview for examples. Then read specific API docs above for detailed implementation.',
       mimeType: 'text/markdown'
     }
   ];
