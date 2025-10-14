@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-10-14
+
+### Added
+- 🎯 **MCP Resources Support** - Added read-only documentation resources
+  - 8 new Resources for LeaderboardManager API documentation
+  - URI scheme: `docs://leaderboard/api/*` for API docs
+  - URI scheme: `docs://leaderboard/overview` for complete overview
+  - URI scheme: `docs://leaderboard/patterns` for best practices
+  - Resources provide structured, cacheable documentation data
+  - Better semantic clarity: "read documentation" vs "call tool"
+  - Improved AI Agent efficiency with direct resource access
+
+- 🎨 **MCP Prompts Support** - Added reusable workflow templates
+  - `leaderboard-integration` - Complete interactive integration guide
+  - `leaderboard-troubleshooting` - Common issues and solutions guide
+  - Support for parameterized prompts (e.g., specific error codes)
+  - User-triggered workflows for standardized tasks
+  - Pre-built templates for consistent user experience
+
+### Improved
+- 📊 **Better MCP Architecture** - Proper separation of concerns
+  - Tools: Only for operations with side effects (5 tools)
+  - Resources: Read-only documentation and data (8 resources)
+  - Prompts: User-triggered workflow templates (2 prompts)
+  - Follows MCP design philosophy and best practices
+  - Enhanced startup messages showing all three capabilities
+
+- 🔄 **Backward Compatible** - All existing Tools still work
+  - Documentation Tools still available for compatibility
+  - Gradual migration path for existing users
+  - No breaking changes to existing integrations
+
+### Changed
+- 🏗️ **Server Architecture** - Enhanced with new handlers
+  - Added `resourceDefinitions.ts` for Resource configuration
+  - Added `promptDefinitions.ts` for Prompt configuration
+  - Added `promptHandlers.ts` for Prompt template logic
+  - New request handlers: `ListResources`, `ReadResource`, `ListPrompts`, `GetPrompt`
+  - Server now declares all three MCP capabilities
+
+- 📈 **Version Bump** - Minor version increase (1.0.16 → 1.1.0)
+  - Follows semantic versioning
+  - New features without breaking changes
+  - Ready for gradual adoption of Resources and Prompts
+
 ## [1.0.16] - 2025-10-14
 
 ### Improved
