@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2025-10-14
+
+### Changed
+- 🏷️ **Mark documentation Tools as DEPRECATED** - Guide AI agents to use Resources and Prompts
+  - Updated all 8 documentation Tools with deprecation warnings
+  - Each deprecated Tool now recommends the corresponding Resource URI
+  - `start_leaderboard_integration` Tool recommends using `leaderboard-integration` Prompt
+  - Helps AI agents transition from Tools to Resources/Prompts
+  - Maintains backward compatibility while encouraging new approach
+
+### Improved
+- 📖 **Better AI Agent guidance** - Clear migration path from Tools to Resources
+  - Tool descriptions now show: "⚠️ DEPRECATED: Use Resource 'docs://...' instead"
+  - Encourages AI to use more efficient MCP primitives
+  - Improves performance through Resource caching
+
 ## [1.1.0] - 2025-10-14
 
 ### Added

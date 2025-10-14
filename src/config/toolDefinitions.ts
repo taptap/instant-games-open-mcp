@@ -13,7 +13,9 @@ export function getToolDefinitions(): Tool[] {
     // 🎯 Workflow Guidance Tool
     {
       name: 'start_leaderboard_integration',
-      description: `START HERE when user asks about integrating leaderboards, implementing rankings, or "接入排行榜".
+      description: `⚠️ DEPRECATED: Use Prompt "leaderboard-integration" instead for better experience.
+
+START HERE when user asks about integrating leaderboards, implementing rankings, or "接入排行榜".
 
 This tool guides the complete leaderboard integration workflow:
 1. Check if leaderboards already exist on server
@@ -39,9 +41,10 @@ Use this as the first step for any leaderboard integration request.`,
     },
 
     // 📖 Core LeaderboardManager API Documentation Tools (one tool per API)
+    // ⚠️ DEPRECATED: Please use Resources instead for better performance
     {
       name: 'get_leaderboard_manager',
-      description: 'Get documentation for tap.getLeaderboardManager() - how to obtain the LeaderboardManager instance. Use this when user asks how to initialize or access the leaderboard system.',
+      description: '⚠️ DEPRECATED: Use Resource "docs://leaderboard/api/get-manager" instead.\n\nGet documentation for tap.getLeaderboardManager() - how to obtain the LeaderboardManager instance.',
       inputSchema: {
         type: 'object',
         properties: {}
@@ -49,7 +52,7 @@ Use this as the first step for any leaderboard integration request.`,
     },
     {
       name: 'open_leaderboard',
-      description: 'Get documentation for leaderboardManager.openLeaderboard() - how to display the TapTap leaderboard UI. Use this when user wants to show leaderboard interface to players.',
+      description: '⚠️ DEPRECATED: Use Resource "docs://leaderboard/api/open" instead.\n\nGet documentation for leaderboardManager.openLeaderboard() - how to display the TapTap leaderboard UI.',
       inputSchema: {
         type: 'object',
         properties: {}
@@ -57,7 +60,7 @@ Use this as the first step for any leaderboard integration request.`,
     },
     {
       name: 'submit_scores',
-      description: 'Get documentation for leaderboardManager.submitScores() - how to submit player scores to leaderboards. Use this when user wants to upload scores or update rankings.',
+      description: '⚠️ DEPRECATED: Use Resource "docs://leaderboard/api/submit-scores" instead.\n\nGet documentation for leaderboardManager.submitScores() - how to submit player scores to leaderboards.',
       inputSchema: {
         type: 'object',
         properties: {}
@@ -65,7 +68,7 @@ Use this as the first step for any leaderboard integration request.`,
     },
     {
       name: 'load_leaderboard_scores',
-      description: 'Get documentation for leaderboardManager.loadLeaderboardScores() - how to retrieve paginated leaderboard data. Use this when user wants to fetch top scores or implement custom leaderboard UI.',
+      description: '⚠️ DEPRECATED: Use Resource "docs://leaderboard/api/load-scores" instead.\n\nGet documentation for leaderboardManager.loadLeaderboardScores() - how to retrieve paginated leaderboard data.',
       inputSchema: {
         type: 'object',
         properties: {}
@@ -73,7 +76,7 @@ Use this as the first step for any leaderboard integration request.`,
     },
     {
       name: 'load_current_player_score',
-      description: 'Get documentation for leaderboardManager.loadCurrentPlayerLeaderboardScore() - how to get current player\'s score and rank. Use this when user wants to show player their own ranking.',
+      description: '⚠️ DEPRECATED: Use Resource "docs://leaderboard/api/load-player-score" instead.\n\nGet documentation for leaderboardManager.loadCurrentPlayerLeaderboardScore() - how to get current player\'s score and rank.',
       inputSchema: {
         type: 'object',
         properties: {}
@@ -81,7 +84,7 @@ Use this as the first step for any leaderboard integration request.`,
     },
     {
       name: 'load_player_centered_scores',
-      description: 'Get documentation for leaderboardManager.loadPlayerCenteredScores() - how to load scores of players near current user. Use this when user wants to display surrounding competitors.',
+      description: '⚠️ DEPRECATED: Use Resource "docs://leaderboard/api/load-centered-scores" instead.\n\nGet documentation for leaderboardManager.loadPlayerCenteredScores() - how to load scores of players near current user.',
       inputSchema: {
         type: 'object',
         properties: {}
@@ -105,7 +108,7 @@ Use this as the first step for any leaderboard integration request.`,
     },
     {
       name: 'get_leaderboard_overview',
-      description: 'Get comprehensive overview of all TapTap leaderboard APIs and features. Use this when user wants to understand what leaderboard functionality is available.',
+      description: '⚠️ DEPRECATED: Use Resource "docs://leaderboard/overview" instead.\n\nGet comprehensive overview of all TapTap leaderboard APIs and features.',
       inputSchema: {
         type: 'object',
         properties: {}
@@ -113,7 +116,7 @@ Use this as the first step for any leaderboard integration request.`,
     },
     {
       name: 'get_leaderboard_patterns',
-      description: 'Get complete implementation examples and best practices for leaderboards. Use this when user wants to see full integration code or common usage patterns.',
+      description: '⚠️ DEPRECATED: Use Resource "docs://leaderboard/patterns" instead.\n\nGet complete implementation examples and best practices for leaderboards.',
       inputSchema: {
         type: 'object',
         properties: {}
