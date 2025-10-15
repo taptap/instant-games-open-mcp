@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added complete parameter examples including `undefined` values
   - Prevents AI from generating incomplete or incorrect code
 
+### Removed
+- 🗑️ **Removed Resources and Prompts** - Simplified to Tools-only architecture
+  - Removed all Resources support (8 resources deleted)
+  - Removed all Prompts support (2 prompts deleted)
+  - Deleted files: resourceDefinitions.ts, promptDefinitions.ts, promptHandlers.ts
+  - Back to simple, reliable Tools-only approach
+  - Reduces complexity and potential confusion
+
 ### Added
 - ⚠️ **Important usage notes in documentation**
   - Emphasized: 'tap' is a GLOBAL object (NO imports needed)
@@ -26,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 📝 **Updated description** - Now supports both Minigame and H5 games
   - Package description: "TapTap Open API MCP Server - Documentation and Management APIs for TapTap Minigame and H5 Games"
   - API title: "TapTap Leaderboard API (Minigame & H5)"
+- 📊 **Simplified architecture** - Tools-only (17 tools)
+  - Easier to understand and use
+  - Proven to work reliably
+  - For experimental Resources/Prompts, see v1.2.0-beta versions
 
 ## [1.1.2] - 2025-10-14
 
