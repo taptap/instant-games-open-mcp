@@ -9,10 +9,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
-  ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
-  ListPromptsRequestSchema,
-  GetPromptRequestSchema,
   McpError,
   ErrorCode
 } from '@modelcontextprotocol/sdk/types.js';
@@ -21,8 +17,6 @@ import process from 'node:process';
 // 导入配置和工具定义
 import { ApiConfig } from './network/httpClient.js';
 import { getToolDefinitions } from './config/toolDefinitions.js';
-import { getResourceDefinitions, RESOURCE_URI_MAP } from './config/resourceDefinitions.js';
-import { getPromptDefinitions } from './config/promptDefinitions.js';
 import { logger } from './utils/logger.js';
 
 // 导入文档工具
@@ -32,7 +26,6 @@ import { leaderboardTools } from './tools/leaderboardTools.js';
 import * as appHandlers from './handlers/appHandlers.js';
 import * as leaderboardHandlers from './handlers/leaderboardHandlers.js';
 import * as environmentHandlers from './handlers/environmentHandlers.js';
-import * as promptHandlers from './handlers/promptHandlers.js';
 
 // 环境变量配置
 const apiConfig = ApiConfig.getInstance();
@@ -110,102 +103,6 @@ class TapTapMinigameMCPServer {
         );
       }
     });
-
-    // 设置资源列表处理器
-    this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-      resources: getResourceDefinitions()
-    }));
-
-    // 设置资源读取处理器
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-      const uri = request.params.uri;
-
-      logger.logToolCall(`ReadResource: ${uri}`, {});
-
-      try {
-        const content = await this.handleResourceRead(uri);
-
-        logger.logToolResponse(`ReadResource: ${uri}`, content.substring(0, 500), true);
-
-        return {
-          contents: [
-            {
-              uri: uri,
-              mimeType: 'text/markdown',
-              text: content
-            }
-          ]
-        };
-      } catch (error) {
-        logger.logToolResponse(`ReadResource: ${uri}`, error instanceof Error ? error.message : String(error), false);
-
-        throw new McpError(
-          ErrorCode.InternalError,
-          `资源读取失败: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    });
-
-    // 设置提示列表处理器
-    this.server.setRequestHandler(ListPromptsRequestSchema, async () => ({
-      prompts: getPromptDefinitions()
-    }));
-
-    // 设置提示获取处理器
-    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
-
-      logger.logToolCall(`GetPrompt: ${name}`, args || {});
-
-      try {
-        const prompt = await this.handlePromptGet(name, args || {});
-
-        logger.logToolResponse(`GetPrompt: ${name}`, JSON.stringify(prompt).substring(0, 500), true);
-
-        return prompt;
-      } catch (error) {
-        logger.logToolResponse(`GetPrompt: ${name}`, error instanceof Error ? error.message : String(error), false);
-
-        throw new McpError(
-          ErrorCode.InternalError,
-          `提示获取失败: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    });
-  }
-
-  /**
-   * 处理资源读取 - 路由到对应的文档工具
-   */
-  private async handleResourceRead(uri: string): Promise<string> {
-    const handlerKey = RESOURCE_URI_MAP[uri];
-
-    if (!handlerKey) {
-      throw new Error(`Unknown resource URI: ${uri}`);
-    }
-
-    // Map to leaderboardTools methods
-    const toolMethod = (leaderboardTools as any)[handlerKey];
-    if (typeof toolMethod !== 'function') {
-      throw new Error(`Handler not found for resource: ${uri}`);
-    }
-
-    return await toolMethod();
-  }
-
-  /**
-   * 处理提示获取 - 路由到对应的提示处理器
-   */
-  private async handlePromptGet(name: string, args: any): Promise<any> {
-    if (name === 'leaderboard-integration') {
-      return promptHandlers.getLeaderboardIntegrationPrompt(args);
-    }
-
-    if (name === 'leaderboard-troubleshooting') {
-      return promptHandlers.getLeaderboardTroubleshootingPrompt(args);
-    }
-
-    throw new Error(`Unknown prompt: ${name}`);
   }
 
   /**
@@ -261,18 +158,12 @@ class TapTapMinigameMCPServer {
     await this.server.connect(transport);
 
     const tools = getToolDefinitions();
-    const resources = getResourceDefinitions();
-    const prompts = getPromptDefinitions();
 
-    process.stderr.write('🚀 TapTap Minigame MCP Server Started\n');
-    process.stderr.write(`📚 Providing ${tools.length} tools, ${resources.length} resources, ${prompts.length} prompts\n`);
+    process.stderr.write('🚀 TapTap Open API MCP Server Started (Minigame & H5)\n');
+    process.stderr.write(`📚 Providing ${tools.length} tools\n`);
     process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
     process.stderr.write(`🌍 Environment: ${apiConfig.environment}\n`);
     process.stderr.write(`🔗 API Base: ${apiConfig.apiBaseUrl}\n`);
-    process.stderr.write('\n📖 MCP Capabilities:\n');
-    process.stderr.write(`   ✅ Tools (${tools.length}) - Execute operations with side effects\n`);
-    process.stderr.write(`   ✅ Resources (${resources.length}) - Read-only documentation and data\n`);
-    process.stderr.write(`   ✅ Prompts (${prompts.length}) - Reusable workflow templates\n`);
 
     if (logger.isVerbose()) {
       process.stderr.write('\n🔍 Verbose logging enabled (TAPTAP_MINIGAME_MCP_VERBOSE=true)\n');
