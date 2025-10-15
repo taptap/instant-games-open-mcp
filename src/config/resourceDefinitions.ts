@@ -67,6 +67,14 @@ export function getResourceDefinitions(): ResourceDefinition[] {
       name: 'Integration Patterns & Best Practices',
       description: 'Common scenarios, integration patterns and best practices - READ THIS after overview for examples. Then read specific API docs above for detailed implementation.',
       mimeType: 'text/markdown'
+    },
+
+    // Step-by-step Guides (static documentation)
+    {
+      uri: 'docs://leaderboard/guide/quickstart',
+      name: 'Quick Start Guide - Step by Step',
+      description: 'Complete step-by-step guide from zero to working leaderboard - READ THIS when user wants a quick start tutorial or complete integration walkthrough',
+      mimeType: 'text/markdown'
     }
   ];
 }
@@ -82,5 +90,6 @@ export const RESOURCE_URI_MAP: Record<string, string> = {
   'docs://leaderboard/api/load-player-score': 'loadCurrentPlayerScore',
   'docs://leaderboard/api/load-centered-scores': 'loadPlayerCenteredScores',
   'docs://leaderboard/overview': 'getLeaderboardOverview',
-  'docs://leaderboard/patterns': 'getLeaderboardPatterns'
+  'docs://leaderboard/patterns': 'getLeaderboardPatterns',
+  'docs://leaderboard/guide/quickstart': 'getQuickStartGuide'
 };
