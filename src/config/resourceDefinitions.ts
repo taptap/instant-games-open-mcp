@@ -69,11 +69,11 @@ export function getResourceDefinitions(): ResourceDefinition[] {
       mimeType: 'text/markdown'
     },
 
-    // Step-by-step Guides (static documentation)
+    // Client-side Integration Guide (static documentation)
     {
       uri: 'docs://leaderboard/guide/quickstart',
-      name: 'Quick Start Guide - Step by Step',
-      description: 'Complete step-by-step guide from zero to working leaderboard - READ THIS when user wants a quick start tutorial or complete integration walkthrough',
+      name: 'Client-Side Integration Quick Start',
+      description: 'STATIC client-side integration tutorial (assumes you already have leaderboard_id) - READ THIS when user wants to learn how to integrate leaderboard in their game code. For interactive server setup, use Prompt "leaderboard-integration" instead.',
       mimeType: 'text/markdown'
     }
   ];

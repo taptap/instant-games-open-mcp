@@ -139,50 +139,35 @@ async function getLeaderboardPatterns(): Promise<string> {
 }
 
 /**
- * Get quick start guide - step by step tutorial
+ * Get quick start guide - client-side integration tutorial
  */
 async function getQuickStartGuide(): Promise<string> {
-  return `# TapTap 排行榜快速接入指南
+  return `# 排行榜客户端集成快速指南
 
-完整的从零到一接入排行榜的步骤教程。
+假设你已经有了 leaderboard_id（从服务端创建），本指南教你如何在客户端集成排行榜功能。
+
+**适用场景**: 你已经有排行榜 ID，需要在游戏中集成排行榜功能。
+
+**如果还没有排行榜**: 使用 Prompt "leaderboard-integration" 获取交互式引导。
+
+---
 
 ## 📋 前置条件
 
-1. 已在 TapTap 开发者中心创建游戏
-2. 已获取 Client ID 和 Client Secret
-3. 游戏已集成 TapTap 登录
+✅ 已有 leaderboard_id（例如：\`weekly_high_score_2024\`）
+✅ 游戏已集成 TapTap 登录
+✅ 用户已登录 TapTap 账号
 
-## 🚀 Step 1: 创建服务端排行榜
+## 📱 客户端集成三步走
 
-### 使用 MCP 工具创建
-
-\`\`\`javascript
-// 调用 create_leaderboard 工具
-{
-  "name": "每周高分榜",
-  "reset_cycle": "weekly",    // 每周重置
-  "score_type": "better_than", // 高分优先
-  "sort_order": "desc",        // 降序排列
-  "display_limit": 100         // 显示前100名
-}
-\`\`\`
-
-### 获取 leaderboard_id
-
-创建成功后会返回 \`leaderboard_id\`，例如：\`weekly_high_score_2024\`
-
-**重要**: 记录这个 ID，客户端需要使用它！
-
-## 📱 Step 2: 客户端集成
-
-### 2.1 获取 LeaderboardManager 实例
+### Step 1: 获取 LeaderboardManager 实例
 
 \`\`\`javascript
 // 在游戏初始化时获取
 const leaderboardManager = tap.getLeaderboardManager();
 \`\`\`
 
-### 2.2 提交玩家分数
+### Step 2: 提交玩家分数
 
 \`\`\`javascript
 // 玩家完成游戏后提交分数
@@ -205,7 +190,7 @@ leaderboardManager.submitScores({
 });
 \`\`\`
 
-### 2.3 显示排行榜 UI
+### Step 3: 显示排行榜 UI
 
 \`\`\`javascript
 // 玩家点击"查看排行榜"按钮时
@@ -223,7 +208,7 @@ leaderboardManager.openLeaderboard({
 });
 \`\`\`
 
-## 🎯 Step 3: 常见场景
+## 🎯 常见使用场景
 
 ### 场景 1: 获取玩家当前排名
 
@@ -273,11 +258,20 @@ leaderboardManager.loadLeaderboardScores({
 **原因**: 用户未登录 TapTap
 **解决**: 确保用户已登录后再调用排行榜 API
 
-## 📚 下一步
+## 📚 需要更多帮助？
 
-- 查看具体 API 文档：\`docs://leaderboard/api/*\`
-- 查看最佳实践：\`docs://leaderboard/patterns\`
-- 查看完整概览：\`docs://leaderboard/overview\`
+### 查看详细 API 文档
+- 获取实例：\`docs://leaderboard/api/get-manager\`
+- 提交分数：\`docs://leaderboard/api/submit-scores\`
+- 打开 UI：\`docs://leaderboard/api/open\`
+- 加载数据：\`docs://leaderboard/api/load-scores\`
+
+### 查看其他文档
+- 最佳实践：\`docs://leaderboard/patterns\`
+- 完整概览：\`docs://leaderboard/overview\`
+
+### 需要创建排行榜？
+使用 Prompt \`leaderboard-integration\` 获取交互式引导（包含服务端创建）
 
 ## 💡 最佳实践
 

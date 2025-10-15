@@ -22,12 +22,12 @@ export function getPromptDefinitions(): PromptDefinition[] {
   return [
     {
       name: 'leaderboard-integration',
-      description: 'Complete interactive guide for integrating TapTap leaderboard into your game. Checks existing leaderboards and guides through setup.',
+      description: 'INTERACTIVE workflow that EXECUTES operations: checks your server-side leaderboards, guides through creation/selection, and provides personalized setup assistance. Use this when user wants INTERACTIVE help with complete server+client setup. This prompt will CALL TOOLS and perform actions.',
       arguments: []
     },
     {
       name: 'leaderboard-troubleshooting',
-      description: 'Common leaderboard issues and troubleshooting guide with solutions for frequent error codes.',
+      description: 'INTERACTIVE troubleshooting assistant for leaderboard errors - provides solutions and can help diagnose issues. Use this when user encounters errors or problems. Can be parameterized with specific error codes.',
       arguments: [
         {
           name: 'error_code',
