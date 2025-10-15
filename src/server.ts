@@ -58,7 +58,7 @@ class TapTapMinigameMCPServer {
     this.server = new Server(
       {
         name: 'taptap-minigame-mcp',
-        version: '1.2.0-beta.4',
+        version: '1.2.0-beta.5',
       }
     );
 

@@ -1,5 +1,5 @@
 /**
- * TapTap Minigame Leaderboard API Documentation
+ * TapTap Leaderboard API (Minigame & H5) Documentation
  * Based on: https://developer.taptap.cn/minigameapidoc/dev/api/open-api/leaderboard/
  */
 
@@ -26,15 +26,15 @@ export interface LeaderboardDocumentation {
 }
 
 export const LEADERBOARD_DOCUMENTATION: LeaderboardDocumentation = {
-  title: "TapTap Minigame Leaderboard API",
-  description: `Complete leaderboard functionality for TapTap minigames, including score submission, ranking queries, and leaderboard display.
+  title: "TapTap Leaderboard API (Minigame & H5)",
+  description: `Complete leaderboard functionality for TapTap Minigame and H5 Games, including score submission, ranking queries, and leaderboard display.
 
 ⚠️ IMPORTANT:
 - NO npm packages or SDK installation required
 - NO imports needed
 - The 'tap' object is a GLOBAL object provided by TapTap runtime environment
 - All APIs are accessed via: tap.getLeaderboardManager()
-- Works ONLY in TapTap minigame environment (not in regular web browsers)
+- Works in TapTap Minigame AND H5 game environments (not in regular web browsers)
 - All methods accept a SINGLE object parameter (not multiple parameters)`,
   apiReference: "https://developer.taptap.cn/minigameapidoc/dev/api/open-api/leaderboard/",
 
