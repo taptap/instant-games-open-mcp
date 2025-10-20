@@ -318,12 +318,6 @@ Once selected, the app information will be cached and displayed here.
 - **Miniapp ID**: \`${cache.miniapp_id || 'Not available'}\`
 - **App Name**: ${cache.app_title || cache.developer_name || '_Not available_'}
 
-## 🔗 Preview Links
-
-${cache.miniapp_id ? `- **Minigame Preview**: \`https://minigame.taptap.cn/${cache.miniapp_id}\`
-- **H5 Preview**: \`https://h5.taptap.cn/${cache.miniapp_id}\`
-- **TapTap App Page**: \`https://www.taptap.cn/app/${cache.app_id}\`` : '_Miniapp ID not available, cannot generate preview links_'}
-
 ## 📂 Cache Location
 
 \`${cachePath}\`
