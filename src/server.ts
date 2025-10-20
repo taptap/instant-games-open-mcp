@@ -24,6 +24,7 @@ import { getToolDefinitions } from './config/toolDefinitions.js';
 import { getResourceDefinitions, RESOURCE_URI_MAP } from './config/resourceDefinitions.js';
 import { getPromptDefinitions } from './config/promptDefinitions.js';
 import { logger } from './utils/logger.js';
+import { DeviceFlowAuth } from './auth/deviceFlow.js';
 
 // 导入文档工具
 import { leaderboardTools } from './tools/leaderboardTools.js';
@@ -286,6 +287,29 @@ class TapTapMinigameMCPServer {
 
 // 启动服务器
 async function main(): Promise<void> {
+  // Initialize Device Flow Auth if MAC Token not provided
+  const apiConfig = ApiConfig.getInstance();
+
+  if (!apiConfig.macToken.kid || !apiConfig.macToken.mac_key) {
+    process.stderr.write('🔐 MAC Token not found in environment, starting OAuth Device Flow...\n\n');
+
+    try {
+      const deviceAuth = new DeviceFlowAuth(apiConfig.environment);
+      const macToken = await deviceAuth.initialize();
+
+      // Set MAC Token in ApiConfig
+      apiConfig.setMacToken(macToken);
+
+      process.stderr.write('\n✅ Authentication successful!\n\n');
+    } catch (error) {
+      process.stderr.write(`\n❌ Authentication failed: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.stderr.write('\nYou can also manually set TDS_MCP_MAC_TOKEN environment variable.\n');
+      process.exit(1);
+    }
+  } else {
+    process.stderr.write('✅ Using MAC Token from environment variable\n');
+  }
+
   const server = new TapTapMinigameMCPServer();
 
   // 处理优雅关闭

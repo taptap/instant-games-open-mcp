@@ -14,7 +14,7 @@ import { logger } from '../utils/logger.js';
 export class ApiConfig {
   private static instance: ApiConfig;
 
-  public readonly macToken: MacToken;
+  public macToken: MacToken;  // Changed from readonly to allow runtime updates
   public readonly clientId: string;
   public readonly clientSecret: string;
   public readonly apiBaseUrl: string;
@@ -26,12 +26,12 @@ export class ApiConfig {
     this.clientId = process.env.TDS_MCP_CLIENT_ID || '';
     this.clientSecret = process.env.TDS_MCP_CLIENT_TOKEN || '';  // Using CLIENT_TOKEN to match tapcode-mcp-h5
 
-    // Parse MAC Token from JSON string
+    // Parse MAC Token from JSON string (optional now, can be set later via Device Flow)
     try {
       this.macToken = macTokenStr ? JSON.parse(macTokenStr) : {} as MacToken;
     } catch (error) {
-      process.stderr.write('❌ Failed to parse TDS_MCP_MAC_TOKEN: Invalid JSON format\n');
-      process.exit(1);
+      process.stderr.write('⚠️  Failed to parse TDS_MCP_MAC_TOKEN from environment, will use OAuth flow\n');
+      this.macToken = {} as MacToken;
     }
 
     // Optional: default to production
@@ -42,16 +42,12 @@ export class ApiConfig {
       ? 'https://agent.tapapis.cn'
       : 'https://agent.api.xdrnd.cn';
 
-    // Validate required environment variables
+    // Validate CLIENT_ID and CLIENT_SECRET (MAC Token can be set later)
     this.validateConfig();
   }
 
   private validateConfig(): void {
     const missing: string[] = [];
-
-    if (!this.macToken.kid || !this.macToken.mac_key) {
-      missing.push('TDS_MCP_MAC_TOKEN (must be valid JSON with kid and mac_key)');
-    }
 
     if (!this.clientId) {
       missing.push('TDS_MCP_CLIENT_ID');
@@ -62,9 +58,8 @@ export class ApiConfig {
     }
 
     if (missing.length > 0) {
-      process.stderr.write(`❌ Missing required environment variables: ${missing.join(', ')}\n`);
-      process.stderr.write('\nExample TDS_MCP_MAC_TOKEN format:\n');
-      process.stderr.write('{"kid":"abc123","token_type":"mac","mac_key":"secret_key","mac_algorithm":"hmac-sha-1"}\n');
+      process.stderr.write(`❌ Missing required environment variables: ${missing.join(', ')}\n\n`);
+      process.stderr.write('These are required for both OAuth flow and manual configuration.\n');
       process.exit(1);
     }
   }
@@ -74,6 +69,13 @@ export class ApiConfig {
       ApiConfig.instance = new ApiConfig();
     }
     return ApiConfig.instance;
+  }
+
+  /**
+   * Set MAC Token (called by Device Flow or manual configuration)
+   */
+  public setMacToken(token: MacToken): void {
+    this.macToken = token;
   }
 
   public isConfigured(): boolean {
