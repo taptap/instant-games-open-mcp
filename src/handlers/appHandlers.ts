@@ -38,7 +38,6 @@ export async function listDevelopersAndApps(context: HandlerContext): Promise<st
           output += `  ${appIndex + 1}. **${app.app_title}** (App ID: ${app.app_id})\n`;
           if (app.miniapp_id) {
             output += `     Miniapp ID: ${app.miniapp_id}\n`;
-            output += `     预览链接: https://minigame.taptap.cn/${app.miniapp_id}\n`;
           }
           if (app.category) {
             output += `     类别: ${app.category}\n`;
@@ -79,10 +78,7 @@ export async function selectApp(
            `- 应用: ${result.app_title} (ID: ${result.app_id})\n`;
 
     if (result.miniapp_id) {
-      message += `- Miniapp ID: ${result.miniapp_id}\n` +
-                 `\n🔗 预览链接:\n` +
-                 `- Minigame: https://minigame.taptap.cn/${result.miniapp_id}\n` +
-                 `- H5: https://h5.taptap.cn/${result.miniapp_id}\n`;
+      message += `- Miniapp ID: ${result.miniapp_id}\n`;
     }
 
     message += `\n💾 此选择已缓存，后续操作将默认使用此应用。\n\n` +
