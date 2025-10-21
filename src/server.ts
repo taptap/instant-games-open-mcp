@@ -54,8 +54,9 @@ interface HandlerContext {
 class TapTapMinigameMCPServer {
   private server: Server;
   private context: HandlerContext;
+  private ensureAuth: () => Promise<void>;
 
-  constructor() {
+  constructor(ensureAuthFn: () => Promise<void>) {
     this.server = new Server(
       {
         name: 'taptap-minigame-mcp',
@@ -68,6 +69,7 @@ class TapTapMinigameMCPServer {
       macToken: TDS_MCP_MAC_TOKEN
     };
 
+    this.ensureAuth = ensureAuthFn;
     this.setupHandlers();
   }
 
@@ -88,6 +90,21 @@ class TapTapMinigameMCPServer {
       logger.logToolCall(name, args || {});
 
       try {
+        // Check if this tool requires authentication
+        const authRequiredTools = [
+          'list_developers_and_apps',
+          'select_app',
+          'create_leaderboard',
+          'list_leaderboards',
+          'publish_leaderboard',
+          'get_user_leaderboard_scores'
+        ];
+
+        if (authRequiredTools.includes(name)) {
+          // Trigger OAuth if needed (non-blocking on startup, blocking here)
+          await this.ensureAuth();
+        }
+
         const result = await this.handleToolCall(name, args || {});
 
         // Log tool call output
@@ -285,32 +302,63 @@ class TapTapMinigameMCPServer {
   }
 }
 
-// 启动服务器
-async function main(): Promise<void> {
-  // Initialize Device Flow Auth if MAC Token not provided
+// Global device auth instance for lazy initialization
+let deviceAuth: DeviceFlowAuth | null = null;
+let authInProgress = false;
+
+/**
+ * Lazy load authentication when needed (non-blocking)
+ */
+async function ensureAuthenticated(): Promise<void> {
   const apiConfig = ApiConfig.getInstance();
 
-  if (!apiConfig.macToken.kid || !apiConfig.macToken.mac_key) {
-    process.stderr.write('🔐 MAC Token not found in environment, starting OAuth Device Flow...\n\n');
+  // Already authenticated
+  if (apiConfig.macToken.kid && apiConfig.macToken.mac_key) {
+    return;
+  }
 
-    try {
-      const deviceAuth = new DeviceFlowAuth(apiConfig.environment);
-      const macToken = await deviceAuth.initialize();
-
-      // Set MAC Token in ApiConfig
-      apiConfig.setMacToken(macToken);
-
-      process.stderr.write('\n✅ Authentication successful!\n\n');
-    } catch (error) {
-      process.stderr.write(`\n❌ Authentication failed: ${error instanceof Error ? error.message : String(error)}\n`);
-      process.stderr.write('\nYou can also manually set TDS_MCP_MAC_TOKEN environment variable.\n');
-      process.exit(1);
+  // Auth already in progress, wait for it
+  if (authInProgress) {
+    process.stderr.write('⏳ OAuth authorization in progress, please wait...\n');
+    while (authInProgress) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
+    return;
+  }
+
+  // Start OAuth flow
+  authInProgress = true;
+
+  try {
+    if (!deviceAuth) {
+      deviceAuth = new DeviceFlowAuth(apiConfig.environment);
+    }
+
+    process.stderr.write('\n🔐 Authentication required, starting OAuth Device Flow...\n\n');
+    const macToken = await deviceAuth.initialize();
+    apiConfig.setMacToken(macToken);
+    process.stderr.write('\n✅ Authentication successful!\n\n');
+  } catch (error) {
+    authInProgress = false;
+    throw new Error(`Authentication failed: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    authInProgress = false;
+  }
+}
+
+// 启动服务器
+async function main(): Promise<void> {
+  const apiConfig = ApiConfig.getInstance();
+
+  // Check authentication status (non-blocking, just info)
+  if (!apiConfig.macToken.kid || !apiConfig.macToken.mac_key) {
+    process.stderr.write('ℹ️  MAC Token not configured yet\n');
+    process.stderr.write('   Will request OAuth authorization when you use authenticated tools\n\n');
   } else {
     process.stderr.write('✅ Using MAC Token from environment variable\n');
   }
 
-  const server = new TapTapMinigameMCPServer();
+  const server = new TapTapMinigameMCPServer(ensureAuthenticated);
 
   // 处理优雅关闭
   process.on('SIGINT', () => {
