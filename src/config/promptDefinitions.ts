@@ -22,7 +22,7 @@ export function getPromptDefinitions(): PromptDefinition[] {
   return [
     {
       name: 'leaderboard-integration',
-      description: 'INTERACTIVE workflow that EXECUTES operations: checks your server-side leaderboards, guides through creation/selection, and provides personalized setup assistance. Use this when user wants INTERACTIVE help with complete server+client setup. This prompt will CALL TOOLS and perform actions.',
+      description: '⭐ START HERE when user wants to integrate leaderboard - INTERACTIVE workflow that checks existing leaderboards, guides through creation, and provides client code examples. ⚠️ CRITICAL: This prompt emphasizes NO SDK INSTALLATION NEEDED - tap object is global. Use this FIRST before making any plans about leaderboard integration.',
       arguments: []
     },
     {

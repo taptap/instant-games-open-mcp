@@ -29,30 +29,41 @@ export async function getLeaderboardIntegrationPrompt(args: any): Promise<Prompt
         role: 'user',
         content: {
           type: 'text',
-          text: `我想在我的 TapTap 小游戏中接入排行榜功能。请帮我：
+          text: `我想在我的 TapTap 小游戏/H5 游戏中接入排行榜功能。
 
-1. 检查我是否已经有排行榜配置
-2. 如果没有，引导我创建新的排行榜
-3. 如果有，列出现有排行榜供我选择
-4. 提供完整的客户端集成代码示例
+⚠️ 重要提醒：
+- 客户端 NO npm install 或 SDK 安装
+- 直接使用全局 tap 对象
+- 不要添加任何 package.json 依赖
 
-请使用 list_leaderboards 工具开始检查。`
+请帮我：
+1. 检查服务端排行榜配置
+2. 如果没有，创建排行榜
+3. 提供客户端集成代码（使用全局 tap 对象）
+
+开始检查排行榜。`
         }
       },
       {
         role: 'assistant',
         content: {
           type: 'text',
-          text: `好的！我会帮你完成排行榜接入。让我先检查你现有的排行榜配置...
+          text: `好的！我会帮你完成排行榜接入。
 
-**步骤 1: 检查现有排行榜**
-我会调用 list_leaderboards 工具来查看你已有的排行榜。
+⚠️ **关键提醒：TapTap 排行榜无需安装任何 SDK！**
+- ❌ 不要运行 npm install
+- ❌ 不要修改 package.json
+- ✅ tap 是全局对象，由 TapTap 运行时自动提供
+- ✅ 直接在代码中使用 tap.getLeaderboardManager()
 
-**接下来的步骤：**
-- 如果你还没有排行榜，我会引导你使用 create_leaderboard 创建
-- 如果已有排行榜，我会列出它们并提供对应的集成代码
+现在开始检查你的排行榜配置...
 
-让我现在开始检查...`
+**步骤 1: 检查服务端排行榜**
+调用 list_leaderboards 工具...
+
+**后续步骤：**
+- 如果没有排行榜 → 使用 create_leaderboard 创建
+- 如果有排行榜 → 提供客户端代码（使用全局 tap 对象，无需安装）`
         }
       }
     ]
