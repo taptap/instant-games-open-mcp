@@ -351,6 +351,91 @@ Please use \`check_environment\` tool to verify your configuration.
   }
 }
 
+/**
+ * Get complete integration workflow guide
+ */
+async function getIntegrationWorkflow(): Promise<string> {
+  return `# TapTap 排行榜完整接入工作流
+
+## ⚠️ 关键原则：客户端无需安装 SDK
+
+**请勿执行以下操作**：
+- ❌ npm install @taptap/xxx
+- ❌ 修改 package.json 添加依赖
+- ❌ import 或 require 任何 TapTap 模块
+
+**原因**：tap 是全局对象，由 TapTap 运行时自动提供（类似 window、document）
+
+---
+
+## 📋 完整步骤
+
+### 步骤 1: 检查服务端排行榜
+
+**工具**：\`list_leaderboards\`
+
+**判断**：
+- 已有排行榜 → 跳到步骤 3
+- 无排行榜 → 继续步骤 2
+
+### 步骤 2: 创建服务端排行榜
+
+**工具**：\`create_leaderboard\`
+
+**示例参数**：
+\`\`\`json
+{
+  "title": "周榜",
+  "period_type": 3,
+  "score_type": 1,
+  "score_order": 1,
+  "calc_type": 2
+}
+\`\`\`
+
+**获得**：leaderboard_id（记录下来）
+
+### 步骤 3: 客户端代码集成
+
+**3.1 获取实例**
+\`\`\`javascript
+const leaderboardManager = tap.getLeaderboardManager();
+\`\`\`
+
+**3.2 提交分数**
+\`\`\`javascript
+leaderboardManager.submitScores({
+  scores: [{
+    leaderboardId: "your_leaderboard_id",
+    score: playerScore
+  }],
+  callback: {
+    onSuccess: (res) => console.log("成功"),
+    onFailure: (code, msg) => console.error(code, msg)
+  }
+});
+\`\`\`
+
+**3.3 显示排行榜**
+\`\`\`javascript
+leaderboardManager.openLeaderboard({
+  leaderboardId: "your_leaderboard_id",
+  collection: "public",
+  callback: {
+    onSuccess: () => console.log("打开成功"),
+    onFailure: (code, msg) => console.error(code, msg)
+  }
+});
+\`\`\`
+
+---
+
+## ✅ 完成！
+
+总共 3 个步骤，10-15 分钟即可完成接入。
+`;
+}
+
 export const leaderboardTools = {
   // Core API tools
   getLeaderboardManager,
@@ -365,5 +450,6 @@ export const leaderboardTools = {
   getLeaderboardOverview,
   getLeaderboardPatterns,
   getQuickStartGuide,
-  getCurrentAppInfo
+  getCurrentAppInfo,
+  getIntegrationWorkflow
 };

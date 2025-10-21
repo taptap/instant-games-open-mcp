@@ -83,6 +83,14 @@ export function getResourceDefinitions(): ResourceDefinition[] {
       name: 'Current App/Game Information',
       description: 'Currently selected app/game information including developer_id, app_id, app name, and cached leaderboard_id - READ THIS when you need to know which app is currently being used or configured',
       mimeType: 'text/markdown'
+    },
+
+    // Complete Integration Workflow (procedural guide)
+    {
+      uri: 'guide://leaderboard/integration-workflow',
+      name: 'Complete Leaderboard Integration Workflow',
+      description: 'COMPLETE step-by-step workflow from zero to production - READ THIS FIRST when user wants to integrate/add/setup/implement leaderboard. Covers: server creation, client code (NO SDK!), common pitfalls, testing. Essential reading before starting any leaderboard work.',
+      mimeType: 'text/markdown'
     }
   ];
 }
@@ -100,5 +108,6 @@ export const RESOURCE_URI_MAP: Record<string, string> = {
   'docs://leaderboard/overview': 'getLeaderboardOverview',
   'docs://leaderboard/patterns': 'getLeaderboardPatterns',
   'docs://leaderboard/guide/quickstart': 'getQuickStartGuide',
-  'app://current-app-info': 'getCurrentAppInfo'
+  'app://current-app-info': 'getCurrentAppInfo',
+  'guide://leaderboard/integration-workflow': 'getIntegrationWorkflow'
 };
