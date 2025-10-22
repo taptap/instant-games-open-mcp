@@ -10,6 +10,16 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
  */
 export function getToolDefinitions(): Tool[] {
   return [
+    // 🎯 Integration Guide Tool (for MCP clients that don't auto-read Resources)
+    {
+      name: 'get_integration_guide',
+      description: '⭐ READ THIS FIRST when user wants to integrate/接入/setup/add leaderboard功能. Returns complete step-by-step workflow. CRITICAL: Emphasizes NO SDK installation - tap is global object. Call this BEFORE making any implementation plans.',
+      inputSchema: {
+        type: 'object',
+        properties: {}
+      }
+    },
+
     // 🔍 Search Tool (kept because Resources don't support dynamic parameters)
     {
       name: 'search_leaderboard_docs',

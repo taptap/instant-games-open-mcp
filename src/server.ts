@@ -246,6 +246,12 @@ class TapTapMinigameMCPServer {
    */
   private async handleToolCall(name: string, args: any): Promise<string> {
     // Search tool (kept because Resources don't support dynamic parameters)
+    // Integration guide tool (for MCP clients that dont auto-read Resources)
+    if (name === 'get_integration_guide') {
+      return leaderboardTools.getIntegrationWorkflow();
+    }
+
+
     if (name === 'search_leaderboard_docs') {
       return leaderboardTools.searchLeaderboardDocs(args);
     }
