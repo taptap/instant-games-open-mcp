@@ -20,19 +20,13 @@ export function getToolDefinitions(): Tool[] {
       }
     },
 
-    // 🔍 Search Tool (kept because Resources don't support dynamic parameters)
+    // 📱 App Information Tool
     {
-      name: 'search_leaderboard_docs',
-      description: 'Search all leaderboard documentation by keyword. Use this when user asks a general question or you\'re not sure which specific API they need. For specific API docs, use Resources like "docs://leaderboard/api/submit-scores".',
+      name: 'get_current_app_info',
+      description: 'Get currently selected app/game information including developer_id, app_id, miniapp_id, and app name. Use this when you need to know which app is being used or to build preview links.',
       inputSchema: {
         type: 'object',
-        properties: {
-          query: {
-            type: 'string',
-            description: 'Search keyword, such as: leaderboard, score, ranking, submission, etc.'
-          }
-        },
-        required: ['query']
+        properties: {}
       }
     },
 

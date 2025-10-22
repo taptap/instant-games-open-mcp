@@ -54,42 +54,11 @@ export function getResourceDefinitions(): ResourceDefinition[] {
       mimeType: 'text/markdown'
     },
 
-    // Overview and Best Practices
-    // Read these FIRST for general understanding, then read specific APIs above
+    // Complete Overview
     {
       uri: 'docs://leaderboard/overview',
       name: 'Leaderboard Complete Overview',
-      description: 'Complete overview of all leaderboard APIs - READ THIS FIRST when user wants to understand what leaderboard features are available. Then read specific API docs above for implementation details.',
-      mimeType: 'text/markdown'
-    },
-    {
-      uri: 'docs://leaderboard/patterns',
-      name: 'Integration Patterns & Best Practices',
-      description: 'Common scenarios, integration patterns and best practices - READ THIS after overview for examples. Then read specific API docs above for detailed implementation.',
-      mimeType: 'text/markdown'
-    },
-
-    // Client-side Integration Guide (static documentation)
-    {
-      uri: 'docs://leaderboard/guide/quickstart',
-      name: 'Client-Side Integration Quick Start',
-      description: 'STATIC client-side integration tutorial (assumes you already have leaderboard_id) - READ THIS when user wants to learn how to integrate leaderboard in their game code. For interactive server setup, use Prompt "leaderboard-integration" instead.',
-      mimeType: 'text/markdown'
-    },
-
-    // Runtime App Information (dynamic data)
-    {
-      uri: 'app://current-app-info',
-      name: 'Current App/Game Information',
-      description: 'Currently selected app/game information including developer_id, app_id, app name, and cached leaderboard_id - READ THIS when you need to know which app is currently being used or configured',
-      mimeType: 'text/markdown'
-    },
-
-    // Complete Integration Workflow (procedural guide)
-    {
-      uri: 'guide://leaderboard/integration-workflow',
-      name: 'Complete Leaderboard Integration Workflow',
-      description: '🎯 MUST READ FIRST when user says: "接入排行榜", "integrate leaderboard", "add ranking", "setup leaderboard". Complete workflow: server setup AND client code (NO SDK!). Read BEFORE making plans. Covers: server creation, client code (NO SDK!), common pitfalls, testing. Essential reading before starting any leaderboard work.',
+      description: 'Complete overview of all leaderboard APIs and features - READ THIS when you want to understand what APIs are available',
       mimeType: 'text/markdown'
     }
   ];
@@ -105,9 +74,5 @@ export const RESOURCE_URI_MAP: Record<string, string> = {
   'docs://leaderboard/api/load-scores': 'loadLeaderboardScores',
   'docs://leaderboard/api/load-player-score': 'loadCurrentPlayerScore',
   'docs://leaderboard/api/load-centered-scores': 'loadPlayerCenteredScores',
-  'docs://leaderboard/overview': 'getLeaderboardOverview',
-  'docs://leaderboard/patterns': 'getLeaderboardPatterns',
-  'docs://leaderboard/guide/quickstart': 'getQuickStartGuide',
-  'app://current-app-info': 'getCurrentAppInfo',
-  'guide://leaderboard/integration-workflow': 'getIntegrationWorkflow'
+  'docs://leaderboard/overview': 'getLeaderboardOverview'
 };
