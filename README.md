@@ -1,69 +1,69 @@
-# TapTap Open API MCP Server
+# TapTap Open API MCP 服务器
 
-> Model Context Protocol (MCP) server for **TapTap Minigame & H5 Games** - Leaderboard documentation and management APIs with **OAuth 2.0 zero-config authentication**.
+> 基于 Model Context Protocol (MCP) 的 **TapTap 小游戏和 H5 游戏**服务器 - 提供排行榜文档和管理 API，支持 **OAuth 2.0 零配置认证**。
 
-🔐 **Zero-Config OAuth** | 📚 **Complete Docs** | 🎯 **Modular Architecture** | 🌍 **Minigame & H5**
+🔐 **零配置 OAuth** | 📚 **完整文档** | 🎯 **模块化架构** | 🌍 **小游戏 & H5**
 
-## Features
+## 功能特性
 
-### 🔐 Zero-Config OAuth Authentication
+### 🔐 零配置 OAuth 认证
 
-- **No manual token configuration needed!**
-- Device Code Flow - Scan QR code to authorize
-- Auto-save token to `~/.config/taptap-minigame/token.json`
-- Works in Cursor, Claude Code, VSCode
-- Lazy loading - Server starts instantly, auth triggered when needed
+- **无需手动配置 token！**
+- Device Code Flow - 扫码即可授权
+- 自动保存 token 到 `~/.config/taptap-minigame/token.json`
+- 支持 Cursor、Claude Code、VSCode
+- 懒加载 - 服务器秒级启动，需要时才触发认证
 
-### 📖 Complete API Documentation
+### 📖 完整的 API 文档
 
-6 LeaderboardManager APIs with detailed docs:
-- `tap.getLeaderboardManager()` - Initialize leaderboard
-- `submitScores()` - Submit player scores
-- `openLeaderboard()` - Display leaderboard UI
-- `loadLeaderboardScores()` - Fetch leaderboard data
-- `loadCurrentPlayerLeaderboardScore()` - Get player's rank
-- `loadPlayerCenteredScores()` - Load nearby players
+6 个 LeaderboardManager API 及详细文档：
+- `tap.getLeaderboardManager()` - 初始化排行榜
+- `submitScores()` - 提交玩家分数
+- `openLeaderboard()` - 显示排行榜 UI
+- `loadLeaderboardScores()` - 获取排行榜数据
+- `loadCurrentPlayerLeaderboardScore()` - 获取玩家排名
+- `loadPlayerCenteredScores()` - 加载周围玩家
 
-**⚠️ CRITICAL: NO SDK installation needed!**
-- `tap` is a global object (like `window`)
-- No `npm install` required
-- No imports needed
+**⚠️ 关键提示：无需安装任何 SDK！**
+- `tap` 是全局对象（类似 `window`）
+- 不需要 `npm install`
+- 不需要 import
 
-### ⚙️ Server-side Management
+### ⚙️ 服务端管理
 
-- **Create Leaderboards** - Server-side leaderboard creation
-- **List Leaderboards** - Query existing leaderboards
-- **Auto ID Management** - Auto-fetch developer_id, app_id, miniapp_id
-- **Complete Integration Guide** - Step-by-step workflow
+- **创建排行榜** - 服务端创建排行榜
+- **列出排行榜** - 查询现有排行榜
+- **自动 ID 管理** - 自动获取 developer_id、app_id、miniapp_id
+- **完整集成指南** - 分步骤工作流
 
-### 🎯 Modular Architecture
+### 🎯 模块化架构
 
-- **10 Tools** - Unified entry points for AI
-- **7 Resources** - Detailed API documentation
-- **Modular Design** - Easy to add new features (cloud save, share, etc.)
-- **Fully Compatible** - Claude Code ✅, VSCode ✅, Cursor ✅
+- **10 个 Tools** - AI 的统一入口
+- **7 个 Resources** - 详细 API 文档
+- **模块化设计** - 易于添加新功能（云存档、分享等）
+- **完全兼容** - Claude Code ✅、VSCode ✅、Cursor ✅
 
-## Quick Start
+## 快速开始
 
-### Installation
-
-```bash
-npm install -g minigame-open-mcp
-```
-
-Or use directly with npx (no installation needed):
+### 安装
 
 ```bash
-npx minigame-open-mcp
+npm install -g @mikoto_zero/minigame-open-mcp
 ```
 
-### Configuration
+或使用 npx 直接运行（无需安装）：
 
-#### For Claude Code / VSCode / Cursor (Zero-Config with OAuth)
+```bash
+npx @mikoto_zero/minigame-open-mcp@beta
+```
 
-**Recommended**: Use OAuth Device Code Flow - No manual token configuration needed!
+### 配置
 
-Add to `.mcp.json` in your project:
+#### 在 Claude Code / VSCode / Cursor 中使用（零配置 OAuth）
+
+**推荐**：使用 OAuth Device Code Flow - 无需手动配置 token！
+
+在项目中创建 `.mcp.json`：
 
 ```json
 {
@@ -79,16 +79,16 @@ Add to `.mcp.json` in your project:
 }
 ```
 
-**First use**:
-1. Server starts instantly
-2. When you use authenticated tools, you'll get a QR code link
-3. Scan with TapTap App to authorize
-4. Call `complete_oauth_authorization` tool
-5. Token auto-saved, future uses automatic!
+**首次使用流程**：
+1. 服务器秒级启动
+2. 使用需要认证的功能时，会显示授权二维码链接
+3. 用 TapTap App 扫码授权
+4. 调用 `complete_oauth_authorization` 工具完成授权
+5. Token 自动保存，后续使用自动加载！
 
-**Manual token configuration** (Optional):
+**手动配置 Token**（可选）：
 
-If you prefer to configure manually:
+如果你想手动配置：
 
 ```json
 {
@@ -106,18 +106,19 @@ If you prefer to configure manually:
 }
 ```
 
-#### For OpenHands
+#### 在 OpenHands 中使用
 
 ```json
 {
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["@mikoto_zero/minigame-open-mcp"],
+      "args": ["@mikoto_zero/minigame-open-mcp@beta"],
       "env": {
         "TDS_MCP_MAC_TOKEN": "${CURRENT_USER_MAC_TOKEN}",
         "TDS_MCP_CLIENT_ID": "your_client_id",
-        "TDS_MCP_CLIENT_TOKEN": "your_client_secret",
+        "TDS_MCP_CLIENT_TOKEN": "your_client_token",
+        "TDS_MCP_ENV": "production",
         "TDS_MCP_PROJECT_PATH": "${CURRENT_PROJECT_PATH}",
         "TAPTAP_MINIGAME_MCP_VERBOSE": "false"
       }
@@ -126,240 +127,183 @@ If you prefer to configure manually:
 }
 ```
 
-### Environment Variables
+### 环境变量
 
-**For OAuth (Recommended - Zero Config):**
-- ✅ No environment variables required!
-- Token auto-saved to `~/.config/taptap-minigame/token.json`
+**OAuth 认证（推荐 - 零配置）：**
+- ✅ 无需配置环境变量！
+- Token 自动保存到 `~/.config/taptap-minigame/token.json`
 
-**For Manual Configuration (Optional):**
-- `TDS_MCP_MAC_TOKEN` - MAC Token in JSON format (optional, use OAuth if not set)
-- `TDS_MCP_CLIENT_ID` - Client ID (has default value, override if needed)
-- `TDS_MCP_CLIENT_TOKEN` - Signing key (has default value, override if needed)
+**手动配置（可选）：**
+- `TDS_MCP_MAC_TOKEN` - MAC Token JSON 格式（可选，不设置则使用 OAuth）
+- `TDS_MCP_CLIENT_ID` - 客户端 ID（已内置默认值，可覆盖）
+- `TDS_MCP_CLIENT_TOKEN` - 签名密钥（已内置默认值，可覆盖）
 
-**Optional:**
-- `TDS_MCP_ENV` - Environment: `production` (default) or `rnd`
-- `TDS_MCP_PROJECT_PATH` - Project path for local caching
-- `TAPTAP_MINIGAME_MCP_VERBOSE` - Detailed logging: `true` or `false` (default)
+**其他配置：**
+- `TDS_MCP_ENV` - 环境选择：`production`（默认）或 `rnd`
+- `TDS_MCP_PROJECT_PATH` - 项目路径，用于本地缓存
+- `TAPTAP_MINIGAME_MCP_VERBOSE` - 详细日志：`true` 或 `false`（默认）
 
-**Debugging:**
+**调试模式：**
 
-Enable detailed logging to see all tool calls, HTTP requests/responses:
+启用详细日志查看所有工具调用、HTTP 请求/响应：
 
 ```bash
 export TAPTAP_MINIGAME_MCP_VERBOSE=true
 npm start
 ```
 
-The verbose mode logs:
-- 📥 Tool call inputs and outputs
-- 📤 HTTP request headers and body
-- 📥 HTTP response status and data
-- 🔒 Sensitive data automatically masked
+详细日志包含：
+- 📥 工具调用的输入和输出
+- 📤 HTTP 请求头和请求体
+- 📥 HTTP 响应状态和数据
+- 🔒 敏感数据自动脱敏
 
-## Usage
+## 使用示例
 
-### Scenario 1: Getting Started with Leaderboards
-
-```
-User: "I want to integrate leaderboards into my game"
-
-AI Agent calls: get_integration_guide
-
-Returns: Complete step-by-step workflow
-✅ Emphasizes NO SDK installation
-✅ Step 1: Check/create server-side leaderboard
-✅ Step 2: Client code (using global tap object)
-✅ Step 3: Testing checklist
-✅ Lists all Resources for detailed API docs
-```
-
-### Scenario 2: Get Implementation Code
+### 场景 1: 接入排行榜功能
 
 ```
-User: "How do I submit scores to the leaderboard?"
+用户: "我想在游戏中接入排行榜功能"
 
-AI Agent calls: submit_scores
+AI 调用: get_integration_guide
 
-System returns:
-✅ Method signature: leaderboardManager.submitScores(scores, callback)
-✅ Parameter documentation
-✅ Complete code example
-✅ Error handling guide
+返回: 完整的分步骤工作流
+✅ 强调无需安装 SDK
+✅ 步骤 1: 检查/创建服务端排行榜
+✅ 步骤 2: 客户端代码（使用全局 tap 对象）
+✅ 步骤 3: 测试检查清单
+✅ 列出所有 Resources 供详细阅读
 ```
 
-### Scenario 3: Create a Leaderboard
+### 场景 2: 获取 API 文档
 
+**在 Claude Code 中**（AI 自动读取）：
 ```
-User: "Create a weekly high score leaderboard"
+用户: "如何提交分数？"
 
-AI Agent calls: create_leaderboard
-{
-  title: "Weekly High Score",
-  period_type: 1,
-  score_type: 0,
-  score_order: 1,
-  calc_type: 0
-}
+AI 读取: docs://leaderboard/api/submit-scores
 
-System:
-✅ Auto-fetches developer_id and app_id
-✅ Creates leaderboard
-✅ Returns leaderboard_id
-✅ Caches for future use
+返回: submitScores() 完整文档（参数、示例、错误码）
 ```
 
-## Available Tools (14 total)
-
-### Core API Documentation Tools (6)
-- `get_leaderboard_manager`
-- `open_leaderboard`
-- `submit_scores`
-- `load_leaderboard_scores`
-- `load_current_player_score`
-- `load_player_centered_scores`
-
-### Management Tools (2)
-- `create_leaderboard` - Create new leaderboards
-- `list_leaderboards` - Query existing leaderboards
-
-### Helper Tools (3)
-- `search_leaderboard_docs` - Search documentation
-- `get_leaderboard_overview` - System overview
-- `get_leaderboard_patterns` - Best practices
-
-### System Tools (2)
-- `check_environment` - Environment check
-- `start_leaderboard_integration` - Workflow guidance
-
-### User Data Tool (1)
-- `get_user_leaderboard_scores` - Query user scores (requires token)
-
-## Technical Details
-
-### Request Signing
-
-All server-side API requests use HMAC-SHA256 signing:
-
+**在 VSCode 中**（调用工具）：
 ```
-Signature = HMAC-SHA256(
-  method + "\n" +
-  url + "\n" +
-  x-tap-headers + "\n" +
-  body + "\n",
-  TDS_MCP_CLIENT_TOKEN
-)
+用户: "如何提交分数？"
+
+AI 调用: get_integration_guide
+
+返回: 完整工作流（包含代码示例）
 ```
 
-### Auto ID Management
+### 场景 3: OAuth 授权流程
 
-Developer ID and App ID are automatically managed:
+```
+用户: "创建排行榜"
 
-1. First call to management tools triggers `/level/v1/list` API
-2. Selects first developer and first app
-3. Caches to `~/.config/taptap-minigame/app.json`
-4. Subsequent calls use cached values
-5. No manual ID input needed
+AI 调用: create_leaderboard
 
-### Multi-Environment Support
+返回: 🔐 需要授权
+      🔗 https://www.taptap.cn/tap-qrcode?...
 
-- **Production** (default): `https://agent.tapapis.cn`
-- **RND**: `https://agent.api.xdrnd.cn`
+      步骤:
+      1. 点击链接在浏览器打开
+      2. 用 TapTap App 扫码
+      3. 调用 complete_oauth_authorization
+      4. 重新执行
 
-Switch via `TDS_MCP_ENV` environment variable.
+用户: "我已经授权了"
 
-## Requirements
+AI 调用: complete_oauth_authorization
 
-- Node.js >= 16.0.0
-- Valid TapTap user token
-- Client ID and secret for API access
+返回: ✅ 授权完成！Token 已保存
 
-## API Reference
+用户: "创建排行榜"
 
-Based on TapTap official documentation:
-- https://developer.taptap.cn/minigameapidoc/dev/api/open-api/leaderboard/
+AI 调用: create_leaderboard
 
-## License
+返回: ✅ 排行榜创建成功！
+      🎮 客户端 ID: xxx
+```
 
-MIT
+## 🏗️ 架构
 
-## Links
+### 模块化设计
 
-- [TapTap Developer Portal](https://developer.taptap.cn/)
-- [MCP Protocol](https://modelcontextprotocol.io/)
-- [Issues](https://github.com/taptap/taptap-minigame-mcp-server/issues)
-
-## 🏗️ Architecture
-
-### Modular Design
-
-v1.2.0-beta introduces a **fully modular architecture** where each feature is self-contained:
+v1.2.0-beta 引入了**完全模块化的架构**，每个功能都是自包含的：
 
 ```
 src/
-├── features/              # Feature modules (self-contained)
-│   └── leaderboard/      # All leaderboard code in one place
-│       ├── index.ts      # Module definition & registration
-│       ├── tools.ts      # Tools definitions + handlers
-│       ├── resources.ts  # Resources definitions + handlers
-│       ├── docs.ts       # Documentation content
-│       ├── docTools.ts   # Documentation tools
-│       ├── handlers.ts   # Business logic
-│       └── api.ts        # API calls
+├── features/              # 功能模块（自包含）
+│   └── leaderboard/      # 所有排行榜代码在一个地方
+│       ├── index.ts      # 模块定义和注册
+│       ├── tools.ts      # Tools 定义 + 处理器
+│       ├── resources.ts  # Resources 定义 + 处理器
+│       ├── docs.ts       # 文档内容
+│       ├── docTools.ts   # 文档工具
+│       ├── handlers.ts   # 业务逻辑
+│       └── api.ts        # API 调用
 │
-├── core/                  # Shared core functionality
+├── core/                  # 共享核心功能
 │   ├── auth/             # OAuth Device Code Flow
-│   ├── network/          # HTTP Client
-│   ├── handlers/         # Common handlers
-│   ├── utils/            # Cache, logger
-│   └── types/            # Type definitions
+│   ├── network/          # HTTP 客户端
+│   ├── handlers/         # 通用处理器
+│   ├── utils/            # 缓存、日志
+│   └── types/            # 类型定义
 │
-└── server.ts              # Main server (auto-registration)
+└── server.ts              # 主服务器（自动注册）
 ```
 
-**Adding new features**:
+**添加新功能**：
 ```typescript
-// 1. Copy template
+// 1. 复制模板
 cp -r src/features/leaderboard src/features/cloudSave
 
-// 2. Modify content in features/cloudSave/
+// 2. 修改 features/cloudSave/ 中的内容
 
-// 3. Import in server.ts
+// 3. 在 server.ts 导入
 import { cloudSaveModule } from './features/cloudSave/index.js';
 const allModules = [leaderboardModule, cloudSaveModule];
 
-// Done! Auto-registered ✅
+// 完成！自动注册 ✅
 ```
 
-## 📚 Documentation
+## 📚 文档
 
-- **README.md** - This file (user guide)
-- **CLAUDE.md** - Claude Code integration guide
-- **CONTRIBUTING.md** - Developer guide for adding features
-- **ARCHITECTURE.md** - Detailed architecture documentation
-- **CHANGELOG.md** - Version history
+- **README.md** - 本文件（用户指南）
+- **CLAUDE.md** - Claude Code 集成指南
+- **CONTRIBUTING.md** - 开发者贡献指南（添加新功能）
+- **ARCHITECTURE.md** - 详细架构文档
+- **CHANGELOG.md** - 版本变更历史
 
-## 🤝 Contributing
+## 🤝 贡献
 
-Want to add new features (cloud save, share, etc.)?
+想要添加新功能（云存档、分享等）？
 
-See **CONTRIBUTING.md** for:
-- Step-by-step guide
-- Code structure
-- Design principles
-- Quick start script: `./scripts/create-feature.sh`
+查看 **CONTRIBUTING.md** 了解：
+- 分步骤指南
+- 代码结构
+- 设计原则
+- 快速脚手架：`./scripts/create-feature.sh`
 
-## 📖 Resources
+## 📖 相关资源
 
-- **Official API Docs**: https://developer.taptap.cn/minigameapidoc/dev/api/open-api/leaderboard/
-- **MCP Specification**: https://modelcontextprotocol.io/
-- **npm Package**: [@mikoto_zero/minigame-open-mcp](https://www.npmjs.com/package/@mikoto_zero/minigame-open-mcp)
+- **官方 API 文档**: https://developer.taptap.cn/minigameapidoc/dev/api/open-api/leaderboard/
+- **MCP 规范**: https://modelcontextprotocol.io/
+- **npm 包**: [@mikoto_zero/minigame-open-mcp](https://www.npmjs.com/package/@mikoto_zero/minigame-open-mcp)
 
-## 📊 Versions
+## 📊 版本
 
-- **latest (v1.1.4)**: Tools-only stable version (17 tools)
-- **beta (v1.2.0-beta.11)**: Modular architecture with OAuth (10 tools + 7 resources)
+- **latest (v1.1.4)**: 纯 Tools 稳定版（17 tools）
+- **beta (v1.2.0-beta.11)**: 模块化架构 + OAuth（10 tools + 7 resources）
 
-## 📄 License
+推荐使用 **beta 版本**获得最佳体验！
+
+## 📄 许可证
 
 MIT
+
+## 🔗 链接
+
+- [TapTap 开发者中心](https://developer.taptap.cn/)
+- [MCP 协议](https://modelcontextprotocol.io/)
+- [Issues](https://github.com/taptap/taptap-minigame-mcp-server/issues)
