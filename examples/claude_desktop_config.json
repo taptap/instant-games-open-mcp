@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "taptap-docs": {
-      "command": "npx",
-      "args": ["@taptap/minigame-docs-mcp"]
-    }
-  }
-}

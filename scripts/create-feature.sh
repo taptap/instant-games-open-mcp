@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 快速创建新功能的脚手架脚本
+# 快速创建新功能模块的脚手架脚本（v1.2.0-beta.11+ 模块化架构）
 # 用法: ./scripts/create-feature.sh cloud-save "Cloud Save"
 
 FEATURE_KEY=$1  # 例如: cloud-save
@@ -12,19 +12,131 @@ if [ -z "$FEATURE_KEY" ] || [ -z "$FEATURE_NAME" ]; then
   exit 1
 fi
 
-# 转换为驼峰命名
-CAMEL_CASE=$(echo $FEATURE_KEY | sed -r 's/(^|-)([a-z])/\U\2/g')  # cloudSave
-PASCAL_CASE=$(echo $CAMEL_CASE | sed 's/^./\U&/')  # CloudSave
+# 转换命名格式
+# cloud-save → cloudSave
+CAMEL_CASE=$(echo $FEATURE_KEY | perl -pe 's/(^|-)(.)/\U$2/g')
+# cloudSave → CloudSave
+PASCAL_CASE="${CAMEL_CASE^}"
 
-echo "🚀 创建新功能: $FEATURE_NAME"
+# 创建目标目录
+FEATURE_DIR="src/features/$CAMEL_CASE"
+
+echo "🚀 创建新功能模块: $FEATURE_NAME"
 echo "   Key: $FEATURE_KEY"
-echo "   CamelCase: $CAMEL_CASE"
-echo "   PascalCase: $PASCAL_CASE"
+echo "   Directory: $FEATURE_DIR"
 echo ""
 
-# 1. 创建文档数据文件
-echo "📝 创建 src/data/${CAMEL_CASE}Docs.ts"
-cat > src/data/${CAMEL_CASE}Docs.ts << EOF
+# 创建模块目录
+mkdir -p "$FEATURE_DIR"
+
+echo "📁 创建模块文件..."
+echo ""
+
+# ============================================================
+# 1. 创建模块定义（index.ts）
+# ============================================================
+echo "📝 创建 $FEATURE_DIR/index.ts"
+cat > "$FEATURE_DIR/index.ts" << EOF
+/**
+ * $FEATURE_NAME Feature Module
+ */
+
+import { Tool } from '@modelcontextprotocol/sdk/types.js';
+import type { HandlerContext } from '../../core/types/index.js';
+
+import { ${CAMEL_CASE}ToolDefinitions, ${CAMEL_CASE}ToolHandlers } from './tools.js';
+import { ${CAMEL_CASE}ResourceDefinitions, ${CAMEL_CASE}ResourceHandlers } from './resources.js';
+
+export const ${CAMEL_CASE}Module = {
+  name: '$CAMEL_CASE',
+  description: 'TapTap $FEATURE_NAME 功能',
+
+  tools: ${CAMEL_CASE}ToolDefinitions.map((definition, index) => ({
+    definition,
+    handler: ${CAMEL_CASE}ToolHandlers[index],
+    requiresAuth: [
+      // TODO: 列出需要认证的 tool names
+      // 'save_cloud_data', 'load_cloud_data'
+    ].includes(definition.name)
+  })),
+
+  resources: ${CAMEL_CASE}ResourceDefinitions.map((definition, index) => ({
+    ...definition,
+    handler: ${CAMEL_CASE}ResourceHandlers[index]
+  }))
+};
+EOF
+
+# ============================================================
+# 2. 创建 Tools 定义（tools.ts）
+# ============================================================
+echo "🔧 创建 $FEATURE_DIR/tools.ts"
+cat > "$FEATURE_DIR/tools.ts" << EOF
+/**
+ * $FEATURE_NAME Tools Definitions and Handlers
+ */
+
+import { Tool } from '@modelcontextprotocol/sdk/types.js';
+import type { HandlerContext } from '../../core/types/index.js';
+
+import * as handlers from './handlers.js';
+import { ${CAMEL_CASE}Tools } from './docTools.js';
+
+export const ${CAMEL_CASE}ToolDefinitions: Tool[] = [
+  // 流程指引
+  {
+    name: 'get_${FEATURE_KEY}_guide',
+    description: '⭐ $FEATURE_NAME 完整接入工作流指引',
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    }
+  }
+  // TODO: 添加更多 Tools
+];
+
+export const ${CAMEL_CASE}ToolHandlers = [
+  // get_${FEATURE_KEY}_guide
+  async (args: any, context: HandlerContext) => {
+    return ${CAMEL_CASE}Tools.getIntegrationWorkflow();
+  }
+  // TODO: 添加更多 handlers
+];
+EOF
+
+# ============================================================
+# 3. 创建 Resources 定义（resources.ts）
+# ============================================================
+echo "📚 创建 $FEATURE_DIR/resources.ts"
+cat > "$FEATURE_DIR/resources.ts" << EOF
+/**
+ * $FEATURE_NAME Resources Definitions and Handlers
+ */
+
+import { ${CAMEL_CASE}Tools } from './docTools.js';
+
+export const ${CAMEL_CASE}ResourceDefinitions = [
+  {
+    uri: 'docs://$FEATURE_KEY/overview',
+    name: '$FEATURE_NAME Complete Overview',
+    description: 'Complete overview of $FEATURE_NAME APIs',
+    mimeType: 'text/markdown'
+  }
+  // TODO: 添加更多 Resources
+];
+
+export const ${CAMEL_CASE}ResourceHandlers = [
+  // docs://$FEATURE_KEY/overview
+  async () => ${CAMEL_CASE}Tools.getOverview()
+  // TODO: 添加更多 handlers
+];
+EOF
+
+# ============================================================
+# 4. 创建文档数据（docs.ts）
+# ============================================================
+echo "📖 创建 $FEATURE_DIR/docs.ts"
+cat > "$FEATURE_DIR/docs.ts" << EOF
 /**
  * TapTap $FEATURE_NAME API Documentation
  */
@@ -51,86 +163,95 @@ export const ${CAMEL_CASE.toUpperCase()}_DOCUMENTATION = {
     // TODO: 添加 API 定义
   ]
 };
-
-export function get${PASCAL_CASE}Overview(): string {
-  // TODO: 实现概览函数
-  return \`# \${${CAMEL_CASE.toUpperCase()}_DOCUMENTATION.title}\n\n...\`;
-}
 EOF
 
-# 2. 创建工具函数
-echo "🔧 创建 src/tools/${CAMEL_CASE}Tools.ts"
-cat > src/tools/${CAMEL_CASE}Tools.ts << EOF
+# ============================================================
+# 5. 创建文档工具（docTools.ts）
+# ============================================================
+echo "🛠️  创建 $FEATURE_DIR/docTools.ts"
+cat > "$FEATURE_DIR/docTools.ts" << EOF
 /**
- * $FEATURE_NAME Tools
+ * $FEATURE_NAME Documentation Tools
  */
 
-import { ${CAMEL_CASE.toUpperCase()}_DOCUMENTATION, get${PASCAL_CASE}Overview } from '../data/${CAMEL_CASE}Docs.js';
+import { ${CAMEL_CASE.toUpperCase()}_DOCUMENTATION } from './docs.js';
 
-// TODO: 实现各个 API 的文档获取函数
+export async function getOverview(): Promise<string> {
+  return \`# \${${CAMEL_CASE.toUpperCase()}_DOCUMENTATION.title}
 
-/**
- * Get integration workflow
- */
-export async function get${PASCAL_CASE}IntegrationWorkflow(): Promise<string> {
+\${${CAMEL_CASE.toUpperCase()}_DOCUMENTATION.description}
+
+// TODO: 添加完整概览内容
+  \`;
+}
+
+export async function getIntegrationWorkflow(): Promise<string> {
   return \`# $FEATURE_NAME 完整接入工作流
 
 ## ⚠️ 关键原则：客户端无需安装 SDK
 
-...
+// TODO: 添加完整工作流步骤
 
 ## 📚 需要详细 API 文档？
 
-- **docs://$FEATURE_KEY/api/xxx** - 某个 API 详细文档
 - **docs://$FEATURE_KEY/overview** - 完整概览
   \`;
 }
 
 export const ${CAMEL_CASE}Tools = {
-  get${PASCAL_CASE}Overview,
-  get${PASCAL_CASE}IntegrationWorkflow
+  getOverview,
+  getIntegrationWorkflow
   // TODO: 添加更多工具函数
 };
 EOF
 
-# 3. 创建 API 调用层
-echo "🌐 创建 src/network/${CAMEL_CASE}Api.ts"
-cat > src/network/${CAMEL_CASE}Api.ts << EOF
-/**
- * $FEATURE_NAME API Calls
- */
-
-import { HttpClient } from './httpClient.js';
-
-// TODO: 定义接口和实现 API 调用
-EOF
-
-# 4. 创建业务处理器
-echo "⚙️  创建 src/handlers/${CAMEL_CASE}Handlers.ts"
-cat > src/handlers/${CAMEL_CASE}Handlers.ts << EOF
+# ============================================================
+# 6. 创建业务处理器（handlers.ts）
+# ============================================================
+echo "⚙️  创建 $FEATURE_DIR/handlers.ts"
+cat > "$FEATURE_DIR/handlers.ts" << EOF
 /**
  * $FEATURE_NAME Handlers
  */
 
-export interface HandlerContext {
-  projectPath?: string;
-  macToken?: any;
-}
+import type { HandlerContext } from '../../core/types/index.js';
 
 // TODO: 实现业务逻辑处理器
 EOF
 
+# ============================================================
+# 7. 创建 API 调用层（api.ts）
+# ============================================================
+echo "🌐 创建 $FEATURE_DIR/api.ts"
+cat > "$FEATURE_DIR/api.ts" << EOF
+/**
+ * $FEATURE_NAME API Calls
+ */
+
+import { HttpClient } from '../../core/network/httpClient.js';
+
+// TODO: 定义接口和实现 API 调用
+EOF
+
 echo ""
-echo "✅ 文件创建完成！"
+echo "✅ 模块文件创建完成！"
+echo ""
+echo "📂 创建的文件："
+echo "   - $FEATURE_DIR/index.ts"
+echo "   - $FEATURE_DIR/tools.ts"
+echo "   - $FEATURE_DIR/resources.ts"
+echo "   - $FEATURE_DIR/docs.ts"
+echo "   - $FEATURE_DIR/docTools.ts"
+echo "   - $FEATURE_DIR/handlers.ts"
+echo "   - $FEATURE_DIR/api.ts"
 echo ""
 echo "📋 下一步："
-echo "1. 实现 src/data/${CAMEL_CASE}Docs.ts 中的文档内容"
-echo "2. 实现 src/tools/${CAMEL_CASE}Tools.ts 中的工具函数"
-echo "3. 实现 src/network/${CAMEL_CASE}Api.ts 中的 API 调用"
-echo "4. 实现 src/handlers/${CAMEL_CASE}Handlers.ts 中的业务逻辑"
-echo "5. 在 src/config/toolDefinitions.ts 中注册 Tools"
-echo "6. 在 src/config/resourceDefinitions.ts 中注册 Resources"
-echo "7. 在 src/server.ts 中注册处理器"
-echo "8. 编译测试: npm run build"
+echo "1. 实现各个文件中的 TODO 标记内容"
+echo "2. 在 src/server.ts 中注册模块："
+echo "   import { ${CAMEL_CASE}Module } from './features/$CAMEL_CASE/index.js';"
+echo "   const allModules = [leaderboardModule, ${CAMEL_CASE}Module];"
+echo "3. 编译测试: npm run build"
+echo "4. 启动测试: node dist/server.js"
 echo ""
-echo "📖 参考: CONTRIBUTING.md"
+echo "📖 参考: src/features/leaderboard/ 模块"
+echo "📚 详细文档: CONTRIBUTING.md"
