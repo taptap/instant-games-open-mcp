@@ -13,8 +13,8 @@ import {
   ScoreType,
   ScoreOrder,
   CalcType
-} from '../network/leaderboardApi.js';
-import { leaderboardTools } from '../tools/leaderboardTools.js';
+} from './api.js';
+import { leaderboardTools } from './docTools.js';
 
 /**
  * Handler context for accessing environment variables

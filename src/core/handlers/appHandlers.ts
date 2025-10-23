@@ -3,7 +3,7 @@
  * Handles developer and app selection operations
  */
 
-import { getAllDevelopersAndApps, selectApp as selectAppApi } from '../network/leaderboardApi.js';
+import { getAllDevelopersAndApps, selectApp as selectAppApi } from '../../features/leaderboard/api.js';
 
 /**
  * Handler context for accessing environment variables

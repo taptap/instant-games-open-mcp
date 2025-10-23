@@ -3,15 +3,15 @@
  */
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import type { HandlerContext } from '../../types/index.js';
+import type { HandlerContext } from '../../core/types/index.js';
 
-// Import handlers
-import * as leaderboardHandlers from '../../handlers/leaderboardHandlers.js';
-import * as appHandlers from '../../handlers/appHandlers.js';
-import * as environmentHandlers from '../../handlers/environmentHandlers.js';
+// Import handlers from core (shared)
+import * as appHandlers from '../../core/handlers/appHandlers.js';
+import * as environmentHandlers from '../../core/handlers/environmentHandlers.js';
 
-// Import tool functions
-import { leaderboardTools } from '../../tools/leaderboardTools.js';
+// Import from this module
+import * as leaderboardHandlers from './handlers.js';
+import { leaderboardTools } from './docTools.js';
 
 /**
  * Tool Definitions (JSON Schema)

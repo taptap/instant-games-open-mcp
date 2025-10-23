@@ -2,7 +2,7 @@
  * Leaderboard Resources Definitions and Handlers
  */
 
-import { leaderboardTools } from '../../tools/leaderboardTools.js';
+import { leaderboardTools } from './docTools.js';
 
 /**
  * Resource Definition

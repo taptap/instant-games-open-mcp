@@ -17,13 +17,13 @@ import {
 import process from 'node:process';
 
 // 导入核心模块
-import { ApiConfig } from './network/httpClient.js';
-import { logger } from './utils/logger.js';
-import { DeviceFlowAuth } from './auth/deviceFlow.js';
+import { ApiConfig } from './core/network/httpClient.js';
+import { logger } from './core/utils/logger.js';
+import { DeviceFlowAuth } from './core/auth/deviceFlow.js';
 
 // 导入功能模块
 import { leaderboardModule } from './features/leaderboard/index.js';
-import type { HandlerContext } from './types/index.js';
+import type { HandlerContext } from './core/types/index.js';
 
 // 环境变量配置
 const apiConfig = ApiConfig.getInstance();

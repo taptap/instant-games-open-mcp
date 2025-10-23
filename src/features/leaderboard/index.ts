@@ -4,7 +4,7 @@
  */
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import type { HandlerContext } from '../../types/index.js';
+import type { HandlerContext } from '../../core/types/index.js';
 
 // Import from leaderboard module
 import { leaderboardToolDefinitions, leaderboardToolHandlers } from './tools.js';
