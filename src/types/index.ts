@@ -19,3 +19,12 @@ export interface MacToken {
   /** mac algorithm name, such as "hmac-sha-1" */
   mac_algorithm: string;
 }
+
+/**
+ * Handler Context
+ * Passed to all tool handlers
+ */
+export interface HandlerContext {
+  projectPath?: string;
+  macToken?: MacToken;
+}

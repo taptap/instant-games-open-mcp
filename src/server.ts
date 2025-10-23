@@ -16,33 +16,25 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import process from 'node:process';
 
-// 导入配置和工具定义
+// 导入核心模块
 import { ApiConfig } from './network/httpClient.js';
-import { getToolDefinitions } from './config/toolDefinitions.js';
-import { getResourceDefinitions, RESOURCE_URI_MAP } from './config/resourceDefinitions.js';
 import { logger } from './utils/logger.js';
 import { DeviceFlowAuth } from './auth/deviceFlow.js';
 
-// 导入文档工具
-import { leaderboardTools } from './tools/leaderboardTools.js';
-
-// 导入各类处理器
-import * as appHandlers from './handlers/appHandlers.js';
-import * as leaderboardHandlers from './handlers/leaderboardHandlers.js';
-import * as environmentHandlers from './handlers/environmentHandlers.js';
+// 导入功能模块
+import { leaderboardModule } from './features/leaderboard/index.js';
+import type { HandlerContext } from './types/index.js';
 
 // 环境变量配置
 const apiConfig = ApiConfig.getInstance();
 const TDS_MCP_MAC_TOKEN = apiConfig.macToken;
 const TDS_MCP_PROJECT_PATH = process.env.TDS_MCP_PROJECT_PATH;
 
-/**
- * Handler context type
- */
-interface HandlerContext {
-  projectPath?: string;
-  macToken?: any;
-}
+// 所有功能模块
+const allModules = [
+  leaderboardModule
+  // Future: cloudSaveModule, shareModule, etc.
+];
 
 /**
  * TapTap 小游戏 MCP 服务器
@@ -73,12 +65,12 @@ class TapTapMinigameMCPServer {
    * 设置请求处理器
    */
   private setupHandlers(): void {
-    // 设置工具列表处理器
+    // 设置工具列表处理器 - 从所有模块收集
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: getToolDefinitions()
+      tools: allModules.flatMap(m => m.tools.map(t => t.definition))
     }));
 
-    // 设置工具调用处理器
+    // 设置工具调用处理器 - 自动从模块路由
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
@@ -86,24 +78,32 @@ class TapTapMinigameMCPServer {
       logger.logToolCall(name, args || {});
 
       try {
-        // Check if this tool requires authentication
-        const authRequiredTools = [
-          'list_developers_and_apps',
-          'select_app',
-          'create_leaderboard',
-          'list_leaderboards',
-          'publish_leaderboard',
-          'get_user_leaderboard_scores'
-        ];
+        // Special handling for complete_oauth_authorization (needs deviceAuth access)
+        if (name === 'complete_oauth_authorization') {
+          const result = await this.handleOAuthCompletion();
+          logger.logToolResponse(name, result, true);
+          return {
+            content: [{ type: 'text', text: result }]
+          };
+        }
 
-        if (authRequiredTools.includes(name)) {
-          // Trigger OAuth if needed (non-blocking on startup, blocking here)
+        // Find tool from modules
+        let toolReg = null;
+        for (const module of allModules) {
+          toolReg = module.tools.find(t => t.definition.name === name);
+          if (toolReg) break;
+        }
+
+        if (!toolReg) {
+          throw new McpError(ErrorCode.MethodNotFound, `未知工具: ${name}`);
+        }
+
+        // Check if authentication is required
+        if (toolReg.requiresAuth) {
           try {
             await this.ensureAuth();
           } catch (authError) {
             const errorMsg = authError instanceof Error ? authError.message : String(authError);
-
-            // If it's an OAuth error, provide user-friendly message with next steps
             throw new McpError(
               ErrorCode.InternalError,
               `🔐 需要 TapTap 授权\n\n${errorMsg}\n\n` +
@@ -116,7 +116,8 @@ class TapTapMinigameMCPServer {
           }
         }
 
-        const result = await this.handleToolCall(name, args || {});
+        // Call handler
+        const result = await toolReg.handler(args || {}, this.context);
 
         // Log tool call output
         logger.logToolResponse(name, result, true);
@@ -140,19 +141,36 @@ class TapTapMinigameMCPServer {
       }
     });
 
-    // 设置资源列表处理器
+    // 设置资源列表处理器 - 从所有模块收集
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-      resources: getResourceDefinitions()
+      resources: allModules.flatMap(m => m.resources.map(r => ({
+        uri: r.uri,
+        name: r.name,
+        description: r.description,
+        mimeType: r.mimeType
+      })))
     }));
 
-    // 设置资源读取处理器
+    // 设置资源读取处理器 - 自动从模块路由
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const uri = request.params.uri;
 
       logger.logToolCall(`ReadResource: ${uri}`, {});
 
       try {
-        const content = await this.handleResourceRead(uri);
+        // Find resource from modules
+        let resourceReg = null;
+        for (const module of allModules) {
+          resourceReg = module.resources.find(r => r.uri === uri);
+          if (resourceReg) break;
+        }
+
+        if (!resourceReg) {
+          throw new Error(`Unknown resource URI: ${uri}`);
+        }
+
+        // Call handler
+        const content = await resourceReg.handler();
 
         logger.logToolResponse(`ReadResource: ${uri}`, content.substring(0, 500), true);
 
@@ -160,7 +178,7 @@ class TapTapMinigameMCPServer {
           contents: [
             {
               uri: uri,
-              mimeType: 'text/markdown',
+              mimeType: resourceReg.mimeType || 'text/markdown',
               text: content
             }
           ]
@@ -177,98 +195,29 @@ class TapTapMinigameMCPServer {
   }
 
   /**
-   * 处理资源读取 - 路由到对应的文档工具
+   * Handle OAuth completion (special case - needs deviceAuth access)
    */
-  private async handleResourceRead(uri: string): Promise<string> {
-    const handlerKey = RESOURCE_URI_MAP[uri];
-
-    if (!handlerKey) {
-      throw new Error(`Unknown resource URI: ${uri}`);
+  private async handleOAuthCompletion(): Promise<string> {
+    if (!deviceAuth) {
+      return '❌ No pending authorization found.\n\nPlease call a tool that requires authentication (like list_developers_and_apps) first to start the authorization flow.';
     }
 
-    // Map to leaderboardTools methods
-    const toolMethod = (leaderboardTools as any)[handlerKey];
-    if (typeof toolMethod !== 'function') {
-      throw new Error(`Handler not found for resource: ${uri}`);
+    try {
+      const macToken = await deviceAuth.completeAuthorization();
+      const apiConfig = ApiConfig.getInstance();
+      apiConfig.setMacToken(macToken);
+
+      return '✅ 授权完成！\n\n' +
+             'Token 已成功保存，现在可以使用所有需要认证的功能了。\n\n' +
+             '请重新执行之前失败的操作。';
+    } catch (error) {
+      return `❌ 授权失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
+             '请确认：\n' +
+             '1. 已在浏览器中打开授权链接\n' +
+             '2. 已使用 TapTap App 扫码授权\n' +
+             '3. 授权页面显示成功\n\n' +
+             '如果仍然失败，请重新调用需要认证的工具获取新的授权链接。';
     }
-
-    return await toolMethod();
-  }
-
-  /**
-   * 处理工具调用 - 路由到对应的处理器
-   */
-  private async handleToolCall(name: string, args: any): Promise<string> {
-    // Integration guide tool (for MCP clients that dont auto-read Resources)
-    if (name === 'get_integration_guide') {
-      return leaderboardTools.getIntegrationWorkflow();
-    }
-
-
-
-    // App information
-    if (name === 'get_current_app_info') {
-      return leaderboardTools.getCurrentAppInfo();
-    }
-
-    // Environment check
-    if (name === 'check_environment') {
-      return environmentHandlers.checkEnvironment(this.context);
-    }
-
-    // OAuth authorization completion
-    if (name === 'complete_oauth_authorization') {
-      if (!deviceAuth) {
-        return '❌ No pending authorization found.\n\nPlease call a tool that requires authentication (like list_developers_and_apps) first to start the authorization flow.';
-      }
-
-      try {
-        const macToken = await deviceAuth.completeAuthorization();
-        const apiConfig = ApiConfig.getInstance();
-        apiConfig.setMacToken(macToken);
-
-        return '✅ 授权完成！\n\n' +
-               'Token 已成功保存，现在可以使用所有需要认证的功能了。\n\n' +
-               '请重新执行之前失败的操作。';
-      } catch (error) {
-        return `❌ 授权失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
-               '请确认：\n' +
-               '1. 已在浏览器中打开授权链接\n' +
-               '2. 已使用 TapTap App 扫码授权\n' +
-               '3. 授权页面显示成功\n\n' +
-               '如果仍然失败，请重新调用需要认证的工具获取新的授权链接。';
-      }
-    }
-
-    // App management tools
-    if (name === 'list_developers_and_apps') {
-      return appHandlers.listDevelopersAndApps(this.context);
-    }
-    if (name === 'select_app') {
-      return appHandlers.selectApp(args, this.context);
-    }
-
-    // Leaderboard management tools
-    if (name === 'create_leaderboard') {
-      return leaderboardHandlers.createLeaderboard(args, this.context);
-    }
-    if (name === 'list_leaderboards') {
-      return leaderboardHandlers.listLeaderboards(args, this.context);
-    }
-    if (name === 'publish_leaderboard') {
-      return leaderboardHandlers.publishLeaderboard(args, this.context);
-    }
-
-    // User data tools
-    if (name === 'get_user_leaderboard_scores') {
-      return leaderboardHandlers.getUserLeaderboardScores(args, this.context);
-    }
-
-    // Unknown tool
-    throw new McpError(
-      ErrorCode.MethodNotFound,
-      `未知工具: ${name}`
-    );
   }
 
   /**
@@ -278,18 +227,24 @@ class TapTapMinigameMCPServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
 
-    const tools = getToolDefinitions();
-    const resources = getResourceDefinitions();
-    
+    // Count tools and resources from all modules
+    const totalTools = allModules.reduce((sum, m) => sum + m.tools.length, 0);
+    const totalResources = allModules.reduce((sum, m) => sum + m.resources.length, 0);
 
     process.stderr.write('🚀 TapTap Open API MCP Server v1.2.0-beta.11 (Minigame & H5)\n');
-    process.stderr.write(`📚 Providing ${tools.length} tools, ${resources.length} resources\n`);
+    process.stderr.write(`📚 Providing ${totalTools} tools, ${totalResources} resources\n`);
     process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
     process.stderr.write(`🌍 Environment: ${apiConfig.environment}\n`);
     process.stderr.write(`🔗 API Base: ${apiConfig.apiBaseUrl}\n`);
     process.stderr.write('\n📖 MCP Capabilities:\n');
-    process.stderr.write(`   ✅ Tools (${tools.length}) - Execute operations with side effects\n`);
-    process.stderr.write(`   ✅ Resources (${resources.length}) - Read-only documentation and data\n`);
+    process.stderr.write(`   ✅ Tools (${totalTools}) - Execute operations with side effects\n`);
+    process.stderr.write(`   ✅ Resources (${totalResources}) - Read-only documentation and data\n`);
+    process.stderr.write('\n🎯 Loaded Modules:\n');
+    allModules.forEach(m => {
+      const toolCount = m.tools.length;
+      const resourceCount = m.resources.length;
+      process.stderr.write(`   📦 ${m.name}: ${toolCount} tools, ${resourceCount} resources\n`);
+    });
 
     if (logger.isVerbose()) {
       process.stderr.write('\n🔍 Verbose logging enabled (TAPTAP_MINIGAME_MCP_VERBOSE=true)\n');
