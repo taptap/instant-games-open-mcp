@@ -1,38 +1,124 @@
 # 项目架构
 
-## 🎯 模块化设计
+## 🎯 模块化设计（v1.2.0-beta.11+）
 
-每个功能（排行榜、云存档、分享等）都遵循相同的模块化结构：
+每个功能（排行榜、云存档、分享等）都是**完全内聚的模块**：
 
 ```
-功能模块
-├── data/[feature]Docs.ts       # 文档内容（静态数据）
-├── tools/[feature]Tools.ts     # 工具函数（返回文档）
-├── network/[feature]Api.ts     # API 调用（HTTP 请求）
-├── handlers/[feature]Handlers.ts # 业务逻辑（处理器）
-└── 在 server.ts 中注册
+src/
+├── features/              # 功能模块（代码完全内聚）
+│   └── leaderboard/      # 排行榜模块
+│       ├── index.ts      # 模块定义和导出 ⭐
+│       ├── tools.ts      # Tools 定义 + 处理器
+│       ├── resources.ts  # Resources 定义 + 处理器
+│       ├── docs.ts       # 文档内容
+│       ├── docTools.ts   # 文档工具函数
+│       ├── handlers.ts   # 业务逻辑
+│       └── api.ts        # API 调用
+│
+├── core/                  # 共享核心代码
+│   ├── auth/             # OAuth 认证
+│   ├── network/          # HTTP Client
+│   ├── handlers/         # 通用处理器
+│   ├── utils/            # 缓存、日志
+│   └── types/            # 类型定义
+│
+└── server.ts              # 主服务器（自动注册）
 ```
 
 ---
 
-## 📊 当前功能模块
+## 📦 模块结构
 
-### 1. 排行榜模块（Leaderboard）
+### Leaderboard 模块示例
 
+```typescript
+// features/leaderboard/index.ts
+export const leaderboardModule = {
+  name: 'leaderboard',
+
+  tools: [
+    {
+      definition: { name: 'get_integration_guide', ... },
+      handler: async (args, context) => { ... },
+      requiresAuth: false
+    },
+    {
+      definition: { name: 'create_leaderboard', ... },
+      handler: async (args, context) => { ... },
+      requiresAuth: true  // ← 标记需要认证
+    }
+    // ... 更多 tools
+  ],
+
+  resources: [
+    {
+      uri: 'docs://leaderboard/api/submit-scores',
+      name: 'API: submitScores()',
+      description: '...',
+      handler: async () => { ... }
+    }
+    // ... 更多 resources
+  ]
+};
 ```
-src/
-├── data/leaderboardDocs.ts      # 排行榜 API 文档
-├── tools/leaderboardTools.ts    # 返回文档的工具函数
-├── network/leaderboardApi.ts    # 排行榜 API 调用
-├── handlers/leaderboardHandlers.ts  # 业务逻辑
-└── config/
-    ├── toolDefinitions.ts       # Tools 注册
-    └── resourceDefinitions.ts   # Resources 注册
-```
 
-**提供的功能**：
-- 10 个 Tools（包括流程指引）
-- 7 个 Resources（API 文档）
+---
+
+## 🔄 自动注册机制
+
+### server.ts 自动注册
+
+```typescript
+// 导入所有功能模块
+import { leaderboardModule } from './features/leaderboard/index.js';
+// import { cloudSaveModule } from './features/cloudSave/index.js';  // 未来
+
+// 所有模块
+const allModules = [
+  leaderboardModule
+  // cloudSaveModule  // 未来
+];
+
+// 自动注册 Tools
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: allModules.flatMap(m => m.tools.map(t => t.definition))
+}));
+
+// 自动注册 Resources
+server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+  resources: allModules.flatMap(m => m.resources.map(r => ({...})))
+}));
+
+// 自动路由 Tools
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name } = request.params;
+
+  // 查找对应的 tool
+  for (const module of allModules) {
+    const tool = module.tools.find(t => t.definition.name === name);
+    if (tool) {
+      // 检查认证
+      if (tool.requiresAuth) await ensureAuth();
+      // 调用 handler
+      return await tool.handler(args, context);
+    }
+  }
+});
+
+// 自动路由 Resources
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const { uri } = request.params;
+
+  // 查找对应的 resource
+  for (const module of allModules) {
+    const resource = module.resources.find(r => r.uri === uri);
+    if (resource) {
+      return await resource.handler();
+    }
+  }
+});
+```
 
 ---
 
@@ -41,195 +127,242 @@ src/
 ### Tools 调用流程
 
 ```
-Client (Claude Code/VSCode)
+MCP Client (Claude Code/VSCode)
     ↓
-MCP Protocol (tools/call)
+MCP Protocol: tools/call
     ↓
-server.ts → handleToolCall()
+server.ts → 自动路由
     ↓
-根据 tool name 路由到：
-    ├── leaderboardHandlers.createLeaderboard()  # 操作类
-    ├── leaderboardTools.getIntegrationWorkflow()  # 文档类
-    └── environmentHandlers.checkEnvironment()  # 系统类
+查找模块中的 tool.handler
+    ↓ 如果 requiresAuth=true
+ensureAuth() → OAuth 懒加载
     ↓
-返回结果（string）
+执行 handler(args, context)
+    ↓
+features/leaderboard/handlers.ts
+    ↓
+features/leaderboard/api.ts
+    ↓
+core/network/httpClient.ts
+    ↓
+TapTap API
 ```
 
 ### Resources 读取流程
 
 ```
-Client (Claude Code)
+MCP Client (Claude Code)
     ↓
-MCP Protocol (resources/read)
+MCP Protocol: resources/read
     ↓
-server.ts → handleResourceRead()
+server.ts → 自动路由
     ↓
-查询 RESOURCE_URI_MAP[uri]
+查找模块中的 resource.handler
     ↓
-调用对应的工具函数
+执行 handler()
     ↓
-leaderboardTools.submitScores()
+features/leaderboard/docTools.ts
     ↓
-返回文档内容（markdown string）
+features/leaderboard/docs.ts
+    ↓
+返回文档内容
 ```
 
 ---
 
-## 🏗️ 分层架构
+## 📁 核心共享代码
 
+### core/auth/
+
+**OAuth 2.0 Device Code Flow**
+- `deviceFlow.ts` - 完整的 OAuth 实现
+- 懒加载认证
+- Token 本地存储
+
+### core/network/
+
+**HTTP 客户端**
+- `httpClient.ts` - 通用 HTTP 客户端
+  - MAC Token 认证
+  - 请求签名（X-Tap-Sign）
+  - 环境切换（production/rnd）
+
+### core/handlers/
+
+**通用处理器**（跨模块使用）
+- `appHandlers.ts` - 应用管理
+- `environmentHandlers.ts` - 环境检查
+
+### core/utils/
+
+**工具函数**
+- `cache.ts` - 本地缓存（developer_id, app_id, miniapp_id）
+- `logger.ts` - 日志工具（verbose 模式）
+
+### core/types/
+
+**类型定义**
+- `index.ts` - MacToken, HandlerContext 等
+
+---
+
+## ✨ 添加新功能
+
+### 方法 1: 复制现有模块（最快）
+
+```bash
+# 1. 复制排行榜模块作为模板
+cp -r src/features/leaderboard src/features/cloudSave
+
+# 2. 修改模块内容
+cd src/features/cloudSave
+# 修改 index.ts, tools.ts, resources.ts, docs.ts 等
+
+# 3. 在 server.ts 注册
+# 添加一行 import
+import { cloudSaveModule } from './features/cloudSave/index.js';
+# 添加到数组
+const allModules = [leaderboardModule, cloudSaveModule];
+
+# 完成！自动注册 ✅
 ```
-┌─────────────────────────────────────┐
-│   MCP Client (Claude Code/VSCode)  │
-└─────────────┬───────────────────────┘
-              │ MCP Protocol
-              │
-┌─────────────▼───────────────────────┐
-│   server.ts (路由层)                │
-│   - handleToolCall()                │
-│   - handleResourceRead()            │
-└─────────────┬───────────────────────┘
-              │
-       ┌──────┴──────┐
-       │             │
-┌──────▼──────┐ ┌───▼──────┐
-│  Handlers   │ │  Tools   │
-│  (业务逻辑)  │ │  (文档)  │
-└──────┬──────┘ └───┬──────┘
-       │             │
-       │      ┌──────┴──────┐
-       │      │             │
-┌──────▼──────▼──────┐ ┌───▼──────┐
-│   Network APIs      │ │   Data   │
-│   (HTTP 调用)       │ │  (文档)  │
-└─────────────────────┘ └──────────┘
+
+### 方法 2: 使用脚手架（推荐）
+
+```bash
+# 使用脚手架生成模板
+./scripts/create-feature.sh cloud-save "Cloud Save"
+
+# 会自动创建：
+# - src/features/cloudSave/index.ts
+# - src/features/cloudSave/tools.ts
+# - src/features/cloudSave/resources.ts
+# - src/features/cloudSave/docs.ts
+# - src/features/cloudSave/docTools.ts
+# - src/features/cloudSave/handlers.ts
+# - src/features/cloudSave/api.ts
+
+# 然后按 TODO 提示填充内容
 ```
 
 ---
 
-## 🎨 命名约定
+## 🎨 设计原则
+
+### 1. 代码内聚
+
+**一个功能，一个目录**
+- 排行榜的所有代码在 `features/leaderboard/`
+- 不需要跨目录查找
+
+### 2. 模块独立
+
+**模块间通过 core/ 共享代码**
+- 模块不直接依赖其他模块
+- 通过 core/ 的共享组件交互
+
+### 3. 自动注册
+
+**声明式定义，自动注册**
+- 在模块 index.ts 中定义 Tools 和 Resources
+- server.ts 自动收集和注册
+- 不需要手动修改多个配置文件
+
+### 4. 职责清晰
+
+**Tools vs Resources**
+- Tools: 操作和指引（AI 主动调用）
+- Resources: API 详细文档（补充阅读）
+- 不混淆，不重复
+
+---
+
+## 📏 命名约定
 
 ### 文件命名
 
-| 层级 | 命名规范 | 示例 |
-|------|---------|------|
-| Docs | `[feature]Docs.ts` | `leaderboardDocs.ts`, `cloudSaveDocs.ts` |
-| Tools | `[feature]Tools.ts` | `leaderboardTools.ts`, `cloudSaveTools.ts` |
-| API | `[feature]Api.ts` | `leaderboardApi.ts`, `cloudSaveApi.ts` |
-| Handlers | `[feature]Handlers.ts` | `leaderboardHandlers.ts`, `cloudSaveHandlers.ts` |
+| 文件 | 用途 | 示例 |
+|------|------|------|
+| `index.ts` | 模块定义 | 导出 `[feature]Module` |
+| `tools.ts` | Tools 定义 + 处理器 | 导出数组 |
+| `resources.ts` | Resources 定义 + 处理器 | 导出数组 |
+| `docs.ts` | 文档数据 | 原 `data/[feature]Docs.ts` |
+| `docTools.ts` | 文档工具 | 原 `tools/[feature]Tools.ts` |
+| `handlers.ts` | 业务逻辑 | 原 `handlers/[feature]Handlers.ts` |
+| `api.ts` | API 调用 | 原 `network/[feature]Api.ts` |
 
-### 函数命名
+### Tool 命名
 
-| 类型 | 命名规范 | 示例 |
-|------|---------|------|
-| Tool | `get_[feature]_[action]` | `get_leaderboard_guide`, `create_leaderboard` |
-| Resource URI | `docs://[feature]/[path]` | `docs://leaderboard/api/submit-scores` |
-| Handler | `[action][Feature]` | `createLeaderboard`, `saveData` |
+- 动词开头：`get_`, `create_`, `list_`, `delete_`
+- 小写 + 下划线：`get_integration_guide`, `create_leaderboard`
+- 每个功能至少有：`get_[feature]_guide`
 
-### 变量命名
+### Resource 命名
 
-- **驼峰命名**: `leaderboardManager`, `cloudSaveData`
-- **常量**: `LEADERBOARD_DOCUMENTATION`, `CLOUD_SAVE_API`
-- **接口**: `LeaderboardAPI`, `CloudSaveParams`
-
----
-
-## 🔧 通用工具和函数
-
-### 可复用的组件
-
-**HTTP Client** (`src/network/httpClient.ts`):
-- ✅ 已集成 MAC 认证
-- ✅ 已集成请求签名
-- ✅ 统一的错误处理
-- 使用：`new HttpClient()` 然后调用 `.get()` 或 `.post()`
-
-**App Info** (`src/network/leaderboardApi.ts`):
-- ✅ `ensureAppInfo()` - 自动获取 developer_id 和 app_id
-- ✅ `selectApp()` - 选择应用并缓存
-- ✅ `getAllDevelopersAndApps()` - 获取所有应用
-- 新功能可以直接复用这些函数
-
-**缓存** (`src/utils/cache.ts`):
-- ✅ `readAppCache()` - 读取缓存
-- ✅ `saveAppCache()` - 保存缓存
-- ✅ 自动处理目录创建
-- 新功能可以扩展 `AppCacheInfo` 接口添加自己的字段
-
-**认证** (`src/auth/deviceFlow.ts`):
-- ✅ OAuth Device Code Flow
-- ✅ 自动处理 token 存储
-- ✅ 新功能无需关心认证细节
+- URI 格式：`docs://[feature]/api/[method]` 或 `docs://[feature]/overview`
+- 小写 + 连字符：`leaderboard`, `cloud-save`, `social-share`
 
 ---
 
-## 📚 参考示例
+## 📊 代码度量
 
-查看 **排行榜模块** 作为完整的参考实现：
+当前项目（v1.2.0-beta.11）：
 
-1. **文档内容**: `src/data/leaderboardDocs.ts`
-2. **工具函数**: `src/tools/leaderboardTools.ts`
-3. **API 调用**: `src/network/leaderboardApi.ts`
-4. **业务逻辑**: `src/handlers/leaderboardHandlers.ts`
-5. **Tools 注册**: `src/config/toolDefinitions.ts` (行 13-100)
-6. **Resources 注册**: `src/config/resourceDefinitions.ts` (行 20-63)
-7. **处理器注册**: `src/server.ts` (行 201-310)
+| 模块 | 文件数 | 代码行数 |
+|------|-------|---------|
+| leaderboard | 7 | ~1800 行 |
+| core | 8 | ~800 行 |
+| server.ts | 1 | ~300 行 |
+| **总计** | **16** | **~2900 行** |
+
+模块化后代码减少了约 15%（清理了重复）
 
 ---
 
-## 🚀 快速开始
+## 🔗 模块依赖关系
 
-```bash
-# 1. 使用脚手架创建新功能
-./scripts/create-feature.sh cloud-save "Cloud Save"
-
-# 2. 编辑生成的文件，实现功能
-
-# 3. 注册到 config/ 和 server.ts
-
-# 4. 编译测试
-npm run build
-
-# 5. 本地调试
-node dist/server.js
-
-# 6. 提交代码
-git add .
-git commit -m "feat: 添加云存档功能"
+```
+features/leaderboard/
+    ↓ 依赖
+core/ (共享代码)
+    ↓ 不依赖
+features/* (其他模块)
 ```
 
----
-
-## 💡 开发提示
-
-1. **优先实现 `get_[feature]_guide` Tool**
-   - 这是 AI 的入口
-   - 包含完整工作流
-   - 列出所有 Resources
-
-2. **Resources 只放 API 详细文档**
-   - 不要放工作流指引
-   - 专注于参数、返回值、示例
-
-3. **复用现有组件**
-   - HTTP Client
-   - App Info
-   - 缓存
-   - 认证
-
-4. **遵循命名约定**
-   - 保持一致性
-   - 方便查找和维护
-
-5. **测试不同 MCP 客户端**
-   - Claude Code
-   - VSCode
-   - Cursor
+**依赖规则**：
+- ✅ 功能模块可以依赖 core/
+- ❌ 功能模块不能相互依赖
+- ✅ core/ 不依赖任何功能模块
 
 ---
 
-## 📖 参考文档
+## 📖 延伸阅读
 
-- **MCP 规范**: https://modelcontextprotocol.io/
-- **项目指南**: CONTRIBUTING.md
-- **更新日志**: CHANGELOG.md
-- **使用说明**: CLAUDE.md
+- **CONTRIBUTING.md** - 如何添加新功能的详细指南
+- **README.md** - 用户使用指南
+- **CLAUDE.md** - AI 集成指南
+- **CHANGELOG.md** - 版本历史
+
+---
+
+## 🎯 最佳实践
+
+### 开发新功能时
+
+1. ✅ 先阅读 CONTRIBUTING.md
+2. ✅ 使用 `./scripts/create-feature.sh` 生成模板
+3. ✅ 参考 features/leaderboard/ 的实现
+4. ✅ 遵循命名约定
+5. ✅ 测试所有 MCP 客户端（Claude Code, VSCode）
+
+### 维护现有功能时
+
+1. ✅ 所有代码在 features/[feature]/ 中
+2. ✅ 不要跨模块引用
+3. ✅ 共享代码放 core/
+4. ✅ 编译测试：`npm run build`
+5. ✅ 功能测试：启动 server 并测试 tools
+
+---
+
+**模块化架构让多人协作开发变得简单！** 🎊
