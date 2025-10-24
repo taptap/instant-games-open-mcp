@@ -7,13 +7,12 @@ import {
   createLeaderboard as createLeaderboardApi,
   listLeaderboards as listLeaderboardsApi,
   publishLeaderboard as publishLeaderboardApi,
-  ensureAppInfo,
-  SelectionRequiredError,
   PeriodType,
   ScoreType,
   ScoreOrder,
   CalcType
 } from './api.js';
+import { ensureAppInfo, SelectionRequiredError } from '../app/api.js';
 import { leaderboardTools } from './docTools.js';
 
 /**

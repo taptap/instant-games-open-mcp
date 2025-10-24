@@ -21,8 +21,6 @@ export const leaderboardModule = {
     definition: tool.definition,
     handler: tool.handler,
     requiresAuth: [
-      'list_developers_and_apps',
-      'select_app',
       'create_leaderboard',
       'list_leaderboards',
       'publish_leaderboard',

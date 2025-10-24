@@ -22,6 +22,7 @@ import { logger } from './core/utils/logger.js';
 import { DeviceFlowAuth } from './core/auth/deviceFlow.js';
 
 // 导入功能模块
+import { appModule } from './features/app/index.js';
 import { leaderboardModule } from './features/leaderboard/index.js';
 import type { HandlerContext } from './core/types/index.js';
 
@@ -32,7 +33,8 @@ const TDS_MCP_PROJECT_PATH = process.env.TDS_MCP_PROJECT_PATH;
 
 // 所有功能模块
 const allModules = [
-  leaderboardModule
+  appModule,        // App management (developer/app selection)
+  leaderboardModule // Leaderboard management
   // Future: cloudSaveModule, shareModule, etc.
 ];
 
