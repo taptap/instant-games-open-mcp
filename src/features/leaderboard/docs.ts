@@ -3,29 +3,13 @@
  * Based on: https://developer.taptap.cn/minigameapidoc/dev/api/open-api/leaderboard/
  */
 
-export interface LeaderboardAPI {
-  name: string;
-  method: string;
-  description: string;
-  parameters?: Record<string, string>;
-  returnValue?: string;
-  example: string;
-}
+import type { Documentation } from '../../core/utils/docHelpers.js';
 
-export interface LeaderboardCategory {
-  title: string;
-  description: string;
-  apis: LeaderboardAPI[];
-}
-
-export interface LeaderboardDocumentation {
-  title: string;
-  description: string;
-  apiReference: string;
-  categories: Record<string, LeaderboardCategory>;
-}
-
-export const LEADERBOARD_DOCUMENTATION: LeaderboardDocumentation = {
+/**
+ * Leaderboard documentation data
+ * Uses the generic Documentation interface from core
+ */
+export const LEADERBOARD_DOCUMENTATION: Documentation = {
   title: "TapTap Leaderboard API (Minigame & H5)",
   description: `Complete leaderboard functionality for TapTap Minigame and H5 Games, including score submission, ranking queries, and leaderboard display.
 
@@ -519,136 +503,3 @@ leaderboardView.loadPage(0);
     }
   }
 };
-
-/**
- * Search leaderboard documentation by keyword
- */
-export function searchLeaderboardDocs(query: string, category?: string): string[] {
-  const results: string[] = [];
-  const lowerQuery = query.toLowerCase();
-
-  const categoriesToSearch = category
-    ? [LEADERBOARD_DOCUMENTATION.categories[category]]
-    : Object.values(LEADERBOARD_DOCUMENTATION.categories);
-
-  for (const cat of categoriesToSearch) {
-    if (!cat) continue;
-
-    for (const api of cat.apis) {
-      const searchText = `${api.name} ${api.description} ${api.example}`.toLowerCase();
-      if (searchText.includes(lowerQuery)) {
-        results.push(`
-### ${api.name}
-
-**Method:** \`${api.method}\`
-
-**Description:** ${api.description}
-
-${api.parameters ? `**Parameters:**
-${Object.entries(api.parameters).map(([key, value]) => `- \`${key}\`: ${value}`).join('\n')}
-` : ''}
-
-${api.returnValue ? `**Returns:** ${api.returnValue}\n` : ''}
-
-**Example:**
-\`\`\`javascript
-${api.example}
-\`\`\`
-`);
-      }
-    }
-  }
-
-  return results;
-}
-
-/**
- * Get overview of leaderboard system
- */
-export function getLeaderboardOverview(): string {
-  return `# ${LEADERBOARD_DOCUMENTATION.title}
-
-${LEADERBOARD_DOCUMENTATION.description}
-
-**Official API Reference:** ${LEADERBOARD_DOCUMENTATION.apiReference}
-
-## Available Categories
-
-${Object.entries(LEADERBOARD_DOCUMENTATION.categories).map(([key, cat]) => `
-### ${cat.title}
-${cat.description}
-
-Available methods: ${cat.apis.map(api => `\`${api.name}\``).join(', ')}
-`).join('\n')}
-
-## Quick Start
-
-⚠️ **CRITICAL: Use leaderboardId (NOT leaderboardName) and wrap parameters in objects!**
-
-\`\`\`javascript
-// 1. Get LeaderboardManager instance
-const leaderboardManager = tap.getLeaderboardManager();
-
-// 2. Submit a score (use leaderboardId and wrap in scores array)
-await leaderboardManager.submitScores({
-  scores: [{
-    leaderboardId: 'my_leaderboard',  // Use leaderboardId (not leaderboardName)
-    score: 1000
-  }]
-});
-
-// 3. Query current player's rank (use object parameter)
-const playerScore = await leaderboardManager.loadCurrentPlayerLeaderboardScore({
-  leaderboardId: 'my_leaderboard',
-  collection: 'public'
-});
-console.log('Your rank:', playerScore.rank);
-
-// 4. Open leaderboard UI (use object parameter)
-leaderboardManager.openLeaderboard({
-  leaderboardId: 'my_leaderboard'
-});
-\`\`\`
-`;
-}
-
-/**
- * Get detailed documentation for a specific category
- */
-export function getCategoryDocs(category: string): string {
-  const cat = LEADERBOARD_DOCUMENTATION.categories[category];
-  if (!cat) {
-    return `Category "${category}" not found. Available categories: ${Object.keys(LEADERBOARD_DOCUMENTATION.categories).join(', ')}`;
-  }
-
-  return `# ${cat.title}
-
-${cat.description}
-
-${cat.apis.map(api => `
-## ${api.name}
-
-**Method:** \`${api.method}\`
-
-**Description:** ${api.description}
-
-${api.parameters ? `### Parameters
-
-${Object.entries(api.parameters).map(([key, value]) => `- **\`${key}\`**: ${value}`).join('\n')}
-` : ''}
-
-${api.returnValue ? `### Returns
-
-${api.returnValue}
-` : ''}
-
-### Example
-
-\`\`\`javascript
-${api.example}
-\`\`\`
-
----
-`).join('\n')}
-`;
-}

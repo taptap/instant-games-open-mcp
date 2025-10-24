@@ -4,48 +4,18 @@
  */
 
 import {
-  searchLeaderboardDocs as searchDocs,
-  getLeaderboardOverview as getOverview,
-  LEADERBOARD_DOCUMENTATION
-} from './docs.js';
+  generateAPIDoc,
+  generateCategoryDoc,
+  searchDocumentation,
+  generateOverview,
+  generateSearchSuggestions,
+  type ResourceSuggestion
+} from '../../core/utils/docHelpers.js';
+
+import { LEADERBOARD_DOCUMENTATION } from './docs.js';
 
 interface ToolArgs {
   query?: string;
-}
-
-/**
- * Get specific API documentation by name
- */
-function getAPIDoc(categoryKey: string, apiName: string): string {
-  const category = LEADERBOARD_DOCUMENTATION.categories[categoryKey];
-  if (!category) {
-    return `Category "${categoryKey}" not found`;
-  }
-
-  const api = category.apis.find(a => a.name === apiName);
-  if (!api) {
-    return `API "${apiName}" not found in category "${categoryKey}"`;
-  }
-
-  let doc = `# ${api.name}\n\n`;
-  doc += `**Method Signature:**\n\`\`\`javascript\n${api.method}\n\`\`\`\n\n`;
-  doc += `**Description:** ${api.description}\n\n`;
-
-  if (api.parameters) {
-    doc += `## Parameters\n\n`;
-    for (const [param, desc] of Object.entries(api.parameters)) {
-      doc += `- **\`${param}\`**: ${desc}\n`;
-    }
-    doc += '\n';
-  }
-
-  if (api.returnValue) {
-    doc += `## Returns\n\n${api.returnValue}\n\n`;
-  }
-
-  doc += `## Code Example\n\n\`\`\`javascript\n${api.example}\n\`\`\`\n`;
-
-  return doc;
 }
 
 // ============ Core API Tools (one for each LeaderboardManager API) ============
@@ -54,45 +24,71 @@ function getAPIDoc(categoryKey: string, apiName: string): string {
  * Get documentation for tap.getLeaderboardManager()
  */
 async function getLeaderboardManager(): Promise<string> {
-  return getAPIDoc('initialization', 'tap.getLeaderboardManager');
+  return generateAPIDoc(LEADERBOARD_DOCUMENTATION, 'initialization', 'tap.getLeaderboardManager');
 }
 
 /**
  * Get documentation for openLeaderboard()
  */
 async function openLeaderboard(): Promise<string> {
-  return getAPIDoc('display', 'openLeaderboard');
+  return generateAPIDoc(LEADERBOARD_DOCUMENTATION, 'display', 'openLeaderboard');
 }
 
 /**
  * Get documentation for submitScores()
  */
 async function submitScores(): Promise<string> {
-  return getAPIDoc('score_submission', 'submitScores');
+  return generateAPIDoc(LEADERBOARD_DOCUMENTATION, 'score_submission', 'submitScores');
 }
 
 /**
  * Get documentation for loadLeaderboardScores()
  */
 async function loadLeaderboardScores(): Promise<string> {
-  return getAPIDoc('score_query', 'loadLeaderboardScores');
+  return generateAPIDoc(LEADERBOARD_DOCUMENTATION, 'score_query', 'loadLeaderboardScores');
 }
 
 /**
  * Get documentation for loadCurrentPlayerLeaderboardScore()
  */
 async function loadCurrentPlayerScore(): Promise<string> {
-  return getAPIDoc('score_query', 'loadCurrentPlayerLeaderboardScore');
+  return generateAPIDoc(LEADERBOARD_DOCUMENTATION, 'score_query', 'loadCurrentPlayerLeaderboardScore');
 }
 
 /**
  * Get documentation for loadPlayerCenteredScores()
  */
 async function loadPlayerCenteredScores(): Promise<string> {
-  return getAPIDoc('score_query', 'loadPlayerCenteredScores');
+  return generateAPIDoc(LEADERBOARD_DOCUMENTATION, 'score_query', 'loadPlayerCenteredScores');
 }
 
 // ============ Helper Tools ============
+
+/**
+ * Resource suggestions for leaderboard
+ */
+const LEADERBOARD_SUGGESTIONS: ResourceSuggestion[] = [
+  {
+    keywords: ['init', 'start', 'get', 'manager'],
+    uri: 'docs://leaderboard/api/get-manager',
+    description: '如何获取 LeaderboardManager 实例'
+  },
+  {
+    keywords: ['submit', 'upload', 'save', 'score'],
+    uri: 'docs://leaderboard/api/submit-scores',
+    description: '如何提交分数'
+  },
+  {
+    keywords: ['open', 'show', 'display', 'ui'],
+    uri: 'docs://leaderboard/api/open',
+    description: '如何显示排行榜 UI'
+  },
+  {
+    keywords: ['load', 'fetch', 'rank'],
+    uri: 'docs://leaderboard/api/load-scores',
+    description: '如何加载排行榜数据'
+  }
+];
 
 /**
  * Search leaderboard documentation by keyword
@@ -104,38 +100,14 @@ async function searchLeaderboardDocs(args: ToolArgs): Promise<string> {
     return 'Please provide a search keyword.';
   }
 
-  const results = searchDocs(query);
+  const results = searchDocumentation(LEADERBOARD_DOCUMENTATION, query);
 
   if (results.length === 0) {
-    // Suggest relevant Resources based on query
-    let suggestions = `No results found for "${query}".\n\n`;
-    suggestions += `💡 **建议：直接读取相关 Resources 获取完整文档**\n\n`;
-
-    const query_lower = query.toLowerCase();
-
-    if (query_lower.includes('init') || query_lower.includes('start') || query_lower.includes('get') || query_lower.includes('manager')) {
-      suggestions += `- docs://leaderboard/api/get-manager - 如何获取 LeaderboardManager 实例\n`;
-    }
-    if (query_lower.includes('submit') || query_lower.includes('upload') || query_lower.includes('save') || query_lower.includes('score')) {
-      suggestions += `- docs://leaderboard/api/submit-scores - 如何提交分数\n`;
-    }
-    if (query_lower.includes('open') || query_lower.includes('show') || query_lower.includes('display') || query_lower.includes('ui')) {
-      suggestions += `- docs://leaderboard/api/open - 如何显示排行榜 UI\n`;
-    }
-    if (query_lower.includes('load') || query_lower.includes('get') || query_lower.includes('fetch') || query_lower.includes('rank')) {
-      suggestions += `- docs://leaderboard/api/load-scores - 如何加载排行榜数据\n`;
-    }
-    if (query_lower.includes('integrate') || query_lower.includes('setup') || query_lower.includes('接入') || query_lower.includes('workflow')) {
-      suggestions += `- guide://leaderboard/integration-workflow - 完整接入工作流\n`;
-    }
-
-    if (suggestions === `No results found for "${query}".\n\n💡 **建议：直接读取相关 Resources 获取完整文档**\n\n`) {
-      suggestions += `\n或查看完整概览：\n`;
-      suggestions += `- docs://leaderboard/overview - 排行榜完整概览\n`;
-      suggestions += `- guide://leaderboard/integration-workflow - 完整接入工作流\n`;
-    }
-
-    return suggestions;
+    return generateSearchSuggestions(
+      query,
+      LEADERBOARD_SUGGESTIONS,
+      'docs://leaderboard/overview'
+    );
   }
 
   return `**🏆 Search Results for "${query}"**\n\n` + results.join('\n---\n\n');
@@ -145,25 +117,14 @@ async function searchLeaderboardDocs(args: ToolArgs): Promise<string> {
  * Get complete leaderboard system overview
  */
 async function getLeaderboardOverview(): Promise<string> {
-  return getOverview();
+  return generateOverview(LEADERBOARD_DOCUMENTATION);
 }
 
 /**
  * Get integration patterns and best practices
  */
 async function getLeaderboardPatterns(): Promise<string> {
-  const category = LEADERBOARD_DOCUMENTATION.categories['common_scenarios'];
-  if (!category) return 'Common scenarios not found';
-
-  let doc = `# ${category.title}\n\n${category.description}\n\n`;
-
-  for (const api of category.apis) {
-    doc += `## ${api.name}\n\n`;
-    doc += `${api.description}\n\n`;
-    doc += `\`\`\`javascript\n${api.example}\n\`\`\`\n\n`;
-  }
-
-  return doc;
+  return generateCategoryDoc(LEADERBOARD_DOCUMENTATION, 'common_scenarios');
 }
 
 /**
