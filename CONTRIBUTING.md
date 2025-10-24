@@ -9,24 +9,35 @@
 ```
 src/
 ├── features/              # 功能模块（代码完全内聚）
+│   ├── app/              # 应用管理模块（基础功能）
+│   │   ├── index.ts      # 模块定义
+│   │   ├── tools.ts      # 5 个工具（统一格式）
+│   │   ├── handlers.ts   # 业务逻辑
+│   │   └── api.ts        # API 调用
+│   │
 │   └── leaderboard/      # 排行榜模块
 │       ├── index.ts      # 模块定义 ⭐
-│       ├── tools.ts      # Tools 定义 + 处理器
-│       ├── resources.ts  # Resources 定义 + 处理器
+│       ├── tools.ts      # Tools（统一格式）
+│       ├── resources.ts  # Resources（统一格式）
 │       ├── docs.ts       # 文档数据
 │       ├── docTools.ts   # 文档工具
 │       ├── handlers.ts   # 业务逻辑
 │       └── api.ts        # API 调用
 │
 ├── core/                  # 共享核心代码
-│   ├── auth/             # OAuth
+│   ├── auth/             # OAuth Device Code Flow
 │   ├── network/          # HTTP Client
-│   ├── handlers/         # 通用处理器
-│   ├── utils/            # 缓存、日志
-│   └── types/            # 类型
+│   ├── handlers/         # 通用处理器（environment）
+│   ├── utils/            # 缓存、日志、文档助手
+│   └── types/            # 类型定义
 │
 └── server.ts              # 自动注册
 ```
+
+**模块说明**：
+- **app**: 基础应用管理（开发者/应用选择、OAuth 授权、环境检查）
+- **leaderboard**: 排行榜功能（依赖 app 模块）
+- 未来: cloudSave, share 等（都可以复用 app 模块）
 
 ---
 
@@ -60,99 +71,111 @@ mkdir src/features/cloudSave
 `src/features/cloudSave/index.ts`:
 
 ```typescript
-import { cloudSaveToolDefinitions, cloudSaveToolHandlers } from './tools.js';
-import { cloudSaveResourceDefinitions, cloudSaveResourceHandlers } from './resources.js';
+import type { ToolRegistration, ResourceRegistration } from '../../core/types/index.js';
+import { cloudSaveTools } from './tools.js';
+import { cloudSaveResources } from './resources.js';
 
 export const cloudSaveModule = {
   name: 'cloudSave',
   description: 'TapTap 云存档功能',
 
-  tools: cloudSaveToolDefinitions.map((definition, index) => ({
-    definition,
-    handler: cloudSaveToolHandlers[index],
-    requiresAuth: ['save_cloud_data', 'load_cloud_data'].includes(definition.name)
-  })),
+  // 统一格式：Tools 包含 definition + handler
+  tools: cloudSaveTools.map(tool => ({
+    definition: tool.definition,
+    handler: tool.handler,
+    requiresAuth: ['save_cloud_data', 'load_cloud_data'].includes(tool.definition.name)
+  })) as ToolRegistration[],
 
-  resources: cloudSaveResourceDefinitions.map((definition, index) => ({
-    ...definition,
-    handler: cloudSaveResourceHandlers[index]
-  }))
+  // 统一格式：Resources 包含定义 + handler
+  resources: cloudSaveResources as ResourceRegistration[]
 };
 ```
 
-#### 步骤 3: 定义 Tools（tools.ts）
+#### 步骤 3: 定义 Tools（tools.ts）- 统一格式
 
 `src/features/cloudSave/tools.ts`:
 
 ```typescript
-import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import type { HandlerContext } from '../../core/types/index.js';
+import type { ToolRegistration, HandlerContext } from '../../core/types/index.js';
 import * as cloudSaveHandlers from './handlers.js';
-import { cloudSaveTools } from './docTools.js';
+import { cloudSaveDocTools } from './docTools.js';
 
-export const cloudSaveToolDefinitions: Tool[] = [
+/**
+ * 云存档工具 - 统一格式
+ * 每个工具包含 definition + handler
+ */
+export const cloudSaveTools: ToolRegistration[] = [
+  // 🎯 集成指南
   {
-    name: 'get_cloud_save_guide',
-    description: '⭐ 云存档完整接入指引',
-    inputSchema: { type: 'object', properties: {} }
-  },
-  {
-    name: 'save_cloud_data',
-    description: '保存数据到云端',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        key: { type: 'string', description: 'Save key' },
-        data: { type: 'object', description: 'Data to save' }
-      },
-      required: ['key', 'data']
+    definition: {
+      name: 'get_cloud_save_guide',
+      description: '⭐ 云存档完整接入指引',
+      inputSchema: { type: 'object', properties: {} }
+    },
+    handler: async (args, context) => {
+      return cloudSaveDocTools.getIntegrationWorkflow();
     }
-  }
-];
-
-export const cloudSaveToolHandlers = [
-  // get_cloud_save_guide
-  async (args: any, context: HandlerContext) => {
-    return cloudSaveTools.getIntegrationWorkflow();
   },
 
-  // save_cloud_data
-  async (args: any, context: HandlerContext) => {
-    return cloudSaveHandlers.saveData(args, context);
+  // 💾 保存数据
+  {
+    definition: {
+      name: 'save_cloud_data',
+      description: '保存数据到云端',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: 'Save key' },
+          data: { type: 'object', description: 'Data to save' }
+        },
+        required: ['key', 'data']
+      }
+    },
+    handler: async (args: { key: string; data: any }, context) => {
+      return cloudSaveHandlers.saveData(args, context);
+    }
   }
 ];
 ```
 
-#### 步骤 4: 定义 Resources（resources.ts）
+**优势**：
+- ✅ 定义和处理器在一起，永远不会不匹配
+- ✅ TypeScript 类型安全的参数
+- ✅ 不需要手动维护两个数组的顺序
+
+#### 步骤 4: 定义 Resources（resources.ts）- 统一格式
 
 `src/features/cloudSave/resources.ts`:
 
 ```typescript
-import { cloudSaveTools } from './docTools.js';
+import type { ResourceRegistration } from '../../core/types/index.js';
+import { cloudSaveDocTools } from './docTools.js';
 
-export const cloudSaveResourceDefinitions = [
+/**
+ * 云存档文档资源 - 统一格式
+ * 每个资源包含 uri + name + handler
+ */
+export const cloudSaveResources: ResourceRegistration[] = [
   {
     uri: 'docs://cloud-save/api/save-data',
     name: 'API: saveData()',
     description: 'How to save data...',
-    mimeType: 'text/markdown'
+    mimeType: 'text/markdown',
+    handler: async () => cloudSaveDocTools.getSaveDataDoc()
   },
   {
     uri: 'docs://cloud-save/overview',
     name: 'Cloud Save Overview',
     description: 'Complete overview...',
-    mimeType: 'text/markdown'
+    mimeType: 'text/markdown',
+    handler: async () => cloudSaveDocTools.getOverview()
   }
 ];
-
-export const cloudSaveResourceHandlers = [
-  // docs://cloud-save/api/save-data
-  async () => cloudSaveTools.getSaveDataDoc(),
-
-  // docs://cloud-save/overview
-  async () => cloudSaveTools.getOverview()
-];
 ```
+
+**优势**：
+- ✅ URI 和处理器在一起，不会不匹配
+- ✅ 统一的接口定义
 
 #### 步骤 5: 实现文档内容（docs.ts, docTools.ts）
 
@@ -172,6 +195,7 @@ import { cloudSaveModule } from './features/cloudSave/index.js';
 
 // 添加到模块数组
 const allModules = [
+  appModule,          // 基础应用管理
   leaderboardModule,
   cloudSaveModule  // ← 新增
 ];
@@ -229,14 +253,16 @@ const client = new HttpClient();
 const result = await client.post('/your-api', { body: data });
 ```
 
-### App Info
+### App Info（应用信息）
 
 ```typescript
-import { ensureAppInfo } from '../leaderboard/api.js';
+import { ensureAppInfo } from '../app/api.js';
 
 const appInfo = await ensureAppInfo(context.projectPath);
-// 获得: developer_id, app_id, miniapp_id
+// 获得: developer_id, app_id, miniapp_id, app_title, developer_name
 ```
+
+**注意**：从 v1.2.0-beta.11 开始，应用操作已抽象到独立的 `app` 模块。
 
 ### 缓存
 
@@ -330,30 +356,36 @@ features/[feature]/docs.ts
 ### 模块依赖关系
 
 ```
-features/[feature]/
+features/[feature]/  (如 leaderboard)
+    ↓ 可依赖
+features/app/       (基础功能模块)
     ↓ 依赖
-core/ (共享代码)
-    ↓ 不依赖
-features/* (其他模块)
+core/              (共享核心代码)
 ```
 
 **依赖规则**：
-- ✅ 功能模块可以依赖 core/
-- ❌ 功能模块不能相互依赖
-- ✅ core/ 不依赖任何功能模块
+- ✅ 功能模块可以依赖 `core/`
+- ✅ 功能模块可以依赖 `features/app/`（基础功能）
+- ❌ 功能模块不能相互依赖其他业务模块
+- ✅ `core/` 不依赖任何功能模块
+- ✅ `app` 模块不依赖其他业务模块
 
 ### 代码度量
 
 当前项目（v1.2.0-beta.11）：
 
-| 模块 | 文件数 | 代码行数 |
-|------|-------|---------|
-| leaderboard | 7 | ~1800 行 |
-| core | 8 | ~800 行 |
-| server.ts | 1 | ~300 行 |
-| **总计** | **16** | **~2900 行** |
+| 模块 | 文件数 | 代码行数 | 说明 |
+|------|-------|---------|------|
+| app | 4 | ~430 行 | 应用管理基础功能 |
+| leaderboard | 7 | ~1350 行 | 排行榜（已分离 app 操作）|
+| core | 9 | ~900 行 | 共享核心代码 |
+| server.ts | 1 | ~300 行 | 主服务器 |
+| **总计** | **21** | **~2980 行** | |
 
-模块化后代码减少了约 15%（清理了重复）
+**架构优化成果**：
+- ✅ 模块化后清理重复代码
+- ✅ app 功能独立，可被其他模块复用
+- ✅ 代码内聚度提升，维护更容易
 
 ---
 

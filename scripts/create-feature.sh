@@ -744,17 +744,22 @@ cat > "$FEATURE_DIR/api.ts" << EOF
  */
 
 import { HttpClient } from '../../core/network/httpClient.js';
+import { ensureAppInfo } from '../app/api.js';  // 导入应用信息函数
 import type { HandlerContext } from '../../core/types/index.js';
 
 // TODO: 定义接口
 // 示例:
 /*
 export interface SaveDataRequest {
+  developer_id: number;
+  app_id: number;
   key: string;
   value: string;
 }
 
 export interface LoadDataRequest {
+  developer_id: number;
+  app_id: number;
   key: string;
 }
 
@@ -768,36 +773,50 @@ export interface LoadDataResponse {
 */
 
 // TODO: 实现 API 调用
-// 示例:
+// 示例（需要应用信息）:
 /*
 export async function saveDataToCloud(
-  context: HandlerContext,
-  key: string,
-  value: string
-): Promise<void> {
-  const client = new HttpClient(context.env);
+  args: { key: string; value: string },
+  context: HandlerContext
+): Promise<SaveDataResponse> {
+  const client = new HttpClient();
+
+  // 获取应用信息（developer_id, app_id 等）
+  const appInfo = await ensureAppInfo(context.projectPath);
 
   const response = await client.post<SaveDataResponse>(
     '/${FEATURE_KEY}/v1/save',
-    { key, value },
-    context.macToken
+    {
+      body: {
+        developer_id: appInfo.developer_id,
+        app_id: appInfo.app_id,
+        key: args.key,
+        value: args.value
+      }
+    }
   );
 
-  if (!response.success) {
-    throw new Error('Failed to save data');
-  }
+  return response;
 }
 
 export async function loadDataFromCloud(
-  context: HandlerContext,
-  key: string
+  args: { key: string },
+  context: HandlerContext
 ): Promise<string> {
-  const client = new HttpClient(context.env);
+  const client = new HttpClient();
+
+  // 获取应用信息
+  const appInfo = await ensureAppInfo(context.projectPath);
 
   const response = await client.post<LoadDataResponse>(
     '/${FEATURE_KEY}/v1/load',
-    { key },
-    context.macToken
+    {
+      body: {
+        developer_id: appInfo.developer_id,
+        app_id: appInfo.app_id,
+        key: args.key
+      }
+    }
   );
 
   return response.value;
