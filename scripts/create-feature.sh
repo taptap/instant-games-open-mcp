@@ -112,11 +112,12 @@ echo ""
 # 5. 转换命名格式
 # ============================================================
 
-# cloud-save → cloudSave
-CAMEL_CASE=$(echo "$FEATURE_KEY" | sed -r 's/(^|-)([a-z])/\U\2/g; s/^([A-Z])/\l\1/')
-# cloudSave → CloudSave
-PASCAL_CASE=$(echo "$CAMEL_CASE" | sed 's/^./\U&/')
-# cloudSave → CLOUD_SAVE
+# cloud-save → cloudSave (小驼峰)
+# 使用 perl 确保跨平台兼容性
+CAMEL_CASE=$(echo "$FEATURE_KEY" | perl -pe 's/-([a-z])/\U$1/g')
+# cloudSave → CloudSave (大驼峰)
+PASCAL_CASE=$(echo "$CAMEL_CASE" | perl -pe 's/^([a-z])/\U$1/')
+# cloud-save → CLOUD_SAVE (大写下划线)
 UPPER_SNAKE_CASE=$(echo "$FEATURE_KEY" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
 
 # 创建目标目录（使用小驼峰命名）
