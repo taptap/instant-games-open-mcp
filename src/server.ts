@@ -22,6 +22,7 @@ import http from 'node:http';
 import { ApiConfig } from './core/network/httpClient.js';
 import { logger } from './core/utils/logger.js';
 import { DeviceFlowAuth } from './core/auth/deviceFlow.js';
+import { VERSION } from './version.js';
 
 // 导入功能模块
 import { appModule } from './features/app/index.js';
@@ -54,7 +55,7 @@ class TapTapMinigameMCPServer {
     this.server = new Server(
       {
         name: 'taptap-minigame-mcp',
-        version: '1.2.0-beta.13',
+        version: VERSION,
       }
     );
 
@@ -250,7 +251,7 @@ class TapTapMinigameMCPServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
 
-    process.stderr.write('🚀 TapTap Open API MCP Server v1.2.0-beta.13 (Minigame & H5)\n');
+    process.stderr.write(`🚀 TapTap Open API MCP Server v${VERSION} (Minigame & H5)\n`);
     process.stderr.write('🔌 Transport: stdio\n');
     process.stderr.write(`📚 Providing ${totalTools} tools, ${totalResources} resources\n`);
     process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
@@ -329,7 +330,7 @@ class TapTapMinigameMCPServer {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           status: 'ok',
-          version: '1.2.0-beta.13',
+          version: VERSION,
           transport: 'sse',
           sessions: sessions.size,
           tools: totalTools,
@@ -342,7 +343,7 @@ class TapTapMinigameMCPServer {
     });
 
     httpServer.listen(TDS_MCP_PORT, () => {
-      process.stderr.write('🚀 TapTap Open API MCP Server v1.2.0-beta.13 (Minigame & H5)\n');
+      process.stderr.write(`🚀 TapTap Open API MCP Server v${VERSION} (Minigame & H5)\n`);
       process.stderr.write('🔌 Transport: SSE (Server-Sent Events)\n');
       process.stderr.write(`🌐 HTTP Server: http://localhost:${TDS_MCP_PORT}\n`);
       process.stderr.write(`📡 SSE Endpoint: http://localhost:${TDS_MCP_PORT}/sse\n`);
