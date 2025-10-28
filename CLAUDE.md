@@ -23,11 +23,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **版本说明：**
 - `latest` (v1.1.4): Tools-only 稳定版（17 tools）
-- `beta` (v1.2.0-beta.12): 模块化架构（app + leaderboard 模块，10 tools + 7 resources + OAuth）
+- `beta` (v1.2.0-beta.13): 模块化架构（app + leaderboard 模块，10 tools + 7 resources + OAuth + 双传输协议）
 
 ## 架构概览
 
-项目采用**模块化架构设计** (v1.2.0-beta.12)：
+项目采用**模块化架构设计** (v1.2.0-beta.13)：
 
 ### 功能模块层
 - **`src/features/`** - 功能模块（代码完全内聚）
@@ -67,7 +67,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 关键设计模式
 
-**1. 统一格式（v1.2.0-beta.11+，当前 v1.2.0-beta.12）**
+**1. 统一格式（v1.2.0-beta.11+，当前 v1.2.0-beta.13）**
 - Tools 和 Resources 采用统一对象数组格式
 - 每个工具包含 `definition` + `handler`，永不不匹配
 - 类型安全的参数定义
@@ -120,20 +120,47 @@ npm install -g @mikoto_zero/minigame-open-mcp
 ```
 
 ### 启动服务器
+
+#### 传输协议选择
+
+MCP 服务器支持两种传输协议：
+
+1. **stdio 模式（默认）** - 适合本地集成、单客户端场景（如 Claude Desktop）
+2. **SSE/HTTP 模式** - 适合远程访问、多客户端并发场景
+
 ```bash
-# 开发模式启动
+# 开发模式启动（默认 stdio 模式）
 npm run dev
 
-# 编译并启动
+# 编译并启动（stdio 模式）
 npm run build
 npm start
 
-# 通过 npx 直接运行（推荐）
+# 通过 npx 直接运行（推荐，stdio 模式）
 npx @mikoto_zero/minigame-open-mcp
 
 # 启用详细日志模式（用于调试）
 TAPTAP_MINIGAME_MCP_VERBOSE=true npm start
+
+# ========== SSE/HTTP 模式 ==========
+
+# 使用 SSE/HTTP 传输协议（默认端口 3000）
+TDS_MCP_TRANSPORT=sse npm start
+
+# 或使用 http（与 sse 等价）
+TDS_MCP_TRANSPORT=http npm start
+
+# 使用自定义端口的 SSE 模式
+TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=8080 npm start
+
+# SSE 模式 + 详细日志
+TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3000 TAPTAP_MINIGAME_MCP_VERBOSE=true npm start
 ```
+
+**SSE 模式 Endpoints：**
+- SSE 连接：`GET http://localhost:3000/sse`
+- 消息发送：`POST http://localhost:3000/message?sessionId=xxx`
+- 健康检查：`GET http://localhost:3000/health`
 
 ### 环境配置
 
@@ -359,6 +386,10 @@ export TDS_MCP_CLIENT_TOKEN="your_client_token"
   - rnd: `https://agent.api.xdrnd.cn`
 - `TDS_MCP_PROJECT_PATH`: 项目路径，用于本地缓存
 - `TAPTAP_MINIGAME_MCP_VERBOSE`: 详细日志模式（`true` 或 `1`）
+- `TDS_MCP_TRANSPORT`: 传输协议，`stdio`（默认）或 `sse`/`http`
+  - stdio: 标准输入输出，适合本地集成（如 Claude Desktop）
+  - sse/http: Server-Sent Events，适合远程访问和多客户端
+- `TDS_MCP_PORT`: SSE/HTTP 模式的监听端口（默认 `3000`）
 
 **环境检查**：
 使用 `check_environment` 工具检查认证状态（包括本地文件中的 token）。

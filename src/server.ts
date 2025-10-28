@@ -6,6 +6,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -15,6 +16,7 @@ import {
   ErrorCode
 } from '@modelcontextprotocol/sdk/types.js';
 import process from 'node:process';
+import http from 'node:http';
 
 // 导入核心模块
 import { ApiConfig } from './core/network/httpClient.js';
@@ -30,6 +32,8 @@ import type { HandlerContext } from './core/types/index.js';
 const apiConfig = ApiConfig.getInstance();
 const TDS_MCP_MAC_TOKEN = apiConfig.macToken;
 const TDS_MCP_PROJECT_PATH = process.env.TDS_MCP_PROJECT_PATH;
+const TDS_MCP_TRANSPORT = (process.env.TDS_MCP_TRANSPORT || 'stdio').toLowerCase();
+const TDS_MCP_PORT = parseInt(process.env.TDS_MCP_PORT || '3000', 10);
 
 // 所有功能模块
 const allModules = [
@@ -50,7 +54,7 @@ class TapTapMinigameMCPServer {
     this.server = new Server(
       {
         name: 'taptap-minigame-mcp',
-        version: '1.2.0-beta.11',
+        version: '1.2.0-beta.13',
       }
     );
 
@@ -226,14 +230,28 @@ class TapTapMinigameMCPServer {
    * 启动服务器
    */
   async start(): Promise<void> {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-
     // Count tools and resources from all modules
     const totalTools = allModules.reduce((sum, m) => sum + m.tools.length, 0);
     const totalResources = allModules.reduce((sum, m) => sum + m.resources.length, 0);
 
-    process.stderr.write('🚀 TapTap Open API MCP Server v1.2.0-beta.11 (Minigame & H5)\n');
+    if (TDS_MCP_TRANSPORT === 'sse' || TDS_MCP_TRANSPORT === 'http') {
+      // SSE mode: Start HTTP server
+      await this.startSSEServer(totalTools, totalResources);
+    } else {
+      // Default: stdio mode
+      await this.startStdioServer(totalTools, totalResources);
+    }
+  }
+
+  /**
+   * 启动 stdio 传输服务器
+   */
+  private async startStdioServer(totalTools: number, totalResources: number): Promise<void> {
+    const transport = new StdioServerTransport();
+    await this.server.connect(transport);
+
+    process.stderr.write('🚀 TapTap Open API MCP Server v1.2.0-beta.13 (Minigame & H5)\n');
+    process.stderr.write('🔌 Transport: stdio\n');
     process.stderr.write(`📚 Providing ${totalTools} tools, ${totalResources} resources\n`);
     process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
     process.stderr.write(`🌍 Environment: ${apiConfig.environment}\n`);
@@ -255,6 +273,116 @@ class TapTapMinigameMCPServer {
     } else {
       process.stderr.write('\n💡 Tip: Set TAPTAP_MINIGAME_MCP_VERBOSE=true for detailed logs\n');
     }
+  }
+
+  /**
+   * 启动 SSE 传输服务器
+   */
+  private async startSSEServer(totalTools: number, totalResources: number): Promise<void> {
+    const sessions = new Map<string, SSEServerTransport>();
+
+    const httpServer = http.createServer(async (req, res) => {
+      const url = new URL(req.url || '/', `http://${req.headers.host}`);
+
+      // CORS headers
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+      if (req.method === 'OPTIONS') {
+        res.writeHead(200);
+        res.end();
+        return;
+      }
+
+      if (url.pathname === '/sse' && req.method === 'GET') {
+        // SSE connection
+        const transport = new SSEServerTransport('/message', res);
+        await this.server.connect(transport);
+        sessions.set(transport.sessionId, transport);
+
+        // Cleanup on close
+        transport.onclose = () => {
+          sessions.delete(transport.sessionId);
+        };
+
+        await transport.start();
+      } else if (url.pathname === '/message' && req.method === 'POST') {
+        // Handle POST message
+        const sessionId = url.searchParams.get('sessionId');
+        if (!sessionId) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'Missing sessionId' }));
+          return;
+        }
+
+        const transport = sessions.get(sessionId);
+        if (!transport) {
+          res.writeHead(404);
+          res.end(JSON.stringify({ error: 'Session not found' }));
+          return;
+        }
+
+        await transport.handlePostMessage(req, res);
+      } else if (url.pathname === '/health' && req.method === 'GET') {
+        // Health check endpoint
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: 'ok',
+          version: '1.2.0-beta.13',
+          transport: 'sse',
+          sessions: sessions.size,
+          tools: totalTools,
+          resources: totalResources
+        }));
+      } else {
+        res.writeHead(404);
+        res.end(JSON.stringify({ error: 'Not found' }));
+      }
+    });
+
+    httpServer.listen(TDS_MCP_PORT, () => {
+      process.stderr.write('🚀 TapTap Open API MCP Server v1.2.0-beta.13 (Minigame & H5)\n');
+      process.stderr.write('🔌 Transport: SSE (Server-Sent Events)\n');
+      process.stderr.write(`🌐 HTTP Server: http://localhost:${TDS_MCP_PORT}\n`);
+      process.stderr.write(`📡 SSE Endpoint: http://localhost:${TDS_MCP_PORT}/sse\n`);
+      process.stderr.write(`📥 Message Endpoint: http://localhost:${TDS_MCP_PORT}/message\n`);
+      process.stderr.write(`💚 Health Check: http://localhost:${TDS_MCP_PORT}/health\n`);
+      process.stderr.write(`📚 Providing ${totalTools} tools, ${totalResources} resources\n`);
+      process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
+      process.stderr.write(`🌍 Environment: ${apiConfig.environment}\n`);
+      process.stderr.write(`🔗 API Base: ${apiConfig.apiBaseUrl}\n`);
+      process.stderr.write('\n📖 MCP Capabilities:\n');
+      process.stderr.write(`   ✅ Tools (${totalTools}) - Execute operations with side effects\n`);
+      process.stderr.write(`   ✅ Resources (${totalResources}) - Read-only documentation and data\n`);
+      process.stderr.write('\n🎯 Loaded Modules:\n');
+      allModules.forEach(m => {
+        const toolCount = m.tools.length;
+        const resourceCount = m.resources.length;
+        process.stderr.write(`   📦 ${m.name}: ${toolCount} tools, ${resourceCount} resources\n`);
+      });
+
+      if (logger.isVerbose()) {
+        process.stderr.write('\n🔍 Verbose logging enabled (TAPTAP_MINIGAME_MCP_VERBOSE=true)\n');
+        process.stderr.write('   - Tool call inputs and outputs will be logged\n');
+        process.stderr.write('   - HTTP requests and responses will be logged\n');
+      } else {
+        process.stderr.write('\n💡 Tip: Set TAPTAP_MINIGAME_MCP_VERBOSE=true for detailed logs\n');
+      }
+    });
+
+    // Handle server shutdown
+    process.on('SIGINT', () => {
+      process.stderr.write('\n📴 收到中断信号，正在关闭服务器...\n');
+      httpServer.close();
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', () => {
+      process.stderr.write('\n📴 收到终止信号，正在关闭服务器...\n');
+      httpServer.close();
+      process.exit(0);
+    });
   }
 }
 
@@ -311,16 +439,18 @@ async function main(): Promise<void> {
 
   const server = new TapTapMinigameMCPServer(ensureAuthenticated);
 
-  // 处理优雅关闭
-  process.on('SIGINT', () => {
-    process.stderr.write('\n📴 收到中断信号，正在关闭服务器...\n');
-    process.exit(0);
-  });
+  // 处理优雅关闭（仅在 stdio 模式下需要，SSE 模式在 startSSEServer 中处理）
+  if (TDS_MCP_TRANSPORT !== 'sse' && TDS_MCP_TRANSPORT !== 'http') {
+    process.on('SIGINT', () => {
+      process.stderr.write('\n📴 收到中断信号，正在关闭服务器...\n');
+      process.exit(0);
+    });
 
-  process.on('SIGTERM', () => {
-    process.stderr.write('\n📴 收到终止信号，正在关闭服务器...\n');
-    process.exit(0);
-  });
+    process.on('SIGTERM', () => {
+      process.stderr.write('\n📴 收到终止信号，正在关闭服务器...\n');
+      process.exit(0);
+    });
+  }
 
   try {
     await server.start();
