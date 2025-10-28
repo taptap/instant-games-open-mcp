@@ -23,11 +23,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **版本说明：**
 - `latest` (v1.1.4): Tools-only 稳定版（17 tools）
-- `beta` (v1.2.0-beta.10): 极简架构（10 tools + 7 resources + OAuth）
+- `beta` (v1.2.0-beta.12): 模块化架构（app + leaderboard 模块，10 tools + 7 resources + OAuth）
 
 ## 架构概览
 
-项目采用**模块化架构设计** (v1.2.0-beta.11+)：
+项目采用**模块化架构设计** (v1.2.0-beta.12)：
 
 ### 功能模块层
 - **`src/features/`** - 功能模块（代码完全内聚）
@@ -67,7 +67,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 关键设计模式
 
-**1. 统一格式（v1.2.0-beta.11+）**
+**1. 统一格式（v1.2.0-beta.11+，当前 v1.2.0-beta.12）**
 - Tools 和 Resources 采用统一对象数组格式
 - 每个工具包含 `definition` + `handler`，永不不匹配
 - 类型安全的参数定义

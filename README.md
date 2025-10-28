@@ -308,7 +308,7 @@ const allModules = [appModule, leaderboardModule, cloudSaveModule];
 ## 📊 版本
 
 - **latest (v1.1.4)**: 纯 Tools 稳定版（17 tools）
-- **beta (v1.2.0-beta.11)**: 模块化架构 + OAuth（10 tools + 7 resources）
+- **beta (v1.2.0-beta.12)**: 模块化架构（app + leaderboard）+ OAuth（10 tools + 7 resources）
 
 推荐使用 **beta 版本**获得最佳体验！
 
