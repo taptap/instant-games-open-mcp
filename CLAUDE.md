@@ -11,6 +11,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 🔐 **OAuth 2.0 Device Code Flow** - 零配置认证（扫码即用）
 - 🎯 **极简架构** - 10 Tools + 7 Resources
 - 🌍 **双平台支持** - Minigame & H5 游戏
+- 🚀 **MCP 2025 标准** - Streamable HTTP + RFC 5424 Logging
+- 📡 **双传输协议** - stdio（本地）+ Streamable HTTP（远程）
 
 **未来计划：**
 - ☁️ 云存档系统
@@ -23,11 +25,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **版本说明：**
 - `latest` (v1.1.4): Tools-only 稳定版（17 tools）
-- `beta` (v1.2.0-beta.13): 模块化架构（app + leaderboard 模块，10 tools + 7 resources + OAuth + 双传输协议）
+- `beta` (v1.2.0-beta.21): 模块化架构 + MCP 2025 标准
+  - 10 tools + 7 resources
+  - OAuth 2.0 Device Code Flow
+  - 双传输协议（stdio + Streamable HTTP）
+  - MCP Logging 规范（RFC 5424）
+  - MCP SDK 1.20.2
 
 ## 架构概览
 
-项目采用**模块化架构设计** (v1.2.0-beta.13)：
+项目采用**模块化架构设计** (v1.2.0-beta.21)：
 
 ### 功能模块层
 - **`src/features/`** - 功能模块（代码完全内聚）
@@ -67,7 +74,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 关键设计模式
 
-**1. 统一格式（v1.2.0-beta.11+，当前 v1.2.0-beta.13）**
+**1. 统一格式（v1.2.0-beta.11+，当前 v1.2.0-beta.21）**
 - Tools 和 Resources 采用统一对象数组格式
 - 每个工具包含 `definition` + `handler`，永不不匹配
 - 类型安全的参数定义
@@ -346,13 +353,17 @@ node dist/server.js
 
 ## 核心技术栈
 
-- **MCP Framework**: 基于 Model Context Protocol 的工具服务
+- **MCP Framework**: Model Context Protocol 2025-03-26 规范
+- **MCP SDK**: @modelcontextprotocol/sdk@1.20.2
+- **传输协议**: stdio + Streamable HTTP (MCP 2025 标准)
 - **运行时**: Node.js 16+ (ES Module 模式)
 - **编程语言**: TypeScript (类型安全)
 - **包管理**: NPM (依赖管理和分发)
 - **构建工具**: TypeScript Compiler (tsc)
+- **开发工具**: tsx (ES modules 运行器)
 - **加密签名**: crypto-js (HMAC-SHA1 和 HMAC-SHA256)
-- **认证方式**: MAC Token Authentication
+- **认证方式**: MAC Token Authentication + OAuth 2.0 Device Flow
+- **日志规范**: RFC 5424 (Syslog Protocol)
 
 ## 配置说明
 
