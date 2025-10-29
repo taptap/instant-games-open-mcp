@@ -205,7 +205,7 @@ export class HttpClient {
     headers['X-Tap-Sign'] = signature;
 
     // Log request
-    logger.logRequest(method, fullUrl, headers, bodyString);
+    await logger.logRequest(method, fullUrl, headers, bodyString);
 
     // Set up timeout
     const controller = new AbortController();
@@ -246,7 +246,7 @@ export class HttpClient {
         }
 
         // Log error response with headers
-        logger.logResponse(method, fullUrl, response.status, response.statusText, errorBody, false, responseHeaders);
+        await logger.logResponse(method, fullUrl, response.status, response.statusText, errorBody, false, responseHeaders);
 
         throw new Error(errorMessage);
       }
@@ -258,7 +258,7 @@ export class HttpClient {
         const jsonData = await response.json() as ApiResponse<T>;
 
         // Log successful response with headers
-        logger.logResponse(method, fullUrl, response.status, response.statusText, jsonData, true, responseHeaders);
+        await logger.logResponse(method, fullUrl, response.status, response.statusText, jsonData, true, responseHeaders);
 
         // Handle API response format
         if (jsonData.success === false) {
@@ -273,7 +273,7 @@ export class HttpClient {
       const text = await response.text();
 
       // Log text response with headers
-      logger.logResponse(method, fullUrl, response.status, response.statusText, text, true, responseHeaders);
+      await logger.logResponse(method, fullUrl, response.status, response.statusText, text, true, responseHeaders);
 
       return text as T;
 
@@ -283,15 +283,15 @@ export class HttpClient {
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           const timeoutError = new Error(`Request timeout after ${timeout}ms`);
-          logger.error(`HTTP Request timeout: ${method} ${fullUrl}`, timeoutError);
+          await logger.error(`HTTP Request timeout: ${method} ${fullUrl}`, timeoutError);
           throw timeoutError;
         }
-        logger.error(`HTTP Request failed: ${method} ${fullUrl}`, error);
+        await logger.error(`HTTP Request failed: ${method} ${fullUrl}`, error);
         throw error;
       }
 
       const genericError = new Error(`Request failed: ${String(error)}`);
-      logger.error(`HTTP Request failed: ${method} ${fullUrl}`, genericError);
+      await logger.error(`HTTP Request failed: ${method} ${fullUrl}`, genericError);
       throw genericError;
     }
   }

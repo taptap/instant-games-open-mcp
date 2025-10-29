@@ -98,13 +98,13 @@ class TapTapMinigameMCPServer {
       const { name, arguments: args } = request.params;
 
       // Log tool call input
-      logger.logToolCall(name, args || {});
+      await logger.logToolCall(name, args || {});
 
       try {
         // Special handling for complete_oauth_authorization (needs deviceAuth access)
         if (name === 'complete_oauth_authorization') {
           const result = await this.handleOAuthCompletion();
-          logger.logToolResponse(name, result, true);
+          await logger.logToolResponse(name, result, true);
           return {
             content: [{ type: 'text', text: result }]
           };
@@ -143,7 +143,7 @@ class TapTapMinigameMCPServer {
         const result = await toolReg.handler(args || {}, this.context);
 
         // Log tool call output
-        logger.logToolResponse(name, result, true);
+        await logger.logToolResponse(name, result, true);
 
         return {
           content: [
@@ -155,7 +155,7 @@ class TapTapMinigameMCPServer {
         };
       } catch (error) {
         // Log tool call error
-        logger.logToolResponse(name, error instanceof Error ? error.message : String(error), false);
+        await logger.logToolResponse(name, error instanceof Error ? error.message : String(error), false);
 
         throw new McpError(
           ErrorCode.InternalError,
@@ -178,7 +178,7 @@ class TapTapMinigameMCPServer {
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const uri = request.params.uri;
 
-      logger.logToolCall(`ReadResource: ${uri}`, {});
+      await logger.logToolCall(`ReadResource: ${uri}`, {});
 
       try {
         // Find resource from modules
@@ -195,7 +195,7 @@ class TapTapMinigameMCPServer {
         // Call handler
         const content = await resourceReg.handler();
 
-        logger.logToolResponse(`ReadResource: ${uri}`, content.substring(0, 500), true);
+        await logger.logToolResponse(`ReadResource: ${uri}`, content.substring(0, 500), true);
 
         return {
           contents: [
@@ -207,7 +207,7 @@ class TapTapMinigameMCPServer {
           ]
         };
       } catch (error) {
-        logger.logToolResponse(`ReadResource: ${uri}`, error instanceof Error ? error.message : String(error), false);
+        await logger.logToolResponse(`ReadResource: ${uri}`, error instanceof Error ? error.message : String(error), false);
 
         throw new McpError(
           ErrorCode.InternalError,
