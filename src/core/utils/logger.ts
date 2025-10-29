@@ -128,13 +128,17 @@ export class Logger {
 
   /**
    * Core logging method with dual output
+   * Supports both simple and enhanced formats
    */
   private async log(
     level: LogLevel,
     loggerName: string,
     message: string,
     data?: any,
-    skipStderr: boolean = false  // Flag to skip stderr output
+    enhancedFormat?: {
+      type: 'tool-call' | 'tool-response' | 'http-request' | 'http-response';
+      details?: any;
+    }
   ): Promise<void> {
     // Check if we should log this level
     if (!this.shouldLog(level)) {
@@ -144,11 +148,17 @@ export class Logger {
     const timestamp = getTimestamp();
     const sanitized = data ? sanitizeData(data) : undefined;
 
-    // Output 1: stderr (for local debugging) - can be skipped
-    if (this.verbose && !skipStderr) {
-      process.stderr.write(`[${timestamp}] [${level.toUpperCase()}] [${loggerName}] ${message}\n`);
-      if (sanitized !== undefined) {
-        process.stderr.write(`${formatObject(sanitized)}\n`);
+    // Output 1: stderr (for local debugging)
+    if (this.verbose) {
+      if (enhancedFormat) {
+        // Enhanced format for special log types
+        this.writeEnhancedStderr(enhancedFormat, timestamp, message, sanitized);
+      } else {
+        // Simple format for general logs
+        process.stderr.write(`[${timestamp}] [${level.toUpperCase()}] [${loggerName}] ${message}\n`);
+        if (sanitized !== undefined) {
+          process.stderr.write(`${formatObject(sanitized)}\n`);
+        }
       }
     }
 
@@ -172,6 +182,69 @@ export class Logger {
           process.stderr.write(`[${timestamp}] [WARNING] Failed to send log notification: ${error}\n`);
         }
       }
+    }
+  }
+
+  /**
+   * Write enhanced stderr format for special log types
+   */
+  private writeEnhancedStderr(
+    format: { type: string; details?: any },
+    timestamp: string,
+    message: string,
+    data?: any
+  ): void {
+    switch (format.type) {
+      case 'tool-call':
+        process.stderr.write(`\n${'='.repeat(80)}\n`);
+        process.stderr.write(`[${timestamp}] [TOOL CALL] ${format.details?.toolName || 'Unknown'}\n`);
+        process.stderr.write(`${'='.repeat(80)}\n`);
+        process.stderr.write(`📥 Input:\n${formatObject(data?.args || {})}\n`);
+        break;
+
+      case 'tool-response':
+        process.stderr.write(`\n${'-'.repeat(80)}\n`);
+        process.stderr.write(`[${timestamp}] [TOOL RESPONSE] ${format.details?.toolName || 'Unknown'} - ${format.details?.success ? '✅ SUCCESS' : '❌ FAILED'}\n`);
+        process.stderr.write(`${'-'.repeat(80)}\n`);
+        const displayOutput = format.details?.displayOutput || '';
+        process.stderr.write(`📤 Output:\n${displayOutput}\n`);
+        process.stderr.write(`${'='.repeat(80)}\n\n`);
+        break;
+
+      case 'http-request':
+        process.stderr.write(`\n${'='.repeat(100)}\n`);
+        process.stderr.write(`[${timestamp}] [HTTP REQUEST]\n`);
+        process.stderr.write(`${'='.repeat(100)}\n`);
+        process.stderr.write(`📤 Method: ${data?.method}\n`);
+        process.stderr.write(`📤 URL: ${data?.url}\n`);
+        process.stderr.write(`\n`);
+        if (data?.headers?.Authorization) {
+          process.stderr.write(`🔐 Authorization:\n${data.headers.Authorization}\n\n`);
+        }
+        process.stderr.write(`📋 Headers (${Object.keys(data?.headers || {}).length} total):\n`);
+        process.stderr.write(`${formatObject(data?.headers || {})}\n`);
+        if (format.details?.bodyDisplay) {
+          process.stderr.write(format.details.bodyDisplay);
+        }
+        break;
+
+      case 'http-response':
+        process.stderr.write(`\n${'-'.repeat(100)}\n`);
+        process.stderr.write(`[${timestamp}] [HTTP RESPONSE] ${format.details?.success ? '✅ SUCCESS' : '❌ FAILED'}\n`);
+        process.stderr.write(`${'-'.repeat(100)}\n`);
+        process.stderr.write(`📥 Method: ${data?.method}\n`);
+        process.stderr.write(`📥 URL: ${data?.url}\n`);
+        process.stderr.write(`📥 Status: ${data?.status} ${data?.statusText}\n`);
+        process.stderr.write(`\n`);
+        if (data?.headers && Object.keys(data.headers).length > 0) {
+          process.stderr.write(`📋 Response Headers (${Object.keys(data.headers).length} total):\n`);
+          process.stderr.write(`${formatObject(data.headers)}\n\n`);
+        }
+        if (format.details?.bodyDisplay) {
+          process.stderr.write(format.details.bodyDisplay);
+        }
+        process.stderr.write(`${'='.repeat(100)}\n\n`);
+        break;
     }
   }
 
@@ -238,24 +311,18 @@ export class Logger {
    * Log tool call with input arguments
    */
   async logToolCall(toolName: string, args: any): Promise<void> {
-    const timestamp = getTimestamp();
     const sanitizedArgs = sanitizeData(args);
 
-    // Enhanced stderr output (verbose mode only)
-    if (this.verbose) {
-      process.stderr.write(`\n${'='.repeat(80)}\n`);
-      process.stderr.write(`[${timestamp}] [TOOL CALL] ${toolName}\n`);
-      process.stderr.write(`${'='.repeat(80)}\n`);
-      process.stderr.write(`📥 Input:\n${formatObject(sanitizedArgs)}\n`);
-    }
-
-    // Send MCP notification using unified log method (skipStderr=true to avoid duplication)
+    // Use unified log method with enhanced format
     await this.log(
       'info',
       'tools',
       `Tool called: ${toolName}`,
       { tool: toolName, args: sanitizedArgs },
-      true  // Skip stderr since we already output above
+      {
+        type: 'tool-call',
+        details: { toolName }
+      }
     );
   }
 
@@ -263,32 +330,24 @@ export class Logger {
    * Log tool response with output
    */
   async logToolResponse(toolName: string, output: any, success: boolean = true): Promise<void> {
-    const timestamp = getTimestamp();
     const truncatedOutput = typeof output === 'string'
       ? output.substring(0, 200)
       : output;
 
-    // Enhanced stderr output (verbose mode only)
-    if (this.verbose) {
-      process.stderr.write(`\n${'-'.repeat(80)}\n`);
-      process.stderr.write(`[${timestamp}] [TOOL RESPONSE] ${toolName} - ${success ? '✅ SUCCESS' : '❌ FAILED'}\n`);
-      process.stderr.write(`${'-'.repeat(80)}\n`);
+    const displayOutput = typeof output === 'string'
+      ? output.substring(0, 500) + (output.length > 500 ? '...(truncated)' : '')
+      : formatObject(output);
 
-      const displayOutput = typeof output === 'string'
-        ? output.substring(0, 500) + (output.length > 500 ? '...(truncated)' : '')
-        : formatObject(output);
-
-      process.stderr.write(`📤 Output:\n${displayOutput}\n`);
-      process.stderr.write(`${'='.repeat(80)}\n\n`);
-    }
-
-    // Send MCP notification using unified log method (skipStderr=true to avoid duplication)
+    // Use unified log method with enhanced format
     await this.log(
       success ? 'info' : 'error',
       'tools',
       `Tool ${success ? 'completed' : 'failed'}: ${toolName}`,
       { tool: toolName, success, output: truncatedOutput },
-      true  // Skip stderr since we already output above
+      {
+        type: 'tool-response',
+        details: { toolName, success, displayOutput }
+      }
     );
   }
 
@@ -296,8 +355,6 @@ export class Logger {
    * Log HTTP request
    */
   async logRequest(method: string, url: string, headers: Record<string, string>, body?: string): Promise<void> {
-    const timestamp = getTimestamp();
-
     // Sanitize sensitive headers
     const safeHeaders = { ...headers };
     if (safeHeaders['Authorization']) {
@@ -310,43 +367,29 @@ export class Logger {
 
     const sanitizedBody = body ? sanitizeData(body) : undefined;
 
-    // Enhanced stderr output (verbose mode only)
-    if (this.verbose) {
-      process.stderr.write(`\n${'='.repeat(100)}\n`);
-      process.stderr.write(`[${timestamp}] [HTTP REQUEST]\n`);
-      process.stderr.write(`${'='.repeat(100)}\n`);
-      process.stderr.write(`📤 Method: ${method}\n`);
-      process.stderr.write(`📤 URL: ${url}\n`);
-      process.stderr.write(`\n`);
-
-      if (safeHeaders['Authorization']) {
-        process.stderr.write(`🔐 Authorization:\n${safeHeaders['Authorization']}\n\n`);
+    // Prepare body display for stderr
+    let bodyDisplay = '';
+    if (body) {
+      try {
+        const parsedBody = JSON.parse(body);
+        bodyDisplay = `\n📦 Request Body (JSON):\n${formatObject(sanitizeData(parsedBody))}\n`;
+      } catch {
+        bodyDisplay = `\n📦 Request Body (Raw):\n${body}\n`;
       }
-
-      process.stderr.write(`📋 Headers (${Object.keys(headers).length} total):\n`);
-      process.stderr.write(`${formatObject(safeHeaders)}\n`);
-
-      if (body) {
-        try {
-          const parsedBody = JSON.parse(body);
-          process.stderr.write(`\n📦 Request Body (JSON):\n`);
-          process.stderr.write(`${formatObject(sanitizeData(parsedBody))}\n`);
-        } catch {
-          process.stderr.write(`\n📦 Request Body (Raw):\n`);
-          process.stderr.write(`${body}\n`);
-        }
-      } else {
-        process.stderr.write(`\n📦 Request Body: (empty)\n`);
-      }
+    } else {
+      bodyDisplay = `\n📦 Request Body: (empty)\n`;
     }
 
-    // Send MCP notification using unified log method (skipStderr=true to avoid duplication)
+    // Use unified log method with enhanced format
     await this.log(
       'debug',
       'http',
       `HTTP ${method} ${url}`,
       { method, url, headers: safeHeaders, body: sanitizedBody },
-      true  // Skip stderr since we already output above
+      {
+        type: 'http-request',
+        details: { bodyDisplay }
+      }
     );
   }
 
@@ -362,50 +405,33 @@ export class Logger {
     success: boolean = true,
     responseHeaders?: Record<string, string>
   ): Promise<void> {
-    const timestamp = getTimestamp();
     const sanitizedBody = sanitizeData(body);
 
-    // Enhanced stderr output (verbose mode only)
-    if (this.verbose) {
-      process.stderr.write(`\n${'-'.repeat(100)}\n`);
-      process.stderr.write(`[${timestamp}] [HTTP RESPONSE] ${success ? '✅ SUCCESS' : '❌ FAILED'}\n`);
-      process.stderr.write(`${'-'.repeat(100)}\n`);
-      process.stderr.write(`📥 Method: ${method}\n`);
-      process.stderr.write(`📥 URL: ${url}\n`);
-      process.stderr.write(`📥 Status: ${status} ${statusText}\n`);
-      process.stderr.write(`\n`);
-
-      if (responseHeaders && Object.keys(responseHeaders).length > 0) {
-        process.stderr.write(`📋 Response Headers (${Object.keys(responseHeaders).length} total):\n`);
-        process.stderr.write(`${formatObject(responseHeaders)}\n\n`);
+    // Prepare body display for stderr
+    let bodyDisplay = '';
+    if (typeof body === 'string') {
+      try {
+        const parsedBody = JSON.parse(body);
+        bodyDisplay = `📦 Response Body (JSON):\n${formatObject(sanitizeData(parsedBody))}\n`;
+      } catch {
+        bodyDisplay = `📦 Response Body (Text):\n${body}\n`;
       }
-
-      if (typeof body === 'string') {
-        try {
-          const parsedBody = JSON.parse(body);
-          process.stderr.write(`📦 Response Body (JSON):\n`);
-          process.stderr.write(`${formatObject(sanitizeData(parsedBody))}\n`);
-        } catch {
-          process.stderr.write(`📦 Response Body (Text):\n`);
-          process.stderr.write(`${body}\n`);
-        }
-      } else if (body !== undefined && body !== null) {
-        process.stderr.write(`📦 Response Body (Object):\n`);
-        process.stderr.write(`${formatObject(sanitizedBody)}\n`);
-      } else {
-        process.stderr.write(`📦 Response Body: (empty)\n`);
-      }
-
-      process.stderr.write(`${'='.repeat(100)}\n\n`);
+    } else if (body !== undefined && body !== null) {
+      bodyDisplay = `📦 Response Body (Object):\n${formatObject(sanitizedBody)}\n`;
+    } else {
+      bodyDisplay = `📦 Response Body: (empty)\n`;
     }
 
-    // Send MCP notification using unified log method (skipStderr=true to avoid duplication)
+    // Use unified log method with enhanced format
     await this.log(
       success ? 'debug' : 'error',
       'http',
       `HTTP ${method} ${url} - ${status} ${statusText}`,
       { method, url, status, statusText, body: sanitizedBody, headers: responseHeaders },
-      true  // Skip stderr since we already output above
+      {
+        type: 'http-response',
+        details: { success, bodyDisplay }
+      }
     );
   }
 
