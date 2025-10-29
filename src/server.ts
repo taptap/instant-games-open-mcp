@@ -6,7 +6,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -53,12 +53,20 @@ class TapTapMinigameMCPServer {
   private ensureAuth: () => Promise<void>;
 
   constructor(ensureAuthFn: () => Promise<void>) {
-    // Server automatically declares capabilities based on registered handlers
-    // logging capability will be declared because we register SetLevelRequestSchema
-    this.server = new Server({
-      name: 'taptap-minigame-mcp',
-      version: VERSION,
-    });
+    // Create server with explicit capabilities declaration (required in SDK 1.20+)
+    this.server = new Server(
+      {
+        name: 'taptap-minigame-mcp',
+        version: VERSION,
+      },
+      {
+        capabilities: {
+          logging: {},  // Declare logging capability
+          tools: {},    // Declare tools capability
+          resources: {}, // Declare resources capability
+        },
+      }
+    );
 
     this.context = {
       projectPath: TDS_MCP_PROJECT_PATH,
@@ -288,20 +296,29 @@ class TapTapMinigameMCPServer {
   }
 
   /**
-   * 启动 SSE 传输服务器
+   * 启动 Streamable HTTP 传输服务器（2025 标准）
    */
   private async startSSEServer(totalTools: number, totalResources: number): Promise<void> {
     // Initialize logger with server instance (before any connections)
     logger.initialize(this.server, 'sse');
 
-    const sessions = new Map<string, SSEServerTransport>();
+    // Create a single Streamable HTTP transport instance with session management
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => {
+        // Generate secure session ID
+        return Math.random().toString(36).substring(2) + Date.now().toString(36);
+      }
+    });
+
+    // Connect the transport to the server
+    await this.server.connect(transport);
 
     const httpServer = http.createServer(async (req, res) => {
       const url = new URL(req.url || '/', `http://${req.headers.host}`);
 
       // CORS headers
       res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
       if (req.method === 'OPTIONS') {
@@ -310,58 +327,27 @@ class TapTapMinigameMCPServer {
         return;
       }
 
-      if (url.pathname === '/sse' && req.method === 'GET') {
-        // SSE connection
-        const transport = new SSEServerTransport('/message', res);
-        await this.server.connect(transport);
-        sessions.set(transport.sessionId, transport);
-
-        // Cleanup on close
-        transport.onclose = () => {
-          sessions.delete(transport.sessionId);
-        };
-
-        await transport.start();
-      } else if (url.pathname === '/message' && req.method === 'POST') {
-        // Handle POST message
-        const sessionId = url.searchParams.get('sessionId');
-        if (!sessionId) {
-          res.writeHead(400);
-          res.end(JSON.stringify({ error: 'Missing sessionId' }));
-          return;
-        }
-
-        const transport = sessions.get(sessionId);
-        if (!transport) {
-          res.writeHead(404);
-          res.end(JSON.stringify({ error: 'Session not found' }));
-          return;
-        }
-
-        await transport.handlePostMessage(req, res);
-      } else if (url.pathname === '/health' && req.method === 'GET') {
+      if (url.pathname === '/health' && req.method === 'GET') {
         // Health check endpoint
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           status: 'ok',
           version: VERSION,
-          transport: 'sse',
-          sessions: sessions.size,
+          transport: 'streamable-http',
           tools: totalTools,
           resources: totalResources
         }));
       } else {
-        res.writeHead(404);
-        res.end(JSON.stringify({ error: 'Not found' }));
+        // Handle all MCP requests through the Streamable HTTP transport
+        await transport.handleRequest(req, res);
       }
     });
 
     httpServer.listen(TDS_MCP_PORT, () => {
       process.stderr.write(`🚀 TapTap Open API MCP Server v${VERSION} (Minigame & H5)\n`);
-      process.stderr.write('🔌 Transport: SSE (Server-Sent Events)\n');
+      process.stderr.write('🔌 Transport: Streamable HTTP (MCP 2025 Standard)\n');
       process.stderr.write(`🌐 HTTP Server: http://localhost:${TDS_MCP_PORT}\n`);
-      process.stderr.write(`📡 SSE Endpoint: http://localhost:${TDS_MCP_PORT}/sse\n`);
-      process.stderr.write(`📥 Message Endpoint: http://localhost:${TDS_MCP_PORT}/message\n`);
+      process.stderr.write(`📡 MCP Endpoint: http://localhost:${TDS_MCP_PORT}/\n`);
       process.stderr.write(`💚 Health Check: http://localhost:${TDS_MCP_PORT}/health\n`);
       process.stderr.write(`📚 Providing ${totalTools} tools, ${totalResources} resources\n`);
       process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
