@@ -126,7 +126,7 @@ npm install -g @mikoto_zero/minigame-open-mcp
 MCP 服务器支持两种传输协议：
 
 1. **stdio 模式（默认）** - 适合本地集成、单客户端场景（如 Claude Desktop）
-2. **SSE/HTTP 模式** - 适合远程访问、多客户端并发场景
+2. **Streamable HTTP 模式** - 适合远程访问、多客户端并发场景（MCP 2025 标准）
 
 ```bash
 # 开发模式启动（默认 stdio 模式）
@@ -157,10 +157,11 @@ TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=8080 npm start
 TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3000 TAPTAP_MINIGAME_MCP_VERBOSE=true npm start
 ```
 
-**SSE 模式 Endpoints：**
-- SSE 连接：`GET http://localhost:3000/sse`
-- 消息发送：`POST http://localhost:3000/message?sessionId=xxx`
+**Streamable HTTP 模式 Endpoints：**
+- MCP 请求：`GET/POST http://localhost:3000/` (统一 endpoint)
 - 健康检查：`GET http://localhost:3000/health`
+
+注：使用 MCP 2025 Streamable HTTP 标准，所有 MCP 请求通过统一的 `/` endpoint 处理。
 
 ### 环境配置
 
