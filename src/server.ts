@@ -4,6 +4,10 @@
  * TapTap 小游戏开发文档 MCP 服务器 - Node.js 版本
  */
 
+// Load .env file if exists (for local development)
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';

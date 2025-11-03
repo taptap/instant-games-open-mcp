@@ -205,3 +205,51 @@ curl -v http://localhost:3000/health
 # 检查防火墙
 sudo ufw status
 ```
+
+## 使用 .env 文件（推荐）
+
+为了更方便地管理配置，可以使用 `.env` 文件：
+
+### 设置步骤
+
+```bash
+# 1. 复制示例文件
+cp .env.example .env
+
+# 2. 编辑 .env 文件
+# 根据需要修改配置项，例如：
+#   TDS_MCP_TRANSPORT=sse
+#   TDS_MCP_PORT=3000
+#   TDS_MCP_VERBOSE=true
+
+# 3. 启动服务器
+npm run serve:sse
+# .env 中的配置会自动加载
+```
+
+### 配置优先级
+
+```
+命令行环境变量 > .env 文件 > 默认值
+```
+
+示例：
+```bash
+# .env 文件中设置
+TDS_MCP_PORT=3000
+
+# 命令行覆盖
+TDS_MCP_PORT=8080 npm run serve:sse
+# 实际使用端口 8080（命令行优先）
+```
+
+### .env 文件模板
+
+参考 `.env.example` 文件，包含所有可用配置项和详细说明。
+
+### 安全提示
+
+- ✅ `.env` 文件已自动添加到 `.gitignore`
+- ⚠️ 不要将 `.env` 文件提交到 git
+- ⚠️ 不要在 `.env` 中存储敏感的生产环境密钥
+- ✅ 生产环境建议使用环境变量或密钥管理服务

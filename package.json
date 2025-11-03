@@ -41,7 +41,8 @@
     "@modelcontextprotocol/sdk": "1.20.2",
     "@types/archiver": "6.0.4",
     "archiver": "7.0.1",
-    "crypto-js": "^4.2.0"
+    "crypto-js": "^4.2.0",
+    "dotenv": "17.2.3"
   },
   "devDependencies": {
     "@types/crypto-js": "^4.2.0",
