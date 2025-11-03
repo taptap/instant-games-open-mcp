@@ -80,23 +80,31 @@ class TapTapMinigameMCPServer {
   }
 
   /**
-   * 设置请求处理器
+   * 设置请求处理器（为主服务器）
    */
   private setupHandlers(): void {
+    this.setupHandlersForServer(this.server);
+  }
+
+  /**
+   * 为指定的 Server 实例设置请求处理器
+   * 用于支持多客户端并发连接（每个会话独立的 Server 实例）
+   */
+  private setupHandlersForServer(server: Server): void {
     // 设置日志级别处理器 (MCP logging/setLevel)
-    this.server.setRequestHandler(SetLevelRequestSchema, async (request) => {
+    server.setRequestHandler(SetLevelRequestSchema, async (request) => {
       const { level } = request.params;
       logger.setLevel(level);
       return {};
     });
 
     // 设置工具列表处理器 - 从所有模块收集
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: allModules.flatMap(m => m.tools.map(t => t.definition))
     }));
 
     // 设置工具调用处理器 - 自动从模块路由
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
       // Log tool call input
@@ -167,7 +175,7 @@ class TapTapMinigameMCPServer {
     });
 
     // 设置资源列表处理器 - 从所有模块收集
-    this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    server.setRequestHandler(ListResourcesRequestSchema, async () => ({
       resources: allModules.flatMap(m => m.resources.map(r => ({
         uri: r.uri,
         name: r.name,
@@ -177,7 +185,7 @@ class TapTapMinigameMCPServer {
     }));
 
     // 设置资源读取处理器 - 自动从模块路由
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const uri = request.params.uri;
 
       await logger.logToolCall(`ReadResource: ${uri}`, {});
@@ -299,21 +307,14 @@ class TapTapMinigameMCPServer {
 
   /**
    * 启动 Streamable HTTP 传输服务器（2025 标准）
+   * 支持多客户端并发连接 - 每个会话使用独立的 Server 和 Transport 实例
    */
   private async startSSEServer(totalTools: number, totalResources: number): Promise<void> {
-    // Initialize logger with server instance (before any connections)
+    // Initialize logger (before any connections)
     logger.initialize(this.server, 'sse');
 
-    // Create a single Streamable HTTP transport instance with session management
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => {
-        // Generate secure session ID
-        return Math.random().toString(36).substring(2) + Date.now().toString(36);
-      }
-    });
-
-    // Connect the transport to the server
-    await this.server.connect(transport);
+    // Store active transport instances by session ID
+    const transports: Map<string, { server: Server, transport: StreamableHTTPServerTransport }> = new Map();
 
     const httpServer = http.createServer(async (req, res) => {
       const url = new URL(req.url || '/', `http://${req.headers.host}`);
@@ -321,7 +322,7 @@ class TapTapMinigameMCPServer {
       // CORS headers
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Mcp-Session-Id');
 
       if (req.method === 'OPTIONS') {
         res.writeHead(200);
@@ -337,12 +338,66 @@ class TapTapMinigameMCPServer {
           version: VERSION,
           transport: 'streamable-http',
           tools: totalTools,
-          resources: totalResources
+          resources: totalResources,
+          activeSessions: transports.size
         }));
-      } else {
-        // Handle all MCP requests through the Streamable HTTP transport
-        await transport.handleRequest(req, res);
+        return;
       }
+
+      // Get session ID from header (if exists)
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+
+      // Check if this is a request for an existing session
+      if (sessionId && transports.has(sessionId)) {
+        // Use existing transport for this session
+        const { transport } = transports.get(sessionId)!;
+        await transport.handleRequest(req, res);
+        return;
+      }
+
+      // New session - create new Server and Transport instances
+      const sessionServer = new Server(
+        {
+          name: 'taptap-minigame-mcp',
+          version: VERSION,
+        },
+        {
+          capabilities: {
+            logging: {},
+            tools: {},
+            resources: {},
+          },
+        }
+      );
+
+      // Set up handlers for the new session (same as original server)
+      this.setupHandlersForServer(sessionServer);
+
+      // Create new transport instance for this session
+      const sessionTransport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => {
+          // Generate secure session ID
+          return Math.random().toString(36).substring(2) + Date.now().toString(36);
+        },
+        // Log client connections
+        onsessioninitialized: async (newSessionId: string) => {
+          await logger.logClientConnection(newSessionId);
+          // Store the session
+          transports.set(newSessionId, { server: sessionServer, transport: sessionTransport });
+        },
+        // Log client disconnections
+        onsessionclosed: async (closedSessionId: string) => {
+          await logger.logClientDisconnection(closedSessionId);
+          // Remove the session
+          transports.delete(closedSessionId);
+        }
+      });
+
+      // Connect transport to the new server
+      await sessionServer.connect(sessionTransport);
+
+      // Handle the request
+      await sessionTransport.handleRequest(req, res);
     });
 
     httpServer.listen(TDS_MCP_PORT, () => {
