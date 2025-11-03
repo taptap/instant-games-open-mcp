@@ -108,16 +108,6 @@ npx @mikoto_zero/minigame-open-mcp
 
 **No Breaking Changes** - All existing configurations continue to work.
 
----
-
-## Previous Versions
-
-### [1.1.4] - 2024-xx-xx
-- Tools-only stable version
-- 17 tools for TapTap Minigame
-- Basic OAuth support
-
-_See git history for detailed changelog of earlier versions._
 ## [1.1.4] - 2025-10-15
 
 ### Note
