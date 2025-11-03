@@ -5,11 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.0-beta.23] - 2025-11-03
+## [1.2.0] - 2025-11-03
 
-### 🚀 Major Features - Multi-Client Concurrency & Smart Auto-Authorization
+### 🚀 Major Release - Multi-Client Concurrency & Smart Auto-Authorization
 
-**This release brings significant improvements for HTTP/SSE transport modes, including multi-client support and intelligent auto-authorization.**
+**This is a major release bringing significant improvements: multi-client concurrent connections, intelligent auto-authorization for SSE mode, and three transport modes support.**
 
 ### Added
 

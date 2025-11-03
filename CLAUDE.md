@@ -62,18 +62,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **NPM 包：** `@mikoto_zero/minigame-open-mcp`
 
 **版本说明：**
-- `latest` (v1.1.4): Tools-only 稳定版（17 tools）
-- `beta` (v1.2.0-beta.23): 模块化架构 + MCP 2025 标准
+- `latest` (v1.2.0): 模块化架构 + MCP 2025 标准
   - 17 tools + 7 resources
   - OAuth 2.0 Device Code Flow（SSE 模式支持自动授权）
   - 三种传输协议（stdio + SSE Streaming + HTTP JSON）
   - 多客户端并发支持（独立会话管理）
   - MCP Logging 规范（RFC 5424）+ 连接日志
   - MCP SDK 1.20.2
+- `beta` (v1.2.0-beta.23): 最新测试版本
 
 ## 架构概览
 
-项目采用**模块化架构设计** (v1.2.0-beta.21)：
+项目采用**模块化架构设计**：
 
 ### 功能模块层
 - **`src/features/`** - 功能模块（代码完全内聚）
@@ -113,7 +113,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 关键设计模式
 
-**1. 统一格式（v1.2.0-beta.11+，当前 v1.2.0-beta.21）**
+**1. 统一格式**
 - Tools 和 Resources 采用统一对象数组格式
 - 每个工具包含 `definition` + `handler`，永不不匹配
 - 类型安全的参数定义
@@ -167,7 +167,7 @@ npm install -g @mikoto_zero/minigame-open-mcp
 
 ### 启动服务器
 
-#### 传输协议选择（v1.2.0-beta.23）
+#### 传输协议选择
 
 MCP 服务器支持**三种传输模式**：
 
@@ -720,7 +720,7 @@ npm publish --access public
 ```
 
 ### 版本管理
-- 当前版本：1.2.0-beta.23
+- 当前版本：1.2.0
 - 遵循语义化版本（Semantic Versioning）
 - Beta 版本用于新特性测试和验证
 - 主要功能更新增加次版本号
@@ -745,7 +745,7 @@ npm publish --access public
 - tapcode-mcp-h5: `.taptap/craft.json`
 - 本项目: `.taptap-minigame/app.json`
 
-## v1.2.0-beta.23 新特性（2025-11-03）
+## v1.2.0 新特性（2025-11-03）
 
 ### 🚀 多客户端并发支持
 
