@@ -728,24 +728,29 @@ npm publish --access public
 
 ### 扩展新功能
 
-添加新的 Open API 功能（如云存档）：
+使用脚手架快速创建新功能模块：
 
-1. 在 `src/data/` 创建新的文档数据文件
-2. 在 `src/tools/` 创建新的工具处理器
-3. 在 `src/network/` 添加对应的 API 函数（如需要）
-4. 在 `src/server.ts` 注册新工具
-5. 更新 README.md 和文档
+```bash
+# 运行脚手架脚本
+./scripts/create-feature.sh
+
+# 按提示输入功能信息
+# 自动生成模块结构：src/features/yourFeature/
+# 包含：index.ts, tools.ts, handlers.ts, api.ts 等
+
+# 在 src/server.ts 注册新模块
+import { yourFeatureModule } from './features/yourFeature/index.js';
+const allModules = [..., yourFeatureModule];
+```
+
+详见脚手架使用说明部分。
 
 ### 缓存文件位置
 
 - 全局缓存：`~/.config/taptap-minigame/app.json`
 - 项目缓存：`{project}/.taptap-minigame/app.json`
 
-**与 tapcode-mcp-h5 区分**：
-- tapcode-mcp-h5: `.taptap/craft.json`
-- 本项目: `.taptap-minigame/app.json`
-
-## v1.2.0 新特性（2025-11-03）
+## 核心特性详解
 
 ### 🚀 多客户端并发支持
 
