@@ -313,8 +313,11 @@ class TapTapMinigameMCPServer {
     // Initialize logger (before any connections)
     logger.initialize(this.server, 'sse');
 
-    // Set transport mode for authentication (enables auto-authorization)
-    setTransportMode('sse');
+    // Set transport mode for authentication
+    // - 'sse': enables auto-authorization with progress streaming
+    // - 'http' (JSON only): uses two-step auth (no progress streaming available)
+    const authMode = TDS_MCP_TRANSPORT === 'sse' ? 'sse' : 'stdio';
+    setTransportMode(authMode);
 
     // Store active transport instances by session ID
     const transports: Map<string, { server: Server, transport: StreamableHTTPServerTransport }> = new Map();
