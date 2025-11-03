@@ -382,6 +382,10 @@ class TapTapMinigameMCPServer {
           // Generate secure session ID
           return Math.random().toString(36).substring(2) + Date.now().toString(36);
         },
+        // Response mode based on transport type:
+        // - 'http': JSON responses only (for clients that don't support SSE)
+        // - 'sse': SSE streaming (for Streamable HTTP clients)
+        enableJsonResponse: TDS_MCP_TRANSPORT === 'http',
         // Log client connections
         onsessioninitialized: async (newSessionId: string) => {
           await logger.logClientConnection(newSessionId);
@@ -405,7 +409,8 @@ class TapTapMinigameMCPServer {
 
     httpServer.listen(TDS_MCP_PORT, () => {
       process.stderr.write(`🚀 TapTap Open API MCP Server v${VERSION} (Minigame & H5)\n`);
-      process.stderr.write('🔌 Transport: Streamable HTTP (MCP 2025 Standard)\n');
+      const responseMode = TDS_MCP_TRANSPORT === 'http' ? 'JSON Only' : 'SSE Streaming';
+      process.stderr.write(`🔌 Transport: Streamable HTTP (${responseMode})\n`);
       process.stderr.write(`🌐 HTTP Server: http://localhost:${TDS_MCP_PORT}\n`);
       process.stderr.write(`📡 MCP Endpoint: http://localhost:${TDS_MCP_PORT}/\n`);
       process.stderr.write(`💚 Health Check: http://localhost:${TDS_MCP_PORT}/health\n`);
