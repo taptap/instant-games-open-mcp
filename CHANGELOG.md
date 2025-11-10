@@ -21,8 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Complete business layer isolation
 
 - 📝 **New Documentation**
-  - `PRIVATE_PROTOCOL.md` - Complete private parameter protocol specification
-  - `MCP_PROXY_GUIDE.md` - Comprehensive MCP Proxy development guide
+  - `docs/PRIVATE_PROTOCOL.md` - Complete private parameter protocol specification
+  - `docs/MCP_PROXY_GUIDE.md` - Comprehensive MCP Proxy development guide
   - Full test scripts and troubleshooting guides
 
 - 🧪 **Testing**

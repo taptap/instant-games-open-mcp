@@ -459,8 +459,8 @@ curl -X POST http://localhost:3000/ \
 
 ## 📖 相关文档
 
-- [README.md](README.md) - 用户文档和使用说明
-- [CLAUDE.md](CLAUDE.md) - 开发指南和架构说明
+- [README.md](../README.md) - 用户文档和使用说明
+- [CLAUDE.md](../CLAUDE.md) - 开发指南和架构说明
 - [src/core/types/privateParams.ts](src/core/types/privateParams.ts) - 类型定义
 - [src/core/utils/handlerHelpers.ts](src/core/utils/handlerHelpers.ts) - Helper 函数
 

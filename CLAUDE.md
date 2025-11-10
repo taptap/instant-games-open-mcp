@@ -179,7 +179,7 @@ handler: async (args: { page: number }, context) => {
 - 参数注入：`arguments._mac_token`（MCP Proxy）
 - Header 注入：`X-TapTap-Mac-Token`（API Gateway）
 
-详见：[PRIVATE_PROTOCOL.md](PRIVATE_PROTOCOL.md)
+详见：[docs/PRIVATE_PROTOCOL.md](docs/PRIVATE_PROTOCOL.md)
 
 ## 常用命令
 
