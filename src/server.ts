@@ -28,8 +28,6 @@ import { ApiConfig } from './core/network/httpClient.js';
 import { logger } from './core/utils/logger.js';
 import { DeviceFlowAuth } from './core/auth/deviceFlow.js';
 import { VERSION } from './version.js';
-import { mergePrivateParams, type PrivateToolParams } from './core/types/privateParams.js';
-import type { MacToken } from './core/types/index.js';
 
 // 导入功能模块
 import { appModule } from './features/app/index.js';
@@ -86,52 +84,6 @@ class TapTapMinigameMCPServer {
   }
 
   /**
-   * 从 HTTP Header 提取私有参数（如果是 HTTP/SSE 模式）
-   * 支持 MCP Proxy 注入私有参数
-   */
-  private extractPrivateParamsFromHeaders(extra?: any): PrivateToolParams {
-    const privateParams: PrivateToolParams = {};
-
-    // 仅在 HTTP/SSE 模式下从 headers 提取
-    if (!extra?.req?.headers) {
-      return privateParams;
-    }
-
-    const headers = extra.req.headers;
-
-    // 方式1: 从 X-TapTap-Mac-Token header 提取 MAC Token
-    const macTokenHeader = headers['x-taptap-mac-token'];
-    if (macTokenHeader && typeof macTokenHeader === 'string') {
-      try {
-        // Base64 解码
-        const decoded = Buffer.from(macTokenHeader, 'base64').toString('utf-8');
-        privateParams._mac_token = JSON.parse(decoded) as MacToken;
-      } catch (error) {
-        // 如果解码失败，尝试直接解析 JSON
-        try {
-          privateParams._mac_token = JSON.parse(macTokenHeader) as MacToken;
-        } catch {
-          // 忽略无效的 token header
-        }
-      }
-    }
-
-    // 方式2: 从 X-TapTap-User-Id header 提取用户ID
-    const userIdHeader = headers['x-taptap-user-id'];
-    if (userIdHeader && typeof userIdHeader === 'string') {
-      privateParams._user_id = userIdHeader;
-    }
-
-    // 方式3: 从 Mcp-Session-Id header 提取会话ID
-    const sessionIdHeader = headers['mcp-session-id'];
-    if (sessionIdHeader && typeof sessionIdHeader === 'string') {
-      privateParams._session_id = sessionIdHeader;
-    }
-
-    return privateParams;
-  }
-
-  /**
    * 设置请求处理器（为主服务器）
    */
   private setupHandlers(): void {
@@ -156,17 +108,14 @@ class TapTapMinigameMCPServer {
     }));
 
     // 设置工具调用处理器 - 自动从模块路由
-    server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
-      // 从 HTTP Header 提取私有参数（如果有）
-      const privateParams = this.extractPrivateParamsFromHeaders(extra);
-
-      // 合并私有参数到工具参数
-      const enrichedArgs = mergePrivateParams(args || {}, privateParams);
+      // Note: 私有参数已经在 args 中（由 MCP Proxy 注入）
+      // 不需要额外处理，直接使用 args
 
       // Log tool call input (私有参数会被自动过滤)
-      await logger.logToolCall(name, enrichedArgs);
+      await logger.logToolCall(name, args || {});
 
       try {
         // Special handling for complete_oauth_authorization (needs deviceAuth access)
@@ -207,8 +156,8 @@ class TapTapMinigameMCPServer {
           }
         }
 
-        // Call handler with enriched arguments (包含私有参数)
-        const result = await toolReg.handler(enrichedArgs, this.context);
+        // Call handler (私有参数已经在 args 中)
+        const result = await toolReg.handler(args || {}, this.context);
 
         // Log tool call output
         await logger.logToolResponse(name, result, true);

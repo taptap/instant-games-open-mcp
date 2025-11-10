@@ -77,7 +77,7 @@ Call B (Proxy → Server):
 
 ## 💉 注入方式
 
-### 方式 1：直接参数注入（推荐）
+### 直接参数注入（唯一方式）
 
 MCP Proxy 直接在 `arguments` 中注入私有参数：
 
@@ -102,50 +102,11 @@ MCP Proxy 直接在 `arguments` 中注入私有参数：
 }
 ```
 
-### 方式 2：HTTP Header 注入
+**重要说明：**
 
-在 HTTP/SSE 模式下，可以通过 HTTP Headers 注入：
-
-```http
-POST / HTTP/1.1
-Host: localhost:3000
-Content-Type: application/json
-X-TapTap-Mac-Token: eyJraWQiOiJhYmMxMjMiLCJtYWNfa2V5Ijoic2VjcmV0In0=
-X-TapTap-User-Id: user_12345
-Mcp-Session-Id: session_xyz
-
-{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "list_leaderboards",
-    "arguments": {
-      "page": 1
-    }
-  }
-}
-```
-
-**Header 格式说明：**
-
-- `X-TapTap-Mac-Token`: Base64 编码的 MAC Token JSON（也支持直接传 JSON 字符串）
-- `X-TapTap-User-Id`: 用户ID（纯字符串）
-- `Mcp-Session-Id`: 会话ID（使用 MCP 标准 header）
-
-**Base64 编码示例：**
-
-```bash
-# 原始 MAC Token
-{
-  "kid": "abc123",
-  "mac_key": "secret",
-  "token_type": "mac",
-  "mac_algorithm": "hmac-sha-1"
-}
-
-# Base64 编码后
-eyJraWQiOiJhYmMxMjMiLCJtYWNfa2V5Ijoic2VjcmV0IiwidG9rZW5fdHlwZSI6Im1hYyIsIm1hY19hbGdvcml0aG0iOiJobWFjLXNoYTEifQ==
-```
+- 私有参数必须在 `arguments` 对象中传递
+- MCP 协议不支持从 HTTP Header 提取自定义参数（`extra` 参数没有 `req.headers`）
+- 这是 MCP Server 和 MCP Proxy 之间的**私有约定**
 
 ## 🔐 认证优先级
 
@@ -289,10 +250,16 @@ class MCPProxy {
 
 ## 🧪 测试验证
 
-### 测试 1：直接参数注入
+### 测试：直接参数注入
 
 ```bash
-# 使用 curl 测试
+# 启动服务器（SSE 模式）
+export TDS_MCP_TRANSPORT=sse
+export TDS_MCP_PORT=3000
+export TDS_MCP_VERBOSE=true
+npm start
+
+# 使用 curl 测试参数注入
 curl -X POST http://localhost:3000/ \
   -H "Content-Type: application/json" \
   -d '{
@@ -308,46 +275,19 @@ curl -X POST http://localhost:3000/ \
           "mac_key": "test_key",
           "token_type": "mac",
           "mac_algorithm": "hmac-sha-1"
-        }
+        },
+        "_user_id": "test_user",
+        "_session_id": "test_session"
       }
     }
   }'
 ```
 
-### 测试 2：HTTP Header 注入
+**验证要点：**
 
-```bash
-# Base64 编码 token
-TOKEN=$(echo -n '{"kid":"test","mac_key":"key","token_type":"mac","mac_algorithm":"hmac-sha-1"}' | base64)
-
-# 发送请求
-curl -X POST http://localhost:3000/ \
-  -H "Content-Type: application/json" \
-  -H "X-TapTap-Mac-Token: $TOKEN" \
-  -H "X-TapTap-User-Id: user_test" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "tools/call",
-    "params": {
-      "name": "list_leaderboards",
-      "arguments": { "page": 1 }
-    }
-  }'
-```
-
-### 测试 3：验证日志脱敏
-
-```bash
-# 启用详细日志
-export TDS_MCP_VERBOSE=true
-export TDS_MCP_TRANSPORT=sse
-export TDS_MCP_PORT=3000
-npm start
-
-# 发送包含私有参数的请求
-# 检查日志输出，确认私有参数不会显示
-```
+1. ✅ 工具调用成功（使用了注入的 `_mac_token`）
+2. ✅ 日志中不显示私有参数（`_mac_token`, `_user_id`, `_session_id` 被自动移除）
+3. ✅ Handler 能够访问 `args._mac_token`（通过 `getEffectiveContext`）
 
 ## 🔧 故障排查
 
@@ -369,14 +309,14 @@ npm start
 2. 检查 `stripPrivateParams()` 是否正确导入
 3. 验证 `logToolCall` 调用顺序（应在 `mergePrivateParams` 之后）
 
-### 问题 3：HTTP Header 注入失败
+### 问题 3：Proxy 注入参数格式错误
 
-**症状：** 从 header 注入的 token 未被识别
+**症状：** Proxy 注入的私有参数未被识别
 
 **排查步骤：**
-1. 确认使用的是 HTTP/SSE 模式（`TDS_MCP_TRANSPORT=sse` 或 `http`）
-2. 检查 header 名称是否正确（`X-TapTap-Mac-Token`）
-3. 验证 Base64 编码是否正确（可以先尝试不编码，直接传 JSON）
+1. 确认私有参数在 `arguments` 对象的顶层（不是嵌套对象）
+2. 验证 `_mac_token` 包含所有必需字段（`kid`, `mac_key`, `token_type`, `mac_algorithm`）
+3. 检查参数名称前缀是否正确（必须是 `_` 下划线开头）
 
 ## 📖 相关文档
 
