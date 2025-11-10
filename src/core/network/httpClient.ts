@@ -133,22 +133,11 @@ export class HttpClient {
   private overrideMacToken?: MacToken;
 
   /**
-   * @param contextOrToken - HandlerContext or MacToken (for backward compatibility)
+   * @param context - Optional handler context (for macToken and projectPath)
    */
-  constructor(contextOrToken?: import('../types/index.js').HandlerContext | MacToken) {
+  constructor(context?: import('../types/index.js').HandlerContext) {
     this.config = ApiConfig.getInstance();
-
-    // 支持两种参数类型（向后兼容）
-    if (contextOrToken) {
-      // 检查是否是 HandlerContext（有 macToken 字段）
-      if ('macToken' in contextOrToken) {
-        const context = contextOrToken as import('../types/index.js').HandlerContext;
-        this.overrideMacToken = context.macToken;
-      } else {
-        // 直接传递 MacToken（向后兼容）
-        this.overrideMacToken = contextOrToken as MacToken;
-      }
-    }
+    this.overrideMacToken = context?.macToken;
   }
 
   /**
