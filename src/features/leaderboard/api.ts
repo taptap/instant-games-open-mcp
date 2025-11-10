@@ -79,10 +79,14 @@ export interface CreateLeaderboardResponse {
 /**
  * Create a new leaderboard
  * @param params - Leaderboard creation parameters
+ * @param macToken - Optional MAC Token (overrides global token)
  * @returns Created leaderboard information
  */
-export async function createLeaderboard(params: CreateLeaderboardParams): Promise<CreateLeaderboardResponse> {
-  const client = new HttpClient();
+export async function createLeaderboard(
+  params: CreateLeaderboardParams,
+  macToken?: import('../../core/types/index.js').MacToken
+): Promise<CreateLeaderboardResponse> {
+  const client = new HttpClient(macToken);
 
   try {
     // CRITICAL: When period_type is not 1 (ALWAYS), period_time is REQUIRED
@@ -156,13 +160,15 @@ export interface ListLeaderboardsParams {
  * List all leaderboards for a specific app
  * @param params - Query parameters (developer_id and app_id will be auto-filled if not provided)
  * @param projectPath - Optional project path for cache lookup
+ * @param macToken - Optional MAC Token (overrides global token)
  * @returns List of leaderboards and total count
  */
 export async function listLeaderboards(
   params: ListLeaderboardsParams = {},
-  projectPath?: string
+  projectPath?: string,
+  macToken?: import('../../core/types/index.js').MacToken
 ): Promise<LeaderboardListResponse> {
-  const client = new HttpClient();
+  const client = new HttpClient(macToken);
 
   try {
     // Ensure developer_id and app_id are available
@@ -219,13 +225,15 @@ export interface PublishLeaderboardResponse {
  * Publish a leaderboard or set it to whitelist-only mode
  * @param params - Publish parameters
  * @param projectPath - Optional project path for cache lookup
+ * @param macToken - Optional MAC Token (overrides global token)
  * @returns Updated leaderboard status
  */
 export async function publishLeaderboard(
   params: PublishLeaderboardParams,
-  projectPath?: string
+  projectPath?: string,
+  macToken?: import('../../core/types/index.js').MacToken
 ): Promise<PublishLeaderboardResponse> {
-  const client = new HttpClient();
+  const client = new HttpClient(macToken);
 
   try {
     // Ensure developer_id and app_id are available

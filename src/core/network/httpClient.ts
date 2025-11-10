@@ -113,6 +113,7 @@ export interface RequestOptions {
   body?: unknown;
   params?: Record<string, string>;
   timeout?: number;
+  macToken?: MacToken;  // 可选：覆盖全局 MAC Token
 }
 
 /**
@@ -130,9 +131,14 @@ export interface ApiResponse<T = unknown> {
  */
 export class HttpClient {
   private config: ApiConfig;
+  private overrideMacToken?: MacToken;
 
-  constructor() {
+  /**
+   * @param macToken - Optional MAC Token to override global config
+   */
+  constructor(macToken?: MacToken) {
     this.config = ApiConfig.getInstance();
+    this.overrideMacToken = macToken;
   }
 
   /**
@@ -197,8 +203,11 @@ export class HttpClient {
       }
     }
 
+    // MAC Token 优先级：options.macToken > constructor macToken > global config
+    const effectiveMacToken = options.macToken || this.overrideMacToken || this.config.macToken;
+
     // Generate MAC Authorization header
-    const authorization = this.generateMacAuthorization(fullUrl, method);
+    const authorization = this.generateMacAuthorization(fullUrl, method, effectiveMacToken);
     headers['Authorization'] = authorization;
 
     // Add timestamp and nonce headers
@@ -348,7 +357,7 @@ export class HttpClient {
    * Generate MAC Authorization header
    * Format: MAC id="kid", ts="timestamp", nonce="random", mac="signature"
    */
-  private generateMacAuthorization(requestUrl: string, method: string): string {
+  private generateMacAuthorization(requestUrl: string, method: string, macToken: MacToken): string {
     const url = new URL(requestUrl);
     const timestamp = Math.floor(Date.now() / 1000).toString().padStart(10, '0');
     const nonce = this.generateRandomString(16);
@@ -361,10 +370,10 @@ export class HttpClient {
     const signatureBase = this.buildMacSignatureBase(timestamp, nonce, method, uri, host, port, other);
 
     // Sign with mac_key using HMAC-SHA1
-    const hmac = cryptoJS.HmacSHA1(signatureBase, this.config.macToken.mac_key);
+    const hmac = cryptoJS.HmacSHA1(signatureBase, macToken.mac_key);
     const macSignature = cryptoJS.enc.Base64.stringify(hmac);
 
-    return `MAC id="${this.config.macToken.kid}", ts="${timestamp}", nonce="${nonce}", mac="${macSignature}"`;
+    return `MAC id="${macToken.kid}", ts="${timestamp}", nonce="${nonce}", mac="${macSignature}"`;
   }
 
   /**

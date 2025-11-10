@@ -55,8 +55,12 @@ export class SelectionRequiredError extends Error {
  * @returns App information including developer_id and app_id
  * @throws SelectionRequiredError when multiple developers/apps exist and autoSelect is false
  */
-export async function getAppInfo(projectPath?: string, autoSelect: boolean = true): Promise<AppCacheInfo> {
-  const client = new HttpClient();
+export async function getAppInfo(
+  projectPath?: string,
+  autoSelect: boolean = true,
+  macToken?: import('../../core/types/index.js').MacToken
+): Promise<AppCacheInfo> {
+  const client = new HttpClient(macToken);
 
   try {
     const response = await client.get<LevelListResponse>('/level/v1/list');
@@ -128,7 +132,11 @@ export async function getAppInfo(projectPath?: string, autoSelect: boolean = tru
  * @returns App information from cache or API
  * @throws SelectionRequiredError when multiple developers/apps exist and autoSelect is false
  */
-export async function ensureAppInfo(projectPath?: string, autoSelect: boolean = true): Promise<AppCacheInfo> {
+export async function ensureAppInfo(
+  projectPath?: string,
+  autoSelect: boolean = true,
+  macToken?: import('../../core/types/index.js').MacToken
+): Promise<AppCacheInfo> {
   // Check cache first
   const cached = readAppCache(projectPath);
 
@@ -137,7 +145,7 @@ export async function ensureAppInfo(projectPath?: string, autoSelect: boolean = 
   }
 
   // No cache, fetch from API
-  return await getAppInfo(projectPath, autoSelect);
+  return await getAppInfo(projectPath, autoSelect, macToken);
 }
 
 /**
@@ -147,8 +155,13 @@ export async function ensureAppInfo(projectPath?: string, autoSelect: boolean = 
  * @param projectPath - Optional project path for cache storage
  * @returns Selected app information
  */
-export async function selectApp(developerId: number, appId: number, projectPath?: string): Promise<AppCacheInfo> {
-  const client = new HttpClient();
+export async function selectApp(
+  developerId: number,
+  appId: number,
+  projectPath?: string,
+  macToken?: import('../../core/types/index.js').MacToken
+): Promise<AppCacheInfo> {
+  const client = new HttpClient(macToken);
 
   try {
     // Fetch full list to validate selection
@@ -193,10 +206,13 @@ export async function selectApp(developerId: number, appId: number, projectPath?
 
 /**
  * Get all developers and apps for selection
+ * @param macToken - Optional MAC Token (overrides global token)
  * @returns List of all developers and their apps
  */
-export async function getAllDevelopersAndApps(): Promise<LevelListResponse> {
-  const client = new HttpClient();
+export async function getAllDevelopersAndApps(
+  macToken?: import('../../core/types/index.js').MacToken
+): Promise<LevelListResponse> {
+  const client = new HttpClient(macToken);
 
   try {
     const response = await client.get<LevelListResponse>('/level/v1/list');
@@ -220,8 +236,8 @@ export interface CreateDeveloperResponse {
 /**
  * Create unverified developer
  */
-export async function createDeveloper(): Promise<CreateDeveloperResponse> {
-  const client = new HttpClient();
+export async function createDeveloper(macToken?: import('../../core/types/index.js').MacToken): Promise<CreateDeveloperResponse> {
+  const client = new HttpClient(macToken);
   return await client.post<CreateDeveloperResponse>('/v1/developer/create-register');
 }
 
@@ -240,9 +256,10 @@ export interface CreateAppResponse {
 export async function createAppForDeveloper(
   developer_id: number,
   title?: string,
-  genre?: string
+  genre?: string,
+  macToken?: import('../../core/types/index.js').MacToken
 ): Promise<CreateAppResponse> {
-  const client = new HttpClient();
+  const client = new HttpClient(macToken);
   return await client.post<CreateAppResponse>('/level/v1/create', {
     body: {
       developer_id,
@@ -272,9 +289,10 @@ export async function editAppInfo(
   description?: string,
   chatting_label?: string,
   chatting_number?: string,
-  screen_orientation?: number
+  screen_orientation?: number,
+  macToken?: import('../../core/types/index.js').MacToken
 ): Promise<EditAppResponse> {
-  const client = new HttpClient();
+  const client = new HttpClient(macToken);
   return await client.post<EditAppResponse>('/level/v1/submit', {
     body: {
       app_id,
@@ -300,8 +318,8 @@ export interface AppStatusResponse {
 /**
  * Get app review status
  */
-export async function getAppStatus(app_id: number): Promise<AppStatusResponse> {
-  const client = new HttpClient();
+export async function getAppStatus(app_id: number, macToken?: import('../../core/types/index.js').MacToken): Promise<AppStatusResponse> {
+  const client = new HttpClient(macToken);
   return await client.get<AppStatusResponse>('/level/v1/status', {
     params: {
       app_id: app_id.toString(),
@@ -342,8 +360,11 @@ export interface AppDetail {
 /**
  * Get app detail information
  */
-export async function getAppDetail(appId: number): Promise<AppDetail | undefined> {
-  const client = new HttpClient();
+export async function getAppDetail(
+  appId: number,
+  macToken?: import('../../core/types/index.js').MacToken
+): Promise<AppDetail | undefined> {
+  const client = new HttpClient(macToken);
 
   try {
     const response = await client.get<AppDetailAPIResponse>('/level/v1/latest', {
