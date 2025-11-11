@@ -151,7 +151,7 @@ export async function createLeaderboard(
       return `❌ 无法获取 developer_id 或 app_id\n\n` +
              `请通过以下方式之一提供应用信息：\n` +
              `1. 使用 select_app 工具选择应用（会自动缓存）\n` +
-             `2. 通过私有参数传递（_developer_id, _app_id）\n` +
+             `2. 通过上下文传递\n` +
              `3. 在参数中直接指定 developer_id 和 app_id\n\n` +
              `提示：使用 list_developers_and_apps 查看可用的应用列表`;
     }
@@ -345,7 +345,7 @@ export async function publishLeaderboard(
       return `❌ 无法获取 developer_id 或 app_id\n\n` +
              `请通过以下方式之一提供应用信息：\n` +
              `1. 使用 select_app 工具选择应用（会自动缓存）\n` +
-             `2. 通过私有参数传递（_developer_id, _app_id）\n` +
+             `2. 通过上下文传递\n` +
              `3. 在参数中直接指定 developer_id 和 app_id\n\n` +
              `提示：使用 list_developers_and_apps 查看可用的应用列表`;
     }
