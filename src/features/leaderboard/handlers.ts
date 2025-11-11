@@ -3,6 +3,7 @@
  * Handles leaderboard operations including creation, listing, and workflow guidance
  */
 
+import type { HandlerContext } from '../../core/types/index.js';
 import {
   createLeaderboard as createLeaderboardApi,
   listLeaderboards as listLeaderboardsApi,
@@ -12,16 +13,9 @@ import {
   ScoreOrder,
   CalcType
 } from './api.js';
-import { ensureAppInfo, SelectionRequiredError } from '../app/api.js';
+import { SelectionRequiredError } from '../app/api.js';
+import { contextResolver } from '../../core/utils/contextResolver.js';
 import { leaderboardTools } from './docTools.js';
-
-/**
- * Handler context for accessing environment variables
- */
-export interface HandlerContext {
-  projectPath?: string;
-  macToken?: any;
-}
 
 /**
  * Start leaderboard integration workflow - guides user through the process
@@ -148,42 +142,18 @@ export async function createLeaderboard(
   context: HandlerContext
 ): Promise<string> {
   try {
-    // Ensure developer_id and app_id are available
-    let developerId = args.developer_id;
-    let appId = args.app_id;
+    // Resolve developer_id and app_id from context (priority: args > context > cache)
+    const resolved = contextResolver.resolve(context);
+    const developerId = args.developer_id ?? resolved.developerId;
+    const appId = args.app_id ?? resolved.appId;
 
-    // If not provided, try to get from cache or API
     if (!developerId || !appId) {
-      try {
-        const appInfo = await ensureAppInfo(context.projectPath, true, context.macToken);
-
-        if (!developerId) {
-          developerId = appInfo.developer_id;
-        }
-
-        if (!appId) {
-          appId = appInfo.app_id;
-        }
-      } catch (error) {
-        if (error instanceof SelectionRequiredError) {
-          return `❌ 无法创建排行榜：需要选择应用\n\n` +
-                 error.message + `\n\n` +
-                 `**操作步骤：**\n` +
-                 `1. 使用 list_developers_and_apps 查看所有可用的应用\n` +
-                 `2. 使用 select_app 选择要使用的应用\n` +
-                 `3. 再次调用 create_leaderboard 创建排行榜`;
-        }
-        throw error;
-      }
-
-      if (!developerId || !appId) {
-        return `❌ 无法获取 developer_id 或 app_id\n\n` +
-               `系统会自动从 /level/v1/list 接口获取您的应用信息。\n` +
-               `如果失败，请检查：\n` +
-               `1. 用户是否已创建应用/游戏\n` +
-               `2. TDS_MCP_MAC_TOKEN 是否有效\n` +
-               `3. 您也可以手动指定 developer_id 和 app_id 参数`;
-      }
+      return `❌ 无法获取 developer_id 或 app_id\n\n` +
+             `请通过以下方式之一提供应用信息：\n` +
+             `1. 使用 select_app 工具选择应用（会自动缓存）\n` +
+             `2. 通过私有参数传递（_developer_id, _app_id）\n` +
+             `3. 在参数中直接指定 developer_id 和 app_id\n\n` +
+             `提示：使用 list_developers_and_apps 查看可用的应用列表`;
     }
 
     const result = await createLeaderboardApi({
@@ -197,7 +167,7 @@ export async function createLeaderboard(
       display_limit: args.display_limit,
       period_time: args.period_time,
       score_unit: args.score_unit
-    }, context.macToken);
+    }, context);
 
     // 自动发布排行榜（将白名单模式设置为 false，使其对所有用户可见）
     try {
@@ -366,42 +336,18 @@ export async function publishLeaderboard(
   context: HandlerContext
 ): Promise<string> {
   try {
-    // Ensure developer_id and app_id are available
-    let developerId = args.developer_id;
-    let appId = args.app_id;
+    // Resolve developer_id and app_id from context (priority: args > context > cache)
+    const resolved = contextResolver.resolve(context);
+    const developerId = args.developer_id ?? resolved.developerId;
+    const appId = args.app_id ?? resolved.appId;
 
-    // If not provided, try to get from cache or API
     if (!developerId || !appId) {
-      try {
-        const appInfo = await ensureAppInfo(context.projectPath, true, context.macToken);
-
-        if (!developerId) {
-          developerId = appInfo.developer_id;
-        }
-
-        if (!appId) {
-          appId = appInfo.app_id;
-        }
-      } catch (error) {
-        if (error instanceof SelectionRequiredError) {
-          return `❌ 无法发布排行榜：需要选择应用\n\n` +
-                 error.message + `\n\n` +
-                 `**操作步骤：**\n` +
-                 `1. 使用 list_developers_and_apps 查看所有可用的应用\n` +
-                 `2. 使用 select_app 选择要使用的应用\n` +
-                 `3. 再次调用 publish_leaderboard 发布排行榜`;
-        }
-        throw error;
-      }
-
-      if (!developerId || !appId) {
-        return `❌ 无法获取 developer_id 或 app_id\n\n` +
-               `系统会自动从 /level/v1/list 接口获取您的应用信息。\n` +
-               `如果失败，请检查：\n` +
-               `1. 用户是否已创建应用/游戏\n` +
-               `2. TDS_MCP_MAC_TOKEN 是否有效\n` +
-               `3. 您也可以手动指定 developer_id 和 app_id 参数`;
-      }
+      return `❌ 无法获取 developer_id 或 app_id\n\n` +
+             `请通过以下方式之一提供应用信息：\n` +
+             `1. 使用 select_app 工具选择应用（会自动缓存）\n` +
+             `2. 通过私有参数传递（_developer_id, _app_id）\n` +
+             `3. 在参数中直接指定 developer_id 和 app_id\n\n` +
+             `提示：使用 list_developers_and_apps 查看可用的应用列表`;
     }
 
     // whitelist_only 的含义：false = 公开发布，true = 仅白名单可见

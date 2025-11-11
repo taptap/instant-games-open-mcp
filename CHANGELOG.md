@@ -5,6 +5,86 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-11-11
+
+### 🚀 Major Release - Stateless Architecture & Context Resolver
+
+**This release implements a comprehensive stateless architecture refactor, enabling true multi-tenant deployment with complete context isolation.**
+
+### Added
+
+- 🎯 **ContextResolver System**
+  - New `src/core/utils/contextResolver.ts` - Centralized context resolution
+  - Replaces scattered `ensureAppInfo()` calls with unified resolver
+  - Priority-based resolution: private params > context > cache
+  - Single source of truth for all context fields
+
+- 📋 **Extended Private Parameters** (v1.3.0+)
+  - `_developer_id`: Developer ID injection
+  - `_app_id`: App ID injection
+  - `_project_path`: Project path injection (for H5 upload)
+  - `_tenant_id`: Tenant ID for multi-tenant scenarios
+  - `_trace_id`: Distributed tracing support
+  - `_request_id`: Request-level logging
+
+- 📖 **Documentation**
+  - `docs/STATELESS_ARCHITECTURE.md` - Complete architecture design document
+  - Multi-tenant container deployment guide
+  - Context resolution flow diagrams
+
+### Changed
+
+- 🏗️ **Architecture Refactor**
+  - **API Layer**: All API functions use `ContextResolver` instead of `ensureAppInfo()`
+  - **Handler Layer**: Simplified context resolution logic
+  - **Type System**: Extended `HandlerContext` with new fields (developerId, appId, userId, tenantId, etc.)
+  - **Private Parameters**: All utility functions support extended field set
+
+- 🔧 **Core Components**
+  - `HandlerContext`: Added 8 new fields for complete context support
+  - `getEffectiveContext()`: Merges all private parameter types
+  - `stripPrivateParams()`: Handles all new private parameter fields
+  - Fixed duplicate `HandlerContext` definitions (consolidated to `core/types/`)
+
+- 📊 **Code Quality**
+  - Eliminated circular dependencies between `app` and `leaderboard` modules
+  - Removed async API calls from context resolution (lazy loading from cache)
+  - Cleaner error messages with actionable guidance
+
+### Removed
+
+- ❌ **Deprecated Patterns**
+  - Direct `ensureAppInfo()` calls in leaderboard module
+  - Inline `HandlerContext` interface definitions (consolidated)
+  - Unnecessary `context.macToken` parameter passing (use `context` directly)
+
+### Technical Details
+
+**Priority Resolution Flow:**
+```
+Arguments (_developer_id) > Context (developerId) > Cache (developer_id)
+```
+
+**Stateless Design:**
+- ✅ No session state in server
+- ✅ All context from private params or cache
+- ✅ True multi-tenant support
+- ✅ Horizontal scaling ready
+
+### Migration Guide
+
+**Before (v1.3.0):**
+```typescript
+const appInfo = await ensureAppInfo(context.projectPath, true, context);
+const developerId = appInfo.developer_id;
+```
+
+**After (v1.4.0):**
+```typescript
+const resolved = contextResolver.resolve(context);
+const developerId = resolved.developerId;
+```
+
 ## [1.3.0] - 2025-11-10
 
 ### 🚀 Major Release - Private Parameter Protocol for MCP Proxy

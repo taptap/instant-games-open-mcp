@@ -4,7 +4,7 @@
  */
 
 import { HttpClient } from '../../core/network/httpClient.js';
-import { ensureAppInfo } from '../app/api.js';
+import { contextResolver } from '../../core/utils/contextResolver.js';
 
 /**
  * Period types for leaderboard
@@ -169,18 +169,19 @@ export async function listLeaderboards(
   const client = new HttpClient(context);
 
   try {
-    // Ensure developer_id and app_id are available
-    let developerId = params.developer_id;
-    let appId = params.app_id;
+    // Resolve developer_id and app_id from context (priority: params > context > cache)
+    const resolved = contextResolver.resolve(context || {});
+    const developerId = params.developer_id ?? resolved.developerId;
+    const appId = params.app_id ?? resolved.appId;
 
     if (!developerId || !appId) {
-      const appInfo = await ensureAppInfo(context?.projectPath, true, context);
-      if (!developerId) developerId = appInfo.developer_id;
-      if (!appId) appId = appInfo.app_id;
-    }
-
-    if (!developerId || !appId) {
-      throw new Error('developer_id and app_id are required');
+      throw new Error(
+        'developer_id and app_id are required. ' +
+        'Please either:\n' +
+        '1. Pass them via private parameters (_developer_id, _app_id), or\n' +
+        '2. Use select_app tool to cache them, or\n' +
+        '3. Provide them explicitly in the arguments'
+      );
     }
 
     const response = await client.get<LeaderboardListResponse>('/open/leaderboard/v1/list', {
@@ -232,18 +233,19 @@ export async function publishLeaderboard(
   const client = new HttpClient(context);
 
   try {
-    // Ensure developer_id and app_id are available
-    let developerId = params.developer_id;
-    let appId = params.app_id;
+    // Resolve developer_id and app_id from context (priority: params > context > cache)
+    const resolved = contextResolver.resolve(context || {});
+    const developerId = params.developer_id ?? resolved.developerId;
+    const appId = params.app_id ?? resolved.appId;
 
     if (!developerId || !appId) {
-      const appInfo = await ensureAppInfo(context?.projectPath, true, context);
-      if (!developerId) developerId = appInfo.developer_id;
-      if (!appId) appId = appInfo.app_id;
-    }
-
-    if (!developerId || !appId) {
-      throw new Error('developer_id and app_id are required');
+      throw new Error(
+        'developer_id and app_id are required. ' +
+        'Please either:\n' +
+        '1. Pass them via private parameters (_developer_id, _app_id), or\n' +
+        '2. Use select_app tool to cache them, or\n' +
+        '3. Provide them explicitly in the arguments'
+      );
     }
 
     const response = await client.post<PublishLeaderboardResponse>('/open/leaderboard/v1/set-whitelist-only', {

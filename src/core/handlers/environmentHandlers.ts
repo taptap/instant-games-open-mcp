@@ -3,17 +3,11 @@
  * Handles environment variable checking and validation
  */
 
+import type { HandlerContext } from '../types/index.js';
 import { ApiConfig } from '../network/httpClient.js';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-
-/**
- * Handler context for accessing environment variables
- */
-export interface HandlerContext {
-  projectPath?: string;
-}
 
 /**
  * Check environment configuration and authentication status

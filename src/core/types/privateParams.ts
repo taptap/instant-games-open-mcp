@@ -121,7 +121,13 @@ export function extractPrivateParams(args: any): PrivateToolParams {
   return {
     _mac_token: args?._mac_token,
     _user_id: args?._user_id,
-    _session_id: args?._session_id
+    _session_id: args?._session_id,
+    _developer_id: args?._developer_id,
+    _app_id: args?._app_id,
+    _project_path: args?._project_path,
+    _tenant_id: args?._tenant_id,
+    _trace_id: args?._trace_id,
+    _request_id: args?._request_id
   };
 }
 
@@ -145,7 +151,18 @@ export function stripPrivateParams(args: any): any {
     return args;
   }
 
-  const { _mac_token, _user_id, _session_id, ...businessParams } = args;
+  const {
+    _mac_token,
+    _user_id,
+    _session_id,
+    _developer_id,
+    _app_id,
+    _project_path,
+    _tenant_id,
+    _trace_id,
+    _request_id,
+    ...businessParams
+  } = args;
   return businessParams;
 }
 
@@ -166,7 +183,17 @@ export function hasPrivateParams(args: any): boolean {
     return false;
   }
 
-  return !!(args._mac_token || args._user_id || args._session_id);
+  return !!(
+    args._mac_token ||
+    args._user_id ||
+    args._session_id ||
+    args._developer_id ||
+    args._app_id ||
+    args._project_path ||
+    args._tenant_id ||
+    args._trace_id ||
+    args._request_id
+  );
 }
 
 /**
@@ -195,6 +222,24 @@ export function mergePrivateParams(args: any, privateParams: PrivateToolParams):
   }
   if (privateParams._session_id) {
     result._session_id = privateParams._session_id;
+  }
+  if (privateParams._developer_id !== undefined) {
+    result._developer_id = privateParams._developer_id;
+  }
+  if (privateParams._app_id !== undefined) {
+    result._app_id = privateParams._app_id;
+  }
+  if (privateParams._project_path) {
+    result._project_path = privateParams._project_path;
+  }
+  if (privateParams._tenant_id) {
+    result._tenant_id = privateParams._tenant_id;
+  }
+  if (privateParams._trace_id) {
+    result._trace_id = privateParams._trace_id;
+  }
+  if (privateParams._request_id) {
+    result._request_id = privateParams._request_id;
   }
 
   return result;

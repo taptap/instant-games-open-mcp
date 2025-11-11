@@ -25,10 +25,42 @@ export interface MacToken {
 /**
  * Handler Context
  * Passed to all tool handlers
+ *
+ * 优先级顺序（从高到低）：
+ * 1. 私有参数注入（_developer_id, _app_id 等）
+ * 2. HandlerContext 字段
+ * 3. 本地缓存或环境变量
  */
 export interface HandlerContext {
-  projectPath?: string;
+  // === 认证层 ===
+  /** MAC Token for authentication */
   macToken?: MacToken;
+
+  /** User ID for multi-tenant scenarios */
+  userId?: string;
+
+  // === 应用上下文层 ===
+  /** Developer ID */
+  developerId?: number;
+
+  /** App ID */
+  appId?: number;
+
+  /** Project Path (for file system access) */
+  projectPath?: string;
+
+  // === 追踪层 ===
+  /** Tenant ID for multi-tenant scenarios */
+  tenantId?: string;
+
+  /** Trace ID for distributed tracing */
+  traceId?: string;
+
+  /** Request ID for logging */
+  requestId?: string;
+
+  /** Session ID for request tracking */
+  sessionId?: string;
 }
 
 /**

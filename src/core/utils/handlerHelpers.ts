@@ -8,13 +8,17 @@ import type { PrivateToolParams } from '../types/privateParams.js';
 import { ApiConfig } from '../network/httpClient.js';
 
 /**
- * Extract effective MAC Token from arguments and context
+ * Extract effective context from arguments and base context
  *
- * Priority: args._mac_token > context.macToken > global config
+ * Merges private parameters from args into context with proper priority:
+ * - args._mac_token > context.macToken > global config
+ * - args._developer_id > context.developerId > cache
+ * - args._app_id > context.appId > cache
+ * - ... (similar for all fields)
  *
- * @param args - Tool arguments (may contain _mac_token)
- * @param context - Handler context (may contain macToken)
- * @returns Effective MAC Token to use for API calls
+ * @param args - Tool arguments (may contain private parameters)
+ * @param context - Base handler context
+ * @returns Merged effective context
  *
  * @example
  * ```typescript
@@ -28,16 +32,42 @@ export function getEffectiveContext<T extends PrivateToolParams>(
   args: T,
   context: HandlerContext
 ): HandlerContext {
-  // If _mac_token is provided in args, use it
+  const result: HandlerContext = { ...context };
+
+  // === 认证层 ===
   if (args._mac_token) {
-    return {
-      ...context,
-      macToken: args._mac_token
-    };
+    result.macToken = args._mac_token;
+  }
+  if (args._user_id) {
+    result.userId = args._user_id;
+  }
+  if (args._session_id) {
+    result.sessionId = args._session_id;
   }
 
-  // Otherwise, use context as-is
-  return context;
+  // === 应用上下文层 ===
+  if (args._developer_id !== undefined) {
+    result.developerId = args._developer_id;
+  }
+  if (args._app_id !== undefined) {
+    result.appId = args._app_id;
+  }
+  if (args._project_path) {
+    result.projectPath = args._project_path;
+  }
+
+  // === 追踪层 ===
+  if (args._tenant_id) {
+    result.tenantId = args._tenant_id;
+  }
+  if (args._trace_id) {
+    result.traceId = args._trace_id;
+  }
+  if (args._request_id) {
+    result.requestId = args._request_id;
+  }
+
+  return result;
 }
 
 /**

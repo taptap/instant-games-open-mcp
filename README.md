@@ -43,7 +43,26 @@
 - **模块化设计** - 易于添加新功能（云存档、分享等）
 - **完全兼容** - Claude Code ✅、VSCode ✅、Cursor ✅、OpenHands ✅
 
-### 🚀 v1.3.0 新特性
+### 🚀 v1.4.0 新特性 - 无状态架构
+
+- **ContextResolver 系统** - 集中式上下文解析（[详细文档](docs/STATELESS_ARCHITECTURE.md)）
+  - 统一的 `contextResolver.resolve()` 替代分散的 `ensureAppInfo()` 调用
+  - 优先级机制：私有参数 > 上下文 > 缓存
+  - 无异步 API 调用 - 纯内存/缓存查询
+  - 完全无状态设计，支持真正的多租户部署
+
+- **扩展私有参数协议** - 新增应用上下文和追踪字段
+  - `_developer_id`, `_app_id` - 应用上下文注入
+  - `_project_path` - H5 上传文件系统访问
+  - `_tenant_id`, `_trace_id`, `_request_id` - 多租户和追踪支持
+
+- **架构优化**
+  - 消除 `app` ↔ `leaderboard` 循环依赖
+  - 统一所有 `HandlerContext` 接口定义（移除重复）
+  - API 层清理：所有函数使用统一的 context 解析
+  - 更清晰的错误提示和操作指引
+
+### 🚀 v1.3.0 特性 - 私有参数协议
 
 - **私有参数协议** - 支持 MCP Proxy 模式多账号认证（[详细文档](docs/PRIVATE_PROTOCOL.md)）
   - 对 AI Agent 完全透明（Tool Definition 不声明私有参数）
@@ -51,6 +70,7 @@
   - 四层认证优先级：自动选择最合适的 Token
   - 业务层完全隔离：不感知私有参数
   - [MCP Proxy 开发指引](docs/MCP_PROXY_GUIDE.md) - 完整的 Proxy 实现指南
+
 - **多客户端并发支持** - 无限客户端同时连接，独立会话管理
 - **智能自动授权（SSE 模式）** - 一步完成授权，无需手动调用 `complete_oauth_authorization`
 - **三种传输模式** - stdio（本地）、SSE（远程/实时）、HTTP JSON（兼容）
