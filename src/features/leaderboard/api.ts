@@ -79,10 +79,14 @@ export interface CreateLeaderboardResponse {
 /**
  * Create a new leaderboard
  * @param params - Leaderboard creation parameters
+ * @param context - Optional handler context (for macToken and projectPath)
  * @returns Created leaderboard information
  */
-export async function createLeaderboard(params: CreateLeaderboardParams): Promise<CreateLeaderboardResponse> {
-  const client = new HttpClient();
+export async function createLeaderboard(
+  params: CreateLeaderboardParams,
+  context?: import('../../core/types/index.js').HandlerContext
+): Promise<CreateLeaderboardResponse> {
+  const client = new HttpClient(context);
 
   try {
     // CRITICAL: When period_type is not 1 (ALWAYS), period_time is REQUIRED
@@ -155,14 +159,14 @@ export interface ListLeaderboardsParams {
 /**
  * List all leaderboards for a specific app
  * @param params - Query parameters (developer_id and app_id will be auto-filled if not provided)
- * @param projectPath - Optional project path for cache lookup
+ * @param context - Optional handler context (for macToken and projectPath)
  * @returns List of leaderboards and total count
  */
 export async function listLeaderboards(
   params: ListLeaderboardsParams = {},
-  projectPath?: string
+  context?: import('../../core/types/index.js').HandlerContext
 ): Promise<LeaderboardListResponse> {
-  const client = new HttpClient();
+  const client = new HttpClient(context);
 
   try {
     // Ensure developer_id and app_id are available
@@ -170,7 +174,7 @@ export async function listLeaderboards(
     let appId = params.app_id;
 
     if (!developerId || !appId) {
-      const appInfo = await ensureAppInfo(projectPath);
+      const appInfo = await ensureAppInfo(context?.projectPath, true, context);
       if (!developerId) developerId = appInfo.developer_id;
       if (!appId) appId = appInfo.app_id;
     }
@@ -218,14 +222,14 @@ export interface PublishLeaderboardResponse {
 /**
  * Publish a leaderboard or set it to whitelist-only mode
  * @param params - Publish parameters
- * @param projectPath - Optional project path for cache lookup
+ * @param context - Optional handler context (for macToken and projectPath)
  * @returns Updated leaderboard status
  */
 export async function publishLeaderboard(
   params: PublishLeaderboardParams,
-  projectPath?: string
+  context?: import('../../core/types/index.js').HandlerContext
 ): Promise<PublishLeaderboardResponse> {
-  const client = new HttpClient();
+  const client = new HttpClient(context);
 
   try {
     // Ensure developer_id and app_id are available
@@ -233,7 +237,7 @@ export async function publishLeaderboard(
     let appId = params.app_id;
 
     if (!developerId || !appId) {
-      const appInfo = await ensureAppInfo(projectPath);
+      const appInfo = await ensureAppInfo(context?.projectPath, true, context);
       if (!developerId) developerId = appInfo.developer_id;
       if (!appId) appId = appInfo.app_id;
     }

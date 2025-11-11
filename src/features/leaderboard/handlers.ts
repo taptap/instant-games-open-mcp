@@ -34,7 +34,7 @@ export async function startLeaderboardIntegration(
     // Step 1: Check existing leaderboards (autoSelect = false to detect multiple apps)
     let leaderboardsResult;
     try {
-      leaderboardsResult = await listLeaderboardsApi({}, context.projectPath);
+      leaderboardsResult = await listLeaderboardsApi({}, context);
     } catch (error) {
       // Check if this is a SelectionRequiredError
       if (error instanceof SelectionRequiredError) {
@@ -155,7 +155,7 @@ export async function createLeaderboard(
     // If not provided, try to get from cache or API
     if (!developerId || !appId) {
       try {
-        const appInfo = await ensureAppInfo(context.projectPath, true);
+        const appInfo = await ensureAppInfo(context.projectPath, true, context.macToken);
 
         if (!developerId) {
           developerId = appInfo.developer_id;
@@ -197,7 +197,7 @@ export async function createLeaderboard(
       display_limit: args.display_limit,
       period_time: args.period_time,
       score_unit: args.score_unit
-    });
+    }, context.macToken);
 
     // 自动发布排行榜（将白名单模式设置为 false，使其对所有用户可见）
     try {
@@ -206,7 +206,7 @@ export async function createLeaderboard(
         app_id: appId,
         id: result.id,
         whitelist_only: false  // 发布上线，所有用户可见
-      }, context.projectPath);
+      }, context);
     } catch (publishError) {
       // 如果发布失败，记录警告但不阻止创建流程
       const publishErrorMsg = publishError instanceof Error ? publishError.message : String(publishError);
@@ -306,7 +306,7 @@ export async function listLeaderboards(
       app_id: args.app_id,
       page: args.page,
       page_size: args.page_size
-    }, context.projectPath);
+    }, context);
 
     if (!result.list || result.list.length === 0) {
       return `📋 暂无排行榜\n\n您还没有创建任何排行榜。使用 create_leaderboard 工具创建第一个排行榜。`;
@@ -373,7 +373,7 @@ export async function publishLeaderboard(
     // If not provided, try to get from cache or API
     if (!developerId || !appId) {
       try {
-        const appInfo = await ensureAppInfo(context.projectPath, true);
+        const appInfo = await ensureAppInfo(context.projectPath, true, context.macToken);
 
         if (!developerId) {
           developerId = appInfo.developer_id;
@@ -411,7 +411,7 @@ export async function publishLeaderboard(
       app_id: appId,
       id: args.id,
       whitelist_only: !args.publish  // 反转：publish=true 时，whitelist_only=false
-    }, context.projectPath);
+    }, context);
 
     const statusText = result.whitelist_only ? '仅白名单可见' : '已公开发布';
     const emoji = result.whitelist_only ? '🔒' : '🚀';

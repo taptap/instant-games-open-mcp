@@ -43,8 +43,14 @@
 - **模块化设计** - 易于添加新功能（云存档、分享等）
 - **完全兼容** - Claude Code ✅、VSCode ✅、Cursor ✅、OpenHands ✅
 
-### 🚀 v1.2.0-beta.23 新特性
+### 🚀 v1.3.0 新特性
 
+- **私有参数协议** - 支持 MCP Proxy 模式多账号认证（[详细文档](docs/PRIVATE_PROTOCOL.md)）
+  - 对 AI Agent 完全透明（Tool Definition 不声明私有参数）
+  - 双模式注入：arguments 或 HTTP Header
+  - 四层认证优先级：自动选择最合适的 Token
+  - 业务层完全隔离：不感知私有参数
+  - [MCP Proxy 开发指引](docs/MCP_PROXY_GUIDE.md) - 完整的 Proxy 实现指南
 - **多客户端并发支持** - 无限客户端同时连接，独立会话管理
 - **智能自动授权（SSE 模式）** - 一步完成授权，无需手动调用 `complete_oauth_authorization`
 - **三种传输模式** - stdio（本地）、SSE（远程/实时）、HTTP JSON（兼容）

@@ -5,6 +5,7 @@
 
 import process from 'node:process';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { stripPrivateParams } from '../types/privateParams.js';
 
 /**
  * RFC 5424 log levels (syslog severity levels)
@@ -232,9 +233,12 @@ export class Logger {
 
   /**
    * Log tool call with input arguments
+   * Note: Automatically strips private parameters (prefixed with '_')
    */
   async logToolCall(toolName: string, args: any): Promise<void> {
-    const sanitizedArgs = sanitizeData(args);
+    // Strip private parameters before sanitization
+    const argsWithoutPrivate = stripPrivateParams(args);
+    const sanitizedArgs = sanitizeData(argsWithoutPrivate);
 
     // Context: Opening border (stderr only)
     if (this.verbose) {

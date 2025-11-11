@@ -28,6 +28,9 @@ import { ApiConfig } from './core/network/httpClient.js';
 import { logger } from './core/utils/logger.js';
 import { DeviceFlowAuth } from './core/auth/deviceFlow.js';
 import { VERSION } from './version.js';
+import type { MacToken } from './core/types/index.js';
+import { mergePrivateParams, stripPrivateParams } from './core/types/privateParams.js';
+import { getEffectiveContext } from './core/utils/handlerHelpers.js';
 
 // 导入功能模块
 import { appModule } from './features/app/index.js';
@@ -108,11 +111,39 @@ class TapTapMinigameMCPServer {
     }));
 
     // 设置工具调用处理器 - 自动从模块路由
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name, arguments: args } = request.params;
 
-      // Log tool call input
-      await logger.logToolCall(name, args || {});
+      // 私有参数支持两种方式：
+      // 1. MCP Proxy 在 arguments 中注入（args._mac_token）
+      // 2. HTTP Header 注入（仅 HTTP/SSE 模式，从 extra.requestInfo.headers 读取）
+      let enrichedArgs = args || {};
+
+      // 从 HTTP Header 提取 MAC Token（如果存在且 args 中没有）
+      if (extra?.requestInfo?.headers && !enrichedArgs._mac_token) {
+        const headers = extra.requestInfo.headers;
+        const macTokenHeader = headers['x-taptap-mac-token'];
+
+        if (macTokenHeader && typeof macTokenHeader === 'string') {
+          try {
+            // 支持 Base64 编码或直接 JSON
+            let token: MacToken;
+            try {
+              const decoded = Buffer.from(macTokenHeader, 'base64').toString('utf-8');
+              token = JSON.parse(decoded);
+            } catch {
+              token = JSON.parse(macTokenHeader);
+            }
+            enrichedArgs = mergePrivateParams(enrichedArgs, { _mac_token: token });
+          } catch (error) {
+            // 忽略无效的 token header
+            await logger.warning('Invalid X-TapTap-Mac-Token header', { error: String(error) });
+          }
+        }
+      }
+
+      // Log tool call input (私有参数会被自动过滤)
+      await logger.logToolCall(name, enrichedArgs);
 
       try {
         // Special handling for complete_oauth_authorization (needs deviceAuth access)
@@ -153,8 +184,14 @@ class TapTapMinigameMCPServer {
           }
         }
 
-        // Call handler
-        const result = await toolReg.handler(args || {}, this.context);
+        // 统一在 Server 层处理 effectiveContext（合并私有参数到 context）
+        const effectiveContext = getEffectiveContext(enrichedArgs, this.context);
+
+        // 从 args 中移除私有参数（业务层完全不感知）
+        const businessArgs = stripPrivateParams(enrichedArgs);
+
+        // Call handler（传递干净的业务参数 + 包含 macToken 的 context）
+        const result = await toolReg.handler(businessArgs, effectiveContext);
 
         // Log tool call output
         await logger.logToolResponse(name, result, true);
@@ -332,7 +369,7 @@ class TapTapMinigameMCPServer {
       // CORS headers
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Mcp-Session-Id');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Mcp-Session-Id, X-TapTap-Mac-Token');
 
       if (req.method === 'OPTIONS') {
         res.writeHead(200);

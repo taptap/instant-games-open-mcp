@@ -14,7 +14,7 @@ import { ApiConfig } from '../../core/network/httpClient.js';
  */
 export async function listDevelopersAndApps(context: HandlerContext): Promise<string> {
   try {
-    const result = await getAllDevelopersAndApps();
+    const result = await getAllDevelopersAndApps(context);
 
     if (!result.list || result.list.length === 0) {
       return `📋 暂无开发者或应用\n\n您还没有创建任何开发者账号或应用。请先在 TapTap 开放平台创建应用。`;
@@ -67,7 +67,7 @@ export async function selectApp(
   context: HandlerContext
 ): Promise<string> {
   try {
-    const result = await selectAppApi(args.developer_id, args.app_id, context.projectPath);
+    const result = await selectAppApi(args.developer_id, args.app_id, context.projectPath, context);
 
     let message = `✅ 已选择应用!\n\n` +
            `📱 应用信息:\n` +

@@ -7,6 +7,7 @@
  */
 
 import type { ToolRegistration } from '../../core/types/index.js';
+import { getEffectiveContext } from '../../core/utils/handlerHelpers.js';
 import { TOOL_DESCRIPTION } from './messages.js';
 import {
   handleGatherGameInfo,

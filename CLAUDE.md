@@ -63,13 +63,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **NPM 包：** `@mikoto_zero/minigame-open-mcp`
 
-**当前版本：** v1.2.0
+**当前版本：** v1.3.0
 
 **主要特性：**
 - 17 tools + 7 resources（应用管理 + 排行榜 + H5 游戏）
 - OAuth 2.0 Device Code Flow（SSE 模式支持自动授权）
 - 三种传输协议（stdio + SSE Streaming + HTTP JSON）
 - 多客户端并发支持（独立会话管理）
+- 🆕 **私有参数协议** - 支持 MCP Proxy 多账号认证（双模式注入）
 - MCP Logging 规范（RFC 5424）+ 连接日志
 - MCP SDK 1.20.2
 
@@ -97,10 +98,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 核心共享层
 - **`src/core/`** - 跨模块共享代码
   - `auth/` - OAuth 2.0 Device Code Flow
-  - `network/` - HTTP Client（MAC 认证 + 签名）
+  - `network/` - HTTP Client（MAC 认证 + 签名，支持动态 Token）
   - `handlers/` - 通用处理器（environment）
-  - `utils/` - 工具函数（cache, logger, docHelpers）
-  - `types/` - 类型定义（ToolRegistration, ResourceRegistration 等）
+  - `utils/` - 工具函数（cache, logger, docHelpers, handlerHelpers）
+  - `types/` - 类型定义（ToolRegistration, ResourceRegistration, PrivateToolParams 等）
 
 ### 服务器层
 - **`src/server.ts`** - 主服务器（自动注册所有模块）
@@ -151,6 +152,34 @@ export const myResources: ResourceRegistration[] = [
 - ✅ 业务模块可依赖 `core/` 和 `features/app/`
 - ❌ 业务模块之间不能相互依赖
 - ✅ app 模块只依赖 core，不依赖其他业务模块
+
+**3. 私有参数协议**（v1.3.0 新增）
+
+支持 MCP Proxy 模式的多账号认证，对 AI Agent 和业务层完全透明：
+
+```typescript
+// Server 层（唯一处理私有参数的地方）
+server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+  // 1. 提取私有参数（从 arguments 或 HTTP Header）
+  // 2. 合并到 context
+  const effectiveContext = getEffectiveContext(enrichedArgs, baseContext);
+  // 3. 移除私有参数，业务层不可见
+  const businessArgs = stripPrivateParams(enrichedArgs);
+  // 4. 调用业务层
+  await toolReg.handler(businessArgs, effectiveContext);
+});
+
+// 业务层（完全不感知私有参数）
+handler: async (args: { page: number }, context) => {
+  return api.foo(args, context);  // 简洁
+}
+```
+
+**双模式注入：**
+- 参数注入：`arguments._mac_token`（MCP Proxy）
+- Header 注入：`X-TapTap-Mac-Token`（API Gateway）
+
+详见：[docs/PRIVATE_PROTOCOL.md](docs/PRIVATE_PROTOCOL.md)
 
 ## 常用命令
 

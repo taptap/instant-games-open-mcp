@@ -29,7 +29,6 @@ export interface MacToken {
 export interface HandlerContext {
   projectPath?: string;
   macToken?: MacToken;
-  env?: 'production' | 'rnd';
 }
 
 /**

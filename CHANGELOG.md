@@ -5,6 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-11-10
+
+### 🚀 Major Release - Private Parameter Protocol for MCP Proxy
+
+**This is a major architectural enhancement enabling MCP Proxy mode with multi-account authentication support.**
+
+### Added
+
+- 🔐 **Private Parameter Protocol**
+  - Support for MCP Proxy mode multi-account authentication
+  - Completely transparent to AI Agent (private params not in tool definitions)
+  - Dual injection modes: arguments or HTTP Header
+  - Four-tier authentication priority system
+  - Complete business layer isolation
+
+- 📝 **New Documentation**
+  - `docs/PRIVATE_PROTOCOL.md` - Complete private parameter protocol specification
+  - `docs/MCP_PROXY_GUIDE.md` - Comprehensive MCP Proxy development guide
+  - Full test scripts and troubleshooting guides
+
+- 🧪 **Testing**
+  - `test-private-params.sh` - Automated testing script for both injection modes
+  - Validates parameter injection, priority, and security
+
+### Changed
+
+- 🏗️ **Architecture Optimization**
+  - Unified `HandlerContext` parameter passing (removed inconsistencies)
+  - HttpClient accepts `HandlerContext` instead of separate params
+  - Server layer centralized private parameter processing
+  - Business layer completely unaware of private parameters
+
+- ✨ **API Improvements**
+  - All API functions accept `context?: HandlerContext`
+  - Removed unused `env` field from `HandlerContext`
+  - Simplified HttpClient constructor (3 lines)
+
+- 📊 **Code Reduction**
+  - Removed RequestStorage class (-20 lines)
+  - Removed HTTP Server token storage logic (-15 lines)
+  - Removed _currentSessionKey mechanism (-10 lines)
+  - Removed PrivateToolParams from business layer (-15 declarations)
+  - Total: -70+ lines of code
+
+### Technical Details
+
+**Private Parameter Injection:**
+- Method 1: Direct parameter injection in `arguments._mac_token` (recommended)
+- Method 2: HTTP Header `X-TapTap-Mac-Token` (HTTP/SSE mode only)
+
+**Authentication Priority:**
+```
+1. arguments._mac_token (highest)
+2. HTTP Header X-TapTap-Mac-Token
+3. context.macToken (env/OAuth)
+4. global ApiConfig (lowest)
+```
+
+**Data Flow:**
+```
+Server Layer (extracts & strips private params)
+    ↓ stripPrivateParams()
+Business Layer (only sees business params)
+    ↓ context.macToken
+HttpClient → HTTP Request
+```
+
+**Security:**
+- Private parameters automatically stripped from logs
+- TypeScript type safety maintained
+- Session isolation for HTTP Header injection
+
+### Documentation
+
+- Added comprehensive MCP Proxy development guide
+- Updated architecture documentation in CLAUDE.md
+- Enhanced README.md with v1.3.0 features
+
 ## [1.2.0] - 2025-11-03
 
 ### 🚀 Major Release - Multi-Client Concurrency & Smart Auto-Authorization

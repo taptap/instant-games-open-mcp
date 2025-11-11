@@ -70,7 +70,8 @@ export const appTools: ToolRegistration[] = [
         properties: {}
       }
     },
-    handler: async (args, context) => {
+    handler: async (_args, context) => {
+      // Note: Private parameters are handled at Server layer
       return appHandlers.listDevelopersAndApps(context);
     },
     requiresAuth: true
@@ -97,6 +98,7 @@ export const appTools: ToolRegistration[] = [
       }
     },
     handler: async (args: { developer_id: number; app_id: number }, context) => {
+      // Private parameter: _mac_token can be injected by MCP Proxy
       return appHandlers.selectApp(args, context);
     },
     requiresAuth: true
@@ -112,8 +114,9 @@ export const appTools: ToolRegistration[] = [
         properties: {}
       }
     },
-    handler: async (args, context) => {
-      const result = await appApi.createDeveloper();
+    handler: async (_args, context) => {
+      // Note: Private parameters are handled at Server layer
+      const result = await appApi.createDeveloper(context);
       return `✅ 创建开发者身份成功！\n\n` +
              `📋 开发者信息：\n` +
              `- 名称: ${result.developer_name}\n` +
@@ -140,6 +143,8 @@ export const appTools: ToolRegistration[] = [
       }
     },
     handler: async (args: { app_id: number }, context) => {
+      // Private parameter: _mac_token can be injected by MCP Proxy
+      // Note: getAppStatus API doesn't use context, so no need to pass effectiveContext
       const result = await appApi.getAppStatus(args.app_id);
       const statusText = ['未发布', '审核中', '审核失败', '已上线'][result.review_status] || '未知状态';
       return `📋 应用审核状态：${statusText}\n\n` +
