@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- 🐛 **MCP Proxy Bug Fixes**
+  - Fixed reconnection state management bug that prevented retry after failed reconnect
+  - Fixed connection state not being reset when `connect()` fails
+  - Fixed resource leak by adding cleanup for monitor timers on process exit
+  - Enhanced Token validation to check `mac_algorithm` field
+
 ## [1.4.0] - 2025-11-11
 
 ### 🚀 Major Release - Context Resolver & Multi-Tenant Support
