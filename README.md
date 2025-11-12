@@ -51,9 +51,11 @@
   - 纯内存/缓存查询，避免重复 API 调用
   - 支持多租户隔离部署
 
-- **多租户隔离** - 通过 `_project_path` 实现租户隔离
+- **多租户隔离** - 通过 `_project_path` 实现租户隔离（[v1.4.1+ 架构优化](docs/ARCHITECTURE.md)）
   - 每个租户独立的工作空间路径
-  - 缓存文件隔离：`{projectPath}/.taptap-minigame/`
+  - **缓存目录独立**：`/tmp/taptap-mcp/cache/{userId}/{projectId}/`
+  - **临时目录独立**：`/tmp/taptap-mcp/temp/{userId}/{projectId}/`
+  - **支持只读 workspace**：缓存和临时文件不写入用户代码目录
   - MCP Proxy 注入租户上下文
   - 支持 RuntimeContainer 架构
 

@@ -292,10 +292,19 @@ TDS_MCP_TRANSPORT=http TDS_MCP_PORT=3000 npm start
 - `TDS_MCP_ENV`: 环境选择（默认 `production`）
   - `production`: https://agent.tapapis.cn
   - `rnd`: https://agent.api.xdrnd.cn
-- `TDS_MCP_PROJECT_PATH`: 项目路径，用于本地缓存
 - `TDS_MCP_VERBOSE`: 详细日志模式（`true` 或 `false`，默认 `false`）
 - `TDS_MCP_TRANSPORT`: 传输协议（`stdio` / `sse` / `http`，默认 `stdio`）
 - `TDS_MCP_PORT`: HTTP/SSE 模式端口（默认 `3000`）
+
+#### 缓存和临时文件（v1.4.1+，可选）
+
+- `TDS_MCP_CACHE_DIR`: 缓存根目录（默认 `/tmp/taptap-mcp/cache`）
+  - 应用信息缓存存储位置，独立于 workspace
+  - 支持只读 workspace 部署
+- `TDS_MCP_TEMP_DIR`: 临时文件根目录（默认 `/tmp/taptap-mcp/temp`）
+  - H5 游戏压缩包等临时文件存储位置
+  - 上传完成后自动清理
+- ~~`TDS_MCP_PROJECT_PATH`~~: 已废弃，v1.4.1+ 不再使用
 
 ### 测试和验证
 ```bash
@@ -571,11 +580,33 @@ HMAC-SHA256(method\nurl\nx-tap-headers\nbody\n, CLIENT_SECRET)
 - 每个 LeaderboardManager API 对应一个独立工具
 - 支持关键词搜索和完整代码示例
 
-### 本地缓存
-- 缓存位置：`~/.config/taptap-minigame/app.json` 或 `{project}/.taptap-minigame/app.json`
-- 自动缓存 developer_id 和 app_id
-- 通过 `/level/v1/list` API 自动获取
-- 避免重复输入参数
+### 本地缓存（v1.4.1+ 架构优化）
+
+**缓存目录结构：**
+```
+# 全局缓存（无 _project_path）
+/tmp/taptap-mcp/cache/global/app.json
+
+# 租户缓存（通过 _project_path 隔离）
+/tmp/taptap-mcp/cache/{userId}/{projectId}/app.json
+```
+
+**临时文件目录：**
+```
+# H5 游戏压缩包等
+/tmp/taptap-mcp/temp/{userId}/{projectId}/game-{timestamp}.zip
+```
+
+**特性：**
+- ✅ 独立于 workspace，支持只读挂载
+- ✅ 自动缓存 developer_id 和 app_id
+- ✅ 通过 `/level/v1/list` API 自动获取
+- ✅ 租户数据完全隔离
+- ✅ 临时文件自动清理
+
+**环境变量配置：**
+- `TDS_MCP_CACHE_DIR`: 缓存根目录（默认 `/tmp/taptap-mcp/cache`）
+- `TDS_MCP_TEMP_DIR`: 临时文件根目录（默认 `/tmp/taptap-mcp/temp`）
 
 
 
@@ -616,10 +647,18 @@ const allModules = [..., yourFeatureModule];
 
 详见脚手架使用说明部分。
 
-### 缓存文件位置
+### 缓存文件位置（v1.4.1+ 更新）
 
-- 全局缓存：`~/.config/taptap-minigame/app.json`
-- 项目缓存：`{project}/.taptap-minigame/app.json`
+**新架构（推荐）：**
+- 全局缓存：`/tmp/taptap-mcp/cache/global/app.json`
+- 租户缓存：`/tmp/taptap-mcp/cache/{userId}/{projectId}/app.json`
+- 临时文件：`/tmp/taptap-mcp/temp/{userId}/{projectId}/`
+
+**优点：**
+- ✅ workspace 可以只读挂载
+- ✅ 缓存和临时文件完全隔离
+- ✅ 租户数据完全隔离
+- ✅ 通过环境变量自定义目录位置
 
 
 ## 注意事项
