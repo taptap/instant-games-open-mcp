@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- 🔄 **MCP Proxy 配置重构**
+  - **Breaking**: 移除环境变量配置方式，改用 JSON 配置
+  - 新的配置结构：`{ server, tenant, auth, options }`
+  - 支持 3 种传递方式：命令行参数 / stdin / 环境变量
+  - Token 内嵌在配置中（内存管理，不落盘）
+  - 删除 `tokenStore.ts`，简化代码结构
+  - 新增 `config.ts` 和 `config.example.json`
+
 ### Fixed
 
 - 🐛 **MCP Proxy Bug Fixes**
