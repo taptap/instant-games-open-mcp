@@ -29,6 +29,9 @@ async function main() {
     console.error(`[Proxy] Project: ${config.tenant.project_id}`);
     console.error(`[Proxy] User: ${config.tenant.user_id}`);
     console.error(`[Proxy] Workspace: ${config.tenant.workspace_path}`);
+    if (config.tenant.project_relative_path) {
+      console.error(`[Proxy] Project Relative Path: ${config.tenant.project_relative_path}`);
+    }
     console.error(`[Proxy] Verbose: ${config.options?.verbose}`);
 
     // 2. 创建并启动 Proxy

@@ -76,16 +76,18 @@ export class DeviceFlowAuth {
   private config: HostConfig;
 
   constructor(environment: string = 'production') {
-    const home = os.homedir();
-    this.tokenPath = path.join(home, '.config', 'taptap-minigame', 'token.json');
+    // Use cache directory for token (persistent across container restarts)
+    const cacheDir = process.env.TDS_MCP_CACHE_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'cache');
+    this.tokenPath = path.join(cacheDir, 'global', 'oauth-token.json');
     this.config = ENV_CONFIGS[environment] || ENV_CONFIGS.production;
   }
 
   /**
-   * Initialize authentication
-   * Priority: env var > local file > device flow
+   * Try to load existing token (without starting auth flow)
+   * Priority: env var > local file
+   * Returns null if no token found
    */
-  async initialize(): Promise<MacToken> {
+  tryLoadToken(): MacToken | null {
     // 1. Check environment variable (highest priority)
     if (process.env.TDS_MCP_MAC_TOKEN) {
       try {
@@ -117,7 +119,21 @@ export class DeviceFlowAuth {
       }
     }
 
-    // 3. No token found - generate auth URL and throw immediately (non-blocking!)
+    return null;
+  }
+
+  /**
+   * Initialize authentication
+   * Priority: env var > local file > device flow
+   */
+  async initialize(): Promise<MacToken> {
+    // Try to load existing token first
+    const existingToken = this.tryLoadToken();
+    if (existingToken) {
+      return existingToken;
+    }
+
+    // No token found - generate auth URL and throw immediately (non-blocking!)
     process.stderr.write('\n🔐 No valid authentication found, generating authorization URL...\n\n');
 
     // Get device code
@@ -372,43 +388,6 @@ export class DeviceFlowAuth {
     } catch (error) {
       process.stderr.write(`⚠️  Failed to save token: ${error instanceof Error ? error.message : String(error)}\n`);
     }
-  }
-
-  /**
-   * Start auto authorization with progress callback
-   * For SSE mode: polls for authorization and reports progress
-   */
-  async startAutoAuthorization(onProgress?: AuthProgressCallback): Promise<MacToken> {
-    // Get device code
-    const deviceCodeData = await this.requestDeviceCode();
-    const authUrl = this.config.qrcodeBaseUrl + encodeURIComponent(deviceCodeData.qrcode_url);
-
-    // Send authorization URL to client
-    if (onProgress) {
-      await onProgress({
-        type: 'auth_url',
-        message: '🔐 需要 TapTap 授权。请在浏览器中打开以下链接完成授权：',
-        authUrl
-      });
-    }
-
-    // Output to stderr for terminal users
-    process.stderr.write(`\n🔗 授权链接: ${authUrl}\n`);
-    process.stderr.write('⏳ 自动等待授权中...\n\n');
-
-    // Poll for token with progress
-    this.macToken = await this.pollForToken(onProgress);
-
-    // Save to local file
-    this.saveToken(this.macToken);
-
-    process.stderr.write('\n✅ 授权成功！Token 已保存\n');
-    process.stderr.write(`📁 Token 位置: ${this.tokenPath}\n\n`);
-
-    // Clear device code
-    this.deviceCode = '';
-
-    return this.macToken;
   }
 
   /**

@@ -3,10 +3,10 @@ version: '3.8'
 services:
   # TapTap MCP Server（独立服务）
   taptap-mcp-server:
-    image: taptap-mcp-server:1.4.1
+    image: taptap-mcp-server:1.4.1-local
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.local
     container_name: taptap-mcp-server
     restart: unless-stopped
 
@@ -28,7 +28,7 @@ services:
       - TDS_MCP_CLIENT_TOKEN=${TDS_MCP_CLIENT_TOKEN}
 
       # 日志
-      - TDS_MCP_VERBOSE=${TDS_MCP_VERBOSE:-false}
+      - TDS_MCP_VERBOSE=${TDS_MCP_VERBOSE:-true}
 
       # 缓存和临时文件目录
       - TDS_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache

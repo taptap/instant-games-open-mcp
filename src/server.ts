@@ -24,6 +24,7 @@ import process from 'node:process';
 import http from 'node:http';
 import path from 'node:path';
 import os from 'node:os';
+import fs from 'node:fs';
 
 // 导入核心模块
 import { ApiConfig } from './core/network/httpClient.js';
@@ -61,9 +62,9 @@ const allModules: FeatureModule[] = [
 class TapTapMinigameMCPServer {
   private server: Server;
   private context: HandlerContext;
-  private ensureAuth: () => Promise<void>;
+  private ensureAuth: (context?: HandlerContext) => Promise<void>;
 
-  constructor(ensureAuthFn: () => Promise<void>) {
+  constructor(ensureAuthFn: (context?: HandlerContext) => Promise<void>) {
     // Create server with explicit capabilities declaration (required in SDK 1.20+)
     this.server = new Server(
       {
@@ -168,10 +169,13 @@ class TapTapMinigameMCPServer {
           throw new McpError(ErrorCode.MethodNotFound, `未知工具: ${name}`);
         }
 
-        // Check if authentication is required
+        // 统一在 Server 层处理 effectiveContext（合并私有参数到 context）
+        const effectiveContext = getEffectiveContext(enrichedArgs, this.context);
+
+        // Check if authentication is required (pass effectiveContext to check request-level token)
         if (toolReg.requiresAuth) {
           try {
-            await this.ensureAuth();
+            await this.ensureAuth(effectiveContext);
           } catch (authError) {
             const errorMsg = authError instanceof Error ? authError.message : String(authError);
             throw new McpError(
@@ -185,9 +189,6 @@ class TapTapMinigameMCPServer {
             );
           }
         }
-
-        // 统一在 Server 层处理 effectiveContext（合并私有参数到 context）
-        const effectiveContext = getEffectiveContext(enrichedArgs, this.context);
 
         // 从 args 中移除私有参数（业务层完全不感知）
         const businessArgs = stripPrivateParams(enrichedArgs);
@@ -464,7 +465,12 @@ class TapTapMinigameMCPServer {
       process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
       process.stderr.write(`🌍 Environment: ${apiConfig.environment}\n`);
       process.stderr.write(`🔗 API Base: ${apiConfig.apiBaseUrl}\n`);
-      process.stderr.write(`📁 Cache Dir: ${process.env.TDS_MCP_CACHE_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'cache')}\n`);
+
+      // 显示目录配置
+      const workspaceExists = fs.existsSync('/workspace');
+      const workspaceStatus = workspaceExists ? '✅' : '❌';
+      process.stderr.write(`📁 Workspace: /workspace ${workspaceStatus}\n`);
+      process.stderr.write(`📦 Cache Dir: ${process.env.TDS_MCP_CACHE_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'cache')}\n`);
       process.stderr.write(`📂 Temp Dir: ${process.env.TDS_MCP_TEMP_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'temp')}\n`);
       process.stderr.write('\n📖 MCP Capabilities:\n');
       process.stderr.write(`   ✅ Tools (${totalTools}) - Execute operations with side effects\n`);
@@ -518,11 +524,19 @@ function setTransportMode(mode: 'stdio' | 'sse'): void {
  * Lazy load authentication when needed
  * - stdio mode: throw error with auth URL (two-step flow)
  * - SSE mode: auto-poll with progress notifications (one-step flow)
+ *
+ * @param context - Request-specific context (may contain injected MAC token from Proxy)
  */
-async function ensureAuthenticated(): Promise<void> {
+async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
   const apiConfig = ApiConfig.getInstance();
 
-  // Already authenticated
+  // Priority 1: Check request-specific token (from Proxy injection)
+  if (context?.macToken?.kid && context?.macToken?.mac_key) {
+    // Request has its own token - no need to check global config
+    return;
+  }
+
+  // Priority 2: Check global config
   if (apiConfig.macToken.kid && apiConfig.macToken.mac_key) {
     return;
   }
@@ -537,7 +551,9 @@ async function ensureAuthenticated(): Promise<void> {
     deviceAuth = new DeviceFlowAuth(apiConfig.environment);
   }
 
-  // Try to load from local file first
+  // Unified two-step auth flow for all modes
+  // Step 1: Throw error with auth URL
+  // Step 2: User authorizes and calls complete_oauth_authorization
   try {
     const macToken = await deviceAuth.initialize();
     if (macToken) {
@@ -545,57 +561,7 @@ async function ensureAuthenticated(): Promise<void> {
       return;
     }
   } catch (error) {
-    // If error from initialize(), check transport mode
-
-    // SSE mode: Auto authorization with progress
-    if (currentTransportMode === 'sse') {
-      authInProgress = true;
-
-      try {
-        // Start auto authorization with progress callback
-        const macToken = await deviceAuth.startAutoAuthorization(async (info) => {
-          // Send progress via MCP notification
-          if (info.type === 'auth_url') {
-            await logger.notice(
-              `${info.message}\n\n🔗 授权链接: ${info.authUrl}\n\n` +
-              `📋 操作步骤：\n` +
-              `1. 在浏览器中打开上面的链接\n` +
-              `2. 使用 TapTap App 扫描二维码\n` +
-              `3. 完成授权后，服务器将自动继续（最多等待 2 分钟）\n\n` +
-              `⏳ 服务器正在自动等待授权中...`,
-              { authUrl: info.authUrl },
-              'oauth'
-            );
-          } else if (info.type === 'polling') {
-            await logger.info(
-              info.message,
-              { elapsed: info.elapsed, remaining: info.remaining },
-              'oauth'
-            );
-          } else if (info.type === 'success') {
-            await logger.notice(info.message, {}, 'oauth');
-          } else if (info.type === 'timeout') {
-            await logger.warning(
-              `${info.message}\n\n` +
-              `💡 提示：如果您已经授权但超时，请重新调用工具。Token 可能已经保存成功。`,
-              {},
-              'oauth'
-            );
-          } else if (info.type === 'error') {
-            await logger.error(info.message, undefined, 'oauth');
-          }
-        });
-
-        apiConfig.setMacToken(macToken);
-        authInProgress = false;
-        return;
-      } catch (authError) {
-        authInProgress = false;
-        throw authError;
-      }
-    }
-
-    // stdio mode: throw error (two-step flow, backward compatible)
+    // Throw the error with auth URL
     if (error instanceof Error) {
       throw error;
     }

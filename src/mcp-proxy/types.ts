@@ -26,12 +26,14 @@ export interface ProxyConfig {
 
   /** 租户配置 */
   tenant: {
-    /** 用户 ID */
+    /** 用户 ID（用于标识租户） */
     user_id: string;
-    /** 项目 ID */
+    /** 项目 ID（用于标识租户） */
     project_id: string;
-    /** 工作空间路径（默认 /workspace） */
+    /** 工作空间根路径（Docker 中的挂载点，默认 /workspace） */
     workspace_path?: string;
+    /** 项目相对于 workspace 的路径（例如：Documents/xindong/Repos/InstantGameRepos/minigame_h5_demo） */
+    project_relative_path?: string;
   };
 
   /** 认证配置（MAC Token） */

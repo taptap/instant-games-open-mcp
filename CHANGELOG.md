@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.7] - 2025-11-12
+
+### 🎯 Major Update - MCP Proxy 私有参数协议完整修复
+
+**本次更新完整修复了 MCP Proxy 的私有参数注入机制，实现了真正的多租户支持和请求级别的认证。**
+
+### Fixed
+
+- 🔐 **私有参数注入完整修复**
+  - 修复 `ensureAuthenticated()` - 优先检查请求级别的 `context.macToken`
+  - 修复 `applyDefaults()` - 保留 `project_relative_path` 配置字段
+  - 修复所有 H5 Game handlers - 传递 `context` 到所有 API 调用
+  - 修复所有 H5 Game tools - 使用 `effectiveContext` 并传递到 handlers
+  - HttpClient 现在正确使用 Proxy 注入的 MAC Token 进行签名
+
+- 📁 **路径计算优化**
+  - 新增 `tenant.project_relative_path` 配置字段
+  - 支持灵活的项目路径映射（Docker 场景）
+  - 优先使用 `project_relative_path`，回退到 `userId/projectId`
+  - Handler 优先使用 `context.projectPath`（Docker 路径优先于 Agent 传参）
+
+- 🔄 **MCP Proxy 重连机制优化**
+  - Tool call 失败时立即检测网络错误并触发重连
+  - 不再等待定期监控（10秒）
+  - 支持 ECONNREFUSED、fetch failed、socket hang up 等错误检测
+
+- 📊 **日志增强**
+  - 客户端连接/断开事件始终显示（不受 verbose 限制）
+  - Proxy 配置加载显示 `project_relative_path`
+  - Private Params 日志显示注入的路径信息
+
+### Changed
+
+- 🐳 **Docker 部署优化**
+  - `.env` 和 `.env.docker` 默认启用 verbose 日志
+  - `docker-compose.yml` 默认 `TDS_MCP_VERBOSE=true`
+  - 新增 `Dockerfile.local` 用于本地代码构建和测试
+  - 支持 `WORKSPACE_ROOT` 环境变量配置
+
+### Documentation
+
+- 📖 **更新配置文档**
+  - `docs/PROXY_CLIENT_CONFIG.md` 添加路径配置说明
+  - 详细说明 `project_relative_path` 字段用法
+  - 添加 Docker 部署场景的最佳实践
+
+## [1.4.3] - 2025-11-12
+
+### Added
+
+- 📚 **客户端配置文档**
+  - 新增 `docs/PROXY_CLIENT_CONFIG.md` - MCP Proxy 客户端配置指南
+  - VS Code、Claude Desktop、Cursor 配置示例
+  - 配置生成器和验证方法
+
+### Fixed
+
+- 📊 **启动日志增强**
+  - 显示 workspace 挂载状态（📁 Workspace: /workspace ✅）
+  - 帮助快速诊断 Docker 挂载配置问题
+
 ## [1.4.2] - 2025-11-12
 
 ### Fixed

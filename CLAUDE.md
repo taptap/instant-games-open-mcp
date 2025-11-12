@@ -63,7 +63,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **NPM 包：** `@mikoto_zero/minigame-open-mcp`
 
-**当前版本：** v1.3.0
+**当前版本：** v1.4.7
 
 **主要特性：**
 - 17 tools + 7 resources（应用管理 + 排行榜 + H5 游戏）

@@ -247,12 +247,16 @@ export class TapTapMCPProxy {
       // 使用配置中的 MAC Token
       const macToken = this.config.auth;
 
-      // 构建 _project_path: 绝对路径（workspacePath/userId/projectId）
-      const projectPath = path.join(
-        this.config.tenant.workspace_path!,
-        this.config.tenant.user_id,
-        this.config.tenant.project_id
-      );
+      // 构建 _project_path: 绝对路径
+      // 如果配置了 project_relative_path，则使用相对路径拼接
+      // 否则回退到旧逻辑（userId/projectId）以保持兼容性
+      const projectPath = this.config.tenant.project_relative_path
+        ? path.join(this.config.tenant.workspace_path!, this.config.tenant.project_relative_path)
+        : path.join(
+            this.config.tenant.workspace_path!,
+            this.config.tenant.user_id,
+            this.config.tenant.project_id
+          );
 
       // 注入私有参数
       const enrichedArgs = {
@@ -268,13 +272,35 @@ export class TapTapMCPProxy {
         console.error(`[Proxy] Injected: _project_path = ${projectPath}`);
       }
 
-      // 透传到 TapTap Server（错误不处理，直接返回）
-      const result = await this.client.callTool({
-        name,
-        arguments: enrichedArgs,
-      });
+      // 透传到 TapTap Server（捕获网络错误并触发重连）
+      try {
+        const result = await this.client.callTool({
+          name,
+          arguments: enrichedArgs,
+        });
+        return result;
+      } catch (error) {
+        // 检查是否是网络错误（连接断开）
+        const isNetworkError =
+          error instanceof Error &&
+          (error.message.includes('fetch failed') ||
+           error.message.includes('ECONNREFUSED') ||
+           error.message.includes('socket hang up'));
 
-      return result;
+        if (isNetworkError) {
+          console.error('[Proxy] ❌ Network error detected, marking connection as lost');
+          this.connected = false;
+
+          // 立即触发重连（不等待定期监控）
+          if (!this.reconnecting) {
+            console.error('[Proxy] Triggering immediate reconnection...');
+            this.reconnectToServer();
+          }
+        }
+
+        // 重新抛出原始错误
+        throw error;
+      }
     });
   }
 }

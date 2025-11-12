@@ -140,7 +140,8 @@ async function confirmInfo(
   projectPath: string,
   developerId?: number,
   appId?: number,
-  genre?: string
+  genre?: string,
+  context?: import('../../core/types/index.js').HandlerContext
 ): Promise<{ success: boolean; message: string; developerId?: number; appId?: number }> {
   // 如果用户提供了开发者身份 ID 和游戏 ID, 直接返回
   if (developerId && appId) {
@@ -174,7 +175,7 @@ async function confirmInfo(
   // 2. 游戏信息确认
   let resultMsg = '';
   if (!developerId) {
-    const response = await getAllDevelopersAndApps();
+    const response = await getAllDevelopersAndApps(context);
     const results = response.list;
 
     // 2.1. 开发者身份信息存在
@@ -191,11 +192,11 @@ async function confirmInfo(
       }
     } else {
       // 2.2. 开发者身份信息不存在, 创建开发者身份
-      const createDevResult = await createDeveloper();
+      const createDevResult = await createDeveloper(context);
       if (createDevResult && createDevResult.developer_id) {
         developerId = createDevResult.developer_id;
 
-        const appResults = await createAppForDeveloper(createDevResult.developer_id, undefined, genre);
+        const appResults = await createAppForDeveloper(createDevResult.developer_id, undefined, genre, context);
         if (appResults && appResults.app_id) {
           appId = appResults.app_id;
           resultMsg = MESSAGES.GAME_TYPE_INFO(appResults.display_app_title);
@@ -232,13 +233,16 @@ async function confirmInfo(
 /**
  * 收集 H5 游戏信息
  */
-export async function handleGatherGameInfo(args: {
-  projectPath?: string;
-  developerName?: string;
-  developerId?: number;
-  appId?: number;
-  genre?: string;
-}): Promise<string> {
+export async function handleGatherGameInfo(
+  args: {
+    projectPath?: string;
+    developerName?: string;
+    developerId?: number;
+    appId?: number;
+    genre?: string;
+  },
+  context?: import('../../core/types/index.js').HandlerContext
+): Promise<string> {
   const projectPath = args.projectPath || process.env.TDS_MCP_PROJECT_PATH || process.cwd();
 
   // 检查路径中是否包含百分号编码
@@ -261,7 +265,8 @@ export async function handleGatherGameInfo(args: {
     decodedPath,
     args.developerId,
     args.appId,
-    args.genre
+    args.genre,
+    context
   );
 
   if (!confirmResult.success) {
@@ -299,14 +304,17 @@ export async function handleGatherGameInfo(args: {
 /**
  * 上传 H5 游戏
  */
-export async function handleUploadGame(args: {
-  projectPath?: string;
-  developerName?: string;
-  developerId?: number;
-  appId?: number;
-  appName?: string;
-  genre?: string;
-}): Promise<string> {
+export async function handleUploadGame(
+  args: {
+    projectPath?: string;
+    developerName?: string;
+    developerId?: number;
+    appId?: number;
+    appName?: string;
+    genre?: string;
+  },
+  context?: import('../../core/types/index.js').HandlerContext
+): Promise<string> {
   const projectPath = args.projectPath || process.env.TDS_MCP_PROJECT_PATH || process.cwd();
 
   // 检查路径中是否包含百分号编码
@@ -354,7 +362,7 @@ export async function handleUploadGame(args: {
     // 2. 获取上传参数
     let uploadParams: UploadParams;
     try {
-      uploadParams = await getH5PackageUploadParams(cacheInfo.app_id);
+      uploadParams = await getH5PackageUploadParams(cacheInfo.app_id, context);
       await logger.info(MESSAGES.GET_UPLOAD_PARAMS_SUCCESS(uploadParams, outputPath));
     } catch (error) {
       return MESSAGES.COMPRESSED_GET_PARAMS_FAILED(archiveSize, String(error));
@@ -374,11 +382,16 @@ export async function handleUploadGame(args: {
     await logger.info(MESSAGES.PUBLISH_PARAMS(cacheInfo.app_id, cacheInfo.developer_id, packageId));
 
     const results = await editAppInfo(
-      cacheInfo.app_id,
-      cacheInfo.developer_id,
-      packageId,
-      undefined,
-      args.genre
+      cacheInfo.app_id,      // app_id
+      cacheInfo.developer_id, // developer_id
+      packageId,             // package_id
+      undefined,             // appName
+      args.genre,            // genre
+      undefined,             // description
+      undefined,             // chatting_label
+      undefined,             // chatting_number
+      undefined,             // screen_orientation
+      context                // context
     );
 
     let msg = MESSAGES.GAME_PUBLISH_SUCCESS(results.app_title, cacheInfo.app_id);
@@ -400,15 +413,18 @@ export async function handleUploadGame(args: {
 /**
  * 创建 H5 游戏
  */
-export async function handleCreateApp(args: {
-  developerId?: number;
-  appName?: string;
-  genre?: string;
-}): Promise<string> {
+export async function handleCreateApp(
+  args: {
+    developerId?: number;
+    appName?: string;
+    genre?: string;
+  },
+  context?: import('../../core/types/index.js').HandlerContext
+): Promise<string> {
   let developerId = args.developerId;
 
   if (!developerId) {
-    const response = await getAllDevelopersAndApps();
+    const response = await getAllDevelopersAndApps(context);
     const results = response.list;
 
     // 开发者身份信息存在
@@ -421,7 +437,7 @@ export async function handleCreateApp(args: {
       }
     } else {
       // 开发者身份信息不存在，创建开发者身份
-      const createDevResult = await createDeveloper();
+      const createDevResult = await createDeveloper(context);
       if (createDevResult && createDevResult.developer_id) {
         developerId = createDevResult.developer_id;
       }
@@ -433,7 +449,7 @@ export async function handleCreateApp(args: {
     return MESSAGES.DEVELOPER_ID_NOT_EXISTS;
   }
 
-  const results = await createAppForDeveloper(developerId, args.appName, args.genre);
+  const results = await createAppForDeveloper(developerId, args.appName, args.genre, context);
   if (results && results.app_id) {
     return MESSAGES.CREATE_GAME_SUCCESS(
       developerId,
@@ -449,16 +465,19 @@ export async function handleCreateApp(args: {
 /**
  * 编辑 H5 游戏信息
  */
-export async function handleEditApp(args: {
-  developerId?: number;
-  appId?: number;
-  appName?: string;
-  genre?: string;
-  description?: string;
-  chattingLabel?: string;
-  chattingNumber?: string;
-  screenOrientation?: number;
-}): Promise<string> {
+export async function handleEditApp(
+  args: {
+    developerId?: number;
+    appId?: number;
+    appName?: string;
+    genre?: string;
+    description?: string;
+    chattingLabel?: string;
+    chattingNumber?: string;
+    screenOrientation?: number;
+  },
+  context?: import('../../core/types/index.js').HandlerContext
+): Promise<string> {
   if (!args.developerId || !args.appId) {
     return MESSAGES.EDIT_GAME_INFO_CONFIRMATION;
   }
@@ -466,13 +485,14 @@ export async function handleEditApp(args: {
   await editAppInfo(
     args.appId,
     args.developerId,
-    undefined,
+    undefined,                // package_id
     args.appName,
     args.genre,
     args.description,
     args.chattingLabel,
     args.chattingNumber,
-    args.screenOrientation
+    args.screenOrientation,
+    context                   // context
   );
 
   return MESSAGES.EDIT_GAME_INFO_SUCCESS;

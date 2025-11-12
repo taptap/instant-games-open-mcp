@@ -155,6 +155,7 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
       user_id: config.tenant.user_id,
       project_id: config.tenant.project_id,
       workspace_path: config.tenant.workspace_path || '/workspace',
+      project_relative_path: config.tenant.project_relative_path,  // 保留可选字段
     },
     auth: config.auth,
     options: {

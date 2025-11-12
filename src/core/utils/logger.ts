@@ -428,12 +428,15 @@ export class Logger {
    * Log client connection event
    */
   async logClientConnection(sessionId: string): Promise<void> {
-    // Context: Connection event (stderr only)
+    const timestamp = getTimestamp();
+
+    // Always output connection event to stderr (important for monitoring)
+    process.stderr.write(`\n🔌 [${timestamp}] Client Connected - Session: ${sessionId}\n`);
+
+    // Additional details only in verbose mode
     if (this.verbose) {
-      process.stderr.write(`\n${'='.repeat(80)}\n`);
-      process.stderr.write(`🔌 Client Connected\n`);
-      process.stderr.write(`Session ID: ${sessionId}\n`);
-      process.stderr.write(`Timestamp: ${getTimestamp()}\n`);
+      process.stderr.write(`${'='.repeat(80)}\n`);
+      process.stderr.write(`Timestamp: ${timestamp}\n`);
       process.stderr.write(`${'='.repeat(80)}\n\n`);
     }
 
@@ -450,13 +453,14 @@ export class Logger {
    * Log client disconnection event
    */
   async logClientDisconnection(sessionId: string): Promise<void> {
-    // Context: Disconnection event (stderr only)
+    const timestamp = getTimestamp();
+
+    // Always output disconnection event to stderr (important for monitoring)
+    process.stderr.write(`\n❌ [${timestamp}] Client Disconnected - Session: ${sessionId}\n`);
+
+    // Additional details only in verbose mode
     if (this.verbose) {
-      process.stderr.write(`\n${'-'.repeat(80)}\n`);
-      process.stderr.write(`🔌 Client Disconnected\n`);
-      process.stderr.write(`Session ID: ${sessionId}\n`);
-      process.stderr.write(`Timestamp: ${getTimestamp()}\n`);
-      process.stderr.write(`${'='.repeat(80)}\n\n`);
+      process.stderr.write(`${'-'.repeat(80)}\n\n`);
     }
 
     // Key info: Client disconnection (dual output: stderr + MCP notification)

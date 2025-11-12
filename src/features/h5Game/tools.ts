@@ -65,8 +65,13 @@ export const h5GameTools: ToolRegistration[] = [
         },
       },
     },
-    handler: async (args) => {
-      return await handleGatherGameInfo(args);
+    handler: async (args, context) => {
+      const effectiveContext = getEffectiveContext(args, context);
+      return await handleGatherGameInfo({
+        ...args,
+        // Context projectPath (from Proxy) takes priority over args
+        projectPath: effectiveContext.projectPath || args.projectPath
+      }, effectiveContext);
     },
   },
 
@@ -108,8 +113,13 @@ export const h5GameTools: ToolRegistration[] = [
         },
       },
     },
-    handler: async (args) => {
-      return await handleUploadGame(args);
+    handler: async (args, context) => {
+      const effectiveContext = getEffectiveContext(args, context);
+      return await handleUploadGame({
+        ...args,
+        // Context projectPath (from Proxy) takes priority over args
+        projectPath: effectiveContext.projectPath || args.projectPath
+      }, effectiveContext);
     },
   },
 
@@ -136,8 +146,9 @@ export const h5GameTools: ToolRegistration[] = [
         },
       },
     },
-    handler: async (args) => {
-      return await handleCreateApp(args);
+    handler: async (args, context) => {
+      const effectiveContext = getEffectiveContext(args, context);
+      return await handleCreateApp(args, effectiveContext);
     },
   },
 
@@ -187,8 +198,9 @@ export const h5GameTools: ToolRegistration[] = [
         required: ['developerId', 'appId'],
       },
     },
-    handler: async (args) => {
-      return await handleEditApp(args);
+    handler: async (args, context) => {
+      const effectiveContext = getEffectiveContext(args, context);
+      return await handleEditApp(args, effectiveContext);
     },
   },
 ];

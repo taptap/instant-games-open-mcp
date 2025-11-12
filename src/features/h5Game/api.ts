@@ -20,8 +20,11 @@ export interface UploadParams {
  * 获取 H5 游戏包上传参数
  * This is H5-specific functionality
  */
-export async function getH5PackageUploadParams(app_id?: number): Promise<UploadParams> {
-  const client = new HttpClient();
+export async function getH5PackageUploadParams(
+  app_id?: number,
+  context?: import('../../core/types/index.js').HandlerContext
+): Promise<UploadParams> {
+  const client = new HttpClient(context);
   const params = app_id ? { app_id: app_id.toString() } : undefined;
 
   return await client.get<UploadParams>('/level/v1/upload', { params });
