@@ -543,63 +543,9 @@ async function ensureAuthenticated(): Promise<void> {
     deviceAuth = new DeviceFlowAuth(apiConfig.environment);
   }
 
-  // SSE mode: Load token or start auto authorization (no duplicate device codes)
-  if (currentTransportMode === 'sse') {
-    // Try to load existing token first (no auth flow)
-    const existingToken = deviceAuth.tryLoadToken();
-    if (existingToken) {
-      apiConfig.setMacToken(existingToken);
-      return;
-    }
-
-    // No token - start auto authorization
-    authInProgress = true;
-
-    try {
-      // Start auto authorization with progress callback
-      const macToken = await deviceAuth.startAutoAuthorization(async (info) => {
-          // Send progress via MCP notification
-          if (info.type === 'auth_url') {
-            await logger.notice(
-              `${info.message}\n\n🔗 授权链接: ${info.authUrl}\n\n` +
-              `📋 操作步骤：\n` +
-              `1. 在浏览器中打开上面的链接\n` +
-              `2. 使用 TapTap App 扫描二维码\n` +
-              `3. 完成授权后，服务器将自动继续（最多等待 2 分钟）\n\n` +
-              `⏳ 服务器正在自动等待授权中...`,
-              { authUrl: info.authUrl },
-              'oauth'
-            );
-          } else if (info.type === 'polling') {
-            await logger.info(
-              info.message,
-              { elapsed: info.elapsed, remaining: info.remaining },
-              'oauth'
-            );
-          } else if (info.type === 'success') {
-            await logger.notice(info.message, {}, 'oauth');
-          } else if (info.type === 'timeout') {
-            await logger.warning(
-              `${info.message}\n\n` +
-              `💡 提示：如果您已经授权但超时，请重新调用工具。Token 可能已经保存成功。`,
-              {},
-              'oauth'
-            );
-          } else if (info.type === 'error') {
-            await logger.error(info.message, undefined, 'oauth');
-          }
-        });
-
-      apiConfig.setMacToken(macToken);
-      authInProgress = false;
-      return;
-    } catch (authError) {
-      authInProgress = false;
-      throw authError;
-    }
-  }
-
-  // stdio/http mode: Load token or throw error (two-step flow)
+  // Unified two-step auth flow for all modes
+  // Step 1: Throw error with auth URL
+  // Step 2: User authorizes and calls complete_oauth_authorization
   try {
     const macToken = await deviceAuth.initialize();
     if (macToken) {
@@ -607,7 +553,7 @@ async function ensureAuthenticated(): Promise<void> {
       return;
     }
   } catch (error) {
-    // Throw the error with auth URL for manual authorization
+    // Throw the error with auth URL
     if (error instanceof Error) {
       throw error;
     }
