@@ -464,7 +464,13 @@ class TapTapMinigameMCPServer {
       process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
       process.stderr.write(`🌍 Environment: ${apiConfig.environment}\n`);
       process.stderr.write(`🔗 API Base: ${apiConfig.apiBaseUrl}\n`);
-      process.stderr.write(`📁 Cache Dir: ${process.env.TDS_MCP_CACHE_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'cache')}\n`);
+
+      // 显示目录配置
+      const fsSync = require('node:fs');
+      const workspaceExists = fsSync.existsSync('/workspace');
+      const workspaceStatus = workspaceExists ? '✅' : '❌';
+      process.stderr.write(`📁 Workspace: /workspace ${workspaceStatus}\n`);
+      process.stderr.write(`📦 Cache Dir: ${process.env.TDS_MCP_CACHE_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'cache')}\n`);
       process.stderr.write(`📂 Temp Dir: ${process.env.TDS_MCP_TEMP_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'temp')}\n`);
       process.stderr.write('\n📖 MCP Capabilities:\n');
       process.stderr.write(`   ✅ Tools (${totalTools}) - Execute operations with side effects\n`);
