@@ -82,10 +82,11 @@ export class DeviceFlowAuth {
   }
 
   /**
-   * Initialize authentication
-   * Priority: env var > local file > device flow
+   * Try to load existing token (without starting auth flow)
+   * Priority: env var > local file
+   * Returns null if no token found
    */
-  async initialize(): Promise<MacToken> {
+  tryLoadToken(): MacToken | null {
     // 1. Check environment variable (highest priority)
     if (process.env.TDS_MCP_MAC_TOKEN) {
       try {
@@ -117,7 +118,21 @@ export class DeviceFlowAuth {
       }
     }
 
-    // 3. No token found - generate auth URL and throw immediately (non-blocking!)
+    return null;
+  }
+
+  /**
+   * Initialize authentication
+   * Priority: env var > local file > device flow
+   */
+  async initialize(): Promise<MacToken> {
+    // Try to load existing token first
+    const existingToken = this.tryLoadToken();
+    if (existingToken) {
+      return existingToken;
+    }
+
+    // No token found - generate auth URL and throw immediately (non-blocking!)
     process.stderr.write('\n🔐 No valid authentication found, generating authorization URL...\n\n');
 
     // Get device code

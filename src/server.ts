@@ -543,23 +543,21 @@ async function ensureAuthenticated(): Promise<void> {
     deviceAuth = new DeviceFlowAuth(apiConfig.environment);
   }
 
-  // Try to load from local file first
-  try {
-    const macToken = await deviceAuth.initialize();
-    if (macToken) {
-      apiConfig.setMacToken(macToken);
+  // SSE mode: Load token or start auto authorization (no duplicate device codes)
+  if (currentTransportMode === 'sse') {
+    // Try to load existing token first (no auth flow)
+    const existingToken = deviceAuth.tryLoadToken();
+    if (existingToken) {
+      apiConfig.setMacToken(existingToken);
       return;
     }
-  } catch (error) {
-    // If error from initialize(), check transport mode
 
-    // SSE mode: Auto authorization with progress
-    if (currentTransportMode === 'sse') {
-      authInProgress = true;
+    // No token - start auto authorization
+    authInProgress = true;
 
-      try {
-        // Start auto authorization with progress callback
-        const macToken = await deviceAuth.startAutoAuthorization(async (info) => {
+    try {
+      // Start auto authorization with progress callback
+      const macToken = await deviceAuth.startAutoAuthorization(async (info) => {
           // Send progress via MCP notification
           if (info.type === 'auth_url') {
             await logger.notice(
@@ -592,16 +590,24 @@ async function ensureAuthenticated(): Promise<void> {
           }
         });
 
-        apiConfig.setMacToken(macToken);
-        authInProgress = false;
-        return;
-      } catch (authError) {
-        authInProgress = false;
-        throw authError;
-      }
+      apiConfig.setMacToken(macToken);
+      authInProgress = false;
+      return;
+    } catch (authError) {
+      authInProgress = false;
+      throw authError;
     }
+  }
 
-    // stdio mode: throw error (two-step flow, backward compatible)
+  // stdio/http mode: Load token or throw error (two-step flow)
+  try {
+    const macToken = await deviceAuth.initialize();
+    if (macToken) {
+      apiConfig.setMacToken(macToken);
+      return;
+    }
+  } catch (error) {
+    // Throw the error with auth URL for manual authorization
     if (error instanceof Error) {
       throw error;
     }
