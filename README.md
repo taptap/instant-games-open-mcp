@@ -87,7 +87,7 @@
 
 ## 快速开始
 
-### 安装
+### 本地安装
 
 ```bash
 npm install -g @mikoto_zero/minigame-open-mcp
@@ -98,6 +98,26 @@ npm install -g @mikoto_zero/minigame-open-mcp
 ```bash
 npx @mikoto_zero/minigame-open-mcp@beta
 ```
+
+### Docker 部署（推荐用于 TapCode 平台）
+
+**快速启动**：
+```bash
+# 1. 配置环境变量
+cp .env.docker .env
+# 编辑 .env，填入 CLIENT_ID 和 CLIENT_TOKEN
+
+# 2. 启动服务
+./scripts/docker-start.sh
+
+# 或使用 docker-compose
+docker-compose up -d
+
+# 3. 验证服务
+curl http://localhost:5003/health
+```
+
+**TapCode 平台集成**：详见 [Docker 部署文档](docs/DOCKER_DEPLOYMENT.md) 和 [TapCode 集成指南](docs/TAPCODE_INTEGRATION.md)
 
 ### 配置
 
