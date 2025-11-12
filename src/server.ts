@@ -24,6 +24,7 @@ import process from 'node:process';
 import http from 'node:http';
 import path from 'node:path';
 import os from 'node:os';
+import fs from 'node:fs';
 
 // 导入核心模块
 import { ApiConfig } from './core/network/httpClient.js';
@@ -466,8 +467,7 @@ class TapTapMinigameMCPServer {
       process.stderr.write(`🔗 API Base: ${apiConfig.apiBaseUrl}\n`);
 
       // 显示目录配置
-      const fsSync = require('node:fs');
-      const workspaceExists = fsSync.existsSync('/workspace');
+      const workspaceExists = fs.existsSync('/workspace');
       const workspaceStatus = workspaceExists ? '✅' : '❌';
       process.stderr.write(`📁 Workspace: /workspace ${workspaceStatus}\n`);
       process.stderr.write(`📦 Cache Dir: ${process.env.TDS_MCP_CACHE_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'cache')}\n`);
