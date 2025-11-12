@@ -166,15 +166,9 @@ export class Logger {
               : { message, timestamp }
           }
         });
-        // 调试：记录 notification 是否发送成功
-        process.stderr.write(`[DEBUG] ✅ MCP notification sent: ${level} - ${loggerName}\n`);
       } catch (error) {
-        // 调试：记录 notification 发送失败
-        process.stderr.write(`[DEBUG] ❌ MCP notification failed: ${error}\n`);
+        // Silently ignore notification errors to prevent logging loops
       }
-    } else {
-      // 调试：server 未初始化
-      process.stderr.write(`[DEBUG] ⚠️  MCP server not initialized, notification skipped\n`);
     }
   }
 

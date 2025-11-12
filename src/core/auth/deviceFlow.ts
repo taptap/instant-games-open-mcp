@@ -162,31 +162,6 @@ export class DeviceFlowAuth {
   }
 
   /**
-   * Get device code (exposed for SSE mode)
-   */
-  async getDeviceCode() {
-    return await this.requestDeviceCode();
-  }
-
-  /**
-   * Get QR code URL (exposed for SSE mode)
-   */
-  getQrcodeUrl(deviceUrl: string): string {
-    return this.config.qrcodeBaseUrl + encodeURIComponent(deviceUrl);
-  }
-
-  /**
-   * Start background polling (for SSE mode)
-   */
-  async startBackgroundPolling(deviceCode: string): Promise<MacToken> {
-    this.deviceCode = deviceCode;
-    const macToken = await this.pollForToken();
-    this.saveToken(macToken);
-    this.macToken = macToken;
-    return macToken;
-  }
-
-  /**
    * Get authorization URL (for manual auth flow)
    */
   async getAuthorizationUrl(): Promise<string> {
@@ -412,51 +387,6 @@ export class DeviceFlowAuth {
     } catch (error) {
       process.stderr.write(`⚠️  Failed to save token: ${error instanceof Error ? error.message : String(error)}\n`);
     }
-  }
-
-  /**
-   * Start auto authorization with progress callback
-   * For SSE mode: polls for authorization and reports progress
-   */
-  async startAutoAuthorization(onProgress?: AuthProgressCallback): Promise<MacToken> {
-    process.stderr.write(`[DEBUG] 🚀 startAutoAuthorization called, onProgress=${onProgress ? 'provided' : 'null'}\n`);
-
-    // Get device code
-    const deviceCodeData = await this.requestDeviceCode();
-    const authUrl = this.config.qrcodeBaseUrl + encodeURIComponent(deviceCodeData.qrcode_url);
-
-    process.stderr.write(`[DEBUG] 🔑 Device code generated, authUrl=${authUrl}\n`);
-
-    // Send authorization URL to client
-    if (onProgress) {
-      process.stderr.write(`[DEBUG] 📤 Calling onProgress with auth_url...\n`);
-      await onProgress({
-        type: 'auth_url',
-        message: '🔐 需要 TapTap 授权。请在浏览器中打开以下链接完成授权：',
-        authUrl
-      });
-      process.stderr.write(`[DEBUG] ✅ onProgress auth_url callback completed\n`);
-    } else {
-      process.stderr.write(`[DEBUG] ⚠️  onProgress is null, skipping callback\n`);
-    }
-
-    // Output to stderr for terminal users
-    process.stderr.write(`\n🔗 授权链接: ${authUrl}\n`);
-    process.stderr.write('⏳ 自动等待授权中...\n\n');
-
-    // Poll for token with progress
-    this.macToken = await this.pollForToken(onProgress);
-
-    // Save to local file
-    this.saveToken(this.macToken);
-
-    process.stderr.write('\n✅ 授权成功！Token 已保存\n');
-    process.stderr.write(`📁 Token 位置: ${this.tokenPath}\n\n`);
-
-    // Clear device code
-    this.deviceCode = '';
-
-    return this.macToken;
   }
 
   /**
