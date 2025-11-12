@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "title": "TapTap MCP Proxy Configuration",
+  "description": "此配置由 TapCode 平台代码生成，不需要手动编辑",
+  "server": {
+    "url": "http://host.docker.internal:5003",
+    "env": "rnd"
+  },
+  "tenant": {
+    "user_id": "user-123",
+    "project_id": "project-456",
+    "workspace_path": "/workspace"
+  },
+  "auth": {
+    "kid": "your_kid_here",
+    "mac_key": "your_mac_key_here",
+    "token_type": "mac",
+    "mac_algorithm": "hmac-sha-1"
+  },
+  "options": {
+    "verbose": false,
+    "reconnect_interval": 5000,
+    "monitor_interval": 10000
+  }
+}

@@ -9,8 +9,9 @@ User Space 容器内：
 ┌─────────────────────────────────┐
 │ Claude Agent (主进程)            │
 │   ↓ stdio (spawn 子进程)         │
+│   ↓ 传递 JSON 配置               │
 │ MCP Proxy (子进程)               │
-│   - 读取: Token 文件             │
+│   - 读取: JSON 配置（内存）      │
 │   - 注入: _mac_token             │
 │   - 注入: _project_path          │
 │   - 注入: _user_id               │
@@ -41,7 +42,7 @@ User Space 容器内：
     token_type: "mac",
     mac_algorithm: "hmac-sha-1"
   },
-  _project_path: "userId/projectId",  // 租户隔离
+  _project_path: "/workspace/userId/projectId",  // 绝对路径
   _user_id: "userId"
 }
 ```
@@ -49,95 +50,136 @@ User Space 容器内：
 ### 3. 自动重连
 
 - 初始化时直接连接 TapTap Server
-- 连接失败时后台自动重连
+- 连接失败时后台自动重连（可配置间隔）
 - 重连成功后发送 `notifications/tools/list_changed` 通知 Agent
 
 ## 配置方式
 
-### 在 Claude.init.ts 中配置
+### JSON 配置格式
 
-```typescript
-import { query } from '@anthropic-ai/claude-agent-sdk';
+配置通过 JSON 传递（由 TapCode 平台代码生成）：
 
-const q = query({
-  prompt: 'Hello!',
-  options: {
-    mcpServers: {
-      'taptap': {
-        type: 'stdio',
-        command: 'node',
-        args: ['/srv/mcp-proxy/index.js'],
-        env: {
-          TAPTAP_SERVER_URL: 'http://host.docker.internal:5003',
-          PROJECT_ID: projectId,
-          USER_ID: userId,
-          TOKEN_FILE: `/srv/db/tokens/${projectId}.json`,
-          WORKSPACE_PATH: '/workspace',
-          TDS_ENV: 'rnd'  // 或 'production'
-        }
-      }
-    }
+```json
+{
+  "server": {
+    "url": "http://host.docker.internal:5003",
+    "env": "rnd"
+  },
+  "tenant": {
+    "user_id": "user-123",
+    "project_id": "project-456",
+    "workspace_path": "/workspace"
+  },
+  "auth": {
+    "kid": "abc123...",
+    "mac_key": "xyz789...",
+    "token_type": "mac",
+    "mac_algorithm": "hmac-sha-1"
+  },
+  "options": {
+    "verbose": false,
+    "reconnect_interval": 5000,
+    "monitor_interval": 10000
   }
-});
+}
 ```
 
-### 在 Claude.client.ts 中配置
+### 配置传递方式
+
+**方式 1：命令行参数（推荐）**
+```bash
+node index.js '{"server":{"url":"..."},"tenant":{...},"auth":{...}}'
+```
+
+**方式 2：标准输入**
+```bash
+echo '{"server":{...}}' | node index.js
+```
+
+**方式 3：环境变量**
+```bash
+PROXY_CONFIG='{"server":{...}}' node index.js
+```
+
+### 在 TapCode 平台中集成
 
 ```typescript
-import * as acp from '@agentclientprotocol/sdk/dist/acp.js';
+import { spawn } from 'child_process';
 
+// 生成配置
+const config = {
+  server: {
+    url: 'http://host.docker.internal:5003',
+    env: process.env.NODE_ENV === 'production' ? 'production' : 'rnd',
+  },
+  tenant: {
+    user_id: session.userId,
+    project_id: session.projectId,
+    workspace_path: '/workspace',
+  },
+  auth: macToken,  // 从数据库获取
+  options: {
+    verbose: false,
+  },
+};
+
+// 启动 Proxy（方式 1：命令行参数）
+const proxy = spawn('node', [
+  '/srv/mcp-proxy/index.js',
+  JSON.stringify(config)
+], {
+  stdio: ['pipe', 'pipe', 'pipe'],
+});
+
+// 或使用 MCP SDK
 const sessionResult = await connection.newSession({
   cwd: '/workspace',
   mcpServers: [
     {
       name: 'taptap',
       command: 'node',
-      args: ['/srv/mcp-proxy/index.js'],
-      env: [
-        { name: 'TAPTAP_SERVER_URL', value: 'http://host.docker.internal:5003' },
-        { name: 'PROJECT_ID', value: PROJECT_ID },
-        { name: 'USER_ID', value: USER_ID },
-        { name: 'TOKEN_FILE', value: `/srv/db/tokens/${PROJECT_ID}.json` },
-        { name: 'WORKSPACE_PATH', value: '/workspace' },
-        { name: 'TDS_ENV', value: 'rnd' }
-      ]
+      args: [
+        '/srv/mcp-proxy/index.js',
+        JSON.stringify(config)
+      ],
     }
   ]
 });
 ```
 
-**注意**：两个 SDK 的 env 格式不同！
-- `@anthropic-ai/claude-agent-sdk`: 对象格式 `{KEY: 'value'}`
-- `@agentclientprotocol/sdk`: 数组格式 `[{name: 'KEY', value: 'value'}]`
+## 配置字段说明
 
-## 环境变量
+### server（必需）
 
-| 变量 | 必需 | 说明 | 示例 |
-|------|------|------|------|
-| `TAPTAP_SERVER_URL` | ✅ | TapTap MCP Server 地址 | `http://host.docker.internal:5003` |
-| `PROJECT_ID` | ✅ | 项目 ID | `my-project-001` |
-| `USER_ID` | ✅ | 用户 ID | `user123` |
-| `TOKEN_FILE` | ✅ | MAC Token 文件路径 | `/srv/db/tokens/project.json` |
-| `WORKSPACE_PATH` | ⚪ | 工作空间路径（默认 /workspace） | `/workspace` |
-| `TDS_ENV` | ⚪ | TapTap 环境（默认 rnd） | `rnd` 或 `production` |
+| 字段 | 类型 | 必需 | 说明 | 示例 |
+|------|------|------|------|------|
+| `url` | string | ✅ | TapTap MCP Server 地址 | `http://host.docker.internal:5003` |
+| `env` | string | ⚪ | 环境选择（默认 rnd） | `rnd` 或 `production` |
 
-## Token 文件格式
+### tenant（必需）
 
-Token 文件应包含有效的 MAC Token JSON：
+| 字段 | 类型 | 必需 | 说明 | 示例 |
+|------|------|------|------|------|
+| `user_id` | string | ✅ | 用户 ID | `user-123` |
+| `project_id` | string | ✅ | 项目 ID | `project-456` |
+| `workspace_path` | string | ⚪ | 工作空间路径（默认 /workspace） | `/workspace` |
 
-```json
-{
-  "kid": "your_kid_here",
-  "mac_key": "your_mac_key_here",
-  "token_type": "mac",
-  "mac_algorithm": "hmac-sha-1"
-}
-```
+### auth（必需）
 
-**获取 Token**：
-- 通过 TapTap OAuth 设备流程授权获取
-- 保存在数据库或文件系统中
-- Proxy 启动前必须已存在
+| 字段 | 类型 | 必需 | 说明 | 示例 |
+|------|------|------|------|------|
+| `kid` | string | ✅ | Token ID | `abc123...` |
+| `mac_key` | string | ✅ | Token Key | `xyz789...` |
+| `token_type` | string | ✅ | 固定为 "mac" | `mac` |
+| `mac_algorithm` | string | ✅ | 固定为 "hmac-sha-1" | `hmac-sha-1` |
+
+### options（可选）
+
+| 字段 | 类型 | 必需 | 说明 | 默认值 |
+|------|------|------|------|--------|
+| `verbose` | boolean | ⚪ | 详细日志模式 | `false` |
+| `reconnect_interval` | number | ⚪ | 重连间隔（毫秒） | `5000` |
+| `monitor_interval` | number | ⚪ | 监控间隔（毫秒） | `10000` |
 
 ## 租户隔离
 
@@ -191,36 +233,49 @@ Please try again in a few moments.
 
 Proxy 会在后台自动重连。
 
-### Token 缺失
+### 配置错误
 
-如果 Token 文件不存在：
+如果配置格式错误：
 
 ```
-Error: MAC Token not found.
-Please authorize your TapTap account first.
+Error: Invalid configuration:
+- Missing required field: server.url
+- Missing required field: tenant.user_id
 ```
 
-需要先完成授权流程。
-
-### Token 无效
-
-如果 Token 过期或无效，会收到 TapTap Server 返回的原始错误（403 等），Proxy 不做处理。
+需要检查传递的 JSON 配置。
 
 ## 日志
 
 Proxy 的日志输出到 stderr：
 
 ```
-[Proxy] Starting...
+[Proxy] Configuration loaded successfully
+[Proxy] Server: http://host.docker.internal:5003
+[Proxy] Environment: rnd
 [Proxy] Project: my-project
 [Proxy] User: user123
-[Proxy] Token: /srv/db/tokens/my-project.json
+[Proxy] Workspace: /workspace
+[Proxy] Verbose: false
 [Proxy] Connecting to http://host.docker.internal:5003...
 [Proxy] ✅ Connected to TapTap MCP Server
 [Proxy] Started (stdio mode)
+```
+
+**启用详细日志**：
+```json
+{
+  "options": {
+    "verbose": true
+  }
+}
+```
+
+详细日志会输出每次工具调用和参数注入：
+```
 [Proxy] Tool call: list_developers_and_apps
 [Proxy] Injected: _mac_token (kid: abc123...)
-[Proxy] Injected: _project_path = user123/my-project
+[Proxy] Injected: _project_path = /workspace/user123/my-project
 ```
 
 ## 编译
@@ -228,22 +283,8 @@ Proxy 的日志输出到 stderr：
 Proxy 代码会随主项目编译：
 
 ```bash
-pnpm build
-# 输出: dist/mcp-proxy/index.cjs
-```
-
-编译配置在 `tsup.config.ts` 中：
-
-```typescript
-CONFIG.entry = {
-  'mcp-proxy/index': 'src/mcp-proxy/index.ts',
-  // ...
-};
-CONFIG.noExternal = [
-  '@modelcontextprotocol/sdk',
-  'eventsource-parser',
-  // ...
-];
+npm run build
+# 输出: dist/mcp-proxy/index.js
 ```
 
 ## 部署
@@ -251,8 +292,10 @@ CONFIG.noExternal = [
 Proxy 文件需要挂载到用户空间容器：
 
 ```typescript
-// 在 src/lib/docker.ts 中
-vols.push(`${local_dist}/mcp-proxy/index.cjs:/srv/mcp-proxy/index.js:ro`);
+// 在 TapCode 平台代码中
+const volumes = [
+  `${distPath}/mcp-proxy:/srv/mcp-proxy:ro`,  // Proxy 代码
+];
 ```
 
 ## 工作流程
@@ -260,44 +303,43 @@ vols.push(`${local_dist}/mcp-proxy/index.cjs:/srv/mcp-proxy/index.js:ro`);
 ### 初始化流程
 
 1. Agent 启动
-2. 读取 MCP 配置，发现 stdio 类型的 `taptap` server
-3. spawn Proxy 子进程
-4. Proxy 读取环境变量，连接 TapTap Server
+2. TapCode 平台生成 JSON 配置
+3. spawn Proxy 子进程，传递 JSON 配置
+4. Proxy 验证配置，连接 TapTap Server
 5. Agent 调用 `tools/list` 获取工具列表
-6. Proxy 转发请求，返回工具列表
-7. 初始化完成
+6. 初始化完成
 
 ### 工具调用流程
 
 1. Agent 调用工具（如 `list_developers_and_apps`）
 2. Agent 通过 stdio 发送请求给 Proxy
-3. Proxy 读取 Token 文件
+3. Proxy 从配置中读取 MAC Token（内存）
 4. Proxy 注入私有参数：
-   - `_mac_token`
-   - `_project_path = userId/projectId`
-   - `_user_id`
+   - `_mac_token`（从配置）
+   - `_project_path`（计算绝对路径）
+   - `_user_id`（从配置）
 5. Proxy 转发到 TapTap Server（HTTP/SSE）
 6. TapTap Server 处理并返回结果
 7. Proxy 透传响应给 Agent
-8. Agent 收到结果
 
 ### 重连流程
 
 1. Proxy 检测到连接断开
-2. 后台自动尝试重连
+2. 后台自动尝试重连（间隔可配置）
 3. 重连成功
 4. 发送 `notifications/tools/list_changed` 给 Agent
 5. Agent 自动重新获取工具列表
 
 ## 注意事项
 
-1. **Token 管理**：Proxy 不处理授权流程，Token 应在 Proxy 启动前准备好
-2. **错误透传**：Proxy 不处理业务错误，直接返回给 Agent
-3. **进程生命周期**：Proxy 随 Agent 启动和结束
-4. **一对一绑定**：每个 Agent 对应一个 Proxy 进程
-5. **环境隔离**：通过环境变量传递配置，实现租户隔离
+1. **配置管理**：配置由 TapCode 平台代码生成，不需要手动编辑
+2. **Token 安全**：Token 在进程内存中，不落盘（更安全）
+3. **错误透传**：Proxy 不处理业务错误，直接返回给 Agent
+4. **进程生命周期**：Proxy 随 Agent 启动和结束
+5. **一对一绑定**：每个 Agent 对应一个 Proxy 进程
 
 ## 相关文档
 
-- [PRIVATE_PROTOCOL.md](../../taptap-minigame-mcp-server/docs/PRIVATE_PROTOCOL.md) - 私有参数协议
-- [MCP_PROXY_GUIDE.md](../../taptap-minigame-mcp-server/docs/MCP_PROXY_GUIDE.md) - Proxy 开发指引
+- [PRIVATE_PROTOCOL.md](../../docs/PRIVATE_PROTOCOL.md) - 私有参数协议
+- [MCP_PROXY_GUIDE.md](../../docs/MCP_PROXY_GUIDE.md) - Proxy 开发指引
+- [config.example.json](config.example.json) - 配置示例

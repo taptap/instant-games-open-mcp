@@ -11,8 +11,7 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import * as path from 'node:path';
-import { FileTokenStore } from './tokenStore.js';
-import type { ProxyConfig, MacToken } from './types.js';
+import type { ProxyConfig } from './types.js';
 
 /**
  * TapTap MCP Proxy
@@ -27,7 +26,6 @@ export class TapTapMCPProxy {
   private config: ProxyConfig;
   private client: Client;
   private server: Server;
-  private tokenStore: FileTokenStore;
 
   private connected: boolean = false;
   private reconnecting: boolean = false;
@@ -48,9 +46,6 @@ export class TapTapMCPProxy {
       { name: 'taptap-proxy', version: '1.0.0' },
       { capabilities: { tools: {}, resources: {} } }
     );
-
-    // 初始化 Token Store
-    this.tokenStore = new FileTokenStore(config.tokenFile);
   }
 
   /**
@@ -58,9 +53,9 @@ export class TapTapMCPProxy {
    */
   async start(): Promise<void> {
     console.error(`[Proxy] Starting...`);
-    console.error(`[Proxy] Project: ${this.config.projectId}`);
-    console.error(`[Proxy] User: ${this.config.userId}`);
-    console.error(`[Proxy] Token: ${this.config.tokenFile}`);
+    console.error(`[Proxy] Project: ${this.config.tenant.project_id}`);
+    console.error(`[Proxy] User: ${this.config.tenant.user_id}`);
+    console.error(`[Proxy] Token kid: ${this.config.auth.kid.substring(0, 12)}...`);
 
     // 1. 初始化时直接连接 TapTap Server
     try {
@@ -89,11 +84,11 @@ export class TapTapMCPProxy {
    * 连接到 TapTap MCP Server
    */
   private async connectToServer(): Promise<void> {
-    console.error(`[Proxy] Connecting to ${this.config.serverUrl}...`);
+    console.error(`[Proxy] Connecting to ${this.config.server.url}...`);
 
     try {
       const transport = new StreamableHTTPClientTransport(
-        new URL(this.config.serverUrl)
+        new URL(this.config.server.url)
       );
 
       await this.client.connect(transport);
@@ -136,9 +131,10 @@ export class TapTapMCPProxy {
    */
   private scheduleReconnect(): void {
     this.clearReconnectTimer();
+    const interval = this.config.options?.reconnect_interval ?? 5000;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectToServer();
-    }, 5000);
+    }, interval);
   }
 
   /**
@@ -156,12 +152,13 @@ export class TapTapMCPProxy {
    */
   private monitorConnection(): void {
     // 定期检查连接状态
+    const interval = this.config.options?.monitor_interval ?? 10000;
     this.monitorTimer = setInterval(() => {
       if (!this.connected && !this.reconnecting) {
         console.error('[Proxy] Connection lost, attempting to reconnect...');
         this.reconnectToServer();
       }
-    }, 10000); // 每 10 秒检查一次
+    }, interval);
   }
 
   /**
@@ -247,20 +244,14 @@ export class TapTapMCPProxy {
 
       const { name, arguments: args } = request.params;
 
-      // 读取 MAC Token
-      const macToken = await this.tokenStore.get();
-      if (!macToken) {
-        throw new McpError(
-          ErrorCode.InternalError,
-          'MAC Token not found. Please authorize your TapTap account first.'
-        );
-      }
+      // 使用配置中的 MAC Token
+      const macToken = this.config.auth;
 
       // 构建 _project_path: 绝对路径（workspacePath/userId/projectId）
       const projectPath = path.join(
-        this.config.workspacePath,
-        this.config.userId,
-        this.config.projectId
+        this.config.tenant.workspace_path!,
+        this.config.tenant.user_id,
+        this.config.tenant.project_id
       );
 
       // 注入私有参数
@@ -268,12 +259,14 @@ export class TapTapMCPProxy {
         ...args,
         _mac_token: macToken,
         _project_path: projectPath,
-        _user_id: this.config.userId,
+        _user_id: this.config.tenant.user_id,
       };
 
-      console.error(`[Proxy] Tool call: ${name}`);
-      console.error(`[Proxy] Injected: _mac_token (kid: ${macToken.kid.substring(0, 12)}...)`);
-      console.error(`[Proxy] Injected: _project_path = ${projectPath}`);
+      if (this.config.options?.verbose) {
+        console.error(`[Proxy] Tool call: ${name}`);
+        console.error(`[Proxy] Injected: _mac_token (kid: ${macToken.kid.substring(0, 12)}...)`);
+        console.error(`[Proxy] Injected: _project_path = ${projectPath}`);
+      }
 
       // 透传到 TapTap Server（错误不处理，直接返回）
       const result = await this.client.callTool({

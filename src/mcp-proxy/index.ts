@@ -5,76 +5,47 @@
  *
  * 作为 Claude Agent 的子进程运行，通过 stdio 通信
  * 连接到 TapTap MCP Server，自动注入 MAC Token
+ *
+ * 配置传递方式（任选其一）：
+ * 1. 命令行参数：node index.js '{"server":{...}}'
+ * 2. 标准输入：echo '{"server":{...}}' | node index.js
+ * 3. 环境变量：PROXY_CONFIG='{"server":{...}}' node index.js
  */
 
 import { TapTapMCPProxy } from './proxy.js';
-import type { ProxyConfig } from './types.js';
-
-/**
- * 从环境变量读取配置
- */
-function loadConfig(): ProxyConfig {
-  const serverUrl = process.env.TAPTAP_SERVER_URL;
-  const tokenFile = process.env.TOKEN_FILE;
-  const projectId = process.env.PROJECT_ID;
-  const userId = process.env.USER_ID;
-
-  // 验证必需参数
-  if (!serverUrl) {
-    console.error('[Proxy] Error: TAPTAP_SERVER_URL is required');
-    process.exit(1);
-  }
-  if (!tokenFile) {
-    console.error('[Proxy] Error: TOKEN_FILE is required');
-    process.exit(1);
-  }
-  if (!projectId) {
-    console.error('[Proxy] Error: PROJECT_ID is required');
-    process.exit(1);
-  }
-  if (!userId) {
-    console.error('[Proxy] Error: USER_ID is required');
-    process.exit(1);
-  }
-
-  const config: ProxyConfig = {
-    serverUrl,
-    tokenFile,
-    projectId,
-    userId,
-    workspacePath: process.env.WORKSPACE_PATH || '/workspace',
-    env: (process.env.TDS_ENV === 'production' ? 'production' : 'rnd') as 'rnd' | 'production',
-  };
-
-  return config;
-}
+import { loadConfig } from './config.js';
 
 /**
  * 主函数
  */
 async function main() {
   try {
-    // 1. 加载配置
-    const config = loadConfig();
+    // 1. 加载配置（自动检测来源）
+    const config = await loadConfig();
+
+    console.error(`[Proxy] Configuration loaded successfully`);
+    console.error(`[Proxy] Server: ${config.server.url}`);
+    console.error(`[Proxy] Environment: ${config.server.env}`);
+    console.error(`[Proxy] Project: ${config.tenant.project_id}`);
+    console.error(`[Proxy] User: ${config.tenant.user_id}`);
+    console.error(`[Proxy] Workspace: ${config.tenant.workspace_path}`);
+    console.error(`[Proxy] Verbose: ${config.options?.verbose}`);
 
     // 2. 创建并启动 Proxy
     const proxy = new TapTapMCPProxy(config);
     await proxy.start();
 
     // 3. 处理进程信号
-    process.on('SIGINT', () => {
-      console.error('[Proxy] Received SIGINT, exiting...');
+    const cleanup = () => {
+      console.error('[Proxy] Shutting down...');
       proxy.cleanup();
       process.exit(0);
-    });
+    };
 
-    process.on('SIGTERM', () => {
-      console.error('[Proxy] Received SIGTERM, exiting...');
-      proxy.cleanup();
-      process.exit(0);
-    });
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
   } catch (error) {
-    console.error('[Proxy] Fatal error:', error);
+    console.error('[Proxy] Fatal error:', error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }
