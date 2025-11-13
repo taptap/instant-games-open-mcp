@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.11] - 2025-01-15
+
+### 🐛 Bug Fixes
+
+**修复 OAuth 完成后 MAC Token 无法正确传递的问题**
+
+#### Fixed
+
+- **OAuth Token 传递问题**
+  - 修复 `server.ts` 中 `context.macToken` 在服务器启动时固定为空对象的问题
+  - 改用动态 getter 让 `context.macToken` 始终返回最新的 `apiConfig.macToken`
+  - 确保 OAuth 完成后的请求能正确获取到授权 token
+
+- **HttpClient Token 获取**
+  - 优化 `httpClient.ts` 中的 token 获取逻辑
+  - 改为每次请求时动态调用 `ApiConfig.getInstance().macToken`
+  - 避免缓存旧的 token 引用
+
+#### Technical Details
+
+**问题根源：**
+```typescript
+// 旧代码 - 问题所在
+const TDS_MCP_MAC_TOKEN = apiConfig.macToken;  // 启动时是空对象 {}
+this.context = {
+  macToken: TDS_MCP_MAC_TOKEN  // 永远指向空对象
+};
+```
+
+**修复方案：**
+```typescript
+// 新代码 - 动态获取
+this.context = {
+  get macToken() {
+    return apiConfig.macToken;  // 每次访问都获取最新值
+  }
+};
+```
+
+#### Impact
+
+- ✅ OAuth 授权流程现在完全正常工作
+- ✅ 不影响 MCP Proxy 私有参数（`_mac_token`）传递逻辑
+- ✅ 不影响环境变量配置的 token
+
+#### Debug Enhancements
+
+新增详细调试日志（`TDS_MCP_VERBOSE=true`）：
+- `ApiConfig.setMacToken()` 调用日志
+- `HttpClient` Token 获取日志
+- MAC 签名生成过程日志
+- 请求签名生成过程日志
+
 ## [1.4.10] - 2025-01-15
 
 ### 🚀 Major Update - 统一路径解析系统与 Proxy 配置极简化
