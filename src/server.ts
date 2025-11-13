@@ -45,7 +45,6 @@ import type { HandlerContext, FeatureModule } from './core/types/index.js';
 // 环境变量配置
 const apiConfig = ApiConfig.getInstance();
 const TDS_MCP_MAC_TOKEN = apiConfig.macToken;
-const TDS_MCP_PROJECT_PATH = process.env.TDS_MCP_PROJECT_PATH;
 const TDS_MCP_TRANSPORT = (process.env.TDS_MCP_TRANSPORT || 'stdio').toLowerCase();
 const TDS_MCP_PORT = parseInt(process.env.TDS_MCP_PORT || '3000', 10);
 
@@ -83,7 +82,6 @@ class TapTapMinigameMCPServer {
     );
 
     this.context = {
-      projectPath: TDS_MCP_PROJECT_PATH,
       macToken: TDS_MCP_MAC_TOKEN
     };
 

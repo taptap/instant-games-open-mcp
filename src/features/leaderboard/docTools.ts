@@ -278,10 +278,10 @@ leaderboardManager.loadLeaderboardScores({
 /**
  * Get current app information from cache
  */
-async function getCurrentAppInfo(): Promise<string> {
+async function getCurrentAppInfo(context?: import('../../core/types/index.js').HandlerContext): Promise<string> {
   try {
     const { readAppCache, getCachePath } = await import('../../core/utils/cache.js');
-    const cache = readAppCache(process.env.TDS_MCP_PROJECT_PATH);
+    const cache = readAppCache(context?.projectPath);
 
     if (!cache || !cache.developer_id || !cache.app_id) {
       return `# Current App Information
@@ -296,7 +296,7 @@ Once selected, the app information will be cached and displayed here.
 `;
     }
 
-    const cachePath = getCachePath(process.env.TDS_MCP_PROJECT_PATH);
+    const cachePath = getCachePath(context?.projectPath);
 
     let info = `# Current App Information
 

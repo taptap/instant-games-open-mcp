@@ -214,8 +214,7 @@ npx @mikoto_zero/minigame-open-mcp
       "args": ["@mikoto_zero/minigame-open-mcp@beta"],
       "env": {
         "TDS_MCP_MAC_TOKEN": "${CURRENT_USER_MAC_TOKEN}",
-        "TDS_MCP_ENV": "production",
-        "TDS_MCP_PROJECT_PATH": "${CURRENT_PROJECT_PATH}"
+        "TDS_MCP_ENV": "production"
       }
     }
   }
@@ -350,7 +349,7 @@ curl http://localhost:3000/health
 
 **其他配置：**
 - `TDS_MCP_ENV` - 环境选择：`production`（默认）或 `rnd`
-- `TDS_MCP_PROJECT_PATH` - 项目路径，用于本地缓存
+- `WORKSPACE_ROOT` - 工作空间根路径（默认：`process.cwd()`），用于路径解析
 - `TDS_MCP_VERBOSE` - 详细日志：`true` 或 `false`（默认）
 
 **调试模式：**

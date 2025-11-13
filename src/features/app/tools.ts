@@ -25,7 +25,7 @@ export const appTools: ToolRegistration[] = [
       }
     },
     handler: async (args, context) => {
-      return leaderboardDocTools.getCurrentAppInfo();
+      return leaderboardDocTools.getCurrentAppInfo(context);
     }
   },
 

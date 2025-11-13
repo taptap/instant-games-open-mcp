@@ -27,12 +27,16 @@ MCP Server Root=/data/tapcode/userspaces
 Proxy 运行目录=/data/tapcode/userspaces/project-123/workspace/dist
 ```
 
+**MCP Server 环境变量：**
+```bash
+WORKSPACE_ROOT=/data/tapcode/userspaces
+```
+
 **Proxy 配置：**
 ```json
 {
   "tenant": {
-    "workspace_path": "/data/tapcode/userspaces",
-    "project_relative_path": "project-123/workspace",
+    "project_path": "project-123/workspace",
     "user_id": "user-456",
     "project_id": "project-123"
   }
