@@ -26,10 +26,8 @@ export interface ProxyConfig {
 
   /** 租户配置 */
   tenant: {
-    /** 工作空间根路径（Docker 中的挂载点，默认 /workspace） */
-    workspace_path?: string;
-    /** 项目相对于 workspace 的路径（可选，默认 '.'） */
-    project_relative_path?: string;
+    /** 项目路径（由平台生成，相对于 MCP Server WORKSPACE_ROOT，默认 '.'） */
+    project_path?: string;
     /** 用户标识符（可选，仅用于日志追踪和标识） */
     user_id?: string;
     /** 项目标识符（可选，仅用于日志追踪和标识） */

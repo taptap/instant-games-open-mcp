@@ -55,8 +55,7 @@ export class TapTapMCPProxy {
   async start(): Promise<void> {
     console.error(`[Proxy] TapTap MCP Proxy v${VERSION}`);
     console.error(`[Proxy] Starting...`);
-    console.error(`[Proxy] Workspace: ${this.config.tenant.workspace_path}`);
-    console.error(`[Proxy] Project Path: ${this.config.tenant.project_relative_path}`);
+    console.error(`[Proxy] Project Path: ${this.config.tenant.project_path}`);
     if (this.config.tenant.user_id) {
       console.error(`[Proxy] User ID: ${this.config.tenant.user_id}`);
     }
@@ -336,25 +335,19 @@ export class TapTapMCPProxy {
       // 使用配置中的 MAC Token
       const macToken = this.config.auth;
 
-      // 构建 _project_path: 绝对路径
-      // project_relative_path 已在 config.ts 中设置默认值 '.'
-      const projectPath = path.join(
-        this.config.tenant.workspace_path!,
-        this.config.tenant.project_relative_path!
-      );
-
+      // 直接使用配置中的项目路径（相对路径，由平台生成）
       // 注入私有参数
       const enrichedArgs = {
         ...args,
         _mac_token: macToken,
-        _project_path: projectPath,
+        _project_path: this.config.tenant.project_path,
         _user_id: this.config.tenant.user_id,
       };
 
       if (this.config.options?.verbose) {
         console.error(`[Proxy] Tool call: ${name}`);
         console.error(`[Proxy] Injected: _mac_token (kid: ${macToken.kid.substring(0, 12)}...)`);
-        console.error(`[Proxy] Injected: _project_path = ${projectPath}`);
+        console.error(`[Proxy] Injected: _project_path = ${this.config.tenant.project_path}`);
       }
 
       // 检查连接状态

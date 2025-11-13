@@ -66,10 +66,9 @@ User Space 容器内：
     "env": "rnd"
   },
   "tenant": {
-    "workspace_path": "/workspace",
-    "project_relative_path": "user-123/my-game",
-    "user_id": "user-123",
-    "project_id": "my-game"
+    "project_path": "project-123/workspace",
+    "user_id": "user-456",
+    "project_id": "project-123"
   },
   "auth": {
     "kid": "abc123...",
@@ -114,8 +113,7 @@ const config = {
     env: process.env.NODE_ENV === 'production' ? 'production' : 'rnd',
   },
   tenant: {
-    workspace_path: '/workspace',
-    project_relative_path: `${session.userId}/${session.projectId}`,
+    project_path: `${session.userId}/${session.projectId}/workspace`,
     user_id: session.userId,
     project_id: session.projectId,
   },
@@ -162,12 +160,14 @@ const sessionResult = await connection.newSession({
 
 | 字段 | 类型 | 必需 | 说明 | 示例 |
 |------|------|------|------|------|
-| `workspace_path` | string | ⚪ | 工作空间路径（默认 /workspace） | `/workspace` |
-| `project_relative_path` | string | ⚪ | 项目相对路径（默认 '.'） | `user-123/my-game` |
-| `user_id` | string | ⚪ | 用户标识符（仅用于日志和追踪） | `user-123` |
-| `project_id` | string | ⚪ | 项目标识符（仅用于日志和追踪） | `my-game` |
+| `project_path` | string | ⚪ | 项目路径（相对于 MCP Server WORKSPACE_ROOT，默认 '.'） | `project-123/workspace` |
+| `user_id` | string | ⚪ | 用户标识符（仅用于日志和追踪） | `user-456` |
+| `project_id` | string | ⚪ | 项目标识符（仅用于日志和追踪） | `project-123` |
 
-**注意：** `user_id` 和 `project_id` 仅作为标识符，不影响路径构建逻辑。路径由 `project_relative_path` 决定。
+**说明：**
+- `project_path` 由 TapCode 平台生成，Proxy 直接传递给 MCP Server
+- `user_id` 和 `project_id` 仅用于日志标识，不参与路径逻辑
+- Proxy 不再处理路径拼接，全部交给 MCP Server 的 `pathResolver` 统一处理
 
 ### auth（必需）
 
@@ -188,43 +188,53 @@ const sessionResult = await connection.newSession({
 
 ## 租户隔离
 
-Proxy 通过 `_project_path` 实现租户隔离：
+Proxy 直接传递 `project_path` 给 MCP Server，无需在 Proxy 中做路径拼接：
 
 ```typescript
-// 路径构建规则
-const _project_path = path.join(
-  config.tenant.workspace_path,
-  config.tenant.project_relative_path
-);
+// Proxy 配置（由 TapCode 平台生成）
+config.tenant.project_path = "project-123/workspace"
 
-// 示例
-workspace_path = "/workspace"
-project_relative_path = "user-a/my-game"
-_project_path = "/workspace/user-a/my-game"
+// Proxy 直接注入
+_project_path = "project-123/workspace"  // 相对路径，不做任何拼接
+
+// MCP Server 接收后使用 pathResolver 解析
+// WORKSPACE_ROOT = "/data/tapcode/userspaces"  // MCP Server 环境变量
+// 最终路径 = WORKSPACE_ROOT + _project_path
+//         = "/data/tapcode/userspaces/project-123/workspace"
+```
+
+**示例：**
+```typescript
+// 平台生成配置
+{
+  "tenant": {
+    "project_path": "project-123/workspace",  // 由平台计算好
+    "user_id": "user-456",
+    "project_id": "project-123"
+  }
+}
+
+// 用户调用工具
+h5_game_uploader({ gamePath: "dist" })
+
+// MCP Server 解析
+WORKSPACE_ROOT = "/data/tapcode/userspaces"
+_project_path = "project-123/workspace"
+gamePath = "dist"
+最终路径 = "/data/tapcode/userspaces/project-123/workspace/dist"
 ```
 
 TapTap MCP Server 会：
-1. 提取租户标识符（路径最后两层：`user-a/my-game`）
-2. 将缓存文件保存到独立的缓存目录（`/tmp/taptap-mcp/cache/user-a/my-game/`）
-3. 将临时文件保存到独立的临时目录（`/tmp/taptap-mcp/temp/user-a/my-game/`）
-
-**目录结构：**
-```
-/workspace/user-a/my-game/    ← 用户代码（只读挂载）
-  ├── src/
-  └── package.json
-
-/tmp/taptap-mcp/cache/user-a/my-game/  ← 缓存（可写）
-  └── app.json
-
-/tmp/taptap-mcp/temp/user-a/my-game/   ← 临时文件（可写）
-  └── game-123456789.zip
-```
+1. 使用 `pathResolver` 拼接完整路径
+2. 提取租户标识符（最后两层：`project-123/workspace`）
+3. 缓存文件：`/tmp/taptap-mcp/cache/project-123/workspace/app.json`
+4. 临时文件：`/tmp/taptap-mcp/temp/project-123/workspace/game-xxx.zip`
 
 **优点：**
-- ✅ workspace 可以只读挂载
-- ✅ 缓存和临时文件完全隔离
-- ✅ 不同租户数据完全隔离
+- ✅ Proxy 配置更简单（无需 workspace_path）
+- ✅ 路径拼接逻辑统一在 MCP Server pathResolver 中
+- ✅ 租户隔离清晰（通过相对路径实现）
+- ✅ 灵活性更强（平台可生成任意路径结构）
 
 ## 错误处理
 

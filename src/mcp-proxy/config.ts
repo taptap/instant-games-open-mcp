@@ -148,8 +148,7 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
       env: config.server.env || 'rnd',
     },
     tenant: {
-      workspace_path: config.tenant.workspace_path || '/workspace',
-      project_relative_path: config.tenant.project_relative_path || '.',
+      project_path: config.tenant.project_path || '.',
       user_id: config.tenant.user_id,
       project_id: config.tenant.project_id,
     },
