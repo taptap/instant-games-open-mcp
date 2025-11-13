@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # TapTap MCP Server（独立服务）
   taptap-mcp-server:
-    image: taptap-mcp-server:1.4.1-local
+    image: taptap-mcp-server:1.4.10-local
     build:
       context: .
       dockerfile: Dockerfile.local
@@ -26,6 +26,9 @@ services:
       # 客户端配置（必需）
       - TDS_MCP_CLIENT_ID=${TDS_MCP_CLIENT_ID}
       - TDS_MCP_CLIENT_TOKEN=${TDS_MCP_CLIENT_TOKEN}
+
+      # 路径配置
+      - WORKSPACE_ROOT=/workspace
 
       # 日志
       - TDS_MCP_VERBOSE=${TDS_MCP_VERBOSE:-true}

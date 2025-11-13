@@ -5,6 +5,99 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.10] - 2025-01-15
+
+### 🚀 Major Update - 统一路径解析系统与 Proxy 配置极简化
+
+**重大架构改进：实现统一路径解析系统，极简化 Proxy 配置，移除冗余路径拼接逻辑。**
+
+### Added
+
+- 📦 **统一路径解析器** (`src/core/utils/pathResolver.ts`)
+  - `resolveWorkPath()` - 主解析函数，智能检测绝对/相对路径
+  - `getWorkspaceRoot()` - 获取工作空间根路径
+  - `isPathInWorkspace()` - 路径安全检查
+  - `getRelativeToWorkspace()` - 转换为相对路径
+  - 公式：`WORKSPACE_ROOT + _project_path + gamePath`
+
+- 🌍 **新环境变量支持**
+  - `WORKSPACE_ROOT` - 工作空间根路径（默认：`process.cwd()`）
+  - 自动适配三种场景：Proxy、容器、本地开发
+
+- 📚 **技术文档**
+  - `docs/PATH_RESOLUTION.md` - 完整路径解析说明
+  - 三种场景详细示例
+  - 开发者集成指南
+
+### Changed
+
+- 🔧 **Proxy 配置极简化**
+  - 移除 `workspace_path` 字段（不再需要）
+  - `project_relative_path` 重命名为 `project_path`
+  - Proxy 不再做路径拼接，只传递相对路径
+  - 路径拼接逻辑统一由 MCP Server 的 `pathResolver` 处理
+
+- ⚡ **H5 Game 工具参数调整**
+  - `projectPath` → `gamePath`（相对路径）
+  - 参数说明更新为相对路径
+  - 使用 `resolveWorkPath()` 统一解析
+
+- 🗑️ **移除废弃环境变量**
+  - 移除 `TDS_MCP_PROJECT_PATH` 使用
+  - 所有路径通过 `context.projectPath` 传递
+
+### Fixed
+
+- 🐛 **修复 getCurrentAppInfo 路径问题**
+  - 从 context 获取 projectPath（而非环境变量）
+  - 传递 context 给所有需要路径的函数
+
+### Documentation
+
+- 📚 批量更新所有 Proxy 相关文档 (50+ 处更新)
+  - `docs/PROXY_CLIENT_CONFIG.md`
+  - `docs/TAPCODE_QUICK_START.md`
+  - `docs/TAPCODE_INTEGRATION.md`
+  - `docs/DOCKER_DEPLOYMENT.md`
+  - `README.md`
+  - `src/mcp-proxy/README.md`
+
+**配置对比：**
+
+旧配置（v1.4.9）：
+```json
+{
+  "tenant": {
+    "workspace_path": "/workspace",
+    "project_relative_path": "user-123/my-game",
+    "user_id": "user-123",
+    "project_id": "my-game"
+  }
+}
+```
+
+新配置（v1.4.10）：
+```json
+{
+  "tenant": {
+    "project_path": "project-123/workspace",
+    "user_id": "user-456",
+    "project_id": "project-123"
+  }
+}
+```
+
+**职责分离：**
+- ✅ TapCode 平台：生成 `project_path`
+- ✅ Proxy：直接传递 `_project_path`
+- ✅ MCP Server：统一路径解析（`pathResolver`）
+
+**优势：**
+- ✅ Proxy 配置更简单（减少一个字段）
+- ✅ 路径逻辑统一在 MCP Server
+- ✅ 支持多场景自动适配
+- ✅ 用户只需传递相对路径
+
 ## [1.4.9] - 2025-01-15
 
 ### 🔄 Refactor - MCP Proxy 配置结构优化
