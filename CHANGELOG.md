@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.8] - 2025-11-12
+
+### 🚀 Major Update - MCP Proxy 重连机制全面优化
+
+**本次更新全面优化了 MCP Proxy 的重连机制，提供无感知的自动重连和请求队列功能。**
+
+### Added
+
+- 📦 **请求队列机制**
+  - 重连期间自动缓存请求到队列
+  - 重连成功后自动处理队列中的所有请求
+  - 请求超时保护（默认 30 秒，可配置）
+  - 用户无感知，请求自动重试
+
+- 🔍 **增强网络错误检测**
+  - 优先检查错误码（ECONNREFUSED, ETIMEDOUT, ENOTFOUND 等）
+  - 备选检查错误消息关键词
+  - 覆盖所有常见网络错误场景
+  - 支持 8 种网络错误码 + 7 种关键词
+
+- 📢 **标准通知机制**
+  - 使用 MCP 标准 `notifications/message` 通知
+  - 同时发送 `notifications/tools/list_changed`（兼容支持的客户端）
+  - 重连成功时通知 Agent
+  - 提供重连事件的时间戳和详情
+
+### Fixed
+
+- 🔧 **连接资源泄漏修复**
+  - 重连前自动关闭旧连接
+  - 避免 socket 和事件监听器泄漏
+  - 多次重连不会导致内存泄漏
+
+### Removed
+
+- ❌ **移除定期监控机制**
+  - 删除 10 秒定期监控（冗余）
+  - 完全依赖即时网络错误检测
+  - 减少资源消耗
+
+### Changed
+
+- 🔄 **重连流程优化**
+  - 网络错误时立即触发重连 + 加入请求队列
+  - 重连成功后自动处理队列
+  - 超时请求自动失败（避免无限等待）
+
+- ⚙️ **配置选项调整**
+  - 移除 `monitor_interval` 配置
+  - 新增 `request_timeout` 配置（默认 30000ms）
+
 ## [1.4.7] - 2025-11-12
 
 ### 🎯 Major Update - MCP Proxy 私有参数协议完整修复

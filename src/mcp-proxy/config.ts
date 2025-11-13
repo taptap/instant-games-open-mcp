@@ -161,7 +161,7 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
     options: {
       verbose: config.options?.verbose ?? false,
       reconnect_interval: config.options?.reconnect_interval ?? 5000,
-      monitor_interval: config.options?.monitor_interval ?? 10000,
+      request_timeout: config.options?.request_timeout ?? 30000,
     },
   };
 }

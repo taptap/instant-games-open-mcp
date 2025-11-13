@@ -45,7 +45,18 @@ export interface ProxyConfig {
     verbose?: boolean;
     /** 重连间隔（毫秒，默认 5000） */
     reconnect_interval?: number;
-    /** 连接监控间隔（毫秒，默认 10000） */
-    monitor_interval?: number;
+    /** 请求队列超时（毫秒，默认 30000） */
+    request_timeout?: number;
   };
+}
+
+/**
+ * 待处理的请求
+ */
+export interface PendingRequest {
+  name: string;
+  arguments: any;
+  resolve: (result: any) => void;
+  reject: (error: Error) => void;
+  timestamp: number;
 }
