@@ -21,6 +21,7 @@ import {
 } from '../app/api.js';
 import { readAppCache, saveAppCache, type AppCacheInfo } from '../../core/utils/cache.js';
 import { logger } from '../../core/utils/logger.js';
+import { resolveWorkPath } from '../../core/utils/pathResolver.js';
 
 /**
  * 临时文件根目录（独立于 workspace）
@@ -235,7 +236,7 @@ async function confirmInfo(
  */
 export async function handleGatherGameInfo(
   args: {
-    projectPath?: string;
+    gamePath?: string;  // 相对路径，相对于 WORKSPACE_ROOT（或 WORKSPACE_ROOT/_project_path）
     developerName?: string;
     developerId?: number;
     appId?: number;
@@ -243,26 +244,17 @@ export async function handleGatherGameInfo(
   },
   context?: import('../../core/types/index.js').HandlerContext
 ): Promise<string> {
-  const projectPath = args.projectPath || process.env.TDS_MCP_PROJECT_PATH || process.cwd();
-
-  // 检查路径中是否包含百分号编码
-  let decodedPath = projectPath;
-  if (projectPath.includes('%')) {
-    try {
-      decodedPath = decodeURIComponent(projectPath);
-    } catch (error) {
-      // 解码失败时继续使用原始路径
-    }
-  }
+  // 使用统一路径解析器
+  const gamePath = resolveWorkPath(args.gamePath, context);
 
   // 确保目录存在且包含 index.html 文件
-  if (!fs.existsSync(decodedPath) || !fs.existsSync(path.join(decodedPath, 'index.html'))) {
-    throw new Error(MESSAGES.GAME_PATH_ERROR(decodedPath));
+  if (!fs.existsSync(gamePath) || !fs.existsSync(path.join(gamePath, 'index.html'))) {
+    throw new Error(MESSAGES.GAME_PATH_ERROR(gamePath));
   }
 
   // 基础信息确认
   const confirmResult = await confirmInfo(
-    decodedPath,
+    gamePath,
     args.developerId,
     args.appId,
     args.genre,
@@ -288,10 +280,10 @@ export async function handleGatherGameInfo(
     }
   }
 
-  saveAppCache(cacheInfo, decodedPath);
+  saveAppCache(cacheInfo, gamePath);
 
   let msg = MESSAGES.CONFIRM_GAME_INFO(
-    decodedPath,
+    gamePath,
     cacheInfo.developer_name || args.developerName,
     cacheInfo.developer_id,
     cacheInfo.app_id,
@@ -306,7 +298,7 @@ export async function handleGatherGameInfo(
  */
 export async function handleUploadGame(
   args: {
-    projectPath?: string;
+    gamePath?: string;  // 相对路径，相对于 WORKSPACE_ROOT（或 WORKSPACE_ROOT/_project_path）
     developerName?: string;
     developerId?: number;
     appId?: number;
@@ -315,20 +307,11 @@ export async function handleUploadGame(
   },
   context?: import('../../core/types/index.js').HandlerContext
 ): Promise<string> {
-  const projectPath = args.projectPath || process.env.TDS_MCP_PROJECT_PATH || process.cwd();
-
-  // 检查路径中是否包含百分号编码
-  let decodedPath = projectPath;
-  if (projectPath.includes('%')) {
-    try {
-      decodedPath = decodeURIComponent(projectPath);
-    } catch (error) {
-      // 解码失败时继续使用原始路径
-    }
-  }
+  // 使用统一路径解析器
+  const gamePath = resolveWorkPath(args.gamePath, context);
 
   // 从缓存读取或使用传入的参数
-  let cacheInfo = readAppCache(decodedPath) || {};
+  let cacheInfo = readAppCache(gamePath) || {};
 
   if (args.developerId) {
     cacheInfo.developer_id = args.developerId;
@@ -344,19 +327,19 @@ export async function handleUploadGame(
   }
 
   // 保存缓存
-  saveAppCache(cacheInfo, decodedPath);
+  saveAppCache(cacheInfo, gamePath);
 
   // 确保源目录存在
-  if (!fs.existsSync(decodedPath)) {
-    throw new Error(MESSAGES.DIRECTORY_NOT_EXISTS(decodedPath));
+  if (!fs.existsSync(gamePath)) {
+    throw new Error(MESSAGES.DIRECTORY_NOT_EXISTS(gamePath));
   }
 
   // 生成临时 ZIP 文件路径（独立于 workspace）
-  const outputPath = getTempZipPath(decodedPath);
+  const outputPath = getTempZipPath(gamePath);
 
   try {
     // 1. 压缩目录
-    const archiveSize = await compressDirectory(decodedPath, outputPath);
+    const archiveSize = await compressDirectory(gamePath, outputPath);
     await logger.info(MESSAGES.COMPRESSION_SUCCESS(archiveSize));
 
     // 2. 获取上传参数

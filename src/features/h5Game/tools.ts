@@ -7,7 +7,6 @@
  */
 
 import type { ToolRegistration } from '../../core/types/index.js';
-import { getEffectiveContext } from '../../core/utils/handlerHelpers.js';
 import { TOOL_DESCRIPTION } from './messages.js';
 import {
   handleGatherGameInfo,
@@ -42,9 +41,9 @@ export const h5GameTools: ToolRegistration[] = [
       inputSchema: {
         type: 'object',
         properties: {
-          projectPath: {
+          gamePath: {
             type: 'string',
-            description: 'The absolute path to the H5 game project directory (must contain index.html)',
+            description: 'Relative path to the H5 game directory (e.g., "dist", "build", "."). Must contain index.html. Defaults to current directory if not provided.',
           },
           genre: {
             type: 'string',
@@ -66,12 +65,7 @@ export const h5GameTools: ToolRegistration[] = [
       },
     },
     handler: async (args, context) => {
-      const effectiveContext = getEffectiveContext(args, context);
-      return await handleGatherGameInfo({
-        ...args,
-        // Context projectPath (from Proxy) takes priority over args
-        projectPath: effectiveContext.projectPath || args.projectPath
-      }, effectiveContext);
+      return await handleGatherGameInfo(args, context);
     },
   },
 
@@ -86,9 +80,9 @@ export const h5GameTools: ToolRegistration[] = [
       inputSchema: {
         type: 'object',
         properties: {
-          projectPath: {
+          gamePath: {
             type: 'string',
-            description: 'The absolute path to the H5 game project directory (must contain index.html)',
+            description: 'Relative path to the H5 game directory (e.g., "dist", "build", "."). Must contain index.html. Defaults to current directory if not provided.',
           },
           genre: {
             type: 'string',
@@ -114,12 +108,7 @@ export const h5GameTools: ToolRegistration[] = [
       },
     },
     handler: async (args, context) => {
-      const effectiveContext = getEffectiveContext(args, context);
-      return await handleUploadGame({
-        ...args,
-        // Context projectPath (from Proxy) takes priority over args
-        projectPath: effectiveContext.projectPath || args.projectPath
-      }, effectiveContext);
+      return await handleUploadGame(args, context);
     },
   },
 
@@ -147,8 +136,7 @@ export const h5GameTools: ToolRegistration[] = [
       },
     },
     handler: async (args, context) => {
-      const effectiveContext = getEffectiveContext(args, context);
-      return await handleCreateApp(args, effectiveContext);
+      return await handleCreateApp(args, context);
     },
   },
 
@@ -199,8 +187,7 @@ export const h5GameTools: ToolRegistration[] = [
       },
     },
     handler: async (args, context) => {
-      const effectiveContext = getEffectiveContext(args, context);
-      return await handleEditApp(args, effectiveContext);
+      return await handleEditApp(args, context);
     },
   },
 ];
