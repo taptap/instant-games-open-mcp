@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3000 TDS_MCP_VERBOSE=true tsx src/server.ts",
+    "dev": "tsx src/server.ts",
     "serve:sse": "TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3000 node dist/server.js",
     "serve:sse:dev": "TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3000 TDS_MCP_VERBOSE=true node dist/server.js",
     "serve:http": "TDS_MCP_TRANSPORT=http TDS_MCP_PORT=3000 node dist/server.js",
