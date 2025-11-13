@@ -276,71 +276,6 @@ leaderboardManager.loadLeaderboardScores({
 }
 
 /**
- * Get current app information from cache
- */
-async function getCurrentAppInfo(context?: import('../../core/types/index.js').HandlerContext): Promise<string> {
-  try {
-    const { readAppCache, getCachePath } = await import('../../core/utils/cache.js');
-    const cache = readAppCache(context?.projectPath);
-
-    if (!cache || !cache.developer_id || !cache.app_id) {
-      return `# Current App Information
-
-⚠️ **No app selected yet**
-
-You need to select an app first. Use these tools:
-1. \`list_developers_and_apps\` - List all available developers and apps
-2. \`select_app\` - Select a specific app to use
-
-Once selected, the app information will be cached and displayed here.
-`;
-    }
-
-    const cachePath = getCachePath(context?.projectPath);
-
-    let info = `# Current App Information
-
-## 📱 Selected App
-
-- **Developer ID**: \`${cache.developer_id}\`
-- **App ID**: \`${cache.app_id}\`
-- **Miniapp ID**: \`${cache.miniapp_id || 'Not available'}\`
-- **App Name**: ${cache.app_title || cache.developer_name || '_Not available_'}
-
-## 📂 Cache Location
-
-\`${cachePath}\`
-
-## 🏆 Leaderboard Configuration
-
-`;
-
-    // Note: Leaderboard ID is typically provided by create_leaderboard, not cached in app.json
-    info += `- **Leaderboard IDs**: See \`list_leaderboards\` tool
-  - Use \`list_leaderboards\` to view all leaderboards for this app
-  - Use \`create_leaderboard\` to create a new one
-
-## 💡 Next Steps
-
-- View leaderboards: Use \`list_leaderboards\` tool
-- Create leaderboard: Use \`create_leaderboard\` tool
-- Change app: Use \`select_app\` tool with different developer_id/app_id
-`;
-
-    return info;
-  } catch (error) {
-    return `# Current App Information
-
-❌ **Error loading app information**
-
-${error instanceof Error ? error.message : String(error)}
-
-Please use \`check_environment\` tool to verify your configuration.
-`;
-  }
-}
-
-/**
  * Get complete integration workflow guide
  */
 async function getIntegrationWorkflow(): Promise<string> {
@@ -439,6 +374,5 @@ export const leaderboardTools = {
   getLeaderboardOverview,
   getLeaderboardPatterns,
   getQuickStartGuide,
-  getCurrentAppInfo,
   getIntegrationWorkflow
 };

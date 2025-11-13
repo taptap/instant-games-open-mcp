@@ -151,7 +151,15 @@ class TapTapMinigameMCPServer {
       await logger.logToolCall(name, enrichedArgs);
 
       try {
-        // Special handling for complete_oauth_authorization (needs deviceAuth access)
+        // Special handling for OAuth tools (need deviceAuth access)
+        if (name === 'start_oauth_authorization') {
+          const result = await this.handleOAuthStart();
+          await logger.logToolResponse(name, result, true);
+          return {
+            content: [{ type: 'text', text: result }]
+          };
+        }
+
         if (name === 'complete_oauth_authorization') {
           const result = await this.handleOAuthCompletion();
           await logger.logToolResponse(name, result, true);
@@ -274,11 +282,45 @@ class TapTapMinigameMCPServer {
   }
 
   /**
+   * Handle OAuth start (special case - needs deviceAuth access)
+   */
+  private async handleOAuthStart(): Promise<string> {
+    const apiConfig = ApiConfig.getInstance();
+
+    // Check if already authenticated
+    if (apiConfig.macToken.kid && apiConfig.macToken.mac_key) {
+      return '✅ 已经完成授权\n\n' +
+             '当前已有有效的 MAC Token，可以直接使用所有功能。\n\n' +
+             '💡 如需切换账号，请先使用 clear_auth_data 工具清除现有授权。';
+    }
+
+    if (!deviceAuth) {
+      deviceAuth = new DeviceFlowAuth(apiConfig.environment);
+    }
+
+    try {
+      // Get authorization URL
+      const authUrl = await deviceAuth.getAuthorizationUrl();
+
+      return '🔐 TapTap 授权登录\n\n' +
+             '请按以下步骤完成授权：\n\n' +
+             `1️⃣ 打开授权链接：\n   ${authUrl}\n\n` +
+             '2️⃣ 使用 TapTap App 扫描二维码\n\n' +
+             '3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n' +
+             '💡 提示：授权链接有效期为 2 分钟，过期后需要重新获取';
+    } catch (error) {
+      return `❌ 获取授权链接失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
+             '请稍后重试或联系技术支持。';
+    }
+  }
+
+  /**
    * Handle OAuth completion (special case - needs deviceAuth access)
    */
   private async handleOAuthCompletion(): Promise<string> {
     if (!deviceAuth) {
-      return '❌ No pending authorization found.\n\nPlease call a tool that requires authentication (like list_developers_and_apps) first to start the authorization flow.';
+      return '❌ 未找到待完成的授权\n\n' +
+             '请先使用 start_oauth_authorization 工具获取授权链接。';
     }
 
     try {
@@ -295,7 +337,7 @@ class TapTapMinigameMCPServer {
              '1. 已在浏览器中打开授权链接\n' +
              '2. 已使用 TapTap App 扫码授权\n' +
              '3. 授权页面显示成功\n\n' +
-             '如果仍然失败，请重新调用需要认证的工具获取新的授权链接。';
+             '如果仍然失败，请使用 start_oauth_authorization 工具获取新的授权链接。';
     }
   }
 

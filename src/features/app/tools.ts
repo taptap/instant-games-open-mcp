@@ -6,7 +6,6 @@
 import type { ToolRegistration, HandlerContext } from '../../core/types/index.js';
 import * as appHandlers from './handlers.js';
 import * as appApi from './api.js';
-import { leaderboardTools as leaderboardDocTools } from '../leaderboard/docTools.js';
 import * as environmentHandlers from '../../core/handlers/environmentHandlers.js';
 
 /**
@@ -25,7 +24,7 @@ export const appTools: ToolRegistration[] = [
       }
     },
     handler: async (args, context) => {
-      return leaderboardDocTools.getCurrentAppInfo(context);
+      return appHandlers.getCurrentAppInfo(context);
     }
   },
 
@@ -44,11 +43,27 @@ export const appTools: ToolRegistration[] = [
     }
   },
 
+  // 🔐 Start OAuth Authorization
+  {
+    definition: {
+      name: 'start_oauth_authorization',
+      description: '[Auth] Start OAuth 2.0 Device Code Flow to get authorization URL. Use this when: 1) User explicitly wants to authorize, 2) User needs to login or switch account, 3) Token expired or invalid. Returns a QR code URL for user to scan with TapTap App.',
+      inputSchema: {
+        type: 'object',
+        properties: {}
+      }
+    },
+    handler: async (args, context) => {
+      // This handler is replaced in server.ts (needs access to deviceAuth)
+      throw new Error('This handler is implemented in server.ts');
+    }
+  },
+
   // 🔐 Complete OAuth Authorization
   {
     definition: {
       name: 'complete_oauth_authorization',
-      description: 'Complete OAuth authorization after user has scanned QR code. Call this after user confirms they have completed authorization in browser. This tool will poll for the authorization result and save the token.',
+      description: '[Auth] Complete OAuth authorization after user has scanned QR code. Call this after user confirms they have completed authorization in browser. This tool will poll for the authorization result and save the token.',
       inputSchema: {
         type: 'object',
         properties: {}

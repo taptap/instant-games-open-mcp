@@ -147,18 +147,14 @@ export class DeviceFlowAuth {
 
     // Throw error with URL (for MCP clients like Claude Code)
     throw new Error(
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `🔐 TapTap 授权登录\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `请在浏览器中打开以下链接完成授权：\n\n` +
-      `🔗 ${authUrl}\n\n` +
-      `授权步骤：\n` +
-      `1. 点击或复制上面的链接\n` +
-      `2. 在浏览器中打开\n` +
-      `3. 使用 TapTap App 扫描二维码\n` +
-      `4. 授权成功后，重新执行此操作\n\n` +
-      `💾 Token 将自动保存到: ${this.tokenPath}\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+      `🔐 需要 TapTap 授权\n\n` +
+      `请按以下步骤操作：\n\n` +
+      `1️⃣ 打开授权链接：\n` +
+      `   ${authUrl}\n\n` +
+      `2️⃣ 使用 TapTap App 扫描二维码\n\n` +
+      `3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n` +
+      `💡 提示：如果授权链接过期，请重新调用任意需要授权的工具获取新链接\n` +
+      `💾 Token 将自动保存到: ${this.tokenPath}`
     );
   }
 
@@ -171,27 +167,6 @@ export class DeviceFlowAuth {
     return authUrl;
   }
 
-  /**
-   * Start Device Code Flow (blocking version for terminal use)
-   */
-  private async startDeviceFlow(): Promise<MacToken> {
-    // Step 1: Get device code
-    const deviceCodeData = await this.requestDeviceCode();
-
-    // Step 2: Show QR code to user
-    this.displayAuthorizationInfo(deviceCodeData);
-
-    // Step 3: Poll for token
-    this.macToken = await this.pollForToken();
-
-    // Step 4: Save to local file
-    this.saveToken(this.macToken);
-
-    process.stderr.write('\n✅ 授权成功！Token 已保存\n');
-    process.stderr.write(`📁 Token 位置: ${this.tokenPath}\n\n`);
-
-    return this.macToken;
-  }
 
   /**
    * Request device code from OAuth server
@@ -227,23 +202,6 @@ export class DeviceFlowAuth {
     throw new Error(`Failed to get device code: ${json.data?.msg || 'Unknown error'}`);
   }
 
-  /**
-   * Display authorization information to user
-   */
-  private displayAuthorizationInfo(data: DeviceCodeResponse): void {
-    const qrcodeUrl = this.config.qrcodeBaseUrl + encodeURIComponent(data.qrcode_url);
-
-    process.stderr.write('━'.repeat(80) + '\n');
-    process.stderr.write('🔐 TapTap 授权登录\n');
-    process.stderr.write('━'.repeat(80) + '\n\n');
-    process.stderr.write('请使用以下方式之一完成授权：\n\n');
-    process.stderr.write('方式 1: 使用 TapTap App 扫描二维码\n');
-    process.stderr.write(`   访问: ${qrcodeUrl}\n\n`);
-    process.stderr.write('方式 2: 在浏览器中打开上述链接\n\n');
-    process.stderr.write('━'.repeat(80) + '\n');
-    process.stderr.write('⏳ 等待授权中...\n');
-    process.stderr.write('━'.repeat(80) + '\n\n');
-  }
 
   /**
    * Poll for access token with progress callback
