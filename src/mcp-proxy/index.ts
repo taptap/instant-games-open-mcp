@@ -26,11 +26,13 @@ async function main() {
     console.error(`[Proxy] Configuration loaded successfully`);
     console.error(`[Proxy] Server: ${config.server.url}`);
     console.error(`[Proxy] Environment: ${config.server.env}`);
-    console.error(`[Proxy] Project: ${config.tenant.project_id}`);
-    console.error(`[Proxy] User: ${config.tenant.user_id}`);
     console.error(`[Proxy] Workspace: ${config.tenant.workspace_path}`);
-    if (config.tenant.project_relative_path) {
-      console.error(`[Proxy] Project Relative Path: ${config.tenant.project_relative_path}`);
+    console.error(`[Proxy] Project Path: ${config.tenant.project_relative_path}`);
+    if (config.tenant.user_id) {
+      console.error(`[Proxy] User ID: ${config.tenant.user_id}`);
+    }
+    if (config.tenant.project_id) {
+      console.error(`[Proxy] Project ID: ${config.tenant.project_id}`);
     }
     console.error(`[Proxy] Verbose: ${config.options?.verbose}`);
 

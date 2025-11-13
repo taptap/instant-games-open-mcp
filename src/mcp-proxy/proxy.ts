@@ -55,8 +55,14 @@ export class TapTapMCPProxy {
   async start(): Promise<void> {
     console.error(`[Proxy] TapTap MCP Proxy v${VERSION}`);
     console.error(`[Proxy] Starting...`);
-    console.error(`[Proxy] Project: ${this.config.tenant.project_id}`);
-    console.error(`[Proxy] User: ${this.config.tenant.user_id}`);
+    console.error(`[Proxy] Workspace: ${this.config.tenant.workspace_path}`);
+    console.error(`[Proxy] Project Path: ${this.config.tenant.project_relative_path}`);
+    if (this.config.tenant.user_id) {
+      console.error(`[Proxy] User ID: ${this.config.tenant.user_id}`);
+    }
+    if (this.config.tenant.project_id) {
+      console.error(`[Proxy] Project ID: ${this.config.tenant.project_id}`);
+    }
     console.error(`[Proxy] Token kid: ${this.config.auth.kid.substring(0, 12)}...`);
 
     // 1. 初始化时直接连接 TapTap Server
@@ -331,15 +337,11 @@ export class TapTapMCPProxy {
       const macToken = this.config.auth;
 
       // 构建 _project_path: 绝对路径
-      // 如果配置了 project_relative_path，则使用相对路径拼接
-      // 否则回退到旧逻辑（userId/projectId）以保持兼容性
-      const projectPath = this.config.tenant.project_relative_path
-        ? path.join(this.config.tenant.workspace_path!, this.config.tenant.project_relative_path)
-        : path.join(
-            this.config.tenant.workspace_path!,
-            this.config.tenant.user_id,
-            this.config.tenant.project_id
-          );
+      // project_relative_path 已在 config.ts 中设置默认值 '.'
+      const projectPath = path.join(
+        this.config.tenant.workspace_path!,
+        this.config.tenant.project_relative_path!
+      );
 
       // 注入私有参数
       const enrichedArgs = {

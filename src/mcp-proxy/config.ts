@@ -111,12 +111,8 @@ function validateConfig(config: ProxyConfig): void {
   if (!config.tenant) {
     errors.push('- Missing required field: tenant');
   } else {
-    if (!config.tenant.user_id) {
-      errors.push('- Missing required field: tenant.user_id');
-    }
-    if (!config.tenant.project_id) {
-      errors.push('- Missing required field: tenant.project_id');
-    }
+    // tenant 字段本身必须存在，但内部所有字段都是可选的
+    // user_id 和 project_id 仅用于标识和日志追踪，不影响路径逻辑
   }
 
   // 验证 auth
@@ -152,10 +148,10 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
       env: config.server.env || 'rnd',
     },
     tenant: {
+      workspace_path: config.tenant.workspace_path || '/workspace',
+      project_relative_path: config.tenant.project_relative_path || '.',
       user_id: config.tenant.user_id,
       project_id: config.tenant.project_id,
-      workspace_path: config.tenant.workspace_path || '/workspace',
-      project_relative_path: config.tenant.project_relative_path,  // 保留可选字段
     },
     auth: config.auth,
     options: {

@@ -66,9 +66,10 @@ User Space 容器内：
     "env": "rnd"
   },
   "tenant": {
+    "workspace_path": "/workspace",
+    "project_relative_path": "user-123/my-game",
     "user_id": "user-123",
-    "project_id": "project-456",
-    "workspace_path": "/workspace"
+    "project_id": "my-game"
   },
   "auth": {
     "kid": "abc123...",
@@ -113,9 +114,10 @@ const config = {
     env: process.env.NODE_ENV === 'production' ? 'production' : 'rnd',
   },
   tenant: {
+    workspace_path: '/workspace',
+    project_relative_path: `${session.userId}/${session.projectId}`,
     user_id: session.userId,
     project_id: session.projectId,
-    workspace_path: '/workspace',
   },
   auth: macToken,  // 从数据库获取
   options: {
@@ -160,9 +162,12 @@ const sessionResult = await connection.newSession({
 
 | 字段 | 类型 | 必需 | 说明 | 示例 |
 |------|------|------|------|------|
-| `user_id` | string | ✅ | 用户 ID | `user-123` |
-| `project_id` | string | ✅ | 项目 ID | `project-456` |
 | `workspace_path` | string | ⚪ | 工作空间路径（默认 /workspace） | `/workspace` |
+| `project_relative_path` | string | ⚪ | 项目相对路径（默认 '.'） | `user-123/my-game` |
+| `user_id` | string | ⚪ | 用户标识符（仅用于日志和追踪） | `user-123` |
+| `project_id` | string | ⚪ | 项目标识符（仅用于日志和追踪） | `my-game` |
+
+**注意：** `user_id` 和 `project_id` 仅作为标识符，不影响路径构建逻辑。路径由 `project_relative_path` 决定。
 
 ### auth（必需）
 
@@ -186,31 +191,33 @@ const sessionResult = await connection.newSession({
 Proxy 通过 `_project_path` 实现租户隔离：
 
 ```typescript
-// 计算规则（绝对路径）
-const _project_path = path.join(workspacePath, userId, projectId);
+// 路径构建规则
+const _project_path = path.join(
+  config.tenant.workspace_path,
+  config.tenant.project_relative_path
+);
 
 // 示例
-workspacePath = "/workspace"
-userId = "user-a"
-projectId = "project-1"
-_project_path = "/workspace/user-a/project-1"
+workspace_path = "/workspace"
+project_relative_path = "user-a/my-game"
+_project_path = "/workspace/user-a/my-game"
 ```
 
 TapTap MCP Server 会：
-1. 提取租户标识符（`user-a/project-1`）
-2. 将缓存文件保存到独立的缓存目录（`/tmp/taptap-mcp/cache/user-a/project-1/`）
-3. 将临时文件保存到独立的临时目录（`/tmp/taptap-mcp/temp/user-a/project-1/`）
+1. 提取租户标识符（路径最后两层：`user-a/my-game`）
+2. 将缓存文件保存到独立的缓存目录（`/tmp/taptap-mcp/cache/user-a/my-game/`）
+3. 将临时文件保存到独立的临时目录（`/tmp/taptap-mcp/temp/user-a/my-game/`）
 
 **目录结构：**
 ```
-/workspace/user-a/project-1/    ← 用户代码（只读挂载）
+/workspace/user-a/my-game/    ← 用户代码（只读挂载）
   ├── src/
   └── package.json
 
-/tmp/taptap-mcp/cache/user-a/project-1/  ← 缓存（可写）
+/tmp/taptap-mcp/cache/user-a/my-game/  ← 缓存（可写）
   └── app.json
 
-/tmp/taptap-mcp/temp/user-a/project-1/   ← 临时文件（可写）
+/tmp/taptap-mcp/temp/user-a/my-game/   ← 临时文件（可写）
   └── game-123456789.zip
 ```
 

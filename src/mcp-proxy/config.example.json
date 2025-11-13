@@ -7,9 +7,10 @@
     "env": "rnd"
   },
   "tenant": {
+    "workspace_path": "/workspace",
+    "project_relative_path": "user-123/my-game",
     "user_id": "user-123",
-    "project_id": "project-456",
-    "workspace_path": "/workspace"
+    "project_id": "my-game"
   },
   "auth": {
     "kid": "your_kid_here",
