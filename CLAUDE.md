@@ -209,9 +209,9 @@ npm run serve:sse:dev      # 开发模式（详细日志）
 # HTTP JSON 模式（兼容普通 HTTP 客户端）
 npm run serve:http         # 端口 3000
 
-# 使用部署脚本（支持自定义端口）
-./scripts/serve-sse.sh 8080       # SSE 模式，端口 8080
-./scripts/serve-http.sh 3000 true # HTTP 模式，启用日志
+# 自定义端口和环境
+TDS_MCP_PORT=8080 npm run serve:sse       # SSE 模式，端口 8080
+TDS_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 ```
 
 ### 启动服务器（传统方式）

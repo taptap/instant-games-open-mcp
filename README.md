@@ -99,25 +99,31 @@ npm install -g @mikoto_zero/minigame-open-mcp
 npx @mikoto_zero/minigame-open-mcp
 ```
 
-### Docker 部署（推荐用于 TapCode 平台）
+### Docker 部署
 
-**快速启动**：
+**快速启动（docker-compose）**：
 ```bash
 # 1. 配置环境变量
 cp .env.docker .env
 # 编辑 .env，填入 CLIENT_ID 和 CLIENT_TOKEN
 
 # 2. 启动服务
-./scripts/docker-start.sh
-
-# 或使用 docker-compose
 docker-compose up -d
 
 # 3. 验证服务
 curl http://localhost:5003/health
 ```
 
-**TapCode 平台集成**：详见 [Docker 部署文档](docs/DOCKER_DEPLOYMENT.md) 和 [TapCode 集成指南](docs/TAPCODE_INTEGRATION.md)
+**自动化部署脚本**：
+```bash
+# 使用部署脚本（支持参数化配置）
+./scripts/deploy-docker.sh [version] [env] [port]
+
+# 示例
+./scripts/deploy-docker.sh latest production 3000
+```
+
+详见 [Docker 部署文档](docs/DOCKER_DEPLOYMENT.md)
 
 ### 配置
 
@@ -226,7 +232,23 @@ npx @mikoto_zero/minigame-open-mcp
 | **sse** | `TDS_MCP_TRANSPORT=sse` | **一步式自动** | ✅ 实时 | **OpenHands**、Claude Code、远程/多客户端 |
 | **http** | `TDS_MCP_TRANSPORT=http` | 两步式 | ❌ | 普通 HTTP 客户端 |
 
-**启动示例**：
+### 部署和运行
+
+#### npm scripts 方式（推荐）
+
+```bash
+# stdio 模式（默认，本地开发）
+npm start                  # 或 npm run dev
+
+# SSE 模式（远程部署，推荐用于 OpenHands）
+npm run serve:sse          # 基础模式（端口 3000）
+npm run serve:sse:dev      # 开发模式（详细日志）
+
+# HTTP JSON 模式（兼容普通 HTTP 客户端）
+npm run serve:http         # 端口 3000
+```
+
+#### 直接启动方式
 
 ```bash
 # SSE 模式（推荐用于 OpenHands）
@@ -239,6 +261,78 @@ npx @mikoto_zero/minigame-open-mcp
 
 # stdio 模式（默认）
 npx @mikoto_zero/minigame-open-mcp
+```
+
+#### 自定义端口和环境
+
+```bash
+# 通过环境变量覆盖端口
+TDS_MCP_PORT=8080 npm run serve:sse
+
+# 启用详细日志
+TDS_MCP_VERBOSE=true npm start
+
+# 切换环境
+TDS_MCP_ENV=rnd npm run serve:sse
+```
+
+#### 生产部署
+
+**使用 PM2 进程管理器**：
+
+```bash
+# 安装 PM2
+npm install -g pm2
+
+# 启动服务
+pm2 start npm --name "taptap-mcp" -- run serve:sse
+
+# 查看日志
+pm2 logs taptap-mcp
+
+# 重启/停止
+pm2 restart taptap-mcp
+pm2 stop taptap-mcp
+
+# 开机自启
+pm2 startup
+pm2 save
+```
+
+**使用 Docker 部署脚本**：
+
+```bash
+# 1. 配置环境变量
+export TDS_MCP_CLIENT_ID=your_client_id
+export TDS_MCP_CLIENT_TOKEN=your_client_token
+
+# 2. 执行部署脚本
+./scripts/deploy-docker.sh [version] [env] [port]
+
+# 示例
+./scripts/deploy-docker.sh latest production 3000
+
+# 3. 验证服务
+curl http://localhost:3000/health
+```
+
+详见 [Docker 部署文档](docs/DOCKER_DEPLOYMENT.md)
+
+#### 健康检查
+
+```bash
+# 检查服务器状态
+curl http://localhost:3000/health
+
+# 预期响应
+{
+  "status": "ok",
+  "version": "1.4.8",
+  "transport": "streamable-http",
+  "tools": 17,
+  "resources": 7,
+  "activeSessions": 0
+}
 ```
 
 ### 环境变量
