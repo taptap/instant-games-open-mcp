@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [1.4.13] - 2025-01-15
+
+### 📚 Documentation
+
+- **添加 WORKSPACE_ROOT 环境变量说明**
+  - 在 `.env.example` 中添加 `WORKSPACE_ROOT` 配置说明
+  - 说明其用于 H5 游戏路径解析
+  - 默认值为 `process.cwd()`
+
+- **统一 `.env.docker` 与 `.env.example` 配置格式**
+  - 保持完整配置项与 `.env.example` 一致
+  - 为 Docker 场景设置合理的默认值
+  - 添加清晰的说明，标注哪些配置由 `docker-compose.yml` 管理
+  - 添加完整的 Docker 部署步骤和注意事项
+
+### ✨ Improved
+
+- **启动日志显示目录配置**
+  - 显示 `WORKSPACE_ROOT`（H5 游戏路径解析）
+  - 显示 `TDS_MCP_CACHE_DIR`（应用缓存目录）
+  - 显示 `TDS_MCP_TEMP_DIR`（临时文件目录）
+  - 标注是否使用环境变量或默认值
+    - `(env)` = 从环境变量读取
+    - `(default)` = 使用默认值
+    - `(default: cwd)` = 默认为当前工作目录
+
+
 ## [1.4.12] - 2025-01-15
 
 ### ✨ Added
