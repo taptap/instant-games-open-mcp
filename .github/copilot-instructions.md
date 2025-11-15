@@ -2,6 +2,13 @@
 
 This file provides instructions for GitHub Copilot when reviewing code in this repository.
 
+## Language Preference
+
+**IMPORTANT**: Always respond in Chinese (简体中文) when providing code review feedback.
+- Use Chinese for all comments, explanations, and suggestions
+- Technical terms can remain in English when appropriate
+- Code examples and snippets should include Chinese comments
+
 ## Project Overview
 
 This is a Model Context Protocol (MCP) server for TapTap Open API, providing:
@@ -121,11 +128,22 @@ This is a Model Context Protocol (MCP) server for TapTap Open API, providing:
 
 ## Review Tone
 
-- Be constructive and educational
-- Explain WHY a change is needed, not just WHAT to change
-- Suggest alternatives when pointing out issues
-- Recognize good patterns when you see them
-- Focus on meaningful improvements, not nitpicks
+**Language**: Always respond in Chinese (简体中文)
+
+**Style**:
+- Be constructive and educational (建设性和教育性)
+- Explain WHY a change is needed, not just WHAT to change (解释为什么需要改变，而不仅仅是改什么)
+- Suggest alternatives when pointing out issues (指出问题时提供替代方案)
+- Recognize good patterns when you see them (认可好的代码模式)
+- Focus on meaningful improvements, not nitpicks (关注有意义的改进，而非吹毛求疵)
+
+**Example Response Format**:
+```
+❌ 问题：这里缺少错误处理
+💡 建议：添加 try-catch 块来处理可能的 API 失败
+📝 原因：如果 API 调用失败，当前代码会导致未捕获的异常
+✅ 示例：[提供代码示例]
+```
 
 ## Priority Levels
 
