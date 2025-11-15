@@ -7,7 +7,7 @@
  * 3. 环境变量：PROXY_CONFIG='{"server":{...}}' node index.js
  */
 
-import type { ProxyConfig, MacToken } from './types.js';
+import type { ProxyConfig } from './types.js';
 
 /**
  * 从标准输入读取数据

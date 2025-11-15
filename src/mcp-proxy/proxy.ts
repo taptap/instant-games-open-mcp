@@ -10,7 +10,7 @@ import {
   ErrorCode,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-import * as path from 'node:path';
+// import * as path from 'node:path';  // 暂时未使用
 import type { ProxyConfig, PendingRequest } from './types.js';
 import { VERSION } from '../version.js';
 
