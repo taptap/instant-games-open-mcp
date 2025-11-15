@@ -151,7 +151,15 @@ class TapTapMinigameMCPServer {
       await logger.logToolCall(name, enrichedArgs);
 
       try {
-        // Special handling for complete_oauth_authorization (needs deviceAuth access)
+        // Special handling for OAuth tools (need deviceAuth access)
+        if (name === 'start_oauth_authorization') {
+          const result = await this.handleOAuthStart();
+          await logger.logToolResponse(name, result, true);
+          return {
+            content: [{ type: 'text', text: result }]
+          };
+        }
+
         if (name === 'complete_oauth_authorization') {
           const result = await this.handleOAuthCompletion();
           await logger.logToolResponse(name, result, true);
@@ -274,11 +282,45 @@ class TapTapMinigameMCPServer {
   }
 
   /**
+   * Handle OAuth start (special case - needs deviceAuth access)
+   */
+  private async handleOAuthStart(): Promise<string> {
+    const apiConfig = ApiConfig.getInstance();
+
+    // Check if already authenticated
+    if (apiConfig.macToken.kid && apiConfig.macToken.mac_key) {
+      return '✅ 已经完成授权\n\n' +
+             '当前已有有效的 MAC Token，可以直接使用所有功能。\n\n' +
+             '💡 如需切换账号，请先使用 clear_auth_data 工具清除现有授权。';
+    }
+
+    if (!deviceAuth) {
+      deviceAuth = new DeviceFlowAuth(apiConfig.environment);
+    }
+
+    try {
+      // Get authorization URL
+      const authUrl = await deviceAuth.getAuthorizationUrl();
+
+      return '🔐 TapTap 授权登录\n\n' +
+             '请按以下步骤完成授权：\n\n' +
+             `1️⃣ 打开授权链接：\n   ${authUrl}\n\n` +
+             '2️⃣ 使用 TapTap App 扫描二维码\n\n' +
+             '3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n' +
+             '💡 提示：授权链接有效期为 2 分钟，过期后需要重新获取';
+    } catch (error) {
+      return `❌ 获取授权链接失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
+             '请稍后重试或联系技术支持。';
+    }
+  }
+
+  /**
    * Handle OAuth completion (special case - needs deviceAuth access)
    */
   private async handleOAuthCompletion(): Promise<string> {
     if (!deviceAuth) {
-      return '❌ No pending authorization found.\n\nPlease call a tool that requires authentication (like list_developers_and_apps) first to start the authorization flow.';
+      return '❌ 未找到待完成的授权\n\n' +
+             '请先使用 start_oauth_authorization 工具获取授权链接。';
     }
 
     try {
@@ -295,7 +337,7 @@ class TapTapMinigameMCPServer {
              '1. 已在浏览器中打开授权链接\n' +
              '2. 已使用 TapTap App 扫码授权\n' +
              '3. 授权页面显示成功\n\n' +
-             '如果仍然失败，请重新调用需要认证的工具获取新的授权链接。';
+             '如果仍然失败，请使用 start_oauth_authorization 工具获取新的授权链接。';
     }
   }
 
@@ -469,11 +511,23 @@ class TapTapMinigameMCPServer {
       process.stderr.write(`🔗 API Base: ${apiConfig.apiBaseUrl}\n`);
 
       // 显示目录配置
-      const workspaceExists = fs.existsSync('/workspace');
-      const workspaceStatus = workspaceExists ? '✅' : '❌';
-      process.stderr.write(`📁 Workspace: /workspace ${workspaceStatus}\n`);
-      process.stderr.write(`📦 Cache Dir: ${process.env.TDS_MCP_CACHE_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'cache')}\n`);
-      process.stderr.write(`📂 Temp Dir: ${process.env.TDS_MCP_TEMP_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'temp')}\n`);
+      process.stderr.write('\n📂 Directory Configuration:\n');
+
+      // WORKSPACE_ROOT
+      const workspaceRoot = process.env.WORKSPACE_ROOT || process.cwd();
+      const workspaceRootLabel = process.env.WORKSPACE_ROOT ? '(env)' : '(default: cwd)';
+      process.stderr.write(`   📁 WORKSPACE_ROOT: ${workspaceRoot} ${workspaceRootLabel}\n`);
+
+      // TDS_MCP_CACHE_DIR
+      const cacheDir = process.env.TDS_MCP_CACHE_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'cache');
+      const cacheDirLabel = process.env.TDS_MCP_CACHE_DIR ? '(env)' : '(default)';
+      process.stderr.write(`   📦 TDS_MCP_CACHE_DIR: ${cacheDir} ${cacheDirLabel}\n`);
+
+      // TDS_MCP_TEMP_DIR
+      const tempDir = process.env.TDS_MCP_TEMP_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'temp');
+      const tempDirLabel = process.env.TDS_MCP_TEMP_DIR ? '(env)' : '(default)';
+      process.stderr.write(`   📂 TDS_MCP_TEMP_DIR: ${tempDir} ${tempDirLabel}\n`);
+
       process.stderr.write('\n📖 MCP Capabilities:\n');
       process.stderr.write(`   ✅ Tools (${totalTools}) - Execute operations with side effects\n`);
       process.stderr.write(`   ✅ Resources (${totalResources}) - Read-only documentation and data\n`);

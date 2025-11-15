@@ -57,8 +57,8 @@ export async function checkEnvironment(context: HandlerContext): Promise<string>
   } else {
     statusMessage = '\n⚠️  MAC Token 未配置\n' +
                    '   📖 文档功能可用（Resources, Prompts, 搜索等）\n' +
-                   '   🔐 管理功能需要授权（创建排行榜、列表等）\n' +
-                   '   💡 首次调用管理工具时将自动触发 OAuth 授权流程';
+                   '   🔐 管理功能需要授权（创建排行榜、列表等）\n\n' +
+                   '💡 如需授权，请使用 start_oauth_authorization 工具获取授权链接';
   }
 
   return `🔧 环境配置检查结果:\n\n${envResult}${statusMessage}`;

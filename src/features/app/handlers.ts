@@ -90,6 +90,62 @@ export async function selectApp(
 }
 
 /**
+ * Get current app information from cache
+ */
+export async function getCurrentAppInfo(context: HandlerContext): Promise<string> {
+  try {
+    const { readAppCache, getCachePath } = await import('../../core/utils/cache.js');
+    const cache = readAppCache(context.projectPath);
+
+    if (!cache || !cache.developer_id || !cache.app_id) {
+      return `# 当前应用信息
+
+⚠️ **尚未选择应用**
+
+请先选择一个应用，使用以下工具：
+1. \`list_developers_and_apps\` - 列出所有可用的开发者和应用
+2. \`select_app\` - 选择要使用的特定应用
+
+选择后，应用信息将被缓存并在此显示。
+`;
+    }
+
+    const cachePath = getCachePath(context.projectPath);
+
+    let info = `# 当前应用信息
+
+## 📱 已选择的应用
+
+- **开发者 ID**: \`${cache.developer_id}\`
+- **应用 ID**: \`${cache.app_id}\`
+- **小程序 ID**: \`${cache.miniapp_id || '不可用'}\`
+- **应用名称**: ${cache.app_title || cache.developer_name || '_不可用_'}
+
+## 📂 缓存位置
+
+\`${cachePath}\`
+
+## 💡 下一步操作
+
+- 查看排行榜：使用 \`list_leaderboards\` 工具
+- 创建排行榜：使用 \`create_leaderboard\` 工具
+- 切换应用：使用 \`select_app\` 工具并指定不同的 developer_id/app_id
+`;
+
+    return info;
+  } catch (error) {
+    return `# 当前应用信息
+
+❌ **加载应用信息失败**
+
+${error instanceof Error ? error.message : String(error)}
+
+请使用 \`check_environment\` 工具验证您的配置。
+`;
+  }
+}
+
+/**
  * Clear authentication data and app cache
  */
 export async function clearAuthData(

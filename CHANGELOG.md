@@ -5,6 +5,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [1.4.13] - 2025-01-15
+
+### 📚 Documentation
+
+- **添加 WORKSPACE_ROOT 环境变量说明**
+  - 在 `.env.example` 中添加 `WORKSPACE_ROOT` 配置说明
+  - 说明其用于 H5 游戏路径解析
+  - 默认值为 `process.cwd()`
+
+- **统一 `.env.docker` 与 `.env.example` 配置格式**
+  - 保持完整配置项与 `.env.example` 一致
+  - 为 Docker 场景设置合理的默认值
+  - 添加清晰的说明，标注哪些配置由 `docker-compose.yml` 管理
+  - 添加完整的 Docker 部署步骤和注意事项
+
+### ✨ Improved
+
+- **启动日志显示目录配置**
+  - 显示 `WORKSPACE_ROOT`（H5 游戏路径解析）
+  - 显示 `TDS_MCP_CACHE_DIR`（应用缓存目录）
+  - 显示 `TDS_MCP_TEMP_DIR`（临时文件目录）
+  - 标注是否使用环境变量或默认值
+    - `(env)` = 从环境变量读取
+    - `(default)` = 使用默认值
+    - `(default: cwd)` = 默认为当前工作目录
+
+
+## [1.4.12] - 2025-01-15
+
+### ✨ Added
+
+- **新增 `start_oauth_authorization` 工具**
+  - 提供专门的授权工具，用户说"我要授权"时 AI 可以直接调用
+  - 明确的语义，不再需要通过调用其他需要授权的工具间接触发
+  - 检查已有授权状态，避免重复授权
+
+### 🎨 Improved
+
+- **优化授权错误信息**
+  - 简化授权链接展示格式，更加清晰易读
+  - 使用步骤式指引（1️⃣、2️⃣、3️⃣）提升用户体验
+  - 统一错误提示文案，指引用户使用 `start_oauth_authorization`
+
+- **改进 `check_environment` 工具**
+  - 未授权时直接提示使用 `start_oauth_authorization` 工具
+  - 不再是"将自动触发授权"的模糊说法
+
+- **`get_current_app_info` 中文化**
+  - 返回信息改为中文，与其他工具保持一致
+  - 提升中文用户的使用体验
+
+### 🔧 Refactor
+
+- **重构 `getCurrentAppInfo` 函数位置**
+  - 从 `leaderboard/docTools.ts` 移至 `app/handlers.ts`
+  - 作为通用应用管理功能，不应在排行榜模块中
+  - 代码组织更加合理，符合模块化架构
+
+### 🗑️ Removed
+
+- **删除废弃代码**
+  - 删除未使用的 `startDeviceFlow()` 私有方法
+  - 删除未使用的 `displayAuthorizationInfo()` 方法
+  - 减少代码冗余，提升可维护性
+
 ## [1.4.11] - 2025-01-15
 
 ### 🐛 Bug Fixes
