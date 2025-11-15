@@ -2,6 +2,87 @@
 
 本指南帮助开发者为 TapTap MCP Server 添加新功能（如云存档、分享等）。
 
+## 🔄 开发流程（CI/CD）
+
+### 分支策略
+
+项目使用 **GitHub Flow + Semantic Release**，所有开发都通过 PR 进行：
+
+```bash
+# 1. 创建功能分支
+git checkout main
+git pull origin main
+git checkout -b feature/new-feature
+
+# 2. 开发并提交（使用 Conventional Commits）
+git commit -m "feat: add new feature"
+
+# 3. 推送并创建 PR
+git push origin feature/new-feature
+
+# 4. 在 GitHub 创建 PR
+# 5. 等待 CI 检查通过（lint、build、test、commitlint）
+# 6. 请求 Code Review
+# 7. 合并后自动发布到 npm
+```
+
+### Commit 规范
+
+**必须**遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
+
+```bash
+feat: add new feature        # 新功能 → minor 版本（1.2.0 → 1.3.0）
+fix: resolve bug             # Bug 修复 → patch 版本（1.2.0 → 1.2.1）
+feat!: breaking change       # 破坏性变更 → major 版本（1.2.0 → 2.0.0）
+docs: update documentation   # 文档更新 → 不触发发布
+chore: update dependencies   # 构建/工具 → 不触发发布
+refactor: improve code       # 重构 → patch 版本
+test: add tests              # 测试 → 不触发发布
+```
+
+**Commit Message 要求**：
+- Type 必须是规定的类型之一
+- Subject 长度：5-100 字符
+- 使用祈使句："add feature" 而不是 "added feature"
+- 不要以句号结尾
+
+**示例**：
+```bash
+✅ feat(leaderboard): add score submission API
+✅ fix(auth): resolve token refresh issue
+✅ feat!: change API endpoint structure
+❌ Added new feature  # 缺少 type
+❌ fix: bug.          # 以句号结尾
+❌ feat: fix          # 太短（< 5 字符）
+```
+
+### CI 检查
+
+PR 必须通过所有检查才能合并：
+- ✅ **Lint**: ESLint 代码检查
+- ✅ **Build**: TypeScript 编译
+- ✅ **Test**: Jest 单元测试
+- ✅ **Commitlint**: Commit 消息格式验证
+
+**本地验证**：
+```bash
+npm run lint      # 代码检查
+npm run build     # 构建
+npm test          # 测试
+
+# 验证 commit 消息
+npx commitlint --from HEAD~1 --to HEAD
+```
+
+### 分支保护
+
+- `main` 分支受保护，不能直接 push
+- 必须通过 PR 合并
+- PR 必须至少 1 人批准
+- 所有 CI 检查必须通过
+
+详见：[docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md)
+
 ## 🏗️ 架构概览
 
 项目采用**模块化架构**，每个功能都是完全内聚的：
@@ -93,14 +174,30 @@ git commit -m "feat: 添加云存档功能"
 
 添加新功能时，确保：
 
+### 代码实现
 - [ ] 使用脚手架生成模块结构
 - [ ] 实现所有 TODO 标记的内容
 - [ ] 工具采用统一格式（`ToolRegistration[]`）
 - [ ] 从 `../app/api.js` 导入 `ensureAppInfo()` 获取应用信息
 - [ ] 在 server.ts 注册模块
+
+### 质量检查
+- [ ] Lint 通过：`npm run lint`
 - [ ] 编译无错：`npm run build`
-- [ ] 测试启动：`node dist/server.js`
-- [ ] 更新 CLAUDE.md（如有新的工具说明）
+- [ ] 测试通过：`npm test`
+- [ ] 本地验证启动：`node dist/server.js`
+
+### Commit 和文档
+- [ ] Commit 消息符合 Conventional Commits 规范
+- [ ] 更新 README.md（如有用户可见的新特性）
+- [ ] 更新 CLAUDE.md（如有架构变更或开发规范调整，供 AI 参考）
+
+### PR 流程
+- [ ] 创建 PR 并填写详细描述
+- [ ] 等待所有 CI 检查通过
+- [ ] 请求 Code Review
+- [ ] 解决所有 Review 意见
+- [ ] 合并后自动发布到 npm
 
 ---
 

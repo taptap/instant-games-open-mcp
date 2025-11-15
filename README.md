@@ -493,20 +493,79 @@ const allModules = [appModule, leaderboardModule, cloudSaveModule];
 
 ## 📚 文档
 
-- **README.md** - 本文件（用户指南）
-- **CLAUDE.md** - Claude Code 集成指南
-- **CONTRIBUTING.md** - 开发者贡献指南（添加新功能）
-- **CHANGELOG.md** - 版本变更历史
+- **README.md** - 本文件（用户指南和快速开始）
+- **CLAUDE.md** - AI Agent 工作指引（供 Claude Code 等 AI 工具参考）
+- **CONTRIBUTING.md** - 开发者贡献指南（CI/CD 流程、添加新功能）
+- **CHANGELOG.md** - 版本变更历史（自动生成）
+- **docs/BRANCH_PROTECTION.md** - 分支保护规则配置指南
+- **docs/** - 其他技术文档（Docker 部署、私有协议等）
+
+## 🔄 CI/CD 和自动化发布
+
+项目采用 **GitHub Flow + Semantic Release** 实现完全自动化的版本管理和发布。
+
+### 特性
+
+- ✅ 基于 Conventional Commits 自动计算版本号
+- ✅ 自动生成 CHANGELOG.md
+- ✅ 自动发布到 npm
+- ✅ 自动创建 GitHub Release
+- ✅ 完整的 PR 检查流程（lint、build、test、commitlint）
+
+### 开发流程
+
+```bash
+# 1. 创建功能分支
+git checkout -b feature/new-feature
+
+# 2. 开发并提交（使用 Conventional Commits）
+git commit -m "feat: add awesome feature"
+
+# 3. 推送并创建 PR
+git push origin feature/new-feature
+
+# 4. PR 合并后自动发布到 npm
+```
+
+### Commit 规范
+
+遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
+
+- `feat:` - 新功能（触发 minor 版本升级，如 1.2.0 → 1.3.0）
+- `fix:` - Bug 修复（触发 patch 版本升级，如 1.2.0 → 1.2.1）
+- `feat!:` - 破坏性变更（触发 major 版本升级，如 1.2.0 → 2.0.0）
+- `docs:` - 文档更新（不触发发布）
+- `chore:` - 构建/工具更新（不触发发布）
+
+### Beta 版本
+
+```bash
+# 创建 beta 分支并推送
+git checkout -b beta
+git push origin beta
+
+# 自动发布 beta 版本（如 1.3.0-beta.1）
+# 用户可通过以下方式安装：
+npm install @mikoto_zero/minigame-open-mcp@beta
+```
+
+详见：[CLAUDE.md - CI/CD 章节](CLAUDE.md#cicd-和自动化发布)
 
 ## 🤝 贡献
 
 想要添加新功能（云存档、分享等）？
 
-查看 **CONTRIBUTING.md** 了解：
-- 分步骤指南
-- 代码结构
-- 设计原则
-- 快速脚手架：`./scripts/create-feature.sh`
+**开发流程**：
+1. Fork 仓库并创建 feature 分支
+2. 使用脚手架创建新模块：`./scripts/create-feature.sh`
+3. 遵循 Conventional Commits 规范提交代码
+4. 创建 PR，等待 CI 检查通过
+5. Review 通过后合并，自动发布新版本
+
+**查看详细指南**：
+- **CONTRIBUTING.md** - 开发者贡献指南（CI/CD 流程、代码规范）
+- **docs/BRANCH_PROTECTION.md** - 分支保护规则配置
+- **CLAUDE.md** - AI Agent 工作指引（架构说明、开发注意事项）
 
 ## 📖 相关资源
 
@@ -516,10 +575,13 @@ const allModules = [appModule, leaderboardModule, cloudSaveModule];
 
 ## 📊 版本
 
-- **latest (v1.1.4)**: 纯 Tools 稳定版（17 tools）
-- **beta (v1.2.0-beta.12)**: 模块化架构（app + leaderboard）+ OAuth（10 tools + 7 resources）
+当前版本：**v1.4.13**
 
-推荐使用 **beta 版本**获得最佳体验！
+- **稳定版 (latest)**: 自动从 `main` 分支发布
+- **测试版 (beta)**: 从 `beta` 分支发布，用于新特性测试
+- **开发版 (alpha)**: 从 `alpha` 分支发布，用于早期测试
+
+版本管理完全自动化，基于 Semantic Release 和 Conventional Commits。
 
 ## 📄 许可证
 
