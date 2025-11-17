@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * TapTap MCP Proxy - stdio 模式
  *
