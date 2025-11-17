@@ -94,7 +94,7 @@ jobs:
           # 创建并切换到新分支
           git checkout -b "$BRANCH"
 
-      # ========== 5. 发布到 npm (使用 Provenance) ==========
+      # ========== 5. 发布到 npm ==========
       - name: Publish to npm
         if: steps.analyze.outputs.should_release == 'true'
         env:
@@ -105,8 +105,8 @@ jobs:
           # 更新版本号 (不创建 git tag)
           npm version $VERSION --no-git-tag-version
 
-          # 发布到 npm (启用 provenance)
-          npm publish --access public --provenance
+          # 发布到 npm (不使用 provenance - 仓库为 internal)
+          npm publish --access public
 
       # ========== 6. 生成 CHANGELOG ==========
       - name: Generate CHANGELOG
