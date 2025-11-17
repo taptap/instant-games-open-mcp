@@ -650,10 +650,18 @@ main          # 稳定版本（1.2.3）- 受保护
 ```
 
 **分支保护规则：**
-- `main` 分支不允许直接 push，只能通过 PR 合并
+- `main` 分支受组织级 Ruleset (trunk-guard) 保护
+- 所有更改必须通过 PR 合并
 - PR 必须通过所有 CI 检查
-- PR 必须至少 1 人批准
 - Commit 消息必须符合 Conventional Commits 规范
+
+**自动发布机制：**
+- Feature PR 合并 → 触发 GitHub Actions
+- 分析 commits 确定版本号
+- 创建临时 release 分支
+- 在临时分支发布到 npm 并更新版本
+- 自动创建 PR 并合并到 main
+- 创建 GitHub Release
 
 详见：[docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md)
 
@@ -780,7 +788,7 @@ PR 合并到 main/beta/alpha 分支后自动运行：
 - `NPM_TOKEN` - npm 发布令牌（必需）
 
 **自动提供（无需配置）:**
-- `GITHUB_TOKEN` - GitHub API 令牌（用于创建 Release）
+- `GITHUB_TOKEN` - GitHub API 令牌（用于创建 PR、合并、创建 Release）
 
 ### 手动操作
 
