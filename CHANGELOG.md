@@ -1,3 +1,9 @@
+## <small>1.5.4 (2025-11-17)</small>
+
+* fix: 添加 MCP Proxy 独立打包功能以支持无 node_modules 环境 ([665d89a](https://github.com/taptap/taptap_minigame_open_mcp/commit/665d89a))
+
+
+
 ## <small>1.5.3 (2025-11-17)</small>
 
 * docs: 添加 v1.5.3 版本的 CHANGELOG 条目 ([c785771](https://github.com/taptap/taptap_minigame_open_mcp/commit/c785771))
