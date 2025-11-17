@@ -1,3 +1,9 @@
+## <small>1.5.1 (2025-11-17)</small>
+
+* fix: version in package.json ([4b9661f](https://github.com/taptap/taptap_minigame_open_mcp/commit/4b9661f))
+
+
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
