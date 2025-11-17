@@ -1,3 +1,10 @@
+## <small>1.5.2 (2025-11-17)</small>
+
+* refactor: 优化认证检查逻辑，提高代码可维护性 ([559fd2a](https://github.com/taptap/taptap_minigame_open_mcp/commit/559fd2a))
+* fix: proxy模式下授权检测问题 ([bfbdcc8](https://github.com/taptap/taptap_minigame_open_mcp/commit/bfbdcc8))
+
+
+
 ## [Unreleased]
 
 ### 🐛 Fixed
