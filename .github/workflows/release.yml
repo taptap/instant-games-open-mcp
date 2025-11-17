@@ -143,9 +143,9 @@ jobs:
           VERSION=${{ steps.analyze.outputs.version }}
           BRANCH=${{ steps.branch.outputs.branch }}
 
-          # 创建 PR
+          # 创建 PR（标题包含 [skip ci] 防止合并后触发循环）
           PR_URL=$(gh pr create \
-            --title "chore(release): ${VERSION}" \
+            --title "chore(release): ${VERSION} [skip ci]" \
             --body "## 📦 Release ${VERSION}
 
           此 PR 由自动发布流程创建。
