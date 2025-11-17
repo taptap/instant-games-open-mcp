@@ -1,3 +1,10 @@
+## <small>1.5.3 (2025-11-17)</small>
+
+* docs: 添加 v1.5.3 版本的 CHANGELOG 条目 ([c785771](https://github.com/taptap/taptap_minigame_open_mcp/commit/c785771))
+* fix: 修复 stdio 模式下的路径解析和 Token 覆盖问题 ([83ec37b](https://github.com/taptap/taptap_minigame_open_mcp/commit/83ec37b))
+
+
+
 
 ## <small>1.5.2 (2025-11-17)</small>
 
