@@ -2,492 +2,468 @@
 
 ## 概述
 
-本文档提供基于 TapTap Minigame MCP Server 的 MCP Proxy 开发指引。
+本文档提供基于 TapTap Minigame MCP Server 的 **MCP Proxy 开发指引**。
 
-MCP Proxy 作为中间层，负责管理多个用户的 MAC Token，并将认证信息注入到 MCP Server 的工具调用中，实现多账号、多租户支持。
+如果你需要：
+- 🔐 一个 MCP Server 实例支持多个用户/多个应用
+- 🏢 每个用户使用自己的 MAC Token 认证
+- 🚀 对 AI Agent 完全透明的认证注入
 
-## 架构设计
+那么你需要开发一个 MCP Proxy。
+
+## 工作原理
 
 ```
-┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+                        ┌─────────────────────────┐
+                        │   Proxy Context         │
+                        │  (你的业务系统)          │
+                        │                         │
+                        │  - User Session/JWT     │
+                        │  - MAC Token Store      │
+                        │  - Workspace Path       │
+                        └───────────┬─────────────┘
+                                    │ 获取上下文
+                                    ↓
+┌─────────────┐  stdio  ┌─────────────┐  HTTP   ┌─────────────┐
 │   AI Agent  │────────▶│  MCP Proxy  │────────▶│ MCP Server  │
-│  (Claude)   │  无感   │ (注入 Token)│  带Token │  (TapTap)   │
-└─────────────┘         └─────────────┘         └─────────────┘
+│  (Claude)   │ 推荐模式 │  (你开发)   │ 必须模式 │  (TapTap)   │
+└─────────────┘         └─────────────┘  + 重连  └─────────────┘
                              │
-                             │ Token 管理
-                             ↓
-                        ┌─────────────┐
-                        │   Token     │
-                        │   Store     │
-                        │ (Redis/DB)  │
-                        └─────────────┘
+                             │ 注入:
+                             │ - _mac_token
+                             │ - _user_id
+                             │ - _tenant_id
+                             │ - _project_path
+                             └─────────────▶
 ```
 
-## 核心功能
+**Proxy 的核心职责：**
+1. 接收 AI Agent 的标准 MCP 请求
+2. 从自身上下文识别用户（Session/JWT/Header）
+3. 从自身系统获取用户的 MAC Token 和工作路径
+4. 在请求参数中注入私有参数
+5. 通过 HTTP 转发到 TapTap MCP Server（支持断线重连）
+6. 返回结果给 AI Agent
 
-### 1. Token 管理
+**传输协议选择：**
+- **AI Agent → Proxy**: 推荐使用 **stdio**（本地稳定连接）
+- **Proxy → MCP Server**: 必须使用 **HTTP/SSE**（支持断线重连、多客户端）
 
-MCP Proxy 需要维护一个 Token Store，存储每个用户的 MAC Token：
+## 快速开始
 
-```typescript
-interface TokenStore {
-  // 获取用户的 MAC Token
-  getToken(userId: string): Promise<MacToken | null>;
+### 部署 TapTap MCP Server
 
-  // 保存用户的 MAC Token
-  setToken(userId: string, token: MacToken): Promise<void>;
+#### 方式 1：独立打包（推荐，v1.5.0+）
 
-  // 删除用户的 MAC Token
-  deleteToken(userId: string): Promise<void>;
-}
+```bash
+# 克隆仓库
+git clone https://github.com/your-org/taptap-minigame-mcp-server.git
+cd taptap-minigame-mcp-server
 
-interface MacToken {
-  kid: string;
-  mac_key: string;
-  token_type: "mac";
-  mac_algorithm: "hmac-sha-1";
-}
+# 构建独立打包
+npm run build:bundle
+
+# 部署（只需这一个文件）
+cp dist/bundle/mcp-server-bundle.js /your/deployment/path/
+
+# 启动 SSE 模式（推荐用于 Proxy）
+TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3001 \
+TDS_MCP_CLIENT_TOKEN=your_secret \
+node mcp-server-bundle.js
 ```
 
-### 2. 工具调用拦截与多租户隔离
+**优势：**
+- ✅ 单文件部署，无需 node_modules
+- ✅ 体积小（~400KB），启动快
+- ✅ 适合容器化部署
 
-拦截 AI Agent 的工具调用，注入 MAC Token 和租户上下文：
+#### 方式 2：使用 npm 包
+
+```bash
+npm install @mikoto_zero/minigame-open-mcp
+
+# 启动
+TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3001 \
+npx @mikoto_zero/minigame-open-mcp
+```
+
+### 开发 Proxy
+
+你的 Proxy 需要做以下事情：
+
+## 1. 参数注入
+
+在 `tools/call` 请求中注入私有参数：
 
 ```typescript
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-
-interface TenantContext {
-  userId: string;
-  developerId: number;
-  appId: number;
-  projectPath: string;  // 租户工作空间路径
+// AI Agent 发送的原始请求
+{
+  "method": "tools/call",
+  "params": {
+    "name": "list_leaderboards",
+    "arguments": {
+      "page": 1
+    }
+  }
 }
 
-class MCPProxy {
-  private mcpClient: Client;  // 连接到 TapTap MCP Server
-  private mcpServer: Server;  // 暴露给 AI Agent
-  private tokenStore: TokenStore;
-  private contextStore: Map<string, TenantContext>;
-
-  async handleToolCall(request: any, userId: string) {
-    const { name, arguments: args } = request.params;
-
-    // 从 Token Store 获取用户的 MAC Token
-    const macToken = await this.tokenStore.getToken(userId);
-
-    // 获取租户上下文（可从数据库或缓存读取）
-    const context = this.contextStore.get(userId);
-
-    // 注入私有参数（对 AI Agent 完全透明）
-    const enrichedArgs = {
-      ...args,
-      _mac_token: macToken,
-      _developer_id: context.developerId,
-      _app_id: context.appId,
-      _project_path: context.projectPath,  // 租户隔离的关键！
-      _user_id: userId,
-      _tenant_id: `tenant_${userId}`
-    };
-
-    // 转发到 TapTap MCP Server
-    return this.mcpClient.request({
-      method: 'tools/call',
-      params: {
-        name,
-        arguments: enrichedArgs
-      }
-    });
+// Proxy 注入后转发给 TapTap Server
+{
+  "method": "tools/call",
+  "params": {
+    "name": "list_leaderboards",
+    "arguments": {
+      "page": 1,
+      "_mac_token": {
+        "kid": "xxx",
+        "mac_key": "xxx",
+        "token_type": "mac",
+        "mac_algorithm": "hmac-sha-1"
+      },
+      "_user_id": "user_123",           // 必需（缓存隔离）
+      "_tenant_id": "project_a",        // 可选（多租户隔离）
+      "_project_path": "/workspace/project_a"  // 可选（文件操作路径）
+    }
   }
 }
 ```
 
-**租户隔离机制：**
+### 私有参数说明
 
-TapTap MCP Server 通过 `_project_path` 实现租户隔离：
+| 参数 | 作用 | 必需 |
+|-----|------|-----|
+| `_mac_token` | 用户 MAC Token（从你的系统获取） | ✅ |
+| `_user_id` | 用户唯一标识（用于缓存隔离） | ✅ |
+| `_tenant_id` | 租户唯一标识（用于多项目隔离） | ❌ |
+| `_project_path` | 用户工作空间路径（用于文件操作） | ❌ |
+| `_developer_id` | 开发者 ID（性能优化，跳过 API 查询） | ❌ |
+| `_app_id` | 应用 ID（性能优化，跳过 API 查询） | ❌ |
 
-```typescript
-// 每个租户有独立的工作空间和缓存
-RuntimeContainer-1:
-  workspace/project-a/              ← _project_path
-    ├── index.html
-    └── .taptap-minigame/
-        └── app.json                ← 租户1的缓存
+**重要：** 这些参数对 AI Agent 完全不可见，只在 Proxy 和 Server 之间传递。
 
-RuntimeContainer-2:
-  workspace/project-b/              ← _project_path
-    ├── index.html
-    └── .taptap-minigame/
-        └── app.json                ← 租户2的缓存
-```
+详见：[PRIVATE_PROTOCOL.md](PRIVATE_PROTOCOL.md)
 
-**私有参数优先级：**
-```
-参数注入 > HandlerContext > 本地缓存
-```
+## 2. 基础实现示例
 
-- `_developer_id`, `_app_id`: 避免每次 API 查询
-- `_project_path`: 确保缓存文件隔离
-- `_mac_token`: 多账号认证
-
-### 3. 工具列表透传
-
-直接透传 TapTap MCP Server 的工具定义（已经不包含私有参数）：
-
-```typescript
-async listTools() {
-  // 从 TapTap MCP Server 获取工具列表
-  const result = await this.mcpClient.request({
-    method: 'tools/list'
-  });
-
-  // TapTap Server 的工具定义中不声明私有参数
-  // Proxy 只需直接透传，无需任何处理
-  return result;
-}
-```
-
-**重要说明：**
-- ✅ TapTap MCP Server v1.3.0 的工具定义中**不包含**私有参数
-- ✅ AI Agent 看到的是干净的业务参数
-- ✅ Proxy 只需负责在调用时注入 `_mac_token`
-
-## 实现示例
-
-### 基础 MCP Proxy
+### 最小可行 Proxy
 
 ```typescript
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { HttpClientTransport } from '@modelcontextprotocol/sdk/client/http.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 class TapTapMCPProxy {
   private client: Client;
   private server: Server;
-  private tokenStore: Map<string, MacToken>;
 
-  constructor() {
+  async start() {
+    // 初始化 MCP Client 和 Server
     this.client = new Client(
       { name: 'taptap-proxy-client', version: '1.0.0' },
       { capabilities: {} }
     );
-
     this.server = new Server(
       { name: 'taptap-proxy-server', version: '1.0.0' },
       { capabilities: { tools: {} } }
     );
 
-    this.tokenStore = new Map();
-  }
+    // 连接到 TapTap MCP Server（HTTP 模式，支持重连）
+    await this.connectToServer();
 
-  async start() {
-    // 连接到 TapTap MCP Server（后端）
-    const clientTransport = new StdioClientTransport({
-      command: 'npx',
-      args: ['@mikoto_zero/minigame-open-mcp'],
-      env: {
-        TDS_MCP_TRANSPORT: 'stdio',
-        // 不设置 TDS_MCP_MAC_TOKEN，让 Proxy 动态注入
-      }
-    });
-    await this.client.connect(clientTransport);
-
-    // 暴露给 AI Agent（前端）
+    // 暴露给 AI Agent（stdio 模式，推荐）
     const serverTransport = new StdioServerTransport();
     await this.server.connect(serverTransport);
 
-    // 设置处理器
     this.setupHandlers();
   }
 
+  private async connectToServer() {
+    const clientTransport = new HttpClientTransport('http://localhost:3001');
+    await this.client.connect(clientTransport);
+  }
+
   private setupHandlers() {
-    // 转发 tools/list
+    // 透传工具列表
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return this.client.request({ method: 'tools/list' }, ListToolsResultSchema);
     });
 
-    // 拦截 tools/call 并注入 token
+    // 拦截工具调用，注入 Token
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
-      // 从当前会话获取 userId（需要你实现）
-      const userId = this.getCurrentUserId();
+      // 1. 识别用户（你需要实现）
+      const userId = this.getUserId(request);
+      const tenantId = this.getTenantId(request);
+      const projectPath = this.getProjectPath(request);
 
-      // 获取用户的 MAC Token
-      const macToken = this.tokenStore.get(userId);
+      // 2. 获取 MAC Token（从你的存储系统）
+      const macToken = await this.getMacToken(userId);
+      if (!macToken) {
+        throw new Error(`User ${userId} not authenticated`);
+      }
 
-      // 注入私有参数
-      const enrichedArgs = macToken
-        ? { ...args, _mac_token: macToken }
-        : args;
+      // 3. 注入私有参数
+      const enrichedArgs = {
+        ...args,
+        _mac_token: macToken,
+        _user_id: userId,
+        _tenant_id: tenantId,
+        _project_path: projectPath
+      };
 
-      // 转发到 TapTap MCP Server
+      // 4. 转发到 TapTap Server
       return this.client.request({
         method: 'tools/call',
-        params: {
-          name,
-          arguments: enrichedArgs
-        }
+        params: { name, arguments: enrichedArgs }
       }, CallToolResultSchema);
     });
   }
 
-  private getCurrentUserId(): string {
-    // TODO: 实现用户识别逻辑
-    // 可以从：
-    // - HTTP Session
-    // - JWT Token
-    // - Request Header
-    return 'default_user';
-  }
-}
+  // ===== 你需要实现的部分 =====
 
-// 启动 Proxy
-const proxy = new TapTapMCPProxy();
-proxy.start();
-```
-
-### HTTP/SSE 模式 Proxy
-
-```typescript
-import { HttpClientTransport } from '@modelcontextprotocol/sdk/client/http.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import http from 'node:http';
-
-class TapTapHTTPProxy {
-  async start() {
-    // 连接到 TapTap MCP Server（HTTP 模式）
-    const clientTransport = new HttpClientTransport(
-      'http://localhost:3001'  // TapTap Server 地址
-    );
-    await this.client.connect(clientTransport);
-
-    // 创建 HTTP Server（暴露给 AI Agent）
-    const httpServer = http.createServer(async (req, res) => {
-      // 从请求中提取用户信息
-      const userId = this.extractUserId(req);
-      const macToken = await this.tokenStore.getToken(userId);
-
-      // 方式1: 通过 Header 注入（推荐）
-      req.headers['x-taptap-mac-token'] = Buffer.from(
-        JSON.stringify(macToken)
-      ).toString('base64');
-
-      // 转发请求到 TapTap Server
-      // ... (使用 proxy 或直接调用 client)
-    });
-
-    httpServer.listen(3000);
-  }
-
-  private extractUserId(req: http.IncomingMessage): string {
-    // 从 JWT、Session、Header 等提取用户ID
-    const auth = req.headers.authorization;
-    // ... 解析逻辑
+  private getUserId(request: any): string {
+    // TODO: 从 JWT/Session/Header 提取用户ID
+    // 示例：
+    // const jwt = request.headers.authorization;
+    // return parseJWT(jwt).sub;
     return 'user_123';
   }
+
+  private getTenantId(request: any): string {
+    // TODO: 从请求上下文提取租户ID（可选）
+    return 'project_a';
+  }
+
+  private getProjectPath(request: any): string {
+    // TODO: 从请求上下文提取工作空间路径（可选）
+    // 示例：
+    // const tenantId = this.getTenantId(request);
+    // return `/workspace/${tenantId}`;
+    return '/workspace/project_a';
+  }
+
+  private async getMacToken(userId: string): Promise<MacToken | null> {
+    // TODO: 从环境变量或配置获取 MAC Token
+    // 示例：
+    // return JSON.parse(process.env.MAC_TOKEN);
+    return {
+      kid: 'xxx',
+      mac_key: 'xxx',
+      token_type: 'mac',
+      mac_algorithm: 'hmac-sha-1'
+    };
+  }
+}
+
+interface MacToken {
+  kid: string;
+  mac_key: string;
+  token_type: 'mac';
+  mac_algorithm: 'hmac-sha-1';
 }
 ```
 
-## 注入方式选择
+## 3. 断线重连机制
 
-### 方式 1：直接参数注入（推荐）
+Proxy → Server 使用 HTTP 连接，需要处理断线重连：
 
-**适用场景：**
-- 每次调用使用不同 Token
-- 需要精确控制每个请求的认证
+**重连策略：**
+- 🔄 **启动时重连** - 最多尝试 10 次，间隔 5 秒
+- 🔄 **运行时重连** - 监听错误事件，自动重连
+- 🔄 **请求重试** - 失败后最多重试 3 次
+- 💓 **健康检查** - 定期 ping（可选）
 
-**优点：**
-- ✅ 灵活性最高
-- ✅ 适用所有传输模式（stdio/SSE/HTTP）
-- ✅ 不依赖 Session
-
-**实现：**
-```typescript
-const enrichedArgs = {
-  ...originalArgs,
-  _mac_token: await tokenStore.getToken(userId)
-};
-```
-
-### 方式 2：HTTP Header 注入
-
-**适用场景：**
-- 会话级认证（整个会话使用同一Token）
-- API Gateway 场景
-
-**优点：**
-- ✅ 减少重复传递
-- ✅ 会话级管理
-
-**限制：**
-- ⚠️ 仅 HTTP/SSE 模式
-- ⚠️ 需要 Mcp-Session-Id
-
-**实现：**
-```typescript
-req.headers['x-taptap-mac-token'] = base64Token;
-req.headers['mcp-session-id'] = sessionId;
-```
-
-## Token Store 实现
-
-### 内存存储（开发/测试）
+**核心实现：**
 
 ```typescript
-class InMemoryTokenStore implements TokenStore {
-  private tokens = new Map<string, MacToken>();
+class TapTapMCPProxy {
+  private serverUrl = 'http://localhost:3001';
 
-  async getToken(userId: string): Promise<MacToken | null> {
-    return this.tokens.get(userId) || null;
+  // 启动时带重连
+  private async connectWithRetry() {
+    for (let i = 0; i < 10; i++) {
+      try {
+        const transport = new HttpClientTransport(this.serverUrl);
+        await this.client.connect(transport);
+        return;
+      } catch (error) {
+        await this.sleep(5000);  // 5秒后重试
+      }
+    }
+    throw new Error('Max reconnection attempts reached');
   }
 
-  async setToken(userId: string, token: MacToken): Promise<void> {
-    this.tokens.set(userId, token);
+  // 请求失败时重试
+  private async callWithRetry(request: any, maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await this.client.request(request);
+      } catch (error) {
+        if (this.isConnectionError(error) && i < maxRetries - 1) {
+          await this.connectWithRetry();
+        } else {
+          throw error;
+        }
+      }
+    }
   }
 
-  async deleteToken(userId: string): Promise<void> {
-    this.tokens.delete(userId);
-  }
-}
-```
-
-### Redis 存储（生产环境）
-
-```typescript
-import { createClient } from 'redis';
-
-class RedisTokenStore implements TokenStore {
-  private redis: ReturnType<typeof createClient>;
-
-  constructor(redisUrl: string) {
-    this.redis = createClient({ url: redisUrl });
-  }
-
-  async getToken(userId: string): Promise<MacToken | null> {
-    const data = await this.redis.get(`token:${userId}`);
-    return data ? JSON.parse(data) : null;
-  }
-
-  async setToken(userId: string, token: MacToken): Promise<void> {
-    await this.redis.set(
-      `token:${userId}`,
-      JSON.stringify(token),
-      { EX: 86400 * 30 }  // 30 天过期
-    );
-  }
-
-  async deleteToken(userId: string): Promise<void> {
-    await this.redis.del(`token:${userId}`);
+  private isConnectionError(error: any): boolean {
+    return error.code === 'ECONNREFUSED' ||
+           error.code === 'ECONNRESET' ||
+           error.message?.includes('fetch failed');
   }
 }
 ```
 
-## 用户识别
+## 4. 备选方案：HTTP Header 注入
 
-### JWT Token 识别
-
-```typescript
-import jwt from 'jsonwebtoken';
-
-function extractUserFromJWT(req: http.IncomingMessage): string {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) {
-    throw new Error('Missing authorization');
-  }
-
-  const token = auth.substring(7);
-  const payload = jwt.verify(token, SECRET_KEY) as { sub: string };
-  return payload.sub;  // 用户ID
-}
-```
-
-### Session Cookie 识别
+如果使用 HTTP/SSE 模式，也可以通过 Header 注入：
 
 ```typescript
-import session from 'express-session';
-
-app.use(session({
-  secret: SECRET_KEY,
-  resave: false,
-  saveUninitialized: false
-}));
-
-function extractUserFromSession(req: any): string {
-  if (!req.session?.userId) {
-    throw new Error('Not authenticated');
-  }
-  return req.session.userId;
-}
+// Proxy 端设置 Header
+req.headers['x-taptap-mac-token'] = Buffer.from(
+  JSON.stringify(macToken)
+).toString('base64');
+req.headers['x-taptap-user-id'] = userId;
+req.headers['x-taptap-tenant-id'] = tenantId;
+req.headers['x-taptap-project-path'] = Buffer.from(projectPath).toString('base64');
+req.headers['mcp-session-id'] = sessionId;  // 必需
 ```
 
-## 完整示例项目
+**注意：**
+- ⚠️ Header 注入仅适用于 HTTP/SSE 模式（不支持 stdio）
+- ⚠️ 不推荐用于 AI Agent → Proxy 连接（建议使用 stdio）
+- ✅ 参数注入适用于所有模式（推荐）
 
-### 目录结构
+## 5. 部署
 
-```
-mcp-proxy/
-├── src/
-│   ├── proxy.ts          # Proxy 主逻辑
-│   ├── tokenStore.ts     # Token 存储
-│   ├── auth.ts           # 用户认证
-│   └── types.ts          # 类型定义
-├── package.json
-└── tsconfig.json
-```
+### 推荐架构（stdio 模式）
 
-### package.json
+Proxy 以 stdio 模式与 Agent 通信，配置在 Agent 的 MCP 配置中：
+
+**Claude Desktop 配置示例（`~/claude_desktop_config.json`）：**
 
 ```json
 {
-  "name": "taptap-mcp-proxy",
-  "version": "1.0.0",
-  "type": "module",
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.20.0",
-    "@mikoto_zero/minigame-open-mcp": "^1.3.0",
-    "redis": "^4.0.0",
-    "express": "^4.18.0",
-    "express-session": "^1.17.0"
+  "mcpServers": {
+    "taptap-proxy": {
+      "command": "node",
+      "args": ["/path/to/your/proxy/dist/index.js"],
+      "env": {
+        "TAPTAP_SERVER_URL": "http://localhost:3001",
+        "USER_ID": "user_123",
+        "TENANT_ID": "project_a",
+        "PROJECT_PATH": "/workspace/project_a",
+        "MAC_TOKEN": "{\"kid\":\"xxx\",\"mac_key\":\"xxx\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"}"
+      }
+    }
   }
 }
 ```
 
-### 启动 Proxy
+**独立部署 TapTap MCP Server（Docker）：**
 
-```bash
-# 开发模式
-npm run dev
+```yaml
+# docker-compose.yml
+version: '3.8'
 
-# 生产模式
-export REDIS_URL=redis://localhost:6379
-export SECRET_KEY=your_secret
-npm start
+services:
+  # TapTap MCP Server（独立打包）
+  taptap-server:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./mcp-server-bundle.js:/app/mcp-server-bundle.js
+    command: node mcp-server-bundle.js
+    ports:
+      - "3001:3001"
+    environment:
+      - TDS_MCP_TRANSPORT=sse
+      - TDS_MCP_PORT=3001
+      - TDS_MCP_CLIENT_TOKEN=${CLIENT_TOKEN}
+    restart: unless-stopped
 ```
 
-## 测试
-
-### 测试 Token 注入
+**Proxy 本地运行：**
 
 ```bash
-# 1. 设置测试 Token
-curl -X POST http://localhost:3000/tokens \
-  -H "Content-Type: application/json" \
-  -d '{
-    "userId": "test_user",
-    "token": {
-      "kid": "xxx",
-      "mac_key": "xxx",
-      "token_type": "mac",
-      "mac_algorithm": "hmac-sha-1"
-    }
-  }'
+# 安装依赖
+npm install
 
-# 2. 调用工具（Proxy 自动注入）
+# 启动 Proxy（通过 Agent 启动，不需要单独运行）
+# Agent 会根据配置文件自动启动 Proxy
+```
+
+### 备选架构（HTTP/SSE 模式）
+
+如果 Agent 也需要远程连接 Proxy（不推荐），可以使用 HTTP/SSE：
+
+```yaml
+version: '3.8'
+
+services:
+  # 你的 MCP Proxy（支持多用户）
+  proxy:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - TAPTAP_SERVER_URL=http://taptap-server:3001
+      # 你的业务环境变量（如何获取用户 Token 等）
+    depends_on:
+      - taptap-server
+
+  # TapTap MCP Server
+  taptap-server:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./mcp-server-bundle.js:/app/mcp-server-bundle.js
+    command: node mcp-server-bundle.js
+    ports:
+      - "3001:3001"
+    environment:
+      - TDS_MCP_TRANSPORT=sse
+      - TDS_MCP_PORT=3001
+      - TDS_MCP_CLIENT_TOKEN=${CLIENT_TOKEN}
+```
+
+## 6. 错误处理
+
+```typescript
+async handleToolCall(request: any, userId: string) {
+  try {
+    return await this.callWithToken(request, userId);
+  } catch (error) {
+    // 检查是否是认证错误
+    if (error.message?.includes('授权已失效') ||
+        error.message?.includes('access_denied') ||
+        error.code === 401) {
+      // 清除过期 token（从你的存储系统）
+      await this.deleteToken(userId);
+      throw new Error(`认证已过期，请重新授权（用户: ${userId}）`);
+    }
+    throw error;
+  }
+}
+```
+
+## 7. 测试
+
+```bash
+# 1. 启动 TapTap Server
+TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3001 node mcp-server-bundle.js
+
+# 2. 启动你的 Proxy
+npm start
+
+# 3. 测试工具调用
 curl -X POST http://localhost:3000/ \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer user_jwt_token" \
+  -H "Authorization: Bearer your_jwt_token" \
   -d '{
     "jsonrpc": "2.0",
     "method": "tools/call",
@@ -497,303 +473,84 @@ curl -X POST http://localhost:3000/ \
     }
   }'
 
-# 3. 验证：检查 TapTap Server 日志，确认使用了正确的 Token
+# 4. 验证：检查 TapTap Server 日志
+# 启用详细日志查看 Token 注入情况
+TDS_MCP_VERBOSE=true TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3001 node mcp-server-bundle.js
 ```
 
-## 安全考虑
+## 常见问题
 
-### 1. Token 加密存储
+### Q1: 私有参数会暴露给 AI Agent 吗？
 
-```typescript
-import crypto from 'crypto';
+**不会。** 私有参数只在 Proxy 和 Server 之间传递，`tools/list` 返回的工具定义中不包含这些参数。
 
-class EncryptedTokenStore {
-  private encryptionKey: Buffer;
+### Q2: 多租户是如何隔离的？
 
-  constructor(key: string) {
-    this.encryptionKey = Buffer.from(key, 'hex');
-  }
-
-  private encrypt(data: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    const encrypted = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    return Buffer.concat([iv, tag, encrypted]).toString('base64');
-  }
-
-  private decrypt(encrypted: string): string {
-    const buffer = Buffer.from(encrypted, 'base64');
-    const iv = buffer.slice(0, 16);
-    const tag = buffer.slice(16, 32);
-    const data = buffer.slice(32);
-    const decipher = crypto.createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
-    decipher.setAuthTag(tag);
-    return decipher.update(data) + decipher.final('utf8');
-  }
-
-  async setToken(userId: string, token: MacToken): Promise<void> {
-    const encrypted = this.encrypt(JSON.stringify(token));
-    await this.redis.set(`token:${userId}`, encrypted);
-  }
-
-  async getToken(userId: string): Promise<MacToken | null> {
-    const encrypted = await this.redis.get(`token:${userId}`);
-    if (!encrypted) return null;
-    const decrypted = this.decrypt(encrypted);
-    return JSON.parse(decrypted);
-  }
-}
+TapTap MCP Server 根据 `_user_id` 和 `_tenant_id` 自动隔离缓存和临时文件：
+```
+/tmp/taptap-mcp/cache/user_123/project_a/app.json
+/tmp/taptap-mcp/cache/user_456/project_b/app.json
 ```
 
-### 2. Token 过期管理
+### Q3: 必须传 `_tenant_id` 吗？
 
-```typescript
-interface StoredToken {
-  token: MacToken;
-  expiresAt: number;  // Unix timestamp
-}
-
-class ExpiringTokenStore {
-  async setToken(userId: string, token: MacToken, ttl: number = 2592000): Promise<void> {
-    const stored: StoredToken = {
-      token,
-      expiresAt: Date.now() + ttl * 1000
-    };
-    await this.redis.set(`token:${userId}`, JSON.stringify(stored), { EX: ttl });
-  }
-
-  async getToken(userId: string): Promise<MacToken | null> {
-    const data = await this.redis.get(`token:${userId}`);
-    if (!data) return null;
-
-    const stored: StoredToken = JSON.parse(data);
-
-    // 检查是否过期
-    if (Date.now() > stored.expiresAt) {
-      await this.deleteToken(userId);
-      return null;
-    }
-
-    return stored.token;
-  }
-}
+不是必需的。如果不传，会使用 `global` 目录：
+```
+/tmp/taptap-mcp/cache/user_123/global/app.json
 ```
 
-### 3. 审计日志
+### Q4: Proxy 如何获取用户的 MAC Token？
 
-```typescript
-class AuditLogger {
-  async logTokenInjection(userId: string, toolName: string, tokenKid: string) {
-    console.log({
-      event: 'token_injection',
-      timestamp: new Date().toISOString(),
-      userId,
-      toolName,
-      tokenKid: tokenKid.substring(0, 8) + '...',  // 脱敏
-    });
-  }
+**推荐方式（stdio 模式）：** 通过环境变量传递
 
-  async logToolCall(userId: string, toolName: string, success: boolean) {
-    console.log({
-      event: 'tool_call',
-      timestamp: new Date().toISOString(),
-      userId,
-      toolName,
-      success
-    });
-  }
-}
-```
-
-## 部署
-
-### Docker 部署
-
-```dockerfile
-FROM node:18-alpine
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci --production
-
-COPY dist ./dist
-
-ENV TAPTAP_SERVER_URL=http://taptap-mcp:3001
-ENV REDIS_URL=redis://redis:6379
-
-CMD ["node", "dist/proxy.js"]
-```
-
-### docker-compose.yml
-
-```yaml
-version: '3.8'
-
-services:
-  # MCP Proxy
-  proxy:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - TAPTAP_SERVER_URL=http://taptap-server:3001
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-      - taptap-server
-
-  # TapTap MCP Server
-  taptap-server:
-    image: node:18-alpine
-    command: npx @mikoto_zero/minigame-open-mcp
-    ports:
-      - "3001:3001"
-    environment:
-      - TDS_MCP_TRANSPORT=sse
-      - TDS_MCP_PORT=3001
-      - TDS_MCP_CLIENT_TOKEN=${CLIENT_TOKEN}
-
-  # Redis
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-```
-
-## 最佳实践
-
-### 1. Token 刷新机制
-
-```typescript
-class TokenRefreshProxy extends MCPProxy {
-  async handleToolCall(request: any, userId: string) {
-    let token = await this.tokenStore.getToken(userId);
-
-    // 如果 token 即将过期，提前刷新
-    if (token && this.isTokenExpiringSoon(token)) {
-      token = await this.refreshToken(userId);
-    }
-
-    // 注入并转发
-    return super.handleToolCall(request, userId);
-  }
-
-  private isTokenExpiringSoon(token: MacToken): boolean {
-    // 实现过期检测逻辑
-    return false;
-  }
-
-  private async refreshToken(userId: string): Promise<MacToken> {
-    // 实现 token 刷新逻辑
-    throw new Error('Not implemented');
-  }
-}
-```
-
-### 2. 错误处理
-
-```typescript
-async handleToolCall(request: any, userId: string) {
-  try {
-    const result = await this.callWithToken(request, userId);
-    return result;
-  } catch (error) {
-    // 检查是否是认证错误
-    if (this.isAuthError(error)) {
-      // 清除过期 token
-      await this.tokenStore.deleteToken(userId);
-
-      // 返回友好错误
-      throw new McpError(
-        ErrorCode.InternalError,
-        `认证已过期，请重新授权\n\n` +
-        `用户: ${userId}\n` +
-        `建议：调用 OAuth 授权流程获取新 token`
-      );
-    }
-    throw error;
-  }
-}
-
-private isAuthError(error: any): boolean {
-  return error.message?.includes('授权已失效') ||
-         error.message?.includes('access_denied') ||
-         error.code === 401;
-}
-```
-
-### 3. 监控和指标
-
-```typescript
-class ProxyMetrics {
-  private metrics = {
-    totalRequests: 0,
-    successfulRequests: 0,
-    failedRequests: 0,
-    tokenInjections: 0,
-    activeUsers: new Set<string>()
-  };
-
-  trackRequest(success: boolean) {
-    this.metrics.totalRequests++;
-    if (success) {
-      this.metrics.successfulRequests++;
-    } else {
-      this.metrics.failedRequests++;
+```json
+{
+  "mcpServers": {
+    "taptap-proxy": {
+      "env": {
+        "MAC_TOKEN": "{\"kid\":\"xxx\",\"mac_key\":\"xxx\",...}"
+      }
     }
   }
-
-  trackTokenInjection(userId: string) {
-    this.metrics.tokenInjections++;
-    this.metrics.activeUsers.add(userId);
-  }
-
-  getStats() {
-    return {
-      ...this.metrics,
-      activeUsers: this.metrics.activeUsers.size,
-      successRate: this.metrics.successfulRequests / this.metrics.totalRequests
-    };
-  }
 }
 ```
 
-## 故障排查
+**多用户场景：** 需要你自己实现用户识别和 Token 管理逻辑
+- 从 JWT/Session/Header 识别用户
+- 从你的业务系统获取对应用户的 Token
+- 注入到请求中
 
-### 问题 1：Token 未注入
+### Q5: 为什么 Proxy → Server 必须用 HTTP？
 
-**检查清单：**
-- ✅ Token Store 中有该用户的 token？
-- ✅ 用户ID 识别正确？
-- ✅ 私有参数格式正确？
-- ✅ Proxy 正确连接到 TapTap Server？
+因为需要支持：
+- ✅ **断线重连** - HTTP 客户端可以自动重连
+- ✅ **多客户端** - 一个 Server 实例支持多个 Proxy
+- ✅ **跨网络部署** - Proxy 和 Server 可以在不同机器
 
-### 问题 2：认证失败
+### Q6: 为什么 Agent → Proxy 推荐用 stdio？
 
-**检查清单：**
-- ✅ Token 是否有效（kid, mac_key 正确）？
-- ✅ Token 是否过期？
-- ✅ TapTap Server 是否正常运行？
+因为：
+- ✅ **本地连接** - Agent 和 Proxy 通常在同一机器
+- ✅ **配置简单** - 不需要网络配置
+- ✅ **性能更好** - 无网络开销
 
-### 问题 3：性能问题
+### Q7: 断线重连会影响正在执行的请求吗？
 
-**优化建议：**
-- ✅ 使用连接池（Redis, HTTP）
-- ✅ 缓存工具列表（避免重复请求）
-- ✅ 使用 HTTP/2（如果可能）
+会。正在执行的请求会失败，但 Proxy 会自动重试（最多 3 次）。建议：
+- 增加请求超时时间
+- 在业务层实现幂等性
+- 对长时间任务使用状态轮询
 
 ## 相关文档
 
 - [PRIVATE_PROTOCOL.md](PRIVATE_PROTOCOL.md) - 私有参数协议详细规范
-- [README.md](README.md) - TapTap MCP Server 用户文档
-- [CLAUDE.md](CLAUDE.md) - 开发指南
+- [README.md](../README.md) - TapTap MCP Server 完整文档
+- [CLAUDE.md](../CLAUDE.md) - 开发指南
 
-## 示例代码仓库
+## 示例代码
 
 完整的 MCP Proxy 示例代码即将开源，敬请期待！
 
 ---
 
-**需要帮助？** 提交 Issue：https://github.com/你的仓库/issues
+**需要帮助？** 提交 Issue：https://github.com/taptap/taptap-minigame-mcp-server/issues
