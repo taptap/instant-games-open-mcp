@@ -6,8 +6,11 @@
 import type { HandlerContext } from '../../core/types/index.js';
 import { getAllDevelopersAndApps, selectApp as selectAppApi } from './api.js';
 import { clearAppCache } from '../../core/utils/cache.js';
-import { DeviceFlowAuth } from '../../core/auth/deviceFlow.js';
+import { clearToken, saveToken } from '../../core/auth/tokenStorage.js';
 import { ApiConfig } from '../../core/network/httpClient.js';
+import { requestDeviceCode, generateAuthUrl, pollForToken } from '../../core/auth/oauth.js';
+import { oauthState } from '../../core/auth/oauthState.js';
+import { getMacTokenStatus, getTokenSourceLabel } from '../../core/utils/handlerHelpers.js';
 
 /**
  * List all developers and apps for the current user
@@ -146,27 +149,98 @@ ${error instanceof Error ? error.message : String(error)}
 }
 
 /**
+ * Start OAuth authorization
+ */
+export async function startOAuthAuthorization(context: HandlerContext): Promise<string> {
+  // Use shared authentication check logic
+  const { hasMacToken, source } = getMacTokenStatus(context);
+
+  if (hasMacToken) {
+    const sourceLabel = getTokenSourceLabel(source);
+    return '✅ 已经完成授权\n\n' +
+           `当前已有有效的 MAC Token ${sourceLabel}，可以直接使用所有功能。\n\n` +
+           '💡 如需切换账号，请先使用 clear_auth_data 工具清除现有授权。';
+  }
+
+  try {
+    const apiConfig = ApiConfig.getInstance();
+    const environment = apiConfig.environment;
+    const deviceCodeData = await requestDeviceCode(environment);
+    const authUrl = generateAuthUrl(deviceCodeData.qrcode_url, environment);
+    
+    // 保存状态，供 completion 使用
+    oauthState.setPendingState({
+      deviceCode: deviceCodeData.device_code,
+      environment
+    });
+
+    return '🔐 TapTap 授权登录\n\n' +
+           '请按以下步骤完成授权：\n\n' +
+           `1️⃣ 打开授权链接：\n   ${authUrl}\n\n` +
+           '2️⃣ 使用 TapTap App 扫描二维码\n\n' +
+           '3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n' +
+           '💡 提示：授权链接有效期为 2 分钟，过期后需要重新获取';
+  } catch (error) {
+    return `❌ 获取授权链接失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
+           '请稍后重试或联系技术支持。';
+  }
+}
+
+/**
+ * Complete OAuth authorization
+ */
+export async function completeOAuthAuthorization(): Promise<string> {
+  const pendingState = oauthState.getPendingState();
+  
+  if (!pendingState) {
+    return '❌ 未找到待完成的授权\n\n' +
+           '请先使用 start_oauth_authorization 工具获取授权链接。';
+  }
+
+  try {
+    const macToken = await pollForToken(pendingState.deviceCode, pendingState.environment);
+    
+    // 保存 token
+    saveToken(macToken, { environment: pendingState.environment });
+    const apiConfig = ApiConfig.getInstance();
+    apiConfig.setMacToken(macToken);
+    
+    // 清除状态
+    oauthState.clearPendingState();
+
+    return '✅ 授权完成！\n\n' +
+           'Token 已成功保存，现在可以使用所有需要认证的功能了。\n\n' +
+           '请重新执行之前失败的操作。';
+  } catch (error) {
+    return `❌ 授权失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
+           '请确认：\n' +
+           '1. 已在浏览器中打开授权链接\n' +
+           '2. 已使用 TapTap App 扫码授权\n' +
+           '3. 授权页面显示成功\n\n' +
+           '如果仍然失败，请使用 start_oauth_authorization 工具获取新的授权链接。';
+  }
+}
+
+/**
  * Clear authentication data and app cache
  */
 export async function clearAuthData(
   args: { clear_token?: boolean; clear_cache?: boolean },
   context: HandlerContext
 ): Promise<string> {
-  const clearToken = args.clear_token !== false; // Default true
-  const clearCache = args.clear_cache !== false; // Default true
+  const clearTokenFlag = args.clear_token !== false; // Default true
+  const clearCacheFlag = args.clear_cache !== false; // Default true
 
   let message = `🗑️ 清理认证数据\n\n`;
   const clearedItems: string[] = [];
 
   // Clear OAuth token file
-  if (clearToken) {
+  if (clearTokenFlag) {
     try {
-      const apiConfig = ApiConfig.getInstance();
-      const environment = apiConfig.environment;
-      const deviceAuth = new DeviceFlowAuth(environment);
-      deviceAuth.clearToken();
-
+      clearToken(); // 直接调用函数
+      
       // Also clear in-memory token
+      const apiConfig = ApiConfig.getInstance();
       apiConfig.setMacToken({} as any);
 
       clearedItems.push('✅ OAuth Token 文件已清除');
@@ -176,7 +250,7 @@ export async function clearAuthData(
   }
 
   // Clear app cache
-  if (clearCache) {
+  if (clearCacheFlag) {
     try {
       clearAppCache(context.projectPath);
       clearedItems.push('✅ 应用选择缓存已清除');
@@ -193,4 +267,48 @@ export async function clearAuthData(
   message += `4. 调用 complete_oauth_authorization 完成授权`;
 
   return message;
+}
+
+/**
+ * Check environment configuration and authentication status
+ */
+export async function checkEnvironment(context: HandlerContext): Promise<string> {
+  const apiConfig = ApiConfig.getInstance();
+  
+  // Check MAC Token status and source
+  const { hasMacToken, source } = getMacTokenStatus(context);
+  
+  // Format MAC Token status with source label
+  let macTokenStatus: string;
+  if (hasMacToken) {
+    const sourceLabel = getTokenSourceLabel(source);
+    macTokenStatus = `✅ 已配置 ${sourceLabel}`;
+  } else {
+    macTokenStatus = '❌ 未配置';
+  }
+
+  // Build environment info object
+  const envInfo = {
+    'TAPTAP_MCP_MAC_TOKEN': macTokenStatus,
+    'TAPTAP_MCP_CLIENT_ID': apiConfig.clientId ? '✅ 已配置' : '❌ 未配置',
+    'TAPTAP_MCP_CLIENT_SECRET': apiConfig.signingKey ? '✅ 已配置' : '❌ 未配置',
+    'TAPTAP_MCP_ENV': `${apiConfig.environment} (${apiConfig.apiBaseUrl})`,
+    'TAPTAP_PROJECT_PATH': context.projectPath ? '✅ 已配置' : '❌ 未配置 (可选)'
+  };
+
+  const envResult = Object.entries(envInfo)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n');
+
+  let statusMessage = '';
+  if (hasMacToken) {
+    statusMessage = '\n✅ 认证配置完整，可以使用所有功能';
+  } else {
+    statusMessage = '\n⚠️  MAC Token 未配置\n' +
+                   '   📖 文档功能可用（Resources, Prompts, 搜索等）\n' +
+                   '   🔐 管理功能需要授权（创建排行榜、列表等）\n\n' +
+                   '💡 如需授权，请使用 start_oauth_authorization 工具获取授权链接';
+  }
+
+  return `🔧 环境配置检查结果:\n\n${envResult}${statusMessage}`;
 }

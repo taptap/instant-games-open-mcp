@@ -29,11 +29,15 @@ import fs from 'node:fs';
 // 导入核心模块
 import { ApiConfig } from './core/network/httpClient.js';
 import { logger } from './core/utils/logger.js';
-import { DeviceFlowAuth } from './core/auth/deviceFlow.js';
 import { VERSION } from './version.js';
 import type { MacToken } from './core/types/index.js';
 import { mergePrivateParams, stripPrivateParams } from './core/types/privateParams.js';
 import { getEffectiveContext, getMacTokenStatus, getTokenSourceLabel } from './core/utils/handlerHelpers.js';
+
+// 导入 OAuth 模块
+import { requestDeviceCode, generateAuthUrl } from './core/auth/oauth.js';
+import { loadToken } from './core/auth/tokenStorage.js';
+import { oauthState } from './core/auth/oauthState.js';
 
 // 导入功能模块
 import { appModule } from './features/app/index.js';
@@ -62,7 +66,6 @@ const allModules: FeatureModule[] = [
  */
 class TapTapMinigameMCPServer {
   private server: Server;
-  private context: HandlerContext;
   private ensureAuth: (context?: HandlerContext) => Promise<void>;
 
   constructor(ensureAuthFn: (context?: HandlerContext) => Promise<void>) {
@@ -81,15 +84,22 @@ class TapTapMinigameMCPServer {
       }
     );
 
-    // Context with dynamic token getter (supports OAuth updates)
-    this.context = {
-      get macToken() {
-        return apiConfig.macToken;
-      }
-    };
-
     this.ensureAuth = ensureAuthFn;
     this.setupHandlers();
+  }
+
+  /**
+   * 创建请求级别的基础 context
+   * 每次请求时动态创建，包含当前有效的 macToken
+   */
+  private createBaseContext(): HandlerContext {
+    const token = apiConfig.macToken;
+    // 只有当 token 有效（包含 kid 和 mac_key）时才设置
+    // 否则返回空 context，让后续逻辑使用其他来源的 token
+    if (token?.kid && token?.mac_key) {
+      return { macToken: token };
+    }
+    return {};
   }
 
   /**
@@ -151,28 +161,13 @@ class TapTapMinigameMCPServer {
       // Log tool call input (私有参数会被自动过滤)
       await logger.logToolCall(name, enrichedArgs);
 
-      // 统一在 Server 层处理 effectiveContext（合并私有参数到 context）
-      // 这样 OAuth 工具也能检查到 Proxy 注入的 token
-      const effectiveContext = getEffectiveContext(enrichedArgs, this.context);
+      // 为每个请求创建独立的 context（请求级别，用完即丢弃）
+      const baseContext = this.createBaseContext();
+      
+      // 合并私有参数到 context（_mac_token、_developer_id 等）
+      const effectiveContext = getEffectiveContext(enrichedArgs, baseContext);
 
       try {
-        // Special handling for OAuth tools (need deviceAuth access)
-        if (name === 'start_oauth_authorization') {
-          const result = await this.handleOAuthStart(effectiveContext);
-          await logger.logToolResponse(name, result, true);
-          return {
-            content: [{ type: 'text', text: result }]
-          };
-        }
-
-        if (name === 'complete_oauth_authorization') {
-          const result = await this.handleOAuthCompletion();
-          await logger.logToolResponse(name, result, true);
-          return {
-            content: [{ type: 'text', text: result }]
-          };
-        }
-
         // Find tool from modules
         let toolReg = null;
         for (const module of allModules) {
@@ -281,67 +276,6 @@ class TapTapMinigameMCPServer {
         );
       }
     });
-  }
-
-  /**
-   * Handle OAuth start (special case - needs deviceAuth access)
-   */
-  private async handleOAuthStart(context?: HandlerContext): Promise<string> {
-    // Use shared authentication check logic
-    const { hasMacToken, source } = getMacTokenStatus(context);
-
-    if (hasMacToken) {
-      const sourceLabel = getTokenSourceLabel(source);
-      return '✅ 已经完成授权\n\n' +
-             `当前已有有效的 MAC Token ${sourceLabel}，可以直接使用所有功能。\n\n` +
-             '💡 如需切换账号，请先使用 clear_auth_data 工具清除现有授权。';
-    }
-
-    if (!deviceAuth) {
-      deviceAuth = new DeviceFlowAuth(apiConfig.environment);
-    }
-
-    try {
-      // Get authorization URL
-      const authUrl = await deviceAuth.getAuthorizationUrl();
-
-      return '🔐 TapTap 授权登录\n\n' +
-             '请按以下步骤完成授权：\n\n' +
-             `1️⃣ 打开授权链接：\n   ${authUrl}\n\n` +
-             '2️⃣ 使用 TapTap App 扫描二维码\n\n' +
-             '3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n' +
-             '💡 提示：授权链接有效期为 2 分钟，过期后需要重新获取';
-    } catch (error) {
-      return `❌ 获取授权链接失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
-             '请稍后重试或联系技术支持。';
-    }
-  }
-
-  /**
-   * Handle OAuth completion (special case - needs deviceAuth access)
-   */
-  private async handleOAuthCompletion(): Promise<string> {
-    if (!deviceAuth) {
-      return '❌ 未找到待完成的授权\n\n' +
-             '请先使用 start_oauth_authorization 工具获取授权链接。';
-    }
-
-    try {
-      const macToken = await deviceAuth.completeAuthorization();
-      const apiConfig = ApiConfig.getInstance();
-      apiConfig.setMacToken(macToken);
-
-      return '✅ 授权完成！\n\n' +
-             'Token 已成功保存，现在可以使用所有需要认证的功能了。\n\n' +
-             '请重新执行之前失败的操作。';
-    } catch (error) {
-      return `❌ 授权失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
-             '请确认：\n' +
-             '1. 已在浏览器中打开授权链接\n' +
-             '2. 已使用 TapTap App 扫码授权\n' +
-             '3. 授权页面显示成功\n\n' +
-             '如果仍然失败，请使用 start_oauth_authorization 工具获取新的授权链接。';
-    }
   }
 
   /**
@@ -568,10 +502,6 @@ class TapTapMinigameMCPServer {
   }
 }
 
-// Global device auth instance for lazy initialization
-let deviceAuth: DeviceFlowAuth | null = null;
-let authInProgress = false;
-
 // Track current transport mode (set by server)
 let currentTransportMode: 'stdio' | 'sse' = 'stdio';
 
@@ -600,30 +530,45 @@ async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
   const apiConfig = ApiConfig.getInstance();
 
   // Auth already in progress
-  if (authInProgress) {
+  if (oauthState.isAuthInProgress()) {
     throw new Error('⏳ OAuth 授权正在进行中...\n\n另一个工具正在等待授权，请完成授权后重试。');
   }
 
-  // Need to start OAuth flow
-  if (!deviceAuth) {
-    deviceAuth = new DeviceFlowAuth(apiConfig.environment);
+  // 尝试从文件加载 token
+  const token = loadToken();
+  if (token) {
+    apiConfig.setMacToken(token);
+    return;
   }
 
-  // Unified two-step auth flow for all modes
-  // Step 1: Throw error with auth URL
-  // Step 2: User authorizes and calls complete_oauth_authorization
+  // 需要 OAuth 授权
+  const environment = apiConfig.environment;
+  
   try {
-    const macToken = await deviceAuth.initialize();
-    if (macToken) {
-      apiConfig.setMacToken(macToken);
-      return;
-    }
+    const deviceCodeData = await requestDeviceCode(environment);
+    const authUrl = generateAuthUrl(deviceCodeData.qrcode_url, environment);
+    
+    // 保存状态，供 complete_oauth_authorization 使用
+    oauthState.setPendingState({
+      deviceCode: deviceCodeData.device_code,
+      environment
+    });
+    
+    throw new Error(
+      `🔐 需要 TapTap 授权\n\n` +
+      `请按以下步骤操作：\n\n` +
+      `1️⃣ 打开授权链接：\n   ${authUrl}\n\n` +
+      `2️⃣ 使用 TapTap App 扫描二维码\n\n` +
+      `3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n` +
+      `💡 提示：如果授权链接过期，请重新调用任意需要授权的工具获取新链接`
+    );
   } catch (error) {
-    // Throw the error with auth URL
-    if (error instanceof Error) {
+    // 如果是我们自己抛出的授权错误，直接传递
+    if (error instanceof Error && error.message.includes('🔐 需要 TapTap 授权')) {
       throw error;
     }
-    throw new Error('OAuth authorization required');
+    // 其他错误（如网络错误、配置错误）也抛出
+    throw error;
   }
 }
 

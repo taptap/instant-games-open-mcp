@@ -36,13 +36,6 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
 };
 
 /**
- * Check if verbose logging is enabled
- */
-function isVerboseEnabled(): boolean {
-  return EnvConfig.isVerbose;
-}
-
-/**
  * Format object for logging
  */
 function formatObject(obj: any): string {
@@ -93,7 +86,7 @@ export class Logger {
   private transport?: 'stdio' | 'sse';
 
   constructor() {
-    this.verbose = isVerboseEnabled();
+    this.verbose = EnvConfig.isVerbose;
   }
 
   /**
@@ -129,8 +122,16 @@ export class Logger {
   }
 
   /**
-   * Core logging method with dual output
-   * Pure dual-write: simple stderr + MCP notification
+   * Core logging method with smart output
+   * 
+   * Output strategy:
+   * - stdio mode: stderr only (MCP standard, client captures stderr)
+   * - sse/http mode: stderr + MCP notification (server logs + client updates)
+   * 
+   * Rationale:
+   * - In stdio mode, MCP clients monitor stderr automatically
+   * - Sending notifications in stdio may cause duplicate messages
+   * - Not all clients support notifications/message properly
    */
   private async log(
     level: LogLevel,
@@ -146,7 +147,7 @@ export class Logger {
     const timestamp = getTimestamp();
     const sanitized = data ? sanitizeData(data) : undefined;
 
-    // Output 1: Simple stderr (for local debugging)
+    // Always write to stderr for logging
     if (this.verbose) {
       process.stderr.write(`[${timestamp}] [${level.toUpperCase()}] [${loggerName}] ${message}\n`);
       if (sanitized !== undefined) {
@@ -154,8 +155,9 @@ export class Logger {
       }
     }
 
-    // Output 2: MCP notifications (for client)
-    if (this.server) {
+    // Only send MCP notifications in non-stdio modes
+    // In stdio mode, clients monitor stderr directly
+    if (this.server && this.transport !== 'stdio') {
       try {
         await this.server.notification({
           method: 'notifications/message',
@@ -163,8 +165,8 @@ export class Logger {
             level,
             logger: loggerName,
             data: sanitized !== undefined
-              ? { message, timestamp, ...sanitized }
-              : { message, timestamp }
+              ? { message: `[NOTIFICATION:${this.transport}] ${message}`, timestamp, ...sanitized }
+              : { message: `[NOTIFICATION:${this.transport}] ${message}`, timestamp }
           }
         });
       } catch (error) {

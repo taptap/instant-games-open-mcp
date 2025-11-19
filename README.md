@@ -2,7 +2,7 @@
 
 > 基于 Model Context Protocol (MCP) 的 **TapTap 小游戏和 H5 游戏**服务器 - 提供排行榜文档和管理 API，支持 **OAuth 2.0 零配置认证**。
 
-🔐 **零配置 OAuth** | 📚 **完整文档** | 🎯 **17 Tools + 7 Resources** | 🌍 **小游戏 & H5**
+🔐 **零配置 OAuth** | 📚 **完整文档** | 🎯 **19 Tools + 7 Resources** | 🌍 **小游戏 & H5**
 
 ## ✨ 核心特性
 
@@ -92,36 +92,40 @@ curl http://localhost:5003/health
 
 ## 📖 功能列表
 
-### 17 个 Tools
+### 19 个 Tools
 
 #### 流程指引 (1)
-- `get_integration_guide` - 完整接入工作流指引
+- `get_leaderboard_integration_guide` - 排行榜完整接入工作流指引
 
 #### 信息查询 (2)
 - `get_current_app_info` - 获取当前应用信息
 - `check_environment` - 检查环境配置
 
-#### 认证 (1)
+#### 认证 (3)
+- `start_oauth_authorization` - 开始 OAuth 授权（获取二维码）
 - `complete_oauth_authorization` - 完成 OAuth 授权
+- `clear_auth_data` - 清除认证数据和缓存
 
-#### 应用管理 (2)
+#### 应用管理 (3)
 - `list_developers_and_apps` - 列出所有应用
 - `select_app` - 选择当前应用
+- `create_developer` - 创建新开发者
 
-#### 排行榜管理 (4)
+#### 排行榜管理 (5)
 - `create_leaderboard` - 创建排行榜
 - `list_leaderboards` - 列出排行榜
 - `publish_leaderboard` - 发布排行榜
 - `get_user_leaderboard_scores` - 获取用户分数
+- `get_app_status` - 获取应用审核状态
 
-#### H5 游戏管理 (7)
-- `list_h5_games` - 列出 H5 游戏
-- `create_h5_game` - 创建 H5 游戏
-- `update_h5_game` - 更新游戏信息
-- `upload_h5_game` - 上传游戏包
-- `publish_h5_game` - 发布游戏
-- `get_h5_game_status` - 查询发布状态
-- `get_h5_game_share_url` - 获取分享链接
+#### H5 游戏管理 (4)
+- `h5_game_info_gatherer` - 收集 H5 游戏信息（上传前）
+- `h5_game_uploader` - 上传 H5 游戏包
+- `h5_create_app` - 创建新 H5 游戏应用
+- `h5_edit_app` - 编辑 H5 游戏信息
+
+#### 振动 API 文档 (1)
+- `get_vibrate_integration_guide` - 振动 API 完整文档和接入指引
 
 ### 7 个 Resources
 

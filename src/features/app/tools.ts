@@ -6,7 +6,6 @@
 import type { ToolRegistration, HandlerContext } from '../../core/types/index.js';
 import * as appHandlers from './handlers.js';
 import * as appApi from './api.js';
-import * as environmentHandlers from '../../core/handlers/environmentHandlers.js';
 
 /**
  * Application Management Tools
@@ -39,7 +38,7 @@ export const appTools: ToolRegistration[] = [
       }
     },
     handler: async (args, context) => {
-      return environmentHandlers.checkEnvironment(context);
+      return appHandlers.checkEnvironment(context);
     }
   },
 
@@ -53,9 +52,8 @@ export const appTools: ToolRegistration[] = [
         properties: {}
       }
     },
-    handler: async (args, context) => {
-      // This handler is replaced in server.ts (needs access to deviceAuth)
-      throw new Error('This handler is implemented in server.ts');
+    handler: async (_args, context) => {
+      return appHandlers.startOAuthAuthorization(context);
     }
   },
 
@@ -69,9 +67,8 @@ export const appTools: ToolRegistration[] = [
         properties: {}
       }
     },
-    handler: async (args, context) => {
-      // This handler is replaced in server.ts (needs access to deviceAuth)
-      throw new Error('This handler is implemented in server.ts');
+    handler: async (_args, _context) => {
+      return appHandlers.completeOAuthAuthorization();
     }
   },
 
