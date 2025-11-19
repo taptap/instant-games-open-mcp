@@ -274,20 +274,25 @@ export async function clearAuthData(
  */
 export async function checkEnvironment(context: HandlerContext): Promise<string> {
   const apiConfig = ApiConfig.getInstance();
-
-  // Use shared authentication check logic
+  
+  // Check MAC Token status and source
   const { hasMacToken, source } = getMacTokenStatus(context);
-
-  const configStatus = apiConfig.getConfigStatus();
-
-  // Override MAC Token status based on actual source
+  
+  // Format MAC Token status with source label
+  let macTokenStatus: string;
   if (hasMacToken) {
     const sourceLabel = getTokenSourceLabel(source);
-    configStatus['TAPTAP_MCP_MAC_TOKEN'] = `✅ 已配置 ${sourceLabel}`;
+    macTokenStatus = `✅ 已配置 ${sourceLabel}`;
+  } else {
+    macTokenStatus = '❌ 未配置';
   }
 
+  // Build environment info object
   const envInfo = {
-    ...configStatus,
+    'TAPTAP_MCP_MAC_TOKEN': macTokenStatus,
+    'TAPTAP_MCP_CLIENT_ID': apiConfig.clientId ? '✅ 已配置' : '❌ 未配置',
+    'TAPTAP_MCP_CLIENT_SECRET': apiConfig.signingKey ? '✅ 已配置' : '❌ 未配置',
+    'TAPTAP_MCP_ENV': `${apiConfig.environment} (${apiConfig.apiBaseUrl})`,
     'TAPTAP_PROJECT_PATH': context.projectPath ? '✅ 已配置' : '❌ 未配置 (可选)'
   };
 

@@ -93,15 +93,6 @@ export class ApiConfig {
     return !!(this.macToken.kid && this.macToken.mac_key && this.clientId && this.signingKey);
   }
 
-  public getConfigStatus(): Record<string, string> {
-    return {
-      'TAPTAP_MCP_MAC_TOKEN': this.macToken.kid ? `✅ 已配置 (kid: ${this.macToken.kid.substring(0, 8)}...)` : '❌ 未配置',
-      'TAPTAP_MCP_CLIENT_ID': this.clientId ? '✅ 已配置' : '❌ 未配置',
-      'TAPTAP_MCP_CLIENT_SECRET': this.signingKey ? '✅ 已配置' : '❌ 未配置',
-      'TAPTAP_MCP_ENV': `${this.environment} (${this.apiBaseUrl})`,
-    };
-  }
-
   /**
    * Get current environment
    */
