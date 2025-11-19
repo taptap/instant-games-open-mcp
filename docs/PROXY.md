@@ -288,9 +288,9 @@ Call B (Proxy → Server):
 
 ```bash
 # 启动服务器（SSE 模式）
-export TDS_MCP_TRANSPORT=sse
-export TDS_MCP_PORT=3000
-export TDS_MCP_VERBOSE=true
+export TAPTAP_MCP_TRANSPORT=sse
+export TAPTAP_MCP_PORT=3000
+export TAPTAP_MCP_VERBOSE=true
 npm start
 
 # 使用 curl 测试参数注入
@@ -321,9 +321,9 @@ curl -X POST http://localhost:3000/ \
 
 ```bash
 # 启动服务器
-export TDS_MCP_TRANSPORT=sse
-export TDS_MCP_PORT=3000
-export TDS_MCP_VERBOSE=true
+export TAPTAP_MCP_TRANSPORT=sse
+export TAPTAP_MCP_PORT=3000
+export TAPTAP_MCP_VERBOSE=true
 npm start
 
 # Base64 编码 MAC Token
@@ -397,8 +397,8 @@ npm run build:bundle
 cp dist/bundle/mcp-server-bundle.js /your/deployment/path/
 
 # 启动 SSE 模式（推荐用于 Proxy）
-TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3001 \
-TDS_MCP_CLIENT_TOKEN=your_secret \
+TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3001 \
+TAPTAP_MCP_CLIENT_SECRET=your_secret \
 node mcp-server-bundle.js
 ```
 
@@ -413,7 +413,7 @@ node mcp-server-bundle.js
 npm install @mikoto_zero/minigame-open-mcp
 
 # 启动
-TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3001 \
+TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3001 \
 npx @mikoto_zero/minigame-open-mcp
 ```
 
@@ -635,9 +635,9 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - TDS_MCP_TRANSPORT=sse
-      - TDS_MCP_PORT=3001
-      - TDS_MCP_CLIENT_TOKEN=${CLIENT_TOKEN}
+      - TAPTAP_MCP_TRANSPORT=sse
+      - TAPTAP_MCP_PORT=3001
+      - TAPTAP_MCP_CLIENT_SECRET=${CLIENT_TOKEN}
     restart: unless-stopped
 ```
 
@@ -665,7 +665,7 @@ async handleToolCall(request: any, userId: string) {
 
 ```bash
 # 1. 启动 TapTap Server
-TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3001 node mcp-server-bundle.js
+TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3001 node mcp-server-bundle.js
 
 # 2. 启动你的 Proxy
 npm start
@@ -685,7 +685,7 @@ curl -X POST http://localhost:3000/ \
 
 # 4. 验证：检查 TapTap Server 日志
 # 启用详细日志查看 Token 注入情况
-TDS_MCP_VERBOSE=true TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3001 node mcp-server-bundle.js
+TAPTAP_MCP_VERBOSE=true TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3001 node mcp-server-bundle.js
 ```
 
 ### 4.7 常见问题
@@ -976,7 +976,7 @@ Proxy 会自动计算 `_project_path` 并注入到请求中，供 MCP Server 使
 
 ```bash
 # 1. 本地启动 MCP Server
-TDS_MCP_TRANSPORT=stdio npx @mikoto_zero/minigame-open-mcp
+TAPTAP_MCP_TRANSPORT=stdio npx @mikoto_zero/minigame-open-mcp
 
 # 2. 在客户端调用需要认证的工具
 # 3. 扫描二维码授权
@@ -1338,22 +1338,22 @@ services:
 
     environment:
       # 传输模式（必需）
-      - TDS_MCP_TRANSPORT=sse
-      - TDS_MCP_PORT=3000
+      - TAPTAP_MCP_TRANSPORT=sse
+      - TAPTAP_MCP_PORT=3000
 
       # TapTap 环境（必需）
-      - TDS_MCP_ENV=rnd  # rnd=测试环境, production=生产环境
+      - TAPTAP_MCP_ENV=rnd  # rnd=测试环境, production=生产环境
 
       # 客户端配置（必需）
-      - TDS_MCP_CLIENT_ID=${TDS_MCP_CLIENT_ID}
-      - TDS_MCP_CLIENT_TOKEN=${TDS_MCP_CLIENT_TOKEN}
+      - TAPTAP_MCP_CLIENT_ID=${TAPTAP_MCP_CLIENT_ID}
+      - TAPTAP_MCP_CLIENT_SECRET=${TAPTAP_MCP_CLIENT_SECRET}
 
       # 日志（可选，推荐开启）
-      - TDS_MCP_VERBOSE=true
+      - TAPTAP_MCP_VERBOSE=true
 
       # 缓存和临时目录（可选）
-      - TDS_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache
-      - TDS_MCP_TEMP_DIR=/tmp/taptap-mcp/temp
+      - TAPTAP_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache
+      - TAPTAP_MCP_TEMP_DIR=/tmp/taptap-mcp/temp
 
     volumes:
       # Workspace 根目录（必需，只读）
@@ -1373,9 +1373,9 @@ volumes:
 ```bash
 # 设置环境变量
 export WORKSPACE_ROOT=/Users/mikoto
-export TDS_MCP_CLIENT_ID=m2dnabebip3fpardnm
-export TDS_MCP_CLIENT_TOKEN=QUmbMoTQm2qJETi53vWnvaXuBiRL3VRkgcUWnBtb
-export TDS_MCP_ENV=rnd
+export TAPTAP_MCP_CLIENT_ID=m2dnabebip3fpardnm
+export TAPTAP_MCP_CLIENT_SECRET=QUmbMoTQm2qJETi53vWnvaXuBiRL3VRkgcUWnBtb
+export TAPTAP_MCP_ENV=rnd
 
 # 启动 Docker
 docker-compose up -d
@@ -1534,10 +1534,10 @@ class TapTapMCPService {
   async startMCPServer(workspaceRoot: string) {
     const env = {
       WORKSPACE_ROOT: workspaceRoot,
-      TDS_MCP_CLIENT_ID: process.env.TAPTAP_CLIENT_ID!,
-      TDS_MCP_CLIENT_TOKEN: process.env.TAPTAP_CLIENT_SECRET!,
-      TDS_MCP_ENV: 'rnd',
-      TDS_MCP_VERBOSE: 'true'
+      TAPTAP_MCP_CLIENT_ID: process.env.TAPTAP_CLIENT_ID!,
+      TAPTAP_MCP_CLIENT_SECRET: process.env.TAPTAP_CLIENT_SECRET!,
+      TAPTAP_MCP_ENV: 'rnd',
+      TAPTAP_MCP_VERBOSE: 'true'
     };
 
     // 启动 Docker Compose
@@ -1630,7 +1630,7 @@ curl http://localhost:5003/health
 🚀 TapTap Open API MCP Server v1.5.0 (Minigame & H5)
 🔌 Transport: Streamable HTTP (SSE Streaming)
 📁 Workspace: /workspace ✅
-🔍 Verbose logging enabled (TDS_MCP_VERBOSE=true)
+🔍 Verbose logging enabled (TAPTAP_MCP_VERBOSE=true)
 ```
 
 #### 验证 Proxy 配置

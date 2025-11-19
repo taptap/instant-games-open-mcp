@@ -447,8 +447,8 @@ Content-Type: application/json
 
 ### 环境变量配置
 
-- `TDS_MCP_CACHE_DIR` - 缓存根目录（默认 `/tmp/taptap-mcp/cache`）
-- `TDS_MCP_TEMP_DIR` - 临时文件根目录（默认 `/tmp/taptap-mcp/temp`）
+- `TAPTAP_MCP_CACHE_DIR` - 缓存根目录（默认 `/tmp/taptap-mcp/cache`）
+- `TAPTAP_MCP_TEMP_DIR` - 临时文件根目录（默认 `/tmp/taptap-mcp/temp`）
 
 ### API
 
@@ -497,7 +497,7 @@ saveAppCache({
 
 3. **启用详细日志调试**
    ```bash
-   TDS_MCP_VERBOSE=true npm start
+   TAPTAP_MCP_VERBOSE=true npm start
    ```
 
 ---
@@ -725,14 +725,14 @@ function generateRequestSign(
 
 #### 认证相关（可选）
 
-- `TDS_MCP_MAC_TOKEN` - 用户 MAC Token（JSON 格式）
+- `TAPTAP_MCP_MAC_TOKEN` - 用户 MAC Token（JSON 格式）
   - 不配置则使用 OAuth 2.0
   - Token 自动保存到本地
 
 #### 客户端配置（可选）
 
-- `TDS_MCP_CLIENT_ID` - 客户端 ID（非必需，不配置会导致部分工具无法使用）
-- `TDS_MCP_CLIENT_TOKEN` - 请求签名密钥（非必需，不配置会导致部分工具无法使用）
+- `TAPTAP_MCP_CLIENT_ID` - 客户端 ID（非必需，不配置会导致部分工具无法使用）
+- `TAPTAP_MCP_CLIENT_SECRET` - 请求签名密钥（非必需，不配置会导致部分工具无法使用）
 
 ---
 

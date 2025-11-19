@@ -80,11 +80,11 @@ npx @mikoto_zero/minigame-open-mcp
 
 ```bash
 # 基础启动（端口 3000）
-TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3000 \
+TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3000 \
 npx @mikoto_zero/minigame-open-mcp
 
 # 启用详细日志
-TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3000 TDS_MCP_VERBOSE=true \
+TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3000 TAPTAP_MCP_VERBOSE=true \
 npx @mikoto_zero/minigame-open-mcp
 
 # 使用 npm scripts（推荐）
@@ -92,7 +92,7 @@ npm run serve:sse          # 基础模式
 npm run serve:sse:dev      # 开发模式（详细日志）
 
 # 自定义端口
-TDS_MCP_PORT=8080 npm run serve:sse
+TAPTAP_MCP_PORT=8080 npm run serve:sse
 ```
 
 #### 客户端配置
@@ -138,7 +138,7 @@ TDS_MCP_PORT=8080 npm run serve:sse
 
 ```bash
 # 启动 HTTP 模式
-TDS_MCP_TRANSPORT=http TDS_MCP_PORT=3000 \
+TAPTAP_MCP_TRANSPORT=http TAPTAP_MCP_PORT=3000 \
 npx @mikoto_zero/minigame-open-mcp
 
 # 使用 npm scripts
@@ -159,25 +159,25 @@ npm run serve:http
 
 | 变量 | 说明 | 是否必需 | 默认值 |
 |------|------|---------|--------|
-| `TDS_MCP_MAC_TOKEN` | 用户 MAC Token（JSON 格式） | 否 | 使用 OAuth |
-| `TDS_MCP_CLIENT_ID` | 客户端 ID | 否* | 无 |
-| `TDS_MCP_CLIENT_TOKEN` | 请求签名密钥 | 否* | 无 |
+| `TAPTAP_MCP_MAC_TOKEN` | 用户 MAC Token（JSON 格式） | 否 | 使用 OAuth |
+| `TAPTAP_MCP_CLIENT_ID` | 客户端 ID | 否* | 无 |
+| `TAPTAP_MCP_CLIENT_SECRET` | 请求签名密钥 | 否* | 无 |
 
-**注意**：`TDS_MCP_CLIENT_ID` 和 `TDS_MCP_CLIENT_TOKEN` 不是必需的，但不配置会导致部分工具无法使用。
+**注意**：`TAPTAP_MCP_CLIENT_ID` 和 `TAPTAP_MCP_CLIENT_SECRET` 不是必需的，但不配置会导致部分工具无法使用。
 
 **OAuth Token 格式**：
 ```bash
-export TDS_MCP_MAC_TOKEN='{"kid":"your_kid","token_type":"mac","mac_key":"your_mac_key","mac_algorithm":"hmac-sha-1"}'
+export TAPTAP_MCP_MAC_TOKEN='{"kid":"your_kid","token_type":"mac","mac_key":"your_mac_key","mac_algorithm":"hmac-sha-1"}'
 ```
 
 #### 环境和传输（可选）
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `TDS_MCP_ENV` | 环境选择 | `production` |
-| `TDS_MCP_TRANSPORT` | 传输协议 | `stdio` |
-| `TDS_MCP_PORT` | HTTP/SSE 端口 | `3000` |
-| `TDS_MCP_VERBOSE` | 详细日志模式 | `false` |
+| `TAPTAP_MCP_ENV` | 环境选择 | `production` |
+| `TAPTAP_MCP_TRANSPORT` | 传输协议 | `stdio` |
+| `TAPTAP_MCP_PORT` | HTTP/SSE 端口 | `3000` |
+| `TAPTAP_MCP_VERBOSE` | 详细日志模式 | `false` |
 
 **环境选项**：
 - `production`：https://agent.tapapis.cn
@@ -187,8 +187,8 @@ export TDS_MCP_MAC_TOKEN='{"kid":"your_kid","token_type":"mac","mac_key":"your_m
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `TDS_MCP_CACHE_DIR` | 缓存根目录 | `/tmp/taptap-mcp/cache` |
-| `TDS_MCP_TEMP_DIR` | 临时文件根目录 | `/tmp/taptap-mcp/temp` |
+| `TAPTAP_MCP_CACHE_DIR` | 缓存根目录 | `/tmp/taptap-mcp/cache` |
+| `TAPTAP_MCP_TEMP_DIR` | 临时文件根目录 | `/tmp/taptap-mcp/temp` |
 | `WORKSPACE_ROOT` | 工作空间根路径 | `process.cwd()` |
 
 **缓存目录结构**：
@@ -214,8 +214,8 @@ export TDS_MCP_MAC_TOKEN='{"kid":"your_kid","token_type":"mac","mac_key":"your_m
 cp .env.docker .env
 # 编辑 .env，填入：
 #   - WORKSPACE_ROOT（可选）- workspace 根目录路径
-#   - TDS_MCP_CLIENT_ID（必需）
-#   - TDS_MCP_CLIENT_TOKEN（必需）
+#   - TAPTAP_MCP_CLIENT_ID（必需）
+#   - TAPTAP_MCP_CLIENT_SECRET（必需）
 
 # 2. 启动服务
 ./scripts/docker-start.sh
@@ -236,12 +236,12 @@ docker build -t taptap-mcp-server:latest .
 docker run -d \
   --name taptap-mcp-server \
   -p 5003:3000 \
-  -e TDS_MCP_TRANSPORT=sse \
-  -e TDS_MCP_PORT=3000 \
-  -e TDS_MCP_ENV=rnd \
-  -e TDS_MCP_CLIENT_ID=your_client_id \
-  -e TDS_MCP_CLIENT_TOKEN=your_client_token \
-  -e TDS_MCP_VERBOSE=false \
+  -e TAPTAP_MCP_TRANSPORT=sse \
+  -e TAPTAP_MCP_PORT=3000 \
+  -e TAPTAP_MCP_ENV=rnd \
+  -e TAPTAP_MCP_CLIENT_ID=your_client_id \
+  -e TAPTAP_MCP_CLIENT_SECRET=your_client_token \
+  -e TAPTAP_MCP_VERBOSE=false \
   -v /path/to/workspace:/workspace:ro \
   -v taptap-mcp-cache:/var/lib/taptap-mcp/cache \
   -v taptap-mcp-temp:/tmp/taptap-mcp/temp \
@@ -254,10 +254,10 @@ docker run -d \
 docker run -d \
   --name taptap-mcp-server \
   -p 5003:3000 \
-  -e TDS_MCP_TRANSPORT=sse \
-  -e TDS_MCP_PORT=3000 \
-  -e TDS_MCP_CLIENT_ID=your_client_id \
-  -e TDS_MCP_CLIENT_TOKEN=your_client_token \
+  -e TAPTAP_MCP_TRANSPORT=sse \
+  -e TAPTAP_MCP_PORT=3000 \
+  -e TAPTAP_MCP_CLIENT_ID=your_client_id \
+  -e TAPTAP_MCP_CLIENT_SECRET=your_client_token \
   node:20-alpine \
   sh -c "npm install -g @mikoto_zero/minigame-open-mcp@latest && minigame-open-mcp"
 ```
@@ -278,14 +278,14 @@ services:
     ports:
       - "5003:3000"
     environment:
-      - TDS_MCP_TRANSPORT=sse
-      - TDS_MCP_PORT=3000
-      - TDS_MCP_ENV=${TDS_MCP_ENV:-rnd}
-      - TDS_MCP_CLIENT_ID=${TDS_MCP_CLIENT_ID}
-      - TDS_MCP_CLIENT_TOKEN=${TDS_MCP_CLIENT_TOKEN}
-      - TDS_MCP_VERBOSE=${TDS_MCP_VERBOSE:-false}
-      - TDS_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache
-      - TDS_MCP_TEMP_DIR=/tmp/taptap-mcp/temp
+      - TAPTAP_MCP_TRANSPORT=sse
+      - TAPTAP_MCP_PORT=3000
+      - TAPTAP_MCP_ENV=${TAPTAP_MCP_ENV:-rnd}
+      - TAPTAP_MCP_CLIENT_ID=${TAPTAP_MCP_CLIENT_ID}
+      - TAPTAP_MCP_CLIENT_SECRET=${TAPTAP_MCP_CLIENT_SECRET}
+      - TAPTAP_MCP_VERBOSE=${TAPTAP_MCP_VERBOSE:-false}
+      - TAPTAP_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache
+      - TAPTAP_MCP_TEMP_DIR=/tmp/taptap-mcp/temp
       - WORKSPACE_ROOT=${WORKSPACE_ROOT:-}
     volumes:
       - ${WORKSPACE_ROOT:-/tmp/empty}:/workspace:ro
@@ -307,12 +307,12 @@ volumes:
 
 ```bash
 # 必需配置
-TDS_MCP_CLIENT_ID=your_client_id
-TDS_MCP_CLIENT_TOKEN=your_client_token
+TAPTAP_MCP_CLIENT_ID=your_client_id
+TAPTAP_MCP_CLIENT_SECRET=your_client_token
 
 # 可选配置
-TDS_MCP_ENV=rnd                                    # rnd=测试环境, production=生产环境
-TDS_MCP_VERBOSE=false                              # true=启用详细日志
+TAPTAP_MCP_ENV=rnd                                    # rnd=测试环境, production=生产环境
+TAPTAP_MCP_VERBOSE=false                              # true=启用详细日志
 WORKSPACE_ROOT=/path/to/your/workspace             # workspace 根目录（可选）
 ```
 
@@ -418,8 +418,8 @@ version: '3.8'
 services:
   taptap-mcp-server:
     environment:
-      - TDS_MCP_ENV=rnd
-      - TDS_MCP_VERBOSE=true
+      - TAPTAP_MCP_ENV=rnd
+      - TAPTAP_MCP_VERBOSE=true
 ```
 
 **docker-compose.prod.yml**：
@@ -428,8 +428,8 @@ version: '3.8'
 services:
   taptap-mcp-server:
     environment:
-      - TDS_MCP_ENV=production
-      - TDS_MCP_VERBOSE=false
+      - TAPTAP_MCP_ENV=production
+      - TAPTAP_MCP_VERBOSE=false
     deploy:
       replicas: 2  # 多实例
 ```
@@ -440,8 +440,8 @@ services:
 services:
   taptap-mcp-server:
     environment:
-      - TDS_MCP_CLIENT_ID_FILE=/run/secrets/client_id
-      - TDS_MCP_CLIENT_TOKEN_FILE=/run/secrets/client_token
+      - TAPTAP_MCP_CLIENT_ID_FILE=/run/secrets/client_id
+      - TAPTAP_MCP_CLIENT_SECRET_FILE=/run/secrets/client_token
     secrets:
       - client_id
       - client_token
@@ -468,9 +468,9 @@ secrets:
 npm run build
 
 # 2. 启动 stdio 模式（使用测试 Token）
-TDS_MCP_MAC_TOKEN='{"kid":"test","token_type":"mac","mac_key":"test","mac_algorithm":"hmac-sha-1"}' \
-TDS_MCP_CLIENT_ID=test \
-TDS_MCP_CLIENT_TOKEN=test \
+TAPTAP_MCP_MAC_TOKEN='{"kid":"test","token_type":"mac","mac_key":"test","mac_algorithm":"hmac-sha-1"}' \
+TAPTAP_MCP_CLIENT_ID=test \
+TAPTAP_MCP_CLIENT_SECRET=test \
 node dist/server.js
 
 # 3. 检查输出
@@ -514,10 +514,10 @@ npx @modelcontextprotocol/inspector node dist/server.js
       "command": "node",
       "args": ["/absolute/path/to/dist/server.js"],
       "env": {
-        "TDS_MCP_MAC_TOKEN": "{\"kid\":\"test\",\"token_type\":\"mac\",\"mac_key\":\"test\",\"mac_algorithm\":\"hmac-sha-1\"}",
-        "TDS_MCP_CLIENT_ID": "test",
-        "TDS_MCP_CLIENT_TOKEN": "test",
-        "TDS_MCP_VERBOSE": "true",
+        "TAPTAP_MCP_MAC_TOKEN": "{\"kid\":\"test\",\"token_type\":\"mac\",\"mac_key\":\"test\",\"mac_algorithm\":\"hmac-sha-1\"}",
+        "TAPTAP_MCP_CLIENT_ID": "test",
+        "TAPTAP_MCP_CLIENT_SECRET": "test",
+        "TAPTAP_MCP_VERBOSE": "true",
         "WORKSPACE_ROOT": "${workspaceFolder}"
       }
     }
@@ -528,7 +528,7 @@ npx @modelcontextprotocol/inspector node dist/server.js
 **测试步骤**：
 1. 重启客户端（重新加载 MCP Server）
 2. 调用你新增的工具
-3. 检查日志（启用 `TDS_MCP_VERBOSE=true`）
+3. 检查日志（启用 `TAPTAP_MCP_VERBOSE=true`）
 
 **提示**：使用绝对路径指向 `dist/server.js`，避免路径解析问题。
 
@@ -540,9 +540,9 @@ npx @modelcontextprotocol/inspector node dist/server.js
 
 ```bash
 # 1. 启动 SSE 模式
-TDS_MCP_TRANSPORT=sse \
-TDS_MCP_PORT=3000 \
-TDS_MCP_VERBOSE=true \
+TAPTAP_MCP_TRANSPORT=sse \
+TAPTAP_MCP_PORT=3000 \
+TAPTAP_MCP_VERBOSE=true \
 node dist/server.js
 
 # 2. 健康检查
@@ -574,11 +574,11 @@ docker build -t taptap-mcp-server:dev .
 docker run -d \
   --name taptap-mcp-test \
   -p 3000:3000 \
-  -e TDS_MCP_TRANSPORT=sse \
-  -e TDS_MCP_PORT=3000 \
-  -e TDS_MCP_VERBOSE=true \
-  -e TDS_MCP_CLIENT_ID=test \
-  -e TDS_MCP_CLIENT_TOKEN=test \
+  -e TAPTAP_MCP_TRANSPORT=sse \
+  -e TAPTAP_MCP_PORT=3000 \
+  -e TAPTAP_MCP_VERBOSE=true \
+  -e TAPTAP_MCP_CLIENT_ID=test \
+  -e TAPTAP_MCP_CLIENT_SECRET=test \
   -v $(pwd)/test-workspace:/workspace:ro \
   taptap-mcp-server:dev
 
@@ -614,14 +614,14 @@ npm run build
 grep "yourModule" src/server.ts
 
 # 启用详细日志
-TDS_MCP_VERBOSE=true node dist/server.js
+TAPTAP_MCP_VERBOSE=true node dist/server.js
 ```
 
 #### OAuth 授权失败
 
 ```bash
 # 使用测试 Token（跳过 OAuth）
-export TDS_MCP_MAC_TOKEN='{"kid":"test","token_type":"mac","mac_key":"test","mac_algorithm":"hmac-sha-1"}'
+export TAPTAP_MCP_MAC_TOKEN='{"kid":"test","token_type":"mac","mac_key":"test","mac_algorithm":"hmac-sha-1"}'
 ```
 
 #### 路径解析错误
@@ -640,7 +640,7 @@ export WORKSPACE_ROOT=$(pwd)
 lsof -i :3000
 
 # 使用其他端口
-TDS_MCP_PORT=8080 npm run serve:sse
+TAPTAP_MCP_PORT=8080 npm run serve:sse
 ```
 
 ---
@@ -668,7 +668,7 @@ TDS_MCP_PORT=8080 npm run serve:sse
 docker-compose logs taptap-mcp-server
 
 # 常见原因：
-# - 环境变量缺失（TDS_MCP_CLIENT_ID、TDS_MCP_CLIENT_TOKEN）
+# - 环境变量缺失（TAPTAP_MCP_CLIENT_ID、TAPTAP_MCP_CLIENT_SECRET）
 # - 端口冲突（5003 被占用）
 # - 镜像构建失败
 ```
