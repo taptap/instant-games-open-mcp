@@ -165,8 +165,8 @@ export class Logger {
             level,
             logger: loggerName,
             data: sanitized !== undefined
-              ? { message, timestamp, ...sanitized }
-              : { message, timestamp }
+              ? { message: `[NOTIFICATION:${this.transport}] ${message}`, timestamp, ...sanitized }
+              : { message: `[NOTIFICATION:${this.transport}] ${message}`, timestamp }
           }
         });
       } catch (error) {

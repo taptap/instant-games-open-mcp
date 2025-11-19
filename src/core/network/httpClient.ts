@@ -80,12 +80,6 @@ export class ApiConfig {
    * Set MAC Token (called by Device Flow or manual configuration)
    */
   public setMacToken(token: MacToken): void {
-    if (EnvConfig.isVerbose) {
-      process.stderr.write('\n🔍 [DEBUG] ApiConfig.setMacToken() called:\n');
-      process.stderr.write(`  - kid: ${token.kid?.substring(0, 20)}...\n`);
-      process.stderr.write(`  - mac_key: ${token.mac_key?.substring(0, 10)}...\n`);
-      process.stderr.write(`  - token_type: ${token.token_type}\n\n`);
-    }
     this.macToken = token;
   }
 
@@ -198,13 +192,6 @@ export class HttpClient {
     // 动态获取最新的 token（支持 OAuth 完成后更新）
     const effectiveMacToken = this.overrideMacToken || ApiConfig.getInstance().macToken;
 
-    // Debug: Log token retrieval
-    if (EnvConfig.isVerbose) {
-      process.stderr.write('\n🔍 [DEBUG] HttpClient Token Retrieval:\n');
-      process.stderr.write(`  - Using override: ${!!this.overrideMacToken}\n`);
-      process.stderr.write(`  - Token kid: ${effectiveMacToken?.kid?.substring(0, 20) || 'N/A'}...\n`);
-      process.stderr.write(`  - Token mac_key: ${effectiveMacToken?.mac_key?.substring(0, 10) || 'N/A'}...\n\n`);
-    }
 
     // Generate MAC Authorization header
     const authorization = this.generateMacAuthorization(fullUrl, method, effectiveMacToken);
@@ -380,14 +367,6 @@ export class HttpClient {
     // Build MAC signature base string
     const signatureBase = this.buildMacSignatureBase(timestamp, nonce, method, uri, host, port, other);
 
-    // Debug: Log MAC signature generation
-    if (EnvConfig.isVerbose) {
-      process.stderr.write('\n🔍 [DEBUG] MAC Authorization Generation:\n');
-      process.stderr.write(`MAC Key: ${macToken.mac_key.substring(0, 10)}...\n`);
-      process.stderr.write(`MAC KID: ${macToken.kid.substring(0, 10)}...\n`);
-      process.stderr.write(`Signature Base:\n${signatureBase}\n`);
-    }
-
     // Sign with mac_key using HMAC-SHA1
     const hmac = cryptoJS.HmacSHA1(signatureBase, macToken.mac_key);
 
@@ -397,10 +376,6 @@ export class HttpClient {
     }
 
     const macSignature = cryptoJS.enc.Base64.stringify(hmac);
-
-    if (EnvConfig.isVerbose) {
-      process.stderr.write(`MAC Signature: ${macSignature.substring(0, 20)}...\n\n`);
-    }
 
     return `MAC id="${macToken.kid}", ts="${timestamp}", nonce="${nonce}", mac="${macSignature}"`;
   }
@@ -450,13 +425,6 @@ export class HttpClient {
       const bodyPart = body;
       const signParts = `${methodPart}\n${urlPart}\n${headersPart}\n${bodyPart}\n`;
 
-      // Debug: Log signature base string
-      if (EnvConfig.isVerbose) {
-        process.stderr.write('\n🔍 [DEBUG] Signature Generation:\n');
-        process.stderr.write(`Signing Key: ${this.config.signingKey.substring(0, 10)}...\n`);
-        process.stderr.write(`Sign Parts:\n${signParts}\n`);
-      }
-
       const hmacResult = cryptoJS.HmacSHA256(signParts, this.config.signingKey);
 
       // Debug: Check HMAC result
@@ -465,10 +433,6 @@ export class HttpClient {
       }
 
       const signatureBase64 = cryptoJS.enc.Base64.stringify(hmacResult);
-
-      if (EnvConfig.isVerbose) {
-        process.stderr.write(`Signature: ${signatureBase64.substring(0, 20)}...\n\n`);
-      }
 
       return signatureBase64;
     } catch (error) {
