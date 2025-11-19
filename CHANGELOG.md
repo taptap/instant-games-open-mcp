@@ -1,3 +1,19 @@
+## <small>1.5.5 (2025-11-19)</small>
+
+* refactor: 更新 Dockerfile 中的环境变量 ([fa07dc5](https://github.com/taptap/taptap_minigame_open_mcp/commit/fa07dc5))
+* refactor: 更新服务器和认证模块中的环境变量 ([5616860](https://github.com/taptap/taptap_minigame_open_mcp/commit/5616860))
+* refactor: 更新源代码中的环境变量 ([bf67071](https://github.com/taptap/taptap_minigame_open_mcp/commit/bf67071))
+* refactor: 更新环境变量名称为 TAPTAP_MCP_ 前缀 ([f1f61ba](https://github.com/taptap/taptap_minigame_open_mcp/commit/f1f61ba))
+* refactor(env): 引入类型安全的 EnvConfig 类 ([5b003ae](https://github.com/taptap/taptap_minigame_open_mcp/commit/5b003ae))
+* refactor(env): 重命名环境变量从 TDS_MCP_* 到 TAPTAP_MCP_* ([8871d7b](https://github.com/taptap/taptap_minigame_open_mcp/commit/8871d7b))
+* docs: 全面重写 MCP Proxy 开发指引 ([acd458f](https://github.com/taptap/taptap_minigame_open_mcp/commit/acd458f))
+* docs: 更新文档中的环境变量名称 ([4cb4c55](https://github.com/taptap/taptap_minigame_open_mcp/commit/4cb4c55))
+* docs: 重构文档结构，提升可维护性 ([e5b92eb](https://github.com/taptap/taptap_minigame_open_mcp/commit/e5b92eb))
+* fix(docs): 修复 DEPLOYMENT.md 中的错误 ([bf66748](https://github.com/taptap/taptap_minigame_open_mcp/commit/bf66748))
+* fix(docs): 修复文档中的多处错误描述 ([b047663](https://github.com/taptap/taptap_minigame_open_mcp/commit/b047663))
+
+
+
 ## <small>1.5.4 (2025-11-17)</small>
 
 * fix: 添加 MCP Proxy 独立打包功能以支持无 node_modules 环境 ([665d89a](https://github.com/taptap/taptap_minigame_open_mcp/commit/665d89a))
