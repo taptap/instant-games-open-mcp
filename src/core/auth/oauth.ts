@@ -3,7 +3,6 @@
  * 职责：处理 OAuth 网络请求
  */
 
-import { getEnvironmentConfig } from '../config/environment.js';
 import { EnvConfig } from '../utils/env.js';
 import type { MacToken } from '../types/index.js';
 
@@ -29,7 +28,7 @@ export interface PollOptions {
  * 请求 device code
  */
 export async function requestDeviceCode(environment: string = 'production'): Promise<DeviceCodeData> {
-  const envConfig = getEnvironmentConfig(environment);
+  const endpoints = EnvConfig.getEndpoints(environment);
   const clientId = EnvConfig.clientId;
   
   if (!clientId) {
@@ -43,7 +42,7 @@ export async function requestDeviceCode(environment: string = 'production'): Pro
     );
   }
   
-  const url = `https://${envConfig.authHost}/oauth2/v1/device/code`;
+  const url = `https://${endpoints.authHost}/oauth2/v1/device/code`;
   
   const params = new URLSearchParams({
     client_id: clientId,
@@ -76,8 +75,8 @@ export async function requestDeviceCode(environment: string = 'production'): Pro
  * 生成授权 URL
  */
 export function generateAuthUrl(qrcodeUrl: string, environment: string = 'production'): string {
-  const envConfig = getEnvironmentConfig(environment);
-  return envConfig.qrcodeBaseUrl + encodeURIComponent(qrcodeUrl);
+  const endpoints = EnvConfig.getEndpoints(environment);
+  return endpoints.qrcodeBaseUrl + encodeURIComponent(qrcodeUrl);
 }
 
 /**
@@ -88,14 +87,14 @@ export async function pollForToken(
   environment: string = 'production',
   options?: PollOptions
 ): Promise<MacToken> {
-  const envConfig = getEnvironmentConfig(environment);
+  const endpoints = EnvConfig.getEndpoints(environment);
   const clientId = EnvConfig.clientId;
   
   if (!clientId) {
     throw new Error('❌ 未配置 Client ID，请设置环境变量：TAPTAP_MCP_CLIENT_ID');
   }
   
-  const url = `https://${envConfig.authHost}/oauth2/v1/token`;
+  const url = `https://${endpoints.authHost}/oauth2/v1/token`;
   const maxAttempts = options?.maxAttempts || 60;
   const intervalMs = options?.intervalMs || 2000;
   

@@ -7,7 +7,6 @@ import process from 'node:process';
 import cryptoJS from 'crypto-js';
 import { MacToken } from '../types/index.js';
 import { logger } from '../utils/logger.js';
-import { getEnvironmentConfig } from '../config/environment.js';
 import { getEnv, getEnvBoolean, EnvConfig } from '../utils/env.js';
 
 /**
@@ -27,8 +26,8 @@ export class ApiConfig {
     this.environment = EnvConfig.environment;
 
     // 从统一配置获取环境信息
-    const envConfig = getEnvironmentConfig(this.environment);
-    this.apiBaseUrl = envConfig.apiBaseUrl;
+    const endpoints = EnvConfig.endpoints;
+    this.apiBaseUrl = endpoints.apiBaseUrl;
 
     // Client ID：必须从环境变量配置
     this.clientId = EnvConfig.clientId || '';
