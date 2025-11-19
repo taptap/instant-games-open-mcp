@@ -6,7 +6,6 @@
 import type { ToolRegistration, HandlerContext } from '../../core/types/index.js';
 import * as appHandlers from './handlers.js';
 import * as appApi from './api.js';
-import * as environmentHandlers from '../../core/handlers/environmentHandlers.js';
 
 /**
  * Application Management Tools
@@ -39,7 +38,7 @@ export const appTools: ToolRegistration[] = [
       }
     },
     handler: async (args, context) => {
-      return environmentHandlers.checkEnvironment(context);
+      return appHandlers.checkEnvironment(context);
     }
   },
 

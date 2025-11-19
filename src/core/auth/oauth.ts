@@ -3,7 +3,7 @@
  * 职责：处理 OAuth 网络请求
  */
 
-import { getHostConfig, getClientId } from './config.js';
+import { getOAuthEndpoints, getClientId } from './config.js';
 import type { MacToken } from '../types/index.js';
 
 /**
@@ -28,9 +28,9 @@ export interface PollOptions {
  * 请求 device code
  */
 export async function requestDeviceCode(environment: string = 'production'): Promise<DeviceCodeData> {
-  const config = getHostConfig(environment);
-  const clientId = getClientId(); // 从环境变量读取
-  const url = `https://${config.authHost}/oauth2/v1/device/code`;
+  const endpoints = getOAuthEndpoints(environment);
+  const clientId = getClientId();
+  const url = `https://${endpoints.authHost}/oauth2/v1/device/code`;
   
   const params = new URLSearchParams({
     client_id: clientId,
@@ -63,8 +63,8 @@ export async function requestDeviceCode(environment: string = 'production'): Pro
  * 生成授权 URL
  */
 export function generateAuthUrl(qrcodeUrl: string, environment: string = 'production'): string {
-  const config = getHostConfig(environment);
-  return config.qrcodeBaseUrl + encodeURIComponent(qrcodeUrl);
+  const endpoints = getOAuthEndpoints(environment);
+  return endpoints.qrcodeBaseUrl + encodeURIComponent(qrcodeUrl);
 }
 
 /**
@@ -75,9 +75,9 @@ export async function pollForToken(
   environment: string = 'production',
   options?: PollOptions
 ): Promise<MacToken> {
-  const config = getHostConfig(environment);
-  const clientId = getClientId(); // 从环境变量读取
-  const url = `https://${config.authHost}/oauth2/v1/token`;
+  const endpoints = getOAuthEndpoints(environment);
+  const clientId = getClientId();
+  const url = `https://${endpoints.authHost}/oauth2/v1/token`;
   const maxAttempts = options?.maxAttempts || 60;
   const intervalMs = options?.intervalMs || 2000;
   

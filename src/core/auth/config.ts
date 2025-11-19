@@ -1,43 +1,28 @@
 /**
- * OAuth 环境配置管理
- * 
- * 所有认证凭据通过环境变量配置：
- * - TAPTAP_MCP_CLIENT_ID: Client ID（用于 OAuth 和 API 签名）
- * - TAPTAP_MCP_CLIENT_SECRET: Client Secret（用于 API 签名）
+ * OAuth 配置辅助函数
+ * 提供 OAuth 相关的配置获取功能
  */
 
+import { getEnvironmentConfig } from '../config/environment.js';
 import { EnvConfig } from '../utils/env.js';
 
 /**
- * OAuth 环境端点配置
+ * OAuth 端点配置
  */
-export interface HostConfig {
-  apiHost: string;
+export interface OAuthEndpoints {
   authHost: string;
   qrcodeBaseUrl: string;
 }
 
 /**
- * 环境端点配置（不包含 clientId）
+ * 获取 OAuth 端点配置
  */
-const ENV_ENDPOINTS: Record<string, HostConfig> = {
-  production: {
-    apiHost: 'agent.tapapis.cn',
-    authHost: 'accounts.tapapis.cn',
-    qrcodeBaseUrl: 'https://www.taptap.cn/tap-qrcode?scene=mcp_auth&code='
-  },
-  rnd: {
-    apiHost: 'agent.api.xdrnd.cn',
-    authHost: 'oauth.api.xdrnd.cn',
-    qrcodeBaseUrl: 'https://www-beta.xdrnd.cn/tap-qrcode?scene=mcp_auth&code='
-  }
-};
-
-/**
- * 获取指定环境的端点配置
- */
-export function getHostConfig(environment: string = 'production'): HostConfig {
-  return ENV_ENDPOINTS[environment] || ENV_ENDPOINTS.production;
+export function getOAuthEndpoints(environment: string = 'production'): OAuthEndpoints {
+  const envConfig = getEnvironmentConfig(environment);
+  return {
+    authHost: envConfig.authHost,
+    qrcodeBaseUrl: envConfig.qrcodeBaseUrl
+  };
 }
 
 /**
@@ -61,4 +46,3 @@ export function getClientId(): string {
   
   return clientId;
 }
-

@@ -7,10 +7,12 @@ import process from 'node:process';
 import cryptoJS from 'crypto-js';
 import { MacToken } from '../types/index.js';
 import { logger } from '../utils/logger.js';
-
+import { getEnvironmentConfig } from '../config/environment.js';
 import { getEnv, getEnvBoolean, EnvConfig } from '../utils/env.js';
+
 /**
- * Environment configuration
+ * API 配置管理
+ * 管理 API 请求相关的配置和认证信息
  */
 export class ApiConfig {
   private static instance: ApiConfig;
@@ -22,22 +24,20 @@ export class ApiConfig {
   public readonly environment: 'rnd' | 'production';
 
   private constructor() {
-    // Optional: default to production
     this.environment = EnvConfig.environment;
 
-    // Built-in OAuth Client ID (public, safe to include)
-    // These match the values in deviceFlow.ts for OAuth consistency
-    const DEFAULT_CLIENT_ID = this.environment === 'production'
-      ? 'cadxxoz247zw0ug5i2'  // Production OAuth client ID (public)
-      : 'm2dnabebip3fpardnm';  // RND OAuth client ID (public)
+    // 从统一配置获取环境信息
+    const envConfig = getEnvironmentConfig(this.environment);
+    this.apiBaseUrl = envConfig.apiBaseUrl;
 
-    // Environment variables (TAPTAP_MCP_* prefix for consistency)
-    const macTokenStr = EnvConfig.macToken || '';
-    this.clientId = EnvConfig.clientId || DEFAULT_CLIENT_ID;
-    // CLIENT_SECRET must be provided via environment variable (keep it secret!)
+    // Client ID：必须从环境变量配置
+    this.clientId = EnvConfig.clientId || '';
+    
+    // Client Secret：必须从环境变量配置
     this.signingKey = EnvConfig.clientSecret || '';
 
     // Parse MAC Token from JSON string (optional now, can be set later via Device Flow)
+    const macTokenStr = EnvConfig.macToken || '';
     try {
       this.macToken = macTokenStr ? JSON.parse(macTokenStr) : {} as MacToken;
     } catch (error) {
@@ -45,17 +45,21 @@ export class ApiConfig {
       this.macToken = {} as MacToken;
     }
 
-    // Set API base URL based on environment
-    this.apiBaseUrl = this.environment === 'production'
-      ? 'https://agent.tapapis.cn'
-      : 'https://agent.api.xdrnd.cn';
-
     // Validate configuration
     this.validateConfig();
   }
 
   private validateConfig(): void {
-    // Client Token is required for API signing (keep it secret!)
+    // Client ID is required
+    if (!this.clientId) {
+      process.stderr.write('❌ Missing required environment variable: TAPTAP_MCP_CLIENT_ID\n\n');
+      process.stderr.write('Please set it before starting the server:\n\n');
+      process.stderr.write('  export TAPTAP_MCP_CLIENT_ID="your_client_id"\n\n');
+      process.stderr.write('Get it from TapTap Developer Center: https://developer.taptap.cn\n\n');
+      process.exit(1);
+    }
+
+    // Client Secret is required for API signing (keep it secret!)
     if (!this.signingKey) {
       process.stderr.write('❌ Missing required environment variable: TAPTAP_MCP_CLIENT_SECRET\n\n');
       process.stderr.write('This is the API request signing key (keep it secret!).\n');
@@ -63,11 +67,6 @@ export class ApiConfig {
       process.stderr.write('  export TAPTAP_MCP_CLIENT_SECRET="your_signing_key"\n\n');
       process.stderr.write('Contact TapTap support to get your CLIENT_SECRET.\n\n');
       process.exit(1);
-    }
-
-    // Show info about CLIENT_ID
-    if (!EnvConfig.clientId) {
-      process.stderr.write(`ℹ️  Using built-in OAuth CLIENT_ID: ${this.clientId}\n`);
     }
   }
 
