@@ -10,13 +10,13 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
+import { getEnv } from './env.js';
 
 /**
  * 缓存根目录（独立于 workspace）
  * 优先级：环境变量 > 默认值
  */
-const CACHE_ROOT = process.env.TDS_MCP_CACHE_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'cache');
-import { getEnv } from './env.js';
+const CACHE_ROOT = getEnv('TAPTAP_MCP_CACHE_DIR') || path.join(os.tmpdir(), 'taptap-mcp', 'cache');
 
 /**
  * Cached application information

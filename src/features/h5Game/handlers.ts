@@ -22,13 +22,13 @@ import {
 import { readAppCache, saveAppCache, type AppCacheInfo } from '../../core/utils/cache.js';
 import { logger } from '../../core/utils/logger.js';
 import { resolveWorkPath } from '../../core/utils/pathResolver.js';
+import { getEnv } from '../../core/utils/env.js';
 
 /**
  * 临时文件根目录（独立于 workspace）
  * 优先级：环境变量 > 默认值
  */
-const TEMP_ROOT = process.env.TDS_MCP_TEMP_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'temp');
-import { getEnv } from '../../core/utils/env.js';
+const TEMP_ROOT = getEnv('TAPTAP_MCP_TEMP_DIR') || path.join(os.tmpdir(), 'taptap-mcp', 'temp');
 
 /**
  * 获取临时 ZIP 文件路径
