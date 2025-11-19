@@ -11,16 +11,18 @@
 - **工具处理函数必须返回 `Promise<string>` 类型**
 
 ### Git 提交规范
-- **使用 Conventional Commits 规范**（项目已配置自动化 CI/CD）
-  - `feat:` - 新功能（触发 minor 版本升级）
-  - `fix:` - Bug 修复（触发 patch 版本升级）
-  - `feat!:` 或 `fix!:` - 破坏性变更（触发 major 版本升级）
-  - `docs:` - 文档更新（不触发发布）
-  - `refactor:` - 代码重构（触发 patch 版本升级）
-  - `chore:` - 构建/工具/配置更新（不触发发布）
-- **Commit Message 格式**：`<type>(<scope>): <subject>`（5-100 字符，祈使句，无句号）
+- **使用 Conventional Commits 规范**（基于 `.commitlintrc.cjs` 强制执行）
+- **格式**：`<type>(<scope>): <subject>`
+  - **Type**：必须小写（feat/fix/docs/style/refactor/perf/test/build/ci/chore/revert）
+  - **Scope**：必须小写（可选）
+  - **Subject**：5-100 字符，祈使句，不以句号结尾
+  - **Header**（第一行）：最大 100 字符
+- **Body/Footer**（可选）：
+  - 与前面部分之间必须有空行
+  - Body 每行不超过 100 字符（`body-max-line-length` 强制）
 - ❌ **不要直接 commit 到 main 分支**（已配置分支保护）
 - ✅ **创建 feature/fix 分支** → 提交代码 → 创建 PR
+- 📖 **详细说明**：[CLAUDE.md#git-提交规范](CLAUDE.md#git-提交规范)
 
 ### 文档更新规则
 - **主动更新文档**：当有重要代码改动时（新特性、架构变更、API 修改），必须同时更新相关文档
