@@ -1,3 +1,20 @@
+## <small>1.5.6 (2025-11-19)</small>
+
+* fix(http-client): 统一修复 macToken 验证逻辑，避免无效 token 污染 context ([4d342b5](https://github.com/taptap/taptap_minigame_open_mcp/commit/4d342b5))
+* fix(logger): stdio 模式下只使用 stderr，避免重复输出 ([0e3e8ab](https://github.com/taptap/taptap_minigame_open_mcp/commit/0e3e8ab))
+* fix(logger): 恢复详细日志输出并清理临时调试代码 ([83a3151](https://github.com/taptap/taptap_minigame_open_mcp/commit/83a3151))
+* fix(proxy): 修复单文件打包时无法找到 package.json 的问题 ([5e4cc94](https://github.com/taptap/taptap_minigame_open_mcp/commit/5e4cc94))
+* refactor: 删除不必要的包装函数 ([2e59077](https://github.com/taptap/taptap_minigame_open_mcp/commit/2e59077))
+* refactor(auth): 模块化 OAuth 认证实现 ([39069c4](https://github.com/taptap/taptap_minigame_open_mcp/commit/39069c4))
+* refactor(auth): 移除冗余的 config.ts，直接使用统一环境配置 ([be12880](https://github.com/taptap/taptap_minigame_open_mcp/commit/be12880))
+* refactor(config): 优化环境配置管理，提升代码可读性 ([a4351d9](https://github.com/taptap/taptap_minigame_open_mcp/commit/a4351d9))
+* refactor(config): 统一环境配置管理，优化模块职责 ([40e1de6](https://github.com/taptap/taptap_minigame_open_mcp/commit/40e1de6))
+* refactor(http-client): 将配置状态格式化逻辑移到业务层 ([611f2f8](https://github.com/taptap/taptap_minigame_open_mcp/commit/611f2f8))
+* refactor(server): context 改为请求级别，避免跨请求污染 ([cb88dbd](https://github.com/taptap/taptap_minigame_open_mcp/commit/cb88dbd))
+* refactor(server): 简化 OAuth 工具调用流程 ([0b05d67](https://github.com/taptap/taptap_minigame_open_mcp/commit/0b05d67))
+
+
+
 ## <small>1.5.5 (2025-11-19)</small>
 
 * refactor: 更新 Dockerfile 中的环境变量 ([fa07dc5](https://github.com/taptap/taptap_minigame_open_mcp/commit/fa07dc5))
