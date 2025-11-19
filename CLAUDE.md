@@ -27,11 +27,64 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `test:` - 测试相关（不触发发布）
   - `ci:` - CI 配置更新（不触发发布）
 
-- **Commit Message 最佳实践**：
-  - Subject 长度：5-100 字符
-  - 使用祈使句："add feature" 而不是 "added feature"
-  - 不要以句号结尾
-  - 示例：`feat(leaderboard): add score submission API`
+- **Commit Message 格式规范**（基于 `.commitlintrc.cjs`）：
+  ```
+  <type>(<scope>): <subject>
+  
+  <body>
+  
+  <footer>
+  ```
+  
+  - **Header**（第一行，必填）：
+    - 格式：`<type>(<scope>): <subject>`
+    - 最大长度：100 字符
+    - Type 必须小写
+    - Scope 必须小写（可选）
+    - Subject：最少 5 字符，最多 100 字符，不以句号结尾
+  
+  - **Body**（可选）：
+    - 详细描述改动内容
+    - 与 header 之间必须有空行
+    - 每行不超过 100 字符（由 `body-max-line-length` 强制）
+  
+  - **Footer**（可选）：
+    - 关联 issue 或注明破坏性变更
+    - 与 body 之间必须有空行
+
+- **允许的 Type**（共 11 种）：
+  - `feat` - 新功能（触发 minor 版本升级）
+  - `fix` - Bug 修复（触发 patch 版本升级）
+  - `docs` - 文档更新（不触发发布）
+  - `style` - 代码格式（不影响代码运行，不触发发布）
+  - `refactor` - 重构（触发 patch 版本升级）
+  - `perf` - 性能优化（触发 patch 版本升级）
+  - `test` - 测试（不触发发布）
+  - `build` - 构建系统或外部依赖变更（不触发发布）
+  - `ci` - CI 配置文件和脚本变更（不触发发布）
+  - `chore` - 其他不修改 src 或测试文件的变更（不触发发布）
+  - `revert` - 回退之前的 commit（根据回退内容决定版本升级）
+
+- **破坏性变更标记**：
+  - 在 type 后加 `!`：`feat!:` 或 `fix!:`（触发 major 版本升级）
+
+- **完整示例**：
+```
+feat(leaderboard): add score submission API
+
+- 新增 submitScores 工具
+- 支持批量提交分数
+- 添加输入验证
+
+Closes #123
+```
+
+**注意事项**：
+- ✅ Type 和 Scope 必须小写
+- ✅ Subject 最少 5 字符，不以句号结尾
+- ✅ Body 每行不超过 100 字符
+- ✅ Body 和 Footer 前必须有空行
+- ❌ 错误示例：`Feat(API): Added feature.`（Type 大写、Scope 大写、Subject 以句号结尾）
 
 ### 分支工作流
 
