@@ -1,3 +1,9 @@
+## <small>1.5.9 (2025-11-19)</small>
+
+* revert(bundle): 暂时恢复主服务器为传统部署模式 ([abd9504](https://github.com/taptap/taptap_minigame_open_mcp/commit/abd9504))
+
+
+
 ## <small>1.5.8 (2025-11-19)</small>
 
 * docs(docker): 统一 Docker 配置为 bundle 版本 ([a7614bc](https://github.com/taptap/taptap_minigame_open_mcp/commit/a7614bc))
