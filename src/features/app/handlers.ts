@@ -6,7 +6,7 @@
 import type { HandlerContext } from '../../core/types/index.js';
 import { getAllDevelopersAndApps, selectApp as selectAppApi } from './api.js';
 import { clearAppCache } from '../../core/utils/cache.js';
-import { DeviceFlowAuth } from '../../core/auth/deviceFlow.js';
+import { clearToken } from '../../core/auth/tokenStorage.js';
 import { ApiConfig } from '../../core/network/httpClient.js';
 
 /**
@@ -152,21 +152,19 @@ export async function clearAuthData(
   args: { clear_token?: boolean; clear_cache?: boolean },
   context: HandlerContext
 ): Promise<string> {
-  const clearToken = args.clear_token !== false; // Default true
-  const clearCache = args.clear_cache !== false; // Default true
+  const clearTokenFlag = args.clear_token !== false; // Default true
+  const clearCacheFlag = args.clear_cache !== false; // Default true
 
   let message = `🗑️ 清理认证数据\n\n`;
   const clearedItems: string[] = [];
 
   // Clear OAuth token file
-  if (clearToken) {
+  if (clearTokenFlag) {
     try {
-      const apiConfig = ApiConfig.getInstance();
-      const environment = apiConfig.environment;
-      const deviceAuth = new DeviceFlowAuth(environment);
-      deviceAuth.clearToken();
-
+      clearToken(); // 直接调用函数
+      
       // Also clear in-memory token
+      const apiConfig = ApiConfig.getInstance();
       apiConfig.setMacToken({} as any);
 
       clearedItems.push('✅ OAuth Token 文件已清除');
@@ -176,7 +174,7 @@ export async function clearAuthData(
   }
 
   // Clear app cache
-  if (clearCache) {
+  if (clearCacheFlag) {
     try {
       clearAppCache(context.projectPath);
       clearedItems.push('✅ 应用选择缓存已清除');

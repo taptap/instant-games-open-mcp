@@ -45,6 +45,27 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 → CI 检查 → Code Review → Merge PR → 自动发布 → 更新文档
 ```
 
+### Git 工作区保护规则 ⚠️
+
+**重要：所有 Git 操作必须保护工作区，防止代码丢失！**
+
+- ✅ **切换分支前必须保存工作区**：
+  ```bash
+  # 方案 1：提交当前更改
+  git add .
+  git commit -m "wip: save current work"
+  git checkout -b new-branch
+  
+  # 方案 2：暂存当前更改
+  git stash push -m "description"
+  git checkout -b new-branch
+  git stash pop  # 恢复更改
+  ```
+
+- ❌ **永远不要在工作区有未保存更改时切换分支**
+- ❌ **永远不要使用 `git checkout -- .` 或 `git reset --hard` 清理工作区**（会导致代码丢失）
+- ✅ **如需清理工作区，先确认有 commit 或 stash 备份**
+
 **详细流程参考：** [docs/CI_CD.md](docs/CI_CD.md)
 
 ## 项目概述
@@ -205,6 +226,10 @@ npm run format
 - **MAC Token 认证**：每个请求的 Authorization header 使用 MAC 认证
 - **请求签名**：X-Tap-Sign header，HMAC-SHA256 签名
 - **OAuth 2.0**：Device Code Flow，扫码即用
+- **模块化设计**：
+  - `tokenStorage.ts`：Token 持久化管理（读取、保存、清除）
+  - `config.ts`：OAuth 环境配置（端点、Client ID 管理）
+  - `oauth.ts`：OAuth 流程实现（请求 device code、轮询 token）
 
 **详细认证流程：** [docs/ARCHITECTURE.md#认证机制](docs/ARCHITECTURE.md)
 
@@ -270,34 +295,40 @@ const allModules = [..., yourFeatureModule];
 
 ## 工具和资源概览
 
-### 17 个 MCP Tools
+### 19 个 MCP Tools
 
 **流程指引（1个）**
-- `get_integration_guide` - 完整接入工作流指引
+- `get_leaderboard_integration_guide` - 排行榜完整接入工作流指引
 
 **信息查询（2个）**
 - `get_current_app_info` - 获取当前选择的应用信息
 - `check_environment` - 检查环境配置和认证状态
 
-**认证（1个）**
+**认证（3个）**
+- `start_oauth_authorization` - 开始 OAuth 授权（获取二维码）
 - `complete_oauth_authorization` - 完成 OAuth 授权
+- `clear_auth_data` - 清除认证数据和缓存
 
-**应用管理（2个）**
+**应用管理（3个）**
 - `list_developers_and_apps` - 列出所有开发者和应用
 - `select_app` - 选择要使用的应用
+- `create_developer` - 创建新开发者
 
-**排行榜管理（4个）**
+**排行榜管理（5个）**
 - `create_leaderboard` - 创建新排行榜
 - `list_leaderboards` - 列出所有排行榜
 - `publish_leaderboard` - 发布排行榜
 - `get_user_leaderboard_scores` - 获取用户分数数据
+- `get_app_status` - 获取应用审核状态
 
-**H5 游戏管理（7个）**
-- `list_h5_games` - 列出 H5 游戏
-- `upload_h5_game` - 上传 H5 游戏
-- `publish_h5_game` - 发布 H5 游戏
-- `get_h5_game_status` - 查询游戏状态
-- 其他游戏管理工具...
+**H5 游戏管理（4个）**
+- `h5_game_info_gatherer` - 收集 H5 游戏信息（上传前）
+- `h5_game_uploader` - 上传 H5 游戏包
+- `h5_create_app` - 创建新 H5 游戏应用
+- `h5_edit_app` - 编辑 H5 游戏信息
+
+**振动 API 文档（1个）**
+- `get_vibrate_integration_guide` - 振动 API 完整文档和接入指引
 
 ### 7 个 MCP Resources
 
