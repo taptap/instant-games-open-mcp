@@ -66,7 +66,6 @@ const allModules: FeatureModule[] = [
  */
 class TapTapMinigameMCPServer {
   private server: Server;
-  private context: HandlerContext;
   private ensureAuth: (context?: HandlerContext) => Promise<void>;
 
   constructor(ensureAuthFn: (context?: HandlerContext) => Promise<void>) {
@@ -85,22 +84,22 @@ class TapTapMinigameMCPServer {
       }
     );
 
-    // Context with dynamic token getter (supports OAuth updates)
-    // 只返回有效的 token，避免 undefined 或无效 token 污染 context
-    this.context = {
-      get macToken() {
-        const token = apiConfig.macToken;
-        // 只有当 token 有效（包含 kid 和 mac_key）时才返回
-        // 否则返回 undefined，让后续逻辑使用其他来源的 token
-        if (token?.kid && token?.mac_key) {
-          return token;
-        }
-        return undefined;
-      }
-    };
-
     this.ensureAuth = ensureAuthFn;
     this.setupHandlers();
+  }
+
+  /**
+   * 创建请求级别的基础 context
+   * 每次请求时动态创建，包含当前有效的 macToken
+   */
+  private createBaseContext(): HandlerContext {
+    const token = apiConfig.macToken;
+    // 只有当 token 有效（包含 kid 和 mac_key）时才设置
+    // 否则返回空 context，让后续逻辑使用其他来源的 token
+    if (token?.kid && token?.mac_key) {
+      return { macToken: token };
+    }
+    return {};
   }
 
   /**
@@ -162,9 +161,11 @@ class TapTapMinigameMCPServer {
       // Log tool call input (私有参数会被自动过滤)
       await logger.logToolCall(name, enrichedArgs);
 
-      // 统一在 Server 层处理 effectiveContext（合并私有参数到 context）
-      // 这样 OAuth 工具也能检查到 Proxy 注入的 token
-      const effectiveContext = getEffectiveContext(enrichedArgs, this.context);
+      // 为每个请求创建独立的 context（请求级别，用完即丢弃）
+      const baseContext = this.createBaseContext();
+      
+      // 合并私有参数到 context（_mac_token、_developer_id 等）
+      const effectiveContext = getEffectiveContext(enrichedArgs, baseContext);
 
       try {
         // Find tool from modules
