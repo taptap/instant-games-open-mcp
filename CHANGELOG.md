@@ -1,3 +1,10 @@
+## <small>1.5.7 (2025-11-19)</small>
+
+* refactor(proxy): 优化单文件版本号注入逻辑 ([4d561bc](https://github.com/taptap/taptap_minigame_open_mcp/commit/4d561bc))
+* docs: 完善 commitlint 规范说明 ([73dfc14](https://github.com/taptap/taptap_minigame_open_mcp/commit/73dfc14))
+
+
+
 ## <small>1.5.6 (2025-11-19)</small>
 
 * fix(http-client): 统一修复 macToken 验证逻辑，避免无效 token 污染 context ([4d342b5](https://github.com/taptap/taptap_minigame_open_mcp/commit/4d342b5))
