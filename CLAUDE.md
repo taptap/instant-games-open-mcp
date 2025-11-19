@@ -137,8 +137,8 @@ npm run serve:sse:dev      # 开发模式（详细日志）
 npm run serve:http         # 端口 3000
 
 # 自定义端口和环境
-TDS_MCP_PORT=8080 npm run serve:sse       # SSE 模式，端口 8080
-TDS_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
+TAPTAP_MCP_PORT=8080 npm run serve:sse       # SSE 模式，端口 8080
+TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 ```
 
 ### 测试和验证
@@ -157,12 +157,12 @@ npm run format
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| `TDS_MCP_TRANSPORT` | 传输协议（stdio/sse/http） | stdio |
-| `TDS_MCP_PORT` | HTTP/SSE 模式端口 | 3000 |
-| `TDS_MCP_VERBOSE` | 详细日志模式 | false |
-| `TDS_MCP_ENV` | 环境选择（production/rnd） | production |
-| `TDS_MCP_CACHE_DIR` | 缓存根目录 | /tmp/taptap-mcp/cache |
-| `TDS_MCP_TEMP_DIR` | 临时文件根目录 | /tmp/taptap-mcp/temp |
+| `TAPTAP_MCP_TRANSPORT` | 传输协议（stdio/sse/http） | stdio |
+| `TAPTAP_MCP_PORT` | HTTP/SSE 模式端口 | 3000 |
+| `TAPTAP_MCP_VERBOSE` | 详细日志模式 | false |
+| `TAPTAP_MCP_ENV` | 环境选择（production/rnd） | production |
+| `TAPTAP_MCP_CACHE_DIR` | 缓存根目录 | /tmp/taptap-mcp/cache |
+| `TAPTAP_MCP_TEMP_DIR` | 临时文件根目录 | /tmp/taptap-mcp/temp |
 | `WORKSPACE_ROOT` | 工作空间根路径（推荐设置） | process.cwd() |
 
 **完整环境变量说明：** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
@@ -224,7 +224,7 @@ npm run format
 
 1. **推荐使用绝对路径**（如 `/Users/username/project/dist`）
 2. **相对路径注意事项**：stdio 模式下可能解析错误，推荐设置 `WORKSPACE_ROOT` 环境变量
-3. **调试技巧**：启用 `TDS_MCP_VERBOSE=true` 查看详细日志
+3. **调试技巧**：启用 `TAPTAP_MCP_VERBOSE=true` 查看详细日志
 
 **详细说明：** [docs/PATH_RESOLUTION.md](docs/PATH_RESOLUTION.md)
 
@@ -318,4 +318,4 @@ const allModules = [..., yourFeatureModule];
 - 环境变量名称使用 TDS_MCP_ 前缀
 - MAC Token 必须是 JSON 字符串格式
 - 请求签名使用两层机制（MAC + X-Tap-Sign）
-- 默认环境为 production，可通过 TDS_MCP_ENV 切换
+- 默认环境为 production，可通过 TAPTAP_MCP_ENV 切换

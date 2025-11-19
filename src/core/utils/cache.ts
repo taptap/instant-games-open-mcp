@@ -16,6 +16,7 @@ import * as os from 'node:os';
  * 优先级：环境变量 > 默认值
  */
 const CACHE_ROOT = process.env.TDS_MCP_CACHE_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'cache');
+import { getEnv } from './env.js';
 
 /**
  * Cached application information

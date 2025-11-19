@@ -32,7 +32,7 @@ export const appTools: ToolRegistration[] = [
   {
     definition: {
       name: 'check_environment',
-      description: 'Check environment configuration and user authentication status. Use this to verify if TDS_MCP_MAC_TOKEN and TDS_MCP_CLIENT_ID are configured.',
+      description: 'Check environment configuration and user authentication status. Use this to verify if TAPTAP_MCP_MAC_TOKEN and TAPTAP_MCP_CLIENT_ID are configured.',
       inputSchema: {
         type: 'object',
         properties: {}

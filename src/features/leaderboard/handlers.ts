@@ -240,9 +240,9 @@ export async function createLeaderboard(
     } else if (errorMsg.includes('Unauthorized') || errorMsg.includes('401')) {
       specificHelp = `\n🔑 **认证错误：**\n` +
                      `请检查环境变量:\n` +
-                     `- TDS_MCP_MAC_TOKEN\n` +
-                     `- TDS_MCP_CLIENT_ID\n` +
-                     `- TDS_MCP_CLIENT_TOKEN`;
+                     `- TAPTAP_MCP_MAC_TOKEN\n` +
+                     `- TAPTAP_MCP_CLIENT_ID\n` +
+                     `- TAPTAP_MCP_CLIENT_SECRET`;
     } else if (errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
       specificHelp = `\n🚫 **权限错误：**\n` +
                      `当前用户可能没有创建排行榜的权限，请检查开发者账号权限。`;
@@ -382,9 +382,9 @@ export async function publishLeaderboard(
     if (errorMsg.includes('Unauthorized') || errorMsg.includes('401')) {
       specificHelp = `\n🔑 **认证错误：**\n` +
                      `请检查环境变量:\n` +
-                     `- TDS_MCP_MAC_TOKEN\n` +
-                     `- TDS_MCP_CLIENT_ID\n` +
-                     `- TDS_MCP_CLIENT_TOKEN`;
+                     `- TAPTAP_MCP_MAC_TOKEN\n` +
+                     `- TAPTAP_MCP_CLIENT_ID\n` +
+                     `- TAPTAP_MCP_CLIENT_SECRET`;
     } else if (errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
       specificHelp = `\n🚫 **权限错误：**\n` +
                      `当前用户可能没有修改排行榜的权限，请检查开发者账号权限。`;
@@ -412,7 +412,7 @@ export async function getUserLeaderboardScores(
   context: HandlerContext
 ): Promise<string> {
   if (!context.macToken || !context.macToken.kid) {
-    return `❌ 此功能需要用户登录 TapTap\n请设置 TDS_MCP_MAC_TOKEN 环境变量\n\n降级为文档模式:\n${await leaderboardTools.getLeaderboardOverview()}`;
+    return `❌ 此功能需要用户登录 TapTap\n请设置 TAPTAP_MCP_MAC_TOKEN 环境变量\n\n降级为文档模式:\n${await leaderboardTools.getLeaderboardOverview()}`;
   }
 
   try {

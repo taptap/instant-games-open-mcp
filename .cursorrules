@@ -1,0 +1,89 @@
+# Cursor Rules
+
+> 📖 **详细信息请参考 [CLAUDE.md](CLAUDE.md)** - 本文档仅包含核心规则摘要
+
+## 核心工作规范
+
+### AI 行为规范
+- **永远返回中文回复**
+- **允许进行网页查询和搜索**
+- **所有工具描述使用英文**，便于 AI Agent 理解
+- **工具处理函数必须返回 `Promise<string>` 类型**
+
+### Git 提交规范
+- **使用 Conventional Commits 规范**（项目已配置自动化 CI/CD）
+  - `feat:` - 新功能（触发 minor 版本升级）
+  - `fix:` - Bug 修复（触发 patch 版本升级）
+  - `feat!:` 或 `fix!:` - 破坏性变更（触发 major 版本升级）
+  - `docs:` - 文档更新（不触发发布）
+  - `refactor:` - 代码重构（触发 patch 版本升级）
+  - `chore:` - 构建/工具/配置更新（不触发发布）
+- **Commit Message 格式**：`<type>(<scope>): <subject>`（5-100 字符，祈使句，无句号）
+- ❌ **不要直接 commit 到 main 分支**（已配置分支保护）
+- ✅ **创建 feature/fix 分支** → 提交代码 → 创建 PR
+
+### 文档更新规则
+- **主动更新文档**：当有重要代码改动时（新特性、架构变更、API 修改），必须同时更新相关文档
+  - `CLAUDE.md` - 开发指南和技术文档
+  - `README.md` - 用户文档和使用说明
+  - `docs/` - 相关技术文档
+- **不需要每次都问用户是否更新文档，主动更新即可**
+- **注意**：`CHANGELOG.md` 由 CI/CD 自动生成，无需手动维护
+
+## 代码规范
+
+### TypeScript 开发
+- 使用 TypeScript 进行类型安全的开发
+- 所有异步函数使用 `async/await` 语法
+- 遵循 ESLint 规则和 Prettier 格式化标准
+- 为所有函数和接口添加 JSDoc 注释
+
+### MCP 工具开发
+- 新增工具需要在 `src/server.ts` 中注册工具定义和处理函数
+- 工具定义需要包含完整的 JSON Schema 输入验证
+- 工具描述使用英文，包含使用场景说明
+- 使用统一格式：`ToolRegistration[]` 数组，每个工具包含 `definition` + `handler`
+
+### 网络请求开发
+- 所有 API 请求必须通过 `HttpClient` 类发送
+- HttpClient 自动处理：MAC Token 认证、请求签名、环境 URL 切换、错误处理
+- 新增 API 只需调用 `client.get()` 或 `client.post()`
+
+## 架构规则
+
+### 模块依赖规则
+- ✅ 业务模块可依赖 `core/` 和 `features/app/`
+- ❌ 业务模块之间不能相互依赖
+- ✅ app 模块只依赖 core，不依赖其他业务模块
+
+### 路径处理
+- **推荐使用绝对路径**（如 `/Users/username/project/dist`）
+- 相对路径注意事项：stdio 模式下可能解析错误，推荐设置 `WORKSPACE_ROOT` 环境变量
+- 调试技巧：启用 `TAPTAP_MCP_VERBOSE=true` 查看详细日志
+
+## 扩展新功能
+
+使用脚手架快速创建新功能模块：
+```bash
+./scripts/create-feature.sh
+```
+
+在 `src/server.ts` 注册新模块：
+```typescript
+import { yourFeatureModule } from './features/yourFeature/index.js';
+const allModules = [..., yourFeatureModule];
+```
+
+## 项目信息
+
+- **项目类型**：基于 Model Context Protocol (MCP) 的 TapTap Open API MCP 服务器
+- **NPM 包**：`@mikoto_zero/minigame-open-mcp`
+- **官方 API 文档**：https://developer.taptap.cn/minigameapidoc/
+- **架构文档**：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **部署指南**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- **CI/CD 流程**：[docs/CI_CD.md](docs/CI_CD.md)
+
+---
+
+**完整详细信息、常用命令、环境变量、工具和资源概览等，请参考 [CLAUDE.md](CLAUDE.md)**
+

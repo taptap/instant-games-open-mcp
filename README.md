@@ -59,7 +59,7 @@ npx @mikoto_zero/minigame-open-mcp
 
 ```bash
 # 启动 SSE 服务器
-TDS_MCP_TRANSPORT=sse TDS_MCP_PORT=3000 \
+TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3000 \
 npx @mikoto_zero/minigame-open-mcp
 ```
 
@@ -195,17 +195,17 @@ npm test
 - 无需配置！自动保存 token 到 `~/.config/taptap-minigame/`
 
 **手动配置（可选）**:
-- `TDS_MCP_MAC_TOKEN` - MAC Token（JSON 格式）
-- `TDS_MCP_CLIENT_ID` - 客户端 ID（非必需，不配置会导致部分工具无法使用）
-- `TDS_MCP_CLIENT_TOKEN` - 签名密钥（非必需，不配置会导致部分工具无法使用）
+- `TAPTAP_MCP_MAC_TOKEN` - MAC Token（JSON 格式）
+- `TAPTAP_MCP_CLIENT_ID` - 客户端 ID（非必需，不配置会导致部分工具无法使用）
+- `TAPTAP_MCP_CLIENT_SECRET` - 签名密钥（非必需，不配置会导致部分工具无法使用）
 
 **其他**:
-- `TDS_MCP_ENV` - 环境：`production`（默认）或 `rnd`
-- `TDS_MCP_TRANSPORT` - 传输模式：`stdio`（默认）、`sse`、`http`
-- `TDS_MCP_PORT` - 端口（默认 3000）
-- `TDS_MCP_VERBOSE` - 详细日志：`true` 或 `false`
-- `TDS_MCP_CACHE_DIR` - 缓存目录（默认 `/tmp/taptap-mcp/cache`）
-- `TDS_MCP_TEMP_DIR` - 临时文件目录（默认 `/tmp/taptap-mcp/temp`）
+- `TAPTAP_MCP_ENV` - 环境：`production`（默认）或 `rnd`
+- `TAPTAP_MCP_TRANSPORT` - 传输模式：`stdio`（默认）、`sse`、`http`
+- `TAPTAP_MCP_PORT` - 端口（默认 3000）
+- `TAPTAP_MCP_VERBOSE` - 详细日志：`true` 或 `false`
+- `TAPTAP_MCP_CACHE_DIR` - 缓存目录（默认 `/tmp/taptap-mcp/cache`）
+- `TAPTAP_MCP_TEMP_DIR` - 临时文件目录（默认 `/tmp/taptap-mcp/temp`）
 
 ### 添加新功能
 

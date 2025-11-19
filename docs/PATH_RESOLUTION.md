@@ -224,7 +224,7 @@ export function getRelativeToWorkspace(absolutePath: string): string
 
 ```bash
 # 启动时启用详细日志
-TDS_MCP_VERBOSE=true npm start
+TAPTAP_MCP_VERBOSE=true npm start
 ```
 
 ### 验证路径配置

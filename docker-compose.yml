@@ -17,25 +17,25 @@ services:
     # 环境变量
     environment:
       # 传输模式
-      - TDS_MCP_TRANSPORT=sse
-      - TDS_MCP_PORT=3000
+      - TAPTAP_MCP_TRANSPORT=sse
+      - TAPTAP_MCP_PORT=3000
 
       # TapTap 环境
-      - TDS_MCP_ENV=${TDS_MCP_ENV:-rnd}  # rnd | production
+      - TAPTAP_MCP_ENV=${TAPTAP_MCP_ENV:-rnd}  # rnd | production
 
       # 客户端配置（必需）
-      - TDS_MCP_CLIENT_ID=${TDS_MCP_CLIENT_ID}
-      - TDS_MCP_CLIENT_TOKEN=${TDS_MCP_CLIENT_TOKEN}
+      - TAPTAP_MCP_CLIENT_ID=${TAPTAP_MCP_CLIENT_ID}
+      - TAPTAP_MCP_CLIENT_SECRET=${TAPTAP_MCP_CLIENT_SECRET}
 
       # 路径配置
       - WORKSPACE_ROOT=/workspace
 
       # 日志
-      - TDS_MCP_VERBOSE=${TDS_MCP_VERBOSE:-true}
+      - TAPTAP_MCP_VERBOSE=${TAPTAP_MCP_VERBOSE:-true}
 
       # 缓存和临时文件目录
-      - TDS_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache
-      - TDS_MCP_TEMP_DIR=/tmp/taptap-mcp/temp
+      - TAPTAP_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache
+      - TAPTAP_MCP_TEMP_DIR=/tmp/taptap-mcp/temp
 
     # 数据卷
     volumes:

@@ -28,6 +28,7 @@ import { resolveWorkPath } from '../../core/utils/pathResolver.js';
  * 优先级：环境变量 > 默认值
  */
 const TEMP_ROOT = process.env.TDS_MCP_TEMP_DIR || path.join(os.tmpdir(), 'taptap-mcp', 'temp');
+import { getEnv } from '../../core/utils/env.js';
 
 /**
  * 获取临时 ZIP 文件路径

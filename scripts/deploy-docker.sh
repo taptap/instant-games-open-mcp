@@ -18,12 +18,12 @@ echo "Port: ${PORT}"
 echo ""
 
 # 1. 检查环境变量
-if [ -z "$TDS_MCP_CLIENT_ID" ] || [ -z "$TDS_MCP_CLIENT_TOKEN" ]; then
+if [ -z "$TAPTAP_MCP_CLIENT_ID" ] || [ -z "$TAPTAP_MCP_CLIENT_SECRET" ]; then
     echo "❌ Error: Missing required environment variables"
     echo ""
     echo "Please set:"
-    echo "  export TDS_MCP_CLIENT_ID=your_client_id"
-    echo "  export TDS_MCP_CLIENT_TOKEN=your_client_token"
+    echo "  export TAPTAP_MCP_CLIENT_ID=your_client_id"
+    echo "  export TAPTAP_MCP_CLIENT_SECRET=your_client_token"
     echo ""
     exit 1
 fi
@@ -42,14 +42,14 @@ echo "🎯 Starting new container..."
 docker run -d \
   --name taptap-mcp-server \
   -p ${PORT}:3000 \
-  -e TDS_MCP_TRANSPORT=sse \
-  -e TDS_MCP_PORT=3000 \
-  -e TDS_MCP_ENV=${ENV} \
-  -e TDS_MCP_CLIENT_ID=${TDS_MCP_CLIENT_ID} \
-  -e TDS_MCP_CLIENT_TOKEN=${TDS_MCP_CLIENT_TOKEN} \
-  -e TDS_MCP_VERBOSE=false \
-  -e TDS_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache \
-  -e TDS_MCP_TEMP_DIR=/tmp/taptap-mcp/temp \
+  -e TAPTAP_MCP_TRANSPORT=sse \
+  -e TAPTAP_MCP_PORT=3000 \
+  -e TAPTAP_MCP_ENV=${ENV} \
+  -e TAPTAP_MCP_CLIENT_ID=${TAPTAP_MCP_CLIENT_ID} \
+  -e TAPTAP_MCP_CLIENT_SECRET=${TAPTAP_MCP_CLIENT_SECRET} \
+  -e TAPTAP_MCP_VERBOSE=false \
+  -e TAPTAP_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache \
+  -e TAPTAP_MCP_TEMP_DIR=/tmp/taptap-mcp/temp \
   -v taptap-mcp-cache:/var/lib/taptap-mcp/cache \
   -v taptap-mcp-temp:/tmp/taptap-mcp/temp \
   --restart unless-stopped \

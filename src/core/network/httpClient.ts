@@ -8,6 +8,7 @@ import cryptoJS from 'crypto-js';
 import { MacToken } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 
+import { getEnv, getEnvBoolean } from '../utils/env.js';
 /**
  * Environment configuration
  */

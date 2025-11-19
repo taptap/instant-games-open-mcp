@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { MacToken } from '../types/index.js';
 
+import { getEnv } from '../utils/env.js';
 /**
  * Environment-specific host configuration
  */

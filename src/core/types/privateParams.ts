@@ -24,7 +24,7 @@ export interface PrivateToolParams {
   /**
    * MAC Token for authentication
    *
-   * 优先级：_mac_token > context.macToken > env.TDS_MCP_MAC_TOKEN
+   * 优先级：_mac_token > context.macToken > env.TAPTAP_MCP_MAC_TOKEN
    *
    * 注入方式：
    * 1. MCP Proxy 直接在 arguments 中注入
