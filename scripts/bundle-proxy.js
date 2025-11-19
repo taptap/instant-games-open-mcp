@@ -10,7 +10,7 @@
 import * as esbuild from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -18,6 +18,13 @@ const projectRoot = join(__dirname, '..');
 
 console.log('🚀 Bundling MCP Proxy...');
 console.log('📁 Project root:', projectRoot);
+
+// Read version from package.json
+const packageJson = JSON.parse(
+  readFileSync(join(projectRoot, 'package.json'), 'utf-8')
+);
+const VERSION = packageJson.version;
+console.log('📦 Version:', VERSION);
 
 // Ensure dist directory exists
 const distDir = join(projectRoot, 'dist');
@@ -36,6 +43,10 @@ try {
     external: [],  // Bundle everything (no external dependencies)
     banner: {
       js: '#!/usr/bin/env node\n// TapTap MCP Proxy - Standalone Bundle (no node_modules required)\n'
+    },
+    // Inject version at build time
+    define: {
+      '__VERSION__': `"${VERSION}"`
     },
     minify: false,  // Keep readable for debugging
     sourcemap: false,
