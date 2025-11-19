@@ -81,7 +81,7 @@ npx commitlint --from HEAD~1 --to HEAD
 - PR 必须至少 1 人批准
 - 所有 CI 检查必须通过
 
-详见：[docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md)
+详见：[docs/CI_CD.md](docs/CI_CD.md)
 
 ## 🏗️ 架构概览
 
@@ -190,7 +190,7 @@ git commit -m "feat: 添加云存档功能"
 ### Commit 和文档
 - [ ] Commit 消息符合 Conventional Commits 规范
 - [ ] 更新 README.md（如有用户可见的新特性）
-- [ ] 更新 CLAUDE.md（如有架构变更或开发规范调整，供 AI 参考）
+- [ ] 更新相关技术文档（如有架构变更，参考 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)）
 
 ### PR 流程
 - [ ] 创建 PR 并填写详细描述
@@ -370,4 +370,7 @@ TapTap API
 
 ## 🎊 享受模块化开发！
 
-模块化架构让添加新功能变得简单快捷！有问题请参考 `src/features/leaderboard/` 示例或查看 CLAUDE.md。
+模块化架构让添加新功能变得简单快捷！有问题请参考：
+- **代码示例**：`src/features/leaderboard/` 模块
+- **架构文档**：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **部署测试**：[docs/DEPLOYMENT.md#4-开发者测试指南](docs/DEPLOYMENT.md#4-开发者测试指南)

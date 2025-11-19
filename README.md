@@ -88,7 +88,7 @@ docker-compose up -d
 curl http://localhost:5003/health
 ```
 
-详见: [Docker 部署文档](docs/DOCKER_DEPLOYMENT.md)
+详见: [Docker 部署文档](docs/DEPLOYMENT.md#2-docker-部署)
 
 ## 📖 功能列表
 
@@ -219,11 +219,16 @@ npm test
 
 ## 📚 文档
 
-- **[CLAUDE.md](CLAUDE.md)** - AI Agent 开发指引
+### 用户文档
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - 贡献指南
 - **[CHANGELOG.md](CHANGELOG.md)** - 版本变更历史
-- **[docs/DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMENT.md)** - Docker 部署指南
-- **[docs/MCP_PROXY_GUIDE.md](docs/MCP_PROXY_GUIDE.md)** - MCP Proxy 开发指南
-- **[docs/PRIVATE_PROTOCOL.md](docs/PRIVATE_PROTOCOL.md)** - 私有参数协议
+
+### 技术文档
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - 架构文档
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - 部署指南（本地、Docker、开发者测试）
+- **[docs/PROXY.md](docs/PROXY.md)** - MCP Proxy 开发指南（面向 TapCode 等平台）
+- **[docs/CI_CD.md](docs/CI_CD.md)** - CI/CD 和自动化发布流程
+- **[docs/PATH_RESOLUTION.md](docs/PATH_RESOLUTION.md)** - 路径解析系统
 
 ## 🔄 CI/CD
 
@@ -249,7 +254,7 @@ gh pr create && gh pr merge
 4. 自动创建版本 PR 并合并
 5. 创建 GitHub Release
 
-详见: [CLAUDE.md - CI/CD 章节](CLAUDE.md#cicd-和自动化发布)
+详见: [docs/CI_CD.md](docs/CI_CD.md)
 
 ## 🤝 贡献
 
