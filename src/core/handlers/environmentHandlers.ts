@@ -21,7 +21,7 @@ export async function checkEnvironment(context: HandlerContext): Promise<string>
   // Override MAC Token status based on actual source
   if (hasMacToken) {
     const sourceLabel = getTokenSourceLabel(source);
-    configStatus['TDS_MCP_MAC_TOKEN'] = `✅ 已配置 ${sourceLabel}`;
+    configStatus['TAPTAP_MCP_MAC_TOKEN'] = `✅ 已配置 ${sourceLabel}`;
   }
 
   const envInfo = {
