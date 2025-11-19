@@ -46,7 +46,7 @@ try {
     },
     // Inject version at build time
     define: {
-      '__VERSION__': `"${VERSION}"`
+      '__PROXY_VERSION__': `"${VERSION}"`
     },
     minify: false,  // Keep readable for debugging
     sourcemap: false,

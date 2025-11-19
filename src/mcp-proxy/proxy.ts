@@ -12,7 +12,10 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 // import * as path from 'node:path';  // 暂时未使用
 import type { ProxyConfig, PendingRequest } from './types.js';
-import { VERSION } from '../version.js';
+
+// Version placeholder - replaced at build time by esbuild
+declare const __PROXY_VERSION__: string;
+const VERSION = typeof __PROXY_VERSION__ !== 'undefined' ? __PROXY_VERSION__ : 'dev';
 
 /**
  * TapTap MCP Proxy
