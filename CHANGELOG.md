@@ -1,3 +1,10 @@
+## <small>1.5.8 (2025-11-19)</small>
+
+* docs(docker): 统一 Docker 配置为 bundle 版本 ([a7614bc](https://github.com/taptap/taptap_minigame_open_mcp/commit/a7614bc))
+* perf(bundle): 单文件 bundle 优化，减少包体积 96% ([4f3a698](https://github.com/taptap/taptap_minigame_open_mcp/commit/4f3a698))
+
+
+
 ## <small>1.5.7 (2025-11-19)</small>
 
 * refactor(proxy): 优化单文件版本号注入逻辑 ([4d561bc](https://github.com/taptap/taptap_minigame_open_mcp/commit/4d561bc))
