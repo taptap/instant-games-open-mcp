@@ -29,7 +29,6 @@ import fs from 'node:fs';
 // 导入核心模块
 import { ApiConfig } from './core/network/httpClient.js';
 import { logger } from './core/utils/logger.js';
-import { VERSION } from './version.js';
 import type { MacToken } from './core/types/index.js';
 import { mergePrivateParams, stripPrivateParams } from './core/types/privateParams.js';
 import { getEffectiveContext, getMacTokenStatus, getTokenSourceLabel } from './core/utils/handlerHelpers.js';
@@ -46,6 +45,10 @@ import { h5GameModule } from './features/h5Game/index.js';
 import { vibrateModule } from './features/vibrate/index.js';
 import type { HandlerContext, FeatureModule } from './core/types/index.js';
 import { EnvConfig, printDeprecationWarnings, getEnv } from './core/utils/env.js';
+
+// Version placeholder - replaced at build time by esbuild
+declare const __SERVER_VERSION__: string;
+const VERSION = typeof __SERVER_VERSION__ !== 'undefined' ? __SERVER_VERSION__ : 'dev';
 
 // 环境变量配置
 const apiConfig = ApiConfig.getInstance();

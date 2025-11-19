@@ -16,17 +16,17 @@ const __dirname = dirname(__filename);
 // Get package root directory
 const packageRoot = join(__dirname, '..');
 
-// Check if compiled version exists
-const distPath = join(packageRoot, 'dist', 'server.js');
+// Check if bundled version exists
+const distPath = join(packageRoot, 'dist', 'server-bundle.js');
 
 if (existsSync(distPath)) {
-    // Use compiled version (ES Module dynamic import)
+    // Use bundled version (ES Module dynamic import)
     import(distPath).catch(error => {
         console.error('❌ Failed to start server:', error);
         process.exit(1);
     });
 } else {
-    console.error('❌ Server file not found. Please build the project first:');
-    console.error('   npm run build');
+    console.error('❌ Server bundle not found. Please build the project first:');
+    console.error('   npm run build:all');
     process.exit(1);
 }
