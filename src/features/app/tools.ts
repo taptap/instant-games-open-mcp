@@ -53,9 +53,8 @@ export const appTools: ToolRegistration[] = [
         properties: {}
       }
     },
-    handler: async (args, context) => {
-      // This handler is replaced in server.ts (needs access to deviceAuth)
-      throw new Error('This handler is implemented in server.ts');
+    handler: async (_args, context) => {
+      return appHandlers.startOAuthAuthorization(context);
     }
   },
 
@@ -69,9 +68,8 @@ export const appTools: ToolRegistration[] = [
         properties: {}
       }
     },
-    handler: async (args, context) => {
-      // This handler is replaced in server.ts (needs access to deviceAuth)
-      throw new Error('This handler is implemented in server.ts');
+    handler: async (_args, _context) => {
+      return appHandlers.completeOAuthAuthorization();
     }
   },
 

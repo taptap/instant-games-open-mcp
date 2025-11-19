@@ -35,8 +35,9 @@ import { mergePrivateParams, stripPrivateParams } from './core/types/privatePara
 import { getEffectiveContext, getMacTokenStatus, getTokenSourceLabel } from './core/utils/handlerHelpers.js';
 
 // 导入 OAuth 模块
-import { requestDeviceCode, generateAuthUrl, pollForToken } from './core/auth/oauth.js';
-import { loadToken, saveToken, clearToken } from './core/auth/tokenStorage.js';
+import { requestDeviceCode, generateAuthUrl } from './core/auth/oauth.js';
+import { loadToken } from './core/auth/tokenStorage.js';
+import { oauthState } from './core/auth/oauthState.js';
 
 // 导入功能模块
 import { appModule } from './features/app/index.js';
@@ -159,23 +160,6 @@ class TapTapMinigameMCPServer {
       const effectiveContext = getEffectiveContext(enrichedArgs, this.context);
 
       try {
-        // Special handling for OAuth tools (need deviceAuth access)
-        if (name === 'start_oauth_authorization') {
-          const result = await this.handleOAuthStart(effectiveContext);
-          await logger.logToolResponse(name, result, true);
-          return {
-            content: [{ type: 'text', text: result }]
-          };
-        }
-
-        if (name === 'complete_oauth_authorization') {
-          const result = await this.handleOAuthCompletion();
-          await logger.logToolResponse(name, result, true);
-          return {
-            content: [{ type: 'text', text: result }]
-          };
-        }
-
         // Find tool from modules
         let toolReg = null;
         for (const module of allModules) {
@@ -284,76 +268,6 @@ class TapTapMinigameMCPServer {
         );
       }
     });
-  }
-
-  /**
-   * Handle OAuth start (special case - needs OAuth state access)
-   */
-  private async handleOAuthStart(context?: HandlerContext): Promise<string> {
-    // Use shared authentication check logic
-    const { hasMacToken, source } = getMacTokenStatus(context);
-
-    if (hasMacToken) {
-      const sourceLabel = getTokenSourceLabel(source);
-      return '✅ 已经完成授权\n\n' +
-             `当前已有有效的 MAC Token ${sourceLabel}，可以直接使用所有功能。\n\n` +
-             '💡 如需切换账号，请先使用 clear_auth_data 工具清除现有授权。';
-    }
-
-    try {
-      const environment = apiConfig.environment;
-      const deviceCodeData = await requestDeviceCode(environment);
-      const authUrl = generateAuthUrl(deviceCodeData.qrcode_url, environment);
-      
-      // 保存状态，供 completion 使用
-      pendingOAuthState = {
-        deviceCode: deviceCodeData.device_code,
-        environment
-      };
-
-      return '🔐 TapTap 授权登录\n\n' +
-             '请按以下步骤完成授权：\n\n' +
-             `1️⃣ 打开授权链接：\n   ${authUrl}\n\n` +
-             '2️⃣ 使用 TapTap App 扫描二维码\n\n' +
-             '3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n' +
-             '💡 提示：授权链接有效期为 2 分钟，过期后需要重新获取';
-    } catch (error) {
-      return `❌ 获取授权链接失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
-             '请稍后重试或联系技术支持。';
-    }
-  }
-
-  /**
-   * Handle OAuth completion (special case - needs OAuth state access)
-   */
-  private async handleOAuthCompletion(): Promise<string> {
-    if (!pendingOAuthState) {
-      return '❌ 未找到待完成的授权\n\n' +
-             '请先使用 start_oauth_authorization 工具获取授权链接。';
-    }
-
-    try {
-      const macToken = await pollForToken(pendingOAuthState.deviceCode, pendingOAuthState.environment);
-      
-      // 保存 token
-      saveToken(macToken, { environment: pendingOAuthState.environment });
-      const apiConfig = ApiConfig.getInstance();
-      apiConfig.setMacToken(macToken);
-      
-      // 清除状态
-      pendingOAuthState = null;
-
-      return '✅ 授权完成！\n\n' +
-             'Token 已成功保存，现在可以使用所有需要认证的功能了。\n\n' +
-             '请重新执行之前失败的操作。';
-    } catch (error) {
-      return `❌ 授权失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
-             '请确认：\n' +
-             '1. 已在浏览器中打开授权链接\n' +
-             '2. 已使用 TapTap App 扫码授权\n' +
-             '3. 授权页面显示成功\n\n' +
-             '如果仍然失败，请使用 start_oauth_authorization 工具获取新的授权链接。';
-    }
   }
 
   /**
@@ -580,13 +494,6 @@ class TapTapMinigameMCPServer {
   }
 }
 
-// Global OAuth state for two-step authentication
-let pendingOAuthState: {
-  deviceCode: string;
-  environment: string;
-} | null = null;
-let authInProgress = false;
-
 // Track current transport mode (set by server)
 let currentTransportMode: 'stdio' | 'sse' = 'stdio';
 
@@ -615,7 +522,7 @@ async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
   const apiConfig = ApiConfig.getInstance();
 
   // Auth already in progress
-  if (authInProgress) {
+  if (oauthState.isAuthInProgress()) {
     throw new Error('⏳ OAuth 授权正在进行中...\n\n另一个工具正在等待授权，请完成授权后重试。');
   }
 
@@ -634,10 +541,10 @@ async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
     const authUrl = generateAuthUrl(deviceCodeData.qrcode_url, environment);
     
     // 保存状态，供 complete_oauth_authorization 使用
-    pendingOAuthState = {
+    oauthState.setPendingState({
       deviceCode: deviceCodeData.device_code,
       environment
-    };
+    });
     
     throw new Error(
       `🔐 需要 TapTap 授权\n\n` +
