@@ -14,15 +14,18 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsc",
+    "build:dev": "tsc",
+    "build:server": "node scripts/bundle-server.js",
     "build:proxy": "node scripts/bundle-proxy.js",
-    "build:all": "npm run build && npm run build:proxy",
+    "build": "npm run build:server && npm run build:proxy",
+    "build:all": "npm run build:dev && npm run build",
     "start": "node dist/server.js",
-    "dev": "tsx src/server.ts",
+    "dev": "npm run build:dev && node build/server.js",
+    "dev:watch": "tsx watch src/server.ts",
     "serve:sse": "TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3000 node dist/server.js",
-    "serve:sse:dev": "TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3000 TAPTAP_MCP_VERBOSE=true node dist/server.js",
+    "serve:sse:dev": "TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3000 TAPTAP_MCP_VERBOSE=true node build/server.js",
     "serve:http": "TAPTAP_MCP_TRANSPORT=http TAPTAP_MCP_PORT=3000 node dist/server.js",
-    "prepublishOnly": "npm run build:all",
+    "prepublishOnly": "npm run build",
     "test": "jest",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts"

@@ -3,8 +3,8 @@
 /**
  * Bundle MCP Server into a standalone file
  *
- * Output: dist/server-bundle.js (no node_modules required)
- * Usage: node dist/server-bundle.js
+ * Output: dist/server.js (no node_modules required)
+ * Usage: node dist/server.js
  */
 
 import * as esbuild from 'esbuild';
@@ -39,33 +39,43 @@ try {
     platform: 'node',
     target: 'node16',
     format: 'esm',
-    outfile: join(projectRoot, 'dist/server-bundle.js'),
+    outfile: join(projectRoot, 'dist/server.js'),
+    // Bundle everything except Node.js built-ins
+    // This creates a true standalone bundle with zero npm dependencies
     external: [
-      // Node.js built-ins are always external
       'node:*',
-      // External dependencies that might cause issues when bundled
+      // Only externalize Node.js core modules
+      'fs', 'path', 'http', 'https', 'net', 'tls', 'crypto', 'stream',
+      'buffer', 'util', 'events', 'os', 'url', 'zlib', 'querystring',
+      'child_process', 'readline', 'tty'
     ],
     banner: {
-      js: '// TapTap MCP Server - Standalone Bundle\n'
+      js: `// TapTap MCP Server - Standalone Bundle
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+`
     },
     // Inject version at build time
+    // __VERSION__ serves dual purpose:
+    // 1. Provides version string for the application
+    // 2. Signals bundle mode (disables dotenv, package.json reading)
     define: {
-      '__SERVER_VERSION__': `"${VERSION}"`
+      '__VERSION__': `"${VERSION}"`
     },
-    minify: false,  // Keep readable for debugging
+    minify: true,  // Enable minification for smaller size
     sourcemap: false,
     treeShaking: true,
     logLevel: 'info',
     charset: 'utf8',
   });
 
-  console.log('✅ Bundle created: dist/server-bundle.js');
+  console.log('✅ Bundle created: dist/server.js');
   console.log('');
   console.log('📦 Usage:');
-  console.log('  node dist/server-bundle.js');
-  console.log('  TAPTAP_MCP_TRANSPORT=sse node dist/server-bundle.js');
+  console.log('  node dist/server.js');
+  console.log('  TAPTAP_MCP_TRANSPORT=sse node dist/server.js');
   console.log('');
-  console.log('✨ Minimal dependencies required!');
+  console.log('✨ Zero runtime dependencies!');
 } catch (error) {
   console.error('❌ Build failed:', error);
   process.exit(1);

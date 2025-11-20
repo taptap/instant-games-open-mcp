@@ -8,7 +8,8 @@
 .LSOverride
 
 # Icon must end with two \r
-Icon
+Icon
+
 
 # Thumbnails
 ._*
@@ -126,6 +127,9 @@ out
 # Nuxt.js build / generate output
 .nuxt
 dist
+
+# TypeScript build output (development)
+build
 
 # Gatsby files
 .cache/

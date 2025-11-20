@@ -4,9 +4,20 @@
  * TapTap 小游戏开发文档 MCP 服务器 - Node.js 版本
  */
 
-// Load .env file if exists (for local development)
-import dotenv from 'dotenv';
-dotenv.config();
+// Declare __VERSION__ for bundle mode (injected at build time by esbuild)
+// When __VERSION__ is defined: production bundle mode (no dotenv, version injected)
+// When __VERSION__ is undefined: development mode (load dotenv, read version from package.json)
+declare const __VERSION__: string | undefined;
+
+// Load .env file in development mode only
+if (typeof __VERSION__ === 'undefined') {
+  try {
+    const { default: dotenv } = await import('dotenv');
+    dotenv.config();
+  } catch {
+    // dotenv not available, skip
+  }
+}
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -45,8 +56,6 @@ import { h5GameModule } from './features/h5Game/index.js';
 import { vibrateModule } from './features/vibrate/index.js';
 import type { HandlerContext, FeatureModule } from './core/types/index.js';
 import { EnvConfig, printDeprecationWarnings, getEnv } from './core/utils/env.js';
-
-// Version import
 import { VERSION } from './version.js';
 
 // 环境变量配置

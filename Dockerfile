@@ -1,12 +1,12 @@
 FROM node:20-alpine
 
-# 单文件 Bundle 部署 - 极简版本
-# 优势：无需 npm install，启动更快，镜像更小
+# 单文件 Bundle 部署 - 零依赖版本
+# Bundle 包含所有代码和依赖，无需 npm install
 
 WORKDIR /app
 
-# 只复制单文件 bundle（无需 node_modules）
-COPY dist/server-bundle.js /app/server.js
+# 复制单文件 bundle
+COPY dist/server.js /app/server.js
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
