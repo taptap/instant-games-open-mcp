@@ -588,7 +588,7 @@ async function main(): Promise<void> {
   const apiConfig = ApiConfig.getInstance();
 
   // Check authentication status (non-blocking, just info)
-  if (!apiConfig.macToken.kid || !apiConfig.macToken.mac_key) {
+  if (!apiConfig.macToken?.kid || !apiConfig.macToken?.mac_key) {
     process.stderr.write('ℹ️  MAC Token not configured yet\n');
     process.stderr.write('   Will request OAuth authorization when you use authenticated tools\n\n');
   } else {
