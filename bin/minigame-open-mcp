@@ -3,15 +3,12 @@
 /**
  * TapTap Minigame Open API MCP Server
  * Entry point for NPM executable
+ * 
+ * Note: Using CommonJS for better npx compatibility
  */
 
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { existsSync } from 'node:fs';
-
-// Get current file path and directory (ES Module equivalent of __dirname)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const { join } = require('node:path');
+const { existsSync } = require('node:fs');
 
 // Get package root directory
 const packageRoot = join(__dirname, '..');
@@ -20,7 +17,7 @@ const packageRoot = join(__dirname, '..');
 const distPath = join(packageRoot, 'dist', 'server.js');
 
 if (existsSync(distPath)) {
-    // Use compiled version (ES Module dynamic import)
+    // Use dynamic import for ES Module
     import(distPath).catch(error => {
         console.error('❌ Failed to start server:', error);
         process.exit(1);
