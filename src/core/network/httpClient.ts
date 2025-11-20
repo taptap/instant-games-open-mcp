@@ -8,6 +8,7 @@ import cryptoJS from 'crypto-js';
 import { MacToken } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { getEnv, getEnvBoolean, EnvConfig } from '../utils/env.js';
+import { parseMacToken, isValidMacToken } from '../utils/macTokenValidator.js';
 
 /**
  * API 配置管理
@@ -16,7 +17,7 @@ import { getEnv, getEnvBoolean, EnvConfig } from '../utils/env.js';
 export class ApiConfig {
   private static instance: ApiConfig;
 
-  public macToken: MacToken;  // Changed from readonly to allow runtime updates
+  public macToken: MacToken | null;  // Allow null for OAuth flow
   public readonly clientId: string;
   public readonly signingKey: string;  // API request signature key (HMAC-SHA256)
   public readonly apiBaseUrl: string;
@@ -37,12 +38,7 @@ export class ApiConfig {
 
     // Parse MAC Token from JSON string (optional now, can be set later via Device Flow)
     const macTokenStr = EnvConfig.macToken || '';
-    try {
-      this.macToken = macTokenStr ? JSON.parse(macTokenStr) : {} as MacToken;
-    } catch (error) {
-      process.stderr.write('⚠️  Failed to parse TAPTAP_MCP_MAC_TOKEN from environment, will use OAuth flow\n');
-      this.macToken = {} as MacToken;
-    }
+    this.macToken = parseMacToken(macTokenStr, 'environment variable');
 
     // Validate configuration
     this.validateConfig();
@@ -84,7 +80,7 @@ export class ApiConfig {
   }
 
   public isConfigured(): boolean {
-    return !!(this.macToken.kid && this.macToken.mac_key && this.clientId && this.signingKey);
+    return !!(this.macToken?.kid && this.macToken?.mac_key && this.clientId && this.signingKey);
   }
 }
 
@@ -344,16 +340,14 @@ export class HttpClient {
    * Generate MAC Authorization header
    * Format: MAC id="kid", ts="timestamp", nonce="random", mac="signature"
    */
-  private generateMacAuthorization(requestUrl: string, method: string, macToken: MacToken): string {
-    // Debug: Check MAC token
+  private generateMacAuthorization(requestUrl: string, method: string, macToken: MacToken | null): string {
+    // Validate MAC token
     if (!macToken) {
-      throw new Error('Invalid MAC Token: macToken is null or undefined');
+      throw new Error('MAC Token is not configured. Please authenticate first.');
     }
-    if (!macToken.mac_key) {
-      throw new Error(`Invalid MAC Token: mac_key is missing (kid: ${macToken.kid || 'N/A'})`);
-    }
-    if (!macToken.kid) {
-      throw new Error(`Invalid MAC Token: kid is missing (mac_key exists: ${!!macToken.mac_key})`);
+
+    if (!isValidMacToken(macToken)) {
+      throw new Error('MAC Token is invalid or incomplete. Please re-authenticate.');
     }
 
     const url = new URL(requestUrl);
