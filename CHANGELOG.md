@@ -1,3 +1,9 @@
+## <small>1.5.10 (2025-11-20)</small>
+
+* perf(build): 实现双模式构建系统 ([fea2d12](https://github.com/taptap/taptap_minigame_open_mcp/commit/fea2d12))
+
+
+
 ## <small>1.5.9 (2025-11-19)</small>
 
 * revert(bundle): 暂时恢复主服务器为传统部署模式 ([abd9504](https://github.com/taptap/taptap_minigame_open_mcp/commit/abd9504))
