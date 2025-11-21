@@ -102,13 +102,13 @@ export interface ApiResponse<T = unknown> {
  * Generic HTTP Client for TapTap API
  */
 export class HttpClient {
-  private context?: import('../types/index.js').RequestContext;
+  private ctx?: import('../types/context.js').ResolvedContext;
 
   /**
-   * @param context - RequestContext (for token resolution and user identification)
+   * @param ctx - ResolvedContext (用于 token 解析和用户标识)
    */
-  constructor(context?: import('../types/index.js').RequestContext) {
-    this.context = context;
+  constructor(ctx?: import('../types/context.js').ResolvedContext) {
+    this.ctx = ctx;
   }
 
   /**
@@ -178,19 +178,8 @@ export class HttpClient {
       }
     }
 
-    // ✅ 动态解析 token（从 context 或文件加载）
-    let effectiveMacToken: MacToken | null = null;
-
-    if (this.context?.macToken?.kid && this.context?.macToken?.mac_key) {
-      effectiveMacToken = this.context.macToken;
-    } else if (EnvConfig.transport === 'stdio' && this.context) {
-      // stdio 模式从用户隔离文件加载
-      const userId = this.context.userId || 'local';
-      const projectId = this.context.projectId;
-      const { loadTokenFromFile, getTokenPath } = await import('../auth/tokenStorage.js');
-      const tokenPath = getTokenPath(userId, projectId);
-      effectiveMacToken = loadTokenFromFile(tokenPath);
-    }
+    // ✅ 直接使用 ResolvedContext 解析 token
+    const effectiveMacToken = this.ctx?.resolveToken() || null;
 
 
     // Generate MAC Authorization header
