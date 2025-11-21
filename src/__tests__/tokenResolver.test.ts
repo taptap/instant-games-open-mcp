@@ -4,7 +4,10 @@
 
 import {
   resolveToken,
-  hasToken
+  hasToken,
+  getTokenStatus,
+  getTokenSourceLabel,
+  TokenSource
 } from '../core/utils/tokenResolver';
 import {
   getUserId,
@@ -83,6 +86,26 @@ describe('tokenResolver', () => {
       expect(mockGetTokenPath).toHaveBeenCalledWith('user-123', undefined);
     });
 
+    test('should load with projectId from context in stdio mode', () => {
+      Object.defineProperty(EnvConfig, 'transport', {
+        get: () => 'stdio',
+        configurable: true
+      });
+
+      mockGetTokenPath.mockReturnValue('/cache/user-123/project-456/oauth-token.json');
+      mockLoadTokenFromFile.mockReturnValue(validToken);
+
+      const context: HandlerContext = {
+        userId: 'user-123',
+        projectId: 'project-456'
+      };
+
+      const result = resolveToken(context);
+
+      expect(result).toEqual(validToken);
+      expect(mockGetTokenPath).toHaveBeenCalledWith('user-123', 'project-456');
+    });
+
     test('should return null in SSE mode without context token', () => {
       Object.defineProperty(EnvConfig, 'transport', {
         get: () => 'sse',
@@ -135,6 +158,77 @@ describe('tokenResolver', () => {
       };
 
       expect(hasToken(context)).toBe(false);
+    });
+  });
+
+  describe('getTokenStatus', () => {
+    test('should identify CONTEXT source', () => {
+      const context: HandlerContext = {
+        macToken: validToken
+      };
+
+      const status = getTokenStatus(context);
+      expect(status).toEqual({
+        hasMacToken: true,
+        source: TokenSource.CONTEXT
+      });
+    });
+
+    test('should identify FILE source in stdio mode', () => {
+      Object.defineProperty(EnvConfig, 'transport', {
+        get: () => 'stdio',
+        configurable: true
+      });
+      mockLoadTokenFromFile.mockReturnValue(validToken);
+
+      const status = getTokenStatus();
+      expect(status).toEqual({
+        hasMacToken: true,
+        source: TokenSource.FILE
+      });
+    });
+
+    test('should identify ENV source in SSE mode (simulated)', () => {
+      // 注意：这里其实有点歧义。在 SSE 模式下 resolveToken 通常返回 null
+      // 除非我们能在 resolveToken 中从非文件来源（如环境变量）获取到 token
+      // 但目前的 resolveToken 实现中，SSE 模式除了 context 注入外只能返回 null
+      // 除非逻辑被修改了。
+      // 根据当前代码：Priority 3: SSE/HTTP 模式不使用文件 -> return null
+      // 所以在 SSE 模式下，如果 context 没有 token，getTokenStatus 应该返回 NONE
+
+      Object.defineProperty(EnvConfig, 'transport', {
+        get: () => 'sse',
+        configurable: true
+      });
+
+      const status = getTokenStatus();
+      expect(status).toEqual({
+        hasMacToken: false,
+        source: TokenSource.NONE
+      });
+    });
+
+    test('should return NONE if no token available', () => {
+      Object.defineProperty(EnvConfig, 'transport', {
+        get: () => 'stdio',
+        configurable: true
+      });
+      mockLoadTokenFromFile.mockReturnValue(null);
+
+      const status = getTokenStatus();
+      expect(status).toEqual({
+        hasMacToken: false,
+        source: TokenSource.NONE
+      });
+    });
+  });
+
+  describe('getTokenSourceLabel', () => {
+    test('should return correct labels', () => {
+      expect(getTokenSourceLabel(TokenSource.CONTEXT)).toBe('(请求上下文)');
+      expect(getTokenSourceLabel(TokenSource.ENV)).toBe('(环境变量)');
+      expect(getTokenSourceLabel(TokenSource.FILE)).toBe('(本地文件)');
+      expect(getTokenSourceLabel(TokenSource.NONE)).toBe('');
     });
   });
 

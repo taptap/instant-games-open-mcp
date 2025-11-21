@@ -36,6 +36,9 @@ export { ResolvedContext, getTokenSourceLabel } from './context.js';
 // 向后兼容别名（将逐步废弃）
 export type { RequestContext as HandlerContext } from './context.js';
 
+// 前向声明
+import type { ResolvedContext as RC } from './context.js';
+
 /**
  * Tool Registration Interface
  * Combines tool definition and handler in a single object
@@ -45,7 +48,7 @@ export interface ToolRegistration<T = any> {
   definition: Tool;
 
   /** Tool handler function - 接受 ResolvedContext */
-  handler: (args: T, context: ResolvedContext) => Promise<string>;
+  handler: (args: T, context: RC) => Promise<string>;
 
   /** Whether this tool requires authentication */
   requiresAuth?: boolean;

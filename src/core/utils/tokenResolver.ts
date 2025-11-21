@@ -121,7 +121,6 @@ export function getTokenSourceLabel(source: TokenSource): string {
   }
 }
 
-
 /**
  * 为指定用户加载 Token
  *

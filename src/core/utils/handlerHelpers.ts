@@ -109,5 +109,5 @@ export function hasMacToken<T extends PrivateToolParams>(
 // ============================================================================
 // 向后兼容导出（Token 相关函数已移至 tokenResolver.ts）
 // ============================================================================
-export type { TokenSource } from './tokenResolver.js';
-export { getTokenStatus as getMacTokenStatus, getTokenSourceLabel } from './tokenResolver.js';
+// export type { TokenSource } from './tokenResolver.js';
+// export { getTokenStatus as getMacTokenStatus, getTokenSourceLabel } from './tokenResolver.js';

@@ -41,7 +41,7 @@ import { ApiConfig } from './core/network/httpClient.js';
 import { logger } from './core/utils/logger.js';
 import type { MacToken } from './core/types/index.js';
 import { mergePrivateParams, stripPrivateParams } from './core/types/privateParams.js';
-import { getEffectiveContext, getMacTokenStatus, getTokenSourceLabel } from './core/utils/handlerHelpers.js';
+import { getTokenStatus, getTokenSourceLabel } from './core/utils/tokenResolver.js';
 
 // 导入 OAuth 模块
 import { requestDeviceCode, generateAuthUrl } from './core/auth/oauth.js';
@@ -54,11 +54,13 @@ import { leaderboardModule } from './features/leaderboard/index.js';
 import { h5GameModule } from './features/h5Game/index.js';
 import { vibrateModule } from './features/vibrate/index.js';
 import type {
-  HandlerContext,
+  RequestContext,
+  SessionContext,
   FeatureModule,
   ToolRegistration,
   ResourceRegistration
 } from './core/types/index.js';
+import { ResolvedContext } from './core/types/index.js';
 import { EnvConfig, printDeprecationWarnings, getEnv } from './core/utils/env.js';
 import { VERSION } from './version.js';
 
@@ -79,26 +81,17 @@ const allModules: FeatureModule[] = [
 ];
 
 /**
- * Session 上下文信息（通过闭包注入）
- */
-interface SessionContext {
-  userId?: string;      // 用户标识（从 Header 提取或 Proxy 注入）
-  projectId?: string;   // 项目标识（从 Header 提取或 Proxy 注入）
-  sessionId?: string;   // Session ID（用于日志追踪）
-}
-
-/**
  * TapTap 小游戏 MCP 服务器
  */
 class TapTapMinigameMCPServer {
   private server: Server;
-  private ensureAuth: (context?: HandlerContext) => Promise<void>;
+  private ensureAuth: (context?: ResolvedContext) => Promise<void>;
 
   // 工具和资源的快速查找索引 (O(1) 查找，替代 O(n) 线性搜索)
   private toolRegistry: Map<string, ToolRegistration>;
   private resourceRegistry: Map<string, ResourceRegistration>;
 
-  constructor(ensureAuthFn: (context?: HandlerContext) => Promise<void>) {
+  constructor(ensureAuthFn: (context?: ResolvedContext) => Promise<void>) {
     // Create server with explicit capabilities declaration (required in SDK 1.20+)
     this.server = new Server(
       {
@@ -242,27 +235,15 @@ class TapTapMinigameMCPServer {
    * 创建请求级别的基础 context
    * 使用闭包注入的 sessionContext（userId、projectId）
    *
-   * @param sessionContext - Session 上下文（通过闭包注入，避免查找全局 Map）
-   * @returns Handler context
+   * @param sessionContext - Session 上下文（通过闭包注入）
+   * @returns RequestContext
    */
-  private createBaseContext(sessionContext?: SessionContext): HandlerContext {
-    const context: HandlerContext = {};
-
-    // ✅ 从闭包注入的 sessionContext 获取用户标识
-    if (sessionContext?.userId) {
-      context.userId = sessionContext.userId;
-    }
-    if (sessionContext?.projectId) {
-      context.projectId = sessionContext.projectId;
-    }
-    if (sessionContext?.sessionId) {
-      context.sessionId = sessionContext.sessionId;
-    }
-
-    // ✅ Token 不再从全局获取，改为通过 tokenResolver 按需加载
-    // macToken 会在 resolveToken(context) 时根据 userId 动态加载
-
-    return context;
+  private createBaseContext(sessionContext?: SessionContext): RequestContext {
+    return {
+      userId: sessionContext?.userId,
+      projectId: sessionContext?.projectId,
+      sessionId: sessionContext?.sessionId
+    };
   }
 
   /**
@@ -319,11 +300,11 @@ class TapTapMinigameMCPServer {
       // Log tool call input (私有参数会被自动过滤)
       await logger.logToolCall(name, enrichedArgs);
 
-      // ✅ 为每个请求创建 context（使用闭包注入的 sessionContext）
+      // ✅ 创建 baseContext（从 sessionContext 闭包）
       const baseContext = this.createBaseContext(sessionContext);
 
-      // 合并私有参数到 context（_mac_token、_developer_id 等）
-      const effectiveContext = getEffectiveContext(enrichedArgs, baseContext);
+      // ✅ 构建 ResolvedContext（合并 args + base）
+      const ctx = new ResolvedContext(enrichedArgs, baseContext);
 
       try {
         // 使用 Map 快速查找工具（O(1) 复杂度）
@@ -333,10 +314,10 @@ class TapTapMinigameMCPServer {
           throw new McpError(ErrorCode.MethodNotFound, `未知工具: ${name}`);
         }
 
-        // Check if authentication is required (pass effectiveContext to check request-level token)
+        // Check if authentication is required
         if (toolReg.requiresAuth) {
           try {
-            await this.ensureAuth(effectiveContext);
+            await this.ensureAuth(ctx);
           } catch (authError) {
             // 使用统一的认证错误处理
             if (isAuthError(authError)) {
@@ -363,8 +344,8 @@ class TapTapMinigameMCPServer {
         // 从 args 中移除私有参数（业务层完全不感知）
         const businessArgs = stripPrivateParams(enrichedArgs);
 
-        // Call handler（传递干净的业务参数 + 包含 macToken 的 context）
-        const result = await toolReg.handler(businessArgs, effectiveContext);
+        // ✅ Call handler（传递 ResolvedContext）
+        const result = await toolReg.handler(businessArgs, ctx);
 
         // Log tool call output
         await logger.logToolResponse(name, result, true);
@@ -692,13 +673,9 @@ class TapTapMinigameMCPServer {
  * 改进的认证检查函数
  * 使用统一的错误处理
  */
-async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
-  // 使用 tokenResolver 检查认证状态
-  const { hasMacToken } = await import('./core/utils/tokenResolver.js').then(m => ({
-    hasMacToken: m.hasToken(context)
-  }));
-
-  if (hasMacToken) {
+async function ensureAuthenticated(context?: ResolvedContext): Promise<void> {
+  // 使用 ResolvedContext 检查认证状态
+  if (context?.hasToken()) {
     return;
   }
 

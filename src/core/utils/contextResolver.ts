@@ -49,10 +49,10 @@ export interface ResolvedContext {
  * - app_id: context.appId > cache
  * - project_path: context.projectPath (不涉及缓存)
  *
- * @param context - Handler context
+ * @param context - Handler context (optional)
  * @returns 解析后的完整上下文
  */
-export function resolveAppContext(context: HandlerContext): ResolvedContext {
+export function resolveAppContext(context: HandlerContext = {}): ResolvedContext {
   const result: ResolvedContext = {};
 
   // 尝试从本地缓存读取
@@ -82,10 +82,10 @@ export function resolveAppContext(context: HandlerContext): ResolvedContext {
 /**
  * 检查是否存在有效的应用上下文
  *
- * @param context - Handler context
+ * @param context - Handler context (optional)
  * @returns true if both developer_id and app_id are available
  */
-export function hasAppContext(context: HandlerContext): boolean {
+export function hasAppContext(context?: HandlerContext): boolean {
   const resolved = resolveAppContext(context);
   return !!(resolved.developerId && resolved.appId);
 }
@@ -93,31 +93,32 @@ export function hasAppContext(context: HandlerContext): boolean {
 /**
  * 获取 developer_id（优先级：context > cache）
  *
- * @param context - Handler context
+ * @param context - Handler context (optional)
  * @returns Developer ID or undefined
  */
-export function getDeveloperId(context: HandlerContext): number | undefined {
+export function getDeveloperId(context?: HandlerContext): number | undefined {
   return resolveAppContext(context).developerId;
 }
 
 /**
  * 获取 app_id（优先级：context > cache）
  *
- * @param context - Handler context
+ * @param context - Handler context (optional)
  * @returns App ID or undefined
  */
-export function getAppId(context: HandlerContext): number | undefined {
+export function getAppId(context?: HandlerContext): number | undefined {
   return resolveAppContext(context).appId;
 }
 
 /**
  * 获取 project_path
  *
- * @param context - Handler context
+ * @param context - Handler context (optional)
  * @returns Project path or undefined
  */
-export function getProjectPath(context: HandlerContext): string | undefined {
-  return context.projectPath;
+export function getProjectPath(context?: HandlerContext): string | undefined {
+  // 增加 || undefined 以确保过滤掉空字符串和 null
+  return context?.projectPath || undefined;
 }
 
 /**
@@ -153,5 +154,5 @@ export function getUserId(context?: HandlerContext): string {
  * @returns Project identifier or undefined
  */
 export function getProjectId(context?: HandlerContext): string | undefined {
-  return context?.projectId;
+  return context?.projectId || undefined;
 }
