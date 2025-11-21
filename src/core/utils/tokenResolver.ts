@@ -13,6 +13,16 @@ import { loadTokenFromFile, getTokenPath } from '../auth/tokenStorage.js';
 import { EnvConfig } from './env.js';
 
 /**
+ * Token 来源类型
+ */
+export enum TokenSource {
+  NONE = 'none',
+  CONTEXT = 'context',     // From request context (e.g., MCP Proxy injection)
+  ENV = 'env',             // From environment variable
+  FILE = 'file'            // From local OAuth token file
+}
+
+/**
  * 解析有效的 MAC Token（按需加载，无全局缓存）
  *
  * 优先级：
@@ -31,8 +41,9 @@ export function resolveToken(context?: HandlerContext): MacToken | null {
 
   // Priority 2: stdio 模式从用户隔离的文件加载（每次即时加载）
   if (EnvConfig.transport === 'stdio') {
-    const userId = getUserId(context);
-    const projectId = getProjectId(context);
+    // 内联提取逻辑（避免循环依赖）
+    const userId = context?.userId || 'local';
+    const projectId = context?.projectId;
     return loadTokenForUser(userId, projectId);
   }
 
@@ -53,40 +64,63 @@ export function hasToken(context?: HandlerContext): boolean {
 }
 
 /**
- * 从 context 提取用户标识
- *
- * 优先级：
- * 1. context.userId (MCP Proxy 注入或 Session 闭包注入)
- * 2. 'local' (stdio 模式默认)
- * 3. 'anonymous' (其他情况)
+ * 获取 MAC Token 状态和来源
  *
  * @param context - Handler context
- * @returns User identifier
+ * @returns Token 状态和来源信息
  */
-export function getUserId(context?: HandlerContext): string {
-  // Priority 1: Proxy 或 Session 注入的 userId
-  if (context?.userId) {
-    return context.userId;
+export function getTokenStatus(context?: HandlerContext): {
+  hasMacToken: boolean;
+  source: TokenSource;
+} {
+  // Priority 1: Check request-specific token (from context, e.g., MCP Proxy)
+  if (context?.macToken?.kid && context?.macToken?.mac_key) {
+    return {
+      hasMacToken: true,
+      source: TokenSource.CONTEXT
+    };
   }
 
-  // Priority 2: stdio 模式默认使用 'local'
-  if (EnvConfig.transport === 'stdio') {
-    return 'local';
+  // Priority 2: 使用 resolveToken 检查（自动处理用户隔离）
+  const token = resolveToken(context);
+  if (token?.kid && token?.mac_key) {
+    // 根据 transport 模式返回来源
+    const source = EnvConfig.transport === 'stdio'
+      ? TokenSource.FILE
+      : TokenSource.ENV;
+
+    return {
+      hasMacToken: true,
+      source
+    };
   }
 
-  // Priority 3: 其他情况使用 'anonymous'
-  return 'anonymous';
+  return {
+    hasMacToken: false,
+    source: TokenSource.NONE
+  };
 }
 
 /**
- * 获取项目标识（可选）
+ * 获取 Token 来源的显示标签
  *
- * @param context - Handler context
- * @returns Project identifier or undefined
+ * @param source - Token 来源
+ * @returns 中文显示标签
  */
-export function getProjectId(context?: HandlerContext): string | undefined {
-  return context?.projectId;
+export function getTokenSourceLabel(source: TokenSource): string {
+  switch (source) {
+    case TokenSource.CONTEXT:
+      return '(请求上下文)';
+    case TokenSource.ENV:
+      return '(环境变量)';
+    case TokenSource.FILE:
+      return '(本地文件)';
+    case TokenSource.NONE:
+    default:
+      return '';
+  }
 }
+
 
 /**
  * 为指定用户加载 Token

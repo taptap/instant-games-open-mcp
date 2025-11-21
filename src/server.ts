@@ -35,7 +35,6 @@ import process from 'node:process';
 import http from 'node:http';
 import path from 'node:path';
 import os from 'node:os';
-import fs from 'node:fs';
 
 // 导入核心模块
 import { ApiConfig } from './core/network/httpClient.js';
@@ -64,10 +63,9 @@ import { EnvConfig, printDeprecationWarnings, getEnv } from './core/utils/env.js
 import { VERSION } from './version.js';
 
 // 导入新的认证错误处理模块
-import { AuthError, createAuthError, generateOAuthGuidance, isAuthError } from './core/errors/authErrors.js';
+import { createAuthError, generateOAuthGuidance, isAuthError } from './core/errors/authErrors.js';
 
-// 环境变量配置
-const apiConfig = ApiConfig.getInstance();
+// 环境变量配置 (仅用于启动时验证)
 const transportMode = EnvConfig.transport;
 const serverPort = EnvConfig.port;
 
@@ -314,7 +312,7 @@ class TapTapMinigameMCPServer {
       if (extra?.requestInfo?.headers) {
         enrichedArgs = this.extractPrivateParamsFromHeaders(
           enrichedArgs,
-          extra.requestInfo.headers
+          extra.requestInfo.headers as Record<string, string | string[]>
         );
       }
 
@@ -505,11 +503,6 @@ class TapTapMinigameMCPServer {
     // Initialize logger (before any connections)
     logger.initialize(this.server, 'sse');
 
-    // Set transport mode for authentication
-    // - 'sse': enables auto-authorization with progress streaming
-    // - 'http' (JSON only): uses two-step auth (no progress streaming available)
-    const authMode = transportMode === 'sse' ? 'sse' : 'stdio';
-    setTransportMode(authMode);
 
     // Store active transport instances by session ID
     const transports: Map<string, { server: Server, transport: StreamableHTTPServerTransport }> = new Map();
@@ -694,29 +687,20 @@ class TapTapMinigameMCPServer {
   }
 }
 
-// Track current transport mode (set by server)
-let currentTransportMode: 'stdio' | 'sse' = 'stdio';
-
-/**
- * Set transport mode for authentication flow
- */
-function setTransportMode(mode: 'stdio' | 'sse'): void {
-  currentTransportMode = mode;
-}
 
 /**
  * 改进的认证检查函数
  * 使用统一的错误处理
  */
 async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
-  // 使用共享的认证检查逻辑
-  const { hasMacToken, source } = getMacTokenStatus(context);
+  // 使用 tokenResolver 检查认证状态
+  const { hasMacToken } = await import('./core/utils/tokenResolver.js').then(m => ({
+    hasMacToken: m.hasToken(context)
+  }));
 
   if (hasMacToken) {
     return;
   }
-
-  const apiConfig = ApiConfig.getInstance();
 
   // Auth already in progress
   if (oauthState.isAuthInProgress()) {
@@ -763,7 +747,8 @@ async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
 
 // 启动服务器
 async function main(): Promise<void> {
-  const apiConfig = ApiConfig.getInstance();
+  // 启动时验证配置
+  ApiConfig.getInstance();
 
   // ✅ Token 状态检查已移至 tokenResolver
   // stdio 模式会自动从 ~/.taptap-mcp/cache/local/ 加载

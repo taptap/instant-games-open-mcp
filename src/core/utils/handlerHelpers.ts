@@ -5,8 +5,7 @@
 
 import type { HandlerContext, MacToken } from '../types/index.js';
 import type { PrivateToolParams } from '../types/privateParams.js';
-import { resolveToken } from './tokenResolver.js';
-import { EnvConfig } from './env.js';
+import { resolveToken, getTokenStatus, TokenSource, getTokenSourceLabel } from './tokenResolver.js';
 
 /**
  * Extract effective context from arguments and base context
@@ -107,70 +106,8 @@ export function hasMacToken<T extends PrivateToolParams>(
   return !!(token && token.kid && token.mac_key);
 }
 
-/**
- * Token source types
- */
-export enum TokenSource {
-  NONE = 'none',
-  CONTEXT = 'context',     // From request context (e.g., MCP Proxy injection)
-  ENV = 'env',             // From environment variable
-  FILE = 'file'            // From local OAuth token file
-}
-
-/**
- * Get MAC Token source and availability
- * Returns both availability and the source of the token
- *
- * Priority: context.macToken > global config > local file
- *
- * @param context - Handler context (may contain macToken from request)
- * @returns Object with hasMacToken flag and tokenSource enum
- */
-export function getMacTokenStatus(context?: HandlerContext): {
-  hasMacToken: boolean;
-  source: TokenSource;
-} {
-  // Priority 1: Check request-specific token (from context, e.g., MCP Proxy)
-  if (context?.macToken?.kid && context?.macToken?.mac_key) {
-    return {
-      hasMacToken: true,
-      source: TokenSource.CONTEXT
-    };
-  }
-
-  // Priority 2: 使用 tokenResolver 检查（自动处理用户隔离）
-  const token = resolveToken(context);
-  if (token?.kid && token?.mac_key) {
-    // 根据 transport 模式返回来源
-    const source = EnvConfig.transport === 'stdio'
-      ? TokenSource.FILE
-      : TokenSource.ENV;
-
-    return {
-      hasMacToken: true,
-      source
-    };
-  }
-
-  return {
-    hasMacToken: false,
-    source: TokenSource.NONE
-  };
-}
-
-/**
- * Get human-readable token source label for display
- */
-export function getTokenSourceLabel(source: TokenSource): string {
-  switch (source) {
-    case TokenSource.CONTEXT:
-      return '(请求上下文)';
-    case TokenSource.ENV:
-      return '(环境变量)';
-    case TokenSource.FILE:
-      return '(本地文件)';
-    case TokenSource.NONE:
-    default:
-      return '';
-  }
-}
+// ============================================================================
+// 向后兼容导出（Token 相关函数已移至 tokenResolver.ts）
+// ============================================================================
+export type { TokenSource } from './tokenResolver.js';
+export { getTokenStatus as getMacTokenStatus, getTokenSourceLabel } from './tokenResolver.js';

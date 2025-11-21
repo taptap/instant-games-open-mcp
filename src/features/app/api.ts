@@ -5,7 +5,7 @@
 
 import { HttpClient } from '../../core/network/httpClient.js';
 import { readAppCache, saveAppCache, AppCacheInfo } from '../../core/utils/cache.js';
-import { contextResolver } from '../../core/utils/contextResolver.js';
+import { resolveAppContext } from '../../core/utils/contextResolver.js';
 
 /**
  * Craft/App item in developer list

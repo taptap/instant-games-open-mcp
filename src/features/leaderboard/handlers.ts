@@ -14,7 +14,7 @@ import {
   CalcType
 } from './api.js';
 import { SelectionRequiredError } from '../app/api.js';
-import { contextResolver } from '../../core/utils/contextResolver.js';
+import { resolveAppContext } from '../../core/utils/contextResolver.js';
 import { leaderboardTools } from './docTools.js';
 
 /**
@@ -143,7 +143,7 @@ export async function createLeaderboard(
 ): Promise<string> {
   try {
     // Resolve developer_id and app_id from context (priority: args > context > cache)
-    const resolved = contextResolver.resolve(context);
+    const resolved = resolveAppContext(context);
     const developerId = args.developer_id ?? resolved.developerId;
     const appId = args.app_id ?? resolved.appId;
 
@@ -337,7 +337,7 @@ export async function publishLeaderboard(
 ): Promise<string> {
   try {
     // Resolve developer_id and app_id from context (priority: args > context > cache)
-    const resolved = contextResolver.resolve(context);
+    const resolved = resolveAppContext(context);
     const developerId = args.developer_id ?? resolved.developerId;
     const appId = args.app_id ?? resolved.appId;
 

@@ -67,8 +67,8 @@ export const appTools: ToolRegistration[] = [
         properties: {}
       }
     },
-    handler: async (_args, _context) => {
-      return appHandlers.completeOAuthAuthorization();
+    handler: async (args, context) => {
+      return appHandlers.completeOAuthAuthorization(args, context);
     }
   },
 

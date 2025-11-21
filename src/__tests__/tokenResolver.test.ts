@@ -4,10 +4,12 @@
 
 import {
   resolveToken,
-  hasToken,
+  hasToken
+} from '../core/utils/tokenResolver';
+import {
   getUserId,
   getProjectId
-} from '../core/utils/tokenResolver';
+} from '../core/utils/contextResolver';
 import type { HandlerContext, MacToken } from '../core/types';
 
 // Mock dependencies

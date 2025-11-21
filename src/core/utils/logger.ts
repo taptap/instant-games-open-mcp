@@ -430,7 +430,7 @@ export class Logger {
   /**
    * Log client connection event
    */
-  async logClientConnection(sessionId: string): Promise<void> {
+  async logClientConnection(sessionId: string, metadata?: any): Promise<void> {
     const timestamp = getTimestamp();
 
     // Always output connection event to stderr (important for monitoring)

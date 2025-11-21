@@ -12,7 +12,7 @@ import { EnvConfig } from '../../core/utils/env.js';
 import { requestDeviceCode, generateAuthUrl, pollForToken } from '../../core/auth/oauth.js';
 import { oauthState } from '../../core/auth/oauthState.js';
 import { getMacTokenStatus, getTokenSourceLabel } from '../../core/utils/handlerHelpers.js';
-import { getUserId, getProjectId } from '../../core/utils/tokenResolver.js';
+import { getUserId, getProjectId } from '../../core/utils/contextResolver.js';
 
 /**
  * List all developers and apps for the current user
@@ -190,7 +190,10 @@ export async function startOAuthAuthorization(context: HandlerContext): Promise<
 /**
  * Complete OAuth authorization
  */
-export async function completeOAuthAuthorization(): Promise<string> {
+export async function completeOAuthAuthorization(
+  args: Record<string, never>,
+  context: HandlerContext
+): Promise<string> {
   const pendingState = oauthState.getPendingState();
   
   if (!pendingState) {

@@ -4,7 +4,7 @@
  */
 
 import { HttpClient } from '../../core/network/httpClient.js';
-import { contextResolver } from '../../core/utils/contextResolver.js';
+import { resolveAppContext } from '../../core/utils/contextResolver.js';
 
 /**
  * Period types for leaderboard
@@ -170,7 +170,7 @@ export async function listLeaderboards(
 
   try {
     // Resolve developer_id and app_id from context (priority: params > context > cache)
-    const resolved = contextResolver.resolve(context || {});
+    const resolved = resolveAppContext(context || {});
     const developerId = params.developer_id ?? resolved.developerId;
     const appId = params.app_id ?? resolved.appId;
 
@@ -234,7 +234,7 @@ export async function publishLeaderboard(
 
   try {
     // Resolve developer_id and app_id from context (priority: params > context > cache)
-    const resolved = contextResolver.resolve(context || {});
+    const resolved = resolveAppContext(context || {});
     const developerId = params.developer_id ?? resolved.developerId;
     const appId = params.app_id ?? resolved.appId;
 
