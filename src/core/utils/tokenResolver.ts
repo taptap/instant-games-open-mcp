@@ -32,7 +32,8 @@ export function resolveToken(context?: HandlerContext): MacToken | null {
   // Priority 2: stdio 模式从用户隔离的文件加载（每次即时加载）
   if (EnvConfig.transport === 'stdio') {
     const userId = getUserId(context);
-    return loadTokenForUser(userId);
+    const projectId = getProjectId(context);
+    return loadTokenForUser(userId, projectId);
   }
 
   // Priority 3: SSE/HTTP 模式不使用文件

@@ -46,6 +46,9 @@ export interface HandlerContext {
   /** App ID */
   appId?: number;
 
+  /** Project ID for token isolation */
+  projectId?: string;
+
   /** Project Path (for file system access) */
   projectPath?: string;
 

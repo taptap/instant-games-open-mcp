@@ -345,6 +345,7 @@ export class TapTapMCPProxy {
         _mac_token: macToken,
         _project_path: this.config.tenant.project_path,
         _user_id: this.config.tenant.user_id,
+        _project_id: this.config.tenant.project_id,  // ✅ 新增
       };
 
       if (this.config.options?.verbose) {
