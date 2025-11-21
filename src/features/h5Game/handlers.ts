@@ -143,7 +143,7 @@ async function confirmInfo(
   developerId?: number,
   appId?: number,
   genre?: string,
-  context?: import('../../core/types/index.js').HandlerContext
+  context?: import('../../core/types/index.js').RequestContext
 ): Promise<{ success: boolean; message: string; developerId?: number; appId?: number }> {
   // 如果用户提供了开发者身份 ID 和游戏 ID, 直接返回
   if (developerId && appId) {
@@ -243,7 +243,7 @@ export async function handleGatherGameInfo(
     appId?: number;
     genre?: string;
   },
-  context?: import('../../core/types/index.js').HandlerContext
+  context?: import('../../core/types/index.js').RequestContext
 ): Promise<string> {
   // 使用统一路径解析器
   const gamePath = resolveWorkPath(args.gamePath, context);
@@ -306,7 +306,7 @@ export async function handleUploadGame(
     appName?: string;
     genre?: string;
   },
-  context?: import('../../core/types/index.js').HandlerContext
+  context?: import('../../core/types/index.js').RequestContext
 ): Promise<string> {
   // 使用统一路径解析器
   const gamePath = resolveWorkPath(args.gamePath, context);
@@ -403,7 +403,7 @@ export async function handleCreateApp(
     appName?: string;
     genre?: string;
   },
-  context?: import('../../core/types/index.js').HandlerContext
+  context?: import('../../core/types/index.js').RequestContext
 ): Promise<string> {
   let developerId = args.developerId;
 
@@ -460,7 +460,7 @@ export async function handleEditApp(
     chattingNumber?: string;
     screenOrientation?: number;
   },
-  context?: import('../../core/types/index.js').HandlerContext
+  context?: import('../../core/types/index.js').RequestContext
 ): Promise<string> {
   if (!args.developerId || !args.appId) {
     return MESSAGES.EDIT_GAME_INFO_CONFIRMATION;

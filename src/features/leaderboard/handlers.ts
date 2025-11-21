@@ -3,7 +3,7 @@
  * Handles leaderboard operations including creation, listing, and workflow guidance
  */
 
-import type { HandlerContext } from '../../core/types/index.js';
+import type { ResolvedContext } from '../../core/types/index.js';
 import {
   createLeaderboard as createLeaderboardApi,
   listLeaderboards as listLeaderboardsApi,
@@ -14,7 +14,6 @@ import {
   CalcType
 } from './api.js';
 import { SelectionRequiredError } from '../app/api.js';
-import { resolveAppContext } from '../../core/utils/contextResolver.js';
 import { leaderboardTools } from './docTools.js';
 
 /**
@@ -22,13 +21,13 @@ import { leaderboardTools } from './docTools.js';
  */
 export async function startLeaderboardIntegration(
   _args: { purpose?: string },
-  context: HandlerContext
+  ctx: ResolvedContext
 ): Promise<string> {
   try {
     // Step 1: Check existing leaderboards (autoSelect = false to detect multiple apps)
     let leaderboardsResult;
     try {
-      leaderboardsResult = await listLeaderboardsApi({}, context);
+      leaderboardsResult = await listLeaderboardsApi({}, ctx.raw);
     } catch (error) {
       // Check if this is a SelectionRequiredError
       if (error instanceof SelectionRequiredError) {
@@ -139,11 +138,11 @@ export async function createLeaderboard(
     period_time?: string;
     score_unit?: string;
   },
-  context: HandlerContext
+  ctx: ResolvedContext
 ): Promise<string> {
   try {
     // Resolve developer_id and app_id from context (priority: args > context > cache)
-    const resolved = resolveAppContext(context);
+    const resolved = ctx.resolveApp();
     const developerId = args.developer_id ?? resolved.developerId;
     const appId = args.app_id ?? resolved.appId;
 
@@ -167,7 +166,7 @@ export async function createLeaderboard(
       display_limit: args.display_limit,
       period_time: args.period_time,
       score_unit: args.score_unit
-    }, context);
+    }, ctx.raw);
 
     // 自动发布排行榜（将白名单模式设置为 false，使其对所有用户可见）
     try {
@@ -176,7 +175,7 @@ export async function createLeaderboard(
         app_id: appId,
         id: result.id,
         whitelist_only: false  // 发布上线，所有用户可见
-      }, context);
+      }, ctx.raw);
     } catch (publishError) {
       // 如果发布失败，记录警告但不阻止创建流程
       const publishErrorMsg = publishError instanceof Error ? publishError.message : String(publishError);
@@ -268,7 +267,7 @@ export async function listLeaderboards(
     page?: number;
     page_size?: number;
   },
-  context: HandlerContext
+  ctx: ResolvedContext
 ): Promise<string> {
   try {
     const result = await listLeaderboardsApi({
@@ -276,7 +275,7 @@ export async function listLeaderboards(
       app_id: args.app_id,
       page: args.page,
       page_size: args.page_size
-    }, context);
+    }, ctx.raw);
 
     if (!result.list || result.list.length === 0) {
       return `📋 暂无排行榜\n\n您还没有创建任何排行榜。使用 create_leaderboard 工具创建第一个排行榜。`;
@@ -333,11 +332,11 @@ export async function publishLeaderboard(
     id: number;
     publish: boolean;  // true = 发布上线, false = 仅白名单可见
   },
-  context: HandlerContext
+  ctx: ResolvedContext
 ): Promise<string> {
   try {
     // Resolve developer_id and app_id from context (priority: args > context > cache)
-    const resolved = resolveAppContext(context);
+    const resolved = ctx.resolveApp();
     const developerId = args.developer_id ?? resolved.developerId;
     const appId = args.app_id ?? resolved.appId;
 
@@ -357,7 +356,7 @@ export async function publishLeaderboard(
       app_id: appId,
       id: args.id,
       whitelist_only: !args.publish  // 反转：publish=true 时，whitelist_only=false
-    }, context);
+    }, ctx.raw);
 
     const statusText = result.whitelist_only ? '仅白名单可见' : '已公开发布';
     const emoji = result.whitelist_only ? '🔒' : '🚀';
@@ -409,9 +408,10 @@ export async function publishLeaderboard(
  */
 export async function getUserLeaderboardScores(
   args: { leaderboardId?: string; limit?: number },
-  context: HandlerContext
+  ctx: ResolvedContext
 ): Promise<string> {
-  if (!context.macToken || !context.macToken.kid) {
+  const token = await ctx.resolveToken();
+  if (!token || !token.kid) {
     return `❌ 此功能需要用户登录 TapTap\n请设置 TAPTAP_MCP_MAC_TOKEN 环境变量\n\n降级为文档模式:\n${await leaderboardTools.getLeaderboardOverview()}`;
   }
 
@@ -425,7 +425,7 @@ export async function getUserLeaderboardScores(
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Authorization': `MAC id="${context.macToken.kid}"`,
+        'Authorization': `MAC id="${token.kid}"`,
         'Content-Type': 'application/json'
       }
     });

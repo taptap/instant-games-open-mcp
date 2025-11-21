@@ -3,22 +3,20 @@
  * Handles developer and app selection operations
  */
 
-import type { HandlerContext } from '../../core/types/index.js';
+import type { ResolvedContext } from '../../core/types/index.js';
 import { getAllDevelopersAndApps, selectApp as selectAppApi } from './api.js';
 import { clearAppCache } from '../../core/utils/cache.js';
 import { clearToken, saveToken } from '../../core/auth/tokenStorage.js';
 import { EnvConfig } from '../../core/utils/env.js';
 import { requestDeviceCode, generateAuthUrl, pollForToken } from '../../core/auth/oauth.js';
 import { oauthState } from '../../core/auth/oauthState.js';
-import { getTokenStatus, getTokenSourceLabel } from '../../core/utils/tokenResolver.js';
-import { getUserId, getProjectId } from '../../core/utils/contextResolver.js';
 
 /**
  * List all developers and apps for the current user
  */
-export async function listDevelopersAndApps(context: HandlerContext): Promise<string> {
+export async function listDevelopersAndApps(ctx: ResolvedContext): Promise<string> {
   try {
-    const result = await getAllDevelopersAndApps(context);
+    const result = await getAllDevelopersAndApps(ctx.raw);
 
     if (!result.list || result.list.length === 0) {
       return `📋 暂无开发者或应用\n\n您还没有创建任何开发者账号或应用。请先在 TapTap 开放平台创建应用。`;
@@ -68,10 +66,10 @@ export async function listDevelopersAndApps(context: HandlerContext): Promise<st
  */
 export async function selectApp(
   args: { developer_id: number; app_id: number },
-  context: HandlerContext
+  ctx: ResolvedContext
 ): Promise<string> {
   try {
-    const result = await selectAppApi(args.developer_id, args.app_id, context.projectPath, context);
+    const result = await selectAppApi(args.developer_id, args.app_id, ctx.projectPath, ctx.raw);
 
     let message = `✅ 已选择应用!\n\n` +
            `📱 应用信息:\n` +
@@ -96,10 +94,10 @@ export async function selectApp(
 /**
  * Get current app information from cache
  */
-export async function getCurrentAppInfo(context: HandlerContext): Promise<string> {
+export async function getCurrentAppInfo(ctx: ResolvedContext): Promise<string> {
   try {
     const { readAppCache, getCachePath } = await import('../../core/utils/cache.js');
-    const cache = readAppCache(context.projectPath);
+    const cache = readAppCache(ctx.projectPath);
 
     if (!cache || !cache.developer_id || !cache.app_id) {
       return `# 当前应用信息
@@ -114,7 +112,7 @@ export async function getCurrentAppInfo(context: HandlerContext): Promise<string
 `;
     }
 
-    const cachePath = getCachePath(context.projectPath);
+    const cachePath = getCachePath(ctx.projectPath);
 
     let info = `# 当前应用信息
 
@@ -152,14 +150,13 @@ ${error instanceof Error ? error.message : String(error)}
 /**
  * Start OAuth authorization
  */
-export async function startOAuthAuthorization(context: HandlerContext): Promise<string> {
+export async function startOAuthAuthorization(ctx: ResolvedContext): Promise<string> {
   // Use shared authentication check logic
-  const { hasMacToken, source } = getTokenStatus(context);
+  const { hasMacToken, source } = ctx.getTokenStatus();
 
   if (hasMacToken) {
-    const sourceLabel = getTokenSourceLabel(source);
     return '✅ 已经完成授权\n\n' +
-           `当前已有有效的 MAC Token ${sourceLabel}，可以直接使用所有功能。\n\n` +
+           `当前已有有效的 MAC Token，可以直接使用所有功能。\n\n` +
            '💡 如需切换账号，请先使用 clear_auth_data 工具清除现有授权。';
   }
 
@@ -191,10 +188,10 @@ export async function startOAuthAuthorization(context: HandlerContext): Promise<
  */
 export async function completeOAuthAuthorization(
   _args: Record<string, never>,
-  context: HandlerContext
+  ctx: ResolvedContext
 ): Promise<string> {
   const pendingState = oauthState.getPendingState();
-  
+
   if (!pendingState) {
     return '❌ 未找到待完成的授权\n\n' +
            '请先使用 start_oauth_authorization 工具获取授权链接。';
@@ -204,8 +201,8 @@ export async function completeOAuthAuthorization(
     const macToken = await pollForToken(pendingState.deviceCode, pendingState.environment);
 
     // ✅ 获取用户和项目标识（用于隔离存储）
-    const userId = getUserId(context);
-    const projectId = getProjectId(context);
+    const userId = ctx.userId;
+    const projectId = ctx.projectId;
 
     // ✅ 保存到用户隔离的目录
     saveToken(macToken, {
@@ -238,7 +235,7 @@ export async function completeOAuthAuthorization(
  */
 export async function clearAuthData(
   args: { clear_token?: boolean; clear_cache?: boolean },
-  context: HandlerContext
+  ctx: ResolvedContext
 ): Promise<string> {
   const clearTokenFlag = args.clear_token !== false; // Default true
   const clearCacheFlag = args.clear_cache !== false; // Default true
@@ -250,8 +247,8 @@ export async function clearAuthData(
   if (clearTokenFlag) {
     try {
       // ✅ 获取用户和项目标识
-      const userId = getUserId(context);
-      const projectId = getProjectId(context);
+      const userId = ctx.userId;
+      const projectId = ctx.projectId;
 
       // 清除用户隔离的 token 文件
       clearToken(userId, projectId);
@@ -267,7 +264,7 @@ export async function clearAuthData(
   // Clear app cache
   if (clearCacheFlag) {
     try {
-      clearAppCache(context.projectPath);
+      clearAppCache(ctx.projectPath);
       clearedItems.push('✅ 应用选择缓存已清除');
     } catch (error) {
       clearedItems.push(`⚠️ 缓存清除失败: ${error instanceof Error ? error.message : String(error)}`);
@@ -287,18 +284,12 @@ export async function clearAuthData(
 /**
  * Check environment configuration and authentication status
  */
-export async function checkEnvironment(context: HandlerContext): Promise<string> {
+export async function checkEnvironment(ctx: ResolvedContext): Promise<string> {
   // Check MAC Token status and source
-  const { hasMacToken, source } = getTokenStatus(context);
+  const { hasMacToken } = ctx.getTokenStatus();
 
-  // Format MAC Token status with source label
-  let macTokenStatus: string;
-  if (hasMacToken) {
-    const sourceLabel = getTokenSourceLabel(source);
-    macTokenStatus = `✅ 已配置 ${sourceLabel}`;
-  } else {
-    macTokenStatus = '❌ 未配置';
-  }
+  // Format MAC Token status
+  const macTokenStatus = hasMacToken ? '✅ 已配置' : '❌ 未配置';
 
   // Build environment info object
   const envInfo = {
@@ -306,7 +297,7 @@ export async function checkEnvironment(context: HandlerContext): Promise<string>
     'TAPTAP_MCP_CLIENT_ID': EnvConfig.clientId ? '✅ 已配置' : '❌ 未配置',
     'TAPTAP_MCP_CLIENT_SECRET': EnvConfig.clientSecret ? '✅ 已配置' : '❌ 未配置',
     'TAPTAP_MCP_ENV': `${EnvConfig.environment} (${EnvConfig.endpoints.apiBaseUrl})`,
-    'TAPTAP_PROJECT_PATH': context.projectPath ? '✅ 已配置' : '❌ 未配置 (可选)'
+    'TAPTAP_PROJECT_PATH': ctx.projectPath ? '✅ 已配置' : '❌ 未配置 (可选)'
   };
 
   const envResult = Object.entries(envInfo)
