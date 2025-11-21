@@ -13,42 +13,31 @@ import { parseMacToken, isValidMacToken } from '../utils/macTokenValidator.js';
 import { AuthError, createAuthError, extractAuthErrorFromResponse } from '../errors/authErrors.js';
 
 /**
- * API 配置管理
- * 管理 API 请求相关的配置和认证信息
+ * API 运行时状态管理
+ * 只管理运行时可变状态（MAC Token）
+ * 配置信息通过 EnvConfig 直接访问
  */
 export class ApiConfig {
   private static instance: ApiConfig;
 
-  public macToken: MacToken | null;  // Allow null for OAuth flow
-  public readonly clientId: string;
-  public readonly signingKey: string;  // API request signature key (HMAC-SHA256)
-  public readonly apiBaseUrl: string;
-  public readonly environment: 'rnd' | 'production';
+  // 唯一的运行时可变状态
+  public macToken: MacToken | null;
 
   private constructor() {
-    this.environment = EnvConfig.environment;
-
-    // 从统一配置获取环境信息
-    const endpoints = EnvConfig.endpoints;
-    this.apiBaseUrl = endpoints.apiBaseUrl;
-
-    // Client ID：必须从环境变量配置
-    this.clientId = EnvConfig.clientId || '';
-    
-    // Client Secret：必须从环境变量配置
-    this.signingKey = EnvConfig.clientSecret || '';
+    // 启动时验证必需的环境变量
+    this.validateConfig();
 
     // Parse MAC Token from JSON string (optional now, can be set later via Device Flow)
     const macTokenStr = EnvConfig.macToken || '';
     this.macToken = parseMacToken(macTokenStr, 'environment variable');
-
-    // Validate configuration
-    this.validateConfig();
   }
 
   private validateConfig(): void {
+    const clientId = EnvConfig.clientId;
+    const clientSecret = EnvConfig.clientSecret;
+
     // Client ID is required
-    if (!this.clientId) {
+    if (!clientId) {
       process.stderr.write('❌ Missing required environment variable: TAPTAP_MCP_CLIENT_ID\n\n');
       process.stderr.write('Please set it before starting the server:\n\n');
       process.stderr.write('  export TAPTAP_MCP_CLIENT_ID="your_client_id"\n\n');
@@ -57,13 +46,13 @@ export class ApiConfig {
     }
 
     // Validate Client ID format (basic check)
-    if (this.clientId.trim().length === 0) {
+    if (clientId.trim().length === 0) {
       process.stderr.write('❌ Invalid TAPTAP_MCP_CLIENT_ID: cannot be empty or whitespace\n\n');
       process.exit(1);
     }
 
     // Client Secret is required for API signing (keep it secret!)
-    if (!this.signingKey) {
+    if (!clientSecret) {
       process.stderr.write('❌ Missing required environment variable: TAPTAP_MCP_CLIENT_SECRET\n\n');
       process.stderr.write('This is the API request signing key (keep it secret!).\n');
       process.stderr.write('Please set it before starting the server:\n\n');
@@ -73,15 +62,15 @@ export class ApiConfig {
     }
 
     // Validate Client Secret format (basic check)
-    if (this.signingKey.trim().length === 0) {
+    if (clientSecret.trim().length === 0) {
       process.stderr.write('❌ Invalid TAPTAP_MCP_CLIENT_SECRET: cannot be empty or whitespace\n\n');
       process.exit(1);
     }
 
     // MAC Token 验证（可选，如果提供则必须有效）
-    // 注意：Token 可以为 null（通过 OAuth 流程获取），但如果提供了必须格式正确
     const macTokenEnv = EnvConfig.macToken;
-    if (macTokenEnv && macTokenEnv.trim().length > 0 && !this.macToken) {
+    const parsedToken = macTokenEnv ? parseMacToken(macTokenEnv, 'environment variable') : null;
+    if (macTokenEnv && macTokenEnv.trim().length > 0 && !parsedToken) {
       process.stderr.write('⚠️  Warning: TAPTAP_MCP_MAC_TOKEN provided but failed to parse\n');
       process.stderr.write('   The token will be ignored and OAuth flow will be used instead.\n');
       process.stderr.write('   If this is intentional, you can ignore this warning.\n\n');
@@ -102,8 +91,11 @@ export class ApiConfig {
     this.macToken = token;
   }
 
+  /**
+   * Check if MAC Token is configured
+   */
   public isConfigured(): boolean {
-    return !!(this.macToken?.kid && this.macToken?.mac_key && this.clientId && this.signingKey);
+    return !!(this.macToken?.kid && this.macToken?.mac_key);
   }
 }
 
@@ -131,14 +123,12 @@ export interface ApiResponse<T = unknown> {
  * Generic HTTP Client for TapTap API
  */
 export class HttpClient {
-  private config: ApiConfig;
   private overrideMacToken?: MacToken;
 
   /**
    * @param context - Optional handler context (for macToken and projectPath)
    */
   constructor(context?: import('../types/index.js').HandlerContext) {
-    this.config = ApiConfig.getInstance();
     // Only set override if context.macToken exists and has valid data
     if (context?.macToken?.kid && context?.macToken?.mac_key) {
       this.overrideMacToken = context.macToken;
@@ -167,13 +157,18 @@ export class HttpClient {
     path: string,
     options: RequestOptions = {}
   ): Promise<T> {
+    // 直接从 EnvConfig 获取配置（不再通过 ApiConfig）
+    const apiBaseUrl = EnvConfig.endpoints.apiBaseUrl;
+    const clientId = EnvConfig.clientId!;
+    const signingKey = EnvConfig.clientSecret!;
+
     // Build full URL with query parameters
-    let fullUrl = `${this.config.apiBaseUrl}${path}`;
+    let fullUrl = `${apiBaseUrl}${path}`;
     let signUrl = new URL(fullUrl).pathname;
 
     // Add client_id to query params
     const queryParams = new URLSearchParams();
-    queryParams.append('client_id', this.config.clientId);
+    queryParams.append('client_id', clientId);
 
     if (options.params) {
       Object.entries(options.params).forEach(([key, value]) => {
@@ -223,7 +218,7 @@ export class HttpClient {
     headers['X-Tap-Nonce'] = nonce;
 
     // Calculate signature using CLIENT_SECRET
-    const signature = this.generateSignature(method, signUrl, headers, bodyString);
+    const signature = this.generateSignature(method, signUrl, headers, bodyString, signingKey);
     headers['X-Tap-Sign'] = signature;
 
     // Log request
@@ -401,11 +396,12 @@ export class HttpClient {
     method: string,
     url: string,
     headers: Record<string, string>,
-    body: string
+    body: string,
+    signingKey: string
   ): string {
     try {
       // Debug: Check signing key
-      if (!this.config.signingKey) {
+      if (!signingKey) {
         throw new Error('Signing key (TAPTAP_MCP_CLIENT_SECRET) is empty or undefined');
       }
 
@@ -415,7 +411,7 @@ export class HttpClient {
       const bodyPart = body;
       const signParts = `${methodPart}\n${urlPart}\n${headersPart}\n${bodyPart}\n`;
 
-      const hmacResult = cryptoJS.HmacSHA256(signParts, this.config.signingKey);
+      const hmacResult = cryptoJS.HmacSHA256(signParts, signingKey);
 
       // Debug: Check HMAC result
       if (!hmacResult || hmacResult.sigBytes === undefined) {

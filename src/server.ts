@@ -398,8 +398,8 @@ class TapTapMinigameMCPServer {
     process.stderr.write('🔌 Transport: stdio\n');
     process.stderr.write(`📚 Providing ${totalTools} tools, ${totalResources} resources\n`);
     process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
-    process.stderr.write(`🌍 Environment: ${apiConfig.environment}\n`);
-    process.stderr.write(`🔗 API Base: ${apiConfig.apiBaseUrl}\n`);
+    process.stderr.write(`🌍 Environment: ${EnvConfig.environment}\n`);
+    process.stderr.write(`🔗 API Base: ${EnvConfig.endpoints.apiBaseUrl}\n`);
     process.stderr.write('\n📖 MCP Capabilities:\n');
     process.stderr.write(`   ✅ Tools (${totalTools}) - Execute operations with side effects\n`);
     process.stderr.write(`   ✅ Resources (${totalResources}) - Read-only documentation and data\n`);
@@ -533,8 +533,8 @@ class TapTapMinigameMCPServer {
       process.stderr.write(`💚 Health Check: http://localhost:${serverPort}/health\n`);
       process.stderr.write(`📚 Providing ${totalTools} tools, ${totalResources} resources\n`);
       process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
-      process.stderr.write(`🌍 Environment: ${apiConfig.environment}\n`);
-      process.stderr.write(`🔗 API Base: ${apiConfig.apiBaseUrl}\n`);
+      process.stderr.write(`🌍 Environment: ${EnvConfig.environment}\n`);
+      process.stderr.write(`🔗 API Base: ${EnvConfig.endpoints.apiBaseUrl}\n`);
 
       // 显示目录配置
       process.stderr.write('\n📂 Directory Configuration:\n');
@@ -628,7 +628,7 @@ async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
   }
 
   // 需要 OAuth 授权
-  const environment = apiConfig.environment;
+  const environment = EnvConfig.environment;
   
   try {
     const deviceCodeData = await requestDeviceCode(environment);

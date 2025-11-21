@@ -8,6 +8,7 @@ import { getAllDevelopersAndApps, selectApp as selectAppApi } from './api.js';
 import { clearAppCache } from '../../core/utils/cache.js';
 import { clearToken, saveToken } from '../../core/auth/tokenStorage.js';
 import { ApiConfig } from '../../core/network/httpClient.js';
+import { EnvConfig } from '../../core/utils/env.js';
 import { requestDeviceCode, generateAuthUrl, pollForToken } from '../../core/auth/oauth.js';
 import { oauthState } from '../../core/auth/oauthState.js';
 import { getMacTokenStatus, getTokenSourceLabel } from '../../core/utils/handlerHelpers.js';
@@ -163,8 +164,7 @@ export async function startOAuthAuthorization(context: HandlerContext): Promise<
   }
 
   try {
-    const apiConfig = ApiConfig.getInstance();
-    const environment = apiConfig.environment;
+    const environment = EnvConfig.environment;
     const deviceCodeData = await requestDeviceCode(environment);
     const authUrl = generateAuthUrl(deviceCodeData.qrcode_url, environment);
     
@@ -273,11 +273,9 @@ export async function clearAuthData(
  * Check environment configuration and authentication status
  */
 export async function checkEnvironment(context: HandlerContext): Promise<string> {
-  const apiConfig = ApiConfig.getInstance();
-  
   // Check MAC Token status and source
   const { hasMacToken, source } = getMacTokenStatus(context);
-  
+
   // Format MAC Token status with source label
   let macTokenStatus: string;
   if (hasMacToken) {
@@ -290,9 +288,9 @@ export async function checkEnvironment(context: HandlerContext): Promise<string>
   // Build environment info object
   const envInfo = {
     'TAPTAP_MCP_MAC_TOKEN': macTokenStatus,
-    'TAPTAP_MCP_CLIENT_ID': apiConfig.clientId ? '✅ 已配置' : '❌ 未配置',
-    'TAPTAP_MCP_CLIENT_SECRET': apiConfig.signingKey ? '✅ 已配置' : '❌ 未配置',
-    'TAPTAP_MCP_ENV': `${apiConfig.environment} (${apiConfig.apiBaseUrl})`,
+    'TAPTAP_MCP_CLIENT_ID': EnvConfig.clientId ? '✅ 已配置' : '❌ 未配置',
+    'TAPTAP_MCP_CLIENT_SECRET': EnvConfig.clientSecret ? '✅ 已配置' : '❌ 未配置',
+    'TAPTAP_MCP_ENV': `${EnvConfig.environment} (${EnvConfig.endpoints.apiBaseUrl})`,
     'TAPTAP_PROJECT_PATH': context.projectPath ? '✅ 已配置' : '❌ 未配置 (可选)'
   };
 
