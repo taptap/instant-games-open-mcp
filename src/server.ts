@@ -261,11 +261,8 @@ class TapTapMinigameMCPServer {
       context.sessionId = sessionContext.sessionId;
     }
 
-    // 保留兼容：全局 macToken（将在 Phase 6 移除）
-    const token = apiConfig.macToken;
-    if (token?.kid && token?.mac_key) {
-      context.macToken = token;
-    }
+    // ✅ Token 不再从全局获取，改为通过 tokenResolver 按需加载
+    // macToken 会在 resolveToken(context) 时根据 userId 动态加载
 
     return context;
   }
@@ -726,12 +723,8 @@ async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
     throw createAuthError('AUTH_IN_PROGRESS');
   }
 
-  // 尝试从文件加载 token
-  const token = loadToken();
-  if (token) {
-    apiConfig.setMacToken(token);
-    return;
-  }
+  // ✅ Token 加载已移至 tokenResolver
+  // 不再需要在这里预加载和设置全局 token
 
   // 需要 OAuth 授权
   const environment = EnvConfig.environment;
@@ -772,13 +765,9 @@ async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
 async function main(): Promise<void> {
   const apiConfig = ApiConfig.getInstance();
 
-  // Check authentication status (non-blocking, just info)
-  if (!apiConfig.macToken?.kid || !apiConfig.macToken?.mac_key) {
-    process.stderr.write('ℹ️  MAC Token not configured yet\n');
-    process.stderr.write('   Will request OAuth authorization when you use authenticated tools\n\n');
-  } else {
-    process.stderr.write('✅ Using MAC Token from environment variable\n');
-  }
+  // ✅ Token 状态检查已移至 tokenResolver
+  // stdio 模式会自动从 ~/.taptap-mcp/cache/local/ 加载
+  process.stderr.write('ℹ️  MAC Token will be loaded from user-isolated storage when needed\n');
 
   const server = new TapTapMinigameMCPServer(ensureAuthenticated);
 

@@ -5,7 +5,8 @@
 
 import type { HandlerContext, MacToken } from '../types/index.js';
 import type { PrivateToolParams } from '../types/privateParams.js';
-import { ApiConfig } from '../network/httpClient.js';
+import { resolveToken } from './tokenResolver.js';
+import { EnvConfig } from './env.js';
 
 /**
  * Extract effective context from arguments and base context
@@ -74,7 +75,7 @@ export function getEffectiveContext<T extends PrivateToolParams>(
 /**
  * Extract effective MAC Token directly (without full context)
  *
- * Priority: args._mac_token > context.macToken > global config
+ * Priority: args._mac_token > context.macToken > resolveToken(context)
  *
  * @param args - Tool arguments (may contain _mac_token)
  * @param context - Handler context (may contain macToken)
@@ -84,7 +85,8 @@ export function getEffectiveMacToken<T extends PrivateToolParams>(
   args: T,
   context: HandlerContext
 ): MacToken | undefined {
-  return args._mac_token || context.macToken || ApiConfig.getInstance().macToken || undefined;
+  // ✅ 使用 tokenResolver 替代全局 ApiConfig
+  return args._mac_token || context.macToken || resolveToken(context) || undefined;
 }
 
 /**
@@ -125,8 +127,6 @@ export function getMacTokenStatus(context?: HandlerContext): {
   hasMacToken: boolean;
   source: TokenSource;
 } {
-  const apiConfig = ApiConfig.getInstance();
-
   // Priority 1: Check request-specific token (from context, e.g., MCP Proxy)
   if (context?.macToken?.kid && context?.macToken?.mac_key) {
     return {
@@ -135,29 +135,18 @@ export function getMacTokenStatus(context?: HandlerContext): {
     };
   }
 
-  // Priority 2: Check global config (environment variable)
-  if (apiConfig.macToken?.kid && apiConfig.macToken?.mac_key) {
+  // Priority 2: 使用 tokenResolver 检查（自动处理用户隔离）
+  const token = resolveToken(context);
+  if (token?.kid && token?.mac_key) {
+    // 根据 transport 模式返回来源
+    const source = EnvConfig.transport === 'stdio'
+      ? TokenSource.FILE
+      : TokenSource.ENV;
+
     return {
       hasMacToken: true,
-      source: TokenSource.ENV
+      source
     };
-  }
-
-  // Priority 3: Check local file (OAuth cached token)
-  try {
-    const fs = require('node:fs');
-    const path = require('node:path');
-    const os = require('node:os');
-    const tokenPath = path.join(os.homedir(), '.config', 'taptap-minigame', 'token.json');
-
-    if (fs.existsSync(tokenPath)) {
-      return {
-        hasMacToken: true,
-        source: TokenSource.FILE
-      };
-    }
-  } catch (error) {
-    // Ignore file check errors
   }
 
   return {

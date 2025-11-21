@@ -7,29 +7,23 @@ import process from 'node:process';
 import cryptoJS from 'crypto-js';
 import { MacToken } from '../types/index.js';
 import { logger } from '../utils/logger.js';
-import { getEnv, getEnvBoolean, EnvConfig } from '../utils/env.js';
+import { EnvConfig } from '../utils/env.js';
 import { parseMacToken, isValidMacToken } from '../utils/macTokenValidator.js';
+import { resolveToken } from '../utils/tokenResolver.js';
 // 导入新的认证错误处理模块
 import { AuthError, createAuthError, extractAuthErrorFromResponse } from '../errors/authErrors.js';
 
 /**
- * API 运行时状态管理
- * 只管理运行时可变状态（MAC Token）
- * 配置信息通过 EnvConfig 直接访问
+ * API 配置验证
+ * 只负责启动时验证必需的环境变量
+ * Token 管理已移至 tokenResolver（无全局状态）
  */
 export class ApiConfig {
   private static instance: ApiConfig;
 
-  // 唯一的运行时可变状态
-  public macToken: MacToken | null;
-
   private constructor() {
     // 启动时验证必需的环境变量
     this.validateConfig();
-
-    // Parse MAC Token from JSON string (optional now, can be set later via Device Flow)
-    const macTokenStr = EnvConfig.macToken || '';
-    this.macToken = parseMacToken(macTokenStr, 'environment variable');
   }
 
   private validateConfig(): void {
@@ -83,20 +77,6 @@ export class ApiConfig {
     }
     return ApiConfig.instance;
   }
-
-  /**
-   * Set MAC Token (called by Device Flow or manual configuration)
-   */
-  public setMacToken(token: MacToken): void {
-    this.macToken = token;
-  }
-
-  /**
-   * Check if MAC Token is configured
-   */
-  public isConfigured(): boolean {
-    return !!(this.macToken?.kid && this.macToken?.mac_key);
-  }
 }
 
 /**
@@ -123,16 +103,13 @@ export interface ApiResponse<T = unknown> {
  * Generic HTTP Client for TapTap API
  */
 export class HttpClient {
-  private overrideMacToken?: MacToken;
+  private context?: import('../types/index.js').HandlerContext;
 
   /**
-   * @param context - Optional handler context (for macToken and projectPath)
+   * @param context - Handler context (for token resolution and user identification)
    */
   constructor(context?: import('../types/index.js').HandlerContext) {
-    // Only set override if context.macToken exists and has valid data
-    if (context?.macToken?.kid && context?.macToken?.mac_key) {
-      this.overrideMacToken = context.macToken;
-    }
+    this.context = context;
   }
 
   /**
@@ -202,9 +179,8 @@ export class HttpClient {
       }
     }
 
-    // MAC Token 优先级：constructor macToken > global config
-    // 动态获取最新的 token（支持 OAuth 完成后更新）
-    const effectiveMacToken = this.overrideMacToken || ApiConfig.getInstance().macToken;
+    // ✅ 使用 tokenResolver 动态解析 token（无全局状态）
+    const effectiveMacToken = resolveToken(this.context);
 
 
     // Generate MAC Authorization header

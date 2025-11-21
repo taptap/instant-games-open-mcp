@@ -212,9 +212,7 @@ export async function completeOAuthAuthorization(): Promise<string> {
       projectId
     });
 
-    // 保留兼容：设置全局 token（将在 Phase 6 移除）
-    const apiConfig = ApiConfig.getInstance();
-    apiConfig.setMacToken(macToken);
+    // ✅ 不再设置全局 token，已通过用户隔离的文件存储
 
     // 清除状态
     oauthState.clearPendingState();
@@ -270,9 +268,7 @@ export async function clearAuthData(
       // 清除用户隔离的 token 文件
       clearToken(userId, projectId);
 
-      // 保留兼容：清除全局 token（将在 Phase 6 移除）
-      const apiConfig = ApiConfig.getInstance();
-      apiConfig.setMacToken({} as any);
+      // ✅ 不再清除全局 token，用户隔离文件已清除
 
       clearedItems.push('✅ OAuth Token 文件已清除');
     } catch (error) {
