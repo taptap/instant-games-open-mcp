@@ -22,49 +22,19 @@ export interface MacToken {
   mac_algorithm: string;
 }
 
-/**
- * Handler Context
- * Passed to all tool handlers
- *
- * 优先级顺序（从高到低）：
- * 1. 私有参数注入（_developer_id, _app_id 等）
- * 2. HandlerContext 字段
- * 3. 本地缓存或环境变量
- */
-export interface HandlerContext {
-  // === 认证层 ===
-  /** MAC Token for authentication */
-  macToken?: MacToken;
+// ============================================================================
+// Context Types - 已移至 context.ts
+// ============================================================================
+export type {
+  RequestContext,
+  AppContext,
+  SessionContext,
+  TokenSource
+} from './context.js';
+export { ResolvedContext, getTokenSourceLabel } from './context.js';
 
-  /** User ID for multi-tenant scenarios */
-  userId?: string;
-
-  // === 应用上下文层 ===
-  /** Developer ID */
-  developerId?: number;
-
-  /** App ID */
-  appId?: number;
-
-  /** Project ID for token isolation */
-  projectId?: string;
-
-  /** Project Path (for file system access) */
-  projectPath?: string;
-
-  // === 追踪层 ===
-  /** Tenant ID for multi-tenant scenarios */
-  tenantId?: string;
-
-  /** Trace ID for distributed tracing */
-  traceId?: string;
-
-  /** Request ID for logging */
-  requestId?: string;
-
-  /** Session ID for request tracking */
-  sessionId?: string;
-}
+// 向后兼容别名（将逐步废弃）
+export type { RequestContext as HandlerContext } from './context.js';
 
 /**
  * Tool Registration Interface
@@ -74,8 +44,8 @@ export interface ToolRegistration<T = any> {
   /** MCP Tool definition (JSON Schema) */
   definition: Tool;
 
-  /** Tool handler function */
-  handler: (args: T, context: HandlerContext) => Promise<string>;
+  /** Tool handler function - 接受 ResolvedContext */
+  handler: (args: T, context: ResolvedContext) => Promise<string>;
 
   /** Whether this tool requires authentication */
   requiresAuth?: boolean;
