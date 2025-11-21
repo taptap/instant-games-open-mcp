@@ -84,7 +84,7 @@ export function getEffectiveMacToken<T extends PrivateToolParams>(
   args: T,
   context: HandlerContext
 ): MacToken | undefined {
-  return args._mac_token || context.macToken || ApiConfig.getInstance().macToken;
+  return args._mac_token || context.macToken || ApiConfig.getInstance().macToken || undefined;
 }
 
 /**
@@ -136,7 +136,7 @@ export function getMacTokenStatus(context?: HandlerContext): {
   }
 
   // Priority 2: Check global config (environment variable)
-  if (apiConfig.macToken.kid && apiConfig.macToken.mac_key) {
+  if (apiConfig.macToken?.kid && apiConfig.macToken?.mac_key) {
     return {
       hasMacToken: true,
       source: TokenSource.ENV
