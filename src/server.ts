@@ -58,6 +58,9 @@ import type { HandlerContext, FeatureModule } from './core/types/index.js';
 import { EnvConfig, printDeprecationWarnings, getEnv } from './core/utils/env.js';
 import { VERSION } from './version.js';
 
+// 导入新的认证错误处理模块
+import { AuthError, createAuthError, generateOAuthGuidance, isAuthError } from './core/errors/authErrors.js';
+
 // 环境变量配置
 const apiConfig = ApiConfig.getInstance();
 const transportMode = EnvConfig.transport;
@@ -195,6 +198,15 @@ class TapTapMinigameMCPServer {
           try {
             await this.ensureAuth(effectiveContext);
           } catch (authError) {
+            // 使用统一的认证错误处理
+            if (isAuthError(authError)) {
+              throw new McpError(
+                ErrorCode.InternalError,
+                authError.userGuidance || authError.message
+              );
+            }
+            
+            // 其他错误保持原有处理
             const errorMsg = authError instanceof Error ? authError.message : String(authError);
             throw new McpError(
               ErrorCode.InternalError,
@@ -229,6 +241,12 @@ class TapTapMinigameMCPServer {
         // Log tool call error
         await logger.logToolResponse(name, error instanceof Error ? error.message : String(error), false);
 
+        // 如果是认证错误，保持用户友好的提示
+        if (error instanceof McpError && error.code === ErrorCode.InternalError) {
+          throw error; // 已经格式化的错误消息
+        }
+
+        // 其他错误保持原有处理
         throw new McpError(
           ErrorCode.InternalError,
           `工具执行失败: ${error instanceof Error ? error.message : String(error)}`
@@ -524,15 +542,12 @@ function setTransportMode(mode: 'stdio' | 'sse'): void {
 }
 
 /**
- * Lazy load authentication when needed
- * - stdio mode: throw error with auth URL (two-step flow)
- * - SSE mode: auto-poll with progress notifications (one-step flow)
- *
- * @param context - Request-specific context (may contain injected MAC token from Proxy)
+ * 改进的认证检查函数
+ * 使用统一的错误处理
  */
 async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
-  // Use shared authentication check logic
-  const { hasMacToken } = getMacTokenStatus(context);
+  // 使用共享的认证检查逻辑
+  const { hasMacToken, source } = getMacTokenStatus(context);
 
   if (hasMacToken) {
     return;
@@ -542,7 +557,7 @@ async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
 
   // Auth already in progress
   if (oauthState.isAuthInProgress()) {
-    throw new Error('⏳ OAuth 授权正在进行中...\n\n另一个工具正在等待授权，请完成授权后重试。');
+    throw createAuthError('AUTH_IN_PROGRESS');
   }
 
   // 尝试从文件加载 token
@@ -565,21 +580,25 @@ async function ensureAuthenticated(context?: HandlerContext): Promise<void> {
       environment
     });
     
-    throw new Error(
-      `🔐 需要 TapTap 授权\n\n` +
-      `请按以下步骤操作：\n\n` +
-      `1️⃣ 打开授权链接：\n   ${authUrl}\n\n` +
-      `2️⃣ 使用 TapTap App 扫描二维码\n\n` +
-      `3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n` +
-      `💡 提示：如果授权链接过期，请重新调用任意需要授权的工具获取新链接`
-    );
+    // 使用统一的OAuth引导文案
+    const guidance = generateOAuthGuidance(authUrl);
+    
+    throw createAuthError('TOKEN_MISSING', guidance, {
+      authUrl,
+      retryAvailable: true
+    });
   } catch (error) {
-    // 如果是我们自己抛出的授权错误，直接传递
-    if (error instanceof Error && error.message.includes('🔐 需要 TapTap 授权')) {
+    // 如果是我们自己抛出的认证错误，直接传递
+    if (isAuthError(error)) {
       throw error;
     }
-    // 其他错误（如网络错误、配置错误）也抛出
-    throw error;
+    
+    // 网络或其他错误，包装为认证错误
+    if (error instanceof Error) {
+      throw createAuthError('NETWORK_ERROR', error.message);
+    }
+    
+    throw createAuthError('CONFIG_ERROR', String(error));
   }
 }
 

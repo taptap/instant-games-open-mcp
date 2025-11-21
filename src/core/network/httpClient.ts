@@ -9,6 +9,8 @@ import { MacToken } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { getEnv, getEnvBoolean, EnvConfig } from '../utils/env.js';
 import { parseMacToken, isValidMacToken } from '../utils/macTokenValidator.js';
+// 导入新的认证错误处理模块
+import { AuthError, createAuthError, extractAuthErrorFromResponse } from '../errors/authErrors.js';
 
 /**
  * API 配置管理
@@ -239,55 +241,30 @@ export class HttpClient {
           errorBody = errorData;
           errorMessage += ` - ${errorData.message || errorData.error || JSON.stringify(errorData)}`;
 
-          // Check for access_denied error (token expired or invalid)
-          if (errorData.data?.error === 'access_denied' ||
-              errorData.error === 'access_denied' ||
-              response.status === 401) {
-            const authError = new Error(
-              `🔐 授权已失效\n\n` +
-              `您的 MAC Token 已过期或无效。\n\n` +
-              `📋 解决方案：\n` +
-              `1. 调用 clear_auth_data 工具清除过期的认证数据\n` +
-              `2. 调用需要认证的工具会自动触发新的授权流程\n` +
-              `3. 使用 TapTap App 扫码重新授权\n\n` +
-              `💡 提示：如果使用的是环境变量中的 Token，请更新 TAPTAP_MCP_MAC_TOKEN 环境变量并重启服务器。`
-            );
-            (authError as any).isAuthError = true;
-
+          // 使用统一的认证错误提取
+          const authError = extractAuthErrorFromResponse(response, errorData);
+          if (authError) {
             // Log auth error
             await logger.logResponse(method, fullUrl, response.status, response.statusText, errorBody, false, responseHeaders);
-
             throw authError;
           }
         } else {
           const errorText = await response.text();
           errorBody = errorText;
           errorMessage += ` - ${errorText}`;
-
-          // Check for RBAC access denied (text/plain format)
-          if ((response.status === 403 || response.status === 401) &&
-              (errorText.includes('access denied') || errorText.includes('RBAC'))) {
-            const authError = new Error(
-              `🔐 授权已失效\n\n` +
-              `您的 MAC Token 已过期或无效。\n\n` +
-              `📋 解决方案：\n` +
-              `1. 调用 clear_auth_data 工具清除过期的认证数据\n` +
-              `2. 调用需要认证的工具会自动触发新的授权流程\n` +
-              `3. 使用 TapTap App 扫码重新授权\n\n` +
-              `💡 提示：如果使用的是环境变量中的 Token，请更新 TAPTAP_MCP_MAC_TOKEN 环境变量并重启服务器。`
-            );
-            (authError as any).isAuthError = true;
-
-            // Log auth error
-            await logger.logResponse(method, fullUrl, response.status, response.statusText, errorBody, false, responseHeaders);
-
-            throw authError;
+          
+          // 使用统一的认证错误提取 (含文本检测)
+          const authError = extractAuthErrorFromResponse(response, null, errorText);
+          if (authError) {
+             await logger.logResponse(method, fullUrl, response.status, response.statusText, errorBody, false, responseHeaders);
+             throw authError;
           }
         }
 
-        // Log error response with headers
+        // Log error
         await logger.logResponse(method, fullUrl, response.status, response.statusText, errorBody, false, responseHeaders);
 
+        // 创建通用的HTTP错误
         throw new Error(errorMessage);
       }
 
@@ -337,32 +314,30 @@ export class HttpClient {
   }
 
   /**
-   * Generate MAC Authorization header
-   * Format: MAC id="kid", ts="timestamp", nonce="random", mac="signature"
+   * 改进的MAC授权生成，增加更好的错误提示
    */
-  private generateMacAuthorization(requestUrl: string, method: string, macToken: MacToken | null): string {
-    // Validate MAC token
-    if (!macToken) {
-      throw new Error('MAC Token is not configured. Please authenticate first.');
+  private generateMacAuthorization(url: string, method: string, token: MacToken | null): string {
+    if (!token || !isValidMacToken(token)) {
+      throw createAuthError(
+        'TOKEN_MISSING',
+        '无法生成MAC授权头：缺少有效的MAC Token',
+        { retryAvailable: true }
+      );
     }
 
-    if (!isValidMacToken(macToken)) {
-      throw new Error('MAC Token is invalid or incomplete. Please re-authenticate.');
-    }
-
-    const url = new URL(requestUrl);
+    const urlObj = new URL(url);
     const timestamp = Math.floor(Date.now() / 1000).toString().padStart(10, '0');
     const nonce = this.generateRandomString(16);
-    const host = url.hostname;
-    const uri = url.pathname + url.search;
-    const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+    const host = urlObj.hostname;
+    const uri = urlObj.pathname + urlObj.search;
+    const port = urlObj.port || (urlObj.protocol === 'https:' ? '443' : '80');
     const other = '';
 
     // Build MAC signature base string
     const signatureBase = this.buildMacSignatureBase(timestamp, nonce, method, uri, host, port, other);
 
     // Sign with mac_key using HMAC-SHA1
-    const hmac = cryptoJS.HmacSHA1(signatureBase, macToken.mac_key);
+    const hmac = cryptoJS.HmacSHA1(signatureBase, token.mac_key);
 
     // Debug: Check HMAC result
     if (!hmac || hmac.sigBytes === undefined) {
@@ -371,7 +346,7 @@ export class HttpClient {
 
     const macSignature = cryptoJS.enc.Base64.stringify(hmac);
 
-    return `MAC id="${macToken.kid}", ts="${timestamp}", nonce="${nonce}", mac="${macSignature}"`;
+    return `MAC id="${token.kid}", ts="${timestamp}", nonce="${nonce}", mac="${macSignature}"`;
   }
 
   /**
