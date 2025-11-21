@@ -23,6 +23,7 @@ import { readAppCache, saveAppCache, type AppCacheInfo } from '../../core/utils/
 import { logger } from '../../core/utils/logger.js';
 import { resolveWorkPath } from '../../core/utils/pathResolver.js';
 import { EnvConfig } from '../../core/utils/env.js';
+import type { ResolvedContext } from '../../core/types/index.js';
 
 /**
  * 临时文件根目录（独立于 workspace）
@@ -143,7 +144,7 @@ async function confirmInfo(
   developerId?: number,
   appId?: number,
   genre?: string,
-  context?: import('../../core/types/index.js').RequestContext
+  ctx?: ResolvedContext
 ): Promise<{ success: boolean; message: string; developerId?: number; appId?: number }> {
   // 如果用户提供了开发者身份 ID 和游戏 ID, 直接返回
   if (developerId && appId) {
@@ -177,7 +178,7 @@ async function confirmInfo(
   // 2. 游戏信息确认
   let resultMsg = '';
   if (!developerId) {
-    const response = await getAllDevelopersAndApps(context);
+    const response = await getAllDevelopersAndApps(ctx);
     const results = response.list;
 
     // 2.1. 开发者身份信息存在
@@ -194,11 +195,11 @@ async function confirmInfo(
       }
     } else {
       // 2.2. 开发者身份信息不存在, 创建开发者身份
-      const createDevResult = await createDeveloper(context);
+      const createDevResult = await createDeveloper(ctx);
       if (createDevResult && createDevResult.developer_id) {
         developerId = createDevResult.developer_id;
 
-        const appResults = await createAppForDeveloper(createDevResult.developer_id, undefined, genre, context);
+        const appResults = await createAppForDeveloper(createDevResult.developer_id, undefined, genre, ctx);
         if (appResults && appResults.app_id) {
           appId = appResults.app_id;
           resultMsg = MESSAGES.GAME_TYPE_INFO(appResults.display_app_title);
@@ -217,7 +218,7 @@ async function confirmInfo(
 
   // 如果有 developerId 但没有游戏, 自动创建一个游戏
   if (developerId && !appId) {
-    const appResults = await createAppForDeveloper(developerId, undefined, genre);
+    const appResults = await createAppForDeveloper(developerId, undefined, genre, ctx);
     if (appResults && appResults.app_id) {
       appId = appResults.app_id;
       resultMsg = MESSAGES.GAME_TYPE_INFO(appResults.display_app_title);
@@ -243,10 +244,10 @@ export async function handleGatherGameInfo(
     appId?: number;
     genre?: string;
   },
-  context?: import('../../core/types/index.js').RequestContext
+  ctx?: ResolvedContext
 ): Promise<string> {
   // 使用统一路径解析器
-  const gamePath = resolveWorkPath(args.gamePath, context);
+  const gamePath = resolveWorkPath(args.gamePath, ctx);
 
   // 确保目录存在且包含 index.html 文件
   if (!fs.existsSync(gamePath) || !fs.existsSync(path.join(gamePath, 'index.html'))) {
@@ -259,7 +260,7 @@ export async function handleGatherGameInfo(
     args.developerId,
     args.appId,
     args.genre,
-    context
+    ctx
   );
 
   if (!confirmResult.success) {
@@ -306,10 +307,10 @@ export async function handleUploadGame(
     appName?: string;
     genre?: string;
   },
-  context?: import('../../core/types/index.js').RequestContext
+  ctx?: ResolvedContext
 ): Promise<string> {
   // 使用统一路径解析器
-  const gamePath = resolveWorkPath(args.gamePath, context);
+  const gamePath = resolveWorkPath(args.gamePath, ctx);
 
   // 从缓存读取或使用传入的参数
   let cacheInfo = readAppCache(gamePath) || {};
@@ -346,7 +347,7 @@ export async function handleUploadGame(
     // 2. 获取上传参数
     let uploadParams: UploadParams;
     try {
-      uploadParams = await getH5PackageUploadParams(cacheInfo.app_id, context);
+      uploadParams = await getH5PackageUploadParams(cacheInfo.app_id, ctx);
       await logger.info(MESSAGES.GET_UPLOAD_PARAMS_SUCCESS(uploadParams, outputPath));
     } catch (error) {
       return MESSAGES.COMPRESSED_GET_PARAMS_FAILED(archiveSize, String(error));
@@ -375,7 +376,7 @@ export async function handleUploadGame(
       undefined,             // chatting_label
       undefined,             // chatting_number
       undefined,             // screen_orientation
-      context                // context
+      ctx                    // ctx
     );
 
     let msg = MESSAGES.GAME_PUBLISH_SUCCESS(results.app_title, cacheInfo.app_id);
@@ -403,12 +404,12 @@ export async function handleCreateApp(
     appName?: string;
     genre?: string;
   },
-  context?: import('../../core/types/index.js').RequestContext
+  ctx?: ResolvedContext
 ): Promise<string> {
   let developerId = args.developerId;
 
   if (!developerId) {
-    const response = await getAllDevelopersAndApps(context);
+    const response = await getAllDevelopersAndApps(ctx);
     const results = response.list;
 
     // 开发者身份信息存在
@@ -421,7 +422,7 @@ export async function handleCreateApp(
       }
     } else {
       // 开发者身份信息不存在，创建开发者身份
-      const createDevResult = await createDeveloper(context);
+      const createDevResult = await createDeveloper(ctx);
       if (createDevResult && createDevResult.developer_id) {
         developerId = createDevResult.developer_id;
       }
@@ -433,7 +434,7 @@ export async function handleCreateApp(
     return MESSAGES.DEVELOPER_ID_NOT_EXISTS;
   }
 
-  const results = await createAppForDeveloper(developerId, args.appName, args.genre, context);
+  const results = await createAppForDeveloper(developerId, args.appName, args.genre, ctx);
   if (results && results.app_id) {
     return MESSAGES.CREATE_GAME_SUCCESS(
       developerId,
@@ -460,7 +461,7 @@ export async function handleEditApp(
     chattingNumber?: string;
     screenOrientation?: number;
   },
-  context?: import('../../core/types/index.js').RequestContext
+  ctx?: ResolvedContext
 ): Promise<string> {
   if (!args.developerId || !args.appId) {
     return MESSAGES.EDIT_GAME_INFO_CONFIRMATION;
@@ -476,7 +477,7 @@ export async function handleEditApp(
     args.chattingLabel,
     args.chattingNumber,
     args.screenOrientation,
-    context                   // context
+    ctx                       // ctx
   );
 
   return MESSAGES.EDIT_GAME_INFO_SUCCESS;

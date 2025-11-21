@@ -16,7 +16,7 @@ import { oauthState } from '../../core/auth/oauthState.js';
  */
 export async function listDevelopersAndApps(ctx: ResolvedContext): Promise<string> {
   try {
-    const result = await getAllDevelopersAndApps(ctx.raw);
+    const result = await getAllDevelopersAndApps(ctx);
 
     if (!result.list || result.list.length === 0) {
       return `📋 暂无开发者或应用\n\n您还没有创建任何开发者账号或应用。请先在 TapTap 开放平台创建应用。`;
@@ -69,7 +69,7 @@ export async function selectApp(
   ctx: ResolvedContext
 ): Promise<string> {
   try {
-    const result = await selectAppApi(args.developer_id, args.app_id, ctx.projectPath, ctx.raw);
+    const result = await selectAppApi(args.developer_id, args.app_id, ctx.projectPath, ctx);
 
     let message = `✅ 已选择应用!\n\n` +
            `📱 应用信息:\n` +

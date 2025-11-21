@@ -11,7 +11,7 @@
 
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import type { HandlerContext } from '../types/index.js';
+import type { ResolvedContext } from '../types/ctx.js';
 import { logger } from './logger.js';
 
 /**
@@ -31,7 +31,7 @@ const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT || process.cwd();
  * ```typescript
  * // 场景 1：有 Proxy
  * // WORKSPACE_ROOT = "/data/tapcode/userspaces"
- * // context.projectPath = "project-123/workspace"
+ * // ctx.projectPath = "project-123/workspace"
  * resolveWorkPath("dist", context)
  * // => "/data/tapcode/userspaces/project-123/workspace/dist"
  *
@@ -46,18 +46,18 @@ const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT || process.cwd();
  * // => "/Users/username/projects/dist"
  * ```
  */
-export function resolveWorkPath(relativePath?: string, context?: HandlerContext): string {
+export function resolveWorkPath(relativePath?: string, ctx?: ResolvedContext): string {
   // 1. 基础路径：WORKSPACE_ROOT
   let basePath = WORKSPACE_ROOT;
 
   // 2. 如果有 Proxy 注入的 projectPath
-  if (context?.projectPath) {
+  if (ctx?.projectPath) {
     // 如果 projectPath 是绝对路径，直接使用
     // 如果是相对路径，拼接到 WORKSPACE_ROOT
-    if (path.isAbsolute(context.projectPath)) {
-      basePath = context.projectPath;
+    if (path.isAbsolute(ctx.projectPath)) {
+      basePath = ctx.projectPath;
     } else {
-      basePath = path.join(WORKSPACE_ROOT, context.projectPath);
+      basePath = path.join(WORKSPACE_ROOT, ctx.projectPath);
     }
   }
 
