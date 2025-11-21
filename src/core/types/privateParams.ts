@@ -77,6 +77,14 @@ export interface PrivateToolParams {
   _app_id?: number;
 
   /**
+   * Project ID (项目标识符)
+   * 用于 Token 项目级隔离存储
+   * 优先级：_project_id > context.projectId
+   * @example "project-456"
+   */
+  _project_id?: string;
+
+  /**
    * Project Path (项目路径)
    * 用于 H5 上传等需要访问文件系统的场景
    * @example "/workspace/runtime-container-1/project-a"
@@ -124,6 +132,7 @@ export function extractPrivateParams(args: any): PrivateToolParams {
     _session_id: args?._session_id,
     _developer_id: args?._developer_id,
     _app_id: args?._app_id,
+    _project_id: args?._project_id,      // ✅ 新增
     _project_path: args?._project_path,
     _tenant_id: args?._tenant_id,
     _trace_id: args?._trace_id,
@@ -157,6 +166,7 @@ export function stripPrivateParams(args: any): any {
     _session_id,
     _developer_id,
     _app_id,
+    _project_id,      // ✅ 新增
     _project_path,
     _tenant_id,
     _trace_id,
@@ -189,6 +199,7 @@ export function hasPrivateParams(args: any): boolean {
     args._session_id ||
     args._developer_id ||
     args._app_id ||
+    args._project_id ||      // ✅ 新增
     args._project_path ||
     args._tenant_id ||
     args._trace_id ||
@@ -228,6 +239,9 @@ export function mergePrivateParams(args: any, privateParams: PrivateToolParams):
   }
   if (privateParams._app_id !== undefined) {
     result._app_id = privateParams._app_id;
+  }
+  if (privateParams._project_id) {      // ✅ 新增
+    result._project_id = privateParams._project_id;
   }
   if (privateParams._project_path) {
     result._project_path = privateParams._project_path;

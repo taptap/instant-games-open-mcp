@@ -54,6 +54,9 @@ export function getEffectiveContext<T extends PrivateToolParams>(
   if (args._app_id !== undefined) {
     result.appId = args._app_id;
   }
+  if (args._project_id) {               // ✅ 新增
+    result.projectId = args._project_id;
+  }
   if (args._project_path) {
     result.projectPath = args._project_path;
   }
