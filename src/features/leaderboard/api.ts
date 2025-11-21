@@ -4,7 +4,7 @@
  */
 
 import { HttpClient } from '../../core/network/httpClient.js';
-import type { RequestContext } from '../../core/types/context.js';
+import type { ResolvedContext } from '../../core/types/context.js';
 import { readAppCache } from '../../core/utils/cache.js';
 
 /**
@@ -80,14 +80,14 @@ export interface CreateLeaderboardResponse {
 /**
  * Create a new leaderboard
  * @param params - Leaderboard creation parameters
- * @param context - Optional handler context (for macToken and projectPath)
+ * @param ctx - Optional resolved context (for macToken and projectPath)
  * @returns Created leaderboard information
  */
 export async function createLeaderboard(
   params: CreateLeaderboardParams,
-  context?: import('../../core/types/index.js').HandlerContext
+  ctx?: ResolvedContext
 ): Promise<CreateLeaderboardResponse> {
-  const client = new HttpClient(context);
+  const client = new HttpClient(ctx);
 
   try {
     // CRITICAL: When period_type is not 1 (ALWAYS), period_time is REQUIRED
@@ -160,22 +160,22 @@ export interface ListLeaderboardsParams {
 /**
  * List all leaderboards for a specific app
  * @param params - Query parameters (developer_id and app_id will be auto-filled if not provided)
- * @param context - Optional handler context (for macToken and projectPath)
+ * @param ctx - Optional resolved context (for macToken and projectPath)
  * @returns List of leaderboards and total count
  */
 export async function listLeaderboards(
   params: ListLeaderboardsParams = {},
-  context?: import('../../core/types/index.js').HandlerContext
+  ctx?: ResolvedContext
 ): Promise<LeaderboardListResponse> {
-  const client = new HttpClient(context);
+  const client = new HttpClient(ctx);
 
   try {
     // Resolve developer_id and app_id from context (priority: params > context > cache)
     // 从 context 和缓存解析应用信息
-    const cache = readAppCache(context?.projectPath);
+    const cache = readAppCache(ctx?.projectPath);
     const resolved = {
-      developerId: context?.developerId ?? cache?.developer_id,
-      appId: context?.appId ?? cache?.app_id
+      developerId: ctx?.developerId ?? cache?.developer_id,
+      appId: ctx?.appId ?? cache?.app_id
     };
     const developerId = params.developer_id ?? resolved.developerId;
     const appId = params.app_id ?? resolved.appId;
@@ -229,22 +229,22 @@ export interface PublishLeaderboardResponse {
 /**
  * Publish a leaderboard or set it to whitelist-only mode
  * @param params - Publish parameters
- * @param context - Optional handler context (for macToken and projectPath)
+ * @param ctx - Optional resolved context (for macToken and projectPath)
  * @returns Updated leaderboard status
  */
 export async function publishLeaderboard(
   params: PublishLeaderboardParams,
-  context?: import('../../core/types/index.js').HandlerContext
+  ctx?: ResolvedContext
 ): Promise<PublishLeaderboardResponse> {
-  const client = new HttpClient(context);
+  const client = new HttpClient(ctx);
 
   try {
     // Resolve developer_id and app_id from context (priority: params > context > cache)
     // 从 context 和缓存解析应用信息
-    const cache = readAppCache(context?.projectPath);
+    const cache = readAppCache(ctx?.projectPath);
     const resolved = {
-      developerId: context?.developerId ?? cache?.developer_id,
-      appId: context?.appId ?? cache?.app_id
+      developerId: ctx?.developerId ?? cache?.developer_id,
+      appId: ctx?.appId ?? cache?.app_id
     };
     const developerId = params.developer_id ?? resolved.developerId;
     const appId = params.app_id ?? resolved.appId;

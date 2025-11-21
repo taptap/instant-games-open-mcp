@@ -5,7 +5,7 @@
 
 import { HttpClient } from '../../core/network/httpClient.js';
 import { readAppCache, saveAppCache, AppCacheInfo } from '../../core/utils/cache.js';
-import { resolveAppContext } from '../../core/utils/contextResolver.js';
+import type { ResolvedContext } from '../../core/types/context.js';
 
 /**
  * Craft/App item in developer list
@@ -59,9 +59,9 @@ export class SelectionRequiredError extends Error {
 export async function getAppInfo(
   projectPath?: string,
   autoSelect: boolean = true,
-  context?: import('../../core/types/index.js').HandlerContext
+  ctx?: ResolvedContext
 ): Promise<AppCacheInfo> {
-  const client = new HttpClient(context);
+  const client = new HttpClient(ctx);
 
   try {
     const response = await client.get<LevelListResponse>('/level/v1/list');
@@ -130,14 +130,14 @@ export async function getAppInfo(
  * Get or fetch app information with automatic caching
  * @param projectPath - Optional project path
  * @param autoSelect - If true, automatically selects first option. If false, throws SelectionRequiredError when multiple options exist
- * @param context - Optional handler context (for macToken)
+ * @param ctx - Optional resolved context (for macToken)
  * @returns App information from cache or API
  * @throws SelectionRequiredError when multiple developers/apps exist and autoSelect is false
  */
 export async function ensureAppInfo(
   projectPath?: string,
   autoSelect: boolean = true,
-  context?: import('../../core/types/index.js').HandlerContext
+  ctx?: ResolvedContext
 ): Promise<AppCacheInfo> {
   // Check cache first
   const cached = readAppCache(projectPath);
@@ -147,7 +147,7 @@ export async function ensureAppInfo(
   }
 
   // No cache, fetch from API
-  return await getAppInfo(projectPath, autoSelect, context);
+  return await getAppInfo(projectPath, autoSelect, ctx);
 }
 
 /**
@@ -161,9 +161,9 @@ export async function selectApp(
   developerId: number,
   appId: number,
   projectPath?: string,
-  context?: import('../../core/types/index.js').HandlerContext
+  ctx?: ResolvedContext
 ): Promise<AppCacheInfo> {
-  const client = new HttpClient(context);
+  const client = new HttpClient(ctx);
 
   try {
     // Fetch full list to validate selection
@@ -208,13 +208,13 @@ export async function selectApp(
 
 /**
  * Get all developers and apps for selection
- * @param macToken - Optional MAC Token (overrides global token)
+ * @param ctx - Optional resolved context
  * @returns List of all developers and their apps
  */
 export async function getAllDevelopersAndApps(
-  context?: import('../../core/types/index.js').HandlerContext
+  ctx?: ResolvedContext
 ): Promise<LevelListResponse> {
-  const client = new HttpClient(context);
+  const client = new HttpClient(ctx);
 
   try {
     const response = await client.get<LevelListResponse>('/level/v1/list');
@@ -238,8 +238,8 @@ export interface CreateDeveloperResponse {
 /**
  * Create unverified developer
  */
-export async function createDeveloper(context?: import('../../core/types/index.js').HandlerContext): Promise<CreateDeveloperResponse> {
-  const client = new HttpClient(context);
+export async function createDeveloper(ctx?: ResolvedContext): Promise<CreateDeveloperResponse> {
+  const client = new HttpClient(ctx);
   return await client.post<CreateDeveloperResponse>('/v1/developer/create-register');
 }
 
@@ -259,9 +259,9 @@ export async function createAppForDeveloper(
   developer_id: number,
   title?: string,
   genre?: string,
-  context?: import('../../core/types/index.js').HandlerContext
+  ctx?: ResolvedContext
 ): Promise<CreateAppResponse> {
-  const client = new HttpClient(context);
+  const client = new HttpClient(ctx);
   return await client.post<CreateAppResponse>('/level/v1/create', {
     body: {
       developer_id,
@@ -292,9 +292,9 @@ export async function editAppInfo(
   chatting_label?: string,
   chatting_number?: string,
   screen_orientation?: number,
-  context?: import('../../core/types/index.js').HandlerContext
+  ctx?: ResolvedContext
 ): Promise<EditAppResponse> {
-  const client = new HttpClient(context);
+  const client = new HttpClient(ctx);
   return await client.post<EditAppResponse>('/level/v1/submit', {
     body: {
       app_id,
@@ -320,8 +320,8 @@ export interface AppStatusResponse {
 /**
  * Get app review status
  */
-export async function getAppStatus(app_id: number, context?: import('../../core/types/index.js').HandlerContext): Promise<AppStatusResponse> {
-  const client = new HttpClient(context);
+export async function getAppStatus(app_id: number, ctx?: ResolvedContext): Promise<AppStatusResponse> {
+  const client = new HttpClient(ctx);
   return await client.get<AppStatusResponse>('/level/v1/status', {
     params: {
       app_id: app_id.toString(),
@@ -364,9 +364,9 @@ export interface AppDetail {
  */
 export async function getAppDetail(
   appId: number,
-  context?: import('../../core/types/index.js').HandlerContext
+  ctx?: ResolvedContext
 ): Promise<AppDetail | undefined> {
-  const client = new HttpClient(context);
+  const client = new HttpClient(ctx);
 
   try {
     const response = await client.get<AppDetailAPIResponse>('/level/v1/latest', {
