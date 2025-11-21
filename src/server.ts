@@ -40,8 +40,7 @@ import os from 'node:os';
 import { ApiConfig } from './core/network/httpClient.js';
 import { logger } from './core/utils/logger.js';
 import type { MacToken } from './core/types/index.js';
-import { mergePrivateParams, stripPrivateParams } from './core/types/privateParams.js';
-import { getTokenStatus, getTokenSourceLabel } from './core/utils/tokenResolver.js';
+import { stripPrivateParams } from './core/types/privateParams.js';
 
 // 导入 OAuth 模块
 import { requestDeviceCode, generateAuthUrl } from './core/auth/oauth.js';
