@@ -5,6 +5,7 @@
  */
 
 import { HttpClient } from '../../core/network/httpClient.js';
+import type { ResolvedContext } from '../../core/types/context.js';
 
 /**
  * Upload parameters for H5 game package
@@ -22,9 +23,9 @@ export interface UploadParams {
  */
 export async function getH5PackageUploadParams(
   app_id?: number,
-  context?: import('../../core/types/index.js').HandlerContext
+  ctx?: ResolvedContext
 ): Promise<UploadParams> {
-  const client = new HttpClient(context);
+  const client = new HttpClient(ctx);
   const params = app_id ? { app_id: app_id.toString() } : undefined;
 
   return await client.get<UploadParams>('/level/v1/upload', { params });
