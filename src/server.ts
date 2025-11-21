@@ -81,6 +81,15 @@ const allModules: FeatureModule[] = [
 ];
 
 /**
+ * Session 上下文信息（通过闭包注入）
+ */
+interface SessionContext {
+  userId?: string;      // 用户标识（从 Header 提取或 Proxy 注入）
+  projectId?: string;   // 项目标识（从 Header 提取或 Proxy 注入）
+  sessionId?: string;   // Session ID（用于日志追踪）
+}
+
+/**
  * TapTap 小游戏 MCP 服务器
  */
 class TapTapMinigameMCPServer {
@@ -171,31 +180,118 @@ class TapTapMinigameMCPServer {
   }
 
   /**
-   * 创建请求级别的基础 context
-   * 每次请求时动态创建，包含当前有效的 macToken
+   * 从 HTTP Headers 提取私有参数
+   * 支持：_mac_token, _user_id, _project_id 等
+   *
+   * @param args - 原始参数
+   * @param headers - HTTP Headers
+   * @returns 合并后的参数
    */
-  private createBaseContext(): HandlerContext {
-    const token = apiConfig.macToken;
-    // 只有当 token 有效（包含 kid 和 mac_key）时才设置
-    // 否则返回空 context，让后续逻辑使用其他来源的 token
-    if (token?.kid && token?.mac_key) {
-      return { macToken: token };
+  private extractPrivateParamsFromHeaders(
+    args: any,
+    headers: Record<string, string | string[]>
+  ): any {
+    let enrichedArgs = { ...args };
+
+    // Helper: 安全获取 header 值（处理大小写和数组）
+    const getHeader = (name: string): string | undefined => {
+      // Node.js 会自动转小写
+      const lowerName = name.toLowerCase();
+      const value = headers[lowerName];
+
+      // 处理数组情况（取第一个值）
+      if (Array.isArray(value)) {
+        return value[0];
+      }
+
+      return typeof value === 'string' ? value : undefined;
+    };
+
+    // 提取 MAC Token
+    const macTokenHeader = getHeader('X-TapTap-Mac-Token');
+    if (macTokenHeader && !enrichedArgs._mac_token) {
+      try {
+        let token: MacToken;
+        // 支持 Base64 编码或直接 JSON
+        try {
+          const decoded = Buffer.from(macTokenHeader, 'base64').toString('utf-8');
+          token = JSON.parse(decoded);
+        } catch {
+          token = JSON.parse(macTokenHeader);
+        }
+        enrichedArgs._mac_token = token;
+      } catch (error) {
+        logger.warning('Invalid X-TapTap-Mac-Token header', { error: String(error) });
+      }
     }
-    return {};
+
+    // ✅ 提取 User ID
+    const userIdHeader = getHeader('X-TapTap-User-Id');
+    if (userIdHeader && !enrichedArgs._user_id) {
+      enrichedArgs._user_id = userIdHeader;
+    }
+
+    // ✅ 提取 Project ID
+    const projectIdHeader = getHeader('X-TapTap-Project-Id');
+    if (projectIdHeader && !enrichedArgs._project_id) {
+      enrichedArgs._project_id = projectIdHeader;
+    }
+
+    return enrichedArgs;
   }
 
   /**
-   * 设置请求处理器（为主服务器）
+   * 创建请求级别的基础 context
+   * 使用闭包注入的 sessionContext（userId、projectId）
+   *
+   * @param sessionContext - Session 上下文（通过闭包注入，避免查找全局 Map）
+   * @returns Handler context
+   */
+  private createBaseContext(sessionContext?: SessionContext): HandlerContext {
+    const context: HandlerContext = {};
+
+    // ✅ 从闭包注入的 sessionContext 获取用户标识
+    if (sessionContext?.userId) {
+      context.userId = sessionContext.userId;
+    }
+    if (sessionContext?.projectId) {
+      context.projectId = sessionContext.projectId;
+    }
+    if (sessionContext?.sessionId) {
+      context.sessionId = sessionContext.sessionId;
+    }
+
+    // 保留兼容：全局 macToken（将在 Phase 6 移除）
+    const token = apiConfig.macToken;
+    if (token?.kid && token?.mac_key) {
+      context.macToken = token;
+    }
+
+    return context;
+  }
+
+  /**
+   * 设置请求处理器（为主服务器，stdio 模式）
    */
   private setupHandlers(): void {
-    this.setupHandlersForServer(this.server);
+    // stdio 模式：使用默认的 sessionContext
+    const defaultContext: SessionContext = {
+      userId: 'local'  // stdio 固定使用 'local'
+    };
+    this.setupHandlersForServer(this.server, defaultContext);
   }
 
   /**
    * 为指定的 Server 实例设置请求处理器
    * 用于支持多客户端并发连接（每个会话独立的 Server 实例）
+   *
+   * @param server - Server 实例
+   * @param sessionContext - Session 上下文（通过闭包注入）
    */
-  private setupHandlersForServer(server: Server): void {
+  private setupHandlersForServer(
+    server: Server,
+    sessionContext?: SessionContext
+  ): void {
     // 设置日志级别处理器 (MCP logging/setLevel)
     server.setRequestHandler(SetLevelRequestSchema, async (request) => {
       const { level } = request.params;
@@ -213,39 +309,24 @@ class TapTapMinigameMCPServer {
       const { name, arguments: args } = request.params;
 
       // 私有参数支持两种方式：
-      // 1. MCP Proxy 在 arguments 中注入（args._mac_token）
+      // 1. MCP Proxy 在 arguments 中注入（args._mac_token, _user_id, etc.）
       // 2. HTTP Header 注入（仅 HTTP/SSE 模式，从 extra.requestInfo.headers 读取）
       let enrichedArgs = args || {};
 
-      // 从 HTTP Header 提取 MAC Token（如果存在且 args 中没有）
-      if (extra?.requestInfo?.headers && !enrichedArgs._mac_token) {
-        const headers = extra.requestInfo.headers;
-        const macTokenHeader = headers['x-taptap-mac-token'];
-
-        if (macTokenHeader && typeof macTokenHeader === 'string') {
-          try {
-            // 支持 Base64 编码或直接 JSON
-            let token: MacToken;
-            try {
-              const decoded = Buffer.from(macTokenHeader, 'base64').toString('utf-8');
-              token = JSON.parse(decoded);
-            } catch {
-              token = JSON.parse(macTokenHeader);
-            }
-            enrichedArgs = mergePrivateParams(enrichedArgs, { _mac_token: token });
-          } catch (error) {
-            // 忽略无效的 token header
-            await logger.warning('Invalid X-TapTap-Mac-Token header', { error: String(error) });
-          }
-        }
+      // 从 HTTP Headers 提取所有私有参数（如果存在且 args 中没有）
+      if (extra?.requestInfo?.headers) {
+        enrichedArgs = this.extractPrivateParamsFromHeaders(
+          enrichedArgs,
+          extra.requestInfo.headers
+        );
       }
 
       // Log tool call input (私有参数会被自动过滤)
       await logger.logToolCall(name, enrichedArgs);
 
-      // 为每个请求创建独立的 context（请求级别，用完即丢弃）
-      const baseContext = this.createBaseContext();
-      
+      // ✅ 为每个请求创建 context（使用闭包注入的 sessionContext）
+      const baseContext = this.createBaseContext(sessionContext);
+
       // 合并私有参数到 context（_mac_token、_developer_id 等）
       const effectiveContext = getEffectiveContext(enrichedArgs, baseContext);
 
@@ -442,7 +523,9 @@ class TapTapMinigameMCPServer {
       // CORS headers
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Mcp-Session-Id, X-TapTap-Mac-Token');
+      res.setHeader('Access-Control-Allow-Headers',
+        'Content-Type, Mcp-Session-Id, X-TapTap-Mac-Token, X-TapTap-User-Id, X-TapTap-Project-Id'
+      );
 
       if (req.method === 'OPTIONS') {
         res.writeHead(200);
@@ -475,6 +558,22 @@ class TapTapMinigameMCPServer {
         return;
       }
 
+      // ✅ 新 session：从 Headers 提取用户标识
+      const getHeader = (name: string): string | undefined => {
+        const value = req.headers[name.toLowerCase()];
+        return typeof value === 'string' ? value : undefined;
+      };
+
+      const userId = getHeader('X-TapTap-User-Id');
+      const projectId = getHeader('X-TapTap-Project-Id');
+
+      // 创建 session 专属的上下文（通过闭包捕获）
+      const sessionContext: SessionContext = {
+        userId,
+        projectId
+        // sessionId 会在 onsessioninitialized 回调中设置
+      };
+
       // New session - create new Server and Transport instances
       const sessionServer = new Server(
         {
@@ -490,8 +589,8 @@ class TapTapMinigameMCPServer {
         }
       );
 
-      // Set up handlers for the new session (same as original server)
-      this.setupHandlersForServer(sessionServer);
+      // ✅ 为这个 session 设置 handlers（闭包自动捕获 sessionContext）
+      this.setupHandlersForServer(sessionServer, sessionContext);
 
       // Create new transport instance for this session
       const sessionTransport = new StreamableHTTPServerTransport({
@@ -505,8 +604,15 @@ class TapTapMinigameMCPServer {
         enableJsonResponse: transportMode === 'http',
         // Log client connections
         onsessioninitialized: async (newSessionId: string) => {
-          await logger.logClientConnection(newSessionId);
-          // Store the session
+          // ✅ 注入 sessionId 到闭包的 sessionContext
+          sessionContext.sessionId = newSessionId;
+
+          await logger.logClientConnection(newSessionId, {
+            userId: sessionContext.userId,
+            projectId: sessionContext.projectId
+          });
+
+          // Store the session（只需存储 server 和 transport，context 在闭包中）
           transports.set(newSessionId, { server: sessionServer, transport: sessionTransport });
         },
         // Log client disconnections
