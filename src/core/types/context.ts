@@ -246,27 +246,42 @@ export class ResolvedContext {
 
   /**
    * 解析 MAC Token
-   * ⚠️ stdio 模式每次调用都会读取文件，外部决定是否缓存结果
+   * ⚠️ 每次调用都会重新加载，外部决定是否缓存结果
    *
    * 优先级：
    * 1. context.macToken (MCP Proxy 注入或 HTTP Header 注入)
    * 2. stdio 模式从用户隔离文件加载
    * 3. SSE/HTTP 模式返回 null（必须通过 context 注入）
+   *
+   * @returns Token 和来源信息
    */
-  resolveToken(): MacToken | null {
-    // Priority 1: Context token
+  private resolveTokenWithSource(): { token: MacToken | null; source: TokenSource } {
+    // Priority 1: Context token (Proxy/Header 注入)
     if (this._raw.macToken?.kid && this._raw.macToken?.mac_key) {
-      return this._raw.macToken;
+      return {
+        token: this._raw.macToken,
+        source: TokenSource.CONTEXT
+      };
     }
 
     // Priority 2: stdio 模式从用户隔离文件加载
     if (EnvConfig.transport === 'stdio') {
       const tokenPath = getTokenPath(this.userId, this.projectId);
-      return loadTokenFromFile(tokenPath);
+      const token = loadTokenFromFile(tokenPath);
+      if (token?.kid && token?.mac_key) {
+        return { token, source: TokenSource.FILE };
+      }
     }
 
     // Priority 3: SSE/HTTP 模式必须通过 context 注入
-    return null;
+    return { token: null, source: TokenSource.NONE };
+  }
+
+  /**
+   * 解析 MAC Token（公开方法）
+   */
+  resolveToken(): MacToken | null {
+    return this.resolveTokenWithSource().token;
   }
 
   /**
@@ -281,21 +296,11 @@ export class ResolvedContext {
    * 获取 Token 状态和来源
    */
   getTokenStatus(): { hasMacToken: boolean; source: TokenSource } {
-    // Priority 1: Context token
-    if (this._raw.macToken?.kid && this._raw.macToken?.mac_key) {
-      return { hasMacToken: true, source: TokenSource.CONTEXT };
-    }
-
-    // Priority 2: 文件或环境变量
-    const token = this.resolveToken();
-    if (token?.kid && token?.mac_key) {
-      const source = EnvConfig.transport === 'stdio'
-        ? TokenSource.FILE
-        : TokenSource.ENV;
-      return { hasMacToken: true, source };
-    }
-
-    return { hasMacToken: false, source: TokenSource.NONE };
+    const { token, source } = this.resolveTokenWithSource();
+    return {
+      hasMacToken: !!(token?.kid && token?.mac_key),
+      source
+    };
   }
 
   // ========================================================================
