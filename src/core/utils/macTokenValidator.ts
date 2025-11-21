@@ -4,6 +4,7 @@
  */
 
 import type { MacToken } from '../types/index.js';
+import { logger } from './logger.js';
 
 /**
  * Type guard to check if a value is a valid MacToken
@@ -81,11 +82,24 @@ export function parseMacToken(jsonStr: string, source: string = 'unknown'): MacT
     }
 
     // Invalid format - log warning but don't throw
-    process.stderr.write(`⚠️  Invalid MAC Token format from ${source}, will use OAuth flow\n`);
+    logger.warning(`Invalid MAC Token format from ${source}, will use OAuth flow`, {
+      source,
+      reason: 'validation_failed'
+    }).catch(() => {
+      // Fallback to stderr if logger not initialized
+      process.stderr.write(`⚠️  Invalid MAC Token format from ${source}, will use OAuth flow\n`);
+    });
     return null;
   } catch (error) {
     // JSON parse error - log warning but don't throw
-    process.stderr.write(`⚠️  Failed to parse MAC Token from ${source}, will use OAuth flow\n`);
+    logger.warning(`Failed to parse MAC Token from ${source}, will use OAuth flow`, {
+      source,
+      error: String(error),
+      reason: 'parse_error'
+    }).catch(() => {
+      // Fallback to stderr if logger not initialized
+      process.stderr.write(`⚠️  Failed to parse MAC Token from ${source}, will use OAuth flow\n`);
+    });
     return null;
   }
 }
