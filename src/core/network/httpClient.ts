@@ -56,6 +56,12 @@ export class ApiConfig {
       process.exit(1);
     }
 
+    // Validate Client ID format (basic check)
+    if (this.clientId.trim().length === 0) {
+      process.stderr.write('❌ Invalid TAPTAP_MCP_CLIENT_ID: cannot be empty or whitespace\n\n');
+      process.exit(1);
+    }
+
     // Client Secret is required for API signing (keep it secret!)
     if (!this.signingKey) {
       process.stderr.write('❌ Missing required environment variable: TAPTAP_MCP_CLIENT_SECRET\n\n');
@@ -64,6 +70,21 @@ export class ApiConfig {
       process.stderr.write('  export TAPTAP_MCP_CLIENT_SECRET="your_signing_key"\n\n');
       process.stderr.write('Contact TapTap support to get your CLIENT_SECRET.\n\n');
       process.exit(1);
+    }
+
+    // Validate Client Secret format (basic check)
+    if (this.signingKey.trim().length === 0) {
+      process.stderr.write('❌ Invalid TAPTAP_MCP_CLIENT_SECRET: cannot be empty or whitespace\n\n');
+      process.exit(1);
+    }
+
+    // MAC Token 验证（可选，如果提供则必须有效）
+    // 注意：Token 可以为 null（通过 OAuth 流程获取），但如果提供了必须格式正确
+    const macTokenEnv = EnvConfig.macToken;
+    if (macTokenEnv && macTokenEnv.trim().length > 0 && !this.macToken) {
+      process.stderr.write('⚠️  Warning: TAPTAP_MCP_MAC_TOKEN provided but failed to parse\n');
+      process.stderr.write('   The token will be ignored and OAuth flow will be used instead.\n');
+      process.stderr.write('   If this is intentional, you can ignore this warning.\n\n');
     }
   }
 
