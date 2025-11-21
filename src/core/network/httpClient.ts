@@ -9,7 +9,6 @@ import { MacToken } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { EnvConfig } from '../utils/env.js';
 import { parseMacToken, isValidMacToken } from '../utils/macTokenValidator.js';
-import { resolveToken } from '../utils/tokenResolver.js';
 // 导入新的认证错误处理模块
 import { AuthError, createAuthError, extractAuthErrorFromResponse } from '../errors/authErrors.js';
 
@@ -103,12 +102,12 @@ export interface ApiResponse<T = unknown> {
  * Generic HTTP Client for TapTap API
  */
 export class HttpClient {
-  private context?: import('../types/index.js').HandlerContext;
+  private context?: import('../types/index.js').RequestContext;
 
   /**
-   * @param context - Handler context (for token resolution and user identification)
+   * @param context - RequestContext (for token resolution and user identification)
    */
-  constructor(context?: import('../types/index.js').HandlerContext) {
+  constructor(context?: import('../types/index.js').RequestContext) {
     this.context = context;
   }
 
@@ -179,8 +178,19 @@ export class HttpClient {
       }
     }
 
-    // ✅ 使用 tokenResolver 动态解析 token（无全局状态）
-    const effectiveMacToken = resolveToken(this.context);
+    // ✅ 动态解析 token（从 context 或文件加载）
+    let effectiveMacToken: MacToken | null = null;
+
+    if (this.context?.macToken?.kid && this.context?.macToken?.mac_key) {
+      effectiveMacToken = this.context.macToken;
+    } else if (EnvConfig.transport === 'stdio' && this.context) {
+      // stdio 模式从用户隔离文件加载
+      const userId = this.context.userId || 'local';
+      const projectId = this.context.projectId;
+      const { loadTokenFromFile, getTokenPath } = await import('../auth/tokenStorage.js');
+      const tokenPath = getTokenPath(userId, projectId);
+      effectiveMacToken = loadTokenFromFile(tokenPath);
+    }
 
 
     // Generate MAC Authorization header

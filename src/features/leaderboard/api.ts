@@ -4,7 +4,8 @@
  */
 
 import { HttpClient } from '../../core/network/httpClient.js';
-import { resolveAppContext } from '../../core/utils/contextResolver.js';
+import type { RequestContext } from '../../core/types/context.js';
+import { readAppCache } from '../../core/utils/cache.js';
 
 /**
  * Period types for leaderboard
@@ -170,7 +171,12 @@ export async function listLeaderboards(
 
   try {
     // Resolve developer_id and app_id from context (priority: params > context > cache)
-    const resolved = resolveAppContext(context || {});
+    // 从 context 和缓存解析应用信息
+    const cache = readAppCache(context?.projectPath);
+    const resolved = {
+      developerId: context?.developerId ?? cache?.developer_id,
+      appId: context?.appId ?? cache?.app_id
+    };
     const developerId = params.developer_id ?? resolved.developerId;
     const appId = params.app_id ?? resolved.appId;
 
@@ -234,7 +240,12 @@ export async function publishLeaderboard(
 
   try {
     // Resolve developer_id and app_id from context (priority: params > context > cache)
-    const resolved = resolveAppContext(context || {});
+    // 从 context 和缓存解析应用信息
+    const cache = readAppCache(context?.projectPath);
+    const resolved = {
+      developerId: context?.developerId ?? cache?.developer_id,
+      appId: context?.appId ?? cache?.app_id
+    };
     const developerId = params.developer_id ?? resolved.developerId;
     const appId = params.app_id ?? resolved.appId;
 
