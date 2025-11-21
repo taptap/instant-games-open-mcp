@@ -54,7 +54,12 @@ import { appModule } from './features/app/index.js';
 import { leaderboardModule } from './features/leaderboard/index.js';
 import { h5GameModule } from './features/h5Game/index.js';
 import { vibrateModule } from './features/vibrate/index.js';
-import type { HandlerContext, FeatureModule } from './core/types/index.js';
+import type {
+  HandlerContext,
+  FeatureModule,
+  ToolRegistration,
+  ResourceRegistration
+} from './core/types/index.js';
 import { EnvConfig, printDeprecationWarnings, getEnv } from './core/utils/env.js';
 import { VERSION } from './version.js';
 
@@ -82,6 +87,10 @@ class TapTapMinigameMCPServer {
   private server: Server;
   private ensureAuth: (context?: HandlerContext) => Promise<void>;
 
+  // 工具和资源的快速查找索引 (O(1) 查找，替代 O(n) 线性搜索)
+  private toolRegistry: Map<string, ToolRegistration>;
+  private resourceRegistry: Map<string, ResourceRegistration>;
+
   constructor(ensureAuthFn: (context?: HandlerContext) => Promise<void>) {
     // Create server with explicit capabilities declaration (required in SDK 1.20+)
     this.server = new Server(
@@ -99,7 +108,66 @@ class TapTapMinigameMCPServer {
     );
 
     this.ensureAuth = ensureAuthFn;
+
+    // 构建工具和资源索引（一次性开销，O(n) → O(1) 查找）
+    this.toolRegistry = this.buildToolRegistry();
+    this.resourceRegistry = this.buildResourceRegistry();
+
     this.setupHandlers();
+  }
+
+  /**
+   * 构建工具注册表（带名称冲突检测）
+   */
+  private buildToolRegistry(): Map<string, ToolRegistration> {
+    const registry = new Map<string, ToolRegistration>();
+
+    for (const module of allModules) {
+      for (const tool of module.tools) {
+        const toolName = tool.definition.name;
+
+        // 检测名称冲突
+        if (registry.has(toolName)) {
+          const existingTool = registry.get(toolName)!;
+          process.stderr.write(
+            `⚠️  Warning: Tool name conflict detected!\n` +
+            `   Tool "${toolName}" is defined in multiple modules.\n` +
+            `   Later registration will override the previous one.\n`
+          );
+        }
+
+        registry.set(toolName, tool);
+      }
+    }
+
+    return registry;
+  }
+
+  /**
+   * 构建资源注册表（带 URI 冲突检测）
+   */
+  private buildResourceRegistry(): Map<string, ResourceRegistration> {
+    const registry = new Map<string, ResourceRegistration>();
+
+    for (const module of allModules) {
+      for (const resource of module.resources) {
+        const uri = resource.uri;
+
+        // 检测 URI 冲突
+        if (registry.has(uri)) {
+          const existingResource = registry.get(uri)!;
+          process.stderr.write(
+            `⚠️  Warning: Resource URI conflict detected!\n` +
+            `   URI "${uri}" is defined in multiple modules.\n` +
+            `   Later registration will override the previous one.\n`
+          );
+        }
+
+        registry.set(uri, resource);
+      }
+    }
+
+    return registry;
   }
 
   /**
@@ -182,12 +250,8 @@ class TapTapMinigameMCPServer {
       const effectiveContext = getEffectiveContext(enrichedArgs, baseContext);
 
       try {
-        // Find tool from modules
-        let toolReg = null;
-        for (const module of allModules) {
-          toolReg = module.tools.find(t => t.definition.name === name);
-          if (toolReg) break;
-        }
+        // 使用 Map 快速查找工具（O(1) 复杂度）
+        const toolReg = this.toolRegistry.get(name);
 
         if (!toolReg) {
           throw new McpError(ErrorCode.MethodNotFound, `未知工具: ${name}`);
@@ -271,12 +335,8 @@ class TapTapMinigameMCPServer {
       await logger.logToolCall(`ReadResource: ${uri}`, {});
 
       try {
-        // Find resource from modules
-        let resourceReg = null;
-        for (const module of allModules) {
-          resourceReg = module.resources.find(r => r.uri === uri);
-          if (resourceReg) break;
-        }
+        // 使用 Map 快速查找资源（O(1) 复杂度）
+        const resourceReg = this.resourceRegistry.get(uri);
 
         if (!resourceReg) {
           throw new Error(`Unknown resource URI: ${uri}`);
