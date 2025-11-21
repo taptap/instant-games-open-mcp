@@ -12,6 +12,7 @@ import { EnvConfig } from '../../core/utils/env.js';
 import { requestDeviceCode, generateAuthUrl, pollForToken } from '../../core/auth/oauth.js';
 import { oauthState } from '../../core/auth/oauthState.js';
 import { getMacTokenStatus, getTokenSourceLabel } from '../../core/utils/handlerHelpers.js';
+import { getUserId, getProjectId } from '../../core/utils/tokenResolver.js';
 
 /**
  * List all developers and apps for the current user
@@ -199,18 +200,43 @@ export async function completeOAuthAuthorization(): Promise<string> {
 
   try {
     const macToken = await pollForToken(pendingState.deviceCode, pendingState.environment);
-    
-    // 保存 token
-    saveToken(macToken, { environment: pendingState.environment });
+
+    // ✅ 获取用户和项目标识（用于隔离存储）
+    const userId = getUserId(context);
+    const projectId = getProjectId(context);
+
+    // ✅ 保存到用户隔离的目录
+    saveToken(macToken, {
+      environment: pendingState.environment,
+      userId,
+      projectId
+    });
+
+    // 保留兼容：设置全局 token（将在 Phase 6 移除）
     const apiConfig = ApiConfig.getInstance();
     apiConfig.setMacToken(macToken);
-    
+
     // 清除状态
     oauthState.clearPendingState();
 
-    return '✅ 授权完成！\n\n' +
-           'Token 已成功保存，现在可以使用所有需要认证的功能了。\n\n' +
-           '请重新执行之前失败的操作。';
+    // 返回详细信息
+    const tokenPath = projectId
+      ? `~/.taptap-mcp/cache/${userId}/${projectId}/oauth-token.json`
+      : `~/.taptap-mcp/cache/${userId}/oauth-token.json`;
+
+    return `✅ 授权完成！
+
+用户标识：${userId}
+${projectId ? `项目标识：${projectId}\n` : ''}
+Token 已保存到：${tokenPath}
+
+📋 使用说明：
+- stdio 模式：自动从用户目录加载
+- SSE 模式：需要在连接时提供 Header
+  X-TapTap-User-Id: ${userId}
+  ${projectId ? `X-TapTap-Project-Id: ${projectId}` : ''}
+
+💡 现在可以使用所有需要认证的功能了！`;
   } catch (error) {
     return `❌ 授权失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
            '请确认：\n' +
@@ -237,9 +263,14 @@ export async function clearAuthData(
   // Clear OAuth token file
   if (clearTokenFlag) {
     try {
-      clearToken(); // 直接调用函数
-      
-      // Also clear in-memory token
+      // ✅ 获取用户和项目标识
+      const userId = getUserId(context);
+      const projectId = getProjectId(context);
+
+      // 清除用户隔离的 token 文件
+      clearToken(userId, projectId);
+
+      // 保留兼容：清除全局 token（将在 Phase 6 移除）
       const apiConfig = ApiConfig.getInstance();
       apiConfig.setMacToken({} as any);
 
