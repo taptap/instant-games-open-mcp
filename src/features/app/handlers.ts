@@ -7,11 +7,10 @@ import type { HandlerContext } from '../../core/types/index.js';
 import { getAllDevelopersAndApps, selectApp as selectAppApi } from './api.js';
 import { clearAppCache } from '../../core/utils/cache.js';
 import { clearToken, saveToken } from '../../core/auth/tokenStorage.js';
-import { ApiConfig } from '../../core/network/httpClient.js';
 import { EnvConfig } from '../../core/utils/env.js';
 import { requestDeviceCode, generateAuthUrl, pollForToken } from '../../core/auth/oauth.js';
 import { oauthState } from '../../core/auth/oauthState.js';
-import { getMacTokenStatus, getTokenSourceLabel } from '../../core/utils/handlerHelpers.js';
+import { getTokenStatus, getTokenSourceLabel } from '../../core/utils/tokenResolver.js';
 import { getUserId, getProjectId } from '../../core/utils/contextResolver.js';
 
 /**
@@ -155,7 +154,7 @@ ${error instanceof Error ? error.message : String(error)}
  */
 export async function startOAuthAuthorization(context: HandlerContext): Promise<string> {
   // Use shared authentication check logic
-  const { hasMacToken, source } = getMacTokenStatus(context);
+  const { hasMacToken, source } = getTokenStatus(context);
 
   if (hasMacToken) {
     const sourceLabel = getTokenSourceLabel(source);
@@ -191,7 +190,7 @@ export async function startOAuthAuthorization(context: HandlerContext): Promise<
  * Complete OAuth authorization
  */
 export async function completeOAuthAuthorization(
-  args: Record<string, never>,
+  _args: Record<string, never>,
   context: HandlerContext
 ): Promise<string> {
   const pendingState = oauthState.getPendingState();
@@ -220,24 +219,10 @@ export async function completeOAuthAuthorization(
     // 清除状态
     oauthState.clearPendingState();
 
-    // 返回详细信息
-    const tokenPath = projectId
-      ? `~/.taptap-mcp/cache/${userId}/${projectId}/oauth-token.json`
-      : `~/.taptap-mcp/cache/${userId}/oauth-token.json`;
-
-    return `✅ 授权完成！
-
-用户标识：${userId}
-${projectId ? `项目标识：${projectId}\n` : ''}
-Token 已保存到：${tokenPath}
-
-📋 使用说明：
-- stdio 模式：自动从用户目录加载
-- SSE 模式：需要在连接时提供 Header
-  X-TapTap-User-Id: ${userId}
-  ${projectId ? `X-TapTap-Project-Id: ${projectId}` : ''}
-
-💡 现在可以使用所有需要认证的功能了！`;
+    // ✅ 对 AI Agent 返回简洁的成功消息（技术细节对 AI 透明）
+    return '✅ 授权完成！\n\n' +
+           'Token 已成功保存，现在可以使用所有需要认证的功能了。\n\n' +
+           '请重新执行之前失败的操作。';
   } catch (error) {
     return `❌ 授权失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
            '请确认：\n' +
@@ -304,7 +289,7 @@ export async function clearAuthData(
  */
 export async function checkEnvironment(context: HandlerContext): Promise<string> {
   // Check MAC Token status and source
-  const { hasMacToken, source } = getMacTokenStatus(context);
+  const { hasMacToken, source } = getTokenStatus(context);
 
   // Format MAC Token status with source label
   let macTokenStatus: string;
