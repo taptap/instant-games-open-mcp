@@ -1,3 +1,16 @@
+## <small>1.5.11 (2025-11-21)</small>
+
+* fix(bin): revert to ESM format and fix type errors ([f1648f0](https://github.com/taptap/taptap_minigame_open_mcp/commit/f1648f0))
+* fix(bin): 使用 CommonJS 格式提升 npx 兼容性 ([f81ce92](https://github.com/taptap/taptap_minigame_open_mcp/commit/f81ce92))
+* refactor(config): enhance configuration validation ([df6aa93](https://github.com/taptap/taptap_minigame_open_mcp/commit/df6aa93))
+* refactor(config): simplify ApiConfig to only manage runtime state ([4a5faef](https://github.com/taptap/taptap_minigame_open_mcp/commit/4a5faef))
+* refactor(errors): unify authentication error handling ([59fef25](https://github.com/taptap/taptap_minigame_open_mcp/commit/59fef25))
+* refactor(logger): use logger module for MAC token parse warnings ([aea1b83](https://github.com/taptap/taptap_minigame_open_mcp/commit/aea1b83))
+* refactor(types): improve MacToken type safety and validation ([b8fc080](https://github.com/taptap/taptap_minigame_open_mcp/commit/b8fc080))
+* perf(server): optimize tool and resource lookup with Map index ([8a86ac7](https://github.com/taptap/taptap_minigame_open_mcp/commit/8a86ac7))
+
+
+
 ## <small>1.5.10 (2025-11-20)</small>
 
 * perf(build): 实现双模式构建系统 ([fea2d12](https://github.com/taptap/taptap_minigame_open_mcp/commit/fea2d12))
