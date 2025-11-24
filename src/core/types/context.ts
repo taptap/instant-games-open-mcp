@@ -264,16 +264,14 @@ export class ResolvedContext {
       };
     }
 
-    // Priority 2: stdio 模式从用户隔离文件加载
-    if (EnvConfig.transport === 'stdio') {
-      const tokenPath = getTokenPath(this.userId, this.projectId);
-      const token = loadTokenFromFile(tokenPath);
-      if (token?.kid && token?.mac_key) {
-        return { token, source: TokenSource.FILE };
-      }
+    // Priority 2: 从用户隔离文件加载（所有模式都支持）
+    const tokenPath = getTokenPath(this.userId, this.projectId);
+    const token = loadTokenFromFile(tokenPath);
+    if (token?.kid && token?.mac_key) {
+      return { token, source: TokenSource.FILE };
     }
 
-    // Priority 3: SSE/HTTP 模式必须通过 context 注入
+    // Priority 3: 无 token
     return { token: null, source: TokenSource.NONE };
   }
 

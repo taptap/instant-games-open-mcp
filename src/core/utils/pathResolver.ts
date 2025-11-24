@@ -11,7 +11,7 @@
 
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import type { ResolvedContext } from '../types/ctx.js';
+import type { ResolvedContext } from '../types/context.js';
 import { logger } from './logger.js';
 
 /**
