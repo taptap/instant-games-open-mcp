@@ -44,7 +44,6 @@ import { stripPrivateParams } from './core/types/privateParams.js';
 
 // 导入 OAuth 模块
 import { requestDeviceCode, generateAuthUrl } from './core/auth/oauth.js';
-import { loadToken } from './core/auth/tokenStorage.js';
 import { oauthState } from './core/auth/oauthState.js';
 
 // 导入功能模块
@@ -441,24 +440,39 @@ class TapTapMinigameMCPServer {
   }
 
   /**
-   * 启动 stdio 传输服务器
+   * 打印服务器启动信息（通用方法）
    */
-  private async startStdioServer(totalTools: number, totalResources: number): Promise<void> {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-
-    // Initialize logger with server instance
-    logger.initialize(this.server, 'stdio');
-
+  private printServerInfo(transportInfo: string, totalTools: number, totalResources: number): void {
     process.stderr.write(`🚀 TapTap Open API MCP Server v${VERSION} (Minigame & H5)\n`);
-    process.stderr.write('🔌 Transport: stdio\n');
+    process.stderr.write(`🔌 Transport: ${transportInfo}\n`);
     process.stderr.write(`📚 Providing ${totalTools} tools, ${totalResources} resources\n`);
     process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
     process.stderr.write(`🌍 Environment: ${EnvConfig.environment}\n`);
     process.stderr.write(`🔗 API Base: ${EnvConfig.endpoints.apiBaseUrl}\n`);
+
+    // 显示认证配置
+    process.stderr.write('\n🔐 Authentication Configuration:\n');
+    process.stderr.write(`   Client ID: ${EnvConfig.clientId ? '✅ ' + EnvConfig.clientId : '❌ Not configured'}\n`);
+    process.stderr.write(`   Client Secret: ${EnvConfig.clientSecret ? '✅ Configured' : '❌ Not configured'}\n`);
+
+    // 显示目录配置
+    process.stderr.write('\n📂 Directory Configuration:\n');
+    const workspaceRoot = getEnv('TAPTAP_MCP_WORKSPACE_ROOT') || process.cwd();
+    const workspaceRootLabel = getEnv('TAPTAP_MCP_WORKSPACE_ROOT') ? '(env)' : '(default: cwd)';
+    process.stderr.write(`   📁 WORKSPACE_ROOT: ${workspaceRoot} ${workspaceRootLabel}\n`);
+
+    const cacheDir = getEnv('TAPTAP_MCP_CACHE_DIR') || path.join(os.tmpdir(), 'taptap-mcp', 'cache');
+    const cacheDirLabel = getEnv('TAPTAP_MCP_CACHE_DIR') ? '(env)' : '(default)';
+    process.stderr.write(`   📦 TAPTAP_MCP_CACHE_DIR: ${cacheDir} ${cacheDirLabel}\n`);
+
+    const tempDir = getEnv('TAPTAP_MCP_TEMP_DIR') || path.join(os.tmpdir(), 'taptap-mcp', 'temp');
+    const tempDirLabel = getEnv('TAPTAP_MCP_TEMP_DIR') ? '(env)' : '(default)';
+    process.stderr.write(`   📂 TAPTAP_MCP_TEMP_DIR: ${tempDir} ${tempDirLabel}\n`);
+
     process.stderr.write('\n📖 MCP Capabilities:\n');
     process.stderr.write(`   ✅ Tools (${totalTools}) - Execute operations with side effects\n`);
     process.stderr.write(`   ✅ Resources (${totalResources}) - Read-only documentation and data\n`);
+
     process.stderr.write('\n🎯 Loaded Modules:\n');
     allModules.forEach(m => {
       const toolCount = m.tools.length;
@@ -473,6 +487,20 @@ class TapTapMinigameMCPServer {
     } else {
       process.stderr.write('\n💡 Tip: Set TAPTAP_MCP_VERBOSE=true for detailed logs\n');
     }
+  }
+
+  /**
+   * 启动 stdio 传输服务器
+   */
+  private async startStdioServer(totalTools: number, totalResources: number): Promise<void> {
+    const transport = new StdioServerTransport();
+    await this.server.connect(transport);
+
+    // Initialize logger with server instance
+    logger.initialize(this.server, 'stdio');
+
+    // 打印启动信息
+    this.printServerInfo('stdio', totalTools, totalResources);
   }
 
   /**
@@ -601,54 +629,16 @@ class TapTapMinigameMCPServer {
     });
 
     httpServer.listen(serverPort, () => {
-      process.stderr.write(`🚀 TapTap Open API MCP Server v${VERSION} (Minigame & H5)\n`);
+      // 打印 HTTP 专属信息
       const responseMode = transportMode === 'http' ? 'JSON Only' : 'SSE Streaming';
-      process.stderr.write(`🔌 Transport: Streamable HTTP (${responseMode})\n`);
       process.stderr.write(`🌐 HTTP Server: http://localhost:${serverPort}\n`);
       process.stderr.write(`📡 MCP Endpoint: http://localhost:${serverPort}/\n`);
-      process.stderr.write(`💚 Health Check: http://localhost:${serverPort}/health\n`);
-      process.stderr.write(`📚 Providing ${totalTools} tools, ${totalResources} resources\n`);
-      process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
-      process.stderr.write(`🌍 Environment: ${EnvConfig.environment}\n`);
-      process.stderr.write(`🔗 API Base: ${EnvConfig.endpoints.apiBaseUrl}\n`);
+      process.stderr.write(`💚 Health Check: http://localhost:${serverPort}/health\n\n`);
 
-      // 显示目录配置
-      process.stderr.write('\n📂 Directory Configuration:\n');
+      // 打印通用服务器信息
+      this.printServerInfo(`Streamable HTTP (${responseMode})`, totalTools, totalResources);
 
-      // WORKSPACE_ROOT
-      const workspaceRoot = getEnv('TAPTAP_MCP_WORKSPACE_ROOT') || process.cwd();
-      const workspaceRootLabel = getEnv('TAPTAP_MCP_WORKSPACE_ROOT') ? '(env)' : '(default: cwd)';
-      process.stderr.write(`   📁 WORKSPACE_ROOT: ${workspaceRoot} ${workspaceRootLabel}\n`);
-
-      // TAPTAP_MCP_CACHE_DIR
-      const cacheDir = getEnv('TAPTAP_MCP_CACHE_DIR') || path.join(os.tmpdir(), 'taptap-mcp', 'cache');
-      const cacheDirLabel = getEnv('TAPTAP_MCP_CACHE_DIR') ? '(env)' : '(default)';
-      process.stderr.write(`   📦 TAPTAP_MCP_CACHE_DIR: ${cacheDir} ${cacheDirLabel}\n`);
-
-      // TAPTAP_MCP_TEMP_DIR
-      const tempDir = getEnv('TAPTAP_MCP_TEMP_DIR') || path.join(os.tmpdir(), 'taptap-mcp', 'temp');
-      const tempDirLabel = getEnv('TAPTAP_MCP_TEMP_DIR') ? '(env)' : '(default)';
-      process.stderr.write(`   📂 TAPTAP_MCP_TEMP_DIR: ${tempDir} ${tempDirLabel}\n`);
-
-      process.stderr.write('\n📖 MCP Capabilities:\n');
-      process.stderr.write(`   ✅ Tools (${totalTools}) - Execute operations with side effects\n`);
-      process.stderr.write(`   ✅ Resources (${totalResources}) - Read-only documentation and data\n`);
-      process.stderr.write('\n🎯 Loaded Modules:\n');
-      allModules.forEach(m => {
-        const toolCount = m.tools.length;
-        const resourceCount = m.resources.length;
-        process.stderr.write(`   📦 ${m.name}: ${toolCount} tools, ${resourceCount} resources\n`);
-      });
-
-      if (logger.isVerbose()) {
-        process.stderr.write('\n🔍 Verbose logging enabled (TAPTAP_MCP_VERBOSE=true)\n');
-        process.stderr.write('   - Tool call inputs and outputs will be logged\n');
-        process.stderr.write('   - HTTP requests and responses will be logged\n');
-      } else {
-        process.stderr.write('\n💡 Tip: Set TAPTAP_MCP_VERBOSE=true for detailed logs\n');
-      }
-
-      // Print deprecation warnings for old environment variables
+      // Print deprecation warnings
       printDeprecationWarnings();
     });
 
