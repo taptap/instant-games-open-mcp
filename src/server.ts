@@ -58,7 +58,7 @@ import type {
   ToolRegistration,
   ResourceRegistration
 } from './core/types/index.js';
-import { ResolvedContext } from './core/types/index.js';
+import { ResolvedContext } from './core/types/context.js';
 import { EnvConfig, printDeprecationWarnings, getEnv } from './core/utils/env.js';
 import { VERSION } from './version.js';
 

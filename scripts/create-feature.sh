@@ -180,7 +180,7 @@ cat > "$FEATURE_DIR/index.ts" << EOF
  */
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import type { HandlerContext } from '../../core/types/index.js';
+import type { ResolvedContext } from '../../core/types/index.js';
 
 import { ${CAMEL_CASE}ToolDefinitions, ${CAMEL_CASE}ToolHandlers } from './tools.js';
 EOF
@@ -248,7 +248,7 @@ cat > "$FEATURE_DIR/tools.ts" << EOF
  */
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import type { HandlerContext } from '../../core/types/index.js';
+import type { ResolvedContext } from '../../core/types/context.js';
 
 import * as handlers from './handlers.js';
 import { ${CAMEL_CASE}Tools } from './docTools.js';
@@ -315,21 +315,21 @@ export const ${CAMEL_CASE}ToolDefinitions: Tool[] = [
  */
 export const ${CAMEL_CASE}ToolHandlers = [
   // get_${FEATURE_KEY}_integration_guide
-  async (args: any, context: HandlerContext) => {
+  async (args: any, context: ResolvedContext) => {
     return ${CAMEL_CASE}Tools.getIntegrationWorkflow();
   },
 
   // TODO: 添加更多 handlers
   // 示例 - save_${FEATURE_KEY}_data handler:
   /*
-  async (args: { key: string; value: string }, context: HandlerContext) => {
+  async (args: { key: string; value: string }, context: ResolvedContext) => {
     return handlers.saveData(args, context);
   },
   */
 
   // 示例 - load_${FEATURE_KEY}_data handler:
   /*
-  async (args: { key: string }, context: HandlerContext) => {
+  async (args: { key: string }, context: ResolvedContext) => {
     return handlers.loadData(args, context);
   }
   */
@@ -698,7 +698,7 @@ cat > "$FEATURE_DIR/handlers.ts" << EOF
  * $FEATURE_NAME Handlers
  */
 
-import type { HandlerContext } from '../../core/types/index.js';
+import type { ResolvedContext } from '../../core/types/index.js';
 import * as api from './api.js';
 
 // TODO: 实现业务逻辑处理器
@@ -706,7 +706,7 @@ import * as api from './api.js';
 /*
 export async function saveData(
   args: { key: string; value: string },
-  context: HandlerContext
+  context: ResolvedContext
 ): Promise<string> {
   const { key, value } = args;
 
@@ -720,7 +720,7 @@ Value: \${value}\`;
 
 export async function loadData(
   args: { key: string },
-  context: HandlerContext
+  context: ResolvedContext
 ): Promise<string> {
   const { key } = args;
 
@@ -745,7 +745,7 @@ cat > "$FEATURE_DIR/api.ts" << EOF
 
 import { HttpClient } from '../../core/network/httpClient.js';
 import { ensureAppInfo } from '../app/api.js';  // 导入应用信息函数
-import type { HandlerContext } from '../../core/types/index.js';
+import type { ResolvedContext } from '../../core/types/context.js';
 
 // TODO: 定义接口
 // 示例:
@@ -777,11 +777,12 @@ export interface LoadDataResponse {
 /*
 export async function saveDataToCloud(
   args: { key: string; value: string },
-  context: HandlerContext
+  context: ResolvedContext
 ): Promise<SaveDataResponse> {
   const client = new HttpClient();
 
   // 获取应用信息（developer_id, app_id 等）
+  // 注意：ensureAppInfo 现在接受 projectPath 字符串，从 context.projectPath 获取
   const appInfo = await ensureAppInfo(context.projectPath);
 
   const response = await client.post<SaveDataResponse>(
@@ -801,7 +802,7 @@ export async function saveDataToCloud(
 
 export async function loadDataFromCloud(
   args: { key: string },
-  context: HandlerContext
+  context: ResolvedContext
 ): Promise<string> {
   const client = new HttpClient();
 

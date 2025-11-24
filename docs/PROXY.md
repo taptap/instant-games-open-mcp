@@ -226,23 +226,6 @@ echo -n '{"kid":"abc123","mac_key":"secret","token_type":"mac","mac_algorithm":"
 }
 ```
 
-#### Server 层统一处理
-
-```typescript
-// Server 层（唯一处理私有参数的地方）
-server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-  const { arguments: args } = request.params;
-
-  // 1. 提取私有参数（从 arguments 或 HTTP Header）
-  const effectiveContext = getEffectiveContext(enrichedArgs, baseContext);
-
-  // 2. 移除私有参数
-  const businessArgs = stripPrivateParams(enrichedArgs);
-
-  // 3. 调用业务层（完全干净）
-  await toolReg.handler(businessArgs, effectiveContext);
-});
-```
 
 ### 3.7 工作流程
 

@@ -3,7 +3,7 @@
  * Unified definitions and handlers for app operations
  */
 
-import type { ToolRegistration, HandlerContext } from '../../core/types/index.js';
+import type { ToolRegistration } from '../../core/types/index.js';
 import * as appHandlers from './handlers.js';
 import * as appApi from './api.js';
 

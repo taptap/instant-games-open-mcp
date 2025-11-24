@@ -23,7 +23,7 @@ import { readAppCache, saveAppCache, type AppCacheInfo } from '../../core/utils/
 import { logger } from '../../core/utils/logger.js';
 import { resolveWorkPath } from '../../core/utils/pathResolver.js';
 import { EnvConfig } from '../../core/utils/env.js';
-import type { ResolvedContext } from '../../core/types/index.js';
+import type { ResolvedContext } from '../../core/types/context.js';
 
 /**
  * 临时文件根目录（独立于 workspace）

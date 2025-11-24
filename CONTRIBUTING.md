@@ -118,6 +118,8 @@ src/
 **模块说明**：
 - **app**: 基础应用管理（开发者/应用选择、OAuth 授权、环境检查）
 - **leaderboard**: 排行榜功能（依赖 app 模块）
+- **h5Game**: H5 游戏管理
+- **vibrate**: 振动 API 文档
 - 未来: cloudSave, share 等（都可以复用 app 模块）
 
 ---
@@ -216,7 +218,7 @@ export const myTools: ToolRegistration[] = [
       description: '...',
       inputSchema: { ... }
     },
-    handler: async (args: { param: string }, context) => {
+    handler: async (args: { param: string }, context: ResolvedContext) => {
       // 实现逻辑
     }
   }
@@ -357,9 +359,11 @@ TapTap API
 |------|-------|---------|------|
 | app | 4 | ~430 行 | 应用管理基础功能 |
 | leaderboard | 7 | ~1350 行 | 排行榜（已分离 app 操作）|
-| core | 9 | ~900 行 | 共享核心代码 |
-| server.ts | 1 | ~300 行 | 主服务器 |
-| **总计** | **21** | **~2980 行** | |
+| h5Game | 5 | ~600 行 | H5 游戏管理 |
+| vibrate | 6 | ~300 行 | 振动 API 文档 |
+| core | 10 | ~1100 行 | 共享核心代码 |
+| server.ts | 1 | ~450 行 | 主服务器 |
+| **总计** | **33** | **~4230 行** | |
 
 **架构优化成果**：
 - ✅ 模块化后清理重复代码
