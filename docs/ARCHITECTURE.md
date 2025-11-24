@@ -40,6 +40,20 @@ src/
 │   │   ├── handlers.ts   # 业务逻辑
 │   │   └── api.ts        # API 调用
 │   │
+│   ├── h5Game/           # H5 游戏模块
+│   │   ├── index.ts      # 模块定义
+│   │   ├── tools.ts      # 工具定义
+│   │   ├── handlers.ts   # 业务逻辑
+│   │   ├── api.ts        # API 调用
+│   │   └── messages.ts   # 消息常量
+│   │
+│   ├── vibrate/          # 振动 API 文档模块
+│   │   ├── index.ts      # 模块定义
+│   │   ├── tools.ts      # 工具定义
+│   │   ├── resources.ts  # 资源定义
+│   │   ├── docs.ts       # 文档内容
+│   │   └── docTools.ts   # 文档工具
+│   │
 │   └── 未来功能/         # cloudSave/, share/ 等
 │
 ├── core/                  # 跨模块共享代码
@@ -71,6 +85,16 @@ bin/
   - 排行榜管理工具（创建、发布、查询）
   - 排行榜 API 文档 Resources
   - 用户分数查询
+
+- **h5Game 模块** - H5 游戏管理
+  - H5 游戏信息收集
+  - 游戏包上传和发布
+  - 游戏创建和状态查询
+
+- **vibrate 模块** - 振动 API 文档
+  - 振动功能接入指引
+  - 完整的 API 文档 Resources
+  - 最佳实践和使用模式
 
 - **未来模块** - cloudSave（云存档）、share（分享）等
 
@@ -328,35 +352,42 @@ export interface ResourceRegistration {
 
 ### 实现方案
 
-服务器层是唯一处理私有参数的地方：
+服务器层是唯一处理私有参数的地方，使用 `ResolvedContext` 进行统一封装：
 
 ```typescript
 // Server 层（src/server.ts）
 server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-  const toolName = request.params.name;
-  const args = request.params.arguments || {};
+  const { name, arguments: args } = request.params;
 
-  // 1. 提取私有参数（从 arguments 或 HTTP Header）
-  const enrichedArgs = injectPrivateParams(args, extra);
+  // 1. 从 HTTP Headers 提取私有参数（仅 HTTP/SSE 模式）
+  let enrichedArgs = args || {};
+  if (extra?.requestInfo?.headers) {
+    enrichedArgs = extractPrivateParamsFromHeaders(enrichedArgs, extra.requestInfo.headers);
+  }
 
-  // 2. 合并到 context
-  const effectiveContext = getEffectiveContext(enrichedArgs, baseContext);
+  // 2. 构建 ResolvedContext（合并 args + baseContext）
+  // baseContext 来自 Session 闭包（userId, projectId）
+  const ctx = new ResolvedContext(enrichedArgs, baseContext);
 
   // 3. 移除私有参数，业务层不可见
   const businessArgs = stripPrivateParams(enrichedArgs);
 
-  // 4. 调用业务层
-  const result = await toolReg.handler(businessArgs, effectiveContext);
+  // 4. 调用业务层（传入 context）
+  const result = await toolReg.handler(businessArgs, ctx);
 
   return result;
 });
 ```
 
-业务层代码完全不感知私有参数：
+业务层代码完全不感知私有参数，通过 Context 访问：
 
 ```typescript
 // 业务层（features/leaderboard/handlers.ts）
-handler: async (args: { page: number }, context) => {
+handler: async (args: { page: number }, context: ResolvedContext) => {
+  // 通过 context 获取认证和应用信息
+  const token = context.resolveToken();
+  const app = context.resolveApp();
+  
   // 简洁的业务逻辑
   return api.listLeaderboards(args, context);
 }
@@ -586,10 +617,11 @@ const overview = generateOverview(documentation);
 |------|-------|---------|------|
 | **app** | 4 | ~430 行 | 应用管理基础功能 |
 | **leaderboard** | 7 | ~1350 行 | 排行榜（已分离 app 操作）|
-| **h5game** | 4 | ~600 行 | H5 游戏管理 |
+| **h5Game** | 5 | ~600 行 | H5 游戏管理 |
+| **vibrate** | 6 | ~300 行 | 振动 API 文档 |
 | **core** | 10 | ~1100 行 | 共享核心代码 |
 | **server.ts** | 1 | ~450 行 | 主服务器（支持 SSE/HTTP）|
-| **总计** | **26** | **~3930 行** | |
+| **总计** | **33** | **~4230 行** | |
 
 ### 架构优化成果
 

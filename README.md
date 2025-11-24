@@ -2,7 +2,7 @@
 
 > 基于 Model Context Protocol (MCP) 的 **TapTap 小游戏和 H5 游戏**服务器 - 提供排行榜文档和管理 API，支持 **OAuth 2.0 零配置认证**。
 
-🔐 **零配置 OAuth** | 📚 **完整文档** | 🎯 **19 Tools + 7 Resources** | 🌍 **小游戏 & H5** | 📦 **单文件 Bundle**
+🔐 **零配置 OAuth** | 📚 **完整文档** | 🎯 **19 Tools + 11 Resources** | 🌍 **小游戏 & H5** | 📦 **单文件 Bundle**
 
 ## ✨ 核心特性
 
@@ -128,7 +128,7 @@ curl http://localhost:5003/health
 #### 振动 API 文档 (1)
 - `get_vibrate_integration_guide` - 振动 API 完整文档和接入指引
 
-### 7 个 Resources
+### 11 个 Resources
 
 完整的排行榜 API 文档：
 - `docs://leaderboard/overview` - 完整概览
@@ -138,6 +138,12 @@ curl http://localhost:5003/health
 - `docs://leaderboard/api/load-scores` - 加载数据
 - `docs://leaderboard/api/load-player-score` - 玩家排名
 - `docs://leaderboard/api/load-centered-scores` - 周围玩家
+
+完整的振动 API 文档：
+- `docs://vibrate/overview` - 完整概览
+- `docs://vibrate/api/vibrate-short` - 短振动 API
+- `docs://vibrate/api/vibrate-long` - 长振动 API
+- `docs://vibrate/patterns` - 使用模式和最佳实践
 
 ## 🎯 使用示例
 

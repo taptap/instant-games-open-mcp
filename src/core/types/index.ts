@@ -31,10 +31,7 @@ export type {
   SessionContext,
   TokenSource
 } from './context.js';
-export { ResolvedContext, getTokenSourceLabel } from './context.js';
-
-// 向后兼容别名（将逐步废弃）
-export type { RequestContext as HandlerContext } from './context.js';
+export { getTokenSourceLabel } from './context.js';
 
 // 前向声明
 import type { ResolvedContext as RC } from './context.js';

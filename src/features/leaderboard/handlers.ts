@@ -3,7 +3,7 @@
  * Handles leaderboard operations including creation, listing, and workflow guidance
  */
 
-import type { ResolvedContext } from '../../core/types/index.js';
+import type { ResolvedContext } from '../../core/types/context.js';
 import {
   createLeaderboard as createLeaderboardApi,
   listLeaderboards as listLeaderboardsApi,

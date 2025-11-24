@@ -3,7 +3,7 @@
  * Unified definitions and handlers (no more manual sync required!)
  */
 
-import type { ToolRegistration, HandlerContext } from '../../core/types/index.js';
+import type { ToolRegistration } from '../../core/types/index.js';
 
 // Import from this module
 import * as leaderboardHandlers from './handlers.js';

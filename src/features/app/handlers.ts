@@ -3,7 +3,7 @@
  * Handles developer and app selection operations
  */
 
-import type { ResolvedContext } from '../../core/types/index.js';
+import type { ResolvedContext } from '../../core/types/context.js';
 import { getAllDevelopersAndApps, selectApp as selectAppApi } from './api.js';
 import { clearAppCache } from '../../core/utils/cache.js';
 import { clearToken, saveToken } from '../../core/auth/tokenStorage.js';
