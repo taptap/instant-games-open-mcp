@@ -1,3 +1,23 @@
+## 1.6.0 (2025-11-24)
+
+* refactor(api): migrate all API functions to accept ResolvedContext ([3a3baa7](https://github.com/taptap/taptap_minigame_open_mcp/commit/3a3baa7))
+* refactor(auth): remove global token state from ApiConfig ([4ca04c9](https://github.com/taptap/taptap_minigame_open_mcp/commit/4ca04c9))
+* refactor(context): abstract token resolution logic with single source ([731fc04](https://github.com/taptap/taptap_minigame_open_mcp/commit/731fc04))
+* refactor(core): remove old resolver modules and migrate to ResolvedContext ([8baf7d4](https://github.com/taptap/taptap_minigame_open_mcp/commit/8baf7d4))
+* refactor(handlers): migrate all handlers to use ResolvedContext API ([260505d](https://github.com/taptap/taptap_minigame_open_mcp/commit/260505d))
+* refactor(http): use ResolvedContext for token resolution ([aea2d94](https://github.com/taptap/taptap_minigame_open_mcp/commit/aea2d94))
+* refactor(server): extract common server info printing logic ([ad6e795](https://github.com/taptap/taptap_minigame_open_mcp/commit/ad6e795))
+* refactor(server): use ResolvedContext in tool call pipeline ([b7fe153](https://github.com/taptap/taptap_minigame_open_mcp/commit/b7fe153))
+* refactor(utils): unify resolver modules with functional design ([2ccf599](https://github.com/taptap/taptap_minigame_open_mcp/commit/2ccf599))
+* fix(all): correct ResolvedContext propagation across all layers ([45aecae](https://github.com/taptap/taptap_minigame_open_mcp/commit/45aecae))
+* fix(auth): simplify OAuth success message for AI agents ([aa07483](https://github.com/taptap/taptap_minigame_open_mcp/commit/aa07483))
+* feat(auth): add user-isolated token storage and resolver ([f87ef85](https://github.com/taptap/taptap_minigame_open_mcp/commit/f87ef85))
+* feat(server): extract user/project IDs from HTTP headers ([f48c841](https://github.com/taptap/taptap_minigame_open_mcp/commit/f48c841))
+* feat(types): add projectId to HandlerContext ([f12b196](https://github.com/taptap/taptap_minigame_open_mcp/commit/f12b196))
+* feat(types): create ResolvedContext class with request-scoped lifecycle ([8a5a037](https://github.com/taptap/taptap_minigame_open_mcp/commit/8a5a037))
+
+
+
 ## <small>1.5.11 (2025-11-21)</small>
 
 * fix(bin): revert to ESM format and fix type errors ([f1648f0](https://github.com/taptap/taptap_minigame_open_mcp/commit/f1648f0))
