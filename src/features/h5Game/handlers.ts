@@ -7,7 +7,6 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import archiver from 'archiver';
 import { MESSAGES } from './messages.js';
 import { getH5PackageUploadParams, type UploadParams } from './api.js';
@@ -17,13 +16,89 @@ import {
   createAppForDeveloper,
   editAppInfo,
   getAppDetail,
-  type DeveloperCraftList,
 } from '../app/api.js';
 import { readAppCache, saveAppCache, type AppCacheInfo } from '../../core/utils/cache.js';
 import { logger } from '../../core/utils/logger.js';
-import { resolveWorkPath } from '../../core/utils/pathResolver.js';
+import { resolvePathSafe, type PathResolutionResult } from '../../core/utils/pathResolver.js';
 import { EnvConfig } from '../../core/utils/env.js';
 import type { ResolvedContext } from '../../core/types/context.js';
+
+/**
+ * H5 游戏特定的错误消息模板
+ * 这些消息是 H5 业务特定的，不属于通用 PathResolver
+ */
+const H5_PATH_ERRORS = {
+  NO_INDEX_HTML_PROXY: (relativePath: string) =>
+`❌ 目录 "${relativePath}" 中未找到 index.html
+
+H5 游戏根目录必须包含 index.html 文件。
+
+请确认：
+- 是否需要指向子目录？（如 "${relativePath}/public"）
+- 构建配置是否正确？
+
+💡 请询问用户确认游戏入口文件位置`,
+
+  NO_INDEX_HTML_LOCAL: (relativePath: string, fullPath: string) =>
+`❌ 目录 "${relativePath}" 中未找到 index.html
+
+解析路径：${fullPath}
+
+H5 游戏根目录必须包含 index.html 文件。`,
+
+  EMPTY_PATH_NO_INDEX_PROXY: () =>
+`❌ 当前目录未找到 index.html
+
+如果游戏构建产物在子目录中，请指定路径，如：
+- "dist"（Vite、Vue CLI 默认）
+- "build"（Create React App 默认）
+
+如果 index.html 就在项目根目录，请确认用户已完成构建。
+
+💡 请询问用户确认游戏目录位置`,
+
+  EMPTY_PATH_NO_INDEX_LOCAL: (fullPath: string) =>
+`❌ 当前目录未找到 index.html
+
+解析路径：${fullPath}
+
+如果游戏构建产物在子目录中，请指定路径，如 "dist"、"build"。`,
+};
+
+/**
+ * 验证 H5 游戏路径（包含 index.html 检查）
+ *
+ * @param pathResult - PathResolver 的解析结果
+ * @param requireIndexHtml - 是否需要 index.html
+ * @returns 错误消息，如果验证通过则返回 null
+ */
+function validateH5GamePath(
+  pathResult: PathResolutionResult,
+  requireIndexHtml: boolean = true
+): string | null {
+  if (!pathResult.success) {
+    return pathResult.error!.userMessage;
+  }
+
+  if (!requireIndexHtml) {
+    return null;
+  }
+
+  const indexPath = path.join(pathResult.resolvedPath!, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    // 根据输入类型和模式返回不同的错误消息
+    if (pathResult.inputType === 'empty') {
+      return pathResult.isProxyMode
+        ? H5_PATH_ERRORS.EMPTY_PATH_NO_INDEX_PROXY()
+        : H5_PATH_ERRORS.EMPTY_PATH_NO_INDEX_LOCAL(pathResult.resolvedPath!);
+    }
+    return pathResult.isProxyMode
+      ? H5_PATH_ERRORS.NO_INDEX_HTML_PROXY(pathResult.inputPath)
+      : H5_PATH_ERRORS.NO_INDEX_HTML_LOCAL(pathResult.inputPath, pathResult.resolvedPath!);
+  }
+
+  return null;
+}
 
 /**
  * 临时文件根目录（独立于 workspace）
@@ -246,13 +321,16 @@ export async function handleGatherGameInfo(
   },
   ctx?: ResolvedContext
 ): Promise<string> {
-  // 使用统一路径解析器
-  const gamePath = resolveWorkPath(args.gamePath, ctx);
+  // 1. 使用通用路径解析器（允许空路径，因为空路径可能意味着当前目录有 index.html）
+  const pathResult = resolvePathSafe(args.gamePath, ctx, { allowEmpty: true, checkExists: true });
 
-  // 确保目录存在且包含 index.html 文件
-  if (!fs.existsSync(gamePath) || !fs.existsSync(path.join(gamePath, 'index.html'))) {
-    throw new Error(MESSAGES.GAME_PATH_ERROR(gamePath));
+  // 2. H5 业务特定验证（index.html 检查）
+  const validationError = validateH5GamePath(pathResult, true);
+  if (validationError) {
+    throw new Error(validationError);
   }
+
+  const gamePath = pathResult.resolvedPath!;
 
   // 基础信息确认
   const confirmResult = await confirmInfo(
@@ -309,8 +387,16 @@ export async function handleUploadGame(
   },
   ctx?: ResolvedContext
 ): Promise<string> {
-  // 使用统一路径解析器
-  const gamePath = resolveWorkPath(args.gamePath, ctx);
+  // 1. 使用通用路径解析器（允许空路径，上传时不强制 index.html 检查）
+  const pathResult = resolvePathSafe(args.gamePath, ctx, { allowEmpty: true, checkExists: true });
+
+  // 2. H5 业务特定验证（上传时不强制要求 index.html，因为可能在后续压缩时检查）
+  const validationError = validateH5GamePath(pathResult, false);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  const gamePath = pathResult.resolvedPath!;
 
   // 从缓存读取或使用传入的参数
   let cacheInfo = readAppCache(gamePath) || {};
@@ -330,11 +416,6 @@ export async function handleUploadGame(
 
   // 保存缓存
   saveAppCache(cacheInfo, gamePath);
-
-  // 确保源目录存在
-  if (!fs.existsSync(gamePath)) {
-    throw new Error(MESSAGES.DIRECTORY_NOT_EXISTS(gamePath));
-  }
 
   // 生成临时 ZIP 文件路径（独立于 workspace）
   const outputPath = getTempZipPath(gamePath);
@@ -393,92 +474,4 @@ export async function handleUploadGame(
       }
     }
   }
-}
-
-/**
- * 创建 H5 游戏
- */
-export async function handleCreateApp(
-  args: {
-    developerId?: number;
-    appName?: string;
-    genre?: string;
-  },
-  ctx?: ResolvedContext
-): Promise<string> {
-  let developerId = args.developerId;
-
-  if (!developerId) {
-    const response = await getAllDevelopersAndApps(ctx);
-    const results = response.list;
-
-    // 开发者身份信息存在
-    if (results && results.length > 0) {
-      // 只有一个开发者身份，直接选择
-      if (results.length === 1) {
-        developerId = results[0].developer_id;
-      } else {
-        return MESSAGES.SELECT_DEVELOPER_FOR_CREATE(results);
-      }
-    } else {
-      // 开发者身份信息不存在，创建开发者身份
-      const createDevResult = await createDeveloper(ctx);
-      if (createDevResult && createDevResult.developer_id) {
-        developerId = createDevResult.developer_id;
-      }
-    }
-  }
-
-  // 确定开发者身份 id, 创建游戏
-  if (!developerId) {
-    return MESSAGES.DEVELOPER_ID_NOT_EXISTS;
-  }
-
-  const results = await createAppForDeveloper(developerId, args.appName, args.genre, ctx);
-  if (results && results.app_id) {
-    return MESSAGES.CREATE_GAME_SUCCESS(
-      developerId,
-      results.app_id,
-      results.app_title,
-      results.display_app_title
-    );
-  } else {
-    return MESSAGES.CREATE_GAME_FAILED;
-  }
-}
-
-/**
- * 编辑 H5 游戏信息
- */
-export async function handleEditApp(
-  args: {
-    developerId?: number;
-    appId?: number;
-    appName?: string;
-    genre?: string;
-    description?: string;
-    chattingLabel?: string;
-    chattingNumber?: string;
-    screenOrientation?: number;
-  },
-  ctx?: ResolvedContext
-): Promise<string> {
-  if (!args.developerId || !args.appId) {
-    return MESSAGES.EDIT_GAME_INFO_CONFIRMATION;
-  }
-
-  await editAppInfo(
-    args.appId,
-    args.developerId,
-    undefined,                // package_id
-    args.appName,
-    args.genre,
-    args.description,
-    args.chattingLabel,
-    args.chattingNumber,
-    args.screenOrientation,
-    ctx                       // ctx
-  );
-
-  return MESSAGES.EDIT_GAME_INFO_SUCCESS;
 }

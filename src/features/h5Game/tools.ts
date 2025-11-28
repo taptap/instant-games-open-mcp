@@ -11,8 +11,6 @@ import { TOOL_DESCRIPTION } from './messages.js';
 import {
   handleGatherGameInfo,
   handleUploadGame,
-  handleCreateApp,
-  handleEditApp,
 } from './handlers.js';
 
 /**
@@ -23,7 +21,7 @@ export const h5GameTools: ToolRegistration[] = [
   // 1. 收集 H5 游戏信息
   {
     definition: {
-      name: 'h5_game_info_gatherer',
+      name: 'prepare_h5_upload',
       description: `
         [H5 Game Upload Workflow - Step 1]
         Use this tool when user wants to publish/upload/deploy H5 game ('发布', '上传', '部署').
@@ -34,7 +32,7 @@ export const h5GameTools: ToolRegistration[] = [
         3. Show developer/app list if multiple exist (user can provide developerId/appId to select)
         4. Use cached selection if available
 
-        After gathering info, use h5_game_uploader to upload the game.
+        After gathering info, use upload_h5_game to upload the game.
 
         Note: For general app management (not H5 upload), use list_developers_and_apps and select_app instead.
       `,
@@ -43,7 +41,16 @@ export const h5GameTools: ToolRegistration[] = [
         properties: {
           gamePath: {
             type: 'string',
-            description: 'Relative path to the H5 game directory (e.g., "dist", "build", "."). Must contain index.html. Defaults to current directory if not provided.',
+            description: `**MUST be a relative path** to the H5 game build output directory.
+
+✅ Correct: "dist", "build", "output", "."
+❌ Wrong: "/workspace/dist", "/tmp/build" (absolute paths not allowed)
+
+**BEHAVIOR:**
+- If user specifies directory, pass that relative path
+- If user doesn't specify, ASK: "请问游戏构建产物在哪个目录？（如 dist、build）"
+- If index.html is in project root, pass "." or leave empty
+- DO NOT guess - confirm with user if unsure`,
           },
           genre: {
             type: 'string',
@@ -72,9 +79,10 @@ export const h5GameTools: ToolRegistration[] = [
   // 2. 上传 H5 游戏
   {
     definition: {
-      name: 'h5_game_uploader',
+      name: 'upload_h5_game',
       description: `
-        When the user confirms the game information from h5_game_info_gatherer, or has previously confirmed it.
+        [H5 Game Upload Workflow - Step 2]
+        When the user confirms the game information from prepare_h5_upload, or has previously confirmed it.
         Please use this tool to upload the H5 game to TapTap platform.
       `,
       inputSchema: {
@@ -82,7 +90,12 @@ export const h5GameTools: ToolRegistration[] = [
         properties: {
           gamePath: {
             type: 'string',
-            description: 'Relative path to the H5 game directory (e.g., "dist", "build", "."). Must contain index.html. Defaults to current directory if not provided.',
+            description: `**MUST be a relative path** to the H5 game build output directory.
+
+✅ Correct: "dist", "build", "output", "."
+❌ Wrong: "/workspace/dist", "/tmp/build" (absolute paths not allowed)
+
+Use the same path confirmed in prepare_h5_upload step.`,
           },
           genre: {
             type: 'string',
@@ -110,84 +123,5 @@ export const h5GameTools: ToolRegistration[] = [
     handler: async (args, context) => {
       return await handleUploadGame(args, context);
     },
-  },
-
-  // 3. 创建 H5 游戏
-  {
-    definition: {
-      name: 'h5_create_app',
-      description: 'User wants to create a new H5 game on TapTap platform',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          developerId: {
-            type: 'number',
-            description: 'The developer id of the app. Leave empty if the user has not specified a particular ID',
-          },
-          appName: {
-            type: 'string',
-            description: 'The name of the app',
-          },
-          genre: {
-            type: 'string',
-            description: TOOL_DESCRIPTION.GENRE_DESCRIPTION,
-          },
-        },
-      },
-    },
-    handler: async (args, context) => {
-      return await handleCreateApp(args, context);
-    },
-  },
-
-  // 5. 编辑 H5 游戏
-  {
-    definition: {
-      name: 'h5_edit_app',
-      description:
-        "User wants to edit the H5 game's name, genre, description, chatting_label, chatting_number, screen_orientation on TapTap platform",
-      inputSchema: {
-        type: 'object',
-        properties: {
-          developerId: {
-            type: 'number',
-            description: 'The developer id of the app',
-          },
-          appId: {
-            type: 'number',
-            description: 'The app id of the game',
-          },
-          appName: {
-            type: 'string',
-            description: 'The name of the app, if not provided, can be empty',
-          },
-          genre: {
-            type: 'string',
-            description: TOOL_DESCRIPTION.GENRE_DESCRIPTION,
-          },
-          description: {
-            type: 'string',
-            description: 'The description of the craft, if not provided, can be empty',
-          },
-          chattingLabel: {
-            type: 'string',
-            description: 'The name of the QQ group, if not provided, can be empty',
-          },
-          chattingNumber: {
-            type: 'string',
-            description: 'The number of the QQ group, if not provided, can be empty',
-          },
-          screenOrientation: {
-            type: 'number',
-            description:
-              'The screen orientation of the app, 1: vertical, 2: horizontal, if not provided, can be empty',
-          },
-        },
-        required: ['developerId', 'appId'],
-      },
-    },
-    handler: async (args, context) => {
-      return await handleEditApp(args, context);
-    },
-  },
+  }
 ];
