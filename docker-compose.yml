@@ -9,14 +9,14 @@ services:
     container_name: taptap-mcp-server
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "5003:3000"
     environment:
       # 传输协议
       TAPTAP_MCP_TRANSPORT: sse
       TAPTAP_MCP_PORT: 3000
       
       # API 环境
-      TAPTAP_MCP_ENV: production
+      TAPTAP_MCP_ENV: ${TAPTAP_MCP_ENV:-production}
       
       # 认证信息（必填）
       TAPTAP_MCP_CLIENT_ID: ${TAPTAP_MCP_CLIENT_ID}
@@ -28,8 +28,13 @@ services:
       TAPTAP_MCP_TEMP_DIR: /tmp/taptap-mcp/temp
       
       # 日志
-      TAPTAP_MCP_VERBOSE: "false"
+      TAPTAP_MCP_VERBOSE: ${TAPTAP_MCP_VERBOSE:-false}
+
+      # 工作空间
+      TAPTAP_MCP_WORKSPACE_ROOT: /workspace
     volumes:
+      # 工作空间映射
+      - ${TAPTAP_MCP_WORKSPACE_ROOT:-.}:/workspace
       # 持久化缓存（包含 OAuth token）
       - taptap-mcp-cache:/var/lib/taptap-mcp/cache
       # 临时文件（可选）

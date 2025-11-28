@@ -186,6 +186,90 @@ export const myTools: ToolRegistration[] = [
 
 **完整架构详见：** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
+## AI Agent 工具使用指导
+
+**设计原则：通过工具描述引导 AI Agent 行为**
+
+### 核心设计理念
+
+本项目通过精心设计的工具描述（Tool Description）来引导 AI Agent 的行为，确保：
+1. **提前验证前置条件** - 避免因缺少必要信息而导致的操作失败
+2. **优先询问用户选择** - 当有多个选项时，主动询问用户而不是自动决策
+3. **提供清晰的错误指导** - 当操作失败时，明确告知下一步应该做什么
+
+### 工具描述优化策略
+
+#### 1. 前置条件检查
+
+对于需要应用上下文的操作（如排行榜管理），工具描述中明确说明：
+
+```
+**PREREQUISITE: An app MUST be selected first.** 
+Before calling this tool, ALWAYS call get_current_app_info to verify 
+an app is selected. If not, guide user through: 
+1) Call list_developers_and_apps
+2) Show list to user and ASK them to choose
+3) Call select_app with user's choice
+```
+
+**受益工具：**
+- `create_leaderboard` - 创建排行榜前必须选择应用
+- `list_leaderboards` - 查询排行榜前必须选择应用
+- `publish_leaderboard` - 发布排行榜前必须选择应用
+
+#### 2. 强制用户确认
+
+对于涉及选择的操作，工具描述中强调：
+
+```
+**CRITICAL: ALWAYS show the full list to the user and explicitly 
+ASK them to choose - DO NOT automatically select without user 
+confirmation, even if there is only one option.**
+```
+
+**受益工具：**
+- `list_developers_and_apps` - 始终显示完整列表并询问用户选择
+- `select_app` - 仅在用户明确确认后才调用
+- `list_leaderboards` - 有多个排行榜时询问用户选择
+
+#### 3. 渐进式引导流程
+
+**标准工作流：**
+
+```mermaid
+graph TD
+    A[用户请求操作] --> B{是否需要应用上下文?}
+    B -->|是| C[调用 get_current_app_info]
+    B -->|否| H[直接执行操作]
+    C --> D{应用已选择?}
+    D -->|是| H
+    D -->|否| E[调用 list_developers_and_apps]
+    E --> F[显示列表并询问用户]
+    F --> G[用户确认后调用 select_app]
+    G --> H[执行目标操作]
+```
+
+### 实施要点
+
+1. **工具描述是 AI 的行为准则**
+   - 使用加粗的 `**PREREQUISITE:**` `**CRITICAL:**` `**IMPORTANT:**` 等关键词
+   - 使用大写的 `MUST`、`ALWAYS`、`DO NOT` 来强调
+   - 明确列出步骤 `1)`, `2)`, `3)`
+
+2. **降低自动决策的优先级**
+   - 明确说明"即使只有一个选项也要询问用户"
+   - 强调"只有在用户明确确认后才调用"
+
+3. **提供清晰的失败恢复路径**
+   - 当前置条件不满足时，描述中提供完整的解决步骤
+   - 使用"guide user through"语法提供流程指导
+
+### 相关文件
+
+- `src/features/app/tools.ts` - 应用管理工具定义
+- `src/features/leaderboard/tools.ts` - 排行榜工具定义
+- `src/features/h5Game/tools.ts` - H5 游戏工具定义
+
 ## 常用命令
 
 ### 开发环境设置
