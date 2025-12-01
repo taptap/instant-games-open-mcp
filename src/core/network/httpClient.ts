@@ -205,7 +205,6 @@ export class HttpClient {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-      // @ts-ignore - fetch is available in Node.js 18+
       const response = await fetch(fullUrl, {
         method,
         headers,

@@ -14,7 +14,6 @@ import {
   CalcType
 } from './api.js';
 import { SelectionRequiredError } from '../app/api.js';
-import { leaderboardTools } from './docTools.js';
 
 // Parameter maps for string to number conversion
 const PARAM_MAPS = {
@@ -184,11 +183,11 @@ export async function createLeaderboard(
     const scoreOrder = args.score_order ? PARAM_MAPS.score_order[args.score_order as keyof typeof PARAM_MAPS.score_order] : ScoreOrder.DESCENDING;
     const calcType = args.calc_type ? PARAM_MAPS.calc_type[args.calc_type as keyof typeof PARAM_MAPS.calc_type] : CalcType.SUM;
 
-    // Validate conversions
-    if (!periodType) throw new Error(`Invalid period_type: ${args.period_type}`);
-    if (!scoreType) throw new Error(`Invalid score_type: ${args.score_type}`);
-    if (!scoreOrder) throw new Error(`Invalid score_order: ${args.score_order}`);
-    if (!calcType) throw new Error(`Invalid calc_type: ${args.calc_type}`);
+    // Validate conversions (use explicit undefined check to handle 0 as valid value)
+    if (periodType === undefined) throw new Error(`Invalid period_type: ${args.period_type}. Valid values: always, daily, weekly, monthly`);
+    if (scoreType === undefined) throw new Error(`Invalid score_type: ${args.score_type}. Valid values: numeric, time`);
+    if (scoreOrder === undefined) throw new Error(`Invalid score_order: ${args.score_order}. Valid values: desc, asc`);
+    if (calcType === undefined) throw new Error(`Invalid calc_type: ${args.calc_type}. Valid values: sum, best, latest`);
 
     const result = await createLeaderboardApi({
       developer_id: developerId,
@@ -430,40 +429,64 @@ export async function publishLeaderboard(
 }
 
 /**
- * Get user leaderboard scores (requires user token)
+ * Get user leaderboard scores documentation
+ *
+ * Note: Leaderboard score queries are client-side operations (via JS SDK).
+ * Server-side APIs only support leaderboard management (create, list, publish).
+ * This function returns documentation for client-side score query APIs.
  */
 export async function getUserLeaderboardScores(
   args: { leaderboardId?: string; limit?: number },
-  ctx: ResolvedContext
+  _ctx: ResolvedContext
 ): Promise<string> {
-  const token = await ctx.resolveToken();
-  if (!token || !token.kid) {
-    return `❌ 此功能需要用户登录 TapTap\n请设置 TAPTAP_MCP_MAC_TOKEN 环境变量\n\n降级为文档模式:\n${await leaderboardTools.getLeaderboardOverview()}`;
-  }
+  // Leaderboard score queries are client-side only (via JS SDK)
+  // Server-side APIs don't support score queries
+  // Return documentation instead
 
-  try {
-    // 模拟 API 调用（实际项目中替换为真实 API）
-    const url = args.leaderboardId
-      ? `https://api.taptap.com/leaderboard/${args.leaderboardId}/scores`
-      : 'https://api.taptap.com/leaderboard/user-scores';
+  const leaderboardId = args.leaderboardId || '<leaderboard_open_id>';
+  const limit = args.limit || 10;
 
-    // @ts-ignore - fetch 在 Node.js 18+ 中可用
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `MAC id="${token.kid}"`,
-        'Content-Type': 'application/json'
-      }
-    });
+  return `📊 **排行榜分数查询说明**
 
-    if (!response.ok) {
-      throw new Error(`API 调用失败: ${response.status} ${response.statusText}`);
-    }
+⚠️ **注意**: 排行榜分数查询是客户端 API，需要在游戏代码中调用 JS SDK。
+服务端 API 仅支持排行榜管理（创建、列表、发布）。
 
-    const data = await response.json();
-    return `🏆 用户排行榜数据:\n${JSON.stringify(data, null, 2)}`;
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    return `❌ API 调用失败: ${errorMsg}\n\n降级为文档模式:\n${await leaderboardTools.getLeaderboardOverview()}`;
-  }
+## 客户端查询代码示例
+
+\`\`\`javascript
+// 1. 获取排行榜管理器
+const leaderboardManager = tap.getLeaderboardManager("${leaderboardId}");
+
+// 2. 加载排行榜数据（前 ${limit} 名）
+leaderboardManager.loadLeaderboardScores({
+  start: 0,
+  end: ${limit - 1}
+}).then(result => {
+  console.log('排行榜数据:', result.rankings);
+}).catch(error => {
+  console.error('加载失败:', error);
+});
+
+// 3. 加载当前玩家分数
+leaderboardManager.loadCurrentPlayerLeaderboardScore()
+  .then(result => {
+    console.log('我的排名:', result.rank);
+    console.log('我的分数:', result.score);
+  });
+
+// 4. 加载以当前玩家为中心的数据
+leaderboardManager.loadPlayerCenteredScores({
+  maxEntries: 5  // 显示前后各2名
+}).then(result => {
+  console.log('周围玩家:', result.rankings);
+});
+\`\`\`
+
+## 相关文档资源
+
+- \`docs://leaderboard/api/load-scores\` - loadLeaderboardScores() 详细文档
+- \`docs://leaderboard/api/load-player-score\` - loadCurrentPlayerLeaderboardScore() 详细文档
+- \`docs://leaderboard/api/load-centered-scores\` - loadPlayerCenteredScores() 详细文档
+
+💡 **提示**: 使用 \`get_leaderboard_integration_guide\` 工具获取完整的排行榜接入指南。`;
 }
