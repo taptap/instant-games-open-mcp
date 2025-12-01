@@ -1,3 +1,14 @@
+## <small>1.6.1 (2025-12-01)</small>
+
+* fix(leaderboard): address code review issues from Copilot ([87af411](https://github.com/taptap/taptap_minigame_open_mcp/commit/87af411))
+* docs: update documentation and config for new features ([970eded](https://github.com/taptap/taptap_minigame_open_mcp/commit/970eded))
+* refactor(app,leaderboard): improve tool descriptions for better Agent guidance ([dbeca69](https://github.com/taptap/taptap_minigame_open_mcp/commit/dbeca69))
+* refactor(h5game): improve path resolution with structured error messages ([7b2a565](https://github.com/taptap/taptap_minigame_open_mcp/commit/7b2a565))
+* chore(ci): add husky commit-msg hook for local validation ([1c913cf](https://github.com/taptap/taptap_minigame_open_mcp/commit/1c913cf))
+* style(core): optimize imports and remove deprecated types ([dbf98dc](https://github.com/taptap/taptap_minigame_open_mcp/commit/dbf98dc))
+
+
+
 ## 1.6.0 (2025-11-24)
 
 * refactor(api): migrate all API functions to accept ResolvedContext ([3a3baa7](https://github.com/taptap/taptap_minigame_open_mcp/commit/3a3baa7))
