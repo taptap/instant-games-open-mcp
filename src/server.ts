@@ -51,6 +51,7 @@ import { appModule } from './features/app/index.js';
 import { leaderboardModule } from './features/leaderboard/index.js';
 import { h5GameModule } from './features/h5Game/index.js';
 import { vibrateModule } from './features/vibrate/index.js';
+import { multiplayerModule } from './features/multiplayer/index.js';
 import type {
   RequestContext,
   SessionContext,
@@ -74,7 +75,8 @@ const allModules: FeatureModule[] = [
   appModule,        // App management (developer/app selection)
   leaderboardModule,// Leaderboard management
   h5GameModule,     // H5 Game management (upload, publish, status)
-  vibrateModule     // Vibrate API documentation and guides
+  vibrateModule,    // Vibrate API documentation and guides
+  multiplayerModule // Multiplayer/OnlineBattle SDK documentation
   // Future: cloudSaveModule, shareModule, etc.
 ];
 
