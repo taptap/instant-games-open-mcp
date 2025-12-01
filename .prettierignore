@@ -1,0 +1,25 @@
+# Build output
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Package files
+package-lock.json
+
+# Generated files
+CHANGELOG.md
+*.min.js
+*.min.css
+
+# Binary files
+bin/
+
+# IDE
+.idea/
+.vscode/
+
+# Other
+coverage/
+*.log

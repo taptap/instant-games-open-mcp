@@ -38,7 +38,10 @@ module.exports = {
     '@typescript-eslint/no-non-null-assertion': 'off',
 
     // 禁止 console（但允许 warn 和 error）
-    'no-console': ['warn', { allow: ['warn', 'error'] }]
+    'no-console': ['warn', { allow: ['warn', 'error'] }],
+
+    // 优先使用 const
+    'prefer-const': 'error'
   },
   ignorePatterns: [
     'dist/',

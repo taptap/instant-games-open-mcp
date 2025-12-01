@@ -17,7 +17,7 @@ concurrency:
 jobs:
   # 代码质量检查
   lint:
-    name: Lint Code
+    name: Lint & Format Check
     runs-on: ubuntu-latest
 
     steps:
@@ -35,6 +35,9 @@ jobs:
 
       - name: Run ESLint
         run: npm run lint
+
+      - name: Check code formatting
+        run: npm run format:check
 
   # 构建检查
   build:
@@ -96,7 +99,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 获取完整历史以检查所有 commits
+          fetch-depth: 0 # 获取完整历史以检查所有 commits
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

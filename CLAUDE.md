@@ -28,26 +28,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `ci:` - CI 配置更新（不触发发布）
 
 - **Commit Message 格式规范**（基于 `.commitlintrc.cjs`）：
+
   ```
   <type>(<scope>): <subject>
-  
+
   <body>
-  
+
   <footer>
   ```
-  
+
   - **Header**（第一行，必填）：
     - 格式：`<type>(<scope>): <subject>`
     - 最大长度：100 字符
     - Type 必须小写
     - Scope 必须小写（可选）
     - Subject：最少 5 字符，最多 100 字符，不以句号结尾
-  
   - **Body**（可选）：
     - 详细描述改动内容
     - 与 header 之间必须有空行
     - 每行不超过 100 字符（由 `body-max-line-length` 强制）
-  
   - **Footer**（可选）：
     - 关联 issue 或注明破坏性变更
     - 与 body 之间必须有空行
@@ -69,6 +68,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - 在 type 后加 `!`：`feat!:` 或 `fix!:`（触发 major 版本升级）
 
 - **完整示例**：
+
 ```
 feat(leaderboard): add score submission API
 
@@ -80,6 +80,7 @@ Closes #123
 ```
 
 **注意事项**：
+
 - ✅ Type 和 Scope 必须小写
 - ✅ Subject 最少 5 字符，不以句号结尾
 - ✅ Body 每行不超过 100 字符
@@ -93,6 +94,7 @@ Closes #123
 - ✅ **PR 合并后自动触发发布**（由 semantic-release 处理）
 
 **工作流程：**
+
 ```
 feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 → CI 检查 → Code Review → Merge PR → 自动发布 → 更新文档
@@ -103,12 +105,13 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 **重要：所有 Git 操作必须保护工作区，防止代码丢失！**
 
 - ✅ **切换分支前必须保存工作区**：
+
   ```bash
   # 方案 1：提交当前更改
   git add .
   git commit -m "wip: save current work"
   git checkout -b new-branch
-  
+
   # 方案 2：暂存当前更改
   git stash push -m "description"
   git checkout -b new-branch
@@ -126,6 +129,7 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 基于 Model Context Protocol (MCP) 的 TapTap Open API MCP 服务器，为 **TapTap Minigame 和 H5 游戏**提供完整的排行榜 API 文档和服务端管理功能。
 
 **核心特性：**
+
 - 🏆 排行榜系统 - 完整的 API 文档和服务端管理
 - 🎮 H5 游戏管理 - 上传、发布、状态查询
 - 🔐 OAuth 2.0 Device Code Flow - 零配置认证（扫码即用）
@@ -135,6 +139,7 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 - 🔌 多客户端并发 - 独立会话管理，无限并发
 
 **基本信息：**
+
 - **NPM 包：** `@mikoto_zero/minigame-open-mcp`
 - **官方 API 文档：** https://developer.taptap.cn/minigameapidoc/
 
@@ -164,6 +169,7 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 **关键设计模式：**
 
 1. **统一格式** - Tools 和 Resources 采用统一对象数组格式
+
 ```typescript
 // Tools 统一格式
 export const myTools: ToolRegistration[] = [
@@ -175,11 +181,13 @@ export const myTools: ToolRegistration[] = [
 ```
 
 2. **模块依赖规则**
+
 - ✅ 业务模块可依赖 `core/` 和 `features/app/`
 - ❌ 业务模块之间不能相互依赖
 - ✅ app 模块只依赖 core，不依赖其他业务模块
 
 3. **私有参数协议**（v1.3.0+）
+
 - 支持 MCP Proxy 模式的多账号认证
 - 对 AI Agent 和业务层完全透明
 - 双模式注入：参数（`_mac_token`）或 Header（`X-TapTap-Mac-Token`）
@@ -193,6 +201,7 @@ export const myTools: ToolRegistration[] = [
 ### 核心设计理念
 
 本项目通过精心设计的工具描述（Tool Description）来引导 AI Agent 的行为，确保：
+
 1. **提前验证前置条件** - 避免因缺少必要信息而导致的操作失败
 2. **优先询问用户选择** - 当有多个选项时，主动询问用户而不是自动决策
 3. **提供清晰的错误指导** - 当操作失败时，明确告知下一步应该做什么
@@ -204,15 +213,16 @@ export const myTools: ToolRegistration[] = [
 对于需要应用上下文的操作（如排行榜管理），工具描述中明确说明：
 
 ```
-**PREREQUISITE: An app MUST be selected first.** 
-Before calling this tool, ALWAYS call get_current_app_info to verify 
-an app is selected. If not, guide user through: 
+**PREREQUISITE: An app MUST be selected first.**
+Before calling this tool, ALWAYS call get_current_app_info to verify
+an app is selected. If not, guide user through:
 1) Call list_developers_and_apps
 2) Show list to user and ASK them to choose
 3) Call select_app with user's choice
 ```
 
 **受益工具：**
+
 - `create_leaderboard` - 创建排行榜前必须选择应用
 - `list_leaderboards` - 查询排行榜前必须选择应用
 - `publish_leaderboard` - 发布排行榜前必须选择应用
@@ -222,12 +232,13 @@ an app is selected. If not, guide user through:
 对于涉及选择的操作，工具描述中强调：
 
 ```
-**CRITICAL: ALWAYS show the full list to the user and explicitly 
-ASK them to choose - DO NOT automatically select without user 
+**CRITICAL: ALWAYS show the full list to the user and explicitly
+ASK them to choose - DO NOT automatically select without user
 confirmation, even if there is only one option.**
 ```
 
 **受益工具：**
+
 - `list_developers_and_apps` - 始终显示完整列表并询问用户选择
 - `select_app` - 仅在用户明确确认后才调用
 - `list_leaderboards` - 有多个排行榜时询问用户选择
@@ -273,6 +284,7 @@ graph TD
 ## 常用命令
 
 ### 开发环境设置
+
 ```bash
 # 安装依赖
 npm install
@@ -300,12 +312,19 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 ```
 
 ### 测试和验证
+
 ```bash
 # 编译检查
 npm run build
 
-# 代码检查
+# 代码检查（ESLint）
 npm run lint
+
+# 代码检查并自动修复
+npm run lint:fix
+
+# 格式检查（Prettier）
+npm run format:check
 
 # 格式化代码
 npm run format
@@ -313,15 +332,15 @@ npm run format
 
 ### 环境变量（常用）
 
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `TAPTAP_MCP_TRANSPORT` | 传输协议（stdio/sse/http） | stdio |
-| `TAPTAP_MCP_PORT` | HTTP/SSE 模式端口 | 3000 |
-| `TAPTAP_MCP_VERBOSE` | 详细日志模式 | false |
-| `TAPTAP_MCP_ENV` | 环境选择（production/rnd） | production |
-| `TAPTAP_MCP_CACHE_DIR` | 缓存根目录 | /tmp/taptap-mcp/cache |
-| `TAPTAP_MCP_TEMP_DIR` | 临时文件根目录 | /tmp/taptap-mcp/temp |
-| `WORKSPACE_ROOT` | 工作空间根路径（推荐设置） | process.cwd() |
+| 变量名                 | 说明                       | 默认值                |
+| ---------------------- | -------------------------- | --------------------- |
+| `TAPTAP_MCP_TRANSPORT` | 传输协议（stdio/sse/http） | stdio                 |
+| `TAPTAP_MCP_PORT`      | HTTP/SSE 模式端口          | 3000                  |
+| `TAPTAP_MCP_VERBOSE`   | 详细日志模式               | false                 |
+| `TAPTAP_MCP_ENV`       | 环境选择（production/rnd） | production            |
+| `TAPTAP_MCP_CACHE_DIR` | 缓存根目录                 | /tmp/taptap-mcp/cache |
+| `TAPTAP_MCP_TEMP_DIR`  | 临时文件根目录             | /tmp/taptap-mcp/temp  |
+| `WORKSPACE_ROOT`       | 工作空间根路径（推荐设置） | process.cwd()         |
 
 **完整环境变量说明：** [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
@@ -340,6 +359,15 @@ npm run format
 - 所有异步函数使用 `async/await` 语法
 - 遵循 ESLint 规则和 Prettier 格式化标准
 - 为所有函数和接口添加 JSDoc 注释
+
+**Lint 工具链**：
+
+- **ESLint**：TypeScript 代码质量检查（`.eslintrc.cjs`）
+- **Prettier**：代码格式化（`.prettierrc`）
+- **lint-staged**：提交时自动检查和修复（`.lintstagedrc`）
+- **Husky**：Git hooks 管理（pre-commit 运行 lint-staged）
+
+**Pre-commit Hook**：提交代码时自动运行 ESLint 和 Prettier，确保代码质量
 
 ### MCP 工具开发
 
@@ -373,11 +401,13 @@ npm run format
 ### 本地缓存（v1.4.1+）
 
 **缓存目录结构：**
+
 - 全局缓存：`/tmp/taptap-mcp/cache/global/app.json`
 - 租户缓存：`/tmp/taptap-mcp/cache/{userId}/{projectId}/app.json`
 - 临时文件：`/tmp/taptap-mcp/temp/{userId}/{projectId}/`
 
 **特性：**
+
 - ✅ 独立于 workspace，支持只读挂载
 - ✅ 租户数据完全隔离
 - ✅ 临时文件自动清理
@@ -435,23 +465,28 @@ const allModules = [..., yourFeatureModule];
 ### 19 个 MCP Tools
 
 **流程指引（1个）**
+
 - `get_leaderboard_integration_guide` - 排行榜完整接入工作流指引
 
 **信息查询（2个）**
+
 - `get_current_app_info` - 获取当前选择的应用信息
 - `check_environment` - 检查环境配置和认证状态
 
 **认证（3个）**
+
 - `start_oauth_authorization` - 开始 OAuth 授权（获取二维码）
 - `complete_oauth_authorization` - 完成 OAuth 授权
 - `clear_auth_data` - 清除认证数据和缓存
 
 **应用管理（3个）**
+
 - `list_developers_and_apps` - 列出所有开发者和应用
 - `select_app` - 选择要使用的应用
 - `create_developer` - 创建新开发者
 
 **排行榜管理（5个）**
+
 - `create_leaderboard` - 创建新排行榜
 - `list_leaderboards` - 列出所有排行榜
 - `publish_leaderboard` - 发布排行榜
@@ -459,17 +494,20 @@ const allModules = [..., yourFeatureModule];
 - `get_app_status` - 获取应用审核状态
 
 **H5 游戏管理（4个）**
+
 - `h5_game_info_gatherer` - 收集 H5 游戏信息（上传前）
 - `h5_game_uploader` - 上传 H5 游戏包
 - `h5_create_app` - 创建新 H5 游戏应用
 - `h5_edit_app` - 编辑 H5 游戏信息
 
 **振动 API 文档（1个）**
+
 - `get_vibrate_integration_guide` - 振动 API 完整文档和接入指引
 
 ### 7 个 MCP Resources
 
 **API 详细文档（6个）**
+
 - `docs://leaderboard/api/get-manager` - tap.getLeaderboardManager()
 - `docs://leaderboard/api/open` - openLeaderboard()
 - `docs://leaderboard/api/submit-scores` - submitScores()
@@ -478,12 +516,13 @@ const allModules = [..., yourFeatureModule];
 - `docs://leaderboard/api/load-centered-scores` - loadPlayerCenteredScores()
 
 **概览文档（1个）**
+
 - `docs://leaderboard/overview` - 所有 API 的完整概览
 
 ## 注意事项
 
 - 所有工具描述使用英文，便于 AI Agent 理解
-- 环境变量名称使用 TAPTAP_MCP_ 前缀
+- 环境变量名称使用 TAPTAP*MCP* 前缀
 - MAC Token 必须是 JSON 字符串格式
 - 请求签名使用两层机制（MAC + X-Tap-Sign）
 - 默认环境为 production，可通过 TAPTAP_MCP_ENV 切换
