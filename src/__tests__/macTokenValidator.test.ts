@@ -6,7 +6,7 @@ import {
   isValidMacToken,
   validateMacToken,
   parseMacToken,
-  isEmptyMacToken
+  isEmptyMacToken,
 } from '../core/utils/macTokenValidator';
 import type { MacToken } from '../core/types';
 
@@ -15,7 +15,7 @@ describe('macTokenValidator', () => {
     kid: 'test-kid-123',
     mac_key: 'test-mac-key-456',
     token_type: 'mac',
-    mac_algorithm: 'hmac-sha-1'
+    mac_algorithm: 'hmac-sha-1',
   };
 
   describe('isValidMacToken', () => {
@@ -36,28 +36,34 @@ describe('macTokenValidator', () => {
     });
 
     test('should return false when kid is missing', () => {
-      expect(isValidMacToken({
-        mac_key: 'test',
-        token_type: 'mac',
-        mac_algorithm: 'hmac-sha-1'
-      })).toBe(false);
+      expect(
+        isValidMacToken({
+          mac_key: 'test',
+          token_type: 'mac',
+          mac_algorithm: 'hmac-sha-1',
+        })
+      ).toBe(false);
     });
 
     test('should return false when mac_key is missing', () => {
-      expect(isValidMacToken({
-        kid: 'test',
-        token_type: 'mac',
-        mac_algorithm: 'hmac-sha-1'
-      })).toBe(false);
+      expect(
+        isValidMacToken({
+          kid: 'test',
+          token_type: 'mac',
+          mac_algorithm: 'hmac-sha-1',
+        })
+      ).toBe(false);
     });
 
     test('should return false when kid is empty string', () => {
-      expect(isValidMacToken({
-        kid: '',
-        mac_key: 'test',
-        token_type: 'mac',
-        mac_algorithm: 'hmac-sha-1'
-      })).toBe(false);
+      expect(
+        isValidMacToken({
+          kid: '',
+          mac_key: 'test',
+          token_type: 'mac',
+          mac_algorithm: 'hmac-sha-1',
+        })
+      ).toBe(false);
     });
   });
 
@@ -67,27 +73,34 @@ describe('macTokenValidator', () => {
     });
 
     test('should throw for null with descriptive error', () => {
-      expect(() => validateMacToken(null, 'test source'))
-        .toThrow('Invalid MAC Token from test source: token is null or undefined');
+      expect(() => validateMacToken(null, 'test source')).toThrow(
+        'Invalid MAC Token from test source: token is null or undefined'
+      );
     });
 
     test('should throw for non-object with descriptive error', () => {
-      expect(() => validateMacToken('invalid', 'test source'))
-        .toThrow('Invalid MAC Token from test source: token must be an object, got string');
+      expect(() => validateMacToken('invalid', 'test source')).toThrow(
+        'Invalid MAC Token from test source: token must be an object, got string'
+      );
     });
 
     test('should throw for empty object with field details', () => {
-      expect(() => validateMacToken({}, 'test source'))
-        .toThrow(/Invalid MAC Token from test source:.*kid.*mac_key.*token_type.*mac_algorithm/);
+      expect(() => validateMacToken({}, 'test source')).toThrow(
+        /Invalid MAC Token from test source:.*kid.*mac_key.*token_type.*mac_algorithm/
+      );
     });
 
     test('should throw when only kid is missing', () => {
-      expect(() => validateMacToken({
-        mac_key: 'test',
-        token_type: 'mac',
-        mac_algorithm: 'hmac-sha-1'
-      }, 'test'))
-        .toThrow(/kid \(string\) is required/);
+      expect(() =>
+        validateMacToken(
+          {
+            mac_key: 'test',
+            token_type: 'mac',
+            mac_algorithm: 'hmac-sha-1',
+          },
+          'test'
+        )
+      ).toThrow(/kid \(string\) is required/);
     });
   });
 
@@ -131,7 +144,7 @@ describe('macTokenValidator', () => {
     test('should parse token with extra fields', () => {
       const tokenWithExtra = {
         ...validToken,
-        extra_field: 'extra_value'
+        extra_field: 'extra_value',
       };
       const jsonStr = JSON.stringify(tokenWithExtra);
       const result = parseMacToken(jsonStr, 'test');
@@ -153,17 +166,21 @@ describe('macTokenValidator', () => {
     });
 
     test('should return true when kid is missing', () => {
-      expect(isEmptyMacToken({
-        mac_key: 'test',
-        token_type: 'mac'
-      })).toBe(true);
+      expect(
+        isEmptyMacToken({
+          mac_key: 'test',
+          token_type: 'mac',
+        })
+      ).toBe(true);
     });
 
     test('should return true when mac_key is missing', () => {
-      expect(isEmptyMacToken({
-        kid: 'test',
-        token_type: 'mac'
-      })).toBe(true);
+      expect(
+        isEmptyMacToken({
+          kid: 'test',
+          token_type: 'mac',
+        })
+      ).toBe(true);
     });
 
     test('should return false for valid token', () => {
@@ -171,10 +188,12 @@ describe('macTokenValidator', () => {
     });
 
     test('should return false for partial but usable token', () => {
-      expect(isEmptyMacToken({
-        kid: 'test',
-        mac_key: 'test'
-      })).toBe(false);
+      expect(
+        isEmptyMacToken({
+          kid: 'test',
+          mac_key: 'test',
+        })
+      ).toBe(false);
     });
   });
 });

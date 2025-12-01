@@ -30,13 +30,18 @@ export function isValidMacToken(token: any): token is MacToken {
  * @param source - Source description for error message (e.g., "environment variable", "OAuth response")
  * @throws Error with detailed message if validation fails
  */
-export function validateMacToken(token: any, source: string = 'unknown'): asserts token is MacToken {
+export function validateMacToken(
+  token: any,
+  source: string = 'unknown'
+): asserts token is MacToken {
   if (!token) {
     throw new Error(`Invalid MAC Token from ${source}: token is null or undefined`);
   }
 
   if (typeof token !== 'object') {
-    throw new Error(`Invalid MAC Token from ${source}: token must be an object, got ${typeof token}`);
+    throw new Error(
+      `Invalid MAC Token from ${source}: token must be an object, got ${typeof token}`
+    );
   }
 
   const errors: string[] = [];
@@ -82,24 +87,28 @@ export function parseMacToken(jsonStr: string, source: string = 'unknown'): MacT
     }
 
     // Invalid format - log warning but don't throw
-    logger.warning(`Invalid MAC Token format from ${source}, will use OAuth flow`, {
-      source,
-      reason: 'validation_failed'
-    }).catch(() => {
-      // Fallback to stderr if logger not initialized
-      process.stderr.write(`⚠️  Invalid MAC Token format from ${source}, will use OAuth flow\n`);
-    });
+    logger
+      .warning(`Invalid MAC Token format from ${source}, will use OAuth flow`, {
+        source,
+        reason: 'validation_failed',
+      })
+      .catch(() => {
+        // Fallback to stderr if logger not initialized
+        process.stderr.write(`⚠️  Invalid MAC Token format from ${source}, will use OAuth flow\n`);
+      });
     return null;
   } catch (error) {
     // JSON parse error - log warning but don't throw
-    logger.warning(`Failed to parse MAC Token from ${source}, will use OAuth flow`, {
-      source,
-      error: String(error),
-      reason: 'parse_error'
-    }).catch(() => {
-      // Fallback to stderr if logger not initialized
-      process.stderr.write(`⚠️  Failed to parse MAC Token from ${source}, will use OAuth flow\n`);
-    });
+    logger
+      .warning(`Failed to parse MAC Token from ${source}, will use OAuth flow`, {
+        source,
+        error: String(error),
+        reason: 'parse_error',
+      })
+      .catch(() => {
+        // Fallback to stderr if logger not initialized
+        process.stderr.write(`⚠️  Failed to parse MAC Token from ${source}, will use OAuth flow\n`);
+      });
     return null;
   }
 }

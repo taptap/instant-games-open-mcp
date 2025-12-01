@@ -10,7 +10,7 @@ import type { Documentation } from '../../core/utils/docHelpers.js';
  * Uses the generic Documentation interface from core
  */
 export const VIBRATE_DOCUMENTATION: Documentation = {
-  title: "TapTap Vibrate API (Minigame & H5)",
+  title: 'TapTap Vibrate API (Minigame & H5)',
   description: `Complete vibrate functionality for TapTap Minigame and H5 Games, including short and long vibration.
 
 ⚠️ IMPORTANT:
@@ -23,20 +23,23 @@ export const VIBRATE_DOCUMENTATION: Documentation = {
 
   categories: {
     short_vibration: {
-      title: "Short Vibration",
-      description: "Trigger a short vibration (15ms) with different intensity levels",
+      title: 'Short Vibration',
+      description: 'Trigger a short vibration (15ms) with different intensity levels',
       apis: [
         {
-          name: "tap.vibrateShort",
-          method: "tap.vibrateShort({ type, success, fail, complete })",
-          description: "Make the device vibrate for a short duration (15ms). Only works on iPhone 7/7 Plus and above, and Android devices. Supports Promise style calls.\n\n**Official Documentation**: https://developer.taptap.cn/minigameapidoc/dev/api/device/vibrate/tap.vibrateShort/",
+          name: 'tap.vibrateShort',
+          method: 'tap.vibrateShort({ type, success, fail, complete })',
+          description:
+            'Make the device vibrate for a short duration (15ms). Only works on iPhone 7/7 Plus and above, and Android devices. Supports Promise style calls.\n\n**Official Documentation**: https://developer.taptap.cn/minigameapidoc/dev/api/device/vibrate/tap.vibrateShort/',
           parameters: {
-            "type": "string (required) - Vibration intensity: 'heavy', 'medium', or 'light'",
-            "success": "function (optional) - Success callback function",
-            "fail": "function (optional) - Failure callback function with error message",
-            "complete": "function (optional) - Complete callback function (called after success or failure)"
+            type: "string (required) - Vibration intensity: 'heavy', 'medium', or 'light'",
+            success: 'function (optional) - Success callback function',
+            fail: 'function (optional) - Failure callback function with error message',
+            complete:
+              'function (optional) - Complete callback function (called after success or failure)',
           },
-          returnValue: "Promise<void> (when using Promise style) or void (when using callback style)",
+          returnValue:
+            'Promise<void> (when using Promise style) or void (when using callback style)',
           example: `// ⚠️ IMPORTANT: 'tap' is a global object, NO imports needed!
 // This works ONLY in TapTap minigame environment
 
@@ -68,25 +71,28 @@ tap.vibrateShort({
 // Example: Different intensity levels
 tap.vibrateShort({ type: 'heavy' });   // Strong vibration
 tap.vibrateShort({ type: 'medium' });  // Medium vibration
-tap.vibrateShort({ type: 'light' });   // Light vibration`
-        }
-      ]
+tap.vibrateShort({ type: 'light' });   // Light vibration`,
+        },
+      ],
     },
 
     long_vibration: {
-      title: "Long Vibration",
-      description: "Trigger a long vibration (400ms)",
+      title: 'Long Vibration',
+      description: 'Trigger a long vibration (400ms)',
       apis: [
         {
-          name: "tap.vibrateLong",
-          method: "tap.vibrateLong({ success, fail, complete })",
-          description: "Make the device vibrate for a long duration (400ms). Only works on iPhone 7/7 Plus and above, and Android devices. Supports Promise style calls.\n\n**Official Documentation**: https://developer.taptap.cn/minigameapidoc/dev/api/device/vibrate/tap.vibrateLong/",
+          name: 'tap.vibrateLong',
+          method: 'tap.vibrateLong({ success, fail, complete })',
+          description:
+            'Make the device vibrate for a long duration (400ms). Only works on iPhone 7/7 Plus and above, and Android devices. Supports Promise style calls.\n\n**Official Documentation**: https://developer.taptap.cn/minigameapidoc/dev/api/device/vibrate/tap.vibrateLong/',
           parameters: {
-            "success": "function (optional) - Success callback function",
-            "fail": "function (optional) - Failure callback function with error message",
-            "complete": "function (optional) - Complete callback function (called after success or failure)"
+            success: 'function (optional) - Success callback function',
+            fail: 'function (optional) - Failure callback function with error message',
+            complete:
+              'function (optional) - Complete callback function (called after success or failure)',
           },
-          returnValue: "Promise<void> (when using Promise style) or void (when using callback style)",
+          returnValue:
+            'Promise<void> (when using Promise style) or void (when using callback style)',
           example: `// ⚠️ IMPORTANT: 'tap' is a global object, NO imports needed!
 // This works ONLY in TapTap minigame environment
 
@@ -112,19 +118,19 @@ tap.vibrateLong({
 });
 
 // Simple usage (Promise style)
-await tap.vibrateLong();`
-        }
-      ]
+await tap.vibrateLong();`,
+        },
+      ],
     },
 
     common_scenarios: {
-      title: "Common Usage Scenarios",
-      description: "Common patterns and best practices for using vibrate APIs",
+      title: 'Common Usage Scenarios',
+      description: 'Common patterns and best practices for using vibrate APIs',
       apis: [
         {
-          name: "Game Feedback Patterns",
-          method: "Various patterns",
-          description: "Common vibration patterns for game feedback",
+          name: 'Game Feedback Patterns',
+          method: 'Various patterns',
+          description: 'Common vibration patterns for game feedback',
           example: `// Pattern 1: Button click feedback
 function onButtonClick() {
   tap.vibrateShort({ type: 'light' });
@@ -154,12 +160,12 @@ function onCombo() {
   } else {
     tap.vibrateShort({ type: 'light' });  // Light vibration for normal combo
   }
-}`
+}`,
         },
         {
-          name: "Error Handling",
-          method: "Error handling patterns",
-          description: "How to handle vibration errors gracefully",
+          name: 'Error Handling',
+          method: 'Error handling patterns',
+          description: 'How to handle vibration errors gracefully',
           example: `// Graceful error handling
 async function triggerVibration(type = 'medium') {
   try {
@@ -180,9 +186,9 @@ async function isVibrationSupported() {
   } catch {
     return false;
   }
-}`
-        }
-      ]
-    }
-  }
+}`,
+        },
+      ],
+    },
+  },
 };

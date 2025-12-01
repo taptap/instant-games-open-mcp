@@ -81,9 +81,9 @@ export interface SessionContext {
  */
 export enum TokenSource {
   NONE = 'none',
-  CONTEXT = 'context',     // From request context (MCP Proxy injection)
-  ENV = 'env',             // From environment variable
-  FILE = 'file'            // From local OAuth token file
+  CONTEXT = 'context', // From request context (MCP Proxy injection)
+  ENV = 'env', // From environment variable
+  FILE = 'file', // From local OAuth token file
 }
 
 /**
@@ -121,10 +121,7 @@ export class ResolvedContext {
   /**
    * 合并私有参数到 context（私有方法）
    */
-  private mergeArgsIntoContext(
-    args: PrivateToolParams,
-    base: RequestContext
-  ): RequestContext {
+  private mergeArgsIntoContext(args: PrivateToolParams, base: RequestContext): RequestContext {
     const result: RequestContext = { ...base };
 
     // === 认证层 ===
@@ -228,7 +225,7 @@ export class ResolvedContext {
       projectPath: this._raw.projectPath,
       developerName: cache?.developer_name,
       appTitle: cache?.app_title,
-      miniappId: cache?.miniapp_id
+      miniappId: cache?.miniapp_id,
     };
   }
 
@@ -260,7 +257,7 @@ export class ResolvedContext {
     if (this._raw.macToken?.kid && this._raw.macToken?.mac_key) {
       return {
         token: this._raw.macToken,
-        source: TokenSource.CONTEXT
+        source: TokenSource.CONTEXT,
       };
     }
 
@@ -297,7 +294,7 @@ export class ResolvedContext {
     const { token, source } = this.resolveTokenWithSource();
     return {
       hasMacToken: !!(token?.kid && token?.mac_key),
-      source
+      source,
     };
   }
 

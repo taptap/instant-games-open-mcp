@@ -12,27 +12,27 @@ import { EnvConfig } from './env.js';
  * RFC 5424 log levels (syslog severity levels)
  */
 export type LogLevel =
-  | 'debug'     // 7 - Debug-level messages
-  | 'info'      // 6 - Informational messages
-  | 'notice'    // 5 - Normal but significant condition
-  | 'warning'   // 4 - Warning conditions
-  | 'error'     // 3 - Error conditions
-  | 'critical'  // 2 - Critical conditions
-  | 'alert'     // 1 - Action must be taken immediately
-  | 'emergency';// 0 - System is unusable
+  | 'debug' // 7 - Debug-level messages
+  | 'info' // 6 - Informational messages
+  | 'notice' // 5 - Normal but significant condition
+  | 'warning' // 4 - Warning conditions
+  | 'error' // 3 - Error conditions
+  | 'critical' // 2 - Critical conditions
+  | 'alert' // 1 - Action must be taken immediately
+  | 'emergency'; // 0 - System is unusable
 
 /**
  * Log level priorities (lower number = higher severity)
  */
 const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
-  'emergency': 0,
-  'alert': 1,
-  'critical': 2,
-  'error': 3,
-  'warning': 4,
-  'notice': 5,
-  'info': 6,
-  'debug': 7,
+  emergency: 0,
+  alert: 1,
+  critical: 2,
+  error: 3,
+  warning: 4,
+  notice: 5,
+  info: 6,
+  debug: 7,
 };
 
 /**
@@ -66,7 +66,7 @@ function sanitizeData(data: any): any {
 
   for (const key in sanitized) {
     const lowerKey = key.toLowerCase();
-    if (sensitiveKeys.some(sk => lowerKey.includes(sk))) {
+    if (sensitiveKeys.some((sk) => lowerKey.includes(sk))) {
       sanitized[key] = '***REDACTED***';
     } else if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
       sanitized[key] = sanitizeData(sanitized[key]);
@@ -123,11 +123,11 @@ export class Logger {
 
   /**
    * Core logging method with smart output
-   * 
+   *
    * Output strategy:
    * - stdio mode: stderr only (MCP standard, client captures stderr)
    * - sse/http mode: stderr + MCP notification (server logs + client updates)
-   * 
+   *
    * Rationale:
    * - In stdio mode, MCP clients monitor stderr automatically
    * - Sending notifications in stdio may cause duplicate messages
@@ -164,10 +164,15 @@ export class Logger {
           params: {
             level,
             logger: loggerName,
-            data: sanitized !== undefined
-              ? { message: `[NOTIFICATION:${this.transport}] ${message}`, timestamp, ...sanitized }
-              : { message: `[NOTIFICATION:${this.transport}] ${message}`, timestamp }
-          }
+            data:
+              sanitized !== undefined
+                ? {
+                    message: `[NOTIFICATION:${this.transport}] ${message}`,
+                    timestamp,
+                    ...sanitized,
+                  }
+                : { message: `[NOTIFICATION:${this.transport}] ${message}`, timestamp },
+          },
         });
       } catch (error) {
         // Silently ignore notification errors to prevent logging loops
@@ -207,9 +212,7 @@ export class Logger {
    * Log error message
    */
   async error(message: string, error?: any, loggerName: string = 'server'): Promise<void> {
-    const data = error instanceof Error
-      ? { error: error.message, stack: error.stack }
-      : { error };
+    const data = error instanceof Error ? { error: error.message, stack: error.stack } : { error };
     await this.log('error', loggerName, message, data);
   }
 
@@ -243,9 +246,10 @@ export class Logger {
     const privateParams: Record<string, any> = {};
     for (const key in args) {
       if (key.startsWith('_')) {
-        privateParams[key] = key === '_mac_token'
-          ? { ...args[key], mac_key: '***REDACTED***' }  // 脱敏 mac_key
-          : args[key];
+        privateParams[key] =
+          key === '_mac_token'
+            ? { ...args[key], mac_key: '***REDACTED***' } // 脱敏 mac_key
+            : args[key];
       }
     }
 
@@ -259,12 +263,10 @@ export class Logger {
     }
 
     // Key info: Tool call (dual output: stderr + MCP notification)
-    await this.log(
-      'info',
-      'tools',
-      `Tool called: ${toolName}`,
-      { tool: toolName, args: sanitizedArgs }
-    );
+    await this.log('info', 'tools', `Tool called: ${toolName}`, {
+      tool: toolName,
+      args: sanitizedArgs,
+    });
 
     // Context: Input details + closing border (stderr only)
     if (this.verbose) {
@@ -283,9 +285,7 @@ export class Logger {
    * Log tool response with output
    */
   async logToolResponse(toolName: string, output: any, success: boolean = true): Promise<void> {
-    const truncatedOutput = typeof output === 'string'
-      ? output.substring(0, 200)
-      : output;
+    const truncatedOutput = typeof output === 'string' ? output.substring(0, 200) : output;
 
     // Context: Opening border (stderr only)
     if (this.verbose) {
@@ -302,9 +302,10 @@ export class Logger {
 
     // Context: Output details + closing border (stderr only)
     if (this.verbose) {
-      const displayOutput = typeof output === 'string'
-        ? output.substring(0, 500) + (output.length > 500 ? '...(truncated)' : '')
-        : formatObject(output);
+      const displayOutput =
+        typeof output === 'string'
+          ? output.substring(0, 500) + (output.length > 500 ? '...(truncated)' : '')
+          : formatObject(output);
 
       process.stderr.write(`📤 Output:\n${displayOutput}\n`);
       process.stderr.write(`${'='.repeat(80)}\n\n`);
@@ -314,7 +315,12 @@ export class Logger {
   /**
    * Log HTTP request
    */
-  async logRequest(method: string, url: string, headers: Record<string, string>, body?: string): Promise<void> {
+  async logRequest(
+    method: string,
+    url: string,
+    headers: Record<string, string>,
+    body?: string
+  ): Promise<void> {
     // Sanitize sensitive headers
     const safeHeaders = { ...headers };
     if (safeHeaders['Authorization']) {
@@ -336,12 +342,12 @@ export class Logger {
     }
 
     // Key info: HTTP request summary (dual output: stderr + MCP notification)
-    await this.log(
-      'debug',
-      'http',
-      `HTTP ${method} ${url}`,
-      { method, url, headers: safeHeaders, body: sanitizedBody }
-    );
+    await this.log('debug', 'http', `HTTP ${method} ${url}`, {
+      method,
+      url,
+      headers: safeHeaders,
+      body: sanitizedBody,
+    });
 
     // Context: Headers + body details (stderr only)
     if (this.verbose) {
@@ -403,7 +409,9 @@ export class Logger {
     // Context: Headers + body details (stderr only)
     if (this.verbose) {
       if (responseHeaders && Object.keys(responseHeaders).length > 0) {
-        process.stderr.write(`📋 Response Headers (${Object.keys(responseHeaders).length} total):\n`);
+        process.stderr.write(
+          `📋 Response Headers (${Object.keys(responseHeaders).length} total):\n`
+        );
         process.stderr.write(`${formatObject(responseHeaders)}\n\n`);
       }
 
@@ -444,12 +452,10 @@ export class Logger {
     }
 
     // Key info: Client connection (dual output: stderr + MCP notification)
-    await this.log(
-      'info',
-      'connection',
-      'Client connected',
-      { sessionId, event: 'client_connected' }
-    );
+    await this.log('info', 'connection', 'Client connected', {
+      sessionId,
+      event: 'client_connected',
+    });
   }
 
   /**
@@ -467,12 +473,10 @@ export class Logger {
     }
 
     // Key info: Client disconnection (dual output: stderr + MCP notification)
-    await this.log(
-      'info',
-      'connection',
-      'Client disconnected',
-      { sessionId, event: 'client_disconnected' }
-    );
+    await this.log('info', 'connection', 'Client disconnected', {
+      sessionId,
+      event: 'client_disconnected',
+    });
   }
 
   /**

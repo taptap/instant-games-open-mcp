@@ -13,11 +13,11 @@ import { readAppCache } from '../../core/utils/cache.js';
  * IMPORTANT: When period_type is not 1 (ALWAYS), period_time is REQUIRED
  */
 export enum PeriodType {
-  UNSPECIFIED = 0,  // 未指定 - 无效值
-  ALWAYS = 1,       // 永久（不重置）
-  DAILY = 2,        // 每天（每天重置）
-  WEEKLY = 3,       // 每周（每周一重置）
-  MONTHLY = 4       // 每月（每月第一天重置）
+  UNSPECIFIED = 0, // 未指定 - 无效值
+  ALWAYS = 1, // 永久（不重置）
+  DAILY = 2, // 每天（每天重置）
+  WEEKLY = 3, // 每周（每周一重置）
+  MONTHLY = 4, // 每月（每月第一天重置）
 }
 
 /**
@@ -25,9 +25,9 @@ export enum PeriodType {
  * WARNING: 0 = UNSPECIFIED (invalid), do NOT use 0!
  */
 export enum ScoreType {
-  UNSPECIFIED = 0,  // 未指定 - 无效值
-  INTEGER = 1,      // 数值型
-  TIME = 2          // 时间型
+  UNSPECIFIED = 0, // 未指定 - 无效值
+  INTEGER = 1, // 数值型
+  TIME = 2, // 时间型
 }
 
 /**
@@ -35,9 +35,9 @@ export enum ScoreType {
  * WARNING: 0 = UNSPECIFIED (invalid), do NOT use 0!
  */
 export enum ScoreOrder {
-  UNSPECIFIED = 0,  // 未指定 - 无效值
-  DESCENDING = 1,   // 降序（数值越大越好）
-  ASCENDING = 2     // 升序（数值越小越好）
+  UNSPECIFIED = 0, // 未指定 - 无效值
+  DESCENDING = 1, // 降序（数值越大越好）
+  ASCENDING = 2, // 升序（数值越小越好）
 }
 
 /**
@@ -45,10 +45,10 @@ export enum ScoreOrder {
  * WARNING: 0 = UNSPECIFIED (invalid), do NOT use 0!
  */
 export enum CalcType {
-  UNSPECIFIED = 0,  // 未指定 - 无效值
-  SUM = 1,          // 累计分
-  BEST = 2,         // 最佳分
-  LATEST = 3        // 最新分
+  UNSPECIFIED = 0, // 未指定 - 无效值
+  SUM = 1, // 累计分
+  BEST = 2, // 最佳分
+  LATEST = 3, // 最新分
 }
 
 /**
@@ -71,8 +71,8 @@ export interface CreateLeaderboardParams {
  * Create leaderboard response
  */
 export interface CreateLeaderboardResponse {
-  id: number;  // 排行榜 ID (实际的数据库 ID)
-  leaderboard_open_id: string;  // 排行榜开放 ID (用于客户端调用)
+  id: number; // 排行榜 ID (实际的数据库 ID)
+  leaderboard_open_id: string; // 排行榜开放 ID (用于客户端调用)
   title: string;
   is_default: boolean;
 }
@@ -94,7 +94,7 @@ export async function createLeaderboard(
     // Default to 08:00:00 if not provided and period_type requires it
     let periodTime = params.period_time;
     if (params.period_type !== PeriodType.ALWAYS && !periodTime) {
-      periodTime = '08:00:00';  // Default: 8 AM reset time
+      periodTime = '08:00:00'; // Default: 8 AM reset time
     }
 
     // Use form-urlencoded format (server prefers this over JSON)
@@ -102,20 +102,20 @@ export async function createLeaderboard(
     // IMPORTANT: Enum values must be >= 1 (0 = UNSPECIFIED/invalid)
     const result = await client.post<CreateLeaderboardResponse>('/open/leaderboard/v1/create', {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: {
         developer_id: params.developer_id,
         app_id: params.app_id,
         title: params.title,
-        period_type: params.period_type,    // number (must be 1-4, not 0)
-        score_type: params.score_type,      // number (must be 1-2, not 0)
-        score_order: params.score_order,    // number (must be 1-2, not 0)
-        calc_type: params.calc_type,        // number (must be 1-3, not 0)
+        period_type: params.period_type, // number (must be 1-4, not 0)
+        score_type: params.score_type, // number (must be 1-2, not 0)
+        score_order: params.score_order, // number (must be 1-2, not 0)
+        calc_type: params.calc_type, // number (must be 1-3, not 0)
         display_limit: params.display_limit,
-        period_time: periodTime,            // Required when period_type != 1
-        score_unit: params.score_unit
-      }
+        period_time: periodTime, // Required when period_type != 1
+        score_unit: params.score_unit,
+      },
     });
 
     return result;
@@ -175,7 +175,7 @@ export async function listLeaderboards(
     const cache = readAppCache(ctx?.projectPath);
     const resolved = {
       developerId: ctx?.developerId ?? cache?.developer_id,
-      appId: ctx?.appId ?? cache?.app_id
+      appId: ctx?.appId ?? cache?.app_id,
     };
     const developerId = params.developer_id ?? resolved.developerId;
     const appId = params.app_id ?? resolved.appId;
@@ -183,10 +183,10 @@ export async function listLeaderboards(
     if (!developerId || !appId) {
       throw new Error(
         'developer_id and app_id are required. ' +
-        'Please either:\n' +
-        '1. Pass them via private parameters (_developer_id, _app_id), or\n' +
-        '2. Use select_app tool to cache them, or\n' +
-        '3. Provide them explicitly in the arguments'
+          'Please either:\n' +
+          '1. Pass them via private parameters (_developer_id, _app_id), or\n' +
+          '2. Use select_app tool to cache them, or\n' +
+          '3. Provide them explicitly in the arguments'
       );
     }
 
@@ -195,8 +195,8 @@ export async function listLeaderboards(
         developer_id: developerId.toString(),
         app_id: appId.toString(),
         page: (params.page || 1).toString(),
-        page_size: (params.page_size || 10).toString()
-      }
+        page_size: (params.page_size || 10).toString(),
+      },
     });
 
     return response;
@@ -214,8 +214,8 @@ export async function listLeaderboards(
 export interface PublishLeaderboardParams {
   developer_id?: number;
   app_id?: number;
-  id: number;  // leaderboard_id
-  whitelist_only: boolean;  // false = 发布上线, true = 仅白名单可见
+  id: number; // leaderboard_id
+  whitelist_only: boolean; // false = 发布上线, true = 仅白名单可见
 }
 
 /**
@@ -244,7 +244,7 @@ export async function publishLeaderboard(
     const cache = readAppCache(ctx?.projectPath);
     const resolved = {
       developerId: ctx?.developerId ?? cache?.developer_id,
-      appId: ctx?.appId ?? cache?.app_id
+      appId: ctx?.appId ?? cache?.app_id,
     };
     const developerId = params.developer_id ?? resolved.developerId;
     const appId = params.app_id ?? resolved.appId;
@@ -252,24 +252,27 @@ export async function publishLeaderboard(
     if (!developerId || !appId) {
       throw new Error(
         'developer_id and app_id are required. ' +
-        'Please either:\n' +
-        '1. Pass them via private parameters (_developer_id, _app_id), or\n' +
-        '2. Use select_app tool to cache them, or\n' +
-        '3. Provide them explicitly in the arguments'
+          'Please either:\n' +
+          '1. Pass them via private parameters (_developer_id, _app_id), or\n' +
+          '2. Use select_app tool to cache them, or\n' +
+          '3. Provide them explicitly in the arguments'
       );
     }
 
-    const response = await client.post<PublishLeaderboardResponse>('/open/leaderboard/v1/set-whitelist-only', {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: {
-        developer_id: developerId,
-        app_id: appId,
-        id: params.id,
-        whitelist_only: params.whitelist_only
+    const response = await client.post<PublishLeaderboardResponse>(
+      '/open/leaderboard/v1/set-whitelist-only',
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {
+          developer_id: developerId,
+          app_id: appId,
+          id: params.id,
+          whitelist_only: params.whitelist_only,
+        },
       }
-    });
+    );
 
     return response;
   } catch (error) {
@@ -288,19 +291,19 @@ export const EnumDescriptions = {
     [PeriodType.ALWAYS]: 'Always/永久 (never resets)',
     [PeriodType.DAILY]: 'Daily/每天 (resets every day)',
     [PeriodType.WEEKLY]: 'Weekly/每周 (resets every week)',
-    [PeriodType.MONTHLY]: 'Monthly/每月 (resets every month)'
+    [PeriodType.MONTHLY]: 'Monthly/每月 (resets every month)',
   },
   ScoreType: {
     [ScoreType.INTEGER]: 'Integer/数值型',
-    [ScoreType.TIME]: 'Time/时间型'
+    [ScoreType.TIME]: 'Time/时间型',
   },
   ScoreOrder: {
     [ScoreOrder.DESCENDING]: 'Descending/降序 (higher is better)',
-    [ScoreOrder.ASCENDING]: 'Ascending/升序 (lower is better)'
+    [ScoreOrder.ASCENDING]: 'Ascending/升序 (lower is better)',
   },
   CalcType: {
     [CalcType.SUM]: 'Sum/累计分 (add all scores)',
     [CalcType.BEST]: 'Best/最佳分 (keep best score)',
-    [CalcType.LATEST]: 'Latest/最新分 (keep latest score)'
-  }
+    [CalcType.LATEST]: 'Latest/最新分 (keep latest score)',
+  },
 };

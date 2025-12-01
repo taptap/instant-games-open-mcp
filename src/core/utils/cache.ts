@@ -26,7 +26,7 @@ export interface AppCacheInfo {
   developer_name?: string;
   app_id?: number;
   app_title?: string;
-  miniapp_id?: string;  // Minigame/H5 预览 ID，用于构建预览链接
+  miniapp_id?: string; // Minigame/H5 预览 ID，用于构建预览链接
   cached_at?: number;
 }
 
@@ -120,7 +120,7 @@ export function saveAppCache(info: AppCacheInfo, projectPath?: string): void {
     // Add timestamp
     const cacheData: AppCacheInfo = {
       ...info,
-      cached_at: Date.now()
+      cached_at: Date.now(),
     };
 
     // Write to file

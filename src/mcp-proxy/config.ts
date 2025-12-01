@@ -62,10 +62,10 @@ export async function loadConfig(): Promise<ProxyConfig> {
   else {
     throw new Error(
       'No configuration provided. Please use one of:\n' +
-      '1. Command line: node index.js \'{"server":{...}}\'\n' +
-      '2. Stdin: echo \'{"server":{...}}\' | node index.js\n' +
-      '3. Env var: PROXY_CONFIG=\'{"server":{...}}\' node index.js\n\n' +
-      'See config.example.json for configuration format.'
+        '1. Command line: node index.js \'{"server":{...}}\'\n' +
+        '2. Stdin: echo \'{"server":{...}}\' | node index.js\n' +
+        '3. Env var: PROXY_CONFIG=\'{"server":{...}}\' node index.js\n\n' +
+        'See config.example.json for configuration format.'
     );
   }
 
@@ -78,7 +78,7 @@ export async function loadConfig(): Promise<ProxyConfig> {
   } catch (error) {
     throw new Error(
       `Failed to parse configuration JSON: ${error instanceof Error ? error.message : String(error)}\n` +
-      `Received: ${configJson.substring(0, 100)}...`
+        `Received: ${configJson.substring(0, 100)}...`
     );
   }
 

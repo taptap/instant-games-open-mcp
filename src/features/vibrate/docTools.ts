@@ -9,7 +9,7 @@ import {
   searchDocumentation,
   generateOverview,
   generateSearchSuggestions,
-  type ResourceSuggestion
+  type ResourceSuggestion,
 } from '../../core/utils/docHelpers.js';
 
 import { VIBRATE_DOCUMENTATION } from './docs.js';
@@ -43,18 +43,18 @@ const VIBRATE_SUGGESTIONS: ResourceSuggestion[] = [
   {
     keywords: ['short', 'vibrate', 'light', 'medium', 'heavy'],
     uri: 'docs://vibrate/api/vibrate-short',
-    description: '短震动 API - tap.vibrateShort()'
+    description: '短震动 API - tap.vibrateShort()',
   },
   {
     keywords: ['long', 'vibrate', 'duration'],
     uri: 'docs://vibrate/api/vibrate-long',
-    description: '长震动 API - tap.vibrateLong()'
+    description: '长震动 API - tap.vibrateLong()',
   },
   {
     keywords: ['pattern', 'usage', 'example', 'scenario'],
     uri: 'docs://vibrate/patterns',
-    description: '常见使用场景和最佳实践'
-  }
+    description: '常见使用场景和最佳实践',
+  },
 ];
 
 /**
@@ -70,11 +70,7 @@ async function searchVibrateDocs(args: ToolArgs): Promise<string> {
   const results = searchDocumentation(VIBRATE_DOCUMENTATION, query);
 
   if (results.length === 0) {
-    return generateSearchSuggestions(
-      query,
-      VIBRATE_SUGGESTIONS,
-      'docs://vibrate/overview'
-    );
+    return generateSearchSuggestions(query, VIBRATE_SUGGESTIONS, 'docs://vibrate/overview');
   }
 
   return `**📳 Search Results for "${query}"**\n\n` + results.join('\n---\n\n');
@@ -271,8 +267,8 @@ async function triggerVibration(type = 'medium') {
 /**
  * Generate code example for vibrateShort with type parameter recommendation
  */
-async function generateVibrateShortCode(args: { 
-  scenario?: string; 
+async function generateVibrateShortCode(args: {
+  scenario?: string;
   type?: 'heavy' | 'medium' | 'light';
   style?: 'promise' | 'callback';
 }): Promise<string> {
@@ -284,16 +280,32 @@ async function generateVibrateShortCode(args: {
 
   if (scenario) {
     const scenarioLower = scenario.toLowerCase();
-    if (scenarioLower.includes('error') || scenarioLower.includes('失败') || scenarioLower.includes('错误')) {
+    if (
+      scenarioLower.includes('error') ||
+      scenarioLower.includes('失败') ||
+      scenarioLower.includes('错误')
+    ) {
       recommendedType = 'heavy';
       scenarioDescription = '错误反馈场景 - 使用强震动';
-    } else if (scenarioLower.includes('success') || scenarioLower.includes('成功') || scenarioLower.includes('完成')) {
+    } else if (
+      scenarioLower.includes('success') ||
+      scenarioLower.includes('成功') ||
+      scenarioLower.includes('完成')
+    ) {
       recommendedType = 'medium';
       scenarioDescription = '成功反馈场景 - 使用中等震动';
-    } else if (scenarioLower.includes('button') || scenarioLower.includes('按钮') || scenarioLower.includes('点击')) {
+    } else if (
+      scenarioLower.includes('button') ||
+      scenarioLower.includes('按钮') ||
+      scenarioLower.includes('点击')
+    ) {
       recommendedType = 'light';
       scenarioDescription = '按钮点击场景 - 使用轻震动';
-    } else if (scenarioLower.includes('achievement') || scenarioLower.includes('成就') || scenarioLower.includes('重要')) {
+    } else if (
+      scenarioLower.includes('achievement') ||
+      scenarioLower.includes('成就') ||
+      scenarioLower.includes('重要')
+    ) {
       // For important events, recommend vibrateLong instead
       return `# 震动代码生成
 
@@ -331,11 +343,11 @@ tap.vibrateShort({ type: 'heavy' });  // 强震动
   const typeDescriptions = {
     heavy: '强震动 - 适用于错误、警告等需要强烈反馈的场景',
     medium: '中等震动 - 适用于成功、完成等普通重要事件',
-    light: '轻震动 - 适用于按钮点击、普通交互等轻量反馈'
+    light: '轻震动 - 适用于按钮点击、普通交互等轻量反馈',
   };
 
   let codeExample = '';
-  
+
   if (style === 'promise') {
     codeExample = `// ${scenarioDescription || typeDescriptions[recommendedType]}
 
@@ -538,7 +550,7 @@ export const vibrateTools = {
   getVibratePatterns,
   getQuickStartGuide,
   getIntegrationWorkflow,
-  
+
   // Code generation
-  generateVibrateShortCode
+  generateVibrateShortCode,
 };

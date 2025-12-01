@@ -16,17 +16,17 @@ export const leaderboardModule: FeatureModule = {
   name: 'leaderboard',
 
   // All Tools with their handlers (unified format)
-  tools: leaderboardTools.map(tool => ({
+  tools: leaderboardTools.map((tool) => ({
     definition: tool.definition,
     handler: tool.handler,
     requiresAuth: [
       'create_leaderboard',
       'list_leaderboards',
       'publish_leaderboard',
-      'get_user_leaderboard_scores'
-    ].includes(tool.definition.name)
+      'get_user_leaderboard_scores',
+    ].includes(tool.definition.name),
   })),
 
   // All Resources with their handlers (unified format)
-  resources: leaderboardResources
+  resources: leaderboardResources,
 };

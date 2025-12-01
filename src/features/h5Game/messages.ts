@@ -87,10 +87,10 @@ export const MESSAGES = {
       reviewStatus === 0
         ? '未发布'
         : reviewStatus === 1
-        ? '审核中'
-        : reviewStatus === 2
-        ? '审核失败'
-        : '已上线'
+          ? '审核中'
+          : reviewStatus === 2
+            ? '审核失败'
+            : '已上线'
     }`,
 
   // 开发者身份和游戏选择相关
@@ -107,7 +107,8 @@ export const MESSAGES = {
       }
     }
 
-    const prefix = appCount > 0 ? '请用户输入需要使用的游戏 ID: \n' : '请用户输入需要使用的开发者身份：\n';
+    const prefix =
+      appCount > 0 ? '请用户输入需要使用的游戏 ID: \n' : '请用户输入需要使用的开发者身份：\n';
     msg = prefix + msg;
     msg += `无须给用户展示开发者身份的 ID, 请直接展示开发者身份的名称\n`;
     msg += `如果用户输入了一个游戏或者开发者身份，则请再次调用 h5_game_info_gatherer 工具收集游戏信息\n`;
@@ -144,7 +145,12 @@ export const MESSAGES = {
   CREATE_GAME_PROGRESS: (devid: number, appId?: number) =>
     `创建游戏，开发者身份 ID: ${devid}, 游戏 ID: ${appId}`,
 
-  CREATE_GAME_SUCCESS: (devid: number, appId: number, appTitle?: string, displayAppTitle?: string) =>
+  CREATE_GAME_SUCCESS: (
+    devid: number,
+    appId: number,
+    appTitle?: string,
+    displayAppTitle?: string
+  ) =>
     `创建游戏成功，开发者身份 ID: ${devid}, 游戏 ID: ${appId}, 游戏名称：${appTitle},
         由于您当前的游戏快速上架流程，上线后将会以【${displayAppTitle ?? ''}】的关卡形式进行分发
         请 AI 继续调用 h5_game_info_gatherer 工具收集游戏信息`,

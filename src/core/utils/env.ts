@@ -41,14 +41,14 @@ const ENVIRONMENT_ENDPOINTS: Record<string, EnvironmentEndpoints> = {
     apiHost: 'agent.tapapis.cn',
     apiBaseUrl: 'https://agent.tapapis.cn',
     authHost: 'accounts.tapapis.cn',
-    qrcodeBaseUrl: 'https://www.taptap.cn/tap-qrcode?scene=mcp_auth&code='
+    qrcodeBaseUrl: 'https://www.taptap.cn/tap-qrcode?scene=mcp_auth&code=',
   },
   rnd: {
     apiHost: 'agent.api.xdrnd.cn',
     apiBaseUrl: 'https://agent.api.xdrnd.cn',
     authHost: 'oauth.api.xdrnd.cn',
-    qrcodeBaseUrl: 'https://www-beta.xdrnd.cn/tap-qrcode?scene=mcp_auth&code='
-  }
+    qrcodeBaseUrl: 'https://www-beta.xdrnd.cn/tap-qrcode?scene=mcp_auth&code=',
+  },
 };
 
 // ============================================================================
@@ -95,9 +95,9 @@ export class EnvConfig {
     return env === 'rnd' ? 'rnd' : 'production';
   }
 
-  /** 
+  /**
    * 环境端点配置（API 和 OAuth 端点）
-   * 
+   *
    * @example
    * const apiUrl = EnvConfig.endpoints.apiBaseUrl;
    * const authHost = EnvConfig.endpoints.authHost;
@@ -108,7 +108,7 @@ export class EnvConfig {
 
   /**
    * 获取指定环境的端点配置
-   * 
+   *
    * @param environment - 环境名称（不传则使用当前环境）
    */
   static getEndpoints(environment?: string): EnvironmentEndpoints {
@@ -216,7 +216,7 @@ const deprecationWarned = new Set<string>();
 export function getEnv(newKey: string): string | undefined;
 export function getEnv(newKey: string, defaultValue: string): string;
 export function getEnv(newKey: string, defaultValue?: string): string | undefined {
-  const mapping = ENV_MAPPINGS.find(m => m.new === newKey);
+  const mapping = ENV_MAPPINGS.find((m) => m.new === newKey);
 
   if (!mapping) {
     // 非映射变量，直接返回
@@ -234,7 +234,9 @@ export function getEnv(newKey: string, defaultValue?: string): string | undefine
   // 回退到旧变量（带废弃警告）
   if (oldValue !== undefined) {
     if (!deprecationWarned.has(mapping.old)) {
-      console.error(`[DEPRECATED] Environment variable "${mapping.old}" is deprecated. Please use "${mapping.new}" instead.`);
+      console.error(
+        `[DEPRECATED] Environment variable "${mapping.old}" is deprecated. Please use "${mapping.new}" instead.`
+      );
       deprecationWarned.add(mapping.old);
     }
     return oldValue;
@@ -294,7 +296,7 @@ export function printDeprecationWarnings(): void {
     console.error('');
 
     for (const oldKey of deprecated) {
-      const mapping = ENV_MAPPINGS.find(m => m.old === oldKey);
+      const mapping = ENV_MAPPINGS.find((m) => m.old === oldKey);
       if (mapping) {
         console.error(`  ${oldKey} → ${mapping.new}`);
       }

@@ -25,12 +25,7 @@ export interface MacToken {
 // ============================================================================
 // Context Types - 已移至 context.ts
 // ============================================================================
-export type {
-  RequestContext,
-  AppContext,
-  SessionContext,
-  TokenSource
-} from './context.js';
+export type { RequestContext, AppContext, SessionContext, TokenSource } from './context.js';
 export { getTokenSourceLabel } from './context.js';
 
 // 前向声明

@@ -132,11 +132,11 @@ export function extractPrivateParams(args: any): PrivateToolParams {
     _session_id: args?._session_id,
     _developer_id: args?._developer_id,
     _app_id: args?._app_id,
-    _project_id: args?._project_id,      // ✅ 新增
+    _project_id: args?._project_id, // ✅ 新增
     _project_path: args?._project_path,
     _tenant_id: args?._tenant_id,
     _trace_id: args?._trace_id,
-    _request_id: args?._request_id
+    _request_id: args?._request_id,
   };
 }
 
@@ -166,7 +166,7 @@ export function stripPrivateParams(args: any): any {
     _session_id,
     _developer_id,
     _app_id,
-    _project_id,      // ✅ 新增
+    _project_id, // ✅ 新增
     _project_path,
     _tenant_id,
     _trace_id,
@@ -199,7 +199,7 @@ export function hasPrivateParams(args: any): boolean {
     args._session_id ||
     args._developer_id ||
     args._app_id ||
-    args._project_id ||      // ✅ 新增
+    args._project_id || // ✅ 新增
     args._project_path ||
     args._tenant_id ||
     args._trace_id ||
@@ -240,7 +240,8 @@ export function mergePrivateParams(args: any, privateParams: PrivateToolParams):
   if (privateParams._app_id !== undefined) {
     result._app_id = privateParams._app_id;
   }
-  if (privateParams._project_id) {      // ✅ 新增
+  if (privateParams._project_id) {
+    // ✅ 新增
     result._project_id = privateParams._project_id;
   }
   if (privateParams._project_path) {

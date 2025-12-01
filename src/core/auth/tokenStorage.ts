@@ -10,8 +10,8 @@ import type { MacToken } from '../types/index.js';
 
 export interface TokenStorageOptions {
   environment?: string;
-  userId?: string;      // 用户标识（用于隔离存储）
-  projectId?: string;   // 项目标识（可选，用于项目级隔离）
+  userId?: string; // 用户标识（用于隔离存储）
+  projectId?: string; // 项目标识（可选，用于项目级隔离）
 }
 
 /**
@@ -69,12 +69,12 @@ export function loadTokenFromEnv(): MacToken | null {
  */
 export function loadTokenFromFile(filePath?: string): MacToken | null {
   const tokenPath = filePath || getTokenPath();
-  
+
   if (fs.existsSync(tokenPath)) {
     try {
       const content = fs.readFileSync(tokenPath, 'utf8');
       const token = JSON.parse(content) as MacToken;
-      
+
       if (token.kid && token.mac_key) {
         return token;
       }
@@ -95,7 +95,7 @@ export function loadToken(filePath?: string): MacToken | null {
     process.stderr.write('✅ Loaded MAC Token from environment variable\n');
     return envToken;
   }
-  
+
   // 2. Try local file
   const fileToken = loadTokenFromFile(filePath);
   if (fileToken) {
@@ -103,7 +103,7 @@ export function loadToken(filePath?: string): MacToken | null {
     process.stderr.write(`✅ Loaded MAC Token from: ${tokenPath}\n`);
     return fileToken;
   }
-  
+
   return null;
 }
 
@@ -127,14 +127,16 @@ export function saveToken(token: MacToken, options?: TokenStorageOptions): void 
       ...token,
       saved_at: new Date().toISOString(),
       environment,
-      user_id: userId,      // 记录用户标识
-      project_id: projectId // 记录项目标识（如果有）
+      user_id: userId, // 记录用户标识
+      project_id: projectId, // 记录项目标识（如果有）
     };
 
     fs.writeFileSync(tokenPath, JSON.stringify(tokenData, null, 2), 'utf8');
     process.stderr.write(`✅ Token saved to: ${tokenPath}\n`);
   } catch (error) {
-    process.stderr.write(`⚠️  Failed to save token: ${error instanceof Error ? error.message : String(error)}\n`);
+    process.stderr.write(
+      `⚠️  Failed to save token: ${error instanceof Error ? error.message : String(error)}\n`
+    );
   }
 }
 
@@ -152,10 +154,11 @@ export function clearToken(userId?: string, projectId?: string): void {
       fs.unlinkSync(tokenPath);
       process.stderr.write(`✅ Token cleared: ${tokenPath}\n`);
     } catch (error) {
-      process.stderr.write(`⚠️  Failed to clear token: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.stderr.write(
+        `⚠️  Failed to clear token: ${error instanceof Error ? error.message : String(error)}\n`
+      );
     }
   } else {
     process.stderr.write(`ℹ️  No token file found at: ${tokenPath}\n`);
   }
 }
-

@@ -10,7 +10,7 @@ import type { Documentation } from '../../core/utils/docHelpers.js';
  * Uses the generic Documentation interface from core
  */
 export const LEADERBOARD_DOCUMENTATION: Documentation = {
-  title: "TapTap Leaderboard API (Minigame & H5)",
+  title: 'TapTap Leaderboard API (Minigame & H5)',
   description: `Complete leaderboard functionality for TapTap Minigame and H5 Games, including score submission, ranking queries, and leaderboard display.
 
 ⚠️ IMPORTANT:
@@ -20,18 +20,20 @@ export const LEADERBOARD_DOCUMENTATION: Documentation = {
 - All APIs are accessed via: tap.getLeaderboardManager()
 - Works in TapTap Minigame AND H5 game environments (not in regular web browsers)
 - All methods accept a SINGLE object parameter (not multiple parameters)`,
-  apiReference: "https://developer.taptap.cn/minigameapidoc/dev/api/open-api/leaderboard/",
+  apiReference: 'https://developer.taptap.cn/minigameapidoc/dev/api/open-api/leaderboard/',
 
   categories: {
     initialization: {
-      title: "Initialization",
-      description: "Get the LeaderboardManager instance from the global 'tap' object (provided by TapTap runtime)",
+      title: 'Initialization',
+      description:
+        "Get the LeaderboardManager instance from the global 'tap' object (provided by TapTap runtime)",
       apis: [
         {
-          name: "tap.getLeaderboardManager",
-          method: "tap.getLeaderboardManager()",
-          description: "Get the LeaderboardManager instance to access leaderboard functionality. ⚠️ IMPORTANT: 'tap' is a GLOBAL object provided by TapTap runtime, NO imports or installations needed.",
-          returnValue: "LeaderboardManager - The leaderboard manager instance",
+          name: 'tap.getLeaderboardManager',
+          method: 'tap.getLeaderboardManager()',
+          description:
+            "Get the LeaderboardManager instance to access leaderboard functionality. ⚠️ IMPORTANT: 'tap' is a GLOBAL object provided by TapTap runtime, NO imports or installations needed.",
+          returnValue: 'LeaderboardManager - The leaderboard manager instance',
           example: `// ⚠️ IMPORTANT: 'tap' is a global object, NO imports needed!
 // This works ONLY in TapTap minigame environment
 
@@ -44,26 +46,29 @@ leaderboardManager.openLeaderboard({
   leaderboardId: "your_id",
   collection: "public",
   callback: { onSuccess: (res) => {}, onFailure: (code, msg) => {} }
-});`
-        }
-      ]
+});`,
+        },
+      ],
     },
 
     display: {
-      title: "Display Leaderboard",
-      description: "Open and display the leaderboard UI page",
+      title: 'Display Leaderboard',
+      description: 'Open and display the leaderboard UI page',
       apis: [
         {
-          name: "openLeaderboard",
-          method: "leaderboardManager.openLeaderboard({ leaderboardId, collection, callback })",
-          description: "Opens TapTap's leaderboard page, displaying total and friend leaderboards for the specified leaderboard ID",
+          name: 'openLeaderboard',
+          method: 'leaderboardManager.openLeaderboard({ leaderboardId, collection, callback })',
+          description:
+            "Opens TapTap's leaderboard page, displaying total and friend leaderboards for the specified leaderboard ID",
           parameters: {
-            "leaderboardId": "string (required) - Unique identifier for the leaderboard",
-            "collection": "string (optional) - Leaderboard type: 'friends' for friend rankings or 'public' (default) for global rankings",
-            "callback.onSuccess": "function (optional) - Success callback function",
-            "callback.onFailure": "function (optional) - Failure callback with (code, message) parameters"
+            leaderboardId: 'string (required) - Unique identifier for the leaderboard',
+            collection:
+              "string (optional) - Leaderboard type: 'friends' for friend rankings or 'public' (default) for global rankings",
+            'callback.onSuccess': 'function (optional) - Success callback function',
+            'callback.onFailure':
+              'function (optional) - Failure callback with (code, message) parameters',
           },
-          returnValue: "void - Opens native leaderboard UI",
+          returnValue: 'void - Opens native leaderboard UI',
           example: `// Open leaderboard UI
 const leaderboardManager = tap.getLeaderboardManager();
 
@@ -97,27 +102,30 @@ leaderboardManager.openLeaderboard({
       console.error("Failed:", message);
     }
   }
-});`
-        }
-      ]
+});`,
+        },
+      ],
     },
 
     score_submission: {
-      title: "Score Submission",
-      description: "Submit player scores to leaderboards",
+      title: 'Score Submission',
+      description: 'Submit player scores to leaderboards',
       apis: [
         {
-          name: "submitScores",
-          method: "leaderboardManager.submitScores({ scores, callback })",
-          description: "Batch submit user leaderboard scores. Maximum of 5 scores can be submitted at once.",
+          name: 'submitScores',
+          method: 'leaderboardManager.submitScores({ scores, callback })',
+          description:
+            'Batch submit user leaderboard scores. Maximum of 5 scores can be submitted at once.',
           parameters: {
-            "scores": "Array<ScoreEntry> (required) - Array of score entries to submit, maximum 5 entries",
-            "scores[].leaderboardId": "string (required) - Unique identifier for the leaderboard",
-            "scores[].score": "number (required) - Integer score value to submit",
-            "callback.onSuccess": "function (optional) - Success callback function",
-            "callback.onFailure": "function (optional) - Failure callback with (code, message) parameters"
+            scores:
+              'Array<ScoreEntry> (required) - Array of score entries to submit, maximum 5 entries',
+            'scores[].leaderboardId': 'string (required) - Unique identifier for the leaderboard',
+            'scores[].score': 'number (required) - Integer score value to submit',
+            'callback.onSuccess': 'function (optional) - Success callback function',
+            'callback.onFailure':
+              'function (optional) - Failure callback with (code, message) parameters',
           },
-          returnValue: "void - Submission result is returned via callback",
+          returnValue: 'void - Submission result is returned via callback',
           example: `// Submit scores to multiple leaderboards
 const leaderboardManager = tap.getLeaderboardManager();
 
@@ -162,30 +170,36 @@ leaderboardManager.submitScores({
       console.error("Failed to submit score:", message);
     }
   }
-});`
-        }
-      ]
+});`,
+        },
+      ],
     },
 
     score_query: {
-      title: "Score Query",
-      description: "Query leaderboard scores and rankings",
+      title: 'Score Query',
+      description: 'Query leaderboard scores and rankings',
       apis: [
         {
-          name: "loadLeaderboardScores",
-          method: "leaderboardManager.loadLeaderboardScores({ leaderboardId, collection, maxSize, nextPage, periodToken, callback })",
-          description: "Retrieve paginated leaderboard data with support for friend and public rankings",
+          name: 'loadLeaderboardScores',
+          method:
+            'leaderboardManager.loadLeaderboardScores({ leaderboardId, collection, maxSize, nextPage, periodToken, callback })',
+          description:
+            'Retrieve paginated leaderboard data with support for friend and public rankings',
           parameters: {
-            "leaderboardId": "string (required) - Unique identifier for the leaderboard",
-            "collection": "string (optional) - Leaderboard type: 'friends' or 'public' (default)",
-            "maxSize": "number (required) - Limit results between 1-200 entries",
-            "nextPage": "string | undefined (optional) - Token for pagination to get next page, pass undefined for first request",
-            "periodToken": "string | undefined (optional) - Time period identifier for the leaderboard",
-            "callback": "CommonCallback (optional) - Callback object with onSuccess and onFailure",
-            "callback.onSuccess": "function (optional) - Success callback function",
-            "callback.onFailure": "function (optional) - Failure callback with (code, message) parameters"
+            leaderboardId: 'string (required) - Unique identifier for the leaderboard',
+            collection: "string (optional) - Leaderboard type: 'friends' or 'public' (default)",
+            maxSize: 'number (required) - Limit results between 1-200 entries',
+            nextPage:
+              'string | undefined (optional) - Token for pagination to get next page, pass undefined for first request',
+            periodToken:
+              'string | undefined (optional) - Time period identifier for the leaderboard',
+            callback: 'CommonCallback (optional) - Callback object with onSuccess and onFailure',
+            'callback.onSuccess': 'function (optional) - Success callback function',
+            'callback.onFailure':
+              'function (optional) - Failure callback with (code, message) parameters',
           },
-          returnValue: "void - Leaderboard data is returned via callback including scores list and pagination details",
+          returnValue:
+            'void - Leaderboard data is returned via callback including scores list and pagination details',
           example: `// Load top scores from a leaderboard
 const leaderboardManager = tap.getLeaderboardManager();
 
@@ -235,18 +249,21 @@ function loadNextPage() {
       }
     }
   });
-}`
+}`,
         },
         {
-          name: "loadCurrentPlayerLeaderboardScore",
-          method: "leaderboardManager.loadCurrentPlayerLeaderboardScore({ leaderboardId, collection, periodToken, callback })",
-          description: "Get the current user's score and ranking position in the specified leaderboard. Requires user to have submitted a score to this leaderboard.",
+          name: 'loadCurrentPlayerLeaderboardScore',
+          method:
+            'leaderboardManager.loadCurrentPlayerLeaderboardScore({ leaderboardId, collection, periodToken, callback })',
+          description:
+            "Get the current user's score and ranking position in the specified leaderboard. Requires user to have submitted a score to this leaderboard.",
           parameters: {
-            "leaderboardId": "string (required) - Unique identifier for the leaderboard",
-            "collection": "string (optional) - Leaderboard type: 'friends' or 'public' (default)",
-            "periodToken": "string (optional) - Time period identifier for the leaderboard",
-            "callback.onSuccess": "function (optional) - Success callback function",
-            "callback.onFailure": "function (optional) - Failure callback with (code, message) parameters"
+            leaderboardId: 'string (required) - Unique identifier for the leaderboard',
+            collection: "string (optional) - Leaderboard type: 'friends' or 'public' (default)",
+            periodToken: 'string (optional) - Time period identifier for the leaderboard',
+            'callback.onSuccess': 'function (optional) - Success callback function',
+            'callback.onFailure':
+              'function (optional) - Failure callback with (code, message) parameters',
           },
           returnValue: "void - Current player's score data is returned via callback",
           example: `// Get current player's ranking
@@ -281,20 +298,23 @@ leaderboardManager.loadCurrentPlayerLeaderboardScore({
       console.error("Failed:", message);
     }
   }
-});`
+});`,
         },
         {
-          name: "loadPlayerCenteredScores",
-          method: "leaderboardManager.loadPlayerCenteredScores({ leaderboardId, collection, maxCount, periodToken, callback })",
-          description: "Retrieve scores for the current user and nearby players on a leaderboard, useful for showing surrounding competitors",
+          name: 'loadPlayerCenteredScores',
+          method:
+            'leaderboardManager.loadPlayerCenteredScores({ leaderboardId, collection, maxCount, periodToken, callback })',
+          description:
+            'Retrieve scores for the current user and nearby players on a leaderboard, useful for showing surrounding competitors',
           parameters: {
-            "leaderboardId": "string (required) - Unique identifier for the leaderboard",
-            "collection": "string (required) - Leaderboard type: 'friends' or 'public'",
-            "maxCount": "number (required) - Limit results between 1-25 players",
-            "periodToken": "string (required) - Time period identifier for the leaderboard",
-            "callback": "CommonCallback (required) - Callback object with onSuccess and onFailure",
-            "callback.onSuccess": "function (optional) - Success callback function",
-            "callback.onFailure": "function (optional) - Failure callback with (code, message) parameters"
+            leaderboardId: 'string (required) - Unique identifier for the leaderboard',
+            collection: "string (required) - Leaderboard type: 'friends' or 'public'",
+            maxCount: 'number (required) - Limit results between 1-25 players',
+            periodToken: 'string (required) - Time period identifier for the leaderboard',
+            callback: 'CommonCallback (required) - Callback object with onSuccess and onFailure',
+            'callback.onSuccess': 'function (optional) - Success callback function',
+            'callback.onFailure':
+              'function (optional) - Failure callback with (code, message) parameters',
           },
           returnValue: "void - Nearby players' scores are returned via callback",
           example: `// Load nearby players' scores
@@ -334,19 +354,19 @@ leaderboardManager.loadPlayerCenteredScores({
       console.error("Failed:", message);
     }
   }
-});`
-        }
-      ]
+});`,
+        },
+      ],
     },
 
     common_scenarios: {
-      title: "Common Implementation Scenarios",
-      description: "Complete examples for typical use cases",
+      title: 'Common Implementation Scenarios',
+      description: 'Complete examples for typical use cases',
       apis: [
         {
-          name: "Complete Game Flow",
-          method: "N/A",
-          description: "Example of integrating leaderboard into a complete game flow",
+          name: 'Complete Game Flow',
+          method: 'N/A',
+          description: 'Example of integrating leaderboard into a complete game flow',
           example: `// Complete leaderboard integration example
 const leaderboardManager = tap.getLeaderboardManager();
 
@@ -425,12 +445,12 @@ async function handleGameEnd(finalScore) {
     await showNearbyPlayers();
   }
 }
-`
+`,
         },
         {
-          name: "Pagination Example",
-          method: "N/A",
-          description: "Example of implementing paginated leaderboard browsing",
+          name: 'Pagination Example',
+          method: 'N/A',
+          description: 'Example of implementing paginated leaderboard browsing',
           example: `// Paginated leaderboard implementation
 class LeaderboardView {
   constructor() {
@@ -497,9 +517,9 @@ class LeaderboardView {
 // Usage
 const leaderboardView = new LeaderboardView();
 leaderboardView.loadPage(0);
-`
-        }
-      ]
-    }
-  }
+`,
+        },
+      ],
+    },
+  },
 };

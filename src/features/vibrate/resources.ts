@@ -13,26 +13,27 @@ const vibrateResourceDefinitions = [
     uri: 'docs://vibrate/overview',
     name: 'Vibrate Complete Overview',
     description: 'Complete overview of all Vibrate APIs',
-    mimeType: 'text/markdown'
+    mimeType: 'text/markdown',
   },
   {
     uri: 'docs://vibrate/api/vibrate-short',
     name: 'tap.vibrateShort() API Documentation',
-    description: 'Complete documentation for tap.vibrateShort() API - short vibration (15ms) with intensity levels',
-    mimeType: 'text/markdown'
+    description:
+      'Complete documentation for tap.vibrateShort() API - short vibration (15ms) with intensity levels',
+    mimeType: 'text/markdown',
   },
   {
     uri: 'docs://vibrate/api/vibrate-long',
     name: 'tap.vibrateLong() API Documentation',
     description: 'Complete documentation for tap.vibrateLong() API - long vibration (400ms)',
-    mimeType: 'text/markdown'
+    mimeType: 'text/markdown',
   },
   {
     uri: 'docs://vibrate/patterns',
     name: 'Vibrate Usage Patterns',
     description: 'Common usage patterns and best practices for vibrate APIs',
-    mimeType: 'text/markdown'
-  }
+    mimeType: 'text/markdown',
+  },
 ];
 
 /**
@@ -49,13 +50,15 @@ const vibrateResourceHandlers = [
   async () => vibrateTools.getVibrateLong(),
 
   // docs://vibrate/patterns
-  async () => vibrateTools.getVibratePatterns()
+  async () => vibrateTools.getVibratePatterns(),
 ];
 
 /**
  * Unified resource registrations
  */
-export const vibrateResources: ResourceRegistration[] = vibrateResourceDefinitions.map((definition, index) => ({
-  ...definition,
-  handler: vibrateResourceHandlers[index]
-}));
+export const vibrateResources: ResourceRegistration[] = vibrateResourceDefinitions.map(
+  (definition, index) => ({
+    ...definition,
+    handler: vibrateResourceHandlers[index],
+  })
+);

@@ -4,12 +4,12 @@
  */
 
 import type { ResolvedContext } from '../../core/types/context.js';
-import { 
-  getAllDevelopersAndApps, 
+import {
+  getAllDevelopersAndApps,
   selectApp as selectAppApi,
   createDeveloper,
   createAppForDeveloper,
-  editAppInfo as editAppInfoApi
+  editAppInfo as editAppInfoApi,
 } from './api.js';
 import { clearAppCache } from '../../core/utils/cache.js';
 import { clearToken, saveToken } from '../../core/auth/tokenStorage.js';
@@ -30,7 +30,7 @@ const MESSAGES = {
   },
   DEVELOPER_ID_NOT_EXISTS: `❌ **找不到开发者身份**\n\n请先使用 \`create_developer\` 创建开发者身份，或使用 \`list_developers_and_apps\` 查看现有身份。`,
   CREATE_DEVELOPER_FAILED: `❌ **创建开发者身份失败**`,
-  CREATE_GAME_SUCCESS: (devId: number, appId: number, name: string, displayName: string) => 
+  CREATE_GAME_SUCCESS: (devId: number, appId: number, name: string, displayName: string) =>
     `✅ **创建应用成功！**\n\n` +
     `应用名称：${name}\n` +
     `显示名称：${displayName}\n` +
@@ -39,7 +39,7 @@ const MESSAGES = {
     `💡 **下一步**：您可以使用 \`select_app\` 选择此应用，然后开始开发功能（如排行榜）。`,
   CREATE_GAME_FAILED: `❌ **创建应用失败**`,
   EDIT_GAME_INFO_CONFIRMATION: `⚠️ **参数缺失**\n\n请提供 developerId 和 appId 以更新应用信息。`,
-  EDIT_GAME_INFO_SUCCESS: `✅ **更新应用信息成功！**`
+  EDIT_GAME_INFO_SUCCESS: `✅ **更新应用信息成功！**`,
 };
 
 /**
@@ -102,18 +102,20 @@ export async function selectApp(
   try {
     const result = await selectAppApi(args.developer_id, args.app_id, ctx.projectPath, ctx);
 
-    let message = `✅ 已选择应用!\n\n` +
-           `📱 应用信息:\n` +
-           `- 开发者: ${result.developer_name} (ID: ${result.developer_id})\n` +
-           `- 应用: ${result.app_title} (ID: ${result.app_id})\n`;
+    let message =
+      `✅ 已选择应用!\n\n` +
+      `📱 应用信息:\n` +
+      `- 开发者: ${result.developer_name} (ID: ${result.developer_id})\n` +
+      `- 应用: ${result.app_title} (ID: ${result.app_id})\n`;
 
     if (result.miniapp_id) {
       message += `- Miniapp ID: ${result.miniapp_id}\n`;
     }
 
-    message += `\n💾 此选择已缓存，后续操作将默认使用此应用。\n\n` +
-               `🎮 下一步:\n` +
-               `您现在可以使用 create_leaderboard 或 list_leaderboards 等工具来管理排行榜了。`;
+    message +=
+      `\n💾 此选择已缓存，后续操作将默认使用此应用。\n\n` +
+      `🎮 下一步:\n` +
+      `您现在可以使用 create_leaderboard 或 list_leaderboards 等工具来管理排行榜了。`;
 
     return message;
   } catch (error) {
@@ -145,7 +147,7 @@ export async function getCurrentAppInfo(ctx: ResolvedContext): Promise<string> {
 
     const cachePath = getCachePath(ctx.projectPath);
 
-    let info = `# 当前应用信息
+    const info = `# 当前应用信息
 
 ## 📱 已选择的应用
 
@@ -186,31 +188,37 @@ export async function startOAuthAuthorization(ctx: ResolvedContext): Promise<str
   const { hasMacToken, source } = ctx.getTokenStatus();
 
   if (hasMacToken) {
-    return '✅ 已经完成授权\n\n' +
-           `当前已有有效的 MAC Token，可以直接使用所有功能。\n\n` +
-           '💡 如需切换账号，请先使用 clear_auth_data 工具清除现有授权。';
+    return (
+      '✅ 已经完成授权\n\n' +
+      `当前已有有效的 MAC Token，可以直接使用所有功能。\n\n` +
+      '💡 如需切换账号，请先使用 clear_auth_data 工具清除现有授权。'
+    );
   }
 
   try {
     const environment = EnvConfig.environment;
     const deviceCodeData = await requestDeviceCode(environment);
     const authUrl = generateAuthUrl(deviceCodeData.qrcode_url, environment);
-    
+
     // 保存状态，供 completion 使用
     oauthState.setPendingState({
       deviceCode: deviceCodeData.device_code,
-      environment
+      environment,
     });
 
-    return '🔐 TapTap 授权登录\n\n' +
-           '请按以下步骤完成授权：\n\n' +
-           `1️⃣ 打开授权链接：\n   ${authUrl}\n\n` +
-           '2️⃣ 使用 TapTap App 扫描二维码\n\n' +
-           '3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n' +
-           '💡 提示：授权链接有效期为 2 分钟，过期后需要重新获取';
+    return (
+      '🔐 TapTap 授权登录\n\n' +
+      '请按以下步骤完成授权：\n\n' +
+      `1️⃣ 打开授权链接：\n   ${authUrl}\n\n` +
+      '2️⃣ 使用 TapTap App 扫描二维码\n\n' +
+      '3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n' +
+      '💡 提示：授权链接有效期为 2 分钟，过期后需要重新获取'
+    );
   } catch (error) {
-    return `❌ 获取授权链接失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
-           '请稍后重试或联系技术支持。';
+    return (
+      `❌ 获取授权链接失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
+      '请稍后重试或联系技术支持。'
+    );
   }
 }
 
@@ -224,8 +232,7 @@ export async function completeOAuthAuthorization(
   const pendingState = oauthState.getPendingState();
 
   if (!pendingState) {
-    return '❌ 未找到待完成的授权\n\n' +
-           '请先使用 start_oauth_authorization 工具获取授权链接。';
+    return '❌ 未找到待完成的授权\n\n' + '请先使用 start_oauth_authorization 工具获取授权链接。';
   }
 
   try {
@@ -239,7 +246,7 @@ export async function completeOAuthAuthorization(
     saveToken(macToken, {
       environment: pendingState.environment,
       userId,
-      projectId
+      projectId,
     });
 
     // ✅ 不再设置全局 token，已通过用户隔离的文件存储
@@ -248,16 +255,20 @@ export async function completeOAuthAuthorization(
     oauthState.clearPendingState();
 
     // ✅ 对 AI Agent 返回简洁的成功消息（技术细节对 AI 透明）
-    return '✅ 授权完成！\n\n' +
-           'Token 已成功保存，现在可以使用所有需要认证的功能了。\n\n' +
-           '请重新执行之前失败的操作。';
+    return (
+      '✅ 授权完成！\n\n' +
+      'Token 已成功保存，现在可以使用所有需要认证的功能了。\n\n' +
+      '请重新执行之前失败的操作。'
+    );
   } catch (error) {
-    return `❌ 授权失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
-           '请确认：\n' +
-           '1. 已在浏览器中打开授权链接\n' +
-           '2. 已使用 TapTap App 扫码授权\n' +
-           '3. 授权页面显示成功\n\n' +
-           '如果仍然失败，请使用 start_oauth_authorization 工具获取新的授权链接。';
+    return (
+      `❌ 授权失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
+      '请确认：\n' +
+      '1. 已在浏览器中打开授权链接\n' +
+      '2. 已使用 TapTap App 扫码授权\n' +
+      '3. 授权页面显示成功\n\n' +
+      '如果仍然失败，请使用 start_oauth_authorization 工具获取新的授权链接。'
+    );
   }
 }
 
@@ -288,7 +299,9 @@ export async function clearAuthData(
 
       clearedItems.push('✅ OAuth Token 文件已清除');
     } catch (error) {
-      clearedItems.push(`⚠️ OAuth Token 清除失败: ${error instanceof Error ? error.message : String(error)}`);
+      clearedItems.push(
+        `⚠️ OAuth Token 清除失败: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -298,7 +311,9 @@ export async function clearAuthData(
       clearAppCache(ctx.projectPath);
       clearedItems.push('✅ 应用选择缓存已清除');
     } catch (error) {
-      clearedItems.push(`⚠️ 缓存清除失败: ${error instanceof Error ? error.message : String(error)}`);
+      clearedItems.push(
+        `⚠️ 缓存清除失败: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -324,11 +339,11 @@ export async function checkEnvironment(ctx: ResolvedContext): Promise<string> {
 
   // Build environment info object
   const envInfo = {
-    'TAPTAP_MCP_MAC_TOKEN': macTokenStatus,
-    'TAPTAP_MCP_CLIENT_ID': EnvConfig.clientId ? '✅ 已配置' : '❌ 未配置',
-    'TAPTAP_MCP_CLIENT_SECRET': EnvConfig.clientSecret ? '✅ 已配置' : '❌ 未配置',
-    'TAPTAP_MCP_ENV': `${EnvConfig.environment} (${EnvConfig.endpoints.apiBaseUrl})`,
-    'TAPTAP_PROJECT_PATH': ctx.projectPath ? '✅ 已配置' : '❌ 未配置 (可选)'
+    TAPTAP_MCP_MAC_TOKEN: macTokenStatus,
+    TAPTAP_MCP_CLIENT_ID: EnvConfig.clientId ? '✅ 已配置' : '❌ 未配置',
+    TAPTAP_MCP_CLIENT_SECRET: EnvConfig.clientSecret ? '✅ 已配置' : '❌ 未配置',
+    TAPTAP_MCP_ENV: `${EnvConfig.environment} (${EnvConfig.endpoints.apiBaseUrl})`,
+    TAPTAP_PROJECT_PATH: ctx.projectPath ? '✅ 已配置' : '❌ 未配置 (可选)',
   };
 
   const envResult = Object.entries(envInfo)
@@ -339,10 +354,11 @@ export async function checkEnvironment(ctx: ResolvedContext): Promise<string> {
   if (hasMacToken) {
     statusMessage = '\n✅ 认证配置完整，可以使用所有功能';
   } else {
-    statusMessage = '\n⚠️  MAC Token 未配置\n' +
-                   '   📖 文档功能可用（Resources, Prompts, 搜索等）\n' +
-                   '   🔐 管理功能需要授权（创建排行榜、列表等）\n\n' +
-                   '💡 如需授权，请使用 start_oauth_authorization 工具获取授权链接';
+    statusMessage =
+      '\n⚠️  MAC Token 未配置\n' +
+      '   📖 文档功能可用（Resources, Prompts, 搜索等）\n' +
+      '   🔐 管理功能需要授权（创建排行榜、列表等）\n\n' +
+      '💡 如需授权，请使用 start_oauth_authorization 工具获取授权链接';
   }
 
   return `🔧 环境配置检查结果:\n\n${envResult}${statusMessage}`;
@@ -423,7 +439,7 @@ export async function updateAppInfo(
   await editAppInfoApi(
     args.appId,
     args.developerId,
-    undefined,                // package_id
+    undefined, // package_id
     args.appName,
     args.genre,
     args.description,

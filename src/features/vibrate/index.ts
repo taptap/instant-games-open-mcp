@@ -21,13 +21,13 @@ export const vibrateModule: FeatureModule = {
 
   // Tools with explicit "DO NOT search the web" instructions
   // AI should call these tools instead of searching the internet
-  tools: vibrateTools.map(tool => ({
+  tools: vibrateTools.map((tool) => ({
     definition: tool.definition,
     handler: tool.handler,
-    requiresAuth: false  // Vibrate tools don't require authentication
+    requiresAuth: false, // Vibrate tools don't require authentication
   })),
 
   // Resources with their handlers (unified format)
   // Enhanced descriptions help AI discover and prioritize these resources
-  resources: vibrateResources
+  resources: vibrateResources,
 };

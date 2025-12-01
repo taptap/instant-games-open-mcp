@@ -13,7 +13,7 @@ import type { ResolvedContext } from '../../core/types/context.js';
 export interface CraftItem {
   app_id: number;
   app_title: string;
-  miniapp_id?: string;  // Minigame/H5 预览 ID
+  miniapp_id?: string; // Minigame/H5 预览 ID
   category?: string;
   is_published?: boolean;
 }
@@ -24,7 +24,7 @@ export interface CraftItem {
 export interface DeveloperCraftList {
   developer_id: number;
   developer_name: string;
-  levels: CraftItem[];  // API returns 'levels' not 'crafts'
+  levels: CraftItem[]; // API returns 'levels' not 'crafts'
   crafts?: CraftItem[]; // Keep for backward compatibility
 }
 
@@ -73,7 +73,10 @@ export async function getAppInfo(
 
     // Count total developers and apps
     const totalDevelopers = response.list.length;
-    const totalApps = response.list.reduce((sum, dev) => sum + (dev.levels?.length || dev.crafts?.length || 0), 0);
+    const totalApps = response.list.reduce(
+      (sum, dev) => sum + (dev.levels?.length || dev.crafts?.length || 0),
+      0
+    );
 
     // If multiple options exist and autoSelect is false, throw error for AI to decide
     if (!autoSelect && (totalDevelopers > 1 || totalApps > 1)) {
@@ -100,7 +103,7 @@ export async function getAppInfo(
       developer_name: firstDeveloper.developer_name,
       app_id: firstApp.app_id,
       app_title: firstApp.app_title,
-      miniapp_id: firstApp.miniapp_id
+      miniapp_id: firstApp.miniapp_id,
     };
 
     // Save to cache
@@ -174,14 +177,14 @@ export async function selectApp(
     }
 
     // Find the selected developer and app
-    const developer = response.list.find(dev => dev.developer_id === developerId);
+    const developer = response.list.find((dev) => dev.developer_id === developerId);
     if (!developer) {
       throw new Error(`Developer with ID ${developerId} not found`);
     }
 
     // Support both 'levels' (actual API response) and 'crafts' (backward compatibility)
     const apps = developer.levels || developer.crafts || [];
-    const app = apps.find(craft => craft.app_id === appId);
+    const app = apps.find((craft) => craft.app_id === appId);
     if (!app) {
       throw new Error(`App with ID ${appId} not found for developer ${developer.developer_name}`);
     }
@@ -191,7 +194,7 @@ export async function selectApp(
       developer_name: developer.developer_name,
       app_id: app.app_id,
       app_title: app.app_title,
-      miniapp_id: app.miniapp_id
+      miniapp_id: app.miniapp_id,
     };
 
     // Save to cache
@@ -211,9 +214,7 @@ export async function selectApp(
  * @param ctx - Optional resolved context
  * @returns List of all developers and their apps
  */
-export async function getAllDevelopersAndApps(
-  ctx?: ResolvedContext
-): Promise<LevelListResponse> {
+export async function getAllDevelopersAndApps(ctx?: ResolvedContext): Promise<LevelListResponse> {
   const client = new HttpClient(ctx);
 
   try {
@@ -320,7 +321,10 @@ export interface AppStatusResponse {
 /**
  * Get app review status
  */
-export async function getAppStatus(app_id: number, ctx?: ResolvedContext): Promise<AppStatusResponse> {
+export async function getAppStatus(
+  app_id: number,
+  ctx?: ResolvedContext
+): Promise<AppStatusResponse> {
   const client = new HttpClient(ctx);
   return await client.get<AppStatusResponse>('/level/v1/status', {
     params: {

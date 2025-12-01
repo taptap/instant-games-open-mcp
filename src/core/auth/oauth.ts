@@ -27,47 +27,49 @@ export interface PollOptions {
 /**
  * 请求 device code
  */
-export async function requestDeviceCode(environment: string = 'production'): Promise<DeviceCodeData> {
+export async function requestDeviceCode(
+  environment: string = 'production'
+): Promise<DeviceCodeData> {
   const endpoints = EnvConfig.getEndpoints(environment);
   const clientId = EnvConfig.clientId;
-  
+
   if (!clientId) {
     throw new Error(
       '❌ 未配置 Client ID\n\n' +
-      '请设置环境变量：TAPTAP_MCP_CLIENT_ID\n\n' +
-      '获取方式：\n' +
-      '1. 登录 TapTap 开放平台: https://developer.taptap.cn\n' +
-      '2. 创建或选择应用\n' +
-      '3. 在「开发者中心 - 应用配置」中获取 Client ID'
+        '请设置环境变量：TAPTAP_MCP_CLIENT_ID\n\n' +
+        '获取方式：\n' +
+        '1. 登录 TapTap 开放平台: https://developer.taptap.cn\n' +
+        '2. 创建或选择应用\n' +
+        '3. 在「开发者中心 - 应用配置」中获取 Client ID'
     );
   }
-  
+
   const url = `https://${endpoints.authHost}/oauth2/v1/device/code`;
-  
+
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: 'device_code',
-    scope: 'public_profile'
+    scope: 'public_profile',
   });
-  
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: params
+    body: params,
   });
-  
+
   if (!response.ok) {
     throw new Error(`Failed to get device code: ${response.status} ${response.statusText}`);
   }
-  
-  const json = await response.json() as any;
-  
+
+  const json = (await response.json()) as any;
+
   if (json.success === true && json.data) {
     return json.data as DeviceCodeData;
   }
-  
+
   throw new Error(`Failed to get device code: ${json.data?.msg || 'Unknown error'}`);
 }
 
@@ -89,52 +91,52 @@ export async function pollForToken(
 ): Promise<MacToken> {
   const endpoints = EnvConfig.getEndpoints(environment);
   const clientId = EnvConfig.clientId;
-  
+
   if (!clientId) {
     throw new Error('❌ 未配置 Client ID，请设置环境变量：TAPTAP_MCP_CLIENT_ID');
   }
-  
+
   const url = `https://${endpoints.authHost}/oauth2/v1/token`;
   const maxAttempts = options?.maxAttempts || 60;
   const intervalMs = options?.intervalMs || 2000;
-  
+
   let attempts = 0;
-  
+
   while (attempts < maxAttempts) {
     attempts++;
-    await new Promise(resolve => setTimeout(resolve, intervalMs));
-    
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+
     const params = new URLSearchParams({
       grant_type: 'device_token',
       client_id: clientId,
       secret_type: 'hmac-sha-1',
-      code: deviceCode
+      code: deviceCode,
     });
-    
+
     try {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: params
+        body: params,
       });
-      
-      const json = await response.json() as any;
-      
+
+      const json = (await response.json()) as any;
+
       // 成功获取 token
       if (json.success === true && json.data) {
         return {
           kid: json.data.kid,
           mac_key: json.data.mac_key,
           token_type: json.data.token_type || 'mac',
-          mac_algorithm: json.data.mac_algorithm || 'hmac-sha-1'
+          mac_algorithm: json.data.mac_algorithm || 'hmac-sha-1',
         } as MacToken;
       }
-      
+
       // 检查错误类型
       const error = json.data?.error;
-      
+
       if (error === 'authorization_pending' || error === 'authorization_waiting') {
         // 继续等待
         if (attempts % 5 === 0) {
@@ -143,16 +145,16 @@ export async function pollForToken(
         }
         continue;
       }
-      
+
       // 其他错误
       if (error === 'expired_token') {
         throw new Error('❌ 授权码已过期，请重新获取授权链接');
       }
-      
+
       if (error === 'access_denied') {
         throw new Error('❌ 用户拒绝授权');
       }
-      
+
       throw new Error(`❌ 授权失败: ${json.data?.error_description || error || 'Unknown error'}`);
     } catch (error) {
       if (error instanceof Error && error.message.includes('❌')) {
@@ -162,7 +164,6 @@ export async function pollForToken(
       continue;
     }
   }
-  
+
   throw new Error('⏰ 授权超时（2分钟），请重新获取授权链接');
 }
-

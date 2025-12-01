@@ -46,7 +46,9 @@ export class ApiConfig {
 
     // Client Secret is required for API signing (keep it secret!)
     if (!clientSecret) {
-      process.stderr.write('❌ Missing required environment variable: TAPTAP_MCP_CLIENT_SECRET\n\n');
+      process.stderr.write(
+        '❌ Missing required environment variable: TAPTAP_MCP_CLIENT_SECRET\n\n'
+      );
       process.stderr.write('This is the API request signing key (keep it secret!).\n');
       process.stderr.write('Please set it before starting the server:\n\n');
       process.stderr.write('  export TAPTAP_MCP_CLIENT_SECRET="your_signing_key"\n\n');
@@ -56,7 +58,9 @@ export class ApiConfig {
 
     // Validate Client Secret format (basic check)
     if (clientSecret.trim().length === 0) {
-      process.stderr.write('❌ Invalid TAPTAP_MCP_CLIENT_SECRET: cannot be empty or whitespace\n\n');
+      process.stderr.write(
+        '❌ Invalid TAPTAP_MCP_CLIENT_SECRET: cannot be empty or whitespace\n\n'
+      );
       process.exit(1);
     }
 
@@ -128,11 +132,7 @@ export class HttpClient {
   /**
    * Generic request method with MAC authentication and signature
    */
-  private async request<T>(
-    method: string,
-    path: string,
-    options: RequestOptions = {}
-  ): Promise<T> {
+  private async request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
     // 直接从 EnvConfig 获取配置（不再通过 ApiConfig）
     const apiBaseUrl = EnvConfig.endpoints.apiBaseUrl;
     const clientId = EnvConfig.clientId!;
@@ -159,7 +159,7 @@ export class HttpClient {
     let bodyString = method === 'POST' ? '{}' : '';
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...(options.headers || {})
+      ...(options.headers || {}),
     };
 
     if (options.body) {
@@ -180,7 +180,6 @@ export class HttpClient {
 
     // ✅ 直接使用 ResolvedContext 解析 token
     const effectiveMacToken = this.ctx?.resolveToken() || null;
-
 
     // Generate MAC Authorization header
     const authorization = this.generateMacAuthorization(fullUrl, method, effectiveMacToken);
@@ -209,7 +208,7 @@ export class HttpClient {
         method,
         headers,
         body: bodyString || undefined,
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
@@ -227,7 +226,7 @@ export class HttpClient {
         let errorBody: any = null;
 
         if (contentType?.includes('application/json')) {
-          const errorData = await response.json() as any;
+          const errorData = (await response.json()) as any;
           errorBody = errorData;
           errorMessage += ` - ${errorData.message || errorData.error || JSON.stringify(errorData)}`;
 
@@ -235,24 +234,48 @@ export class HttpClient {
           const authError = extractAuthErrorFromResponse(response, errorData);
           if (authError) {
             // Log auth error
-            await logger.logResponse(method, fullUrl, response.status, response.statusText, errorBody, false, responseHeaders);
+            await logger.logResponse(
+              method,
+              fullUrl,
+              response.status,
+              response.statusText,
+              errorBody,
+              false,
+              responseHeaders
+            );
             throw authError;
           }
         } else {
           const errorText = await response.text();
           errorBody = errorText;
           errorMessage += ` - ${errorText}`;
-          
+
           // 使用统一的认证错误提取 (含文本检测)
           const authError = extractAuthErrorFromResponse(response, null, errorText);
           if (authError) {
-             await logger.logResponse(method, fullUrl, response.status, response.statusText, errorBody, false, responseHeaders);
-             throw authError;
+            await logger.logResponse(
+              method,
+              fullUrl,
+              response.status,
+              response.statusText,
+              errorBody,
+              false,
+              responseHeaders
+            );
+            throw authError;
           }
         }
 
         // Log error
-        await logger.logResponse(method, fullUrl, response.status, response.statusText, errorBody, false, responseHeaders);
+        await logger.logResponse(
+          method,
+          fullUrl,
+          response.status,
+          response.statusText,
+          errorBody,
+          false,
+          responseHeaders
+        );
 
         // 创建通用的HTTP错误
         throw new Error(errorMessage);
@@ -262,10 +285,18 @@ export class HttpClient {
       const contentType = response.headers.get('content-type');
 
       if (contentType?.includes('application/json')) {
-        const jsonData = await response.json() as ApiResponse<T>;
+        const jsonData = (await response.json()) as ApiResponse<T>;
 
         // Log successful response with headers
-        await logger.logResponse(method, fullUrl, response.status, response.statusText, jsonData, true, responseHeaders);
+        await logger.logResponse(
+          method,
+          fullUrl,
+          response.status,
+          response.statusText,
+          jsonData,
+          true,
+          responseHeaders
+        );
 
         // Handle API response format
         if (jsonData.success === false) {
@@ -280,10 +311,17 @@ export class HttpClient {
       const text = await response.text();
 
       // Log text response with headers
-      await logger.logResponse(method, fullUrl, response.status, response.statusText, text, true, responseHeaders);
+      await logger.logResponse(
+        method,
+        fullUrl,
+        response.status,
+        response.statusText,
+        text,
+        true,
+        responseHeaders
+      );
 
       return text as T;
-
     } catch (error) {
       clearTimeout(timeoutId);
 
@@ -308,15 +346,15 @@ export class HttpClient {
    */
   private generateMacAuthorization(url: string, method: string, token: MacToken | null): string {
     if (!token || !isValidMacToken(token)) {
-      throw createAuthError(
-        'TOKEN_MISSING',
-        '无法生成MAC授权头：缺少有效的MAC Token',
-        { retryAvailable: true }
-      );
+      throw createAuthError('TOKEN_MISSING', '无法生成MAC授权头：缺少有效的MAC Token', {
+        retryAvailable: true,
+      });
     }
 
     const urlObj = new URL(url);
-    const timestamp = Math.floor(Date.now() / 1000).toString().padStart(10, '0');
+    const timestamp = Math.floor(Date.now() / 1000)
+      .toString()
+      .padStart(10, '0');
     const nonce = this.generateRandomString(16);
     const host = urlObj.hostname;
     const uri = urlObj.pathname + urlObj.search;
@@ -324,7 +362,15 @@ export class HttpClient {
     const other = '';
 
     // Build MAC signature base string
-    const signatureBase = this.buildMacSignatureBase(timestamp, nonce, method, uri, host, port, other);
+    const signatureBase = this.buildMacSignatureBase(
+      timestamp,
+      nonce,
+      method,
+      uri,
+      host,
+      port,
+      other
+    );
 
     // Sign with mac_key using HMAC-SHA1
     const hmac = cryptoJS.HmacSHA1(signatureBase, token.mac_key);
@@ -389,14 +435,18 @@ export class HttpClient {
 
       // Debug: Check HMAC result
       if (!hmacResult || hmacResult.sigBytes === undefined) {
-        throw new Error('HMAC-SHA256 returned undefined or invalid result. Check if crypto-js is properly installed.');
+        throw new Error(
+          'HMAC-SHA256 returned undefined or invalid result. Check if crypto-js is properly installed.'
+        );
       }
 
       const signatureBase64 = cryptoJS.enc.Base64.stringify(hmacResult);
 
       return signatureBase64;
     } catch (error) {
-      throw new Error(`Failed to generate signature: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to generate signature: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 

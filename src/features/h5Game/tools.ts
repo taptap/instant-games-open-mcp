@@ -8,10 +8,7 @@
 
 import type { ToolRegistration } from '../../core/types/index.js';
 import { TOOL_DESCRIPTION } from './messages.js';
-import {
-  handleGatherGameInfo,
-  handleUploadGame,
-} from './handlers.js';
+import { handleGatherGameInfo, handleUploadGame } from './handlers.js';
 
 /**
  * H5 Game Tools - Unified Format
@@ -123,5 +120,5 @@ Use the same path confirmed in prepare_h5_upload step.`,
     handler: async (args, context) => {
       return await handleUploadGame(args, context);
     },
-  }
+  },
 ];

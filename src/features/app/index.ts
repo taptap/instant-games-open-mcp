@@ -12,5 +12,5 @@ import { appTools } from './tools.js';
 export const appModule: FeatureModule = {
   name: 'app',
   tools: appTools,
-  resources: []
+  resources: [],
 };

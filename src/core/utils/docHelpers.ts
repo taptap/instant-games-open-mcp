@@ -61,7 +61,7 @@ export function generateAPIDoc(
     return `Category "${categoryKey}" not found`;
   }
 
-  const api = category.apis.find(a => a.name === apiName);
+  const api = category.apis.find((a) => a.name === apiName);
   if (!api) {
     return `API "${apiName}" not found in category "${categoryKey}"`;
   }
@@ -94,10 +94,7 @@ export function generateAPIDoc(
  * @param categoryKey - The category key to generate
  * @returns Formatted Markdown documentation
  */
-export function generateCategoryDoc(
-  documentation: Documentation,
-  categoryKey: string
-): string {
+export function generateCategoryDoc(documentation: Documentation, categoryKey: string): string {
   const category = documentation.categories[categoryKey];
   if (!category) {
     return `Category "${categoryKey}" not found`;
@@ -121,10 +118,7 @@ export function generateCategoryDoc(
  * @param query - Search query
  * @returns Array of matching API documentation strings
  */
-export function searchDocumentation(
-  documentation: Documentation,
-  query: string
-): string[] {
+export function searchDocumentation(documentation: Documentation, query: string): string[] {
   const results: string[] = [];
   const queryLower = query.toLowerCase();
 
@@ -205,7 +199,7 @@ export function generateSearchSuggestions(
   let foundSuggestions = false;
 
   for (const suggestion of suggestions) {
-    if (suggestion.keywords.some(keyword => queryLower.includes(keyword))) {
+    if (suggestion.keywords.some((keyword) => queryLower.includes(keyword))) {
       message += `- ${suggestion.uri} - ${suggestion.description}\n`;
       foundSuggestions = true;
     }

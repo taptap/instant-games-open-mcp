@@ -6,15 +6,15 @@
 /**
  * 认证错误类型枚举
  */
-export type AuthErrorCode = 
-  | 'TOKEN_EXPIRED'      // Token已过期
-  | 'TOKEN_MISSING'      // 缺少Token
-  | 'TOKEN_INVALID'      // Token格式无效
-  | 'TOKEN_REVOKED'      // Token被撤销
-  | 'UNAUTHORIZED'       // 未授权访问
-  | 'AUTH_IN_PROGRESS'   // 授权进行中
-  | 'NETWORK_ERROR'      // 网络错误
-  | 'CONFIG_ERROR';      // 配置错误
+export type AuthErrorCode =
+  | 'TOKEN_EXPIRED' // Token已过期
+  | 'TOKEN_MISSING' // 缺少Token
+  | 'TOKEN_INVALID' // Token格式无效
+  | 'TOKEN_REVOKED' // Token被撤销
+  | 'UNAUTHORIZED' // 未授权访问
+  | 'AUTH_IN_PROGRESS' // 授权进行中
+  | 'NETWORK_ERROR' // 网络错误
+  | 'CONFIG_ERROR'; // 配置错误
 
 /**
  * 统一的认证错误类
@@ -36,7 +36,7 @@ export class AuthError extends Error {
  */
 export function generateOAuthGuidance(authUrl?: string): string {
   const urlText = authUrl || '[授权链接将在下一步提供]';
-  
+
   return `🔐 需要 TapTap 授权
 
 请按以下步骤操作：
@@ -157,7 +157,7 @@ export function createAuthError(
 ): AuthError {
   const userGuidance = generateAuthGuidance(code, context);
   const errorMessage = message || `认证错误: ${code}`;
-  
+
   return new AuthError(errorMessage, code, userGuidance);
 }
 
@@ -186,14 +186,14 @@ export function extractAuthErrorFromResponse(
   if (response.status === 401) {
     return createAuthError('TOKEN_EXPIRED');
   }
-  
+
   if (response.status === 403) {
     return createAuthError('UNAUTHORIZED');
   }
-  
+
   if (responseData?.data?.error === 'access_denied' || responseData?.error === 'access_denied') {
     return createAuthError('TOKEN_REVOKED');
   }
-  
+
   return null;
 }

@@ -9,7 +9,7 @@ import {
   searchDocumentation,
   generateOverview,
   generateSearchSuggestions,
-  type ResourceSuggestion
+  type ResourceSuggestion,
 } from '../../core/utils/docHelpers.js';
 
 import { LEADERBOARD_DOCUMENTATION } from './docs.js';
@@ -52,7 +52,11 @@ async function loadLeaderboardScores(): Promise<string> {
  * Get documentation for loadCurrentPlayerLeaderboardScore()
  */
 async function loadCurrentPlayerScore(): Promise<string> {
-  return generateAPIDoc(LEADERBOARD_DOCUMENTATION, 'score_query', 'loadCurrentPlayerLeaderboardScore');
+  return generateAPIDoc(
+    LEADERBOARD_DOCUMENTATION,
+    'score_query',
+    'loadCurrentPlayerLeaderboardScore'
+  );
 }
 
 /**
@@ -71,23 +75,23 @@ const LEADERBOARD_SUGGESTIONS: ResourceSuggestion[] = [
   {
     keywords: ['init', 'start', 'get', 'manager'],
     uri: 'docs://leaderboard/api/get-manager',
-    description: '如何获取 LeaderboardManager 实例'
+    description: '如何获取 LeaderboardManager 实例',
   },
   {
     keywords: ['submit', 'upload', 'save', 'score'],
     uri: 'docs://leaderboard/api/submit-scores',
-    description: '如何提交分数'
+    description: '如何提交分数',
   },
   {
     keywords: ['open', 'show', 'display', 'ui'],
     uri: 'docs://leaderboard/api/open',
-    description: '如何显示排行榜 UI'
+    description: '如何显示排行榜 UI',
   },
   {
     keywords: ['load', 'fetch', 'rank'],
     uri: 'docs://leaderboard/api/load-scores',
-    description: '如何加载排行榜数据'
-  }
+    description: '如何加载排行榜数据',
+  },
 ];
 
 /**
@@ -103,11 +107,7 @@ async function searchLeaderboardDocs(args: ToolArgs): Promise<string> {
   const results = searchDocumentation(LEADERBOARD_DOCUMENTATION, query);
 
   if (results.length === 0) {
-    return generateSearchSuggestions(
-      query,
-      LEADERBOARD_SUGGESTIONS,
-      'docs://leaderboard/overview'
-    );
+    return generateSearchSuggestions(query, LEADERBOARD_SUGGESTIONS, 'docs://leaderboard/overview');
   }
 
   return `**🏆 Search Results for "${query}"**\n\n` + results.join('\n---\n\n');
@@ -374,5 +374,5 @@ export const leaderboardTools = {
   getLeaderboardOverview,
   getLeaderboardPatterns,
   getQuickStartGuide,
-  getIntegrationWorkflow
+  getIntegrationWorkflow,
 };

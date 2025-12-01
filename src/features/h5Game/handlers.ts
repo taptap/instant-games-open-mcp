@@ -29,7 +29,7 @@ import type { ResolvedContext } from '../../core/types/context.js';
  */
 const H5_PATH_ERRORS = {
   NO_INDEX_HTML_PROXY: (relativePath: string) =>
-`❌ 目录 "${relativePath}" 中未找到 index.html
+    `❌ 目录 "${relativePath}" 中未找到 index.html
 
 H5 游戏根目录必须包含 index.html 文件。
 
@@ -40,14 +40,14 @@ H5 游戏根目录必须包含 index.html 文件。
 💡 请询问用户确认游戏入口文件位置`,
 
   NO_INDEX_HTML_LOCAL: (relativePath: string, fullPath: string) =>
-`❌ 目录 "${relativePath}" 中未找到 index.html
+    `❌ 目录 "${relativePath}" 中未找到 index.html
 
 解析路径：${fullPath}
 
 H5 游戏根目录必须包含 index.html 文件。`,
 
   EMPTY_PATH_NO_INDEX_PROXY: () =>
-`❌ 当前目录未找到 index.html
+    `❌ 当前目录未找到 index.html
 
 如果游戏构建产物在子目录中，请指定路径，如：
 - "dist"（Vite、Vue CLI 默认）
@@ -58,7 +58,7 @@ H5 游戏根目录必须包含 index.html 文件。`,
 💡 请询问用户确认游戏目录位置`,
 
   EMPTY_PATH_NO_INDEX_LOCAL: (fullPath: string) =>
-`❌ 当前目录未找到 index.html
+    `❌ 当前目录未找到 index.html
 
 解析路径：${fullPath}
 
@@ -274,7 +274,12 @@ async function confirmInfo(
       if (createDevResult && createDevResult.developer_id) {
         developerId = createDevResult.developer_id;
 
-        const appResults = await createAppForDeveloper(createDevResult.developer_id, undefined, genre, ctx);
+        const appResults = await createAppForDeveloper(
+          createDevResult.developer_id,
+          undefined,
+          genre,
+          ctx
+        );
         if (appResults && appResults.app_id) {
           appId = appResults.app_id;
           resultMsg = MESSAGES.GAME_TYPE_INFO(appResults.display_app_title);
@@ -313,7 +318,7 @@ async function confirmInfo(
  */
 export async function handleGatherGameInfo(
   args: {
-    gamePath?: string;  // 相对路径，相对于 WORKSPACE_ROOT（或 WORKSPACE_ROOT/_project_path）
+    gamePath?: string; // 相对路径，相对于 WORKSPACE_ROOT（或 WORKSPACE_ROOT/_project_path）
     developerName?: string;
     developerId?: number;
     appId?: number;
@@ -333,13 +338,7 @@ export async function handleGatherGameInfo(
   const gamePath = pathResult.resolvedPath!;
 
   // 基础信息确认
-  const confirmResult = await confirmInfo(
-    gamePath,
-    args.developerId,
-    args.appId,
-    args.genre,
-    ctx
-  );
+  const confirmResult = await confirmInfo(gamePath, args.developerId, args.appId, args.genre, ctx);
 
   if (!confirmResult.success) {
     return confirmResult.message;
@@ -362,7 +361,7 @@ export async function handleGatherGameInfo(
 
   saveAppCache(cacheInfo, gamePath);
 
-  let msg = MESSAGES.CONFIRM_GAME_INFO(
+  const msg = MESSAGES.CONFIRM_GAME_INFO(
     gamePath,
     cacheInfo.developer_name || args.developerName,
     cacheInfo.developer_id,
@@ -378,7 +377,7 @@ export async function handleGatherGameInfo(
  */
 export async function handleUploadGame(
   args: {
-    gamePath?: string;  // 相对路径，相对于 WORKSPACE_ROOT（或 WORKSPACE_ROOT/_project_path）
+    gamePath?: string; // 相对路径，相对于 WORKSPACE_ROOT（或 WORKSPACE_ROOT/_project_path）
     developerName?: string;
     developerId?: number;
     appId?: number;
@@ -399,7 +398,7 @@ export async function handleUploadGame(
   const gamePath = pathResult.resolvedPath!;
 
   // 从缓存读取或使用传入的参数
-  let cacheInfo = readAppCache(gamePath) || {};
+  const cacheInfo = readAppCache(gamePath) || {};
 
   if (args.developerId) {
     cacheInfo.developer_id = args.developerId;
@@ -440,7 +439,9 @@ export async function handleUploadGame(
       packageId = await uploadFile(uploadParams, outputPath);
     } catch (error) {
       throw new Error(
-        MESSAGES.FILE_COMPRESSED_UPLOAD_FAILED(error instanceof Error ? error.message : String(error))
+        MESSAGES.FILE_COMPRESSED_UPLOAD_FAILED(
+          error instanceof Error ? error.message : String(error)
+        )
       );
     }
 
@@ -448,16 +449,16 @@ export async function handleUploadGame(
     await logger.info(MESSAGES.PUBLISH_PARAMS(cacheInfo.app_id, cacheInfo.developer_id, packageId));
 
     const results = await editAppInfo(
-      cacheInfo.app_id,      // app_id
+      cacheInfo.app_id, // app_id
       cacheInfo.developer_id, // developer_id
-      packageId,             // package_id
-      undefined,             // appName
-      args.genre,            // genre
-      undefined,             // description
-      undefined,             // chatting_label
-      undefined,             // chatting_number
-      undefined,             // screen_orientation
-      ctx                    // ctx
+      packageId, // package_id
+      undefined, // appName
+      args.genre, // genre
+      undefined, // description
+      undefined, // chatting_label
+      undefined, // chatting_number
+      undefined, // screen_orientation
+      ctx // ctx
     );
 
     let msg = MESSAGES.GAME_PUBLISH_SUCCESS(results.app_title, cacheInfo.app_id);
