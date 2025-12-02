@@ -1,3 +1,11 @@
+## 1.7.0 (2025-12-02)
+
+* feat: 增加分享模块 ([a525d56](https://github.com/taptap/taptap_minigame_open_mcp/commit/a525d56))
+* style: apply prettier formatting and prefer-const fixes ([5709172](https://github.com/taptap/taptap_minigame_open_mcp/commit/5709172))
+* ci: add lint-staged and prettier integration ([c9c0d5d](https://github.com/taptap/taptap_minigame_open_mcp/commit/c9c0d5d))
+
+
+
 ## <small>1.6.1 (2025-12-01)</small>
 
 * fix(leaderboard): address code review issues from Copilot ([87af411](https://github.com/taptap/taptap_minigame_open_mcp/commit/87af411))
