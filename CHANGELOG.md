@@ -1,3 +1,9 @@
+## 1.8.0 (2025-12-02)
+
+* feat: 增加分享参数的透传逻辑 ([f10fc32](https://github.com/taptap/taptap_minigame_open_mcp/commit/f10fc32))
+
+
+
 ## 1.7.0 (2025-12-02)
 
 * feat: 增加分享模块 ([a525d56](https://github.com/taptap/taptap_minigame_open_mcp/commit/a525d56))
