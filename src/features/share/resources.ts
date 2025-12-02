@@ -39,6 +39,27 @@ export const shareResourceDefinitions = [
     description: 'Complete documentation for tap.offShareMessage() API - Cancel share listener',
     mimeType: 'text/markdown',
   },
+  {
+    uri: 'docs://share/api/on-show',
+    name: 'tap.onShow() API Documentation',
+    description:
+      'Complete documentation for tap.onShow() API - Receive sceneParam when entering minigame through shared card (hot start)',
+    mimeType: 'text/markdown',
+  },
+  {
+    uri: 'docs://share/api/get-launch-options-sync',
+    name: 'tap.getLaunchOptionsSync() API Documentation',
+    description:
+      'Complete documentation for tap.getLaunchOptionsSync() API - Receive sceneParam when entering minigame through shared card (cold start)',
+    mimeType: 'text/markdown',
+  },
+  {
+    uri: 'docs://share/api/get-enter-options-sync',
+    name: 'tap.getEnterOptionsSync() API Documentation',
+    description:
+      'Complete documentation for tap.getEnterOptionsSync() API - Receive sceneParam when entering minigame through shared card (both cold and hot start)',
+    mimeType: 'text/markdown',
+  },
 ];
 
 /**
@@ -59,4 +80,13 @@ export const shareResourceHandlers = [
 
   // docs://share/api/off-share-message
   async () => shareTools.offShareMessage(),
+
+  // docs://share/api/on-show
+  async () => shareTools.onShow(),
+
+  // docs://share/api/get-launch-options-sync
+  async () => shareTools.getLaunchOptionsSync(),
+
+  // docs://share/api/get-enter-options-sync
+  async () => shareTools.getEnterOptionsSync(),
 ];
