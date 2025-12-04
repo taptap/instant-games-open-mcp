@@ -18,6 +18,10 @@ on:
         default: 'false'
         type: boolean
 
+# 最小权限原则
+permissions:
+  contents: read
+
 env:
   DEBUG: napi:*
   MACOSX_DEPLOYMENT_TARGET: '10.13'
