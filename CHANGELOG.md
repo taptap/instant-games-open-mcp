@@ -1,3 +1,13 @@
+## <small>1.9.2 (2025-12-04)</small>
+
+* fix(ci): add explicit PATH setup for Cargo on macOS ([f67ab97](https://github.com/taptap/taptap_minigame_open_mcp/commit/f67ab97))
+* fix(ci): clean corrupted rust config before reinstalling on macos-13 ([b06dbeb](https://github.com/taptap/taptap_minigame_open_mcp/commit/b06dbeb))
+* fix(ci): reinstall Rust on macos-13 if cargo not found ([fed80d9](https://github.com/taptap/taptap_minigame_open_mcp/commit/fed80d9))
+* fix(ci): resolve macOS cargo path and Linux ARM64 cross-compilation ([5a34fdc](https://github.com/taptap/taptap_minigame_open_mcp/commit/5a34fdc))
+* fix(ci): use CARGO env var and add debug info for macOS Intel ([62f4806](https://github.com/taptap/taptap_minigame_open_mcp/commit/62f4806))
+
+
+
 ## <small>1.9.1 (2025-12-04)</small>
 
 * fix(ci): add Linux ARM64 and fix macOS Intel build ([6f0d5f9](https://github.com/taptap/taptap_minigame_open_mcp/commit/6f0d5f9))
