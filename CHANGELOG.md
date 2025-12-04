@@ -1,3 +1,13 @@
+## <small>1.9.1 (2025-12-04)</small>
+
+* fix(ci): add Linux ARM64 and fix macOS Intel build ([6f0d5f9](https://github.com/taptap/taptap_minigame_open_mcp/commit/6f0d5f9))
+* fix(ci): fix macOS Intel build and Linux ARM64 cross-compile ([eda6866](https://github.com/taptap/taptap_minigame_open_mcp/commit/eda6866))
+* fix(ci): temporarily disable macOS Intel build ([f7417c7](https://github.com/taptap/taptap_minigame_open_mcp/commit/f7417c7))
+* fix(ci): use CARGO_HOME/bin in PATH for macOS builds ([a0c3818](https://github.com/taptap/taptap_minigame_open_mcp/commit/a0c3818))
+* fix(path): always join projectPath with WORKSPACE_ROOT ([862413f](https://github.com/taptap/taptap_minigame_open_mcp/commit/862413f))
+
+
+
 ## 1.9.0 (2025-12-04)
 
 * fix(ci): correct rust-toolchain action name ([1720188](https://github.com/taptap/taptap_minigame_open_mcp/commit/1720188))
