@@ -238,10 +238,17 @@ export class TapTapMCPProxy {
 
       // 执行请求
       try {
-        const result = await this.client.callTool({
-          name: req.name,
-          arguments: req.arguments,
-        });
+        const result = await this.client.callTool(
+          {
+            name: req.name,
+            arguments: req.arguments,
+          },
+          undefined, // resultSchema
+          {
+            timeout: this.config.options?.tool_call_timeout ?? 300000,
+            resetTimeoutOnProgress: this.config.options?.reset_timeout_on_progress ?? true,
+          }
+        );
         req.resolve(result);
       } catch (error) {
         req.reject(error instanceof Error ? error : new Error(String(error)));
@@ -378,10 +385,17 @@ export class TapTapMCPProxy {
 
       // 透传到 TapTap Server（捕获网络错误并触发重连）
       try {
-        const result = await this.client.callTool({
-          name,
-          arguments: enrichedArgs,
-        });
+        const result = await this.client.callTool(
+          {
+            name,
+            arguments: enrichedArgs,
+          },
+          undefined, // resultSchema
+          {
+            timeout: this.config.options?.tool_call_timeout ?? 300000,
+            resetTimeoutOnProgress: this.config.options?.reset_timeout_on_progress ?? true,
+          }
+        );
         return result;
       } catch (error) {
         // 检查是否是网络错误（使用增强的检测）

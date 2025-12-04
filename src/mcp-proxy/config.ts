@@ -157,6 +157,8 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
       verbose: config.options?.verbose ?? false,
       reconnect_interval: config.options?.reconnect_interval ?? 5000,
       request_timeout: config.options?.request_timeout ?? 30000,
+      tool_call_timeout: config.options?.tool_call_timeout ?? 300000, // 5 分钟
+      reset_timeout_on_progress: config.options?.reset_timeout_on_progress ?? true,
     },
   };
 }
