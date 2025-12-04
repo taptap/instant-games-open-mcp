@@ -17,12 +17,15 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import type { ResolvedContext } from '../types/context.js';
 import { logger } from './logger.js';
+import { EnvConfig } from './env.js';
 
 /**
  * 工作空间根路径
- * 优先级：环境变量 > process.cwd()
+ * 优先级：TAPTAP_MCP_WORKSPACE_ROOT > WORKSPACE_ROOT（向后兼容）> process.cwd()
+ *
+ * 注意：使用 EnvConfig.workspaceRoot 来支持新旧环境变量名的兼容
  */
-const WORKSPACE_ROOT = process.env.WORKSPACE_ROOT || process.cwd();
+const WORKSPACE_ROOT = EnvConfig.workspaceRoot;
 
 /**
  * 路径输入类型
