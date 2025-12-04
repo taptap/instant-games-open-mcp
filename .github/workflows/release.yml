@@ -77,22 +77,18 @@ jobs:
       fail-fast: false
       matrix:
         settings:
-          # macOS Intel (x64)
-          - host: macos-13
-            target: x86_64-apple-darwin
-            build: |
-              # 将 cargo 添加到 PATH（dtolnay/rust-toolchain 设置了 CARGO_HOME）
-              export PATH="$CARGO_HOME/bin:$PATH"
-              cd native
-              npm run build
-              strip -x *.node
+          # macOS Intel (x64) - 暂时禁用，PATH 问题待解决
+          # - host: macos-13
+          #   target: x86_64-apple-darwin
+          #   build: |
+          #     cd native
+          #     npm run build
+          #     strip -x *.node
 
           # macOS Apple Silicon (ARM64)
           - host: macos-latest
             target: aarch64-apple-darwin
             build: |
-              # 将 cargo 添加到 PATH（dtolnay/rust-toolchain 设置了 CARGO_HOME）
-              export PATH="$CARGO_HOME/bin:$PATH"
               cd native
               npm run build -- --target aarch64-apple-darwin
               strip -x *.node
