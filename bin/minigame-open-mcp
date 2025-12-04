@@ -3,12 +3,12 @@
 /**
  * TapTap Minigame Open API MCP Server
  * Entry point for NPM executable
- * 
+ *
  * Note: Converted to ESM to match package "type": "module"
  */
 
 import { join, dirname } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // Get current directory in ESM
@@ -20,15 +20,45 @@ const packageRoot = join(__dirname, '..');
 
 // Check if compiled version exists
 const distPath = join(packageRoot, 'dist', 'server.js');
+const nativePath = join(packageRoot, 'dist', 'native');
 
-if (existsSync(distPath)) {
-    // Use dynamic import for ES Module
-    import(distPath).catch(error => {
-        console.error('❌ Failed to start server:', error);
-        process.exit(1);
-    });
-} else {
-    console.error('❌ Server not found. Please build the project first:');
-    console.error('   npm run build');
+if (!existsSync(distPath)) {
+    console.error('');
+    console.error('❌ dist/server.js not found!');
+    console.error('');
+    console.error('Please build the project first:');
+    console.error('');
+    console.error('  npm run build          # Build server + proxy (skip native)');
+    console.error('  npm run build:all      # Build all (including native signer)');
+    console.error('');
     process.exit(1);
 }
+
+// Check native signer
+if (!existsSync(nativePath)) {
+    console.warn('');
+    console.warn('⚠️  dist/native/ not found');
+    console.warn('   Native signer will not be available.');
+    console.warn('   Set TAPTAP_MCP_CLIENT_ID and TAPTAP_MCP_CLIENT_SECRET for authentication.');
+    console.warn('');
+} else {
+    const nodeFiles = readdirSync(nativePath).filter(f => f.endsWith('.node'));
+    if (nodeFiles.length === 0) {
+        console.warn('');
+        console.warn('⚠️  No .node binaries found in dist/native/');
+        console.warn('   Run: npm run build:native');
+        console.warn('');
+    }
+}
+
+// Start server
+import(distPath).catch(error => {
+    console.error('');
+    console.error('❌ Failed to start server:', error.message);
+    console.error('');
+    if (error.code === 'ERR_MODULE_NOT_FOUND') {
+        console.error('Missing dependency. Try rebuilding:');
+        console.error('  npm run build');
+    }
+    process.exit(1);
+});

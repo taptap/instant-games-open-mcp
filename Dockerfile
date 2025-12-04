@@ -1,12 +1,12 @@
 FROM node:20-alpine
 
-# 单文件 Bundle 部署 - 零依赖版本
-# Bundle 包含所有代码和依赖，无需 npm install
+# 单文件 Bundle 部署 + Native Signer
+# 所有产物都在 dist/ 目录中，方便发布和部署
 
 WORKDIR /app
 
-# 复制单文件 bundle
-COPY dist/server.js /app/server.js
+# 复制 dist 目录（包含 server.js 和 native/）
+COPY dist/ /app/
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

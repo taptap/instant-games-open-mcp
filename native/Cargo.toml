@@ -1,0 +1,32 @@
+[package]
+name = "taptap-signer"
+version = "0.1.0"
+edition = "2021"
+description = "Native signer for TapTap MCP Server"
+license = "MIT"
+build = "build.rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# NAPI-RS for Node.js bindings
+napi = { version = "2.16", default-features = false, features = ["napi4"] }
+napi-derive = "2.16"
+
+# Cryptography
+hmac = "0.12"
+sha1 = "0.10"
+sha2 = "0.10"
+base64 = "0.22"
+
+[build-dependencies]
+napi-build = "2.1"
+
+[profile.release]
+# Optimize for size and security
+opt-level = "z"      # Smallest binary size
+lto = true           # Link-time optimization (harder to reverse)
+strip = true         # Remove symbols
+panic = "abort"      # Smaller binary, no stack unwinding
+codegen-units = 1    # Better optimization

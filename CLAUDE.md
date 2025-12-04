@@ -398,6 +398,43 @@ npm run format
 
 **详细认证流程：** [docs/ARCHITECTURE.md#认证机制](docs/ARCHITECTURE.md)
 
+### 原生签名模块（Native Signer）
+
+为了保护 `CLIENT_SECRET` 不在 npm 源码中暴露，项目使用 Rust 编写的原生签名模块：
+
+**安全模型：**
+
+- `CLIENT_SECRET` 在 CI/CD 编译时 XOR 加密嵌入二进制
+- 运行时在内存中解密，计算签名后返回结果
+- SECRET 不暴露给 JS 层
+
+**目录结构：**
+
+```
+native/
+├── Cargo.toml          # Rust 项目配置
+├── build.rs            # 编译时 SECRET 加密
+├── src/lib.rs          # 签名实现
+├── index.js            # JS 加载器
+└── *.node              # 编译后的二进制
+```
+
+**开发模式：**
+
+- 如果原生模块不可用，自动 fallback 到环境变量
+- 设置 `TAPTAP_MCP_CLIENT_SECRET` 环境变量即可开发测试
+
+**构建原生模块：**
+
+```bash
+cd native
+export BUILD_CLIENT_ID="your_client_id"
+export BUILD_CLIENT_SECRET="your_client_secret"
+npm install && npm run build
+```
+
+**详细文档：** [native/README.md](native/README.md)
+
 ### 本地缓存（v1.4.1+）
 
 **缓存目录结构：**
@@ -454,6 +491,10 @@ const allModules = [..., yourFeatureModule];
 ### Proxy 相关文档
 
 - **Proxy 开发**：[docs/PROXY.md](docs/PROXY.md) - MCP Proxy 完整开发指引（整合了私有参数协议、客户端配置、独立打包、TapCode 集成示例）
+
+### 原生签名模块
+
+- **原生签名器**：[native/README.md](native/README.md) - Rust 原生签名模块开发和构建指南
 
 ### API 参考
 

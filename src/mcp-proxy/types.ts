@@ -45,6 +45,10 @@ export interface ProxyConfig {
     reconnect_interval?: number;
     /** 请求队列超时（毫秒，默认 30000） */
     request_timeout?: number;
+    /** Tool 调用超时（毫秒，默认 300000 即 5 分钟） */
+    tool_call_timeout?: number;
+    /** 收到 progress 通知时重置超时计时器（默认 true） */
+    reset_timeout_on_progress?: boolean;
   };
 }
 

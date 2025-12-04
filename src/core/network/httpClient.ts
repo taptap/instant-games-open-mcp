@@ -9,59 +9,55 @@ import { MacToken } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { EnvConfig } from '../utils/env.js';
 import { parseMacToken, isValidMacToken } from '../utils/macTokenValidator.js';
-// 导入新的认证错误处理模块
-import { AuthError, createAuthError, extractAuthErrorFromResponse } from '../errors/authErrors.js';
+import { createAuthError, extractAuthErrorFromResponse } from '../errors/authErrors.js';
+import {
+  initSigner,
+  getClientIdSync,
+  computeTapSignSync,
+  isSignerAvailable,
+  isUsingNativeSigner,
+} from './nativeSigner.js';
 
 /**
  * API 配置验证
- * 只负责启动时验证必需的环境变量
+ * 启动时验证签名器可用性（native 或 env fallback）
  * Token 管理已移至 tokenResolver（无全局状态）
  */
 export class ApiConfig {
   private static instance: ApiConfig;
+  private static initialized = false;
 
   private constructor() {
-    // 启动时验证必需的环境变量
-    this.validateConfig();
+    // Constructor is sync, actual validation happens in initAsync
   }
 
-  private validateConfig(): void {
-    const clientId = EnvConfig.clientId;
-    const clientSecret = EnvConfig.clientSecret;
+  /**
+   * 异步初始化（在服务器启动时调用）
+   */
+  public static async initAsync(): Promise<void> {
+    if (ApiConfig.initialized) return;
 
-    // Client ID is required
-    if (!clientId) {
-      process.stderr.write('❌ Missing required environment variable: TAPTAP_MCP_CLIENT_ID\n\n');
-      process.stderr.write('Please set it before starting the server:\n\n');
-      process.stderr.write('  export TAPTAP_MCP_CLIENT_ID="your_client_id"\n\n');
-      process.stderr.write('Get it from TapTap Developer Center: https://developer.taptap.cn\n\n');
-      process.exit(1);
-    }
+    // 初始化 native signer
+    await initSigner();
 
-    // Validate Client ID format (basic check)
-    if (clientId.trim().length === 0) {
-      process.stderr.write('❌ Invalid TAPTAP_MCP_CLIENT_ID: cannot be empty or whitespace\n\n');
-      process.exit(1);
-    }
+    // 检查签名器是否可用
+    const available = await isSignerAvailable();
 
-    // Client Secret is required for API signing (keep it secret!)
-    if (!clientSecret) {
-      process.stderr.write(
-        '❌ Missing required environment variable: TAPTAP_MCP_CLIENT_SECRET\n\n'
-      );
-      process.stderr.write('This is the API request signing key (keep it secret!).\n');
-      process.stderr.write('Please set it before starting the server:\n\n');
+    if (!available) {
+      process.stderr.write('❌ Signer not available!\n\n');
+      process.stderr.write('Option 1 (Production): Use npm package with native signer\n');
+      process.stderr.write('  npx @mikoto_zero/minigame-open-mcp\n\n');
+      process.stderr.write('Option 2 (Development): Set environment variables\n');
+      process.stderr.write('  export TAPTAP_MCP_CLIENT_ID="your_client_id"\n');
       process.stderr.write('  export TAPTAP_MCP_CLIENT_SECRET="your_signing_key"\n\n');
-      process.stderr.write('Contact TapTap support to get your CLIENT_SECRET.\n\n');
       process.exit(1);
     }
 
-    // Validate Client Secret format (basic check)
-    if (clientSecret.trim().length === 0) {
-      process.stderr.write(
-        '❌ Invalid TAPTAP_MCP_CLIENT_SECRET: cannot be empty or whitespace\n\n'
-      );
-      process.exit(1);
+    // 显示签名器状态
+    if (isUsingNativeSigner()) {
+      process.stderr.write('✅ Using native signer (CLIENT_SECRET protected)\n');
+    } else {
+      process.stderr.write('ℹ️  Using environment variables (development mode)\n');
     }
 
     // MAC Token 验证（可选，如果提供则必须有效）
@@ -69,9 +65,10 @@ export class ApiConfig {
     const parsedToken = macTokenEnv ? parseMacToken(macTokenEnv, 'environment variable') : null;
     if (macTokenEnv && macTokenEnv.trim().length > 0 && !parsedToken) {
       process.stderr.write('⚠️  Warning: TAPTAP_MCP_MAC_TOKEN provided but failed to parse\n');
-      process.stderr.write('   The token will be ignored and OAuth flow will be used instead.\n');
-      process.stderr.write('   If this is intentional, you can ignore this warning.\n\n');
+      process.stderr.write('   The token will be ignored and OAuth flow will be used instead.\n\n');
     }
+
+    ApiConfig.initialized = true;
   }
 
   public static getInstance(): ApiConfig {
@@ -133,10 +130,9 @@ export class HttpClient {
    * Generic request method with MAC authentication and signature
    */
   private async request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
-    // 直接从 EnvConfig 获取配置（不再通过 ApiConfig）
+    // 从 nativeSigner 获取 clientId（native 或 env fallback）
     const apiBaseUrl = EnvConfig.endpoints.apiBaseUrl;
-    const clientId = EnvConfig.clientId!;
-    const signingKey = EnvConfig.clientSecret!;
+    const clientId = getClientIdSync();
 
     // Build full URL with query parameters
     let fullUrl = `${apiBaseUrl}${path}`;
@@ -191,8 +187,9 @@ export class HttpClient {
     headers['X-Tap-Ts'] = timestamp;
     headers['X-Tap-Nonce'] = nonce;
 
-    // Calculate signature using CLIENT_SECRET
-    const signature = this.generateSignature(method, signUrl, headers, bodyString, signingKey);
+    // Calculate signature using native signer or env fallback
+    const headersPart = this.getHeadersPart(headers);
+    const signature = computeTapSignSync(method, signUrl, headersPart, bodyString);
     headers['X-Tap-Sign'] = signature;
 
     // Log request
@@ -406,48 +403,6 @@ export class HttpClient {
     }
 
     return base;
-  }
-
-  /**
-   * Generate request signature for X-Tap-Sign header
-   * Format: HMAC-SHA256(method + url + headers + body, signing_key)
-   */
-  private generateSignature(
-    method: string,
-    url: string,
-    headers: Record<string, string>,
-    body: string,
-    signingKey: string
-  ): string {
-    try {
-      // Debug: Check signing key
-      if (!signingKey) {
-        throw new Error('Signing key (TAPTAP_MCP_CLIENT_SECRET) is empty or undefined');
-      }
-
-      const methodPart = method;
-      const urlPart = url;
-      const headersPart = this.getHeadersPart(headers);
-      const bodyPart = body;
-      const signParts = `${methodPart}\n${urlPart}\n${headersPart}\n${bodyPart}\n`;
-
-      const hmacResult = cryptoJS.HmacSHA256(signParts, signingKey);
-
-      // Debug: Check HMAC result
-      if (!hmacResult || hmacResult.sigBytes === undefined) {
-        throw new Error(
-          'HMAC-SHA256 returned undefined or invalid result. Check if crypto-js is properly installed.'
-        );
-      }
-
-      const signatureBase64 = cryptoJS.enc.Base64.stringify(hmacResult);
-
-      return signatureBase64;
-    } catch (error) {
-      throw new Error(
-        `Failed to generate signature: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
   }
 
   /**

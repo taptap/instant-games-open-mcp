@@ -16,6 +16,7 @@ import { clearToken, saveToken } from '../../core/auth/tokenStorage.js';
 import { EnvConfig } from '../../core/utils/env.js';
 import { requestDeviceCode, generateAuthUrl, pollForToken } from '../../core/auth/oauth.js';
 import { oauthState } from '../../core/auth/oauthState.js';
+import { isUsingNativeSigner, getSignerStatus } from '../../core/network/nativeSigner.js';
 
 // Messages for App operations
 const MESSAGES = {
@@ -334,21 +335,36 @@ export async function checkEnvironment(ctx: ResolvedContext): Promise<string> {
   // Check MAC Token status and source
   const { hasMacToken } = ctx.getTokenStatus();
 
+  // Get signer status
+  const signerStatus = await getSignerStatus();
+  const usingNative = isUsingNativeSigner();
+
   // Format MAC Token status
   const macTokenStatus = hasMacToken ? '✅ 已配置' : '❌ 未配置';
 
-  // Build environment info object
-  const envInfo = {
-    TAPTAP_MCP_MAC_TOKEN: macTokenStatus,
-    TAPTAP_MCP_CLIENT_ID: EnvConfig.clientId ? '✅ 已配置' : '❌ 未配置',
-    TAPTAP_MCP_CLIENT_SECRET: EnvConfig.clientSecret ? '✅ 已配置' : '❌ 未配置',
-    TAPTAP_MCP_ENV: `${EnvConfig.environment} (${EnvConfig.endpoints.apiBaseUrl})`,
-    TAPTAP_PROJECT_PATH: ctx.projectPath ? '✅ 已配置' : '❌ 未配置 (可选)',
-  };
+  // Build environment info
+  let envResult = '';
 
-  const envResult = Object.entries(envInfo)
-    .map(([key, value]) => `${key}: ${value}`)
-    .join('\n');
+  // 显示签名器配置（区分 Native Signer 和环境变量两种模式）
+  envResult += '📦 签名器配置:\n';
+  if (usingNative) {
+    envResult += `   Mode: Native Signer (v${signerStatus.version})\n`;
+    envResult += '   Client ID: ✅ 嵌入二进制\n';
+    envResult += '   Client Secret: ✅ 受保护\n';
+  } else {
+    envResult += '   Mode: 环境变量\n';
+    envResult += `   Client ID: ${EnvConfig.clientId ? '✅ 已配置' : '❌ 未配置'}\n`;
+    envResult += `   Client Secret: ${EnvConfig.clientSecret ? '✅ 已配置' : '❌ 未配置'}\n`;
+  }
+
+  // 显示认证状态
+  envResult += '\n🔐 认证状态:\n';
+  envResult += `   MAC Token: ${macTokenStatus}\n`;
+
+  // 显示环境配置
+  envResult += '\n🌍 环境配置:\n';
+  envResult += `   TAPTAP_MCP_ENV: ${EnvConfig.environment} (${EnvConfig.endpoints.apiBaseUrl})\n`;
+  envResult += `   TAPTAP_PROJECT_PATH: ${ctx.projectPath ? '✅ 已配置' : '❌ 未配置 (可选)'}\n`;
 
   let statusMessage = '';
   if (hasMacToken) {

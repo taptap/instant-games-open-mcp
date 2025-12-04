@@ -4,6 +4,8 @@
  */
 
 import { EnvConfig } from '../utils/env.js';
+import { getClientId } from '../network/nativeSigner.js';
+import { logger } from '../utils/logger.js';
 import type { MacToken } from '../types/index.js';
 
 /**
@@ -31,18 +33,9 @@ export async function requestDeviceCode(
   environment: string = 'production'
 ): Promise<DeviceCodeData> {
   const endpoints = EnvConfig.getEndpoints(environment);
-  const clientId = EnvConfig.clientId;
 
-  if (!clientId) {
-    throw new Error(
-      '❌ 未配置 Client ID\n\n' +
-        '请设置环境变量：TAPTAP_MCP_CLIENT_ID\n\n' +
-        '获取方式：\n' +
-        '1. 登录 TapTap 开放平台: https://developer.taptap.cn\n' +
-        '2. 创建或选择应用\n' +
-        '3. 在「开发者中心 - 应用配置」中获取 Client ID'
-    );
-  }
+  // 从 native signer 或环境变量获取 Client ID
+  const clientId = await getClientId();
 
   const url = `https://${endpoints.authHost}/oauth2/v1/device/code`;
 
@@ -52,19 +45,47 @@ export async function requestDeviceCode(
     scope: 'public_profile',
   });
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+
+  // 记录请求日志
+  await logger.logRequest('POST', url, headers, params.toString());
+
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers,
     body: params,
   });
 
-  if (!response.ok) {
-    throw new Error(`Failed to get device code: ${response.status} ${response.statusText}`);
-  }
-
   const json = (await response.json()) as any;
+
+  // 提取响应头
+  const responseHeaders: Record<string, string> = {};
+  response.headers.forEach((value, key) => {
+    responseHeaders[key] = value;
+  });
+
+  // 记录响应日志
+  await logger.logResponse(
+    'POST',
+    url,
+    response.status,
+    response.statusText,
+    json,
+    response.ok,
+    responseHeaders
+  );
+
+  if (!response.ok) {
+    // 尝试从响应体获取详细错误信息
+    const errorMsg = json?.data?.msg || json?.error_description || json?.error || json?.message;
+    throw new Error(
+      `Failed to get device code: ${response.status} ${response.statusText}` +
+        (errorMsg ? ` - ${errorMsg}` : '') +
+        (json ? ` | Response: ${JSON.stringify(json)}` : '')
+    );
+  }
 
   if (json.success === true && json.data) {
     return json.data as DeviceCodeData;
@@ -90,11 +111,9 @@ export async function pollForToken(
   options?: PollOptions
 ): Promise<MacToken> {
   const endpoints = EnvConfig.getEndpoints(environment);
-  const clientId = EnvConfig.clientId;
 
-  if (!clientId) {
-    throw new Error('❌ 未配置 Client ID，请设置环境变量：TAPTAP_MCP_CLIENT_ID');
-  }
+  // 从 native signer 或环境变量获取 Client ID
+  const clientId = await getClientId();
 
   const url = `https://${endpoints.authHost}/oauth2/v1/token`;
   const maxAttempts = options?.maxAttempts || 60;

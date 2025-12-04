@@ -1,7 +1,7 @@
 name: Auto Release (via PR)
 
 # 通过自动 PR 实现完全自动化的发布流程
-# 符合 trunk-guard 要求,无需人工干预
+# 包含 native signer 的多平台构建
 
 on:
   push:
@@ -16,18 +16,173 @@ permissions:
   pull-requests: write
   id-token: write
 
-jobs:
-  release:
-    name: Auto Release via PR
-    runs-on: ubuntu-latest
+env:
+  DEBUG: napi:*
+  MACOSX_DEPLOYMENT_TARGET: '10.13'
 
-    # 防止无限循环: 跳过 bot 创建的 commits
+jobs:
+  # ========== 阶段 1: 分析是否需要发布 ==========
+  analyze:
+    name: Analyze Release
+    runs-on: ubuntu-latest
     if: |
       !contains(github.event.head_commit.message, '[skip ci]') &&
       github.event.head_commit.author.name != 'github-actions[bot]'
+    outputs:
+      should_release: ${{ steps.analyze.outputs.should_release }}
+      version: ${{ steps.analyze.outputs.version }}
 
     steps:
-      # ========== 1. 准备环境 ==========
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Analyze commits for release
+        id: analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npx semantic-release --dry-run --no-ci 2>&1 | tee release-output.txt
+
+          NEW_VERSION=$(grep "The next release version is" release-output.txt | sed 's/.*is //' || echo "")
+
+          if [ -z "$NEW_VERSION" ]; then
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "No release needed"
+          else
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "Will release version: $NEW_VERSION"
+          fi
+
+  # ========== 阶段 2: 构建 Native Signer (多平台并行) ==========
+  build-native:
+    name: Build Native - ${{ matrix.settings.target }}
+    runs-on: ${{ matrix.settings.host }}
+    needs: analyze
+    if: needs.analyze.outputs.should_release == 'true'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          # macOS
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            build: |
+              cd native
+              npm run build
+              strip -x *.node
+
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            build: |
+              cd native
+              npm run build -- --target aarch64-apple-darwin
+              strip -x *.node
+
+          # Linux GNU
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+            build: |
+              cd native
+              npm run build -- --target x86_64-unknown-linux-gnu
+              strip *.node
+
+          # Linux Musl (Alpine)
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            build: |
+              cd native
+              npm run build -- --target x86_64-unknown-linux-musl
+              strip *.node
+
+          # Windows
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            build: |
+              cd native
+              npm run build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        if: ${{ !matrix.settings.docker }}
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            native/target/
+          key: ${{ runner.os }}-cargo-${{ matrix.settings.target }}-${{ hashFiles('native/Cargo.lock') }}
+
+      - name: Install native dependencies
+        run: |
+          cd native
+          npm install
+
+      - name: Build in Docker
+        if: ${{ matrix.settings.docker }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.settings.docker }}
+          options: |
+            --user 0:0
+            -v ${{ github.workspace }}:/build
+            -w /build
+            -e BUILD_CLIENT_ID=${{ secrets.BUILD_CLIENT_ID }}
+            -e BUILD_CLIENT_SECRET=${{ secrets.BUILD_CLIENT_SECRET }}
+          run: ${{ matrix.settings.build }}
+
+      - name: Build
+        if: ${{ !matrix.settings.docker }}
+        shell: bash
+        env:
+          BUILD_CLIENT_ID: ${{ secrets.BUILD_CLIENT_ID }}
+          BUILD_CLIENT_SECRET: ${{ secrets.BUILD_CLIENT_SECRET }}
+        run: ${{ matrix.settings.build }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: native/*.node
+          if-no-files-found: error
+
+  # ========== 阶段 3: 发布 ==========
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [analyze, build-native]
+    if: needs.analyze.outputs.should_release == 'true'
+
+    steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -44,7 +199,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # ========== 2. 质量检查 ==========
+      # 下载所有 native 构建产物
+      - name: Download native binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Move native binaries to native/
+        run: |
+          mkdir -p native
+
+          # 移动所有 .node 文件
+          find artifacts -name "*.node" -exec cp {} native/ \;
+
+          echo "=== Native binaries ==="
+          ls -la native/*.node
+
+      # 质量检查
       - name: Lint code
         run: npm run lint
 
@@ -58,95 +229,68 @@ jobs:
         run: npm test
         continue-on-error: true
 
-      # ========== 3. 分析版本号 ==========
-      - name: Analyze commits for release
-        id: analyze
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          # 使用 semantic-release 的 dry-run 模式分析
-          npx semantic-release --dry-run --no-ci 2>&1 | tee release-output.txt
-
-          # 提取新版本号
-          NEW_VERSION=$(grep "The next release version is" release-output.txt | sed 's/.*is //' || echo "")
-
-          if [ -z "$NEW_VERSION" ]; then
-            echo "should_release=false" >> $GITHUB_OUTPUT
-            echo "No release needed based on commit history"
-          else
-            echo "should_release=true" >> $GITHUB_OUTPUT
-            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-            echo "Will release version: $NEW_VERSION"
-          fi
-
-      # ========== 4. 创建 Release 分支 ==========
+      # 创建 Release 分支
       - name: Create release branch
-        if: steps.analyze.outputs.should_release == 'true'
         id: branch
         run: |
-          VERSION=${{ steps.analyze.outputs.version }}
+          VERSION=${{ needs.analyze.outputs.version }}
           BRANCH="release/v${VERSION}"
 
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
 
-          # 配置 git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 创建并切换到新分支
           git checkout -b "$BRANCH"
 
-      # ========== 5. 发布到 npm ==========
+      # 发布到 npm (包含 native binaries)
       - name: Publish to npm
-        if: steps.analyze.outputs.should_release == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          VERSION=${{ steps.analyze.outputs.version }}
+          VERSION=${{ needs.analyze.outputs.version }}
 
-          # 更新版本号 (不创建 git tag)
+          # 更新版本号
           npm version $VERSION --no-git-tag-version
 
-          # 发布到 npm (不使用 provenance - 仓库为 internal)
+          # 验证 native 文件会被包含
+          echo "=== Files to be published ==="
+          npm pack --dry-run
+
+          # 发布
           npm publish --access public
 
-      # ========== 6. 生成 CHANGELOG ==========
+      # 生成 CHANGELOG
       - name: Generate CHANGELOG
-        if: steps.analyze.outputs.should_release == 'true'
         run: |
-          # 生成/更新 CHANGELOG (使用项目已安装的包)
           npx conventional-changelog-cli -p conventionalcommits -i CHANGELOG.md -s
 
-      # ========== 7. 提交并推送 Release 分支 ==========
+      # 提交并推送
       - name: Commit and push release branch
-        if: steps.analyze.outputs.should_release == 'true'
         run: |
-          VERSION=${{ steps.analyze.outputs.version }}
+          VERSION=${{ needs.analyze.outputs.version }}
           BRANCH=${{ steps.branch.outputs.branch }}
 
-          # 提交更改
           git add package.json package-lock.json CHANGELOG.md
           git commit -m "chore(release): ${VERSION} [skip ci]
+
+          - Includes native signer binaries for all platforms
 
           🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
           Co-Authored-By: Claude <noreply@anthropic.com>"
 
-          # 推送到远程分支 (不会触发 trunk-guard,因为不是 main 分支)
           git push origin "$BRANCH"
 
-      # ========== 8. 创建 PR ==========
+      # 创建 PR
       - name: Create Pull Request
-        if: steps.analyze.outputs.should_release == 'true'
         id: pr
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=${{ steps.analyze.outputs.version }}
+          VERSION=${{ needs.analyze.outputs.version }}
           BRANCH=${{ steps.branch.outputs.branch }}
 
-          # 创建 PR（标题包含 [skip ci] 防止合并后触发循环）
           PR_URL=$(gh pr create \
             --title "chore(release): ${VERSION} [skip ci]" \
             --body "## 📦 Release ${VERSION}
@@ -155,9 +299,14 @@ jobs:
 
           ### 变更内容
           - ✅ 版本号: ${VERSION}
-          - ✅ 已发布到 npm: https://www.npmjs.com/package/@mikoto_zero/minigame-open-mcp/v/${VERSION}
+          - ✅ 已发布到 npm (包含 native signer)
           - 📝 更新 \`package.json\`
           - 📝 更新 \`CHANGELOG.md\`
+
+          ### Native Signer 平台支持
+          - ✅ macOS (Intel + Apple Silicon)
+          - ✅ Linux (x64 glibc + musl)
+          - ✅ Windows (x64)
 
           ### 自动化流程
           此 PR 将在创建后立即自动合并。
@@ -169,92 +318,78 @@ jobs:
           echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
           echo "Created PR: $PR_URL"
 
-      # ========== 9. 自动合并 PR ==========
+      # 自动合并
       - name: Auto-merge PR
-        if: steps.analyze.outputs.should_release == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_URL=${{ steps.pr.outputs.pr_url }}
-
-          # 提取 PR 号码
           PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
 
           echo "Merging PR #$PR_NUMBER..."
-
-          # 等待 CI 检查完成 (PR workflow 可能需要运行)
-          echo "Waiting for CI checks..."
           sleep 10
 
-          # 检查 PR 状态
-          PR_STATE=$(gh pr view "$PR_NUMBER" --json state --jq '.state')
-          echo "PR state: $PR_STATE"
-
-          # 直接合并 PR (trunk-guard 不要求审批)
           gh pr merge "$PR_NUMBER" \
             --squash \
             --delete-branch
 
           echo "PR #$PR_NUMBER merged successfully!"
 
-      # ========== 10. 创建 GitHub Release ==========
+      # 创建 GitHub Release
       - name: Create GitHub Release
-        if: steps.analyze.outputs.should_release == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=${{ steps.analyze.outputs.version }}
+          VERSION=${{ needs.analyze.outputs.version }}
 
-          # 等待 PR 合并完成
           sleep 10
 
-          # 重新 fetch 所有分支
           git fetch origin
-
-          # 切换到远程 main 分支（强制切换，忽略本地更改）
           git checkout -B main origin/main
 
-          # 创建 git tag
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
 
-          # 提取 CHANGELOG 中的 release notes
           RELEASE_NOTES=$(npx conventional-changelog-cli -p conventionalcommits -o /dev/stdout -r 1)
 
-          # 创建 GitHub Release
           gh release create "v${VERSION}" \
             --title "v${VERSION}" \
             --notes "$RELEASE_NOTES"
 
-      # ========== 11. 发布总结 ==========
+      # 发布总结
       - name: Release summary
-        if: steps.analyze.outputs.should_release == 'true'
         run: |
-          VERSION=${{ steps.analyze.outputs.version }}
+          VERSION=${{ needs.analyze.outputs.version }}
 
           echo "## 🎉 Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "✅ 版本: ${VERSION}" >> $GITHUB_STEP_SUMMARY
-          echo "✅ 代码检查通过" >> $GITHUB_STEP_SUMMARY
-          echo "✅ 构建成功" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Native Signer 已编译 (5 平台)" >> $GITHUB_STEP_SUMMARY
           echo "✅ 已发布到 npm" >> $GITHUB_STEP_SUMMARY
           echo "✅ Release PR 已自动合并" >> $GITHUB_STEP_SUMMARY
           echo "✅ GitHub Release 已创建" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Native 平台支持" >> $GITHUB_STEP_SUMMARY
+          echo "- darwin-x64 (macOS Intel)" >> $GITHUB_STEP_SUMMARY
+          echo "- darwin-arm64 (macOS Apple Silicon)" >> $GITHUB_STEP_SUMMARY
+          echo "- linux-x64-gnu (Linux glibc)" >> $GITHUB_STEP_SUMMARY
+          echo "- linux-x64-musl (Alpine Linux)" >> $GITHUB_STEP_SUMMARY
+          echo "- win32-x64 (Windows)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "查看详情：" >> $GITHUB_STEP_SUMMARY
           echo "- npm: https://www.npmjs.com/package/@mikoto_zero/minigame-open-mcp/v/${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "- GitHub: https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" >> $GITHUB_STEP_SUMMARY
 
-      - name: No release needed
-        if: steps.analyze.outputs.should_release == 'false'
+  # ========== 无需发布 ==========
+  no-release:
+    name: No Release Needed
+    runs-on: ubuntu-latest
+    needs: analyze
+    if: needs.analyze.outputs.should_release == 'false'
+
+    steps:
+      - name: Summary
         run: |
           echo "## ℹ️ No Release Needed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "根据提交历史分析,当前不需要发布新版本。" >> $GITHUB_STEP_SUMMARY
-
-      - name: Release failure
-        if: failure() && steps.analyze.outputs.should_release == 'true'
-        run: |
-          echo "## ❌ Release Failed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "自动发布流程出现错误,请检查日志。" >> $GITHUB_STEP_SUMMARY
+          echo "根据提交历史分析，当前不需要发布新版本。" >> $GITHUB_STEP_SUMMARY
