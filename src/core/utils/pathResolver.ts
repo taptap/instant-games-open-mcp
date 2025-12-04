@@ -129,13 +129,13 @@ export function resolveWorkPath(relativePath?: string, ctx?: ResolvedContext): s
 
   // 2. 如果有 Proxy 注入的 projectPath
   if (ctx?.projectPath) {
-    // 如果 projectPath 是绝对路径，直接使用
-    // 如果是相对路径，拼接到 WORKSPACE_ROOT
-    if (path.isAbsolute(ctx.projectPath)) {
-      basePath = ctx.projectPath;
-    } else {
-      basePath = path.join(WORKSPACE_ROOT, ctx.projectPath);
-    }
+    // 设计：projectPath 总是相对于 WORKSPACE_ROOT
+    // 即使以 '/' 开头也视为相对路径（去掉开头的 '/'）
+    // 例如："/a51c239e.../workspace" -> "a51c239e.../workspace"
+    const normalizedProjectPath = ctx.projectPath.startsWith('/')
+      ? ctx.projectPath.slice(1)
+      : ctx.projectPath;
+    basePath = path.join(WORKSPACE_ROOT, normalizedProjectPath);
   }
 
   // 3. 拼接用户传入的相对路径
@@ -255,11 +255,12 @@ export function resolvePathSafe(
   // 1. 计算基础路径
   let basePath = WORKSPACE_ROOT;
   if (ctx?.projectPath) {
-    if (path.isAbsolute(ctx.projectPath)) {
-      basePath = ctx.projectPath;
-    } else {
-      basePath = path.join(WORKSPACE_ROOT, ctx.projectPath);
-    }
+    // 设计：projectPath 总是相对于 WORKSPACE_ROOT
+    // 即使以 '/' 开头也视为相对路径（去掉开头的 '/'）
+    const normalizedProjectPath = ctx.projectPath.startsWith('/')
+      ? ctx.projectPath.slice(1)
+      : ctx.projectPath;
+    basePath = path.join(WORKSPACE_ROOT, normalizedProjectPath);
   }
 
   // 2. 处理空字符串或未传的情况
