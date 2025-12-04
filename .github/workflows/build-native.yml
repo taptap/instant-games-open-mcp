@@ -33,21 +33,21 @@ jobs:
       matrix:
         settings:
           # macOS Intel (x64)
-          # 注意：macos-13 预装了 Rust，但 napi-rs 使用 /bin/sh 调用 cargo
-          # 使用 CARGO 环境变量直接指定 cargo 路径，绕过 PATH 查找问题
+          # 注意：macos-13 预装的 Rust 符号链接指向 /opt/homebrew（ARM64 路径）
+          # 这是 GitHub Actions runner 的配置问题，需要重新安装 Rust
           - host: macos-13
             target: x86_64-apple-darwin
             artifact: taptap-signer.darwin-x64.node
             build: |
-              # 调试信息
-              echo "CARGO_HOME=$CARGO_HOME"
-              ls -la "$CARGO_HOME/bin/" || echo "cargo bin dir not found"
-              # 设置 CARGO 环境变量让 napi-rs 直接使用
-              export CARGO="$CARGO_HOME/bin/cargo"
-              export PATH="$CARGO_HOME/bin:$PATH"
-              echo "CARGO=$CARGO"
-              echo "PATH=$PATH"
-              "$CARGO" --version || echo "cargo not found via CARGO env"
+              # 检查 cargo 是否可用，如果不可用则重新安装 Rust
+              if ! command -v cargo &> /dev/null; then
+                echo "cargo not found, reinstalling Rust via rustup..."
+                curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+                source "$HOME/.cargo/env"
+              fi
+              # 确保 PATH 正确
+              export PATH="$HOME/.cargo/bin:$PATH"
+              echo "cargo version: $(cargo --version)"
               cd native
               npm run build
               strip -x *.node
