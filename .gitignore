@@ -179,3 +179,8 @@ build
 
 # End of https://www.toptal.com/developers/gitignore/api/macOS,node
 
+# Native Rust module
+native/target/
+native/*.node
+native/node_modules/
+

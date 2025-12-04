@@ -1,0 +1,182 @@
+name: Build Native Signer
+
+# 这个 workflow 作为 reusable workflow 被 release.yml 调用
+# 也可以手动触发用于测试
+
+on:
+  workflow_call:
+    secrets:
+      BUILD_CLIENT_ID:
+        required: true
+      BUILD_CLIENT_SECRET:
+        required: true
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'Enable debug mode'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  DEBUG: napi:*
+  MACOSX_DEPLOYMENT_TARGET: '10.13'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          # macOS
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            artifact: taptap-signer.darwin-x64.node
+            build: |
+              cd native
+              npm run build
+              strip -x *.node
+
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            artifact: taptap-signer.darwin-arm64.node
+            build: |
+              cd native
+              npm run build -- --target aarch64-apple-darwin
+              strip -x *.node
+
+          # Linux GNU
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: taptap-signer.linux-x64-gnu.node
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+            build: |
+              cd native
+              npm run build -- --target x86_64-unknown-linux-gnu
+              strip *.node
+
+          # Linux Musl x64 (Alpine)
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact: taptap-signer.linux-x64-musl.node
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            build: |
+              cd native
+              npm run build -- --target x86_64-unknown-linux-musl
+              strip *.node
+
+          # Linux Musl ARM64 (Alpine on ARM servers / Apple Silicon Docker)
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            artifact: taptap-signer.linux-arm64-musl.node
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            build: |
+              cd native
+              npm run build -- --target aarch64-unknown-linux-musl
+              strip *.node
+
+          # Windows
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: taptap-signer.win32-x64-msvc.node
+            build: |
+              cd native
+              npm run build
+
+    name: Build - ${{ matrix.settings.target }}
+    runs-on: ${{ matrix.settings.host }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        if: ${{ !matrix.settings.docker }}
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            native/target/
+          key: ${{ runner.os }}-cargo-${{ matrix.settings.target }}-${{ hashFiles('native/Cargo.lock') }}
+
+      - name: Install native dependencies
+        run: |
+          cd native
+          npm install
+
+      - name: Build in Docker
+        if: ${{ matrix.settings.docker }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.settings.docker }}
+          options: |
+            --user 0:0
+            -v ${{ github.workspace }}:/build
+            -w /build
+            -e BUILD_CLIENT_ID=${{ secrets.BUILD_CLIENT_ID }}
+            -e BUILD_CLIENT_SECRET=${{ secrets.BUILD_CLIENT_SECRET }}
+          run: ${{ matrix.settings.build }}
+
+      - name: Build
+        if: ${{ !matrix.settings.docker }}
+        shell: bash
+        env:
+          BUILD_CLIENT_ID: ${{ secrets.BUILD_CLIENT_ID }}
+          BUILD_CLIENT_SECRET: ${{ secrets.BUILD_CLIENT_SECRET }}
+        run: ${{ matrix.settings.build }}
+
+      - name: List built files
+        shell: bash
+        run: |
+          ls -la native/*.node || echo "No .node files found"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: native/*.node
+          if-no-files-found: error
+
+  # 合并所有平台的 artifact
+  package:
+    name: Package All Binaries
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Move and rename artifacts
+        run: |
+          mkdir -p native-binaries
+
+          # 移动所有 .node 文件到统一目录
+          find artifacts -name "*.node" -exec cp {} native-binaries/ \;
+
+          echo "=== Built binaries ==="
+          ls -la native-binaries/
+
+      - name: Upload combined package
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-signer-binaries
+          path: native-binaries/*.node
+          if-no-files-found: error
+          retention-days: 7
