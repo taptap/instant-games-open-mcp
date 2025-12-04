@@ -1,3 +1,10 @@
+## 1.10.0 (2025-12-04)
+
+* fix(ci): handle missing release assets gracefully ([8f5597e](https://github.com/taptap/taptap_minigame_open_mcp/commit/8f5597e))
+* feat(ci): implement native signer on-demand build ([3ee077a](https://github.com/taptap/taptap_minigame_open_mcp/commit/3ee077a))
+
+
+
 ## <small>1.9.2 (2025-12-04)</small>
 
 * fix(ci): add explicit PATH setup for Cargo on macOS ([f67ab97](https://github.com/taptap/taptap_minigame_open_mcp/commit/f67ab97))
