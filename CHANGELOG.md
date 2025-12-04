@@ -1,3 +1,17 @@
+## 1.9.0 (2025-12-04)
+
+* fix(ci): correct rust-toolchain action name ([1720188](https://github.com/taptap/taptap_minigame_open_mcp/commit/1720188))
+* fix(ci): update Rust in Docker before building native ([e3326e0](https://github.com/taptap/taptap_minigame_open_mcp/commit/e3326e0))
+* fix(ci): use correct NPM_TOKEN env var for semantic-release ([d6bcca4](https://github.com/taptap/taptap_minigame_open_mcp/commit/d6bcca4))
+* ci: add explicit permissions to workflows for security ([42bdca0](https://github.com/taptap/taptap_minigame_open_mcp/commit/42bdca0)), closes [#7](https://github.com/taptap/taptap_minigame_open_mcp/issues/7)
+* docs: add native signer documentation to CLAUDE.md ([00bec35](https://github.com/taptap/taptap_minigame_open_mcp/commit/00bec35))
+* feat: add cloud save module with API documentation ([f2ef41f](https://github.com/taptap/taptap_minigame_open_mcp/commit/f2ef41f))
+* feat: add native signer module for secure OAuth signing ([1fda862](https://github.com/taptap/taptap_minigame_open_mcp/commit/1fda862))
+* feat: integrate native signer into core modules ([4c48e5f](https://github.com/taptap/taptap_minigame_open_mcp/commit/4c48e5f))
+* feat(proxy): add configurable tool call timeout with progress reset ([6aede0a](https://github.com/taptap/taptap_minigame_open_mcp/commit/6aede0a))
+
+
+
 ## 1.8.0 (2025-12-02)
 
 * feat: 增加分享参数的透传逻辑 ([f10fc32](https://github.com/taptap/taptap_minigame_open_mcp/commit/f10fc32))
