@@ -1,7 +1,7 @@
 name: Auto Release (via PR)
 
 # 通过自动 PR 实现完全自动化的发布流程
-# 包含 native signer 的多平台构建
+# Native signer 按需编译：只有 native/ 目录有变更时才重新构建
 
 on:
   push:
@@ -21,7 +21,7 @@ env:
   MACOSX_DEPLOYMENT_TARGET: '10.13'
 
 jobs:
-  # ========== 阶段 1: 分析是否需要发布 ==========
+  # ========== 阶段 1: 分析是否需要发布 + 检测 native 变更 ==========
   analyze:
     name: Analyze Release
     runs-on: ubuntu-latest
@@ -31,6 +31,7 @@ jobs:
     outputs:
       should_release: ${{ steps.analyze.outputs.should_release }}
       version: ${{ steps.analyze.outputs.version }}
+      native_changed: ${{ steps.native_check.outputs.changed }}
 
     steps:
       - name: Checkout
@@ -66,12 +67,75 @@ jobs:
             echo "Will release version: $NEW_VERSION"
           fi
 
-  # ========== 阶段 2: 构建 Native Signer (多平台并行) ==========
+      # 检测 native/ 目录是否有变更
+      - name: Check native changes
+        id: native_check
+        run: |
+          # 获取上次发布的 tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          echo "Last tag: $LAST_TAG"
+
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous tag found, need to build native"
+            echo "changed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # 检查 native/ 目录是否有变更（包括 Cargo.toml, Cargo.lock, src/, build.rs）
+          CHANGED_FILES=$(git diff --name-only "$LAST_TAG" HEAD -- \
+            native/Cargo.toml \
+            native/Cargo.lock \
+            native/src/ \
+            native/build.rs \
+            native/package.json \
+          )
+
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "Native files changed:"
+            echo "$CHANGED_FILES"
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No native files changed since $LAST_TAG"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      # 检查是否有可用的 Release assets
+      - name: Check existing release assets
+        id: release_check
+        if: steps.native_check.outputs.changed == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 获取最新 Release
+          LATEST_RELEASE=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+
+          if [ -z "$LATEST_RELEASE" ]; then
+            echo "No existing release found, need to build native"
+            echo "changed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # 检查是否有 native binaries
+          ASSETS=$(gh release view "$LATEST_RELEASE" --json assets --jq '.assets[].name' 2>/dev/null | grep "\.node$" || echo "")
+
+          if [ -z "$ASSETS" ]; then
+            echo "No native binaries in release $LATEST_RELEASE, need to build"
+            # 覆盖之前的输出
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "Found native binaries in $LATEST_RELEASE:"
+            echo "$ASSETS"
+          fi
+
+  # ========== 阶段 2a: 构建 Native Signer (仅当有变更时) ==========
   build-native:
     name: Build Native - ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
     needs: analyze
-    if: needs.analyze.outputs.should_release == 'true'
+    if: |
+      needs.analyze.outputs.should_release == 'true' &&
+      needs.analyze.outputs.native_changed == 'true'
 
     strategy:
       fail-fast: false
@@ -221,12 +285,52 @@ jobs:
           path: native/*.node
           if-no-files-found: error
 
+  # ========== 阶段 2b: 从最新 Release 下载 Native Binaries (无变更时) ==========
+  download-native:
+    name: Download Native from Release
+    runs-on: ubuntu-latest
+    needs: analyze
+    if: |
+      needs.analyze.outputs.should_release == 'true' &&
+      needs.analyze.outputs.native_changed == 'false'
+
+    steps:
+      - name: Download native binaries from latest release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p native
+
+          # 获取最新 Release
+          LATEST_RELEASE=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Downloading native binaries from release: $LATEST_RELEASE"
+
+          # 下载所有 .node 文件
+          gh release download "$LATEST_RELEASE" \
+            --repo ${{ github.repository }} \
+            --pattern "*.node" \
+            --dir native/
+
+          echo "=== Downloaded native binaries ==="
+          ls -la native/
+
+      - name: Upload artifact (for release job)
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-from-release
+          path: native/*.node
+          if-no-files-found: error
+
   # ========== 阶段 3: 发布 ==========
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [analyze, build-native]
-    if: needs.analyze.outputs.should_release == 'true'
+    needs: [analyze, build-native, download-native]
+    # 只要 analyze 说要发布，且 build-native 或 download-native 其中一个成功
+    if: |
+      always() &&
+      needs.analyze.outputs.should_release == 'true' &&
+      (needs.build-native.result == 'success' || needs.download-native.result == 'success')
 
     steps:
       - name: Checkout
@@ -245,7 +349,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # 下载所有 native 构建产物
+      # 下载 native 构建产物（来自 build-native 或 download-native）
       - name: Download native binaries
         uses: actions/download-artifact@v4
         with:
@@ -316,11 +420,19 @@ jobs:
         run: |
           VERSION=${{ needs.analyze.outputs.version }}
           BRANCH=${{ steps.branch.outputs.branch }}
+          NATIVE_CHANGED=${{ needs.analyze.outputs.native_changed }}
+
+          NATIVE_NOTE=""
+          if [ "$NATIVE_CHANGED" == "true" ]; then
+            NATIVE_NOTE="- Native signer: rebuilt (files changed)"
+          else
+            NATIVE_NOTE="- Native signer: reused from previous release"
+          fi
 
           git add package.json package-lock.json CHANGELOG.md
           git commit -m "chore(release): ${VERSION} [skip ci]
 
-          - Includes native signer binaries for all platforms
+          ${NATIVE_NOTE}
 
           🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
@@ -336,6 +448,13 @@ jobs:
         run: |
           VERSION=${{ needs.analyze.outputs.version }}
           BRANCH=${{ steps.branch.outputs.branch }}
+          NATIVE_CHANGED=${{ needs.analyze.outputs.native_changed }}
+
+          if [ "$NATIVE_CHANGED" == "true" ]; then
+            NATIVE_STATUS="🔨 重新构建 (native/ 有变更)"
+          else
+            NATIVE_STATUS="♻️ 复用上次构建 (native/ 无变更)"
+          fi
 
           PR_URL=$(gh pr create \
             --title "chore(release): ${VERSION} [skip ci]" \
@@ -345,13 +464,16 @@ jobs:
 
           ### 变更内容
           - ✅ 版本号: ${VERSION}
-          - ✅ 已发布到 npm (包含 native signer)
+          - ✅ 已发布到 npm
           - 📝 更新 \`package.json\`
           - 📝 更新 \`CHANGELOG.md\`
 
-          ### Native Signer 平台支持
+          ### Native Signer
+          ${NATIVE_STATUS}
+
+          ### 平台支持
           - ✅ macOS (Intel + Apple Silicon)
-          - ✅ Linux (x64 glibc + musl)
+          - ✅ Linux (x64 glibc + musl + ARM64)
           - ✅ Windows (x64)
 
           ### 自动化流程
@@ -381,12 +503,13 @@ jobs:
 
           echo "PR #$PR_NUMBER merged successfully!"
 
-      # 创建 GitHub Release
+      # 创建 GitHub Release (包含 native binaries 作为 assets)
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${{ needs.analyze.outputs.version }}
+          NATIVE_CHANGED=${{ needs.analyze.outputs.native_changed }}
 
           sleep 10
 
@@ -398,19 +521,37 @@ jobs:
 
           RELEASE_NOTES=$(npx conventional-changelog-cli -p conventionalcommits -o /dev/stdout -r 1)
 
-          gh release create "v${VERSION}" \
-            --title "v${VERSION}" \
-            --notes "$RELEASE_NOTES"
+          # 创建 Release 并上传 native binaries 作为 assets
+          # 这样下次发布时如果 native/ 没变更，可以直接下载
+          if [ "$NATIVE_CHANGED" == "true" ]; then
+            gh release create "v${VERSION}" \
+              --title "v${VERSION}" \
+              --notes "$RELEASE_NOTES" \
+              native/*.node
+            echo "Created release with native binaries as assets"
+          else
+            gh release create "v${VERSION}" \
+              --title "v${VERSION}" \
+              --notes "$RELEASE_NOTES"
+            echo "Created release without native binaries (reused from previous release)"
+          fi
 
       # 发布总结
       - name: Release summary
         run: |
           VERSION=${{ needs.analyze.outputs.version }}
+          NATIVE_CHANGED=${{ needs.analyze.outputs.native_changed }}
 
           echo "## 🎉 Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "✅ 版本: ${VERSION}" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Native Signer 已编译 (5 平台)" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$NATIVE_CHANGED" == "true" ]; then
+            echo "🔨 Native Signer: 重新构建 (6 平台)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "♻️ Native Signer: 复用上次构建" >> $GITHUB_STEP_SUMMARY
+          fi
+
           echo "✅ 已发布到 npm" >> $GITHUB_STEP_SUMMARY
           echo "✅ Release PR 已自动合并" >> $GITHUB_STEP_SUMMARY
           echo "✅ GitHub Release 已创建" >> $GITHUB_STEP_SUMMARY
@@ -420,6 +561,7 @@ jobs:
           echo "- darwin-arm64 (macOS Apple Silicon)" >> $GITHUB_STEP_SUMMARY
           echo "- linux-x64-gnu (Linux glibc)" >> $GITHUB_STEP_SUMMARY
           echo "- linux-x64-musl (Alpine Linux)" >> $GITHUB_STEP_SUMMARY
+          echo "- linux-arm64-musl (Alpine Linux ARM64)" >> $GITHUB_STEP_SUMMARY
           echo "- win32-x64 (Windows)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "查看详情：" >> $GITHUB_STEP_SUMMARY
