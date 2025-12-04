@@ -14,6 +14,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# 最小权限原则：PR 检查只需要读取代码
+permissions:
+  contents: read
+
 jobs:
   # 代码质量检查
   lint:

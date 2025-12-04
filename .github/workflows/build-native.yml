@@ -18,6 +18,10 @@ on:
         default: 'false'
         type: boolean
 
+# 最小权限原则：此 workflow 只需要读取代码和上传 artifacts
+permissions:
+  contents: read
+
 env:
   DEBUG: napi:*
   MACOSX_DEPLOYMENT_TARGET: '10.13'
