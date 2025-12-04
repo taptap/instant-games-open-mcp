@@ -52,6 +52,7 @@ import { leaderboardModule } from './features/leaderboard/index.js';
 import { h5GameModule } from './features/h5Game/index.js';
 import { vibrateModule } from './features/vibrate/index.js';
 import { shareModule } from './features/share/index.js';
+import { cloudSaveModule } from './features/cloudSave/index.js';
 import type {
   RequestContext,
   SessionContext,
@@ -66,6 +67,9 @@ import { VERSION } from './version.js';
 // 导入新的认证错误处理模块
 import { createAuthError, generateOAuthGuidance, isAuthError } from './core/errors/authErrors.js';
 
+// 导入 Native Signer 状态
+import { isUsingNativeSigner, getSignerStatus } from './core/network/nativeSigner.js';
+
 // 环境变量配置 (仅用于启动时验证)
 const transportMode = EnvConfig.transport;
 const serverPort = EnvConfig.port;
@@ -77,7 +81,7 @@ const allModules: FeatureModule[] = [
   h5GameModule, // H5 Game management (upload, publish, status)
   vibrateModule, // Vibrate API documentation and guides
   shareModule, // Share API documentation and management
-  // Future: cloudSaveModule, etc.
+  cloudSaveModule, // Cloud Save documentation (client-side only)
 ];
 
 /**
@@ -457,14 +461,23 @@ class TapTapMinigameMCPServer {
     process.stderr.write(`🌍 Environment: ${EnvConfig.environment}\n`);
     process.stderr.write(`🔗 API Base: ${EnvConfig.endpoints.apiBaseUrl}\n`);
 
-    // 显示认证配置
+    // 显示认证配置（区分 Native Signer 和环境变量两种模式）
     process.stderr.write('\n🔐 Authentication Configuration:\n');
-    process.stderr.write(
-      `   Client ID: ${EnvConfig.clientId ? '✅ ' + EnvConfig.clientId : '❌ Not configured'}\n`
-    );
-    process.stderr.write(
-      `   Client Secret: ${EnvConfig.clientSecret ? '✅ Configured' : '❌ Not configured'}\n`
-    );
+    if (isUsingNativeSigner()) {
+      // Native Signer 模式：凭证嵌入在二进制中
+      process.stderr.write('   Mode: Native Signer (credentials embedded in binary)\n');
+      process.stderr.write('   Client ID: ✅ Embedded\n');
+      process.stderr.write('   Client Secret: ✅ Protected\n');
+    } else {
+      // 环境变量模式
+      process.stderr.write('   Mode: Environment Variables\n');
+      process.stderr.write(
+        `   Client ID: ${EnvConfig.clientId ? '✅ ' + EnvConfig.clientId : '❌ Not configured'}\n`
+      );
+      process.stderr.write(
+        `   Client Secret: ${EnvConfig.clientSecret ? '✅ Configured' : '❌ Not configured'}\n`
+      );
+    }
 
     // 显示目录配置
     process.stderr.write('\n📂 Directory Configuration:\n');
@@ -729,8 +742,8 @@ async function ensureAuthenticated(context?: ResolvedContext): Promise<void> {
 
 // 启动服务器
 async function main(): Promise<void> {
-  // 启动时验证配置
-  ApiConfig.getInstance();
+  // 启动时初始化签名器（native 或 env fallback）
+  await ApiConfig.initAsync();
 
   // ✅ Token 状态检查已移至 tokenResolver
   // stdio 模式会自动从 ~/.taptap-mcp/cache/local/ 加载
