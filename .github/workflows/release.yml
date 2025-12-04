@@ -97,6 +97,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
             build: |
+              rustup update stable && rustup default stable
               cd native
               npm run build -- --target x86_64-unknown-linux-gnu
               strip *.node
@@ -106,6 +107,7 @@ jobs:
             target: x86_64-unknown-linux-musl
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             build: |
+              rustup update stable && rustup default stable
               cd native
               npm run build -- --target x86_64-unknown-linux-musl
               strip *.node
