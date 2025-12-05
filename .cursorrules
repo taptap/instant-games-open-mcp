@@ -11,12 +11,36 @@
 - **工具处理函数必须返回 `Promise<string>` 类型**
 
 ### Git 提交规范
+
+> ⚠️ **重要：提交前必须确认 commit type！**
+>
+> 不同的 type 会触发不同的版本更新行为。提交前请先确认：
+> - 本次改动是否需要触发版本更新？
+> - 如果只是文档、调试、配置等改动，应使用 `chore:`、`docs:`、`ci:` 等不触发发布的 type
+> - 如果是功能或修复，才使用 `feat:`、`fix:`、`refactor:` 等触发发布的 type
+
 - **使用 Conventional Commits 规范**（基于 `.commitlintrc.cjs` 强制执行）
 - **格式**：`<type>(<scope>): <subject>`
-  - **Type**：必须小写（feat/fix/docs/style/refactor/perf/test/build/ci/chore/revert）
+  - **Type**：必须小写
   - **Scope**：必须小写（可选）
   - **Subject**：5-100 字符，祈使句，不以句号结尾
   - **Header**（第一行）：最大 100 字符
+
+**触发版本更新的 type：**
+- `feat:` - 新功能（minor）
+- `fix:` - Bug 修复（patch）
+- `feat!:` / `fix!:` - 破坏性变更（major）
+- `refactor:` - 代码重构（patch）
+- `perf:` - 性能优化（patch）
+
+**不触发版本更新的 type：**
+- `docs:` - 文档更新
+- `chore:` - 构建/工具/配置/调试相关
+- `test:` - 测试相关
+- `ci:` - CI 配置更新
+- `style:` - 代码格式
+- `build:` - 构建系统变更
+
 - **Body/Footer**（可选）：
   - 与前面部分之间必须有空行
   - Body 每行不超过 100 字符（`body-max-line-length` 强制）
