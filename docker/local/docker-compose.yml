@@ -9,24 +9,24 @@ services:
     container_name: taptap-mcp-server
     restart: unless-stopped
     ports:
-      - "5003:3000"
+      - '5003:3000'
     environment:
       # 传输协议
       TAPTAP_MCP_TRANSPORT: sse
       TAPTAP_MCP_PORT: 3000
-      
+
       # API 环境
       TAPTAP_MCP_ENV: ${TAPTAP_MCP_ENV:-production}
-      
+
       # 认证信息（必填）
       TAPTAP_MCP_CLIENT_ID: ${TAPTAP_MCP_CLIENT_ID}
       TAPTAP_MCP_CLIENT_SECRET: ${TAPTAP_MCP_CLIENT_SECRET}
       # TAPTAP_MCP_MAC_TOKEN: ${TAPTAP_MCP_MAC_TOKEN}  # 可选，如果有预设 token
-      
+
       # 缓存和临时目录
       TAPTAP_MCP_CACHE_DIR: /var/lib/taptap-mcp/cache
       TAPTAP_MCP_TEMP_DIR: /tmp/taptap-mcp/temp
-      
+
       # 日志
       TAPTAP_MCP_VERBOSE: ${TAPTAP_MCP_VERBOSE:-false}
 
@@ -40,7 +40,7 @@ services:
       # 临时文件（可选）
       - taptap-mcp-temp:/tmp/taptap-mcp/temp
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3000/health']
       interval: 30s
       timeout: 3s
       start_period: 5s

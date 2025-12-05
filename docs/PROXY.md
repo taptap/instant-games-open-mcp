@@ -610,26 +610,17 @@ Proxy 以 stdio 模式与 Agent 通信，配置在 Agent 的 MCP 配置中：
 
 **独立部署 TapTap MCP Server（Docker）：**
 
-```yaml
-# docker-compose.yml
-version: '3.8'
+```bash
+# 使用 docker/npm 目录下的配置
+cd docker/npm
+docker-compose up -d
 
-services:
-  # TapTap MCP Server（独立打包）
-  taptap-server:
-    image: node:18-alpine
-    working_dir: /app
-    volumes:
-      - ./mcp-server-bundle.js:/app/mcp-server-bundle.js
-    command: node mcp-server-bundle.js
-    ports:
-      - '3001:3001'
-    environment:
-      - TAPTAP_MCP_TRANSPORT=sse
-      - TAPTAP_MCP_PORT=3001
-      - TAPTAP_MCP_CLIENT_SECRET=${CLIENT_TOKEN}
-    restart: unless-stopped
+# 或使用脚本
+./run.sh -p 5003  # Production
+./run.sh --rnd -p 5002  # RND
 ```
+
+详见：[docker/README.md](../docker/README.md)
 
 ### 4.5 错误处理
 
@@ -1335,67 +1326,34 @@ npm run build:proxy -- --minify
 
 #### 第一步：启动 TapTap MCP Server（Docker）
 
-**Docker Compose 配置**：
-
-```yaml
-version: '3.8'
-
-services:
-  taptap-mcp-server:
-    image: taptap-mcp-server:latest
-    container_name: taptap-mcp-server
-    restart: unless-stopped
-
-    ports:
-      - '5003:3000' # 主机端口:容器端口
-
-    environment:
-      # 传输模式（必需）
-      - TAPTAP_MCP_TRANSPORT=sse
-      - TAPTAP_MCP_PORT=3000
-
-      # TapTap 环境（必需）
-      - TAPTAP_MCP_ENV=rnd # rnd=测试环境, production=生产环境
-
-      # 客户端配置（必需）
-      - TAPTAP_MCP_CLIENT_ID=${TAPTAP_MCP_CLIENT_ID}
-      - TAPTAP_MCP_CLIENT_SECRET=${TAPTAP_MCP_CLIENT_SECRET}
-
-      # 日志（可选，推荐开启）
-      - TAPTAP_MCP_VERBOSE=true
-
-      # 缓存和临时目录（可选）
-      - TAPTAP_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache
-      - TAPTAP_MCP_TEMP_DIR=/tmp/taptap-mcp/temp
-
-    volumes:
-      # Workspace 根目录（必需，只读）
-      - ${WORKSPACE_ROOT}:/workspace:ro
-
-      # 缓存和临时文件（必需，可写）
-      - taptap-mcp-cache:/var/lib/taptap-mcp/cache
-      - taptap-mcp-temp:/tmp/taptap-mcp/temp
-
-volumes:
-  taptap-mcp-cache:
-  taptap-mcp-temp:
-```
-
-**启动命令**：
+**方式 1：使用预配置的 docker-compose（推荐）**
 
 ```bash
-# 设置环境变量
-export WORKSPACE_ROOT=/Users/mikoto
-export TAPTAP_MCP_CLIENT_ID=m2dnabebip3fpardnm
-export TAPTAP_MCP_CLIENT_SECRET=QUmbMoTQm2qJETi53vWnvaXuBiRL3VRkgcUWnBtb
-export TAPTAP_MCP_ENV=rnd
+cd docker/npm
 
-# 启动 Docker
+# RND 环境变量从项目根目录 .env 读取
 docker-compose up -d
 
 # 验证启动
-curl http://localhost:5003/health
+curl http://localhost:5003/health  # Production
+curl http://localhost:5002/health  # RND
 ```
+
+**方式 2：使用脚本**
+
+```bash
+cd docker/npm
+
+# Production 环境
+./run.sh -p 5003
+
+# RND 环境（需要配置环境变量）
+export TAPTAP_MCP_CLIENT_ID=your_client_id
+export TAPTAP_MCP_CLIENT_SECRET=your_client_secret
+./run.sh --rnd -p 5002
+```
+
+详见：[docker/README.md](../docker/README.md)
 
 #### 第二步：配置 MCP Proxy（TapCode 代码生成）
 

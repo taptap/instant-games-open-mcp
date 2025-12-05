@@ -146,6 +146,7 @@ npm run serve:http
 ```
 
 **特性**：
+
 - ✅ 返回 JSON 响应（Content-Type: application/json）
 - ❌ 无实时进度（但功能完整）
 - ✅ 两步式授权（避免长时间阻塞）
@@ -157,41 +158,44 @@ npm run serve:http
 
 #### 认证相关（可选）
 
-| 变量 | 说明 | 是否必需 | 默认值 |
-|------|------|---------|--------|
-| `TAPTAP_MCP_MAC_TOKEN` | 用户 MAC Token（JSON 格式） | 否 | 使用 OAuth |
-| `TAPTAP_MCP_CLIENT_ID` | 客户端 ID | 否* | 无 |
-| `TAPTAP_MCP_CLIENT_SECRET` | 请求签名密钥 | 否* | 无 |
+| 变量                       | 说明                        | 是否必需 | 默认值     |
+| -------------------------- | --------------------------- | -------- | ---------- |
+| `TAPTAP_MCP_MAC_TOKEN`     | 用户 MAC Token（JSON 格式） | 否       | 使用 OAuth |
+| `TAPTAP_MCP_CLIENT_ID`     | 客户端 ID                   | 否\*     | 无         |
+| `TAPTAP_MCP_CLIENT_SECRET` | 请求签名密钥                | 否\*     | 无         |
 
 **注意**：`TAPTAP_MCP_CLIENT_ID` 和 `TAPTAP_MCP_CLIENT_SECRET` 不是必需的，但不配置会导致部分工具无法使用。
 
 **OAuth Token 格式**：
+
 ```bash
 export TAPTAP_MCP_MAC_TOKEN='{"kid":"your_kid","token_type":"mac","mac_key":"your_mac_key","mac_algorithm":"hmac-sha-1"}'
 ```
 
 #### 环境和传输（可选）
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `TAPTAP_MCP_ENV` | 环境选择 | `production` |
-| `TAPTAP_MCP_TRANSPORT` | 传输协议 | `stdio` |
-| `TAPTAP_MCP_PORT` | HTTP/SSE 端口 | `3000` |
-| `TAPTAP_MCP_VERBOSE` | 详细日志模式 | `false` |
+| 变量                   | 说明          | 默认值       |
+| ---------------------- | ------------- | ------------ |
+| `TAPTAP_MCP_ENV`       | 环境选择      | `production` |
+| `TAPTAP_MCP_TRANSPORT` | 传输协议      | `stdio`      |
+| `TAPTAP_MCP_PORT`      | HTTP/SSE 端口 | `3000`       |
+| `TAPTAP_MCP_VERBOSE`   | 详细日志模式  | `false`      |
 
 **环境选项**：
+
 - `production`：https://agent.tapapis.cn
 - `rnd`：https://agent.api.xdrnd.cn（测试环境）
 
 #### 缓存和临时文件（可选）
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `TAPTAP_MCP_CACHE_DIR` | 缓存根目录 | `/tmp/taptap-mcp/cache` |
-| `TAPTAP_MCP_TEMP_DIR` | 临时文件根目录 | `/tmp/taptap-mcp/temp` |
-| `WORKSPACE_ROOT` | 工作空间根路径 | `process.cwd()` |
+| 变量                   | 说明           | 默认值                  |
+| ---------------------- | -------------- | ----------------------- |
+| `TAPTAP_MCP_CACHE_DIR` | 缓存根目录     | `/tmp/taptap-mcp/cache` |
+| `TAPTAP_MCP_TEMP_DIR`  | 临时文件根目录 | `/tmp/taptap-mcp/temp`  |
+| `WORKSPACE_ROOT`       | 工作空间根路径 | `process.cwd()`         |
 
 **缓存目录结构**：
+
 ```
 /tmp/taptap-mcp/
 ├── cache/
@@ -205,33 +209,28 @@ export TAPTAP_MCP_MAC_TOKEN='{"kid":"your_kid","token_type":"mac","mac_key":"you
 
 ## 2. Docker 部署
 
-### 优势
+Docker 部署文件已整理到 `docker/` 目录下，提供两种部署方式：
 
-使用单文件 Bundle 部署，相比传统 npm 安装方式：
-
-| 特性 | 优势 |
-|------|------|
-| **镜像大小** | ~193 MB（vs 传统 ~250 MB） |
-| **构建时间** | ~10 秒（vs 传统 ~2 分钟） |
-| **依赖管理** | 零运行时依赖 |
-| **启动速度** | 更快 |
+| 方式         | 目录            | 用途                              |
+| ------------ | --------------- | --------------------------------- |
+| **npm 部署** | `docker/npm/`   | 从 npm 安装，测试线上版本（推荐） |
+| **本地构建** | `docker/local/` | 从本地代码构建，开发调试          |
 
 ### 2.1 快速开始
 
 #### 方式 1：使用 docker-compose（推荐）
 
 ```bash
-# 1. 配置环境变量
-cat > .env << 'EOF'
-TAPTAP_MCP_CLIENT_ID=your_client_id
-TAPTAP_MCP_CLIENT_SECRET=your_client_secret
-EOF
+cd docker/npm
 
-# 2. 确保已构建 bundle
-npm run build:all
+# RND 环境变量从项目根目录 .env 读取
+# 确保 .env 中配置了 TAPTAP_MCP_CLIENT_ID 和 TAPTAP_MCP_CLIENT_SECRET
 
-# 3. 启动服务
+# 同时启动 Production (端口 5003) 和 RND (端口 5002) 两个环境
 docker-compose up -d
+
+# 查看状态
+docker-compose ps
 
 # 查看日志
 docker-compose logs -f
@@ -240,26 +239,39 @@ docker-compose logs -f
 docker-compose down
 ```
 
-#### 方式 2：使用 Docker 命令
+#### 方式 2：使用单独运行脚本
 
 ```bash
-# 1. 构建 bundle
-npm run build:all
+cd docker/npm
 
-# 2. 构建镜像
-docker build -t taptap-mcp-server:latest .
+# Production 环境（使用 Native Signer，无需配置）
+./run.sh -p 5003
 
-# 3. 启动容器
-docker run -d \
-  --name taptap-mcp-server \
-  -p 3000:3000 \
-  -e TAPTAP_MCP_CLIENT_ID=your_client_id \
-  -e TAPTAP_MCP_CLIENT_SECRET=your_client_secret \
-  -v taptap-mcp-cache:/var/lib/taptap-mcp/cache \
-  taptap-mcp-server:latest
+# RND 环境（需要配置环境变量）
+export TAPTAP_MCP_CLIENT_ID=your_client_id
+export TAPTAP_MCP_CLIENT_SECRET=your_client_secret
+./run.sh --rnd -p 5002
+
+# 更新到最新 npm 版本
+./run.sh --no-cache
 ```
 
-#### 方式 3：直接使用 NPM（npx）
+#### 方式 3：从本地代码构建
+
+```bash
+cd docker/local
+
+# 先构建项目
+npm run build
+
+# 运行
+./run.sh -p 5003
+
+# 或一步完成
+./run.sh -b
+```
+
+#### 方式 4：直接使用 NPM（npx）
 
 ```bash
 # 无需 Docker，直接使用 npx（推荐用于本地测试）
@@ -268,116 +280,85 @@ npx -y @mikoto_zero/minigame-open-mcp
 
 ---
 
-### 2.2 docker-compose 配置
+### 2.2 端口配置
 
-**基础配置**：`docker-compose.yml`
+| 服务       | 端口 | 环境       | API Base           |
+| ---------- | ---- | ---------- | ------------------ |
+| Production | 5003 | production | agent.tapapis.cn   |
+| RND        | 5002 | rnd        | agent.api.xdrnd.cn |
 
-```yaml
-version: '3.8'
+### 2.3 环境变量
 
-services:
-  taptap-mcp-server:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: taptap-mcp-server:latest
-    container_name: taptap-mcp-server
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      TAPTAP_MCP_TRANSPORT: sse
-      TAPTAP_MCP_PORT: 3000
-      TAPTAP_MCP_ENV: production
-      TAPTAP_MCP_CLIENT_ID: ${TAPTAP_MCP_CLIENT_ID}
-      TAPTAP_MCP_CLIENT_SECRET: ${TAPTAP_MCP_CLIENT_SECRET}
-      TAPTAP_MCP_CACHE_DIR: /var/lib/taptap-mcp/cache
-      TAPTAP_MCP_TEMP_DIR: /tmp/taptap-mcp/temp
-      TAPTAP_MCP_VERBOSE: "false"
-    volumes:
-      - taptap-mcp-cache:/var/lib/taptap-mcp/cache
-      - taptap-mcp-temp:/tmp/taptap-mcp/temp
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 3s
-      start_period: 5s
-      retries: 3
+| 变量                       | 说明          | Production    | RND    |
+| -------------------------- | ------------- | ------------- | ------ |
+| `TAPTAP_MCP_ENV`           | 环境          | production    | rnd    |
+| `TAPTAP_MCP_CLIENT_ID`     | Client ID     | 内置 (Signer) | 需配置 |
+| `TAPTAP_MCP_CLIENT_SECRET` | Client Secret | 内置 (Signer) | 需配置 |
+| `TAPTAP_MCP_VERBOSE`       | 详细日志      | true          | true   |
 
-volumes:
-  taptap-mcp-cache:
-  taptap-mcp-temp:
-```
-
-**环境变量文件**：`.env.docker`
-
-```bash
-# 必需配置
-TAPTAP_MCP_CLIENT_ID=your_client_id
-TAPTAP_MCP_CLIENT_SECRET=your_client_token
-
-# 可选配置
-TAPTAP_MCP_ENV=rnd                                    # rnd=测试环境, production=生产环境
-TAPTAP_MCP_VERBOSE=false                              # true=启用详细日志
-WORKSPACE_ROOT=/path/to/your/workspace             # workspace 根目录（可选）
-```
-
----
-
-### 2.3 使用方式
-
-#### 启动服务
-
-```bash
-# 使用快速启动脚本
-./scripts/docker-start.sh
-
-# 或使用 docker-compose
-docker-compose up -d
-```
+### 2.4 使用方式
 
 #### 查看日志
 
 ```bash
-# 实时日志
-docker-compose logs -f taptap-mcp-server
+# docker-compose 方式
+cd docker/npm
+docker-compose logs -f
 
-# 最近 100 行
-docker-compose logs --tail=100 taptap-mcp-server
+# 单独容器方式
+docker logs -f taptap-mcp-npm-production  # Production
+docker logs -f taptap-mcp-npm-rnd         # RND
 ```
 
 #### 健康检查
 
 ```bash
-# 检查服务状态
-docker-compose ps
-
-# 手动健康检查
+# Production
 curl http://localhost:5003/health
+
+# RND
+curl http://localhost:5002/health
 
 # 示例响应：
 # {
 #   "status": "healthy",
-#   "version": "1.5.3",
+#   "version": "1.10.0",
 #   "transport": "sse",
 #   "sessions": 0,
-#   "tools": 17,
-#   "resources": 7
+#   "tools": 19,
+#   "resources": 11
 # }
 ```
 
 #### 停止服务
 
 ```bash
-# 停止服务
+# docker-compose 方式
+cd docker/npm
 docker-compose down
 
-# 停止并删除数据
-docker-compose down -v
+# 单独容器方式
+docker stop taptap-mcp-npm-production taptap-mcp-npm-rnd
 ```
 
----
+#### 更新镜像
 
+当 npm 发布新版本后：
+
+```bash
+cd docker/npm
+
+# 方式 1: docker-compose
+docker-compose build --no-cache
+docker-compose up -d
+
+# 方式 2: 脚本
+./run.sh --no-cache -p 5003
+```
+
+详细 Docker 文档请参考: [docker/README.md](../docker/README.md)
+
+---
 
 ## 3. 生产环境配置
 
@@ -389,11 +370,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0'      # 最多使用 2 核
-          memory: 1G       # 最多使用 1GB 内存
+          cpus: '2.0' # 最多使用 2 核
+          memory: 1G # 最多使用 1GB 内存
         reservations:
-          cpus: '0.5'      # 保证 0.5 核
-          memory: 256M     # 保证 256MB
+          cpus: '0.5' # 保证 0.5 核
+          memory: 256M # 保证 256MB
 ```
 
 ### 3.2 日志管理
@@ -402,10 +383,10 @@ services:
 services:
   taptap-mcp-server:
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 ```
 
 ### 3.3 多环境支持
@@ -419,6 +400,7 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 **docker-compose.dev.yml**：
+
 ```yaml
 version: '3.8'
 services:
@@ -429,6 +411,7 @@ services:
 ```
 
 **docker-compose.prod.yml**：
+
 ```yaml
 version: '3.8'
 services:
@@ -437,7 +420,7 @@ services:
       - TAPTAP_MCP_ENV=production
       - TAPTAP_MCP_VERBOSE=false
     deploy:
-      replicas: 2  # 多实例
+      replicas: 2 # 多实例
 ```
 
 ### 3.4 使用 Secrets
@@ -501,6 +484,7 @@ npx @modelcontextprotocol/inspector node dist/server.js
 ```
 
 **特性**：
+
 - ✅ 可视化工具列表
 - ✅ 交互式测试工具调用
 - ✅ 查看完整的请求/响应
@@ -532,6 +516,7 @@ npx @modelcontextprotocol/inspector node dist/server.js
 ```
 
 **测试步骤**：
+
 1. 重启客户端（重新加载 MCP Server）
 2. 调用你新增的工具
 3. 检查日志（启用 `TAPTAP_MCP_VERBOSE=true`）
@@ -753,8 +738,9 @@ docker-compose down -v
 - [PATH_RESOLUTION.md](PATH_RESOLUTION.md) - 路径解析系统
 - [ARCHITECTURE.md](ARCHITECTURE.md) - 架构文档
 - [CI_CD.md](CI_CD.md) - CI/CD 流程
-- [Dockerfile](../Dockerfile) - Docker 镜像定义
-- [docker-compose.yml](../docker-compose.yml) - 编排配置
+- [docker/README.md](../docker/README.md) - Docker 部署文档
+- [docker/npm/](../docker/npm/) - npm 版本 Docker 部署
+- [docker/local/](../docker/local/) - 本地代码 Docker 部署
 
 ---
 
