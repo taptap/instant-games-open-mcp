@@ -1,0 +1,52 @@
+# 同时运行 Production 和 RND 两个环境
+# 使用方法: docker-compose up -d
+# 环境变量从项目根目录 .env 读取
+
+services:
+  # Production 环境 (使用 Native Signer)
+  production:
+    build:
+      context: .
+      args:
+        NPM_PACKAGE: '@mikoto_zero/minigame-open-mcp'
+        NPM_VERSION: 'latest'
+    image: taptap-open-mcp:npm-latest
+    container_name: taptap-mcp-npm-production
+    restart: unless-stopped
+    ports:
+      - '5003:3000'
+    environment:
+      TAPTAP_MCP_TRANSPORT: sse
+      TAPTAP_MCP_ENV: production
+      TAPTAP_MCP_VERBOSE: 'true'
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+  # RND 环境 (使用环境变量配置)
+  rnd:
+    build:
+      context: .
+      args:
+        NPM_PACKAGE: '@mikoto_zero/minigame-open-mcp'
+        NPM_VERSION: 'latest'
+    image: taptap-open-mcp:npm-latest
+    container_name: taptap-mcp-npm-rnd
+    restart: unless-stopped
+    ports:
+      - '5002:3000'
+    env_file:
+      - ../../.env
+    environment:
+      TAPTAP_MCP_TRANSPORT: sse
+      TAPTAP_MCP_ENV: rnd
+      TAPTAP_MCP_VERBOSE: 'true'
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3

@@ -50,6 +50,7 @@ npx @mikoto_zero/minigame-open-mcp
 ```
 
 **重要说明**：
+
 - **零配置 OAuth**：首次使用会提示扫码授权，token 自动保存！
 - **路径处理**：设置 `WORKSPACE_ROOT` 环境变量可以正确解析相对路径（推荐）
   - 如果不设置，相对路径会基于用户 HOME 目录（可能不符合预期）
@@ -83,37 +84,44 @@ npx @mikoto_zero/minigame-open-mcp
 ### Docker 部署
 
 ```bash
-# 快速启动
+# 快速启动（同时运行 Production 和 RND 环境）
+cd docker/npm
 docker-compose up -d
 
 # 健康检查
-curl http://localhost:5003/health
+curl http://localhost:5003/health  # Production
+curl http://localhost:5002/health  # RND
 ```
 
-详见: [Docker 部署文档](docs/DEPLOYMENT.md#2-docker-部署)
+详见: [Docker 部署文档](docker/README.md)
 
 ## 📖 功能列表
 
 ### 19 个 Tools
 
 #### 流程指引 (1)
+
 - `get_leaderboard_integration_guide` - 排行榜完整接入工作流指引
 
 #### 信息查询 (2)
+
 - `get_current_app_info` - 获取当前应用信息
 - `check_environment` - 检查环境配置
 
 #### 认证 (3)
+
 - `start_oauth_authorization` - 开始 OAuth 授权（获取二维码）
 - `complete_oauth_authorization` - 完成 OAuth 授权
 - `clear_auth_data` - 清除认证数据和缓存
 
 #### 应用管理 (3)
+
 - `list_developers_and_apps` - 列出所有应用
 - `select_app` - 选择当前应用
 - `create_developer` - 创建新开发者
 
 #### 排行榜管理 (5)
+
 - `create_leaderboard` - 创建排行榜
 - `list_leaderboards` - 列出排行榜
 - `publish_leaderboard` - 发布排行榜
@@ -121,17 +129,20 @@ curl http://localhost:5003/health
 - `get_app_status` - 获取应用审核状态
 
 #### H5 游戏管理 (4)
+
 - `h5_game_info_gatherer` - 收集 H5 游戏信息（上传前）
 - `h5_game_uploader` - 上传 H5 游戏包
 - `h5_create_app` - 创建新 H5 游戏应用
 - `h5_edit_app` - 编辑 H5 游戏信息
 
 #### 振动 API 文档 (1)
+
 - `get_vibrate_integration_guide` - 振动 API 完整文档和接入指引
 
 ### 11 个 Resources
 
 完整的排行榜 API 文档：
+
 - `docs://leaderboard/overview` - 完整概览
 - `docs://leaderboard/api/get-manager` - 初始化
 - `docs://leaderboard/api/submit-scores` - 提交分数
@@ -141,6 +152,7 @@ curl http://localhost:5003/health
 - `docs://leaderboard/api/load-centered-scores` - 周围玩家
 
 完整的振动 API 文档：
+
 - `docs://vibrate/overview` - 完整概览
 - `docs://vibrate/api/vibrate-short` - 短振动 API
 - `docs://vibrate/api/vibrate-long` - 长振动 API
@@ -204,14 +216,17 @@ npm test
 ### 环境变量
 
 **OAuth 认证（推荐）**:
+
 - 无需配置！自动保存 token 到 `~/.config/taptap-minigame/`
 
 **手动配置（可选）**:
+
 - `TAPTAP_MCP_MAC_TOKEN` - MAC Token（JSON 格式）
 - `TAPTAP_MCP_CLIENT_ID` - 客户端 ID（非必需，不配置会导致部分工具无法使用）
 - `TAPTAP_MCP_CLIENT_SECRET` - 签名密钥（非必需，不配置会导致部分工具无法使用）
 
 **其他**:
+
 - `TAPTAP_MCP_ENV` - 环境：`production`（默认）或 `rnd`
 - `TAPTAP_MCP_TRANSPORT` - 传输模式：`stdio`（默认）、`sse`、`http`
 - `TAPTAP_MCP_PORT` - 端口（默认 3000）
@@ -242,10 +257,10 @@ AI Agent 会在执行排行榜操作前，自动检查是否已选择应用：
 
 AI: 让我先检查当前是否已选择应用...
     [调用 get_current_app_info]
-    
+
     发现尚未选择应用，我来帮您列出可用的应用：
     [调用 list_developers_and_apps]
-    
+
     请问您想为哪个应用创建排行榜？
     1. 游戏 A (Developer: 开发者A, App ID: 12345)
     2. 游戏 B (Developer: 开发者B, App ID: 67890)
@@ -262,7 +277,7 @@ AI: 您有以下几个排行榜：
     1. 每日高分榜 (ID: lb_001)
     2. 周排行榜 (ID: lb_002)
     3. 全服总榜 (ID: lb_003)
-    
+
     请问您想查看哪一个？
 ```
 
@@ -281,6 +296,7 @@ graph LR
 ```
 
 **受益场景：**
+
 - 创建/查询排行榜
 - 发布排行榜
 - 上传 H5 游戏
@@ -294,10 +310,12 @@ graph LR
 ## 📚 文档
 
 ### 用户文档
+
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - 贡献指南
 - **[CHANGELOG.md](CHANGELOG.md)** - 版本变更历史
 
 ### 技术文档
+
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - 架构文档
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - 部署指南（本地、Docker、开发者测试）
 - **[docs/PROXY.md](docs/PROXY.md)** - MCP Proxy 开发指南（面向 TapCode 等平台）
@@ -322,6 +340,7 @@ gh pr create && gh pr merge
 ```
 
 **发布流程**：
+
 1. PR 合并 → 触发 Actions
 2. 分析 commits 确定版本号
 3. 发布到 npm
@@ -333,6 +352,7 @@ gh pr create && gh pr merge
 ## 🤝 贡献
 
 欢迎贡献！请遵循：
+
 1. Fork 仓库并创建 feature 分支
 2. 使用 Conventional Commits 规范
 3. 创建 PR，等待 CI 检查
