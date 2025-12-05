@@ -17,15 +17,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Git 提交规范
 
+> ⚠️ **重要：提交前必须确认 commit type！**
+>
+> 不同的 type 会触发不同的版本更新行为。提交前请先确认：
+>
+> - 本次改动是否需要触发版本更新？
+> - 如果只是文档、调试、配置等改动，应使用 `chore:`、`docs:`、`ci:` 等不触发发布的 type
+> - 如果是功能或修复，才使用 `feat:`、`fix:`、`refactor:` 等触发发布的 type
+
 - **使用 Conventional Commits 规范**：项目已配置自动化 CI/CD，commit 消息格式至关重要
-  - `feat:` - 新功能（触发 minor 版本升级）
-  - `fix:` - Bug 修复（触发 patch 版本升级）
-  - `feat!:` 或 `fix!:` - 破坏性变更（触发 major 版本升级）
-  - `docs:` - 文档更新（不触发发布）
-  - `refactor:` - 代码重构（触发 patch 版本升级）
-  - `chore:` - 构建/工具/配置更新（不触发发布）
-  - `test:` - 测试相关（不触发发布）
-  - `ci:` - CI 配置更新（不触发发布）
+
+**触发版本更新的 type：**
+
+- `feat:` - 新功能（触发 minor 版本升级）
+- `fix:` - Bug 修复（触发 patch 版本升级）
+- `feat!:` 或 `fix!:` - 破坏性变更（触发 major 版本升级）
+- `refactor:` - 代码重构（触发 patch 版本升级）
+- `perf:` - 性能优化（触发 patch 版本升级）
+
+**不触发版本更新的 type：**
+
+- `docs:` - 文档更新
+- `chore:` - 构建/工具/配置/调试相关
+- `test:` - 测试相关
+- `ci:` - CI 配置更新
+- `style:` - 代码格式
+- `build:` - 构建系统变更
 
 - **Commit Message 格式规范**（基于 `.commitlintrc.cjs`）：
 
@@ -50,22 +67,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - **Footer**（可选）：
     - 关联 issue 或注明破坏性变更
     - 与 body 之间必须有空行
-
-- **允许的 Type**（共 11 种）：
-  - `feat` - 新功能（触发 minor 版本升级）
-  - `fix` - Bug 修复（触发 patch 版本升级）
-  - `docs` - 文档更新（不触发发布）
-  - `style` - 代码格式（不影响代码运行，不触发发布）
-  - `refactor` - 重构（触发 patch 版本升级）
-  - `perf` - 性能优化（触发 patch 版本升级）
-  - `test` - 测试（不触发发布）
-  - `build` - 构建系统或外部依赖变更（不触发发布）
-  - `ci` - CI 配置文件和脚本变更（不触发发布）
-  - `chore` - 其他不修改 src 或测试文件的变更（不触发发布）
-  - `revert` - 回退之前的 commit（根据回退内容决定版本升级）
-
-- **破坏性变更标记**：
-  - 在 type 后加 `!`：`feat!:` 或 `fix!:`（触发 major 版本升级）
 
 - **完整示例**：
 
