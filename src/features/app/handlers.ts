@@ -10,6 +10,9 @@ import {
   createDeveloper,
   createAppForDeveloper,
   editAppInfo as editAppInfoApi,
+  getAppStatus as getAppStatusApi,
+  AppStatus,
+  ReviewStatus,
 } from './api.js';
 import { clearAppCache } from '../../core/utils/cache.js';
 import { clearToken, saveToken } from '../../core/auth/tokenStorage.js';
@@ -466,4 +469,39 @@ export async function updateAppInfo(
   );
 
   return MESSAGES.EDIT_GAME_INFO_SUCCESS;
+}
+
+/**
+ * Get app status (app_status and review_status)
+ * @see https://agent.api.xdrnd.cn/_docs#/level/get_level_v1_status
+ */
+export async function getAppStatus(appId: number, ctx: ResolvedContext): Promise<string> {
+  const result = await getAppStatusApi(appId, ctx);
+
+  // 使用枚举映射状态文本
+  const appStatusMap: Record<number, string> = {
+    [AppStatus.Offline]: '未上线',
+    [AppStatus.Online]: '已上线',
+  };
+  const appStatusText = appStatusMap[result.app_status] ?? '未知状态';
+
+  const reviewStatusMap: Record<number, string> = {
+    [ReviewStatus.Unpublished]: '未发布',
+    [ReviewStatus.UnderReview]: '审核中',
+    [ReviewStatus.Rejected]: '审核失败',
+    [ReviewStatus.Published]: '已上线',
+  };
+  const reviewStatusText = reviewStatusMap[result.review_status] ?? '未知状态';
+
+  return (
+    `📋 应用状态查询结果\n\n` +
+    `🎮 关卡游戏状态：${appStatusText} (${result.app_status})\n` +
+    `   - ${AppStatus.Offline}: 未上线\n` +
+    `   - ${AppStatus.Online}: 已上线\n\n` +
+    `📝 审核状态：${reviewStatusText} (${result.review_status})\n` +
+    `   - ${ReviewStatus.Unpublished}: 未发布\n` +
+    `   - ${ReviewStatus.UnderReview}: 审核中\n` +
+    `   - ${ReviewStatus.Rejected}: 审核失败\n` +
+    `   - ${ReviewStatus.Published}: 已上线`
+  );
 }

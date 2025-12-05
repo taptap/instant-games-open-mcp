@@ -312,9 +312,39 @@ export async function editAppInfo(
 }
 
 /**
+ * 关卡游戏状态
+ * @see https://agent.api.xdrnd.cn/_docs#/level/get_level_v1_status
+ */
+export enum AppStatus {
+  /** 未上线 */
+  Offline = 0,
+  /** 已上线 */
+  Online = 1,
+}
+
+/**
+ * 审核状态
+ * @see https://agent.api.xdrnd.cn/_docs#/level/get_level_v1_status
+ */
+export enum ReviewStatus {
+  /** 未发布 */
+  Unpublished = 0,
+  /** 审核中 */
+  UnderReview = 1,
+  /** 审核失败 */
+  Rejected = 2,
+  /** 已上线 */
+  Published = 4,
+}
+
+/**
  * App Status Response
+ * @see https://agent.api.xdrnd.cn/_docs#/level/get_level_v1_status
  */
 export interface AppStatusResponse {
+  /** 关卡游戏状态 */
+  app_status: number;
+  /** 审核状态 */
   review_status: number;
 }
 

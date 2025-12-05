@@ -247,17 +247,7 @@ export const appTools: ToolRegistration[] = [
       },
     },
     handler: async (args: { app_id: number }, context) => {
-      const result = await appApi.getAppStatus(args.app_id, context);
-      const statusText =
-        ['未发布', '审核中', '审核失败', '已上线'][result.review_status] || '未知状态';
-      return (
-        `📋 应用审核状态：${statusText}\n\n` +
-        `状态码: ${result.review_status}\n` +
-        `- 0: 未发布\n` +
-        `- 1: 审核中\n` +
-        `- 2: 审核失败\n` +
-        `- 3: 已上线`
-      );
+      return appHandlers.getAppStatus(args.app_id, context);
     },
     requiresAuth: true,
   },
