@@ -11,7 +11,7 @@
 
 import type { MacToken } from './index.js';
 import type { PrivateToolParams } from './privateParams.js';
-import { readAppCache, type AppCacheInfo } from '../utils/cache.js';
+import { readAppCache } from '../utils/cache.js';
 import { loadTokenFromFile, getTokenPath } from '../auth/tokenStorage.js';
 import { EnvConfig } from '../utils/env.js';
 

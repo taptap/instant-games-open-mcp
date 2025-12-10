@@ -20,6 +20,7 @@
     "start": "node bin/minigame-open-mcp",
     "dev": "tsx watch src/server.ts",
     "serve": "TAPTAP_MCP_TRANSPORT=sse node dist/server.js",
+    "docker:npm": "cd docker/npm && docker-compose -p taptap-mcp up -d",
     "test": "jest",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
