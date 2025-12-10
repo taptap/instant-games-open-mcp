@@ -1,3 +1,12 @@
+## <small>1.10.1 (2025-12-10)</small>
+
+* chore: add docker:npm script and remove unused import ([9d2455a](https://github.com/taptap/taptap_minigame_open_mcp/commit/9d2455a))
+* chore(docker): reorganize docker files into dedicated directory ([1be0a92](https://github.com/taptap/taptap_minigame_open_mcp/commit/1be0a92))
+* fix(app): correct AppStatusResponse parsing and add enums ([158bbac](https://github.com/taptap/taptap_minigame_open_mcp/commit/158bbac))
+* docs(claude): add commit type verification reminder ([340462a](https://github.com/taptap/taptap_minigame_open_mcp/commit/340462a))
+
+
+
 ## 1.10.0 (2025-12-04)
 
 * fix(ci): handle missing release assets gracefully ([8f5597e](https://github.com/taptap/taptap_minigame_open_mcp/commit/8f5597e))
