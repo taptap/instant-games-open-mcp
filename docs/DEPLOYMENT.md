@@ -38,7 +38,7 @@ npx @mikoto_zero/minigame-open-mcp
       "command": "npx",
       "args": ["-y", "@mikoto_zero/minigame-open-mcp"],
       "env": {
-        "WORKSPACE_ROOT": "${workspaceFolder}"
+        "TAPTAP_MCP_WORKSPACE_ROOT": "${workspaceFolder}"
       }
     }
   }
@@ -54,7 +54,7 @@ npx @mikoto_zero/minigame-open-mcp
       "command": "npx",
       "args": ["-y", "@mikoto_zero/minigame-open-mcp"],
       "env": {
-        "WORKSPACE_ROOT": "/path/to/your/project"
+        "TAPTAP_MCP_WORKSPACE_ROOT": "/path/to/your/project"
       }
     }
   }
@@ -65,9 +65,9 @@ npx @mikoto_zero/minigame-open-mcp
 
 - **零配置 OAuth**：首次使用会提示扫码授权，token 自动保存到 `~/.config/taptap-minigame/token.json`
 - **路径处理**：
-  - 推荐设置 `WORKSPACE_ROOT` 环境变量以正确解析相对路径
+  - 推荐设置 `TAPTAP_MCP_WORKSPACE_ROOT` 环境变量以正确解析相对路径
   - 如果不设置，相对路径会基于用户 HOME 目录（可能不符合预期）
-  - 建议使用绝对路径，或配置 `WORKSPACE_ROOT`
+  - 建议使用绝对路径，或配置 `TAPTAP_MCP_WORKSPACE_ROOT`
   - 详见：[PATH_RESOLUTION.md](PATH_RESOLUTION.md)
 
 ---
@@ -188,11 +188,11 @@ export TAPTAP_MCP_MAC_TOKEN='{"kid":"your_kid","token_type":"mac","mac_key":"you
 
 #### 缓存和临时文件（可选）
 
-| 变量                   | 说明           | 默认值                  |
-| ---------------------- | -------------- | ----------------------- |
-| `TAPTAP_MCP_CACHE_DIR` | 缓存根目录     | `/tmp/taptap-mcp/cache` |
-| `TAPTAP_MCP_TEMP_DIR`  | 临时文件根目录 | `/tmp/taptap-mcp/temp`  |
-| `WORKSPACE_ROOT`       | 工作空间根路径 | `process.cwd()`         |
+| 变量                        | 说明           | 默认值                  |
+| --------------------------- | -------------- | ----------------------- |
+| `TAPTAP_MCP_CACHE_DIR`      | 缓存根目录     | `/tmp/taptap-mcp/cache` |
+| `TAPTAP_MCP_TEMP_DIR`       | 临时文件根目录 | `/tmp/taptap-mcp/temp`  |
+| `TAPTAP_MCP_WORKSPACE_ROOT` | 工作空间根路径 | `process.cwd()`         |
 
 **缓存目录结构**：
 
@@ -508,7 +508,7 @@ npx @modelcontextprotocol/inspector node dist/server.js
         "TAPTAP_MCP_CLIENT_ID": "test",
         "TAPTAP_MCP_CLIENT_SECRET": "test",
         "TAPTAP_MCP_VERBOSE": "true",
-        "WORKSPACE_ROOT": "${workspaceFolder}"
+        "TAPTAP_MCP_WORKSPACE_ROOT": "${workspaceFolder}"
       }
     }
   }
@@ -618,8 +618,8 @@ export TAPTAP_MCP_MAC_TOKEN='{"kid":"test","token_type":"mac","mac_key":"test","
 #### 路径解析错误
 
 ```bash
-# 设置 WORKSPACE_ROOT
-export WORKSPACE_ROOT=$(pwd)
+# 设置 TAPTAP_MCP_WORKSPACE_ROOT
+export TAPTAP_MCP_WORKSPACE_ROOT=$(pwd)
 
 # 或使用绝对路径
 ```

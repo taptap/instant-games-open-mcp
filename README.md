@@ -19,6 +19,8 @@
 
 ## 🚀 快速开始
 
+> 🐣 **新手请看这里**：[TapTap MCP 配置指南 (小白版)](docs/USER_GUIDE.md) - 手把手教你配置 Cursor、Claude Code 和 VS Code。
+
 ### 安装
 
 ```bash
@@ -42,7 +44,7 @@ npx @mikoto_zero/minigame-open-mcp
       "command": "npx",
       "args": ["-y", "@mikoto_zero/minigame-open-mcp"],
       "env": {
-        "WORKSPACE_ROOT": "${workspaceFolder}"
+        "TAPTAP_MCP_WORKSPACE_ROOT": "${workspaceFolder}"
       }
     }
   }
@@ -52,9 +54,9 @@ npx @mikoto_zero/minigame-open-mcp
 **重要说明**：
 
 - **零配置 OAuth**：首次使用会提示扫码授权，token 自动保存！
-- **路径处理**：设置 `WORKSPACE_ROOT` 环境变量可以正确解析相对路径（推荐）
+- **路径处理**：设置 `TAPTAP_MCP_WORKSPACE_ROOT` 环境变量可以正确解析相对路径（推荐）
   - 如果不设置，相对路径会基于用户 HOME 目录（可能不符合预期）
-  - 建议使用绝对路径，或配置 `WORKSPACE_ROOT`
+  - 建议使用绝对路径，或配置 `TAPTAP_MCP_WORKSPACE_ROOT`
 
 #### OpenHands（推荐 SSE 模式）
 
@@ -311,6 +313,7 @@ graph LR
 
 ### 用户文档
 
+- **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** - 🐣 新手配置指南（Cursor/VS Code/Claude Code）
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - 贡献指南
 - **[CHANGELOG.md](CHANGELOG.md)** - 版本变更历史
 
