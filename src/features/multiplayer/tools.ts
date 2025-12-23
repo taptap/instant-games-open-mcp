@@ -21,7 +21,22 @@ export const multiplayerTools: (ToolRegistration & { requiresAuth?: boolean })[]
   {
     definition: {
       name: 'get_multiplayer_guide',
-      description: '⭐ CALL THIS FIRST when user wants: players to play together/一起玩/两个人玩, add online/network features/联网功能/网络功能, players can see each other/互相看到对方, sync players/同步玩家/实时互动, multiplayer/多人联机/双人游戏/PVP/合作玩法/对战模式. Returns complete code template + usage examples. Primary entry!',
+      description: `⭐ PRIMARY entry for multiplayer/多人联机/联网游戏.
+
+CORE CONCEPT: Player A does action → sendData() → Other players receive in onDataReceived() → They see it happen.
+
+Returns: Complete guide with code template. Includes: data sync basics, PlayerId usage, sync strategies, protocol guidelines, API-event relationships, built-in debug logger.
+
+🔧 Built-in features:
+- MultiplayerManager template (complete, production-ready)
+- Debug logger system (on-screen logs, call get_debug_logger for setup)
+- Error codes reference (23 error codes)
+- Connection keep-alive
+- Message size validation (2048 bytes)
+
+Use when: User wants players to play together, sync game data, see each other's actions.
+
+Perfect for ANY creative H5 game. No game-specific logic needed.`,
       inputSchema: {
         type: 'object',
         properties: {}
@@ -37,7 +52,18 @@ export const multiplayerTools: (ToolRegistration & { requiresAuth?: boolean })[]
   {
     definition: {
       name: 'get_code_template',
-      description: 'Get complete MultiplayerManager.js template with built-in rate limiting. Copy-paste ready code for: initialization, event registration, room matching, data sync, room exit. Use when user wants implementation reference or needs reusable multiplayer class.',
+      description: `Get complete MultiplayerManager.js template (350+ lines).
+
+Core methods:
+- 📤 sendData(data) → Send your action to others
+- 📥 onDataReceived(data, fromId) → Receive others' actions
+- syncPosition(x, y) → Optimized position sync
+- init() → Returns playerId (MUST save it!)
+- matchRoom() → Match or create room
+
+Features: Built-in rate limiting (10/sec), field compatibility, offline fallback, change detection.
+
+Copy-paste ready. Use for ANY game type.`,
       inputSchema: {
         type: 'object',
         properties: {}
@@ -53,7 +79,18 @@ export const multiplayerTools: (ToolRegistration & { requiresAuth?: boolean })[]
   {
     definition: {
       name: 'get_api_event_table',
-      description: 'Get API-to-Event relationship table. Shows which events are triggered by which API calls and who receives them. CRITICAL for understanding: matchRoom vs playerEnterRoom, updatePlayerCustomProperties (all receive) vs sendCustomMessage (sender does not receive). Use when implementing event handling logic.',
+      description: `⚠️ CRITICAL - API-to-Event relationship table.
+
+Shows: Which API call triggers which event, and WHO receives it.
+
+Key relationships AI must understand:
+- matchRoom() → You: get roomInfo, Others: get playerEnterRoom event
+- sendCustomMessage() → You: NO event, Others: get onCustomMessage event
+- updatePlayerCustomProperties() → ALL players (including you): get event
+
+This relationship is hard to show in code template, so use this table when implementing event handlers.
+
+Use when: Implementing multiplayer logic, debugging "why no event triggered?"`,
       inputSchema: {
         type: 'object',
         properties: {}
@@ -69,7 +106,21 @@ export const multiplayerTools: (ToolRegistration & { requiresAuth?: boolean })[]
   {
     definition: {
       name: 'get_protocol_template',
-      description: 'Get communication protocol template for games with 4+ interaction types. Returns markdown template for generating protocol docs (docs/multiplayer-protocol.md) in user project. Use when team collaboration requires clear protocol definition.',
+      description: `⚠️ CRITICAL - Communication protocol template to ensure consistency.
+
+PURPOSE: Prevent AI from using different protocols for different features.
+
+COMMON MISTAKE (AI often does this):
+- Feature 1: { type: 'click', x, y }
+- Feature 2: { action: 'move', pos: {x, y} }  ❌ Inconsistent!
+
+SOLUTION: Define protocol ONCE at project start, reuse for ALL features:
+- All messages: { type: string, ...data }
+- Consistent structure across all game features
+
+Use when: Starting multiplayer implementation, adding new interaction types.
+
+This is a MAJOR source of bugs - keep protocol consistent!`,
       inputSchema: {
         type: 'object',
         properties: {}
@@ -167,7 +218,15 @@ export const multiplayerTools: (ToolRegistration & { requiresAuth?: boolean })[]
   {
     definition: {
       name: 'generate_multiplayer_code',
-      description: '🎯 One-click solution: Generate complete multiplayer files ready to save. Creates MultiplayerManager.js + MULTIPLAYER_GUIDE.md. Use when user wants quick setup or asks "generate multiplayer code/生成多人联机代码". Returns file paths and contents.',
+      description: `🎯 One-click: Generate complete multiplayer files ready to save.
+
+Generates:
+1. js/MultiplayerManager.js (complete template with comments)
+2. MULTIPLAYER_GUIDE.md (quick reference for project)
+
+Returns: File paths and contents, ready to save.
+
+Use when: User wants quick setup, or says "generate multiplayer code/生成多人联机代码".`,
       inputSchema: {
         type: 'object',
         properties: {}
@@ -183,7 +242,15 @@ export const multiplayerTools: (ToolRegistration & { requiresAuth?: boolean })[]
   {
     definition: {
       name: 'diagnose_multiplayer_issues',
-      description: '🔍 Diagnose common multiplayer issues. Use when user reports: players not visible/看不到其他玩家, position not syncing/位置不同步, connection failed/连接失败, API errors. Returns detailed checklist and solutions. Extensible for future issue types.',
+      description: `🔍 Diagnose common multiplayer issues.
+
+Use when user reports:
+- Players not visible / 看不到其他玩家
+- Position not syncing / 位置不同步
+- Connection failed / 连接失败
+- Data not received / 收不到数据
+
+Returns: Checklist with solutions for each issue.`,
       inputSchema: {
         type: 'object',
         properties: {}
@@ -199,7 +266,16 @@ export const multiplayerTools: (ToolRegistration & { requiresAuth?: boolean })[]
   {
     definition: {
       name: 'check_multiplayer_code',
-      description: '✅ Check multiplayer code for common issues before deployment. Detects: missing rate limiting, wrong field names, missing playerId save, uninitialized players. Use before finalizing code or when debugging.',
+      description: `✅ Check multiplayer code before deployment.
+
+Detects:
+- Missing rate limiting
+- Wrong field names (playerId vs id)
+- Missing playerId save
+- Uninitialized remote players
+- Protocol inconsistency
+
+Use when: Before finalizing code, or when debugging.`,
       inputSchema: {
         type: 'object',
         properties: {
@@ -213,6 +289,40 @@ export const multiplayerTools: (ToolRegistration & { requiresAuth?: boolean })[]
     },
     handler: async (args) => {
       return multiplayerDocTools.checkCode(args as { code: string });
+    },
+    requiresAuth: false
+  },
+
+  // 🔧 调试工具
+  {
+    definition: {
+      name: 'get_debug_logger',
+      description: `🔧 Get on-screen debug logger / 屏幕日志系统 / 调试日志工具.
+
+CALL THIS WHEN user says:
+- "添加日志工具" / "add logger" / "add debug tool"
+- "屏幕日志" / "screen log" / "on-screen log"
+- "看不到日志" / "can't see logs" / "无法查看控制台"
+- "移动端调试" / "mobile debug" / "手机测试"
+- "调试工具" / "debug tool" / "debugging"
+- "显示日志在屏幕上" / "show logs on screen"
+
+Features:
+- 右下角绿色小圆点 → 点击显示日志面板
+- 日志分级 (log/warn/error)，自动去重
+- 支持复制日志，自动拦截 console
+- 移动端友好，非程序员也能用
+
+Returns: DebugLogger setup guide + usage. AI can copy files from /Volumes/Q/MiniGame/Mcp/Tank/DebugLogger to project.
+
+Perfect for: H5 games, mobile testing, non-technical users.`,
+      inputSchema: {
+        type: 'object',
+        properties: {}
+      }
+    },
+    handler: async () => {
+      return multiplayerDocTools.getDebugLogger();
     },
     requiresAuth: false
   }

@@ -2594,62 +2594,138 @@ await mp.init();
 await mp.matchRoom(4, 'game_mode');
 \`\`\``,
           parameters: {},
-          example: `// ========== 通用多人联机管理器 ==========
-// 可直接复制使用，根据需要扩展
+          example: `// ========== MultiplayerManager - 多人联机管理器 ==========
+//
+// 🎯 核心概念：多人联机 = 数据通讯
+//    玩家 A 操作 → sendData() → 其他玩家 onDataReceived → 看到效果
+//
+// 📖 使用方法：
+//    1. 复制这个类到你的项目
+//    2. 参考下方"使用说明"章节的示例代码
+//    3. 详细流程：调用 get_multiplayer_guide 查看完整指引
+//
+// 🔄 生命周期：
+//    1. 初始化：mp.init() → 返回 playerId
+//    2. 进房间：mp.matchRoom() → 返回 roomInfo
+//    3. 发送数据：mp.sendData() / mp.syncPosition()
+//    4. 接收数据：mp.onDataReceived 回调触发
+//    5. 离开房间：mp.leaveRoom()
+//    ⚠️ 断线：onDisconnected 触发（SDK 不支持自动重连）
+//
+// 📡 核心方法：
+//    📤 发送：sendData(data), syncPosition(x, y), sendEvent(type, data)
+//    📥 接收：onDataReceived(data, fromId), onPlayerJoined(player), onPlayerLeft(id)
+//
+// 🔧 调试工具：
+//    - DEBUG_MODE：控制是否显示弹窗（默认 false）
+//    - DebugLogger：屏幕日志系统（调用 get_debug_logger 获取）
+//    - getStats()：查看统计信息
+
+/**
+ * 多人联机错误码
+ */
+const ErrorCode = {
+  ERROR_SUCCESS: 0,                                    // 成功
+  ERROR_SYSTEM_ERROR: 1,                               // 系统错误
+  ERROR_SDK_ERROR: 2,                                  // SDK错误
+  ERROR_REQUEST_RATE_LIMIT_EXCEEDED: 3,                // 请求频率超限
+  ERROR_MALICIOUS_USER: 4,                             // 恶意用户
+  ERROR_TOO_MANY_CONNECTIONS: 5,                       // 连接数过多
+  ERROR_NETWORK_ERROR: 6,                              // 网络错误
+  ERROR_INVALID_REQUEST: 11,                           // 请求不合法
+  ERROR_INVALID_AUTHORIZATION: 12,                     // 认证信息不合法
+  ERROR_UNAUTHORIZED: 13,                              // 尚未完成登录认证
+  ERROR_ALREADY_SIGNED_IN: 14,                         // 已经登录
+  ERROR_PREVIOUS_REQUEST_IN_PROGRESS: 15,              // 上一个请求未完成
+  ERROR_UNIMPLEMENTED: 16,                             // 功能未实现
+  ERROR_FORBIDDEN: 17,                                 // 没有权限
+  ERROR_ROOM_TEMPLATE_NOT_FOUND: 18,                   // 房间模板不存在
+  ERROR_ROOM_COUNT_LIMIT_EXCEEDED: 19,                 // 房间数量超限
+  ERROR_NOT_IN_ROOM: 20,                               // 尚未加入房间
+  ERROR_ALREADY_IN_ROOM: 21,                           // 已在房间中
+  ERROR_NOT_ROOM_OWNER: 22,                            // 不是房主
+  ERROR_ROOM_FULL: 23,                                 // 房间已满
+  ERROR_ROOM_NOT_EXIST: 24,                            // 房间不存在
+  ERROR_BATTLE_NOT_STARTED: 25,                        // 对战未开始
+  ERROR_BATTLE_ALREADY_STARTED: 26,                    // 对战已开始
+  ERROR_PLAYER_NOT_FOUND: 30                           // 玩家不存在
+};
 
 class MultiplayerManager {
   constructor() {
-    // SDK 管理器
     this.manager = null;
-
-    // 状态
     this.myPlayerId = null;
     this.roomInfo = null;
-    this.isOnline = false;      // SDK 是否可用（单机降级）
-    this.isConnected = false;   // 是否已连接服务器
-    this.isInRoom = false;      // 是否在房间中
-    this.isHost = false;        // 是否为房主（房主权威）
+    this.isOnline = false;
+    this.isConnected = false;
+    this.isInRoom = false;
+    this.isHost = false;
 
-    // 内置频率限制 + 变化检测
     this.lastSyncTime = 0;
-    this.SYNC_INTERVAL = 100;   // 100ms = 10次/秒
-    this.lastPosition = { x: 0, y: 0 };
+    this.SYNC_INTERVAL = 100;        // 100ms = 10次/秒
+    this.MAX_MESSAGE_SIZE = 2048;    // 2048字节限制
 
-    // 远程玩家管理
-    this.remotePlayers = new Map();  // playerId → player data
+    this.remotePlayers = new Map();
 
-    // 消息类型枚举（可扩展）
+    // 消息类型
     this.MSG_TYPES = {
-      POSITION: 'position',       // 位置同步
-      STATE: 'state',             // 状态同步
-      EVENT: 'event'              // 游戏事件
+      POSITION: 'position',
+      STATE: 'state',
+      EVENT: 'event',
+      SKILL: 'skill'
     };
 
-    // 事件回调（由业务逻辑设置）
-    this.onPlayerJoined = null;      // (playerInfo) => void
-    this.onPlayerLeft = null;        // (playerId) => void
-    this.onDataReceived = null;      // (data, fromPlayerId) => void
-    this.onRoomJoined = null;        // (roomInfo) => void
-    this.onDisconnected = null;      // () => void
+    // 回调函数
+    this.onPlayerJoined = null;
+    this.onPlayerLeft = null;
+    this.onDataReceived = null;
+    this.onRoomJoined = null;
+    this.onDisconnected = null;
+
+    this.DEBUG_MODE = false;  // 关闭调试模式（减少弹窗干扰）
+    
+    this.stats = {
+      messagesSent: 0,
+      messagesReceived: 0,
+      positionsSynced: 0,
+      eventsReceived: 0
+    };
+    
+    this.lastActivityTime = Date.now();
+    this.connectionCheckInterval = null;
   }
 
-  // ====== 工具函数（通用基础设施）======
-
   /**
-   * 检查 TapTap SDK 可用性（单机降级）
+   * 检查 TapTap SDK 可用性
    */
   checkTapSDK() {
-    if (typeof tap === 'undefined' || !tap?.getOnlineBattleManager) {
-      console.warn('⚠️ TapTap SDK 不可用，使用单机模式');
+    console.log('🔍 检查 TapTap SDK...');
+    console.log('  - typeof tap:', typeof tap);
+    
+    if (typeof tap === 'undefined') {
+      console.error('❌ tap 对象未定义！这是正常的（本地环境）');
+      console.error('  - 原因: 游戏未在TapTap环境中运行');
+      console.error('  - 解决: 将自动切换到单机模式');
       this.isOnline = false;
       return false;
     }
+    
+    console.log('  - tap对象存在:', tap);
+    
+    if (!tap.getOnlineBattleManager) {
+      console.error('❌ tap.getOnlineBattleManager 方法不存在！');
+      console.error('  - 可用方法:', Object.keys(tap));
+      this.isOnline = false;
+      return false;
+    }
+    
+    console.log('✅ TapTap SDK 可用');
     this.isOnline = true;
     return true;
   }
 
   /**
-   * 字段名兼容提取（防止 undefined）
+   * 字段名兼容提取
    */
   extractPlayerId(info) {
     if (info.playerInfo) return info.playerInfo.id;
@@ -2660,13 +2736,8 @@ class MultiplayerManager {
     return info.msg || info.message || info.content;
   }
 
-  extractProperties(info) {
-    if (info.playerInfo) return info.playerInfo.customProperties;
-    return info.customProperties || info.properties;
-  }
-
   /**
-   * 错误格式化（兼容多种错误格式）
+   * 错误格式化
    */
   formatError(error) {
     if (!error) return '未知错误';
@@ -2674,60 +2745,87 @@ class MultiplayerManager {
     return error.message || error.errMsg || error.msg || String(error);
   }
 
-  // ====== 初始化流程 ======
-
   /**
-   * 初始化（支持单机降级）
+   * 初始化并连接服务器
    */
   async init() {
+    console.log('🚀 [多人联机] 开始初始化...');
+    console.log('  - 当前环境:', window.location.href);
+    console.log('  - User Agent:', navigator.userAgent);
+    
     // 单机模式降级
     if (!this.checkTapSDK()) {
+      console.warn('⚠️ 使用单机模式（SDK不可用）');
+      console.warn('  - 这是正常的，本地测试时无SDK');
+      console.warn('  - 在TapTap平台上会自动启用多人联机');
       this.myPlayerId = 'local-' + Date.now();
-      return { success: true, offline: true, playerId: this.myPlayerId };
+      return { 
+        success: true, 
+        offline: true, 
+        playerId: this.myPlayerId,
+        message: 'SDK不可用，使用单机模式'
+      };
     }
 
     try {
-      // 1. 获取管理器
+      console.log('📡 获取OnlineBattleManager...');
       this.manager = tap.getOnlineBattleManager();
+      console.log('  ✅ Manager获取成功');
 
-      // 2. 注册事件监听（必须在 connect 之前！）
+      console.log('📝 注册事件监听器...');
       this._registerListeners();
+      console.log('  ✅ 事件监听器注册完成');
 
-      // 3. 连接服务器
+      console.log('🔌 连接到TapTap服务器...');
       const res = await this.manager.connect();
       this.myPlayerId = res.playerId;
       this.isConnected = true;
 
-      console.log('[多人联机] 初始化完成，玩家ID:', this.myPlayerId);
+      console.log('✅ [多人联机] 初始化完成！');
+      console.log('  - 玩家ID:', this.myPlayerId);
+      console.log('  - 连接状态:', this.isConnected);
+      
+      this._startKeepAlive();
+      
       return { success: true, playerId: this.myPlayerId };
     } catch (error) {
-      console.error('[多人联机] 初始化失败:', this.formatError(error));
-      return { success: false, error: this.formatError(error) };
+      console.error('❌ [多人联机] 初始化失败!');
+      console.error('  - 错误类型:', error.constructor.name);
+      console.error('  - 错误信息:', this.formatError(error));
+      console.error('  - 错误对象:', error);
+      console.error('  - 错误堆栈:', error.stack);
+      
+      return { 
+        success: false, 
+        error: this.formatError(error),
+        errorDetails: {
+          type: error.constructor.name,
+          message: error.message,
+          stack: error.stack
+        }
+      };
     }
   }
   
   /**
-   * 注册事件监听（内部方法）
-   * 必须在 connect 之前调用
+   * 注册事件监听
    */
   _registerListeners() {
     this.manager.registerListener({
-      // 连接断开
       onDisconnected: (errorInfo) => {
-        console.log('[多人联机] 连接断开:', errorInfo.reason);
+        console.error('🔴 [关键错误] 连接断开!!!', errorInfo);
         this.isConnected = false;
         this.isInRoom = false;
+        
         if (this.onDisconnected) {
           this.onDisconnected(errorInfo.reason, errorInfo.code);
         }
       },
       
-      // 新玩家加入
       playerEnterRoom: (info) => {
-        const playerId = this.extractPlayerId(info);  // ✅ 兼容提取
-        console.log('[多人联机] 玩家加入:', playerId);
+        const playerId = this.extractPlayerId(info);
+        console.log('👤 [事件] 玩家加入房间:', playerId);
 
-        // 添加到远程玩家列表
         this.remotePlayers.set(playerId, { id: playerId });
 
         if (this.onPlayerJoined) {
@@ -2735,12 +2833,10 @@ class MultiplayerManager {
         }
       },
 
-      // 玩家离开
       playerLeaveRoom: (info) => {
-        const playerId = this.extractPlayerId(info);  // ✅ 兼容提取
+        const playerId = this.extractPlayerId(info);
         console.log('[多人联机] 玩家离开:', playerId);
 
-        // 从远程玩家列表移除
         this.remotePlayers.delete(playerId);
 
         if (this.onPlayerLeft) {
@@ -2748,12 +2844,10 @@ class MultiplayerManager {
         }
       },
 
-      // 玩家掉线
       playerOffline: (info) => {
-        const playerId = this.extractPlayerId(info);  // ✅ 兼容提取
+        const playerId = this.extractPlayerId(info);
         console.log('[多人联机] 玩家掉线:', playerId);
 
-        // 从远程玩家列表移除
         this.remotePlayers.delete(playerId);
 
         if (this.onPlayerLeft) {
@@ -2761,64 +2855,38 @@ class MultiplayerManager {
         }
       },
 
-      // 收到自定义消息
       onCustomMessage: (info) => {
-        const fromId = this.extractPlayerId(info);  // ✅ 兼容提取
-        const msgStr = this.extractMessage(info);   // ✅ 兼容提取
+        const fromId = this.extractPlayerId(info);
+        const msgStr = this.extractMessage(info);
+        
+        this.stats.messagesReceived++;
 
-        // 跳过自己的消息（防御性检查）
-        if (fromId === this.myPlayerId) return;
+        // 跳过自己的消息
+        if (fromId === this.myPlayerId) {
+          return;
+        }
 
         try {
           const data = typeof msgStr === 'string' ? JSON.parse(msgStr) : msgStr;
+          
+          this.stats.eventsReceived++;
+          
+          // 添加日志
+          if (data.type === 'position') {
+            // 每100次接收输出一次日志
+            if (this.stats.eventsReceived % 100 === 0) {
+              Debug.log('📥 已接收 ' + this.stats.eventsReceived + ' 条消息');
+            }
+          } else {
+            Debug.log('📥 接收: ' + data.type + ' from ' + fromId.substring(0, 8));
+          }
+
           if (this.onDataReceived) {
             this.onDataReceived(data, fromId);
           }
         } catch (e) {
-          console.error('[多人联机] 消息解析失败:', e);
-        }
-      },
-
-      // 玩家属性变更
-      onPlayerCustomPropertiesChange: (info) => {
-        const playerId = this.extractPlayerId(info);  // ✅ 兼容提取
-
-        // 跳过自己（自己的变更本地已处理）
-        if (playerId === this.myPlayerId) return;
-
-        const propsStr = this.extractProperties(info);  // ✅ 兼容提取
-        try {
-          const props = typeof propsStr === 'string' ? JSON.parse(propsStr) : propsStr;
-          if (this.onPlayerPropsChanged) {
-            this.onPlayerPropsChanged(playerId, props);
-          }
-        } catch (e) {
-          console.error('[多人联机] 属性解析失败:', e);
-        }
-      },
-
-      // 房间属性变更
-      onRoomPropertiesChange: (info) => {
-        // 检查房主是否变更
-        if (info.ownerId && this.roomInfo) {
-          const oldOwnerId = this.roomInfo.ownerId;
-          this.roomInfo.ownerId = info.ownerId;
-          this.isHost = (info.ownerId === this.myPlayerId);
-
-          if (oldOwnerId !== info.ownerId) {
-            console.log('[多人联机] 房主变更:', info.ownerId, '我是房主:', this.isHost);
-          }
-        }
-
-        // 房间属性变更
-        const propsStr = info.customProperties;
-        try {
-          const props = typeof propsStr === 'string' ? JSON.parse(propsStr) : propsStr;
-          if (this.onRoomPropsChanged) {
-            this.onRoomPropsChanged(props);
-          }
-        } catch (e) {
-          console.error('[多人联机] 房间属性解析失败:', e);
+          console.error('❌ 消息解析失败:', e, msgStr);
+          Debug.log('❌ 消息解析失败: ' + e.message, 'error');
         }
       }
     });
@@ -2827,21 +2895,30 @@ class MultiplayerManager {
   }
   
   /**
-   * 匹配房间（支持单机降级）
+   * 匹配房间
    */
   async matchRoom(maxPlayers = 2, roomType = 'default', playerProps = {}) {
+    console.log('🎮 [多人联机] 开始匹配房间...');
+    console.log('  - 最大玩家数:', maxPlayers);
+    console.log('  - 房间类型:', roomType);
+    console.log('  - 玩家属性:', playerProps);
+    
     // 单机模式降级
     if (!this.isOnline) {
-      console.log('[多人联机] 单机模式');
+      console.warn('⚠️ 单机模式，无法联机');
       this.isInRoom = true;
       if (this.onRoomJoined) {
         this.onRoomJoined({ players: [{ id: this.myPlayerId }] });
       }
-      return { success: true, offline: true };
+      return { 
+        success: true, 
+        offline: true,
+        message: '单机模式，无多人联机'
+      };
     }
 
     try {
-      const res = await this.manager.matchRoom({
+      const matchConfig = {
         data: {
           roomCfg: {
             maxPlayerCount: maxPlayers,
@@ -2851,24 +2928,44 @@ class MultiplayerManager {
             customProperties: JSON.stringify(playerProps)
           }
         }
-      });
+      };
+      
+      console.log('  - 匹配配置:', JSON.stringify(matchConfig, null, 2));
+      
+      const res = await this.manager.matchRoom(matchConfig);
+      
+      console.log('  ✅ 匹配响应:', res);
 
       this.roomInfo = res.roomInfo;
       this.isInRoom = true;
       this.isHost = (this.roomInfo.ownerId === this.myPlayerId);
 
-      console.log('[多人联机] 匹配成功，房间ID:', this.roomInfo.id);
-      console.log('[多人联机] 我是房主:', this.isHost);
+      console.log('🏠 [房间信息]');
+      console.log('  - 房间ID:', this.roomInfo.id);
+      console.log('  - 房主ID:', this.roomInfo.ownerId);
+      console.log('  - 我是房主:', this.isHost);
+      console.log('  - 当前玩家数:', this.roomInfo.players.length);
+      console.log('  - 玩家列表:', this.roomInfo.players.map(p => p.id));
 
-      // 初始化房间内已有的其他玩家
+      // 初始化房间内已有的玩家
+      let existingPlayersCount = 0;
       this.roomInfo.players.forEach(player => {
         if (player.id !== this.myPlayerId) {
+          existingPlayersCount++;
+          console.log('  👤 房间内已有玩家:', player.id);
           this.remotePlayers.set(player.id, { id: player.id });
+          
           if (this.onPlayerJoined) {
             this.onPlayerJoined(player);
           }
         }
       });
+      
+      if (existingPlayersCount > 0) {
+        console.log(\`  ✅ 加载了 \${existingPlayersCount} 个已有玩家\`);
+      } else {
+        console.log('  ℹ️ 房间内只有自己，等待其他玩家加入...');
+      }
 
       if (this.onRoomJoined) {
         this.onRoomJoined(this.roomInfo);
@@ -2876,86 +2973,134 @@ class MultiplayerManager {
 
       return { success: true, roomInfo: this.roomInfo };
     } catch (error) {
-      console.error('[多人联机] 匹配失败:', this.formatError(error));
-      return { success: false, error: this.formatError(error) };
+      console.error('❌ [多人联机] 匹配失败!');
+      console.error('  - 错误类型:', error.constructor.name);
+      console.error('  - 错误信息:', this.formatError(error));
+      console.error('  - 错误对象:', error);
+      console.error('  - 错误堆栈:', error.stack);
+      
+      // 检查特定错误类型
+      if (error.code) {
+        console.error('  - 错误代码:', error.code);
+        console.error('  - 错误代码说明:', this.getErrorCodeMessage(error.code));
+      }
+      
+      return { 
+        success: false, 
+        error: this.formatError(error),
+        errorCode: error.code,
+        errorDetails: {
+          type: error.constructor.name,
+          message: error.message,
+          code: error.code,
+          stack: error.stack
+        }
+      };
     }
   }
   
   /**
-   * 发送数据给其他玩家（内置频率限制）
-   * @param data 要发送的数据（会自动 JSON 序列化）
-   * ✅ 内置频率限制：自动控制在 10次/秒，防止超频
+   * 获取错误代码说明
+   */
+  getErrorCodeMessage(code) {
+    const messages = {
+      [ErrorCode.ERROR_SUCCESS]: '成功',
+      [ErrorCode.ERROR_SYSTEM_ERROR]: '系统错误',
+      [ErrorCode.ERROR_SDK_ERROR]: 'SDK错误',
+      [ErrorCode.ERROR_REQUEST_RATE_LIMIT_EXCEEDED]: '请求频率超限',
+      [ErrorCode.ERROR_MALICIOUS_USER]: '恶意用户',
+      [ErrorCode.ERROR_TOO_MANY_CONNECTIONS]: '连接数过多',
+      [ErrorCode.ERROR_NETWORK_ERROR]: '网络错误',
+      [ErrorCode.ERROR_INVALID_REQUEST]: '请求不合法',
+      [ErrorCode.ERROR_INVALID_AUTHORIZATION]: '认证信息不合法',
+      [ErrorCode.ERROR_UNAUTHORIZED]: '尚未完成登录认证',
+      [ErrorCode.ERROR_ALREADY_SIGNED_IN]: '已经登录',
+      [ErrorCode.ERROR_PREVIOUS_REQUEST_IN_PROGRESS]: '上一个请求未完成',
+      [ErrorCode.ERROR_UNIMPLEMENTED]: '功能未实现',
+      [ErrorCode.ERROR_FORBIDDEN]: '没有权限',
+      [ErrorCode.ERROR_ROOM_TEMPLATE_NOT_FOUND]: '房间模板不存在',
+      [ErrorCode.ERROR_ROOM_COUNT_LIMIT_EXCEEDED]: '房间数量超限',
+      [ErrorCode.ERROR_NOT_IN_ROOM]: '尚未加入房间',
+      [ErrorCode.ERROR_ALREADY_IN_ROOM]: '已在房间中',
+      [ErrorCode.ERROR_NOT_ROOM_OWNER]: '不是房主',
+      [ErrorCode.ERROR_ROOM_FULL]: '房间已满',
+      [ErrorCode.ERROR_ROOM_NOT_EXIST]: '房间不存在',
+      [ErrorCode.ERROR_BATTLE_NOT_STARTED]: '对战未开始',
+      [ErrorCode.ERROR_BATTLE_ALREADY_STARTED]: '对战已开始',
+      [ErrorCode.ERROR_PLAYER_NOT_FOUND]: '玩家不存在'
+    };
+    return messages[code] || \`未知错误代码: \${code}\`;
+  }
+  
+  /**
+   * 发送数据给其他玩家
    */
   sendData(data) {
     if (!this.isInRoom) {
-      console.warn('[多人联机] 尚未进入房间，无法发送数据');
-      return;
+      Debug.log('⚠️ 未在房间中，无法发送数据', 'warn');
+      return false;
     }
 
-    // ✅ 内置频率限制（防止超频）
-    const now = Date.now();
-    if (now - this.lastSyncTime < this.SYNC_INTERVAL) {
-      return;  // 跳过过于频繁的调用
+    // 单机模式跳过
+    if (!this.isOnline) {
+      return true;
     }
 
-    this.manager.sendCustomMessage({
-      data: {
-        msg: JSON.stringify(data),
-        type: 0  // 发送给房间所有人
+    try {
+      const jsonString = JSON.stringify(data);
+      const byteSize = new Blob([jsonString]).size;
+      
+      if (byteSize > this.MAX_MESSAGE_SIZE) {
+        console.error('❌ 数据包过大！', byteSize, '字节');
+        Debug.log('❌ 数据包过大: ' + byteSize + '字节', 'error');
+        return false;
       }
-    });
 
-    this.lastSyncTime = now;
+      this.stats.messagesSent++;
+      this.lastActivityTime = Date.now();
+      
+      // 发送消息
+      this.manager.sendCustomMessage({
+        data: { msg: jsonString, type: 0 }
+      });
+      
+      // 只在发送事件时输出日志（避免位置同步日志过多）
+      if (data.type === 'event') {
+        Debug.log('📤 发送事件: ' + data.eventType);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('❌ 发送消息失败:', error);
+      Debug.log('❌ 发送消息失败: ' + error.message, 'error');
+      return false;
+    }
   }
   
   /**
-   * 更新自己的玩家属性（内置频率限制）
-   * @param props 玩家属性对象
-   * ✅ 内置频率限制：自动控制在 10次/秒，防止超频
+   * 同步位置（自动限频）
    */
-  async updateMyProps(props) {
-    if (!this.isInRoom) {
-      console.warn('[多人联机] 尚未进入房间，无法更新属性');
-      return;
-    }
-
-    // ✅ 内置频率限制（防止超频）
-    const now = Date.now();
-    if (now - this.lastSyncTime < this.SYNC_INTERVAL) {
-      return;  // 跳过过于频繁的调用
-    }
-
-    await this.manager.updatePlayerCustomProperties({
-      properties: JSON.stringify(props)
-    });
-
-    this.lastSyncTime = now;
-  }
-  
-  /**
-   * 同步位置（内置频率限制 + 变化检测）
-   * 最常用的同步方法，适合在游戏循环中调用
-   */
-  syncPosition(x, y) {
+  syncPosition(x, y, radius) {
     if (!this.isInRoom) return;
 
     const now = Date.now();
     if (now - this.lastSyncTime < this.SYNC_INTERVAL) return;
 
-    // ✅ 变化检测（减少 50%+ API 调用）
-    const dx = Math.abs(x - this.lastPosition.x);
-    const dy = Math.abs(y - this.lastPosition.y);
-    if (dx < 1 && dy < 1) return;  // 位置几乎没变，跳过
-
+    this.stats.positionsSynced++;
     this.lastSyncTime = now;
-    this.lastPosition = { x, y };
 
-    this.sendData({ type: this.MSG_TYPES.POSITION, x, y });
+    const success = this.sendData({ type: 'position', x, y, radius });
+    
+    // 每100次同步输出一次日志（避免刷屏）
+    if (this.stats.positionsSynced % 100 === 0) {
+      Debug.log('📍 已同步位置 ' + this.stats.positionsSynced + ' 次');
+    }
+    
+    return success;
   }
-
+  
   /**
-   * 发送游戏事件（扩展用）
-   * 用于同步游戏特定事件（攻击、道具、技能等）
+   * 发送游戏事件
    */
   sendEvent(eventType, eventData) {
     this.sendData({
@@ -2966,40 +3111,374 @@ class MultiplayerManager {
   }
 
   /**
-   * 离开房间（清理资源）
+   * 离开房间
    */
   async leaveRoom() {
     if (!this.isInRoom) return;
 
+    console.log('👋 [多人联机] 离开房间...');
+    
+    this._stopKeepAlive();
+
     if (this.isOnline && this.manager) {
-      await this.manager.leaveRoom();
+      try {
+        await this.manager.leaveRoom();
+      } catch (error) {
+        console.error('  ❌ 离开房间失败:', error);
+      }
     }
 
     this.roomInfo = null;
     this.isInRoom = false;
-    this.remotePlayers.clear();  // ✅ 清理远程玩家
-
-    console.log('[多人联机] 已离开房间');
+    this.remotePlayers.clear();
   }
 
-  // ====== 工具方法 ======
+  /**
+   * 启动连接保活
+   */
+  _startKeepAlive() {
+    this.lastActivityTime = Date.now();
+    
+    this.connectionCheckInterval = setInterval(() => {
+      if (!this.isConnected && this.isOnline) {
+        console.warn('⚠️ 检测到连接断开');
+      }
+    }, 30000);
+  }
+  
+  /**
+   * 停止保活
+   */
+  _stopKeepAlive() {
+    if (this.connectionCheckInterval) {
+      clearInterval(this.connectionCheckInterval);
+      this.connectionCheckInterval = null;
+    }
+  }
 
   isOwner() {
     return this.isHost;
   }
 
-  getRemotePlayer(playerId) {
-    return this.remotePlayers.get(playerId);
-  }
-
-  getAllRemotePlayers() {
-    return Array.from(this.remotePlayers.values());
-  }
-
   getRemotePlayerIds() {
     return Array.from(this.remotePlayers.keys());
   }
-}`
+}
+
+// ========== 使用说明 ==========
+//
+// 📖 以下示例展示如何在游戏中使用 MultiplayerManager
+// 📖 完整指引：调用 get_multiplayer_guide 查看详细流程
+
+// ========== 第一部分：基础使用 ==========
+
+// 步骤 1：创建实例
+const mp = new MultiplayerManager();
+
+// 步骤 2：设置回调（重要！）
+mp.onPlayerJoined = (player) => {
+  console.log('👤 新玩家加入:', player.id);
+  // TODO: 创建远程玩家对象
+  const remotePlayer = createRemotePlayer(player.id);
+  remotePlayers.set(player.id, remotePlayer);
+};
+
+mp.onPlayerLeft = (playerId) => {
+  console.log('👋 玩家离开:', playerId);
+  // TODO: 移除玩家对象
+  remotePlayers.delete(playerId);
+};
+
+mp.onDataReceived = (data, fromId) => {
+  console.log('📥 收到数据:', data.type);
+
+  // TODO: 处理数据
+  if (data.type === 'position') {
+    const player = remotePlayers.get(fromId);
+    if (player) {
+      player.x = data.x;
+      player.y = data.y;
+    }
+  } else if (data.type === 'event') {
+    handleGameEvent(data, fromId);
+  }
+};
+
+mp.onDisconnected = (reason, code) => {
+  console.error('连接断开:', reason, code);
+
+  // ⚠️ 注意：TapTap SDK 不支持自动重连
+  // 需要用户手动重新进入游戏（重新调用 init + matchRoom）
+
+  // TODO: 你的游戏逻辑
+  // - 清理游戏状态（远程玩家等）
+  // - 显示断线提示
+  // - 引导用户重新开始游戏
+};
+
+// 步骤 3：初始化
+async function startMultiplayer() {
+  const result = await mp.init();
+  if (!result.success) {
+    console.error('初始化失败:', result.error);
+    return false;
+  }
+
+  console.log('初始化成功，玩家 ID:', result.playerId);
+  return true;
+}
+
+// 步骤 4：匹配房间
+async function joinGame() {
+  const result = await mp.matchRoom(2, 'my_game', {
+    nickname: '玩家A'
+  });
+
+  if (!result.success) {
+    console.error('匹配失败:', result.error);
+    return false;
+  }
+
+  console.log('进入房间，玩家数:', result.roomInfo.players.length);
+  return true;
+}
+
+// 步骤 5：在游戏循环中同步
+function gameLoop() {
+  localPlayer.update();
+
+  // 同步位置（内置频率限制，可以每帧调用）
+  mp.syncPosition(localPlayer.x, localPlayer.y, localPlayer.radius);
+
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+// ========== 第二部分：完整游戏集成 ==========
+
+class Game {
+  constructor() {
+    this.localPlayer = null;
+    this.remotePlayers = new Map();
+    this.multiplayer = new MultiplayerManager();
+
+    this.setupMultiplayer();
+  }
+
+  setupMultiplayer() {
+    // 玩家加入
+    this.multiplayer.onPlayerJoined = (playerInfo) => {
+      Debug.log('👤 新玩家加入: ' + playerInfo.id);
+
+      // 创建远程玩家对象
+      const remotePlayer = new Player(playerInfo.id, false);
+      this.remotePlayers.set(playerInfo.id, remotePlayer);
+
+      // 可选：根据游戏需要，决定是否立即发送数据
+      // 例如：某些游戏需要新玩家立即看到当前状态
+      // if (needImmediateSync) {
+      //   this.multiplayer.sendData({ type: 'state', ... });
+      // }
+    };
+
+    // 玩家离开
+    this.multiplayer.onPlayerLeft = (playerId) => {
+      Debug.log('👋 玩家离开: ' + playerId);
+      this.remotePlayers.delete(playerId);
+    };
+
+    // 接收数据
+    this.multiplayer.onDataReceived = (data, fromId) => {
+      const remotePlayer = this.remotePlayers.get(fromId);
+      if (!remotePlayer) {
+        console.warn('远程玩家对象不存在:', fromId);
+        return;
+      }
+
+      if (data.type === 'position') {
+        remotePlayer.updatePosition(data.x, data.y, data.radius);
+      } else if (data.type === 'event') {
+        this.handleGameEvent(data, remotePlayer);
+      }
+    };
+
+    // 连接断开
+    this.multiplayer.onDisconnected = (reason, code) => {
+      Debug.log('连接断开: ' + reason, 'error');
+
+      // ⚠️ SDK 不支持自动重连，需要用户重新进入游戏
+      // 清理游戏状态
+      this.remotePlayers.clear();
+
+      // 显示提示（你的游戏逻辑）
+      this.showDisconnectedMessage();
+    };
+  }
+
+  async start() {
+    // 初始化多人联机
+    const initResult = await this.multiplayer.init();
+    if (initResult.success) {
+      await this.multiplayer.matchRoom(20, 'my_game');
+    }
+
+    // 创建本地玩家
+    this.localPlayer = new Player('local', true);
+
+    // 启动游戏循环
+    this.gameLoop();
+  }
+
+  gameLoop() {
+    // 更新本地玩家
+    this.localPlayer.update();
+
+    // 更新远程玩家
+    this.remotePlayers.forEach(p => p.update());
+
+    // 同步位置
+    this.multiplayer.syncPosition(
+      this.localPlayer.x,
+      this.localPlayer.y,
+      this.localPlayer.radius
+    );
+
+    // 渲染
+    this.render();
+
+    requestAnimationFrame(() => this.gameLoop());
+  }
+
+  handleGameEvent(data, remotePlayer) {
+    if (data.eventType === 'skill') {
+      remotePlayer.castSkill(data.skillId);
+    }
+  }
+
+  render() {
+    // 渲染本地玩家
+    this.localPlayer.render();
+
+    // 渲染远程玩家
+    this.remotePlayers.forEach(p => p.render());
+  }
+
+  showDisconnectedMessage() {
+    // 显示断线提示（你的游戏逻辑）
+    Debug.log('⚠️ 连接已断开，请重新进入游戏', 'error');
+  }
+}
+
+class Player {
+  constructor(id, isLocal) {
+    this.id = id;
+    this.isLocal = isLocal;
+    this.x = Math.random() * 800;
+    this.y = Math.random() * 600;
+    this.radius = 20;
+
+    // 远程玩家的目标位置（用于插值）
+    if (!isLocal) {
+      this.targetX = this.x;
+      this.targetY = this.y;
+    }
+  }
+
+  update() {
+    if (this.isLocal) {
+      // 本地玩家：处理输入
+      this.handleInput();
+    } else {
+      // 远程玩家：插值到目标位置
+      this.x += (this.targetX - this.x) * 0.2;
+      this.y += (this.targetY - this.y) * 0.2;
+    }
+  }
+
+  updatePosition(x, y, radius) {
+    this.targetX = x;
+    this.targetY = y;
+
+    // 可选：距离太远时直接跳跃（避免插值太慢）
+    const distance = Math.sqrt((x - this.x) ** 2 + (y - this.y) ** 2);
+    if (distance > 500) {
+      this.x = x;
+      this.y = y;
+    }
+  }
+
+  handleInput() {
+    // 处理输入（你的游戏逻辑）
+  }
+
+  render() {
+    // 渲染（你的游戏逻辑）
+  }
+}
+
+// ========== 第三部分：4 种操作场景 ==========
+
+// 场景 1：摇杆控制（持续移动）
+class JoystickControl {
+  update() {
+    // 根据摇杆输入更新位置
+    this.player.x += joystick.dx * speed;
+    this.player.y += joystick.dy * speed;
+
+    // 同步位置（内置频率限制，可以每帧调用）
+    this.multiplayer.syncPosition(this.player.x, this.player.y);
+  }
+}
+
+// 场景 2：点击移动（目标点）
+class ClickToMove {
+  onCanvasClick(targetX, targetY) {
+    // 设置本地玩家的移动目标
+    this.player.setMoveTarget(targetX, targetY);
+
+    // 发送移动目标（一次性）
+    this.multiplayer.sendData({
+      type: 'move_target',
+      targetX,
+      targetY
+    });
+  }
+
+  onDataReceived(data, fromId) {
+    if (data.type === 'move_target') {
+      const remotePlayer = this.remotePlayers.get(fromId);
+      remotePlayer.setMoveTarget(data.targetX, data.targetY);
+    }
+  }
+}
+
+// 场景 3：技能释放
+class SkillSystem {
+  castSkill(skillId, targetX, targetY) {
+    // 本地立即执行技能效果
+    this.player.castSkill(skillId, targetX, targetY);
+
+    // 发送技能事件给其他玩家
+    this.multiplayer.sendEvent('skill_cast', {
+      skillId,
+      targetX,
+      targetY
+    });
+  }
+
+  onDataReceived(data, fromId) {
+    if (data.type === 'event' && data.eventType === 'skill_cast') {
+      const remotePlayer = this.remotePlayers.get(fromId);
+      remotePlayer.castSkill(data.skillId, data.targetX, data.targetY);
+    }
+  }
+}
+
+// 场景 4：调试模式
+// 使用 DebugLogger 查看日志（调用 get_debug_logger 获取）
+Debug.log('游戏开始');
+Debug.log('玩家位置: (' + player.x + ', ' + player.y + ')');
+Debug.log('发送数据: ' + JSON.stringify(data));`
         },
         {
           name: "MultiplayerManager 使用示例",

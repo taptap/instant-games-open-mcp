@@ -69,6 +69,23 @@ async function getIntegrationWorkflow(): Promise<string> {
 
 ---
 
+## 🔧 内置调试工具
+
+**MultiplayerManager 已内置屏幕日志系统！**
+
+- ✅ DEBUG_MODE 默认开启（显示弹窗提示）
+- ✅ 数据同步状态可视化（📤 发送、📥 接收）
+- ✅ 适合非程序员和移动端调试
+
+**需要更强大的日志面板？**
+
+调用 \`get_debug_logger\` 获取独立的 DebugLogger 组件：
+- 右下角绿点显示日志面板
+- 日志分级、去重、复制
+- 自动拦截 console.log/warn/error
+
+---
+
 ## 🚀 快速开始（3步上手）
 
 ### 步骤1：复制完整代码模板
@@ -943,242 +960,459 @@ console.log('初始化成功，playerId:', mp.myPlayerId);
  * 问题诊断工具（新增 - 可扩展）
  */
 async function diagnoseIssues(): Promise<string> {
-  return `# 多人联机问题诊断工具
+  return `# 多人联机问题诊断
 
 ---
 
-## 🎯 快速诊断流程
+## 🔧 推荐：先添加可视化调试工具
 
-### 步骤1：确认问题类型
+**如果你无法查看浏览器控制台（移动端测试）或不熟悉编程调试：**
 
-| 问题类型 | 典型症状 |
-|---------|---------|
-| A. 看不到其他玩家 | 房间内有多人，但只能看到自己 |
-| B. 位置不同步 | 远程玩家位置不更新或延迟严重 |
-| C. 连接失败 | connect() 或 matchRoom() 调用失败 |
-| D. API 调用失败 | sendCustomMessage 等 API 报错 |
-
----
-
-## 🔍 问题A：看不到其他玩家
-
-### 检查点1：playerEnterRoom 事件是否触发？
+**调用 \`get_debug_logger\` 获取屏幕日志工具，添加到项目后：**
 
 \`\`\`javascript
-// 在事件中添加日志
-playerEnterRoom: (info) => {
-  console.log('✅ playerEnterRoom 触发:', info);  // 添加这行
-  // ...
-}
+// 在代码中使用
+Debug.log('👤 玩家加入: ' + player.id);
+Debug.log('📤 发送: ' + JSON.stringify(data));
+Debug.log('📥 接收: ' + JSON.stringify(data));
 \`\`\`
 
-**如果没有触发**：
-- 原因：registerListener 可能在 connect 之后调用
-- 解决：确保顺序：registerListener → connect
+**运行游戏，点击右下角绿色小圆点，所有日志会显示在屏幕上！**
 
-**如果触发了**：继续检查点2
+**如果已经添加了 DebugLogger 或能查看控制台，继续以下步骤...**
 
 ---
 
-### 检查点2：是否正确提取 playerId？
+## 步骤 1：分析问题类型 ⚠️
+
+**首先判断：游戏逻辑问题 or SDK 数据同步问题？**
+
+### 方法 1：使用 DebugLogger（推荐）
 
 \`\`\`javascript
-// 检查 playerId 是否正确
-playerEnterRoom: (info) => {
-  console.log('原始 info:', info);
-  const playerId = info.playerInfo.id;  // ✅ 正确
-  console.log('提取的 playerId:', playerId);
+// 在关键位置添加日志
+mp.onPlayerJoined = (player) => {
+  Debug.log('✅ onPlayerJoined 触发: ' + player.id);
+  createRemotePlayer(player.id);
+};
 
-  if (!playerId) {
-    console.error('❌ playerId 提取失败！');
-  }
-}
+mp.onDataReceived = (data, fromId) => {
+  Debug.log('✅ onDataReceived 触发: ' + JSON.stringify(data));
+  updateRemotePlayer(fromId, data);
+};
+
+mp.sendData({ type: 'click', x: 100, y: 200 });
+Debug.log('✅ sendData 已调用');
 \`\`\`
 
-**常见错误**：
-- ❌ \`info.playerId\`（错误）
-- ❌ \`info.id\`（错误）
-- ✅ \`info.playerInfo.id\`（正确）
+**运行游戏，查看屏幕日志，根据情况判断：**
 
-**解决方案**：使用 MultiplayerManager 代码模板（已内置兼容函数）
+| 弹窗情况 | 问题类型 | 解决方向 |
+|---------|---------|---------|
+| 有"📥 接收"弹窗，但画面没变化 | 🎮 游戏逻辑问题 | 检查游戏代码：是否创建了玩家？是否更新了渲染？ |
+| 有"📤 发送"弹窗，但对方没有"📥 接收" | 🔌 SDK 数据同步问题 | 继续步骤 2 |
+| 没有"👤 玩家加入"弹窗 | 🎮 或 🔌 问题 | 检查是否设置了回调，是否进入了房间 |
 
 ---
 
-### 检查点3：是否初始化了房间内已有玩家？
+### 方法 2：询问用户提供问题描述
+
+**如果无法使用调试弹窗，请向用户询问以下信息：**
+
+\`\`\`
+1. 问题现象描述：
+   - 玩家 A 做了什么操作？（例如：点击了屏幕）
+   - 玩家 B 看到了什么？（例如：什么都没看到 / 看到了但位置不对）
+
+2. 是否看到游戏内的错误提示？
+   - 是否有弹窗提示错误？
+   - 弹窗内容是什么？
+
+3. 是否多人都进入了房间？
+   - 能看到对方的昵称或头像吗？
+   - 是否显示房间内有多个玩家？
+
+4. 是否只有特定操作有问题？
+   - 所有操作都无法同步，还是只有某个操作？
+   - 例如：移动可以同步，但点击无法同步
+\`\`\`
+
+**根据用户回答判断：**
+- 能看到对方，但操作不同步 → 可能是数据同步问题
+- 完全看不到对方 → 可能是游戏逻辑问题（未创建玩家对象）
+- 只有特定操作有问题 → 可能是通讯协议不一致
+
+---
+
+**关键：SDK 只负责数据传输，游戏逻辑（创建对象、渲染画面）是你的代码！**
+
+---
+
+## 步骤 2：自我检查流程 🔍
+
+**如果是 SDK 数据同步问题，先自我检查是否正确实现了数据同步流程：**
+
+### 自检清单（调用 get_multiplayer_guide 复习）
+
+\`\`\`
+□ 是否调用了 init() 并保存了 playerId？
+□ 是否调用了 matchRoom() 进入房间？
+□ 是否设置了 onPlayerJoined 回调？
+□ 是否设置了 onDataReceived 回调？
+□ 是否在操作时调用了 sendData() 或 syncPosition()？
+□ 是否遵循了推荐的通讯协议（get_protocol_template）？
+\`\`\`
+
+**如果有任何一项不确定，先调用 \`get_multiplayer_guide\` 复习正确流程！**
+
+**如果都确认正确，继续步骤 3**
+
+---
+
+## 步骤 3：细化数据同步问题 🔬
+
+**基于 5 个真实项目的问题总结，按出现频率排序：**
+
+### 🔴 最常见问题1：看不到其他玩家（45% 项目遇到）
+
+**症状：**
+- 玩家 B 进入房间，看不到玩家 A
+- 玩家 A 能看到玩家 B
+- **单向可见**
+
+**根本原因：matchRoom 返回的 roomInfo.players 未立即处理**
 
 \`\`\`javascript
-// matchRoom 成功后
+// ❌ 错误做法（SuperMario v1.0.4）
 const res = await manager.matchRoom({...});
 const roomInfo = res.roomInfo;
 
-console.log('房间内玩家数:', roomInfo.players.length);
+// 只注册监听器，没有立即处理 roomInfo.players
+registerListener({ playerEnterRoom: ... });
 
-// ✅ 必须遍历初始化
+// ❌ 延后处理或分步处理（错误！）
+setTimeout(() => {
+  roomInfo.players.forEach(...);
+}, 1000);
+\`\`\`
+
+**正确做法：**
+\`\`\`javascript
+// ✅ 正确做法（SuperMario v1.0.5）
+const res = await manager.matchRoom({...});
+const roomInfo = res.roomInfo;
+
+// 立即遍历并处理房间内已有的玩家
 roomInfo.players.forEach(player => {
-  if (player.id !== myPlayerId) {
-    console.log('初始化已有玩家:', player.id);
-    createRemotePlayer(player);  // 创建玩家对象
+  if (player.id !== this.myPlayerId) {
+    addRemotePlayer(player);  // 立即添加！
+  }
+});
+
+// 然后注册监听器（处理后续加入的玩家）
+registerListener({ playerEnterRoom: ... });
+\`\`\`
+
+**检查清单：**
+\`\`\`
+□ matchRoom 后是否立即遍历 roomInfo.players？
+□ 是否为每个其他玩家调用了 addRemotePlayer？
+□ 是否在创建本地玩家后才处理远程玩家？
+\`\`\`
+
+---
+
+### 🔴 最常见问题2：字段名不统一导致 undefined（45% 项目遇到）
+
+**症状：**
+\`\`\`
+[ERROR] 玩家 ID undefined
+[ERROR] 未找到玩家 ID=undefined
+\`\`\`
+
+**根本原因：SDK 不同版本/不同回调使用不同字段名**
+
+\`\`\`javascript
+// playerEnterRoom 回调
+{ playerInfo: { id: '...', playerId: '...', userId: '...' } }
+
+// onCustomMessage 回调
+{ msg: '...', content: '...', fromPlayerId: '...', fromUserId: '...' }
+\`\`\`
+
+**错误提取：**
+\`\`\`javascript
+// ❌ 错误（Tank v1.0）
+playerEnterRoom: (info) => {
+  const playerId = info.id;  // undefined!
+}
+
+// ❌ 错误（Tank v1.1）
+playerEnterRoom: (info) => {
+  const playerId = info.playerInfo.id;  // 可能 undefined
+}
+\`\`\`
+
+**正确提取：**
+\`\`\`javascript
+// ✅ 正确（兼容所有情况）
+function extractPlayerId(info) {
+  if (info.playerInfo) return info.playerInfo.id || info.playerInfo.playerId;
+  return info.playerId || info.id || info.userId || info.fromPlayerId;
+}
+
+playerEnterRoom: (info) => {
+  const playerId = extractPlayerId(info);  // 兼容提取
+}
+\`\`\`
+
+**检查方法：**
+\`\`\`javascript
+// 添加日志验证
+console.log('原始 info:', JSON.stringify(info));
+console.log('提取的 playerId:', playerId);
+\`\`\`
+
+---
+
+### 🔴 最常见问题3：sendCustomMessage 格式错误（18% 项目遇到）
+
+**症状：**
+- 发送了数据，但其他人收不到
+- 或者 API 调用失败
+
+**错误格式：**
+\`\`\`javascript
+// ❌ 错误（Tank v1.0）
+manager.sendCustomMessage({
+  type: 'move',
+  x: 100
+});
+\`\`\`
+
+**正确格式：**
+\`\`\`javascript
+// ✅ 正确（Tank v1.1）
+manager.sendCustomMessage({
+  data: {                           // ← 必须有 data 包装
+    msg: JSON.stringify({           // ← msg 必须是字符串
+      type: 'move',
+      x: 100
+    }),
+    type: 0                         // ← 0=所有人，1=指定玩家
   }
 });
 \`\`\`
 
-**常见错误**：
-- 只处理了 playerEnterRoom（新玩家加入）
-- 忘记初始化房间内已有的玩家
-
----
-
-## 🔍 问题B：位置不同步
-
-### 检查点1：是否在发送位置？
-
-\`\`\`javascript
-// 添加日志
-multiplayer.syncPosition(player.x, player.y);
-console.log('✅ 发送位置:', player.x, player.y);
+**检查清单：**
+\`\`\`
+□ 是否有 data 包装？
+□ msg 是否是 JSON 字符串？
+□ 是否包含 type 字段（0 或 1）？
 \`\`\`
 
-**如果日志频率很低**：
-- 可能：变化检测导致跳过（位置没变）
-- 解决：移动玩家，观察日志
-
-**如果根本没日志**：
-- 可能：频率限制导致全部跳过
-- 检查：SYNC_INTERVAL 设置
-
 ---
 
-### 检查点2：是否接收到位置消息？
+### 🟡 常见问题4：静止也在疯狂发送（9% 项目遇到）
 
+**症状：**
+\`\`\`
+[LOG] 📤 发送: (40, 576)
+[LOG] 📤 发送: (40, 576)  ← 位置没变也在发送
+[LOG] 📤 发送: (40, 576)  ← 每帧都发送
+\`\`\`
+
+**原因：**
+没有变化检测
+
+**解决方案：**
 \`\`\`javascript
-// 添加日志
-onCustomMessage: (info) => {
-  console.log('✅ 收到消息:', info);  // 添加这行
+// ✅ 添加变化检测（Tank v1.2）
+let lastX = 0, lastY = 0;
 
-  const data = JSON.parse(info.msg);
-  console.log('解析后:', data);
+function update() {
+  const oldX = player.x;
+  const oldY = player.y;
 
-  if (data.type === 'position') {
-    console.log('位置消息:', data.x, data.y);
+  player.update();
+
+  // 变化检测
+  const posChanged = Math.abs(player.x - oldX) > 0.1 ||
+                     Math.abs(player.y - oldY) > 0.1;
+
+  if (posChanged) {
+    mp.syncPosition(player.x, player.y);  // 只在移动时发送
   }
 }
 \`\`\`
 
-**如果没收到**：
-- 检查：发送端和接收端的 type 字段是否一致
-- 检查：是否进入了同一个房间
+---
+
+## 📊 三种 API 对比（基础）
+
+| API | 发送者是否收到事件 | 其他人是否收到事件 | 典型用途 |
+|-----|-----------------|-----------------|---------|
+| sendCustomMessage | ❌ 不会收到 | ✅ 收到 onCustomMessage | 实时操作（点击、移动） |
+| updatePlayerCustomProperties | ✅ 收到事件 | ✅ 收到事件 | 玩家属性（分数、血量） |
+| updateRoomProperties | ✅ 收到事件 | ✅ 收到事件 | 房间状态（地图、回合） |
+
+详细对比 → 调用 \`get_api_event_table\`
 
 ---
 
-### 检查点3：是否更新了远程玩家对象？
+## 🔢 常见错误码参考
 
+**多人联机 ErrorCode（已内置在 MultiplayerManager 中）：**
+
+| 错误码 | 名称 | 说明 | 解决方案 |
+|-------|------|------|---------|
+| 3 | REQUEST_RATE_LIMIT_EXCEEDED | 请求频率超限 | 减少发送频率，使用 MultiplayerManager 的内置限流 |
+| 6 | NETWORK_ERROR | 网络错误 | 检查网络连接，重新调用 init() |
+| 20 | NOT_IN_ROOM | 尚未加入房间 | 确保 matchRoom() 成功后再发送数据 |
+| 21 | ALREADY_IN_ROOM | 已在房间中 | 先调用 leaveRoom() 再匹配新房间 |
+| 22 | NOT_ROOM_OWNER | 不是房主 | 只有房主可以调用 updateRoomProperties |
+| 23 | ROOM_FULL | 房间已满 | 等待或创建新房间 |
+| 24 | ROOM_NOT_EXIST | 房间不存在 | 使用 matchRoom 自动匹配 |
+
+**完整错误码列表（23 个）：**
+
+查看 MultiplayerManager 代码模板顶部的 ErrorCode 常量定义
+
+---
+
+### 方式 2：updatePlayerCustomProperties（更新玩家属性）
+
+**特性：**
+- 📤 发送者：调用后**自己也会**收到 \`onPlayerCustomPropertiesChange\` 事件
+- 📥 其他人：也会收到 \`onPlayerCustomPropertiesChange\` 事件
+
+**诊断代码：**
 \`\`\`javascript
-// 更新位置
-if (data.type === 'position') {
-  const remotePlayer = remotePlayers[fromPlayerId];
+// 发送端（玩家 A）
+console.log('📤 A 调用 updatePlayerCustomProperties');
+manager.updatePlayerCustomProperties({
+  properties: JSON.stringify({ score: 100 })
+});
 
-  if (!remotePlayer) {
-    console.error('❌ 远程玩家对象不存在:', fromPlayerId);
-    return;
+// 接收端（所有人，包括 A）
+registerListener({
+  onPlayerCustomPropertiesChange: (info) => {
+    console.log('📥 收到 onPlayerCustomPropertiesChange:', info.playerId);
+    // A 和其他人都应该有这个日志
   }
-
-  console.log('✅ 更新位置:', fromPlayerId, data.x, data.y);
-  remotePlayer.x = data.x;
-  remotePlayer.y = data.y;
-}
+});
 \`\`\`
+
+**问题判断：**
+- A 调用了，但 A 自己都没收到事件 → **SDK 调用可能失败**（检查参数格式）
+- A 收到了，其他人没收到 → **其他人的回调没设置**（检查 registerListener）
+- 都收到了，但画面没变化 → **游戏逻辑问题**（检查业务代码）
 
 ---
 
-## 🔍 问题C：连接失败
+### 方式 3：updateRoomProperties（更新房间属性）
 
-### 检查点1：TapTap SDK 是否可用？
+**特性：**
+- 📤 发送者：只有房主可以调用
+- 📥 所有人：收到 \`onRoomPropertiesChange\` 事件
+
+**诊断代码：**
+\`\`\`javascript
+// 发送端（房主）
+if (mp.isHost) {
+  console.log('📤 房主调用 updateRoomProperties');
+  manager.updateRoomProperties({
+    data: { customProperties: JSON.stringify({ mapLevel: 2 }) }
+  });
+} else {
+  console.error('❌ 不是房主，无法更新房间属性');
+}
+
+// 接收端（所有人）
+registerListener({
+  onRoomPropertiesChange: (info) => {
+    console.log('📥 收到 onRoomPropertiesChange:', info);
+  }
+});
+\`\`\`
+
+**问题判断：**
+- 不是房主但调用了 → **权限错误**（只有房主可以调用）
+- 房主调用了，但没人收到事件 → **回调没设置**（检查 registerListener）
+- 收到了，但画面没变化 → **游戏逻辑问题**（检查业务代码）
+
+---
+
+## 📊 三种方式对比（重要！）
+
+| API | 发送者是否收到事件 | 其他人是否收到事件 | 典型用途 |
+|-----|-----------------|-----------------|---------|
+| sendCustomMessage | ❌ 不会收到 | ✅ 收到 onCustomMessage | 实时操作（点击、移动） |
+| updatePlayerCustomProperties | ✅ 收到事件 | ✅ 收到事件 | 玩家属性（分数、血量） |
+| updateRoomProperties | ✅ 收到事件 | ✅ 收到事件 | 房间状态（地图、回合） |
+
+**关键理解：** \`sendCustomMessage\` 发送者不会收到回调，其他两个 API 所有人都会收到！
+
+详细对比 → 调用 \`get_api_event_table\`
+
+---
+
+## 🛠️ 万能调试日志
+
+**复制这段代码，快速定位问题：**
 
 \`\`\`javascript
-// 检查 SDK
-console.log('tap 对象:', typeof tap);
-console.log('getOnlineBattleManager:', tap?.getOnlineBattleManager);
+// ====== 调试开关 ======
+const DEBUG = true;
 
-if (typeof tap === 'undefined') {
-  console.error('❌ TapTap SDK 不可用');
-  // 使用单机模式或提示用户
-}
+// 📤 sendCustomMessage 日志
+const _sendData = mp.sendData;
+mp.sendData = function(data) {
+  if (DEBUG) console.log('📤 [sendCustomMessage] 发送:', data);
+  return _sendData.call(this, data);
+};
+
+// 📥 接收日志
+mp.onDataReceived = (data, fromId) => {
+  if (DEBUG) console.log('📥 [onCustomMessage] 接收:', data, 'from:', fromId);
+  // 你的游戏逻辑...
+};
+
+// 玩家属性变更日志
+registerListener({
+  onPlayerCustomPropertiesChange: (info) => {
+    if (DEBUG) console.log('📥 [玩家属性变更]:', info.playerId, info.properties);
+  },
+  onRoomPropertiesChange: (info) => {
+    if (DEBUG) console.log('📥 [房间属性变更]:', info);
+  }
+});
 \`\`\`
 
-**解决方案**：
-- 确保在 TapTap 小游戏环境中运行
-- 或使用 MultiplayerManager（已内置单机降级）
-
 ---
 
-### 检查点2：网络连接是否正常？
+## 💡 诊断流程总结
 
-\`\`\`javascript
-try {
-  const res = await manager.connect();
-  console.log('✅ 连接成功:', res);
-} catch (error) {
-  console.error('❌ 连接失败:', error);
-  // 检查错误类型
-}
+\`\`\`
+1. 先判断问题类型
+   ├─ 有日志但画面没变化 → 游戏逻辑问题（检查业务代码）
+   └─ 没有对应日志 → SDK 问题（继续）
+
+2. 自我检查流程是否正确
+   └─ 调用 get_multiplayer_guide 复习正确实现
+
+3. 细化 SDK 问题
+   ├─ sendCustomMessage 问题？（发送者不会收到事件）
+   ├─ updatePlayerCustomProperties 问题？（所有人都会收到）
+   └─ updateRoomProperties 问题？（所有人都会收到，只有房主能调用）
+
+4. 根据具体 API 添加日志
+   └─ 观察日志判断：发送成功？接收成功？
 \`\`\`
 
 ---
 
-## 🔍 问题D：API 调用失败
-
-### 常见原因1：超过频率限制
-
-**症状**：sendCustomMessage 报错
-
-**解决方案**：
-- 使用 MultiplayerManager.syncPosition()（已内置节流）
-- 或手动添加频率限制（100ms 间隔）
-
----
-
-### 常见原因2：未进入房间
-
-**症状**：调用 sendCustomMessage 提示"未进入房间"
-
-**解决方案**：
-- 确保 matchRoom() 成功后再发送数据
-- 检查 isInRoom 状态
-
----
-
-### 常见原因3：消息格式错误
-
-**症状**：msg 参数错误
-
-**解决方案**：
-- msg 必须是字符串：\`JSON.stringify(data)\`
-- 必须包装在 data 对象中
-
----
-
-## 📋 诊断总结
-
-如果以上检查都通过，但仍有问题，请提供：
-1. 完整的错误消息
-2. 相关代码片段
-3. 控制台日志
-
----
-
-## 🔧 快速修复工具
-
-| 问题 | 调用工具 |
-|------|---------|
-| 字段名不确定 | get_api_data_structures |
-| 需要完整示例 | get_code_template |
-| playerId 使用问题 | get_player_id_guide |
-| 位置同步策略 | get_sync_strategy |
-| 验证代码正确性 | check_multiplayer_code |
-
----
-
-**💡 提示**：大部分问题都能通过使用 MultiplayerManager 代码模板避免。
+**关键：SDK 只负责数据传输，游戏逻辑（创建对象、更新画面）是你的代码！**
 `;
 }
 
@@ -1301,6 +1535,142 @@ get_code_template
 `;
 }
 
+/**
+ * DebugLogger 工具 - 屏幕调试日志组件
+ */
+async function getDebugLogger(): Promise<string> {
+  return `# DebugLogger - 屏幕调试日志工具
+
+> 适合非程序员和移动端调试
+
+---
+
+## 🎯 功能特性
+
+- ✅ 右下角绿点，点击显示日志面板
+- ✅ 在屏幕上直接查看日志（无需控制台）
+- ✅ 日志分级：普通/警告/错误（不同颜色）
+- ✅ 日志去重：相同日志显示 ×N
+- ✅ 复制日志到剪贴板
+- ✅ 自动拦截 console.log/warn/error
+- ✅ 移动端适配
+
+---
+
+## 🚀 使用方法
+
+### 步骤 1：创建文件
+
+在你的项目中创建 DebugLogger 文件夹，并复制以下代码：
+
+#### 文件结构
+\`\`\`
+你的项目/
+├── index.html
+├── DebugLogger/
+│   ├── DebugLogger.js
+│   └── DebugLogger.css
+└── js/game.js
+\`\`\`
+
+---
+
+### 步骤 2：复制完整代码
+
+由于代码较长，请访问以下路径查看完整代码：
+
+📁 DebugLogger.js 和 DebugLogger.css 的完整代码已经准备好。
+
+**或者，你可以直接告诉 AI：**
+\`\`\`
+"请从 /Volumes/Q/MiniGame/Mcp/Tank/DebugLogger 复制文件到我的项目"
+\`\`\`
+
+---
+
+### 步骤 3：在 HTML 中引入
+
+\`\`\`html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="DebugLogger/DebugLogger.css">
+</head>
+<body>
+    <!-- DebugLogger 容器 -->
+    <div id="debug-logger-container"></div>
+
+    <script src="DebugLogger/DebugLogger.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
+\`\`\`
+
+---
+
+### 步骤 4：在代码中使用
+
+\`\`\`javascript
+// 普通日志
+Debug.log('游戏初始化完成');
+
+// 警告日志
+Debug.log('网络延迟', 'warn');
+
+// 错误日志
+Debug.log('连接失败', 'error');
+\`\`\`
+
+---
+
+## 🔍 用于多人联机调试
+
+### 集成示例
+
+\`\`\`javascript
+const mp = new MultiplayerManager();
+
+mp.onPlayerJoined = (player) => {
+  Debug.log('👤 玩家加入: ' + player.id);
+  createRemotePlayer(player.id);
+};
+
+mp.onDataReceived = (data, fromId) => {
+  Debug.log('📥 接收: ' + JSON.stringify(data));
+  updateRemotePlayer(fromId, data);
+};
+
+function onClick(x, y) {
+  Debug.log('📤 发送: ' + JSON.stringify({ type: 'click', x, y }));
+  mp.sendData({ type: 'click', x, y });
+}
+\`\`\`
+
+---
+
+## 📱 运行效果
+
+点击右下角绿色小圆点，会显示日志面板：
+
+\`\`\`
+[20:14:03] [LOG] 👤 玩家加入: abc123...
+[20:14:05] [LOG] 📤 发送: {"type":"click","x":100,"y":200}
+[20:14:05] [LOG] 📥 接收: {"type":"click","x":100,"y":200}
+\`\`\`
+
+**非程序员也能看懂！**
+
+---
+
+## 💡 文件位置
+
+完整代码位于：\`/Volumes/Q/MiniGame/Mcp/Tank/DebugLogger\`
+
+**AI 可以直接复制这些文件到用户项目中。**
+`;
+}
+
 // 导出所有文档工具
 export const multiplayerDocTools = {
   // 核心工具（保留）
@@ -1321,5 +1691,6 @@ export const multiplayerDocTools = {
   // 新增工具
   generateMultiplayerCode,
   diagnoseIssues,
-  checkCode
+  checkCode,
+  getDebugLogger
 };
