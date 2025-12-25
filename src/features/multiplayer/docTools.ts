@@ -9,6 +9,7 @@
 import { generateCategoryDoc } from '../../core/utils/docHelpers.js';
 
 import { MULTIPLAYER_DOCUMENTATION } from './docs.js';
+import { VERSION } from '../../version.js';
 
 // ============ 已删除的废弃函数 ============
 // 以下函数已删除，功能整合到核心工具中：
@@ -207,7 +208,7 @@ async function getPlayerIdGuide(): Promise<string> {
  */
 async function generateLocalMultiplayerGuide(): Promise<string> {
   const timestamp = new Date().toISOString().split('T')[0];
-  const version = '1.0.0';
+  const version = VERSION;
 
   return `# 多人联机使用指引和规范
 
@@ -1332,19 +1333,7 @@ registerListener({
 
 ---
 
-## 📊 三种方式对比（重要！）
 
-| API | 发送者是否收到事件 | 其他人是否收到事件 | 典型用途 |
-|-----|-----------------|-----------------|---------|
-| sendCustomMessage | ❌ 不会收到 | ✅ 收到 onCustomMessage | 实时操作（点击、移动） |
-| updatePlayerCustomProperties | ✅ 收到事件 | ✅ 收到事件 | 玩家属性（分数、血量） |
-| updateRoomProperties | ✅ 收到事件 | ✅ 收到事件 | 房间状态（地图、回合） |
-
-**关键理解：** \`sendCustomMessage\` 发送者不会收到回调，其他两个 API 所有人都会收到！
-
-详细对比 → 调用 \`get_api_event_table\`
-
----
 
 ## 🛠️ 万能调试日志
 
@@ -1572,15 +1561,446 @@ async function getDebugLogger(): Promise<string> {
 
 ---
 
-### 步骤 2：复制完整代码
+### 步骤 2：创建 DebugLogger.js
 
-由于代码较长，请访问以下路径查看完整代码：
+创建文件 \`DebugLogger/DebugLogger.js\`，内容如下：
 
-📁 DebugLogger.js 和 DebugLogger.css 的完整代码已经准备好。
+\`\`\`javascript
+/**
+ * DebugLogger - 独立的屏幕调试日志组件
+ * 版本：v1.0.0
+ * 日期：2025-12-03
+ */
 
-**或者，你可以直接告诉 AI：**
+(function() {
+    'use strict';
+
+    class DebugLogger {
+        constructor() {
+            this.logs = [];
+            this.maxLogs = 50;
+            this.isPaused = false;
+            this.isVisible = false;
+            this.autoScroll = true;
+
+            this.init();
+        }
+
+        init() {
+            this.createUI();
+            this.bindEvents();
+            this.interceptConsole();
+        }
+
+        createUI() {
+            const container = document.getElementById('debug-logger-container');
+            if (!container) {
+                console.error('DebugLogger: 未找到容器 #debug-logger-container');
+                return;
+            }
+
+            container.innerHTML = \\\`
+                <div id="debug-toggle-btn" class="debug-toggle-btn" title="点击查看日志">
+                    <span class="debug-toggle-dot"></span>
+                </div>
+
+                <div id="debug-panel" class="debug-panel">
+                    <div class="debug-header">
+                        <span class="debug-title">📋 调试日志</span>
+                        <div class="debug-actions">
+                            <button id="debug-pause-btn" class="debug-btn" title="暂停自动滚动">📜</button>
+                            <button id="debug-copy-btn" class="debug-btn" title="复制全部日志">📋</button>
+                            <button id="debug-clear-btn" class="debug-btn" title="清空日志">🗑️</button>
+                            <button id="debug-close-btn" class="debug-btn debug-close-btn" title="关闭">✕</button>
+                        </div>
+                    </div>
+                    <div id="debug-content" class="debug-content"></div>
+                </div>
+            \\\`;
+
+            this.toggleBtn = document.getElementById('debug-toggle-btn');
+            this.panel = document.getElementById('debug-panel');
+            this.content = document.getElementById('debug-content');
+            this.pauseBtn = document.getElementById('debug-pause-btn');
+            this.copyBtn = document.getElementById('debug-copy-btn');
+            this.clearBtn = document.getElementById('debug-clear-btn');
+            this.closeBtn = document.getElementById('debug-close-btn');
+        }
+
+        bindEvents() {
+            this.toggleBtn.addEventListener('click', () => this.show());
+            this.closeBtn.addEventListener('click', () => this.hide());
+
+            this.pauseBtn.addEventListener('click', () => {
+                this.autoScroll = !this.autoScroll;
+                this.pauseBtn.textContent = this.autoScroll ? '📜' : '⏸️';
+                this.pauseBtn.title = this.autoScroll ? '暂停自动滚动' : '恢复自动滚动';
+                if (this.autoScroll) this.scrollToBottom();
+            });
+
+            this.copyBtn.addEventListener('click', () => this.copyLogs());
+            this.clearBtn.addEventListener('click', () => this.clear());
+
+            this.content.addEventListener('scroll', () => {
+                const isAtBottom = this.content.scrollHeight - this.content.scrollTop <= this.content.clientHeight + 10;
+                if (!isAtBottom && this.autoScroll) {
+                    this.autoScroll = false;
+                    this.pauseBtn.textContent = '⏸️';
+                    this.pauseBtn.title = '恢复自动滚动';
+                }
+            });
+        }
+
+        show() {
+            this.isVisible = true;
+            this.toggleBtn.style.display = 'none';
+            this.panel.classList.add('debug-panel-visible');
+            this.scrollToBottom();
+        }
+
+        hide() {
+            this.isVisible = false;
+            this.panel.classList.remove('debug-panel-visible');
+            this.toggleBtn.style.display = 'flex';
+        }
+
+        log(message, level = 'log') {
+            const timestamp = this.getTimestamp();
+            const logEntry = { time: timestamp, message: String(message), level: level, count: 1 };
+
+            const lastLog = this.logs[this.logs.length - 1];
+            if (lastLog && lastLog.message === logEntry.message && lastLog.level === logEntry.level) {
+                lastLog.count++;
+                this.updateLastLog(lastLog);
+            } else {
+                this.logs.push(logEntry);
+                if (this.logs.length > this.maxLogs) {
+                    this.logs.shift();
+                    this.renderLogs();
+                } else {
+                    this.appendLog(logEntry);
+                }
+            }
+
+            if (this.autoScroll) this.scrollToBottom();
+        }
+
+        appendLog(logEntry) {
+            const logDiv = document.createElement('div');
+            logDiv.className = \\\`debug-log debug-log-\\\${logEntry.level}\\\`;
+            const countSpan = logEntry.count > 1 ? \\\`<span class="debug-log-count">×\\\${logEntry.count}</span>\\\` : '';
+            logDiv.innerHTML = \\\`
+                <span class="debug-log-time">[\\\${logEntry.time}]</span>
+                <span class="debug-log-level">[\\\${logEntry.level.toUpperCase()}]</span>
+                <span class="debug-log-message">\\\${this.escapeHtml(logEntry.message)}</span>
+                \\\${countSpan}
+            \\\`;
+            this.content.appendChild(logDiv);
+        }
+
+        updateLastLog(logEntry) {
+            const lastLogDiv = this.content.lastElementChild;
+            if (!lastLogDiv) return;
+
+            let countSpan = lastLogDiv.querySelector('.debug-log-count');
+            if (countSpan) {
+                countSpan.textContent = \\\`×\\\${logEntry.count}\\\`;
+            } else {
+                countSpan = document.createElement('span');
+                countSpan.className = 'debug-log-count';
+                countSpan.textContent = \\\`×\\\${logEntry.count}\\\`;
+                lastLogDiv.appendChild(countSpan);
+            }
+        }
+
+        renderLogs() {
+            this.content.innerHTML = '';
+            this.logs.forEach(log => this.appendLog(log));
+        }
+
+        clear() {
+            this.logs = [];
+            this.content.innerHTML = '';
+            this.log('日志已清空');
+        }
+
+        copyLogs() {
+            const text = this.logs.map(log => {
+                const count = log.count > 1 ? \\\` ×\\\${log.count}\\\` : '';
+                return \\\`[\\\${log.time}] [\\\${log.level.toUpperCase()}] \\\${log.message}\\\${count}\\\`;
+            }).join('\\\\n');
+
+            if (typeof tap !== 'undefined' && tap.setClipboardData) {
+                tap.setClipboardData({
+                    data: text,
+                    success: () => this.log('✅ 日志已复制到剪贴板'),
+                    fail: () => this.fallbackCopy(text)
+                });
+            } else {
+                this.fallbackCopy(text);
+            }
+        }
+
+        fallbackCopy(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                    .then(() => this.log('✅ 日志已复制到剪贴板'))
+                    .catch(() => this.log('❌ 复制失败', 'error'));
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    this.log('✅ 日志已复制到剪贴板');
+                } catch (err) {
+                    this.log('❌ 复制失败', 'error');
+                }
+                document.body.removeChild(textarea);
+            }
+        }
+
+        scrollToBottom() {
+            requestAnimationFrame(() => {
+                this.content.scrollTop = this.content.scrollHeight;
+            });
+        }
+
+        getTimestamp() {
+            const now = new Date();
+            return [now.getHours(), now.getMinutes(), now.getSeconds()]
+                .map(v => String(v).padStart(2, '0')).join(':');
+        }
+
+        escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        interceptConsole() {
+            const originalLog = console.log;
+            const originalWarn = console.warn;
+            const originalError = console.error;
+
+            console.log = (...args) => {
+                originalLog.apply(console, args);
+                this.log(args.join(' '), 'log');
+            };
+
+            console.warn = (...args) => {
+                originalWarn.apply(console, args);
+                this.log(args.join(' '), 'warn');
+            };
+
+            console.error = (...args) => {
+                originalError.apply(console, args);
+                this.log(args.join(' '), 'error');
+            };
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.DebugLogger = new DebugLogger();
+            window.Debug = window.DebugLogger;
+        });
+    } else {
+        window.DebugLogger = new DebugLogger();
+        window.Debug = window.DebugLogger;
+    }
+})();
 \`\`\`
-"请从 /Volumes/Q/MiniGame/Mcp/Tank/DebugLogger 复制文件到我的项目"
+
+---
+
+### 步骤 3：创建 DebugLogger.css
+
+创建文件 \`DebugLogger/DebugLogger.css\`，内容如下：
+
+\`\`\`css
+/* DebugLogger 样式文件 v1.0.0 */
+
+.debug-toggle-btn {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    width: 40px;
+    height: 40px;
+    background: rgba(0, 200, 0, 0.9);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 9998;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.debug-toggle-btn:hover {
+    background: rgba(0, 220, 0, 1);
+    transform: scale(1.1);
+}
+
+.debug-toggle-dot {
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    animation: debug-pulse 2s infinite;
+}
+
+@keyframes debug-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.8); }
+}
+
+.debug-panel {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    width: 90%;
+    max-width: 500px;
+    height: 400px;
+    background: rgba(0, 0, 0, 0.92);
+    border: 1px solid rgba(0, 200, 0, 0.5);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    z-index: 9999;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    transform: translateY(500px);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.debug-panel-visible {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.debug-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: rgba(0, 200, 0, 0.2);
+    border-bottom: 1px solid rgba(0, 200, 0, 0.3);
+    border-radius: 8px 8px 0 0;
+}
+
+.debug-title {
+    color: #00ff00;
+    font-size: 14px;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+}
+
+.debug-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.debug-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.2s ease;
+}
+
+.debug-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+.debug-close-btn {
+    background: rgba(255, 0, 0, 0.3);
+    border-color: rgba(255, 0, 0, 0.5);
+}
+
+.debug-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.debug-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.debug-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.debug-content::-webkit-scrollbar-thumb {
+    background: rgba(0, 200, 0, 0.5);
+    border-radius: 3px;
+}
+
+.debug-log {
+    margin-bottom: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid transparent;
+    word-wrap: break-word;
+}
+
+.debug-log-log {
+    color: #ffffff;
+    border-left-color: #00ff00;
+}
+
+.debug-log-warn {
+    color: #ffaa00;
+    border-left-color: #ffaa00;
+    background: rgba(255, 170, 0, 0.05);
+}
+
+.debug-log-error {
+    color: #ff4444;
+    border-left-color: #ff4444;
+    background: rgba(255, 68, 68, 0.1);
+}
+
+.debug-log-time {
+    color: #888888;
+    margin-right: 6px;
+}
+
+.debug-log-level {
+    color: #00ff00;
+    margin-right: 6px;
+    font-weight: bold;
+}
+
+.debug-log-count {
+    color: #00ffff;
+    margin-left: 6px;
+    font-weight: bold;
+    padding: 2px 6px;
+    background: rgba(0, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+@media (max-width: 600px) {
+    .debug-panel {
+        width: calc(100% - 40px);
+        height: 300px;
+    }
+}
 \`\`\`
 
 ---
@@ -1657,14 +2077,6 @@ function onClick(x, y) {
 \`\`\`
 
 **非程序员也能看懂！**
-
----
-
-## 💡 文件位置
-
-完整代码位于：\`/Volumes/Q/MiniGame/Mcp/Tank/DebugLogger\`
-
-**AI 可以直接复制这些文件到用户项目中。**
 `;
 }
 

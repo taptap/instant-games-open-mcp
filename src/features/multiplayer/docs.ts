@@ -1143,8 +1143,8 @@ tapOnlineBattle.registerListener({
 **触发时机**：玩家主动离开房间时（房间内其他玩家收到）`,
           parameters: {
             roomId: 'string - 房间ID',
-            playerId: 'string - 离开的玩家ID',
-            playerName: 'string - 离开的玩家名称（可能为空）',
+            'info.playerInfo.id': 'string - 离开的玩家ID',
+            'info.playerInfo.customProperties': 'string (可选) - 玩家自定义属性（JSON字符串）',
           },
           example: `// playerLeaveRoom 事件参数示例
 tapOnlineBattle.registerListener({
@@ -1152,14 +1152,16 @@ tapOnlineBattle.registerListener({
     // info 结构：
     // {
     //   roomId: "room_123456",
-    //   playerId: "player_leaving",
-    //   playerName: "玩家名"
+    //   playerInfo: {
+    //     id: "player_leaving",
+    //     customProperties: '{"nickname":"玩家名"}'
+    //   }
     // }
-    
-    console.log('玩家离开房间:', info.playerId);
-    
+
+    console.log('玩家离开房间:', info.playerInfo.id);
+
     // 移除该玩家的游戏对象
-    removeRemotePlayer(info.playerId);
+    removeRemotePlayer(info.playerInfo.id);
   }
 });`,
         },
@@ -1170,22 +1172,24 @@ tapOnlineBattle.registerListener({
 
 **触发时机**：玩家掉线时（非主动离开，如网络断开）`,
           parameters: {
-            playerId: 'string - 掉线的玩家ID',
-            playerName: 'string - 掉线的玩家名称（可能为空）',
+            'info.playerInfo.id': 'string - 掉线的玩家ID',
+            'info.playerInfo.customProperties': 'string (可选) - 玩家自定义属性（JSON字符串）',
           },
           example: `// playerOffline 事件参数示例
 tapOnlineBattle.registerListener({
   playerOffline: (info) => {
     // info 结构：
     // {
-    //   playerId: "player_offline",
-    //   playerName: "玩家名"
+    //   playerInfo: {
+    //     id: "player_offline",
+    //     customProperties: '{"nickname":"玩家名"}'
+    //   }
     // }
-    
-    console.log('玩家掉线:', info.playerId);
-    
+
+    console.log('玩家掉线:', info.playerInfo.id);
+
     // 移除该玩家的游戏对象（SDK不支持重连）
-    removeRemotePlayer(info.playerId);
+    removeRemotePlayer(info.playerInfo.id);
   }
 });`,
         },
@@ -2627,6 +2631,17 @@ await mp.matchRoom(4, 'game_mode');
 //    - DEBUG_MODE：控制是否显示弹窗（默认 false）
 //    - DebugLogger：屏幕日志系统（调用 get_debug_logger 获取）
 //    - getStats()：查看统计信息
+
+// ========== 日志工具（兼容处理）==========
+// ⚠️ 注意：本模板使用 Debug.log() 进行日志输出
+// 两种使用方式：
+// 1. 添加 DebugLogger：调用 get_debug_logger 工具获取屏幕日志组件
+// 2. 不添加 DebugLogger：自动降级为 console.log()
+const Debug = (typeof window !== 'undefined' && window.Debug) || {
+  log: function(...args) {
+    console.log('[MultiplayerManager]', ...args);
+  }
+};
 
 /**
  * 多人联机错误码
