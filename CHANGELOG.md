@@ -1,3 +1,14 @@
+## 1.11.0 (2025-12-25)
+
+* style(multiplayer): format code with prettier ([9573099](https://github.com/taptap/taptap_minigame_open_mcp/commit/9573099))
+* fix(multiplayer): fix critical double rate-limit bug and enhance template ([281c14f](https://github.com/taptap/taptap_minigame_open_mcp/commit/281c14f))
+* fix(multiplayer): fix eslint errors and remove unused imports ([ff6750c](https://github.com/taptap/taptap_minigame_open_mcp/commit/ff6750c))
+* refactor(multiplayer): consolidate documentation tools structure ([fc0e4c1](https://github.com/taptap/taptap_minigame_open_mcp/commit/fc0e4c1))
+* docs(multiplayer):  多人对战，第二版 ([bdcadaf](https://github.com/taptap/taptap_minigame_open_mcp/commit/bdcadaf))
+* feat: 多人联机mcp第一版 ([c34838e](https://github.com/taptap/taptap_minigame_open_mcp/commit/c34838e))
+
+
+
 ## <small>1.10.1 (2025-12-10)</small>
 
 * chore: add docker:npm script and remove unused import ([9d2455a](https://github.com/taptap/taptap_minigame_open_mcp/commit/9d2455a))
