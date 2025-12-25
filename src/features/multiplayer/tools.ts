@@ -318,7 +318,7 @@ Features:
 - 支持复制日志，自动拦截 console
 - 移动端友好，非程序员也能用
 
-Returns: DebugLogger setup guide + usage. AI can copy files from /Volumes/Q/MiniGame/Mcp/Tank/DebugLogger to project.
+Returns: Complete DebugLogger code (600+ lines embedded). Ready to copy and use directly.
 
 Perfect for: H5 games, mobile testing, non-technical users.`,
       inputSchema: {

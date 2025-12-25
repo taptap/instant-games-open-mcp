@@ -608,12 +608,12 @@ function startMoveTo(targetX: number, targetY: number) {
 **典型处理**：移除玩家对象。`,
           parameters: {
             'info.roomId': 'string - 房间ID',
-            'info.playerId': 'string - 离开的玩家ID',
-            'info.playerName': 'string - 离开的玩家名称',
+            'info.playerInfo.id': 'string - 离开的玩家ID',
+            'info.playerInfo.customProperties': 'string (可选) - 玩家自定义属性（JSON字符串）',
           },
           example: `tapOnlineBattle.registerListener({
   playerLeaveRoom: (info) => {
-    console.log('玩家离开:', info.playerId);
+    console.log('玩家离开:', info.playerInfo.id);
     // 游戏逻辑自行实现：移除玩家对象
   }
 });`,
@@ -625,12 +625,12 @@ function startMoveTo(targetX: number, targetY: number) {
 
 **典型处理**：将玩家标记为离线或移除。`,
           parameters: {
-            'info.playerId': 'string - 掉线的玩家ID',
-            'info.playerName': 'string - 掉线的玩家名称',
+            'info.playerInfo.id': 'string - 掉线的玩家ID',
+            'info.playerInfo.customProperties': 'string (可选) - 玩家自定义属性（JSON字符串）',
           },
           example: `tapOnlineBattle.registerListener({
   playerOffline: (info) => {
-    console.log('玩家掉线:', info.playerId);
+    console.log('玩家掉线:', info.playerInfo.id);
     // 游戏逻辑自行实现：标记离线或移除
   }
 });`,
