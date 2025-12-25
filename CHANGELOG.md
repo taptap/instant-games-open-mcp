@@ -1,3 +1,9 @@
+## <small>1.11.1 (2025-12-25)</small>
+
+* fix(multiplayer): fix PR review issues and embed DebugLogger code ([7b80111](https://github.com/taptap/taptap_minigame_open_mcp/commit/7b80111))
+
+
+
 ## 1.11.0 (2025-12-25)
 
 * style(multiplayer): format code with prettier ([9573099](https://github.com/taptap/taptap_minigame_open_mcp/commit/9573099))
