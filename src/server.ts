@@ -51,6 +51,7 @@ import { appModule } from './features/app/index.js';
 import { leaderboardModule } from './features/leaderboard/index.js';
 import { h5GameModule } from './features/h5Game/index.js';
 import { vibrateModule } from './features/vibrate/index.js';
+import { multiplayerModule } from './features/multiplayer/index.js';
 import { shareModule } from './features/share/index.js';
 import { cloudSaveModule } from './features/cloudSave/index.js';
 import type {
@@ -80,6 +81,7 @@ const allModules: FeatureModule[] = [
   leaderboardModule, // Leaderboard management
   h5GameModule, // H5 Game management (upload, publish, status)
   vibrateModule, // Vibrate API documentation and guides
+  multiplayerModule, // Multiplayer/OnlineBattle SDK documentation
   shareModule, // Share API documentation and management
   cloudSaveModule, // Cloud Save documentation (client-side only)
 ];
