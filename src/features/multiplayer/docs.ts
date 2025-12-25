@@ -98,13 +98,15 @@ tapOnlineBattle.registerListener({
     console.log('玩家进入房间:', info.playerInfo.id);
   },
   playerLeaveRoom: (info) => {
-    console.log('玩家离开房间:', info.playerId);
+    console.log('玩家离开房间:', info.playerInfo.id);
   },
   playerOffline: (info) => {
-    console.log('玩家掉线:', info.playerId);
+    console.log('玩家掉线:', info.playerInfo.id);
   },
   onCustomMessage: (info) => {
-    console.log('收到消息:', info.message, '来自:', info.playerId);
+    const fromId = info.fromPlayerId || info.playerId;
+    const msg = info.msg || info.message;
+    console.log('收到消息:', msg, '来自:', fromId);
   },
   onPlayerCustomPropertiesChange: (info) => {
     console.log('玩家属性变更:', info.playerId, info.properties);
