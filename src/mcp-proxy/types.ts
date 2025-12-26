@@ -49,6 +49,8 @@ export interface ProxyConfig {
     tool_call_timeout?: number;
     /** 收到 progress 通知时重置超时计时器（默认 true） */
     reset_timeout_on_progress?: boolean;
+    /** 健康检查间隔（毫秒，默认 30000）- 定期验证 Server 会话是否有效 */
+    health_check_interval?: number;
   };
 }
 
