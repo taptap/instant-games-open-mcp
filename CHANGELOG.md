@@ -1,3 +1,10 @@
+## <small>1.11.2 (2025-12-26)</small>
+
+* fix(proxy): add session validation for multi-replica deployment ([1075a6f](https://github.com/taptap/taptap_minigame_open_mcp/commit/1075a6f))
+* docs: add user guide and update configuration docs ([cf39cd0](https://github.com/taptap/taptap_minigame_open_mcp/commit/cf39cd0))
+
+
+
 ## <small>1.11.1 (2025-12-25)</small>
 
 * fix(multiplayer): fix PR review issues and embed DebugLogger code ([7b80111](https://github.com/taptap/taptap_minigame_open_mcp/commit/7b80111))
