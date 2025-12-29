@@ -95,15 +95,15 @@ export class CookieJar {
       const char = header[i];
 
       if (char === ',') {
-        // 检查是否是日期中的逗号（如 "Expires=Mon, 01 Jan 2024"）
+        // Check if this is a comma in a date (e.g., "Expires=Mon, 01 Jan 2024")
         const remaining = header.substring(i + 1).trim();
-        // 更严格的日期格式检测：两位数字 + 空格 + 三位字母（月份）
-        if (/^\d{2}\s[A-Za-z]{3}/.test(remaining)) {
-          // 这是日期中的逗号，继续
+        // Match HTTP date format: two digits + space + month abbreviation
+        if (/^\d{2}\s(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(remaining)) {
+          // This is a comma in a date, continue
           current += char;
           continue;
         }
-        // 这是 Cookie 分隔符
+        // This is a Cookie separator
         if (current.trim()) {
           cookies.push(current.trim());
         }

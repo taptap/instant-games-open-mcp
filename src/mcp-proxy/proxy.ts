@@ -297,8 +297,8 @@ export class TapTapMCPProxy {
     this.reconnecting = true;
     this.clearReconnectTimer();
 
-    // 清空 Cookie，以便重新获取路由信息
-    // 这确保在连接到不同 Pod 时获得正确的路由 Cookie
+    // Clear cookies to retrieve new routing information
+    // This ensures correct routing cookies when connecting to different Pods
     const cookieEnabled = this.config.options?.enable_cookie_sticky ?? true;
     if (cookieEnabled && this.cookieJar.hasCookies) {
       this.cookieJar.clear();
