@@ -217,6 +217,20 @@ export class TapTapMCPProxy {
 
   /**
    * 格式化错误信息，提取有用的错误详情
+   *
+   * 错误来源及结构：
+   * 1. 网络层错误 (Node.js fetch):
+   *    - message: "fetch failed"
+   *    - cause.code: "ECONNREFUSED" / "ETIMEDOUT" 等系统错误码
+   *    - cause.message: "connect ECONNREFUSED 127.0.0.1:4000"
+   *
+   * 2. HTTP 错误 (MCP SDK send):
+   *    - message: "Error POSTing to endpoint (HTTP 502): Bad Gateway"
+   *    - HTTP 状态码嵌入在 message 中
+   *
+   * 3. SSE 连接错误 (MCP SDK StreamableHTTPError):
+   *    - message: "Streamable HTTP error: Failed to open SSE stream: Bad Gateway"
+   *    - code: 502 (HTTP 状态码，注意和系统错误码共用 code 字段)
    */
   private formatError(error: unknown): string {
     if (!(error instanceof Error)) {
@@ -225,36 +239,27 @@ export class TapTapMCPProxy {
 
     const parts: string[] = [];
 
-    // 错误消息
+    // 错误消息（HTTP 状态码可能嵌入在消息中）
     parts.push(error.message);
 
-    // 系统错误码（如 ECONNREFUSED）
+    // 错误码：可能是系统错误码 (ECONNREFUSED) 或 HTTP 状态码 (502)
     const errorCode = (error as any).code;
     if (errorCode) {
-      parts.push(`[${errorCode}]`);
+      // 判断是数字（HTTP 状态码）还是字符串（系统错误码）
+      if (typeof errorCode === 'number') {
+        parts.push(`[HTTP ${errorCode}]`);
+      } else {
+        parts.push(`[${errorCode}]`);
+      }
     }
 
-    // HTTP 状态码（如 500, 502, 503）
-    const httpStatus = (error as any).status || (error as any).statusCode;
-    if (httpStatus) {
-      parts.push(`[HTTP ${httpStatus}]`);
-    }
-
-    // HTTP 响应体（如果有）
-    const responseBody = (error as any).body || (error as any).responseText;
-    if (responseBody && typeof responseBody === 'string' && responseBody.length < 200) {
-      parts.push(`(response: ${responseBody})`);
-    }
-
-    // 原因（cause）- 递归提取嵌套错误
+    // 原因（cause）- 网络错误的真正原因在这里
     const cause = (error as any).cause;
     if (cause) {
       if (cause instanceof Error) {
         const causeCode = (cause as any).code;
-        const causeStatus = (cause as any).status || (cause as any).statusCode;
         let causeInfo = cause.message;
         if (causeCode) causeInfo += ` [${causeCode}]`;
-        if (causeStatus) causeInfo += ` [HTTP ${causeStatus}]`;
         parts.push(`(cause: ${causeInfo})`);
       } else {
         parts.push(`(cause: ${String(cause)})`);
