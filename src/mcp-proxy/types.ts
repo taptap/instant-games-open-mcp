@@ -51,6 +51,12 @@ export interface ProxyConfig {
     reset_timeout_on_progress?: boolean;
     /** 健康检查间隔（毫秒，默认 30000）- 定期验证 Server 会话是否有效 */
     health_check_interval?: number;
+    /**
+     * 启用 Cookie 会话粘性（默认 true）
+     * 用于 K8s 多副本部署时，通过 Ingress Cookie 实现会话粘性
+     * 确保同一 Proxy 的所有请求被路由到同一个 MCP Server Pod
+     */
+    enable_cookie_sticky?: boolean;
   };
 }
 
