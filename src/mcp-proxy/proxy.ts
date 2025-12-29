@@ -297,6 +297,16 @@ export class TapTapMCPProxy {
     this.reconnecting = true;
     this.clearReconnectTimer();
 
+    // 清空 Cookie，以便重新获取路由信息
+    // 这确保在连接到不同 Pod 时获得正确的路由 Cookie
+    const cookieEnabled = this.config.options?.enable_cookie_sticky ?? true;
+    if (cookieEnabled && this.cookieJar.hasCookies) {
+      this.cookieJar.clear();
+      if (this.config.options?.verbose) {
+        console.error('[Proxy] Cookies cleared for reconnection');
+      }
+    }
+
     try {
       // 重连时创建新的 Client 实例（避免旧 Client 状态异常）
       this.client = new Client(

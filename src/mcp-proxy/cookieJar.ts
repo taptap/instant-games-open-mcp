@@ -90,15 +90,15 @@ export class CookieJar {
   private splitSetCookieHeader(header: string): string[] {
     const cookies: string[] = [];
     let current = '';
-    const depth = 0;
 
     for (let i = 0; i < header.length; i++) {
       const char = header[i];
 
-      if (char === ',' && depth === 0) {
+      if (char === ',') {
         // 检查是否是日期中的逗号（如 "Expires=Mon, 01 Jan 2024"）
         const remaining = header.substring(i + 1).trim();
-        if (/^\d{2}\s/.test(remaining)) {
+        // 更严格的日期格式检测：两位数字 + 空格 + 三位字母（月份）
+        if (/^\d{2}\s[A-Za-z]{3}/.test(remaining)) {
           // 这是日期中的逗号，继续
           current += char;
           continue;
@@ -142,7 +142,6 @@ export class CookieJar {
     // 解析属性
     for (const attr of attributes) {
       const attrLower = attr.toLowerCase();
-      const attrEqIndex = attr.indexOf('=');
 
       if (attrLower.startsWith('expires=')) {
         const dateStr = attr.substring(8);
