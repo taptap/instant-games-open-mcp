@@ -77,7 +77,8 @@ export class TapTapMCPProxy {
     try {
       await this.connectToServer();
     } catch (error) {
-      console.error('[Proxy] Initial connection failed, will retry in background');
+      console.error('[Proxy] ❌ Initial connection failed:', this.formatError(error));
+      console.error('[Proxy] Will retry in background...');
       this.scheduleReconnect();
       // 不抛出错误，让 Proxy 继续启动
       // Agent 在调用工具时会收到 "not connected" 错误
@@ -215,6 +216,43 @@ export class TapTapMCPProxy {
   }
 
   /**
+   * 格式化错误信息，提取有用的错误详情
+   */
+  private formatError(error: unknown): string {
+    if (!(error instanceof Error)) {
+      return String(error);
+    }
+
+    const parts: string[] = [];
+
+    // 错误消息
+    parts.push(error.message);
+
+    // 错误码（如 ECONNREFUSED）
+    const errorCode = (error as any).code;
+    if (errorCode) {
+      parts.push(`[${errorCode}]`);
+    }
+
+    // 原因（cause）
+    const cause = (error as any).cause;
+    if (cause) {
+      if (cause instanceof Error) {
+        const causeCode = (cause as any).code;
+        if (causeCode) {
+          parts.push(`(cause: ${cause.message} [${causeCode}])`);
+        } else {
+          parts.push(`(cause: ${cause.message})`);
+        }
+      } else {
+        parts.push(`(cause: ${String(cause)})`);
+      }
+    }
+
+    return parts.join(' ');
+  }
+
+  /**
    * 重连到 TapTap Server
    */
   private async reconnectToServer(): Promise<void> {
@@ -233,7 +271,9 @@ export class TapTapMCPProxy {
       await this.connectToServer();
       console.error('[Proxy] ✅ Reconnected successfully');
     } catch (error) {
-      console.error('[Proxy] Reconnect failed, will retry in 5s');
+      const interval = this.config.options?.reconnect_interval ?? 5000;
+      console.error('[Proxy] ❌ Reconnect failed:', this.formatError(error));
+      console.error(`[Proxy] Will retry in ${interval / 1000}s...`);
       this.reconnecting = false; // 重置状态，允许下次重连
       this.scheduleReconnect();
     }
