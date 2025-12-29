@@ -1,3 +1,11 @@
+## <small>1.11.3 (2025-12-29)</small>
+
+* refactor(proxy): simplify formatError based on actual error structures ([54c4ff2](https://github.com/taptap/taptap_minigame_open_mcp/commit/54c4ff2))
+* fix(proxy): add detailed error logging for connection failures ([0709c2d](https://github.com/taptap/taptap_minigame_open_mcp/commit/0709c2d))
+* fix(proxy): enhance error logging to capture HTTP status codes ([964fa17](https://github.com/taptap/taptap_minigame_open_mcp/commit/964fa17))
+
+
+
 ## <small>1.11.2 (2025-12-26)</small>
 
 * fix(proxy): add session validation for multi-replica deployment ([1075a6f](https://github.com/taptap/taptap_minigame_open_mcp/commit/1075a6f))
