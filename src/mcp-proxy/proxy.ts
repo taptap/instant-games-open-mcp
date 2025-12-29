@@ -228,22 +228,34 @@ export class TapTapMCPProxy {
     // 错误消息
     parts.push(error.message);
 
-    // 错误码（如 ECONNREFUSED）
+    // 系统错误码（如 ECONNREFUSED）
     const errorCode = (error as any).code;
     if (errorCode) {
       parts.push(`[${errorCode}]`);
     }
 
-    // 原因（cause）
+    // HTTP 状态码（如 500, 502, 503）
+    const httpStatus = (error as any).status || (error as any).statusCode;
+    if (httpStatus) {
+      parts.push(`[HTTP ${httpStatus}]`);
+    }
+
+    // HTTP 响应体（如果有）
+    const responseBody = (error as any).body || (error as any).responseText;
+    if (responseBody && typeof responseBody === 'string' && responseBody.length < 200) {
+      parts.push(`(response: ${responseBody})`);
+    }
+
+    // 原因（cause）- 递归提取嵌套错误
     const cause = (error as any).cause;
     if (cause) {
       if (cause instanceof Error) {
         const causeCode = (cause as any).code;
-        if (causeCode) {
-          parts.push(`(cause: ${cause.message} [${causeCode}])`);
-        } else {
-          parts.push(`(cause: ${cause.message})`);
-        }
+        const causeStatus = (cause as any).status || (cause as any).statusCode;
+        let causeInfo = cause.message;
+        if (causeCode) causeInfo += ` [${causeCode}]`;
+        if (causeStatus) causeInfo += ` [HTTP ${causeStatus}]`;
+        parts.push(`(cause: ${causeInfo})`);
       } else {
         parts.push(`(cause: ${String(cause)})`);
       }
