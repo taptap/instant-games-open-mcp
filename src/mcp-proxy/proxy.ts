@@ -12,6 +12,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 // import * as path from 'node:path';  // 暂时未使用
 import type { ProxyConfig, PendingRequest } from './types.js';
+import { CookieJar, createCookieFetch } from './cookieJar.js';
 
 // Version placeholder - replaced at build time by esbuild
 declare const __PROXY_VERSION__: string;
@@ -42,8 +43,14 @@ export class TapTapMCPProxy {
   private lastValidationTime: number = 0;
   private readonly SESSION_VALIDATION_INTERVAL = 30000; // 30秒验证一次会话
 
+  // Cookie 粘性支持（用于 K8s 多副本部署）
+  private cookieJar: CookieJar;
+
   constructor(config: ProxyConfig) {
     this.config = config;
+
+    // 初始化 Cookie 管理器（用于会话粘性）
+    this.cookieJar = new CookieJar(config.options?.verbose ?? false);
 
     // 初始化 MCP Client（连接 TapTap Server）
     this.client = new Client(
@@ -64,6 +71,7 @@ export class TapTapMCPProxy {
   async start(): Promise<void> {
     console.error(`[Proxy] TapTap MCP Proxy v${VERSION}`);
     console.error(`[Proxy] Starting...`);
+    console.error(`[Proxy] Server URL: ${this.config.server.url}`);
     console.error(`[Proxy] Project Path: ${this.config.tenant.project_path}`);
     if (this.config.tenant.user_id) {
       console.error(`[Proxy] User ID: ${this.config.tenant.user_id}`);
@@ -72,6 +80,7 @@ export class TapTapMCPProxy {
       console.error(`[Proxy] Project ID: ${this.config.tenant.project_id}`);
     }
     console.error(`[Proxy] Token kid: ${this.config.auth.kid.substring(0, 12)}...`);
+    console.error(`[Proxy] Cookie sticky: ${this.config.options?.enable_cookie_sticky ?? true}`);
 
     // 1. 初始化时直接连接 TapTap Server
     try {
@@ -101,7 +110,17 @@ export class TapTapMCPProxy {
     console.error(`[Proxy] Connecting to ${this.config.server.url}...`);
 
     try {
-      const transport = new StreamableHTTPClientTransport(new URL(this.config.server.url));
+      // 创建支持 Cookie 的 fetch（用于 K8s Ingress 会话粘性）
+      const cookieEnabled = this.config.options?.enable_cookie_sticky ?? true;
+      const customFetch = cookieEnabled ? createCookieFetch(this.cookieJar) : undefined;
+
+      if (cookieEnabled && this.config.options?.verbose) {
+        console.error('[Proxy] Cookie sticky session enabled');
+      }
+
+      const transport = new StreamableHTTPClientTransport(new URL(this.config.server.url), {
+        fetch: customFetch,
+      });
 
       await this.client.connect(transport);
 
