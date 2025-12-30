@@ -1,3 +1,11 @@
+## <small>1.11.4 (2025-12-30)</small>
+
+* refactor(proxy): improve code consistency and cookie parsing ([5884575](https://github.com/taptap/taptap_minigame_open_mcp/commit/5884575))
+* fix(proxy): add cookie sticky session support for K8s multi-replica ([7d7cc4f](https://github.com/taptap/taptap_minigame_open_mcp/commit/7d7cc4f))
+* fix(proxy): improve cookie sticky session implementation ([cf0db5d](https://github.com/taptap/taptap_minigame_open_mcp/commit/cf0db5d))
+
+
+
 ## <small>1.11.3 (2025-12-29)</small>
 
 * refactor(proxy): simplify formatError based on actual error structures ([54c4ff2](https://github.com/taptap/taptap_minigame_open_mcp/commit/54c4ff2))
