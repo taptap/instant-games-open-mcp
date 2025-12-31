@@ -88,6 +88,16 @@ Closes #123
 - ✅ Body 和 Footer 前必须有空行
 - ❌ 错误示例：`Feat(API): Added feature.`（Type 大写、Scope 大写、Subject 以句号结尾）
 
+### Copilot/AI 提交规范
+
+> 📄 详细规范请参考 `.github/copilot-instructions.md`
+
+**Copilot 和其他 AI 工具必须遵循 Conventional Commits 规范。**
+
+- ❌ **禁止的提交消息**：`Initial plan`、`WIP`、`temp`、`test` 等无类型前缀的消息
+- ✅ **正确格式**：`feat(proxy): add new feature`、`chore(planning): initial investigation`
+- ⚙️ **Commitlint 已配置忽略规则**：自动忽略 `Initial plan`、`WIP` 等模式的提交
+
 ### 分支工作流
 
 - ❌ **不要直接 commit 到 main 分支**（已配置分支保护）

@@ -70,10 +70,13 @@ module.exports = {
     'scope-case': [2, 'always', 'lower-case']
   },
 
-  // 忽略某些 commit（如 merge commits）
+  // 忽略某些 commit（如 merge commits、bot 的临时提交）
   ignores: [
     (commit) => commit.includes('Merge'),
-    (commit) => commit.includes('[skip ci]')
+    (commit) => commit.includes('[skip ci]'),
+    // 忽略 Copilot bot 的计划/临时提交（如 "Initial plan for feature X"、"WIP: adding tests"）
+    // 这些通常是空提交，用于记录工作计划
+    (commit) => /^(Initial plan|WIP|TODO|FIXME)\b[:\s]?.*/i.test(commit.trim()),
   ],
 
   // 帮助信息
