@@ -425,6 +425,10 @@ jobs:
         run: |
           npx conventional-changelog-cli -p conventionalcommits -i CHANGELOG.md -s
 
+          # 过滤掉噪音提交（与 .commitlintrc.cjs 中的忽略规则一致）
+          # - Initial plan, WIP, TODO, FIXME: Copilot/bot 的临时提交
+          sed -i '/^\* \(Initial plan\|WIP\|TODO\|FIXME\)\b/d' CHANGELOG.md
+
       # 提交并推送
       - name: Commit and push release branch
         run: |
@@ -526,7 +530,10 @@ jobs:
           git checkout -B main origin/main
 
           # 生成详细的 release notes
-          RELEASE_NOTES=$(npx conventional-changelog-cli -p conventionalcommits -o /dev/stdout -r 1)
+          # 过滤掉噪音提交（与 .commitlintrc.cjs 中的忽略规则一致）
+          # - Initial plan, WIP, TODO, FIXME: Copilot/bot 的临时提交
+          # - chore(release): 自动发布的提交
+          RELEASE_NOTES=$(npx conventional-changelog-cli -p conventionalcommits -o /dev/stdout -r 1 | grep -v -E '^\*\s*(Initial plan|WIP|TODO|FIXME)\b|^\*\s*chore\(release\):')
 
           # 创建 annotated tag（而非轻量级 tag）
           # 这样 Tags 页面也会显示详细的 annotation
