@@ -202,8 +202,6 @@ const url = 'https://api.example.com';
 ```
 ````
 
-```
-
 ---
 
 ## Pull Request Guidelines
@@ -211,29 +209,32 @@ const url = 'https://api.example.com';
 ### PR Title Format
 
 PR titles should also follow Conventional Commits format:
-```
 
+```
 feat(proxy): add cookie sticky session support
 fix(auth): handle token refresh edge case
-
-````
+```
 
 ### PR Description Template
 
 ```markdown
 ## Summary
+
 Brief description of changes.
 
 ## Changes
+
 - Change 1
 - Change 2
 
 ## Testing
+
 How was this tested?
 
 ## Related Issues
+
 Closes #123
-````
+```
 
 ### Before Submitting
 
