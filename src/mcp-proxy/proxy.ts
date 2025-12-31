@@ -10,9 +10,11 @@ import {
   ErrorCode,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-// import * as path from 'node:path';  // 暂时未使用
+import * as path from 'node:path';
+import * as crypto from 'node:crypto';
 import type { ProxyConfig, PendingRequest } from './types.js';
 import { CookieJar, createCookieFetch } from './cookieJar.js';
+import { LogWriter, type LogLevel } from '../core/utils/logWriter.js';
 
 // Version placeholder - replaced at build time by esbuild
 declare const __PROXY_VERSION__: string;
@@ -46,11 +48,17 @@ export class TapTapMCPProxy {
   // Cookie 粘性支持（用于 K8s 多副本部署）
   private cookieJar: CookieJar;
 
+  // 文件日志写入器
+  private logWriter: LogWriter;
+
   constructor(config: ProxyConfig) {
     this.config = config;
 
     // 初始化 Cookie 管理器（用于会话粘性）
     this.cookieJar = new CookieJar(config.options?.verbose ?? false);
+
+    // 初始化文件日志写入器
+    this.logWriter = this.createLogWriter();
 
     // 初始化 MCP Client（连接 TapTap Server）
     this.client = new Client(
@@ -66,28 +74,83 @@ export class TapTapMCPProxy {
   }
 
   /**
+   * 创建文件日志写入器
+   */
+  private createLogWriter(): LogWriter {
+    const logConfig = this.config.options?.log;
+    const logRoot = logConfig?.root || '/tmp/taptap-mcp/logs';
+
+    // 计算日志目录
+    const { user_id, project_id } = this.config.tenant;
+    let logDir: string;
+
+    if (user_id && project_id) {
+      // 有 user_id 和 project_id，使用它们
+      logDir = path.join(logRoot, 'proxy', user_id, project_id);
+    } else {
+      // 无 user_id/project_id，使用 kid 的 hash
+      const kidHash = crypto
+        .createHash('sha256')
+        .update(this.config.auth.kid)
+        .digest('hex')
+        .substring(0, 8);
+      logDir = path.join(logRoot, 'proxy', kidHash);
+    }
+
+    return new LogWriter({
+      logDir,
+      prefix: 'proxy',
+      enabled: logConfig?.enabled ?? false,
+      level: logConfig?.level ?? 'info',
+      maxDays: logConfig?.max_days ?? 7,
+    });
+  }
+
+  /**
+   * 获取当前时间戳
+   */
+  private getTimestamp(): string {
+    return new Date().toISOString();
+  }
+
+  /**
+   * 统一日志输出方法
+   */
+  private log(level: LogLevel, message: string): void {
+    const timestamp = this.getTimestamp();
+    const formattedMessage = `[${timestamp}] [${level.toUpperCase()}] [proxy] ${message}\n`;
+    this.logWriter.writeSync(level, formattedMessage);
+  }
+
+  /**
    * 启动 Proxy
    */
   async start(): Promise<void> {
-    console.error(`[Proxy] TapTap MCP Proxy v${VERSION}`);
-    console.error(`[Proxy] Starting...`);
-    console.error(`[Proxy] Server URL: ${this.config.server.url}`);
-    console.error(`[Proxy] Project Path: ${this.config.tenant.project_path}`);
+    this.log('info', `TapTap MCP Proxy v${VERSION}`);
+    this.log('info', 'Starting...');
+    this.log('info', `Server URL: ${this.config.server.url}`);
+    this.log('info', `Project Path: ${this.config.tenant.project_path}`);
     if (this.config.tenant.user_id) {
-      console.error(`[Proxy] User ID: ${this.config.tenant.user_id}`);
+      this.log('info', `User ID: ${this.config.tenant.user_id}`);
     }
     if (this.config.tenant.project_id) {
-      console.error(`[Proxy] Project ID: ${this.config.tenant.project_id}`);
+      this.log('info', `Project ID: ${this.config.tenant.project_id}`);
     }
-    console.error(`[Proxy] Token kid: ${this.config.auth.kid.substring(0, 12)}...`);
-    console.error(`[Proxy] Cookie sticky: ${this.config.options?.enable_cookie_sticky ?? true}`);
+    this.log('info', `Token kid: ${this.config.auth.kid.substring(0, 12)}...`);
+    this.log('info', `Cookie sticky: ${this.config.options?.enable_cookie_sticky ?? true}`);
+
+    // 显示文件日志配置
+    const logConfig = this.config.options?.log;
+    if (logConfig?.enabled) {
+      this.log('info', `File logging enabled: ${this.logWriter.getConfig().logDir}`);
+    }
 
     // 1. 初始化时直接连接 TapTap Server
     try {
       await this.connectToServer();
     } catch (error) {
-      console.error('[Proxy] ❌ Initial connection failed:', this.formatError(error));
-      console.error('[Proxy] Will retry in background...');
+      this.log('error', `❌ Initial connection failed: ${this.formatError(error)}`);
+      this.log('info', 'Will retry in background...');
       this.scheduleReconnect();
       // 不抛出错误，让 Proxy 继续启动
       // Agent 在调用工具时会收到 "not connected" 错误
@@ -100,14 +163,14 @@ export class TapTapMCPProxy {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
 
-    console.error('[Proxy] Started (stdio mode)');
+    this.log('info', 'Started (stdio mode)');
   }
 
   /**
    * 连接到 TapTap MCP Server
    */
   private async connectToServer(): Promise<void> {
-    console.error(`[Proxy] Connecting to ${this.config.server.url}...`);
+    this.log('info', `Connecting to ${this.config.server.url}...`);
 
     try {
       // 创建支持 Cookie 的 fetch（用于 K8s Ingress 会话粘性）
@@ -115,7 +178,7 @@ export class TapTapMCPProxy {
       const customFetch = cookieEnabled ? createCookieFetch(this.cookieJar) : undefined;
 
       if (cookieEnabled && this.config.options?.verbose) {
-        console.error('[Proxy] Cookie sticky session enabled');
+        this.log('debug', 'Cookie sticky session enabled');
       }
 
       const transport = new StreamableHTTPClientTransport(new URL(this.config.server.url), {
@@ -132,7 +195,7 @@ export class TapTapMCPProxy {
       this.sessionValidated = true;
       this.lastValidationTime = Date.now();
 
-      console.error('[Proxy] ✅ Connected and session validated');
+      this.log('info', '✅ Connected and session validated');
 
       // 启动定期健康检查
       this.startHealthCheck();
@@ -155,15 +218,15 @@ export class TapTapMCPProxy {
    * 通过调用 listTools 来验证 Server 端的 MCP 会话状态
    */
   private async validateSession(): Promise<void> {
-    console.error('[Proxy] Validating MCP session...');
+    this.log('debug', 'Validating MCP session...');
 
     try {
       // 使用 listTools 作为会话验证手段
       // 如果 Server 未初始化，这个调用会失败
       await this.client.listTools();
-      console.error('[Proxy] ✅ Session validation successful');
+      this.log('debug', '✅ Session validation successful');
     } catch (error) {
-      console.error('[Proxy] ❌ Session validation failed:', error);
+      this.log('error', `❌ Session validation failed: ${error}`);
 
       // 检查是否是 "server not initialized" 错误
       if (this.isSessionInvalidError(error)) {
@@ -211,7 +274,7 @@ export class TapTapMCPProxy {
         await this.validateSession();
         this.lastValidationTime = Date.now();
       } catch (error) {
-        console.error('[Proxy] ❌ Health check failed, triggering reconnection');
+        this.log('error', '❌ Health check failed, triggering reconnection');
         this.connected = false;
         this.sessionValidated = false;
 
@@ -221,7 +284,7 @@ export class TapTapMCPProxy {
       }
     }, interval);
 
-    console.error(`[Proxy] Health check started (interval: ${interval}ms)`);
+    this.log('debug', `Health check started (interval: ${interval}ms)`);
   }
 
   /**
@@ -303,7 +366,7 @@ export class TapTapMCPProxy {
     if (cookieEnabled && this.cookieJar.hasCookies) {
       this.cookieJar.clear();
       if (this.config.options?.verbose) {
-        console.error('[Proxy] Cookies cleared for reconnection');
+        this.log('debug', 'Cookies cleared for reconnection');
       }
     }
 
@@ -315,11 +378,11 @@ export class TapTapMCPProxy {
       );
 
       await this.connectToServer();
-      console.error('[Proxy] ✅ Reconnected successfully');
+      this.log('info', '✅ Reconnected successfully');
     } catch (error) {
       const interval = this.config.options?.reconnect_interval ?? 5000;
-      console.error('[Proxy] ❌ Reconnect failed:', this.formatError(error));
-      console.error(`[Proxy] Will retry in ${interval / 1000}s...`);
+      this.log('error', `❌ Reconnect failed: ${this.formatError(error)}`);
+      this.log('info', `Will retry in ${interval / 1000}s...`);
       this.reconnecting = false; // 重置状态，允许下次重连
       this.scheduleReconnect();
     }
@@ -420,7 +483,7 @@ export class TapTapMCPProxy {
     const timeout = this.config.options?.request_timeout ?? 30000;
     const now = Date.now();
 
-    console.error(`[Proxy] Processing ${this.pendingRequests.length} pending requests...`);
+    this.log('info', `Processing ${this.pendingRequests.length} pending requests...`);
 
     while (this.pendingRequests.length > 0) {
       const req = this.pendingRequests.shift()!;
@@ -450,7 +513,7 @@ export class TapTapMCPProxy {
       }
     }
 
-    console.error('[Proxy] ✅ All pending requests processed');
+    this.log('info', '✅ All pending requests processed');
   }
 
   /**
@@ -482,9 +545,9 @@ export class TapTapMCPProxy {
         // 忽略不支持的通知
       }
 
-      console.error('[Proxy] 📢 Notified Agent: reconnected');
+      this.log('info', '📢 Notified Agent: reconnected');
     } catch (error) {
-      console.error('[Proxy] ⚠️  Failed to send notification:', error);
+      this.log('warning', `⚠️  Failed to send notification: ${error}`);
     }
   }
 
@@ -549,16 +612,16 @@ export class TapTapMCPProxy {
       };
 
       if (this.config.options?.verbose) {
-        console.error(`[Proxy] Tool call: ${name}`);
-        console.error(`[Proxy] Injected: _mac_token (kid: ${macToken.kid.substring(0, 12)}...)`);
-        console.error(`[Proxy] Injected: _project_path = ${this.config.tenant.project_path}`);
+        this.log('debug', `Tool call: ${name}`);
+        this.log('debug', `Injected: _mac_token (kid: ${macToken.kid.substring(0, 12)}...)`);
+        this.log('debug', `Injected: _project_path = ${this.config.tenant.project_path}`);
       }
 
       // 检查连接状态
       if (!this.connected) {
         // 如果正在重连，加入队列等待
         if (this.reconnecting) {
-          console.error(`[Proxy] ⏳ Queueing request: ${name} (reconnecting...)`);
+          this.log('info', `⏳ Queueing request: ${name} (reconnecting...)`);
 
           return new Promise((resolve, reject) => {
             this.pendingRequests.push({
@@ -595,16 +658,16 @@ export class TapTapMCPProxy {
       } catch (error) {
         // 检查是否是网络错误（使用增强的检测）
         if (this.isNetworkError(error)) {
-          console.error('[Proxy] ❌ Network error detected, marking connection as lost');
+          this.log('error', '❌ Network error detected, marking connection as lost');
           this.connected = false;
 
           // 立即触发重连
           if (!this.reconnecting) {
-            console.error('[Proxy] Triggering immediate reconnection...');
+            this.log('info', 'Triggering immediate reconnection...');
             this.reconnectToServer();
 
             // 将当前请求加入队列等待重连
-            console.error(`[Proxy] ⏳ Queueing current request: ${name}`);
+            this.log('info', `⏳ Queueing current request: ${name}`);
             return new Promise((resolve, reject) => {
               this.pendingRequests.push({
                 name,

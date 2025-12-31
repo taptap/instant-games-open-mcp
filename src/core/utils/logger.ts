@@ -1,39 +1,18 @@
 /**
  * MCP-compliant Logger for TapTap Minigame MCP Server
- * Supports RFC 5424 log levels and dual output mode (stderr + MCP notifications)
+ * Supports RFC 5424 log levels and dual output mode (stderr + MCP notifications + file)
  */
 
 import process from 'node:process';
+import * as path from 'node:path';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { stripPrivateParams } from '../types/privateParams.js';
 import { EnvConfig } from './env.js';
+import { LogWriter, computeStableHash } from './logWriter.js';
+import { type LogLevel, LOG_LEVEL_PRIORITY } from '../types/log.js';
 
-/**
- * RFC 5424 log levels (syslog severity levels)
- */
-export type LogLevel =
-  | 'debug' // 7 - Debug-level messages
-  | 'info' // 6 - Informational messages
-  | 'notice' // 5 - Normal but significant condition
-  | 'warning' // 4 - Warning conditions
-  | 'error' // 3 - Error conditions
-  | 'critical' // 2 - Critical conditions
-  | 'alert' // 1 - Action must be taken immediately
-  | 'emergency'; // 0 - System is unusable
-
-/**
- * Log level priorities (lower number = higher severity)
- */
-const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
-  emergency: 0,
-  alert: 1,
-  critical: 2,
-  error: 3,
-  warning: 4,
-  notice: 5,
-  info: 6,
-  debug: 7,
-};
+// 重新导出 LogLevel 类型，供其他模块使用
+export type { LogLevel } from '../types/log.js';
 
 /**
  * Format object for logging
@@ -84,6 +63,7 @@ export class Logger {
   private currentLevel: LogLevel = 'info';
   private server?: Server;
   private transport?: 'stdio' | 'sse';
+  private logWriter?: LogWriter;
 
   constructor() {
     this.verbose = EnvConfig.isVerbose;
@@ -95,6 +75,40 @@ export class Logger {
   initialize(server: Server, transport: 'stdio' | 'sse'): void {
     this.server = server;
     this.transport = transport;
+
+    // 初始化文件日志写入器
+    this.initializeLogWriter(transport);
+  }
+
+  /**
+   * 初始化文件日志写入器
+   */
+  private initializeLogWriter(transport: 'stdio' | 'sse'): void {
+    const logRoot = EnvConfig.logRoot;
+    const enabled = EnvConfig.logFileEnabled;
+
+    // 计算日志目录
+    let logDir: string;
+    if (transport === 'stdio') {
+      // stdio 模式：按工作区隔离
+      const workspaceHash = computeStableHash(path.resolve(EnvConfig.workspaceRoot));
+      logDir = path.join(logRoot, 'server', workspaceHash);
+    } else {
+      // SSE/HTTP 模式：统一日志目录
+      logDir = path.join(logRoot, 'server');
+    }
+
+    this.logWriter = new LogWriter({
+      logDir,
+      prefix: 'server',
+      enabled,
+      level: EnvConfig.logLevel,
+      maxDays: EnvConfig.logMaxDays,
+    });
+
+    if (enabled) {
+      process.stderr.write(`[Logger] File logging enabled: ${logDir}\n`);
+    }
   }
 
   /**
@@ -125,13 +139,20 @@ export class Logger {
    * Core logging method with smart output
    *
    * Output strategy:
-   * - stdio mode: stderr only (MCP standard, client captures stderr)
-   * - sse/http mode: stderr + MCP notification (server logs + client updates)
+   * - stderr: 总是输出（MCP 标准行为），只受日志级别过滤
+   * - file: 由 logFileEnabled 控制，只受日志级别过滤
+   * - MCP notification: 仅在 SSE/HTTP 模式下发送
+   *
+   * 控制逻辑：
+   * - logLevel: 控制哪些级别的日志被输出（到 stderr 和文件）
+   * - verbose: 只影响日志级别（verbose=true → logLevel=debug）
+   * - logFileEnabled: 单独控制是否写入文件
    *
    * Rationale:
    * - In stdio mode, MCP clients monitor stderr automatically
    * - Sending notifications in stdio may cause duplicate messages
    * - Not all clients support notifications/message properly
+   * - File logging provides persistent storage for debugging
    */
   private async log(
     level: LogLevel,
@@ -147,12 +168,18 @@ export class Logger {
     const timestamp = getTimestamp();
     const sanitized = data ? sanitizeData(data) : undefined;
 
-    // Always write to stderr for logging
-    if (this.verbose) {
-      process.stderr.write(`[${timestamp}] [${level.toUpperCase()}] [${loggerName}] ${message}\n`);
-      if (sanitized !== undefined) {
-        process.stderr.write(`${formatObject(sanitized)}\n`);
-      }
+    // 构建日志消息
+    const logMessage = `[${timestamp}] [${level.toUpperCase()}] [${loggerName}] ${message}\n`;
+    const dataMessage = sanitized !== undefined ? `${formatObject(sanitized)}\n` : '';
+    const fullMessage = logMessage + dataMessage;
+
+    // 输出到 stderr 和文件
+    // logWriter 使用 Tee 模式（同时写 stderr + 文件），避免重复输出
+    if (this.logWriter) {
+      await this.logWriter.write(level, fullMessage);
+    } else {
+      // 没有 logWriter 时，直接写 stderr
+      process.stderr.write(fullMessage);
     }
 
     // Only send MCP notifications in non-stdio modes

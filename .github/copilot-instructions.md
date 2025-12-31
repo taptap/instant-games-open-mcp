@@ -4,11 +4,37 @@
 
 ## Language Preference
 
-**IMPORTANT: All responses, PR descriptions, commit messages body, and comments MUST be written in Chinese (Simplified).**
-
-所有回复、PR 描述、提交信息正文和评论必须使用中文（简体）。
+**IMPORTANT: All responses, PR descriptions, commit message bodies, and comments MUST be written in Chinese (Simplified).**
 
 > Note: Commit message type and scope should remain in English (e.g., `feat(proxy):`, `fix(auth):`), only the subject and body can be in Chinese.
+
+---
+
+## Request Handling
+
+When mentioned with `@copilot` in PR comments, follow this unified workflow:
+
+### Workflow: Review → Fix → Summarize
+
+**Trigger keywords**: `审核`, `review`, `检查`, `看一下`, `帮我看`, `修复`, `fix`, `改一下`, `修改`, `实现`, `添加`
+
+**Actions**:
+
+1. **Review** - Analyze the code changes and identify issues
+2. **Fix** - Create fixes for identified issues (if any)
+3. **Summarize** - Reply with a summary in Chinese, including:
+   - Issues found
+   - Changes made
+   - Recommendations
+
+### Example Requests
+
+| User says                 | Action                   |
+| ------------------------- | ------------------------ |
+| `@copilot 审核这个PR`     | Review → Fix → Summarize |
+| `@copilot review this PR` | Review → Fix → Summarize |
+| `@copilot 帮我看看代码`   | Review → Fix → Summarize |
+| `@copilot 修复这个问题`   | Review → Fix → Summarize |
 
 ---
 
@@ -28,14 +54,15 @@ This repository uses [Conventional Commits](https://www.conventionalcommits.org/
 
 ### Rules
 
-1. **NEVER create commits with messages like:**
-   - "Initial plan"
-   - "WIP"
-   - "temp"
-   - "test"
+1. **Use proper commit format** (Note: Copilot's built-in "Initial plan" commit is an internal Coding Agent mechanism and is automatically ignored by commitlint)
+
+   Avoid these formats for manual commits:
+   - `WIP`
+   - `temp`
+   - `test`
    - Any message without a type prefix
 
-2. **Always use one of these types:**
+2. **Use one of these types:**
    - `feat:` - New feature (triggers minor version)
    - `fix:` - Bug fix (triggers patch version)
    - `docs:` - Documentation only (no release)
@@ -63,13 +90,13 @@ refactor(api): simplify error handling
 chore: update dependencies
 ```
 
-❌ Bad:
+❌ Bad (avoid for manual commits):
 
 ```
-Initial plan
 WIP
 Added new feature
 fix bug
+temp commit
 ```
 
 ### For Planning/Investigation
@@ -95,14 +122,14 @@ docs(notes): document approach for issue #123
 
 ### Naming Conventions
 
-| Type       | Convention                            | Example               |
-| ---------- | ------------------------------------- | --------------------- |
-| Files      | camelCase                             | `cookieJar.ts`        |
-| Classes    | PascalCase                            | `CookieJar`           |
-| Functions  | camelCase                             | `getCookieHeader`     |
-| Constants  | UPPER_SNAKE_CASE                      | `MAX_RETRY_COUNT`     |
-| Interfaces | PascalCase with `I` prefix (optional) | `Cookie` or `ICookie` |
-| Types      | PascalCase                            | `ProxyConfig`         |
+| Type       | Convention                       | Example               |
+| ---------- | -------------------------------- | --------------------- |
+| Files      | camelCase                        | `cookieJar.ts`        |
+| Classes    | PascalCase                       | `CookieJar`           |
+| Functions  | camelCase                        | `getCookieHeader`     |
+| Constants  | UPPER_SNAKE_CASE                 | `MAX_RETRY_COUNT`     |
+| Interfaces | PascalCase (optional `I` prefix) | `Cookie` or `ICookie` |
+| Types      | PascalCase                       | `ProxyConfig`         |
 
 ### Code Organization
 
@@ -122,7 +149,7 @@ src/
 ### Documentation
 
 - Add JSDoc comments for all public APIs
-- Use English for all code comments
+- Use English for code comments
 - Include `@param`, `@returns`, `@throws` tags
 - Add `@example` for complex functions
 
@@ -169,14 +196,6 @@ try {
 
 ## Code Review Guidelines
 
-### When Reviewing PRs
-
-1. **Check commit messages** - Must follow Conventional Commits
-2. **Verify tests** - New features should have tests
-3. **Check types** - No `any` without justification
-4. **Review error handling** - Errors should be properly caught and logged
-5. **Check documentation** - Public APIs should have JSDoc
-
 ### Review Checklist
 
 - [ ] Commit messages follow Conventional Commits format
@@ -188,29 +207,13 @@ try {
 - [ ] No hardcoded secrets or credentials
 - [ ] No unnecessary dependencies added
 
-### Suggesting Changes
+### When Suggesting Changes
 
-When suggesting code changes, provide:
+Provide:
 
 1. **What** - Clear description of the change
 2. **Why** - Reason for the change
 3. **How** - Code example if applicable
-
-````markdown
-**Suggestion**: Use `const` instead of `let` for variables that are not reassigned.
-
-**Reason**: Improves code clarity and prevents accidental reassignment.
-
-**Example**:
-
-```typescript
-// Before
-let url = 'https://api.example.com';
-
-// After
-const url = 'https://api.example.com';
-```
-````
 
 ---
 
@@ -218,7 +221,7 @@ const url = 'https://api.example.com';
 
 ### PR Title Format
 
-PR titles should also follow Conventional Commits format:
+PR titles should follow Conventional Commits format:
 
 ```
 feat(proxy): add cookie sticky session support
@@ -326,7 +329,7 @@ export async function handleMyTool(args: MyToolArgs): Promise<string> {
 
 ### Tool Guidelines
 
-- Tool descriptions should be in English
+- Tool descriptions should be in English (for better AI understanding)
 - Handler must return `Promise<string>` (JSON formatted)
 - Include usage scenarios in description
 - Validate all required inputs
