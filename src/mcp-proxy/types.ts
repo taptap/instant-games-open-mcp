@@ -2,6 +2,11 @@
  * MCP Proxy 类型定义
  */
 
+import type { LogLevel } from '../core/types/log.js';
+
+// 重新导出 LogLevel 供外部使用
+export type { LogLevel } from '../core/types/log.js';
+
 /**
  * MAC Token 结构
  */
@@ -10,6 +15,42 @@ export interface MacToken {
   mac_key: string;
   token_type: 'mac';
   mac_algorithm: 'hmac-sha-1';
+}
+
+/**
+ * 日志配置
+ */
+export interface LogConfig {
+  /**
+   * 日志根目录
+   * 默认: /tmp/taptap-mcp/logs
+   *
+   * 实际日志路径: {root}/proxy/{user_id}/{project_id}/ 或 {root}/proxy/{kid_hash}/
+   */
+  root?: string;
+
+  /**
+   * 是否启用文件日志
+   * 默认: false
+   */
+  enabled?: boolean;
+
+  /**
+   * 日志级别（RFC 5424 标准）
+   * 默认: info
+   *
+   * 支持的级别（按严重程度递减）：
+   * emergency, alert, critical, error, warning, notice, info, debug
+   *
+   * 注意: 当 verbose=true 时，日志级别自动变为 debug
+   */
+  level?: LogLevel;
+
+  /**
+   * 日志保留天数
+   * 默认: 7
+   */
+  max_days?: number;
 }
 
 /**
@@ -57,6 +98,8 @@ export interface ProxyConfig {
      * 确保同一 Proxy 的所有请求被路由到同一个 MCP Server Pod
      */
     enable_cookie_sticky?: boolean;
+    /** 日志配置 */
+    log?: LogConfig;
   };
 }
 

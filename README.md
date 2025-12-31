@@ -236,6 +236,15 @@ npm test
 - `TAPTAP_MCP_CACHE_DIR` - 缓存目录（默认 `/tmp/taptap-mcp/cache`）
 - `TAPTAP_MCP_TEMP_DIR` - 临时文件目录（默认 `/tmp/taptap-mcp/temp`）
 
+**日志配置**:
+
+- `TAPTAP_MCP_LOG_ROOT` - 日志根目录（默认 `/tmp/taptap-mcp/logs`）
+- `TAPTAP_MCP_LOG_FILE` - 启用文件日志：`true` 或 `false`（默认 `false`）
+- `TAPTAP_MCP_LOG_LEVEL` - 日志级别（RFC 5424）：`debug`、`info`、`notice`、`warning`、`error`、`critical`、`alert`、`emergency`（默认 `info`）
+- `TAPTAP_MCP_LOG_MAX_DAYS` - 日志保留天数（默认 7）
+
+详细说明请参考 [docs/LOG_SYSTEM.md](docs/LOG_SYSTEM.md)
+
 ### 添加新功能
 
 ```bash

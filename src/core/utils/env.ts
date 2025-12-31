@@ -10,6 +10,7 @@
 import * as path from 'node:path';
 import * as os from 'node:os';
 import process from 'node:process';
+import type { LogLevel } from '../types/log.js';
 
 // ============================================================================
 // 类型定义
@@ -145,17 +146,81 @@ export class EnvConfig {
 
   /** 缓存目录 */
   static get cacheDir(): string {
-    return getEnv('TAPTAP_MCP_CACHE_DIR') || path.join(os.tmpdir(), 'taptap-mcp', 'cache');
+    return getEnv('TAPTAP_MCP_CACHE_DIR', path.join(os.tmpdir(), 'taptap-mcp', 'cache'));
   }
 
   /** 临时文件目录 */
   static get tempDir(): string {
-    return getEnv('TAPTAP_MCP_TEMP_DIR') || path.join(os.tmpdir(), 'taptap-mcp', 'temp');
+    return getEnv('TAPTAP_MCP_TEMP_DIR', path.join(os.tmpdir(), 'taptap-mcp', 'temp'));
   }
 
   /** 工作区根目录 */
   static get workspaceRoot(): string {
-    return getEnv('TAPTAP_MCP_WORKSPACE_ROOT') || process.cwd();
+    return getEnv('TAPTAP_MCP_WORKSPACE_ROOT', process.cwd());
+  }
+
+  // --------------------------------------------------------------------------
+  // 日志配置
+  // --------------------------------------------------------------------------
+
+  /**
+   * 日志根目录
+   * 默认: /tmp/taptap-mcp/logs
+   *
+   * Server 日志实际路径:
+   * - stdio 模式: {logRoot}/server/{workspace_hash}/
+   * - SSE/HTTP 模式: {logRoot}/server/
+   */
+  static get logRoot(): string {
+    return getEnv('TAPTAP_MCP_LOG_ROOT', '/tmp/taptap-mcp/logs');
+  }
+
+  /**
+   * 是否启用文件日志
+   * 默认: false（不影响现有用户）
+   */
+  static get logFileEnabled(): boolean {
+    return getEnvBoolean('TAPTAP_MCP_LOG_FILE', false);
+  }
+
+  /**
+   * 文件日志级别（RFC 5424 标准）
+   * 默认: info
+   *
+   * 支持的级别（按严重程度递减）：
+   * emergency, alert, critical, error, warning, notice, info, debug
+   *
+   * 注意: 当 verbose=true 时，日志级别自动变为 debug
+   */
+  static get logLevel(): LogLevel {
+    // verbose 模式下自动使用 debug 级别
+    if (this.isVerbose) {
+      return 'debug';
+    }
+
+    const level = getEnv('TAPTAP_MCP_LOG_LEVEL', 'info').toLowerCase();
+    const validLevels: LogLevel[] = [
+      'emergency',
+      'alert',
+      'critical',
+      'error',
+      'warning',
+      'notice',
+      'info',
+      'debug',
+    ];
+    if (validLevels.includes(level as LogLevel)) {
+      return level as LogLevel;
+    }
+    return 'info';
+  }
+
+  /**
+   * 日志保留天数
+   * 默认: 7
+   */
+  static get logMaxDays(): number {
+    return getEnvInt('TAPTAP_MCP_LOG_MAX_DAYS', 7);
   }
 
   // --------------------------------------------------------------------------

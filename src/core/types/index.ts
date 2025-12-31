@@ -28,6 +28,12 @@ export interface MacToken {
 export type { RequestContext, AppContext, SessionContext, TokenSource } from './context.js';
 export { getTokenSourceLabel } from './context.js';
 
+// ============================================================================
+// Log Types - 日志相关类型（无外部依赖，Server 和 Proxy 共用）
+// ============================================================================
+export type { LogLevel, LogConfig } from './log.js';
+export { LOG_LEVEL_PRIORITY } from './log.js';
+
 // 前向声明
 import type { ResolvedContext as RC } from './context.js';
 
