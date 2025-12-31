@@ -1,9 +1,18 @@
+## 1.12.0 (2025-12-31)
+
+* docs(copilot): rewrite instructions in English with unified workflow ([387a19c](https://github.com/taptap/taptap_minigame_open_mcp/commit/387a19c))
+* ci: add auto-assign workflow for PR to main branch ([f546426](https://github.com/taptap/taptap_minigame_open_mcp/commit/f546426))
+* ci(release): filter noise commits from release notes and changelog ([619dda3](https://github.com/taptap/taptap_minigame_open_mcp/commit/619dda3))
+* fix(log): use local time for log cleanup date comparison ([1c22863](https://github.com/taptap/taptap_minigame_open_mcp/commit/1c22863))
+* feat(log): add file logging support for Server and Proxy ([35db772](https://github.com/taptap/taptap_minigame_open_mcp/commit/35db772))
+
+
+
 ## <small>1.11.5 (2025-12-31)</small>
 
 * docs(copilot): add Chinese language preference ([f5e7aeb](https://github.com/taptap/taptap_minigame_open_mcp/commit/f5e7aeb))
 * ci(release): use annotated tag with release notes ([80d3fc3](https://github.com/taptap/taptap_minigame_open_mcp/commit/80d3fc3))
 * fix(docs): correct markdown formatting and improve commitlint regex ([56d8e2a](https://github.com/taptap/taptap_minigame_open_mcp/commit/56d8e2a))
-* Initial plan ([f365d6d](https://github.com/taptap/taptap_minigame_open_mcp/commit/f365d6d))
 * chore: add copilot instructions and update commitlint config ([a0ead79](https://github.com/taptap/taptap_minigame_open_mcp/commit/a0ead79))
 
 
