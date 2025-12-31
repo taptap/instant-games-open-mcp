@@ -74,9 +74,9 @@ module.exports = {
   ignores: [
     (commit) => commit.includes('Merge'),
     (commit) => commit.includes('[skip ci]'),
-    // 忽略 Copilot bot 的计划/临时提交（如 "Initial plan"）
+    // 忽略 Copilot bot 的计划/临时提交（如 "Initial plan for feature X"、"WIP: adding tests"）
     // 这些通常是空提交，用于记录工作计划
-    (commit) => /^(Initial plan|WIP|TODO|FIXME)$/i.test(commit.trim()),
+    (commit) => /^(Initial plan|WIP|TODO|FIXME)\b[:\s]?.*/i.test(commit.trim()),
   ],
 
   // 帮助信息
