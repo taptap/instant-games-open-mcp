@@ -1,3 +1,13 @@
+## <small>1.11.5 (2025-12-31)</small>
+
+* docs(copilot): add Chinese language preference ([f5e7aeb](https://github.com/taptap/taptap_minigame_open_mcp/commit/f5e7aeb))
+* ci(release): use annotated tag with release notes ([80d3fc3](https://github.com/taptap/taptap_minigame_open_mcp/commit/80d3fc3))
+* fix(docs): correct markdown formatting and improve commitlint regex ([56d8e2a](https://github.com/taptap/taptap_minigame_open_mcp/commit/56d8e2a))
+* Initial plan ([f365d6d](https://github.com/taptap/taptap_minigame_open_mcp/commit/f365d6d))
+* chore: add copilot instructions and update commitlint config ([a0ead79](https://github.com/taptap/taptap_minigame_open_mcp/commit/a0ead79))
+
+
+
 ## <small>1.11.4 (2025-12-30)</small>
 
 * refactor(proxy): improve code consistency and cookie parsing ([5884575](https://github.com/taptap/taptap_minigame_open_mcp/commit/5884575))
