@@ -69,7 +69,7 @@ import { VERSION } from './version.js';
 import { createAuthError, generateOAuthGuidance, isAuthError } from './core/errors/authErrors.js';
 
 // 导入 Native Signer 状态
-import { isUsingNativeSigner, getSignerStatus } from './core/network/nativeSigner.js';
+import { isUsingNativeSigner } from './core/network/nativeSigner.js';
 
 // 环境变量配置 (仅用于启动时验证)
 const transportMode = EnvConfig.transport;
@@ -351,6 +351,36 @@ class TapTapMinigameMCPServer {
         // Log tool call output
         await logger.logToolResponse(name, result, true);
 
+        // 检查结果中是否包含 JSON 格式的二维码
+        const qrJsonMatch = result.match(/__QR_CODE_JSON__([\s\S]*?)__END_QR_CODE_JSON__/);
+
+        if (qrJsonMatch && qrJsonMatch[1]) {
+          try {
+            // 解析 JSON 格式的二维码数据
+            const qrData = JSON.parse(qrJsonMatch[1].trim());
+            const qrImageBase64 = qrData.qrcode; // 直接获取 base64 编码的二维码
+            const textContent = qrData.message || '请扫描二维码完成授权';
+
+            // 返回文本和图片
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: textContent,
+                },
+                {
+                  type: 'image',
+                  data: qrImageBase64,
+                  mimeType: 'image/png',
+                },
+              ],
+            };
+          } catch (parseError) {
+            // 如果解析失败，继续使用普通文本返回
+          }
+        }
+
+        // 普通文本返回
         return {
           content: [
             {

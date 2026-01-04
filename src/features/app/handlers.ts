@@ -17,7 +17,12 @@ import {
 import { clearAppCache } from '../../core/utils/cache.js';
 import { clearToken, saveToken } from '../../core/auth/tokenStorage.js';
 import { EnvConfig } from '../../core/utils/env.js';
-import { requestDeviceCode, generateAuthUrl, pollForToken } from '../../core/auth/oauth.js';
+import {
+  requestDeviceCode,
+  generateAuthUrl,
+  pollForToken,
+  generateQRCodeBase64,
+} from '../../core/auth/oauth.js';
 import { oauthState } from '../../core/auth/oauthState.js';
 import { isUsingNativeSigner, getSignerStatus } from '../../core/network/nativeSigner.js';
 
@@ -189,7 +194,7 @@ ${error instanceof Error ? error.message : String(error)}
  */
 export async function startOAuthAuthorization(ctx: ResolvedContext): Promise<string> {
   // Use shared authentication check logic
-  const { hasMacToken, source } = ctx.getTokenStatus();
+  const { hasMacToken } = ctx.getTokenStatus();
 
   if (hasMacToken) {
     return (
@@ -210,14 +215,34 @@ export async function startOAuthAuthorization(ctx: ResolvedContext): Promise<str
       environment,
     });
 
-    return (
-      '🔐 TapTap 授权登录\n\n' +
-      '请按以下步骤完成授权：\n\n' +
-      `1️⃣ 打开授权链接：\n   ${authUrl}\n\n` +
-      '2️⃣ 使用 TapTap App 扫描二维码\n\n' +
-      '3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n' +
-      '💡 提示：授权链接有效期为 2 分钟，过期后需要重新获取'
-    );
+    // 二维码应该直接使用 qrcode_url（API 返回的原始 URL），而不是经过 generateAuthUrl 处理的 URL
+    // generateAuthUrl 生成的 URL 用于在浏览器中打开，但二维码应该直接使用 qrcode_url
+    const qrCodeUrl = deviceCodeData.qrcode_url;
+
+    // 生成 base64 编码的二维码图片
+    const qrCodeBase64 = await generateQRCodeBase64(qrCodeUrl);
+    const hasQRImage = !!(qrCodeBase64 && qrCodeBase64.length > 0);
+
+    if (hasQRImage) {
+      // 使用 JSON 格式返回，包含 base64 二维码和其他信息
+      const resultObj = {
+        qrcode: qrCodeBase64, // base64 编码的二维码图片（PNG 格式），内容为 qrcode_url
+        authUrl: authUrl, // 授权链接（用于浏览器打开）
+        message: `🔐 TapTap 授权登录\n\n请选择以下任一方式完成授权：\n\n方式一：扫描返回的二维码\n📱 使用 TapTap App 直接扫描下方二维码图片\n\n方式二：打开链接后扫描链接展示的二维码\n🔗 [点击打开授权页面](${authUrl})，然后在页面中扫描二维码\n\n📝 操作步骤\n1. 打开 TapTap App\n2. 选择方式一（扫描下方二维码）或方式二（打开链接后扫描链接展示的二维码）\n3. 在 TapTap App 中点击授权按钮\n4. 授权完成后，调用 complete_oauth_authorization 工具完成授权\n\n💡 提示：授权链接有效期为 2 分钟，过期后需要重新获取`,
+      };
+      // 使用特殊标记格式，供 server.ts 解析
+      return `__QR_CODE_JSON__${JSON.stringify(resultObj)}__END_QR_CODE_JSON__`;
+    } else {
+      // 如果没有图片，只提供链接
+      return (
+        '🔐 TapTap 授权登录\n\n' +
+        '请按以下步骤完成授权：\n\n' +
+        `1️⃣ 打开授权链接：\n   ${authUrl}\n\n` +
+        '2️⃣ 使用 TapTap App 扫描二维码\n\n' +
+        '3️⃣ 授权成功后，调用 complete_oauth_authorization 工具完成授权\n\n' +
+        '💡 提示：授权链接有效期为 2 分钟，过期后需要重新获取'
+      );
+    }
   } catch (error) {
     return (
       `❌ 获取授权链接失败: ${error instanceof Error ? error.message : String(error)}\n\n` +
