@@ -7,6 +7,7 @@ import { EnvConfig } from '../utils/env.js';
 import { getClientId } from '../network/nativeSigner.js';
 import { logger } from '../utils/logger.js';
 import type { MacToken } from '../types/index.js';
+import QRCode from 'qrcode';
 
 /**
  * Device Code Response
@@ -100,6 +101,55 @@ export async function requestDeviceCode(
 export function generateAuthUrl(qrcodeUrl: string, environment: string = 'production'): string {
   const endpoints = EnvConfig.getEndpoints(environment);
   return endpoints.qrcodeBaseUrl + encodeURIComponent(qrcodeUrl);
+}
+
+/**
+ * 生成 base64 编码的二维码图片
+ * 参考 qrcode-mcp 的实现方式
+ */
+export async function generateQRCodeBase64(
+  text: string,
+  options?: {
+    width?: number;
+    margin?: number;
+    errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H';
+  }
+): Promise<string> {
+  try {
+    if (!text || text.trim().length === 0) {
+      return '';
+    }
+
+    // 默认选项，参考 qrcode-mcp 的设置
+    const defaultOptions = {
+      width: 256, // 默认大小，参考 qrcode-mcp
+      margin: 4, // 默认边距，参考 qrcode-mcp
+      errorCorrectionLevel: 'M' as const,
+    };
+
+    // 合并用户选项和默认选项
+    const qrOptions = {
+      type: 'image/png' as const,
+      errorCorrectionLevel: options?.errorCorrectionLevel || defaultOptions.errorCorrectionLevel,
+      width: options?.width || defaultOptions.width,
+      margin: options?.margin !== undefined ? options.margin : defaultOptions.margin,
+    };
+
+    // 生成 PNG 格式的二维码，转换为 base64
+    const dataUrl = await QRCode.toDataURL(text, qrOptions);
+
+    // dataUrl 格式: "data:image/png;base64,iVBORw0KG..."
+    // 提取 base64 部分（去掉 data:image/png;base64, 前缀）
+    const base64 = dataUrl.split(',')[1];
+
+    if (!base64 || base64.length === 0) {
+      return '';
+    }
+
+    return base64;
+  } catch (error) {
+    return '';
+  }
 }
 
 /**
