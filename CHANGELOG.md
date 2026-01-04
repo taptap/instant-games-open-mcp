@@ -1,3 +1,9 @@
+## <small>1.12.1 (2026-01-04)</small>
+
+* fix: 授权流程返回二维码 ([eb3e7b1](https://github.com/taptap/taptap_minigame_open_mcp/commit/eb3e7b1))
+
+
+
 ## 1.12.0 (2025-12-31)
 
 * docs(copilot): rewrite instructions in English with unified workflow ([387a19c](https://github.com/taptap/taptap_minigame_open_mcp/commit/387a19c))
