@@ -526,6 +526,10 @@ class TapTapMinigameMCPServer {
     const tempDirLabel = getEnv('TAPTAP_MCP_TEMP_DIR') ? '(env)' : '(default)';
     process.stderr.write(`   📂 TAPTAP_MCP_TEMP_DIR: ${tempDir} ${tempDirLabel}\n`);
 
+    const logRoot = getEnv('TAPTAP_MCP_LOG_ROOT') || path.join(os.tmpdir(), 'taptap-mcp', 'logs');
+    const logRootLabel = getEnv('TAPTAP_MCP_LOG_ROOT') ? '(env)' : '(default)';
+    process.stderr.write(`   📝 TAPTAP_MCP_LOG_ROOT: ${logRoot} ${logRootLabel}\n`);
+
     process.stderr.write('\n📖 MCP Capabilities:\n');
     process.stderr.write(`   ✅ Tools (${totalTools}) - Execute operations with side effects\n`);
     process.stderr.write(

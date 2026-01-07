@@ -85,6 +85,13 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
             echo "ℹ️  Loaded TAPTAP_MCP_CLIENT_SECRET from .env"
         fi
     fi
+    # 读取 WORKSPACE_ROOT 如果未设置
+    if [ -z "$TAPTAP_MCP_WORKSPACE_ROOT" ]; then
+        TAPTAP_MCP_WORKSPACE_ROOT=$(grep -E "^TAPTAP_MCP_WORKSPACE_ROOT=" "$PROJECT_ROOT/.env" | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+        if [ ! -z "$TAPTAP_MCP_WORKSPACE_ROOT" ]; then
+            echo "ℹ️  Loaded TAPTAP_MCP_WORKSPACE_ROOT from .env"
+        fi
+    fi
 fi
 
 # 默认容器名
@@ -96,6 +103,10 @@ echo "========================================"
 echo "Environment: $ENV"
 echo "Port:        $PORT"
 echo "Container:   $CONTAINER_NAME"
+echo ""
+echo "Storage (named volumes):"
+echo "  Cache: taptap-mcp-cache -> /var/lib/taptap-mcp/cache"
+echo "  Logs:  taptap-mcp-logs  -> /var/lib/taptap-mcp/logs"
 echo "========================================"
 
 # 检查 RND 环境变量
@@ -141,6 +152,15 @@ docker rm "$CONTAINER_NAME" 2>/dev/null || true
 echo ""
 echo "Starting container..."
 
+# 构建 WORKSPACE_ROOT 挂载参数
+WORKSPACE_MOUNT=""
+WORKSPACE_ENV=""
+if [ ! -z "$TAPTAP_MCP_WORKSPACE_ROOT" ]; then
+    WORKSPACE_MOUNT="-v $TAPTAP_MCP_WORKSPACE_ROOT:$TAPTAP_MCP_WORKSPACE_ROOT:ro"
+    WORKSPACE_ENV="-e TAPTAP_MCP_WORKSPACE_ROOT=$TAPTAP_MCP_WORKSPACE_ROOT"
+    echo "Workspace:   $TAPTAP_MCP_WORKSPACE_ROOT (read-only)"
+fi
+
 if [ "$USE_SIGNER" = true ]; then
     # Production: 使用 Native Signer
     # 同时传递环境变量作为 Fallback (例如在 Mac 上构建但在 Linux 容器运行)
@@ -152,8 +172,12 @@ if [ "$USE_SIGNER" = true ]; then
         -e TAPTAP_MCP_ENV="$ENV" \
         -e TAPTAP_MCP_CLIENT_ID="$TAPTAP_MCP_CLIENT_ID" \
         -e TAPTAP_MCP_CLIENT_SECRET="$TAPTAP_MCP_CLIENT_SECRET" \
+        -e TAPTAP_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache \
+        -e TAPTAP_MCP_LOG_ROOT=/var/lib/taptap-mcp/logs \
+        $WORKSPACE_ENV \
         -v taptap-mcp-cache:/var/lib/taptap-mcp/cache \
-        -v taptap-mcp-logs:/tmp/taptap-mcp/logs \
+        -v taptap-mcp-logs:/var/lib/taptap-mcp/logs \
+        $WORKSPACE_MOUNT \
         --restart unless-stopped \
         "$IMAGE_NAME:$VERSION"
 else
@@ -166,8 +190,12 @@ else
         -e TAPTAP_MCP_ENV="$ENV" \
         -e TAPTAP_MCP_CLIENT_ID="$TAPTAP_MCP_CLIENT_ID" \
         -e TAPTAP_MCP_CLIENT_SECRET="$TAPTAP_MCP_CLIENT_SECRET" \
+        -e TAPTAP_MCP_CACHE_DIR=/var/lib/taptap-mcp/cache \
+        -e TAPTAP_MCP_LOG_ROOT=/var/lib/taptap-mcp/logs \
+        $WORKSPACE_ENV \
         -v taptap-mcp-cache:/var/lib/taptap-mcp/cache \
-        -v taptap-mcp-logs:/tmp/taptap-mcp/logs \
+        -v taptap-mcp-logs:/var/lib/taptap-mcp/logs \
+        $WORKSPACE_MOUNT \
         --restart unless-stopped \
         "$IMAGE_NAME:$VERSION"
 fi

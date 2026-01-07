@@ -448,7 +448,13 @@ export async function checkEnvironment(ctx: ResolvedContext): Promise<string> {
   // 显示环境配置
   envResult += '\n🌍 环境配置:\n';
   envResult += `   TAPTAP_MCP_ENV: ${EnvConfig.environment} (${EnvConfig.endpoints.apiBaseUrl})\n`;
-  envResult += `   TAPTAP_PROJECT_PATH: ${ctx.projectPath ? '✅ 已配置' : '❌ 未配置 (可选)'}\n`;
+
+  // 显示目录配置
+  envResult += '\n📂 目录配置:\n';
+  envResult += `   WORKSPACE_ROOT: ${EnvConfig.workspaceRoot}\n`;
+  envResult += `   CACHE_DIR: ${EnvConfig.cacheDir}\n`;
+  envResult += `   TEMP_DIR: ${EnvConfig.tempDir}\n`;
+  envResult += `   LOG_ROOT: ${EnvConfig.logRoot}\n`;
 
   let statusMessage = '';
   if (hasMacToken) {

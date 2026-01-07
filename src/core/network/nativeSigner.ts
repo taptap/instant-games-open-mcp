@@ -19,6 +19,7 @@
  */
 
 import cryptoJS from 'crypto-js';
+import crypto from 'node:crypto';
 import { logger } from '../utils/logger.js';
 import { EnvConfig } from '../utils/env.js';
 
@@ -312,4 +313,46 @@ export async function isSignerAvailable(): Promise<boolean> {
   if (module) return true;
 
   return !!(EnvConfig.clientId && EnvConfig.clientSecret);
+}
+
+/**
+ * Compute X-Tap-Sign signature with binary body (for multipart uploads)
+ *
+ * Uses Node.js crypto module to correctly handle binary data.
+ *
+ * @param method - HTTP method
+ * @param url - Request URL path with query string
+ * @param headersPart - Sorted X-Tap-* headers in format "key:value\nkey:value"
+ * @param bodyBuffer - Request body as Buffer
+ * @returns Base64-encoded HMAC-SHA256 signature
+ */
+export function computeTapSignWithBuffer(
+  method: string,
+  url: string,
+  headersPart: string,
+  bodyBuffer: Buffer
+): string {
+  const signingKey = EnvConfig.clientSecret;
+
+  if (!signingKey) {
+    throw new Error(
+      'Signing key not available. ' + 'Set TAPTAP_MCP_CLIENT_SECRET environment variable.'
+    );
+  }
+
+  // Build sign parts: method\nurl\nheaders\nbody\n
+  const prefix = `${method}\n${url}\n${headersPart}\n`;
+  const suffix = '\n';
+
+  // Concatenate as Buffer to preserve binary data
+  const signBuffer = Buffer.concat([
+    Buffer.from(prefix, 'utf8'),
+    bodyBuffer,
+    Buffer.from(suffix, 'utf8'),
+  ]);
+
+  // Use Node.js crypto for correct binary handling
+  const hmac = crypto.createHmac('sha256', signingKey);
+  hmac.update(signBuffer);
+  return hmac.digest('base64');
 }

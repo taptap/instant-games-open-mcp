@@ -14,6 +14,7 @@ import {
   initSigner,
   getClientIdSync,
   computeTapSignSync,
+  computeTapSignWithBuffer,
   isSignerAvailable,
   isUsingNativeSigner,
 } from './nativeSigner.js';
@@ -549,7 +550,6 @@ export class HttpClient {
 
     // Build multipart body
     const { boundary, buffer: bodyBuffer } = this.buildMultipartBody(fields);
-    const bodyString = bodyBuffer.toString('binary');
 
     // Set headers
     const headers: Record<string, string> = {
@@ -570,9 +570,9 @@ export class HttpClient {
     headers['X-Tap-Ts'] = timestamp;
     headers['X-Tap-Nonce'] = nonce;
 
-    // Calculate signature with actual body content
+    // Calculate signature with Buffer body (for correct binary handling)
     const headersPart = this.getHeadersPart(headers);
-    const signature = computeTapSignSync(method, signUrl, headersPart, bodyString);
+    const signature = computeTapSignWithBuffer(method, signUrl, headersPart, bodyBuffer);
     headers['X-Tap-Sign'] = signature;
 
     // Log request
