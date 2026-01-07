@@ -1,3 +1,14 @@
+## 1.13.0 (2026-01-07)
+
+* fix(http): send empty JSON object for POST/PUT requests without body ([4133565](https://github.com/taptap/taptap_minigame_open_mcp/commit/4133565))
+* fix(upload): correct binary signature calculation for multipart uploads ([3f78133](https://github.com/taptap/taptap_minigame_open_mcp/commit/3f78133))
+* feat(app): add upload_image tool and sync API field extensions ([459c691](https://github.com/taptap/taptap_minigame_open_mcp/commit/459c691))
+* chore(deps): move @types/qrcode to devDependencies ([c3ec278](https://github.com/taptap/taptap_minigame_open_mcp/commit/c3ec278))
+* chore(docker): improve local dev script and remove docker-compose ([f122555](https://github.com/taptap/taptap_minigame_open_mcp/commit/f122555))
+* refactor(cache): implement TTL-based cache with version info display ([2a069a4](https://github.com/taptap/taptap_minigame_open_mcp/commit/2a069a4))
+
+
+
 ## <small>1.12.1 (2026-01-04)</small>
 
 * fix: 授权流程返回二维码 ([eb3e7b1](https://github.com/taptap/taptap_minigame_open_mcp/commit/eb3e7b1))
