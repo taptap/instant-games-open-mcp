@@ -75,7 +75,7 @@ export const MESSAGES = {
     if (appId) {
       msg += `3. 游戏：${appName ?? ''} (ID: ${appId}) \n`;
     }
-    msg += `如果用户确认以上信息没有问题，则请调用 h5_game_uploader 工具上传游戏`;
+    msg += `如果用户确认以上信息没有问题，则请调用 upload_h5_game 工具上传游戏`;
     return msg;
   },
 
@@ -111,7 +111,7 @@ export const MESSAGES = {
       appCount > 0 ? '请用户输入需要使用的游戏 ID: \n' : '请用户输入需要使用的开发者身份：\n';
     msg = prefix + msg;
     msg += `无须给用户展示开发者身份的 ID, 请直接展示开发者身份的名称\n`;
-    msg += `如果用户输入了一个游戏或者开发者身份，则请再次调用 h5_game_info_gatherer 工具收集游戏信息\n`;
+    msg += `如果用户输入了一个游戏或者开发者身份，则请再次调用 prepare_h5_upload 工具收集游戏信息\n`;
     return msg;
   },
 
@@ -119,7 +119,7 @@ export const MESSAGES = {
     let msg = '请用户输入需要使用的开发者身份：\n';
     msg += MESSAGES.ALL_DEVELOPER_INFO(results);
     msg += `无须给用户展示开发者身份的 ID, 请直接展示开发者身份的名称\n`;
-    msg += `如果用户输入了一个开发者身份，则请再次调用 h5_create_app 工具继续创建游戏\n`;
+    msg += `如果用户输入了一个开发者身份，则请再次调用 create_app 工具继续创建游戏\n`;
     return msg;
   },
 
@@ -153,7 +153,7 @@ export const MESSAGES = {
   ) =>
     `创建游戏成功，开发者身份 ID: ${devid}, 游戏 ID: ${appId}, 游戏名称：${appTitle},
         由于您当前的游戏快速上架流程，上线后将会以【${displayAppTitle ?? ''}】的关卡形式进行分发
-        请 AI 继续调用 h5_game_info_gatherer 工具收集游戏信息`,
+        请 AI 继续调用 prepare_h5_upload 工具收集游戏信息`,
 
   CREATE_GAME_FAILED: '创建游戏失败，请重试',
 

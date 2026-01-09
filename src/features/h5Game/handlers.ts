@@ -10,15 +10,8 @@ import * as path from 'node:path';
 import archiver from 'archiver';
 import { MESSAGES } from './messages.js';
 import { getH5PackageUploadParams, type UploadParams } from './api.js';
-import {
-  getAllDevelopersAndApps,
-  createDeveloper,
-  createAppForDeveloper,
-  editAppInfo,
-  fetchAppDetail,
-  refreshAppCache,
-} from '../app/api.js';
-import { readAppCache, saveAppCache, type AppCacheInfo } from '../../core/utils/cache.js';
+import { editAppInfo, refreshAppCache } from '../app/api.js';
+import { readAppCache } from '../../core/utils/cache.js';
 import { logger } from '../../core/utils/logger.js';
 import { resolvePathSafe, type PathResolutionResult } from '../../core/utils/pathResolver.js';
 import { EnvConfig } from '../../core/utils/env.js';
@@ -213,124 +206,75 @@ async function uploadFile(uploadParams: UploadParams, filePath: string): Promise
 }
 
 /**
- * 基础信息确认逻辑（使用统一缓存系统）
+ * 从缓存获取已选择的 App 信息
+ *
+ * 设计原则：
+ * - App 信息统一从缓存读取（单一状态来源）
+ * - 缓存通过 select_app 或 create_app 写入
+ * - 如果没有缓存，返回引导消息
+ *
+ * @param ctx - 请求上下文（包含 projectPath）
+ * @returns App 信息或错误消息
  */
-async function confirmInfo(
-  projectPath: string,
-  developerId?: number,
-  appId?: number,
-  genre?: string,
-  ctx?: ResolvedContext
-): Promise<{ success: boolean; message: string; developerId?: number; appId?: number }> {
-  // 如果用户提供了开发者身份 ID 和游戏 ID, 直接返回
-  if (developerId && appId) {
+function getSelectedAppInfo(ctx?: ResolvedContext): {
+  success: boolean;
+  message?: string;
+  developerId?: number;
+  developerName?: string;
+  appId?: number;
+  appTitle?: string;
+} {
+  // 从缓存读取（使用 ctx.projectPath 作为隔离 key）
+  const cached = readAppCache(ctx?.projectPath);
+
+  if (!cached?.developer_id || !cached?.app_id) {
     return {
-      success: true,
-      message: '',
-      developerId,
-      appId,
+      success: false,
+      message: `❌ 尚未选择应用
+
+请先选择要上传的应用：
+1. 调用 \`list_developers_and_apps\` 查看可用的开发者和应用
+2. 使用 \`select_app\` 选择要使用的应用
+3. 然后再调用本工具
+
+💡 如果没有应用，可以使用 \`create_app\` 创建新应用（创建后会自动选中）`,
     };
-  }
-
-  // 尝试从缓存读取
-  const cached = readAppCache(projectPath);
-  if (!developerId && cached?.developer_id) {
-    developerId = cached.developer_id;
-  }
-  if (!appId && cached?.app_id) {
-    appId = cached.app_id;
-  }
-
-  // 如果都有了，直接返回
-  if (developerId && appId) {
-    return {
-      success: true,
-      message: '',
-      developerId,
-      appId,
-    };
-  }
-
-  // 2. 游戏信息确认
-  let resultMsg = '';
-  if (!developerId) {
-    const response = await getAllDevelopersAndApps(ctx);
-    const results = response.list;
-
-    // 2.1. 开发者身份信息存在
-    if (results && results.length > 0) {
-      if (results.length === 1 && results[0].levels.length <= 1) {
-        // 只有一个开发者身份, 直接选择
-        developerId = results[0].developer_id;
-        if (results[0].levels.length === 1) {
-          appId = results[0].levels[0].app_id;
-        }
-      } else {
-        const msg = MESSAGES.SELECT_DEVELOPER_OR_GAME(results);
-        return { success: false, message: msg };
-      }
-    } else {
-      // 2.2. 开发者身份信息不存在, 创建开发者身份
-      const createDevResult = await createDeveloper(ctx);
-      if (createDevResult && createDevResult.developer_id) {
-        developerId = createDevResult.developer_id;
-
-        const appResults = await createAppForDeveloper(
-          createDevResult.developer_id,
-          undefined,
-          genre,
-          ctx
-        );
-        if (appResults && appResults.app_id) {
-          appId = appResults.app_id;
-          resultMsg = MESSAGES.GAME_TYPE_INFO(appResults.display_app_title);
-        }
-        return {
-          success: true,
-          message: resultMsg,
-          developerId,
-          appId,
-        };
-      } else {
-        return { success: false, message: MESSAGES.CREATE_DEVELOPER_FAILED };
-      }
-    }
-  }
-
-  // 如果有 developerId 但没有游戏, 自动创建一个游戏
-  if (developerId && !appId) {
-    const appResults = await createAppForDeveloper(developerId, undefined, genre, ctx);
-    if (appResults && appResults.app_id) {
-      appId = appResults.app_id;
-      resultMsg = MESSAGES.GAME_TYPE_INFO(appResults.display_app_title);
-    }
   }
 
   return {
     success: true,
-    message: resultMsg,
-    developerId,
-    appId,
+    developerId: cached.developer_id,
+    developerName: cached.developer_name,
+    appId: cached.app_id,
+    appTitle: cached.app_title,
   };
 }
 
 /**
  * 收集 H5 游戏信息
+ *
+ * 设计说明：
+ * - App 信息从缓存读取（通过 select_app 或 create_app 设置）
+ * - 不再通过参数传递 developerId/appId
+ * - 如果没有选择 App，返回引导消息
  */
 export async function handleGatherGameInfo(
   args: {
     gamePath?: string; // 相对路径，相对于 WORKSPACE_ROOT（或 WORKSPACE_ROOT/_project_path）
-    developerName?: string;
-    developerId?: number;
-    appId?: number;
     genre?: string;
   },
   ctx?: ResolvedContext
 ): Promise<string> {
-  // 1. 使用通用路径解析器（允许空路径，因为空路径可能意味着当前目录有 index.html）
+  // 1. 从缓存获取已选择的 App 信息
+  const appInfo = getSelectedAppInfo(ctx);
+  if (!appInfo.success) {
+    return appInfo.message!;
+  }
+
+  // 2. 使用通用路径解析器（允许空路径，因为空路径可能意味着当前目录有 index.html）
   const pathResult = resolvePathSafe(args.gamePath, ctx, { allowEmpty: true, checkExists: true });
 
-  // 2. H5 业务特定验证（index.html 检查）
+  // 3. H5 业务特定验证（index.html 检查）
   const validationError = validateH5GamePath(pathResult, true);
   if (validationError) {
     throw new Error(validationError);
@@ -338,36 +282,13 @@ export async function handleGatherGameInfo(
 
   const gamePath = pathResult.resolvedPath!;
 
-  // 基础信息确认
-  const confirmResult = await confirmInfo(gamePath, args.developerId, args.appId, args.genre, ctx);
-
-  if (!confirmResult.success) {
-    return confirmResult.message;
-  }
-
-  // 保存到统一缓存
-  const cacheInfo: AppCacheInfo = {
-    developer_id: confirmResult.developerId,
-    app_id: confirmResult.appId,
-  };
-
-  // 获取游戏详情
-  if (confirmResult.appId) {
-    const appDetail = await fetchAppDetail(confirmResult.appId);
-    if (appDetail) {
-      cacheInfo.developer_name = appDetail.developerName;
-      cacheInfo.app_title = appDetail.appTitle;
-    }
-  }
-
-  saveAppCache(cacheInfo, gamePath);
-
+  // 4. 返回确认信息
   const msg = MESSAGES.CONFIRM_GAME_INFO(
     gamePath,
-    cacheInfo.developer_name || args.developerName,
-    cacheInfo.developer_id,
-    cacheInfo.app_id,
-    cacheInfo.app_title
+    appInfo.developerName,
+    appInfo.developerId,
+    appInfo.appId,
+    appInfo.appTitle
   );
 
   return msg;
@@ -375,47 +296,37 @@ export async function handleGatherGameInfo(
 
 /**
  * 上传 H5 游戏
+ *
+ * 设计说明：
+ * - App 信息从缓存读取（通过 select_app 或 create_app 设置）
+ * - 不再通过参数传递 developerId/appId
+ * - 如果没有选择 App，返回引导消息
  */
 export async function handleUploadGame(
   args: {
     gamePath?: string; // 相对路径，相对于 WORKSPACE_ROOT（或 WORKSPACE_ROOT/_project_path）
-    developerName?: string;
-    developerId?: number;
-    appId?: number;
-    appName?: string;
     genre?: string;
   },
   ctx?: ResolvedContext
 ): Promise<string> {
-  // 1. 使用通用路径解析器（允许空路径，上传时不强制 index.html 检查）
+  // 1. 从缓存获取已选择的 App 信息
+  const appInfo = getSelectedAppInfo(ctx);
+  if (!appInfo.success) {
+    return appInfo.message!;
+  }
+
+  // 2. 使用通用路径解析器（允许空路径，上传时不强制 index.html 检查）
   const pathResult = resolvePathSafe(args.gamePath, ctx, { allowEmpty: true, checkExists: true });
 
-  // 2. H5 业务特定验证（上传时不强制要求 index.html，因为可能在后续压缩时检查）
+  // 3. H5 业务特定验证（上传时不强制要求 index.html，因为可能在后续压缩时检查）
   const validationError = validateH5GamePath(pathResult, false);
   if (validationError) {
     throw new Error(validationError);
   }
 
   const gamePath = pathResult.resolvedPath!;
-
-  // 从缓存读取或使用传入的参数
-  const cacheInfo = readAppCache(gamePath) || {};
-
-  if (args.developerId) {
-    cacheInfo.developer_id = args.developerId;
-    cacheInfo.developer_name = args.developerName;
-  }
-  if (args.appId && args.appId !== cacheInfo.app_id) {
-    cacheInfo.app_id = args.appId;
-    cacheInfo.app_title = args.appName;
-  }
-
-  if (!cacheInfo.developer_id || !cacheInfo.app_id) {
-    throw new Error(MESSAGES.DEVELOPER_ID_NOT_EXISTS);
-  }
-
-  // 保存缓存
-  saveAppCache(cacheInfo, gamePath);
+  const developerId = appInfo.developerId!;
+  const appId = appInfo.appId!;
 
   // 生成临时 ZIP 文件路径（独立于 workspace）
   const outputPath = getTempZipPath(gamePath);
@@ -428,7 +339,7 @@ export async function handleUploadGame(
     // 2. 获取上传参数
     let uploadParams: UploadParams;
     try {
-      uploadParams = await getH5PackageUploadParams(cacheInfo.app_id, ctx);
+      uploadParams = await getH5PackageUploadParams(appId, ctx);
       await logger.info(MESSAGES.GET_UPLOAD_PARAMS_SUCCESS(uploadParams, outputPath));
     } catch (error) {
       return MESSAGES.COMPRESSED_GET_PARAMS_FAILED(archiveSize, String(error));
@@ -447,11 +358,11 @@ export async function handleUploadGame(
     }
 
     // 4. 发布到 TapTap
-    await logger.info(MESSAGES.PUBLISH_PARAMS(cacheInfo.app_id, cacheInfo.developer_id, packageId));
+    await logger.info(MESSAGES.PUBLISH_PARAMS(appId, developerId, packageId));
 
     const results = await editAppInfo(
-      cacheInfo.app_id, // app_id
-      cacheInfo.developer_id, // developer_id
+      appId, // app_id
+      developerId, // developer_id
       packageId, // package_id
       undefined, // appName
       args.genre, // genre
@@ -468,12 +379,12 @@ export async function handleUploadGame(
 
     // 5. Refresh App Cache immediately after successful upload
     try {
-      await refreshAppCache(gamePath, ctx);
+      await refreshAppCache(ctx?.projectPath, ctx);
     } catch (refreshError) {
       console.warn('Failed to refresh app cache after upload:', refreshError);
     }
 
-    let msg = MESSAGES.GAME_PUBLISH_SUCCESS(results.app_title, cacheInfo.app_id);
+    let msg = MESSAGES.GAME_PUBLISH_SUCCESS(results.app_title, appId);
     msg += '\n' + MESSAGES.GAME_TYPE_INFO(results.display_app_title) + '\n';
 
     return msg;
