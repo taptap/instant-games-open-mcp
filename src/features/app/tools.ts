@@ -87,7 +87,7 @@ export const appTools: ToolRegistration[] = [
     definition: {
       name: 'list_developers_and_apps',
       description:
-        '[General App Management] List all developers and their apps/games for the current user. **CRITICAL: ALWAYS show the full list to the user and explicitly ASK them to choose which app to use - DO NOT automatically select an app without user confirmation, even if there is only one option.** Use this for: 1) Initial exploration of available apps, 2) Switching between apps, 3) General app management (not H5 upload workflow). For H5 game upload, use h5_game_info_gatherer instead.',
+        '[General App Management] List all developers and their apps/games for the current user. **CRITICAL: ALWAYS show the full list to the user and explicitly ASK them to choose which app to use - DO NOT automatically select an app without user confirmation, even if there is only one option.** Use this for: 1) Initial exploration of available apps, 2) Switching between apps, 3) General app management (not H5 upload workflow). For H5 game upload, use prepare_h5_upload instead.',
       inputSchema: {
         type: 'object',
         properties: {},
@@ -105,7 +105,7 @@ export const appTools: ToolRegistration[] = [
     definition: {
       name: 'select_app',
       description:
-        '[General] Select a specific developer and app to use for subsequent operations. This will cache the selection for all modules (leaderboard, H5, etc.). **IMPORTANT: Only call this tool AFTER the user has explicitly confirmed which app they want to use. DO NOT call this tool automatically without user confirmation.** Use this for: 1) General app selection, 2) Switching accounts, 3) After listing with list_developers_and_apps and receiving user confirmation. For H5 upload, you can also pass developerId/appId to h5_game_info_gatherer directly.',
+        '[General] Select a specific developer and app to use for subsequent operations. This will cache the selection for all modules (leaderboard, H5, etc.). **IMPORTANT: Only call this tool AFTER the user has explicitly confirmed which app they want to use. DO NOT call this tool automatically without user confirmation.** Use this for: 1) General app selection, 2) Switching accounts, 3) After listing with list_developers_and_apps and receiving user confirmation. For H5 upload, you can also pass developerId/appId to prepare_h5_upload directly.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -158,7 +158,7 @@ export const appTools: ToolRegistration[] = [
     definition: {
       name: 'create_app',
       description:
-        'Create a new app/game on TapTap platform. Use this when user wants to create a new app.',
+        'Create a new app/game on TapTap platform. **The newly created app will be automatically selected** - no need to call select_app afterwards. Use this when user wants to create a new app.',
       inputSchema: {
         type: 'object',
         properties: {
