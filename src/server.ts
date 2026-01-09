@@ -637,15 +637,21 @@ class TapTapMinigameMCPServer {
       // 使用 ?? undefined 将 null 转换为 undefined（SessionContext 不接受 null）
       const userId = headerUserId || (urlUserId ?? undefined);
       const projectId = headerProjectId || (urlProjectId ?? undefined);
-      const projectPath = headerProjectPath || (urlProjectPath ?? undefined);
+      let projectPath = headerProjectPath || (urlProjectPath ?? undefined);
+
+      if (projectPath) {
+        // Normalize path to ensure consistency for cache isolation (e.g. remove trailing slashes)
+        projectPath = path.normalize(projectPath);
+      }
 
       // 解析 MAC Token（JSON 序列化）
       let macToken: MacToken | undefined;
       if (headerMacToken) {
         try {
           macToken = JSON.parse(headerMacToken);
-        } catch {
+        } catch (error) {
           // 忽略解析错误，Token 将从其他来源获取
+          logger.warning(`Failed to parse MAC Token from header: ${error}`);
         }
       }
 
