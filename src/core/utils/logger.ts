@@ -463,25 +463,51 @@ export class Logger {
   }
 
   /**
-   * Log client connection event
+   * Log client connection event with session context
    */
-  async logClientConnection(sessionId: string, metadata?: any): Promise<void> {
+  async logClientConnection(
+    sessionId: string,
+    metadata?: {
+      userId?: string;
+      projectId?: string;
+      projectPath?: string;
+      macToken?: { kid?: string };
+    }
+  ): Promise<void> {
     const timestamp = getTimestamp();
 
     // Always output connection event to stderr (important for monitoring)
-    process.stderr.write(`\n🔌 [${timestamp}] Client Connected - Session: ${sessionId}\n`);
+    process.stderr.write(`\n🔌 [${timestamp}] Client Connected\n`);
+    process.stderr.write(`${'─'.repeat(60)}\n`);
+    process.stderr.write(`  Session:      ${sessionId}\n`);
 
-    // Additional details only in verbose mode
-    if (this.verbose) {
-      process.stderr.write(`${'='.repeat(80)}\n`);
-      process.stderr.write(`Timestamp: ${timestamp}\n`);
-      process.stderr.write(`${'='.repeat(80)}\n\n`);
+    // Output session context info (always, not just verbose)
+    if (metadata?.userId) {
+      process.stderr.write(`  User ID:      ${metadata.userId}\n`);
     }
+    if (metadata?.projectId) {
+      process.stderr.write(`  Project ID:   ${metadata.projectId}\n`);
+    }
+    if (metadata?.projectPath) {
+      process.stderr.write(`  Project Path: ${metadata.projectPath}\n`);
+    }
+    if (metadata?.macToken?.kid) {
+      // 只显示 kid 的前 8 位，保护安全
+      const kidPreview = metadata.macToken.kid.substring(0, 8) + '...';
+      process.stderr.write(`  MAC Token:    ${kidPreview} ✓\n`);
+    } else {
+      process.stderr.write(`  MAC Token:    (not provided)\n`);
+    }
+    process.stderr.write(`${'─'.repeat(60)}\n\n`);
 
     // Key info: Client connection (dual output: stderr + MCP notification)
     await this.log('info', 'connection', 'Client connected', {
       sessionId,
       event: 'client_connected',
+      userId: metadata?.userId,
+      projectId: metadata?.projectId,
+      projectPath: metadata?.projectPath,
+      hasMacToken: !!metadata?.macToken?.kid,
     });
   }
 
