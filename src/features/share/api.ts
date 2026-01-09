@@ -3,7 +3,6 @@
  */
 
 import { HttpClient } from '../../core/network/httpClient.js';
-import { readAppCache } from '../../core/utils/cache.js';
 import type { ResolvedContext } from '../../core/types/context.js';
 
 /**
@@ -60,23 +59,18 @@ export async function createShareTemplate(
   const client = new HttpClient(ctx);
 
   try {
-    // Resolve developer_id and app_id from context (priority: params > context > cache)
-    // 从 context 和缓存解析应用信息
-    const cache = readAppCache(ctx?.projectPath);
-    const resolved = {
-      developerId: ctx?.developerId ?? cache?.developer_id,
-      appId: ctx?.appId ?? cache?.app_id,
-    };
-    const developerId = params.developer_id ?? resolved.developerId;
-    const appId = params.app_id ?? resolved.appId;
+    // Resolve developer_id and app_id from context cache
+    // 从 context 缓存解析应用信息
+    const app = ctx?.resolveApp();
+    const developerId = params.developer_id ?? app?.developerId;
+    const appId = params.app_id ?? app?.appId;
 
     if (!developerId || !appId) {
       throw new Error(
         'developer_id and app_id are required. ' +
           'Please either:\n' +
-          '1. Pass them via private parameters (_developer_id, _app_id), or\n' +
-          '2. Use select_app tool to cache them, or\n' +
-          '3. Provide them explicitly in the arguments'
+          '1. Use select_app tool to select an app first, or\n' +
+          '2. Provide them explicitly in the arguments'
       );
     }
 
@@ -136,23 +130,18 @@ export async function listShareTemplates(
   const client = new HttpClient(ctx);
 
   try {
-    // Resolve developer_id and app_id from context (priority: params > context > cache)
-    // 从 context 和缓存解析应用信息
-    const cache = readAppCache(ctx?.projectPath);
-    const resolved = {
-      developerId: ctx?.developerId ?? cache?.developer_id,
-      appId: ctx?.appId ?? cache?.app_id,
-    };
-    const developerId = params.developer_id ?? resolved.developerId;
-    const appId = params.app_id ?? resolved.appId;
+    // Resolve developer_id and app_id from context cache
+    // 从 context 缓存解析应用信息
+    const app = ctx?.resolveApp();
+    const developerId = params.developer_id ?? app?.developerId;
+    const appId = params.app_id ?? app?.appId;
 
     if (!developerId || !appId) {
       throw new Error(
         'developer_id and app_id are required. ' +
           'Please either:\n' +
-          '1. Pass them via private parameters (_developer_id, _app_id), or\n' +
-          '2. Use select_app tool to cache them, or\n' +
-          '3. Provide them explicitly in the arguments'
+          '1. Use select_app tool to select an app first, or\n' +
+          '2. Provide them explicitly in the arguments'
       );
     }
 
@@ -206,23 +195,18 @@ export async function getShareTemplateInfo(
   const client = new HttpClient(ctx);
 
   try {
-    // Resolve developer_id and app_id from context (priority: params > context > cache)
-    // 从 context 和缓存解析应用信息
-    const cache = readAppCache(ctx?.projectPath);
-    const resolved = {
-      developerId: ctx?.developerId ?? cache?.developer_id,
-      appId: ctx?.appId ?? cache?.app_id,
-    };
-    const developerId = params.developer_id ?? resolved.developerId;
-    const appId = params.app_id ?? resolved.appId;
+    // Resolve developer_id and app_id from context cache
+    // 从 context 缓存解析应用信息
+    const app = ctx?.resolveApp();
+    const developerId = params.developer_id ?? app?.developerId;
+    const appId = params.app_id ?? app?.appId;
 
     if (!developerId || !appId) {
       throw new Error(
         'developer_id and app_id are required. ' +
           'Please either:\n' +
-          '1. Pass them via private parameters (_developer_id, _app_id), or\n' +
-          '2. Use select_app tool to cache them, or\n' +
-          '3. Provide them explicitly in the arguments'
+          '1. Use select_app tool to select an app first, or\n' +
+          '2. Provide them explicitly in the arguments'
       );
     }
 

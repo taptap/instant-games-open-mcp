@@ -5,6 +5,10 @@
  * 这些参数不会在 Tool Definition 中声明，但可以被 Handler 读取
  *
  * 命名规则：下划线前缀 '_' 表示私有参数
+ *
+ * 架构简化（v1.14+）：
+ * - 大部分参数已通过 SessionContext（Headers）传递
+ * - 私有参数仅用于工具调用时的额外覆盖
  */
 
 import type { MacToken } from './index.js';
@@ -12,104 +16,52 @@ import type { MacToken } from './index.js';
 /**
  * 私有工具参数接口
  *
- * 这些参数可以被 MCP Proxy 注入到工具调用的 arguments 中，
+ * 这些参数可以被注入到工具调用的 arguments 中，
  * 但不会出现在工具的 inputSchema 定义中。
  *
  * 使用场景：
- * - 多账号认证（_mac_token）
- * - 多租户支持（_user_id）
- * - 请求追踪（_session_id）
+ * - 覆盖 Session 中的认证（_mac_token）
+ * - 覆盖 Session 中的用户标识（_user_id）
+ * - 覆盖 Session 中的项目标识（_project_id, _project_path）
+ *
+ * 注意：developer_id 和 app_id 不在此接口中，
+ * 它们应通过 select_app 工具设置并从缓存中读取
  */
 export interface PrivateToolParams {
   /**
-   * MAC Token for authentication
-   *
-   * 优先级：_mac_token > context.macToken > env.TAPTAP_MCP_MAC_TOKEN
+   * MAC Token for authentication（覆盖 Session 中的 Token）
    *
    * 注入方式：
-   * 1. MCP Proxy 直接在 arguments 中注入
-   * 2. MCP Server 从 HTTP Header (X-TapTap-Mac-Token) 读取并注入
-   *
-   * @example
-   * ```typescript
-   * {
-   *   kid: "abc123",
-   *   mac_key: "secret_key",
-   *   token_type: "mac",
-   *   mac_algorithm: "hmac-sha-1"
-   * }
-   * ```
+   * 1. 工具调用时在 arguments 中注入
+   * 2. 通常不需要，因为 Token 已在 Session 创建时通过 Header 传递
    */
   _mac_token?: MacToken;
 
   /**
-   * User ID for multi-tenant scenarios
-   *
-   * 用于多租户场景，标识当前请求的用户身份
-   *
+   * User ID（覆盖 Session 中的 userId）
    * @example "user_12345"
    */
   _user_id?: string;
 
   /**
-   * Session ID for logging and debugging
-   *
-   * 用于请求追踪和调试，关联一系列相关的工具调用
-   *
+   * Session ID（覆盖 Session 中的 sessionId）
    * @example "session_abc123xyz"
    */
   _session_id?: string;
 
-  // === 应用上下文层（v1.4.0 规划）===
-
   /**
-   * Developer ID (应用开发者 ID)
-   * 优先级：_developer_id > context.developerId > cache
-   * @example 89058
-   */
-  _developer_id?: number;
-
-  /**
-   * App ID (应用 ID)
-   * 优先级：_app_id > context.appId > cache
-   * @example 204334
-   */
-  _app_id?: number;
-
-  /**
-   * Project ID (项目标识符)
-   * 用于 Token 项目级隔离存储
-   * 优先级：_project_id > context.projectId
+   * Project ID（覆盖 Session 中的 projectId）
+   * 用于缓存隔离
    * @example "project-456"
    */
   _project_id?: string;
 
   /**
-   * Project Path (项目路径)
-   * 用于 H5 上传等需要访问文件系统的场景
+   * Project Path（覆盖 Session 中的 projectPath）
+   * 用于文件系统访问和缓存隔离
    * @example "/workspace/runtime-container-1/project-a"
    */
   _project_path?: string;
-
-  // === 追踪层（扩展）===
-
-  /**
-   * Tenant ID for multi-tenant scenarios
-   * @example "tenant_abc"
-   */
-  _tenant_id?: string;
-
-  /**
-   * Trace ID for distributed tracing
-   * @example "trace_xyz789"
-   */
-  _trace_id?: string;
-
-  /**
-   * Request ID for logging
-   * @example "req_12345"
-   */
-  _request_id?: string;
 }
 
 /**
@@ -122,7 +74,7 @@ export interface PrivateToolParams {
  * ```typescript
  * const args = { page: 1, _mac_token: {...}, _user_id: "123" };
  * const privateParams = extractPrivateParams(args);
- * // { _mac_token: {...}, _user_id: "123", _session_id: undefined }
+ * // { _mac_token: {...}, _user_id: "123" }
  * ```
  */
 export function extractPrivateParams(args: any): PrivateToolParams {
@@ -130,13 +82,8 @@ export function extractPrivateParams(args: any): PrivateToolParams {
     _mac_token: args?._mac_token,
     _user_id: args?._user_id,
     _session_id: args?._session_id,
-    _developer_id: args?._developer_id,
-    _app_id: args?._app_id,
-    _project_id: args?._project_id, // ✅ 新增
+    _project_id: args?._project_id,
     _project_path: args?._project_path,
-    _tenant_id: args?._tenant_id,
-    _trace_id: args?._trace_id,
-    _request_id: args?._request_id,
   };
 }
 
@@ -160,19 +107,7 @@ export function stripPrivateParams(args: any): any {
     return args;
   }
 
-  const {
-    _mac_token,
-    _user_id,
-    _session_id,
-    _developer_id,
-    _app_id,
-    _project_id, // ✅ 新增
-    _project_path,
-    _tenant_id,
-    _trace_id,
-    _request_id,
-    ...businessParams
-  } = args;
+  const { _mac_token, _user_id, _session_id, _project_id, _project_path, ...businessParams } = args;
   return businessParams;
 }
 
@@ -197,13 +132,8 @@ export function hasPrivateParams(args: any): boolean {
     args._mac_token ||
     args._user_id ||
     args._session_id ||
-    args._developer_id ||
-    args._app_id ||
-    args._project_id || // ✅ 新增
-    args._project_path ||
-    args._tenant_id ||
-    args._trace_id ||
-    args._request_id
+    args._project_id ||
+    args._project_path
   );
 }
 
@@ -234,27 +164,11 @@ export function mergePrivateParams(args: any, privateParams: PrivateToolParams):
   if (privateParams._session_id) {
     result._session_id = privateParams._session_id;
   }
-  if (privateParams._developer_id !== undefined) {
-    result._developer_id = privateParams._developer_id;
-  }
-  if (privateParams._app_id !== undefined) {
-    result._app_id = privateParams._app_id;
-  }
   if (privateParams._project_id) {
-    // ✅ 新增
     result._project_id = privateParams._project_id;
   }
   if (privateParams._project_path) {
     result._project_path = privateParams._project_path;
-  }
-  if (privateParams._tenant_id) {
-    result._tenant_id = privateParams._tenant_id;
-  }
-  if (privateParams._trace_id) {
-    result._trace_id = privateParams._trace_id;
-  }
-  if (privateParams._request_id) {
-    result._request_id = privateParams._request_id;
   }
 
   return result;

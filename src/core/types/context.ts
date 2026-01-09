@@ -7,6 +7,10 @@
  * - 请求级生命周期：每次工具调用创建，用完即丢
  * - 无缓存：每次方法调用都重新计算/加载
  * - 不可变：构造后内部状态不可修改
+ *
+ * 架构简化（v1.14+）：
+ * - 删除 RequestContext，直接使用 SessionContext
+ * - ResolvedContext = SessionContext + PrivateToolParams
  */
 
 import type { MacToken } from './index.js';
@@ -16,35 +20,24 @@ import { loadTokenFromFile, getTokenPath } from '../auth/tokenStorage.js';
 import { EnvConfig } from '../utils/env.js';
 
 /**
- * MCP 请求的原始上下文（接口）
- * 由 MCP Server 在请求时构建和传递
+ * Session 上下文（通过闭包注入）
+ * 用于 SSE/HTTP 模式的 Session 隔离
+ *
+ * 参数来源（优先级从高到低）：
+ * 1. HTTP Headers（Proxy 模式推荐）：
+ *    - X-TapTap-User-Id
+ *    - X-TapTap-Project-Id
+ *    - X-TapTap-Project-Path
+ *    - X-TapTap-Mac-Token（JSON 序列化）
+ * 2. URL 参数（SSE 直连兼容）：
+ *    - ?user_id=xxx&project_id=xxx&project_path=xxx
  */
-export interface RequestContext {
-  // === 认证层 ===
-  /** MAC Token for authentication */
-  macToken?: MacToken;
-  /** User ID for multi-tenant scenarios */
+export interface SessionContext {
   userId?: string;
-
-  // === 应用上下文层 ===
-  /** Developer ID */
-  developerId?: number;
-  /** App ID */
-  appId?: number;
-  /** Project ID for token isolation */
   projectId?: string;
-  /** Project Path (for file system access) */
   projectPath?: string;
-
-  // === 追踪层 ===
-  /** Tenant ID for multi-tenant scenarios */
-  tenantId?: string;
-  /** Trace ID for distributed tracing */
-  traceId?: string;
-  /** Request ID for logging */
-  requestId?: string;
-  /** Session ID for request tracking */
   sessionId?: string;
+  macToken?: MacToken;
 }
 
 /**
@@ -67,23 +60,28 @@ export interface AppContext {
 }
 
 /**
- * Session 上下文（通过闭包注入）
- * 用于 SSE 模式的 Session 隔离
- */
-export interface SessionContext {
-  userId?: string;
-  projectId?: string;
-  sessionId?: string;
-}
-
-/**
  * Token 来源类型
  */
 export enum TokenSource {
   NONE = 'none',
-  CONTEXT = 'context', // From request context (MCP Proxy injection)
-  ENV = 'env', // From environment variable
+  CONTEXT = 'context', // From session context (Header injection)
   FILE = 'file', // From local OAuth token file
+}
+
+/**
+ * ResolvedContext 内部存储结构
+ * 合并 SessionContext + PrivateToolParams
+ *
+ * 注意：developerId 和 appId 不在此结构中，
+ * 它们应通过 resolveApp() 方法从缓存中读取
+ */
+interface ResolvedData {
+  // Session 层（来自 SessionContext）
+  userId?: string;
+  projectId?: string;
+  projectPath?: string;
+  sessionId?: string;
+  macToken?: MacToken;
 }
 
 /**
@@ -91,13 +89,17 @@ export enum TokenSource {
  *
  * 设计原则：
  * - 无缓存：每次调用方法都重新计算/加载
- * - 不可变：构造后 _raw 不可修改
+ * - 不可变：构造后内部状态不可修改
  * - 请求级：仅在单次工具调用中有效，不可保存和重用
+ *
+ * 数据来源：
+ * - SessionContext: userId, projectId, projectPath, sessionId, macToken
+ * - PrivateToolParams: 覆盖上述字段 + developerId, appId
  *
  * @example
  * ```typescript
  * // 在 server.ts 中创建
- * const ctx = new ResolvedContext(enrichedArgs, baseContext);
+ * const ctx = new ResolvedContext(args, sessionContext);
  *
  * // 在 handler 中使用
  * const userId = ctx.userId;
@@ -106,106 +108,67 @@ export enum TokenSource {
  * ```
  */
 export class ResolvedContext {
-  private readonly _raw: RequestContext;
+  private readonly _data: ResolvedData;
 
   /**
-   * 构造器：从私有参数和基础 context 创建
+   * 构造器：从私有参数和 Session 上下文创建
    *
    * @param args - 私有参数（_user_id, _mac_token 等）
-   * @param base - 基础 context（来自 Session 闭包或空对象）
+   * @param session - Session 上下文（来自闭包或空对象）
    */
-  constructor(args: PrivateToolParams, base: RequestContext = {}) {
-    this._raw = this.mergeArgsIntoContext(args, base);
+  constructor(args: PrivateToolParams, session: SessionContext = {}) {
+    this._data = this.merge(args, session);
   }
 
   /**
-   * 合并私有参数到 context（私有方法）
+   * 合并私有参数和 Session 上下文
+   * 优先级：私有参数 > Session 上下文
    */
-  private mergeArgsIntoContext(args: PrivateToolParams, base: RequestContext): RequestContext {
-    const result: RequestContext = { ...base };
-
-    // === 认证层 ===
-    if (args._mac_token?.kid && args._mac_token?.mac_key) {
-      result.macToken = args._mac_token;
-    }
-    if (args._user_id) {
-      result.userId = args._user_id;
-    }
-    if (args._session_id) {
-      result.sessionId = args._session_id;
-    }
-
-    // === 应用上下文层 ===
-    if (args._developer_id !== undefined) {
-      result.developerId = args._developer_id;
-    }
-    if (args._app_id !== undefined) {
-      result.appId = args._app_id;
-    }
-    if (args._project_id) {
-      result.projectId = args._project_id;
-    }
-    if (args._project_path) {
-      result.projectPath = args._project_path;
-    }
-
-    // === 追踪层 ===
-    if (args._tenant_id) {
-      result.tenantId = args._tenant_id;
-    }
-    if (args._trace_id) {
-      result.traceId = args._trace_id;
-    }
-    if (args._request_id) {
-      result.requestId = args._request_id;
-    }
-
-    return result;
+  private merge(args: PrivateToolParams, session: SessionContext): ResolvedData {
+    return {
+      // Session 层（私有参数优先）
+      userId: args._user_id || session.userId,
+      projectId: args._project_id || session.projectId,
+      projectPath: args._project_path || session.projectPath,
+      sessionId: args._session_id || session.sessionId,
+      macToken:
+        args._mac_token?.kid && args._mac_token?.mac_key ? args._mac_token : session.macToken,
+    };
   }
 
   // ========================================================================
-  // 字段访问器（直接访问，带默认值）
+  // 字段访问器
   // ========================================================================
 
   /**
    * 获取用户标识
-   * 优先级：context.userId > 'local'(stdio) > 'anonymous'
+   * 优先级：data.userId > 'local'(stdio) > 'anonymous'
    */
   get userId(): string {
-    if (this._raw.userId) {
-      return this._raw.userId;
+    if (this._data.userId) {
+      return this._data.userId;
     }
     return EnvConfig.transport === 'stdio' ? 'local' : 'anonymous';
   }
 
   /** 获取项目标识 */
   get projectId(): string | undefined {
-    return this._raw.projectId;
+    return this._data.projectId;
   }
 
   /** 获取项目路径 */
   get projectPath(): string | undefined {
-    return this._raw.projectPath;
-  }
-
-  /** 获取开发者 ID */
-  get developerId(): number | undefined {
-    return this._raw.developerId;
-  }
-
-  /** 获取应用 ID */
-  get appId(): number | undefined {
-    return this._raw.appId;
+    return this._data.projectPath;
   }
 
   /** 获取 Session ID */
   get sessionId(): string | undefined {
-    return this._raw.sessionId;
+    return this._data.sessionId;
   }
 
   /** 获取 MAC Token（不解析文件，只返回 context 中的） */
   get macToken(): MacToken | undefined {
-    return this._raw.macToken;
+    return this._data.macToken;
   }
 
   // ========================================================================
@@ -213,16 +176,32 @@ export class ResolvedContext {
   // ========================================================================
 
   /**
-   * 解析应用信息（含缓存数据）
+   * 获取缓存隔离 key
+   *
+   * 优先级：
+   * 1. projectPath（SSE + Proxy 模式，由 Proxy 注入完整路径）
+   * 2. projectId（SSE 直连模式，由客户端通过 URL 参数传递）
+   * 3. undefined（stdio 模式，fallback 到 workspaceRoot）
+   */
+  getCacheIsolationKey(): string | undefined {
+    return this._data.projectPath || this._data.projectId;
+  }
+
+  /**
+   * 解析应用信息（从缓存读取）
    * ⚠️ 每次调用都会读取缓存文件，外部决定是否缓存结果
+   *
+   * 注意：developerId 和 appId 仅从缓存读取，
+   * 需要先调用 select_app 工具设置应用
    */
   resolveApp(): AppContext {
-    const cache = readAppCache(this._raw.projectPath);
+    const cacheKey = this.getCacheIsolationKey();
+    const cache = readAppCache(cacheKey);
 
     return {
-      developerId: this._raw.developerId ?? cache?.developer_id,
-      appId: this._raw.appId ?? cache?.app_id,
-      projectPath: this._raw.projectPath,
+      developerId: cache?.developer_id,
+      appId: cache?.app_id,
+      projectPath: this._data.projectPath,
       developerName: cache?.developer_name,
       appTitle: cache?.app_title,
       miniappId: cache?.miniapp_id,
@@ -246,22 +225,20 @@ export class ResolvedContext {
    * ⚠️ 每次调用都会重新加载，外部决定是否缓存结果
    *
    * 优先级：
-   * 1. context.macToken (MCP Proxy 注入或 HTTP Header 注入)
-   * 2. stdio 模式从用户隔离文件加载
-   * 3. SSE/HTTP 模式返回 null（必须通过 context 注入）
-   *
-   * @returns Token 和来源信息
+   * 1. data.macToken (Session Header 或私有参数注入)
+   * 2. 从用户隔离文件加载
+   * 3. 无 token
    */
   private resolveTokenWithSource(): { token: MacToken | null; source: TokenSource } {
-    // Priority 1: Context token (Proxy/Header 注入)
-    if (this._raw.macToken?.kid && this._raw.macToken?.mac_key) {
+    // Priority 1: Context token (Session/私有参数注入)
+    if (this._data.macToken?.kid && this._data.macToken?.mac_key) {
       return {
-        token: this._raw.macToken,
+        token: this._data.macToken,
         source: TokenSource.CONTEXT,
       };
     }
 
-    // Priority 2: 从用户隔离文件加载（所有模式都支持）
+    // Priority 2: 从用户隔离文件加载
     const tokenPath = getTokenPath(this.userId, this.projectId);
     const token = loadTokenFromFile(tokenPath);
     if (token?.kid && token?.mac_key) {
@@ -297,18 +274,6 @@ export class ResolvedContext {
       source,
     };
   }
-
-  // ========================================================================
-  // 原始 context 访问（用于传递给底层 API）
-  // ========================================================================
-
-  /**
-   * 获取原始 RequestContext
-   * 用于需要传递给底层 API（如 HttpClient）的场景
-   */
-  get raw(): RequestContext {
-    return this._raw;
-  }
 }
 
 /**
@@ -317,9 +282,7 @@ export class ResolvedContext {
 export function getTokenSourceLabel(source: TokenSource): string {
   switch (source) {
     case TokenSource.CONTEXT:
-      return '(请求上下文)';
-    case TokenSource.ENV:
-      return '(环境变量)';
+      return '(Session 上下文)';
     case TokenSource.FILE:
       return '(本地文件)';
     case TokenSource.NONE:
