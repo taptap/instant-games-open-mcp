@@ -55,7 +55,6 @@ import { multiplayerModule } from './features/multiplayer/index.js';
 import { shareModule } from './features/share/index.js';
 import { cloudSaveModule } from './features/cloudSave/index.js';
 import type {
-  RequestContext,
   SessionContext,
   FeatureModule,
   ToolRegistration,
@@ -236,18 +235,13 @@ class TapTapMinigameMCPServer {
   }
 
   /**
-   * 创建请求级别的基础 context
-   * 使用闭包注入的 sessionContext（userId、projectId）
+   * 直接返回 SessionContext（简化架构，不再需要 RequestContext 中间层）
    *
    * @param sessionContext - Session 上下文（通过闭包注入）
-   * @returns RequestContext
+   * @returns SessionContext
    */
-  private createBaseContext(sessionContext?: SessionContext): RequestContext {
-    return {
-      userId: sessionContext?.userId,
-      projectId: sessionContext?.projectId,
-      sessionId: sessionContext?.sessionId,
-    };
+  private getSessionContext(sessionContext?: SessionContext): SessionContext {
+    return sessionContext ?? {};
   }
 
   /**
@@ -301,11 +295,8 @@ class TapTapMinigameMCPServer {
       // Log tool call input (私有参数会被自动过滤)
       await logger.logToolCall(name, enrichedArgs);
 
-      // ✅ 创建 baseContext（从 sessionContext 闭包）
-      const baseContext = this.createBaseContext(sessionContext);
-
-      // ✅ 构建 ResolvedContext（合并 args + base）
-      const ctx = new ResolvedContext(enrichedArgs, baseContext);
+      // ✅ 构建 ResolvedContext（直接使用 SessionContext）
+      const ctx = new ResolvedContext(enrichedArgs, this.getSessionContext(sessionContext));
 
       try {
         // 使用 Map 快速查找工具（O(1) 复杂度）
@@ -622,19 +613,47 @@ class TapTapMinigameMCPServer {
         return;
       }
 
-      // ✅ 新 session：从 Headers 提取用户标识
+      // ✅ 新 session：从 URL 参数或 Headers 提取用户标识
+      // 优先级：URL 参数 > HTTP Headers
+      // 这样客户端可以在连接 URL 中传递参数，如：
+      //   http://localhost:3000/?project_id=game-a&user_id=user-123
       const getHeader = (name: string): string | undefined => {
         const value = req.headers[name.toLowerCase()];
         return typeof value === 'string' ? value : undefined;
       };
 
-      const userId = getHeader('X-TapTap-User-Id');
-      const projectId = getHeader('X-TapTap-Project-Id');
+      // URL 参数（SSE 直连兼容）
+      const urlUserId = url.searchParams.get('user_id');
+      const urlProjectId = url.searchParams.get('project_id');
+      const urlProjectPath = url.searchParams.get('project_path');
+
+      // HTTP Headers（Proxy 模式推荐，更安全）
+      const headerUserId = getHeader('X-TapTap-User-Id');
+      const headerProjectId = getHeader('X-TapTap-Project-Id');
+      const headerProjectPath = getHeader('X-TapTap-Project-Path');
+      const headerMacToken = getHeader('X-TapTap-Mac-Token');
+
+      // 合并：Headers 优先（Proxy 使用 Headers，SSE 直连使用 URL 参数）
+      const userId = headerUserId || urlUserId;
+      const projectId = headerProjectId || urlProjectId;
+      const projectPath = headerProjectPath || urlProjectPath;
+
+      // 解析 MAC Token（JSON 序列化）
+      let macToken: MacToken | undefined;
+      if (headerMacToken) {
+        try {
+          macToken = JSON.parse(headerMacToken);
+        } catch {
+          // 忽略解析错误，Token 将从其他来源获取
+        }
+      }
 
       // 创建 session 专属的上下文（通过闭包捕获）
       const sessionContext: SessionContext = {
         userId,
         projectId,
+        projectPath,
+        macToken,
         // sessionId 会在 onsessioninitialized 回调中设置
       };
 
@@ -671,9 +690,12 @@ class TapTapMinigameMCPServer {
           // ✅ 注入 sessionId 到闭包的 sessionContext
           sessionContext.sessionId = newSessionId;
 
+          // 输出完整的 session 上下文信息
           await logger.logClientConnection(newSessionId, {
             userId: sessionContext.userId,
             projectId: sessionContext.projectId,
+            projectPath: sessionContext.projectPath,
+            macToken: sessionContext.macToken,
           });
 
           // Store the session（只需存储 server 和 transport，context 在闭包中）

@@ -167,6 +167,36 @@ export class TapTapMCPProxy {
   }
 
   /**
+   * 构建会话初始化 Headers
+   * 将所有会话参数通过 Header 传递（更安全，不会暴露在 URL/日志中）
+   *
+   * Headers:
+   * - X-TapTap-User-Id: 用户标识
+   * - X-TapTap-Project-Id: 项目标识
+   * - X-TapTap-Project-Path: 项目路径
+   * - X-TapTap-Mac-Token: MAC 认证令牌（JSON）
+   */
+  private buildSessionHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+
+    // 会话上下文参数
+    if (this.config.tenant.user_id) {
+      headers['X-TapTap-User-Id'] = this.config.tenant.user_id;
+    }
+    if (this.config.tenant.project_id) {
+      headers['X-TapTap-Project-Id'] = this.config.tenant.project_id;
+    }
+    if (this.config.tenant.project_path) {
+      headers['X-TapTap-Project-Path'] = this.config.tenant.project_path;
+    }
+
+    // 认证令牌（JSON 序列化）
+    headers['X-TapTap-Mac-Token'] = JSON.stringify(this.config.auth);
+
+    return headers;
+  }
+
+  /**
    * 连接到 TapTap MCP Server
    */
   private async connectToServer(): Promise<void> {
@@ -181,8 +211,15 @@ export class TapTapMCPProxy {
         this.log('debug', 'Cookie sticky session enabled');
       }
 
+      // 构建会话 Headers（包含认证和上下文信息）
+      const sessionHeaders = this.buildSessionHeaders();
+
       const transport = new StreamableHTTPClientTransport(new URL(this.config.server.url), {
         fetch: customFetch,
+        // ✅ 在初始化请求中附加会话 Headers
+        requestInit: {
+          headers: sessionHeaders,
+        },
       });
 
       await this.client.connect(transport);
@@ -594,27 +631,14 @@ export class TapTapMCPProxy {
       return result;
     });
 
-    // 拦截 tools/call - 注入私有参数
+    // 拦截 tools/call - 直接透传（参数已在 Session 创建时通过 Headers 传递）
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
-      // 使用配置中的 MAC Token
-      const macToken = this.config.auth;
-
-      // 直接使用配置中的项目路径（相对路径，由平台生成）
-      // 注入私有参数
-      const enrichedArgs = {
-        ...args,
-        _mac_token: macToken,
-        _project_path: this.config.tenant.project_path,
-        _user_id: this.config.tenant.user_id,
-        _project_id: this.config.tenant.project_id, // ✅ 新增
-      };
-
       if (this.config.options?.verbose) {
         this.log('debug', `Tool call: ${name}`);
-        this.log('debug', `Injected: _mac_token (kid: ${macToken.kid.substring(0, 12)}...)`);
-        this.log('debug', `Injected: _project_path = ${this.config.tenant.project_path}`);
+        // 注意：MAC Token 和其他参数已在 Session 创建时通过 Headers 传递
+        // 无需每次工具调用都注入，减少数据传输量
       }
 
       // 检查连接状态
@@ -626,7 +650,7 @@ export class TapTapMCPProxy {
           return new Promise((resolve, reject) => {
             this.pendingRequests.push({
               name,
-              arguments: enrichedArgs,
+              arguments: args,
               resolve,
               reject,
               timestamp: Date.now(),
@@ -646,7 +670,7 @@ export class TapTapMCPProxy {
         const result = await this.client.callTool(
           {
             name,
-            arguments: enrichedArgs,
+            arguments: args,
           },
           undefined, // resultSchema
           {
@@ -671,7 +695,7 @@ export class TapTapMCPProxy {
             return new Promise((resolve, reject) => {
               this.pendingRequests.push({
                 name,
-                arguments: enrichedArgs,
+                arguments: args,
                 resolve,
                 reject,
                 timestamp: Date.now(),
