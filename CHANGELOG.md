@@ -1,3 +1,34 @@
+## 2.0.0 (2026-01-12)
+
+* fix(lint): resolve all ESLint unused variable warnings ([b4f68dd](https://github.com/taptap/taptap_minigame_open_mcp/commit/b4f68dd))
+* fix(server): normalize projectPath and improve token parsing error logging ([9a0b8ea](https://github.com/taptap/taptap_minigame_open_mcp/commit/9a0b8ea))
+* docs: update documentation for session context architecture ([be062f0](https://github.com/taptap/taptap_minigame_open_mcp/commit/be062f0))
+* docs(architecture): update cache system documentation ([723e464](https://github.com/taptap/taptap_minigame_open_mcp/commit/723e464))
+* docs(copilot): add dependency management guidelines ([c7de570](https://github.com/taptap/taptap_minigame_open_mcp/commit/c7de570))
+* refactor(app): update app management handlers and tool descriptions ([d7debf4](https://github.com/taptap/taptap_minigame_open_mcp/commit/d7debf4))
+* refactor(context): remove developer_id and app_id from private params ([2197ca2](https://github.com/taptap/taptap_minigame_open_mcp/commit/2197ca2))
+* refactor(h5game): simplify upload handlers and improve error messages ([73a0d96](https://github.com/taptap/taptap_minigame_open_mcp/commit/73a0d96))
+* feat(cache): use SHA256 hash for tenant isolation key ([2f680e0](https://github.com/taptap/taptap_minigame_open_mcp/commit/2f680e0))
+* feat(logger): enhance client connection logging with session context ([37100ea](https://github.com/taptap/taptap_minigame_open_mcp/commit/37100ea))
+* feat(proxy): add session headers injection for authentication ([eef6800](https://github.com/taptap/taptap_minigame_open_mcp/commit/eef6800))
+
+
+### BREAKING CHANGE
+
+* _developer_id and _app_id private parameters are removed
+
+- Remove _developer_id and _app_id from PrivateToolParams interface
+- Remove developerId and appId from ResolvedData and ResolvedContext
+- Update resolveApp() to only read from cache (no fallback to private params)
+- Update leaderboard/api.ts and share/api.ts to use ctx.resolveApp()
+- Update error messages to guide users to use select_app tool
+
+These fields should only be obtained via select_app tool which saves
+to cache. This simplifies the architecture and makes the data flow clearer.
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+
 ## 1.13.0 (2026-01-07)
 
 * fix(http): send empty JSON object for POST/PUT requests without body ([4133565](https://github.com/taptap/taptap_minigame_open_mcp/commit/4133565))
