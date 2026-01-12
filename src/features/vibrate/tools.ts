@@ -24,7 +24,7 @@ export const vibrateTools: ToolRegistration[] = [
         properties: {},
       },
     },
-    handler: async (args, context) => {
+    handler: async (_args, _context) => {
       return vibrateDocTools.getIntegrationWorkflow();
     },
   },

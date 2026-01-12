@@ -154,7 +154,7 @@ export function generateOverview(documentation: Documentation): string {
 
   doc += `## 📚 API Categories\n\n`;
 
-  for (const [key, category] of Object.entries(documentation.categories)) {
+  for (const [_key, category] of Object.entries(documentation.categories)) {
     doc += `### ${category.title}\n\n`;
     doc += `${category.description}\n\n`;
     doc += `**APIs:**\n`;

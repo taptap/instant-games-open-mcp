@@ -130,7 +130,7 @@ export const shareToolDefinitions: Tool[] = [
  */
 export const shareToolHandlers = [
   // get_share_integration_guide
-  async (args: any, context: ResolvedContext) => {
+  async (_args: unknown, _context: ResolvedContext) => {
     return shareTools.getIntegrationWorkflow();
   },
 
@@ -173,7 +173,7 @@ export const shareToolHandlers = [
   },
 
   // search_share_docs
-  async (args: { query: string }, context: ResolvedContext) => {
+  async (args: { query: string }, _context: ResolvedContext) => {
     return shareTools.searchShareDocs(args);
   },
 ];

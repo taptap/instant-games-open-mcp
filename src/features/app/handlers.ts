@@ -49,7 +49,7 @@ const MESSAGES = {
     `显示名称：${displayName}\n` +
     `App ID：${appId}\n` +
     `Developer ID：${devId}\n\n` +
-    `💡 **下一步**：您可以使用 \`select_app\` 选择此应用，然后开始开发功能（如排行榜）。`,
+    `✅ **已自动选中此应用**，可以直接进行后续操作（如上传游戏、创建排行榜等）。`,
   CREATE_GAME_FAILED: `❌ **创建应用失败**`,
   EDIT_GAME_INFO_CONFIRMATION: `⚠️ **参数缺失**\n\n请提供 developerId 和 appId 以更新应用信息。`,
   EDIT_GAME_INFO_SUCCESS: `✅ **更新应用信息成功！**`,
@@ -472,6 +472,10 @@ export async function checkEnvironment(ctx: ResolvedContext): Promise<string> {
 
 /**
  * Create a new app (General version)
+ *
+ * 设计说明：
+ * - 成功创建后自动调用 selectAppApi 选中新应用
+ * - 用户无需手动调用 select_app
  */
 export async function createApp(
   args: {
@@ -511,6 +515,14 @@ export async function createApp(
 
   const results = await createAppForDeveloper(developerId, args.appName, args.genre, ctx);
   if (results && results.app_id) {
+    // ✅ 自动选中新创建的应用（写入缓存）
+    try {
+      await selectAppApi(developerId, results.app_id, ctx.projectPath, ctx);
+    } catch (selectError) {
+      console.warn('Failed to auto-select newly created app:', selectError);
+      // 即使选中失败，也返回成功消息（用户可以手动选择）
+    }
+
     return MESSAGES.CREATE_GAME_SUCCESS(
       developerId,
       results.app_id,

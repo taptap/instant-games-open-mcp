@@ -248,7 +248,7 @@ _project_path = 'project-123/workspace'; // 相对路径，不做任何拼接
 }
 
 // 用户调用工具
-h5_game_uploader({ gamePath: "dist" })
+upload_h5_game({ gamePath: "dist" })
 
 // MCP Server 解析
 WORKSPACE_ROOT = "/data/tapcode/userspaces"

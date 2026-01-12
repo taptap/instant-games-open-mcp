@@ -259,6 +259,45 @@ Closes #123
 
 ---
 
+## Dependency Management
+
+### Installing Dependencies
+
+**IMPORTANT: Always use `npm ci` instead of `npm install` for installing dependencies.**
+
+| Command       | When to Use                                    |
+| ------------- | ---------------------------------------------- |
+| `npm ci`      | ✅ Installing dependencies (CI/review/testing) |
+| `npm install` | ❌ Avoid - modifies package-lock.json          |
+
+**Why?**
+
+- `npm ci` installs exact versions from `package-lock.json`
+- `npm ci` does NOT modify `package-lock.json`
+- `npm install` may update lock file based on npm version differences
+
+### Adding New Dependencies
+
+If you need to add a new dependency:
+
+```bash
+# Add production dependency
+npm install <package-name> --save
+
+# Add dev dependency
+npm install <package-name> --save-dev
+
+# Then commit both package.json AND package-lock.json together
+```
+
+### Rules
+
+1. **Never commit unrelated package-lock.json changes** - If lock file changes unexpectedly, discard those changes
+2. **Use `npm ci` for code review** - This preserves the existing lock file
+3. **Only modify lock file when intentionally updating dependencies**
+
+---
+
 ## Architecture Rules
 
 ### Module Dependencies

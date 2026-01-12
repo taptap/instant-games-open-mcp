@@ -157,6 +157,7 @@ bin/
 ### 代码内聚原则
 
 每个功能模块的所有代码都在一个目录中：
+
 - 不跨目录查找文件
 - 模块间通过 `core/` 和 `app/` 共享代码
 - 新增功能只需添加一个目录
@@ -172,20 +173,20 @@ import { leaderboardModule } from './features/leaderboard/index.js';
 
 const allModules = [
   appModule,
-  leaderboardModule
+  leaderboardModule,
   // 新增模块只需在这里添加
 ];
 
 // 自动注册所有 Tools
-allModules.forEach(module => {
-  module.tools.forEach(tool => {
+allModules.forEach((module) => {
+  module.tools.forEach((tool) => {
     server.setRequestHandler(CallToolRequestSchema, tool.handler);
   });
 });
 
 // 自动注册所有 Resources
-allModules.forEach(module => {
-  module.resources.forEach(resource => {
+allModules.forEach((module) => {
+  module.resources.forEach((resource) => {
     server.setRequestHandler(ReadResourceRequestSchema, resource.handler);
   });
 });
@@ -270,17 +271,17 @@ export const myTools: ToolRegistration[] = [
       inputSchema: {
         type: 'object',
         properties: {
-          param: { type: 'string' }
+          param: { type: 'string' },
         },
-        required: ['param']
-      }
+        required: ['param'],
+      },
     },
     handler: async (args: { param: string }, context) => {
       // 实现逻辑
       return 'Result...';
     },
-    requiresAuth: true  // 可选，是否需要认证
-  }
+    requiresAuth: true, // 可选，是否需要认证
+  },
 ];
 ```
 
@@ -314,8 +315,8 @@ export const myResources: ResourceRegistration[] = [
     handler: async () => {
       // 返回文档内容
       return '# API Documentation\n\n...';
-    }
-  }
+    },
+  },
 ];
 ```
 
@@ -387,10 +388,10 @@ handler: async (args: { page: number }, context: ResolvedContext) => {
   // 通过 context 获取认证和应用信息
   const token = context.resolveToken();
   const app = context.resolveApp();
-  
+
   // 简洁的业务逻辑
   return api.listLeaderboards(args, context);
-}
+};
 ```
 
 ### 双模式注入
@@ -437,21 +438,40 @@ Content-Type: application/json
 
 从 v1.4.1 开始，缓存系统完全独立于 workspace，支持只读挂载。
 
+### 缓存隔离策略（v1.14.0+）
+
+使用完整路径的 **SHA256 hash 前 12 位**作为租户 ID：
+
+```
+projectPath: /workspace/Documents/xindong/Repos/minigame_demo
+      ↓ SHA256
+tenantId: 0254720147bb
+      ↓
+cachePath: /tmp/taptap-mcp/cache/0254720147bb/app.json
+```
+
+**优势**：
+
+- 避免路径最后两层重复导致的冲突
+- 短小固定长度（12 字符）
+- 在缓存文件中保存原始路径元数据，便于调试
+
 ### 缓存目录结构
 
 ```bash
-# 全局缓存（无 _project_path）
+# 全局缓存（无 projectPath，stdio 本地模式）
 /tmp/taptap-mcp/cache/global/app.json
 
-# 租户缓存（通过 _project_path 隔离）
-/tmp/taptap-mcp/cache/{userId}/{projectId}/app.json
+# 租户缓存（通过 projectPath SHA256 隔离）
+/tmp/taptap-mcp/cache/{sha256-12}/app.json
+# 示例：/tmp/taptap-mcp/cache/0254720147bb/app.json
 ```
 
 ### 临时文件目录
 
 ```bash
 # H5 游戏压缩包等
-/tmp/taptap-mcp/temp/{userId}/{projectId}/game-{timestamp}.zip
+/tmp/taptap-mcp/temp/{sha256-12}/game-{timestamp}.zip
 ```
 
 ### 缓存内容
@@ -460,9 +480,14 @@ Content-Type: application/json
 
 ```json
 {
-  "developer_id": "123",
+  "_meta": {
+    "source_path": "/workspace/Documents/xindong/Repos/minigame_demo",
+    "tenant_id": "0254720147bb",
+    "created_at": 1736410800000
+  },
+  "developer_id": 123,
   "developer_name": "My Studio",
-  "app_id": "456",
+  "app_id": 456,
   "app_title": "My Game",
   "miniapp_id": "789"
 }
@@ -471,10 +496,10 @@ Content-Type: application/json
 ### 特性
 
 - ✅ **独立于 workspace** - 支持只读挂载
-- ✅ **自动缓存** - developer_id 和 app_id
-- ✅ **自动获取** - 通过 `/level/v1/list` API
-- ✅ **租户隔离** - 通过 _project_path 隔离数据
+- ✅ **SHA256 隔离** - 避免路径冲突
+- ✅ **元数据追溯** - 保存原始路径便于调试
 - ✅ **自动清理** - 临时文件上传后自动删除
+- ✅ **Session 级隔离** - 通过 Headers 传递 projectPath
 
 ### 环境变量配置
 
@@ -486,19 +511,32 @@ Content-Type: application/json
 ```typescript
 import { readAppCache, saveAppCache } from '../../core/utils/cache.js';
 
-// 读取缓存
+// 读取缓存（传入 projectPath 或 projectId）
 const cache = readAppCache(projectPath);
-// 返回: { developer_id, developer_name, app_id, app_title, miniapp_id } | null
+// 返回: { _meta, developer_id, developer_name, app_id, app_title, miniapp_id } | null
 
 // 保存缓存
-saveAppCache({
-  developer_id: '123',
-  developer_name: 'My Studio',
-  app_id: '456',
-  app_title: 'My Game',
-  miniapp_id: '789'
-}, projectPath);
+saveAppCache(
+  {
+    developer_id: 123,
+    developer_name: 'My Studio',
+    app_id: 456,
+    app_title: 'My Game',
+    miniapp_id: '789',
+  },
+  projectPath
+);
 ```
+
+### 数据流
+
+```
+select_app 工具 → saveAppCache() → 文件缓存
+                                      ↓
+ctx.resolveApp() ← readAppCache() ← 文件缓存
+```
+
+**注意**：`developer_id` 和 `app_id` 只能通过 `select_app` 工具设置，不再支持私有参数注入。
 
 ---
 
@@ -513,11 +551,13 @@ saveAppCache({
 ### 最佳实践
 
 1. **推荐使用绝对路径**
+
    ```typescript
-   path: '/Users/username/project/dist'
+   path: '/Users/username/project/dist';
    ```
 
 2. **相对路径需要 WORKSPACE_ROOT**
+
    ```json
    {
      "env": {
@@ -561,7 +601,7 @@ import { ensureAppInfo } from '../app/api.js';
 import { HttpClient } from '../../core/network/httpClient.js';
 
 // ❌ 错误：leaderboard 依赖 cloudSave
-import { saveGame } from '../cloudSave/api.js';  // 不允许
+import { saveGame } from '../cloudSave/api.js'; // 不允许
 ```
 
 ### 可复用的核心组件
@@ -613,15 +653,15 @@ const overview = generateOverview(documentation);
 
 当前项目统计：
 
-| 模块 | 文件数 | 代码行数 | 说明 |
-|------|-------|---------|------|
-| **app** | 4 | ~430 行 | 应用管理基础功能 |
-| **leaderboard** | 7 | ~1350 行 | 排行榜（已分离 app 操作）|
-| **h5Game** | 5 | ~600 行 | H5 游戏管理 |
-| **vibrate** | 6 | ~300 行 | 振动 API 文档 |
-| **core** | 10 | ~1100 行 | 共享核心代码 |
-| **server.ts** | 1 | ~450 行 | 主服务器（支持 SSE/HTTP）|
-| **总计** | **33** | **~4230 行** | |
+| 模块            | 文件数 | 代码行数     | 说明                      |
+| --------------- | ------ | ------------ | ------------------------- |
+| **app**         | 4      | ~430 行      | 应用管理基础功能          |
+| **leaderboard** | 7      | ~1350 行     | 排行榜（已分离 app 操作） |
+| **h5Game**      | 5      | ~600 行      | H5 游戏管理               |
+| **vibrate**     | 6      | ~300 行      | 振动 API 文档             |
+| **core**        | 10     | ~1100 行     | 共享核心代码              |
+| **server.ts**   | 1      | ~450 行      | 主服务器（支持 SSE/HTTP） |
+| **总计**        | **33** | **~4230 行** |                           |
 
 ### 架构优化成果
 
@@ -682,14 +722,11 @@ function generateMACAuth(
     host,
     port.toString(),
     '',
-    ''
+    '',
   ].join('\n');
 
   // HMAC-SHA1 签名
-  const mac = crypto
-    .createHmac('sha1', macToken.mac_key)
-    .update(baseString)
-    .digest('base64');
+  const mac = crypto.createHmac('sha1', macToken.mac_key).update(baseString).digest('base64');
 
   // 构建 Authorization header
   return `MAC id="${macToken.kid}", ts="${timestamp}", nonce="${nonce}", mac="${mac}"`;
@@ -716,25 +753,16 @@ function generateRequestSign(
 ): string {
   // 提取 x-tap-* headers 并排序
   const tapHeaders = Object.keys(headers)
-    .filter(k => k.toLowerCase().startsWith('x-tap-'))
+    .filter((k) => k.toLowerCase().startsWith('x-tap-'))
     .sort()
-    .map(k => `${k.toLowerCase()}:${headers[k]}`)
+    .map((k) => `${k.toLowerCase()}:${headers[k]}`)
     .join('\n');
 
   // 构建签名字符串
-  const signString = [
-    method.toUpperCase(),
-    url,
-    tapHeaders,
-    body,
-    ''
-  ].join('\n');
+  const signString = [method.toUpperCase(), url, tapHeaders, body, ''].join('\n');
 
   // HMAC-SHA256 签名
-  return crypto
-    .createHmac('sha256', clientSecret)
-    .update(signString)
-    .digest('hex');
+  return crypto.createHmac('sha256', clientSecret).update(signString).digest('hex');
 }
 ```
 
@@ -782,6 +810,7 @@ TapTap MCP Server 的架构设计具有以下特点：
 8. **OAuth 懒加载** - 零配置的认证体验
 
 更多信息请参考：
+
 - [开发指南](../CONTRIBUTING.md)
 - [MCP Proxy 开发指引](PROXY.md)
 - [路径解析说明](PATH_RESOLUTION.md)

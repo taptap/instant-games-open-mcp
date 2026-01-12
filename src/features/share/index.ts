@@ -2,9 +2,6 @@
  * Share Feature Module
  */
 
-import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import type { ResolvedContext } from '../../core/types/context.js';
-
 import { shareToolDefinitions, shareToolHandlers } from './tools.js';
 import { shareResourceDefinitions, shareResourceHandlers } from './resources.js';
 

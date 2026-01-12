@@ -550,12 +550,12 @@ const allModules = [..., yourFeatureModule];
 - `get_user_leaderboard_scores` - 获取用户分数数据
 - `get_app_status` - 获取应用审核状态
 
-**H5 游戏管理（4个）**
+**H5 游戏管理（2个）**
 
-- `h5_game_info_gatherer` - 收集 H5 游戏信息（上传前）
-- `h5_game_uploader` - 上传 H5 游戏包
-- `h5_create_app` - 创建新 H5 游戏应用
-- `h5_edit_app` - 编辑 H5 游戏信息
+- `prepare_h5_upload` - 收集 H5 游戏信息（上传前）
+- `upload_h5_game` - 上传 H5 游戏包
+
+> 注：创建/编辑应用请使用 `create_app` 和 `update_app_info` 工具（在应用管理分类中）
 
 **振动 API 文档（1个）**
 

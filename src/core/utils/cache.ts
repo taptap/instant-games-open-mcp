@@ -5,11 +5,16 @@
  * - workspace 目录：用户代码（只读挂载）
  * - 缓存目录：独立于 workspace，可写（通过环境变量配置）
  * - 租户隔离：通过 projectPath（租户标识符）隔离不同租户的缓存
+ *
+ * 缓存隔离策略（v1.14.0+）：
+ * - 使用完整路径的 SHA256 hash 前 12 位作为租户 ID
+ * - 避免了路径最后两层重复导致的冲突
+ * - 在缓存文件中保存原始路径元数据，便于调试
  */
 
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
+import * as crypto from 'node:crypto';
 import { EnvConfig } from './env.js';
 
 /**
@@ -63,9 +68,21 @@ export interface CachedLevelInfo {
 }
 
 /**
+ * 缓存元数据（用于调试和追溯）
+ */
+export interface CacheMetadata {
+  source_path: string; // 原始路径（用于调试）
+  tenant_id: string; // 计算出的租户 ID
+  created_at: number; // 首次创建时间
+}
+
+/**
  * Cached application information
  */
 export interface AppCacheInfo {
+  // 缓存元数据（v1.14.0+）
+  _meta?: CacheMetadata;
+
   // 基础标识信息 (Backward Compatibility)
   developer_id?: number;
   developer_name?: string;
@@ -88,51 +105,80 @@ export interface AppCacheInfo {
 }
 
 /**
+ * 计算路径的 SHA256 hash 前 12 位作为租户 ID
+ *
+ * 优点：
+ * - 相同路径永远得到相同的 hash（稳定性）
+ * - 不同路径几乎不可能冲突（SHA256 的 12 位 = 48 bit，冲突概率极低）
+ * - 路径变化时缓存自动失效（符合预期）
+ *
+ * @example
+ * "/Users/mikoto/projects/game-a" → "a1b2c3d4e5f6"
+ * "/Users/john/projects/game-a"   → "x7y8z9w0v1u2" (不同！)
+ */
+function computeTenantId(fullPath: string): string {
+  const hash = crypto.createHash('sha256').update(fullPath).digest('hex');
+  return hash.substring(0, 12);
+}
+
+/**
+ * 获取隔离 key（用于计算租户 ID）
+ *
+ * 优先级：
+ * 1. projectPath（SSE + Proxy 模式，由 Proxy 注入）
+ * 2. workspaceRoot（stdio / SSE 直连模式，从环境变量或 cwd 获取）
+ */
+function getIsolationKey(projectPath?: string): string {
+  return projectPath || EnvConfig.workspaceRoot;
+}
+
+/**
  * Get cache file path for minigame leaderboard
  *
- * 设计说明：
- * - projectPath 现在是租户标识符（如 "/workspace/user-123/project-456" 或 "user-123/project-456"）
- * - 缓存文件存储在独立的缓存目录，不在 workspace 中
- * - 支持绝对路径和相对路径（自动提取租户部分）
+ * 设计说明（v1.14.0+）：
+ * - 使用完整路径的 SHA256 hash 前 12 位作为租户 ID
+ * - 避免了路径最后两层重复导致的冲突
+ * - 缓存隔离策略：
+ *   1. SSE + Proxy 模式：使用 projectPath（由 Proxy 注入的租户标识符）
+ *   2. stdio / SSE 直连模式：使用 workspaceRoot（项目根目录）
  *
- * @param projectPath - 租户标识符（绝对路径或相对路径）
+ * @param projectPath - 租户标识符（SSE+Proxy 模式由 Proxy 注入）
  * @returns 缓存文件的绝对路径
  *
  * @example
  * ```typescript
- * // 绝对路径（Proxy 传入）
- * getCachePath('/workspace/user-123/project-456')
- * // => '/tmp/taptap-mcp/cache/user-123/project-456/app.json'
- *
- * // 相对路径（向后兼容）
+ * // SSE + Proxy 模式：使用 projectPath
  * getCachePath('user-123/project-456')
- * // => '/tmp/taptap-mcp/cache/user-123/project-456/app.json'
+ * // => '/tmp/taptap-mcp/cache/a1b2c3d4e5f6/app.json'
  *
- * // 全局缓存
+ * // stdio / SSE 直连模式：使用 workspaceRoot
+ * // workspaceRoot = '/Users/mikoto/projects/game-a'
  * getCachePath()
- * // => '/tmp/taptap-mcp/cache/global/app.json'
+ * // => '/tmp/taptap-mcp/cache/x7y8z9w0v1u2/app.json'
+ *
+ * // 不同用户，相同项目名，不会冲突
+ * // /Users/john/projects/game-a → 不同的 hash
  * ```
  */
 export function getCachePath(projectPath?: string): string {
-  if (projectPath) {
-    // 提取租户标识符（去除 workspace 前缀）
-    let tenantId: string;
+  const isolationKey = getIsolationKey(projectPath);
+  const tenantId = computeTenantId(isolationKey);
+  return path.join(CACHE_ROOT, tenantId, 'app.json');
+}
 
-    if (path.isAbsolute(projectPath)) {
-      // 绝对路径：提取最后两层（userId/projectId）
-      const parts = projectPath.split(path.sep).filter(Boolean);
-      tenantId = parts.slice(-2).join(path.sep);
-    } else {
-      // 相对路径：直接使用
-      tenantId = projectPath;
-    }
+/**
+ * 获取当前的租户 ID（用于日志和调试）
+ */
+export function getTenantId(projectPath?: string): string {
+  const isolationKey = getIsolationKey(projectPath);
+  return computeTenantId(isolationKey);
+}
 
-    // 缓存路径：CACHE_ROOT/tenantId/app.json
-    return path.join(CACHE_ROOT, tenantId, 'app.json');
-  } else {
-    // 全局缓存
-    return path.join(CACHE_ROOT, 'global', 'app.json');
-  }
+/**
+ * 获取隔离 key 的原始值（用于元数据）
+ */
+export function getIsolationKeyValue(projectPath?: string): string {
+  return getIsolationKey(projectPath);
 }
 
 /**
@@ -163,10 +209,17 @@ export function readAppCache(projectPath?: string): AppCacheInfo | null {
 
 /**
  * Save app information to cache
+ *
+ * 自动添加元数据用于调试：
+ * - source_path: 原始隔离 key
+ * - tenant_id: 计算出的租户 ID（hash）
+ * - created_at: 首次创建时间
  */
 export function saveAppCache(info: AppCacheInfo, projectPath?: string): void {
   const cachePath = getCachePath(projectPath);
   const cacheDir = path.dirname(cachePath);
+  const isolationKey = getIsolationKey(projectPath);
+  const tenantId = computeTenantId(isolationKey);
 
   try {
     // Ensure directory exists
@@ -174,8 +227,24 @@ export function saveAppCache(info: AppCacheInfo, projectPath?: string): void {
       fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    // Add timestamp
+    // 读取现有缓存以保留 created_at
+    let existingMeta: CacheMetadata | undefined;
+    if (fs.existsSync(cachePath)) {
+      try {
+        const existing = JSON.parse(fs.readFileSync(cachePath, 'utf8')) as AppCacheInfo;
+        existingMeta = existing._meta;
+      } catch {
+        // 忽略读取错误
+      }
+    }
+
+    // 构建缓存数据（包含元数据）
     const cacheData: AppCacheInfo = {
+      _meta: {
+        source_path: isolationKey,
+        tenant_id: tenantId,
+        created_at: existingMeta?.created_at || Date.now(),
+      },
       ...info,
       cached_at: Date.now(),
     };
