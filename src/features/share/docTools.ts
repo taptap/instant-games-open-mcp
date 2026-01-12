@@ -5,7 +5,6 @@
 
 import {
   generateAPIDoc,
-  generateCategoryDoc,
   searchDocumentation,
   generateOverview,
   generateSearchSuggestions,

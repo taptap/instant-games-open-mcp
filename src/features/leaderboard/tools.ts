@@ -25,7 +25,7 @@ export const leaderboardTools: ToolRegistration[] = [
         properties: {},
       },
     },
-    handler: async (args, context) => {
+    handler: async (_args, _context) => {
       return leaderboardDocTools.getIntegrationWorkflow();
     },
   },
