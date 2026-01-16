@@ -50,6 +50,13 @@ module.exports = {
       '@semantic-release/commit-analyzer',
       {
         preset: 'conventionalcommits',
+        // 🔒 禁用 Footer 中的 BREAKING CHANGE 识别
+        // 只识别 Header 中的 ! 标记（如 feat!:, fix!:）
+        // 这样可以防止意外触发 major 版本更新
+        // Footer 中的 BREAKING CHANGE: 不再触发 major，但 Header 中的 ! 仍然有效
+        parserOpts: {
+          noteKeywords: ['MANUAL-BREAKING-CHANGE-DO-NOT-USE']
+        },
         releaseRules: [
           { type: 'feat', release: 'minor' },
           { type: 'fix', release: 'patch' },
