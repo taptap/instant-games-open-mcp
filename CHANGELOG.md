@@ -1,3 +1,11 @@
+## <small>1.14.1 (2026-01-23)</small>
+
+* docs: update plan to add missing proxy config documentation ([7b29004](https://github.com/taptap/taptap_minigame_open_mcp/commit/7b29004))
+* docs(proxy): add missing configuration options documentation ([05f4f8a](https://github.com/taptap/taptap_minigame_open_mcp/commit/05f4f8a))
+* fix(proxy): inject private params on every tool call for MCP Server compatibility ([b4718c9](https://github.com/taptap/taptap_minigame_open_mcp/commit/b4718c9))
+
+
+
 ## 1.14.0 (2026-01-16)
 
 * chore(release): disable BREAKING CHANGE detection in commit footer ([48ae5fb](https://github.com/taptap/taptap_minigame_open_mcp/commit/48ae5fb))
