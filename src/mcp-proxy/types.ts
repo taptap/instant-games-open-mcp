@@ -98,6 +98,17 @@ export interface ProxyConfig {
      * 确保同一 Proxy 的所有请求被路由到同一个 MCP Server Pod
      */
     enable_cookie_sticky?: boolean;
+    /**
+     * 每次工具调用时也注入私有参数（默认 true）
+     *
+     * 私有参数（_mac_token, _user_id, _project_id, _project_path）会在两个时机传递：
+     * 1. 初始化连接时：始终通过 HTTP Headers 传递（不受此配置影响）
+     * 2. 每次工具调用时：通过工具参数注入（由此配置控制）
+     *
+     * 为兼容不同的 MCP Server 实现，默认每次调用都注入。
+     * 如果目标 Server 支持从 Session 获取这些参数，可设置为 false 以减少数据传输量。
+     */
+    inject_params_per_call?: boolean;
     /** 日志配置 */
     log?: LogConfig;
   };

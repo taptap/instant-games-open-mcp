@@ -197,6 +197,38 @@ export class TapTapMCPProxy {
   }
 
   /**
+   * 注入私有参数到工具调用参数中
+   *
+   * 私有参数已在初始化连接时通过 Headers 传递，此方法用于在每次工具调用时
+   * 也注入这些参数，以兼容不支持从 Session 获取参数的 MCP Server。
+   *
+   * 注入的参数（以下划线开头，表示私有）：
+   * - _mac_token: MAC 认证令牌
+   * - _user_id: 用户标识（可选）
+   * - _project_id: 项目标识（可选）
+   * - _project_path: 项目路径（可选）
+   */
+  private injectPrivateParams(args: Record<string, unknown> | undefined): Record<string, unknown> {
+    const injected: Record<string, unknown> = { ...(args || {}) };
+
+    // 注入 MAC Token（必需）
+    injected._mac_token = this.config.auth;
+
+    // 注入可选的会话上下文参数
+    if (this.config.tenant.user_id) {
+      injected._user_id = this.config.tenant.user_id;
+    }
+    if (this.config.tenant.project_id) {
+      injected._project_id = this.config.tenant.project_id;
+    }
+    if (this.config.tenant.project_path) {
+      injected._project_path = this.config.tenant.project_path;
+    }
+
+    return injected;
+  }
+
+  /**
    * 连接到 TapTap MCP Server
    */
   private async connectToServer(): Promise<void> {
@@ -631,14 +663,16 @@ export class TapTapMCPProxy {
       return result;
     });
 
-    // 拦截 tools/call - 直接透传（参数已在 Session 创建时通过 Headers 传递）
+    // 拦截 tools/call - 注入私有参数后转发
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
+      // 根据配置决定是否在每次调用时注入私有参数（默认注入，兼容不同 MCP Server）
+      const shouldInjectParams = this.config.options?.inject_params_per_call ?? true;
+      const finalArgs = shouldInjectParams ? this.injectPrivateParams(args) : args;
+
       if (this.config.options?.verbose) {
-        this.log('debug', `Tool call: ${name}`);
-        // 注意：MAC Token 和其他参数已在 Session 创建时通过 Headers 传递
-        // 无需每次工具调用都注入，减少数据传输量
+        this.log('debug', `Tool call: ${name} (inject_params_per_call: ${shouldInjectParams})`);
       }
 
       // 检查连接状态
@@ -650,7 +684,7 @@ export class TapTapMCPProxy {
           return new Promise((resolve, reject) => {
             this.pendingRequests.push({
               name,
-              arguments: args,
+              arguments: finalArgs,
               resolve,
               reject,
               timestamp: Date.now(),
@@ -665,12 +699,12 @@ export class TapTapMCPProxy {
         );
       }
 
-      // 透传到 TapTap Server（捕获网络错误并触发重连）
+      // 转发到 TapTap Server（捕获网络错误并触发重连）
       try {
         const result = await this.client.callTool(
           {
             name,
-            arguments: args,
+            arguments: finalArgs,
           },
           undefined, // resultSchema
           {
@@ -695,7 +729,7 @@ export class TapTapMCPProxy {
             return new Promise((resolve, reject) => {
               this.pendingRequests.push({
                 name,
-                arguments: args,
+                arguments: finalArgs,
                 resolve,
                 reject,
                 timestamp: Date.now(),
