@@ -6,19 +6,19 @@
 import type { Documentation } from '../../core/utils/docHelpers.js';
 
 /**
- * 激励视频广告管理器（核心实现）
- * 基于 /Volumes/Q/MiniGame/Mcp/TestAds/app/js/AdManager.js 优化
+ * 生成 AdManager 代码（支持动态广告位 ID）
+ * @param spaceId - 广告位ID（从服务器获取）
+ * @returns AdManager 完整源码
  */
-export const AD_MANAGER_CORE_CODE = `/**
+export function getAdManagerCode(spaceId: string): string {
+  return `/**
  * TapTap 广告管理器
  *
  * 核心功能：激励视频广告（Rewarded Video）
  * 额外功能：插屏广告（Interstitial）、Banner 广告（可选）
  *
- * 广告位 ID（固定）：
- * - 激励视频：1051264
- * - 插屏广告：1051272
- * - Banner 广告：1051269
+ * 广告位 ID（从 TapTap 开放平台获取）：
+ * - 激励视频/插屏/Banner：${spaceId}
  *
  * 重要机制：
  * - 激励视频和插屏广告：播放完会自动加载下一个广告，无需手动 load()
@@ -27,13 +27,12 @@ export const AD_MANAGER_CORE_CODE = `/**
 
 class TapAdManager {
   constructor() {
-    // 广告位 ID（初始化时获取）
-    this.rewardedVideoAdId = null;
-    this.interstitialAdId = null;
-    this.bannerAdId = null;
+    // 广告位 ID（从 TapTap 后台获取）
+    this.spaceId = '${spaceId}';
 
     // 广告实例
     this.rewardedVideoAd = null;
+    this.interstitialAd = null;
     this.bannerAd = null;
 
     // 用户绑定的奖励回调
@@ -52,11 +51,6 @@ class TapAdManager {
       throw new Error('TapTap SDK 未加载，请在 TapTap 环境中运行');
     }
 
-    // 获取广告位 ID
-    console.log('[AdManager] 正在获取广告位配置...');
-    await this._fetchAdUnitIds();
-    console.log('[AdManager] 广告位配置获取成功');
-
     // 初始化激励视频广告
     this._initRewardedVideo();
 
@@ -64,22 +58,6 @@ class TapAdManager {
     this._initInterstitial();
 
     console.log('[AdManager] 初始化完成');
-  }
-
-  /**
-   * 获取广告位 ID（内部方法）
-   * @private
-   */
-  async _fetchAdUnitIds() {
-    // 模拟异步请求
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        this.rewardedVideoAdId = '1051264';  // 激励视频
-        this.interstitialAdId = '1051272';   // 插屏
-        this.bannerAdId = '1051269';         // Banner
-        resolve();
-      }, 100);
-    });
   }
 
   /**
@@ -157,7 +135,7 @@ class TapAdManager {
     }
 
     this.bannerAd = tap.createBannerAd({
-      adUnitId: this.bannerAdId,
+      adUnitId: this.spaceId,
       style: style,
       adIntervals: 30,  // 30 秒轮播
     });
@@ -243,11 +221,11 @@ class TapAdManager {
    * 初始化激励视频广告
    */
   _initRewardedVideo() {
-    console.log('[AdManager] 初始化激励视频，广告位 ID:', this.rewardedVideoAdId);
+    console.log('[AdManager] 初始化激励视频，广告位 ID:', this.spaceId);
 
     // 创建激励视频广告实例（只创建一次）
     this.rewardedVideoAd = tap.createRewardedVideoAd({
-      adUnitId: this.rewardedVideoAdId
+      adUnitId: this.spaceId
     });
 
     // 监听加载成功
@@ -299,11 +277,11 @@ class TapAdManager {
    * 初始化插屏广告
    */
   _initInterstitial() {
-    console.log('[AdManager] 初始化插屏广告，广告位 ID:', this.interstitialAdId);
+    console.log('[AdManager] 初始化插屏广告，广告位 ID:', this.spaceId);
 
     // 创建插屏广告实例（只创建一次）
     this.interstitialAd = tap.createInterstitialAd({
-      adUnitId: this.interstitialAdId
+      adUnitId: this.spaceId
     });
 
     // 监听加载成功
@@ -337,6 +315,15 @@ class TapAdManager {
 // 导出单例
 const adManager = new TapAdManager();
 `;
+}
+
+/**
+ * 激励视频广告管理器（核心实现）
+ * 基于 /Volumes/Q/MiniGame/Mcp/TestAds/app/js/AdManager.js 优化
+ *
+ * @deprecated 使用 getAdManagerCode(spaceId) 代替
+ */
+export const AD_MANAGER_CORE_CODE = getAdManagerCode('请先调用 check_ads_status 获取广告位ID');
 
 /**
  * 激励视频广告使用示例（核心）

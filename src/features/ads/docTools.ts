@@ -4,17 +4,46 @@
  */
 
 import {
-  AD_MANAGER_CORE_CODE,
+  getAdManagerCode,
   REWARDED_VIDEO_EXAMPLES,
   INTERSTITIAL_EXAMPLES,
   BANNER_EXAMPLES,
 } from './docs.js';
+import { getSpaceIdFromCache } from './handlers.js';
+import type { ResolvedContext } from '../../core/types/index.js';
 
 /**
  * 获取完整的广告接入指南
  * 默认重点展示激励视频广告，其他广告作为额外内容
+ *
+ * @param ctx - ResolvedContext（用于读取缓存的广告位ID）
+ * @returns 完整的广告接入指南文档
  */
-async function getAdIntegrationGuide(): Promise<string> {
+async function getAdIntegrationGuide(ctx: ResolvedContext): Promise<string> {
+  // 从缓存读取广告位 ID
+  const spaceId = getSpaceIdFromCache(ctx);
+
+  if (!spaceId) {
+    return `❌ **无法生成广告接入指南**
+
+请先完成以下步骤：
+
+1. 确保已选择应用（调用 \`get_current_app_info\` 检查）
+2. 调用 \`check_ads_status\` 检查广告功能状态
+3. 如果状态为"已生效"，广告位 ID 会自动缓存
+4. 然后再次调用本工具获取接入指南
+
+**当前问题：** 缓存中未找到有效的广告位 ID，可能原因：
+- 广告功能尚未开通（状态非"已生效"）
+- 未调用 \`check_ads_status\` 工具
+- 应用未选择
+
+请先调用 \`check_ads_status\` 工具。`;
+  }
+
+  // 生成 AdManager 代码（使用实际的 space_id）
+  const adManagerCode = getAdManagerCode(spaceId);
+
   return `# 🎮 TapTap 小游戏广告接入指南
 
 ## 📌 核心理念
@@ -24,6 +53,7 @@ async function getAdIntegrationGuide(): Promise<string> {
 - ✅ 使用封装好的 AdManager 工具类
 - ✅ 核心功能：激励视频广告（最常用）
 - ✅ 额外功能：插屏广告、Banner 广告（可选）
+- ✅ **你的广告位 ID：\`${spaceId}\`**（已自动配置到代码中）
 
 ---
 
@@ -34,6 +64,8 @@ async function getAdIntegrationGuide(): Promise<string> {
 #### 步骤 1️⃣：复制 AdManager.js 到项目
 
 将下面的 AdManager.js 代码复制到你的项目中（如 \`js/AdManager.js\`）
+
+**注意：广告位 ID（${spaceId}）已经内置到代码中，无需手动修改。**
 
 #### 步骤 2️⃣：在游戏启动时初始化
 
@@ -67,7 +99,7 @@ function onGetCoinsButtonClick() {
 ### 📦 AdManager.js 完整源码
 
 \`\`\`javascript
-${AD_MANAGER_CORE_CODE}
+${adManagerCode}
 \`\`\`
 
 ---
@@ -244,6 +276,108 @@ function showCoinsAd() {
 `;
 }
 
+/**
+ * 获取广告接入完整工作流指引
+ * 无需认证、无前置条件，作为 AI 的入口工具返回文本
+ *
+ * @returns 完整的广告接入工作流指引
+ */
+function getAdsIntegrationWorkflow(): string {
+  return `# TapTap 广告接入完整工作流
+
+## ⚠️ 核心原则
+
+**任何广告相关操作之前，必须先检查广告 SDK 状态。**
+
+广告状态会缓存在本地，若本地无缓存则需查询服务器。
+状态为"未开通"或"审核中"时，用户可主动要求重新查询以获取最新状态。
+
+---
+
+## 📋 完整步骤
+
+### 步骤 1: 确认应用已选择
+
+**工具**：\`get_current_app_info\`
+
+检查当前是否已选择应用。如果未选择：
+1. 调用 \`list_developers_and_apps\` 获取应用列表
+2. 展示列表并让用户选择
+3. 调用 \`select_app\` 确认选择
+
+### 步骤 2: 检查广告 SDK 状态（必须！）
+
+**工具**：\`check_ads_status\`
+
+此工具会自动执行以下逻辑：
+- 读取本地缓存中的广告状态
+- 若无缓存，自动查询服务器并更新本地缓存
+- 返回当前状态及处理指引
+
+**根据状态执行不同动作：**
+
+| 状态码 | 状态 | AI 应执行的动作 |
+|--------|------|----------------|
+| 0 | 未开通 | 展示开通链接，**阻止**继续接入。告知用户开通后可再次调用 \`check_ads_status\` 刷新状态 |
+| 1 | 资料审核中 | 展示等待信息，**阻止**继续接入。告知用户审核通过后可再次调用 \`check_ads_status\` 刷新状态 |
+| 2 | 已生效 | ✅ 检查是否同时获取到有效的广告位 ID（space_id），两者同时满足后继续步骤 3 |
+| 3 | 已封禁 | 展示封禁警告，**立即阻止**所有后续操作 |
+
+**重要：** 状态为"已生效"时，还必须确认 space_id 有效（非空）。
+如果状态已生效但 space_id 为空，说明服务端异常，应提示用户稍后重试。
+
+### 步骤 3: 获取广告接入代码指南
+
+**工具**：\`get_ad_integration_guide\`
+
+**前提条件（两个必须同时满足）：**
+1. ✅ 广告状态为"已生效"（status === 2）
+2. ✅ 广告位 ID（space_id）有效（非空字符串）
+
+此工具会：
+- 从缓存读取 space_id
+- 生成带有真实广告位 ID 的完整 AdManager.js 源码
+- 提供激励视频广告（核心）+ 插屏/Banner（可选）的接入代码和示例
+
+---
+
+## 🔄 状态刷新机制
+
+当广告状态为"未开通"或"审核中"时，用户可能在开发者后台完成操作后
+想要刷新状态。此时用户只需说"重新检查广告状态"或类似话语，
+AI 应再次调用 \`check_ads_status\` 工具（该工具会强制重新查询服务器并更新缓存）。
+
+**不要自动轮询**，始终由用户主动触发刷新。
+
+---
+
+## ✅ 流程图
+
+\`\`\`
+用户提出广告相关需求
+    ↓
+[步骤1] 检查应用是否已选择
+    ↓
+[步骤2] 调用 check_ads_status 检查广告状态
+    ↓
+  状态 0 (未开通) → 展示开通链接，等待用户操作后主动刷新
+  状态 1 (审核中) → 展示等待信息，等待用户操作后主动刷新
+  状态 2 (已生效) → 检查 space_id 是否有效
+      ├── space_id 有效 → [步骤3] 调用 get_ad_integration_guide
+      └── space_id 无效 → 提示服务端异常，稍后重试
+  状态 3 (已封禁) → 展示警告，阻止所有操作
+\`\`\`
+
+## 📝 注意事项
+
+- 客户端无需安装 SDK，tap 是全局对象
+- 不要搜索网页，所有文档由 \`get_ad_integration_guide\` 工具提供
+- 广告代码中不使用 Promise 风格，遵循 demo 回调模式
+- 核心关注激励视频广告，插屏和 Banner 为可选内容
+`;
+}
+
 export const adsTools = {
-  getAdIntegrationGuide,
+  getAdIntegrationGuide: getAdIntegrationGuide,
+  getAdsIntegrationWorkflow,
 };

@@ -15,16 +15,19 @@ import { adsResources } from './resources.js';
  * Provides both tools and resources with enhanced descriptions
  * Tools are prioritized - AI should use tools instead of searching the web
  * Resources provide additional documentation access
+ *
+ * 工具认证需求：
+ * - get_ads_integration_workflow: 无需认证（返回静态工作流文本）
+ * - check_ads_status: 需要认证（查询服务器）
+ * - get_ad_integration_guide: 无需认证（从缓存读取 + 生成文档）
  */
 export const adsModule: FeatureModule = {
   name: 'ads',
 
-  // Tools with explicit "DO NOT search the web" instructions
-  // AI should call these tools instead of searching the internet
   tools: adsTools_Registration.map((tool) => ({
     definition: tool.definition,
     handler: tool.handler,
-    requiresAuth: false, // Ads tools don't require authentication (pure documentation)
+    requiresAuth: tool.definition.name === 'check_ads_status',
   })),
 
   // Resources with their handlers (unified format)
