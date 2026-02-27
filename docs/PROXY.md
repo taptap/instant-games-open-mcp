@@ -461,7 +461,7 @@ class TapTapMCPProxy {
 
       // 1. 识别用户（你需要实现）
       const userId = this.getUserId(request);
-      const tenantId = this.getTenantId(request);
+      const projectId = this.getProjectId(request);
       const projectPath = this.getProjectPath(request);
 
       // 2. 获取 MAC Token（从你的存储系统）
@@ -1402,7 +1402,7 @@ interface ProxyConfig {
   tenant: {
     user_id: string; // 用户 ID（TapCode 用户标识）
     project_id: string; // 项目 ID（TapCode 项目标识）
-    project_path?: string; // 项目路径（Docker 中的挂载点，默认 /workspace）
+    project_path?: string; // 项目路径（相对于 MCP Server WORKSPACE_ROOT，默认 '.'）
     custom_fields?: Record<string, string>; // 业务自定义字段（透传到 Server）
   };
   auth: {

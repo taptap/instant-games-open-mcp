@@ -117,7 +117,12 @@ function validateConfig(config: ProxyConfig): void {
     // custom_fields 必须是 plain object（非 array、非 null），且所有 value 为 string
     if (config.tenant.custom_fields !== undefined) {
       const cf = config.tenant.custom_fields;
-      if (typeof cf !== 'object' || cf === null || Array.isArray(cf)) {
+      if (
+        typeof cf !== 'object' ||
+        cf === null ||
+        Array.isArray(cf) ||
+        Object.getPrototypeOf(cf) !== Object.prototype
+      ) {
         errors.push('- tenant.custom_fields must be a plain object (Record<string, string>)');
       } else if (!Object.values(cf).every((v) => typeof v === 'string')) {
         errors.push('- tenant.custom_fields values must all be strings');

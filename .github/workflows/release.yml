@@ -28,7 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'workflow_dispatch' ||
-      (!contains(github.event.head_commit.message, '[skip ci]') &&
+      (github.event.head_commit != null &&
+       !contains(github.event.head_commit.message, '[skip ci]') &&
        github.event.head_commit.author.name != 'github-actions[bot]')
     outputs:
       should_release: ${{ steps.analyze.outputs.should_release }}
