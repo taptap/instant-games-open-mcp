@@ -193,6 +193,14 @@ export class TapTapMCPProxy {
     // 认证令牌（JSON 序列化）
     headers['X-TapTap-Mac-Token'] = JSON.stringify(this.config.auth);
 
+    // 业务自定义字段（JSON 序列化）
+    if (
+      this.config.tenant.custom_fields &&
+      Object.keys(this.config.tenant.custom_fields).length > 0
+    ) {
+      headers['X-TapTap-Custom-Fields'] = JSON.stringify(this.config.tenant.custom_fields);
+    }
+
     return headers;
   }
 
@@ -223,6 +231,14 @@ export class TapTapMCPProxy {
     }
     if (this.config.tenant.project_path) {
       injected._project_path = this.config.tenant.project_path;
+    }
+
+    // 注入业务自定义字段
+    if (
+      this.config.tenant.custom_fields &&
+      Object.keys(this.config.tenant.custom_fields).length > 0
+    ) {
+      injected._custom_fields = this.config.tenant.custom_fields;
     }
 
     return injected;

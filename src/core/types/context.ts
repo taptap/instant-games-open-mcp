@@ -29,6 +29,7 @@ import { EnvConfig } from '../utils/env.js';
  *    - X-TapTap-Project-Id
  *    - X-TapTap-Project-Path
  *    - X-TapTap-Mac-Token（JSON 序列化）
+ *    - X-TapTap-Custom-Fields（JSON 序列化，业务自定义字段）
  * 2. URL 参数（SSE 直连兼容）：
  *    - ?user_id=xxx&project_id=xxx&project_path=xxx
  */
@@ -38,6 +39,8 @@ export interface SessionContext {
   projectPath?: string;
   sessionId?: string;
   macToken?: MacToken;
+  /** 业务自定义字段（由 Proxy 透传） */
+  customFields?: Record<string, string>;
 }
 
 /**
@@ -82,6 +85,7 @@ interface ResolvedData {
   projectPath?: string;
   sessionId?: string;
   macToken?: MacToken;
+  customFields?: Record<string, string>;
 }
 
 /**
@@ -133,6 +137,7 @@ export class ResolvedContext {
       sessionId: args._session_id || session.sessionId,
       macToken:
         args._mac_token?.kid && args._mac_token?.mac_key ? args._mac_token : session.macToken,
+      customFields: args._custom_fields || session.customFields,
     };
   }
 
@@ -169,6 +174,11 @@ export class ResolvedContext {
   /** 获取 MAC Token（不解析文件，只返回 context 中的） */
   get macToken(): MacToken | undefined {
     return this._data.macToken;
+  }
+
+  /** 获取业务自定义字段 */
+  get customFields(): Record<string, string> | undefined {
+    return this._data.customFields;
   }
 
   // ========================================================================

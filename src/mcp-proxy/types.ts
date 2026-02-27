@@ -73,6 +73,12 @@ export interface ProxyConfig {
     user_id?: string;
     /** 项目标识符（可选，仅用于日志追踪和标识） */
     project_id?: string;
+    /**
+     * 业务自定义字段（可选）
+     * 透传到 MCP Server，用于业务层追踪、路由、标记等场景
+     * @example { "team": "game-studio-a", "env": "staging", "trace_id": "abc-123" }
+     */
+    custom_fields?: Record<string, string>;
   };
 
   /** 认证配置（MAC Token） */
@@ -101,7 +107,7 @@ export interface ProxyConfig {
     /**
      * 每次工具调用时也注入私有参数（默认 true）
      *
-     * 私有参数（_mac_token, _user_id, _project_id, _project_path）会在两个时机传递：
+     * 私有参数（_mac_token, _user_id, _project_id, _project_path, _custom_fields）会在两个时机传递：
      * 1. 初始化连接时：始终通过 HTTP Headers 传递（不受此配置影响）
      * 2. 每次工具调用时：通过工具参数注入（由此配置控制）
      *
