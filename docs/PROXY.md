@@ -145,7 +145,7 @@ MCP Proxy 直接在 `arguments` 中注入私有参数：
         "mac_algorithm": "hmac-sha-1"
       },
       "_user_id": "user_12345",
-      "_tenant_id": "project_a",
+      "_project_id": "project_a",
       "_project_path": "/workspace/project_a",
       "_custom_fields": {
         "team": "game-studio-a",
@@ -475,7 +475,7 @@ class TapTapMCPProxy {
         ...args,
         _mac_token: macToken,
         _user_id: userId,
-        _tenant_id: tenantId,
+        _project_id: projectId,
         _project_path: projectPath,
       };
 
@@ -685,14 +685,14 @@ TAPTAP_MCP_VERBOSE=true TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3001 node mcp-s
 
 #### Q2: 多租户是如何隔离的？
 
-TapTap MCP Server 根据 `_user_id` 和 `_tenant_id` 自动隔离缓存和临时文件：
+TapTap MCP Server 根据 `_user_id` 和 `_project_id` 自动隔离缓存和临时文件：
 
 ```
 /tmp/taptap-mcp/cache/user_123/project_a/app.json
 /tmp/taptap-mcp/cache/user_456/project_b/app.json
 ```
 
-#### Q3: 必须传 `_tenant_id` 吗？
+#### Q3: 必须传 `_project_id` 吗？
 
 不是必需的。如果不传，会使用 `global` 目录：
 
@@ -1402,8 +1402,7 @@ interface ProxyConfig {
   tenant: {
     user_id: string; // 用户 ID（TapCode 用户标识）
     project_id: string; // 项目 ID（TapCode 项目标识）
-    project_path?: string; // Docker 中的挂载点（默认 /workspace）
-    project_path?: string; // 项目相对于 workspace 的路径（推荐）
+    project_path?: string; // 项目路径（Docker 中的挂载点，默认 /workspace）
     custom_fields?: Record<string, string>; // 业务自定义字段（透传到 Server）
   };
   auth: {

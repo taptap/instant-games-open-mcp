@@ -113,6 +113,16 @@ function validateConfig(config: ProxyConfig): void {
   } else {
     // tenant 字段本身必须存在，但内部所有字段都是可选的
     // user_id 和 project_id 仅用于标识和日志追踪，不影响路径逻辑
+
+    // custom_fields 必须是 plain object（非 array、非 null），且所有 value 为 string
+    if (config.tenant.custom_fields !== undefined) {
+      const cf = config.tenant.custom_fields;
+      if (typeof cf !== 'object' || cf === null || Array.isArray(cf)) {
+        errors.push('- tenant.custom_fields must be a plain object (Record<string, string>)');
+      } else if (!Object.values(cf).every((v) => typeof v === 'string')) {
+        errors.push('- tenant.custom_fields values must all be strings');
+      }
+    }
   }
 
   // 验证 auth

@@ -606,7 +606,7 @@ class TapTapMinigameMCPServer {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader(
         'Access-Control-Allow-Headers',
-        'Content-Type, Mcp-Session-Id, X-TapTap-Mac-Token, X-TapTap-User-Id, X-TapTap-Project-Id, X-TapTap-Custom-Fields'
+        'Content-Type, Mcp-Session-Id, X-TapTap-Mac-Token, X-TapTap-User-Id, X-TapTap-Project-Id, X-TapTap-Project-Path, X-TapTap-Custom-Fields'
       );
 
       if (req.method === 'OPTIONS') {
