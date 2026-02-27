@@ -1,3 +1,15 @@
+## 1.15.0 (2026-02-27)
+
+* ci(release): add workflow_dispatch for manual trigger ([8f570ac](https://github.com/taptap/taptap_minigame_open_mcp/commit/8f570ac))
+* ci(release): fix false positive auth error detection ([7480b23](https://github.com/taptap/taptap_minigame_open_mcp/commit/7480b23))
+* ci(release): surface authentication errors in release analysis ([c87781e](https://github.com/taptap/taptap_minigame_open_mcp/commit/c87781e))
+* ci(release): use stricter grep for version extraction ([aa3539b](https://github.com/taptap/taptap_minigame_open_mcp/commit/aa3539b))
+* fix(proxy): address copilot review on PR #118 ([f510387](https://github.com/taptap/taptap_minigame_open_mcp/commit/f510387)), closes [#118](https://github.com/taptap/taptap_minigame_open_mcp/issues/118)
+* fix(proxy): address PR #116 copilot review suggestions ([1715c1c](https://github.com/taptap/taptap_minigame_open_mcp/commit/1715c1c)), closes [#116](https://github.com/taptap/taptap_minigame_open_mcp/issues/116)
+* feat(proxy): add custom_fields support for business metadata (#116) ([5b255dd](https://github.com/taptap/taptap_minigame_open_mcp/commit/5b255dd)), closes [#116](https://github.com/taptap/taptap_minigame_open_mcp/issues/116) [#117](https://github.com/taptap/taptap_minigame_open_mcp/issues/117)
+
+
+
 ## <small>1.14.1 (2026-01-23)</small>
 
 * docs: update plan to add missing proxy config documentation ([7b29004](https://github.com/taptap/taptap_minigame_open_mcp/commit/7b29004))
