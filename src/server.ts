@@ -86,6 +86,18 @@ const allModules: FeatureModule[] = [
 ];
 
 /**
+ * 验证解析后的 JSON 是否为合法的 Record<string, string>
+ */
+function isValidCustomFields(value: unknown): value is Record<string, string> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value as Record<string, unknown>).every((v) => typeof v === 'string')
+  );
+}
+
+/**
  * TapTap 小游戏 MCP 服务器
  */
 class TapTapMinigameMCPServer {
@@ -235,7 +247,14 @@ class TapTapMinigameMCPServer {
     const customFieldsHeader = getHeader('X-TapTap-Custom-Fields');
     if (customFieldsHeader && !enrichedArgs._custom_fields) {
       try {
-        enrichedArgs._custom_fields = JSON.parse(customFieldsHeader);
+        const parsed = JSON.parse(customFieldsHeader);
+        if (isValidCustomFields(parsed)) {
+          enrichedArgs._custom_fields = parsed;
+        } else {
+          logger.warning(
+            'Invalid X-TapTap-Custom-Fields header: expected a JSON object with string values'
+          );
+        }
       } catch (error) {
         logger.warning('Invalid X-TapTap-Custom-Fields header', { error: String(error) });
       }
@@ -670,7 +689,14 @@ class TapTapMinigameMCPServer {
       let customFields: Record<string, string> | undefined;
       if (headerCustomFields) {
         try {
-          customFields = JSON.parse(headerCustomFields);
+          const parsed = JSON.parse(headerCustomFields);
+          if (isValidCustomFields(parsed)) {
+            customFields = parsed;
+          } else {
+            logger.warning(
+              'Failed to parse Custom Fields from header: expected a JSON object with string values'
+            );
+          }
         } catch (error) {
           logger.warning(`Failed to parse Custom Fields from header: ${error}`);
         }

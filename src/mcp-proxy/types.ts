@@ -107,7 +107,7 @@ export interface ProxyConfig {
     /**
      * 每次工具调用时也注入私有参数（默认 true）
      *
-     * 私有参数（_mac_token, _user_id, _project_id, _project_path）会在两个时机传递：
+     * 私有参数（_mac_token, _user_id, _project_id, _project_path, _custom_fields）会在两个时机传递：
      * 1. 初始化连接时：始终通过 HTTP Headers 传递（不受此配置影响）
      * 2. 每次工具调用时：通过工具参数注入（由此配置控制）
      *
