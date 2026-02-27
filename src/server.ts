@@ -231,6 +231,16 @@ class TapTapMinigameMCPServer {
       enrichedArgs._project_id = projectIdHeader;
     }
 
+    // ✅ 提取业务自定义字段
+    const customFieldsHeader = getHeader('X-TapTap-Custom-Fields');
+    if (customFieldsHeader && !enrichedArgs._custom_fields) {
+      try {
+        enrichedArgs._custom_fields = JSON.parse(customFieldsHeader);
+      } catch (error) {
+        logger.warning('Invalid X-TapTap-Custom-Fields header', { error: String(error) });
+      }
+    }
+
     return enrichedArgs;
   }
 
@@ -577,7 +587,7 @@ class TapTapMinigameMCPServer {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader(
         'Access-Control-Allow-Headers',
-        'Content-Type, Mcp-Session-Id, X-TapTap-Mac-Token, X-TapTap-User-Id, X-TapTap-Project-Id'
+        'Content-Type, Mcp-Session-Id, X-TapTap-Mac-Token, X-TapTap-User-Id, X-TapTap-Project-Id, X-TapTap-Custom-Fields'
       );
 
       if (req.method === 'OPTIONS') {
@@ -632,6 +642,7 @@ class TapTapMinigameMCPServer {
       const headerProjectId = getHeader('X-TapTap-Project-Id');
       const headerProjectPath = getHeader('X-TapTap-Project-Path');
       const headerMacToken = getHeader('X-TapTap-Mac-Token');
+      const headerCustomFields = getHeader('X-TapTap-Custom-Fields');
 
       // 合并：Headers 优先（Proxy 使用 Headers，SSE 直连使用 URL 参数）
       // 使用 ?? undefined 将 null 转换为 undefined（SessionContext 不接受 null）
@@ -655,12 +666,23 @@ class TapTapMinigameMCPServer {
         }
       }
 
+      // 解析业务自定义字段（JSON 序列化）
+      let customFields: Record<string, string> | undefined;
+      if (headerCustomFields) {
+        try {
+          customFields = JSON.parse(headerCustomFields);
+        } catch (error) {
+          logger.warning(`Failed to parse Custom Fields from header: ${error}`);
+        }
+      }
+
       // 创建 session 专属的上下文（通过闭包捕获）
       const sessionContext: SessionContext = {
         userId,
         projectId,
         projectPath,
         macToken,
+        customFields,
         // sessionId 会在 onsessioninitialized 回调中设置
       };
 

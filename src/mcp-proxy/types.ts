@@ -73,6 +73,12 @@ export interface ProxyConfig {
     user_id?: string;
     /** 项目标识符（可选，仅用于日志追踪和标识） */
     project_id?: string;
+    /**
+     * 业务自定义字段（可选）
+     * 透传到 MCP Server，用于业务层追踪、路由、标记等场景
+     * @example { "team": "game-studio-a", "env": "staging", "trace_id": "abc-123" }
+     */
+    custom_fields?: Record<string, string>;
   };
 
   /** 认证配置（MAC Token） */

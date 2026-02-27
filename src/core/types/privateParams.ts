@@ -62,6 +62,13 @@ export interface PrivateToolParams {
    * @example "/workspace/runtime-container-1/project-a"
    */
   _project_path?: string;
+
+  /**
+   * 业务自定义字段（覆盖 Session 中的 customFields）
+   * 由 Proxy 从配置中注入，透传到 Server 业务层
+   * @example { "team": "game-studio-a", "env": "staging" }
+   */
+  _custom_fields?: Record<string, string>;
 }
 
 /**
@@ -84,6 +91,7 @@ export function extractPrivateParams(args: any): PrivateToolParams {
     _session_id: args?._session_id,
     _project_id: args?._project_id,
     _project_path: args?._project_path,
+    _custom_fields: args?._custom_fields,
   };
 }
 
@@ -107,7 +115,15 @@ export function stripPrivateParams(args: any): any {
     return args;
   }
 
-  const { _mac_token, _user_id, _session_id, _project_id, _project_path, ...businessParams } = args;
+  const {
+    _mac_token,
+    _user_id,
+    _session_id,
+    _project_id,
+    _project_path,
+    _custom_fields,
+    ...businessParams
+  } = args;
   return businessParams;
 }
 
@@ -133,7 +149,8 @@ export function hasPrivateParams(args: any): boolean {
     args._user_id ||
     args._session_id ||
     args._project_id ||
-    args._project_path
+    args._project_path ||
+    args._custom_fields
   );
 }
 
@@ -169,6 +186,9 @@ export function mergePrivateParams(args: any, privateParams: PrivateToolParams):
   }
   if (privateParams._project_path) {
     result._project_path = privateParams._project_path;
+  }
+  if (privateParams._custom_fields) {
+    result._custom_fields = privateParams._custom_fields;
   }
 
   return result;

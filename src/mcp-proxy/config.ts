@@ -156,6 +156,7 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
       project_path: config.tenant.project_path || '.',
       user_id: config.tenant.user_id,
       project_id: config.tenant.project_id,
+      custom_fields: config.tenant.custom_fields,
     },
     auth: config.auth,
     options: {
