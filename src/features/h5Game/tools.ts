@@ -8,7 +8,7 @@
 
 import type { ToolRegistration } from '../../core/types/index.js';
 import { TOOL_DESCRIPTION } from './messages.js';
-import { handleGatherGameInfo, handleUploadGame } from './handlers.js';
+import { handleGatherGameInfo, handleGetDebugFeedbacks, handleUploadGame } from './handlers.js';
 
 /**
  * H5 Game Tools - Unified Format
@@ -105,5 +105,65 @@ Use the same path confirmed in prepare_h5_upload step.`,
     handler: async (args, context) => {
       return await handleUploadGame(args, context);
     },
+  },
+
+  // 3. 拉取用户调试反馈
+  {
+    definition: {
+      name: 'get_debug_feedbacks',
+      description: `
+        [H5 Debug Workflow]
+        Pull user debug feedback records for the selected app, download artifacts (screenshots/logs),
+        and generate AI-ready debug context files.
+
+        **PREREQUISITE: An app MUST be selected first.**
+        Before calling this tool, ALWAYS call get_current_app_info to verify an app is selected.
+        If not selected, guide user through:
+        1) Call list_developers_and_apps to show available apps
+        2) Show list to user and ASK them to choose
+        3) Call select_app with user's choice
+        4) Then call this tool
+
+        **DEFAULT BEHAVIOR:**
+        - fetch_and_mark_processed defaults to true
+        - download_assets defaults to true
+        - downloaded files are saved under logs/feed_back/feedback_{id}/
+      `,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          limit: {
+            type: 'number',
+            description: 'How many feedback records to pull (1-10, default 3).',
+          },
+          status: {
+            type: 'number',
+            description: TOOL_DESCRIPTION.DEBUG_FEEDBACK_STATUS_DESCRIPTION,
+          },
+          fetch_and_mark_processed: {
+            type: 'boolean',
+            description:
+              'Pull unprocessed records and mark them processed on server. Default true. When true, status is ignored.',
+          },
+          download_assets: {
+            type: 'boolean',
+            description:
+              'Whether to download feedback JSON/screenshot/log files to local workspace. Default true.',
+          },
+        },
+      },
+    },
+    handler: async (
+      args: {
+        limit?: number;
+        status?: number;
+        fetch_and_mark_processed?: boolean;
+        download_assets?: boolean;
+      },
+      context
+    ) => {
+      return await handleGetDebugFeedbacks(args, context);
+    },
+    requiresAuth: true,
   },
 ];

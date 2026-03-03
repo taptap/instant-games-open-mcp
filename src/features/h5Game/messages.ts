@@ -35,6 +35,12 @@ export const TOOL_DESCRIPTION = {
                  Available genres keys: ${Object.keys(GENRE_LIST).join(', ')}, and the chinese name of the genre is ${Object.values(GENRE_LIST).join(', ')}.
                  When analyzing, consider game rules, player interactions, visual elements, and core gameplay loops.
                  If still uncertain after analysis, default to 'casual' as fallback.`,
+  DEBUG_FEEDBACK_STATUS_DESCRIPTION: `Feedback status filter:
+- 0: all
+- 1: unprocessed
+- 2: processed
+
+When fetch_and_mark_processed=true, status filter will be ignored by server.`,
 };
 
 /**
@@ -92,6 +98,17 @@ export const MESSAGES = {
             ? '审核失败'
             : '已上线'
     }`,
+
+  // 调试反馈相关
+  DEBUG_FEEDBACK_STATUS_TEXT: (status: number) =>
+    status === 0 ? '初始' : status === 1 ? '未处理' : status === 2 ? '已处理' : `未知(${status})`,
+  DEBUG_FEEDBACK_NO_NEW: `当前没有新的未处理反馈。
+
+如需查看历史反馈，可将 status 设置为：
+- 0（全部）
+- 2（已处理）`,
+  DEBUG_FEEDBACK_DOWNLOAD_FAILED: (url: string, reason: string) =>
+    `下载失败：${url}\n原因：${reason}`,
 
   // 开发者身份和游戏选择相关
   SELECT_DEVELOPER_OR_GAME: (results: TapDeveloperInfo[]) => {

@@ -519,7 +519,7 @@ const allModules = [..., yourFeatureModule];
 
 ## 工具和资源概览
 
-### 19 个 MCP Tools
+### 20 个 MCP Tools
 
 **流程指引（1个）**
 
@@ -550,10 +550,11 @@ const allModules = [..., yourFeatureModule];
 - `get_user_leaderboard_scores` - 获取用户分数数据
 - `get_app_status` - 获取应用审核状态
 
-**H5 游戏管理（2个）**
+**H5 游戏管理（3个）**
 
 - `prepare_h5_upload` - 收集 H5 游戏信息（上传前）
 - `upload_h5_game` - 上传 H5 游戏包
+- `get_debug_feedbacks` - 拉取用户调试反馈并下载附件到本地
 
 > 注：创建/编辑应用请使用 `create_app` 和 `update_app_info` 工具（在应用管理分类中）
 

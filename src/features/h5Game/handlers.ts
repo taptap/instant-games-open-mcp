@@ -9,11 +9,21 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import archiver from 'archiver';
 import { MESSAGES } from './messages.js';
-import { getH5PackageUploadParams, type UploadParams } from './api.js';
+import {
+  getDebugFeedbacks,
+  getH5PackageUploadParams,
+  type FeedbackInfo,
+  type GetDebugFeedbacksRequest,
+  type UploadParams,
+} from './api.js';
 import { editAppInfo, refreshAppCache } from '../app/api.js';
 import { readAppCache } from '../../core/utils/cache.js';
 import { logger } from '../../core/utils/logger.js';
-import { resolvePathSafe, type PathResolutionResult } from '../../core/utils/pathResolver.js';
+import {
+  resolvePathSafe,
+  resolveWorkPath,
+  type PathResolutionResult,
+} from '../../core/utils/pathResolver.js';
 import { EnvConfig } from '../../core/utils/env.js';
 import type { ResolvedContext } from '../../core/types/context.js';
 
@@ -99,6 +109,33 @@ function validateH5GamePath(
  * 优先级：环境变量 > 默认值
  */
 const TEMP_ROOT = EnvConfig.tempDir;
+
+/**
+ * 调试反馈下载目录（相对于项目根目录）
+ */
+const DEBUG_FEEDBACK_ROOT = path.join('logs', 'feed_back');
+
+/**
+ * Debug feedback handler args
+ */
+interface GetDebugFeedbacksArgs {
+  limit?: number;
+  status?: number;
+  fetch_and_mark_processed?: boolean;
+  download_assets?: boolean;
+}
+
+/**
+ * 下载后的本地文件信息
+ */
+interface DownloadedFeedbackFiles {
+  feedbackDir: string;
+  feedbackJsonPath?: string;
+  promptPath?: string;
+  screenshotPaths: string[];
+  logPaths: string[];
+  failedDownloads: string[];
+}
 
 /**
  * 获取临时 ZIP 文件路径
@@ -223,6 +260,7 @@ function getSelectedAppInfo(ctx?: ResolvedContext): {
   developerName?: string;
   appId?: number;
   appTitle?: string;
+  miniappId?: string;
 } {
   // 从缓存读取（使用 ctx.projectPath 作为隔离 key）
   const cached = readAppCache(ctx?.projectPath);
@@ -247,6 +285,7 @@ function getSelectedAppInfo(ctx?: ResolvedContext): {
     developerName: cached.developer_name,
     appId: cached.app_id,
     appTitle: cached.app_title,
+    miniappId: cached.miniapp_id,
   };
 }
 
@@ -398,4 +437,328 @@ export async function handleUploadGame(
       }
     }
   }
+}
+
+/**
+ * 规范化拉取数量参数
+ */
+function normalizeDebugFeedbackLimit(limit?: number): number {
+  if (!Number.isFinite(limit)) {
+    return 10;
+  }
+
+  const normalized = Math.floor(limit!);
+  if (normalized < 1) return 1;
+  if (normalized > 20) return 20;
+  return normalized;
+}
+
+/**
+ * 规范化状态筛选参数
+ */
+function normalizeDebugFeedbackStatus(status?: number): 0 | 1 | 2 {
+  if (status === 0 || status === 1 || status === 2) {
+    return status;
+  }
+  return 1;
+}
+
+/**
+ * 确保目录存在
+ */
+function ensureDir(dirPath: string): void {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+}
+
+/**
+ * 清理文件名，避免路径字符和非法字符
+ */
+function sanitizeFileName(filename: string): string {
+  return filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+/**
+ * 从 URL 推断文件名
+ */
+function inferFilenameFromUrl(url: string, fallback: string): string {
+  try {
+    const parsed = new URL(url);
+    const rawName = path.basename(decodeURIComponent(parsed.pathname));
+    if (rawName && rawName !== '/' && rawName !== '.') {
+      return sanitizeFileName(rawName);
+    }
+  } catch {
+    // Ignore URL parse errors and use fallback filename.
+  }
+  return fallback;
+}
+
+/**
+ * 获取不冲突的输出路径
+ */
+function getUniqueFilePath(dirPath: string, filename: string): string {
+  const ext = path.extname(filename);
+  const base = path.basename(filename, ext);
+  let candidate = path.join(dirPath, filename);
+  let counter = 1;
+
+  while (fs.existsSync(candidate)) {
+    candidate = path.join(dirPath, `${base}_${counter}${ext}`);
+    counter += 1;
+  }
+
+  return candidate;
+}
+
+/**
+ * 下载远程文件到本地
+ */
+async function downloadRemoteFile(url: string, outputPath: string): Promise<void> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const fileData = Buffer.from(await response.arrayBuffer());
+  fs.writeFileSync(outputPath, fileData);
+}
+
+/**
+ * 获取调试反馈输出根目录
+ */
+function getDebugFeedbackRootDir(ctx?: ResolvedContext): string {
+  const basePath = resolveWorkPath(undefined, ctx);
+  return path.join(basePath, DEBUG_FEEDBACK_ROOT);
+}
+
+/**
+ * 生成 AI 调试上下文文本
+ */
+function buildDebugPromptContent(
+  feedback: FeedbackInfo,
+  appInfo: {
+    developerId: number;
+    appId: number;
+    appTitle?: string;
+    miniappId?: string;
+  },
+  files: DownloadedFeedbackFiles
+): string {
+  const screenshotLines =
+    files.screenshotPaths.length > 0
+      ? files.screenshotPaths.map((item) => `- ${item}`).join('\n')
+      : '- 无截图文件';
+  const logLines =
+    files.logPaths.length > 0
+      ? files.logPaths.map((item) => `- ${item}`).join('\n')
+      : '- 无日志文件';
+
+  return `# Debug Feedback Context
+
+## App Info
+- app_id: ${appInfo.appId}
+- app_title: ${appInfo.appTitle ?? ''}
+- developer_id: ${appInfo.developerId}
+- miniapp_id: ${appInfo.miniappId ?? ''}
+
+## Feedback Info
+- feedback_id: ${feedback.feedback_id}
+- version_id: ${feedback.version_id}
+- status: ${feedback.status} (${MESSAGES.DEBUG_FEEDBACK_STATUS_TEXT(feedback.status)})
+- description: ${feedback.description || '（无描述）'}
+- runtime_version: ${feedback.runtime_version || '未知'}
+- device_model: ${feedback.device_model || '未知'}
+- fps: ${feedback.fps}
+- memory_usage_mb: ${feedback.memory_usage_mb}
+
+## Artifacts
+### Screenshots
+${screenshotLines}
+
+### Log Files
+${logLines}
+
+## Suggested Debug Steps
+1. First inspect screenshots to reproduce the visual issue.
+2. Correlate user description with runtime metrics (fps/memory/device).
+3. Inspect log files to identify stack traces, warnings, or timing anomalies.
+4. Locate related gameplay logic and create a minimal code fix.
+`;
+}
+
+/**
+ * 下载单条反馈的附件，并写入反馈 JSON 与调试上下文文件
+ */
+async function saveDebugFeedbackFiles(
+  feedback: FeedbackInfo,
+  appInfo: {
+    developerId: number;
+    appId: number;
+    appTitle?: string;
+    miniappId?: string;
+  },
+  ctx?: ResolvedContext
+): Promise<DownloadedFeedbackFiles> {
+  const rootDir = getDebugFeedbackRootDir(ctx);
+  const feedbackDir = path.join(rootDir, `feedback_${feedback.feedback_id}`);
+  ensureDir(feedbackDir);
+
+  const files: DownloadedFeedbackFiles = {
+    feedbackDir,
+    screenshotPaths: [],
+    logPaths: [],
+    failedDownloads: [],
+  };
+
+  // 1) 保存反馈 JSON
+  const feedbackJsonPath = path.join(feedbackDir, 'feedback.json');
+  fs.writeFileSync(feedbackJsonPath, JSON.stringify(feedback, null, 2), 'utf-8');
+  files.feedbackJsonPath = feedbackJsonPath;
+
+  // 2) 下载截图
+  if (feedback.screenshots && feedback.screenshots.length > 0) {
+    const screenshotDir = path.join(feedbackDir, 'screenshots');
+    ensureDir(screenshotDir);
+    for (const [index, screenshotUrl] of feedback.screenshots.entries()) {
+      const fallbackName = `screenshot_${index + 1}.png`;
+      const filename = inferFilenameFromUrl(screenshotUrl, fallbackName);
+      const outputPath = getUniqueFilePath(screenshotDir, filename);
+      try {
+        await downloadRemoteFile(screenshotUrl, outputPath);
+        files.screenshotPaths.push(outputPath);
+      } catch (error) {
+        files.failedDownloads.push(
+          MESSAGES.DEBUG_FEEDBACK_DOWNLOAD_FAILED(
+            screenshotUrl,
+            error instanceof Error ? error.message : String(error)
+          )
+        );
+      }
+    }
+  }
+
+  // 3) 下载日志文件
+  if (feedback.log_file_urls && feedback.log_file_urls.length > 0) {
+    const logDir = path.join(feedbackDir, 'logs');
+    ensureDir(logDir);
+    for (const [index, logUrl] of feedback.log_file_urls.entries()) {
+      const fallbackName = `log_${index + 1}.txt`;
+      const filename = inferFilenameFromUrl(logUrl, fallbackName);
+      const outputPath = getUniqueFilePath(logDir, filename);
+      try {
+        await downloadRemoteFile(logUrl, outputPath);
+        files.logPaths.push(outputPath);
+      } catch (error) {
+        files.failedDownloads.push(
+          MESSAGES.DEBUG_FEEDBACK_DOWNLOAD_FAILED(
+            logUrl,
+            error instanceof Error ? error.message : String(error)
+          )
+        );
+      }
+    }
+  }
+
+  // 4) 写调试上下文 prompt
+  const promptPath = path.join(feedbackDir, 'debug_prompt.md');
+  const promptContent = buildDebugPromptContent(feedback, appInfo, files);
+  fs.writeFileSync(promptPath, promptContent, 'utf-8');
+  files.promptPath = promptPath;
+
+  return files;
+}
+
+/**
+ * 拉取用户调试反馈
+ */
+export async function handleGetDebugFeedbacks(
+  args: GetDebugFeedbacksArgs,
+  ctx?: ResolvedContext
+): Promise<string> {
+  const appInfo = getSelectedAppInfo(ctx);
+  if (!appInfo.success) {
+    return appInfo.message!;
+  }
+
+  const limit = normalizeDebugFeedbackLimit(args.limit);
+  const status = normalizeDebugFeedbackStatus(args.status);
+  const fetchAndMarkProcessed = args.fetch_and_mark_processed ?? true;
+  const downloadAssets = args.download_assets ?? true;
+
+  const request: GetDebugFeedbacksRequest = {
+    developer_id: appInfo.developerId!,
+    app_id: appInfo.appId!,
+    limit,
+    status,
+    fetch_and_mark_processed: fetchAndMarkProcessed,
+  };
+
+  const response = await getDebugFeedbacks(request, ctx);
+  const feedbackList = response.list || [];
+  const outputRoot = getDebugFeedbackRootDir(ctx);
+
+  if (feedbackList.length === 0) {
+    let msg = MESSAGES.DEBUG_FEEDBACK_NO_NEW;
+    msg += `\n\n筛选总数：${response.total ?? 0}`;
+    msg += `\n应用：${appInfo.appTitle ?? ''} (ID: ${appInfo.appId})`;
+    msg += `\n下载目录：${outputRoot}`;
+    return msg;
+  }
+
+  ensureDir(outputRoot);
+
+  const lines: string[] = [];
+  lines.push(
+    `成功拉取了 ${feedbackList.length} 条用户反馈${fetchAndMarkProcessed ? '（并已标记为已处理）' : ''}。`
+  );
+  lines.push(`筛选总数：${response.total ?? feedbackList.length}`);
+  lines.push(`应用：${appInfo.appTitle ?? ''} (ID: ${appInfo.appId})`);
+  lines.push(`反馈输出目录：${outputRoot}`);
+  lines.push('');
+
+  for (const feedback of feedbackList) {
+    let files: DownloadedFeedbackFiles = {
+      feedbackDir: path.join(outputRoot, `feedback_${feedback.feedback_id}`),
+      screenshotPaths: [],
+      logPaths: [],
+      failedDownloads: [],
+    };
+
+    if (downloadAssets) {
+      files = await saveDebugFeedbackFiles(
+        feedback,
+        {
+          developerId: appInfo.developerId!,
+          appId: appInfo.appId!,
+          appTitle: appInfo.appTitle,
+          miniappId: appInfo.miniappId,
+        },
+        ctx
+      );
+    }
+
+    lines.push(`反馈 #${feedback.feedback_id}`);
+    lines.push(`- 描述：${feedback.description || '（无描述）'}`);
+    lines.push(`- 设备：${feedback.device_model || '未知设备'}`);
+    lines.push(`- FPS：${feedback.fps}`);
+    lines.push(`- 内存：${feedback.memory_usage_mb} MB`);
+    lines.push(`- 引擎版本：${feedback.runtime_version || '未知'}`);
+    lines.push(`- 状态：${MESSAGES.DEBUG_FEEDBACK_STATUS_TEXT(feedback.status)}`);
+    lines.push(`- 截图：${feedback.screenshots?.length ?? 0} 张`);
+    lines.push(`- 日志文件：${feedback.log_file_urls?.length ?? 0} 个`);
+    if (downloadAssets) {
+      lines.push(`- 已下载目录：${files.feedbackDir}`);
+      if (files.promptPath) {
+        lines.push(`- 调试上下文：${files.promptPath}`);
+      }
+      if (files.failedDownloads.length > 0) {
+        lines.push(`- 下载失败：${files.failedDownloads.length} 个`);
+      }
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n').trim();
 }

@@ -99,7 +99,7 @@ curl http://localhost:5002/health  # RND
 
 ## 📖 功能列表
 
-### 19 个 Tools
+### 20 个 Tools
 
 #### 流程指引 (1)
 
@@ -130,12 +130,11 @@ curl http://localhost:5002/health  # RND
 - `get_user_leaderboard_scores` - 获取用户分数
 - `get_app_status` - 获取应用审核状态
 
-#### H5 游戏管理 (4)
+#### H5 游戏管理 (3)
 
-- `h5_game_info_gatherer` - 收集 H5 游戏信息（上传前）
-- `h5_game_uploader` - 上传 H5 游戏包
-- `h5_create_app` - 创建新 H5 游戏应用
-- `h5_edit_app` - 编辑 H5 游戏信息
+- `prepare_h5_upload` - 收集 H5 游戏信息（上传前）
+- `upload_h5_game` - 上传 H5 游戏包
+- `get_debug_feedbacks` - 拉取用户调试反馈并下载日志/截图
 
 #### 振动 API 文档 (1)
 

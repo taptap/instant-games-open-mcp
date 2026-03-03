@@ -262,6 +262,7 @@ console.log(result);
 
 - `prepare_h5_upload`: **上传第一步**。收集游戏信息，确认构建目录（如 dist/build）。
 - `upload_h5_game`: **上传第二步**。将确认好的游戏包上传到 TapTap 平台。
+- `get_debug_feedbacks`: 拉取用户调试反馈（可默认标记已处理），并下载截图/日志到本地 `logs/feed_back/`，同时生成 AI 可直接使用的调试上下文。
 
 ---
 
@@ -379,6 +380,17 @@ console.log(result);
 2. 调用 `prepare_h5_upload` 确认信息。
 3. 调用 `upload_h5_game` 执行上传。
 4. 返回上传结果和体验链接。
+
+### 场景 2.1：拉取用户调试反馈
+
+**用户**: "拉取用户反馈"
+
+**AI 助手**:
+
+1. 调用 `get_current_app_info` 确认当前应用已选中。
+2. 调用 `get_debug_feedbacks`（默认会拉取未处理并标记处理）。
+3. 读取 `logs/feed_back/feedback_{id}/` 下的截图、日志和 `debug_prompt.md`。
+4. 基于反馈内容定位问题并继续修复代码。
 
 ### 场景 3：实现多人联机
 

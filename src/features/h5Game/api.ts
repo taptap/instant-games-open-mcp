@@ -30,3 +30,66 @@ export async function getH5PackageUploadParams(
 
   return await client.get<UploadParams>('/level/v1/upload', { params });
 }
+
+/**
+ * Request payload for debug feedback pulling.
+ */
+export interface GetDebugFeedbacksRequest {
+  developer_id: number;
+  app_id: number;
+  limit?: number;
+  status?: number;
+  fetch_and_mark_processed?: boolean;
+}
+
+/**
+ * Single debug feedback item from server.
+ */
+export interface FeedbackInfo {
+  feedback_id: number;
+  version_id: number;
+  log_file_urls: string[];
+  description: string;
+  runtime_version: string;
+  screenshots: string[];
+  fps: number;
+  memory_usage_mb: number;
+  device_model: string;
+  status: number;
+}
+
+/**
+ * Response payload for debug feedback list API.
+ */
+export interface GetDebugFeedbacksResponse {
+  list: FeedbackInfo[];
+  total: number;
+}
+
+/**
+ * Pull debug feedback list from TapTap Open API.
+ */
+export async function getDebugFeedbacks(
+  request: GetDebugFeedbacksRequest,
+  ctx?: ResolvedContext
+): Promise<GetDebugFeedbacksResponse> {
+  const client = new HttpClient(ctx);
+  const params: Record<string, string> = {
+    developer_id: request.developer_id.toString(),
+    app_id: request.app_id.toString(),
+  };
+
+  if (request.limit !== undefined) {
+    params.limit = request.limit.toString();
+  }
+  if (request.status !== undefined) {
+    params.status = request.status.toString();
+  }
+  if (request.fetch_and_mark_processed !== undefined) {
+    params.fetch_and_mark_processed = request.fetch_and_mark_processed ? 'true' : 'false';
+  }
+
+  return await client.get<GetDebugFeedbacksResponse>('/open/debug/v1/get-debug-feedbacks', {
+    params,
+  });
+}
