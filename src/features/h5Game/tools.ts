@@ -128,6 +128,12 @@ Use the same path confirmed in prepare_h5_upload step.`,
         - fetch_and_mark_processed defaults to true
         - download_assets defaults to true
         - downloaded files are saved under logs/feed_back/feedback_{id}/
+
+        **CALLING POLICY FOR AGENTS:**
+        - If user says "拉取/查看反馈" without explicit read-only intent, DO NOT pass fetch_and_mark_processed.
+          Let default behavior (true) apply.
+        - ONLY pass fetch_and_mark_processed=false when user explicitly requests read-only
+          behavior (e.g. "只查看，不标记处理").
       `,
       inputSchema: {
         type: 'object',
@@ -143,7 +149,8 @@ Use the same path confirmed in prepare_h5_upload step.`,
           fetch_and_mark_processed: {
             type: 'boolean',
             description:
-              'Pull unprocessed records and mark them processed on server. Default true. When true, status is ignored.',
+              'Pull unprocessed records and mark them processed on server. Default true. ' +
+              'Set false only for explicit read-only requests. When true, status is ignored.',
           },
           download_assets: {
             type: 'boolean',
