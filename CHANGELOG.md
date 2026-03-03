@@ -1,3 +1,9 @@
+## 1.16.0 (2026-03-03)
+
+* feat(h5game): add debug feedback pull workflow (#121) ([9722799](https://github.com/taptap/taptap_minigame_open_mcp/commit/9722799)), closes [#121](https://github.com/taptap/taptap_minigame_open_mcp/issues/121)
+
+
+
 ## 1.15.0 (2026-02-27)
 
 * ci(release): add workflow_dispatch for manual trigger ([8f570ac](https://github.com/taptap/taptap_minigame_open_mcp/commit/8f570ac))
