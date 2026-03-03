@@ -19,7 +19,7 @@
 # 1. 先配置环境变量（必须）  oauth_clients.id 、oauth_clients.sdk_secret：
 #   
 #    export TAPTAP_MCP_CLIENT_ID="m2dnabebip3fpardnm" 
-#    export TAPTAP_MCP_CLIENT_SECRET="QUmbMoTQm2qJETi53vWnvaXuBiRL3VRkgcUWnBtb"
+#    export TAPTAP_MCP_CLIENT_SECRET="xxxxx"
 #
 # 2. 运行脚本：
 #    bash scripts/test-debug-feedback-rnd.sh \
