@@ -4,7 +4,9 @@
  * 所有与目录相关的工具都应该使用这个解析器来处理路径
  *
  * 路径解析优先级：
- * 1. 有 Proxy: WORKSPACE_ROOT + _project_path + relativePath
+ * 1. 有 Proxy:
+ *    - _project_path 为绝对路径: _project_path + relativePath
+ *    - _project_path 为相对路径: WORKSPACE_ROOT + _project_path + relativePath
  * 2. 无 Proxy: WORKSPACE_ROOT + relativePath
  * 3. 本地开发: process.cwd() + relativePath
  *
@@ -26,6 +28,25 @@ import { EnvConfig } from './env.js';
  * 注意：使用 EnvConfig.workspaceRoot 来支持新旧环境变量名的兼容
  */
 const WORKSPACE_ROOT = EnvConfig.workspaceRoot;
+
+/**
+ * 计算基础路径（兼容 projectPath 绝对/相对两种模式）
+ *
+ * - 绝对 projectPath: 直接作为 basePath（避免重复拼接 WORKSPACE_ROOT）
+ * - 相对 projectPath: 视为相对于 WORKSPACE_ROOT
+ */
+function resolveBasePath(ctx?: ResolvedContext): string {
+  if (!ctx?.projectPath) {
+    return WORKSPACE_ROOT;
+  }
+
+  const normalizedProjectPath = path.normalize(ctx.projectPath);
+  if (path.isAbsolute(normalizedProjectPath)) {
+    return normalizedProjectPath;
+  }
+
+  return path.join(WORKSPACE_ROOT, normalizedProjectPath);
+}
 
 /**
  * 路径输入类型
@@ -127,19 +148,8 @@ export const PATH_ERRORS = {
  * ```
  */
 export function resolveWorkPath(relativePath?: string, ctx?: ResolvedContext): string {
-  // 1. 基础路径：WORKSPACE_ROOT
-  let basePath = WORKSPACE_ROOT;
-
-  // 2. 如果有 Proxy 注入的 projectPath
-  if (ctx?.projectPath) {
-    // 设计：projectPath 总是相对于 WORKSPACE_ROOT
-    // 即使以 '/' 开头也视为相对路径（去掉开头的 '/'）
-    // 例如："/a51c239e.../workspace" -> "a51c239e.../workspace"
-    const normalizedProjectPath = ctx.projectPath.startsWith('/')
-      ? ctx.projectPath.slice(1)
-      : ctx.projectPath;
-    basePath = path.join(WORKSPACE_ROOT, normalizedProjectPath);
-  }
+  // 1. 计算基础路径
+  const basePath = resolveBasePath(ctx);
 
   // 3. 拼接用户传入的相对路径
   if (relativePath) {
@@ -255,16 +265,8 @@ export function resolvePathSafe(
       ? 'absolute'
       : 'relative';
 
-  // 1. 计算基础路径
-  let basePath = WORKSPACE_ROOT;
-  if (ctx?.projectPath) {
-    // 设计：projectPath 总是相对于 WORKSPACE_ROOT
-    // 即使以 '/' 开头也视为相对路径（去掉开头的 '/'）
-    const normalizedProjectPath = ctx.projectPath.startsWith('/')
-      ? ctx.projectPath.slice(1)
-      : ctx.projectPath;
-    basePath = path.join(WORKSPACE_ROOT, normalizedProjectPath);
-  }
+  // 1. 计算基础路径（兼容绝对/相对 projectPath）
+  const basePath = resolveBasePath(ctx);
 
   // 2. 处理空字符串或未传的情况
   if (inputType === 'empty') {
