@@ -444,12 +444,12 @@ export async function handleUploadGame(
  */
 function normalizeDebugFeedbackLimit(limit?: number): number {
   if (!Number.isFinite(limit)) {
-    return 10;
+    return 3;
   }
 
   const normalized = Math.floor(limit!);
   if (normalized < 1) return 1;
-  if (normalized > 20) return 20;
+  if (normalized > 10) return 10;
   return normalized;
 }
 
