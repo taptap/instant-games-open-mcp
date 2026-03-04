@@ -1,3 +1,9 @@
+## <small>1.16.1 (2026-03-04)</small>
+
+* fix(h5game): adjust debug feedback fetch defaults and policy (#124) ([9a9fde3](https://github.com/taptap/taptap_minigame_open_mcp/commit/9a9fde3)), closes [#124](https://github.com/taptap/taptap_minigame_open_mcp/issues/124)
+
+
+
 ## 1.16.0 (2026-03-03)
 
 * feat(h5game): add debug feedback pull workflow (#121) ([9722799](https://github.com/taptap/taptap_minigame_open_mcp/commit/9722799)), closes [#121](https://github.com/taptap/taptap_minigame_open_mcp/issues/121)
