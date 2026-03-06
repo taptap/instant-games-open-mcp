@@ -56,17 +56,17 @@ an app is selected. If not, guide user through app selection process.
 **DO NOT auto-poll** - only call when user requests or when no cached status exists.
 
 This tool queries the server, updates local cache, and returns:
-- Business status: 0=未开通 | 1=资料审核中 | 2=已生效 | 3=账号已被封禁
+- Business status: 0=未开通 | 1=已生效 | 2=账号已被封禁
 - Ad space ID (space_id) - cached when status is "已生效"
 - Guidance URL for activation (if needed)
 
 **CRITICAL - Dual condition for proceeding to Step 3:**
 Both conditions MUST be met simultaneously:
-1. Status must be "已生效" (status === 2)
+1. Status must be "已生效" (status === 1)
 2. space_id must be valid (non-empty string)
-If status is 2 but space_id is empty → server-side issue, tell user to retry later.
+If status is 1 but space_id is empty → server-side issue, tell user to retry later.
 
-**Status 0/1:** Tell user they can say "重新检查广告状态" to refresh after completing activation/review.
+**Status 0:** Tell user they can say "重新检查广告状态" to refresh after completing activation.
 **Status 3 (已封禁):** DO NOT proceed with any integration steps. Immediately inform user.`,
       inputSchema: {
         type: 'object',
@@ -85,7 +85,7 @@ If status is 2 but space_id is empty → server-side issue, tell user to retry l
       description: `[Step 3 of Ads Workflow] Get complete ads integration code guide with actual ad space ID.
 
 **PREREQUISITES (both MUST be met before calling):**
-1. check_ads_status has been called and returned status "已生效" (2)
+1. check_ads_status has been called and returned status "已生效" (1)
 2. A valid space_id was cached by check_ads_status
 
 If either condition is not met, this tool will return an error with guidance.

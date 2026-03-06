@@ -290,7 +290,7 @@ function getAdsIntegrationWorkflow(): string {
 **任何广告相关操作之前，必须先检查广告 SDK 状态。**
 
 广告状态会缓存在本地，若本地无缓存则需查询服务器。
-状态为"未开通"或"审核中"时，用户可主动要求重新查询以获取最新状态。
+状态为"未开通"时，用户可主动要求重新查询以获取最新状态。
 
 ---
 
@@ -333,7 +333,7 @@ function getAdsIntegrationWorkflow(): string {
 **工具**：\`get_ad_integration_guide\`
 
 **前提条件（两个必须同时满足）：**
-1. ✅ 广告状态为"已生效"（status === 2）
+1. ✅ 广告状态为"已生效"（status === 1）
 2. ✅ 广告位 ID（space_id）有效（非空字符串）
 
 此工具会：
@@ -345,7 +345,7 @@ function getAdsIntegrationWorkflow(): string {
 
 ## 🔄 状态刷新机制
 
-当广告状态为"未开通"或"审核中"时，用户可能在开发者后台完成操作后
+当广告状态为"未开通"时，用户可能在开发者后台完成操作后
 想要刷新状态。此时用户只需说"重新检查广告状态"或类似话语，
 AI 应再次调用 \`check_ads_status\` 工具（该工具会强制重新查询服务器并更新缓存）。
 

@@ -318,14 +318,6 @@ const adManager = new TapAdManager();
 }
 
 /**
- * 激励视频广告管理器（核心实现）
- * 基于 /Volumes/Q/MiniGame/Mcp/TestAds/app/js/AdManager.js 优化
- *
- * @deprecated 使用 getAdManagerCode(spaceId) 代替
- */
-export const AD_MANAGER_CORE_CODE = getAdManagerCode('请先调用 check_ads_status 获取广告位ID');
-
-/**
  * 激励视频广告使用示例（核心）
  */
 export const REWARDED_VIDEO_EXAMPLES = `// ========================================

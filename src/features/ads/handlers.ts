@@ -140,7 +140,6 @@ async function cacheAdConfig(config: AdConfigResponse, ctx: ResolvedContext): Pr
   const existingCache = readAppCache(projectPath);
 
   if (!existingCache) {
-    console.error('[Ads] Cannot cache ad config: No app cache found');
     return;
   }
 

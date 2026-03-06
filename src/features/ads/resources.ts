@@ -4,7 +4,7 @@
  */
 
 import type { ResourceRegistration } from '../../core/types/index.js';
-import { AD_MANAGER_CORE_CODE } from './docs.js';
+import { getAdManagerCode } from './docs.js';
 
 /**
  * Resource 定义
@@ -27,7 +27,7 @@ export const adsResources: ResourceRegistration[] = [
 ## 源代码
 
 \`\`\`javascript
-${AD_MANAGER_CORE_CODE}
+${getAdManagerCode('请先调用 check_ads_status 获取广告位ID')}
 \`\`\`
 
 ## 快速使用
