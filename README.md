@@ -19,7 +19,9 @@
 
 ## 🚀 快速开始
 
-> 🐣 **新手请看这里**：[TapTap MCP 配置指南 (小白版)](docs/USER_GUIDE.md) - 手把手教你配置 Cursor、Claude Code 和 VS Code。
+> 🐣 **完全不懂技术？** [快速开始（零基础版）](docs/QUICK_START.md) - 3 分钟搞定 Cursor 配置，复制粘贴就能用。
+>
+> 📖 **想了解更多配置？** [详细配置指南](docs/USER_GUIDE.md) - Cursor、Claude Code、VS Code、Claude Desktop 等多种工具的配置方法。
 
 ### 安装
 

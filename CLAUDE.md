@@ -494,7 +494,10 @@ const allModules = [..., yourFeatureModule];
 
 ### 用户文档
 
-- **快速开始**：[README.md](README.md) - 用户快速上手指南
+- **快速开始（零基础）**：[docs/QUICK_START.md](docs/QUICK_START.md) - 面向非技术用户的极简 Cursor 配置指南
+- **AI 安装引导**：[docs/AI_SETUP_GUIDE.md](docs/AI_SETUP_GUIDE.md) - 面向 AI Agent 的可执行安装部署指南
+- **详细配置指南**：[docs/USER_GUIDE.md](docs/USER_GUIDE.md) - 多种工具的完整配置方法
+- **项目介绍**：[README.md](README.md) - 用户快速上手指南
 - **贡献指南**：[CONTRIBUTING.md](CONTRIBUTING.md) - 开发者贡献流程
 
 ### 技术文档
