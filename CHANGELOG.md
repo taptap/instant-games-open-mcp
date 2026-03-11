@@ -1,3 +1,12 @@
+## 1.17.0 (2026-03-11)
+
+* chore(ads): fix status code inconsistencies and remove deprecated code ([ca6fc9a](https://github.com/taptap/taptap_minigame_open_mcp/commit/ca6fc9a))
+* feat(ads): add complete ad manager integration with rewarded video focus ([c9f1d9d](https://github.com/taptap/taptap_minigame_open_mcp/commit/c9f1d9d))
+* feat(ads): add workflow-guided ads integration with status check ([407742c](https://github.com/taptap/taptap_minigame_open_mcp/commit/407742c))
+* feat(ads): update ad status enum and support landscape/portrait ad spaces ([a3323cc](https://github.com/taptap/taptap_minigame_open_mcp/commit/a3323cc))
+
+
+
 ## <small>1.16.1 (2026-03-04)</small>
 
 * fix(h5game): adjust debug feedback fetch defaults and policy (#124) ([9a9fde3](https://github.com/taptap/taptap_minigame_open_mcp/commit/9a9fde3)), closes [#124](https://github.com/taptap/taptap_minigame_open_mcp/issues/124)
