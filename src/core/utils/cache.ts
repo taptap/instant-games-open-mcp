@@ -94,6 +94,15 @@ export interface AppCacheInfo {
   level?: CachedLevelInfo; // 线上版本完整详情
   upload_level?: CachedLevelInfo; // 审核版本完整详情
 
+  // 广告配置信息（v1.x.x+）
+  ad_config?: {
+    status: number; // 广告状态：0=未开通, 1=已生效, 2=已封禁
+    landscape_space_id?: string; // 横屏广告位ID（type=1）
+    portrait_space_id?: string; // 竖屏广告位ID（type=2）
+    url?: string; // 引导URL（仅状态非"已生效"时有）
+    updated_at: number; // 更新时间戳
+  };
+
   // 缓存时效控制
   updated_at?: number; // 基础信息更新时间戳
   status_updated_at?: number; // 状态/审核进度更新时间戳
