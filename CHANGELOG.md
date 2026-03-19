@@ -1,3 +1,11 @@
+## 1.18.0 (2026-03-19)
+
+* fix(runtime): align minimum node version with dependency requirements ([48f93de](https://github.com/taptap/taptap_minigame_open_mcp/commit/48f93de))
+* feat(proxy): forward progress notifications for tool calls ([5453d95](https://github.com/taptap/taptap_minigame_open_mcp/commit/5453d95))
+* docs: add quick start guide and AI setup guide ([83a5c51](https://github.com/taptap/taptap_minigame_open_mcp/commit/83a5c51))
+
+
+
 ## 1.17.0 (2026-03-11)
 
 * chore(ads): fix status code inconsistencies and remove deprecated code ([ca6fc9a](https://github.com/taptap/taptap_minigame_open_mcp/commit/ca6fc9a))
