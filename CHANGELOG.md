@@ -1,3 +1,11 @@
+## 1.19.0 (2026-03-25)
+
+* docs(skills): add Codex DC ops brief skill ([8d4e43d](https://github.com/taptap/taptap_minigame_open_mcp/commit/8d4e43d))
+* fix(app): restore level-only compatibility hints ([3b39668](https://github.com/taptap/taptap_minigame_open_mcp/commit/3b39668))
+* feat(dc-current-app): add overview tools and app aggregation ([9499f54](https://github.com/taptap/taptap_minigame_open_mcp/commit/9499f54))
+
+
+
 ## 1.18.0 (2026-03-19)
 
 * fix(runtime): align minimum node version with dependency requirements ([48f93de](https://github.com/taptap/taptap_minigame_open_mcp/commit/48f93de))
