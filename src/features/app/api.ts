@@ -114,7 +114,9 @@ function appendApp(target: DeveloperCraftList, app: CraftItem): void {
   }
 
   target.apps.push(app);
-  target.levels.push(app);
+  if (app.is_level !== false) {
+    target.levels.push(app);
+  }
   target.crafts = target.levels;
 }
 

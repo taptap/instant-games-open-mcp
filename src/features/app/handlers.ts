@@ -227,7 +227,8 @@ ${uploadInfo}
 
 ## 💡 下一步操作
 
-- 当前游戏社区能力：\`get_current_app_store_snapshot\` / \`get_current_app_forum_contents\` / \`get_current_app_reviews\`
+- 当前游戏 DC 能力：\`get_current_app_store_overview\` / \`get_current_app_review_overview\` / \`get_current_app_community_overview\`
+- 当前游戏详情能力：\`get_current_app_store_snapshot\` / \`get_current_app_forum_contents\` / \`get_current_app_reviews\`
 - 查看排行榜：\`list_leaderboards\`
 - 创建排行榜：\`create_leaderboard\`
 - 查看应用状态：\`get_app_status\`

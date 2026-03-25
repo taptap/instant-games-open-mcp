@@ -201,9 +201,17 @@ export function extractAuthErrorFromResponse(
   }
 
   if (errorCode === 'access_denied') {
-    // Some agent APIs use access_denied for project/client binding failures and
-    // other authorization problems. We already special-case client_id mismatch above.
-    return createAuthError('UNAUTHORIZED');
+    const normalizedMessage = typeof errorMsg === 'string' ? errorMsg.toLowerCase() : '';
+
+    if (
+      normalizedMessage.includes('permission') ||
+      normalizedMessage.includes('rbac') ||
+      normalizedMessage.includes('access denied')
+    ) {
+      return createAuthError('UNAUTHORIZED');
+    }
+
+    return createAuthError('TOKEN_REVOKED');
   }
 
   // 检查 text/plain 格式的 RBAC 错误
