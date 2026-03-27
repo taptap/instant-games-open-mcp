@@ -1,3 +1,11 @@
+## 1.20.0 (2026-03-27)
+
+* fix(server): hide raw tools behind opt-in flag ([eb945e2](https://github.com/taptap/taptap_minigame_open_mcp/commit/eb945e2))
+* feat(dc): add raw tools and openclaw plugin package ([3632c0b](https://github.com/taptap/taptap_minigame_open_mcp/commit/3632c0b))
+* docs(skill): sync MCP install guidance ([1c5acdc](https://github.com/taptap/taptap_minigame_open_mcp/commit/1c5acdc))
+
+
+
 ## 1.19.0 (2026-03-25)
 
 * docs(skills): add Codex DC ops brief skill ([8d4e43d](https://github.com/taptap/taptap_minigame_open_mcp/commit/8d4e43d))
