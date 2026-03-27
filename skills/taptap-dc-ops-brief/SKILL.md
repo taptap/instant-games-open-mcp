@@ -28,6 +28,7 @@ description: 生成 TapTap 当前游戏 DC 运营简报与结论解读（商店/
 4. 输出“30 秒可读”的简报
    - 结论优先，其次给少量关键指标与解释
    - 指标口径以 `references/metrics.md` 为准
+   - 若使用 `page_view_count`，请明确写成“详情页访问量（PV）”，不要简称为“TapTap 曝光量”
 5. （可选）给出“是否建议点赞/回复”的动作建议
    - 必须先说明理由与风险
    - 点赞/回复只在用户明确同意后才调用 `like_current_app_review` / `reply_current_app_review`
@@ -52,13 +53,18 @@ description: 生成 TapTap 当前游戏 DC 运营简报与结论解读（商店/
 2. 需要新增一个 server（示例名可用 `taptap_mcp`）
    - `command = "npx"`
    - `args = ["-y", "@mikoto_zero/minigame-open-mcp@latest"]`
-3. 认证与环境变量
-   - 常见变量：`TAPTAP_MCP_ENV`、`TAPTAP_MCP_CLIENT_ID`、`TAPTAP_MCP_CLIENT_SECRET`
-   - 配置好后，优先用 `check_environment` 验证
+3. 认证与参数
+   - **默认线上用法不需要再向用户索要 `TAPTAP_MCP_CLIENT_ID` 或 `TAPTAP_MCP_CLIENT_SECRET`**
+   - 发布到 npm 的正式包通常已经内置生产环境所需参数，安装后应先直接尝试 `check_environment`
+   - 只有在以下场景才需要额外环境变量：本地开发、自托管、指定 RND 环境、或包维护者明确要求覆盖默认配置
+   - 如需显式覆盖，常见变量为：`TAPTAP_MCP_ENV`、`TAPTAP_MCP_CLIENT_ID`、`TAPTAP_MCP_CLIENT_SECRET`
 4. 首次授权
    - 走 `start_oauth_authorization` -> 用户扫码 -> `complete_oauth_authorization`
 
-说明：本 skill 在需要时可以自动引导安装与配置，但会尽量先用只读方式自检，避免误改环境。
+说明：
+
+- 本 skill 在需要时可以自动引导安装与配置，但会尽量先用只读方式自检，避免误改环境。
+- **除非明确是开发/自托管场景，否则不要先向用户索要参数；优先假设正式 npm 包可直接安装并完成扫码授权。**
 
 ## 点赞与回复（必须征得许可）
 

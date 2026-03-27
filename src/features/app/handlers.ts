@@ -55,6 +55,10 @@ const MESSAGES = {
   EDIT_GAME_INFO_SUCCESS: `✅ **更新应用信息成功！**`,
 };
 
+function formatRawJson(data: unknown): string {
+  return JSON.stringify(data, null, 2);
+}
+
 /**
  * List all developers and apps for the current user
  */
@@ -107,6 +111,14 @@ export async function listDevelopersAndApps(ctx: ResolvedContext): Promise<strin
 }
 
 /**
+ * List all developers and apps as raw JSON for agent/plugin consumption.
+ */
+export async function listDevelopersAndAppsRaw(ctx: ResolvedContext): Promise<string> {
+  const result = await getAllDevelopersAndApps(ctx);
+  return formatRawJson(result);
+}
+
+/**
  * Select a specific developer and app
  */
 export async function selectApp(
@@ -136,6 +148,17 @@ export async function selectApp(
     const errorMsg = error instanceof Error ? error.message : String(error);
     return `❌ 选择应用失败:\n${errorMsg}\n\n请使用 list_developers_and_apps 查看可用的开发者和应用列表。`;
   }
+}
+
+/**
+ * Select a specific developer and app, returning the cached selection payload as raw JSON.
+ */
+export async function selectAppRaw(
+  args: { developer_id: number; app_id: number },
+  ctx: ResolvedContext
+): Promise<string> {
+  const result = await selectAppApi(args.developer_id, args.app_id, ctx.projectPath, ctx);
+  return formatRawJson(result);
 }
 
 /**
@@ -249,6 +272,34 @@ ${error instanceof Error ? error.message : String(error)}
 }
 
 /**
+ * Get current app information as raw JSON.
+ */
+export async function getCurrentAppInfoRaw(
+  ctx: ResolvedContext,
+  ignoreCache: boolean = false
+): Promise<string> {
+  const { getCachePath } = await import('../../core/utils/cache.js');
+  const { ensureAppInfo } = await import('./api.js');
+
+  const cache = await ensureAppInfo(ctx.projectPath, ctx, ignoreCache);
+
+  if (!cache) {
+    return formatRawJson({
+      selected: false,
+      ignore_cache: ignoreCache,
+      next_steps: ['list_developers_and_apps', 'select_app'],
+    });
+  }
+
+  return formatRawJson({
+    selected: true,
+    ignore_cache: ignoreCache,
+    cache_path: getCachePath(ctx.projectPath),
+    cache,
+  });
+}
+
+/**
  * Start OAuth authorization
  */
 export async function startOAuthAuthorization(ctx: ResolvedContext): Promise<string> {
@@ -311,6 +362,40 @@ export async function startOAuthAuthorization(ctx: ResolvedContext): Promise<str
 }
 
 /**
+ * Start OAuth authorization and return raw structured payload.
+ */
+export async function startOAuthAuthorizationRaw(ctx: ResolvedContext): Promise<string> {
+  const { hasMacToken } = ctx.getTokenStatus();
+
+  if (hasMacToken) {
+    return formatRawJson({
+      authorized: true,
+      already_authorized: true,
+      environment: EnvConfig.environment,
+    });
+  }
+
+  const environment = EnvConfig.environment;
+  const deviceCodeData = await requestDeviceCode(environment);
+  const authUrl = generateAuthUrl(deviceCodeData.qrcode_url, environment);
+
+  oauthState.setPendingState({
+    deviceCode: deviceCodeData.device_code,
+    environment,
+  });
+
+  return formatRawJson({
+    authorized: false,
+    environment,
+    device_code: deviceCodeData.device_code,
+    qrcode_url: deviceCodeData.qrcode_url,
+    auth_url: authUrl,
+    expires_in: deviceCodeData.expires_in,
+    interval: deviceCodeData.interval,
+  });
+}
+
+/**
  * Complete OAuth authorization
  */
 export async function completeOAuthAuthorization(
@@ -358,6 +443,42 @@ export async function completeOAuthAuthorization(
       '如果仍然失败，请使用 start_oauth_authorization 工具获取新的授权链接。'
     );
   }
+}
+
+/**
+ * Complete OAuth authorization and return raw structured payload.
+ */
+export async function completeOAuthAuthorizationRaw(
+  _args: Record<string, never>,
+  ctx: ResolvedContext
+): Promise<string> {
+  const pendingState = oauthState.getPendingState();
+
+  if (!pendingState) {
+    return formatRawJson({
+      authorized: false,
+      error: 'NO_PENDING_AUTH',
+      message: 'No pending authorization. Call start_oauth_authorization_raw first.',
+    });
+  }
+
+  const macToken = await pollForToken(pendingState.deviceCode, pendingState.environment);
+
+  saveToken(macToken, {
+    environment: pendingState.environment,
+    userId: ctx.userId,
+    projectId: ctx.projectId,
+  });
+
+  oauthState.clearPendingState();
+
+  return formatRawJson({
+    authorized: true,
+    environment: pendingState.environment,
+    token_type: macToken.token_type,
+    mac_algorithm: macToken.mac_algorithm,
+    kid: macToken.kid,
+  });
 }
 
 /**
@@ -416,6 +537,35 @@ export async function clearAuthData(
 }
 
 /**
+ * Clear auth data and app cache, returning raw structured payload.
+ */
+export async function clearAuthDataRaw(
+  args: { clear_token?: boolean; clear_cache?: boolean },
+  ctx: ResolvedContext
+): Promise<string> {
+  const clearTokenFlag = args.clear_token !== false;
+  const clearCacheFlag = args.clear_cache !== false;
+  const cleared: string[] = [];
+
+  if (clearTokenFlag) {
+    clearToken(ctx.userId, ctx.projectId);
+    cleared.push('token');
+  }
+
+  if (clearCacheFlag) {
+    clearAppCache(ctx.projectPath);
+    cleared.push('cache');
+  }
+
+  return formatRawJson({
+    ok: true,
+    cleared,
+    clear_token: clearTokenFlag,
+    clear_cache: clearCacheFlag,
+  });
+}
+
+/**
  * Check environment configuration and authentication status
  */
 export async function checkEnvironment(ctx: ResolvedContext): Promise<string> {
@@ -471,6 +621,39 @@ export async function checkEnvironment(ctx: ResolvedContext): Promise<string> {
   }
 
   return `🔧 环境配置检查结果:\n\n${envResult}${statusMessage}`;
+}
+
+/**
+ * Check environment and auth status as raw JSON.
+ */
+export async function checkEnvironmentRaw(ctx: ResolvedContext): Promise<string> {
+  const { hasMacToken } = ctx.getTokenStatus();
+  const signerStatus = await getSignerStatus();
+  const usingNative = isUsingNativeSigner();
+
+  return formatRawJson({
+    signer: {
+      mode: usingNative ? 'native' : 'env',
+      version: signerStatus.version,
+      client_id_embedded: usingNative,
+      client_secret_embedded: usingNative,
+      env_client_id_configured: !!EnvConfig.clientId,
+      env_client_secret_configured: !!EnvConfig.clientSecret,
+    },
+    auth: {
+      has_mac_token: hasMacToken,
+    },
+    environment: {
+      name: EnvConfig.environment,
+      api_base_url: EnvConfig.endpoints.apiBaseUrl,
+    },
+    directories: {
+      workspace_root: EnvConfig.workspaceRoot,
+      cache_dir: EnvConfig.cacheDir,
+      temp_dir: EnvConfig.tempDir,
+      log_root: EnvConfig.logRoot,
+    },
+  });
 }
 
 /**

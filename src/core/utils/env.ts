@@ -149,6 +149,11 @@ export class EnvConfig {
     return getEnvBoolean('TAPTAP_MCP_VERBOSE');
   }
 
+  /** 是否暴露 raw JSON tools（默认关闭） */
+  static get rawToolsEnabled(): boolean {
+    return getEnvBoolean('TAPTAP_MCP_ENABLE_RAW_TOOLS', false);
+  }
+
   // --------------------------------------------------------------------------
   // 路径配置
   // --------------------------------------------------------------------------

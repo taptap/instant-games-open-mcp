@@ -20,6 +20,8 @@
     "start": "node bin/minigame-open-mcp",
     "dev": "tsx watch src/server.ts",
     "serve": "TAPTAP_MCP_TRANSPORT=sse node dist/server.js",
+    "openclaw:pack": "./scripts/release-openclaw-plugin.sh pack",
+    "openclaw:publish": "./scripts/release-openclaw-plugin.sh publish",
     "docker:npm": "cd docker/npm && docker-compose -p taptap-mcp up -d",
     "test": "jest",
     "lint": "eslint \"src/**/*.ts\"",

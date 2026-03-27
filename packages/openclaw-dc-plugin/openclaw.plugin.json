@@ -1,0 +1,40 @@
+{
+  "id": "taptap-dc-plugin",
+  "name": "TapTap DC",
+  "description": "Raw TapTap DC tools for OpenClaw, bundled with an ops brief skill.",
+  "version": "0.1.0",
+  "skills": ["./skills"],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "environment": {
+        "type": "string",
+        "description": "TapTap environment to use.",
+        "enum": ["production", "rnd"],
+        "default": "production"
+      },
+      "workspaceRoot": {
+        "type": "string",
+        "description": "Optional workspace root passed to the embedded TapTap runtime."
+      },
+      "cacheDir": {
+        "type": "string",
+        "description": "Optional cache directory override for the embedded TapTap runtime."
+      },
+      "tempDir": {
+        "type": "string",
+        "description": "Optional temp directory override for the embedded TapTap runtime."
+      },
+      "logRoot": {
+        "type": "string",
+        "description": "Optional log directory override for the embedded TapTap runtime."
+      },
+      "verbose": {
+        "type": "boolean",
+        "description": "Enable verbose logging for the embedded TapTap runtime.",
+        "default": false
+      }
+    },
+    "additionalProperties": false
+  }
+}

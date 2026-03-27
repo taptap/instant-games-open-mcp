@@ -11,12 +11,37 @@
 - **⚙️ 服务端管理** - 创建/管理排行榜，自动处理 ID
 - **🎮 H5 游戏支持** - 上传、发布、状态查询
 - **🧭 当前游戏 DC 能力** - 商店/评价/社区统计概览、商店快照、论坛内容、评价列表、评价点赞、官方回复
+- **🦞 OpenClaw Plugin** - 提供一个原生 OpenClaw plugin 子包，内部复用 TapTap MCP 运行时并暴露 raw JSON 工具 + bundled skill
 - **🚀 三种传输模式** - stdio（本地）、SSE（远程/实时）、HTTP（兼容）
 - **🔌 多客户端并发** - 独立会话管理，无限并发
 - **📦 单文件 Bundle** - 零依赖，包体积减少 96%（567 KB）
 - **🤖 智能引导** - AI Agent 自动验证前置条件，主动询问用户选择
 
 **NPM**: [@mikoto_zero/minigame-open-mcp](https://www.npmjs.com/package/@mikoto_zero/minigame-open-mcp)
+
+## 🦞 OpenClaw Plugin（实验中）
+
+仓库内提供了一个可独立发布的 OpenClaw plugin 子包：
+
+- [`packages/openclaw-dc-plugin`](packages/openclaw-dc-plugin)
+
+这个子包的设计目标是：
+
+- 让 OpenClaw 用户只安装一个 plugin
+- plugin 内部复用 `@mikoto_zero/minigame-open-mcp` 运行时
+- 对 OpenClaw 暴露 raw JSON 工具
+- 同时内置 `taptap-dc-ops-brief` skill，让模型自己做简报解读
+
+说明：
+
+- 主包里的 `*_raw` tools 默认不会暴露给普通 MCP 客户端
+- 只有设置 `TAPTAP_MCP_ENABLE_RAW_TOOLS=true` 时才会注册
+- OpenClaw plugin 会自动打开这个开关，因此插件用户不需要额外配置
+
+详见：
+
+- [OpenClaw Plugin 说明](docs/OPENCLAW_PLUGIN.md)
+- 维护者发布方式：`npm run openclaw:pack` / `npm run openclaw:publish`
 
 ## 🧩 Codex Skills（运营简报）
 

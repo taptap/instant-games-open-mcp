@@ -90,6 +90,18 @@ const allModules: FeatureModule[] = [
   adsModule, // Ads integration guide (Rewarded Video, Interstitial, Banner)
 ];
 
+function isRawTool(tool: ToolRegistration): boolean {
+  return tool.definition.name.endsWith('_raw');
+}
+
+function getEnabledTools(tools: ToolRegistration[]): ToolRegistration[] {
+  if (EnvConfig.rawToolsEnabled) {
+    return tools;
+  }
+
+  return tools.filter((tool) => !isRawTool(tool));
+}
+
 /**
  * 验证解析后的 JSON 是否为合法的 Record<string, string>
  */
@@ -145,7 +157,7 @@ class TapTapMinigameMCPServer {
     const registry = new Map<string, ToolRegistration>();
 
     for (const module of allModules) {
-      for (const tool of module.tools) {
+      for (const tool of getEnabledTools(module.tools)) {
         const toolName = tool.definition.name;
 
         // 检测名称冲突
@@ -306,7 +318,7 @@ class TapTapMinigameMCPServer {
 
     // 设置工具列表处理器 - 从所有模块收集
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: allModules.flatMap((m) => m.tools.map((t) => t.definition)),
+      tools: allModules.flatMap((m) => getEnabledTools(m.tools).map((t) => t.definition)),
     }));
 
     // 设置工具调用处理器 - 自动从模块路由
@@ -516,7 +528,7 @@ class TapTapMinigameMCPServer {
    */
   async start(): Promise<void> {
     // Count tools and resources from all modules
-    const totalTools = allModules.reduce((sum, m) => sum + m.tools.length, 0);
+    const totalTools = allModules.reduce((sum, m) => sum + getEnabledTools(m.tools).length, 0);
     const totalResources = allModules.reduce((sum, m) => sum + m.resources.length, 0);
 
     if (transportMode === 'sse' || transportMode === 'http') {
@@ -538,6 +550,9 @@ class TapTapMinigameMCPServer {
     process.stderr.write('🏆 Features: Leaderboard Documentation & Management API\n');
     process.stderr.write(`🌍 Environment: ${EnvConfig.environment}\n`);
     process.stderr.write(`🔗 API Base: ${EnvConfig.endpoints.apiBaseUrl}\n`);
+    process.stderr.write(
+      `🧩 Raw Tools: ${EnvConfig.rawToolsEnabled ? 'enabled' : 'disabled (default)'}\n`
+    );
 
     // 显示认证配置（区分 Native Signer 和环境变量两种模式）
     process.stderr.write('\n🔐 Authentication Configuration:\n');
@@ -584,7 +599,7 @@ class TapTapMinigameMCPServer {
 
     process.stderr.write('\n🎯 Loaded Modules:\n');
     allModules.forEach((m) => {
-      const toolCount = m.tools.length;
+      const toolCount = getEnabledTools(m.tools).length;
       const resourceCount = m.resources.length;
       process.stderr.write(`   📦 ${m.name}: ${toolCount} tools, ${resourceCount} resources\n`);
     });
