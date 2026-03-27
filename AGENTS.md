@@ -144,6 +144,7 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 - 🏆 排行榜系统 - 完整的 API 文档和服务端管理
 - 🎮 H5 游戏管理 - 上传、发布、状态查询
 - 🧭 当前游戏 DC 能力 - 商店/评价/社区统计概览、商店快照、论坛内容、评价列表、点赞、官方回复
+- 🦞 OpenClaw Plugin 子包 - `packages/openclaw-dc-plugin`，面向 OpenClaw 暴露 raw JSON tools，并 bundled 运营简报 skill
 - 🔐 OAuth 2.0 Device Code Flow - 零配置认证（扫码即用）
 - 🎯 完整功能集 - 多类 Tools + Resources，覆盖文档查询与服务端动作
 - 🚀 MCP 2025 标准 - Streamable HTTP + RFC 5424 Logging
@@ -153,6 +154,7 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 **基本信息：**
 
 - **NPM 包：** `@mikoto_zero/minigame-open-mcp`
+- **OpenClaw Plugin 子包：** `packages/openclaw-dc-plugin`（计划独立发布为 npm plugin）
 - **官方 API 文档：** https://developer.taptap.cn/minigameapidoc/
 
 ## 架构概览
@@ -344,6 +346,9 @@ npm run format:check
 
 # 格式化代码
 npm run format
+
+# OpenClaw plugin 子包打包预检
+npm run openclaw:pack
 ```
 
 ### 环境变量（常用）

@@ -341,4 +341,143 @@ export const appTools: ToolRegistration[] = [
       return appHandlers.clearAuthData(args, context);
     },
   },
+
+  // 🤖 Raw Environment Check
+  {
+    definition: {
+      name: 'check_environment_raw',
+      description:
+        '[Raw JSON] Return structured environment, signer, and authentication status for agent/plugin consumption.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    handler: async (_args, context) => {
+      return appHandlers.checkEnvironmentRaw(context);
+    },
+  },
+
+  // 🤖 Raw OAuth Start
+  {
+    definition: {
+      name: 'start_oauth_authorization_raw',
+      description:
+        '[Raw JSON] Start OAuth 2.0 Device Code Flow and return device_code, qrcode_url, auth_url, and expiry information as structured JSON.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    handler: async (_args, context) => {
+      return appHandlers.startOAuthAuthorizationRaw(context);
+    },
+  },
+
+  // 🤖 Raw OAuth Complete
+  {
+    definition: {
+      name: 'complete_oauth_authorization_raw',
+      description:
+        '[Raw JSON] Complete OAuth authorization after the user scanned and approved the QR code. Returns structured authorization result JSON.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    handler: async (_args, context) => {
+      return appHandlers.completeOAuthAuthorizationRaw({}, context);
+    },
+  },
+
+  // 🤖 Raw List Apps
+  {
+    definition: {
+      name: 'list_developers_and_apps_raw',
+      description:
+        '[Raw JSON] List all developers and their apps/games, including level and non-level apps, as structured JSON.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    handler: async (_args, context) => {
+      return appHandlers.listDevelopersAndAppsRaw(context);
+    },
+    requiresAuth: true,
+  },
+
+  // 🤖 Raw Select App
+  {
+    definition: {
+      name: 'select_app_raw',
+      description:
+        '[Raw JSON] Select a specific developer/app pair and return the cached selection payload as structured JSON.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          developer_id: {
+            type: 'number',
+            description: 'Developer ID to select.',
+          },
+          app_id: {
+            type: 'number',
+            description: 'App ID to select.',
+          },
+        },
+        required: ['developer_id', 'app_id'],
+      },
+    },
+    handler: async (args: { developer_id: number; app_id: number }, context) => {
+      return appHandlers.selectAppRaw(args, context);
+    },
+    requiresAuth: true,
+  },
+
+  // 🤖 Raw Current App Info
+  {
+    definition: {
+      name: 'get_current_app_info_raw',
+      description:
+        '[Raw JSON] Return the currently selected app/cache payload as structured JSON for agent/plugin consumption.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          ignore_cache: {
+            type: 'boolean',
+            description:
+              'If true, force refresh data from server regardless of cache TTL. Default false.',
+          },
+        },
+      },
+    },
+    handler: async (args: { ignore_cache?: boolean }, context) => {
+      return appHandlers.getCurrentAppInfoRaw(context, args.ignore_cache);
+    },
+  },
+
+  // 🤖 Raw Clear Auth
+  {
+    definition: {
+      name: 'clear_auth_data_raw',
+      description:
+        '[Raw JSON] Clear cached OAuth token and/or selected app cache, returning structured result JSON.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          clear_token: {
+            type: 'boolean',
+            description: 'Clear OAuth token file (default: true).',
+          },
+          clear_cache: {
+            type: 'boolean',
+            description: 'Clear app selection cache (default: true).',
+          },
+        },
+      },
+    },
+    handler: async (args: { clear_token?: boolean; clear_cache?: boolean }, context) => {
+      return appHandlers.clearAuthDataRaw(args, context);
+    },
+  },
 ];

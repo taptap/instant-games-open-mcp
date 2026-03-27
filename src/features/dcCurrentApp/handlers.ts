@@ -53,6 +53,10 @@ function formatJsonBlock(data: unknown): string {
   return `\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
 }
 
+function formatRawJson(data: unknown): string {
+  return JSON.stringify(data, null, 2);
+}
+
 /**
  * Convert timestamp or string-like values into readable text.
  */
@@ -119,6 +123,14 @@ function pickRatingReviewCount(summary?: JsonObject): number | undefined {
     return pickNumberField(stat as JsonObject, ['review_count', 'count', 'total_count']);
   }
   return pickNumberField(summary, ['review_count', 'count', 'total_count']);
+}
+
+function buildRawSelectionPayload(selection: CurrentAppSelection, data: unknown): string {
+  return formatRawJson({
+    app_id: selection.appId,
+    app_title: selection.appTitle,
+    data,
+  });
 }
 
 /**
@@ -526,4 +538,250 @@ export async function replyCurrentAppReview(
 
     return `❌ 官方回复评价失败：${String(error)}`;
   }
+}
+
+/**
+ * Get current app store overview as raw JSON.
+ */
+export async function getCurrentAppStoreOverviewRaw(
+  args: {
+    start_date?: string;
+    end_date?: string;
+  },
+  context: ResolvedContext
+): Promise<string> {
+  const selection = ensureCurrentAppSelected(context);
+  if (typeof selection === 'string') {
+    return formatRawJson({
+      ok: false,
+      error: 'APP_NOT_SELECTED',
+      message: selection,
+    });
+  }
+
+  const result = await getCurrentAppStoreOverviewApi(
+    {
+      app_id: selection.appId,
+      start_date: args.start_date,
+      end_date: args.end_date,
+    },
+    context
+  );
+
+  return buildRawSelectionPayload(selection, result);
+}
+
+/**
+ * Get current app review overview as raw JSON.
+ */
+export async function getCurrentAppReviewOverviewRaw(
+  args: {
+    start_date?: string;
+    end_date?: string;
+  },
+  context: ResolvedContext
+): Promise<string> {
+  const selection = ensureCurrentAppSelected(context);
+  if (typeof selection === 'string') {
+    return formatRawJson({
+      ok: false,
+      error: 'APP_NOT_SELECTED',
+      message: selection,
+    });
+  }
+
+  const result = await getCurrentAppReviewOverviewApi(
+    {
+      app_id: selection.appId,
+      start_date: args.start_date,
+      end_date: args.end_date,
+    },
+    context
+  );
+
+  return buildRawSelectionPayload(selection, result);
+}
+
+/**
+ * Get current app community overview as raw JSON.
+ */
+export async function getCurrentAppCommunityOverviewRaw(
+  args: {
+    start_date?: string;
+    end_date?: string;
+  },
+  context: ResolvedContext
+): Promise<string> {
+  const selection = ensureCurrentAppSelected(context);
+  if (typeof selection === 'string') {
+    return formatRawJson({
+      ok: false,
+      error: 'APP_NOT_SELECTED',
+      message: selection,
+    });
+  }
+
+  const result = await getCurrentAppCommunityOverviewApi(
+    {
+      app_id: selection.appId,
+      start_date: args.start_date,
+      end_date: args.end_date,
+    },
+    context
+  );
+
+  return buildRawSelectionPayload(selection, result);
+}
+
+/**
+ * Get current app store snapshot as raw JSON.
+ */
+export async function getCurrentAppStoreSnapshotRaw(context: ResolvedContext): Promise<string> {
+  const selection = ensureCurrentAppSelected(context);
+  if (typeof selection === 'string') {
+    return formatRawJson({
+      ok: false,
+      error: 'APP_NOT_SELECTED',
+      message: selection,
+    });
+  }
+
+  const result = await getCurrentAppStoreSnapshotApi(selection.appId, context);
+  return buildRawSelectionPayload(selection, result);
+}
+
+/**
+ * Get current app forum contents as raw JSON.
+ */
+export async function getCurrentAppForumContentsRaw(
+  args: {
+    type?: string;
+    sort?: string;
+    from?: number;
+    limit?: number;
+    group_label_id?: number;
+  },
+  context: ResolvedContext
+): Promise<string> {
+  const selection = ensureCurrentAppSelected(context);
+  if (typeof selection === 'string') {
+    return formatRawJson({
+      ok: false,
+      error: 'APP_NOT_SELECTED',
+      message: selection,
+    });
+  }
+
+  const result = await getCurrentAppForumContentsApi(
+    {
+      app_id: selection.appId,
+      type: args.type,
+      sort: args.sort,
+      from: args.from,
+      limit: args.limit,
+      group_label_id: args.group_label_id,
+    },
+    context
+  );
+
+  return buildRawSelectionPayload(selection, result);
+}
+
+/**
+ * Get current app reviews as raw JSON.
+ */
+export async function getCurrentAppReviewsRaw(
+  args: {
+    sort?: 'new' | 'hot' | 'spent';
+    from?: number;
+    limit?: number;
+    is_collapsed?: boolean;
+    filter_platform?: 'mobile' | 'pc' | 'web';
+  },
+  context: ResolvedContext
+): Promise<string> {
+  const selection = ensureCurrentAppSelected(context);
+  if (typeof selection === 'string') {
+    return formatRawJson({
+      ok: false,
+      error: 'APP_NOT_SELECTED',
+      message: selection,
+    });
+  }
+
+  const result = await getCurrentAppReviewsApi(
+    {
+      app_id: selection.appId,
+      sort: args.sort,
+      from: args.from,
+      limit: args.limit,
+      is_collapsed: args.is_collapsed,
+      filter_platform: args.filter_platform,
+    },
+    context
+  );
+
+  return buildRawSelectionPayload(selection, result);
+}
+
+/**
+ * Like a current app review as raw JSON.
+ */
+export async function likeCurrentAppReviewRaw(
+  args: { review_id: number },
+  context: ResolvedContext
+): Promise<string> {
+  const selection = ensureCurrentAppSelected(context);
+  if (typeof selection === 'string') {
+    return formatRawJson({
+      ok: false,
+      error: 'APP_NOT_SELECTED',
+      message: selection,
+    });
+  }
+
+  const result = await likeCurrentAppReviewApi(
+    {
+      app_id: selection.appId,
+      review_id: args.review_id,
+    },
+    context
+  );
+
+  return buildRawSelectionPayload(selection, result);
+}
+
+/**
+ * Reply to a current app review as raw JSON.
+ */
+export async function replyCurrentAppReviewRaw(
+  args: {
+    review_id: number;
+    contents: string;
+    reply_comment_id?: number;
+    confirm_high_risk?: boolean;
+  },
+  context: ResolvedContext
+): Promise<string> {
+  const selection = ensureCurrentAppSelected(context);
+  if (typeof selection === 'string') {
+    return formatRawJson({
+      ok: false,
+      error: 'APP_NOT_SELECTED',
+      message: selection,
+    });
+  }
+
+  const result = await replyCurrentAppReviewApi(
+    {
+      app_id: selection.appId,
+      review_id: args.review_id,
+      contents: args.contents.trim(),
+      reply_comment_id: args.reply_comment_id,
+      confirm_high_risk: args.confirm_high_risk,
+    },
+    context
+  );
+
+  return buildRawSelectionPayload(selection, result);
 }
