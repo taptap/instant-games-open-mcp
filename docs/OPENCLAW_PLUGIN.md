@@ -95,7 +95,7 @@ npm run openclaw:publish
 发布完成后，OpenClaw 用户侧安装命令是：
 
 ```bash
-openclaw plugins install @taptap/openclaw-dc-plugin
+openclaw plugins install @lotaber_wang/openclaw-dc-plugin
 ```
 
 ## 当前 raw tools 范围

@@ -1,5 +1,5 @@
 {
-  "name": "@taptap/openclaw-dc-plugin",
+  "name": "@lotaber_wang/openclaw-dc-plugin",
   "version": "0.1.0",
   "type": "module",
   "description": "OpenClaw plugin for TapTap DC raw data tools with a bundled ops-brief skill.",

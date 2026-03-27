@@ -19,7 +19,7 @@ OpenClaw plugin that exposes raw TapTap DC tools and bundles a TapTap DC ops-bri
 ## Install
 
 ```bash
-openclaw plugins install @taptap/openclaw-dc-plugin
+openclaw plugins install @lotaber_wang/openclaw-dc-plugin
 ```
 
 ## Typical Flow
