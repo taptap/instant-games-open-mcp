@@ -1,40 +1,34 @@
-# TapTap DC OpenClaw Plugin
+# TapTap DC OpenClaw 插件
 
-OpenClaw plugin that exposes raw TapTap DC tools and bundles a TapTap DC ops-brief skill.
+这是一个面向 OpenClaw 的 TapTap DC 插件，内置原始数据工具与运营简报 skill。
 
-## What It Does
+## 插件能力
 
-- installs as a native OpenClaw plugin
-- internally boots the published `@mikoto_zero/minigame-open-mcp` runtime
-- exposes raw JSON-oriented TapTap tools for:
-  - authorization
-  - app selection
-  - store/review/community overview
-  - store snapshot
-  - forum contents
-  - reviews
-  - like/reply review actions
-- bundles a `taptap-dc-ops-brief` skill that turns those raw responses into a concise ops brief
+- 以 OpenClaw 原生插件方式安装
+- 内部启动已发布的 `@mikoto_zero/minigame-open-mcp` 运行时
+- 暴露适合 agent / skill 消费的 TapTap DC 原始 JSON 工具
+- 覆盖授权、选游戏、商店/评价/社区概览、商店快照、论坛内容、评价列表、点赞与官方回复
+- 内置 `taptap-dc-ops-brief`，可把原始数据整理成简洁的运营简报
 
-## Install
+## 安装
 
 ```bash
 openclaw plugins install @lotaber_wang/openclaw-dc-plugin
 ```
 
-## Typical Flow
+## 典型使用流程
 
-1. Call `taptap_dc_check_environment`
-2. If not authorized, call `taptap_dc_start_authorization`
-3. Ask the user to open `auth_url` or scan `qrcode_url`
-4. Call `taptap_dc_complete_authorization`
-5. Call `taptap_dc_list_apps`
-6. Call `taptap_dc_select_app`
-7. Call overview tools and let the bundled skill produce the brief
+1. 调用 `taptap_dc_check_environment`
+2. 如果还没授权，调用 `taptap_dc_start_authorization`
+3. 打开 `auth_url` 或扫描 `qrcode_url`
+4. 完成后调用 `taptap_dc_complete_authorization`
+5. 调用 `taptap_dc_list_apps`
+6. 调用 `taptap_dc_select_app`
+7. 再调用概览类工具，并配合内置 skill 生成简报
 
-## Configuration
+## 配置项
 
-Optional plugin config:
+可选配置如下：
 
 - `environment`: `production` or `rnd`
 - `workspaceRoot`
@@ -43,4 +37,4 @@ Optional plugin config:
 - `logRoot`
 - `verbose`
 
-Production use should not need `client_id` / `client_secret` overrides when the embedded TapTap package already contains them.
+正常情况下，如果内嵌的 TapTap MCP 主包已经带了可用凭据，生产环境不需要额外配置 `client_id` / `client_secret`。

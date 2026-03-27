@@ -1,9 +1,14 @@
 {
   "name": "@lotaber_wang/openclaw-dc-plugin",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "type": "module",
-  "description": "OpenClaw plugin for TapTap DC raw data tools with a bundled ops-brief skill.",
+  "description": "TapTap DC 的 OpenClaw 插件，内置原始数据工具与运营简报 skill。",
   "main": "index.js",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  },
   "exports": {
     ".": "./index.js",
     "./package.json": "./package.json"

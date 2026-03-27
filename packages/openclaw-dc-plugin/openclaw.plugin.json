@@ -1,37 +1,37 @@
 {
   "id": "taptap-dc-plugin",
   "name": "TapTap DC",
-  "description": "Raw TapTap DC tools for OpenClaw, bundled with an ops brief skill.",
-  "version": "0.1.0",
+  "description": "面向 OpenClaw 的 TapTap DC 插件，内置原始数据工具与运营简报 skill。",
+  "version": "0.1.1",
   "skills": ["./skills"],
   "configSchema": {
     "type": "object",
     "properties": {
       "environment": {
         "type": "string",
-        "description": "TapTap environment to use.",
+        "description": "TapTap 环境，支持 production 或 rnd。",
         "enum": ["production", "rnd"],
         "default": "production"
       },
       "workspaceRoot": {
         "type": "string",
-        "description": "Optional workspace root passed to the embedded TapTap runtime."
+        "description": "可选的工作区根目录，会传给内嵌 TapTap 运行时。"
       },
       "cacheDir": {
         "type": "string",
-        "description": "Optional cache directory override for the embedded TapTap runtime."
+        "description": "可选的缓存目录覆盖配置。"
       },
       "tempDir": {
         "type": "string",
-        "description": "Optional temp directory override for the embedded TapTap runtime."
+        "description": "可选的临时目录覆盖配置。"
       },
       "logRoot": {
         "type": "string",
-        "description": "Optional log directory override for the embedded TapTap runtime."
+        "description": "可选的日志根目录覆盖配置。"
       },
       "verbose": {
         "type": "boolean",
-        "description": "Enable verbose logging for the embedded TapTap runtime.",
+        "description": "是否为内嵌 TapTap 运行时开启详细日志。",
         "default": false
       }
     },

@@ -327,7 +327,7 @@ try {
 const plugin = {
   id: 'taptap-dc-plugin',
   name: 'TapTap DC',
-  description: 'Raw TapTap DC tools for OpenClaw, bundled with an ops brief skill.',
+  description: '面向 OpenClaw 的 TapTap DC 插件，内置原始数据工具与运营简报 skill。',
   configSchema: {
     type: 'object',
     properties: {
