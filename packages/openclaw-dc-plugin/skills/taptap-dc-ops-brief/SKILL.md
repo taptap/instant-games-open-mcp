@@ -14,24 +14,24 @@ description: 生成 TapTap 当前游戏 DC 运营简报与结论解读（商店/
 
 ## 默认工作流
 
-1. 自检插件环境
-   - 调用 `taptap_dc_check_environment`
+1. 优先走高层工具
+   - 用户说“查游戏数据 / 给我看 TapTap DC / 生成运营简报”时，优先调用 `taptap_dc_quick_brief`
+   - 如果用户给了游戏名，直接把 `app_name` 传进去
+   - 如果用户给了 `app_id`，直接把 `app_id` 传进去
 2. 如果未授权
-   - 调用 `taptap_dc_start_authorization`
-   - 让用户打开 `auth_url` 或扫描 `qrcode_url`
+   - `taptap_dc_quick_brief` 会直接返回 markdown 授权链接，其中第一条通常就是可直接点击完成授权的链接
+   - 如果用户当前在手机上对话，优先引导用户直接点击第一条“直接点击授权”链接，不要先强调扫码
+   - 如果用户当前在桌面端对话，再引导用户打开授权页直链并扫码或转发到手机
    - 用户确认后调用 `taptap_dc_complete_authorization`
-3. 选择游戏
-   - 调用 `taptap_dc_list_apps`
-   - 展示列表并让用户指定
-   - 调用 `taptap_dc_select_app`
-4. 拉取只读数据
+   - 然后再次调用 `taptap_dc_quick_brief`
+3. 只有在用户明确要求更细的内容时，才退回到底层工具链
+   - `taptap_dc_list_apps`
+   - `taptap_dc_select_app`
    - `taptap_dc_get_store_overview`
    - `taptap_dc_get_review_overview`
    - `taptap_dc_get_community_overview`
-   - 需要结果快照时调用 `taptap_dc_get_store_snapshot`
-   - 需要具体内容时调用 `taptap_dc_get_reviews` / `taptap_dc_get_forum_contents`
-5. 输出“30 秒可读”的简报
-6. 若需要动作建议，可给出“是否建议点赞/回复”的候选，但不要直接执行
+   - `taptap_dc_get_store_snapshot`
+   - `taptap_dc_get_reviews` / `taptap_dc_get_forum_contents`
 
 ## 输出要求
 
@@ -45,6 +45,7 @@ description: 生成 TapTap 当前游戏 DC 运营简报与结论解读（商店/
 ## 关键规则
 
 - 这些 plugin tools 返回的是 **raw JSON**，你要自己完成解读，不要把 JSON 原样长篇贴回给用户
+- 当授权工具已经返回可点击 markdown 链接时，优先直接复用第一条直链，不要再把它改写成“去扫二维码”
 - `page_view_count` 应写成“详情页访问量（PV）”，不要偷换成别的口径
 - `taptap_dc_like_review` / `taptap_dc_reply_review` 只能在用户明确确认后调用
 - 如果回复结果里出现 `need_confirmation=true`，必须先把草稿给用户确认，再决定是否带 `confirm_high_risk=true` 重试

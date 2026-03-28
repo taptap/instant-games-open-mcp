@@ -26,13 +26,17 @@ echo
 
 mkdir -p "$CACHE_DIR"
 
+echo "Installing bundled runtime dependency into plugin package..."
+cd "$PLUGIN_DIR"
+rm -rf node_modules/@mikoto_zero
+npm install --no-package-lock --omit=dev --cache "$CACHE_DIR"
+echo
+
 case "$MODE" in
   pack)
-    cd "$PLUGIN_DIR"
     npm pack --dry-run --cache "$CACHE_DIR"
     ;;
   publish)
-    cd "$PLUGIN_DIR"
     npm publish --access public --cache "$CACHE_DIR"
     ;;
   *)

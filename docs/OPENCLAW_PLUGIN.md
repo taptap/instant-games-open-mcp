@@ -8,7 +8,8 @@
 
 - 不要求最终用户单独配置 MCP
 - 直接作为 OpenClaw native plugin 安装
-- 内部复用 `@mikoto_zero/minigame-open-mcp` 运行时
+- 发布时把 `@mikoto_zero/minigame-open-mcp` 作为 bundled dependency 一起打进插件包
+- 运行时优先使用插件包内自带 runtime；缺失时再回退到本地依赖或缓存 runtime
 - 对 OpenClaw 暴露 raw JSON tools
 - bundled 一个 `taptap-dc-ops-brief` skill，负责把 raw data 解读成运营简报
 
@@ -28,7 +29,7 @@ packages/openclaw-dc-plugin/
 ## 工作方式
 
 1. OpenClaw 安装 plugin
-2. plugin 内部启动 TapTap MCP stdio runtime
+2. plugin 内部优先启动 bundled TapTap MCP stdio runtime
 3. plugin 调用仓库里新增的 `*_raw` tools
 4. skill 基于 raw JSON 做简报和动作建议
 
@@ -48,7 +49,7 @@ packages/openclaw-dc-plugin/
 
 原因：
 
-- OpenClaw plugin 只是一个安装壳
+- OpenClaw plugin 会在首次调用时拉取或复用主运行时
 - 真正拉数据的运行时仍然来自 `@mikoto_zero/minigame-open-mcp`
 - 如果主包版本还没发出去，plugin 即使发了也会因为缺少对应 raw tools 而不可用
 
@@ -98,6 +99,15 @@ npm run openclaw:publish
 openclaw plugins install @lotaber_wang/openclaw-dc-plugin
 ```
 
+说明：
+
+- 安装插件本身时，不再要求宿主已经额外装好 `@mikoto_zero/minigame-open-mcp`
+- 正常情况下，首次调用不会再触发在线安装主运行时
+- bridge 会优先走标准 stdio；如果 `initialize` 卡住，会自动尝试无缓冲 / PTY 兼容启动
+- bridge 兼容两种输出：标准 `Content-Length` 帧，以及个别宿主下出现的裸 JSON 输出
+- bridge 向内嵌 runtime 发送请求时默认使用裸 JSON + 换行，避免部分宿主下只发 `Content-Length` 帧导致初始化无响应
+- 授权相关工具会优先返回“直接点击授权”超链接，并附带包装链接与授权页直链，便于移动端直接点击授权
+
 ## 当前 raw tools 范围
 
 - 环境检查 / 授权开始 / 授权完成 / 清理认证
@@ -106,3 +116,17 @@ openclaw plugins install @lotaber_wang/openclaw-dc-plugin
 - 商店 snapshot
 - forum contents / reviews
 - 点赞评价 / 官方回复评价
+
+## OpenClaw 兼容性说明
+
+为降低 OpenClaw / 容器 / PTY 宿主下的握手失败概率，插件侧做了额外兼容：
+
+- 启动顺序：direct stdio -> `stdbuf` 无缓冲 -> `script` PTY wrapper
+- `initialize` 默认超时为 45 秒，超时会自动切换下一种策略
+- `initialize` 默认使用 `protocolVersion=2024-11-05` 和空 `capabilities`，优先走兼容性更高的握手参数
+- bridge 发往 runtime 的 MCP 报文默认走裸 JSON + 换行，不依赖 `Content-Length` 请求帧
+- stdout 解析兼容标准 MCP 帧和裸 JSON
+- 如果启动时 stdout 混入人类可读日志，bridge 会先丢弃噪音再继续解析
+- 如果拿到的是半截 JSON，bridge 会继续等待剩余分片，不会立刻判定失败
+- 如果 PTY 回显了请求报文，bridge 会自动过滤，不把回显误当成服务端响应
+- 授权工具文本会把移动端“直接点击授权”链接放在最前面，减少模型只转述扫码方案的概率

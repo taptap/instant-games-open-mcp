@@ -50,6 +50,300 @@ function createSchema(properties = {}, required = []) {
   };
 }
 
+function buildMarkdownLink(label, url) {
+  if (!url) {
+    return '-';
+  }
+
+  return `[${label}](${url})`;
+}
+
+function tryParseUrl(value) {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+function decodeWrappedAuthUrl(value) {
+  const parsed = tryParseUrl(value);
+  const wrappedCode = parsed?.searchParams?.get('code');
+  if (!wrappedCode) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(wrappedCode);
+  } catch {
+    return wrappedCode;
+  }
+}
+
+function enrichAuthPayload(authPayload) {
+  if (!authPayload || typeof authPayload !== 'object') {
+    return authPayload;
+  }
+
+  const directAuthUrl =
+    authPayload.direct_auth_url ||
+    authPayload.verification_uri_complete ||
+    authPayload.qrcode_url ||
+    decodeWrappedAuthUrl(authPayload.auth_url) ||
+    authPayload.verification_uri ||
+    null;
+
+  const wrappedAuthUrl = authPayload.wrapped_auth_url || authPayload.auth_url || null;
+
+  return {
+    ...authPayload,
+    direct_auth_url: directAuthUrl,
+    wrapped_auth_url: wrappedAuthUrl,
+    preferred_auth_url: directAuthUrl || wrappedAuthUrl || null,
+  };
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase();
+}
+
+function formatNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('zh-CN') : '-';
+}
+
+function getNumberField(source, keys = []) {
+  if (!source || typeof source !== 'object') {
+    return undefined;
+  }
+
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) {
+      return Number(value);
+    }
+  }
+
+  return undefined;
+}
+
+function getCurrentAppLabel(payload) {
+  return payload?.app_title || payload?.cache?.app_title || payload?.cache?.appTitle || '当前游戏';
+}
+
+function flattenApps(payload) {
+  const developers = Array.isArray(payload?.list) ? payload.list : [];
+  const flattened = [];
+
+  for (const developer of developers) {
+    const apps = Array.isArray(developer?.apps) ? developer.apps : [];
+    for (const app of apps) {
+      flattened.push({
+        developer_id: developer.developer_id,
+        developer_name: developer.developer_name,
+        app_id: app.app_id,
+        app_title: app.app_title,
+      });
+    }
+  }
+
+  return flattened;
+}
+
+function findAppMatch(payload, appName, appId) {
+  const apps = flattenApps(payload);
+
+  if (appId !== undefined) {
+    const matched = apps.find((app) => app.app_id === appId);
+    return matched ? { matched, candidates: [] } : { matched: null, candidates: [] };
+  }
+
+  const keyword = normalizeText(appName);
+  if (!keyword) {
+    return { matched: null, candidates: [] };
+  }
+
+  const exact = apps.filter((app) => normalizeText(app.app_title) === keyword);
+  if (exact.length === 1) {
+    return { matched: exact[0], candidates: [] };
+  }
+
+  const partial = apps.filter((app) => normalizeText(app.app_title).includes(keyword));
+  if (partial.length === 1) {
+    return { matched: partial[0], candidates: [] };
+  }
+
+  return { matched: null, candidates: exact.length > 0 ? exact.slice(0, 5) : partial.slice(0, 5) };
+}
+
+function buildBriefText(appTitle, sections, meta = {}) {
+  const store = sections.store?.data || {};
+  const review = sections.review?.data || {};
+  const community = sections.community?.data || {};
+  const ratingSummary = review.rating_summary || {};
+
+  const pageViewCount = getNumberField(store, ['page_view_count']);
+  const downloadRequestCount = getNumberField(store, ['download_request_count']);
+  const downloadCount = getNumberField(store, ['download_count']);
+  const reserveCount = getNumberField(store, ['reserve_count']);
+  const ratingScore = getNumberField(ratingSummary, ['score', 'rating_score', 'average_score']);
+  const reviewCount = getNumberField(ratingSummary, ['review_count', 'count', 'total_count']);
+  const positiveCount = getNumberField(review, ['positive_review_count']);
+  const negativeCount = getNumberField(review, ['negative_review_count']);
+  const topicPageViewCount = getNumberField(community, ['topic_page_view_count']);
+  const topicCount = getNumberField(community, ['topic_count']);
+
+  const summary = [];
+  if (pageViewCount !== undefined || downloadRequestCount !== undefined) {
+    summary.push(
+      `商店侧有数据回传，详情页访问量 ${formatNumber(pageViewCount)}，下载请求量 ${formatNumber(downloadRequestCount)}。`
+    );
+  }
+  if (ratingScore !== undefined || reviewCount !== undefined) {
+    summary.push(`评价侧当前均分 ${ratingScore ?? '-'}，累计评价 ${formatNumber(reviewCount)}。`);
+  }
+  if (topicPageViewCount !== undefined || topicCount !== undefined) {
+    summary.push(
+      `社区侧页面浏览量 ${formatNumber(topicPageViewCount)}，帖子量 ${formatNumber(topicCount)}。`
+    );
+  }
+  if (summary.length === 0) {
+    summary.push('已成功拉取数据，但当前字段较少，建议继续查看详细原始结果。');
+  }
+
+  const lines = [
+    `《${appTitle}》TapTap DC 快速简报`,
+    '',
+    `时间范围：${meta.start_date || '默认'} ~ ${meta.end_date || '默认'}`,
+    '',
+    '结论：',
+    ...summary.map((item) => `- ${item}`),
+    '',
+    '关键指标：',
+    `- 详情页访问量（PV）：${formatNumber(pageViewCount)}`,
+    `- 下载请求量：${formatNumber(downloadRequestCount)}`,
+    `- 下载完成量：${formatNumber(downloadCount)}`,
+    `- 预约量：${formatNumber(reserveCount)}`,
+    `- 评价均分：${ratingScore ?? '-'}`,
+    `- 评价总数：${formatNumber(reviewCount)}`,
+    `- 正向评价数：${formatNumber(positiveCount)}`,
+    `- 负向评价数：${formatNumber(negativeCount)}`,
+    `- 社区页面浏览量：${formatNumber(topicPageViewCount)}`,
+    `- 社区帖子量：${formatNumber(topicCount)}`,
+  ];
+
+  return lines.join('\n');
+}
+
+function buildAuthGuideText(authPayload) {
+  const enriched = enrichAuthPayload(authPayload);
+  const directAuthUrl = enriched?.direct_auth_url;
+  const wrappedAuthUrl = enriched?.wrapped_auth_url;
+  const qrcodeUrl = enriched?.qrcode_url;
+  const lines = [
+    '当前还没有完成 TapTap 授权，请先完成一次授权。',
+    '',
+    '如果你现在是在手机上或当前客户端支持超链接，请优先点击下面这条直接授权链接，不用扫码：',
+    buildMarkdownLink('直接点击授权', directAuthUrl),
+    '',
+    '如果上面的链接打不开，再尝试这个 TapTap 包装授权页：',
+    buildMarkdownLink('打开 TapTap 包装授权页', wrappedAuthUrl),
+    '',
+    '如果你需要在桌面端继续，或者想把授权页转给另一台设备，也可以使用这个直链自行打开或生成二维码：',
+    buildMarkdownLink('打开授权页直链', qrcodeUrl || directAuthUrl),
+    '',
+    '完成扫码后，请继续调用 `taptap_dc_complete_authorization`，然后再次调用 `taptap_dc_quick_brief`。',
+  ];
+
+  if (enriched?.device_code) {
+    lines.push('', `device_code：${enriched.device_code}`);
+  }
+
+  if (directAuthUrl) {
+    lines.push('', `直接授权链接：${directAuthUrl}`);
+  }
+
+  if (wrappedAuthUrl && wrappedAuthUrl !== directAuthUrl) {
+    lines.push(`TapTap 包装授权链接：${wrappedAuthUrl}`);
+  }
+
+  if (qrcodeUrl && qrcodeUrl !== directAuthUrl) {
+    lines.push(`授权页直链：${qrcodeUrl}`);
+  }
+
+  return lines.join('\n');
+}
+
+async function callJsonTool(bridge, name, args = {}) {
+  const text = await bridge.callTool(name, args);
+  const normalized = normalizeJsonText(text);
+  return JSON.parse(normalized);
+}
+
+async function resolveSelectedApp(bridge, params) {
+  if (params.developer_id && params.app_id) {
+    const selected = await callJsonTool(bridge, 'select_app_raw', {
+      developer_id: params.developer_id,
+      app_id: params.app_id,
+    });
+    return {
+      app: {
+        developer_id: params.developer_id,
+        app_id: params.app_id,
+        app_title: getCurrentAppLabel(selected),
+      },
+      selected,
+    };
+  }
+
+  const current = await callJsonTool(bridge, 'get_current_app_info_raw', {});
+  if (!params.app_name && !params.app_id && current?.selected) {
+    return {
+      app: {
+        developer_id: current?.cache?.developer_id || current?.cache?.developerId,
+        app_id: current?.cache?.app_id || current?.cache?.appId,
+        app_title: getCurrentAppLabel(current),
+      },
+      selected: current,
+    };
+  }
+
+  const appList = await callJsonTool(bridge, 'list_developers_and_apps_raw', {});
+  const { matched, candidates } = findAppMatch(appList, params.app_name, params.app_id);
+
+  if (!matched) {
+    return {
+      error: {
+        ok: false,
+        error: 'APP_NOT_RESOLVED',
+        message:
+          candidates.length > 0
+            ? '找到多个候选游戏，请改用更精确的 app_name 或直接传 app_id / developer_id。'
+            : '没有找到匹配的游戏，请传 app_name、app_id，或先手动选择一次游戏。',
+        candidates,
+      },
+    };
+  }
+
+  const selected = await callJsonTool(bridge, 'select_app_raw', {
+    developer_id: matched.developer_id,
+    app_id: matched.app_id,
+  });
+
+  return {
+    app: matched,
+    selected,
+  };
+}
+
 function registerProxyTool(api, bridge, definition) {
   api.registerTool(
     () => ({
@@ -61,9 +355,16 @@ function registerProxyTool(api, bridge, definition) {
         try {
           const text = await bridge.callTool(definition.mcpToolName, params || {});
           const normalized = normalizeJsonText(text);
-          return toolResult(normalized, {
+          const parsed = tryParseJson(normalized);
+          const normalizedParsed = definition.normalizeResult
+            ? definition.normalizeResult(parsed)
+            : parsed;
+          const renderedText = definition.resultFormatter
+            ? definition.resultFormatter(normalizedParsed, normalized)
+            : normalized;
+          return toolResult(renderedText, {
             mcpToolName: definition.mcpToolName,
-            parsed: tryParseJson(normalized),
+            parsed: normalizedParsed,
           });
         } catch (error) {
           return toolResult(
@@ -84,6 +385,94 @@ function registerProxyTool(api, bridge, definition) {
   );
 }
 
+function registerQuickBriefTool(api, bridge) {
+  api.registerTool(
+    () => ({
+      name: 'taptap_dc_quick_brief',
+      label: 'TapTap 快速简报',
+      description:
+        '按当前选中游戏、游戏名或 app_id，直接生成一份 TapTap DC 快速运营简报；如果未授权，会自动返回扫码授权信息。',
+      parameters: createSchema({
+        app_name: {
+          type: 'string',
+          description: '可选，游戏名。传入后会自动在你可访问的游戏里匹配并选中。',
+        },
+        developer_id: {
+          type: 'number',
+          description: '可选，开发者 ID。与 app_id 一起传时会直接选中游戏。',
+        },
+        app_id: {
+          type: 'number',
+          description: '可选，游戏 app_id。可单独传，也可与 developer_id 一起传。',
+        },
+        start_date: {
+          type: 'string',
+          description: '可选，开始日期，格式 YYYY-MM-DD。',
+        },
+        end_date: {
+          type: 'string',
+          description: '可选，结束日期，格式 YYYY-MM-DD。',
+        },
+      }),
+      async execute(_id, params) {
+        try {
+          const env = await callJsonTool(bridge, 'check_environment_raw', {});
+          if (!env?.auth?.has_mac_token) {
+            const authPayload = enrichAuthPayload(
+              await callJsonTool(bridge, 'start_oauth_authorization_raw', {})
+            );
+            return toolResult(buildAuthGuideText(authPayload), authPayload);
+          }
+
+          const resolved = await resolveSelectedApp(bridge, params || {});
+          if (resolved.error) {
+            return toolResult(JSON.stringify(resolved.error, null, 2), resolved.error);
+          }
+
+          const overviewArgs = {
+            ...(params?.start_date ? { start_date: params.start_date } : {}),
+            ...(params?.end_date ? { end_date: params.end_date } : {}),
+          };
+
+          const [store, review, community] = await Promise.all([
+            callJsonTool(bridge, 'get_current_app_store_overview_raw', overviewArgs),
+            callJsonTool(bridge, 'get_current_app_review_overview_raw', overviewArgs),
+            callJsonTool(bridge, 'get_current_app_community_overview_raw', overviewArgs),
+          ]);
+
+          const appTitle = resolved.app?.app_title || getCurrentAppLabel(store) || '当前游戏';
+          const brief = buildBriefText(
+            appTitle,
+            { store, review, community },
+            {
+              start_date: params?.start_date,
+              end_date: params?.end_date,
+            }
+          );
+
+          return toolResult(brief, {
+            app: resolved.app,
+            sections: { store, review, community },
+          });
+        } catch (error) {
+          return toolResult(
+            JSON.stringify(
+              {
+                ok: false,
+                error: 'QUICK_BRIEF_FAILED',
+                message: error instanceof Error ? error.message : String(error),
+              },
+              null,
+              2
+            )
+          );
+        }
+      },
+    }),
+    { name: 'taptap_dc_quick_brief' }
+  );
+}
+
 const toolDefinitions = [
   {
     name: 'taptap_dc_check_environment',
@@ -96,9 +485,18 @@ const toolDefinitions = [
     name: 'taptap_dc_start_authorization',
     label: 'TapTap Auth Start',
     description:
-      'Start TapTap OAuth device flow and return auth_url/qrcode_url/device_code as raw JSON.',
+      'Start TapTap OAuth device flow and return a mobile-friendly clickable auth link plus qrcode link.',
     mcpToolName: 'start_oauth_authorization_raw',
     parameters: createSchema(),
+    normalizeResult(parsed) {
+      return enrichAuthPayload(parsed);
+    },
+    resultFormatter(parsed, normalized) {
+      if (!parsed || typeof parsed !== 'object') {
+        return normalized;
+      }
+      return buildAuthGuideText(parsed);
+    },
   },
   {
     name: 'taptap_dc_complete_authorization',
@@ -361,13 +759,10 @@ const plugin = {
       config: api.pluginConfig || {},
     });
 
+    registerQuickBriefTool(api, bridge);
     for (const definition of toolDefinitions) {
       registerProxyTool(api, bridge, definition);
     }
-
-    api.logger.info?.(
-      `[TapTap DC] OpenClaw plugin v${pluginVersion} initialised with ${toolDefinitions.length} tools`
-    );
   },
 };
 

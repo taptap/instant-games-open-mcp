@@ -2,7 +2,7 @@
   "id": "taptap-dc-plugin",
   "name": "TapTap DC",
   "description": "面向 OpenClaw 的 TapTap DC 插件，内置原始数据工具与运营简报 skill。",
-  "version": "0.1.1",
+  "version": "0.1.7",
   "skills": ["./skills"],
   "configSchema": {
     "type": "object",

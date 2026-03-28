@@ -144,7 +144,7 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 - 🏆 排行榜系统 - 完整的 API 文档和服务端管理
 - 🎮 H5 游戏管理 - 上传、发布、状态查询
 - 🧭 当前游戏 DC 能力 - 商店/评价/社区统计概览、商店快照、论坛内容、评价列表、点赞、官方回复
-- 🦞 OpenClaw Plugin 子包 - `packages/openclaw-dc-plugin`，面向 OpenClaw 暴露 raw JSON tools，并 bundled 运营简报 skill
+- 🦞 OpenClaw Plugin 子包 - `packages/openclaw-dc-plugin`，面向 OpenClaw 暴露 raw JSON tools，并在发布时 bundled 主运行时与运营简报 skill；bridge 默认使用裸 JSON + 换行握手，并优先返回移动端可点击授权链接
 - 🔐 OAuth 2.0 Device Code Flow - 零配置认证（扫码即用）
 - 🎯 完整功能集 - 多类 Tools + Resources，覆盖文档查询与服务端动作
 - 🚀 MCP 2025 标准 - Streamable HTTP + RFC 5424 Logging

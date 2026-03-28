@@ -1,6 +1,6 @@
 {
   "name": "@lotaber_wang/openclaw-dc-plugin",
-  "version": "0.1.2",
+  "version": "0.1.7",
   "type": "module",
   "description": "TapTap DC 的 OpenClaw 插件，内置原始数据工具与运营简报 skill。",
   "main": "index.js",
@@ -16,6 +16,9 @@
   "publishConfig": {
     "access": "public"
   },
+  "bundleDependencies": [
+    "@mikoto_zero/minigame-open-mcp"
+  ],
   "files": [
     "index.js",
     "lib/",

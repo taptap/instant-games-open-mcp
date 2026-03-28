@@ -11,7 +11,7 @@
 - **⚙️ 服务端管理** - 创建/管理排行榜，自动处理 ID
 - **🎮 H5 游戏支持** - 上传、发布、状态查询
 - **🧭 当前游戏 DC 能力** - 商店/评价/社区统计概览、商店快照、论坛内容、评价列表、评价点赞、官方回复
-- **🦞 OpenClaw Plugin** - 提供一个原生 OpenClaw plugin 子包，内部复用 TapTap MCP 运行时并暴露 raw JSON 工具 + bundled skill
+- **🦞 OpenClaw Plugin** - 提供一个原生 OpenClaw plugin 子包，发布时会把 TapTap MCP 运行时一并打包，减少 OpenClaw 首次调用卡顿
 - **🚀 三种传输模式** - stdio（本地）、SSE（远程/实时）、HTTP（兼容）
 - **🔌 多客户端并发** - 独立会话管理，无限并发
 - **📦 单文件 Bundle** - 零依赖，包体积减少 96%（567 KB）
@@ -28,9 +28,10 @@
 这个子包的设计目标是：
 
 - 让 OpenClaw 用户只安装一个 plugin
-- plugin 内部复用 `@mikoto_zero/minigame-open-mcp` 运行时
+- plugin 发布时会 bundled `@mikoto_zero/minigame-open-mcp` 运行时
 - 对 OpenClaw 暴露 raw JSON 工具
 - 同时内置 `taptap-dc-ops-brief` skill，让模型自己做简报解读
+- 对移动端授权链路做了额外优化，优先返回可直接点击的授权链接
 
 说明：
 
