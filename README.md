@@ -44,6 +44,13 @@
 - [OpenClaw Plugin 说明](docs/OPENCLAW_PLUGIN.md)
 - 维护者发布方式：`npm run openclaw:pack` / `npm run openclaw:publish`
 
+OpenClaw 用户建议安装后执行：
+
+```bash
+openclaw plugins install @lotaber_wang/openclaw-dc-plugin@0.1.11
+openclaw plugins inspect openclaw-dc-plugin
+```
+
 ## 🧩 Codex Skills（运营简报）
 
 本仓库内置一个面向运营/工作室的 Codex Skill：`taptap-dc-ops-brief`，用于把“当前游戏 DC 数据”整理成 30 秒可读的结论简报，并在你确认后执行评价点赞/官方回复等动作。

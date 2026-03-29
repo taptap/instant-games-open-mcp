@@ -154,7 +154,8 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 **基本信息：**
 
 - **NPM 包：** `@mikoto_zero/minigame-open-mcp`
-- **OpenClaw Plugin 子包：** `packages/openclaw-dc-plugin`（计划独立发布为 npm plugin）
+- **OpenClaw Plugin 子包：** `packages/openclaw-dc-plugin`（独立 npm plugin，安装元信息会同时写入 npm metadata、plugin export 和 README）
+- **OpenClaw 安装提示：** 用户安装插件后，优先引导执行 `openclaw plugins inspect openclaw-dc-plugin`；OpenClaw 往往会自动重启 Gateway，如 10-30 秒后仍未生效再手动重启
 - **官方 API 文档：** https://developer.taptap.cn/minigameapidoc/
 
 ## 架构概览

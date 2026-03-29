@@ -1,5 +1,15 @@
 import { readFileSync } from 'node:fs';
+import process from 'node:process';
 import { TapTapMcpBridge } from './lib/mcp-bridge.js';
+
+const RESTART_NOTICE =
+  'TapTap DC 插件已安装完成。OpenClaw 接下来如需重启 Gateway，应先提示用户；重启完成后即可使用 taptap_dc_* 工具。';
+
+const INSTALLATION_GUIDANCE = [
+  '如果安装流程判断需要重启 Gateway，先通知用户，再执行重启。',
+  `推荐提示文案：${RESTART_NOTICE}`,
+  '执行顺序：先提示用户 -> 再执行 gateway restart -> 重启完成后再开始使用 taptap_dc_* 工具。',
+];
 
 function toolResult(text, details = {}) {
   return {
@@ -98,13 +108,58 @@ function enrichAuthPayload(authPayload) {
     null;
 
   const wrappedAuthUrl = authPayload.wrapped_auth_url || authPayload.auth_url || null;
+  const preferredAuthUrl = directAuthUrl || wrappedAuthUrl || null;
+  const authLinks = [
+    preferredAuthUrl
+      ? {
+          kind: 'preferred',
+          label: '直接点击授权',
+          url: preferredAuthUrl,
+        }
+      : null,
+    directAuthUrl && directAuthUrl !== preferredAuthUrl
+      ? {
+          kind: 'direct',
+          label: '授权直链',
+          url: directAuthUrl,
+        }
+      : null,
+    wrappedAuthUrl && wrappedAuthUrl !== preferredAuthUrl
+      ? {
+          kind: 'wrapped',
+          label: 'TapTap 包装授权页',
+          url: wrappedAuthUrl,
+        }
+      : null,
+    authPayload.qrcode_url && authPayload.qrcode_url !== preferredAuthUrl
+      ? {
+          kind: 'qrcode',
+          label: '授权页直链',
+          url: authPayload.qrcode_url,
+        }
+      : null,
+  ].filter(Boolean);
 
   return {
     ...authPayload,
     direct_auth_url: directAuthUrl,
     wrapped_auth_url: wrappedAuthUrl,
-    preferred_auth_url: directAuthUrl || wrappedAuthUrl || null,
+    preferred_auth_url: preferredAuthUrl,
+    authorization_url: preferredAuthUrl,
+    mobile_auth_url: preferredAuthUrl,
+    auth_links: authLinks,
+    next_action:
+      '优先打开 preferred_auth_url 完成授权；完成后调用 taptap_dc_complete_authorization。',
   };
+}
+
+function isVerboseLoggingEnabled(config = {}) {
+  return (
+    config?.verbose === true ||
+    String(process.env.TAPTAP_MCP_VERBOSE || '')
+      .trim()
+      .toLowerCase() === 'true'
+  );
 }
 
 function normalizeText(value) {
@@ -245,37 +300,61 @@ function buildBriefText(appTitle, sections, meta = {}) {
 
 function buildAuthGuideText(authPayload) {
   const enriched = enrichAuthPayload(authPayload);
+  if (enriched?.authorized || enriched?.already_authorized) {
+    return [
+      'TapTap 授权已完成，无需再次扫码或打开授权链接。',
+      '如果你刚完成授权，接下来可直接调用 `taptap_dc_quick_brief` 或其他 `taptap_dc_*` 工具。',
+    ].join('\n');
+  }
+
+  const preferredAuthUrl = enriched?.preferred_auth_url;
   const directAuthUrl = enriched?.direct_auth_url;
   const wrappedAuthUrl = enriched?.wrapped_auth_url;
   const qrcodeUrl = enriched?.qrcode_url;
-  const lines = [
-    '当前还没有完成 TapTap 授权，请先完成一次授权。',
+  const lines = ['当前还没有完成 TapTap 授权，请先完成一次授权。'];
+
+  if (preferredAuthUrl) {
+    lines.push(
+      '',
+      '优先打开下面这条授权直链。这一行会同时保留裸链接，方便手机端直接点击，或在宿主吞掉超链接时复制打开：',
+      preferredAuthUrl,
+      `<${preferredAuthUrl}>`
+    );
+  }
+
+  if (preferredAuthUrl || directAuthUrl || wrappedAuthUrl || qrcodeUrl) {
+    lines.push(
+      '',
+      '可点击版本：',
+      `- ${buildMarkdownLink('直接点击授权', preferredAuthUrl || directAuthUrl)}`,
+      `- ${buildMarkdownLink('打开 TapTap 包装授权页', wrappedAuthUrl)}`,
+      `- ${buildMarkdownLink('打开授权页直链', qrcodeUrl || directAuthUrl || preferredAuthUrl)}`
+    );
+  }
+
+  lines.push(
     '',
-    '如果你现在是在手机上或当前客户端支持超链接，请优先点击下面这条直接授权链接，不用扫码：',
-    buildMarkdownLink('直接点击授权', directAuthUrl),
-    '',
-    '如果上面的链接打不开，再尝试这个 TapTap 包装授权页：',
-    buildMarkdownLink('打开 TapTap 包装授权页', wrappedAuthUrl),
-    '',
-    '如果你需要在桌面端继续，或者想把授权页转给另一台设备，也可以使用这个直链自行打开或生成二维码：',
-    buildMarkdownLink('打开授权页直链', qrcodeUrl || directAuthUrl),
-    '',
-    '完成扫码后，请继续调用 `taptap_dc_complete_authorization`，然后再次调用 `taptap_dc_quick_brief`。',
-  ];
+    '如果你在手机上对话，优先直接点上面的第一条裸链接；如果超链接显示异常，优先使用 details.preferred_auth_url。',
+    '完成授权后，请继续调用 `taptap_dc_complete_authorization`，然后再次调用 `taptap_dc_quick_brief`。'
+  );
 
   if (enriched?.device_code) {
     lines.push('', `device_code：${enriched.device_code}`);
   }
 
-  if (directAuthUrl) {
+  if (preferredAuthUrl) {
+    lines.push('', `preferred_auth_url：${preferredAuthUrl}`);
+  }
+
+  if (directAuthUrl && directAuthUrl !== preferredAuthUrl) {
     lines.push('', `直接授权链接：${directAuthUrl}`);
   }
 
-  if (wrappedAuthUrl && wrappedAuthUrl !== directAuthUrl) {
+  if (wrappedAuthUrl && wrappedAuthUrl !== preferredAuthUrl) {
     lines.push(`TapTap 包装授权链接：${wrappedAuthUrl}`);
   }
 
-  if (qrcodeUrl && qrcodeUrl !== directAuthUrl) {
+  if (qrcodeUrl && qrcodeUrl !== preferredAuthUrl) {
     lines.push(`授权页直链：${qrcodeUrl}`);
   }
 
@@ -383,6 +462,23 @@ function registerProxyTool(api, bridge, definition) {
     }),
     { name: definition.name }
   );
+}
+
+function safeRegisterTool(api, logger, verbose, registerFn, toolName) {
+  try {
+    registerFn();
+    if (verbose) {
+      logger?.info?.(`[TapTap DC] Registered OpenClaw tool: ${toolName}`);
+    }
+    return true;
+  } catch (error) {
+    logger?.error?.(
+      `[TapTap DC] Failed to register OpenClaw tool ${toolName}: ${
+        error instanceof Error ? error.stack || error.message : String(error)
+      }`
+    );
+    return false;
+  }
 }
 
 function registerQuickBriefTool(api, bridge) {
@@ -723,9 +819,20 @@ try {
 }
 
 const plugin = {
-  id: 'taptap-dc-plugin',
+  id: 'openclaw-dc-plugin',
   name: 'TapTap DC',
-  description: '面向 OpenClaw 的 TapTap DC 插件，内置原始数据工具与运营简报 skill。',
+  description:
+    '面向 OpenClaw 的 TapTap DC 插件，内置原始数据工具与运营简报 skill；如需重启 Gateway，应先提示用户。',
+  installation: {
+    restartRequired: true,
+    restartCommand: 'openclaw gateway restart',
+    postInstallMessage: RESTART_NOTICE,
+    instructions: INSTALLATION_GUIDANCE,
+  },
+  installHints: {
+    beforeRestartMessage: RESTART_NOTICE,
+    instructions: INSTALLATION_GUIDANCE,
+  },
   configSchema: {
     type: 'object',
     properties: {
@@ -754,14 +861,70 @@ const plugin = {
     additionalProperties: false,
   },
   register(api) {
-    const bridge = new TapTapMcpBridge({
-      logger: api.logger,
-      config: api.pluginConfig || {},
-    });
+    const logger = api.logger;
+    const verbose = isVerboseLoggingEnabled(api.pluginConfig || {});
+    if (verbose) {
+      logger?.info?.('[TapTap DC] Starting OpenClaw plugin registration');
+    }
 
-    registerQuickBriefTool(api, bridge);
+    let bridge;
+    try {
+      bridge = new TapTapMcpBridge({
+        logger,
+        config: api.pluginConfig || {},
+      });
+    } catch (error) {
+      logger?.error?.(
+        `[TapTap DC] Failed to create TapTapMcpBridge during registration: ${
+          error instanceof Error ? error.stack || error.message : String(error)
+        }`
+      );
+      throw error;
+    }
+
+    let successCount = 0;
+
+    if (
+      safeRegisterTool(
+        api,
+        logger,
+        verbose,
+        () => registerQuickBriefTool(api, bridge),
+        'taptap_dc_quick_brief'
+      )
+    ) {
+      successCount += 1;
+    }
+
     for (const definition of toolDefinitions) {
-      registerProxyTool(api, bridge, definition);
+      if (
+        safeRegisterTool(
+          api,
+          logger,
+          verbose,
+          () => registerProxyTool(api, bridge, definition),
+          definition.name
+        )
+      ) {
+        successCount += 1;
+      }
+    }
+
+    if (successCount !== toolDefinitions.length + 1) {
+      logger?.error?.(
+        `[TapTap DC] OpenClaw plugin registration incomplete: ${successCount}/${
+          toolDefinitions.length + 1
+        } tools registered`
+      );
+      return;
+    }
+
+    if (verbose) {
+      logger?.info?.(
+        `[TapTap DC] OpenClaw plugin registration completed: ${successCount}/${
+          toolDefinitions.length + 1
+        } tools registered`
+      );
     }
   },
 };

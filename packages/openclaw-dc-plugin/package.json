@@ -1,13 +1,24 @@
 {
   "name": "@lotaber_wang/openclaw-dc-plugin",
-  "version": "0.1.7",
+  "version": "0.1.11",
   "type": "module",
-  "description": "TapTap DC 的 OpenClaw 插件，内置原始数据工具与运营简报 skill。",
+  "description": "TapTap DC 的 OpenClaw 插件，内置原始数据工具与运营简报 skill；如需重启 Gateway，应先提示用户。",
   "main": "index.js",
   "openclaw": {
     "extensions": [
       "./index.js"
-    ]
+    ],
+    "install": {
+      "npmSpec": "@lotaber_wang/openclaw-dc-plugin",
+      "postInstallMessage": "TapTap DC 插件已安装完成。OpenClaw 接下来如需重启 Gateway，应先提示用户；重启完成后即可使用 taptap_dc_* 工具。",
+      "restartRequired": true,
+      "restartCommand": "openclaw gateway restart",
+      "instructions": [
+        "如果安装流程判断需要重启 Gateway，先通知用户，再执行重启。",
+        "推荐提示文案：TapTap DC 插件已安装完成。OpenClaw 接下来如需重启 Gateway，应先提示用户；重启完成后即可使用 taptap_dc_* 工具。",
+        "执行顺序：先提示用户 -> 再执行 gateway restart -> 重启完成后再开始使用 taptap_dc_* 工具。"
+      ]
+    }
   },
   "exports": {
     ".": "./index.js",

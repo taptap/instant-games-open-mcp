@@ -96,17 +96,38 @@ npm run openclaw:publish
 发布完成后，OpenClaw 用户侧安装命令是：
 
 ```bash
-openclaw plugins install @lotaber_wang/openclaw-dc-plugin
+openclaw plugins install @lotaber_wang/openclaw-dc-plugin@0.1.11
 ```
 
 说明：
 
 - 安装插件本身时，不再要求宿主已经额外装好 `@mikoto_zero/minigame-open-mcp`
 - 正常情况下，首次调用不会再触发在线安装主运行时
+- `package.json` 中声明了 `openclaw.install.npmSpec`，方便 OpenClaw 安装链路和后续检查统一识别 npm 安装源
+- `package.json` 中额外补充了 `openclaw.install.postInstallMessage` / `instructions` / `restartCommand`，让宿主更容易在重启前提示用户
+- `openclaw.plugin.json` 中显式标记 `enabledByDefault: true`，减少装完后还要额外启用的概率
+- 插件 id 已统一为 `openclaw-dc-plugin`，避免 manifest id 与宿主 entry hint 不一致
+- 插件导出对象也同步暴露 `installation` / `installHints`，作为安装提示的第二层兜底
 - bridge 会优先走标准 stdio；如果 `initialize` 卡住，会自动尝试无缓冲 / PTY 兼容启动
 - bridge 兼容两种输出：标准 `Content-Length` 帧，以及个别宿主下出现的裸 JSON 输出
 - bridge 向内嵌 runtime 发送请求时默认使用裸 JSON + 换行，避免部分宿主下只发 `Content-Length` 帧导致初始化无响应
-- 授权相关工具会优先返回“直接点击授权”超链接，并附带包装链接与授权页直链，便于移动端直接点击授权
+- 授权相关工具会把裸授权直链放到最前面，同时附带 markdown 链接、包装链接与 `details.preferred_auth_url` / `details.auth_links`，降低宿主偶发吞链接时的影响
+
+推荐安装后立刻执行：
+
+```bash
+openclaw plugins inspect openclaw-dc-plugin
+```
+
+补充：
+
+- `inspect` 可以帮助确认 Gateway 是否已经识别出插件元信息与工具
+- OpenClaw 当前通常会在安装完成后自动触发 Gateway 重启；插件包本身不能可靠拦截安装器去弹“即将重启”的通知，这需要宿主侧支持
+- 因此插件侧会尽量把“先提示用户再重启”的信息同时写进 npm metadata、plugin export 和 README，交给宿主择优消费
+- 很多“装上了但 Agent 看不到 `taptap_dc_*`”的问题，本质上是 Gateway 还没自动重启完成
+- 如果等待 10-30 秒后仍未恢复，再执行 `openclaw gateway restart`
+- 如果没有 `openclaw gateway restart`，就直接完整重启宿主应用
+- 不建议尝试在 `openclaw.plugin.json` 中手工声明运行时 `tools` 列表；本插件的工具仍由入口代码动态注册
 
 ## 当前 raw tools 范围
 

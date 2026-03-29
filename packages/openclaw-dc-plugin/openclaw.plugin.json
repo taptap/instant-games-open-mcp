@@ -1,8 +1,9 @@
 {
-  "id": "taptap-dc-plugin",
+  "id": "openclaw-dc-plugin",
   "name": "TapTap DC",
-  "description": "面向 OpenClaw 的 TapTap DC 插件，内置原始数据工具与运营简报 skill。",
-  "version": "0.1.7",
+  "description": "面向 OpenClaw 的 TapTap DC 插件，内置原始数据工具与运营简报 skill；如需重启 Gateway，应先提示用户。",
+  "version": "0.1.11",
+  "enabledByDefault": true,
   "skills": ["./skills"],
   "configSchema": {
     "type": "object",

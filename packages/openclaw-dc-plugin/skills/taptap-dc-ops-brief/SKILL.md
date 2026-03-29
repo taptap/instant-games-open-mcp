@@ -19,8 +19,8 @@ description: 生成 TapTap 当前游戏 DC 运营简报与结论解读（商店/
    - 如果用户给了游戏名，直接把 `app_name` 传进去
    - 如果用户给了 `app_id`，直接把 `app_id` 传进去
 2. 如果未授权
-   - `taptap_dc_quick_brief` 会直接返回 markdown 授权链接，其中第一条通常就是可直接点击完成授权的链接
-   - 如果用户当前在手机上对话，优先引导用户直接点击第一条“直接点击授权”链接，不要先强调扫码
+   - `taptap_dc_quick_brief` 会直接返回授权信息，其中最前面的裸链接和 `details.preferred_auth_url` 都应视为首选授权入口
+   - 如果用户当前在手机上对话，优先引导用户直接点击第一条裸链接，不要先强调扫码
    - 如果用户当前在桌面端对话，再引导用户打开授权页直链并扫码或转发到手机
    - 用户确认后调用 `taptap_dc_complete_authorization`
    - 然后再次调用 `taptap_dc_quick_brief`
@@ -45,7 +45,7 @@ description: 生成 TapTap 当前游戏 DC 运营简报与结论解读（商店/
 ## 关键规则
 
 - 这些 plugin tools 返回的是 **raw JSON**，你要自己完成解读，不要把 JSON 原样长篇贴回给用户
-- 当授权工具已经返回可点击 markdown 链接时，优先直接复用第一条直链，不要再把它改写成“去扫二维码”
+- 当授权工具已经返回授权链接时，优先直接复用第一条裸直链；如果文本里链接缺失，就从 `details.preferred_auth_url` 取值，不要直接退化成“去扫二维码”
 - `page_view_count` 应写成“详情页访问量（PV）”，不要偷换成别的口径
 - `taptap_dc_like_review` / `taptap_dc_reply_review` 只能在用户明确确认后调用
 - 如果回复结果里出现 `need_confirmation=true`，必须先把草稿给用户确认，再决定是否带 `confirm_high_risk=true` 重试

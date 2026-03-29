@@ -333,6 +333,11 @@ export class TapTapMcpBridge {
   constructor(options = {}) {
     this.logger = options.logger;
     this.config = options.config || {};
+    this.verbose =
+      this.config.verbose === true ||
+      String(process.env.TAPTAP_MCP_VERBOSE || '')
+        .trim()
+        .toLowerCase() === 'true';
     this.child = null;
     this.readyPromise = null;
     this.installPromise = null;
@@ -340,6 +345,12 @@ export class TapTapMcpBridge {
     this.outboundMessages = [];
     this.nextId = 1;
     this.stdoutBuffer = Buffer.alloc(0);
+  }
+
+  logInfo(message) {
+    if (this.verbose) {
+      this.logger?.info?.(message);
+    }
   }
 
   buildEnv() {
@@ -428,7 +439,7 @@ export class TapTapMcpBridge {
     mkdirSync(runtimeRoot, { recursive: true });
     mkdirSync(npmCacheDir, { recursive: true });
 
-    this.logger?.info?.(
+    this.logInfo(
       `[TapTap DC] Local TapTap MCP runtime not found, installing ${packageSpec} into ${runtimeRoot}`
     );
 
@@ -459,7 +470,7 @@ export class TapTapMcpBridge {
         output += text;
         const trimmed = text.trim();
         if (trimmed) {
-          this.logger?.info?.(`[TapTap DC][npm] ${trimmed}`);
+          this.logInfo(`[TapTap DC][npm] ${trimmed}`);
         }
       };
 
@@ -508,7 +519,7 @@ export class TapTapMcpBridge {
     const errors = [];
 
     for (const attempt of launchAttempts) {
-      this.logger?.info?.(
+      this.logInfo(
         `[TapTap DC] Starting embedded TapTap MCP runtime from ${runtime.source} using ${attempt.label}: ${runtime.serverPath}`
       );
 
@@ -520,7 +531,7 @@ export class TapTapMcpBridge {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         errors.push(`${attempt.label}: ${message}`);
-        this.logger?.info?.(
+        this.logInfo(
           `[TapTap DC] Runtime start attempt failed via ${attempt.label}, retrying if possible: ${message}`
         );
         await this.close();
@@ -657,11 +668,11 @@ export class TapTapMcpBridge {
     this.child.stdout.on('data', (chunk) => {
       try {
         this.stdoutBuffer = Buffer.concat([this.stdoutBuffer, chunk]);
-        this.stdoutBuffer = trimNonProtocolNoise(this.stdoutBuffer, this.logger);
+        this.stdoutBuffer = trimNonProtocolNoise(this.stdoutBuffer, this.verbose ? this.logger : null);
         this.stdoutBuffer = parseMessageBuffer(
           this.stdoutBuffer,
           (message) => this.handleMessage(message),
-          this.logger
+          this.verbose ? this.logger : null
         );
       } catch (error) {
         this.logger?.error?.(
@@ -669,14 +680,14 @@ export class TapTapMcpBridge {
             error instanceof Error ? error.message : String(error)
           }`
         );
-        this.stdoutBuffer = trimNonProtocolNoise(this.stdoutBuffer, this.logger);
+        this.stdoutBuffer = trimNonProtocolNoise(this.stdoutBuffer, this.verbose ? this.logger : null);
       }
     });
 
     this.child.stderr.on('data', (chunk) => {
       const text = chunk.toString('utf8').trim();
       if (text) {
-        this.logger?.info?.(`[TapTap MCP] ${text}`);
+        this.logInfo(`[TapTap MCP] ${text}`);
       }
     });
 
