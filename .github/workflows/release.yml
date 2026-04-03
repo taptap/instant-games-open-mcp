@@ -342,6 +342,11 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    environment: npm_publish
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
     needs: [analyze, build-native, download-native]
     # 只要 analyze 说要发布，且 build-native 或 download-native 其中一个成功
     if: |
@@ -410,10 +415,8 @@ jobs:
 
           git checkout -b "$BRANCH"
 
-      # 发布到 npm (包含 native binaries)
+      # 发布到 npm (包含 native binaries, 使用 OIDC Trusted Publishing)
       - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           VERSION=${{ needs.analyze.outputs.version }}
 
@@ -424,8 +427,8 @@ jobs:
           echo "=== Files to be published ==="
           npm pack --dry-run
 
-          # 发布
-          npm publish --access public
+          # 发布 (OIDC provenance, 无需 NPM_TOKEN)
+          npm publish --access public --provenance
 
       # 生成 CHANGELOG
       - name: Generate CHANGELOG
@@ -515,14 +518,14 @@ jobs:
           PR_URL=${{ steps.pr.outputs.pr_url }}
           PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
 
-          echo "Merging PR #$PR_NUMBER..."
-          sleep 10
+          echo "Enabling auto-merge for PR #$PR_NUMBER..."
 
           gh pr merge "$PR_NUMBER" \
+            --auto \
             --squash \
             --delete-branch
 
-          echo "PR #$PR_NUMBER merged successfully!"
+          echo "Auto-merge enabled for PR #$PR_NUMBER, will merge when all checks pass."
 
       # 创建 GitHub Release (始终包含 native binaries 作为 assets)
       - name: Create GitHub Release
