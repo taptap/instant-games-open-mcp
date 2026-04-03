@@ -107,10 +107,11 @@ module.exports = {
     ],
 
     // 4. 更新 package.json 版本号并发布到 npm
+    // dry-run 时禁用 npm 发布（实际发布由 OIDC Trusted Publishing 处理）
     [
       '@semantic-release/npm',
       {
-        npmPublish: true,
+        npmPublish: !process.env.SEMANTIC_RELEASE_DRY_RUN,
         tarballDir: 'dist'
       }
     ],
