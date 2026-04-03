@@ -46,6 +46,9 @@
   ],
   "author": "TapTap Team",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18.14.1"
   },
