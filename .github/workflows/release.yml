@@ -56,7 +56,9 @@ jobs:
         id: analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # dry-run 不实际发布，但 @semantic-release/npm 仍会验证 NPM_TOKEN
+          # 实际发布已改用 OIDC，这里设置占位值绕过验证
+          NPM_TOKEN: dry-run-placeholder
         run: |
           # set -o pipefail 确保 semantic-release 失败时（含认证错误）整个管道返回非零退出码
           # 注意：不能用 grep 检测错误关键词，因为 semantic-release 分析 commit 时会打印 commit body，
