@@ -53,7 +53,7 @@
 
 ```bash
 python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
-  --repo taptap/taptap_minigame_open_mcp \
+  --repo taptap/minigame-open-mcp \
   --path skills/taptap-dc-ops-brief
 ```
 
@@ -436,4 +436,4 @@ MIT
 - [TapTap 开发者中心](https://developer.taptap.cn/)
 - [官方 API 文档](https://developer.taptap.cn/minigameapidoc/dev/api/open-api/leaderboard/)
 - [MCP 协议规范](https://modelcontextprotocol.io/)
-- [Issues](https://github.com/taptap/taptap_minigame_open_mcp/issues)
+- [Issues](https://github.com/taptap/minigame-open-mcp/issues)

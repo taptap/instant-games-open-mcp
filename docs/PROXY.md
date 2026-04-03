@@ -1100,8 +1100,8 @@ node_modules/@taptap/minigame-open-mcp/dist/proxy.js
 
 ```bash
 # 克隆仓库
-git clone https://github.com/taptap/taptap_minigame_open_mcp.git
-cd taptap_minigame_open_mcp
+git clone https://github.com/taptap/minigame-open-mcp.git
+cd minigame-open-mcp
 
 # 构建
 npm install

@@ -95,10 +95,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/taptap/taptap_minigame_open_mcp.git"
+    "url": "git+https://github.com/taptap/minigame-open-mcp.git"
   },
-  "homepage": "https://github.com/taptap/taptap_minigame_open_mcp#readme",
+  "homepage": "https://github.com/taptap/minigame-open-mcp#readme",
   "bugs": {
-    "url": "https://github.com/taptap/taptap_minigame_open_mcp/issues"
+    "url": "https://github.com/taptap/minigame-open-mcp/issues"
   }
 }
