@@ -103,7 +103,7 @@ const allModules = [..., yourFeatureModule];
 ## 项目信息
 
 - **项目类型**：基于 Model Context Protocol (MCP) 的 TapTap Open API MCP 服务器
-- **NPM 包**：`@mikoto_zero/minigame-open-mcp`
+- **NPM 包**：`@taptap/minigame-open-mcp`
 - **官方 API 文档**：https://developer.taptap.cn/minigameapidoc/
 - **架构文档**：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **部署指南**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)

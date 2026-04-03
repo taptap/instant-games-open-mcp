@@ -153,7 +153,7 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 
 **基本信息：**
 
-- **NPM 包：** `@mikoto_zero/minigame-open-mcp`
+- **NPM 包：** `@taptap/minigame-open-mcp`
 - **OpenClaw Plugin 子包：** `packages/openclaw-dc-plugin`（计划独立发布为 npm plugin）
 - **官方 API 文档：** https://developer.taptap.cn/minigameapidoc/
 
@@ -308,7 +308,7 @@ npm ci
 # npm install <package>
 
 # 全局安装（可选）
-npm install -g @mikoto_zero/minigame-open-mcp
+npm install -g @taptap/minigame-open-mcp
 ```
 
 ### 快速启动

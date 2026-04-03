@@ -36,7 +36,7 @@ TapTap Minigame MCP Server 是一个基于 [Model Context Protocol (MCP)](https:
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@mikoto_zero/minigame-open-mcp"]
+      "args": ["-y", "@taptap/minigame-open-mcp"]
     }
   }
 }
@@ -93,7 +93,7 @@ TapTap Minigame MCP Server 是一个基于 [Model Context Protocol (MCP)](https:
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@mikoto_zero/minigame-open-mcp"],
+      "args": ["-y", "@taptap/minigame-open-mcp"],
       "env": {
         "TAPTAP_MCP_ENV": "production",
         "TAPTAP_MCP_VERBOSE": "true",
@@ -123,7 +123,7 @@ TapTap Minigame MCP Server 是一个基于 [Model Context Protocol (MCP)](https:
 {
   "taptap-minigame": {
     "command": "npx",
-    "args": ["-y", "@mikoto_zero/minigame-open-mcp"]
+    "args": ["-y", "@taptap/minigame-open-mcp"]
   }
 }
 ```
@@ -140,7 +140,7 @@ TapTap Minigame MCP Server 是一个基于 [Model Context Protocol (MCP)](https:
 
 ```bash
 # 启动 SSE 服务器
-TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3000 npx @mikoto_zero/minigame-open-mcp
+TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3000 npx @taptap/minigame-open-mcp
 ```
 
 ```json
@@ -175,7 +175,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 // 1. 配置传输层 (以 Stdio 为例)
 const transport = new StdioClientTransport({
   command: 'npx',
-  args: ['-y', '@mikoto_zero/minigame-open-mcp'],
+  args: ['-y', '@taptap/minigame-open-mcp'],
   env: {
     TAPTAP_MCP_ENV: 'production', // 可选：指定环境变量
   },

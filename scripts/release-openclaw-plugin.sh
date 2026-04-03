@@ -14,7 +14,7 @@ fi
 
 MAIN_VERSION="$(node -p "require('$ROOT_DIR/package.json').version")"
 PLUGIN_VERSION="$(node -p "require('$PLUGIN_DIR/package.json').version")"
-MAIN_DEP_RANGE="$(node -p "require('$PLUGIN_DIR/package.json').dependencies['@mikoto_zero/minigame-open-mcp']")"
+MAIN_DEP_RANGE="$(node -p "require('$PLUGIN_DIR/package.json').dependencies['@taptap/minigame-open-mcp']")"
 
 echo "TapTap main package version in repo: $MAIN_VERSION"
 echo "OpenClaw plugin version: $PLUGIN_VERSION"

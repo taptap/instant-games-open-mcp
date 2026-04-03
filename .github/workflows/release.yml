@@ -590,7 +590,7 @@ jobs:
           echo "- win32-x64 (Windows)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "查看详情：" >> $GITHUB_STEP_SUMMARY
-          echo "- npm: https://www.npmjs.com/package/@mikoto_zero/minigame-open-mcp/v/${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "- npm: https://www.npmjs.com/package/@taptap/minigame-open-mcp/v/${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "- GitHub: https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" >> $GITHUB_STEP_SUMMARY
 
   # ========== 无需发布 ==========

@@ -1,5 +1,5 @@
 {
-  "name": "@mikoto_zero/minigame-open-mcp",
+  "name": "@taptap/minigame-open-mcp",
   "version": "1.20.0",
   "type": "module",
   "description": "TapTap Open API MCP Server - Documentation and Management APIs for TapTap Minigame and H5 Games (Leaderboard, and more features coming)",

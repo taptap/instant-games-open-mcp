@@ -8,7 +8,7 @@ RUN apk add --no-cache curl jq
 WORKDIR /app
 
 # 获取并安装最新版本的 npm 包
-ARG NPM_PACKAGE=@mikoto_zero/minigame-open-mcp
+ARG NPM_PACKAGE=@taptap/minigame-open-mcp
 ARG NPM_VERSION=latest
 
 # 安装指定版本

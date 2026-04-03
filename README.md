@@ -17,7 +17,7 @@
 - **📦 单文件 Bundle** - 零依赖，包体积减少 96%（567 KB）
 - **🤖 智能引导** - AI Agent 自动验证前置条件，主动询问用户选择
 
-**NPM**: [@mikoto_zero/minigame-open-mcp](https://www.npmjs.com/package/@mikoto_zero/minigame-open-mcp)
+**NPM**: [@taptap/minigame-open-mcp](https://www.npmjs.com/package/@taptap/minigame-open-mcp)
 
 ## 🦞 OpenClaw Plugin（实验中）
 
@@ -28,7 +28,7 @@
 这个子包的设计目标是：
 
 - 让 OpenClaw 用户只安装一个 plugin
-- plugin 内部复用 `@mikoto_zero/minigame-open-mcp` 运行时
+- plugin 内部复用 `@taptap/minigame-open-mcp` 运行时
 - 对 OpenClaw 暴露 raw JSON 工具
 - 同时内置 `taptap-dc-ops-brief` skill，让模型自己做简报解读
 
@@ -71,10 +71,10 @@ python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-githu
 
 ```bash
 # 全局安装
-npm install -g @mikoto_zero/minigame-open-mcp
+npm install -g @taptap/minigame-open-mcp
 
 # 或使用 npx 直接运行（无需安装）
-npx @mikoto_zero/minigame-open-mcp
+npx @taptap/minigame-open-mcp
 ```
 
 ### 配置（MCP 客户端）
@@ -88,7 +88,7 @@ npx @mikoto_zero/minigame-open-mcp
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@mikoto_zero/minigame-open-mcp"],
+      "args": ["-y", "@taptap/minigame-open-mcp"],
       "env": {
         "TAPTAP_MCP_WORKSPACE_ROOT": "${workspaceFolder}"
       }
@@ -111,7 +111,7 @@ npx @mikoto_zero/minigame-open-mcp
 ```bash
 # 启动 SSE 服务器
 TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3000 \
-npx @mikoto_zero/minigame-open-mcp
+npx @taptap/minigame-open-mcp
 ```
 
 **OpenHands 配置**:

@@ -33,7 +33,7 @@
     "openclaw": ">=2026.1.29"
   },
   "dependencies": {
-    "@mikoto_zero/minigame-open-mcp": "^1.19.0"
+    "@taptap/minigame-open-mcp": "^1.19.0"
   },
   "repository": {
     "type": "git",

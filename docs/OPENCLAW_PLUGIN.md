@@ -8,7 +8,7 @@
 
 - 不要求最终用户单独配置 MCP
 - 直接作为 OpenClaw native plugin 安装
-- 内部复用 `@mikoto_zero/minigame-open-mcp` 运行时
+- 内部复用 `@taptap/minigame-open-mcp` 运行时
 - 对 OpenClaw 暴露 raw JSON tools
 - bundled 一个 `taptap-dc-ops-brief` skill，负责把 raw data 解读成运营简报
 
@@ -42,14 +42,14 @@ packages/openclaw-dc-plugin/
 
 当前建议的发布顺序是：
 
-1. 先发布主包 `@mikoto_zero/minigame-open-mcp`
+1. 先发布主包 `@taptap/minigame-open-mcp`
 2. 确认主包里已经包含本 plugin 依赖的 raw tools
 3. 再发布 `packages/openclaw-dc-plugin`
 
 原因：
 
 - OpenClaw plugin 只是一个安装壳
-- 真正拉数据的运行时仍然来自 `@mikoto_zero/minigame-open-mcp`
+- 真正拉数据的运行时仍然来自 `@taptap/minigame-open-mcp`
 - 如果主包版本还没发出去，plugin 即使发了也会因为缺少对应 raw tools 而不可用
 
 ## 当前发布现状

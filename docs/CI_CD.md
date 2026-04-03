@@ -143,7 +143,7 @@ git push origin beta
 # 版本：1.3.0-beta.1
 
 # 5. 用户安装 beta 版本
-npm install @mikoto_zero/minigame-open-mcp@beta
+npm install @taptap/minigame-open-mcp@beta
 
 # 6. 测试稳定后，合并到 main
 git checkout main
@@ -173,13 +173,13 @@ Semantic Release 根据 commit 类型自动计算版本号（遵循 [Semantic Ve
 
 ### 4.1 版本变更规则
 
-| Commit 类型 | 版本变更 | 示例 |
-|------------|---------|------|
-| `feat:` | Minor | 1.2.0 → 1.3.0 |
-| `fix:` | Patch | 1.2.0 → 1.2.1 |
-| `feat!:` 或 `BREAKING CHANGE:` | Major | 1.2.0 → 2.0.0 |
-| `docs:`, `chore:`, `test:`, `ci:` | 无变更 | 不触发发布 |
-| `refactor:`, `perf:` | Patch | 1.2.0 → 1.2.1 |
+| Commit 类型                       | 版本变更 | 示例          |
+| --------------------------------- | -------- | ------------- |
+| `feat:`                           | Minor    | 1.2.0 → 1.3.0 |
+| `fix:`                            | Patch    | 1.2.0 → 1.2.1 |
+| `feat!:` 或 `BREAKING CHANGE:`    | Major    | 1.2.0 → 2.0.0 |
+| `docs:`, `chore:`, `test:`, `ci:` | 无变更   | 不触发发布    |
+| `refactor:`, `perf:`              | Patch    | 1.2.0 → 1.2.1 |
 
 ### 4.2 混合 Commit 优先级
 
@@ -200,6 +200,7 @@ git commit -m "feat!: breaking change" # major
 ### 4.3 Conventional Commits 规范
 
 **格式**：
+
 ```
 <type>[optional scope]: <description>
 
@@ -209,6 +210,7 @@ git commit -m "feat!: breaking change" # major
 ```
 
 **Type 类型**：
+
 - `feat`: 新功能
 - `fix`: Bug 修复
 - `docs`: 文档更新
@@ -220,6 +222,7 @@ git commit -m "feat!: breaking change" # major
 - `ci`: CI 配置变更
 
 **示例**：
+
 ```bash
 ✅ feat: add cloud save support
 ✅ fix(auth): resolve token refresh issue
@@ -231,6 +234,7 @@ git commit -m "feat!: breaking change" # major
 ```
 
 **Breaking Changes**：
+
 ```bash
 # 方式 1：使用 ! 标记
 git commit -m "feat!: remove deprecated API"
@@ -252,6 +256,7 @@ BREAKING CHANGE: old API endpoints have been removed"
 **触发条件**：PR 创建或更新时自动运行
 
 **检查项目**：
+
 - ✅ **Lint** - ESLint 代码风格检查
 - ✅ **Build** - TypeScript 编译检查
 - ✅ **Test** - Jest 单元测试
@@ -260,6 +265,7 @@ BREAKING CHANGE: old API endpoints have been removed"
 **所有检查通过才能合并。**
 
 **本地验证**：
+
 ```bash
 # 运行所有检查
 npm run lint      # 代码检查
@@ -277,6 +283,7 @@ npx commitlint --from HEAD~1 --to HEAD
 **触发条件**：PR 合并到 `main` / `beta` / `alpha` 分支后自动运行
 
 **执行步骤**：
+
 1. **质量检查** - 运行 lint、build、test
 2. **执行 semantic-release**：
    - 分析所有 commits
@@ -288,6 +295,7 @@ npx commitlint --from HEAD~1 --to HEAD
    - 创建 GitHub Release
 
 **npm 发布策略**：
+
 - ⚠️ **不使用 Provenance**（npm Provenance 仅支持 public 仓库，当前仓库为 internal）
 - ✅ 使用 **Automation Token** 绕过 2FA
 - ✅ 完整的 CI/CD 质量检查
@@ -306,7 +314,7 @@ module.exports = {
     'main',
     { name: 'beta', prerelease: true },
     { name: 'alpha', prerelease: true },
-    { name: 'next', prerelease: true }
+    { name: 'next', prerelease: true },
   ],
   plugins: [
     '@semantic-release/commit-analyzer',
@@ -314,8 +322,8 @@ module.exports = {
     '@semantic-release/changelog',
     '@semantic-release/npm',
     '@semantic-release/github',
-    '@semantic-release/git'
-  ]
+    '@semantic-release/git',
+  ],
 };
 ```
 
@@ -330,11 +338,11 @@ module.exports = {
     'type-enum': [
       2,
       'always',
-      ['feat', 'fix', 'docs', 'style', 'refactor', 'perf', 'test', 'chore', 'ci']
+      ['feat', 'fix', 'docs', 'style', 'refactor', 'perf', 'test', 'chore', 'ci'],
     ],
     'subject-min-length': [2, 'always', 5],
-    'subject-max-length': [2, 'always', 100]
-  }
+    'subject-max-length': [2, 'always', 100],
+  },
 };
 ```
 
@@ -377,10 +385,10 @@ module.exports = {
 
 ```yaml
 permissions:
-  contents: write      # 创建 commit 和 tag
-  issues: write        # 发布说明
+  contents: write # 创建 commit 和 tag
+  issues: write # 发布说明
   pull-requests: write # 创建和合并 PR
-  id-token: write      # GitHub OIDC（未来可能需要）
+  id-token: write # GitHub OIDC（未来可能需要）
 ```
 
 ---
@@ -394,6 +402,7 @@ npm install
 ```
 
 这会安装所有 CI/CD 相关的依赖：
+
 - `semantic-release` - 自动化发布
 - `@commitlint/cli` - Commit 消息检查
 - `@semantic-release/*` - 各种插件
@@ -416,6 +425,7 @@ npx semantic-release --dry-run
 ```
 
 **输出示例**：
+
 ```
 [semantic-release] › ℹ  Running semantic-release version 19.0.5
 [semantic-release] › ✔  Loaded plugin "commit-analyzer"
@@ -451,27 +461,30 @@ npx semantic-release --dry-run
 ### 9.3 预发布版本
 
 **Beta 版本**（测试新特性）：
+
 ```bash
 git checkout -b beta
 git push origin beta
 # 自动发布：1.3.0-beta.1
-npm install @mikoto_zero/minigame-open-mcp@beta
+npm install @taptap/minigame-open-mcp@beta
 ```
 
 **Alpha 版本**（早期测试）：
+
 ```bash
 git checkout -b alpha
 git push origin alpha
 # 自动发布：1.3.0-alpha.1
-npm install @mikoto_zero/minigame-open-mcp@alpha
+npm install @taptap/minigame-open-mcp@alpha
 ```
 
 **Next 版本**（下一个主版本）：
+
 ```bash
 git checkout -b next
 git push origin next
 # 自动发布：2.0.0-next.1
-npm install @mikoto_zero/minigame-open-mcp@next
+npm install @taptap/minigame-open-mcp@next
 ```
 
 ### 9.4 旧版本维护

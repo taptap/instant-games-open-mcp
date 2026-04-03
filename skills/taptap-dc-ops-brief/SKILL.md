@@ -52,7 +52,7 @@ description: 生成 TapTap 当前游戏 DC 运营简报与结论解读（商店/
    - Codex Desktop 通常使用 `~/.codex/config.toml` 的 `[mcp_servers.*]` 配置
 2. 需要新增一个 server（示例名可用 `taptap_mcp`）
    - `command = "npx"`
-   - `args = ["-y", "@mikoto_zero/minigame-open-mcp@latest"]`
+   - `args = ["-y", "@taptap/minigame-open-mcp@latest"]`
 3. 认证与参数
    - **默认线上用法不需要再向用户索要 `TAPTAP_MCP_CLIENT_ID` 或 `TAPTAP_MCP_CLIENT_SECRET`**
    - 发布到 npm 的正式包通常已经内置生产环境所需参数，安装后应先直接尝试 `check_environment`

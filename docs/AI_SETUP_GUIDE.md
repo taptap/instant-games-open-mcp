@@ -4,7 +4,7 @@
 
 ## What You Are Setting Up
 
-- **Package:** `@mikoto_zero/minigame-open-mcp`
+- **Package:** `@taptap/minigame-open-mcp`
 - **Transport:** stdio (via `npx`)
 - **Prerequisite:** Node.js >= 18
 
@@ -37,7 +37,7 @@ Read the existing file first (it may contain other MCP servers). Add the `taptap
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@mikoto_zero/minigame-open-mcp"]
+      "args": ["-y", "@taptap/minigame-open-mcp"]
     }
   }
 }
@@ -78,7 +78,7 @@ If the user encounters file path errors (e.g., H5 upload), add `env` to the conf
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@mikoto_zero/minigame-open-mcp"],
+      "args": ["-y", "@taptap/minigame-open-mcp"],
       "env": {
         "TAPTAP_MCP_WORKSPACE_ROOT": "${workspaceFolder}"
       }
