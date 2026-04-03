@@ -1,3 +1,10 @@
+## <small>1.20.1 (2026-04-03)</small>
+
+* refactor(package): add publishConfig for @taptap scope (#137) ([e52987b](https://github.com/taptap/taptap_minigame_open_mcp/commit/e52987b)), closes [#137](https://github.com/taptap/taptap_minigame_open_mcp/issues/137)
+* chore(package): 迁移 npm scope 从 @mikoto_zero 到 @taptap (#136) ([7db2640](https://github.com/taptap/taptap_minigame_open_mcp/commit/7db2640)), closes [#136](https://github.com/taptap/taptap_minigame_open_mcp/issues/136)
+
+
+
 ## 1.20.0 (2026-03-27)
 
 * fix(server): hide raw tools behind opt-in flag ([eb945e2](https://github.com/taptap/taptap_minigame_open_mcp/commit/eb945e2))
