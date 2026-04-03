@@ -28,3 +28,14 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request. Focus on:
+            - Code quality and best practices
+            - Potential bugs or logic errors
+            - Security implications
+            - Performance considerations
+
+            The PR branch is already checked out. Use gh CLI to interact with the PR.
+            Post your review as a PR comment using `gh pr comment`.
+            For specific code issues, use inline comments via `mcp__github_inline_comment__create_inline_comment` with `confirmed: true`.
+            Reply in Chinese (简体中文).
