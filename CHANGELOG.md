@@ -1,3 +1,10 @@
+## <small>1.20.2 (2026-04-03)</small>
+
+* fix(package): 修正 repository URL 匹配实际仓库名 ([764fdcb](https://github.com/taptap/minigame-open-mcp/commit/764fdcb))
+* refactor(ci): 使用 OIDC Trusted Publishing 替代 NPM_TOKEN ([6eabc94](https://github.com/taptap/minigame-open-mcp/commit/6eabc94))
+
+
+
 ## <small>1.20.1 (2026-04-03)</small>
 
 * refactor(package): add publishConfig for @taptap scope (#137) ([e52987b](https://github.com/taptap/taptap_minigame_open_mcp/commit/e52987b)), closes [#137](https://github.com/taptap/taptap_minigame_open_mcp/issues/137)
