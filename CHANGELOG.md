@@ -1,3 +1,9 @@
+## <small>1.20.5 (2026-04-07)</small>
+
+* fix(ci): 等待 release PR 合并后再创建 tag ([7578c88](https://github.com/taptap/instant-games-open-mcp/commit/7578c88))
+
+
+
 ## <small>1.20.4 (2026-04-07)</small>
 
 * fix(ci): 修复 GitHub Release 创建 + 接入 Puer Code Review ([867305d](https://github.com/taptap/instant-games-open-mcp/commit/867305d))
