@@ -1,3 +1,14 @@
+## <small>1.20.3 (2026-04-07)</small>
+
+* fix(ci): analyze 步骤移除对 NPM_TOKEN secret 的依赖 ([d0d05e5](https://github.com/taptap/instant-games-open-mcp/commit/d0d05e5))
+* fix(ci): 为 claude-code-action 添加 review prompt ([42e67af](https://github.com/taptap/instant-games-open-mcp/commit/42e67af))
+* fix(ci): 为 claude-code-action 配置 allowedTools ([12c5a0a](https://github.com/taptap/instant-games-open-mcp/commit/12c5a0a))
+* fix(ci): 升级 macOS runner 从 macos-13 到 macos-14 ([a12c0a4](https://github.com/taptap/instant-games-open-mcp/commit/a12c0a4))
+* refactor(package): 重命名为 @taptap/instant-games-open-mcp ([383c958](https://github.com/taptap/instant-games-open-mcp/commit/383c958))
+* ci(review): 接入 Claude Code Review GitHub Action ([75f1068](https://github.com/taptap/instant-games-open-mcp/commit/75f1068))
+
+
+
 ## <small>1.20.2 (2026-04-03)</small>
 
 * fix(package): 修正 repository URL 匹配实际仓库名 ([764fdcb](https://github.com/taptap/minigame-open-mcp/commit/764fdcb))
