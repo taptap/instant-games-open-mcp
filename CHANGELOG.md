@@ -1,3 +1,9 @@
+## <small>1.20.4 (2026-04-07)</small>
+
+* fix(ci): 修复 GitHub Release 创建 + 接入 Puer Code Review ([867305d](https://github.com/taptap/instant-games-open-mcp/commit/867305d))
+
+
+
 ## <small>1.20.3 (2026-04-07)</small>
 
 * fix(ci): analyze 步骤移除对 NPM_TOKEN secret 的依赖 ([d0d05e5](https://github.com/taptap/instant-games-open-mcp/commit/d0d05e5))
