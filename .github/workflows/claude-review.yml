@@ -30,6 +30,8 @@ jobs:
           ANTHROPIC_BASE_URL: https://llm-proxy.tapsvc.com
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(cat:*),Bash(grep:*),Read,Glob,Grep"
           prompt: |
             You are a code reviewer for a TypeScript MCP server project.
             The PR branch is already checked out. Use `gh pr diff` to get the changes.
