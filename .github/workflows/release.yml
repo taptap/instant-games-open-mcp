@@ -532,25 +532,46 @@ jobs:
 
           echo "Auto-merge enabled for PR #$PR_NUMBER, will merge when all checks pass."
 
-      # 创建 GitHub Release (始终包含 native binaries 作为 assets)
+      # 等待 release PR 合并后，再创建 tag 和 GitHub Release
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${{ needs.analyze.outputs.version }}
+          PR_URL=${{ steps.pr.outputs.pr_url }}
+          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
 
-          sleep 10
+          # 等待 PR 合并（auto-merge 是异步的）
+          echo "Waiting for PR #$PR_NUMBER to be merged..."
+          for i in $(seq 1 60); do
+            STATE=$(gh pr view "$PR_NUMBER" --json state --jq '.state')
+            if [ "$STATE" = "MERGED" ]; then
+              echo "PR #$PR_NUMBER merged after ${i}0s"
+              break
+            fi
+            if [ "$STATE" = "CLOSED" ]; then
+              echo "PR #$PR_NUMBER was closed without merging"
+              exit 1
+            fi
+            sleep 10
+          done
 
+          if [ "$STATE" != "MERGED" ]; then
+            echo "Timeout waiting for PR merge, skipping release creation"
+            exit 1
+          fi
+
+          # PR 已合并，获取最新 main
           git fetch origin
           git checkout -B main origin/main
 
-          # 生成 release notes，使用 gh api 自动生成
+          # 生成 release notes
           RELEASE_NOTES=$(gh api repos/${{ github.repository }}/releases/generate-notes \
             -f tag_name="v${VERSION}" \
             -f target_commitish=main \
             --jq '.body') || RELEASE_NOTES="Release v${VERSION}"
 
-          # 创建 annotated tag
+          # 在 main 最新 commit 上创建 tag（即 squash merge 后的 release commit）
           git tag -a "v${VERSION}" -m "Release v${VERSION}"
           git push origin "v${VERSION}"
 
