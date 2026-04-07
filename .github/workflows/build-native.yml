@@ -33,9 +33,9 @@ jobs:
       matrix:
         settings:
           # macOS Intel (x64)
-          # 注意：macos-13 预装的 Rust 配置已损坏（符号链接指向 ARM64 路径）
+          # 注意：macos-14 预装的 Rust 配置已损坏（符号链接指向 ARM64 路径）
           # 需要清理损坏的配置并重新安装 Rust
-          - host: macos-13
+          - host: macos-14
             target: x86_64-apple-darwin
             artifact: taptap-signer.darwin-x64.node
             build: |
@@ -135,7 +135,7 @@ jobs:
           targets: ${{ matrix.settings.target }}
 
       # 修复：dtolnay/rust-toolchain 在 rustup 已存在时不会添加 PATH
-      # macos-13 预装了 Rust，但 PATH 可能没有正确设置
+      # macos-14 预装了 Rust，但 PATH 可能没有正确设置
       - name: Ensure Cargo in PATH
         if: ${{ !matrix.settings.docker }}
         shell: bash
