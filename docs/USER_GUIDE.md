@@ -35,7 +35,7 @@
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@taptap/minigame-open-mcp"]
+      "args": ["-y", "@taptap/instant-games-open-mcp"]
     }
   }
 }
@@ -59,12 +59,12 @@
 4.  点击 **+ Add New MCP Server** 按钮。
 5.  在弹出的表单中照着填 (见下图表)：
 
-| 选项 (Field) | 填什么 (Value)                 | 说明                 |
-| :----------- | :----------------------------- | :------------------- |
-| **Name**     | `taptap-minigame`              | 名字随便起，好记就行 |
-| **Type**     | `command`                      | 必须选 command       |
-| **Command**  | `npx`                          | 这是运行命令         |
-| **Args**     | `-y @taptap/minigame-open-mcp` | 参数，注意空格和`-y` |
+| 选项 (Field) | 填什么 (Value)                      | 说明                 |
+| :----------- | :---------------------------------- | :------------------- |
+| **Name**     | `taptap-minigame`                   | 名字随便起，好记就行 |
+| **Type**     | `command`                           | 必须选 command       |
+| **Command**  | `npx`                               | 这是运行命令         |
+| **Args**     | `-y @taptap/instant-games-open-mcp` | 参数，注意空格和`-y` |
 
 6.  点击 **Save** 保存。
 7.  查看状态指示灯变绿 🟢，说明连接成功！
@@ -82,7 +82,7 @@ Claude Desktop (Mac/Windows 客户端) 使用一个全局配置文件。
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@taptap/minigame-open-mcp"]
+      "args": ["-y", "@taptap/instant-games-open-mcp"]
     }
   }
 }
@@ -106,7 +106,7 @@ VS Code 配合 **GitHub Copilot Chat** 扩展现已原生支持 MCP 协议。
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@taptap/minigame-open-mcp"]
+      "args": ["-y", "@taptap/instant-games-open-mcp"]
     }
   }
 }
@@ -157,7 +157,7 @@ VS Code 配合 **GitHub Copilot Chat** 扩展现已原生支持 MCP 协议。
     }, // 👈 注意这里必须有逗号
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@taptap/minigame-open-mcp"]
+      "args": ["-y", "@taptap/instant-games-open-mcp"]
     }
   }
 }
@@ -179,7 +179,7 @@ VS Code 配合 **GitHub Copilot Chat** 扩展现已原生支持 MCP 协议。
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@taptap/minigame-open-mcp"],
+      "args": ["-y", "@taptap/instant-games-open-mcp"],
       "env": {
         // 👇 这里通常不是必须的，除非遇到路径问题
         "TAPTAP_MCP_WORKSPACE_ROOT": "${workspaceFolder}"

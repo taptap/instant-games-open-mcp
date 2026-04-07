@@ -15,7 +15,7 @@ function resolveLocalServerPath() {
 
 function resolveEmbeddedServerPath() {
   try {
-    const packageJsonPath = require.resolve('@taptap/minigame-open-mcp/package.json');
+    const packageJsonPath = require.resolve('@taptap/instant-games-open-mcp/package.json');
     const packageRoot = path.dirname(packageJsonPath);
     const serverPath = path.join(packageRoot, 'dist', 'server.js');
     if (existsSync(serverPath)) {
@@ -31,7 +31,7 @@ function resolveEmbeddedServerPath() {
   }
 
   throw new Error(
-    'Unable to resolve the embedded TapTap MCP server. Make sure @taptap/minigame-open-mcp is installed.'
+    'Unable to resolve the embedded TapTap MCP server. Make sure @taptap/instant-games-open-mcp is installed.'
   );
 }
 

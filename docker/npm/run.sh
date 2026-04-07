@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # 默认值
-NPM_PACKAGE="@taptap/minigame-open-mcp"
+NPM_PACKAGE="@taptap/instant-games-open-mcp"
 NPM_VERSION="latest"
 IMAGE_NAME="taptap-open-mcp"
 ENV="production"

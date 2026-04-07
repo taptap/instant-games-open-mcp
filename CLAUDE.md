@@ -151,7 +151,7 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
 
 **基本信息：**
 
-- **NPM 包：** `@taptap/minigame-open-mcp`
+- **NPM 包：** `@taptap/instant-games-open-mcp`
 - **官方 API 文档：** https://developer.taptap.cn/minigameapidoc/
 
 ## 架构概览
@@ -174,7 +174,7 @@ feature 分支开发 → git commit (规范格式) → git push → 创建 PR
        ↓ 依赖
 服务器层
   ├── src/server.ts        - 主服务器（自动注册所有模块）
-  └── bin/minigame-open-mcp - NPM 可执行入口
+  └── bin/instant-games-open-mcp - NPM 可执行入口
 ```
 
 **关键设计模式：**
@@ -304,7 +304,7 @@ npm ci
 # npm install <package>
 
 # 全局安装（可选）
-npm install -g @taptap/minigame-open-mcp
+npm install -g @taptap/instant-games-open-mcp
 ```
 
 ### 快速启动

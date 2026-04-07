@@ -143,7 +143,7 @@ git push origin beta
 # 版本：1.3.0-beta.1
 
 # 5. 用户安装 beta 版本
-npm install @taptap/minigame-open-mcp@beta
+npm install @taptap/instant-games-open-mcp@beta
 
 # 6. 测试稳定后，合并到 main
 git checkout main
@@ -466,7 +466,7 @@ npx semantic-release --dry-run
 git checkout -b beta
 git push origin beta
 # 自动发布：1.3.0-beta.1
-npm install @taptap/minigame-open-mcp@beta
+npm install @taptap/instant-games-open-mcp@beta
 ```
 
 **Alpha 版本**（早期测试）：
@@ -475,7 +475,7 @@ npm install @taptap/minigame-open-mcp@beta
 git checkout -b alpha
 git push origin alpha
 # 自动发布：1.3.0-alpha.1
-npm install @taptap/minigame-open-mcp@alpha
+npm install @taptap/instant-games-open-mcp@alpha
 ```
 
 **Next 版本**（下一个主版本）：
@@ -484,7 +484,7 @@ npm install @taptap/minigame-open-mcp@alpha
 git checkout -b next
 git push origin next
 # 自动发布：2.0.0-next.1
-npm install @taptap/minigame-open-mcp@next
+npm install @taptap/instant-games-open-mcp@next
 ```
 
 ### 9.4 旧版本维护
@@ -515,4 +515,4 @@ git push origin 1.x
 
 ---
 
-**需要帮助？** 提交 Issue：https://github.com/taptap/minigame-open-mcp/issues
+**需要帮助？** 提交 Issue：https://github.com/taptap/instant-games-open-mcp/issues

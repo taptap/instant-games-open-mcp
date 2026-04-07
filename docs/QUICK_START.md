@@ -19,7 +19,7 @@
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@taptap/minigame-open-mcp"]
+      "args": ["-y", "@taptap/instant-games-open-mcp"]
     }
   }
 }

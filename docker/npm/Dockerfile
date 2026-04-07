@@ -8,7 +8,7 @@ RUN apk add --no-cache curl jq
 WORKDIR /app
 
 # 获取并安装最新版本的 npm 包
-ARG NPM_PACKAGE=@taptap/minigame-open-mcp
+ARG NPM_PACKAGE=@taptap/instant-games-open-mcp
 ARG NPM_VERSION=latest
 
 # 安装指定版本
@@ -25,4 +25,4 @@ ENV TAPTAP_MCP_VERBOSE=true
 EXPOSE 3000
 
 # 启动命令
-CMD ["npx", "minigame-open-mcp"]
+CMD ["npx", "instant-games-open-mcp"]

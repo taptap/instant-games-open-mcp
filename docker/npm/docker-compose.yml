@@ -8,7 +8,7 @@ services:
     build:
       context: .
       args:
-        NPM_PACKAGE: '@taptap/minigame-open-mcp'
+        NPM_PACKAGE: '@taptap/instant-games-open-mcp'
         NPM_VERSION: 'latest'
     image: taptap-open-mcp:npm-latest
     container_name: taptap-mcp-npm-production
@@ -31,7 +31,7 @@ services:
     build:
       context: .
       args:
-        NPM_PACKAGE: '@taptap/minigame-open-mcp'
+        NPM_PACKAGE: '@taptap/instant-games-open-mcp'
         NPM_VERSION: 'latest'
     image: taptap-open-mcp:npm-latest
     container_name: taptap-mcp-npm-rnd

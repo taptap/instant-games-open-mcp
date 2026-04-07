@@ -47,7 +47,7 @@ export class ApiConfig {
     if (!available) {
       process.stderr.write('❌ Signer not available!\n\n');
       process.stderr.write('Option 1 (Production): Use npm package with native signer\n');
-      process.stderr.write('  npx @taptap/minigame-open-mcp\n\n');
+      process.stderr.write('  npx @taptap/instant-games-open-mcp\n\n');
       process.stderr.write('Option 2 (Development): Set environment variables\n');
       process.stderr.write('  export TAPTAP_MCP_CLIENT_ID="your_client_id"\n');
       process.stderr.write('  export TAPTAP_MCP_CLIENT_SECRET="your_signing_key"\n\n');

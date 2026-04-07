@@ -33,15 +33,15 @@
     "openclaw": ">=2026.1.29"
   },
   "dependencies": {
-    "@taptap/minigame-open-mcp": "^1.19.0"
+    "@taptap/instant-games-open-mcp": "^1.19.0"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/taptap/minigame-open-mcp.git",
+    "url": "git+https://github.com/taptap/instant-games-open-mcp.git",
     "directory": "packages/openclaw-dc-plugin"
   },
-  "homepage": "https://github.com/taptap/minigame-open-mcp/tree/main/packages/openclaw-dc-plugin",
+  "homepage": "https://github.com/taptap/instant-games-open-mcp/tree/main/packages/openclaw-dc-plugin",
   "bugs": {
-    "url": "https://github.com/taptap/minigame-open-mcp/issues"
+    "url": "https://github.com/taptap/instant-games-open-mcp/issues"
   }
 }

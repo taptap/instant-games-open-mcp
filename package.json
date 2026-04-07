@@ -1,11 +1,11 @@
 {
-  "name": "@taptap/minigame-open-mcp",
+  "name": "@taptap/instant-games-open-mcp",
   "version": "1.20.2",
   "type": "module",
   "description": "TapTap Open API MCP Server - Documentation and Management APIs for TapTap Minigame and H5 Games (Leaderboard, and more features coming)",
   "main": "dist/server.js",
   "bin": {
-    "minigame-open-mcp": "bin/minigame-open-mcp",
+    "instant-games-open-mcp": "bin/instant-games-open-mcp",
     "taptap-mcp-proxy": "bin/taptap-mcp-proxy"
   },
   "exports": {
@@ -17,7 +17,7 @@
     "build": "./scripts/build.sh --skip-native",
     "build:all": "./scripts/build.sh",
     "build:native": "./scripts/build.sh --native-only",
-    "start": "node bin/minigame-open-mcp",
+    "start": "node bin/instant-games-open-mcp",
     "dev": "tsx watch src/server.ts",
     "serve": "TAPTAP_MCP_TRANSPORT=sse node dist/server.js",
     "openclaw:pack": "./scripts/release-openclaw-plugin.sh pack",
@@ -95,10 +95,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/taptap/minigame-open-mcp.git"
+    "url": "git+https://github.com/taptap/instant-games-open-mcp.git"
   },
-  "homepage": "https://github.com/taptap/minigame-open-mcp#readme",
+  "homepage": "https://github.com/taptap/instant-games-open-mcp#readme",
   "bugs": {
-    "url": "https://github.com/taptap/minigame-open-mcp/issues"
+    "url": "https://github.com/taptap/instant-games-open-mcp/issues"
   }
 }

@@ -5,7 +5,7 @@ OpenClaw plugin that exposes raw TapTap DC tools and bundles a TapTap DC ops-bri
 ## What It Does
 
 - installs as a native OpenClaw plugin
-- internally boots the published `@taptap/minigame-open-mcp` runtime
+- internally boots the published `@taptap/instant-games-open-mcp` runtime
 - exposes raw JSON-oriented TapTap tools for:
   - authorization
   - app selection

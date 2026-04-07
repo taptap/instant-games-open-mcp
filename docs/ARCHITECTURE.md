@@ -72,7 +72,7 @@ src/
 └── server.ts              # 主服务器（自动注册所有模块）
 
 bin/
-└── minigame-open-mcp      # NPM 可执行入口点
+└── instant-games-open-mcp      # NPM 可执行入口点
 ```
 
 ### 架构分层
@@ -150,7 +150,7 @@ bin/
   - 私有参数提取和注入
   - 智能 OAuth 授权流程
 
-- **`bin/minigame-open-mcp`** - NPM 可执行入口
+- **`bin/instant-games-open-mcp`** - NPM 可执行入口
   - 支持 stdio、SSE、HTTP 三种传输模式
   - 环境变量配置
   - 进程管理

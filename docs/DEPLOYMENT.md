@@ -21,10 +21,10 @@
 
 ```bash
 # 方式 1：全局安装
-npm install -g @taptap/minigame-open-mcp
+npm install -g @taptap/instant-games-open-mcp
 
 # 方式 2：使用 npx（推荐，无需安装）
-npx @taptap/minigame-open-mcp
+npx @taptap/instant-games-open-mcp
 ```
 
 #### 配置
@@ -36,7 +36,7 @@ npx @taptap/minigame-open-mcp
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@taptap/minigame-open-mcp"],
+      "args": ["-y", "@taptap/instant-games-open-mcp"],
       "env": {
         "TAPTAP_MCP_WORKSPACE_ROOT": "${workspaceFolder}"
       }
@@ -52,7 +52,7 @@ npx @taptap/minigame-open-mcp
   "mcpServers": {
     "taptap-minigame": {
       "command": "npx",
-      "args": ["-y", "@taptap/minigame-open-mcp"],
+      "args": ["-y", "@taptap/instant-games-open-mcp"],
       "env": {
         "TAPTAP_MCP_WORKSPACE_ROOT": "/path/to/your/project"
       }
@@ -81,11 +81,11 @@ npx @taptap/minigame-open-mcp
 ```bash
 # 基础启动（端口 3000）
 TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3000 \
-npx @taptap/minigame-open-mcp
+npx @taptap/instant-games-open-mcp
 
 # 启用详细日志
 TAPTAP_MCP_TRANSPORT=sse TAPTAP_MCP_PORT=3000 TAPTAP_MCP_VERBOSE=true \
-npx @taptap/minigame-open-mcp
+npx @taptap/instant-games-open-mcp
 
 # 使用 npm scripts（推荐）
 npm run serve:sse          # 基础模式
@@ -139,7 +139,7 @@ TAPTAP_MCP_PORT=8080 npm run serve:sse
 ```bash
 # 启动 HTTP 模式
 TAPTAP_MCP_TRANSPORT=http TAPTAP_MCP_PORT=3000 \
-npx @taptap/minigame-open-mcp
+npx @taptap/instant-games-open-mcp
 
 # 使用 npm scripts
 npm run serve:http
@@ -282,7 +282,7 @@ npm run build
 
 ```bash
 # 无需 Docker，直接使用 npx（推荐用于本地测试）
-npx -y @taptap/minigame-open-mcp
+npx -y @taptap/instant-games-open-mcp
 ```
 
 ---
@@ -752,4 +752,4 @@ docker-compose down -v
 
 ---
 
-**需要帮助？** 提交 Issue：https://github.com/taptap/minigame-open-mcp/issues
+**需要帮助？** 提交 Issue：https://github.com/taptap/instant-games-open-mcp/issues
