@@ -544,22 +544,17 @@ jobs:
           git fetch origin
           git checkout -B main origin/main
 
-          # 生成详细的 release notes
-          # 过滤掉噪音提交（与 .commitlintrc.cjs 中的忽略规则一致）
-          # - Initial plan, WIP, TODO, FIXME: Copilot/bot 的临时提交
-          # - chore(release): 自动发布的提交
-          RELEASE_NOTES=$(npx conventional-changelog-cli -p conventionalcommits -o /dev/stdout -r 1 | grep -v -E '^\*\s*(Initial plan|WIP|TODO|FIXME)\b|^\*\s*chore\(release\):')
+          # 生成 release notes，使用 gh api 自动生成
+          RELEASE_NOTES=$(gh api repos/${{ github.repository }}/releases/generate-notes \
+            -f tag_name="v${VERSION}" \
+            -f target_commitish=main \
+            --jq '.body') || RELEASE_NOTES="Release v${VERSION}"
 
-          # 创建 annotated tag（而非轻量级 tag）
-          # 这样 Tags 页面也会显示详细的 annotation
-          git tag -a "v${VERSION}" -m "Release v${VERSION}
-
-          ${RELEASE_NOTES}"
-
+          # 创建 annotated tag
+          git tag -a "v${VERSION}" -m "Release v${VERSION}"
           git push origin "v${VERSION}"
 
-          # 始终上传 native binaries 作为 assets
-          # 这样每个 release 都是自包含的，便于下载和追溯
+          # 创建 GitHub Release，上传 native binaries 作为 assets
           gh release create "v${VERSION}" \
             --title "v${VERSION}" \
             --notes "$RELEASE_NOTES" \

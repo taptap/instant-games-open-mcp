@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - uses: anthropics/claude-code-action@v1
         env:
@@ -31,53 +31,11 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(cat:*),Bash(grep:*),Read,Glob,Grep"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(cat:*),Bash(grep:*),Bash(git diff:*),Bash(git log:*),Read,Glob,Grep"
           prompt: |
-            You are a code reviewer for a TypeScript MCP server project.
-            The PR branch is already checked out. Use `gh pr diff` to get the changes.
-
-            ## Review methodology (inspired by Puer)
-
-            1. **Only report findings with confidence >= 85%**. Do not guess or speculate.
-            2. **Verify before reporting**: read the actual code (`cat`, `grep`) to confirm each finding.
-               Do NOT report issues based solely on the diff — check surrounding context.
-            3. **Ignore non-issues**: style preferences, minor naming choices, and patterns
-               that are consistent with existing codebase conventions are NOT issues.
-
-            ## Focus areas (in priority order)
-
-            1. **Bugs & logic errors** — incorrect behavior, missing edge cases, race conditions
-            2. **Security** — injection, credential exposure, unsafe deserialization
-            3. **Breaking changes** — API/interface changes that affect consumers
-            4. **Resource leaks** — unclosed handles, missing cleanup, dangling listeners
-
-            Skip: style/formatting (handled by ESLint+Prettier), documentation completeness,
-            test coverage suggestions, and "nice to have" improvements.
-
-            ## Output format
-
-            Post ONE PR comment using `gh pr comment`. Use this exact format:
-
-            ```
-            ## Code Review
-
-            ### 🚫 阻塞问题
-            - **file:line** — 描述问题和修复建议
-
-            ### ⚠️ 警告
-            - **file:line** — 描述问题和修复建议
-
-            ### 💡 建议
-            - **file:line** — 描述建议
-
-            ---
-            ✅ 已审查 N 个文件，M 处变更
-            ```
-
-            Rules:
-            - If a section has no items, write `- 无`
-            - Each item MUST include `file:line` reference
-            - Keep descriptions concise (1-2 sentences)
-            - Reply in Chinese (简体中文)
-            - For specific code issues, also add inline comments via
-              `mcp__github_inline_comment__create_inline_comment` with `confirmed: true`
+            Read CLAUDE.md for project conventions, then review this PR following docs/CODE_REVIEW.md
+            for methodology, checklist, and output format.
+            Use `gh pr diff` to get changes, verify findings with actual code before reporting.
+            Post ONE PR comment using `gh pr comment` with the exact output format from docs/CODE_REVIEW.md.
+            For 阻塞问题 and 警告, also add inline comments via
+            `mcp__github_inline_comment__create_inline_comment` with `confirmed: true`.

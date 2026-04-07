@@ -583,6 +583,10 @@ const allModules = [..., yourFeatureModule];
 
 - `docs://leaderboard/overview` - 所有 API 的完整概览
 
+## Code Review 规范
+
+PR 自动审查遵循 Puer 方法论。完整规范见 [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md)。
+
 ## 注意事项
 
 - 所有工具描述使用英文，便于 AI Agent 理解
