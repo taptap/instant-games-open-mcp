@@ -89,6 +89,12 @@ export interface RequestOptions {
   params?: Record<string, string>;
   timeout?: number;
   baseUrl?: string;
+  /**
+   * Custom JSON parser. Receives the raw response text and returns the parsed value.
+   * Use this when default JSON.parse causes issues (e.g. precision loss for large integers).
+   * If omitted, falls back to native response.json().
+   */
+  parseJson?: (text: string) => unknown;
 }
 
 /**
@@ -293,7 +299,15 @@ export class HttpClient {
       const contentType = response.headers.get('content-type');
 
       if (contentType?.includes('application/json')) {
-        const jsonData = (await response.json()) as ApiResponse<T>;
+        let jsonData: ApiResponse<T>;
+
+        if (options.parseJson) {
+          // Custom parser, e.g. for preserving large-integer precision
+          const text = await response.text();
+          jsonData = options.parseJson(text) as ApiResponse<T>;
+        } else {
+          jsonData = (await response.json()) as ApiResponse<T>;
+        }
 
         // Log successful response with headers
         await logger.logResponse(
