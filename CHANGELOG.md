@@ -1,3 +1,11 @@
+## 1.21.0 (2026-05-08)
+
+* feat(debug-feedback): 支持按 moment_id 单查反馈并修复大整数精度丢失 (#154) ([1270ee4](https://github.com/taptap/instant-games-open-mcp/commit/1270ee4)), closes [#154](https://github.com/taptap/instant-games-open-mcp/issues/154)
+* ci(claude-review): 改用 vars.ANTHROPIC_BASE_URL 配置 ([ca80e6b](https://github.com/taptap/instant-games-open-mcp/commit/ca80e6b))
+* ci(codeql): 切换为 workflow 配置，跳过 release PR ([5d83ca4](https://github.com/taptap/instant-games-open-mcp/commit/5d83ca4))
+
+
+
 ## <small>1.20.5 (2026-04-07)</small>
 
 * fix(ci): 等待 release PR 合并后再创建 tag ([7578c88](https://github.com/taptap/instant-games-open-mcp/commit/7578c88))
