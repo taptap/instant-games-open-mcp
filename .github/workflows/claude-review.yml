@@ -27,7 +27,7 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         env:
-          ANTHROPIC_BASE_URL: https://llm-proxy.tapsvc.com
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           use_sticky_comment: true
