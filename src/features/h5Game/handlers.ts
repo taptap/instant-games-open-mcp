@@ -123,6 +123,7 @@ interface GetDebugFeedbacksArgs {
   status?: number;
   fetch_and_mark_processed?: boolean;
   download_assets?: boolean;
+  moment_id?: string;
 }
 
 /**
@@ -671,6 +672,29 @@ async function saveDebugFeedbackFiles(
 }
 
 /**
+ * 把用户传入的 moment 标识规范化为纯数字 ID 字符串。
+ * 接受形式：
+ *   - 纯数字字符串（如 "795659996946762795"）→ 原样返回
+ *   - TapTap moment URL（如 "https://www.taptap.cn/moment/795659996946762795"）→ 提取数字段
+ *   - 含路径或 query 的变体（如 ".../moment/123?from=share"）→ 提取数字段
+ * 无法识别时返回 undefined（避免把脏数据传给后端）。
+ */
+function normalizeMomentId(input?: string): string | undefined {
+  if (!input) return undefined;
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+
+  // 优先匹配 .../moment/<digits> 形式
+  const urlMatch = trimmed.match(/\/moment\/(\d+)/);
+  if (urlMatch) return urlMatch[1];
+
+  // 纯数字
+  if (/^\d+$/.test(trimmed)) return trimmed;
+
+  return undefined;
+}
+
+/**
  * 拉取用户调试反馈
  */
 export async function handleGetDebugFeedbacks(
@@ -684,8 +708,17 @@ export async function handleGetDebugFeedbacks(
 
   const limit = normalizeDebugFeedbackLimit(args.limit);
   const status = normalizeDebugFeedbackStatus(args.status);
-  const fetchAndMarkProcessed = args.fetch_and_mark_processed ?? true;
   const downloadAssets = args.download_assets ?? true;
+  const momentId = normalizeMomentId(args.moment_id);
+  const isMomentLookup = !!momentId;
+
+  // 用户传了 moment_id 但格式无法识别（既不是纯数字也不是 moment URL）
+  if (args.moment_id && args.moment_id.trim() && !momentId) {
+    return `无效的 moment_id 参数：${args.moment_id}\n请传入纯数字 ID 或形如 https://www.taptap.cn/moment/{id} 的链接。`;
+  }
+
+  // moment_id 单查强制为 read-only，不改变服务端状态
+  const fetchAndMarkProcessed = isMomentLookup ? false : (args.fetch_and_mark_processed ?? true);
 
   const request: GetDebugFeedbacksRequest = {
     developer_id: appInfo.developerId!,
@@ -694,6 +727,9 @@ export async function handleGetDebugFeedbacks(
     status,
     fetch_and_mark_processed: fetchAndMarkProcessed,
   };
+  if (isMomentLookup) {
+    request.moment_id = momentId;
+  }
 
   const response = await getDebugFeedbacks(request, ctx);
   const feedbackList = response.list || [];
@@ -704,6 +740,9 @@ export async function handleGetDebugFeedbacks(
     msg += `\n\n筛选总数：${response.total ?? 0}`;
     msg += `\n应用：${appInfo.appTitle ?? ''} (ID: ${appInfo.appId})`;
     msg += `\n下载目录：${outputRoot}`;
+    if (isMomentLookup) {
+      msg += `\nmoment_id：${momentId}（未找到对应反馈）`;
+    }
     return msg;
   }
 
@@ -711,11 +750,14 @@ export async function handleGetDebugFeedbacks(
 
   const lines: string[] = [];
   lines.push(
-    `成功拉取了 ${feedbackList.length} 条用户反馈${fetchAndMarkProcessed ? '（并已标记为已处理）' : ''}。`
+    `成功拉取了 ${feedbackList.length} 条用户反馈${fetchAndMarkProcessed ? '（并已标记为已处理）' : '（read-only）'}。`
   );
   lines.push(`筛选总数：${response.total ?? feedbackList.length}`);
   lines.push(`应用：${appInfo.appTitle ?? ''} (ID: ${appInfo.appId})`);
   lines.push(`反馈输出目录：${outputRoot}`);
+  if (isMomentLookup) {
+    lines.push(`查询模式：按 moment_id 单查 (${momentId})`);
+  }
   lines.push('');
 
   for (const feedback of feedbackList) {
@@ -748,6 +790,10 @@ export async function handleGetDebugFeedbacks(
     lines.push(`- 状态：${MESSAGES.DEBUG_FEEDBACK_STATUS_TEXT(feedback.status)}`);
     lines.push(`- 截图：${feedback.screenshots?.length ?? 0} 张`);
     lines.push(`- 日志文件：${feedback.log_file_urls?.length ?? 0} 个`);
+    if (feedback.moment_id) {
+      lines.push(`- moment_id：${feedback.moment_id}`);
+      lines.push(`- TapTap 反馈页：https://www.taptap.cn/moment/${feedback.moment_id}`);
+    }
     if (downloadAssets) {
       lines.push(`- 已下载目录：${files.feedbackDir}`);
       if (files.promptPath) {

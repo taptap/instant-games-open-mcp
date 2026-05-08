@@ -134,6 +134,8 @@ Use the same path confirmed in prepare_h5_upload step.`,
           Let default behavior (true) apply.
         - ONLY pass fetch_and_mark_processed=false when user explicitly requests read-only
           behavior (e.g. "只查看，不标记处理").
+        - When user provides a moment_id (or a TapTap moment URL), pass it via moment_id param to fetch a single feedback.
+          In this case, fetch_and_mark_processed is automatically forced to false (read-only single lookup).
       `,
       inputSchema: {
         type: 'object',
@@ -157,6 +159,15 @@ Use the same path confirmed in prepare_h5_upload step.`,
             description:
               'Whether to download feedback JSON/screenshot/log files to local workspace. Default true.',
           },
+          moment_id: {
+            type: 'string',
+            description:
+              'Optional. Filter to a single feedback by moment_id. ' +
+              'Accepts either a pure numeric ID (e.g. "795659996946762795") or a full TapTap moment URL ' +
+              '(e.g. "https://www.taptap.cn/moment/795659996946762795") — the handler will extract the numeric ID. ' +
+              'When provided, server returns only the matching record, and fetch_and_mark_processed is forced to false (read-only single lookup). ' +
+              'MUST be passed as a string to preserve precision for large IDs.',
+          },
         },
       },
     },
@@ -166,6 +177,7 @@ Use the same path confirmed in prepare_h5_upload step.`,
         status?: number;
         fetch_and_mark_processed?: boolean;
         download_assets?: boolean;
+        moment_id?: string;
       },
       context
     ) => {
