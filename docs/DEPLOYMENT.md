@@ -700,6 +700,12 @@ echo $TAPTAP_MCP_SERVER_URL
 
 详见：[PATH_RESOLUTION.md](PATH_RESOLUTION.md)
 
+### 问题 5：Windows 启动时报 `Received protocol 'c:'`
+
+旧版本在 Windows 上可能把 `C:\...` 绝对路径直接传给 ESM 动态导入，导致 Node 将 `c:` 误判为不支持的 URL 协议。
+
+**解决方法**：升级到包含 Windows ESM 路径修复的最新版本，然后重启 MCP 客户端。
+
 ---
 
 ## 监控和维护

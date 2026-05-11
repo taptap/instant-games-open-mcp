@@ -70,6 +70,7 @@ If MCP fails to connect, check in order:
 1. Config file is in the correct location (Cursor uses `~/.cursor/mcp.json`, not project root) and JSON is valid
 2. `npx --version` works in terminal
 3. Network can reach npm registry (`npm ping`). If blocked, set mirror: `npm config set registry https://registry.npmmirror.com`
+4. On Windows, if the error includes `Received protocol 'c:'`, upgrade to a version that includes the Windows ESM path fix
 
 If the user encounters file path errors (e.g., H5 upload), add `env` to the config:
 
