@@ -1,3 +1,9 @@
+## <small>1.21.1 (2026-05-11)</small>
+
+* fix(bin): support windows esm entry imports (#157) ([cfe8e7b](https://github.com/taptap/instant-games-open-mcp/commit/cfe8e7b)), closes [#157](https://github.com/taptap/instant-games-open-mcp/issues/157)
+
+
+
 ## 1.21.0 (2026-05-08)
 
 * feat(debug-feedback): 支持按 moment_id 单查反馈并修复大整数精度丢失 (#154) ([1270ee4](https://github.com/taptap/instant-games-open-mcp/commit/1270ee4)), closes [#154](https://github.com/taptap/instant-games-open-mcp/issues/154)
