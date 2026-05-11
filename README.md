@@ -103,6 +103,7 @@ npx @taptap/instant-games-open-mcp
 - **路径处理**：设置 `TAPTAP_MCP_WORKSPACE_ROOT` 环境变量可以正确解析相对路径（推荐）
   - 如果不设置，相对路径会基于用户 HOME 目录（可能不符合预期）
   - 建议使用绝对路径，或配置 `TAPTAP_MCP_WORKSPACE_ROOT`
+- **Windows 启动报 `Received protocol 'c:'`**：这是旧版本 Windows ESM 动态导入路径兼容问题，请升级到包含该修复的最新版本。
 
 #### OpenHands（推荐 SSE 模式）
 
