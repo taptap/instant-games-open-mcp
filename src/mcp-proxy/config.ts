@@ -182,6 +182,7 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
       reset_timeout_on_progress: config.options?.reset_timeout_on_progress ?? true,
       health_check_interval: config.options?.health_check_interval ?? 30000,
       enable_cookie_sticky: config.options?.enable_cookie_sticky ?? true,
+      force_inject_progress_token: config.options?.force_inject_progress_token ?? false,
       log: {
         root: config.options?.log?.root ?? DEFAULT_LOG_ROOT,
         enabled: config.options?.log?.enabled ?? false,
