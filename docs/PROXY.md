@@ -1157,6 +1157,7 @@ cat config.json | node proxy.js
     "health_check_interval": 30000,
     "enable_cookie_sticky": true,
     "inject_params_per_call": true,
+    "force_inject_progress_token": false,
     "log": {
       "root": "/tmp/taptap-mcp/logs",
       "enabled": false,
@@ -1198,6 +1199,10 @@ node proxy.js
 - `options.health_check_interval` - 健康检查间隔（毫秒，默认 `30000`）- 定期验证 Server 会话是否有效
 - `options.enable_cookie_sticky` - 启用 Cookie 会话粘性（默认 `true`）- 用于 K8s 多副本部署时的会话粘性
 - `options.inject_params_per_call` - 每次工具调用时注入私有参数（默认 `true`）- 为兼容不同 MCP Server 实现，默认每次调用都注入；如果目标 Server 支持从 Session 获取参数，可设为 `false` 以减少数据传输
+- `options.force_inject_progress_token` - 始终注册 onprogress 回调（默认 `false`）
+  - 仅在 client 未提供 `progressToken` 时生效：proxy 会注册一个空的 onprogress 哨兵，借此触发 SDK 自动给 `proxy → 上游` 出站请求注入 `_meta.progressToken = messageId`，让上游工具发的 `notifications/progress` 能命中 `resetTimeoutOnProgress` 路径，把 `tool_call_timeout` 的 deadline 持续重置
+  - 适用于 client SDK 不支持主动声明 `progressToken`（如旧版 Claude Code）但上游会发 progress 的场景
+  - 默认 `false` 保持向后兼容；显式开启需确认上游工具确实会发 progress，否则该选项不会带来任何效果
 - `options.log` - 日志配置对象（可选）
   - `options.log.root` - 日志根目录（默认 `/tmp/taptap-mcp/logs`）
   - `options.log.enabled` - 是否启用文件日志（默认 `false`）
@@ -1423,6 +1428,7 @@ interface ProxyConfig {
     health_check_interval?: number; // 健康检查间隔（默认 30000ms）
     enable_cookie_sticky?: boolean; // 启用 Cookie 会话粘性（默认 true）
     inject_params_per_call?: boolean; // 每次工具调用时注入私有参数（默认 true）
+    force_inject_progress_token?: boolean; // 始终注册 onprogress 哨兵以注入 outbound progressToken（默认 false；仅在 client 未带 token 时生效）
     log?: {
       root?: string; // 日志根目录（默认 /tmp/taptap-mcp/logs）
       enabled?: boolean; // 是否启用文件日志（默认 false）
@@ -1473,6 +1479,7 @@ function generateProxyConfig(user: User, project: Project, macToken: MacToken): 
       health_check_interval: 30000, // 健康检查间隔 30 秒
       enable_cookie_sticky: true, // 启用 Cookie 会话粘性
       inject_params_per_call: true, // 每次调用都注入私有参数（推荐）
+      // force_inject_progress_token: true, // （可选）对接旧版 Claude Code 等不主动带 progressToken 的 client 时开启，让 SDK 给上游注入 token、命中 reset 路径；默认 false
       log: {
         root: '/var/log/taptap-mcp', // TapCode 环境的日志目录
         enabled: true, // 推荐开启文件日志
