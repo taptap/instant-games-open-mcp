@@ -707,27 +707,37 @@ export class TapTapMCPProxy {
         resetTimeoutOnProgress: this.config.options?.reset_timeout_on_progress ?? true,
       };
 
-      // 始终注册 onprogress：让 SDK 自动给 proxy→上游 出站请求注入
-      // _meta.progressToken = messageId（见 @modelcontextprotocol/sdk
-      // shared/protocol.js Protocol.request 中 if (options?.onprogress) 分支）。
-      // 这样上游工具发的 notifications/progress 才能匹配 proxy 这边的 messageId，
-      // 命中 resetTimeoutOnProgress 路径，把 callTool 的 timeout deadline 持续重置。
+      // onprogress 注册策略：
       //
-      // 之所以"始终注册"而不是仅在 client 提供 progressToken 时注册：当前 Claude
-      // Code SDK 不会主动带 progressToken，按旧逻辑则 SDK 不注入出站 token，
-      // 上游工具即使周期发 progress 也对不上 messageId，reset 路径形同虚设。
-      //
-      // 客户端没要 progress（progressToken === undefined）时，回调内 return，
-      // 不向 client 转发——只复用 SDK 注入 outbound token 的副作用。
-      callToolOptions.onprogress = (progress) => {
-        if (progressToken === undefined) return;
-        extra
-          .sendNotification({
-            method: 'notifications/progress',
-            params: { progressToken, ...progress },
-          })
-          .catch(() => {}); // fire-and-forget，不阻塞工具调用
-      };
+      // - 如果 client 提供了 progressToken：始终注册并转发给 client（原有行为）。
+      // - 否则按 force_inject_progress_token 配置（默认 false）：
+      //     true  → 注册一个哨兵 onprogress（回调内 return，不向 client 转发），
+      //             目的是触发 @modelcontextprotocol/sdk shared/protocol.js
+      //             Protocol.request 中 \`if (options?.onprogress)\` 副作用——
+      //             让 SDK 自动给 proxy → 上游 出站请求注入
+      //             _meta.progressToken = messageId。这样上游工具发的
+      //             notifications/progress 才能匹配 proxy 这边的 messageId，
+      //             命中 resetTimeoutOnProgress 路径，把 callTool 的 timeout
+      //             deadline 持续重置。适用于 client 端 SDK 不支持主动声明
+      //             progressToken（如旧版 Claude Code）但上游会发 progress 的场景。
+      //     false → 不注册，SDK 不会注入 outbound progressToken，长任务依然受
+      //             tool_call_timeout 限制。保持完全向后兼容。
+      const forceInjectProgressToken = this.config.options?.force_inject_progress_token ?? false;
+      if (progressToken !== undefined) {
+        callToolOptions.onprogress = (progress) => {
+          extra
+            .sendNotification({
+              method: 'notifications/progress',
+              params: { progressToken, ...progress },
+            })
+            .catch(() => {}); // fire-and-forget，不阻塞工具调用
+        };
+      } else if (forceInjectProgressToken) {
+        // 哨兵：仅复用 SDK 注入 outbound token 的副作用，不向 client 转发
+        callToolOptions.onprogress = () => {
+          /* noop */
+        };
+      }
 
       // 检查连接状态
       if (!this.connected) {
