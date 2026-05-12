@@ -1,0 +1,239 @@
+name: PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+  security-events: write
+
+jobs:
+  review:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Collapse outdated AI reviews
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR=${{ github.event.pull_request.number }}
+
+          # 1. 折叠旧的 AI review comment
+          COMMENTS=$(gh api "repos/${{ github.repository }}/issues/${PR}/comments" \
+            --paginate --jq '
+              .[] | select(.body // "" | contains("<!-- ai-pr-review -->"))
+              | .node_id
+            ')
+
+          for NODE_ID in $COMMENTS; do
+            echo "Minimizing comment $NODE_ID"
+            gh api graphql -f query="
+              mutation {
+                minimizeComment(input: {subjectId: \"${NODE_ID}\", classifier: OUTDATED}) {
+                  minimizedComment { isMinimized }
+                }
+              }
+            " || true
+          done
+
+          # 2. Dismiss claude[bot] 的旧 approval（不影响人类 reviewer）
+          APPROVALS=$(gh api "repos/${{ github.repository }}/pulls/${PR}/reviews" \
+            --paginate --jq '
+              .[] | select(.user.login == "claude[bot]" and .state == "APPROVED")
+              | .id
+            ')
+
+          for REVIEW_ID in $APPROVALS; do
+            echo "Dismissing approval $REVIEW_ID"
+            gh api --method PUT "repos/${{ github.repository }}/pulls/${PR}/reviews/${REVIEW_ID}/dismissals" \
+              -f message="新代码已推送，需重新审查" || true
+          done
+
+      - name: Checkout PR merge ref
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+
+      - name: Fetch base and head refs
+        run: |
+          git fetch --no-tags origin \
+            ${{ github.event.pull_request.base.ref }} \
+            +refs/pull/${{ github.event.pull_request.number }}/head
+
+      - name: Run Codex review
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: |
+            You are a lightweight code reviewer for ${{ github.repository }} PR #${{ github.event.pull_request.number }}.
+
+            Review only the diff between base and head.
+            Base sha: ${{ github.event.pull_request.base.sha }}
+            Head sha: ${{ github.event.pull_request.head.sha }}
+
+            Focus on:
+            - Obvious bugs, crashes, or logic errors
+            - Security issues (secret/credential exposure, injection, unsafe operations)
+            - Resource leaks, missing error handling, swallowed errors
+            - API misuse, breaking changes to public surface
+            - MCP tool description correctness (if tools.ts is touched)
+
+            Do NOT comment on style, naming, or minor improvements.
+            Keep it concise — only report high-confidence issues.
+            Output in Chinese.
+
+            Format:
+            RESULT: APPROVE or COMMENT
+            SUMMARY: <一行总结>
+            DETAILS:
+            <findings in markdown, or "无可执行问题" if APPROVE>
+
+            PR title: ${{ github.event.pull_request.title }}
+            PR body: ${{ github.event.pull_request.body }}
+
+      - name: Run Claude review
+        id: claude_review
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --allowedTools "Bash(gh api:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(cat:*),Bash(grep:*),Bash(git diff:*),Bash(git log:*),Bash(git blame:*),Read,Write,Glob,Grep"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            HEAD SHA: ${{ github.event.pull_request.head.sha }}
+
+            你是本仓库的 AI Review Assistant。
+            先读取 CLAUDE.md 了解项目规范，再读取 docs/CODE_REVIEW.md 了解审查方法论、规则和输出格式。
+            按 CODE_REVIEW.md 的流程进行审查。
+
+            下面是 Codex 的轻量级审查意见，仅作为辅助参考，不要盲从：
+
+            ---
+            ${{ steps.run_codex.outputs.final-message }}
+            ---
+
+            ## Workflow 输出要求
+
+            ### 1. SARIF 结果文件
+
+            将阻塞问题输出为 SARIF 格式，写入 `ai-review-results.sarif.json`。
+            仅 error 级别写入 SARIF，category 定义见 CODE_REVIEW.md。
+            无阻塞问题时 results 为空数组。文件路径使用仓库根目录相对路径。
+
+            ```json
+            {
+              "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+              "version": "2.1.0",
+              "runs": [{
+                "tool": {
+                  "driver": {
+                    "name": "AI-Review",
+                    "version": "2.0.0",
+                    "informationUri": "https://github.com/${{ github.repository }}",
+                    "rules": [
+                      { "id": "ai-review/<category>", "shortDescription": { "text": "规则描述" }, "defaultConfiguration": { "level": "error" } }
+                    ]
+                  }
+                },
+                "results": [
+                  {
+                    "ruleId": "ai-review/<category>",
+                    "level": "error",
+                    "message": { "text": "问题描述（中文）" },
+                    "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "路径" }, "region": { "startLine": 1 } } }]
+                  }
+                ]
+              }]
+            }
+            ```
+
+            ### 2. 发布审查结果
+
+            使用 `gh pr comment` 发布审查详情（不要用 `gh pr review` 发详情）。
+            旧评论已由 workflow 自动折叠，你只需发新评论。
+
+            评论内容按 CODE_REVIEW.md 的输出格式，但必须以这两行开头：
+            ```
+            <!-- ai-pr-review -->
+            <!-- ai-pr-review-sha:${{ github.event.pull_request.head.sha }} -->
+            ```
+
+            根据审查结果决定后续动作：
+            - 无阻塞问题：额外执行 `gh pr review --approve`（不带 --body，避免冗余评论）
+            - 有阻塞问题：不执行 approve，comment 中已包含所有信息
+
+            保持中文输出。
+
+      - name: Upload SARIF results
+        id: upload_sarif
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ai-review-results.sarif.json
+          category: ai-review
+        continue-on-error: true
+
+  gate:
+    name: Review Gate
+    needs: [review]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Evaluate review result
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RESULT="${{ needs.review.result }}"
+          PR=${{ github.event.pull_request.number }}
+          echo "Review job result: $RESULT"
+
+          # 查找旧的 gate comment
+          OLD_COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR}/comments" \
+            --paginate --jq '
+              .[] | select(.body // "" | contains("<!-- ai-review-gate -->"))
+              | .id
+            ' | tail -1)
+
+          # 删除旧的 gate comment
+          if [[ -n "$OLD_COMMENT_ID" ]]; then
+            gh api --method DELETE "repos/${{ github.repository }}/issues/comments/${OLD_COMMENT_ID}" || true
+            echo "Deleted outdated gate comment $OLD_COMMENT_ID"
+          fi
+
+          if [[ "$RESULT" == "success" || "$RESULT" == "cancelled" || "$RESULT" == "skipped" ]]; then
+            if [[ "$RESULT" == "cancelled" ]]; then
+              echo "::warning::Review job was cancelled (known claude-code-action bug)"
+            fi
+            echo "✅ Review gate passed"
+            exit 0
+          fi
+
+          # failure — 真实错误，发评论通知（当前未配置为必需 check，不阻塞合并）
+          echo "::error::Review job failed"
+          gh pr comment "$PR" -R ${{ github.repository }} --body "<!-- ai-review-gate -->
+          ## AI Review Gate ❌
+
+          AI review 执行失败，请检查 [workflow 日志](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})。
+
+          常见原因：PR 修改了 workflow 文件，导致 \`claude-code-action\` 校验失败。合并到 main 后后续 PR 会恢复正常。
+          "
+          exit 1
