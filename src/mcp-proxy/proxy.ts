@@ -707,17 +707,27 @@ export class TapTapMCPProxy {
         resetTimeoutOnProgress: this.config.options?.reset_timeout_on_progress ?? true,
       };
 
-      // 如果客户端请求了 progress，设置 onprogress 回调转发通知
-      if (progressToken !== undefined) {
-        callToolOptions.onprogress = (progress) => {
-          extra
-            .sendNotification({
-              method: 'notifications/progress',
-              params: { progressToken, ...progress },
-            })
-            .catch(() => {}); // fire-and-forget，不阻塞工具调用
-        };
-      }
+      // 始终注册 onprogress：让 SDK 自动给 proxy→上游 出站请求注入
+      // _meta.progressToken = messageId（见 @modelcontextprotocol/sdk
+      // shared/protocol.js Protocol.request 中 if (options?.onprogress) 分支）。
+      // 这样上游工具发的 notifications/progress 才能匹配 proxy 这边的 messageId，
+      // 命中 resetTimeoutOnProgress 路径，把 callTool 的 timeout deadline 持续重置。
+      //
+      // 之所以"始终注册"而不是仅在 client 提供 progressToken 时注册：当前 Claude
+      // Code SDK 不会主动带 progressToken，按旧逻辑则 SDK 不注入出站 token，
+      // 上游工具即使周期发 progress 也对不上 messageId，reset 路径形同虚设。
+      //
+      // 客户端没要 progress（progressToken === undefined）时，回调内 return，
+      // 不向 client 转发——只复用 SDK 注入 outbound token 的副作用。
+      callToolOptions.onprogress = (progress) => {
+        if (progressToken === undefined) return;
+        extra
+          .sendNotification({
+            method: 'notifications/progress',
+            params: { progressToken, ...progress },
+          })
+          .catch(() => {}); // fire-and-forget，不阻塞工具调用
+      };
 
       // 检查连接状态
       if (!this.connected) {
