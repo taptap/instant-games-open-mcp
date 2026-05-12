@@ -737,6 +737,15 @@ export class TapTapMCPProxy {
         callToolOptions.onprogress = () => {
           /* noop */
         };
+        // verbose 日志：方便排查"开了开关但上游 progress 仍未生效"的情况
+        // （此时 sentinel 已注册，SDK 会自动给出站请求注入 _meta.progressToken；
+        // 若上游工具实际未发 progress，本开关也不会带来任何效果）
+        if (this.config.options?.verbose) {
+          this.log(
+            'debug',
+            `Sentinel onprogress registered for outbound progressToken injection: tool=${name}`
+          );
+        }
       }
 
       // 检查连接状态
