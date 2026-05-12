@@ -115,6 +115,23 @@ export interface ProxyConfig {
      * 如果目标 Server 支持从 Session 获取这些参数，可设置为 false 以减少数据传输量。
      */
     inject_params_per_call?: boolean;
+    /**
+     * 始终注册 onprogress 回调（默认 false）
+     *
+     * 开启后，即使 client 没有在 callTool 时提供 _meta.progressToken，proxy 也会在
+     * 调用上游时设置一个空的 onprogress 回调。这会触发 @modelcontextprotocol/sdk
+     * shared/protocol.js Protocol.request 中的副作用，让 SDK 自动给 proxy → 上游
+     * 出站请求注入 _meta.progressToken = messageId。上游工具发的
+     * notifications/progress 才能匹配 proxy 这边的 messageId，命中
+     * resetTimeoutOnProgress 路径，把 callTool 的 timeout deadline 持续重置。
+     *
+     * 适用于 client 端 SDK 不支持主动声明 progressToken（如旧版 Claude Code）但
+     * 上游工具会发 progress 的场景。
+     *
+     * 默认 false 保持向后兼容；显式开启需要确认上游工具确实会发 progress，
+     * 否则该选项不会带来任何效果。
+     */
+    force_inject_progress_token?: boolean;
     /** 日志配置 */
     log?: LogConfig;
   };
