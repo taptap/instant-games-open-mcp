@@ -1,3 +1,15 @@
+## 1.22.0 (2026-05-12)
+
+* fix(bin): support windows esm entry imports (#157) ([cfe8e7b](https://github.com/taptap/instant-games-open-mcp/commit/cfe8e7b)), closes [#157](https://github.com/taptap/instant-games-open-mcp/issues/157)
+* fix(proxy): applyDefaults 透传 force_inject_progress_token 字段 ([6320e73](https://github.com/taptap/instant-games-open-mcp/commit/6320e73))
+* fix(proxy): applyDefaults 透传 inject_params_per_call 字段 ([f6cf214](https://github.com/taptap/instant-games-open-mcp/commit/f6cf214))
+* fix(proxy): 始终注册 onprogress 哨兵以打通 resetTimeoutOnProgress ([f78bc7c](https://github.com/taptap/instant-games-open-mcp/commit/f78bc7c))
+* feat(proxy): force_inject 走哨兵分支时打 verbose 日志 ([eaf4eaf](https://github.com/taptap/instant-games-open-mcp/commit/eaf4eaf))
+* docs(proxy): 在 PROXY.md 同步 force_inject_progress_token 说明 ([a425d46](https://github.com/taptap/instant-games-open-mcp/commit/a425d46))
+* refactor(proxy): 哨兵 onprogress 改为由 force_inject_progress_token 控制 ([8c43552](https://github.com/taptap/instant-games-open-mcp/commit/8c43552))
+
+
+
 ## 1.21.0 (2026-05-08)
 
 * feat(debug-feedback): 支持按 moment_id 单查反馈并修复大整数精度丢失 (#154) ([1270ee4](https://github.com/taptap/instant-games-open-mcp/commit/1270ee4)), closes [#154](https://github.com/taptap/instant-games-open-mcp/issues/154)
