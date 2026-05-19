@@ -6,11 +6,13 @@
   "main": "dist/server.js",
   "bin": {
     "instant-games-open-mcp": "bin/instant-games-open-mcp",
-    "taptap-mcp-proxy": "bin/taptap-mcp-proxy"
+    "taptap-mcp-proxy": "bin/taptap-mcp-proxy",
+    "taptap-maker": "bin/taptap-maker"
   },
   "exports": {
     ".": "./dist/server.js",
     "./proxy": "./dist/proxy.js",
+    "./maker": "./dist/maker.js",
     "./package.json": "./package.json"
   },
   "scripts": {

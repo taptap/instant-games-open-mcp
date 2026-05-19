@@ -43,6 +43,38 @@
 - [OpenClaw Plugin 说明](docs/OPENCLAW_PLUGIN.md)
 - 维护者发布方式：`npm run openclaw:pack` / `npm run openclaw:publish`
 
+## 🛠️ TapTap Maker 本地 MCP（开发中）
+
+仓库内新增 Maker 专用入口 `taptap-maker`，用于在 Codex 当前目录完成 Maker 项目的登录、选择、拉取和推送。
+
+当前 MCP 工具流程：
+
+```text
+maker_status
+maker_tap_login_start
+用户扫码/打开链接授权
+用户输入“已授权”
+maker_tap_login_complete
+maker_exchange_jwt
+maker_list_apps
+用户选择 app
+maker_clone_to_current_directory
+maker_submit_current_directory
+maker_push_current_directory
+```
+
+说明：
+
+- Tap 登录使用现有 OAuth device code flow，会返回扫码/授权链接。
+- Tap 认证换 Maker JWT 的远端接口未稳定时，`maker_exchange_jwt` 内部可读取缓存或手动传入 JWT，但流程上不能跳过登录和换 JWT。
+- Maker app 必须先通过 `maker_list_apps` 展示给用户选择，再调用 clone。
+- 用户说“帮我提交/提交代码”时使用 `maker_submit_current_directory`，会对当前 Maker 项目执行 commit + push。
+- “帮我提交代码到maker / taptap制造 / tap制造 / tap”也应触发 `maker_submit_current_directory`。
+- Maker 项目提交不走通用 Git skill 的任务号、新分支规则；冲突时先和用户确认 pull/rebase 流程。
+- 如果 commit 已完成但 push 失败，Maker MCP 会返回 commit hash、ahead 状态、exit code、stderr/stdout 和下一步建议，便于开发期排查。
+
+详见：[TapTap Maker 本地 MCP](docs/MAKER.md)
+
 ## 🧩 Codex Skills（运营简报）
 
 本仓库内置一个面向运营/工作室的 Codex Skill：`taptap-dc-ops-brief`，用于把“当前游戏 DC 数据”整理成 30 秒可读的结论简报，并在你确认后执行评价点赞/官方回复等动作。
@@ -272,6 +304,27 @@ npm run build
 # 运行测试
 npm test
 ```
+
+### Maker 本地 MCP 开发预览
+
+Issue #162 引入了 Maker 本地 MCP，用于后续支持 Maker 登录、项目 onboard、代码拉取/推送和云端 SCE MCP 转发。当前开发测试应以 MCP tools 为准：
+
+```text
+maker_status
+maker_exchange_jwt
+maker_list_apps
+maker_clone_to_current_directory
+maker_push_current_directory
+```
+
+在 Maker JWT exchange 接口完整接入前，测试时可以预置 Maker JWT。APP_ID 应通过 `maker_list_apps` 返回的列表让用户选择，再传给 clone 工具。
+
+```bash
+npm run build
+npx @modelcontextprotocol/inspector node dist/maker.js
+```
+
+详细说明见 [docs/MAKER.md](docs/MAKER.md)。
 
 ### 环境变量
 
