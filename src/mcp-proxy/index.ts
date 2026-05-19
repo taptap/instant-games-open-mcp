@@ -6,8 +6,8 @@
  *
  * 配置传递方式（任选其一）：
  * 1. 命令行参数：node index.js '{"server":{...}}'
- * 2. 标准输入：echo '{"server":{...}}' | node index.js
- * 3. 环境变量：PROXY_CONFIG='{"server":{...}}' node index.js
+ * 2. 环境变量：PROXY_CONFIG='{"server":{...}}' node index.js
+ * 3. 标准输入：echo '{"server":{...}}' | node index.js
  */
 
 import { TapTapMCPProxy } from './proxy.js';

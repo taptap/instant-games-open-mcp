@@ -59,6 +59,8 @@ maker_exchange_jwt
 maker_list_apps
 用户选择 app
 maker_clone_to_current_directory
+maker_configure_remote_proxy
+maker_build_current_directory
 maker_submit_current_directory
 maker_push_current_directory
 ```
@@ -68,6 +70,9 @@ maker_push_current_directory
 - Tap 登录使用现有 OAuth device code flow，会返回扫码/授权链接。
 - Tap 认证换 Maker JWT 的远端接口未稳定时，`maker_exchange_jwt` 内部可读取缓存或手动传入 JWT，但流程上不能跳过登录和换 JWT。
 - Maker app 必须先通过 `maker_list_apps` 展示给用户选择，再调用 clone。
+- Maker 后端地址按 `TAPTAP_MCP_ENV` 从 `src/maker/config.ts` 的环境配置表读取，本地 MCP 配置只需要切 `rnd` / `production`。
+- 如果用户直接说“构建 / build / 重新构建游戏”，本地 Maker MCP 应调用 `maker_build_current_directory` 转发到远端 `build` tool。
+- 如需在当前游戏项目里直接暴露远端全量 `taptap-proxy` tools，再使用 `maker_configure_remote_proxy` 写入 `.mcp.json` 并重启 MCP 会话。
 - 用户说“帮我提交/提交代码”时使用 `maker_submit_current_directory`，会对当前 Maker 项目执行 commit + push。
 - “帮我提交代码到maker / taptap制造 / tap制造 / tap”也应触发 `maker_submit_current_directory`。
 - Maker 项目提交不走通用 Git skill 的任务号、新分支规则；冲突时先和用户确认 pull/rebase 流程。

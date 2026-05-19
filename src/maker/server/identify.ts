@@ -74,7 +74,7 @@ export function formatIdentifyHint(): string {
     '',
     '1. 调用 `maker_tap_login_start`，展示扫码/授权链接。',
     '2. 用户在对话框输入“已授权”后，调用 `maker_tap_login_complete`。',
-    '3. 调用 `maker_exchange_jwt`。当前实现可以使用缓存/写死 JWT，但流程上必须保留这一步。',
+    '3. 调用 `maker_exchange_jwt`。当前实现可以使用缓存或手动提供的 JWT，但流程上必须保留这一步。',
     '4. 调用 `maker_list_apps` 列出可用 Maker Apps。',
     '5. 必须把 app 列表展示给用户，让用户选择。',
     '6. 用户选择后，调用 `maker_clone_to_current_directory` 把代码拉到当前对话目录。',

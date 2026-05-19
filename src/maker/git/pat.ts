@@ -5,9 +5,7 @@
 import type { MakerPat } from '../types.js';
 import { loadPat, savePat } from '../storage.js';
 import { requireMakerJwt } from '../auth/jwt.js';
-
-const PAT_URL_ENV = 'MAKER_PAT_URL';
-const DEFAULT_PAT_URL = 'https://fuping.agnt.xd.com/api/v1/user/pat-tokens';
+import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
 
 function normalizePatResponse(data: unknown): MakerPat {
   const body = data as Record<string, unknown>;
@@ -32,8 +30,13 @@ function normalizePatResponse(data: unknown): MakerPat {
   };
 }
 
+export function getConfiguredMakerPatUrl(): string | undefined {
+  return getMakerEndpoints().patUrl;
+}
+
 export function getMakerPatUrl(): string {
-  return process.env[PAT_URL_ENV] || DEFAULT_PAT_URL;
+  const patUrl = getConfiguredMakerPatUrl();
+  return requireMakerEndpoint('patUrl', patUrl);
 }
 
 export async function requestMakerPat(options?: {

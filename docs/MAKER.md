@@ -57,8 +57,67 @@ maker_status
 - `maker_exchange_jwt`：用 Tap 认证换 Maker JWT；接口未 ready 时内部可读取缓存或 `manual_jwt`，但流程上不能跳过这一步。
 - `maker_list_apps`：用 Maker JWT 拉取 app 列表，必须展示给用户选择。
 - `maker_clone_to_current_directory`：把选中的 Maker app 仓库拉到当前目录并写 `.maker-mcp/config.json`。
+- `maker_configure_remote_proxy`：按 server 测试脚本生成 `proxy_cfg`，写入当前项目 `.mcp.json`，连接远端 `taptap-proxy`。
+- `maker_build_current_directory`：用户说“构建 / build / 重新构建游戏”时使用，转发调用远端 `build` tool。
 - `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，提交并推送当前 Maker 项目。
 - `maker_push_current_directory`：把当前目录改动 commit 并 push 到 Maker git。
+
+## 远端 Proxy 和构建工具
+
+`init_dev_env.py` 里的 `proxy_cfg` 用于连接远端 MCP server，不属于本地 clone/push 流程。Maker 后端地址集中维护在 `src/maker/config.ts` 的环境配置表里，按 `TAPTAP_MCP_ENV` 自动选择：
+
+```text
+TAPTAP_MCP_ENV=rnd
+TAPTAP_MCP_ENV=production
+```
+
+默认构建路径是本地 Maker MCP 直接转发远端 build：
+
+```text
+maker_build_current_directory()
+```
+
+如需在当前 Maker 项目里直接暴露远端全量 `taptap-proxy` tools，可以执行：
+
+```text
+maker_configure_remote_proxy()
+```
+
+这个工具会写入：
+
+```text
+<current-directory>/.mcp.json
+```
+
+配置内容等价于测试脚本中的：
+
+```json
+{
+  "server": { "url": "<remote-mcp-server-url>", "env": "<rnd-or-production>" },
+  "tenant": {
+    "project_path": "<app_id>/workspace",
+    "user_id": "<jwt.userId>",
+    "project_id": "<app_id>"
+  },
+  "auth": {
+    "kid": "<tap kid>",
+    "mac_key": "<tap mac_key>",
+    "token_type": "mac",
+    "mac_algorithm": "hmac-sha-1"
+  },
+  "options": { "verbose": true }
+}
+```
+
+写入 `.mcp.json` 后，需要重启 Claude/Codex 对话或重新加载 MCP servers，远端 `taptap-proxy` 暴露的 build/构建 tools 才会出现在工具列表里。
+
+`maker_configure_remote_proxy` 会把 `.mcp.json` 加入当前项目的 `.git/info/exclude`，避免误提交包含认证信息的本地 MCP 配置。
+
+本地工具会复用同一份 `proxy_cfg` 连接远端 MCP server，并转发到远端 `build` tool。默认不要求用户传参：
+
+- `entry` / `scriptsPath` / `entry_client` / `entry_server`：用户未指定时交给远端 build 默认推断。
+- `multiplayer`：用户未指定且本地不存在 `.project/settings.json` 时，默认传 `{ "enabled": false }`，用于第一次单机项目构建初始化。
+- 如果用户明确说明是多人游戏或给出入口文件，再把对应参数传入。
 
 ## 提交和推送约束
 
@@ -93,15 +152,19 @@ push
 
 ## 环境变量
 
-| 变量                     | 说明                                              |
-| ------------------------ | ------------------------------------------------- |
-| `TAPTAP_MAKER_HOME`      | 覆盖用户级 Maker 存储目录，默认 `~/.taptap-maker` |
-| `MAKER_PROJECT_ID`       | MCP server 项目识别的环境变量覆盖                 |
-| `MAKER_JWT_EXCHANGE_URL` | Tap OAuth token 换 Maker JWT 的接口               |
-| `MAKER_API_BASE`         | Maker 项目列表接口 base URL                       |
-| `MAKER_PAT_URL`          | Maker PAT 换取接口                                |
-| `MAKER_GIT_BASE`         | Maker git base URL                                |
-| `SCE_MCP_URL`            | 云端 SCE MCP endpoint 默认值                      |
+| 变量                                 | 说明                                              |
+| ------------------------------------ | ------------------------------------------------- |
+| `TAPTAP_MAKER_HOME`                  | 覆盖用户级 Maker 存储目录，默认 `~/.taptap-maker` |
+| `MAKER_PROJECT_ID`                   | MCP server 项目识别的环境变量覆盖                 |
+| `MAKER_JWT_EXCHANGE_URL`             | Tap OAuth token 换 Maker JWT 的接口               |
+| `TAPTAP_MCP_ENV`                     | Maker 环境选择，`production` 或 `rnd`             |
+| `TAPTAP_MAKER_API_BASE`              | 可选：覆盖当前环境的 Maker 项目列表接口 base URL  |
+| `TAPTAP_MAKER_PAT_URL`               | 可选：覆盖当前环境的 Maker PAT 换取接口           |
+| `TAPTAP_MAKER_GIT_BASE`              | 可选：覆盖当前环境的 Maker git base URL           |
+| `TAPTAP_MAKER_REMOTE_MCP_SERVER_URL` | 可选：覆盖当前环境的远端 Maker MCP server URL     |
+| `SCE_MCP_URL`                        | 云端 SCE MCP endpoint 默认值                      |
+
+Maker 后端默认地址集中在 `src/maker/config.ts`。兼容旧变量名：`MAKER_API_BASE`、`MAKER_PAT_URL`、`MAKER_GIT_BASE`、`TAPTAP_REMOTE_MCP_SERVER_URL`。新配置优先使用 `TAPTAP_MAKER_*` 前缀。
 
 ## 手动 JWT 联调
 
@@ -116,13 +179,15 @@ maker_list_apps()
 maker_clone_to_current_directory(app_id)
 ```
 
-默认会使用：
+clone/push 默认会按 `TAPTAP_MCP_ENV` 读取 `src/maker/config.ts` 中对应环境的配置。需要临时覆盖时可设置：
 
 ```text
-PAT endpoint: https://fuping.agnt.xd.com/api/v1/user/pat-tokens
-Git base:     https://fuping.agnt.xd.com/git
-PAT cache:    ~/.maker-pat
+TAPTAP_MAKER_API_BASE=<maker-api-base-url>
+TAPTAP_MAKER_PAT_URL=<maker-pat-url>
+TAPTAP_MAKER_GIT_BASE=<maker-git-base-url>
 ```
+
+PAT 仍会缓存到 `~/.maker-pat`。
 
 如果 `~/.maker-pat` 已存在，会直接复用；如需重新创建 PAT：
 

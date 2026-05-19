@@ -2,6 +2,8 @@
  * taptap-maker MCP server mode.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -10,21 +12,32 @@ import {
   McpError,
   ErrorCode,
 } from '@modelcontextprotocol/sdk/types.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { identifyMakerProject, formatIdentifyHint } from './identify.js';
 import {
   getJwtPath,
   getTapAuthPath,
   getTapDeviceSessionPath,
+  loadProjectConfig,
   loadJwt,
   loadTapAuth,
   loadTapDeviceSession,
 } from '../storage.js';
 import { cloneMakerProject, listMakerProjects, pushMakerProject } from '../cli/projects.js';
 import { startTapDeviceLogin, completeTapDeviceLogin } from '../auth/oauth.js';
-import { exchangeSavedTapAuthForMakerJwt, getMakerJwtExchangeUrl } from '../auth/jwt.js';
+import { getMakerEndpoints, getMakerEnvironment, requireMakerEndpoint } from '../config.js';
+import {
+  exchangeSavedTapAuthForMakerJwt,
+  getMakerJwtExchangeUrl,
+  getUserIdFromMakerJwt,
+} from '../auth/jwt.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
+const DEFAULT_PROXY_MCP_NAME = 'taptap-proxy';
+const DEFAULT_PROXY_PACKAGE = '@taptap/instant-games-open-mcp@1.22.0';
+const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
 
 const tools = [
   {
@@ -194,6 +207,100 @@ const tools = [
           type: 'array',
           items: { type: 'string' },
           description: 'Optional files to stage. Defaults to all changes.',
+        },
+      },
+    },
+  },
+  {
+    name: 'maker_configure_remote_proxy',
+    description:
+      'Configure the remote TapTap Maker MCP proxy for the current Maker project. Use this after clone when the user wants remote Maker tools such as build/构建. It writes .mcp.json with a taptap-proxy server using saved Tap auth, user_id, project_id, and project_path="<app_id>/workspace". The client must reload MCP servers after this.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target_dir: {
+          type: 'string',
+          description:
+            'Optional Maker project directory. Defaults to the MCP process cwd, which should be the current conversation directory.',
+        },
+        server_url: {
+          type: 'string',
+          description:
+            'Optional remote MCP server URL override. Defaults to the Maker endpoint table for TAPTAP_MCP_ENV.',
+        },
+        env: {
+          type: 'string',
+          enum: ['rnd', 'production'],
+          description: 'Remote MCP environment. Defaults to TAPTAP_MCP_ENV.',
+        },
+        mcp_name: {
+          type: 'string',
+          description: 'MCP server name to write in .mcp.json. Defaults to taptap-proxy.',
+        },
+        use_npx: {
+          type: 'boolean',
+          description:
+            'If true, write the script-style npx package command. Defaults to false for local development and uses local dist/proxy.js.',
+        },
+        pkg: {
+          type: 'string',
+          description:
+            'Package used when use_npx=true. Defaults to @taptap/instant-games-open-mcp@1.22.0.',
+        },
+      },
+    },
+  },
+  {
+    name: 'maker_build_current_directory',
+    description:
+      'Build the current Maker game by forwarding to the remote TapTap Maker MCP build tool. MUST use this for user requests like "构建", "build", "重新构建游戏", "帮我构建maker游戏", "compile", or "run" in a Maker project. Do not write local build scripts. Uses saved Tap auth/JWT and current .maker-mcp/config.json project binding to call the remote build tool through taptap-proxy.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target_dir: {
+          type: 'string',
+          description:
+            'Optional Maker project directory. Defaults to the MCP process cwd, which should be the current conversation directory.',
+        },
+        entry: {
+          type: 'string',
+          description:
+            'Optional single-player Lua entry file relative to scriptsPath, e.g. "main.lua". Omit to let the remote build tool infer/default.',
+        },
+        scriptsPath: {
+          type: 'string',
+          description:
+            'Optional scripts directory relative to workspace. Remote build defaults to "scripts" when omitted.',
+        },
+        entry_client: {
+          type: 'string',
+          description:
+            'Optional multiplayer client entry relative to scriptsPath, e.g. "client_main.lua".',
+        },
+        entry_server: {
+          type: 'string',
+          description:
+            'Optional multiplayer server entry relative to scriptsPath, e.g. "server_main.lua".',
+        },
+        multiplayer: {
+          type: 'object',
+          description:
+            'Optional multiplayer config forwarded to remote build. If omitted and no .project/settings.json exists, Maker MCP sends { enabled: false } for first single-player build initialization.',
+        },
+        server_url: {
+          type: 'string',
+          description:
+            'Optional remote MCP server URL override. Defaults to the Maker endpoint table for TAPTAP_MCP_ENV.',
+        },
+        env: {
+          type: 'string',
+          enum: ['rnd', 'production'],
+          description: 'Remote MCP environment. Defaults to TAPTAP_MCP_ENV.',
+        },
+        timeout_ms: {
+          type: 'number',
+          description:
+            'Optional remote build timeout in milliseconds. Defaults to 10 minutes. If timed out, do not retry blindly; inspect remote build logs first.',
         },
       },
     },
@@ -405,6 +512,70 @@ export async function startMakerMcpServer(): Promise<void> {
         };
       }
 
+      if (name === 'maker_configure_remote_proxy') {
+        const args = (request.params.arguments || {}) as {
+          target_dir?: string;
+          server_url?: string;
+          env?: 'rnd' | 'production';
+          mcp_name?: string;
+          use_npx?: boolean;
+          pkg?: string;
+        };
+
+        const result = configureRemoteProxy({
+          targetDir: args.target_dir || process.cwd(),
+          serverUrl: args.server_url,
+          env: args.env,
+          mcpName: args.mcp_name,
+          useNpx: args.use_npx === true,
+          pkg: args.pkg,
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: formatRemoteProxyResult(result),
+            },
+          ],
+        };
+      }
+
+      if (name === 'maker_build_current_directory') {
+        const args = (request.params.arguments || {}) as {
+          target_dir?: string;
+          entry?: string;
+          scriptsPath?: string;
+          entry_client?: string;
+          entry_server?: string;
+          multiplayer?: Record<string, unknown>;
+          server_url?: string;
+          env?: 'rnd' | 'production';
+          timeout_ms?: number;
+        };
+
+        const result = await buildCurrentDirectory({
+          targetDir: args.target_dir || process.cwd(),
+          entry: args.entry,
+          scriptsPath: args.scriptsPath,
+          entryClient: args.entry_client,
+          entryServer: args.entry_server,
+          multiplayer: args.multiplayer,
+          serverUrl: args.server_url,
+          env: args.env,
+          timeoutMs: args.timeout_ms,
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: formatBuildResult(result),
+            },
+          ],
+        };
+      }
+
       throw new McpError(ErrorCode.MethodNotFound, `Unknown Maker tool: ${name}`);
     } catch (error) {
       return {
@@ -477,6 +648,417 @@ function formatProjectList(projects: Array<{ id: string; name?: string }>): stri
     ),
     '',
     '请让用户选择一个 app，然后调用 maker_clone_to_current_directory。',
+  ].join('\n');
+}
+
+function createRemoteProxyContext(options: {
+  targetDir: string;
+  serverUrl?: string;
+  env?: 'rnd' | 'production';
+  useNpx?: boolean;
+  pkg?: string;
+}): {
+  projectRoot: string;
+  serverUrl: string;
+  env: string;
+  projectId: string;
+  projectPath: string;
+  userId: string;
+  proxyConfigJson: string;
+  command: string;
+  args: string[];
+  envVars?: Record<string, string>;
+} {
+  const identify = identifyMakerProject({ cwd: options.targetDir });
+  if (!identify.projectRoot || !identify.projectId) {
+    throw new Error(
+      `${options.targetDir} is not bound to a Maker project. Run maker_clone_to_current_directory first.`
+    );
+  }
+
+  const projectConfig = loadProjectConfig(identify.projectRoot);
+  const projectId = projectConfig?.project_id || identify.projectId;
+  const jwt = loadJwt();
+  if (!jwt) {
+    throw new Error('Maker JWT not found. Run maker_exchange_jwt first.');
+  }
+
+  const tapAuth = loadTapAuth();
+  if (!tapAuth) {
+    throw new Error(
+      'Tap auth not found. Run maker_tap_login_start and maker_tap_login_complete first.'
+    );
+  }
+
+  const userId = getUserIdFromMakerJwt(jwt);
+  if (!userId) {
+    throw new Error('Cannot resolve user_id from Maker JWT.');
+  }
+
+  const env = getMakerEnvironment(options.env);
+  const serverUrl =
+    options.serverUrl ||
+    requireMakerEndpoint('remoteMcpServerUrl', getMakerEndpoints(env).remoteMcpServerUrl, env);
+  const projectPath = `${projectId}/workspace`;
+  const proxyCfg = {
+    server: { url: serverUrl, env },
+    tenant: {
+      project_path: projectPath,
+      user_id: userId,
+      project_id: projectId,
+    },
+    auth: {
+      kid: tapAuth.kid,
+      mac_key: tapAuth.mac_key,
+      token_type: tapAuth.token_type || 'mac',
+      mac_algorithm: tapAuth.mac_algorithm || 'hmac-sha-1',
+    },
+    options: { verbose: true },
+  };
+
+  const proxyConfigJson = JSON.stringify(proxyCfg);
+  const proxyServer = options.useNpx
+    ? {
+        command: 'npx',
+        args: ['-y', '-p', options.pkg || DEFAULT_PROXY_PACKAGE, 'taptap-mcp-proxy'],
+      }
+    : {
+        command: 'node',
+        args: [resolveLocalProxyBundle()],
+      };
+
+  return {
+    projectRoot: identify.projectRoot,
+    serverUrl,
+    env,
+    projectId,
+    projectPath,
+    userId,
+    proxyConfigJson,
+    command: proxyServer.command,
+    args: proxyServer.args,
+    envVars: {
+      PROXY_CONFIG: proxyConfigJson,
+    },
+  };
+}
+
+function configureRemoteProxy(options: {
+  targetDir: string;
+  serverUrl?: string;
+  env?: 'rnd' | 'production';
+  mcpName?: string;
+  useNpx?: boolean;
+  pkg?: string;
+}): {
+  mcpJsonPath: string;
+  projectRoot: string;
+  mcpName: string;
+  serverUrl: string;
+  env: string;
+  projectId: string;
+  projectPath: string;
+  userId?: string;
+  command: string;
+  args: string[];
+  envVars?: Record<string, string>;
+} {
+  const mcpName = options.mcpName || DEFAULT_PROXY_MCP_NAME;
+  const proxy = createRemoteProxyContext(options);
+
+  const mcpJsonPath = path.join(proxy.projectRoot, '.mcp.json');
+  const mcpJson = readMcpJson(mcpJsonPath);
+  mcpJson.mcpServers = {
+    ...(mcpJson.mcpServers || {}),
+    [mcpName]: {
+      command: proxy.command,
+      args: proxy.args,
+      env: proxy.envVars,
+    },
+  };
+  fs.writeFileSync(mcpJsonPath, JSON.stringify(mcpJson, null, 2) + '\n', 'utf8');
+  excludeProjectMcpJson(proxy.projectRoot);
+
+  return {
+    mcpJsonPath,
+    projectRoot: proxy.projectRoot,
+    mcpName,
+    serverUrl: proxy.serverUrl,
+    env: proxy.env,
+    projectId: proxy.projectId,
+    projectPath: proxy.projectPath,
+    userId: proxy.userId,
+    command: proxy.command,
+    args: proxy.args,
+    envVars: proxy.envVars,
+  };
+}
+
+function resolveLocalProxyBundle(): string {
+  const makerEntry = process.argv[1] ? path.resolve(process.argv[1]) : '';
+  const alongsideMaker = makerEntry ? path.join(path.dirname(makerEntry), 'proxy.js') : '';
+  if (alongsideMaker && fs.existsSync(alongsideMaker)) {
+    return alongsideMaker;
+  }
+
+  const cwdBundle = path.resolve(process.cwd(), 'dist', 'proxy.js');
+  if (fs.existsSync(cwdBundle)) {
+    return cwdBundle;
+  }
+
+  throw new Error(
+    'Local dist/proxy.js not found. Run npm run build before configuring remote proxy.'
+  );
+}
+
+function readMcpJson(filePath: string): {
+  mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
+} {
+  if (!fs.existsSync(filePath)) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8')) as {
+      mcpServers?: Record<
+        string,
+        { command: string; args: string[]; env?: Record<string, string> }
+      >;
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to parse existing .mcp.json: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+function excludeProjectMcpJson(projectRoot: string): void {
+  const gitDir = path.join(projectRoot, '.git');
+  if (!fs.existsSync(gitDir)) {
+    return;
+  }
+
+  const infoDir = path.join(gitDir, 'info');
+  const excludePath = path.join(infoDir, 'exclude');
+  const entry = '.mcp.json';
+  fs.mkdirSync(infoDir, { recursive: true });
+  const existing = fs.existsSync(excludePath) ? fs.readFileSync(excludePath, 'utf8') : '';
+  const hasEntry = existing
+    .split('\n')
+    .map((line) => line.trim())
+    .includes(entry);
+  if (hasEntry) {
+    return;
+  }
+
+  const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
+  fs.appendFileSync(excludePath, `${prefix}${entry}\n`, 'utf8');
+}
+
+function formatRemoteProxyResult(result: {
+  mcpJsonPath: string;
+  projectRoot: string;
+  mcpName: string;
+  serverUrl: string;
+  env: string;
+  projectId: string;
+  projectPath: string;
+  userId?: string;
+  command: string;
+  args: string[];
+  envVars?: Record<string, string>;
+}): string {
+  return [
+    '✓ Remote Maker MCP proxy configured',
+    '',
+    `- mcp_name: ${result.mcpName}`,
+    `- project_root: ${result.projectRoot}`,
+    `- mcp_json: ${result.mcpJsonPath}`,
+    `- server_url: ${result.serverUrl}`,
+    `- env: ${result.env}`,
+    `- project_id: ${result.projectId}`,
+    `- project_path: ${result.projectPath}`,
+    `- user_id: ${result.userId || '(unknown)'}`,
+    `- command: ${result.command}`,
+    `- args: ${formatProxyArgs(result.args)}`,
+    `- env: ${formatProxyEnv(result.envVars)}`,
+    '',
+    '已将 .mcp.json 写入本地 .git/info/exclude，避免误提交包含认证信息的本地 MCP 配置。',
+    '下一步：请重启当前 Claude/Codex 对话或重新加载 MCP servers，然后远端 taptap-proxy 暴露的 build/构建 tools 才会出现。',
+  ].join('\n');
+}
+
+function formatProxyArgs(args: string[]): string {
+  return args
+    .map((arg) => {
+      if (arg.startsWith('{') && arg.includes('mac_key')) {
+        return '<proxy_cfg_with_auth>';
+      }
+      return arg;
+    })
+    .join(' ');
+}
+
+function formatProxyEnv(envVars?: Record<string, string>): string {
+  if (!envVars) {
+    return '(none)';
+  }
+  return Object.keys(envVars)
+    .map((key) => `${key}=<redacted>`)
+    .join(' ');
+}
+
+async function buildCurrentDirectory(options: {
+  targetDir: string;
+  entry?: string;
+  scriptsPath?: string;
+  entryClient?: string;
+  entryServer?: string;
+  multiplayer?: Record<string, unknown>;
+  serverUrl?: string;
+  env?: 'rnd' | 'production';
+  timeoutMs?: number;
+}): Promise<{
+  projectRoot: string;
+  projectId: string;
+  projectPath: string;
+  serverUrl: string;
+  env: string;
+  timeoutMs: number;
+  buildArgs: Record<string, unknown>;
+  resultText: string;
+}> {
+  const proxy = createRemoteProxyContext({
+    targetDir: options.targetDir,
+    serverUrl: options.serverUrl,
+    env: options.env,
+  });
+  const buildArgs = createBuildArgs(proxy.projectRoot, options);
+  const timeoutMs = options.timeoutMs || DEFAULT_BUILD_TIMEOUT_MS;
+
+  const transport = new StdioClientTransport({
+    command: proxy.command,
+    args: proxy.args,
+    env: {
+      ...process.env,
+      ...proxy.envVars,
+    },
+    stderr: 'pipe',
+  });
+  const client = new Client(
+    {
+      name: 'taptap-maker-build-forwarder',
+      version: VERSION,
+    },
+    {
+      capabilities: {},
+    }
+  );
+
+  try {
+    await client.connect(transport);
+    const result = await client.callTool(
+      {
+        name: 'build',
+        arguments: buildArgs,
+      },
+      undefined,
+      {
+        timeout: timeoutMs,
+        resetTimeoutOnProgress: true,
+      }
+    );
+
+    return {
+      projectRoot: proxy.projectRoot,
+      projectId: proxy.projectId,
+      projectPath: proxy.projectPath,
+      serverUrl: proxy.serverUrl,
+      env: proxy.env,
+      timeoutMs,
+      buildArgs,
+      resultText: formatRemoteToolResult(result),
+    };
+  } finally {
+    await client.close();
+  }
+}
+
+function createBuildArgs(
+  projectRoot: string,
+  options: {
+    entry?: string;
+    scriptsPath?: string;
+    entryClient?: string;
+    entryServer?: string;
+    multiplayer?: Record<string, unknown>;
+  }
+): Record<string, unknown> {
+  const buildArgs: Record<string, unknown> = {};
+  if (options.entry) {
+    buildArgs.entry = options.entry;
+  }
+  if (options.scriptsPath) {
+    buildArgs.scriptsPath = options.scriptsPath;
+  }
+  if (options.entryClient) {
+    buildArgs.entry_client = options.entryClient;
+  }
+  if (options.entryServer) {
+    buildArgs.entry_server = options.entryServer;
+  }
+  if (options.multiplayer) {
+    buildArgs.multiplayer = options.multiplayer;
+  } else if (!fs.existsSync(path.join(projectRoot, '.project', 'settings.json'))) {
+    buildArgs.multiplayer = { enabled: false };
+  }
+
+  return buildArgs;
+}
+
+function formatRemoteToolResult(result: unknown): string {
+  if (!result || typeof result !== 'object') {
+    return String(result);
+  }
+
+  const content = (result as { content?: Array<{ type?: string; text?: string }> }).content;
+  if (!Array.isArray(content)) {
+    return JSON.stringify(result, null, 2);
+  }
+
+  return content
+    .map((item) => {
+      if (item.type === 'text' && typeof item.text === 'string') {
+        return item.text;
+      }
+      return JSON.stringify(item);
+    })
+    .join('\n');
+}
+
+function formatBuildResult(result: {
+  projectRoot: string;
+  projectId: string;
+  projectPath: string;
+  serverUrl: string;
+  env: string;
+  timeoutMs: number;
+  buildArgs: Record<string, unknown>;
+  resultText: string;
+}): string {
+  return [
+    '✓ Remote Maker build finished',
+    '',
+    `- project_root: ${result.projectRoot}`,
+    `- project_id: ${result.projectId}`,
+    `- project_path: ${result.projectPath}`,
+    `- server_url: ${result.serverUrl}`,
+    `- env: ${result.env}`,
+    `- timeout_ms: ${result.timeoutMs}`,
+    `- build_args: ${JSON.stringify(result.buildArgs)}`,
+    '',
+    'remote_result:',
+    indent(result.resultText),
   ].join('\n');
 }
 

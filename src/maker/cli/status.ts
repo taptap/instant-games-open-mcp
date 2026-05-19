@@ -15,7 +15,8 @@ import {
   loadTapDeviceSession,
 } from '../storage.js';
 import { getMakerJwtExchangeUrl } from '../auth/jwt.js';
-import { getMakerPatUrl } from '../git/pat.js';
+import { getConfiguredMakerPatUrl } from '../git/pat.js';
+import { getConfiguredMakerApiBase, getConfiguredMakerGitBase } from './projects.js';
 import { isJsonMode, printJson } from './common.js';
 
 export async function runStatus(flags: Record<string, string | boolean>): Promise<void> {
@@ -37,9 +38,9 @@ export async function runStatus(flags: Record<string, string | boolean>): Promis
     project: identify,
     env: {
       MAKER_JWT_EXCHANGE_URL: !!getMakerJwtExchangeUrl(),
-      MAKER_API_BASE: !!process.env.MAKER_API_BASE,
-      MAKER_PAT_URL: getMakerPatUrl(),
-      MAKER_GIT_BASE: process.env.MAKER_GIT_BASE || 'https://fuping.agnt.xd.com/git',
+      TAPTAP_MAKER_API_BASE: !!getConfiguredMakerApiBase(),
+      TAPTAP_MAKER_PAT_URL: !!getConfiguredMakerPatUrl(),
+      TAPTAP_MAKER_GIT_BASE: !!getConfiguredMakerGitBase(),
       SCE_MCP_URL: !!process.env.SCE_MCP_URL,
     },
   };

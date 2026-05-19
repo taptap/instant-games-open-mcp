@@ -9,12 +9,8 @@ import type { MakerProjectSummary } from '../types.js';
 import { loadProjectConfig, saveProjectConfig } from '../storage.js';
 import { getUserIdFromMakerJwt, requireMakerJwt } from '../auth/jwt.js';
 import { requestMakerPat } from '../git/pat.js';
+import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
 import { getStringFlag, isJsonMode, printJson } from './common.js';
-
-const API_BASE_ENV = 'MAKER_API_BASE';
-const GIT_BASE_ENV = 'MAKER_GIT_BASE';
-const DEFAULT_API_BASE = 'https://fuping.agnt.xd.com/api/v1';
-const DEFAULT_GIT_BASE = 'https://fuping.agnt.xd.com/git';
 
 export interface CloneMakerProjectOptions {
   appId: string;
@@ -75,9 +71,21 @@ class MakerGitError extends Error {
   }
 }
 
+export function getConfiguredMakerApiBase(): string | undefined {
+  return getMakerEndpoints().apiBase;
+}
+
+export function getConfiguredMakerGitBase(): string | undefined {
+  return getMakerEndpoints().gitBase;
+}
+
 function getMakerApiBase(): string {
-  const apiBase = process.env[API_BASE_ENV] || DEFAULT_API_BASE;
+  const apiBase = requireMakerEndpoint('apiBase', getConfiguredMakerApiBase());
   return apiBase.replace(/\/$/, '');
+}
+
+function getMakerGitBase(): string {
+  return requireMakerEndpoint('gitBase', getConfiguredMakerGitBase()).replace(/\/$/, '');
 }
 
 function normalizeProjectsResponse(data: unknown): MakerProjectSummary[] {
@@ -228,9 +236,9 @@ export async function cloneMakerProject(
     name: options.patName || 'first-pat',
     force: options.forcePat,
   });
-  const gitBase = process.env[GIT_BASE_ENV] || DEFAULT_GIT_BASE;
+  const gitBase = getMakerGitBase();
 
-  const gitUrl = `${gitBase.replace(/\/$/, '')}/${options.appId}.git`;
+  const gitUrl = `${gitBase}/${options.appId}.git`;
   let authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
   let retriedWithNewPat = false;
   let transientRetries = 0;
@@ -577,8 +585,8 @@ async function ensureAuthenticatedOrigin(options: {
     name: 'first-pat',
     force: options.forcePat,
   });
-  const gitBase = process.env[GIT_BASE_ENV] || DEFAULT_GIT_BASE;
-  const gitUrl = `${gitBase.replace(/\/$/, '')}/${options.appId}.git`;
+  const gitBase = getMakerGitBase();
+  const gitUrl = `${gitBase}/${options.appId}.git`;
   const authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
 
   await setOrigin(options.cwd, authUrl);
