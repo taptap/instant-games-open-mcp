@@ -1,0 +1,471 @@
+name: Beta Release
+
+# Internal preview release flow.
+# Beta packages should feel the same as official packages, so this workflow
+# prepares native signer binaries before publishing to npm @beta.
+# It does not create release PRs or write package.json / CHANGELOG.md changes
+# back to the repository.
+
+on:
+  push:
+    branches:
+      - beta
+  workflow_dispatch:
+
+concurrency:
+  group: beta-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  DEBUG: napi:*
+  MACOSX_DEPLOYMENT_TARGET: '10.13'
+
+jobs:
+  analyze:
+    name: Analyze Beta Release
+    runs-on: ubuntu-latest
+    if: |
+      github.ref_name == 'beta' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.head_commit != null &&
+       !contains(github.event.head_commit.message, '[skip ci]') &&
+       github.event.head_commit.author.name != 'github-actions[bot]'))
+    outputs:
+      should_release: ${{ steps.analyze.outputs.should_release }}
+      version: ${{ steps.analyze.outputs.version }}
+      native_changed: ${{ steps.native_check.outputs.changed }}
+      has_native_assets: ${{ steps.release_check.outputs.has_assets }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Analyze commits for beta release
+        id: analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SEMANTIC_RELEASE_DRY_RUN: 'true'
+        run: |
+          set -o pipefail
+          npx semantic-release --dry-run --no-ci 2>&1 | tee release-output.txt
+
+          NEW_VERSION=$(grep "\[semantic-release\] .* The next release version is" release-output.txt | sed 's/.*is //' || echo "")
+
+          if [ -z "$NEW_VERSION" ]; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "No beta release needed"
+          else
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+            echo "Will publish beta version: $NEW_VERSION"
+          fi
+
+      - name: Check native changes
+        id: native_check
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          echo "Last reachable tag: $LAST_TAG"
+
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous tag found, need to build native"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED_FILES=$(git diff --name-only "$LAST_TAG" HEAD -- \
+            native/Cargo.toml \
+            native/Cargo.lock \
+            native/src/ \
+            native/build.rs \
+            native/package.json \
+          )
+
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "Native files changed:"
+            echo "$CHANGED_FILES"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No native files changed since $LAST_TAG"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check existing release assets
+        id: release_check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ steps.native_check.outputs.changed }}" == "true" ]; then
+            echo "Native code changed, will rebuild"
+            echo "has_assets=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LATEST_RELEASE=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+
+          if [ -z "$LATEST_RELEASE" ]; then
+            echo "No existing release found, need to build native"
+            echo "has_assets=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          ASSETS=$(gh release view "$LATEST_RELEASE" --repo ${{ github.repository }} --json assets --jq '.assets[].name' 2>/dev/null | grep "\.node$" || echo "")
+
+          if [ -z "$ASSETS" ]; then
+            echo "No native binaries in release $LATEST_RELEASE, need to build"
+            echo "has_assets=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Found native binaries in $LATEST_RELEASE:"
+            echo "$ASSETS"
+            echo "has_assets=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-native:
+    name: Build Native - ${{ matrix.settings.target }}
+    runs-on: ${{ matrix.settings.host }}
+    needs: analyze
+    if: |
+      needs.analyze.outputs.should_release == 'true' &&
+      (needs.analyze.outputs.native_changed == 'true' || needs.analyze.outputs.has_native_assets == 'false')
+
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: macos-14
+            target: x86_64-apple-darwin
+            build: |
+              if ! cargo --version &> /dev/null; then
+                echo "cargo not working, cleaning up and reinstalling Rust..."
+                rm -rf "$HOME/.cargo/bin"
+                rm -f "$HOME/.rustup/settings.toml"
+                curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --target x86_64-apple-darwin
+                source "$HOME/.cargo/env"
+              fi
+              export PATH="$HOME/.cargo/bin:$PATH"
+              echo "cargo version: $(cargo --version)"
+              cd native
+              npm run build
+              strip -x *.node
+
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            build: |
+              export PATH="$CARGO_HOME/bin:$PATH"
+              cd native
+              npm run build -- --target aarch64-apple-darwin
+              strip -x *.node
+
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+            build: |
+              rustup update stable && rustup default stable
+              cd native
+              npm run build -- --target x86_64-unknown-linux-gnu
+              strip *.node
+
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            build: |
+              rustup update stable && rustup default stable
+              cd native
+              npm run build -- --target x86_64-unknown-linux-musl
+              strip *.node
+
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            build: |
+              apk add --no-cache zig
+              rustup update stable && rustup default stable
+              rustup target add aarch64-unknown-linux-musl
+              cd native
+              npm run build -- --target aarch64-unknown-linux-musl --zig
+              llvm-strip *.node 2>/dev/null || aarch64-linux-gnu-strip *.node 2>/dev/null || echo "Skip strip for cross-compiled binary"
+
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            build: |
+              cd native
+              npm run build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        if: ${{ !matrix.settings.docker }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: Ensure Cargo in PATH
+        if: ${{ !matrix.settings.docker }}
+        shell: bash
+        run: |
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+          echo "Added $CARGO_HOME/bin to PATH"
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            native/target/
+          key: ${{ runner.os }}-cargo-${{ matrix.settings.target }}-${{ hashFiles('native/Cargo.lock') }}
+
+      - name: Install native dependencies
+        run: |
+          cd native
+          npm install
+
+      - name: Build in Docker
+        if: ${{ matrix.settings.docker }}
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ${{ matrix.settings.docker }}
+          options: |
+            --user 0:0
+            -v ${{ github.workspace }}:/build
+            -w /build
+            -e BUILD_CLIENT_ID=${{ secrets.BUILD_CLIENT_ID }}
+            -e BUILD_CLIENT_SECRET=${{ secrets.BUILD_CLIENT_SECRET }}
+          run: ${{ matrix.settings.build }}
+
+      - name: Build
+        if: ${{ !matrix.settings.docker }}
+        shell: bash
+        env:
+          BUILD_CLIENT_ID: ${{ secrets.BUILD_CLIENT_ID }}
+          BUILD_CLIENT_SECRET: ${{ secrets.BUILD_CLIENT_SECRET }}
+        run: ${{ matrix.settings.build }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-bindings-${{ matrix.settings.target }}
+          path: native/*.node
+          if-no-files-found: error
+
+  download-native:
+    name: Download Native from Release
+    runs-on: ubuntu-latest
+    needs: analyze
+    if: |
+      needs.analyze.outputs.should_release == 'true' &&
+      needs.analyze.outputs.native_changed == 'false' &&
+      needs.analyze.outputs.has_native_assets == 'true'
+
+    steps:
+      - name: Download native binaries from latest release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p native
+
+          LATEST_RELEASE=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Downloading native binaries from release: $LATEST_RELEASE"
+
+          gh release download "$LATEST_RELEASE" \
+            --repo ${{ github.repository }} \
+            --pattern "*.node" \
+            --dir native/
+
+          echo "=== Downloaded native binaries ==="
+          ls -la native/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-native-from-release
+          path: native/*.node
+          if-no-files-found: error
+
+  publish:
+    name: Publish Beta to npm
+    runs-on: ubuntu-latest
+    environment: npm_publish
+    needs: [analyze, build-native, download-native]
+    if: |
+      always() &&
+      needs.analyze.outputs.should_release == 'true' &&
+      (needs.build-native.result == 'success' || needs.download-native.result == 'success')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download native binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Move native binaries to native/
+        run: |
+          mkdir -p native
+          find artifacts -name "*.node" -exec cp {} native/ \;
+
+          echo "=== Native binaries ==="
+          ls -la native/*.node
+
+      - name: Lint code
+        run: npm run lint
+
+      - name: Check code formatting
+        run: npm run format:check
+
+      - name: Set beta package version
+        run: npm version "${{ needs.analyze.outputs.version }}" --no-git-tag-version
+
+      - name: Build package
+        run: npm run build
+
+      - name: Verify native binaries in package output
+        run: |
+          test -d dist/native
+          test "$(find dist/native -name "*.node" | wc -l | tr -d ' ')" -gt 0
+          find dist/native -maxdepth 1 -name "*.node" -print
+
+      - name: Run tests
+        run: npm test
+
+      - name: Pack beta tarball
+        id: pack
+        run: |
+          TARBALL_DIR="$(mktemp -d)"
+          npm pack --pack-destination "$TARBALL_DIR"
+          TARBALL="$(find "$TARBALL_DIR" -name "*.tgz" -print -quit)"
+
+          if [ -z "$TARBALL" ]; then
+            echo "Failed to create npm tarball"
+            exit 1
+          fi
+
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          echo "Packed beta tarball: $TARBALL"
+
+      - name: Publish beta to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          TARBALL="${{ steps.pack.outputs.tarball }}"
+
+          npm publish "$TARBALL" --access public --tag beta --provenance 2>/dev/null \
+            || npm publish "$TARBALL" --access public --tag beta
+
+      - name: Create prerelease tag
+        run: |
+          VERSION="${{ needs.analyze.outputs.version }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${VERSION}" -m "Beta release v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: Create GitHub prerelease
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.analyze.outputs.version }}"
+          TARBALL="${{ steps.pack.outputs.tarball }}"
+
+          gh release create "v${VERSION}" \
+            --prerelease \
+            --title "v${VERSION}" \
+            --notes "Internal beta release from \`${GITHUB_REF_NAME}\`." \
+            native/*.node \
+            "$TARBALL"
+
+      - name: Beta release summary
+        run: |
+          VERSION="${{ needs.analyze.outputs.version }}"
+          NATIVE_CHANGED="${{ needs.analyze.outputs.native_changed }}"
+          HAS_ASSETS="${{ needs.analyze.outputs.has_native_assets }}"
+
+          echo "## Beta Release Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: ${VERSION}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- npm dist-tag: beta" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Native changed: ${NATIVE_CHANGED}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Reused native assets: ${HAS_ASSETS}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Install: \`npm install @taptap/instant-games-open-mcp@beta\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Run: \`npx -y @taptap/instant-games-open-mcp@beta\`" >> "$GITHUB_STEP_SUMMARY"
+
+  no-release:
+    name: No Beta Release Needed
+    runs-on: ubuntu-latest
+    needs: analyze
+    if: needs.analyze.outputs.should_release == 'false'
+
+    steps:
+      - name: Summary
+        run: |
+          echo "## No Beta Release Needed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "No beta version was published because commit analysis found no release-worthy changes." >> "$GITHUB_STEP_SUMMARY"
+
+  native-unavailable:
+    name: Native Signer Unavailable
+    runs-on: ubuntu-latest
+    needs: [analyze, build-native, download-native]
+    if: |
+      always() &&
+      needs.analyze.outputs.should_release == 'true' &&
+      needs.build-native.result != 'success' &&
+      needs.download-native.result != 'success'
+
+    steps:
+      - name: Summary
+        run: |
+          echo "## Native Signer Unavailable" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Beta package was not published because native signer binaries could not be prepared." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+  unsupported-ref:
+    name: Unsupported Ref
+    runs-on: ubuntu-latest
+    if: github.ref_name != 'beta'
+
+    steps:
+      - name: Summary
+        run: |
+          echo "## Unsupported Ref" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Beta Release only publishes from the \`beta\` branch." >> "$GITHUB_STEP_SUMMARY"

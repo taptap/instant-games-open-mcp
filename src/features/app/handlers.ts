@@ -620,7 +620,89 @@ export async function checkEnvironment(ctx: ResolvedContext): Promise<string> {
       '💡 如需授权，请使用 start_oauth_authorization 工具获取授权链接';
   }
 
+  if (EnvConfig.environment === 'rnd' && (!EnvConfig.clientId || !EnvConfig.clientSecret)) {
+    statusMessage +=
+      '\n\n⚠️  当前是 RND 环境，但 Client ID / Client Secret 未完整配置。\n' +
+      '💡 请调用 get_environment_switch_guide 工具查看 RND MCP 配置示例。';
+  }
+
   return `🔧 环境配置检查结果:\n\n${envResult}${statusMessage}`;
+}
+
+/**
+ * Explain how to switch MCP environment from client configuration.
+ */
+export async function getEnvironmentSwitchGuide(args: {
+  target_environment?: 'rnd' | 'production';
+  package_tag?: string;
+}): Promise<string> {
+  const targetEnv = args.target_environment || 'rnd';
+  const packageName = args.package_tag
+    ? `@taptap/instant-games-open-mcp@${args.package_tag}`
+    : '@taptap/instant-games-open-mcp';
+  const isRnd = targetEnv === 'rnd';
+  const envBlock = isRnd
+    ? `{
+        "TAPTAP_MCP_ENV": "rnd",
+        "TAPTAP_MCP_CLIENT_ID": "your_rnd_client_id",
+        "TAPTAP_MCP_CLIENT_SECRET": "your_rnd_client_secret",
+        "TAPTAP_MCP_WORKSPACE_ROOT": "\${workspaceFolder}"
+      }`
+    : `{
+        "TAPTAP_MCP_ENV": "production",
+        "TAPTAP_MCP_WORKSPACE_ROOT": "\${workspaceFolder}"
+      }`;
+
+  const configSnippet = `{
+  "mcpServers": {
+    "taptap-minigame": {
+      "command": "npx",
+      "args": ["-y", "${packageName}"],
+      "env": ${envBlock}
+    }
+  }
+}`;
+
+  let output = `🌍 TapTap MCP 环境切换指南\n\n`;
+  output += `目标环境：${targetEnv}\n`;
+  output += `当前运行环境：${EnvConfig.environment} (${EnvConfig.endpoints.apiBaseUrl})\n\n`;
+
+  output += `## 需要改哪里\n\n`;
+  output +=
+    '把下面配置写到 MCP 客户端的 server 配置里，也就是和 `command` / `args` 同一级的 `env` 字段。\n';
+  output +=
+    '常见位置：项目根目录 `.mcp.json`、Cursor/VS Code 的 MCP 配置、Claude Desktop 配置。\n\n';
+
+  output += `## 配置示例\n\n`;
+  output += '```json\n';
+  output += `${configSnippet}\n`;
+  output += '```\n\n';
+
+  output += `## AI Agent 操作步骤\n\n`;
+  output += '1. 先读取现有 MCP 配置文件，保留其他 `mcpServers` 配置。\n';
+  output += '2. 找到 TapTap MCP server 条目，只更新它的 `env` 字段。\n';
+  output += '3. 如果没有 TapTap MCP server 条目，按上面的示例新增一个。\n';
+  output += '4. 提醒用户重启 MCP 客户端或刷新 MCP server，会话中的运行环境不会原地热切换。\n';
+  output += '5. 重启后调用 `check_environment` 验证 `TAPTAP_MCP_ENV` 是否已生效。\n\n';
+
+  if (isRnd) {
+    output += `## RND 注意事项\n\n`;
+    output += '- RND 环境强制使用环境变量签名，不走 production native signer。\n';
+    output +=
+      '- `TAPTAP_MCP_CLIENT_ID` / `TAPTAP_MCP_CLIENT_SECRET` 是 RND 客户端凭证，不是用户账号密码。\n';
+    output +=
+      '- `TAPTAP_MCP_CLIENT_SECRET` 属于敏感信息，只能放在受控的本地 MCP 配置或安全环境变量里，不要提交到仓库。\n';
+    output +=
+      '- 如果使用 beta 预览包，可以把 `args` 改为 `["-y", "@taptap/instant-games-open-mcp@beta"]`。\n';
+  } else {
+    output += `## Production 注意事项\n\n`;
+    output +=
+      '- 正式 npm 包通常包含 production native signer，因此一般不需要配置 Client ID / Client Secret。\n';
+    output +=
+      '- 如果显式配置了 `TAPTAP_MCP_CLIENT_ID` / `TAPTAP_MCP_CLIENT_SECRET`，会优先使用环境变量模式。\n';
+  }
+
+  return output;
 }
 
 /**
