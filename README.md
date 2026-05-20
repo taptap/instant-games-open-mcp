@@ -52,6 +52,10 @@
 ```text
 maker_status
 maker_check_environment
+maker_tap_login_start
+用户扫码/打开链接授权
+用户输入“已授权”
+maker_tap_login_complete
 用户在 Chrome DevTools 的 Local storage 复制 taptap_access_token
 maker_exchange_jwt(manual_jwt)
 maker_list_apps
@@ -67,9 +71,9 @@ maker_push_current_directory
 
 - Maker MCP 依赖用户本机已有 Git。工具只检测并给出安装引导，不会代替用户安装 Git。
 - 如果 `maker_status` 或 `maker_check_environment` 显示 Git 缺失，必须持续提示用户自行安装 Git；在 `git --version` 可用前，不执行 clone、fetch、commit 或 push。
+- Tap 登录仍保留在默认初始化流程中，远端 Maker MCP tools 需要 Tap token 认证；`maker_list_apps` 和 `maker_clone_to_current_directory` 会在缺少 Tap auth 时停止并要求先登录。
 - 当前 JWT 过渡方案：引导用户在 Chrome 打开当前环境的 Maker 网页（production 为 `https://maker.taptap.cn/`，rnd 为 `https://fuping.agnt.xd.com`），进入 DevTools -> Application -> Local storage，找到 `taptap_access_token` 并拿到它的 value 给 Agent，再作为 `manual_jwt` 传给 `maker_exchange_jwt`。
 - MCP 会把 JWT 保存到用户级本地文件 `~/.taptap-maker/jwt.json`；也兼容 `JWT` / `MAKER_JWT` 环境变量。
-- Tap OAuth device code flow 工具仍保留为兼容路径，但当前默认引导优先使用网页 Local storage 中的 `taptap_access_token`。
 - Maker app 必须先通过 `maker_list_apps` 展示给用户选择，再调用 clone。
 - Maker 后端地址按 `TAPTAP_MCP_ENV` 从 `src/maker/config.ts` 的环境配置表读取，本地 MCP 配置只需要切 `rnd` / `production`。
 - 如果用户直接说“构建 / build / 重新构建游戏”，本地 Maker MCP 应调用 `maker_build_current_directory` 转发到远端 `build` tool。

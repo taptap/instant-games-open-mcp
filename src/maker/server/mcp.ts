@@ -55,7 +55,7 @@ const tools = [
   {
     name: 'maker_tap_login_start',
     description:
-      'Legacy compatibility path: start TapTap OAuth device login for Maker. Do not use this as the default onboarding path. Prefer asking the user to copy `taptap_access_token` from Chrome DevTools Application > Local storage and pass it to maker_exchange_jwt as manual_jwt.',
+      'Start TapTap OAuth device login for Maker. Keep this step in the onboarding flow because remote Maker MCP tools need Tap token authentication. Show the returned auth_url and wait for the user to say they have authorized.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -64,7 +64,7 @@ const tools = [
   {
     name: 'maker_tap_login_complete',
     description:
-      'Legacy compatibility path: complete TapTap OAuth device login after the user says authorization is done. Saves Tap MAC auth locally for the old Maker JWT exchange step.',
+      'Complete TapTap OAuth device login after the user says authorization is done. Saves Tap MAC auth locally for remote Maker MCP tools.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -83,7 +83,7 @@ const tools = [
   },
   {
     name: 'maker_exchange_jwt',
-    description: `Prepare and save the Maker JWT. Default flow: ask the user to open ${MAKER_WEB_URL}, open Chrome DevTools > Application > Local storage, find \`taptap_access_token\`, give its value to the agent, and pass it as manual_jwt. OAuth exchange is retained only as a legacy compatibility path.`,
+    description: `Prepare and save the Maker JWT used by Maker API and Git PAT operations. After Tap login is completed, ask the user to open ${MAKER_WEB_URL}, open Chrome DevTools > Application > Local storage, find \`taptap_access_token\`, give its value to the agent, and pass it as manual_jwt.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -97,7 +97,7 @@ const tools = [
   {
     name: 'maker_list_apps',
     description:
-      'List Maker apps available to the current Maker JWT. Always show the list to the user and ask them to choose before cloning.',
+      'List Maker apps available to the current Maker JWT. Requires Tap auth first because remote Maker MCP tools need Tap token authentication later in the flow. If tap_auth is missing, call maker_tap_login_start, wait for user authorization, then call maker_tap_login_complete before listing apps. Always show the list to the user and ask them to choose before cloning.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -111,7 +111,7 @@ const tools = [
   {
     name: 'maker_status',
     description:
-      'Show local Maker MCP binding status, including whether Git is available. If Git is missing, do not call clone/push/build-side git operations; keep showing the install guidance until the user installs Git and git --version works. If no project is bound, guide the agent through the current JWT flow: ask the user to copy `taptap_access_token` from Chrome DevTools Application > Local storage, call maker_exchange_jwt with manual_jwt, call maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory.',
+      'Show local Maker MCP binding status, including whether Git is available. If Git is missing, do not call clone/push/build-side git operations; keep showing the install guidance until the user installs Git and git --version works. If no project is bound, guide the agent through both auth steps: maker_tap_login_start, wait for user authorization, maker_tap_login_complete, then ask the user to copy `taptap_access_token` from Chrome DevTools Application > Local storage, call maker_exchange_jwt with manual_jwt, call maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -128,7 +128,7 @@ const tools = [
   },
   {
     name: 'maker_setup_guide',
-    description: `Show setup guidance when the current directory is not bound to a Maker project yet. In Codex/MCP mode, first make sure Git is installed by checking maker_status or maker_check_environment. If Git is missing, keep showing the install guidance and do not clone. After Git is available, ask the user to open ${MAKER_WEB_URL}, open Chrome DevTools > Application > Local storage, find \`taptap_access_token\`, give its value to the agent, call maker_exchange_jwt with manual_jwt, call maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory. Do not ask for app_id upfront and do not run shell CLI commands.`,
+    description: `Show setup guidance when the current directory is not bound to a Maker project yet. In Codex/MCP mode, first make sure Git is installed by checking maker_status or maker_check_environment. If Git is missing, keep showing the install guidance and do not clone. After Git is available, first run maker_tap_login_start and maker_tap_login_complete because remote Maker MCP tools need Tap token authentication. Then ask the user to open ${MAKER_WEB_URL}, open Chrome DevTools > Application > Local storage, find \`taptap_access_token\`, give its value to the agent, call maker_exchange_jwt with manual_jwt, call maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory. Do not ask for app_id upfront and do not run shell CLI commands.`,
     inputSchema: {
       type: 'object',
       properties: {},
@@ -137,7 +137,7 @@ const tools = [
   {
     name: 'maker_clone_to_current_directory',
     description:
-      'Clone a Maker app repository into the current Codex/agent working directory. Call this only after maker_list_apps has listed apps and the user has chosen one. Requires local Git. If Git is missing, this tool stops before requesting PAT or changing files and returns install guidance; do not retry clone until the user installs Git and git --version works. Do not ask for app_id upfront and do not run shell CLI commands. Requires the selected app_id; uses cached Maker JWT/PAT by default.',
+      'Clone a Maker app repository into the current Codex/agent working directory. Requires Tap auth first because remote Maker MCP tools need Tap token authentication later in the flow. Call this only after maker_list_apps has listed apps and the user has chosen one. Requires local Git. If Git is missing, this tool stops before requesting PAT or changing files and returns install guidance; do not retry clone until the user installs Git and git --version works. Do not ask for app_id upfront and do not run shell CLI commands. Requires the selected app_id; uses cached Maker JWT/PAT by default.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -458,6 +458,18 @@ export async function startMakerMcpServer(): Promise<void> {
       }
 
       if (name === 'maker_list_apps') {
+        if (!loadTapAuth()) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: 'text',
+                text: formatTapLoginRequired('maker_list_apps'),
+              },
+            ],
+          };
+        }
+
         const args = (request.params.arguments || {}) as {
           jwt?: string;
         };
@@ -495,6 +507,17 @@ export async function startMakerMcpServer(): Promise<void> {
 
         if (!args.app_id) {
           throw new McpError(ErrorCode.InvalidParams, 'app_id is required');
+        }
+        if (!loadTapAuth()) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: 'text',
+                text: formatTapLoginRequired('maker_clone_to_current_directory'),
+              },
+            ],
+          };
         }
 
         const targetDir = args.target_dir || process.cwd();
@@ -661,6 +684,14 @@ function formatStatus(): string {
     '',
     formatGitEnvironmentStatus(git),
     '',
+    tapAuth
+      ? ''
+      : [
+          'Auth next step',
+          '',
+          'Tap 登录授权缺失。继续列项目或克隆前，请先调用 maker_tap_login_start，用户授权后调用 maker_tap_login_complete。',
+        ].join('\n'),
+    '',
     identify.projectId
       ? [
           '当前目录已绑定 Maker 项目。',
@@ -685,6 +716,22 @@ function formatEnvironment(): string {
     git.installed
       ? 'Git 已可用，可以继续 Maker 登录、列出 app、clone 或 push 流程。'
       : 'Git 未可用。安装并验证 Git 前，Maker MCP 不会执行 clone、fetch、commit 或 push。',
+  ].join('\n');
+}
+
+function formatTapLoginRequired(nextTool: string): string {
+  return [
+    'Tap 登录授权缺失，先暂停当前 Maker 流程。',
+    '',
+    '远端 Maker MCP tools 需要 Tap token 认证，因此在列项目或克隆前必须先完成 Tap 登录。',
+    '',
+    '请按顺序执行：',
+    '1. 调用 maker_tap_login_start，展示授权链接。',
+    '2. 等用户完成授权并回复“已授权”。',
+    '3. 调用 maker_tap_login_complete，保存 Tap token。',
+    `4. 重新调用 ${nextTool}。`,
+    '',
+    `Tap auth 保存位置：${getTapAuthPath()}`,
   ].join('\n');
 }
 
