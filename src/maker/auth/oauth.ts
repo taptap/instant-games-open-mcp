@@ -12,7 +12,7 @@ import { loadTapDeviceSession, saveTapAuth, saveTapDeviceSession } from '../stor
 
 declare const __MAKER_VERSION__: string | undefined;
 
-const BUILT_IN_MAKER_CLIENT_ID = 'aznqn4vrze30loq6o8';
+const BUILT_IN_MAKER_CLIENT_ID = 'm2dnabebip3fpardnm';
 const MAKER_CLIENT_ID_ENV = 'TAPTAP_MAKER_CLIENT_ID';
 const TAPTAP_CLIENT_ID_ENV = 'TAPTAP_MCP_CLIENT_ID';
 const MAKER_VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';

@@ -26,14 +26,14 @@ describe('maker client id fallback', () => {
 
   test('uses built-in Maker client id in RND', () => {
     expect(resolveMakerClientIdFallback({ environment: 'rnd', version: '1.22.0' })).toBe(
-      'aznqn4vrze30loq6o8'
+      'm2dnabebip3fpardnm'
     );
   });
 
   test('uses built-in Maker client id for beta packages', () => {
     expect(
       resolveMakerClientIdFallback({ environment: 'production', version: '1.22.0-beta.2' })
-    ).toBe('aznqn4vrze30loq6o8');
+    ).toBe('m2dnabebip3fpardnm');
   });
 
   test('does not use built-in Maker client id for stable production packages', () => {
@@ -59,7 +59,7 @@ describe('maker client id fallback', () => {
 
     ensureMakerClientId();
 
-    expect(process.env.TAPTAP_MCP_CLIENT_ID).toBe('aznqn4vrze30loq6o8');
+    expect(process.env.TAPTAP_MCP_CLIENT_ID).toBe('m2dnabebip3fpardnm');
   });
 });
 
