@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+      - beta
       - alpha
   workflow_dispatch:
 
@@ -351,6 +352,7 @@ jobs:
     # 只要 analyze 说要发布，且 build-native 或 download-native 其中一个成功
     if: |
       always() &&
+      github.ref_name != 'beta' &&
       needs.analyze.outputs.should_release == 'true' &&
       (needs.build-native.result == 'success' || needs.download-native.result == 'success')
 
@@ -615,6 +617,169 @@ jobs:
           echo "查看详情：" >> $GITHUB_STEP_SUMMARY
           echo "- npm: https://www.npmjs.com/package/@taptap/instant-games-open-mcp/v/${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "- GitHub: https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" >> $GITHUB_STEP_SUMMARY
+
+  # ========== Beta 预览发布 ==========
+  beta-release:
+    name: Beta Release
+    runs-on: ubuntu-latest
+    environment: npm_publish
+    permissions:
+      contents: write
+      id-token: write
+    needs: [analyze, build-native, download-native]
+    # 复用同一个 workflow 文件，避免 npm Trusted Publishing 需要新增 publisher 配置。
+    # beta 不创建 release PR，不写回 package.json / CHANGELOG.md。
+    if: |
+      always() &&
+      github.ref_name == 'beta' &&
+      needs.analyze.outputs.should_release == 'true' &&
+      (needs.build-native.result == 'success' || needs.download-native.result == 'success')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download native binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Move native binaries to native/
+        run: |
+          mkdir -p native
+          find artifacts -name "*.node" -exec cp {} native/ \;
+
+          echo "=== Native binaries ==="
+          ls -la native/*.node
+
+      - name: Lint code
+        run: npm run lint
+
+      - name: Check code formatting
+        run: npm run format:check
+
+      - name: Set beta package version
+        run: npm version "${{ needs.analyze.outputs.version }}" --no-git-tag-version
+
+      - name: Build package
+        run: npm run build
+
+      - name: Verify native binaries in package output
+        run: |
+          test -d dist/native
+          test "$(find dist/native -name "*.node" | wc -l | tr -d ' ')" -gt 0
+          find dist/native -maxdepth 1 -name "*.node" -print
+
+      - name: Run tests
+        run: npm test
+
+      - name: Pack beta tarball
+        id: pack
+        run: |
+          TARBALL_DIR="$(mktemp -d)"
+          npm pack --pack-destination "$TARBALL_DIR"
+          TARBALL="$(find "$TARBALL_DIR" -name "*.tgz" -print -quit)"
+
+          if [ -z "$TARBALL" ]; then
+            echo "Failed to create npm tarball"
+            exit 1
+          fi
+
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          echo "Packed beta tarball: $TARBALL"
+
+      - name: Publish beta to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="${{ needs.analyze.outputs.version }}"
+          TARBALL="${{ steps.pack.outputs.tarball }}"
+
+          if npm view "@taptap/instant-games-open-mcp@${VERSION}" version >/dev/null 2>&1; then
+            echo "Version ${VERSION} already exists on npm, ensuring beta dist-tag"
+            npm dist-tag add "@taptap/instant-games-open-mcp@${VERSION}" beta
+          else
+            npm publish "$TARBALL" --access public --tag beta --provenance 2>/dev/null \
+              || npm publish "$TARBALL" --access public --tag beta
+          fi
+
+      - name: Create prerelease tag
+        run: |
+          VERSION="${{ needs.analyze.outputs.version }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --tags origin "v${VERSION}" | grep -q "refs/tags/v${VERSION}$"; then
+            echo "Tag v${VERSION} already exists"
+          else
+            git tag -a "v${VERSION}" -m "Beta release v${VERSION}"
+            git push origin "v${VERSION}"
+          fi
+
+      - name: Create GitHub prerelease
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.analyze.outputs.version }}"
+          TARBALL="${{ steps.pack.outputs.tarball }}"
+
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "GitHub release v${VERSION} already exists"
+          else
+            gh release create "v${VERSION}" \
+              --prerelease \
+              --title "v${VERSION}" \
+              --notes "Internal beta release from \`${GITHUB_REF_NAME}\`." \
+              native/*.node \
+              "$TARBALL"
+          fi
+
+      - name: Beta release summary
+        run: |
+          VERSION="${{ needs.analyze.outputs.version }}"
+          NATIVE_CHANGED="${{ needs.analyze.outputs.native_changed }}"
+          HAS_ASSETS="${{ needs.analyze.outputs.has_native_assets }}"
+
+          echo "## Beta Release Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: ${VERSION}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- npm dist-tag: beta" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Native changed: ${NATIVE_CHANGED}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Reused native assets: ${HAS_ASSETS}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Install: \`npm install @taptap/instant-games-open-mcp@beta\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Run: \`npx -y @taptap/instant-games-open-mcp@beta\`" >> "$GITHUB_STEP_SUMMARY"
+
+  beta-native-unavailable:
+    name: Beta Native Signer Unavailable
+    runs-on: ubuntu-latest
+    needs: [analyze, build-native, download-native]
+    if: |
+      always() &&
+      github.ref_name == 'beta' &&
+      needs.analyze.outputs.should_release == 'true' &&
+      needs.build-native.result != 'success' &&
+      needs.download-native.result != 'success'
+
+    steps:
+      - name: Summary
+        run: |
+          echo "## Native Signer Unavailable" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Beta package was not published because native signer binaries could not be prepared." >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
   # ========== 无需发布 ==========
   no-release:
