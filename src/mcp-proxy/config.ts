@@ -3,8 +3,8 @@
  *
  * 支持三种配置传递方式（按优先级）：
  * 1. 命令行参数：node index.js '{"server":{...}}'
- * 2. 标准输入：echo '{"server":{...}}' | node index.js
- * 3. 环境变量：PROXY_CONFIG='{"server":{...}}' node index.js
+ * 2. 环境变量：PROXY_CONFIG='{"server":{...}}' node index.js
+ * 3. 标准输入：echo '{"server":{...}}' | node index.js
  */
 
 import type { ProxyConfig } from './types.js';
@@ -48,23 +48,23 @@ export async function loadConfig(): Promise<ProxyConfig> {
     configJson = process.argv[2];
     source = 'command line argument';
   }
-  // 优先级 2: 标准输入
-  else if (!process.stdin.isTTY) {
-    configJson = await readStdin();
-    source = 'stdin';
-  }
-  // 优先级 3: 环境变量
+  // 优先级 2: 环境变量
   else if (process.env.PROXY_CONFIG) {
     configJson = process.env.PROXY_CONFIG;
     source = 'PROXY_CONFIG environment variable';
+  }
+  // 优先级 3: 标准输入
+  else if (!process.stdin.isTTY) {
+    configJson = await readStdin();
+    source = 'stdin';
   }
   // 无配置
   else {
     throw new Error(
       'No configuration provided. Please use one of:\n' +
         '1. Command line: node index.js \'{"server":{...}}\'\n' +
-        '2. Stdin: echo \'{"server":{...}}\' | node index.js\n' +
-        '3. Env var: PROXY_CONFIG=\'{"server":{...}}\' node index.js\n\n' +
+        '2. Env var: PROXY_CONFIG=\'{"server":{...}}\' node index.js\n' +
+        '3. Stdin: echo \'{"server":{...}}\' | node index.js\n\n' +
         'See config.example.json for configuration format.'
     );
   }

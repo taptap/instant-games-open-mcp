@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "name": "@taptap/instant-games-open-mcp-maker-module",
+  "description": "Internal Maker CLI and MCP module. This directory is bundled by the root package and is not published separately."
+}

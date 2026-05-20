@@ -43,6 +43,54 @@
 - [OpenClaw Plugin 说明](docs/OPENCLAW_PLUGIN.md)
 - 维护者发布方式：`npm run openclaw:pack` / `npm run openclaw:publish`
 
+## 🛠️ TapTap Maker 本地 MCP（开发中）
+
+仓库内新增 Maker 专用入口 `taptap-maker`，用于在 Codex 当前目录完成 Maker 项目的登录、选择、拉取和推送。
+
+当前 MCP 工具流程：
+
+```text
+maker_status
+maker_check_environment
+maker_tap_login_start
+用户扫码/打开链接授权
+用户输入“已授权”
+maker_tap_login_complete
+用户在 Chrome DevTools 的 Local storage 复制 taptap_access_token
+maker_exchange_jwt(manual_jwt)
+maker_list_apps
+用户选择 app
+maker_clone_to_current_directory
+maker_configure_remote_proxy
+maker_build_current_directory
+maker_submit_current_directory
+maker_push_current_directory
+```
+
+说明：
+
+- Maker MCP 依赖用户本机已有 Git。工具只检测并给出安装引导，不会代替用户安装 Git。
+- 如果 `maker_status` 或 `maker_check_environment` 显示 Git 缺失，必须持续提示用户自行安装 Git；在 `git --version` 可用前，不执行 clone、fetch、commit 或 push。
+- Tap 登录仍保留在默认初始化流程中，远端 Maker MCP tools 需要 Tap token 认证；`maker_list_apps` 和 `maker_clone_to_current_directory` 会在缺少 Tap auth 时停止并要求先登录。
+- 当前 JWT 过渡方案：引导用户在 Chrome 打开当前环境的 Maker 网页（production 为 `https://maker.taptap.cn/`，rnd 为 `https://fuping.agnt.xd.com`），进入 DevTools -> Application -> Local storage，找到 `taptap_access_token` 并拿到它的 value 给 Agent，再作为 `manual_jwt` 传给 `maker_exchange_jwt`。
+- MCP 会把 JWT 保存到用户级本地文件 `~/.taptap-maker/jwt.json`；也兼容 `JWT` / `MAKER_JWT` 环境变量。
+- Maker app 必须先通过 `maker_list_apps` 展示给用户选择，再调用 clone。
+- Maker 后端地址按 `TAPTAP_MCP_ENV` 从 `src/maker/config.ts` 的环境配置表读取，本地 MCP 配置只需要切 `rnd` / `production`。
+- 如果用户直接说“构建 / build / 重新构建游戏”，本地 Maker MCP 应调用 `maker_build_current_directory` 转发到远端 `build` tool。
+- 如需在当前游戏项目里直接暴露远端全量 `taptap-proxy` tools，再使用 `maker_configure_remote_proxy` 写入 `.mcp.json` 并重启 MCP 会话。
+- 用户说“帮我提交/提交代码”时使用 `maker_submit_current_directory`，会对当前 Maker 项目执行 commit + push。
+- “帮我提交代码到maker / taptap制造 / tap制造 / tap”也应触发 `maker_submit_current_directory`。
+- Maker 项目提交不走通用 Git skill 的任务号、新分支规则；冲突时先和用户确认 pull/rebase 流程。
+- 如果 commit 已完成但 push 失败，Maker MCP 会返回 commit hash、ahead 状态、exit code、stderr/stdout 和下一步建议，便于开发期排查。
+
+Git 引导：
+
+- macOS：用户自行执行 `git --version`，按系统提示安装 Xcode Command Line Tools，或访问 `https://git-scm.com/download/mac` 下载安装器。
+- Windows：用户自行访问 `https://git-scm.com/download/win` 安装 Git for Windows，并确保安装选项允许命令行和第三方工具通过 PATH 找到 Git。
+- 安装后需要重启 MCP 客户端或终端，再用 `git --version` 验证。
+
+详见：[TapTap Maker 本地 MCP](docs/MAKER.md)
+
 ## 🧩 Codex Skills（运营简报）
 
 本仓库内置一个面向运营/工作室的 Codex Skill：`taptap-dc-ops-brief`，用于把“当前游戏 DC 数据”整理成 30 秒可读的结论简报，并在你确认后执行评价点赞/官方回复等动作。
@@ -272,6 +320,32 @@ npm run build
 # 运行测试
 npm test
 ```
+
+### Maker 本地 MCP 开发预览
+
+Issue #162 引入了 Maker 本地 MCP，用于后续支持 Maker 登录、项目 onboard、代码拉取/推送和云端 SCE MCP 转发。当前开发测试应以 MCP tools 为准：
+
+```text
+maker_status
+maker_check_environment
+maker_exchange_jwt
+maker_list_apps
+maker_clone_to_current_directory
+maker_push_current_directory
+```
+
+`maker_check_environment` 只做检测和引导，不安装 Git。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过 `git --version` 验证。
+
+在 Maker JWT exchange 接口完整接入前，测试时引导用户从 Maker 网页 Local storage
+复制 `taptap_access_token`，作为 `manual_jwt` 传给 `maker_exchange_jwt`。APP_ID
+应通过 `maker_list_apps` 返回的列表让用户选择，再传给 clone 工具。
+
+```bash
+npm run build
+npx @modelcontextprotocol/inspector node dist/maker.js
+```
+
+详细说明见 [docs/MAKER.md](docs/MAKER.md)。
 
 ### 环境变量
 
