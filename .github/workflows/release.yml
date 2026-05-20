@@ -7,7 +7,6 @@ on:
   push:
     branches:
       - main
-      - beta
       - alpha
   workflow_dispatch:
 

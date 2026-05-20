@@ -152,10 +152,11 @@ curl http://localhost:5002/health  # RND
 
 - `get_leaderboard_integration_guide` - 排行榜完整接入工作流指引
 
-#### 信息查询 (2)
+#### 信息查询 (3)
 
 - `get_current_app_info` - 获取当前应用信息
 - `check_environment` - 检查环境配置
+- `get_environment_switch_guide` - 获取 production/RND 环境切换配置指引
 
 #### 认证 (3)
 
@@ -302,6 +303,13 @@ npm test
 - `TAPTAP_MCP_LOG_MAX_DAYS` - 日志保留天数（默认 7）
 
 详细说明请参考 [docs/LOG_SYSTEM.md](docs/LOG_SYSTEM.md)
+
+### 环境切换帮助
+
+如果需要在 AI 对话中切换测试环境，可以让 AI 调用
+`get_environment_switch_guide` 查看配置示例，再更新 MCP 客户端配置中的 `env` 字段。
+RND 环境需要显式配置 `TAPTAP_MCP_CLIENT_ID` 和 `TAPTAP_MCP_CLIENT_SECRET`，
+production 通常使用内置 native signer，无需额外配置。
 
 ### 添加新功能
 
