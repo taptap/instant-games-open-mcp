@@ -5,9 +5,20 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { getStringFlag } from './common.js';
 
-function getLocalCommand(): { command: string; args: string[] } {
+export interface CommandSpec {
+  command: string;
+  args: string[];
+}
+
+export interface ClaudeInstallInvocation {
+  command: string;
+  args: string[];
+}
+
+function getLocalCommand(): CommandSpec {
   const localDist = path.resolve(process.cwd(), 'dist', 'maker.js');
   if (fs.existsSync(localDist)) {
     return {
@@ -37,9 +48,7 @@ export async function runInstall(flags: Record<string, string | boolean>): Promi
   }
 
   if (ide === 'claude' || ide === 'all') {
-    process.stdout.write(
-      'Claude Code install is not automated yet. Use `claude mcp add` with taptap-maker.\n'
-    );
+    installClaude(flags);
   }
 }
 
@@ -83,4 +92,116 @@ function installCursor(): void {
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
   process.stdout.write(`✓ Wrote Cursor MCP config: ${configPath}\n`);
   process.stdout.write('Please restart Cursor to load the MCP server.\n');
+}
+
+function installClaude(flags: Record<string, string | boolean>): void {
+  const invocation = createClaudeMcpAddInvocation({
+    projectRoot: process.cwd(),
+    server: getLocalCommand(),
+    scope: getStringFlag(flags, 'scope') || 'local',
+  });
+
+  if (flags['dry-run'] === true) {
+    process.stdout.write(`${formatShellCommand(invocation.command, invocation.args)}\n`);
+    return;
+  }
+
+  const result = spawnSync(invocation.command, invocation.args, {
+    encoding: 'utf8',
+  });
+
+  if (result.error) {
+    throw new Error(
+      [
+        'Claude Code CLI not found or failed to start.',
+        'Install Claude Code CLI first, or run the printed command manually after installing it.',
+        `command: ${formatShellCommand(invocation.command, invocation.args)}`,
+        `error: ${result.error.message}`,
+      ].join('\n')
+    );
+  }
+
+  if (result.status !== 0) {
+    throw new Error(
+      [
+        'Claude Code MCP install failed.',
+        `command: ${formatShellCommand(invocation.command, invocation.args)}`,
+        result.stdout ? `stdout:\n${result.stdout.trim()}` : '',
+        result.stderr ? `stderr:\n${result.stderr.trim()}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
+
+  if (result.stdout) {
+    process.stdout.write(result.stdout);
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+  }
+  process.stdout.write('✓ Added taptap-maker to Claude Code MCP config.\n');
+  process.stdout.write('Please restart or reload Claude Code to load the MCP server.\n');
+}
+
+export function createClaudeMcpAddInvocation(options: {
+  projectRoot: string;
+  server: CommandSpec;
+  scope?: string;
+}): ClaudeInstallInvocation {
+  const scope = options.scope || 'local';
+  if (!['local', 'user', 'project'].includes(scope)) {
+    throw new Error('Claude Code scope must be one of: local, user, project');
+  }
+
+  const wrapped = createCwdWrappedCommand(options.projectRoot, options.server);
+  return {
+    command: process.platform === 'win32' ? 'claude.cmd' : 'claude',
+    args: ['mcp', 'add', '--scope', scope, 'taptap-maker', '--', wrapped.command, ...wrapped.args],
+  };
+}
+
+export function createCwdWrappedCommand(projectRoot: string, server: CommandSpec): CommandSpec {
+  const cwd = path.resolve(projectRoot);
+  if (process.platform === 'win32') {
+    return {
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', `cd /d "${escapeCmd(cwd)}" && ${formatCmdCommand(server)}`],
+    };
+  }
+
+  return {
+    command: '/bin/sh',
+    args: [
+      '-lc',
+      'cd "$1" && shift && exec "$@"',
+      'taptap-maker-cwd',
+      cwd,
+      server.command,
+      ...server.args,
+    ],
+  };
+}
+
+function formatShellCommand(command: string, args: string[]): string {
+  return [command, ...args].map(quoteShellArg).join(' ');
+}
+
+function quoteShellArg(value: string): string {
+  if (/^[A-Za-z0-9_./:=@+-]+$/.test(value)) {
+    return value;
+  }
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function formatCmdCommand(server: CommandSpec): string {
+  return [server.command, ...server.args].map(quoteCmdArg).join(' ');
+}
+
+function quoteCmdArg(value: string): string {
+  return `"${escapeCmd(value)}"`;
+}
+
+function escapeCmd(value: string): string {
+  return value.replace(/"/g, '\\"');
 }
