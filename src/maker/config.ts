@@ -11,11 +11,15 @@ export interface MakerEndpoints {
   patUrl?: string;
   gitBase?: string;
   remoteMcpServerUrl?: string;
+  webUrl?: string;
 }
 
 const MAKER_ENDPOINTS: Record<MakerEnvironment, MakerEndpoints> = {
-  production: {},
+  production: {
+    webUrl: 'https://maker.taptap.cn',
+  },
   rnd: {
+    webUrl: 'https://fuping.agnt.xd.com',
     apiBase: 'https://fuping.agnt.xd.com/api/v1',
     patUrl: 'https://fuping.agnt.xd.com/api/v1/user/pat-tokens',
     gitBase: 'https://fuping.agnt.xd.com/git',
@@ -40,6 +44,10 @@ export const MAKER_ENV_OVERRIDES = {
     current: 'TAPTAP_MAKER_REMOTE_MCP_SERVER_URL',
     legacy: 'TAPTAP_REMOTE_MCP_SERVER_URL',
   },
+  webUrl: {
+    current: 'TAPTAP_MAKER_WEB_URL',
+    legacy: 'MAKER_WEB_URL',
+  },
 } as const;
 
 export function getMakerEnvironment(environment?: 'production' | 'rnd'): MakerEnvironment {
@@ -55,7 +63,13 @@ export function getMakerEndpoints(environment?: 'production' | 'rnd'): MakerEndp
     gitBase: getOverride(MAKER_ENV_OVERRIDES.gitBase) || endpoints.gitBase,
     remoteMcpServerUrl:
       getOverride(MAKER_ENV_OVERRIDES.remoteMcpServerUrl) || endpoints.remoteMcpServerUrl,
+    webUrl: getOverride(MAKER_ENV_OVERRIDES.webUrl) || endpoints.webUrl,
   };
+}
+
+export function getMakerWebUrl(environment?: 'production' | 'rnd'): string {
+  const endpoints = getMakerEndpoints(environment);
+  return requireMakerEndpoint('webUrl', endpoints.webUrl, environment).replace(/\/$/, '');
 }
 
 export function requireMakerEndpoint(

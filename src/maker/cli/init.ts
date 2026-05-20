@@ -4,6 +4,7 @@
 
 import path from 'node:path';
 import { saveProjectConfig } from '../storage.js';
+import { getMakerWebUrl } from '../config.js';
 import { getStringFlag } from './common.js';
 import { runInstall } from './install.js';
 import { runLogin } from './login.js';
@@ -45,12 +46,18 @@ export async function runInit(flags: Record<string, string | boolean>): Promise<
     return;
   }
 
+  const makerWebUrl = getMakerWebUrl();
   process.stdout.write(
     [
       'taptap-maker init is ready, but Maker API endpoints are not fully configured.',
       '',
-      'Agent-friendly stages:',
-      '  taptap-maker init --stage=login --jwt <jwt>',
+      'Current JWT flow:',
+      `  1. Open ${makerWebUrl} in Chrome and sign in.`,
+      '  2. Open DevTools -> Application -> Local storage.',
+      '  3. Find `taptap_access_token` and give me its value.',
+      '  4. Run taptap-maker login --jwt <taptap_access_token>',
+      '',
+      'Agent-friendly stages after JWT is saved:',
       '  taptap-maker projects list --json',
       '  taptap-maker init --stage=clone --app-id <id> --target . --jwt <jwt>',
       '',

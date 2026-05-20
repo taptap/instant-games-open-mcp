@@ -5,6 +5,7 @@
 import type { MacToken } from '../../core/types/index.js';
 import type { MakerJwt, MakerTapAuth } from '../types.js';
 import { loadJwt, loadTapAuth, saveJwt } from '../storage.js';
+import { getMakerWebUrl } from '../config.js';
 
 const JWT_EXCHANGE_ENV = 'MAKER_JWT_EXCHANGE_URL';
 const MAKER_JWT_ENV = 'MAKER_JWT';
@@ -67,6 +68,19 @@ export function getUserIdFromMakerJwt(jwt: MakerJwt): string | undefined {
 
 export function getMakerJwtExchangeUrl(): string | undefined {
   return process.env[JWT_EXCHANGE_ENV];
+}
+
+export function formatBrowserJwtGuide(): string {
+  const makerWebUrl = getMakerWebUrl();
+  return [
+    '请让用户从 Maker 网页复制当前 JWT：',
+    `1. 在 Chrome 打开 ${makerWebUrl} 并确认已登录。`,
+    '2. 打开开发者工具，进入 Application -> Local storage。',
+    '3. 找到 `taptap_access_token` 并拿到它的 value 给我。',
+    '拿到 value 后，MCP 会将它作为 `manual_jwt` 传给 maker_exchange_jwt。',
+    '',
+    `MCP 会把 JWT 保存到本地 ${process.env.TAPTAP_MAKER_HOME || '~/.taptap-maker'}/jwt.json。`,
+  ].join('\n');
 }
 
 export function getManualMakerJwt(manualJwt?: string): MakerJwt | null {
@@ -151,7 +165,11 @@ export async function exchangeSavedTapAuthForMakerJwt(options?: {
 
   if (!exchangeUrl) {
     throw new Error(
-      `${JWT_EXCHANGE_ENV} is not configured. Provide manual_jwt for now, or save JWT before calling maker_exchange_jwt.`
+      [
+        `${JWT_EXCHANGE_ENV} is not configured. Provide manual_jwt for now.`,
+        '',
+        formatBrowserJwtGuide(),
+      ].join('\n')
     );
   }
 
@@ -163,7 +181,7 @@ export async function exchangeSavedTapAuthForMakerJwt(options?: {
 export function requireMakerJwt(manualJwt?: string): MakerJwt {
   const jwt = getManualMakerJwt(manualJwt) || loadJwt();
   if (!jwt) {
-    throw new Error('Maker JWT not found. Run `taptap-maker login --jwt <jwt>` or set JWT.');
+    throw new Error(['Maker JWT not found.', '', formatBrowserJwtGuide()].join('\n'));
   }
   return jwt;
 }

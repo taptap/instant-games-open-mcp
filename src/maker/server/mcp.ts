@@ -26,9 +26,15 @@ import {
 } from '../storage.js';
 import { cloneMakerProject, listMakerProjects, pushMakerProject } from '../cli/projects.js';
 import { startTapDeviceLogin, completeTapDeviceLogin } from '../auth/oauth.js';
-import { getMakerEndpoints, getMakerEnvironment, requireMakerEndpoint } from '../config.js';
+import {
+  getMakerEndpoints,
+  getMakerEnvironment,
+  getMakerWebUrl,
+  requireMakerEndpoint,
+} from '../config.js';
 import {
   exchangeSavedTapAuthForMakerJwt,
+  formatBrowserJwtGuide,
   getMakerJwtExchangeUrl,
   getUserIdFromMakerJwt,
 } from '../auth/jwt.js';
@@ -43,12 +49,13 @@ const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : '
 const DEFAULT_PROXY_MCP_NAME = 'taptap-proxy';
 const DEFAULT_PROXY_PACKAGE = '@taptap/instant-games-open-mcp@1.22.0';
 const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
+const MAKER_WEB_URL = getMakerWebUrl();
 
 const tools = [
   {
     name: 'maker_tap_login_start',
     description:
-      'Start TapTap OAuth device login for Maker. Always keep this step in the Maker onboarding workflow, even when a cached/manual Maker JWT exists, because the user is demonstrating the full MCP flow. Show the returned auth_url and wait for the user to say they have authorized.',
+      'Legacy compatibility path: start TapTap OAuth device login for Maker. Do not use this as the default onboarding path. Prefer asking the user to copy `taptap_access_token` from Chrome DevTools Application > Local storage and pass it to maker_exchange_jwt as manual_jwt.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -57,7 +64,7 @@ const tools = [
   {
     name: 'maker_tap_login_complete',
     description:
-      'Complete TapTap OAuth device login after the user says authorization is done. Saves Tap MAC auth locally for the Maker JWT exchange step.',
+      'Legacy compatibility path: complete TapTap OAuth device login after the user says authorization is done. Saves Tap MAC auth locally for the old Maker JWT exchange step.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -76,15 +83,13 @@ const tools = [
   },
   {
     name: 'maker_exchange_jwt',
-    description:
-      'Exchange saved Tap auth for a Maker JWT. This step must stay in the workflow even while the remote exchange API is not ready; current implementation may use cached/manual Maker JWT as a temporary backend detail.',
+    description: `Prepare and save the Maker JWT. Default flow: ask the user to open ${MAKER_WEB_URL}, open Chrome DevTools > Application > Local storage, find \`taptap_access_token\`, give its value to the agent, and pass it as manual_jwt. OAuth exchange is retained only as a legacy compatibility path.`,
     inputSchema: {
       type: 'object',
       properties: {
         manual_jwt: {
           type: 'string',
-          description:
-            'Temporary Maker JWT fallback until the remote Tap-auth-to-Maker-JWT API is ready.',
+          description: `Maker JWT copied from Chrome DevTools Application > Local storage key \`taptap_access_token\` on ${MAKER_WEB_URL}.`,
         },
       },
     },
@@ -106,7 +111,7 @@ const tools = [
   {
     name: 'maker_status',
     description:
-      'Show local Maker MCP binding status, including whether Git is available. If Git is missing, do not call clone/push/build-side git operations; keep showing the install guidance until the user installs Git and git --version works. If no project is bound, guide the agent through the full workflow: maker_tap_login_start, wait for user authorization, maker_tap_login_complete, maker_exchange_jwt, maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory. Do not skip login because JWT is cached.',
+      'Show local Maker MCP binding status, including whether Git is available. If Git is missing, do not call clone/push/build-side git operations; keep showing the install guidance until the user installs Git and git --version works. If no project is bound, guide the agent through the current JWT flow: ask the user to copy `taptap_access_token` from Chrome DevTools Application > Local storage, call maker_exchange_jwt with manual_jwt, call maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -123,8 +128,7 @@ const tools = [
   },
   {
     name: 'maker_setup_guide',
-    description:
-      'Show setup guidance when the current directory is not bound to a Maker project yet. In Codex/MCP mode, first make sure Git is installed by checking maker_status or maker_check_environment. If Git is missing, keep showing the install guidance and do not clone. After Git is available, keep the full flow: maker_tap_login_start, user says authorized, maker_tap_login_complete, maker_exchange_jwt, maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory. Do not ask for app_id upfront and do not run shell CLI commands.',
+    description: `Show setup guidance when the current directory is not bound to a Maker project yet. In Codex/MCP mode, first make sure Git is installed by checking maker_status or maker_check_environment. If Git is missing, keep showing the install guidance and do not clone. After Git is available, ask the user to open ${MAKER_WEB_URL}, open Chrome DevTools > Application > Local storage, find \`taptap_access_token\`, give its value to the agent, call maker_exchange_jwt with manual_jwt, call maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory. Do not ask for app_id upfront and do not run shell CLI commands.`,
     inputSchema: {
       type: 'object',
       properties: {},
@@ -416,6 +420,21 @@ export async function startMakerMcpServer(): Promise<void> {
         const args = (request.params.arguments || {}) as {
           manual_jwt?: string;
         };
+        if (!args.manual_jwt && !loadJwt() && !getMakerJwtExchangeUrl()) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: 'text',
+                text: [
+                  'Maker JWT is required before listing apps or cloning projects.',
+                  '',
+                  formatBrowserJwtGuide(),
+                ].join('\n'),
+              },
+            ],
+          };
+        }
         const jwt = await exchangeSavedTapAuthForMakerJwt({
           manualJwt: args.manual_jwt,
         });

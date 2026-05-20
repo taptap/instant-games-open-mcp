@@ -60,7 +60,7 @@ function printHelp(): void {
       'Usage:',
       '  taptap-maker                         Start MCP server mode',
       '  taptap-maker init [options]          Login/onboard/bind a Maker project',
-      '  taptap-maker login [--jwt <jwt>]     Save manual JWT or run Tap OAuth exchange',
+      '  taptap-maker login --jwt <jwt>       Save JWT copied from Maker web localStorage',
       '  taptap-maker logout                  Clear local Maker JWT/PAT',
       '  taptap-maker status [--json]         Show local Maker state',
       '  taptap-maker projects list [--json]  List Maker projects',

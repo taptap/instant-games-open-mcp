@@ -239,6 +239,7 @@ export async function cloneMakerProject(
 ): Promise<CloneMakerProjectResult> {
   ensureGitAvailable();
   const target = path.resolve(options.targetDir);
+  ensureTargetCanBindApp(target, options.appId);
   let pat = await requestMakerPat({
     jwt: options.jwt,
     name: options.patName || 'first-pat',
@@ -422,6 +423,22 @@ export async function pushMakerProject(
   };
 }
 
+function ensureTargetCanBindApp(target: string, appId: string): void {
+  const existingConfig = loadProjectConfig(target);
+  if (!existingConfig?.project_id || existingConfig.project_id === appId) {
+    return;
+  }
+
+  throw new Error(
+    [
+      `${target} is already bound to Maker project ${existingConfig.project_id}.`,
+      `You are trying to clone Maker project ${appId} into the same directory.`,
+      'A Maker workspace directory can only be bound to one project at a time.',
+      'Please switch to the directory for the existing project, or create/open a new empty directory for the new project.',
+    ].join('\n')
+  );
+}
+
 function generateCommitMessage(status: string): string {
   const files = status
     .split('\n')
@@ -529,7 +546,7 @@ function nextActionForFailure(classification: MakerGitFailure['classification'])
     case 'git_missing':
       return '本机未检测到可用的 Git。请用户自行安装 Git，并在 `git --version` 可用后重启 MCP 客户端再重试；安装前不要执行 clone、fetch、commit 或 push。';
     case 'auth':
-      return '刷新 Maker PAT/JWT 后重试 maker_push_current_directory；如果仍失败，重新走 Tap 登录和 maker_exchange_jwt。';
+      return '刷新 Maker PAT/JWT 后重试 maker_push_current_directory；如果仍失败，让用户从 Maker 网页 Local storage 重新复制 `taptap_access_token`，再调用 maker_exchange_jwt。';
     case 'remote_transient':
       return '远端 Maker git 服务临时不可用。不要重新提交，稍后直接重试 maker_push_current_directory。';
     case 'remote_rejected':

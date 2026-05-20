@@ -41,11 +41,8 @@ npx @modelcontextprotocol/inspector node dist/maker.js
 ```text
 maker_status
 maker_check_environment
-maker_tap_login_start
-用户扫码/打开链接授权
-用户输入“已授权”
-maker_tap_login_complete
-maker_exchange_jwt
+用户在 Chrome DevTools 的 Local storage 复制 taptap_access_token
+maker_exchange_jwt(manual_jwt)
 maker_list_apps
 用户选择 app
 maker_clone_to_current_directory
@@ -55,15 +52,44 @@ maker_status
 工具说明：
 
 - `maker_check_environment`：检查本机前置条件，当前重点是 Git 是否可用。该工具只输出状态和安装引导，不执行安装。
-- `maker_tap_login_start`：申请 TapTap device code，返回授权链接。
-- `maker_tap_login_complete`：用户扫码后轮询 Tap token，保存 MAC 认证数据。
-- `maker_exchange_jwt`：用 Tap 认证换 Maker JWT；接口未 ready 时内部可读取缓存或 `manual_jwt`，但流程上不能跳过这一步。
+- `maker_exchange_jwt`：当前默认接收用户从 Maker 网页 Local storage 复制的 `taptap_access_token`，以 `manual_jwt` 传入后保存到本地 `~/.taptap-maker/jwt.json`。
+- `maker_tap_login_start` / `maker_tap_login_complete`：旧 OAuth device flow 兼容路径，当前默认引导不再优先使用。
 - `maker_list_apps`：用 Maker JWT 拉取 app 列表，必须展示给用户选择。
 - `maker_clone_to_current_directory`：把选中的 Maker app 仓库拉到当前目录并写 `.maker-mcp/config.json`。如果本机没有 Git，工具会在申请 PAT 和改动文件前停止。
 - `maker_configure_remote_proxy`：按 server 测试脚本生成 `proxy_cfg`，写入当前项目 `.mcp.json`，连接远端 `taptap-proxy`。
 - `maker_build_current_directory`：用户说“构建 / build / 重新构建游戏”时使用，转发调用远端 `build` tool。
 - `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，提交并推送当前 Maker 项目。如果本机没有 Git，工具会在 stage/commit/push 前停止。
 - `maker_push_current_directory`：把当前目录改动 commit 并 push 到 Maker git。如果本机没有 Git，工具会在 stage/commit/push 前停止。
+
+## 当前 JWT 获取方式
+
+PAT-first 后端能力完成前，Maker 本地 MCP 继续使用 JWT。JWT 不要求用户手写或调用 OAuth，
+而是从 Maker 网页已登录态中复制：
+
+```text
+1. 在 Chrome 打开当前环境的 Maker 网页并确认已登录。
+   - production: https://maker.taptap.cn/
+   - rnd: https://fuping.agnt.xd.com
+2. 打开 DevTools -> Application -> Local storage。
+3. 找到 `taptap_access_token` 并拿到它的 value 给 Agent。
+
+Agent 拿到 value 后，把它作为 `maker_exchange_jwt` 的 `manual_jwt` 参数传入。
+```
+
+保存位置：
+
+```text
+~/.taptap-maker/jwt.json
+```
+
+也可以通过 CLI 保存：
+
+```bash
+taptap-maker login --jwt <taptap_access_token>
+```
+
+如果 JWT 过期或不可用，Agent 应提示用户回到 Maker 网页重新复制
+`taptap_access_token`，再调用 `maker_exchange_jwt(manual_jwt)` 更新本地缓存。
 
 ## Git 前置条件和引导边界
 
@@ -205,14 +231,17 @@ push
 | `TAPTAP_MAKER_PAT_URL`               | 可选：覆盖当前环境的 Maker PAT 换取接口           |
 | `TAPTAP_MAKER_GIT_BASE`              | 可选：覆盖当前环境的 Maker git base URL           |
 | `TAPTAP_MAKER_REMOTE_MCP_SERVER_URL` | 可选：覆盖当前环境的远端 Maker MCP server URL     |
+| `TAPTAP_MAKER_WEB_URL`               | 可选：覆盖当前环境的 Maker 网页地址               |
 | `TAPTAP_MAKER_GIT_BIN`               | 可选：覆盖 Git 可执行文件路径                     |
 | `SCE_MCP_URL`                        | 云端 SCE MCP endpoint 默认值                      |
 
-Maker 后端默认地址集中在 `src/maker/config.ts`。兼容旧变量名：`MAKER_API_BASE`、`MAKER_PAT_URL`、`MAKER_GIT_BASE`、`TAPTAP_REMOTE_MCP_SERVER_URL`。新配置优先使用 `TAPTAP_MAKER_*` 前缀。
+Maker 后端默认地址集中在 `src/maker/config.ts`。兼容旧变量名：`MAKER_API_BASE`、`MAKER_PAT_URL`、`MAKER_GIT_BASE`、`TAPTAP_REMOTE_MCP_SERVER_URL`、`MAKER_WEB_URL`。新配置优先使用 `TAPTAP_MAKER_*` 前缀。
 
 ## 手动 JWT 联调
 
-在 Maker JWT exchange 接口接入前，测试时可以预置 Maker JWT。即使 JWT 是预置的，演示流程仍应保留 Tap 登录和 `maker_exchange_jwt` 两步。APP_ID 不应要求用户手动输入，而是通过 `maker_list_apps` 返回的列表让用户选择。
+在 Maker JWT exchange 接口接入前，测试时可以预置 Maker JWT。当前推荐从 Maker 网页
+Local storage 复制 `taptap_access_token`，再通过 `maker_exchange_jwt(manual_jwt)` 保存。
+APP_ID 不应要求用户手动输入，而是通过 `maker_list_apps` 返回的列表让用户选择。
 
 推荐在 MCP 客户端中按工具流程测试：
 
@@ -253,7 +282,7 @@ maker_status()
 
 ## 当前边界
 
-- Tap OAuth 复用现有 `src/core/auth`。
-- Maker JWT exchange 未稳定时，`maker_exchange_jwt` 先支持缓存 JWT、`manual_jwt` 或 `JWT` / `MAKER_JWT` 环境变量。
+- Tap OAuth 复用现有 `src/core/auth`，但当前只作为兼容路径保留。
+- Maker JWT exchange 未稳定时，`maker_exchange_jwt` 优先支持用户从网页 Local storage 复制的 `manual_jwt`，也支持缓存 JWT、`JWT` / `MAKER_JWT` 环境变量。
 - `maker_push_current_directory` 会在当前目录创建 commit 并 push，调用前需要用户明确要求推送。
 - 云端 SCE MCP proxy 转发会在 JWT 和 endpoint 契约稳定后接入。
