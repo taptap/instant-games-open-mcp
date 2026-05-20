@@ -307,8 +307,8 @@ npx commitlint --from HEAD~1 --to HEAD
 
 **触发条件**：PR 合并到 `main` / `alpha` 分支后自动运行
 
-> `beta` 使用独立的 `.github/workflows/beta-release.yml`，避免内部预览发布创建
-> release PR 或影响 `main` 正式发版流程。
+> `beta` 使用同一个 `.github/workflows/release.yml` 中的独立 beta job，
+> 复用 npm Trusted Publishing 配置，但不会创建 release PR 或影响 `main` 正式发版流程。
 
 **执行步骤**：
 
@@ -330,7 +330,7 @@ npx commitlint --from HEAD~1 --to HEAD
 
 ### 5.3 Beta 发布工作流
 
-**文件**：`.github/workflows/beta-release.yml`
+**文件**：`.github/workflows/release.yml` 中的 `beta-release` job
 
 **触发条件**：推送到 `beta` 分支，或手动运行 workflow
 
@@ -348,6 +348,7 @@ npx commitlint --from HEAD~1 --to HEAD
 - 不修改 `main` 的正式 release workflow
 - 不创建 release PR
 - 不提交 `package.json` / `CHANGELOG.md`
+- 复用现有 release workflow 文件名，以匹配 npm Trusted Publishing 配置
 - beta 包发布到 public npm，必须视为对外发布产物
 - 内置 production native signer，确保 production 环境开箱即用
 - 不内置 RND 凭证，RND 测试通过 MCP 配置的 `env` 注入
