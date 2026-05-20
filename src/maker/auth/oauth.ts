@@ -10,9 +10,12 @@ import { exchangeTapTokenForMakerJwt } from './jwt.js';
 import type { MakerTapAuth, MakerTapDeviceSession } from '../types.js';
 import { loadTapDeviceSession, saveTapAuth, saveTapDeviceSession } from '../storage.js';
 
-const DEFAULT_MAKER_CLIENT_ID = 'aznqn4vrze30loq6o8';
+declare const __MAKER_VERSION__: string | undefined;
+
+const BUILT_IN_MAKER_CLIENT_ID = 'aznqn4vrze30loq6o8';
 const MAKER_CLIENT_ID_ENV = 'TAPTAP_MAKER_CLIENT_ID';
 const TAPTAP_CLIENT_ID_ENV = 'TAPTAP_MCP_CLIENT_ID';
+const MAKER_VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
 
 export async function startTapDeviceLogin(): Promise<MakerTapDeviceSession> {
   ensureMakerClientId();
@@ -82,10 +85,36 @@ export async function loginWithTapDeviceFlow(): Promise<string> {
   return `✓ Logged in${jwt.user_name ? ` as ${jwt.user_name}` : ''}`;
 }
 
-function ensureMakerClientId(): void {
+export function resolveMakerClientIdFallback(options?: {
+  environment?: 'production' | 'rnd';
+  version?: string;
+  makerClientId?: string;
+}): string | undefined {
+  const explicitMakerClientId = options?.makerClientId || process.env[MAKER_CLIENT_ID_ENV];
+  if (explicitMakerClientId) {
+    return explicitMakerClientId;
+  }
+
+  const environment = options?.environment || EnvConfig.environment;
+  const version = options?.version || MAKER_VERSION;
+  if (environment === 'rnd' || isBetaMakerPackage(version)) {
+    return BUILT_IN_MAKER_CLIENT_ID;
+  }
+
+  return undefined;
+}
+
+export function ensureMakerClientId(): void {
   if (process.env[TAPTAP_CLIENT_ID_ENV]) {
     return;
   }
 
-  process.env[TAPTAP_CLIENT_ID_ENV] = process.env[MAKER_CLIENT_ID_ENV] || DEFAULT_MAKER_CLIENT_ID;
+  const makerClientId = resolveMakerClientIdFallback();
+  if (makerClientId) {
+    process.env[TAPTAP_CLIENT_ID_ENV] = makerClientId;
+  }
+}
+
+function isBetaMakerPackage(version: string): boolean {
+  return /-beta(?:\.|$)/.test(version);
 }

@@ -74,6 +74,16 @@ PAT-first 后端能力完成前，Maker 本地 MCP 需要准备两类授权：
 - Tap token：通过 `maker_tap_login_start` / `maker_tap_login_complete` 获取，供远端 Maker MCP tools 使用。
 - Maker JWT：从 Maker 网页已登录态中复制，供 Maker API、项目列表和 Git PAT 流程使用。
 
+Maker Tap 登录只需要 `client_id` 发起 device code flow，不需要 `CLIENT_SECRET` 参与
+`X-Tap-Sign`。默认情况下：
+
+- 如果显式配置了 `TAPTAP_MCP_CLIENT_ID`，直接使用它。
+- 如果配置了 `TAPTAP_MAKER_CLIENT_ID`，Maker 登录会把它作为 Maker 专用 client id。
+- 如果没有配置 client id，且当前是 `TAPTAP_MCP_ENV=rnd` 或 npm `@beta` 包，
+  Maker MCP 使用内置 Maker client id 兜底，方便内部 RND/beta 测试。
+- 稳定 production 包在 production 环境下不使用内置 Maker client id 兜底，会继续走
+  production native signer 或显式环境变量。
+
 JWT 获取步骤：
 
 ```text
@@ -237,6 +247,7 @@ push
 | `MAKER_PROJECT_ID`                   | MCP server 项目识别的环境变量覆盖                 |
 | `MAKER_JWT_EXCHANGE_URL`             | Tap OAuth token 换 Maker JWT 的接口               |
 | `TAPTAP_MCP_ENV`                     | Maker 环境选择，`production` 或 `rnd`             |
+| `TAPTAP_MAKER_CLIENT_ID`             | 可选：覆盖 Maker Tap 登录专用 client id           |
 | `TAPTAP_MAKER_API_BASE`              | 可选：覆盖当前环境的 Maker 项目列表接口 base URL  |
 | `TAPTAP_MAKER_PAT_URL`               | 可选：覆盖当前环境的 Maker PAT 换取接口           |
 | `TAPTAP_MAKER_GIT_BASE`              | 可选：覆盖当前环境的 Maker git base URL           |
