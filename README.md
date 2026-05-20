@@ -72,6 +72,7 @@ maker_push_current_directory
 - Maker MCP 依赖用户本机已有 Git。工具只检测并给出安装引导，不会代替用户安装 Git。
 - 如果 `maker_status` 或 `maker_check_environment` 显示 Git 缺失，必须持续提示用户自行安装 Git；在 `git --version` 可用前，不执行 clone、fetch、commit 或 push。
 - Tap 登录仍保留在默认初始化流程中，远端 Maker MCP tools 需要 Tap token 认证；`maker_list_apps` 和 `maker_clone_to_current_directory` 会在缺少 Tap auth 时停止并要求先登录。
+- Maker Tap 登录只需要 client id；`rnd` 环境或 npm `@beta` 包会使用内置 Maker client id 兜底，不要求产品配置 `TAPTAP_MCP_CLIENT_SECRET`。
 - 当前 JWT 过渡方案：引导用户在 Chrome 打开当前环境的 Maker 网页（production 为 `https://maker.taptap.cn/`，rnd 为 `https://fuping.agnt.xd.com`），进入 DevTools -> Application -> Local storage，找到 `taptap_access_token` 并拿到它的 value 给 Agent，再作为 `manual_jwt` 传给 `maker_exchange_jwt`。
 - MCP 会把 JWT 保存到用户级本地文件 `~/.taptap-maker/jwt.json`；也兼容 `JWT` / `MAKER_JWT` 环境变量。
 - Maker app 必须先通过 `maker_list_apps` 展示给用户选择，再调用 clone。
