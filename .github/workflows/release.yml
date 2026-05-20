@@ -670,8 +670,48 @@ jobs:
       - name: Check code formatting
         run: npm run format:check
 
+      - name: Resolve beta package version
+        id: beta_version
+        run: |
+          CURRENT_VERSION="${{ needs.analyze.outputs.version }}"
+
+          if ! npm view "@taptap/instant-games-open-mcp@${CURRENT_VERSION}" version >/dev/null 2>&1; then
+            echo "version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "semantic_version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "Using semantic-release beta version: ${CURRENT_VERSION}"
+            exit 0
+          fi
+
+          BASE_VERSION="${CURRENT_VERSION%%-beta.*}"
+          if [ "$BASE_VERSION" = "$CURRENT_VERSION" ]; then
+            echo "Expected beta prerelease version, got: ${CURRENT_VERSION}"
+            exit 1
+          fi
+
+          VERSIONS_JSON="$(npm view "@taptap/instant-games-open-mcp" versions --json)"
+          RESOLVED_VERSION="$(
+            BASE_VERSION="$BASE_VERSION" VERSIONS_JSON="$VERSIONS_JSON" node -e '
+              const versions = JSON.parse(process.env.VERSIONS_JSON || "[]");
+              const base = process.env.BASE_VERSION;
+              const escapedBase = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const pattern = new RegExp(`^${escapedBase}-beta\\.(\\d+)$`);
+              let max = 0;
+              for (const version of versions) {
+                const match = pattern.exec(version);
+                if (match) {
+                  max = Math.max(max, Number(match[1]));
+                }
+              }
+              console.log(`${base}-beta.${max + 1}`);
+            '
+          )"
+
+          echo "version=${RESOLVED_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "semantic_version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "semantic-release proposed ${CURRENT_VERSION}, already exists; using ${RESOLVED_VERSION}"
+
       - name: Set beta package version
-        run: npm version "${{ needs.analyze.outputs.version }}" --no-git-tag-version
+        run: npm version "${{ steps.beta_version.outputs.version }}" --no-git-tag-version
 
       - name: Build package
         run: npm run build
@@ -704,20 +744,20 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          VERSION="${{ needs.analyze.outputs.version }}"
+          VERSION="${{ steps.beta_version.outputs.version }}"
           TARBALL="${{ steps.pack.outputs.tarball }}"
 
           if npm view "@taptap/instant-games-open-mcp@${VERSION}" version >/dev/null 2>&1; then
-            echo "Version ${VERSION} already exists on npm, ensuring beta dist-tag"
-            npm dist-tag add "@taptap/instant-games-open-mcp@${VERSION}" beta
-          else
-            npm publish "$TARBALL" --access public --tag beta --provenance 2>/dev/null \
-              || npm publish "$TARBALL" --access public --tag beta
+            echo "Resolved beta version ${VERSION} already exists on npm"
+            exit 1
           fi
+
+          npm publish "$TARBALL" --access public --tag beta --provenance 2>/dev/null \
+            || npm publish "$TARBALL" --access public --tag beta
 
       - name: Create prerelease tag
         run: |
-          VERSION="${{ needs.analyze.outputs.version }}"
+          VERSION="${{ steps.beta_version.outputs.version }}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -733,7 +773,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ needs.analyze.outputs.version }}"
+          VERSION="${{ steps.beta_version.outputs.version }}"
           TARBALL="${{ steps.pack.outputs.tarball }}"
 
           if gh release view "v${VERSION}" >/dev/null 2>&1; then
@@ -749,13 +789,15 @@ jobs:
 
       - name: Beta release summary
         run: |
-          VERSION="${{ needs.analyze.outputs.version }}"
+          VERSION="${{ steps.beta_version.outputs.version }}"
+          SEMANTIC_VERSION="${{ steps.beta_version.outputs.semantic_version }}"
           NATIVE_CHANGED="${{ needs.analyze.outputs.native_changed }}"
           HAS_ASSETS="${{ needs.analyze.outputs.has_native_assets }}"
 
           echo "## Beta Release Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- Version: ${VERSION}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Semantic-release version: ${SEMANTIC_VERSION}" >> "$GITHUB_STEP_SUMMARY"
           echo "- npm dist-tag: beta" >> "$GITHUB_STEP_SUMMARY"
           echo "- Native changed: ${NATIVE_CHANGED}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Reused native assets: ${HAS_ASSETS}" >> "$GITHUB_STEP_SUMMARY"
