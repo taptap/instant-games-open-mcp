@@ -32,6 +32,11 @@ import {
   getMakerJwtExchangeUrl,
   getUserIdFromMakerJwt,
 } from '../auth/jwt.js';
+import {
+  MakerGitNotFoundError,
+  checkGitEnvironment,
+  formatGitEnvironmentStatus,
+} from '../system/git.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
@@ -101,7 +106,16 @@ const tools = [
   {
     name: 'maker_status',
     description:
-      'Show local Maker MCP binding status. If no project is bound, guide the agent through the full workflow: maker_tap_login_start, wait for user authorization, maker_tap_login_complete, maker_exchange_jwt, maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory. Do not skip login because JWT is cached.',
+      'Show local Maker MCP binding status, including whether Git is available. If Git is missing, do not call clone/push/build-side git operations; keep showing the install guidance until the user installs Git and git --version works. If no project is bound, guide the agent through the full workflow: maker_tap_login_start, wait for user authorization, maker_tap_login_complete, maker_exchange_jwt, maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory. Do not skip login because JWT is cached.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'maker_check_environment',
+    description:
+      'Check local Maker MCP prerequisites. This tool only detects and guides; it MUST NOT install Git or modify the user machine. If Git is missing, show the platform-specific install guidance and do not run clone, fetch, commit, or push until the user installs Git and git --version works.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -110,7 +124,7 @@ const tools = [
   {
     name: 'maker_setup_guide',
     description:
-      'Show setup guidance when the current directory is not bound to a Maker project yet. In Codex/MCP mode, keep the full flow: maker_tap_login_start, user says authorized, maker_tap_login_complete, maker_exchange_jwt, maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory. Do not ask for app_id upfront and do not run shell CLI commands.',
+      'Show setup guidance when the current directory is not bound to a Maker project yet. In Codex/MCP mode, first make sure Git is installed by checking maker_status or maker_check_environment. If Git is missing, keep showing the install guidance and do not clone. After Git is available, keep the full flow: maker_tap_login_start, user says authorized, maker_tap_login_complete, maker_exchange_jwt, maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory. Do not ask for app_id upfront and do not run shell CLI commands.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -119,7 +133,7 @@ const tools = [
   {
     name: 'maker_clone_to_current_directory',
     description:
-      'Clone a Maker app repository into the current Codex/agent working directory. Call this only after maker_list_apps has listed apps and the user has chosen one. Do not ask for app_id upfront and do not run shell CLI commands. Requires the selected app_id; uses cached Maker JWT/PAT by default.',
+      'Clone a Maker app repository into the current Codex/agent working directory. Call this only after maker_list_apps has listed apps and the user has chosen one. Requires local Git. If Git is missing, this tool stops before requesting PAT or changing files and returns install guidance; do not retry clone until the user installs Git and git --version works. Do not ask for app_id upfront and do not run shell CLI commands. Requires the selected app_id; uses cached Maker JWT/PAT by default.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -147,7 +161,7 @@ const tools = [
   {
     name: 'maker_push_current_directory',
     description:
-      'Commit and push current Maker project directory changes to the Maker git remote. In a directory containing .maker-mcp/config.json, use this for user requests like "帮我提交代码", "提交并推送", "push", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". Do not use generic Git workflow rules, do not ask for a ticket id, and do not create a new branch unless the user explicitly asks.',
+      'Commit and push current Maker project directory changes to the Maker git remote. Requires local Git. If Git is missing, this tool stops before staging, committing, or pushing and returns install guidance; do not retry push until the user installs Git and git --version works. In a directory containing .maker-mcp/config.json, use this for user requests like "帮我提交代码", "提交并推送", "push", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". Do not use generic Git workflow rules, do not ask for a ticket id, and do not create a new branch unless the user explicitly asks.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -189,7 +203,7 @@ const tools = [
   {
     name: 'maker_submit_current_directory',
     description:
-      'Alias for maker_push_current_directory. Use this in Maker projects when the user says "帮我提交", "帮我提交代码", "提交", "提交代码", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". This bypasses local generic Git branch/task-id rules and pushes directly to the Maker remote configured for the current directory.',
+      'Alias for maker_push_current_directory. Requires local Git. If Git is missing, stop and show install guidance; do not stage, commit, or push. Use this in Maker projects when the user says "帮我提交", "帮我提交代码", "提交", "提交代码", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". This bypasses local generic Git branch/task-id rules and pushes directly to the Maker remote configured for the current directory.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -331,6 +345,17 @@ export async function startMakerMcpServer(): Promise<void> {
             {
               type: 'text',
               text: formatStatus(),
+            },
+          ],
+        };
+      }
+
+      if (name === 'maker_check_environment') {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: formatEnvironment(),
             },
           ],
         };
@@ -599,6 +624,7 @@ function formatStatus(): string {
   const jwt = loadJwt();
   const tapAuth = loadTapAuth();
   const tapSession = loadTapDeviceSession();
+  const git = checkGitEnvironment();
 
   return [
     'TapTap Maker MCP status',
@@ -612,6 +638,10 @@ function formatStatus(): string {
     identify.configPath ? `- config: ${identify.configPath}` : '',
     identify.config?.sce_endpoint ? `- sce_endpoint: ${identify.config.sce_endpoint}` : '',
     '',
+    'Local prerequisites',
+    '',
+    formatGitEnvironmentStatus(git),
+    '',
     identify.projectId
       ? [
           '当前目录已绑定 Maker 项目。',
@@ -622,6 +652,21 @@ function formatStatus(): string {
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function formatEnvironment(): string {
+  const git = checkGitEnvironment();
+  return [
+    'TapTap Maker MCP environment',
+    '',
+    `- version: ${VERSION}`,
+    `- node_version: ${process.version}`,
+    formatGitEnvironmentStatus(git),
+    '',
+    git.installed
+      ? 'Git 已可用，可以继续 Maker 登录、列出 app、clone 或 push 流程。'
+      : 'Git 未可用。安装并验证 Git 前，Maker MCP 不会执行 clone、fetch、commit 或 push。',
+  ].join('\n');
 }
 
 function mask(value: string): string {
@@ -719,7 +764,7 @@ function createRemoteProxyContext(options: {
   const proxyConfigJson = JSON.stringify(proxyCfg);
   const proxyServer = options.useNpx
     ? {
-        command: 'npx',
+        command: process.platform === 'win32' ? 'npx.cmd' : 'npx',
         args: ['-y', '-p', options.pkg || DEFAULT_PROXY_PACKAGE, 'taptap-mcp-proxy'],
       }
     : {
@@ -1123,6 +1168,18 @@ function formatPushResult(
 function formatToolException(toolName: string, error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : undefined;
+  if (error instanceof MakerGitNotFoundError) {
+    return [
+      '✗ Maker MCP tool stopped',
+      '',
+      `- tool: ${toolName}`,
+      '- reason: git_missing',
+      '',
+      message,
+      '',
+      'next_action: 请只引导用户安装 Git；在 `git --version` 可用之前，不要继续调用 clone、fetch、commit 或 push。',
+    ].join('\n');
+  }
 
   return [
     '✗ Maker MCP tool failed',

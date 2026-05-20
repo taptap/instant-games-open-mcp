@@ -17,7 +17,7 @@ function getLocalCommand(): { command: string; args: string[] } {
   }
 
   return {
-    command: 'npx',
+    command: process.platform === 'win32' ? 'npx.cmd' : 'npx',
     args: ['-y', '-p', '@taptap/instant-games-open-mcp', 'taptap-maker'],
   };
 }

@@ -10,6 +10,7 @@ import { loadProjectConfig, saveProjectConfig } from '../storage.js';
 import { getUserIdFromMakerJwt, requireMakerJwt } from '../auth/jwt.js';
 import { requestMakerPat } from '../git/pat.js';
 import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
+import { ensureGitAvailable, getGitCommand } from '../system/git.js';
 import { getStringFlag, isJsonMode, printJson } from './common.js';
 
 export interface CloneMakerProjectOptions {
@@ -57,7 +58,13 @@ export interface MakerGitFailure {
   stdout?: string;
   stderr?: string;
   message: string;
-  classification: 'auth' | 'remote_transient' | 'remote_rejected' | 'local' | 'unknown';
+  classification:
+    | 'git_missing'
+    | 'auth'
+    | 'remote_transient'
+    | 'remote_rejected'
+    | 'local'
+    | 'unknown';
   nextAction: string;
 }
 
@@ -230,6 +237,7 @@ async function pushProject(flags: Record<string, string | boolean>): Promise<voi
 export async function cloneMakerProject(
   options: CloneMakerProjectOptions
 ): Promise<CloneMakerProjectResult> {
+  ensureGitAvailable();
   const target = path.resolve(options.targetDir);
   let pat = await requestMakerPat({
     jwt: options.jwt,
@@ -326,6 +334,7 @@ export async function cloneMakerProject(
 export async function pushMakerProject(
   options: PushMakerProjectOptions
 ): Promise<PushMakerProjectResult> {
+  ensureGitAvailable();
   const cwd = path.resolve(options.cwd);
   if (!isGitRepo(cwd)) {
     throw new Error(`${cwd} is not a git repository.`);
@@ -484,6 +493,10 @@ function createGitFailure(input: {
 }
 
 function classifyGitFailure(message: string): MakerGitFailure['classification'] {
+  if (/ENOENT|not found|cannot find|spawn git/i.test(message)) {
+    return 'git_missing';
+  }
+
   if (
     /authentication|authorization|401|403|forbidden|unauthorized|could not read username/i.test(
       message
@@ -513,6 +526,8 @@ function classifyGitFailure(message: string): MakerGitFailure['classification'] 
 
 function nextActionForFailure(classification: MakerGitFailure['classification']): string {
   switch (classification) {
+    case 'git_missing':
+      return '本机未检测到可用的 Git。请用户自行安装 Git，并在 `git --version` 可用后重启 MCP 客户端再重试；安装前不要执行 clone、fetch、commit 或 push。';
     case 'auth':
       return '刷新 Maker PAT/JWT 后重试 maker_push_current_directory；如果仍失败，重新走 Tap 登录和 maker_exchange_jwt。';
     case 'remote_transient':
@@ -528,7 +543,8 @@ function nextActionForFailure(classification: MakerGitFailure['classification'])
 
 function pushGit(args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn('git', args, {
+    const gitCommand = getGitCommand();
+    const child = spawn(gitCommand, args, {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -550,7 +566,7 @@ function pushGit(args: string[], cwd: string): Promise<void> {
         new MakerGitError(
           createGitFailure({
             stage: 'push',
-            command: `git ${args.join(' ')}`,
+            command: `${gitCommand} ${args.join(' ')}`,
             exitCode: code,
             stdout,
             stderr,
@@ -563,7 +579,7 @@ function pushGit(args: string[], cwd: string): Promise<void> {
         new MakerGitError(
           createGitFailure({
             stage: 'push',
-            command: `git ${args.join(' ')}`,
+            command: `${gitCommand} ${args.join(' ')}`,
             exitCode: null,
             stdout,
             stderr: error.message,
@@ -629,18 +645,20 @@ async function currentBranch(cwd: string, explicitBranch?: string): Promise<stri
 }
 
 function readGitSync(args: string[]): string {
-  const result = spawnSync('git', args, {
+  const gitCommand = getGitCommand();
+  const result = spawnSync(gitCommand, args, {
     encoding: 'utf8',
   });
   if (result.status !== 0) {
-    throw new Error(result.stderr || `git ${args.join(' ')} failed`);
+    throw new Error(result.stderr || `${gitCommand} ${args.join(' ')} failed`);
   }
   return result.stdout;
 }
 
 function readGit(args: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn('git', args, {
+    const gitCommand = getGitCommand();
+    const child = spawn(gitCommand, args, {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -656,7 +674,9 @@ function readGit(args: string[], cwd: string): Promise<string> {
       if (code === 0) {
         resolve(stdout);
       } else {
-        reject(new Error(`git ${args.join(' ')} failed with exit code ${code}: ${stderr}`));
+        reject(
+          new Error(`${gitCommand} ${args.join(' ')} failed with exit code ${code}: ${stderr}`)
+        );
       }
     });
     child.on('error', reject);
@@ -720,7 +740,8 @@ function runGitCapture(
   } = {}
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn('git', args, {
+    const gitCommand = getGitCommand();
+    const child = spawn(gitCommand, args, {
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -738,7 +759,7 @@ function runGitCapture(
         return;
       }
 
-      const pretty = `git ${args.map((arg) => sanitize(arg, options.sanitize)).join(' ')}`;
+      const pretty = `${gitCommand} ${args.map((arg) => sanitize(arg, options.sanitize)).join(' ')}`;
       const detail = sanitize(
         [stdout.trim(), stderr.trim()].filter(Boolean).join('\n'),
         options.sanitize
@@ -759,7 +780,8 @@ function runGit(
   }
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn('git', args, {
+    const gitCommand = getGitCommand();
+    const child = spawn(gitCommand, args, {
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -779,7 +801,7 @@ function runGit(
           new MakerGitError(
             createGitFailure({
               stage: args[0] || 'git',
-              command: `git ${args.join(' ')}`,
+              command: `${gitCommand} ${args.join(' ')}`,
               exitCode: code,
               stdout: options.quiet ? '' : stdout,
               stderr: options.quiet ? '' : stderr,
@@ -793,7 +815,7 @@ function runGit(
         new MakerGitError(
           createGitFailure({
             stage: args[0] || 'git',
-            command: `git ${args.join(' ')}`,
+            command: `${gitCommand} ${args.join(' ')}`,
             exitCode: null,
             stdout: options.quiet ? '' : stdout,
             stderr: error.message,

@@ -16,6 +16,7 @@ import {
 } from '../storage.js';
 import { getMakerJwtExchangeUrl } from '../auth/jwt.js';
 import { getConfiguredMakerPatUrl } from '../git/pat.js';
+import { checkGitEnvironment, formatGitEnvironmentStatus } from '../system/git.js';
 import { getConfiguredMakerApiBase, getConfiguredMakerGitBase } from './projects.js';
 import { isJsonMode, printJson } from './common.js';
 
@@ -25,6 +26,7 @@ export async function runStatus(flags: Record<string, string | boolean>): Promis
   const pat = loadPat();
   const tapAuth = loadTapAuth();
   const tapSession = loadTapDeviceSession();
+  const git = checkGitEnvironment();
   const status = {
     maker_home: getMakerHome(),
     jwt_path: getJwtPath(),
@@ -35,6 +37,7 @@ export async function runStatus(flags: Record<string, string | boolean>): Promis
     has_tap_login_session: !!tapSession,
     logged_in: !!jwt,
     has_pat: !!pat,
+    git,
     project: identify,
     env: {
       MAKER_JWT_EXCHANGE_URL: !!getMakerJwtExchangeUrl(),
@@ -56,6 +59,7 @@ export async function runStatus(flags: Record<string, string | boolean>): Promis
   process.stdout.write(`- has_tap_login_session: ${status.has_tap_login_session ? 'yes' : 'no'}\n`);
   process.stdout.write(`- logged_in: ${status.logged_in ? 'yes' : 'no'}\n`);
   process.stdout.write(`- has_pat: ${status.has_pat ? 'yes' : 'no'}\n`);
+  process.stdout.write(`${formatGitEnvironmentStatus(git)}\n`);
   process.stdout.write(`- project_source: ${identify.source}\n`);
   process.stdout.write(`- project_id: ${identify.projectId || '(none)'}\n`);
   if (identify.configPath) {

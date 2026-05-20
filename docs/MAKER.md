@@ -9,6 +9,7 @@
 - 本地通过 cwd 向上查找 `.maker-mcp/config.json` 识别当前 Maker 项目。
 - 用户级凭证保存到 `~/.taptap-maker/`。
 - Agent 通过 MCP tools 完成登录、JWT 准备、app 选择、clone 和 push。
+- 本地 Git 是 clone/push 的硬性前置条件。Maker MCP 只检测和引导，不代替用户安装 Git。
 
 ## 本地测试
 
@@ -39,6 +40,7 @@ npx @modelcontextprotocol/inspector node dist/maker.js
 
 ```text
 maker_status
+maker_check_environment
 maker_tap_login_start
 用户扫码/打开链接授权
 用户输入“已授权”
@@ -52,15 +54,56 @@ maker_status
 
 工具说明：
 
+- `maker_check_environment`：检查本机前置条件，当前重点是 Git 是否可用。该工具只输出状态和安装引导，不执行安装。
 - `maker_tap_login_start`：申请 TapTap device code，返回授权链接。
 - `maker_tap_login_complete`：用户扫码后轮询 Tap token，保存 MAC 认证数据。
 - `maker_exchange_jwt`：用 Tap 认证换 Maker JWT；接口未 ready 时内部可读取缓存或 `manual_jwt`，但流程上不能跳过这一步。
 - `maker_list_apps`：用 Maker JWT 拉取 app 列表，必须展示给用户选择。
-- `maker_clone_to_current_directory`：把选中的 Maker app 仓库拉到当前目录并写 `.maker-mcp/config.json`。
+- `maker_clone_to_current_directory`：把选中的 Maker app 仓库拉到当前目录并写 `.maker-mcp/config.json`。如果本机没有 Git，工具会在申请 PAT 和改动文件前停止。
 - `maker_configure_remote_proxy`：按 server 测试脚本生成 `proxy_cfg`，写入当前项目 `.mcp.json`，连接远端 `taptap-proxy`。
 - `maker_build_current_directory`：用户说“构建 / build / 重新构建游戏”时使用，转发调用远端 `build` tool。
-- `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，提交并推送当前 Maker 项目。
-- `maker_push_current_directory`：把当前目录改动 commit 并 push 到 Maker git。
+- `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，提交并推送当前 Maker 项目。如果本机没有 Git，工具会在 stage/commit/push 前停止。
+- `maker_push_current_directory`：把当前目录改动 commit 并 push 到 Maker git。如果本机没有 Git，工具会在 stage/commit/push 前停止。
+
+## Git 前置条件和引导边界
+
+Maker MCP 不负责给用户安装 Git，也不会自动调用 `brew`、`winget`、安装器或系统包管理器。工具只做两件事：
+
+1. 通过 `git --version` 检测当前 MCP 进程是否能找到 Git。
+2. 如果 Git 缺失，返回当前系统对应的安装引导。
+
+如果 Git 缺失，必须遵守：
+
+- 不调用 `maker_clone_to_current_directory` 继续 clone。
+- 不执行 fetch、stage、commit、push。
+- 不申请 Maker PAT，因为 clone 不能继续。
+- 持续提示用户先自行安装 Git，并在 `git --version` 可用后重启 MCP 客户端或终端。
+
+macOS 引导：
+
+```text
+1. 用户自行在终端执行 git --version。
+2. 如果系统弹出 Xcode Command Line Tools 安装提示，由用户自行确认安装。
+3. 用户也可以自行访问 https://git-scm.com/download/mac 下载官方 macOS 安装器。
+4. 安装完成后重启 MCP 客户端或终端，再执行 git --version 验证。
+```
+
+Windows 引导：
+
+```text
+1. 用户自行访问 https://git-scm.com/download/win 下载 Git for Windows。
+2. 安装时建议选择 “Git from the command line and also from 3rd-party software”。
+3. 如果用户习惯 winget，可以自行在 PowerShell 执行：
+   winget install --id Git.Git -e --source winget
+4. 安装完成后重启 MCP 客户端或终端，再执行 git --version 验证。
+5. 如果 Git 已安装但 MCP 仍检测不到，可设置 TAPTAP_MAKER_GIT_BIN 为 git.exe 完整路径。
+```
+
+Windows 兼容注意：
+
+- 写入 MCP 配置时，`npx` 在 Windows 下使用 `npx.cmd`，避免部分客户端 `spawn` 找不到命令。
+- Maker 内部路径必须使用 Node `path` API，不能手写 POSIX 路径分隔符。
+- Git 可执行文件默认从 PATH 查找；企业环境或非标准安装路径可通过 `TAPTAP_MAKER_GIT_BIN` 覆盖。
 
 ## 远端 Proxy 和构建工具
 
@@ -162,6 +205,7 @@ push
 | `TAPTAP_MAKER_PAT_URL`               | 可选：覆盖当前环境的 Maker PAT 换取接口           |
 | `TAPTAP_MAKER_GIT_BASE`              | 可选：覆盖当前环境的 Maker git base URL           |
 | `TAPTAP_MAKER_REMOTE_MCP_SERVER_URL` | 可选：覆盖当前环境的远端 Maker MCP server URL     |
+| `TAPTAP_MAKER_GIT_BIN`               | 可选：覆盖 Git 可执行文件路径                     |
 | `SCE_MCP_URL`                        | 云端 SCE MCP endpoint 默认值                      |
 
 Maker 后端默认地址集中在 `src/maker/config.ts`。兼容旧变量名：`MAKER_API_BASE`、`MAKER_PAT_URL`、`MAKER_GIT_BASE`、`TAPTAP_REMOTE_MCP_SERVER_URL`。新配置优先使用 `TAPTAP_MAKER_*` 前缀。

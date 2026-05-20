@@ -51,6 +51,7 @@
 
 ```text
 maker_status
+maker_check_environment
 maker_tap_login_start
 用户扫码/打开链接授权
 用户输入“已授权”
@@ -67,6 +68,8 @@ maker_push_current_directory
 
 说明：
 
+- Maker MCP 依赖用户本机已有 Git。工具只检测并给出安装引导，不会代替用户安装 Git。
+- 如果 `maker_status` 或 `maker_check_environment` 显示 Git 缺失，必须持续提示用户自行安装 Git；在 `git --version` 可用前，不执行 clone、fetch、commit 或 push。
 - Tap 登录使用现有 OAuth device code flow，会返回扫码/授权链接。
 - Tap 认证换 Maker JWT 的远端接口未稳定时，`maker_exchange_jwt` 内部可读取缓存或手动传入 JWT，但流程上不能跳过登录和换 JWT。
 - Maker app 必须先通过 `maker_list_apps` 展示给用户选择，再调用 clone。
@@ -77,6 +80,12 @@ maker_push_current_directory
 - “帮我提交代码到maker / taptap制造 / tap制造 / tap”也应触发 `maker_submit_current_directory`。
 - Maker 项目提交不走通用 Git skill 的任务号、新分支规则；冲突时先和用户确认 pull/rebase 流程。
 - 如果 commit 已完成但 push 失败，Maker MCP 会返回 commit hash、ahead 状态、exit code、stderr/stdout 和下一步建议，便于开发期排查。
+
+Git 引导：
+
+- macOS：用户自行执行 `git --version`，按系统提示安装 Xcode Command Line Tools，或访问 `https://git-scm.com/download/mac` 下载安装器。
+- Windows：用户自行访问 `https://git-scm.com/download/win` 安装 Git for Windows，并确保安装选项允许命令行和第三方工具通过 PATH 找到 Git。
+- 安装后需要重启 MCP 客户端或终端，再用 `git --version` 验证。
 
 详见：[TapTap Maker 本地 MCP](docs/MAKER.md)
 
@@ -316,11 +325,14 @@ Issue #162 引入了 Maker 本地 MCP，用于后续支持 Maker 登录、项目
 
 ```text
 maker_status
+maker_check_environment
 maker_exchange_jwt
 maker_list_apps
 maker_clone_to_current_directory
 maker_push_current_directory
 ```
+
+`maker_check_environment` 只做检测和引导，不安装 Git。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过 `git --version` 验证。
 
 在 Maker JWT exchange 接口完整接入前，测试时可以预置 Maker JWT。APP_ID 应通过 `maker_list_apps` 返回的列表让用户选择，再传给 clone 工具。
 
