@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildCurrentDirectory, createBuildArgs } from '../maker/server/mcp';
+import { buildCurrentDirectory, createBuildArgs, formatBuildResult } from '../maker/server/mcp';
 import { readMakerProjectLocalChanges } from '../maker/cli/projects';
 import { saveProjectConfig } from '../maker/storage';
 
@@ -54,6 +54,16 @@ describe('maker build local-change guard', () => {
 
     expect(changes.hasChanges).toBe(true);
     expect(changes.files).toEqual(['scripts/main.lua']);
+  });
+
+  test('reports local Maker project changes when filenames contain arrow text', async () => {
+    const fileName = 'scripts/name -> arrow.lua';
+    fs.writeFileSync(path.join(tempDir, fileName), '-- changed\n', 'utf8');
+
+    const changes = await readMakerProjectLocalChanges(tempDir);
+
+    expect(changes.hasChanges).toBe(true);
+    expect(changes.files).toContain(fileName);
   });
 
   test('blocks build before connecting to remote when local changes are not submitted', async () => {
@@ -143,6 +153,44 @@ describe('maker build local-change guard', () => {
 
     expect(result.mode).toBe('submitted_for_auto_build');
     expect(submittedCwds).toEqual([fs.realpathSync(tempDir)]);
+  });
+
+  test('formats auto-submit build failure with actionable failure details', () => {
+    const output = formatBuildResult(
+      {
+        mode: 'submitted_for_auto_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        submitResult: {
+          branch: 'main',
+          committed: true,
+          commitHash: 'abc1234',
+          message: 'chore: update maker project',
+          pushed: false,
+          status: 'failed_after_commit',
+          failure: {
+            stage: 'push',
+            classification: 'remote_rejected',
+            exitCode: 1,
+            stdout: '',
+            stderr: 'rejected',
+            message: 'failed to push some refs',
+            nextAction: '先询问用户是否 pull/rebase 当前 Maker 远端变更，再重试 push。',
+          },
+        },
+      },
+      {
+        elapsedMs: 1000,
+        elapsed: '1s',
+        progressEvents: 1,
+      }
+    );
+
+    expect(output).toContain('failure:');
+    expect(output).toContain('- stage: push');
+    expect(output).toContain('- classification: remote_rejected');
+    expect(output).toContain('rejected');
+    expect(output).toContain('pull/rebase');
   });
 
   function runGit(args: string[]): void {

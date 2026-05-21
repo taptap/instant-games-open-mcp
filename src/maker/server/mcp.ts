@@ -1660,7 +1660,7 @@ function formatRemoteToolResult(result: unknown): string {
     .join('\n');
 }
 
-function formatBuildResult(
+export function formatBuildResult(
   result: BuildCurrentDirectoryResult,
   progressSummary: ToolProgressSummary
 ): string {
@@ -1684,6 +1684,9 @@ function formatBuildResult(
       ...formatProgressSummary(progressSummary),
       '',
       'note: Maker submit is commit + push; successful submit automatically triggers build.',
+      ...(result.submitResult.failure
+        ? ['', ...formatMakerFailureLines(result.submitResult.failure)]
+        : []),
     ]
       .filter(Boolean)
       .join('\n');
@@ -1750,20 +1753,28 @@ function formatPushResult(
     return lines.join('\n');
   }
 
+  return [...lines, '', ...formatMakerFailureLines(result.failure)].filter(Boolean).join('\n');
+}
+
+function formatMakerFailureLines(failure: {
+  stage: string;
+  command?: string;
+  exitCode?: number | null;
+  stdout?: string;
+  stderr?: string;
+  classification: string;
+  nextAction: string;
+}): string[] {
   return [
-    ...lines,
-    '',
     'failure:',
-    `- stage: ${result.failure.stage}`,
-    `- classification: ${result.failure.classification}`,
-    `- exit_code: ${result.failure.exitCode ?? '(none)'}`,
-    result.failure.command ? `- command: ${result.failure.command}` : '',
-    result.failure.stderr ? `- stderr:\n${indent(result.failure.stderr)}` : '',
-    result.failure.stdout ? `- stdout:\n${indent(result.failure.stdout)}` : '',
-    `- next_action: ${result.failure.nextAction}`,
-  ]
-    .filter(Boolean)
-    .join('\n');
+    `- stage: ${failure.stage}`,
+    `- classification: ${failure.classification}`,
+    `- exit_code: ${failure.exitCode ?? '(none)'}`,
+    failure.command ? `- command: ${failure.command}` : '',
+    failure.stderr ? `- stderr:\n${indent(failure.stderr)}` : '',
+    failure.stdout ? `- stdout:\n${indent(failure.stdout)}` : '',
+    `- next_action: ${failure.nextAction}`,
+  ].filter(Boolean);
 }
 
 function formatToolException(toolName: string, error: unknown): string {

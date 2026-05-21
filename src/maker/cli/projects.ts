@@ -629,7 +629,7 @@ export async function readMakerProjectLocalChanges(cwd: string): Promise<MakerPr
     );
   }
 
-  const rawStatus = await readGit(['status', '--porcelain'], projectRoot);
+  const rawStatus = await readGit(['status', '--porcelain', '-z'], projectRoot);
   const files = parseGitStatusFiles(rawStatus).filter(
     (file) => file !== '.maker-mcp' && !file.startsWith('.maker-mcp/')
   );
@@ -684,18 +684,23 @@ function generateCommitMessage(status: string): string {
 }
 
 function parseGitStatusFiles(status: string): string[] {
-  return status
-    .split('\n')
-    .map((line) => line.trimEnd())
-    .filter(Boolean)
-    .flatMap((line) => {
-      const file = line.slice(3).trim();
-      if (!file) {
-        return [];
-      }
-      const renameParts = file.split(' -> ');
-      return [renameParts[renameParts.length - 1]];
-    });
+  const entries = status.split('\0').filter(Boolean);
+  const files: string[] = [];
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const statusCode = entry.slice(0, 2);
+    const file = entry.slice(3);
+    if (file) {
+      files.push(file);
+    }
+
+    if (statusCode.includes('R') || statusCode.includes('C')) {
+      index += 1;
+    }
+  }
+
+  return files;
 }
 
 async function readAheadState(cwd: string): Promise<string | undefined> {
