@@ -6,7 +6,12 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildCurrentDirectory, createBuildArgs, formatBuildResult } from '../maker/server/mcp';
+import {
+  buildCurrentDirectory,
+  createBuildArgs,
+  formatBuildResult,
+  pushThenBuildCurrentDirectory,
+} from '../maker/server/mcp';
 import { readMakerProjectLocalChanges } from '../maker/cli/projects';
 import { saveProjectConfig } from '../maker/storage';
 
@@ -127,7 +132,7 @@ describe('maker build local-change guard', () => {
     });
   });
 
-  test('auto submits local changes before build when project preference is saved', async () => {
+  test('auto submits local changes and then runs remote build when project preference is saved', async () => {
     saveProjectConfig(tempDir, {
       project_id: 'app-1',
       user_id: 'user-1',
@@ -135,6 +140,7 @@ describe('maker build local-change guard', () => {
     });
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
     const submittedCwds: string[] = [];
+    const remoteBuildTargetDirs: string[] = [];
 
     const result = await buildCurrentDirectory({
       targetDir: path.join(tempDir, 'scripts'),
@@ -149,16 +155,74 @@ describe('maker build local-change guard', () => {
           status: 'pushed',
         };
       },
+      callRemoteBuild: async (targetDir) => {
+        remoteBuildTargetDirs.push(targetDir);
+        return {
+          mode: 'remote_build',
+          projectRoot: fs.realpathSync(tempDir),
+          projectId: 'app-1',
+          projectPath: 'app-1/workspace',
+          serverUrl: 'https://maker.example.test/mcp',
+          env: 'rnd',
+          timeoutMs: 600000,
+          buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+          resultText: 'build ok',
+        };
+      },
     });
 
-    expect(result.mode).toBe('submitted_for_auto_build');
+    expect(result.mode).toBe('remote_build');
+    expect('submitResult' in result ? result.submitResult?.commitHash : undefined).toBe('abc1234');
     expect(submittedCwds).toEqual([fs.realpathSync(tempDir)]);
+    expect(remoteBuildTargetDirs).toEqual([fs.realpathSync(tempDir)]);
+  });
+
+  test('submits, remembers preference, and runs remote build after user confirms build prompt', async () => {
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
+    const remoteBuildTargetDirs: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChangesBeforeBuild: true,
+      rememberBuildSubmitPreference: true,
+      submitLocalChanges: async () => ({
+        branch: 'main',
+        committed: true,
+        commitHash: 'def5678',
+        message: 'chore: update maker project',
+        pushed: true,
+        status: 'pushed',
+      }),
+      callRemoteBuild: async (targetDir) => {
+        remoteBuildTargetDirs.push(targetDir);
+        return {
+          mode: 'remote_build',
+          projectRoot: fs.realpathSync(tempDir),
+          projectId: 'app-1',
+          projectPath: 'app-1/workspace',
+          serverUrl: 'https://maker.example.test/mcp',
+          env: 'rnd',
+          timeoutMs: 600000,
+          buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+          resultText: 'build ok',
+        };
+      },
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect('submitResult' in result ? result.submitResult?.commitHash : undefined).toBe('def5678');
+    expect(remoteBuildTargetDirs).toEqual([fs.realpathSync(tempDir)]);
+
+    const config = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.maker-mcp', 'config.json'), 'utf8')
+    );
+    expect(config.build_local_changes_policy).toBe('auto_submit');
   });
 
   test('formats auto-submit build failure with actionable failure details', () => {
     const output = formatBuildResult(
       {
-        mode: 'submitted_for_auto_build',
+        mode: 'submit_failed_before_build',
         projectRoot: tempDir,
         projectId: 'app-1',
         submitResult: {
@@ -191,6 +255,119 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- classification: remote_rejected');
     expect(output).toContain('rejected');
     expect(output).toContain('pull/rebase');
+  });
+
+  test('submit tool pushes and then runs remote build', async () => {
+    const pushedCwds: string[] = [];
+    const remoteBuildTargetDirs: string[] = [];
+
+    const result = await pushThenBuildCurrentDirectory({
+      targetDir: tempDir,
+      pushLocalChanges: async (options) => {
+        pushedCwds.push(options.cwd);
+        return {
+          branch: 'main',
+          committed: true,
+          commitHash: 'abc1234',
+          message: 'chore: update maker project',
+          pushed: true,
+          status: 'pushed',
+        };
+      },
+      callRemoteBuild: async (targetDir) => {
+        remoteBuildTargetDirs.push(targetDir);
+        return {
+          mode: 'remote_build',
+          projectRoot: fs.realpathSync(tempDir),
+          projectId: 'app-1',
+          projectPath: 'app-1/workspace',
+          serverUrl: 'https://maker.example.test/mcp',
+          env: 'rnd',
+          timeoutMs: 600000,
+          buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+          resultText: 'build ok',
+        };
+      },
+    });
+
+    expect(result.submitResult.pushed).toBe(true);
+    expect(result.buildResult?.mode).toBe('remote_build');
+    expect(pushedCwds).toEqual([tempDir]);
+    expect(remoteBuildTargetDirs).toEqual([tempDir]);
+  });
+
+  test('submit tool does not run remote build when push has no changes', async () => {
+    const remoteBuildTargetDirs: string[] = [];
+
+    const result = await pushThenBuildCurrentDirectory({
+      targetDir: tempDir,
+      pushLocalChanges: async () => ({
+        branch: 'main',
+        committed: false,
+        pushed: false,
+        status: 'clean',
+      }),
+      callRemoteBuild: async (targetDir) => {
+        remoteBuildTargetDirs.push(targetDir);
+        throw new Error('should not build clean submit');
+      },
+    });
+
+    expect(result.submitResult.status).toBe('clean');
+    expect(result.buildResult).toBeUndefined();
+    expect(remoteBuildTargetDirs).toEqual([]);
+  });
+
+  test('submit tool preserves pushed result when remote build fails', async () => {
+    const result = await pushThenBuildCurrentDirectory({
+      targetDir: tempDir,
+      pushLocalChanges: async () => ({
+        branch: 'main',
+        committed: true,
+        commitHash: 'abc1234',
+        message: 'chore: update maker project',
+        pushed: true,
+        status: 'pushed',
+      }),
+      callRemoteBuild: async () => {
+        throw new Error('remote build failed');
+      },
+    });
+
+    expect(result.submitResult.pushed).toBe(true);
+    expect(result.submitResult.commitHash).toBe('abc1234');
+    expect(result.buildResult).toBeUndefined();
+    expect(result.buildFailure?.message).toBe('remote build failed');
+  });
+
+  test('auto-submit build preserves pushed result when remote build fails', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+      build_local_changes_policy: 'auto_submit',
+    });
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges: async () => ({
+        branch: 'main',
+        committed: true,
+        commitHash: 'def5678',
+        message: 'chore: update maker project',
+        pushed: true,
+        status: 'pushed',
+      }),
+      callRemoteBuild: async () => {
+        throw new Error('remote build failed');
+      },
+    });
+
+    expect(result.mode).toBe('build_failed_after_submit');
+    expect('submitResult' in result ? result.submitResult.commitHash : undefined).toBe('def5678');
+    expect('buildFailure' in result ? result.buildFailure.message : undefined).toBe(
+      'remote build failed'
+    );
   });
 
   function runGit(args: string[]): void {

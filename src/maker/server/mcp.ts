@@ -294,7 +294,7 @@ const tools = [
   {
     name: 'maker_submit_current_directory',
     description:
-      'Alias for maker_push_current_directory. Requires local Git. If Git is missing, stop and show install guidance; do not stage, commit, or push. Use this in Maker projects when the user says "帮我提交", "帮我提交代码", "提交", "提交代码", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". If the user chooses "提交本地改动并触发构建（以后都是如此）" from a build local-change prompt, call this tool with remember_build_submit_preference=true. This saves a project preference so future build requests with local changes submit automatically. This bypasses local generic Git branch/task-id rules and pushes directly to the Maker remote configured for the current directory.',
+      'Alias for maker_push_current_directory. Requires local Git. If Git is missing, stop and show install guidance; do not stage, commit, push, or build. Use this in Maker projects when the user says "帮我提交", "帮我提交代码", "提交", "提交代码", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". Maker submit means commit + push + build: after a successful push, this tool MUST run the remote Maker build and return the build result. Do not use this tool to satisfy a build local-change prompt; if the user chooses "提交本地改动并触发构建（以后都是如此）" from a build prompt, call maker_build_current_directory with submit_local_changes_before_build=true and remember_build_submit_preference=true so the build tool performs commit + push + build and remembers the preference. This submit tool bypasses local generic Git branch/task-id rules and pushes directly to the Maker remote configured for the current directory.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -363,7 +363,7 @@ const tools = [
   {
     name: 'maker_build_current_directory',
     description:
-      'Build the current Maker game by forwarding to the remote TapTap Maker MCP build tool. MUST use this for user requests like "构建", "build", "重新构建游戏", "帮我构建maker游戏", "compile", or "run" in a Maker project. The tool itself enforces a local-change guard before remote build: if local Maker project changes exist, it will stop unless confirm_remote_build_without_submit is true or the project has saved build_local_changes_policy=auto_submit. Explain to the user that direct build only uses the Maker remote committed version and may not include local edits. The primary option should be "提交本地改动并触发构建（以后都是如此）"; if the user chooses it, call maker_submit_current_directory with remember_build_submit_preference=true. Successful Maker submit is commit + push and automatically triggers build, so do not call manual build again unless the user explicitly asks. If auto_submit preference is already saved, this build tool will submit local changes automatically and rely on Maker auto build. If the user explicitly says not to submit and wants to build the remote version, call this tool with confirm_remote_build_without_submit=true. Do not write local build scripts. Uses saved Tap auth and current .maker-mcp/config.json project binding to call the remote build tool through taptap-proxy.',
+      'Build the current Maker game by forwarding to the remote TapTap Maker MCP build tool. MUST use this for user requests like "构建", "build", "重新构建游戏", "帮我构建maker游戏", "compile", or "run" in a Maker project. The tool itself enforces a local-change guard before remote build: if local Maker project changes exist, it will stop unless confirm_remote_build_without_submit is true, submit_local_changes_before_build is true, or the project has saved build_local_changes_policy=auto_submit. Explain to the user that direct build only uses the Maker remote committed version and may not include local edits. The primary option should be "提交本地改动并触发构建（以后都是如此）"; if the user chooses it, call maker_build_current_directory again with submit_local_changes_before_build=true and remember_build_submit_preference=true. Maker MCP will commit + push local changes, then run remote build and return the build result. If auto_submit preference is already saved, this build tool will submit local changes automatically and then run remote build. If the user explicitly says not to submit and wants to build the remote version, call this tool with confirm_remote_build_without_submit=true. Do not write local build scripts. Uses saved Tap auth and current .maker-mcp/config.json project binding to call the remote build tool through taptap-proxy.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -416,6 +416,16 @@ const tools = [
           type: 'boolean',
           description:
             'Set true only after the user explicitly confirms they do not want to submit local changes and want to build the current Maker remote committed version.',
+        },
+        submit_local_changes_before_build: {
+          type: 'boolean',
+          description:
+            'Set true only after the user explicitly chooses "提交本地改动并触发构建（以后都是如此）". Maker MCP will commit + push local changes, then run the remote build and return the build result.',
+        },
+        remember_build_submit_preference: {
+          type: 'boolean',
+          description:
+            'Set true together with submit_local_changes_before_build when the user chooses "提交本地改动并触发构建（以后都是如此）". Saves build_local_changes_policy=auto_submit for future build requests.',
         },
       },
     },
@@ -739,11 +749,11 @@ export async function startMakerMcpServer(): Promise<void> {
           extra,
           'Maker push'
         );
-        let result: Awaited<ReturnType<typeof pushMakerProject>>;
+        let result: Awaited<ReturnType<typeof pushThenBuildCurrentDirectory>>;
         let progressSummary: ToolProgressSummary;
         try {
-          result = await pushMakerProject({
-            cwd: targetDir,
+          result = await pushThenBuildCurrentDirectory({
+            targetDir,
             message: args.message,
             branch: args.branch,
             files: args.files,
@@ -751,11 +761,9 @@ export async function startMakerMcpServer(): Promise<void> {
             pat: args.pat,
             jwt: args.jwt,
             forcePat: args.force_pat === true,
+            rememberBuildSubmitPreference: args.remember_build_submit_preference === true,
             onProgress: progressReporter.report,
           });
-          if (args.remember_build_submit_preference && !result.failure) {
-            rememberBuildSubmitPreference(targetDir);
-          }
           progressSummary = progressReporter.finish();
         } catch (error) {
           progressReporter.finish();
@@ -813,6 +821,8 @@ export async function startMakerMcpServer(): Promise<void> {
           env?: 'rnd' | 'production';
           timeout_ms?: number;
           confirm_remote_build_without_submit?: boolean;
+          submit_local_changes_before_build?: boolean;
+          remember_build_submit_preference?: boolean;
         };
 
         const progressReporter = createToolProgressReporter(
@@ -834,6 +844,8 @@ export async function startMakerMcpServer(): Promise<void> {
             env: args.env,
             timeoutMs: args.timeout_ms,
             confirmRemoteBuildWithoutSubmit: args.confirm_remote_build_without_submit,
+            submitLocalChangesBeforeBuild: args.submit_local_changes_before_build,
+            rememberBuildSubmitPreference: args.remember_build_submit_preference,
             onProgress: progressReporter.report,
           });
           progressSummary = progressReporter.finish();
@@ -897,10 +909,10 @@ async function formatStatus(): Promise<string> {
   const projectSection = identify.projectId
     ? [
         '当前目录已绑定 Maker 项目。',
-        '如果用户要求“帮我提交代码 / 提交并推送 / push / 帮我提交代码到maker / 帮我提交代码到taptap制造 / 帮我提交代码到tap制造 / 帮我提交代码到tap”，必须调用 maker_submit_current_directory 或 maker_push_current_directory。',
+        '如果用户要求“帮我提交代码 / 提交并推送 / push / 帮我提交代码到maker / 帮我提交代码到taptap制造 / 帮我提交代码到tap制造 / 帮我提交代码到tap”，必须调用 maker_submit_current_directory 或 maker_push_current_directory；提交/推送成功后工具会继续执行远端 build。',
         '如果用户要求“构建 / build / 重新构建 / 查看结果 / 预览 / 跑一下 / 验证一下”，必须先经过 maker_build_current_directory 的本地改动强制检查；有本地改动时不要静默构建云端旧版本，应询问用户是否提交。',
-        '优先选项文案应是“提交本地改动并触发构建（以后都是如此）”；用户选择后调用 maker_submit_current_directory，并设置 remember_build_submit_preference=true。',
-        'Maker 提交等于 commit + push，提交成功后会自动触发构建，不要再额外调用 build；保存偏好后，后续构建遇到本地改动会自动提交。',
+        '优先选项文案应是“提交本地改动并触发构建（以后都是如此）”；用户选择后再次调用 maker_build_current_directory，并设置 submit_local_changes_before_build=true 和 remember_build_submit_preference=true。',
+        'Maker 构建入口负责完整执行 commit + push + build；保存偏好后，后续构建遇到本地改动会自动提交并继续构建。',
         '用户明确说不提交、直接构建云端版本时，才允许调用 maker_build_current_directory 并设置 confirm_remote_build_without_submit=true。',
         '不要套用本地通用 Git skill 的任务号、默认分支保护、新建分支规则；Maker push 按远端 Maker 仓库当前分支直接提交并推送。',
       ].join('\n')
@@ -1443,6 +1455,13 @@ type SubmitLocalChangesForBuild = (
   options: PushMakerProjectOptions
 ) => Promise<PushMakerProjectResult>;
 
+type RemoteBuildResult = Extract<BuildCurrentDirectoryResult, { mode: 'remote_build' }>;
+type MakerBuildFailure = {
+  name: string;
+  message: string;
+  stack?: string;
+};
+
 type BuildCurrentDirectoryResult =
   | {
       mode: 'remote_build';
@@ -1454,12 +1473,23 @@ type BuildCurrentDirectoryResult =
       timeoutMs: number;
       buildArgs: Record<string, unknown>;
       resultText: string;
+      submitResult?: PushMakerProjectResult;
+      buildLocalChangesPolicy?: 'auto_submit';
     }
   | {
-      mode: 'submitted_for_auto_build';
+      mode: 'submit_failed_before_build';
       projectRoot: string;
       projectId: string;
       submitResult: PushMakerProjectResult;
+      buildLocalChangesPolicy?: 'auto_submit';
+    }
+  | {
+      mode: 'build_failed_after_submit';
+      projectRoot: string;
+      projectId: string;
+      submitResult: PushMakerProjectResult;
+      buildFailure: MakerBuildFailure;
+      buildLocalChangesPolicy?: 'auto_submit';
     };
 
 export async function buildCurrentDirectory(options: {
@@ -1473,13 +1503,21 @@ export async function buildCurrentDirectory(options: {
   env?: 'rnd' | 'production';
   timeoutMs?: number;
   confirmRemoteBuildWithoutSubmit?: boolean;
+  submitLocalChangesBeforeBuild?: boolean;
+  rememberBuildSubmitPreference?: boolean;
   submitLocalChanges?: SubmitLocalChangesForBuild;
+  callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildResult>;
   onProgress?: MakerProjectProgressHandler;
 }): Promise<BuildCurrentDirectoryResult> {
   const localChanges = await readMakerProjectLocalChanges(options.targetDir);
   if (localChanges.hasChanges && !options.confirmRemoteBuildWithoutSubmit) {
     const config = loadProjectConfig(localChanges.projectRoot);
-    if (config?.build_local_changes_policy === 'auto_submit') {
+    let buildLocalChangesPolicy: 'auto_submit' | undefined =
+      config?.build_local_changes_policy === 'auto_submit' ? 'auto_submit' : undefined;
+    if (
+      config?.build_local_changes_policy === 'auto_submit' ||
+      options.submitLocalChangesBeforeBuild
+    ) {
       options.onProgress?.({
         progress: 0,
         total: 100,
@@ -1490,19 +1528,69 @@ export async function buildCurrentDirectory(options: {
         cwd: localChanges.projectRoot,
         onProgress: options.onProgress,
       });
+      if (options.rememberBuildSubmitPreference && !submitResult.failure) {
+        rememberBuildSubmitPreference(localChanges.projectRoot);
+        buildLocalChangesPolicy = 'auto_submit';
+      }
+      if (submitResult.failure || (!submitResult.pushed && submitResult.status !== 'clean')) {
+        return {
+          mode: 'submit_failed_before_build',
+          projectRoot: localChanges.projectRoot,
+          projectId: config?.project_id || 'unknown',
+          submitResult,
+          buildLocalChangesPolicy,
+        };
+      }
+      let buildResult: RemoteBuildResult;
+      try {
+        buildResult = await runRemoteBuildCurrentDirectory(options, localChanges.projectRoot);
+      } catch (error) {
+        return {
+          mode: 'build_failed_after_submit',
+          projectRoot: localChanges.projectRoot,
+          projectId: config?.project_id || 'unknown',
+          submitResult,
+          buildFailure: toMakerBuildFailure(error),
+          buildLocalChangesPolicy,
+        };
+      }
       return {
-        mode: 'submitted_for_auto_build',
-        projectRoot: localChanges.projectRoot,
-        projectId: config.project_id,
+        ...buildResult,
         submitResult,
+        buildLocalChangesPolicy,
       };
     }
 
     throw new Error(formatLocalChangesBeforeBuildMessage(localChanges.files));
   }
 
+  return runRemoteBuildCurrentDirectory(options, options.targetDir);
+}
+
+async function runRemoteBuildCurrentDirectory(
+  options: {
+    targetDir: string;
+    entry?: string;
+    scriptsPath?: string;
+    entryClient?: string;
+    entryServer?: string;
+    multiplayer?: Record<string, unknown>;
+    serverUrl?: string;
+    env?: 'rnd' | 'production';
+    timeoutMs?: number;
+    callRemoteBuild?: (
+      targetDir: string
+    ) => Promise<Extract<BuildCurrentDirectoryResult, { mode: 'remote_build' }>>;
+    onProgress?: MakerProjectProgressHandler;
+  },
+  targetDir: string
+): Promise<RemoteBuildResult> {
+  if (options.callRemoteBuild) {
+    return options.callRemoteBuild(targetDir);
+  }
+
   const proxy = createRemoteProxyContext({
-    targetDir: options.targetDir,
+    targetDir,
     serverUrl: options.serverUrl,
     env: options.env,
   });
@@ -1563,6 +1651,79 @@ export async function buildCurrentDirectory(options: {
   }
 }
 
+type PushThenBuildCurrentDirectoryResult = {
+  targetDir: string;
+  submitResult: PushMakerProjectResult;
+  buildResult?: RemoteBuildResult;
+  buildFailure?: MakerBuildFailure;
+};
+
+export async function pushThenBuildCurrentDirectory(options: {
+  targetDir: string;
+  message?: string;
+  branch?: string;
+  files?: string[];
+  allowEmpty?: boolean;
+  pat?: string;
+  jwt?: string;
+  forcePat?: boolean;
+  rememberBuildSubmitPreference?: boolean;
+  pushLocalChanges?: SubmitLocalChangesForBuild;
+  callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildResult>;
+  onProgress?: MakerProjectProgressHandler;
+}): Promise<PushThenBuildCurrentDirectoryResult> {
+  const submitResult = await (options.pushLocalChanges || pushMakerProject)({
+    cwd: options.targetDir,
+    message: options.message,
+    branch: options.branch,
+    files: options.files,
+    allowEmpty: options.allowEmpty,
+    pat: options.pat,
+    jwt: options.jwt,
+    forcePat: options.forcePat,
+    onProgress: options.onProgress,
+  });
+  if (options.rememberBuildSubmitPreference && !submitResult.failure) {
+    rememberBuildSubmitPreference(options.targetDir);
+  }
+  if (!submitResult.pushed) {
+    return {
+      targetDir: options.targetDir,
+      submitResult,
+    };
+  }
+  let buildResult: RemoteBuildResult;
+  try {
+    buildResult = await runRemoteBuildCurrentDirectory(
+      {
+        targetDir: options.targetDir,
+        callRemoteBuild: options.callRemoteBuild,
+        onProgress: options.onProgress,
+      },
+      options.targetDir
+    );
+  } catch (error) {
+    return {
+      targetDir: options.targetDir,
+      submitResult,
+      buildFailure: toMakerBuildFailure(error),
+    };
+  }
+  return {
+    targetDir: options.targetDir,
+    submitResult,
+    buildResult,
+  };
+}
+
+function toMakerBuildFailure(error: unknown): MakerBuildFailure {
+  return {
+    name: error instanceof Error ? error.name : typeof error,
+    message: error instanceof Error ? error.message : String(error),
+    ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
+  };
+}
+
 function formatLocalChangesBeforeBuildMessage(files: string[]): string {
   const visibleFiles = files.slice(0, 20);
   const hiddenCount = Math.max(0, files.length - visibleFiles.length);
@@ -1571,7 +1732,7 @@ function formatLocalChangesBeforeBuildMessage(files: string[]): string {
     '',
     '当前有本地修改还没有提交。直接构建只会构建 Maker 云端已有版本，可能看不到这些新修改。',
     '请先询问用户选择：',
-    '- 提交本地改动并触发构建（以后都是如此）：调用 maker_submit_current_directory，并设置 remember_build_submit_preference=true；提交会同时保存并推送到 Maker，提交成功后自动触发构建，不要再额外调用 build。后续构建遇到本地改动会默认自动提交。',
+    '- 提交本地改动并触发构建（以后都是如此）：再次调用 maker_build_current_directory，并设置 submit_local_changes_before_build=true 和 remember_build_submit_preference=true；工具会先 commit + push，再继续执行远端 build 并返回构建结果。后续构建遇到本地改动会默认自动提交并继续构建。',
     '- 如果用户明确说不提交、直接构建云端版本，再调用 maker_build_current_directory，并设置 confirm_remote_build_without_submit=true。',
     '',
     'local_changes:',
@@ -1664,13 +1825,13 @@ export function formatBuildResult(
   result: BuildCurrentDirectoryResult,
   progressSummary: ToolProgressSummary
 ): string {
-  if (result.mode === 'submitted_for_auto_build') {
+  if (result.mode === 'submit_failed_before_build') {
     return [
       result.submitResult.pushed
-        ? '✓ Maker project submitted; Maker auto build triggered'
+        ? '✓ Maker project submitted; remote build was not started'
         : result.submitResult.status === 'clean'
-          ? 'Maker project has no changes to submit; Maker auto build was not triggered'
-          : '✗ Maker project submit failed; Maker auto build was not triggered',
+          ? 'Maker project has no changes to submit; remote build was not started'
+          : '✗ Maker project submit failed; remote build was not started',
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
@@ -1683,7 +1844,7 @@ export function formatBuildResult(
       result.submitResult.ahead ? `- git_state: ${result.submitResult.ahead}` : '',
       ...formatProgressSummary(progressSummary),
       '',
-      'note: Maker submit is commit + push; successful submit automatically triggers build.',
+      'note: Maker build was not started because submit did not produce a pushed state.',
       ...(result.submitResult.failure
         ? ['', ...formatMakerFailureLines(result.submitResult.failure)]
         : []),
@@ -1692,68 +1853,147 @@ export function formatBuildResult(
       .join('\n');
   }
 
-  return [
-    '✓ Remote Maker build finished',
+  if (result.mode === 'build_failed_after_submit') {
+    return [
+      '✗ Maker project submitted, but remote Maker build failed',
+      '',
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      result.buildLocalChangesPolicy
+        ? `- build_local_changes_policy: ${result.buildLocalChangesPolicy}`
+        : '',
+      `- branch: ${result.submitResult.branch}`,
+      `- status: ${result.submitResult.status}`,
+      `- committed: ${result.submitResult.committed ? 'yes' : 'no'}`,
+      result.submitResult.commitHash ? `- commit_hash: ${result.submitResult.commitHash}` : '',
+      result.submitResult.message ? `- commit_message: ${result.submitResult.message}` : '',
+      result.submitResult.ahead ? `- git_state: ${result.submitResult.ahead}` : '',
+      ...formatProgressSummary(progressSummary),
+      '',
+      ...formatMakerBuildFailureLines(result.buildFailure),
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  const submitLines = result.submitResult
+    ? [
+        'submit_result:',
+        `  - branch: ${result.submitResult.branch}`,
+        `  - status: ${result.submitResult.status}`,
+        `  - committed: ${result.submitResult.committed ? 'yes' : 'no'}`,
+        result.submitResult.commitHash ? `  - commit_hash: ${result.submitResult.commitHash}` : '',
+        result.submitResult.message ? `  - commit_message: ${result.submitResult.message}` : '',
+        result.submitResult.ahead ? `  - git_state: ${result.submitResult.ahead}` : '',
+        '',
+      ].filter(Boolean)
+    : [];
+
+  const lines = [
+    result.submitResult
+      ? '✓ Maker project submitted, then remote Maker build finished'
+      : '✓ Remote Maker build finished',
     '',
     `- project_root: ${result.projectRoot}`,
     `- project_id: ${result.projectId}`,
     `- project_path: ${result.projectPath}`,
     `- server_url: ${result.serverUrl}`,
     `- env: ${result.env}`,
+  ];
+  if (result.buildLocalChangesPolicy) {
+    lines.push(`- build_local_changes_policy: ${result.buildLocalChangesPolicy}`);
+  }
+  lines.push(
     `- timeout_ms: ${result.timeoutMs}`,
     `- build_args: ${JSON.stringify(result.buildArgs)}`,
     ...formatProgressSummary(progressSummary),
-    '',
-    'remote_result:',
-    indent(result.resultText),
-  ].join('\n');
+    ''
+  );
+  if (submitLines.length > 0) {
+    lines.push(...submitLines);
+  }
+  lines.push('remote_result:', indent(result.resultText));
+  return lines.join('\n');
 }
 
 function formatPushResult(
   targetDir: string,
-  result: {
-    branch: string;
-    committed: boolean;
-    commitHash?: string;
-    message?: string;
-    pushed: boolean;
-    status: string;
-    ahead?: string;
-    failure?: {
-      stage: string;
-      command?: string;
-      exitCode?: number | null;
-      stdout?: string;
-      stderr?: string;
-      message: string;
-      classification: string;
-      nextAction: string;
-    };
-  },
+  result: PushThenBuildCurrentDirectoryResult,
   progressSummary: ToolProgressSummary
 ): string {
+  const submitResult = result.submitResult;
   const lines = [
-    result.pushed
-      ? '✓ Maker project pushed'
-      : result.status === 'clean'
-        ? 'Maker project has no changes to push'
-        : '✗ Maker project push failed',
+    result.buildResult
+      ? '✓ Maker project pushed, then remote Maker build finished'
+      : submitResult.pushed
+        ? '✓ Maker project pushed; remote build was not started'
+        : submitResult.status === 'clean'
+          ? 'Maker project has no changes to push'
+          : '✗ Maker project push failed',
     '',
     `- target_dir: ${targetDir}`,
-    `- branch: ${result.branch}`,
-    `- status: ${result.status}`,
-    `- committed: ${result.committed ? 'yes' : 'no'}`,
-    result.commitHash ? `- commit_hash: ${result.commitHash}` : '',
-    result.message ? `- commit_message: ${result.message}` : '',
-    result.ahead ? `- git_state: ${result.ahead}` : '',
+    `- branch: ${submitResult.branch}`,
+    `- status: ${submitResult.status}`,
+    `- committed: ${submitResult.committed ? 'yes' : 'no'}`,
+    submitResult.commitHash ? `- commit_hash: ${submitResult.commitHash}` : '',
+    submitResult.message ? `- commit_message: ${submitResult.message}` : '',
+    submitResult.ahead ? `- git_state: ${submitResult.ahead}` : '',
     ...formatProgressSummary(progressSummary),
   ].filter(Boolean);
 
-  if (!result.failure) {
-    return lines.join('\n');
+  if (result.buildResult) {
+    return [
+      ...lines,
+      '',
+      'remote_build:',
+      indent(
+        [
+          `- project_id: ${result.buildResult.projectId}`,
+          `- project_path: ${result.buildResult.projectPath}`,
+          `- server_url: ${result.buildResult.serverUrl}`,
+          `- env: ${result.buildResult.env}`,
+          `- timeout_ms: ${result.buildResult.timeoutMs}`,
+          `- build_args: ${JSON.stringify(result.buildResult.buildArgs)}`,
+          '',
+          'remote_result:',
+          indent(result.buildResult.resultText),
+        ].join('\n')
+      ),
+    ].join('\n');
   }
 
-  return [...lines, '', ...formatMakerFailureLines(result.failure)].filter(Boolean).join('\n');
+  if (result.buildFailure) {
+    return [
+      ...lines,
+      '',
+      'note: Maker project was pushed successfully, but remote build failed.',
+      '',
+      ...formatMakerBuildFailureLines(result.buildFailure),
+    ].join('\n');
+  }
+
+  if (!submitResult.failure) {
+    return [
+      ...lines,
+      '',
+      submitResult.pushed
+        ? 'note: Maker build was not started because no remote build result was returned.'
+        : 'note: Maker build was not started because no push was performed.',
+    ].join('\n');
+  }
+
+  return [...lines, '', ...formatMakerFailureLines(submitResult.failure)]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {
+  return [
+    'build_failure:',
+    `- error_name: ${failure.name}`,
+    `- message: ${failure.message}`,
+    failure.stack ? `- stack:\n${indent(failure.stack)}` : '',
+  ].filter(Boolean);
 }
 
 function formatMakerFailureLines(failure: {

@@ -82,8 +82,8 @@ maker_status
 - `maker_list_apps`：优先用 Maker PAT 拉取 app 列表，必须展示给用户选择；JWT 仅作为 legacy fallback。会解析 Maker `/apps` 返回的创建时间、最近会话时间、游戏类型、阶段、图标、置顶/归档/删除时间等字段，并保留原始 `raw` 数据。
 - `maker_clone_to_current_directory`：把选中的 Maker app 仓库拉到当前目录并写 `.maker-mcp/config.json`。如果本机没有 Git，工具会在申请 PAT 和改动文件前停止。当前目录不要求为空；clone 前会检查本地目录，忽略 `.claude`、`.mcp`、`.skill`、`.config`、`.ini` 等点开头配置项，只对普通本地文件输出提醒。clone 最终结果固定包含 `Pre-clone local directory check` 区块；已有本地文件会保留，若与 Maker 项目文件同路径冲突则失败并列出冲突文件。
 - `maker_configure_remote_proxy`：按 server 测试脚本生成 `proxy_cfg`，写入当前项目 `.mcp.json`，连接远端 `taptap-proxy`。
-- `maker_build_current_directory`：用户说“构建 / build / 重新构建游戏”时使用，转发调用远端 `build` tool。工具内部会强制检查本地 Maker 项目是否有未提交改动；如果有改动且没有传入 `confirm_remote_build_without_submit=true`，会停止并要求先询问用户。构建转发会从 MCP 包自身定位 `dist/proxy.js`；`cwd` / `target_dir` 只用于识别 Maker 游戏项目，不要求游戏目录存在 MCP 的 `dist/proxy.js`。
-- `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，提交并推送当前 Maker 项目。Maker 提交等于 commit + push；提交成功后会自动触发构建。如果来自构建拦截首选项 `提交本地改动并触发构建（以后都是如此）`，必须传入 `remember_build_submit_preference=true`。如果本机没有 Git，工具会在 stage/commit/push 前停止。
+- `maker_build_current_directory`：用户说“构建 / build / 重新构建游戏”时使用，转发调用远端 `build` tool。工具内部会强制检查本地 Maker 项目是否有未提交改动；如果有改动且没有确认提交或跳过提交，会停止并要求先询问用户。用户确认提交时，再次调用本工具并设置 `submit_local_changes_before_build=true` 和 `remember_build_submit_preference=true`，工具会完整执行 commit + push + build 并返回构建结果。构建转发会从 MCP 包自身定位 `dist/proxy.js`；`cwd` / `target_dir` 只用于识别 Maker 游戏项目，不要求游戏目录存在 MCP 的 `dist/proxy.js`。
+- `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，对当前 Maker 项目执行 commit + push + build；只有实际 push 成功后才继续远端 build。不要用它响应构建拦截里的 `提交本地改动并触发构建（以后都是如此）` 选项。如果本机没有 Git，工具会在 stage/commit/push/build 前停止。
 - `maker_push_current_directory`：把当前目录改动 commit 并 push 到 Maker git。如果本机没有 Git，工具会在 stage/commit/push 前停止。
 
 Maker app 列表关键字段：
@@ -96,7 +96,7 @@ Maker app 列表关键字段：
 进度和耗时：
 
 - `maker_clone_to_current_directory` 会解析 Git clone/fetch stderr 中的百分比进度；如果客户端支持 MCP progress notification，会实时显示进度。
-- `maker_push_current_directory` / `maker_submit_current_directory` 会在 stage、commit、push 阶段输出状态，并解析 Git push stderr 中的百分比进度。
+- `maker_push_current_directory` / `maker_submit_current_directory` 会在 stage、commit、push 和 build 阶段输出状态，并解析 Git push stderr 中的百分比进度。
 - `maker_build_current_directory` 会转发远端 build tool 的 progress notification。
 - 以上慢操作最终返回都会包含 `elapsed_ms`、`elapsed`、`progress_events` 和 `last_progress`。如果没有可用百分比进度，则至少返回耗时统计；长任务运行超过 3 分钟时会发送一次仍在运行的 progress heartbeat。
 
@@ -235,9 +235,9 @@ maker_build_current_directory()
 - 如果本地有改动且没有保存自动提交偏好，默认停止，不会静默构建云端旧版本。
 - 此时必须提示用户：直接构建只会使用 Maker 云端已有版本，可能看不到本地新修改。
 - 首选项文案必须是 `提交本地改动并触发构建（以后都是如此）`。
-- 用户选择首选项时，调用 `maker_submit_current_directory(remember_build_submit_preference=true)`；提交等于 commit + push，提交成功后 Maker 会自动触发构建，不要再额外调用 `maker_build_current_directory`。
+- 用户选择首选项时，再次调用 `maker_build_current_directory(submit_local_changes_before_build=true, remember_build_submit_preference=true)`；工具会完整执行 commit + push + build，并返回构建结果与耗时。
 - `remember_build_submit_preference=true` 会把当前项目 `.maker-mcp/config.json` 的 `build_local_changes_policy` 保存为 `auto_submit`。
-- 保存偏好后，后续用户说“构建”且本地有改动时，`maker_build_current_directory` 会自动提交并依赖 Maker 自动构建，不再重复询问。
+- 保存偏好后，后续用户说“构建”且本地有改动时，`maker_build_current_directory` 会自动提交并继续执行远端 build，不再重复询问。
 - 用户明确说“不提交 / 直接构建 / 构建云端版本”时，才允许再次调用 `maker_build_current_directory(confirm_remote_build_without_submit=true)`。
 - 用户说“查看结果 / 预览 / 跑一下 / 验证一下 / 看看效果”时，也按这个构建检查流程处理。
 
