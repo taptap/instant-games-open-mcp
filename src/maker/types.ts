@@ -14,6 +14,8 @@ export interface MakerJwt {
 export interface MakerPat {
   token: string;
   expires_at?: string;
+  user_id?: string;
+  user_name?: string;
   raw?: unknown;
 }
 
@@ -37,6 +39,7 @@ export interface MakerTapAuth {
 
 export interface MakerProjectConfig {
   project_id: string;
+  user_id?: string;
   sce_endpoint?: string;
   custom_fields?: Record<string, string>;
   created_at?: string;
@@ -46,6 +49,7 @@ export interface MakerProjectConfig {
 export interface MakerProjectSummary {
   id: string;
   name?: string;
+  user_id?: string;
   sce_endpoint?: string;
   git_url?: string;
   raw?: unknown;

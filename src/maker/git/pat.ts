@@ -30,6 +30,51 @@ function normalizePatResponse(data: unknown): MakerPat {
   };
 }
 
+const MAKER_PAT_ENV = 'MAKER_PAT';
+const SHORT_PAT_ENV = 'PAT';
+
+export function getManualMakerPat(manualPat?: string): MakerPat | null {
+  const token = manualPat || process.env[MAKER_PAT_ENV] || process.env[SHORT_PAT_ENV];
+  if (!token) {
+    return null;
+  }
+
+  return {
+    token,
+  };
+}
+
+export function saveManualMakerPat(manualPat: string): MakerPat {
+  const pat: MakerPat = {
+    token: manualPat,
+  };
+  savePat(pat);
+  return pat;
+}
+
+export function requireMakerPat(manualPat?: string): MakerPat {
+  const manual = getManualMakerPat(manualPat);
+  if (manual?.token) {
+    if (manualPat) {
+      savePat(manual);
+    }
+    return manual;
+  }
+
+  const cachedPat = loadPat();
+  if (!cachedPat) {
+    throw new Error(
+      [
+        'Maker PAT not found.',
+        'Provide a PAT through the pat argument, MAKER_PAT/PAT environment variable,',
+        'or save it to ~/.taptap-maker/pat.json / ~/.maker-pat.',
+      ].join(' ')
+    );
+  }
+
+  return cachedPat;
+}
+
 export function getConfiguredMakerPatUrl(): string | undefined {
   return getMakerEndpoints().patUrl;
 }
@@ -41,9 +86,18 @@ export function getMakerPatUrl(): string {
 
 export async function requestMakerPat(options?: {
   jwt?: string;
+  pat?: string;
   name?: string;
   force?: boolean;
 }): Promise<MakerPat> {
+  const manualPat = getManualMakerPat(options?.pat);
+  if (manualPat) {
+    if (options?.pat) {
+      savePat(manualPat);
+    }
+    return manualPat;
+  }
+
   if (!options?.force) {
     const cachedPat = loadPat();
     if (cachedPat) {
@@ -52,7 +106,19 @@ export async function requestMakerPat(options?: {
   }
 
   const patUrl = getMakerPatUrl();
-  const jwt = requireMakerJwt(options?.jwt);
+  let jwt;
+  try {
+    jwt = requireMakerJwt(options?.jwt);
+  } catch {
+    throw new Error(
+      [
+        'Maker PAT not found.',
+        'Provide a PAT through the pat argument, MAKER_PAT/PAT environment variable,',
+        'or save it with maker_exchange_pat / taptap-maker login --pat.',
+        'Creating a new PAT still requires a legacy Maker JWT.',
+      ].join(' ')
+    );
+  }
   const response = await fetch(patUrl, {
     method: 'POST',
     headers: {

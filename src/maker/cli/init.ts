@@ -4,7 +4,6 @@
 
 import path from 'node:path';
 import { saveProjectConfig } from '../storage.js';
-import { getMakerWebUrl } from '../config.js';
 import { getStringFlag } from './common.js';
 import { runInstall } from './install.js';
 import { runLogin } from './login.js';
@@ -23,7 +22,7 @@ export async function runInit(flags: Record<string, string | boolean>): Promise<
     const target = getStringFlag(flags, 'target') || '.';
     if (!projectId) {
       throw new Error(
-        'Usage: taptap-maker init --stage=clone --app-id <id> --target <dir> --jwt <jwt>'
+        'Usage: taptap-maker init --stage=clone --app-id <id> --target <dir> --pat <pat>'
       );
     }
 
@@ -46,20 +45,17 @@ export async function runInit(flags: Record<string, string | boolean>): Promise<
     return;
   }
 
-  const makerWebUrl = getMakerWebUrl();
   process.stdout.write(
     [
-      'taptap-maker init is ready, but Maker API endpoints are not fully configured.',
+      'taptap-maker init is ready for PAT-first Maker onboarding.',
       '',
-      'Current JWT flow:',
-      `  1. Open ${makerWebUrl} in Chrome and sign in.`,
-      '  2. Open DevTools -> Application -> Local storage.',
-      '  3. Find `taptap_access_token` and give me its value.',
-      '  4. Run taptap-maker login --jwt <taptap_access_token>',
+      'Current PAT flow:',
+      '  1. Get a Maker PAT from the Maker backend or admin UI.',
+      '  2. Run taptap-maker login --pat <maker_pat>',
       '',
-      'Agent-friendly stages after JWT is saved:',
+      'Agent-friendly stages after PAT is saved:',
       '  taptap-maker projects list --json',
-      '  taptap-maker init --stage=clone --app-id <id> --target . --jwt <jwt>',
+      '  taptap-maker init --stage=clone --app-id <id> --target .',
       '',
       'For local dry binding:',
       '  taptap-maker init --app-id <id> --target . --sce-endpoint <url>',

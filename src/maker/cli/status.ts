@@ -14,7 +14,9 @@ import {
   loadTapAuth,
   loadTapDeviceSession,
 } from '../storage.js';
+import { requestTapAuthWithPat } from '../auth/patTap.js';
 import { getMakerJwtExchangeUrl } from '../auth/jwt.js';
+import { getMakerEndpoints, TEMP_MAKER_PAT_TOKENS_URL } from '../config.js';
 import { getConfiguredMakerPatUrl } from '../git/pat.js';
 import { checkGitEnvironment, formatGitEnvironmentStatus } from '../system/git.js';
 import { getConfiguredMakerApiBase, getConfiguredMakerGitBase } from './projects.js';
@@ -24,7 +26,15 @@ export async function runStatus(flags: Record<string, string | boolean>): Promis
   const identify = identifyMakerProject();
   const jwt = loadJwt();
   const pat = loadPat();
-  const tapAuth = loadTapAuth();
+  let tapAuth = loadTapAuth();
+  let tapAuthRefreshError: string | undefined;
+  if (pat && !tapAuth) {
+    try {
+      tapAuth = await requestTapAuthWithPat(pat.token);
+    } catch (error) {
+      tapAuthRefreshError = error instanceof Error ? error.message : String(error);
+    }
+  }
   const tapSession = loadTapDeviceSession();
   const git = checkGitEnvironment();
   const status = {
@@ -35,7 +45,7 @@ export async function runStatus(flags: Record<string, string | boolean>): Promis
     tap_device_session_path: getTapDeviceSessionPath(),
     tap_logged_in: !!tapAuth,
     has_tap_login_session: !!tapSession,
-    logged_in: !!jwt,
+    logged_in: !!pat || !!jwt,
     has_pat: !!pat,
     git,
     project: identify,
@@ -43,9 +53,11 @@ export async function runStatus(flags: Record<string, string | boolean>): Promis
       MAKER_JWT_EXCHANGE_URL: !!getMakerJwtExchangeUrl(),
       TAPTAP_MAKER_API_BASE: !!getConfiguredMakerApiBase(),
       TAPTAP_MAKER_PAT_URL: !!getConfiguredMakerPatUrl(),
+      TAPTAP_MAKER_TAP_TOKEN_URL: !!getMakerEndpoints().tapTokenUrl,
       TAPTAP_MAKER_GIT_BASE: !!getConfiguredMakerGitBase(),
       SCE_MCP_URL: !!process.env.SCE_MCP_URL,
     },
+    tap_auth_refresh_error: tapAuthRefreshError,
   };
 
   if (isJsonMode(flags)) {
@@ -56,6 +68,9 @@ export async function runStatus(flags: Record<string, string | boolean>): Promis
   process.stdout.write('TapTap Maker local status\n');
   process.stdout.write(`- maker_home: ${status.maker_home}\n`);
   process.stdout.write(`- tap_logged_in: ${status.tap_logged_in ? 'yes' : 'no'}\n`);
+  if (tapAuthRefreshError) {
+    process.stdout.write(`- tap_auth_refresh_error: ${tapAuthRefreshError}\n`);
+  }
   process.stdout.write(`- has_tap_login_session: ${status.has_tap_login_session ? 'yes' : 'no'}\n`);
   process.stdout.write(`- logged_in: ${status.logged_in ? 'yes' : 'no'}\n`);
   process.stdout.write(`- has_pat: ${status.has_pat ? 'yes' : 'no'}\n`);
@@ -64,5 +79,10 @@ export async function runStatus(flags: Record<string, string | boolean>): Promis
   process.stdout.write(`- project_id: ${identify.projectId || '(none)'}\n`);
   if (identify.configPath) {
     process.stdout.write(`- config: ${identify.configPath}\n`);
+  }
+  if (!status.has_pat) {
+    process.stdout.write(
+      `- next_step: open temporary PAT page ${TEMP_MAKER_PAT_TOKENS_URL}, create a PAT, then run taptap-maker login --pat <maker_pat>\n`
+    );
   }
 }
