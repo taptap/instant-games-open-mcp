@@ -784,9 +784,9 @@ function nextActionForFailure(classification: MakerGitFailure['classification'])
     case 'git_missing':
       return '本机未检测到可用的 Git。请用户自行安装 Git，并在 `git --version` 可用后重启 MCP 客户端再重试；安装前不要执行 clone、fetch、commit 或 push。';
     case 'auth':
-      return '刷新 Maker PAT 后重试 maker_push_current_directory；如果仍失败，请确认 PAT 是否过期或缺少 Maker git 权限。';
+      return '刷新 Maker PAT 后重试 maker_submit_current_directory；如果仍失败，请确认 PAT 是否过期或缺少 Maker git 权限。';
     case 'remote_transient':
-      return '远端 Maker git 服务临时不可用。不要重新提交，稍后直接重试 maker_push_current_directory。';
+      return '远端 Maker git 服务临时不可用。不要重新提交，稍后直接重试 maker_submit_current_directory。';
     case 'remote_rejected':
       return '远端已有新提交。不要新建分支或要任务号，先询问用户是否 pull/rebase 当前 Maker 远端变更，再重试 push。';
     case 'local':

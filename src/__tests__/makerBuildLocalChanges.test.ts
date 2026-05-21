@@ -188,28 +188,72 @@ describe('maker build local-change guard', () => {
     });
   });
 
-  test('push and submit tool descriptions require commit, push, and build', () => {
-    for (const toolName of ['maker_push_current_directory', 'maker_submit_current_directory']) {
-      const tool = tools.find((item) => item.name === toolName);
+  test('submit tool description requires commit, push, and build', () => {
+    const submitTool = tools.find((item) => item.name === 'maker_submit_current_directory');
 
-      expect(tool?.description).toContain('commit + push + build');
-      expect(tool?.description).toContain('remote Maker build');
-      expect(tool?.description).not.toContain('Commit and push current Maker project');
-      expect(tool?.description).not.toContain('不负责构建');
-      expect(tool?.description).not.toContain('Do not use this tool');
-      expect(tool?.description).not.toContain('automatically triggers build');
-      expect(tool?.description).not.toContain('Maker auto build');
-    }
+    expect(submitTool?.description).toContain('commit + push + build');
+    expect(submitTool?.description).toContain('remote Maker build');
+    expect(submitTool?.description).not.toContain('maker_push_current_directory');
+    expect(submitTool?.description).not.toContain('Commit and push current Maker project');
+    expect(submitTool?.description).not.toContain('不负责构建');
+    expect(submitTool?.description).not.toContain('Do not use this tool');
+    expect(submitTool?.description).not.toContain('automatically triggers build');
+    expect(submitTool?.description).not.toContain('Maker auto build');
+  });
+
+  test('exposes only the compact Maker tool set', () => {
+    const toolNames = tools.map((item) => item.name);
+
+    expect(toolNames).toEqual([
+      'maker_exchange_pat',
+      'maker_list_apps',
+      'maker_status',
+      'maker_clone_to_current_directory',
+      'maker_submit_current_directory',
+      'maker_build_current_directory',
+    ]);
+    expect(toolNames).not.toContain('maker_exchange_jwt');
+    expect(toolNames).not.toContain('maker_tap_login_start');
+    expect(toolNames).not.toContain('maker_tap_login_complete');
+    expect(toolNames).not.toContain('maker_push_current_directory');
+    expect(toolNames).not.toContain('maker_get_mcp_update_guide');
+    expect(toolNames).not.toContain('maker_check_environment');
+    expect(toolNames).not.toContain('maker_setup_guide');
+    expect(toolNames).not.toContain('maker_configure_remote_proxy');
   });
 
   test('submit tool schema does not expose build preference parameter', () => {
     const submitTool = tools.find((item) => item.name === 'maker_submit_current_directory');
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
+    expect(Object.keys(submitTool?.inputSchema.properties || {})).toEqual([
+      'message',
+      'target_dir',
+      'files',
+    ]);
     expect(submitTool?.inputSchema.properties).not.toHaveProperty(
       'remember_build_submit_preference'
     );
     expect(buildTool?.inputSchema.properties).toHaveProperty('remember_build_submit_preference');
+  });
+
+  test('public Maker tool schemas do not expose JWT fallback parameters', () => {
+    const listTool = tools.find((item) => item.name === 'maker_list_apps');
+    const cloneTool = tools.find((item) => item.name === 'maker_clone_to_current_directory');
+    const submitTool = tools.find((item) => item.name === 'maker_submit_current_directory');
+
+    expect(Object.keys(listTool?.inputSchema.properties || {})).toEqual(['pat']);
+    expect(Object.keys(cloneTool?.inputSchema.properties || {})).toEqual([
+      'app_id',
+      'target_dir',
+      'pat',
+      'user_id',
+    ]);
+    for (const tool of [listTool, cloneTool, submitTool]) {
+      expect(tool?.inputSchema.properties).not.toHaveProperty('jwt');
+      expect(tool?.inputSchema.properties).not.toHaveProperty('force_pat');
+      expect(tool?.description).not.toMatch(/JWT|jwt|legacy/i);
+    }
   });
 
   test('auto submits local changes and then runs remote build when project preference is saved', async () => {

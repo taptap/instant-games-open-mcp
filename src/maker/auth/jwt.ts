@@ -77,7 +77,7 @@ export function formatBrowserJwtGuide(): string {
     `1. 在 Chrome 打开 ${makerWebUrl} 并确认已登录。`,
     '2. 打开开发者工具，进入 Application -> Local storage。',
     '3. 找到 `taptap_access_token` 并拿到它的 value 给我。',
-    '拿到 value 后，MCP 会将它作为 `manual_jwt` 传给 maker_exchange_jwt。',
+    '拿到 value 后，可将它作为 legacy JWT 传给仍支持 jwt 参数的 Maker 内部流程。',
     '',
     `MCP 会把 JWT 保存到本地 ${process.env.TAPTAP_MAKER_HOME || '~/.taptap-maker'}/jwt.json。`,
   ].join('\n');
@@ -173,9 +173,7 @@ export async function exchangeSavedTapAuthForMakerJwt(options?: {
     );
   }
 
-  throw new Error(
-    'Tap auth not found. Call maker_tap_login_start and maker_tap_login_complete first.'
-  );
+  throw new Error('Tap auth not found. Call maker_exchange_pat with a valid Maker PAT first.');
 }
 
 export function requireMakerJwt(manualJwt?: string): MakerJwt {
