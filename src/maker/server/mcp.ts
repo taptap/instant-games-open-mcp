@@ -4,6 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -12,6 +13,12 @@ import {
   McpError,
   ErrorCode,
 } from '@modelcontextprotocol/sdk/types.js';
+import type {
+  ProgressToken,
+  ServerNotification,
+  ServerRequest,
+} from '@modelcontextprotocol/sdk/types.js';
+import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { identifyMakerProject, formatIdentifyHint } from './identify.js';
@@ -26,7 +33,13 @@ import {
   loadTapAuth,
   loadTapDeviceSession,
 } from '../storage.js';
-import { cloneMakerProject, listMakerProjects, pushMakerProject } from '../cli/projects.js';
+import {
+  cloneMakerProject,
+  listMakerProjects,
+  pushMakerProject,
+  type MakerProjectProgress,
+  type MakerProjectProgressHandler,
+} from '../cli/projects.js';
 import { startTapDeviceLogin, completeTapDeviceLogin } from '../auth/oauth.js';
 import { requestTapAuthWithPat } from '../auth/patTap.js';
 import { saveManualMakerPat } from '../git/pat.js';
@@ -50,10 +63,12 @@ import {
 } from '../system/git.js';
 
 declare const __MAKER_VERSION__: string | undefined;
+declare const __MAKER_BUNDLE_URL__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
 const DEFAULT_PROXY_MCP_NAME = 'taptap-proxy';
 const DEFAULT_PROXY_PACKAGE = '@taptap/instant-games-open-mcp@1.22.0';
 const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
+const LONG_OPERATION_HEARTBEAT_MS = 3 * 60 * 1000;
 const MAKER_WEB_URL = getMakerWebUrl();
 
 const tools = [
@@ -161,7 +176,7 @@ const tools = [
   {
     name: 'maker_clone_to_current_directory',
     description:
-      'Clone a Maker app repository into the current Codex/agent working directory. Use after the user chooses an app from the Maker app list for requests like "拉取maker游戏到本地", "把这个maker app拉下来", "clone maker项目", or "下载maker游戏代码". Call this only after maker_list_apps has listed apps and the user has chosen one. Requires local Git. If Git is missing, this tool stops before changing files and returns install guidance; do not retry clone until the user installs Git and git --version works. Requires the selected app_id; uses cached Maker PAT by default.',
+      'Clone a Maker app repository into the current Codex/agent working directory. Use after the user chooses an app from the Maker app list for requests like "拉取maker游戏到本地", "把这个maker app拉下来", "clone maker项目", or "下载maker游戏代码". Call this only after maker_list_apps has listed apps and the user has chosen one. Requires local Git. If Git is missing, this tool stops before changing files and returns install guidance; do not retry clone until the user installs Git and git --version works. The target directory does not have to be empty; before clone, the tool checks local entries and warns about non-config local files while ignoring dot-prefixed config entries such as .claude, .mcp, .skill, .config, and .ini. Existing local files are kept unless they conflict with Maker project files; conflicts fail with a file list. Requires the selected app_id; uses cached Maker PAT by default.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -299,7 +314,7 @@ const tools = [
         use_npx: {
           type: 'boolean',
           description:
-            'If true, write the script-style npx package command. Defaults to false for local development and uses local dist/proxy.js.',
+            'If true, write the script-style npx package command. Defaults to false and uses the proxy.js bundled with the Maker MCP package when available.',
         },
         pkg: {
           type: 'string',
@@ -380,7 +395,7 @@ export async function startMakerMcpServer(): Promise<void> {
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const name = request.params.name;
 
     try {
@@ -600,15 +615,29 @@ export async function startMakerMcpServer(): Promise<void> {
         }
 
         const targetDir = args.target_dir || process.cwd();
-        const result = await cloneMakerProject({
-          appId: args.app_id,
-          targetDir,
-          pat: args.pat,
-          userId: args.user_id,
-          jwt: args.jwt,
-          forcePat: args.force_pat === true,
-          sceEndpoint: process.env.SCE_MCP_URL,
-        });
+        const progressReporter = createToolProgressReporter(
+          request.params._meta?.progressToken,
+          extra,
+          'Maker clone'
+        );
+        let result: Awaited<ReturnType<typeof cloneMakerProject>>;
+        let progressSummary: ToolProgressSummary;
+        try {
+          result = await cloneMakerProject({
+            appId: args.app_id,
+            targetDir,
+            pat: args.pat,
+            userId: args.user_id,
+            jwt: args.jwt,
+            forcePat: args.force_pat === true,
+            sceEndpoint: process.env.SCE_MCP_URL,
+            onProgress: progressReporter.report,
+          });
+          progressSummary = progressReporter.finish();
+        } catch (error) {
+          progressReporter.finish();
+          throw error;
+        }
 
         return {
           content: [
@@ -617,10 +646,12 @@ export async function startMakerMcpServer(): Promise<void> {
               text: [
                 '✓ Maker project cloned',
                 '',
+                ...formatCloneWarnings(result.warnings),
                 `- app_id: ${args.app_id}`,
                 `- target_dir: ${result.targetDir}`,
                 `- status: ${result.status}`,
                 `- retried_with_new_pat: ${result.retriedWithNewPat ? 'yes' : 'no'}`,
+                ...formatProgressSummary(progressSummary),
                 '- project config: .maker-mcp/config.json',
               ].join('\n'),
             },
@@ -641,22 +672,36 @@ export async function startMakerMcpServer(): Promise<void> {
         };
 
         const targetDir = args.target_dir || process.cwd();
-        const result = await pushMakerProject({
-          cwd: targetDir,
-          message: args.message,
-          branch: args.branch,
-          files: args.files,
-          allowEmpty: args.allow_empty === true,
-          pat: args.pat,
-          jwt: args.jwt,
-          forcePat: args.force_pat === true,
-        });
+        const progressReporter = createToolProgressReporter(
+          request.params._meta?.progressToken,
+          extra,
+          'Maker push'
+        );
+        let result: Awaited<ReturnType<typeof pushMakerProject>>;
+        let progressSummary: ToolProgressSummary;
+        try {
+          result = await pushMakerProject({
+            cwd: targetDir,
+            message: args.message,
+            branch: args.branch,
+            files: args.files,
+            allowEmpty: args.allow_empty === true,
+            pat: args.pat,
+            jwt: args.jwt,
+            forcePat: args.force_pat === true,
+            onProgress: progressReporter.report,
+          });
+          progressSummary = progressReporter.finish();
+        } catch (error) {
+          progressReporter.finish();
+          throw error;
+        }
 
         return {
           content: [
             {
               type: 'text',
-              text: formatPushResult(targetDir, result),
+              text: formatPushResult(targetDir, result, progressSummary),
             },
           ],
         };
@@ -704,23 +749,37 @@ export async function startMakerMcpServer(): Promise<void> {
           timeout_ms?: number;
         };
 
-        const result = await buildCurrentDirectory({
-          targetDir: args.target_dir || process.cwd(),
-          entry: args.entry,
-          scriptsPath: args.scriptsPath,
-          entryClient: args.entry_client,
-          entryServer: args.entry_server,
-          multiplayer: args.multiplayer,
-          serverUrl: args.server_url,
-          env: args.env,
-          timeoutMs: args.timeout_ms,
-        });
+        const progressReporter = createToolProgressReporter(
+          request.params._meta?.progressToken,
+          extra,
+          'Maker build'
+        );
+        let result: Awaited<ReturnType<typeof buildCurrentDirectory>>;
+        let progressSummary: ToolProgressSummary;
+        try {
+          result = await buildCurrentDirectory({
+            targetDir: args.target_dir || process.cwd(),
+            entry: args.entry,
+            scriptsPath: args.scriptsPath,
+            entryClient: args.entry_client,
+            entryServer: args.entry_server,
+            multiplayer: args.multiplayer,
+            serverUrl: args.server_url,
+            env: args.env,
+            timeoutMs: args.timeout_ms,
+            onProgress: progressReporter.report,
+          });
+          progressSummary = progressReporter.finish();
+        } catch (error) {
+          progressReporter.finish();
+          throw error;
+        }
 
         return {
           content: [
             {
               type: 'text',
-              text: formatBuildResult(result),
+              text: formatBuildResult(result, progressSummary),
             },
           ],
         };
@@ -851,7 +910,15 @@ function mask(value: string): string {
 }
 
 function formatProjectList(
-  projects: Array<{ id: string; name?: string; user_id?: string }>
+  projects: Array<{
+    id: string;
+    name?: string;
+    user_id?: string;
+    createdAt?: string;
+    lastConversationAt?: string;
+    gameType?: string;
+    stage?: string;
+  }>
 ): string {
   if (projects.length === 0) {
     return [
@@ -868,11 +935,37 @@ function formatProjectList(
       (project, index) =>
         `${index + 1}. ${project.id}${project.name ? `  ${project.name}` : ''}${
           project.user_id ? `  user_id=${project.user_id}` : ''
+        }${project.gameType ? `  gameType=${project.gameType}` : ''}${
+          project.stage ? `  stage=${project.stage}` : ''
+        }${project.createdAt ? `  createdAt=${project.createdAt}` : ''}${
+          project.lastConversationAt ? `  lastConversationAt=${project.lastConversationAt}` : ''
         }`
     ),
     '',
     '请让用户选择一个 app，然后调用 maker_clone_to_current_directory。',
   ].join('\n');
+}
+
+function formatCloneWarnings(warnings: string[]): string[] {
+  if (warnings.length === 0) {
+    return [
+      'Pre-clone local directory check',
+      '',
+      '- result: checked',
+      '- local_files: none found before clone, ignoring dot-prefixed local config entries',
+      '',
+    ];
+  }
+
+  return [
+    'Pre-clone local directory check',
+    '',
+    '- result: found local files before clone',
+    '- action: kept local files and continued unless they conflicted with Maker project files',
+    '',
+    ...warnings.map((warning) => `- ${warning}`),
+    '',
+  ];
 }
 
 function createRemoteProxyContext(options: {
@@ -1019,21 +1112,31 @@ function configureRemoteProxy(options: {
   };
 }
 
-function resolveLocalProxyBundle(): string {
-  const makerEntry = process.argv[1] ? path.resolve(process.argv[1]) : '';
-  const alongsideMaker = makerEntry ? path.join(path.dirname(makerEntry), 'proxy.js') : '';
-  if (alongsideMaker && fs.existsSync(alongsideMaker)) {
-    return alongsideMaker;
+export function resolveLocalProxyBundle(options?: {
+  currentModuleUrl?: string;
+  makerEntry?: string;
+  cwd?: string;
+}): string {
+  const currentModuleUrl =
+    options?.currentModuleUrl ||
+    (typeof __MAKER_BUNDLE_URL__ !== 'undefined' ? __MAKER_BUNDLE_URL__ : undefined);
+  const currentModuleDir = currentModuleUrl ? path.dirname(fileURLToPath(currentModuleUrl)) : '';
+  const makerEntry = options?.makerEntry ?? process.argv[1];
+  const makerEntryDir = makerEntry ? path.dirname(path.resolve(makerEntry)) : '';
+  const cwd = options?.cwd ?? process.cwd();
+  const candidates = [
+    currentModuleDir ? path.join(currentModuleDir, 'proxy.js') : '',
+    makerEntryDir ? path.join(makerEntryDir, '..', 'dist', 'proxy.js') : '',
+    path.resolve(cwd, 'dist', 'proxy.js'),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
   }
 
-  const cwdBundle = path.resolve(process.cwd(), 'dist', 'proxy.js');
-  if (fs.existsSync(cwdBundle)) {
-    return cwdBundle;
-  }
-
-  throw new Error(
-    'Local dist/proxy.js not found. Run npm run build before configuring remote proxy.'
-  );
+  throw new Error(`MCP proxy bundle not found. Checked: ${candidates.join(', ')}`);
 }
 
 function readMcpJson(filePath: string): {
@@ -1133,6 +1236,123 @@ function formatProxyEnv(envVars?: Record<string, string>): string {
     .join(' ');
 }
 
+interface ToolProgressSummary {
+  elapsedMs: number;
+  elapsed: string;
+  progressEvents: number;
+  lastProgress?: MakerProjectProgress;
+}
+
+interface ToolProgressReporter {
+  report: MakerProjectProgressHandler;
+  finish: () => ToolProgressSummary;
+}
+
+function createToolProgressReporter(
+  progressToken: ProgressToken | undefined,
+  extra: RequestHandlerExtra<ServerRequest, ServerNotification>,
+  operationName: string
+): ToolProgressReporter {
+  const startedAt = Date.now();
+  let events = 0;
+  let lastProgress: MakerProjectProgress | undefined;
+  let lastSentProgress = 0;
+  let finished = false;
+
+  const sendProgress = (progress: MakerProjectProgress): void => {
+    if (finished || progressToken === undefined) {
+      return;
+    }
+
+    const elapsed = formatDuration(Date.now() - startedAt);
+    const numericProgress =
+      progress.progress !== undefined
+        ? Math.max(lastSentProgress, progress.progress)
+        : Math.max(lastSentProgress, Math.floor((Date.now() - startedAt) / 1000));
+    lastSentProgress = numericProgress;
+    const message = `${operationName}: ${progress.message} (elapsed ${elapsed})`;
+
+    void extra
+      .sendNotification({
+        method: 'notifications/progress',
+        params: {
+          progressToken,
+          progress: numericProgress,
+          ...(progress.total !== undefined ? { total: progress.total } : {}),
+          message,
+        },
+      } as ServerNotification)
+      .catch(() => {
+        // Progress notification failures should not fail Maker operations.
+      });
+  };
+
+  const heartbeat = setInterval(() => {
+    const elapsed = formatDuration(Date.now() - startedAt);
+    sendProgress({
+      progress: lastProgress?.progress,
+      total: lastProgress?.total,
+      phase: lastProgress?.phase,
+      message: `still running; elapsed ${elapsed}; last status: ${
+        lastProgress?.message || 'waiting for progress'
+      }`,
+    });
+  }, LONG_OPERATION_HEARTBEAT_MS);
+  heartbeat.unref?.();
+
+  return {
+    report(progress) {
+      events += 1;
+      lastProgress = progress;
+      sendProgress(progress);
+    },
+    finish() {
+      if (!finished) {
+        finished = true;
+        clearInterval(heartbeat);
+      }
+      const elapsedMs = Date.now() - startedAt;
+      return {
+        elapsedMs,
+        elapsed: formatDuration(elapsedMs),
+        progressEvents: events,
+        lastProgress,
+      };
+    },
+  };
+}
+
+function formatProgressSummary(summary: ToolProgressSummary): string[] {
+  return [
+    `- elapsed_ms: ${summary.elapsedMs}`,
+    `- elapsed: ${summary.elapsed}`,
+    `- progress_events: ${summary.progressEvents}`,
+    summary.lastProgress
+      ? `- last_progress: ${formatProgressMessage(summary.lastProgress)}`
+      : '- last_progress: (none)',
+  ];
+}
+
+function formatProgressMessage(progress: MakerProjectProgress): string {
+  const percent =
+    progress.progress !== undefined
+      ? `${progress.progress}${progress.total === 100 ? '%' : ''}`
+      : undefined;
+  return [progress.phase ? `[${progress.phase}]` : '', percent, progress.message]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) {
+    return `${seconds}s`;
+  }
+  return `${minutes}m ${seconds}s`;
+}
+
 async function buildCurrentDirectory(options: {
   targetDir: string;
   entry?: string;
@@ -1143,6 +1363,7 @@ async function buildCurrentDirectory(options: {
   serverUrl?: string;
   env?: 'rnd' | 'production';
   timeoutMs?: number;
+  onProgress?: MakerProjectProgressHandler;
 }): Promise<{
   projectRoot: string;
   projectId: string;
@@ -1164,10 +1385,7 @@ async function buildCurrentDirectory(options: {
   const transport = new StdioClientTransport({
     command: proxy.command,
     args: proxy.args,
-    env: {
-      ...process.env,
-      ...proxy.envVars,
-    },
+    env: mergeStringEnv(process.env, proxy.envVars),
     stderr: 'pipe',
   });
   const client = new Client(
@@ -1191,6 +1409,14 @@ async function buildCurrentDirectory(options: {
       {
         timeout: timeoutMs,
         resetTimeoutOnProgress: true,
+        onprogress: (progress) => {
+          options.onProgress?.({
+            progress: progress.progress,
+            total: progress.total,
+            phase: 'remote_build',
+            message: progress.message || 'Remote Maker build progress',
+          });
+        },
       }
     );
 
@@ -1241,6 +1467,23 @@ function createBuildArgs(
   return buildArgs;
 }
 
+function mergeStringEnv(
+  ...sources: Array<NodeJS.ProcessEnv | Record<string, string> | undefined>
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+    for (const [key, value] of Object.entries(source)) {
+      if (typeof value === 'string') {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+}
+
 function formatRemoteToolResult(result: unknown): string {
   if (!result || typeof result !== 'object') {
     return String(result);
@@ -1261,16 +1504,19 @@ function formatRemoteToolResult(result: unknown): string {
     .join('\n');
 }
 
-function formatBuildResult(result: {
-  projectRoot: string;
-  projectId: string;
-  projectPath: string;
-  serverUrl: string;
-  env: string;
-  timeoutMs: number;
-  buildArgs: Record<string, unknown>;
-  resultText: string;
-}): string {
+function formatBuildResult(
+  result: {
+    projectRoot: string;
+    projectId: string;
+    projectPath: string;
+    serverUrl: string;
+    env: string;
+    timeoutMs: number;
+    buildArgs: Record<string, unknown>;
+    resultText: string;
+  },
+  progressSummary: ToolProgressSummary
+): string {
   return [
     '✓ Remote Maker build finished',
     '',
@@ -1281,6 +1527,7 @@ function formatBuildResult(result: {
     `- env: ${result.env}`,
     `- timeout_ms: ${result.timeoutMs}`,
     `- build_args: ${JSON.stringify(result.buildArgs)}`,
+    ...formatProgressSummary(progressSummary),
     '',
     'remote_result:',
     indent(result.resultText),
@@ -1307,7 +1554,8 @@ function formatPushResult(
       classification: string;
       nextAction: string;
     };
-  }
+  },
+  progressSummary: ToolProgressSummary
 ): string {
   const lines = [
     result.pushed
@@ -1323,6 +1571,7 @@ function formatPushResult(
     result.commitHash ? `- commit_hash: ${result.commitHash}` : '',
     result.message ? `- commit_message: ${result.message}` : '',
     result.ahead ? `- git_state: ${result.ahead}` : '',
+    ...formatProgressSummary(progressSummary),
   ].filter(Boolean);
 
   if (!result.failure) {

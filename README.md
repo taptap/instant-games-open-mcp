@@ -72,17 +72,21 @@ maker_push_current_directory
 - 保存 PAT 后会自动列出 app；`maker_status` 如果发现本地已有 PAT 且当前目录未绑定，也会自动列出 app，无需用户额外要求。
 - 保存 PAT 后会自动调用 `GET /api/v1/user/taptap-token` 获取并保存 TapTap MAC token；Tap OAuth 登录只作为 legacy fallback。
 - `maker_list_apps` 和 `maker_clone_to_current_directory` 不再要求先完成 Tap 登录。
+- `maker_clone_to_current_directory` 不要求当前目录为空；clone 前会检查本地目录，忽略 `.claude`、`.mcp`、`.skill`、`.config`、`.ini` 等点开头配置项，只对普通本地文件输出提醒。clone 最终结果固定包含 `Pre-clone local directory check` 区块；已有本地文件会保留，若与 Maker 项目文件同路径冲突则失败并列出冲突文件。
+- `maker_list_apps` 会解析 Maker `/apps` 返回的创建时间、最近会话时间、游戏类型、阶段、图标、置顶/归档/删除时间等字段，并保留原始 `raw` 数据。
 - Maker Tap 登录只需要 client id；`rnd` 环境或 npm `@beta` 包会使用内置 Maker client id 兜底，不要求产品配置 `TAPTAP_MCP_CLIENT_SECRET`。
 - PAT 会保存到 `~/.taptap-maker/pat.json`，并兼容旧的 `~/.maker-pat`、`PAT` / `MAKER_PAT` 环境变量。
 - JWT 仅作为 legacy fallback 保留：`maker_exchange_jwt(manual_jwt)`、`JWT` / `MAKER_JWT` 仍可用于旧后端或创建新 PAT。
 - Maker app 必须先通过 `maker_list_apps` 展示给用户选择，再调用 clone。
 - Maker 后端地址按 `TAPTAP_MCP_ENV` 从 `src/maker/config.ts` 的环境配置表读取，本地 MCP 配置只需要切 `rnd` / `production`。
 - 如果用户直接说“构建 / build / 重新构建游戏”，本地 Maker MCP 应调用 `maker_build_current_directory` 转发到远端 `build` tool。
+- 构建转发会从 MCP 包自身定位 `dist/proxy.js`；`cwd` / `target_dir` 只用于识别 Maker 游戏项目，不要求游戏目录存在 MCP 的 `dist/proxy.js`。
 - 如需在当前游戏项目里直接暴露远端全量 `taptap-proxy` tools，再使用 `maker_configure_remote_proxy` 写入 `.mcp.json` 并重启 MCP 会话。
 - 用户说“帮我提交/提交代码”时使用 `maker_submit_current_directory`，会对当前 Maker 项目执行 commit + push。
 - “帮我提交代码到maker / taptap制造 / tap制造 / tap”也应触发 `maker_submit_current_directory`。
 - Maker 项目提交不走通用 Git skill 的任务号、新分支规则；冲突时先和用户确认 pull/rebase 流程。
 - 如果 commit 已完成但 push 失败，Maker MCP 会返回 commit hash、ahead 状态、exit code、stderr/stdout 和下一步建议，便于开发期排查。
+- clone/fetch、push 和远端 build 属于慢操作；工具会尽量发送 MCP progress notification，Git 阶段会解析 stderr 百分比，最终返回会包含耗时和最近进度。
 
 Git 引导：
 

@@ -65,6 +65,7 @@ try {
 // TapTap Maker MCP - Standalone Bundle
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
+const __MAKER_BUNDLE_URL__ = import.meta.url;
 `,
     },
     define: {

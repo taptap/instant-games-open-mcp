@@ -78,12 +78,26 @@ maker_status
 - `maker_tap_login_complete`：legacy fallback，用户扫码后轮询 Tap token，保存 MAC 认证数据。
 - `maker_exchange_pat`：接收用户提供的 Maker PAT，以 `manual_pat` 传入后保存到本地 `~/.taptap-maker/pat.json`，并兼容旧的 `~/.maker-pat`；保存后会自动获取 TapTap token 并列出 app。
 - `maker_status`：如果发现本地已有 PAT 但缺少 TapTap token，会自动尝试获取；如果当前目录未绑定，会自动列出 app，不需要用户额外要求。
-- `maker_list_apps`：优先用 Maker PAT 拉取 app 列表，必须展示给用户选择；JWT 仅作为 legacy fallback。
-- `maker_clone_to_current_directory`：把选中的 Maker app 仓库拉到当前目录并写 `.maker-mcp/config.json`。如果本机没有 Git，工具会在申请 PAT 和改动文件前停止。
+- `maker_list_apps`：优先用 Maker PAT 拉取 app 列表，必须展示给用户选择；JWT 仅作为 legacy fallback。会解析 Maker `/apps` 返回的创建时间、最近会话时间、游戏类型、阶段、图标、置顶/归档/删除时间等字段，并保留原始 `raw` 数据。
+- `maker_clone_to_current_directory`：把选中的 Maker app 仓库拉到当前目录并写 `.maker-mcp/config.json`。如果本机没有 Git，工具会在申请 PAT 和改动文件前停止。当前目录不要求为空；clone 前会检查本地目录，忽略 `.claude`、`.mcp`、`.skill`、`.config`、`.ini` 等点开头配置项，只对普通本地文件输出提醒。clone 最终结果固定包含 `Pre-clone local directory check` 区块；已有本地文件会保留，若与 Maker 项目文件同路径冲突则失败并列出冲突文件。
 - `maker_configure_remote_proxy`：按 server 测试脚本生成 `proxy_cfg`，写入当前项目 `.mcp.json`，连接远端 `taptap-proxy`。
-- `maker_build_current_directory`：用户说“构建 / build / 重新构建游戏”时使用，转发调用远端 `build` tool。
+- `maker_build_current_directory`：用户说“构建 / build / 重新构建游戏”时使用，转发调用远端 `build` tool。构建转发会从 MCP 包自身定位 `dist/proxy.js`；`cwd` / `target_dir` 只用于识别 Maker 游戏项目，不要求游戏目录存在 MCP 的 `dist/proxy.js`。
 - `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，提交并推送当前 Maker 项目。如果本机没有 Git，工具会在 stage/commit/push 前停止。
 - `maker_push_current_directory`：把当前目录改动 commit 并 push 到 Maker git。如果本机没有 Git，工具会在 stage/commit/push 前停止。
+
+Maker app 列表关键字段：
+
+- `id`：Maker app id。
+- `name`：游戏名称。
+- `createdAt`：创建时间，可用于获取最新创建的游戏。
+- `lastConversationAt`：最后修改时间，可用于获取最近活跃的游戏。
+
+进度和耗时：
+
+- `maker_clone_to_current_directory` 会解析 Git clone/fetch stderr 中的百分比进度；如果客户端支持 MCP progress notification，会实时显示进度。
+- `maker_push_current_directory` / `maker_submit_current_directory` 会在 stage、commit、push 阶段输出状态，并解析 Git push stderr 中的百分比进度。
+- `maker_build_current_directory` 会转发远端 build tool 的 progress notification。
+- 以上慢操作最终返回都会包含 `elapsed_ms`、`elapsed`、`progress_events` 和 `last_progress`。如果没有可用百分比进度，则至少返回耗时统计；长任务运行超过 3 分钟时会发送一次仍在运行的 progress heartbeat。
 
 ## 当前 PAT 获取方式
 
