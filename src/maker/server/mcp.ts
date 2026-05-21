@@ -32,11 +32,15 @@ import {
   loadPat,
   loadTapAuth,
   loadTapDeviceSession,
+  saveProjectConfig,
 } from '../storage.js';
 import {
   cloneMakerProject,
   listMakerProjects,
   pushMakerProject,
+  readMakerProjectLocalChanges,
+  type PushMakerProjectOptions,
+  type PushMakerProjectResult,
   type MakerProjectProgress,
   type MakerProjectProgressHandler,
 } from '../cli/projects.js';
@@ -263,7 +267,7 @@ const tools = [
   {
     name: 'maker_submit_current_directory',
     description:
-      'Alias for maker_push_current_directory. Requires local Git. If Git is missing, stop and show install guidance; do not stage, commit, or push. Use this in Maker projects when the user says "帮我提交", "帮我提交代码", "提交", "提交代码", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". This bypasses local generic Git branch/task-id rules and pushes directly to the Maker remote configured for the current directory.',
+      'Alias for maker_push_current_directory. Requires local Git. If Git is missing, stop and show install guidance; do not stage, commit, or push. Use this in Maker projects when the user says "帮我提交", "帮我提交代码", "提交", "提交代码", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". If the user chooses "提交本地改动并触发构建（以后都是如此）" from a build local-change prompt, call this tool with remember_build_submit_preference=true. This saves a project preference so future build requests with local changes submit automatically. This bypasses local generic Git branch/task-id rules and pushes directly to the Maker remote configured for the current directory.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -281,6 +285,11 @@ const tools = [
           type: 'array',
           items: { type: 'string' },
           description: 'Optional files to stage. Defaults to all changes.',
+        },
+        remember_build_submit_preference: {
+          type: 'boolean',
+          description:
+            'Set true only when the user explicitly chooses "提交本地改动并触发构建（以后都是如此）". After a successful submit, future build requests with local changes will automatically submit instead of asking again.',
         },
       },
     },
@@ -327,7 +336,7 @@ const tools = [
   {
     name: 'maker_build_current_directory',
     description:
-      'Build the current Maker game by forwarding to the remote TapTap Maker MCP build tool. MUST use this for user requests like "构建", "build", "重新构建游戏", "帮我构建maker游戏", "compile", or "run" in a Maker project. Do not write local build scripts. Uses saved Tap auth and current .maker-mcp/config.json project binding to call the remote build tool through taptap-proxy.',
+      'Build the current Maker game by forwarding to the remote TapTap Maker MCP build tool. MUST use this for user requests like "构建", "build", "重新构建游戏", "帮我构建maker游戏", "compile", or "run" in a Maker project. The tool itself enforces a local-change guard before remote build: if local Maker project changes exist, it will stop unless confirm_remote_build_without_submit is true or the project has saved build_local_changes_policy=auto_submit. Explain to the user that direct build only uses the Maker remote committed version and may not include local edits. The primary option should be "提交本地改动并触发构建（以后都是如此）"; if the user chooses it, call maker_submit_current_directory with remember_build_submit_preference=true. Successful Maker submit is commit + push and automatically triggers build, so do not call manual build again unless the user explicitly asks. If auto_submit preference is already saved, this build tool will submit local changes automatically and rely on Maker auto build. If the user explicitly says not to submit and wants to build the remote version, call this tool with confirm_remote_build_without_submit=true. Do not write local build scripts. Uses saved Tap auth and current .maker-mcp/config.json project binding to call the remote build tool through taptap-proxy.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -339,12 +348,12 @@ const tools = [
         entry: {
           type: 'string',
           description:
-            'Optional single-player Lua entry file relative to scriptsPath, e.g. "main.lua". Omit to let the remote build tool infer/default.',
+            'Optional single-player Lua entry file relative to scriptsPath, e.g. "main.lua". If omitted and local scripts/main.lua exists with no explicit multiplayer entries, Maker MCP sends entry="main.lua" and scriptsPath="scripts" by default to avoid remote entry-missing prompts. Otherwise omit to let the remote build tool infer/default.',
         },
         scriptsPath: {
           type: 'string',
           description:
-            'Optional scripts directory relative to workspace. Remote build defaults to "scripts" when omitted.',
+            'Optional scripts directory relative to workspace. If omitted and local scripts/main.lua exists with no explicit entry overrides, Maker MCP sends scriptsPath="scripts" by default.',
         },
         entry_client: {
           type: 'string',
@@ -375,6 +384,11 @@ const tools = [
           type: 'number',
           description:
             'Optional remote build timeout in milliseconds. Defaults to 10 minutes. If timed out, do not retry blindly; inspect remote build logs first.',
+        },
+        confirm_remote_build_without_submit: {
+          type: 'boolean',
+          description:
+            'Set true only after the user explicitly confirms they do not want to submit local changes and want to build the current Maker remote committed version.',
         },
       },
     },
@@ -669,6 +683,7 @@ export async function startMakerMcpServer(): Promise<void> {
           pat?: string;
           jwt?: string;
           force_pat?: boolean;
+          remember_build_submit_preference?: boolean;
         };
 
         const targetDir = args.target_dir || process.cwd();
@@ -691,6 +706,9 @@ export async function startMakerMcpServer(): Promise<void> {
             forcePat: args.force_pat === true,
             onProgress: progressReporter.report,
           });
+          if (args.remember_build_submit_preference && !result.failure) {
+            rememberBuildSubmitPreference(targetDir);
+          }
           progressSummary = progressReporter.finish();
         } catch (error) {
           progressReporter.finish();
@@ -747,6 +765,7 @@ export async function startMakerMcpServer(): Promise<void> {
           server_url?: string;
           env?: 'rnd' | 'production';
           timeout_ms?: number;
+          confirm_remote_build_without_submit?: boolean;
         };
 
         const progressReporter = createToolProgressReporter(
@@ -767,6 +786,7 @@ export async function startMakerMcpServer(): Promise<void> {
             serverUrl: args.server_url,
             env: args.env,
             timeoutMs: args.timeout_ms,
+            confirmRemoteBuildWithoutSubmit: args.confirm_remote_build_without_submit,
             onProgress: progressReporter.report,
           });
           progressSummary = progressReporter.finish();
@@ -831,6 +851,10 @@ async function formatStatus(): Promise<string> {
     ? [
         '当前目录已绑定 Maker 项目。',
         '如果用户要求“帮我提交代码 / 提交并推送 / push / 帮我提交代码到maker / 帮我提交代码到taptap制造 / 帮我提交代码到tap制造 / 帮我提交代码到tap”，必须调用 maker_submit_current_directory 或 maker_push_current_directory。',
+        '如果用户要求“构建 / build / 重新构建 / 查看结果 / 预览 / 跑一下 / 验证一下”，必须先经过 maker_build_current_directory 的本地改动强制检查；有本地改动时不要静默构建云端旧版本，应询问用户是否提交。',
+        '优先选项文案应是“提交本地改动并触发构建（以后都是如此）”；用户选择后调用 maker_submit_current_directory，并设置 remember_build_submit_preference=true。',
+        'Maker 提交等于 commit + push，提交成功后会自动触发构建，不要再额外调用 build；保存偏好后，后续构建遇到本地改动会自动提交。',
+        '用户明确说不提交、直接构建云端版本时，才允许调用 maker_build_current_directory 并设置 confirm_remote_build_without_submit=true。',
         '不要套用本地通用 Git skill 的任务号、默认分支保护、新建分支规则；Maker push 按远端 Maker 仓库当前分支直接提交并推送。',
       ].join('\n')
     : pat
@@ -867,6 +891,21 @@ async function formatStatus(): Promise<string> {
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function rememberBuildSubmitPreference(targetDir: string): void {
+  const identify = identifyMakerProject({ cwd: targetDir });
+  if (!identify.projectRoot || !identify.projectId) {
+    throw new Error(
+      `${targetDir} is not bound to a Maker project. Cannot save build submit preference.`
+    );
+  }
+
+  saveProjectConfig(identify.projectRoot, {
+    ...(identify.config || { project_id: identify.projectId }),
+    project_id: identify.projectId,
+    build_local_changes_policy: 'auto_submit',
+  });
 }
 
 async function formatAutoProjectListFromPat(): Promise<string> {
@@ -1353,7 +1392,30 @@ function formatDuration(ms: number): string {
   return `${minutes}m ${seconds}s`;
 }
 
-async function buildCurrentDirectory(options: {
+type SubmitLocalChangesForBuild = (
+  options: PushMakerProjectOptions
+) => Promise<PushMakerProjectResult>;
+
+type BuildCurrentDirectoryResult =
+  | {
+      mode: 'remote_build';
+      projectRoot: string;
+      projectId: string;
+      projectPath: string;
+      serverUrl: string;
+      env: string;
+      timeoutMs: number;
+      buildArgs: Record<string, unknown>;
+      resultText: string;
+    }
+  | {
+      mode: 'submitted_for_auto_build';
+      projectRoot: string;
+      projectId: string;
+      submitResult: PushMakerProjectResult;
+    };
+
+export async function buildCurrentDirectory(options: {
   targetDir: string;
   entry?: string;
   scriptsPath?: string;
@@ -1363,17 +1425,35 @@ async function buildCurrentDirectory(options: {
   serverUrl?: string;
   env?: 'rnd' | 'production';
   timeoutMs?: number;
+  confirmRemoteBuildWithoutSubmit?: boolean;
+  submitLocalChanges?: SubmitLocalChangesForBuild;
   onProgress?: MakerProjectProgressHandler;
-}): Promise<{
-  projectRoot: string;
-  projectId: string;
-  projectPath: string;
-  serverUrl: string;
-  env: string;
-  timeoutMs: number;
-  buildArgs: Record<string, unknown>;
-  resultText: string;
-}> {
+}): Promise<BuildCurrentDirectoryResult> {
+  const localChanges = await readMakerProjectLocalChanges(options.targetDir);
+  if (localChanges.hasChanges && !options.confirmRemoteBuildWithoutSubmit) {
+    const config = loadProjectConfig(localChanges.projectRoot);
+    if (config?.build_local_changes_policy === 'auto_submit') {
+      options.onProgress?.({
+        progress: 0,
+        total: 100,
+        phase: 'auto_submit',
+        message: 'Auto-submitting local Maker changes before build',
+      });
+      const submitResult = await (options.submitLocalChanges || pushMakerProject)({
+        cwd: localChanges.projectRoot,
+        onProgress: options.onProgress,
+      });
+      return {
+        mode: 'submitted_for_auto_build',
+        projectRoot: localChanges.projectRoot,
+        projectId: config.project_id,
+        submitResult,
+      };
+    }
+
+    throw new Error(formatLocalChangesBeforeBuildMessage(localChanges.files));
+  }
+
   const proxy = createRemoteProxyContext({
     targetDir: options.targetDir,
     serverUrl: options.serverUrl,
@@ -1421,6 +1501,7 @@ async function buildCurrentDirectory(options: {
     );
 
     return {
+      mode: 'remote_build',
       projectRoot: proxy.projectRoot,
       projectId: proxy.projectId,
       projectPath: proxy.projectPath,
@@ -1435,7 +1516,24 @@ async function buildCurrentDirectory(options: {
   }
 }
 
-function createBuildArgs(
+function formatLocalChangesBeforeBuildMessage(files: string[]): string {
+  const visibleFiles = files.slice(0, 20);
+  const hiddenCount = Math.max(0, files.length - visibleFiles.length);
+  return [
+    'Current Maker project has local changes that are not submitted.',
+    '',
+    '当前有本地修改还没有提交。直接构建只会构建 Maker 云端已有版本，可能看不到这些新修改。',
+    '请先询问用户选择：',
+    '- 提交本地改动并触发构建（以后都是如此）：调用 maker_submit_current_directory，并设置 remember_build_submit_preference=true；提交会同时保存并推送到 Maker，提交成功后自动触发构建，不要再额外调用 build。后续构建遇到本地改动会默认自动提交。',
+    '- 如果用户明确说不提交、直接构建云端版本，再调用 maker_build_current_directory，并设置 confirm_remote_build_without_submit=true。',
+    '',
+    'local_changes:',
+    ...visibleFiles.map((file) => `- ${file}`),
+    ...(hiddenCount > 0 ? [`- ... and ${hiddenCount} more`] : []),
+  ].join('\n');
+}
+
+export function createBuildArgs(
   projectRoot: string,
   options: {
     entry?: string;
@@ -1451,6 +1549,17 @@ function createBuildArgs(
   }
   if (options.scriptsPath) {
     buildArgs.scriptsPath = options.scriptsPath;
+  }
+  if (
+    !options.entry &&
+    !options.scriptsPath &&
+    !options.entryClient &&
+    !options.entryServer &&
+    !options.multiplayer &&
+    fs.existsSync(path.join(projectRoot, 'scripts', 'main.lua'))
+  ) {
+    buildArgs.entry = 'main.lua';
+    buildArgs.scriptsPath = 'scripts';
   }
   if (options.entryClient) {
     buildArgs.entry_client = options.entryClient;
@@ -1505,18 +1614,34 @@ function formatRemoteToolResult(result: unknown): string {
 }
 
 function formatBuildResult(
-  result: {
-    projectRoot: string;
-    projectId: string;
-    projectPath: string;
-    serverUrl: string;
-    env: string;
-    timeoutMs: number;
-    buildArgs: Record<string, unknown>;
-    resultText: string;
-  },
+  result: BuildCurrentDirectoryResult,
   progressSummary: ToolProgressSummary
 ): string {
+  if (result.mode === 'submitted_for_auto_build') {
+    return [
+      result.submitResult.pushed
+        ? '✓ Maker project submitted; Maker auto build triggered'
+        : result.submitResult.status === 'clean'
+          ? 'Maker project has no changes to submit; Maker auto build was not triggered'
+          : '✗ Maker project submit failed; Maker auto build was not triggered',
+      '',
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      '- build_local_changes_policy: auto_submit',
+      `- branch: ${result.submitResult.branch}`,
+      `- status: ${result.submitResult.status}`,
+      `- committed: ${result.submitResult.committed ? 'yes' : 'no'}`,
+      result.submitResult.commitHash ? `- commit_hash: ${result.submitResult.commitHash}` : '',
+      result.submitResult.message ? `- commit_message: ${result.submitResult.message}` : '',
+      result.submitResult.ahead ? `- git_state: ${result.submitResult.ahead}` : '',
+      ...formatProgressSummary(progressSummary),
+      '',
+      'note: Maker submit is commit + push; successful submit automatically triggers build.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
   return [
     '✓ Remote Maker build finished',
     '',

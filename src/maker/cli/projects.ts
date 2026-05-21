@@ -66,6 +66,13 @@ export interface PushMakerProjectResult {
   ahead?: string;
 }
 
+export interface MakerProjectLocalChanges {
+  hasChanges: boolean;
+  projectRoot: string;
+  files: string[];
+  rawStatus: string;
+}
+
 export interface MakerGitFailure {
   stage: string;
   command?: string;
@@ -607,6 +614,33 @@ export async function pushMakerProject(
   };
 }
 
+export async function readMakerProjectLocalChanges(cwd: string): Promise<MakerProjectLocalChanges> {
+  ensureGitAvailable();
+  const requestedDir = path.resolve(cwd);
+  if (!isGitRepo(requestedDir)) {
+    throw new Error(`${requestedDir} is not a git repository.`);
+  }
+
+  const projectRoot = (await readGit(['rev-parse', '--show-toplevel'], requestedDir)).trim();
+  const configPath = path.join(projectRoot, '.maker-mcp', 'config.json');
+  if (!fs.existsSync(configPath)) {
+    throw new Error(
+      `${projectRoot} is not bound to a Maker project. .maker-mcp/config.json is missing.`
+    );
+  }
+
+  const rawStatus = await readGit(['status', '--porcelain'], projectRoot);
+  const files = parseGitStatusFiles(rawStatus).filter(
+    (file) => file !== '.maker-mcp' && !file.startsWith('.maker-mcp/')
+  );
+  return {
+    hasChanges: files.length > 0,
+    projectRoot,
+    files,
+    rawStatus,
+  };
+}
+
 function ensureTargetCanBindApp(target: string, appId: string): void {
   const existingConfig = loadProjectConfig(target);
   if (!existingConfig?.project_id || existingConfig.project_id === appId) {
@@ -647,6 +681,21 @@ function generateCommitMessage(status: string): string {
   }
 
   return 'chore: update maker project';
+}
+
+function parseGitStatusFiles(status: string): string[] {
+  return status
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .flatMap((line) => {
+      const file = line.slice(3).trim();
+      if (!file) {
+        return [];
+      }
+      const renameParts = file.split(' -> ');
+      return [renameParts[renameParts.length - 1]];
+    });
 }
 
 async function readAheadState(cwd: string): Promise<string | undefined> {
