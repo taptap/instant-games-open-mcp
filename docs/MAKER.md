@@ -85,6 +85,13 @@ maker_status
 - `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，提交并推送当前 Maker 项目。如果本机没有 Git，工具会在 stage/commit/push 前停止。
 - `maker_push_current_directory`：把当前目录改动 commit 并 push 到 Maker git。如果本机没有 Git，工具会在 stage/commit/push 前停止。
 
+进度和耗时：
+
+- `maker_clone_to_current_directory` 会解析 Git clone/fetch stderr 中的百分比进度；如果客户端支持 MCP progress notification，会实时显示进度。
+- `maker_push_current_directory` / `maker_submit_current_directory` 会在 stage、commit、push 阶段输出状态，并解析 Git push stderr 中的百分比进度。
+- `maker_build_current_directory` 会转发远端 build tool 的 progress notification。
+- 以上慢操作最终返回都会包含 `elapsed_ms`、`elapsed`、`progress_events` 和 `last_progress`。如果没有可用百分比进度，则至少返回耗时统计；长任务运行超过 3 分钟时会发送一次仍在运行的 progress heartbeat。
+
 ## 当前 PAT 获取方式
 
 Maker 本地 MCP 默认使用 PAT-first 流程：

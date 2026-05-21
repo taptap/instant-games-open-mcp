@@ -22,6 +22,7 @@ export interface CloneMakerProjectOptions {
   patName?: string;
   forcePat?: boolean;
   sceEndpoint?: string;
+  onProgress?: MakerProjectProgressHandler;
 }
 
 export interface CloneMakerProjectResult {
@@ -41,7 +42,17 @@ export interface PushMakerProjectOptions {
   jwt?: string;
   pat?: string;
   forcePat?: boolean;
+  onProgress?: MakerProjectProgressHandler;
 }
+
+export interface MakerProjectProgress {
+  progress?: number;
+  total?: number;
+  message: string;
+  phase?: string;
+}
+
+export type MakerProjectProgressHandler = (progress: MakerProjectProgress) => void;
 
 export interface PushMakerProjectResult {
   branch: string;
@@ -260,6 +271,12 @@ export async function cloneMakerProject(
   options: CloneMakerProjectOptions
 ): Promise<CloneMakerProjectResult> {
   ensureGitAvailable();
+  options.onProgress?.({
+    progress: 0,
+    total: 100,
+    phase: 'prepare',
+    message: `Preparing Maker project ${options.appId}`,
+  });
   const target = path.resolve(options.targetDir);
   ensureTargetCanBindApp(target, options.appId);
   let pat = await requestMakerPat({
@@ -267,6 +284,12 @@ export async function cloneMakerProject(
     pat: options.pat,
     name: options.patName || 'first-pat',
     force: options.forcePat,
+  });
+  options.onProgress?.({
+    progress: 5,
+    total: 100,
+    phase: 'auth',
+    message: 'Maker PAT ready for git authentication',
   });
   const gitBase = getMakerGitBase();
 
@@ -276,10 +299,17 @@ export async function cloneMakerProject(
   let transientRetries = 0;
 
   if (isGitRepo(target)) {
+    options.onProgress?.({
+      progress: 10,
+      total: 100,
+      phase: 'fetch',
+      message: 'Existing git repository found; fetching origin',
+    });
     await setOrigin(target, authUrl);
     try {
       transientRetries += await runGitWithTransientRetry(['fetch', 'origin'], {
         cwd: target,
+        onProgress: options.onProgress,
       });
     } catch (error) {
       if (options.forcePat) {
@@ -296,6 +326,7 @@ export async function cloneMakerProject(
       await setOrigin(target, authUrl);
       transientRetries += await runGitWithTransientRetry(['fetch', 'origin'], {
         cwd: target,
+        onProgress: options.onProgress,
       });
     }
 
@@ -303,6 +334,12 @@ export async function cloneMakerProject(
       project_id: options.appId,
       user_id: options.userId || (await resolveMakerProjectUserId(options)),
       sce_endpoint: options.sceEndpoint,
+    });
+    options.onProgress?.({
+      progress: 100,
+      total: 100,
+      phase: 'done',
+      message: 'Maker project fetch completed',
     });
     return {
       appId: options.appId,
@@ -324,8 +361,15 @@ export async function cloneMakerProject(
   }
 
   try {
+    options.onProgress?.({
+      progress: 10,
+      total: 100,
+      phase: 'clone',
+      message: `Cloning Maker project ${options.appId}`,
+    });
     transientRetries += await runGitCaptureWithTransientRetry(['clone', authUrl, target], {
       sanitize: pat.token,
+      onProgress: options.onProgress,
     });
   } catch (error) {
     if (options.forcePat) {
@@ -339,8 +383,15 @@ export async function cloneMakerProject(
     });
     authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
     retriedWithNewPat = true;
+    options.onProgress?.({
+      progress: 10,
+      total: 100,
+      phase: 'clone',
+      message: `Retrying clone for Maker project ${options.appId} with refreshed PAT`,
+    });
     transientRetries += await runGitCaptureWithTransientRetry(['clone', authUrl, target], {
       sanitize: pat.token,
+      onProgress: options.onProgress,
     });
   }
 
@@ -348,6 +399,12 @@ export async function cloneMakerProject(
     project_id: options.appId,
     user_id: options.userId || (await resolveMakerProjectUserId(options)),
     sce_endpoint: options.sceEndpoint,
+  });
+  options.onProgress?.({
+    progress: 100,
+    total: 100,
+    phase: 'done',
+    message: 'Maker project clone completed',
   });
 
   return {
@@ -363,6 +420,12 @@ export async function pushMakerProject(
   options: PushMakerProjectOptions
 ): Promise<PushMakerProjectResult> {
   ensureGitAvailable();
+  options.onProgress?.({
+    progress: 0,
+    total: 100,
+    phase: 'prepare',
+    message: 'Preparing Maker project push',
+  });
   const cwd = path.resolve(options.cwd);
   if (!isGitRepo(cwd)) {
     throw new Error(`${cwd} is not a git repository.`);
@@ -383,11 +446,24 @@ export async function pushMakerProject(
     jwt: options.jwt,
     pat: options.pat,
     forcePat: options.forcePat,
+    onProgress: options.onProgress,
+  });
+  options.onProgress?.({
+    progress: 10,
+    total: 100,
+    phase: 'auth',
+    message: 'Authenticated Maker git origin ready',
   });
 
   const statusBefore = await readGit(['status', '--porcelain'], cwd);
   const branch = await currentBranch(cwd, options.branch);
   if (!statusBefore.trim() && !options.allowEmpty) {
+    options.onProgress?.({
+      progress: 100,
+      total: 100,
+      phase: 'done',
+      message: 'Maker project has no local changes to push',
+    });
     return {
       branch,
       committed: false,
@@ -398,8 +474,20 @@ export async function pushMakerProject(
   }
 
   if (options.files?.length) {
+    options.onProgress?.({
+      progress: 20,
+      total: 100,
+      phase: 'stage',
+      message: 'Staging selected files',
+    });
     await runGit(['add', ...options.files], { cwd });
   } else {
+    options.onProgress?.({
+      progress: 20,
+      total: 100,
+      phase: 'stage',
+      message: 'Staging all local changes',
+    });
     await runGit(['add', '-A'], { cwd });
   }
 
@@ -408,6 +496,12 @@ export async function pushMakerProject(
   let commitHash: string | undefined;
   const message = options.message || generateCommitMessage(statusBefore);
   if (staged.trim() || options.allowEmpty) {
+    options.onProgress?.({
+      progress: 45,
+      total: 100,
+      phase: 'commit',
+      message: 'Creating local Maker project commit',
+    });
     await runGit(
       [
         '-c',
@@ -426,7 +520,13 @@ export async function pushMakerProject(
   }
 
   try {
-    await pushGit(['push', 'origin', `HEAD:${branch}`], cwd);
+    options.onProgress?.({
+      progress: 65,
+      total: 100,
+      phase: 'push',
+      message: `Pushing Maker project to ${branch}`,
+    });
+    await pushGit(['push', 'origin', `HEAD:${branch}`], cwd, options.onProgress);
   } catch (error) {
     const failure = toMakerGitFailure(error, 'push');
     return {
@@ -440,6 +540,12 @@ export async function pushMakerProject(
       ahead: await readAheadState(cwd),
     };
   }
+  options.onProgress?.({
+    progress: 100,
+    total: 100,
+    phase: 'done',
+    message: 'Maker project push completed',
+  });
 
   return {
     branch,
@@ -586,7 +692,11 @@ function nextActionForFailure(classification: MakerGitFailure['classification'])
   }
 }
 
-function pushGit(args: string[], cwd: string): Promise<void> {
+function pushGit(
+  args: string[],
+  cwd: string,
+  onProgress?: MakerProjectProgressHandler
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const gitCommand = getGitCommand();
     const child = spawn(gitCommand, args, {
@@ -597,6 +707,7 @@ function pushGit(args: string[], cwd: string): Promise<void> {
     let stderr = '';
     child.stderr.on('data', (chunk) => {
       stderr += String(chunk);
+      emitGitProgress(chunk, onProgress);
     });
     child.stdout.on('data', (chunk) => {
       stdout += String(chunk);
@@ -655,6 +766,7 @@ async function ensureAuthenticatedOrigin(options: {
   jwt?: string;
   pat?: string;
   forcePat?: boolean;
+  onProgress?: MakerProjectProgressHandler;
 }): Promise<void> {
   const pat = await requestMakerPat({
     jwt: options.jwt,
@@ -667,6 +779,12 @@ async function ensureAuthenticatedOrigin(options: {
   const authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
 
   await setOrigin(options.cwd, authUrl);
+  options.onProgress?.({
+    progress: 8,
+    total: 100,
+    phase: 'auth',
+    message: 'Maker git origin updated with PAT authentication',
+  });
 }
 
 function makeAuthenticatedGitUrl(gitUrl: string, pat: string): string {
@@ -748,6 +866,7 @@ async function runGitWithTransientRetry(
   args: string[],
   options: {
     cwd: string;
+    onProgress?: MakerProjectProgressHandler;
   }
 ): Promise<number> {
   return runWithTransientRetry(() => runGit(args, options));
@@ -758,6 +877,7 @@ async function runGitCaptureWithTransientRetry(
   options: {
     cwd?: string;
     sanitize?: string;
+    onProgress?: MakerProjectProgressHandler;
   } = {}
 ): Promise<number> {
   return runWithTransientRetry(() => runGitCapture(args, options));
@@ -798,6 +918,7 @@ function runGitCapture(
   options: {
     cwd?: string;
     sanitize?: string;
+    onProgress?: MakerProjectProgressHandler;
   } = {}
 ): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -813,6 +934,7 @@ function runGitCapture(
     });
     child.stderr.on('data', (chunk) => {
       stderr += String(chunk);
+      emitGitProgress(chunk, options.onProgress, options.sanitize);
     });
     child.on('exit', (code) => {
       if (code === 0) {
@@ -838,6 +960,7 @@ function runGit(
   options: {
     cwd: string;
     quiet?: boolean;
+    onProgress?: MakerProjectProgressHandler;
   }
 ): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -853,6 +976,7 @@ function runGit(
     });
     child.stderr.on('data', (chunk) => {
       stderr += String(chunk);
+      emitGitProgress(chunk, options.onProgress);
     });
     child.on('exit', (code) => {
       if (code === 0) {
@@ -892,4 +1016,50 @@ function sanitize(value: string, secret?: string): string {
     return value;
   }
   return value.split(secret).join('***');
+}
+
+function emitGitProgress(
+  chunk: Buffer | string,
+  onProgress?: MakerProjectProgressHandler,
+  secret?: string
+): void {
+  if (!onProgress) {
+    return;
+  }
+
+  for (const rawLine of String(chunk).split(/\r\n|\n|\r/)) {
+    const line = sanitize(rawLine.trim(), secret);
+    const progress = parseGitProgressLine(line);
+    if (progress) {
+      onProgress(progress);
+    }
+  }
+}
+
+export function parseGitProgressLine(line: string): MakerProjectProgress | undefined {
+  const message = line.trim();
+  if (!message) {
+    return undefined;
+  }
+
+  const percentMatch = message.match(
+    /(?:remote:\s*)?(Counting objects|Compressing objects|Receiving objects|Resolving deltas|Writing objects):\s+(\d+)%/i
+  );
+  if (percentMatch) {
+    return {
+      progress: Math.max(0, Math.min(100, Number(percentMatch[2]))),
+      total: 100,
+      phase: 'git',
+      message,
+    };
+  }
+
+  if (/^(remote:\s*)?(Cloning into|Enumerating objects|Total )/i.test(message)) {
+    return {
+      phase: 'git',
+      message,
+    };
+  }
+
+  return undefined;
 }
