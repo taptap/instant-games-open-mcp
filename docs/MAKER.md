@@ -83,8 +83,8 @@ maker_status
 - `maker_clone_to_current_directory`：把选中的 Maker app 仓库拉到当前目录并写 `.maker-mcp/config.json`。如果本机没有 Git，工具会在申请 PAT 和改动文件前停止。当前目录不要求为空；clone 前会检查本地目录，忽略 `.claude`、`.mcp`、`.skill`、`.config`、`.ini` 等点开头配置项，只对普通本地文件输出提醒。clone 最终结果固定包含 `Pre-clone local directory check` 区块；已有本地文件会保留，若与 Maker 项目文件同路径冲突则失败并列出冲突文件。
 - `maker_configure_remote_proxy`：按 server 测试脚本生成 `proxy_cfg`，写入当前项目 `.mcp.json`，连接远端 `taptap-proxy`。
 - `maker_build_current_directory`：用户说“构建 / build / 重新构建游戏”时使用，转发调用远端 `build` tool。工具内部会强制检查本地 Maker 项目是否有未提交改动；如果有改动且没有确认提交或跳过提交，会停止并要求先询问用户。用户确认提交时，再次调用本工具并设置 `submit_local_changes_before_build=true` 和 `remember_build_submit_preference=true`，工具会完整执行 commit + push + build 并返回构建结果。构建转发会从 MCP 包自身定位 `dist/proxy.js`；`cwd` / `target_dir` 只用于识别 Maker 游戏项目，不要求游戏目录存在 MCP 的 `dist/proxy.js`。
-- `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，对当前 Maker 项目执行 commit + push + build；只有实际 push 成功后才继续远端 build。不要用它响应构建拦截里的 `提交本地改动并触发构建（以后都是如此）` 选项。如果本机没有 Git，工具会在 stage/commit/push/build 前停止。
-- `maker_push_current_directory`：把当前目录改动 commit 并 push 到 Maker git。如果本机没有 Git，工具会在 stage/commit/push 前停止。
+- `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，对当前 Maker 项目执行 commit + push + build；只有实际 push 成功后才继续远端 build。构建拦截里的 `提交本地改动并触发构建（以后都是如此）` 选项应继续调用 `maker_build_current_directory`，并传入 `submit_local_changes_before_build=true` 和 `remember_build_submit_preference=true`，由构建流程保存偏好并返回构建结果。如果本机没有 Git，工具会在 stage/commit/push/build 前停止。
+- `maker_push_current_directory`：把当前目录改动 commit、push 到 Maker git，然后触发远端 build。如果本机没有 Git，工具会在 stage/commit/push/build 前停止。
 
 Maker app 列表关键字段：
 
@@ -384,5 +384,5 @@ maker_status()
 
 - Tap OAuth 复用现有 `src/core/auth`，当前仍保留给远端 MCP tools 的 Tap token 认证。
 - `maker_exchange_jwt` 作为 legacy fallback 保留，也支持缓存 JWT、`JWT` / `MAKER_JWT` 环境变量。
-- `maker_push_current_directory` 会在当前目录创建 commit 并 push，调用前需要用户明确要求推送。
+- `maker_push_current_directory` 会在当前目录创建 commit、push，并在 push 成功后继续远端 build；调用前需要用户明确要求推送。
 - 云端 SCE MCP proxy 转发仍需要本地已有 Tap auth；后续可接入 PAT 换 Tap token 的后端接口。

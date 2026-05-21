@@ -10,7 +10,9 @@ import {
   buildCurrentDirectory,
   createBuildArgs,
   formatBuildResult,
+  formatPushResult,
   pushThenBuildCurrentDirectory,
+  tools,
 } from '../maker/server/mcp';
 import { readMakerProjectLocalChanges } from '../maker/cli/projects';
 import { saveProjectConfig } from '../maker/storage';
@@ -98,6 +100,60 @@ describe('maker build local-change guard', () => {
     ).rejects.toThrow('Tap auth not found');
   });
 
+  test('build request runs remote build directly when project has no local changes', async () => {
+    const remoteBuildTargetDirs: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      callRemoteBuild: async (targetDir) => {
+        remoteBuildTargetDirs.push(targetDir);
+        return {
+          mode: 'remote_build',
+          projectRoot: fs.realpathSync(tempDir),
+          projectId: 'app-1',
+          projectPath: 'app-1/workspace',
+          serverUrl: 'https://maker.example.test/mcp',
+          env: 'rnd',
+          timeoutMs: 600000,
+          buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+          resultText: 'build ok',
+        };
+      },
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect('submitResult' in result ? result.submitResult : undefined).toBeUndefined();
+    expect(remoteBuildTargetDirs).toEqual([tempDir]);
+  });
+
+  test('build request builds committed remote version when user confirms no submit', async () => {
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
+    const remoteBuildTargetDirs: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      confirmRemoteBuildWithoutSubmit: true,
+      callRemoteBuild: async (targetDir) => {
+        remoteBuildTargetDirs.push(targetDir);
+        return {
+          mode: 'remote_build',
+          projectRoot: fs.realpathSync(tempDir),
+          projectId: 'app-1',
+          projectPath: 'app-1/workspace',
+          serverUrl: 'https://maker.example.test/mcp',
+          env: 'rnd',
+          timeoutMs: 600000,
+          buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+          resultText: 'build ok',
+        };
+      },
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect('submitResult' in result ? result.submitResult : undefined).toBeUndefined();
+    expect(remoteBuildTargetDirs).toEqual([tempDir]);
+  });
+
   test('defaults single-player build entry to scripts/main.lua when present', () => {
     const buildArgs = createBuildArgs(tempDir, {});
 
@@ -130,6 +186,30 @@ describe('maker build local-change guard', () => {
       scriptsPath: 'custom',
       entry: 'boot.lua',
     });
+  });
+
+  test('push and submit tool descriptions require commit, push, and build', () => {
+    for (const toolName of ['maker_push_current_directory', 'maker_submit_current_directory']) {
+      const tool = tools.find((item) => item.name === toolName);
+
+      expect(tool?.description).toContain('commit + push + build');
+      expect(tool?.description).toContain('remote Maker build');
+      expect(tool?.description).not.toContain('Commit and push current Maker project');
+      expect(tool?.description).not.toContain('不负责构建');
+      expect(tool?.description).not.toContain('Do not use this tool');
+      expect(tool?.description).not.toContain('automatically triggers build');
+      expect(tool?.description).not.toContain('Maker auto build');
+    }
+  });
+
+  test('submit tool schema does not expose build preference parameter', () => {
+    const submitTool = tools.find((item) => item.name === 'maker_submit_current_directory');
+    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
+
+    expect(submitTool?.inputSchema.properties).not.toHaveProperty(
+      'remember_build_submit_preference'
+    );
+    expect(buildTool?.inputSchema.properties).toHaveProperty('remember_build_submit_preference');
   });
 
   test('auto submits local changes and then runs remote build when project preference is saved', async () => {
@@ -338,6 +418,33 @@ describe('maker build local-change guard', () => {
     expect(result.submitResult.commitHash).toBe('abc1234');
     expect(result.buildResult).toBeUndefined();
     expect(result.buildFailure?.message).toBe('remote build failed');
+  });
+
+  test('push result only reports build finished when remote build result exists', () => {
+    const output = formatPushResult(
+      tempDir,
+      {
+        targetDir: tempDir,
+        submitResult: {
+          branch: 'main',
+          committed: true,
+          commitHash: 'abc1234',
+          message: 'chore: update maker project',
+          pushed: true,
+          status: 'pushed',
+        },
+      },
+      {
+        elapsedMs: 1000,
+        elapsed: '1s',
+        progressEvents: 1,
+      }
+    );
+
+    expect(output).toContain('remote build result is missing');
+    expect(output).toContain('internal contract error');
+    expect(output).not.toContain('remote Maker build finished');
+    expect(output).not.toContain('remote_build:');
   });
 
   test('auto-submit build preserves pushed result when remote build fails', async () => {

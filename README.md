@@ -85,13 +85,13 @@ maker_push_current_directory
 - 用户选择 `提交本地改动并触发构建（以后都是如此）` 后，应再次调用 `maker_build_current_directory` 并传入 `submit_local_changes_before_build=true` 和 `remember_build_submit_preference=true`；工具会完整执行 commit + push + build，并在当前项目 `.maker-mcp/config.json` 记住偏好。
 - 保存偏好后，后续用户说“构建”且本地有改动时，`maker_build_current_directory` 会默认自动提交并继续执行远端 build，不再重复询问。
 - 只有当用户明确说“不提交 / 直接构建云端版本”时，才可再次调用 `maker_build_current_directory` 并传入 `confirm_remote_build_without_submit=true`。
-- 用户说“查看结果 / 预览 / 跑一下 / 验证一下 / 看看效果”时，也按构建流程处理；如果本地有改动，先提醒提交后自动构建。
+- 用户说“查看结果 / 预览 / 跑一下 / 验证一下 / 看看效果”时，也按构建流程处理；如果本地有改动，先提醒用户选择是否提交，确认提交后执行 commit + push + build。
 - 构建转发会从 MCP 包自身定位 `dist/proxy.js`；`cwd` / `target_dir` 只用于识别 Maker 游戏项目，不要求游戏目录存在 MCP 的 `dist/proxy.js`。
 - 用户未指定构建入口且本地存在 `scripts/main.lua` 时，Maker MCP 默认向远端 build 传 `scriptsPath="scripts"` 和 `entry="main.lua"`，避免第一次构建多一轮“入口配置缺失”的提示；用户显式传入口或多人入口时优先生效。
 - 如需在当前游戏项目里直接暴露远端全量 `taptap-proxy` tools，再使用 `maker_configure_remote_proxy` 写入 `.mcp.json` 并重启 MCP 会话。
 - `maker_get_mcp_update_guide` 默认生成 `@taptap/instant-games-open-mcp@beta` 和 `taptap-maker` 的 npx 缓存更新步骤；更新后当前 MCP 会话通常不会热加载，必须重启 MCP 客户端或新开 Claude Code / Codex / Cursor 窗口，再调用 `maker_status` 验证。
 - 用户说“帮我提交/提交代码”时使用 `maker_submit_current_directory`，会对当前 Maker 项目执行 commit + push + build；只有实际 push 成功后才继续远端 build。
-- “帮我提交代码到maker / taptap制造 / tap制造 / tap”也应触发 `maker_submit_current_directory`。
+- “帮我提交代码到maker / taptap制造 / tap制造 / tap”也应触发 `maker_submit_current_directory` 或 `maker_push_current_directory`，并在 push 成功后继续远端 build。
 - Maker 项目提交不走通用 Git skill 的任务号、新分支规则；冲突时先和用户确认 pull/rebase 流程。
 - 如果 commit 已完成但 push 失败，Maker MCP 会返回 commit hash、ahead 状态、exit code、stderr/stdout 和下一步建议，便于开发期排查。
 - clone/fetch、push 和远端 build 属于慢操作；工具会尽量发送 MCP progress notification，Git 阶段会解析 stderr 百分比，最终返回会包含耗时和最近进度。

@@ -76,7 +76,7 @@ const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
 const LONG_OPERATION_HEARTBEAT_MS = 3 * 60 * 1000;
 const MAKER_WEB_URL = getMakerWebUrl();
 
-const tools = [
+export const tools = [
   {
     name: 'maker_tap_login_start',
     description:
@@ -246,7 +246,7 @@ const tools = [
   {
     name: 'maker_push_current_directory',
     description:
-      'Commit and push current Maker project directory changes to the Maker git remote. Requires local Git. If Git is missing, this tool stops before staging, committing, or pushing and returns install guidance; do not retry push until the user installs Git and git --version works. In a directory containing .maker-mcp/config.json, use this for user requests like "帮我提交代码", "提交并推送", "push", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". Do not use generic Git workflow rules, do not ask for a ticket id, and do not create a new branch unless the user explicitly asks.',
+      'Commit, push, and build current Maker project directory changes. Requires local Git. If Git is missing, this tool stops before staging, committing, pushing, or building and returns install guidance; do not retry until the user installs Git and git --version works. In a directory containing .maker-mcp/config.json, use this for user requests like "帮我提交代码", "提交并推送", "push", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". Maker push means commit + push + build: after a successful push, this tool MUST run the remote Maker build and return the build result. Do not use generic Git workflow rules, do not ask for a ticket id, and do not create a new branch unless the user explicitly asks.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -294,7 +294,7 @@ const tools = [
   {
     name: 'maker_submit_current_directory',
     description:
-      'Alias for maker_push_current_directory. Requires local Git. If Git is missing, stop and show install guidance; do not stage, commit, push, or build. Use this in Maker projects when the user says "帮我提交", "帮我提交代码", "提交", "提交代码", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". Maker submit means commit + push + build: after a successful push, this tool MUST run the remote Maker build and return the build result. Do not use this tool to satisfy a build local-change prompt; if the user chooses "提交本地改动并触发构建（以后都是如此）" from a build prompt, call maker_build_current_directory with submit_local_changes_before_build=true and remember_build_submit_preference=true so the build tool performs commit + push + build and remembers the preference. This submit tool bypasses local generic Git branch/task-id rules and pushes directly to the Maker remote configured for the current directory.',
+      'Alias for maker_push_current_directory. Requires local Git. If Git is missing, stop and show install guidance; do not stage, commit, push, or build. Use this in Maker projects when the user says "帮我提交", "帮我提交代码", "提交", "提交代码", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". Maker submit means commit + push + build: after a successful push, this tool MUST run the remote Maker build and return the build result. If the remote build fails after push, return build_failure details together with the successful submit result. For build requests that stop on local changes, continue through maker_build_current_directory with submit_local_changes_before_build=true and remember_build_submit_preference=true so the build workflow can save the auto-submit preference and return the build result. This submit tool bypasses local generic Git branch/task-id rules and pushes directly to the Maker remote configured for the current directory.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -312,11 +312,6 @@ const tools = [
           type: 'array',
           items: { type: 'string' },
           description: 'Optional files to stage. Defaults to all changes.',
-        },
-        remember_build_submit_preference: {
-          type: 'boolean',
-          description:
-            'Set true only when the user explicitly chooses "提交本地改动并触发构建（以后都是如此）". After a successful submit, future build requests with local changes will automatically submit instead of asking again.',
         },
       },
     },
@@ -740,7 +735,6 @@ export async function startMakerMcpServer(): Promise<void> {
           pat?: string;
           jwt?: string;
           force_pat?: boolean;
-          remember_build_submit_preference?: boolean;
         };
 
         const targetDir = args.target_dir || process.cwd();
@@ -761,7 +755,6 @@ export async function startMakerMcpServer(): Promise<void> {
             pat: args.pat,
             jwt: args.jwt,
             forcePat: args.force_pat === true,
-            rememberBuildSubmitPreference: args.remember_build_submit_preference === true,
             onProgress: progressReporter.report,
           });
           progressSummary = progressReporter.finish();
@@ -1667,7 +1660,6 @@ export async function pushThenBuildCurrentDirectory(options: {
   pat?: string;
   jwt?: string;
   forcePat?: boolean;
-  rememberBuildSubmitPreference?: boolean;
   pushLocalChanges?: SubmitLocalChangesForBuild;
   callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildResult>;
   onProgress?: MakerProjectProgressHandler;
@@ -1683,9 +1675,6 @@ export async function pushThenBuildCurrentDirectory(options: {
     forcePat: options.forcePat,
     onProgress: options.onProgress,
   });
-  if (options.rememberBuildSubmitPreference && !submitResult.failure) {
-    rememberBuildSubmitPreference(options.targetDir);
-  }
   if (!submitResult.pushed) {
     return {
       targetDir: options.targetDir,
@@ -1916,7 +1905,7 @@ export function formatBuildResult(
   return lines.join('\n');
 }
 
-function formatPushResult(
+export function formatPushResult(
   targetDir: string,
   result: PushThenBuildCurrentDirectoryResult,
   progressSummary: ToolProgressSummary
@@ -1926,7 +1915,7 @@ function formatPushResult(
     result.buildResult
       ? '✓ Maker project pushed, then remote Maker build finished'
       : submitResult.pushed
-        ? '✓ Maker project pushed; remote build was not started'
+        ? '✗ Maker project pushed, but remote build result is missing'
         : submitResult.status === 'clean'
           ? 'Maker project has no changes to push'
           : '✗ Maker project push failed',
@@ -1977,7 +1966,7 @@ function formatPushResult(
       ...lines,
       '',
       submitResult.pushed
-        ? 'note: Maker build was not started because no remote build result was returned.'
+        ? 'note: This is an internal contract error: pushed=true requires remote_build or build_failure.'
         : 'note: Maker build was not started because no push was performed.',
     ].join('\n');
   }
