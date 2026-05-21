@@ -17,19 +17,24 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { identifyMakerProject, formatIdentifyHint } from './identify.js';
 import {
   getJwtPath,
+  getPatPath,
   getTapAuthPath,
   getTapDeviceSessionPath,
   loadProjectConfig,
   loadJwt,
+  loadPat,
   loadTapAuth,
   loadTapDeviceSession,
 } from '../storage.js';
 import { cloneMakerProject, listMakerProjects, pushMakerProject } from '../cli/projects.js';
 import { startTapDeviceLogin, completeTapDeviceLogin } from '../auth/oauth.js';
+import { requestTapAuthWithPat } from '../auth/patTap.js';
+import { saveManualMakerPat } from '../git/pat.js';
 import {
   getMakerEndpoints,
   getMakerEnvironment,
   getMakerWebUrl,
+  TEMP_MAKER_PAT_TOKENS_URL,
   requireMakerEndpoint,
 } from '../config.js';
 import {
@@ -55,7 +60,7 @@ const tools = [
   {
     name: 'maker_tap_login_start',
     description:
-      'Start TapTap OAuth device login for Maker. Keep this step in the onboarding flow because remote Maker MCP tools need Tap token authentication. Show the returned auth_url and wait for the user to say they have authorized.',
+      'Legacy fallback: start TapTap OAuth device login for Maker. Prefer maker_exchange_pat because it can fetch and save TapTap token automatically with a Maker PAT.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -64,7 +69,7 @@ const tools = [
   {
     name: 'maker_tap_login_complete',
     description:
-      'Complete TapTap OAuth device login after the user says authorization is done. Saves Tap MAC auth locally for remote Maker MCP tools.',
+      'Legacy fallback: complete TapTap OAuth device login after the user says authorization is done. Saves Tap MAC auth locally for remote Maker MCP tools.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -95,23 +100,42 @@ const tools = [
     },
   },
   {
-    name: 'maker_list_apps',
-    description:
-      'List Maker apps available to the current Maker JWT. Requires Tap auth first because remote Maker MCP tools need Tap token authentication later in the flow. If tap_auth is missing, call maker_tap_login_start, wait for user authorization, then call maker_tap_login_complete before listing apps. Always show the list to the user and ask them to choose before cloning.',
+    name: 'maker_exchange_pat',
+    description: `Prepare and save the Maker PAT used by Maker API app listing, Git operations, and TapTap token retrieval. Prefer this PAT-first flow over maker_exchange_jwt. If the user does not have a PAT, ask them to open the temporary PAT page ${TEMP_MAKER_PAT_TOKENS_URL}, create one, and give it to the agent. After saving PAT, this tool automatically fetches TapTap token and lists apps.`,
     inputSchema: {
       type: 'object',
       properties: {
+        manual_pat: {
+          type: 'string',
+          description:
+            'Maker PAT provided by the user. It will be saved for later Maker API and git operations.',
+        },
+      },
+      required: ['manual_pat'],
+    },
+  },
+  {
+    name: 'maker_list_apps',
+    description:
+      'List Maker apps available to the current Maker PAT. Prefer cached PAT from maker_exchange_pat or the pat argument. JWT is accepted only as a legacy fallback. Always show the list to the user and ask them to choose before cloning.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pat: {
+          type: 'string',
+          description:
+            'Optional Maker PAT override. If provided, it is saved for later Maker operations.',
+        },
         jwt: {
           type: 'string',
-          description: 'Optional Maker JWT override. Prefer cached JWT from maker_exchange_jwt.',
+          description: 'Legacy Maker JWT override. Prefer PAT instead.',
         },
       },
     },
   },
   {
     name: 'maker_status',
-    description:
-      'Show local Maker MCP binding status, including whether Git is available. If Git is missing, do not call clone/push/build-side git operations; keep showing the install guidance until the user installs Git and git --version works. If no project is bound, guide the agent through both auth steps: maker_tap_login_start, wait for user authorization, maker_tap_login_complete, then ask the user to copy `taptap_access_token` from Chrome DevTools Application > Local storage, call maker_exchange_jwt with manual_jwt, call maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory.',
+    description: `Show local Maker MCP binding status, including whether Git is available. Use this as the first step for Maker local development requests such as "我要开发maker游戏", "本地maker开发", "拉取maker游戏到本地", "把maker游戏代码拉到本地", "clone maker项目", "打开/继续开发maker项目", or "初始化maker开发目录". If Git is missing, do not call clone/push/build-side git operations; keep showing the install guidance until the user installs Git and git --version works. If PAT is missing, ask the user to open the temporary PAT page ${TEMP_MAKER_PAT_TOKENS_URL}, create a PAT, give it to the agent, then call maker_exchange_pat. If PAT exists and no project is bound, this tool automatically lists apps; ask the user to choose an app, then call maker_clone_to_current_directory.`,
     inputSchema: {
       type: 'object',
       properties: {},
@@ -128,7 +152,7 @@ const tools = [
   },
   {
     name: 'maker_setup_guide',
-    description: `Show setup guidance when the current directory is not bound to a Maker project yet. In Codex/MCP mode, first make sure Git is installed by checking maker_status or maker_check_environment. If Git is missing, keep showing the install guidance and do not clone. After Git is available, first run maker_tap_login_start and maker_tap_login_complete because remote Maker MCP tools need Tap token authentication. Then ask the user to open ${MAKER_WEB_URL}, open Chrome DevTools > Application > Local storage, find \`taptap_access_token\`, give its value to the agent, call maker_exchange_jwt with manual_jwt, call maker_list_apps, ask the user to choose an app, then maker_clone_to_current_directory. Do not ask for app_id upfront and do not run shell CLI commands.`,
+    description: `Show setup guidance when the current directory is not bound to a Maker project yet. Use this for user intents like "我要开发maker游戏", "本地maker开发", "拉取maker游戏到本地", "把maker游戏代码拉到本地", "clone maker游戏", "下载maker项目代码", "初始化maker项目", or "配置maker本地开发". In Codex/MCP mode, first make sure Git is installed by checking maker_status or maker_check_environment. If Git is missing, keep showing the install guidance and do not clone. If PAT is missing, ask the user to open the temporary PAT page ${TEMP_MAKER_PAT_TOKENS_URL}, create a PAT, give it to the agent, then call maker_exchange_pat; maker_exchange_pat automatically lists apps after saving PAT. If PAT already exists, maker_status automatically lists apps. Ask the user to choose an app, then maker_clone_to_current_directory. Do not ask for app_id upfront and do not run shell commands.`,
     inputSchema: {
       type: 'object',
       properties: {},
@@ -137,7 +161,7 @@ const tools = [
   {
     name: 'maker_clone_to_current_directory',
     description:
-      'Clone a Maker app repository into the current Codex/agent working directory. Requires Tap auth first because remote Maker MCP tools need Tap token authentication later in the flow. Call this only after maker_list_apps has listed apps and the user has chosen one. Requires local Git. If Git is missing, this tool stops before requesting PAT or changing files and returns install guidance; do not retry clone until the user installs Git and git --version works. Do not ask for app_id upfront and do not run shell CLI commands. Requires the selected app_id; uses cached Maker JWT/PAT by default.',
+      'Clone a Maker app repository into the current Codex/agent working directory. Use after the user chooses an app from the Maker app list for requests like "拉取maker游戏到本地", "把这个maker app拉下来", "clone maker项目", or "下载maker游戏代码". Call this only after maker_list_apps has listed apps and the user has chosen one. Requires local Git. If Git is missing, this tool stops before changing files and returns install guidance; do not retry clone until the user installs Git and git --version works. Requires the selected app_id; uses cached Maker PAT by default.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -150,13 +174,24 @@ const tools = [
           description:
             'Optional target directory. Defaults to the MCP process cwd, which should be the current Codex conversation directory.',
         },
+        pat: {
+          type: 'string',
+          description:
+            'Optional Maker PAT override. If provided, it is saved and used for git authentication.',
+        },
+        user_id: {
+          type: 'string',
+          description:
+            'Optional Maker user_id from maker_list_apps output. If omitted, the tool will try to resolve it from the app list.',
+        },
         jwt: {
           type: 'string',
-          description: 'Optional Maker JWT override. Prefer cached JWT from maker_exchange_jwt.',
+          description: 'Legacy Maker JWT override. Prefer PAT instead.',
         },
         force_pat: {
           type: 'boolean',
-          description: 'If true, create a new PAT instead of reusing cached ~/.maker-pat.',
+          description:
+            'If true, create a new PAT instead of reusing cached ~/.maker-pat. Requires legacy JWT unless pat is explicitly provided.',
         },
       },
       required: ['app_id'],
@@ -195,11 +230,17 @@ const tools = [
         },
         jwt: {
           type: 'string',
-          description: 'Optional Maker JWT override for refreshing the git PAT before push.',
+          description:
+            'Legacy Maker JWT override for creating a new git PAT. Prefer cached/provided PAT.',
+        },
+        pat: {
+          type: 'string',
+          description: 'Optional Maker PAT override for git authentication.',
         },
         force_pat: {
           type: 'boolean',
-          description: 'If true, create a new PAT before push.',
+          description:
+            'If true, create a new PAT before push. Requires legacy JWT unless pat is explicitly provided.',
         },
       },
     },
@@ -271,7 +312,7 @@ const tools = [
   {
     name: 'maker_build_current_directory',
     description:
-      'Build the current Maker game by forwarding to the remote TapTap Maker MCP build tool. MUST use this for user requests like "构建", "build", "重新构建游戏", "帮我构建maker游戏", "compile", or "run" in a Maker project. Do not write local build scripts. Uses saved Tap auth/JWT and current .maker-mcp/config.json project binding to call the remote build tool through taptap-proxy.',
+      'Build the current Maker game by forwarding to the remote TapTap Maker MCP build tool. MUST use this for user requests like "构建", "build", "重新构建游戏", "帮我构建maker游戏", "compile", or "run" in a Maker project. Do not write local build scripts. Uses saved Tap auth and current .maker-mcp/config.json project binding to call the remote build tool through taptap-proxy.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -348,7 +389,7 @@ export async function startMakerMcpServer(): Promise<void> {
           content: [
             {
               type: 'text',
-              text: formatStatus(),
+              text: await formatStatus(),
             },
           ],
         };
@@ -409,7 +450,7 @@ export async function startMakerMcpServer(): Promise<void> {
                 `- mac_algorithm: ${auth.mac_algorithm}`,
                 `- saved: ${getTapAuthPath()}`,
                 '',
-                '下一步调用 maker_exchange_jwt。',
+                '如果还未保存 Maker PAT，下一步调用 maker_exchange_pat。',
               ].join('\n'),
             },
           ],
@@ -457,23 +498,70 @@ export async function startMakerMcpServer(): Promise<void> {
         };
       }
 
-      if (name === 'maker_list_apps') {
-        if (!loadTapAuth()) {
-          return {
-            isError: true,
-            content: [
-              {
-                type: 'text',
-                text: formatTapLoginRequired('maker_list_apps'),
-              },
-            ],
-          };
+      if (name === 'maker_exchange_pat') {
+        const args = (request.params.arguments || {}) as {
+          manual_pat?: string;
+        };
+        if (!args.manual_pat) {
+          throw new McpError(ErrorCode.InvalidParams, 'manual_pat is required');
         }
 
+        const pat = saveManualMakerPat(args.manual_pat);
+        let tapAuthText: string;
+        try {
+          const tapAuth = await requestTapAuthWithPat(args.manual_pat);
+          tapAuthText = [
+            'TapTap token 已通过 PAT 获取并保存。',
+            `- kid: ${mask(tapAuth.kid)}`,
+            `- token_type: ${tapAuth.token_type}`,
+            `- saved: ${getTapAuthPath()}`,
+          ].join('\n');
+        } catch (error) {
+          tapAuthText = [
+            'TapTap token 自动获取失败。',
+            `原因：${error instanceof Error ? error.message : String(error)}`,
+            '远端 Maker MCP tools 需要 TapTap token；请确认 PAT 是否有效后重新调用 maker_exchange_pat。',
+          ].join('\n');
+        }
+
+        let nextText: string;
+        try {
+          const projects = await listMakerProjects({ pat: args.manual_pat });
+          nextText = ['已自动列出可用 Maker Apps：', '', formatProjectList(projects)].join('\n');
+        } catch (error) {
+          nextText = [
+            '自动列出 Maker Apps 失败。',
+            `原因：${error instanceof Error ? error.message : String(error)}`,
+            '请确认 PAT 是否有效，然后重新调用 maker_list_apps。',
+          ].join('\n');
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: [
+                '✓ Maker PAT ready',
+                '',
+                `- pat: ${mask(pat.token)}`,
+                `- saved: ${getPatPath()}`,
+                '',
+                tapAuthText,
+                '',
+                nextText,
+              ].join('\n'),
+            },
+          ],
+        };
+      }
+
+      if (name === 'maker_list_apps') {
         const args = (request.params.arguments || {}) as {
+          pat?: string;
           jwt?: string;
         };
         const projects = await listMakerProjects({
+          pat: args.pat,
           jwt: args.jwt,
         });
         return {
@@ -501,6 +589,8 @@ export async function startMakerMcpServer(): Promise<void> {
         const args = (request.params.arguments || {}) as {
           app_id?: string;
           target_dir?: string;
+          pat?: string;
+          user_id?: string;
           jwt?: string;
           force_pat?: boolean;
         };
@@ -508,22 +598,13 @@ export async function startMakerMcpServer(): Promise<void> {
         if (!args.app_id) {
           throw new McpError(ErrorCode.InvalidParams, 'app_id is required');
         }
-        if (!loadTapAuth()) {
-          return {
-            isError: true,
-            content: [
-              {
-                type: 'text',
-                text: formatTapLoginRequired('maker_clone_to_current_directory'),
-              },
-            ],
-          };
-        }
 
         const targetDir = args.target_dir || process.cwd();
         const result = await cloneMakerProject({
           appId: args.app_id,
           targetDir,
+          pat: args.pat,
+          userId: args.user_id,
           jwt: args.jwt,
           forcePat: args.force_pat === true,
           sceEndpoint: process.env.SCE_MCP_URL,
@@ -554,6 +635,7 @@ export async function startMakerMcpServer(): Promise<void> {
           branch?: string;
           files?: string[];
           allow_empty?: boolean;
+          pat?: string;
           jwt?: string;
           force_pat?: boolean;
         };
@@ -565,6 +647,7 @@ export async function startMakerMcpServer(): Promise<void> {
           branch: args.branch,
           files: args.files,
           allowEmpty: args.allow_empty === true,
+          pat: args.pat,
           jwt: args.jwt,
           forcePat: args.force_pat === true,
         });
@@ -661,12 +744,39 @@ export async function startMakerMcpServer(): Promise<void> {
   await server.connect(transport);
 }
 
-function formatStatus(): string {
+async function formatStatus(): Promise<string> {
   const identify = identifyMakerProject();
-  const jwt = loadJwt();
-  const tapAuth = loadTapAuth();
+  const pat = loadPat();
+  let tapAuth = loadTapAuth();
+  let tapAuthRefreshText = '';
+  if (pat && !tapAuth) {
+    try {
+      tapAuth = await requestTapAuthWithPat(pat.token);
+      tapAuthRefreshText = [
+        'TapTap token',
+        '',
+        `本地已有 Maker PAT，已自动获取并保存 TapTap token: ${getTapAuthPath()}`,
+      ].join('\n');
+    } catch (error) {
+      tapAuthRefreshText = [
+        'TapTap token',
+        '',
+        '本地已有 Maker PAT，但自动获取 TapTap token 失败。',
+        `原因：${error instanceof Error ? error.message : String(error)}`,
+      ].join('\n');
+    }
+  }
   const tapSession = loadTapDeviceSession();
   const git = checkGitEnvironment();
+  const projectSection = identify.projectId
+    ? [
+        '当前目录已绑定 Maker 项目。',
+        '如果用户要求“帮我提交代码 / 提交并推送 / push / 帮我提交代码到maker / 帮我提交代码到taptap制造 / 帮我提交代码到tap制造 / 帮我提交代码到tap”，必须调用 maker_submit_current_directory 或 maker_push_current_directory。',
+        '不要套用本地通用 Git skill 的任务号、默认分支保护、新建分支规则；Maker push 按远端 Maker 仓库当前分支直接提交并推送。',
+      ].join('\n')
+    : pat
+      ? await formatAutoProjectListFromPat()
+      : formatIdentifyHint();
 
   return [
     'TapTap Maker MCP status',
@@ -674,7 +784,7 @@ function formatStatus(): string {
     `- version: ${VERSION}`,
     `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath()})`,
     `- tap_login_session: ${tapSession ? 'found' : 'missing'} (${getTapDeviceSessionPath()})`,
-    `- jwt: ${jwt ? 'found' : 'missing'} (${getJwtPath()})`,
+    `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
     `- project_source: ${identify.source}`,
     `- project_id: ${identify.projectId || '(none)'}`,
     identify.configPath ? `- config: ${identify.configPath}` : '',
@@ -684,24 +794,38 @@ function formatStatus(): string {
     '',
     formatGitEnvironmentStatus(git),
     '',
-    tapAuth
+    pat
       ? ''
       : [
           'Auth next step',
           '',
-          'Tap 登录授权缺失。继续列项目或克隆前，请先调用 maker_tap_login_start，用户授权后调用 maker_tap_login_complete。',
+          `Maker PAT 缺失。请主动让用户打开临时 PAT 页面 ${TEMP_MAKER_PAT_TOKENS_URL} 新建 PAT，然后把 PAT 发给你；拿到后调用 maker_exchange_pat 保存。`,
         ].join('\n'),
     '',
-    identify.projectId
-      ? [
-          '当前目录已绑定 Maker 项目。',
-          '如果用户要求“帮我提交代码 / 提交并推送 / push / 帮我提交代码到maker / 帮我提交代码到taptap制造 / 帮我提交代码到tap制造 / 帮我提交代码到tap”，必须调用 maker_submit_current_directory 或 maker_push_current_directory。',
-          '不要套用本地通用 Git skill 的任务号、默认分支保护、新建分支规则；Maker push 按远端 Maker 仓库当前分支直接提交并推送。',
-        ].join('\n')
-      : formatIdentifyHint(),
+    tapAuthRefreshText,
+    '',
+    projectSection,
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+async function formatAutoProjectListFromPat(): Promise<string> {
+  try {
+    const projects = await listMakerProjects();
+    return [
+      '本地已有 Maker PAT，当前目录尚未绑定 Maker 项目。',
+      '已自动列出可用 Maker Apps，请让用户选择一个 app，然后调用 maker_clone_to_current_directory。',
+      '',
+      formatProjectList(projects),
+    ].join('\n');
+  } catch (error) {
+    return [
+      '本地已有 Maker PAT，但自动列出 Maker Apps 失败。',
+      `原因：${error instanceof Error ? error.message : String(error)}`,
+      `如果 PAT 已失效，请主动让用户打开临时 PAT 页面 ${TEMP_MAKER_PAT_TOKENS_URL} 新建 PAT，然后调用 maker_exchange_pat 保存。`,
+    ].join('\n');
+  }
 }
 
 function formatEnvironment(): string {
@@ -719,22 +843,6 @@ function formatEnvironment(): string {
   ].join('\n');
 }
 
-function formatTapLoginRequired(nextTool: string): string {
-  return [
-    'Tap 登录授权缺失，先暂停当前 Maker 流程。',
-    '',
-    '远端 Maker MCP tools 需要 Tap token 认证，因此在列项目或克隆前必须先完成 Tap 登录。',
-    '',
-    '请按顺序执行：',
-    '1. 调用 maker_tap_login_start，展示授权链接。',
-    '2. 等用户完成授权并回复“已授权”。',
-    '3. 调用 maker_tap_login_complete，保存 Tap token。',
-    `4. 重新调用 ${nextTool}。`,
-    '',
-    `Tap auth 保存位置：${getTapAuthPath()}`,
-  ].join('\n');
-}
-
 function mask(value: string): string {
   if (value.length <= 12) {
     return '***';
@@ -742,12 +850,14 @@ function mask(value: string): string {
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
-function formatProjectList(projects: Array<{ id: string; name?: string }>): string {
+function formatProjectList(
+  projects: Array<{ id: string; name?: string; user_id?: string }>
+): string {
   if (projects.length === 0) {
     return [
       'No Maker apps found.',
       '',
-      '请确认 Maker JWT 是否有效，或等待 Maker app list 接口对齐。',
+      '请确认 Maker PAT 是否有效，或等待 Maker app list 接口对齐。',
     ].join('\n');
   }
 
@@ -755,7 +865,10 @@ function formatProjectList(projects: Array<{ id: string; name?: string }>): stri
     'Maker apps',
     '',
     ...projects.map(
-      (project, index) => `${index + 1}. ${project.id}${project.name ? `  ${project.name}` : ''}`
+      (project, index) =>
+        `${index + 1}. ${project.id}${project.name ? `  ${project.name}` : ''}${
+          project.user_id ? `  user_id=${project.user_id}` : ''
+        }`
     ),
     '',
     '请让用户选择一个 app，然后调用 maker_clone_to_current_directory。',
@@ -789,11 +902,6 @@ function createRemoteProxyContext(options: {
 
   const projectConfig = loadProjectConfig(identify.projectRoot);
   const projectId = projectConfig?.project_id || identify.projectId;
-  const jwt = loadJwt();
-  if (!jwt) {
-    throw new Error('Maker JWT not found. Run maker_exchange_jwt first.');
-  }
-
   const tapAuth = loadTapAuth();
   if (!tapAuth) {
     throw new Error(
@@ -801,9 +909,15 @@ function createRemoteProxyContext(options: {
     );
   }
 
-  const userId = getUserIdFromMakerJwt(jwt);
+  let userId = projectConfig?.user_id;
   if (!userId) {
-    throw new Error('Cannot resolve user_id from Maker JWT.');
+    const jwt = loadJwt();
+    userId = jwt ? getUserIdFromMakerJwt(jwt) : undefined;
+  }
+  if (!userId) {
+    throw new Error(
+      'Cannot resolve user_id. Re-run maker_list_apps and maker_clone_to_current_directory with PAT so the project config can cache user_id.'
+    );
   }
 
   const env = getMakerEnvironment(options.env);

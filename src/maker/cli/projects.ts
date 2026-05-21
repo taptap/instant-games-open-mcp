@@ -6,9 +6,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { MakerProjectSummary } from '../types.js';
-import { loadProjectConfig, saveProjectConfig } from '../storage.js';
+import { loadPat, loadProjectConfig, saveProjectConfig } from '../storage.js';
 import { getUserIdFromMakerJwt, requireMakerJwt } from '../auth/jwt.js';
-import { requestMakerPat } from '../git/pat.js';
+import { getManualMakerPat, requestMakerPat, saveManualMakerPat } from '../git/pat.js';
 import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
 import { ensureGitAvailable, getGitCommand } from '../system/git.js';
 import { getStringFlag, isJsonMode, printJson } from './common.js';
@@ -17,6 +17,8 @@ export interface CloneMakerProjectOptions {
   appId: string;
   targetDir: string;
   jwt?: string;
+  pat?: string;
+  userId?: string;
   patName?: string;
   forcePat?: boolean;
   sceEndpoint?: string;
@@ -37,6 +39,7 @@ export interface PushMakerProjectOptions {
   files?: string[];
   allowEmpty?: boolean;
   jwt?: string;
+  pat?: string;
   forcePat?: boolean;
 }
 
@@ -117,6 +120,12 @@ function normalizeProjectsResponse(data: unknown): MakerProjectSummary[] {
           : typeof item.title === 'string'
             ? item.title
             : undefined,
+      user_id:
+        typeof item.user_id === 'string'
+          ? item.user_id
+          : typeof item.userId === 'string'
+            ? item.userId
+            : undefined,
       sce_endpoint:
         typeof item.sce_endpoint === 'string'
           ? item.sce_endpoint
@@ -155,17 +164,24 @@ export async function runProjects(
 
 export async function listMakerProjects(options?: {
   jwt?: string;
+  pat?: string;
 }): Promise<MakerProjectSummary[]> {
-  const jwt = requireMakerJwt(options?.jwt);
-  const userId = getUserIdFromMakerJwt(jwt);
+  const pat = options?.pat ? saveManualMakerPat(options.pat) : getManualMakerPat() || loadPat();
   const url = new URL(`${getMakerApiBase()}/apps`);
-  if (userId) {
-    url.searchParams.set('userId', userId);
+
+  let authToken = pat?.token;
+  if (!authToken) {
+    const jwt = requireMakerJwt(options?.jwt);
+    const userId = getUserIdFromMakerJwt(jwt);
+    authToken = options?.jwt || jwt.token;
+    if (userId) {
+      url.searchParams.set('userId', userId);
+    }
   }
 
   const response = await fetch(url, {
     headers: {
-      Authorization: `Bearer ${options?.jwt || jwt.token}`,
+      Authorization: `Bearer ${authToken}`,
       Accept: 'application/json',
     },
   });
@@ -180,6 +196,7 @@ export async function listMakerProjects(options?: {
 async function listProjects(flags: Record<string, string | boolean>): Promise<void> {
   const projects = await listMakerProjects({
     jwt: getStringFlag(flags, 'jwt'),
+    pat: getStringFlag(flags, 'pat'),
   });
   if (isJsonMode(flags)) {
     printJson(projects);
@@ -202,7 +219,7 @@ async function cloneProject(
 ): Promise<void> {
   const projectId = args[0] || getStringFlag(flags, 'project-id') || getStringFlag(flags, 'app-id');
   if (!projectId) {
-    throw new Error('Usage: taptap-maker projects clone <app-id> [target-dir] --jwt <jwt>');
+    throw new Error('Usage: taptap-maker projects clone <app-id> [target-dir] --pat <pat>');
   }
 
   const target = path.resolve(args[1] || getStringFlag(flags, 'target') || '.');
@@ -210,6 +227,8 @@ async function cloneProject(
     appId: projectId,
     targetDir: target,
     jwt: getStringFlag(flags, 'jwt'),
+    pat: getStringFlag(flags, 'pat'),
+    userId: getStringFlag(flags, 'user-id'),
     patName: getStringFlag(flags, 'pat-name') || 'first-pat',
     forcePat: flags['force-pat'] === true,
     sceEndpoint: getStringFlag(flags, 'sce-endpoint') || process.env.SCE_MCP_URL,
@@ -229,6 +248,9 @@ async function pushProject(flags: Record<string, string | boolean>): Promise<voi
     message,
     branch: getStringFlag(flags, 'branch'),
     allowEmpty: flags['allow-empty'] === true,
+    jwt: getStringFlag(flags, 'jwt'),
+    pat: getStringFlag(flags, 'pat'),
+    forcePat: flags['force-pat'] === true,
   });
 
   process.stdout.write(`✓ Maker push ${result.status} on ${result.branch}\n`);
@@ -242,6 +264,7 @@ export async function cloneMakerProject(
   ensureTargetCanBindApp(target, options.appId);
   let pat = await requestMakerPat({
     jwt: options.jwt,
+    pat: options.pat,
     name: options.patName || 'first-pat',
     force: options.forcePat,
   });
@@ -264,6 +287,7 @@ export async function cloneMakerProject(
       }
       pat = await requestMakerPat({
         jwt: options.jwt,
+        pat: options.pat,
         name: options.patName || 'first-pat',
         force: true,
       });
@@ -277,6 +301,7 @@ export async function cloneMakerProject(
 
     saveProjectConfig(target, {
       project_id: options.appId,
+      user_id: options.userId || (await resolveMakerProjectUserId(options)),
       sce_endpoint: options.sceEndpoint,
     });
     return {
@@ -308,6 +333,7 @@ export async function cloneMakerProject(
     }
     pat = await requestMakerPat({
       jwt: options.jwt,
+      pat: options.pat,
       name: options.patName || 'first-pat',
       force: true,
     });
@@ -320,6 +346,7 @@ export async function cloneMakerProject(
 
   saveProjectConfig(target, {
     project_id: options.appId,
+    user_id: options.userId || (await resolveMakerProjectUserId(options)),
     sce_endpoint: options.sceEndpoint,
   });
 
@@ -354,6 +381,7 @@ export async function pushMakerProject(
     cwd,
     appId: project.project_id,
     jwt: options.jwt,
+    pat: options.pat,
     forcePat: options.forcePat,
   });
 
@@ -546,7 +574,7 @@ function nextActionForFailure(classification: MakerGitFailure['classification'])
     case 'git_missing':
       return '本机未检测到可用的 Git。请用户自行安装 Git，并在 `git --version` 可用后重启 MCP 客户端再重试；安装前不要执行 clone、fetch、commit 或 push。';
     case 'auth':
-      return '刷新 Maker PAT/JWT 后重试 maker_push_current_directory；如果仍失败，让用户从 Maker 网页 Local storage 重新复制 `taptap_access_token`，再调用 maker_exchange_jwt。';
+      return '刷新 Maker PAT 后重试 maker_push_current_directory；如果仍失败，请确认 PAT 是否过期或缺少 Maker git 权限。';
     case 'remote_transient':
       return '远端 Maker git 服务临时不可用。不要重新提交，稍后直接重试 maker_push_current_directory。';
     case 'remote_rejected':
@@ -607,14 +635,30 @@ function pushGit(args: string[], cwd: string): Promise<void> {
   });
 }
 
+async function resolveMakerProjectUserId(
+  options: Pick<CloneMakerProjectOptions, 'appId' | 'jwt' | 'pat'>
+): Promise<string | undefined> {
+  try {
+    const projects = await listMakerProjects({
+      jwt: options.jwt,
+      pat: options.pat,
+    });
+    return projects.find((project) => project.id === options.appId)?.user_id;
+  } catch {
+    return undefined;
+  }
+}
+
 async function ensureAuthenticatedOrigin(options: {
   cwd: string;
   appId: string;
   jwt?: string;
+  pat?: string;
   forcePat?: boolean;
 }): Promise<void> {
   const pat = await requestMakerPat({
     jwt: options.jwt,
+    pat: options.pat,
     name: 'first-pat',
     force: options.forcePat,
   });

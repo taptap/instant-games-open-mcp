@@ -9,10 +9,14 @@ export type MakerEnvironment = 'production' | 'rnd';
 export interface MakerEndpoints {
   apiBase?: string;
   patUrl?: string;
+  tapTokenUrl?: string;
   gitBase?: string;
   remoteMcpServerUrl?: string;
   webUrl?: string;
 }
+
+// Temporary internal PAT management page. Replace with the TapMaker URL once available.
+export const TEMP_MAKER_PAT_TOKENS_URL = 'https://fuping.agnt.xd.com/pat-tokens';
 
 const MAKER_ENDPOINTS: Record<MakerEnvironment, MakerEndpoints> = {
   production: {
@@ -22,6 +26,7 @@ const MAKER_ENDPOINTS: Record<MakerEnvironment, MakerEndpoints> = {
     webUrl: 'https://fuping.agnt.xd.com',
     apiBase: 'https://fuping.agnt.xd.com/api/v1',
     patUrl: 'https://fuping.agnt.xd.com/api/v1/user/pat-tokens',
+    tapTokenUrl: 'https://fuping.agnt.xd.com/api/v1/user/taptap-token',
     gitBase: 'https://fuping.agnt.xd.com/git',
     remoteMcpServerUrl: 'http://172.25.135.95:4000',
   },
@@ -35,6 +40,10 @@ export const MAKER_ENV_OVERRIDES = {
   patUrl: {
     current: 'TAPTAP_MAKER_PAT_URL',
     legacy: 'MAKER_PAT_URL',
+  },
+  tapTokenUrl: {
+    current: 'TAPTAP_MAKER_TAP_TOKEN_URL',
+    legacy: 'MAKER_TAP_TOKEN_URL',
   },
   gitBase: {
     current: 'TAPTAP_MAKER_GIT_BASE',
@@ -60,6 +69,7 @@ export function getMakerEndpoints(environment?: 'production' | 'rnd'): MakerEndp
   return {
     apiBase: getOverride(MAKER_ENV_OVERRIDES.apiBase) || endpoints.apiBase,
     patUrl: getOverride(MAKER_ENV_OVERRIDES.patUrl) || endpoints.patUrl,
+    tapTokenUrl: getOverride(MAKER_ENV_OVERRIDES.tapTokenUrl) || endpoints.tapTokenUrl,
     gitBase: getOverride(MAKER_ENV_OVERRIDES.gitBase) || endpoints.gitBase,
     remoteMcpServerUrl:
       getOverride(MAKER_ENV_OVERRIDES.remoteMcpServerUrl) || endpoints.remoteMcpServerUrl,
