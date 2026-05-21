@@ -94,6 +94,27 @@ describe('maker clone binding safety', () => {
     expect(fs.existsSync(path.join(tempDir, '.git'))).toBe(true);
   });
 
+  test('resolves remote default branch when origin head is not set after fetch', async () => {
+    const gitLog = path.join(tempDir, '.test-tools', 'git.log');
+    const fakeGit = createFakeGit(gitLog, { defaultBranch: 'beta', failSymbolicRef: true });
+    process.env.TAPTAP_MAKER_GIT_BIN = fakeGit;
+    process.env.TAPTAP_MAKER_GIT_BASE = 'https://maker.example.test/git';
+    process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home');
+    process.env.PAT = 'tmpct_test_pat';
+    fs.writeFileSync(path.join(tempDir, 'tap.zip'), 'local zip\n', 'utf8');
+
+    const result = await cloneMakerProject({
+      appId: 'new-app',
+      targetDir: tempDir,
+      userId: 'user-1',
+    });
+
+    expect(result.status).toBe('cloned');
+    const commands = fs.readFileSync(gitLog, 'utf8');
+    expect(commands).toContain('ls-remote --symref origin HEAD');
+    expect(commands).toContain('checkout -B beta origin/beta');
+  });
+
   test('fails when checkout cannot complete after fetch', async () => {
     const gitLog = path.join(tempDir, '.test-tools', 'git.log');
     const fakeGit = createFakeGit(gitLog, { remoteFiles: ['scripts/main.lua'] });
@@ -114,7 +135,10 @@ describe('maker clone binding safety', () => {
   });
 });
 
-function createFakeGit(logPath: string, options: { remoteFiles?: string[] } = {}): string {
+function createFakeGit(
+  logPath: string,
+  options: { defaultBranch?: string; failSymbolicRef?: boolean; remoteFiles?: string[] } = {}
+): string {
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
   const fakeGit = path.join(path.dirname(logPath), 'fake-git.js');
   fs.writeFileSync(
@@ -163,7 +187,15 @@ if (commandArgs[0] === 'fetch') {
   process.exit(0);
 }
 if (commandArgs[0] === 'symbolic-ref') {
-  console.log('origin/main');
+  if (${JSON.stringify(options.failSymbolicRef === true)}) {
+    process.exit(1);
+  }
+  console.log('origin/${options.defaultBranch || 'main'}');
+  process.exit(0);
+}
+if (commandArgs[0] === 'ls-remote' && commandArgs[1] === '--symref') {
+  console.log('ref: refs/heads/${options.defaultBranch || 'main'}\\tHEAD');
+  console.log('0000000000000000000000000000000000000001\\tHEAD');
   process.exit(0);
 }
 if (commandArgs[0] === 'ls-tree') {

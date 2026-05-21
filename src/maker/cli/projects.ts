@@ -1145,6 +1145,15 @@ async function resolveRemoteDefaultBranch(cwd: string): Promise<string> {
     const branch = await readGit(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], cwd);
     return branch.trim().replace(/^origin\//, '') || 'main';
   } catch {
+    // `git fetch origin` in an initialized directory does not always create
+    // refs/remotes/origin/HEAD, so ask the remote directly before falling back.
+  }
+
+  try {
+    const remoteHead = await readGit(['ls-remote', '--symref', 'origin', 'HEAD'], cwd);
+    const match = remoteHead.match(/^ref:\s+refs\/heads\/([^\s]+)\s+HEAD/m);
+    return match?.[1] || 'main';
+  } catch {
     return 'main';
   }
 }
