@@ -47,9 +47,25 @@ export interface MakerProjectConfig {
 }
 
 export interface MakerProjectSummary {
+  /** Maker app id. */
   id: string;
+  /** 游戏名称。 */
   name?: string;
+  userId?: string;
   user_id?: string;
+  /** 创建时间。 */
+  createdAt?: string;
+  archivedAt?: string | null;
+  deletedAt?: string | null;
+  gameType?: string;
+  icon?: number;
+  iconColor?: number;
+  lastAccessedAt?: string | null;
+  /** 最后修改时间，用于识别最近活跃的游戏。 */
+  lastConversationAt?: string;
+  metadata?: unknown;
+  pinnedAt?: string | null;
+  stage?: string;
   sce_endpoint?: string;
   git_url?: string;
   raw?: unknown;

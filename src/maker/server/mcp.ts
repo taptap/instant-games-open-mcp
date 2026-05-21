@@ -4,6 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -62,6 +63,7 @@ import {
 } from '../system/git.js';
 
 declare const __MAKER_VERSION__: string | undefined;
+declare const __MAKER_BUNDLE_URL__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
 const DEFAULT_PROXY_MCP_NAME = 'taptap-proxy';
 const DEFAULT_PROXY_PACKAGE = '@taptap/instant-games-open-mcp@1.22.0';
@@ -174,7 +176,7 @@ const tools = [
   {
     name: 'maker_clone_to_current_directory',
     description:
-      'Clone a Maker app repository into the current Codex/agent working directory. Use after the user chooses an app from the Maker app list for requests like "拉取maker游戏到本地", "把这个maker app拉下来", "clone maker项目", or "下载maker游戏代码". Call this only after maker_list_apps has listed apps and the user has chosen one. Requires local Git. If Git is missing, this tool stops before changing files and returns install guidance; do not retry clone until the user installs Git and git --version works. Requires the selected app_id; uses cached Maker PAT by default.',
+      'Clone a Maker app repository into the current Codex/agent working directory. Use after the user chooses an app from the Maker app list for requests like "拉取maker游戏到本地", "把这个maker app拉下来", "clone maker项目", or "下载maker游戏代码". Call this only after maker_list_apps has listed apps and the user has chosen one. Requires local Git. If Git is missing, this tool stops before changing files and returns install guidance; do not retry clone until the user installs Git and git --version works. The target directory does not have to be empty; before clone, the tool checks local entries and warns about non-config local files while ignoring dot-prefixed config entries such as .claude, .mcp, .skill, .config, and .ini. Existing local files are kept unless they conflict with Maker project files; conflicts fail with a file list. Requires the selected app_id; uses cached Maker PAT by default.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -312,7 +314,7 @@ const tools = [
         use_npx: {
           type: 'boolean',
           description:
-            'If true, write the script-style npx package command. Defaults to false for local development and uses local dist/proxy.js.',
+            'If true, write the script-style npx package command. Defaults to false and uses the proxy.js bundled with the Maker MCP package when available.',
         },
         pkg: {
           type: 'string',
@@ -644,6 +646,7 @@ export async function startMakerMcpServer(): Promise<void> {
               text: [
                 '✓ Maker project cloned',
                 '',
+                ...formatCloneWarnings(result.warnings),
                 `- app_id: ${args.app_id}`,
                 `- target_dir: ${result.targetDir}`,
                 `- status: ${result.status}`,
@@ -907,7 +910,15 @@ function mask(value: string): string {
 }
 
 function formatProjectList(
-  projects: Array<{ id: string; name?: string; user_id?: string }>
+  projects: Array<{
+    id: string;
+    name?: string;
+    user_id?: string;
+    createdAt?: string;
+    lastConversationAt?: string;
+    gameType?: string;
+    stage?: string;
+  }>
 ): string {
   if (projects.length === 0) {
     return [
@@ -924,11 +935,37 @@ function formatProjectList(
       (project, index) =>
         `${index + 1}. ${project.id}${project.name ? `  ${project.name}` : ''}${
           project.user_id ? `  user_id=${project.user_id}` : ''
+        }${project.gameType ? `  gameType=${project.gameType}` : ''}${
+          project.stage ? `  stage=${project.stage}` : ''
+        }${project.createdAt ? `  createdAt=${project.createdAt}` : ''}${
+          project.lastConversationAt ? `  lastConversationAt=${project.lastConversationAt}` : ''
         }`
     ),
     '',
     '请让用户选择一个 app，然后调用 maker_clone_to_current_directory。',
   ].join('\n');
+}
+
+function formatCloneWarnings(warnings: string[]): string[] {
+  if (warnings.length === 0) {
+    return [
+      'Pre-clone local directory check',
+      '',
+      '- result: checked',
+      '- local_files: none found before clone, ignoring dot-prefixed local config entries',
+      '',
+    ];
+  }
+
+  return [
+    'Pre-clone local directory check',
+    '',
+    '- result: found local files before clone',
+    '- action: kept local files and continued unless they conflicted with Maker project files',
+    '',
+    ...warnings.map((warning) => `- ${warning}`),
+    '',
+  ];
 }
 
 function createRemoteProxyContext(options: {
@@ -1075,21 +1112,31 @@ function configureRemoteProxy(options: {
   };
 }
 
-function resolveLocalProxyBundle(): string {
-  const makerEntry = process.argv[1] ? path.resolve(process.argv[1]) : '';
-  const alongsideMaker = makerEntry ? path.join(path.dirname(makerEntry), 'proxy.js') : '';
-  if (alongsideMaker && fs.existsSync(alongsideMaker)) {
-    return alongsideMaker;
+export function resolveLocalProxyBundle(options?: {
+  currentModuleUrl?: string;
+  makerEntry?: string;
+  cwd?: string;
+}): string {
+  const currentModuleUrl =
+    options?.currentModuleUrl ||
+    (typeof __MAKER_BUNDLE_URL__ !== 'undefined' ? __MAKER_BUNDLE_URL__ : undefined);
+  const currentModuleDir = currentModuleUrl ? path.dirname(fileURLToPath(currentModuleUrl)) : '';
+  const makerEntry = options?.makerEntry ?? process.argv[1];
+  const makerEntryDir = makerEntry ? path.dirname(path.resolve(makerEntry)) : '';
+  const cwd = options?.cwd ?? process.cwd();
+  const candidates = [
+    currentModuleDir ? path.join(currentModuleDir, 'proxy.js') : '',
+    makerEntryDir ? path.join(makerEntryDir, '..', 'dist', 'proxy.js') : '',
+    path.resolve(cwd, 'dist', 'proxy.js'),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
   }
 
-  const cwdBundle = path.resolve(process.cwd(), 'dist', 'proxy.js');
-  if (fs.existsSync(cwdBundle)) {
-    return cwdBundle;
-  }
-
-  throw new Error(
-    'Local dist/proxy.js not found. Run npm run build before configuring remote proxy.'
-  );
+  throw new Error(`MCP proxy bundle not found. Checked: ${candidates.join(', ')}`);
 }
 
 function readMcpJson(filePath: string): {

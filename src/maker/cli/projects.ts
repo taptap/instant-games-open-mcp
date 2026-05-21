@@ -5,7 +5,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { MakerProjectSummary } from '../types.js';
+import type { MakerPat, MakerProjectSummary } from '../types.js';
 import { loadPat, loadProjectConfig, saveProjectConfig } from '../storage.js';
 import { getUserIdFromMakerJwt, requireMakerJwt } from '../auth/jwt.js';
 import { getManualMakerPat, requestMakerPat, saveManualMakerPat } from '../git/pat.js';
@@ -31,6 +31,7 @@ export interface CloneMakerProjectResult {
   status: 'cloned' | 'fetched';
   retriedWithNewPat: boolean;
   transientRetries: number;
+  warnings: string[];
 }
 
 export interface PushMakerProjectOptions {
@@ -109,7 +110,40 @@ function getMakerGitBase(): string {
   return requireMakerEndpoint('gitBase', getConfiguredMakerGitBase()).replace(/\/$/, '');
 }
 
-function normalizeProjectsResponse(data: unknown): MakerProjectSummary[] {
+function stringField(item: Record<string, unknown>, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === 'string') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function nullableStringField(
+  item: Record<string, unknown>,
+  ...keys: string[]
+): string | null | undefined {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === 'string' || value === null) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function numberField(item: Record<string, unknown>, ...keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === 'number') {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+export function normalizeProjectsResponse(data: unknown): MakerProjectSummary[] {
   const body = data as Record<string, unknown>;
   const list = Array.isArray(data)
     ? data
@@ -123,29 +157,29 @@ function normalizeProjectsResponse(data: unknown): MakerProjectSummary[] {
 
   return list
     .map((item) => item as Record<string, unknown>)
-    .map((item) => ({
-      id: String(item.id || item.app_id || item.project_id || ''),
-      name:
-        typeof item.name === 'string'
-          ? item.name
-          : typeof item.title === 'string'
-            ? item.title
-            : undefined,
-      user_id:
-        typeof item.user_id === 'string'
-          ? item.user_id
-          : typeof item.userId === 'string'
-            ? item.userId
-            : undefined,
-      sce_endpoint:
-        typeof item.sce_endpoint === 'string'
-          ? item.sce_endpoint
-          : typeof item.sce_mcp_url === 'string'
-            ? item.sce_mcp_url
-            : undefined,
-      git_url: typeof item.git_url === 'string' ? item.git_url : undefined,
-      raw: item,
-    }))
+    .map((item) => {
+      const userId = stringField(item, 'userId', 'user_id');
+      return {
+        id: String(item.id || item.app_id || item.project_id || ''),
+        name: stringField(item, 'name', 'title'),
+        userId,
+        user_id: userId,
+        createdAt: stringField(item, 'createdAt', 'created_at'),
+        archivedAt: nullableStringField(item, 'archivedAt', 'archived_at'),
+        deletedAt: nullableStringField(item, 'deletedAt', 'deleted_at'),
+        gameType: stringField(item, 'gameType', 'game_type'),
+        icon: numberField(item, 'icon'),
+        iconColor: numberField(item, 'iconColor', 'icon_color'),
+        lastAccessedAt: nullableStringField(item, 'lastAccessedAt', 'last_accessed_at'),
+        lastConversationAt: stringField(item, 'lastConversationAt', 'last_conversation_at'),
+        metadata: item.metadata,
+        pinnedAt: nullableStringField(item, 'pinnedAt', 'pinned_at'),
+        stage: stringField(item, 'stage'),
+        sce_endpoint: stringField(item, 'sce_endpoint', 'sce_mcp_url'),
+        git_url: stringField(item, 'git_url'),
+        raw: item,
+      };
+    })
     .filter((project) => project.id.length > 0);
 }
 
@@ -270,15 +304,22 @@ async function pushProject(flags: Record<string, string | boolean>): Promise<voi
 export async function cloneMakerProject(
   options: CloneMakerProjectOptions
 ): Promise<CloneMakerProjectResult> {
-  ensureGitAvailable();
+  const target = path.resolve(options.targetDir);
+  ensureTargetCanBindApp(target, options.appId);
+  const warnings = createPreCloneWarnings(target);
   options.onProgress?.({
     progress: 0,
+    total: 100,
+    phase: 'pre_clone_check',
+    message: formatPreCloneProgressMessage(options.appId, warnings),
+  });
+  ensureGitAvailable();
+  options.onProgress?.({
+    progress: 1,
     total: 100,
     phase: 'prepare',
     message: `Preparing Maker project ${options.appId}`,
   });
-  const target = path.resolve(options.targetDir);
-  ensureTargetCanBindApp(target, options.appId);
   let pat = await requestMakerPat({
     jwt: options.jwt,
     pat: options.pat,
@@ -298,7 +339,7 @@ export async function cloneMakerProject(
   let retriedWithNewPat = false;
   let transientRetries = 0;
 
-  if (isGitRepo(target)) {
+  if (isGitRepo(target) && hasGitHead(target)) {
     options.onProgress?.({
       progress: 10,
       total: 100,
@@ -312,14 +353,13 @@ export async function cloneMakerProject(
         onProgress: options.onProgress,
       });
     } catch (error) {
-      if (options.forcePat) {
-        throw error;
+      if (options.forcePat || !isAuthGitError(error)) {
+        throw withPreCloneWarnings(error, warnings);
       }
-      pat = await requestMakerPat({
+      pat = await refreshPatAfterAuthFailure(error, {
         jwt: options.jwt,
         pat: options.pat,
         name: options.patName || 'first-pat',
-        force: true,
       });
       authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
       retriedWithNewPat = true;
@@ -327,6 +367,8 @@ export async function cloneMakerProject(
       transientRetries += await runGitWithTransientRetry(['fetch', 'origin'], {
         cwd: target,
         onProgress: options.onProgress,
+      }).catch((retryError) => {
+        throw withPreCloneWarnings(retryError, warnings);
       });
     }
 
@@ -347,16 +389,13 @@ export async function cloneMakerProject(
       status: 'fetched',
       retriedWithNewPat,
       transientRetries,
+      warnings,
     };
   }
 
-  if (fs.existsSync(target) && hasNonIgnorableFiles(target)) {
-    throw new Error(
-      [
-        `${target} is not empty and is not a git repository.`,
-        'Maker clone can be run multiple times after the directory is a git repo, but the first clone requires an empty target directory.',
-        'Please open an empty directory, or remove the unrelated files before cloning.',
-      ].join('\n')
+  if (isGitRepo(target)) {
+    warnings.push(
+      'Target directory already contained git metadata but no checked-out commit. Maker MCP will fetch and check out the remote Maker project branch before reporting success.'
     );
   }
 
@@ -367,19 +406,20 @@ export async function cloneMakerProject(
       phase: 'clone',
       message: `Cloning Maker project ${options.appId}`,
     });
-    transientRetries += await runGitCaptureWithTransientRetry(['clone', authUrl, target], {
-      sanitize: pat.token,
-      onProgress: options.onProgress,
-    });
+    transientRetries += await cloneOrInitializeTarget(
+      target,
+      authUrl,
+      pat.token,
+      options.onProgress
+    );
   } catch (error) {
-    if (options.forcePat) {
-      throw error;
+    if (options.forcePat || !isAuthGitError(error)) {
+      throw withPreCloneWarnings(error, warnings);
     }
-    pat = await requestMakerPat({
+    pat = await refreshPatAfterAuthFailure(error, {
       jwt: options.jwt,
       pat: options.pat,
       name: options.patName || 'first-pat',
-      force: true,
     });
     authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
     retriedWithNewPat = true;
@@ -389,12 +429,21 @@ export async function cloneMakerProject(
       phase: 'clone',
       message: `Retrying clone for Maker project ${options.appId} with refreshed PAT`,
     });
-    transientRetries += await runGitCaptureWithTransientRetry(['clone', authUrl, target], {
-      sanitize: pat.token,
-      onProgress: options.onProgress,
+    transientRetries += await cloneOrInitializeTarget(
+      target,
+      authUrl,
+      pat.token,
+      options.onProgress
+    ).catch((retryError) => {
+      throw withPreCloneWarnings(retryError, warnings);
     });
   }
 
+  try {
+    ensureGitHeadCheckedOut(target);
+  } catch (error) {
+    throw withPreCloneWarnings(error, warnings);
+  }
   saveProjectConfig(target, {
     project_id: options.appId,
     user_id: options.userId || (await resolveMakerProjectUserId(options)),
@@ -413,6 +462,7 @@ export async function cloneMakerProject(
     status: 'cloned',
     retriedWithNewPat,
     transientRetries,
+    warnings,
   };
 }
 
@@ -791,12 +841,239 @@ function makeAuthenticatedGitUrl(gitUrl: string, pat: string): string {
   return gitUrl.replace(/^https:\/\//, `https://git:${encodeURIComponent(pat)}@`);
 }
 
-function hasNonIgnorableFiles(target: string): boolean {
+async function cloneOrInitializeTarget(
+  target: string,
+  authUrl: string,
+  pat: string,
+  onProgress?: MakerProjectProgressHandler
+): Promise<number> {
+  if (fs.existsSync(target) && hasDirectoryEntries(target)) {
+    onProgress?.({
+      progress: 10,
+      total: 100,
+      phase: 'clone',
+      message:
+        'Target directory is not empty; initializing git repository in place and keeping existing untracked files unless they conflict with Maker project files.',
+    });
+
+    let transientRetries = 0;
+    transientRetries += await runGitCaptureWithTransientRetry(['init', target], {
+      sanitize: pat,
+      onProgress,
+    });
+    await setOrigin(target, authUrl);
+    transientRetries += await runGitWithTransientRetry(['fetch', 'origin'], {
+      cwd: target,
+      onProgress,
+    });
+    const branch = await resolveRemoteDefaultBranch(target);
+    await assertNoCheckoutFileConflicts(target, branch);
+    try {
+      transientRetries += await runGitCaptureWithTransientRetry(
+        ['checkout', '-B', branch, `origin/${branch}`],
+        {
+          cwd: target,
+          sanitize: pat,
+          onProgress,
+        }
+      );
+    } catch (error) {
+      throw enhanceCheckoutConflictError(error, target);
+    }
+    return transientRetries;
+  }
+
+  return runGitCaptureWithTransientRetry(['clone', authUrl, target], {
+    sanitize: pat,
+    onProgress,
+  });
+}
+
+function hasDirectoryEntries(target: string): boolean {
   if (!fs.existsSync(target)) {
     return false;
   }
 
-  return fs.readdirSync(target).some((entry) => entry !== '.maker-mcp' && entry !== '.DS_Store');
+  return fs.readdirSync(target).length > 0;
+}
+
+function listLocalFiles(root: string): string[] {
+  if (!fs.existsSync(root)) {
+    return [];
+  }
+
+  const files: string[] = [];
+  const visit = (dir: string, relativeDir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
+      if (
+        entry.name === '.git' ||
+        relativePath === '.maker-mcp' ||
+        relativePath.startsWith('.maker-mcp/') ||
+        entry.name === '.DS_Store'
+      ) {
+        continue;
+      }
+
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath, relativePath);
+        continue;
+      }
+
+      if (entry.isFile()) {
+        files.push(relativePath);
+      }
+    }
+  };
+
+  visit(root, '');
+  return files;
+}
+
+function listPreCloneNoticeFiles(root: string): string[] {
+  if (!fs.existsSync(root)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(root, { withFileTypes: true })
+    .filter((entry) => !isIgnorablePreCloneEntry(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function createPreCloneWarnings(target: string): string[] {
+  const preCloneLocalFiles = listPreCloneNoticeFiles(target);
+  if (preCloneLocalFiles.length === 0) {
+    return [];
+  }
+
+  const preview = preCloneLocalFiles.slice(0, 10);
+  return [
+    [
+      'Pre-clone notice: target directory already contains local files. Maker MCP will keep them and continue unless they conflict with Maker project files.',
+      `local_file_count: ${preCloneLocalFiles.length}`,
+      'local_files:',
+      ...preview.map((file) => `  - ${file}`),
+      preCloneLocalFiles.length > preview.length
+        ? `  - ... ${preCloneLocalFiles.length - preview.length} more`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  ];
+}
+
+function formatPreCloneProgressMessage(appId: string, warnings: string[]): string {
+  if (warnings.length === 0) {
+    return `Pre-clone local directory check passed for Maker project ${appId}`;
+  }
+
+  return [
+    `Pre-clone local directory check found existing local files for Maker project ${appId}.`,
+    ...warnings,
+  ].join('\n');
+}
+
+function isIgnorablePreCloneEntry(entryName: string): boolean {
+  return entryName === '.DS_Store' || entryName.startsWith('.');
+}
+
+function isAuthGitError(error: unknown): boolean {
+  return toMakerGitFailure(error, 'clone').classification === 'auth';
+}
+
+async function refreshPatAfterAuthFailure(
+  originalError: unknown,
+  options: {
+    jwt?: string;
+    pat?: string;
+    name?: string;
+  }
+): Promise<MakerPat> {
+  try {
+    return await requestMakerPat({
+      jwt: options.jwt,
+      pat: options.pat,
+      name: options.name || 'first-pat',
+      force: true,
+    });
+  } catch (refreshError) {
+    const originalMessage =
+      originalError instanceof Error ? originalError.message : String(originalError);
+    const refreshMessage =
+      refreshError instanceof Error ? refreshError.message : String(refreshError);
+    throw new Error(
+      [
+        'Maker git authentication failed and PAT refresh also failed.',
+        '',
+        'original_git_error:',
+        originalMessage,
+        '',
+        'pat_refresh_error:',
+        refreshMessage,
+      ].join('\n')
+    );
+  }
+}
+
+function withPreCloneWarnings(error: unknown, warnings: string[]): Error {
+  const original = error instanceof Error ? error : new Error(String(error));
+  if (warnings.length === 0) {
+    return original;
+  }
+
+  return new Error(
+    [
+      'Maker clone failed after pre-clone local directory check.',
+      '',
+      'Pre-clone notices:',
+      ...warnings.map((warning) => indentText(warning)),
+      '',
+      'original_error:',
+      original.message,
+    ].join('\n')
+  );
+}
+
+function indentText(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n');
+}
+
+async function assertNoCheckoutFileConflicts(cwd: string, branch: string): Promise<void> {
+  const remoteTree = await readGit(['ls-tree', '-r', '--name-only', `origin/${branch}`], cwd);
+  const remoteFiles = new Set(
+    remoteTree
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+  );
+  if (remoteFiles.size === 0) {
+    return;
+  }
+
+  const conflicts = listLocalFiles(cwd)
+    .filter((file) => remoteFiles.has(file))
+    .sort();
+  if (conflicts.length === 0) {
+    return;
+  }
+
+  throw new Error(
+    [
+      'Maker clone cannot continue because existing local files have the same paths as files in the remote Maker project.',
+      `target_dir: ${cwd}`,
+      '',
+      'Conflicting local files:',
+      ...conflicts.map((file) => `- ${file}`),
+      '',
+      'Please move, rename, or delete these local files, then retry maker_clone_to_current_directory.',
+    ].join('\n')
+  );
 }
 
 async function setOrigin(cwd: string, authUrl: string): Promise<void> {
@@ -814,6 +1091,46 @@ function isGitRepo(repoDir: string): boolean {
   }
 }
 
+function hasGitHead(repoDir: string): boolean {
+  try {
+    const head = readGitSync(['-C', repoDir, 'rev-parse', '--verify', 'HEAD']);
+    return head.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function ensureGitHeadCheckedOut(repoDir: string): void {
+  if (hasGitHead(repoDir)) {
+    return;
+  }
+
+  throw new Error(
+    [
+      'Maker clone did not complete checkout: local git repository has no HEAD commit.',
+      `target_dir: ${repoDir}`,
+      'The remote fetch may have succeeded, but project files were not checked out. Please inspect git status and retry maker_clone_to_current_directory.',
+    ].join('\n')
+  );
+}
+
+function enhanceCheckoutConflictError(error: unknown, target: string): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!/untracked working tree files would be overwritten by checkout/i.test(message)) {
+    return error instanceof Error ? error : new Error(message);
+  }
+
+  return new Error(
+    [
+      'Maker clone could not check out project files because existing local files would be overwritten.',
+      `target_dir: ${target}`,
+      'Please move, rename, or delete the conflicting local files, then retry maker_clone_to_current_directory.',
+      '',
+      message,
+    ].join('\n')
+  );
+}
+
 async function currentBranch(cwd: string, explicitBranch?: string): Promise<string> {
   if (explicitBranch) {
     return explicitBranch;
@@ -821,6 +1138,15 @@ async function currentBranch(cwd: string, explicitBranch?: string): Promise<stri
 
   const branch = await readGit(['branch', '--show-current'], cwd);
   return branch.trim() || 'main';
+}
+
+async function resolveRemoteDefaultBranch(cwd: string): Promise<string> {
+  try {
+    const branch = await readGit(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], cwd);
+    return branch.trim().replace(/^origin\//, '') || 'main';
+  } catch {
+    return 'main';
+  }
 }
 
 function readGitSync(args: string[]): string {
