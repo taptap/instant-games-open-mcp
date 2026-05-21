@@ -78,6 +78,7 @@ maker_status
 - `maker_tap_login_complete`：legacy fallback，用户扫码后轮询 Tap token，保存 MAC 认证数据。
 - `maker_exchange_pat`：接收用户提供的 Maker PAT，以 `manual_pat` 传入后保存到本地 `~/.taptap-maker/pat.json`，并兼容旧的 `~/.maker-pat`；保存后会自动获取 TapTap token 并列出 app。
 - `maker_status`：如果发现本地已有 PAT 但缺少 TapTap token，会自动尝试获取；如果当前目录未绑定，会自动列出 app，不需要用户额外要求。
+- `maker_get_mcp_update_guide`：用户说“更新 mcp / 更新 taptap mcp / 刷新 mcp 缓存”时使用。该工具只返回 Windows 或 macOS/Linux 的更新引导、安装检查、配置位置提醒和重启提示，不直接执行 `npm`、`npx`、删除缓存或自更新；由用户本地 AI 客户端按返回命令执行。
 - `maker_list_apps`：优先用 Maker PAT 拉取 app 列表，必须展示给用户选择；JWT 仅作为 legacy fallback。会解析 Maker `/apps` 返回的创建时间、最近会话时间、游戏类型、阶段、图标、置顶/归档/删除时间等字段，并保留原始 `raw` 数据。
 - `maker_clone_to_current_directory`：把选中的 Maker app 仓库拉到当前目录并写 `.maker-mcp/config.json`。如果本机没有 Git，工具会在申请 PAT 和改动文件前停止。当前目录不要求为空；clone 前会检查本地目录，忽略 `.claude`、`.mcp`、`.skill`、`.config`、`.ini` 等点开头配置项，只对普通本地文件输出提醒。clone 最终结果固定包含 `Pre-clone local directory check` 区块；已有本地文件会保留，若与 Maker 项目文件同路径冲突则失败并列出冲突文件。
 - `maker_configure_remote_proxy`：按 server 测试脚本生成 `proxy_cfg`，写入当前项目 `.mcp.json`，连接远端 `taptap-proxy`。
@@ -98,6 +99,36 @@ Maker app 列表关键字段：
 - `maker_push_current_directory` / `maker_submit_current_directory` 会在 stage、commit、push 阶段输出状态，并解析 Git push stderr 中的百分比进度。
 - `maker_build_current_directory` 会转发远端 build tool 的 progress notification。
 - 以上慢操作最终返回都会包含 `elapsed_ms`、`elapsed`、`progress_events` 和 `last_progress`。如果没有可用百分比进度，则至少返回耗时统计；长任务运行超过 3 分钟时会发送一次仍在运行的 progress heartbeat。
+
+## MCP 更新引导
+
+Maker MCP 内置更新引导工具，但不让 MCP 进程更新自己，避免 Windows 文件锁、当前 npx 缓存被占用和权限问题。
+
+触发话术：
+
+```text
+更新 mcp
+更新 taptap mcp
+刷新 mcp 缓存
+tap mcp 有新版本
+```
+
+Agent 应调用：
+
+```text
+maker_get_mcp_update_guide
+```
+
+工具返回内容会按当前平台生成：
+
+- Windows：PowerShell 命令。
+- macOS/Linux：bash/zsh 命令。
+- 默认更新包：`@taptap/instant-games-open-mcp@beta`。
+- 默认预热入口：`taptap-maker`。
+- 安装检查：`node --version`、`npm --version`、`npx --version`。
+- 配置提醒：检查常见 user/global 和 project/local MCP 配置；发现项目级配置时只提醒建议迁移，不阻塞更新。
+- 更新步骤：对比远端版本、扫描本地 npx 缓存、清理 TapTap MCP 缓存、预热下载、验证缓存版本。
+- 生效提示：当前 MCP 会话通常不会热加载；更新后必须提醒用户重启 MCP 客户端，或新开 Claude Code / Codex / Cursor 窗口，再调用 `maker_status` 验证。
 
 ## 当前 PAT 获取方式
 

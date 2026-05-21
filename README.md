@@ -66,6 +66,7 @@ maker_push_current_directory
 说明：
 
 - Maker MCP 依赖用户本机已有 Git。工具只检测并给出安装引导，不会代替用户安装 Git。
+- 用户说“更新 mcp / 更新 taptap mcp / 刷新 mcp 缓存 / tap mcp 有新版本”时，应调用 `maker_get_mcp_update_guide`。该工具只返回 Windows 或 macOS/Linux 的更新引导、安装检查、配置位置提醒和重启提示，不直接执行更新命令；由用户本地 AI 客户端按返回命令操作。
 - 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 Maker 本地开发初始化流程。
 - 如果 `maker_status` 或 `maker_check_environment` 显示 Git 缺失，必须持续提示用户自行安装 Git；在 `git --version` 可用前，不执行 clone、fetch、commit 或 push。
 - Maker API、git 和 TapTap token 默认走 PAT-first：如果用户还没有 PAT，引导用户打开临时 PAT 页面 `https://fuping.agnt.xd.com/pat-tokens` 新建 PAT；用户提供 PAT 后调用 `maker_exchange_pat(manual_pat)` 保存。
@@ -88,6 +89,7 @@ maker_push_current_directory
 - 构建转发会从 MCP 包自身定位 `dist/proxy.js`；`cwd` / `target_dir` 只用于识别 Maker 游戏项目，不要求游戏目录存在 MCP 的 `dist/proxy.js`。
 - 用户未指定构建入口且本地存在 `scripts/main.lua` 时，Maker MCP 默认向远端 build 传 `scriptsPath="scripts"` 和 `entry="main.lua"`，避免第一次构建多一轮“入口配置缺失”的提示；用户显式传入口或多人入口时优先生效。
 - 如需在当前游戏项目里直接暴露远端全量 `taptap-proxy` tools，再使用 `maker_configure_remote_proxy` 写入 `.mcp.json` 并重启 MCP 会话。
+- `maker_get_mcp_update_guide` 默认生成 `@taptap/instant-games-open-mcp@beta` 和 `taptap-maker` 的 npx 缓存更新步骤；更新后当前 MCP 会话通常不会热加载，必须重启 MCP 客户端或新开 Claude Code / Codex / Cursor 窗口，再调用 `maker_status` 验证。
 - 用户说“帮我提交/提交代码”时使用 `maker_submit_current_directory`，会对当前 Maker 项目执行 commit + push；Maker 提交成功后会自动触发构建，不需要再手动调用构建工具。
 - “帮我提交代码到maker / taptap制造 / tap制造 / tap”也应触发 `maker_submit_current_directory`。
 - Maker 项目提交不走通用 Git skill 的任务号、新分支规则；冲突时先和用户确认 pull/rebase 流程。

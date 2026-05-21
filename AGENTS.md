@@ -341,6 +341,8 @@ Maker 本地 MCP 的默认认证路径是 PAT-first：
 - `maker_status` 如果发现本地已有 PAT 但缺少 TapTap MAC token，会自动尝试获取；如果当前目录未绑定，也会自动列出 app，不需要用户额外要求。
 - `maker_list_apps` 优先使用 PAT 调 Maker API 获取 app 列表，并必须展示给用户选择。
 - `maker_clone_to_current_directory` 和 `maker_push_current_directory` 默认复用缓存 PAT 做 Maker git 认证。
+- 用户说“更新 mcp / 更新 taptap mcp / 刷新 mcp 缓存 / tap mcp 有新版本”时，调用 `maker_get_mcp_update_guide`。该工具只返回 Windows 或 macOS/Linux 的更新引导、安装检查、配置位置提醒和重启/新开窗口提示，不直接执行 `npm`、`npx`、删除缓存或自更新；由用户本地 AI 客户端按返回命令执行。
+- `maker_get_mcp_update_guide` 默认引导更新 `@taptap/instant-games-open-mcp@beta` 并预热 `taptap-maker`。更新后当前 MCP 会话通常不会热加载，必须提醒用户重启 MCP 客户端，或新开 Claude Code / Codex / Cursor 窗口，再调用 `maker_status` 验证。
 - `maker_build_current_directory` 会强制检查本地 Maker 项目是否有未提交改动；有改动且没有保存自动提交偏好时默认停止，提醒用户直接构建只会构建云端已有版本。
 - 拦截提示的首选项必须是 `提交本地改动并触发构建（以后都是如此）`。
 - 用户选择首选项时，调用 `maker_submit_current_directory` 并设置 `remember_build_submit_preference=true`；Maker 提交等于 commit + push，提交成功后自动触发构建，不要再额外手动构建。

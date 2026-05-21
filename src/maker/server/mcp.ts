@@ -65,6 +65,7 @@ import {
   checkGitEnvironment,
   formatGitEnvironmentStatus,
 } from '../system/git.js';
+import { createMakerMcpUpdateGuide, type MakerMcpUpdateBin } from '../system/updateGuide.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 declare const __MAKER_BUNDLE_URL__: string | undefined;
@@ -167,6 +168,32 @@ const tools = [
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'maker_get_mcp_update_guide',
+    description:
+      'Return platform-specific instructions for updating the local npx cache of @taptap/instant-games-open-mcp. Use when the user says "更新 mcp", "更新 taptap mcp", "刷新 mcp 缓存", or asks how to update Maker MCP. This tool only returns guidance and MUST NOT update npm cache by itself. After calling it, the AI client should run the returned commands in the user local shell, then tell the user to restart or open a new MCP client window for changes to take effect.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        package_spec: {
+          type: 'string',
+          description:
+            'Optional npm package spec to update. Defaults to @taptap/instant-games-open-mcp@beta.',
+        },
+        bin: {
+          type: 'string',
+          enum: ['taptap-maker', 'instant-games-open-mcp', 'taptap-mcp-proxy'],
+          description: 'Optional bin to warm up after cache cleanup. Defaults to taptap-maker.',
+        },
+        client: {
+          type: 'string',
+          enum: ['codex', 'claude', 'cursor', 'unknown'],
+          description:
+            'Optional current AI client name for tailored restart wording. Defaults to unknown.',
+        },
+      },
     },
   },
   {
@@ -430,6 +457,26 @@ export async function startMakerMcpServer(): Promise<void> {
             {
               type: 'text',
               text: formatEnvironment(),
+            },
+          ],
+        };
+      }
+
+      if (name === 'maker_get_mcp_update_guide') {
+        const args = (request.params.arguments || {}) as {
+          package_spec?: string;
+          bin?: MakerMcpUpdateBin;
+          client?: 'codex' | 'claude' | 'cursor' | 'unknown';
+        };
+        return {
+          content: [
+            {
+              type: 'text',
+              text: createMakerMcpUpdateGuide({
+                packageSpec: args.package_spec,
+                bin: args.bin,
+                client: args.client,
+              }),
             },
           ],
         };
