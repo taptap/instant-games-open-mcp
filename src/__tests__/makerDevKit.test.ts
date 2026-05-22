@@ -7,6 +7,7 @@ import {
   finalizeStagedDevKitGitignore,
   inspectAiDevKit,
   installAiDevKit,
+  listPresentDevKitManagedEntries,
   mergeDevKitGitignore,
 } from '../maker/cli/devKit';
 
@@ -76,6 +77,21 @@ describe('Maker AI dev kit install', () => {
     expect(status.ready).toBe(false);
     expect(status.presentEntries).toEqual(['CLAUDE.md', 'urhox-libs']);
     expect(status.missingEntries).toEqual(['examples', 'templates']);
+  });
+
+  test('lists present managed dev kit entries beyond required readiness markers', () => {
+    fs.mkdirSync(path.join(targetDir, '.emmylua'), { recursive: true });
+    fs.mkdirSync(path.join(targetDir, 'engine-docs'), { recursive: true });
+    fs.mkdirSync(path.join(targetDir, 'examples'), { recursive: true });
+    fs.writeFileSync(path.join(targetDir, 'CLAUDE.md'), 'local guide\n', 'utf8');
+    fs.writeFileSync(path.join(targetDir, 'user-file.txt'), 'keep me\n', 'utf8');
+
+    expect(listPresentDevKitManagedEntries(targetDir)).toEqual([
+      '.emmylua',
+      'CLAUDE.md',
+      'engine-docs',
+      'examples',
+    ]);
   });
 
   test('restores missing dev kit files without overwriting existing local files', async () => {

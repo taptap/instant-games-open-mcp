@@ -14,6 +14,14 @@ const DEV_KIT_IGNORE_BEGIN = '# >>> TapTap Maker AI dev kit (local only) >>>';
 const DEV_KIT_IGNORE_END = '# <<< TapTap Maker AI dev kit (local only) <<<';
 export const DEV_KIT_GITIGNORE_STAGING_FILE = '.gitignore.dev-kit-before-clone';
 export const DEV_KIT_REQUIRED_ENTRIES = ['CLAUDE.md', 'examples', 'templates', 'urhox-libs'];
+export const DEV_KIT_MANAGED_ENTRY_CANDIDATES = [
+  '.emmylua',
+  'CLAUDE.md',
+  'engine-docs',
+  'examples',
+  'templates',
+  'urhox-libs',
+];
 const SKIPPED_TOP_LEVEL_ENTRIES = new Set(['scripts', '.DS_Store', 'ai-dev-kit.zip']);
 
 export interface InstallAiDevKitOptions {
@@ -56,6 +64,13 @@ export function inspectAiDevKit(targetDir: string): AiDevKitStatus {
     missingEntries,
     ready: missingEntries.length === 0,
   };
+}
+
+export function listPresentDevKitManagedEntries(targetDir: string): string[] {
+  const resolvedTargetDir = path.resolve(targetDir);
+  return DEV_KIT_MANAGED_ENTRY_CANDIDATES.filter((entry) =>
+    fs.existsSync(path.join(resolvedTargetDir, entry))
+  );
 }
 
 export async function installAiDevKit(
@@ -186,7 +201,7 @@ async function downloadAndExtractDevKit(url: string): Promise<string> {
   return tempDir;
 }
 
-function extractZip(zipPath: string, targetDir: string): void {
+export function extractZip(zipPath: string, targetDir: string): void {
   if (process.platform === 'win32') {
     const result = spawnSync(
       'powershell.exe',
@@ -203,15 +218,60 @@ function extractZip(zipPath: string, targetDir: string): void {
       { encoding: 'utf8' }
     );
     if (result.status !== 0) {
-      throw new Error(`Failed to extract AI dev kit zip: ${result.stderr || result.stdout}`);
+      throw new Error(`Failed to extract AI dev kit zip: ${formatSpawnFailure(result)}`);
     }
     return;
   }
 
-  const result = spawnSync('unzip', ['-q', zipPath, '-d', targetDir], { encoding: 'utf8' });
-  if (result.status !== 0) {
-    throw new Error(`Failed to extract AI dev kit zip: ${result.stderr || result.stdout}`);
+  const unzipResult = spawnSync('unzip', ['-q', zipPath, '-d', targetDir], { encoding: 'utf8' });
+  if (unzipResult.status === 0) {
+    return;
   }
+
+  const pythonFailures: string[] = [];
+  for (const pythonCommand of ['python3', 'python']) {
+    const pythonResult = spawnSync(
+      pythonCommand,
+      ['-c', PYTHON_ZIP_EXTRACT_SCRIPT, zipPath, targetDir],
+      { encoding: 'utf8' }
+    );
+    if (pythonResult.status === 0) {
+      return;
+    }
+    pythonFailures.push(`${pythonCommand}: ${formatSpawnFailure(pythonResult)}`);
+  }
+
+  throw new Error(
+    [
+      `Failed to extract AI dev kit zip: unzip: ${formatSpawnFailure(unzipResult)}`,
+      ...pythonFailures,
+    ].join('; ')
+  );
+}
+
+const PYTHON_ZIP_EXTRACT_SCRIPT = String.raw`
+import os
+import sys
+import zipfile
+
+zip_path = sys.argv[1]
+target_dir = os.path.abspath(sys.argv[2])
+
+with zipfile.ZipFile(zip_path) as archive:
+    for member in archive.infolist():
+        destination = os.path.abspath(os.path.join(target_dir, member.filename))
+        if os.path.commonpath([target_dir, destination]) != target_dir:
+            raise RuntimeError("Blocked unsafe zip entry: " + member.filename)
+    archive.extractall(target_dir)
+`;
+
+function formatSpawnFailure(result: ReturnType<typeof spawnSync>): string {
+  return (
+    result.error?.message ||
+    String(result.stderr || '').trim() ||
+    String(result.stdout || '').trim() ||
+    `exit status ${result.status ?? 'unknown'}`
+  );
 }
 
 function resolveDevKitRoot(sourceDir: string): string {

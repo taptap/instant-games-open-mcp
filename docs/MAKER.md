@@ -118,6 +118,9 @@ https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip
 clone 工具负责确定性文件处理：
 
 - 解压开发环境文档、引擎 API、demo、Lua 工具和本地 AI skills 到当前目录。
+- 如果目标目录已经存在完整 dev kit（`CLAUDE.md`、`examples/`、`templates`、`urhox-libs`），clone 前会跳过下载和解压，并按目录中实际存在的 dev-kit 顶层条目刷新 `.gitignore` 管理块。
+- dev kit 准备失败不会阻塞 Maker 项目 clone；clone 结果会返回 `ai_dev_kit_error`，后续可通过 `maker_status` 重新恢复。
+- Windows 原生环境使用 PowerShell `Expand-Archive` 解压；Linux/macOS 先使用 `unzip`，失败时回退到 `python3`/`python` 标准库 `zipfile`。
 - 跳过 ZIP 顶层 `scripts` 目录，避免和 Maker 项目 clone 后的 `scripts` 冲突。
 - 删除下载完成并解压后的 `ai-dev-kit.zip`。
 - clone 前生成 `.gitignore.dev-kit-before-clone` 临时 block，把 dev-kit 顶层内容标记为 local-only。
