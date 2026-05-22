@@ -1,3 +1,9 @@
+## <small>1.23.1 (2026-05-22)</small>
+
+* fix(maker): harden dev kit setup and app selection (#178) ([a1c5323](https://github.com/taptap/instant-games-open-mcp/commit/a1c5323)), closes [#178](https://github.com/taptap/instant-games-open-mcp/issues/178)
+
+
+
 ## 1.21.0 (2026-05-08)
 
 * feat(debug-feedback): 支持按 moment_id 单查反馈并修复大整数精度丢失 (#154) ([1270ee4](https://github.com/taptap/instant-games-open-mcp/commit/1270ee4)), closes [#154](https://github.com/taptap/instant-games-open-mcp/issues/154)
