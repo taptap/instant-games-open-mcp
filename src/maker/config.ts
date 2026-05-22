@@ -15,12 +15,13 @@ export interface MakerEndpoints {
   webUrl?: string;
 }
 
-// Temporary internal PAT management page. Replace with the TapMaker URL once available.
-export const TEMP_MAKER_PAT_TOKENS_URL = 'https://fuping.agnt.xd.com/pat-tokens';
-
 const MAKER_ENDPOINTS: Record<MakerEnvironment, MakerEndpoints> = {
   production: {
     webUrl: 'https://maker.taptap.cn',
+    apiBase: 'https://maker.taptap.cn/api/v1',
+    patUrl: 'https://maker.taptap.cn/api/v1/user/pat-tokens',
+    tapTokenUrl: 'https://maker.taptap.cn/api/v1/user/taptap-token',
+    gitBase: 'https://maker.taptap.cn/git',
   },
   rnd: {
     webUrl: 'https://fuping.agnt.xd.com',
@@ -80,6 +81,10 @@ export function getMakerEndpoints(environment?: 'production' | 'rnd'): MakerEndp
 export function getMakerWebUrl(environment?: 'production' | 'rnd'): string {
   const endpoints = getMakerEndpoints(environment);
   return requireMakerEndpoint('webUrl', endpoints.webUrl, environment).replace(/\/$/, '');
+}
+
+export function getMakerPatTokensUrl(environment?: 'production' | 'rnd'): string {
+  return `${getMakerWebUrl(environment)}/pat-tokens`;
 }
 
 export function requireMakerEndpoint(

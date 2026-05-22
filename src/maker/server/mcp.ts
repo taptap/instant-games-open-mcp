@@ -46,7 +46,7 @@ import { saveManualMakerPat } from '../git/pat.js';
 import {
   getMakerEndpoints,
   getMakerEnvironment,
-  TEMP_MAKER_PAT_TOKENS_URL,
+  getMakerPatTokensUrl,
   requireMakerEndpoint,
 } from '../config.js';
 import { getUserIdFromMakerJwt } from '../auth/jwt.js';
@@ -55,6 +55,8 @@ import {
   checkGitEnvironment,
   formatGitEnvironmentStatus,
 } from '../system/git.js';
+import { formatMakerSkillStatus } from '../cli/skill.js';
+import { installAiDevKit } from '../cli/devKit.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 declare const __MAKER_BUNDLE_URL__: string | undefined;
@@ -67,7 +69,8 @@ const LONG_OPERATION_HEARTBEAT_MS = 3 * 60 * 1000;
 export const tools = [
   {
     name: 'maker_exchange_pat',
-    description: `Prepare and save the Maker PAT used by Maker API app listing, Git operations, and TapTap token retrieval. If the user does not have a PAT, ask them to open the temporary PAT page ${TEMP_MAKER_PAT_TOKENS_URL}, create one, and give it to the agent. After saving PAT, this tool automatically fetches TapTap token and lists apps.`,
+    description:
+      'Save a Maker PAT for local Maker API, Git, and TapTap token operations. After saving PAT, this tool fetches TapTap token and lists available Maker apps.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -83,7 +86,7 @@ export const tools = [
   {
     name: 'maker_list_apps',
     description:
-      'List Maker apps available to the current Maker PAT. Prefer cached PAT from maker_exchange_pat or the pat argument. Always show the list to the user and ask them to choose before cloning.',
+      'List Maker apps available to the cached or provided Maker PAT. Use this to obtain app_id values for Maker project clone.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -97,7 +100,8 @@ export const tools = [
   },
   {
     name: 'maker_status',
-    description: `Show local Maker MCP status, environment prerequisites, and initialization guidance. Use this as the first step for Maker local development requests such as "我要开发maker游戏", "本地maker开发", "拉取maker游戏到本地", "把maker游戏代码拉到本地", "clone maker项目", "打开/继续开发maker项目", "初始化maker开发目录", or "配置maker本地开发". This tool includes the Git prerequisite check and setup guide; do not look for separate environment or setup tools. If Git is missing, do not call clone/submit/build-side git operations; keep showing the install guidance until the user installs Git and git --version works. If PAT is missing, ask the user to open the temporary PAT page ${TEMP_MAKER_PAT_TOKENS_URL}, create a PAT, give it to the agent, then call maker_exchange_pat. If PAT exists and no project is bound, this tool automatically lists apps; ask the user to choose an app, then call maker_clone_to_current_directory.`,
+    description:
+      'Show local Maker MCP status: Git availability, PAT/TapTap token status, project binding, bundled skill document paths, validation checklist, and available apps when PAT exists.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -106,7 +110,7 @@ export const tools = [
   {
     name: 'maker_clone_to_current_directory',
     description:
-      'Clone a Maker app repository into the current Codex/agent working directory. Use after the user chooses an app from the Maker app list for requests like "拉取maker游戏到本地", "把这个maker app拉下来", "clone maker项目", or "下载maker游戏代码". Call this only after maker_list_apps has listed apps and the user has chosen one. Requires local Git. If Git is missing, this tool stops before changing files and returns install guidance; do not retry clone until the user installs Git and git --version works. The target directory does not have to be empty; before clone, the tool checks local entries and warns about non-config local files while ignoring dot-prefixed config entries such as .claude, .mcp, .skill, .config, and .ini. Existing local files are kept unless they conflict with Maker project files; conflicts fail with a file list. Requires the selected app_id; uses cached Maker PAT by default.',
+      'Clone a selected Maker app repository into the current agent working directory and write .maker-mcp/config.json. Requires Git and a concrete app_id. Before clone, the tool prepares the local AI dev kit automatically, skips dev-kit scripts, deletes the downloaded zip, and stages dev-kit ignore rules for merge after checkout. The tool checks local file conflicts before checkout and keeps non-conflicting local files.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -352,8 +356,24 @@ export async function startMakerMcpServer(): Promise<void> {
           'Maker clone'
         );
         let result: Awaited<ReturnType<typeof cloneMakerProject>>;
+        let devKitResult: Awaited<ReturnType<typeof installAiDevKit>>;
         let progressSummary: ToolProgressSummary;
         try {
+          progressReporter.report({
+            progress: 1,
+            total: 100,
+            phase: 'dev_kit',
+            message: 'Preparing local AI dev kit before Maker clone',
+          });
+          devKitResult = await installAiDevKit({
+            targetDir,
+          });
+          progressReporter.report({
+            progress: 5,
+            total: 100,
+            phase: 'dev_kit',
+            message: 'Local AI dev kit prepared',
+          });
           result = await cloneMakerProject({
             appId: args.app_id,
             targetDir,
@@ -380,6 +400,9 @@ export async function startMakerMcpServer(): Promise<void> {
                 `- target_dir: ${result.targetDir}`,
                 `- status: ${result.status}`,
                 `- retried_with_new_pat: ${result.retriedWithNewPat ? 'yes' : 'no'}`,
+                '- ai_dev_kit: prepared',
+                `- ai_dev_kit_installed_entries: ${devKitResult.installedEntries.join(', ') || '(none)'}`,
+                `- ai_dev_kit_skipped_entries: ${devKitResult.skippedEntries.join(', ') || '(none)'}`,
                 ...formatProgressSummary(progressSummary),
                 '- project config: .maker-mcp/config.json',
               ].join('\n'),
@@ -503,6 +526,7 @@ async function formatStatus(): Promise<string> {
   const identify = identifyMakerProject();
   const pat = loadPat();
   let tapAuth = loadTapAuth();
+  const makerPatTokensUrl = getMakerPatTokensUrl();
   let tapAuthRefreshText = '';
   if (pat && !tapAuth) {
     try {
@@ -525,12 +549,7 @@ async function formatStatus(): Promise<string> {
   const projectSection = identify.projectId
     ? [
         '当前目录已绑定 Maker 项目。',
-        '如果用户要求“帮我提交代码 / 提交并推送 / push / 帮我提交代码到maker / 帮我提交代码到taptap制造 / 帮我提交代码到tap制造 / 帮我提交代码到tap”，必须调用 maker_submit_current_directory；提交/推送成功后工具会继续执行远端 build。',
-        '如果用户要求“构建 / build / 重新构建 / 查看结果 / 预览 / 跑一下 / 验证一下”，必须先经过 maker_build_current_directory 的本地改动强制检查；有本地改动时不要静默构建云端旧版本，应询问用户是否提交。',
-        '优先选项文案应是“提交本地改动并触发构建（以后都是如此）”；用户选择后再次调用 maker_build_current_directory，并设置 submit_local_changes_before_build=true 和 remember_build_submit_preference=true。',
-        'Maker 构建入口负责完整执行 commit + push + build；保存偏好后，后续构建遇到本地改动会自动提交并继续构建。',
-        '用户明确说不提交、直接构建云端版本时，才允许调用 maker_build_current_directory 并设置 confirm_remote_build_without_submit=true。',
-        '不要套用本地通用 Git skill 的任务号、默认分支保护、新建分支规则；Maker 提交流程按远端 Maker 仓库当前分支直接提交并推送。',
+        '本地 Maker 工作流请优先参考 taptap-maker-local skill；MCP tools 只负责保存 PAT、列 app、clone、submit 和 build 等机器动作。',
       ].join('\n')
     : pat
       ? await formatAutoProjectListFromPat()
@@ -551,15 +570,11 @@ async function formatStatus(): Promise<string> {
     '',
     formatGitEnvironmentStatus(git),
     '',
-    pat
-      ? ''
-      : [
-          'Auth next step',
-          '',
-          `Maker PAT 缺失。请主动让用户打开临时 PAT 页面 ${TEMP_MAKER_PAT_TOKENS_URL} 新建 PAT，然后把 PAT 发给你；拿到后调用 maker_exchange_pat 保存。`,
-        ].join('\n'),
+    pat ? '' : ['Auth next step', '', `Maker PAT 缺失。PAT 页面：${makerPatTokensUrl}`].join('\n'),
     '',
     tapAuthRefreshText,
+    '',
+    formatMakerSkillStatus({ projectRoot: identify.projectRoot || process.cwd() }),
     '',
     projectSection,
   ]
@@ -587,7 +602,7 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     const projects = await listMakerProjects();
     return [
       '本地已有 Maker PAT，当前目录尚未绑定 Maker 项目。',
-      '已自动列出可用 Maker Apps，请让用户选择一个 app，然后调用 maker_clone_to_current_directory。',
+      '已自动列出可用 Maker Apps。选择、解释和 clone 顺序请参考 taptap-maker-local skill。',
       '',
       formatProjectList(projects),
     ].join('\n');
@@ -595,7 +610,7 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     return [
       '本地已有 Maker PAT，但自动列出 Maker Apps 失败。',
       `原因：${error instanceof Error ? error.message : String(error)}`,
-      `如果 PAT 已失效，请主动让用户打开临时 PAT 页面 ${TEMP_MAKER_PAT_TOKENS_URL} 新建 PAT，然后调用 maker_exchange_pat 保存。`,
+      `如果 PAT 已失效，请使用新的 Maker PAT 重新调用 maker_exchange_pat。PAT 页面：${getMakerPatTokensUrl()}`,
     ].join('\n');
   }
 }

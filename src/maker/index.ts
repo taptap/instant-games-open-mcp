@@ -1,57 +1,32 @@
 /**
  * taptap-maker entry.
  *
- * With subcommands it behaves as a CLI. Without subcommands it starts MCP server mode.
+ * Starts Maker MCP server mode.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseArgs } from './cli/common.js';
-import { runInit } from './cli/init.js';
-import { runInstall } from './cli/install.js';
-import { runLogin, runLogout } from './cli/login.js';
-import { runProjects } from './cli/projects.js';
-import { runStatus } from './cli/status.js';
 import { startMakerMcpServer } from './server/mcp.js';
 import { getMakerHome } from './storage.js';
 
 installCrashLogging();
 
 async function main(): Promise<void> {
-  const parsed = parseArgs(process.argv.slice(2));
+  const command = process.argv[2];
 
-  if (!parsed.command) {
+  if (!command) {
     await startMakerMcpServer();
     return;
   }
 
-  switch (parsed.command) {
-    case 'init':
-      await runInit(parsed.flags);
-      return;
-    case 'login':
-      await runLogin(parsed.flags);
-      return;
-    case 'logout':
-      await runLogout();
-      return;
-    case 'status':
-      await runStatus(parsed.flags);
-      return;
-    case 'projects':
-      await runProjects(parsed.rest, parsed.flags);
-      return;
-    case 'install':
-      await runInstall(parsed.flags);
-      return;
-    case 'help':
-    case '--help':
-    case '-h':
-      printHelp();
-      return;
-    default:
-      throw new Error(`Unknown taptap-maker command: ${parsed.command}`);
+  if (command === 'help' || command === '--help' || command === '-h') {
+    printHelp();
+    return;
   }
+
+  throw new Error(
+    `taptap-maker does not expose user CLI subcommands. Start it without arguments as an MCP server.`
+  );
 }
 
 function printHelp(): void {
@@ -59,15 +34,14 @@ function printHelp(): void {
     [
       'Usage:',
       '  taptap-maker                         Start MCP server mode',
-      '  taptap-maker init [options]          Login/onboard/bind a Maker project',
-      '  taptap-maker login --pat <pat>       Save Maker PAT for API and git operations',
-      '  taptap-maker login --jwt <jwt>       Save legacy Maker JWT fallback',
-      '  taptap-maker logout                  Clear local Maker PAT/JWT/Tap auth',
-      '  taptap-maker status [--json]         Show local Maker state',
-      '  taptap-maker projects list [--json]  List Maker projects',
-      '  taptap-maker projects clone <id>     Clone Maker app/project and write .maker-mcp',
-      '  taptap-maker projects push -m <msg>  Commit and push current Maker project',
-      '  taptap-maker install --ide <ide>     Install MCP config for codex/cursor/claude/all',
+      '  taptap-maker help                    Show this help',
+      '',
+      'Normal Maker local development should use MCP tools:',
+      '  maker_exchange_pat, maker_list_apps, maker_clone_to_current_directory,',
+      '  maker_submit_current_directory, maker_build_current_directory.',
+      '',
+      'Advanced CLI subcommands still exist for maintainers and diagnostics,',
+      'but are not the default user onboarding path.',
       '',
     ].join('\n')
   );

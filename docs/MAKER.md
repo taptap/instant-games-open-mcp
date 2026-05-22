@@ -10,6 +10,7 @@
 - 用户级凭证保存到 `~/.taptap-maker/`。
 - Agent 通过 MCP tools 完成 PAT 准备、app 选择、clone、push 和远端构建准备。
 - 本地 Git 是 clone/push 的硬性前置条件。Maker MCP 只检测和引导，不代替用户安装 Git。
+- 仓库同时提供 `taptap-maker-local` 和 `update-taptap-mcp` skills，用于把本地 Git 工作流和 MCP 更新缓存流程交给本地 AI/Agent 按业务规则执行；现有 MCP tools 保持兼容。
 
 ## 本地测试
 
@@ -18,8 +19,7 @@
 ```bash
 npm test
 npm run build
-node dist/maker.js status
-node dist/maker.js init --project-id demo-project --target /tmp/demo-maker --sce-endpoint http://localhost:5003
+node dist/maker.js
 ```
 
 MCP server 模式：
@@ -79,6 +79,47 @@ maker_status
 - `maker_build_current_directory`：用户说“构建 / build / 重新构建游戏”时使用，转发调用远端 `build` tool。工具内部会强制检查本地 Maker 项目是否有未提交改动；如果有改动且没有确认提交或跳过提交，会停止并要求先询问用户。用户确认提交时，再次调用本工具并设置 `submit_local_changes_before_build=true` 和 `remember_build_submit_preference=true`，工具会完整执行 commit + push + build 并返回构建结果。构建转发会从 MCP 包自身定位 `dist/proxy.js`；`cwd` / `target_dir` 只用于识别 Maker 游戏项目，不要求游戏目录存在 MCP 的 `dist/proxy.js`。
 - `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，对当前 Maker 项目执行 commit + push + build；只有实际 push 成功后才继续远端 build。构建拦截里的 `提交本地改动并触发构建（以后都是如此）` 选项应继续调用 `maker_build_current_directory`，并传入 `submit_local_changes_before_build=true` 和 `remember_build_submit_preference=true`，由构建流程保存偏好并返回构建结果。如果本机没有 Git，工具会在 stage/commit/push/build 前停止。
 
+## Maker 本地 Workflow Skills
+
+Maker 内置两个业务流程 skill，目标是让本地 AI/Agent 参与本地状态判断，而不是把所有情况都塞进 MCP tool description。
+
+- `taptap-maker-local`：Maker 初始化与本地 Git 工作流。
+- `update-taptap-mcp`：TapTap MCP npx 缓存更新工作流。
+
+第一版范围：
+
+- 初始化 Maker 本地开发目录。
+- 在绑定 Maker 项目前准备本地 AI dev kit。
+- clone Maker 项目。
+- 选择 Maker app，避免自动选择错误项目。
+- 解释 PAT、Git、项目绑定和编辑器重启。
+- 提交、推送本地改动。
+- pull 远端改动前检查本地 dirty 状态。
+- 发生冲突时解释为什么冲突、冲突文件在哪里、冲突内容是什么，并让 Agent 给出解决建议。
+- 冲突解决前必须让用户确认，不隐藏 unresolved conflict。
+
+`maker_status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local` 与 `update-taptap-mcp`。除此之外不做编辑器安装引导。
+
+注意：这只是新增 skill 支持层，原有 `maker_clone_to_current_directory`、`maker_submit_current_directory`、`maker_build_current_directory` 的业务行为暂不删除。等 skill 流程测试通过后，再评估是否收敛 MCP tools。
+
+### AI dev kit 准备
+
+PAT 验证通过、用户选择 app 后，`maker_clone_to_current_directory` 会在绑定 Maker 项目前自动准备 AI dev kit。
+
+默认下载地址：
+
+```text
+https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip
+```
+
+clone 工具负责确定性文件处理：
+
+- 解压开发环境文档、引擎 API、demo、Lua 工具和本地 AI skills 到当前目录。
+- 跳过 ZIP 顶层 `scripts` 目录，避免和 Maker 项目 clone 后的 `scripts` 冲突。
+- 删除下载完成并解压后的 `ai-dev-kit.zip`。
+- clone 前生成 `.gitignore.dev-kit-before-clone` 临时 block，把 dev-kit 顶层内容标记为 local-only。
+- clone 成功后自动把临时 block 合并到远端 `.gitignore`，并删除临时文件。
+
 Maker app 列表关键字段：
 
 - `id`：Maker app id。
@@ -115,12 +156,6 @@ PAT 保存步骤：
 ```text
 ~/.taptap-maker/pat.json
 ~/.maker-pat
-```
-
-也可以通过环境变量临时提供：
-
-```bash
-MAKER_PAT=<maker_pat> taptap-maker projects list
 ```
 
 如果 PAT 过期或不可用，Agent 应提示用户提供新的 Maker PAT，再调用
@@ -272,9 +307,17 @@ push
 
 Maker 后端默认地址集中在 `src/maker/config.ts`。兼容旧变量名：`MAKER_API_BASE`、`MAKER_PAT_URL`、`MAKER_TAP_TOKEN_URL`、`MAKER_GIT_BASE`、`TAPTAP_REMOTE_MCP_SERVER_URL`、`MAKER_WEB_URL`。新配置优先使用 `TAPTAP_MAKER_*` 前缀。
 
+| 环境       | Web URL                      | API Base                            | PAT URL                                             | TapTap Token URL                                      | Git Base                         |
+| ---------- | ---------------------------- | ----------------------------------- | --------------------------------------------------- | ----------------------------------------------------- | -------------------------------- |
+| production | `https://maker.taptap.cn`    | `https://maker.taptap.cn/api/v1`    | `https://maker.taptap.cn/api/v1/user/pat-tokens`    | `https://maker.taptap.cn/api/v1/user/taptap-token`    | `https://maker.taptap.cn/git`    |
+| rnd        | `https://fuping.agnt.xd.com` | `https://fuping.agnt.xd.com/api/v1` | `https://fuping.agnt.xd.com/api/v1/user/pat-tokens` | `https://fuping.agnt.xd.com/api/v1/user/taptap-token` | `https://fuping.agnt.xd.com/git` |
+
+`TAPTAP_MAKER_REMOTE_MCP_SERVER_URL` 仍需按环境单独配置或在代码环境表中补齐；它不从 Maker Web 域名自动推导。
+
 ## 手动 PAT 联调
 
-测试时可以通过临时 PAT 页面 `https://fuping.agnt.xd.com/pat-tokens` 新建 Maker PAT，
+测试时可以通过当前环境的 PAT 页面新建 Maker PAT：
+production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
 再通过 `maker_exchange_pat(manual_pat)` 保存。
 APP_ID 不应要求用户手动输入，而是通过 `maker_exchange_pat` 自动返回的 app 列表让用户选择。
 

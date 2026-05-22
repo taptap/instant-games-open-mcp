@@ -1,5 +1,5 @@
 /**
- * taptap-maker projects commands.
+ * Maker project API and Git helpers used by the Maker MCP server.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -11,7 +11,7 @@ import { getUserIdFromMakerJwt, requireMakerJwt } from '../auth/jwt.js';
 import { getManualMakerPat, requestMakerPat, saveManualMakerPat } from '../git/pat.js';
 import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
 import { ensureGitAvailable, getGitCommand } from '../system/git.js';
-import { getStringFlag, isJsonMode, printJson } from './common.js';
+import { finalizeStagedDevKitGitignore } from './devKit.js';
 
 export interface CloneMakerProjectOptions {
   appId: string;
@@ -190,30 +190,6 @@ export function normalizeProjectsResponse(data: unknown): MakerProjectSummary[] 
     .filter((project) => project.id.length > 0);
 }
 
-export async function runProjects(
-  args: string[],
-  flags: Record<string, string | boolean>
-): Promise<void> {
-  const subcommand = args[0] || 'list';
-
-  if (subcommand === 'list') {
-    await listProjects(flags);
-    return;
-  }
-
-  if (subcommand === 'clone') {
-    await cloneProject(args.slice(1), flags);
-    return;
-  }
-
-  if (subcommand === 'push') {
-    await pushProject(flags);
-    return;
-  }
-
-  throw new Error(`Unknown projects subcommand: ${subcommand}`);
-}
-
 export async function listMakerProjects(options?: {
   jwt?: string;
   pat?: string;
@@ -243,69 +219,6 @@ export async function listMakerProjects(options?: {
   }
 
   return normalizeProjectsResponse(json);
-}
-
-async function listProjects(flags: Record<string, string | boolean>): Promise<void> {
-  const projects = await listMakerProjects({
-    jwt: getStringFlag(flags, 'jwt'),
-    pat: getStringFlag(flags, 'pat'),
-  });
-  if (isJsonMode(flags)) {
-    printJson(projects);
-    return;
-  }
-
-  if (projects.length === 0) {
-    process.stdout.write('No Maker projects found.\n');
-    return;
-  }
-
-  for (const project of projects) {
-    process.stdout.write(`${project.id}\t${project.name || '(untitled)'}\n`);
-  }
-}
-
-async function cloneProject(
-  args: string[],
-  flags: Record<string, string | boolean>
-): Promise<void> {
-  const projectId = args[0] || getStringFlag(flags, 'project-id') || getStringFlag(flags, 'app-id');
-  if (!projectId) {
-    throw new Error('Usage: taptap-maker projects clone <app-id> [target-dir] --pat <pat>');
-  }
-
-  const target = path.resolve(args[1] || getStringFlag(flags, 'target') || '.');
-  await cloneMakerProject({
-    appId: projectId,
-    targetDir: target,
-    jwt: getStringFlag(flags, 'jwt'),
-    pat: getStringFlag(flags, 'pat'),
-    userId: getStringFlag(flags, 'user-id'),
-    patName: getStringFlag(flags, 'pat-name') || 'first-pat',
-    forcePat: flags['force-pat'] === true,
-    sceEndpoint: getStringFlag(flags, 'sce-endpoint') || process.env.SCE_MCP_URL,
-  });
-
-  process.stdout.write(`✓ Cloned Maker project ${projectId} to ${target}\n`);
-}
-
-async function pushProject(flags: Record<string, string | boolean>): Promise<void> {
-  const message = getStringFlag(flags, 'message') || getStringFlag(flags, 'm');
-  if (!message) {
-    throw new Error('Usage: taptap-maker projects push --message <commit-message>');
-  }
-
-  const result = await pushMakerProject({
-    cwd: path.resolve(getStringFlag(flags, 'target') || '.'),
-    message,
-    branch: getStringFlag(flags, 'branch'),
-    allowEmpty: flags['allow-empty'] === true,
-    jwt: getStringFlag(flags, 'jwt'),
-    pat: getStringFlag(flags, 'pat'),
-    forcePat: flags['force-pat'] === true,
-  });
-
-  process.stdout.write(`✓ Maker push ${result.status} on ${result.branch}\n`);
 }
 
 export async function cloneMakerProject(
@@ -384,6 +297,7 @@ export async function cloneMakerProject(
       user_id: options.userId || (await resolveMakerProjectUserId(options)),
       sce_endpoint: options.sceEndpoint,
     });
+    finalizeStagedDevKitGitignore(target);
     options.onProgress?.({
       progress: 100,
       total: 100,
@@ -451,6 +365,7 @@ export async function cloneMakerProject(
   } catch (error) {
     throw withPreCloneWarnings(error, warnings);
   }
+  finalizeStagedDevKitGitignore(target);
   saveProjectConfig(target, {
     project_id: options.appId,
     user_id: options.userId || (await resolveMakerProjectUserId(options)),
