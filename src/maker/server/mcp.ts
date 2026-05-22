@@ -127,7 +127,7 @@ export const tools = [
       properties: {
         app_id: {
           type: 'string',
-          description: 'Maker APP_ID to clone from fuping git.',
+          description: 'Maker APP_ID to clone from the configured Maker git service.',
         },
         target_dir: {
           type: 'string',

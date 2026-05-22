@@ -147,7 +147,7 @@ Maker 本地 MCP 默认使用 PAT-first 流程：
 PAT 保存步骤：
 
 ```text
-1. 如果用户没有 PAT，引导用户打开临时 PAT 页面 https://fuping.agnt.xd.com/pat-tokens 新建 PAT。
+1. 如果用户没有 PAT，引导用户打开当前环境的 PAT 页面新建 PAT。production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
 2. 用户把 PAT 发给 Agent。
 3. Agent 把它作为 `maker_exchange_pat` 的 `manual_pat` 参数传入。
 4. `maker_exchange_pat` 保存 PAT 后会自动获取 TapTap token 并列出 app。
