@@ -227,6 +227,8 @@ describe('maker build local-change guard', () => {
     const cloneTool = tools.find((item) => item.name === 'maker_clone_to_current_directory');
 
     expect(statusTool?.description).toContain('bundled skill document paths');
+    expect(statusTool?.description).toContain('target_dir');
+    expect(statusTool?.description).toContain('AI dev kit status');
     expect(statusTool?.description).not.toContain('If PAT is missing');
     expect(statusTool?.description).not.toContain('ask them to open');
     expect(statusTool?.description).not.toContain('让用户选择');
@@ -253,10 +255,12 @@ describe('maker build local-change guard', () => {
 
   test('public Maker tool schemas do not expose JWT fallback parameters', () => {
     const listTool = tools.find((item) => item.name === 'maker_list_apps');
+    const statusTool = tools.find((item) => item.name === 'maker_status');
     const cloneTool = tools.find((item) => item.name === 'maker_clone_to_current_directory');
     const submitTool = tools.find((item) => item.name === 'maker_submit_current_directory');
 
     expect(Object.keys(listTool?.inputSchema.properties || {})).toEqual(['pat']);
+    expect(Object.keys(statusTool?.inputSchema.properties || {})).toEqual(['target_dir']);
     expect(Object.keys(cloneTool?.inputSchema.properties || {})).toEqual([
       'app_id',
       'target_dir',

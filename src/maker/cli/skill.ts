@@ -9,11 +9,15 @@ import { fileURLToPath } from 'node:url';
 declare const __MAKER_BUNDLE_URL__: string | undefined;
 
 export const MAKER_LOCAL_SKILL_NAME = 'taptap-maker-local';
+export const MAKER_DEV_KIT_GUIDE_SKILL_NAME = 'taptap-maker-dev-kit-guide';
 export const UPDATE_TAPTAP_MCP_SKILL_NAME = 'update-taptap-mcp';
 
 const BUNDLED_SKILLS = [
   {
     name: MAKER_LOCAL_SKILL_NAME,
+  },
+  {
+    name: MAKER_DEV_KIT_GUIDE_SKILL_NAME,
   },
   {
     name: UPDATE_TAPTAP_MCP_SKILL_NAME,

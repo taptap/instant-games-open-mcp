@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   formatMakerSkillStatus,
+  MAKER_DEV_KIT_GUIDE_SKILL_NAME,
   MAKER_LOCAL_SKILL_NAME,
   UPDATE_TAPTAP_MCP_SKILL_NAME,
 } from '../maker/cli/skill';
@@ -25,6 +26,7 @@ describe('Maker bundled workflow skill documents', () => {
 
     expect(status).toContain('TapTap bundled workflow skills');
     expect(status).toContain(`skills/${MAKER_LOCAL_SKILL_NAME}/SKILL.md`);
+    expect(status).toContain(`skills/${MAKER_DEV_KIT_GUIDE_SKILL_NAME}/SKILL.md`);
     expect(status).toContain(`skills/${UPDATE_TAPTAP_MCP_SKILL_NAME}/SKILL.md`);
     expect(status).toContain('Let the current AI client decide whether and how to load them.');
     expect(status).not.toContain('Validation checklist for the local AI client');
@@ -42,9 +44,26 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('maker_exchange_pat');
     expect(skillText).toContain('maker_clone_to_current_directory');
     expect(skillText).toContain('tool prepares the AI dev kit automatically');
+    expect(skillText).toContain(MAKER_DEV_KIT_GUIDE_SKILL_NAME);
     expect(skillText).toContain('Do not auto-select');
     expect(skillText).toContain('Bundled Skills');
     expect(skillText).not.toContain('taptap-maker dev-kit install --target .');
     expect(skillText).not.toContain('taptap-maker install-skill --ide codex');
+  });
+
+  test('Dev kit guide skill points agents to installed local resources', () => {
+    const skillPath = path.join(
+      process.cwd(),
+      'skills',
+      MAKER_DEV_KIT_GUIDE_SKILL_NAME,
+      'SKILL.md'
+    );
+    const skillText = fs.readFileSync(skillPath, 'utf8');
+
+    expect(skillText).toContain('CLAUDE.md');
+    expect(skillText).toContain('examples/');
+    expect(skillText).toContain('templates/');
+    expect(skillText).toContain('urhox-libs/');
+    expect(skillText).toContain('Do not submit them to Maker Git');
   });
 });

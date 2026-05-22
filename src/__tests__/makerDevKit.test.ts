@@ -5,6 +5,7 @@ import {
   createDevKitGitignoreBlock,
   DEV_KIT_GITIGNORE_STAGING_FILE,
   finalizeStagedDevKitGitignore,
+  inspectAiDevKit,
   installAiDevKit,
   mergeDevKitGitignore,
 } from '../maker/cli/devKit';
@@ -21,6 +22,8 @@ describe('Maker AI dev kit install', () => {
     fs.mkdirSync(path.join(sourceDir, 'engine-docs'), { recursive: true });
     fs.mkdirSync(path.join(sourceDir, 'scripts'), { recursive: true });
     fs.mkdirSync(path.join(sourceDir, '.emmylua'), { recursive: true });
+    fs.mkdirSync(path.join(sourceDir, 'examples'), { recursive: true });
+    fs.mkdirSync(path.join(sourceDir, 'templates'), { recursive: true });
     fs.mkdirSync(path.join(sourceDir, 'urhox-libs'), { recursive: true });
     fs.writeFileSync(path.join(sourceDir, 'engine-docs', 'README.md'), 'docs\n', 'utf8');
     fs.writeFileSync(path.join(sourceDir, 'scripts', 'main.lua'), '-- should skip\n', 'utf8');
@@ -30,6 +33,8 @@ describe('Maker AI dev kit install', () => {
       '---@class Engine\n',
       'utf8'
     );
+    fs.writeFileSync(path.join(sourceDir, 'examples', 'README.md'), 'examples\n', 'utf8');
+    fs.writeFileSync(path.join(sourceDir, 'templates', 'README.md'), 'templates\n', 'utf8');
     fs.writeFileSync(path.join(sourceDir, 'urhox-libs', 'README.md'), 'libs\n', 'utf8');
     fs.writeFileSync(path.join(sourceDir, 'CLAUDE.md'), 'local agent docs\n', 'utf8');
   });
@@ -44,12 +49,49 @@ describe('Maker AI dev kit install', () => {
       targetDir,
     });
 
-    expect(result.installedEntries).toEqual(['.emmylua', 'CLAUDE.md', 'engine-docs', 'urhox-libs']);
+    expect(result.installedEntries).toEqual([
+      '.emmylua',
+      'CLAUDE.md',
+      'engine-docs',
+      'examples',
+      'templates',
+      'urhox-libs',
+    ]);
     expect(result.skippedEntries).toEqual(['ai-dev-kit.zip', 'scripts']);
     expect(fs.existsSync(path.join(targetDir, 'engine-docs', 'README.md'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, '.emmylua', 'Engine.d.lua'))).toBe(true);
+    expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);
+    expect(fs.existsSync(path.join(targetDir, 'templates', 'README.md'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'scripts'))).toBe(false);
     expect(fs.existsSync(path.join(targetDir, 'ai-dev-kit.zip'))).toBe(false);
+  });
+
+  test('detects required dev kit entries', async () => {
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(path.join(targetDir, 'CLAUDE.md'), 'local guide\n', 'utf8');
+    fs.mkdirSync(path.join(targetDir, 'urhox-libs'), { recursive: true });
+
+    const status = inspectAiDevKit(targetDir);
+
+    expect(status.ready).toBe(false);
+    expect(status.presentEntries).toEqual(['CLAUDE.md', 'urhox-libs']);
+    expect(status.missingEntries).toEqual(['examples', 'templates']);
+  });
+
+  test('restores missing dev kit files without overwriting existing local files', async () => {
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(path.join(targetDir, 'CLAUDE.md'), 'user edits\n', 'utf8');
+
+    await installAiDevKit({
+      sourceDir,
+      targetDir,
+      preserveExisting: true,
+    });
+
+    expect(fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8')).toBe('user edits\n');
+    expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);
+    expect(fs.existsSync(path.join(targetDir, 'templates', 'README.md'))).toBe(true);
+    expect(inspectAiDevKit(targetDir).ready).toBe(true);
   });
 
   test('stages a managed gitignore block for installed entries before clone', async () => {
@@ -66,6 +108,8 @@ describe('Maker AI dev kit install', () => {
     expect(stagedGitignore).toContain('# >>> TapTap Maker AI dev kit (local only) >>>');
     expect(stagedGitignore).toContain('.emmylua/');
     expect(stagedGitignore).toContain('engine-docs/');
+    expect(stagedGitignore).toContain('examples/');
+    expect(stagedGitignore).toContain('templates/');
     expect(stagedGitignore).toContain('urhox-libs/');
     expect(stagedGitignore).toContain('CLAUDE.md');
     expect(stagedGitignore).not.toContain('scripts/');
