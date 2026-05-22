@@ -74,7 +74,7 @@ maker_status
 
 - `maker_exchange_pat`：接收用户提供的 Maker PAT，以 `manual_pat` 传入后保存到本地 `~/.taptap-maker/pat.json`，并兼容旧的 `~/.maker-pat`；保存后会自动获取 TapTap token 并列出 app。
 - `maker_status`：统一输出本地 Maker 状态、Git 前置条件和初始化引导；如果发现本地已有 PAT 但缺少 TapTap token，会自动尝试获取；如果当前目录未绑定，会自动列出 app，不需要用户额外要求。
-- `maker_list_apps`：优先用 Maker PAT 拉取 app 列表，必须展示给用户选择。会解析 Maker `/apps` 返回的创建时间、最近会话时间、游戏类型、阶段、图标、置顶/归档/删除时间等字段，并保留原始 `raw` 数据。
+- `maker_list_apps`：优先用 Maker PAT 拉取 app 列表。只有当前目录未绑定且用户要初始化或 clone 时，才展示给用户选择并继续 clone；如果当前目录已绑定，app 列表只作账号项目参考，不要再引导 clone。会解析 Maker `/apps` 返回的创建时间、最近会话时间、游戏类型、阶段、图标、置顶/归档/删除时间等字段，并保留原始 `raw` 数据。
 - `maker_clone_to_current_directory`：把选中的 Maker app 仓库拉到当前目录并写 `.maker-mcp/config.json`。如果本机没有 Git，工具会在申请 PAT 和改动文件前停止。当前目录不要求为空；clone 前会检查本地目录，忽略 `.claude`、`.mcp`、`.skill`、`.config`、`.ini` 等点开头配置项，只对普通本地文件输出提醒。clone 最终结果固定包含 `Pre-clone local directory check` 区块；已有本地文件会保留，若与 Maker 项目文件同路径冲突则失败并列出冲突文件。
 - `maker_build_current_directory`：用户说“构建 / build / 重新构建游戏”时使用，转发调用远端 `build` tool。工具内部会强制检查本地 Maker 项目是否有未提交改动；如果有改动且没有确认提交或跳过提交，会停止并要求先询问用户。用户确认提交时，再次调用本工具并设置 `submit_local_changes_before_build=true` 和 `remember_build_submit_preference=true`，工具会完整执行 commit + push + build 并返回构建结果。构建转发会从 MCP 包自身定位 `dist/proxy.js`；`cwd` / `target_dir` 只用于识别 Maker 游戏项目，不要求游戏目录存在 MCP 的 `dist/proxy.js`。
 - `maker_submit_current_directory`：用户说“帮我提交”“提交代码”时使用，对当前 Maker 项目执行 commit + push + build；只有实际 push 成功后才继续远端 build。构建拦截里的 `提交本地改动并触发构建（以后都是如此）` 选项应继续调用 `maker_build_current_directory`，并传入 `submit_local_changes_before_build=true` 和 `remember_build_submit_preference=true`，由构建流程保存偏好并返回构建结果。如果本机没有 Git，工具会在 stage/commit/push/build 前停止。
@@ -333,6 +333,8 @@ maker_exchange_pat(manual_pat)
 用户选择 app
 maker_clone_to_current_directory(app_id)
 ```
+
+如果当前目录已经绑定 Maker 项目，app 列表只用于确认账号下有哪些项目；继续在当前绑定项目上提交、构建或检查状态，不要要求用户重新选择 clone。
 
 clone/push 默认会按 `TAPTAP_MCP_ENV` 读取 `src/maker/config.ts` 中对应环境的配置。需要临时覆盖时可设置：
 
