@@ -57,9 +57,12 @@ import {
 } from '../system/git.js';
 import { formatMakerSkillStatus } from '../cli/skill.js';
 import {
+  DEV_KIT_GITIGNORE_STAGING_FILE,
   finalizeStagedDevKitGitignore,
   inspectAiDevKit,
   installAiDevKit,
+  listPresentDevKitManagedEntries,
+  writeDevKitStagedGitignore,
   type AiDevKitStatus,
 } from '../cli/devKit.js';
 
@@ -75,7 +78,7 @@ export const tools = [
   {
     name: 'maker_exchange_pat',
     description:
-      'Save a Maker PAT for local Maker API, Git, and TapTap token operations. After saving PAT, this tool fetches TapTap token and lists available Maker apps.',
+      'Save a Maker PAT for local Maker API, Git, and TapTap token operations. After saving PAT, this tool fetches TapTap token and returns a user-facing Maker app list. If the current directory is unbound, show every returned app entry to the user and ask them to choose; do not summarize the list as a count only.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -91,7 +94,7 @@ export const tools = [
   {
     name: 'maker_list_apps',
     description:
-      'List Maker apps available to the cached or provided Maker PAT. Use this for unbound Maker directory initialization or explicit app-list requests. If maker_status already reports the current directory is bound, treat this list as reference only and do not ask which app to clone unless the user explicitly wants to switch or re-clone.',
+      'List Maker apps available to the cached or provided Maker PAT. Use this for unbound Maker directory initialization or explicit app-list requests. If the current directory is unbound, show every returned app entry to the user and ask them to choose; do not summarize the list as a count only. If maker_status already reports the current directory is bound, treat this list as reference only and do not ask which app to clone unless the user explicitly wants to switch or re-clone.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -106,7 +109,7 @@ export const tools = [
   {
     name: 'maker_status',
     description:
-      'Show local Maker MCP status for the user current working directory: Git availability, PAT/TapTap token status, project binding, AI dev kit status, bundled skill document paths, validation checklist, and available apps when the current directory is unbound and PAT exists. If the MCP process cwd differs from the user current working directory, pass target_dir with the user current working directory.',
+      'Show local Maker MCP status for the user current working directory: Git availability, PAT/TapTap token status, project binding, AI dev kit status, bundled skill document paths, validation checklist, and available apps when the current directory is unbound and PAT exists. If the current directory is unbound and apps are returned, show every app entry to the user; do not summarize the list as a count only. If the MCP process cwd differs from the user current working directory, pass target_dir with the user current working directory.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -308,7 +311,12 @@ export async function startMakerMcpServer(): Promise<void> {
         let nextText: string;
         try {
           const projects = await listMakerProjects({ pat: args.manual_pat });
-          nextText = ['已自动列出可用 Maker Apps：', '', formatProjectList(projects)].join('\n');
+          nextText = [
+            '已自动列出可用 Maker Apps。',
+            '当前目录未绑定时，请逐项展示下面完整列表，不要只总结数量；然后让用户选择编号或 app_id。',
+            '',
+            formatProjectList(projects),
+          ].join('\n');
         } catch (error) {
           nextText = [
             '自动列出 Maker Apps 失败。',
@@ -372,7 +380,16 @@ export async function startMakerMcpServer(): Promise<void> {
           'Maker clone'
         );
         let result: Awaited<ReturnType<typeof cloneMakerProject>>;
-        let devKitResult: Awaited<ReturnType<typeof installAiDevKit>>;
+        let devKitResult: Awaited<ReturnType<typeof installAiDevKit>> = {
+          targetDir,
+          sourceDir: targetDir,
+          installedEntries: [],
+          skippedEntries: [],
+          gitignorePath: path.join(targetDir, '.gitignore'),
+          stagedGitignorePath: path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        };
+        let devKitState = 'prepared';
+        let devKitError = '';
         let progressSummary: ToolProgressSummary;
         try {
           progressReporter.report({
@@ -381,14 +398,48 @@ export async function startMakerMcpServer(): Promise<void> {
             phase: 'dev_kit',
             message: 'Preparing local AI dev kit before Maker clone',
           });
-          devKitResult = await installAiDevKit({
-            targetDir,
-          });
+          const devKitStatus = inspectAiDevKit(targetDir);
+          if (devKitStatus.ready) {
+            const presentManagedEntries = listPresentDevKitManagedEntries(targetDir);
+            writeDevKitStagedGitignore(
+              path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+              presentManagedEntries
+            );
+            devKitState = 'already_ready';
+            devKitResult = {
+              targetDir,
+              sourceDir: targetDir,
+              installedEntries: presentManagedEntries,
+              skippedEntries: [],
+              gitignorePath: path.join(targetDir, '.gitignore'),
+              stagedGitignorePath: path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+            };
+          } else {
+            try {
+              devKitResult = await installAiDevKit({
+                targetDir,
+              });
+            } catch (error) {
+              const presentManagedEntries = listPresentDevKitManagedEntries(targetDir);
+              if (presentManagedEntries.length > 0) {
+                writeDevKitStagedGitignore(
+                  path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+                  presentManagedEntries
+                );
+              }
+              devKitState = 'failed_non_blocking';
+              devKitError = error instanceof Error ? error.message : String(error);
+              devKitResult.installedEntries = presentManagedEntries;
+            }
+          }
           progressReporter.report({
             progress: 5,
             total: 100,
             phase: 'dev_kit',
-            message: 'Local AI dev kit prepared',
+            message:
+              devKitState === 'failed_non_blocking'
+                ? 'Local AI dev kit preparation failed; continuing Maker clone'
+                : 'Local AI dev kit prepared',
           });
           result = await cloneMakerProject({
             appId: args.app_id,
@@ -416,7 +467,13 @@ export async function startMakerMcpServer(): Promise<void> {
                 `- target_dir: ${result.targetDir}`,
                 `- status: ${result.status}`,
                 `- retried_with_new_pat: ${result.retriedWithNewPat ? 'yes' : 'no'}`,
-                '- ai_dev_kit: prepared',
+                `- ai_dev_kit: ${devKitState}`,
+                ...(devKitError
+                  ? [
+                      `- ai_dev_kit_error: ${devKitError}`,
+                      '- ai_dev_kit_next_step: run maker_status after clone to retry dev kit restoration',
+                    ]
+                  : []),
                 `- ai_dev_kit_installed_entries: ${devKitResult.installedEntries.join(', ') || '(none)'}`,
                 `- ai_dev_kit_skipped_entries: ${devKitResult.skippedEntries.join(', ') || '(none)'}`,
                 ...formatProgressSummary(progressSummary),
@@ -671,7 +728,7 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     const projects = await listMakerProjects();
     return [
       '本地已有 Maker PAT，当前目录尚未绑定 Maker 项目。',
-      '当前目录未绑定时，可从下面的 Maker Apps 中选择一个进行 clone；选择、解释和 clone 顺序请参考 taptap-maker-local skill。',
+      '当前目录未绑定时，必须逐项展示下面完整 Maker Apps 列表，不要只总结数量；选择、解释和 clone 顺序请参考 taptap-maker-local skill。',
       '',
       formatProjectList(projects),
     ].join('\n');
@@ -712,6 +769,8 @@ function formatProjectList(
 
   return [
     'Maker apps',
+    '',
+    '请把下面每一个 app 条目展示给用户，不要只说共有多少个。',
     '',
     ...projects.map(
       (project, index) =>

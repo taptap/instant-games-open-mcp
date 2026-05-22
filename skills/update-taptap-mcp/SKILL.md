@@ -104,7 +104,7 @@ Get-ChildItem $NpxDir -Directory -ErrorAction SilentlyContinue | ForEach-Object 
 $env:TAPTAP_MCP_ENV = 'rnd'
 $log = Join-Path $env:TEMP 'taptap-mcp-warmup.log'
 $proc = Start-Process -FilePath npx `
-  -ArgumentList '-y','--prefer-online','-p','@taptap/instant-games-open-mcp@beta','taptap-maker' `
+  -ArgumentList '-y','-p','@taptap/instant-games-open-mcp@beta','taptap-maker' `
   -RedirectStandardOutput $log -RedirectStandardError "$log.err" `
   -WindowStyle Hidden -PassThru
 Start-Sleep -Seconds 25
@@ -189,7 +189,7 @@ done
 根据用户 MCP 配置选默认 bin 或指定 bin（`taptap-maker`）。下例以 `taptap-maker` 为例，默认 bin 去掉 `-p ... taptap-maker`，直接写 `@taptap/instant-games-open-mcp@beta`。
 
 ```bash
-TAPTAP_MCP_ENV=rnd npx -y --prefer-online -p @taptap/instant-games-open-mcp@beta taptap-maker \
+TAPTAP_MCP_ENV=rnd npx -y -p @taptap/instant-games-open-mcp@beta taptap-maker \
   < /dev/null > /tmp/taptap-mcp-warmup.log 2>&1 &
 PID=$!; sleep 25; kill $PID 2>/dev/null; wait 2>/dev/null
 ```

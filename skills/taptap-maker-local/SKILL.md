@@ -94,8 +94,9 @@ Workflow:
    Do not run editor-specific CLI install commands.
 5. If PAT is missing, ask the user to open the PAT page shown by `maker_status`, create a PAT, and send it back.
 6. When the user provides PAT, call `maker_exchange_pat(manual_pat)`.
-7. If the current directory is still unbound, show the returned Maker app list and ask the user to
-   choose. Do not auto-select, even if there is only one app.
+7. If the current directory is still unbound, show every returned Maker app entry to the user and
+   ask the user to choose. Do not summarize the list as only a count, category, or stage. Do not
+   auto-select, even if there is only one app.
 8. Run the working directory compliance check below.
 9. After the user chooses an app, call `maker_clone_to_current_directory(app_id)`. The clone
    tool prepares the AI dev kit automatically before project checkout.
@@ -170,8 +171,9 @@ If the current directory is already bound, app lists from `maker_exchange_pat`, 
 `maker_status` are reference only. Do not ask which app to clone. Continue operating on the current
 bound project unless the user explicitly requests a different project.
 
-When app selection is needed, display the app list and ask the user to choose by index, app id, or
-name.
+When app selection is needed, display every app entry from the tool result and ask the user to
+choose by index, app id, or name. Do not replace the list with a summary such as "10 apps are
+available".
 
 Do not auto-select:
 
