@@ -91,7 +91,7 @@ export const tools = [
   {
     name: 'maker_list_apps',
     description:
-      'List Maker apps available to the cached or provided Maker PAT. Use this to obtain app_id values for Maker project clone.',
+      'List Maker apps available to the cached or provided Maker PAT. Use this for unbound Maker directory initialization or explicit app-list requests. If maker_status already reports the current directory is bound, treat this list as reference only and do not ask which app to clone unless the user explicitly wants to switch or re-clone.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -106,7 +106,7 @@ export const tools = [
   {
     name: 'maker_status',
     description:
-      'Show local Maker MCP status for the user current working directory: Git availability, PAT/TapTap token status, project binding, AI dev kit status, bundled skill document paths, validation checklist, and available apps when PAT exists. If the MCP process cwd differs from the user current working directory, pass target_dir with the user current working directory.',
+      'Show local Maker MCP status for the user current working directory: Git availability, PAT/TapTap token status, project binding, AI dev kit status, bundled skill document paths, validation checklist, and available apps when the current directory is unbound and PAT exists. If the MCP process cwd differs from the user current working directory, pass target_dir with the user current working directory.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -566,6 +566,7 @@ async function formatStatus(options: { targetDir?: string } = {}): Promise<strin
   const projectSection = identify.projectId
     ? [
         '目标目录已绑定 Maker 项目。',
+        '请继续在当前绑定项目上执行状态、提交、构建等操作；不要再引导用户 clone，除非用户明确要求切换或重新拉取项目。',
         '本地 Maker 工作流请优先参考 taptap-maker-local skill；MCP tools 只负责保存 PAT、列 app、clone、submit 和 build 等机器动作。',
       ].join('\n')
     : pat
@@ -670,7 +671,7 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     const projects = await listMakerProjects();
     return [
       '本地已有 Maker PAT，当前目录尚未绑定 Maker 项目。',
-      '已自动列出可用 Maker Apps。选择、解释和 clone 顺序请参考 taptap-maker-local skill。',
+      '当前目录未绑定时，可从下面的 Maker Apps 中选择一个进行 clone；选择、解释和 clone 顺序请参考 taptap-maker-local skill。',
       '',
       formatProjectList(projects),
     ].join('\n');
@@ -723,7 +724,8 @@ function formatProjectList(
         }`
     ),
     '',
-    '请让用户选择一个 app，然后调用 maker_clone_to_current_directory。',
+    '仅当当前目录未绑定且用户要初始化或 clone 时，才让用户选择 app 并调用 maker_clone_to_current_directory。',
+    '如果当前目录已绑定 Maker 项目，这个列表仅作账号项目参考；请继续当前项目，除非用户明确要求切换或重新 clone。',
   ].join('\n');
 }
 

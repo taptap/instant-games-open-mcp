@@ -86,17 +86,21 @@ Workflow:
 
 1. Call `maker_status`. If the MCP process cwd differs from the user's current project directory,
    pass the user's current project directory as `target_dir`.
-2. If Git is missing, stop. Tell the user Git is required for clone/submit/build-side Git work.
-3. If `maker_status` lists bundled skill documents, just tell the user which skills are available.
+2. If `maker_status` reports the current directory is already bound to a Maker project, stop the
+   initialization/clone path. Continue with the user's current intent in that bound project. Do not
+   ask which app to clone unless the user explicitly asks to switch or re-clone.
+3. If Git is missing, stop. Tell the user Git is required for clone/submit/build-side Git work.
+4. If `maker_status` lists bundled skill documents, just tell the user which skills are available.
    Do not run editor-specific CLI install commands.
-4. If PAT is missing, ask the user to open the PAT page shown by `maker_status`, create a PAT, and send it back.
-5. When the user provides PAT, call `maker_exchange_pat(manual_pat)`.
-6. Show the returned Maker app list and ask the user to choose. Do not auto-select, even if there is only one app.
-7. Run the working directory compliance check below.
-8. After the user chooses an app, call `maker_clone_to_current_directory(app_id)`. The clone
+5. If PAT is missing, ask the user to open the PAT page shown by `maker_status`, create a PAT, and send it back.
+6. When the user provides PAT, call `maker_exchange_pat(manual_pat)`.
+7. If the current directory is still unbound, show the returned Maker app list and ask the user to
+   choose. Do not auto-select, even if there is only one app.
+8. Run the working directory compliance check below.
+9. After the user chooses an app, call `maker_clone_to_current_directory(app_id)`. The clone
    tool prepares the AI dev kit automatically before project checkout.
-9. After clone succeeds, call `maker_status` again or explain that `.maker-mcp/config.json` now binds the directory to the Maker project.
-10. Tell the local AI/Agent to use the `taptap-maker-dev-kit-guide` skill for the installed dev-kit
+10. After clone succeeds, call `maker_status` again or explain that `.maker-mcp/config.json` now binds the directory to the Maker project.
+11. Tell the local AI/Agent to use the `taptap-maker-dev-kit-guide` skill for the installed dev-kit
     resources, especially `CLAUDE.md`, `examples/`, `templates/`, and `urhox-libs/`.
 
 Keep the user-facing explanation short:
@@ -147,7 +151,9 @@ the user wants to retry or continue without the dev kit.
 ## PAT Handling
 
 If the user pastes a token-like string while the initialization flow is waiting for PAT, call
-`maker_exchange_pat(manual_pat)` and continue to app selection. Do not just say "received".
+`maker_exchange_pat(manual_pat)` and continue only if the current directory is unbound. Do not just
+say "received". If the directory is already bound, treat the returned app list as account reference
+only and continue the user's current bound-project task.
 
 If PAT exchange fails:
 
@@ -157,8 +163,15 @@ If PAT exchange fails:
 
 ## App Selection
 
-Always display the app list from `maker_exchange_pat` or `maker_list_apps` and ask the user to
-choose by index, app id, or name.
+Use app selection only when the current directory is unbound and the user is initializing or cloning
+a Maker project, or when the user explicitly asks to switch or re-clone.
+
+If the current directory is already bound, app lists from `maker_exchange_pat`, `maker_list_apps`, or
+`maker_status` are reference only. Do not ask which app to clone. Continue operating on the current
+bound project unless the user explicitly requests a different project.
+
+When app selection is needed, display the app list and ask the user to choose by index, app id, or
+name.
 
 Do not auto-select:
 

@@ -73,7 +73,7 @@ maker_submit_current_directory
 - `maker_clone_to_current_directory` 不要求当前目录为空；clone 前会检查本地目录，忽略 `.claude`、`.mcp`、`.skill`、`.config`、`.ini` 等点开头配置项，只对普通本地文件输出提醒。clone 最终结果固定包含 `Pre-clone local directory check` 区块；已有本地文件会保留，若与 Maker 项目文件同路径冲突则失败并列出冲突文件。
 - `maker_list_apps` 会解析 Maker `/apps` 返回的创建时间、最近会话时间、游戏类型、阶段、图标、置顶/归档/删除时间等字段，并保留原始 `raw` 数据。
 - PAT 会保存到 `~/.taptap-maker/pat.json`，并兼容旧的 `~/.maker-pat`、`PAT` / `MAKER_PAT` 环境变量。
-- Maker app 必须先通过 `maker_list_apps` 展示给用户选择，再调用 clone。
+- 只有当前目录未绑定且用户要初始化或 clone 时，才通过 app 列表让用户选择并调用 clone；已绑定目录里的 app 列表只作账号项目参考，应继续当前项目，除非用户明确要求切换或重新 clone。
 - Maker 后端地址按 `TAPTAP_MCP_ENV` 从 `src/maker/config.ts` 的环境配置表读取，本地 MCP 配置只需要切 `rnd` / `production`。
 - 如果用户直接说“构建 / build / 重新构建游戏”，本地 Maker MCP 应调用 `maker_build_current_directory`。该工具会强制检查本地 Maker 项目是否有未提交改动。
 - 如果构建前发现本地有改动且尚未保存自动提交偏好，工具会停止并提示用户选择：`提交本地改动并触发构建（以后都是如此）`，或明确不提交、只构建云端已有版本。
@@ -361,7 +361,7 @@ maker_submit_current_directory
 测试时引导用户访问当前环境的 PAT 页面新建 Maker PAT，
 production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`，
 再作为 `manual_pat` 传给 `maker_exchange_pat`，工具会同步获取 TapTap token。
-APP_ID 应通过 `maker_exchange_pat` 自动返回的 app 列表让用户选择，再传给 clone 工具。
+当前目录未绑定时，APP_ID 应通过 `maker_exchange_pat` 自动返回的 app 列表让用户选择，再传给 clone 工具；当前目录已绑定时不要再次引导 clone。
 
 ```bash
 npm run build

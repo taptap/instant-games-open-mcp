@@ -223,12 +223,17 @@ describe('maker build local-change guard', () => {
   });
 
   test('initialization guidance is delegated to bundled skill', () => {
+    const listTool = tools.find((item) => item.name === 'maker_list_apps');
     const statusTool = tools.find((item) => item.name === 'maker_status');
     const cloneTool = tools.find((item) => item.name === 'maker_clone_to_current_directory');
 
+    expect(listTool?.description).toContain('unbound Maker directory initialization');
+    expect(listTool?.description).toContain('treat this list as reference only');
+    expect(listTool?.description).toContain('do not ask which app to clone');
     expect(statusTool?.description).toContain('bundled skill document paths');
     expect(statusTool?.description).toContain('target_dir');
     expect(statusTool?.description).toContain('AI dev kit status');
+    expect(statusTool?.description).toContain('current directory is unbound');
     expect(statusTool?.description).not.toContain('If PAT is missing');
     expect(statusTool?.description).not.toContain('ask them to open');
     expect(statusTool?.description).not.toContain('让用户选择');

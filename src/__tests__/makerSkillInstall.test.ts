@@ -45,6 +45,10 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('maker_clone_to_current_directory');
     expect(skillText).toContain('tool prepares the AI dev kit automatically');
     expect(skillText).toContain(MAKER_DEV_KIT_GUIDE_SKILL_NAME);
+    expect(skillText).toContain('already bound to a Maker project');
+    expect(skillText).toContain('Do not ask which app to clone');
+    expect(skillText).toContain('app lists');
+    expect(skillText).toContain('reference only');
     expect(skillText).toContain('Do not auto-select');
     expect(skillText).toContain('Bundled Skills');
     expect(skillText).not.toContain('taptap-maker dev-kit install --target .');
