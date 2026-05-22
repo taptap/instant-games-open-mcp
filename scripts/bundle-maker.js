@@ -5,7 +5,6 @@
  *
  * Output: dist/maker.js
  * Usage:
- *   node dist/maker.js init
  *   node dist/maker.js
  */
 
@@ -81,8 +80,6 @@ const __MAKER_BUNDLE_URL__ = import.meta.url;
   console.log('✅ Bundle created: dist/maker.js');
   console.log('');
   console.log('📦 Usage:');
-  console.log('  node dist/maker.js init');
-  console.log('  node dist/maker.js status');
   console.log('  node dist/maker.js');
 } catch (error) {
   console.error('❌ Build failed:', error);

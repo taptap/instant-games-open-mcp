@@ -343,6 +343,9 @@ Maker 本地 MCP 的默认认证路径是 PAT-first：
 - `maker_clone_to_current_directory` 和 `maker_submit_current_directory` 默认复用缓存 PAT 做 Maker git 认证。
 - 用户说“帮我提交/提交代码/提交并推送/push”时，`maker_submit_current_directory` 必须完整执行 commit + push + build；只有实际 push 成功后才继续远端 build。
 - `maker_build_current_directory` 会强制检查本地 Maker 项目是否有未提交改动；有改动且没有保存自动提交偏好时默认停止，提醒用户直接构建只会构建云端已有版本。
+- Maker 同时提供 `taptap-maker-local` 和 `update-taptap-mcp` skills，用于让本地 AI/Agent 参与 clone、pull、提交、推送、冲突解释和 MCP npx 缓存更新；第一版不替换现有 MCP tools。
+- `maker_status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local` 与 `update-taptap-mcp`；除此之外不做编辑器安装引导。
+- PAT 验证通过、用户选择 app 后，`maker_clone_to_current_directory` 会自动准备本地 AI dev kit；clone 工具会跳过 ZIP 顶层 `scripts`、删除下载 ZIP、先写 `.gitignore.dev-kit-before-clone`，clone 成功后再合并到远端 `.gitignore`。
 - 拦截提示的首选项必须是 `提交本地改动并触发构建（以后都是如此）`。
 - 用户选择首选项时，再次调用 `maker_build_current_directory` 并设置 `submit_local_changes_before_build=true` 和 `remember_build_submit_preference=true`；Maker 构建入口必须完整执行 commit + push + build，并返回构建结果。
 - 该偏好会保存到当前项目 `.maker-mcp/config.json`；后续构建遇到本地改动会默认自动提交并继续执行远端 build。

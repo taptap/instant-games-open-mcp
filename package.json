@@ -93,7 +93,9 @@
   },
   "files": [
     "dist/",
-    "bin/"
+    "bin/",
+    "skills/taptap-maker-local/",
+    "skills/update-taptap-mcp/"
   ],
   "repository": {
     "type": "git",

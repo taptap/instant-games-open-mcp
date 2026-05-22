@@ -222,6 +222,20 @@ describe('maker build local-change guard', () => {
     expect(toolNames).not.toContain('maker_configure_remote_proxy');
   });
 
+  test('initialization guidance is delegated to bundled skill', () => {
+    const statusTool = tools.find((item) => item.name === 'maker_status');
+    const cloneTool = tools.find((item) => item.name === 'maker_clone_to_current_directory');
+
+    expect(statusTool?.description).toContain('bundled skill document paths');
+    expect(statusTool?.description).not.toContain('If PAT is missing');
+    expect(statusTool?.description).not.toContain('ask them to open');
+    expect(statusTool?.description).not.toContain('让用户选择');
+    expect(cloneTool?.description).toContain('Requires Git and a concrete app_id');
+    expect(cloneTool?.description).toContain('prepares the local AI dev kit automatically');
+    expect(cloneTool?.description).not.toContain('Call this only after');
+    expect(cloneTool?.description).not.toContain('ask them to choose');
+  });
+
   test('submit tool schema does not expose build preference parameter', () => {
     const submitTool = tools.find((item) => item.name === 'maker_submit_current_directory');
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');

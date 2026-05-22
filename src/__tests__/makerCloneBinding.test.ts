@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createDevKitGitignoreBlock, DEV_KIT_GITIGNORE_STAGING_FILE } from '../maker/cli/devKit';
 import { cloneMakerProject } from '../maker/cli/projects';
 import { saveProjectConfig } from '../maker/storage';
 
@@ -115,6 +116,32 @@ describe('maker clone binding safety', () => {
     expect(commands).toContain('checkout -B beta origin/beta');
   });
 
+  test('merges staged dev kit gitignore block after clone', async () => {
+    const gitLog = path.join(tempDir, '.test-tools', 'git.log');
+    const fakeGit = createFakeGit(gitLog, { remoteFiles: ['.gitignore'] });
+    process.env.TAPTAP_MAKER_GIT_BIN = fakeGit;
+    process.env.TAPTAP_MAKER_GIT_BASE = 'https://maker.example.test/git';
+    process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home');
+    process.env.PAT = 'tmpct_test_pat';
+    fs.writeFileSync(
+      path.join(tempDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+      `${createDevKitGitignoreBlock(['engine-docs'])}\n`,
+      'utf8'
+    );
+
+    const result = await cloneMakerProject({
+      appId: 'new-app',
+      targetDir: tempDir,
+      userId: 'user-1',
+    });
+
+    const gitignore = fs.readFileSync(path.join(tempDir, '.gitignore'), 'utf8');
+    expect(result.status).toBe('cloned');
+    expect(gitignore).toContain('remote gitignore rule');
+    expect(gitignore).toContain('engine-docs/');
+    expect(fs.existsSync(path.join(tempDir, DEV_KIT_GITIGNORE_STAGING_FILE))).toBe(false);
+  });
+
   test('fails when checkout cannot complete after fetch', async () => {
     const gitLog = path.join(tempDir, '.test-tools', 'git.log');
     const fakeGit = createFakeGit(gitLog, { remoteFiles: ['scripts/main.lua'] });
@@ -203,6 +230,12 @@ if (commandArgs[0] === 'ls-tree') {
   process.exit(0);
 }
 if (commandArgs[0] === 'checkout') {
+  for (const remoteFile of ${JSON.stringify(options.remoteFiles || [])}) {
+    const targetFile = path.join(cwd, remoteFile);
+    fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+    const content = remoteFile === '.gitignore' ? 'remote gitignore rule\\n' : 'remote file\\n';
+    fs.writeFileSync(targetFile, content);
+  }
   fs.writeFileSync(path.join(cwd, '.git', 'FAKE_HEAD_COMMIT'), '0000000000000000000000000000000000000001');
   process.exit(0);
 }

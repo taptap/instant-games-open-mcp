@@ -110,7 +110,7 @@ while [[ $# -gt 0 ]]; do
             echo "Output:"
             echo "  dist/server.js        Main MCP server bundle"
             echo "  dist/proxy.js         MCP Proxy bundle"
-            echo "  dist/maker.js         TapTap Maker CLI/MCP bundle"
+            echo "  dist/maker.js         TapTap Maker MCP bundle"
             echo "  dist/native/          Native signer binaries"
             exit 0
             ;;
