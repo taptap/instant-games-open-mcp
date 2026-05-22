@@ -1,3 +1,9 @@
+## 1.23.0 (2026-05-22)
+
+* feat(release): promote beta to stable (#176) ([2f0a4d9](https://github.com/taptap/instant-games-open-mcp/commit/2f0a4d9)), closes [#176](https://github.com/taptap/instant-games-open-mcp/issues/176) [#163](https://github.com/taptap/instant-games-open-mcp/issues/163) [#164](https://github.com/taptap/instant-games-open-mcp/issues/164) [#165](https://github.com/taptap/instant-games-open-mcp/issues/165) [#162](https://github.com/taptap/instant-games-open-mcp/issues/162) [#162](https://github.com/taptap/instant-games-open-mcp/issues/162) [#162](https://github.com/taptap/instant-games-open-mcp/issues/162) [#167](https://github.com/taptap/instant-games-open-mcp/issues/167) [#168](https://github.com/taptap/instant-games-open-mcp/issues/168)
+
+
+
 ## 1.21.0 (2026-05-08)
 
 * feat(debug-feedback): 支持按 moment_id 单查反馈并修复大整数精度丢失 (#154) ([1270ee4](https://github.com/taptap/instant-games-open-mcp/commit/1270ee4)), closes [#154](https://github.com/taptap/instant-games-open-mcp/issues/154)
