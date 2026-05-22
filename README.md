@@ -66,7 +66,7 @@ maker_submit_current_directory
 - Maker MCP 依赖用户本机已有 Git。工具只检测并给出安装引导，不会代替用户安装 Git。
 - 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 Maker 本地开发初始化流程。
 - 如果 `maker_status` 显示 Git 缺失，必须持续提示用户自行安装 Git；在 `git --version` 可用前，不执行 clone、fetch、commit 或 push。
-- Maker API、git 和 TapTap token 默认走 PAT-first：如果用户还没有 PAT，引导用户打开临时 PAT 页面 `https://fuping.agnt.xd.com/pat-tokens` 新建 PAT；用户提供 PAT 后调用 `maker_exchange_pat(manual_pat)` 保存。
+- Maker API、git 和 TapTap token 默认走 PAT-first：如果用户还没有 PAT，引导用户打开当前环境的 PAT 页面新建 PAT（production：`https://maker.taptap.cn/pat-tokens`，RND：`https://fuping.agnt.xd.com/pat-tokens`）；用户提供 PAT 后调用 `maker_exchange_pat(manual_pat)` 保存。
 - 保存 PAT 后会自动列出 app；`maker_status` 如果发现本地已有 PAT 且当前目录未绑定，也会自动列出 app，无需用户额外要求。
 - 保存 PAT 后会自动调用 `GET /api/v1/user/taptap-token` 获取并保存 TapTap MAC token。
 - `maker_list_apps` 和 `maker_clone_to_current_directory` 不再要求先完成 Tap 登录。
@@ -357,7 +357,8 @@ maker_submit_current_directory
 
 `maker_status` 会检查 Git 并输出初始化引导。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过 `git --version` 验证。
 
-测试时引导用户访问临时 PAT 页面 `https://fuping.agnt.xd.com/pat-tokens` 新建 Maker PAT，
+测试时引导用户访问当前环境的 PAT 页面新建 Maker PAT，
+production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`，
 再作为 `manual_pat` 传给 `maker_exchange_pat`，工具会同步获取 TapTap token。
 APP_ID 应通过 `maker_exchange_pat` 自动返回的 app 列表让用户选择，再传给 clone 工具。
 

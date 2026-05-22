@@ -46,7 +46,7 @@ import { saveManualMakerPat } from '../git/pat.js';
 import {
   getMakerEndpoints,
   getMakerEnvironment,
-  TEMP_MAKER_PAT_TOKENS_URL,
+  getMakerPatTokensUrl,
   requireMakerEndpoint,
 } from '../config.js';
 import { getUserIdFromMakerJwt } from '../auth/jwt.js';
@@ -526,6 +526,7 @@ async function formatStatus(): Promise<string> {
   const identify = identifyMakerProject();
   const pat = loadPat();
   let tapAuth = loadTapAuth();
+  const makerPatTokensUrl = getMakerPatTokensUrl();
   let tapAuthRefreshText = '';
   if (pat && !tapAuth) {
     try {
@@ -569,9 +570,7 @@ async function formatStatus(): Promise<string> {
     '',
     formatGitEnvironmentStatus(git),
     '',
-    pat
-      ? ''
-      : ['Auth next step', '', `Maker PAT 缺失。PAT 页面：${TEMP_MAKER_PAT_TOKENS_URL}`].join('\n'),
+    pat ? '' : ['Auth next step', '', `Maker PAT 缺失。PAT 页面：${makerPatTokensUrl}`].join('\n'),
     '',
     tapAuthRefreshText,
     '',
@@ -611,7 +610,7 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     return [
       '本地已有 Maker PAT，但自动列出 Maker Apps 失败。',
       `原因：${error instanceof Error ? error.message : String(error)}`,
-      `如果 PAT 已失效，请使用新的 Maker PAT 重新调用 maker_exchange_pat。PAT 页面：${TEMP_MAKER_PAT_TOKENS_URL}`,
+      `如果 PAT 已失效，请使用新的 Maker PAT 重新调用 maker_exchange_pat。PAT 页面：${getMakerPatTokensUrl()}`,
     ].join('\n');
   }
 }

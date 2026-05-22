@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { MakerIdentifyResult, MakerProjectConfig } from '../types.js';
 import { getProjectConfigPath, getProjectMarkerDirName } from '../storage.js';
-import { TEMP_MAKER_PAT_TOKENS_URL } from '../config.js';
+import { getMakerPatTokensUrl } from '../config.js';
 
 function parseConfig(configPath: string): MakerProjectConfig | null {
   try {
@@ -71,7 +71,7 @@ export function formatIdentifyHint(): string {
     '当前目录尚未绑定 Maker 项目。',
     '',
     '初始化流程请参考 taptap-maker-local skill。',
-    `Maker PAT 页面：${TEMP_MAKER_PAT_TOKENS_URL}`,
+    `Maker PAT 页面：${getMakerPatTokensUrl()}`,
     '',
     `clone 成功后会在当前目录写入 ${getProjectMarkerDirName()}/config.json。`,
   ].join('\n');

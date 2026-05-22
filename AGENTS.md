@@ -335,7 +335,7 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 Maker 本地 MCP 的默认认证路径是 PAT-first：
 
 - 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 Maker 本地开发初始化流程：先检查 Git 和 PAT，再列出 app 让用户选择，最后 clone 到当前目录。
-- 如果本地没有 Maker PAT，必须主动让用户打开临时 PAT 页面 `https://fuping.agnt.xd.com/pat-tokens` 新建 PAT，并把 PAT 发给 Agent。
+- 如果本地没有 Maker PAT，必须主动让用户打开当前环境的 PAT 页面新建 PAT，并把 PAT 发给 Agent：production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
 - 用户提供 Maker PAT 后，调用 `maker_exchange_pat(manual_pat)` 保存到 `~/.taptap-maker/pat.json`，并兼容旧路径 `~/.maker-pat`。
 - `maker_exchange_pat` 保存 PAT 后会自动调用 `GET /api/v1/user/taptap-token` 获取并保存 TapTap MAC token，然后自动列出 app。
 - `maker_status` 如果发现本地已有 PAT 但缺少 TapTap MAC token，会自动尝试获取；如果当前目录未绑定，也会自动列出 app，不需要用户额外要求。
