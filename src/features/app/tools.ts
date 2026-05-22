@@ -39,7 +39,7 @@ export const appTools: ToolRegistration[] = [
     definition: {
       name: 'check_environment',
       description:
-        'Check environment configuration and user authentication status. Use this to verify if TAPTAP_MCP_MAC_TOKEN and TAPTAP_MCP_CLIENT_ID are configured.',
+        'Check environment configuration and user authentication status. Use this to verify the current TAPTAP_MCP_ENV, signer mode, TAPTAP_MCP_MAC_TOKEN, and TAPTAP_MCP_CLIENT_ID configuration. If the user asks how to switch between production and RND, call get_environment_switch_guide.',
       inputSchema: {
         type: 'object',
         properties: {},
@@ -47,6 +47,34 @@ export const appTools: ToolRegistration[] = [
     },
     handler: async (args, context) => {
       return appHandlers.checkEnvironment(context);
+    },
+  },
+
+  // 🌍 Environment Switch Guide
+  {
+    definition: {
+      name: 'get_environment_switch_guide',
+      description:
+        '[Setup Guide] Explain how to switch this MCP server between production and RND environments from an MCP client configuration. Use this when the user asks to switch environment, use RND, test in RND, configure TAPTAP_MCP_ENV, or asks why RND needs TAPTAP_MCP_CLIENT_ID / TAPTAP_MCP_CLIENT_SECRET. This tool returns client config snippets and agent steps; it does not modify files by itself.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          target_environment: {
+            type: 'string',
+            enum: ['rnd', 'production'],
+            description:
+              'Target environment to explain. Use rnd for testing/internal preview. Default: rnd.',
+          },
+          package_tag: {
+            type: 'string',
+            description:
+              'Optional npm package tag or version to show in examples, such as beta, latest, or 1.21.0. Default: current package without tag.',
+          },
+        },
+      },
+    },
+    handler: async (args: { target_environment?: 'rnd' | 'production'; package_tag?: string }) => {
+      return appHandlers.getEnvironmentSwitchGuide(args);
     },
   },
 

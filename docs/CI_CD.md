@@ -128,31 +128,56 @@ git push origin fix/critical-bug
 
 ### 3.3 发布 Beta 版本
 
-```bash
-# 1. 创建或切换到 beta 分支
-git checkout -b beta
+Beta 用于内部预览测试，走独立的 npm `@beta` dist-tag，不会创建 release PR，
+也不会把 `package.json` / `CHANGELOG.md` 的版本变更写回仓库。
+注意：npm 包仍发布到 public registry，`@beta` 不是访问控制；beta 包必须按对外发布标准处理，
+不能包含 RND 凭证、内部账号 Token 或未公开的敏感配置。
 
-# 2. 合并要测试的功能
+```bash
+# 1. 切换到长期 beta 分支（不存在时从 origin/main 创建）
+git fetch origin
+git switch beta || git switch -c beta origin/main
+
+# 2. 先同步 main，再合并要测试的功能分支
+git merge origin/main
 git merge feature/feature-a
 git merge feature/feature-b
 
-# 3. 推送到远程
+# 3. 推送到远程，触发 Beta Release
 git push origin beta
 
-# 4. 自动发布 beta 版本
+# 4. 自动发布 beta 版本到 npm @beta
 # 版本：1.3.0-beta.1
 
 # 5. 用户安装 beta 版本
 npm install @taptap/instant-games-open-mcp@beta
+npx -y @taptap/instant-games-open-mcp@beta
 
-# 6. 测试稳定后，合并到 main
-git checkout main
-git merge beta
-git push origin main
-
-# 7. 发布正式版本
+# 6. 测试稳定后，通过 PR 将对应功能分支合并到 main
+# 7. main 合并后走正式发布流程
 # 版本：1.3.0
 ```
+
+产品侧 MCP 配置可以直接使用 beta 包：
+
+```json
+{
+  "mcpServers": {
+    "taptap-minigame-beta": {
+      "command": "npx",
+      "args": ["-y", "@taptap/instant-games-open-mcp@beta"],
+      "env": {
+        "TAPTAP_MCP_ENV": "rnd",
+        "TAPTAP_MCP_CLIENT_ID": "your_rnd_client_id",
+        "TAPTAP_MCP_CLIENT_SECRET": "your_rnd_client_secret",
+        "TAPTAP_MCP_WORKSPACE_ROOT": "${workspaceFolder}"
+      }
+    }
+  }
+}
+```
+
+> RND 凭证只在 MCP 客户端配置或受控环境变量中注入，不要提交到仓库。
 
 ### 3.4 重要注意事项
 
@@ -280,7 +305,10 @@ npx commitlint --from HEAD~1 --to HEAD
 
 **文件**：`.github/workflows/release.yml`
 
-**触发条件**：PR 合并到 `main` / `beta` / `alpha` 分支后自动运行
+**触发条件**：PR 合并到 `main` / `alpha` 分支后自动运行
+
+> `beta` 使用同一个 `.github/workflows/release.yml` 中的独立 beta job，
+> 复用 npm Trusted Publishing 配置，但不会创建 release PR 或影响 `main` 正式发版流程。
 
 **执行步骤**：
 
@@ -299,6 +327,33 @@ npx commitlint --from HEAD~1 --to HEAD
 - ⚠️ **不使用 Provenance**（npm Provenance 仅支持 public 仓库，当前仓库为 internal）
 - ✅ 使用 **Automation Token** 绕过 2FA
 - ✅ 完整的 CI/CD 质量检查
+
+### 5.3 Beta 发布工作流
+
+**文件**：`.github/workflows/release.yml` 中的 `beta-release` job
+
+**触发条件**：推送到 `beta` 分支，或手动运行 workflow
+
+**执行步骤**：
+
+1. 使用 semantic-release dry-run 计算候选 beta 版本号
+2. 构建或复用 native signer，使 beta 包的 production 体感与正式包一致
+3. 运行 lint、format check、build、test
+4. 如果候选 beta 版本已存在于 npm，自动递增到下一个 `beta.N`
+5. 将工作区版本临时设置为最终 beta 版本
+6. 打包并发布到 npm `@beta` dist-tag
+7. 创建 `vX.Y.Z-beta.N` Git tag 和 GitHub prerelease
+
+**设计约束**：
+
+- 不修改 `main` 的正式 release workflow
+- 不创建 release PR
+- 不提交 `package.json` / `CHANGELOG.md`
+- 复用现有 release workflow 文件名，以匹配 npm Trusted Publishing 配置
+- beta 版本号必须是 npm 上未发布过的新版本，不能只刷新 dist-tag
+- beta 包发布到 public npm，必须视为对外发布产物
+- 内置 production native signer，确保 production 环境开箱即用
+- 不内置 RND 凭证，RND 测试通过 MCP 配置的 `env` 注入
 
 ---
 
@@ -463,11 +518,17 @@ npx semantic-release --dry-run
 **Beta 版本**（测试新特性）：
 
 ```bash
-git checkout -b beta
+git fetch origin
+git switch beta || git switch -c beta origin/main
+git merge origin/main
+git merge feature/feature-a
 git push origin beta
 # 自动发布：1.3.0-beta.1
 npm install @taptap/instant-games-open-mcp@beta
 ```
+
+Beta 发布只用于内部预览测试。测试通过后，应将对应 feature/fix 分支通过 PR 合并到
+`main`，由正式 release workflow 发布 `latest`。
 
 **Alpha 版本**（早期测试）：
 

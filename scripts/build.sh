@@ -40,6 +40,7 @@ fi
 # Default flags
 BUILD_SERVER=true
 BUILD_PROXY=true
+BUILD_MAKER=true
 BUILD_NATIVE=true
 
 # Parse arguments
@@ -57,21 +58,28 @@ while [[ $# -gt 0 ]]; do
             BUILD_PROXY=false
             shift
             ;;
+        --skip-maker|-sm)
+            BUILD_MAKER=false
+            shift
+            ;;
         --native-only|-no)
             BUILD_SERVER=false
             BUILD_PROXY=false
+            BUILD_MAKER=false
             BUILD_NATIVE=true
             shift
             ;;
         --server-only|-so)
             BUILD_SERVER=true
             BUILD_PROXY=false
+            BUILD_MAKER=false
             BUILD_NATIVE=false
             shift
             ;;
         --js-only|-jo)
             BUILD_SERVER=true
             BUILD_PROXY=true
+            BUILD_MAKER=true
             BUILD_NATIVE=false
             shift
             ;;
@@ -84,9 +92,10 @@ while [[ $# -gt 0 ]]; do
             echo "  --skip-native, -sn    Skip native signer compilation"
             echo "  --skip-server, -ss    Skip server.js compilation"
             echo "  --skip-proxy, -sp     Skip proxy.js compilation"
+            echo "  --skip-maker, -sm     Skip maker.js compilation"
             echo "  --native-only, -no    Only compile native signer"
             echo "  --server-only, -so    Only compile server.js"
-            echo "  --js-only, -jo        Compile server.js + proxy.js (skip native)"
+            echo "  --js-only, -jo        Compile server.js + proxy.js + maker.js (skip native)"
             echo "  --help, -h            Show this help message"
             echo ""
             echo "Environment Variables (or read from .env):"
@@ -101,6 +110,7 @@ while [[ $# -gt 0 ]]; do
             echo "Output:"
             echo "  dist/server.js        Main MCP server bundle"
             echo "  dist/proxy.js         MCP Proxy bundle"
+            echo "  dist/maker.js         TapTap Maker MCP bundle"
             echo "  dist/native/          Native signer binaries"
             exit 0
             ;;
@@ -120,6 +130,7 @@ echo ""
 echo "Build Plan:"
 echo -e "  Server:  $([ "$BUILD_SERVER" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${YELLOW}Skip${NC}")"
 echo -e "  Proxy:   $([ "$BUILD_PROXY" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${YELLOW}Skip${NC}")"
+echo -e "  Maker:   $([ "$BUILD_MAKER" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${YELLOW}Skip${NC}")"
 echo -e "  Native:  $([ "$BUILD_NATIVE" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${YELLOW}Skip${NC}")"
 echo ""
 
@@ -130,7 +141,7 @@ START_TIME=$(date +%s)
 
 # Build native signer first (if enabled)
 if [ "$BUILD_NATIVE" = true ]; then
-    echo -e "${BLUE}[1/3] Building native signer...${NC}"
+    echo -e "${BLUE}[1/4] Building native signer...${NC}"
 
     # Check if credentials are available
     if [ -z "$BUILD_CLIENT_ID" ] || [ -z "$BUILD_CLIENT_SECRET" ]; then
@@ -151,25 +162,34 @@ if [ "$BUILD_NATIVE" = true ]; then
         echo -e "${GREEN}  ✅ Native signer compiled${NC}"
     fi
 else
-    echo -e "${YELLOW}[1/3] Skipping native signer${NC}"
+    echo -e "${YELLOW}[1/4] Skipping native signer${NC}"
 fi
 
 # Build server.js
 if [ "$BUILD_SERVER" = true ]; then
-    echo -e "${BLUE}[2/3] Building server.js...${NC}"
+    echo -e "${BLUE}[2/4] Building server.js...${NC}"
     node scripts/bundle-server.js
     echo -e "${GREEN}  ✅ dist/server.js created${NC}"
 else
-    echo -e "${YELLOW}[2/3] Skipping server.js${NC}"
+    echo -e "${YELLOW}[2/4] Skipping server.js${NC}"
 fi
 
 # Build proxy.js
 if [ "$BUILD_PROXY" = true ]; then
-    echo -e "${BLUE}[3/3] Building proxy.js...${NC}"
+    echo -e "${BLUE}[3/4] Building proxy.js...${NC}"
     node scripts/bundle-proxy.js
     echo -e "${GREEN}  ✅ dist/proxy.js created${NC}"
 else
-    echo -e "${YELLOW}[3/3] Skipping proxy.js${NC}"
+    echo -e "${YELLOW}[3/4] Skipping proxy.js${NC}"
+fi
+
+# Build maker.js
+if [ "$BUILD_MAKER" = true ]; then
+    echo -e "${BLUE}[4/4] Building maker.js...${NC}"
+    node scripts/bundle-maker.js
+    echo -e "${GREEN}  ✅ dist/maker.js created${NC}"
+else
+    echo -e "${YELLOW}[4/4] Skipping maker.js${NC}"
 fi
 
 # Calculate duration
@@ -186,6 +206,7 @@ echo ""
 echo "Output files:"
 [ "$BUILD_SERVER" = true ] && [ -f "dist/server.js" ] && echo "  📦 dist/server.js ($(du -h dist/server.js | cut -f1))"
 [ "$BUILD_PROXY" = true ] && [ -f "dist/proxy.js" ] && echo "  📦 dist/proxy.js ($(du -h dist/proxy.js | cut -f1))"
+[ "$BUILD_MAKER" = true ] && [ -f "dist/maker.js" ] && echo "  📦 dist/maker.js ($(du -h dist/maker.js | cut -f1))"
 if [ "$BUILD_NATIVE" = true ] || [ "$BUILD_SERVER" = true ]; then
     if [ -d "dist/native" ]; then
         NODE_COUNT=$(ls dist/native/*.node 2>/dev/null | wc -l | tr -d ' ')
