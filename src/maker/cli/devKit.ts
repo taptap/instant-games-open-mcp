@@ -13,12 +13,14 @@ export const DEFAULT_AI_DEV_KIT_URL =
 const DEV_KIT_IGNORE_BEGIN = '# >>> TapTap Maker AI dev kit (local only) >>>';
 const DEV_KIT_IGNORE_END = '# <<< TapTap Maker AI dev kit (local only) <<<';
 export const DEV_KIT_GITIGNORE_STAGING_FILE = '.gitignore.dev-kit-before-clone';
+export const DEV_KIT_REQUIRED_ENTRIES = ['CLAUDE.md', 'examples', 'templates', 'urhox-libs'];
 const SKIPPED_TOP_LEVEL_ENTRIES = new Set(['scripts', '.DS_Store', 'ai-dev-kit.zip']);
 
 export interface InstallAiDevKitOptions {
   targetDir?: string;
   sourceDir?: string;
   url?: string;
+  preserveExisting?: boolean;
 }
 
 export interface InstallAiDevKitResult {
@@ -28,6 +30,32 @@ export interface InstallAiDevKitResult {
   skippedEntries: string[];
   gitignorePath: string;
   stagedGitignorePath: string;
+}
+
+export interface AiDevKitStatus {
+  targetDir: string;
+  requiredEntries: string[];
+  presentEntries: string[];
+  missingEntries: string[];
+  ready: boolean;
+}
+
+export function inspectAiDevKit(targetDir: string): AiDevKitStatus {
+  const resolvedTargetDir = path.resolve(targetDir);
+  const presentEntries = DEV_KIT_REQUIRED_ENTRIES.filter((entry) =>
+    fs.existsSync(path.join(resolvedTargetDir, entry))
+  );
+  const missingEntries = DEV_KIT_REQUIRED_ENTRIES.filter(
+    (entry) => !presentEntries.includes(entry)
+  );
+
+  return {
+    targetDir: resolvedTargetDir,
+    requiredEntries: [...DEV_KIT_REQUIRED_ENTRIES],
+    presentEntries,
+    missingEntries,
+    ready: missingEntries.length === 0,
+  };
 }
 
 export async function installAiDevKit(
@@ -50,7 +78,9 @@ export async function installAiDevKit(
       continue;
     }
 
-    copyEntry(path.join(sourceDir, entry.name), path.join(targetDir, entry.name));
+    copyEntry(path.join(sourceDir, entry.name), path.join(targetDir, entry.name), {
+      preserveExisting: options.preserveExisting,
+    });
     installedEntries.push(entry.name);
   }
 
@@ -113,7 +143,13 @@ export function finalizeStagedDevKitGitignore(targetDir: string): boolean {
   return true;
 }
 
-function copyEntry(source: string, target: string): void {
+function copyEntry(
+  source: string,
+  target: string,
+  options: {
+    preserveExisting?: boolean;
+  } = {}
+): void {
   const stat = fs.statSync(source);
   if (stat.isDirectory()) {
     fs.mkdirSync(target, { recursive: true });
@@ -121,12 +157,15 @@ function copyEntry(source: string, target: string): void {
       if (child === '.DS_Store') {
         continue;
       }
-      copyEntry(path.join(source, child), path.join(target, child));
+      copyEntry(path.join(source, child), path.join(target, child), options);
     }
     return;
   }
 
   if (stat.isFile()) {
+    if (options.preserveExisting && fs.existsSync(target)) {
+      return;
+    }
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(source, target);
   }

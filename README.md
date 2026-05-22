@@ -92,16 +92,17 @@ maker_submit_current_directory
 
 ### Maker 本地 Workflow Skills（实验中）
 
-Maker 现在同时内置两个工作流 skill：
+Maker 现在同时内置三个工作流 skill：
 
 - `taptap-maker-local`：把 Maker 初始化、clone、pull、提交、推送和冲突处理交给用户本地 AI/Agent 参与判断；原有 Maker MCP tools 业务暂时保持不变。
+- `taptap-maker-dev-kit-guide`：介绍 clone 时安装到项目目录的 AI dev kit，明确 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
 - `update-taptap-mcp`：引导用户更新本地 npx 缓存里的 `@taptap/instant-games-open-mcp`，并提醒 Maker MCP 推荐安装到 user/global scope。
 
 初始化流程里，PAT 验证通过、用户选择 app 后，`maker_clone_to_current_directory` 会自动准备本地 AI dev kit。
 
 clone 工具会下载 `https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip`，解压开发环境文档、引擎 API、demo 和本地 AI skills 到当前目录；会跳过 ZIP 里的顶层 `scripts` 目录并删除下载 ZIP，避免和 Maker 项目代码冲突。clone 前会先生成 `.gitignore.dev-kit-before-clone` 临时 block，clone 成功后自动合并到远端 `.gitignore`，防止这些本地开发环境文件被提交到 Maker Git。
 
-`maker_status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local` 与 `update-taptap-mcp`。除此之外不做编辑器安装引导。
+`maker_status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。除此之外不做编辑器安装引导。Maker 操作目标是用户当前项目目录；若 MCP 进程 cwd 是临时对话目录，Agent 应把用户当前项目目录作为 `target_dir` 传入，不让用户选择目录、不扫描其他项目。已绑定项目会检查 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/`，缺失时自动恢复本地 AI dev kit 并刷新 `.gitignore` 管理块。
 
 Git 引导：
 

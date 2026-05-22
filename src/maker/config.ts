@@ -22,6 +22,7 @@ const MAKER_ENDPOINTS: Record<MakerEnvironment, MakerEndpoints> = {
     patUrl: 'https://maker.taptap.cn/api/v1/user/pat-tokens',
     tapTokenUrl: 'https://maker.taptap.cn/api/v1/user/taptap-token',
     gitBase: 'https://maker.taptap.cn/git',
+    remoteMcpServerUrl: 'https://maker.taptap.cn/mcp/v1',
   },
   rnd: {
     webUrl: 'https://fuping.agnt.xd.com',
@@ -29,7 +30,7 @@ const MAKER_ENDPOINTS: Record<MakerEnvironment, MakerEndpoints> = {
     patUrl: 'https://fuping.agnt.xd.com/api/v1/user/pat-tokens',
     tapTokenUrl: 'https://fuping.agnt.xd.com/api/v1/user/taptap-token',
     gitBase: 'https://fuping.agnt.xd.com/git',
-    remoteMcpServerUrl: 'http://172.25.135.95:4000',
+    remoteMcpServerUrl: 'https://fuping.agnt.xd.com/mcp/v1',
   },
 };
 

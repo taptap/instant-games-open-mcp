@@ -56,7 +56,12 @@ import {
   formatGitEnvironmentStatus,
 } from '../system/git.js';
 import { formatMakerSkillStatus } from '../cli/skill.js';
-import { installAiDevKit } from '../cli/devKit.js';
+import {
+  finalizeStagedDevKitGitignore,
+  inspectAiDevKit,
+  installAiDevKit,
+  type AiDevKitStatus,
+} from '../cli/devKit.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 declare const __MAKER_BUNDLE_URL__: string | undefined;
@@ -101,10 +106,16 @@ export const tools = [
   {
     name: 'maker_status',
     description:
-      'Show local Maker MCP status: Git availability, PAT/TapTap token status, project binding, bundled skill document paths, validation checklist, and available apps when PAT exists.',
+      'Show local Maker MCP status for the user current working directory: Git availability, PAT/TapTap token status, project binding, AI dev kit status, bundled skill document paths, validation checklist, and available apps when PAT exists. If the MCP process cwd differs from the user current working directory, pass target_dir with the user current working directory.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        target_dir: {
+          type: 'string',
+          description:
+            'Optional user current working directory to inspect. Use when the MCP process cwd differs from the user project CWD.',
+        },
+      },
     },
   },
   {
@@ -116,12 +127,12 @@ export const tools = [
       properties: {
         app_id: {
           type: 'string',
-          description: 'Maker APP_ID to clone from fuping git.',
+          description: 'Maker APP_ID to clone from the configured Maker git service.',
         },
         target_dir: {
           type: 'string',
           description:
-            'Optional target directory. Defaults to the MCP process cwd, which should be the current Codex conversation directory.',
+            'Optional target directory. Defaults to the MCP process cwd. Pass the user current working directory when it differs from the MCP process cwd.',
         },
         pat: {
           type: 'string',
@@ -152,7 +163,7 @@ export const tools = [
         target_dir: {
           type: 'string',
           description:
-            'Optional target directory. Defaults to the MCP process cwd, which should be the current Codex conversation directory.',
+            'Optional target directory. Defaults to the MCP process cwd. Pass the user current working directory when it differs from the MCP process cwd.',
         },
         files: {
           type: 'array',
@@ -172,7 +183,7 @@ export const tools = [
         target_dir: {
           type: 'string',
           description:
-            'Optional Maker project directory. Defaults to the MCP process cwd, which should be the current conversation directory.',
+            'Optional Maker project directory. Defaults to the MCP process cwd. Pass the user current working directory when it differs from the MCP process cwd.',
         },
         entry: {
           type: 'string',
@@ -253,11 +264,16 @@ export async function startMakerMcpServer(): Promise<void> {
 
     try {
       if (name === 'maker_status') {
+        const args = (request.params.arguments || {}) as {
+          target_dir?: string;
+        };
         return {
           content: [
             {
               type: 'text',
-              text: await formatStatus(),
+              text: await formatStatus({
+                targetDir: args.target_dir,
+              }),
             },
           ],
         };
@@ -349,7 +365,7 @@ export async function startMakerMcpServer(): Promise<void> {
           throw new McpError(ErrorCode.InvalidParams, 'app_id is required');
         }
 
-        const targetDir = args.target_dir || process.cwd();
+        const targetDir = resolveMakerToolTargetDir(args.target_dir);
         const progressReporter = createToolProgressReporter(
           request.params._meta?.progressToken,
           extra,
@@ -418,7 +434,7 @@ export async function startMakerMcpServer(): Promise<void> {
           files?: string[];
         };
 
-        const targetDir = args.target_dir || process.cwd();
+        const targetDir = resolveMakerToolTargetDir(args.target_dir);
         const progressReporter = createToolProgressReporter(
           request.params._meta?.progressToken,
           extra,
@@ -474,7 +490,7 @@ export async function startMakerMcpServer(): Promise<void> {
         let progressSummary: ToolProgressSummary;
         try {
           result = await buildCurrentDirectory({
-            targetDir: args.target_dir || process.cwd(),
+            targetDir: resolveMakerToolTargetDir(args.target_dir),
             entry: args.entry,
             scriptsPath: args.scriptsPath,
             entryClient: args.entry_client,
@@ -522,8 +538,9 @@ export async function startMakerMcpServer(): Promise<void> {
   await server.connect(transport);
 }
 
-async function formatStatus(): Promise<string> {
-  const identify = identifyMakerProject();
+async function formatStatus(options: { targetDir?: string } = {}): Promise<string> {
+  const targetDir = resolveMakerToolTargetDir(options.targetDir);
+  const identify = identifyMakerProject({ cwd: targetDir });
   const pat = loadPat();
   let tapAuth = loadTapAuth();
   const makerPatTokensUrl = getMakerPatTokensUrl();
@@ -548,7 +565,7 @@ async function formatStatus(): Promise<string> {
   const git = checkGitEnvironment();
   const projectSection = identify.projectId
     ? [
-        '当前目录已绑定 Maker 项目。',
+        '目标目录已绑定 Maker 项目。',
         '本地 Maker 工作流请优先参考 taptap-maker-local skill；MCP tools 只负责保存 PAT、列 app、clone、submit 和 build 等机器动作。',
       ].join('\n')
     : pat
@@ -561,6 +578,7 @@ async function formatStatus(): Promise<string> {
     `- version: ${VERSION}`,
     `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath()})`,
     `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
+    `- target_dir: ${targetDir}`,
     `- project_source: ${identify.source}`,
     `- project_id: ${identify.projectId || '(none)'}`,
     identify.configPath ? `- config: ${identify.configPath}` : '',
@@ -574,12 +592,62 @@ async function formatStatus(): Promise<string> {
     '',
     tapAuthRefreshText,
     '',
-    formatMakerSkillStatus({ projectRoot: identify.projectRoot || process.cwd() }),
+    identify.projectRoot ? await formatAiDevKitStatus(identify.projectRoot) : '',
+    '',
+    formatMakerSkillStatus({ projectRoot: identify.projectRoot || targetDir }),
     '',
     projectSection,
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function resolveMakerToolTargetDir(targetDir?: string): string {
+  if (targetDir) {
+    return path.resolve(targetDir);
+  }
+  return process.cwd();
+}
+
+async function formatAiDevKitStatus(projectRoot: string): Promise<string> {
+  const before = inspectAiDevKit(projectRoot);
+  if (before.ready) {
+    return formatAiDevKitStatusLines('ready', before).join('\n');
+  }
+
+  try {
+    const installResult = await installAiDevKit({
+      targetDir: projectRoot,
+      preserveExisting: true,
+    });
+    finalizeStagedDevKitGitignore(projectRoot);
+    const after = inspectAiDevKit(projectRoot);
+    return [
+      ...formatAiDevKitStatusLines('restored', after),
+      `- restored_missing_entries: ${before.missingEntries.join(', ') || '(none)'}`,
+      `- installed_entries: ${installResult.installedEntries.join(', ') || '(none)'}`,
+    ].join('\n');
+  } catch (error) {
+    return [
+      ...formatAiDevKitStatusLines('missing', before),
+      `- restore_error: ${error instanceof Error ? error.message : String(error)}`,
+      '- next_step: 请检查网络后重新调用 maker_status，或重新执行 Maker clone 初始化流程。',
+    ].join('\n');
+  }
+}
+
+function formatAiDevKitStatusLines(
+  status: 'ready' | 'restored' | 'missing',
+  devKitStatus: AiDevKitStatus
+): string[] {
+  return [
+    'AI dev kit',
+    '',
+    `- status: ${status}`,
+    `- required_entries: ${devKitStatus.requiredEntries.join(', ')}`,
+    `- present_entries: ${devKitStatus.presentEntries.join(', ') || '(none)'}`,
+    `- missing_entries: ${devKitStatus.missingEntries.join(', ') || '(none)'}`,
+  ];
 }
 
 function rememberBuildSubmitPreference(targetDir: string): void {

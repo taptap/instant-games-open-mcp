@@ -43,7 +43,7 @@ Do not reimplement Maker API calls or Git authentication in shell when a Maker M
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | initialize / configure / continue Maker local development | Follow "Initialization Workflow".                                                                                                  |
 | clone / download Maker project locally                    | Follow "Initialization Workflow"; do not ask for app_id directly.                                                                  |
-| status / is Maker ready                                   | Call `maker_status`, then explain missing prerequisites.                                                                           |
+| status / is Maker ready                                   | Call `maker_status` for the user's current project directory, then explain missing prerequisites and dev-kit status.               |
 | submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_submit_current_directory` unless blocked.                       |
 | pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                             |
 | conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing. |
@@ -51,7 +51,7 @@ Do not reimplement Maker API calls or Git authentication in shell when a Maker M
 
 ## Project Detection
 
-A directory is a Maker project when the current directory or one of its parents contains:
+A directory is a Maker project when the user's current project directory or one of its parents contains:
 
 ```text
 .maker-mcp/config.json
@@ -61,6 +61,12 @@ When this file exists, explain that the directory is already bound to a Maker pr
 
 When this file is missing and the user asks to clone, initialize, or continue Maker local
 development, do not ask the user for an app_id directly. Follow the initialization workflow.
+
+The user's current project directory is the business target. Do not ask the user to choose a
+directory and do not scan unrelated Maker projects. If the MCP process cwd is a transient
+dialogue/session directory, pass the user's current project directory as `target_dir`. If the AI
+client does not expose that directory, say the current client did not provide the project directory
+instead of guessing.
 
 ## Initialization Workflow
 
@@ -78,7 +84,8 @@ Trigger phrases include:
 
 Workflow:
 
-1. Call `maker_status`.
+1. Call `maker_status`. If the MCP process cwd differs from the user's current project directory,
+   pass the user's current project directory as `target_dir`.
 2. If Git is missing, stop. Tell the user Git is required for clone/submit/build-side Git work.
 3. If `maker_status` lists bundled skill documents, just tell the user which skills are available.
    Do not run editor-specific CLI install commands.
@@ -89,6 +96,8 @@ Workflow:
 8. After the user chooses an app, call `maker_clone_to_current_directory(app_id)`. The clone
    tool prepares the AI dev kit automatically before project checkout.
 9. After clone succeeds, call `maker_status` again or explain that `.maker-mcp/config.json` now binds the directory to the Maker project.
+10. Tell the local AI/Agent to use the `taptap-maker-dev-kit-guide` skill for the installed dev-kit
+    resources, especially `CLAUDE.md`, `examples/`, `templates/`, and `urhox-libs/`.
 
 Keep the user-facing explanation short:
 
@@ -102,11 +111,23 @@ Keep the user-facing explanation short:
 `maker_clone_to_current_directory` prepares local development environment files in the current
 working directory before it checks out the Maker project.
 
+`maker_status` checks the dev-kit top-level entries for an already bound Maker project. If
+`CLAUDE.md`, `examples/`, `templates/`, or `urhox-libs/` are missing, the tool restores the dev kit
+without overwriting existing local files and refreshes the managed `.gitignore` block.
+
 The clone tool downloads and installs:
 
 ```text
 https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip
 ```
+
+After clone, use the bundled `taptap-maker-dev-kit-guide` skill to explain the installed dev-kit
+resources to the local AI/Agent:
+
+- `CLAUDE.md` is the AI development guide entry.
+- `examples/` contains Maker development examples.
+- `templates/` contains reusable templates.
+- `urhox-libs/` contains engine APIs and capability references.
 
 The clone tool is responsible for deterministic file operations:
 
@@ -199,8 +220,9 @@ submitted to Maker Git.
 When `maker_status` reports TapTap bundled workflow skills, show the skill names and document
 paths. Do not install or register skills automatically.
 
-`taptap-maker-local` covers Maker local workflow. `update-taptap-mcp` covers local TapTap MCP
-cache updates.
+`taptap-maker-local` covers Maker local workflow. `taptap-maker-dev-kit-guide` explains the local
+AI dev-kit resources installed during clone. `update-taptap-mcp` covers local TapTap MCP cache
+updates.
 
 Prefer user/global scope for Maker MCP installation. If a project/local config already exists,
 do not block the workflow; just explain that user/global scope is recommended to avoid config

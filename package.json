@@ -95,6 +95,7 @@
     "dist/",
     "bin/",
     "skills/taptap-maker-local/",
+    "skills/taptap-maker-dev-kit-guide/",
     "skills/update-taptap-mcp/"
   ],
   "repository": {
