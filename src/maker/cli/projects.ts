@@ -6,7 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { MakerPat, MakerProjectSummary } from '../types.js';
-import { loadPat, loadProjectConfig, saveProjectConfig } from '../storage.js';
+import { getProjectConfigPath, loadPat, loadProjectConfig, saveProjectConfig } from '../storage.js';
 import { getUserIdFromMakerJwt, requireMakerJwt } from '../auth/jwt.js';
 import { getManualMakerPat, requestMakerPat, saveManualMakerPat } from '../git/pat.js';
 import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
@@ -71,6 +71,21 @@ export interface MakerProjectLocalChanges {
   projectRoot: string;
   files: string[];
   rawStatus: string;
+  hasUnpushedCommits?: boolean;
+  ahead?: string;
+}
+
+export interface MakerDirectoryGitStatus {
+  targetDir: string;
+  gitRoot?: string;
+  gitDir?: string;
+  makerProjectRoot?: string;
+  configPath?: string;
+  isGitWorkTree: boolean;
+  isOwnGitRoot: boolean;
+  isUsableMakerGitRepo: boolean;
+  issue?: 'inside_parent_git_repo' | 'missing_git_repo' | 'missing_maker_config';
+  message?: string;
 }
 
 export interface MakerGitFailure {
@@ -259,7 +274,7 @@ export async function cloneMakerProject(
   let retriedWithNewPat = false;
   let transientRetries = 0;
 
-  if (isGitRepo(target) && hasGitHead(target)) {
+  if (isOwnGitRoot(target) && hasGitHead(target)) {
     options.onProgress?.({
       progress: 10,
       total: 100,
@@ -314,7 +329,7 @@ export async function cloneMakerProject(
     };
   }
 
-  if (isGitRepo(target)) {
+  if (isOwnGitRoot(target)) {
     warnings.push(
       'Target directory already contained git metadata but no checked-out commit. Maker MCP will fetch and check out the remote Maker project branch before reporting success.'
     );
@@ -362,6 +377,7 @@ export async function cloneMakerProject(
 
   try {
     ensureGitHeadCheckedOut(target);
+    ensureOwnGitRoot(target);
   } catch (error) {
     throw withPreCloneWarnings(error, warnings);
   }
@@ -398,15 +414,9 @@ export async function pushMakerProject(
     phase: 'prepare',
     message: 'Preparing Maker project push',
   });
-  const cwd = path.resolve(options.cwd);
-  if (!isGitRepo(cwd)) {
-    throw new Error(`${cwd} is not a git repository.`);
-  }
-
-  const configPath = path.join(cwd, '.maker-mcp', 'config.json');
-  if (!fs.existsSync(configPath)) {
-    throw new Error(`${cwd} is not bound to a Maker project. .maker-mcp/config.json is missing.`);
-  }
+  const requestedCwd = path.resolve(options.cwd);
+  const workspace = resolveUsableMakerGitWorkspace(requestedCwd);
+  const cwd = workspace.projectRoot;
   const project = loadProjectConfig(cwd);
   if (!project?.project_id) {
     throw new Error(`${cwd} Maker project config does not contain project_id.`);
@@ -429,7 +439,8 @@ export async function pushMakerProject(
 
   const statusBefore = await readGit(['status', '--porcelain'], cwd);
   const branch = await currentBranch(cwd, options.branch);
-  if (!statusBefore.trim() && !options.allowEmpty) {
+  const unpushed = await readUnpushedCommitState(cwd, branch);
+  if (!statusBefore.trim() && !options.allowEmpty && !unpushed.hasUnpushedCommits) {
     options.onProgress?.({
       progress: 100,
       total: 100,
@@ -445,7 +456,13 @@ export async function pushMakerProject(
     };
   }
 
-  if (options.files?.length) {
+  let committed = false;
+  let commitHash: string | undefined;
+  let message: string | undefined;
+
+  if (!statusBefore.trim() && !options.allowEmpty && unpushed.hasUnpushedCommits) {
+    commitHash = (await readGit(['rev-parse', '--short', 'HEAD'], cwd)).trim();
+  } else if (options.files?.length) {
     options.onProgress?.({
       progress: 20,
       total: 100,
@@ -461,34 +478,32 @@ export async function pushMakerProject(
       message: 'Staging all local changes',
     });
     await runGit(['add', '-A'], { cwd });
-  }
 
-  const staged = await readGit(['diff', '--cached', '--name-only'], cwd);
-  let committed = false;
-  let commitHash: string | undefined;
-  const message = options.message || generateCommitMessage(statusBefore);
-  if (staged.trim() || options.allowEmpty) {
-    options.onProgress?.({
-      progress: 45,
-      total: 100,
-      phase: 'commit',
-      message: 'Creating local Maker project commit',
-    });
-    await runGit(
-      [
-        '-c',
-        'user.email=maker-mcp@local',
-        '-c',
-        'user.name=taptap-maker',
-        'commit',
-        ...(options.allowEmpty ? ['--allow-empty'] : []),
-        '-m',
-        message,
-      ],
-      { cwd }
-    );
-    committed = true;
-    commitHash = (await readGit(['rev-parse', '--short', 'HEAD'], cwd)).trim();
+    const staged = await readGit(['diff', '--cached', '--name-only'], cwd);
+    message = options.message || generateCommitMessage(statusBefore);
+    if (staged.trim() || options.allowEmpty) {
+      options.onProgress?.({
+        progress: 45,
+        total: 100,
+        phase: 'commit',
+        message: 'Creating local Maker project commit',
+      });
+      await runGit(
+        [
+          '-c',
+          'user.email=maker-mcp@local',
+          '-c',
+          'user.name=taptap-maker',
+          'commit',
+          ...(options.allowEmpty ? ['--allow-empty'] : []),
+          '-m',
+          message,
+        ],
+        { cwd }
+      );
+      committed = true;
+      commitHash = (await readGit(['rev-parse', '--short', 'HEAD'], cwd)).trim();
+    }
   }
 
   try {
@@ -507,7 +522,7 @@ export async function pushMakerProject(
       commitHash,
       message,
       pushed: false,
-      status: committed ? 'failed_after_commit' : 'clean',
+      status: committed || unpushed.hasUnpushedCommits ? 'failed_after_commit' : 'clean',
       failure,
       ahead: await readAheadState(cwd),
     };
@@ -531,29 +546,24 @@ export async function pushMakerProject(
 
 export async function readMakerProjectLocalChanges(cwd: string): Promise<MakerProjectLocalChanges> {
   ensureGitAvailable();
-  const requestedDir = path.resolve(cwd);
-  if (!isGitRepo(requestedDir)) {
-    throw new Error(`${requestedDir} is not a git repository.`);
-  }
-
-  const projectRoot = (await readGit(['rev-parse', '--show-toplevel'], requestedDir)).trim();
-  const configPath = path.join(projectRoot, '.maker-mcp', 'config.json');
-  if (!fs.existsSync(configPath)) {
-    throw new Error(
-      `${projectRoot} is not bound to a Maker project. .maker-mcp/config.json is missing.`
-    );
-  }
+  const { projectRoot } = resolveUsableMakerGitWorkspace(cwd);
 
   const rawStatus = await readGit(['status', '--porcelain', '-z'], projectRoot);
-  const files = parseGitStatusFiles(rawStatus).filter(
-    (file) => file !== '.maker-mcp' && !file.startsWith('.maker-mcp/')
-  );
+  const files = parseGitStatusFiles(rawStatus).filter((file) => !isIgnoredBuildGuardChange(file));
+  const branch = await currentBranch(projectRoot);
+  const unpushed = await readUnpushedCommitState(projectRoot, branch);
   return {
-    hasChanges: files.length > 0,
+    hasChanges: files.length > 0 || unpushed.hasUnpushedCommits,
     projectRoot,
     files,
     rawStatus,
+    hasUnpushedCommits: unpushed.hasUnpushedCommits,
+    ahead: unpushed.ahead,
   };
+}
+
+function isIgnoredBuildGuardChange(file: string): boolean {
+  return file === '.gitignore' || file === '.maker-mcp' || file.startsWith('.maker-mcp/');
 }
 
 function ensureTargetCanBindApp(target: string, appId: string): void {
@@ -625,6 +635,36 @@ async function readAheadState(cwd: string): Promise<string | undefined> {
   } catch {
     return undefined;
   }
+}
+
+async function readUnpushedCommitState(
+  cwd: string,
+  branch: string
+): Promise<{ hasUnpushedCommits: boolean; ahead?: string }> {
+  const remoteRef = `origin/${branch}`;
+  try {
+    const countText = await readGit(['rev-list', '--count', `${remoteRef}..HEAD`], cwd);
+    const count = Number.parseInt(countText.trim(), 10);
+    if (Number.isFinite(count) && count > 0) {
+      return {
+        hasUnpushedCommits: true,
+        ahead: `${remoteRef}..HEAD (${count} commit${count === 1 ? '' : 's'})`,
+      };
+    }
+  } catch {
+    // Fall back to `git status --branch` for repositories where origin/<branch>
+    // is unavailable but an upstream relation still reports ahead commits.
+  }
+
+  const status = await readAheadState(cwd);
+  if (status && /\bahead\s+\d+/i.test(status)) {
+    return {
+      hasUnpushedCommits: true,
+      ahead: status,
+    };
+  }
+
+  return { hasUnpushedCommits: false, ahead: status };
 }
 
 function toMakerGitFailure(error: unknown, stage: string): MakerGitFailure {
@@ -701,13 +741,13 @@ function nextActionForFailure(classification: MakerGitFailure['classification'])
     case 'auth':
       return '刷新 Maker PAT 后重试 maker_submit_current_directory；如果仍失败，请确认 PAT 是否过期或缺少 Maker git 权限。';
     case 'remote_transient':
-      return '远端 Maker git 服务临时不可用。不要重新提交，稍后直接重试 maker_submit_current_directory。';
+      return '远端 Maker git 服务临时不可用。本地 commit 会保留；不要手动执行通用 git push，稍后直接重试 maker_submit_current_directory，或在构建重试时调用 maker_build_current_directory 并设置 submit_local_changes_before_build=true。';
     case 'remote_rejected':
-      return '远端已有新提交。不要新建分支或要任务号，先询问用户是否 pull/rebase 当前 Maker 远端变更，再重试 push。';
+      return '远端已有新提交。不要新建分支、不要要任务号、不要手动执行通用 git push；先询问用户是否 pull/rebase 当前 Maker 远端变更，再重试 maker_submit_current_directory。';
     case 'local':
       return '本地目录或权限异常。检查当前目录是否是 Maker git repo，以及 Codex 是否有目录写权限。';
     default:
-      return '保留本地提交，不要重复提交；把错误详情反馈给用户，并在确认后重试 push。';
+      return '保留本地提交，不要重复提交；把错误详情反馈给用户，并在确认后重试 maker_submit_current_directory。';
   }
 }
 
@@ -1051,12 +1091,163 @@ async function setOrigin(cwd: string, authUrl: string): Promise<void> {
     .catch(() => runGit(['remote', 'add', 'origin', authUrl], { cwd, quiet: true }));
 }
 
-function isGitRepo(repoDir: string): boolean {
+function isOwnGitRoot(repoDir: string): boolean {
+  const status = inspectMakerDirectoryGitStatus(repoDir);
+  return status.isOwnGitRoot;
+}
+
+function ensureOwnGitRoot(repoDir: string): void {
+  const status = inspectMakerDirectoryGitStatus(repoDir);
+  if (status.isOwnGitRoot) {
+    return;
+  }
+
+  throw new Error(
+    [
+      'Maker project checkout did not create an independent Git repository.',
+      `target_dir: ${status.targetDir}`,
+      status.gitRoot ? `detected_git_root: ${status.gitRoot}` : '',
+      'A Maker project directory must have its own .git directory. Parent Git repositories must not be reused.',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  );
+}
+
+export function inspectMakerDirectoryGitStatus(cwd: string): MakerDirectoryGitStatus {
+  const targetDir = path.resolve(cwd);
+  const gitRoot = resolveGitRoot(targetDir);
+  const gitDir = resolveGitDir(targetDir);
+  const makerBinding = findMakerProjectBinding(targetDir);
+  const isGitWorkTree = Boolean(gitRoot);
+  const isOwnGitRoot = Boolean(gitRoot && samePath(gitRoot, targetDir));
+  const isUsableMakerGitRepo = Boolean(
+    makerBinding?.projectRoot && gitRoot && samePath(makerBinding.projectRoot, gitRoot)
+  );
+
+  let issue: MakerDirectoryGitStatus['issue'];
+  let message: string | undefined;
+  if (makerBinding && gitRoot && !samePath(makerBinding.projectRoot, gitRoot)) {
+    issue = 'inside_parent_git_repo';
+    message = [
+      `${makerBinding.projectRoot} contains Maker binding config, but Git root is ${gitRoot}.`,
+      'The Maker directory must be an independent Git repository before build or submit.',
+    ].join(' ');
+  } else if (makerBinding && !gitRoot) {
+    issue = 'missing_git_repo';
+    message = `${makerBinding.projectRoot} is bound to Maker but is not a Git repository.`;
+  } else if (!makerBinding) {
+    issue = 'missing_maker_config';
+    message = `${targetDir} is not bound to a Maker project. .maker-mcp/config.json is missing.`;
+  }
+
+  return {
+    targetDir,
+    gitRoot,
+    gitDir,
+    makerProjectRoot: makerBinding?.projectRoot,
+    configPath: makerBinding?.configPath,
+    isGitWorkTree,
+    isOwnGitRoot,
+    isUsableMakerGitRepo,
+    issue,
+    message,
+  };
+}
+
+function resolveUsableMakerGitWorkspace(cwd: string): {
+  projectRoot: string;
+  configPath: string;
+  gitRoot: string;
+} {
+  const status = inspectMakerDirectoryGitStatus(cwd);
+  if (!status.makerProjectRoot || !status.configPath) {
+    throw new Error(status.message || `${status.targetDir} is not bound to a Maker project.`);
+  }
+  if (!status.gitRoot) {
+    throw new Error(
+      [
+        `${status.makerProjectRoot} is bound to a Maker project but is not a Git repository.`,
+        'The Maker project directory must be an independent Git repository before build or submit.',
+      ].join('\n')
+    );
+  }
+  if (!samePath(status.makerProjectRoot, status.gitRoot)) {
+    throw new Error(formatMakerGitRootMismatch(status));
+  }
+
+  return {
+    projectRoot: status.makerProjectRoot,
+    configPath: status.configPath,
+    gitRoot: status.gitRoot,
+  };
+}
+
+function formatMakerGitRootMismatch(status: MakerDirectoryGitStatus): string {
+  return [
+    `${status.makerProjectRoot} must be an independent Git repository before build or submit.`,
+    '',
+    `maker_project_root: ${status.makerProjectRoot}`,
+    `git_root: ${status.gitRoot || '(none)'}`,
+    status.configPath ? `config: ${status.configPath}` : '',
+    '',
+    'The current Maker directory is inside another Git repository, but it does not have its own .git directory.',
+    'Re-run maker_clone_to_current_directory after this fix, or use a fresh independent Maker directory.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function findMakerProjectBinding(
+  startDir: string
+): { projectRoot: string; configPath: string } | null {
+  let current = path.resolve(startDir);
+  while (current.length > 0) {
+    const configPath = getProjectConfigPath(current);
+    if (fs.existsSync(configPath) && loadProjectConfig(current)?.project_id) {
+      return {
+        projectRoot: current,
+        configPath,
+      };
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
+
+  return null;
+}
+
+function resolveGitRoot(cwd: string): string | undefined {
   try {
-    const gitDir = readGitSync(['-C', repoDir, 'rev-parse', '--git-dir']);
-    return gitDir.trim().length > 0;
+    return path.resolve(readGitSync(['-C', cwd, 'rev-parse', '--show-toplevel']).trim());
   } catch {
-    return false;
+    return undefined;
+  }
+}
+
+function resolveGitDir(cwd: string): string | undefined {
+  try {
+    const gitDir = readGitSync(['-C', cwd, 'rev-parse', '--git-dir']).trim();
+    return path.isAbsolute(gitDir) ? path.resolve(gitDir) : path.resolve(cwd, gitDir);
+  } catch {
+    return undefined;
+  }
+}
+
+function samePath(left: string, right: string): boolean {
+  return normalizePathForCompare(left) === normalizePathForCompare(right);
+}
+
+function normalizePathForCompare(value: string): string {
+  const resolved = path.resolve(value);
+  try {
+    return fs.realpathSync.native(resolved);
+  } catch {
+    return resolved;
   }
 }
 

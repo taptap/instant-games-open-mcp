@@ -33,6 +33,7 @@ import {
 } from '../storage.js';
 import {
   cloneMakerProject,
+  inspectMakerDirectoryGitStatus,
   listMakerProjects,
   pushMakerProject,
   readMakerProjectLocalChanges,
@@ -53,6 +54,7 @@ import { getUserIdFromMakerJwt } from '../auth/jwt.js';
 import {
   MakerGitNotFoundError,
   checkGitEnvironment,
+  ensureGitAvailable,
   formatGitEnvironmentStatus,
 } from '../system/git.js';
 import { formatMakerSkillStatus } from '../cli/skill.js';
@@ -73,6 +75,19 @@ const DEFAULT_PROXY_MCP_NAME = 'taptap-proxy';
 const DEFAULT_PROXY_PACKAGE = '@taptap/instant-games-open-mcp@1.22.0';
 const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
 const LONG_OPERATION_HEARTBEAT_MS = 3 * 60 * 1000;
+
+class MakerCloneFailedError extends Error {
+  readonly targetDir: string;
+  readonly originalError: unknown;
+
+  constructor(targetDir: string, originalError: unknown) {
+    const message = originalError instanceof Error ? originalError.message : String(originalError);
+    super(message);
+    this.name = 'MakerCloneFailedError';
+    this.targetDir = targetDir;
+    this.originalError = originalError;
+  }
+}
 
 export const tools = [
   {
@@ -374,6 +389,7 @@ export async function startMakerMcpServer(): Promise<void> {
         }
 
         const targetDir = resolveMakerToolTargetDir(args.target_dir);
+        ensureGitAvailable();
         const progressReporter = createToolProgressReporter(
           request.params._meta?.progressToken,
           extra,
@@ -452,7 +468,7 @@ export async function startMakerMcpServer(): Promise<void> {
           progressSummary = progressReporter.finish();
         } catch (error) {
           progressReporter.finish();
-          throw error;
+          throw new MakerCloneFailedError(targetDir, error);
         }
 
         return {
@@ -598,6 +614,7 @@ export async function startMakerMcpServer(): Promise<void> {
 async function formatStatus(options: { targetDir?: string } = {}): Promise<string> {
   const targetDir = resolveMakerToolTargetDir(options.targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
+  const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
   const pat = loadPat();
   let tapAuth = loadTapAuth();
   const makerPatTokensUrl = getMakerPatTokensUrl();
@@ -626,9 +643,11 @@ async function formatStatus(options: { targetDir?: string } = {}): Promise<strin
         '请继续在当前绑定项目上执行状态、提交、构建等操作；不要再引导用户 clone，除非用户明确要求切换或重新拉取项目。',
         '本地 Maker 工作流请优先参考 taptap-maker-local skill；MCP tools 只负责保存 PAT、列 app、clone、submit 和 build 等机器动作。',
       ].join('\n')
-    : pat
-      ? await formatAutoProjectListFromPat()
-      : formatIdentifyHint();
+    : isLikelyAiDialogueDirectory(targetDir)
+      ? formatAiDialogueDirectoryHint(targetDir)
+      : pat
+        ? await formatAutoProjectListFromPat()
+        : formatIdentifyHint();
 
   return [
     'TapTap Maker MCP status',
@@ -646,6 +665,8 @@ async function formatStatus(options: { targetDir?: string } = {}): Promise<strin
     '',
     formatGitEnvironmentStatus(git),
     '',
+    formatMakerGitDirectoryStatus(gitDirectoryStatus),
+    '',
     pat ? '' : ['Auth next step', '', `Maker PAT 缺失。PAT 页面：${makerPatTokensUrl}`].join('\n'),
     '',
     tapAuthRefreshText,
@@ -658,6 +679,51 @@ async function formatStatus(options: { targetDir?: string } = {}): Promise<strin
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function formatMakerGitDirectoryStatus(
+  status: ReturnType<typeof inspectMakerDirectoryGitStatus>
+): string {
+  return [
+    'Maker Git directory',
+    '',
+    `- status: ${status.isUsableMakerGitRepo ? 'ready' : status.issue || 'unbound'}`,
+    `- target_dir: ${status.targetDir}`,
+    status.makerProjectRoot ? `- maker_project_root: ${status.makerProjectRoot}` : '',
+    status.gitRoot ? `- git_root: ${status.gitRoot}` : '- git_root: (none)',
+    status.gitDir ? `- git_dir: ${status.gitDir}` : '',
+    `- target_is_git_root: ${status.isOwnGitRoot ? 'yes' : 'no'}`,
+    `- usable_for_build_submit: ${status.isUsableMakerGitRepo ? 'yes' : 'no'}`,
+    status.message ? `- warning: ${status.message}` : '',
+    status.issue === 'inside_parent_git_repo'
+      ? '- recommendation: 当前目录位于外层 Git 仓库下，但不是独立 Maker Git 仓库；建议新开独立目录重新 clone，或重新执行 clone 让当前目录创建自己的 .git。'
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+export function isLikelyAiDialogueDirectory(targetDir: string): boolean {
+  const normalized = targetDir.replace(/\\/g, '/').toLowerCase();
+  if (normalized.includes('/xdt-maker/dialogues/')) {
+    return true;
+  }
+
+  return /(^|\/)dialogues\/\d{4}-\d{2}-\d{2}\/[0-9a-f]{8}-[0-9a-f-]{13,}$/i.test(normalized);
+}
+
+export function formatAiDialogueDirectoryHint(targetDir: string): string {
+  return [
+    'AI client workspace selection',
+    '',
+    `- current_target_dir: ${targetDir}`,
+    '- detected_issue: current directory looks like an AI dialogue/session directory, not a Maker project directory.',
+    '- do_not_clone_here: yes',
+    '- next_step: inspect the AI client attached/extra workspace directories and choose the Maker project directory.',
+    '- if_single_attached_workspace: call maker_status(target_dir="<attached project directory>") directly.',
+    '- if_multiple_attached_workspaces: show the directories to the user and ask which one is the Maker project.',
+    '- do_not_show_app_selection_here: yes',
+  ].join('\n');
 }
 
 function resolveMakerToolTargetDir(targetDir?: string): string {
@@ -808,6 +874,37 @@ function formatCloneWarnings(warnings: string[]): string[] {
     ...warnings.map((warning) => `- ${warning}`),
     '',
   ];
+}
+
+export function formatClonePartialStateLines(targetDir: string): string[] {
+  const resolvedTargetDir = path.resolve(targetDir);
+  const identify = identifyMakerProject({ cwd: resolvedTargetDir });
+  const gitStatus = inspectMakerDirectoryGitStatus(resolvedTargetDir);
+  const devKitStatus = inspectAiDevKit(resolvedTargetDir);
+  const stagedDevKitGitignorePath = path.join(resolvedTargetDir, DEV_KIT_GITIGNORE_STAGING_FILE);
+  const projectBound = Boolean(identify.projectId);
+  const gitInitialized = Boolean(
+    gitStatus.isOwnGitRoot || fs.existsSync(path.join(resolvedTargetDir, '.git'))
+  );
+  const safeToRetry = !projectBound;
+
+  return [
+    'partial_state:',
+    `- target_dir: ${resolvedTargetDir}`,
+    `- git_initialized: ${gitInitialized ? 'yes' : 'no'}`,
+    gitStatus.gitRoot ? `- git_root: ${gitStatus.gitRoot}` : '- git_root: (none)',
+    `- target_is_git_root: ${gitStatus.isOwnGitRoot ? 'yes' : 'no'}`,
+    `- project_bound: ${projectBound ? 'yes' : 'no'}`,
+    identify.projectId ? `- project_id: ${identify.projectId}` : '',
+    identify.configPath ? `- config: ${identify.configPath}` : '',
+    `- ai_dev_kit_present: ${devKitStatus.ready ? 'yes' : 'no'}`,
+    `- ai_dev_kit_missing_entries: ${devKitStatus.missingEntries.join(', ') || '(none)'}`,
+    `- staged_dev_kit_gitignore: ${fs.existsSync(stagedDevKitGitignorePath) ? 'yes' : 'no'}`,
+    `- safe_to_retry: ${safeToRetry ? 'yes' : 'no'}`,
+    safeToRetry
+      ? '- next_step: 可以直接重试 maker_clone_to_current_directory；如果连续失败，建议换一个全新的独立目录重新 clone。'
+      : '- next_step: 当前目录已经有 Maker 绑定信息；先运行 maker_status 确认状态，不要重复 clone。',
+  ].filter(Boolean);
 }
 
 function createRemoteProxyContext(options: {
@@ -1303,7 +1400,12 @@ export async function buildCurrentDirectory(options: {
       };
     }
 
-    throw new Error(formatLocalChangesBeforeBuildMessage(localChanges.files));
+    throw new Error(
+      formatLocalChangesBeforeBuildMessage(localChanges.files, {
+        ahead: localChanges.ahead,
+        hasUnpushedCommits: localChanges.hasUnpushedCommits,
+      })
+    );
   }
 
   return runRemoteBuildCurrentDirectory(options, options.targetDir);
@@ -1452,7 +1554,10 @@ function toMakerBuildFailure(error: unknown): MakerBuildFailure {
   };
 }
 
-function formatLocalChangesBeforeBuildMessage(files: string[]): string {
+function formatLocalChangesBeforeBuildMessage(
+  files: string[],
+  options: { ahead?: string; hasUnpushedCommits?: boolean } = {}
+): string {
   const visibleFiles = files.slice(0, 20);
   const hiddenCount = Math.max(0, files.length - visibleFiles.length);
   return [
@@ -1463,10 +1568,18 @@ function formatLocalChangesBeforeBuildMessage(files: string[]): string {
     '- 提交本地改动并触发构建（以后都是如此）：再次调用 maker_build_current_directory，并设置 submit_local_changes_before_build=true 和 remember_build_submit_preference=true；工具会先 commit + push，再继续执行远端 build 并返回构建结果。后续构建遇到本地改动会默认自动提交并继续构建。',
     '- 如果用户明确说不提交、直接构建云端版本，再调用 maker_build_current_directory，并设置 confirm_remote_build_without_submit=true。',
     '',
+    options.hasUnpushedCommits ? `unpushed_commits: ${options.ahead || 'yes'}` : '',
+    options.hasUnpushedCommits
+      ? 'note: 本地已有 commit 还没有推送到 Maker 远端；需要先 push，远端构建才会包含这些改动。'
+      : '',
+    options.hasUnpushedCommits ? '' : '',
     'local_changes:',
     ...visibleFiles.map((file) => `- ${file}`),
+    visibleFiles.length === 0 ? '- (none)' : '',
     ...(hiddenCount > 0 ? [`- ... and ${hiddenCount} more`] : []),
-  ].join('\n');
+  ]
+    .filter((line) => line !== '')
+    .join('\n');
 }
 
 export function createBuildArgs(
@@ -1574,7 +1687,12 @@ export function formatBuildResult(
       '',
       'note: Maker build was not started because submit did not produce a pushed state.',
       ...(result.submitResult.failure
-        ? ['', ...formatMakerFailureLines(result.submitResult.failure)]
+        ? [
+            '',
+            ...formatPushRecoveryLines(result.submitResult),
+            '',
+            ...formatMakerFailureLines(result.submitResult.failure),
+          ]
         : []),
     ]
       .filter(Boolean)
@@ -1710,9 +1828,33 @@ export function formatPushResult(
     ].join('\n');
   }
 
-  return [...lines, '', ...formatMakerFailureLines(submitResult.failure)]
+  return [
+    ...lines,
+    '',
+    ...formatPushRecoveryLines(submitResult),
+    '',
+    ...formatMakerFailureLines(submitResult.failure),
+  ]
     .filter(Boolean)
     .join('\n');
+}
+
+function formatPushRecoveryLines(submitResult: PushMakerProjectResult): string[] {
+  if (submitResult.pushed || submitResult.status !== 'failed_after_commit') {
+    return [];
+  }
+
+  return [
+    'push_recovery:',
+    '- committed_but_unpushed: yes',
+    submitResult.commitHash ? `- local_commit: ${submitResult.commitHash}` : '',
+    submitResult.ahead ? `- git_state: ${submitResult.ahead}` : '',
+    '- retry_tool: maker_submit_current_directory',
+    '- retry_build_tool: maker_build_current_directory',
+    '- retry_build_args: submit_local_changes_before_build=true',
+    '- do_not_use_generic_git_push: yes',
+    '- user_message: 本地提交已经保留，但还没推送到 Maker 远端；直接重试 Maker 提交/构建工具即可。',
+  ].filter(Boolean);
 }
 
 function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {
@@ -1758,6 +1900,25 @@ function formatToolException(toolName: string, error: unknown): string {
       message,
       '',
       'next_action: 请只引导用户安装 Git；在 `git --version` 可用之前，不要继续调用 clone、fetch、commit 或 push。',
+    ].join('\n');
+  }
+
+  if (error instanceof MakerCloneFailedError) {
+    const original = error.originalError;
+    const originalStack = original instanceof Error ? original.stack : undefined;
+    return [
+      '✗ Maker MCP tool failed',
+      '',
+      `- tool: ${toolName}`,
+      `- error_name: ${original instanceof Error ? original.name : typeof original}`,
+      `- message: ${message}`,
+      '',
+      ...formatClonePartialStateLines(error.targetDir),
+      '',
+      'debug:',
+      originalStack ? indent(originalStack) : indent(message),
+      '',
+      'next_action: 请根据 partial_state 判断是否直接重试；不要删除用户文件。若用户不懂目录状态，优先建议新建独立目录重新 clone。',
     ].join('\n');
   }
 

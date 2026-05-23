@@ -71,6 +71,41 @@ describe('maker clone binding safety', () => {
     expect(commands).toContain('checkout -B main origin/main');
   });
 
+  test('initializes an independent Maker repo when target is inside a parent git repo', async () => {
+    const parentDir = path.join(tempDir, 'parent-repo');
+    const targetDir = path.join(parentDir, 'Tests', 'MacroTests');
+    const gitLog = path.join(tempDir, '.test-tools', 'git.log');
+    const fakeGit = createFakeGit(gitLog, { parentGitRoot: parentDir });
+    process.env.TAPTAP_MAKER_GIT_BIN = fakeGit;
+    process.env.TAPTAP_MAKER_GIT_BASE = 'https://maker.example.test/git';
+    process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home');
+    process.env.PAT = 'tmpct_test_pat';
+    fs.mkdirSync(path.join(parentDir, '.git'), { recursive: true });
+    fs.writeFileSync(
+      path.join(parentDir, '.git', 'FAKE_HEAD_COMMIT'),
+      '1111111111111111111111111111111111111111',
+      'utf8'
+    );
+    fs.mkdirSync(path.join(targetDir, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(targetDir, '.claude', 'settings.json'), '{}\n', 'utf8');
+
+    const result = await cloneMakerProject({
+      appId: 'new-app',
+      targetDir,
+      userId: 'user-1',
+    });
+
+    expect(result.status).toBe('cloned');
+    expect(fs.existsSync(path.join(targetDir, '.git'))).toBe(true);
+    const commands = fs.readFileSync(gitLog, 'utf8');
+    expect(commands).toContain(`init ${targetDir}`);
+    expect(commands).toContain('fetch origin');
+    expect(commands).toContain('checkout -B main origin/main');
+    expect(commands).not.toContain(
+      `remote set-url origin https://git:tmpct_test_pat@maker.example.test/git/new-app.git`
+    );
+  });
+
   test('does not warn for ignored dot-prefixed config entries', async () => {
     const gitLog = path.join(tempDir, '.test-tools', 'git.log');
     const fakeGit = createFakeGit(gitLog);
@@ -164,7 +199,12 @@ describe('maker clone binding safety', () => {
 
 function createFakeGit(
   logPath: string,
-  options: { defaultBranch?: string; failSymbolicRef?: boolean; remoteFiles?: string[] } = {}
+  options: {
+    defaultBranch?: string;
+    failSymbolicRef?: boolean;
+    parentGitRoot?: string;
+    remoteFiles?: string[];
+  } = {}
 ): string {
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
   const fakeGit = path.join(path.dirname(logPath), 'fake-git.js');
@@ -190,6 +230,23 @@ if (commandArgs[0] === 'rev-parse' && commandArgs[1] === '--git-dir') {
     console.log('.git');
     process.exit(0);
   }
+  const parentGitRoot = ${JSON.stringify(options.parentGitRoot || '')};
+  if (parentGitRoot && cwd.startsWith(parentGitRoot + path.sep)) {
+    console.log(path.join(parentGitRoot, '.git'));
+    process.exit(0);
+  }
+  process.exit(1);
+}
+if (commandArgs[0] === 'rev-parse' && commandArgs[1] === '--show-toplevel') {
+  if (fs.existsSync(path.join(cwd, '.git'))) {
+    console.log(cwd);
+    process.exit(0);
+  }
+  const parentGitRoot = ${JSON.stringify(options.parentGitRoot || '')};
+  if (parentGitRoot && cwd.startsWith(parentGitRoot + path.sep)) {
+    console.log(parentGitRoot);
+    process.exit(0);
+  }
   process.exit(1);
 }
 if (commandArgs[0] === 'rev-parse' && commandArgs[1] === '--verify' && commandArgs[2] === 'HEAD') {
@@ -197,6 +254,14 @@ if (commandArgs[0] === 'rev-parse' && commandArgs[1] === '--verify' && commandAr
   if (fs.existsSync(headFile)) {
     console.log(fs.readFileSync(headFile, 'utf8'));
     process.exit(0);
+  }
+  const parentGitRoot = ${JSON.stringify(options.parentGitRoot || '')};
+  if (parentGitRoot && cwd.startsWith(parentGitRoot + path.sep)) {
+    const parentHeadFile = path.join(parentGitRoot, '.git', 'FAKE_HEAD_COMMIT');
+    if (fs.existsSync(parentHeadFile)) {
+      console.log(fs.readFileSync(parentHeadFile, 'utf8'));
+      process.exit(0);
+    }
   }
   process.exit(1);
 }

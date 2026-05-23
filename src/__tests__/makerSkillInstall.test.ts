@@ -51,6 +51,14 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('reference only');
     expect(skillText).toContain('Do not auto-select');
     expect(skillText).toContain('Bundled Skills');
+    expect(skillText).toContain('Before every clone attempt, call `maker_status(target_dir)`');
+    expect(skillText).toContain('Directory Suitability Decision');
+    expect(skillText).toContain('committed-but-unpushed local commits');
+    expect(skillText).toContain('push_recovery');
+    expect(skillText).toContain('Do not ask for permission to run a generic `git push`');
+    expect(skillText).toContain('Attached Workspace Selection');
+    expect(skillText).toContain('dialogues');
+    expect(skillText).toContain('single attached workspace');
     expect(skillText).not.toContain('taptap-maker dev-kit install --target .');
     expect(skillText).not.toContain('taptap-maker install-skill --ide codex');
   });
@@ -69,5 +77,8 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('templates/');
     expect(skillText).toContain('urhox-libs/');
     expect(skillText).toContain('Do not submit them to Maker Git');
+    expect(skillText).toContain('Testing And Result Check');
+    expect(skillText).toContain('用户可以直接说“提交”或“构建”');
+    expect(skillText).toContain('TapMaker 网页端查看结果');
   });
 });

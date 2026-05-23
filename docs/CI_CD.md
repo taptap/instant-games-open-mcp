@@ -189,6 +189,7 @@ npx -y @taptap/instant-games-open-mcp@beta
   - `docs:` / `ci:` / `chore:` → 不触发发布
 - ✅ **发布完全自动化**，无需人工干预
 - ✅ **符合组织 Ruleset**，所有更改通过 PR
+- ✅ 如果历史手动发包导致 npm 已存在目标 patch 版本但 Git tag 缺失，正式发布 job 会自动选择同一 major/minor 下的下一个可用 patch 版本，避免 npm publish 撞版本。
 
 ---
 
