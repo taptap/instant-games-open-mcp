@@ -36,3 +36,16 @@ dev-kit entries when possible.
 
 These files are local development aids. Do not submit them to Maker Git unless the user explicitly
 asks and understands they are local environment files.
+
+## Testing And Result Check
+
+Keep validation simple for Maker users. 用户可以直接说“提交”或“构建”:
+
+- If the user says “提交”, use the Maker submit flow so local changes are committed, pushed, and
+  built by the Maker MCP tools.
+- If the user says “构建”, use the Maker build flow. If the tool reports local changes, follow the
+  options returned by the tool instead of inventing a separate build script.
+- After submit or build finishes, tell the user to open the TapMaker 网页端查看结果.
+
+Do not create local-only test scripts just to verify Maker changes. The expected validation path is
+chat request -> Maker MCP submit/build tool -> TapMaker web result check.

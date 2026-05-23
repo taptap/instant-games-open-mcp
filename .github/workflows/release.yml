@@ -403,11 +403,54 @@ jobs:
         run: npm test
         continue-on-error: true
 
+      - name: Resolve release package version
+        id: release_version
+        run: |
+          CURRENT_VERSION="${{ needs.analyze.outputs.version }}"
+
+          if ! npm view "@taptap/instant-games-open-mcp@${CURRENT_VERSION}" version >/dev/null 2>&1; then
+            echo "version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "semantic_version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "Using semantic-release version: ${CURRENT_VERSION}"
+            exit 0
+          fi
+
+          if [[ "$CURRENT_VERSION" == *-* ]]; then
+            echo "Expected stable release version, got prerelease: ${CURRENT_VERSION}"
+            exit 1
+          fi
+
+          VERSIONS_JSON="$(npm view "@taptap/instant-games-open-mcp" versions --json)"
+          RESOLVED_VERSION="$(
+            CURRENT_VERSION="$CURRENT_VERSION" VERSIONS_JSON="$VERSIONS_JSON" node -e '
+              const versions = JSON.parse(process.env.VERSIONS_JSON || "[]");
+              const current = process.env.CURRENT_VERSION || "";
+              const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(current);
+              if (!match) {
+                throw new Error(`Invalid stable version: ${current}`);
+              }
+              const [, major, minor, patch] = match;
+              const pattern = new RegExp(`^${major}\\.${minor}\\.(\\d+)$`);
+              let maxPatch = Number(patch);
+              for (const version of versions) {
+                const versionMatch = pattern.exec(version);
+                if (versionMatch) {
+                  maxPatch = Math.max(maxPatch, Number(versionMatch[1]));
+                }
+              }
+              console.log(`${major}.${minor}.${maxPatch + 1}`);
+            '
+          )"
+
+          echo "version=${RESOLVED_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "semantic_version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "semantic-release proposed ${CURRENT_VERSION}, already exists; using ${RESOLVED_VERSION}"
+
       # 创建 Release 分支
       - name: Create release branch
         id: branch
         run: |
-          VERSION=${{ needs.analyze.outputs.version }}
+          VERSION=${{ steps.release_version.outputs.version }}
           BRANCH="release/v${VERSION}"
 
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
@@ -423,7 +466,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          VERSION=${{ needs.analyze.outputs.version }}
+          VERSION=${{ steps.release_version.outputs.version }}
 
           # 更新版本号
           npm version $VERSION --no-git-tag-version
@@ -448,7 +491,7 @@ jobs:
       # 提交并推送
       - name: Commit and push release branch
         run: |
-          VERSION=${{ needs.analyze.outputs.version }}
+          VERSION=${{ steps.release_version.outputs.version }}
           BRANCH=${{ steps.branch.outputs.branch }}
           NATIVE_CHANGED=${{ needs.analyze.outputs.native_changed }}
 
@@ -476,7 +519,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=${{ needs.analyze.outputs.version }}
+          VERSION=${{ steps.release_version.outputs.version }}
           BRANCH=${{ steps.branch.outputs.branch }}
           NATIVE_CHANGED=${{ needs.analyze.outputs.native_changed }}
 
@@ -538,7 +581,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=${{ needs.analyze.outputs.version }}
+          VERSION=${{ steps.release_version.outputs.version }}
           PR_URL=${{ steps.pr.outputs.pr_url }}
           PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
 
@@ -586,13 +629,17 @@ jobs:
       # 发布总结
       - name: Release summary
         run: |
-          VERSION=${{ needs.analyze.outputs.version }}
+          VERSION=${{ steps.release_version.outputs.version }}
+          SEMANTIC_VERSION=${{ steps.release_version.outputs.semantic_version }}
           NATIVE_CHANGED=${{ needs.analyze.outputs.native_changed }}
           HAS_ASSETS=${{ needs.analyze.outputs.has_native_assets }}
 
           echo "## 🎉 Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "✅ 版本: ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          if [ "$SEMANTIC_VERSION" != "$VERSION" ]; then
+            echo "ℹ️ semantic-release 原始版本: ${SEMANTIC_VERSION}" >> $GITHUB_STEP_SUMMARY
+          fi
 
           if [ "$NATIVE_CHANGED" == "true" ]; then
             echo "🔨 Native Signer: 重新构建 (native 代码有变更)" >> $GITHUB_STEP_SUMMARY

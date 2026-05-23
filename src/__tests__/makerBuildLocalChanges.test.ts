@@ -10,16 +10,23 @@ import {
   buildCurrentDirectory,
   createBuildArgs,
   formatBuildResult,
+  formatClonePartialStateLines,
   formatPushResult,
   pushThenBuildCurrentDirectory,
   tools,
 } from '../maker/server/mcp';
-import { readMakerProjectLocalChanges } from '../maker/cli/projects';
+import {
+  inspectMakerDirectoryGitStatus,
+  pushMakerProject,
+  readMakerProjectLocalChanges,
+} from '../maker/cli/projects';
 import { saveProjectConfig } from '../maker/storage';
 
 describe('maker build local-change guard', () => {
   let tempDir: string;
   const originalMakerHome = process.env.TAPTAP_MAKER_HOME;
+  const originalGitBase = process.env.TAPTAP_MAKER_GIT_BASE;
+  const originalPat = process.env.PAT;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-build-local-changes-'));
@@ -43,6 +50,16 @@ describe('maker build local-change guard', () => {
       delete process.env.TAPTAP_MAKER_HOME;
     } else {
       process.env.TAPTAP_MAKER_HOME = originalMakerHome;
+    }
+    if (originalGitBase === undefined) {
+      delete process.env.TAPTAP_MAKER_GIT_BASE;
+    } else {
+      process.env.TAPTAP_MAKER_GIT_BASE = originalGitBase;
+    }
+    if (originalPat === undefined) {
+      delete process.env.PAT;
+    } else {
+      process.env.PAT = originalPat;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
@@ -71,6 +88,174 @@ describe('maker build local-change guard', () => {
 
     expect(changes.hasChanges).toBe(true);
     expect(changes.files).toContain(fileName);
+  });
+
+  test('reports committed but unpushed Maker changes', async () => {
+    const branch = prepareMakerRemote();
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- committed only\n', 'utf8');
+    runGit(['add', 'scripts/main.lua']);
+    runGit(['commit', '-m', 'chore: committed only']);
+
+    const changes = await readMakerProjectLocalChanges(tempDir);
+
+    expect(changes.hasChanges).toBe(true);
+    expect(changes.hasUnpushedCommits).toBe(true);
+    expect(changes.files).toEqual([]);
+    expect(changes.ahead).toContain(`origin/${branch}..HEAD`);
+  });
+
+  test('pushes committed but unpushed Maker changes when workspace is clean', async () => {
+    const branch = prepareMakerRemote();
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- committed only\n', 'utf8');
+    runGit(['add', 'scripts/main.lua']);
+    runGit(['commit', '-m', 'chore: committed only']);
+    const head = readGit(['rev-parse', '--short', 'HEAD']).trim();
+
+    const result = await pushMakerProject({ cwd: tempDir });
+
+    expect(result.pushed).toBe(true);
+    expect(result.committed).toBe(false);
+    expect(result.commitHash).toBe(head);
+    expect(result.status).toBe('pushed');
+    expect(
+      readGit(
+        ['rev-parse', '--short', branch],
+        path.join(process.env.TAPTAP_MAKER_GIT_BASE!, 'app-1.git')
+      )
+    ).toBe(`${head}\n`);
+  });
+
+  test('auto-submit build pushes committed but unpushed changes before remote build', async () => {
+    const submittedCwds: string[] = [];
+    const remoteBuildTargetDirs: string[] = [];
+    prepareMakerRemote();
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- committed only\n', 'utf8');
+    runGit(['add', 'scripts/main.lua']);
+    runGit(['commit', '-m', 'chore: committed only']);
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChangesBeforeBuild: true,
+      submitLocalChanges: async (options) => {
+        submittedCwds.push(options.cwd);
+        return {
+          branch: 'main',
+          committed: false,
+          commitHash: 'abc1234',
+          pushed: true,
+          status: 'pushed',
+        };
+      },
+      callRemoteBuild: async (targetDir) => {
+        remoteBuildTargetDirs.push(targetDir);
+        return {
+          mode: 'remote_build',
+          projectRoot: tempDir,
+          projectId: 'app-1',
+          projectPath: 'app-1/workspace',
+          serverUrl: 'https://maker.example.test/mcp',
+          env: 'production',
+          timeoutMs: 1000,
+          buildArgs: {},
+          resultText: 'ok',
+        };
+      },
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect(submittedCwds.map(normalizePath)).toEqual([gitProjectRoot()].map(normalizePath));
+    expect(remoteBuildTargetDirs.map(normalizePath)).toEqual([gitProjectRoot()].map(normalizePath));
+  });
+
+  test('ignores dev-kit .gitignore changes for build local-change guard', async () => {
+    fs.appendFileSync(path.join(tempDir, '.gitignore'), '\n# local dev kit\nCLAUDE.md\n', 'utf8');
+
+    const changes = await readMakerProjectLocalChanges(tempDir);
+
+    expect(changes.hasChanges).toBe(false);
+    expect(changes.files).toEqual([]);
+  });
+
+  test('omits .gitignore from build local-change prompts when game files changed', async () => {
+    fs.appendFileSync(path.join(tempDir, '.gitignore'), '\n# local dev kit\nCLAUDE.md\n', 'utf8');
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
+
+    const changes = await readMakerProjectLocalChanges(tempDir);
+
+    expect(changes.hasChanges).toBe(true);
+    expect(changes.files).toEqual(['scripts/main.lua']);
+  });
+
+  test('formats clone partial state after a failed clone leaves local setup behind', () => {
+    const targetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-clone-partial-'));
+    try {
+      fs.mkdirSync(path.join(targetDir, '.git'), { recursive: true });
+      fs.writeFileSync(
+        path.join(targetDir, '.gitignore.dev-kit-before-clone'),
+        'CLAUDE.md\n',
+        'utf8'
+      );
+      fs.writeFileSync(path.join(targetDir, 'CLAUDE.md'), '# dev kit\n', 'utf8');
+      for (const entry of ['examples', 'templates', 'urhox-libs']) {
+        fs.mkdirSync(path.join(targetDir, entry), { recursive: true });
+      }
+
+      const text = formatClonePartialStateLines(targetDir).join('\n');
+
+      expect(text).toContain('partial_state:');
+      expect(text).toContain('- git_initialized: yes');
+      expect(text).toContain('- project_bound: no');
+      expect(text).toContain('- ai_dev_kit_present: yes');
+      expect(text).toContain('- staged_dev_kit_gitignore: yes');
+      expect(text).toContain('- safe_to_retry: yes');
+    } finally {
+      fs.rmSync(targetDir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects Maker config inside a parent git repo without an independent project git root', async () => {
+    fs.rmSync(path.join(tempDir, '.maker-mcp'), { recursive: true, force: true });
+    const nestedMakerDir = path.join(tempDir, 'Tests', 'MacroTests');
+    fs.mkdirSync(nestedMakerDir, { recursive: true });
+    saveProjectConfig(nestedMakerDir, {
+      project_id: 'nested-app',
+      user_id: 'user-1',
+    });
+
+    await expect(readMakerProjectLocalChanges(nestedMakerDir)).rejects.toThrow(
+      'must be an independent Git repository'
+    );
+  });
+
+  test('reports unusable Maker git status when binding is inside a parent git repo', () => {
+    fs.rmSync(path.join(tempDir, '.maker-mcp'), { recursive: true, force: true });
+    const nestedMakerDir = path.join(tempDir, 'Tests', 'MacroTests');
+    fs.mkdirSync(nestedMakerDir, { recursive: true });
+    saveProjectConfig(nestedMakerDir, {
+      project_id: 'nested-app',
+      user_id: 'user-1',
+    });
+
+    const status = inspectMakerDirectoryGitStatus(nestedMakerDir);
+
+    expect(status.issue).toBe('inside_parent_git_repo');
+    expect(status.isUsableMakerGitRepo).toBe(false);
+    expect(status.makerProjectRoot).toBe(nestedMakerDir);
+    expect(normalizePath(status.gitRoot || '')).toBe(normalizePath(tempDir));
+  });
+
+  test('blocks submit from Maker config inside a parent git repo before touching git remote', async () => {
+    fs.rmSync(path.join(tempDir, '.maker-mcp'), { recursive: true, force: true });
+    const nestedMakerDir = path.join(tempDir, 'Tests', 'MacroTests');
+    fs.mkdirSync(nestedMakerDir, { recursive: true });
+    saveProjectConfig(nestedMakerDir, {
+      project_id: 'nested-app',
+      user_id: 'user-1',
+    });
+
+    await expect(pushMakerProject({ cwd: nestedMakerDir })).rejects.toThrow(
+      'must be an independent Git repository'
+    );
   });
 
   test('blocks build before connecting to remote when local changes are not submitted', async () => {
@@ -320,8 +505,8 @@ describe('maker build local-change guard', () => {
 
     expect(result.mode).toBe('remote_build');
     expect('submitResult' in result ? result.submitResult?.commitHash : undefined).toBe('abc1234');
-    expect(submittedCwds).toEqual([fs.realpathSync(tempDir)]);
-    expect(remoteBuildTargetDirs).toEqual([fs.realpathSync(tempDir)]);
+    expect(submittedCwds.map(normalizePath)).toEqual([gitProjectRoot()].map(normalizePath));
+    expect(remoteBuildTargetDirs.map(normalizePath)).toEqual([gitProjectRoot()].map(normalizePath));
   });
 
   test('submits, remembers preference, and runs remote build after user confirms build prompt', async () => {
@@ -358,7 +543,7 @@ describe('maker build local-change guard', () => {
 
     expect(result.mode).toBe('remote_build');
     expect('submitResult' in result ? result.submitResult?.commitHash : undefined).toBe('def5678');
-    expect(remoteBuildTargetDirs).toEqual([fs.realpathSync(tempDir)]);
+    expect(remoteBuildTargetDirs.map(normalizePath)).toEqual([gitProjectRoot()].map(normalizePath));
 
     const config = JSON.parse(
       fs.readFileSync(path.join(tempDir, '.maker-mcp', 'config.json'), 'utf8')
@@ -402,6 +587,10 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- classification: remote_rejected');
     expect(output).toContain('rejected');
     expect(output).toContain('pull/rebase');
+    expect(output).toContain('push_recovery:');
+    expect(output).toContain('- committed_but_unpushed: yes');
+    expect(output).toContain('- retry_tool: maker_submit_current_directory');
+    expect(output).toContain('- do_not_use_generic_git_push: yes');
   });
 
   test('submit tool pushes and then runs remote build', async () => {
@@ -514,6 +703,45 @@ describe('maker build local-change guard', () => {
     expect(output).not.toContain('remote_build:');
   });
 
+  test('push failure output explains Maker retry path without generic git push', () => {
+    const output = formatPushResult(
+      tempDir,
+      {
+        targetDir: tempDir,
+        submitResult: {
+          branch: 'main',
+          committed: true,
+          commitHash: 'abc1234',
+          message: 'chore: update maker project',
+          pushed: false,
+          status: 'failed_after_commit',
+          ahead: '## main...origin/main [ahead 1]',
+          failure: {
+            stage: 'push',
+            classification: 'remote_transient',
+            exitCode: 128,
+            stdout: '',
+            stderr: '504 Gateway Timeout',
+            message: '504 Gateway Timeout',
+            nextAction: '远端 Maker git 服务临时不可用。',
+          },
+        },
+      },
+      {
+        elapsedMs: 1000,
+        elapsed: '1s',
+        progressEvents: 1,
+      }
+    );
+
+    expect(output).toContain('push_recovery:');
+    expect(output).toContain('- committed_but_unpushed: yes');
+    expect(output).toContain('- retry_tool: maker_submit_current_directory');
+    expect(output).toContain('- retry_build_tool: maker_build_current_directory');
+    expect(output).toContain('- do_not_use_generic_git_push: yes');
+    expect(output).toContain('504 Gateway Timeout');
+  });
+
   test('auto-submit build preserves pushed result when remote build fails', async () => {
     saveProjectConfig(tempDir, {
       project_id: 'app-1',
@@ -552,5 +780,48 @@ describe('maker build local-change guard', () => {
     if (result.status !== 0) {
       throw new Error(`git ${args.join(' ')} failed: ${result.stderr || result.stdout}`);
     }
+  }
+
+  function readGit(args: string[], cwd = tempDir): string {
+    const result = spawnSync('git', args, {
+      cwd,
+      encoding: 'utf8',
+    });
+    if (result.status !== 0) {
+      throw new Error(`git ${args.join(' ')} failed: ${result.stderr || result.stdout}`);
+    }
+    return result.stdout;
+  }
+
+  function prepareMakerRemote(): string {
+    const branch = readGit(['branch', '--show-current']).trim() || 'main';
+    const gitBase = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-test-git-base-'));
+    const remoteDir = path.join(gitBase, 'app-1.git');
+    const initRemote = spawnSync('git', ['init', '--bare', remoteDir], {
+      encoding: 'utf8',
+    });
+    if (initRemote.status !== 0) {
+      throw new Error(`git init --bare failed: ${initRemote.stderr || initRemote.stdout}`);
+    }
+    process.env.TAPTAP_MAKER_GIT_BASE = gitBase;
+    process.env.PAT = 'tmpct_test_pat';
+    runGit(['remote', 'add', 'origin', remoteDir]);
+    runGit(['push', '-u', 'origin', branch]);
+    return branch;
+  }
+
+  function gitProjectRoot(): string {
+    const result = spawnSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: tempDir,
+      encoding: 'utf8',
+    });
+    if (result.status !== 0) {
+      throw new Error(`git rev-parse failed: ${result.stderr || result.stdout}`);
+    }
+    return result.stdout.trim();
+  }
+
+  function normalizePath(value: string): string {
+    return fs.realpathSync.native(value);
   }
 });

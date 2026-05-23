@@ -68,6 +68,22 @@ dialogue/session directory, pass the user's current project directory as `target
 client does not expose that directory, say the current client did not provide the project directory
 instead of guessing.
 
+### Attached Workspace Selection
+
+Some AI clients start MCP from a dialogue/session directory and expose the real project as an
+attached workspace. For Maker status, clone, submit, and build, compare:
+
+- the AI dialogue current directory, often containing `dialogues`
+- the attached workspace directories shown by the client
+
+If there is a single attached workspace, use that single attached workspace as `target_dir` when
+calling Maker tools. If there are multiple attached workspaces, show the paths and ask the user
+which one is the Maker project directory. Do not treat the dialogue/session directory as the Maker
+project directory, and do not ask the user to clone an app into that directory.
+
+If `maker_status` returns `AI client workspace selection`, follow that hint: choose an attached
+workspace first, then call `maker_status(target_dir="<attached project directory>")`.
+
 ## Initialization Workflow
 
 Trigger phrases include:
@@ -97,7 +113,7 @@ Workflow:
 7. If the current directory is still unbound, show every returned Maker app entry to the user and
    ask the user to choose. Do not summarize the list as only a count, category, or stage. Do not
    auto-select, even if there is only one app.
-8. Run the working directory compliance check below.
+8. Run the working directory compliance check below, including the parent Git repository warning.
 9. After the user chooses an app, call `maker_clone_to_current_directory(app_id)`. The clone
    tool prepares the AI dev kit automatically before project checkout.
 10. After clone succeeds, call `maker_status` again or explain that `.maker-mcp/config.json` now binds the directory to the Maker project.
@@ -185,6 +201,25 @@ After the user chooses, pass the concrete `app_id` to `maker_clone_to_current_di
 
 ## Working Directory Compliance Check
 
+Before every clone attempt, call `maker_status(target_dir)` for the user's intended Maker
+development directory. Use that result as the source of truth for Git availability, existing Maker
+binding, outer Git repository detection, and AI dev-kit status.
+
+### Directory Suitability Decision
+
+After `maker_status(target_dir)`, decide whether the directory is suitable for clone:
+
+- If the directory is already bound to a Maker project, do not clone again unless the user
+  explicitly asks to switch or re-clone.
+- If Git is missing, stop and tell the user to install Git first.
+- If `Maker Git directory` reports `inside_parent_git_repo` or `target_is_git_root: no` with an
+  outer `git_root`, explain that the directory is under another Git repository. Recommend a
+  completely independent directory, such as `~/MakerProjects/<game-name>`.
+- If the directory is unbound and only contains ignored local config folders, continue after the
+  user chooses an app.
+- If the directory contains ordinary user files or folders, explain that Maker clone keeps local
+  files but may stop on path conflicts. Ask whether to continue here or switch to a clean directory.
+
 Before clone, inspect only the current directory top level.
 The goal is to avoid surprising overwrites, not to deeply audit game code.
 
@@ -202,6 +237,17 @@ If the directory contains ordinary user files or folders, explain that Maker ini
 keep local files, but clone can fail if a local path conflicts with the Maker project. Ask whether
 to continue in this directory or switch to a clean directory.
 
+If the current directory is inside a larger Git repository but is not itself a Git root, warn the
+user before clone:
+
+- The outer repository may be an existing user project.
+- A Maker project can live under that directory only if the Maker directory gets its own `.git`.
+- Recommend a completely independent directory, such as `~/MakerProjects/<game-name>`, for safer
+  local development.
+- If the user explicitly continues, call `maker_clone_to_current_directory`; the MCP clone tool
+  must initialize an independent Maker Git repository in the target directory and must not modify
+  the outer repository remote.
+
 Do not delete, move, or overwrite user files during this check.
 
 ## Clone Directory Safety
@@ -215,6 +261,20 @@ may create local-only files before clone, so explain this in non-technical terms
   rename, or choose another directory
 
 Do not delete or overwrite user files to make clone work unless the user explicitly asks.
+
+If `maker_clone_to_current_directory` fails and the tool returns `partial_state`, explain the
+state in plain language:
+
+- `project_bound: no` usually means clone did not finish; retrying clone is allowed.
+- `git_initialized: yes` with `project_bound: no` means the directory may contain a partial local
+  Git setup; retry once, and if it fails again recommend a fresh independent directory.
+- `ai_dev_kit_present: yes` means local AI docs/examples may already be present even though Maker
+  project checkout failed.
+- `project_bound: yes` means the directory already has Maker binding; run `maker_status` before
+  attempting anything else.
+
+Do not delete partial files automatically. For novice users, prefer recommending a new independent
+directory over manual cleanup.
 
 ### `.gitignore` Merge During Clone
 
@@ -277,6 +337,21 @@ If `maker_submit_current_directory` returns a build failure after a successful p
 
 - submit/push succeeded
 - build failed, with the concrete build error
+
+If submit created a local commit but push failed because the Maker remote was temporarily
+unavailable, do not run a manual generic `git push`. Tell the user to retry
+`maker_submit_current_directory`, or use `maker_build_current_directory` with
+`submit_local_changes_before_build=true` when the user is retrying build. Maker MCP will detect
+committed-but-unpushed local commits and push them before build.
+
+When a Maker tool output contains `push_recovery`, follow it exactly:
+
+- Tell the user the local commit is preserved but not yet on Maker remote.
+- Do not ask for permission to run a generic `git push`.
+- Retry with `maker_submit_current_directory` for submit requests.
+- Retry with `maker_build_current_directory(submit_local_changes_before_build=true)` for build
+  requests.
+- If the failure is `remote_rejected`, ask before pull/rebase; do not create a new branch or PR.
 
 ## Pull And Conflict Handling
 
