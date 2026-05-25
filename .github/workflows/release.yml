@@ -476,8 +476,8 @@ jobs:
           npm pack --dry-run
 
           # 尝试 OIDC provenance 发布，失败则 fallback 到 NPM_TOKEN
-          npm publish --access public --provenance 2>/dev/null \
-            || npm publish --access public
+          npm publish --access public --tag latest --provenance 2>/dev/null \
+            || npm publish --access public --tag latest
 
       # 生成 CHANGELOG
       - name: Generate CHANGELOG
