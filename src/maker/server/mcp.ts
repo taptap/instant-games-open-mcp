@@ -41,6 +41,7 @@ import {
   type PushMakerProjectResult,
   type MakerProjectProgress,
   type MakerProjectProgressHandler,
+  type MakerGitFailure,
 } from '../cli/projects.js';
 import { requestTapAuthWithPat } from '../auth/patTap.js';
 import {
@@ -1455,15 +1456,7 @@ function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {
   ].filter(Boolean);
 }
 
-function formatMakerFailureLines(failure: {
-  stage: string;
-  command?: string;
-  exitCode?: number | null;
-  stdout?: string;
-  stderr?: string;
-  classification: string;
-  nextAction: string;
-}): string[] {
+function formatMakerFailureLines(failure: MakerGitFailure): string[] {
   return [
     'failure:',
     `- stage: ${failure.stage}`,

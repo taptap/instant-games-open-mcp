@@ -108,6 +108,29 @@ describe('maker clone binding safety', () => {
     );
   });
 
+  test('redacts PAT from git setup failure command', async () => {
+    const gitLog = path.join(tempDir, '.test-tools', 'git.log');
+    const fakeGit = createFakeGit(gitLog, { failRemoteSetup: true });
+    process.env.TAPTAP_MAKER_GIT_BIN = fakeGit;
+    process.env.TAPTAP_MAKER_GIT_BASE = 'https://maker.example.test/git';
+    process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home');
+    process.env.PAT = 'tmpct_test_pat';
+
+    try {
+      await cloneMakerProject({
+        appId: 'new-app',
+        targetDir: tempDir,
+        userId: 'user-1',
+        forcePat: true,
+      });
+      throw new Error('Expected clone to fail');
+    } catch (error) {
+      const command = (error as { failure?: { command?: string } }).failure?.command || '';
+      expect(command).toContain('https://git:***@maker.example.test/git/new-app.git');
+      expect(command).not.toContain('tmpct_test_pat');
+    }
+  });
+
   test('does not warn for ignored dot-prefixed config entries', async () => {
     const gitLog = path.join(tempDir, '.test-tools', 'git.log');
     const fakeGit = createFakeGit(gitLog);
@@ -233,6 +256,7 @@ function createFakeGit(
     defaultBranch?: string;
     failSymbolicRef?: boolean;
     failFirstFetchWith503?: boolean;
+    failRemoteSetup?: boolean;
     parentGitRoot?: string;
     remoteFiles?: string[];
   } = {}
@@ -304,6 +328,10 @@ if (commandArgs[0] === 'remote' && commandArgs[1] === 'get-url') {
   process.exit(1);
 }
 if (commandArgs[0] === 'remote' && (commandArgs[1] === 'add' || commandArgs[1] === 'set-url')) {
+  if (${JSON.stringify(options.failRemoteSetup === true)}) {
+    console.error('fatal: unable to access ' + commandArgs[3] + ': The requested URL returned error: 401');
+    process.exit(128);
+  }
   process.exit(0);
 }
 if (commandArgs[0] === 'fetch') {

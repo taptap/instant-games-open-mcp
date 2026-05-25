@@ -705,14 +705,14 @@ function createGitFailure(input: {
   stdout?: string;
   stderr?: string;
 }): MakerGitFailure {
-  const stderr = input.stderr?.trim() || '';
-  const stdout = input.stdout?.trim() || '';
+  const stderr = redactGitSecrets(input.stderr?.trim() || '');
+  const stdout = redactGitSecrets(input.stdout?.trim() || '');
   const text = `${stdout}\n${stderr}`.trim();
   const classification = classifyGitFailure(text);
   const retryDecision = getMakerGitRetryDecision(text);
   return {
     stage: input.stage,
-    command: input.command,
+    command: input.command ? redactGitSecrets(input.command) : undefined,
     exitCode: input.exitCode,
     stdout,
     stderr,
@@ -722,6 +722,10 @@ function createGitFailure(input: {
     retryReason: retryDecision.reason,
     nextAction: nextActionForFailure(classification),
   };
+}
+
+function redactGitSecrets(value: string): string {
+  return value.replace(/(https?:\/\/[^:\s/@]+:)[^@\s]+@/g, '$1***@');
 }
 
 function classifyGitFailure(message: string): MakerGitFailure['classification'] {
