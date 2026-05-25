@@ -36,6 +36,17 @@ import { formatMakerSkillStatus } from './skill.js';
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const DEFAULT_PACKAGE = '@taptap/instant-games-open-mcp';
 const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit']);
+const BOOLEAN_OPTIONS = new Set([
+  'json',
+  'skip_confirm',
+  'skip_mcp_install',
+  'pat_stdin',
+  'pat_from_stdin',
+  'h',
+  'help',
+]);
+const PAT_ARG_WARNING =
+  'Warning: passing Maker PAT via command-line arguments exposes it via ps/shell history; prefer the interactive prompt or --pat-stdin.\n';
 
 type ParsedArgs = {
   command: string[];
@@ -110,6 +121,10 @@ function parseArgs(argv: string[]): ParsedArgs {
       }
 
       const key = toOptionKey(arg.slice(2));
+      if (BOOLEAN_OPTIONS.has(key)) {
+        options[key] = true;
+        continue;
+      }
       const next = argv[index + 1];
       if (next && !next.startsWith('-')) {
         options[key] = next;
@@ -311,9 +326,7 @@ async function resolvePatSet(parsed: ParsedArgs): Promise<string> {
   const fromPositional = parsed.positionals[0];
   const fromOption = stringOption(parsed, 'pat');
   if (fromPositional || fromOption) {
-    process.stderr.write(
-      'Warning: passing Maker PAT via command-line arguments exposes it via ps/shell history; prefer the interactive prompt or --pat-stdin.\n'
-    );
+    warnPatArgExposure();
     return fromPositional || fromOption!;
   }
 
@@ -379,6 +392,7 @@ async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
 async function resolvePat(parsed: ParsedArgs, ctx: CliContext): Promise<string> {
   const fromArgs = stringOption(parsed, 'pat');
   if (fromArgs) {
+    warnPatArgExposure();
     saveManualMakerPat(fromArgs);
     return fromArgs;
   }
@@ -718,6 +732,10 @@ export function createMaskedPromptOutput(): NodeJS.WritableStream {
       callback();
     },
   });
+}
+
+function warnPatArgExposure(): void {
+  process.stderr.write(PAT_ARG_WARNING);
 }
 
 function stringOption(parsed: ParsedArgs, key: string): string | undefined {

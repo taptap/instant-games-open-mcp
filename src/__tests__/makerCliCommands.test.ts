@@ -184,6 +184,41 @@ describe('Maker CLI commands', () => {
     );
   });
 
+  test('init warns when PAT is passed with --pat', async () => {
+    await runMakerCli([
+      'init',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-confirm',
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    expect(stderrSpy.mock.calls.join('')).toContain('exposes it via ps/shell history');
+  });
+
+  test('boolean flags do not consume following positional app id', async () => {
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    expect(cloneMakerProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'app-1',
+        targetDir: tempDir,
+      })
+    );
+  });
+
   test('pat set warns when PAT is passed as a positional argument', async () => {
     await runMakerCli(['pat', 'set', 'secret-maker-token']);
 
