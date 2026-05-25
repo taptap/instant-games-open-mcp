@@ -5,8 +5,8 @@ description: Explain the local TapTap Maker AI dev kit installed during Maker pr
 
 # TapTap Maker AI Dev Kit
 
-Use this skill to orient the local AI/Agent after `maker_clone_to_current_directory` installs the
-AI dev kit into a Maker project directory.
+Use this skill to orient the local AI/Agent after `taptap-maker init` installs the AI dev kit into a
+Maker project directory.
 
 ## What To Tell The Local Agent
 
@@ -30,9 +30,9 @@ When a user asks to develop or modify a Maker project after clone:
 4. Use `templates/` when creating new game files or scaffolding.
 5. Use `urhox-libs/` when engine API behavior or capability names are needed.
 
-If these entries are missing in a bound Maker project, call `maker_status` with the actual project
-directory as `target_dir`. The status tool will report dev-kit state and restore missing local
-dev-kit entries when possible.
+If these entries are missing in a bound Maker project, read `maker://status` or call
+`maker_status_lite` with the actual project directory as `target_dir` to confirm state, then run
+`taptap-maker dev-kit update` in that project directory to restore missing local dev-kit entries.
 
 These files are local development aids. Do not submit them to Maker Git unless the user explicitly
 asks and understands they are local environment files.
@@ -41,10 +41,11 @@ asks and understands they are local environment files.
 
 Keep validation simple for Maker users. 用户可以直接说“提交”或“构建”:
 
-- If the user says “提交”, use the Maker submit flow so local changes are committed, pushed, and
-  built by the Maker MCP tools.
-- If the user says “构建”, use the Maker build flow. If the tool reports local changes, follow the
-  options returned by the tool instead of inventing a separate build script.
+- If the user says “提交”, “推送”, “构建”, “预览”, or “跑一下”, use
+  `maker_build_current_directory`. The tool commits when needed, pushes to Maker remote, and then
+  runs the remote build.
+- If push fails, do not start a separate build or generic Git push. Explain the returned recovery
+  details, resolve pull/rebase/conflict with user approval, then retry `maker_build_current_directory`.
 - After submit or build finishes, tell the user to open the TapMaker 网页端查看结果.
 
 Do not create local-only test scripts just to verify Maker changes. The expected validation path is

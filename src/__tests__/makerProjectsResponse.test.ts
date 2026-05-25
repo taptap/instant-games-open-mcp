@@ -68,7 +68,9 @@ describe('maker status dialogue directory guidance', () => {
 
     expect(hint).toContain('AI client workspace selection');
     expect(hint).toContain('do_not_clone_here: yes');
-    expect(hint).toContain('maker_status(target_dir="<attached project directory>")');
+    expect(hint).toContain(
+      'read maker://status or call maker_status_lite with the attached project directory'
+    );
     expect(hint).not.toContain('要 clone 哪个');
     expect(hint).not.toContain('app_id');
   });

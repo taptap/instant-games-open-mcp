@@ -42,7 +42,6 @@ export interface MakerProjectConfig {
   user_id?: string;
   sce_endpoint?: string;
   custom_fields?: Record<string, string>;
-  build_local_changes_policy?: 'ask' | 'auto_submit';
   created_at?: string;
   updated_at?: string;
 }

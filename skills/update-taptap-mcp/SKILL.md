@@ -124,7 +124,7 @@ claude mcp list 2>&1 | Select-String -Pattern 'taptap|Warning'
 
 ## Step 5：提示用户重启客户端
 
-更新完成后提醒用户重启 MCP 客户端，或新开 Claude Code / Codex / Cursor 窗口。当前会话通常不会热加载新 MCP；重启后以 `maker_status` 是否可调用作为最终生效标准。
+更新完成后提醒用户重启 MCP 客户端，或新开 Claude Code / Codex / Cursor 窗口。当前会话通常不会热加载新 MCP；重启后以能读取 `maker://status` 作为首选生效标准；如果客户端不支持 MCP Resources，则以 `maker_status_lite` 是否可调用作为兜底标准。
 
 ---
 
@@ -207,4 +207,4 @@ claude mcp list 2>&1 | grep -E "taptap|Warning"
 
 ## Step 5：提示用户重启客户端
 
-更新完成后提醒用户重启 MCP 客户端，或新开 Claude Code / Codex / Cursor 窗口。当前会话通常不会热加载新 MCP；重启后以 `maker_status` 是否可调用作为最终生效标准。
+更新完成后提醒用户重启 MCP 客户端，或新开 Claude Code / Codex / Cursor 窗口。当前会话通常不会热加载新 MCP；重启后以能读取 `maker://status` 作为首选生效标准；如果客户端不支持 MCP Resources，则以 `maker_status_lite` 是否可调用作为兜底标准。

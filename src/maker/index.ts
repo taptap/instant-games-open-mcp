@@ -4,10 +4,9 @@
  * Starts Maker MCP server mode.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
 import { startMakerMcpServer } from './server/mcp.js';
-import { getMakerHome } from './storage.js';
+import { formatCliError, runMakerCli } from './cli/commands.js';
+import { appendMakerCrashLog } from './crashLog.js';
 
 installCrashLogging();
 
@@ -24,9 +23,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  throw new Error(
-    `taptap-maker does not expose user CLI subcommands. Start it without arguments as an MCP server.`
-  );
+  await runMakerCli(process.argv.slice(2));
 }
 
 function printHelp(): void {
@@ -34,14 +31,22 @@ function printHelp(): void {
     [
       'Usage:',
       '  taptap-maker                         Start MCP server mode',
+      '  taptap-maker init [--env rnd|production] [--app-id ID] [--target-dir DIR] [--pat PAT]',
+      '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
+      '                     [--package @taptap/instant-games-open-mcp@beta] [--json]',
+      '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
+      '  taptap-maker apps [--pat PAT] [--json]',
+      '  taptap-maker pat set [PAT] [--json]',
+      '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',
+      '                             [--package @taptap/instant-games-open-mcp@beta] [--json]',
+      '  taptap-maker mcp verify              Verify CLI spawn path',
+      '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker help                    Show this help',
       '',
-      'Normal Maker local development should use MCP tools:',
-      '  maker_exchange_pat, maker_list_apps, maker_clone_to_current_directory,',
-      '  maker_submit_current_directory, maker_build_current_directory.',
+      'Windows note:',
+      '  Generated MCP configs use npx.cmd automatically on Windows.',
       '',
-      'Advanced CLI subcommands still exist for maintainers and diagnostics,',
-      'but are not the default user onboarding path.',
+      'MCP server mode is still used by AI clients after configuration reload.',
       '',
     ].join('\n')
   );
@@ -49,7 +54,7 @@ function printHelp(): void {
 
 main().catch((error) => {
   logCrash('main.catch', error);
-  process.stderr.write(`❌ ${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(`❌ ${formatCliError(error)}\n`);
   process.exit(1);
 });
 
@@ -69,15 +74,7 @@ function installCrashLogging(): void {
 
 function logCrash(source: string, error: unknown): void {
   try {
-    const makerHome = getMakerHome();
-    fs.mkdirSync(makerHome, { recursive: true });
-    const logPath = path.join(makerHome, 'mcp-crash.log');
-    const message = error instanceof Error ? error.stack || error.message : String(error);
-    fs.appendFileSync(
-      logPath,
-      [`[${new Date().toISOString()}] ${source}`, message, ''].join('\n'),
-      'utf8'
-    );
+    appendMakerCrashLog(source, error);
   } catch {
     // Last-resort crash logging must never create another crash.
   }

@@ -330,27 +330,21 @@ TAPTAP_MCP_PORT=8080 npm run serve:sse       # SSE 模式，端口 8080
 TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 ```
 
-### Maker 本地 MCP（PAT-first）
+### Maker 本地开发（CLI-first / PAT-first）
 
-Maker 本地 MCP 的默认认证路径是 PAT-first：
+Maker 本地开发的默认路径是 CLI-first + PAT-first：
 
-- 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 Maker 本地开发初始化流程：先检查 Git 和 PAT，再列出 app 让用户选择，最后 clone 到当前目录。
-- 如果本地没有 Maker PAT，必须主动让用户打开当前环境的 PAT 页面新建 PAT，并把 PAT 发给 Agent：production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
-- 用户提供 Maker PAT 后，调用 `maker_exchange_pat(manual_pat)` 保存到 `~/.taptap-maker/pat.json`，并兼容旧路径 `~/.maker-pat`。
-- `maker_exchange_pat` 保存 PAT 后会自动调用 `GET /api/v1/user/taptap-token` 获取并保存 TapTap MAC token，然后自动列出 app。
-- `maker_status` 如果发现本地已有 PAT 但缺少 TapTap MAC token，会自动尝试获取；如果当前目录未绑定，也会自动列出 app，不需要用户额外要求。
-- `maker_list_apps` 优先使用 PAT 调 Maker API 获取 app 列表，并必须展示给用户选择。
-- `maker_clone_to_current_directory` 和 `maker_submit_current_directory` 默认复用缓存 PAT 做 Maker git 认证。
-- 用户说“帮我提交/提交代码/提交并推送/push”时，`maker_submit_current_directory` 必须完整执行 commit + push + build；只有实际 push 成功后才继续远端 build。
-- `maker_build_current_directory` 会强制检查本地 Maker 项目是否有未提交改动；有改动且没有保存自动提交偏好时默认停止，提醒用户直接构建只会构建云端已有版本。
-- Maker 同时提供 `taptap-maker-local` 和 `update-taptap-mcp` skills，用于让本地 AI/Agent 参与 clone、pull、提交、推送、冲突解释和 MCP npx 缓存更新；第一版不替换现有 MCP tools。
-- `maker_status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local` 与 `update-taptap-mcp`；除此之外不做编辑器安装引导。
-- PAT 验证通过、用户选择 app 后，`maker_clone_to_current_directory` 会自动准备本地 AI dev kit；clone 工具会跳过 ZIP 顶层 `scripts`、删除下载 ZIP、先写 `.gitignore.dev-kit-before-clone`，clone 成功后再合并到远端 `.gitignore`。
-- 拦截提示的首选项必须是 `提交本地改动并触发构建（以后都是如此）`。
-- 用户选择首选项时，再次调用 `maker_build_current_directory` 并设置 `submit_local_changes_before_build=true` 和 `remember_build_submit_preference=true`；Maker 构建入口必须完整执行 commit + push + build，并返回构建结果。
-- 该偏好会保存到当前项目 `.maker-mcp/config.json`；后续构建遇到本地改动会默认自动提交并继续执行远端 build。
+- 本轮重构的继续开发计划、流程文档和本地 CLI 测试文档分别在 `docs/superpowers/plans/2026-05-25-maker-cli-first-rework.md`、`docs/MAKER_CLI_FIRST_REWORK_FLOW.md` 与 `docs/MAKER_CLI_LOCAL_TESTING.md`。上下文压缩或长时间中断后，先读这些文档再继续。
+- 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，不要让 Agent 逐个调用旧的初始化 MCP tools。
+- 如果本地没有 Maker PAT，CLI 会引导用户打开当前环境的 PAT 页面新建 PAT，并把 PAT 发给 Agent：production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
+- 用户提供 Maker PAT 后，运行 `taptap-maker pat set <PAT>` 或在 `taptap-maker init` 里粘贴；CLI 会保存到 `~/.taptap-maker/pat.json`，兼容旧路径 `~/.maker-pat`，并调用 `GET /api/v1/user/taptap-token` 获取 TapTap MAC token。
+- `taptap-maker init` 会检查 Git、PAT、TapTap token、当前目录绑定状态、app 列表、AI dev kit，并在用户选择 app 后 clone 到当前目录。
+- CLI 写 MCP 配置时优先支持 Windows：Windows 使用 `npx.cmd`，Git 引导优先指向 Git for Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方 Git。
+- MCP 公共能力只保留 `maker://status`、`maker_status_lite` 和 `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
+- 用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都调用 `maker_build_current_directory`。它会在本地有改动或 ahead commit 时先 commit/push，push 成功后才远端 build。
+- push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 负责解释并协助 pull/rebase 或解决冲突后重试。
+- push 成功但远端 build 失败时，工具返回 `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端和具体构建错误。
 - 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`。
-- 用户说“查看结果 / 预览 / 跑一下 / 验证一下 / 看看效果”时，也按构建前本地改动检查流程处理。
 - 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。
 - 远端 Maker MCP tools 所需的 TapTap MAC token 通过 PAT 获取。
 

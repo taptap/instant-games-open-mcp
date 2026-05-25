@@ -739,15 +739,15 @@ function nextActionForFailure(classification: MakerGitFailure['classification'])
     case 'git_missing':
       return '本机未检测到可用的 Git。请用户自行安装 Git，并在 `git --version` 可用后重启 MCP 客户端再重试；安装前不要执行 clone、fetch、commit 或 push。';
     case 'auth':
-      return '刷新 Maker PAT 后重试 maker_submit_current_directory；如果仍失败，请确认 PAT 是否过期或缺少 Maker git 权限。';
+      return '运行 `taptap-maker pat set <PAT>` 刷新 Maker PAT 后，再重试 maker_build_current_directory；如果仍失败，请确认 PAT 是否过期或缺少 Maker git 权限。';
     case 'remote_transient':
-      return '远端 Maker git 服务临时不可用。本地 commit 会保留；不要手动执行通用 git push，稍后直接重试 maker_submit_current_directory，或在构建重试时调用 maker_build_current_directory 并设置 submit_local_changes_before_build=true。';
+      return '远端 Maker git 服务临时不可用。本地 commit 会保留；不要手动执行通用 git push，稍后直接重试 maker_build_current_directory。';
     case 'remote_rejected':
-      return '远端已有新提交。不要新建分支、不要要任务号、不要手动执行通用 git push；先询问用户是否 pull/rebase 当前 Maker 远端变更，再重试 maker_submit_current_directory。';
+      return '远端已有新提交。不要新建分支、不要要任务号、不要手动执行通用 git push；先询问用户是否 pull/rebase 当前 Maker 远端变更，再重试 maker_build_current_directory。';
     case 'local':
       return '本地目录或权限异常。检查当前目录是否是 Maker git repo，以及 Codex 是否有目录写权限。';
     default:
-      return '保留本地提交，不要重复提交；把错误详情反馈给用户，并在确认后重试 maker_submit_current_directory。';
+      return '保留本地提交，不要重复提交；把错误详情反馈给用户，并在确认后重试 maker_build_current_directory。';
   }
 }
 
@@ -1080,7 +1080,7 @@ async function assertNoCheckoutFileConflicts(cwd: string, branch: string): Promi
       'Conflicting local files:',
       ...conflicts.map((file) => `- ${file}`),
       '',
-      'Please move, rename, or delete these local files, then retry maker_clone_to_current_directory.',
+      'Please move, rename, or delete these local files, then retry taptap-maker init.',
     ].join('\n')
   );
 }
@@ -1192,7 +1192,7 @@ function formatMakerGitRootMismatch(status: MakerDirectoryGitStatus): string {
     status.configPath ? `config: ${status.configPath}` : '',
     '',
     'The current Maker directory is inside another Git repository, but it does not have its own .git directory.',
-    'Re-run maker_clone_to_current_directory after this fix, or use a fresh independent Maker directory.',
+    'Re-run taptap-maker init after this fix, or use a fresh independent Maker directory.',
   ]
     .filter(Boolean)
     .join('\n');
@@ -1269,7 +1269,7 @@ function ensureGitHeadCheckedOut(repoDir: string): void {
     [
       'Maker clone did not complete checkout: local git repository has no HEAD commit.',
       `target_dir: ${repoDir}`,
-      'The remote fetch may have succeeded, but project files were not checked out. Please inspect git status and retry maker_clone_to_current_directory.',
+      'The remote fetch may have succeeded, but project files were not checked out. Please inspect git status and retry taptap-maker init.',
     ].join('\n')
   );
 }
@@ -1284,7 +1284,7 @@ function enhanceCheckoutConflictError(error: unknown, target: string): Error {
     [
       'Maker clone could not check out project files because existing local files would be overwritten.',
       `target_dir: ${target}`,
-      'Please move, rename, or delete the conflicting local files, then retry maker_clone_to_current_directory.',
+      'Please move, rename, or delete the conflicting local files, then retry taptap-maker init.',
       '',
       message,
     ].join('\n')
