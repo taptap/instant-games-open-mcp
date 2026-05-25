@@ -112,6 +112,8 @@ Git 引导：
 [Maker CLI-First Rework Plan](docs/superpowers/plans/2026-05-25-maker-cli-first-rework.md)
 与 [Maker CLI-First Rework Flow](docs/MAKER_CLI_FIRST_REWORK_FLOW.md)。
 本地 CLI 自测流程见 [Maker CLI Local Testing](docs/MAKER_CLI_LOCAL_TESTING.md)。
+面向团队介绍的功能总览见
+[Maker CLI + MCP + Skill Rework Overview](docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
 
 ## 🧩 Codex Skills（运营简报）
 

@@ -5,7 +5,9 @@
 本次重构的继续开发计划见
 [`docs/superpowers/plans/2026-05-25-maker-cli-first-rework.md`](superpowers/plans/2026-05-25-maker-cli-first-rework.md)，
 流程 runbook 见 [`docs/MAKER_CLI_FIRST_REWORK_FLOW.md`](MAKER_CLI_FIRST_REWORK_FLOW.md)，
-本地 CLI 自测流程见 [`docs/MAKER_CLI_LOCAL_TESTING.md`](MAKER_CLI_LOCAL_TESTING.md)。
+本地 CLI 自测流程见 [`docs/MAKER_CLI_LOCAL_TESTING.md`](MAKER_CLI_LOCAL_TESTING.md)，
+面向团队介绍的功能总览见
+[`docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`](MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
 
 ## 目标
 
