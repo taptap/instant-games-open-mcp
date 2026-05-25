@@ -248,14 +248,16 @@ an app is selected. If not, guide user through:
 对于涉及选择的操作，工具描述中强调：
 
 ```
-**CRITICAL: ALWAYS show the full list to the user and explicitly
-ASK them to choose - DO NOT automatically select without user
-confirmation, even if there is only one option.**
+**CRITICAL: Show the returned preview/counts to the user and explicitly
+ASK them to choose or provide app_id/name keywords - DO NOT automatically
+select without user confirmation, even if there is only one option.**
+For large accounts, avoid dumping every app into chat; use raw/JSON output
+only for machine-readable lookup.
 ```
 
 **受益工具：**
 
-- `list_developers_and_apps` - 始终显示完整列表并询问用户选择
+- `list_developers_and_apps` - 显示预览/总数并询问用户选择，长列表不逐条刷屏
 - `select_app` - 仅在用户明确确认后才调用
 - `list_leaderboards` - 有多个排行榜时询问用户选择
 

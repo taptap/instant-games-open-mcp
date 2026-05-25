@@ -460,9 +460,9 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     const projects = await listMakerProjects();
     return [
       '本地已有 Maker PAT，当前目录尚未绑定 Maker 项目。',
-      '当前目录未绑定时，必须逐项展示下面完整 Maker Apps 列表，不要只总结数量；选择、解释和 clone 顺序请参考 taptap-maker-local skill。',
+      '当前目录未绑定时，先展示下面的 Maker Apps 预览和总数，避免长列表刷屏；选择、解释和 clone 顺序请参考 taptap-maker-local skill。',
       '',
-      formatProjectList(projects),
+      formatStatusProjectList(projects),
     ].join('\n');
   } catch (error) {
     return [
@@ -473,17 +473,40 @@ async function formatAutoProjectListFromPat(): Promise<string> {
   }
 }
 
-function formatProjectList(
-  projects: Array<{
-    id: string;
-    name?: string;
-    user_id?: string;
-    createdAt?: string;
-    lastConversationAt?: string;
-    gameType?: string;
-    stage?: string;
-  }>
-): string {
+const MAKER_STATUS_PROJECT_TEXT_LIMIT = 10;
+
+type StatusProject = {
+  id: string;
+  name?: string;
+  user_id?: string;
+  createdAt?: string;
+  lastAccessedAt?: string | null;
+  lastConversationAt?: string;
+  gameType?: string;
+  stage?: string;
+};
+
+function getStatusProjectActivityTime(project: StatusProject): number {
+  const value = project.lastConversationAt || project.lastAccessedAt || project.createdAt;
+  if (!value) {
+    return 0;
+  }
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function sortStatusProjectsByRecentActivity(projects: StatusProject[]): StatusProject[] {
+  return projects
+    .map((project, index) => ({ project, index }))
+    .sort((left, right) => {
+      const timeDiff =
+        getStatusProjectActivityTime(right.project) - getStatusProjectActivityTime(left.project);
+      return timeDiff || left.index - right.index;
+    })
+    .map(({ project }) => project);
+}
+
+export function formatStatusProjectList(projects: StatusProject[]): string {
   if (projects.length === 0) {
     return [
       'No Maker apps found.',
@@ -491,13 +514,23 @@ function formatProjectList(
       '请确认 Maker PAT 是否有效，或等待 Maker app list 接口对齐。',
     ].join('\n');
   }
+  const visibleProjects = sortStatusProjectsByRecentActivity(projects).slice(
+    0,
+    MAKER_STATUS_PROJECT_TEXT_LIMIT
+  );
+  const hiddenCount = projects.length - visibleProjects.length;
 
   return [
-    'Maker apps',
+    `Maker apps (${projects.length})`,
     '',
-    '请把下面每一个 app 条目展示给用户，不要只说共有多少个。',
+    hiddenCount > 0
+      ? `默认按最近活跃排序展示前 ${visibleProjects.length} 个；其余 ${hiddenCount} 个请不要逐条刷屏。`
+      : '已按最近活跃排序展示全部 app；请询问用户选择。',
+    hiddenCount > 0
+      ? '如果用户没有看到目标 app，请提示可以继续查看更多：在 taptap-maker init 交互中输入 next，或运行 taptap-maker apps --offset 10 --limit 10；也可以让用户提供 app_id，或运行 taptap-maker apps --json 做机器可读查询。'
+      : '',
     '',
-    ...projects.map(
+    ...visibleProjects.map(
       (project, index) =>
         `${index + 1}. ${project.id}${project.name ? `  ${project.name}` : ''}${
           project.user_id ? `  user_id=${project.user_id}` : ''
@@ -510,7 +543,9 @@ function formatProjectList(
     '',
     '仅当当前目录未绑定且用户要初始化或 clone 时，才让用户选择 app 并继续 taptap-maker init。',
     '如果当前目录已绑定 Maker 项目，这个列表仅作账号项目参考；请继续当前项目，除非用户明确要求切换或重新 clone。',
-  ].join('\n');
+  ]
+    .filter((line) => line !== '')
+    .join('\n');
 }
 
 export function formatClonePartialStateLines(targetDir: string): string[] {

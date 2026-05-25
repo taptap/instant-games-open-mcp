@@ -296,13 +296,15 @@ async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   if (pat) {
     warnPatArgExposure();
   }
+  const limit = numberOption(parsed, 'limit');
+  const offset = numberOption(parsed, 'offset');
   const projects = await listMakerProjects({ pat });
   if (ctx.json) {
     writeJson(projects);
     return;
   }
 
-  process.stdout.write(`${formatProjectList(projects)}\n`);
+  process.stdout.write(`${formatMakerProjectList(projects, { limit, offset })}\n`);
 }
 
 async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -448,17 +450,38 @@ async function resolveProjectSelection(
     throw new Error('Missing --app-id in non-interactive init mode.');
   }
 
-  process.stdout.write(`${formatProjectList(projects)}\n`);
-  const answer = await promptRequired('Choose app by index or app_id');
-  const byIndex = Number(answer);
-  if (Number.isInteger(byIndex) && byIndex >= 1 && byIndex <= projects.length) {
-    return projects[byIndex - 1];
+  const orderedProjects = sortProjectsByRecentActivity(projects);
+  const limit = MAKER_PROJECT_DEFAULT_TEXT_LIMIT;
+  let offset = 0;
+  for (;;) {
+    process.stdout.write(`${formatMakerProjectList(orderedProjects, { limit, offset })}\n`);
+    const answer = await promptRequired('Choose app by index, app_id, or next');
+    const normalized = answer.trim().toLowerCase();
+    if (['n', 'next', 'more'].includes(normalized)) {
+      const nextOffset = offset + limit;
+      if (nextOffset >= orderedProjects.length) {
+        process.stdout.write('No more Maker apps in this list.\n');
+      } else {
+        offset = nextOffset;
+      }
+      continue;
+    }
+    if (['p', 'prev', 'previous'].includes(normalized)) {
+      offset = Math.max(offset - limit, 0);
+      continue;
+    }
+
+    const byIndex = Number(answer);
+    const visibleCount = Math.min(limit, orderedProjects.length - offset);
+    if (Number.isInteger(byIndex) && byIndex >= 1 && byIndex <= visibleCount) {
+      return orderedProjects[offset + byIndex - 1];
+    }
+    const selected = projects.find((project) => project.id === answer.trim());
+    if (!selected) {
+      throw new Error(`Unknown Maker app selection: ${answer}`);
+    }
+    return selected;
   }
-  const selected = projects.find((project) => project.id === answer.trim());
-  if (!selected) {
-    throw new Error(`Unknown Maker app selection: ${answer}`);
-  }
-  return selected;
 }
 
 async function prepareDevKit(targetDir: string, ctx: CliContext): Promise<void> {
@@ -683,14 +706,73 @@ function saveInitState(targetDir: string, state: Record<string, unknown>): void 
   );
 }
 
-function formatProjectList(projects: MakerProjectSummary[]): string {
+const MAKER_PROJECT_DEFAULT_TEXT_LIMIT = 10;
+const MAKER_PROJECT_MAX_TEXT_LIMIT = 50;
+
+type MakerProjectListFormatOptions = {
+  limit?: number;
+  offset?: number;
+};
+
+function normalizeListLimit(limit?: number): number {
+  if (!Number.isFinite(limit) || limit === undefined) {
+    return MAKER_PROJECT_DEFAULT_TEXT_LIMIT;
+  }
+  return Math.min(Math.max(Math.trunc(limit), 1), MAKER_PROJECT_MAX_TEXT_LIMIT);
+}
+
+function normalizeListOffset(offset?: number): number {
+  if (!Number.isFinite(offset) || offset === undefined) {
+    return 0;
+  }
+  return Math.max(Math.trunc(offset), 0);
+}
+
+function getProjectActivityTime(project: MakerProjectSummary): number {
+  const value = project.lastConversationAt || project.lastAccessedAt || project.createdAt;
+  if (!value) {
+    return 0;
+  }
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function sortProjectsByRecentActivity(projects: MakerProjectSummary[]): MakerProjectSummary[] {
+  return projects
+    .map((project, index) => ({ project, index }))
+    .sort((left, right) => {
+      const timeDiff = getProjectActivityTime(right.project) - getProjectActivityTime(left.project);
+      return timeDiff || left.index - right.index;
+    })
+    .map(({ project }) => project);
+}
+
+export function formatMakerProjectList(
+  projects: MakerProjectSummary[],
+  options: MakerProjectListFormatOptions = {}
+): string {
   if (projects.length === 0) {
     return 'No Maker apps found.';
   }
+  const limit = normalizeListLimit(options.limit);
+  const offset = normalizeListOffset(options.offset);
+  const sortedProjects = sortProjectsByRecentActivity(projects);
+  const visibleProjects = sortedProjects.slice(offset, offset + limit);
+  const hiddenCount = projects.length - visibleProjects.length;
+  const nextOffset = offset + visibleProjects.length;
+  const hasNextPage = nextOffset < projects.length;
+  const startIndex = visibleProjects.length > 0 ? offset + 1 : 0;
+  const endIndex = offset + visibleProjects.length;
   return [
     `Maker apps (${projects.length})`,
+    visibleProjects.length > 0 && offset === 0
+      ? `Showing ${visibleProjects.length} most recently active apps, sorted by last activity. ${hiddenCount} more hidden.`
+      : `Showing apps ${startIndex}-${endIndex} of ${projects.length}, sorted by last activity.`,
+    hasNextPage
+      ? `To continue, run: taptap-maker apps --offset ${nextOffset} --limit ${limit}. If the target is hidden, enter its app_id directly or use --json to get the complete app list.`
+      : `No more apps in this view. If needed, use --json to get the complete app list.`,
     '',
-    ...projects.map(
+    ...visibleProjects.map(
       (project, index) =>
         `${index + 1}. ${project.id}${project.name ? `  ${project.name}` : ''}${
           project.user_id ? `  user_id=${project.user_id}` : ''
@@ -698,7 +780,9 @@ function formatProjectList(projects: MakerProjectSummary[]): string {
           project.stage ? `  stage=${project.stage}` : ''
         }${project.lastConversationAt ? `  lastConversationAt=${project.lastConversationAt}` : ''}`
     ),
-  ].join('\n');
+  ]
+    .filter((line) => line !== '')
+    .join('\n');
 }
 
 function emit(ctx: CliContext, step: string, message: string, data?: unknown): void {
@@ -767,6 +851,15 @@ function stringOption(parsed: ParsedArgs, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+function numberOption(parsed: ParsedArgs, key: string): number | undefined {
+  const value = stringOption(parsed, key);
+  if (value === undefined) {
+    return undefined;
+  }
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
 function booleanOption(parsed: ParsedArgs, key: string): boolean {
   return parsed.options[key] === true || parsed.options[key] === 'true';
 }
@@ -831,7 +924,8 @@ function printHelp(): void {
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
       '                     [--package @taptap/instant-games-open-mcp] [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
-      '  taptap-maker apps [--pat PAT] [--json]  # warns: PAT appears in ps/history',
+      '  taptap-maker apps [--pat PAT] [--limit N] [--offset N] [--json]',
+      '                     # --pat warns: PAT appears in ps/history',
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # warns: PAT appears in ps/history',
       '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',

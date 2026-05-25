@@ -385,7 +385,7 @@ Maker 后端默认地址集中在 `src/maker/config.ts`。兼容旧变量名：`
 测试时可以通过当前环境的 PAT 页面新建 Maker PAT：
 production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
 再运行 `taptap-maker pat set` 并在 prompt 中粘贴 PAT 保存。
-APP_ID 不应要求用户手动输入，而是通过 `taptap-maker init` 或 `taptap-maker apps` 返回的 app 列表让用户选择。
+APP_ID 不应要求用户手动输入，而是通过 `taptap-maker init` 或 `taptap-maker apps` 返回的 app 预览让用户选择。账号 app 很多时，文本输出默认按最近活跃排序展示前 10 个和总数；`taptap-maker init` 交互中可输入 `next` 继续翻页，命令行查看更多时使用 `taptap-maker apps --offset 10 --limit 10`，完整机器可读列表使用 `taptap-maker apps --json`，不要把 200 个 app 全部逐条刷到聊天窗口。
 
 推荐按 CLI 流程测试：
 

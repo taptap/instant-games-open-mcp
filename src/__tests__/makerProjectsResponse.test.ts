@@ -3,7 +3,12 @@
  */
 
 import { normalizeProjectsResponse } from '../maker/cli/projects';
-import { formatAiDialogueDirectoryHint, isLikelyAiDialogueDirectory } from '../maker/server/mcp';
+import { formatMakerProjectList } from '../maker/cli/commands';
+import {
+  formatAiDialogueDirectoryHint,
+  formatStatusProjectList,
+  isLikelyAiDialogueDirectory,
+} from '../maker/server/mcp';
 
 describe('maker projects response normalization', () => {
   test('preserves all known app list fields returned by Maker API', () => {
@@ -73,5 +78,46 @@ describe('maker status dialogue directory guidance', () => {
     );
     expect(hint).not.toContain('要 clone 哪个');
     expect(hint).not.toContain('app_id');
+  });
+});
+
+describe('maker app list display', () => {
+  const projects = Array.from({ length: 35 }, (_, index) => ({
+    id: `app-${index + 1}`,
+    name: `App ${index + 1}`,
+    lastConversationAt: new Date(Date.UTC(2026, 0, index + 1, 8)).toISOString(),
+  }));
+
+  test('limits CLI text output to the 10 most recently active apps', () => {
+    const output = formatMakerProjectList(projects);
+
+    expect(output).toContain('Maker apps (35)');
+    expect(output).toContain('Showing 10 most recently active apps');
+    expect(output).toContain('sorted by last activity');
+    expect(output).toContain('1. app-35');
+    expect(output).toContain('10. app-26');
+    expect(output).not.toContain('11. app-25');
+    expect(output).toContain('--offset 10 --limit 10');
+    expect(output).toContain('use --json to get the complete app list');
+  });
+
+  test('supports showing the next CLI page while keeping recent activity order', () => {
+    const output = formatMakerProjectList(projects, { limit: 10, offset: 10 });
+
+    expect(output).toContain('Showing apps 11-20 of 35');
+    expect(output).toContain('1. app-25');
+    expect(output).toContain('10. app-16');
+    expect(output).toContain('--offset 20 --limit 10');
+  });
+
+  test('limits status text output to the 10 most recently active apps', () => {
+    const output = formatStatusProjectList(projects);
+
+    expect(output).toContain('Maker apps (35)');
+    expect(output).toContain('默认按最近活跃排序展示前 10 个');
+    expect(output).toContain('1. app-35');
+    expect(output).toContain('10. app-26');
+    expect(output).not.toContain('11. app-25');
+    expect(output).not.toContain('每一个 app 条目');
   });
 });

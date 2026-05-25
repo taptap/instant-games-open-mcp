@@ -115,15 +115,26 @@ export const appTools: ToolRegistration[] = [
     definition: {
       name: 'list_developers_and_apps',
       description:
-        '[General App Management] List all developers and their apps/games for the current user, including both level games and non-level games. **CRITICAL: ALWAYS show the full list to the user and explicitly ASK them to choose which app to use - DO NOT automatically select an app without user confirmation, even if there is only one option.** Use this for: 1) Initial exploration of available apps, 2) Switching between apps, 3) General app management (not H5 upload workflow). For H5 game upload, use prepare_h5_upload instead.',
+        '[General App Management] List developers and apps/games for the current user, including both level games and non-level games. For large accounts, the human-readable response shows a paged preview plus total counts; call again with offset/limit to continue. **CRITICAL: Show the returned preview/counts to the user and explicitly ASK them to choose which app to use or provide app_id/name keywords - DO NOT automatically select an app without user confirmation, even if there is only one option.** Use this for: 1) Initial exploration of available apps, 2) Switching between apps, 3) General app management (not H5 upload workflow). For H5 game upload, use prepare_h5_upload instead.',
       inputSchema: {
         type: 'object',
-        properties: {},
+        properties: {
+          limit: {
+            type: 'number',
+            description:
+              'Maximum number of apps to show in the human-readable preview. Defaults to 10, max 50.',
+          },
+          offset: {
+            type: 'number',
+            description:
+              'Number of apps to skip before showing the preview. Use the suggested next offset to continue.',
+          },
+        },
       },
     },
-    handler: async (_args, context) => {
+    handler: async (args: { limit?: number; offset?: number }, context) => {
       // Note: Private parameters are handled at Server layer
-      return appHandlers.listDevelopersAndApps(context);
+      return appHandlers.listDevelopersAndApps(args, context);
     },
     requiresAuth: true,
   },

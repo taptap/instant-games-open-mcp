@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
 import { requestTapAuthWithPat } from '../maker/auth/patTap';
 import { cloneMakerProject, listMakerProjects } from '../maker/cli/projects';
@@ -223,6 +224,89 @@ describe('Maker CLI commands', () => {
         targetDir: tempDir,
       })
     );
+  });
+
+  test('init selection index follows the recently active display order', async () => {
+    jest.mocked(listMakerProjects).mockResolvedValueOnce([
+      {
+        id: 'older-app',
+        name: 'Older App',
+        lastConversationAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'recent-app',
+        name: 'Recent App',
+        lastConversationAt: '2026-02-01T00:00:00.000Z',
+      },
+    ]);
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    const close = jest.fn();
+    const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockReturnValue({
+      question: jest.fn(async () => '1'),
+      close,
+    } as unknown as readline.Interface);
+
+    try {
+      await runMakerCli([
+        'init',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'secret-maker-token',
+      ]);
+    } finally {
+      createInterfaceSpy.mockRestore();
+    }
+
+    expect(cloneMakerProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'recent-app',
+        targetDir: tempDir,
+      })
+    );
+    expect(close).toHaveBeenCalled();
+  });
+
+  test('init can page through hidden apps before selecting by index', async () => {
+    jest.mocked(listMakerProjects).mockResolvedValueOnce(
+      Array.from({ length: 12 }, (_, index) => ({
+        id: `app-${index + 1}`,
+        name: `App ${index + 1}`,
+        lastConversationAt: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+      }))
+    );
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    const answers = ['next', '1'];
+    const close = jest.fn();
+    const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockImplementation(
+      () =>
+        ({
+          question: jest.fn(async () => answers.shift() || '1'),
+          close,
+        }) as unknown as readline.Interface
+    );
+
+    try {
+      await runMakerCli([
+        'init',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'secret-maker-token',
+      ]);
+    } finally {
+      createInterfaceSpy.mockRestore();
+    }
+
+    expect(cloneMakerProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'app-2',
+        targetDir: tempDir,
+      })
+    );
+    expect(close).toHaveBeenCalledTimes(2);
   });
 
   test('pat set warns when PAT is passed as a positional argument', async () => {

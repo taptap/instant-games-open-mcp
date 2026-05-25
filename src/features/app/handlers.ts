@@ -59,51 +59,141 @@ function formatRawJson(data: unknown): string {
   return JSON.stringify(data, null, 2);
 }
 
+const APP_LIST_DEFAULT_TEXT_LIMIT = 10;
+const APP_LIST_MAX_TEXT_LIMIT = 50;
+
+type AppListFormatOptions = {
+  limit?: number;
+  offset?: number;
+};
+
+function normalizeAppListLimit(limit?: number): number {
+  if (!Number.isFinite(limit) || limit === undefined) {
+    return APP_LIST_DEFAULT_TEXT_LIMIT;
+  }
+  return Math.min(Math.max(Math.trunc(limit), 1), APP_LIST_MAX_TEXT_LIMIT);
+}
+
+function normalizeAppListOffset(offset?: number): number {
+  if (!Number.isFinite(offset) || offset === undefined) {
+    return 0;
+  }
+  return Math.max(Math.trunc(offset), 0);
+}
+
+export function formatDevelopersAndApps(
+  result: {
+    list?: Array<{
+      developer_id: number;
+      developer_name: string;
+      apps?: Array<{
+        app_id: number;
+        app_title: string;
+        is_level?: boolean;
+        miniapp_id?: string;
+        category?: string;
+        is_published?: boolean;
+      }>;
+    }>;
+  },
+  options: AppListFormatOptions = {}
+): string {
+  if (!result.list || result.list.length === 0) {
+    return `📋 暂无开发者或应用\n\n您还没有创建任何开发者账号或应用。请先在 TapTap 开放平台创建应用。`;
+  }
+
+  const limit = normalizeAppListLimit(options.limit);
+  const offset = normalizeAppListOffset(options.offset);
+  const totalApps = result.list.reduce((sum, developer) => sum + (developer.apps?.length || 0), 0);
+  let visitedApps = 0;
+  let shownApps = 0;
+  const nextOffset = Math.min(offset + limit, totalApps);
+  const hasNextPage = nextOffset < totalApps;
+  let output = `📋 开发者和应用列表\n\n`;
+  output += `共 ${result.list.length} 个开发者，${totalApps} 个应用。\n`;
+  if (totalApps > limit || offset > 0) {
+    output +=
+      offset === 0
+        ? `默认展示前 ${limit} 个应用，避免长列表刷屏。\n`
+        : `当前展示第 ${offset + 1}-${Math.min(offset + limit, totalApps)} 个应用。\n`;
+    output += `显示顺序为接口返回顺序；当前接口未提供最近活跃时间。\n`;
+    if (hasNextPage) {
+      output += `继续获取更多：再次调用 list_developers_and_apps，参数 offset=${nextOffset}, limit=${limit}。\n`;
+    }
+    output += `如果目标应用不在预览中，也可以直接提供 app_id 或应用名称关键词。\n`;
+  }
+  output += `\n`;
+
+  for (const [devIndex, developer] of result.list.entries()) {
+    if (shownApps >= limit) {
+      break;
+    }
+
+    output += `**开发者 ${devIndex + 1}: ${developer.developer_name}**\n`;
+    output += `- Developer ID: ${developer.developer_id}\n`;
+
+    if (!developer.apps || developer.apps.length === 0) {
+      output += `- 暂无应用\n\n`;
+      continue;
+    }
+
+    output += `- 应用列表:\n`;
+    let shownForDeveloper = 0;
+    for (const [appIndex, app] of developer.apps.entries()) {
+      if (visitedApps < offset) {
+        visitedApps += 1;
+        continue;
+      }
+      if (shownApps >= limit) {
+        break;
+      }
+      const appKind = app.is_level ? '关卡游戏' : '非关卡游戏';
+      output += `  ${appIndex + 1}. **${app.app_title}** (App ID: ${app.app_id})\n`;
+      output += `     类型: ${appKind}\n`;
+      if (app.miniapp_id) {
+        output += `     Miniapp ID: ${app.miniapp_id}\n`;
+      }
+      if (app.category) {
+        output += `     类别: ${app.category}\n`;
+      }
+      if (app.is_published !== undefined) {
+        output += `     已发布: ${app.is_published ? '是' : '否'}\n`;
+      }
+      shownApps += 1;
+      shownForDeveloper += 1;
+      visitedApps += 1;
+    }
+    if (shownApps >= limit && totalApps > offset + shownApps) {
+      const hiddenInDeveloper = developer.apps.length - shownForDeveloper;
+      if (hiddenInDeveloper > 0) {
+        output += `  ... 本开发者还有 ${hiddenInDeveloper} 个应用未展示\n`;
+      }
+    }
+    output += `\n`;
+  }
+
+  if (totalApps > offset + shownApps) {
+    output += `已省略 ${totalApps - offset - shownApps} 个应用。\n\n`;
+  }
+
+  output += `\n💡 **下一步:**\n`;
+  output += `使用 select_app 工具选择要使用的开发者和应用，例如:\n`;
+  output += `- developer_id: ${result.list[0].developer_id}\n`;
+  output += `- app_id: ${result.list[0].apps?.[0]?.app_id || 'N/A'}\n`;
+
+  return output;
+}
+
 /**
  * List all developers and apps for the current user
  */
-export async function listDevelopersAndApps(ctx: ResolvedContext): Promise<string> {
+export async function listDevelopersAndApps(
+  args: { limit?: number; offset?: number },
+  ctx: ResolvedContext
+): Promise<string> {
   try {
     const result = await getAllDevelopersAndApps(ctx);
-
-    if (!result.list || result.list.length === 0) {
-      return `📋 暂无开发者或应用\n\n您还没有创建任何开发者账号或应用。请先在 TapTap 开放平台创建应用。`;
-    }
-
-    let output = `📋 开发者和应用列表\n\n`;
-
-    result.list.forEach((developer, devIndex) => {
-      output += `**开发者 ${devIndex + 1}: ${developer.developer_name}**\n`;
-      output += `- Developer ID: ${developer.developer_id}\n`;
-
-      if (!developer.apps || developer.apps.length === 0) {
-        output += `- 暂无应用\n\n`;
-      } else {
-        output += `- 应用列表:\n`;
-        developer.apps.forEach((app, appIndex) => {
-          const appKind = app.is_level ? '关卡游戏' : '非关卡游戏';
-          output += `  ${appIndex + 1}. **${app.app_title}** (App ID: ${app.app_id})\n`;
-          output += `     类型: ${appKind}\n`;
-          if (app.miniapp_id) {
-            output += `     Miniapp ID: ${app.miniapp_id}\n`;
-          }
-          if (app.category) {
-            output += `     类别: ${app.category}\n`;
-          }
-          if (app.is_published !== undefined) {
-            output += `     已发布: ${app.is_published ? '是' : '否'}\n`;
-          }
-        });
-        output += `\n`;
-      }
-    });
-
-    output += `\n💡 **下一步:**\n`;
-    output += `使用 select_app 工具选择要使用的开发者和应用，例如:\n`;
-    output += `- developer_id: ${result.list[0].developer_id}\n`;
-    output += `- app_id: ${result.list[0].apps[0]?.app_id || 'N/A'}\n`;
-
-    return output;
+    return formatDevelopersAndApps(result, args);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     return `❌ 获取开发者和应用列表失败:\n${errorMsg}`;
