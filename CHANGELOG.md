@@ -1,3 +1,20 @@
+## 2.0.0 (2026-05-25)
+
+* refactor(maker)!: move onboarding to cli-first workflow ([131e542](https://github.com/taptap/instant-games-open-mcp/commit/131e542))
+* fix(maker): harden dev kit setup and app selection (#178) ([a1c5323](https://github.com/taptap/instant-games-open-mcp/commit/a1c5323)), closes [#178](https://github.com/taptap/instant-games-open-mcp/issues/178)
+* fix(maker): harden Maker local workflow recovery ([b7a4cb7](https://github.com/taptap/instant-games-open-mcp/commit/b7a4cb7))
+
+
+### BREAKING CHANGE
+
+* Maker MCP public initialization tools were removed.
+Use the taptap-maker CLI for PAT, app listing, clone, and onboarding.
+Use maker://status, maker_status_lite, and maker_build_current_directory
+for runtime status and submit, push, and build. Removed tools:
+maker_exchange_pat, maker_list_apps, maker_status,
+maker_clone_to_current_directory, maker_submit_current_directory.
+
+
 ## 1.21.0 (2026-05-08)
 
 * feat(debug-feedback): 支持按 moment_id 单查反馈并修复大整数精度丢失 (#154) ([1270ee4](https://github.com/taptap/instant-games-open-mcp/commit/1270ee4)), closes [#154](https://github.com/taptap/instant-games-open-mcp/issues/154)
