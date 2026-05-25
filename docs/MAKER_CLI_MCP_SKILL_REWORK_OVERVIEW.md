@@ -46,6 +46,7 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 - 本地分支测试可直接用 `node dist/maker.js`，不依赖 npm 发布。
 - Windows 下生成 MCP 配置时自动使用 `npx.cmd`。
 - 初始化失败时保留现场，返回可重试状态，不自动删除用户文件。
+- Git clone/fetch 遇到 503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等临时错误时自动重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试，直接返回明确分类。
 
 ### MCP：收敛为开发循环能力
 
@@ -82,6 +83,7 @@ Skill 不做底层 API 调用，而是负责告诉 Agent 该怎么走流程：
 - 用户要初始化 Maker 项目时，转给 `taptap-maker init`。
 - 用户要提交、push、构建、预览、跑一下时，统一调用 `maker_build_current_directory`。
 - push 失败时，不走通用 Git PR / 任务号流程，不手动执行 generic `git push`，而是解释失败原因并协助用户 pull/rebase 或解决冲突后重试 Maker build 工具。
+- Git 失败返回 `classification`、`retryable`、`retry_reason` 和重试次数，Skill 据此判断是建议稍后重试、刷新 PAT、pull/rebase，还是处理本地目录冲突。
 
 ## 主流程
 

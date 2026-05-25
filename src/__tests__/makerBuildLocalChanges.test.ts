@@ -317,6 +317,7 @@ describe('maker build local-change guard', () => {
           failure: {
             stage: 'push',
             classification: 'remote_rejected',
+            retryable: false,
             message: 'remote rejected',
             nextAction: 'pull/rebase before retrying Maker build',
           },
@@ -590,6 +591,7 @@ describe('maker build local-change guard', () => {
           failure: {
             stage: 'push',
             classification: 'remote_rejected',
+            retryable: false,
             exitCode: 1,
             stdout: '',
             stderr: 'rejected',
@@ -742,6 +744,8 @@ describe('maker build local-change guard', () => {
           failure: {
             stage: 'push',
             classification: 'remote_transient',
+            retryable: true,
+            retryReason: 'remote_http_5xx',
             exitCode: 128,
             stdout: '',
             stderr: '504 Gateway Timeout',

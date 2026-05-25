@@ -1268,6 +1268,9 @@ export function formatBuildResult(
       result.submitResult.commitHash ? `- commit_hash: ${result.submitResult.commitHash}` : '',
       result.submitResult.message ? `- commit_message: ${result.submitResult.message}` : '',
       result.submitResult.ahead ? `- git_state: ${result.submitResult.ahead}` : '',
+      result.submitResult.transientRetries
+        ? `- transient_git_retries: ${result.submitResult.transientRetries}`
+        : '',
       ...formatProgressSummary(progressSummary),
       '',
       'note: Maker build was not started because submit did not produce a pushed state.',
@@ -1296,6 +1299,9 @@ export function formatBuildResult(
       result.submitResult.commitHash ? `- commit_hash: ${result.submitResult.commitHash}` : '',
       result.submitResult.message ? `- commit_message: ${result.submitResult.message}` : '',
       result.submitResult.ahead ? `- git_state: ${result.submitResult.ahead}` : '',
+      result.submitResult.transientRetries
+        ? `- transient_git_retries: ${result.submitResult.transientRetries}`
+        : '',
       ...formatProgressSummary(progressSummary),
       '',
       ...formatMakerBuildFailureLines(result.buildFailure),
@@ -1313,6 +1319,9 @@ export function formatBuildResult(
         result.submitResult.commitHash ? `  - commit_hash: ${result.submitResult.commitHash}` : '',
         result.submitResult.message ? `  - commit_message: ${result.submitResult.message}` : '',
         result.submitResult.ahead ? `  - git_state: ${result.submitResult.ahead}` : '',
+        result.submitResult.transientRetries
+          ? `  - transient_git_retries: ${result.submitResult.transientRetries}`
+          : '',
         '',
       ].filter(Boolean)
     : [];
@@ -1363,6 +1372,9 @@ export function formatPushResult(
     submitResult.commitHash ? `- commit_hash: ${submitResult.commitHash}` : '',
     submitResult.message ? `- commit_message: ${submitResult.message}` : '',
     submitResult.ahead ? `- git_state: ${submitResult.ahead}` : '',
+    submitResult.transientRetries
+      ? `- transient_git_retries: ${submitResult.transientRetries}`
+      : '',
     ...formatProgressSummary(progressSummary),
   ].filter(Boolean);
 
@@ -1456,6 +1468,9 @@ function formatMakerFailureLines(failure: {
     'failure:',
     `- stage: ${failure.stage}`,
     `- classification: ${failure.classification}`,
+    `- retryable: ${failure.retryable ? 'yes' : 'no'}`,
+    failure.retryReason ? `- retry_reason: ${failure.retryReason}` : '',
+    failure.retryAttempts ? `- retry_attempts: ${failure.retryAttempts}` : '',
     `- exit_code: ${failure.exitCode ?? '(none)'}`,
     failure.command ? `- command: ${failure.command}` : '',
     failure.stderr ? `- stderr:\n${indent(failure.stderr)}` : '',

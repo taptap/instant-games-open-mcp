@@ -64,6 +64,7 @@ export interface PushMakerProjectResult {
   status: 'clean' | 'pushed' | 'failed_after_commit';
   failure?: MakerGitFailure;
   ahead?: string;
+  transientRetries?: number;
 }
 
 export interface MakerProjectLocalChanges {
@@ -102,7 +103,15 @@ export interface MakerGitFailure {
     | 'remote_rejected'
     | 'local'
     | 'unknown';
+  retryable: boolean;
+  retryReason?: string;
+  retryAttempts?: number;
   nextAction: string;
+}
+
+export interface MakerGitRetryDecision {
+  retry: boolean;
+  reason?: string;
 }
 
 class MakerGitError extends Error {
@@ -459,6 +468,7 @@ export async function pushMakerProject(
   let committed = false;
   let commitHash: string | undefined;
   let message: string | undefined;
+  let transientRetries = 0;
 
   if (!statusBefore.trim() && !options.allowEmpty && unpushed.hasUnpushedCommits) {
     commitHash = (await readGit(['rev-parse', '--short', 'HEAD'], cwd)).trim();
@@ -513,7 +523,11 @@ export async function pushMakerProject(
       phase: 'push',
       message: `Pushing Maker project to ${branch}`,
     });
-    await pushGit(['push', 'origin', `HEAD:${branch}`], cwd, options.onProgress);
+    transientRetries += await pushGitWithTransientRetry(
+      ['push', 'origin', `HEAD:${branch}`],
+      cwd,
+      options.onProgress
+    );
   } catch (error) {
     const failure = toMakerGitFailure(error, 'push');
     return {
@@ -525,6 +539,7 @@ export async function pushMakerProject(
       status: committed || unpushed.hasUnpushedCommits ? 'failed_after_commit' : 'clean',
       failure,
       ahead: await readAheadState(cwd),
+      transientRetries,
     };
   }
   options.onProgress?.({
@@ -541,6 +556,7 @@ export async function pushMakerProject(
     message,
     pushed: true,
     status: 'pushed',
+    transientRetries,
   };
 }
 
@@ -690,6 +706,7 @@ function createGitFailure(input: {
   const stdout = input.stdout?.trim() || '';
   const text = `${stdout}\n${stderr}`.trim();
   const classification = classifyGitFailure(text);
+  const retryDecision = getMakerGitRetryDecision(text);
   return {
     stage: input.stage,
     command: input.command,
@@ -698,28 +715,30 @@ function createGitFailure(input: {
     stderr,
     message: text || `${input.stage} failed`,
     classification,
+    retryable: retryDecision.retry,
+    retryReason: retryDecision.reason,
     nextAction: nextActionForFailure(classification),
   };
 }
 
 function classifyGitFailure(message: string): MakerGitFailure['classification'] {
-  if (/ENOENT|not found|cannot find|spawn git/i.test(message)) {
+  if (
+    /ENOENT|cannot find|spawn git|git: command not found|not recognized as an internal or external command/i.test(
+      message
+    )
+  ) {
     return 'git_missing';
   }
 
   if (
-    /authentication|authorization|401|403|forbidden|unauthorized|could not read username/i.test(
+    /authentication|authorization|401|403|forbidden|unauthorized|could not read username|repository not found/i.test(
       message
     )
   ) {
     return 'auth';
   }
 
-  if (
-    /502|503|504|Bad Gateway|Service Unavailable|Gateway Timeout|connection reset|remote end hung up/i.test(
-      message
-    )
-  ) {
+  if (getMakerGitRetryDecision(message).retry) {
     return 'remote_transient';
   }
 
@@ -732,6 +751,49 @@ function classifyGitFailure(message: string): MakerGitFailure['classification'] 
   }
 
   return 'unknown';
+}
+
+export function getMakerGitRetryDecision(message: string): MakerGitRetryDecision {
+  const text = message.trim();
+  if (!text) {
+    return { retry: false };
+  }
+
+  if (isNonRetryableGitFailure(text)) {
+    return { retry: false };
+  }
+
+  if (
+    /(?:HTTP|error|status|code|response|returned)\D*(?:500|502|503|504)\b|Bad Gateway|Service Unavailable|Gateway Timeout|Internal Server Error/i.test(
+      text
+    )
+  ) {
+    return { retry: true, reason: 'remote_http_5xx' };
+  }
+
+  if (
+    /timed?\s*out|timeout|TLS handshake timeout|Failed to connect|Could not resolve host|Network is unreachable|No route to host/i.test(
+      text
+    )
+  ) {
+    return { retry: true, reason: 'network_or_timeout' };
+  }
+
+  if (
+    /connection reset|connection refused|connection closed|remote end hung up|unexpected disconnect|early EOF|RPC failed|index-pack failed|HTTP\/2 stream.*not closed cleanly|SSL_ERROR_SYSCALL|curl\s+(?:18|28|35|52|55|56|92)/i.test(
+      text
+    )
+  ) {
+    return { retry: true, reason: 'connection_interrupted' };
+  }
+
+  return { retry: false };
+}
+
+function isNonRetryableGitFailure(message: string): boolean {
+  return /authentication|authorization|401|403|forbidden|unauthorized|could not read username|repository not found|not a git repository|not empty|already exists and is not an empty directory|permission denied|Operation not permitted|non-fast-forward|fetch first|rejected|failed to push some refs|would be overwritten|conflicting local files/i.test(
+    message
+  );
 }
 
 function nextActionForFailure(classification: MakerGitFailure['classification']): string {
@@ -802,6 +864,17 @@ function pushGit(
         )
       );
     });
+  });
+}
+
+function pushGitWithTransientRetry(
+  args: string[],
+  cwd: string,
+  onProgress?: MakerProjectProgressHandler
+): Promise<number> {
+  return runWithTransientRetry(() => pushGit(args, cwd, onProgress), {
+    stage: 'push',
+    onProgress,
   });
 }
 
@@ -1364,7 +1437,10 @@ async function runGitWithTransientRetry(
     onProgress?: MakerProjectProgressHandler;
   }
 ): Promise<number> {
-  return runWithTransientRetry(() => runGit(args, options));
+  return runWithTransientRetry(() => runGit(args, options), {
+    stage: args[0] || 'git',
+    onProgress: options.onProgress,
+  });
 }
 
 async function runGitCaptureWithTransientRetry(
@@ -1375,10 +1451,19 @@ async function runGitCaptureWithTransientRetry(
     onProgress?: MakerProjectProgressHandler;
   } = {}
 ): Promise<number> {
-  return runWithTransientRetry(() => runGitCapture(args, options));
+  return runWithTransientRetry(() => runGitCapture(args, options), {
+    stage: args[0] || 'git',
+    onProgress: options.onProgress,
+  });
 }
 
-async function runWithTransientRetry(operation: () => Promise<void>): Promise<number> {
+async function runWithTransientRetry(
+  operation: () => Promise<void>,
+  options: {
+    stage: string;
+    onProgress?: MakerProjectProgressHandler;
+  }
+): Promise<number> {
   let retries = 0;
   const maxRetries = 2;
 
@@ -1387,21 +1472,74 @@ async function runWithTransientRetry(operation: () => Promise<void>): Promise<nu
       await operation();
       return retries;
     } catch (error) {
-      if (retries >= maxRetries || !isTransientGitRemoteError(error)) {
+      const decision = getMakerGitRetryDecisionFromError(error);
+      if (!decision.retry) {
         throw error;
       }
 
+      if (retries >= maxRetries) {
+        throw appendRetryExhausted(error, retries, decision);
+      }
+
       retries += 1;
-      await sleep(1500 * retries);
+      options.onProgress?.({
+        phase: options.stage,
+        message: `Transient Maker git ${options.stage} failure (${decision.reason}); retrying ${retries}/${maxRetries}.`,
+      });
+      await sleep(getGitRetryDelayMs() * retries);
     }
   }
 }
 
-function isTransientGitRemoteError(error: unknown): boolean {
+function getMakerGitRetryDecisionFromError(error: unknown): MakerGitRetryDecision {
+  if (error instanceof MakerGitError) {
+    return getMakerGitRetryDecision(
+      [error.failure.stdout, error.failure.stderr, error.failure.message].filter(Boolean).join('\n')
+    );
+  }
+
   const message = error instanceof Error ? error.message : String(error);
-  return /502|503|504|Bad Gateway|Service Unavailable|Gateway Timeout|The requested URL returned error: 5\d\d/i.test(
-    message
+  return getMakerGitRetryDecision(message);
+}
+
+function appendRetryExhausted(
+  error: unknown,
+  retryAttempts: number,
+  decision: MakerGitRetryDecision
+): unknown {
+  if (error instanceof MakerGitError) {
+    return new MakerGitError({
+      ...error.failure,
+      retryable: decision.retry,
+      retryReason: decision.reason,
+      retryAttempts,
+      message: [
+        error.failure.message,
+        '',
+        `Maker git transient retry exhausted after ${retryAttempts} retry attempts.`,
+        decision.reason ? `retry_reason: ${decision.reason}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    });
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(
+    [
+      message,
+      '',
+      `Maker git transient retry exhausted after ${retryAttempts} retry attempts.`,
+      decision.reason ? `retry_reason: ${decision.reason}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
   );
+}
+
+function getGitRetryDelayMs(): number {
+  const value = Number.parseInt(process.env.TAPTAP_MAKER_GIT_RETRY_DELAY_MS || '', 10);
+  return Number.isFinite(value) && value >= 0 ? value : 1500;
 }
 
 function sleep(ms: number): Promise<void> {

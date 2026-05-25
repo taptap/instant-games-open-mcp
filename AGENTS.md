@@ -339,10 +339,12 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 如果本地没有 Maker PAT，CLI 会引导用户打开当前环境的 PAT 页面新建 PAT，并把 PAT 发给 Agent：production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
 - 用户提供 Maker PAT 后，运行 `taptap-maker pat set <PAT>` 或在 `taptap-maker init` 里粘贴；CLI 会保存到 `~/.taptap-maker/pat.json`，兼容旧路径 `~/.maker-pat`，并调用 `GET /api/v1/user/taptap-token` 获取 TapTap MAC token。
 - `taptap-maker init` 会检查 Git、PAT、TapTap token、当前目录绑定状态、app 列表、AI dev kit，并在用户选择 app 后 clone 到当前目录。
+- `taptap-maker init` 的 Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
 - CLI 写 MCP 配置时优先支持 Windows：Windows 使用 `npx.cmd`，Git 引导优先指向 Git for Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方 Git。
 - MCP 公共能力只保留 `maker://status`、`maker_status_lite` 和 `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
 - 用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都调用 `maker_build_current_directory`。它会在本地有改动或 ahead commit 时先 commit/push，push 成功后才远端 build。
 - push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 负责解释并协助 pull/rebase 或解决冲突后重试。
+- push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，不要无脑手动执行通用 `git push`。
 - push 成功但远端 build 失败时，工具返回 `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端和具体构建错误。
 - 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`。
 - 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。

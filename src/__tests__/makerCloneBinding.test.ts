@@ -14,6 +14,7 @@ describe('maker clone binding safety', () => {
   const originalGitBin = process.env.TAPTAP_MAKER_GIT_BIN;
   const originalGitBase = process.env.TAPTAP_MAKER_GIT_BASE;
   const originalMakerHome = process.env.TAPTAP_MAKER_HOME;
+  const originalRetryDelay = process.env.TAPTAP_MAKER_GIT_RETRY_DELAY_MS;
   const originalPat = process.env.PAT;
 
   beforeEach(() => {
@@ -24,6 +25,7 @@ describe('maker clone binding safety', () => {
     restoreEnv('TAPTAP_MAKER_GIT_BIN', originalGitBin);
     restoreEnv('TAPTAP_MAKER_GIT_BASE', originalGitBase);
     restoreEnv('TAPTAP_MAKER_HOME', originalMakerHome);
+    restoreEnv('TAPTAP_MAKER_GIT_RETRY_DELAY_MS', originalRetryDelay);
     restoreEnv('PAT', originalPat);
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
@@ -151,6 +153,31 @@ describe('maker clone binding safety', () => {
     expect(commands).toContain('checkout -B beta origin/beta');
   });
 
+  test('retries transient Maker git 503 failures during first clone fetch', async () => {
+    const gitLog = path.join(tempDir, '.test-tools', 'git.log');
+    const fakeGit = createFakeGit(gitLog, { failFirstFetchWith503: true });
+    process.env.TAPTAP_MAKER_GIT_BIN = fakeGit;
+    process.env.TAPTAP_MAKER_GIT_BASE = 'https://maker.example.test/git';
+    process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home');
+    process.env.TAPTAP_MAKER_GIT_RETRY_DELAY_MS = '1';
+    process.env.PAT = 'tmpct_test_pat';
+    fs.writeFileSync(path.join(tempDir, 'tap.zip'), 'local zip\n', 'utf8');
+
+    const progressMessages: string[] = [];
+    const result = await cloneMakerProject({
+      appId: 'new-app',
+      targetDir: tempDir,
+      userId: 'user-1',
+      onProgress: (progress) => progressMessages.push(progress.message),
+    });
+
+    expect(result.status).toBe('cloned');
+    expect(result.transientRetries).toBe(1);
+    expect(progressMessages.join('\n')).toContain('retrying 1/2');
+    const commands = fs.readFileSync(gitLog, 'utf8');
+    expect(commands.match(/^fetch origin$/gm)).toHaveLength(2);
+  });
+
   test('merges staged dev kit gitignore block after clone', async () => {
     const gitLog = path.join(tempDir, '.test-tools', 'git.log');
     const fakeGit = createFakeGit(gitLog, { remoteFiles: ['.gitignore'] });
@@ -202,6 +229,7 @@ function createFakeGit(
   options: {
     defaultBranch?: string;
     failSymbolicRef?: boolean;
+    failFirstFetchWith503?: boolean;
     parentGitRoot?: string;
     remoteFiles?: string[];
   } = {}
@@ -276,6 +304,14 @@ if (commandArgs[0] === 'remote' && (commandArgs[1] === 'add' || commandArgs[1] =
   process.exit(0);
 }
 if (commandArgs[0] === 'fetch') {
+  if (${JSON.stringify(options.failFirstFetchWith503 === true)}) {
+    const marker = path.join(${JSON.stringify(path.dirname(logPath))}, 'fetch-503-seen');
+    if (!fs.existsSync(marker)) {
+      fs.writeFileSync(marker, '1');
+      console.error('fatal: unable to access https://maker.example.test/git/new-app.git: The requested URL returned error: 503');
+      process.exit(128);
+    }
+  }
   process.exit(0);
 }
 if (commandArgs[0] === 'symbolic-ref') {

@@ -83,6 +83,8 @@ build。push 失败时不会继续 build，会返回本地 commit、ahead 状态
 Maker 远端但构建失败。只有用户明确说“不提交，只构建云端版本”时，才传
 `confirm_remote_build_without_submit=true`。
 
+首次 clone/fetch 和 push 遇到 503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等临时网络错误时会自动重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不会重试，会把错误分类交给 Agent 处理。
+
 Windows 是默认优先级：CLI 写 MCP 配置时会在 Windows 使用 `npx.cmd`，Git 引导优先提示
 Git for Windows，并要求安装选项允许命令行和第三方工具通过 PATH 找到 Git。macOS 用户可通过
 `git --version` 触发 Xcode Command Line Tools，或安装官方 Git。

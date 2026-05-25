@@ -164,6 +164,15 @@ If clone fails because dev-kit network access is unavailable, explain that the M
 still be cloned, but local AI development docs/API/demo support may be incomplete. Ask whether
 the user wants to retry or continue without the dev kit.
 
+If clone or fetch fails with Maker Git output, inspect the returned error fields instead of asking
+the user to delete local files immediately. Treat `retryable: yes`, `classification:
+remote_transient`, or retry reasons such as `remote_http_5xx`, `network_or_timeout`, and
+`connection_interrupted` as temporary service/network failures. The CLI already retried these
+automatically; if it still fails, tell the user they can retry `taptap-maker init` later or switch
+to a cleaner independent directory after repeated failures. Do not retry for auth, permission,
+repository-not-found, remote-rejected, local file conflict, or local permission errors until the
+reported cause is fixed.
+
 ## PAT Handling
 
 If the user pastes a token-like string while the initialization flow is waiting for PAT, run
@@ -341,6 +350,10 @@ If submit created a local commit but push failed because the Maker remote was te
 unavailable, do not run a manual generic `git push`. Fix the reported cause if needed, then retry
 `maker_build_current_directory`. Maker MCP will detect committed-but-unpushed local commits and push
 them before build.
+
+For push failures, use the returned `classification`, `retryable`, `retry_reason`, and
+`retry_attempts` fields. Temporary 5xx/network/timeout failures may be retried with the Maker build
+tool; rejected remote updates require pull/rebase first; auth failures require refreshing PAT.
 
 When a Maker tool output contains `push_recovery`, follow it exactly:
 
