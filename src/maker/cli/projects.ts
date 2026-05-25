@@ -124,6 +124,9 @@ class MakerGitError extends Error {
   }
 }
 
+const MAKER_FIRST_CLONE_WAIT_MESSAGE =
+  'First Maker clone/fetch can take 20+ seconds while the server prepares the repository. Please keep this running; transient 503/5xx errors are retried automatically.';
+
 export function getConfiguredMakerApiBase(): string | undefined {
   return getMakerEndpoints().apiBase;
 }
@@ -939,6 +942,7 @@ async function cloneOrInitializeTarget(
     });
 
     let transientRetries = 0;
+    emitFirstCloneWaitNotice(onProgress, 'fetch');
     transientRetries += await runGitCaptureWithTransientRetry(['init', target], {
       sanitize: pat,
       onProgress,
@@ -965,9 +969,22 @@ async function cloneOrInitializeTarget(
     return transientRetries;
   }
 
+  emitFirstCloneWaitNotice(onProgress, 'clone');
   return runGitCaptureWithTransientRetry(['clone', authUrl, target], {
     sanitize: pat,
     onProgress,
+  });
+}
+
+function emitFirstCloneWaitNotice(
+  onProgress: MakerProjectProgressHandler | undefined,
+  phase: 'clone' | 'fetch'
+): void {
+  onProgress?.({
+    progress: 10,
+    total: 100,
+    phase,
+    message: MAKER_FIRST_CLONE_WAIT_MESSAGE,
   });
 }
 
@@ -1484,11 +1501,25 @@ async function runWithTransientRetry(
       retries += 1;
       options.onProgress?.({
         phase: options.stage,
-        message: `Transient Maker git ${options.stage} failure (${decision.reason}); retrying ${retries}/${maxRetries}.`,
+        message: formatGitRetryProgressMessage(options.stage, decision, retries, maxRetries),
       });
       await sleep(getGitRetryDelayMs() * retries);
     }
   }
+}
+
+function formatGitRetryProgressMessage(
+  stage: string,
+  decision: MakerGitRetryDecision,
+  retries: number,
+  maxRetries: number
+): string {
+  const reason = decision.reason || 'temporary_remote_failure';
+  const prefix =
+    (stage === 'clone' || stage === 'fetch') && reason === 'remote_http_5xx'
+      ? 'Maker server may still be preparing the repository'
+      : 'Maker git remote is temporarily unavailable';
+  return `${prefix} (${reason}); retrying ${retries}/${maxRetries}. Please keep this running.`;
 }
 
 function getMakerGitRetryDecisionFromError(error: unknown): MakerGitRetryDecision {

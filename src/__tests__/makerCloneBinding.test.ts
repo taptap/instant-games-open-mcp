@@ -173,6 +173,9 @@ describe('maker clone binding safety', () => {
 
     expect(result.status).toBe('cloned');
     expect(result.transientRetries).toBe(1);
+    expect(progressMessages.join('\n')).toContain('20+ seconds');
+    expect(progressMessages.join('\n')).toContain('transient 503/5xx errors are retried');
+    expect(progressMessages.join('\n')).toContain('Maker server may still be preparing');
     expect(progressMessages.join('\n')).toContain('retrying 1/2');
     const commands = fs.readFileSync(gitLog, 'utf8');
     expect(commands.match(/^fetch origin$/gm)).toHaveLength(2);

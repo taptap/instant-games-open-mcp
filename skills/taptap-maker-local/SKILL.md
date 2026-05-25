@@ -111,6 +111,9 @@ Workflow:
 4. Run `taptap-maker init` in the user's intended Maker directory. The CLI will request PAT if
    missing, fetch TapTap token, list every available app, ask the user to choose, prepare the AI dev
    kit, clone the Maker project, and install/verify MCP config.
+   Tell the user that the first Maker clone can take 20+ seconds because the server may be
+   preparing the repository, and that they should keep the command running while the CLI retries
+   transient 503/5xx failures.
 5. If the CLI reports ordinary local files or parent Git repository risk, explain the warning and
    ask whether the user wants to continue in this directory or switch to a clean independent one.
 6. After clone succeeds, run `taptap-maker doctor` again or explain that `.maker-mcp/config.json`
@@ -167,11 +170,12 @@ the user wants to retry or continue without the dev kit.
 If clone or fetch fails with Maker Git output, inspect the returned error fields instead of asking
 the user to delete local files immediately. Treat `retryable: yes`, `classification:
 remote_transient`, or retry reasons such as `remote_http_5xx`, `network_or_timeout`, and
-`connection_interrupted` as temporary service/network failures. The CLI already retried these
-automatically; if it still fails, tell the user they can retry `taptap-maker init` later or switch
-to a cleaner independent directory after repeated failures. Do not retry for auth, permission,
-repository-not-found, remote-rejected, local file conflict, or local permission errors until the
-reported cause is fixed.
+`connection_interrupted` as temporary service/network failures. For first clone, explain that 503
+often means the Maker server is still preparing the repository and can take more than 20 seconds.
+The CLI already retried these automatically; if it still fails, tell the user they can retry
+`taptap-maker init` later or switch to a cleaner independent directory after repeated failures. Do
+not retry for auth, permission, repository-not-found, remote-rejected, local file conflict, or local
+permission errors until the reported cause is fixed.
 
 ## PAT Handling
 
