@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
+import { Writable } from 'node:stream';
 import { stdin as input, stdout as output } from 'node:process';
 import { getMakerEnvironment, getMakerPatTokensUrl, type MakerEnvironment } from '../config.js';
 import { requestTapAuthWithPat } from '../auth/patTap.js';
@@ -34,6 +35,7 @@ import { formatMakerSkillStatus } from './skill.js';
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const DEFAULT_PACKAGE = '@taptap/instant-games-open-mcp';
+const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit']);
 
 type ParsedArgs = {
   command: string[];
@@ -123,7 +125,12 @@ function parseArgs(argv: string[]): ParsedArgs {
       continue;
     }
 
-    if (command.length < 2) {
+    if (command.length === 0) {
+      command.push(arg);
+      continue;
+    }
+
+    if (command.length === 1 && TWO_PART_COMMANDS.has(command[0])) {
       command.push(arg);
     } else {
       positionals.push(arg);
@@ -310,7 +317,7 @@ async function resolvePatSet(parsed: ParsedArgs): Promise<string> {
     return fromPositional || fromOption!;
   }
 
-  return promptRequired('PAT');
+  return promptRequired('PAT', { mask: true });
 }
 
 async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -390,7 +397,7 @@ async function resolvePat(parsed: ParsedArgs, ctx: CliContext): Promise<string> 
   emit(ctx, 'pat_required', 'Maker PAT is required', {
     pat_page: getMakerPatTokensUrl(makerEnvOption(parsed)),
   });
-  const pat = await promptRequired('Paste Maker PAT');
+  const pat = await promptRequired('Paste Maker PAT', { mask: true });
   saveManualMakerPat(pat);
   return pat;
 }
@@ -453,46 +460,68 @@ function installMcpConfigs(options: {
   pkg: string;
   mcpName: string;
 }): Array<{ ide: string; ok: boolean; message: string; path?: string }> {
-  return options.ides.map((ide) => {
-    if (ide === 'codex') {
-      const configPath = path.join(os.homedir(), '.codex', 'config.toml');
-      mergeCodexMcpConfig(configPath, options);
-      return {
-        ide,
-        ok: true,
-        path: configPath,
-        message: `✓ Codex MCP config updated: ${configPath}`,
-      };
-    }
+  return options.ides.map((ide) => installMcpConfig(ide, options));
+}
 
-    if (ide === 'cursor') {
-      const configPath = path.join(os.homedir(), '.cursor', 'mcp.json');
-      mergeJsonMcpConfig(configPath, options);
-      return {
-        ide,
-        ok: true,
-        path: configPath,
-        message: `✓ Cursor MCP config updated: ${configPath}`,
-      };
-    }
+function installMcpConfig(
+  ide: string,
+  options: { env: MakerEnvironment; pkg: string; mcpName: string }
+): { ide: string; ok: boolean; message: string; path?: string } {
+  try {
+    return installMcpConfigUnsafe(ide, options);
+  } catch (error) {
+    return {
+      ide,
+      ok: false,
+      message: `✗ ${ide} MCP config update failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
+}
 
-    if (ide === 'claude') {
-      const claudeResult = tryClaudeMcpAdd(options);
-      if (claudeResult.ok) {
-        return { ide, ok: true, message: '✓ Claude Code MCP config updated with claude mcp add' };
-      }
-      const configPath = path.join(os.homedir(), '.claude.json');
-      mergeJsonMcpConfig(configPath, options);
-      return {
-        ide,
-        ok: true,
-        path: configPath,
-        message: `✓ Claude fallback MCP config updated: ${configPath}`,
-      };
-    }
+function installMcpConfigUnsafe(
+  ide: string,
+  options: { env: MakerEnvironment; pkg: string; mcpName: string }
+): { ide: string; ok: boolean; message: string; path?: string } {
+  if (ide === 'codex') {
+    const configPath = path.join(os.homedir(), '.codex', 'config.toml');
+    mergeCodexMcpConfig(configPath, options);
+    return {
+      ide,
+      ok: true,
+      path: configPath,
+      message: `✓ Codex MCP config updated: ${configPath}`,
+    };
+  }
 
-    return { ide, ok: false, message: `Skipped unknown IDE: ${ide}` };
-  });
+  if (ide === 'cursor') {
+    const configPath = path.join(os.homedir(), '.cursor', 'mcp.json');
+    mergeJsonMcpConfig(configPath, options);
+    return {
+      ide,
+      ok: true,
+      path: configPath,
+      message: `✓ Cursor MCP config updated: ${configPath}`,
+    };
+  }
+
+  if (ide === 'claude') {
+    const claudeResult = tryClaudeMcpAdd(options);
+    if (claudeResult.ok) {
+      return { ide, ok: true, message: '✓ Claude Code MCP config updated with claude mcp add' };
+    }
+    const configPath = path.join(os.homedir(), '.claude.json');
+    mergeJsonMcpConfig(configPath, options);
+    return {
+      ide,
+      ok: true,
+      path: configPath,
+      message: `✓ Claude fallback MCP config updated: ${configPath}`,
+    };
+  }
+
+  return { ide, ok: false, message: `Skipped unknown IDE: ${ide}` };
 }
 
 function mergeJsonMcpConfig(
@@ -660,20 +689,35 @@ function writeJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value)}\n`);
 }
 
-async function promptRequired(label: string): Promise<string> {
+async function promptRequired(label: string, options: { mask?: boolean } = {}): Promise<string> {
   if (!process.stdin.isTTY) {
     throw new Error(`${label} is required in non-interactive mode.`);
   }
-  const rl = readline.createInterface({ input, output });
+  const promptOutput = options.mask ? createMaskedPromptOutput() : output;
+  if (options.mask) {
+    output.write(`${label}: `);
+  }
+  const rl = readline.createInterface({ input, output: promptOutput });
   try {
-    const answer = await rl.question(`${label}: `);
+    const answer = await rl.question(options.mask ? '' : `${label}: `);
     if (!answer.trim()) {
       throw new Error(`${label} cannot be empty.`);
     }
     return answer.trim();
   } finally {
     rl.close();
+    if (options.mask) {
+      output.write('\n');
+    }
   }
+}
+
+export function createMaskedPromptOutput(): NodeJS.WritableStream {
+  return new Writable({
+    write(_chunk, _encoding, callback): void {
+      callback();
+    },
+  });
 }
 
 function stringOption(parsed: ParsedArgs, key: string): string | undefined {

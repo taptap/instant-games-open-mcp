@@ -264,6 +264,7 @@ Windows 引导：
 Windows 兼容注意：
 
 - 写入 MCP 配置时，`npx` 在 Windows 下使用 `npx.cmd`，避免部分客户端 `spawn` 找不到命令。
+- `taptap-maker mcp install` 会逐 IDE 返回成功或失败；某个客户端配置写入失败不会阻塞其他客户端继续尝试。
 - Maker 内部路径必须使用 Node `path` API，不能手写 POSIX 路径分隔符。
 - Git 可执行文件默认从 PATH 查找；企业环境或非标准安装路径可通过 `TAPTAP_MAKER_GIT_BIN` 覆盖。
 
