@@ -20,27 +20,27 @@ module.exports = {
     // Beta 测试版本
     {
       name: 'beta',
-      prerelease: true
+      prerelease: true,
     },
 
     // Alpha 早期测试版本
     {
       name: 'alpha',
-      prerelease: true
+      prerelease: true,
     },
 
     // 支持多个 beta 分支（如 beta/feature-a）
     {
       name: 'beta/*',
-      prerelease: '${name.replace(/^beta\\//, "")}'
+      prerelease: '${name.replace(/^beta\\//, "")}',
     },
 
     // 维护旧版本（如 1.x, 2.x）
     {
       name: '1.x',
       range: '1.x',
-      channel: '1.x'
-    }
+      channel: '1.x',
+    },
   ],
 
   // 插件配置
@@ -50,12 +50,11 @@ module.exports = {
       '@semantic-release/commit-analyzer',
       {
         preset: 'conventionalcommits',
-        // 🔒 禁用 Footer 中的 BREAKING CHANGE 识别
-        // 只识别 Header 中的 ! 标记（如 feat!:, fix!:）
-        // 这样可以防止意外触发 major 版本更新
-        // Footer 中的 BREAKING CHANGE: 不再触发 major，但 Header 中的 ! 仍然有效
+        // 🔒 禁用自动 major 识别
+        // Breaking changes 需要走人工发布流程，避免误发 2.x/3.x 等 major 版本。
+        // Footer 中的 BREAKING CHANGE: 不触发 major；Header 中的 ! 也按 type 规则处理。
         parserOpts: {
-          noteKeywords: ['MANUAL-BREAKING-CHANGE-DO-NOT-USE']
+          noteKeywords: ['MANUAL-BREAKING-CHANGE-DO-NOT-USE'],
         },
         releaseRules: [
           { type: 'feat', release: 'minor' },
@@ -69,9 +68,9 @@ module.exports = {
           { type: 'test', release: false },
           { type: 'build', release: false },
           { type: 'ci', release: false },
-          { breaking: true, release: 'major' }
-        ]
-      }
+          { breaking: true, release: 'patch' },
+        ],
+      },
     ],
 
     // 2. 生成 release notes
@@ -91,10 +90,10 @@ module.exports = {
             { type: 'refactor', section: '♻️ Refactoring' },
             { type: 'test', section: '✅ Tests' },
             { type: 'build', section: '📦 Build' },
-            { type: 'ci', section: '🤖 CI' }
-          ]
-        }
-      }
+            { type: 'ci', section: '🤖 CI' },
+          ],
+        },
+      },
     ],
 
     // 3. 更新 CHANGELOG.md
@@ -102,8 +101,9 @@ module.exports = {
       '@semantic-release/changelog',
       {
         changelogFile: 'CHANGELOG.md',
-        changelogTitle: '# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).'
-      }
+        changelogTitle:
+          '# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).',
+      },
     ],
 
     // 4. 更新 package.json 版本号并发布到 npm
@@ -112,8 +112,8 @@ module.exports = {
       '@semantic-release/npm',
       {
         npmPublish: !process.env.SEMANTIC_RELEASE_DRY_RUN,
-        tarballDir: 'dist'
-      }
+        tarballDir: 'dist',
+      },
     ],
 
     // 5. 提交 package.json 和 CHANGELOG.md 的变更
@@ -121,8 +121,8 @@ module.exports = {
       '@semantic-release/git',
       {
         assets: ['package.json', 'package-lock.json', 'CHANGELOG.md'],
-        message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}'
-      }
+        message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}',
+      },
     ],
 
     // 6. 创建 GitHub Release
@@ -132,10 +132,10 @@ module.exports = {
         assets: [
           {
             path: 'dist/*.tgz',
-            label: 'Distribution'
-          }
-        ]
-      }
-    ]
-  ]
+            label: 'Distribution',
+          },
+        ],
+      },
+    ],
+  ],
 };
