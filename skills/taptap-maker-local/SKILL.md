@@ -5,18 +5,19 @@ description: Guide TapTap Maker local development workflows. Use when a user ask
 
 # TapTap Maker Local Workflow
 
-Use this skill as the workflow layer for Maker local development. MCP tools provide machine
-capabilities; this skill decides the sequence, asks the user for choices, and explains local
-state in plain language.
+Use this skill as the workflow layer for Maker local development. The Maker CLI owns one-time
+initialization; MCP tools own the high-frequency development loop. This skill decides the sequence,
+asks the user for choices, and explains local state in plain language.
 
 ## Scope
 
 This skill covers:
 
 - initialize local Maker development
+- run the Maker CLI initialization flow
 - prepare local AI dev kit before project binding
 - clone a Maker project
-- choose a Maker app from the app list
+- choose a Maker app from the CLI app list
 - explain PAT, Git, project binding, and editor reloads
 - inspect local changes
 - pull remote changes
@@ -24,30 +25,30 @@ This skill covers:
 - push local commits
 - explain and resolve conflicts with user approval
 
-Build behavior still belongs to the existing Maker MCP build tool. Do not remove or bypass the
-current MCP tools.
+Build, submit, push, preview, and verify behavior belongs to the single Maker MCP build tool.
 
 ## Responsibilities
 
 Keep this split clear:
 
 - Skill: user intent, step order, whether to ask the user, friendly explanations, failure recovery.
-- MCP tools: save PAT, fetch app list, clone, submit, build, inspect Maker status.
-- CLI: install MCP config and install bundled skills.
+- CLI: save PAT, fetch app list, prepare dev kit, clone, install MCP config, verify local setup.
+- MCP tools/resources: inspect Maker status and run the combined commit/push/build path.
 
-Do not reimplement Maker API calls or Git authentication in shell when a Maker MCP tool exists.
+Do not reimplement Maker API calls or Git authentication in shell when the Maker CLI or MCP tool
+exists.
 
 ## Main Intent Table
 
 | User intent                                               | Required workflow                                                                                                                  |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| initialize / configure / continue Maker local development | Follow "Initialization Workflow".                                                                                                  |
+| initialize / configure / continue Maker local development | Run the Maker CLI initialization workflow.                                                                                         |
 | clone / download Maker project locally                    | Follow "Initialization Workflow"; do not ask for app_id directly.                                                                  |
-| status / is Maker ready                                   | Call `maker_status` for the user's current project directory, then explain missing prerequisites and dev-kit status.               |
-| submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_submit_current_directory` unless blocked.                       |
+| status / is Maker ready                                   | Read `maker://status`, call `maker_status_lite` if resources are unavailable, or run `taptap-maker doctor`.                        |
+| submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                        |
 | pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                             |
 | conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing. |
-| build / preview / run / verify                            | Use `maker_build_current_directory`; if it reports local changes, ask using the exact options returned by the tool.                |
+| build / preview / run / verify                            | Use `maker_build_current_directory`; it commits/pushes before build unless the user explicitly requests remote-only build.         |
 
 ## Project Detection
 
@@ -81,8 +82,9 @@ calling Maker tools. If there are multiple attached workspaces, show the paths a
 which one is the Maker project directory. Do not treat the dialogue/session directory as the Maker
 project directory, and do not ask the user to clone an app into that directory.
 
-If `maker_status` returns `AI client workspace selection`, follow that hint: choose an attached
-workspace first, then call `maker_status(target_dir="<attached project directory>")`.
+If status output returns `AI client workspace selection`, follow that hint: choose an attached
+workspace first, then read `maker://status` or call `maker_status_lite` with the attached project
+directory.
 
 ## Initialization Workflow
 
@@ -100,43 +102,43 @@ Trigger phrases include:
 
 Workflow:
 
-1. Call `maker_status`. If the MCP process cwd differs from the user's current project directory,
-   pass the user's current project directory as `target_dir`.
-2. If `maker_status` reports the current directory is already bound to a Maker project, stop the
+1. Run `taptap-maker doctor` for the user's intended Maker directory, or read `maker://status` when
+   the MCP server is already available.
+2. If the status reports the current directory is already bound to a Maker project, stop the
    initialization/clone path. Continue with the user's current intent in that bound project. Do not
    ask which app to clone unless the user explicitly asks to switch or re-clone.
 3. If Git is missing, stop. Tell the user Git is required for clone/submit/build-side Git work.
-4. If `maker_status` lists bundled skill documents, just tell the user which skills are available.
-   Do not run editor-specific CLI install commands.
-5. If PAT is missing, ask the user to open the PAT page shown by `maker_status`, create a PAT, and send it back.
-6. When the user provides PAT, call `maker_exchange_pat(manual_pat)`.
-7. If the current directory is still unbound, show every returned Maker app entry to the user and
-   ask the user to choose. Do not summarize the list as only a count, category, or stage. Do not
-   auto-select, even if there is only one app.
-8. Run the working directory compliance check below, including the parent Git repository warning.
-9. After the user chooses an app, call `maker_clone_to_current_directory(app_id)`. The clone
-   tool prepares the AI dev kit automatically before project checkout.
-10. After clone succeeds, call `maker_status` again or explain that `.maker-mcp/config.json` now binds the directory to the Maker project.
-11. Tell the local AI/Agent to use the `taptap-maker-dev-kit-guide` skill for the installed dev-kit
-    resources, especially `CLAUDE.md`, `examples/`, `templates/`, and `urhox-libs/`.
+4. Run `taptap-maker init` in the user's intended Maker directory. The CLI will request PAT if
+   missing, fetch TapTap token, list every available app, ask the user to choose, prepare the AI dev
+   kit, clone the Maker project, and install/verify MCP config.
+   Tell the user that the first Maker clone can take 20+ seconds because the server may be
+   preparing the repository, and that they should keep the command running while the CLI retries
+   transient 503/5xx failures.
+5. If the CLI reports ordinary local files or parent Git repository risk, explain the warning and
+   ask whether the user wants to continue in this directory or switch to a clean independent one.
+6. After clone succeeds, run `taptap-maker doctor` again or explain that `.maker-mcp/config.json`
+   now binds the directory to the Maker project.
+7. Tell the local AI/Agent to use the `taptap-maker-dev-kit-guide` skill for the installed dev-kit
+   resources, especially `CLAUDE.md`, `examples/`, `templates/`, and `urhox-libs/`.
 
 Keep the user-facing explanation short:
 
 ```text
-我会先检查本机 Git、PAT 和当前目录是否已绑定 Maker 项目。
-如果还没有 PAT，我会让你去页面创建一个；拿到项目列表后你选游戏，我再拉代码。
+我会先用 Maker CLI 检查本机 Git、PAT 和当前目录是否已绑定 Maker 项目。
+如果还没有 PAT，CLI 会让你去页面创建一个；拿到项目列表后你选游戏，我再拉代码。
 ```
 
 ## AI Dev Kit Preparation
 
-`maker_clone_to_current_directory` prepares local development environment files in the current
-working directory before it checks out the Maker project.
+`taptap-maker init` prepares local development environment files in the current working directory
+before it checks out the Maker project.
 
-`maker_status` checks the dev-kit top-level entries for an already bound Maker project. If
-`CLAUDE.md`, `examples/`, `templates/`, or `urhox-libs/` are missing, the tool restores the dev kit
-without overwriting existing local files and refreshes the managed `.gitignore` block.
+`taptap-maker doctor` and `maker://status` check the dev-kit top-level entries for an already bound
+Maker project. If `CLAUDE.md`, `examples/`, `templates/`, or `urhox-libs/` are missing, run
+`taptap-maker dev-kit update` to restore the dev kit without overwriting existing local files and
+refresh the managed `.gitignore` block.
 
-The clone tool downloads and installs:
+The CLI downloads and installs:
 
 ```text
 https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip
@@ -150,7 +152,7 @@ resources to the local AI/Agent:
 - `templates/` contains reusable templates.
 - `urhox-libs/` contains engine APIs and capability references.
 
-The clone tool is responsible for deterministic file operations:
+The CLI is responsible for deterministic file operations:
 
 - extract the ZIP into the current directory
 - skip the ZIP top-level `scripts` directory because it conflicts with Maker project code
@@ -159,18 +161,29 @@ The clone tool is responsible for deterministic file operations:
 - after Maker clone succeeds, merge that block into the checked-out `.gitignore`
 - keep the dev-kit files local-only so they are not submitted to Maker Git
 
-Do not hand-write a custom download/unzip script while this MCP clone tool is available.
+Do not hand-write a custom download/unzip script while this CLI command is available.
 
 If clone fails because dev-kit network access is unavailable, explain that the Maker project can
 still be cloned, but local AI development docs/API/demo support may be incomplete. Ask whether
 the user wants to retry or continue without the dev kit.
 
+If clone or fetch fails with Maker Git output, inspect the returned error fields instead of asking
+the user to delete local files immediately. Treat `retryable: yes`, `classification:
+remote_transient`, or retry reasons such as `remote_http_5xx`, `network_or_timeout`, and
+`connection_interrupted` as temporary service/network failures. For first clone, explain that 503
+often means the Maker server is still preparing the repository and can take more than 20 seconds.
+The CLI already retried these automatically; if it still fails, tell the user they can retry
+`taptap-maker init` later or switch to a cleaner independent directory after repeated failures. Do
+not retry for auth, permission, repository-not-found, remote-rejected, local file conflict, or local
+permission errors until the reported cause is fixed.
+
 ## PAT Handling
 
-If the user pastes a token-like string while the initialization flow is waiting for PAT, call
-`maker_exchange_pat(manual_pat)` and continue only if the current directory is unbound. Do not just
-say "received". If the directory is already bound, treat the returned app list as account reference
-only and continue the user's current bound-project task.
+If the user pastes a token-like string while the initialization flow is waiting for PAT, let the
+running `taptap-maker init` prompt consume it, or run `taptap-maker pat set` and paste the PAT into
+the prompt. Do not put PAT directly in argv unless the user explicitly accepts the ps/shell-history
+exposure. Do not just say "received". If the directory is already bound, treat `taptap-maker apps`
+output as account reference only and continue the user's current bound-project task.
 
 If PAT exchange fails:
 
@@ -183,9 +196,9 @@ If PAT exchange fails:
 Use app selection only when the current directory is unbound and the user is initializing or cloning
 a Maker project, or when the user explicitly asks to switch or re-clone.
 
-If the current directory is already bound, app lists from `maker_exchange_pat`, `maker_list_apps`, or
-`maker_status` are reference only. Do not ask which app to clone. Continue operating on the current
-bound project unless the user explicitly requests a different project.
+If the current directory is already bound, app lists from `taptap-maker apps` are reference only. Do
+not ask which app to clone. Continue operating on the current bound project unless the user
+explicitly requests a different project.
 
 When app selection is needed, display every app entry from the tool result and ask the user to
 choose by index, app id, or name. Do not replace the list with a summary such as "10 apps are
@@ -197,17 +210,18 @@ Do not auto-select:
 - the most recent app
 - the only app
 
-After the user chooses, pass the concrete `app_id` to `maker_clone_to_current_directory`.
+After the user chooses, let `taptap-maker init` continue with the selected app. Do not ask the user
+to manually provide app_id unless the CLI is being run non-interactively.
 
 ## Working Directory Compliance Check
 
-Before every clone attempt, call `maker_status(target_dir)` for the user's intended Maker
-development directory. Use that result as the source of truth for Git availability, existing Maker
-binding, outer Git repository detection, and AI dev-kit status.
+Before every clone attempt, run `taptap-maker doctor` for the user's intended Maker development
+directory. Use that result as the source of truth for Git availability, existing Maker binding,
+outer Git repository detection, and AI dev-kit status.
 
 ### Directory Suitability Decision
 
-After `maker_status(target_dir)`, decide whether the directory is suitable for clone:
+After `taptap-maker doctor`, decide whether the directory is suitable for clone:
 
 - If the directory is already bound to a Maker project, do not clone again unless the user
   explicitly asks to switch or re-clone.
@@ -244,16 +258,16 @@ user before clone:
 - A Maker project can live under that directory only if the Maker directory gets its own `.git`.
 - Recommend a completely independent directory, such as `~/MakerProjects/<game-name>`, for safer
   local development.
-- If the user explicitly continues, call `maker_clone_to_current_directory`; the MCP clone tool
-  must initialize an independent Maker Git repository in the target directory and must not modify
-  the outer repository remote.
+- If the user explicitly continues, continue `taptap-maker init`; the CLI must initialize an
+  independent Maker Git repository in the target directory and must not modify the outer repository
+  remote.
 
 Do not delete, move, or overwrite user files during this check.
 
 ## Clone Directory Safety
 
-Before clone, the Maker MCP clone tool checks local files and reports conflicts. The AI dev kit
-may create local-only files before clone, so explain this in non-technical terms:
+Before clone, the Maker CLI checks local files and reports conflicts. The AI dev kit may create
+local-only files before clone, so explain this in non-technical terms:
 
 - existing local config folders such as `.claude`, `.mcp`, `.skill`, `.config`, `.ini` are kept
 - normal local files are kept unless they conflict with files from the Maker project
@@ -262,15 +276,14 @@ may create local-only files before clone, so explain this in non-technical terms
 
 Do not delete or overwrite user files to make clone work unless the user explicitly asks.
 
-If `maker_clone_to_current_directory` fails and the tool returns `partial_state`, explain the
-state in plain language:
+If `taptap-maker init` fails and returns `partial_state`, explain the state in plain language:
 
 - `project_bound: no` usually means clone did not finish; retrying clone is allowed.
 - `git_initialized: yes` with `project_bound: no` means the directory may contain a partial local
   Git setup; retry once, and if it fails again recommend a fresh independent directory.
 - `ai_dev_kit_present: yes` means local AI docs/examples may already be present even though Maker
   project checkout failed.
-- `project_bound: yes` means the directory already has Maker binding; run `maker_status` before
+- `project_bound: yes` means the directory already has Maker binding; run `taptap-maker doctor` before
   attempting anything else.
 
 Do not delete partial files automatically. For novice users, prefer recommending a new independent
@@ -278,9 +291,9 @@ directory over manual cleanup.
 
 ### `.gitignore` Merge During Clone
 
-The Maker clone tool stages the dev-kit managed ignore block in
+The Maker CLI stages the dev-kit managed ignore block in
 `.gitignore.dev-kit-before-clone` instead of writing `.gitignore` before checkout. After Maker
-clone succeeds, the clone tool merges that managed block into the checked-out `.gitignore` and
+clone succeeds, the CLI merges that managed block into the checked-out `.gitignore` and
 removes the temporary file.
 
 If clone still reports conflicts for files other than `.gitignore.dev-kit-before-clone`, do not
@@ -292,8 +305,8 @@ submitted to Maker Git.
 
 ## Bundled Skills
 
-When `maker_status` reports TapTap bundled workflow skills, show the skill names and document
-paths. Do not install or register skills automatically.
+When `taptap-maker doctor`, `maker://status`, or `maker_status_lite` reports TapTap bundled workflow
+skills, show the skill names and document paths. Do not install or register skills automatically.
 
 `taptap-maker-local` covers Maker local workflow. `taptap-maker-dev-kit-guide` explains the local
 AI dev-kit resources installed during clone. `update-taptap-mcp` covers local TapTap MCP cache
@@ -330,27 +343,28 @@ mean:
 commit + push + Maker build
 ```
 
-Use `maker_submit_current_directory` for this path. Do not use generic Git task-id,
+Use `maker_build_current_directory` for this path. Do not use generic Git task-id,
 branch-creation, or PR rules inside Maker project repositories.
 
-If `maker_submit_current_directory` returns a build failure after a successful push, report both:
+If `maker_build_current_directory` returns a build failure after a successful push, report both:
 
 - submit/push succeeded
 - build failed, with the concrete build error
 
 If submit created a local commit but push failed because the Maker remote was temporarily
-unavailable, do not run a manual generic `git push`. Tell the user to retry
-`maker_submit_current_directory`, or use `maker_build_current_directory` with
-`submit_local_changes_before_build=true` when the user is retrying build. Maker MCP will detect
-committed-but-unpushed local commits and push them before build.
+unavailable, do not run a manual generic `git push`. Fix the reported cause if needed, then retry
+`maker_build_current_directory`. Maker MCP will detect committed-but-unpushed local commits and push
+them before build.
+
+For push failures, use the returned `classification`, `retryable`, `retry_reason`, and
+`retry_attempts` fields. Temporary 5xx/network/timeout failures may be retried with the Maker build
+tool; rejected remote updates require pull/rebase first; auth failures require refreshing PAT.
 
 When a Maker tool output contains `push_recovery`, follow it exactly:
 
 - Tell the user the local commit is preserved but not yet on Maker remote.
 - Do not ask for permission to run a generic `git push`.
-- Retry with `maker_submit_current_directory` for submit requests.
-- Retry with `maker_build_current_directory(submit_local_changes_before_build=true)` for build
-  requests.
+- Retry with `maker_build_current_directory` for submit and build requests.
 - If the failure is `remote_rejected`, ask before pull/rebase; do not create a new branch or PR.
 
 ## Pull And Conflict Handling

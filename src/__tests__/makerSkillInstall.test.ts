@@ -40,18 +40,21 @@ describe('Maker bundled workflow skill documents', () => {
     const skillText = fs.readFileSync(skillPath, 'utf8');
 
     expect(skillText).toContain('Initialization Workflow');
-    expect(skillText).toContain('maker_status');
-    expect(skillText).toContain('maker_exchange_pat');
-    expect(skillText).toContain('maker_clone_to_current_directory');
-    expect(skillText).toContain('tool prepares the AI dev kit automatically');
+    expect(skillText).toContain('taptap-maker doctor');
+    expect(skillText).toContain('taptap-maker init');
+    expect(skillText).toContain('taptap-maker pat set');
+    expect(skillText).toContain('Do not put PAT directly in argv');
+    expect(skillText).toContain('taptap-maker apps');
+    expect(skillText).toContain('The CLI will request PAT if');
+    expect(skillText).toContain('The CLI is responsible for deterministic file operations');
     expect(skillText).toContain(MAKER_DEV_KIT_GUIDE_SKILL_NAME);
     expect(skillText).toContain('already bound to a Maker project');
-    expect(skillText).toContain('Do not ask which app to clone');
-    expect(skillText).toContain('app lists');
+    expect(skillText).toContain('ask which app to clone');
+    expect(skillText).toContain('app lists from `taptap-maker apps`');
     expect(skillText).toContain('reference only');
     expect(skillText).toContain('Do not auto-select');
     expect(skillText).toContain('Bundled Skills');
-    expect(skillText).toContain('Before every clone attempt, call `maker_status(target_dir)`');
+    expect(skillText).toContain('Before every clone attempt, run `taptap-maker doctor`');
     expect(skillText).toContain('Directory Suitability Decision');
     expect(skillText).toContain('committed-but-unpushed local commits');
     expect(skillText).toContain('push_recovery');
@@ -59,6 +62,8 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Attached Workspace Selection');
     expect(skillText).toContain('dialogues');
     expect(skillText).toContain('single attached workspace');
+    expect(skillText).not.toContain('maker_exchange_pat');
+    expect(skillText).not.toContain('maker_clone_to_current_directory');
     expect(skillText).not.toContain('taptap-maker dev-kit install --target .');
     expect(skillText).not.toContain('taptap-maker install-skill --ide codex');
   });
@@ -79,6 +84,19 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Do not submit them to Maker Git');
     expect(skillText).toContain('Testing And Result Check');
     expect(skillText).toContain('用户可以直接说“提交”或“构建”');
+    expect(skillText).toContain('taptap-maker dev-kit update');
+    expect(skillText).toContain('maker_build_current_directory');
     expect(skillText).toContain('TapMaker 网页端查看结果');
+    expect(skillText).not.toContain('maker_clone_to_current_directory');
+    expect(skillText).not.toContain('maker_status`');
+  });
+
+  test('Update MCP skill validates compact Maker status surface', () => {
+    const skillPath = path.join(process.cwd(), 'skills', UPDATE_TAPTAP_MCP_SKILL_NAME, 'SKILL.md');
+    const skillText = fs.readFileSync(skillPath, 'utf8');
+
+    expect(skillText).toContain('maker://status');
+    expect(skillText).toContain('maker_status_lite');
+    expect(skillText).not.toContain('maker_status`');
   });
 });

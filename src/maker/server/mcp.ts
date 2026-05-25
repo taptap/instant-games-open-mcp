@@ -9,7 +9,9 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
+  ListResourcesRequestSchema,
   ListToolsRequestSchema,
+  ReadResourceRequestSchema,
   McpError,
   ErrorCode,
 } from '@modelcontextprotocol/sdk/types.js';
@@ -29,10 +31,8 @@ import {
   loadJwt,
   loadPat,
   loadTapAuth,
-  saveProjectConfig,
 } from '../storage.js';
 import {
-  cloneMakerProject,
   inspectMakerDirectoryGitStatus,
   listMakerProjects,
   pushMakerProject,
@@ -41,9 +41,9 @@ import {
   type PushMakerProjectResult,
   type MakerProjectProgress,
   type MakerProjectProgressHandler,
+  type MakerGitFailure,
 } from '../cli/projects.js';
 import { requestTapAuthWithPat } from '../auth/patTap.js';
-import { saveManualMakerPat } from '../git/pat.js';
 import {
   getMakerEndpoints,
   getMakerEnvironment,
@@ -54,17 +54,12 @@ import { getUserIdFromMakerJwt } from '../auth/jwt.js';
 import {
   MakerGitNotFoundError,
   checkGitEnvironment,
-  ensureGitAvailable,
   formatGitEnvironmentStatus,
 } from '../system/git.js';
 import { formatMakerSkillStatus } from '../cli/skill.js';
 import {
   DEV_KIT_GITIGNORE_STAGING_FILE,
-  finalizeStagedDevKitGitignore,
   inspectAiDevKit,
-  installAiDevKit,
-  listPresentDevKitManagedEntries,
-  writeDevKitStagedGitignore,
   type AiDevKitStatus,
 } from '../cli/devKit.js';
 
@@ -91,40 +86,9 @@ class MakerCloneFailedError extends Error {
 
 export const tools = [
   {
-    name: 'maker_exchange_pat',
+    name: 'maker_status_lite',
     description:
-      'Save a Maker PAT for local Maker API, Git, and TapTap token operations. After saving PAT, this tool fetches TapTap token and returns a user-facing Maker app list. If the current directory is unbound, show every returned app entry to the user and ask them to choose; do not summarize the list as a count only.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        manual_pat: {
-          type: 'string',
-          description:
-            'Maker PAT provided by the user. It will be saved for later Maker API and git operations.',
-        },
-      },
-      required: ['manual_pat'],
-    },
-  },
-  {
-    name: 'maker_list_apps',
-    description:
-      'List Maker apps available to the cached or provided Maker PAT. Use this for unbound Maker directory initialization or explicit app-list requests. If the current directory is unbound, show every returned app entry to the user and ask them to choose; do not summarize the list as a count only. If maker_status already reports the current directory is bound, treat this list as reference only and do not ask which app to clone unless the user explicitly wants to switch or re-clone.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        pat: {
-          type: 'string',
-          description:
-            'Optional Maker PAT override. If provided, it is saved for later Maker operations.',
-        },
-      },
-    },
-  },
-  {
-    name: 'maker_status',
-    description:
-      'Show local Maker MCP status for the user current working directory: Git availability, PAT/TapTap token status, project binding, AI dev kit status, bundled skill document paths, validation checklist, and available apps when the current directory is unbound and PAT exists. If the current directory is unbound and apps are returned, show every app entry to the user; do not summarize the list as a count only. If the MCP process cwd differs from the user current working directory, pass target_dir with the user current working directory.',
+      'Compatibility fallback for clients that cannot read the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow skill document paths.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -137,64 +101,9 @@ export const tools = [
     },
   },
   {
-    name: 'maker_clone_to_current_directory',
-    description:
-      'Clone a selected Maker app repository into the current agent working directory and write .maker-mcp/config.json. Requires Git and a concrete app_id. Before clone, the tool prepares the local AI dev kit automatically, skips dev-kit scripts, deletes the downloaded zip, and stages dev-kit ignore rules for merge after checkout. The tool checks local file conflicts before checkout and keeps non-conflicting local files.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        app_id: {
-          type: 'string',
-          description: 'Maker APP_ID to clone from the configured Maker git service.',
-        },
-        target_dir: {
-          type: 'string',
-          description:
-            'Optional target directory. Defaults to the MCP process cwd. Pass the user current working directory when it differs from the MCP process cwd.',
-        },
-        pat: {
-          type: 'string',
-          description:
-            'Optional Maker PAT override. If provided, it is saved and used for git authentication.',
-        },
-        user_id: {
-          type: 'string',
-          description:
-            'Optional Maker user_id from maker_list_apps output. If omitted, the tool will try to resolve it from the app list.',
-        },
-      },
-      required: ['app_id'],
-    },
-  },
-  {
-    name: 'maker_submit_current_directory',
-    description:
-      'Commit, push, and build current Maker project directory changes. Requires local Git. If Git is missing, stop and show install guidance; do not stage, commit, push, or build. Use this in Maker projects when the user says "帮我提交", "帮我提交代码", "提交", "提交代码", "提交并推送", "push", "帮我提交代码到maker", "帮我提交代码到taptap制造", "帮我提交代码到tap制造", or "帮我提交代码到tap". Maker submit means commit + push + build: after a successful push, this tool MUST run the remote Maker build and return the build result. If the remote build fails after push, return build_failure details together with the successful submit result. For build requests that stop on local changes, continue through maker_build_current_directory with submit_local_changes_before_build=true and remember_build_submit_preference=true so the build workflow can save the auto-submit preference and return the build result. This submit tool bypasses local generic Git branch/task-id rules and pushes directly to the Maker remote configured for the current directory.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        message: {
-          type: 'string',
-          description:
-            'Optional commit message. If omitted, Maker MCP generates a simple message from changed files.',
-        },
-        target_dir: {
-          type: 'string',
-          description:
-            'Optional target directory. Defaults to the MCP process cwd. Pass the user current working directory when it differs from the MCP process cwd.',
-        },
-        files: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Optional files to stage. Defaults to all changes.',
-        },
-      },
-    },
-  },
-  {
     name: 'maker_build_current_directory',
     description:
-      'Build the current Maker game by forwarding to the remote TapTap Maker MCP build tool. MUST use this for user requests like "构建", "build", "重新构建游戏", "帮我构建maker游戏", "compile", or "run" in a Maker project. The tool itself enforces a local-change guard before remote build: if local Maker project changes exist, it will stop unless confirm_remote_build_without_submit is true, submit_local_changes_before_build is true, or the project has saved build_local_changes_policy=auto_submit. Explain to the user that direct build only uses the Maker remote committed version and may not include local edits. The primary option should be "提交本地改动并触发构建（以后都是如此）"; if the user chooses it, call maker_build_current_directory again with submit_local_changes_before_build=true and remember_build_submit_preference=true. Maker MCP will commit + push local changes, then run remote build and return the build result. If auto_submit preference is already saved, this build tool will submit local changes automatically and then run remote build. If the user explicitly says not to submit and wants to build the remote version, call this tool with confirm_remote_build_without_submit=true. Do not write local build scripts. Uses saved Tap auth and current .maker-mcp/config.json project binding to call the remote build tool through taptap-proxy.',
+      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. If local changes or committed-but-unpushed commits exist, the tool commits when needed, pushes to Maker remote, then triggers remote Maker build. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -243,23 +152,33 @@ export const tools = [
           description:
             'Optional remote build timeout in milliseconds. Defaults to 10 minutes. If timed out, do not retry blindly; inspect remote build logs first.',
         },
+        message: {
+          type: 'string',
+          description:
+            'Optional commit message used when local file changes need to be committed before build.',
+        },
+        files: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional files to stage before build. Defaults to all local changes.',
+        },
         confirm_remote_build_without_submit: {
           type: 'boolean',
           description:
             'Set true only after the user explicitly confirms they do not want to submit local changes and want to build the current Maker remote committed version.',
         },
-        submit_local_changes_before_build: {
-          type: 'boolean',
-          description:
-            'Set true only after the user explicitly chooses "提交本地改动并触发构建（以后都是如此）". Maker MCP will commit + push local changes, then run the remote build and return the build result.',
-        },
-        remember_build_submit_preference: {
-          type: 'boolean',
-          description:
-            'Set true together with submit_local_changes_before_build when the user chooses "提交本地改动并触发构建（以后都是如此）". Saves build_local_changes_policy=auto_submit for future build requests.',
-        },
       },
     },
+  },
+];
+
+export const resources = [
+  {
+    uri: 'maker://status',
+    name: 'Maker status',
+    description:
+      'Local TapTap Maker project status, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow skill document paths.',
+    mimeType: 'text/plain',
   },
 ];
 
@@ -272,16 +191,34 @@ export async function startMakerMcpServer(): Promise<void> {
     {
       capabilities: {
         tools: {},
+        resources: {},
       },
     }
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources }));
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const uri = request.params.uri;
+    if (uri !== 'maker://status') {
+      throw new McpError(ErrorCode.InvalidParams, `Unknown Maker resource: ${uri}`);
+    }
+
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: 'text/plain',
+          text: await formatStatus(),
+        },
+      ],
+    };
+  });
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const name = request.params.name;
 
     try {
-      if (name === 'maker_status') {
+      if (name === 'maker_status_lite') {
         const args = (request.params.arguments || {}) as {
           target_dir?: string;
         };
@@ -292,247 +229,6 @@ export async function startMakerMcpServer(): Promise<void> {
               text: await formatStatus({
                 targetDir: args.target_dir,
               }),
-            },
-          ],
-        };
-      }
-
-      if (name === 'maker_exchange_pat') {
-        const args = (request.params.arguments || {}) as {
-          manual_pat?: string;
-        };
-        if (!args.manual_pat) {
-          throw new McpError(ErrorCode.InvalidParams, 'manual_pat is required');
-        }
-
-        const pat = saveManualMakerPat(args.manual_pat);
-        let tapAuthText: string;
-        try {
-          const tapAuth = await requestTapAuthWithPat(args.manual_pat);
-          tapAuthText = [
-            'TapTap token 已通过 PAT 获取并保存。',
-            `- kid: ${mask(tapAuth.kid)}`,
-            `- token_type: ${tapAuth.token_type}`,
-            `- saved: ${getTapAuthPath()}`,
-          ].join('\n');
-        } catch (error) {
-          tapAuthText = [
-            'TapTap token 自动获取失败。',
-            `原因：${error instanceof Error ? error.message : String(error)}`,
-            '远端 Maker MCP tools 需要 TapTap token；请确认 PAT 是否有效后重新调用 maker_exchange_pat。',
-          ].join('\n');
-        }
-
-        let nextText: string;
-        try {
-          const projects = await listMakerProjects({ pat: args.manual_pat });
-          nextText = [
-            '已自动列出可用 Maker Apps。',
-            '当前目录未绑定时，请逐项展示下面完整列表，不要只总结数量；然后让用户选择编号或 app_id。',
-            '',
-            formatProjectList(projects),
-          ].join('\n');
-        } catch (error) {
-          nextText = [
-            '自动列出 Maker Apps 失败。',
-            `原因：${error instanceof Error ? error.message : String(error)}`,
-            '请确认 PAT 是否有效，然后重新调用 maker_list_apps。',
-          ].join('\n');
-        }
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: [
-                '✓ Maker PAT ready',
-                '',
-                `- pat: ${mask(pat.token)}`,
-                `- saved: ${getPatPath()}`,
-                '',
-                tapAuthText,
-                '',
-                nextText,
-              ].join('\n'),
-            },
-          ],
-        };
-      }
-
-      if (name === 'maker_list_apps') {
-        const args = (request.params.arguments || {}) as {
-          pat?: string;
-        };
-        const projects = await listMakerProjects({
-          pat: args.pat,
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: formatProjectList(projects),
-            },
-          ],
-        };
-      }
-
-      if (name === 'maker_clone_to_current_directory') {
-        const args = (request.params.arguments || {}) as {
-          app_id?: string;
-          target_dir?: string;
-          pat?: string;
-          user_id?: string;
-        };
-
-        if (!args.app_id) {
-          throw new McpError(ErrorCode.InvalidParams, 'app_id is required');
-        }
-
-        const targetDir = resolveMakerToolTargetDir(args.target_dir);
-        ensureGitAvailable();
-        const progressReporter = createToolProgressReporter(
-          request.params._meta?.progressToken,
-          extra,
-          'Maker clone'
-        );
-        let result: Awaited<ReturnType<typeof cloneMakerProject>>;
-        let devKitResult: Awaited<ReturnType<typeof installAiDevKit>> = {
-          targetDir,
-          sourceDir: targetDir,
-          installedEntries: [],
-          skippedEntries: [],
-          gitignorePath: path.join(targetDir, '.gitignore'),
-          stagedGitignorePath: path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
-        };
-        let devKitState = 'prepared';
-        let devKitError = '';
-        let progressSummary: ToolProgressSummary;
-        try {
-          progressReporter.report({
-            progress: 1,
-            total: 100,
-            phase: 'dev_kit',
-            message: 'Preparing local AI dev kit before Maker clone',
-          });
-          const devKitStatus = inspectAiDevKit(targetDir);
-          if (devKitStatus.ready) {
-            const presentManagedEntries = listPresentDevKitManagedEntries(targetDir);
-            writeDevKitStagedGitignore(
-              path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
-              presentManagedEntries
-            );
-            devKitState = 'already_ready';
-            devKitResult = {
-              targetDir,
-              sourceDir: targetDir,
-              installedEntries: presentManagedEntries,
-              skippedEntries: [],
-              gitignorePath: path.join(targetDir, '.gitignore'),
-              stagedGitignorePath: path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
-            };
-          } else {
-            try {
-              devKitResult = await installAiDevKit({
-                targetDir,
-              });
-            } catch (error) {
-              const presentManagedEntries = listPresentDevKitManagedEntries(targetDir);
-              if (presentManagedEntries.length > 0) {
-                writeDevKitStagedGitignore(
-                  path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
-                  presentManagedEntries
-                );
-              }
-              devKitState = 'failed_non_blocking';
-              devKitError = error instanceof Error ? error.message : String(error);
-              devKitResult.installedEntries = presentManagedEntries;
-            }
-          }
-          progressReporter.report({
-            progress: 5,
-            total: 100,
-            phase: 'dev_kit',
-            message:
-              devKitState === 'failed_non_blocking'
-                ? 'Local AI dev kit preparation failed; continuing Maker clone'
-                : 'Local AI dev kit prepared',
-          });
-          result = await cloneMakerProject({
-            appId: args.app_id,
-            targetDir,
-            pat: args.pat,
-            userId: args.user_id,
-            sceEndpoint: process.env.SCE_MCP_URL,
-            onProgress: progressReporter.report,
-          });
-          progressSummary = progressReporter.finish();
-        } catch (error) {
-          progressReporter.finish();
-          throw new MakerCloneFailedError(targetDir, error);
-        }
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: [
-                '✓ Maker project cloned',
-                '',
-                ...formatCloneWarnings(result.warnings),
-                `- app_id: ${args.app_id}`,
-                `- target_dir: ${result.targetDir}`,
-                `- status: ${result.status}`,
-                `- retried_with_new_pat: ${result.retriedWithNewPat ? 'yes' : 'no'}`,
-                `- ai_dev_kit: ${devKitState}`,
-                ...(devKitError
-                  ? [
-                      `- ai_dev_kit_error: ${devKitError}`,
-                      '- ai_dev_kit_next_step: run maker_status after clone to retry dev kit restoration',
-                    ]
-                  : []),
-                `- ai_dev_kit_installed_entries: ${devKitResult.installedEntries.join(', ') || '(none)'}`,
-                `- ai_dev_kit_skipped_entries: ${devKitResult.skippedEntries.join(', ') || '(none)'}`,
-                ...formatProgressSummary(progressSummary),
-                '- project config: .maker-mcp/config.json',
-              ].join('\n'),
-            },
-          ],
-        };
-      }
-
-      if (name === 'maker_submit_current_directory') {
-        const args = (request.params.arguments || {}) as {
-          message?: string;
-          target_dir?: string;
-          files?: string[];
-        };
-
-        const targetDir = resolveMakerToolTargetDir(args.target_dir);
-        const progressReporter = createToolProgressReporter(
-          request.params._meta?.progressToken,
-          extra,
-          'Maker submit'
-        );
-        let result: Awaited<ReturnType<typeof pushThenBuildCurrentDirectory>>;
-        let progressSummary: ToolProgressSummary;
-        try {
-          result = await pushThenBuildCurrentDirectory({
-            targetDir,
-            message: args.message,
-            files: args.files,
-            onProgress: progressReporter.report,
-          });
-          progressSummary = progressReporter.finish();
-        } catch (error) {
-          progressReporter.finish();
-          throw error;
-        }
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: formatPushResult(targetDir, result, progressSummary),
             },
           ],
         };
@@ -549,9 +245,9 @@ export async function startMakerMcpServer(): Promise<void> {
           server_url?: string;
           env?: 'rnd' | 'production';
           timeout_ms?: number;
+          message?: string;
+          files?: string[];
           confirm_remote_build_without_submit?: boolean;
-          submit_local_changes_before_build?: boolean;
-          remember_build_submit_preference?: boolean;
         };
 
         const progressReporter = createToolProgressReporter(
@@ -572,9 +268,9 @@ export async function startMakerMcpServer(): Promise<void> {
             serverUrl: args.server_url,
             env: args.env,
             timeoutMs: args.timeout_ms,
+            message: args.message,
+            files: args.files,
             confirmRemoteBuildWithoutSubmit: args.confirm_remote_build_without_submit,
-            submitLocalChangesBeforeBuild: args.submit_local_changes_before_build,
-            rememberBuildSubmitPreference: args.remember_build_submit_preference,
             onProgress: progressReporter.report,
           });
           progressSummary = progressReporter.finish();
@@ -641,7 +337,7 @@ async function formatStatus(options: { targetDir?: string } = {}): Promise<strin
     ? [
         '目标目录已绑定 Maker 项目。',
         '请继续在当前绑定项目上执行状态、提交、构建等操作；不要再引导用户 clone，除非用户明确要求切换或重新拉取项目。',
-        '本地 Maker 工作流请优先参考 taptap-maker-local skill；MCP tools 只负责保存 PAT、列 app、clone、submit 和 build 等机器动作。',
+        '本地 Maker 工作流请优先参考 taptap-maker-local skill；CLI 负责初始化/PAT/app/clone，MCP 只保留状态和同步构建。',
       ].join('\n')
     : isLikelyAiDialogueDirectory(targetDir)
       ? formatAiDialogueDirectoryHint(targetDir)
@@ -720,7 +416,7 @@ export function formatAiDialogueDirectoryHint(targetDir: string): string {
     '- detected_issue: current directory looks like an AI dialogue/session directory, not a Maker project directory.',
     '- do_not_clone_here: yes',
     '- next_step: inspect the AI client attached/extra workspace directories and choose the Maker project directory.',
-    '- if_single_attached_workspace: call maker_status(target_dir="<attached project directory>") directly.',
+    '- if_single_attached_workspace: read maker://status or call maker_status_lite with the attached project directory.',
     '- if_multiple_attached_workspaces: show the directories to the user and ask which one is the Maker project.',
     '- do_not_show_app_selection_here: yes',
   ].join('\n');
@@ -734,34 +430,19 @@ function resolveMakerToolTargetDir(targetDir?: string): string {
 }
 
 async function formatAiDevKitStatus(projectRoot: string): Promise<string> {
-  const before = inspectAiDevKit(projectRoot);
-  if (before.ready) {
-    return formatAiDevKitStatusLines('ready', before).join('\n');
+  const devKitStatus = inspectAiDevKit(projectRoot);
+  if (devKitStatus.ready) {
+    return formatAiDevKitStatusLines('ready', devKitStatus).join('\n');
   }
 
-  try {
-    const installResult = await installAiDevKit({
-      targetDir: projectRoot,
-      preserveExisting: true,
-    });
-    finalizeStagedDevKitGitignore(projectRoot);
-    const after = inspectAiDevKit(projectRoot);
-    return [
-      ...formatAiDevKitStatusLines('restored', after),
-      `- restored_missing_entries: ${before.missingEntries.join(', ') || '(none)'}`,
-      `- installed_entries: ${installResult.installedEntries.join(', ') || '(none)'}`,
-    ].join('\n');
-  } catch (error) {
-    return [
-      ...formatAiDevKitStatusLines('missing', before),
-      `- restore_error: ${error instanceof Error ? error.message : String(error)}`,
-      '- next_step: 请检查网络后重新调用 maker_status，或重新执行 Maker clone 初始化流程。',
-    ].join('\n');
-  }
+  return [
+    ...formatAiDevKitStatusLines('missing', devKitStatus),
+    '- next_step: 请运行 taptap-maker dev-kit update，或重新执行 taptap-maker init。',
+  ].join('\n');
 }
 
 function formatAiDevKitStatusLines(
-  status: 'ready' | 'restored' | 'missing',
+  status: 'ready' | 'missing',
   devKitStatus: AiDevKitStatus
 ): string[] {
   return [
@@ -772,21 +453,6 @@ function formatAiDevKitStatusLines(
     `- present_entries: ${devKitStatus.presentEntries.join(', ') || '(none)'}`,
     `- missing_entries: ${devKitStatus.missingEntries.join(', ') || '(none)'}`,
   ];
-}
-
-function rememberBuildSubmitPreference(targetDir: string): void {
-  const identify = identifyMakerProject({ cwd: targetDir });
-  if (!identify.projectRoot || !identify.projectId) {
-    throw new Error(
-      `${targetDir} is not bound to a Maker project. Cannot save build submit preference.`
-    );
-  }
-
-  saveProjectConfig(identify.projectRoot, {
-    ...(identify.config || { project_id: identify.projectId }),
-    project_id: identify.projectId,
-    build_local_changes_policy: 'auto_submit',
-  });
 }
 
 async function formatAutoProjectListFromPat(): Promise<string> {
@@ -802,16 +468,9 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     return [
       '本地已有 Maker PAT，但自动列出 Maker Apps 失败。',
       `原因：${error instanceof Error ? error.message : String(error)}`,
-      `如果 PAT 已失效，请使用新的 Maker PAT 重新调用 maker_exchange_pat。PAT 页面：${getMakerPatTokensUrl()}`,
+      `如果 PAT 已失效，请运行 taptap-maker pat set 并粘贴新的 Maker PAT。PAT 页面：${getMakerPatTokensUrl()}`,
     ].join('\n');
   }
-}
-
-function mask(value: string): string {
-  if (value.length <= 12) {
-    return '***';
-  }
-  return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
 function formatProjectList(
@@ -849,31 +508,9 @@ function formatProjectList(
         }`
     ),
     '',
-    '仅当当前目录未绑定且用户要初始化或 clone 时，才让用户选择 app 并调用 maker_clone_to_current_directory。',
+    '仅当当前目录未绑定且用户要初始化或 clone 时，才让用户选择 app 并继续 taptap-maker init。',
     '如果当前目录已绑定 Maker 项目，这个列表仅作账号项目参考；请继续当前项目，除非用户明确要求切换或重新 clone。',
   ].join('\n');
-}
-
-function formatCloneWarnings(warnings: string[]): string[] {
-  if (warnings.length === 0) {
-    return [
-      'Pre-clone local directory check',
-      '',
-      '- result: checked',
-      '- local_files: none found before clone, ignoring dot-prefixed local config entries',
-      '',
-    ];
-  }
-
-  return [
-    'Pre-clone local directory check',
-    '',
-    '- result: found local files before clone',
-    '- action: kept local files and continued unless they conflicted with Maker project files',
-    '',
-    ...warnings.map((warning) => `- ${warning}`),
-    '',
-  ];
 }
 
 export function formatClonePartialStateLines(targetDir: string): string[] {
@@ -902,8 +539,8 @@ export function formatClonePartialStateLines(targetDir: string): string[] {
     `- staged_dev_kit_gitignore: ${fs.existsSync(stagedDevKitGitignorePath) ? 'yes' : 'no'}`,
     `- safe_to_retry: ${safeToRetry ? 'yes' : 'no'}`,
     safeToRetry
-      ? '- next_step: 可以直接重试 maker_clone_to_current_directory；如果连续失败，建议换一个全新的独立目录重新 clone。'
-      : '- next_step: 当前目录已经有 Maker 绑定信息；先运行 maker_status 确认状态，不要重复 clone。',
+      ? '- next_step: 可以直接重试 taptap-maker init；如果连续失败，建议换一个全新的独立目录重新 clone。'
+      : '- next_step: 当前目录已经有 Maker 绑定信息；先运行 taptap-maker doctor 或读取 maker://status 确认状态，不要重复 clone。',
   ].filter(Boolean);
 }
 
@@ -928,7 +565,7 @@ function createRemoteProxyContext(options: {
   const identify = identifyMakerProject({ cwd: options.targetDir });
   if (!identify.projectRoot || !identify.projectId) {
     throw new Error(
-      `${options.targetDir} is not bound to a Maker project. Run maker_clone_to_current_directory first.`
+      `${options.targetDir} is not bound to a Maker project. Run taptap-maker init first.`
     );
   }
 
@@ -936,7 +573,7 @@ function createRemoteProxyContext(options: {
   const projectId = projectConfig?.project_id || identify.projectId;
   const tapAuth = loadTapAuth();
   if (!tapAuth) {
-    throw new Error('Tap auth not found. Run maker_exchange_pat with a valid Maker PAT first.');
+    throw new Error('Tap auth not found. Run taptap-maker pat set and paste a Maker PAT first.');
   }
 
   let userId = projectConfig?.user_id;
@@ -946,7 +583,7 @@ function createRemoteProxyContext(options: {
   }
   if (!userId) {
     throw new Error(
-      'Cannot resolve user_id. Re-run maker_list_apps and maker_clone_to_current_directory with PAT so the project config can cache user_id.'
+      'Cannot resolve user_id. Re-run taptap-maker init with PAT so the project config can cache user_id.'
     );
   }
 
@@ -1313,14 +950,12 @@ type BuildCurrentDirectoryResult =
       buildArgs: Record<string, unknown>;
       resultText: string;
       submitResult?: PushMakerProjectResult;
-      buildLocalChangesPolicy?: 'auto_submit';
     }
   | {
       mode: 'submit_failed_before_build';
       projectRoot: string;
       projectId: string;
       submitResult: PushMakerProjectResult;
-      buildLocalChangesPolicy?: 'auto_submit';
     }
   | {
       mode: 'build_failed_after_submit';
@@ -1328,7 +963,6 @@ type BuildCurrentDirectoryResult =
       projectId: string;
       submitResult: PushMakerProjectResult;
       buildFailure: MakerBuildFailure;
-      buildLocalChangesPolicy?: 'auto_submit';
     };
 
 export async function buildCurrentDirectory(options: {
@@ -1341,9 +975,9 @@ export async function buildCurrentDirectory(options: {
   serverUrl?: string;
   env?: 'rnd' | 'production';
   timeoutMs?: number;
+  message?: string;
+  files?: string[];
   confirmRemoteBuildWithoutSubmit?: boolean;
-  submitLocalChangesBeforeBuild?: boolean;
-  rememberBuildSubmitPreference?: boolean;
   submitLocalChanges?: SubmitLocalChangesForBuild;
   callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildResult>;
   onProgress?: MakerProjectProgressHandler;
@@ -1351,61 +985,42 @@ export async function buildCurrentDirectory(options: {
   const localChanges = await readMakerProjectLocalChanges(options.targetDir);
   if (localChanges.hasChanges && !options.confirmRemoteBuildWithoutSubmit) {
     const config = loadProjectConfig(localChanges.projectRoot);
-    let buildLocalChangesPolicy: 'auto_submit' | undefined =
-      config?.build_local_changes_policy === 'auto_submit' ? 'auto_submit' : undefined;
-    if (
-      config?.build_local_changes_policy === 'auto_submit' ||
-      options.submitLocalChangesBeforeBuild
-    ) {
-      options.onProgress?.({
-        progress: 0,
-        total: 100,
-        phase: 'auto_submit',
-        message: 'Auto-submitting local Maker changes before build',
-      });
-      const submitResult = await (options.submitLocalChanges || pushMakerProject)({
-        cwd: localChanges.projectRoot,
-        onProgress: options.onProgress,
-      });
-      if (options.rememberBuildSubmitPreference && !submitResult.failure) {
-        rememberBuildSubmitPreference(localChanges.projectRoot);
-        buildLocalChangesPolicy = 'auto_submit';
-      }
-      if (submitResult.failure || (!submitResult.pushed && submitResult.status !== 'clean')) {
-        return {
-          mode: 'submit_failed_before_build',
-          projectRoot: localChanges.projectRoot,
-          projectId: config?.project_id || 'unknown',
-          submitResult,
-          buildLocalChangesPolicy,
-        };
-      }
-      let buildResult: RemoteBuildResult;
-      try {
-        buildResult = await runRemoteBuildCurrentDirectory(options, localChanges.projectRoot);
-      } catch (error) {
-        return {
-          mode: 'build_failed_after_submit',
-          projectRoot: localChanges.projectRoot,
-          projectId: config?.project_id || 'unknown',
-          submitResult,
-          buildFailure: toMakerBuildFailure(error),
-          buildLocalChangesPolicy,
-        };
-      }
+    options.onProgress?.({
+      progress: 0,
+      total: 100,
+      phase: 'sync',
+      message: 'Syncing local Maker changes before remote build',
+    });
+    const submitResult = await (options.submitLocalChanges || pushMakerProject)({
+      cwd: localChanges.projectRoot,
+      message: options.message,
+      files: options.files,
+      onProgress: options.onProgress,
+    });
+    if (submitResult.failure || (!submitResult.pushed && submitResult.status !== 'clean')) {
       return {
-        ...buildResult,
+        mode: 'submit_failed_before_build',
+        projectRoot: localChanges.projectRoot,
+        projectId: config?.project_id || 'unknown',
         submitResult,
-        buildLocalChangesPolicy,
       };
     }
-
-    throw new Error(
-      formatLocalChangesBeforeBuildMessage(localChanges.files, {
-        ahead: localChanges.ahead,
-        hasUnpushedCommits: localChanges.hasUnpushedCommits,
-      })
-    );
+    let buildResult: RemoteBuildResult;
+    try {
+      buildResult = await runRemoteBuildCurrentDirectory(options, localChanges.projectRoot);
+    } catch (error) {
+      return {
+        mode: 'build_failed_after_submit',
+        projectRoot: localChanges.projectRoot,
+        projectId: config?.project_id || 'unknown',
+        submitResult,
+        buildFailure: toMakerBuildFailure(error),
+      };
+    }
+    return {
+      ...buildResult,
+      submitResult,
+    };
   }
 
   return runRemoteBuildCurrentDirectory(options, options.targetDir);
@@ -1554,34 +1169,6 @@ function toMakerBuildFailure(error: unknown): MakerBuildFailure {
   };
 }
 
-function formatLocalChangesBeforeBuildMessage(
-  files: string[],
-  options: { ahead?: string; hasUnpushedCommits?: boolean } = {}
-): string {
-  const visibleFiles = files.slice(0, 20);
-  const hiddenCount = Math.max(0, files.length - visibleFiles.length);
-  return [
-    'Current Maker project has local changes that are not submitted.',
-    '',
-    '当前有本地修改还没有提交。直接构建只会构建 Maker 云端已有版本，可能看不到这些新修改。',
-    '请先询问用户选择：',
-    '- 提交本地改动并触发构建（以后都是如此）：再次调用 maker_build_current_directory，并设置 submit_local_changes_before_build=true 和 remember_build_submit_preference=true；工具会先 commit + push，再继续执行远端 build 并返回构建结果。后续构建遇到本地改动会默认自动提交并继续构建。',
-    '- 如果用户明确说不提交、直接构建云端版本，再调用 maker_build_current_directory，并设置 confirm_remote_build_without_submit=true。',
-    '',
-    options.hasUnpushedCommits ? `unpushed_commits: ${options.ahead || 'yes'}` : '',
-    options.hasUnpushedCommits
-      ? 'note: 本地已有 commit 还没有推送到 Maker 远端；需要先 push，远端构建才会包含这些改动。'
-      : '',
-    options.hasUnpushedCommits ? '' : '',
-    'local_changes:',
-    ...visibleFiles.map((file) => `- ${file}`),
-    visibleFiles.length === 0 ? '- (none)' : '',
-    ...(hiddenCount > 0 ? [`- ... and ${hiddenCount} more`] : []),
-  ]
-    .filter((line) => line !== '')
-    .join('\n');
-}
-
 export function createBuildArgs(
   projectRoot: string,
   options: {
@@ -1676,13 +1263,15 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
-      '- build_local_changes_policy: auto_submit',
       `- branch: ${result.submitResult.branch}`,
       `- status: ${result.submitResult.status}`,
       `- committed: ${result.submitResult.committed ? 'yes' : 'no'}`,
       result.submitResult.commitHash ? `- commit_hash: ${result.submitResult.commitHash}` : '',
       result.submitResult.message ? `- commit_message: ${result.submitResult.message}` : '',
       result.submitResult.ahead ? `- git_state: ${result.submitResult.ahead}` : '',
+      result.submitResult.transientRetries
+        ? `- transient_git_retries: ${result.submitResult.transientRetries}`
+        : '',
       ...formatProgressSummary(progressSummary),
       '',
       'note: Maker build was not started because submit did not produce a pushed state.',
@@ -1705,15 +1294,15 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
-      result.buildLocalChangesPolicy
-        ? `- build_local_changes_policy: ${result.buildLocalChangesPolicy}`
-        : '',
       `- branch: ${result.submitResult.branch}`,
       `- status: ${result.submitResult.status}`,
       `- committed: ${result.submitResult.committed ? 'yes' : 'no'}`,
       result.submitResult.commitHash ? `- commit_hash: ${result.submitResult.commitHash}` : '',
       result.submitResult.message ? `- commit_message: ${result.submitResult.message}` : '',
       result.submitResult.ahead ? `- git_state: ${result.submitResult.ahead}` : '',
+      result.submitResult.transientRetries
+        ? `- transient_git_retries: ${result.submitResult.transientRetries}`
+        : '',
       ...formatProgressSummary(progressSummary),
       '',
       ...formatMakerBuildFailureLines(result.buildFailure),
@@ -1731,6 +1320,9 @@ export function formatBuildResult(
         result.submitResult.commitHash ? `  - commit_hash: ${result.submitResult.commitHash}` : '',
         result.submitResult.message ? `  - commit_message: ${result.submitResult.message}` : '',
         result.submitResult.ahead ? `  - git_state: ${result.submitResult.ahead}` : '',
+        result.submitResult.transientRetries
+          ? `  - transient_git_retries: ${result.submitResult.transientRetries}`
+          : '',
         '',
       ].filter(Boolean)
     : [];
@@ -1746,9 +1338,6 @@ export function formatBuildResult(
     `- server_url: ${result.serverUrl}`,
     `- env: ${result.env}`,
   ];
-  if (result.buildLocalChangesPolicy) {
-    lines.push(`- build_local_changes_policy: ${result.buildLocalChangesPolicy}`);
-  }
   lines.push(
     `- timeout_ms: ${result.timeoutMs}`,
     `- build_args: ${JSON.stringify(result.buildArgs)}`,
@@ -1784,6 +1373,9 @@ export function formatPushResult(
     submitResult.commitHash ? `- commit_hash: ${submitResult.commitHash}` : '',
     submitResult.message ? `- commit_message: ${submitResult.message}` : '',
     submitResult.ahead ? `- git_state: ${submitResult.ahead}` : '',
+    submitResult.transientRetries
+      ? `- transient_git_retries: ${submitResult.transientRetries}`
+      : '',
     ...formatProgressSummary(progressSummary),
   ].filter(Boolean);
 
@@ -1849,9 +1441,7 @@ function formatPushRecoveryLines(submitResult: PushMakerProjectResult): string[]
     '- committed_but_unpushed: yes',
     submitResult.commitHash ? `- local_commit: ${submitResult.commitHash}` : '',
     submitResult.ahead ? `- git_state: ${submitResult.ahead}` : '',
-    '- retry_tool: maker_submit_current_directory',
-    '- retry_build_tool: maker_build_current_directory',
-    '- retry_build_args: submit_local_changes_before_build=true',
+    '- retry_tool: maker_build_current_directory',
     '- do_not_use_generic_git_push: yes',
     '- user_message: 本地提交已经保留，但还没推送到 Maker 远端；直接重试 Maker 提交/构建工具即可。',
   ].filter(Boolean);
@@ -1866,19 +1456,14 @@ function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {
   ].filter(Boolean);
 }
 
-function formatMakerFailureLines(failure: {
-  stage: string;
-  command?: string;
-  exitCode?: number | null;
-  stdout?: string;
-  stderr?: string;
-  classification: string;
-  nextAction: string;
-}): string[] {
+function formatMakerFailureLines(failure: MakerGitFailure): string[] {
   return [
     'failure:',
     `- stage: ${failure.stage}`,
     `- classification: ${failure.classification}`,
+    `- retryable: ${failure.retryable ? 'yes' : 'no'}`,
+    failure.retryReason ? `- retry_reason: ${failure.retryReason}` : '',
+    failure.retryAttempts ? `- retry_attempts: ${failure.retryAttempts}` : '',
     `- exit_code: ${failure.exitCode ?? '(none)'}`,
     failure.command ? `- command: ${failure.command}` : '',
     failure.stderr ? `- stderr:\n${indent(failure.stderr)}` : '',
@@ -1932,7 +1517,7 @@ function formatToolException(toolName: string, error: unknown): string {
     'debug:',
     stack ? indent(stack) : indent(message),
     '',
-    'next_action: 请把上面的完整错误反馈给开发者；如果本地已有 commit 但 push 未完成，不要重复 commit，直接重试 maker_submit_current_directory。',
+    'next_action: 请把上面的完整错误反馈给开发者；如果本地已有 commit 但 push 未完成，不要重复 commit，直接重试 maker_build_current_directory。',
   ].join('\n');
 }
 

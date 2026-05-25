@@ -13,6 +13,7 @@ import {
   formatClonePartialStateLines,
   formatPushResult,
   pushThenBuildCurrentDirectory,
+  resources,
   tools,
 } from '../maker/server/mcp';
 import {
@@ -125,7 +126,7 @@ describe('maker build local-change guard', () => {
     ).toBe(`${head}\n`);
   });
 
-  test('auto-submit build pushes committed but unpushed changes before remote build', async () => {
+  test('build sync pushes committed but unpushed changes before remote build', async () => {
     const submittedCwds: string[] = [];
     const remoteBuildTargetDirs: string[] = [];
     prepareMakerRemote();
@@ -135,7 +136,6 @@ describe('maker build local-change guard', () => {
 
     const result = await buildCurrentDirectory({
       targetDir: tempDir,
-      submitLocalChangesBeforeBuild: true,
       submitLocalChanges: async (options) => {
         submittedCwds.push(options.cwd);
         return {
@@ -258,20 +258,75 @@ describe('maker build local-change guard', () => {
     );
   });
 
-  test('blocks build before connecting to remote when local changes are not submitted', async () => {
+  test('syncs local changes before remote build by default', async () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
+    const submitCwds: string[] = [];
+    const remoteBuildTargetDirs: string[] = [];
 
-    await expect(buildCurrentDirectory({ targetDir: tempDir })).rejects.toThrow(
-      '提交本地改动并触发构建（以后都是如此）'
-    );
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges: async (options) => {
+        submitCwds.push(options.cwd);
+        return {
+          branch: 'main',
+          committed: true,
+          commitHash: 'abc1234',
+          message: options.message || 'chore: update maker project',
+          pushed: true,
+          status: 'pushed',
+        };
+      },
+      callRemoteBuild: async (targetDir) => {
+        remoteBuildTargetDirs.push(targetDir);
+        return {
+          mode: 'remote_build',
+          projectRoot: fs.realpathSync(tempDir),
+          projectId: 'app-1',
+          projectPath: 'app-1/workspace',
+          serverUrl: 'https://maker.example.test/mcp',
+          env: 'rnd',
+          timeoutMs: 600000,
+          buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+          resultText: 'build ok',
+        };
+      },
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect('submitResult' in result ? result.submitResult?.pushed : undefined).toBe(true);
+    expect(submitCwds.map(normalizePath)).toEqual([normalizePath(fs.realpathSync(tempDir))]);
+    expect(remoteBuildTargetDirs.map(normalizePath)).toEqual([
+      normalizePath(fs.realpathSync(tempDir)),
+    ]);
   });
 
-  test('checks local changes from a Maker project subdirectory', async () => {
+  test('syncs local changes from a Maker project subdirectory', async () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
+    const submitCwds: string[] = [];
 
-    await expect(
-      buildCurrentDirectory({ targetDir: path.join(tempDir, 'scripts') })
-    ).rejects.toThrow('Current Maker project has local changes that are not submitted');
+    const result = await buildCurrentDirectory({
+      targetDir: path.join(tempDir, 'scripts'),
+      submitLocalChanges: async (options) => {
+        submitCwds.push(options.cwd);
+        return {
+          branch: 'main',
+          committed: true,
+          commitHash: 'abc1234',
+          pushed: false,
+          status: 'failed_after_commit',
+          failure: {
+            stage: 'push',
+            classification: 'remote_rejected',
+            retryable: false,
+            message: 'remote rejected',
+            nextAction: 'pull/rebase before retrying Maker build',
+          },
+        };
+      },
+    });
+
+    expect(result.mode).toBe('submit_failed_before_build');
+    expect(submitCwds.map(normalizePath)).toEqual([normalizePath(fs.realpathSync(tempDir))]);
   });
 
   test('allows explicitly confirmed remote build to pass the local-change guard', async () => {
@@ -373,30 +428,27 @@ describe('maker build local-change guard', () => {
     });
   });
 
-  test('submit tool description requires commit, push, and build', () => {
-    const submitTool = tools.find((item) => item.name === 'maker_submit_current_directory');
+  test('build tool description owns commit, push, and build', () => {
+    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(submitTool?.description).toContain('commit + push + build');
-    expect(submitTool?.description).toContain('remote Maker build');
-    expect(submitTool?.description).not.toContain('maker_push_current_directory');
-    expect(submitTool?.description).not.toContain('Commit and push current Maker project');
-    expect(submitTool?.description).not.toContain('不负责构建');
-    expect(submitTool?.description).not.toContain('Do not use this tool');
-    expect(submitTool?.description).not.toContain('automatically triggers build');
-    expect(submitTool?.description).not.toContain('Maker auto build');
+    expect(buildTool?.description).toContain('commits when needed, pushes');
+    expect(buildTool?.description).toContain('remote Maker build');
+    expect(buildTool?.description).toContain('If push fails, build is not started');
+    expect(buildTool?.description).not.toContain('maker_submit_current_directory');
+    expect(buildTool?.description).not.toContain('maker_push_current_directory');
+    expect(buildTool?.description).not.toContain('Do not use this tool');
   });
 
   test('exposes only the compact Maker tool set', () => {
     const toolNames = tools.map((item) => item.name);
 
-    expect(toolNames).toEqual([
-      'maker_exchange_pat',
-      'maker_list_apps',
-      'maker_status',
-      'maker_clone_to_current_directory',
-      'maker_submit_current_directory',
-      'maker_build_current_directory',
-    ]);
+    expect(toolNames).toEqual(['maker_status_lite', 'maker_build_current_directory']);
+    expect(resources.map((item) => item.uri)).toEqual(['maker://status']);
+    expect(toolNames).not.toContain('maker_exchange_pat');
+    expect(toolNames).not.toContain('maker_list_apps');
+    expect(toolNames).not.toContain('maker_status');
+    expect(toolNames).not.toContain('maker_clone_to_current_directory');
+    expect(toolNames).not.toContain('maker_submit_current_directory');
     expect(toolNames).not.toContain('maker_exchange_jwt');
     expect(toolNames).not.toContain('maker_tap_login_start');
     expect(toolNames).not.toContain('maker_tap_login_complete');
@@ -407,69 +459,48 @@ describe('maker build local-change guard', () => {
     expect(toolNames).not.toContain('maker_configure_remote_proxy');
   });
 
-  test('initialization guidance is delegated to bundled skill', () => {
-    const listTool = tools.find((item) => item.name === 'maker_list_apps');
-    const statusTool = tools.find((item) => item.name === 'maker_status');
-    const cloneTool = tools.find((item) => item.name === 'maker_clone_to_current_directory');
+  test('initialization guidance is removed from MCP tools', () => {
+    const statusTool = tools.find((item) => item.name === 'maker_status_lite');
+    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(listTool?.description).toContain('unbound Maker directory initialization');
-    expect(listTool?.description).toContain('treat this list as reference only');
-    expect(listTool?.description).toContain('do not ask which app to clone');
-    expect(statusTool?.description).toContain('bundled skill document paths');
-    expect(statusTool?.description).toContain('target_dir');
+    expect(statusTool?.description).toContain('bundled workflow skill document paths');
+    expect(statusTool?.inputSchema.properties).toHaveProperty('target_dir');
     expect(statusTool?.description).toContain('AI dev kit status');
-    expect(statusTool?.description).toContain('current directory is unbound');
+    expect(statusTool?.description).toContain('Compatibility fallback');
     expect(statusTool?.description).not.toContain('If PAT is missing');
     expect(statusTool?.description).not.toContain('ask them to open');
     expect(statusTool?.description).not.toContain('让用户选择');
-    expect(cloneTool?.description).toContain('Requires Git and a concrete app_id');
-    expect(cloneTool?.description).toContain('prepares the local AI dev kit automatically');
-    expect(cloneTool?.description).not.toContain('Call this only after');
-    expect(cloneTool?.description).not.toContain('ask them to choose');
+    expect(buildTool?.description).not.toContain('app list');
+    expect(buildTool?.description).not.toContain('clone');
   });
 
-  test('submit tool schema does not expose build preference parameter', () => {
-    const submitTool = tools.find((item) => item.name === 'maker_submit_current_directory');
+  test('build tool schema exposes sync inputs without build preference parameter', () => {
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(Object.keys(submitTool?.inputSchema.properties || {})).toEqual([
-      'message',
-      'target_dir',
-      'files',
-    ]);
-    expect(submitTool?.inputSchema.properties).not.toHaveProperty(
+    expect(buildTool?.inputSchema.properties).toHaveProperty('message');
+    expect(buildTool?.inputSchema.properties).toHaveProperty('files');
+    expect(buildTool?.inputSchema.properties).toHaveProperty('confirm_remote_build_without_submit');
+    expect(buildTool?.inputSchema.properties).not.toHaveProperty(
       'remember_build_submit_preference'
     );
-    expect(buildTool?.inputSchema.properties).toHaveProperty('remember_build_submit_preference');
+    expect(buildTool?.inputSchema.properties).not.toHaveProperty(
+      'submit_local_changes_before_build'
+    );
   });
 
   test('public Maker tool schemas do not expose JWT fallback parameters', () => {
-    const listTool = tools.find((item) => item.name === 'maker_list_apps');
-    const statusTool = tools.find((item) => item.name === 'maker_status');
-    const cloneTool = tools.find((item) => item.name === 'maker_clone_to_current_directory');
-    const submitTool = tools.find((item) => item.name === 'maker_submit_current_directory');
+    const statusTool = tools.find((item) => item.name === 'maker_status_lite');
+    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(Object.keys(listTool?.inputSchema.properties || {})).toEqual(['pat']);
     expect(Object.keys(statusTool?.inputSchema.properties || {})).toEqual(['target_dir']);
-    expect(Object.keys(cloneTool?.inputSchema.properties || {})).toEqual([
-      'app_id',
-      'target_dir',
-      'pat',
-      'user_id',
-    ]);
-    for (const tool of [listTool, cloneTool, submitTool]) {
+    for (const tool of [statusTool, buildTool]) {
       expect(tool?.inputSchema.properties).not.toHaveProperty('jwt');
       expect(tool?.inputSchema.properties).not.toHaveProperty('force_pat');
       expect(tool?.description).not.toMatch(/JWT|jwt|legacy/i);
     }
   });
 
-  test('auto submits local changes and then runs remote build when project preference is saved', async () => {
-    saveProjectConfig(tempDir, {
-      project_id: 'app-1',
-      user_id: 'user-1',
-      build_local_changes_policy: 'auto_submit',
-    });
+  test('syncs local changes and then runs remote build from subdirectory', async () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
     const submittedCwds: string[] = [];
     const remoteBuildTargetDirs: string[] = [];
@@ -509,14 +540,12 @@ describe('maker build local-change guard', () => {
     expect(remoteBuildTargetDirs.map(normalizePath)).toEqual([gitProjectRoot()].map(normalizePath));
   });
 
-  test('submits, remembers preference, and runs remote build after user confirms build prompt', async () => {
+  test('syncs local changes and runs remote build without build preference state', async () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
     const remoteBuildTargetDirs: string[] = [];
 
     const result = await buildCurrentDirectory({
       targetDir: tempDir,
-      submitLocalChangesBeforeBuild: true,
-      rememberBuildSubmitPreference: true,
       submitLocalChanges: async () => ({
         branch: 'main',
         committed: true,
@@ -544,14 +573,9 @@ describe('maker build local-change guard', () => {
     expect(result.mode).toBe('remote_build');
     expect('submitResult' in result ? result.submitResult?.commitHash : undefined).toBe('def5678');
     expect(remoteBuildTargetDirs.map(normalizePath)).toEqual([gitProjectRoot()].map(normalizePath));
-
-    const config = JSON.parse(
-      fs.readFileSync(path.join(tempDir, '.maker-mcp', 'config.json'), 'utf8')
-    );
-    expect(config.build_local_changes_policy).toBe('auto_submit');
   });
 
-  test('formats auto-submit build failure with actionable failure details', () => {
+  test('formats sync-before-build failure with actionable failure details', () => {
     const output = formatBuildResult(
       {
         mode: 'submit_failed_before_build',
@@ -567,6 +591,7 @@ describe('maker build local-change guard', () => {
           failure: {
             stage: 'push',
             classification: 'remote_rejected',
+            retryable: false,
             exitCode: 1,
             stdout: '',
             stderr: 'rejected',
@@ -589,7 +614,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('pull/rebase');
     expect(output).toContain('push_recovery:');
     expect(output).toContain('- committed_but_unpushed: yes');
-    expect(output).toContain('- retry_tool: maker_submit_current_directory');
+    expect(output).toContain('- retry_tool: maker_build_current_directory');
     expect(output).toContain('- do_not_use_generic_git_push: yes');
   });
 
@@ -719,6 +744,8 @@ describe('maker build local-change guard', () => {
           failure: {
             stage: 'push',
             classification: 'remote_transient',
+            retryable: true,
+            retryReason: 'remote_http_5xx',
             exitCode: 128,
             stdout: '',
             stderr: '504 Gateway Timeout',
@@ -736,18 +763,12 @@ describe('maker build local-change guard', () => {
 
     expect(output).toContain('push_recovery:');
     expect(output).toContain('- committed_but_unpushed: yes');
-    expect(output).toContain('- retry_tool: maker_submit_current_directory');
-    expect(output).toContain('- retry_build_tool: maker_build_current_directory');
+    expect(output).toContain('- retry_tool: maker_build_current_directory');
     expect(output).toContain('- do_not_use_generic_git_push: yes');
     expect(output).toContain('504 Gateway Timeout');
   });
 
-  test('auto-submit build preserves pushed result when remote build fails', async () => {
-    saveProjectConfig(tempDir, {
-      project_id: 'app-1',
-      user_id: 'user-1',
-      build_local_changes_policy: 'auto_submit',
-    });
+  test('sync-before-build preserves pushed result when remote build fails', async () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
 
     const result = await buildCurrentDirectory({

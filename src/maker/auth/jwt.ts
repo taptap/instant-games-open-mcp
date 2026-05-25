@@ -173,7 +173,9 @@ export async function exchangeSavedTapAuthForMakerJwt(options?: {
     );
   }
 
-  throw new Error('Tap auth not found. Call maker_exchange_pat with a valid Maker PAT first.');
+  throw new Error(
+    'Tap auth not found. Run `taptap-maker pat set` and paste a valid Maker PAT first.'
+  );
 }
 
 export function requireMakerJwt(manualJwt?: string): MakerJwt {

@@ -43,66 +43,70 @@
 - [OpenClaw Plugin 说明](docs/OPENCLAW_PLUGIN.md)
 - 维护者发布方式：`npm run openclaw:pack` / `npm run openclaw:publish`
 
-## 🛠️ TapTap Maker 本地 MCP（开发中）
+## 🛠️ TapTap Maker 本地开发（CLI-first）
 
-仓库内新增 Maker 专用入口 `taptap-maker`，用于在 Codex 当前目录完成 Maker 项目的登录、选择、拉取和推送。
+Maker 本地开发按“初始化用 CLI，开发循环用 MCP”拆分。首次配置推荐直接运行：
 
-当前 MCP 工具流程：
-
-```text
-maker_status
-maker_exchange_pat(manual_pat)
-自动获取 TapTap token
-自动列出 app
-maker_list_apps
-用户选择 app
-maker_clone_to_current_directory
-maker_build_current_directory
-maker_submit_current_directory
+```bash
+npx -y -p @taptap/instant-games-open-mcp taptap-maker init
 ```
 
-说明：
+CLI 负责一次性流程：Git 检查、PAT 保存、TapTap token 换取、app 列表选择、AI dev kit
+准备、Maker Git clone、MCP 配置写入与基础验证。安装或修改 MCP 配置后，Claude Code /
+Codex / Cursor 通常需要重启会话、刷新 MCP 或新开窗口才会出现新的 MCP tools；但当前终端
+里的 CLI 初始化流程可以继续完成到 PAT 鉴权和项目绑定。
 
-- Maker MCP 依赖用户本机已有 Git。工具只检测并给出安装引导，不会代替用户安装 Git。
-- 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 Maker 本地开发初始化流程。
-- 如果 `maker_status` 显示 Git 缺失，必须持续提示用户自行安装 Git；在 `git --version` 可用前，不执行 clone、fetch、commit 或 push。
-- Maker API、git 和 TapTap token 默认走 PAT-first：如果用户还没有 PAT，引导用户打开当前环境的 PAT 页面新建 PAT（production：`https://maker.taptap.cn/pat-tokens`，RND：`https://fuping.agnt.xd.com/pat-tokens`）；用户提供 PAT 后调用 `maker_exchange_pat(manual_pat)` 保存。
-- 保存 PAT 后会自动列出 app；`maker_status` 如果发现本地已有 PAT 且当前目录未绑定，也会自动列出 app，无需用户额外要求。
-- 保存 PAT 后会自动调用 `GET /api/v1/user/taptap-token` 获取并保存 TapTap MAC token。
-- `maker_list_apps` 和 `maker_clone_to_current_directory` 不再要求先完成 Tap 登录。
-- `maker_clone_to_current_directory` 不要求当前目录为空；clone 前会检查本地目录，忽略 `.claude`、`.mcp`、`.skill`、`.config`、`.ini` 等点开头配置项，只对普通本地文件输出提醒。clone 最终结果固定包含 `Pre-clone local directory check` 区块；已有本地文件会保留，若与 Maker 项目文件同路径冲突则失败并列出冲突文件。
-- `maker_list_apps` 会解析 Maker `/apps` 返回的创建时间、最近会话时间、游戏类型、阶段、图标、置顶/归档/删除时间等字段，并保留原始 `raw` 数据。
-- PAT 会保存到 `~/.taptap-maker/pat.json`，并兼容旧的 `~/.maker-pat`、`PAT` / `MAKER_PAT` 环境变量。
-- 只有当前目录未绑定且用户要初始化或 clone 时，才通过 app 列表让用户选择并调用 clone；已绑定目录里的 app 列表只作账号项目参考，应继续当前项目，除非用户明确要求切换或重新 clone。
-- Maker 后端地址按 `TAPTAP_MCP_ENV` 从 `src/maker/config.ts` 的环境配置表读取，本地 MCP 配置只需要切 `rnd` / `production`。
-- 如果用户直接说“构建 / build / 重新构建游戏”，本地 Maker MCP 应调用 `maker_build_current_directory`。该工具会强制检查本地 Maker 项目是否有未提交改动。
-- 如果构建前发现本地有改动且尚未保存自动提交偏好，工具会停止并提示用户选择：`提交本地改动并触发构建（以后都是如此）`，或明确不提交、只构建云端已有版本。
-- 用户选择 `提交本地改动并触发构建（以后都是如此）` 后，应再次调用 `maker_build_current_directory` 并传入 `submit_local_changes_before_build=true` 和 `remember_build_submit_preference=true`；工具会完整执行 commit + push + build，并在当前项目 `.maker-mcp/config.json` 记住偏好。
-- 保存偏好后，后续用户说“构建”且本地有改动时，`maker_build_current_directory` 会默认自动提交并继续执行远端 build，不再重复询问。
-- 只有当用户明确说“不提交 / 直接构建云端版本”时，才可再次调用 `maker_build_current_directory` 并传入 `confirm_remote_build_without_submit=true`。
-- 用户说“查看结果 / 预览 / 跑一下 / 验证一下 / 看看效果”时，也按构建流程处理；如果本地有改动，先提醒用户选择是否提交，确认提交后执行 commit + push + build。
-- 构建转发会从 MCP 包自身定位 `dist/proxy.js`；`cwd` / `target_dir` 只用于识别 Maker 游戏项目，不要求游戏目录存在 MCP 的 `dist/proxy.js`。
-- 用户未指定构建入口且本地存在 `scripts/main.lua` 时，Maker MCP 默认向远端 build 传 `scriptsPath="scripts"` 和 `entry="main.lua"`，避免第一次构建多一轮“入口配置缺失”的提示；用户显式传入口或多人入口时优先生效。
-- 远端 proxy 配置是内部能力，不单独暴露给 Agent；构建工具会在需要时直接使用远端 Maker MCP。
-- 用户说“帮我提交/提交代码”时使用 `maker_submit_current_directory`，会对当前 Maker 项目执行 commit + push + build；只有实际 push 成功后才继续远端 build。
-- “帮我提交代码到maker / taptap制造 / tap制造 / tap / push / 提交并推送”也应触发 `maker_submit_current_directory`，并在 push 成功后继续远端 build。
-- Maker 项目提交不走通用 Git skill 的任务号、新分支规则；冲突时先和用户确认 pull/rebase 流程。
-- 如果 commit 已完成但 push 失败，Maker MCP 会返回 commit hash、ahead 状态、exit code、stderr/stdout 和下一步建议，便于开发期排查。
-- clone/fetch、push 和远端 build 属于慢操作；工具会尽量发送 MCP progress notification，Git 阶段会解析 stderr 百分比，最终返回会包含耗时和最近进度。
+常用 CLI：
+
+```bash
+taptap-maker init
+taptap-maker doctor
+taptap-maker apps --json
+taptap-maker pat set
+taptap-maker mcp install --ide codex,cursor,claude
+taptap-maker mcp verify
+taptap-maker dev-kit update
+```
+
+`taptap-maker pat set` 默认通过交互式 prompt 接收 PAT，避免把 PAT 写进
+`ps` 进程列表或 shell history；自动化场景可用 `--pat-stdin` 从标准输入读取。
+`taptap-maker mcp verify` 默认验证 `mcp install` 写入 AI 客户端配置的 npx 启动命令；
+本地开发只想验证当前 CLI 时可加 `--mode self`。
+
+MCP 精简为开发循环里的高频能力：
+
+```text
+maker://status                  # Resource，读取本地 Maker 状态
+maker_status_lite               # Resource 不可用时的兼容 tool
+maker_build_current_directory   # commit/push/build 合并入口
+```
+
+`maker_build_current_directory` 同时覆盖“构建 / 预览 / 跑一下 / 验证一下 / 提交 / 推送”。
+如果本地有改动或已有未推送 commit，工具会先 commit（必要时）、push 到 Maker 远端，再触发远端
+build。push 失败时不会继续 build，会返回本地 commit、ahead 状态、stderr/stdout 和下一步建议，
+交给本地 Agent/skill 处理 pull、rebase 或冲突；push 成功但 build 失败时，会明确说明代码已到
+Maker 远端但构建失败。只有用户明确说“不提交，只构建云端版本”时，才传
+`confirm_remote_build_without_submit=true`。
+
+首次 clone/fetch 和 push 遇到 503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等临时网络错误时会自动重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不会重试，会把错误分类交给 Agent 处理。首次 clone/fetch 前 CLI 会提示 Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，建议保持命令运行等待自动重试。
+
+Windows 是默认优先级：CLI 写 MCP 配置时会在 Windows 使用 `npx.cmd`，Git 引导优先提示
+Git for Windows，并要求安装选项允许命令行和第三方工具通过 PATH 找到 Git。macOS 用户可通过
+`git --version` 触发 Xcode Command Line Tools，或安装官方 Git。
 
 ### Maker 本地 Workflow Skills（实验中）
 
 Maker 现在同时内置三个工作流 skill：
 
-- `taptap-maker-local`：把 Maker 初始化、clone、pull、提交、推送和冲突处理交给用户本地 AI/Agent 参与判断；原有 Maker MCP tools 业务暂时保持不变。
+- `taptap-maker-local`：把 Maker 初始化转交 CLI，并让本地 AI/Agent 处理状态解释、pull/rebase、冲突和构建失败恢复。
 - `taptap-maker-dev-kit-guide`：介绍 clone 时安装到项目目录的 AI dev kit，明确 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
 - `update-taptap-mcp`：引导用户更新本地 npx 缓存里的 `@taptap/instant-games-open-mcp`，并提醒 Maker MCP 推荐安装到 user/global scope。
 
-初始化流程里，PAT 验证通过、用户选择 app 后，`maker_clone_to_current_directory` 会自动准备本地 AI dev kit。
+初始化流程里，PAT 验证通过、用户选择 app 后，`taptap-maker init` 会自动准备本地 AI dev kit。
 
-clone 工具会下载 `https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip`，解压开发环境文档、引擎 API、demo 和本地 AI skills 到当前目录；会跳过 ZIP 里的顶层 `scripts` 目录并删除下载 ZIP，避免和 Maker 项目代码冲突。clone 前会先生成 `.gitignore.dev-kit-before-clone` 临时 block，clone 成功后自动合并到远端 `.gitignore`，防止这些本地开发环境文件被提交到 Maker Git。
+CLI 会下载 `https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip`，解压开发环境文档、引擎 API、demo 和本地 AI skills 到当前目录；会跳过 ZIP 里的顶层 `scripts` 目录并删除下载 ZIP，避免和 Maker 项目代码冲突。clone 前会先生成 `.gitignore.dev-kit-before-clone` 临时 block，clone 成功后自动合并到远端 `.gitignore`，防止这些本地开发环境文件被提交到 Maker Git。
 
-`maker_status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。除此之外不做编辑器安装引导。Maker 操作目标是用户当前项目目录；若 MCP 进程 cwd 是临时对话目录，Agent 应把用户当前项目目录作为 `target_dir` 传入，不让用户选择目录、不扫描其他项目。已绑定项目会检查 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/`，缺失时自动恢复本地 AI dev kit 并刷新 `.gitignore` 管理块。
+`maker://status` 和 `maker_status_lite` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。Maker 操作目标是用户当前项目目录；若 MCP 进程 cwd 是临时对话目录，Agent 应把用户当前项目目录作为 `target_dir` 传入，不扫描其他项目。已绑定项目会检查 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/`，缺失时用 `taptap-maker dev-kit update` 恢复本地 AI dev kit 并刷新 `.gitignore` 管理块。
 
 Git 引导：
 
@@ -110,7 +114,8 @@ Git 引导：
 - Windows：用户自行访问 `https://git-scm.com/download/win` 安装 Git for Windows，并确保安装选项允许命令行和第三方工具通过 PATH 找到 Git。
 - 安装后需要重启 MCP 客户端或终端，再用 `git --version` 验证。
 
-详见：[TapTap Maker 本地 MCP](docs/MAKER.md)
+详见：[TapTap Maker 本地开发](docs/MAKER.md)。面向团队介绍的功能总览见
+[Maker CLI + MCP + Skill Rework Overview](docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
 
 ## 🧩 Codex Skills（运营简报）
 
@@ -342,26 +347,27 @@ npm run build
 npm test
 ```
 
-### Maker 本地 MCP 开发预览
+### Maker 本地开发预览
 
-Issue #162 引入了 Maker 本地 MCP，用于后续支持 Maker 登录、项目 onboard、代码拉取/推送和云端 SCE MCP 转发。当前开发测试应以 MCP tools 为准：
+Maker 本地开发现在以 CLI-first 为准。初始化、PAT、app 选择、dev-kit 和 clone 都走 CLI；MCP 只保留状态和同步构建：
 
 ```text
-maker_status
-maker_exchange_pat
-自动获取 TapTap token
-自动列出 app
-maker_list_apps
-maker_clone_to_current_directory
-maker_submit_current_directory
+taptap-maker init
+taptap-maker doctor
+taptap-maker apps
+taptap-maker mcp verify
+maker://status
+maker_status_lite
+maker_build_current_directory
 ```
 
-`maker_status` 会检查 Git 并输出初始化引导。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过 `git --version` 验证。
+`taptap-maker doctor` 会检查 Git、PAT、TapTap token、项目绑定和 MCP 配置。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过 `git --version` 验证。
+`taptap-maker mcp verify` 默认跑一次实际 MCP 配置使用的 npx 包命令；本地 dist 自测可用 `--mode self`。
 
 测试时引导用户访问当前环境的 PAT 页面新建 Maker PAT，
 production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`，
-再作为 `manual_pat` 传给 `maker_exchange_pat`，工具会同步获取 TapTap token。
-当前目录未绑定时，APP_ID 应通过 `maker_exchange_pat` 自动返回的 app 列表让用户选择，再传给 clone 工具；当前目录已绑定时不要再次引导 clone。
+再运行 `taptap-maker pat set` 并在 prompt 中粘贴 PAT，CLI 会同步获取 TapTap token。
+当前目录未绑定时，APP_ID 应通过 `taptap-maker init` 或 `taptap-maker apps` 返回的 app 列表让用户选择；当前目录已绑定时不要再次引导 clone。
 
 ```bash
 npm run build
@@ -388,6 +394,8 @@ npx @modelcontextprotocol/inspector node dist/maker.js
 - `TAPTAP_MCP_DC_CURRENT_APP_BASE_URL` - 当前游戏 DC 接口 host 覆盖（可选，路径仍为 `/mcp/v1/current-app/...`）
 - `TAPTAP_MCP_TRANSPORT` - 传输模式：`stdio`（默认）、`sse`、`http`
 - `TAPTAP_MCP_PORT` - 端口（默认 3000）
+- `TAPTAP_MAKER_CRASH_LOG_MAX_BYTES` - Maker MCP 崩溃日志 `~/.taptap-maker/mcp-crash.log` 上限，默认 1 MiB
+- `TAPTAP_MAKER_CRASH_LOG_MAX_ENTRY_BYTES` - Maker MCP 单条崩溃日志上限，默认 16 KiB
 - `TAPTAP_MCP_VERBOSE` - 详细日志：`true` 或 `false`
 - `TAPTAP_MCP_CACHE_DIR` - 缓存目录（默认 `/tmp/taptap-mcp/cache`）
 - `TAPTAP_MCP_TEMP_DIR` - 临时文件目录（默认 `/tmp/taptap-mcp/temp`）
