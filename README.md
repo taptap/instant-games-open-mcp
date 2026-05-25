@@ -48,7 +48,7 @@
 Maker 本地开发按“初始化用 CLI，开发循环用 MCP”拆分。首次配置推荐直接运行：
 
 ```bash
-npx -y -p @taptap/instant-games-open-mcp@beta taptap-maker init
+npx -y -p @taptap/instant-games-open-mcp taptap-maker init
 ```
 
 CLI 负责一次性流程：Git 检查、PAT 保存、TapTap token 换取、app 列表选择、AI dev kit
@@ -59,7 +59,7 @@ Codex / Cursor 通常需要重启会话、刷新 MCP 或新开窗口才会出现
 常用 CLI：
 
 ```bash
-taptap-maker init --env rnd
+taptap-maker init
 taptap-maker doctor
 taptap-maker apps --json
 taptap-maker pat set <PAT>

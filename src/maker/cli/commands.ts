@@ -33,7 +33,7 @@ import {
 import { formatMakerSkillStatus } from './skill.js';
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
-const DEFAULT_PACKAGE = '@taptap/instant-games-open-mcp@beta';
+const DEFAULT_PACKAGE = '@taptap/instant-games-open-mcp';
 
 type ParsedArgs = {
   command: string[];
@@ -708,12 +708,12 @@ function printHelp(): void {
       '  taptap-maker                         Start MCP server mode',
       '  taptap-maker init [--env rnd|production] [--app-id ID] [--target-dir DIR] [--pat PAT]',
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
-      '                     [--package @taptap/instant-games-open-mcp@beta] [--json]',
+      '                     [--package @taptap/instant-games-open-mcp] [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
       '  taptap-maker apps [--pat PAT] [--json]',
       '  taptap-maker pat set [PAT] [--json]',
       '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',
-      '                             [--package @taptap/instant-games-open-mcp@beta] [--json]',
+      '                             [--package @taptap/instant-games-open-mcp] [--json]',
       '  taptap-maker mcp verify',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '',
