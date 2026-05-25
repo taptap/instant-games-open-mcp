@@ -342,6 +342,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - `taptap-maker init` 的 Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
 - 首次 clone/fetch 前必须提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，不要中断当前命令。
 - CLI 写 MCP 配置时优先支持 Windows：Windows 使用 `npx.cmd`，Git 引导优先指向 Git for Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方 Git。
+- `taptap-maker mcp verify` 默认验证 `mcp install` 写入配置的 npx 包命令能否启动；本地开发只验证当前 CLI 时使用 `--mode self`。
 - MCP 公共能力只保留 `maker://status`、`maker_status_lite` 和 `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
 - 用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都调用 `maker_build_current_directory`。它会在本地有改动或 ahead commit 时先 commit/push，push 成功后才远端 build。
 - push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 负责解释并协助 pull/rebase 或解决冲突后重试。

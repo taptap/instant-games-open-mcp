@@ -95,7 +95,7 @@ CLI 命令：
 - `taptap-maker apps`：列出当前 PAT 可访问的 Maker app。
 - `taptap-maker pat set`：通过交互式 prompt 保存 PAT，并换取 TapTap token。
 - `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。
-- `taptap-maker mcp verify`：检查本机 Codex、Cursor、Claude 配置是否存在 Maker MCP。
+- `taptap-maker mcp verify`：默认验证 AI 客户端 MCP 配置使用的 npx 包命令可启动；`--mode self` 只验证当前 CLI 二进制。
 - `taptap-maker dev-kit update`：恢复或更新当前目录的 AI dev-kit。
 
 MCP 运行期能力：

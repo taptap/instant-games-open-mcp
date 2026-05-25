@@ -293,6 +293,9 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 
 async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const pat = stringOption(parsed, 'pat');
+  if (pat) {
+    warnPatArgExposure();
+  }
   const projects = await listMakerProjects({ pat });
   if (ctx.json) {
     writeJson(projects);
@@ -350,16 +353,21 @@ async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void>
 }
 
 async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
-  const command = getCurrentCliCommand();
+  const mode = mcpVerifyModeOption(parsed);
+  const pkg = stringOption(parsed, 'package') || DEFAULT_PACKAGE;
+  const command = mode === 'npx' ? getNpxCliCommand(pkg) : getCurrentCliCommand();
   const result = spawnSync(command.command, [...command.args, 'help'], {
     encoding: 'utf8',
   });
   const payload = {
-    command: [command.command, ...command.args, 'help'].join(' '),
+    mode,
+    package: mode === 'npx' ? pkg : undefined,
+    command: formatShellCommand([command.command, ...command.args, 'help']),
     status: result.status,
     ok: result.status === 0,
     stdout: result.stdout,
     stderr: result.stderr,
+    error: result.error?.message,
   };
   if (ctx.json) {
     writeJson(payload);
@@ -367,9 +375,16 @@ async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
   }
   process.stdout.write(
     [
-      payload.ok ? '✓ taptap-maker can be spawned' : '✗ taptap-maker spawn failed',
+      payload.ok
+        ? '✓ MCP config command can spawn taptap-maker'
+        : '✗ MCP config command spawn failed',
+      `- mode: ${payload.mode}`,
       `- command: ${payload.command}`,
+      mode === 'npx'
+        ? '- scope: verifies the npx command written by taptap-maker mcp install'
+        : '- scope: verifies only the currently running CLI binary',
       `- status: ${payload.status}`,
+      payload.error ? `- error: ${payload.error}` : '',
       payload.stderr ? `- stderr:\n${indent(payload.stderr)}` : '',
       '',
     ]
@@ -624,6 +639,10 @@ function getCurrentCliCommand(): { command: string; args: string[] } {
   return { command: process.platform === 'win32' ? 'taptap-maker.cmd' : 'taptap-maker', args: [] };
 }
 
+function getNpxCliCommand(pkg: string): { command: string; args: string[] } {
+  return { command: getNpxCommand(), args: ['-y', '-p', pkg, 'taptap-maker'] };
+}
+
 function getNpxCommand(): string {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx';
 }
@@ -760,6 +779,14 @@ function makerEnvOption(parsed: ParsedArgs): MakerEnvironment {
   return getMakerEnvironment();
 }
 
+function mcpVerifyModeOption(parsed: ParsedArgs): 'npx' | 'self' {
+  const mode = stringOption(parsed, 'mode') || 'npx';
+  if (mode === 'npx' || mode === 'self') {
+    return mode;
+  }
+  throw new Error('Invalid mcp verify --mode. Use npx or self.');
+}
+
 function parseIdeList(value: string): string[] {
   return value
     .split(',')
@@ -789,6 +816,12 @@ function indent(value: string): string {
     .join('\n');
 }
 
+function formatShellCommand(parts: string[]): string {
+  return parts
+    .map((part) => (/\s/.test(part) ? `"${part.replace(/(["\\$`])/g, '\\$1')}"` : part))
+    .join(' ');
+}
+
 function printHelp(): void {
   process.stdout.write(
     [
@@ -798,13 +831,16 @@ function printHelp(): void {
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
       '                     [--package @taptap/instant-games-open-mcp] [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
-      '  taptap-maker apps [--pat PAT] [--json]',
+      '  taptap-maker apps [--pat PAT] [--json]  # warns: PAT appears in ps/history',
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # warns: PAT appears in ps/history',
       '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',
       '                             [--package @taptap/instant-games-open-mcp] [--json]',
-      '  taptap-maker mcp verify',
+      '  taptap-maker mcp verify [--package @taptap/instant-games-open-mcp]',
+      '                           [--mode npx|self] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
+      '',
+      'MCP verify defaults to the npx command written into AI client config.',
       '',
       'Windows note:',
       '  Generated MCP configs use npx.cmd automatically on Windows.',

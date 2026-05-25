@@ -70,6 +70,8 @@ taptap-maker dev-kit update
 
 `taptap-maker pat set` 默认通过交互式 prompt 接收 PAT，避免把 PAT 写进
 `ps` 进程列表或 shell history；自动化场景可用 `--pat-stdin` 从标准输入读取。
+`taptap-maker mcp verify` 默认验证 `mcp install` 写入 AI 客户端配置的 npx 启动命令；
+本地开发只想验证当前 CLI 时可加 `--mode self`。
 
 MCP 精简为开发循环里的高频能力：
 
@@ -360,6 +362,7 @@ maker_build_current_directory
 ```
 
 `taptap-maker doctor` 会检查 Git、PAT、TapTap token、项目绑定和 MCP 配置。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过 `git --version` 验证。
+`taptap-maker mcp verify` 默认跑一次实际 MCP 配置使用的 npx 包命令；本地 dist 自测可用 `--mode self`。
 
 测试时引导用户访问当前环境的 PAT 页面新建 Maker PAT，
 production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`，

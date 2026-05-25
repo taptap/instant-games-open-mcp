@@ -5,9 +5,15 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { requestTapAuthWithPat } from '../maker/auth/patTap';
 import { cloneMakerProject, listMakerProjects } from '../maker/cli/projects';
 import { runMakerCli } from '../maker/cli/commands';
+
+jest.mock('node:child_process', () => ({
+  ...jest.requireActual('node:child_process'),
+  spawnSync: jest.fn(() => ({ status: 0, stdout: 'help output', stderr: '' })),
+}));
 
 jest.mock('../maker/auth/patTap', () => ({
   requestTapAuthWithPat: jest.fn(async () => ({
@@ -77,6 +83,7 @@ describe('Maker CLI commands', () => {
   let homedirSpy: jest.SpyInstance;
   let stdoutSpy: jest.SpyInstance;
   let stderrSpy: jest.SpyInstance;
+  const spawnSyncMock = jest.mocked(spawnSync);
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-cli-commands-'));
@@ -225,6 +232,13 @@ describe('Maker CLI commands', () => {
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('secret-maker-token');
   });
 
+  test('apps warns when PAT is passed with --pat', async () => {
+    await runMakerCli(['apps', '--pat', 'secret-maker-token', '--json']);
+
+    expect(stderrSpy.mock.calls.join('')).toContain('exposes it via ps/shell history');
+    expect(listMakerProjects).toHaveBeenCalledWith({ pat: 'secret-maker-token' });
+  });
+
   test('pat set can read PAT from stdin without argv warning', async () => {
     const readFileSyncSpy = jest
       .spyOn(fs, 'readFileSync')
@@ -238,6 +252,23 @@ describe('Maker CLI commands', () => {
 
     expect(stderrSpy.mock.calls.join('')).not.toContain('exposes it via ps/shell history');
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('stdin-maker-token');
+  });
+
+  test('mcp verify checks the configured npx package command by default', async () => {
+    await runMakerCli(['mcp', 'verify', '--json']);
+
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      process.platform === 'win32' ? 'npx.cmd' : 'npx',
+      ['-y', '-p', '@taptap/instant-games-open-mcp', 'taptap-maker', 'help'],
+      { encoding: 'utf8' }
+    );
+    expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual(
+      expect.objectContaining({
+        mode: 'npx',
+        command: expect.stringContaining('@taptap/instant-games-open-mcp taptap-maker help'),
+        ok: true,
+      })
+    );
   });
 
   test('unknown command errors do not include raw argv tokens', async () => {
