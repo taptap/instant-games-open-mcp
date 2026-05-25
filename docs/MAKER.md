@@ -2,10 +2,6 @@
 
 > Maker 本地开发改为 CLI-first。CLI 负责一次性初始化、PAT、app 选择、dev-kit 和客户端 MCP 配置；MCP 只保留运行期状态查询和“同步并构建”能力。
 
-本次重构的继续开发计划见
-[`docs/superpowers/plans/2026-05-25-maker-cli-first-rework.md`](superpowers/plans/2026-05-25-maker-cli-first-rework.md)，
-流程 runbook 见 [`docs/MAKER_CLI_FIRST_REWORK_FLOW.md`](MAKER_CLI_FIRST_REWORK_FLOW.md)，
-本地 CLI 自测流程见 [`docs/MAKER_CLI_LOCAL_TESTING.md`](MAKER_CLI_LOCAL_TESTING.md)，
 面向团队介绍的功能总览见
 [`docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`](MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
 

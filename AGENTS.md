@@ -334,7 +334,7 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 Maker 本地开发的默认路径是 CLI-first + PAT-first：
 
-- 本轮重构的继续开发计划、流程文档和本地 CLI 测试文档分别在 `docs/superpowers/plans/2026-05-25-maker-cli-first-rework.md`、`docs/MAKER_CLI_FIRST_REWORK_FLOW.md` 与 `docs/MAKER_CLI_LOCAL_TESTING.md`。上下文压缩或长时间中断后，先读这些文档再继续。
+- Maker CLI-first 重构后的正式说明在 `docs/MAKER.md`；面向团队介绍的功能总览在 `docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`。上下文压缩或长时间中断后，先读这两份文档再继续。
 - 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，不要让 Agent 逐个调用旧的初始化 MCP tools。
 - 如果本地没有 Maker PAT，CLI 会引导用户打开当前环境的 PAT 页面新建 PAT，并把 PAT 发给 Agent：production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
 - 用户提供 Maker PAT 后，运行 `taptap-maker pat set <PAT>` 或在 `taptap-maker init` 里粘贴；CLI 会保存到 `~/.taptap-maker/pat.json`，兼容旧路径 `~/.maker-pat`，并调用 `GET /api/v1/user/taptap-token` 获取 TapTap MAC token。

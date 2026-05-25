@@ -107,12 +107,7 @@ Git 引导：
 - Windows：用户自行访问 `https://git-scm.com/download/win` 安装 Git for Windows，并确保安装选项允许命令行和第三方工具通过 PATH 找到 Git。
 - 安装后需要重启 MCP 客户端或终端，再用 `git --version` 验证。
 
-详见：[TapTap Maker 本地开发](docs/MAKER.md)；
-当前重构计划和流程见
-[Maker CLI-First Rework Plan](docs/superpowers/plans/2026-05-25-maker-cli-first-rework.md)
-与 [Maker CLI-First Rework Flow](docs/MAKER_CLI_FIRST_REWORK_FLOW.md)。
-本地 CLI 自测流程见 [Maker CLI Local Testing](docs/MAKER_CLI_LOCAL_TESTING.md)。
-面向团队介绍的功能总览见
+详见：[TapTap Maker 本地开发](docs/MAKER.md)。面向团队介绍的功能总览见
 [Maker CLI + MCP + Skill Rework Overview](docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
 
 ## 🧩 Codex Skills（运营简报）
