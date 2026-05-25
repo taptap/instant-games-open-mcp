@@ -93,7 +93,7 @@ CLI 命令：
 - `taptap-maker init`：一站式初始化当前目录。
 - `taptap-maker doctor`：检查 Git、PAT、TapTap token、项目绑定、dev-kit 和 MCP 配置状态。
 - `taptap-maker apps`：列出当前 PAT 可访问的 Maker app。
-- `taptap-maker pat set <PAT>`：保存 PAT，并换取 TapTap token。
+- `taptap-maker pat set`：通过交互式 prompt 保存 PAT，并换取 TapTap token。
 - `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。
 - `taptap-maker mcp verify`：检查本机 Codex、Cursor、Claude 配置是否存在 Maker MCP。
 - `taptap-maker dev-kit update`：恢复或更新当前目录的 AI dev-kit。
@@ -212,7 +212,7 @@ PAT 保存步骤：
 ```text
 1. 如果用户没有 PAT，引导用户打开当前环境的 PAT 页面新建 PAT。production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
 2. 用户把 PAT 发给 Agent。
-3. Agent 运行 `taptap-maker pat set <PAT>`，或在 `taptap-maker init` 提示时粘贴 PAT。
+3. Agent 运行 `taptap-maker pat set` 并在提示时粘贴 PAT，或让 `taptap-maker init` 提示消费 PAT。
 4. CLI 保存 PAT 后会自动获取 TapTap token，并在初始化流程里列出 app。
 5. 后续 `taptap-maker apps`、`taptap-maker init`、`maker_build_current_directory` 默认复用缓存 PAT。
 ```
@@ -224,7 +224,8 @@ PAT 保存步骤：
 ~/.maker-pat
 ```
 
-如果 PAT 过期或不可用，Agent 应提示用户提供新的 Maker PAT，再运行 `taptap-maker pat set <PAT>` 更新本地缓存。
+如果 PAT 过期或不可用，Agent 应提示用户提供新的 Maker PAT，再运行 `taptap-maker pat set`
+并在 prompt 中粘贴 PAT 更新本地缓存。
 
 ## Git 前置条件和引导边界
 
@@ -382,13 +383,13 @@ Maker 后端默认地址集中在 `src/maker/config.ts`。兼容旧变量名：`
 
 测试时可以通过当前环境的 PAT 页面新建 Maker PAT：
 production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
-再通过 `taptap-maker pat set <PAT>` 保存。
+再运行 `taptap-maker pat set` 并在 prompt 中粘贴 PAT 保存。
 APP_ID 不应要求用户手动输入，而是通过 `taptap-maker init` 或 `taptap-maker apps` 返回的 app 列表让用户选择。
 
 推荐按 CLI 流程测试：
 
 ```text
-taptap-maker pat set <PAT>
+taptap-maker pat set
 taptap-maker apps
 taptap-maker init
 ```
@@ -406,7 +407,10 @@ TAPTAP_MAKER_GIT_BASE=<maker-git-base-url>
 
 PAT 会缓存到 `~/.taptap-maker/pat.json`，并继续写入旧路径 `~/.maker-pat` 以兼容 git 脚本。
 
-如果 `~/.maker-pat` 已存在，会直接复用；如需刷新 PAT，请让用户重新打开临时 PAT 页面创建新的 PAT，然后运行 `taptap-maker pat set <PAT>` 更新本地缓存。
+如果 `~/.maker-pat` 已存在，会直接复用；如需刷新 PAT，请让用户重新打开临时 PAT 页面创建新的 PAT，然后运行 `taptap-maker pat set` 更新本地缓存。
+
+兼容写法 `taptap-maker pat set <PAT>` 和 `--pat PAT` 仍可用，但 PAT 会出现在
+`ps` 进程列表、shell history 或进程审计日志中；仅在确认风险的自动化场景使用。
 
 clone 成功后会写：
 

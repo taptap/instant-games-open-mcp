@@ -467,7 +467,7 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     return [
       '本地已有 Maker PAT，但自动列出 Maker Apps 失败。',
       `原因：${error instanceof Error ? error.message : String(error)}`,
-      `如果 PAT 已失效，请使用新的 Maker PAT 运行 taptap-maker pat set <PAT>。PAT 页面：${getMakerPatTokensUrl()}`,
+      `如果 PAT 已失效，请运行 taptap-maker pat set 并粘贴新的 Maker PAT。PAT 页面：${getMakerPatTokensUrl()}`,
     ].join('\n');
   }
 }
@@ -572,7 +572,7 @@ function createRemoteProxyContext(options: {
   const projectId = projectConfig?.project_id || identify.projectId;
   const tapAuth = loadTapAuth();
   if (!tapAuth) {
-    throw new Error('Tap auth not found. Run taptap-maker pat set <PAT> first.');
+    throw new Error('Tap auth not found. Run taptap-maker pat set and paste a Maker PAT first.');
   }
 
   let userId = projectConfig?.user_id;

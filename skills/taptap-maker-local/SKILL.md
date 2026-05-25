@@ -179,10 +179,11 @@ permission errors until the reported cause is fixed.
 
 ## PAT Handling
 
-If the user pastes a token-like string while the initialization flow is waiting for PAT, run
-`taptap-maker pat set <PAT>` or let the running `taptap-maker init` prompt consume the PAT. Do not
-just say "received". If the directory is already bound, treat `taptap-maker apps` output as account
-reference only and continue the user's current bound-project task.
+If the user pastes a token-like string while the initialization flow is waiting for PAT, let the
+running `taptap-maker init` prompt consume it, or run `taptap-maker pat set` and paste the PAT into
+the prompt. Do not put PAT directly in argv unless the user explicitly accepts the ps/shell-history
+exposure. Do not just say "received". If the directory is already bound, treat `taptap-maker apps`
+output as account reference only and continue the user's current bound-project task.
 
 If PAT exchange fails:
 

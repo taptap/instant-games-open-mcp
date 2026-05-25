@@ -46,7 +46,7 @@ export async function completeTapDeviceLogin(options?: {
   const deviceCode = options?.deviceCode || session?.device_code;
   if (!deviceCode) {
     throw new Error(
-      'Tap device_code not found. Run `taptap-maker pat set <PAT>` with a valid Maker PAT.'
+      'Tap device_code not found. Run `taptap-maker pat set` and paste a valid Maker PAT.'
     );
   }
 

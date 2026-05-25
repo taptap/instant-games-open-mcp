@@ -282,7 +282,7 @@ async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 }
 
 async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
-  const pat = parsed.positionals[0] || stringOption(parsed, 'pat') || (await promptRequired('PAT'));
+  const pat = await resolvePatSet(parsed);
   saveManualMakerPat(pat);
   const tapAuth = await requestTapAuthWithPat(pat);
   emit(ctx, 'pat', 'Maker PAT and TapTap token saved', {
@@ -290,6 +290,27 @@ async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     tap_auth_path: getTapAuthPath(),
     kid: mask(tapAuth.kid),
   });
+}
+
+async function resolvePatSet(parsed: ParsedArgs): Promise<string> {
+  if (booleanOption(parsed, 'pat_stdin') || booleanOption(parsed, 'pat_from_stdin')) {
+    const pat = fs.readFileSync(0, 'utf8').trim();
+    if (!pat) {
+      throw new Error('No PAT found on stdin.');
+    }
+    return pat;
+  }
+
+  const fromPositional = parsed.positionals[0];
+  const fromOption = stringOption(parsed, 'pat');
+  if (fromPositional || fromOption) {
+    process.stderr.write(
+      'Warning: passing Maker PAT via command-line arguments exposes it via ps/shell history; prefer the interactive prompt or --pat-stdin.\n'
+    );
+    return fromPositional || fromOption!;
+  }
+
+  return promptRequired('PAT');
 }
 
 async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -494,7 +515,7 @@ function mergeCodexMcpConfig(
   backupIfExists(configPath);
   const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
   const sectionPattern = new RegExp(
-    `\\n?\\[mcp_servers\\."${escapeRegExp(options.mcpName)}"\\][\\s\\S]*?(?=\\n\\[|$)`,
+    `\\n?\\[mcp_servers\\."${escapeRegExp(options.mcpName)}"(?:\\.[^\\]]+)?\\][\\s\\S]*?(?=\\n\\[(?!mcp_servers\\."${escapeRegExp(options.mcpName)}"(?:\\.|\\]))|$)`,
     'g'
   );
   const withoutOld = existing.replace(sectionPattern, '').trimEnd();
@@ -711,7 +732,8 @@ function printHelp(): void {
       '                     [--package @taptap/instant-games-open-mcp] [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
       '  taptap-maker apps [--pat PAT] [--json]',
-      '  taptap-maker pat set [PAT] [--json]',
+      '  taptap-maker pat set [--pat-stdin] [--json]',
+      '  taptap-maker pat set [PAT|--pat PAT] [--json]  # warns: PAT appears in ps/history',
       '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',
       '                             [--package @taptap/instant-games-open-mcp] [--json]',
       '  taptap-maker mcp verify',

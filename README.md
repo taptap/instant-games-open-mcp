@@ -62,11 +62,14 @@ Codex / Cursor 通常需要重启会话、刷新 MCP 或新开窗口才会出现
 taptap-maker init
 taptap-maker doctor
 taptap-maker apps --json
-taptap-maker pat set <PAT>
+taptap-maker pat set
 taptap-maker mcp install --ide codex,cursor,claude
 taptap-maker mcp verify
 taptap-maker dev-kit update
 ```
+
+`taptap-maker pat set` 默认通过交互式 prompt 接收 PAT，避免把 PAT 写进
+`ps` 进程列表或 shell history；自动化场景可用 `--pat-stdin` 从标准输入读取。
 
 MCP 精简为开发循环里的高频能力：
 
@@ -360,7 +363,7 @@ maker_build_current_directory
 
 测试时引导用户访问当前环境的 PAT 页面新建 Maker PAT，
 production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`，
-再通过 `taptap-maker pat set <PAT>` 保存，CLI 会同步获取 TapTap token。
+再运行 `taptap-maker pat set` 并在 prompt 中粘贴 PAT，CLI 会同步获取 TapTap token。
 当前目录未绑定时，APP_ID 应通过 `taptap-maker init` 或 `taptap-maker apps` 返回的 app 列表让用户选择；当前目录已绑定时不要再次引导 clone。
 
 ```bash

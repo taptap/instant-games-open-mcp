@@ -35,7 +35,7 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 | `taptap-maker init`           | 一站式初始化：Git 检查、PAT、TapTap token、app 选择、dev-kit、clone、MCP 配置 |
 | `taptap-maker doctor`         | 检查 Git、PAT、TapTap token、项目绑定、dev-kit、skill 状态                    |
 | `taptap-maker apps`           | 使用 PAT 获取 Maker app 列表                                                  |
-| `taptap-maker pat set <PAT>`  | 保存 Maker PAT，并换取 TapTap token                                           |
+| `taptap-maker pat set`        | 交互式保存 Maker PAT，并换取 TapTap token                                     |
 | `taptap-maker mcp install`    | 写入 Codex / Cursor / Claude 的 MCP 配置                                      |
 | `taptap-maker mcp verify`     | 验证当前 CLI 是否可被 spawn                                                   |
 | `taptap-maker dev-kit update` | 恢复或更新本地 AI dev-kit                                                     |

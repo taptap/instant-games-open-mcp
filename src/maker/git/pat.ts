@@ -114,7 +114,7 @@ export async function requestMakerPat(options?: {
       [
         'Maker PAT not found.',
         'Provide a PAT through the pat argument, MAKER_PAT/PAT environment variable,',
-        'or save it with `taptap-maker pat set <PAT>`.',
+        'or save it interactively with `taptap-maker pat set`.',
         'Creating a new PAT still requires a legacy Maker JWT.',
       ].join(' ')
     );

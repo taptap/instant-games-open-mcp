@@ -42,7 +42,8 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Initialization Workflow');
     expect(skillText).toContain('taptap-maker doctor');
     expect(skillText).toContain('taptap-maker init');
-    expect(skillText).toContain('taptap-maker pat set <PAT>');
+    expect(skillText).toContain('taptap-maker pat set');
+    expect(skillText).toContain('Do not put PAT directly in argv');
     expect(skillText).toContain('taptap-maker apps');
     expect(skillText).toContain('The CLI will request PAT if');
     expect(skillText).toContain('The CLI is responsible for deterministic file operations');
