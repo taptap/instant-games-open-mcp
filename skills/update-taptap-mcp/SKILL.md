@@ -75,7 +75,7 @@ foreach ($f in $projectConfigPaths) {
 ## Step 1：对比远端和本地版本
 
 ```powershell
-npm view '@taptap/instant-games-open-mcp@beta' version
+npm view '@taptap/instant-games-open-mcp' version
 $NpxDir = Join-Path (npm config get cache) '_npx'
 Get-ChildItem $NpxDir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
   $p = Join-Path $_.FullName 'node_modules\@taptap\instant-games-open-mcp\package.json'
@@ -98,17 +98,11 @@ Get-ChildItem $NpxDir -Directory -ErrorAction SilentlyContinue | ForEach-Object 
 
 ## Step 3：预热下载
 
-根据用户 MCP 配置选默认 bin 或指定 bin（`taptap-maker`）。下例以 `taptap-maker` 为例，默认 bin 去掉 `'-p','@taptap/instant-games-open-mcp@beta','taptap-maker'`，改成单独一个 `'@taptap/instant-games-open-mcp@beta'`。
+预热正式 npm 包，并验证 `taptap-maker` binary 可以启动。
 
 ```powershell
-$env:TAPTAP_MCP_ENV = 'rnd'
 $log = Join-Path $env:TEMP 'taptap-mcp-warmup.log'
-$proc = Start-Process -FilePath npx `
-  -ArgumentList '-y','-p','@taptap/instant-games-open-mcp@beta','taptap-maker' `
-  -RedirectStandardOutput $log -RedirectStandardError "$log.err" `
-  -WindowStyle Hidden -PassThru
-Start-Sleep -Seconds 25
-Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+npx -y -p '@taptap/instant-games-open-mcp' taptap-maker help > $log 2> "$log.err"
 ```
 
 ## Step 4：验证
@@ -165,7 +159,7 @@ done
 ## Step 1：对比远端和本地版本
 
 ```bash
-npm view @taptap/instant-games-open-mcp@beta version
+npm view @taptap/instant-games-open-mcp version
 NPX_DIR="$(npm config get cache)/_npx"
 for d in "$NPX_DIR"/*/; do
   p="$d/node_modules/@taptap/instant-games-open-mcp/package.json"
@@ -186,12 +180,11 @@ done
 
 ## Step 3：预热下载
 
-根据用户 MCP 配置选默认 bin 或指定 bin（`taptap-maker`）。下例以 `taptap-maker` 为例，默认 bin 去掉 `-p ... taptap-maker`，直接写 `@taptap/instant-games-open-mcp@beta`。
+预热正式 npm 包，并验证 `taptap-maker` binary 可以启动。
 
 ```bash
-TAPTAP_MCP_ENV=rnd npx -y -p @taptap/instant-games-open-mcp@beta taptap-maker \
-  < /dev/null > /tmp/taptap-mcp-warmup.log 2>&1 &
-PID=$!; sleep 25; kill $PID 2>/dev/null; wait 2>/dev/null
+npx -y -p @taptap/instant-games-open-mcp taptap-maker help \
+  > /tmp/taptap-mcp-warmup.log 2>&1
 ```
 
 ## Step 4：验证
