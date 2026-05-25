@@ -5,10 +5,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Readable, Writable } from 'node:stream';
 import { requestTapAuthWithPat } from '../maker/auth/patTap';
 import { cloneMakerProject, listMakerProjects } from '../maker/cli/projects';
-import { createMaskedPromptOutput, runMakerCli } from '../maker/cli/commands';
+import { runMakerCli } from '../maker/cli/commands';
 
 jest.mock('../maker/auth/patTap', () => ({
   requestTapAuthWithPat: jest.fn(async () => ({
@@ -241,20 +240,22 @@ describe('Maker CLI commands', () => {
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('stdin-maker-token');
   });
 
-  test('masked prompt output does not echo input text', (done) => {
-    const chunks: string[] = [];
-    const maskedOutput = createMaskedPromptOutput();
-    const source = ReadableText('interactive-maker-token');
+  test('unknown command errors do not include raw argv tokens', async () => {
+    await expect(runMakerCli(['pat', 'secret-maker-token'])).rejects.toThrow(
+      'Unknown taptap-maker command: pat <redacted>'
+    );
+    await expect(runMakerCli(['pat', 'secret-maker-token'])).rejects.not.toThrow(
+      'secret-maker-token'
+    );
+  });
 
-    source.pipe(maskedOutput as Writable);
-    maskedOutput.on('finish', () => {
-      expect(chunks).toEqual([]);
-      done();
-    });
-    maskedOutput.on('data', (chunk) => chunks.push(String(chunk)));
+  test('interactive PAT prompt does not use masking implementation', () => {
+    const commandSource = fs.readFileSync(
+      path.join(process.cwd(), 'src', 'maker', 'cli', 'commands.ts'),
+      'utf8'
+    );
+
+    expect(commandSource).not.toContain('mask: true');
+    expect(commandSource).not.toContain('createMaskedPromptOutput');
   });
 });
-
-function ReadableText(text: string): NodeJS.ReadableStream {
-  return Readable.from([text]);
-}

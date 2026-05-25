@@ -8,7 +8,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
-import { Writable } from 'node:stream';
 import { stdin as input, stdout as output } from 'node:process';
 import { getMakerEnvironment, getMakerPatTokensUrl, type MakerEnvironment } from '../config.js';
 import { requestTapAuthWithPat } from '../auth/patTap.js';
@@ -103,7 +102,7 @@ export async function runMakerCli(argv: string[]): Promise<void> {
     return;
   }
 
-  throw new Error(`Unknown taptap-maker command: ${argv.join(' ')}`);
+  throw new Error(`Unknown taptap-maker command: ${formatUnknownCommand(parsed.command)}`);
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -330,7 +329,7 @@ async function resolvePatSet(parsed: ParsedArgs): Promise<string> {
     return fromPositional || fromOption!;
   }
 
-  return promptRequired('PAT', { mask: true });
+  return promptRequired('PAT');
 }
 
 async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -411,7 +410,7 @@ async function resolvePat(parsed: ParsedArgs, ctx: CliContext): Promise<string> 
   emit(ctx, 'pat_required', 'Maker PAT is required', {
     pat_page: getMakerPatTokensUrl(makerEnvOption(parsed)),
   });
-  const pat = await promptRequired('Paste Maker PAT', { mask: true });
+  const pat = await promptRequired('Paste Maker PAT');
   saveManualMakerPat(pat);
   return pat;
 }
@@ -703,39 +702,45 @@ function writeJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value)}\n`);
 }
 
-async function promptRequired(label: string, options: { mask?: boolean } = {}): Promise<string> {
+async function promptRequired(label: string): Promise<string> {
   if (!process.stdin.isTTY) {
     throw new Error(`${label} is required in non-interactive mode.`);
   }
-  const promptOutput = options.mask ? createMaskedPromptOutput() : output;
-  if (options.mask) {
-    output.write(`${label}: `);
-  }
-  const rl = readline.createInterface({ input, output: promptOutput });
+  const rl = readline.createInterface({ input, output });
   try {
-    const answer = await rl.question(options.mask ? '' : `${label}: `);
+    const answer = await rl.question(`${label}: `);
     if (!answer.trim()) {
       throw new Error(`${label} cannot be empty.`);
     }
     return answer.trim();
   } finally {
     rl.close();
-    if (options.mask) {
-      output.write('\n');
-    }
   }
-}
-
-export function createMaskedPromptOutput(): NodeJS.WritableStream {
-  return new Writable({
-    write(_chunk, _encoding, callback): void {
-      callback();
-    },
-  });
 }
 
 function warnPatArgExposure(): void {
   process.stderr.write(PAT_ARG_WARNING);
+}
+
+function formatUnknownCommand(command: string[]): string {
+  if (command.length === 0) {
+    return '(empty)';
+  }
+
+  const [primary, secondary] = command;
+  if (!secondary) {
+    return primary;
+  }
+
+  return `${primary} ${isKnownSubcommand(primary, secondary) ? secondary : '<redacted>'}`;
+}
+
+function isKnownSubcommand(command: string, subcommand: string): boolean {
+  return (
+    (command === 'pat' && subcommand === 'set') ||
+    (command === 'mcp' && (subcommand === 'install' || subcommand === 'verify')) ||
+    (command === 'dev-kit' && subcommand === 'update')
+  );
 }
 
 function stringOption(parsed: ParsedArgs, key: string): string | undefined {
