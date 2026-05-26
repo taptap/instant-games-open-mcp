@@ -50,6 +50,7 @@ import {
   getMakerEndpoints,
   getMakerEnvironment,
   getMakerPatTokensUrl,
+  getMakerWebUrl,
   requireMakerEndpoint,
 } from '../config.js';
 import { getUserIdFromMakerJwt } from '../auth/jwt.js';
@@ -1033,6 +1034,11 @@ type MakerBuildFailure = {
   stack?: string;
 };
 
+function formatMakerAppWebUrl(projectId: string, env: string): string {
+  const makerEnv = env === 'rnd' || env === 'production' ? env : undefined;
+  return `${getMakerWebUrl(makerEnv)}/app/${encodeURIComponent(projectId)}`;
+}
+
 type BuildCurrentDirectoryResult =
   | {
       mode: 'remote_build';
@@ -1041,6 +1047,7 @@ type BuildCurrentDirectoryResult =
       projectPath: string;
       serverUrl: string;
       env: string;
+      makerUrl?: string;
       timeoutMs: number;
       buildArgs: Record<string, unknown>;
       resultText: string;
@@ -1196,6 +1203,7 @@ async function runRemoteBuildCurrentDirectory(
       projectPath: proxy.projectPath,
       serverUrl: proxy.serverUrl,
       env: proxy.env,
+      makerUrl: formatMakerAppWebUrl(proxy.projectId, proxy.env),
       timeoutMs,
       buildArgs,
       resultText: formatRemoteToolResult(result),
@@ -1429,6 +1437,7 @@ export function formatBuildResult(
     '',
     `- project_root: ${result.projectRoot}`,
     `- project_id: ${result.projectId}`,
+    `- maker_url: ${result.makerUrl || formatMakerAppWebUrl(result.projectId, result.env)}`,
     `- project_path: ${result.projectPath}`,
     `- server_url: ${result.serverUrl}`,
     `- env: ${result.env}`,
@@ -1482,6 +1491,10 @@ export function formatPushResult(
       indent(
         [
           `- project_id: ${result.buildResult.projectId}`,
+          `- maker_url: ${
+            result.buildResult.makerUrl ||
+            formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
+          }`,
           `- project_path: ${result.buildResult.projectPath}`,
           `- server_url: ${result.buildResult.serverUrl}`,
           `- env: ${result.buildResult.env}`,

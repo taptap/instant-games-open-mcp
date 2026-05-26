@@ -759,6 +759,31 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- do_not_use_generic_git_push: yes');
   });
 
+  test('formats successful remote build with Maker app preview URL', () => {
+    const output = formatBuildResult(
+      {
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'a161a4e5-a226-4133-908f-c28c228b7ea5',
+        projectPath: 'a161a4e5-a226-4133-908f-c28c228b7ea5/workspace',
+        serverUrl: 'https://maker.taptap.cn/mcp/v1',
+        env: 'production',
+        timeoutMs: 600000,
+        buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+        resultText: 'build ok',
+      },
+      {
+        elapsedMs: 1000,
+        elapsed: '1s',
+        progressEvents: 1,
+      }
+    );
+
+    expect(output).toContain(
+      '- maker_url: https://maker.taptap.cn/app/a161a4e5-a226-4133-908f-c28c228b7ea5'
+    );
+  });
+
   test('submit tool pushes and then runs remote build', async () => {
     const pushedCwds: string[] = [];
     const remoteBuildTargetDirs: string[] = [];
@@ -867,6 +892,41 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('internal contract error');
     expect(output).not.toContain('remote Maker build finished');
     expect(output).not.toContain('remote_build:');
+  });
+
+  test('formats push remote build block with Maker app preview URL', () => {
+    const output = formatPushResult(
+      tempDir,
+      {
+        targetDir: tempDir,
+        submitResult: {
+          branch: 'main',
+          committed: true,
+          commitHash: 'abc1234',
+          message: 'chore: update maker project',
+          pushed: true,
+          status: 'pushed',
+        },
+        buildResult: {
+          mode: 'remote_build',
+          projectRoot: tempDir,
+          projectId: 'app-rnd',
+          projectPath: 'app-rnd/workspace',
+          serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
+          env: 'rnd',
+          timeoutMs: 600000,
+          buildArgs: {},
+          resultText: 'build ok',
+        },
+      },
+      {
+        elapsedMs: 1000,
+        elapsed: '1s',
+        progressEvents: 1,
+      }
+    );
+
+    expect(output).toContain('- maker_url: https://fuping.agnt.xd.com/app/app-rnd');
   });
 
   test('push failure output explains Maker retry path without generic git push', () => {
