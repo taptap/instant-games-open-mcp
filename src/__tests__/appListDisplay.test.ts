@@ -134,6 +134,30 @@ describe('developer and app list display', () => {
     expect(output).toContain('- app_id: 103');
   });
 
+  test('does not double count apps skipped by offset in developer hidden hints', () => {
+    const output = formatDevelopersAndApps(
+      {
+        list: [
+          {
+            developer_id: 100,
+            developer_name: 'Studio',
+            apps: Array.from({ length: 10 }, (_, index) => ({
+              app_id: index + 1,
+              app_title: `Game ${index + 1}`,
+              is_level: true,
+            })),
+          },
+        ],
+      },
+      { offset: 3, limit: 2 }
+    );
+
+    expect(output).toContain('4. **Game 4**');
+    expect(output).toContain('5. **Game 5**');
+    expect(output).toContain('本页之后还有 5 个应用');
+    expect(output).not.toContain('本开发者还有 8 个应用未展示');
+  });
+
   test('skips developer sections with no visible apps on the current page', () => {
     const output = formatDevelopersAndApps(
       {

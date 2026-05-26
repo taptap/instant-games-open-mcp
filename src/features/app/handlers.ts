@@ -148,7 +148,6 @@ export function formatDevelopersAndApps(
     }
 
     output += `- 应用列表:\n`;
-    let shownForDeveloper = 0;
     for (const app of developer.apps) {
       if (visitedApps < offset) {
         visitedApps += 1;
@@ -175,14 +174,7 @@ export function formatDevelopersAndApps(
         output += `     已发布: ${app.is_published ? '是' : '否'}\n`;
       }
       shownApps += 1;
-      shownForDeveloper += 1;
       visitedApps += 1;
-    }
-    if (shownApps >= limit && totalApps > offset + shownApps) {
-      const hiddenInDeveloper = developer.apps.length - shownForDeveloper;
-      if (hiddenInDeveloper > 0) {
-        output += `  ... 本开发者还有 ${hiddenInDeveloper} 个应用未展示\n`;
-      }
     }
     output += `\n`;
   }
