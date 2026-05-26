@@ -114,9 +114,11 @@ export function formatDevelopersAndApps(
   output += `共 ${result.list.length} 个开发者，${totalApps} 个应用。\n`;
   if (totalApps > limit || offset > 0) {
     output +=
-      offset === 0
-        ? `默认展示前 ${limit} 个应用，避免长列表刷屏。\n`
-        : `当前展示第 ${offset + 1}-${Math.min(offset + limit, totalApps)} 个应用。\n`;
+      offset >= totalApps
+        ? `当前页无应用。总共 ${totalApps} 个应用，当前 offset=${offset}。\n`
+        : offset === 0
+          ? `默认展示前 ${limit} 个应用，避免长列表刷屏。\n`
+          : `当前展示第 ${offset + 1}-${Math.min(offset + limit, totalApps)} 个应用。\n`;
     output += `显示顺序为接口返回顺序；当前接口未提供最近活跃时间。\n`;
     if (hasNextPage) {
       output += `继续获取更多：再次调用 list_developers_and_apps，参数 offset=${nextOffset}, limit=${limit}。\n`;
@@ -190,9 +192,13 @@ export function formatDevelopersAndApps(
   }
 
   output += `\n💡 **下一步:**\n`;
-  output += `使用 select_app 工具选择要使用的开发者和应用，例如:\n`;
-  output += `- developer_id: ${firstVisibleSelection?.developerId || result.list[0].developer_id}\n`;
-  output += `- app_id: ${firstVisibleSelection?.appId || result.list[0].apps?.[0]?.app_id || 'N/A'}\n`;
+  if (firstVisibleSelection) {
+    output += `使用 select_app 工具选择要使用的开发者和应用，例如:\n`;
+    output += `- developer_id: ${firstVisibleSelection.developerId}\n`;
+    output += `- app_id: ${firstVisibleSelection.appId}\n`;
+  } else {
+    output += `当前页没有可选择的应用，请使用更小的 offset 重新查看列表，或直接提供 app_id/应用名称关键词。\n`;
+  }
 
   return output;
 }

@@ -99,6 +99,11 @@ export const tools = [
           description:
             'Optional user current working directory to inspect. Use when the MCP process cwd differs from the user project CWD.',
         },
+        skip_remote_sync: {
+          type: 'boolean',
+          description:
+            'If true, skip git fetch/ahead-behind remote sync checks for quick local status polling.',
+        },
       },
     },
   },
@@ -223,6 +228,7 @@ export async function startMakerMcpServer(): Promise<void> {
       if (name === 'maker_status_lite') {
         const args = (request.params.arguments || {}) as {
           target_dir?: string;
+          skip_remote_sync?: boolean;
         };
         return {
           content: [
@@ -230,6 +236,7 @@ export async function startMakerMcpServer(): Promise<void> {
               type: 'text',
               text: await formatStatus({
                 targetDir: args.target_dir,
+                skipRemoteSync: args.skip_remote_sync,
               }),
             },
           ],
@@ -309,14 +316,18 @@ export async function startMakerMcpServer(): Promise<void> {
   await server.connect(transport);
 }
 
-async function formatStatus(options: { targetDir?: string } = {}): Promise<string> {
+async function formatStatus(
+  options: { targetDir?: string; skipRemoteSync?: boolean } = {}
+): Promise<string> {
   const targetDir = resolveMakerToolTargetDir(options.targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
   const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
   const remoteSyncText =
-    identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo
+    identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo && !options.skipRemoteSync
       ? await formatMakerRemoteSyncStatus(identify.projectRoot)
-      : '';
+      : identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo
+        ? formatMakerRemoteSyncSkipped()
+        : '';
   const pat = loadPat();
   let tapAuth = loadTapAuth();
   const makerPatTokensUrl = getMakerPatTokensUrl();
@@ -383,6 +394,15 @@ async function formatStatus(options: { targetDir?: string } = {}): Promise<strin
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function formatMakerRemoteSyncSkipped(): string {
+  return [
+    'Maker remote sync',
+    '',
+    '- status: skipped',
+    '- next_action: 已跳过远端同步检查；如需确认是否需要 pull，请重新读取 maker_status_lite 且不要设置 skip_remote_sync。',
+  ].join('\n');
 }
 
 async function formatMakerRemoteSyncStatus(projectRoot: string): Promise<string> {

@@ -161,4 +161,24 @@ describe('developer and app list display', () => {
     expect(output).toContain('3. **Game 3**');
     expect(output).toContain('本页之后还有 0 个应用');
   });
+
+  test('shows an empty page message when offset is beyond all apps', () => {
+    const output = formatDevelopersAndApps(
+      {
+        list: [
+          {
+            developer_id: 100,
+            developer_name: 'Studio A',
+            apps: [{ app_id: 101, app_title: 'Game 1', is_level: true }],
+          },
+        ],
+      },
+      { offset: 99, limit: 10 }
+    );
+
+    expect(output).toContain('当前页无应用');
+    expect(output).not.toContain('当前展示第 100-1 个应用');
+    expect(output).not.toContain('- developer_id: 100');
+    expect(output).not.toContain('- app_id: 101');
+  });
 });

@@ -108,6 +108,7 @@ describe('maker build local-change guard', () => {
   });
 
   test('status detects remote commits and guides dirty workspaces before pull', async () => {
+    runGit(['branch', '-M', 'main']);
     prepareMakerRemote();
     const remoteWorktree = cloneRemoteWorktree();
     fs.writeFileSync(path.join(remoteWorktree, 'scripts', 'remote.lua'), '-- remote\n', 'utf8');
@@ -126,6 +127,7 @@ describe('maker build local-change guard', () => {
   });
 
   test('status allows straightforward pull when remote is ahead and workspace is clean', async () => {
+    runGit(['branch', '-M', 'main']);
     prepareMakerRemote();
     const remoteWorktree = cloneRemoteWorktree();
     fs.writeFileSync(path.join(remoteWorktree, 'scripts', 'remote.lua'), '-- remote\n', 'utf8');
@@ -589,6 +591,12 @@ describe('maker build local-change guard', () => {
     expect(toolNames).not.toContain('maker_configure_remote_proxy');
   });
 
+  test('status lite exposes skip_remote_sync for quick local polling', () => {
+    const statusTool = tools.find((item) => item.name === 'maker_status_lite');
+
+    expect(statusTool?.inputSchema.properties).toHaveProperty('skip_remote_sync');
+  });
+
   test('initialization guidance is removed from MCP tools', () => {
     const statusTool = tools.find((item) => item.name === 'maker_status_lite');
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
@@ -622,7 +630,10 @@ describe('maker build local-change guard', () => {
     const statusTool = tools.find((item) => item.name === 'maker_status_lite');
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(Object.keys(statusTool?.inputSchema.properties || {})).toEqual(['target_dir']);
+    expect(Object.keys(statusTool?.inputSchema.properties || {})).toEqual([
+      'target_dir',
+      'skip_remote_sync',
+    ]);
     for (const tool of [statusTool, buildTool]) {
       expect(tool?.inputSchema.properties).not.toHaveProperty('jwt');
       expect(tool?.inputSchema.properties).not.toHaveProperty('force_pat');
