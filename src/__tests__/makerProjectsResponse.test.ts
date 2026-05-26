@@ -132,6 +132,7 @@ describe('maker app list display', () => {
     const output = formatStatusProjectList(projects);
 
     expect(output).toContain('Maker apps (120)');
+    expect(output).toContain('Maker apps (120)\n\n默认按最近活跃排序展示前 40 个');
     expect(output).toContain('默认按最近活跃排序展示前 40 个');
     expect(output).toContain('1. app-120');
     expect(output).toContain('40. app-81');

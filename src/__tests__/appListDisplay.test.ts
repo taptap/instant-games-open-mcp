@@ -96,7 +96,7 @@ describe('developer and app list display', () => {
 
     expect(output).toContain('**开发者 40: Studio 40**');
     expect(output).not.toContain('**开发者 41: Studio 41**');
-    expect(output).toContain('已省略 5 个应用');
+    expect(output).toContain('本页之后还有 5 个应用');
   });
 
   test('uses global app numbers and visible app example across developers', () => {
@@ -132,5 +132,33 @@ describe('developer and app list display', () => {
     expect(output).toContain('5. **Game 5**');
     expect(output).toContain('- developer_id: 100');
     expect(output).toContain('- app_id: 103');
+  });
+
+  test('skips developer sections with no visible apps on the current page', () => {
+    const output = formatDevelopersAndApps(
+      {
+        list: [
+          {
+            developer_id: 100,
+            developer_name: 'Studio A',
+            apps: [
+              { app_id: 101, app_title: 'Game 1', is_level: true },
+              { app_id: 102, app_title: 'Game 2', is_level: true },
+            ],
+          },
+          {
+            developer_id: 200,
+            developer_name: 'Studio B',
+            apps: [{ app_id: 201, app_title: 'Game 3', is_level: true }],
+          },
+        ],
+      },
+      { offset: 2, limit: 1 }
+    );
+
+    expect(output).not.toContain('**开发者 1: Studio A**');
+    expect(output).toContain('**开发者 2: Studio B**');
+    expect(output).toContain('3. **Game 3**');
+    expect(output).toContain('本页之后还有 0 个应用');
   });
 });

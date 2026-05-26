@@ -131,6 +131,12 @@ export function formatDevelopersAndApps(
       break;
     }
 
+    const developerAppCount = developer.apps?.length || 0;
+    if (developerAppCount > 0 && visitedApps + developerAppCount <= offset) {
+      visitedApps += developerAppCount;
+      continue;
+    }
+
     output += `**开发者 ${devIndex + 1}: ${developer.developer_name}**\n`;
     output += `- Developer ID: ${developer.developer_id}\n`;
 
@@ -179,8 +185,8 @@ export function formatDevelopersAndApps(
     output += `\n`;
   }
 
-  if (totalApps > offset + shownApps) {
-    output += `已省略 ${totalApps - offset - shownApps} 个应用。\n\n`;
+  if (totalApps > limit || offset > 0) {
+    output += `本页之后还有 ${Math.max(totalApps - offset - shownApps, 0)} 个应用。\n\n`;
   }
 
   output += `\n💡 **下一步:**\n`;

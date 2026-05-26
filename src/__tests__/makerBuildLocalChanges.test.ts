@@ -17,6 +17,7 @@ import {
   tools,
 } from '../maker/server/mcp';
 import {
+  getMakerRemoteSyncFailureNextAction,
   inspectMakerDirectoryGitStatus,
   inspectMakerRemoteSyncStatus,
   pushMakerProject,
@@ -138,6 +139,16 @@ describe('maker build local-change guard', () => {
     expect(status.hasLocalChanges).toBe(false);
     expect(status.nextAction).toContain('工作区干净');
     expect(status.nextAction).toContain('git pull --ff-only origin main');
+  });
+
+  test('status fetch auth failures guide users to refresh Maker PAT', () => {
+    expect(
+      getMakerRemoteSyncFailureNextAction({
+        classification: 'auth',
+        retryable: false,
+        nextAction: '运行 `taptap-maker pat set` 并粘贴新的 Maker PAT。',
+      })
+    ).toContain('taptap-maker pat set');
   });
 
   test('pushes committed but unpushed Maker changes when workspace is clean', async () => {

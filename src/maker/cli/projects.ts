@@ -648,8 +648,7 @@ export async function inspectMakerRemoteSyncStatus(cwd: string): Promise<MakerRe
       aheadCount: 0,
       behindCount: 0,
       failure,
-      nextAction:
-        '暂时无法检查 Maker 远端是否有新提交。请把 failure 信息反馈给用户；如果只是 503、5xx、超时或网络中断，可稍后重新读取 maker://status。',
+      nextAction: getMakerRemoteSyncFailureNextAction(failure),
     };
   }
 
@@ -687,6 +686,14 @@ export async function inspectMakerRemoteSyncStatus(cwd: string): Promise<MakerRe
       branch,
     }),
   };
+}
+
+export function getMakerRemoteSyncFailureNextAction(failure: MakerGitFailure): string {
+  if (failure.classification === 'auth') {
+    return '暂时无法检查 Maker 远端是否有新提交：Git 鉴权失败。请先运行 `taptap-maker pat set` 并粘贴新的 Maker PAT 后，再重新读取 maker://status。';
+  }
+
+  return '暂时无法检查 Maker 远端是否有新提交。请把 failure 信息反馈给用户；如果只是 503、5xx、超时或网络中断，可稍后重新读取 maker://status。';
 }
 
 function isIgnoredBuildGuardChange(file: string): boolean {
