@@ -604,11 +604,9 @@ export function formatStatusProjectList(projects: StatusProject[]): string {
     `Maker apps (${projects.length})`,
     '',
     hiddenCount > 0
-      ? `默认按最近活跃排序展示前 ${visibleProjects.length} 个；其余 ${hiddenCount} 个请不要逐条刷屏。`
-      : '已按最近活跃排序展示全部 app；请询问用户选择。',
-    hiddenCount > 0
-      ? '如果用户没有看到目标 app，请提示可以继续查看更多：在 taptap-maker init 交互中输入 next，或运行 taptap-maker apps --offset 40 --limit 40；也可以让用户提供 app_id，或运行 taptap-maker apps --json 做机器可读查询。'
-      : undefined,
+      ? `为了保持友好的可读性，默认最多展示 ${visibleProjects.length} 个 app；如需完整列表，可以选择显示全部。`
+      : '已显示全部 app；请询问用户选择。',
+    hiddenCount > 0 ? '如需完整列表，请运行 taptap-maker apps --json 查看全部 app。' : undefined,
     'AI 展示建议：如果聊天或客户端宽度足够，可把 app 预览整理成两列紧凑布局；每个 app 保留序号、app_id、名称，以及可用的最近活跃时间或 user_id。窄屏保持单列。不要省略 app_id，也不要在用户确认前自动选择 app。',
     '',
     ...visibleProjects.map(

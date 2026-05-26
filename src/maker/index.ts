@@ -35,7 +35,7 @@ function printHelp(): void {
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
       '                     [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
-      '  taptap-maker apps [--pat PAT] [--limit N] [--offset N] [--json]',
+      '  taptap-maker apps [--pat PAT] [--all] [--json]',
       '                     # --pat warns: PAT appears in ps/history',
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # warns: PAT appears in ps/history',

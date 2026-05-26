@@ -98,53 +98,62 @@ describe('maker app list display', () => {
     expect(output).toContain('Maker apps (120)');
     expect(output).toContain('Showing 40 most recently active apps');
     expect(output).toContain('sorted by last activity');
+    expect(output).toContain('80 more hidden');
     expect(output).toContain('1. App 120  id=app-120  last_active=2026-04-30T08:00:00.000Z');
     expect(output).toContain('40. App 81  id=app-81  last_active=2026-03-22T08:00:00.000Z');
     expect(output).not.toContain('41. App 80');
-    expect(output).toContain('--offset 40 --limit 40');
-    expect(output).toContain('use --json to get the complete app list');
+    expect(output).toContain('taptap-maker apps --all');
+    expect(output).toContain('--json');
+    expect(output).not.toContain('--offset');
+    expect(output).not.toContain('--limit');
     expect(output).not.toContain('user_id=');
     expect(output).not.toContain('gameType=');
     expect(output).not.toContain('stage=');
     expect(output).not.toContain('createdAt=');
   });
 
-  test('supports showing the next CLI page while keeping recent activity order', () => {
-    const output = formatMakerProjectList(projects, { limit: 40, offset: 40 });
+  test('shows every app when showAll is set', () => {
+    const output = formatMakerProjectList(projects, { showAll: true });
 
-    expect(output).toContain('Showing apps 41-80 of 120');
-    expect(output).toContain('1. App 80  id=app-80  last_active=2026-03-21T08:00:00.000Z');
-    expect(output).toContain('40. App 41  id=app-41  last_active=2026-02-10T08:00:00.000Z');
-    expect(output).toContain('--offset 80 --limit 40');
+    expect(output).toContain('Maker apps (120)');
+    expect(output).toContain('Showing all 120 Maker apps');
+    expect(output).toContain('1. App 120  id=app-120');
+    expect(output).toContain('120. App 1  id=app-1');
+    expect(output).not.toContain('more hidden');
+    expect(output).not.toContain('--all');
   });
 
-  test('caps requested CLI text output at 100 apps', () => {
-    const output = formatMakerProjectList(projects, { limit: 120 });
+  test('hides the --all hint when the project count fits in one page', () => {
+    const output = formatMakerProjectList(projects.slice(0, 29));
 
-    expect(output).toContain('100. App 21  id=app-21  last_active=2026-01-21T08:00:00.000Z');
-    expect(output).not.toContain('101. App 20');
-    expect(output).toContain('--offset 100 --limit 100');
-  });
-
-  test('shows an out-of-range CLI page without misleading item bounds', () => {
-    const output = formatMakerProjectList(projects.slice(0, 35), { offset: 9999 });
-
-    expect(output).toContain('Showing apps 0-0 of 35');
-    expect(output).not.toContain('Showing apps 0-9999 of 35');
-    expect(output).toContain('No more apps in this view');
+    expect(output).toContain('Showing all 29 Maker apps');
+    expect(output).not.toContain('more hidden');
+    expect(output).not.toContain('--all');
   });
 
   test('limits status text output to the 40 most recently active apps', () => {
     const output = formatStatusProjectList(projects);
 
     expect(output).toContain('Maker apps (120)');
-    expect(output).toContain('Maker apps (120)\n\n默认按最近活跃排序展示前 40 个');
-    expect(output).toContain('默认按最近活跃排序展示前 40 个');
+    expect(output).toContain(
+      '为了保持友好的可读性，默认最多展示 40 个 app；如需完整列表，可以选择显示全部。'
+    );
+    expect(output).toContain('如需完整列表，请运行 taptap-maker apps --json 查看全部 app。');
     expect(output).toContain('1. app-120');
     expect(output).toContain('40. app-81');
     expect(output).not.toContain('41. app-80');
+    expect(output).not.toContain('offset');
+    expect(output).not.toContain('next');
     expect(output).toContain('AI 展示建议');
     expect(output).toContain('两列紧凑布局');
     expect(output).not.toContain('每一个 app 条目');
+  });
+
+  test('explains the status app page limit for readable output', () => {
+    const output = formatStatusProjectList(projects.slice(0, 29));
+
+    expect(output).toContain('已显示全部 app；请询问用户选择。');
+    expect(output).not.toContain('可以选择显示全部');
+    expect(output).not.toContain('taptap-maker apps --json');
   });
 });

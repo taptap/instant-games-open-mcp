@@ -41,6 +41,7 @@ const BOOLEAN_OPTIONS = new Set([
   'skip_mcp_install',
   'pat_stdin',
   'pat_from_stdin',
+  'all',
   'h',
   'help',
 ]);
@@ -292,19 +293,19 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 }
 
 async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  rejectRemovedAppsPaginationOptions(parsed);
   const pat = stringOption(parsed, 'pat');
   if (pat) {
     warnPatArgExposure();
   }
-  const limit = numberOption(parsed, 'limit');
-  const offset = numberOption(parsed, 'offset');
+  const showAll = booleanOption(parsed, 'all');
   const projects = await listMakerProjects({ pat });
   if (ctx.json) {
     writeJson(projects);
     return;
   }
 
-  process.stdout.write(`${formatMakerProjectList(projects, { limit, offset })}\n`);
+  process.stdout.write(`${formatMakerProjectList(projects, { showAll })}\n`);
 }
 
 async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -527,30 +528,26 @@ async function resolveProjectSelection(
   }
 
   const orderedProjects = sortProjectsByRecentActivity(projects);
-  const limit = MAKER_PROJECT_DEFAULT_TEXT_LIMIT;
-  let offset = 0;
+  let showAll = orderedProjects.length <= MAKER_PROJECT_DEFAULT_TEXT_LIMIT;
   for (;;) {
-    process.stdout.write(`${formatMakerProjectList(orderedProjects, { limit, offset })}\n`);
-    const answer = await promptRequired('Choose app by index, app_id, or next');
+    process.stdout.write(`${formatMakerProjectList(orderedProjects, { showAll })}\n`);
+    const answer = await promptRequired("Choose app by index, app_id, or 'all' to show all");
     const normalized = answer.trim().toLowerCase();
-    if (['n', 'next', 'more'].includes(normalized)) {
-      const nextOffset = offset + limit;
-      if (nextOffset >= orderedProjects.length) {
-        process.stdout.write('No more Maker apps in this list.\n');
+    if (['a', 'all'].includes(normalized)) {
+      if (showAll) {
+        process.stdout.write('Already showing all Maker apps.\n');
       } else {
-        offset = nextOffset;
+        showAll = true;
       }
       continue;
     }
-    if (['p', 'prev', 'previous'].includes(normalized)) {
-      offset = Math.max(offset - limit, 0);
-      continue;
-    }
 
+    const visibleCount = showAll
+      ? orderedProjects.length
+      : Math.min(MAKER_PROJECT_DEFAULT_TEXT_LIMIT, orderedProjects.length);
     const byIndex = Number(answer);
-    const visibleCount = Math.min(limit, orderedProjects.length - offset);
     if (Number.isInteger(byIndex) && byIndex >= 1 && byIndex <= visibleCount) {
-      return orderedProjects[offset + byIndex - 1];
+      return orderedProjects[byIndex - 1];
     }
     const selected = projects.find((project) => project.id === answer.trim());
     if (!selected) {
@@ -783,26 +780,10 @@ function saveInitState(targetDir: string, state: Record<string, unknown>): void 
 }
 
 const MAKER_PROJECT_DEFAULT_TEXT_LIMIT = 40;
-const MAKER_PROJECT_MAX_TEXT_LIMIT = 100;
 
 type MakerProjectListFormatOptions = {
-  limit?: number;
-  offset?: number;
+  showAll?: boolean;
 };
-
-function normalizeListLimit(limit?: number): number {
-  if (!Number.isFinite(limit) || limit === undefined) {
-    return MAKER_PROJECT_DEFAULT_TEXT_LIMIT;
-  }
-  return Math.min(Math.max(Math.trunc(limit), 1), MAKER_PROJECT_MAX_TEXT_LIMIT);
-}
-
-function normalizeListOffset(offset?: number): number {
-  if (!Number.isFinite(offset) || offset === undefined) {
-    return 0;
-  }
-  return Math.max(Math.trunc(offset), 0);
-}
 
 function getProjectActivityTime(project: MakerProjectSummary): number {
   const value = project.lastConversationAt || project.lastAccessedAt || project.createdAt;
@@ -831,6 +812,20 @@ function formatProjectListItem(project: MakerProjectSummary, index: number): str
   }`;
 }
 
+function rejectRemovedAppsPaginationOptions(parsed: ParsedArgs): void {
+  const removed = ['limit', 'offset'].filter((key) => parsed.options[key] !== undefined);
+  if (removed.length === 0) {
+    return;
+  }
+  throw new Error(
+    `taptap-maker apps no longer supports ${removed
+      .map((key) => `--${key}`)
+      .join(
+        ' / '
+      )}. Use --all for the full human-readable list, or --json for the machine-readable output.`
+  );
+}
+
 export function formatMakerProjectList(
   projects: MakerProjectSummary[],
   options: MakerProjectListFormatOptions = {}
@@ -838,24 +833,17 @@ export function formatMakerProjectList(
   if (projects.length === 0) {
     return 'No Maker apps found.';
   }
-  const limit = normalizeListLimit(options.limit);
-  const offset = normalizeListOffset(options.offset);
   const sortedProjects = sortProjectsByRecentActivity(projects);
-  const visibleProjects = sortedProjects.slice(offset, offset + limit);
-  const hiddenCount = projects.length - visibleProjects.length;
-  const nextOffset = offset + visibleProjects.length;
-  const hasNextPage = nextOffset < projects.length;
-  const startIndex = visibleProjects.length > 0 ? offset + 1 : 0;
-  const endIndex =
-    visibleProjects.length > 0 ? Math.min(offset + visibleProjects.length, projects.length) : 0;
+  const showAll = options.showAll === true;
+  const visibleProjects = showAll
+    ? sortedProjects
+    : sortedProjects.slice(0, MAKER_PROJECT_DEFAULT_TEXT_LIMIT);
+  const hiddenCount = sortedProjects.length - visibleProjects.length;
   return [
     `Maker apps (${projects.length})`,
-    visibleProjects.length > 0 && offset === 0
-      ? `Showing ${visibleProjects.length} most recently active apps, sorted by last activity. ${hiddenCount} more hidden.`
-      : `Showing apps ${startIndex}-${endIndex} of ${projects.length}, sorted by last activity.`,
-    hasNextPage
-      ? `To continue, run: taptap-maker apps --offset ${nextOffset} --limit ${limit}. If the target is hidden, enter its app_id directly or use --json to get the complete app list.`
-      : `No more apps in this view. If needed, use --json to get the complete app list.`,
+    hiddenCount > 0
+      ? `Showing ${visibleProjects.length} most recently active apps, sorted by last activity. ${hiddenCount} more hidden. Run \`taptap-maker apps --all\` to show all, or use \`--json\` for the complete machine-readable list.`
+      : `Showing all ${visibleProjects.length} Maker apps, sorted by last activity.`,
     '',
     ...visibleProjects.map((project, index) => formatProjectListItem(project, index)),
   ]
@@ -929,15 +917,6 @@ function stringOption(parsed: ParsedArgs, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-function numberOption(parsed: ParsedArgs, key: string): number | undefined {
-  const value = stringOption(parsed, key);
-  if (value === undefined) {
-    return undefined;
-  }
-  const number = Number(value);
-  return Number.isFinite(number) ? number : undefined;
-}
-
 function booleanOption(parsed: ParsedArgs, key: string): boolean {
   return parsed.options[key] === true || parsed.options[key] === 'true';
 }
@@ -1002,7 +981,7 @@ function printHelp(): void {
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
       '                     [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
-      '  taptap-maker apps [--pat PAT] [--limit N] [--offset N] [--json]',
+      '  taptap-maker apps [--pat PAT] [--all] [--json]',
       '                     # --pat warns: PAT appears in ps/history',
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # warns: PAT appears in ps/history',
