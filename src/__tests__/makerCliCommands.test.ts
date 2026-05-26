@@ -295,7 +295,7 @@ describe('Maker CLI commands', () => {
     expect(close).toHaveBeenCalled();
   });
 
-  test('init can page through hidden apps before selecting by index', async () => {
+  test('init expands hidden apps via "all" before selecting by index', async () => {
     jest.mocked(listMakerProjects).mockResolvedValueOnce(
       Array.from({ length: 42 }, (_, index) => ({
         id: `app-${index + 1}`,
@@ -304,7 +304,7 @@ describe('Maker CLI commands', () => {
       }))
     );
     Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
-    const answers = ['next', '1'];
+    const answers = ['all', '41'];
     const close = jest.fn();
     const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockImplementation(
       () =>
@@ -348,6 +348,13 @@ describe('Maker CLI commands', () => {
 
     expect(stderrSpy.mock.calls.join('')).toContain('exposes it via ps/shell history');
     expect(listMakerProjects).toHaveBeenCalledWith({ pat: 'secret-maker-token' });
+  });
+
+  test('apps rejects removed --limit / --offset with a guidance error', async () => {
+    await expect(runMakerCli(['apps', '--offset', '40', '--limit', '40'])).rejects.toThrow(
+      /no longer supports --limit \/ --offset/
+    );
+    expect(listMakerProjects).not.toHaveBeenCalled();
   });
 
   test('pat set can read PAT from stdin without argv warning', async () => {

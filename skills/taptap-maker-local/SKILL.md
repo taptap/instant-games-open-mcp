@@ -201,12 +201,13 @@ not ask which app to clone. Continue operating on the current bound project unle
 explicitly requests a different project.
 
 When app selection is needed, show the returned app preview and total count, then ask the user to
-choose by index, app id, or name. The default preview shows 40 apps and `limit` is capped at 100.
-If the target is not visible, ask the user to type `next`, provide app id/name keywords, or run
-`taptap-maker apps --offset 40 --limit 40` / `taptap-maker apps --json`. If the chat/client width
-is enough, you may present the preview as a compact two-column layout; otherwise keep a single
-column. Do not omit app_id, and do not replace the preview with only a summary such as "40 apps are
-available".
+choose by index, app id, or name. The default preview shows the 40 most recently active apps.
+If the target is not visible, ask the user to type `all` inside `taptap-maker init` to expand the
+full list, or run `taptap-maker apps --all` for a one-shot human-readable dump; use
+`taptap-maker apps --json` only when AI / scripts need the machine-readable list. If the
+chat/client width is enough, you may present the preview as a compact two-column layout;
+otherwise keep a single column. Do not omit app_id, and do not replace the preview with only a
+summary such as "40 apps are available".
 
 Do not auto-select:
 
