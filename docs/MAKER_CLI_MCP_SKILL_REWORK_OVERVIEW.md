@@ -69,22 +69,26 @@ maker_submit_current_directory
 maker_status
 ```
 
-`maker://status` 只做状态读取，不再下载 dev-kit、clone 项目或写客户端配置。dev-kit 修复交给 `taptap-maker dev-kit update`。
+`maker://status` 只做状态读取，不再下载 dev-kit、clone 项目或写客户端配置。已绑定项目会额外检查
+`Maker remote sync`：fetch 远端后比较 ahead/behind，提示 Agent 在开发前先处理远端领先、
+本地 dirty、分叉或非 main 分支。dev-kit 修复交给 `taptap-maker dev-kit update`。
 
 ### Skill：Agent 工作流和失败恢复层
 
 Skill 不做底层 API 调用，而是负责告诉 Agent 该怎么走流程：
 
-- `taptap-maker-local`：初始化、状态解释、提交/构建、pull/rebase、冲突处理。
+- `taptap-maker-local`：初始化、状态解释、提交/构建、push 失败分类恢复、冲突处理。
 - `taptap-maker-dev-kit-guide`：解释 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
 - `update-taptap-mcp`：更新本地 npx 缓存，并提醒刷新/重启客户端。
 
 重构后，Skill 的关键行为是：
 
 - 用户要初始化 Maker 项目时，转给 `taptap-maker init`。
+- 用户新开对话或继续开发时，先读 `maker://status` 或 `maker_status_lite`，按
+  `Maker remote sync` 的 next_action 处理是否需要 pull。
 - 用户要提交、push、构建、预览、跑一下时，统一调用 `maker_build_current_directory`。
-- push 失败时，不走通用 Git PR / 任务号流程，不手动执行 generic `git push`，而是解释失败原因并协助用户 pull/rebase 或解决冲突后重试 Maker build 工具。
-- Git 失败返回 `classification`、`retryable`、`retry_reason` 和重试次数，Skill 据此判断是建议稍后重试、刷新 PAT、pull/rebase，还是处理本地目录冲突。
+- push 失败时，不走通用 Git PR / 任务号流程，不手动执行 generic `git push`，而是解释失败原因并按分类恢复后重试 Maker build 工具。
+- Git 失败返回 `classification`、`retryable`、`retry_reason` 和重试次数，Skill 据此判断是建议稍后重试、刷新 PAT、pull/rebase、切回 main、移除禁止路径，还是处理本地目录冲突。
 
 ## 主流程
 
@@ -129,7 +133,7 @@ flowchart TD
   E --> F["push 到 Maker 远端"]
   F --> G{"push 成功？"}
   G -- "否" --> G1["返回 submit_failed_before_build"]
-  G1 --> G2["Agent 协助 pull/rebase/冲突修复"]
+  G1 --> G2["Agent 按分类恢复后重试"]
   G -- "是" --> H["远端 build"]
   H --> I{"build 成功？"}
   I -- "是" --> I1["返回提交和构建结果"]

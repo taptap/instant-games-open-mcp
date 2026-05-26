@@ -34,11 +34,13 @@ import {
 } from '../storage.js';
 import {
   inspectMakerDirectoryGitStatus,
+  inspectMakerRemoteSyncStatus,
   listMakerProjects,
   pushMakerProject,
   readMakerProjectLocalChanges,
   type PushMakerProjectOptions,
   type PushMakerProjectResult,
+  type MakerRemoteSyncStatus,
   type MakerProjectProgress,
   type MakerProjectProgressHandler,
   type MakerGitFailure,
@@ -311,6 +313,10 @@ async function formatStatus(options: { targetDir?: string } = {}): Promise<strin
   const targetDir = resolveMakerToolTargetDir(options.targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
   const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
+  const remoteSyncText =
+    identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo
+      ? await formatMakerRemoteSyncStatus(identify.projectRoot)
+      : '';
   const pat = loadPat();
   let tapAuth = loadTapAuth();
   const makerPatTokensUrl = getMakerPatTokensUrl();
@@ -363,6 +369,8 @@ async function formatStatus(options: { targetDir?: string } = {}): Promise<strin
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
     '',
+    remoteSyncText,
+    '',
     pat ? '' : ['Auth next step', '', `Maker PAT 缺失。PAT 页面：${makerPatTokensUrl}`].join('\n'),
     '',
     tapAuthRefreshText,
@@ -375,6 +383,37 @@ async function formatStatus(options: { targetDir?: string } = {}): Promise<strin
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+async function formatMakerRemoteSyncStatus(projectRoot: string): Promise<string> {
+  const status = await inspectMakerRemoteSyncStatus(projectRoot);
+  return formatMakerRemoteSyncStatusLines(status).join('\n');
+}
+
+function formatMakerRemoteSyncStatusLines(status: MakerRemoteSyncStatus): string[] {
+  const localPreview = status.localChanges.slice(0, 10);
+  return [
+    'Maker remote sync',
+    '',
+    `- status: ${status.status}`,
+    `- branch: ${status.branch}`,
+    `- remote_ref: ${status.remoteRef}`,
+    `- ahead: ${status.aheadCount}`,
+    `- behind: ${status.behindCount}`,
+    `- local_changes: ${status.hasLocalChanges ? 'yes' : 'no'}`,
+    status.hasLocalChanges ? `- local_change_count: ${status.localChangeCount}` : '',
+    ...localPreview.map((file) => `  - ${file}`),
+    status.localChanges.length > localPreview.length
+      ? `  - ... ${status.localChanges.length - localPreview.length} more`
+      : '',
+    status.failure ? `- failure_classification: ${status.failure.classification}` : '',
+    status.failure?.retryable !== undefined
+      ? `- failure_retryable: ${status.failure.retryable ? 'yes' : 'no'}`
+      : '',
+    status.failure?.retryReason ? `- failure_retry_reason: ${status.failure.retryReason}` : '',
+    status.failure?.stderr ? `- failure_stderr:\n${indent(status.failure.stderr)}` : '',
+    `- next_action: ${status.nextAction}`,
+  ].filter(Boolean);
 }
 
 function formatMakerGitDirectoryStatus(
@@ -1478,8 +1517,21 @@ function formatPushRecoveryLines(submitResult: PushMakerProjectResult): string[]
     submitResult.ahead ? `- git_state: ${submitResult.ahead}` : '',
     '- retry_tool: maker_build_current_directory',
     '- do_not_use_generic_git_push: yes',
-    '- user_message: 本地提交已经保留，但还没推送到 Maker 远端；直接重试 Maker 提交/构建工具即可。',
+    `- user_message: ${pushRecoveryUserMessage(submitResult.failure)}`,
   ].filter(Boolean);
+}
+
+function pushRecoveryUserMessage(failure?: MakerGitFailure): string {
+  switch (failure?.classification) {
+    case 'branch_not_allowed':
+      return '本地提交已经保留，但 Maker 远端只接受 main 分支；请切回 main 并把本地提交迁移到 main 后，再重试 Maker 提交/构建工具。';
+    case 'forbidden_path':
+      return '本地提交已经保留，但包含 Maker 远端禁止提交的路径或目录；请按 failure.stderr 中的 forbidden pattern 从未推送 commit 中移除这些路径，再重试 Maker 提交/构建工具。';
+    case 'remote_transient':
+      return '本地提交已经保留，但还没推送到 Maker 远端；远端临时异常恢复后，直接重试 Maker 提交/构建工具即可。';
+    default:
+      return '本地提交已经保留，但还没推送到 Maker 远端；请先按 failure.next_action 修复原因，再重试 Maker 提交/构建工具。';
+  }
 }
 
 function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {

@@ -18,6 +18,7 @@ import {
 } from '../maker/server/mcp';
 import {
   inspectMakerDirectoryGitStatus,
+  inspectMakerRemoteSyncStatus,
   pushMakerProject,
   readMakerProjectLocalChanges,
 } from '../maker/cli/projects';
@@ -105,6 +106,40 @@ describe('maker build local-change guard', () => {
     expect(changes.ahead).toContain(`origin/${branch}..HEAD`);
   });
 
+  test('status detects remote commits and guides dirty workspaces before pull', async () => {
+    prepareMakerRemote();
+    const remoteWorktree = cloneRemoteWorktree();
+    fs.writeFileSync(path.join(remoteWorktree, 'scripts', 'remote.lua'), '-- remote\n', 'utf8');
+    runGit(['add', 'scripts/remote.lua'], remoteWorktree);
+    runGit(['commit', '-m', 'chore: remote update'], remoteWorktree);
+    runGit(['push', 'origin', 'main'], remoteWorktree);
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'local.lua'), '-- local\n', 'utf8');
+
+    const status = await inspectMakerRemoteSyncStatus(tempDir);
+
+    expect(status.status).toBe('needs_pull');
+    expect(status.behindCount).toBe(1);
+    expect(status.hasLocalChanges).toBe(true);
+    expect(status.nextAction).toContain('本地有未提交改动');
+    expect(status.nextAction).toContain('不要直接 pull');
+  });
+
+  test('status allows straightforward pull when remote is ahead and workspace is clean', async () => {
+    prepareMakerRemote();
+    const remoteWorktree = cloneRemoteWorktree();
+    fs.writeFileSync(path.join(remoteWorktree, 'scripts', 'remote.lua'), '-- remote\n', 'utf8');
+    runGit(['add', 'scripts/remote.lua'], remoteWorktree);
+    runGit(['commit', '-m', 'chore: remote update'], remoteWorktree);
+    runGit(['push', 'origin', 'main'], remoteWorktree);
+
+    const status = await inspectMakerRemoteSyncStatus(tempDir);
+
+    expect(status.status).toBe('needs_pull');
+    expect(status.hasLocalChanges).toBe(false);
+    expect(status.nextAction).toContain('工作区干净');
+    expect(status.nextAction).toContain('git pull --ff-only origin main');
+  });
+
   test('pushes committed but unpushed Maker changes when workspace is clean', async () => {
     const branch = prepareMakerRemote();
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- committed only\n', 'utf8');
@@ -124,6 +159,90 @@ describe('maker build local-change guard', () => {
         path.join(process.env.TAPTAP_MAKER_GIT_BASE!, 'app-1.git')
       )
     ).toBe(`${head}\n`);
+  });
+
+  test('push failure explains that Maker remote only accepts main branch', async () => {
+    runGit(['branch', '-M', 'main']);
+    prepareMakerRemote(
+      [
+        '#!/bin/sh',
+        'while read old new ref; do',
+        '  if [ "$ref" != "refs/heads/main" ]; then',
+        '    echo "[pre-receive] only refs/heads/main is accepted; got $ref" >&2',
+        '    echo "status 503 branch guard response" >&2',
+        '    exit 1',
+        '  fi',
+        'done',
+        'exit 0',
+      ].join('\n')
+    );
+    runGit(['switch', '-c', 'selftest/non-main-guard']);
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- branch guard\n', 'utf8');
+
+    const result = await pushMakerProject({ cwd: tempDir });
+
+    expect(result.status).toBe('failed_after_commit');
+    expect(result.failure?.classification).toBe('branch_not_allowed');
+    expect(result.failure?.retryable).toBe(false);
+    expect(result.failure?.stderr).toContain('only refs/heads/main is accepted');
+    expect(result.failure?.nextAction).toContain('切回 main');
+    expect(result.failure?.nextAction).toContain('cherry-pick');
+    expect(result.failure?.nextAction).not.toContain('远端已有新提交');
+    expect(result.transientRetries).toBe(0);
+
+    const output = formatPushResult(
+      tempDir,
+      { targetDir: tempDir, submitResult: result },
+      { elapsedMs: 1000, elapsed: '1s', progressEvents: 1 }
+    );
+    expect(output).toContain('- classification: branch_not_allowed');
+    expect(output).toContain('Maker 远端只接受 main 分支');
+    expect(output).toContain('请切回 main');
+  });
+
+  test('push failure explains that remote forbidden directories cannot be submitted', async () => {
+    runGit(['branch', '-M', 'main']);
+    fs.appendFileSync(path.join(tempDir, '.gitignore'), 'server-only-cache/\n', 'utf8');
+    runGit(['add', '.gitignore']);
+    runGit(['commit', '-m', 'chore: ignore remote forbidden path']);
+    prepareMakerRemote(
+      [
+        '#!/bin/sh',
+        'while read old new ref; do',
+        '  if git diff-tree --no-commit-id --name-only -r "$new" | grep -q "^server-only-cache/"; then',
+        '    echo "matches forbidden pattern \\"server-only-cache/*\\"" >&2',
+        '    exit 1',
+        '  fi',
+        'done',
+        'exit 0',
+      ].join('\n')
+    );
+    fs.mkdirSync(path.join(tempDir, 'server-only-cache'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, 'server-only-cache', '_selftest_guardrail.txt'),
+      'local\n',
+      'utf8'
+    );
+    runGit(['add', '-f', 'server-only-cache/_selftest_guardrail.txt']);
+    runGit(['commit', '-m', 'chore: force add remote forbidden file']);
+
+    const result = await pushMakerProject({ cwd: tempDir });
+
+    expect(result.status).toBe('failed_after_commit');
+    expect(result.failure?.classification).toBe('forbidden_path');
+    expect(result.failure?.stderr).toContain('matches forbidden pattern "server-only-cache/*"');
+    expect(result.failure?.nextAction).toContain('远端禁止提交的路径或目录');
+    expect(result.failure?.nextAction).toContain('从本地 commit 移除');
+    expect(result.failure?.nextAction).not.toContain('粘贴新的 Maker PAT');
+
+    const output = formatPushResult(
+      tempDir,
+      { targetDir: tempDir, submitResult: result },
+      { elapsedMs: 1000, elapsed: '1s', progressEvents: 1 }
+    );
+    expect(output).toContain('- classification: forbidden_path');
+    expect(output).toContain('Maker 远端禁止提交');
+    expect(output).toContain('移除这些路径');
   });
 
   test('build sync pushes committed but unpushed changes before remote build', async () => {
@@ -793,9 +912,9 @@ describe('maker build local-change guard', () => {
     );
   });
 
-  function runGit(args: string[]): void {
+  function runGit(args: string[], cwd = tempDir): void {
     const result = spawnSync('git', args, {
-      cwd: tempDir,
+      cwd,
       encoding: 'utf8',
     });
     if (result.status !== 0) {
@@ -814,7 +933,7 @@ describe('maker build local-change guard', () => {
     return result.stdout;
   }
 
-  function prepareMakerRemote(): string {
+  function prepareMakerRemote(preReceiveHook?: string): string {
     const branch = readGit(['branch', '--show-current']).trim() || 'main';
     const gitBase = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-test-git-base-'));
     const remoteDir = path.join(gitBase, 'app-1.git');
@@ -824,11 +943,30 @@ describe('maker build local-change guard', () => {
     if (initRemote.status !== 0) {
       throw new Error(`git init --bare failed: ${initRemote.stderr || initRemote.stdout}`);
     }
+    if (preReceiveHook) {
+      const hookPath = path.join(remoteDir, 'hooks', 'pre-receive');
+      fs.writeFileSync(hookPath, `${preReceiveHook}\n`, 'utf8');
+      fs.chmodSync(hookPath, 0o755);
+    }
     process.env.TAPTAP_MAKER_GIT_BASE = gitBase;
     process.env.PAT = 'tmpct_test_pat';
     runGit(['remote', 'add', 'origin', remoteDir]);
     runGit(['push', '-u', 'origin', branch]);
     return branch;
+  }
+
+  function cloneRemoteWorktree(): string {
+    const remoteUrl = readGit(['remote', 'get-url', 'origin']).trim();
+    const worktree = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-test-remote-worktree-'));
+    const clone = spawnSync('git', ['clone', remoteUrl, worktree], {
+      encoding: 'utf8',
+    });
+    if (clone.status !== 0) {
+      throw new Error(`git clone failed: ${clone.stderr || clone.stdout}`);
+    }
+    runGit(['config', 'user.email', 'maker-remote@example.test'], worktree);
+    runGit(['config', 'user.name', 'maker-remote'], worktree);
+    return worktree;
   }
 
   function gitProjectRoot(): string {

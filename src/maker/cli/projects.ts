@@ -76,6 +76,27 @@ export interface MakerProjectLocalChanges {
   ahead?: string;
 }
 
+export interface MakerRemoteSyncStatus {
+  projectRoot: string;
+  branch: string;
+  remoteRef: string;
+  status:
+    | 'up_to_date'
+    | 'needs_pull'
+    | 'diverged'
+    | 'ahead'
+    | 'branch_not_allowed'
+    | 'remote_missing'
+    | 'remote_unavailable';
+  hasLocalChanges: boolean;
+  localChangeCount: number;
+  localChanges: string[];
+  aheadCount: number;
+  behindCount: number;
+  failure?: MakerGitFailure;
+  nextAction: string;
+}
+
 export interface MakerDirectoryGitStatus {
   targetDir: string;
   gitRoot?: string;
@@ -100,6 +121,8 @@ export interface MakerGitFailure {
     | 'git_missing'
     | 'auth'
     | 'remote_transient'
+    | 'branch_not_allowed'
+    | 'forbidden_path'
     | 'remote_rejected'
     | 'local'
     | 'unknown';
@@ -581,8 +604,151 @@ export async function readMakerProjectLocalChanges(cwd: string): Promise<MakerPr
   };
 }
 
+export async function inspectMakerRemoteSyncStatus(cwd: string): Promise<MakerRemoteSyncStatus> {
+  ensureGitAvailable();
+  const { projectRoot } = resolveUsableMakerGitWorkspace(cwd);
+  const branch = await currentBranch(projectRoot);
+  const remoteRef = `origin/${branch}`;
+  const rawStatus = await readGit(['status', '--porcelain', '-z'], projectRoot);
+  const localChanges = parseGitStatusFiles(rawStatus).filter(
+    (file) => !isIgnoredBuildGuardChange(file)
+  );
+  const hasLocalChanges = localChanges.length > 0;
+
+  if (branch !== 'main') {
+    return {
+      projectRoot,
+      branch,
+      remoteRef,
+      status: 'branch_not_allowed',
+      hasLocalChanges,
+      localChangeCount: localChanges.length,
+      localChanges,
+      aheadCount: 0,
+      behindCount: 0,
+      nextAction:
+        'Maker 远端只接受 main 分支。开发或提交前请切回 main；如果当前分支已有本地提交，先让本地 AI 确认工作区状态，再把提交迁移到 main 后继续。',
+    };
+  }
+
+  try {
+    await runGitWithTransientRetry(['fetch', 'origin'], {
+      cwd: projectRoot,
+    });
+  } catch (error) {
+    const failure = toMakerGitFailure(error, 'fetch');
+    return {
+      projectRoot,
+      branch,
+      remoteRef,
+      status: 'remote_unavailable',
+      hasLocalChanges,
+      localChangeCount: localChanges.length,
+      localChanges,
+      aheadCount: 0,
+      behindCount: 0,
+      failure,
+      nextAction:
+        '暂时无法检查 Maker 远端是否有新提交。请把 failure 信息反馈给用户；如果只是 503、5xx、超时或网络中断，可稍后重新读取 maker://status。',
+    };
+  }
+
+  const counts = await readRemoteAheadBehindCounts(projectRoot, remoteRef);
+  if (!counts) {
+    return {
+      projectRoot,
+      branch,
+      remoteRef,
+      status: 'remote_missing',
+      hasLocalChanges,
+      localChangeCount: localChanges.length,
+      localChanges,
+      aheadCount: 0,
+      behindCount: 0,
+      nextAction:
+        '未找到 origin/main。请先确认当前目录是否是完整 Maker clone；不要新建分支或手动 git push，必要时重新执行 taptap-maker init。',
+    };
+  }
+
+  return {
+    projectRoot,
+    branch,
+    remoteRef,
+    status: classifyRemoteSyncStatus(counts.aheadCount, counts.behindCount),
+    hasLocalChanges,
+    localChangeCount: localChanges.length,
+    localChanges,
+    aheadCount: counts.aheadCount,
+    behindCount: counts.behindCount,
+    nextAction: nextActionForRemoteSync({
+      aheadCount: counts.aheadCount,
+      behindCount: counts.behindCount,
+      hasLocalChanges,
+      branch,
+    }),
+  };
+}
+
 function isIgnoredBuildGuardChange(file: string): boolean {
   return file === '.gitignore' || file === '.maker-mcp' || file.startsWith('.maker-mcp/');
+}
+
+async function readRemoteAheadBehindCounts(
+  cwd: string,
+  remoteRef: string
+): Promise<{ aheadCount: number; behindCount: number } | undefined> {
+  try {
+    await readGit(['rev-parse', '--verify', remoteRef], cwd);
+    const text = await readGit(['rev-list', '--left-right', '--count', `HEAD...${remoteRef}`], cwd);
+    const [aheadText, behindText] = text.trim().split(/\s+/);
+    return {
+      aheadCount: Number.parseInt(aheadText || '0', 10) || 0,
+      behindCount: Number.parseInt(behindText || '0', 10) || 0,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function classifyRemoteSyncStatus(
+  aheadCount: number,
+  behindCount: number
+): MakerRemoteSyncStatus['status'] {
+  if (aheadCount > 0 && behindCount > 0) {
+    return 'diverged';
+  }
+  if (behindCount > 0) {
+    return 'needs_pull';
+  }
+  if (aheadCount > 0) {
+    return 'ahead';
+  }
+  return 'up_to_date';
+}
+
+function nextActionForRemoteSync(input: {
+  aheadCount: number;
+  behindCount: number;
+  hasLocalChanges: boolean;
+  branch: string;
+}): string {
+  if (input.aheadCount > 0 && input.behindCount > 0) {
+    return `本地和远端都已有新提交（本地 ahead ${input.aheadCount}，远端 behind ${input.behindCount}）。不要直接 push 或无脑 pull；请让本地 AI 先检查 git status，再选择 rebase 或 merge 当前 Maker 远端变更。`;
+  }
+
+  if (input.behindCount > 0) {
+    if (input.hasLocalChanges) {
+      return `Maker 远端有 ${input.behindCount} 个新提交，但本地有未提交改动。不要直接 pull；请让本地 AI 先查看 git status，然后由用户选择：先提交当前改动、stash 后 pull 再恢复，或暂时取消同步。`;
+    }
+
+    return `Maker 远端有 ${input.behindCount} 个新提交，且本地工作区干净。可以让本地 AI 执行 git pull --ff-only origin ${input.branch} 后再开始修改。`;
+  }
+
+  if (input.aheadCount > 0) {
+    return `本地已有 ${input.aheadCount} 个未推送提交。构建或提交时请继续使用 maker_build_current_directory，不要手动执行通用 git push。`;
+  }
+
+  return '本地 main 与 Maker 远端 main 已同步，可以继续开发。';
 }
 
 function ensureTargetCanBindApp(target: string, appId: string): void {
@@ -737,6 +903,14 @@ function classifyGitFailure(message: string): MakerGitFailure['classification'] 
     return 'git_missing';
   }
 
+  if (/only refs\/heads\/main is accepted|got refs\/heads\/[^ \t\r\n]+/i.test(message)) {
+    return 'branch_not_allowed';
+  }
+
+  if (/matches forbidden pattern|forbidden pattern/i.test(message)) {
+    return 'forbidden_path';
+  }
+
   if (
     /authentication|authorization|401|403|forbidden|unauthorized|could not read username|repository not found/i.test(
       message
@@ -798,7 +972,7 @@ export function getMakerGitRetryDecision(message: string): MakerGitRetryDecision
 }
 
 function isNonRetryableGitFailure(message: string): boolean {
-  return /authentication|authorization|401|403|forbidden|unauthorized|could not read username|repository not found|not a git repository|not empty|already exists and is not an empty directory|permission denied|Operation not permitted|non-fast-forward|fetch first|rejected|failed to push some refs|would be overwritten|conflicting local files/i.test(
+  return /authentication|authorization|401|403|forbidden|unauthorized|could not read username|repository not found|only refs\/heads\/main is accepted|got refs\/heads\/[^ \t\r\n]+|matches forbidden pattern|forbidden pattern|not a git repository|not empty|already exists and is not an empty directory|permission denied|Operation not permitted|non-fast-forward|fetch first|rejected|failed to push some refs|would be overwritten|conflicting local files/i.test(
     message
   );
 }
@@ -811,6 +985,10 @@ function nextActionForFailure(classification: MakerGitFailure['classification'])
       return '运行 `taptap-maker pat set` 并粘贴新的 Maker PAT 后，再重试 maker_build_current_directory；如果仍失败，请确认 PAT 是否过期或缺少 Maker git 权限。';
     case 'remote_transient':
       return '远端 Maker git 服务临时不可用。本地 commit 会保留；不要手动执行通用 git push，稍后直接重试 maker_build_current_directory。';
+    case 'branch_not_allowed':
+      return 'Maker 远端只接受 main 分支提交。当前本地 commit 已保留但未推送；不要 pull/rebase、不要新建分支、不要手动执行通用 git push。请先确认工作区无未提交改动，切回 main 分支（必要时从 origin/main 创建 main），把这次本地 commit cherry-pick 到 main 后，再重试 maker_build_current_directory。';
+    case 'forbidden_path':
+      return '本地 commit 包含 Maker 远端禁止提交的路径或目录。远端 pre-receive hook 已返回具体 forbidden pattern；这不是鉴权问题，不要刷新 Maker PAT。请按 stderr 中的 pattern 找到对应文件，把这些路径从本地 commit 移除（例如保留工作区文件但取消跟踪后修正当前未推送 commit），确认 git status 不再包含这些路径后，再重试 maker_build_current_directory。';
     case 'remote_rejected':
       return '远端已有新提交。不要新建分支、不要要任务号、不要手动执行通用 git push；先询问用户是否 pull/rebase 当前 Maker 远端变更，再重试 maker_build_current_directory。';
     case 'local':

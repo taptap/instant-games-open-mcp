@@ -88,6 +88,11 @@ build。push 失败时不会继续 build，会返回本地 commit、ahead 状态
 Maker 远端但构建失败。只有用户明确说“不提交，只构建云端版本”时，才传
 `confirm_remote_build_without_submit=true`。
 
+`maker://status` 和 `maker_status_lite` 会在已绑定项目里检查 Maker 远端同步状态。
+如果远端有新提交，状态输出会区分本地工作区是否干净：干净时提示可先
+`git pull --ff-only origin main`，有本地改动时提示不要直接 pull，应让本地 Agent 先处理
+提交、stash 或取消同步。
+
 首次 clone/fetch 和 push 遇到 503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等临时网络错误时会自动重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不会重试，会把错误分类交给 Agent 处理。首次 clone/fetch 前 CLI 会提示 Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，建议保持命令运行等待自动重试。
 
 Windows 是默认优先级：CLI 写 MCP 配置时会在 Windows 使用 `npx.cmd`，Git 引导优先提示
@@ -98,7 +103,7 @@ Git for Windows，并要求安装选项允许命令行和第三方工具通过 P
 
 Maker 现在同时内置三个工作流 skill：
 
-- `taptap-maker-local`：把 Maker 初始化转交 CLI，并让本地 AI/Agent 处理状态解释、pull/rebase、冲突和构建失败恢复。
+- `taptap-maker-local`：把 Maker 初始化转交 CLI，并让本地 AI/Agent 按 push 失败分类处理 pull/rebase、切回 main、移除禁止路径、鉴权刷新、冲突和构建失败恢复。
 - `taptap-maker-dev-kit-guide`：介绍 clone 时安装到项目目录的 AI dev kit，明确 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
 - `update-taptap-mcp`：引导用户更新本地 npx 缓存里的 `@taptap/instant-games-open-mcp`，并提醒 Maker MCP 推荐安装到 user/global scope。
 

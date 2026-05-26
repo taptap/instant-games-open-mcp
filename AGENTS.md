@@ -346,8 +346,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - CLI 写 MCP 配置时优先支持 Windows：Windows 使用 `npx.cmd`，Git 引导优先指向 Git for Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方 Git。
 - `taptap-maker mcp verify` 默认验证 `mcp install` 写入配置的 npx 包命令能否启动；本地开发只验证当前 CLI 时使用 `--mode self`。
 - MCP 公共能力只保留 `maker://status`、`maker_status_lite` 和 `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
+- 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。已绑定项目会输出 `Maker remote sync`，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main；按其中 `next_action` 引导用户，避免开发后才在 push 阶段遇到冲突。
 - 用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都调用 `maker_build_current_directory`。它会在本地有改动或 ahead commit 时先 commit/push，push 成功后才远端 build。
-- push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 负责解释并协助 pull/rebase 或解决冲突后重试。
+- push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，不要无脑手动执行通用 `git push`。
 - push 成功但远端 build 失败时，工具返回 `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端和具体构建错误。
 - 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`。
