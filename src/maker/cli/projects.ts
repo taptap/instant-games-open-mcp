@@ -903,7 +903,7 @@ function classifyGitFailure(message: string): MakerGitFailure['classification'] 
     return 'git_missing';
   }
 
-  if (/only refs\/heads\/main is accepted|got refs\/heads\/[^ \t\r\n]+/i.test(message)) {
+  if (/only refs\/heads\/main is accepted/i.test(message)) {
     return 'branch_not_allowed';
   }
 
@@ -972,7 +972,7 @@ export function getMakerGitRetryDecision(message: string): MakerGitRetryDecision
 }
 
 function isNonRetryableGitFailure(message: string): boolean {
-  return /authentication|authorization|401|403|forbidden|unauthorized|could not read username|repository not found|only refs\/heads\/main is accepted|got refs\/heads\/[^ \t\r\n]+|matches forbidden pattern|forbidden pattern|not a git repository|not empty|already exists and is not an empty directory|permission denied|Operation not permitted|non-fast-forward|fetch first|rejected|failed to push some refs|would be overwritten|conflicting local files/i.test(
+  return /authentication|authorization|401|403|forbidden|unauthorized|could not read username|repository not found|only refs\/heads\/main is accepted|matches forbidden pattern|forbidden pattern|not a git repository|not empty|already exists and is not an empty directory|permission denied|Operation not permitted|non-fast-forward|fetch first|rejected|failed to push some refs|would be overwritten|conflicting local files/i.test(
     message
   );
 }

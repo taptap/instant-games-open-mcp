@@ -831,7 +831,8 @@ export function formatMakerProjectList(
   const nextOffset = offset + visibleProjects.length;
   const hasNextPage = nextOffset < projects.length;
   const startIndex = visibleProjects.length > 0 ? offset + 1 : 0;
-  const endIndex = offset + visibleProjects.length;
+  const endIndex =
+    visibleProjects.length > 0 ? Math.min(offset + visibleProjects.length, projects.length) : 0;
   return [
     `Maker apps (${projects.length})`,
     visibleProjects.length > 0 && offset === 0

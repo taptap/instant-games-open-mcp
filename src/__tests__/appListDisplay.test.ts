@@ -98,4 +98,39 @@ describe('developer and app list display', () => {
     expect(output).not.toContain('**开发者 41: Studio 41**');
     expect(output).toContain('已省略 5 个应用');
   });
+
+  test('uses global app numbers and visible app example across developers', () => {
+    const output = formatDevelopersAndApps(
+      {
+        list: [
+          {
+            developer_id: 100,
+            developer_name: 'Studio A',
+            apps: [
+              { app_id: 101, app_title: 'Game 1', is_level: true },
+              { app_id: 102, app_title: 'Game 2', is_level: true },
+              { app_id: 103, app_title: 'Game 3', is_level: true },
+            ],
+          },
+          {
+            developer_id: 200,
+            developer_name: 'Studio B',
+            apps: [
+              { app_id: 201, app_title: 'Game 4', is_level: true },
+              { app_id: 202, app_title: 'Game 5', is_level: true },
+              { app_id: 203, app_title: 'Game 6', is_level: true },
+            ],
+          },
+        ],
+      },
+      { offset: 2, limit: 3 }
+    );
+
+    expect(output).toContain('当前展示第 3-5 个应用');
+    expect(output).toContain('3. **Game 3**');
+    expect(output).toContain('4. **Game 4**');
+    expect(output).toContain('5. **Game 5**');
+    expect(output).toContain('- developer_id: 100');
+    expect(output).toContain('- app_id: 103');
+  });
 });

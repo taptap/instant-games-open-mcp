@@ -107,6 +107,7 @@ export function formatDevelopersAndApps(
   const totalApps = result.list.reduce((sum, developer) => sum + (developer.apps?.length || 0), 0);
   let visitedApps = 0;
   let shownApps = 0;
+  let firstVisibleSelection: { developerId: number; appId: number } | undefined;
   const nextOffset = Math.min(offset + limit, totalApps);
   const hasNextPage = nextOffset < totalApps;
   let output = `📋 开发者和应用列表\n\n`;
@@ -140,7 +141,7 @@ export function formatDevelopersAndApps(
 
     output += `- 应用列表:\n`;
     let shownForDeveloper = 0;
-    for (const [appIndex, app] of developer.apps.entries()) {
+    for (const app of developer.apps) {
       if (visitedApps < offset) {
         visitedApps += 1;
         continue;
@@ -149,7 +150,12 @@ export function formatDevelopersAndApps(
         break;
       }
       const appKind = app.is_level ? '关卡游戏' : '非关卡游戏';
-      output += `  ${appIndex + 1}. **${app.app_title}** (App ID: ${app.app_id})\n`;
+      const globalAppNumber = visitedApps + 1;
+      firstVisibleSelection ||= {
+        developerId: developer.developer_id,
+        appId: app.app_id,
+      };
+      output += `  ${globalAppNumber}. **${app.app_title}** (App ID: ${app.app_id})\n`;
       output += `     类型: ${appKind}\n`;
       if (app.miniapp_id) {
         output += `     Miniapp ID: ${app.miniapp_id}\n`;
@@ -179,8 +185,8 @@ export function formatDevelopersAndApps(
 
   output += `\n💡 **下一步:**\n`;
   output += `使用 select_app 工具选择要使用的开发者和应用，例如:\n`;
-  output += `- developer_id: ${result.list[0].developer_id}\n`;
-  output += `- app_id: ${result.list[0].apps?.[0]?.app_id || 'N/A'}\n`;
+  output += `- developer_id: ${firstVisibleSelection?.developerId || result.list[0].developer_id}\n`;
+  output += `- app_id: ${firstVisibleSelection?.appId || result.list[0].apps?.[0]?.app_id || 'N/A'}\n`;
 
   return output;
 }

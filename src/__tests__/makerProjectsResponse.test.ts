@@ -120,6 +120,14 @@ describe('maker app list display', () => {
     expect(output).toContain('--offset 100 --limit 100');
   });
 
+  test('shows an out-of-range CLI page without misleading item bounds', () => {
+    const output = formatMakerProjectList(projects.slice(0, 35), { offset: 9999 });
+
+    expect(output).toContain('Showing apps 0-0 of 35');
+    expect(output).not.toContain('Showing apps 0-9999 of 35');
+    expect(output).toContain('No more apps in this view');
+  });
+
   test('limits status text output to the 40 most recently active apps', () => {
     const output = formatStatusProjectList(projects);
 
