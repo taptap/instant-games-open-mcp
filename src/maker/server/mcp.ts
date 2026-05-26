@@ -103,7 +103,7 @@ export const tools = [
         skip_remote_sync: {
           type: 'boolean',
           description:
-            'If true, skip git fetch/ahead-behind remote sync checks for quick local status polling.',
+            'If true, skip git fetch/ahead-behind remote sync checks. Use this for frequent polling or quick local status checks.',
         },
       },
     },
@@ -325,7 +325,7 @@ async function formatStatus(
   const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
   const remoteSyncText =
     identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo && !options.skipRemoteSync
-      ? await formatMakerRemoteSyncStatus(identify.projectRoot)
+      ? await formatMakerRemoteSyncStatusSafely(identify.projectRoot)
       : identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo
         ? formatMakerRemoteSyncSkipped()
         : '';
@@ -409,6 +409,26 @@ function formatMakerRemoteSyncSkipped(): string {
 async function formatMakerRemoteSyncStatus(projectRoot: string): Promise<string> {
   const status = await inspectMakerRemoteSyncStatus(projectRoot);
   return formatMakerRemoteSyncStatusLines(status).join('\n');
+}
+
+export async function formatMakerRemoteSyncStatusSafely(projectRoot: string): Promise<string> {
+  try {
+    return await formatMakerRemoteSyncStatus(projectRoot);
+  } catch (error) {
+    return formatMakerRemoteSyncUnavailable(error);
+  }
+}
+
+function formatMakerRemoteSyncUnavailable(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return [
+    'Maker remote sync',
+    '',
+    '- status: unavailable',
+    `- failure_name: ${error instanceof Error ? error.name : typeof error}`,
+    `- failure_message: ${message}`,
+    '- next_action: 远端同步检查失败；本地状态仍可继续查看。请稍后重试 maker_status_lite，频繁轮询时可设置 skip_remote_sync=true。',
+  ].join('\n');
 }
 
 function formatMakerRemoteSyncStatusLines(status: MakerRemoteSyncStatus): string[] {

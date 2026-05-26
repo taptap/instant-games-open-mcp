@@ -110,6 +110,8 @@ MCP 运行期能力：
 - 如果 push 被拒绝、远端有新提交、认证失败或存在冲突，`maker_build_current_directory` 会在 build 前停止并返回失败阶段。Agent 应解释失败原因，并根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - 构建前本地改动检查会忽略 `.gitignore` 和 `.maker-mcp/` 的本地辅助变化；这些变化不应单独触发提交。
 - 已绑定项目的状态输出会包含 `Maker remote sync`。该段会 fetch Maker 远端并比较 `HEAD...origin/main`：本地干净且远端领先时提示先 fast-forward pull；本地有未提交改动时提示不要直接 pull，让本地 Agent 先引导提交、stash 或取消同步。
+- 频繁轮询状态或只需要快速本地状态时，调用 `maker_status_lite` 应传
+  `skip_remote_sync=true`，避免每次状态查询都触发 `git fetch origin` 网络往返。
 
 ## Maker 本地 Workflow Skills
 

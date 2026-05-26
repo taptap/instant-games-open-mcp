@@ -325,6 +325,8 @@ being tied to a specific project folder.
 For a bound Maker project, `maker://status` and `maker_status_lite` include `Maker remote sync`.
 Read this section before the user starts editing in a fresh conversation:
 
+- For frequent polling or quick local-only status checks, call `maker_status_lite` with
+  `skip_remote_sync: true` to avoid a `git fetch origin` network round trip on every status read.
 - `up_to_date`: continue development.
 - `needs_pull` with `local_changes: no`: tell the user the workspace is clean and the local AI can
   run `git pull --ff-only origin main` before editing.

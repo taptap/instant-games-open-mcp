@@ -11,6 +11,7 @@ import {
   createBuildArgs,
   formatBuildResult,
   formatClonePartialStateLines,
+  formatMakerRemoteSyncStatusSafely,
   formatPushResult,
   pushThenBuildCurrentDirectory,
   resources,
@@ -595,6 +596,18 @@ describe('maker build local-change guard', () => {
     const statusTool = tools.find((item) => item.name === 'maker_status_lite');
 
     expect(statusTool?.inputSchema.properties).toHaveProperty('skip_remote_sync');
+    expect(statusTool?.inputSchema.properties.skip_remote_sync.description).toContain(
+      'frequent polling'
+    );
+  });
+
+  test('remote sync status falls back when git inspection throws', async () => {
+    const output = await formatMakerRemoteSyncStatusSafely(path.join(tempDir, 'missing-project'));
+
+    expect(output).toContain('Maker remote sync');
+    expect(output).toContain('- status: unavailable');
+    expect(output).toContain('- failure_message:');
+    expect(output).toContain('- next_action: 远端同步检查失败');
   });
 
   test('initialization guidance is removed from MCP tools', () => {
