@@ -1,3 +1,9 @@
+## <small>1.23.5 (2026-05-26)</small>
+
+* fix(maker): 精简 app 列表展示并兼容旧分页参数 (#191) ([9cbd1ea](https://github.com/taptap/instant-games-open-mcp/commit/9cbd1ea)), closes [#191](https://github.com/taptap/instant-games-open-mcp/issues/191) [#188](https://github.com/taptap/instant-games-open-mcp/issues/188) [#188](https://github.com/taptap/instant-games-open-mcp/issues/188)
+
+
+
 ## <small>1.23.4 (2026-05-26)</small>
 
 * fix(maker): optimize Maker app list display and sync recovery ([3a98789](https://github.com/taptap/instant-games-open-mcp/commit/3a98789))
