@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
 import { requestTapAuthWithPat } from '../maker/auth/patTap';
 import { cloneMakerProject, listMakerProjects } from '../maker/cli/projects';
@@ -205,6 +206,33 @@ describe('Maker CLI commands', () => {
     expect(stderrSpy.mock.calls.join('')).toContain('exposes it via ps/shell history');
   });
 
+  test('init prints the PAT creation URL before prompting interactively', async () => {
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    const close = jest.fn();
+    const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockReturnValue({
+      question: jest.fn(async () => 'secret-maker-token'),
+      close,
+    } as unknown as readline.Interface);
+
+    try {
+      await runMakerCli([
+        'init',
+        '--app-id',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+      ]);
+    } finally {
+      createInterfaceSpy.mockRestore();
+    }
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Maker PAT is required');
+    expect(output).toContain('Create one at: https://maker.taptap.cn/pat-tokens');
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('secret-maker-token');
+  });
+
   test('boolean flags do not consume following positional app id', async () => {
     await runMakerCli([
       'init',
@@ -223,6 +251,89 @@ describe('Maker CLI commands', () => {
         targetDir: tempDir,
       })
     );
+  });
+
+  test('init selection index follows the recently active display order', async () => {
+    jest.mocked(listMakerProjects).mockResolvedValueOnce([
+      {
+        id: 'older-app',
+        name: 'Older App',
+        lastConversationAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'recent-app',
+        name: 'Recent App',
+        lastConversationAt: '2026-02-01T00:00:00.000Z',
+      },
+    ]);
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    const close = jest.fn();
+    const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockReturnValue({
+      question: jest.fn(async () => '1'),
+      close,
+    } as unknown as readline.Interface);
+
+    try {
+      await runMakerCli([
+        'init',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'secret-maker-token',
+      ]);
+    } finally {
+      createInterfaceSpy.mockRestore();
+    }
+
+    expect(cloneMakerProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'recent-app',
+        targetDir: tempDir,
+      })
+    );
+    expect(close).toHaveBeenCalled();
+  });
+
+  test('init can page through hidden apps before selecting by index', async () => {
+    jest.mocked(listMakerProjects).mockResolvedValueOnce(
+      Array.from({ length: 42 }, (_, index) => ({
+        id: `app-${index + 1}`,
+        name: `App ${index + 1}`,
+        lastConversationAt: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+      }))
+    );
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    const answers = ['next', '1'];
+    const close = jest.fn();
+    const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockImplementation(
+      () =>
+        ({
+          question: jest.fn(async () => answers.shift() || '1'),
+          close,
+        }) as unknown as readline.Interface
+    );
+
+    try {
+      await runMakerCli([
+        'init',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'secret-maker-token',
+      ]);
+    } finally {
+      createInterfaceSpy.mockRestore();
+    }
+
+    expect(cloneMakerProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'app-2',
+        targetDir: tempDir,
+      })
+    );
+    expect(close).toHaveBeenCalledTimes(2);
   });
 
   test('pat set warns when PAT is passed as a positional argument', async () => {
@@ -254,6 +365,26 @@ describe('Maker CLI commands', () => {
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('stdin-maker-token');
   });
 
+  test('pat set prints the PAT creation URL before prompting interactively', async () => {
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    const close = jest.fn();
+    const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockReturnValue({
+      question: jest.fn(async () => 'secret-maker-token'),
+      close,
+    } as unknown as readline.Interface);
+
+    try {
+      await runMakerCli(['pat', 'set']);
+    } finally {
+      createInterfaceSpy.mockRestore();
+    }
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Create one at: https://maker.taptap.cn/pat-tokens');
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('secret-maker-token');
+    expect(close).toHaveBeenCalled();
+  });
+
   test('mcp verify checks the configured npx package command by default', async () => {
     await runMakerCli(['mcp', 'verify', '--json']);
 
@@ -267,6 +398,47 @@ describe('Maker CLI commands', () => {
         mode: 'npx',
         command: expect.stringContaining('@taptap/instant-games-open-mcp taptap-maker help'),
         ok: true,
+      })
+    );
+  });
+
+  test('mcp verify explains null status as local startup failure before Maker MCP starts', async () => {
+    spawnSyncMock.mockReturnValueOnce({
+      status: null,
+      signal: null,
+      stdout: '',
+      stderr: '',
+      error: undefined,
+    } as ReturnType<typeof spawnSync>);
+
+    await runMakerCli(['mcp', 'verify']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('MCP config command check failed before Maker MCP started');
+    expect(output).toContain('- failure_type: unknown_no_status');
+    expect(output).toContain('local Node/npm/npx startup check');
+    expect(output).toContain('Run the command above directly');
+    expect(output).not.toContain('MCP config command spawn failed');
+  });
+
+  test('mcp verify json classifies non-zero npx exit without treating it as MCP startup', async () => {
+    spawnSyncMock.mockReturnValueOnce({
+      status: 1,
+      signal: null,
+      stdout: '',
+      stderr: 'npm error network timeout',
+      error: undefined,
+    } as ReturnType<typeof spawnSync>);
+
+    await runMakerCli(['mcp', 'verify', '--json']);
+
+    expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual(
+      expect.objectContaining({
+        ok: false,
+        status: 1,
+        failure_type: 'non_zero_exit',
+        is_maker_mcp_started: false,
+        stderr: 'npm error network timeout',
       })
     );
   });

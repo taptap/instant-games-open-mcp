@@ -3,7 +3,12 @@
  */
 
 import { normalizeProjectsResponse } from '../maker/cli/projects';
-import { formatAiDialogueDirectoryHint, isLikelyAiDialogueDirectory } from '../maker/server/mcp';
+import { formatMakerProjectList } from '../maker/cli/commands';
+import {
+  formatAiDialogueDirectoryHint,
+  formatStatusProjectList,
+  isLikelyAiDialogueDirectory,
+} from '../maker/server/mcp';
 
 describe('maker projects response normalization', () => {
   test('preserves all known app list fields returned by Maker API', () => {
@@ -73,5 +78,73 @@ describe('maker status dialogue directory guidance', () => {
     );
     expect(hint).not.toContain('要 clone 哪个');
     expect(hint).not.toContain('app_id');
+  });
+});
+
+describe('maker app list display', () => {
+  const projects = Array.from({ length: 120 }, (_, index) => ({
+    id: `app-${index + 1}`,
+    name: `App ${index + 1}`,
+    user_id: `user-${index + 1}`,
+    gameType: 'single',
+    stage: 'development',
+    createdAt: new Date(Date.UTC(2025, 0, index + 1, 8)).toISOString(),
+    lastConversationAt: new Date(Date.UTC(2026, 0, index + 1, 8)).toISOString(),
+  }));
+
+  test('limits CLI text output to the 40 most recently active apps by default', () => {
+    const output = formatMakerProjectList(projects);
+
+    expect(output).toContain('Maker apps (120)');
+    expect(output).toContain('Showing 40 most recently active apps');
+    expect(output).toContain('sorted by last activity');
+    expect(output).toContain('1. App 120  id=app-120  last_active=2026-04-30T08:00:00.000Z');
+    expect(output).toContain('40. App 81  id=app-81  last_active=2026-03-22T08:00:00.000Z');
+    expect(output).not.toContain('41. App 80');
+    expect(output).toContain('--offset 40 --limit 40');
+    expect(output).toContain('use --json to get the complete app list');
+    expect(output).not.toContain('user_id=');
+    expect(output).not.toContain('gameType=');
+    expect(output).not.toContain('stage=');
+    expect(output).not.toContain('createdAt=');
+  });
+
+  test('supports showing the next CLI page while keeping recent activity order', () => {
+    const output = formatMakerProjectList(projects, { limit: 40, offset: 40 });
+
+    expect(output).toContain('Showing apps 41-80 of 120');
+    expect(output).toContain('1. App 80  id=app-80  last_active=2026-03-21T08:00:00.000Z');
+    expect(output).toContain('40. App 41  id=app-41  last_active=2026-02-10T08:00:00.000Z');
+    expect(output).toContain('--offset 80 --limit 40');
+  });
+
+  test('caps requested CLI text output at 100 apps', () => {
+    const output = formatMakerProjectList(projects, { limit: 120 });
+
+    expect(output).toContain('100. App 21  id=app-21  last_active=2026-01-21T08:00:00.000Z');
+    expect(output).not.toContain('101. App 20');
+    expect(output).toContain('--offset 100 --limit 100');
+  });
+
+  test('shows an out-of-range CLI page without misleading item bounds', () => {
+    const output = formatMakerProjectList(projects.slice(0, 35), { offset: 9999 });
+
+    expect(output).toContain('Showing apps 0-0 of 35');
+    expect(output).not.toContain('Showing apps 0-9999 of 35');
+    expect(output).toContain('No more apps in this view');
+  });
+
+  test('limits status text output to the 40 most recently active apps', () => {
+    const output = formatStatusProjectList(projects);
+
+    expect(output).toContain('Maker apps (120)');
+    expect(output).toContain('Maker apps (120)\n\n默认按最近活跃排序展示前 40 个');
+    expect(output).toContain('默认按最近活跃排序展示前 40 个');
+    expect(output).toContain('1. app-120');
+    expect(output).toContain('40. app-81');
+    expect(output).not.toContain('41. app-80');
+    expect(output).toContain('AI 展示建议');
+    expect(output).toContain('两列紧凑布局');
+    expect(output).not.toContain('每一个 app 条目');
   });
 });

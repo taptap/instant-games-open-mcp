@@ -33,6 +33,8 @@ When a user asks to develop or modify a Maker project after clone:
 If these entries are missing in a bound Maker project, read `maker://status` or call
 `maker_status_lite` with the actual project directory as `target_dir` to confirm state, then run
 `taptap-maker dev-kit update` in that project directory to restore missing local dev-kit entries.
+If status includes `Maker remote sync`, follow that section before editing: pull first only when the
+workspace is clean, otherwise let the local AI help the user submit, stash, or cancel before pulling.
 
 These files are local development aids. Do not submit them to Maker Git unless the user explicitly
 asks and understands they are local environment files.
@@ -45,7 +47,8 @@ Keep validation simple for Maker users. 用户可以直接说“提交”或“�
   `maker_build_current_directory`. The tool commits when needed, pushes to Maker remote, and then
   runs the remote build.
 - If push fails, do not start a separate build or generic Git push. Explain the returned recovery
-  details, resolve pull/rebase/conflict with user approval, then retry `maker_build_current_directory`.
+  details, follow the returned classification-specific recovery (`remote_rejected`,
+  `branch_not_allowed`, `forbidden_path`, or `auth`), then retry `maker_build_current_directory`.
 - After submit or build finishes, tell the user to open the TapMaker 网页端查看结果.
 
 Do not create local-only test scripts just to verify Maker changes. The expected validation path is

@@ -296,17 +296,19 @@ async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   if (pat) {
     warnPatArgExposure();
   }
+  const limit = numberOption(parsed, 'limit');
+  const offset = numberOption(parsed, 'offset');
   const projects = await listMakerProjects({ pat });
   if (ctx.json) {
     writeJson(projects);
     return;
   }
 
-  process.stdout.write(`${formatProjectList(projects)}\n`);
+  process.stdout.write(`${formatMakerProjectList(projects, { limit, offset })}\n`);
 }
 
 async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
-  const pat = await resolvePatSet(parsed);
+  const pat = await resolvePatSet(parsed, ctx);
   saveManualMakerPat(pat);
   const tapAuth = await requestTapAuthWithPat(pat);
   emit(ctx, 'pat', 'Maker PAT and TapTap token saved', {
@@ -316,7 +318,7 @@ async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   });
 }
 
-async function resolvePatSet(parsed: ParsedArgs): Promise<string> {
+async function resolvePatSet(parsed: ParsedArgs, ctx: CliContext): Promise<string> {
   if (booleanOption(parsed, 'pat_stdin') || booleanOption(parsed, 'pat_from_stdin')) {
     const pat = fs.readFileSync(0, 'utf8').trim();
     if (!pat) {
@@ -332,6 +334,9 @@ async function resolvePatSet(parsed: ParsedArgs): Promise<string> {
     return fromPositional || fromOption!;
   }
 
+  if (!ctx.json) {
+    process.stdout.write(`Create one at: ${getMakerPatTokensUrl(makerEnvOption(parsed))}\n`);
+  }
   return promptRequired('PAT');
 }
 
@@ -359,15 +364,22 @@ async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
   const result = spawnSync(command.command, [...command.args, 'help'], {
     encoding: 'utf8',
   });
+  const failureType = classifyMcpVerifyFailure(result);
+  const commandText = formatShellCommand([command.command, ...command.args, 'help']);
   const payload = {
     mode,
     package: mode === 'npx' ? pkg : undefined,
-    command: formatShellCommand([command.command, ...command.args, 'help']),
+    command: commandText,
     status: result.status,
+    signal: result.signal,
     ok: result.status === 0,
     stdout: result.stdout,
     stderr: result.stderr,
     error: result.error?.message,
+    failure_type: failureType,
+    explanation: failureType ? getMcpVerifyFailureExplanation(mode, failureType) : undefined,
+    next_steps: failureType ? getMcpVerifyNextSteps(mode, commandText) : undefined,
+    is_maker_mcp_started: false,
   };
   if (ctx.json) {
     writeJson(payload);
@@ -377,20 +389,82 @@ async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
     [
       payload.ok
         ? '✓ MCP config command can spawn taptap-maker'
-        : '✗ MCP config command spawn failed',
+        : '✗ MCP config command check failed before Maker MCP started',
       `- mode: ${payload.mode}`,
       `- command: ${payload.command}`,
       mode === 'npx'
         ? '- scope: verifies the npx command written by taptap-maker mcp install'
         : '- scope: verifies only the currently running CLI binary',
       `- status: ${payload.status}`,
+      payload.signal ? `- signal: ${payload.signal}` : '',
+      payload.failure_type ? `- failure_type: ${payload.failure_type}` : '',
+      payload.explanation ? `- explanation: ${payload.explanation}` : '',
       payload.error ? `- error: ${payload.error}` : '',
       payload.stderr ? `- stderr:\n${indent(payload.stderr)}` : '',
+      payload.next_steps
+        ? ['Next steps:', ...payload.next_steps.map((step, index) => `${index + 1}. ${step}`)].join(
+            '\n'
+          )
+        : '',
       '',
     ]
       .filter(Boolean)
       .join('\n')
   );
+}
+
+function classifyMcpVerifyFailure(
+  result: ReturnType<typeof spawnSync>
+): 'spawn_error' | 'signal' | 'non_zero_exit' | 'unknown_no_status' | undefined {
+  if (result.status === 0) {
+    return undefined;
+  }
+  if (result.error) {
+    return 'spawn_error';
+  }
+  if (result.signal) {
+    return 'signal';
+  }
+  if (typeof result.status === 'number') {
+    return 'non_zero_exit';
+  }
+  return 'unknown_no_status';
+}
+
+function getMcpVerifyFailureExplanation(
+  mode: 'npx' | 'self',
+  failureType: 'spawn_error' | 'signal' | 'non_zero_exit' | 'unknown_no_status'
+): string {
+  if (mode === 'self') {
+    return [
+      'The current taptap-maker CLI help command did not exit cleanly.',
+      'This is a local CLI startup check, not a Maker MCP business error.',
+    ].join(' ');
+  }
+
+  const base = 'This is a local Node/npm/npx startup check, not a Maker MCP business error.';
+  if (failureType === 'non_zero_exit') {
+    return `The configured npx command exited with a non-zero status. ${base}`;
+  }
+  if (failureType === 'spawn_error') {
+    return `The configured npx command could not be spawned. ${base}`;
+  }
+  if (failureType === 'signal') {
+    return `The configured npx command was terminated by a signal. ${base}`;
+  }
+  return `The configured npx command did not exit normally. ${base}`;
+}
+
+function getMcpVerifyNextSteps(mode: 'npx' | 'self', commandText: string): string[] {
+  if (mode === 'self') {
+    return ['Run `taptap-maker help` directly and inspect the printed error.'];
+  }
+
+  return [
+    `Run the command above directly: ${commandText}`,
+    'Run `taptap-maker mcp verify --mode self` to verify the current CLI binary.',
+    'If direct npx also fails, check `where.exe npx`, `where.exe node`, `where.exe npm`, `node -v`, and `npm -v`.',
+  ];
 }
 
 async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -422,9 +496,13 @@ async function resolvePat(parsed: ParsedArgs, ctx: CliContext): Promise<string> 
     );
   }
 
+  const patPage = getMakerPatTokensUrl(makerEnvOption(parsed));
   emit(ctx, 'pat_required', 'Maker PAT is required', {
-    pat_page: getMakerPatTokensUrl(makerEnvOption(parsed)),
+    pat_page: patPage,
   });
+  if (!ctx.json) {
+    process.stdout.write(`Create one at: ${patPage}\n`);
+  }
   const pat = await promptRequired('Paste Maker PAT');
   saveManualMakerPat(pat);
   return pat;
@@ -448,17 +526,38 @@ async function resolveProjectSelection(
     throw new Error('Missing --app-id in non-interactive init mode.');
   }
 
-  process.stdout.write(`${formatProjectList(projects)}\n`);
-  const answer = await promptRequired('Choose app by index or app_id');
-  const byIndex = Number(answer);
-  if (Number.isInteger(byIndex) && byIndex >= 1 && byIndex <= projects.length) {
-    return projects[byIndex - 1];
+  const orderedProjects = sortProjectsByRecentActivity(projects);
+  const limit = MAKER_PROJECT_DEFAULT_TEXT_LIMIT;
+  let offset = 0;
+  for (;;) {
+    process.stdout.write(`${formatMakerProjectList(orderedProjects, { limit, offset })}\n`);
+    const answer = await promptRequired('Choose app by index, app_id, or next');
+    const normalized = answer.trim().toLowerCase();
+    if (['n', 'next', 'more'].includes(normalized)) {
+      const nextOffset = offset + limit;
+      if (nextOffset >= orderedProjects.length) {
+        process.stdout.write('No more Maker apps in this list.\n');
+      } else {
+        offset = nextOffset;
+      }
+      continue;
+    }
+    if (['p', 'prev', 'previous'].includes(normalized)) {
+      offset = Math.max(offset - limit, 0);
+      continue;
+    }
+
+    const byIndex = Number(answer);
+    const visibleCount = Math.min(limit, orderedProjects.length - offset);
+    if (Number.isInteger(byIndex) && byIndex >= 1 && byIndex <= visibleCount) {
+      return orderedProjects[offset + byIndex - 1];
+    }
+    const selected = projects.find((project) => project.id === answer.trim());
+    if (!selected) {
+      throw new Error(`Unknown Maker app selection: ${answer}`);
+    }
+    return selected;
   }
-  const selected = projects.find((project) => project.id === answer.trim());
-  if (!selected) {
-    throw new Error(`Unknown Maker app selection: ${answer}`);
-  }
-  return selected;
 }
 
 async function prepareDevKit(targetDir: string, ctx: CliContext): Promise<void> {
@@ -683,22 +782,85 @@ function saveInitState(targetDir: string, state: Record<string, unknown>): void 
   );
 }
 
-function formatProjectList(projects: MakerProjectSummary[]): string {
+const MAKER_PROJECT_DEFAULT_TEXT_LIMIT = 40;
+const MAKER_PROJECT_MAX_TEXT_LIMIT = 100;
+
+type MakerProjectListFormatOptions = {
+  limit?: number;
+  offset?: number;
+};
+
+function normalizeListLimit(limit?: number): number {
+  if (!Number.isFinite(limit) || limit === undefined) {
+    return MAKER_PROJECT_DEFAULT_TEXT_LIMIT;
+  }
+  return Math.min(Math.max(Math.trunc(limit), 1), MAKER_PROJECT_MAX_TEXT_LIMIT);
+}
+
+function normalizeListOffset(offset?: number): number {
+  if (!Number.isFinite(offset) || offset === undefined) {
+    return 0;
+  }
+  return Math.max(Math.trunc(offset), 0);
+}
+
+function getProjectActivityTime(project: MakerProjectSummary): number {
+  const value = project.lastConversationAt || project.lastAccessedAt || project.createdAt;
+  if (!value) {
+    return 0;
+  }
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function sortProjectsByRecentActivity(projects: MakerProjectSummary[]): MakerProjectSummary[] {
+  return projects
+    .map((project, index) => ({ project, index }))
+    .sort((left, right) => {
+      const timeDiff = getProjectActivityTime(right.project) - getProjectActivityTime(left.project);
+      return timeDiff || left.index - right.index;
+    })
+    .map(({ project }) => project);
+}
+
+function formatProjectListItem(project: MakerProjectSummary, index: number): string {
+  const name = project.name || '(unnamed)';
+  const lastActive = project.lastConversationAt || project.lastAccessedAt || project.createdAt;
+  return `${index + 1}. ${name}  id=${project.id}${
+    lastActive ? `  last_active=${lastActive}` : ''
+  }`;
+}
+
+export function formatMakerProjectList(
+  projects: MakerProjectSummary[],
+  options: MakerProjectListFormatOptions = {}
+): string {
   if (projects.length === 0) {
     return 'No Maker apps found.';
   }
+  const limit = normalizeListLimit(options.limit);
+  const offset = normalizeListOffset(options.offset);
+  const sortedProjects = sortProjectsByRecentActivity(projects);
+  const visibleProjects = sortedProjects.slice(offset, offset + limit);
+  const hiddenCount = projects.length - visibleProjects.length;
+  const nextOffset = offset + visibleProjects.length;
+  const hasNextPage = nextOffset < projects.length;
+  const startIndex = visibleProjects.length > 0 ? offset + 1 : 0;
+  const endIndex =
+    visibleProjects.length > 0 ? Math.min(offset + visibleProjects.length, projects.length) : 0;
   return [
     `Maker apps (${projects.length})`,
+    visibleProjects.length > 0 && offset === 0
+      ? `Showing ${visibleProjects.length} most recently active apps, sorted by last activity. ${hiddenCount} more hidden.`
+      : `Showing apps ${startIndex}-${endIndex} of ${projects.length}, sorted by last activity.`,
+    hasNextPage
+      ? `To continue, run: taptap-maker apps --offset ${nextOffset} --limit ${limit}. If the target is hidden, enter its app_id directly or use --json to get the complete app list.`
+      : `No more apps in this view. If needed, use --json to get the complete app list.`,
     '',
-    ...projects.map(
-      (project, index) =>
-        `${index + 1}. ${project.id}${project.name ? `  ${project.name}` : ''}${
-          project.user_id ? `  user_id=${project.user_id}` : ''
-        }${project.gameType ? `  gameType=${project.gameType}` : ''}${
-          project.stage ? `  stage=${project.stage}` : ''
-        }${project.lastConversationAt ? `  lastConversationAt=${project.lastConversationAt}` : ''}`
-    ),
-  ].join('\n');
+    ...visibleProjects.map((project, index) => formatProjectListItem(project, index)),
+  ]
+    .filter((line) => line !== '')
+    .join('\n');
 }
 
 function emit(ctx: CliContext, step: string, message: string, data?: unknown): void {
@@ -767,6 +929,15 @@ function stringOption(parsed: ParsedArgs, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+function numberOption(parsed: ParsedArgs, key: string): number | undefined {
+  const value = stringOption(parsed, key);
+  if (value === undefined) {
+    return undefined;
+  }
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
 function booleanOption(parsed: ParsedArgs, key: string): boolean {
   return parsed.options[key] === true || parsed.options[key] === 'true';
 }
@@ -829,9 +1000,10 @@ function printHelp(): void {
       '  taptap-maker                         Start MCP server mode',
       '  taptap-maker init [--env rnd|production] [--app-id ID] [--target-dir DIR] [--pat PAT]',
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
-      '                     [--package @taptap/instant-games-open-mcp] [--json]',
+      '                     [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
-      '  taptap-maker apps [--pat PAT] [--json]  # warns: PAT appears in ps/history',
+      '  taptap-maker apps [--pat PAT] [--limit N] [--offset N] [--json]',
+      '                     # --pat warns: PAT appears in ps/history',
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # warns: PAT appears in ps/history',
       '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',
@@ -841,6 +1013,7 @@ function printHelp(): void {
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '',
       'MCP verify defaults to the npx command written into AI client config.',
+      'Advanced: init and mcp install accept --package only when testing a different npm package.',
       '',
       'Windows note:',
       '  Generated MCP configs use npx.cmd automatically on Windows.',

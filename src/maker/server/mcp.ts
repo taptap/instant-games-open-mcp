@@ -34,11 +34,13 @@ import {
 } from '../storage.js';
 import {
   inspectMakerDirectoryGitStatus,
+  inspectMakerRemoteSyncStatus,
   listMakerProjects,
   pushMakerProject,
   readMakerProjectLocalChanges,
   type PushMakerProjectOptions,
   type PushMakerProjectResult,
+  type MakerRemoteSyncStatus,
   type MakerProjectProgress,
   type MakerProjectProgressHandler,
   type MakerGitFailure,
@@ -48,6 +50,7 @@ import {
   getMakerEndpoints,
   getMakerEnvironment,
   getMakerPatTokensUrl,
+  getMakerWebUrl,
   requireMakerEndpoint,
 } from '../config.js';
 import { getUserIdFromMakerJwt } from '../auth/jwt.js';
@@ -96,6 +99,11 @@ export const tools = [
           type: 'string',
           description:
             'Optional user current working directory to inspect. Use when the MCP process cwd differs from the user project CWD.',
+        },
+        skip_remote_sync: {
+          type: 'boolean',
+          description:
+            'If true, skip git fetch/ahead-behind remote sync checks. Use this for frequent polling or quick local status checks.',
         },
       },
     },
@@ -221,6 +229,7 @@ export async function startMakerMcpServer(): Promise<void> {
       if (name === 'maker_status_lite') {
         const args = (request.params.arguments || {}) as {
           target_dir?: string;
+          skip_remote_sync?: boolean;
         };
         return {
           content: [
@@ -228,6 +237,7 @@ export async function startMakerMcpServer(): Promise<void> {
               type: 'text',
               text: await formatStatus({
                 targetDir: args.target_dir,
+                skipRemoteSync: args.skip_remote_sync,
               }),
             },
           ],
@@ -307,10 +317,18 @@ export async function startMakerMcpServer(): Promise<void> {
   await server.connect(transport);
 }
 
-async function formatStatus(options: { targetDir?: string } = {}): Promise<string> {
+async function formatStatus(
+  options: { targetDir?: string; skipRemoteSync?: boolean } = {}
+): Promise<string> {
   const targetDir = resolveMakerToolTargetDir(options.targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
   const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
+  const remoteSyncText =
+    identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo && !options.skipRemoteSync
+      ? await formatMakerRemoteSyncStatusSafely(identify.projectRoot)
+      : identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo
+        ? formatMakerRemoteSyncSkipped()
+        : '';
   const pat = loadPat();
   let tapAuth = loadTapAuth();
   const makerPatTokensUrl = getMakerPatTokensUrl();
@@ -363,6 +381,8 @@ async function formatStatus(options: { targetDir?: string } = {}): Promise<strin
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
     '',
+    remoteSyncText,
+    '',
     pat ? '' : ['Auth next step', '', `Maker PAT 缺失。PAT 页面：${makerPatTokensUrl}`].join('\n'),
     '',
     tapAuthRefreshText,
@@ -375,6 +395,66 @@ async function formatStatus(options: { targetDir?: string } = {}): Promise<strin
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function formatMakerRemoteSyncSkipped(): string {
+  return [
+    'Maker remote sync',
+    '',
+    '- status: skipped',
+    '- next_action: 已跳过远端同步检查；如需确认是否需要 pull，请重新读取 maker_status_lite 且不要设置 skip_remote_sync。',
+  ].join('\n');
+}
+
+async function formatMakerRemoteSyncStatus(projectRoot: string): Promise<string> {
+  const status = await inspectMakerRemoteSyncStatus(projectRoot);
+  return formatMakerRemoteSyncStatusLines(status).join('\n');
+}
+
+export async function formatMakerRemoteSyncStatusSafely(projectRoot: string): Promise<string> {
+  try {
+    return await formatMakerRemoteSyncStatus(projectRoot);
+  } catch (error) {
+    return formatMakerRemoteSyncUnavailable(error);
+  }
+}
+
+function formatMakerRemoteSyncUnavailable(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return [
+    'Maker remote sync',
+    '',
+    '- status: unavailable',
+    `- failure_name: ${error instanceof Error ? error.name : typeof error}`,
+    `- failure_message: ${message}`,
+    '- next_action: 远端同步检查失败；本地状态仍可继续查看。请稍后重试 maker_status_lite，频繁轮询时可设置 skip_remote_sync=true。',
+  ].join('\n');
+}
+
+function formatMakerRemoteSyncStatusLines(status: MakerRemoteSyncStatus): string[] {
+  const localPreview = status.localChanges.slice(0, 10);
+  return [
+    'Maker remote sync',
+    '',
+    `- status: ${status.status}`,
+    `- branch: ${status.branch}`,
+    `- remote_ref: ${status.remoteRef}`,
+    `- ahead: ${status.aheadCount}`,
+    `- behind: ${status.behindCount}`,
+    `- local_changes: ${status.hasLocalChanges ? 'yes' : 'no'}`,
+    status.hasLocalChanges ? `- local_change_count: ${status.localChangeCount}` : '',
+    ...localPreview.map((file) => `  - ${file}`),
+    status.localChanges.length > localPreview.length
+      ? `  - ... ${status.localChanges.length - localPreview.length} more`
+      : '',
+    status.failure ? `- failure_classification: ${status.failure.classification}` : '',
+    status.failure?.retryable !== undefined
+      ? `- failure_retryable: ${status.failure.retryable ? 'yes' : 'no'}`
+      : '',
+    status.failure?.retryReason ? `- failure_retry_reason: ${status.failure.retryReason}` : '',
+    status.failure?.stderr ? `- failure_stderr:\n${indent(status.failure.stderr)}` : '',
+    `- next_action: ${status.nextAction}`,
+  ].filter(Boolean);
 }
 
 function formatMakerGitDirectoryStatus(
@@ -460,9 +540,9 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     const projects = await listMakerProjects();
     return [
       '本地已有 Maker PAT，当前目录尚未绑定 Maker 项目。',
-      '当前目录未绑定时，必须逐项展示下面完整 Maker Apps 列表，不要只总结数量；选择、解释和 clone 顺序请参考 taptap-maker-local skill。',
+      '当前目录未绑定时，先展示下面的 Maker Apps 预览和总数，避免长列表刷屏；选择、解释和 clone 顺序请参考 taptap-maker-local skill。',
       '',
-      formatProjectList(projects),
+      formatStatusProjectList(projects),
     ].join('\n');
   } catch (error) {
     return [
@@ -473,17 +553,40 @@ async function formatAutoProjectListFromPat(): Promise<string> {
   }
 }
 
-function formatProjectList(
-  projects: Array<{
-    id: string;
-    name?: string;
-    user_id?: string;
-    createdAt?: string;
-    lastConversationAt?: string;
-    gameType?: string;
-    stage?: string;
-  }>
-): string {
+const MAKER_STATUS_PROJECT_TEXT_LIMIT = 40;
+
+type StatusProject = {
+  id: string;
+  name?: string;
+  user_id?: string;
+  createdAt?: string;
+  lastAccessedAt?: string | null;
+  lastConversationAt?: string;
+  gameType?: string;
+  stage?: string;
+};
+
+function getStatusProjectActivityTime(project: StatusProject): number {
+  const value = project.lastConversationAt || project.lastAccessedAt || project.createdAt;
+  if (!value) {
+    return 0;
+  }
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function sortStatusProjectsByRecentActivity(projects: StatusProject[]): StatusProject[] {
+  return projects
+    .map((project, index) => ({ project, index }))
+    .sort((left, right) => {
+      const timeDiff =
+        getStatusProjectActivityTime(right.project) - getStatusProjectActivityTime(left.project);
+      return timeDiff || left.index - right.index;
+    })
+    .map(({ project }) => project);
+}
+
+export function formatStatusProjectList(projects: StatusProject[]): string {
   if (projects.length === 0) {
     return [
       'No Maker apps found.',
@@ -491,13 +594,24 @@ function formatProjectList(
       '请确认 Maker PAT 是否有效，或等待 Maker app list 接口对齐。',
     ].join('\n');
   }
+  const visibleProjects = sortStatusProjectsByRecentActivity(projects).slice(
+    0,
+    MAKER_STATUS_PROJECT_TEXT_LIMIT
+  );
+  const hiddenCount = projects.length - visibleProjects.length;
 
   return [
-    'Maker apps',
+    `Maker apps (${projects.length})`,
     '',
-    '请把下面每一个 app 条目展示给用户，不要只说共有多少个。',
+    hiddenCount > 0
+      ? `默认按最近活跃排序展示前 ${visibleProjects.length} 个；其余 ${hiddenCount} 个请不要逐条刷屏。`
+      : '已按最近活跃排序展示全部 app；请询问用户选择。',
+    hiddenCount > 0
+      ? '如果用户没有看到目标 app，请提示可以继续查看更多：在 taptap-maker init 交互中输入 next，或运行 taptap-maker apps --offset 40 --limit 40；也可以让用户提供 app_id，或运行 taptap-maker apps --json 做机器可读查询。'
+      : undefined,
+    'AI 展示建议：如果聊天或客户端宽度足够，可把 app 预览整理成两列紧凑布局；每个 app 保留序号、app_id、名称，以及可用的最近活跃时间或 user_id。窄屏保持单列。不要省略 app_id，也不要在用户确认前自动选择 app。',
     '',
-    ...projects.map(
+    ...visibleProjects.map(
       (project, index) =>
         `${index + 1}. ${project.id}${project.name ? `  ${project.name}` : ''}${
           project.user_id ? `  user_id=${project.user_id}` : ''
@@ -510,7 +624,9 @@ function formatProjectList(
     '',
     '仅当当前目录未绑定且用户要初始化或 clone 时，才让用户选择 app 并继续 taptap-maker init。',
     '如果当前目录已绑定 Maker 项目，这个列表仅作账号项目参考；请继续当前项目，除非用户明确要求切换或重新 clone。',
-  ].join('\n');
+  ]
+    .filter((line) => line !== undefined)
+    .join('\n');
 }
 
 export function formatClonePartialStateLines(targetDir: string): string[] {
@@ -938,6 +1054,11 @@ type MakerBuildFailure = {
   stack?: string;
 };
 
+function formatMakerAppWebUrl(projectId: string, env: string): string {
+  const makerEnv = env === 'rnd' || env === 'production' ? env : undefined;
+  return `${getMakerWebUrl(makerEnv)}/app/${encodeURIComponent(projectId)}`;
+}
+
 type BuildCurrentDirectoryResult =
   | {
       mode: 'remote_build';
@@ -946,6 +1067,7 @@ type BuildCurrentDirectoryResult =
       projectPath: string;
       serverUrl: string;
       env: string;
+      makerUrl?: string;
       timeoutMs: number;
       buildArgs: Record<string, unknown>;
       resultText: string;
@@ -1101,6 +1223,7 @@ async function runRemoteBuildCurrentDirectory(
       projectPath: proxy.projectPath,
       serverUrl: proxy.serverUrl,
       env: proxy.env,
+      makerUrl: formatMakerAppWebUrl(proxy.projectId, proxy.env),
       timeoutMs,
       buildArgs,
       resultText: formatRemoteToolResult(result),
@@ -1334,6 +1457,7 @@ export function formatBuildResult(
     '',
     `- project_root: ${result.projectRoot}`,
     `- project_id: ${result.projectId}`,
+    `- maker_url: ${result.makerUrl || formatMakerAppWebUrl(result.projectId, result.env)}`,
     `- project_path: ${result.projectPath}`,
     `- server_url: ${result.serverUrl}`,
     `- env: ${result.env}`,
@@ -1387,6 +1511,10 @@ export function formatPushResult(
       indent(
         [
           `- project_id: ${result.buildResult.projectId}`,
+          `- maker_url: ${
+            result.buildResult.makerUrl ||
+            formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
+          }`,
           `- project_path: ${result.buildResult.projectPath}`,
           `- server_url: ${result.buildResult.serverUrl}`,
           `- env: ${result.buildResult.env}`,
@@ -1443,8 +1571,21 @@ function formatPushRecoveryLines(submitResult: PushMakerProjectResult): string[]
     submitResult.ahead ? `- git_state: ${submitResult.ahead}` : '',
     '- retry_tool: maker_build_current_directory',
     '- do_not_use_generic_git_push: yes',
-    '- user_message: 本地提交已经保留，但还没推送到 Maker 远端；直接重试 Maker 提交/构建工具即可。',
+    `- user_message: ${pushRecoveryUserMessage(submitResult.failure)}`,
   ].filter(Boolean);
+}
+
+function pushRecoveryUserMessage(failure?: MakerGitFailure): string {
+  switch (failure?.classification) {
+    case 'branch_not_allowed':
+      return '本地提交已经保留，但 Maker 远端只接受 main 分支；请切回 main 并把本地提交迁移到 main 后，再重试 Maker 提交/构建工具。';
+    case 'forbidden_path':
+      return '本地提交已经保留，但包含 Maker 远端禁止提交的路径或目录；请按 failure.stderr 中的 forbidden pattern 从未推送 commit 中移除这些路径，再重试 Maker 提交/构建工具。';
+    case 'remote_transient':
+      return '本地提交已经保留，但还没推送到 Maker 远端；远端临时异常恢复后，直接重试 Maker 提交/构建工具即可。';
+    default:
+      return '本地提交已经保留，但还没推送到 Maker 远端；请先按 failure.next_action 修复原因，再重试 Maker 提交/构建工具。';
+  }
 }
 
 function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {

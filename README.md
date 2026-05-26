@@ -71,7 +71,10 @@ taptap-maker dev-kit update
 `taptap-maker pat set` 默认通过交互式 prompt 接收 PAT，避免把 PAT 写进
 `ps` 进程列表或 shell history；自动化场景可用 `--pat-stdin` 从标准输入读取。
 `taptap-maker mcp verify` 默认验证 `mcp install` 写入 AI 客户端配置的 npx 启动命令；
-本地开发只想验证当前 CLI 时可加 `--mode self`。
+本地开发只想验证当前 CLI 时可加 `--mode self`。如果验证输出 `status: null` 或
+`failure_type`，说明本地 Node/npm/npx 启动命令还没正常跑通，Maker MCP server
+尚未启动；这不是 PAT、app 选择或 Maker 业务接口报错。先按输出里的 command
+在终端直接执行，再检查 `where.exe npx/node/npm`、`node -v` 和 `npm -v`。
 
 MCP 精简为开发循环里的高频能力：
 
@@ -88,6 +91,13 @@ build。push 失败时不会继续 build，会返回本地 commit、ahead 状态
 Maker 远端但构建失败。只有用户明确说“不提交，只构建云端版本”时，才传
 `confirm_remote_build_without_submit=true`。
 
+`maker://status` 和 `maker_status_lite` 会在已绑定项目里检查 Maker 远端同步状态。
+如果远端有新提交，状态输出会区分本地工作区是否干净：干净时提示可先
+`git pull --ff-only origin main`，有本地改动时提示不要直接 pull，应让本地 Agent 先处理
+提交、stash 或取消同步。
+频繁轮询状态或只需要快速本地状态时，调用 `maker_status_lite` 应传
+`skip_remote_sync=true`，避免每次状态查询都触发 `git fetch origin` 网络往返。
+
 首次 clone/fetch 和 push 遇到 503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等临时网络错误时会自动重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不会重试，会把错误分类交给 Agent 处理。首次 clone/fetch 前 CLI 会提示 Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，建议保持命令运行等待自动重试。
 
 Windows 是默认优先级：CLI 写 MCP 配置时会在 Windows 使用 `npx.cmd`，Git 引导优先提示
@@ -98,7 +108,7 @@ Git for Windows，并要求安装选项允许命令行和第三方工具通过 P
 
 Maker 现在同时内置三个工作流 skill：
 
-- `taptap-maker-local`：把 Maker 初始化转交 CLI，并让本地 AI/Agent 处理状态解释、pull/rebase、冲突和构建失败恢复。
+- `taptap-maker-local`：把 Maker 初始化转交 CLI，并让本地 AI/Agent 按 push 失败分类处理 pull/rebase、切回 main、移除禁止路径、鉴权刷新、冲突和构建失败恢复。
 - `taptap-maker-dev-kit-guide`：介绍 clone 时安装到项目目录的 AI dev kit，明确 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
 - `update-taptap-mcp`：引导用户更新本地 npx 缓存里的 `@taptap/instant-games-open-mcp`，并提醒 Maker MCP 推荐安装到 user/global scope。
 
@@ -362,7 +372,7 @@ maker_build_current_directory
 ```
 
 `taptap-maker doctor` 会检查 Git、PAT、TapTap token、项目绑定和 MCP 配置。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过 `git --version` 验证。
-`taptap-maker mcp verify` 默认跑一次实际 MCP 配置使用的 npx 包命令；本地 dist 自测可用 `--mode self`。
+`taptap-maker mcp verify` 默认跑一次实际 MCP 配置使用的 npx 包命令；本地 dist 自测可用 `--mode self`。如果失败结果显示 `failure_type` 或 `status: null`，优先按本地 Node/npm/npx 启动问题处理，Maker MCP server 此时尚未启动，不要误判为 PAT 或 Maker 服务报错。
 
 测试时引导用户访问当前环境的 PAT 页面新建 Maker PAT，
 production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`，
@@ -444,6 +454,9 @@ AI: 让我先检查当前是否已选择应用...
     [调用 list_developers_and_apps]
 
     请问您想为哪个应用创建排行榜？
+    共 200 个应用，当前先展示前 40 个；如果没有看到目标应用，
+    可以继续查看更多，或提供 App ID/名称关键词继续定位。
+    如果客户端宽度足够，可以把预览整理成两列紧凑布局；窄屏保持单列。
     1. 游戏 A (Developer: 开发者A, App ID: 12345)
     2. 游戏 B (Developer: 开发者B, App ID: 67890)
 ```

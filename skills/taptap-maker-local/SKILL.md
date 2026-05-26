@@ -44,7 +44,7 @@ exists.
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | initialize / configure / continue Maker local development | Run the Maker CLI initialization workflow.                                                                                         |
 | clone / download Maker project locally                    | Follow "Initialization Workflow"; do not ask for app_id directly.                                                                  |
-| status / is Maker ready                                   | Read `maker://status`, call `maker_status_lite` if resources are unavailable, or run `taptap-maker doctor`.                        |
+| status / is Maker ready                                   | Read `maker://status`, call `maker_status_lite` if resources are unavailable, then follow `Maker remote sync` if present.          |
 | submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                        |
 | pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                             |
 | conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing. |
@@ -109,7 +109,7 @@ Workflow:
    ask which app to clone unless the user explicitly asks to switch or re-clone.
 3. If Git is missing, stop. Tell the user Git is required for clone/submit/build-side Git work.
 4. Run `taptap-maker init` in the user's intended Maker directory. The CLI will request PAT if
-   missing, fetch TapTap token, list every available app, ask the user to choose, prepare the AI dev
+   missing, fetch TapTap token, show a paged app preview, ask the user to choose, prepare the AI dev
    kit, clone the Maker project, and install/verify MCP config.
    Tell the user that the first Maker clone can take 20+ seconds because the server may be
    preparing the repository, and that they should keep the command running while the CLI retries
@@ -200,8 +200,12 @@ If the current directory is already bound, app lists from `taptap-maker apps` ar
 not ask which app to clone. Continue operating on the current bound project unless the user
 explicitly requests a different project.
 
-When app selection is needed, display every app entry from the tool result and ask the user to
-choose by index, app id, or name. Do not replace the list with a summary such as "10 apps are
+When app selection is needed, show the returned app preview and total count, then ask the user to
+choose by index, app id, or name. The default preview shows 40 apps and `limit` is capped at 100.
+If the target is not visible, ask the user to type `next`, provide app id/name keywords, or run
+`taptap-maker apps --offset 40 --limit 40` / `taptap-maker apps --json`. If the chat/client width
+is enough, you may present the preview as a compact two-column layout; otherwise keep a single
+column. Do not omit app_id, and do not replace the preview with only a summary such as "40 apps are
 available".
 
 Do not auto-select:
@@ -316,6 +320,26 @@ Prefer user/global scope for Maker MCP installation. If a project/local config a
 do not block the workflow; just explain that user/global scope is recommended to avoid config
 being tied to a specific project folder.
 
+## Remote Sync Status
+
+For a bound Maker project, `maker://status` and `maker_status_lite` include `Maker remote sync`.
+Read this section before the user starts editing in a fresh conversation:
+
+- For frequent polling or quick local-only status checks, call `maker_status_lite` with
+  `skip_remote_sync: true` to avoid a `git fetch origin` network round trip on every status read.
+- `up_to_date`: continue development.
+- `needs_pull` with `local_changes: no`: tell the user the workspace is clean and the local AI can
+  run `git pull --ff-only origin main` before editing.
+- `needs_pull` with `local_changes: yes`: do not pull immediately. Explain that remote changes exist
+  and local edits are present; ask the local AI to inspect `git status` and help the user choose
+  submit current changes, stash then pull and restore, or cancel.
+- `diverged`: do not push or blindly pull. Ask the local AI to plan a rebase or merge of current
+  Maker remote changes.
+- `branch_not_allowed`: Maker only accepts `main`; switch/migrate local commits to `main` before
+  build or submit.
+- `remote_unavailable`: follow the failure classification and retry later only for temporary
+  5xx/network/timeout failures.
+
 ## Local Change Review
 
 Before submitting, run local Git inspection when available:
@@ -358,7 +382,10 @@ them before build.
 
 For push failures, use the returned `classification`, `retryable`, `retry_reason`, and
 `retry_attempts` fields. Temporary 5xx/network/timeout failures may be retried with the Maker build
-tool; rejected remote updates require pull/rebase first; auth failures require refreshing PAT.
+tool; `remote_rejected` means remote updates require pull/rebase first; `auth` means refreshing PAT;
+`branch_not_allowed` means Maker remote only accepts `main`; `forbidden_path` means the remote
+pre-receive hook rejected one or more paths/directories and the forbidden pattern from stderr must
+be removed from the unpushed commit before retrying.
 
 When a Maker tool output contains `push_recovery`, follow it exactly:
 
@@ -366,6 +393,11 @@ When a Maker tool output contains `push_recovery`, follow it exactly:
 - Do not ask for permission to run a generic `git push`.
 - Retry with `maker_build_current_directory` for submit and build requests.
 - If the failure is `remote_rejected`, ask before pull/rebase; do not create a new branch or PR.
+- If the failure is `branch_not_allowed`, do not pull/rebase. Tell the user Maker only accepts
+  `main`, switch back to `main`, cherry-pick the preserved local commit there, then retry.
+- If the failure is `forbidden_path`, do not refresh PAT. Read the forbidden pattern in stderr,
+  remove those paths from the unpushed commit while keeping local files, then retry after
+  `git status` is clean for them.
 
 ## Pull And Conflict Handling
 
