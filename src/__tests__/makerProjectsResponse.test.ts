@@ -138,13 +138,25 @@ describe('maker app list display', () => {
     const output = formatStatusProjectList(projects);
 
     expect(output).toContain('Maker apps (120)');
-    expect(output).toContain('Maker apps (120)\n\n默认按最近活跃排序展示前 40 个');
-    expect(output).toContain('默认按最近活跃排序展示前 40 个');
+    expect(output).toContain(
+      '为了保持友好的可读性，默认最多展示 40 个 app；如需完整列表，可以选择显示全部。'
+    );
+    expect(output).toContain('如需完整列表，请运行 taptap-maker apps --json 查看全部 app。');
     expect(output).toContain('1. app-120');
     expect(output).toContain('40. app-81');
     expect(output).not.toContain('41. app-80');
+    expect(output).not.toContain('offset');
+    expect(output).not.toContain('next');
     expect(output).toContain('AI 展示建议');
     expect(output).toContain('两列紧凑布局');
     expect(output).not.toContain('每一个 app 条目');
+  });
+
+  test('explains the status app page limit for readable output', () => {
+    const output = formatStatusProjectList(projects.slice(0, 29));
+
+    expect(output).toContain('已显示全部 app；请询问用户选择。');
+    expect(output).not.toContain('可以选择显示全部');
+    expect(output).not.toContain('taptap-maker apps --json');
   });
 });
