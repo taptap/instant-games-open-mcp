@@ -206,6 +206,33 @@ describe('Maker CLI commands', () => {
     expect(stderrSpy.mock.calls.join('')).toContain('exposes it via ps/shell history');
   });
 
+  test('init prints the PAT creation URL before prompting interactively', async () => {
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    const close = jest.fn();
+    const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockReturnValue({
+      question: jest.fn(async () => 'secret-maker-token'),
+      close,
+    } as unknown as readline.Interface);
+
+    try {
+      await runMakerCli([
+        'init',
+        '--app-id',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+      ]);
+    } finally {
+      createInterfaceSpy.mockRestore();
+    }
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Maker PAT is required');
+    expect(output).toContain('Create one at: https://maker.taptap.cn/pat-tokens');
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('secret-maker-token');
+  });
+
   test('boolean flags do not consume following positional app id', async () => {
     await runMakerCli([
       'init',
@@ -336,6 +363,26 @@ describe('Maker CLI commands', () => {
 
     expect(stderrSpy.mock.calls.join('')).not.toContain('exposes it via ps/shell history');
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('stdin-maker-token');
+  });
+
+  test('pat set prints the PAT creation URL before prompting interactively', async () => {
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    const close = jest.fn();
+    const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockReturnValue({
+      question: jest.fn(async () => 'secret-maker-token'),
+      close,
+    } as unknown as readline.Interface);
+
+    try {
+      await runMakerCli(['pat', 'set']);
+    } finally {
+      createInterfaceSpy.mockRestore();
+    }
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Create one at: https://maker.taptap.cn/pat-tokens');
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('secret-maker-token');
+    expect(close).toHaveBeenCalled();
   });
 
   test('mcp verify checks the configured npx package command by default', async () => {

@@ -308,7 +308,7 @@ async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 }
 
 async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
-  const pat = await resolvePatSet(parsed);
+  const pat = await resolvePatSet(parsed, ctx);
   saveManualMakerPat(pat);
   const tapAuth = await requestTapAuthWithPat(pat);
   emit(ctx, 'pat', 'Maker PAT and TapTap token saved', {
@@ -318,7 +318,7 @@ async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   });
 }
 
-async function resolvePatSet(parsed: ParsedArgs): Promise<string> {
+async function resolvePatSet(parsed: ParsedArgs, ctx: CliContext): Promise<string> {
   if (booleanOption(parsed, 'pat_stdin') || booleanOption(parsed, 'pat_from_stdin')) {
     const pat = fs.readFileSync(0, 'utf8').trim();
     if (!pat) {
@@ -334,6 +334,9 @@ async function resolvePatSet(parsed: ParsedArgs): Promise<string> {
     return fromPositional || fromOption!;
   }
 
+  if (!ctx.json) {
+    process.stdout.write(`Create one at: ${getMakerPatTokensUrl(makerEnvOption(parsed))}\n`);
+  }
   return promptRequired('PAT');
 }
 
@@ -493,9 +496,13 @@ async function resolvePat(parsed: ParsedArgs, ctx: CliContext): Promise<string> 
     );
   }
 
+  const patPage = getMakerPatTokensUrl(makerEnvOption(parsed));
   emit(ctx, 'pat_required', 'Maker PAT is required', {
-    pat_page: getMakerPatTokensUrl(makerEnvOption(parsed)),
+    pat_page: patPage,
   });
+  if (!ctx.json) {
+    process.stdout.write(`Create one at: ${patPage}\n`);
+  }
   const pat = await promptRequired('Paste Maker PAT');
   saveManualMakerPat(pat);
   return pat;
@@ -816,6 +823,14 @@ function sortProjectsByRecentActivity(projects: MakerProjectSummary[]): MakerPro
     .map(({ project }) => project);
 }
 
+function formatProjectListItem(project: MakerProjectSummary, index: number): string {
+  const name = project.name || '(unnamed)';
+  const lastActive = project.lastConversationAt || project.lastAccessedAt || project.createdAt;
+  return `${index + 1}. ${name}  id=${project.id}${
+    lastActive ? `  last_active=${lastActive}` : ''
+  }`;
+}
+
 export function formatMakerProjectList(
   projects: MakerProjectSummary[],
   options: MakerProjectListFormatOptions = {}
@@ -841,16 +856,8 @@ export function formatMakerProjectList(
     hasNextPage
       ? `To continue, run: taptap-maker apps --offset ${nextOffset} --limit ${limit}. If the target is hidden, enter its app_id directly or use --json to get the complete app list.`
       : `No more apps in this view. If needed, use --json to get the complete app list.`,
-    'AI display suggestion: If the chat/client width is enough, present this preview as a compact two-column layout. Keep each app item readable with index, app_id, name, and recent activity/user_id when available. If the width is narrow, keep a single-column list. Do not omit app_id and do not auto-select an app without user confirmation.',
     '',
-    ...visibleProjects.map(
-      (project, index) =>
-        `${index + 1}. ${project.id}${project.name ? `  ${project.name}` : ''}${
-          project.user_id ? `  user_id=${project.user_id}` : ''
-        }${project.gameType ? `  gameType=${project.gameType}` : ''}${
-          project.stage ? `  stage=${project.stage}` : ''
-        }${project.lastConversationAt ? `  lastConversationAt=${project.lastConversationAt}` : ''}`
-    ),
+    ...visibleProjects.map((project, index) => formatProjectListItem(project, index)),
   ]
     .filter((line) => line !== '')
     .join('\n');
@@ -993,7 +1000,7 @@ function printHelp(): void {
       '  taptap-maker                         Start MCP server mode',
       '  taptap-maker init [--env rnd|production] [--app-id ID] [--target-dir DIR] [--pat PAT]',
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
-      '                     [--package @taptap/instant-games-open-mcp] [--json]',
+      '                     [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
       '  taptap-maker apps [--pat PAT] [--limit N] [--offset N] [--json]',
       '                     # --pat warns: PAT appears in ps/history',
@@ -1006,6 +1013,7 @@ function printHelp(): void {
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '',
       'MCP verify defaults to the npx command written into AI client config.',
+      'Advanced: init and mcp install accept --package only when testing a different npm package.',
       '',
       'Windows note:',
       '  Generated MCP configs use npx.cmd automatically on Windows.',
