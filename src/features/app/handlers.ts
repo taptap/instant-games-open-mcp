@@ -59,8 +59,8 @@ function formatRawJson(data: unknown): string {
   return JSON.stringify(data, null, 2);
 }
 
-const APP_LIST_DEFAULT_TEXT_LIMIT = 10;
-const APP_LIST_MAX_TEXT_LIMIT = 50;
+const APP_LIST_DEFAULT_TEXT_LIMIT = 40;
+const APP_LIST_MAX_TEXT_LIMIT = 100;
 
 type AppListFormatOptions = {
   limit?: number;
@@ -122,6 +122,7 @@ export function formatDevelopersAndApps(
     }
     output += `如果目标应用不在预览中，也可以直接提供 app_id 或应用名称关键词。\n`;
   }
+  output += `AI 展示建议：如果聊天或客户端宽度足够，可把应用预览整理成两列紧凑布局；每个应用保留序号、App ID、名称和开发者。窄屏保持单列。不要省略 App ID，也不要在用户确认前自动选择应用。\n`;
   output += `\n`;
 
   for (const [devIndex, developer] of result.list.entries()) {

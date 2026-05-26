@@ -95,7 +95,7 @@ CLI 命令：
 - `taptap-maker apps`：列出当前 PAT 可访问的 Maker app。
 - `taptap-maker pat set`：通过交互式 prompt 保存 PAT，并换取 TapTap token。
 - `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。
-- `taptap-maker mcp verify`：默认验证 AI 客户端 MCP 配置使用的 npx 包命令可启动；`--mode self` 只验证当前 CLI 二进制。
+- `taptap-maker mcp verify`：默认验证 AI 客户端 MCP 配置使用的 npx 包命令可启动；`--mode self` 只验证当前 CLI 二进制。验证失败时若出现 `failure_type` 或 `status: null`，表示本地启动命令还没正常退出，Maker MCP server 尚未启动，不要当作 PAT、项目或 Maker 业务接口错误。
 - `taptap-maker dev-kit update`：恢复或更新当前目录的 AI dev-kit。
 
 MCP 运行期能力：
@@ -266,6 +266,7 @@ Windows 引导：
 Windows 兼容注意：
 
 - 写入 MCP 配置时，`npx` 在 Windows 下使用 `npx.cmd`，避免部分客户端 `spawn` 找不到命令。
+- `taptap-maker mcp verify` 的 `status: null` 会被解释为本地 Node/npm/npx 启动验证失败，并输出 `failure_type`、原始 command 和下一步排查命令；这发生在 Maker MCP server 启动前。
 - `taptap-maker mcp install` 会逐 IDE 返回成功或失败；某个客户端配置写入失败不会阻塞其他客户端继续尝试。
 - Maker 内部路径必须使用 Node `path` API，不能手写 POSIX 路径分隔符。
 - Git 可执行文件默认从 PATH 查找；企业环境或非标准安装路径可通过 `TAPTAP_MAKER_GIT_BIN` 覆盖。
@@ -389,7 +390,7 @@ Maker 后端默认地址集中在 `src/maker/config.ts`。兼容旧变量名：`
 测试时可以通过当前环境的 PAT 页面新建 Maker PAT：
 production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
 再运行 `taptap-maker pat set` 并在 prompt 中粘贴 PAT 保存。
-APP_ID 不应要求用户手动输入，而是通过 `taptap-maker init` 或 `taptap-maker apps` 返回的 app 预览让用户选择。账号 app 很多时，文本输出默认按最近活跃排序展示前 10 个和总数；`taptap-maker init` 交互中可输入 `next` 继续翻页，命令行查看更多时使用 `taptap-maker apps --offset 10 --limit 10`，完整机器可读列表使用 `taptap-maker apps --json`，不要把 200 个 app 全部逐条刷到聊天窗口。
+APP_ID 不应要求用户手动输入，而是通过 `taptap-maker init` 或 `taptap-maker apps` 返回的 app 预览让用户选择。账号 app 很多时，文本输出默认按最近活跃排序展示前 40 个和总数，`limit` 最大 100；`taptap-maker init` 交互中可输入 `next` 继续翻页，命令行查看更多时使用 `taptap-maker apps --offset 40 --limit 40`，完整机器可读列表使用 `taptap-maker apps --json`。输出会给 AI 排版建议：客户端宽度足够时可整理为两列紧凑布局，窄屏保持单列，但不要省略 app_id，也不要把 200 个 app 全部逐条刷到聊天窗口。
 
 推荐按 CLI 流程测试：
 

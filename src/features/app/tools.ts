@@ -122,7 +122,7 @@ export const appTools: ToolRegistration[] = [
           limit: {
             type: 'number',
             description:
-              'Maximum number of apps to show in the human-readable preview. Defaults to 10, max 50.',
+              'Maximum number of apps to show in the human-readable preview. Defaults to 40, max 100.',
           },
           offset: {
             type: 'number',

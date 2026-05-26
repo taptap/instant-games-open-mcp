@@ -82,42 +82,54 @@ describe('maker status dialogue directory guidance', () => {
 });
 
 describe('maker app list display', () => {
-  const projects = Array.from({ length: 35 }, (_, index) => ({
+  const projects = Array.from({ length: 120 }, (_, index) => ({
     id: `app-${index + 1}`,
     name: `App ${index + 1}`,
     lastConversationAt: new Date(Date.UTC(2026, 0, index + 1, 8)).toISOString(),
   }));
 
-  test('limits CLI text output to the 10 most recently active apps', () => {
+  test('limits CLI text output to the 40 most recently active apps by default', () => {
     const output = formatMakerProjectList(projects);
 
-    expect(output).toContain('Maker apps (35)');
-    expect(output).toContain('Showing 10 most recently active apps');
+    expect(output).toContain('Maker apps (120)');
+    expect(output).toContain('Showing 40 most recently active apps');
     expect(output).toContain('sorted by last activity');
-    expect(output).toContain('1. app-35');
-    expect(output).toContain('10. app-26');
-    expect(output).not.toContain('11. app-25');
-    expect(output).toContain('--offset 10 --limit 10');
+    expect(output).toContain('1. app-120');
+    expect(output).toContain('40. app-81');
+    expect(output).not.toContain('41. app-80');
+    expect(output).toContain('--offset 40 --limit 40');
+    expect(output).toContain('AI display suggestion');
+    expect(output).toContain('compact two-column layout');
     expect(output).toContain('use --json to get the complete app list');
   });
 
   test('supports showing the next CLI page while keeping recent activity order', () => {
-    const output = formatMakerProjectList(projects, { limit: 10, offset: 10 });
+    const output = formatMakerProjectList(projects, { limit: 40, offset: 40 });
 
-    expect(output).toContain('Showing apps 11-20 of 35');
-    expect(output).toContain('1. app-25');
-    expect(output).toContain('10. app-16');
-    expect(output).toContain('--offset 20 --limit 10');
+    expect(output).toContain('Showing apps 41-80 of 120');
+    expect(output).toContain('1. app-80');
+    expect(output).toContain('40. app-41');
+    expect(output).toContain('--offset 80 --limit 40');
   });
 
-  test('limits status text output to the 10 most recently active apps', () => {
+  test('caps requested CLI text output at 100 apps', () => {
+    const output = formatMakerProjectList(projects, { limit: 120 });
+
+    expect(output).toContain('100. app-21');
+    expect(output).not.toContain('101. app-20');
+    expect(output).toContain('--offset 100 --limit 100');
+  });
+
+  test('limits status text output to the 40 most recently active apps', () => {
     const output = formatStatusProjectList(projects);
 
-    expect(output).toContain('Maker apps (35)');
-    expect(output).toContain('默认按最近活跃排序展示前 10 个');
-    expect(output).toContain('1. app-35');
-    expect(output).toContain('10. app-26');
-    expect(output).not.toContain('11. app-25');
+    expect(output).toContain('Maker apps (120)');
+    expect(output).toContain('默认按最近活跃排序展示前 40 个');
+    expect(output).toContain('1. app-120');
+    expect(output).toContain('40. app-81');
+    expect(output).not.toContain('41. app-80');
+    expect(output).toContain('AI 展示建议');
+    expect(output).toContain('两列紧凑布局');
     expect(output).not.toContain('每一个 app 条目');
   });
 });

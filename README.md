@@ -71,7 +71,10 @@ taptap-maker dev-kit update
 `taptap-maker pat set` 默认通过交互式 prompt 接收 PAT，避免把 PAT 写进
 `ps` 进程列表或 shell history；自动化场景可用 `--pat-stdin` 从标准输入读取。
 `taptap-maker mcp verify` 默认验证 `mcp install` 写入 AI 客户端配置的 npx 启动命令；
-本地开发只想验证当前 CLI 时可加 `--mode self`。
+本地开发只想验证当前 CLI 时可加 `--mode self`。如果验证输出 `status: null` 或
+`failure_type`，说明本地 Node/npm/npx 启动命令还没正常跑通，Maker MCP server
+尚未启动；这不是 PAT、app 选择或 Maker 业务接口报错。先按输出里的 command
+在终端直接执行，再检查 `where.exe npx/node/npm`、`node -v` 和 `npm -v`。
 
 MCP 精简为开发循环里的高频能力：
 
@@ -367,7 +370,7 @@ maker_build_current_directory
 ```
 
 `taptap-maker doctor` 会检查 Git、PAT、TapTap token、项目绑定和 MCP 配置。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过 `git --version` 验证。
-`taptap-maker mcp verify` 默认跑一次实际 MCP 配置使用的 npx 包命令；本地 dist 自测可用 `--mode self`。
+`taptap-maker mcp verify` 默认跑一次实际 MCP 配置使用的 npx 包命令；本地 dist 自测可用 `--mode self`。如果失败结果显示 `failure_type` 或 `status: null`，优先按本地 Node/npm/npx 启动问题处理，Maker MCP server 此时尚未启动，不要误判为 PAT 或 Maker 服务报错。
 
 测试时引导用户访问当前环境的 PAT 页面新建 Maker PAT，
 production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`，
@@ -449,8 +452,9 @@ AI: 让我先检查当前是否已选择应用...
     [调用 list_developers_and_apps]
 
     请问您想为哪个应用创建排行榜？
-    共 200 个应用，当前先展示前 10 个；如果没有看到目标应用，
+    共 200 个应用，当前先展示前 40 个；如果没有看到目标应用，
     可以继续查看更多，或提供 App ID/名称关键词继续定位。
+    如果客户端宽度足够，可以把预览整理成两列紧凑布局；窄屏保持单列。
     1. 游戏 A (Developer: 开发者A, App ID: 12345)
     2. 游戏 B (Developer: 开发者B, App ID: 67890)
 ```

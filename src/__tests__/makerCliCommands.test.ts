@@ -270,7 +270,7 @@ describe('Maker CLI commands', () => {
 
   test('init can page through hidden apps before selecting by index', async () => {
     jest.mocked(listMakerProjects).mockResolvedValueOnce(
-      Array.from({ length: 12 }, (_, index) => ({
+      Array.from({ length: 42 }, (_, index) => ({
         id: `app-${index + 1}`,
         name: `App ${index + 1}`,
         lastConversationAt: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
@@ -351,6 +351,47 @@ describe('Maker CLI commands', () => {
         mode: 'npx',
         command: expect.stringContaining('@taptap/instant-games-open-mcp taptap-maker help'),
         ok: true,
+      })
+    );
+  });
+
+  test('mcp verify explains null status as local startup failure before Maker MCP starts', async () => {
+    spawnSyncMock.mockReturnValueOnce({
+      status: null,
+      signal: null,
+      stdout: '',
+      stderr: '',
+      error: undefined,
+    } as ReturnType<typeof spawnSync>);
+
+    await runMakerCli(['mcp', 'verify']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('MCP config command check failed before Maker MCP started');
+    expect(output).toContain('- failure_type: unknown_no_status');
+    expect(output).toContain('local Node/npm/npx startup check');
+    expect(output).toContain('Run the command above directly');
+    expect(output).not.toContain('MCP config command spawn failed');
+  });
+
+  test('mcp verify json classifies non-zero npx exit without treating it as MCP startup', async () => {
+    spawnSyncMock.mockReturnValueOnce({
+      status: 1,
+      signal: null,
+      stdout: '',
+      stderr: 'npm error network timeout',
+      error: undefined,
+    } as ReturnType<typeof spawnSync>);
+
+    await runMakerCli(['mcp', 'verify', '--json']);
+
+    expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual(
+      expect.objectContaining({
+        ok: false,
+        status: 1,
+        failure_type: 'non_zero_exit',
+        is_maker_mcp_started: false,
+        stderr: 'npm error network timeout',
       })
     );
   });

@@ -361,15 +361,22 @@ async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
   const result = spawnSync(command.command, [...command.args, 'help'], {
     encoding: 'utf8',
   });
+  const failureType = classifyMcpVerifyFailure(result);
+  const commandText = formatShellCommand([command.command, ...command.args, 'help']);
   const payload = {
     mode,
     package: mode === 'npx' ? pkg : undefined,
-    command: formatShellCommand([command.command, ...command.args, 'help']),
+    command: commandText,
     status: result.status,
+    signal: result.signal,
     ok: result.status === 0,
     stdout: result.stdout,
     stderr: result.stderr,
     error: result.error?.message,
+    failure_type: failureType,
+    explanation: failureType ? getMcpVerifyFailureExplanation(mode, failureType) : undefined,
+    next_steps: failureType ? getMcpVerifyNextSteps(mode, commandText) : undefined,
+    is_maker_mcp_started: false,
   };
   if (ctx.json) {
     writeJson(payload);
@@ -379,20 +386,82 @@ async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
     [
       payload.ok
         ? '✓ MCP config command can spawn taptap-maker'
-        : '✗ MCP config command spawn failed',
+        : '✗ MCP config command check failed before Maker MCP started',
       `- mode: ${payload.mode}`,
       `- command: ${payload.command}`,
       mode === 'npx'
         ? '- scope: verifies the npx command written by taptap-maker mcp install'
         : '- scope: verifies only the currently running CLI binary',
       `- status: ${payload.status}`,
+      payload.signal ? `- signal: ${payload.signal}` : '',
+      payload.failure_type ? `- failure_type: ${payload.failure_type}` : '',
+      payload.explanation ? `- explanation: ${payload.explanation}` : '',
       payload.error ? `- error: ${payload.error}` : '',
       payload.stderr ? `- stderr:\n${indent(payload.stderr)}` : '',
+      payload.next_steps
+        ? ['Next steps:', ...payload.next_steps.map((step, index) => `${index + 1}. ${step}`)].join(
+            '\n'
+          )
+        : '',
       '',
     ]
       .filter(Boolean)
       .join('\n')
   );
+}
+
+function classifyMcpVerifyFailure(
+  result: ReturnType<typeof spawnSync>
+): 'spawn_error' | 'signal' | 'non_zero_exit' | 'unknown_no_status' | undefined {
+  if (result.status === 0) {
+    return undefined;
+  }
+  if (result.error) {
+    return 'spawn_error';
+  }
+  if (result.signal) {
+    return 'signal';
+  }
+  if (typeof result.status === 'number') {
+    return 'non_zero_exit';
+  }
+  return 'unknown_no_status';
+}
+
+function getMcpVerifyFailureExplanation(
+  mode: 'npx' | 'self',
+  failureType: 'spawn_error' | 'signal' | 'non_zero_exit' | 'unknown_no_status'
+): string {
+  if (mode === 'self') {
+    return [
+      'The current taptap-maker CLI help command did not exit cleanly.',
+      'This is a local CLI startup check, not a Maker MCP business error.',
+    ].join(' ');
+  }
+
+  const base = 'This is a local Node/npm/npx startup check, not a Maker MCP business error.';
+  if (failureType === 'non_zero_exit') {
+    return `The configured npx command exited with a non-zero status. ${base}`;
+  }
+  if (failureType === 'spawn_error') {
+    return `The configured npx command could not be spawned. ${base}`;
+  }
+  if (failureType === 'signal') {
+    return `The configured npx command was terminated by a signal. ${base}`;
+  }
+  return `The configured npx command did not exit normally. ${base}`;
+}
+
+function getMcpVerifyNextSteps(mode: 'npx' | 'self', commandText: string): string[] {
+  if (mode === 'self') {
+    return ['Run `taptap-maker help` directly and inspect the printed error.'];
+  }
+
+  return [
+    `Run the command above directly: ${commandText}`,
+    'Run `taptap-maker mcp verify --mode self` to verify the current CLI binary.',
+    'If direct npx also fails, check `where.exe npx`, `where.exe node`, `where.exe npm`, `node -v`, and `npm -v`.',
+  ];
 }
 
 async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -706,8 +775,8 @@ function saveInitState(targetDir: string, state: Record<string, unknown>): void 
   );
 }
 
-const MAKER_PROJECT_DEFAULT_TEXT_LIMIT = 10;
-const MAKER_PROJECT_MAX_TEXT_LIMIT = 50;
+const MAKER_PROJECT_DEFAULT_TEXT_LIMIT = 40;
+const MAKER_PROJECT_MAX_TEXT_LIMIT = 100;
 
 type MakerProjectListFormatOptions = {
   limit?: number;
@@ -771,6 +840,7 @@ export function formatMakerProjectList(
     hasNextPage
       ? `To continue, run: taptap-maker apps --offset ${nextOffset} --limit ${limit}. If the target is hidden, enter its app_id directly or use --json to get the complete app list.`
       : `No more apps in this view. If needed, use --json to get the complete app list.`,
+    'AI display suggestion: If the chat/client width is enough, present this preview as a compact two-column layout. Keep each app item readable with index, app_id, name, and recent activity/user_id when available. If the width is narrow, keep a single-column list. Do not omit app_id and do not auto-select an app without user confirmation.',
     '',
     ...visibleProjects.map(
       (project, index) =>

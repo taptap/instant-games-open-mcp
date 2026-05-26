@@ -109,7 +109,7 @@ Workflow:
    ask which app to clone unless the user explicitly asks to switch or re-clone.
 3. If Git is missing, stop. Tell the user Git is required for clone/submit/build-side Git work.
 4. Run `taptap-maker init` in the user's intended Maker directory. The CLI will request PAT if
-   missing, fetch TapTap token, list every available app, ask the user to choose, prepare the AI dev
+   missing, fetch TapTap token, show a paged app preview, ask the user to choose, prepare the AI dev
    kit, clone the Maker project, and install/verify MCP config.
    Tell the user that the first Maker clone can take 20+ seconds because the server may be
    preparing the repository, and that they should keep the command running while the CLI retries
@@ -200,8 +200,12 @@ If the current directory is already bound, app lists from `taptap-maker apps` ar
 not ask which app to clone. Continue operating on the current bound project unless the user
 explicitly requests a different project.
 
-When app selection is needed, display every app entry from the tool result and ask the user to
-choose by index, app id, or name. Do not replace the list with a summary such as "10 apps are
+When app selection is needed, show the returned app preview and total count, then ask the user to
+choose by index, app id, or name. The default preview shows 40 apps and `limit` is capped at 100.
+If the target is not visible, ask the user to type `next`, provide app id/name keywords, or run
+`taptap-maker apps --offset 40 --limit 40` / `taptap-maker apps --json`. If the chat/client width
+is enough, you may present the preview as a compact two-column layout; otherwise keep a single
+column. Do not omit app_id, and do not replace the preview with only a summary such as "40 apps are
 available".
 
 Do not auto-select:
