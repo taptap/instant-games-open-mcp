@@ -1,3 +1,9 @@
+## <small>1.23.4 (2026-05-26)</small>
+
+* fix(maker): optimize Maker app list display and sync recovery ([3a98789](https://github.com/taptap/instant-games-open-mcp/commit/3a98789))
+
+
+
 ## <small>1.23.3 (2026-05-25)</small>
 
 * ci(release): publish stable package with latest tag (#185) ([60ef364](https://github.com/taptap/instant-games-open-mcp/commit/60ef364)), closes [#185](https://github.com/taptap/instant-games-open-mcp/issues/185)
