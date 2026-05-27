@@ -340,7 +340,8 @@ npx commitlint --from HEAD~1 --to HEAD
 1. 使用 semantic-release dry-run 计算候选 beta 版本号
 2. 构建或复用 native signer，使 beta 包的 production 体感与正式包一致
 3. 运行 lint、format check、build、test
-4. 如果候选 beta 版本已存在于 npm，自动递增到下一个 `beta.N`
+4. 如果候选 beta 基础版本不高于 npm `latest`，先提升到 `latest` 的下一个 patch
+   基础版本；再自动递增到该基础版本下一个可用的 `beta.N`
 5. 将工作区版本临时设置为最终 beta 版本
 6. 打包并发布到 npm `@beta` dist-tag
 7. 创建 `vX.Y.Z-beta.N` Git tag 和 GitHub prerelease

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  AI_DEV_KIT_URLS,
   createDevKitGitignoreBlock,
   DEV_KIT_GITIGNORE_STAGING_FILE,
   finalizeStagedDevKitGitignore,
@@ -9,6 +10,7 @@ import {
   installAiDevKit,
   listPresentDevKitManagedEntries,
   mergeDevKitGitignore,
+  resolveDefaultAiDevKitUrl,
 } from '../maker/cli/devKit';
 
 describe('Maker AI dev kit install', () => {
@@ -94,6 +96,14 @@ describe('Maker AI dev kit install', () => {
     ]);
   });
 
+  test('keeps .DS_Store ignored as a file pattern while .maker remains a directory', () => {
+    const block = createDevKitGitignoreBlock(['examples']);
+
+    expect(block).toContain('\n.DS_Store\n');
+    expect(block).toContain('\n.maker/\n');
+    expect(block).not.toContain('.DS_Store/');
+  });
+
   test('restores missing dev kit files without overwriting existing local files', async () => {
     fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(path.join(targetDir, 'CLAUDE.md'), 'user edits\n', 'utf8');
@@ -152,6 +162,41 @@ describe('Maker AI dev kit install', () => {
     expect(gitignore).toContain('another-user-rule.txt');
     expect(gitignore).toContain('engine-docs/');
     expect(gitignore).not.toContain('old-entry');
+  });
+
+  test('always ignores Maker local runtime state in managed gitignore block', () => {
+    const block = createDevKitGitignoreBlock(['engine-docs']);
+
+    expect(block).toContain('.maker/');
+  });
+
+  describe('resolveDefaultAiDevKitUrl', () => {
+    const originalEnv = process.env.TAPTAP_MCP_ENV;
+
+    afterEach(() => {
+      if (originalEnv === undefined) {
+        delete process.env.TAPTAP_MCP_ENV;
+      } else {
+        process.env.TAPTAP_MCP_ENV = originalEnv;
+      }
+    });
+
+    test('returns the production URL by default', () => {
+      delete process.env.TAPTAP_MCP_ENV;
+      expect(resolveDefaultAiDevKitUrl()).toBe(AI_DEV_KIT_URLS.production);
+      expect(AI_DEV_KIT_URLS.production).toContain('/pd/stable/');
+    });
+
+    test('returns the rnd URL when TAPTAP_MCP_ENV=rnd', () => {
+      process.env.TAPTAP_MCP_ENV = 'rnd';
+      expect(resolveDefaultAiDevKitUrl()).toBe(AI_DEV_KIT_URLS.rnd);
+      expect(AI_DEV_KIT_URLS.rnd).toContain('/rnd/latest/');
+    });
+
+    test('explicit environment argument overrides process env', () => {
+      process.env.TAPTAP_MCP_ENV = 'production';
+      expect(resolveDefaultAiDevKitUrl('rnd')).toBe(AI_DEV_KIT_URLS.rnd);
+    });
   });
 
   test('finalizes staged gitignore after clone and removes staging file', () => {

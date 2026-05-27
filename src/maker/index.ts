@@ -44,6 +44,7 @@ function printHelp(): void {
       '  taptap-maker mcp verify [--package @taptap/instant-games-open-mcp]',
       '                           [--mode npx|self] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
+      '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
       'MCP verify defaults to the npx command written into AI client config.',
       'Advanced: init and mcp install accept --package only when testing a different npm package.',

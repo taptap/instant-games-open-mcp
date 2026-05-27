@@ -2,6 +2,7 @@
  * taptap-maker MCP server mode.
  */
 
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,9 +22,11 @@ import type {
   ServerRequest,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { identifyMakerProject, formatIdentifyHint } from './identify.js';
+import { HiddenStdioClientTransport } from './hiddenStdioTransport.js';
 import {
   getPatPath,
   getTapAuthPath,
@@ -65,6 +68,14 @@ import {
   inspectAiDevKit,
   type AiDevKitStatus,
 } from '../cli/devKit.js';
+import {
+  formatRuntimeLogPullResult,
+  normalizeRuntimeLogQueryResult,
+  pullRuntimeLogs,
+  writeRuntimeLogRawResponse,
+  type RuntimeLogQueryArgs,
+  type RuntimeLogQueryResult,
+} from './runtimeLogs.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 declare const __MAKER_BUNDLE_URL__: string | undefined;
@@ -72,6 +83,9 @@ const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : '
 const DEFAULT_PROXY_MCP_NAME = 'taptap-proxy';
 const DEFAULT_PROXY_PACKAGE = '@taptap/instant-games-open-mcp@1.22.0';
 const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
+const PREVIEW_REFRESH_TIMEOUT_MS = 15 * 1000;
+const WATCHER_STOP_TIMEOUT_MS = 1500;
+const WATCHER_PROCESS_PATTERN = /(?:\btaptap-maker\b|\bmaker\.js\b).*\blogs\b.*\bwatch\b/;
 const LONG_OPERATION_HEARTBEAT_MS = 3 * 60 * 1000;
 
 class MakerCloneFailedError extends Error {
@@ -111,7 +125,7 @@ export const tools = [
   {
     name: 'maker_build_current_directory',
     description:
-      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. If local changes or committed-but-unpushed commits exist, the tool commits when needed, pushes to Maker remote, then triggers remote Maker build. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version.',
+      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. If local changes or committed-but-unpushed commits exist, the tool commits when needed, pushes to Maker remote, then triggers remote Maker build. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -174,6 +188,49 @@ export const tools = [
           type: 'boolean',
           description:
             'Set true only after the user explicitly confirms they do not want to submit local changes and want to build the current Maker remote committed version.',
+        },
+      },
+    },
+  },
+  {
+    name: 'maker_pull_runtime_logs',
+    description:
+      'Pull Maker Lua runtime logs once from the remote Maker MCP query_runtime_logs tool and write user_script/server_user_script logs to .maker/logs/runtime/runtime.log. This is a one-shot fixed business flow for AI diagnostics; it does not start a watcher, does not keep a long-running MCP call open, and does not clear local logs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target_dir: {
+          type: 'string',
+          description:
+            'Optional Maker project directory. Defaults to the MCP process cwd. Pass the user current working directory when it differs from the MCP process cwd.',
+        },
+        start_time: {
+          type: 'number',
+          description:
+            'Optional Unix seconds cursor. If omitted, the tool uses a fresh local state cursor, otherwise defaults to since_seconds.',
+        },
+        since_seconds: {
+          type: 'number',
+          description:
+            'Optional fallback lookback window in seconds when no fresh cursor exists. Defaults to 600 seconds and is capped by the remote server.',
+        },
+        limit: {
+          type: 'number',
+          description: 'Optional maximum log entries returned by the remote query.',
+        },
+        server_url: {
+          type: 'string',
+          description:
+            'Optional remote MCP server URL override. Defaults to the Maker endpoint table for TAPTAP_MCP_ENV.',
+        },
+        env: {
+          type: 'string',
+          enum: ['rnd', 'production'],
+          description: 'Remote MCP environment. Defaults to TAPTAP_MCP_ENV.',
+        },
+        timeout_ms: {
+          type: 'number',
+          description: 'Optional remote log query timeout in milliseconds. Defaults to 60 seconds.',
         },
       },
     },
@@ -294,6 +351,41 @@ export async function startMakerMcpServer(): Promise<void> {
             {
               type: 'text',
               text: formatBuildResult(result, progressSummary),
+            },
+          ],
+        };
+      }
+
+      if (name === 'maker_pull_runtime_logs') {
+        const args = (request.params.arguments || {}) as {
+          target_dir?: string;
+          start_time?: number;
+          since_seconds?: number;
+          limit?: number;
+          server_url?: string;
+          env?: 'rnd' | 'production';
+          timeout_ms?: number;
+        };
+        const proxy = createRemoteProxyContext({
+          targetDir: resolveMakerToolTargetDir(args.target_dir),
+          serverUrl: args.server_url,
+          env: args.env,
+        });
+        const result = await pullRuntimeLogs({
+          projectRoot: proxy.projectRoot,
+          projectId: proxy.projectId,
+          startTime: args.start_time,
+          sinceSeconds: args.since_seconds,
+          limit: args.limit,
+          callRemoteRuntimeLogs: (queryArgs) =>
+            callRemoteRuntimeLogs(proxy, queryArgs, args.timeout_ms),
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: formatRuntimeLogPullResult(result),
             },
           ],
         };
@@ -658,7 +750,7 @@ export function formatClonePartialStateLines(targetDir: string): string[] {
   ].filter(Boolean);
 }
 
-function createRemoteProxyContext(options: {
+export function createRemoteProxyContext(options: {
   targetDir: string;
   serverUrl?: string;
   env?: 'rnd' | 'production';
@@ -1051,6 +1143,43 @@ type MakerBuildFailure = {
   message: string;
   stack?: string;
 };
+type PreviewRefreshResult = {
+  ok: boolean;
+  status: number;
+  url: string;
+  responseText?: string;
+  error?: string;
+};
+type RefreshMakerPreview = (buildResult: RemoteBuildResult) => Promise<PreviewRefreshResult>;
+type RuntimeLogWatchStartResult = {
+  started: boolean;
+  command: string;
+  runtimeLog: string;
+  stdoutLog?: string;
+  stderrLog?: string;
+  pidFile?: string;
+  pid?: number;
+  previousPid?: number;
+  previousStopped?: boolean;
+  previousStopError?: string;
+  error?: string;
+};
+type RuntimeLogWatcherPidState = {
+  pid: number;
+  command?: string;
+  startedAt?: string;
+  legacy?: boolean;
+};
+type StopRuntimeLogWatcherOptions = {
+  getProcessCommand?: (pid: number) => string | undefined;
+  waitForExit?: (pid: number, timeoutMs: number) => boolean;
+};
+type StartRuntimeLogWatch = (buildResult: RemoteBuildResult) => Promise<RuntimeLogWatchStartResult>;
+type RuntimeLogMcpClient = Pick<Client, 'connect' | 'callTool' | 'close'>;
+type RemoteRuntimeLogClient = {
+  call: (args: RuntimeLogQueryArgs) => Promise<RuntimeLogQueryResult>;
+  close: () => Promise<void>;
+};
 
 function formatMakerAppWebUrl(projectId: string, env: string): string {
   const makerEnv = env === 'rnd' || env === 'production' ? env : undefined;
@@ -1069,7 +1198,16 @@ type BuildCurrentDirectoryResult =
       timeoutMs: number;
       buildArgs: Record<string, unknown>;
       resultText: string;
+      previewRefresh?: PreviewRefreshResult;
+      runtimeLogWatch?: RuntimeLogWatchStartResult;
       submitResult?: PushMakerProjectResult;
+    }
+  | {
+      mode: 'remote_build_failed';
+      projectRoot: string;
+      projectId: string;
+      buildResult: RemoteBuildResult;
+      buildFailure: MakerBuildFailure;
     }
   | {
       mode: 'submit_failed_before_build';
@@ -1084,6 +1222,16 @@ type BuildCurrentDirectoryResult =
       submitResult: PushMakerProjectResult;
       buildFailure: MakerBuildFailure;
     };
+
+class RemoteBuildFailedError extends Error {
+  readonly buildResult: RemoteBuildResult;
+
+  constructor(buildResult: RemoteBuildResult) {
+    super(buildResult.resultText);
+    this.name = 'RemoteBuildFailedError';
+    this.buildResult = buildResult;
+  }
+}
 
 export async function buildCurrentDirectory(options: {
   targetDir: string;
@@ -1100,6 +1248,8 @@ export async function buildCurrentDirectory(options: {
   confirmRemoteBuildWithoutSubmit?: boolean;
   submitLocalChanges?: SubmitLocalChangesForBuild;
   callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildResult>;
+  refreshPreview?: RefreshMakerPreview;
+  startRuntimeLogWatch?: StartRuntimeLogWatch;
   onProgress?: MakerProjectProgressHandler;
 }): Promise<BuildCurrentDirectoryResult> {
   const localChanges = await readMakerProjectLocalChanges(options.targetDir);
@@ -1143,7 +1293,20 @@ export async function buildCurrentDirectory(options: {
     };
   }
 
-  return runRemoteBuildCurrentDirectory(options, options.targetDir);
+  try {
+    return await runRemoteBuildCurrentDirectory(options, options.targetDir);
+  } catch (error) {
+    if (error instanceof RemoteBuildFailedError) {
+      return {
+        mode: 'remote_build_failed',
+        projectRoot: error.buildResult.projectRoot,
+        projectId: error.buildResult.projectId,
+        buildResult: error.buildResult,
+        buildFailure: toMakerBuildFailure(error),
+      };
+    }
+    throw error;
+  }
 }
 
 async function runRemoteBuildCurrentDirectory(
@@ -1160,12 +1323,17 @@ async function runRemoteBuildCurrentDirectory(
     callRemoteBuild?: (
       targetDir: string
     ) => Promise<Extract<BuildCurrentDirectoryResult, { mode: 'remote_build' }>>;
+    refreshPreview?: RefreshMakerPreview;
+    startRuntimeLogWatch?: StartRuntimeLogWatch;
     onProgress?: MakerProjectProgressHandler;
   },
   targetDir: string
 ): Promise<RemoteBuildResult> {
   if (options.callRemoteBuild) {
-    return options.callRemoteBuild(targetDir);
+    return attachBuildSuccessSideEffects(await options.callRemoteBuild(targetDir), {
+      refreshPreview: options.refreshPreview || skipPreviewRefresh,
+      startRuntimeLogWatch: options.startRuntimeLogWatch,
+    });
   }
 
   const proxy = createRemoteProxyContext({
@@ -1214,22 +1382,537 @@ async function runRemoteBuildCurrentDirectory(
       }
     );
 
-    return {
-      mode: 'remote_build',
-      projectRoot: proxy.projectRoot,
-      projectId: proxy.projectId,
-      projectPath: proxy.projectPath,
-      serverUrl: proxy.serverUrl,
-      env: proxy.env,
-      makerUrl: formatMakerAppWebUrl(proxy.projectId, proxy.env),
-      timeoutMs,
-      buildArgs,
-      resultText: formatRemoteToolResult(result),
-    };
+    if (isRemoteToolError(result)) {
+      throw new Error(formatRemoteToolResult(result));
+    }
+
+    return attachBuildSuccessSideEffects(
+      {
+        mode: 'remote_build',
+        projectRoot: proxy.projectRoot,
+        projectId: proxy.projectId,
+        projectPath: proxy.projectPath,
+        serverUrl: proxy.serverUrl,
+        env: proxy.env,
+        makerUrl: formatMakerAppWebUrl(proxy.projectId, proxy.env),
+        timeoutMs,
+        buildArgs,
+        resultText: formatRemoteToolResult(result),
+      },
+      {
+        refreshPreview: options.refreshPreview,
+        startRuntimeLogWatch: options.startRuntimeLogWatch || startRuntimeLogWatch,
+      }
+    );
   } finally {
     await client.close();
   }
 }
+
+async function attachBuildSuccessSideEffects(
+  buildResult: RemoteBuildResult,
+  options: {
+    refreshPreview?: RefreshMakerPreview;
+    startRuntimeLogWatch?: StartRuntimeLogWatch;
+  }
+): Promise<RemoteBuildResult> {
+  if (isRemoteBuildFailureResult(buildResult)) {
+    throw new RemoteBuildFailedError(buildResult);
+  }
+  const withPreview = await attachPreviewRefresh(buildResult, options.refreshPreview);
+  if (!options.startRuntimeLogWatch) {
+    return withPreview;
+  }
+  return attachRuntimeLogWatch(withPreview, options.startRuntimeLogWatch);
+}
+
+function isRemoteToolError(result: unknown): boolean {
+  return Boolean(result && typeof result === 'object' && (result as { isError?: unknown }).isError);
+}
+
+function isRemoteBuildFailureResult(buildResult: RemoteBuildResult): boolean {
+  return /\bBUILD FAILED\b/i.test(buildResult.resultText);
+}
+
+async function attachPreviewRefresh(
+  buildResult: RemoteBuildResult,
+  refreshPreview: RefreshMakerPreview = refreshMakerPreview
+): Promise<RemoteBuildResult> {
+  try {
+    return {
+      ...buildResult,
+      previewRefresh: await refreshPreview(buildResult),
+    };
+  } catch (error) {
+    return {
+      ...buildResult,
+      previewRefresh: {
+        ok: false,
+        status: 0,
+        url: '',
+        error: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
+async function skipPreviewRefresh(buildResult: RemoteBuildResult): Promise<PreviewRefreshResult> {
+  return {
+    ok: false,
+    status: 0,
+    url: '',
+    error: `preview refresh skipped for injected remote build: ${buildResult.projectId}`,
+  };
+}
+
+async function attachRuntimeLogWatch(
+  buildResult: RemoteBuildResult,
+  startWatch: StartRuntimeLogWatch
+): Promise<RemoteBuildResult> {
+  try {
+    return {
+      ...buildResult,
+      runtimeLogWatch: await startWatch(buildResult),
+    };
+  } catch (error) {
+    return {
+      ...buildResult,
+      runtimeLogWatch: {
+        started: false,
+        command: formatRuntimeLogWatchCommand(buildResult).text,
+        runtimeLog: getRuntimeLogFilePath(buildResult.projectRoot),
+        error: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
+async function startRuntimeLogWatch(
+  buildResult: RemoteBuildResult
+): Promise<RuntimeLogWatchStartResult> {
+  const runtimeDir = path.join(buildResult.projectRoot, '.maker', 'logs', 'runtime');
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  const stdoutLog = path.join(runtimeDir, 'watcher.out.log');
+  const stderrLog = path.join(runtimeDir, 'watcher.err.log');
+  const pidFile = path.join(runtimeDir, 'watcher.pid');
+  const previous = stopExistingRuntimeLogWatcher(pidFile);
+  const outFd = fs.openSync(stdoutLog, 'a');
+  const errFd = fs.openSync(stderrLog, 'a');
+  const command = formatRuntimeLogWatchCommand(buildResult);
+
+  if (previous.previousStopError) {
+    fs.closeSync(outFd);
+    fs.closeSync(errFd);
+    return {
+      started: false,
+      command: command.text,
+      runtimeLog: getRuntimeLogFilePath(buildResult.projectRoot),
+      stdoutLog,
+      stderrLog,
+      pidFile,
+      ...previous,
+      error: previous.previousStopError,
+    };
+  }
+
+  try {
+    const child = spawn(command.command, command.args, {
+      cwd: buildResult.projectRoot,
+      detached: true,
+      env: mergeStringEnv(process.env, { TAPTAP_MCP_ENV: buildResult.env }),
+      stdio: ['ignore', outFd, errFd],
+      windowsHide: true,
+    });
+    const spawnError = await waitForSpawnError(child);
+    if (spawnError) {
+      return {
+        started: false,
+        command: command.text,
+        runtimeLog: getRuntimeLogFilePath(buildResult.projectRoot),
+        stdoutLog,
+        stderrLog,
+        pidFile,
+        ...previous,
+        error: spawnError.message,
+      };
+    }
+    if (!child.pid) {
+      return {
+        started: false,
+        command: command.text,
+        runtimeLog: getRuntimeLogFilePath(buildResult.projectRoot),
+        stdoutLog,
+        stderrLog,
+        pidFile,
+        ...previous,
+        error: 'runtime log watcher process did not report a pid',
+      };
+    }
+    child.once('error', () => undefined);
+    child.unref();
+    writeRuntimeLogWatcherPidFile(pidFile, {
+      pid: child.pid,
+      command: command.text,
+      startedAt: new Date().toISOString(),
+    });
+    return {
+      started: true,
+      command: command.text,
+      runtimeLog: getRuntimeLogFilePath(buildResult.projectRoot),
+      stdoutLog,
+      stderrLog,
+      pidFile,
+      pid: child.pid,
+      ...previous,
+    };
+  } finally {
+    fs.closeSync(outFd);
+    fs.closeSync(errFd);
+  }
+}
+
+export function stopExistingRuntimeLogWatcher(
+  pidFile: string,
+  options: StopRuntimeLogWatcherOptions = {}
+): {
+  previousPid?: number;
+  previousStopped?: boolean;
+  previousStopError?: string;
+} {
+  if (!fs.existsSync(pidFile)) {
+    return {};
+  }
+
+  const pidState = readRuntimeLogWatcherPidState(pidFile);
+  const pid = pidState?.pid;
+  if (!Number.isInteger(pid) || pid <= 0) {
+    fs.rmSync(pidFile, { force: true });
+    return {};
+  }
+
+  try {
+    process.kill(pid, 0);
+    const processCommand = (options.getProcessCommand || getProcessCommand)(pid);
+    const verifiedCommand = getVerifiedRuntimeLogWatcherCommand(processCommand, pidState);
+    if (!verifiedCommand) {
+      fs.rmSync(pidFile, { force: true });
+      return {
+        previousPid: pid,
+        previousStopped: false,
+        previousStopError: processCommand
+          ? `process ${pid} does not look like a Maker log watcher: ${processCommand}`
+          : `process ${pid} could not be verified as a Maker log watcher`,
+      };
+    }
+    process.kill(pid, 'SIGTERM');
+    const stopped = (options.waitForExit || waitForProcessExit)(pid, WATCHER_STOP_TIMEOUT_MS);
+    if (stopped) {
+      fs.rmSync(pidFile, { force: true });
+      return { previousPid: pid, previousStopped: true };
+    }
+    return {
+      previousPid: pid,
+      previousStopped: false,
+      previousStopError: `process ${pid} did not exit after SIGTERM within ${WATCHER_STOP_TIMEOUT_MS}ms`,
+    };
+  } catch (error) {
+    fs.rmSync(pidFile, { force: true });
+    const code =
+      error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: unknown }).code)
+        : '';
+    if (code === 'ESRCH') {
+      return { previousPid: pid, previousStopped: false };
+    }
+    return {
+      previousPid: pid,
+      previousStopped: false,
+      previousStopError: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function readRuntimeLogWatcherPidState(pidFile: string): RuntimeLogWatcherPidState | null {
+  const raw = fs.readFileSync(pidFile, 'utf8').trim();
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<RuntimeLogWatcherPidState>;
+    if (typeof parsed === 'number') {
+      return Number.isInteger(parsed) && parsed > 0 ? { pid: parsed, legacy: true } : null;
+    }
+    return typeof parsed.pid === 'number' ? (parsed as RuntimeLogWatcherPidState) : null;
+  } catch {
+    const pid = Number(raw);
+    return Number.isInteger(pid) && pid > 0 ? { pid, legacy: true } : null;
+  }
+}
+
+function writeRuntimeLogWatcherPidFile(pidFile: string, state: RuntimeLogWatcherPidState): void {
+  fs.writeFileSync(pidFile, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+}
+
+function getProcessCommand(pid: number): string | undefined {
+  if (process.platform === 'win32') {
+    return undefined;
+  }
+  try {
+    return execFileSync('ps', ['-p', String(pid), '-o', 'command='], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+function isRuntimeLogWatcherProcess(command: string | undefined): boolean {
+  return Boolean(command && WATCHER_PROCESS_PATTERN.test(command));
+}
+
+function getVerifiedRuntimeLogWatcherCommand(
+  processCommand: string | undefined,
+  pidState: RuntimeLogWatcherPidState
+): string | undefined {
+  if (isRuntimeLogWatcherProcess(processCommand)) {
+    return processCommand;
+  }
+  if (!processCommand && !pidState.legacy && isRuntimeLogWatcherProcess(pidState.command)) {
+    return pidState.command;
+  }
+  return undefined;
+}
+
+function waitForProcessExit(pid: number, timeoutMs: number): boolean {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true;
+    }
+    sleepSync(50);
+  }
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function sleepSync(ms: number): void {
+  const buffer = new SharedArrayBuffer(4);
+  Atomics.wait(new Int32Array(buffer), 0, 0, ms);
+}
+
+function waitForSpawnError(child: ChildProcess): Promise<Error | undefined> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (error?: Error): void => {
+      if (done) {
+        return;
+      }
+      done = true;
+      child.off('error', finish);
+      resolve(error);
+    };
+    child.once('error', finish);
+    setTimeout(() => finish(), 50);
+  });
+}
+
+function formatRuntimeLogWatchCommand(buildResult: RemoteBuildResult): {
+  command: string;
+  args: string[];
+  text: string;
+} {
+  const args = [
+    resolveMakerCliEntry(),
+    'logs',
+    'watch',
+    '--target-dir',
+    buildResult.projectRoot,
+    '--reset',
+    '--interval',
+    '5s',
+    '--env',
+    buildResult.env,
+    '--server-url',
+    buildResult.serverUrl,
+  ];
+  return {
+    command: process.execPath,
+    args,
+    text: formatLocalShellCommand([process.execPath, ...args]),
+  };
+}
+
+function resolveMakerCliEntry(): string {
+  return process.argv[1] || path.resolve(process.cwd(), 'dist', 'maker.js');
+}
+
+function getRuntimeLogFilePath(projectRoot: string): string {
+  return path.join(projectRoot, '.maker', 'logs', 'runtime', 'runtime.log');
+}
+
+async function refreshMakerPreview(buildResult: RemoteBuildResult): Promise<PreviewRefreshResult> {
+  const makerEnv =
+    buildResult.env === 'rnd' || buildResult.env === 'production' ? buildResult.env : undefined;
+  const apiBase = requireMakerEndpoint('apiBase', getMakerEndpoints(makerEnv).apiBase, makerEnv);
+  const url = `${apiBase.replace(/\/$/, '')}/apps/${encodeURIComponent(
+    buildResult.projectId
+  )}/preview-refresh`;
+  const pat = loadPat();
+  if (!pat?.token) {
+    return {
+      ok: false,
+      status: 0,
+      url,
+      error: 'Maker PAT not found. Run taptap-maker pat set and paste a Maker PAT first.',
+    };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, PREVIEW_REFRESH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${pat.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+      signal: controller.signal,
+    });
+    const responseText = await response.text();
+    return {
+      ok: response.ok,
+      status: response.status,
+      url,
+      ...(responseText ? { responseText: responseText.slice(0, 2000) } : {}),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      url,
+      error:
+        error instanceof Error && error.name === 'AbortError'
+          ? `preview refresh timed out after ${PREVIEW_REFRESH_TIMEOUT_MS}ms`
+          : error instanceof Error
+            ? error.message
+            : String(error),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function callRemoteRuntimeLogs(
+  proxy: RemoteProxyContext,
+  args: RuntimeLogQueryArgs,
+  timeoutMs = 60 * 1000
+): Promise<RuntimeLogQueryResult> {
+  const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
+
+  try {
+    return await runtimeLogClient.call(args);
+  } finally {
+    await runtimeLogClient.close();
+  }
+}
+
+export function createRemoteRuntimeLogClient(
+  proxy: RemoteProxyContext,
+  timeoutMs = 60 * 1000,
+  options: {
+    createTransport?: () => Transport;
+    createClient?: () => RuntimeLogMcpClient;
+  } = {}
+): RemoteRuntimeLogClient {
+  let client: RuntimeLogMcpClient | undefined;
+
+  const createTransport =
+    options.createTransport ||
+    (() =>
+      new HiddenStdioClientTransport({
+        command: proxy.command,
+        args: proxy.args,
+        env: mergeStringEnv(process.env, proxy.envVars),
+        stderr: 'pipe',
+      }));
+  const createClient =
+    options.createClient ||
+    (() =>
+      new Client(
+        {
+          name: 'taptap-maker-runtime-log-forwarder',
+          version: VERSION,
+        },
+        {
+          capabilities: {},
+        }
+      ));
+
+  const ensureClient = async (): Promise<RuntimeLogMcpClient> => {
+    if (client) {
+      return client;
+    }
+    const nextClient = createClient();
+    await nextClient.connect(createTransport());
+    client = nextClient;
+    return nextClient;
+  };
+
+  const close = async (): Promise<void> => {
+    const activeClient = client;
+    client = undefined;
+    if (activeClient) {
+      await activeClient.close();
+    }
+  };
+
+  return {
+    call: async (args): Promise<RuntimeLogQueryResult> => {
+      const activeClient = await ensureClient();
+      let result: unknown;
+      try {
+        result = await activeClient.callTool(
+          {
+            name: 'query_runtime_logs',
+            arguments: { ...args },
+          },
+          undefined,
+          {
+            timeout: timeoutMs,
+          }
+        );
+      } catch (error) {
+        await close();
+        throw error;
+      }
+
+      try {
+        return normalizeRuntimeLogQueryResult(result);
+      } catch (error) {
+        const rawPath = writeRuntimeLogRawResponse(proxy.projectRoot, result);
+        throw new Error(
+          [
+            error instanceof Error ? error.message : String(error),
+            `Raw query_runtime_logs response saved to ${rawPath}`,
+          ].join(' ')
+        );
+      }
+    },
+    close,
+  };
+}
+
+export type RemoteProxyContext = ReturnType<typeof createRemoteProxyContext>;
 
 type PushThenBuildCurrentDirectoryResult = {
   targetDir: string;
@@ -1374,6 +2057,32 @@ export function formatBuildResult(
   result: BuildCurrentDirectoryResult,
   progressSummary: ToolProgressSummary
 ): string {
+  if (result.mode === 'remote_build_failed') {
+    return [
+      '✗ Remote Maker build failed',
+      '',
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      `- maker_url: ${
+        result.buildResult.makerUrl ||
+        formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
+      }`,
+      `- project_path: ${result.buildResult.projectPath}`,
+      `- server_url: ${result.buildResult.serverUrl}`,
+      `- env: ${result.buildResult.env}`,
+      `- timeout_ms: ${result.buildResult.timeoutMs}`,
+      `- build_args: ${JSON.stringify(result.buildResult.buildArgs)}`,
+      ...formatProgressSummary(progressSummary),
+      '',
+      ...formatMakerBuildFailureLines(result.buildFailure),
+      '',
+      'remote_result:',
+      indent(result.buildResult.resultText),
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
   if (result.mode === 'submit_failed_before_build') {
     return [
       result.submitResult.pushed
@@ -1463,7 +2172,10 @@ export function formatBuildResult(
   lines.push(
     `- timeout_ms: ${result.timeoutMs}`,
     `- build_args: ${JSON.stringify(result.buildArgs)}`,
+    ...formatPreviewRefreshLines(result.previewRefresh),
     ...formatProgressSummary(progressSummary),
+    '',
+    ...formatRuntimeLogWatchNextActionLines(result),
     ''
   );
   if (submitLines.length > 0) {
@@ -1518,6 +2230,7 @@ export function formatPushResult(
           `- env: ${result.buildResult.env}`,
           `- timeout_ms: ${result.buildResult.timeoutMs}`,
           `- build_args: ${JSON.stringify(result.buildResult.buildArgs)}`,
+          ...formatPreviewRefreshLines(result.buildResult.previewRefresh),
           '',
           'remote_result:',
           indent(result.buildResult.resultText),
@@ -1555,6 +2268,72 @@ export function formatPushResult(
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function formatPreviewRefreshLines(result?: PreviewRefreshResult): string[] {
+  if (!result) {
+    return ['- preview_refresh: (not attempted)'];
+  }
+
+  return [
+    `- preview_refresh: ${result.ok ? 'ok' : 'failed'}`,
+    `- preview_refresh_status: ${result.status}`,
+    result.url ? `- preview_refresh_url: ${result.url}` : '',
+    result.error ? `- preview_refresh_error: ${result.error}` : '',
+  ].filter(Boolean);
+}
+
+function formatRuntimeLogWatchNextActionLines(result: RemoteBuildResult): string[] {
+  const command = formatLocalShellCommand([
+    'taptap-maker',
+    'logs',
+    'watch',
+    '--target-dir',
+    result.projectRoot,
+    '--reset',
+    '--interval',
+    '5s',
+  ]);
+  return [
+    'runtime_logs:',
+    result.runtimeLogWatch
+      ? `- watch_started: ${result.runtimeLogWatch.started ? 'yes' : 'no'}`
+      : '- watch_started: (not attempted)',
+    result.runtimeLogWatch?.pid ? `- watch_pid: ${result.runtimeLogWatch.pid}` : '',
+    `- watch_command: ${command}`,
+    result.runtimeLogWatch?.command
+      ? `- actual_watch_command: ${result.runtimeLogWatch.command}`
+      : '',
+    `- local_file: ${path.join(result.projectRoot, '.maker', 'logs', 'runtime', 'runtime.log')}`,
+    result.runtimeLogWatch?.stdoutLog
+      ? `- watcher_stdout: ${result.runtimeLogWatch.stdoutLog}`
+      : '',
+    result.runtimeLogWatch?.stderrLog
+      ? `- watcher_stderr: ${result.runtimeLogWatch.stderrLog}`
+      : '',
+    result.runtimeLogWatch?.pidFile ? `- watcher_pid_file: ${result.runtimeLogWatch.pidFile}` : '',
+    `- state_file: ${path.join(result.projectRoot, '.maker', 'logs', 'runtime', 'state.json')}`,
+    result.runtimeLogWatch?.previousPid
+      ? `- previous_watch_pid: ${result.runtimeLogWatch.previousPid}`
+      : '',
+    result.runtimeLogWatch?.previousStopped !== undefined
+      ? `- previous_watch_stopped: ${result.runtimeLogWatch.previousStopped ? 'yes' : 'no'}`
+      : '',
+    result.runtimeLogWatch?.previousStopError
+      ? `- previous_watch_stop_error: ${result.runtimeLogWatch.previousStopError}`
+      : '',
+    result.runtimeLogWatch?.error ? `- watch_error: ${result.runtimeLogWatch.error}` : '',
+    result.runtimeLogWatch?.started
+      ? '- note: 构建成功后已启动本地 CLI watcher，正在清理历史日志并每 5 秒持续追加 Lua 运行日志。'
+      : '- note: 构建成功后应由本地 CLI watcher 清理历史日志，并每 5 秒持续追加 Lua 运行日志。',
+    '- next_action: 如需分析游戏运行结果或报错，请读取 runtime_logs.local_file；如需判断 watcher 是否正常，请读取 runtime_logs.state_file。',
+  ].filter(Boolean);
+}
+
+function formatLocalShellCommand(parts: string[]): string {
+  return parts
+    .map((part) => (/\s/.test(part) ? `"${part.replace(/(["\\$`])/g, '\\$1')}"` : part))
+    .join(' ');
 }
 
 function formatPushRecoveryLines(submitResult: PushMakerProjectResult): string[] {

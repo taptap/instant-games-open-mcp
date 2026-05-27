@@ -495,6 +495,14 @@ describe('Maker CLI commands', () => {
     );
   });
 
+  test('help documents the local runtime log watcher command', async () => {
+    await runMakerCli(['help']);
+
+    expect(stdoutSpy.mock.calls.join('')).toContain('taptap-maker logs watch');
+    expect(stdoutSpy.mock.calls.join('')).toContain('--interval 5s');
+    expect(stdoutSpy.mock.calls.join('')).toContain('--reset');
+  });
+
   test('mcp verify explains null status as local startup failure before Maker MCP starts', async () => {
     spawnSyncMock.mockReturnValueOnce({
       status: null,

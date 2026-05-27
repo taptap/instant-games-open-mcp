@@ -7,13 +7,32 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export const DEFAULT_AI_DEV_KIT_URL =
-  'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip';
+import { EnvConfig } from '../../core/utils/env.js';
+
+export const AI_DEV_KIT_URLS: Record<'production' | 'rnd', string> = {
+  production: 'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip',
+  rnd: 'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/rnd/latest/ai-dev-kit.zip',
+};
+
+export const DEFAULT_AI_DEV_KIT_URL = AI_DEV_KIT_URLS.production;
+
+/**
+ * Pick the AI dev kit download URL based on TAPTAP_MCP_ENV.
+ *
+ * - production (default) → pd/stable
+ * - rnd → rnd/latest
+ */
+export function resolveDefaultAiDevKitUrl(
+  environment: 'production' | 'rnd' = EnvConfig.environment
+): string {
+  return AI_DEV_KIT_URLS[environment] || AI_DEV_KIT_URLS.production;
+}
 
 const DEV_KIT_IGNORE_BEGIN = '# >>> TapTap Maker AI dev kit (local only) >>>';
 const DEV_KIT_IGNORE_END = '# <<< TapTap Maker AI dev kit (local only) <<<';
 export const DEV_KIT_GITIGNORE_STAGING_FILE = '.gitignore.dev-kit-before-clone';
 export const DEV_KIT_REQUIRED_ENTRIES = ['CLAUDE.md', 'examples', 'templates', 'urhox-libs'];
+const ALWAYS_IGNORED_LOCAL_ENTRIES = ['.DS_Store', '.maker'];
 export const DEV_KIT_MANAGED_ENTRY_CANDIDATES = [
   '.emmylua',
   'CLAUDE.md',
@@ -81,7 +100,7 @@ export async function installAiDevKit(
 
   const preparedSource = options.sourceDir
     ? path.resolve(options.sourceDir)
-    : await downloadAndExtractDevKit(options.url || DEFAULT_AI_DEV_KIT_URL);
+    : await downloadAndExtractDevKit(options.url || resolveDefaultAiDevKitUrl());
   const sourceDir = resolveDevKitRoot(preparedSource);
   const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
   const installedEntries: string[] = [];
@@ -113,7 +132,9 @@ export async function installAiDevKit(
 }
 
 export function createDevKitGitignoreBlock(entries: string[]): string {
-  const ignoreEntries = Array.from(new Set(['.DS_Store', ...entries.map(formatIgnoreEntry)]))
+  const ignoreEntries = Array.from(
+    new Set([...ALWAYS_IGNORED_LOCAL_ENTRIES, ...entries].map(formatIgnoreEntry))
+  )
     .filter(Boolean)
     .sort();
 
@@ -301,6 +322,9 @@ function looksLikeDevKitRoot(dir: string): boolean {
 }
 
 function formatIgnoreEntry(entry: string): string {
+  if (entry === '.DS_Store') {
+    return entry;
+  }
   return entry.endsWith('/') ? entry : fsSafeDirectoryPattern(entry);
 }
 

@@ -82,6 +82,8 @@ MCP 精简为开发循环里的高频能力：
 maker://status                  # Resource，读取本地 Maker 状态
 maker_status_lite               # Resource 不可用时的兼容 tool
 maker_build_current_directory   # commit/push/build 合并入口
+maker_pull_runtime_logs         # 单次拉取运行日志并落到本地固定路径
+taptap-maker logs watch         # CLI，构建成功后持续轮询运行日志
 ```
 
 `maker_build_current_directory` 同时覆盖“构建 / 预览 / 跑一下 / 验证一下 / 提交 / 推送”。
@@ -90,6 +92,23 @@ build。push 失败时不会继续 build，会返回本地 commit、ahead 状态
 交给本地 Agent/skill 处理 pull、rebase 或冲突；push 成功但 build 失败时，会明确说明代码已到
 Maker 远端但构建失败。只有用户明确说“不提交，只构建云端版本”时，才传
 `confirm_remote_build_without_submit=true`。
+
+构建成功并收到远端 build 返回后，Maker MCP 会主动调用当前环境的 Maker Web
+`/api/v1/apps/<APP_ID>/preview-refresh`，让 Web 端预览页刷新到最新构建。
+构建成功输出会同时给出本地 watcher 状态；MCP 在收到远端 build 返回后会启动本地
+`taptap-maker logs watch --target-dir <PROJECT_ROOT> --reset --interval 5s` detached 进程，
+由 CLI 清理历史日志并持续轮询。后续如果用户询问游戏运行结果、Lua 报错或调试问题，
+本地 AI Agent 应优先读取返回中的 `runtime_logs.local_file`；如需判断 watcher 是否正常，
+读取 `runtime_logs.state_file`。
+
+`maker_pull_runtime_logs` 只做固定的一次性业务流：调用远端 `query_runtime_logs`，默认只拉
+`user_script`（客户端 Lua 脚本）和 `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份
+`.maker/logs/runtime/runtime.log`，保持 server 日志行格式（`t/topic/level/msg/userId` 等），
+但去掉无用的 `id` 字段，也不再补 `time/message` 重复字段；`.maker/logs/runtime/state.json`
+保存下一次查询游标和 watcher 心跳状态，包括最近轮询时间、最近成功时间、最近写入条数、
+连续失败次数和最后错误。
+持续轮询和清理旧日志由 `taptap-maker logs watch --reset --interval 5s` 承担，不放进 MCP
+tool 长调用；远端返回 `hasMore=true` 时会立即继续拉取，否则每 5 秒轮询一次。
 
 `maker://status` 和 `maker_status_lite` 会在已绑定项目里检查 Maker 远端同步状态。
 如果远端有新提交，状态输出会区分本地工作区是否干净：干净时提示可先
@@ -114,7 +133,7 @@ Maker 现在同时内置三个工作流 skill：
 
 初始化流程里，PAT 验证通过、用户选择 app 后，`taptap-maker init` 会自动准备本地 AI dev kit。
 
-CLI 会下载 `https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip`，解压开发环境文档、引擎 API、demo 和本地 AI skills 到当前目录；会跳过 ZIP 里的顶层 `scripts` 目录并删除下载 ZIP，避免和 Maker 项目代码冲突。clone 前会先生成 `.gitignore.dev-kit-before-clone` 临时 block，clone 成功后自动合并到远端 `.gitignore`，防止这些本地开发环境文件被提交到 Maker Git。
+CLI 会根据 `TAPTAP_MCP_ENV` 自动选择下载源：`production`（默认）使用 `https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip`，`rnd` 使用 `https://urhox-demo-platform.spark.xd.com/ai-dev-kit/rnd/latest/ai-dev-kit.zip`，解压开发环境文档、引擎 API、demo 和本地 AI skills 到当前目录；会跳过 ZIP 里的顶层 `scripts` 目录并删除下载 ZIP，避免和 Maker 项目代码冲突。clone 前会先生成 `.gitignore.dev-kit-before-clone` 临时 block，clone 成功后自动合并到远端 `.gitignore`，防止这些本地开发环境文件和 `.maker/` 本地运行状态被提交到 Maker Git。
 
 `maker://status` 和 `maker_status_lite` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。Maker 操作目标是用户当前项目目录；若 MCP 进程 cwd 是临时对话目录，Agent 应把用户当前项目目录作为 `target_dir` 传入，不扫描其他项目。已绑定项目会检查 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/`，缺失时用 `taptap-maker dev-kit update` 恢复本地 AI dev kit 并刷新 `.gitignore` 管理块。
 
