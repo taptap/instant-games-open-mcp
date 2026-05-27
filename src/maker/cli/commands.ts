@@ -14,6 +14,12 @@ import { requestTapAuthWithPat } from '../auth/patTap.js';
 import { saveManualMakerPat } from '../git/pat.js';
 import { getMakerHome, getPatPath, getTapAuthPath, loadPat, loadTapAuth } from '../storage.js';
 import { identifyMakerProject } from '../server/identify.js';
+import {
+  callRemoteRuntimeLogs,
+  createRemoteProxyContext,
+  stopExistingRuntimeLogWatcher,
+} from '../server/mcp.js';
+import { watchRuntimeLogs } from '../server/runtimeLogs.js';
 import { cloneMakerProject, listMakerProjects, type MakerProjectProgress } from './projects.js';
 import type { MakerProjectSummary } from '../types.js';
 import {
@@ -34,13 +40,14 @@ import { formatMakerSkillStatus } from './skill.js';
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const DEFAULT_PACKAGE = '@taptap/instant-games-open-mcp';
-const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit']);
+const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit', 'logs']);
 const BOOLEAN_OPTIONS = new Set([
   'json',
   'skip_confirm',
   'skip_mcp_install',
   'pat_stdin',
   'pat_from_stdin',
+  'reset',
   'all',
   'h',
   'help',
@@ -100,6 +107,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'dev-kit' && subcommand === 'update') {
     await runDevKitUpdate(parsed, ctx);
+    return;
+  }
+
+  if (command === 'logs' && subcommand === 'watch') {
+    await runLogsWatch(parsed, ctx);
     return;
   }
 
@@ -476,6 +488,104 @@ async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
   });
   finalizeStagedDevKitGitignore(targetDir);
   emit(ctx, 'dev_kit', 'AI dev kit updated', result);
+}
+
+async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
+  const intervalMs = parseDurationMs(stringOption(parsed, 'interval') || '5s');
+  const timeoutMs = numberOption(parsed, 'timeout_ms') ?? 60 * 1000;
+  const maxPolls = numberOption(parsed, 'max_polls');
+  const maxConsecutiveFailures = numberOption(parsed, 'max_consecutive_failures');
+  const proxy = createRemoteProxyContext({
+    targetDir,
+    serverUrl: stringOption(parsed, 'server_url'),
+    env: makerEnvOption(parsed),
+  });
+  const runtimeDir = path.join(proxy.projectRoot, '.maker', 'logs', 'runtime');
+  const runtimeLog = path.join(runtimeDir, 'runtime.log');
+  const pidFile = path.join(runtimeDir, 'watcher.pid');
+  const replacedWatcher = registerRuntimeLogWatcherProcess(pidFile);
+
+  emit(ctx, 'logs_watch_start', 'Maker runtime log watcher started', {
+    project_root: proxy.projectRoot,
+    project_id: proxy.projectId,
+    runtime_log: runtimeLog,
+    pid_file: pidFile,
+    pid: process.pid,
+    ...replacedWatcher,
+    reset: booleanOption(parsed, 'reset'),
+    interval_ms: intervalMs,
+    topics: ['user_script', 'server_user_script'],
+  });
+
+  const result = await watchRuntimeLogs({
+    projectRoot: proxy.projectRoot,
+    projectId: proxy.projectId,
+    reset: booleanOption(parsed, 'reset'),
+    intervalMs,
+    limit: numberOption(parsed, 'limit'),
+    maxPolls,
+    maxConsecutiveFailures,
+    callRemoteRuntimeLogs: (args) => callRemoteRuntimeLogs(proxy, args, timeoutMs),
+    onPoll: (pullResult) => {
+      emit(ctx, 'logs_poll', `Maker runtime logs pulled: ${pullResult.writtenLogs}`, {
+        written_logs: pullResult.writtenLogs,
+        has_more: pullResult.hasMore,
+        next_start_time: pullResult.nextStartTime,
+        files: pullResult.files,
+      });
+    },
+    onError: (error, consecutiveFailures) => {
+      emit(ctx, 'logs_poll_error', 'Maker runtime log poll failed; watcher will retry', {
+        consecutive_failures: consecutiveFailures,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    },
+  });
+
+  emit(ctx, 'logs_watch_stop', 'Maker runtime log watcher stopped', result);
+}
+
+function registerRuntimeLogWatcherProcess(pidFile: string): {
+  previousPid?: number;
+  previousStopped?: boolean;
+  previousStopError?: string;
+} {
+  fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+  const existingPid = readPidFile(pidFile);
+  const previous =
+    existingPid && existingPid !== process.pid ? stopExistingRuntimeLogWatcher(pidFile) : {};
+  fs.writeFileSync(pidFile, `${process.pid}\n`, 'utf8');
+  installRuntimeLogWatcherPidCleanup(pidFile);
+  return previous;
+}
+
+function readPidFile(pidFile: string): number | undefined {
+  if (!fs.existsSync(pidFile)) {
+    return undefined;
+  }
+  const pid = Number(fs.readFileSync(pidFile, 'utf8').trim());
+  return Number.isInteger(pid) && pid > 0 ? pid : undefined;
+}
+
+function installRuntimeLogWatcherPidCleanup(pidFile: string): void {
+  let cleaned = false;
+  const cleanup = (): void => {
+    if (cleaned) {
+      return;
+    }
+    cleaned = true;
+    if (readPidFile(pidFile) === process.pid) {
+      fs.rmSync(pidFile, { force: true });
+    }
+  };
+  process.once('exit', cleanup);
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.once(signal, () => {
+      cleanup();
+      process.exit(0);
+    });
+  }
 }
 
 async function resolvePat(parsed: ParsedArgs, ctx: CliContext): Promise<string> {
@@ -969,7 +1079,8 @@ function isKnownSubcommand(command: string, subcommand: string): boolean {
   return (
     (command === 'pat' && subcommand === 'set') ||
     (command === 'mcp' && (subcommand === 'install' || subcommand === 'verify')) ||
-    (command === 'dev-kit' && subcommand === 'update')
+    (command === 'dev-kit' && subcommand === 'update') ||
+    (command === 'logs' && subcommand === 'watch')
   );
 }
 
@@ -980,6 +1091,28 @@ function stringOption(parsed: ParsedArgs, key: string): string | undefined {
 
 function booleanOption(parsed: ParsedArgs, key: string): boolean {
   return parsed.options[key] === true || parsed.options[key] === 'true';
+}
+
+function numberOption(parsed: ParsedArgs, key: string): number | undefined {
+  const value = parsed.options[key];
+  if (value === undefined || value === true || value === false) {
+    return undefined;
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw new Error(`Invalid --${key.replace(/_/g, '-')} value: ${value}`);
+  }
+  return number;
+}
+
+function parseDurationMs(value: string): number {
+  const match = /^(\d+(?:\.\d+)?)(ms|s)?$/.exec(value.trim());
+  if (!match) {
+    throw new Error('Invalid --interval value. Use seconds, or suffix with s/ms.');
+  }
+  const amount = Number(match[1]);
+  const unit = match[2] || 's';
+  return unit === 's' ? amount * 1000 : amount;
 }
 
 function makerEnvOption(parsed: ParsedArgs): MakerEnvironment {
@@ -1055,6 +1188,7 @@ function printHelp(): void {
       '  taptap-maker mcp verify [--package @taptap/instant-games-open-mcp]',
       '                           [--mode npx|self] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
+      '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
       'MCP verify defaults to the npx command written into AI client config.',
       'Advanced: init and mcp install accept --package only when testing a different npm package.',

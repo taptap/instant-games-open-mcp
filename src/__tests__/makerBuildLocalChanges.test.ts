@@ -15,6 +15,7 @@ import {
   formatPushResult,
   pushThenBuildCurrentDirectory,
   resources,
+  stopExistingRuntimeLogWatcher,
   tools,
 } from '../maker/server/mcp';
 import {
@@ -575,7 +576,11 @@ describe('maker build local-change guard', () => {
   test('exposes only the compact Maker tool set', () => {
     const toolNames = tools.map((item) => item.name);
 
-    expect(toolNames).toEqual(['maker_status_lite', 'maker_build_current_directory']);
+    expect(toolNames).toEqual([
+      'maker_status_lite',
+      'maker_build_current_directory',
+      'maker_pull_runtime_logs',
+    ]);
     expect(resources.map((item) => item.uri)).toEqual(['maker://status']);
     expect(toolNames).not.toContain('maker_exchange_pat');
     expect(toolNames).not.toContain('maker_list_apps');
@@ -637,6 +642,20 @@ describe('maker build local-change guard', () => {
     expect(buildTool?.inputSchema.properties).not.toHaveProperty(
       'submit_local_changes_before_build'
     );
+  });
+
+  test('runtime log pull tool keeps MCP surface to a fixed one-shot business flow', () => {
+    const logTool = tools.find((item) => item.name === 'maker_pull_runtime_logs');
+
+    expect(logTool?.description).toContain('one-shot');
+    expect(logTool?.description).toContain('does not start a watcher');
+    expect(logTool?.description).toContain('user_script/server_user_script');
+    expect(logTool?.description).toContain('runtime.log');
+    expect(logTool?.inputSchema.properties).toHaveProperty('since_seconds');
+    expect(logTool?.inputSchema.properties).toHaveProperty('start_time');
+    expect(logTool?.inputSchema.properties).not.toHaveProperty('topics');
+    expect(logTool?.inputSchema.properties).not.toHaveProperty('watch');
+    expect(logTool?.inputSchema.properties).not.toHaveProperty('interval_seconds');
   });
 
   test('public Maker tool schemas do not expose JWT fallback parameters', () => {
@@ -784,6 +803,12 @@ describe('maker build local-change guard', () => {
         timeoutMs: 600000,
         buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
         resultText: 'build ok',
+        runtimeLogWatch: {
+          started: true,
+          command: 'node maker.js logs watch --reset --interval 5s',
+          runtimeLog: path.join(tempDir, '.maker', 'logs', 'runtime', 'runtime.log'),
+          pid: 12345,
+        },
       },
       {
         elapsedMs: 1000,
@@ -795,6 +820,12 @@ describe('maker build local-change guard', () => {
     expect(output).toContain(
       '- maker_url: https://maker.taptap.cn/app/a161a4e5-a226-4133-908f-c28c228b7ea5'
     );
+    expect(output).toContain('runtime_logs:');
+    expect(output).toContain('- watch_started: yes');
+    expect(output).toContain('- watch_pid: 12345');
+    expect(output).toContain('taptap-maker logs watch');
+    expect(output).toContain('--reset');
+    expect(output).toContain('--interval 5s');
   });
 
   test('submit tool pushes and then runs remote build', async () => {
@@ -1005,6 +1036,97 @@ describe('maker build local-change guard', () => {
     expect('buildFailure' in result ? result.buildFailure.message : undefined).toBe(
       'remote build failed'
     );
+  });
+
+  test('remote build refreshes Maker web preview after a build result is returned', async () => {
+    const refreshedProjects: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      callRemoteBuild: async () => ({
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: {},
+        resultText: 'build ok',
+      }),
+      refreshPreview: async (buildResult) => {
+        refreshedProjects.push(buildResult.projectId);
+        return {
+          ok: true,
+          status: 200,
+          url: 'https://fuping.agnt.xd.com/api/v1/apps/app-1/preview-refresh',
+        };
+      },
+    });
+
+    expect(refreshedProjects).toEqual(['app-1']);
+    expect(result.mode).toBe('remote_build');
+    expect('previewRefresh' in result ? result.previewRefresh?.ok : undefined).toBe(true);
+  });
+
+  test('remote build starts local runtime log watcher after a successful build result', async () => {
+    const startedProjects: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      callRemoteBuild: async () => ({
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: {},
+        resultText: 'build ok',
+      }),
+      refreshPreview: async () => ({
+        ok: true,
+        status: 200,
+        url: 'https://fuping.agnt.xd.com/api/v1/apps/app-1/preview-refresh',
+      }),
+      startRuntimeLogWatch: async (buildResult) => {
+        startedProjects.push(buildResult.projectId);
+        return {
+          started: true,
+          command: 'node dist/maker.js logs watch --reset --interval 5s',
+          runtimeLog: path.join(
+            buildResult.projectRoot,
+            '.maker',
+            'logs',
+            'runtime',
+            'runtime.log'
+          ),
+          pid: 12345,
+        };
+      },
+    });
+
+    expect(startedProjects).toEqual(['app-1']);
+    expect(result.mode).toBe('remote_build');
+    expect('runtimeLogWatch' in result ? result.runtimeLogWatch?.started : undefined).toBe(true);
+  });
+
+  test('runtime log watcher startup stops an existing watcher from pid file first', () => {
+    const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+    fs.writeFileSync(pidFile, '12345\n', 'utf8');
+    const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
+
+    try {
+      const result = stopExistingRuntimeLogWatcher(pidFile);
+
+      expect(result).toEqual({ previousPid: 12345, previousStopped: true });
+      expect(killSpy).toHaveBeenNthCalledWith(1, 12345, 0);
+      expect(killSpy).toHaveBeenNthCalledWith(2, 12345, 'SIGTERM');
+    } finally {
+      killSpy.mockRestore();
+    }
   });
 
   function runGit(args: string[], cwd = tempDir): void {

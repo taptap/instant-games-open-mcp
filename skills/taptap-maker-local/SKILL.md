@@ -25,15 +25,18 @@ This skill covers:
 - push local commits
 - explain and resolve conflicts with user approval
 
-Build, submit, push, preview, and verify behavior belongs to the single Maker MCP build tool.
+Build, submit, push, preview, and verify behavior belongs to the single Maker MCP build tool. The
+post-build runtime log polling loop belongs to the local Maker CLI watcher.
 
 ## Responsibilities
 
 Keep this split clear:
 
 - Skill: user intent, step order, whether to ask the user, friendly explanations, failure recovery.
-- CLI: save PAT, fetch app list, prepare dev kit, clone, install MCP config, verify local setup.
-- MCP tools/resources: inspect Maker status and run the combined commit/push/build path.
+- CLI: save PAT, fetch app list, prepare dev kit, clone, install MCP config, verify local setup,
+  and run the local runtime log watcher.
+- MCP tools/resources: inspect Maker status, run the combined commit/push/build path, and support
+  one-shot runtime log pulls.
 
 Do not reimplement Maker API calls or Git authentication in shell when the Maker CLI or MCP tool
 exists.
@@ -48,7 +51,7 @@ exists.
 | submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                        |
 | pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                             |
 | conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing. |
-| build / preview / run / verify                            | Use `maker_build_current_directory`; it commits/pushes before build unless the user explicitly requests remote-only build.         |
+| build / preview / run / verify                            | Use `maker_build_current_directory`; it starts the local runtime log watcher after a successful remote build result.               |
 
 ## Project Detection
 
@@ -138,10 +141,14 @@ Maker project. If `CLAUDE.md`, `examples/`, `templates/`, or `urhox-libs/` are m
 `taptap-maker dev-kit update` to restore the dev kit without overwriting existing local files and
 refresh the managed `.gitignore` block.
 
-The CLI downloads and installs:
+The CLI downloads and installs (selected automatically by `TAPTAP_MCP_ENV`):
 
 ```text
+# production (default)
 https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip
+
+# rnd
+https://urhox-demo-platform.spark.xd.com/ai-dev-kit/rnd/latest/ai-dev-kit.zip
 ```
 
 After clone, use the bundled `taptap-maker-dev-kit-guide` skill to explain the installed dev-kit
@@ -375,6 +382,29 @@ If `maker_build_current_directory` returns a build failure after a successful pu
 
 - submit/push succeeded
 - build failed, with the concrete build error
+
+If `maker_build_current_directory` returns a successful remote build, check
+`runtime_logs.watch_started`. The MCP starts the local watcher as a detached CLI process. The
+standard command is:
+
+```bash
+taptap-maker logs watch --target-dir <PROJECT_ROOT> --reset --interval 5s
+```
+
+This CLI flow clears old local runtime logs before polling, then appends server-shaped rows to
+`.maker/logs/runtime/runtime.log`. Do not start a second watcher unless the first one failed to
+start.
+
+Watcher protection rules:
+
+- The watcher owns `.maker/logs/runtime/watcher.pid`; a new watcher replaces the old watcher for
+  the same project before writing logs.
+- Temporary poll failures are retried by default. Treat `logs_poll_error` as diagnostic output,
+  not as a final failure, unless the watcher exits.
+- If server cursor metadata lags behind returned log timestamps, the local cursor is advanced past
+  the newest written log. Local log writing appends server-returned rows as-is.
+- `.maker/logs/runtime/state.json` records heartbeat fields including `lastPollAt`,
+  `lastSuccessAt`, `lastWrittenLogs`, `consecutiveFailures`, and `lastError`.
 
 If submit created a local commit but push failed because the Maker remote was temporarily
 unavailable, do not run a manual generic `git push`. Fix the reported cause if needed, then retry
