@@ -145,10 +145,96 @@ describe('Maker CLI commands', () => {
     await runMakerCli(['mcp', 'install', '--ide', 'codex', '--env', 'rnd']);
 
     const text = fs.readFileSync(configPath, 'utf8');
+    expect(text.match(/\[mcp_servers\."taptap-maker"\]/g)).toHaveLength(1);
     expect(text.match(/\[mcp_servers\."taptap-maker"\.env\]/g)).toHaveLength(1);
     expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
     expect(text).toContain('[mcp_servers."other".env]');
     expect(text).toContain('KEEP = "yes"');
+  });
+
+  test('codex mcp install replaces existing bare server table and env subtable', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      [
+        'model = "gpt-5"',
+        '',
+        '[mcp_servers.taptap-maker]',
+        'command = "node"',
+        'args = ["/tmp/taptap-maker.js"]',
+        '',
+        '[mcp_servers.taptap-maker.env]',
+        'TAPTAP_MCP_VERBOSE = "true"',
+        '',
+        '[mcp_servers."other"]',
+        'command = "other"',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'codex', '--env', 'rnd']);
+
+    const text = fs.readFileSync(configPath, 'utf8');
+    expect(text).not.toContain('[mcp_servers.taptap-maker]');
+    expect(text).not.toContain('[mcp_servers.taptap-maker.env]');
+    expect(text.match(/\[mcp_servers\."taptap-maker"\]/g)).toHaveLength(1);
+    expect(text.match(/\[mcp_servers\."taptap-maker"\.env\]/g)).toHaveLength(1);
+    expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
+    expect(text).toContain('[mcp_servers."other"]');
+  });
+
+  test('codex mcp install repairs mixed bare and quoted duplicate server tables', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      [
+        'model = "gpt-5"',
+        '',
+        '[mcp_servers.taptap-maker]',
+        'command = "node"',
+        '',
+        '[mcp_servers.taptap-maker.env]',
+        'TAPTAP_MCP_VERBOSE = "true"',
+        '',
+        '[mcp_servers."other"]',
+        'command = "other"',
+        '',
+        '[mcp_servers."taptap-maker"]',
+        'command = "old-npx"',
+        '',
+        '[mcp_servers."taptap-maker".env]',
+        'TAPTAP_MCP_ENV = "production"',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'codex', '--env', 'rnd']);
+
+    const text = fs.readFileSync(configPath, 'utf8');
+    expect(text).not.toContain('[mcp_servers.taptap-maker]');
+    expect(text).not.toContain('[mcp_servers.taptap-maker.env]');
+    expect(text.match(/\[mcp_servers\."taptap-maker"\]/g)).toHaveLength(1);
+    expect(text.match(/\[mcp_servers\."taptap-maker"\.env\]/g)).toHaveLength(1);
+    expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
+    expect(text).toContain('[mcp_servers."other"]');
+  });
+
+  test('codex mcp install is idempotent when repeated', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'codex', '--env', 'rnd']);
+    const once = fs.readFileSync(configPath, 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'codex', '--env', 'rnd']);
+    const twice = fs.readFileSync(configPath, 'utf8');
+
+    expect(twice).toBe(once);
+    expect(twice.match(/\[mcp_servers\."taptap-maker"\]/g)).toHaveLength(1);
+    expect(twice.match(/\[mcp_servers\."taptap-maker"\.env\]/g)).toHaveLength(1);
   });
 
   test('mcp install continues with later IDEs when one IDE config fails', async () => {

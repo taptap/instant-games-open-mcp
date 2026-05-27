@@ -665,12 +665,9 @@ function mergeCodexMcpConfig(
   configPath: string,
   options: { env: MakerEnvironment; pkg: string; mcpName: string }
 ): void {
-  backupIfExists(configPath);
+  const backupPath = backupIfExists(configPath);
   const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
-  const sectionPattern = new RegExp(
-    `\\n?\\[mcp_servers\\."${escapeRegExp(options.mcpName)}"(?:\\.[^\\]]+)?\\][\\s\\S]*?(?=\\n\\[(?!mcp_servers\\."${escapeRegExp(options.mcpName)}"(?:\\.|\\]))|$)`,
-    'g'
-  );
+  const sectionPattern = createCodexMcpSectionPattern(options.mcpName);
   const withoutOld = existing.replace(sectionPattern, '').trimEnd();
   const command = getNpxCommand();
   const section = [
@@ -684,6 +681,60 @@ function mergeCodexMcpConfig(
   ].join('\n');
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
   fs.writeFileSync(configPath, [withoutOld, section].filter(Boolean).join('\n\n'), 'utf8');
+  const updated = fs.readFileSync(configPath, 'utf8');
+  const duplicates = findCodexMcpTableDuplicates(updated, options.mcpName);
+  if (duplicates.length > 0) {
+    restoreBackup(configPath, backupPath);
+    throw new Error(
+      `Codex MCP config update would create duplicate table(s): ${duplicates.join(
+        ', '
+      )}. Restored previous config.`
+    );
+  }
+}
+
+function createCodexMcpSectionPattern(mcpName: string): RegExp {
+  const keyPattern = createCodexMcpKeyPattern(mcpName);
+  return new RegExp(
+    `\\n?\\[mcp_servers\\.${keyPattern}(?:\\.[^\\]]+)?\\][\\s\\S]*?(?=\\n\\[(?!mcp_servers\\.${keyPattern}(?:\\.|\\]))|$)`,
+    'g'
+  );
+}
+
+function createCodexMcpKeyPattern(mcpName: string): string {
+  const quotedKey = `"${escapeRegExp(mcpName)}"`;
+  if (!isTomlBareKey(mcpName)) {
+    return quotedKey;
+  }
+  return `(?:${quotedKey}|${escapeRegExp(mcpName)})`;
+}
+
+function findCodexMcpTableDuplicates(text: string, mcpName: string): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  const headerPattern = /^\s*\[([^\]]+)\]\s*$/gm;
+  let match: RegExpExecArray | null;
+  while ((match = headerPattern.exec(text)) !== null) {
+    const normalized = normalizeCodexMcpTablePath(match[1], mcpName);
+    if (!normalized) {
+      continue;
+    }
+    if (seen.has(normalized)) {
+      duplicates.add(normalized);
+      continue;
+    }
+    seen.add(normalized);
+  }
+  return Array.from(duplicates);
+}
+
+function normalizeCodexMcpTablePath(tablePath: string, mcpName: string): string | undefined {
+  const keyPattern = createCodexMcpKeyPattern(mcpName);
+  const match = new RegExp(`^mcp_servers\\.${keyPattern}(\\..+)?$`).exec(tablePath);
+  if (!match) {
+    return undefined;
+  }
+  return `mcp_servers.${mcpName}${match[1] || ''}`;
 }
 
 function tryClaudeMcpAdd(options: { env: MakerEnvironment; pkg: string; mcpName: string }): {
@@ -757,12 +808,22 @@ function asObject(value: unknown): Record<string, unknown> {
   return {};
 }
 
-function backupIfExists(filePath: string): void {
+function backupIfExists(filePath: string): string | undefined {
   if (!fs.existsSync(filePath)) {
-    return;
+    return undefined;
   }
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '');
-  fs.copyFileSync(filePath, `${filePath}.bak.${stamp}`);
+  const backupPath = `${filePath}.bak.${stamp}`;
+  fs.copyFileSync(filePath, backupPath);
+  return backupPath;
+}
+
+function restoreBackup(filePath: string, backupPath: string | undefined): void {
+  if (backupPath) {
+    fs.copyFileSync(backupPath, filePath);
+    return;
+  }
+  fs.rmSync(filePath, { force: true });
 }
 
 function saveInitState(targetDir: string, state: Record<string, unknown>): void {
@@ -957,6 +1018,10 @@ function escapeRegExp(value: string): string {
 
 function escapeToml(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function isTomlBareKey(value: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(value);
 }
 
 function indent(value: string): string {
