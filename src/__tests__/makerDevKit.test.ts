@@ -96,6 +96,14 @@ describe('Maker AI dev kit install', () => {
     ]);
   });
 
+  test('keeps .DS_Store ignored as a file pattern while .maker remains a directory', () => {
+    const block = createDevKitGitignoreBlock(['examples']);
+
+    expect(block).toContain('\n.DS_Store\n');
+    expect(block).toContain('\n.maker/\n');
+    expect(block).not.toContain('.DS_Store/');
+  });
+
   test('restores missing dev kit files without overwriting existing local files', async () => {
     fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(path.join(targetDir, 'CLAUDE.md'), 'user edits\n', 'utf8');

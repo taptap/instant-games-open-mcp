@@ -150,6 +150,13 @@ export async function watchRuntimeLogs(options: {
         error,
       });
       await options.onError?.(error, consecutiveFailures);
+      if (isNonRetryableRuntimeLogError(error)) {
+        throw new Error(
+          `runtime log watch stopped after non-retryable failure: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+      }
       if (maxConsecutiveFailures !== undefined && consecutiveFailures >= maxConsecutiveFailures) {
         throw new Error(
           `runtime log watch stopped after ${consecutiveFailures} consecutive failures: ${
@@ -174,9 +181,9 @@ export async function pullRuntimeLogs(options: {
 }): Promise<RuntimeLogPullResult> {
   const nowMs = options.nowMs || Date.now;
   const state = readRuntimeLogState(options.projectRoot);
+  const nowSeconds = nowMs() / 1000;
   const stateFresh =
-    state?.nextStartTime !== undefined &&
-    nowMs() / 1000 - state.nextStartTime <= MAX_RUNTIME_LOG_WINDOW_SECONDS;
+    state?.nextStartTime !== undefined && isFreshRuntimeLogCursor(state.nextStartTime, nowSeconds);
   const queryArgs: RuntimeLogQueryArgs = {};
   let cursorExpired = false;
 
@@ -186,7 +193,7 @@ export async function pullRuntimeLogs(options: {
     queryArgs.startTime = state.nextStartTime;
   } else {
     cursorExpired = Boolean(state?.nextStartTime);
-    queryArgs.sinceSeconds = options.sinceSeconds || DEFAULT_RUNTIME_LOG_SINCE_SECONDS;
+    queryArgs.sinceSeconds = options.sinceSeconds ?? DEFAULT_RUNTIME_LOG_SINCE_SECONDS;
   }
 
   queryArgs.topics =
@@ -331,7 +338,9 @@ function appendRuntimeLogs(
 function writeRuntimeLogState(projectRoot: string, state: RuntimeLogState): void {
   const statePath = getRuntimeLogStatePath(projectRoot);
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+  const tempPath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tempPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+  fs.renameSync(tempPath, statePath);
 }
 
 function writeRuntimeLogFailureState(
@@ -359,6 +368,22 @@ function isRuntimeLogState(state: Partial<RuntimeLogState>): boolean {
     typeof state.lastPollAt === 'string' ||
     typeof state.lastSuccessAt === 'string'
   );
+}
+
+function isFreshRuntimeLogCursor(nextStartTime: number, nowSeconds: number): boolean {
+  if (!Number.isFinite(nextStartTime) || nextStartTime <= 0) {
+    return false;
+  }
+  if (nextStartTime > 10_000_000_000) {
+    return false;
+  }
+  const ageSeconds = nowSeconds - nextStartTime;
+  return ageSeconds >= -300 && ageSeconds <= MAX_RUNTIME_LOG_WINDOW_SECONDS;
+}
+
+function isNonRetryableRuntimeLogError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /\b(401|403)\b|unauthori[sz]ed|forbidden|pat expired|auth/i.test(message);
 }
 
 function getRuntimeLogDir(projectRoot: string): string {
@@ -400,29 +425,40 @@ function extractRemoteToolPayload(result: unknown): unknown {
     return structuredContent;
   }
 
-  const text = extractRemoteToolText(result);
-  if (!text) {
+  const textItems = extractRemoteToolTextItems(result);
+  if (textItems.length === 0) {
     return result;
   }
 
+  for (const textItem of textItems) {
+    const payload = parseRuntimeLogTextPayload(textItem);
+    if (payload) {
+      return payload;
+    }
+  }
+  const text = textItems.join('\n');
+  return parseRuntimeLogTextPayload(text) || text;
+}
+
+function parseRuntimeLogTextPayload(text: string): unknown | null {
   try {
     return JSON.parse(text);
   } catch {
-    return parseRuntimeLogNdjson(text) || text;
+    return parseRuntimeLogNdjson(text);
   }
 }
 
-function extractRemoteToolText(result: unknown): string | undefined {
+function extractRemoteToolTextItems(result: unknown): string[] {
   if (!result || typeof result !== 'object') {
-    return undefined;
+    return [];
   }
 
   const content = (result as { content?: Array<{ type?: string; text?: string }> }).content;
-  const textItems =
+  return (
     content
       ?.filter((item) => item.type === 'text' && typeof item.text === 'string')
-      .map((item) => item.text as string) || [];
-  return textItems.length > 0 ? textItems.join('\n') : undefined;
+      .map((item) => item.text as string) || []
+  );
 }
 
 function parseRuntimeLogNdjson(text: string): RuntimeLogPayloadCandidate | null {
@@ -496,7 +532,10 @@ function isRuntimeLogMeta(value: unknown): boolean {
   return (
     Boolean(value) &&
     typeof value === 'object' &&
-    (value as RuntimeLogPayloadCandidate).type === 'meta'
+    (value as RuntimeLogPayloadCandidate).type === 'meta' &&
+    (value as RuntimeLogPayloadCandidate).success === true &&
+    (typeof (value as RuntimeLogPayloadCandidate).nextStartTime === 'number' ||
+      typeof (value as RuntimeLogPayloadCandidate).next_start_time === 'number')
   );
 }
 

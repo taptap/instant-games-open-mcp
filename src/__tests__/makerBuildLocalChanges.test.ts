@@ -1120,18 +1120,92 @@ describe('maker build local-change guard', () => {
     expect('runtimeLogWatch' in result ? result.runtimeLogWatch?.started : undefined).toBe(true);
   });
 
+  test('failed remote build text does not trigger preview refresh or runtime watcher', async () => {
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
+    const refreshedProjects: string[] = [];
+    const startedProjects: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges: async () => ({
+        branch: 'main',
+        committed: true,
+        commitHash: 'abc1234',
+        message: 'chore: update maker project',
+        pushed: true,
+        status: 'pushed',
+      }),
+      callRemoteBuild: async () => ({
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: {},
+        resultText: 'BUILD FAILED: lua syntax error',
+      }),
+      refreshPreview: async (buildResult) => {
+        refreshedProjects.push(buildResult.projectId);
+        return { ok: true, status: 200, url: 'preview-refresh' };
+      },
+      startRuntimeLogWatch: async (buildResult) => {
+        startedProjects.push(buildResult.projectId);
+        return { started: true, command: 'watch', runtimeLog: 'runtime.log' };
+      },
+    });
+
+    expect(result.mode).toBe('build_failed_after_submit');
+    expect('buildFailure' in result ? result.buildFailure.message : '').toContain('BUILD FAILED');
+    expect(refreshedProjects).toEqual([]);
+    expect(startedProjects).toEqual([]);
+  });
+
   test('runtime log watcher startup stops an existing watcher from pid file first', () => {
     const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
     fs.mkdirSync(path.dirname(pidFile), { recursive: true });
-    fs.writeFileSync(pidFile, '12345\n', 'utf8');
+    fs.writeFileSync(
+      pidFile,
+      JSON.stringify({ pid: 12345, command: 'node maker.js logs watch --target-dir game' }),
+      'utf8'
+    );
     const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
 
     try {
-      const result = stopExistingRuntimeLogWatcher(pidFile);
+      const result = stopExistingRuntimeLogWatcher(pidFile, {
+        getProcessCommand: () => 'node maker.js logs watch --target-dir game',
+        waitForExit: () => true,
+      });
 
       expect(result).toEqual({ previousPid: 12345, previousStopped: true });
       expect(killSpy).toHaveBeenNthCalledWith(1, 12345, 0);
       expect(killSpy).toHaveBeenNthCalledWith(2, 12345, 'SIGTERM');
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  test('runtime log watcher startup does not kill a reused pid with a mismatched command', () => {
+    const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+    fs.writeFileSync(
+      pidFile,
+      JSON.stringify({ pid: 12345, command: 'node maker.js logs watch --target-dir game' }),
+      'utf8'
+    );
+    const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
+
+    try {
+      const result = stopExistingRuntimeLogWatcher(pidFile, {
+        getProcessCommand: () => '/Applications/Editor.app/Contents/MacOS/editor',
+      });
+
+      expect(result.previousPid).toBe(12345);
+      expect(result.previousStopped).toBe(false);
+      expect(result.previousStopError).toContain('does not look like a Maker log watcher');
+      expect(killSpy).toHaveBeenCalledTimes(1);
+      expect(killSpy).toHaveBeenCalledWith(12345, 0);
     } finally {
       killSpy.mockRestore();
     }

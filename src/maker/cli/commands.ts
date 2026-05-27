@@ -555,7 +555,22 @@ function registerRuntimeLogWatcherProcess(pidFile: string): {
   const existingPid = readPidFile(pidFile);
   const previous =
     existingPid && existingPid !== process.pid ? stopExistingRuntimeLogWatcher(pidFile) : {};
-  fs.writeFileSync(pidFile, `${process.pid}\n`, 'utf8');
+  if (previous.previousStopError) {
+    throw new Error(previous.previousStopError);
+  }
+  fs.writeFileSync(
+    pidFile,
+    `${JSON.stringify(
+      {
+        pid: process.pid,
+        command: formatShellCommand([process.execPath, ...process.argv.slice(1)]),
+        startedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    )}\n`,
+    'utf8'
+  );
   installRuntimeLogWatcherPidCleanup(pidFile);
   return previous;
 }
@@ -564,7 +579,16 @@ function readPidFile(pidFile: string): number | undefined {
   if (!fs.existsSync(pidFile)) {
     return undefined;
   }
-  const pid = Number(fs.readFileSync(pidFile, 'utf8').trim());
+  const raw = fs.readFileSync(pidFile, 'utf8').trim();
+  let pid = Number(raw);
+  if (!Number.isInteger(pid) || pid <= 0) {
+    try {
+      const parsed = JSON.parse(raw) as { pid?: unknown };
+      pid = typeof parsed.pid === 'number' ? parsed.pid : Number.NaN;
+    } catch {
+      pid = Number.NaN;
+    }
+  }
   return Number.isInteger(pid) && pid > 0 ? pid : undefined;
 }
 

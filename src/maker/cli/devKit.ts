@@ -322,6 +322,9 @@ function looksLikeDevKitRoot(dir: string): boolean {
 }
 
 function formatIgnoreEntry(entry: string): string {
+  if (entry === '.DS_Store') {
+    return entry;
+  }
   return entry.endsWith('/') ? entry : fsSafeDirectoryPattern(entry);
 }
 

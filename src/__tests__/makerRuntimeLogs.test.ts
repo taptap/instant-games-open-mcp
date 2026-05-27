@@ -239,6 +239,55 @@ describe('maker runtime logs', () => {
     expect(remoteCalls).toEqual([{ startTime: 1710000100, topics: DEFAULT_RUNTIME_LOG_TOPICS }]);
   });
 
+  test('keeps explicit zero since window when saved cursor is missing', async () => {
+    const remoteCalls: RuntimeLogQueryArgs[] = [];
+
+    await pullRuntimeLogs({
+      projectRoot: tempDir,
+      sinceSeconds: 0,
+      callRemoteRuntimeLogs: async (args) => {
+        remoteCalls.push(args);
+        return {
+          logs: [],
+          nextStartTime: 1710000200,
+          serverTime: 1710000200,
+          hasMore: false,
+        };
+      },
+    });
+
+    expect(remoteCalls).toEqual([{ sinceSeconds: 0, topics: DEFAULT_RUNTIME_LOG_TOPICS }]);
+  });
+
+  test('ignores saved cursors that look like milliseconds or future timestamps', async () => {
+    const stateDir = path.join(tempDir, '.maker', 'logs', 'runtime');
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(stateDir, 'state.json'),
+      JSON.stringify({ nextStartTime: 1710000100000, updatedAt: '2026-05-27T00:00:00.000Z' }),
+      'utf8'
+    );
+    const remoteCalls: RuntimeLogQueryArgs[] = [];
+
+    await pullRuntimeLogs({
+      projectRoot: tempDir,
+      nowMs: () => 1710000200 * 1000,
+      callRemoteRuntimeLogs: async (args) => {
+        remoteCalls.push(args);
+        return {
+          logs: [],
+          nextStartTime: 1710000200,
+          serverTime: 1710000200,
+          hasMore: false,
+        };
+      },
+    });
+
+    expect(remoteCalls).toEqual([
+      { sinceSeconds: DEFAULT_RUNTIME_LOG_SINCE_SECONDS, topics: DEFAULT_RUNTIME_LOG_TOPICS },
+    ]);
+  });
+
   test('advances cursor past returned log timestamps when server cursor lags behind logs', async () => {
     await pullRuntimeLogs({
       projectRoot: tempDir,
@@ -457,6 +506,63 @@ describe('maker runtime logs', () => {
       serverTime: 1779861353,
       hasMore: false,
     });
+  });
+
+  test('normalizes JSON text block when another content block is a warning', () => {
+    const result = normalizeRuntimeLogQueryResult({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            logs: [{ t: 1779861350, topic: 'user_script', level: 'INFO', msg: 'ok' }],
+            nextStartTime: 1779861351,
+            serverTime: 1779861351,
+            hasMore: false,
+          }),
+        },
+        { type: 'text', text: 'warning: query truncated' },
+      ],
+    });
+
+    expect(result.logs).toHaveLength(1);
+    expect(result.nextStartTime).toBe(1779861351);
+  });
+
+  test('does not treat user log rows with type meta as pagination metadata', () => {
+    const result = normalizeRuntimeLogQueryResult({
+      content: [
+        {
+          type: 'text',
+          text: [
+            JSON.stringify({
+              t: 1779861350,
+              topic: 'user_script',
+              level: 'INFO',
+              type: 'meta',
+              msg: 'business meta log',
+            }),
+            JSON.stringify({
+              type: 'meta',
+              success: true,
+              nextStartTime: 1779861351,
+              serverTime: 1779861351,
+              truncated: false,
+            }),
+          ].join('\n'),
+        },
+      ],
+    });
+
+    expect(result.logs).toEqual([
+      {
+        t: 1779861350,
+        topic: 'user_script',
+        level: 'INFO',
+        type: 'meta',
+        msg: 'business meta log',
+      },
+    ]);
+    expect(result.nextStartTime).toBe(1779861351);
   });
 
   test('normalizes newline-delimited server log rows when server no longer sends id', () => {
@@ -693,6 +799,24 @@ describe('maker runtime logs', () => {
         },
       })
     ).rejects.toThrow('runtime log watch stopped after 3 consecutive failures');
+  });
+
+  test('watch stops immediately on auth failures instead of retrying forever', async () => {
+    await expect(
+      watchRuntimeLogs({
+        projectRoot: tempDir,
+        sleep: async () => {
+          throw new Error('should not sleep after auth failure');
+        },
+        callRemoteRuntimeLogs: async () => {
+          throw new Error('401 unauthorized: PAT expired');
+        },
+      })
+    ).rejects.toThrow('runtime log watch stopped after non-retryable failure');
+    expect(readRuntimeLogState(tempDir)).toMatchObject({
+      consecutiveFailures: 1,
+      lastError: '401 unauthorized: PAT expired',
+    });
   });
 
   test('reset runtime logs removes legacy split files and cursor state', () => {

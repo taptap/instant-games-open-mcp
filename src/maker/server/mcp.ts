@@ -2,7 +2,7 @@
  * taptap-maker MCP server mode.
  */
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -81,6 +81,9 @@ const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : '
 const DEFAULT_PROXY_MCP_NAME = 'taptap-proxy';
 const DEFAULT_PROXY_PACKAGE = '@taptap/instant-games-open-mcp@1.22.0';
 const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
+const PREVIEW_REFRESH_TIMEOUT_MS = 15 * 1000;
+const WATCHER_STOP_TIMEOUT_MS = 1500;
+const WATCHER_PROCESS_PATTERN = /\blogs\b.*\bwatch\b/;
 const LONG_OPERATION_HEARTBEAT_MS = 3 * 60 * 1000;
 
 class MakerCloneFailedError extends Error {
@@ -1159,6 +1162,15 @@ type RuntimeLogWatchStartResult = {
   previousStopError?: string;
   error?: string;
 };
+type RuntimeLogWatcherPidState = {
+  pid: number;
+  command?: string;
+  startedAt?: string;
+};
+type StopRuntimeLogWatcherOptions = {
+  getProcessCommand?: (pid: number) => string | undefined;
+  waitForExit?: (pid: number, timeoutMs: number) => boolean;
+};
 type StartRuntimeLogWatch = (buildResult: RemoteBuildResult) => Promise<RuntimeLogWatchStartResult>;
 
 function formatMakerAppWebUrl(projectId: string, env: string): string {
@@ -1281,7 +1293,7 @@ async function runRemoteBuildCurrentDirectory(
 ): Promise<RemoteBuildResult> {
   if (options.callRemoteBuild) {
     return attachBuildSuccessSideEffects(await options.callRemoteBuild(targetDir), {
-      refreshPreview: options.refreshPreview,
+      refreshPreview: options.refreshPreview || skipPreviewRefresh,
       startRuntimeLogWatch: options.startRuntimeLogWatch,
     });
   }
@@ -1332,6 +1344,10 @@ async function runRemoteBuildCurrentDirectory(
       }
     );
 
+    if (isRemoteToolError(result)) {
+      throw new Error(formatRemoteToolResult(result));
+    }
+
     return attachBuildSuccessSideEffects(
       {
         mode: 'remote_build',
@@ -1362,11 +1378,22 @@ async function attachBuildSuccessSideEffects(
     startRuntimeLogWatch?: StartRuntimeLogWatch;
   }
 ): Promise<RemoteBuildResult> {
+  if (isRemoteBuildFailureResult(buildResult)) {
+    throw new Error(buildResult.resultText);
+  }
   const withPreview = await attachPreviewRefresh(buildResult, options.refreshPreview);
   if (!options.startRuntimeLogWatch) {
     return withPreview;
   }
   return attachRuntimeLogWatch(withPreview, options.startRuntimeLogWatch);
+}
+
+function isRemoteToolError(result: unknown): boolean {
+  return Boolean(result && typeof result === 'object' && (result as { isError?: unknown }).isError);
+}
+
+function isRemoteBuildFailureResult(buildResult: RemoteBuildResult): boolean {
+  return /\bBUILD FAILED\b/i.test(buildResult.resultText);
 }
 
 async function attachPreviewRefresh(
@@ -1389,6 +1416,15 @@ async function attachPreviewRefresh(
       },
     };
   }
+}
+
+async function skipPreviewRefresh(buildResult: RemoteBuildResult): Promise<PreviewRefreshResult> {
+  return {
+    ok: false,
+    status: 0,
+    url: '',
+    error: `preview refresh skipped for injected remote build: ${buildResult.projectId}`,
+  };
 }
 
 async function attachRuntimeLogWatch(
@@ -1426,6 +1462,21 @@ async function startRuntimeLogWatch(
   const errFd = fs.openSync(stderrLog, 'a');
   const command = formatRuntimeLogWatchCommand(buildResult);
 
+  if (previous.previousStopError) {
+    fs.closeSync(outFd);
+    fs.closeSync(errFd);
+    return {
+      started: false,
+      command: command.text,
+      runtimeLog: getRuntimeLogFilePath(buildResult.projectRoot),
+      stdoutLog,
+      stderrLog,
+      pidFile,
+      ...previous,
+      error: previous.previousStopError,
+    };
+  }
+
   try {
     const child = spawn(command.command, command.args, {
       cwd: buildResult.projectRoot,
@@ -1433,9 +1484,26 @@ async function startRuntimeLogWatch(
       env: mergeStringEnv(process.env, { TAPTAP_MCP_ENV: buildResult.env }),
       stdio: ['ignore', outFd, errFd],
     });
+    const spawnError = await waitForSpawnError(child);
+    if (spawnError) {
+      return {
+        started: false,
+        command: command.text,
+        runtimeLog: getRuntimeLogFilePath(buildResult.projectRoot),
+        stdoutLog,
+        stderrLog,
+        pidFile,
+        ...previous,
+        error: spawnError.message,
+      };
+    }
     child.unref();
     if (child.pid) {
-      fs.writeFileSync(pidFile, `${child.pid}\n`, 'utf8');
+      writeRuntimeLogWatcherPidFile(pidFile, {
+        pid: child.pid,
+        command: command.text,
+        startedAt: new Date().toISOString(),
+      });
     }
     return {
       started: true,
@@ -1453,7 +1521,10 @@ async function startRuntimeLogWatch(
   }
 }
 
-export function stopExistingRuntimeLogWatcher(pidFile: string): {
+export function stopExistingRuntimeLogWatcher(
+  pidFile: string,
+  options: StopRuntimeLogWatcherOptions = {}
+): {
   previousPid?: number;
   previousStopped?: boolean;
   previousStopError?: string;
@@ -1462,8 +1533,8 @@ export function stopExistingRuntimeLogWatcher(pidFile: string): {
     return {};
   }
 
-  const raw = fs.readFileSync(pidFile, 'utf8').trim();
-  const pid = Number(raw);
+  const pidState = readRuntimeLogWatcherPidState(pidFile);
+  const pid = pidState?.pid;
   if (!Number.isInteger(pid) || pid <= 0) {
     fs.rmSync(pidFile, { force: true });
     return {};
@@ -1471,9 +1542,28 @@ export function stopExistingRuntimeLogWatcher(pidFile: string): {
 
   try {
     process.kill(pid, 0);
+    const processCommand = (options.getProcessCommand || getProcessCommand)(pid);
+    if (!isRuntimeLogWatcherProcess(processCommand)) {
+      fs.rmSync(pidFile, { force: true });
+      return {
+        previousPid: pid,
+        previousStopped: false,
+        previousStopError: processCommand
+          ? `process ${pid} does not look like a Maker log watcher: ${processCommand}`
+          : `process ${pid} could not be verified as a Maker log watcher`,
+      };
+    }
     process.kill(pid, 'SIGTERM');
-    fs.rmSync(pidFile, { force: true });
-    return { previousPid: pid, previousStopped: true };
+    const stopped = (options.waitForExit || waitForProcessExit)(pid, WATCHER_STOP_TIMEOUT_MS);
+    if (stopped) {
+      fs.rmSync(pidFile, { force: true });
+      return { previousPid: pid, previousStopped: true };
+    }
+    return {
+      previousPid: pid,
+      previousStopped: false,
+      previousStopError: `process ${pid} did not exit after SIGTERM within ${WATCHER_STOP_TIMEOUT_MS}ms`,
+    };
   } catch (error) {
     fs.rmSync(pidFile, { force: true });
     const code =
@@ -1489,6 +1579,81 @@ export function stopExistingRuntimeLogWatcher(pidFile: string): {
       previousStopError: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+function readRuntimeLogWatcherPidState(pidFile: string): RuntimeLogWatcherPidState | null {
+  const raw = fs.readFileSync(pidFile, 'utf8').trim();
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<RuntimeLogWatcherPidState>;
+    return typeof parsed.pid === 'number' ? (parsed as RuntimeLogWatcherPidState) : null;
+  } catch {
+    const pid = Number(raw);
+    return Number.isInteger(pid) && pid > 0 ? { pid } : null;
+  }
+}
+
+function writeRuntimeLogWatcherPidFile(pidFile: string, state: RuntimeLogWatcherPidState): void {
+  fs.writeFileSync(pidFile, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+}
+
+function getProcessCommand(pid: number): string | undefined {
+  if (process.platform === 'win32') {
+    return undefined;
+  }
+  try {
+    return execFileSync('ps', ['-p', String(pid), '-o', 'command='], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+function isRuntimeLogWatcherProcess(command: string | undefined): boolean {
+  return Boolean(command && WATCHER_PROCESS_PATTERN.test(command));
+}
+
+function waitForProcessExit(pid: number, timeoutMs: number): boolean {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true;
+    }
+    sleepSync(50);
+  }
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function sleepSync(ms: number): void {
+  const buffer = new SharedArrayBuffer(4);
+  Atomics.wait(new Int32Array(buffer), 0, 0, ms);
+}
+
+function waitForSpawnError(child: ChildProcess): Promise<Error | undefined> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (error?: Error): void => {
+      if (done) {
+        return;
+      }
+      done = true;
+      child.off('error', finish);
+      resolve(error);
+    };
+    child.once('error', finish);
+    setTimeout(() => finish(), 50);
+  });
 }
 
 function formatRuntimeLogWatchCommand(buildResult: RemoteBuildResult): {
@@ -1542,6 +1707,10 @@ async function refreshMakerPreview(buildResult: RemoteBuildResult): Promise<Prev
     };
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, PREVIEW_REFRESH_TIMEOUT_MS);
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -1550,6 +1719,7 @@ async function refreshMakerPreview(buildResult: RemoteBuildResult): Promise<Prev
         'Content-Type': 'application/json',
       },
       body: '{}',
+      signal: controller.signal,
     });
     const responseText = await response.text();
     return {
@@ -1563,8 +1733,15 @@ async function refreshMakerPreview(buildResult: RemoteBuildResult): Promise<Prev
       ok: false,
       status: 0,
       url,
-      error: error instanceof Error ? error.message : String(error),
+      error:
+        error instanceof Error && error.name === 'AbortError'
+          ? `preview refresh timed out after ${PREVIEW_REFRESH_TIMEOUT_MS}ms`
+          : error instanceof Error
+            ? error.message
+            : String(error),
     };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
