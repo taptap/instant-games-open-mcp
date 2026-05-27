@@ -1,3 +1,10 @@
+## <small>1.23.6 (2026-05-27)</small>
+
+* fix(maker): 修复 Codex MCP 配置重复键问题 (#194) ([93f6414](https://github.com/taptap/instant-games-open-mcp/commit/93f6414)), closes [#194](https://github.com/taptap/instant-games-open-mcp/issues/194)
+* fix(maker): 精简 app 列表展示并兼容旧分页参数 (#191) ([9cbd1ea](https://github.com/taptap/instant-games-open-mcp/commit/9cbd1ea)), closes [#191](https://github.com/taptap/instant-games-open-mcp/issues/191) [#188](https://github.com/taptap/instant-games-open-mcp/issues/188) [#188](https://github.com/taptap/instant-games-open-mcp/issues/188)
+
+
+
 ## <small>1.23.4 (2026-05-26)</small>
 
 * fix(maker): optimize Maker app list display and sync recovery ([3a98789](https://github.com/taptap/instant-games-open-mcp/commit/3a98789))
