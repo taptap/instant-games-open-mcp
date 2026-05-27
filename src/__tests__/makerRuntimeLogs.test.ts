@@ -747,6 +747,31 @@ describe('maker runtime logs', () => {
     expect(sleepCalls).toEqual([5000, 5000]);
   });
 
+  test('watch treats authority errors as retryable transient failures', async () => {
+    let attempts = 0;
+
+    const result = await watchRuntimeLogs({
+      projectRoot: tempDir,
+      maxPolls: 1,
+      sleep: async () => {},
+      callRemoteRuntimeLogs: async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new Error('temporary authority service unavailable');
+        }
+        return {
+          logs: [],
+          nextStartTime: 1710000001,
+          serverTime: 1710000001,
+          hasMore: false,
+        };
+      },
+    });
+
+    expect(result.polls).toBe(1);
+    expect(attempts).toBe(2);
+  });
+
   test('records failure heartbeat while retrying and clears it after success', async () => {
     const states: Array<ReturnType<typeof readRuntimeLogState>> = [];
     let attempts = 0;

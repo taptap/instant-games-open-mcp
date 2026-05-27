@@ -560,9 +560,6 @@ function registerRuntimeLogWatcherProcess(pidFile: string): {
   const existingPid = readPidFile(pidFile);
   const previous =
     existingPid && existingPid !== process.pid ? stopExistingRuntimeLogWatcher(pidFile) : {};
-  if (previous.previousStopError) {
-    throw new Error(previous.previousStopError);
-  }
   fs.writeFileSync(
     pidFile,
     `${JSON.stringify(

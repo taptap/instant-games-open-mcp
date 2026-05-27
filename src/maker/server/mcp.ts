@@ -85,7 +85,7 @@ const DEFAULT_PROXY_PACKAGE = '@taptap/instant-games-open-mcp@1.22.0';
 const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
 const PREVIEW_REFRESH_TIMEOUT_MS = 15 * 1000;
 const WATCHER_STOP_TIMEOUT_MS = 1500;
-const WATCHER_PROCESS_PATTERN = /\blogs\b.*\bwatch\b/;
+const WATCHER_PROCESS_PATTERN = /(?:\btaptap-maker\b|\bmaker\.js\b).*\blogs\b.*\bwatch\b/;
 const LONG_OPERATION_HEARTBEAT_MS = 3 * 60 * 1000;
 
 class MakerCloneFailedError extends Error {
@@ -1203,6 +1203,13 @@ type BuildCurrentDirectoryResult =
       submitResult?: PushMakerProjectResult;
     }
   | {
+      mode: 'remote_build_failed';
+      projectRoot: string;
+      projectId: string;
+      buildResult: RemoteBuildResult;
+      buildFailure: MakerBuildFailure;
+    }
+  | {
       mode: 'submit_failed_before_build';
       projectRoot: string;
       projectId: string;
@@ -1215,6 +1222,16 @@ type BuildCurrentDirectoryResult =
       submitResult: PushMakerProjectResult;
       buildFailure: MakerBuildFailure;
     };
+
+class RemoteBuildFailedError extends Error {
+  readonly buildResult: RemoteBuildResult;
+
+  constructor(buildResult: RemoteBuildResult) {
+    super(buildResult.resultText);
+    this.name = 'RemoteBuildFailedError';
+    this.buildResult = buildResult;
+  }
+}
 
 export async function buildCurrentDirectory(options: {
   targetDir: string;
@@ -1276,7 +1293,20 @@ export async function buildCurrentDirectory(options: {
     };
   }
 
-  return runRemoteBuildCurrentDirectory(options, options.targetDir);
+  try {
+    return await runRemoteBuildCurrentDirectory(options, options.targetDir);
+  } catch (error) {
+    if (error instanceof RemoteBuildFailedError) {
+      return {
+        mode: 'remote_build_failed',
+        projectRoot: error.buildResult.projectRoot,
+        projectId: error.buildResult.projectId,
+        buildResult: error.buildResult,
+        buildFailure: toMakerBuildFailure(error),
+      };
+    }
+    throw error;
+  }
 }
 
 async function runRemoteBuildCurrentDirectory(
@@ -1387,7 +1417,7 @@ async function attachBuildSuccessSideEffects(
   }
 ): Promise<RemoteBuildResult> {
   if (isRemoteBuildFailureResult(buildResult)) {
-    throw new Error(buildResult.resultText);
+    throw new RemoteBuildFailedError(buildResult);
   }
   const withPreview = await attachPreviewRefresh(buildResult, options.refreshPreview);
   if (!options.startRuntimeLogWatch) {
@@ -1506,14 +1536,25 @@ async function startRuntimeLogWatch(
         error: spawnError.message,
       };
     }
-    child.unref();
-    if (child.pid) {
-      writeRuntimeLogWatcherPidFile(pidFile, {
-        pid: child.pid,
+    if (!child.pid) {
+      return {
+        started: false,
         command: command.text,
-        startedAt: new Date().toISOString(),
-      });
+        runtimeLog: getRuntimeLogFilePath(buildResult.projectRoot),
+        stdoutLog,
+        stderrLog,
+        pidFile,
+        ...previous,
+        error: 'runtime log watcher process did not report a pid',
+      };
     }
+    child.once('error', () => undefined);
+    child.unref();
+    writeRuntimeLogWatcherPidFile(pidFile, {
+      pid: child.pid,
+      command: command.text,
+      startedAt: new Date().toISOString(),
+    });
     return {
       started: true,
       command: command.text,
@@ -2016,6 +2057,32 @@ export function formatBuildResult(
   result: BuildCurrentDirectoryResult,
   progressSummary: ToolProgressSummary
 ): string {
+  if (result.mode === 'remote_build_failed') {
+    return [
+      '✗ Remote Maker build failed',
+      '',
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      `- maker_url: ${
+        result.buildResult.makerUrl ||
+        formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
+      }`,
+      `- project_path: ${result.buildResult.projectPath}`,
+      `- server_url: ${result.buildResult.serverUrl}`,
+      `- env: ${result.buildResult.env}`,
+      `- timeout_ms: ${result.buildResult.timeoutMs}`,
+      `- build_args: ${JSON.stringify(result.buildResult.buildArgs)}`,
+      ...formatProgressSummary(progressSummary),
+      '',
+      ...formatMakerBuildFailureLines(result.buildFailure),
+      '',
+      'remote_result:',
+      indent(result.buildResult.resultText),
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
   if (result.mode === 'submit_failed_before_build') {
     return [
       result.submitResult.pushed

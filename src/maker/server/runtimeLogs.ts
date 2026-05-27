@@ -383,7 +383,9 @@ function isFreshRuntimeLogCursor(nextStartTime: number, nowSeconds: number): boo
 
 function isNonRetryableRuntimeLogError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /\b(401|403)\b|unauthori[sz]ed|forbidden|pat expired|auth/i.test(message);
+  return /\b(?:401|403|unauthori[sz]ed|forbidden|pat expired|auth(?:entication|orization)?)\b/i.test(
+    message
+  );
 }
 
 function getRuntimeLogDir(projectRoot: string): string {

@@ -1163,6 +1163,40 @@ describe('maker build local-change guard', () => {
     expect(startedProjects).toEqual([]);
   });
 
+  test('failed remote build text stays structured when no submit happened', async () => {
+    const refreshedProjects: string[] = [];
+    const startedProjects: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      callRemoteBuild: async () => ({
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: {},
+        resultText: 'BUILD FAILED: lua syntax error',
+      }),
+      refreshPreview: async (buildResult) => {
+        refreshedProjects.push(buildResult.projectId);
+        return { ok: true, status: 200, url: 'preview-refresh' };
+      },
+      startRuntimeLogWatch: async (buildResult) => {
+        startedProjects.push(buildResult.projectId);
+        return { started: true, command: 'watch', runtimeLog: 'runtime.log' };
+      },
+    });
+
+    expect(result.mode).toBe('remote_build_failed');
+    expect('buildFailure' in result ? result.buildFailure.message : '').toContain('BUILD FAILED');
+    expect('buildResult' in result ? result.buildResult.projectId : undefined).toBe('app-1');
+    expect(refreshedProjects).toEqual([]);
+    expect(startedProjects).toEqual([]);
+  });
+
   test('runtime log watcher startup stops an existing watcher from pid file first', () => {
     const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
     fs.mkdirSync(path.dirname(pidFile), { recursive: true });
@@ -1200,6 +1234,31 @@ describe('maker build local-change guard', () => {
     try {
       const result = stopExistingRuntimeLogWatcher(pidFile, {
         getProcessCommand: () => '/Applications/Editor.app/Contents/MacOS/editor',
+      });
+
+      expect(result.previousPid).toBe(12345);
+      expect(result.previousStopped).toBe(false);
+      expect(result.previousStopError).toContain('does not look like a Maker log watcher');
+      expect(killSpy).toHaveBeenCalledTimes(1);
+      expect(killSpy).toHaveBeenCalledWith(12345, 0);
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  test('runtime log watcher startup does not kill unrelated logs watch processes', () => {
+    const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+    fs.writeFileSync(
+      pidFile,
+      JSON.stringify({ pid: 12345, command: 'node maker.js logs watch --target-dir game' }),
+      'utf8'
+    );
+    const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
+
+    try {
+      const result = stopExistingRuntimeLogWatcher(pidFile, {
+        getProcessCommand: () => 'tail -f /var/logs/game/watch',
       });
 
       expect(result.previousPid).toBe(12345);
