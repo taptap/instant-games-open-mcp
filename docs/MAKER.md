@@ -97,7 +97,9 @@ CLI 命令：
 - `taptap-maker doctor`：检查 Git、PAT、TapTap token、项目绑定、dev-kit 和 MCP 配置状态。
 - `taptap-maker apps`：列出当前 PAT 可访问的 Maker app。
 - `taptap-maker pat set`：通过交互式 prompt 保存 PAT，并换取 TapTap token。
-- `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。
+- `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。Codex 配置写入
+  会同时清理 `[mcp_servers.taptap-maker]` 与 `[mcp_servers."taptap-maker"]`
+  两种 TOML 等价写法，重复运行或从旧配置升级时应保持幂等。
 - `taptap-maker mcp verify`：默认验证 AI 客户端 MCP 配置使用的 npx 包命令可启动；`--mode self` 只验证当前 CLI 二进制。验证失败时若出现 `failure_type` 或 `status: null`，表示本地启动命令还没正常退出，Maker MCP server 尚未启动，不要当作 PAT、项目或 Maker 业务接口错误。
 - `taptap-maker dev-kit update`：恢复或更新当前目录的 AI dev-kit。
 
