@@ -1166,6 +1166,7 @@ type RuntimeLogWatcherPidState = {
   pid: number;
   command?: string;
   startedAt?: string;
+  legacy?: boolean;
 };
 type StopRuntimeLogWatcherOptions = {
   getProcessCommand?: (pid: number) => string | undefined;
@@ -1543,7 +1544,8 @@ export function stopExistingRuntimeLogWatcher(
   try {
     process.kill(pid, 0);
     const processCommand = (options.getProcessCommand || getProcessCommand)(pid);
-    if (!isRuntimeLogWatcherProcess(processCommand)) {
+    const verifiedCommand = getVerifiedRuntimeLogWatcherCommand(processCommand, pidState);
+    if (!verifiedCommand) {
       fs.rmSync(pidFile, { force: true });
       return {
         previousPid: pid,
@@ -1588,10 +1590,13 @@ function readRuntimeLogWatcherPidState(pidFile: string): RuntimeLogWatcherPidSta
   }
   try {
     const parsed = JSON.parse(raw) as Partial<RuntimeLogWatcherPidState>;
+    if (typeof parsed === 'number') {
+      return Number.isInteger(parsed) && parsed > 0 ? { pid: parsed, legacy: true } : null;
+    }
     return typeof parsed.pid === 'number' ? (parsed as RuntimeLogWatcherPidState) : null;
   } catch {
     const pid = Number(raw);
-    return Number.isInteger(pid) && pid > 0 ? { pid } : null;
+    return Number.isInteger(pid) && pid > 0 ? { pid, legacy: true } : null;
   }
 }
 
@@ -1615,6 +1620,19 @@ function getProcessCommand(pid: number): string | undefined {
 
 function isRuntimeLogWatcherProcess(command: string | undefined): boolean {
   return Boolean(command && WATCHER_PROCESS_PATTERN.test(command));
+}
+
+function getVerifiedRuntimeLogWatcherCommand(
+  processCommand: string | undefined,
+  pidState: RuntimeLogWatcherPidState
+): string | undefined {
+  if (isRuntimeLogWatcherProcess(processCommand)) {
+    return processCommand;
+  }
+  if (!processCommand && !pidState.legacy && isRuntimeLogWatcherProcess(pidState.command)) {
+    return pidState.command;
+  }
+  return undefined;
 }
 
 function waitForProcessExit(pid: number, timeoutMs: number): boolean {

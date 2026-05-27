@@ -1211,6 +1211,50 @@ describe('maker build local-change guard', () => {
     }
   });
 
+  test('runtime log watcher startup can verify ownership from pid file command when process command is unavailable', () => {
+    const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+    fs.writeFileSync(
+      pidFile,
+      JSON.stringify({ pid: 12345, command: 'node maker.js logs watch --target-dir game' }),
+      'utf8'
+    );
+    const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
+
+    try {
+      const result = stopExistingRuntimeLogWatcher(pidFile, {
+        getProcessCommand: () => undefined,
+        waitForExit: () => true,
+      });
+
+      expect(result).toEqual({ previousPid: 12345, previousStopped: true });
+      expect(killSpy).toHaveBeenNthCalledWith(1, 12345, 0);
+      expect(killSpy).toHaveBeenNthCalledWith(2, 12345, 'SIGTERM');
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  test('runtime log watcher startup refuses legacy pid files when process command is unavailable', () => {
+    const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+    fs.writeFileSync(pidFile, '12345\n', 'utf8');
+    const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
+
+    try {
+      const result = stopExistingRuntimeLogWatcher(pidFile, {
+        getProcessCommand: () => undefined,
+      });
+
+      expect(result.previousPid).toBe(12345);
+      expect(result.previousStopped).toBe(false);
+      expect(result.previousStopError).toContain('could not be verified');
+      expect(killSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
   function runGit(args: string[], cwd = tempDir): void {
     const result = spawnSync('git', args, {
       cwd,
