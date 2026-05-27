@@ -1405,6 +1405,16 @@ describe('maker build local-change guard', () => {
     process.env.PAT = 'tmpct_test_pat';
     runGit(['remote', 'add', 'origin', remoteDir]);
     runGit(['push', '-u', 'origin', branch]);
+    const setHead = spawnSync(
+      'git',
+      ['--git-dir', remoteDir, 'symbolic-ref', 'HEAD', `refs/heads/${branch}`],
+      {
+        encoding: 'utf8',
+      }
+    );
+    if (setHead.status !== 0) {
+      throw new Error(`git symbolic-ref HEAD failed: ${setHead.stderr || setHead.stdout}`);
+    }
     return branch;
   }
 
