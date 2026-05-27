@@ -126,6 +126,8 @@ MCP 运行期能力：
   `taptap-maker logs watch --target-dir <PROJECT_ROOT> --reset --interval 5s`。watcher 会先清理
   `.maker/logs/runtime/` 下的历史 runtime 日志、旧拆分日志和游标，然后持续写入同一份
   `.maker/logs/runtime/runtime.log`。watcher 以 detached 进程运行，MCP build tool 不等待长轮询结束。
+  Windows 上 watcher 和其内部远端日志 proxy 子进程会隐藏 console 窗口；watcher 生命周期内复用同一条
+  远端日志 MCP 连接，不会每 5 秒重新启动一个 proxy 进程。
   后续分析游戏运行结果或 Lua 报错时，Agent 应读取 `runtime_logs.local_file`；判断 watcher
   是否正常时读取 `runtime_logs.state_file`。
 - 如果 push 被拒绝、远端有新提交、认证失败或存在冲突，`maker_build_current_directory` 会在 build 前停止并返回失败阶段。Agent 应解释失败原因，并根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。

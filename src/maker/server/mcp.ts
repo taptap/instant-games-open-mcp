@@ -22,9 +22,11 @@ import type {
   ServerRequest,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { identifyMakerProject, formatIdentifyHint } from './identify.js';
+import { HiddenStdioClientTransport } from './hiddenStdioTransport.js';
 import {
   getPatPath,
   getTapAuthPath,
@@ -1173,6 +1175,11 @@ type StopRuntimeLogWatcherOptions = {
   waitForExit?: (pid: number, timeoutMs: number) => boolean;
 };
 type StartRuntimeLogWatch = (buildResult: RemoteBuildResult) => Promise<RuntimeLogWatchStartResult>;
+type RuntimeLogMcpClient = Pick<Client, 'connect' | 'callTool' | 'close'>;
+type RemoteRuntimeLogClient = {
+  call: (args: RuntimeLogQueryArgs) => Promise<RuntimeLogQueryResult>;
+  close: () => Promise<void>;
+};
 
 function formatMakerAppWebUrl(projectId: string, env: string): string {
   const makerEnv = env === 'rnd' || env === 'production' ? env : undefined;
@@ -1484,6 +1491,7 @@ async function startRuntimeLogWatch(
       detached: true,
       env: mergeStringEnv(process.env, { TAPTAP_MCP_ENV: buildResult.env }),
       stdio: ['ignore', outFd, errFd],
+      windowsHide: true,
     });
     const spawnError = await waitForSpawnError(child);
     if (spawnError) {
@@ -1768,48 +1776,99 @@ export async function callRemoteRuntimeLogs(
   args: RuntimeLogQueryArgs,
   timeoutMs = 60 * 1000
 ): Promise<RuntimeLogQueryResult> {
-  const transport = new StdioClientTransport({
-    command: proxy.command,
-    args: proxy.args,
-    env: mergeStringEnv(process.env, proxy.envVars),
-    stderr: 'pipe',
-  });
-  const client = new Client(
-    {
-      name: 'taptap-maker-runtime-log-forwarder',
-      version: VERSION,
-    },
-    {
-      capabilities: {},
-    }
-  );
+  const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
 
   try {
-    await client.connect(transport);
-    const result = await client.callTool(
-      {
-        name: 'query_runtime_logs',
-        arguments: { ...args },
-      },
-      undefined,
-      {
-        timeout: timeoutMs,
-      }
-    );
-    try {
-      return normalizeRuntimeLogQueryResult(result);
-    } catch (error) {
-      const rawPath = writeRuntimeLogRawResponse(proxy.projectRoot, result);
-      throw new Error(
-        [
-          error instanceof Error ? error.message : String(error),
-          `Raw query_runtime_logs response saved to ${rawPath}`,
-        ].join(' ')
-      );
-    }
+    return await runtimeLogClient.call(args);
   } finally {
-    await client.close();
+    await runtimeLogClient.close();
   }
+}
+
+export function createRemoteRuntimeLogClient(
+  proxy: RemoteProxyContext,
+  timeoutMs = 60 * 1000,
+  options: {
+    createTransport?: () => Transport;
+    createClient?: () => RuntimeLogMcpClient;
+  } = {}
+): RemoteRuntimeLogClient {
+  let client: RuntimeLogMcpClient | undefined;
+
+  const createTransport =
+    options.createTransport ||
+    (() =>
+      new HiddenStdioClientTransport({
+        command: proxy.command,
+        args: proxy.args,
+        env: mergeStringEnv(process.env, proxy.envVars),
+        stderr: 'pipe',
+      }));
+  const createClient =
+    options.createClient ||
+    (() =>
+      new Client(
+        {
+          name: 'taptap-maker-runtime-log-forwarder',
+          version: VERSION,
+        },
+        {
+          capabilities: {},
+        }
+      ));
+
+  const ensureClient = async (): Promise<RuntimeLogMcpClient> => {
+    if (client) {
+      return client;
+    }
+    const nextClient = createClient();
+    await nextClient.connect(createTransport());
+    client = nextClient;
+    return nextClient;
+  };
+
+  const close = async (): Promise<void> => {
+    const activeClient = client;
+    client = undefined;
+    if (activeClient) {
+      await activeClient.close();
+    }
+  };
+
+  return {
+    call: async (args): Promise<RuntimeLogQueryResult> => {
+      const activeClient = await ensureClient();
+      let result: unknown;
+      try {
+        result = await activeClient.callTool(
+          {
+            name: 'query_runtime_logs',
+            arguments: { ...args },
+          },
+          undefined,
+          {
+            timeout: timeoutMs,
+          }
+        );
+      } catch (error) {
+        await close();
+        throw error;
+      }
+
+      try {
+        return normalizeRuntimeLogQueryResult(result);
+      } catch (error) {
+        const rawPath = writeRuntimeLogRawResponse(proxy.projectRoot, result);
+        throw new Error(
+          [
+            error instanceof Error ? error.message : String(error),
+            `Raw query_runtime_logs response saved to ${rawPath}`,
+          ].join(' ')
+        );
+      }
+    },
+    close,
+  };
 }
 
 export type RemoteProxyContext = ReturnType<typeof createRemoteProxyContext>;

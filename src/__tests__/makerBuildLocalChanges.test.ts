@@ -9,6 +9,7 @@ import path from 'node:path';
 import {
   buildCurrentDirectory,
   createBuildArgs,
+  createRemoteRuntimeLogClient,
   formatBuildResult,
   formatClonePartialStateLines,
   formatMakerRemoteSyncStatusSafely,
@@ -1253,6 +1254,56 @@ describe('maker build local-change guard', () => {
     } finally {
       killSpy.mockRestore();
     }
+  });
+
+  test('runtime log remote client reuses one MCP connection across polls', async () => {
+    const connect = jest.fn(async () => undefined);
+    const callTool = jest.fn(async () => ({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            logs: [],
+            nextStartTime: 1710000001,
+            serverTime: 1710000001,
+            hasMore: false,
+          }),
+        },
+      ],
+    }));
+    const close = jest.fn(async () => undefined);
+    const createClient = jest.fn(() => ({ connect, callTool, close }));
+    const createTransport = jest.fn(() => ({}) as never);
+
+    const runtimeLogClient = createRemoteRuntimeLogClient(
+      {
+        projectRoot: tempDir,
+        serverUrl: 'https://maker.example.test/mcp',
+        env: 'rnd',
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        userId: 'user-1',
+        proxyConfigJson: '{}',
+        command: 'node',
+        args: ['proxy.js'],
+        envVars: {},
+      },
+      60000,
+      { createClient, createTransport }
+    );
+
+    try {
+      await runtimeLogClient.call({ sinceSeconds: 0 });
+      await runtimeLogClient.call({ startTime: 1710000001 });
+    } finally {
+      await runtimeLogClient.close();
+    }
+
+    expect(createClient).toHaveBeenCalledTimes(1);
+    expect(createTransport).toHaveBeenCalledTimes(1);
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(callTool).toHaveBeenCalledTimes(2);
+    expect(close).toHaveBeenCalledTimes(1);
   });
 
   function runGit(args: string[], cwd = tempDir): void {

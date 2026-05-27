@@ -15,7 +15,7 @@ import { saveManualMakerPat } from '../git/pat.js';
 import { getMakerHome, getPatPath, getTapAuthPath, loadPat, loadTapAuth } from '../storage.js';
 import { identifyMakerProject } from '../server/identify.js';
 import {
-  callRemoteRuntimeLogs,
+  createRemoteRuntimeLogClient,
   createRemoteProxyContext,
   stopExistingRuntimeLogWatcher,
 } from '../server/mcp.js';
@@ -505,6 +505,7 @@ async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
   const runtimeLog = path.join(runtimeDir, 'runtime.log');
   const pidFile = path.join(runtimeDir, 'watcher.pid');
   const replacedWatcher = registerRuntimeLogWatcherProcess(pidFile);
+  const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
 
   emit(ctx, 'logs_watch_start', 'Maker runtime log watcher started', {
     project_root: proxy.projectRoot,
@@ -518,32 +519,36 @@ async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
     topics: ['user_script', 'server_user_script'],
   });
 
-  const result = await watchRuntimeLogs({
-    projectRoot: proxy.projectRoot,
-    projectId: proxy.projectId,
-    reset: booleanOption(parsed, 'reset'),
-    intervalMs,
-    limit: numberOption(parsed, 'limit'),
-    maxPolls,
-    maxConsecutiveFailures,
-    callRemoteRuntimeLogs: (args) => callRemoteRuntimeLogs(proxy, args, timeoutMs),
-    onPoll: (pullResult) => {
-      emit(ctx, 'logs_poll', `Maker runtime logs pulled: ${pullResult.writtenLogs}`, {
-        written_logs: pullResult.writtenLogs,
-        has_more: pullResult.hasMore,
-        next_start_time: pullResult.nextStartTime,
-        files: pullResult.files,
-      });
-    },
-    onError: (error, consecutiveFailures) => {
-      emit(ctx, 'logs_poll_error', 'Maker runtime log poll failed; watcher will retry', {
-        consecutive_failures: consecutiveFailures,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    },
-  });
+  try {
+    const result = await watchRuntimeLogs({
+      projectRoot: proxy.projectRoot,
+      projectId: proxy.projectId,
+      reset: booleanOption(parsed, 'reset'),
+      intervalMs,
+      limit: numberOption(parsed, 'limit'),
+      maxPolls,
+      maxConsecutiveFailures,
+      callRemoteRuntimeLogs: (args) => runtimeLogClient.call(args),
+      onPoll: (pullResult) => {
+        emit(ctx, 'logs_poll', `Maker runtime logs pulled: ${pullResult.writtenLogs}`, {
+          written_logs: pullResult.writtenLogs,
+          has_more: pullResult.hasMore,
+          next_start_time: pullResult.nextStartTime,
+          files: pullResult.files,
+        });
+      },
+      onError: (error, consecutiveFailures) => {
+        emit(ctx, 'logs_poll_error', 'Maker runtime log poll failed; watcher will retry', {
+          consecutive_failures: consecutiveFailures,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      },
+    });
 
-  emit(ctx, 'logs_watch_stop', 'Maker runtime log watcher stopped', result);
+    emit(ctx, 'logs_watch_stop', 'Maker runtime log watcher stopped', result);
+  } finally {
+    await runtimeLogClient.close();
+  }
 }
 
 function registerRuntimeLogWatcherProcess(pidFile: string): {
