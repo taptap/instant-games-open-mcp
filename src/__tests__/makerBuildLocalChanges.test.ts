@@ -114,7 +114,7 @@ describe('maker build local-change guard', () => {
     runGit(['branch', '-M', 'main']);
     prepareMakerRemote();
     const remoteWorktree = cloneRemoteWorktree();
-    fs.writeFileSync(path.join(remoteWorktree, 'scripts', 'remote.lua'), '-- remote\n', 'utf8');
+    writeRemoteScript(remoteWorktree);
     runGit(['add', 'scripts/remote.lua'], remoteWorktree);
     runGit(['commit', '-m', 'chore: remote update'], remoteWorktree);
     runGit(['push', 'origin', 'main'], remoteWorktree);
@@ -133,7 +133,7 @@ describe('maker build local-change guard', () => {
     runGit(['branch', '-M', 'main']);
     prepareMakerRemote();
     const remoteWorktree = cloneRemoteWorktree();
-    fs.writeFileSync(path.join(remoteWorktree, 'scripts', 'remote.lua'), '-- remote\n', 'utf8');
+    writeRemoteScript(remoteWorktree);
     runGit(['add', 'scripts/remote.lua'], remoteWorktree);
     runGit(['commit', '-m', 'chore: remote update'], remoteWorktree);
     runGit(['push', 'origin', 'main'], remoteWorktree);
@@ -1420,6 +1420,11 @@ describe('maker build local-change guard', () => {
     runGit(['config', 'user.email', 'maker-remote@example.test'], worktree);
     runGit(['config', 'user.name', 'maker-remote'], worktree);
     return worktree;
+  }
+
+  function writeRemoteScript(worktree: string): void {
+    fs.mkdirSync(path.join(worktree, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(worktree, 'scripts', 'remote.lua'), '-- remote\n', 'utf8');
   }
 
   function gitProjectRoot(): string {
