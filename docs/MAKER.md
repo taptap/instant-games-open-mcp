@@ -121,10 +121,13 @@ MCP 运行期能力：
 - 构建成功并收到远端 build 返回后，MCP 会用本地缓存 Maker PAT 调用当前环境
   Maker API：`POST /api/v1/apps/<APP_ID>/preview-refresh`，主动刷新 Maker Web 端预览。
 - 构建成功输出会包含 `runtime_logs.watch_started`、`runtime_logs.watch_pid` 和
-  `runtime_logs.watch_command`。MCP 在收到成功 build 结果后会启动该本地 CLI watcher：
+  `runtime_logs.watch_command`、`runtime_logs.local_file` 和 `runtime_logs.state_file`。
+  MCP 在收到成功 build 结果后会启动该本地 CLI watcher：
   `taptap-maker logs watch --target-dir <PROJECT_ROOT> --reset --interval 5s`。watcher 会先清理
   `.maker/logs/runtime/` 下的历史 runtime 日志、旧拆分日志和游标，然后持续写入同一份
   `.maker/logs/runtime/runtime.log`。watcher 以 detached 进程运行，MCP build tool 不等待长轮询结束。
+  后续分析游戏运行结果或 Lua 报错时，Agent 应读取 `runtime_logs.local_file`；判断 watcher
+  是否正常时读取 `runtime_logs.state_file`。
 - 如果 push 被拒绝、远端有新提交、认证失败或存在冲突，`maker_build_current_directory` 会在 build 前停止并返回失败阶段。Agent 应解释失败原因，并根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - 构建前本地改动检查会忽略 `.gitignore` 和 `.maker-mcp/` 的本地辅助变化；这些变化不应单独触发提交。
 - 已绑定项目的状态输出会包含 `Maker remote sync`。该段会 fetch Maker 远端并比较 `HEAD...origin/main`：本地干净且远端领先时提示先 fast-forward pull；本地有未提交改动时提示不要直接 pull，让本地 Agent 先引导提交、stash 或取消同步。
@@ -339,7 +342,9 @@ maker_build_current_directory()
 - push 被远端拒绝、认证失败、远端有新提交或发生冲突时，工具返回 `mode: submit_failed_before_build`，不会继续远端 build。Agent 应解释 push 失败原因，按 `classification` 使用对应恢复策略，再重试同一个构建工具。
 - 如果 push 成功但远端 build 失败，工具返回 `mode: build_failed_after_submit`，同时保留成功的提交/推送结果和构建错误。
 - 如果 build 成功，工具会启动本地 CLI watcher 并在返回里带出
-  `runtime_logs.watch_started/watch_pid/watch_command`；MCP tool 不会长时间阻塞等待轮询。
+  `runtime_logs.watch_started/watch_pid/watch_command/local_file/state_file`；MCP tool 不会长时间阻塞等待轮询。
+  后续运行时诊断应优先读取 `runtime_logs.local_file`，watcher 健康状态读取
+  `runtime_logs.state_file`。
 
 远端 proxy 配置是 Maker 本地 MCP 的内部能力，不作为普通 Agent tool 暴露。内部配置内容等价于测试脚本中的：
 

@@ -568,6 +568,8 @@ describe('maker build local-change guard', () => {
     expect(buildTool?.description).toContain('commits when needed, pushes');
     expect(buildTool?.description).toContain('remote Maker build');
     expect(buildTool?.description).toContain('If push fails, build is not started');
+    expect(buildTool?.description).toContain('runtime_logs.local_file');
+    expect(buildTool?.description).toContain('runtime_logs.state_file');
     expect(buildTool?.description).not.toContain('maker_submit_current_directory');
     expect(buildTool?.description).not.toContain('maker_push_current_directory');
     expect(buildTool?.description).not.toContain('Do not use this tool');
@@ -826,6 +828,12 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('taptap-maker logs watch');
     expect(output).toContain('--reset');
     expect(output).toContain('--interval 5s');
+    expect(output).toContain(
+      `- state_file: ${path.join(tempDir, '.maker', 'logs', 'runtime', 'state.json')}`
+    );
+    expect(output).toContain(
+      '- next_action: 如需分析游戏运行结果或报错，请读取 runtime_logs.local_file；如需判断 watcher 是否正常，请读取 runtime_logs.state_file。'
+    );
   });
 
   test('submit tool pushes and then runs remote build', async () => {

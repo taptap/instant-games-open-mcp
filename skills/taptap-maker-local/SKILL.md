@@ -393,7 +393,9 @@ taptap-maker logs watch --target-dir <PROJECT_ROOT> --reset --interval 5s
 
 This CLI flow clears old local runtime logs before polling, then appends server-shaped rows to
 `.maker/logs/runtime/runtime.log`. Do not start a second watcher unless the first one failed to
-start.
+start. For gameplay/runtime diagnostics after a successful build, read
+`runtime_logs.local_file`. To check whether the watcher is alive or failing, read
+`runtime_logs.state_file`.
 
 Watcher protection rules:
 

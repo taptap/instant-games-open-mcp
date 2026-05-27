@@ -120,7 +120,7 @@ export const tools = [
   {
     name: 'maker_build_current_directory',
     description:
-      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. If local changes or committed-but-unpushed commits exist, the tool commits when needed, pushes to Maker remote, then triggers remote Maker build. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version.',
+      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. If local changes or committed-but-unpushed commits exist, the tool commits when needed, pushes to Maker remote, then triggers remote Maker build. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1991,6 +1991,7 @@ function formatRuntimeLogWatchNextActionLines(result: RemoteBuildResult): string
       ? `- watcher_stderr: ${result.runtimeLogWatch.stderrLog}`
       : '',
     result.runtimeLogWatch?.pidFile ? `- watcher_pid_file: ${result.runtimeLogWatch.pidFile}` : '',
+    `- state_file: ${path.join(result.projectRoot, '.maker', 'logs', 'runtime', 'state.json')}`,
     result.runtimeLogWatch?.previousPid
       ? `- previous_watch_pid: ${result.runtimeLogWatch.previousPid}`
       : '',
@@ -2004,6 +2005,7 @@ function formatRuntimeLogWatchNextActionLines(result: RemoteBuildResult): string
     result.runtimeLogWatch?.started
       ? '- note: 构建成功后已启动本地 CLI watcher，正在清理历史日志并每 5 秒持续追加 Lua 运行日志。'
       : '- note: 构建成功后应由本地 CLI watcher 清理历史日志，并每 5 秒持续追加 Lua 运行日志。',
+    '- next_action: 如需分析游戏运行结果或报错，请读取 runtime_logs.local_file；如需判断 watcher 是否正常，请读取 runtime_logs.state_file。',
   ].filter(Boolean);
 }
 
