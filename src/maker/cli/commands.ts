@@ -14,6 +14,12 @@ import { requestTapAuthWithPat } from '../auth/patTap.js';
 import { saveManualMakerPat } from '../git/pat.js';
 import { getMakerHome, getPatPath, getTapAuthPath, loadPat, loadTapAuth } from '../storage.js';
 import { identifyMakerProject } from '../server/identify.js';
+import {
+  createRemoteRuntimeLogClient,
+  createRemoteProxyContext,
+  stopExistingRuntimeLogWatcher,
+} from '../server/mcp.js';
+import { watchRuntimeLogs } from '../server/runtimeLogs.js';
 import { cloneMakerProject, listMakerProjects, type MakerProjectProgress } from './projects.js';
 import type { MakerProjectSummary } from '../types.js';
 import {
@@ -21,8 +27,10 @@ import {
   finalizeStagedDevKitGitignore,
   inspectAiDevKit,
   installAiDevKit,
+  installAiDevKitSkills,
   listPresentDevKitManagedEntries,
   writeDevKitStagedGitignore,
+  type AiDevKitSkillInstallerStart,
 } from './devKit.js';
 import {
   MakerGitNotFoundError,
@@ -34,13 +42,14 @@ import { formatMakerSkillStatus } from './skill.js';
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const DEFAULT_PACKAGE = '@taptap/instant-games-open-mcp';
-const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit']);
+const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit', 'logs']);
 const BOOLEAN_OPTIONS = new Set([
   'json',
   'skip_confirm',
   'skip_mcp_install',
   'pat_stdin',
   'pat_from_stdin',
+  'reset',
   'all',
   'h',
   'help',
@@ -100,6 +109,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'dev-kit' && subcommand === 'update') {
     await runDevKitUpdate(parsed, ctx);
+    return;
+  }
+
+  if (command === 'logs' && subcommand === 'watch') {
+    await runLogsWatch(parsed, ctx);
     return;
   }
 
@@ -182,13 +196,17 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const pat = await resolvePat(parsed, ctx);
   emit(ctx, 'pat', 'Maker PAT ready', { saved: getPatPath() });
 
-  const tapAuth = await requestTapAuthWithPat(pat);
+  const tapAuth = await requestTapAuthWithPat(pat).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
+  });
   emit(ctx, 'tap_auth', 'TapTap token exchanged and saved', {
     kid: mask(tapAuth.kid),
     saved: getTapAuthPath(),
   });
 
-  const projects = await listMakerProjects({ pat });
+  const projects = await listMakerProjects({ pat }).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
+  });
   const selected = await resolveProjectSelection(parsed, projects, {
     skipConfirm,
   });
@@ -212,6 +230,8 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     userId: selected.user_id,
     sceEndpoint: selected.sce_endpoint || process.env.SCE_MCP_URL,
     onProgress: (progress) => emitProgress(ctx, 'clone', progress),
+  }).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
   });
   emit(ctx, 'clone', 'Maker project cloned or fetched', cloneResult);
 
@@ -299,7 +319,9 @@ async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     warnPatArgExposure();
   }
   const showAll = booleanOption(parsed, 'all');
-  const projects = await listMakerProjects({ pat });
+  const projects = await listMakerProjects({ pat }).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
+  });
   if (ctx.json) {
     writeJson(projects);
     return;
@@ -311,7 +333,9 @@ async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const pat = await resolvePatSet(parsed, ctx);
   saveManualMakerPat(pat);
-  const tapAuth = await requestTapAuthWithPat(pat);
+  const tapAuth = await requestTapAuthWithPat(pat).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
+  });
   emit(ctx, 'pat', 'Maker PAT and TapTap token saved', {
     pat_path: getPatPath(),
     tap_auth_path: getTapAuthPath(),
@@ -475,7 +499,132 @@ async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
     preserveExisting: true,
   });
   finalizeStagedDevKitGitignore(targetDir);
-  emit(ctx, 'dev_kit', 'AI dev kit updated', result);
+  emit(ctx, 'dev_kit', formatDevKitInstallMessage('AI dev kit updated', result), result);
+  emitDevKitSkillInstallerFailure(ctx, result.skillInstaller, 'AI skills install failed');
+}
+
+async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
+  const intervalMs = parseDurationMs(stringOption(parsed, 'interval') || '5s');
+  const timeoutMs = numberOption(parsed, 'timeout_ms') ?? 60 * 1000;
+  const maxPolls = numberOption(parsed, 'max_polls');
+  const maxConsecutiveFailures = numberOption(parsed, 'max_consecutive_failures');
+  const proxy = createRemoteProxyContext({
+    targetDir,
+    serverUrl: stringOption(parsed, 'server_url'),
+    env: makerEnvOption(parsed),
+  });
+  const runtimeDir = path.join(proxy.projectRoot, '.maker', 'logs', 'runtime');
+  const runtimeLog = path.join(runtimeDir, 'runtime.log');
+  const pidFile = path.join(runtimeDir, 'watcher.pid');
+  const replacedWatcher = registerRuntimeLogWatcherProcess(pidFile);
+  const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
+
+  emit(ctx, 'logs_watch_start', 'Maker runtime log watcher started', {
+    project_root: proxy.projectRoot,
+    project_id: proxy.projectId,
+    runtime_log: runtimeLog,
+    pid_file: pidFile,
+    pid: process.pid,
+    ...replacedWatcher,
+    reset: booleanOption(parsed, 'reset'),
+    interval_ms: intervalMs,
+    topics: ['user_script', 'server_user_script'],
+  });
+
+  try {
+    const result = await watchRuntimeLogs({
+      projectRoot: proxy.projectRoot,
+      projectId: proxy.projectId,
+      reset: booleanOption(parsed, 'reset'),
+      intervalMs,
+      limit: numberOption(parsed, 'limit'),
+      maxPolls,
+      maxConsecutiveFailures,
+      callRemoteRuntimeLogs: (args) => runtimeLogClient.call(args),
+      onPoll: (pullResult) => {
+        emit(ctx, 'logs_poll', `Maker runtime logs pulled: ${pullResult.writtenLogs}`, {
+          written_logs: pullResult.writtenLogs,
+          has_more: pullResult.hasMore,
+          next_start_time: pullResult.nextStartTime,
+          files: pullResult.files,
+        });
+      },
+      onError: (error, consecutiveFailures) => {
+        emit(ctx, 'logs_poll_error', 'Maker runtime log poll failed; watcher will retry', {
+          consecutive_failures: consecutiveFailures,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      },
+    });
+
+    emit(ctx, 'logs_watch_stop', 'Maker runtime log watcher stopped', result);
+  } finally {
+    await runtimeLogClient.close();
+  }
+}
+
+function registerRuntimeLogWatcherProcess(pidFile: string): {
+  previousPid?: number;
+  previousStopped?: boolean;
+  previousStopError?: string;
+} {
+  fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+  const existingPid = readPidFile(pidFile);
+  const previous =
+    existingPid && existingPid !== process.pid ? stopExistingRuntimeLogWatcher(pidFile) : {};
+  fs.writeFileSync(
+    pidFile,
+    `${JSON.stringify(
+      {
+        pid: process.pid,
+        command: formatShellCommand([process.execPath, ...process.argv.slice(1)]),
+        startedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    )}\n`,
+    'utf8'
+  );
+  installRuntimeLogWatcherPidCleanup(pidFile);
+  return previous;
+}
+
+function readPidFile(pidFile: string): number | undefined {
+  if (!fs.existsSync(pidFile)) {
+    return undefined;
+  }
+  const raw = fs.readFileSync(pidFile, 'utf8').trim();
+  let pid = Number(raw);
+  if (!Number.isInteger(pid) || pid <= 0) {
+    try {
+      const parsed = JSON.parse(raw) as { pid?: unknown };
+      pid = typeof parsed.pid === 'number' ? parsed.pid : Number.NaN;
+    } catch {
+      pid = Number.NaN;
+    }
+  }
+  return Number.isInteger(pid) && pid > 0 ? pid : undefined;
+}
+
+function installRuntimeLogWatcherPidCleanup(pidFile: string): void {
+  let cleaned = false;
+  const cleanup = (): void => {
+    if (cleaned) {
+      return;
+    }
+    cleaned = true;
+    if (readPidFile(pidFile) === process.pid) {
+      fs.rmSync(pidFile, { force: true });
+    }
+  };
+  process.once('exit', cleanup);
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.once(signal, () => {
+      cleanup();
+      process.exit(0);
+    });
+  }
 }
 
 async function resolvePat(parsed: ParsedArgs, ctx: CliContext): Promise<string> {
@@ -564,18 +713,98 @@ async function prepareDevKit(targetDir: string, ctx: CliContext): Promise<void> 
       path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
       listPresentDevKitManagedEntries(targetDir)
     );
-    emit(ctx, 'dev_kit', 'AI dev kit already present', before);
+    try {
+      const skillInstaller = installAiDevKitSkills(targetDir, {
+        onStart: (event) => emitSkillInstallerStart(ctx, event),
+      });
+      emit(
+        ctx,
+        'dev_kit',
+        formatDevKitInstallMessage('AI dev kit already present', { skillInstaller }),
+        {
+          ...before,
+          skillInstaller,
+        }
+      );
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      emit(ctx, 'dev_kit_warning', `AI skills install failed; clone will continue\n${detail}`, {
+        error: detail,
+      });
+    }
     return;
   }
 
   try {
-    const result = await installAiDevKit({ targetDir });
-    emit(ctx, 'dev_kit', 'AI dev kit prepared', result);
+    const result = await installAiDevKit({
+      targetDir,
+      onSkillInstallerStart: (event) => emitSkillInstallerStart(ctx, event),
+    });
+    emit(ctx, 'dev_kit', formatDevKitInstallMessage('AI dev kit prepared', result), result);
+    emitDevKitSkillInstallerFailure(
+      ctx,
+      result.skillInstaller,
+      'AI skills install failed; clone will continue'
+    );
   } catch (error) {
-    emit(ctx, 'dev_kit_warning', 'AI dev kit preparation failed; clone will continue', {
-      error: error instanceof Error ? error.message : String(error),
+    const detail = error instanceof Error ? error.message : String(error);
+    emit(ctx, 'dev_kit_warning', `AI dev kit preparation failed; clone will continue\n${detail}`, {
+      error: detail,
     });
   }
+}
+
+function formatDevKitInstallMessage(
+  message: string,
+  result: { skillInstaller?: { summary: string } }
+): string {
+  if (!result.skillInstaller) {
+    return message;
+  }
+  return `${message}\nAI skills install result: ${result.skillInstaller.summary}`;
+}
+
+function emitSkillInstallerStart(ctx: CliContext, event: AiDevKitSkillInstallerStart): void {
+  emit(ctx, 'dev_kit_skill_install_start', `AI skills install started: ${event.script}`, event);
+}
+
+function emitDevKitSkillInstallerFailure(
+  ctx: CliContext,
+  result: { ok: boolean; status: string; error?: string } | undefined,
+  message: string
+): void {
+  if (!result || result.ok || result.status !== 'failed') {
+    return;
+  }
+  const detail = result.error || 'unknown installer failure';
+  emit(ctx, 'dev_kit_warning', `${message}\n${detail}`, {
+    error: detail,
+  });
+}
+
+function appendPatRecoveryUrl(error: unknown, parsed: ParsedArgs): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!isPatValidationFailure(message) || message.includes('/pat-tokens')) {
+    return error instanceof Error ? error : new Error(message);
+  }
+
+  const patPage = getMakerPatTokensUrl(makerEnvOption(parsed));
+  return new Error(
+    [
+      message,
+      '',
+      `PAT 页面：${patPage}`,
+      '请在该页面创建新的 Maker PAT，然后运行 `taptap-maker pat set` 并粘贴 PAT。',
+    ].join('\n')
+  );
+}
+
+function isPatValidationFailure(message: string): boolean {
+  return (
+    /\b(?:PAT_INVALID|HTTP\s*40[13]|40[13]|unauthori[sz]ed|invalid\s+PAT|PAT\s+invalid|expired)\b/i.test(
+      message
+    ) || /(?:过期|失效)/.test(message)
+  );
 }
 
 function installMcpConfigs(options: {
@@ -969,7 +1198,8 @@ function isKnownSubcommand(command: string, subcommand: string): boolean {
   return (
     (command === 'pat' && subcommand === 'set') ||
     (command === 'mcp' && (subcommand === 'install' || subcommand === 'verify')) ||
-    (command === 'dev-kit' && subcommand === 'update')
+    (command === 'dev-kit' && subcommand === 'update') ||
+    (command === 'logs' && subcommand === 'watch')
   );
 }
 
@@ -980,6 +1210,28 @@ function stringOption(parsed: ParsedArgs, key: string): string | undefined {
 
 function booleanOption(parsed: ParsedArgs, key: string): boolean {
   return parsed.options[key] === true || parsed.options[key] === 'true';
+}
+
+function numberOption(parsed: ParsedArgs, key: string): number | undefined {
+  const value = parsed.options[key];
+  if (value === undefined || value === true || value === false) {
+    return undefined;
+  }
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw new Error(`Invalid --${key.replace(/_/g, '-')} value: ${value}`);
+  }
+  return number;
+}
+
+function parseDurationMs(value: string): number {
+  const match = /^(\d+(?:\.\d+)?)(ms|s)?$/.exec(value.trim());
+  if (!match) {
+    throw new Error('Invalid --interval value. Use seconds, or suffix with s/ms.');
+  }
+  const amount = Number(match[1]);
+  const unit = match[2] || 's';
+  return unit === 's' ? amount * 1000 : amount;
 }
 
 function makerEnvOption(parsed: ParsedArgs): MakerEnvironment {
@@ -1055,6 +1307,7 @@ function printHelp(): void {
       '  taptap-maker mcp verify [--package @taptap/instant-games-open-mcp]',
       '                           [--mode npx|self] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
+      '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
       'MCP verify defaults to the npx command written into AI client config.',
       'Advanced: init and mcp install accept --package only when testing a different npm package.',

@@ -337,19 +337,19 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 Maker 本地开发的默认路径是 CLI-first + PAT-first：
 
 - Maker CLI-first 重构后的正式说明在 `docs/MAKER.md`；面向团队介绍的功能总览在 `docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`。上下文压缩或长时间中断后，先读这两份文档再继续。
-- 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，不要让 Agent 逐个调用旧的初始化 MCP tools。
+- 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，由该 CLI 统一处理初始化流程。
 - 如果本地没有 Maker PAT，CLI 会引导用户打开当前环境的 PAT 页面新建 PAT，并把 PAT 发给 Agent：production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
 - 用户提供 Maker PAT 后，运行 `taptap-maker pat set` 并在 prompt 中粘贴，或在 `taptap-maker init` 里粘贴；CLI 会保存到 `~/.taptap-maker/pat.json`，兼容旧路径 `~/.maker-pat`，并调用 `GET /api/v1/user/taptap-token` 获取 TapTap MAC token。兼容写法 `taptap-maker pat set <PAT>` 会让 PAT 进入 `ps`/shell history，仅在用户明确接受风险时使用。
-- `taptap-maker init` 会检查 Git、PAT、TapTap token、当前目录绑定状态、app 列表、AI dev kit，并在用户选择 app 后 clone 到当前目录。app 文本预览默认展示前 40 个；账号 app 很多时在 init 交互中输入 `all` 一次性展开全部，或单独跑 `taptap-maker apps --all`；`taptap-maker apps --json` 仅给 AI / 脚本解析使用。AI 转述时宽屏可用两列紧凑布局，窄屏保持单列，但不要省略 app_id 或自动选择。
+- `taptap-maker init` 会检查 Git、PAT、TapTap token、当前目录绑定状态、app 列表、AI dev kit，并在用户选择 app 后 clone 到当前目录。app 文本预览默认展示前 40 个；账号 app 很多时在 init 交互中输入 `all` 一次性展开全部，或单独跑 `taptap-maker apps --all`；`taptap-maker apps --json` 仅给 AI / 脚本解析使用。AI 转述时宽屏可用两列紧凑布局，窄屏保持单列；每个 app 保留 app_id，并在用户确认后选择 app。
 - `taptap-maker init` 的 Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
-- 首次 clone/fetch 前必须提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，不要中断当前命令。
+- 首次 clone/fetch 前必须提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
 - CLI 写 MCP 配置时优先支持 Windows：Windows 使用 `npx.cmd`，Git 引导优先指向 Git for Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方 Git。
 - `taptap-maker mcp verify` 默认验证 `mcp install` 写入配置的 npx 包命令能否启动；本地开发只验证当前 CLI 时使用 `--mode self`。
 - MCP 公共能力只保留 `maker://status`、`maker_status_lite` 和 `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
 - 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。已绑定项目会输出 `Maker remote sync`，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main；按其中 `next_action` 引导用户，避免开发后才在 push 阶段遇到冲突。
 - 用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都调用 `maker_build_current_directory`。它会在本地有改动或 ahead commit 时先 commit/push，push 成功后才远端 build。
 - push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
-- push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，不要无脑手动执行通用 `git push`。
+- push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。
 - push 成功但远端 build 失败时，工具返回 `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端和具体构建错误。
 - 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`。
 - 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。
@@ -406,6 +406,13 @@ npm run openclaw:pack
 - **允许进行网页查询和搜索**
 - **所有工具描述使用英文**，便于 AI Agent 理解
 - **工具处理函数必须返回 `Promise<string>` 类型**
+- **命名必须清晰区分能力边界**：新增 CLI 命令、MCP tool/resource、skill、脚本、
+  文档章节或用户可见流程名称时，使用带业务前缀/语义清晰的名称，让 Agent 能稳定区分
+  AI 客户端内置能力、本项目已有概念、通用 Skill 名称和常见命令；用户可见文案应明确标注
+  “CLI 命令”“MCP tool/resource”“workflow guide document/skill 文档”。
+- **`taptap-maker init` 是 Maker 初始化唯一主流程入口**：`init` 相关命名必须视为保留名。
+  新增能力使用业务前缀与完整语义命名，面向用户或 AI 的文案统一把 bundled workflow guide
+  document 表达为“文档/指南”，并把 Maker 初始化的正向下一步写成：执行 `taptap-maker init`。
 
 ### 代码规范
 

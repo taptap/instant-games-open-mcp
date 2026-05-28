@@ -647,7 +647,7 @@ class TapTapMinigameMCPServer {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader(
         'Access-Control-Allow-Headers',
-        'Content-Type, Mcp-Session-Id, X-TapTap-Mac-Token, X-TapTap-User-Id, X-TapTap-Project-Id, X-TapTap-Project-Path, X-TapTap-Custom-Fields'
+        'Content-Type, Mcp-Session-Id, X-TapTap-Mac-Token, X-TapTap-User-Id, X-TapTap-Project-Id, X-TapTap-Project-Path, X-TapTap-Custom-Fields, X-TapTap-Tag'
       );
 
       if (req.method === 'OPTIONS') {
@@ -703,6 +703,7 @@ class TapTapMinigameMCPServer {
       const headerProjectPath = getHeader('X-TapTap-Project-Path');
       const headerMacToken = getHeader('X-TapTap-Mac-Token');
       const headerCustomFields = getHeader('X-TapTap-Custom-Fields');
+      const headerTag = getHeader('X-TapTap-Tag');
 
       // 合并：Headers 优先（Proxy 使用 Headers，SSE 直连使用 URL 参数）
       // 使用 ?? undefined 将 null 转换为 undefined（SessionContext 不接受 null）
@@ -750,6 +751,7 @@ class TapTapMinigameMCPServer {
         projectPath,
         macToken,
         customFields,
+        tag: headerTag,
         // sessionId 会在 onsessioninitialized 回调中设置
       };
 

@@ -2,13 +2,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  AI_DEV_KIT_URLS,
   createDevKitGitignoreBlock,
   DEV_KIT_GITIGNORE_STAGING_FILE,
   finalizeStagedDevKitGitignore,
   inspectAiDevKit,
+  inspectAiDevKitSkillInstallStatus,
   installAiDevKit,
+  installAiDevKitSkills,
   listPresentDevKitManagedEntries,
   mergeDevKitGitignore,
+  resolveDefaultAiDevKitUrl,
 } from '../maker/cli/devKit';
 
 describe('Maker AI dev kit install', () => {
@@ -20,11 +24,13 @@ describe('Maker AI dev kit install', () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-dev-kit-'));
     sourceDir = path.join(tempDir, 'ai-dev-kit');
     targetDir = path.join(tempDir, 'target');
+    fs.mkdirSync(path.join(sourceDir, '.cli'), { recursive: true });
     fs.mkdirSync(path.join(sourceDir, 'engine-docs'), { recursive: true });
     fs.mkdirSync(path.join(sourceDir, 'scripts'), { recursive: true });
     fs.mkdirSync(path.join(sourceDir, '.emmylua'), { recursive: true });
     fs.mkdirSync(path.join(sourceDir, 'examples'), { recursive: true });
     fs.mkdirSync(path.join(sourceDir, 'templates'), { recursive: true });
+    fs.mkdirSync(path.join(sourceDir, 'tools'), { recursive: true });
     fs.mkdirSync(path.join(sourceDir, 'urhox-libs'), { recursive: true });
     fs.writeFileSync(path.join(sourceDir, 'engine-docs', 'README.md'), 'docs\n', 'utf8');
     fs.writeFileSync(path.join(sourceDir, 'scripts', 'main.lua'), '-- should skip\n', 'utf8');
@@ -34,10 +40,31 @@ describe('Maker AI dev kit install', () => {
       '---@class Engine\n',
       'utf8'
     );
+    fs.writeFileSync(
+      path.join(sourceDir, '.cli', 'install-urhox-runtime.sh'),
+      '#!/bin/sh\n',
+      'utf8'
+    );
     fs.writeFileSync(path.join(sourceDir, 'examples', 'README.md'), 'examples\n', 'utf8');
     fs.writeFileSync(path.join(sourceDir, 'templates', 'README.md'), 'templates\n', 'utf8');
     fs.writeFileSync(path.join(sourceDir, 'urhox-libs', 'README.md'), 'libs\n', 'utf8');
     fs.writeFileSync(path.join(sourceDir, 'CLAUDE.md'), 'local agent docs\n', 'utf8');
+    fs.writeFileSync(
+      path.join(sourceDir, 'tools', 'install-skills.sh'),
+      [
+        '#!/bin/sh',
+        'set -eu',
+        'printf "%s\\n" "$1" > ../skill-install-agent.txt',
+        'mkdir -p ../.claude/skills/demo-skill ../.codex/skills/demo-skill ../.cursor/skills/demo-skill ../.gemini/skills/demo-skill',
+        'echo "[install-skills] claude: installed=13 target=../.claude/skills"',
+        'echo "[install-skills] codex: installed=13 target=../.codex/skills"',
+        'echo "[install-skills] cursor: installed=13 target=../.cursor/skills"',
+        'echo "[install-skills] gemini: installed=13 target=../.gemini/skills"',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+    fs.chmodSync(path.join(sourceDir, 'tools', 'install-skills.sh'), 0o755);
   });
 
   afterEach(() => {
@@ -51,20 +78,130 @@ describe('Maker AI dev kit install', () => {
     });
 
     expect(result.installedEntries).toEqual([
+      '.cli',
       '.emmylua',
       'CLAUDE.md',
       'engine-docs',
       'examples',
       'templates',
+      'tools',
       'urhox-libs',
     ]);
     expect(result.skippedEntries).toEqual(['ai-dev-kit.zip', 'scripts']);
     expect(fs.existsSync(path.join(targetDir, 'engine-docs', 'README.md'))).toBe(true);
+    expect(fs.existsSync(path.join(targetDir, '.cli', 'install-urhox-runtime.sh'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, '.emmylua', 'Engine.d.lua'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'templates', 'README.md'))).toBe(true);
+    expect(fs.existsSync(path.join(targetDir, 'tools', 'install-skills.sh'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'scripts'))).toBe(false);
     expect(fs.existsSync(path.join(targetDir, 'ai-dev-kit.zip'))).toBe(false);
+  });
+
+  test('runs POSIX skill installer after copying dev kit tools', async () => {
+    const result = await installAiDevKit({
+      sourceDir,
+      targetDir,
+    });
+
+    expect(fs.readFileSync(path.join(targetDir, 'skill-install-agent.txt'), 'utf8')).toBe('all\n');
+    expect(result.skillInstaller).toEqual(
+      expect.objectContaining({
+        ok: true,
+        script: expect.stringContaining('install-skills.sh'),
+        summary: 'claude=13, codex=13, cursor=13, gemini=13',
+      })
+    );
+  });
+
+  test('inspects installed AI skill targets for post-clone status', async () => {
+    await installAiDevKit({
+      sourceDir,
+      targetDir,
+    });
+
+    const status = inspectAiDevKitSkillInstallStatus(targetDir);
+
+    expect(status.status).toBe('installed');
+    expect(status.summary).toBe('claude=1, codex=1, cursor=1, gemini=1');
+    expect(status.targets.map((target) => target.name)).toEqual([
+      'claude',
+      'codex',
+      'cursor',
+      'gemini',
+    ]);
+  });
+
+  test('returns copied dev kit and staged gitignore when skill installer fails', async () => {
+    fs.writeFileSync(
+      path.join(sourceDir, 'tools', 'install-skills.sh'),
+      [
+        '#!/bin/sh',
+        'echo "installer stdout detail"',
+        'echo "installer stderr detail" >&2',
+        'exit 42',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    const result = await installAiDevKit({
+      sourceDir,
+      targetDir,
+    });
+
+    expect(result.installedEntries).toContain('CLAUDE.md');
+    expect(fs.existsSync(path.join(targetDir, 'CLAUDE.md'))).toBe(true);
+    expect(fs.existsSync(path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE))).toBe(true);
+    expect(result.skillInstaller).toEqual(
+      expect.objectContaining({
+        ok: false,
+        status: 'failed',
+        summary: 'failed: exit_status=42',
+        stdout: expect.stringContaining('installer stdout detail'),
+        stderr: expect.stringContaining('installer stderr detail'),
+        error: expect.stringContaining('Failed to install AI dev kit skills'),
+      })
+    );
+  });
+
+  test('throws visible script details when running skill installer directly fails', () => {
+    fs.mkdirSync(path.join(targetDir, 'tools'), { recursive: true });
+    fs.writeFileSync(
+      path.join(targetDir, 'tools', 'install-skills.sh'),
+      [
+        '#!/bin/sh',
+        'echo "installer stdout detail"',
+        'echo "installer stderr detail" >&2',
+        'exit 42',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+    fs.chmodSync(path.join(targetDir, 'tools', 'install-skills.sh'), 0o755);
+
+    expect(() => installAiDevKitSkills(targetDir)).toThrow(
+      expect.objectContaining({
+        message: expect.stringContaining('Failed to install AI dev kit skills'),
+      })
+    );
+  });
+
+  test('stages skill installer output directories as local-only entries', async () => {
+    await installAiDevKit({
+      sourceDir,
+      targetDir,
+    });
+
+    const stagedGitignore = fs.readFileSync(
+      path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+      'utf8'
+    );
+    expect(stagedGitignore).toContain('.claude/');
+    expect(stagedGitignore).toContain('.cli/');
+    expect(stagedGitignore).toContain('.codex/');
+    expect(stagedGitignore).toContain('.cursor/');
+    expect(stagedGitignore).toContain('.gemini/');
   });
 
   test('detects required dev kit entries', async () => {
@@ -80,6 +217,7 @@ describe('Maker AI dev kit install', () => {
   });
 
   test('lists present managed dev kit entries beyond required readiness markers', () => {
+    fs.mkdirSync(path.join(targetDir, '.cli'), { recursive: true });
     fs.mkdirSync(path.join(targetDir, '.emmylua'), { recursive: true });
     fs.mkdirSync(path.join(targetDir, 'engine-docs'), { recursive: true });
     fs.mkdirSync(path.join(targetDir, 'examples'), { recursive: true });
@@ -87,11 +225,20 @@ describe('Maker AI dev kit install', () => {
     fs.writeFileSync(path.join(targetDir, 'user-file.txt'), 'keep me\n', 'utf8');
 
     expect(listPresentDevKitManagedEntries(targetDir)).toEqual([
+      '.cli',
       '.emmylua',
       'CLAUDE.md',
       'engine-docs',
       'examples',
     ]);
+  });
+
+  test('keeps .DS_Store ignored as a file pattern while .maker remains a directory', () => {
+    const block = createDevKitGitignoreBlock(['examples']);
+
+    expect(block).toContain('\n.DS_Store\n');
+    expect(block).toContain('\n.maker/\n');
+    expect(block).not.toContain('.DS_Store/');
   });
 
   test('restores missing dev kit files without overwriting existing local files', async () => {
@@ -152,6 +299,41 @@ describe('Maker AI dev kit install', () => {
     expect(gitignore).toContain('another-user-rule.txt');
     expect(gitignore).toContain('engine-docs/');
     expect(gitignore).not.toContain('old-entry');
+  });
+
+  test('always ignores Maker local runtime state in managed gitignore block', () => {
+    const block = createDevKitGitignoreBlock(['engine-docs']);
+
+    expect(block).toContain('.maker/');
+  });
+
+  describe('resolveDefaultAiDevKitUrl', () => {
+    const originalEnv = process.env.TAPTAP_MCP_ENV;
+
+    afterEach(() => {
+      if (originalEnv === undefined) {
+        delete process.env.TAPTAP_MCP_ENV;
+      } else {
+        process.env.TAPTAP_MCP_ENV = originalEnv;
+      }
+    });
+
+    test('returns the production URL by default', () => {
+      delete process.env.TAPTAP_MCP_ENV;
+      expect(resolveDefaultAiDevKitUrl()).toBe(AI_DEV_KIT_URLS.production);
+      expect(AI_DEV_KIT_URLS.production).toContain('/pd/stable/');
+    });
+
+    test('returns the rnd URL when TAPTAP_MCP_ENV=rnd', () => {
+      process.env.TAPTAP_MCP_ENV = 'rnd';
+      expect(resolveDefaultAiDevKitUrl()).toBe(AI_DEV_KIT_URLS.rnd);
+      expect(AI_DEV_KIT_URLS.rnd).toContain('/rnd/latest/');
+    });
+
+    test('explicit environment argument overrides process env', () => {
+      process.env.TAPTAP_MCP_ENV = 'production';
+      expect(resolveDefaultAiDevKitUrl('rnd')).toBe(AI_DEV_KIT_URLS.rnd);
+    });
   });
 
   test('finalizes staged gitignore after clone and removes staging file', () => {

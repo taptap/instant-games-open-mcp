@@ -111,6 +111,9 @@ export interface ProxyConfig {
      * 1. 初始化连接时：始终通过 HTTP Headers 传递（不受此配置影响）
      * 2. 每次工具调用时：通过工具参数注入（由此配置控制）
      *
+     * Proxy 会在初始化连接时通过 X-TapTap-Tag: local 标记本地调用来源，
+     * 并在每次工具调用中继续注入 _tag: "local" 私有参数用于兼容。
+     *
      * 为兼容不同的 MCP Server 实现，默认每次调用都注入。
      * 如果目标 Server 支持从 Session 获取这些参数，可设置为 false 以减少数据传输量。
      */
