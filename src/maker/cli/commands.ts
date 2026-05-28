@@ -801,7 +801,7 @@ function appendPatRecoveryUrl(error: unknown, parsed: ParsedArgs): Error {
 
 function isPatValidationFailure(message: string): boolean {
   return (
-    /\b(?:PAT_INVALID|401|403|unauthori[sz]ed|forbidden|invalid\s+PAT|PAT\s+invalid|expired)\b/i.test(
+    /\b(?:PAT_INVALID|HTTP\s*40[13]|40[13]|unauthori[sz]ed|invalid\s+PAT|PAT\s+invalid|expired)\b/i.test(
       message
     ) || /(?:过期|失效)/.test(message)
   );

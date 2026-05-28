@@ -380,6 +380,34 @@ describe('Maker CLI commands', () => {
     ).rejects.toThrow('https://maker.taptap.cn/pat-tokens');
   });
 
+  test('init clone forbidden path failures do not include the PAT URL', async () => {
+    jest
+      .mocked(cloneMakerProject)
+      .mockRejectedValueOnce(
+        new Error('git push rejected: file matches forbidden pattern ".claude/skills/demo"')
+      );
+
+    let thrown: unknown;
+    try {
+      await runMakerCli([
+        'init',
+        '--skip-confirm',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'valid-maker-token',
+      ]);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain('matches forbidden pattern');
+    expect((thrown as Error).message).not.toContain('pat-tokens');
+  });
+
   test('boolean flags do not consume following positional app id', async () => {
     await runMakerCli([
       'init',
