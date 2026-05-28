@@ -184,3 +184,5 @@ native/target/
 native/*.node
 native/node_modules/
 
+# TapTap Maker local runtime state
+.maker/

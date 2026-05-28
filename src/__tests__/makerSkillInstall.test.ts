@@ -24,11 +24,12 @@ describe('Maker bundled workflow skill documents', () => {
       projectRoot: tempDir,
     });
 
-    expect(status).toContain('TapTap bundled workflow skills');
+    expect(status).toContain('TapTap Maker workflow guide documents');
     expect(status).toContain(`skills/${MAKER_LOCAL_SKILL_NAME}/SKILL.md`);
     expect(status).toContain(`skills/${MAKER_DEV_KIT_GUIDE_SKILL_NAME}/SKILL.md`);
     expect(status).toContain(`skills/${UPDATE_TAPTAP_MCP_SKILL_NAME}/SKILL.md`);
-    expect(status).toContain('Let the current AI client decide whether and how to load them.');
+    expect(status).toContain('Use these documents as reading references');
+    expect(status).toContain('Maker initialization next_step: execute `taptap-maker init`');
     expect(status).not.toContain('Validation checklist for the local AI client');
     expect(status).not.toContain(`${MAKER_LOCAL_SKILL_NAME} / codex: missing`);
     expect(status).not.toContain('taptap-maker install-skill --ide codex');
@@ -52,7 +53,8 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('ask which app to clone');
     expect(skillText).toContain('app lists from `taptap-maker apps`');
     expect(skillText).toContain('reference only');
-    expect(skillText).toContain('Do not auto-select');
+    expect(skillText).toContain('Selection confirmation');
+    expect(skillText).toContain('Treat the user');
     expect(skillText).toContain('Bundled Skills');
     expect(skillText).toContain('Before every clone attempt, run `taptap-maker doctor`');
     expect(skillText).toContain('Directory Suitability Decision');

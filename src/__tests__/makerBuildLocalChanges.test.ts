@@ -9,12 +9,14 @@ import path from 'node:path';
 import {
   buildCurrentDirectory,
   createBuildArgs,
+  createRemoteRuntimeLogClient,
   formatBuildResult,
   formatClonePartialStateLines,
   formatMakerRemoteSyncStatusSafely,
   formatPushResult,
   pushThenBuildCurrentDirectory,
   resources,
+  stopExistingRuntimeLogWatcher,
   tools,
 } from '../maker/server/mcp';
 import {
@@ -112,7 +114,7 @@ describe('maker build local-change guard', () => {
     runGit(['branch', '-M', 'main']);
     prepareMakerRemote();
     const remoteWorktree = cloneRemoteWorktree();
-    fs.writeFileSync(path.join(remoteWorktree, 'scripts', 'remote.lua'), '-- remote\n', 'utf8');
+    writeRemoteScript(remoteWorktree);
     runGit(['add', 'scripts/remote.lua'], remoteWorktree);
     runGit(['commit', '-m', 'chore: remote update'], remoteWorktree);
     runGit(['push', 'origin', 'main'], remoteWorktree);
@@ -131,7 +133,7 @@ describe('maker build local-change guard', () => {
     runGit(['branch', '-M', 'main']);
     prepareMakerRemote();
     const remoteWorktree = cloneRemoteWorktree();
-    fs.writeFileSync(path.join(remoteWorktree, 'scripts', 'remote.lua'), '-- remote\n', 'utf8');
+    writeRemoteScript(remoteWorktree);
     runGit(['add', 'scripts/remote.lua'], remoteWorktree);
     runGit(['commit', '-m', 'chore: remote update'], remoteWorktree);
     runGit(['push', 'origin', 'main'], remoteWorktree);
@@ -145,13 +147,21 @@ describe('maker build local-change guard', () => {
   });
 
   test('status fetch auth failures guide users to refresh Maker PAT', () => {
+    const nextAction = getMakerRemoteSyncFailureNextAction({
+      classification: 'auth',
+      retryable: false,
+      nextAction: '运行 `taptap-maker pat set` 并粘贴新的 Maker PAT。',
+    });
+
+    expect(nextAction).toContain('taptap-maker pat set');
+    expect(nextAction).toContain('https://maker.taptap.cn/pat-tokens');
     expect(
       getMakerRemoteSyncFailureNextAction({
         classification: 'auth',
         retryable: false,
         nextAction: '运行 `taptap-maker pat set` 并粘贴新的 Maker PAT。',
       })
-    ).toContain('taptap-maker pat set');
+    ).not.toContain('控制台');
   });
 
   test('pushes committed but unpushed Maker changes when workspace is clean', async () => {
@@ -567,6 +577,8 @@ describe('maker build local-change guard', () => {
     expect(buildTool?.description).toContain('commits when needed, pushes');
     expect(buildTool?.description).toContain('remote Maker build');
     expect(buildTool?.description).toContain('If push fails, build is not started');
+    expect(buildTool?.description).toContain('runtime_logs.local_file');
+    expect(buildTool?.description).toContain('runtime_logs.state_file');
     expect(buildTool?.description).not.toContain('maker_submit_current_directory');
     expect(buildTool?.description).not.toContain('maker_push_current_directory');
     expect(buildTool?.description).not.toContain('Do not use this tool');
@@ -575,7 +587,11 @@ describe('maker build local-change guard', () => {
   test('exposes only the compact Maker tool set', () => {
     const toolNames = tools.map((item) => item.name);
 
-    expect(toolNames).toEqual(['maker_status_lite', 'maker_build_current_directory']);
+    expect(toolNames).toEqual([
+      'maker_status_lite',
+      'maker_build_current_directory',
+      'maker_pull_runtime_logs',
+    ]);
     expect(resources.map((item) => item.uri)).toEqual(['maker://status']);
     expect(toolNames).not.toContain('maker_exchange_pat');
     expect(toolNames).not.toContain('maker_list_apps');
@@ -614,10 +630,10 @@ describe('maker build local-change guard', () => {
     const statusTool = tools.find((item) => item.name === 'maker_status_lite');
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(statusTool?.description).toContain('bundled workflow skill document paths');
+    expect(statusTool?.description).toContain('bundled workflow guide document paths');
     expect(statusTool?.inputSchema.properties).toHaveProperty('target_dir');
     expect(statusTool?.description).toContain('AI dev kit status');
-    expect(statusTool?.description).toContain('Compatibility fallback');
+    expect(statusTool?.description).toContain('Compatibility status surface');
     expect(statusTool?.description).not.toContain('If PAT is missing');
     expect(statusTool?.description).not.toContain('ask them to open');
     expect(statusTool?.description).not.toContain('让用户选择');
@@ -637,6 +653,20 @@ describe('maker build local-change guard', () => {
     expect(buildTool?.inputSchema.properties).not.toHaveProperty(
       'submit_local_changes_before_build'
     );
+  });
+
+  test('runtime log pull tool keeps MCP surface to a fixed one-shot business flow', () => {
+    const logTool = tools.find((item) => item.name === 'maker_pull_runtime_logs');
+
+    expect(logTool?.description).toContain('one-shot');
+    expect(logTool?.description).toContain('does not start a watcher');
+    expect(logTool?.description).toContain('user_script/server_user_script');
+    expect(logTool?.description).toContain('runtime.log');
+    expect(logTool?.inputSchema.properties).toHaveProperty('since_seconds');
+    expect(logTool?.inputSchema.properties).toHaveProperty('start_time');
+    expect(logTool?.inputSchema.properties).not.toHaveProperty('topics');
+    expect(logTool?.inputSchema.properties).not.toHaveProperty('watch');
+    expect(logTool?.inputSchema.properties).not.toHaveProperty('interval_seconds');
   });
 
   test('public Maker tool schemas do not expose JWT fallback parameters', () => {
@@ -784,6 +814,12 @@ describe('maker build local-change guard', () => {
         timeoutMs: 600000,
         buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
         resultText: 'build ok',
+        runtimeLogWatch: {
+          started: true,
+          command: 'node maker.js logs watch --reset --interval 5s',
+          runtimeLog: path.join(tempDir, '.maker', 'logs', 'runtime', 'runtime.log'),
+          pid: 12345,
+        },
       },
       {
         elapsedMs: 1000,
@@ -794,6 +830,18 @@ describe('maker build local-change guard', () => {
 
     expect(output).toContain(
       '- maker_url: https://maker.taptap.cn/app/a161a4e5-a226-4133-908f-c28c228b7ea5'
+    );
+    expect(output).toContain('runtime_logs:');
+    expect(output).toContain('- watch_started: yes');
+    expect(output).toContain('- watch_pid: 12345');
+    expect(output).toContain('taptap-maker logs watch');
+    expect(output).toContain('--reset');
+    expect(output).toContain('--interval 5s');
+    expect(output).toContain(
+      `- state_file: ${path.join(tempDir, '.maker', 'logs', 'runtime', 'state.json')}`
+    );
+    expect(output).toContain(
+      '- next_action: 如需分析游戏运行结果或报错，请读取 runtime_logs.local_file；如需判断 watcher 是否正常，请读取 runtime_logs.state_file。'
     );
   });
 
@@ -1007,6 +1055,324 @@ describe('maker build local-change guard', () => {
     );
   });
 
+  test('remote build refreshes Maker web preview after a build result is returned', async () => {
+    const refreshedProjects: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      callRemoteBuild: async () => ({
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: {},
+        resultText: 'build ok',
+      }),
+      refreshPreview: async (buildResult) => {
+        refreshedProjects.push(buildResult.projectId);
+        return {
+          ok: true,
+          status: 200,
+          url: 'https://fuping.agnt.xd.com/api/v1/apps/app-1/preview-refresh',
+        };
+      },
+    });
+
+    expect(refreshedProjects).toEqual(['app-1']);
+    expect(result.mode).toBe('remote_build');
+    expect('previewRefresh' in result ? result.previewRefresh?.ok : undefined).toBe(true);
+  });
+
+  test('remote build starts local runtime log watcher after a successful build result', async () => {
+    const startedProjects: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      callRemoteBuild: async () => ({
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: {},
+        resultText: 'build ok',
+      }),
+      refreshPreview: async () => ({
+        ok: true,
+        status: 200,
+        url: 'https://fuping.agnt.xd.com/api/v1/apps/app-1/preview-refresh',
+      }),
+      startRuntimeLogWatch: async (buildResult) => {
+        startedProjects.push(buildResult.projectId);
+        return {
+          started: true,
+          command: 'node dist/maker.js logs watch --reset --interval 5s',
+          runtimeLog: path.join(
+            buildResult.projectRoot,
+            '.maker',
+            'logs',
+            'runtime',
+            'runtime.log'
+          ),
+          pid: 12345,
+        };
+      },
+    });
+
+    expect(startedProjects).toEqual(['app-1']);
+    expect(result.mode).toBe('remote_build');
+    expect('runtimeLogWatch' in result ? result.runtimeLogWatch?.started : undefined).toBe(true);
+  });
+
+  test('failed remote build text does not trigger preview refresh or runtime watcher', async () => {
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
+    const refreshedProjects: string[] = [];
+    const startedProjects: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges: async () => ({
+        branch: 'main',
+        committed: true,
+        commitHash: 'abc1234',
+        message: 'chore: update maker project',
+        pushed: true,
+        status: 'pushed',
+      }),
+      callRemoteBuild: async () => ({
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: {},
+        resultText: 'BUILD FAILED: lua syntax error',
+      }),
+      refreshPreview: async (buildResult) => {
+        refreshedProjects.push(buildResult.projectId);
+        return { ok: true, status: 200, url: 'preview-refresh' };
+      },
+      startRuntimeLogWatch: async (buildResult) => {
+        startedProjects.push(buildResult.projectId);
+        return { started: true, command: 'watch', runtimeLog: 'runtime.log' };
+      },
+    });
+
+    expect(result.mode).toBe('build_failed_after_submit');
+    expect('buildFailure' in result ? result.buildFailure.message : '').toContain('BUILD FAILED');
+    expect(refreshedProjects).toEqual([]);
+    expect(startedProjects).toEqual([]);
+  });
+
+  test('failed remote build text stays structured when no submit happened', async () => {
+    const refreshedProjects: string[] = [];
+    const startedProjects: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      callRemoteBuild: async () => ({
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: {},
+        resultText: 'BUILD FAILED: lua syntax error',
+      }),
+      refreshPreview: async (buildResult) => {
+        refreshedProjects.push(buildResult.projectId);
+        return { ok: true, status: 200, url: 'preview-refresh' };
+      },
+      startRuntimeLogWatch: async (buildResult) => {
+        startedProjects.push(buildResult.projectId);
+        return { started: true, command: 'watch', runtimeLog: 'runtime.log' };
+      },
+    });
+
+    expect(result.mode).toBe('remote_build_failed');
+    expect('buildFailure' in result ? result.buildFailure.message : '').toContain('BUILD FAILED');
+    expect('buildResult' in result ? result.buildResult.projectId : undefined).toBe('app-1');
+    expect(refreshedProjects).toEqual([]);
+    expect(startedProjects).toEqual([]);
+  });
+
+  test('runtime log watcher startup stops an existing watcher from pid file first', () => {
+    const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+    fs.writeFileSync(
+      pidFile,
+      JSON.stringify({ pid: 12345, command: 'node maker.js logs watch --target-dir game' }),
+      'utf8'
+    );
+    const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
+
+    try {
+      const result = stopExistingRuntimeLogWatcher(pidFile, {
+        getProcessCommand: () => 'node maker.js logs watch --target-dir game',
+        waitForExit: () => true,
+      });
+
+      expect(result).toEqual({ previousPid: 12345, previousStopped: true });
+      expect(killSpy).toHaveBeenNthCalledWith(1, 12345, 0);
+      expect(killSpy).toHaveBeenNthCalledWith(2, 12345, 'SIGTERM');
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  test('runtime log watcher startup does not kill a reused pid with a mismatched command', () => {
+    const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+    fs.writeFileSync(
+      pidFile,
+      JSON.stringify({ pid: 12345, command: 'node maker.js logs watch --target-dir game' }),
+      'utf8'
+    );
+    const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
+
+    try {
+      const result = stopExistingRuntimeLogWatcher(pidFile, {
+        getProcessCommand: () => '/Applications/Editor.app/Contents/MacOS/editor',
+      });
+
+      expect(result.previousPid).toBe(12345);
+      expect(result.previousStopped).toBe(false);
+      expect(result.previousStopError).toContain('does not look like a Maker log watcher');
+      expect(killSpy).toHaveBeenCalledTimes(1);
+      expect(killSpy).toHaveBeenCalledWith(12345, 0);
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  test('runtime log watcher startup does not kill unrelated logs watch processes', () => {
+    const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+    fs.writeFileSync(
+      pidFile,
+      JSON.stringify({ pid: 12345, command: 'node maker.js logs watch --target-dir game' }),
+      'utf8'
+    );
+    const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
+
+    try {
+      const result = stopExistingRuntimeLogWatcher(pidFile, {
+        getProcessCommand: () => 'tail -f /var/logs/game/watch',
+      });
+
+      expect(result.previousPid).toBe(12345);
+      expect(result.previousStopped).toBe(false);
+      expect(result.previousStopError).toContain('does not look like a Maker log watcher');
+      expect(killSpy).toHaveBeenCalledTimes(1);
+      expect(killSpy).toHaveBeenCalledWith(12345, 0);
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  test('runtime log watcher startup can verify ownership from pid file command when process command is unavailable', () => {
+    const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+    fs.writeFileSync(
+      pidFile,
+      JSON.stringify({ pid: 12345, command: 'node maker.js logs watch --target-dir game' }),
+      'utf8'
+    );
+    const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
+
+    try {
+      const result = stopExistingRuntimeLogWatcher(pidFile, {
+        getProcessCommand: () => undefined,
+        waitForExit: () => true,
+      });
+
+      expect(result).toEqual({ previousPid: 12345, previousStopped: true });
+      expect(killSpy).toHaveBeenNthCalledWith(1, 12345, 0);
+      expect(killSpy).toHaveBeenNthCalledWith(2, 12345, 'SIGTERM');
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  test('runtime log watcher startup refuses legacy pid files when process command is unavailable', () => {
+    const pidFile = path.join(tempDir, '.maker', 'logs', 'runtime', 'watcher.pid');
+    fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+    fs.writeFileSync(pidFile, '12345\n', 'utf8');
+    const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
+
+    try {
+      const result = stopExistingRuntimeLogWatcher(pidFile, {
+        getProcessCommand: () => undefined,
+      });
+
+      expect(result.previousPid).toBe(12345);
+      expect(result.previousStopped).toBe(false);
+      expect(result.previousStopError).toContain('could not be verified');
+      expect(killSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      killSpy.mockRestore();
+    }
+  });
+
+  test('runtime log remote client reuses one MCP connection across polls', async () => {
+    const connect = jest.fn(async () => undefined);
+    const callTool = jest.fn(async () => ({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            logs: [],
+            nextStartTime: 1710000001,
+            serverTime: 1710000001,
+            hasMore: false,
+          }),
+        },
+      ],
+    }));
+    const close = jest.fn(async () => undefined);
+    const createClient = jest.fn(() => ({ connect, callTool, close }));
+    const createTransport = jest.fn(() => ({}) as never);
+
+    const runtimeLogClient = createRemoteRuntimeLogClient(
+      {
+        projectRoot: tempDir,
+        serverUrl: 'https://maker.example.test/mcp',
+        env: 'rnd',
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        userId: 'user-1',
+        proxyConfigJson: '{}',
+        command: 'node',
+        args: ['proxy.js'],
+        envVars: {},
+      },
+      60000,
+      { createClient, createTransport }
+    );
+
+    try {
+      await runtimeLogClient.call({ sinceSeconds: 0 });
+      await runtimeLogClient.call({ startTime: 1710000001 });
+    } finally {
+      await runtimeLogClient.close();
+    }
+
+    expect(createClient).toHaveBeenCalledTimes(1);
+    expect(createTransport).toHaveBeenCalledTimes(1);
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(callTool).toHaveBeenCalledTimes(2);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   function runGit(args: string[], cwd = tempDir): void {
     const result = spawnSync('git', args, {
       cwd,
@@ -1047,6 +1413,16 @@ describe('maker build local-change guard', () => {
     process.env.PAT = 'tmpct_test_pat';
     runGit(['remote', 'add', 'origin', remoteDir]);
     runGit(['push', '-u', 'origin', branch]);
+    const setHead = spawnSync(
+      'git',
+      ['--git-dir', remoteDir, 'symbolic-ref', 'HEAD', `refs/heads/${branch}`],
+      {
+        encoding: 'utf8',
+      }
+    );
+    if (setHead.status !== 0) {
+      throw new Error(`git symbolic-ref HEAD failed: ${setHead.stderr || setHead.stdout}`);
+    }
     return branch;
   }
 
@@ -1062,6 +1438,11 @@ describe('maker build local-change guard', () => {
     runGit(['config', 'user.email', 'maker-remote@example.test'], worktree);
     runGit(['config', 'user.name', 'maker-remote'], worktree);
     return worktree;
+  }
+
+  function writeRemoteScript(worktree: string): void {
+    fs.mkdirSync(path.join(worktree, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(worktree, 'scripts', 'remote.lua'), '-- remote\n', 'utf8');
   }
 
   function gitProjectRoot(): string {

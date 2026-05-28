@@ -721,23 +721,42 @@ jobs:
         id: beta_version
         run: |
           CURRENT_VERSION="${{ needs.analyze.outputs.version }}"
-
-          if ! npm view "@taptap/instant-games-open-mcp@${CURRENT_VERSION}" version >/dev/null 2>&1; then
-            echo "version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
-            echo "semantic_version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
-            echo "Using semantic-release beta version: ${CURRENT_VERSION}"
-            exit 0
-          fi
-
           BASE_VERSION="${CURRENT_VERSION%%-beta.*}"
           if [ "$BASE_VERSION" = "$CURRENT_VERSION" ]; then
             echo "Expected beta prerelease version, got: ${CURRENT_VERSION}"
             exit 1
           fi
 
+          LATEST_STABLE="$(npm view "@taptap/instant-games-open-mcp" dist-tags.latest 2>/dev/null || echo "")"
+          RESOLVED_BASE="$(
+            BASE_VERSION="$BASE_VERSION" LATEST_STABLE="$LATEST_STABLE" node -e '
+              const base = process.env.BASE_VERSION;
+              const latest = process.env.LATEST_STABLE;
+              const parse = (value) => {
+                const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value || "");
+                return match ? match.slice(1).map(Number) : null;
+              };
+              const baseParts = parse(base);
+              const latestParts = parse(latest);
+              if (!baseParts || !latestParts) {
+                console.log(base);
+                process.exit(0);
+              }
+              const cmp =
+                baseParts[0] - latestParts[0] ||
+                baseParts[1] - latestParts[1] ||
+                baseParts[2] - latestParts[2];
+              if (cmp <= 0) {
+                console.log(`${latestParts[0]}.${latestParts[1]}.${latestParts[2] + 1}`);
+              } else {
+                console.log(base);
+              }
+            '
+          )"
+
           VERSIONS_JSON="$(npm view "@taptap/instant-games-open-mcp" versions --json)"
           RESOLVED_VERSION="$(
-            BASE_VERSION="$BASE_VERSION" VERSIONS_JSON="$VERSIONS_JSON" node -e '
+            BASE_VERSION="$RESOLVED_BASE" VERSIONS_JSON="$VERSIONS_JSON" node -e '
               const versions = JSON.parse(process.env.VERSIONS_JSON || "[]");
               const base = process.env.BASE_VERSION;
               const escapedBase = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -755,7 +774,7 @@ jobs:
 
           echo "version=${RESOLVED_VERSION}" >> "$GITHUB_OUTPUT"
           echo "semantic_version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "semantic-release proposed ${CURRENT_VERSION}, already exists; using ${RESOLVED_VERSION}"
+          echo "semantic-release proposed ${CURRENT_VERSION}; latest stable is ${LATEST_STABLE}; using ${RESOLVED_VERSION}"
 
       - name: Set beta package version
         run: npm version "${{ steps.beta_version.outputs.version }}" --no-git-tag-version

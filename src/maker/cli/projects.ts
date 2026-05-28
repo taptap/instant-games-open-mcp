@@ -9,7 +9,7 @@ import type { MakerPat, MakerProjectSummary } from '../types.js';
 import { getProjectConfigPath, loadPat, loadProjectConfig, saveProjectConfig } from '../storage.js';
 import { getUserIdFromMakerJwt, requireMakerJwt } from '../auth/jwt.js';
 import { getManualMakerPat, requestMakerPat, saveManualMakerPat } from '../git/pat.js';
-import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
+import { getMakerEndpoints, getMakerPatTokensUrl, requireMakerEndpoint } from '../config.js';
 import { ensureGitAvailable, getGitCommand } from '../system/git.js';
 import { finalizeStagedDevKitGitignore } from './devKit.js';
 
@@ -690,7 +690,7 @@ export async function inspectMakerRemoteSyncStatus(cwd: string): Promise<MakerRe
 
 export function getMakerRemoteSyncFailureNextAction(failure: MakerGitFailure): string {
   if (failure.classification === 'auth') {
-    return '暂时无法检查 Maker 远端是否有新提交：Git 鉴权失败。请先运行 `taptap-maker pat set` 并粘贴新的 Maker PAT 后，再重新读取 maker://status。';
+    return `暂时无法检查 Maker 远端是否有新提交：Git 鉴权失败。PAT 页面：${getMakerPatTokensUrl()}。请在该页面创建新的 Maker PAT，然后运行 \`taptap-maker pat set\` 并粘贴 PAT 后，再重新读取 maker://status。`;
   }
 
   return '暂时无法检查 Maker 远端是否有新提交。请把 failure 信息反馈给用户；如果只是 503、5xx、超时或网络中断，可稍后重新读取 maker://status。';
@@ -989,7 +989,7 @@ function nextActionForFailure(classification: MakerGitFailure['classification'])
     case 'git_missing':
       return '本机未检测到可用的 Git。请用户自行安装 Git，并在 `git --version` 可用后重启 MCP 客户端再重试；安装前不要执行 clone、fetch、commit 或 push。';
     case 'auth':
-      return '运行 `taptap-maker pat set` 并粘贴新的 Maker PAT 后，再重试 maker_build_current_directory；如果仍失败，请确认 PAT 是否过期或缺少 Maker git 权限。';
+      return `Maker Git 鉴权失败。PAT 页面：${getMakerPatTokensUrl()}。请在该页面创建新的 Maker PAT，然后运行 \`taptap-maker pat set\` 并粘贴 PAT 后重试。`;
     case 'remote_transient':
       return '远端 Maker git 服务临时不可用。本地 commit 会保留；不要手动执行通用 git push，稍后直接重试 maker_build_current_directory。';
     case 'branch_not_allowed':
