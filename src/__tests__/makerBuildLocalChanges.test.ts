@@ -147,13 +147,21 @@ describe('maker build local-change guard', () => {
   });
 
   test('status fetch auth failures guide users to refresh Maker PAT', () => {
+    const nextAction = getMakerRemoteSyncFailureNextAction({
+      classification: 'auth',
+      retryable: false,
+      nextAction: '运行 `taptap-maker pat set` 并粘贴新的 Maker PAT。',
+    });
+
+    expect(nextAction).toContain('taptap-maker pat set');
+    expect(nextAction).toContain('https://maker.taptap.cn/pat-tokens');
     expect(
       getMakerRemoteSyncFailureNextAction({
         classification: 'auth',
         retryable: false,
         nextAction: '运行 `taptap-maker pat set` 并粘贴新的 Maker PAT。',
       })
-    ).toContain('taptap-maker pat set');
+    ).not.toContain('控制台');
   });
 
   test('pushes committed but unpushed Maker changes when workspace is clean', async () => {
@@ -622,10 +630,10 @@ describe('maker build local-change guard', () => {
     const statusTool = tools.find((item) => item.name === 'maker_status_lite');
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(statusTool?.description).toContain('bundled workflow skill document paths');
+    expect(statusTool?.description).toContain('bundled workflow guide document paths');
     expect(statusTool?.inputSchema.properties).toHaveProperty('target_dir');
     expect(statusTool?.description).toContain('AI dev kit status');
-    expect(statusTool?.description).toContain('Compatibility fallback');
+    expect(statusTool?.description).toContain('Compatibility status surface');
     expect(statusTool?.description).not.toContain('If PAT is missing');
     expect(statusTool?.description).not.toContain('ask them to open');
     expect(statusTool?.description).not.toContain('让用户选择');

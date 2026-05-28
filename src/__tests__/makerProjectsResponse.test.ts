@@ -143,9 +143,11 @@ describe('maker app list display', () => {
     expect(output).toContain('40. app-81');
     expect(output).not.toContain('41. app-80');
     expect(output).not.toContain('offset');
-    expect(output).not.toContain('next');
+    expect(output).not.toContain('next_offset');
+    expect(output).not.toContain('next_page');
     expect(output).toContain('AI 展示建议');
     expect(output).toContain('两列紧凑布局');
+    expect(output).toContain('用户回复序号或 app_id 后，next_step: 执行 `taptap-maker init`');
     expect(output).not.toContain('每一个 app 条目');
   });
 
