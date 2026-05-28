@@ -1,4 +1,10 @@
 import { TapTapMCPProxy } from '../mcp-proxy/proxy';
+import {
+  extractPrivateParams,
+  hasPrivateParams,
+  mergePrivateParams,
+  stripPrivateParams,
+} from '../core/types/privateParams';
 import type { ProxyConfig } from '../mcp-proxy/types';
 import { ResolvedContext } from '../core/types/context';
 
@@ -43,7 +49,7 @@ describe('mcp proxy tag private parameter', () => {
     });
   });
 
-  test('does not inject tag as a per-call private argument', () => {
+  test('also injects tag as a per-call private argument', () => {
     const proxy = new TapTapMCPProxy(createProxyConfig());
 
     const injected = (
@@ -52,10 +58,36 @@ describe('mcp proxy tag private parameter', () => {
       }
     ).injectPrivateParams({ name: 'demo' });
 
-    expect(injected).not.toHaveProperty('_tag');
+    expect(injected).toMatchObject({
+      name: 'demo',
+      _tag: 'local',
+      _project_id: 'project-1',
+      _project_path: 'project-1/workspace',
+      _user_id: 'user-1',
+    });
   });
 
-  test('exposes session header tag through resolved context', () => {
+  test('treats _tag as a private parameter on the server side', () => {
+    const args = {
+      page: 1,
+      _tag: 'local',
+      _project_id: 'project-1',
+    };
+
+    expect(extractPrivateParams(args)).toMatchObject({
+      _tag: 'local',
+      _project_id: 'project-1',
+    });
+    expect(hasPrivateParams(args)).toBe(true);
+    expect(stripPrivateParams(args)).toEqual({ page: 1 });
+    expect(mergePrivateParams({ page: 2 }, { _tag: 'local' })).toEqual({
+      page: 2,
+      _tag: 'local',
+    });
+    expect(new ResolvedContext(extractPrivateParams(args), { tag: 'header' }).tag).toBe('local');
+  });
+
+  test('falls back to session header tag when no private tag is provided', () => {
     const context = new ResolvedContext({}, { tag: 'local' });
 
     expect(context.tag).toBe('local');

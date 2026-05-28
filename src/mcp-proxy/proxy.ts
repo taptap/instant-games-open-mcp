@@ -220,12 +220,14 @@ export class TapTapMCPProxy {
    * - _project_id: 项目标识（可选）
    * - _project_path: 项目路径（可选）
    * - _custom_fields: 业务自定义字段（可选）
+   * - _tag: 调用来源标记，固定为 "local"
    */
   private injectPrivateParams(args: Record<string, unknown> | undefined): Record<string, unknown> {
     const injected: Record<string, unknown> = { ...(args || {}) };
 
     // 注入 MAC Token（必需）
     injected._mac_token = this.config.auth;
+    injected._tag = LOCAL_PROXY_TAG;
 
     // 注入可选的会话上下文参数
     if (this.config.tenant.user_id) {

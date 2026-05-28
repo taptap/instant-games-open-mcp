@@ -169,8 +169,9 @@ const sessionResult = await connection.newSession({
 - `user_id` 和 `project_id` 仅用于日志标识，不参与路径逻辑
 - Proxy 不再处理路径拼接，全部交给 MCP Server 的 `pathResolver` 统一处理
 - 连接上游 MCP Server 创建 session 时会额外发送 `X-TapTap-Tag: local`，用于远端
-  MCP 区分本地 proxy 调用来源；该标记不写入 `PROXY_CONFIG`，也不用于普通
-  Open API HTTP 请求
+  MCP 区分本地 proxy 调用来源；每次工具调用也会继续注入私有参数 `_tag:
+"local"` 用于兼容。该标记不写入 `PROXY_CONFIG`，也不用于普通 Open API
+  HTTP 请求
 
 ### auth（必需）
 

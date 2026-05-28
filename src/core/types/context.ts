@@ -142,7 +142,7 @@ export class ResolvedContext {
       macToken:
         args._mac_token?.kid && args._mac_token?.mac_key ? args._mac_token : session.macToken,
       customFields: args._custom_fields || session.customFields,
-      tag: session.tag,
+      tag: args._tag || session.tag,
     };
   }
 
