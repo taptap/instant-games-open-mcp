@@ -1,0 +1,117 @@
+name: Publish Maker Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_mode:
+        description: 'Version mode: manual requires confirmation; auto increments only the final numeric segment'
+        required: true
+        default: manual
+        type: choice
+        options:
+          - manual
+          - auto-last-number
+      version:
+        description: 'Manual @taptap/maker version, for example 0.0.1-beta.1 or 0.0.1'
+        required: false
+        type: string
+      confirm_version:
+        description: 'Required in manual mode: enter the exact same version again'
+        required: false
+        type: string
+      tag:
+        description: 'npm dist-tag'
+        required: false
+        default: beta
+        type: choice
+        options:
+          - beta
+          - latest
+          - next
+          - alpha
+      allow_no_provenance:
+        description: 'Allow fallback publish without provenance when provenance publish fails'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish @taptap/maker
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Resolve publish version
+        id: version
+        run: node scripts/resolve-maker-version.js
+        env:
+          MAKER_VERSION_MODE: ${{ inputs.version_mode }}
+          MAKER_MANUAL_VERSION: ${{ inputs.version }}
+          MAKER_CONFIRM_VERSION: ${{ inputs.confirm_version }}
+          MAKER_NPM_TAG: ${{ inputs.tag }}
+
+      - name: Build Maker bundle
+        run: npm run build -- --skip-server --skip-proxy --skip-native
+        env:
+          MAKER_PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Prepare standalone package
+        run: node scripts/prepare-maker-package.js --version "$MAKER_PACKAGE_VERSION"
+        env:
+          MAKER_PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Dry-run package contents
+        run: cd packages/maker && npm pack --dry-run
+
+      - name: Pack package
+        run: cd packages/maker && npm pack
+
+      - name: Verify packed CLI
+        run: npx -y -p "./packages/maker/taptap-maker-${MAKER_PACKAGE_VERSION}.tgz" taptap-maker help
+        env:
+          MAKER_PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Publish package
+        run: |
+          set -e
+          tarball="./packages/maker/taptap-maker-${MAKER_PACKAGE_VERSION}.tgz"
+
+          if npm publish "$tarball" --access public --tag "$NPM_TAG" --provenance; then
+            echo "Published @taptap/maker@$MAKER_PACKAGE_VERSION with provenance"
+            exit 0
+          fi
+
+          if [ "$ALLOW_NO_PROVENANCE" != "true" ]; then
+            echo "::error::Provenance publish failed and allow_no_provenance is false."
+            exit 1
+          fi
+
+          echo "::warning::Provenance publish failed; falling back to token publish without provenance."
+          npm publish "$tarball" --access public --tag "$NPM_TAG"
+        env:
+          MAKER_PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          NPM_TAG: ${{ inputs.tag }}
+          ALLOW_NO_PROVENANCE: ${{ inputs.allow_no_provenance }}

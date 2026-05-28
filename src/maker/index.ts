@@ -7,6 +7,8 @@
 import { startMakerMcpServer } from './server/mcp.js';
 import { formatCliError, runMakerCli } from './cli/commands.js';
 import { appendMakerCrashLog } from './crashLog.js';
+import { loadConfig } from '../mcp-proxy/config.js';
+import { TapTapMCPProxy } from '../mcp-proxy/proxy.js';
 
 installCrashLogging();
 
@@ -18,12 +20,32 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === '__maker-proxy') {
+    process.argv.splice(2, 1);
+    await startEmbeddedProxy();
+    return;
+  }
+
   if (command === 'help' || command === '--help' || command === '-h') {
     printHelp();
     return;
   }
 
   await runMakerCli(process.argv.slice(2));
+}
+
+async function startEmbeddedProxy(): Promise<void> {
+  const config = await loadConfig();
+  const proxy = new TapTapMCPProxy(config);
+  await proxy.start();
+
+  const cleanup = (): void => {
+    proxy.cleanup();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
 }
 
 function printHelp(): void {
@@ -40,14 +62,13 @@ function printHelp(): void {
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # warns: PAT appears in ps/history',
       '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',
-      '                             [--package @taptap/instant-games-open-mcp] [--json]',
-      '  taptap-maker mcp verify [--package @taptap/instant-games-open-mcp]',
-      '                           [--mode npx|self] [--json]',
+      '                             [--json]',
+      '  taptap-maker mcp verify [--mode npx|self] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
       'MCP verify defaults to the npx command written into AI client config.',
-      'Advanced: init and mcp install accept --package only when testing a different npm package.',
+      'Maker MCP configs and npx verification use @taptap/maker.',
       '',
       'Windows note:',
       '  Generated MCP configs use npx.cmd automatically on Windows.',

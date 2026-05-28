@@ -149,6 +149,7 @@ describe('Maker CLI commands', () => {
     const text = fs.readFileSync(configPath, 'utf8');
     expect(text.match(/\[mcp_servers\."taptap-maker"\]/g)).toHaveLength(1);
     expect(text.match(/\[mcp_servers\."taptap-maker"\.env\]/g)).toHaveLength(1);
+    expect(text).toContain('args = ["-y", "-p", "@taptap/maker", "taptap-maker"]');
     expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
     expect(text).toContain('[mcp_servers."other".env]');
     expect(text).toContain('KEEP = "yes"');
@@ -769,15 +770,21 @@ describe('Maker CLI commands', () => {
 
     expect(spawnSyncMock).toHaveBeenCalledWith(
       process.platform === 'win32' ? 'npx.cmd' : 'npx',
-      ['-y', '-p', '@taptap/instant-games-open-mcp', 'taptap-maker', 'help'],
+      ['-y', '-p', '@taptap/maker', 'taptap-maker', 'help'],
       { encoding: 'utf8' }
     );
     expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual(
       expect.objectContaining({
         mode: 'npx',
-        command: expect.stringContaining('@taptap/instant-games-open-mcp taptap-maker help'),
+        command: expect.stringContaining('@taptap/maker taptap-maker help'),
         ok: true,
       })
+    );
+  });
+
+  test('mcp package override is no longer supported', async () => {
+    await expect(runMakerCli(['mcp', 'verify', '--package', 'custom-package'])).rejects.toThrow(
+      '@taptap/maker'
     );
   });
 

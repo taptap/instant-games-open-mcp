@@ -18,6 +18,7 @@
 - **🤖 智能引导** - AI Agent 自动验证前置条件，主动询问用户选择
 
 **NPM**: [@taptap/instant-games-open-mcp](https://www.npmjs.com/package/@taptap/instant-games-open-mcp)
+**Maker NPM**: [@taptap/maker](https://www.npmjs.com/package/@taptap/maker)
 
 ## 🦞 OpenClaw Plugin（实验中）
 
@@ -48,7 +49,7 @@
 Maker 本地开发按“初始化用 CLI，开发循环用 MCP”拆分。首次配置推荐直接运行：
 
 ```bash
-npx -y -p @taptap/instant-games-open-mcp taptap-maker init
+npx -y -p @taptap/maker taptap-maker init
 ```
 
 CLI 负责一次性流程：Git 检查、PAT 保存、TapTap token 换取、app 列表选择、AI dev kit
@@ -129,7 +130,7 @@ Maker 现在同时内置三个工作流 skill：
 
 - `taptap-maker-local`：把 Maker 初始化转交 CLI，并让本地 AI/Agent 按 push 失败分类处理 pull/rebase、切回 main、移除禁止路径、鉴权刷新、冲突和构建失败恢复。
 - `taptap-maker-dev-kit-guide`：介绍 clone 时安装到项目目录的 AI dev kit，明确 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
-- `update-taptap-mcp`：引导用户更新本地 npx 缓存里的 `@taptap/instant-games-open-mcp`，并提醒 Maker MCP 推荐安装到 user/global scope。
+- `update-taptap-mcp`：引导用户更新本地 npx 缓存里的 `@taptap/maker`，并提醒 Maker MCP 推荐安装到 user/global scope。
 
 初始化流程里，PAT 验证通过、用户选择 app 后，`taptap-maker init` 会自动准备本地 AI dev kit。
 

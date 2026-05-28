@@ -106,6 +106,9 @@ web_modules/
 # Output of 'npm pack'
 *.tgz
 
+# Generated standalone Maker package
+packages/maker/
+
 # Yarn Integrity file
 .yarn-integrity
 

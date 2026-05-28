@@ -5,7 +5,6 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -79,10 +78,7 @@ import {
 } from './runtimeLogs.js';
 
 declare const __MAKER_VERSION__: string | undefined;
-declare const __MAKER_BUNDLE_URL__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
-const DEFAULT_PROXY_MCP_NAME = 'taptap-proxy';
-const DEFAULT_PROXY_PACKAGE = '@taptap/instant-games-open-mcp@1.22.0';
 const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
 const PREVIEW_REFRESH_TIMEOUT_MS = 15 * 1000;
 const WATCHER_STOP_TIMEOUT_MS = 1500;
@@ -760,8 +756,6 @@ export function createRemoteProxyContext(options: {
   targetDir: string;
   serverUrl?: string;
   env?: 'rnd' | 'production';
-  useNpx?: boolean;
-  pkg?: string;
 }): {
   projectRoot: string;
   serverUrl: string;
@@ -821,15 +815,7 @@ export function createRemoteProxyContext(options: {
   };
 
   const proxyConfigJson = JSON.stringify(proxyCfg);
-  const proxyServer = options.useNpx
-    ? {
-        command: process.platform === 'win32' ? 'npx.cmd' : 'npx',
-        args: ['-y', '-p', options.pkg || DEFAULT_PROXY_PACKAGE, 'taptap-mcp-proxy'],
-      }
-    : {
-        command: 'node',
-        args: [resolveLocalProxyBundle()],
-      };
+  const proxyServer = resolveEmbeddedProxyCommand();
 
   return {
     projectRoot: identify.projectRoot,
@@ -847,179 +833,19 @@ export function createRemoteProxyContext(options: {
   };
 }
 
-export function configureRemoteProxy(options: {
-  targetDir: string;
-  serverUrl?: string;
-  env?: 'rnd' | 'production';
-  mcpName?: string;
-  useNpx?: boolean;
-  pkg?: string;
-}): {
-  mcpJsonPath: string;
-  projectRoot: string;
-  mcpName: string;
-  serverUrl: string;
-  env: string;
-  projectId: string;
-  projectPath: string;
-  userId?: string;
+export function resolveEmbeddedProxyCommand(options?: { makerEntry?: string }): {
   command: string;
   args: string[];
-  envVars?: Record<string, string>;
 } {
-  const mcpName = options.mcpName || DEFAULT_PROXY_MCP_NAME;
-  const proxy = createRemoteProxyContext(options);
-
-  const mcpJsonPath = path.join(proxy.projectRoot, '.mcp.json');
-  const mcpJson = readMcpJson(mcpJsonPath);
-  mcpJson.mcpServers = {
-    ...(mcpJson.mcpServers || {}),
-    [mcpName]: {
-      command: proxy.command,
-      args: proxy.args,
-      env: proxy.envVars,
-    },
-  };
-  fs.writeFileSync(mcpJsonPath, JSON.stringify(mcpJson, null, 2) + '\n', 'utf8');
-  excludeProjectMcpJson(proxy.projectRoot);
+  const makerEntry = options?.makerEntry ?? process.argv[1];
+  if (!makerEntry) {
+    throw new Error('Cannot resolve current taptap-maker entry for embedded MCP proxy.');
+  }
 
   return {
-    mcpJsonPath,
-    projectRoot: proxy.projectRoot,
-    mcpName,
-    serverUrl: proxy.serverUrl,
-    env: proxy.env,
-    projectId: proxy.projectId,
-    projectPath: proxy.projectPath,
-    userId: proxy.userId,
-    command: proxy.command,
-    args: proxy.args,
-    envVars: proxy.envVars,
+    command: process.execPath,
+    args: [path.resolve(makerEntry), '__maker-proxy'],
   };
-}
-
-export function resolveLocalProxyBundle(options?: {
-  currentModuleUrl?: string;
-  makerEntry?: string;
-  cwd?: string;
-}): string {
-  const currentModuleUrl =
-    options?.currentModuleUrl ||
-    (typeof __MAKER_BUNDLE_URL__ !== 'undefined' ? __MAKER_BUNDLE_URL__ : undefined);
-  const currentModuleDir = currentModuleUrl ? path.dirname(fileURLToPath(currentModuleUrl)) : '';
-  const makerEntry = options?.makerEntry ?? process.argv[1];
-  const makerEntryDir = makerEntry ? path.dirname(path.resolve(makerEntry)) : '';
-  const cwd = options?.cwd ?? process.cwd();
-  const candidates = [
-    currentModuleDir ? path.join(currentModuleDir, 'proxy.js') : '',
-    makerEntryDir ? path.join(makerEntryDir, '..', 'dist', 'proxy.js') : '',
-    path.resolve(cwd, 'dist', 'proxy.js'),
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  throw new Error(`MCP proxy bundle not found. Checked: ${candidates.join(', ')}`);
-}
-
-function readMcpJson(filePath: string): {
-  mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
-} {
-  if (!fs.existsSync(filePath)) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8')) as {
-      mcpServers?: Record<
-        string,
-        { command: string; args: string[]; env?: Record<string, string> }
-      >;
-    };
-  } catch (error) {
-    throw new Error(
-      `Failed to parse existing .mcp.json: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-}
-
-function excludeProjectMcpJson(projectRoot: string): void {
-  const gitDir = path.join(projectRoot, '.git');
-  if (!fs.existsSync(gitDir)) {
-    return;
-  }
-
-  const infoDir = path.join(gitDir, 'info');
-  const excludePath = path.join(infoDir, 'exclude');
-  const entry = '.mcp.json';
-  fs.mkdirSync(infoDir, { recursive: true });
-  const existing = fs.existsSync(excludePath) ? fs.readFileSync(excludePath, 'utf8') : '';
-  const hasEntry = existing
-    .split('\n')
-    .map((line) => line.trim())
-    .includes(entry);
-  if (hasEntry) {
-    return;
-  }
-
-  const prefix = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-  fs.appendFileSync(excludePath, `${prefix}${entry}\n`, 'utf8');
-}
-
-export function formatRemoteProxyResult(result: {
-  mcpJsonPath: string;
-  projectRoot: string;
-  mcpName: string;
-  serverUrl: string;
-  env: string;
-  projectId: string;
-  projectPath: string;
-  userId?: string;
-  command: string;
-  args: string[];
-  envVars?: Record<string, string>;
-}): string {
-  return [
-    '✓ Remote Maker MCP proxy configured',
-    '',
-    `- mcp_name: ${result.mcpName}`,
-    `- project_root: ${result.projectRoot}`,
-    `- mcp_json: ${result.mcpJsonPath}`,
-    `- server_url: ${result.serverUrl}`,
-    `- env: ${result.env}`,
-    `- project_id: ${result.projectId}`,
-    `- project_path: ${result.projectPath}`,
-    `- user_id: ${result.userId || '(unknown)'}`,
-    `- command: ${result.command}`,
-    `- args: ${formatProxyArgs(result.args)}`,
-    `- env: ${formatProxyEnv(result.envVars)}`,
-    '',
-    '已将 .mcp.json 写入本地 .git/info/exclude，避免误提交包含认证信息的本地 MCP 配置。',
-    '下一步：请重启当前 Claude/Codex 对话或重新加载 MCP servers，然后远端 taptap-proxy 暴露的 build/构建 tools 才会出现。',
-  ].join('\n');
-}
-
-function formatProxyArgs(args: string[]): string {
-  return args
-    .map((arg) => {
-      if (arg.startsWith('{') && arg.includes('mac_key')) {
-        return '<proxy_cfg_with_auth>';
-      }
-      return arg;
-    })
-    .join(' ');
-}
-
-function formatProxyEnv(envVars?: Record<string, string>): string {
-  if (!envVars) {
-    return '(none)';
-  }
-  return Object.keys(envVars)
-    .map((key) => `${key}=<redacted>`)
-    .join(' ');
 }
 
 interface ToolProgressSummary {

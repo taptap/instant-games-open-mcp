@@ -21,7 +21,7 @@ console.log('🚀 Bundling TapTap Maker...');
 console.log('📁 Project root:', projectRoot);
 
 const packageJson = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf-8'));
-const VERSION = packageJson.version;
+const VERSION = process.env.MAKER_PACKAGE_VERSION || packageJson.version;
 console.log('📦 Version:', VERSION);
 
 const distDir = join(projectRoot, 'dist');
