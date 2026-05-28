@@ -186,9 +186,24 @@ CLI 负责确定性文件处理：
 - dev kit 准备失败不会阻塞 Maker 项目 clone；CLI 会返回 `ai_dev_kit_error`，后续可通过 `taptap-maker dev-kit update` 重新恢复。
 - 如果目标目录位于外层 Git 仓库下，clone 只把目标目录自身的 `.git` 视为已有 Maker 仓库；父级 Git 仓库不会被复用，也不会被改 remote。
 - Windows 原生环境使用 PowerShell `Expand-Archive` 解压；Linux/macOS 先使用 `unzip`，失败时回退到 `python3`/`python` 标准库 `zipfile`。
+- 解压复制完成后，如果 dev kit 带有 `tools/install-skills.*`，CLI 会按平台执行
+  `install-skills.sh all`（Linux/macOS）或 `install-skills.ps1 all`（Windows），把
+  `skills/` 安装到 `.claude/skills/`、`.codex/skills/`、`.cursor/skills/` 和
+  `.gemini/skills/`。
+- skill 安装脚本开始执行时，普通 CLI 输出会追加 `AI skills install started:
+  <script>`；安装结束后会追加 `AI skills install result: claude=N, codex=N,
+  cursor=N, gemini=N`。如果目标目录已经存在完整 dev kit，clone/init 前也会重新执行
+  skill 安装脚本并输出结果，避免用户无法判断本地 skill 是否刷新。
+- JSON 输出会在 `data.skillInstaller` 中包含脚本路径、stdout、stderr 和摘要；脚本缺失或
+  被跳过时也会返回跳过原因。
+- 如果 skill 安装脚本失败，CLI 会在错误里输出平台、脚本路径、工作目录、命令、退出码、
+  stdout 和 stderr，方便 Agent 与用户直接看到失败原因。
+- `maker://status` 和 `maker_status_lite` 会输出 `skill_install_status` 与
+  `skill_install_summary`，用于检查 `.claude/.codex/.cursor/.gemini` 下的 skill 安装状态。
 - 跳过 ZIP 顶层 `scripts` 目录，避免和 Maker 项目 clone 后的 `scripts` 冲突。
 - 删除下载完成并解压后的 `ai-dev-kit.zip`。
-- clone 前生成 `.gitignore.dev-kit-before-clone` 临时 block，把 dev-kit 顶层内容标记为 local-only。
+- clone 前生成 `.gitignore.dev-kit-before-clone` 临时 block，把 dev-kit 顶层内容和
+  Agent skill 发现目录标记为 local-only。
 - clone 成功后自动把临时 block 合并到远端 `.gitignore`，并删除临时文件。
 - 该 managed block 也会固定包含 `.maker/`，因为 `.maker/logs/runtime/` 是本地运行日志和游标状态，
   不应该提交到 Maker Git。
@@ -231,7 +246,7 @@ Maker app 列表关键字段：
 进度和耗时：
 
 - `taptap-maker init` 会解析 Git clone/fetch stderr 中的百分比进度。
-- 首次 clone/fetch 前会明确提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，不要中断当前命令。
+- 首次 clone/fetch 前会明确提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
 - `taptap-maker init` 会根据 Git stderr 判断是否自动重试：HTTP 5xx、503、超时、连接重置、HTTP2/RPC 中断、early EOF 等远端临时错误会重试；认证失败、权限不足、仓库不存在、远端拒绝、非空目录冲突、本地权限错误不会重试。
 - 首次 clone/fetch 默认最多自动重试 2 次；连续重试后仍失败时，错误会保留 `retryable`、`retry_reason` 和已重试次数，方便 Agent 判断是让用户稍后直接重试，还是先处理 PAT、权限或本地目录问题。
 - `maker_build_current_directory` 会在本地 commit、push 和远端 build 阶段输出状态，并解析 Git push stderr 中的百分比进度。

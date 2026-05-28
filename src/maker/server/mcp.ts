@@ -66,6 +66,7 @@ import { formatMakerSkillStatus } from '../cli/skill.js';
 import {
   DEV_KIT_GITIGNORE_STAGING_FILE,
   inspectAiDevKit,
+  inspectAiDevKitSkillInstallStatus,
   type AiDevKitStatus,
 } from '../cli/devKit.js';
 import {
@@ -105,7 +106,7 @@ export const tools = [
   {
     name: 'maker_status_lite',
     description:
-      'Compatibility fallback for clients that cannot read the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow skill document paths.',
+      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -242,7 +243,7 @@ export const resources = [
     uri: 'maker://status',
     name: 'Maker status',
     description:
-      'Local TapTap Maker project status, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow skill document paths.',
+      'Local TapTap Maker project status, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init.',
     mimeType: 'text/plain',
   },
 ];
@@ -446,8 +447,8 @@ async function formatStatus(
   const projectSection = identify.projectId
     ? [
         '目标目录已绑定 Maker 项目。',
-        '请继续在当前绑定项目上执行状态、提交、构建等操作；不要再引导用户 clone，除非用户明确要求切换或重新拉取项目。',
-        '本地 Maker 工作流请优先参考 taptap-maker-local skill；CLI 负责初始化/PAT/app/clone，MCP 只保留状态和同步构建。',
+        '请继续在当前绑定项目上执行状态、提交、构建等操作；用户明确要求切换或重新拉取项目时，再进入项目选择流程。',
+        '本地 Maker 工作流请参考 taptap-maker-local workflow guide document；CLI 负责初始化/PAT/app/clone，MCP 只保留状态和同步构建。',
       ].join('\n')
     : isLikelyAiDialogueDirectory(targetDir)
       ? formatAiDialogueDirectoryHint(targetDir)
@@ -494,7 +495,7 @@ function formatMakerRemoteSyncSkipped(): string {
     'Maker remote sync',
     '',
     '- status: skipped',
-    '- next_action: 已跳过远端同步检查；如需确认是否需要 pull，请重新读取 maker_status_lite 且不要设置 skip_remote_sync。',
+    '- next_action: 已跳过远端同步检查；如需确认是否需要 pull，请重新读取 maker_status_lite 并启用远端同步检查。',
   ].join('\n');
 }
 
@@ -617,6 +618,7 @@ function formatAiDevKitStatusLines(
   status: 'ready' | 'missing',
   devKitStatus: AiDevKitStatus
 ): string[] {
+  const skillStatus = inspectAiDevKitSkillInstallStatus(devKitStatus.targetDir);
   return [
     'AI dev kit',
     '',
@@ -624,6 +626,8 @@ function formatAiDevKitStatusLines(
     `- required_entries: ${devKitStatus.requiredEntries.join(', ')}`,
     `- present_entries: ${devKitStatus.presentEntries.join(', ') || '(none)'}`,
     `- missing_entries: ${devKitStatus.missingEntries.join(', ') || '(none)'}`,
+    `- skill_install_status: ${skillStatus.status}`,
+    `- skill_install_summary: ${skillStatus.summary}`,
   ];
 }
 
@@ -632,7 +636,8 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     const projects = await listMakerProjects();
     return [
       '本地已有 Maker PAT，当前目录尚未绑定 Maker 项目。',
-      '当前目录未绑定时，先展示下面的 Maker Apps 预览和总数，避免长列表刷屏；选择、解释和 clone 顺序请参考 taptap-maker-local skill。',
+      '当前目录未绑定时，先展示下面的 Maker Apps 预览和总数；选择、解释和 clone 顺序请参考 taptap-maker-local workflow guide document。',
+      '用户选择 app 后，next_step: 执行 `taptap-maker init`。',
       '',
       formatStatusProjectList(projects),
     ].join('\n');
@@ -699,7 +704,7 @@ export function formatStatusProjectList(projects: StatusProject[]): string {
       ? `为了保持友好的可读性，默认最多展示 ${visibleProjects.length} 个 app；如需完整列表，可以选择显示全部。`
       : '已显示全部 app；请询问用户选择。',
     hiddenCount > 0 ? '如需完整列表，请运行 taptap-maker apps --json 查看全部 app。' : undefined,
-    'AI 展示建议：如果聊天或客户端宽度足够，可把 app 预览整理成两列紧凑布局；每个 app 保留序号、app_id、名称，以及可用的最近活跃时间或 user_id。窄屏保持单列。不要省略 app_id，也不要在用户确认前自动选择 app。',
+    'AI 展示建议：如果聊天或客户端宽度足够，可把 app 预览整理成两列紧凑布局；每个 app 保留序号、app_id、名称，以及可用的最近活跃时间或 user_id。窄屏保持单列。选择 app 前先获取用户确认。',
     '',
     ...visibleProjects.map(
       (project, index) =>
@@ -712,8 +717,9 @@ export function formatStatusProjectList(projects: StatusProject[]): string {
         }`
     ),
     '',
-    '仅当当前目录未绑定且用户要初始化或 clone 时，才让用户选择 app 并继续 taptap-maker init。',
-    '如果当前目录已绑定 Maker 项目，这个列表仅作账号项目参考；请继续当前项目，除非用户明确要求切换或重新 clone。',
+    '当前目录未绑定且用户要初始化或 clone 时，让用户选择 app 并继续 taptap-maker init。',
+    '用户回复序号或 app_id 后，next_step: 执行 `taptap-maker init`，或让已经启动的 `taptap-maker init` 交互继续读取该选择。',
+    '如果当前目录已绑定 Maker 项目，这个列表仅作账号项目参考；请继续当前项目。用户明确要求切换或重新 clone 时，再进入项目选择流程。',
   ]
     .filter((line) => line !== undefined)
     .join('\n');
@@ -746,7 +752,7 @@ export function formatClonePartialStateLines(targetDir: string): string[] {
     `- safe_to_retry: ${safeToRetry ? 'yes' : 'no'}`,
     safeToRetry
       ? '- next_step: 可以直接重试 taptap-maker init；如果连续失败，建议换一个全新的独立目录重新 clone。'
-      : '- next_step: 当前目录已经有 Maker 绑定信息；先运行 taptap-maker doctor 或读取 maker://status 确认状态，不要重复 clone。',
+      : '- next_step: 当前目录已经有 Maker 绑定信息；先运行 taptap-maker doctor 或读取 maker://status 确认状态。',
   ].filter(Boolean);
 }
 

@@ -371,6 +371,13 @@ npm run format
 - **允许进行网页查询和搜索**
 - **所有工具描述使用英文**，便于 AI Agent 理解
 - **工具处理函数必须返回 `Promise<string>` 类型**
+- **命名必须清晰区分能力边界**：新增 CLI 命令、MCP tool/resource、skill、脚本、
+  文档章节或用户可见流程名称时，使用带业务前缀/语义清晰的名称，让 Agent 能稳定区分
+  AI 客户端内置能力、本项目已有概念、通用 Skill 名称和常见命令；用户可见文案应明确标注
+  “CLI 命令”“MCP tool/resource”“workflow guide document/skill 文档”。
+- **`taptap-maker init` 是 Maker 初始化唯一主流程入口**：`init` 相关命名必须视为保留名。
+  新增能力使用业务前缀与完整语义命名，面向用户或 AI 的文案统一把 bundled workflow guide
+  document 表达为“文档/指南”，并把 Maker 初始化的正向下一步写成：执行 `taptap-maker init`。
 
 ### 代码规范
 

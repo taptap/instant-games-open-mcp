@@ -27,8 +27,10 @@ import {
   finalizeStagedDevKitGitignore,
   inspectAiDevKit,
   installAiDevKit,
+  installAiDevKitSkills,
   listPresentDevKitManagedEntries,
   writeDevKitStagedGitignore,
+  type AiDevKitSkillInstallerStart,
 } from './devKit.js';
 import {
   MakerGitNotFoundError,
@@ -194,13 +196,17 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const pat = await resolvePat(parsed, ctx);
   emit(ctx, 'pat', 'Maker PAT ready', { saved: getPatPath() });
 
-  const tapAuth = await requestTapAuthWithPat(pat);
+  const tapAuth = await requestTapAuthWithPat(pat).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
+  });
   emit(ctx, 'tap_auth', 'TapTap token exchanged and saved', {
     kid: mask(tapAuth.kid),
     saved: getTapAuthPath(),
   });
 
-  const projects = await listMakerProjects({ pat });
+  const projects = await listMakerProjects({ pat }).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
+  });
   const selected = await resolveProjectSelection(parsed, projects, {
     skipConfirm,
   });
@@ -224,6 +230,8 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     userId: selected.user_id,
     sceEndpoint: selected.sce_endpoint || process.env.SCE_MCP_URL,
     onProgress: (progress) => emitProgress(ctx, 'clone', progress),
+  }).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
   });
   emit(ctx, 'clone', 'Maker project cloned or fetched', cloneResult);
 
@@ -311,7 +319,9 @@ async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     warnPatArgExposure();
   }
   const showAll = booleanOption(parsed, 'all');
-  const projects = await listMakerProjects({ pat });
+  const projects = await listMakerProjects({ pat }).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
+  });
   if (ctx.json) {
     writeJson(projects);
     return;
@@ -323,7 +333,9 @@ async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const pat = await resolvePatSet(parsed, ctx);
   saveManualMakerPat(pat);
-  const tapAuth = await requestTapAuthWithPat(pat);
+  const tapAuth = await requestTapAuthWithPat(pat).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
+  });
   emit(ctx, 'pat', 'Maker PAT and TapTap token saved', {
     pat_path: getPatPath(),
     tap_auth_path: getTapAuthPath(),
@@ -487,7 +499,8 @@ async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
     preserveExisting: true,
   });
   finalizeStagedDevKitGitignore(targetDir);
-  emit(ctx, 'dev_kit', 'AI dev kit updated', result);
+  emit(ctx, 'dev_kit', formatDevKitInstallMessage('AI dev kit updated', result), result);
+  emitDevKitSkillInstallerFailure(ctx, result.skillInstaller, 'AI skills install failed');
 }
 
 async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -700,18 +713,98 @@ async function prepareDevKit(targetDir: string, ctx: CliContext): Promise<void> 
       path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
       listPresentDevKitManagedEntries(targetDir)
     );
-    emit(ctx, 'dev_kit', 'AI dev kit already present', before);
+    try {
+      const skillInstaller = installAiDevKitSkills(targetDir, {
+        onStart: (event) => emitSkillInstallerStart(ctx, event),
+      });
+      emit(
+        ctx,
+        'dev_kit',
+        formatDevKitInstallMessage('AI dev kit already present', { skillInstaller }),
+        {
+          ...before,
+          skillInstaller,
+        }
+      );
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      emit(ctx, 'dev_kit_warning', `AI skills install failed; clone will continue\n${detail}`, {
+        error: detail,
+      });
+    }
     return;
   }
 
   try {
-    const result = await installAiDevKit({ targetDir });
-    emit(ctx, 'dev_kit', 'AI dev kit prepared', result);
+    const result = await installAiDevKit({
+      targetDir,
+      onSkillInstallerStart: (event) => emitSkillInstallerStart(ctx, event),
+    });
+    emit(ctx, 'dev_kit', formatDevKitInstallMessage('AI dev kit prepared', result), result);
+    emitDevKitSkillInstallerFailure(
+      ctx,
+      result.skillInstaller,
+      'AI skills install failed; clone will continue'
+    );
   } catch (error) {
-    emit(ctx, 'dev_kit_warning', 'AI dev kit preparation failed; clone will continue', {
-      error: error instanceof Error ? error.message : String(error),
+    const detail = error instanceof Error ? error.message : String(error);
+    emit(ctx, 'dev_kit_warning', `AI dev kit preparation failed; clone will continue\n${detail}`, {
+      error: detail,
     });
   }
+}
+
+function formatDevKitInstallMessage(
+  message: string,
+  result: { skillInstaller?: { summary: string } }
+): string {
+  if (!result.skillInstaller) {
+    return message;
+  }
+  return `${message}\nAI skills install result: ${result.skillInstaller.summary}`;
+}
+
+function emitSkillInstallerStart(ctx: CliContext, event: AiDevKitSkillInstallerStart): void {
+  emit(ctx, 'dev_kit_skill_install_start', `AI skills install started: ${event.script}`, event);
+}
+
+function emitDevKitSkillInstallerFailure(
+  ctx: CliContext,
+  result: { ok: boolean; status: string; error?: string } | undefined,
+  message: string
+): void {
+  if (!result || result.ok || result.status !== 'failed') {
+    return;
+  }
+  const detail = result.error || 'unknown installer failure';
+  emit(ctx, 'dev_kit_warning', `${message}\n${detail}`, {
+    error: detail,
+  });
+}
+
+function appendPatRecoveryUrl(error: unknown, parsed: ParsedArgs): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!isPatValidationFailure(message) || message.includes('/pat-tokens')) {
+    return error instanceof Error ? error : new Error(message);
+  }
+
+  const patPage = getMakerPatTokensUrl(makerEnvOption(parsed));
+  return new Error(
+    [
+      message,
+      '',
+      `PAT 页面：${patPage}`,
+      '请在该页面创建新的 Maker PAT，然后运行 `taptap-maker pat set` 并粘贴 PAT。',
+    ].join('\n')
+  );
+}
+
+function isPatValidationFailure(message: string): boolean {
+  return (
+    /\b(?:PAT_INVALID|HTTP\s*40[13]|40[13]|unauthori[sz]ed|invalid\s+PAT|PAT\s+invalid|expired)\b/i.test(
+      message
+    ) || /(?:过期|失效)/.test(message)
+  );
 }
 
 function installMcpConfigs(options: {

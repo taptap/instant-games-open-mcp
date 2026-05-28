@@ -34,11 +34,13 @@ export function formatMakerSkillStatus(
     path: path.join(resolveMakerSkillSourceDir(skill.name), 'SKILL.md'),
   }));
   return [
-    'TapTap bundled workflow skills',
+    'TapTap Maker workflow guide documents',
     '',
     ...skillDocuments.map((skill) => `- ${skill.name}: ${skill.path}`),
     '',
-    'These skill documents are bundled in the package. Let the current AI client decide whether and how to load them.',
+    'Use these documents as reading references for Maker local workflows.',
+    'Maker initialization next_step: execute `taptap-maker init`.',
+    'Load these documents when the current AI client supports reading local guide files.',
   ].join('\n');
 }
 

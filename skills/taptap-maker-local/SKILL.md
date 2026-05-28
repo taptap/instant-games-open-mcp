@@ -194,18 +194,19 @@ output as account reference only and continue the user's current bound-project t
 
 If PAT exchange fails:
 
-1. Explain that the PAT may be invalid or expired.
-2. Ask the user to create a new PAT.
-3. Do not switch to JWT/OAuth fallback unless the user explicitly asks.
+1. Show the PAT page URL for the current environment:
+   production `https://maker.taptap.cn/pat-tokens`, RND `https://fuping.agnt.xd.com/pat-tokens`.
+2. Ask the user to create a new Maker PAT on that page.
+3. Run `taptap-maker pat set` and paste the PAT into the prompt.
 
 ## App Selection
 
 Use app selection only when the current directory is unbound and the user is initializing or cloning
 a Maker project, or when the user explicitly asks to switch or re-clone.
 
-If the current directory is already bound, app lists from `taptap-maker apps` are reference only. Do
-not ask which app to clone. Continue operating on the current bound project unless the user
-explicitly requests a different project.
+If the current directory is already bound, app lists from `taptap-maker apps` are reference only.
+Continue operating on the current bound project. When the user explicitly requests a different
+project, start the project selection flow for that request.
 
 When app selection is needed, show the returned app preview and total count, then ask the user to
 choose by index, app id, or name. The default preview shows the 40 most recently active apps.
@@ -213,17 +214,18 @@ If the target is not visible, ask the user to type `all` inside `taptap-maker in
 full list, or run `taptap-maker apps --all` for a one-shot human-readable dump; use
 `taptap-maker apps --json` only when AI / scripts need the machine-readable list. If the
 chat/client width is enough, you may present the preview as a compact two-column layout;
-otherwise keep a single column. Do not omit app_id, and do not replace the preview with only a
-summary such as "40 apps are available".
+otherwise keep a single column. Keep app_id visible in every app row, and include the preview
+details instead of only a summary such as "40 apps are available".
 
-Do not auto-select:
+Selection confirmation:
 
-- the first app
-- the most recent app
-- the only app
+- Ask the user to choose by index, app id, or name.
+- Treat the user's explicit reply as the selected app.
+- If there is only one app, still ask for confirmation before selecting it.
 
-After the user chooses, let `taptap-maker init` continue with the selected app. Do not ask the user
-to manually provide app_id unless the CLI is being run non-interactively.
+After the user chooses, route the next action to `taptap-maker init` so the Maker initialization
+workflow can continue with the selected app. For non-interactive CLI runs, pass the selected app id
+through the supported CLI option.
 
 ## Working Directory Compliance Check
 

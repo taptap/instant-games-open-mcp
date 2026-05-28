@@ -9,6 +9,7 @@ import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
 import { requestTapAuthWithPat } from '../maker/auth/patTap';
 import { cloneMakerProject, listMakerProjects } from '../maker/cli/projects';
+import { inspectAiDevKit, installAiDevKit, installAiDevKitSkills } from '../maker/cli/devKit';
 import { runMakerCli } from '../maker/cli/commands';
 
 jest.mock('node:child_process', () => ({
@@ -49,6 +50,7 @@ jest.mock('../maker/cli/devKit', () => ({
     ready: true,
   })),
   installAiDevKit: jest.fn(),
+  installAiDevKitSkills: jest.fn(),
   listPresentDevKitManagedEntries: jest.fn(() => []),
   writeDevKitStagedGitignore: jest.fn(),
 }));
@@ -319,6 +321,93 @@ describe('Maker CLI commands', () => {
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('secret-maker-token');
   });
 
+  test('init PAT validation failures include the PAT URL', async () => {
+    jest
+      .mocked(requestTapAuthWithPat)
+      .mockRejectedValueOnce(
+        new Error('TapTap token request failed: HTTP 401 {"code":"PAT_INVALID"}')
+      );
+
+    await expect(
+      runMakerCli([
+        'init',
+        '--skip-confirm',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'invalid-maker-token',
+      ])
+    ).rejects.toThrow('https://maker.taptap.cn/pat-tokens');
+  });
+
+  test('init Chinese PAT validation failures include the PAT URL', async () => {
+    jest.mocked(requestTapAuthWithPat).mockRejectedValueOnce(new Error('PAT 已过期'));
+
+    await expect(
+      runMakerCli([
+        'init',
+        '--skip-confirm',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'invalid-maker-token',
+      ])
+    ).rejects.toThrow('https://maker.taptap.cn/pat-tokens');
+  });
+
+  test('init clone auth failures include the PAT URL', async () => {
+    jest
+      .mocked(cloneMakerProject)
+      .mockRejectedValueOnce(
+        new Error('git clone failed with exit code 128: The requested URL returned error: 401')
+      );
+
+    await expect(
+      runMakerCli([
+        'init',
+        '--skip-confirm',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'invalid-maker-token',
+      ])
+    ).rejects.toThrow('https://maker.taptap.cn/pat-tokens');
+  });
+
+  test('init clone forbidden path failures do not include the PAT URL', async () => {
+    jest
+      .mocked(cloneMakerProject)
+      .mockRejectedValueOnce(
+        new Error('git push rejected: file matches forbidden pattern ".claude/skills/demo"')
+      );
+
+    let thrown: unknown;
+    try {
+      await runMakerCli([
+        'init',
+        '--skip-confirm',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'valid-maker-token',
+      ]);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain('matches forbidden pattern');
+    expect((thrown as Error).message).not.toContain('pat-tokens');
+  });
+
   test('boolean flags do not consume following positional app id', async () => {
     await runMakerCli([
       'init',
@@ -337,6 +426,179 @@ describe('Maker CLI commands', () => {
         targetDir: tempDir,
       })
     );
+  });
+
+  test('init prints AI dev kit preparation error details for human users', async () => {
+    jest.mocked(inspectAiDevKit).mockReturnValueOnce({
+      targetDir: tempDir,
+      requiredEntries: ['CLAUDE.md'],
+      presentEntries: [],
+      missingEntries: ['CLAUDE.md'],
+      ready: false,
+    });
+    jest
+      .mocked(installAiDevKit)
+      .mockRejectedValueOnce(
+        new Error('Failed to install AI dev kit skills\nstderr: installer failed')
+      );
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('AI dev kit preparation failed; clone will continue');
+    expect(output).toContain('Failed to install AI dev kit skills');
+    expect(output).toContain('stderr: installer failed');
+    expect(cloneMakerProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'app-1',
+        targetDir: tempDir,
+      })
+    );
+  });
+
+  test('init prints AI dev kit skill installer success summary for human users', async () => {
+    jest.mocked(inspectAiDevKit).mockReturnValueOnce({
+      targetDir: tempDir,
+      requiredEntries: ['CLAUDE.md'],
+      presentEntries: [],
+      missingEntries: ['CLAUDE.md'],
+      ready: false,
+    });
+    jest.mocked(installAiDevKit).mockImplementationOnce(async (options) => {
+      options.onSkillInstallerStart?.({
+        platform: process.platform,
+        script: path.join(tempDir, 'tools', 'install-skills.sh'),
+        cwd: path.join(tempDir, 'tools'),
+        command: ['bash', path.join(tempDir, 'tools', 'install-skills.sh'), 'all'],
+      });
+      return {
+        targetDir: tempDir,
+        sourceDir: path.join(tempDir, 'source'),
+        installedEntries: ['skills', 'tools'],
+        skippedEntries: [],
+        gitignorePath: path.join(tempDir, '.gitignore'),
+        stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+        skillInstaller: {
+          ok: true,
+          status: 'installed',
+          script: path.join(tempDir, 'tools', 'install-skills.sh'),
+          summary: 'claude=13, codex=13, cursor=13, gemini=13',
+          stdout: '[install-skills] claude: installed=13 target=.claude/skills',
+          stderr: '',
+        },
+      };
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('AI skills install started');
+    expect(output).toContain('AI dev kit prepared');
+    expect(output).toContain('AI skills install result: claude=13, codex=13, cursor=13, gemini=13');
+  });
+
+  test('init prints prepared dev kit and skill failure details separately', async () => {
+    jest.mocked(inspectAiDevKit).mockReturnValueOnce({
+      targetDir: tempDir,
+      requiredEntries: ['CLAUDE.md'],
+      presentEntries: [],
+      missingEntries: ['CLAUDE.md'],
+      ready: false,
+    });
+    jest.mocked(installAiDevKit).mockResolvedValueOnce({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, 'source'),
+      installedEntries: ['CLAUDE.md', 'skills', 'tools'],
+      skippedEntries: [],
+      gitignorePath: path.join(tempDir, '.gitignore'),
+      stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+      skillInstaller: {
+        ok: false,
+        status: 'failed',
+        script: path.join(tempDir, 'tools', 'install-skills.sh'),
+        summary: 'failed: exit_status=42',
+        stdout: 'installer stdout detail',
+        stderr: 'installer stderr detail',
+        error: 'Failed to install AI dev kit skills\nstderr:\ninstaller stderr detail',
+      },
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('AI dev kit prepared');
+    expect(output).toContain('AI skills install result: failed: exit_status=42');
+    expect(output).toContain('AI skills install failed; clone will continue');
+    expect(output).toContain('installer stderr detail');
+  });
+
+  test('init runs and prints AI skill installer result when dev kit is already present', async () => {
+    jest.mocked(inspectAiDevKit).mockReturnValueOnce({
+      targetDir: tempDir,
+      requiredEntries: ['CLAUDE.md', 'examples', 'templates', 'urhox-libs'],
+      presentEntries: ['CLAUDE.md', 'examples', 'templates', 'urhox-libs'],
+      missingEntries: [],
+      ready: true,
+    });
+    jest.mocked(installAiDevKitSkills).mockImplementationOnce((_targetDir, options) => {
+      options?.onStart?.({
+        platform: process.platform,
+        script: path.join(tempDir, 'tools', 'install-skills.sh'),
+        cwd: path.join(tempDir, 'tools'),
+        command: ['bash', path.join(tempDir, 'tools', 'install-skills.sh'), 'all'],
+      });
+      return {
+        ok: true,
+        status: 'installed',
+        script: path.join(tempDir, 'tools', 'install-skills.sh'),
+        summary: 'claude=13, codex=13, cursor=13, gemini=13',
+        stdout: '[install-skills] claude: installed=13 target=.claude/skills',
+        stderr: '',
+      };
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('AI dev kit already present');
+    expect(output).toContain('AI skills install started');
+    expect(output).toContain('AI skills install result: claude=13, codex=13, cursor=13, gemini=13');
   });
 
   test('init selection index follows the recently active display order', async () => {
@@ -436,6 +698,18 @@ describe('Maker CLI commands', () => {
     expect(listMakerProjects).toHaveBeenCalledWith({ pat: 'secret-maker-token' });
   });
 
+  test('apps PAT validation failures include the PAT URL', async () => {
+    jest
+      .mocked(listMakerProjects)
+      .mockRejectedValueOnce(
+        new Error('Maker project list failed: HTTP 401 {"code":"PAT_INVALID"}')
+      );
+
+    await expect(runMakerCli(['apps', '--pat', 'invalid-maker-token'])).rejects.toThrow(
+      'https://maker.taptap.cn/pat-tokens'
+    );
+  });
+
   test('apps rejects removed --limit / --offset with a guidance error', async () => {
     await expect(runMakerCli(['apps', '--offset', '40', '--limit', '40'])).rejects.toThrow(
       /no longer supports --limit \/ --offset/
@@ -476,6 +750,18 @@ describe('Maker CLI commands', () => {
     expect(output).toContain('Create one at: https://maker.taptap.cn/pat-tokens');
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('secret-maker-token');
     expect(close).toHaveBeenCalled();
+  });
+
+  test('pat set validation failures include the PAT URL', async () => {
+    jest
+      .mocked(requestTapAuthWithPat)
+      .mockRejectedValueOnce(
+        new Error('TapTap token request failed: HTTP 401 {"code":"PAT_INVALID"}')
+      );
+
+    await expect(runMakerCli(['pat', 'set', '--pat', 'invalid-maker-token'])).rejects.toThrow(
+      'https://maker.taptap.cn/pat-tokens'
+    );
   });
 
   test('mcp verify checks the configured npx package command by default', async () => {

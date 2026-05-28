@@ -34,20 +34,31 @@ export const DEV_KIT_GITIGNORE_STAGING_FILE = '.gitignore.dev-kit-before-clone';
 export const DEV_KIT_REQUIRED_ENTRIES = ['CLAUDE.md', 'examples', 'templates', 'urhox-libs'];
 const ALWAYS_IGNORED_LOCAL_ENTRIES = ['.DS_Store', '.maker'];
 export const DEV_KIT_MANAGED_ENTRY_CANDIDATES = [
+  '.claude',
+  '.cli',
+  '.codex',
+  '.cursor',
   '.emmylua',
+  '.gemini',
+  'AGENTS.md',
   'CLAUDE.md',
   'engine-docs',
   'examples',
+  'schemas',
+  'skills',
   'templates',
+  'tools',
   'urhox-libs',
 ];
 const SKIPPED_TOP_LEVEL_ENTRIES = new Set(['scripts', '.DS_Store', 'ai-dev-kit.zip']);
+const SKILL_INSTALLER_OUTPUT_ENTRIES = ['.claude', '.codex', '.cursor', '.gemini'];
 
 export interface InstallAiDevKitOptions {
   targetDir?: string;
   sourceDir?: string;
   url?: string;
   preserveExisting?: boolean;
+  onSkillInstallerStart?: (event: AiDevKitSkillInstallerStart) => void;
 }
 
 export interface InstallAiDevKitResult {
@@ -57,6 +68,36 @@ export interface InstallAiDevKitResult {
   skippedEntries: string[];
   gitignorePath: string;
   stagedGitignorePath: string;
+  skillInstaller?: AiDevKitSkillInstallerResult;
+}
+
+export interface AiDevKitSkillInstallerResult {
+  ok: boolean;
+  status: 'installed' | 'skipped' | 'failed';
+  script?: string;
+  stdout: string;
+  stderr: string;
+  summary: string;
+  reason?: string;
+  error?: string;
+}
+
+export interface AiDevKitSkillInstallerStart {
+  platform: NodeJS.Platform;
+  script: string;
+  cwd: string;
+  command: string[];
+}
+
+export interface AiDevKitSkillInstallStatus {
+  status: 'installed' | 'partial' | 'missing';
+  summary: string;
+  targets: Array<{
+    name: string;
+    path: string;
+    present: boolean;
+    skillCount: number;
+  }>;
 }
 
 export interface AiDevKitStatus {
@@ -118,8 +159,15 @@ export async function installAiDevKit(
     installedEntries.push(entry.name);
   }
 
+  const skillInstaller = runDevKitSkillInstallerForInstall(targetDir, {
+    onStart: options.onSkillInstallerStart,
+  });
+
   const stagedGitignorePath = path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE);
-  writeDevKitStagedGitignore(stagedGitignorePath, installedEntries);
+  writeDevKitStagedGitignore(stagedGitignorePath, [
+    ...installedEntries,
+    ...listPresentSkillInstallerOutputEntries(targetDir),
+  ]);
 
   return {
     targetDir,
@@ -128,6 +176,34 @@ export async function installAiDevKit(
     skippedEntries: skippedEntries.sort(),
     gitignorePath: path.join(targetDir, '.gitignore'),
     stagedGitignorePath,
+    skillInstaller,
+  };
+}
+
+export function inspectAiDevKitSkillInstallStatus(targetDir: string): AiDevKitSkillInstallStatus {
+  const resolvedTargetDir = path.resolve(targetDir);
+  const targets = SKILL_INSTALLER_OUTPUT_ENTRIES.map((entry) => {
+    const skillsDir = path.join(resolvedTargetDir, entry, 'skills');
+    const present = fs.existsSync(skillsDir) && fs.statSync(skillsDir).isDirectory();
+    const skillCount = present
+      ? fs
+          .readdirSync(skillsDir, { withFileTypes: true })
+          .filter((item) => item.isDirectory() || item.isSymbolicLink()).length
+      : 0;
+    return {
+      name: entry.replace(/^\./, ''),
+      path: skillsDir,
+      present,
+      skillCount,
+    };
+  });
+  const installedCount = targets.filter((target) => target.present && target.skillCount > 0).length;
+  const status =
+    installedCount === targets.length ? 'installed' : installedCount > 0 ? 'partial' : 'missing';
+  return {
+    status,
+    summary: targets.map((target) => `${target.name}=${target.skillCount}`).join(', '),
+    targets,
   };
 }
 
@@ -205,6 +281,107 @@ function copyEntry(
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(source, target);
   }
+}
+
+/**
+ * Runs the dev-kit skill installer synchronously for short-lived CLI flows only.
+ * Do not call this from long-lived MCP request handlers; use lightweight status
+ * inspection there to avoid blocking the server event loop.
+ */
+export function installAiDevKitSkills(
+  targetDir: string,
+  options: { onStart?: (event: AiDevKitSkillInstallerStart) => void } = {}
+): AiDevKitSkillInstallerResult {
+  const toolsDir = path.join(targetDir, 'tools');
+  if (!fs.existsSync(toolsDir) || !fs.statSync(toolsDir).isDirectory()) {
+    return {
+      ok: false,
+      status: 'skipped',
+      stdout: '',
+      stderr: '',
+      summary: 'skipped: tools directory not found',
+      reason: 'tools_not_found',
+    };
+  }
+
+  const isWindows = process.platform === 'win32';
+  const scriptName = isWindows ? 'install-skills.ps1' : 'install-skills.sh';
+  const scriptPath = path.join(toolsDir, scriptName);
+  if (!fs.existsSync(scriptPath)) {
+    return {
+      ok: false,
+      status: 'skipped',
+      script: scriptPath,
+      stdout: '',
+      stderr: '',
+      summary: `skipped: ${scriptName} not found`,
+      reason: 'script_not_found',
+    };
+  }
+  const command = isWindows
+    ? ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath, 'all']
+    : ['bash', scriptPath, 'all'];
+
+  options.onStart?.({
+    platform: process.platform,
+    script: scriptPath,
+    cwd: toolsDir,
+    command,
+  });
+
+  const result = spawnSync(command[0], command.slice(1), { cwd: toolsDir, encoding: 'utf8' });
+
+  if (result.status !== 0) {
+    throw new AiDevKitSkillInstallerError(
+      formatFailedSkillInstallerResult({
+        platform: process.platform,
+        scriptPath,
+        toolsDir,
+        command,
+        result,
+      })
+    );
+  }
+
+  const stdout = String(result.stdout || '');
+  const stderr = String(result.stderr || '');
+  return {
+    ok: true,
+    status: 'installed',
+    script: scriptPath,
+    stdout,
+    stderr,
+    summary: summarizeSkillInstallerOutput(stdout),
+  };
+}
+
+function runDevKitSkillInstallerForInstall(
+  targetDir: string,
+  options: { onStart?: (event: AiDevKitSkillInstallerStart) => void } = {}
+): AiDevKitSkillInstallerResult {
+  try {
+    return installAiDevKitSkills(targetDir, options);
+  } catch (error) {
+    if (error instanceof AiDevKitSkillInstallerError) {
+      return error.result;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      status: 'failed',
+      stdout: '',
+      stderr: '',
+      summary: 'failed',
+      reason: 'installer_failed',
+      error: message,
+    };
+  }
+}
+
+function listPresentSkillInstallerOutputEntries(targetDir: string): string[] {
+  return SKILL_INSTALLER_OUTPUT_ENTRIES.filter((entry) =>
+    fs.existsSync(path.join(targetDir, entry))
+  );
 }
 
 async function downloadAndExtractDevKit(url: string): Promise<string> {
@@ -293,6 +470,92 @@ function formatSpawnFailure(result: ReturnType<typeof spawnSync>): string {
     String(result.stdout || '').trim() ||
     `exit status ${result.status ?? 'unknown'}`
   );
+}
+
+function formatDevKitSkillInstallerFailure(options: {
+  platform: NodeJS.Platform;
+  scriptPath: string;
+  toolsDir: string;
+  command: string[];
+  result: ReturnType<typeof spawnSync>;
+}): string {
+  return [
+    'Failed to install AI dev kit skills',
+    `platform: ${options.platform}`,
+    `script: ${options.scriptPath}`,
+    `cwd: ${options.toolsDir}`,
+    `command: ${options.command.map(shellQuote).join(' ')}`,
+    `exit_status: ${options.result.status ?? 'unknown'}`,
+    options.result.signal ? `signal: ${options.result.signal}` : '',
+    options.result.error ? `spawn_error: ${options.result.error.message}` : '',
+    'stdout:',
+    formatSpawnOutput(options.result.stdout),
+    'stderr:',
+    formatSpawnOutput(options.result.stderr),
+  ]
+    .filter((line) => line.length > 0)
+    .join('\n');
+}
+
+function formatFailedSkillInstallerResult(options: {
+  platform: NodeJS.Platform;
+  scriptPath: string;
+  toolsDir: string;
+  command: string[];
+  result: ReturnType<typeof spawnSync>;
+}): AiDevKitSkillInstallerResult {
+  return {
+    ok: false,
+    status: 'failed',
+    script: options.scriptPath,
+    stdout: String(options.result.stdout || ''),
+    stderr: String(options.result.stderr || ''),
+    summary: summarizeSkillInstallerFailure(options.result),
+    reason: 'installer_failed',
+    error: formatDevKitSkillInstallerFailure(options),
+  };
+}
+
+function summarizeSkillInstallerFailure(result: ReturnType<typeof spawnSync>): string {
+  if (typeof result.status === 'number') {
+    return `failed: exit_status=${result.status}`;
+  }
+  if (result.signal) {
+    return `failed: signal=${result.signal}`;
+  }
+  if (result.error) {
+    return `failed: ${result.error.message}`;
+  }
+  return 'failed';
+}
+
+class AiDevKitSkillInstallerError extends Error {
+  constructor(readonly result: AiDevKitSkillInstallerResult) {
+    super(result.error || result.summary);
+    this.name = 'AiDevKitSkillInstallerError';
+  }
+}
+
+function formatSpawnOutput(value: unknown): string {
+  const text = String(value || '').trim();
+  return text.length > 0 ? text : '(empty)';
+}
+
+function summarizeSkillInstallerOutput(stdout: string): string {
+  const entries = stdout
+    .split(/\r?\n/)
+    .map((line) => line.match(/\[install-skills\]\s+([^:]+):\s+installed=(\d+)/))
+    .filter((match): match is RegExpMatchArray => Boolean(match))
+    .map((match) => `${match[1]}=${match[2]}`);
+
+  return entries.length > 0 ? entries.join(', ') : 'completed';
+}
+
+function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_./:=@-]+$/.test(value)) {
+    return value;
+  }
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function resolveDevKitRoot(sourceDir: string): string {
