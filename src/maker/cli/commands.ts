@@ -500,6 +500,7 @@ async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
   });
   finalizeStagedDevKitGitignore(targetDir);
   emit(ctx, 'dev_kit', formatDevKitInstallMessage('AI dev kit updated', result), result);
+  emitDevKitSkillInstallerFailure(ctx, result.skillInstaller, 'AI skills install failed');
 }
 
 async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -740,6 +741,11 @@ async function prepareDevKit(targetDir: string, ctx: CliContext): Promise<void> 
       onSkillInstallerStart: (event) => emitSkillInstallerStart(ctx, event),
     });
     emit(ctx, 'dev_kit', formatDevKitInstallMessage('AI dev kit prepared', result), result);
+    emitDevKitSkillInstallerFailure(
+      ctx,
+      result.skillInstaller,
+      'AI skills install failed; clone will continue'
+    );
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     emit(ctx, 'dev_kit_warning', `AI dev kit preparation failed; clone will continue\n${detail}`, {
@@ -762,6 +768,20 @@ function emitSkillInstallerStart(ctx: CliContext, event: AiDevKitSkillInstallerS
   emit(ctx, 'dev_kit_skill_install_start', `AI skills install started: ${event.script}`, event);
 }
 
+function emitDevKitSkillInstallerFailure(
+  ctx: CliContext,
+  result: { ok: boolean; status: string; error?: string } | undefined,
+  message: string
+): void {
+  if (!result || result.ok || result.status !== 'failed') {
+    return;
+  }
+  const detail = result.error || 'unknown installer failure';
+  emit(ctx, 'dev_kit_warning', `${message}\n${detail}`, {
+    error: detail,
+  });
+}
+
 function appendPatRecoveryUrl(error: unknown, parsed: ParsedArgs): Error {
   const message = error instanceof Error ? error.message : String(error);
   if (!isPatValidationFailure(message) || message.includes('/pat-tokens')) {
@@ -780,8 +800,10 @@ function appendPatRecoveryUrl(error: unknown, parsed: ParsedArgs): Error {
 }
 
 function isPatValidationFailure(message: string): boolean {
-  return /\b(?:PAT_INVALID|401|403|unauthori[sz]ed|forbidden|invalid\s+PAT|PAT\s+invalid|expired|过期|失效)\b/i.test(
-    message
+  return (
+    /\b(?:PAT_INVALID|401|403|unauthori[sz]ed|forbidden|invalid\s+PAT|PAT\s+invalid|expired)\b/i.test(
+      message
+    ) || /(?:过期|失效)/.test(message)
   );
 }
 

@@ -9,6 +9,7 @@ import {
   inspectAiDevKit,
   inspectAiDevKitSkillInstallStatus,
   installAiDevKit,
+  installAiDevKitSkills,
   listPresentDevKitManagedEntries,
   mergeDevKitGitignore,
   resolveDefaultAiDevKitUrl,
@@ -131,7 +132,7 @@ describe('Maker AI dev kit install', () => {
     ]);
   });
 
-  test('throws visible script details when skill installer fails', async () => {
+  test('returns copied dev kit and staged gitignore when skill installer fails', async () => {
     fs.writeFileSync(
       path.join(sourceDir, 'tools', 'install-skills.sh'),
       [
@@ -144,26 +145,46 @@ describe('Maker AI dev kit install', () => {
       'utf8'
     );
 
-    let thrown: unknown;
-    try {
-      await installAiDevKit({
-        sourceDir,
-        targetDir,
-      });
-    } catch (error) {
-      thrown = error;
-    }
+    const result = await installAiDevKit({
+      sourceDir,
+      targetDir,
+    });
 
-    expect(thrown).toBeInstanceOf(Error);
-    const message = (thrown as Error).message;
-    expect(message).toContain('Failed to install AI dev kit skills');
-    expect(message).toContain('script:');
-    expect(message).toContain('platform:');
-    expect(message).toContain('exit_status: 42');
-    expect(message).toContain('stdout:');
-    expect(message).toContain('installer stdout detail');
-    expect(message).toContain('stderr:');
-    expect(message).toContain('installer stderr detail');
+    expect(result.installedEntries).toContain('CLAUDE.md');
+    expect(fs.existsSync(path.join(targetDir, 'CLAUDE.md'))).toBe(true);
+    expect(fs.existsSync(path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE))).toBe(true);
+    expect(result.skillInstaller).toEqual(
+      expect.objectContaining({
+        ok: false,
+        status: 'failed',
+        summary: 'failed: exit_status=42',
+        stdout: expect.stringContaining('installer stdout detail'),
+        stderr: expect.stringContaining('installer stderr detail'),
+        error: expect.stringContaining('Failed to install AI dev kit skills'),
+      })
+    );
+  });
+
+  test('throws visible script details when running skill installer directly fails', () => {
+    fs.mkdirSync(path.join(targetDir, 'tools'), { recursive: true });
+    fs.writeFileSync(
+      path.join(targetDir, 'tools', 'install-skills.sh'),
+      [
+        '#!/bin/sh',
+        'echo "installer stdout detail"',
+        'echo "installer stderr detail" >&2',
+        'exit 42',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+    fs.chmodSync(path.join(targetDir, 'tools', 'install-skills.sh'), 0o755);
+
+    expect(() => installAiDevKitSkills(targetDir)).toThrow(
+      expect.objectContaining({
+        message: expect.stringContaining('Failed to install AI dev kit skills'),
+      })
+    );
   });
 
   test('stages skill installer output directories as local-only entries', async () => {

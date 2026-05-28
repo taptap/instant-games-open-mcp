@@ -342,6 +342,23 @@ describe('Maker CLI commands', () => {
     ).rejects.toThrow('https://maker.taptap.cn/pat-tokens');
   });
 
+  test('init Chinese PAT validation failures include the PAT URL', async () => {
+    jest.mocked(requestTapAuthWithPat).mockRejectedValueOnce(new Error('PAT 已过期'));
+
+    await expect(
+      runMakerCli([
+        'init',
+        '--skip-confirm',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'invalid-maker-token',
+      ])
+    ).rejects.toThrow('https://maker.taptap.cn/pat-tokens');
+  });
+
   test('init clone auth failures include the PAT URL', async () => {
     jest
       .mocked(cloneMakerProject)
@@ -468,6 +485,50 @@ describe('Maker CLI commands', () => {
     expect(output).toContain('AI skills install started');
     expect(output).toContain('AI dev kit prepared');
     expect(output).toContain('AI skills install result: claude=13, codex=13, cursor=13, gemini=13');
+  });
+
+  test('init prints prepared dev kit and skill failure details separately', async () => {
+    jest.mocked(inspectAiDevKit).mockReturnValueOnce({
+      targetDir: tempDir,
+      requiredEntries: ['CLAUDE.md'],
+      presentEntries: [],
+      missingEntries: ['CLAUDE.md'],
+      ready: false,
+    });
+    jest.mocked(installAiDevKit).mockResolvedValueOnce({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, 'source'),
+      installedEntries: ['CLAUDE.md', 'skills', 'tools'],
+      skippedEntries: [],
+      gitignorePath: path.join(tempDir, '.gitignore'),
+      stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+      skillInstaller: {
+        ok: false,
+        status: 'failed',
+        script: path.join(tempDir, 'tools', 'install-skills.sh'),
+        summary: 'failed: exit_status=42',
+        stdout: 'installer stdout detail',
+        stderr: 'installer stderr detail',
+        error: 'Failed to install AI dev kit skills\nstderr:\ninstaller stderr detail',
+      },
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('AI dev kit prepared');
+    expect(output).toContain('AI skills install result: failed: exit_status=42');
+    expect(output).toContain('AI skills install failed; clone will continue');
+    expect(output).toContain('installer stderr detail');
   });
 
   test('init runs and prints AI skill installer result when dev kit is already present', async () => {
