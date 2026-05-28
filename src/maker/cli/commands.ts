@@ -41,7 +41,7 @@ import {
 import { formatMakerSkillStatus } from './skill.js';
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
-const DEFAULT_PACKAGE = '@taptap/instant-games-open-mcp';
+const MAKER_NPM_PACKAGE = '@taptap/maker';
 const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit', 'logs']);
 const BOOLEAN_OPTIONS = new Set([
   'json',
@@ -174,11 +174,11 @@ function toOptionKey(value: string): string {
 }
 
 async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  rejectPackageOption(parsed);
   const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
   const env = makerEnvOption(parsed);
   const skipConfirm = booleanOption(parsed, 'skip_confirm');
   const skipMcpInstall = booleanOption(parsed, 'skip_mcp_install');
-  const pkg = stringOption(parsed, 'package') || DEFAULT_PACKAGE;
 
   emit(ctx, 'init_start', 'TapTap Maker local initialization started', {
     target_dir: targetDir,
@@ -240,7 +240,7 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     const installResults = installMcpConfigs({
       ides,
       env,
-      pkg,
+      pkg: MAKER_NPM_PACKAGE,
       mcpName: DEFAULT_MCP_NAME,
     });
     for (const result of installResults) {
@@ -366,11 +366,12 @@ async function resolvePatSet(parsed: ParsedArgs, ctx: CliContext): Promise<strin
 }
 
 async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  rejectPackageOption(parsed);
   const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
   const results = installMcpConfigs({
     ides: ides.length > 0 ? ides : ['codex', 'cursor', 'claude'],
     env: makerEnvOption(parsed),
-    pkg: stringOption(parsed, 'package') || DEFAULT_PACKAGE,
+    pkg: MAKER_NPM_PACKAGE,
     mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
   });
 
@@ -383,9 +384,9 @@ async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void>
 }
 
 async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  rejectPackageOption(parsed);
   const mode = mcpVerifyModeOption(parsed);
-  const pkg = stringOption(parsed, 'package') || DEFAULT_PACKAGE;
-  const command = mode === 'npx' ? getNpxCliCommand(pkg) : getCurrentCliCommand();
+  const command = mode === 'npx' ? getNpxCliCommand(MAKER_NPM_PACKAGE) : getCurrentCliCommand();
   const result = spawnSync(command.command, [...command.args, 'help'], {
     encoding: 'utf8',
   });
@@ -393,7 +394,7 @@ async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
   const commandText = formatShellCommand([command.command, ...command.args, 'help']);
   const payload = {
     mode,
-    package: mode === 'npx' ? pkg : undefined,
+    package: mode === 'npx' ? MAKER_NPM_PACKAGE : undefined,
     command: commandText,
     status: result.status,
     signal: result.signal,
@@ -1023,6 +1024,14 @@ function getNpxCommand(): string {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx';
 }
 
+function rejectPackageOption(parsed: ParsedArgs): void {
+  if (Object.prototype.hasOwnProperty.call(parsed.options, 'package')) {
+    throw new Error(
+      '--package is no longer supported. Maker MCP configs and npx verification use @taptap/maker.'
+    );
+  }
+}
+
 function readJsonObject(filePath: string): Record<string, unknown> {
   if (!fs.existsSync(filePath)) {
     return {};
@@ -1303,14 +1312,13 @@ function printHelp(): void {
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # warns: PAT appears in ps/history',
       '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',
-      '                             [--package @taptap/instant-games-open-mcp] [--json]',
-      '  taptap-maker mcp verify [--package @taptap/instant-games-open-mcp]',
-      '                           [--mode npx|self] [--json]',
+      '                             [--json]',
+      '  taptap-maker mcp verify [--mode npx|self] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
       'MCP verify defaults to the npx command written into AI client config.',
-      'Advanced: init and mcp install accept --package only when testing a different npm package.',
+      'Maker MCP configs and npx verification use @taptap/maker.',
       '',
       'Windows note:',
       '  Generated MCP configs use npx.cmd automatically on Windows.',
