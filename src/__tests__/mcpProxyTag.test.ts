@@ -1,10 +1,4 @@
 import { TapTapMCPProxy } from '../mcp-proxy/proxy';
-import {
-  extractPrivateParams,
-  hasPrivateParams,
-  mergePrivateParams,
-  stripPrivateParams,
-} from '../core/types/privateParams';
 import type { ProxyConfig } from '../mcp-proxy/types';
 import { ResolvedContext } from '../core/types/context';
 
@@ -32,7 +26,24 @@ function createProxyConfig(): ProxyConfig {
 }
 
 describe('mcp proxy tag private parameter', () => {
-  test('injects _tag local into proxied tool call arguments', () => {
+  test('sends local tag as an upstream session header', () => {
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+
+    const headers = (
+      proxy as unknown as {
+        buildSessionHeaders(): Record<string, string>;
+      }
+    ).buildSessionHeaders();
+
+    expect(headers).toMatchObject({
+      'X-TapTap-Tag': 'local',
+      'X-TapTap-Project-Id': 'project-1',
+      'X-TapTap-Project-Path': 'project-1/workspace',
+      'X-TapTap-User-Id': 'user-1',
+    });
+  });
+
+  test('does not inject tag as a per-call private argument', () => {
     const proxy = new TapTapMCPProxy(createProxyConfig());
 
     const injected = (
@@ -41,32 +52,12 @@ describe('mcp proxy tag private parameter', () => {
       }
     ).injectPrivateParams({ name: 'demo' });
 
-    expect(injected).toMatchObject({
-      name: 'demo',
-      _tag: 'local',
-      _project_id: 'project-1',
-      _project_path: 'project-1/workspace',
-      _user_id: 'user-1',
-    });
+    expect(injected).not.toHaveProperty('_tag');
   });
 
-  test('treats _tag as a private parameter on the server side', () => {
-    const args = {
-      page: 1,
-      _tag: 'local',
-      _project_id: 'project-1',
-    };
+  test('exposes session header tag through resolved context', () => {
+    const context = new ResolvedContext({}, { tag: 'local' });
 
-    expect(extractPrivateParams(args)).toMatchObject({
-      _tag: 'local',
-      _project_id: 'project-1',
-    });
-    expect(hasPrivateParams(args)).toBe(true);
-    expect(stripPrivateParams(args)).toEqual({ page: 1 });
-    expect(mergePrivateParams({ page: 2 }, { _tag: 'local' })).toEqual({
-      page: 2,
-      _tag: 'local',
-    });
-    expect(new ResolvedContext(extractPrivateParams(args)).tag).toBe('local');
+    expect(context.tag).toBe('local');
   });
 });

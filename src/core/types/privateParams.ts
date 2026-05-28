@@ -23,7 +23,6 @@ import type { MacToken } from './index.js';
  * - 覆盖 Session 中的认证（_mac_token）
  * - 覆盖 Session 中的用户标识（_user_id）
  * - 覆盖 Session 中的项目标识（_project_id, _project_path）
- * - 标记 Proxy 调用来源（_tag）
  *
  * 注意：developer_id 和 app_id 不在此接口中，
  * 它们应通过 select_app 工具设置并从缓存中读取
@@ -70,12 +69,6 @@ export interface PrivateToolParams {
    * @example { "team": "game-studio-a", "env": "staging" }
    */
   _custom_fields?: Record<string, string>;
-
-  /**
-   * Proxy source tag.
-   * @example "local"
-   */
-  _tag?: string;
 }
 
 /**
@@ -99,7 +92,6 @@ export function extractPrivateParams(args: any): PrivateToolParams {
     _project_id: args?._project_id,
     _project_path: args?._project_path,
     _custom_fields: args?._custom_fields,
-    _tag: args?._tag,
   };
 }
 
@@ -130,7 +122,6 @@ export function stripPrivateParams(args: any): any {
     _project_id,
     _project_path,
     _custom_fields,
-    _tag,
     ...businessParams
   } = args;
   return businessParams;
@@ -159,8 +150,7 @@ export function hasPrivateParams(args: any): boolean {
     args._session_id ||
     args._project_id ||
     args._project_path ||
-    args._custom_fields ||
-    args._tag
+    args._custom_fields
   );
 }
 
@@ -200,9 +190,5 @@ export function mergePrivateParams(args: any, privateParams: PrivateToolParams):
   if (privateParams._custom_fields) {
     result._custom_fields = privateParams._custom_fields;
   }
-  if (privateParams._tag) {
-    result._tag = privateParams._tag;
-  }
-
   return result;
 }

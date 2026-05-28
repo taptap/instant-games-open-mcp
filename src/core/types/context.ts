@@ -30,10 +30,9 @@ import { EnvConfig } from '../utils/env.js';
  *    - X-TapTap-Project-Path
  *    - X-TapTap-Mac-Token（JSON 序列化）
  *    - X-TapTap-Custom-Fields（JSON 序列化，业务自定义字段）
+ *    - X-TapTap-Tag（Proxy 调用来源标记）
  * 2. URL 参数（SSE 直连兼容）：
  *    - ?user_id=xxx&project_id=xxx&project_path=xxx
- * 3. 工具私有参数：
- *    - _tag=local（由本地 MCP Proxy 注入）
  */
 export interface SessionContext {
   userId?: string;
@@ -143,7 +142,7 @@ export class ResolvedContext {
       macToken:
         args._mac_token?.kid && args._mac_token?.mac_key ? args._mac_token : session.macToken,
       customFields: args._custom_fields || session.customFields,
-      tag: args._tag || session.tag,
+      tag: session.tag,
     };
   }
 
