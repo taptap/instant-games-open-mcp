@@ -48,7 +48,7 @@ jobs:
           set -euo pipefail
 
           npm whoami
-          npm access public "$PACKAGE_NAME"
+          npm access set status=public "$PACKAGE_NAME"
           npm dist-tag ls "$PACKAGE_NAME"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
