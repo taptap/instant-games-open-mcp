@@ -185,6 +185,34 @@ describe('maker build local-change guard', () => {
     ).toBe(`${head}\n`);
   });
 
+  test('commits selected Maker files before pushing', async () => {
+    const branch = prepareMakerRemote();
+    const initialHead = readGit(['rev-parse', '--short', 'HEAD']).trim();
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- selected change\n', 'utf8');
+    fs.writeFileSync(
+      path.join(tempDir, 'scripts', 'local.lua'),
+      '-- unrelated local change\n',
+      'utf8'
+    );
+
+    const result = await pushMakerProject({
+      cwd: tempDir,
+      files: ['scripts/main.lua'],
+    });
+
+    expect(result.pushed).toBe(true);
+    expect(result.committed).toBe(true);
+    expect(result.commitHash).toBeDefined();
+    expect(result.commitHash).not.toBe(initialHead);
+    expect(
+      readGit(
+        ['rev-parse', '--short', branch],
+        path.join(process.env.TAPTAP_MAKER_GIT_BASE!, 'app-1.git')
+      )
+    ).toBe(`${result.commitHash}\n`);
+    expect(readGit(['status', '--short'])).toContain('?? scripts/local.lua');
+  });
+
   test('push failure explains that Maker remote only accepts main branch', async () => {
     runGit(['branch', '-M', 'main']);
     prepareMakerRemote(
@@ -660,7 +688,7 @@ describe('maker build local-change guard', () => {
 
     expect(logTool?.description).toContain('one-shot');
     expect(logTool?.description).toContain('does not start a watcher');
-    expect(logTool?.description).toContain('user_script/server_user_script');
+    expect(logTool?.description).toContain('engine/user_script/server_user_script');
     expect(logTool?.description).toContain('runtime.log');
     expect(logTool?.inputSchema.properties).toHaveProperty('since_seconds');
     expect(logTool?.inputSchema.properties).toHaveProperty('start_time');

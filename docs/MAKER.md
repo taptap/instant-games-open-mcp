@@ -113,7 +113,8 @@ MCP 运行期能力：
 - `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。
 - `maker_build_current_directory`：统一执行本地同步和远端构建。默认发现本地改动或 ahead commit 时先 commit/push，再远端 build；用户明确说“不提交，直接构建云端版本”时才传 `confirm_remote_build_without_submit=true`。
 - `maker_pull_runtime_logs`：单次调用远端 `query_runtime_logs`，默认只拉
-  `user_script`（客户端 Lua 脚本）和 `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份
+  `engine`、`user_script`（客户端 Lua 脚本）和 `server_user_script`（服务端 Lua 脚本）。
+  本地只追加写入一份
   `.maker/logs/runtime/runtime.log`，保持 server 日志行格式（`t/topic/level/msg/userId`
   等），但去掉无用的 `id` 字段，也不再补 `time/message` 重复字段；并维护
   `.maker/logs/runtime/state.json` 的 `nextStartTime` 和心跳字段。没有显式 `start_time` 时，
@@ -255,7 +256,7 @@ Maker app 列表关键字段：
 - `maker_build_current_directory` 会转发远端 build tool 的 progress notification。
 - `maker_pull_runtime_logs` 不做长连接，不启动 watcher，也不清理本地日志。
 - `taptap-maker logs watch` 承载持续轮询：默认每 5 秒调用一次远端
-  `query_runtime_logs`，固定只拉 `user_script` 和 `server_user_script`。远端返回
+  `query_runtime_logs`，固定只拉 `engine`、`user_script` 和 `server_user_script`。远端返回
   `hasMore=true` 且游标/写入有进展时会立即继续拉取下一页；如果没有进展，会按轮询间隔睡眠，避免热循环。
   默认遇到临时错误会持续重试并写 watcher 输出；只有显式传 `--max-consecutive-failures` 时才会达到阈值后退出。
 - watcher 会维护 `.maker/logs/runtime/watcher.pid`。同一项目启动新 watcher 前会停止旧 watcher，
@@ -355,6 +356,7 @@ maker_build_current_directory()
 - `maker_build_current_directory` 会先读取当前 Maker git 状态。
 - 如果本地没有改动且没有 ahead commit，继续转发远端 build。
 - 如果本地有改动或已经有本地 commit 未 push，默认先 commit/push，再远端 build。
+- 如果调用时传入 `files`，只 stage/commit 这些指定文件；未传 `files` 时提交全部本地改动。
 - 用户说“提交 / push / 构建 / 查看结果 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都使用同一个工具。
 - 用户明确说“不提交 / 直接构建 / 构建云端版本”时，才允许传 `confirm_remote_build_without_submit=true`，这会只构建 Maker 远端已提交版本。
 - push 被远端拒绝、认证失败、远端有新提交或发生冲突时，工具返回 `mode: submit_failed_before_build`，不会继续远端 build。Agent 应解释 push 失败原因，按 `classification` 使用对应恢复策略，再重试同一个构建工具。

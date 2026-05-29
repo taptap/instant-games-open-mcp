@@ -179,7 +179,8 @@ export const tools = [
         files: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Optional files to stage before build. Defaults to all local changes.',
+          description:
+            'Optional files to stage and commit before build. Defaults to all local changes.',
         },
         confirm_remote_build_without_submit: {
           type: 'boolean',
@@ -192,7 +193,7 @@ export const tools = [
   {
     name: 'maker_pull_runtime_logs',
     description:
-      'Pull Maker Lua runtime logs once from the remote Maker MCP query_runtime_logs tool and write user_script/server_user_script logs to .maker/logs/runtime/runtime.log. This is a one-shot fixed business flow for AI diagnostics; it does not start a watcher, does not keep a long-running MCP call open, and does not clear local logs.',
+      'Pull Maker runtime logs once from the remote Maker MCP query_runtime_logs tool and write engine/user_script/server_user_script logs to .maker/logs/runtime/runtime.log. This is a one-shot fixed business flow for AI diagnostics; it does not start a watcher, does not keep a long-running MCP call open, and does not clear local logs.',
     inputSchema: {
       type: 'object',
       properties: {

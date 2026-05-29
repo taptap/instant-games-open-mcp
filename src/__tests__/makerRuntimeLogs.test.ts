@@ -28,7 +28,7 @@ describe('maker runtime logs', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  test('pulls lua runtime logs once into one server-shaped log file', async () => {
+  test('pulls maker runtime logs once into one server-shaped log file', async () => {
     const remoteCalls: RuntimeLogQueryArgs[] = [];
 
     const result = await pullRuntimeLogs({
@@ -40,13 +40,20 @@ describe('maker runtime logs', () => {
             {
               id: 'log-1',
               t: 1710000003,
+              topic: 'engine',
+              level: 'INFO',
+              msg: 'engine ready',
+            },
+            {
+              id: 'log-2',
+              t: 1710000004,
               topic: 'user_script',
               level: 'ERROR',
               msg: 'runtime error',
               source: 'debugging',
             },
             {
-              t: 1710000004,
+              t: 1710000005,
               topic: 'server_user_script',
               level: 'INFO',
               msg: 'server ready',
@@ -60,9 +67,12 @@ describe('maker runtime logs', () => {
     });
 
     expect(remoteCalls).toEqual([
-      { sinceSeconds: DEFAULT_RUNTIME_LOG_SINCE_SECONDS, topics: DEFAULT_RUNTIME_LOG_TOPICS },
+      {
+        sinceSeconds: DEFAULT_RUNTIME_LOG_SINCE_SECONDS,
+        topics: ['engine', 'user_script', 'server_user_script'],
+      },
     ]);
-    expect(result.writtenLogs).toBe(2);
+    expect(result.writtenLogs).toBe(3);
     expect(result.files).toEqual([path.join(tempDir, '.maker', 'logs', 'runtime', 'runtime.log')]);
     const lines = fs
       .readFileSync(path.join(tempDir, '.maker', 'logs', 'runtime', 'runtime.log'), 'utf8')
@@ -72,13 +82,19 @@ describe('maker runtime logs', () => {
     expect(lines).toEqual([
       {
         t: 1710000003,
+        topic: 'engine',
+        level: 'INFO',
+        msg: 'engine ready',
+      },
+      {
+        t: 1710000004,
         topic: 'user_script',
         level: 'ERROR',
         msg: 'runtime error',
         source: 'debugging',
       },
       {
-        t: 1710000004,
+        t: 1710000005,
         topic: 'server_user_script',
         level: 'INFO',
         msg: 'server ready',
@@ -97,7 +113,7 @@ describe('maker runtime logs', () => {
       false
     );
     expect(readRuntimeLogState(tempDir)).toMatchObject({
-      nextStartTime: 1710000005,
+      nextStartTime: 1710000006,
     });
   });
 

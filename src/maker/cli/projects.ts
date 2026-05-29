@@ -514,8 +514,11 @@ export async function pushMakerProject(
       message: 'Staging all local changes',
     });
     await runGit(['add', '-A'], { cwd });
+  }
 
-    const staged = await readGit(['diff', '--cached', '--name-only'], cwd);
+  if (statusBefore.trim() || options.allowEmpty) {
+    const selectedFiles = options.files?.length ? ['--', ...options.files] : [];
+    const staged = await readGit(['diff', '--cached', '--name-only', ...selectedFiles], cwd);
     message = options.message || generateCommitMessage(statusBefore);
     if (staged.trim() || options.allowEmpty) {
       options.onProgress?.({
@@ -534,6 +537,7 @@ export async function pushMakerProject(
           ...(options.allowEmpty ? ['--allow-empty'] : []),
           '-m',
           message,
+          ...selectedFiles,
         ],
         { cwd }
       );
