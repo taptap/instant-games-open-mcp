@@ -273,6 +273,7 @@ describe('Maker AI dev kit install', () => {
     expect(stagedGitignore).toContain('engine-docs/');
     expect(stagedGitignore).toContain('examples/');
     expect(stagedGitignore).toContain('templates/');
+    expect(stagedGitignore).toContain('tools/');
     expect(stagedGitignore).toContain('urhox-libs/');
     expect(stagedGitignore).toContain('CLAUDE.md');
     expect(stagedGitignore).not.toContain('scripts/');

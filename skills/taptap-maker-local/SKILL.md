@@ -15,8 +15,8 @@ This skill covers:
 
 - initialize local Maker development
 - run the Maker CLI initialization flow
-- prepare local AI dev kit before project binding
 - clone a Maker project
+- prepare local AI dev kit after project checkout
 - choose a Maker app from the CLI app list
 - explain PAT, Git, project binding, and editor reloads
 - inspect local changes
@@ -33,7 +33,7 @@ post-build runtime log polling loop belongs to the local Maker CLI watcher.
 Keep this split clear:
 
 - Skill: user intent, step order, whether to ask the user, friendly explanations, failure recovery.
-- CLI: save PAT, fetch app list, prepare dev kit, clone, install MCP config, verify local setup,
+- CLI: save PAT, fetch app list, clone, prepare dev kit, install MCP config, verify local setup,
   and run the local runtime log watcher.
 - MCP tools/resources: inspect Maker status, run the combined commit/push/build path, and support
   one-shot runtime log pulls.
@@ -133,8 +133,10 @@ Keep the user-facing explanation short:
 
 ## AI Dev Kit Preparation
 
-`taptap-maker init` prepares local development environment files in the current working directory
-before it checks out the Maker project.
+`taptap-maker init` checks out the Maker project before preparing local development environment
+files in the current working directory. Init reinstalls the dev kit after checkout and allows
+dev-kit files to overwrite same-path local helper files; the managed `.gitignore` block keeps
+those files local-only so they are not submitted to Maker Git.
 
 `taptap-maker doctor` and `maker://status` check the dev-kit top-level entries for an already bound
 Maker project. If `CLAUDE.md`, `examples/`, `templates/`, or `urhox-libs/` are missing, run
@@ -161,18 +163,19 @@ resources to the local AI/Agent:
 
 The CLI is responsible for deterministic file operations:
 
-- extract the ZIP into the current directory
+- extract the ZIP into the current directory after checkout
 - skip the ZIP top-level `scripts` directory because it conflicts with Maker project code
 - delete the downloaded `ai-dev-kit.zip` after extraction
 - write a temporary `.gitignore.dev-kit-before-clone` block for installed dev-kit entries
-- after Maker clone succeeds, merge that block into the checked-out `.gitignore`
+- after dev-kit preparation succeeds, merge that block into the checked-out `.gitignore`
 - keep the dev-kit files local-only so they are not submitted to Maker Git
 
 Do not hand-write a custom download/unzip script while this CLI command is available.
 
-If clone fails because dev-kit network access is unavailable, explain that the Maker project can
-still be cloned, but local AI development docs/API/demo support may be incomplete. Ask whether
-the user wants to retry or continue without the dev kit.
+If dev-kit network access is unavailable after clone succeeds, explain that the Maker project is
+already checked out, but local AI development docs/API/demo support may be incomplete. Ask whether
+the user wants to retry `taptap-maker init` for a full post-checkout dev-kit reinstall or continue
+without the dev kit.
 
 If clone or fetch fails with Maker Git output, inspect the returned error fields instead of asking
 the user to delete local files immediately. Treat `retryable: yes`, `classification:
@@ -280,12 +283,13 @@ Do not delete, move, or overwrite user files during this check.
 
 ## Clone Directory Safety
 
-Before clone, the Maker CLI checks local files and reports conflicts. The AI dev kit may create
-local-only files before clone, so explain this in non-technical terms:
+Before clone, the Maker CLI checks local files and reports conflicts. The current init flow installs
+the AI dev kit after checkout, so a fresh directory should not get checkout conflicts from newly
+generated dev-kit files. Explain this in non-technical terms:
 
 - existing local config folders such as `.claude`, `.mcp`, `.skill`, `.config`, `.ini` are kept
 - normal local files are kept unless they conflict with files from the Maker project
-- if conflicts are reported, tell the user exactly which files block clone and ask whether to move,
+- if conflicts are reported, tell the user exactly which pre-existing files block clone and ask whether to move,
   rename, or choose another directory
 
 Do not delete or overwrite user files to make clone work unless the user explicitly asks.
@@ -306,8 +310,8 @@ directory over manual cleanup.
 ### `.gitignore` Merge During Clone
 
 The Maker CLI stages the dev-kit managed ignore block in
-`.gitignore.dev-kit-before-clone` instead of writing `.gitignore` before checkout. After Maker
-clone succeeds, the CLI merges that managed block into the checked-out `.gitignore` and
+`.gitignore.dev-kit-before-clone` while preparing the dev kit. After the Maker checkout and dev-kit
+preparation both succeed, the CLI merges that managed block into the checked-out `.gitignore` and
 removes the temporary file.
 
 If clone still reports conflicts for files other than `.gitignore.dev-kit-before-clone`, do not

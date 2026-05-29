@@ -516,6 +516,50 @@ describe('Maker CLI commands', () => {
     expect(output).toContain('AI skills install result: claude=13, codex=13, cursor=13, gemini=13');
   });
 
+  test('init clones before installing dev kit and allows dev kit to overwrite checkout files', async () => {
+    jest.mocked(inspectAiDevKit).mockReturnValueOnce({
+      targetDir: tempDir,
+      requiredEntries: ['CLAUDE.md'],
+      presentEntries: [],
+      missingEntries: ['CLAUDE.md'],
+      ready: false,
+    });
+    jest.mocked(installAiDevKit).mockResolvedValueOnce({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, 'source'),
+      installedEntries: ['CLAUDE.md', 'tools'],
+      skippedEntries: [],
+      gitignorePath: path.join(tempDir, '.gitignore'),
+      stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+      skillInstaller: {
+        ok: true,
+        status: 'installed',
+        script: path.join(tempDir, 'tools', 'install-skills.sh'),
+        summary: 'claude=13, codex=13, cursor=13, gemini=13',
+        stdout: '',
+        stderr: '',
+      },
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    const cloneOrder = jest.mocked(cloneMakerProject).mock.invocationCallOrder[0];
+    const installOrder = jest.mocked(installAiDevKit).mock.invocationCallOrder[0];
+    const installOptions = jest.mocked(installAiDevKit).mock.calls[0]?.[0];
+    expect(cloneOrder).toBeLessThan(installOrder);
+    expect(installOptions).toEqual(expect.objectContaining({ targetDir: tempDir }));
+    expect(installOptions).not.toHaveProperty('preserveExisting', true);
+  });
+
   test('init prints prepared dev kit and skill failure details separately', async () => {
     jest.mocked(inspectAiDevKit).mockReturnValueOnce({
       targetDir: tempDir,
@@ -560,7 +604,7 @@ describe('Maker CLI commands', () => {
     expect(output).toContain('installer stderr detail');
   });
 
-  test('init runs and prints AI skill installer result when dev kit is already present', async () => {
+  test('init reinstalls dev kit even when checkout already has dev kit markers', async () => {
     jest.mocked(inspectAiDevKit).mockReturnValueOnce({
       targetDir: tempDir,
       requiredEntries: ['CLAUDE.md', 'examples', 'templates', 'urhox-libs'],
@@ -568,20 +612,28 @@ describe('Maker CLI commands', () => {
       missingEntries: [],
       ready: true,
     });
-    jest.mocked(installAiDevKitSkills).mockImplementationOnce((_targetDir, options) => {
-      options?.onStart?.({
+    jest.mocked(installAiDevKit).mockImplementationOnce(async (options) => {
+      options.onSkillInstallerStart?.({
         platform: process.platform,
         script: path.join(tempDir, 'tools', 'install-skills.sh'),
         cwd: path.join(tempDir, 'tools'),
         command: ['bash', path.join(tempDir, 'tools', 'install-skills.sh'), 'all'],
       });
       return {
-        ok: true,
-        status: 'installed',
-        script: path.join(tempDir, 'tools', 'install-skills.sh'),
-        summary: 'claude=13, codex=13, cursor=13, gemini=13',
-        stdout: '[install-skills] claude: installed=13 target=.claude/skills',
-        stderr: '',
+        targetDir: tempDir,
+        sourceDir: path.join(tempDir, 'source'),
+        installedEntries: ['CLAUDE.md', 'examples', 'templates', 'tools', 'urhox-libs'],
+        skippedEntries: [],
+        gitignorePath: path.join(tempDir, '.gitignore'),
+        stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+        skillInstaller: {
+          ok: true,
+          status: 'installed',
+          script: path.join(tempDir, 'tools', 'install-skills.sh'),
+          summary: 'claude=13, codex=13, cursor=13, gemini=13',
+          stdout: '[install-skills] claude: installed=13 target=.claude/skills',
+          stderr: '',
+        },
       };
     });
 
@@ -597,9 +649,41 @@ describe('Maker CLI commands', () => {
     ]);
 
     const output = stdoutSpy.mock.calls.join('');
-    expect(output).toContain('AI dev kit already present');
+    const installOptions = jest.mocked(installAiDevKit).mock.calls[0]?.[0];
     expect(output).toContain('AI skills install started');
+    expect(output).toContain('AI dev kit prepared');
     expect(output).toContain('AI skills install result: claude=13, codex=13, cursor=13, gemini=13');
+    expect(installOptions).toEqual(expect.objectContaining({ targetDir: tempDir }));
+    expect(installOptions).not.toHaveProperty('preserveExisting', true);
+    expect(installAiDevKitSkills).not.toHaveBeenCalled();
+  });
+
+  test('dev-kit update preserves existing local files', async () => {
+    jest.mocked(installAiDevKit).mockResolvedValueOnce({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, 'source'),
+      installedEntries: ['CLAUDE.md', 'tools'],
+      skippedEntries: [],
+      gitignorePath: path.join(tempDir, '.gitignore'),
+      stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+      skillInstaller: {
+        ok: true,
+        status: 'installed',
+        script: path.join(tempDir, 'tools', 'install-skills.sh'),
+        summary: 'claude=13, codex=13, cursor=13, gemini=13',
+        stdout: '[install-skills] claude: installed=13 target=.claude/skills',
+        stderr: '',
+      },
+    });
+
+    await runMakerCli(['dev-kit', 'update', '--target-dir', tempDir]);
+
+    expect(installAiDevKit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetDir: tempDir,
+        preserveExisting: true,
+      })
+    );
   });
 
   test('init selection index follows the recently active display order', async () => {
