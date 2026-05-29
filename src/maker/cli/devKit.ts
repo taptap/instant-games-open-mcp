@@ -40,6 +40,7 @@ export const DEV_KIT_MANAGED_ENTRY_CANDIDATES = [
   '.cursor',
   '.emmylua',
   '.gemini',
+  '.installer',
   'AGENTS.md',
   'CLAUDE.md',
   'engine-docs',
