@@ -92,8 +92,10 @@ jobs:
         run: |
           set -euo pipefail
           tarball="./packages/maker/taptap-maker-${MAKER_PACKAGE_VERSION}.tgz"
-          npm publish "$tarball" --access public --tag "$NPM_TAG" --provenance
-          echo "Published @taptap/maker@$MAKER_PACKAGE_VERSION with provenance"
+          npm publish "$tarball" --access public --tag "$NPM_TAG" --provenance \
+            || npm publish "$tarball" --access public --tag "$NPM_TAG"
+          echo "Published @taptap/maker@$MAKER_PACKAGE_VERSION"
         env:
           MAKER_PACKAGE_VERSION: ${{ steps.version.outputs.version }}
           NPM_TAG: ${{ inputs.tag }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
