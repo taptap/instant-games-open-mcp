@@ -132,7 +132,7 @@ TapTap Maker local development CLI and MCP server.
 ## Usage
 
 \`\`\`bash
-npx -y -p @taptap/maker taptap-maker init
+npx -y @taptap/maker init
 \`\`\`
 
 Common commands:
@@ -142,10 +142,12 @@ taptap-maker init
 taptap-maker doctor
 taptap-maker apps --json
 taptap-maker pat set
-taptap-maker mcp install --ide codex,cursor,claude
+taptap-maker install --ide codex,cursor,claude
 taptap-maker mcp verify
 taptap-maker dev-kit update
 \`\`\`
+
+\`taptap-maker install\` is a shortcut alias for \`taptap-maker mcp install\`.
 
 This package contains only the Maker CLI/MCP bundle and Maker workflow skills.
 It does not include the legacy TapTap Open API MCP server, proxy, native signer,

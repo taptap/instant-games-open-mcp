@@ -49,7 +49,7 @@
 Maker 本地开发按“初始化用 CLI，开发循环用 MCP”拆分。首次配置推荐直接运行：
 
 ```bash
-npx -y -p @taptap/maker taptap-maker init
+npx -y @taptap/maker init
 ```
 
 CLI 负责一次性流程：Git 检查、PAT 保存、TapTap token 换取、app 列表选择、Maker Git
@@ -64,14 +64,15 @@ taptap-maker init
 taptap-maker doctor
 taptap-maker apps --json
 taptap-maker pat set
-taptap-maker mcp install --ide codex,cursor,claude
+taptap-maker install --ide codex,cursor,claude
 taptap-maker mcp verify
 taptap-maker dev-kit update
 ```
 
 `taptap-maker pat set` 默认通过交互式 prompt 接收 PAT，避免把 PAT 写进
 `ps` 进程列表或 shell history；自动化场景可用 `--pat-stdin` 从标准输入读取。
-`taptap-maker mcp verify` 默认验证 `mcp install` 写入 AI 客户端配置的 npx 启动命令；
+`taptap-maker install` 是 `taptap-maker mcp install` 的快捷别名，二者都会写入 AI 客户端
+MCP 配置。`taptap-maker mcp verify` 默认验证 `mcp install` 写入 AI 客户端配置的 npx 启动命令；
 本地开发只想验证当前 CLI 时可加 `--mode self`。如果验证输出 `status: null` 或
 `failure_type`，说明本地 Node/npm/npx 启动命令还没正常跑通，Maker MCP server
 尚未启动；这不是 PAT、app 选择或 Maker 业务接口报错。先按输出里的 command

@@ -97,6 +97,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
     return;
   }
 
+  if (command === 'install') {
+    await runMcpInstall(parsed, ctx);
+    return;
+  }
+
   if (command === 'mcp' && subcommand === 'install') {
     await runMcpInstall(parsed, ctx);
     return;
@@ -1336,6 +1341,8 @@ function printHelp(): void {
       '                     # --pat warns: PAT appears in ps/history',
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # warns: PAT appears in ps/history',
+      '  taptap-maker install [--ide codex,cursor,claude] [--env rnd|production]',
+      '                        [--json]  # alias for mcp install',
       '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',
       '                             [--json]',
       '  taptap-maker mcp verify [--mode npx|self] [--json]',
