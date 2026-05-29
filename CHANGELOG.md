@@ -1,3 +1,20 @@
+## <small>1.24.1 (2026-05-29)</small>
+
+* fix(maker): install dev kit after checkout ([1012a2b](https://github.com/taptap/instant-games-open-mcp/commit/1012a2b)), closes [#210](https://github.com/taptap/instant-games-open-mcp/issues/210) [#212](https://github.com/taptap/instant-games-open-mcp/issues/212)
+* fix(maker): promote beta Maker and proxy fixes ([778d05d](https://github.com/taptap/instant-games-open-mcp/commit/778d05d))
+* fix(maker): 修复 Codex MCP 配置重复键问题 (#194) ([93f6414](https://github.com/taptap/instant-games-open-mcp/commit/93f6414)), closes [#194](https://github.com/taptap/instant-games-open-mcp/issues/194)
+* fix(maker): 精简 app 列表展示并兼容旧分页参数 (#191) ([9cbd1ea](https://github.com/taptap/instant-games-open-mcp/commit/9cbd1ea)), closes [#191](https://github.com/taptap/instant-games-open-mcp/issues/191) [#188](https://github.com/taptap/instant-games-open-mcp/issues/188) [#188](https://github.com/taptap/instant-games-open-mcp/issues/188)
+* feat(maker): 将 .installer 加入 DEV_KIT_MANAGED_ENTRY_CANDIDATES (#210) ([4e30533](https://github.com/taptap/instant-games-open-mcp/commit/4e30533)), closes [#210](https://github.com/taptap/instant-games-open-mcp/issues/210) [taptap/urhox#1806](https://github.com/taptap/urhox/issues/1806)
+* ci(maker): add npm access repair workflow [skip ci] ([02b913b](https://github.com/taptap/instant-games-open-mcp/commit/02b913b)), closes [#206](https://github.com/taptap/instant-games-open-mcp/issues/206)
+* ci(maker): add npm tag cleanup workflow [skip ci] ([74b8f0b](https://github.com/taptap/instant-games-open-mcp/commit/74b8f0b)), closes [#208](https://github.com/taptap/instant-games-open-mcp/issues/208)
+* ci(maker): fix npm access command [skip ci] ([575d115](https://github.com/taptap/instant-games-open-mcp/commit/575d115)), closes [#207](https://github.com/taptap/instant-games-open-mcp/issues/207)
+* ci(maker): switch npm publish to oidc only [skip ci] ([9cfd353](https://github.com/taptap/instant-games-open-mcp/commit/9cfd353)), closes [#209](https://github.com/taptap/instant-games-open-mcp/issues/209)
+* chore(deps): align lockfile with ci npm [skip ci] ([829a4e0](https://github.com/taptap/instant-games-open-mcp/commit/829a4e0)), closes [#205](https://github.com/taptap/instant-games-open-mcp/issues/205)
+* chore(deps): sync lockfile for maker publish [skip ci] ([13bbd23](https://github.com/taptap/instant-games-open-mcp/commit/13bbd23)), closes [#204](https://github.com/taptap/instant-games-open-mcp/issues/204)
+* chore(maker): add standalone maker package publishing [skip ci] ([8d6b858](https://github.com/taptap/instant-games-open-mcp/commit/8d6b858))
+
+
+
 ## <small>1.23.4 (2026-05-26)</small>
 
 * fix(maker): optimize Maker app list display and sync recovery ([3a98789](https://github.com/taptap/instant-games-open-mcp/commit/3a98789))
