@@ -357,6 +357,38 @@ npx commitlint --from HEAD~1 --to HEAD
 - 内置 production native signer，确保 production 环境开箱即用
 - 不内置 RND 凭证，RND 测试通过 MCP 配置的 `env` 注入
 
+### 5.4 Maker 独立包发布工作流
+
+**文件**：`.github/workflows/publish-maker.yml`
+
+**包名**：`@taptap/maker`
+
+**触发条件**：手动运行 workflow
+
+**认证方式**：
+
+- 使用 npm Trusted Publishing / GitHub OIDC。
+- workflow 必须保留 `permissions.id-token: write`。
+- 不使用 `NPM_TOKEN`，也不允许 provenance 失败后降级发布。
+
+**执行步骤**：
+
+1. 运行 `npm ci`、`npm run lint`、`npm test`
+2. 解析并校验目标版本号
+3. 构建 Maker-only bundle
+4. 组装 `packages/maker`
+5. `npm pack --dry-run`
+6. 用 tarball 验证 `taptap-maker help`
+7. 使用 `npm publish --provenance` 发布到指定 dist-tag
+
+**设计约束**：
+
+- 不走旧包的 semantic-release。
+- 不修改旧包 release workflow。
+- 手动版本号必须二次确认。
+- 自动版本号只允许递增最后一个数字段。
+- 如果 OIDC/provenance 发布失败，workflow 必须失败并停止。
+
 ---
 
 ## 6. 配置文件
