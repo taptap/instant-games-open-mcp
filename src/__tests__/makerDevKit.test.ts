@@ -238,6 +238,7 @@ describe('Maker AI dev kit install', () => {
 
     expect(block).toContain('\n.DS_Store\n');
     expect(block).toContain('\n.maker/\n');
+    expect(block).toContain('\n.installer/\n');
     expect(block).not.toContain('.DS_Store/');
   });
 
