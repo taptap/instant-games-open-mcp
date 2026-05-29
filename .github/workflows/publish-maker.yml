@@ -29,11 +29,6 @@ on:
           - latest
           - next
           - alpha
-      allow_no_provenance:
-        description: 'Allow fallback publish without provenance when provenance publish fails'
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -43,8 +38,6 @@ jobs:
   publish:
     name: Publish @taptap/maker
     runs-on: ubuntu-latest
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,22 +89,10 @@ jobs:
 
       - name: Publish package
         run: |
-          set -e
+          set -euo pipefail
           tarball="./packages/maker/taptap-maker-${MAKER_PACKAGE_VERSION}.tgz"
-
-          if npm publish "$tarball" --access public --tag "$NPM_TAG" --provenance; then
-            echo "Published @taptap/maker@$MAKER_PACKAGE_VERSION with provenance"
-            exit 0
-          fi
-
-          if [ "$ALLOW_NO_PROVENANCE" != "true" ]; then
-            echo "::error::Provenance publish failed and allow_no_provenance is false."
-            exit 1
-          fi
-
-          echo "::warning::Provenance publish failed; falling back to token publish without provenance."
-          npm publish "$tarball" --access public --tag "$NPM_TAG"
+          npm publish "$tarball" --access public --tag "$NPM_TAG" --provenance
+          echo "Published @taptap/maker@$MAKER_PACKAGE_VERSION with provenance"
         env:
           MAKER_PACKAGE_VERSION: ${{ steps.version.outputs.version }}
           NPM_TAG: ${{ inputs.tag }}
-          ALLOW_NO_PROVENANCE: ${{ inputs.allow_no_provenance }}
