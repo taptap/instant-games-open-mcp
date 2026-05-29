@@ -36,6 +36,7 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 | `taptap-maker doctor`         | 检查 Git、PAT、TapTap token、项目绑定、dev-kit、skill 状态                    |
 | `taptap-maker apps`           | 使用 PAT 获取 Maker app 列表                                                  |
 | `taptap-maker pat set`        | 交互式保存 Maker PAT，并换取 TapTap token                                     |
+| `taptap-maker install`        | `taptap-maker mcp install` 的快捷别名，写入 AI 客户端 MCP 配置                |
 | `taptap-maker mcp install`    | 写入 Codex / Cursor / Claude 的 MCP 配置                                      |
 | `taptap-maker mcp verify`     | 验证 MCP 配置使用的 npx 包命令是否可启动；`--mode self` 验证当前 CLI          |
 | `taptap-maker dev-kit update` | 恢复或更新本地 AI dev-kit                                                     |

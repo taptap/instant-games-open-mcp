@@ -155,6 +155,18 @@ describe('Maker CLI commands', () => {
     expect(text).toContain('KEEP = "yes"');
   });
 
+  test('top-level install aliases mcp install', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+
+    await runMakerCli(['install', '--ide', 'codex', '--env', 'rnd']);
+
+    const text = fs.readFileSync(configPath, 'utf8');
+    expect(text.match(/\[mcp_servers\."taptap-maker"\]/g)).toHaveLength(1);
+    expect(text).toContain('command = "npx"');
+    expect(text).toContain('args = ["-y", "-p", "@taptap/maker", "taptap-maker"]');
+    expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
+  });
+
   test('codex mcp install replaces existing bare server table and env subtable', async () => {
     const configPath = path.join(tempDir, '.codex', 'config.toml');
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
