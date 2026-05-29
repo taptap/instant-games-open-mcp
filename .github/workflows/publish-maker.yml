@@ -38,6 +38,7 @@ jobs:
   publish:
     name: Publish @taptap/maker
     runs-on: ubuntu-latest
+    environment: npm_publish
     steps:
       - name: Checkout
         uses: actions/checkout@v4
