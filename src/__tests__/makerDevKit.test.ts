@@ -238,6 +238,7 @@ describe('Maker AI dev kit install', () => {
 
     expect(block).toContain('\n.DS_Store\n');
     expect(block).toContain('\n.maker/\n');
+    expect(block).toContain('\n.installer/\n');
     expect(block).not.toContain('.DS_Store/');
   });
 
@@ -273,6 +274,7 @@ describe('Maker AI dev kit install', () => {
     expect(stagedGitignore).toContain('engine-docs/');
     expect(stagedGitignore).toContain('examples/');
     expect(stagedGitignore).toContain('templates/');
+    expect(stagedGitignore).toContain('tools/');
     expect(stagedGitignore).toContain('urhox-libs/');
     expect(stagedGitignore).toContain('CLAUDE.md');
     expect(stagedGitignore).not.toContain('scripts/');

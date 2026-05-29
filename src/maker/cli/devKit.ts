@@ -32,7 +32,7 @@ const DEV_KIT_IGNORE_BEGIN = '# >>> TapTap Maker AI dev kit (local only) >>>';
 const DEV_KIT_IGNORE_END = '# <<< TapTap Maker AI dev kit (local only) <<<';
 export const DEV_KIT_GITIGNORE_STAGING_FILE = '.gitignore.dev-kit-before-clone';
 export const DEV_KIT_REQUIRED_ENTRIES = ['CLAUDE.md', 'examples', 'templates', 'urhox-libs'];
-const ALWAYS_IGNORED_LOCAL_ENTRIES = ['.DS_Store', '.maker'];
+const ALWAYS_IGNORED_LOCAL_ENTRIES = ['.DS_Store', '.maker', '.installer'];
 export const DEV_KIT_MANAGED_ENTRY_CANDIDATES = [
   '.claude',
   '.cli',

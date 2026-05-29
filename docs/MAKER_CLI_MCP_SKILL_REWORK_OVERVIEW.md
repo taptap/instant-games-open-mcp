@@ -106,8 +106,8 @@ flowchart TD
   E1 --> F
   F --> G["列出 Maker app"]
   G --> H["用户选择 app"]
-  H --> I["准备 AI dev-kit"]
-  I --> J["clone Maker 项目"]
+  H --> I["clone Maker 项目"]
+  I --> J["准备 AI dev-kit"]
   J --> K["写 MCP 配置"]
   K --> L["提示刷新或重启 AI 客户端"]
 ```

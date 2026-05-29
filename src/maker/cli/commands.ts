@@ -222,7 +222,6 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     selected_app_id: selected.id,
   });
 
-  await prepareDevKit(targetDir, ctx);
   const cloneResult = await cloneMakerProject({
     appId: selected.id,
     targetDir,
@@ -234,6 +233,10 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     throw appendPatRecoveryUrl(error, parsed);
   });
   emit(ctx, 'clone', 'Maker project cloned or fetched', cloneResult);
+  await prepareDevKit(targetDir, ctx, {
+    finalizeGitignore: true,
+    forceInstall: true,
+  });
 
   if (!skipMcpInstall) {
     const ides = parseIdeList(stringOption(parsed, 'register_mcp') || 'codex,cursor,claude');
@@ -707,17 +710,28 @@ async function resolveProjectSelection(
   }
 }
 
-async function prepareDevKit(targetDir: string, ctx: CliContext): Promise<void> {
+async function prepareDevKit(
+  targetDir: string,
+  ctx: CliContext,
+  options: {
+    preserveExisting?: boolean;
+    finalizeGitignore?: boolean;
+    forceInstall?: boolean;
+  } = {}
+): Promise<void> {
   const before = inspectAiDevKit(targetDir);
-  if (before.ready) {
-    writeDevKitStagedGitignore(
-      path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
-      listPresentDevKitManagedEntries(targetDir)
-    );
+  if (before.ready && !options.forceInstall) {
     try {
       const skillInstaller = installAiDevKitSkills(targetDir, {
         onStart: (event) => emitSkillInstallerStart(ctx, event),
       });
+      writeDevKitStagedGitignore(
+        path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        listPresentDevKitManagedEntries(targetDir)
+      );
+      if (options.finalizeGitignore) {
+        finalizeStagedDevKitGitignore(targetDir);
+      }
       emit(
         ctx,
         'dev_kit',
@@ -728,6 +742,13 @@ async function prepareDevKit(targetDir: string, ctx: CliContext): Promise<void> 
         }
       );
     } catch (error) {
+      writeDevKitStagedGitignore(
+        path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        listPresentDevKitManagedEntries(targetDir)
+      );
+      if (options.finalizeGitignore) {
+        finalizeStagedDevKitGitignore(targetDir);
+      }
       const detail = error instanceof Error ? error.message : String(error);
       emit(ctx, 'dev_kit_warning', `AI skills install failed; clone will continue\n${detail}`, {
         error: detail,
@@ -739,8 +760,12 @@ async function prepareDevKit(targetDir: string, ctx: CliContext): Promise<void> 
   try {
     const result = await installAiDevKit({
       targetDir,
+      preserveExisting: options.preserveExisting,
       onSkillInstallerStart: (event) => emitSkillInstallerStart(ctx, event),
     });
+    if (options.finalizeGitignore) {
+      finalizeStagedDevKitGitignore(targetDir);
+    }
     emit(ctx, 'dev_kit', formatDevKitInstallMessage('AI dev kit prepared', result), result);
     emitDevKitSkillInstallerFailure(
       ctx,
