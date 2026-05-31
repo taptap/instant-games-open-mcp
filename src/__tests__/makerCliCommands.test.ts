@@ -269,9 +269,9 @@ describe('Maker CLI commands', () => {
       'claude',
     ]);
     expect(payloads.every((entry: { ok: boolean }) => entry.ok)).toBe(true);
-    expect(
-      payloads.some((entry: { message: string }) => /unknown ide/i.test(entry.message))
-    ).toBe(false);
+    expect(payloads.some((entry: { message: string }) => /unknown ide/i.test(entry.message))).toBe(
+      false
+    );
   });
 
   test('mcp install still reports a genuinely unknown IDE token', async () => {

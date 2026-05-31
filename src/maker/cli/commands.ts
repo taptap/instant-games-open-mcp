@@ -999,7 +999,8 @@ function mcpVerifyModeOption(parsed: ParsedArgs): 'npx' | 'self' {
 }
 
 /**
- * Parse a comma-separated list of IDE keys (e.g. "codex,cursor,claude").
+ * Parse a comma- and/or whitespace-separated list of IDE keys
+ * (e.g. "codex,cursor,claude" or "codex cursor claude").
  *
  * Splits on both commas AND whitespace. Whitespace is intentional: Windows
  * PowerShell 5.1 parses an unquoted `--ide codex,cursor,claude` as an array and
