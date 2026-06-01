@@ -272,7 +272,7 @@ export function formatRuntimeLogPullResult(result: RuntimeLogPullResult): string
       : '- cursor_expired: no',
     '',
     result.hasMore
-      ? 'next_action: 还有更多远端日志；可以再次调用 maker_pull_runtime_logs 继续拉取。'
+      ? 'next_action: 还有更多远端日志；继续运行 taptap-maker logs watch 可拉取后续页面。'
       : 'next_action: 日志已写入 .maker/logs/runtime/runtime.log，AI/skill 可直接读取这一份合并日志。',
   ].join('\n');
 }

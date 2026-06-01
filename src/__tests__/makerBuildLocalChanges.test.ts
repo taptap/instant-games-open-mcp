@@ -587,12 +587,9 @@ describe('maker build local-change guard', () => {
   test('exposes only the compact Maker tool set', () => {
     const toolNames = tools.map((item) => item.name);
 
-    expect(toolNames).toEqual([
-      'maker_status_lite',
-      'maker_build_current_directory',
-      'maker_pull_runtime_logs',
-    ]);
+    expect(toolNames).toEqual(['maker_status_lite', 'maker_build_current_directory']);
     expect(resources.map((item) => item.uri)).toEqual(['maker://status']);
+    expect(toolNames).not.toContain('maker_pull_runtime_logs');
     expect(toolNames).not.toContain('maker_exchange_pat');
     expect(toolNames).not.toContain('maker_list_apps');
     expect(toolNames).not.toContain('maker_status');
@@ -655,18 +652,14 @@ describe('maker build local-change guard', () => {
     );
   });
 
-  test('runtime log pull tool keeps MCP surface to a fixed one-shot business flow', () => {
-    const logTool = tools.find((item) => item.name === 'maker_pull_runtime_logs');
+  test('runtime log pull is not exposed as a public MCP tool', () => {
+    const toolNames = tools.map((item) => item.name);
+    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(logTool?.description).toContain('one-shot');
-    expect(logTool?.description).toContain('does not start a watcher');
-    expect(logTool?.description).toContain('user_script/server_user_script');
-    expect(logTool?.description).toContain('runtime.log');
-    expect(logTool?.inputSchema.properties).toHaveProperty('since_seconds');
-    expect(logTool?.inputSchema.properties).toHaveProperty('start_time');
-    expect(logTool?.inputSchema.properties).not.toHaveProperty('topics');
-    expect(logTool?.inputSchema.properties).not.toHaveProperty('watch');
-    expect(logTool?.inputSchema.properties).not.toHaveProperty('interval_seconds');
+    expect(toolNames).not.toContain('maker_pull_runtime_logs');
+    expect(buildTool?.description).toContain('local runtime log watcher');
+    expect(buildTool?.description).toContain('runtime_logs.local_file');
+    expect(buildTool?.description).toContain('runtime_logs.state_file');
   });
 
   test('public Maker tool schemas do not expose JWT fallback parameters', () => {
