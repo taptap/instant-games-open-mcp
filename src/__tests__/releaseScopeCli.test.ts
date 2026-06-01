@@ -55,6 +55,7 @@ describe('release scope PR guard', () => {
         '.github/workflows/release.yml',
         '.github/workflows/publish-maker.yml',
         'scripts/release-scope.cjs',
+        'scripts/resolve-main-release-version.js',
         'scripts/resolve-maker-version.js',
         'CONTRIBUTING.md',
         'README.md',
