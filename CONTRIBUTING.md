@@ -23,7 +23,7 @@ git push origin feature/new-feature
 # 4. 在 GitHub 创建 PR
 # 5. 等待 CI 检查通过（lint、build、test、commitlint）
 # 6. 请求 Code Review
-# 7. 合并后自动发布到 npm
+# 7. 合并后由维护者按仓库 CI/CD 策略处理发布
 ```
 
 ### Commit 规范
@@ -41,12 +41,16 @@ test: add tests              # 测试 → 不触发发布
 ```
 
 **Commit Message 要求**：
+
 - Type 必须是规定的类型之一
 - Subject 长度：5-100 字符
 - 使用祈使句："add feature" 而不是 "added feature"
 - 不要以句号结尾
+- 不要使用 `WIP`、`temp`、`test`、`Initial plan` 等空泛消息
+- 重要改动应在 body 中用短 bullet 写清楚改动内容、行为变化、设计取舍、风险和验证结果
 
 **示例**：
+
 ```bash
 ✅ feat(leaderboard): add score submission API
 ✅ fix(auth): resolve token refresh issue
@@ -56,15 +60,30 @@ test: add tests              # 测试 → 不触发发布
 ❌ feat: fix          # 太短（< 5 字符）
 ```
 
+### PR 归属规范
+
+PR 应按改动归属拆分，避免不同发布边界互相影响：
+
+- 主包或共享能力改动：使用普通 Conventional Commit 标题，例如
+  `fix(auth): refresh expired token`。
+- Maker-only 改动：PR 标题必须带 `(maker)`，例如
+  `fix(maker): repair local build`，并且只能修改 Maker-owned paths。
+- 不要在同一个业务 PR 里混改 Maker-owned paths 和主包/共享路径；需要拆成两个 PR。
+- 发布基础设施改动可以同时调整 release workflow、scope 脚本、文档和对应测试；标题使用
+  `ci(release): ...`，并在 PR 描述中说明验证结果。
+- Maker-only PR 合并时不要删除 squash 标题里的 `(maker)`，这是审查和追踪发布边界的必需信号。
+
 ### CI 检查
 
 PR 必须通过所有检查才能合并：
+
 - ✅ **Lint**: ESLint 代码检查
 - ✅ **Build**: TypeScript 编译
 - ✅ **Test**: Jest 单元测试
 - ✅ **Commitlint**: Commit 消息格式验证
 
 **本地验证**：
+
 ```bash
 npm run lint      # 代码检查
 npm run build     # 构建
@@ -116,6 +135,7 @@ src/
 ```
 
 **模块说明**：
+
 - **app**: 基础应用管理（开发者/应用选择、OAuth 授权、环境检查）
 - **leaderboard**: 排行榜功能（依赖 app 模块）
 - **h5Game**: H5 游戏管理
@@ -177,6 +197,7 @@ git commit -m "feat: 添加云存档功能"
 添加新功能时，确保：
 
 ### 代码实现
+
 - [ ] 使用脚手架生成模块结构
 - [ ] 实现所有 TODO 标记的内容
 - [ ] 工具采用统一格式（`ToolRegistration[]`）
@@ -184,22 +205,25 @@ git commit -m "feat: 添加云存档功能"
 - [ ] 在 server.ts 注册模块
 
 ### 质量检查
+
 - [ ] Lint 通过：`npm run lint`
 - [ ] 编译无错：`npm run build`
 - [ ] 测试通过：`npm test`
 - [ ] 本地验证启动：`node dist/server.js`
 
 ### Commit 和文档
+
 - [ ] Commit 消息符合 Conventional Commits 规范
 - [ ] 更新 README.md（如有用户可见的新特性）
 - [ ] 更新相关技术文档（如有架构变更，参考 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)）
 
 ### PR 流程
+
 - [ ] 创建 PR 并填写详细描述
 - [ ] 等待所有 CI 检查通过
 - [ ] 请求 Code Review
 - [ ] 解决所有 Review 意见
-- [ ] 合并后自动发布到 npm
+- [ ] 合并后由维护者按仓库 CI/CD 策略处理发布
 
 ---
 
@@ -238,6 +262,7 @@ export const myResources: ResourceRegistration[] = [
 ```
 
 **优势**：
+
 - ✅ 定义和处理器永不不匹配
 - ✅ TypeScript 类型安全
 - ✅ 易于维护
@@ -253,6 +278,7 @@ export const myResources: ResourceRegistration[] = [
 ```
 
 **依赖规则**：
+
 - ✅ 业务模块可依赖 `core/` 和 `features/app/`
 - ❌ 业务模块之间不能相互依赖
 - ✅ app 模块只依赖 core
@@ -317,6 +343,7 @@ const overview = generateOverview(documentation);
 **完整参考**：查看 `src/features/leaderboard/` 模块
 
 特别关注：
+
 - `index.ts` - 模块结构
 - `tools.ts` - 统一格式的工具定义
 - `resources.ts` - 统一格式的资源定义
@@ -355,17 +382,18 @@ TapTap API
 
 当前项目统计：
 
-| 模块 | 文件数 | 代码行数 | 说明 |
-|------|-------|---------|------|
-| app | 4 | ~430 行 | 应用管理基础功能 |
-| leaderboard | 7 | ~1350 行 | 排行榜（已分离 app 操作）|
-| h5Game | 5 | ~600 行 | H5 游戏管理 |
-| vibrate | 6 | ~300 行 | 振动 API 文档 |
-| core | 10 | ~1100 行 | 共享核心代码 |
-| server.ts | 1 | ~450 行 | 主服务器 |
-| **总计** | **33** | **~4230 行** | |
+| 模块        | 文件数 | 代码行数     | 说明                      |
+| ----------- | ------ | ------------ | ------------------------- |
+| app         | 4      | ~430 行      | 应用管理基础功能          |
+| leaderboard | 7      | ~1350 行     | 排行榜（已分离 app 操作） |
+| h5Game      | 5      | ~600 行      | H5 游戏管理               |
+| vibrate     | 6      | ~300 行      | 振动 API 文档             |
+| core        | 10     | ~1100 行     | 共享核心代码              |
+| server.ts   | 1      | ~450 行      | 主服务器                  |
+| **总计**    | **33** | **~4230 行** |                           |
 
 **架构优化成果**：
+
 - ✅ 模块化后清理重复代码
 - ✅ app 功能独立，可被其他模块复用
 - ✅ 代码内聚度提升，维护更容易
@@ -375,6 +403,7 @@ TapTap API
 ## 🎊 享受模块化开发！
 
 模块化架构让添加新功能变得简单快捷！有问题请参考：
+
 - **代码示例**：`src/features/leaderboard/` 模块
 - **架构文档**：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **部署测试**：[docs/DEPLOYMENT.md#4-开发者测试指南](docs/DEPLOYMENT.md#4-开发者测试指南)

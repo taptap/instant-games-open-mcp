@@ -367,9 +367,9 @@ npx commitlint --from HEAD~1 --to HEAD
 
 **认证方式**：
 
-- 使用 npm Trusted Publishing / GitHub OIDC。
+- 优先使用 npm Trusted Publishing / GitHub OIDC。
 - workflow 必须保留 `permissions.id-token: write`。
-- 不使用 `NPM_TOKEN`，也不允许 provenance 失败后降级发布。
+- `npm publish --provenance` 失败时 fallback 到不带 provenance 的 `npm publish`。
 
 **执行步骤**：
 
@@ -379,15 +379,59 @@ npx commitlint --from HEAD~1 --to HEAD
 4. 组装 `packages/maker`
 5. `npm pack --dry-run`
 6. 用 tarball 验证 `taptap-maker help`
-7. 使用 `npm publish --provenance` 发布到指定 dist-tag
+7. `npm publish` 前再次查询目标版本，避免审批等待期间同版本被抢先发布。
+8. 使用 `npm publish --provenance` 发布到指定 dist-tag。
 
 **设计约束**：
 
 - 不走旧包的 semantic-release。
-- 不修改旧包 release workflow。
+- Maker-only PR 必须带 `(maker)` scope，且只能修改 Maker-owned paths。
+- 旧包 release workflow 会按 Maker-only paths 跳过主包发布。
+- 旧包 semantic-release 分析、CHANGELOG 和 GitHub Release notes 会过滤 Maker-only commits。
 - 手动版本号必须二次确认。
-- 自动版本号只允许递增最后一个数字段。
-- 如果 OIDC/provenance 发布失败，workflow 必须失败并停止。
+- 自动版本号只允许在 `fix/*` 分支上递增最后一个数字段。
+- 手动发布如果修改三段版本号里的前两段，CI 会先在 Actions Summary 显示当前
+  线上 dist-tag 版本和目标版本，再由人工点击 protected environment 审批按钮继续。
+- 发布 job 在实际 `npm publish` 前会再次检查目标版本是否仍未发布。
+- 如果带 provenance 和不带 provenance 的发布都失败，workflow 必须失败并停止。
+
+### 5.5 主包与 Maker 包发布隔离
+
+`@taptap/instant-games-open-mcp` 和 `@taptap/maker` 使用隔离的发布边界：
+
+- 主包发布由 `.github/workflows/release.yml` 负责。
+- Maker 包发布由 `.github/workflows/publish-maker.yml` 负责。
+- 主包 npm 只发布主 MCP 和 proxy 入口，不包含 `taptap-maker` CLI、Maker-only bundle
+  或 Maker skills；这些文件由 `@taptap/maker` 独立发布。
+- Maker-only PR 必须使用 Conventional Commit scope 标记，例如
+  `fix(maker): repair local build`。
+- Maker-only PR 只能修改 Maker-owned paths：
+  `src/maker/`、`packages/maker/`、`skills/taptap-maker-*`、
+  `skills/update-taptap-mcp/`、Maker 发布脚本、Maker 文档和 Maker 测试。
+- 如果 Maker 改动需要修改 `package.json`、`README.md`、`.releaserc.cjs`、
+  `.github/workflows/release.yml` 等共享文件，应拆成独立 PR。
+
+PR 检查会拒绝以下情况：
+
+- 只改 Maker-owned paths，但 PR 标题缺少 `(maker)`。
+- 同一个 PR 同时修改 Maker-owned paths 和共享或主包路径。
+- PR 标题包含 `(maker)`，但没有保持为纯 Maker-owned paths。
+
+PR 路径检测使用 merge-base 语义，只统计 PR 分支实际改动，不把评审期间 main
+新合入的文件算进当前 PR。合并 Maker-only PR 时不要编辑 squash commit 标题去掉
+`(maker)`；即使标题被误改，主包 release workflow 仍会按 Maker-only paths 跳过主包发布，
+但 PR 标题标记是团队审查和追踪 Maker 发布边界的必需信号。
+
+主包 release workflow 在 push 到 `main`、`beta` 或 `alpha` 时会再次做路径检查。
+Maker-only push 会跳过主包发布；后续主包发布也会过滤这些 Maker-only commits，避免延迟
+触发版本升级或污染主包 CHANGELOG / GitHub Release notes。
+
+Maker 包版本号使用三段式 semver，例如 `0.0.1`。CI 自动递增只能在 `fix/*` 分支使用
+`auto-last-number`，且只递增最后一个数字段。手动发布如果要改变 major 或 minor，必须在
+workflow 输入中填写目标版本号并再次确认；CI 会在预检 job 的 Actions Summary 展示当前
+线上 dist-tag 版本和目标版本，人工核对后点击 protected environment 审批按钮继续发布。
+beta 发布建议使用 `0.0.6-beta.1` 这类 prerelease 版本和 `tag=beta`，正式发布使用稳定三段
+版本和 `tag=latest`，两者保持相同的 npm pack、CLI 验证和 publish 流程。
 
 ---
 
@@ -406,7 +450,7 @@ module.exports = {
     { name: 'next', prerelease: true },
   ],
   plugins: [
-    '@semantic-release/commit-analyzer',
+    './scripts/semantic-release-main-analyzer.cjs',
     '@semantic-release/release-notes-generator',
     '@semantic-release/changelog',
     '@semantic-release/npm',

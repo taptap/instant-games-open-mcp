@@ -22,7 +22,7 @@
 
 ## 🦞 OpenClaw Plugin（实验中）
 
-仓库内提供了一个可独立发布的 OpenClaw plugin 子包：
+仓库内提供了一个可独立使用的 OpenClaw plugin 子包：
 
 - [`packages/openclaw-dc-plugin`](packages/openclaw-dc-plugin)
 
@@ -42,7 +42,6 @@
 详见：
 
 - [OpenClaw Plugin 说明](docs/OPENCLAW_PLUGIN.md)
-- 维护者发布方式：`npm run openclaw:pack` / `npm run openclaw:publish`
 
 ## 🛠️ TapTap Maker 本地开发（CLI-first）
 
@@ -536,35 +535,7 @@ graph LR
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - 架构文档
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - 部署指南（本地、Docker、开发者测试）
 - **[docs/PROXY.md](docs/PROXY.md)** - MCP Proxy 开发指南（面向 TapCode 等平台）
-- **[docs/CI_CD.md](docs/CI_CD.md)** - CI/CD 和自动化发布流程
 - **[docs/PATH_RESOLUTION.md](docs/PATH_RESOLUTION.md)** - 路径解析系统
-
-## 🔄 CI/CD
-
-基于 Conventional Commits 的完全自动化发布：
-
-```bash
-# 创建功能分支
-git checkout -b feat/awesome-feature
-
-# 提交代码
-git commit -m "feat: add awesome feature"
-
-# 创建 PR 并合并
-gh pr create && gh pr merge
-
-# 自动发布到 npm（版本：1.4.13 → 1.5.0）
-```
-
-**发布流程**：
-
-1. PR 合并 → 触发 Actions
-2. 分析 commits 确定版本号
-3. 发布到 npm
-4. 自动创建版本 PR 并合并
-5. 创建 GitHub Release
-
-详见: [docs/CI_CD.md](docs/CI_CD.md)
 
 ## 🤝 贡献
 
