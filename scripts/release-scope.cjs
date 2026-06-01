@@ -43,6 +43,7 @@ const RELEASE_INFRA_EXACT_PATHS = new Set([
   'scripts/resolve-maker-version.js',
   'scripts/semantic-release-main-analyzer.cjs',
   'src/__tests__/mainPackageManifest.test.ts',
+  'src/__tests__/mainReleaseVersionPolicy.test.ts',
   'src/__tests__/mainReleaseNotes.test.ts',
   'src/__tests__/makerVersionPolicy.test.ts',
   'src/__tests__/releaseScope.test.ts',
