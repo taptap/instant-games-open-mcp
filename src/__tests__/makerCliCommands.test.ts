@@ -271,6 +271,48 @@ describe('Maker CLI commands', () => {
     expect(fs.existsSync(path.join(tempDir, '.cursor', 'mcp.json'))).toBe(true);
   });
 
+  test('mcp install resolves space-joined --ide from PowerShell 5.1 array expansion', async () => {
+    // Windows PowerShell 5.1 turns `--ide codex,cursor,claude` into a single
+    // space-joined argument "codex cursor claude"; it must still resolve to the
+    // three IDEs instead of one unknown IDE.
+    await runMakerCli(['mcp', 'install', '--ide', 'codex cursor claude', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads.map((entry: { ide: string }) => entry.ide)).toEqual([
+      'codex',
+      'cursor',
+      'claude',
+    ]);
+    expect(payloads.every((entry: { ok: boolean }) => entry.ok)).toBe(true);
+    expect(payloads.some((entry: { message: string }) => /unknown ide/i.test(entry.message))).toBe(
+      false
+    );
+  });
+
+  test('mcp install still reports a genuinely unknown IDE token', async () => {
+    // The whitespace split must not swallow real typos: known IDEs still install
+    // while the unknown token is reported.
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor foobar', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads).toEqual([
+      expect.objectContaining({ ide: 'cursor', ok: true }),
+      expect.objectContaining({
+        ide: 'foobar',
+        ok: false,
+        message: expect.stringContaining('Skipped unknown IDE: foobar'),
+      }),
+    ]);
+  });
+
+  test('mcp install accepts the --ides alias with whitespace separators', async () => {
+    await runMakerCli(['mcp', 'install', '--ides', 'cursor claude', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads.map((entry: { ide: string }) => entry.ide)).toEqual(['cursor', 'claude']);
+    expect(payloads.every((entry: { ok: boolean }) => entry.ok)).toBe(true);
+  });
+
   test('init treats the token after command as positional app id', async () => {
     await runMakerCli([
       'init',

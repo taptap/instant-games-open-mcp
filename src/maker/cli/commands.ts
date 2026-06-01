@@ -1289,9 +1289,20 @@ function mcpVerifyModeOption(parsed: ParsedArgs): 'npx' | 'self' {
   throw new Error('Invalid mcp verify --mode. Use npx or self.');
 }
 
+/**
+ * Parse a comma- and/or whitespace-separated list of IDE keys
+ * (e.g. "codex,cursor,claude" or "codex cursor claude").
+ *
+ * Splits on both commas AND whitespace. Whitespace is intentional: Windows
+ * PowerShell 5.1 parses an unquoted `--ide codex,cursor,claude` as an array and
+ * passes it to the native command as a single space-joined argument
+ * ("codex cursor claude"). Splitting on whitespace too lets that mangled form
+ * still resolve to three valid IDEs instead of one unknown IDE. IDE keys never
+ * contain spaces, so this is safe — do not narrow it back to commas only.
+ */
 function parseIdeList(value: string): string[] {
   return value
-    .split(',')
+    .split(/[\s,]+/)
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
 }
