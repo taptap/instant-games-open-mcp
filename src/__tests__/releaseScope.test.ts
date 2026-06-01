@@ -55,6 +55,7 @@ describe('release-scope classifier', () => {
       'package.json',
       'package-lock.json',
       'src/__tests__/mainPackageManifest.test.ts',
+      'src/__tests__/mainReleaseVersionPolicy.test.ts',
     ]);
 
     expect(classification.hasMakerChanges).toBe(true);

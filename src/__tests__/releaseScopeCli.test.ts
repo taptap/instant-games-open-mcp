@@ -61,6 +61,7 @@ describe('release scope PR guard', () => {
         'README.md',
         'docs/CI_CD.md',
         'docs/MAKER.md',
+        'src/__tests__/mainReleaseVersionPolicy.test.ts',
       ],
       title: 'ci(release): isolate maker package publishing',
     });
