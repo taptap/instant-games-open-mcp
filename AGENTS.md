@@ -102,13 +102,14 @@ Closes #123
 
 - ❌ **不要直接 commit 到 main 分支**（已配置分支保护）
 - ✅ **创建 feature/fix 分支** → 提交代码 → 创建 PR
-- ✅ **PR 合并后自动触发发布**（由 semantic-release 处理）
+- ❌ **PR 合并后不会自动发布 npm**
+- ✅ **主包 npm 发布只能手动运行 GitHub Actions workflow**
 
 **工作流程：**
 
 ```
 feature 分支开发 → git commit (规范格式) → git push → 创建 PR
-→ CI 检查 → Code Review → Merge PR → 自动发布 → 更新文档
+→ CI 检查 → Code Review → Merge PR → 需要发布时人工触发 workflow → 更新文档
 ```
 
 ### Git 工作区保护规则 ⚠️
@@ -549,7 +550,7 @@ const allModules = [..., yourFeatureModule];
 
 - **完整架构**：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - 模块化架构、设计模式、认证机制
 - **部署指南**：[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - 三种传输协议、环境变量、MCP 集成配置
-- **CI/CD 流程**：[docs/CI_CD.md](docs/CI_CD.md) - GitHub Flow、Semantic Release、自动发布
+- **CI/CD 流程**：[docs/CI_CD.md](docs/CI_CD.md) - GitHub Flow、Semantic Release、手动发布
 - **路径解析**：[docs/PATH_RESOLUTION.md](docs/PATH_RESOLUTION.md) - 路径处理问题、最佳实践
 
 ### Proxy 相关文档
