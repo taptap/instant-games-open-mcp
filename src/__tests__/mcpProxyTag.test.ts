@@ -99,7 +99,13 @@ describe('mcp proxy exposed tools allowlist', () => {
     const proxy = new TapTapMCPProxy({
       ...createProxyConfig(),
       options: {
-        exposed_tools: ['generate_image', 'batch_generate_images', 'edit_image'],
+        exposed_tools: [
+          'generate_image',
+          'batch_generate_images',
+          'edit_image',
+          'create_video_task',
+          'text_to_music',
+        ],
       },
     });
 
@@ -112,6 +118,8 @@ describe('mcp proxy exposed tools allowlist', () => {
         { name: 'generate_image' },
         { name: 'batch_generate_images' },
         { name: 'edit_image' },
+        { name: 'create_video_task' },
+        { name: 'text_to_music' },
         { name: 'list_developers_and_apps' },
       ],
     });
@@ -120,6 +128,8 @@ describe('mcp proxy exposed tools allowlist', () => {
       'generate_image',
       'batch_generate_images',
       'edit_image',
+      'create_video_task',
+      'text_to_music',
     ]);
   });
 
@@ -127,7 +137,13 @@ describe('mcp proxy exposed tools allowlist', () => {
     const proxy = new TapTapMCPProxy({
       ...createProxyConfig(),
       options: {
-        exposed_tools: ['generate_image', 'batch_generate_images', 'edit_image'],
+        exposed_tools: [
+          'generate_image',
+          'batch_generate_images',
+          'edit_image',
+          'create_video_task',
+          'text_to_music',
+        ],
       },
     });
 
@@ -136,6 +152,8 @@ describe('mcp proxy exposed tools allowlist', () => {
     };
 
     expect(() => proxyInternals.assertToolExposed('generate_image')).not.toThrow();
+    expect(() => proxyInternals.assertToolExposed('create_video_task')).not.toThrow();
+    expect(() => proxyInternals.assertToolExposed('text_to_music')).not.toThrow();
     expect(() => proxyInternals.assertToolExposed('list_developers_and_apps')).toThrow(
       'Tool is not exposed by this proxy: list_developers_and_apps'
     );

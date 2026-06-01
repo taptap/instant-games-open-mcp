@@ -82,7 +82,13 @@ User Space 容器内：
     "verbose": false,
     "reconnect_interval": 5000,
     "monitor_interval": 10000,
-    "exposed_tools": ["generate_image", "batch_generate_images", "edit_image"]
+    "exposed_tools": [
+      "generate_image",
+      "batch_generate_images",
+      "edit_image",
+      "create_video_task",
+      "text_to_music"
+    ]
   }
 }
 ```
@@ -202,12 +208,18 @@ const sessionResult = await connection.newSession({
 - 配置后，`tools/call` 会在 proxy 层拒绝白名单外的 tool，避免隐藏 tool 被直接调用。
 - Proxy 不重新封装 tool；白名单内 tool 的 description、input schema、参数和返回值都保持上游原样。
 
-示例：只试用图片生成相关 tools。
+示例：只试用图片、视频和音乐生成相关 tools。
 
 ```json
 {
   "options": {
-    "exposed_tools": ["generate_image", "batch_generate_images", "edit_image"]
+    "exposed_tools": [
+      "generate_image",
+      "batch_generate_images",
+      "edit_image",
+      "create_video_task",
+      "text_to_music"
+    ]
   }
 }
 ```
