@@ -69,8 +69,42 @@ describe('maker clone binding safety', () => {
     expect(fs.existsSync(path.join(tempDir, '.git'))).toBe(true);
     const commands = fs.readFileSync(gitLog, 'utf8');
     expect(commands).toContain('init ');
-    expect(commands).toContain('fetch origin');
+    expect(commands).toContain('fetch --progress origin');
     expect(commands).toContain('checkout -B main origin/main');
+  });
+
+  test('requests explicit git progress for clone and fetch operations', async () => {
+    const cloneTarget = path.join(tempDir, 'empty-target');
+    const cloneGitLog = path.join(tempDir, '.test-tools', 'clone-git.log');
+    const cloneFakeGit = createFakeGit(cloneGitLog);
+    process.env.TAPTAP_MAKER_GIT_BIN = cloneFakeGit;
+    process.env.TAPTAP_MAKER_GIT_BASE = 'https://maker.example.test/git';
+    process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home-clone');
+    process.env.PAT = 'tmpct_test_pat';
+
+    await cloneMakerProject({
+      appId: 'new-app',
+      targetDir: cloneTarget,
+      userId: 'user-1',
+    });
+
+    const cloneCommands = fs.readFileSync(cloneGitLog, 'utf8');
+    expect(cloneCommands).toContain('clone --progress ');
+
+    const fetchGitLog = path.join(tempDir, '.test-tools', 'fetch-git.log');
+    const fetchFakeGit = createFakeGit(fetchGitLog);
+    process.env.TAPTAP_MAKER_GIT_BIN = fetchFakeGit;
+    process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home-fetch');
+    fs.writeFileSync(path.join(tempDir, 'tap.zip'), 'local zip\n', 'utf8');
+
+    await cloneMakerProject({
+      appId: 'new-app',
+      targetDir: tempDir,
+      userId: 'user-1',
+    });
+
+    const fetchCommands = fs.readFileSync(fetchGitLog, 'utf8');
+    expect(fetchCommands).toContain('fetch --progress origin');
   });
 
   test('initializes an independent Maker repo when target is inside a parent git repo', async () => {
@@ -101,7 +135,7 @@ describe('maker clone binding safety', () => {
     expect(fs.existsSync(path.join(targetDir, '.git'))).toBe(true);
     const commands = fs.readFileSync(gitLog, 'utf8');
     expect(commands).toContain(`init ${targetDir}`);
-    expect(commands).toContain('fetch origin');
+    expect(commands).toContain('fetch --progress origin');
     expect(commands).toContain('checkout -B main origin/main');
     expect(commands).not.toContain(
       `remote set-url origin https://git:tmpct_test_pat@maker.example.test/git/new-app.git`
@@ -201,7 +235,7 @@ describe('maker clone binding safety', () => {
     expect(progressMessages.join('\n')).toContain('Maker server may still be preparing');
     expect(progressMessages.join('\n')).toContain('retrying 1/2');
     const commands = fs.readFileSync(gitLog, 'utf8');
-    expect(commands.match(/^fetch origin$/gm)).toHaveLength(2);
+    expect(commands.match(/^fetch --progress origin$/gm)).toHaveLength(2);
   });
 
   test('merges staged dev kit gitignore block after clone', async () => {
@@ -343,6 +377,12 @@ if (commandArgs[0] === 'fetch') {
       process.exit(128);
     }
   }
+  process.exit(0);
+}
+if (commandArgs[0] === 'clone') {
+  const target = commandArgs[commandArgs.length - 1];
+  fs.mkdirSync(path.join(target, '.git'), { recursive: true });
+  fs.writeFileSync(path.join(target, '.git', 'FAKE_HEAD_COMMIT'), '0000000000000000000000000000000000000001');
   process.exit(0);
 }
 if (commandArgs[0] === 'symbolic-ref') {
