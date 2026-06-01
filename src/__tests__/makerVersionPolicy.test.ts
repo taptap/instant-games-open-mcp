@@ -83,7 +83,6 @@ describe('Maker publish version policy', () => {
       PATH: fakeBin,
       MAKER_VERSION_MODE: 'manual',
       MAKER_MANUAL_VERSION: '0.0.6',
-      MAKER_CONFIRM_VERSION: '0.0.6',
       MAKER_NPM_TAG: 'beta',
       GITHUB_REF_NAME: 'fix/maker-release',
     });
@@ -178,13 +177,12 @@ describe('Maker publish version policy', () => {
     expect(result.stderr).toContain('auto-last-number requires a stable three-segment version');
   });
 
-  it('allows manual major or minor changes after target confirmation', () => {
+  it('allows manual major or minor changes and flags approval requirement', () => {
     const fakeBin = createFakeNpm('0.0.5');
     const result = runResolver({
       PATH: fakeBin,
       MAKER_VERSION_MODE: 'manual',
       MAKER_MANUAL_VERSION: '0.1.0',
-      MAKER_CONFIRM_VERSION: '0.1.0',
       MAKER_NPM_TAG: 'beta',
       GITHUB_REF_NAME: 'main',
     });
@@ -202,7 +200,6 @@ describe('Maker publish version policy', () => {
       PATH: fakeBin,
       MAKER_VERSION_MODE: 'manual',
       MAKER_MANUAL_VERSION: '0.0.6',
-      MAKER_CONFIRM_VERSION: '0.0.6',
       MAKER_NPM_TAG: 'beta',
       GITHUB_REF_NAME: 'main',
     });

@@ -44,6 +44,7 @@ describe('release-scope classifier', () => {
       '.github/workflows/release.yml',
       '.github/workflows/publish-maker.yml',
       'scripts/release-scope.cjs',
+      'scripts/resolve-main-release-version.js',
       'scripts/resolve-maker-version.js',
       'src/__tests__/releaseScope.test.ts',
       'src/__tests__/makerVersionPolicy.test.ts',

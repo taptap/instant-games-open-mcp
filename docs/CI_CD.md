@@ -35,7 +35,7 @@
 ```
 人工运行主包发布 workflow
     ↓
-分析 commits（semantic-release dry-run）
+读取 npm latest 并解析目标版本
     ↓
 创建 release 分支（release/vX.X.X）
     ↓
@@ -78,7 +78,7 @@ main          # 稳定版本（1.2.3）- 受保护
 主包自动发布已禁用。PR 合并到 `main`、`beta` 或 `alpha` 不会自动发布 npm。
 
 1. **人工触发 workflow** → 在 GitHub Actions 页面运行主包发布 workflow
-2. **分析 commits** → 确定版本号（semantic-release dry-run）
+2. **解析版本** → 留空时基于 npm `latest` 只递增 patch
 3. **创建 release 分支** → `release/vX.X.X`
 4. **发布到 npm** → 在 release 分支更新版本
 5. **生成 CHANGELOG** → 自动生成版本说明
@@ -127,46 +127,36 @@ git push origin fix/critical-bug
 # 版本变更：1.2.0 → 1.2.1 (patch)
 ```
 
-### 3.3 发布 Beta 版本
+### 3.3 发布 Maker Beta 版本
 
-Beta 用于内部预览测试，走独立的 npm `@beta` dist-tag，不会创建 release PR，
+Maker Beta 用于内部预览测试，走 `@taptap/maker@beta` dist-tag，不会创建 release PR，
 也不会把 `package.json` / `CHANGELOG.md` 的版本变更写回仓库。
 注意：npm 包仍发布到 public registry，`@beta` 不是访问控制；beta 包必须按对外发布标准处理，
 不能包含 RND 凭证、内部账号 Token 或未公开的敏感配置。
 
 ```bash
-# 1. 切换到长期 beta 分支（不存在时从 origin/main 创建）
-git fetch origin
-git switch beta || git switch -c beta origin/main
+# 1. Maker 修复通过 PR 合并到 beta 或 main
+# 2. 人工运行 Publish Maker Package workflow
+#    - Use workflow from: beta
+#    - Version mode: auto-last-number
+#    - tag: beta
+#    - version 留空
 
-# 2. 先同步 main，再合并要测试的功能分支
-git merge origin/main
-git merge feature/feature-a
-git merge feature/feature-b
+# 3. 用户安装 Maker beta 版本
+npm install @taptap/maker@beta
+npx -y @taptap/maker@beta init
 
-# 3. 推送到远程 beta 分支
-git push origin beta
-
-# 4. 需要发布 beta 时，人工运行 release workflow 并选择 beta 分支
-# 版本：1.3.0-beta.1
-
-# 5. 用户安装 beta 版本
-npm install @taptap/instant-games-open-mcp@beta
-npx -y @taptap/instant-games-open-mcp@beta
-
-# 6. 测试稳定后，通过 PR 将对应功能分支合并到 main
-# 7. main 合并后不会自动发布；需要正式发布时人工运行 workflow
-# 版本：1.3.0
+# 4. 测试稳定后，再通过 PR 将对应修复同步到 main
 ```
 
-产品侧 MCP 配置可以直接使用 beta 包：
+产品侧 Maker MCP 配置可以直接使用 beta 包：
 
 ```json
 {
   "mcpServers": {
-    "taptap-minigame-beta": {
+    "taptap-maker-beta": {
       "command": "npx",
-      "args": ["-y", "@taptap/instant-games-open-mcp@beta"],
+      "args": ["-y", "@taptap/maker@beta", "mcp"],
       "env": {
         "TAPTAP_MCP_ENV": "rnd",
         "TAPTAP_MCP_CLIENT_ID": "your_rnd_client_id",
@@ -307,22 +297,24 @@ npx commitlint --from HEAD~1 --to HEAD
 
 **文件**：`.github/workflows/release.yml`
 
-**触发条件**：只能手动运行 `workflow_dispatch`
+**触发条件**：只能从 `main` 手动运行 `workflow_dispatch`
 
-> `beta` 使用同一个 `.github/workflows/release.yml` 中的独立 beta job，
-> 复用 npm Trusted Publishing 配置，但不会创建 release PR 或影响 `main` 正式发版流程。
+**页面参数**：
+
+- `version` 可留空；留空时默认读取 npm `latest`，只递增 `x.y.z` 中的 `z`。
+- 只有需要手动指定版本时才填写 `version`，格式必须是稳定三段版本，例如 `1.24.7`。
+- 如果手动版本修改了 `x` 或 `y`，预检 Summary 会展示当前线上版本和目标版本，发布 job
+  必须经过 `npm_publish` protected environment 人工审批后才能继续。
 
 **执行步骤**：
 
-1. **质量检查** - 运行 lint、build、test
-2. **执行 semantic-release**：
-   - 分析所有 commits
-   - 计算新版本号
-   - 更新 `package.json`
-   - 生成/更新 `CHANGELOG.md`
-   - Git commit 和 tag
-   - **发布到 npm**
-   - 创建 GitHub Release
+1. **解析版本** - 从 npm `latest` 读取当前线上版本，默认只递增 patch。
+2. **预检 Summary** - 展示当前线上版本、目标版本、是否修改 major/minor。
+3. **质量检查** - 运行 lint、format check、build、test。
+4. **生成发布产物** - 更新 `package.json`，生成主包 CHANGELOG / Release notes。
+5. **发布到 npm** - 发布 `@taptap/instant-games-open-mcp@latest`。
+6. **创建 release PR** - 写回 `package.json` / `package-lock.json` / `CHANGELOG.md`。
+7. **创建 GitHub Release** - release PR 合并后创建 tag 和 GitHub Release。
 
 **npm 发布策略**：
 
@@ -330,33 +322,10 @@ npx commitlint --from HEAD~1 --to HEAD
 - ✅ 使用 **Automation Token** 绕过 2FA
 - ✅ 完整的 CI/CD 质量检查
 
-### 5.3 Beta 发布工作流
+### 5.3 主包 Beta 发布
 
-**文件**：`.github/workflows/release.yml` 中的 `beta-release` job
-
-**触发条件**：手动运行 workflow，并选择 `beta` 分支
-
-**执行步骤**：
-
-1. 使用 semantic-release dry-run 计算候选 beta 版本号
-2. 构建或复用 native signer，使 beta 包的 production 体感与正式包一致
-3. 运行 lint、format check、build、test
-4. 如果候选 beta 基础版本不高于 npm `latest`，先提升到 `latest` 的下一个 patch
-   基础版本；再自动递增到该基础版本下一个可用的 `beta.N`
-5. 将工作区版本临时设置为最终 beta 版本
-6. 打包并发布到 npm `@beta` dist-tag
-7. 创建 `vX.Y.Z-beta.N` Git tag 和 GitHub prerelease
-
-**设计约束**：
-
-- 不修改 `main` 的正式 release workflow
-- 不创建 release PR
-- 不提交 `package.json` / `CHANGELOG.md`
-- 复用现有 release workflow 文件名，以匹配 npm Trusted Publishing 配置
-- beta 版本号必须是 npm 上未发布过的新版本，不能只刷新 dist-tag
-- beta 包发布到 public npm，必须视为对外发布产物
-- 内置 production native signer，确保 production 环境开箱即用
-- 不内置 RND 凭证，RND 测试通过 MCP 配置的 `env` 注入
+主包 `@taptap/instant-games-open-mcp` 的旧 beta 发布 job 已关闭。需要 beta 验证时，
+优先使用 Maker 独立包的 `Publish Maker Package` workflow 发布 `@taptap/maker@beta`。
 
 ### 5.4 Maker 独立包发布工作流
 
@@ -389,7 +358,8 @@ npx commitlint --from HEAD~1 --to HEAD
 - Maker-only PR 必须带 `(maker)` scope，且只能修改 Maker-owned paths。
 - 主包 release workflow 不会由 Maker PR 合并自动触发。
 - 旧包 semantic-release 分析、CHANGELOG 和 GitHub Release notes 会过滤 Maker-only commits。
-- 手动版本号必须二次确认。
+- workflow 默认使用 `auto-last-number`，通常只需要选择分支后直接运行。
+- 手动版本号只在需要指定版本时填写。
 - Maker 包只能从长期发布分支 `beta` 或 `main` 发布；`fix/*` 分支只用于提交 PR，
   不作为发版来源。
 - 自动版本号只允许在 `beta` 或 `main` 分支上递增最后一个数字段。
@@ -422,18 +392,13 @@ PR 检查会拒绝以下情况：
 
 PR 路径检测使用 merge-base 语义，只统计 PR 分支实际改动，不把评审期间 main
 新合入的文件算进当前 PR。合并 Maker-only PR 时不要编辑 squash commit 标题去掉
-`(maker)`；即使标题被误改，主包 release workflow 仍会按 Maker-only paths 跳过主包发布，
-但 PR 标题标记是团队审查和追踪 Maker 发布边界的必需信号。
+`(maker)`；PR 标题标记是团队审查和追踪 Maker 发布边界的必需信号。
 
-主包 release workflow 在 push 到 `main`、`beta` 或 `alpha` 时会再次做路径检查。
-Maker-only push 会跳过主包发布；后续主包发布也会过滤这些 Maker-only commits，避免延迟
-触发版本升级或污染主包 CHANGELOG / GitHub Release notes。
-
-Maker 包版本号使用三段式 semver，例如 `0.0.1`。CI 自动递增只能在 `beta` 或 `main`
+Maker 包版本号使用三段式 semver，例如 `0.0.1`。CI 自动递增默认在 `beta` 或 `main`
 分支使用 `auto-last-number`，且只递增最后一个数字段；如果当前 dist-tag 落后于已发布
 稳定版本，CI 会跳过已存在版本并选择同 major/minor 下未发布的下一个 patch。手动发布
-如果要改变 major 或 minor，必须在 workflow 输入中填写目标版本号并再次确认；CI 会在
-预检 job 的 Actions Summary 展示当前线上 dist-tag 版本和目标版本，人工核对后点击
+如果要改变 major 或 minor，CI 会在预检 job 的 Actions Summary 展示当前线上
+dist-tag 版本和目标版本，人工核对后点击
 protected environment 审批按钮继续发布。
 beta 发布建议使用 `0.0.6-beta.1` 这类 prerelease 版本和 `tag=beta`，正式发布使用稳定三段
 版本和 `tag=latest`，两者保持相同的 npm pack、CLI 验证和 publish 流程。
@@ -555,27 +520,20 @@ npx commitlint --from HEAD~1 --to HEAD
 npx commitlint --from HEAD~5 --to HEAD
 ```
 
-### 8.3 本地测试发布流程（dry-run）
+### 8.3 本地测试版本解析
 
 ```bash
-# 不会真正发布，只显示会做什么
-npx semantic-release --dry-run
+# 需要能访问 npm registry，只解析版本，不发布
+GITHUB_REF_NAME=main node scripts/resolve-main-release-version.js
 ```
 
 **输出示例**：
 
 ```
-[semantic-release] › ℹ  Running semantic-release version 19.0.5
-[semantic-release] › ✔  Loaded plugin "commit-analyzer"
-[semantic-release] › ✔  Loaded plugin "release-notes-generator"
-[semantic-release] › ✔  Loaded plugin "npm"
-[semantic-release] › ✔  Loaded plugin "github"
-[semantic-release] › ℹ  This run was triggered in dry-run mode. No release will be published.
-[semantic-release] › ✔  Allowed to push to the Git repository
-[semantic-release] › ℹ  Start step "analyzeCommits" of plugin "commit-analyzer"
-[semantic-release] › ℹ  Analyzing commits...
-[semantic-release] › ✔  Completed step "analyzeCommits" of plugin "commit-analyzer"
-[semantic-release] › ℹ  The next release version is 1.3.0
+Current online @taptap/instant-games-open-mcp@latest version: 1.24.5
+Resolved @taptap/instant-games-open-mcp version: 1.24.6
+Version mode: auto-last-number
+Major/minor changed: false
 ```
 
 ---
@@ -593,33 +551,23 @@ npx semantic-release --dry-run
 ### 9.2 版本号计算
 
 - ✅ 版本号由 workflow 计算，**不需要手动修改** `package.json`
-- ✅ 由 semantic-release 根据 commit 历史自动计算
+- ✅ 默认由 npm `latest` 自动计算下一个 patch
+- ✅ 手动填写版本时，major/minor 变化必须经过 protected environment 审批
 - ❌ 不要手动修改版本号
 
 ### 9.3 预发布版本
 
-**Beta 版本**（测试新特性）：
+**Beta 版本**：
 
-```bash
-git fetch origin
-git switch beta || git switch -c beta origin/main
-git merge origin/main
-git merge feature/feature-a
-git push origin beta
-# 需要发布时人工运行 release workflow 并选择 beta 分支：1.3.0-beta.1
-npm install @taptap/instant-games-open-mcp@beta
-```
-
-Beta 发布只用于内部预览测试。测试通过后，应将对应 feature/fix 分支通过 PR 合并到
-`main`，需要正式发布时人工运行 release workflow 发布 `latest`。
+主包 `@taptap/instant-games-open-mcp` 的 beta 发布 job 已关闭。Maker 验证使用
+`Publish Maker Package` workflow 发布 `@taptap/maker@beta`。
 
 **Alpha 版本**（早期测试）：
 
 ```bash
 git checkout -b alpha
 git push origin alpha
-# 不会自动发布；需要发布时人工运行 release workflow
-npm install @taptap/instant-games-open-mcp@alpha
+# 不会自动发布；当前主包 release workflow 只允许从 main 发布 latest
 ```
 
 **Next 版本**（下一个主版本）：
@@ -627,8 +575,7 @@ npm install @taptap/instant-games-open-mcp@alpha
 ```bash
 git checkout -b next
 git push origin next
-# 不会自动发布；需要发布时人工运行 release workflow
-npm install @taptap/instant-games-open-mcp@next
+# 不会自动发布；当前主包 release workflow 只允许从 main 发布 latest
 ```
 
 ### 9.4 旧版本维护

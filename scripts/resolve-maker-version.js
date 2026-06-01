@@ -3,8 +3,8 @@
 /**
  * Resolve the @taptap/maker version for the manual publish workflow.
  *
- * Manual mode requires an exact repeated target-version confirmation. Auto mode
- * only increments the final numeric segment on long-lived release branches.
+ * Manual mode is only needed when specifying a target version. Auto mode only
+ * increments the final numeric segment on long-lived release branches.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -90,18 +90,9 @@ function readCurrentDistTagVersion(tag) {
 
 function resolveManualVersion(currentVersion) {
   const version = readEnv('MAKER_MANUAL_VERSION').trim();
-  const confirmation = readEnv('MAKER_CONFIRM_VERSION').trim();
 
   if (!version) {
     throw new Error('Manual mode requires MAKER_MANUAL_VERSION.');
-  }
-  if (!confirmation) {
-    throw new Error('Manual mode requires MAKER_CONFIRM_VERSION.');
-  }
-  if (version !== confirmation) {
-    throw new Error(
-      `Manual version confirmation mismatch: version=${version}, confirm_version=${confirmation}`
-    );
   }
 
   assertValidVersion(version);
@@ -200,7 +191,7 @@ function writeOutput(name, value) {
 }
 
 function main() {
-  const mode = readEnv('MAKER_VERSION_MODE', 'manual');
+  const mode = readEnv('MAKER_VERSION_MODE', 'auto-last-number');
   const tag = readEnv('MAKER_NPM_TAG', 'beta');
 
   if (!['manual', 'auto-last-number'].includes(mode)) {

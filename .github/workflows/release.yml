@@ -5,6 +5,11 @@ name: Manual Main Package Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Optional target version. Leave empty to auto increment only z from npm latest.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -66,16 +71,36 @@ jobs:
           echo "The main package \`@taptap/instant-games-open-mcp\` was not released." >> "$GITHUB_STEP_SUMMARY"
           echo "Use the \`Publish Maker Package\` workflow to publish \`@taptap/maker\`." >> "$GITHUB_STEP_SUMMARY"
 
-  # ========== 阶段 1: 分析是否需要发布 + 检测 native 变更 ==========
+  unsupported-branch:
+    name: Unsupported Release Branch
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      github.ref_name != 'main'
+
+    steps:
+      - name: Summary
+        run: |
+          echo "## Unsupported release branch" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "The main package latest release workflow can only run from \`main\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "Current branch: \`${{ github.ref_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+  # ========== 阶段 1: 解析版本 + 检测 native 变更 ==========
   analyze:
-    name: Analyze Release
+    name: Resolve Release
     runs-on: ubuntu-latest
     needs: scope
     if: |
-      github.event_name == 'workflow_dispatch'
+      github.event_name == 'workflow_dispatch' &&
+      github.ref_name == 'main'
     outputs:
-      should_release: ${{ steps.analyze.outputs.should_release }}
-      version: ${{ steps.analyze.outputs.version }}
+      should_release: ${{ steps.version.outputs.should_release }}
+      version: ${{ steps.version.outputs.version }}
+      current_version: ${{ steps.version.outputs.current_version }}
+      major_minor_changed: ${{ steps.version.outputs.major_minor_changed }}
+      version_mode: ${{ steps.version.outputs.mode }}
       native_changed: ${{ steps.native_check.outputs.changed }}
       has_native_assets: ${{ steps.release_check.outputs.has_assets }}
 
@@ -94,28 +119,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Analyze commits for release
-        id: analyze
+      - name: Resolve main package version
+        id: version
+        run: node scripts/resolve-main-release-version.js
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 告知 .releaserc.cjs 禁用 npm 发布验证（实际发布由 OIDC 处理）
-          SEMANTIC_RELEASE_DRY_RUN: 'true'
+          MAIN_MANUAL_VERSION: ${{ inputs.version }}
+
+      - name: Approval summary
         run: |
-          # set -o pipefail 确保 semantic-release 失败时（含认证错误）整个管道返回非零退出码
-          # 注意：不能用 grep 检测错误关键词，因为 semantic-release 分析 commit 时会打印 commit body，
-          # 如果 commit message 中包含错误关键词（如 EINVALIDNPMTOKEN）会导致误匹配
-          set -o pipefail
-          npx semantic-release --dry-run --no-ci 2>&1 | tee release-output.txt
-
-          NEW_VERSION=$(grep "\[semantic-release\] .* The next release version is" release-output.txt | sed 's/.*is //' || echo "")
-
-          if [ -z "$NEW_VERSION" ]; then
-            echo "should_release=false" >> $GITHUB_OUTPUT
-            echo "No release needed"
-          else
-            echo "should_release=true" >> $GITHUB_OUTPUT
-            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-            echo "Will release version: $NEW_VERSION"
+          echo "## Main package publish preflight" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- package: \`@taptap/instant-games-open-mcp\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- dist-tag: \`latest\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- mode: \`${{ steps.version.outputs.mode }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- current online version: \`${{ steps.version.outputs.current_version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- target version: \`${{ steps.version.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- major/minor changed: \`${{ steps.version.outputs.major_minor_changed }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.version.outputs.major_minor_changed }}" = "true" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Major/minor changed. Review the current online version and target version above, then approve the protected publish job to continue." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       # 检测 native/ 目录是否有变更
@@ -395,7 +417,7 @@ jobs:
     if: |
       always() &&
       github.event_name == 'workflow_dispatch' &&
-      github.ref_name != 'beta' &&
+      github.ref_name == 'main' &&
       needs.analyze.outputs.should_release == 'true' &&
       (needs.build-native.result == 'success' || needs.download-native.result == 'success')
 
@@ -449,45 +471,9 @@ jobs:
       - name: Resolve release package version
         id: release_version
         run: |
-          CURRENT_VERSION="${{ needs.analyze.outputs.version }}"
-
-          if ! npm view "@taptap/instant-games-open-mcp@${CURRENT_VERSION}" version >/dev/null 2>&1; then
-            echo "version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
-            echo "semantic_version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
-            echo "Using semantic-release version: ${CURRENT_VERSION}"
-            exit 0
-          fi
-
-          if [[ "$CURRENT_VERSION" == *-* ]]; then
-            echo "Expected stable release version, got prerelease: ${CURRENT_VERSION}"
-            exit 1
-          fi
-
-          VERSIONS_JSON="$(npm view "@taptap/instant-games-open-mcp" versions --json)"
-          RESOLVED_VERSION="$(
-            CURRENT_VERSION="$CURRENT_VERSION" VERSIONS_JSON="$VERSIONS_JSON" node -e '
-              const versions = JSON.parse(process.env.VERSIONS_JSON || "[]");
-              const current = process.env.CURRENT_VERSION || "";
-              const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(current);
-              if (!match) {
-                throw new Error(`Invalid stable version: ${current}`);
-              }
-              const [, major, minor, patch] = match;
-              const pattern = new RegExp(`^${major}\\.${minor}\\.(\\d+)$`);
-              let maxPatch = Number(patch);
-              for (const version of versions) {
-                const versionMatch = pattern.exec(version);
-                if (versionMatch) {
-                  maxPatch = Math.max(maxPatch, Number(versionMatch[1]));
-                }
-              }
-              console.log(`${major}.${minor}.${maxPatch + 1}`);
-            '
-          )"
-
-          echo "version=${RESOLVED_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "semantic_version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "semantic-release proposed ${CURRENT_VERSION}, already exists; using ${RESOLVED_VERSION}"
+          VERSION="${{ needs.analyze.outputs.version }}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Using manually resolved version: ${VERSION}"
 
       # 创建 Release 分支
       - name: Create release branch
@@ -671,16 +657,12 @@ jobs:
       - name: Release summary
         run: |
           VERSION=${{ steps.release_version.outputs.version }}
-          SEMANTIC_VERSION=${{ steps.release_version.outputs.semantic_version }}
           NATIVE_CHANGED=${{ needs.analyze.outputs.native_changed }}
           HAS_ASSETS=${{ needs.analyze.outputs.has_native_assets }}
 
           echo "## 🎉 Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "✅ 版本: ${VERSION}" >> $GITHUB_STEP_SUMMARY
-          if [ "$SEMANTIC_VERSION" != "$VERSION" ]; then
-            echo "ℹ️ semantic-release 原始版本: ${SEMANTIC_VERSION}" >> $GITHUB_STEP_SUMMARY
-          fi
 
           if [ "$NATIVE_CHANGED" == "true" ]; then
             echo "🔨 Native Signer: 重新构建 (native 代码有变更)" >> $GITHUB_STEP_SUMMARY
@@ -705,231 +687,6 @@ jobs:
           echo "查看详情：" >> $GITHUB_STEP_SUMMARY
           echo "- npm: https://www.npmjs.com/package/@taptap/instant-games-open-mcp/v/${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "- GitHub: https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" >> $GITHUB_STEP_SUMMARY
-
-  # ========== Beta 预览发布 ==========
-  beta-release:
-    name: Beta Release
-    runs-on: ubuntu-latest
-    environment: npm_publish
-    permissions:
-      contents: write
-      id-token: write
-    needs: [analyze, build-native, download-native]
-    # 复用同一个 workflow 文件，避免 npm Trusted Publishing 需要新增 publisher 配置。
-    # beta 不创建 release PR，不写回 package.json / CHANGELOG.md。
-    if: |
-      always() &&
-      github.event_name == 'workflow_dispatch' &&
-      github.ref_name == 'beta' &&
-      needs.analyze.outputs.should_release == 'true' &&
-      (needs.build-native.result == 'success' || needs.download-native.result == 'success')
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-          cache: 'npm'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Download native binaries
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Move native binaries to native/
-        run: |
-          mkdir -p native
-          find artifacts -name "*.node" -exec cp {} native/ \;
-
-          echo "=== Native binaries ==="
-          ls -la native/*.node
-
-      - name: Lint code
-        run: npm run lint
-
-      - name: Check code formatting
-        run: npm run format:check
-
-      - name: Resolve beta package version
-        id: beta_version
-        run: |
-          CURRENT_VERSION="${{ needs.analyze.outputs.version }}"
-          BASE_VERSION="${CURRENT_VERSION%%-beta.*}"
-          if [ "$BASE_VERSION" = "$CURRENT_VERSION" ]; then
-            echo "Expected beta prerelease version, got: ${CURRENT_VERSION}"
-            exit 1
-          fi
-
-          LATEST_STABLE="$(npm view "@taptap/instant-games-open-mcp" dist-tags.latest 2>/dev/null || echo "")"
-          RESOLVED_BASE="$(
-            BASE_VERSION="$BASE_VERSION" LATEST_STABLE="$LATEST_STABLE" node -e '
-              const base = process.env.BASE_VERSION;
-              const latest = process.env.LATEST_STABLE;
-              const parse = (value) => {
-                const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value || "");
-                return match ? match.slice(1).map(Number) : null;
-              };
-              const baseParts = parse(base);
-              const latestParts = parse(latest);
-              if (!baseParts || !latestParts) {
-                console.log(base);
-                process.exit(0);
-              }
-              const cmp =
-                baseParts[0] - latestParts[0] ||
-                baseParts[1] - latestParts[1] ||
-                baseParts[2] - latestParts[2];
-              if (cmp <= 0) {
-                console.log(`${latestParts[0]}.${latestParts[1]}.${latestParts[2] + 1}`);
-              } else {
-                console.log(base);
-              }
-            '
-          )"
-
-          VERSIONS_JSON="$(npm view "@taptap/instant-games-open-mcp" versions --json)"
-          RESOLVED_VERSION="$(
-            BASE_VERSION="$RESOLVED_BASE" VERSIONS_JSON="$VERSIONS_JSON" node -e '
-              const versions = JSON.parse(process.env.VERSIONS_JSON || "[]");
-              const base = process.env.BASE_VERSION;
-              const escapedBase = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-              const pattern = new RegExp(`^${escapedBase}-beta\\.(\\d+)$`);
-              let max = 0;
-              for (const version of versions) {
-                const match = pattern.exec(version);
-                if (match) {
-                  max = Math.max(max, Number(match[1]));
-                }
-              }
-              console.log(`${base}-beta.${max + 1}`);
-            '
-          )"
-
-          echo "version=${RESOLVED_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "semantic_version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "semantic-release proposed ${CURRENT_VERSION}; latest stable is ${LATEST_STABLE}; using ${RESOLVED_VERSION}"
-
-      - name: Set beta package version
-        run: npm version "${{ steps.beta_version.outputs.version }}" --no-git-tag-version
-
-      - name: Build package
-        run: npm run build
-
-      - name: Verify native binaries in package output
-        run: |
-          test -d dist/native
-          test "$(find dist/native -name "*.node" | wc -l | tr -d ' ')" -gt 0
-          find dist/native -maxdepth 1 -name "*.node" -print
-
-      - name: Run tests
-        run: npm test
-
-      - name: Pack beta tarball
-        id: pack
-        run: |
-          TARBALL_DIR="$(mktemp -d)"
-          npm pack --pack-destination "$TARBALL_DIR"
-          TARBALL="$(find "$TARBALL_DIR" -name "*.tgz" -print -quit)"
-
-          if [ -z "$TARBALL" ]; then
-            echo "Failed to create npm tarball"
-            exit 1
-          fi
-
-          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
-          echo "Packed beta tarball: $TARBALL"
-
-      - name: Publish beta to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          VERSION="${{ steps.beta_version.outputs.version }}"
-          TARBALL="${{ steps.pack.outputs.tarball }}"
-
-          if npm view "@taptap/instant-games-open-mcp@${VERSION}" version >/dev/null 2>&1; then
-            echo "Resolved beta version ${VERSION} already exists on npm"
-            exit 1
-          fi
-
-          npm publish "$TARBALL" --access public --tag beta --provenance 2>/dev/null \
-            || npm publish "$TARBALL" --access public --tag beta
-
-      - name: Create prerelease tag
-        run: |
-          VERSION="${{ steps.beta_version.outputs.version }}"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          if git ls-remote --tags origin "v${VERSION}" | grep -q "refs/tags/v${VERSION}$"; then
-            echo "Tag v${VERSION} already exists"
-          else
-            git tag -a "v${VERSION}" -m "Beta release v${VERSION}"
-            git push origin "v${VERSION}"
-          fi
-
-      - name: Create GitHub prerelease
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ steps.beta_version.outputs.version }}"
-          TARBALL="${{ steps.pack.outputs.tarball }}"
-
-          if gh release view "v${VERSION}" >/dev/null 2>&1; then
-            echo "GitHub release v${VERSION} already exists"
-          else
-            gh release create "v${VERSION}" \
-              --prerelease \
-              --title "v${VERSION}" \
-              --notes "Internal beta release from \`${GITHUB_REF_NAME}\`." \
-              native/*.node \
-              "$TARBALL"
-          fi
-
-      - name: Beta release summary
-        run: |
-          VERSION="${{ steps.beta_version.outputs.version }}"
-          SEMANTIC_VERSION="${{ steps.beta_version.outputs.semantic_version }}"
-          NATIVE_CHANGED="${{ needs.analyze.outputs.native_changed }}"
-          HAS_ASSETS="${{ needs.analyze.outputs.has_native_assets }}"
-
-          echo "## Beta Release Summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Version: ${VERSION}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Semantic-release version: ${SEMANTIC_VERSION}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- npm dist-tag: beta" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Native changed: ${NATIVE_CHANGED}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Reused native assets: ${HAS_ASSETS}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Install: \`npm install @taptap/instant-games-open-mcp@beta\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Run: \`npx -y @taptap/instant-games-open-mcp@beta\`" >> "$GITHUB_STEP_SUMMARY"
-
-  beta-native-unavailable:
-    name: Beta Native Signer Unavailable
-    runs-on: ubuntu-latest
-    needs: [analyze, build-native, download-native]
-    if: |
-      always() &&
-      github.ref_name == 'beta' &&
-      needs.analyze.outputs.should_release == 'true' &&
-      needs.build-native.result != 'success' &&
-      needs.download-native.result != 'success'
-
-    steps:
-      - name: Summary
-        run: |
-          echo "## Native Signer Unavailable" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Beta package was not published because native signer binaries could not be prepared." >> "$GITHUB_STEP_SUMMARY"
-          exit 1
 
   # ========== 无需发布 ==========
   no-release:
