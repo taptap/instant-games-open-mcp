@@ -54,12 +54,12 @@ packages/openclaw-dc-plugin/
 
 ## 当前发布现状
 
-当前仓库的 GitHub release workflow 只会自动发布主包：
+当前仓库的 GitHub release workflow 只支持手动发布主包：
 
 - 根包 `package.json`
 - 根目录 `npm publish`
 
-`packages/openclaw-dc-plugin` 目前还没有接入独立自动发布流水线，所以：
+`packages/openclaw-dc-plugin` 目前还没有接入独立发布流水线，所以：
 
 - 提 PR / merge PR 不会自动把 plugin 发布到 npm
 - 当前阶段建议先手工发布一次，验证 OpenClaw 安装链路

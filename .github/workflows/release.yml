@@ -1,14 +1,9 @@
-name: Auto Release (via PR)
+name: Manual Main Package Release
 
-# 通过自动 PR 实现完全自动化的发布流程
+# 主包 npm 发布必须手动触发，不能由 main/beta/alpha push 或 PR merge 自动触发。
 # Native signer 按需编译：只有 native/ 目录有变更时才重新构建
 
 on:
-  push:
-    branches:
-      - main
-      - beta
-      - alpha
   workflow_dispatch:
 
 permissions:
@@ -77,11 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: scope
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      (needs.scope.outputs.skip_legacy_release != 'true' &&
-       github.event.head_commit != null &&
-       !contains(github.event.head_commit.message, '[skip ci]') &&
-       github.event.head_commit.author.name != 'github-actions[bot]')
+      github.event_name == 'workflow_dispatch'
     outputs:
       should_release: ${{ steps.analyze.outputs.should_release }}
       version: ${{ steps.analyze.outputs.version }}
@@ -403,6 +394,7 @@ jobs:
     # 只要 analyze 说要发布，且 build-native 或 download-native 其中一个成功
     if: |
       always() &&
+      github.event_name == 'workflow_dispatch' &&
       github.ref_name != 'beta' &&
       needs.analyze.outputs.should_release == 'true' &&
       (needs.build-native.result == 'success' || needs.download-native.result == 'success')
@@ -586,7 +578,7 @@ jobs:
             --title "chore(release): ${VERSION} [skip ci]" \
             --body "## 📦 Release ${VERSION}
 
-          此 PR 由自动发布流程创建。
+          此 PR 由手动主包发布流程创建。
 
           ### 变更内容
           - ✅ 版本号: ${VERSION}
@@ -727,6 +719,7 @@ jobs:
     # beta 不创建 release PR，不写回 package.json / CHANGELOG.md。
     if: |
       always() &&
+      github.event_name == 'workflow_dispatch' &&
       github.ref_name == 'beta' &&
       needs.analyze.outputs.should_release == 'true' &&
       (needs.build-native.result == 'success' || needs.download-native.result == 'success')
