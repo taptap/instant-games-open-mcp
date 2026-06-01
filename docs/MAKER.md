@@ -52,11 +52,13 @@ Maker CLI 独立发布为 `@taptap/maker`，不走主包
 Maker-only paths 跳过这类 push；如需发布 Maker CLI，使用 GitHub Actions 中的
 `Publish Maker Package` workflow。
 
-Maker 包版本号使用三段式 semver，例如 `0.0.1`。CI 的 `auto-last-number` 模式只允许在
-`fix/*` 分支使用，并且只递增最后一个数字段。手动发布如果修改 major 或 minor，必须在
-workflow 界面确认目标版本号；CI 会先在 Actions Summary 展示当前线上 dist-tag 版本和
-目标版本，人工核对后点击 protected environment 审批按钮继续发布。发布 job 在
-`npm publish` 前会再次查询目标版本是否仍未发布，避免审批等待期间同版本被抢先发布。
+Maker 包版本号使用三段式 semver，例如 `0.0.1`。Maker 包只能从长期发布分支 `beta` 或
+`main` 发布，`fix/*` 分支只用于提交 PR，不作为发版来源。CI 的 `auto-last-number` 模式
+只递增最后一个数字段；如果当前 dist-tag 落后于已发布稳定版本，CI 会跳过已存在版本并选择
+同 major/minor 下未发布的下一个 patch。手动发布如果修改 major 或 minor，必须在 workflow
+界面确认目标版本号；CI 会先在 Actions Summary 展示当前线上 dist-tag 版本和目标版本，人工
+核对后点击 protected environment 审批按钮继续发布。发布 job 在 `npm publish` 前会再次查询
+目标版本是否仍未发布，避免审批等待期间同版本被抢先发布。
 beta 发布建议使用 prerelease 版本和 `tag=beta`，正式发布使用稳定三段版本和 `tag=latest`；
 两者保持同一套 npm pack、CLI 验证和 publish 流程。
 

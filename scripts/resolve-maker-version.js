@@ -4,8 +4,7 @@
  * Resolve the @taptap/maker version for the manual publish workflow.
  *
  * Manual mode requires an exact repeated target-version confirmation. Auto mode
- * only increments the final numeric segment from the current npm dist-tag
- * version.
+ * only increments the final numeric segment on long-lived release branches.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -15,7 +14,7 @@ const PACKAGE_NAME = '@taptap/maker';
 const FIRST_BETA_VERSION = '0.0.1-beta.1';
 const NPM_VIEW_TIMEOUT_MS = 30 * 1000;
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
-const FIX_BRANCH_PATTERN = /^fix\//;
+const RELEASE_BRANCHES = new Set(['main', 'beta']);
 
 function readEnv(name, fallback = '') {
   return process.env[name] || fallback;
@@ -66,12 +65,18 @@ function npmVersionExists(version) {
   }
 }
 
-function packageHasPublishedVersions() {
+function readPublishedVersions() {
   try {
-    npmView(['versions', '--json']);
-    return true;
+    const versions = JSON.parse(npmView(['versions', '--json']));
+    if (Array.isArray(versions)) {
+      return versions;
+    }
+    if (typeof versions === 'string' && versions) {
+      return [versions];
+    }
+    return [];
   } catch {
-    return false;
+    return [];
   }
 }
 
@@ -119,13 +124,46 @@ function incrementFinalNumber(version) {
   return `${major}.${minor}.${Number(patch) + 1}`;
 }
 
-function resolveAutoVersion(tag, hasPublishedVersions) {
-  const branch = readEnv('GITHUB_REF_NAME');
-  if (!FIX_BRANCH_PATTERN.test(branch)) {
+function assertStableThreeSegmentVersion(version) {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) {
     throw new Error(
-      `auto-last-number mode is only allowed from fix/* branches; current branch: ${branch || '(unknown)'}`
+      `auto-last-number requires a stable three-segment version like 0.0.1; got ${version}`
     );
   }
+}
+
+function assertReleaseBranch(branch) {
+  if (!RELEASE_BRANCHES.has(branch)) {
+    throw new Error(
+      `@taptap/maker can only be published from main or beta; current branch: ${branch || '(unknown)'}`
+    );
+  }
+}
+
+function assertAutoReleaseBranch(branch) {
+  if (!RELEASE_BRANCHES.has(branch)) {
+    throw new Error(
+      `auto-last-number mode is only allowed from main or beta; current branch: ${branch || '(unknown)'}`
+    );
+  }
+}
+
+function maxStablePatchForCurrentLine(currentVersion, publishedVersions) {
+  const current = parseVersionCore(currentVersion);
+  const stableVersions = publishedVersions
+    .filter((version) => /^\d+\.\d+\.\d+$/.test(version))
+    .map((version) => ({ version, core: parseVersionCore(version) }))
+    .filter(({ core }) => core.major === current.major && core.minor === current.minor);
+
+  return stableVersions.reduce((maxVersion, { version, core }) => {
+    const max = parseVersionCore(maxVersion);
+    return core.patch > max.patch ? version : maxVersion;
+  }, currentVersion);
+}
+
+function resolveAutoVersion(tag, hasPublishedVersions, publishedVersions) {
+  const branch = readEnv('GITHUB_REF_NAME');
+  assertAutoReleaseBranch(branch);
 
   if (!hasPublishedVersions) {
     throw new Error(
@@ -147,7 +185,9 @@ function resolveAutoVersion(tag, hasPublishedVersions) {
   }
 
   assertValidVersion(current);
-  const next = incrementFinalNumber(current);
+  assertStableThreeSegmentVersion(current);
+  const autoBase = maxStablePatchForCurrentLine(current, publishedVersions);
+  const next = incrementFinalNumber(autoBase);
   assertValidVersion(next);
   return next;
 }
@@ -167,12 +207,17 @@ function main() {
     throw new Error(`Unsupported version mode: ${mode}`);
   }
 
-  const hasPublishedVersions = packageHasPublishedVersions();
+  const branch = readEnv('GITHUB_REF_NAME');
+  const publishedVersions = readPublishedVersions();
+  const hasPublishedVersions = publishedVersions.length > 0;
   const currentVersion = hasPublishedVersions ? readCurrentDistTagVersion(tag) : '';
+  if (mode === 'manual') {
+    assertReleaseBranch(branch);
+  }
   const version =
     mode === 'manual'
       ? resolveManualVersion(currentVersion)
-      : resolveAutoVersion(tag, hasPublishedVersions);
+      : resolveAutoVersion(tag, hasPublishedVersions, publishedVersions);
   const majorMinorChanged = Boolean(
     mode === 'manual' && currentVersion && changesMajorOrMinor(currentVersion, version)
   );

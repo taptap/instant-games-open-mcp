@@ -13,6 +13,7 @@ jobs:
     if: |
       (github.event_name == 'pull_request' &&
        !contains(github.event.pull_request.title, '(maker)') &&
+       !contains(github.event.pull_request.title, '(release)') &&
        !startsWith(github.event.pull_request.title, 'ci(maker):') &&
        !startsWith(github.event.pull_request.title, 'ci(release):')) ||
       (github.event_name == 'issue_comment' &&
