@@ -1,3 +1,29 @@
+## <small>1.24.5 (2026-06-01)</small>
+
+### Features
+
+* maker: add install shortcut alias (d898367)
+
+### Bug Fixes
+
+* maker: install dev kit after checkout (1012a2b)
+* maker: promote beta Maker and proxy fixes (778d05d)
+* maker: 精简 app 列表展示并兼容旧分页参数 (#191) (9cbd1ea)
+
+### CI
+
+* release: isolate maker package publishing (#222) (dd42ccb)
+* maker: switch npm publish to oidc only [skip ci] (9cfd353)
+* maker: add npm tag cleanup workflow [skip ci] (74b8f0b)
+* maker: fix npm access command [skip ci] (575d115)
+* maker: add npm access repair workflow [skip ci] (02b913b)
+
+### Chores
+
+* deps: align lockfile with ci npm [skip ci] (829a4e0)
+* deps: sync lockfile for maker publish [skip ci] (13bbd23)
+* maker: add standalone maker package publishing [skip ci] (8d6b858)
+
 ## <small>1.23.4 (2026-05-26)</small>
 
 * fix(maker): optimize Maker app list display and sync recovery ([3a98789](https://github.com/taptap/instant-games-open-mcp/commit/3a98789))
