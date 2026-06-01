@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const DEFAULT_RUNTIME_LOG_SINCE_SECONDS = 600;
+export const DEFAULT_RUNTIME_LOG_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 export const MAX_RUNTIME_LOG_WINDOW_SECONDS = 3600;
 export const DEFAULT_RUNTIME_LOG_TOPICS = ['user_script', 'server_user_script'];
 const MERGED_RUNTIME_LOG_FILE = 'runtime.log';
@@ -75,6 +76,7 @@ export interface RuntimeLogWatchResult {
   polls: number;
   writtenLogs: number;
   lastResult?: RuntimeLogPullResult;
+  stopReason?: 'max_polls' | 'idle_timeout';
 }
 
 type RuntimeLogPayloadCandidate = Partial<RuntimeLogQueryResult> & {
@@ -95,6 +97,7 @@ export async function watchRuntimeLogs(options: {
   limit?: number;
   nowMs?: () => number;
   maxPolls?: number;
+  idleTimeoutMs?: number;
   maxConsecutiveFailures?: number;
   sleep?: (ms: number) => Promise<void>;
   callRemoteRuntimeLogs: (args: RuntimeLogQueryArgs) => Promise<RuntimeLogQueryResult>;
@@ -106,6 +109,7 @@ export async function watchRuntimeLogs(options: {
   }
 
   const intervalMs = options.intervalMs ?? 5000;
+  const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_RUNTIME_LOG_IDLE_TIMEOUT_MS;
   const maxConsecutiveFailures = options.maxConsecutiveFailures;
   const sleep = options.sleep || defaultSleep;
   const nowMs = options.nowMs || Date.now;
@@ -113,6 +117,7 @@ export async function watchRuntimeLogs(options: {
   let writtenLogs = 0;
   let lastResult: RuntimeLogPullResult | undefined;
   let consecutiveFailures = 0;
+  let idleStartedAt = nowMs();
 
   for (;;) {
     try {
@@ -131,8 +136,26 @@ export async function watchRuntimeLogs(options: {
       consecutiveFailures = 0;
       await options.onPoll?.(result);
 
+      if (result.writtenLogs > 0) {
+        idleStartedAt = nowMs();
+      } else if (nowMs() - idleStartedAt >= idleTimeoutMs) {
+        return {
+          projectRoot: options.projectRoot,
+          polls,
+          writtenLogs,
+          lastResult,
+          stopReason: 'idle_timeout',
+        };
+      }
+
       if (options.maxPolls !== undefined && polls >= options.maxPolls) {
-        return { projectRoot: options.projectRoot, polls, writtenLogs, lastResult };
+        return {
+          projectRoot: options.projectRoot,
+          polls,
+          writtenLogs,
+          lastResult,
+          stopReason: 'max_polls',
+        };
       }
 
       const cursorProgressed =

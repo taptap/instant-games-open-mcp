@@ -293,6 +293,7 @@ Maker app 列表关键字段：
 - `taptap-maker logs watch` 承载运行时日志轮询，不作为本地公开 MCP tool 暴露：默认每 5 秒调用一次远端
   `query_runtime_logs`，固定只拉 `user_script` 和 `server_user_script`。远端返回
   `hasMore=true` 且游标/写入有进展时会立即继续拉取下一页；如果没有进展，会按轮询间隔睡眠，避免热循环。
+  连续 10 分钟没有写入新日志时，watcher 会自动退出，避免构建后残留的 Node 进程长期空轮询。
   默认遇到临时错误会持续重试并写 watcher 输出；只有显式传 `--max-consecutive-failures` 时才会达到阈值后退出。
 - watcher 会维护 `.maker/logs/runtime/watcher.pid`。同一项目启动新 watcher 前会停止旧 watcher，
   避免多个进程同时写同一个 `runtime.log`。

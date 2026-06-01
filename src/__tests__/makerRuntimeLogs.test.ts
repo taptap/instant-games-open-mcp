@@ -712,6 +712,33 @@ describe('maker runtime logs', () => {
     expect(sleepCalls).toEqual([5000]);
   });
 
+  test('watch stops after continuous idle polls without written logs', async () => {
+    const sleepCalls: number[] = [];
+    let now = 1710000000 * 1000;
+    const result = await watchRuntimeLogs({
+      projectRoot: tempDir,
+      intervalMs: 5000,
+      idleTimeoutMs: 10000,
+      maxPolls: 4,
+      nowMs: () => now,
+      sleep: async (ms) => {
+        sleepCalls.push(ms);
+        now += ms;
+      },
+      callRemoteRuntimeLogs: async () => ({
+        logs: [],
+        nextStartTime: 1710000001,
+        serverTime: 1710000001,
+        hasMore: false,
+      }),
+    });
+
+    expect(result.polls).toBe(3);
+    expect(result.writtenLogs).toBe(0);
+    expect(result.stopReason).toBe('idle_timeout');
+    expect(sleepCalls).toEqual([5000, 5000]);
+  });
+
   test('watch keeps retrying transient failures by default until a later poll succeeds', async () => {
     const errors: string[] = [];
     const sleepCalls: number[] = [];
