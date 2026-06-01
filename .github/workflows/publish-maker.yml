@@ -35,9 +35,49 @@ permissions:
   id-token: write
 
 jobs:
+  resolve-version:
+    name: Resolve @taptap/maker version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      current_version: ${{ steps.version.outputs.current_version }}
+      major_minor_changed: ${{ steps.version.outputs.major_minor_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Resolve publish version
+        id: version
+        run: node scripts/resolve-maker-version.js
+        env:
+          MAKER_VERSION_MODE: ${{ inputs.version_mode }}
+          MAKER_MANUAL_VERSION: ${{ inputs.version }}
+          MAKER_CONFIRM_VERSION: ${{ inputs.confirm_version }}
+          MAKER_NPM_TAG: ${{ inputs.tag }}
+
+      - name: Approval summary
+        run: |
+          echo "## @taptap/maker publish preflight" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- dist-tag: \`${{ inputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- current online version: \`${{ steps.version.outputs.current_version || 'none' }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- target version: \`${{ steps.version.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- major/minor changed: \`${{ steps.version.outputs.major_minor_changed }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.version.outputs.major_minor_changed }}" = "true" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Major/minor changed. Review the current online version and target version above, then approve the protected publish job to continue." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   publish:
     name: Publish @taptap/maker
     runs-on: ubuntu-latest
+    needs: resolve-version
     environment: npm_publish
     steps:
       - name: Checkout
@@ -58,24 +98,15 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Resolve publish version
-        id: version
-        run: node scripts/resolve-maker-version.js
-        env:
-          MAKER_VERSION_MODE: ${{ inputs.version_mode }}
-          MAKER_MANUAL_VERSION: ${{ inputs.version }}
-          MAKER_CONFIRM_VERSION: ${{ inputs.confirm_version }}
-          MAKER_NPM_TAG: ${{ inputs.tag }}
-
       - name: Build Maker bundle
         run: npm run build -- --skip-server --skip-proxy --skip-native
         env:
-          MAKER_PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          MAKER_PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
 
       - name: Prepare standalone package
         run: node scripts/prepare-maker-package.js --version "$MAKER_PACKAGE_VERSION"
         env:
-          MAKER_PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          MAKER_PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
 
       - name: Dry-run package contents
         run: cd packages/maker && npm pack --dry-run
@@ -86,7 +117,19 @@ jobs:
       - name: Verify packed CLI
         run: npx -y -p "./packages/maker/taptap-maker-${MAKER_PACKAGE_VERSION}.tgz" taptap-maker help
         env:
-          MAKER_PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          MAKER_PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+
+      - name: Verify version is still unpublished before npm publish
+        run: |
+          set -euo pipefail
+          if npm view "@taptap/maker@${MAKER_PACKAGE_VERSION}" version >/tmp/maker-version-check.txt 2>/dev/null; then
+            echo "::error::@taptap/maker@${MAKER_PACKAGE_VERSION} already exists on npm."
+            cat /tmp/maker-version-check.txt
+            exit 1
+          fi
+          echo "@taptap/maker@${MAKER_PACKAGE_VERSION} is still unpublished."
+        env:
+          MAKER_PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
 
       - name: Publish package
         run: |
@@ -96,6 +139,6 @@ jobs:
             || npm publish "$tarball" --access public --tag "$NPM_TAG"
           echo "Published @taptap/maker@$MAKER_PACKAGE_VERSION"
         env:
-          MAKER_PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          MAKER_PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
           NPM_TAG: ${{ inputs.tag }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

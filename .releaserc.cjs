@@ -47,7 +47,7 @@ module.exports = {
   plugins: [
     // 1. 分析 commit 消息，确定版本号变更类型
     [
-      '@semantic-release/commit-analyzer',
+      './scripts/semantic-release-main-analyzer.cjs',
       {
         preset: 'conventionalcommits',
         // 🔒 禁用自动 major 识别

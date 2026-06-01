@@ -3,8 +3,9 @@
 /**
  * Resolve the @taptap/maker version for the manual publish workflow.
  *
- * Manual mode requires an exact repeated confirmation. Auto mode only increments
- * the final numeric segment from the current npm dist-tag version.
+ * Manual mode requires an exact repeated target-version confirmation. Auto mode
+ * only increments the final numeric segment from the current npm dist-tag
+ * version.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -14,6 +15,7 @@ const PACKAGE_NAME = '@taptap/maker';
 const FIRST_BETA_VERSION = '0.0.1-beta.1';
 const NPM_VIEW_TIMEOUT_MS = 30 * 1000;
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const FIX_BRANCH_PATTERN = /^fix\//;
 
 function readEnv(name, fallback = '') {
   return process.env[name] || fallback;
@@ -23,6 +25,24 @@ function assertValidVersion(version) {
   if (!VERSION_PATTERN.test(version)) {
     throw new Error(`Invalid version: ${version}. Expected semver like 0.0.1 or 0.0.1-beta.1.`);
   }
+}
+
+function parseVersionCore(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  if (!match) {
+    throw new Error(`Invalid version core: ${version}`);
+  }
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+  };
+}
+
+function changesMajorOrMinor(previousVersion, nextVersion) {
+  const previous = parseVersionCore(previousVersion);
+  const next = parseVersionCore(nextVersion);
+  return previous.major !== next.major || previous.minor !== next.minor;
 }
 
 function npmView(args) {
@@ -55,7 +75,15 @@ function packageHasPublishedVersions() {
   }
 }
 
-function resolveManualVersion() {
+function readCurrentDistTagVersion(tag) {
+  try {
+    return npmView([`dist-tags.${tag}`]);
+  } catch {
+    return '';
+  }
+}
+
+function resolveManualVersion(currentVersion) {
   const version = readEnv('MAKER_MANUAL_VERSION').trim();
   const confirmation = readEnv('MAKER_CONFIRM_VERSION').trim();
 
@@ -72,19 +100,33 @@ function resolveManualVersion() {
   }
 
   assertValidVersion(version);
+
+  if (currentVersion) {
+    assertValidVersion(currentVersion);
+  }
+
   return version;
 }
 
 function incrementFinalNumber(version) {
-  const match = /^(.*?)(\d+)$/.exec(version);
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
   if (!match) {
-    throw new Error(`Cannot auto-increment version without a final numeric segment: ${version}`);
+    throw new Error(
+      `auto-last-number requires a stable three-segment version like 0.0.1; got ${version}`
+    );
   }
-  const [, prefix, lastNumber] = match;
-  return `${prefix}${Number(lastNumber) + 1}`;
+  const [, major, minor, patch] = match;
+  return `${major}.${minor}.${Number(patch) + 1}`;
 }
 
 function resolveAutoVersion(tag, hasPublishedVersions) {
+  const branch = readEnv('GITHUB_REF_NAME');
+  if (!FIX_BRANCH_PATTERN.test(branch)) {
+    throw new Error(
+      `auto-last-number mode is only allowed from fix/* branches; current branch: ${branch || '(unknown)'}`
+    );
+  }
+
   if (!hasPublishedVersions) {
     throw new Error(
       `${PACKAGE_NAME} has no published versions. First publish must use manual ${FIRST_BETA_VERSION}.`
@@ -126,8 +168,14 @@ function main() {
   }
 
   const hasPublishedVersions = packageHasPublishedVersions();
+  const currentVersion = hasPublishedVersions ? readCurrentDistTagVersion(tag) : '';
   const version =
-    mode === 'manual' ? resolveManualVersion() : resolveAutoVersion(tag, hasPublishedVersions);
+    mode === 'manual'
+      ? resolveManualVersion(currentVersion)
+      : resolveAutoVersion(tag, hasPublishedVersions);
+  const majorMinorChanged = Boolean(
+    mode === 'manual' && currentVersion && changesMajorOrMinor(currentVersion, version)
+  );
 
   if (!hasPublishedVersions && (tag !== 'beta' || version !== FIRST_BETA_VERSION)) {
     throw new Error(
@@ -140,7 +188,13 @@ function main() {
   }
 
   writeOutput('version', version);
+  writeOutput('current_version', currentVersion);
+  writeOutput('major_minor_changed', String(majorMinorChanged));
   console.log(`Resolved ${PACKAGE_NAME} version: ${version}`);
+  if (currentVersion) {
+    console.log(`Current online ${PACKAGE_NAME}@${tag} version: ${currentVersion}`);
+  }
+  console.log(`Major/minor changed: ${majorMinorChanged}`);
 }
 
 try {

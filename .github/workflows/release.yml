@@ -22,13 +22,64 @@ env:
   MACOSX_DEPLOYMENT_TARGET: '10.13'
 
 jobs:
+  scope:
+    name: Release Scope
+    runs-on: ubuntu-latest
+    outputs:
+      skip_legacy_release: ${{ steps.scope.outputs.skip_legacy_release }}
+      only_maker_changed: ${{ steps.scope.outputs.only_maker_changed }}
+      has_maker_marker: ${{ steps.scope.outputs.has_maker_marker }}
+      non_maker_files: ${{ steps.scope.outputs.non_maker_files }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Evaluate release scope
+        id: scope
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "skip_legacy_release=false" >> "$GITHUB_OUTPUT"
+            echo "only_maker_changed=false" >> "$GITHUB_OUTPUT"
+            echo "has_maker_marker=false" >> "$GITHUB_OUTPUT"
+            echo "non_maker_files=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          node scripts/check-release-scope.cjs \
+            --mode push \
+            --base "${{ github.event.before }}" \
+            --head "${{ github.sha }}" \
+            --title "$HEAD_COMMIT_MESSAGE"
+
+  maker-only-release-skipped:
+    name: Legacy Release Skipped For Maker
+    runs-on: ubuntu-latest
+    needs: scope
+    if: needs.scope.outputs.skip_legacy_release == 'true'
+
+    steps:
+      - name: Summary
+        run: |
+          echo "## Legacy Release Skipped" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "This push only changed Maker-owned paths." >> "$GITHUB_STEP_SUMMARY"
+          echo "The main package \`@taptap/instant-games-open-mcp\` was not released." >> "$GITHUB_STEP_SUMMARY"
+          echo "Use the \`Publish Maker Package\` workflow to publish \`@taptap/maker\`." >> "$GITHUB_STEP_SUMMARY"
+
   # ========== 阶段 1: 分析是否需要发布 + 检测 native 变更 ==========
   analyze:
     name: Analyze Release
     runs-on: ubuntu-latest
+    needs: scope
     if: |
       github.event_name == 'workflow_dispatch' ||
-      (github.event.head_commit != null &&
+      (needs.scope.outputs.skip_legacy_release != 'true' &&
+       github.event.head_commit != null &&
        !contains(github.event.head_commit.message, '[skip ci]') &&
        github.event.head_commit.author.name != 'github-actions[bot]')
     outputs:
@@ -460,33 +511,35 @@ jobs:
 
           git checkout -b "$BRANCH"
 
+      - name: Set release package version
+        run: |
+          VERSION=${{ steps.release_version.outputs.version }}
+
+          npm version $VERSION --no-git-tag-version
+
+      # 生成主包 CHANGELOG 和 GitHub Release notes，过滤 Maker-only commits
+      - name: Generate filtered main package release notes
+        run: |
+          node scripts/generate-main-release-notes.cjs
+          test -s release-notes.md
+          cp release-notes.md "$RUNNER_TEMP/main-release-notes.md"
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+
+      - name: Verify package contents before publish
+        run: |
+          test -s "$RUNNER_TEMP/main-release-notes.md"
+          echo "=== Files to be published ==="
+          npm pack --dry-run
+
       # 发布到 npm (包含 native binaries)
       # 优先使用 OIDC provenance；fallback 到 NPM_TOKEN（首次发布新包名时需要）
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          VERSION=${{ steps.release_version.outputs.version }}
-
-          # 更新版本号
-          npm version $VERSION --no-git-tag-version
-
-          # 验证 native 文件会被包含
-          echo "=== Files to be published ==="
-          npm pack --dry-run
-
-          # 尝试 OIDC provenance 发布，失败则 fallback 到 NPM_TOKEN
           npm publish --access public --tag latest --provenance 2>/dev/null \
             || npm publish --access public --tag latest
-
-      # 生成 CHANGELOG
-      - name: Generate CHANGELOG
-        run: |
-          npx conventional-changelog-cli -p conventionalcommits -i CHANGELOG.md -s
-
-          # 过滤掉噪音提交（与 .commitlintrc.cjs 中的忽略规则一致）
-          # - Initial plan, WIP, TODO, FIXME: Copilot/bot 的临时提交
-          sed -i '/^\* \(Initial plan\|WIP\|TODO\|FIXME\)\b/d' CHANGELOG.md
 
       # 提交并推送
       - name: Commit and push release branch
@@ -609,11 +662,7 @@ jobs:
           git fetch origin
           git checkout -B main origin/main
 
-          # 生成 release notes
-          RELEASE_NOTES=$(gh api repos/${{ github.repository }}/releases/generate-notes \
-            -f tag_name="v${VERSION}" \
-            -f target_commitish=main \
-            --jq '.body') || RELEASE_NOTES="Release v${VERSION}"
+          test -s "$RUNNER_TEMP/main-release-notes.md"
 
           # 在 main 最新 commit 上创建 tag（即 squash merge 后的 release commit）
           git tag -a "v${VERSION}" -m "Release v${VERSION}"
@@ -622,7 +671,7 @@ jobs:
           # 创建 GitHub Release，上传 native binaries 作为 assets
           gh release create "v${VERSION}" \
             --title "v${VERSION}" \
-            --notes "$RELEASE_NOTES" \
+            --notes-file "$RUNNER_TEMP/main-release-notes.md" \
             native/*.node
           echo "Created release with native binaries as assets"
 

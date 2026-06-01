@@ -6,13 +6,11 @@
   "main": "dist/server.js",
   "bin": {
     "instant-games-open-mcp": "bin/instant-games-open-mcp",
-    "taptap-mcp-proxy": "bin/taptap-mcp-proxy",
-    "taptap-maker": "bin/taptap-maker"
+    "taptap-mcp-proxy": "bin/taptap-mcp-proxy"
   },
   "exports": {
     ".": "./dist/server.js",
     "./proxy": "./dist/proxy.js",
-    "./maker": "./dist/maker.js",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -92,11 +90,11 @@
     "typescript": "^5.0.0"
   },
   "files": [
-    "dist/",
-    "bin/",
-    "skills/taptap-maker-local/",
-    "skills/taptap-maker-dev-kit-guide/",
-    "skills/update-taptap-mcp/"
+    "dist/server.js",
+    "dist/proxy.js",
+    "dist/native/",
+    "bin/instant-games-open-mcp",
+    "bin/taptap-mcp-proxy"
   ],
   "repository": {
     "type": "git",

@@ -43,6 +43,38 @@ node dist/maker.js
 npx @modelcontextprotocol/inspector node dist/maker.js
 ```
 
+## Maker NPM 发布边界
+
+Maker CLI 独立发布为 `@taptap/maker`，不走主包
+`@taptap/instant-games-open-mcp` 的 semantic-release。Maker-only PR 标题必须带
+`(maker)` scope，例如 `fix(maker): repair PAT setup`，并且只能修改 Maker-owned paths。
+合并时不要编辑 squash commit 标题去掉 `(maker)`。合并后主包 release workflow 会按
+Maker-only paths 跳过这类 push；如需发布 Maker CLI，使用 GitHub Actions 中的
+`Publish Maker Package` workflow。
+
+Maker 包版本号使用三段式 semver，例如 `0.0.1`。CI 的 `auto-last-number` 模式只允许在
+`fix/*` 分支使用，并且只递增最后一个数字段。手动发布如果修改 major 或 minor，必须在
+workflow 界面确认目标版本号；CI 会先在 Actions Summary 展示当前线上 dist-tag 版本和
+目标版本，人工核对后点击 protected environment 审批按钮继续发布。发布 job 在
+`npm publish` 前会再次查询目标版本是否仍未发布，避免审批等待期间同版本被抢先发布。
+beta 发布建议使用 prerelease 版本和 `tag=beta`，正式发布使用稳定三段版本和 `tag=latest`；
+两者保持同一套 npm pack、CLI 验证和 publish 流程。
+
+### 主包迁移说明
+
+主包 `@taptap/instant-games-open-mcp` 只保留 TapTap Open API MCP server 和 proxy 入口。
+`taptap-maker` CLI、Maker MCP bundle 和 Maker workflow skills 迁移到独立包
+`@taptap/maker`，后续 Maker 功能更新不会再通过主包发布。已通过主包调用 Maker CLI 的用户
+需要改为：
+
+```bash
+npx -y @taptap/maker init
+```
+
+AI 客户端 MCP 配置也应使用 `taptap-maker mcp install` 写入的
+`npx -y -p @taptap/maker taptap-maker` 命令；不要再依赖
+`@taptap/instant-games-open-mcp` 提供 Maker CLI。
+
 ## 崩溃日志保护
 
 Maker MCP 的最后兜底异常日志写入 `~/.taptap-maker/mcp-crash.log`。日志采用固定上限保护：
