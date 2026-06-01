@@ -9,6 +9,8 @@ import path from 'node:path';
 import {
   buildCurrentDirectory,
   createBuildArgs,
+  listMakerTools,
+  MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
   createRemoteRuntimeLogClient,
   formatBuildResult,
   formatClonePartialStateLines,
@@ -603,6 +605,54 @@ describe('maker build local-change guard', () => {
     expect(toolNames).not.toContain('maker_check_environment');
     expect(toolNames).not.toContain('maker_setup_guide');
     expect(toolNames).not.toContain('maker_configure_remote_proxy');
+  });
+
+  test('lists local Maker tools plus selected remote proxy tools', async () => {
+    const result = await listMakerTools({
+      targetDir: tempDir,
+      listRemoteTools: async () => [
+        {
+          name: 'generate_image',
+          description: 'Generate one image',
+          inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+        },
+        {
+          name: 'batch_generate_images',
+          description: 'Generate several images',
+          inputSchema: { type: 'object', properties: { prompts: { type: 'array' } } },
+        },
+        {
+          name: 'edit_image',
+          description: 'Edit an image',
+          inputSchema: { type: 'object', properties: { image: { type: 'string' } } },
+        },
+        {
+          name: 'build',
+          description: 'Hidden remote build tool',
+          inputSchema: { type: 'object' },
+        },
+      ],
+    });
+
+    expect(result.tools.map((item) => item.name)).toEqual([
+      'maker_status_lite',
+      'maker_build_current_directory',
+      ...MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
+    ]);
+  });
+
+  test('falls back to local Maker tools when remote proxy tool listing is unavailable', async () => {
+    const result = await listMakerTools({
+      targetDir: tempDir,
+      listRemoteTools: async () => {
+        throw new Error('remote project is not bound');
+      },
+    });
+
+    expect(result.tools.map((item) => item.name)).toEqual([
+      'maker_status_lite',
+      'maker_build_current_directory',
+    ]);
   });
 
   test('status lite exposes skip_remote_sync for quick local polling', () => {

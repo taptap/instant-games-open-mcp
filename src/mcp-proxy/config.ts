@@ -148,6 +148,17 @@ function validateConfig(config: ProxyConfig): void {
     }
   }
 
+  if (config.options?.exposed_tools !== undefined) {
+    const exposedTools = config.options.exposed_tools;
+    if (!Array.isArray(exposedTools)) {
+      errors.push('- options.exposed_tools must be an array of tool names');
+    } else if (
+      !exposedTools.every((toolName) => typeof toolName === 'string' && toolName.trim().length > 0)
+    ) {
+      errors.push('- options.exposed_tools values must be non-empty strings');
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error('Invalid configuration:\n' + errors.join('\n'));
   }
@@ -184,6 +195,7 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
       enable_cookie_sticky: config.options?.enable_cookie_sticky ?? true,
       inject_params_per_call: config.options?.inject_params_per_call ?? true,
       force_inject_progress_token: config.options?.force_inject_progress_token ?? false,
+      exposed_tools: config.options?.exposed_tools,
       log: {
         root: config.options?.log?.root ?? DEFAULT_LOG_ROOT,
         enabled: config.options?.log?.enabled ?? false,
