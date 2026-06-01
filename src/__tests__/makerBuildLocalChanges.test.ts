@@ -627,6 +627,16 @@ describe('maker build local-change guard', () => {
           inputSchema: { type: 'object', properties: { image: { type: 'string' } } },
         },
         {
+          name: 'create_video_task',
+          description: 'Create a text-to-video generation task',
+          inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+        },
+        {
+          name: 'text_to_music',
+          description: 'Generate music from text',
+          inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+        },
+        {
           name: 'build',
           description: 'Hidden remote build tool',
           inputSchema: { type: 'object' },
@@ -637,7 +647,18 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
-      ...MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
+      'generate_image',
+      'batch_generate_images',
+      'edit_image',
+      'create_video_task',
+      'text_to_music',
+    ]);
+    expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual([
+      'generate_image',
+      'batch_generate_images',
+      'edit_image',
+      'create_video_task',
+      'text_to_music',
     ]);
   });
 
