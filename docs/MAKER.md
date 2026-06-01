@@ -12,8 +12,9 @@
 - 本地通过 cwd 向上查找 `.maker-mcp/config.json` 识别当前 Maker 项目。
 - 用户级凭证保存到 `~/.taptap-maker/`。
 - CLI 负责 PAT 准备、app 选择、dev-kit 准备、clone 和 AI 客户端 MCP 配置。
-- MCP server 只暴露固定运行期业务流：`maker://status`、`maker_status_lite` 和
-  `maker_build_current_directory`。
+- MCP server 暴露固定运行期业务流：`maker://status`、`maker_status_lite` 和
+  `maker_build_current_directory`；远端 proxy tools 默认隐藏，仅白名单公开
+  `generate_image`、`batch_generate_images` 和 `edit_image` 试用图片生成链路。
 - `maker_build_current_directory` 是用户感知里的提交/推送/远端构建入口；push 失败时会停止在构建前，让本地 Agent 处理冲突或合并。
 - 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。
@@ -400,7 +401,10 @@ maker_build_current_directory()
   后续运行时诊断应优先读取 `runtime_logs.local_file`，watcher 健康状态读取
   `runtime_logs.state_file`。
 
-远端 proxy 配置是 Maker 本地 MCP 的内部能力，不作为普通 Agent tool 暴露。内部配置内容等价于测试脚本中的：
+远端 proxy 配置默认是 Maker 本地 MCP 的内部能力，不作为普通 Agent tool 全量暴露。
+当前只把 `generate_image`、`batch_generate_images` 和 `edit_image` 作为白名单公开；
+本地 MCP 不重新封装这些 tools，description、input schema、参数和返回值都来自远端
+server 原始定义。内部配置内容等价于测试脚本中的：
 
 ```json
 {

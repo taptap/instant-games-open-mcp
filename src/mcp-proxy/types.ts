@@ -135,6 +135,14 @@ export interface ProxyConfig {
      * 否则该选项不会带来任何效果。
      */
     force_inject_progress_token?: boolean;
+    /**
+     * Proxy-exposed tool allowlist.
+     *
+     * When omitted, the proxy forwards all upstream tools as before. When set, tools/list only
+     * returns tools whose names are included here, and tools/call rejects hidden tools before
+     * forwarding to the upstream server.
+     */
+    exposed_tools?: string[];
     /** 日志配置 */
     log?: LogConfig;
   };

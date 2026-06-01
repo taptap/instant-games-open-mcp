@@ -93,3 +93,51 @@ describe('mcp proxy tag private parameter', () => {
     expect(context.tag).toBe('local');
   });
 });
+
+describe('mcp proxy exposed tools allowlist', () => {
+  test('filters listed tools to the configured proxy allowlist', () => {
+    const proxy = new TapTapMCPProxy({
+      ...createProxyConfig(),
+      options: {
+        exposed_tools: ['generate_image', 'batch_generate_images', 'edit_image'],
+      },
+    });
+
+    const filtered = (
+      proxy as unknown as {
+        filterListedTools<T extends { tools: Array<{ name: string }> }>(result: T): T;
+      }
+    ).filterListedTools({
+      tools: [
+        { name: 'generate_image' },
+        { name: 'batch_generate_images' },
+        { name: 'edit_image' },
+        { name: 'list_developers_and_apps' },
+      ],
+    });
+
+    expect(filtered.tools.map((tool) => tool.name)).toEqual([
+      'generate_image',
+      'batch_generate_images',
+      'edit_image',
+    ]);
+  });
+
+  test('rejects calls to tools hidden by the configured allowlist', () => {
+    const proxy = new TapTapMCPProxy({
+      ...createProxyConfig(),
+      options: {
+        exposed_tools: ['generate_image', 'batch_generate_images', 'edit_image'],
+      },
+    });
+
+    const proxyInternals = proxy as unknown as {
+      assertToolExposed(name: string): void;
+    };
+
+    expect(() => proxyInternals.assertToolExposed('generate_image')).not.toThrow();
+    expect(() => proxyInternals.assertToolExposed('list_developers_and_apps')).toThrow(
+      'Tool is not exposed by this proxy: list_developers_and_apps'
+    );
+  });
+});

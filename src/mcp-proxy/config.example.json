@@ -21,6 +21,7 @@
     "verbose": false,
     "reconnect_interval": 5000,
     "monitor_interval": 10000,
-    "enable_cookie_sticky": true
+    "enable_cookie_sticky": true,
+    "exposed_tools": ["generate_image", "batch_generate_images", "edit_image"]
   }
 }
