@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version_mode:
-        description: 'Version mode: manual requires confirmation; auto increments only the final numeric segment'
+        description: 'Version mode: run from main or beta; auto increments only the final numeric segment'
         required: true
         default: manual
         type: choice
