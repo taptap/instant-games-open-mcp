@@ -54,7 +54,6 @@ function validatePrScope({ files, title }) {
   if (
     classification.hasMakerChanges &&
     classification.hasNonMakerChanges &&
-    classification.hasBlockingNonMakerChanges &&
     !classification.onlyReleaseInfrastructureChanged
   ) {
     return {
@@ -65,8 +64,7 @@ function validatePrScope({ files, title }) {
   }
 
   if (
-    classification.onlyMakerOrCompanionChanged &&
-    classification.hasMakerChanges &&
+    classification.onlyMakerChanged &&
     !classification.onlyReleaseInfrastructureChanged &&
     !markerPresent
   ) {
@@ -77,10 +75,10 @@ function validatePrScope({ files, title }) {
     };
   }
 
-  if (markerPresent && !classification.onlyMakerOrCompanionChanged) {
+  if (markerPresent && !classification.onlyMakerChanged) {
     return {
       ok: false,
-      reason: '`(maker)` PRs may only modify Maker-owned paths and allowed companion docs.',
+      reason: '`(maker)` PRs may only modify Maker-owned paths.',
       classification,
     };
   }

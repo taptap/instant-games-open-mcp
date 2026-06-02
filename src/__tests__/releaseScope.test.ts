@@ -38,23 +38,6 @@ describe('release-scope classifier', () => {
     expect(result.skipLegacyRelease).toBe(false);
   });
 
-  it('treats root README and release-scope files as allowed Maker companions', () => {
-    expect(releaseScope.isMakerOwnedPath('README.md')).toBe(false);
-    expect(releaseScope.isMakerCompanionPath('README.md')).toBe(true);
-    expect(releaseScope.isMakerCompanionPath('scripts/release-scope.cjs')).toBe(true);
-    expect(releaseScope.isMakerCompanionPath('package.json')).toBe(false);
-
-    const result = releaseScope.shouldSkipLegacyRelease({
-      files: ['src/maker/index.ts', 'README.md', 'scripts/release-scope.cjs'],
-      markerText: 'fix(maker): update maker docs',
-    });
-
-    expect(result.onlyMakerChanged).toBe(false);
-    expect(result.onlyMakerOrCompanionChanged).toBe(true);
-    expect(result.blockingNonMakerFiles).toEqual([]);
-    expect(result.skipLegacyRelease).toBe(true);
-  });
-
   it('recognizes release infrastructure paths that intentionally span release ownership', () => {
     const classification = releaseScope.classifyFiles([
       '.github/workflows/claude-review.yml',

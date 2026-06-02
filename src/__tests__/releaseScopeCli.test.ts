@@ -39,35 +39,6 @@ describe('release scope PR guard', () => {
     expect(result.reason).toContain('separate PRs');
   });
 
-  it('accepts maker-marked PRs with the root README companion doc', () => {
-    const result = validatePrScope({
-      files: ['src/maker/index.ts', 'README.md', 'scripts/release-scope.cjs'],
-      title: 'fix(maker): update maker release notes',
-    });
-
-    expect(result.ok).toBe(true);
-  });
-
-  it('keeps shared package files blocked in maker-marked PRs', () => {
-    const result = validatePrScope({
-      files: ['src/maker/index.ts', 'README.md', 'package.json'],
-      title: 'fix(maker): update maker release notes',
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.reason).toContain('separate PRs');
-  });
-
-  it('rejects Maker and README companion changes without maker marker', () => {
-    const result = validatePrScope({
-      files: ['src/maker/index.ts', 'README.md'],
-      title: 'fix: update maker release notes',
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.reason).toContain('must include `(maker)`');
-  });
-
   it('rejects mixed Maker and main package paths even without maker marker', () => {
     const result = validatePrScope({
       files: ['src/maker/index.ts', 'src/server.ts'],

@@ -24,15 +24,6 @@ const MAKER_EXACT_PATHS = new Set([
   'scripts/resolve-maker-version.js',
 ]);
 
-const MAKER_COMPANION_EXACT_PATHS = new Set([
-  'README.md',
-  'docs/CI_CD.md',
-  'scripts/check-release-scope.cjs',
-  'scripts/release-scope.cjs',
-  'src/__tests__/releaseScope.test.ts',
-  'src/__tests__/releaseScopeCli.test.ts',
-]);
-
 const RELEASE_INFRA_EXACT_PATHS = new Set([
   '.github/workflows/claude-review.yml',
   '.github/workflows/pr.yml',
@@ -84,10 +75,6 @@ function isMakerOwnedPath(filePath) {
   return MAKER_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
-function isMakerCompanionPath(filePath) {
-  return MAKER_COMPANION_EXACT_PATHS.has(normalizeGitPath(filePath));
-}
-
 function isReleaseInfrastructurePath(filePath) {
   return RELEASE_INFRA_EXACT_PATHS.has(normalizeGitPath(filePath));
 }
@@ -95,28 +82,18 @@ function isReleaseInfrastructurePath(filePath) {
 function classifyFiles(files) {
   const normalizedFiles = files.map(normalizeGitPath).filter(Boolean);
   const makerFiles = normalizedFiles.filter(isMakerOwnedPath);
-  const makerCompanionFiles = normalizedFiles.filter(isMakerCompanionPath);
   const nonMakerFiles = normalizedFiles.filter((file) => !isMakerOwnedPath(file));
-  const blockingNonMakerFiles = nonMakerFiles.filter((file) => !isMakerCompanionPath(file));
   const releaseInfrastructureFiles = normalizedFiles.filter(isReleaseInfrastructurePath);
-  const makerOrCompanionFiles = normalizedFiles.filter(
-    (file) => isMakerOwnedPath(file) || isMakerCompanionPath(file)
-  );
 
   return {
     files: normalizedFiles,
     makerFiles,
-    makerCompanionFiles,
     nonMakerFiles,
-    blockingNonMakerFiles,
     releaseInfrastructureFiles,
     hasChanges: normalizedFiles.length > 0,
     onlyMakerChanged: normalizedFiles.length > 0 && nonMakerFiles.length === 0,
-    onlyMakerOrCompanionChanged:
-      normalizedFiles.length > 0 && makerOrCompanionFiles.length === normalizedFiles.length,
     hasMakerChanges: makerFiles.length > 0,
     hasNonMakerChanges: nonMakerFiles.length > 0,
-    hasBlockingNonMakerChanges: blockingNonMakerFiles.length > 0,
     onlyReleaseInfrastructureChanged:
       normalizedFiles.length > 0 && releaseInfrastructureFiles.length === normalizedFiles.length,
   };
@@ -151,7 +128,7 @@ function shouldSkipLegacyRelease({ files, markerText }) {
   return {
     ...fileClassification,
     hasMakerMarker: hasMakerMarker(markerText),
-    skipLegacyRelease: fileClassification.onlyMakerOrCompanionChanged,
+    skipLegacyRelease: fileClassification.onlyMakerChanged,
   };
 }
 
@@ -161,7 +138,6 @@ module.exports = {
   classifyFiles,
   hasMakerMarker,
   isMakerOwnedPath,
-  isMakerCompanionPath,
   isReleaseInfrastructurePath,
   normalizeGitPath,
   readChangedFiles,
