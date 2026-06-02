@@ -381,6 +381,15 @@ commit + push + Maker build
 Use `maker_build_current_directory` for this path. Do not use generic Git task-id,
 branch-creation, or PR rules inside Maker project repositories.
 
+`maker_build_current_directory` owns the safety gate before commit/push. It checks Maker remote
+sync and stops before creating a local commit when local `main` is behind remote, diverged, not on
+`main`, or remote sync cannot be verified. Do not work around this by creating a new branch,
+requesting a task id, running generic Git commit/push, or opening a PR/MR.
+
+If `.gitignore` changed after Maker binding or dev-kit update, include it in the submit summary.
+The root `.gitignore` is a Maker project file generated/maintained by the local workflow and must
+be submitted with the game changes; do not omit it from selected files.
+
 If `maker_build_current_directory` returns a build failure after a successful push, report both:
 
 - submit/push succeeded

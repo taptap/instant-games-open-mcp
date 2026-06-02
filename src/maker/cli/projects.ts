@@ -472,6 +472,20 @@ export async function pushMakerProject(
     message: 'Authenticated Maker git origin ready',
   });
 
+  const remoteSyncStatus = await inspectMakerRemoteSyncStatus(cwd);
+  const remoteSyncFailure = getBlockingRemoteSyncFailure(remoteSyncStatus);
+  if (remoteSyncFailure) {
+    return {
+      branch: remoteSyncStatus.branch,
+      committed: false,
+      pushed: false,
+      status: 'clean',
+      failure: remoteSyncFailure,
+      ahead: await readAheadState(cwd),
+      transientRetries: 0,
+    };
+  }
+
   const statusBefore = await readGit(['status', '--porcelain'], cwd);
   const branch = await currentBranch(cwd, options.branch);
   const unpushed = await readUnpushedCommitState(cwd, branch);
@@ -505,7 +519,33 @@ export async function pushMakerProject(
       phase: 'stage',
       message: 'Staging selected files',
     });
-    await runGit(['add', ...options.files], { cwd });
+    await runGit(['add', ...includeMandatoryMakerSubmitFiles(cwd, options.files)], { cwd });
+
+    const staged = await readGit(['diff', '--cached', '--name-only'], cwd);
+    message = options.message || generateCommitMessage(statusBefore);
+    if (staged.trim() || options.allowEmpty) {
+      options.onProgress?.({
+        progress: 45,
+        total: 100,
+        phase: 'commit',
+        message: 'Creating local Maker project commit',
+      });
+      await runGit(
+        [
+          '-c',
+          'user.email=maker-mcp@local',
+          '-c',
+          'user.name=taptap-maker',
+          'commit',
+          ...(options.allowEmpty ? ['--allow-empty'] : []),
+          '-m',
+          message,
+        ],
+        { cwd }
+      );
+      committed = true;
+      commitHash = (await readGit(['rev-parse', '--short', 'HEAD'], cwd)).trim();
+    }
   } else {
     options.onProgress?.({
       progress: 20,
@@ -584,6 +624,55 @@ export async function pushMakerProject(
     status: 'pushed',
     transientRetries,
   };
+}
+
+function getBlockingRemoteSyncFailure(status: MakerRemoteSyncStatus): MakerGitFailure | undefined {
+  if (status.status === 'up_to_date' || status.status === 'ahead') {
+    return undefined;
+  }
+
+  if (status.status === 'branch_not_allowed') {
+    return {
+      stage: 'remote_sync',
+      message: status.nextAction,
+      classification: 'branch_not_allowed',
+      retryable: false,
+      stderr: status.nextAction,
+      nextAction: status.nextAction,
+    };
+  }
+
+  if (status.status === 'remote_unavailable' && status.failure) {
+    return {
+      ...status.failure,
+      stage: 'remote_sync',
+      nextAction: status.nextAction,
+    };
+  }
+
+  return {
+    stage: 'remote_sync',
+    message: status.nextAction,
+    classification: 'remote_rejected',
+    retryable: false,
+    stderr: [
+      `Maker remote sync status: ${status.status}`,
+      `branch: ${status.branch}`,
+      `ahead: ${status.aheadCount}`,
+      `behind: ${status.behindCount}`,
+      status.nextAction,
+    ].join('\n'),
+    nextAction: status.nextAction,
+  };
+}
+
+function includeMandatoryMakerSubmitFiles(cwd: string, files: string[]): string[] {
+  const unique = new Set(files);
+  const changedFiles = parseGitStatusFiles(readGitSync(['-C', cwd, 'status', '--porcelain', '-z']));
+  if (changedFiles.includes('.gitignore')) {
+    unique.add('.gitignore');
+  }
+  return [...unique];
 }
 
 export async function readMakerProjectLocalChanges(cwd: string): Promise<MakerProjectLocalChanges> {
