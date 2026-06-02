@@ -74,6 +74,9 @@ import {
   type RuntimeLogQueryArgs,
   type RuntimeLogQueryResult,
 } from './runtimeLogs.js';
+import { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './proxyAssets.js';
+
+export { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './proxyAssets.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
@@ -130,7 +133,7 @@ export const tools = [
   {
     name: 'maker_build_current_directory',
     description:
-      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. If local changes or committed-but-unpushed commits exist, the tool commits when needed, pushes to Maker remote, then triggers remote Maker build. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version.',
+      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. If local changes or committed-but-unpushed commits exist, the tool commits when needed, pushes to Maker remote, then triggers remote Maker build. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -187,7 +190,8 @@ export const tools = [
         files: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Optional files to stage before build. Defaults to all local changes.',
+          description:
+            'Optional files to stage before build. Defaults to all local changes. Maker generated .gitignore changes are mandatory project files and are included even when omitted here.',
         },
         confirm_remote_build_without_submit: {
           type: 'boolean',
@@ -293,6 +297,11 @@ async function callRemoteProxyTool(options: {
     targetDir: options.targetDir,
     exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
   });
+  const finalArgs = prepareRemoteProxyToolArgs({
+    toolName: options.name,
+    targetDir: proxy.projectRoot,
+    args: options.args,
+  });
   const transport = new StdioClientTransport({
     command: proxy.command,
     args: proxy.args,
@@ -311,10 +320,10 @@ async function callRemoteProxyTool(options: {
 
   try {
     await client.connect(transport);
-    return await client.callTool(
+    const result = await client.callTool(
       {
         name: options.name,
-        arguments: options.args,
+        arguments: finalArgs,
       },
       undefined,
       {
@@ -332,6 +341,11 @@ async function callRemoteProxyTool(options: {
           : undefined,
       }
     );
+    return await materializeRemoteProxyToolAssets({
+      toolName: options.name,
+      targetDir: proxy.projectRoot,
+      result,
+    });
   } finally {
     await client.close().catch(() => {});
   }
@@ -1991,11 +2005,13 @@ export function formatBuildResult(
 
   if (result.mode === 'submit_failed_before_build') {
     return [
-      result.submitResult.pushed
-        ? '✓ Maker project submitted; remote build was not started'
-        : result.submitResult.status === 'clean'
-          ? 'Maker project has no changes to submit; remote build was not started'
-          : '✗ Maker project submit failed; remote build was not started',
+      result.submitResult.failure
+        ? '✗ Maker project submit blocked before commit/push; remote build was not started'
+        : result.submitResult.pushed
+          ? '✓ Maker project submitted; remote build was not started'
+          : result.submitResult.status === 'clean'
+            ? 'Maker project has no changes to submit; remote build was not started'
+            : '✗ Maker project submit failed; remote build was not started',
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
@@ -2102,9 +2118,11 @@ export function formatPushResult(
       ? '✓ Maker project pushed, then remote Maker build finished'
       : submitResult.pushed
         ? '✗ Maker project pushed, but remote build result is missing'
-        : submitResult.status === 'clean'
-          ? 'Maker project has no changes to push'
-          : '✗ Maker project push failed',
+        : submitResult.failure
+          ? '✗ Maker project push blocked before commit/push'
+          : submitResult.status === 'clean'
+            ? 'Maker project has no changes to push'
+            : '✗ Maker project push failed',
     '',
     `- target_dir: ${targetDir}`,
     `- branch: ${submitResult.branch}`,
