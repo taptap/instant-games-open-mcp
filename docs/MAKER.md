@@ -418,9 +418,10 @@ maker_build_current_directory()
 参数和返回值都来自远端 server 原始定义。内部配置内容等价于测试脚本中的：
 
 本地 Maker MCP 会对生成类 tools 做客户端素材落地，并把本地生成素材到 CDN URL 的映射记录到
-`.maker/assets/generated-assets.json`。`edit_image` 和 `create_video_task` 调用前会基于该映射
-把本地新生成素材路径改写为 CDN URL。完整业务流程见
-[Maker Proxy Tools 业务流程](MAKER_PROXY_TOOLS_FLOW.md)。
+`.maker/assets/generated-assets.json`。`generate_image`、`batch_generate_images` 和
+`edit_image` 的成功图片会下载到 `assets/image/`，`create_video_task` 的成功视频会下载到
+`assets/video/`，`text_to_music` 的成功音频会下载到 `assets/audio/`。`edit_image` 和
+`create_video_task` 调用前会基于映射，把本地新生成素材路径改写为 CDN URL。
 
 ```json
 {
