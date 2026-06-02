@@ -853,7 +853,7 @@ describe('maker build local-change guard', () => {
     );
   });
 
-  test('does not materialize edit image proxy results yet', async () => {
+  test('downloads edit image proxy result into Maker image assets', async () => {
     const result = await materializeRemoteProxyToolAssets({
       toolName: 'edit_image',
       targetDir: tempDir,
@@ -867,8 +867,18 @@ describe('maker build local-change guard', () => {
     });
 
     const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
-    expect(JSON.parse(text).localPath).toBeUndefined();
-    expect(fs.existsSync(path.join(tempDir, 'assets/image'))).toBe(false);
+    const parsed = JSON.parse(text);
+    expect(parsed.localPath).toBe('assets/image/edited_icon_20260602080914.png');
+    expect(
+      fs.readFileSync(path.join(tempDir, 'assets/image/edited_icon_20260602080914.png'), 'utf8')
+    ).toBe('edited-image');
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
+    );
+    expect(registry['assets/image/edited_icon_20260602080914.png'].cdnUrl).toBe(
+      'https://example.test/edited.png'
+    );
+    expect(registry['assets/image/edited_icon_20260602080914.png'].tool).toBe('edit_image');
   });
 
   test('rewrites edit image input to cdn url for locally generated images', async () => {

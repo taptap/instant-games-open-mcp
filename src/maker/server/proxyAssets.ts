@@ -84,9 +84,13 @@ export async function materializeRemoteProxyToolAssets(options: {
 }
 
 function shouldMaterializeRemoteProxyTool(toolName: string): boolean {
-  return ['generate_image', 'batch_generate_images', 'create_video_task', 'text_to_music'].includes(
-    toolName
-  );
+  return [
+    'generate_image',
+    'batch_generate_images',
+    'edit_image',
+    'create_video_task',
+    'text_to_music',
+  ].includes(toolName);
 }
 
 function isTextContent(item: unknown): item is { type: 'text'; text: string } {
@@ -117,10 +121,13 @@ async function materializeParsedProxyResult(options: {
   fetchImpl: RemoteProxyFetch;
 }): Promise<Record<string, unknown>> {
   if (options.toolName === 'generate_image') {
-    return await materializeSingleImageResult(options);
+    return await materializeSingleImageResult(options, 'generate_image');
   }
   if (options.toolName === 'batch_generate_images') {
     return await materializeBatchImageResult(options);
+  }
+  if (options.toolName === 'edit_image') {
+    return await materializeSingleImageResult(options, 'edit_image');
   }
   if (options.toolName === 'create_video_task') {
     return await materializeVideoResult(options);
@@ -131,12 +138,15 @@ async function materializeParsedProxyResult(options: {
   return options.payload;
 }
 
-async function materializeSingleImageResult(options: {
-  targetDir: string;
-  payload: Record<string, unknown>;
-  now: Date;
-  fetchImpl: RemoteProxyFetch;
-}): Promise<Record<string, unknown>> {
+async function materializeSingleImageResult(
+  options: {
+    targetDir: string;
+    payload: Record<string, unknown>;
+    now: Date;
+    fetchImpl: RemoteProxyFetch;
+  },
+  toolName: 'generate_image' | 'edit_image'
+): Promise<Record<string, unknown>> {
   if (options.payload.success !== true) {
     return options.payload;
   }
@@ -153,7 +163,7 @@ async function materializeSingleImageResult(options: {
   return materialized
     ? persistMaterializedAsset({
         targetDir: options.targetDir,
-        toolName: 'generate_image',
+        toolName,
         payload: options.payload,
         materialized,
         cdnUrl: stringField(options.payload.previewUrl),
