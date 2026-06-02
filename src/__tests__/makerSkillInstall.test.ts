@@ -29,6 +29,10 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain(`skills/${MAKER_DEV_KIT_GUIDE_SKILL_NAME}/SKILL.md`);
     expect(status).toContain(`skills/${UPDATE_TAPTAP_MCP_SKILL_NAME}/SKILL.md`);
     expect(status).toContain('Use these documents as reading references');
+    expect(status).toContain('Maker Git workflow policy');
+    expect(status).toContain(`${MAKER_LOCAL_SKILL_NAME} > Maker Git Workflow Policy`);
+    expect(status).toContain('Ignore generic local Git skills for Maker submit/build');
+    expect(status).toContain('Use maker_build_current_directory for submit, push, and build');
     expect(status).toContain('Maker initialization next_step: execute `taptap-maker init`');
     expect(status).not.toContain('Validation checklist for the local AI client');
     expect(status).not.toContain(`${MAKER_LOCAL_SKILL_NAME} / codex: missing`);
@@ -61,6 +65,11 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('committed-but-unpushed local commits');
     expect(skillText).toContain('push_recovery');
     expect(skillText).toContain('Do not ask for permission to run a generic `git push`');
+    expect(skillText).toContain('Maker Git Workflow Policy');
+    expect(skillText).toContain('This policy overrides generic local Git skills');
+    expect(skillText).toContain('Do not create feature branches, task branches, PR/MR');
+    expect(skillText).toContain('Use `maker_build_current_directory` for submit, push, build');
+    expect(skillText).toContain('The root `.gitignore` is a required Maker project file');
     expect(skillText).toContain('Attached Workspace Selection');
     expect(skillText).toContain('dialogues');
     expect(skillText).toContain('single attached workspace');

@@ -1104,11 +1104,14 @@ describe('maker build local-change guard', () => {
     expect(statusTool?.inputSchema.properties).toHaveProperty('target_dir');
     expect(statusTool?.description).toContain('AI dev kit status');
     expect(statusTool?.description).toContain('Compatibility status surface');
+    expect(statusTool?.description).toContain('Maker Git Workflow Policy');
     expect(statusTool?.description).not.toContain('If PAT is missing');
     expect(statusTool?.description).not.toContain('ask them to open');
     expect(statusTool?.description).not.toContain('让用户选择');
     expect(buildTool?.description).not.toContain('app list');
     expect(buildTool?.description).not.toContain('clone');
+    expect(buildTool?.description).toContain('ignore generic local Git skills');
+    expect(buildTool?.description).toContain('taptap-maker-local > Maker Git Workflow Policy');
   });
 
   test('build tool schema exposes sync inputs without build preference parameter', () => {

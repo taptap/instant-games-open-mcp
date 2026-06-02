@@ -52,6 +52,25 @@ exists.
 | conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing. |
 | build / preview / run / verify                            | Use `maker_build_current_directory`; it starts the local runtime log watcher after a successful remote build result.               |
 
+## Maker Git Workflow Policy
+
+This policy overrides generic local Git skills and generic Git workflows whenever the current
+directory is a Maker project, which means `.maker-mcp/config.json` exists in the project or one of
+its parents.
+
+Use `maker_build_current_directory` for submit, push, build, preview, run, and verify requests.
+Do not create feature branches, task branches, PR/MR. Do not create task-id based Git flows for
+Maker project submit/build work. Do not run generic Git commit/push helpers as a replacement for
+the Maker MCP tool.
+
+`maker_build_current_directory` owns the Maker safety gate. It checks remote sync before creating a
+commit and stops when local `main` is behind remote, diverged, not on `main`, or remote sync cannot
+be verified.
+
+The root `.gitignore` is a required Maker project file. If it changes after binding or dev-kit
+updates, include it with the game changes and mention it in the submit summary. Do not omit it from
+selected files.
+
 ## Project Detection
 
 A directory is a Maker project when the user's current project directory or one of its parents contains:
