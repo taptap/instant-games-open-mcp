@@ -12,11 +12,11 @@
 - 本地通过 cwd 向上查找 `.maker-mcp/config.json` 识别当前 Maker 项目。
 - 用户级凭证保存到 `~/.taptap-maker/`。
 - CLI 负责 PAT 准备、app 选择、dev-kit 准备、clone 和 AI 客户端 MCP 配置。
-- MCP server 只暴露固定运行期业务流：`maker://status`、`maker_status_lite`、
-  `maker_build_current_directory` 和 `maker_pull_runtime_logs`。
+- MCP server 只暴露固定运行期业务流：`maker://status`、`maker_status_lite` 和
+  `maker_build_current_directory`。
 - `maker_build_current_directory` 是用户感知里的提交/推送/远端构建入口；push 失败时会停止在构建前，让本地 Agent 处理冲突或合并。
-- `maker_pull_runtime_logs` 只执行一次远端日志查询和本地落盘；持续轮询、清理和问题分析由
-  `taptap-maker logs watch` 与 skill 编排。
+- 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
+  内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。
 - 本地 Git 是 clone/push 的硬性前置条件。Maker MCP 只检测和引导，不代替用户安装 Git。
 - Windows 是优先支持环境：生成 MCP 配置时 Windows 使用 `npx.cmd`，Git 引导优先指向 Git for Windows。
 - 仓库同时提供 `taptap-maker-local`、`taptap-maker-dev-kit-guide` 和 `update-taptap-mcp` skills，用于把本地 Git 工作流、AI dev kit 内容说明和 MCP 更新缓存流程交给本地 AI/Agent 按业务规则执行。
@@ -148,12 +148,12 @@ MCP 运行期能力：
 - `maker://status`：资源形式的本地 Maker 状态，适合 Agent 首先读取。
 - `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。
 - `maker_build_current_directory`：统一执行本地同步和远端构建。默认发现本地改动或 ahead commit 时先 commit/push，再远端 build；用户明确说“不提交，直接构建云端版本”时才传 `confirm_remote_build_without_submit=true`。
-- `maker_pull_runtime_logs`：单次调用远端 `query_runtime_logs`，默认只拉
-  `user_script`（客户端 Lua 脚本）和 `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份
+- 运行时日志：不作为本地公开 MCP tool 暴露。构建成功后 `taptap-maker logs watch`
+  内部调用远端 `query_runtime_logs`，默认只拉 `user_script`（客户端 Lua 脚本）和
+  `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份
   `.maker/logs/runtime/runtime.log`，保持 server 日志行格式（`t/topic/level/msg/userId`
   等），但去掉无用的 `id` 字段，也不再补 `time/message` 重复字段；并维护
-  `.maker/logs/runtime/state.json` 的 `nextStartTime` 和心跳字段。没有显式 `start_time` 时，
-  优先使用 1 小时内的新鲜本地游标；旧游标超过 1 小时时退回最近 10 分钟，避免误拉大量历史日志。
+  `.maker/logs/runtime/state.json` 的 `nextStartTime` 和心跳字段。
 - 构建成功输出会包含 `maker_url`，格式为 `https://maker.taptap.cn/app/<project_id>` 或当前环境对应的 Maker Web URL，可直接打开远端 Maker 页面预览。
 - 构建成功并收到远端 build 返回后，MCP 会用本地缓存 Maker PAT 调用当前环境
   Maker API：`POST /api/v1/apps/<APP_ID>/preview-refresh`，主动刷新 Maker Web 端预览。
@@ -282,17 +282,18 @@ Maker app 列表关键字段：
 
 进度和耗时：
 
-- `taptap-maker init` 会解析 Git clone/fetch stderr 中的百分比进度。
+- `taptap-maker init` 会通过 Git `--progress` 强制输出 clone/fetch 进度，并解析
+  stderr 中的百分比进度。
 - 首次 clone/fetch 前会明确提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
 - `taptap-maker init` 会根据 Git stderr 判断是否自动重试：HTTP 5xx、503、超时、连接重置、HTTP2/RPC 中断、early EOF 等远端临时错误会重试；认证失败、权限不足、仓库不存在、远端拒绝、非空目录冲突、本地权限错误不会重试。
 - 首次 clone/fetch 默认最多自动重试 2 次；连续重试后仍失败时，错误会保留 `retryable`、`retry_reason` 和已重试次数，方便 Agent 判断是让用户稍后直接重试，还是先处理 PAT、权限或本地目录问题。
 - `maker_build_current_directory` 会在本地 commit、push 和远端 build 阶段输出状态，并解析 Git push stderr 中的百分比进度。
 - `maker_build_current_directory` 的 push 阶段也会对远端临时错误自动重试；push 最终失败时不会继续远端 build。
 - `maker_build_current_directory` 会转发远端 build tool 的 progress notification。
-- `maker_pull_runtime_logs` 不做长连接，不启动 watcher，也不清理本地日志。
-- `taptap-maker logs watch` 承载持续轮询：默认每 5 秒调用一次远端
+- `taptap-maker logs watch` 承载运行时日志轮询，不作为本地公开 MCP tool 暴露：默认每 5 秒调用一次远端
   `query_runtime_logs`，固定只拉 `user_script` 和 `server_user_script`。远端返回
   `hasMore=true` 且游标/写入有进展时会立即继续拉取下一页；如果没有进展，会按轮询间隔睡眠，避免热循环。
+  连续 10 分钟没有写入新日志时，watcher 会自动退出，避免构建后残留的 Node 进程长期空轮询。
   默认遇到临时错误会持续重试并写 watcher 输出；只有显式传 `--max-consecutive-failures` 时才会达到阈值后退出。
 - watcher 会维护 `.maker/logs/runtime/watcher.pid`。同一项目启动新 watcher 前会停止旧 watcher，
   避免多个进程同时写同一个 `runtime.log`。
@@ -549,6 +550,6 @@ maker://status
 
 - 远端 MCP tools 所需的 Tap token 默认由 Maker PAT 获取并缓存。
 - `maker_build_current_directory` 会在当前目录创建 commit、push，并在 push 成功后继续远端 build；push 失败时不会构建云端旧版本。
-- `maker_pull_runtime_logs` 是一次性日志拉取 tool；持续获取日志的循环、日志清理和错误分析流程使用
+- 运行时日志不作为本地公开 MCP tool 暴露；持续获取日志的循环、日志清理和错误分析流程使用
   `taptap-maker logs watch --reset --interval 5s` 与 skill 编排。
 - 云端 SCE MCP proxy 转发仍需要本地已有 Tap auth；后续可接入 PAT 换 Tap token 的后端接口。

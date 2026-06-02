@@ -318,7 +318,7 @@ export async function cloneMakerProject(
     });
     await setOrigin(target, authUrl);
     try {
-      transientRetries += await runGitWithTransientRetry(['fetch', 'origin'], {
+      transientRetries += await runGitWithTransientRetry(['fetch', '--progress', 'origin'], {
         cwd: target,
         onProgress: options.onProgress,
       });
@@ -334,7 +334,7 @@ export async function cloneMakerProject(
       authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
       retriedWithNewPat = true;
       await setOrigin(target, authUrl);
-      transientRetries += await runGitWithTransientRetry(['fetch', 'origin'], {
+      transientRetries += await runGitWithTransientRetry(['fetch', '--progress', 'origin'], {
         cwd: target,
         onProgress: options.onProgress,
       }).catch((retryError) => {
@@ -1137,7 +1137,7 @@ async function cloneOrInitializeTarget(
       onProgress,
     });
     await setOrigin(target, authUrl);
-    transientRetries += await runGitWithTransientRetry(['fetch', 'origin'], {
+    transientRetries += await runGitWithTransientRetry(['fetch', '--progress', 'origin'], {
       cwd: target,
       onProgress,
     });
@@ -1159,7 +1159,7 @@ async function cloneOrInitializeTarget(
   }
 
   emitFirstCloneWaitNotice(onProgress, 'clone');
-  return runGitCaptureWithTransientRetry(['clone', authUrl, target], {
+  return runGitCaptureWithTransientRetry(['clone', '--progress', authUrl, target], {
     sanitize: pat,
     onProgress,
   });

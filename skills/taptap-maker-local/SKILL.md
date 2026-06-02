@@ -34,9 +34,8 @@ Keep this split clear:
 
 - Skill: user intent, step order, whether to ask the user, friendly explanations, failure recovery.
 - CLI: save PAT, fetch app list, clone, prepare dev kit, install MCP config, verify local setup,
-  and run the local runtime log watcher.
-- MCP tools/resources: inspect Maker status, run the combined commit/push/build path, and support
-  one-shot runtime log pulls.
+  and run the local runtime log watcher, including runtime log polling.
+- MCP tools/resources: inspect Maker status and run the combined commit/push/build path.
 
 Do not reimplement Maker API calls or Git authentication in shell when the Maker CLI or MCP tool
 exists.

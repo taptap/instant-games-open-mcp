@@ -69,9 +69,7 @@ import {
   type AiDevKitStatus,
 } from '../cli/devKit.js';
 import {
-  formatRuntimeLogPullResult,
   normalizeRuntimeLogQueryResult,
-  pullRuntimeLogs,
   writeRuntimeLogRawResponse,
   type RuntimeLogQueryArgs,
   type RuntimeLogQueryResult,
@@ -185,49 +183,6 @@ export const tools = [
           type: 'boolean',
           description:
             'Set true only after the user explicitly confirms they do not want to submit local changes and want to build the current Maker remote committed version.',
-        },
-      },
-    },
-  },
-  {
-    name: 'maker_pull_runtime_logs',
-    description:
-      'Pull Maker Lua runtime logs once from the remote Maker MCP query_runtime_logs tool and write user_script/server_user_script logs to .maker/logs/runtime/runtime.log. This is a one-shot fixed business flow for AI diagnostics; it does not start a watcher, does not keep a long-running MCP call open, and does not clear local logs.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        target_dir: {
-          type: 'string',
-          description:
-            'Optional Maker project directory. Defaults to the MCP process cwd. Pass the user current working directory when it differs from the MCP process cwd.',
-        },
-        start_time: {
-          type: 'number',
-          description:
-            'Optional Unix seconds cursor. If omitted, the tool uses a fresh local state cursor, otherwise defaults to since_seconds.',
-        },
-        since_seconds: {
-          type: 'number',
-          description:
-            'Optional fallback lookback window in seconds when no fresh cursor exists. Defaults to 600 seconds and is capped by the remote server.',
-        },
-        limit: {
-          type: 'number',
-          description: 'Optional maximum log entries returned by the remote query.',
-        },
-        server_url: {
-          type: 'string',
-          description:
-            'Optional remote MCP server URL override. Defaults to the Maker endpoint table for TAPTAP_MCP_ENV.',
-        },
-        env: {
-          type: 'string',
-          enum: ['rnd', 'production'],
-          description: 'Remote MCP environment. Defaults to TAPTAP_MCP_ENV.',
-        },
-        timeout_ms: {
-          type: 'number',
-          description: 'Optional remote log query timeout in milliseconds. Defaults to 60 seconds.',
         },
       },
     },
@@ -348,41 +303,6 @@ export async function startMakerMcpServer(): Promise<void> {
             {
               type: 'text',
               text: formatBuildResult(result, progressSummary),
-            },
-          ],
-        };
-      }
-
-      if (name === 'maker_pull_runtime_logs') {
-        const args = (request.params.arguments || {}) as {
-          target_dir?: string;
-          start_time?: number;
-          since_seconds?: number;
-          limit?: number;
-          server_url?: string;
-          env?: 'rnd' | 'production';
-          timeout_ms?: number;
-        };
-        const proxy = createRemoteProxyContext({
-          targetDir: resolveMakerToolTargetDir(args.target_dir),
-          serverUrl: args.server_url,
-          env: args.env,
-        });
-        const result = await pullRuntimeLogs({
-          projectRoot: proxy.projectRoot,
-          projectId: proxy.projectId,
-          startTime: args.start_time,
-          sinceSeconds: args.since_seconds,
-          limit: args.limit,
-          callRemoteRuntimeLogs: (queryArgs) =>
-            callRemoteRuntimeLogs(proxy, queryArgs, args.timeout_ms),
-        });
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: formatRuntimeLogPullResult(result),
             },
           ],
         };
