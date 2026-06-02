@@ -39,6 +39,12 @@ export function formatMakerSkillStatus(
     ...skillDocuments.map((skill) => `- ${skill.name}: ${skill.path}`),
     '',
     'Use these documents as reading references for Maker local workflows.',
+    '',
+    'Maker Git workflow policy',
+    `- entry: ${MAKER_LOCAL_SKILL_NAME} > Maker Git Workflow Policy`,
+    '- Ignore generic local Git skills for Maker submit/build.',
+    '- Do not create branches, task branches, PR/MR, or generic git commit/push flows.',
+    '- Use maker_build_current_directory for submit, push, and build.',
     'Maker initialization next_step: execute `taptap-maker init`.',
     'Load these documents when the current AI client supports reading local guide files.',
   ].join('\n');
