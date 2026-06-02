@@ -310,23 +310,23 @@ describe('maker build local-change guard', () => {
     expect(remoteBuildTargetDirs.map(normalizePath)).toEqual([gitProjectRoot()].map(normalizePath));
   });
 
-  test('ignores dev-kit .gitignore changes for build local-change guard', async () => {
+  test('reports .gitignore changes for build local-change guard', async () => {
     fs.appendFileSync(path.join(tempDir, '.gitignore'), '\n# local dev kit\nCLAUDE.md\n', 'utf8');
 
     const changes = await readMakerProjectLocalChanges(tempDir);
 
-    expect(changes.hasChanges).toBe(false);
-    expect(changes.files).toEqual([]);
+    expect(changes.hasChanges).toBe(true);
+    expect(changes.files).toEqual(['.gitignore']);
   });
 
-  test('omits .gitignore from build local-change prompts when game files changed', async () => {
+  test('includes .gitignore in build local-change prompts when game files changed', async () => {
     fs.appendFileSync(path.join(tempDir, '.gitignore'), '\n# local dev kit\nCLAUDE.md\n', 'utf8');
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
 
     const changes = await readMakerProjectLocalChanges(tempDir);
 
     expect(changes.hasChanges).toBe(true);
-    expect(changes.files).toEqual(['scripts/main.lua']);
+    expect(changes.files).toEqual(['.gitignore', 'scripts/main.lua']);
   });
 
   test('formats clone partial state after a failed clone leaves local setup behind', () => {

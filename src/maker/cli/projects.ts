@@ -697,7 +697,7 @@ export function getMakerRemoteSyncFailureNextAction(failure: MakerGitFailure): s
 }
 
 function isIgnoredBuildGuardChange(file: string): boolean {
-  return file === '.gitignore' || file === '.maker-mcp' || file.startsWith('.maker-mcp/');
+  return file === '.maker-mcp' || file.startsWith('.maker-mcp/');
 }
 
 async function readRemoteAheadBehindCounts(
