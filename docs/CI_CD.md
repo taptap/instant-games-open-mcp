@@ -355,7 +355,8 @@ npx commitlint --from HEAD~1 --to HEAD
 **设计约束**：
 
 - 不走旧包的 semantic-release。
-- Maker-only PR 必须带 `(maker)` scope，且只能修改 Maker-owned paths。
+- Maker-only PR 必须带 `(maker)` scope，且只能修改 Maker-owned paths；发版前整理
+  root `README.md` 中的 Maker 对外使用说明时，`README.md` 可作为伴随文档同 PR 修改。
 - 主包 release workflow 不会由 Maker PR 合并自动触发。
 - 旧包 semantic-release 分析、CHANGELOG 和 GitHub Release notes 会过滤 Maker-only commits。
 - workflow 默认使用 `auto-last-number`，通常只需要选择分支后直接运行。
@@ -381,14 +382,19 @@ npx commitlint --from HEAD~1 --to HEAD
 - Maker-only PR 只能修改 Maker-owned paths：
   `src/maker/`、`packages/maker/`、`skills/taptap-maker-*`、
   `skills/update-taptap-mcp/`、Maker 发布脚本、Maker 文档和 Maker 测试。
-- 如果 Maker 改动需要修改 `package.json`、`README.md`、`.releaserc.cjs`、
+- 如果 Maker 改动需要整理 root `README.md` 中的 Maker 对外使用说明，允许和 Maker
+  改动同 PR 提交；该 PR 仍按 Maker-only 处理，不触发主包发布。
+- 如果需要为上述 README 伴随文档同步更新 release scope guard，允许同 PR 修改
+  `scripts/check-release-scope.cjs`、`scripts/release-scope.cjs`、对应测试和
+  `docs/CI_CD.md`。
+- 如果 Maker 改动需要修改 `package.json`、`.releaserc.cjs`、
   `.github/workflows/release.yml` 等共享文件，应拆成独立 PR。
 
 PR 检查会拒绝以下情况：
 
 - 只改 Maker-owned paths，但 PR 标题缺少 `(maker)`。
-- 同一个 PR 同时修改 Maker-owned paths 和共享或主包路径。
-- PR 标题包含 `(maker)`，但没有保持为纯 Maker-owned paths。
+- 同一个 PR 同时修改 Maker-owned paths 和除 root `README.md` 外的共享或主包路径。
+- PR 标题包含 `(maker)`，但没有保持为 Maker-owned paths 或允许的伴随文档。
 
 PR 路径检测使用 merge-base 语义，只统计 PR 分支实际改动，不把评审期间 main
 新合入的文件算进当前 PR。合并 Maker-only PR 时不要编辑 squash commit 标题去掉

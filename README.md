@@ -45,7 +45,7 @@
 
 ## 🛠️ TapTap Maker 本地开发（CLI-first）
 
-Maker 本地开发按“初始化用 CLI，开发循环用 MCP”拆分。首次配置推荐直接运行：
+Maker 本地开发独立发布为 `@taptap/maker`。首次配置推荐直接运行：
 
 ```bash
 npx -y @taptap/maker init
@@ -68,23 +68,16 @@ taptap-maker mcp verify
 taptap-maker dev-kit update
 ```
 
-`taptap-maker pat set` 默认通过交互式 prompt 接收 PAT，避免把 PAT 写进
-`ps` 进程列表或 shell history；自动化场景可用 `--pat-stdin` 从标准输入读取。
-`taptap-maker install` 是 `taptap-maker mcp install` 的快捷别名，二者都会写入 AI 客户端
-MCP 配置。`taptap-maker mcp verify` 默认验证 `mcp install` 写入 AI 客户端配置的 npx 启动命令；
-本地开发只想验证当前 CLI 时可加 `--mode self`。如果验证输出 `status: null` 或
-`failure_type`，说明本地 Node/npm/npx 启动命令还没正常跑通，Maker MCP server
-尚未启动；这不是 PAT、app 选择或 Maker 业务接口报错。先按输出里的 command
-在终端直接执行，再检查 `where.exe npx/node/npm`、`node -v` 和 `npm -v`。
+`taptap-maker pat set` 默认通过交互式 prompt 接收 PAT，避免把 PAT 写进 `ps` 进程列表或
+shell history；自动化场景可用 `--pat-stdin` 从标准输入读取。`taptap-maker install` 是
+`taptap-maker mcp install` 的快捷别名，二者都会写入 AI 客户端 MCP 配置。
 
-MCP 精简为开发循环里的高频能力：
+Maker MCP 精简为开发循环里的高频能力：
 
 ```text
 maker://status                  # Resource，读取本地 Maker 状态
 maker_status_lite               # Resource 不可用时的兼容 tool
 maker_build_current_directory   # commit/push/build 合并入口
-maker_pull_runtime_logs         # 单次拉取运行日志并落到本地固定路径
-taptap-maker logs watch         # CLI，构建成功后持续轮询运行日志
 ```
 
 `maker_build_current_directory` 同时覆盖“构建 / 预览 / 跑一下 / 验证一下 / 提交 / 推送”。
@@ -94,55 +87,13 @@ build。push 失败时不会继续 build，会返回本地 commit、ahead 状态
 Maker 远端但构建失败。只有用户明确说“不提交，只构建云端版本”时，才传
 `confirm_remote_build_without_submit=true`。
 
-构建成功并收到远端 build 返回后，Maker MCP 会主动调用当前环境的 Maker Web
-`/api/v1/apps/<APP_ID>/preview-refresh`，让 Web 端预览页刷新到最新构建。
-构建成功输出会同时给出本地 watcher 状态；MCP 在收到远端 build 返回后会启动本地
-`taptap-maker logs watch --target-dir <PROJECT_ROOT> --reset --interval 5s` detached 进程，
-由 CLI 清理历史日志并持续轮询。后续如果用户询问游戏运行结果、Lua 报错或调试问题，
-本地 AI Agent 应优先读取返回中的 `runtime_logs.local_file`；如需判断 watcher 是否正常，
-读取 `runtime_logs.state_file`。
-
-`maker_pull_runtime_logs` 只做固定的一次性业务流：调用远端 `query_runtime_logs`，默认只拉
-`user_script`（客户端 Lua 脚本）和 `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份
-`.maker/logs/runtime/runtime.log`，保持 server 日志行格式（`t/topic/level/msg/userId` 等），
-但去掉无用的 `id` 字段，也不再补 `time/message` 重复字段；`.maker/logs/runtime/state.json`
-保存下一次查询游标和 watcher 心跳状态，包括最近轮询时间、最近成功时间、最近写入条数、
-连续失败次数和最后错误。
-持续轮询和清理旧日志由 `taptap-maker logs watch --reset --interval 5s` 承担，不放进 MCP
-tool 长调用；远端返回 `hasMore=true` 时会立即继续拉取，否则每 5 秒轮询一次。
-
-`maker://status` 和 `maker_status_lite` 会在已绑定项目里检查 Maker 远端同步状态。
-如果远端有新提交，状态输出会区分本地工作区是否干净：干净时提示可先
-`git pull --ff-only origin main`，有本地改动时提示不要直接 pull，应让本地 Agent 先处理
-提交、stash 或取消同步。
-频繁轮询状态或只需要快速本地状态时，调用 `maker_status_lite` 应传
-`skip_remote_sync=true`，避免每次状态查询都触发 `git fetch origin` 网络往返。
-
-首次 clone/fetch 和 push 遇到 503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等临时网络错误时会自动重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不会重试，会把错误分类交给 Agent 处理。首次 clone/fetch 前 CLI 会提示 Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，建议保持命令运行等待自动重试。
+构建成功后，Maker MCP 会刷新 Maker Web 预览，并启动本地 runtime log watcher。后续如果用户询问
+游戏运行结果、Lua 报错或调试问题，本地 AI Agent 应优先读取构建返回中的
+`runtime_logs.local_file`；如需判断 watcher 是否正常，读取 `runtime_logs.state_file`。
 
 Windows 是默认优先级：CLI 写 MCP 配置时会在 Windows 使用 `npx.cmd`，Git 引导优先提示
 Git for Windows，并要求安装选项允许命令行和第三方工具通过 PATH 找到 Git。macOS 用户可通过
 `git --version` 触发 Xcode Command Line Tools，或安装官方 Git。
-
-### Maker 本地 Workflow Skills（实验中）
-
-Maker 现在同时内置三个工作流 skill：
-
-- `taptap-maker-local`：把 Maker 初始化转交 CLI，并让本地 AI/Agent 按 push 失败分类处理 pull/rebase、切回 main、移除禁止路径、鉴权刷新、冲突和构建失败恢复。
-- `taptap-maker-dev-kit-guide`：介绍 clone 时安装到项目目录的 AI dev kit，明确 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
-- `update-taptap-mcp`：引导用户更新本地 npx 缓存里的 `@taptap/maker`，并提醒 Maker MCP 推荐安装到 user/global scope。
-
-初始化流程里，PAT 验证通过、用户选择 app 后，`taptap-maker init` 会先完成 Maker Git checkout，再自动准备本地 AI dev kit。
-
-CLI 会根据 `TAPTAP_MCP_ENV` 自动选择下载源：`production`（默认）使用 `https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip`，`rnd` 使用 `https://urhox-demo-platform.spark.xd.com/ai-dev-kit/rnd/latest/ai-dev-kit.zip`，checkout 后解压开发环境文档、引擎 API、demo、Lua 工具和本地 AI skills 到当前目录，并用 dev kit 覆盖同名本地辅助文件；解压复制完成后会自动运行 `tools/install-skills.sh all`（Linux/macOS）或 `tools/install-skills.ps1 all`（Windows），把 dev kit skills 安装到各 Agent 的发现目录。CLI 会先输出 `AI skills install started: <script>`，完成后输出 `AI skills install result: claude=N, codex=N, cursor=N, gemini=N`；脚本缺失、跳过或失败时也会输出原因，失败会带上平台、脚本、命令、stdout 和 stderr，方便 AI 与用户直接判断安装情况。流程会跳过 ZIP 里的顶层 `scripts` 目录并删除下载 ZIP，避免和 Maker 项目代码冲突。dev-kit 准备阶段会生成 `.gitignore.dev-kit-before-clone` 临时 block，准备成功后自动合并到远端 `.gitignore`，防止这些本地开发环境文件、Agent skill 目录和 `.maker/` 本地运行状态被提交到 Maker Git。
-
-`maker://status` 和 `maker_status_lite` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。Maker 操作目标是用户当前项目目录；若 MCP 进程 cwd 是临时对话目录，Agent 应把用户当前项目目录作为 `target_dir` 传入，不扫描其他项目。已绑定项目会检查 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/`，并输出 `skill_install_status` 和 `skill_install_summary` 说明 `.claude/.codex/.cursor/.gemini` 下的 skill 安装状态；缺失时用 `taptap-maker dev-kit update` 恢复本地 AI dev kit 并刷新 `.gitignore` 管理块。
-
-Git 引导：
-
-- macOS：用户自行执行 `git --version`，按系统提示安装 Xcode Command Line Tools，或访问 `https://git-scm.com/download/mac` 下载安装器。
-- Windows：用户自行访问 `https://git-scm.com/download/win` 安装 Git for Windows，并确保安装选项允许命令行和第三方工具通过 PATH 找到 Git。
-- 安装后需要重启 MCP 客户端或终端，再用 `git --version` 验证。
 
 详见：[TapTap Maker 本地开发](docs/MAKER.md)。面向团队介绍的功能总览见
 [Maker CLI + MCP + Skill Rework Overview](docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
