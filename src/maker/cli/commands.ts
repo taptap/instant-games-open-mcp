@@ -19,7 +19,7 @@ import {
   createRemoteProxyContext,
   stopExistingRuntimeLogWatcher,
 } from '../server/mcp.js';
-import { watchRuntimeLogs } from '../server/runtimeLogs.js';
+import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeLogs.js';
 import { cloneMakerProject, listMakerProjects, type MakerProjectProgress } from './projects.js';
 import type { MakerProjectSummary } from '../types.js';
 import {
@@ -538,7 +538,7 @@ async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
     ...replacedWatcher,
     reset: booleanOption(parsed, 'reset'),
     interval_ms: intervalMs,
-    topics: ['user_script', 'server_user_script'],
+    topics: DEFAULT_RUNTIME_LOG_TOPICS,
   });
 
   try {

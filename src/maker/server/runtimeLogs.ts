@@ -8,7 +8,7 @@ import path from 'node:path';
 export const DEFAULT_RUNTIME_LOG_SINCE_SECONDS = 600;
 export const DEFAULT_RUNTIME_LOG_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 export const MAX_RUNTIME_LOG_WINDOW_SECONDS = 3600;
-export const DEFAULT_RUNTIME_LOG_TOPICS = ['user_script', 'server_user_script'];
+export const DEFAULT_RUNTIME_LOG_TOPICS = ['engine', 'user_script', 'server_user_script'];
 const MERGED_RUNTIME_LOG_FILE = 'runtime.log';
 const RUNTIME_LOG_FILES_TO_RESET = [
   MERGED_RUNTIME_LOG_FILE,

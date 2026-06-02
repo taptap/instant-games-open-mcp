@@ -135,7 +135,8 @@ Keep the user-facing explanation short:
 `taptap-maker init` checks out the Maker project before preparing local development environment
 files in the current working directory. Init reinstalls the dev kit after checkout and allows
 dev-kit files to overwrite same-path local helper files; the managed `.gitignore` block keeps
-those files local-only so they are not submitted to Maker Git.
+those files local-only. The `.gitignore` file itself is a required Maker project file that should be
+submitted to Maker Git.
 
 `taptap-maker doctor` and `maker://status` check the dev-kit top-level entries for an already bound
 Maker project. If `CLAUDE.md`, `examples/`, `templates/`, or `urhox-libs/` are missing, run
@@ -165,9 +166,8 @@ The CLI is responsible for deterministic file operations:
 - extract the ZIP into the current directory after checkout
 - skip the ZIP top-level `scripts` directory because it conflicts with Maker project code
 - delete the downloaded `ai-dev-kit.zip` after extraction
-- write a temporary `.gitignore.dev-kit-before-clone` block for installed dev-kit entries
-- after dev-kit preparation succeeds, merge that block into the checked-out `.gitignore`
-- keep the dev-kit files local-only so they are not submitted to Maker Git
+- refresh the checked-out `.gitignore` managed block for installed dev-kit entries
+- keep the dev-kit helper files ignored while submitting the `.gitignore` rules to Maker Git
 
 Do not hand-write a custom download/unzip script while this CLI command is available.
 
@@ -306,19 +306,17 @@ If `taptap-maker init` fails and returns `partial_state`, explain the state in p
 Do not delete partial files automatically. For novice users, prefer recommending a new independent
 directory over manual cleanup.
 
-### `.gitignore` Merge During Clone
+### `.gitignore` Managed Block
 
-The Maker CLI stages the dev-kit managed ignore block in
-`.gitignore.dev-kit-before-clone` while preparing the dev kit. After the Maker checkout and dev-kit
-preparation both succeed, the CLI merges that managed block into the checked-out `.gitignore` and
-removes the temporary file.
+The CLI refreshes the checked-out `.gitignore` managed block for local dev-kit files, Agent skill
+discovery directories, and Maker runtime state.
 
-If clone still reports conflicts for files other than `.gitignore.dev-kit-before-clone`, do not
-auto-merge them. Show the conflict list and ask the user whether to move the local files, choose
-another directory, or let the local AI inspect and resolve the conflict.
+If clone reports conflicts for project files, do not auto-merge them. Show the conflict list and
+ask the user whether to move the local files, choose another directory, or let the local AI inspect
+and resolve the conflict.
 
-Explain to the user that this `.gitignore` merge prevents local dev-kit files from being
-submitted to Maker Git.
+Explain to the user that this `.gitignore` managed block prevents local dev-kit files from being
+submitted to Maker Git, while the `.gitignore` file itself should be submitted.
 
 ## Bundled Skills
 
