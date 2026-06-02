@@ -538,7 +538,7 @@ async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
     ...replacedWatcher,
     reset: booleanOption(parsed, 'reset'),
     interval_ms: intervalMs,
-    topics: ['user_script', 'server_user_script'],
+    topics: ['engine', 'user_script', 'server_user_script'],
   });
 
   try {

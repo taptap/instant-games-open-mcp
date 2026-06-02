@@ -149,7 +149,7 @@ MCP 运行期能力：
 - `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。
 - `maker_build_current_directory`：统一执行本地同步和远端构建。默认发现本地改动或 ahead commit 时先 commit/push，再远端 build；用户明确说“不提交，直接构建云端版本”时才传 `confirm_remote_build_without_submit=true`。
 - 运行时日志：不作为本地公开 MCP tool 暴露。构建成功后 `taptap-maker logs watch`
-  内部调用远端 `query_runtime_logs`，默认只拉 `user_script`（客户端 Lua 脚本）和
+  内部调用远端 `query_runtime_logs`，默认只拉 `engine`、`user_script`（客户端 Lua 脚本）和
   `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份
   `.maker/logs/runtime/runtime.log`，保持 server 日志行格式（`t/topic/level/msg/userId`
   等），但去掉无用的 `id` 字段，也不再补 `time/message` 重复字段；并维护
@@ -290,7 +290,7 @@ Maker app 列表关键字段：
 - `maker_build_current_directory` 的 push 阶段也会对远端临时错误自动重试；push 最终失败时不会继续远端 build。
 - `maker_build_current_directory` 会转发远端 build tool 的 progress notification。
 - `taptap-maker logs watch` 承载运行时日志轮询，不作为本地公开 MCP tool 暴露：默认每 5 秒调用一次远端
-  `query_runtime_logs`，固定只拉 `user_script` 和 `server_user_script`。远端返回
+  `query_runtime_logs`，固定只拉 `engine`、`user_script` 和 `server_user_script`。远端返回
   `hasMore=true` 且游标/写入有进展时会立即继续拉取下一页；如果没有进展，会按轮询间隔睡眠，避免热循环。
   连续 10 分钟没有写入新日志时，watcher 会自动退出，避免构建后残留的 Node 进程长期空轮询。
   默认遇到临时错误会持续重试并写 watcher 输出；只有显式传 `--max-consecutive-failures` 时才会达到阈值后退出。
