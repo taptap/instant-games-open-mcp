@@ -440,6 +440,10 @@ maker_build_current_directory()
 调用客户端自带的生图、生视频或音频生成能力。
 如果当前会话未暴露这些 Maker proxy tools，AI/Agent 应停止并说明工具未暴露，不应自动切到通用
 imagegen 或客户端原生媒体生成能力。
+`maker_status_lite` 会主动检查 Maker proxy tools 状态；如果 proxy 连接失败，状态中会明确提示
+远端 proxy tools 与 build 构建都不可用。用户明确调用 proxy tool 或 build 时，MCP 对连接/握手类
+失败默认最多尝试 5 次，每次失败后间隔 30 秒再试；不会无限重试，也不会对远端已返回的业务失败
+盲目重复提交。
 
 ```json
 {

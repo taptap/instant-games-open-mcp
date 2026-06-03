@@ -16,10 +16,12 @@ import {
   createRemoteRuntimeLogClient,
   formatBuildResult,
   formatClonePartialStateLines,
+  formatMakerProxyToolsStatusSafely,
   formatMakerRemoteSyncStatusSafely,
   formatPushResult,
   pushThenBuildCurrentDirectory,
   resources,
+  retryMakerProxyOperation,
   stopExistingRuntimeLogWatcher,
   tools,
 } from '../maker/server/mcp';
@@ -709,6 +711,49 @@ describe('maker build local-change guard', () => {
       'maker_status_lite',
       'maker_build_current_directory',
     ]);
+  });
+
+  test('proxy status warns that remote tools and build are unavailable when proxy fails', async () => {
+    const output = await formatMakerProxyToolsStatusSafely({
+      targetDir: tempDir,
+      listRemoteTools: async () => {
+        throw new Error('connect ECONNREFUSED remote maker proxy');
+      },
+    });
+
+    expect(output).toContain('Maker proxy tools');
+    expect(output).toContain('- status: unavailable');
+    expect(output).toContain('- available_tools: (none)');
+    expect(output).toContain(
+      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, text_to_music'
+    );
+    expect(output).toContain('- build_available: no');
+    expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');
+    expect(output).toContain('远端 proxy tools 和 build 构建都不可用');
+  });
+
+  test('proxy retry stops after the bounded default attempts', async () => {
+    let attempts = 0;
+    const retryMessages: string[] = [];
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          attempts += 1;
+          throw new Error(`connect ECONNREFUSED attempt ${attempts}`);
+        },
+        {
+          delayMs: 0,
+          sleep: async () => {},
+          onRetry: (event) => retryMessages.push(event.message),
+        }
+      )
+    ).rejects.toThrow('connect ECONNREFUSED attempt 5');
+
+    expect(attempts).toBe(5);
+    expect(retryMessages).toHaveLength(4);
+    expect(retryMessages[0]).toContain('attempt 1/5');
+    expect(retryMessages[3]).toContain('attempt 4/5');
   });
 
   test('downloads generated image proxy result into Maker image assets', async () => {
