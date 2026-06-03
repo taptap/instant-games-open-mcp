@@ -71,6 +71,23 @@ The root `.gitignore` is a required Maker project file. If it changes after bind
 updates, include it with the game changes and mention it in the submit summary. Do not omit it from
 selected files.
 
+## Maker Creative Asset Tool Policy
+
+When the current directory is a bound Maker project, use Maker MCP for game asset generation and
+editing. Prefer Maker MCP proxy tools over native AI image/video/audio tools. These Maker tools keep
+generated files inside the project and record CDN mappings for later editing, video references,
+submit, and build workflows.
+
+- Use `generate_image` for one image.
+- Use `batch_generate_images` for multiple images.
+- Use `edit_image` for modifying project images.
+- Use `create_video_task` for game videos and image/video referenced generation.
+- Use `text_to_music` for game music or audio.
+
+Generated assets should be saved by Maker MCP under `assets/image`, `assets/video`, or
+`assets/audio`. Do not prefer client-native image generation when the user is asking for Maker game
+assets in a bound project.
+
 ## Project Detection
 
 A directory is a Maker project when the user's current project directory or one of its parents contains:

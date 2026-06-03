@@ -45,6 +45,13 @@ export function formatMakerSkillStatus(
     '- Ignore generic local Git skills for Maker submit/build.',
     '- Do not create branches, task branches, PR/MR, or generic git commit/push flows.',
     '- Use maker_build_current_directory for submit, push, and build.',
+    '',
+    'Maker creative asset tool policy',
+    `- entry: ${MAKER_LOCAL_SKILL_NAME} > Maker Creative Asset Tool Policy`,
+    '- Prefer Maker MCP proxy tools over native AI image/video/audio tools for bound Maker projects.',
+    '- Use generate_image, batch_generate_images, edit_image for game image assets.',
+    '- Use create_video_task and text_to_music for game video/audio assets.',
+    '- Generated assets are saved under assets/image, assets/video, or assets/audio with CDN mappings.',
     'Maker initialization next_step: execute `taptap-maker init`.',
     'Load these documents when the current AI client supports reading local guide files.',
   ].join('\n');
