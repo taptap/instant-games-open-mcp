@@ -1105,6 +1105,8 @@ describe('maker build local-change guard', () => {
     expect(statusTool?.description).toContain('AI dev kit status');
     expect(statusTool?.description).toContain('Compatibility status surface');
     expect(statusTool?.description).toContain('Maker Git Workflow Policy');
+    expect(statusTool?.description).toContain('Maker Creative Asset Tool Policy');
+    expect(statusTool?.description).toContain('prefer Maker MCP proxy tools');
     expect(statusTool?.description).not.toContain('If PAT is missing');
     expect(statusTool?.description).not.toContain('ask them to open');
     expect(statusTool?.description).not.toContain('让用户选择');

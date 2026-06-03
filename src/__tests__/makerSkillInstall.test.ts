@@ -33,6 +33,11 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain(`${MAKER_LOCAL_SKILL_NAME} > Maker Git Workflow Policy`);
     expect(status).toContain('Ignore generic local Git skills for Maker submit/build');
     expect(status).toContain('Use maker_build_current_directory for submit, push, and build');
+    expect(status).toContain('Maker creative asset tool policy');
+    expect(status).toContain(`${MAKER_LOCAL_SKILL_NAME} > Maker Creative Asset Tool Policy`);
+    expect(status).toContain('Prefer Maker MCP proxy tools over native AI image/video/audio tools');
+    expect(status).toContain('Use generate_image, batch_generate_images, edit_image');
+    expect(status).toContain('Use create_video_task and text_to_music for game video/audio');
     expect(status).toContain('Maker initialization next_step: execute `taptap-maker init`');
     expect(status).not.toContain('Validation checklist for the local AI client');
     expect(status).not.toContain(`${MAKER_LOCAL_SKILL_NAME} / codex: missing`);
@@ -70,6 +75,18 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Do not create feature branches, task branches, PR/MR');
     expect(skillText).toContain('Use `maker_build_current_directory` for submit, push, build');
     expect(skillText).toContain('The root `.gitignore` is a required Maker project file');
+    expect(skillText).toContain('Maker Creative Asset Tool Policy');
+    expect(skillText).toContain(
+      'Prefer Maker MCP proxy tools over native AI image/video/audio tools'
+    );
+    expect(skillText).toContain('Use `generate_image` for one image');
+    expect(skillText).toContain('Use `batch_generate_images` for multiple images');
+    expect(skillText).toContain('Use `edit_image` for modifying project images');
+    expect(skillText).toContain('Use `create_video_task` for game videos');
+    expect(skillText).toContain('Use `text_to_music` for game music or audio');
+    expect(skillText).toContain('assets/image');
+    expect(skillText).toContain('assets/video');
+    expect(skillText).toContain('assets/audio');
     expect(skillText).toContain('Attached Workspace Selection');
     expect(skillText).toContain('dialogues');
     expect(skillText).toContain('single attached workspace');
