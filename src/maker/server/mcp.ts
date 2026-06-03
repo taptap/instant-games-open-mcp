@@ -81,6 +81,8 @@ export { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
 const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_PROXY_RETRY_ATTEMPTS = 5;
+const DEFAULT_PROXY_RETRY_DELAY_MS = 30 * 1000;
 const PREVIEW_REFRESH_TIMEOUT_MS = 15 * 1000;
 const WATCHER_STOP_TIMEOUT_MS = 1500;
 const WATCHER_PROCESS_PATTERN = /(?:\btaptap-maker\b|\bmaker\.js\b).*\blogs\b.*\bwatch\b/;
@@ -113,7 +115,7 @@ export const tools = [
   {
     name: 'maker_status_lite',
     description:
-      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, PAT/TapTap auth, project binding, AI dev kit status, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets and override generic imagegen/native media tools, edit_image guidance to resolve dragged/referenced images to a local path or CDN URL before calling the tool, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init.',
+      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets and override generic imagegen/native media tools, edit_image guidance to resolve dragged/referenced images to a local path or CDN URL before calling the tool, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -302,53 +304,73 @@ async function callRemoteProxyTool(options: {
     targetDir: proxy.projectRoot,
     args: options.args,
   });
-  const transport = new StdioClientTransport({
-    command: proxy.command,
-    args: proxy.args,
-    env: mergeStringEnv(process.env, proxy.envVars),
-    stderr: 'pipe',
-  });
-  const client = new Client(
-    {
-      name: 'taptap-maker-tool-call-forwarder',
-      version: VERSION,
+  const result = await retryMakerProxyOperation(
+    async () => {
+      const transport = new StdioClientTransport({
+        command: proxy.command,
+        args: proxy.args,
+        env: mergeStringEnv(process.env, proxy.envVars),
+        stderr: 'pipe',
+      });
+      const client = new Client(
+        {
+          name: 'taptap-maker-tool-call-forwarder',
+          version: VERSION,
+        },
+        {
+          capabilities: {},
+        }
+      );
+      try {
+        await client.connect(transport);
+        return await client.callTool(
+          {
+            name: options.name,
+            arguments: finalArgs,
+          },
+          undefined,
+          {
+            timeout: DEFAULT_BUILD_TIMEOUT_MS,
+            resetTimeoutOnProgress: true,
+            onprogress: options.progressToken
+              ? (progress) => {
+                  options.extra
+                    .sendNotification({
+                      method: 'notifications/progress',
+                      params: { progressToken: options.progressToken, ...progress },
+                    })
+                    .catch(() => {});
+                }
+              : undefined,
+          }
+        );
+      } finally {
+        await client.close().catch(() => {});
+      }
     },
     {
-      capabilities: {},
+      onRetry: options.progressToken
+        ? (event) => {
+            options.extra
+              .sendNotification({
+                method: 'notifications/progress',
+                params: {
+                  progressToken: options.progressToken,
+                  progress: event.attempt,
+                  total: event.attempts,
+                  message: event.message,
+                },
+              })
+              .catch(() => {});
+          }
+        : undefined,
     }
   );
-
-  try {
-    await client.connect(transport);
-    const result = await client.callTool(
-      {
-        name: options.name,
-        arguments: finalArgs,
-      },
-      undefined,
-      {
-        timeout: DEFAULT_BUILD_TIMEOUT_MS,
-        resetTimeoutOnProgress: true,
-        onprogress: options.progressToken
-          ? (progress) => {
-              options.extra
-                .sendNotification({
-                  method: 'notifications/progress',
-                  params: { progressToken: options.progressToken, ...progress },
-                })
-                .catch(() => {});
-            }
-          : undefined,
-      }
-    );
-    return await materializeRemoteProxyToolAssets({
-      toolName: options.name,
-      targetDir: proxy.projectRoot,
-      result,
-    });
-  } finally {
-    await client.close().catch(() => {});
-  }
+  return await materializeRemoteProxyToolAssets({
+    toolName: options.name,
+    targetDir: proxy.projectRoot,
+    result,
+  });
 }
 
 export async function startMakerMcpServer(): Promise<void> {
@@ -556,6 +578,10 @@ async function formatStatus(
     '',
     remoteSyncText,
     '',
+    identify.projectRoot
+      ? await formatMakerProxyToolsStatusSafely({ targetDir: identify.projectRoot })
+      : '',
+    '',
     pat ? '' : ['Auth next step', '', `Maker PAT 缺失。PAT 页面：${makerPatTokensUrl}`].join('\n'),
     '',
     tapAuthRefreshText,
@@ -590,6 +616,110 @@ export async function formatMakerRemoteSyncStatusSafely(projectRoot: string): Pr
   } catch (error) {
     return formatMakerRemoteSyncUnavailable(error);
   }
+}
+
+export async function formatMakerProxyToolsStatusSafely(options: {
+  targetDir: string;
+  listRemoteTools?: () => Promise<RemoteToolDefinition[]>;
+}): Promise<string> {
+  try {
+    const listedRemoteTools =
+      options.listRemoteTools ??
+      (() =>
+        listRemoteProxyTools({
+          targetDir: options.targetDir,
+        }));
+    const availableTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
+      (tool) => tool.name
+    );
+    const missingTools = MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.filter(
+      (toolName) => !availableTools.includes(toolName)
+    );
+    const status = missingTools.length === 0 ? 'ok' : 'degraded';
+    return [
+      'Maker proxy tools',
+      '',
+      `- status: ${status}`,
+      `- available_tools: ${availableTools.join(', ') || '(none)'}`,
+      `- missing_tools: ${missingTools.join(', ') || '(none)'}`,
+      '- build_available: yes',
+      status === 'ok'
+        ? '- next_action: Maker proxy tools and remote build are available.'
+        : '- next_action: 部分 Maker proxy tools 未暴露；缺失的远端工具不可用，请检查 Maker MCP 配置或远端服务。',
+    ].join('\n');
+  } catch (error) {
+    return [
+      'Maker proxy tools',
+      '',
+      '- status: unavailable',
+      '- available_tools: (none)',
+      `- missing_tools: ${MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.join(', ')}`,
+      '- build_available: no',
+      `- failure_message: ${error instanceof Error ? error.message : String(error)}`,
+      '- retry_policy: explicit proxy tool/build calls retry 5 total attempts, 30s apart',
+      '- next_action: Maker proxy 连接失败；远端 proxy tools 和 build 构建都不可用。请检查网络、PAT/TapTap token、Maker MCP 环境和远端服务后重试。',
+    ].join('\n');
+  }
+}
+
+export async function retryMakerProxyOperation<T>(
+  operation: () => Promise<T>,
+  options: {
+    attempts?: number;
+    delayMs?: number;
+    sleep?: (delayMs: number) => Promise<void>;
+    onRetry?: (event: {
+      attempt: number;
+      attempts: number;
+      delayMs: number;
+      message: string;
+    }) => void;
+    shouldRetry?: (error: unknown) => boolean;
+  } = {}
+): Promise<T> {
+  const attempts = Math.max(1, options.attempts || DEFAULT_PROXY_RETRY_ATTEMPTS);
+  const delayMs = Math.max(0, options.delayMs ?? DEFAULT_PROXY_RETRY_DELAY_MS);
+  const sleep = options.sleep || sleepMs;
+  const shouldRetry = options.shouldRetry || isRetryableMakerProxyError;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt >= attempts || !shouldRetry(error)) {
+        throw error;
+      }
+      const message = `Maker proxy connection failed on attempt ${attempt}/${attempts}; retrying in ${Math.round(
+        delayMs / 1000
+      )}s. ${error instanceof Error ? error.message : String(error)}`;
+      options.onRetry?.({ attempt, attempts, delayMs, message });
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+function sleepMs(delayMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+function isRetryableMakerProxyError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  if (
+    /\bBUILD FAILED\b|validation|invalid arguments|bad request|forbidden|unauthorized/i.test(
+      message
+    )
+  ) {
+    return false;
+  }
+  return /connect|connection|ECONN|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|timeout|timed out|socket|closed|reset|refused|network|fetch failed|transport/i.test(
+    message
+  );
 }
 
 function formatMakerRemoteSyncUnavailable(error: unknown): string {
@@ -1264,69 +1394,82 @@ async function runRemoteBuildCurrentDirectory(
   const buildArgs = createBuildArgs(proxy.projectRoot, options);
   const timeoutMs = options.timeoutMs || DEFAULT_BUILD_TIMEOUT_MS;
 
-  const transport = new StdioClientTransport({
-    command: proxy.command,
-    args: proxy.args,
-    env: mergeStringEnv(process.env, proxy.envVars),
-    stderr: 'pipe',
-  });
-  const client = new Client(
-    {
-      name: 'taptap-maker-build-forwarder',
-      version: VERSION,
+  const result = await retryMakerProxyOperation(
+    async () => {
+      const transport = new StdioClientTransport({
+        command: proxy.command,
+        args: proxy.args,
+        env: mergeStringEnv(process.env, proxy.envVars),
+        stderr: 'pipe',
+      });
+      const client = new Client(
+        {
+          name: 'taptap-maker-build-forwarder',
+          version: VERSION,
+        },
+        {
+          capabilities: {},
+        }
+      );
+      try {
+        await client.connect(transport);
+        return await client.callTool(
+          {
+            name: 'build',
+            arguments: buildArgs,
+          },
+          undefined,
+          {
+            timeout: timeoutMs,
+            resetTimeoutOnProgress: true,
+            onprogress: (progress) => {
+              options.onProgress?.({
+                progress: progress.progress,
+                total: progress.total,
+                phase: 'remote_build',
+                message: progress.message || 'Remote Maker build progress',
+              });
+            },
+          }
+        );
+      } finally {
+        await client.close().catch(() => {});
+      }
     },
     {
-      capabilities: {},
+      onRetry: (event) => {
+        options.onProgress?.({
+          progress: event.attempt,
+          total: event.attempts,
+          phase: 'remote_build',
+          message: event.message,
+        });
+      },
     }
   );
 
-  try {
-    await client.connect(transport);
-    const result = await client.callTool(
-      {
-        name: 'build',
-        arguments: buildArgs,
-      },
-      undefined,
-      {
-        timeout: timeoutMs,
-        resetTimeoutOnProgress: true,
-        onprogress: (progress) => {
-          options.onProgress?.({
-            progress: progress.progress,
-            total: progress.total,
-            phase: 'remote_build',
-            message: progress.message || 'Remote Maker build progress',
-          });
-        },
-      }
-    );
-
-    if (isRemoteToolError(result)) {
-      throw new Error(formatRemoteToolResult(result));
-    }
-
-    return attachBuildSuccessSideEffects(
-      {
-        mode: 'remote_build',
-        projectRoot: proxy.projectRoot,
-        projectId: proxy.projectId,
-        projectPath: proxy.projectPath,
-        serverUrl: proxy.serverUrl,
-        env: proxy.env,
-        makerUrl: formatMakerAppWebUrl(proxy.projectId, proxy.env),
-        timeoutMs,
-        buildArgs,
-        resultText: formatRemoteToolResult(result),
-      },
-      {
-        refreshPreview: options.refreshPreview,
-        startRuntimeLogWatch: options.startRuntimeLogWatch || startRuntimeLogWatch,
-      }
-    );
-  } finally {
-    await client.close();
+  if (isRemoteToolError(result)) {
+    throw new Error(formatRemoteToolResult(result));
   }
+
+  return attachBuildSuccessSideEffects(
+    {
+      mode: 'remote_build',
+      projectRoot: proxy.projectRoot,
+      projectId: proxy.projectId,
+      projectPath: proxy.projectPath,
+      serverUrl: proxy.serverUrl,
+      env: proxy.env,
+      makerUrl: formatMakerAppWebUrl(proxy.projectId, proxy.env),
+      timeoutMs,
+      buildArgs,
+      resultText: formatRemoteToolResult(result),
+    },
+    {
+      refreshPreview: options.refreshPreview,
+      startRuntimeLogWatch: options.startRuntimeLogWatch || startRuntimeLogWatch,
+    }
+  );
 }
 
 async function attachBuildSuccessSideEffects(
