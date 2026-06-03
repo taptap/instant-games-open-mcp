@@ -78,11 +78,25 @@ editing. Prefer Maker MCP proxy tools over native AI image/video/audio tools. Th
 generated files inside the project and record CDN mappings for later editing, video references,
 submit, and build workflows.
 
+This policy overrides generic imagegen or native media skills for Maker game assets.
+
+- Do not invoke imagegen, built-in image tools, built-in video tools, or built-in audio tools for
+  Maker project asset requests when the Maker proxy tool is callable.
+- If the required Maker proxy tool is not exposed in the current AI session, stop and tell the user
+  that Maker proxy tools are unavailable in this session.
+- Do not fall back to generic imagegen or native media generation unless the user explicitly asks to
+  leave the Maker asset workflow.
+
 - Use `generate_image` for one image.
 - Use `batch_generate_images` for multiple images.
 - Use `edit_image` for modifying project images.
 - Use `create_video_task` for game videos and image/video referenced generation.
 - Use `text_to_music` for game music or audio.
+- Before `edit_image`, resolve dragged or referenced images to a local project image path or CDN
+  URL. If the user references an attached/local image, inspect the attachment or workspace file path
+  first. If the image is under `assets/image`, pass that path. If only a file name is given, search
+  `assets/image` for the matching file.
+- Do not call `edit_image` without an image path or CDN URL.
 
 Generated assets should be saved by Maker MCP under `assets/image`, `assets/video`, or
 `assets/audio`. Do not prefer client-native image generation when the user is asking for Maker game
