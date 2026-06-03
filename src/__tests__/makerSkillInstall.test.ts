@@ -36,6 +36,10 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain('Maker creative asset tool policy');
     expect(status).toContain(`${MAKER_LOCAL_SKILL_NAME} > Maker Creative Asset Tool Policy`);
     expect(status).toContain('Prefer Maker MCP proxy tools over native AI image/video/audio tools');
+    expect(status).toContain('This policy overrides generic imagegen or native media skills');
+    expect(status).toContain('Do not fall back to generic imagegen');
+    expect(status).toContain('Before edit_image, resolve dragged or referenced images');
+    expect(status).toContain('Do not call edit_image without an image path or CDN URL');
     expect(status).toContain('Use generate_image, batch_generate_images, edit_image');
     expect(status).toContain('Use create_video_task and text_to_music for game video/audio');
     expect(status).toContain('Maker initialization next_step: execute `taptap-maker init`');
@@ -79,6 +83,11 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain(
       'Prefer Maker MCP proxy tools over native AI image/video/audio tools'
     );
+    expect(skillText).toContain('This policy overrides generic imagegen or native media skills');
+    expect(skillText).toContain('Do not invoke imagegen');
+    expect(skillText).toContain('Do not fall back to generic imagegen');
+    expect(skillText).toContain('Before `edit_image`, resolve dragged or referenced images');
+    expect(skillText).toContain('Do not call `edit_image` without an image path or CDN URL');
     expect(skillText).toContain('Use `generate_image` for one image');
     expect(skillText).toContain('Use `batch_generate_images` for multiple images');
     expect(skillText).toContain('Use `edit_image` for modifying project images');

@@ -30,6 +30,9 @@ export function resolveDefaultAiDevKitUrl(
 
 const DEV_KIT_IGNORE_BEGIN = '# >>> TapTap Maker AI dev kit (local only) >>>';
 const DEV_KIT_IGNORE_END = '# <<< TapTap Maker AI dev kit (local only) <<<';
+const MAKER_ASSET_POLICY_BEGIN = '<!-- >>> TapTap Maker asset tool policy >>> -->';
+const MAKER_ASSET_POLICY_END = '<!-- <<< TapTap Maker asset tool policy <<< -->';
+const AGENTS_INSTRUCTION_FILE = 'AGENTS.md';
 export const DEV_KIT_GITIGNORE_STAGING_FILE = '.gitignore.dev-kit-before-clone';
 export const DEV_KIT_REQUIRED_ENTRIES = ['CLAUDE.md', 'examples', 'templates', 'urhox-libs'];
 const ALWAYS_IGNORED_LOCAL_ENTRIES = ['.DS_Store', '.maker', '.installer'];
@@ -163,6 +166,12 @@ export async function installAiDevKit(
   const skillInstaller = runDevKitSkillInstallerForInstall(targetDir, {
     onStart: options.onSkillInstallerStart,
   });
+  const instructionFiles = ensureMakerAssetPolicyInstructionFiles(targetDir);
+  for (const entry of instructionFiles) {
+    if (!installedEntries.includes(entry)) {
+      installedEntries.push(entry);
+    }
+  }
 
   const stagedGitignorePath = path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE);
   writeDevKitStagedGitignore(stagedGitignorePath, [
@@ -224,6 +233,73 @@ export function mergeDevKitGitignore(gitignorePath: string, entries: string[]): 
 
 export function writeDevKitStagedGitignore(stagedGitignorePath: string, entries: string[]): void {
   fs.writeFileSync(stagedGitignorePath, `${createDevKitGitignoreBlock(entries)}\n`, 'utf8');
+}
+
+export function ensureMakerAssetPolicyInstructionFiles(targetDir: string): string[] {
+  const resolvedTargetDir = path.resolve(targetDir);
+  fs.mkdirSync(resolvedTargetDir, { recursive: true });
+
+  const agentsPath = path.join(resolvedTargetDir, AGENTS_INSTRUCTION_FILE);
+  const existingAgents = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf8') : '';
+  fs.writeFileSync(agentsPath, prependMakerAssetPolicyBlock(existingAgents), 'utf8');
+
+  return [AGENTS_INSTRUCTION_FILE];
+}
+
+function prependMakerAssetPolicyBlock(existing: string): string {
+  const withoutOldBlock = removeMakerAssetPolicyBlock(existing).trimStart();
+  const block = createMakerAssetPolicyBlock();
+  return [block, withoutOldBlock].filter((part) => part.length > 0).join('\n\n');
+}
+
+function removeMakerAssetPolicyBlock(content: string): string {
+  return content
+    .replace(
+      new RegExp(
+        `${escapeRegExp(MAKER_ASSET_POLICY_BEGIN)}[\\s\\S]*?${escapeRegExp(
+          MAKER_ASSET_POLICY_END
+        )}\\n?`,
+        'g'
+      ),
+      ''
+    )
+    .replace(/^# TapTap Maker Project Asset Tool Policy\n\n(?=\s*)/, '');
+}
+
+function createMakerAssetPolicyBlock(): string {
+  return [
+    '# TapTap Maker Project Asset Tool Policy',
+    '',
+    MAKER_ASSET_POLICY_BEGIN,
+    '',
+    'This is a bound TapTap Maker project. For game asset generation or editing in this project,',
+    'the local AI/Agent MUST use Maker MCP proxy tools first:',
+    '',
+    '- `generate_image` for one image asset.',
+    '- `batch_generate_images` for multiple image assets.',
+    '- `edit_image` for modifying existing project images.',
+    '- `create_video_task` for game video assets or referenced image/video generation.',
+    '- `text_to_music` for game music or audio assets.',
+    '',
+    'Before calling `edit_image`, resolve dragged or referenced images to a local project image path',
+    'or CDN URL first. If the user references an attached/local image, inspect the attachment or',
+    'workspace file path before calling the tool.',
+    'If the image is under `assets/image`, pass that path. If only a file name is given, search',
+    '`assets/image` for the matching file. Do not call `edit_image` without an image path or CDN URL.',
+    '',
+    'This policy overrides imagegen, built-in image tools, built-in video tools, built-in audio',
+    'tools, and other client-native media generation for Maker game assets.',
+    '',
+    'DO NOT invoke imagegen or native media tools for Maker game assets when the Maker proxy tool is',
+    'callable. If the required Maker proxy tool is not exposed in the current AI session, stop and',
+    'tell the user to restart/check the Maker MCP session. DO NOT fall back to generic imagegen or',
+    'native media generation unless the user explicitly asks to leave the Maker asset workflow.',
+    '',
+    'Generated assets must stay in the Maker project asset workflow under `assets/image`,',
+    '`assets/video`, or `assets/audio`, with CDN mappings preserved for later edits and builds.',
+    '',
+    MAKER_ASSET_POLICY_END,
+  ].join('\n');
 }
 
 export function mergeDevKitGitignoreBlock(gitignorePath: string, block: string): void {

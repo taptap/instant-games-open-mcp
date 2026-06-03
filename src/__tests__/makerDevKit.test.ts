@@ -80,6 +80,7 @@ describe('Maker AI dev kit install', () => {
     expect(result.installedEntries).toEqual([
       '.cli',
       '.emmylua',
+      'AGENTS.md',
       'CLAUDE.md',
       'engine-docs',
       'examples',
@@ -96,6 +97,56 @@ describe('Maker AI dev kit install', () => {
     expect(fs.existsSync(path.join(targetDir, 'tools', 'install-skills.sh'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'scripts'))).toBe(false);
     expect(fs.existsSync(path.join(targetDir, 'ai-dev-kit.zip'))).toBe(false);
+  });
+
+  test('injects Maker asset policy at the top of AGENTS without changing Claude guide', async () => {
+    await installAiDevKit({
+      sourceDir,
+      targetDir,
+    });
+
+    const claudeGuide = fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8');
+    const agentsGuide = fs.readFileSync(path.join(targetDir, 'AGENTS.md'), 'utf8');
+
+    expect(claudeGuide).toContain('local agent docs');
+    expect(claudeGuide).toBe('local agent docs\n');
+    expect(claudeGuide).not.toContain('TapTap Maker Project Asset Tool Policy');
+    expect(agentsGuide).toMatch(/^# TapTap Maker Project Asset Tool Policy/);
+    expect(agentsGuide).toContain('MUST use Maker MCP proxy tools');
+    expect(agentsGuide).toContain('This policy overrides imagegen');
+    expect(agentsGuide).toContain('DO NOT invoke imagegen');
+    expect(agentsGuide).toContain('DO NOT fall back to generic imagegen');
+    expect(agentsGuide).toContain(
+      'Before calling `edit_image`, resolve dragged or referenced images'
+    );
+    expect(agentsGuide).toContain('Do not call `edit_image` without an image path or CDN URL');
+    expect(agentsGuide).toContain('batch_generate_images');
+  });
+
+  test('does not change existing Claude guide content', async () => {
+    fs.mkdirSync(targetDir, { recursive: true });
+    const existingClaude = [
+      '# TapTap Maker Project Asset Tool Policy',
+      '',
+      '<!-- >>> TapTap Maker asset tool policy >>> -->',
+      '',
+      'old policy body',
+      '',
+      '<!-- <<< TapTap Maker asset tool policy <<< -->',
+      '',
+      'user claude notes',
+      '',
+    ].join('\n');
+    fs.writeFileSync(path.join(targetDir, 'CLAUDE.md'), existingClaude, 'utf8');
+
+    await installAiDevKit({
+      sourceDir,
+      targetDir,
+      preserveExisting: true,
+    });
+
+    const claudeGuide = fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8');
+    expect(claudeGuide).toBe(existingClaude);
   });
 
   test('runs POSIX skill installer after copying dev kit tools', async () => {
@@ -252,7 +303,12 @@ describe('Maker AI dev kit install', () => {
       preserveExisting: true,
     });
 
-    expect(fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8')).toBe('user edits\n');
+    const agentsGuide = fs.readFileSync(path.join(targetDir, 'AGENTS.md'), 'utf8');
+    const claudeGuide = fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8');
+    expect(agentsGuide).toMatch(/^# TapTap Maker Project Asset Tool Policy/);
+    expect(agentsGuide).toContain('DO NOT invoke imagegen');
+    expect(agentsGuide).toContain('Do not call `edit_image` without an image path or CDN URL');
+    expect(claudeGuide).toBe('user edits\n');
     expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'templates', 'README.md'))).toBe(true);
     expect(inspectAiDevKit(targetDir).ready).toBe(true);
