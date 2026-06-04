@@ -252,6 +252,39 @@ export class TapTapMCPProxy {
   }
 
   /**
+   * Restrict the proxied tool list to the configured public surface.
+   *
+   * The proxy does not wrap or rewrite upstream tool definitions. It only hides tools that are not
+   * included in options.exposed_tools. Omitting the option keeps the historical full passthrough.
+   */
+  private filterListedTools<T extends { tools: Array<{ name: string }> }>(result: T): T {
+    const exposedTools = this.config.options?.exposed_tools;
+    if (!exposedTools) {
+      return result;
+    }
+
+    const exposedToolNames = new Set(exposedTools);
+    return {
+      ...result,
+      tools: result.tools.filter((tool) => exposedToolNames.has(tool.name)),
+    } as T;
+  }
+
+  /**
+   * Prevent callers from invoking tools hidden from tools/list.
+   */
+  private assertToolExposed(name: string): void {
+    const exposedTools = this.config.options?.exposed_tools;
+    if (!exposedTools) {
+      return;
+    }
+
+    if (!exposedTools.includes(name)) {
+      throw new McpError(ErrorCode.MethodNotFound, `Tool is not exposed by this proxy: ${name}`);
+    }
+  }
+
+  /**
    * 连接到 TapTap MCP Server
    */
   private async connectToServer(): Promise<void> {
@@ -658,7 +691,7 @@ export class TapTapMCPProxy {
       }
 
       const result = await this.client.listTools();
-      return result;
+      return this.filterListedTools(result);
     });
 
     // 转发 resources/list（不缓存）
@@ -690,6 +723,7 @@ export class TapTapMCPProxy {
     // 拦截 tools/call - 注入私有参数后转发，支持 Progress 通知转发
     this.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name, arguments: args } = request.params;
+      this.assertToolExposed(name);
 
       // 根据配置决定是否在每次调用时注入私有参数（默认注入，兼容不同 MCP Server）
       const shouldInjectParams = this.config.options?.inject_params_per_call ?? true;

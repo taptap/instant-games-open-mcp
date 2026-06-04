@@ -917,6 +917,13 @@ const config = {
   },
   options: {
     verbose: false, // true: 详细日志
+    exposed_tools: [
+      'generate_image',
+      'batch_generate_images',
+      'edit_image',
+      'create_video_task',
+      'text_to_music',
+    ], // 可选：客户端可见/可调用 tool 白名单
   },
 };
 ```
@@ -930,7 +937,54 @@ console.log(configString);
 
 **步骤 3：粘贴到配置文件的 `args` 数组**
 
-### 5.6 路径配置说明
+### 5.6 Proxy tool 暴露白名单
+
+Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Server 返回的 tools，
+`tools/call` 也按客户端请求原样转发。
+
+如需只让客户端试用一部分上游 tools，可以在 `options.exposed_tools` 中配置 tool 名称白名单：
+
+```json
+{
+  "server": {
+    "url": "http://localhost:5003",
+    "env": "rnd"
+  },
+  "tenant": {
+    "user_id": "your-user-id",
+    "project_id": "your-project-id"
+  },
+  "auth": {
+    "kid": "your_kid_here",
+    "mac_key": "your_mac_key_here",
+    "token_type": "mac",
+    "mac_algorithm": "hmac-sha-1"
+  },
+  "options": {
+    "exposed_tools": [
+      "generate_image",
+      "batch_generate_images",
+      "edit_image",
+      "create_video_task",
+      "text_to_music"
+    ]
+  }
+}
+```
+
+配置后：
+
+- `tools/list` 只返回 `generate_image`、`batch_generate_images`、`edit_image`、
+  `create_video_task` 和 `text_to_music`。
+- `tools/call` 会拒绝白名单外的 tool，避免客户端直接调用隐藏 tool。
+- Proxy 不重新封装这些 tool；tool description、input schema、调用参数和返回结果都来自上游。
+- 私有参数注入仍按原流程工作，包括 `_mac_token`、`_tag: "local"`、`_project_path`
+  和 `_custom_fields`。
+
+这个配置适合先暴露少量 proxy 代理过来的 server tools，把参数缺口、返回结构或客户端适配问题
+原样暴露出来，再决定是否扩大白名单。
+
+### 5.7 路径配置说明
 
 #### `_project_path` 计算逻辑
 

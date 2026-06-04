@@ -81,7 +81,14 @@ User Space 容器内：
   "options": {
     "verbose": false,
     "reconnect_interval": 5000,
-    "monitor_interval": 10000
+    "monitor_interval": 10000,
+    "exposed_tools": [
+      "generate_image",
+      "batch_generate_images",
+      "edit_image",
+      "create_video_task",
+      "text_to_music"
+    ]
   }
 }
 ```
@@ -184,12 +191,38 @@ const sessionResult = await connection.newSession({
 
 ### options（可选）
 
-| 字段                 | 类型    | 必需 | 说明             | 默认值  |
-| -------------------- | ------- | ---- | ---------------- | ------- |
-| `verbose`            | boolean | ⚪   | 详细日志模式     | `false` |
-| `reconnect_interval` | number  | ⚪   | 重连间隔（毫秒） | `5000`  |
-| `monitor_interval`   | number  | ⚪   | 监控间隔（毫秒） | `10000` |
-| `log`                | object  | ⚪   | 日志配置         | 见下表  |
+| 字段                 | 类型    | 必需 | 说明                           | 默认值  |
+| -------------------- | ------- | ---- | ------------------------------ | ------- |
+| `verbose`            | boolean | ⚪   | 详细日志模式                   | `false` |
+| `reconnect_interval` | number  | ⚪   | 重连间隔（毫秒）               | `5000`  |
+| `monitor_interval`   | number  | ⚪   | 监控间隔（毫秒）               | `10000` |
+| `exposed_tools`      | array   | ⚪   | 对客户端暴露的 tool 名称白名单 | 不限制  |
+| `log`                | object  | ⚪   | 日志配置                       | 见下表  |
+
+### options.exposed_tools（Proxy tool 白名单）
+
+`exposed_tools` 用于控制客户端能看到和调用哪些上游 tools：
+
+- 未配置时保持历史行为：`tools/list` 全量转发上游 MCP Server 的 tools。
+- 配置后，`tools/list` 只返回白名单内的 tool 定义。
+- 配置后，`tools/call` 会在 proxy 层拒绝白名单外的 tool，避免隐藏 tool 被直接调用。
+- Proxy 不重新封装 tool；白名单内 tool 的 description、input schema、参数和返回值都保持上游原样。
+
+示例：只试用图片、视频和音乐生成相关 tools。
+
+```json
+{
+  "options": {
+    "exposed_tools": [
+      "generate_image",
+      "batch_generate_images",
+      "edit_image",
+      "create_video_task",
+      "text_to_music"
+    ]
+  }
+}
+```
 
 ### options.log（日志配置）
 

@@ -9,13 +9,19 @@ import path from 'node:path';
 import {
   buildCurrentDirectory,
   createBuildArgs,
+  listMakerTools,
+  MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
+  materializeRemoteProxyToolAssets,
+  prepareRemoteProxyToolArgs,
   createRemoteRuntimeLogClient,
   formatBuildResult,
   formatClonePartialStateLines,
+  formatMakerProxyToolsStatusSafely,
   formatMakerRemoteSyncStatusSafely,
   formatPushResult,
   pushThenBuildCurrentDirectory,
   resources,
+  retryMakerProxyOperation,
   stopExistingRuntimeLogWatcher,
   tools,
 } from '../maker/server/mcp';
@@ -45,6 +51,7 @@ describe('maker build local-change guard', () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- initial\n', 'utf8');
     runGit(['add', '.gitignore', 'scripts/main.lua']);
     runGit(['commit', '-m', 'chore: initial maker project']);
+    runGit(['branch', '-M', 'main']);
     saveProjectConfig(tempDir, {
       project_id: 'app-1',
       user_id: 'user-1',
@@ -187,30 +194,18 @@ describe('maker build local-change guard', () => {
 
   test('push failure explains that Maker remote only accepts main branch', async () => {
     runGit(['branch', '-M', 'main']);
-    prepareMakerRemote(
-      [
-        '#!/bin/sh',
-        'while read old new ref; do',
-        '  if [ "$ref" != "refs/heads/main" ]; then',
-        '    echo "[pre-receive] only refs/heads/main is accepted; got $ref" >&2',
-        '    echo "status 503 branch guard response" >&2',
-        '    exit 1',
-        '  fi',
-        'done',
-        'exit 0',
-      ].join('\n')
-    );
+    prepareMakerRemote();
     runGit(['switch', '-c', 'selftest/non-main-guard']);
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- branch guard\n', 'utf8');
 
     const result = await pushMakerProject({ cwd: tempDir });
 
-    expect(result.status).toBe('failed_after_commit');
+    expect(result.status).toBe('clean');
+    expect(result.committed).toBe(false);
     expect(result.failure?.classification).toBe('branch_not_allowed');
     expect(result.failure?.retryable).toBe(false);
-    expect(result.failure?.stderr).toContain('only refs/heads/main is accepted');
+    expect(result.failure?.stage).toBe('remote_sync');
     expect(result.failure?.nextAction).toContain('切回 main');
-    expect(result.failure?.nextAction).toContain('cherry-pick');
     expect(result.failure?.nextAction).not.toContain('远端已有新提交');
     expect(result.transientRetries).toBe(0);
 
@@ -222,6 +217,50 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- classification: branch_not_allowed');
     expect(output).toContain('Maker 远端只接受 main 分支');
     expect(output).toContain('请切回 main');
+  });
+
+  test('push stops before commit when Maker remote is ahead', async () => {
+    runGit(['branch', '-M', 'main']);
+    prepareMakerRemote();
+    const remoteWorktree = cloneRemoteWorktree();
+    writeRemoteScript(remoteWorktree);
+    runGit(['add', 'scripts/remote.lua'], remoteWorktree);
+    runGit(['commit', '-m', 'chore: remote update'], remoteWorktree);
+    runGit(['push', 'origin', 'main'], remoteWorktree);
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- local\n', 'utf8');
+    const headBefore = readGit(['rev-parse', '--short', 'HEAD']).trim();
+
+    const result = await pushMakerProject({ cwd: tempDir });
+
+    expect(result.status).toBe('clean');
+    expect(result.committed).toBe(false);
+    expect(result.pushed).toBe(false);
+    expect(result.failure?.stage).toBe('remote_sync');
+    expect(result.failure?.classification).toBe('remote_rejected');
+    expect(result.failure?.stderr).toContain('Maker remote sync status: needs_pull');
+    expect(result.failure?.nextAction).toContain('远端有 1 个新提交');
+    expect(readGit(['rev-parse', '--short', 'HEAD']).trim()).toBe(headBefore);
+  });
+
+  test('push selected files still includes Maker generated .gitignore changes', async () => {
+    runGit(['branch', '-M', 'main']);
+    prepareMakerRemote();
+    fs.appendFileSync(path.join(tempDir, '.gitignore'), '\n# local dev kit\nCLAUDE.md\n', 'utf8');
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
+
+    const result = await pushMakerProject({
+      cwd: tempDir,
+      files: ['scripts/main.lua'],
+      message: 'chore: update maker project',
+    });
+
+    expect(result.status).toBe('pushed');
+    expect(result.committed).toBe(true);
+    const committedFiles = readGit(['show', '--name-only', '--format=', 'HEAD'])
+      .trim()
+      .split('\n')
+      .filter(Boolean);
+    expect(committedFiles).toEqual(['.gitignore', 'scripts/main.lua']);
   });
 
   test('push failure explains that remote forbidden directories cannot be submitted', async () => {
@@ -605,6 +644,485 @@ describe('maker build local-change guard', () => {
     expect(toolNames).not.toContain('maker_configure_remote_proxy');
   });
 
+  test('lists local Maker tools plus selected remote proxy tools', async () => {
+    const result = await listMakerTools({
+      targetDir: tempDir,
+      listRemoteTools: async () => [
+        {
+          name: 'generate_image',
+          description: 'Generate one image',
+          inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+        },
+        {
+          name: 'batch_generate_images',
+          description: 'Generate several images',
+          inputSchema: { type: 'object', properties: { prompts: { type: 'array' } } },
+        },
+        {
+          name: 'edit_image',
+          description: 'Edit an image',
+          inputSchema: { type: 'object', properties: { image: { type: 'string' } } },
+        },
+        {
+          name: 'create_video_task',
+          description: 'Create a text-to-video generation task',
+          inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+        },
+        {
+          name: 'text_to_music',
+          description: 'Generate music from text',
+          inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+        },
+        {
+          name: 'build',
+          description: 'Hidden remote build tool',
+          inputSchema: { type: 'object' },
+        },
+      ],
+    });
+
+    expect(result.tools.map((item) => item.name)).toEqual([
+      'maker_status_lite',
+      'maker_build_current_directory',
+      'generate_image',
+      'batch_generate_images',
+      'edit_image',
+      'create_video_task',
+      'text_to_music',
+    ]);
+    expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual([
+      'generate_image',
+      'batch_generate_images',
+      'edit_image',
+      'create_video_task',
+      'text_to_music',
+    ]);
+  });
+
+  test('falls back to local Maker tools when remote proxy tool listing is unavailable', async () => {
+    const result = await listMakerTools({
+      targetDir: tempDir,
+      listRemoteTools: async () => {
+        throw new Error('remote project is not bound');
+      },
+    });
+
+    expect(result.tools.map((item) => item.name)).toEqual([
+      'maker_status_lite',
+      'maker_build_current_directory',
+    ]);
+  });
+
+  test('proxy status warns that remote tools and build are unavailable when proxy fails', async () => {
+    const output = await formatMakerProxyToolsStatusSafely({
+      targetDir: tempDir,
+      listRemoteTools: async () => {
+        throw new Error('connect ECONNREFUSED remote maker proxy');
+      },
+    });
+
+    expect(output).toContain('Maker proxy tools');
+    expect(output).toContain('- status: unavailable');
+    expect(output).toContain('- available_tools: (none)');
+    expect(output).toContain(
+      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, text_to_music'
+    );
+    expect(output).toContain('- build_available: no');
+    expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');
+    expect(output).toContain('远端 proxy tools 和 build 构建都不可用');
+  });
+
+  test('proxy retry stops after the bounded default attempts', async () => {
+    let attempts = 0;
+    const retryMessages: string[] = [];
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          attempts += 1;
+          throw new Error(`connect ECONNREFUSED attempt ${attempts}`);
+        },
+        {
+          delayMs: 0,
+          sleep: async () => {},
+          onRetry: (event) => retryMessages.push(event.message),
+        }
+      )
+    ).rejects.toThrow('connect ECONNREFUSED attempt 5');
+
+    expect(attempts).toBe(5);
+    expect(retryMessages).toHaveLength(4);
+    expect(retryMessages[0]).toContain('attempt 1/5');
+    expect(retryMessages[3]).toContain('attempt 4/5');
+  });
+
+  test('downloads generated image proxy result into Maker image assets', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'generate_image',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:10Z'),
+      fetchImpl: fakeAssetFetch('image-bytes'),
+      result: proxyTextResult({
+        success: true,
+        name: '红色 药水/图标',
+        prompt: '红色药水',
+        previewUrl: 'https://example.test/red.png',
+        actualSize: '64x64',
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    expect(parsed.localPath).toBe('assets/image/红色_药水_图标_20260602080910.png');
+    expect(parsed.absolutePath).toBe(
+      path.join(tempDir, 'assets/image/红色_药水_图标_20260602080910.png')
+    );
+    expect(
+      fs.readFileSync(path.join(tempDir, 'assets/image/红色_药水_图标_20260602080910.png'), 'utf8')
+    ).toBe('image-bytes');
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
+    );
+    expect(registry['assets/image/红色_药水_图标_20260602080910.png'].previewUrl).toBe(
+      'https://example.test/red.png'
+    );
+  });
+
+  test('downloads successful batch image proxy results only', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'batch_generate_images',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:11Z'),
+      fetchImpl: fakeAssetFetch('batch-image'),
+      result: proxyTextResult({
+        total: 3,
+        succeeded: 2,
+        failed: 1,
+        results: [
+          {
+            success: true,
+            name: 'blue_icon',
+            previewUrl: 'https://example.test/blue.png',
+          },
+          {
+            success: true,
+            name: 'blue_icon',
+            previewUrl: 'https://example.test/blue-variant.png',
+          },
+          {
+            success: false,
+            name: 'failed_icon',
+            error: 'upstream failed',
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    expect(parsed.results[0].localPath).toBe('assets/image/blue_icon_20260602080911.png');
+    expect(parsed.results[1].localPath).toBe('assets/image/blue_icon_20260602080911_2.png');
+    expect(parsed.results[2].localPath).toBeUndefined();
+    expect(fs.existsSync(path.join(tempDir, 'assets/image/blue_icon_20260602080911.png'))).toBe(
+      true
+    );
+    expect(fs.existsSync(path.join(tempDir, 'assets/image/blue_icon_20260602080911_2.png'))).toBe(
+      true
+    );
+    expect(fs.existsSync(path.join(tempDir, 'assets/image/failed_icon_20260602080911.png'))).toBe(
+      false
+    );
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
+    );
+    expect(registry['assets/image/blue_icon_20260602080911.png'].cdnUrl).toBe(
+      'https://example.test/blue.png'
+    );
+    expect(registry['assets/image/blue_icon_20260602080911_2.png'].cdnUrl).toBe(
+      'https://example.test/blue-variant.png'
+    );
+  });
+
+  test('downloads video and music proxy results into Maker asset directories', async () => {
+    const video = await materializeRemoteProxyToolAssets({
+      toolName: 'create_video_task',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:12Z'),
+      fetchImpl: fakeAssetFetch('video-bytes'),
+      result: proxyTextResult({
+        task_id: 'cgt-20260602155659-vggcg',
+        status: 'succeeded',
+        cdn_url: 'https://example.test/video.mp4',
+      }),
+    });
+    const music = await materializeRemoteProxyToolAssets({
+      toolName: 'text_to_music',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:13Z'),
+      fetchImpl: fakeAssetFetch('audio-bytes'),
+      result: proxyTextResult({
+        success: true,
+        taskId: 'temp-1',
+        music: {
+          title: 'Empty Hall Echo',
+          audioUrl: 'https://example.test/music.mp3',
+        },
+      }),
+    });
+
+    const videoText = video.content[0]?.type === 'text' ? video.content[0].text : '';
+    const musicText = music.content[0]?.type === 'text' ? music.content[0].text : '';
+    expect(JSON.parse(videoText).localPath).toBe(
+      'assets/video/cgt-20260602155659-vggcg_20260602080912.mp4'
+    );
+    expect(JSON.parse(musicText).music.localPath).toBe(
+      'assets/audio/Empty_Hall_Echo_20260602080913.mp3'
+    );
+    expect(
+      fs.readFileSync(
+        path.join(tempDir, 'assets/video/cgt-20260602155659-vggcg_20260602080912.mp4'),
+        'utf8'
+      )
+    ).toBe('video-bytes');
+    expect(
+      fs.readFileSync(path.join(tempDir, 'assets/audio/Empty_Hall_Echo_20260602080913.mp3'), 'utf8')
+    ).toBe('audio-bytes');
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
+    );
+    expect(registry['assets/video/cgt-20260602155659-vggcg_20260602080912.mp4'].cdnUrl).toBe(
+      'https://example.test/video.mp4'
+    );
+    expect(registry['assets/audio/Empty_Hall_Echo_20260602080913.mp3'].cdnUrl).toBe(
+      'https://example.test/music.mp3'
+    );
+  });
+
+  test('downloads edit image proxy result into Maker image assets', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'edit_image',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:14Z'),
+      fetchImpl: fakeAssetFetch('edited-image'),
+      result: proxyTextResult({
+        success: true,
+        name: 'edited_icon',
+        previewUrl: 'https://example.test/edited.png',
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    expect(parsed.localPath).toBe('assets/image/edited_icon_20260602080914.png');
+    expect(
+      fs.readFileSync(path.join(tempDir, 'assets/image/edited_icon_20260602080914.png'), 'utf8')
+    ).toBe('edited-image');
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
+    );
+    expect(registry['assets/image/edited_icon_20260602080914.png'].cdnUrl).toBe(
+      'https://example.test/edited.png'
+    );
+    expect(registry['assets/image/edited_icon_20260602080914.png'].tool).toBe('edit_image');
+  });
+
+  test('rewrites edit image input to cdn url for locally generated images', async () => {
+    await materializeRemoteProxyToolAssets({
+      toolName: 'generate_image',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:16Z'),
+      fetchImpl: fakeAssetFetch('image-bytes'),
+      result: proxyTextResult({
+        success: true,
+        name: 'source_icon',
+        prompt: 'source',
+        previewUrl: 'https://example.test/source.png',
+        actualSize: '64x64',
+      }),
+    });
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'edit_image',
+      targetDir: tempDir,
+      args: {
+        image: 'assets/image/source_icon_20260602080916.png',
+        reference_images: [
+          path.join(tempDir, 'assets/image/source_icon_20260602080916.png'),
+          'https://example.test/already-cdn.png',
+        ],
+        prompt: 'add glow',
+        name: 'source_icon_glow',
+        target_size: '64x64',
+      },
+    });
+
+    expect(args.image).toBe('https://example.test/source.png');
+    expect(args.reference_images).toEqual([
+      'https://example.test/source.png',
+      'https://example.test/already-cdn.png',
+    ]);
+    expect(args.prompt).toBe('add glow');
+  });
+
+  test('resolves edit image input from generated asset file name and asset name', async () => {
+    await materializeRemoteProxyToolAssets({
+      toolName: 'generate_image',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:20Z'),
+      fetchImpl: fakeAssetFetch('image-bytes'),
+      result: proxyTextResult({
+        success: true,
+        name: '飞机图',
+        prompt: 'source',
+        previewUrl: 'https://example.test/plane.png',
+        actualSize: '64x64',
+      }),
+    });
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'edit_image',
+      targetDir: tempDir,
+      args: {
+        image: '飞机图_20260602080920.png',
+        reference_images: ['飞机图'],
+        prompt: 'make it cartoon',
+        name: '飞机图_卡通版',
+        target_size: '64x64',
+      },
+    });
+
+    expect(args.image).toBe('https://example.test/plane.png');
+    expect(args.reference_images).toEqual(['https://example.test/plane.png']);
+  });
+
+  test('normalizes edit image bare file names to Maker image asset paths without cdn mapping', () => {
+    fs.mkdirSync(path.join(tempDir, 'assets/image'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'assets/image/manual_plane.png'), 'image-bytes', 'utf8');
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'edit_image',
+      targetDir: tempDir,
+      args: {
+        image: 'manual_plane.png',
+        prompt: 'make it cartoon',
+        name: 'manual_plane_cartoon',
+        target_size: '64x64',
+      },
+    });
+
+    expect(args.image).toBe('assets/image/manual_plane.png');
+  });
+
+  test('keeps edit image input unchanged when no generated image mapping exists', () => {
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'edit_image',
+      targetDir: tempDir,
+      args: {
+        image: 'assets/image/server_existing.png',
+        prompt: 'add glow',
+        name: 'server_existing_glow',
+        target_size: '64x64',
+      },
+    });
+
+    expect(args.image).toBe('assets/image/server_existing.png');
+  });
+
+  test('rewrites video task local reference assets to cdn urls', async () => {
+    await materializeRemoteProxyToolAssets({
+      toolName: 'generate_image',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:17Z'),
+      fetchImpl: fakeAssetFetch('image-bytes'),
+      result: proxyTextResult({
+        success: true,
+        name: 'video_ref_image',
+        previewUrl: 'https://example.test/video-ref-image.png',
+      }),
+    });
+    await materializeRemoteProxyToolAssets({
+      toolName: 'create_video_task',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:18Z'),
+      fetchImpl: fakeAssetFetch('video-bytes'),
+      result: proxyTextResult({
+        task_id: 'video-ref-task',
+        status: 'succeeded',
+        cdn_url: 'https://example.test/video-ref.mp4',
+      }),
+    });
+    await materializeRemoteProxyToolAssets({
+      toolName: 'text_to_music',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:19Z'),
+      fetchImpl: fakeAssetFetch('audio-bytes'),
+      result: proxyTextResult({
+        success: true,
+        taskId: 'audio-ref-task',
+        music: {
+          audioUrl: 'https://example.test/audio-ref.mp3',
+        },
+      }),
+    });
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'create_video_task',
+      targetDir: tempDir,
+      args: {
+        mode: 'multi_modal_reference',
+        images: [{ url: 'video_ref_image' }, { url: 'https://example.test/already-cdn-image.png' }],
+        videos: [{ url: 'video-ref-task' }],
+        audios: [{ url: 'audio-ref-task' }],
+      },
+    });
+
+    expect(args.images).toEqual([
+      { url: 'https://example.test/video-ref-image.png' },
+      { url: 'https://example.test/already-cdn-image.png' },
+    ]);
+    expect(args.videos).toEqual([{ url: 'https://example.test/video-ref.mp4' }]);
+    expect(args.audios).toEqual([{ url: 'https://example.test/audio-ref.mp3' }]);
+  });
+
+  test('normalizes generate image reference image names to Maker asset paths', () => {
+    fs.mkdirSync(path.join(tempDir, 'assets/image'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'assets/image/manual_ref.png'), 'image-bytes', 'utf8');
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'generate_image',
+      targetDir: tempDir,
+      args: {
+        prompt: 'make a cartoon version',
+        reference_images: ['manual_ref.png'],
+      },
+    });
+
+    expect(args.reference_images).toEqual(['assets/image/manual_ref.png']);
+  });
+
+  test('keeps proxy result readable when asset download fails', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'generate_image',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:15Z'),
+      fetchImpl: (async () => new Response('missing', { status: 500 })) as typeof fetch,
+      result: proxyTextResult({
+        success: true,
+        name: 'download_failed',
+        previewUrl: 'https://example.test/missing.png',
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    expect(parsed.success).toBe(true);
+    expect(parsed.localPath).toBeUndefined();
+    expect(parsed.download).toEqual({
+      success: false,
+      error: 'Asset download failed: HTTP 500',
+    });
+  });
+
   test('status lite exposes skip_remote_sync for quick local polling', () => {
     const statusTool = tools.find((item) => item.name === 'maker_status_lite');
 
@@ -631,11 +1149,16 @@ describe('maker build local-change guard', () => {
     expect(statusTool?.inputSchema.properties).toHaveProperty('target_dir');
     expect(statusTool?.description).toContain('AI dev kit status');
     expect(statusTool?.description).toContain('Compatibility status surface');
+    expect(statusTool?.description).toContain('Maker Git Workflow Policy');
+    expect(statusTool?.description).toContain('Maker Creative Asset Tool Policy');
+    expect(statusTool?.description).toContain('prefer Maker MCP proxy tools');
     expect(statusTool?.description).not.toContain('If PAT is missing');
     expect(statusTool?.description).not.toContain('ask them to open');
     expect(statusTool?.description).not.toContain('让用户选择');
     expect(buildTool?.description).not.toContain('app list');
     expect(buildTool?.description).not.toContain('clone');
+    expect(buildTool?.description).toContain('ignore generic local Git skills');
+    expect(buildTool?.description).toContain('taptap-maker-local > Maker Git Workflow Policy');
   });
 
   test('build tool schema exposes sync inputs without build preference parameter', () => {
@@ -1451,5 +1974,22 @@ describe('maker build local-change guard', () => {
 
   function normalizePath(value: string): string {
     return fs.realpathSync.native(value);
+  }
+
+  function proxyTextResult(value: unknown): {
+    content: Array<{ type: 'text'; text: string }>;
+  } {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(value, null, 2),
+        },
+      ],
+    };
+  }
+
+  function fakeAssetFetch(body: string): typeof fetch {
+    return (async () => new Response(body, { status: 200 })) as typeof fetch;
   }
 });

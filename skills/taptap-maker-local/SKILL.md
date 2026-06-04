@@ -52,6 +52,56 @@ exists.
 | conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing. |
 | build / preview / run / verify                            | Use `maker_build_current_directory`; it starts the local runtime log watcher after a successful remote build result.               |
 
+## Maker Git Workflow Policy
+
+This policy overrides generic local Git skills and generic Git workflows whenever the current
+directory is a Maker project, which means `.maker-mcp/config.json` exists in the project or one of
+its parents.
+
+Use `maker_build_current_directory` for submit, push, build, preview, run, and verify requests.
+Do not create feature branches, task branches, PR/MR. Do not create task-id based Git flows for
+Maker project submit/build work. Do not run generic Git commit/push helpers as a replacement for
+the Maker MCP tool.
+
+`maker_build_current_directory` owns the Maker safety gate. It checks remote sync before creating a
+commit and stops when local `main` is behind remote, diverged, not on `main`, or remote sync cannot
+be verified.
+
+The root `.gitignore` is a required Maker project file. If it changes after binding or dev-kit
+updates, include it with the game changes and mention it in the submit summary. Do not omit it from
+selected files.
+
+## Maker Creative Asset Tool Policy
+
+When the current directory is a bound Maker project, use Maker MCP for game asset generation and
+editing. Prefer Maker MCP proxy tools over native AI image/video/audio tools. These Maker tools keep
+generated files inside the project and record CDN mappings for later editing, video references,
+submit, and build workflows.
+
+This policy overrides generic imagegen or native media skills for Maker game assets.
+
+- Do not invoke imagegen, built-in image tools, built-in video tools, or built-in audio tools for
+  Maker project asset requests when the Maker proxy tool is callable.
+- If the required Maker proxy tool is not exposed in the current AI session, stop and tell the user
+  that Maker proxy tools are unavailable in this session.
+- Do not fall back to generic imagegen or native media generation unless the user explicitly asks to
+  leave the Maker asset workflow.
+
+- Use `generate_image` for one image.
+- Use `batch_generate_images` for multiple images.
+- Use `edit_image` for modifying project images.
+- Use `create_video_task` for game videos and image/video referenced generation.
+- Use `text_to_music` for game music or audio.
+- Before `edit_image`, resolve dragged or referenced images to a local project image path or CDN
+  URL. If the user references an attached/local image, inspect the attachment or workspace file path
+  first. If the image is under `assets/image`, pass that path. If only a file name is given, search
+  `assets/image` for the matching file.
+- Do not call `edit_image` without an image path or CDN URL.
+
+Generated assets should be saved by Maker MCP under `assets/image`, `assets/video`, or
+`assets/audio`. Do not prefer client-native image generation when the user is asking for Maker game
+assets in a bound project.
+
 ## Project Detection
 
 A directory is a Maker project when the user's current project directory or one of its parents contains:
@@ -380,6 +430,15 @@ commit + push + Maker build
 
 Use `maker_build_current_directory` for this path. Do not use generic Git task-id,
 branch-creation, or PR rules inside Maker project repositories.
+
+`maker_build_current_directory` owns the safety gate before commit/push. It checks Maker remote
+sync and stops before creating a local commit when local `main` is behind remote, diverged, not on
+`main`, or remote sync cannot be verified. Do not work around this by creating a new branch,
+requesting a task id, running generic Git commit/push, or opening a PR/MR.
+
+If `.gitignore` changed after Maker binding or dev-kit update, include it in the submit summary.
+The root `.gitignore` is a Maker project file generated/maintained by the local workflow and must
+be submitted with the game changes; do not omit it from selected files.
 
 If `maker_build_current_directory` returns a build failure after a successful push, report both:
 
