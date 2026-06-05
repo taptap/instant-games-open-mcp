@@ -149,7 +149,7 @@ class MakerGitError extends Error {
 
 const MAKER_FIRST_CLONE_WAIT_MESSAGE =
   'First Maker clone/fetch can take 20+ seconds while the server prepares the repository. Please keep this running; transient 503/5xx errors are retried automatically.';
-const MAKER_GIT_SHALLOW_DEPTH = '1';
+const MAKER_GIT_SHALLOW_DEPTH = 1;
 
 export function getConfiguredMakerApiBase(): string | undefined {
   return getMakerEndpoints().apiBase;
@@ -378,7 +378,7 @@ export async function cloneMakerProject(
       phase: 'clone',
       message: `Checking out Maker project ${options.appId}`,
     });
-    transientRetries += await cloneOrInitializeTarget(
+    transientRetries += await fetchAndCheckoutTarget(
       target,
       authUrl,
       pat.token,
@@ -401,7 +401,7 @@ export async function cloneMakerProject(
       phase: 'clone',
       message: `Retrying Maker project checkout ${options.appId} with refreshed PAT`,
     });
-    transientRetries += await cloneOrInitializeTarget(
+    transientRetries += await fetchAndCheckoutTarget(
       target,
       authUrl,
       pat.token,
@@ -1205,7 +1205,7 @@ function makeAuthenticatedGitUrl(gitUrl: string, pat: string): string {
   return gitUrl.replace(/^https:\/\//, `https://git:${encodeURIComponent(pat)}@`);
 }
 
-async function cloneOrInitializeTarget(
+async function fetchAndCheckoutTarget(
   target: string,
   authUrl: string,
   pat: string,
@@ -1221,15 +1221,6 @@ async function cloneOrInitializeTarget(
     });
   }
 
-  return initializeAndFetchTarget(target, authUrl, pat, onProgress);
-}
-
-async function initializeAndFetchTarget(
-  target: string,
-  authUrl: string,
-  pat: string,
-  onProgress?: MakerProjectProgressHandler
-): Promise<number> {
   let transientRetries = 0;
   emitFirstCloneWaitNotice(onProgress, 'fetch');
   transientRetries += await runGitCaptureWithTransientRetry(['init', target], {
@@ -1259,7 +1250,7 @@ async function initializeAndFetchTarget(
 }
 
 function createShallowFetchArgs(): string[] {
-  return ['fetch', '--progress', `--depth=${MAKER_GIT_SHALLOW_DEPTH}`, 'origin'];
+  return ['fetch', '--progress', `--depth=${String(MAKER_GIT_SHALLOW_DEPTH)}`, 'origin'];
 }
 
 function emitFirstCloneWaitNotice(
