@@ -9,7 +9,12 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
-import { getMakerEnvironment, getMakerPatTokensUrl, type MakerEnvironment } from '../config.js';
+import {
+  getMakerEnvironment,
+  setMakerEnvironmentOverride,
+  type MakerEnvironment,
+} from '../config.js';
+import { loginWithCliAuthCode } from '../auth/cliLogin.js';
 import { requestTapAuthWithPat } from '../auth/patTap.js';
 import { saveManualMakerPat } from '../git/pat.js';
 import {
@@ -31,6 +36,7 @@ import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeL
 import { cloneMakerProject, listMakerProjects, type MakerProjectProgress } from './projects.js';
 import type { MakerProjectSummary } from '../types.js';
 import {
+  checkAiDevKitUpdate,
   DEV_KIT_GITIGNORE_STAGING_FILE,
   finalizeStagedDevKitGitignore,
   inspectAiDevKit,
@@ -77,6 +83,7 @@ type CliContext = {
 
 export async function runMakerCli(argv: string[]): Promise<void> {
   const parsed = parseArgs(argv);
+  setMakerEnvironmentOverride(makerEnvOption(parsed));
   const ctx = { json: Boolean(parsed.options.json) };
   const [command, subcommand] = parsed.command;
 
@@ -97,6 +104,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'apps') {
     await runApps(parsed, ctx);
+    return;
+  }
+
+  if (command === 'login') {
+    await runLogin(parsed, ctx);
     return;
   }
 
@@ -209,7 +221,7 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const pat = await resolvePat(parsed, ctx);
   emit(ctx, 'pat', 'Maker PAT ready', { saved: getPatPath() });
 
-  const tapAuth = await requestTapAuthWithPat(pat).catch((error) => {
+  const tapAuth = await requestTapAuthWithPat(pat, env).catch((error) => {
     throw appendPatRecoveryUrl(error, parsed);
   });
   emit(ctx, 'tap_auth', 'TapTap token exchanged and saved', {
@@ -257,6 +269,7 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   await prepareDevKit(targetDir, ctx, {
     finalizeGitignore: true,
     forceInstall: true,
+    environment: env,
   });
 
   if (!skipMcpInstall) {
@@ -288,14 +301,19 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 
 async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
+  const env = makerEnvOption(parsed);
   const git = checkGitEnvironment();
   const pat = loadPat();
   const tapAuth = loadTapAuth();
   const identify = identifyMakerProject({ cwd: targetDir });
-  const devKit = inspectAiDevKit(identify.projectRoot || targetDir);
+  const isProjectBound = Boolean(identify.projectRoot);
+  const projectRoot = identify.projectRoot || targetDir;
+  const devKit = inspectAiDevKit(projectRoot);
+  const devKitUpdate = await checkAiDevKitUpdate(projectRoot, { environment: env });
 
   if (ctx.json) {
     writeJson({
+      env,
       git,
       auth: {
         pat: Boolean(pat),
@@ -303,6 +321,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       },
       project: identify,
       dev_kit: devKit,
+      dev_kit_update: devKitUpdate,
     });
     return;
   }
@@ -310,6 +329,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   process.stdout.write(
     [
       'TapTap Maker doctor',
+      `env: ${env}`,
       '',
       'Git',
       formatGitEnvironmentStatus(git),
@@ -317,7 +337,11 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       'Auth',
       `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
       `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath()})`,
-      pat ? '' : `- pat_page: ${getMakerPatTokensUrl(makerEnvOption(parsed))}`,
+      pat
+        ? ''
+        : isProjectBound
+          ? '- next_auth_step: taptap-maker login'
+          : '- next_step: taptap-maker init',
       '',
       'Project',
       `- target_dir: ${targetDir}`,
@@ -327,8 +351,12 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       'AI dev kit',
       `- ready: ${devKit.ready ? 'yes' : 'no'}`,
       `- missing_entries: ${devKit.missingEntries.join(', ') || '(none)'}`,
+      `- installed_version: ${devKitUpdate.installed?.version || '(unknown)'}`,
+      `- latest_version: ${devKitUpdate.latest?.version || '(unknown)'}`,
+      `- update_available: ${devKitUpdate.updateAvailable ? 'yes' : 'no'}`,
+      devKitUpdate.versionCheckError ? `- version_check: ${devKitUpdate.versionCheckError}` : '',
       '',
-      formatMakerSkillStatus({ projectRoot: identify.projectRoot || targetDir }),
+      formatMakerSkillStatus({ projectRoot }),
       '',
     ]
       .filter(Boolean)
@@ -354,10 +382,30 @@ async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   process.stdout.write(`${formatMakerProjectList(projects, { showAll })}\n`);
 }
 
+async function runLogin(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  const env = makerEnvOption(parsed);
+  const pat = await loginWithCliAuthCode({
+    env,
+    onStatus: (message) => emit(ctx, 'login', message),
+  });
+  saveManualMakerPat(pat.token);
+  const tapAuth = await requestTapAuthWithPat(pat.token, env).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
+  });
+  emit(ctx, 'login', 'Maker CLI login completed', {
+    env,
+    code: pat.code,
+    pat_path: getPatPath(),
+    tap_auth_path: getTapAuthPath(),
+    kid: mask(tapAuth.kid),
+  });
+}
+
 async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const pat = await resolvePatSet(parsed, ctx);
   saveManualMakerPat(pat);
-  const tapAuth = await requestTapAuthWithPat(pat).catch((error) => {
+  const env = makerEnvOption(parsed);
+  const tapAuth = await requestTapAuthWithPat(pat, env).catch((error) => {
     throw appendPatRecoveryUrl(error, parsed);
   });
   emit(ctx, 'pat', 'Maker PAT and TapTap token saved', {
@@ -384,9 +432,13 @@ async function resolvePatSet(parsed: ParsedArgs, ctx: CliContext): Promise<strin
   }
 
   if (!ctx.json) {
-    process.stdout.write(`Create one at: ${getMakerPatTokensUrl(makerEnvOption(parsed))}\n`);
+    process.stdout.write('Starting Maker CLI login...\n');
   }
-  return promptRequired('PAT');
+  const result = await loginWithCliAuthCode({
+    env: makerEnvOption(parsed),
+    onStatus: (message) => emit(ctx, 'login', message),
+  });
+  return result.token;
 }
 
 async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -521,7 +573,9 @@ async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
   const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
   const result = await installAiDevKit({
     targetDir,
-    preserveExisting: true,
+    preserveExisting: false,
+    replaceManagedEntries: true,
+    environment: makerEnvOption(parsed),
   });
   finalizeStagedDevKitGitignore(targetDir);
   emit(ctx, 'dev_kit', formatDevKitInstallMessage('AI dev kit updated', result), result);
@@ -667,18 +721,21 @@ async function resolvePat(parsed: ParsedArgs, ctx: CliContext): Promise<string> 
 
   if (booleanOption(parsed, 'skip_confirm')) {
     throw new Error(
-      `Maker PAT missing. Create one at ${getMakerPatTokensUrl(makerEnvOption(parsed))}`
+      'Maker PAT missing. Run `taptap-maker login` or provide --pat/MAKER_PAT for non-interactive init.'
     );
   }
 
-  const patPage = getMakerPatTokensUrl(makerEnvOption(parsed));
-  emit(ctx, 'pat_required', 'Maker PAT is required', {
-    pat_page: patPage,
+  emit(ctx, 'pat_required', 'Maker login is required', {
+    next_step: 'taptap-maker login',
   });
   if (!ctx.json) {
-    process.stdout.write(`Create one at: ${patPage}\n`);
+    process.stdout.write('Starting Maker CLI login...\n');
   }
-  const pat = await promptRequired('Paste Maker PAT');
+  const loginResult = await loginWithCliAuthCode({
+    env: makerEnvOption(parsed),
+    onStatus: (message) => emit(ctx, 'login', message),
+  });
+  const pat = loginResult.token;
   saveManualMakerPat(pat);
   return pat;
 }
@@ -771,6 +828,7 @@ async function prepareDevKit(
     preserveExisting?: boolean;
     finalizeGitignore?: boolean;
     forceInstall?: boolean;
+    environment?: MakerEnvironment;
   } = {}
 ): Promise<void> {
   const before = inspectAiDevKit(targetDir);
@@ -815,6 +873,7 @@ async function prepareDevKit(
     const result = await installAiDevKit({
       targetDir,
       preserveExisting: options.preserveExisting,
+      environment: options.environment,
       onSkillInstallerStart: (event) => emitSkillInstallerStart(ctx, event),
     });
     if (options.finalizeGitignore) {
@@ -862,20 +921,14 @@ function emitDevKitSkillInstallerFailure(
   });
 }
 
-function appendPatRecoveryUrl(error: unknown, parsed: ParsedArgs): Error {
+function appendPatRecoveryUrl(error: unknown, _parsed: ParsedArgs): Error {
   const message = error instanceof Error ? error.message : String(error);
-  if (!isPatValidationFailure(message) || message.includes('/pat-tokens')) {
+  if (!isPatValidationFailure(message)) {
     return error instanceof Error ? error : new Error(message);
   }
 
-  const patPage = getMakerPatTokensUrl(makerEnvOption(parsed));
   return new Error(
-    [
-      message,
-      '',
-      `PAT 页面：${patPage}`,
-      '请在该页面创建新的 Maker PAT，然后运行 `taptap-maker pat set` 并粘贴 PAT。',
-    ].join('\n')
+    [message, '', '请运行 `taptap-maker login` 重新完成 Maker CLI 登录授权。'].join('\n')
   );
 }
 
@@ -1327,7 +1380,8 @@ function makerEnvOption(parsed: ParsedArgs): MakerEnvironment {
   if (env === 'rnd' || env === 'production') {
     return env;
   }
-  return getMakerEnvironment();
+  const targetDir = stringOption(parsed, 'target_dir');
+  return getMakerEnvironment(undefined, targetDir ? path.resolve(targetDir) : process.cwd());
 }
 
 function mcpVerifyModeOption(parsed: ParsedArgs): 'npx' | 'self' {
@@ -1399,8 +1453,9 @@ function printHelp(): void {
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
       '  taptap-maker apps [--pat PAT] [--all] [--json]',
       '                     # --pat warns: PAT appears in ps/history',
+      '  taptap-maker login [--env rnd|production] [--json]',
       '  taptap-maker pat set [--pat-stdin] [--json]',
-      '  taptap-maker pat set [PAT|--pat PAT] [--json]  # warns: PAT appears in ps/history',
+      '  taptap-maker pat set [PAT|--pat PAT] [--json]  # fallback; warns: PAT appears in ps/history',
       '  taptap-maker install [--ide codex,cursor,claude] [--env rnd|production]',
       '                        [--json]  # alias for mcp install',
       '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',

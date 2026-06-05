@@ -339,10 +339,13 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 
 - Maker CLI-first 重构后的正式说明在 `docs/MAKER.md`；面向团队介绍的功能总览在 `docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`。上下文压缩或长时间中断后，先读这两份文档再继续。
 - 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，由该 CLI 统一处理初始化流程。
-- 如果本地没有 Maker PAT，CLI 会引导用户打开当前环境的 PAT 页面新建 PAT，并把 PAT 发给 Agent：production 使用 `https://maker.taptap.cn/pat-tokens`，RND 使用 `https://fuping.agnt.xd.com/pat-tokens`。
-- 用户提供 Maker PAT 后，运行 `taptap-maker pat set` 并在 prompt 中粘贴，或在 `taptap-maker init` 里粘贴；CLI 会保存到 `~/.taptap-maker/pat.json`，兼容旧路径 `~/.maker-pat`，并调用 `GET /api/v1/user/taptap-token` 获取 TapTap MAC token。兼容写法 `taptap-maker pat set <PAT>` 会让 PAT 进入 `ps`/shell history，仅在用户明确接受风险时使用。
-- `taptap-maker init` 会检查 Git、PAT、TapTap token、当前目录绑定状态、app 列表、AI dev kit，并在用户选择 app 后 clone 到当前目录。app 文本预览默认展示前 40 个；账号 app 很多时在 init 交互中输入 `all` 一次性展开全部，或单独跑 `taptap-maker apps --all`；`taptap-maker apps --json` 仅给 AI / 脚本解析使用。AI 转述时宽屏可用两列紧凑布局，窄屏保持单列；每个 app 保留 app_id，并在用户确认后选择 app。
-- `taptap-maker init` 的 Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
+- 如果本地没有当前环境的 Maker PAT，CLI 默认运行 CLI 登录：生成满足 `^[A-Za-z0-9_-]{16,128}$` 的临时 code，按需打开当前环境的 `/pat-tokens?code=<code>`，用户登录并点击“创建 token”后，CLI 轮询 `/api/v1/cli-auth/result?code=<code>`，拿到授权结果后完成本地鉴权配置。
+- Maker 鉴权文件必须沿用线上已发布版本的原始本地保存路径，不要为 production 或 rnd 新建环境子目录；不要在用户文档或普通用户说明里暴露具体凭证缓存路径。
+- 用户可运行 `taptap-maker login` 主动刷新当前环境鉴权；`taptap-maker init` 和无参数 `taptap-maker pat set` 缺 PAT 时也走 CLI 登录。兼容写法 `taptap-maker pat set <PAT>`、`--pat PAT` 或 `--pat-stdin` 仅用于 CI / 应急联调，其中 argv 形式会让 PAT 进入 `ps`/shell history。
+- 本地研发环境配置只作为内部开发能力处理：CLI/MCP 按当前环境使用对应配置，显式 `--env` 或 `TAPTAP_MCP_ENV` 优先；项目目录级配置只读取 `.maker/taptap-maker.local.json`，不读取项目根目录散落的本地配置文件；不要把内部研发配置写入面向用户的 README/使用文档。
+- `taptap-maker init` 会检查 Git、PAT、TapTap token、当前目录绑定状态、app 列表、AI dev kit，并在用户选择 app 后先记录 `.maker-mcp/config.json`，再 checkout 到当前目录；clone/fetch 失败后重复执行 init 会复用已记录 app，显式选择不同 app 会拒绝覆盖已有绑定。app 文本预览默认展示前 40 个；账号 app 很多时在 init 交互中输入 `all` 一次性展开全部，或单独跑 `taptap-maker apps --all`；`taptap-maker apps --json` 仅给 AI / 脚本解析使用。AI 转述时宽屏可用两列紧凑布局，窄屏保持单列；每个 app 保留 app_id，并在用户确认后选择 app。
+- AI dev kit 安装/更新按当前环境查询最新版本信息，按返回的 `current.version` 生成版本化下载 URL；版本检查失败时降级使用内置默认下载地址。安装成功后记录本地已安装版本，`taptap-maker doctor`、`maker://status` 和 `maker_status_lite` 输出当前版本、最新版本和是否可更新。
+- `taptap-maker init` 首次拉取默认使用 `git init` + `git fetch --depth=1 origin` + checkout；Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
 - 首次 clone/fetch 前必须提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
 - CLI 写 MCP 配置时优先支持 Windows：Windows 使用 `npx.cmd`，Git 引导优先指向 Git for Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方 Git。
 - `taptap-maker mcp verify` 默认验证 `mcp install` 写入配置的 npx 包命令能否启动；本地开发只验证当前 CLI 时使用 `--mode self`。
@@ -351,7 +354,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、
   `edit_image`、`create_video_task` 和 `text_to_music`，用于试用图片/视频/音乐生成链路，
   且本地不重新封装远端 tool schema 或返回值。
-- 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。已绑定项目会输出 `Maker remote sync`，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main；按其中 `next_action` 引导用户，避免开发后才在 push 阶段遇到冲突。
+- 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。已绑定项目会输出 `Maker remote sync` 和 AI dev kit 版本检查结果，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main，以及是否需要运行 `taptap-maker dev-kit update`；按其中 `next_action` / `next_step` 引导用户。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
 - 用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都调用 `maker_build_current_directory`。它会在本地有改动或 ahead commit 时先 commit/push，push 成功后才远端 build。
 - push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。

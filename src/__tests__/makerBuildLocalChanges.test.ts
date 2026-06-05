@@ -13,8 +13,11 @@ import {
   MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
   materializeRemoteProxyToolAssets,
   prepareRemoteProxyToolArgs,
+  createRemoteProxyContext,
   createRemoteRuntimeLogClient,
+  refreshMakerPreview,
   formatBuildResult,
+  formatAiDevKitStatus,
   formatClonePartialStateLines,
   formatMakerProxyToolsStatusSafely,
   formatMakerRemoteSyncStatusSafely,
@@ -32,13 +35,15 @@ import {
   pushMakerProject,
   readMakerProjectLocalChanges,
 } from '../maker/cli/projects';
-import { saveProjectConfig } from '../maker/storage';
+import { savePat, saveProjectConfig, saveTapAuth } from '../maker/storage';
+import { AI_DEV_KIT_VERSION_METADATA_FILE } from '../maker/cli/devKit';
 
 describe('maker build local-change guard', () => {
   let tempDir: string;
   const originalMakerHome = process.env.TAPTAP_MAKER_HOME;
   const originalGitBase = process.env.TAPTAP_MAKER_GIT_BASE;
   const originalPat = process.env.PAT;
+  const originalEnv = process.env.TAPTAP_MCP_ENV;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-build-local-changes-'));
@@ -74,6 +79,11 @@ describe('maker build local-change guard', () => {
     } else {
       process.env.PAT = originalPat;
     }
+    if (originalEnv === undefined) {
+      delete process.env.TAPTAP_MCP_ENV;
+    } else {
+      process.env.TAPTAP_MCP_ENV = originalEnv;
+    }
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -101,6 +111,37 @@ describe('maker build local-change guard', () => {
 
     expect(changes.hasChanges).toBe(true);
     expect(changes.files).toContain(fileName);
+  });
+
+  test('remote proxy context uses project local rnd environment config', () => {
+    process.env.TAPTAP_MCP_ENV = 'production';
+    saveTapAuth({
+      kid: 'prod-kid',
+      token: 'prod-token',
+      mac_key: 'prod-mac-key',
+    });
+    process.env.TAPTAP_MCP_ENV = 'rnd';
+    saveTapAuth({
+      kid: 'rnd-kid',
+      token: 'rnd-token',
+      mac_key: 'rnd-mac-key',
+    });
+    delete process.env.TAPTAP_MCP_ENV;
+    fs.mkdirSync(path.join(tempDir, '.maker'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.maker', 'taptap-maker.local.json'),
+      '{"env":"rnd"}\n',
+      'utf8'
+    );
+
+    const proxy = createRemoteProxyContext({ targetDir: tempDir });
+    const proxyConfig = JSON.parse(proxy.proxyConfigJson);
+
+    expect(proxy.env).toBe('rnd');
+    expect(proxy.serverUrl).toBe('https://fuping.agnt.xd.com/mcp/v1');
+    expect(proxyConfig.server.env).toBe('rnd');
+    expect(proxyConfig.auth.kid).toBe('rnd-kid');
+    expect(proxyConfig.auth.mac_key).toBe('rnd-mac-key');
   });
 
   test('reports committed but unpushed Maker changes', async () => {
@@ -157,16 +198,18 @@ describe('maker build local-change guard', () => {
     const nextAction = getMakerRemoteSyncFailureNextAction({
       classification: 'auth',
       retryable: false,
-      nextAction: '运行 `taptap-maker pat set` 并粘贴新的 Maker PAT。',
+      nextAction: '运行 `taptap-maker login` 重新完成 Maker 登录授权。',
     });
 
-    expect(nextAction).toContain('taptap-maker pat set');
-    expect(nextAction).toContain('https://maker.taptap.cn/pat-tokens');
+    expect(nextAction).toContain('taptap-maker login');
+    expect(nextAction).not.toContain('pat-tokens');
+    expect(nextAction).not.toContain('PAT 页面');
+    expect(nextAction).not.toContain('粘贴');
     expect(
       getMakerRemoteSyncFailureNextAction({
         classification: 'auth',
         retryable: false,
-        nextAction: '运行 `taptap-maker pat set` 并粘贴新的 Maker PAT。',
+        nextAction: '运行 `taptap-maker login` 重新完成 Maker 登录授权。',
       })
     ).not.toContain('控制台');
   });
@@ -1141,6 +1184,76 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- next_action: 远端同步检查失败');
   });
 
+  test('AI dev kit status checks latest version for new AI conversations', async () => {
+    fs.writeFileSync(path.join(tempDir, 'CLAUDE.md'), '# guide\n', 'utf8');
+    fs.mkdirSync(path.join(tempDir, 'examples'), { recursive: true });
+    fs.mkdirSync(path.join(tempDir, 'templates'), { recursive: true });
+    fs.mkdirSync(path.join(tempDir, 'urhox-libs'), { recursive: true });
+    fs.mkdirSync(path.join(tempDir, '.maker'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, AI_DEV_KIT_VERSION_METADATA_FILE),
+      JSON.stringify({
+        env: 'production',
+        version: '20260604-150856',
+        source_url:
+          'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/20260604-150856/ai-dev-kit.zip',
+        installed_at: '2026-06-04T16:00:00.000Z',
+      }),
+      'utf8'
+    );
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({
+        current: {
+          version: '20260605-053736',
+          md5: '6ced394e09fed25c2b946889e0171b36',
+          size: 27048639,
+          uploaded_at: '2026-06-05T05:37:52.000Z',
+        },
+        history: [],
+      }),
+    })) as jest.MockedFunction<typeof fetch>;
+
+    try {
+      const output = await formatAiDevKitStatus(tempDir);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://maker.taptap.cn/mcp/v1/ai-dev-kit/versions',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Accept: 'application/json' }),
+        })
+      );
+      expect(output).toContain('- installed_version: 20260604-150856');
+      expect(output).toContain('- latest_version: 20260605-053736');
+      expect(output).toContain('- update_available: yes');
+      expect(output).toContain('- next_step: 请运行 taptap-maker dev-kit update。');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('AI dev kit status can skip latest version check for frequent polling', async () => {
+    fs.writeFileSync(path.join(tempDir, 'CLAUDE.md'), '# guide\n', 'utf8');
+    fs.mkdirSync(path.join(tempDir, 'examples'), { recursive: true });
+    fs.mkdirSync(path.join(tempDir, 'templates'), { recursive: true });
+    fs.mkdirSync(path.join(tempDir, 'urhox-libs'), { recursive: true });
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn() as jest.MockedFunction<typeof fetch>;
+
+    try {
+      const output = await formatAiDevKitStatus(tempDir, { skipVersionCheck: true });
+
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(output).toContain('- version_check: skipped');
+      expect(output).not.toContain('- latest_version:');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   test('initialization guidance is removed from MCP tools', () => {
     const statusTool = tools.find((item) => item.name === 'maker_status_lite');
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
@@ -1600,6 +1713,45 @@ describe('maker build local-change guard', () => {
     expect(refreshedProjects).toEqual(['app-1']);
     expect(result.mode).toBe('remote_build');
     expect('previewRefresh' in result ? result.previewRefresh?.ok : undefined).toBe(true);
+  });
+
+  test('default preview refresh uses PAT from the remote build environment', async () => {
+    process.env.TAPTAP_MAKER_HOME = path.join(os.tmpdir(), `maker-home-${path.basename(tempDir)}`);
+    process.env.TAPTAP_MCP_ENV = 'production';
+    savePat({ token: 'prod-pat' });
+    process.env.TAPTAP_MCP_ENV = 'rnd';
+    savePat({ token: 'rnd-pat' });
+    delete process.env.TAPTAP_MCP_ENV;
+    const fetchMock = jest.fn(async () => new Response('ok', { status: 200 }));
+    const originalFetch = global.fetch;
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const result = await refreshMakerPreview({
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: {},
+        resultText: 'build ok',
+      });
+
+      expect(result.ok).toBe(true);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://fuping.agnt.xd.com/api/v1/apps/app-1/preview-refresh',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer rnd-pat',
+          }),
+        })
+      );
+    } finally {
+      global.fetch = originalFetch;
+      fs.rmSync(process.env.TAPTAP_MAKER_HOME || '', { recursive: true, force: true });
+    }
   });
 
   test('remote build starts local runtime log watcher after a successful build result', async () => {

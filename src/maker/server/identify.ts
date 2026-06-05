@@ -6,7 +6,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { MakerIdentifyResult, MakerProjectConfig } from '../types.js';
 import { getProjectConfigPath, getProjectMarkerDirName } from '../storage.js';
-import { getMakerPatTokensUrl } from '../config.js';
 
 function parseConfig(configPath: string): MakerProjectConfig | null {
   try {
@@ -70,8 +69,8 @@ export function formatIdentifyHint(): string {
   return [
     '当前目录尚未绑定 Maker 项目。',
     '',
-    '初始化流程请参考 taptap-maker-local skill。',
-    `Maker PAT 页面：${getMakerPatTokensUrl()}`,
+    '初始化流程请运行 `taptap-maker init`；缺少本地鉴权时 CLI 会自动进入登录授权。',
+    '本地鉴权失效时请运行 `taptap-maker login`。',
     '',
     `clone 成功后会在当前目录写入 ${getProjectMarkerDirName()}/config.json。`,
   ].join('\n');

@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   AI_DEV_KIT_URLS,
+  AI_DEV_KIT_VERSION_METADATA_FILE,
+  checkAiDevKitUpdate,
   createDevKitGitignoreBlock,
   DEV_KIT_GITIGNORE_STAGING_FILE,
   finalizeStagedDevKitGitignore,
@@ -12,7 +14,10 @@ import {
   installAiDevKitSkills,
   listPresentDevKitManagedEntries,
   mergeDevKitGitignore,
+  readAiDevKitVersionMetadata,
+  resolveAiDevKitDownload,
   resolveDefaultAiDevKitUrl,
+  writeAiDevKitVersionMetadata,
 } from '../maker/cli/devKit';
 
 describe('Maker AI dev kit install', () => {
@@ -293,7 +298,7 @@ describe('Maker AI dev kit install', () => {
     expect(block).not.toContain('.DS_Store/');
   });
 
-  test('restores missing dev kit files without overwriting existing local files', async () => {
+  test('supports preserveExisting when restoring missing helper files', async () => {
     fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(path.join(targetDir, 'CLAUDE.md'), 'user edits\n', 'utf8');
 
@@ -312,6 +317,29 @@ describe('Maker AI dev kit install', () => {
     expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'templates', 'README.md'))).toBe(true);
     expect(inspectAiDevKit(targetDir).ready).toBe(true);
+  });
+
+  test('replaces managed dev kit files and removes stale managed entries', async () => {
+    fs.mkdirSync(path.join(targetDir, 'examples'), { recursive: true });
+    fs.mkdirSync(path.join(targetDir, 'schemas'), { recursive: true });
+    fs.writeFileSync(path.join(targetDir, 'CLAUDE.md'), 'old guide\n', 'utf8');
+    fs.writeFileSync(path.join(targetDir, 'examples', 'README.md'), 'old examples\n', 'utf8');
+    fs.writeFileSync(path.join(targetDir, 'examples', 'removed.md'), 'stale\n', 'utf8');
+    fs.writeFileSync(path.join(targetDir, 'schemas', 'old.schema.json'), '{}\n', 'utf8');
+    mergeDevKitGitignore(path.join(targetDir, '.gitignore'), ['CLAUDE.md', 'examples', 'schemas']);
+
+    await installAiDevKit({
+      sourceDir,
+      targetDir,
+      replaceManagedEntries: true,
+    });
+
+    expect(fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8')).toBe('local agent docs\n');
+    expect(fs.readFileSync(path.join(targetDir, 'examples', 'README.md'), 'utf8')).toBe(
+      'examples\n'
+    );
+    expect(fs.existsSync(path.join(targetDir, 'examples', 'removed.md'))).toBe(false);
+    expect(fs.existsSync(path.join(targetDir, 'schemas'))).toBe(false);
   });
 
   test('stages a managed gitignore block for installed entries before clone', async () => {
@@ -394,6 +422,114 @@ describe('Maker AI dev kit install', () => {
     });
   });
 
+  describe('ai dev kit version checks', () => {
+    const currentVersionPayload = {
+      env: 'rnd',
+      current: {
+        version: '20260605-053736',
+        md5: '6ced394e09fed25c2b946889e0171b36',
+        size: 27048639,
+        uploaded_at: '2026-06-05T05:37:52.000Z',
+      },
+      history: [],
+      history_count: 10,
+      from_cache: false,
+      queried_at: '2026-06-05T10:03:59.207Z',
+    };
+
+    test('resolves rnd download URL from the version endpoint', async () => {
+      const fetchImpl = jest.fn(async () => jsonResponse(currentVersionPayload));
+
+      const result = await resolveAiDevKitDownload({
+        environment: 'rnd',
+        fetchImpl,
+      });
+
+      expect(fetchImpl).toHaveBeenCalledWith(
+        'https://fuping.agnt.xd.com/mcp/v1/ai-dev-kit/versions',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Accept: 'application/json',
+          }),
+          signal: expect.any(Object),
+        })
+      );
+      expect(result.url).toBe(
+        'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/rnd/20260605-053736/ai-dev-kit.zip'
+      );
+      expect(result.version?.current.version).toBe('20260605-053736');
+      expect(result.version?.current.md5).toBe('6ced394e09fed25c2b946889e0171b36');
+    });
+
+    test('resolves production version endpoint from the production MCP base URL', async () => {
+      const fetchImpl = jest.fn(async () =>
+        jsonResponse({
+          ...currentVersionPayload,
+          env: 'production',
+        })
+      );
+
+      const result = await resolveAiDevKitDownload({
+        environment: 'production',
+        fetchImpl,
+      });
+
+      expect(fetchImpl).toHaveBeenCalledWith(
+        'https://maker.taptap.cn/mcp/v1/ai-dev-kit/versions',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Accept: 'application/json',
+          }),
+          signal: expect.any(Object),
+        })
+      );
+      expect(result.url).toBe(
+        'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/20260605-053736/ai-dev-kit.zip'
+      );
+    });
+
+    test('falls back to the default env URL when the version endpoint fails', async () => {
+      const fetchImpl = jest.fn(async () => {
+        throw new Error('network unavailable');
+      });
+
+      const result = await resolveAiDevKitDownload({
+        environment: 'rnd',
+        fetchImpl,
+      });
+
+      expect(result.url).toBe(AI_DEV_KIT_URLS.rnd);
+      expect(result.version).toBeUndefined();
+      expect(result.versionCheckError).toContain('network unavailable');
+    });
+
+    test('records installed version metadata and detects updates', async () => {
+      fs.mkdirSync(targetDir, { recursive: true });
+      writeAiDevKitVersionMetadata(targetDir, {
+        env: 'rnd',
+        version: '20260604-150856',
+        md5: 'b50d18ea11dab3be793a59b2d5feebc7',
+        size: 27048608,
+        uploaded_at: '2026-06-04T15:09:13.000Z',
+        source_url:
+          'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/rnd/20260604-150856/ai-dev-kit.zip',
+        installed_at: '2026-06-04T16:00:00.000Z',
+      });
+
+      const metadata = readAiDevKitVersionMetadata(targetDir);
+      const update = await checkAiDevKitUpdate(targetDir, {
+        environment: 'rnd',
+        fetchImpl: jest.fn(async () => jsonResponse(currentVersionPayload)),
+      });
+
+      expect(fs.existsSync(path.join(targetDir, AI_DEV_KIT_VERSION_METADATA_FILE))).toBe(true);
+      expect(metadata?.version).toBe('20260604-150856');
+      expect(update.installed?.version).toBe('20260604-150856');
+      expect(update.latest?.version).toBe('20260605-053736');
+      expect(update.updateAvailable).toBe(true);
+    });
+  });
+
   test('finalizes staged gitignore after clone and removes staging file', () => {
     fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(path.join(targetDir, '.gitignore'), 'remote-rule.txt\n', 'utf8');
@@ -412,3 +548,10 @@ describe('Maker AI dev kit install', () => {
     expect(fs.existsSync(path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE))).toBe(false);
   });
 });
+
+function jsonResponse(value: unknown): Response {
+  return new Response(JSON.stringify(value), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}

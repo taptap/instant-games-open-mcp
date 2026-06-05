@@ -6,7 +6,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { requestTapAuthWithPat } from '../maker/auth/patTap';
-import { getTapAuthPath, loadTapAuth } from '../maker/storage';
+import { setMakerEnvironmentOverride } from '../maker/config';
+import {
+  getPatPath,
+  getTapAuthPath,
+  loadPat,
+  loadTapAuth,
+  savePat,
+  saveTapAuth,
+} from '../maker/storage';
 
 describe('maker PAT TapTap token exchange', () => {
   const originalFetch = global.fetch;
@@ -14,6 +22,7 @@ describe('maker PAT TapTap token exchange', () => {
   const originalPat = process.env.PAT;
   const originalMakerPat = process.env.MAKER_PAT;
   const originalTapTokenUrl = process.env.TAPTAP_MAKER_TAP_TOKEN_URL;
+  const originalEnv = process.env.TAPTAP_MCP_ENV;
   let tempDir: string;
 
   beforeEach(() => {
@@ -22,6 +31,8 @@ describe('maker PAT TapTap token exchange', () => {
     process.env.PAT = 'tmpct_test_pat';
     delete process.env.MAKER_PAT;
     process.env.TAPTAP_MAKER_TAP_TOKEN_URL = 'https://maker.example.test/api/v1/user/taptap-token';
+    delete process.env.TAPTAP_MCP_ENV;
+    setMakerEnvironmentOverride(undefined);
   });
 
   afterEach(() => {
@@ -30,6 +41,8 @@ describe('maker PAT TapTap token exchange', () => {
     restoreEnv('PAT', originalPat);
     restoreEnv('MAKER_PAT', originalMakerPat);
     restoreEnv('TAPTAP_MAKER_TAP_TOKEN_URL', originalTapTokenUrl);
+    restoreEnv('TAPTAP_MCP_ENV', originalEnv);
+    setMakerEnvironmentOverride(undefined);
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -64,6 +77,33 @@ describe('maker PAT TapTap token exchange', () => {
     });
     expect(loadTapAuth()).toMatchObject(auth);
     expect(fs.existsSync(getTapAuthPath())).toBe(true);
+  });
+
+  test('uses the original flat auth paths for production and rnd', () => {
+    setMakerEnvironmentOverride('production');
+    savePat({ token: 'prod-pat' });
+    saveTapAuth({ kid: 'prod-kid', token: 'prod-token', mac_key: 'prod-mac-key' });
+    const prodPatPath = getPatPath();
+    const prodTapAuthPath = getTapAuthPath();
+
+    setMakerEnvironmentOverride('rnd');
+    savePat({ token: 'rnd-pat' });
+    saveTapAuth({ kid: 'rnd-kid', token: 'rnd-token', mac_key: 'rnd-mac-key' });
+    const rndPatPath = getPatPath();
+    const rndTapAuthPath = getTapAuthPath();
+
+    expect(prodPatPath).toBe(path.join(tempDir, 'pat.json'));
+    expect(rndPatPath).toBe(path.join(tempDir, 'pat.json'));
+    expect(prodTapAuthPath).toBe(path.join(tempDir, 'tap-auth.json'));
+    expect(rndTapAuthPath).toBe(path.join(tempDir, 'tap-auth.json'));
+    expect(fs.existsSync(path.join(tempDir, 'production'))).toBe(false);
+    expect(fs.existsSync(path.join(tempDir, 'rnd'))).toBe(false);
+    expect(loadPat()).toMatchObject({ token: 'rnd-pat' });
+    expect(loadTapAuth()).toMatchObject({ kid: 'rnd-kid' });
+
+    setMakerEnvironmentOverride('production');
+    expect(loadPat()).toMatchObject({ token: 'rnd-pat' });
+    expect(loadTapAuth()).toMatchObject({ kid: 'rnd-kid' });
   });
 });
 

@@ -39,19 +39,19 @@ export function getMakerHome(): string {
 }
 
 export function getJwtPath(): string {
-  return path.join(getMakerHome(), 'jwt.json');
+  return getMakerCredentialPath('jwt.json');
 }
 
 export function getPatPath(): string {
-  return path.join(getMakerHome(), 'pat.json');
+  return getMakerCredentialPath('pat.json');
 }
 
 export function getTapDeviceSessionPath(): string {
-  return path.join(getMakerHome(), 'tap-device-session.json');
+  return getMakerCredentialPath('tap-device-session.json');
 }
 
 export function getTapAuthPath(): string {
-  return path.join(getMakerHome(), 'tap-auth.json');
+  return getMakerCredentialPath('tap-auth.json');
 }
 
 export function getLegacyPatPath(): string {
@@ -99,8 +99,6 @@ export function savePat(pat: MakerPat): void {
     ...pat,
     saved_at: new Date().toISOString(),
   });
-
-  fs.writeFileSync(getLegacyPatPath(), `${pat.token}\n`, 'utf8');
 }
 
 export function clearPat(): void {
@@ -182,4 +180,8 @@ export function saveProjectConfig(projectRoot: string, config: MakerProjectConfi
 
 export function getProjectMarkerDirName(): string {
   return PROJECT_DIR;
+}
+
+function getMakerCredentialPath(fileName: string): string {
+  return path.join(getMakerHome(), fileName);
 }

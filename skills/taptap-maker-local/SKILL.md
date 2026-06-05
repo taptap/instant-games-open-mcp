@@ -177,7 +177,7 @@ Keep the user-facing explanation short:
 
 ```text
 我会先用 Maker CLI 检查本机 Git、PAT 和当前目录是否已绑定 Maker 项目。
-如果还没有 PAT，CLI 会让你去页面创建一个；拿到项目列表后你选游戏，我再拉代码。
+如果还没有本地鉴权，CLI 会打开 Maker 授权页；授权完成后拿到项目列表，你选游戏，我再拉代码。
 ```
 
 ## AI Dev Kit Preparation
@@ -188,20 +188,16 @@ dev-kit files to overwrite same-path local helper files; the managed `.gitignore
 those files local-only. The `.gitignore` file itself is a required Maker project file that should be
 submitted to Maker Git.
 
-`taptap-maker doctor` and `maker://status` check the dev-kit top-level entries for an already bound
-Maker project. If `CLAUDE.md`, `examples/`, `templates/`, or `urhox-libs/` are missing, run
-`taptap-maker dev-kit update` to restore the dev kit without overwriting existing local files and
-refresh the managed `.gitignore` block.
+`taptap-maker doctor`, `maker://status`, and `maker_status_lite` check the dev-kit top-level
+entries and version state for an already bound Maker project. If `CLAUDE.md`, `examples/`,
+`templates/`, or `urhox-libs/` are missing, or if the status reports `update_available: yes`, run
+`taptap-maker dev-kit update` to refresh the managed dev kit files and the managed `.gitignore`
+block. The update command replaces dev-kit managed entries so version metadata and local files stay
+consistent. Do not call the version API directly from the skill; use the CLI/MCP status output.
 
-The CLI downloads and installs (selected automatically by `TAPTAP_MCP_ENV`):
-
-```text
-# production (default)
-https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip
-
-# rnd
-https://urhox-demo-platform.spark.xd.com/ai-dev-kit/rnd/latest/ai-dev-kit.zip
-```
+The CLI checks the latest AI dev kit version for the current environment, downloads that version,
+and records the installed version locally. If the version check is temporarily unavailable, the CLI
+falls back to its built-in default download URL instead of blocking initialization.
 
 After clone, use the bundled `taptap-maker-dev-kit-guide` skill to explain the installed dev-kit
 resources to the local AI/Agent:
@@ -238,18 +234,19 @@ permission errors until the reported cause is fixed.
 
 ## PAT Handling
 
-If the user pastes a token-like string while the initialization flow is waiting for PAT, let the
-running `taptap-maker init` prompt consume it, or run `taptap-maker pat set` and paste the PAT into
-the prompt. Do not put PAT directly in argv unless the user explicitly accepts the ps/shell-history
-exposure. Do not just say "received". If the directory is already bound, treat `taptap-maker apps`
-output as account reference only and continue the user's current bound-project task.
+If local Maker auth is missing or expired, run `taptap-maker login`. The CLI opens the Maker auth
+page and polls the authorization result; do not ask the user to open a PAT page or manually paste a
+PAT for normal local development. `taptap-maker pat set <PAT>`, `--pat PAT`, and `--pat-stdin` are
+compatibility fallbacks for CI or emergency debugging only. Do not put PAT directly in argv unless
+the user explicitly accepts the ps/shell-history exposure. If the directory is already bound, treat
+`taptap-maker apps` output as account reference only and continue the user's current bound-project
+task.
 
 If PAT exchange fails:
 
-1. Show the PAT page URL for the current environment:
-   production `https://maker.taptap.cn/pat-tokens`, RND `https://fuping.agnt.xd.com/pat-tokens`.
-2. Ask the user to create a new Maker PAT on that page.
-3. Run `taptap-maker pat set` and paste the PAT into the prompt.
+1. Ask the user to run `taptap-maker login` again.
+2. Do not switch to JWT/OAuth fallback or manual PAT fallback unless the user explicitly asks for
+   CI/emergency debugging.
 
 ## App Selection
 
@@ -387,7 +384,8 @@ For a bound Maker project, `maker://status` and `maker_status_lite` include `Mak
 Read this section before the user starts editing in a fresh conversation:
 
 - For frequent polling or quick local-only status checks, call `maker_status_lite` with
-  `skip_remote_sync: true` to avoid a `git fetch origin` network round trip on every status read.
+  `skip_remote_sync: true` to avoid `git fetch origin` and AI dev kit latest-version network round
+  trips on every status read.
 - `up_to_date`: continue development.
 - `needs_pull` with `local_changes: no`: tell the user the workspace is clean and the local AI can
   run `git pull --ff-only origin main` before editing.
