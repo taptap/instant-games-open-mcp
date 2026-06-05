@@ -152,4 +152,31 @@ describe('maker CLI login', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(result.token).toBe('tmpct_retry_success');
   });
+
+  test('limits pending poll delay to the login deadline', async () => {
+    jest.useFakeTimers();
+    const fetchImpl = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({}),
+    })) as jest.MockedFunction<typeof fetch>;
+
+    try {
+      const login = loginWithCliAuthCode({
+        env: 'rnd',
+        openBrowser: false,
+        timeoutMs: 10,
+        pollIntervalMs: 1000,
+        fetchImpl,
+      });
+      const rejection = expect(login).rejects.toThrow('Maker CLI login timed out');
+
+      await Promise.resolve();
+      await jest.advanceTimersByTimeAsync(10);
+
+      await rejection;
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });

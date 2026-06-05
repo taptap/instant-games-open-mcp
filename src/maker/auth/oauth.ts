@@ -34,7 +34,7 @@ export async function startTapDeviceLogin(): Promise<MakerTapDeviceSession> {
     raw: deviceCode,
   };
 
-  saveTapDeviceSession(session, environment);
+  saveTapDeviceSession(session);
   return session;
 }
 
@@ -63,7 +63,7 @@ export async function completeTapDeviceLogin(options?: {
     mac_algorithm: tapToken.mac_algorithm || 'hmac-sha-1',
     raw: tapToken,
   };
-  saveTapAuth(auth, environment);
+  saveTapAuth(auth);
   return auth;
 }
 

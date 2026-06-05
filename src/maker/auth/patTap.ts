@@ -84,6 +84,6 @@ export async function requestTapAuthWithPat(
   }
 
   const auth = normalizeTapAuthResponse(json);
-  saveTapAuth(auth, environment);
+  saveTapAuth(auth);
   return auth;
 }

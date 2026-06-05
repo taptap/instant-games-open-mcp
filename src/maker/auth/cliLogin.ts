@@ -96,7 +96,7 @@ async function pollCliLoginResult(
   let lastPollError: unknown;
 
   for (;;) {
-    if (Date.now() > deadline) {
+    if (Date.now() >= deadline) {
       const suffix = lastPollError ? ` Last polling error: ${formatError(lastPollError)}` : '';
       throw new Error(
         `Maker CLI login timed out. Run \`taptap-maker login\` and try again.${suffix}`
@@ -145,7 +145,7 @@ async function pollCliLoginResult(
       throw new Error(`Maker CLI login ${normalized.status}. Run \`taptap-maker login\` again.`);
     }
 
-    await delay(pollIntervalMs);
+    await delay(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())));
   }
 }
 

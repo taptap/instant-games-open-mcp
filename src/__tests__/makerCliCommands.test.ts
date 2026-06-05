@@ -391,7 +391,7 @@ describe('Maker CLI commands', () => {
         env: 'production',
       })
     );
-    expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat');
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat', 'production');
   });
 
   test('init PAT validation failures guide CLI login', async () => {
@@ -1048,7 +1048,18 @@ describe('Maker CLI commands', () => {
     await runMakerCli(['pat', 'set', 'secret-maker-token']);
 
     expect(stderrSpy.mock.calls.join('')).toContain('exposes it via ps/shell history');
-    expect(requestTapAuthWithPat).toHaveBeenCalledWith('secret-maker-token');
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('secret-maker-token', 'production');
+  });
+
+  test('login exchanges TapTap token in the selected environment', async () => {
+    await runMakerCli(['login', '--env', 'rnd']);
+
+    expect(loginWithCliAuthCode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: 'rnd',
+      })
+    );
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat', 'rnd');
   });
 
   test('apps warns when PAT is passed with --pat', async () => {
@@ -1083,13 +1094,13 @@ describe('Maker CLI commands', () => {
       .mockReturnValueOnce('stdin-maker-token\n');
 
     try {
-      await runMakerCli(['pat', 'set', '--pat-stdin']);
+      await runMakerCli(['pat', 'set', '--pat-stdin', '--env', 'rnd']);
     } finally {
       readFileSyncSpy.mockRestore();
     }
 
     expect(stderrSpy.mock.calls.join('')).not.toContain('exposes it via ps/shell history');
-    expect(requestTapAuthWithPat).toHaveBeenCalledWith('stdin-maker-token');
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('stdin-maker-token', 'rnd');
   });
 
   test('pat set uses CLI login when no PAT is provided', async () => {
@@ -1100,7 +1111,7 @@ describe('Maker CLI commands', () => {
         env: 'production',
       })
     );
-    expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat');
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat', 'production');
     expect(stdoutSpy.mock.calls.join('')).toContain('Maker PAT and TapTap token saved');
   });
 
@@ -1112,7 +1123,7 @@ describe('Maker CLI commands', () => {
         env: 'production',
       })
     );
-    expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat');
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat', 'production');
     expect(listMakerProjects).toHaveBeenCalledWith({ pat: 'browser-maker-pat' });
     expect(cloneMakerProject).toHaveBeenCalledWith(
       expect.objectContaining({

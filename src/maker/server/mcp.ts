@@ -527,8 +527,8 @@ async function formatStatus(
       : identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo
         ? formatMakerRemoteSyncSkipped()
         : '';
-  const pat = loadPat(env);
-  let tapAuth = loadTapAuth(env);
+  const pat = loadPat();
+  let tapAuth = loadTapAuth();
   let tapAuthRefreshText = '';
   if (pat && !tapAuth) {
     try {
@@ -536,7 +536,7 @@ async function formatStatus(
       tapAuthRefreshText = [
         'TapTap token',
         '',
-        `本地已有 Maker PAT，已自动获取并保存 TapTap token: ${getTapAuthPath(env)}`,
+        `本地已有 Maker PAT，已自动获取并保存 TapTap token: ${getTapAuthPath()}`,
       ].join('\n');
     } catch (error) {
       tapAuthRefreshText = [
@@ -565,8 +565,8 @@ async function formatStatus(
     '',
     `- version: ${VERSION}`,
     `- env: ${env}`,
-    `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath(env)})`,
-    `- pat: ${pat ? 'found' : 'missing'} (${getPatPath(env)})`,
+    `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath()})`,
+    `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
     `- target_dir: ${targetDir}`,
     `- project_source: ${identify.source}`,
     `- project_id: ${identify.projectId || '(none)'}`,
@@ -1037,14 +1037,14 @@ export function createRemoteProxyContext(options: {
   const projectConfig = loadProjectConfig(identify.projectRoot);
   const projectId = projectConfig?.project_id || identify.projectId;
   const env = getMakerEnvironment(options.env, identify.projectRoot);
-  const tapAuth = loadTapAuth(env);
+  const tapAuth = loadTapAuth();
   if (!tapAuth) {
     throw new Error('Tap auth not found. Run `taptap-maker login` first.');
   }
 
   let userId = projectConfig?.user_id;
   if (!userId) {
-    const jwt = loadJwt(env);
+    const jwt = loadJwt();
     userId = jwt ? getUserIdFromMakerJwt(jwt) : undefined;
   }
   if (!userId) {
@@ -1873,7 +1873,7 @@ export async function refreshMakerPreview(
   const url = `${apiBase.replace(/\/$/, '')}/apps/${encodeURIComponent(
     buildResult.projectId
   )}/preview-refresh`;
-  const pat = loadPat(makerEnv);
+  const pat = loadPat();
   if (!pat?.token) {
     return {
       ok: false,

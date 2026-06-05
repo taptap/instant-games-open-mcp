@@ -221,7 +221,7 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const pat = await resolvePat(parsed, ctx);
   emit(ctx, 'pat', 'Maker PAT ready', { saved: getPatPath() });
 
-  const tapAuth = await requestTapAuthWithPat(pat).catch((error) => {
+  const tapAuth = await requestTapAuthWithPat(pat, env).catch((error) => {
     throw appendPatRecoveryUrl(error, parsed);
   });
   emit(ctx, 'tap_auth', 'TapTap token exchanged and saved', {
@@ -389,7 +389,7 @@ async function runLogin(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     onStatus: (message) => emit(ctx, 'login', message),
   });
   saveManualMakerPat(pat.token);
-  const tapAuth = await requestTapAuthWithPat(pat.token).catch((error) => {
+  const tapAuth = await requestTapAuthWithPat(pat.token, env).catch((error) => {
     throw appendPatRecoveryUrl(error, parsed);
   });
   emit(ctx, 'login', 'Maker CLI login completed', {
@@ -404,7 +404,8 @@ async function runLogin(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 async function runPatSet(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const pat = await resolvePatSet(parsed, ctx);
   saveManualMakerPat(pat);
-  const tapAuth = await requestTapAuthWithPat(pat).catch((error) => {
+  const env = makerEnvOption(parsed);
+  const tapAuth = await requestTapAuthWithPat(pat, env).catch((error) => {
     throw appendPatRecoveryUrl(error, parsed);
   });
   emit(ctx, 'pat', 'Maker PAT and TapTap token saved', {
