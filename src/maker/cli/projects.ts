@@ -149,6 +149,7 @@ class MakerGitError extends Error {
 
 const MAKER_FIRST_CLONE_WAIT_MESSAGE =
   'First Maker clone/fetch can take 20+ seconds while the server prepares the repository. Please keep this running; transient 503/5xx errors are retried automatically.';
+const MAKER_GIT_SHALLOW_DEPTH = 1;
 
 export function getConfiguredMakerApiBase(): string | undefined {
   return getMakerEndpoints().apiBase;
@@ -375,9 +376,9 @@ export async function cloneMakerProject(
       progress: 10,
       total: 100,
       phase: 'clone',
-      message: `Cloning Maker project ${options.appId}`,
+      message: `Checking out Maker project ${options.appId}`,
     });
-    transientRetries += await cloneOrInitializeTarget(
+    transientRetries += await fetchAndCheckoutTarget(
       target,
       authUrl,
       pat.token,
@@ -398,9 +399,9 @@ export async function cloneMakerProject(
       progress: 10,
       total: 100,
       phase: 'clone',
-      message: `Retrying clone for Maker project ${options.appId} with refreshed PAT`,
+      message: `Retrying Maker project checkout ${options.appId} with refreshed PAT`,
     });
-    transientRetries += await cloneOrInitializeTarget(
+    transientRetries += await fetchAndCheckoutTarget(
       target,
       authUrl,
       pat.token,
@@ -426,7 +427,7 @@ export async function cloneMakerProject(
     progress: 100,
     total: 100,
     phase: 'done',
-    message: 'Maker project clone completed',
+    message: 'Maker project checkout completed',
   });
 
   return {
@@ -1204,7 +1205,7 @@ function makeAuthenticatedGitUrl(gitUrl: string, pat: string): string {
   return gitUrl.replace(/^https:\/\//, `https://git:${encodeURIComponent(pat)}@`);
 }
 
-async function cloneOrInitializeTarget(
+async function fetchAndCheckoutTarget(
   target: string,
   authUrl: string,
   pat: string,
@@ -1218,40 +1219,38 @@ async function cloneOrInitializeTarget(
       message:
         'Target directory is not empty; initializing git repository in place and keeping existing untracked files unless they conflict with Maker project files.',
     });
-
-    let transientRetries = 0;
-    emitFirstCloneWaitNotice(onProgress, 'fetch');
-    transientRetries += await runGitCaptureWithTransientRetry(['init', target], {
-      sanitize: pat,
-      onProgress,
-    });
-    await setOrigin(target, authUrl);
-    transientRetries += await runGitWithTransientRetry(['fetch', '--progress', 'origin'], {
-      cwd: target,
-      onProgress,
-    });
-    const branch = await resolveRemoteDefaultBranch(target);
-    await assertNoCheckoutFileConflicts(target, branch);
-    try {
-      transientRetries += await runGitCaptureWithTransientRetry(
-        ['checkout', '-B', branch, `origin/${branch}`],
-        {
-          cwd: target,
-          sanitize: pat,
-          onProgress,
-        }
-      );
-    } catch (error) {
-      throw enhanceCheckoutConflictError(error, target);
-    }
-    return transientRetries;
   }
 
-  emitFirstCloneWaitNotice(onProgress, 'clone');
-  return runGitCaptureWithTransientRetry(['clone', '--progress', authUrl, target], {
+  let transientRetries = 0;
+  emitFirstCloneWaitNotice(onProgress, 'fetch');
+  transientRetries += await runGitCaptureWithTransientRetry(['init', target], {
     sanitize: pat,
     onProgress,
   });
+  await setOrigin(target, authUrl);
+  transientRetries += await runGitWithTransientRetry(createShallowFetchArgs(), {
+    cwd: target,
+    onProgress,
+  });
+  const branch = await resolveRemoteDefaultBranch(target);
+  await assertNoCheckoutFileConflicts(target, branch);
+  try {
+    transientRetries += await runGitCaptureWithTransientRetry(
+      ['checkout', '-B', branch, `origin/${branch}`],
+      {
+        cwd: target,
+        sanitize: pat,
+        onProgress,
+      }
+    );
+  } catch (error) {
+    throw enhanceCheckoutConflictError(error, target);
+  }
+  return transientRetries;
+}
+
+function createShallowFetchArgs(): string[] {
+  return ['fetch', '--progress', `--depth=${String(MAKER_GIT_SHALLOW_DEPTH)}`, 'origin'];
 }
 
 function emitFirstCloneWaitNotice(

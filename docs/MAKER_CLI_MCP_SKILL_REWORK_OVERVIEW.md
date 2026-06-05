@@ -47,7 +47,13 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 - 本地分支测试可直接用 `node dist/maker.js`，不依赖 npm 发布。
 - Windows 下生成 MCP 配置时自动使用 `npx.cmd`。
 - 初始化失败时保留现场，返回可重试状态，不自动删除用户文件。
-- Git clone/fetch 遇到 503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等临时错误时自动重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试，直接返回明确分类。
+- 用户选择 app 后立即写入 `.maker-mcp/config.json`；clone/fetch 失败后重复执行
+  `taptap-maker init` 会复用这个选择继续，后续缺失状态交给 `taptap-maker doctor` 判断。
+- 目标目录已有 `.maker-mcp/config.json` 时，init 默认复用相同 app；显式选择不同 app 会拒绝覆盖，
+  要求用户换目录。
+- 首次拉取默认使用浅拉取。`taptap-maker init` 在记录已选 app 后，通常执行
+  `git init` + `git fetch --depth=1 origin` + checkout。
+- fetch 阶段遇到远端临时错误时自动重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试，直接返回明确分类。
 - 首次 clone/fetch 前主动提示 Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，避免用户误以为卡住后中断命令。
 
 ### MCP：收敛为开发循环能力

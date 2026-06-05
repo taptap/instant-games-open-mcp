@@ -11,6 +11,7 @@ import { requestTapAuthWithPat } from '../maker/auth/patTap';
 import { cloneMakerProject, listMakerProjects } from '../maker/cli/projects';
 import { inspectAiDevKit, installAiDevKit, installAiDevKitSkills } from '../maker/cli/devKit';
 import { runMakerCli } from '../maker/cli/commands';
+import { loadProjectConfig, saveProjectConfig } from '../maker/storage';
 
 jest.mock('node:child_process', () => ({
   ...jest.requireActual('node:child_process'),
@@ -433,6 +434,86 @@ describe('Maker CLI commands', () => {
         'invalid-maker-token',
       ])
     ).rejects.toThrow('https://maker.taptap.cn/pat-tokens');
+  });
+
+  test('init records selected Maker project before clone failures', async () => {
+    jest
+      .mocked(cloneMakerProject)
+      .mockRejectedValueOnce(
+        new Error('RPC failed; curl 56 Recv failure: Connection reset by peer')
+      );
+
+    await expect(
+      runMakerCli([
+        'init',
+        '--skip-confirm',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'valid-maker-token',
+      ])
+    ).rejects.toThrow('RPC failed');
+
+    expect(loadProjectConfig(tempDir)).toEqual(
+      expect.objectContaining({
+        project_id: 'app-1',
+        user_id: 'user-1',
+      })
+    );
+  });
+
+  test('init reuses a previously recorded Maker project selection', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'valid-maker-token',
+    ]);
+
+    expect(cloneMakerProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'app-1',
+        targetDir: tempDir,
+        userId: 'user-1',
+      })
+    );
+  });
+
+  test('init does not overwrite an existing Maker project binding with another app', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+    });
+
+    await expect(
+      runMakerCli([
+        'init',
+        '--skip-confirm',
+        'app-2',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'valid-maker-token',
+      ])
+    ).rejects.toThrow('already bound to Maker project app-1');
+
+    expect(loadProjectConfig(tempDir)).toEqual(
+      expect.objectContaining({
+        project_id: 'app-1',
+      })
+    );
+    expect(cloneMakerProject).not.toHaveBeenCalled();
   });
 
   test('init clone forbidden path failures do not include the PAT URL', async () => {
