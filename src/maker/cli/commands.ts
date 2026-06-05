@@ -12,7 +12,15 @@ import { stdin as input, stdout as output } from 'node:process';
 import { getMakerEnvironment, getMakerPatTokensUrl, type MakerEnvironment } from '../config.js';
 import { requestTapAuthWithPat } from '../auth/patTap.js';
 import { saveManualMakerPat } from '../git/pat.js';
-import { getMakerHome, getPatPath, getTapAuthPath, loadPat, loadTapAuth } from '../storage.js';
+import {
+  getMakerHome,
+  getPatPath,
+  getTapAuthPath,
+  loadPat,
+  loadProjectConfig,
+  loadTapAuth,
+  saveProjectConfig,
+} from '../storage.js';
 import { identifyMakerProject } from '../server/identify.js';
 import {
   createRemoteRuntimeLogClient,
@@ -209,16 +217,24 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     saved: getTapAuthPath(),
   });
 
+  const existingProjectConfig = loadProjectConfig(targetDir);
   const projects = await listMakerProjects({ pat }).catch((error) => {
     throw appendPatRecoveryUrl(error, parsed);
   });
   const selected = await resolveProjectSelection(parsed, projects, {
+    existingProjectConfig,
     skipConfirm,
   });
   emit(ctx, 'app', 'Maker app selected', {
     app_id: selected.id,
     name: selected.name,
     user_id: selected.user_id,
+  });
+  ensureInitTargetCanRecordProject(targetDir, existingProjectConfig?.project_id, selected.id);
+  saveProjectConfig(targetDir, {
+    project_id: selected.id,
+    user_id: selected.user_id || existingProjectConfig?.user_id,
+    sce_endpoint: selected.sce_endpoint || existingProjectConfig?.sce_endpoint,
   });
   saveInitState(targetDir, {
     status: 'app_selected',
@@ -670,11 +686,25 @@ async function resolvePat(parsed: ParsedArgs, ctx: CliContext): Promise<string> 
 async function resolveProjectSelection(
   parsed: ParsedArgs,
   projects: MakerProjectSummary[],
-  options: { skipConfirm: boolean }
+  options: {
+    existingProjectConfig?: { project_id?: string; user_id?: string; sce_endpoint?: string } | null;
+    skipConfirm: boolean;
+  }
 ): Promise<MakerProjectSummary> {
   const appId = stringOption(parsed, 'app_id') || parsed.positionals[0];
   if (appId) {
     return projects.find((project) => project.id === appId) || { id: appId };
+  }
+
+  if (options.existingProjectConfig?.project_id) {
+    const projectId = options.existingProjectConfig.project_id;
+    return (
+      projects.find((project) => project.id === projectId) || {
+        id: projectId,
+        user_id: options.existingProjectConfig.user_id,
+        sce_endpoint: options.existingProjectConfig.sce_endpoint,
+      }
+    );
   }
 
   if (projects.length === 0) {
@@ -713,6 +743,25 @@ async function resolveProjectSelection(
     }
     return selected;
   }
+}
+
+function ensureInitTargetCanRecordProject(
+  targetDir: string,
+  existingProjectId: string | undefined,
+  selectedProjectId: string
+): void {
+  if (!existingProjectId || existingProjectId === selectedProjectId) {
+    return;
+  }
+
+  throw new Error(
+    [
+      `${targetDir} is already bound to Maker project ${existingProjectId}.`,
+      `You are trying to initialize Maker project ${selectedProjectId} into the same directory.`,
+      'A Maker workspace directory can only be bound to one project at a time.',
+      'Please switch to the directory for the existing project, or create/open a new empty directory for the new project.',
+    ].join('\n')
+  );
 }
 
 async function prepareDevKit(
