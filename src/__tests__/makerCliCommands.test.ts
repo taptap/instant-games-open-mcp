@@ -8,8 +8,15 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
 import { requestTapAuthWithPat } from '../maker/auth/patTap';
+import { loginWithCliAuthCode } from '../maker/auth/cliLogin';
+import { setMakerEnvironmentOverride } from '../maker/config';
 import { cloneMakerProject, listMakerProjects } from '../maker/cli/projects';
-import { inspectAiDevKit, installAiDevKit, installAiDevKitSkills } from '../maker/cli/devKit';
+import {
+  checkAiDevKitUpdate,
+  inspectAiDevKit,
+  installAiDevKit,
+  installAiDevKitSkills,
+} from '../maker/cli/devKit';
 import { runMakerCli } from '../maker/cli/commands';
 import { loadProjectConfig, saveProjectConfig } from '../maker/storage';
 
@@ -23,6 +30,15 @@ jest.mock('../maker/auth/patTap', () => ({
     kid: 'kid-1234567890',
     token: 'tap-token',
     mac_key: 'mac-key',
+  })),
+}));
+
+jest.mock('../maker/auth/cliLogin', () => ({
+  loginWithCliAuthCode: jest.fn(async () => ({
+    token: 'browser-maker-pat',
+    expires_at: '2026-06-05T00:00:00.000Z',
+    code: '7cqFPS6OyS7z8D8NXWAjhJvEBNtq9pZi',
+    auth_url: 'https://maker.taptap.cn/pat-tokens?code=7cqFPS6OyS7z8D8NXWAjhJvEBNtq9pZi',
   })),
 }));
 
@@ -43,6 +59,10 @@ jest.mock('../maker/cli/projects', () => ({
 jest.mock('../maker/cli/devKit', () => ({
   DEV_KIT_GITIGNORE_STAGING_FILE: '.gitignore.dev-kit-before-clone',
   finalizeStagedDevKitGitignore: jest.fn(),
+  checkAiDevKitUpdate: jest.fn(async () => ({
+    targetDir: '',
+    updateAvailable: false,
+  })),
   inspectAiDevKit: jest.fn(() => ({
     targetDir: '',
     requiredEntries: [],
@@ -83,16 +103,20 @@ describe('Maker CLI commands', () => {
   let tempDir: string;
   const originalHome = process.env.HOME;
   const originalMakerHome = process.env.TAPTAP_MAKER_HOME;
+  const originalEnv = process.env.TAPTAP_MCP_ENV;
   const originalStdinIsTty = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
   let homedirSpy: jest.SpyInstance;
   let stdoutSpy: jest.SpyInstance;
   let stderrSpy: jest.SpyInstance;
   const spawnSyncMock = jest.mocked(spawnSync);
+  const cliLoginMock = jest.mocked(loginWithCliAuthCode);
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-cli-commands-'));
     process.env.HOME = tempDir;
     process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home');
+    delete process.env.TAPTAP_MCP_ENV;
+    setMakerEnvironmentOverride(undefined);
     homedirSpy = jest.spyOn(os, 'homedir').mockReturnValue(tempDir);
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
@@ -113,6 +137,12 @@ describe('Maker CLI commands', () => {
     } else {
       process.env.TAPTAP_MAKER_HOME = originalMakerHome;
     }
+    if (originalEnv === undefined) {
+      delete process.env.TAPTAP_MCP_ENV;
+    } else {
+      process.env.TAPTAP_MCP_ENV = originalEnv;
+    }
+    setMakerEnvironmentOverride(undefined);
     if (originalStdinIsTty) {
       Object.defineProperty(process.stdin, 'isTTY', originalStdinIsTty);
     } else {
@@ -350,34 +380,21 @@ describe('Maker CLI commands', () => {
     expect(stderrSpy.mock.calls.join('')).toContain('exposes it via ps/shell history');
   });
 
-  test('init prints the PAT creation URL before prompting interactively', async () => {
-    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
-    const close = jest.fn();
-    const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockReturnValue({
-      question: jest.fn(async () => 'secret-maker-token'),
-      close,
-    } as unknown as readline.Interface);
-
-    try {
-      await runMakerCli([
-        'init',
-        '--app-id',
-        'app-1',
-        '--target-dir',
-        tempDir,
-        '--skip-mcp-install',
-      ]);
-    } finally {
-      createInterfaceSpy.mockRestore();
-    }
+  test('init starts CLI login when PAT is missing', async () => {
+    await runMakerCli(['init', '--app-id', 'app-1', '--target-dir', tempDir, '--skip-mcp-install']);
 
     const output = stdoutSpy.mock.calls.join('');
-    expect(output).toContain('Maker PAT is required');
-    expect(output).toContain('Create one at: https://maker.taptap.cn/pat-tokens');
-    expect(requestTapAuthWithPat).toHaveBeenCalledWith('secret-maker-token');
+    expect(output).toContain('Maker login is required');
+    expect(output).toContain('Starting Maker CLI login');
+    expect(loginWithCliAuthCode).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: 'production',
+      })
+    );
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat');
   });
 
-  test('init PAT validation failures include the PAT URL', async () => {
+  test('init PAT validation failures guide CLI login', async () => {
     jest
       .mocked(requestTapAuthWithPat)
       .mockRejectedValueOnce(
@@ -395,10 +412,10 @@ describe('Maker CLI commands', () => {
         '--pat',
         'invalid-maker-token',
       ])
-    ).rejects.toThrow('https://maker.taptap.cn/pat-tokens');
+    ).rejects.toThrow('taptap-maker login');
   });
 
-  test('init Chinese PAT validation failures include the PAT URL', async () => {
+  test('init Chinese PAT validation failures guide CLI login', async () => {
     jest.mocked(requestTapAuthWithPat).mockRejectedValueOnce(new Error('PAT 已过期'));
 
     await expect(
@@ -412,10 +429,10 @@ describe('Maker CLI commands', () => {
         '--pat',
         'invalid-maker-token',
       ])
-    ).rejects.toThrow('https://maker.taptap.cn/pat-tokens');
+    ).rejects.toThrow('taptap-maker login');
   });
 
-  test('init clone auth failures include the PAT URL', async () => {
+  test('init clone auth failures guide CLI login', async () => {
     jest
       .mocked(cloneMakerProject)
       .mockRejectedValueOnce(
@@ -433,7 +450,87 @@ describe('Maker CLI commands', () => {
         '--pat',
         'invalid-maker-token',
       ])
-    ).rejects.toThrow('https://maker.taptap.cn/pat-tokens');
+    ).rejects.toThrow('taptap-maker login');
+  });
+
+  test('init records selected Maker project before clone failures', async () => {
+    jest
+      .mocked(cloneMakerProject)
+      .mockRejectedValueOnce(
+        new Error('RPC failed; curl 56 Recv failure: Connection reset by peer')
+      );
+
+    await expect(
+      runMakerCli([
+        'init',
+        '--skip-confirm',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'valid-maker-token',
+      ])
+    ).rejects.toThrow('RPC failed');
+
+    expect(loadProjectConfig(tempDir)).toEqual(
+      expect.objectContaining({
+        project_id: 'app-1',
+        user_id: 'user-1',
+      })
+    );
+  });
+
+  test('init reuses a previously recorded Maker project selection', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'valid-maker-token',
+    ]);
+
+    expect(cloneMakerProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'app-1',
+        targetDir: tempDir,
+        userId: 'user-1',
+      })
+    );
+  });
+
+  test('init does not overwrite an existing Maker project binding with another app', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+    });
+
+    await expect(
+      runMakerCli([
+        'init',
+        '--skip-confirm',
+        'app-2',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'valid-maker-token',
+      ])
+    ).rejects.toThrow('already bound to Maker project app-1');
+
+    expect(loadProjectConfig(tempDir)).toEqual(
+      expect.objectContaining({
+        project_id: 'app-1',
+      })
+    );
+    expect(cloneMakerProject).not.toHaveBeenCalled();
   });
 
   test('init records selected Maker project before clone failures', async () => {
@@ -793,7 +890,7 @@ describe('Maker CLI commands', () => {
     expect(installAiDevKitSkills).not.toHaveBeenCalled();
   });
 
-  test('dev-kit update preserves existing local files', async () => {
+  test('dev-kit update replaces managed local files', async () => {
     jest.mocked(installAiDevKit).mockResolvedValueOnce({
       targetDir: tempDir,
       sourceDir: path.join(tempDir, 'source'),
@@ -811,14 +908,57 @@ describe('Maker CLI commands', () => {
       },
     });
 
-    await runMakerCli(['dev-kit', 'update', '--target-dir', tempDir]);
+    await runMakerCli(['dev-kit', 'update', '--target-dir', tempDir, '--env', 'rnd']);
 
     expect(installAiDevKit).toHaveBeenCalledWith(
       expect.objectContaining({
         targetDir: tempDir,
-        preserveExisting: true,
+        preserveExisting: false,
+        replaceManagedEntries: true,
+        environment: 'rnd',
       })
     );
+  });
+
+  test('doctor includes AI dev kit update state in json output', async () => {
+    jest.mocked(checkAiDevKitUpdate).mockResolvedValueOnce({
+      targetDir: tempDir,
+      updateAvailable: true,
+      installed: {
+        env: 'rnd',
+        version: '20260604-150856',
+        source_url:
+          'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/rnd/20260604-150856/ai-dev-kit.zip',
+        installed_at: '2026-06-04T16:00:00.000Z',
+      },
+      latest: {
+        version: '20260605-053736',
+        md5: '6ced394e09fed25c2b946889e0171b36',
+        size: 27048639,
+        uploaded_at: '2026-06-05T05:37:52.000Z',
+      },
+    });
+
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd', '--json']);
+
+    const payload = JSON.parse(stdoutSpy.mock.calls.join(''));
+    expect(checkAiDevKitUpdate).toHaveBeenCalledWith(tempDir, { environment: 'rnd' });
+    expect(payload.env).toBe('rnd');
+    expect(payload.dev_kit_update).toEqual(
+      expect.objectContaining({
+        updateAvailable: true,
+        installed: expect.objectContaining({ version: '20260604-150856' }),
+        latest: expect.objectContaining({ version: '20260605-053736' }),
+      })
+    );
+  });
+
+  test('doctor guides unbound directories to init when PAT is missing', async () => {
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('- next_step: taptap-maker init');
+    expect(output).not.toContain('- next_auth_step: taptap-maker login');
   });
 
   test('init selection index follows the recently active display order', async () => {
@@ -918,7 +1058,7 @@ describe('Maker CLI commands', () => {
     expect(listMakerProjects).toHaveBeenCalledWith({ pat: 'secret-maker-token' });
   });
 
-  test('apps PAT validation failures include the PAT URL', async () => {
+  test('apps PAT validation failures guide CLI login', async () => {
     jest
       .mocked(listMakerProjects)
       .mockRejectedValueOnce(
@@ -926,7 +1066,7 @@ describe('Maker CLI commands', () => {
       );
 
     await expect(runMakerCli(['apps', '--pat', 'invalid-maker-token'])).rejects.toThrow(
-      'https://maker.taptap.cn/pat-tokens'
+      'taptap-maker login'
     );
   });
 
@@ -952,27 +1092,36 @@ describe('Maker CLI commands', () => {
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('stdin-maker-token');
   });
 
-  test('pat set prints the PAT creation URL before prompting interactively', async () => {
-    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
-    const close = jest.fn();
-    const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockReturnValue({
-      question: jest.fn(async () => 'secret-maker-token'),
-      close,
-    } as unknown as readline.Interface);
+  test('pat set uses CLI login when no PAT is provided', async () => {
+    await runMakerCli(['pat', 'set']);
 
-    try {
-      await runMakerCli(['pat', 'set']);
-    } finally {
-      createInterfaceSpy.mockRestore();
-    }
-
-    const output = stdoutSpy.mock.calls.join('');
-    expect(output).toContain('Create one at: https://maker.taptap.cn/pat-tokens');
-    expect(requestTapAuthWithPat).toHaveBeenCalledWith('secret-maker-token');
-    expect(close).toHaveBeenCalled();
+    expect(cliLoginMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: 'production',
+      })
+    );
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat');
+    expect(stdoutSpy.mock.calls.join('')).toContain('Maker PAT and TapTap token saved');
   });
 
-  test('pat set validation failures include the PAT URL', async () => {
+  test('init uses CLI login when no cached PAT exists', async () => {
+    await runMakerCli(['init', '--app-id', 'app-1', '--skip-mcp-install']);
+
+    expect(cliLoginMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: 'production',
+      })
+    );
+    expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat');
+    expect(listMakerProjects).toHaveBeenCalledWith({ pat: 'browser-maker-pat' });
+    expect(cloneMakerProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pat: 'browser-maker-pat',
+      })
+    );
+  });
+
+  test('pat set validation failures guide CLI login', async () => {
     jest
       .mocked(requestTapAuthWithPat)
       .mockRejectedValueOnce(
@@ -980,7 +1129,7 @@ describe('Maker CLI commands', () => {
       );
 
     await expect(runMakerCli(['pat', 'set', '--pat', 'invalid-maker-token'])).rejects.toThrow(
-      'https://maker.taptap.cn/pat-tokens'
+      'taptap-maker login'
     );
   });
 

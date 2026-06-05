@@ -66,8 +66,8 @@ export function requireMakerPat(manualPat?: string): MakerPat {
     throw new Error(
       [
         'Maker PAT not found.',
-        'Provide a PAT through the pat argument, MAKER_PAT/PAT environment variable,',
-        'or save it to ~/.taptap-maker/pat.json / ~/.maker-pat.',
+        'Run `taptap-maker login` to complete Maker CLI login,',
+        'or provide MAKER_PAT/PAT only for CI/emergency fallback.',
       ].join(' ')
     );
   }
@@ -113,9 +113,8 @@ export async function requestMakerPat(options?: {
     throw new Error(
       [
         'Maker PAT not found.',
-        'Provide a PAT through the pat argument, MAKER_PAT/PAT environment variable,',
-        'or save it interactively with `taptap-maker pat set`.',
-        'Creating a new PAT still requires a legacy Maker JWT.',
+        'Run `taptap-maker login` to complete Maker CLI login,',
+        'or provide MAKER_PAT/PAT only for CI/emergency fallback.',
       ].join(' ')
     );
   }

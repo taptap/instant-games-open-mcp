@@ -35,7 +35,8 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 | `taptap-maker init`           | 一站式初始化：Git 检查、PAT、TapTap token、app 选择、dev-kit、clone、MCP 配置 |
 | `taptap-maker doctor`         | 检查 Git、PAT、TapTap token、项目绑定、dev-kit、skill 状态                    |
 | `taptap-maker apps`           | 使用 PAT 获取 Maker app 列表                                                  |
-| `taptap-maker pat set`        | 交互式保存 Maker PAT，并换取 TapTap token                                     |
+| `taptap-maker login`          | CLI 登录入口：打开 Maker 授权页，授权完成后自动保存本地鉴权                   |
+| `taptap-maker pat set`        | 兼容入口，仅用于 CI 或应急联调                                                |
 | `taptap-maker install`        | `taptap-maker mcp install` 的快捷别名，写入 AI 客户端 MCP 配置                |
 | `taptap-maker mcp install`    | 写入 Codex / Cursor / Claude 的 MCP 配置                                      |
 | `taptap-maker mcp verify`     | 验证 MCP 配置使用的 npx 包命令是否可启动；`--mode self` 验证当前 CLI          |
@@ -78,7 +79,8 @@ maker_status
 
 `maker://status` 只做状态读取，不再下载 dev-kit、clone 项目或写客户端配置。已绑定项目会额外检查
 `Maker remote sync`：fetch 远端后比较 ahead/behind，提示 Agent 在开发前先处理远端领先、
-本地 dirty、分叉或非 main 分支。dev-kit 修复交给 `taptap-maker dev-kit update`。
+本地 dirty、分叉或非 main 分支。状态还会检查 AI dev-kit 版本并提示是否需要
+`taptap-maker dev-kit update`，但真正修复和下载仍交给 update 命令。
 
 ### Skill：Agent 工作流和失败恢复层
 
@@ -92,7 +94,8 @@ Skill 不做底层 API 调用，而是负责告诉 Agent 该怎么走流程：
 
 - 用户要初始化 Maker 项目时，转给 `taptap-maker init`。
 - 用户新开对话或继续开发时，先读 `maker://status` 或 `maker_status_lite`，按
-  `Maker remote sync` 的 next_action 处理是否需要 pull。
+  `Maker remote sync` 的 next_action 处理是否需要 pull，并按 AI dev-kit 的
+  `update_available` / `next_step` 引导更新。
 - 用户要提交、push、构建、预览、跑一下时，统一调用 `maker_build_current_directory`。
 - push 失败时，不走通用 Git PR / 任务号流程，不手动执行 generic `git push`，而是解释失败原因并按分类恢复后重试 Maker build 工具。
 - Git 失败返回 `classification`、`retryable`、`retry_reason` 和重试次数，Skill 据此判断是建议稍后重试、刷新 PAT、pull/rebase、切回 main、移除禁止路径，还是处理本地目录冲突。
@@ -108,7 +111,7 @@ flowchart TD
   C -- "否" --> C1["提示安装 Git for Windows / macOS Git"]
   C -- "是" --> D["Agent 运行 taptap-maker init"]
   D --> E{"PAT 已存在？"}
-  E -- "否" --> E1["打开 PAT 页面，用户粘贴 PAT"]
+  E -- "否" --> E1["CLI 打开 Maker 授权页并轮询授权结果"]
   E -- "是" --> F["用 PAT 换 TapTap token"]
   E1 --> F
   F --> G["列出 Maker app"]

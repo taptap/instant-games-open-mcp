@@ -4,8 +4,10 @@
 
 import type { MakerTapAuth } from '../types.js';
 import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
+import { DEFAULT_SHORT_FETCH_TIMEOUT_MS, fetchWithTimeout } from '../fetchTimeout.js';
 import { saveTapAuth } from '../storage.js';
 import { requireMakerPat } from '../git/pat.js';
+import type { MakerEnvironment } from '../config.js';
 
 function getObjectValue(data: unknown, key: string): unknown {
   if (!data || typeof data !== 'object') {
@@ -40,19 +42,32 @@ function normalizeTapAuthResponse(data: unknown): MakerTapAuth {
   };
 }
 
-export function getMakerTapTokenUrl(): string {
-  const tapTokenUrl = getMakerEndpoints().tapTokenUrl;
-  return requireMakerEndpoint('tapTokenUrl', tapTokenUrl);
+export function getMakerTapTokenUrl(environment?: MakerEnvironment): string {
+  const tapTokenUrl = getMakerEndpoints(environment).tapTokenUrl;
+  return requireMakerEndpoint('tapTokenUrl', tapTokenUrl, environment);
 }
 
-export async function requestTapAuthWithPat(manualPat?: string): Promise<MakerTapAuth> {
+export async function requestTapAuthWithPat(
+  manualPat?: string,
+  environment?: MakerEnvironment,
+  options: {
+    fetchImpl?: typeof fetch;
+    timeoutMs?: number;
+  } = {}
+): Promise<MakerTapAuth> {
   const pat = requireMakerPat(manualPat);
-  const response = await fetch(getMakerTapTokenUrl(), {
-    headers: {
-      Authorization: `Bearer ${pat.token}`,
-      Accept: 'application/json',
+  const response = await fetchWithTimeout(
+    options.fetchImpl || fetch,
+    getMakerTapTokenUrl(environment),
+    {
+      headers: {
+        Authorization: `Bearer ${pat.token}`,
+        Accept: 'application/json',
+      },
     },
-  });
+    options.timeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS,
+    'TapTap token request'
+  );
 
   const text = await response.text();
   let json: unknown = {};
@@ -69,6 +84,6 @@ export async function requestTapAuthWithPat(manualPat?: string): Promise<MakerTa
   }
 
   const auth = normalizeTapAuthResponse(json);
-  saveTapAuth(auth);
+  saveTapAuth(auth, environment);
   return auth;
 }

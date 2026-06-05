@@ -8,13 +8,31 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { EnvConfig } from '../../core/utils/env.js';
+import {
+  getMakerEndpoints,
+  getMakerEnvironment,
+  requireMakerEndpoint,
+  type MakerEnvironment,
+} from '../config.js';
+import {
+  DEFAULT_DOWNLOAD_FETCH_TIMEOUT_MS,
+  DEFAULT_SHORT_FETCH_TIMEOUT_MS,
+  fetchWithTimeout,
+} from '../fetchTimeout.js';
 
-export const AI_DEV_KIT_URLS: Record<'production' | 'rnd', string> = {
+export const AI_DEV_KIT_URLS: Record<MakerEnvironment, string> = {
   production: 'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip',
   rnd: 'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/rnd/latest/ai-dev-kit.zip',
 };
 
 export const DEFAULT_AI_DEV_KIT_URL = AI_DEV_KIT_URLS.production;
+export const AI_DEV_KIT_VERSION_METADATA_FILE = path.join('.maker', 'ai-dev-kit-version.json');
+
+const AI_DEV_KIT_DOWNLOAD_ENV: Record<MakerEnvironment, string> = {
+  production: 'pd',
+  rnd: 'rnd',
+};
+const AI_DEV_KIT_VERSION_PATTERN = /^[A-Za-z0-9._-]{1,128}$/;
 
 /**
  * Pick the AI dev kit download URL based on TAPTAP_MCP_ENV.
@@ -23,7 +41,7 @@ export const DEFAULT_AI_DEV_KIT_URL = AI_DEV_KIT_URLS.production;
  * - rnd → rnd/latest
  */
 export function resolveDefaultAiDevKitUrl(
-  environment: 'production' | 'rnd' = EnvConfig.environment
+  environment: MakerEnvironment = EnvConfig.environment
 ): string {
   return AI_DEV_KIT_URLS[environment] || AI_DEV_KIT_URLS.production;
 }
@@ -61,7 +79,12 @@ export interface InstallAiDevKitOptions {
   targetDir?: string;
   sourceDir?: string;
   url?: string;
+  environment?: MakerEnvironment;
+  fetchImpl?: typeof fetch;
   preserveExisting?: boolean;
+  replaceManagedEntries?: boolean;
+  versionCheckTimeoutMs?: number;
+  downloadTimeoutMs?: number;
   onSkillInstallerStart?: (event: AiDevKitSkillInstallerStart) => void;
 }
 
@@ -73,6 +96,8 @@ export interface InstallAiDevKitResult {
   gitignorePath: string;
   stagedGitignorePath: string;
   skillInstaller?: AiDevKitSkillInstallerResult;
+  download?: AiDevKitDownloadResolution;
+  versionMetadata?: AiDevKitVersionMetadata;
 }
 
 export interface AiDevKitSkillInstallerResult {
@@ -110,6 +135,46 @@ export interface AiDevKitStatus {
   presentEntries: string[];
   missingEntries: string[];
   ready: boolean;
+  installedVersion?: AiDevKitVersionMetadata;
+}
+
+export interface AiDevKitVersionEntry {
+  version: string;
+  md5?: string;
+  size?: number;
+  uploaded_at?: string;
+}
+
+export interface AiDevKitVersionsResponse {
+  env?: string;
+  current?: AiDevKitVersionEntry;
+  history?: AiDevKitVersionEntry[];
+  history_count?: number;
+  from_cache?: boolean;
+  queried_at?: string;
+}
+
+export interface AiDevKitDownloadResolution {
+  environment: MakerEnvironment;
+  url: string;
+  versionsUrl?: string;
+  version?: AiDevKitVersionsResponse;
+  versionCheckError?: string;
+}
+
+export interface AiDevKitVersionMetadata extends AiDevKitVersionEntry {
+  env: MakerEnvironment;
+  source_url: string;
+  installed_at: string;
+}
+
+export interface AiDevKitUpdateStatus {
+  targetDir: string;
+  installed?: AiDevKitVersionMetadata;
+  latest?: AiDevKitVersionEntry;
+  latestDownloadUrl?: string;
+  updateAvailable: boolean;
+  versionCheckError?: string;
 }
 
 export function inspectAiDevKit(targetDir: string): AiDevKitStatus {
@@ -127,6 +192,137 @@ export function inspectAiDevKit(targetDir: string): AiDevKitStatus {
     presentEntries,
     missingEntries,
     ready: missingEntries.length === 0,
+    installedVersion: readAiDevKitVersionMetadata(resolvedTargetDir),
+  };
+}
+
+export function getAiDevKitVersionMetadataPath(targetDir: string): string {
+  return path.join(path.resolve(targetDir), AI_DEV_KIT_VERSION_METADATA_FILE);
+}
+
+export function readAiDevKitVersionMetadata(
+  targetDir: string
+): AiDevKitVersionMetadata | undefined {
+  const metadataPath = getAiDevKitVersionMetadataPath(targetDir);
+  if (!fs.existsSync(metadataPath)) {
+    return undefined;
+  }
+
+  try {
+    const data = JSON.parse(
+      fs.readFileSync(metadataPath, 'utf8')
+    ) as Partial<AiDevKitVersionMetadata>;
+    if (
+      (data.env !== 'production' && data.env !== 'rnd') ||
+      !isValidDevKitVersion(data.version) ||
+      typeof data.source_url !== 'string' ||
+      typeof data.installed_at !== 'string'
+    ) {
+      return undefined;
+    }
+    return data as AiDevKitVersionMetadata;
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeAiDevKitVersionMetadata(
+  targetDir: string,
+  metadata: AiDevKitVersionMetadata
+): void {
+  const metadataPath = getAiDevKitVersionMetadataPath(targetDir);
+  fs.mkdirSync(path.dirname(metadataPath), { recursive: true });
+  fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
+}
+
+export async function fetchAiDevKitVersions(
+  options: {
+    environment?: MakerEnvironment;
+    fetchImpl?: typeof fetch;
+    timeoutMs?: number;
+  } = {}
+): Promise<AiDevKitVersionsResponse> {
+  const env = getMakerEnvironment(options.environment);
+  const versionsUrl = getAiDevKitVersionsUrl(env);
+  const fetchFn = options.fetchImpl || fetch;
+  const response = await fetchWithTimeout(
+    fetchFn,
+    versionsUrl,
+    {
+      headers: {
+        Accept: 'application/json',
+      },
+    },
+    options.timeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS,
+    'AI dev kit version check'
+  );
+  if (!response.ok) {
+    throw new Error(
+      `AI dev kit version check failed: HTTP ${response.status} ${response.statusText}`
+    );
+  }
+
+  const payload = (await response.json()) as AiDevKitVersionsResponse;
+  if (!payload.current || !isValidDevKitVersion(payload.current.version)) {
+    throw new Error('AI dev kit version check failed: missing current.version');
+  }
+  return payload;
+}
+
+export async function resolveAiDevKitDownload(
+  options: {
+    environment?: MakerEnvironment;
+    fetchImpl?: typeof fetch;
+    versionCheckTimeoutMs?: number;
+  } = {}
+): Promise<AiDevKitDownloadResolution> {
+  const env = getMakerEnvironment(options.environment);
+  const versionsUrl = getAiDevKitVersionsUrl(env);
+  try {
+    const version = await fetchAiDevKitVersions({
+      environment: env,
+      fetchImpl: options.fetchImpl,
+      timeoutMs: options.versionCheckTimeoutMs,
+    });
+    return {
+      environment: env,
+      url: getAiDevKitDownloadUrl(env, version.current!.version),
+      versionsUrl,
+      version,
+    };
+  } catch (error) {
+    return {
+      environment: env,
+      url: resolveDefaultAiDevKitUrl(env),
+      versionsUrl,
+      versionCheckError: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+export async function checkAiDevKitUpdate(
+  targetDir: string,
+  options: {
+    environment?: MakerEnvironment;
+    fetchImpl?: typeof fetch;
+    versionCheckTimeoutMs?: number;
+  } = {}
+): Promise<AiDevKitUpdateStatus> {
+  const resolvedTargetDir = path.resolve(targetDir);
+  const installed = readAiDevKitVersionMetadata(resolvedTargetDir);
+  const download = await resolveAiDevKitDownload({
+    environment: options.environment,
+    fetchImpl: options.fetchImpl,
+    versionCheckTimeoutMs: options.versionCheckTimeoutMs,
+  });
+  const latest = download.version?.current;
+  return {
+    targetDir: resolvedTargetDir,
+    installed,
+    latest,
+    latestDownloadUrl: download.url,
+    updateAvailable: Boolean(latest && (!installed || installed.version !== latest.version)),
+    versionCheckError: download.versionCheckError,
   };
 }
 
@@ -143,13 +339,31 @@ export async function installAiDevKit(
   const targetDir = path.resolve(options.targetDir || '.');
   fs.mkdirSync(targetDir, { recursive: true });
 
+  const download = options.sourceDir
+    ? undefined
+    : options.url
+      ? undefined
+      : await resolveAiDevKitDownload({
+          environment: options.environment,
+          fetchImpl: options.fetchImpl,
+          versionCheckTimeoutMs: options.versionCheckTimeoutMs,
+        });
+  const downloadUrl =
+    options.url || download?.url || resolveDefaultAiDevKitUrl(options.environment);
   const preparedSource = options.sourceDir
     ? path.resolve(options.sourceDir)
-    : await downloadAndExtractDevKit(options.url || resolveDefaultAiDevKitUrl());
+    : await downloadAndExtractDevKit(downloadUrl, options.fetchImpl, options.downloadTimeoutMs);
   const sourceDir = resolveDevKitRoot(preparedSource);
   const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
   const installedEntries: string[] = [];
   const skippedEntries: string[] = [];
+
+  if (options.replaceManagedEntries) {
+    replaceDevKitManagedEntries(
+      targetDir,
+      entries.map((entry) => entry.name)
+    );
+  }
 
   for (const entry of entries) {
     if (SKIPPED_TOP_LEVEL_ENTRIES.has(entry.name)) {
@@ -179,6 +393,15 @@ export async function installAiDevKit(
     ...listPresentSkillInstallerOutputEntries(targetDir),
   ]);
 
+  const versionMetadata =
+    download?.version?.current &&
+    writeResolvedDevKitVersionMetadata(
+      targetDir,
+      download.environment,
+      download.url,
+      download.version.current
+    );
+
   return {
     targetDir,
     sourceDir,
@@ -187,6 +410,8 @@ export async function installAiDevKit(
     gitignorePath: path.join(targetDir, '.gitignore'),
     stagedGitignorePath,
     skillInstaller,
+    download,
+    versionMetadata,
   };
 }
 
@@ -360,6 +585,56 @@ function copyEntry(
   }
 }
 
+function replaceDevKitManagedEntries(targetDir: string, sourceEntryNames: string[]): void {
+  const candidates = new Set<string>();
+  for (const entry of sourceEntryNames) {
+    if (!SKIPPED_TOP_LEVEL_ENTRIES.has(entry)) {
+      candidates.add(entry);
+    }
+  }
+  for (const entry of readManagedGitignoreEntries(path.join(targetDir, '.gitignore'))) {
+    candidates.add(entry);
+  }
+  for (const entry of readManagedGitignoreEntries(
+    path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE)
+  )) {
+    candidates.add(entry);
+  }
+
+  for (const entry of candidates) {
+    if (!entry || ALWAYS_IGNORED_LOCAL_ENTRIES.includes(entry)) {
+      continue;
+    }
+    if (!DEV_KIT_MANAGED_ENTRY_CANDIDATES.includes(entry)) {
+      continue;
+    }
+    fs.rmSync(path.join(targetDir, entry), { recursive: true, force: true });
+  }
+}
+
+function readManagedGitignoreEntries(gitignorePath: string): string[] {
+  if (!fs.existsSync(gitignorePath)) {
+    return [];
+  }
+
+  const content = fs.readFileSync(gitignorePath, 'utf8');
+  const blockPattern = new RegExp(
+    `${escapeRegExp(DEV_KIT_IGNORE_BEGIN)}\\n([\\s\\S]*?)\\n${escapeRegExp(DEV_KIT_IGNORE_END)}`,
+    'g'
+  );
+  const entries: string[] = [];
+  for (const match of content.matchAll(blockPattern)) {
+    const block = match[1] || '';
+    for (const line of block.split(/\r?\n/)) {
+      const entry = line.trim().replace(/\/$/, '');
+      if (entry && !entry.startsWith('#')) {
+        entries.push(entry);
+      }
+    }
+  }
+  return entries;
+}
+
 /**
  * Runs the dev-kit skill installer synchronously for short-lived CLI flows only.
  * Do not call this from long-lived MCP request handlers; use lightweight status
@@ -461,10 +736,51 @@ function listPresentSkillInstallerOutputEntries(targetDir: string): string[] {
   );
 }
 
-async function downloadAndExtractDevKit(url: string): Promise<string> {
+function getAiDevKitVersionsUrl(environment: MakerEnvironment): string {
+  const endpoints = getMakerEndpoints(environment);
+  const remoteMcpServerUrl = requireMakerEndpoint(
+    'remoteMcpServerUrl',
+    endpoints.remoteMcpServerUrl,
+    environment
+  ).replace(/\/$/, '');
+  return `${remoteMcpServerUrl}/ai-dev-kit/versions`;
+}
+
+function getAiDevKitDownloadUrl(environment: MakerEnvironment, version: string): string {
+  return `https://urhox-demo-platform.spark.xd.com/ai-dev-kit/${AI_DEV_KIT_DOWNLOAD_ENV[environment]}/${version}/ai-dev-kit.zip`;
+}
+
+function isValidDevKitVersion(version: unknown): version is string {
+  return typeof version === 'string' && AI_DEV_KIT_VERSION_PATTERN.test(version);
+}
+
+function writeResolvedDevKitVersionMetadata(
+  targetDir: string,
+  environment: MakerEnvironment,
+  sourceUrl: string,
+  current: AiDevKitVersionEntry
+): AiDevKitVersionMetadata {
+  const metadata: AiDevKitVersionMetadata = {
+    env: environment,
+    version: current.version,
+    md5: current.md5,
+    size: current.size,
+    uploaded_at: current.uploaded_at,
+    source_url: sourceUrl,
+    installed_at: new Date().toISOString(),
+  };
+  writeAiDevKitVersionMetadata(targetDir, metadata);
+  return metadata;
+}
+
+async function downloadAndExtractDevKit(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = DEFAULT_DOWNLOAD_FETCH_TIMEOUT_MS
+): Promise<string> {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'taptap-maker-ai-dev-kit-'));
   const zipPath = path.join(tempDir, 'ai-dev-kit.zip');
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(fetchImpl, url, {}, timeoutMs, 'AI dev kit download');
   if (!response.ok) {
     throw new Error(`AI dev kit download failed: HTTP ${response.status} ${response.statusText}`);
   }

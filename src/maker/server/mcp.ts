@@ -51,9 +51,9 @@ import { requestTapAuthWithPat } from '../auth/patTap.js';
 import {
   getMakerEndpoints,
   getMakerEnvironment,
-  getMakerPatTokensUrl,
   getMakerWebUrl,
   requireMakerEndpoint,
+  type MakerEnvironment,
 } from '../config.js';
 import { getUserIdFromMakerJwt } from '../auth/jwt.js';
 import {
@@ -64,8 +64,10 @@ import {
 import { formatMakerSkillStatus } from '../cli/skill.js';
 import {
   DEV_KIT_GITIGNORE_STAGING_FILE,
+  checkAiDevKitUpdate,
   inspectAiDevKit,
   inspectAiDevKitSkillInstallStatus,
+  type AiDevKitUpdateStatus,
   type AiDevKitStatus,
 } from '../cli/devKit.js';
 import {
@@ -516,6 +518,7 @@ async function formatStatus(
   options: { targetDir?: string; skipRemoteSync?: boolean } = {}
 ): Promise<string> {
   const targetDir = resolveMakerToolTargetDir(options.targetDir);
+  const env = getMakerEnvironment(undefined, targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
   const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
   const remoteSyncText =
@@ -524,17 +527,16 @@ async function formatStatus(
       : identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo
         ? formatMakerRemoteSyncSkipped()
         : '';
-  const pat = loadPat();
-  let tapAuth = loadTapAuth();
-  const makerPatTokensUrl = getMakerPatTokensUrl();
+  const pat = loadPat(env);
+  let tapAuth = loadTapAuth(env);
   let tapAuthRefreshText = '';
   if (pat && !tapAuth) {
     try {
-      tapAuth = await requestTapAuthWithPat(pat.token);
+      tapAuth = await requestTapAuthWithPat(pat.token, env);
       tapAuthRefreshText = [
         'TapTap token',
         '',
-        `本地已有 Maker PAT，已自动获取并保存 TapTap token: ${getTapAuthPath()}`,
+        `本地已有 Maker PAT，已自动获取并保存 TapTap token: ${getTapAuthPath(env)}`,
       ].join('\n');
     } catch (error) {
       tapAuthRefreshText = [
@@ -562,8 +564,9 @@ async function formatStatus(
     'TapTap Maker MCP status',
     '',
     `- version: ${VERSION}`,
-    `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath()})`,
-    `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
+    `- env: ${env}`,
+    `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath(env)})`,
+    `- pat: ${pat ? 'found' : 'missing'} (${getPatPath(env)})`,
     `- target_dir: ${targetDir}`,
     `- project_source: ${identify.source}`,
     `- project_id: ${identify.projectId || '(none)'}`,
@@ -582,11 +585,16 @@ async function formatStatus(
       ? await formatMakerProxyToolsStatusSafely({ targetDir: identify.projectRoot })
       : '',
     '',
-    pat ? '' : ['Auth next step', '', `Maker PAT 缺失。PAT 页面：${makerPatTokensUrl}`].join('\n'),
+    formatAuthNextStep({ hasPat: Boolean(pat), isProjectBound: Boolean(identify.projectRoot) }),
     '',
     tapAuthRefreshText,
     '',
-    identify.projectRoot ? await formatAiDevKitStatus(identify.projectRoot) : '',
+    identify.projectRoot
+      ? await formatAiDevKitStatus(identify.projectRoot, {
+          environment: env,
+          skipVersionCheck: options.skipRemoteSync,
+        })
+      : '',
     '',
     formatMakerSkillStatus({ projectRoot: identify.projectRoot || targetDir }),
     '',
@@ -594,6 +602,25 @@ async function formatStatus(
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function formatAuthNextStep(options: { hasPat: boolean; isProjectBound: boolean }): string {
+  if (options.hasPat) {
+    return '';
+  }
+  if (options.isProjectBound) {
+    return [
+      'Auth next step',
+      '',
+      'Maker PAT 缺失。请运行 `taptap-maker login` 刷新登录授权。',
+    ].join('\n');
+  }
+  return [
+    'Initialization next step',
+    '',
+    '当前目录尚未绑定 Maker 项目。请运行 `taptap-maker init`。',
+    '如果缺少 Maker PAT，CLI 会在 init 流程内自动打开登录授权页面并完成本地保存。',
+  ].join('\n');
 }
 
 function formatMakerRemoteSyncSkipped(): string {
@@ -812,23 +839,39 @@ function resolveMakerToolTargetDir(targetDir?: string): string {
   return process.cwd();
 }
 
-async function formatAiDevKitStatus(projectRoot: string): Promise<string> {
+export async function formatAiDevKitStatus(
+  projectRoot: string,
+  options: { environment?: MakerEnvironment; skipVersionCheck?: boolean } = {}
+): Promise<string> {
   const devKitStatus = inspectAiDevKit(projectRoot);
+  const updateStatus = options.skipVersionCheck
+    ? undefined
+    : await checkAiDevKitUpdate(projectRoot, { environment: options.environment });
   if (devKitStatus.ready) {
-    return formatAiDevKitStatusLines('ready', devKitStatus).join('\n');
+    return formatAiDevKitStatusLines('ready', devKitStatus, updateStatus).join('\n');
   }
 
   return [
-    ...formatAiDevKitStatusLines('missing', devKitStatus),
+    ...formatAiDevKitStatusLines('missing', devKitStatus, updateStatus),
     '- next_step: 请运行 taptap-maker dev-kit update，或重新执行 taptap-maker init。',
   ].join('\n');
 }
 
 function formatAiDevKitStatusLines(
   status: 'ready' | 'missing',
-  devKitStatus: AiDevKitStatus
+  devKitStatus: AiDevKitStatus,
+  updateStatus?: AiDevKitUpdateStatus
 ): string[] {
   const skillStatus = inspectAiDevKitSkillInstallStatus(devKitStatus.targetDir);
+  const versionLines = updateStatus
+    ? [
+        `- installed_version: ${updateStatus.installed?.version || '(unknown)'}`,
+        `- latest_version: ${updateStatus.latest?.version || '(unknown)'}`,
+        `- update_available: ${updateStatus.updateAvailable ? 'yes' : 'no'}`,
+        updateStatus.versionCheckError ? `- version_check: ${updateStatus.versionCheckError}` : '',
+        updateStatus.updateAvailable ? '- next_step: 请运行 taptap-maker dev-kit update。' : '',
+      ].filter(Boolean)
+    : ['- version_check: skipped'];
   return [
     'AI dev kit',
     '',
@@ -836,6 +879,7 @@ function formatAiDevKitStatusLines(
     `- required_entries: ${devKitStatus.requiredEntries.join(', ')}`,
     `- present_entries: ${devKitStatus.presentEntries.join(', ') || '(none)'}`,
     `- missing_entries: ${devKitStatus.missingEntries.join(', ') || '(none)'}`,
+    ...versionLines,
     `- skill_install_status: ${skillStatus.status}`,
     `- skill_install_summary: ${skillStatus.summary}`,
   ];
@@ -855,7 +899,7 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     return [
       '本地已有 Maker PAT，但自动列出 Maker Apps 失败。',
       `原因：${error instanceof Error ? error.message : String(error)}`,
-      `如果 PAT 已失效，请运行 taptap-maker pat set 并粘贴新的 Maker PAT。PAT 页面：${getMakerPatTokensUrl()}`,
+      '如果本地鉴权已失效，请运行 `taptap-maker login` 重新完成 Maker 登录授权。',
     ].join('\n');
   }
 }
@@ -992,14 +1036,15 @@ export function createRemoteProxyContext(options: {
 
   const projectConfig = loadProjectConfig(identify.projectRoot);
   const projectId = projectConfig?.project_id || identify.projectId;
-  const tapAuth = loadTapAuth();
+  const env = getMakerEnvironment(options.env, identify.projectRoot);
+  const tapAuth = loadTapAuth(env);
   if (!tapAuth) {
-    throw new Error('Tap auth not found. Run taptap-maker pat set and paste a Maker PAT first.');
+    throw new Error('Tap auth not found. Run `taptap-maker login` first.');
   }
 
   let userId = projectConfig?.user_id;
   if (!userId) {
-    const jwt = loadJwt();
+    const jwt = loadJwt(env);
     userId = jwt ? getUserIdFromMakerJwt(jwt) : undefined;
   }
   if (!userId) {
@@ -1008,7 +1053,6 @@ export function createRemoteProxyContext(options: {
     );
   }
 
-  const env = getMakerEnvironment(options.env);
   const serverUrl =
     options.serverUrl ||
     requireMakerEndpoint('remoteMcpServerUrl', getMakerEndpoints(env).remoteMcpServerUrl, env);
@@ -1820,20 +1864,22 @@ function getRuntimeLogFilePath(projectRoot: string): string {
   return path.join(projectRoot, '.maker', 'logs', 'runtime', 'runtime.log');
 }
 
-async function refreshMakerPreview(buildResult: RemoteBuildResult): Promise<PreviewRefreshResult> {
+export async function refreshMakerPreview(
+  buildResult: RemoteBuildResult
+): Promise<PreviewRefreshResult> {
   const makerEnv =
     buildResult.env === 'rnd' || buildResult.env === 'production' ? buildResult.env : undefined;
   const apiBase = requireMakerEndpoint('apiBase', getMakerEndpoints(makerEnv).apiBase, makerEnv);
   const url = `${apiBase.replace(/\/$/, '')}/apps/${encodeURIComponent(
     buildResult.projectId
   )}/preview-refresh`;
-  const pat = loadPat();
+  const pat = loadPat(makerEnv);
   if (!pat?.token) {
     return {
       ok: false,
       status: 0,
       url,
-      error: 'Maker PAT not found. Run taptap-maker pat set and paste a Maker PAT first.',
+      error: 'Maker PAT not found. Run `taptap-maker login` first.',
     };
   }
 

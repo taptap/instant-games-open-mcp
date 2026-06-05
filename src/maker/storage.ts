@@ -12,6 +12,7 @@ import type {
   MakerTapAuth,
   MakerTapDeviceSession,
 } from './types.js';
+import { type MakerEnvironment } from './config.js';
 
 const MAKER_HOME_ENV = 'TAPTAP_MAKER_HOME';
 const MAKER_DIR = '.taptap-maker';
@@ -38,33 +39,33 @@ export function getMakerHome(): string {
   return process.env[MAKER_HOME_ENV] || path.join(os.homedir(), MAKER_DIR);
 }
 
-export function getJwtPath(): string {
-  return path.join(getMakerHome(), 'jwt.json');
+export function getJwtPath(environment?: MakerEnvironment): string {
+  return getMakerCredentialPath('jwt.json', environment);
 }
 
-export function getPatPath(): string {
-  return path.join(getMakerHome(), 'pat.json');
+export function getPatPath(environment?: MakerEnvironment): string {
+  return getMakerCredentialPath('pat.json', environment);
 }
 
-export function getTapDeviceSessionPath(): string {
-  return path.join(getMakerHome(), 'tap-device-session.json');
+export function getTapDeviceSessionPath(environment?: MakerEnvironment): string {
+  return getMakerCredentialPath('tap-device-session.json', environment);
 }
 
-export function getTapAuthPath(): string {
-  return path.join(getMakerHome(), 'tap-auth.json');
+export function getTapAuthPath(environment?: MakerEnvironment): string {
+  return getMakerCredentialPath('tap-auth.json', environment);
 }
 
 export function getLegacyPatPath(): string {
   return path.join(os.homedir(), '.maker-pat');
 }
 
-export function loadJwt(): MakerJwt | null {
-  const jwt = readJsonFile<MakerJwt>(getJwtPath());
+export function loadJwt(environment?: MakerEnvironment): MakerJwt | null {
+  const jwt = readJsonFile<MakerJwt>(getJwtPath(environment));
   return jwt?.token ? jwt : null;
 }
 
-export function saveJwt(jwt: MakerJwt): void {
-  writeJsonFile(getJwtPath(), {
+export function saveJwt(jwt: MakerJwt, environment?: MakerEnvironment): void {
+  writeJsonFile(getJwtPath(environment), {
     ...jwt,
     saved_at: new Date().toISOString(),
   });
@@ -77,10 +78,15 @@ export function clearJwt(): void {
   }
 }
 
-export function loadPat(): MakerPat | null {
-  const pat = readJsonFile<MakerPat>(getPatPath());
+export function loadPat(environment?: MakerEnvironment): MakerPat | null {
+  const pat = readJsonFile<MakerPat>(getPatPath(environment));
   if (pat?.token) {
     return pat;
+  }
+
+  const legacyJsonPat = readJsonFile<MakerPat>(path.join(getMakerHome(), 'pat.json'));
+  if (legacyJsonPat?.token) {
+    return legacyJsonPat;
   }
 
   const legacyPatPath = getLegacyPatPath();
@@ -94,13 +100,11 @@ export function loadPat(): MakerPat | null {
   return null;
 }
 
-export function savePat(pat: MakerPat): void {
-  writeJsonFile(getPatPath(), {
+export function savePat(pat: MakerPat, environment?: MakerEnvironment): void {
+  writeJsonFile(getPatPath(environment), {
     ...pat,
     saved_at: new Date().toISOString(),
   });
-
-  fs.writeFileSync(getLegacyPatPath(), `${pat.token}\n`, 'utf8');
 }
 
 export function clearPat(): void {
@@ -115,13 +119,16 @@ export function clearPat(): void {
   }
 }
 
-export function loadTapDeviceSession(): MakerTapDeviceSession | null {
-  const session = readJsonFile<MakerTapDeviceSession>(getTapDeviceSessionPath());
+export function loadTapDeviceSession(environment?: MakerEnvironment): MakerTapDeviceSession | null {
+  const session = readJsonFile<MakerTapDeviceSession>(getTapDeviceSessionPath(environment));
   return session?.device_code ? session : null;
 }
 
-export function saveTapDeviceSession(session: MakerTapDeviceSession): void {
-  writeJsonFile(getTapDeviceSessionPath(), {
+export function saveTapDeviceSession(
+  session: MakerTapDeviceSession,
+  environment?: MakerEnvironment
+): void {
+  writeJsonFile(getTapDeviceSessionPath(environment), {
     ...session,
     saved_at: new Date().toISOString(),
   });
@@ -134,13 +141,13 @@ export function clearTapDeviceSession(): void {
   }
 }
 
-export function loadTapAuth(): MakerTapAuth | null {
-  const auth = readJsonFile<MakerTapAuth>(getTapAuthPath());
+export function loadTapAuth(environment?: MakerEnvironment): MakerTapAuth | null {
+  const auth = readJsonFile<MakerTapAuth>(getTapAuthPath(environment));
   return auth?.kid && auth?.mac_key ? auth : null;
 }
 
-export function saveTapAuth(auth: MakerTapAuth): void {
-  writeJsonFile(getTapAuthPath(), {
+export function saveTapAuth(auth: MakerTapAuth, environment?: MakerEnvironment): void {
+  writeJsonFile(getTapAuthPath(environment), {
     ...auth,
     saved_at: new Date().toISOString(),
   });
@@ -182,4 +189,9 @@ export function saveProjectConfig(projectRoot: string, config: MakerProjectConfi
 
 export function getProjectMarkerDirName(): string {
   return PROJECT_DIR;
+}
+
+function getMakerCredentialPath(fileName: string, environment?: MakerEnvironment): string {
+  void environment;
+  return path.join(getMakerHome(), fileName);
 }
