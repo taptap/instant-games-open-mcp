@@ -164,16 +164,18 @@ const sessionResult = await connection.newSession({
 
 ### tenant（必需）
 
-| 字段           | 类型   | 必需 | 说明                                                   | 示例                    |
-| -------------- | ------ | ---- | ------------------------------------------------------ | ----------------------- |
-| `project_path` | string | ⚪   | 项目路径（相对于 MCP Server WORKSPACE_ROOT，默认 '.'） | `project-123/workspace` |
-| `user_id`      | string | ⚪   | 用户标识符（仅用于日志和追踪）                         | `user-456`              |
-| `project_id`   | string | ⚪   | 项目标识符（仅用于日志和追踪）                         | `project-123`           |
+| 字段                | 类型   | 必需 | 说明                                                   | 示例                    |
+| ------------------- | ------ | ---- | ------------------------------------------------------ | ----------------------- |
+| `project_path`      | string | ⚪   | 项目路径（相对于 MCP Server WORKSPACE_ROOT，默认 '.'） | `project-123/workspace` |
+| `user_id`           | string | ⚪   | 用户标识符（仅用于日志和追踪）                         | `user-456`              |
+| `client_session_id` | string | ⚪   | 业务/编辑器会话标识符                                  | `client-session-789`    |
+| `project_id`        | string | ⚪   | 项目标识符（仅用于日志和追踪）                         | `project-123`           |
 
 **说明：**
 
 - `project_path` 由 TapCode 平台生成，Proxy 直接传递给 MCP Server
 - `user_id` 和 `project_id` 仅用于日志标识，不参与路径逻辑
+- `client_session_id` 会透传为 `ctx.clientSessionId`，业务请求可按需设置 `X-TapTap-Client-Session-Id`
 - Proxy 不再处理路径拼接，全部交给 MCP Server 的 `pathResolver` 统一处理
 - 连接上游 MCP Server 创建 session 时会额外发送 `X-TapTap-Tag: local`，用于远端
   MCP 区分本地 proxy 调用来源；每次工具调用也会继续注入私有参数 `_tag:
@@ -410,6 +412,7 @@ const volumes = [
    - `_mac_token`（从配置）
    - `_project_path`（计算绝对路径）
    - `_user_id`（从配置）
+   - `_client_session_id`（从配置，可选）
 5. Proxy 转发到 TapTap Server（HTTP/SSE）
 6. TapTap Server 处理并返回结果
 7. Proxy 透传响应给 Agent

@@ -9,6 +9,7 @@
   "tenant": {
     "project_path": "project-123/workspace",
     "user_id": "user-456",
+    "client_session_id": "client-session-789",
     "project_id": "project-123"
   },
   "auth": {
