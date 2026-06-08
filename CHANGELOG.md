@@ -1,3 +1,44 @@
+## <small>1.24.7 (2026-06-08)</small>
+
+### Features
+
+* proxy: pass client session id to handlers (c573b8f)
+* maker: add cli login and dev-kit update checks (932780d)
+* maker: materialize proxy tool assets (97d0332)
+* maker: expose video and music proxy tools (25814c7)
+* maker: expose image proxy tools (97e56ae)
+* maker: add install shortcut alias (d898367)
+
+### Bug Fixes
+
+* maker: promote main Maker bug fixes (aae55ee)
+* maker: install dev kit after checkout (1012a2b)
+* maker: promote beta Maker and proxy fixes (778d05d)
+* maker: 精简 app 列表展示并兼容旧分页参数 (#191) (9cbd1ea)
+
+### CI
+
+* release: allow main release version policy tests (#228) (eb3ebbf)
+* release: simplify manual package publishing (#227) (5ac2793)
+* release: disable automatic main package publish (#226) (4e62dd0)
+* release: allow maker releases from main and beta (c348aba)
+* release: isolate maker package publishing (#222) (dd42ccb)
+* maker: switch npm publish to oidc only [skip ci] (9cfd353)
+* maker: add npm tag cleanup workflow [skip ci] (74b8f0b)
+* maker: fix npm access command [skip ci] (575d115)
+* maker: add npm access repair workflow [skip ci] (02b913b)
+
+### Chores
+
+* deps: align lockfile with ci npm [skip ci] (829a4e0)
+* deps: sync lockfile for maker publish [skip ci] (13bbd23)
+* maker: add standalone maker package publishing [skip ci] (8d6b858)
+
+### Other Changes
+
+* Merge pull request #232 from taptap/fix/maker-shallow-clone (1e2f2ba)
+* Merge pull request #231 from taptap/fix/maker-sync-beta-proxy-tools (1fbb164)
+
 ## <small>1.23.4 (2026-05-26)</small>
 
 * fix(maker): optimize Maker app list display and sync recovery ([3a98789](https://github.com/taptap/instant-games-open-mcp/commit/3a98789))
