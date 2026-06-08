@@ -26,6 +26,7 @@ import { EnvConfig } from '../utils/env.js';
  * 参数来源（优先级从高到低）：
  * 1. HTTP Headers（Proxy 模式推荐）：
  *    - X-TapTap-User-Id
+ *    - X-TapTap-Client-Session-Id
  *    - X-TapTap-Project-Id
  *    - X-TapTap-Project-Path
  *    - X-TapTap-Mac-Token（JSON 序列化）
@@ -36,6 +37,7 @@ import { EnvConfig } from '../utils/env.js';
  */
 export interface SessionContext {
   userId?: string;
+  clientSessionId?: string;
   projectId?: string;
   projectPath?: string;
   sessionId?: string;
@@ -84,6 +86,7 @@ export enum TokenSource {
 interface ResolvedData {
   // Session 层（来自 SessionContext）
   userId?: string;
+  clientSessionId?: string;
   projectId?: string;
   projectPath?: string;
   sessionId?: string;
@@ -101,7 +104,7 @@ interface ResolvedData {
  * - 请求级：仅在单次工具调用中有效，不可保存和重用
  *
  * 数据来源：
- * - SessionContext: userId, projectId, projectPath, sessionId, macToken
+ * - SessionContext: userId, clientSessionId, projectId, projectPath, sessionId, macToken
  * - PrivateToolParams: 覆盖上述字段 + developerId, appId
  *
  * @example
@@ -136,6 +139,7 @@ export class ResolvedContext {
     return {
       // Session 层（私有参数优先）
       userId: args._user_id || session.userId,
+      clientSessionId: args._client_session_id || session.clientSessionId,
       projectId: args._project_id || session.projectId,
       projectPath: args._project_path || session.projectPath,
       sessionId: args._session_id || session.sessionId,
@@ -164,6 +168,11 @@ export class ResolvedContext {
   /** 获取项目标识 */
   get projectId(): string | undefined {
     return this._data.projectId;
+  }
+
+  /** 获取业务/编辑器会话标识 */
+  get clientSessionId(): string | undefined {
+    return this._data.clientSessionId;
   }
 
   /** 获取项目路径 */

@@ -22,6 +22,7 @@ import type { MacToken } from './index.js';
  * 使用场景：
  * - 覆盖 Session 中的认证（_mac_token）
  * - 覆盖 Session 中的用户标识（_user_id）
+ * - 覆盖 Session 中的业务/编辑器会话标识（_client_session_id）
  * - 覆盖 Session 中的项目标识（_project_id, _project_path）
  * - 标记 Proxy 调用来源（_tag）
  *
@@ -43,6 +44,13 @@ export interface PrivateToolParams {
    * @example "user_12345"
    */
   _user_id?: string;
+
+  /**
+   * Client Session ID（覆盖 Session 中的 clientSessionId）
+   * 表示业务/编辑器会话 ID，区别于 MCP transport sessionId
+   * @example "client_session_abc123xyz"
+   */
+  _client_session_id?: string;
 
   /**
    * Session ID（覆盖 Session 中的 sessionId）
@@ -95,6 +103,7 @@ export function extractPrivateParams(args: any): PrivateToolParams {
   return {
     _mac_token: args?._mac_token,
     _user_id: args?._user_id,
+    _client_session_id: args?._client_session_id,
     _session_id: args?._session_id,
     _project_id: args?._project_id,
     _project_path: args?._project_path,
@@ -126,6 +135,7 @@ export function stripPrivateParams(args: any): any {
   const {
     _mac_token,
     _user_id,
+    _client_session_id,
     _session_id,
     _project_id,
     _project_path,
@@ -156,6 +166,7 @@ export function hasPrivateParams(args: any): boolean {
   return !!(
     args._mac_token ||
     args._user_id ||
+    args._client_session_id ||
     args._session_id ||
     args._project_id ||
     args._project_path ||
@@ -187,6 +198,9 @@ export function mergePrivateParams(args: any, privateParams: PrivateToolParams):
   }
   if (privateParams._user_id) {
     result._user_id = privateParams._user_id;
+  }
+  if (privateParams._client_session_id) {
+    result._client_session_id = privateParams._client_session_id;
   }
   if (privateParams._session_id) {
     result._session_id = privateParams._session_id;

@@ -7,6 +7,7 @@ import {
 } from '../core/types/privateParams';
 import type { ProxyConfig } from '../mcp-proxy/types';
 import { ResolvedContext } from '../core/types/context';
+import { applyDefaults } from '../mcp-proxy/config';
 
 function createProxyConfig(): ProxyConfig {
   return {
@@ -16,6 +17,7 @@ function createProxyConfig(): ProxyConfig {
     },
     tenant: {
       user_id: 'user-1',
+      client_session_id: 'client-session-1',
       project_id: 'project-1',
       project_path: 'project-1/workspace',
     },
@@ -43,6 +45,7 @@ describe('mcp proxy tag private parameter', () => {
 
     expect(headers).toMatchObject({
       'X-TapTap-Tag': 'local',
+      'X-TapTap-Client-Session-Id': 'client-session-1',
       'X-TapTap-Project-Id': 'project-1',
       'X-TapTap-Project-Path': 'project-1/workspace',
       'X-TapTap-User-Id': 'user-1',
@@ -61,6 +64,7 @@ describe('mcp proxy tag private parameter', () => {
     expect(injected).toMatchObject({
       name: 'demo',
       _tag: 'local',
+      _client_session_id: 'client-session-1',
       _project_id: 'project-1',
       _project_path: 'project-1/workspace',
       _user_id: 'user-1',
@@ -71,26 +75,47 @@ describe('mcp proxy tag private parameter', () => {
     const args = {
       page: 1,
       _tag: 'local',
+      _client_session_id: 'client-session-1',
       _project_id: 'project-1',
     };
 
     expect(extractPrivateParams(args)).toMatchObject({
       _tag: 'local',
+      _client_session_id: 'client-session-1',
       _project_id: 'project-1',
     });
     expect(hasPrivateParams(args)).toBe(true);
     expect(stripPrivateParams(args)).toEqual({ page: 1 });
-    expect(mergePrivateParams({ page: 2 }, { _tag: 'local' })).toEqual({
+    expect(
+      mergePrivateParams({ page: 2 }, { _tag: 'local', _client_session_id: 'client-2' })
+    ).toEqual({
       page: 2,
       _tag: 'local',
+      _client_session_id: 'client-2',
     });
-    expect(new ResolvedContext(extractPrivateParams(args), { tag: 'header' }).tag).toBe('local');
-  });
-
-  test('falls back to session header tag when no private tag is provided', () => {
-    const context = new ResolvedContext({}, { tag: 'local' });
+    const context = new ResolvedContext(extractPrivateParams(args), {
+      clientSessionId: 'header-client-session',
+      tag: 'header',
+    });
 
     expect(context.tag).toBe('local');
+    expect(context.clientSessionId).toBe('client-session-1');
+  });
+
+  test('falls back to session headers when no private values are provided', () => {
+    const context = new ResolvedContext(
+      {},
+      { clientSessionId: 'header-client-session', tag: 'local' }
+    );
+
+    expect(context.tag).toBe('local');
+    expect(context.clientSessionId).toBe('header-client-session');
+  });
+
+  test('preserves client session id when applying proxy config defaults', () => {
+    const config = applyDefaults(createProxyConfig());
+
+    expect(config.tenant.client_session_id).toBe('client-session-1');
   });
 });
 

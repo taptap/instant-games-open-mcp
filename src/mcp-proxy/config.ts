@@ -113,6 +113,12 @@ function validateConfig(config: ProxyConfig): void {
   } else {
     // tenant 字段本身必须存在，但内部所有字段都是可选的
     // user_id 和 project_id 仅用于标识和日志追踪，不影响路径逻辑
+    if (
+      config.tenant.client_session_id !== undefined &&
+      typeof config.tenant.client_session_id !== 'string'
+    ) {
+      errors.push('- tenant.client_session_id must be a string');
+    }
 
     // custom_fields 必须是 plain object（非 array、非 null），且所有 value 为 string
     if (config.tenant.custom_fields !== undefined) {
@@ -170,7 +176,7 @@ const DEFAULT_LOG_ROOT = '/tmp/taptap-mcp/logs';
 /**
  * 应用默认值
  */
-function applyDefaults(config: ProxyConfig): ProxyConfig {
+export function applyDefaults(config: ProxyConfig): ProxyConfig {
   const verbose = config.options?.verbose ?? false;
 
   return {
@@ -182,6 +188,7 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
       project_path: config.tenant.project_path || '.',
       user_id: config.tenant.user_id,
       project_id: config.tenant.project_id,
+      client_session_id: config.tenant.client_session_id,
       custom_fields: config.tenant.custom_fields,
     },
     auth: config.auth,

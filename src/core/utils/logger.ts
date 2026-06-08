@@ -469,6 +469,7 @@ export class Logger {
     sessionId: string,
     metadata?: {
       userId?: string;
+      clientSessionId?: string;
       projectId?: string;
       projectPath?: string;
       macToken?: { kid?: string };
@@ -484,6 +485,9 @@ export class Logger {
     // Output session context info (always, not just verbose)
     if (metadata?.userId) {
       process.stderr.write(`  User ID:      ${metadata.userId}\n`);
+    }
+    if (metadata?.clientSessionId) {
+      process.stderr.write(`  Client SID:   ${metadata.clientSessionId}\n`);
     }
     if (metadata?.projectId) {
       process.stderr.write(`  Project ID:   ${metadata.projectId}\n`);
@@ -505,6 +509,7 @@ export class Logger {
       sessionId,
       event: 'client_connected',
       userId: metadata?.userId,
+      clientSessionId: metadata?.clientSessionId,
       projectId: metadata?.projectId,
       projectPath: metadata?.projectPath,
       hasMacToken: !!metadata?.macToken?.kid,
