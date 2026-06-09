@@ -422,11 +422,18 @@ jobs:
       (needs.build-native.result == 'success' || needs.download-native.result == 'success')
 
     steps:
+      - name: Generate release app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -475,23 +482,104 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Using manually resolved version: ${VERSION}"
 
-      # 创建 Release 分支
-      - name: Create release branch
-        id: branch
+      - name: Generate release write app token
+        id: write-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Configure release write app token
+        env:
+          GH_TOKEN: ${{ steps.write-app-token.outputs.token }}
+        run: |
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: bearer ${GH_TOKEN}"
+
+      - name: Resolve existing release PR
+        id: release_pr
+        env:
+          GH_TOKEN: ${{ steps.write-app-token.outputs.token }}
         run: |
           VERSION=${{ steps.release_version.outputs.version }}
           BRANCH="release/v${VERSION}"
 
-          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          PR_FIELDS=$(gh pr list \
+            --state all \
+            --base main \
+            --head "$BRANCH" \
+            --json url,number,state \
+            --jq '[(.[0].url // ""), (.[0].number // ""), (.[0].state // "")] | @tsv')
+          IFS=$'\t' read -r PR_URL PR_NUMBER PR_STATE <<< "$PR_FIELDS"
+
+          echo "url=${PR_URL}" >> "$GITHUB_OUTPUT"
+          echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "state=${PR_STATE}" >> "$GITHUB_OUTPUT"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$PR_URL" ]; then
+            echo "Found existing release PR: ${PR_URL} (state=${PR_STATE})"
+          else
+            echo "No existing release PR found for ${BRANCH}"
+          fi
+
+      - name: Fail closed release PR
+        if: steps.release_pr.outputs.state == 'CLOSED'
+        run: |
+          echo "Existing release PR was closed without merging"
+          echo "${{ steps.release_pr.outputs.url }}"
+          exit 1
+
+      # 创建 Release 分支
+      - name: Create release branch
+        if: success() && steps.release_pr.outputs.state != 'MERGED'
+        run: |
+          VERSION=${{ steps.release_version.outputs.version }}
+          BRANCH="release/v${VERSION}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git checkout -b "$BRANCH"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Release branch ${BRANCH} already exists, reusing it"
+            git fetch origin "$BRANCH"
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+          else
+            git checkout -B "$BRANCH"
+          fi
 
-      - name: Set release package version
+      - name: Checkout merged release commit
+        if: success() && steps.release_pr.outputs.state == 'MERGED'
+        env:
+          GH_TOKEN: ${{ steps.write-app-token.outputs.token }}
         run: |
           VERSION=${{ steps.release_version.outputs.version }}
+          PR_NUMBER=${{ steps.release_pr.outputs.number }}
+
+          MERGE_COMMIT=$(gh pr view "$PR_NUMBER" --json mergeCommit --jq '.mergeCommit.oid // ""')
+          if [ -z "$MERGE_COMMIT" ]; then
+            echo "Release PR #${PR_NUMBER} is merged but merge commit is unavailable"
+            exit 1
+          fi
+
+          git fetch origin main
+          git checkout -B main "$MERGE_COMMIT"
+
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "Merged main package version ${PACKAGE_VERSION} does not match ${VERSION}"
+            exit 1
+          fi
+
+      - name: Set release package version
+        if: success() && steps.release_pr.outputs.state != 'MERGED'
+        run: |
+          VERSION=${{ steps.release_version.outputs.version }}
+
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PACKAGE_VERSION" = "$VERSION" ]; then
+            echo "Release branch package.json already has version ${VERSION}"
+            exit 0
+          fi
 
           npm version $VERSION --no-git-tag-version
 
@@ -512,18 +600,27 @@ jobs:
 
       # 发布到 npm (包含 native binaries)
       # 优先使用 OIDC provenance；fallback 到 NPM_TOKEN（首次发布新包名时需要）
-      - name: Publish to npm
+      - name: Verify or publish npm package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          VERSION=${{ steps.release_version.outputs.version }}
+
+          if npm view "@taptap/instant-games-open-mcp@${VERSION}" version >/dev/null 2>&1; then
+            echo "@taptap/instant-games-open-mcp@${VERSION} already exists on npm"
+            npm dist-tag add "@taptap/instant-games-open-mcp@${VERSION}" latest
+            exit 0
+          fi
+
           npm publish --access public --tag latest --provenance 2>/dev/null \
             || npm publish --access public --tag latest
 
       # 提交并推送
       - name: Commit and push release branch
+        if: success() && steps.release_pr.outputs.state != 'MERGED'
         run: |
           VERSION=${{ steps.release_version.outputs.version }}
-          BRANCH=${{ steps.branch.outputs.branch }}
+          BRANCH=${{ steps.release_pr.outputs.branch }}
           NATIVE_CHANGED=${{ needs.analyze.outputs.native_changed }}
 
           NATIVE_NOTE=""
@@ -534,6 +631,11 @@ jobs:
           fi
 
           git add package.json package-lock.json CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "Release files already committed on ${BRANCH}"
+            exit 0
+          fi
+
           git commit -m "chore(release): ${VERSION}
 
           ${NATIVE_NOTE}
@@ -547,11 +649,12 @@ jobs:
       # 创建 PR
       - name: Create Pull Request
         id: pr
+        if: success() && steps.release_pr.outputs.url == ''
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.write-app-token.outputs.token }}
         run: |
           VERSION=${{ steps.release_version.outputs.version }}
-          BRANCH=${{ steps.branch.outputs.branch }}
+          BRANCH=${{ steps.release_pr.outputs.branch }}
           NATIVE_CHANGED=${{ needs.analyze.outputs.native_changed }}
 
           if [ "$NATIVE_CHANGED" == "true" ]; then
@@ -592,11 +695,20 @@ jobs:
 
       # 自动合并
       - name: Auto-merge PR
+        if: success() && steps.release_pr.outputs.state != 'MERGED'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.write-app-token.outputs.token }}
         run: |
-          PR_URL=${{ steps.pr.outputs.pr_url }}
+          PR_URL="${{ steps.pr.outputs.pr_url || steps.release_pr.outputs.url }}"
           PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+
+          AUTO_MERGE_ENABLED=$(gh pr view "$PR_NUMBER" \
+            --json autoMergeRequest \
+            --jq '.autoMergeRequest != null')
+          if [ "$AUTO_MERGE_ENABLED" = "true" ]; then
+            echo "Auto-merge is already enabled for PR #$PR_NUMBER"
+            exit 0
+          fi
 
           echo "Enabling auto-merge for PR #$PR_NUMBER..."
 
@@ -607,46 +719,97 @@ jobs:
 
           echo "Auto-merge enabled for PR #$PR_NUMBER, will merge when all checks pass."
 
-      # 等待 release PR 合并后，再创建 tag 和 GitHub Release
-      - name: Create GitHub Release
+      # 等待 release PR 合并；等待期间不消耗后续写操作使用的 App token。
+      - name: Wait for release PR merge
+        id: wait_for_merge
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=${{ steps.release_version.outputs.version }}
-          PR_URL=${{ steps.pr.outputs.pr_url }}
+          PR_URL="${{ steps.pr.outputs.pr_url || steps.release_pr.outputs.url }}"
           PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          STATE="${{ steps.release_pr.outputs.state }}"
 
           # 等待 PR 合并（auto-merge 是异步的）
-          echo "Waiting for PR #$PR_NUMBER to be merged..."
-          for i in $(seq 1 60); do
-            STATE=$(gh pr view "$PR_NUMBER" --json state --jq '.state')
-            if [ "$STATE" = "MERGED" ]; then
-              echo "PR #$PR_NUMBER merged after ${i}0s"
-              break
-            fi
-            if [ "$STATE" = "CLOSED" ]; then
-              echo "PR #$PR_NUMBER was closed without merging"
-              exit 1
-            fi
-            sleep 10
-          done
+          if [ "$STATE" != "MERGED" ]; then
+            echo "Waiting for PR #$PR_NUMBER to be merged..."
+            for i in $(seq 1 360); do
+              STATE=$(gh pr view "$PR_NUMBER" --json state --jq '.state')
+              if [ "$STATE" = "MERGED" ]; then
+                echo "PR #$PR_NUMBER merged after ${i}0s"
+                break
+              fi
+              if [ "$STATE" = "CLOSED" ]; then
+                echo "PR #$PR_NUMBER was closed without merging"
+                exit 1
+              fi
+              sleep 10
+            done
+          fi
 
           if [ "$STATE" != "MERGED" ]; then
-            echo "Timeout waiting for PR merge, skipping release creation"
+            echo "Timeout waiting for PR merge."
+            echo "After the release PR is merged, rerun failed jobs to continue."
             exit 1
           fi
 
-          # PR 已合并，获取最新 main
-          git fetch origin
-          git checkout -B main origin/main
+          echo "state=${STATE}" >> "$GITHUB_OUTPUT"
+          MERGE_COMMIT=$(gh pr view "$PR_NUMBER" --json mergeCommit --jq '.mergeCommit.oid // ""')
+          if [ -z "$MERGE_COMMIT" ]; then
+            echo "Release PR #${PR_NUMBER} is merged but merge commit is unavailable"
+            exit 1
+          fi
+          echo "merge_commit=${MERGE_COMMIT}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate final release app token
+        id: final-app-token
+        if: success() && steps.wait_for_merge.outputs.state == 'MERGED'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      # release PR 合并后，用新生成的 App token 创建 tag 和 GitHub Release。
+      - name: Create GitHub Release
+        if: success() && steps.wait_for_merge.outputs.state == 'MERGED'
+        env:
+          GH_TOKEN: ${{ steps.final-app-token.outputs.token }}
+        run: |
+          VERSION=${{ steps.release_version.outputs.version }}
+          MERGE_COMMIT=${{ steps.wait_for_merge.outputs.merge_commit }}
+
+          # PR 已合并，检出该 release PR 的 merge commit，避免 main 后续推进影响 tag 目标。
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: bearer ${GH_TOKEN}"
+          git fetch origin main
+          git checkout -B main "$MERGE_COMMIT"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
           test -s "$RUNNER_TEMP/main-release-notes.md"
 
           # 在 main 最新 commit 上创建 tag（即 squash merge 后的 release commit）
-          git tag -a "v${VERSION}" -m "Release v${VERSION}"
-          git push origin "v${VERSION}"
+          if git ls-remote --exit-code --tags origin "v${VERSION}" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/v${VERSION}:refs/tags/v${VERSION}"
+            TAG_TARGET=$(git rev-list -n 1 "v${VERSION}")
+            MAIN_TARGET=$(git rev-parse HEAD)
+
+            if [ "$TAG_TARGET" != "$MAIN_TARGET" ]; then
+              echo "Existing tag v${VERSION} points to ${TAG_TARGET}, expected ${MAIN_TARGET}"
+              exit 1
+            fi
+
+            echo "Existing tag v${VERSION} points to ${TAG_TARGET}"
+          else
+            git tag -a "v${VERSION}" -m "Release v${VERSION}"
+            git push origin "v${VERSION}"
+          fi
 
           # 创建 GitHub Release，上传 native binaries 作为 assets
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "GitHub Release v${VERSION} already exists"
+            gh release upload "v${VERSION}" native/*.node --clobber
+            exit 0
+          fi
+
           gh release create "v${VERSION}" \
             --title "v${VERSION}" \
             --notes-file "$RUNNER_TEMP/main-release-notes.md" \
