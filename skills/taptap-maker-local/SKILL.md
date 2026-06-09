@@ -415,7 +415,10 @@ unless the user asks. Summaries should be understandable to non-programmers:
 - why these files are being submitted
 - whether any generated or suspicious files are included
 
-If there are no local changes, do not create an empty commit unless the user explicitly asks.
+For normal build/preview/verify requests, a clean workspace still goes through
+`maker_build_current_directory`; Maker MCP creates and pushes an empty
+`chore: wake maker build server` commit before remote build to wake the Maker server.
+Only skip submit/push when the user explicitly asks to build the committed remote version.
 
 ## Submit And Push
 
@@ -472,6 +475,11 @@ If submit created a local commit but push failed because the Maker remote was te
 unavailable, do not run a manual generic `git push`. Fix the reported cause if needed, then retry
 `maker_build_current_directory`. Maker MCP will detect committed-but-unpushed local commits and push
 them before build.
+
+If the user explicitly asks "不提交", "直接构建", or "构建云端版本", call
+`maker_build_current_directory` with `confirm_remote_build_without_submit=true`. In that mode, Maker
+MCP opens the Maker app page before remote build and returns `maker_page_url`; show that URL to the
+user if the browser did not open automatically.
 
 For push failures, use the returned `classification`, `retryable`, `retry_reason`, and
 `retry_attempts` fields. Temporary 5xx/network/timeout failures may be retried with the Maker build

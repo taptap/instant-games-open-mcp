@@ -2,7 +2,7 @@
  * taptap-maker MCP server mode.
  */
 
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -137,7 +137,7 @@ export const tools = [
   {
     name: 'maker_build_current_directory',
     description:
-      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. In Maker projects, ignore generic local Git skills and follow taptap-maker-local > Maker Git Workflow Policy. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. If local changes or committed-but-unpushed commits exist, the tool commits when needed, pushes to Maker remote, then triggers remote Maker build. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version.',
+      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. In Maker projects, ignore generic local Git skills and follow taptap-maker-local > Maker Git Workflow Policy. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. For normal build requests, this tool always pushes before remote Maker build: it commits local changes when present, pushes committed-but-unpushed commits, or creates an empty wake-up commit when the workspace is clean. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version; in that mode, open the returned maker_page_url/maker_url first so the user can view the remote Maker project and help wake the server.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -189,7 +189,7 @@ export const tools = [
         message: {
           type: 'string',
           description:
-            'Optional commit message used when local file changes need to be committed before build.',
+            'Optional commit message used when local changes or the empty wake-up commit need to be committed before build.',
         },
         files: {
           type: 'array',
@@ -200,7 +200,7 @@ export const tools = [
         confirm_remote_build_without_submit: {
           type: 'boolean',
           description:
-            'Set true only after the user explicitly confirms they do not want to submit local changes and want to build the current Maker remote committed version.',
+            'Set true only after the user explicitly confirms they do not want to submit local changes and want to build the current Maker remote committed version. This mode opens and returns the Maker app page URL before remote build.',
         },
       },
     },
@@ -1232,6 +1232,12 @@ type SubmitLocalChangesForBuild = (
 ) => Promise<PushMakerProjectResult>;
 
 type RemoteBuildResult = Extract<BuildCurrentDirectoryResult, { mode: 'remote_build' }>;
+type MakerPageOpenResult = {
+  ok: boolean;
+  url: string;
+  error?: string;
+};
+type OpenMakerPage = (url: string) => MakerPageOpenResult;
 type MakerBuildFailure = {
   name: string;
   message: string;
@@ -1280,6 +1286,43 @@ function formatMakerAppWebUrl(projectId: string, env: string): string {
   return `${getMakerWebUrl(makerEnv)}/app/${encodeURIComponent(projectId)}`;
 }
 
+function openRemoteBuildMakerPage(options: {
+  targetDir: string;
+  env?: 'rnd' | 'production';
+  openMakerPage?: OpenMakerPage;
+}): MakerPageOpenResult {
+  const identify = identifyMakerProject({ cwd: options.targetDir });
+  if (!identify.projectRoot || !identify.projectId) {
+    throw new Error(
+      `${options.targetDir} is not bound to a Maker project. Run taptap-maker init first.`
+    );
+  }
+  const projectConfig = loadProjectConfig(identify.projectRoot);
+  const projectId = projectConfig?.project_id || identify.projectId;
+  const env = getMakerEnvironment(options.env, identify.projectRoot);
+  const url = formatMakerAppWebUrl(projectId, env);
+  return (options.openMakerPage || openMakerPageInBrowser)(url);
+}
+
+function openMakerPageInBrowser(url: string): MakerPageOpenResult {
+  const command =
+    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
+  const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
+  const result = spawnSync(command, args, {
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0) {
+    return {
+      ok: false,
+      url,
+      error:
+        result.error?.message || `open command exited with status ${result.status ?? 'unknown'}`,
+    };
+  }
+  return { ok: true, url };
+}
+
 type BuildCurrentDirectoryResult =
   | {
       mode: 'remote_build';
@@ -1295,6 +1338,7 @@ type BuildCurrentDirectoryResult =
       previewRefresh?: PreviewRefreshResult;
       runtimeLogWatch?: RuntimeLogWatchStartResult;
       submitResult?: PushMakerProjectResult;
+      makerPageOpen?: MakerPageOpenResult;
     }
   | {
       mode: 'remote_build_failed';
@@ -1302,6 +1346,7 @@ type BuildCurrentDirectoryResult =
       projectId: string;
       buildResult: RemoteBuildResult;
       buildFailure: MakerBuildFailure;
+      makerPageOpen?: MakerPageOpenResult;
     }
   | {
       mode: 'submit_failed_before_build';
@@ -1342,23 +1387,29 @@ export async function buildCurrentDirectory(options: {
   confirmRemoteBuildWithoutSubmit?: boolean;
   submitLocalChanges?: SubmitLocalChangesForBuild;
   callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildResult>;
+  openMakerPage?: OpenMakerPage;
   refreshPreview?: RefreshMakerPreview;
   startRuntimeLogWatch?: StartRuntimeLogWatch;
   onProgress?: MakerProjectProgressHandler;
 }): Promise<BuildCurrentDirectoryResult> {
   const localChanges = await readMakerProjectLocalChanges(options.targetDir);
-  if (localChanges.hasChanges && !options.confirmRemoteBuildWithoutSubmit) {
+  if (!options.confirmRemoteBuildWithoutSubmit) {
     const config = loadProjectConfig(localChanges.projectRoot);
     options.onProgress?.({
       progress: 0,
       total: 100,
       phase: 'sync',
-      message: 'Syncing local Maker changes before remote build',
+      message: localChanges.hasChanges
+        ? 'Syncing local Maker changes before remote build'
+        : 'Waking Maker build server before remote build',
     });
     const submitResult = await (options.submitLocalChanges || pushMakerProject)({
       cwd: localChanges.projectRoot,
-      message: options.message,
+      message:
+        options.message ||
+        (!localChanges.hasChanges ? 'chore: wake maker build server' : undefined),
       files: options.files,
+      allowEmpty: !localChanges.hasChanges,
       onProgress: options.onProgress,
     });
     if (submitResult.failure || (!submitResult.pushed && submitResult.status !== 'clean')) {
@@ -1387,8 +1438,12 @@ export async function buildCurrentDirectory(options: {
     };
   }
 
+  const makerPageOpen = openRemoteBuildMakerPage(options);
   try {
-    return await runRemoteBuildCurrentDirectory(options, options.targetDir);
+    return {
+      ...(await runRemoteBuildCurrentDirectory(options, options.targetDir)),
+      makerPageOpen,
+    };
   } catch (error) {
     if (error instanceof RemoteBuildFailedError) {
       return {
@@ -1397,6 +1452,7 @@ export async function buildCurrentDirectory(options: {
         projectId: error.buildResult.projectId,
         buildResult: error.buildResult,
         buildFailure: toMakerBuildFailure(error),
+        makerPageOpen,
       };
     }
     throw error;
@@ -2172,6 +2228,7 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatMakerPageOpenLines(result.makerPageOpen),
       `- maker_url: ${
         result.buildResult.makerUrl ||
         formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
@@ -2276,6 +2333,7 @@ export function formatBuildResult(
     `- project_root: ${result.projectRoot}`,
     `- project_id: ${result.projectId}`,
     `- maker_url: ${result.makerUrl || formatMakerAppWebUrl(result.projectId, result.env)}`,
+    ...formatMakerPageOpenLines(result.makerPageOpen),
     `- project_path: ${result.projectPath}`,
     `- server_url: ${result.serverUrl}`,
     `- env: ${result.env}`,
@@ -2393,6 +2451,19 @@ function formatPreviewRefreshLines(result?: PreviewRefreshResult): string[] {
     `- preview_refresh_status: ${result.status}`,
     result.url ? `- preview_refresh_url: ${result.url}` : '',
     result.error ? `- preview_refresh_error: ${result.error}` : '',
+  ].filter(Boolean);
+}
+
+function formatMakerPageOpenLines(result?: MakerPageOpenResult): string[] {
+  if (!result) {
+    return [];
+  }
+
+  return [
+    `- maker_page_open: ${result.ok ? 'ok' : 'failed'}`,
+    `- maker_page_url: ${result.url}`,
+    result.error ? `- maker_page_error: ${result.error}` : '',
+    '- next_action: 已按“不提交，只构建云端版本”打开 Maker 远端页面；如果没有自动弹出，请手动打开 maker_page_url 后再查看构建结果。',
   ].filter(Boolean);
 }
 
