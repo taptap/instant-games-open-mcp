@@ -29,6 +29,7 @@ describe('release PR required workflow guards', () => {
     expect(workflow).toContain("if: startsWith(github.head_ref || '', 'release/')");
     expect(workflow).not.toContain("startsWith(github.event.pull_request.title, 'ci(release):')");
     expect(workflow).toContain('Validate generated release PR');
+    expect(workflow).toContain('git diff --name-only "$BASE_SHA...$HEAD_SHA"');
     expect(workflow).toContain('Unexpected file in release PR');
     expect(workflow).toContain('package.json version');
   });

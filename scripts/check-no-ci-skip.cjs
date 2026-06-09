@@ -53,32 +53,37 @@ function readCommitMessages(from, to) {
     process.exit(2);
   }
 
-  return [
-    execFileSync('git', ['log', '--format=%B%x00', from + '..' + to], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }),
-  ];
+  return execFileSync('git', ['log', '--format=%B%x00', from + '..' + to], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+    .split('\0')
+    .filter((message) => message.trim().length > 0);
 }
 
 function findViolation(messages) {
   for (const message of messages) {
     const match = SKIP_DIRECTIVE_PATTERN.exec(message);
     if (match) {
-      return match[0];
+      return {
+        directive: match[0],
+        summary: message.split('\n').find((line) => line.trim().length > 0) || '<empty commit>',
+      };
     }
   }
-  return '';
+  return null;
 }
 
 const args = readArgs(process.argv.slice(2));
 const messages = args.messages.length > 0 ? args.messages : readCommitMessages(args.from, args.to);
-const directive = findViolation(messages);
+const violation = findViolation(messages);
 
-if (directive) {
+if (violation) {
   console.error(
     'CI skip directives are not allowed in PR commit messages: ' +
-      directive +
+      violation.directive +
+      '. Offending commit: ' +
+      violation.summary +
       '. Required checks must run for every PR.'
   );
   process.exit(1);

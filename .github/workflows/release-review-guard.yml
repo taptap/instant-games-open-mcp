@@ -38,7 +38,7 @@ jobs:
           export VERSION
           echo "Validating release PR for version $VERSION"
 
-          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > changed-files.txt
+          git diff --name-only "$BASE_SHA...$HEAD_SHA" > changed-files.txt
           test -s changed-files.txt
 
           while IFS= read -r file; do

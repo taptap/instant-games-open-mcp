@@ -24,6 +24,7 @@ This should still run PR checks.`);
       expect(result.status).toBe(1);
       expect(result.stderr).toContain('CI skip directives are not allowed');
       expect(result.stderr).toContain(directive);
+      expect(result.stderr).toContain('Offending commit:');
     }
   );
 
@@ -39,9 +40,14 @@ This commit runs checks normally.`);
   it('runs the policy before commitlint in PR checks', () => {
     const workflow = readFileSync(join(process.cwd(), '.github', 'workflows', 'pr.yml'), 'utf8');
 
-    expect(workflow).toContain('node scripts/check-no-ci-skip.cjs --from');
-    expect(workflow.indexOf('Reject CI skip directives')).toBeLessThan(
-      workflow.indexOf('Validate PR commits with commitlint')
+    const commitlintJob = workflow.slice(workflow.indexOf('# Commit 消息检查'));
+
+    expect(commitlintJob).toContain('node scripts/check-no-ci-skip.cjs --from');
+    expect(commitlintJob.indexOf('Reject CI skip directives')).toBeLessThan(
+      commitlintJob.indexOf('Install dependencies')
+    );
+    expect(commitlintJob.indexOf('Reject CI skip directives')).toBeLessThan(
+      commitlintJob.indexOf('Validate PR commits with commitlint')
     );
   });
 
