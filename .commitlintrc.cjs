@@ -25,18 +25,18 @@ module.exports = {
       2,
       'always',
       [
-        'feat',     // 新功能
-        'fix',      // Bug 修复
-        'docs',     // 文档更新
-        'style',    // 代码格式（不影响代码运行）
+        'feat', // 新功能
+        'fix', // Bug 修复
+        'docs', // 文档更新
+        'style', // 代码格式（不影响代码运行）
         'refactor', // 重构（既不是新功能也不是修复）
-        'perf',     // 性能优化
-        'test',     // 测试
-        'build',    // 构建系统或外部依赖变更
-        'ci',       // CI 配置文件和脚本变更
-        'chore',    // 其他不修改 src 或测试文件的变更
-        'revert'    // 回退之前的 commit
-      ]
+        'perf', // 性能优化
+        'test', // 测试
+        'build', // 构建系统或外部依赖变更
+        'ci', // CI 配置文件和脚本变更
+        'chore', // 其他不修改 src 或测试文件的变更
+        'revert', // 回退之前的 commit
+      ],
     ],
 
     // Type 必须小写
@@ -67,18 +67,17 @@ module.exports = {
     'footer-leading-blank': [2, 'always'],
 
     // Scope 使用小写
-    'scope-case': [2, 'always', 'lower-case']
+    'scope-case': [2, 'always', 'lower-case'],
   },
 
   // 忽略某些 commit（如 merge commits、bot 的临时提交）
   ignores: [
     (commit) => commit.includes('Merge'),
-    (commit) => commit.includes('[skip ci]'),
     // 忽略 Copilot bot 的计划/临时提交（如 "Initial plan for feature X"、"WIP: adding tests"）
     // 这些通常是空提交，用于记录工作计划
     (commit) => /^(Initial plan|WIP|TODO|FIXME)\b[:\s]?.*/i.test(commit.trim()),
   ],
 
   // 帮助信息
-  helpUrl: 'https://github.com/conventional-changelog/commitlint/#what-is-commitlint'
+  helpUrl: 'https://github.com/conventional-changelog/commitlint/#what-is-commitlint',
 };

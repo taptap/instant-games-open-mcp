@@ -11,8 +11,6 @@ on:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    # 跳过 release 分支的 PR（CI bot 自动创建的版本发布 PR）
-    if: ${{ !startsWith(github.head_ref || '', 'release/') }}
     runs-on: ubuntu-latest
     permissions:
       security-events: write

@@ -14,6 +14,7 @@
 7. [环境变量和 Secrets](#7-环境变量和-secrets)
 8. [手动操作](#8-手动操作)
 9. [版本管理](#9-版本管理)
+10. [Release PR 门禁说明](#10-release-pr-门禁说明)
 
 ---
 
@@ -173,6 +174,7 @@ npx -y @taptap/maker@beta init
 ### 3.4 重要注意事项
 
 - ✅ **始终在 feature/fix 分支工作**，不要直接 commit 到 main
+- ✅ **不要在正常 PR commit 中使用 `[skip ci]`、`[ci skip]`、`[skip actions]` 等跳过指令**
 - ✅ **Commit 类型决定版本号**：
   - `feat:` → minor 版本 (1.2.0 → 1.3.0)
   - `fix:` → patch 版本 (1.2.0 → 1.2.1)
@@ -290,6 +292,7 @@ npm run build     # 构建
 npm test          # 测试
 
 # 验证 commit 消息
+node scripts/check-no-ci-skip.cjs --from HEAD~1 --to HEAD
 npx commitlint --from HEAD~1 --to HEAD
 ```
 
@@ -587,10 +590,22 @@ git push origin 1.x
 
 ---
 
+## 10. Release PR 门禁说明
+
+主包手动发版 workflow 会自动创建 release PR，用于把版本号和 CHANGELOG 写回 `main`。
+这类 PR 与普通功能 PR 的审核语义不同，但仍必须满足组织级 `trunk-guard` 和仓库级
+`code-review-guard`。
+
+详细背景、问题分析、正确处理方式和后续修改步骤见
+[Release PR 门禁说明](RELEASE_PR_GUARDS.md)。
+
+---
+
 ## 相关文档
 
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - 贡献指南
 - [ARCHITECTURE.md](ARCHITECTURE.md) - 架构文档
+- [RELEASE_PR_GUARDS.md](RELEASE_PR_GUARDS.md) - Release PR 门禁说明
 - [Conventional Commits 规范](https://www.conventionalcommits.org/)
 - [Semantic Versioning 规范](https://semver.org/)
 - [semantic-release 文档](https://semantic-release.gitbook.io/)
