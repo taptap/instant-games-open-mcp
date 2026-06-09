@@ -134,9 +134,6 @@ export class TapTapMCPProxy {
     if (this.config.tenant.user_id) {
       this.log('info', `User ID: ${this.config.tenant.user_id}`);
     }
-    if (this.config.tenant.client_session_id) {
-      this.log('info', `Client Session ID: ${this.config.tenant.client_session_id}`);
-    }
     if (this.config.tenant.project_id) {
       this.log('info', `Project ID: ${this.config.tenant.project_id}`);
     }
@@ -176,7 +173,6 @@ export class TapTapMCPProxy {
    *
    * Headers:
    * - X-TapTap-User-Id: 用户标识
-   * - X-TapTap-Client-Session-Id: 业务/编辑器会话标识
    * - X-TapTap-Project-Id: 项目标识
    * - X-TapTap-Project-Path: 项目路径
    * - X-TapTap-Mac-Token: MAC 认证令牌（JSON）
@@ -190,9 +186,6 @@ export class TapTapMCPProxy {
     // 会话上下文参数
     if (this.config.tenant.user_id) {
       headers['X-TapTap-User-Id'] = this.config.tenant.user_id;
-    }
-    if (this.config.tenant.client_session_id) {
-      headers['X-TapTap-Client-Session-Id'] = this.config.tenant.client_session_id;
     }
     if (this.config.tenant.project_id) {
       headers['X-TapTap-Project-Id'] = this.config.tenant.project_id;
@@ -224,7 +217,6 @@ export class TapTapMCPProxy {
    * 注入的参数（以下划线开头，表示私有）：
    * - _mac_token: MAC 认证令牌
    * - _user_id: 用户标识（可选）
-   * - _client_session_id: 业务/编辑器会话标识（可选）
    * - _project_id: 项目标识（可选）
    * - _project_path: 项目路径（可选）
    * - _custom_fields: 业务自定义字段（可选）
@@ -240,9 +232,6 @@ export class TapTapMCPProxy {
     // 注入可选的会话上下文参数
     if (this.config.tenant.user_id) {
       injected._user_id = this.config.tenant.user_id;
-    }
-    if (this.config.tenant.client_session_id) {
-      injected._client_session_id = this.config.tenant.client_session_id;
     }
     if (this.config.tenant.project_id) {
       injected._project_id = this.config.tenant.project_id;

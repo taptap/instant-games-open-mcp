@@ -254,12 +254,6 @@ class TapTapMinigameMCPServer {
       enrichedArgs._user_id = userIdHeader;
     }
 
-    // ✅ 提取 Client Session ID
-    const clientSessionIdHeader = getHeader('X-TapTap-Client-Session-Id');
-    if (clientSessionIdHeader && !enrichedArgs._client_session_id) {
-      enrichedArgs._client_session_id = clientSessionIdHeader;
-    }
-
     // ✅ 提取 Project ID
     const projectIdHeader = getHeader('X-TapTap-Project-Id');
     if (projectIdHeader && !enrichedArgs._project_id) {
@@ -653,7 +647,7 @@ class TapTapMinigameMCPServer {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader(
         'Access-Control-Allow-Headers',
-        'Content-Type, Mcp-Session-Id, X-TapTap-Mac-Token, X-TapTap-User-Id, X-TapTap-Client-Session-Id, X-TapTap-Project-Id, X-TapTap-Project-Path, X-TapTap-Custom-Fields, X-TapTap-Tag'
+        'Content-Type, Mcp-Session-Id, X-TapTap-Mac-Token, X-TapTap-User-Id, X-TapTap-Project-Id, X-TapTap-Project-Path, X-TapTap-Custom-Fields, X-TapTap-Tag'
       );
 
       if (req.method === 'OPTIONS') {
@@ -705,7 +699,6 @@ class TapTapMinigameMCPServer {
 
       // HTTP Headers（Proxy 模式推荐，更安全）
       const headerUserId = getHeader('X-TapTap-User-Id');
-      const headerClientSessionId = getHeader('X-TapTap-Client-Session-Id');
       const headerProjectId = getHeader('X-TapTap-Project-Id');
       const headerProjectPath = getHeader('X-TapTap-Project-Path');
       const headerMacToken = getHeader('X-TapTap-Mac-Token');
@@ -715,7 +708,6 @@ class TapTapMinigameMCPServer {
       // 合并：Headers 优先（Proxy 使用 Headers，SSE 直连使用 URL 参数）
       // 使用 ?? undefined 将 null 转换为 undefined（SessionContext 不接受 null）
       const userId = headerUserId || (urlUserId ?? undefined);
-      const clientSessionId = headerClientSessionId;
       const projectId = headerProjectId || (urlProjectId ?? undefined);
       let projectPath = headerProjectPath || (urlProjectPath ?? undefined);
 
@@ -755,7 +747,6 @@ class TapTapMinigameMCPServer {
       // 创建 session 专属的上下文（通过闭包捕获）
       const sessionContext: SessionContext = {
         userId,
-        clientSessionId,
         projectId,
         projectPath,
         macToken,
@@ -800,7 +791,6 @@ class TapTapMinigameMCPServer {
           // 输出完整的 session 上下文信息
           await logger.logClientConnection(newSessionId, {
             userId: sessionContext.userId,
-            clientSessionId: sessionContext.clientSessionId,
             projectId: sessionContext.projectId,
             projectPath: sessionContext.projectPath,
             macToken: sessionContext.macToken,
