@@ -1311,6 +1311,7 @@ function openMakerPageInBrowser(url: string): MakerPageOpenResult {
   const result = spawnSync(command, args, {
     stdio: 'ignore',
     windowsHide: true,
+    timeout: 5000,
   });
   if (result.error || result.status !== 0) {
     return {
