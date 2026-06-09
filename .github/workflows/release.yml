@@ -534,7 +534,7 @@ jobs:
           fi
 
           git add package.json package-lock.json CHANGELOG.md
-          git commit -m "chore(release): ${VERSION} [skip ci]
+          git commit -m "chore(release): ${VERSION}
 
           ${NATIVE_NOTE}
 
@@ -561,7 +561,7 @@ jobs:
           fi
 
           PR_URL=$(gh pr create \
-            --title "chore(release): ${VERSION} [skip ci]" \
+            --title "chore(release): ${VERSION}" \
             --body "## 📦 Release ${VERSION}
 
           此 PR 由手动主包发布流程创建。
