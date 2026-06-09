@@ -8,12 +8,14 @@ on:
 
 jobs:
   review:
-    # Maker automation PRs are covered by dedicated CI guards. Main package release
-    # PRs must still emit this required review status for branch protection.
+    # Maker/release automation PRs are covered by dedicated CI guards; manual @claude
+    # comments can still request a review when needed.
     if: |
       (github.event_name == 'pull_request' &&
        !contains(github.event.pull_request.title, '(maker)') &&
-       !startsWith(github.event.pull_request.title, 'ci(maker):')) ||
+       !contains(github.event.pull_request.title, '(release)') &&
+       !startsWith(github.event.pull_request.title, 'ci(maker):') &&
+       !startsWith(github.event.pull_request.title, 'ci(release):')) ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
        contains(github.event.comment.body, '@claude'))

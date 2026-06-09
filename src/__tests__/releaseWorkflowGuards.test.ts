@@ -14,14 +14,25 @@ describe('release PR required workflow guards', () => {
     expect(workflow).not.toContain("startsWith(github.head_ref || '', 'release/')");
   });
 
-  it('reports the review check for release PRs while preserving Maker automation skip', () => {
+  it('keeps Claude review workflow identical to main to satisfy action validation', () => {
     const workflow = readWorkflow('claude-review.yml');
 
-    expect(workflow).not.toContain("contains(github.event.pull_request.title, '(release)')");
-    expect(workflow).not.toContain("startsWith(github.event.pull_request.title, 'ci(release):')");
-    expect(workflow).toContain("contains(github.event.pull_request.title, '(maker)')");
-    expect(workflow).toContain("startsWith(github.event.pull_request.title, 'ci(maker):')");
+    expect(workflow).toContain("contains(github.event.pull_request.title, '(release)')");
+    expect(workflow).toContain("startsWith(github.event.pull_request.title, 'ci(release):')");
   });
+
+  it('provides a deterministic review guard for generated release PRs', () => {
+    const workflow = readWorkflow('release-review-guard.yml');
+
+    expect(workflow).toContain('name: Release PR Review Guard');
+    expect(workflow).toContain('name: review');
+    expect(workflow).toContain("if: startsWith(github.head_ref || '', 'release/')");
+    expect(workflow).not.toContain("startsWith(github.event.pull_request.title, 'ci(release):')");
+    expect(workflow).toContain('Validate generated release PR');
+    expect(workflow).toContain('Unexpected file in release PR');
+    expect(workflow).toContain('package.json version');
+  });
+
   it('does not add skip-ci directives to generated release PRs', () => {
     const workflow = readWorkflow('release.yml');
 

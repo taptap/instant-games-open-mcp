@@ -1,0 +1,78 @@
+name: Release PR Review Guard
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  review:
+    name: review
+    if: startsWith(github.head_ref || '', 'release/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate generated release PR
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$PR_TITLE" =~ ^(chore|ci)\(release\):[[:space:]][0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release PR title must be chore(release): X.Y.Z or ci(release): X.Y.Z"
+            echo "Actual title: $PR_TITLE"
+            exit 1
+          fi
+
+          VERSION="${PR_TITLE##*: }"
+          export VERSION
+          echo "Validating release PR for version $VERSION"
+
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" > changed-files.txt
+          test -s changed-files.txt
+
+          while IFS= read -r file; do
+            case "$file" in
+              package.json|package-lock.json|CHANGELOG.md)
+                ;;
+              *)
+                echo "Unexpected file in release PR: $file"
+                exit 1
+                ;;
+            esac
+          done < changed-files.txt
+
+          node <<'NODE_CHECK'
+          const { readFileSync } = require('node:fs');
+
+          const version = process.env.VERSION;
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+          const changelog = readFileSync('CHANGELOG.md', 'utf8');
+
+          if (pkg.version !== version) {
+            throw new Error(`package.json version ${pkg.version} does not match ${version}`);
+          }
+
+          if (lock.version !== version) {
+            throw new Error(`package-lock.json version ${lock.version} does not match ${version}`);
+          }
+
+          if (lock.packages && lock.packages[''] && lock.packages[''].version !== version) {
+            throw new Error(`package-lock root version ${lock.packages[''].version} does not match ${version}`);
+          }
+
+          if (!changelog.includes(version)) {
+            throw new Error(`CHANGELOG.md does not contain ${version}`);
+          }
+          NODE_CHECK
