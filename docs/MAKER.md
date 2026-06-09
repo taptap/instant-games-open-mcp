@@ -152,9 +152,11 @@ MCP 运行期能力：
 - `maker://status`：资源形式的本地 Maker 状态，适合 Agent 首先读取。
 - `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。
 - `maker_build_current_directory`：统一执行本地同步和远端构建。提交前会检查 Maker 远端同步状态；
-  本地落后远端、分叉、当前不在 `main` 或无法确认远端同步时，会在创建 commit 前停止。默认发现本地
-  改动或 ahead commit 时先 commit/push，再远端 build；用户明确说“不提交，直接构建云端版本”时才传
-  `confirm_remote_build_without_submit=true`。
+  本地落后远端、分叉、当前不在 `main` 或无法确认远端同步时，会在创建 commit 前停止。普通构建会先
+  push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit
+  时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务。用户明确说“不提交，直接构建云端版本”时才传
+  `confirm_remote_build_without_submit=true`，此时工具会先打开并返回 `maker_page_url`，提示用户打开
+  Maker 远端页面后查看结果。
 - 运行时日志：不作为本地公开 MCP tool 暴露。构建成功后 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs`，默认只拉 `engine`、`user_script`（客户端 Lua 脚本）和
   `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份
@@ -412,10 +414,13 @@ maker_build_current_directory()
 本地同步是工具层强制规则，不只是 Agent 文案约定：
 
 - `maker_build_current_directory` 会先读取当前 Maker git 状态。
-- 如果本地没有改动且没有 ahead commit，继续转发远端 build。
+- 普通构建必须先 push 到 Maker 远端再 build；如果本地没有改动且没有 ahead commit，会创建
+  `chore: wake maker build server` 空提交并 push，用于唤醒可能已挂起或销毁的远端服务。
 - 如果本地有改动或已经有本地 commit 未 push，默认先 commit/push，再远端 build。
 - 用户说“提交 / push / 构建 / 查看结果 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都使用同一个工具。
-- 用户明确说“不提交 / 直接构建 / 构建云端版本”时，才允许传 `confirm_remote_build_without_submit=true`，这会只构建 Maker 远端已提交版本。
+- 用户明确说“不提交 / 直接构建 / 构建云端版本”时，才允许传 `confirm_remote_build_without_submit=true`，
+  这会只构建 Maker 远端已提交版本；工具会先打开 Maker 远端页面，并在结果里返回 `maker_page_url`，
+  如果浏览器没有自动弹出，Agent 应把这个链接发给用户让其手动打开。
 - push 被远端拒绝、认证失败、远端有新提交或发生冲突时，工具返回 `mode: submit_failed_before_build`，不会继续远端 build。Agent 应解释 push 失败原因，按 `classification` 使用对应恢复策略，再重试同一个构建工具。
 - 如果 push 成功但远端 build 失败，工具返回 `mode: build_failed_after_submit`，同时保留成功的提交/推送结果和构建错误。
 - 如果 build 成功，工具会启动本地 CLI watcher 并在返回里带出

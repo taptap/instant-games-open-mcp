@@ -83,11 +83,13 @@ maker_build_current_directory   # commit/push/build 合并入口
 ```
 
 `maker_build_current_directory` 同时覆盖“构建 / 预览 / 跑一下 / 验证一下 / 提交 / 推送”。
-如果本地有改动或已有未推送 commit，工具会先 commit（必要时）、push 到 Maker 远端，再触发远端
-build。push 失败时不会继续 build，会返回本地 commit、ahead 状态、stderr/stdout 和下一步建议，
+普通构建会先 push 到 Maker 远端再触发远端 build：本地有改动时提交改动，已有未推送 commit 时
+直接 push，本地干净且没有未推送 commit 时创建 `chore: wake maker build server` 空提交来唤醒远端
+服务。push 失败时不会继续 build，会返回本地 commit、ahead 状态、stderr/stdout 和下一步建议，
 交给本地 Agent/skill 处理 pull、rebase 或冲突；push 成功但 build 失败时，会明确说明代码已到
 Maker 远端但构建失败。只有用户明确说“不提交，只构建云端版本”时，才传
-`confirm_remote_build_without_submit=true`。
+`confirm_remote_build_without_submit=true`；该模式会先打开并返回 Maker 页面链接，方便用户查看远端
+项目并避免服务休眠导致构建失败。
 
 构建成功后，Maker MCP 会刷新 Maker Web 预览，并启动本地 runtime log watcher。后续如果用户询问
 游戏运行结果、Lua 报错或调试问题，本地 AI Agent 应优先读取构建返回中的

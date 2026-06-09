@@ -235,6 +235,31 @@ describe('maker build local-change guard', () => {
     ).toBe(`${head}\n`);
   });
 
+  test('pushes an empty wake commit when explicitly allowed for a clean Maker project', async () => {
+    const branch = prepareMakerRemote();
+
+    const result = await pushMakerProject({
+      cwd: tempDir,
+      allowEmpty: true,
+      message: 'chore: wake maker build server',
+    });
+
+    const head = readGit(['rev-parse', '--short', 'HEAD']).trim();
+    const subject = readGit(['log', '-1', '--format=%s']).trim();
+
+    expect(result.pushed).toBe(true);
+    expect(result.committed).toBe(true);
+    expect(result.commitHash).toBe(head);
+    expect(result.message).toBe('chore: wake maker build server');
+    expect(subject).toBe('chore: wake maker build server');
+    expect(
+      readGit(
+        ['rev-parse', '--short', branch],
+        path.join(process.env.TAPTAP_MAKER_GIT_BASE!, 'app-1.git')
+      )
+    ).toBe(`${head}\n`);
+  });
+
   test('push failure explains that Maker remote only accepts main branch', async () => {
     runGit(['branch', '-M', 'main']);
     prepareMakerRemote();
@@ -565,11 +590,27 @@ describe('maker build local-change guard', () => {
     ).rejects.toThrow('Tap auth not found');
   });
 
-  test('build request runs remote build directly when project has no local changes', async () => {
+  test('build request pushes an empty commit before remote build when project has no local changes', async () => {
+    const submitOptions: Array<{ cwd: string; allowEmpty?: boolean; message?: string }> = [];
     const remoteBuildTargetDirs: string[] = [];
 
     const result = await buildCurrentDirectory({
       targetDir: tempDir,
+      submitLocalChanges: async (options) => {
+        submitOptions.push({
+          cwd: options.cwd,
+          allowEmpty: options.allowEmpty,
+          message: options.message,
+        });
+        return {
+          branch: 'main',
+          committed: true,
+          commitHash: 'wake123',
+          message: options.message || 'chore: wake maker build server',
+          pushed: true,
+          status: 'pushed',
+        };
+      },
       callRemoteBuild: async (targetDir) => {
         remoteBuildTargetDirs.push(targetDir);
         return {
@@ -587,17 +628,36 @@ describe('maker build local-change guard', () => {
     });
 
     expect(result.mode).toBe('remote_build');
-    expect('submitResult' in result ? result.submitResult : undefined).toBeUndefined();
-    expect(remoteBuildTargetDirs).toEqual([tempDir]);
+    expect('submitResult' in result ? result.submitResult?.pushed : undefined).toBe(true);
+    expect(
+      submitOptions.map((item) => ({
+        ...item,
+        cwd: normalizePath(item.cwd),
+      }))
+    ).toEqual([
+      {
+        cwd: normalizePath(fs.realpathSync(tempDir)),
+        allowEmpty: true,
+        message: 'chore: wake maker build server',
+      },
+    ]);
+    expect(remoteBuildTargetDirs.map(normalizePath)).toEqual([
+      normalizePath(fs.realpathSync(tempDir)),
+    ]);
   });
 
-  test('build request builds committed remote version when user confirms no submit', async () => {
+  test('build request opens Maker page when user confirms building committed remote version', async () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
     const remoteBuildTargetDirs: string[] = [];
+    const openedUrls: string[] = [];
 
     const result = await buildCurrentDirectory({
       targetDir: tempDir,
       confirmRemoteBuildWithoutSubmit: true,
+      openMakerPage: (url) => {
+        openedUrls.push(url);
+        return { ok: true, url };
+      },
       callRemoteBuild: async (targetDir) => {
         remoteBuildTargetDirs.push(targetDir);
         return {
@@ -616,6 +676,11 @@ describe('maker build local-change guard', () => {
 
     expect(result.mode).toBe('remote_build');
     expect('submitResult' in result ? result.submitResult : undefined).toBeUndefined();
+    expect('makerPageOpen' in result ? result.makerPageOpen : undefined).toMatchObject({
+      ok: true,
+      url: 'https://maker.taptap.cn/app/app-1',
+    });
+    expect(openedUrls).toEqual(['https://maker.taptap.cn/app/app-1']);
     expect(remoteBuildTargetDirs).toEqual([tempDir]);
   });
 
@@ -656,9 +721,11 @@ describe('maker build local-change guard', () => {
   test('build tool description owns commit, push, and build', () => {
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(buildTool?.description).toContain('commits when needed, pushes');
+    expect(buildTool?.description).toContain('always pushes before remote Maker build');
+    expect(buildTool?.description).toContain('empty wake-up commit');
     expect(buildTool?.description).toContain('remote Maker build');
     expect(buildTool?.description).toContain('If push fails, build is not started');
+    expect(buildTool?.description).toContain('maker_page_url');
     expect(buildTool?.description).toContain('runtime_logs.local_file');
     expect(buildTool?.description).toContain('runtime_logs.state_file');
     expect(buildTool?.description).not.toContain('maker_submit_current_directory');
@@ -1474,6 +1541,35 @@ describe('maker build local-change guard', () => {
     );
   });
 
+  test('formats remote-only build with Maker page open guidance', () => {
+    const output = formatBuildResult(
+      {
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://maker.taptap.cn/mcp/v1',
+        env: 'production',
+        timeoutMs: 600000,
+        buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+        resultText: 'build ok',
+        makerPageOpen: {
+          ok: true,
+          url: 'https://maker.taptap.cn/app/app-1',
+        },
+      },
+      {
+        elapsedMs: 1000,
+        elapsed: '1s',
+        progressEvents: 1,
+      }
+    );
+
+    expect(output).toContain('- maker_page_open: ok');
+    expect(output).toContain('- maker_page_url: https://maker.taptap.cn/app/app-1');
+    expect(output).toContain('如果没有自动弹出，请手动打开 maker_page_url');
+  });
+
   test('submit tool pushes and then runs remote build', async () => {
     const pushedCwds: string[] = [];
     const remoteBuildTargetDirs: string[] = [];
@@ -1689,6 +1785,14 @@ describe('maker build local-change guard', () => {
 
     const result = await buildCurrentDirectory({
       targetDir: tempDir,
+      submitLocalChanges: async () => ({
+        branch: 'main',
+        committed: true,
+        commitHash: 'abc1234',
+        message: 'chore: wake maker build server',
+        pushed: true,
+        status: 'pushed',
+      }),
       callRemoteBuild: async () => ({
         mode: 'remote_build',
         projectRoot: tempDir,
@@ -1759,6 +1863,14 @@ describe('maker build local-change guard', () => {
 
     const result = await buildCurrentDirectory({
       targetDir: tempDir,
+      submitLocalChanges: async () => ({
+        branch: 'main',
+        committed: true,
+        commitHash: 'abc1234',
+        message: 'chore: wake maker build server',
+        pushed: true,
+        status: 'pushed',
+      }),
       callRemoteBuild: async () => ({
         mode: 'remote_build',
         projectRoot: tempDir,
@@ -1845,6 +1957,8 @@ describe('maker build local-change guard', () => {
 
     const result = await buildCurrentDirectory({
       targetDir: tempDir,
+      confirmRemoteBuildWithoutSubmit: true,
+      openMakerPage: (url) => ({ ok: true, url }),
       callRemoteBuild: async () => ({
         mode: 'remote_build',
         projectRoot: tempDir,

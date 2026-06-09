@@ -72,6 +72,9 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Before every clone attempt, run `taptap-maker doctor`');
     expect(skillText).toContain('Directory Suitability Decision');
     expect(skillText).toContain('committed-but-unpushed local commits');
+    expect(skillText).toContain('chore: wake maker build server');
+    expect(skillText).toContain('confirm_remote_build_without_submit=true');
+    expect(skillText).toContain('maker_page_url');
     expect(skillText).toContain('push_recovery');
     expect(skillText).toContain('Do not ask for permission to run a generic `git push`');
     expect(skillText).toContain('Maker Git Workflow Policy');

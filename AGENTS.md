@@ -355,11 +355,11 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `edit_image`、`create_video_task` 和 `text_to_music`，用于试用图片/视频/音乐生成链路，
   且本地不重新封装远端 tool schema 或返回值。
 - 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。已绑定项目会输出 `Maker remote sync` 和 AI dev kit 版本检查结果，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main，以及是否需要运行 `taptap-maker dev-kit update`；按其中 `next_action` / `next_step` 引导用户。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
-- 用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都调用 `maker_build_current_directory`。它会在本地有改动或 ahead commit 时先 commit/push，push 成功后才远端 build。
+- 用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都调用 `maker_build_current_directory`。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务；push 成功后才远端 build。
 - push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。
 - push 成功但远端 build 失败时，工具返回 `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端和具体构建错误。
-- 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`。
+- 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`；这种模式会先打开并返回 Maker 页面链接，Agent 应把链接发给用户，方便其查看远端项目并降低服务休眠导致构建失败的概率。
 - 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。
 - 远端 Maker MCP tools 所需的 TapTap MAC token 通过 PAT 获取。
 
