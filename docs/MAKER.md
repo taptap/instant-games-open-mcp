@@ -139,6 +139,22 @@ CLI 命令：
 - `taptap-maker login`：CLI 登录入口；按需打开 Maker 授权页，CLI 轮询授权结果并完成本地鉴权配置。
 - `taptap-maker pat set`：无参数时同样进入 CLI 登录；显式传 PAT 或 stdin 仅用于 CI
   或应急联调。
+- `taptap-maker python doctor`：检查本地 Maker Python 运行时。优先复用可信系统 Python；
+  Windows 会避开 Microsoft Store app execution alias。
+- `taptap-maker python setup`：自动准备 Maker 私有 Python。缺少可用系统 Python 时，CLI 会先把
+  `uv` 安装到 `~/.taptap-maker/bin/`，再用 uv 安装 managed Python 到
+  `~/.taptap-maker/python/uv/`，不修改系统 Python 或全局 PATH。
+- `taptap-maker python path`：输出 Maker 诊断脚本应使用的真实 Python 可执行文件路径。
+
+Python 运行时策略：
+
+- 优先复用可信的用户级/开发者 Python，例如 python.org、Homebrew、pyenv、conda 或 Windows
+  `py -3` 找到的真实 Python，并要求 `pip` 可用。
+- Windows 不信任 `%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe` 这类 Microsoft Store
+  app execution alias；检测到 alias 时会提示运行 `taptap-maker python setup`。
+- macOS 不把 `/usr/bin/python3`、Xcode 或 Command Line Tools 自带 Python 作为 Maker 工具链，
+  即使它们能输出版本号。自动准备会改用 uv managed Python，避免向 Apple/Xcode 目录安装诊断依赖。
+- `taptap-maker python setup` 使用 Node/npx 启动，不要求用户预先安装系统 Python、pip 或 Homebrew。
 - `taptap-maker install`：`taptap-maker mcp install` 的快捷别名，用于写入当前机器的
   AI 客户端 MCP 配置。
 - `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。Codex 配置写入
@@ -151,6 +167,9 @@ MCP 运行期能力：
 
 - `maker://status`：资源形式的本地 Maker 状态，适合 Agent 首先读取。
 - `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。
+- `maker://status` 和 `maker_status_lite` 会输出 `Python environment`。本地 Lua 诊断需要
+  Python 时，Agent 应先看该段；如果 `python_status` 不是 `ready`，可运行
+  `taptap-maker python setup` 自动准备 Maker 私有 Python。Python 缺失不阻塞远端构建主流程。
 - `maker_build_current_directory`：统一执行本地同步和远端构建。提交前会检查 Maker 远端同步状态；
   本地落后远端、分叉、当前不在 `main` 或无法确认远端同步时，会在创建 commit 前停止。普通构建会先
   push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit

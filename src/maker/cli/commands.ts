@@ -52,11 +52,16 @@ import {
   ensureGitAvailable,
   formatGitEnvironmentStatus,
 } from '../system/git.js';
+import {
+  checkMakerPythonEnvironment,
+  formatMakerPythonEnvironmentStatus,
+  setupMakerPythonEnvironment,
+} from '../system/python.js';
 import { formatMakerSkillStatus } from './skill.js';
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
-const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit', 'logs']);
+const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit', 'logs', 'python']);
 const BOOLEAN_OPTIONS = new Set([
   'json',
   'skip_confirm',
@@ -139,6 +144,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'logs' && subcommand === 'watch') {
     await runLogsWatch(parsed, ctx);
+    return;
+  }
+
+  if (command === 'python') {
+    await runPython(parsed, ctx);
     return;
   }
 
@@ -303,6 +313,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
   const env = makerEnvOption(parsed);
   const git = checkGitEnvironment();
+  const python = checkMakerPythonEnvironment();
   const pat = loadPat();
   const tapAuth = loadTapAuth();
   const identify = identifyMakerProject({ cwd: targetDir });
@@ -319,6 +330,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
         pat: Boolean(pat),
         tap_auth: Boolean(tapAuth),
       },
+      python,
       project: identify,
       dev_kit: devKit,
       dev_kit_update: devKitUpdate,
@@ -333,6 +345,8 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       '',
       'Git',
       formatGitEnvironmentStatus(git),
+      '',
+      formatMakerPythonEnvironmentStatus(python),
       '',
       'Auth',
       `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
@@ -362,6 +376,61 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       .filter(Boolean)
       .join('\n')
   );
+}
+
+async function runPython(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  const [, subcommand] = parsed.command;
+  if (!subcommand || subcommand === 'doctor') {
+    const environment = checkMakerPythonEnvironment();
+    if (ctx.json) {
+      writeJson(environment);
+      return;
+    }
+    process.stdout.write(`${formatMakerPythonEnvironmentStatus(environment)}\n`);
+    return;
+  }
+
+  if (subcommand === 'setup') {
+    const result = setupMakerPythonEnvironment();
+    if (ctx.json) {
+      writeJson(result);
+      return;
+    }
+    process.stdout.write(
+      [
+        result.changed ? 'Maker Python runtime prepared' : 'Maker Python runtime already available',
+        '',
+        formatMakerPythonEnvironmentStatus(result.environment),
+        '',
+      ].join('\n')
+    );
+    return;
+  }
+
+  if (subcommand === 'path') {
+    const environment = checkMakerPythonEnvironment();
+    if (!environment.ready || !environment.python) {
+      throw new Error(
+        [
+          'Maker Python runtime is not ready.',
+          `- status: ${environment.status}`,
+          `- next_action: ${environment.nextAction}`,
+        ].join('\n')
+      );
+    }
+    if (ctx.json) {
+      writeJson({
+        python: environment.python,
+        provider: environment.provider,
+        version: environment.version,
+      });
+      return;
+    }
+    process.stdout.write(`${environment.python}\n`);
+    return;
+  }
+
+  throw new Error(`Unknown taptap-maker python command: ${formatUnknownCommand(parsed.command)}`);
 }
 
 async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -1340,7 +1409,9 @@ function isKnownSubcommand(command: string, subcommand: string): boolean {
     (command === 'pat' && subcommand === 'set') ||
     (command === 'mcp' && (subcommand === 'install' || subcommand === 'verify')) ||
     (command === 'dev-kit' && subcommand === 'update') ||
-    (command === 'logs' && subcommand === 'watch')
+    (command === 'logs' && subcommand === 'watch') ||
+    (command === 'python' &&
+      (subcommand === 'doctor' || subcommand === 'setup' || subcommand === 'path'))
   );
 }
 
@@ -1451,6 +1522,9 @@ function printHelp(): void {
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
       '                     [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
+      '  taptap-maker python doctor [--json]',
+      '  taptap-maker python setup [--json]',
+      '  taptap-maker python path [--json]',
       '  taptap-maker apps [--pat PAT] [--all] [--json]',
       '                     # --pat warns: PAT appears in ps/history',
       '  taptap-maker login [--env rnd|production] [--json]',
