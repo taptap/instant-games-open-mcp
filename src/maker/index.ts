@@ -60,6 +60,8 @@ function printHelp(): void {
       '  taptap-maker python doctor [--json]',
       '  taptap-maker python setup [--json]',
       '  taptap-maker python path [--json]',
+      '  taptap-maker lua-lsp doctor [--json]',
+      '  taptap-maker lua-lsp setup [--json]',
       '  taptap-maker apps [--pat PAT] [--all] [--json]',
       '                     # --pat warns: PAT appears in ps/history',
       '  taptap-maker login [--env rnd|production] [--json]',

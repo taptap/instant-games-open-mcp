@@ -38,8 +38,10 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 | `taptap-maker login`          | CLI 登录入口：打开 Maker 授权页，授权完成后自动保存本地鉴权                   |
 | `taptap-maker pat set`        | 兼容入口，仅用于 CI 或应急联调                                                |
 | `taptap-maker python doctor`  | 检查 Maker 本地 Python 运行时，识别 Windows Store alias 等不可用环境          |
-| `taptap-maker python setup`   | 自动准备 Maker 私有 Python；缺系统 Python 时使用 uv managed Python            |
+| `taptap-maker python setup`   | 自动准备本地 Lua 诊断环境；准备 Python 后 best-effort 安装 maker-lua-lsp      |
 | `taptap-maker python path`    | 输出 Maker 诊断脚本应使用的真实 Python 可执行文件路径                         |
+| `taptap-maker lua-lsp doctor` | 检查 maker-lua-lsp 是否可用于本地 Lua 诊断                                    |
+| `taptap-maker lua-lsp setup`  | 安装/升级 maker-lua-lsp 并执行 `install --ide codex,cursor,claude`            |
 | `taptap-maker install`        | `taptap-maker mcp install` 的快捷别名，写入 AI 客户端 MCP 配置                |
 | `taptap-maker mcp install`    | 写入 Codex / Cursor / Claude 的 MCP 配置                                      |
 | `taptap-maker mcp verify`     | 验证 MCP 配置使用的 npx 包命令是否可启动；`--mode self` 验证当前 CLI          |
@@ -49,7 +51,11 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 
 - 不新增运行时依赖，第一版使用 Node 内置能力完成交互和配置写入。
 - Python 运行时不是 MCP 主功能硬依赖。CLI 优先复用可信系统 Python；系统 Python 缺失或不可用时，
-  `taptap-maker python setup` 才下载 uv，并用 uv 准备 `~/.taptap-maker/` 下的私有 Python。
+  `taptap-maker python setup` 才下载 uv，并用 uv 准备 `~/.taptap-maker/` 下的私有 Python；
+  Python ready 后继续 best-effort 准备 `maker-lua-lsp`。
+- `maker-lua-lsp` 是本地 Lua 诊断真正使用的能力。CLI 会执行
+  `python -m pip install --upgrade maker-lua-lsp` 和
+  `maker-lua-lsp install --ide codex,cursor,claude`；失败只在状态和输出中提示，不阻塞远端构建。
 - Maker Lua 诊断的 Python 最低要求是 3.8，推荐 3.12 或更新；低于 3.8 会提示自动准备
   Maker 私有 Python，3.8 到 3.11 可用但会提示推荐升级。uv 自动准备的版本固定为 3.12。
 - Windows 不信任 `python.exe` 的 Microsoft Store app execution alias，检测优先使用 `py -3`；

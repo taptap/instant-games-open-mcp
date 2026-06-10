@@ -531,6 +531,58 @@ describe('Maker CLI commands', () => {
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat', 'production');
   });
 
+  test('init skips lua-lsp setup when LSP is already ready', async () => {
+    process.env.TAPTAP_MAKER_PYTHON_BIN = '/opt/maker-python/bin/python3';
+    const scriptsDir = path.join(tempDir, 'python-bin');
+    const lspCommand = path.join(scriptsDir, 'maker-lua-lsp');
+    fs.mkdirSync(scriptsDir, { recursive: true });
+    fs.writeFileSync(lspCommand, '');
+    spawnSyncMock.mockImplementation((command, args) => {
+      if (command === '/opt/maker-python/bin/python3' && args.includes('-c')) {
+        if (String(args.at(-1)).includes('sysconfig.get_path')) {
+          return { status: 0, stdout: `${scriptsDir}\n`, stderr: '' } as ReturnType<
+            typeof spawnSync
+          >;
+        }
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            executable: '/opt/maker-python/bin/python3',
+            version: '3.12.11',
+          }),
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      if (command === '/opt/maker-python/bin/python3' && args.join(' ') === '-m pip --version') {
+        return { status: 0, stdout: 'pip 25.1\n', stderr: '' } as ReturnType<typeof spawnSync>;
+      }
+      if (command === lspCommand && args[0] === '--version') {
+        return { status: 0, stdout: 'maker-lua-lsp 1.0.0\n', stderr: '' } as ReturnType<
+          typeof spawnSync
+        >;
+      }
+      return { status: 0, stdout: 'help output', stderr: '' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'valid-maker-token',
+    ]);
+
+    expect(stdoutSpy.mock.calls.join('')).toContain('Maker Lua LSP is ready');
+    expect(spawnSyncMock).not.toHaveBeenCalledWith(
+      '/opt/maker-python/bin/python3',
+      ['-m', 'pip', 'install', '--upgrade', 'maker-lua-lsp'],
+      expect.any(Object)
+    );
+  });
+
   test('init retries Python setup twice and continues when the third attempt succeeds', async () => {
     let setupAttempts = 0;
     spawnSyncMock.mockImplementation((command, args, options) => {
@@ -1204,6 +1256,12 @@ describe('Maker CLI commands', () => {
     const payload = JSON.parse(stdoutSpy.mock.calls.join(''));
     expect(checkAiDevKitUpdate).toHaveBeenCalledWith(tempDir, { environment: 'rnd' });
     expect(payload.env).toBe('rnd');
+    expect(payload.lua_lsp).toEqual(
+      expect.objectContaining({
+        status: expect.any(String),
+        setupCommand: 'taptap-maker lua-lsp setup',
+      })
+    );
     expect(payload.dev_kit_update).toEqual(
       expect.objectContaining({
         updateAvailable: true,
@@ -1442,6 +1500,8 @@ describe('Maker CLI commands', () => {
     expect(output).toContain('taptap-maker python doctor');
     expect(output).toContain('taptap-maker python setup');
     expect(output).toContain('taptap-maker python path');
+    expect(output).toContain('taptap-maker lua-lsp doctor');
+    expect(output).toContain('taptap-maker lua-lsp setup');
   });
 
   test('python doctor json reports missing Python without failing the CLI', async () => {
@@ -1511,6 +1571,113 @@ describe('Maker CLI commands', () => {
 
     expect(stderrSpy.mock.calls.join('')).toContain(
       'may download and run the official uv installer from https://astral.sh'
+    );
+  });
+
+  test('lua-lsp setup installs maker-lua-lsp for Codex Cursor and Claude', async () => {
+    process.env.TAPTAP_MAKER_PYTHON_BIN = '/opt/maker-python/bin/python3';
+    const scriptsDir = path.join(tempDir, 'python-bin');
+    const lspCommand = path.join(scriptsDir, 'maker-lua-lsp');
+    fs.mkdirSync(scriptsDir, { recursive: true });
+    fs.writeFileSync(lspCommand, '');
+    spawnSyncMock.mockImplementation((command, args) => {
+      if (command === '/opt/maker-python/bin/python3' && args.includes('-c')) {
+        if (String(args.at(-1)).includes('sysconfig.get_path')) {
+          return { status: 0, stdout: `${scriptsDir}\n`, stderr: '' } as ReturnType<
+            typeof spawnSync
+          >;
+        }
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            executable: '/opt/maker-python/bin/python3',
+            version: '3.12.11',
+          }),
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      if (command === '/opt/maker-python/bin/python3' && args.join(' ') === '-m pip --version') {
+        return { status: 0, stdout: 'pip 25.1\n', stderr: '' } as ReturnType<typeof spawnSync>;
+      }
+      if (
+        command === '/opt/maker-python/bin/python3' &&
+        args.join(' ') === '-m pip install --upgrade maker-lua-lsp'
+      ) {
+        return { status: 0, stdout: 'installed\n', stderr: '' } as ReturnType<typeof spawnSync>;
+      }
+      if (command === lspCommand && args.join(' ') === 'install --ide codex,cursor,claude') {
+        return { status: 0, stdout: 'configured\n', stderr: '' } as ReturnType<typeof spawnSync>;
+      }
+      if (command === lspCommand && args[0] === '--version') {
+        return { status: 0, stdout: 'maker-lua-lsp 1.0.0\n', stderr: '' } as ReturnType<
+          typeof spawnSync
+        >;
+      }
+      return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli(['lua-lsp', 'setup', '--json']);
+
+    const payload = JSON.parse(stdoutSpy.mock.calls.at(-1)?.[0] as string);
+    expect(payload.environment).toEqual(
+      expect.objectContaining({
+        ready: true,
+        status: 'ready',
+        command: lspCommand,
+      })
+    );
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      '/opt/maker-python/bin/python3',
+      ['-m', 'pip', 'install', '--upgrade', 'maker-lua-lsp'],
+      expect.any(Object)
+    );
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      lspCommand,
+      ['install', '--ide', 'codex,cursor,claude'],
+      expect.any(Object)
+    );
+  });
+
+  test('python setup includes non-blocking Lua LSP setup result', async () => {
+    process.env.TAPTAP_MAKER_PYTHON_BIN = '/opt/maker-python/bin/python3';
+    spawnSyncMock.mockImplementation((command, args) => {
+      if (command === '/opt/maker-python/bin/python3' && args.includes('-c')) {
+        if (String(args.at(-1)).includes('sysconfig.get_path')) {
+          return { status: 0, stdout: `${tempDir}\n`, stderr: '' } as ReturnType<typeof spawnSync>;
+        }
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            executable: '/opt/maker-python/bin/python3',
+            version: '3.12.11',
+          }),
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      if (command === '/opt/maker-python/bin/python3' && args.join(' ') === '-m pip --version') {
+        return { status: 0, stdout: 'pip 25.1\n', stderr: '' } as ReturnType<typeof spawnSync>;
+      }
+      if (
+        command === '/opt/maker-python/bin/python3' &&
+        args.join(' ') === '-m pip install --upgrade maker-lua-lsp'
+      ) {
+        return { status: 1, stdout: '', stderr: 'lsp package failed' } as ReturnType<
+          typeof spawnSync
+        >;
+      }
+      return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli(['python', 'setup', '--json']);
+
+    const payload = JSON.parse(stdoutSpy.mock.calls.at(-1)?.[0] as string);
+    expect(payload.environment).toEqual(expect.objectContaining({ ready: true }));
+    expect(payload.luaLsp.environment).toEqual(
+      expect.objectContaining({
+        ready: false,
+        status: 'setup_failed',
+        error: expect.stringContaining('lsp package failed'),
+      })
     );
   });
 
