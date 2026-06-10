@@ -476,19 +476,22 @@ function ensureInitLuaLspReady(
   ctx: CliContext,
   python: ReturnType<typeof checkMakerPythonEnvironment>
 ): void {
-  const result = setupMakerLuaLspEnvironment({ pythonEnvironment: python });
+  const current = checkMakerLuaLspEnvironment({ pythonEnvironment: python });
+  const environment = current.ready
+    ? current
+    : setupMakerLuaLspEnvironment({ pythonEnvironment: python }).environment;
   emit(
     ctx,
     'lua_lsp',
-    result.environment.ready
+    environment.ready
       ? 'Maker Lua LSP is ready'
       : 'Maker Lua LSP setup did not complete; continuing because remote build is not blocked',
     {
-      status: result.environment.status,
-      ready: result.environment.ready,
-      command: result.environment.command,
-      error: result.environment.error,
-      next_action: result.environment.nextAction,
+      status: environment.status,
+      ready: environment.ready,
+      command: environment.command,
+      error: environment.error,
+      next_action: environment.nextAction,
     }
   );
 }

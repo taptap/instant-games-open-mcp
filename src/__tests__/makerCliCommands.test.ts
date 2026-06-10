@@ -531,6 +531,58 @@ describe('Maker CLI commands', () => {
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat', 'production');
   });
 
+  test('init skips lua-lsp setup when LSP is already ready', async () => {
+    process.env.TAPTAP_MAKER_PYTHON_BIN = '/opt/maker-python/bin/python3';
+    const scriptsDir = path.join(tempDir, 'python-bin');
+    const lspCommand = path.join(scriptsDir, 'maker-lua-lsp');
+    fs.mkdirSync(scriptsDir, { recursive: true });
+    fs.writeFileSync(lspCommand, '');
+    spawnSyncMock.mockImplementation((command, args) => {
+      if (command === '/opt/maker-python/bin/python3' && args.includes('-c')) {
+        if (String(args.at(-1)).includes('sysconfig.get_path')) {
+          return { status: 0, stdout: `${scriptsDir}\n`, stderr: '' } as ReturnType<
+            typeof spawnSync
+          >;
+        }
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            executable: '/opt/maker-python/bin/python3',
+            version: '3.12.11',
+          }),
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      if (command === '/opt/maker-python/bin/python3' && args.join(' ') === '-m pip --version') {
+        return { status: 0, stdout: 'pip 25.1\n', stderr: '' } as ReturnType<typeof spawnSync>;
+      }
+      if (command === lspCommand && args[0] === '--version') {
+        return { status: 0, stdout: 'maker-lua-lsp 1.0.0\n', stderr: '' } as ReturnType<
+          typeof spawnSync
+        >;
+      }
+      return { status: 0, stdout: 'help output', stderr: '' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'valid-maker-token',
+    ]);
+
+    expect(stdoutSpy.mock.calls.join('')).toContain('Maker Lua LSP is ready');
+    expect(spawnSyncMock).not.toHaveBeenCalledWith(
+      '/opt/maker-python/bin/python3',
+      ['-m', 'pip', 'install', '--upgrade', 'maker-lua-lsp'],
+      expect.any(Object)
+    );
+  });
+
   test('init retries Python setup twice and continues when the third attempt succeeds', async () => {
     let setupAttempts = 0;
     spawnSyncMock.mockImplementation((command, args, options) => {

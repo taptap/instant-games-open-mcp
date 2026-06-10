@@ -15,6 +15,7 @@ import {
 
 const LUA_LSP_PACKAGE = 'maker-lua-lsp';
 const LUA_LSP_IDES = 'codex,cursor,claude';
+const LUA_LSP_SETUP_TIMEOUT_MS = 120_000;
 const PYTHON_SCRIPTS_DIR_SCRIPT = [
   'import sysconfig',
   'print(sysconfig.get_path("scripts") or "")',
@@ -51,6 +52,7 @@ type SpawnRunner = (
   options?: {
     encoding?: BufferEncoding;
     env?: NodeJS.ProcessEnv;
+    timeout?: number;
   }
 ) => SpawnSyncReturns<string>;
 
@@ -160,6 +162,7 @@ export function setupMakerLuaLspEnvironment(
 
   const pipInstall = runner(python.python, ['-m', 'pip', 'install', '--upgrade', LUA_LSP_PACKAGE], {
     encoding: 'utf8',
+    timeout: LUA_LSP_SETUP_TIMEOUT_MS,
   });
   if (pipInstall.status !== 0) {
     const environment = formatLuaLspSetupFailure(
@@ -174,7 +177,10 @@ export function setupMakerLuaLspEnvironment(
 
   const resolved = resolveLuaLspCommand(python, platform, runner);
   const command = resolved.command || LUA_LSP_PACKAGE;
-  const ideInstall = runner(command, ['install', '--ide', LUA_LSP_IDES], { encoding: 'utf8' });
+  const ideInstall = runner(command, ['install', '--ide', LUA_LSP_IDES], {
+    encoding: 'utf8',
+    timeout: LUA_LSP_SETUP_TIMEOUT_MS,
+  });
   if (ideInstall.status !== 0) {
     const environment = formatLuaLspSetupFailure(
       platform,

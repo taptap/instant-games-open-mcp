@@ -16,6 +16,7 @@ import type { MakerPythonEnvironment } from '../maker/system/python';
 type SpawnCall = {
   command: string;
   args: string[];
+  timeout?: number;
 };
 
 function spawnResult(status: number, stdout = '', stderr = ''): SpawnSyncReturns<string> {
@@ -83,8 +84,8 @@ describe('Maker Lua LSP runtime', () => {
     fs.mkdirSync(scriptsDir, { recursive: true });
     fs.writeFileSync(lspCommand, '');
 
-    const spawn = (command: string, args: string[]) => {
-      calls.push({ command, args });
+    const spawn = (command: string, args: string[], options?: { timeout?: number }) => {
+      calls.push({ command, args, timeout: options?.timeout });
       if (command === python && args.join(' ') === '-m pip install --upgrade maker-lua-lsp') {
         return spawnResult(0, 'installed maker-lua-lsp\n');
       }
@@ -109,10 +110,22 @@ describe('Maker Lua LSP runtime', () => {
     expect(result.environment.command).toBe(lspCommand);
     expect(calls).toEqual(
       expect.arrayContaining([
-        { command: python, args: ['-m', 'pip', 'install', '--upgrade', 'maker-lua-lsp'] },
-        { command: lspCommand, args: ['install', '--ide', 'codex,cursor,claude'] },
+        expect.objectContaining({
+          command: python,
+          args: ['-m', 'pip', 'install', '--upgrade', 'maker-lua-lsp'],
+        }),
+        expect.objectContaining({
+          command: lspCommand,
+          args: ['install', '--ide', 'codex,cursor,claude'],
+        }),
       ])
     );
+    expect(calls.find((call) => call.command === python && call.args[0] === '-m')?.timeout).toBe(
+      120_000
+    );
+    expect(
+      calls.find((call) => call.command === lspCommand && call.args[0] === 'install')?.timeout
+    ).toBe(120_000);
   });
 
   test('setup reports LSP install failure without throwing', () => {
