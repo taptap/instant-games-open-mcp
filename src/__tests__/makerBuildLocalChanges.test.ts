@@ -1347,6 +1347,7 @@ describe('maker build local-change guard', () => {
     expect(statusTool?.description).toContain('bundled workflow guide document paths');
     expect(statusTool?.inputSchema.properties).toHaveProperty('target_dir');
     expect(statusTool?.description).toContain('AI dev kit status');
+    expect(statusTool?.description).toContain('Python runtime readiness');
     expect(statusTool?.description).toContain('Compatibility status surface');
     expect(statusTool?.description).toContain('Maker Git Workflow Policy');
     expect(statusTool?.description).toContain('Maker Creative Asset Tool Policy');
@@ -1358,6 +1359,9 @@ describe('maker build local-change guard', () => {
     expect(buildTool?.description).not.toContain('clone');
     expect(buildTool?.description).toContain('ignore generic local Git skills');
     expect(buildTool?.description).toContain('taptap-maker-local > Maker Git Workflow Policy');
+    expect(buildTool?.description).toContain('Python environment section');
+    expect(buildTool?.description).toContain('taptap-maker python setup');
+    expect(buildTool?.description).toContain('missing Python must not block the remote build flow');
   });
 
   test('build tool schema exposes sync inputs without build preference parameter', () => {
