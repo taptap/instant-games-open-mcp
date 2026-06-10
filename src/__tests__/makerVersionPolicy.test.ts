@@ -91,8 +91,8 @@ describe('Maker publish version policy', () => {
     expect(result.stderr).toContain('@taptap/maker can only be published from main or beta');
   });
 
-  it('allows auto-last-number from the beta release branch', () => {
-    const fakeBin = createFakeNpm('0.0.5');
+  it('resolves beta auto-last-number to the next prerelease after the highest stable version', () => {
+    const fakeBin = createFakeNpm('0.0.16', ['0.0.13', '0.0.14', '0.0.15', '0.0.16']);
     const result = runResolver({
       PATH: fakeBin,
       MAKER_VERSION_MODE: 'auto-last-number',
@@ -101,7 +101,20 @@ describe('Maker publish version policy', () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.6');
+    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.17-beta.1');
+  });
+
+  it('increments beta prerelease numbers within the next stable version line', () => {
+    const fakeBin = createFakeNpm('0.0.17-beta.1', ['0.0.13', '0.0.16', '0.0.17-beta.1']);
+    const result = runResolver({
+      PATH: fakeBin,
+      MAKER_VERSION_MODE: 'auto-last-number',
+      MAKER_NPM_TAG: 'beta',
+      GITHUB_REF_NAME: 'beta',
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.17-beta.2');
   });
 
   it('allows auto-last-number from the main release branch', () => {
@@ -117,7 +130,20 @@ describe('Maker publish version policy', () => {
     expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.6');
   });
 
-  it('increments past already published stable versions when a dist-tag lags behind', () => {
+  it('publishes the stable version after beta prereleases without skipping the patch', () => {
+    const fakeBin = createFakeNpm('0.0.16', ['0.0.16', '0.0.17-beta.1', '0.0.17-beta.2']);
+    const result = runResolver({
+      PATH: fakeBin,
+      MAKER_VERSION_MODE: 'auto-last-number',
+      MAKER_NPM_TAG: 'latest',
+      GITHUB_REF_NAME: 'main',
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.17');
+  });
+
+  it('uses the next prerelease base when a beta dist-tag lags behind stable versions', () => {
     const fakeBin = createFakeNpm('0.0.3', [
       '0.0.1-beta.1',
       '0.0.1-beta.2',
@@ -135,7 +161,7 @@ describe('Maker publish version policy', () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.6');
+    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.6-beta.1');
   });
 
   it('accepts npm versions output as a single JSON string', () => {
@@ -148,10 +174,10 @@ describe('Maker publish version policy', () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.6');
+    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.6-beta.1');
   });
 
-  it('rejects auto-last-number when the current dist-tag is a prerelease', () => {
+  it('continues beta prerelease numbering when the current dist-tag is a prerelease', () => {
     const fakeBin = createFakeNpm('0.0.5-beta.1');
     const result = runResolver({
       PATH: fakeBin,
@@ -160,11 +186,11 @@ describe('Maker publish version policy', () => {
       GITHUB_REF_NAME: 'beta',
     });
 
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain('auto-last-number requires a stable three-segment version');
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.5-beta.2');
   });
 
-  it('rejects auto-last-number when a prerelease dist-tag has higher stable versions nearby', () => {
+  it('rolls beta prerelease to the next stable line when a higher stable version exists', () => {
     const fakeBin = createFakeNpm('0.0.5-beta.1', ['0.0.5-beta.1', '0.0.6']);
     const result = runResolver({
       PATH: fakeBin,
@@ -173,8 +199,26 @@ describe('Maker publish version policy', () => {
       GITHUB_REF_NAME: 'beta',
     });
 
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain('auto-last-number requires a stable three-segment version');
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.7-beta.1');
+  });
+
+  it('uses the highest stable version across major and minor lines for beta prereleases', () => {
+    const fakeBin = createFakeNpm('0.0.17-beta.2', [
+      '0.0.16',
+      '0.0.17-beta.1',
+      '0.0.17-beta.2',
+      '0.1.0',
+    ]);
+    const result = runResolver({
+      PATH: fakeBin,
+      MAKER_VERSION_MODE: 'auto-last-number',
+      MAKER_NPM_TAG: 'beta',
+      GITHUB_REF_NAME: 'beta',
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.1.1-beta.1');
   });
 
   it('allows manual major or minor changes and flags approval requirement', () => {
