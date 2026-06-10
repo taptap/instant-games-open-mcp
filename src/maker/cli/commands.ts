@@ -227,6 +227,7 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 
   const git = ensureGitAvailable();
   emit(ctx, 'doctor', 'Git is available', { version: git.version });
+  ensureInitPythonReady(ctx, targetDir, env);
 
   const pat = await resolvePat(parsed, ctx);
   emit(ctx, 'pat', 'Maker PAT ready', { saved: getPatPath() });
@@ -377,6 +378,113 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       .filter(Boolean)
       .join('\n')
   );
+}
+
+function ensureInitPythonReady(ctx: CliContext, targetDir: string, env: MakerEnvironment): void {
+  const initial = checkMakerPythonEnvironment();
+  if (initial.ready) {
+    emit(ctx, 'python', 'Python environment is ready', {
+      status: initial.status,
+      version: initial.version,
+      provider: initial.provider,
+    });
+    return;
+  }
+
+  const maxAttempts = 3;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      if (!ctx.json && attempt === 1) {
+        process.stderr.write('Maker 本地开发需要 Python 环境，正在自动准备 Python 3.12...\n');
+      }
+      const result = setupMakerPythonEnvironment();
+      emit(ctx, 'python', 'Python environment is ready', {
+        status: result.environment.status,
+        version: result.environment.version,
+        provider: result.environment.provider,
+        attempts: attempt,
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        const retryIndex = attempt;
+        if (ctx.json) {
+          writeJson({
+            step: 'python',
+            status: 'retry',
+            message: `Python environment setup failed; retrying ${retryIndex}/2.`,
+            data: {
+              attempt,
+              max_attempts: maxAttempts,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          });
+        } else {
+          process.stderr.write(`Python 环境准备失败，正在重试 ${retryIndex}/2...\n`);
+        }
+      }
+    }
+  }
+
+  const message = formatInitPythonBlockedMessage(lastError);
+  saveInitState(targetDir, {
+    status: 'blocked',
+    blocking_prerequisite: 'python',
+    target_dir: targetDir,
+    env,
+    python_status: 'setup_failed',
+  });
+  if (ctx.json) {
+    writeJson({
+      step: 'python',
+      status: 'blocked',
+      message: 'TapTap Maker initialization paused because Python setup failed.',
+      data: {
+        blocking_prerequisite: 'python',
+        python_status: 'setup_failed',
+        attempts: maxAttempts,
+        next_commands: [
+          'taptap-maker python setup',
+          'taptap-maker python doctor',
+          'taptap-maker init',
+        ],
+      },
+    });
+  }
+  throw new Error(message);
+}
+
+function formatInitPythonBlockedMessage(error: unknown): string {
+  const errorText = error instanceof Error ? error.message : String(error);
+  return [
+    'TapTap Maker 初始化已暂停：Python 环境准备失败。',
+    '',
+    'Maker 本地开发需要 Python 环境。已自动尝试 3 次，仍未成功，因此后续的登录、项目拉取和 MCP 配置还没有继续执行。',
+    '',
+    '原因：',
+    `- Python 环境准备失败：${summarizeError(errorText)}`,
+    '',
+    '你可以选择：',
+    '',
+    '1. 让当前 AI 稍后重试自动准备 Python：',
+    '   taptap-maker python setup',
+    '',
+    '2. 自己安装 Python 3.12，并确保 pip 可用，然后检查：',
+    '   taptap-maker python doctor',
+    '',
+    '修复后重新运行：',
+    'taptap-maker init',
+  ].join('\n');
+}
+
+function summarizeError(errorText: string): string {
+  const lines = errorText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.slice(0, 4).join(' | ') || 'unknown error';
 }
 
 async function runPython(parsed: ParsedArgs, ctx: CliContext): Promise<void> {

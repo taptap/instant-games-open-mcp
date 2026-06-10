@@ -307,4 +307,41 @@ describe('Maker Python runtime', () => {
       })
     );
   });
+
+  test('records setup failures and reports them on subsequent checks', () => {
+    const uvPath = path.join(tempDir, 'maker-home', 'bin', 'uv');
+    const spawn = (command: string) => {
+      if (command === 'python3' || command === 'python') {
+        return spawnResult(1, '', 'not found');
+      }
+      if (command === 'sh') {
+        fs.mkdirSync(path.dirname(uvPath), { recursive: true });
+        fs.writeFileSync(uvPath, '');
+        return spawnResult(0, 'installed uv\n');
+      }
+      if (command === uvPath) {
+        return spawnResult(1, '', 'temporary download failure');
+      }
+      return spawnResult(1, '', 'not found');
+    };
+
+    expect(() =>
+      setupMakerPythonEnvironment({
+        platform: 'darwin',
+        spawn,
+      })
+    ).toThrow('uv python install failed');
+
+    const environment = checkMakerPythonEnvironment({
+      platform: 'darwin',
+      spawn,
+    });
+
+    expect(environment.status).toBe('setup_failed');
+    expect(environment.ready).toBe(false);
+    expect(environment.error).toContain('temporary download failure');
+    expect(environment.nextAction).toContain('taptap-maker python setup');
+    expect(environment.nextAction).toContain('Python 3.12');
+    expect(environment.nextAction).not.toContain('私有 Python');
+  });
 });
