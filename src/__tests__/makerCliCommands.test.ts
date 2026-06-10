@@ -104,6 +104,7 @@ describe('Maker CLI commands', () => {
   const originalHome = process.env.HOME;
   const originalMakerHome = process.env.TAPTAP_MAKER_HOME;
   const originalEnv = process.env.TAPTAP_MCP_ENV;
+  const originalPythonBin = process.env.TAPTAP_MAKER_PYTHON_BIN;
   const originalStdinIsTty = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
   let homedirSpy: jest.SpyInstance;
   let stdoutSpy: jest.SpyInstance;
@@ -116,6 +117,7 @@ describe('Maker CLI commands', () => {
     process.env.HOME = tempDir;
     process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home');
     delete process.env.TAPTAP_MCP_ENV;
+    delete process.env.TAPTAP_MAKER_PYTHON_BIN;
     setMakerEnvironmentOverride(undefined);
     homedirSpy = jest.spyOn(os, 'homedir').mockReturnValue(tempDir);
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
@@ -141,6 +143,11 @@ describe('Maker CLI commands', () => {
       delete process.env.TAPTAP_MCP_ENV;
     } else {
       process.env.TAPTAP_MCP_ENV = originalEnv;
+    }
+    if (originalPythonBin === undefined) {
+      delete process.env.TAPTAP_MAKER_PYTHON_BIN;
+    } else {
+      process.env.TAPTAP_MAKER_PYTHON_BIN = originalPythonBin;
     }
     setMakerEnvironmentOverride(undefined);
     if (originalStdinIsTty) {
@@ -1173,6 +1180,113 @@ describe('Maker CLI commands', () => {
     expect(stdoutSpy.mock.calls.join('')).toContain('taptap-maker logs watch');
     expect(stdoutSpy.mock.calls.join('')).toContain('--interval 5s');
     expect(stdoutSpy.mock.calls.join('')).toContain('--reset');
+  });
+
+  test('help documents Python runtime commands', async () => {
+    await runMakerCli(['help']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('taptap-maker python doctor');
+    expect(output).toContain('taptap-maker python setup');
+    expect(output).toContain('taptap-maker python path');
+  });
+
+  test('python doctor json reports missing Python without failing the CLI', async () => {
+    spawnSyncMock.mockImplementation((command) => {
+      if (command === 'python3' || command === 'python') {
+        return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+      }
+      return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli(['python', 'doctor', '--json']);
+
+    const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payload).toEqual(
+      expect.objectContaining({
+        ready: false,
+        status: 'missing',
+        setupCommand: 'taptap-maker python setup',
+      })
+    );
+  });
+
+  test('python path json reports missing runtime as structured JSON', async () => {
+    spawnSyncMock.mockImplementation((command) => {
+      if (command === 'python3' || command === 'python') {
+        return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+      }
+      return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli(['python', 'path', '--json']);
+
+    const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payload).toEqual(
+      expect.objectContaining({
+        ready: false,
+        status: 'missing',
+        nextAction: expect.stringContaining('taptap-maker python setup'),
+      })
+    );
+  });
+
+  test('python setup warns before using the official uv installer', async () => {
+    process.env.TAPTAP_MAKER_PYTHON_BIN = '/opt/maker-python/bin/python3';
+    spawnSyncMock.mockImplementation((command, args) => {
+      if (command === '/opt/maker-python/bin/python3' && args.includes('-c')) {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            executable: '/opt/maker-python/bin/python3',
+            version: '3.12.11',
+          }),
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      if (command === '/opt/maker-python/bin/python3' && args.join(' ') === '-m pip --version') {
+        return {
+          status: 0,
+          stdout: 'pip 25.1 from /opt/maker-python/lib/python3.12/site-packages/pip\n',
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli(['python', 'setup']);
+
+    expect(stderrSpy.mock.calls.join('')).toContain(
+      'may download and run the official uv installer from https://astral.sh'
+    );
+  });
+
+  test('python path prints only the trusted Python executable path', async () => {
+    process.env.TAPTAP_MAKER_PYTHON_BIN = '/opt/maker-python/bin/python3';
+    spawnSyncMock.mockImplementation((command, args) => {
+      if (command === '/opt/maker-python/bin/python3' && args.includes('-c')) {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            executable: '/opt/maker-python/bin/python3',
+            version: '3.13.3',
+          }),
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      if (command === '/opt/maker-python/bin/python3' && args.join(' ') === '-m pip --version') {
+        return {
+          status: 0,
+          stdout: 'pip 25.1 from /opt/maker-python/lib/python3.13/site-packages/pip\n',
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli(['python', 'path']);
+
+    expect(stdoutSpy.mock.calls.join('')).toBe('/opt/maker-python/bin/python3\n');
   });
 
   test('mcp verify explains null status as local startup failure before Maker MCP starts', async () => {
