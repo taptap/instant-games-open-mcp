@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version_mode:
-        description: 'Version mode: run from main or beta; auto increments only the final numeric segment'
+        description: 'Version mode: latest auto increments stable patch; beta/alpha/next auto publish prerelease'
         required: true
         default: auto-last-number
         type: choice

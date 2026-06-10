@@ -142,6 +142,7 @@ Maker Beta 用于内部预览测试，走 `@taptap/maker@beta` dist-tag，不会
 #    - Version mode: auto-last-number
 #    - tag: beta
 #    - version 留空
+#    - 例如最高稳定版本为 0.0.16 时，自动发布 0.0.17-beta.1
 
 # 3. 用户安装 Maker beta 版本
 npm install @taptap/maker@beta
@@ -361,11 +362,14 @@ npx commitlint --from HEAD~1 --to HEAD
 - 主包和 Maker 包都必须手动发版；PR 检查不再按 Maker/main 路径做发布范围拦截。
 - 主包 release workflow 不会由 Maker PR 合并自动触发。
 - 旧包 semantic-release 分析、CHANGELOG 和 GitHub Release notes 会过滤 Maker-only commits。
-- workflow 默认使用 `auto-last-number`，通常只需要选择分支后直接运行。
+- workflow 默认使用 `auto-last-number`，通常只需要选择分支和 dist-tag 后直接运行。
 - 手动版本号只在需要指定版本时填写。
 - Maker 包只能从长期发布分支 `beta` 或 `main` 发布；`fix/*` 分支只用于提交 PR，
   不作为发版来源。
-- 自动版本号只允许在 `beta` 或 `main` 分支上递增最后一个数字段。
+- 自动版本号只允许在 `beta` 或 `main` 分支上运行。
+- `tag=latest` 自动递增稳定 patch，例如 `0.0.16` → `0.0.17`。
+- `tag=beta`、`tag=alpha` 和 `tag=next` 自动发布 prerelease，例如最高稳定版本为
+  `0.0.16` 时发布 `0.0.17-beta.1`，后续同一条线发布 `0.0.17-beta.2`。
 - 手动发布如果修改三段版本号里的前两段，CI 会先在 Actions Summary 显示当前
   线上 dist-tag 版本和目标版本，再由人工点击 protected environment 审批按钮继续。
 - 发布 job 在实际 `npm publish` 前会再次检查目标版本是否仍未发布。
@@ -388,14 +392,13 @@ npx commitlint --from HEAD~1 --to HEAD
 - `package.json`、`.releaserc.cjs` 和 release workflow 等共享发布配置仍建议单独 PR，
   但该限制作为团队流程要求，不再由 PR Check 自动拦截。
 
-Maker 包版本号使用三段式 semver，例如 `0.0.1`。CI 自动递增默认在 `beta` 或 `main`
-分支使用 `auto-last-number`，且只递增最后一个数字段；如果当前 dist-tag 落后于已发布
-稳定版本，CI 会跳过已存在版本并选择同 major/minor 下未发布的下一个 patch。手动发布
-如果要改变 major 或 minor，CI 会在预检 job 的 Actions Summary 展示当前线上
-dist-tag 版本和目标版本，人工核对后点击
-protected environment 审批按钮继续发布。
-beta 发布建议使用 `0.0.6-beta.1` 这类 prerelease 版本和 `tag=beta`，正式发布使用稳定三段
-版本和 `tag=latest`，两者保持相同的 npm pack、CLI 验证和 publish 流程。
+Maker 包版本号使用 semver。CI 自动递增默认在 `beta` 或 `main` 分支使用
+`auto-last-number`：`tag=latest` 发布稳定三段版本；`tag=beta`、`tag=alpha` 和
+`tag=next` 发布 prerelease 版本。如果最高稳定版本为 `0.0.16`，下一次 beta 自动发布
+`0.0.17-beta.1`，后续同一条线递增为 `0.0.17-beta.2`；正式发布再使用稳定三段版本
+`0.0.17` 和 `tag=latest`。手动发布如果要改变 major 或 minor，CI 会在预检 job 的
+Actions Summary 展示当前线上 dist-tag 版本和目标版本，人工核对后点击 protected
+environment 审批按钮继续发布。
 
 ---
 
