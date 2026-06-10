@@ -140,6 +140,34 @@ describe('Maker Python runtime', () => {
     );
   });
 
+  test('continues scanning candidates after an unusable Python is found', () => {
+    const spawn = (command: string, args: string[]) => {
+      if (command === 'python3' && args.includes('-c')) {
+        return spawnResult(0, pythonInfo('/opt/python37/bin/python3', '3.7.17'));
+      }
+      if (command === '/opt/python37/bin/python3' && args.join(' ') === '-m pip --version') {
+        return spawnResult(0, 'pip 23.0 from /opt/python37/lib/site-packages/pip\n');
+      }
+      if (command === 'python' && args.includes('-c')) {
+        return spawnResult(0, pythonInfo('/opt/python312/bin/python', '3.12.11'));
+      }
+      if (command === '/opt/python312/bin/python' && args.join(' ') === '-m pip --version') {
+        return spawnResult(0, 'pip 25.1 from /opt/python312/lib/site-packages/pip\n');
+      }
+      return spawnResult(1, '', 'not found');
+    };
+
+    const environment = checkMakerPythonEnvironment({
+      platform: 'darwin',
+      spawn,
+    });
+
+    expect(environment.status).toBe('ready');
+    expect(environment.ready).toBe(true);
+    expect(environment.python).toBe('/opt/python312/bin/python');
+    expect(environment.version).toBe('3.12.11');
+  });
+
   test('rejects Python versions below the minimum supported 3.8', () => {
     const spawn = (command: string, args: string[]) => {
       if (command === 'python3' && args.includes('-c')) {

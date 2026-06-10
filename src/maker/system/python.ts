@@ -146,7 +146,8 @@ export function checkMakerPythonEnvironment(
   }
 
   let sawWindowsStoreAlias = false;
-  let unsupportedPython: string | undefined;
+  let unsupportedSystemPython: string | undefined;
+  let fallbackEnvironment: MakerPythonEnvironment | undefined;
   for (const candidate of createPythonCandidates(platform, runner)) {
     if (candidate.command === '__windows_store_alias__') {
       sawWindowsStoreAlias = true;
@@ -155,11 +156,18 @@ export function checkMakerPythonEnvironment(
     const result = inspectPythonCandidate(candidate, runner);
     if (result) {
       if (isUnsupportedSystemPython(platform, result.executable, result.provider)) {
-        unsupportedPython = result.executable;
+        unsupportedSystemPython = result.executable;
         continue;
       }
-      return resultToEnvironment(result, base);
+      const environment = resultToEnvironment(result, base);
+      if (environment.ready) {
+        return environment;
+      }
+      fallbackEnvironment ||= environment;
     }
+  }
+  if (fallbackEnvironment) {
+    return fallbackEnvironment;
   }
 
   const status = sawWindowsStoreAlias ? 'store_alias_only' : 'missing';
@@ -171,8 +179,8 @@ export function checkMakerPythonEnvironment(
     error:
       status === 'store_alias_only'
         ? 'Only Windows Store Python app execution aliases were found.'
-        : unsupportedPython
-          ? `Apple/Xcode Python was found at ${unsupportedPython}, but Maker needs a private or user-managed Python toolchain for diagnostics.`
+        : unsupportedSystemPython
+          ? `Apple/Xcode Python was found at ${unsupportedSystemPython}, but Maker needs a private or user-managed Python toolchain for diagnostics.`
           : undefined,
     nextAction:
       status === 'store_alias_only'

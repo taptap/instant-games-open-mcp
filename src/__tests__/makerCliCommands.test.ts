@@ -1211,6 +1211,56 @@ describe('Maker CLI commands', () => {
     );
   });
 
+  test('python path json reports missing runtime as structured JSON', async () => {
+    spawnSyncMock.mockImplementation((command) => {
+      if (command === 'python3' || command === 'python') {
+        return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+      }
+      return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli(['python', 'path', '--json']);
+
+    const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payload).toEqual(
+      expect.objectContaining({
+        ready: false,
+        status: 'missing',
+        nextAction: expect.stringContaining('taptap-maker python setup'),
+      })
+    );
+  });
+
+  test('python setup warns before using the official uv installer', async () => {
+    process.env.TAPTAP_MAKER_PYTHON_BIN = '/opt/maker-python/bin/python3';
+    spawnSyncMock.mockImplementation((command, args) => {
+      if (command === '/opt/maker-python/bin/python3' && args.includes('-c')) {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            executable: '/opt/maker-python/bin/python3',
+            version: '3.12.11',
+          }),
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      if (command === '/opt/maker-python/bin/python3' && args.join(' ') === '-m pip --version') {
+        return {
+          status: 0,
+          stdout: 'pip 25.1 from /opt/maker-python/lib/python3.12/site-packages/pip\n',
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli(['python', 'setup']);
+
+    expect(stderrSpy.mock.calls.join('')).toContain(
+      'may download and run the official uv installer from https://astral.sh'
+    );
+  });
+
   test('python path prints only the trusted Python executable path', async () => {
     process.env.TAPTAP_MAKER_PYTHON_BIN = '/opt/maker-python/bin/python3';
     spawnSyncMock.mockImplementation((command, args) => {

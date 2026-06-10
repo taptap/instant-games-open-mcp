@@ -391,6 +391,9 @@ async function runPython(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   }
 
   if (subcommand === 'setup') {
+    process.stderr.write(
+      'Maker Python setup may download and run the official uv installer from https://astral.sh.\n'
+    );
     const result = setupMakerPythonEnvironment();
     if (ctx.json) {
       writeJson(result);
@@ -409,6 +412,17 @@ async function runPython(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 
   if (subcommand === 'path') {
     const environment = checkMakerPythonEnvironment();
+    if (ctx.json) {
+      writeJson({
+        ready: environment.ready,
+        status: environment.status,
+        python: environment.python,
+        provider: environment.provider,
+        version: environment.version,
+        nextAction: environment.nextAction,
+      });
+      return;
+    }
     if (!environment.ready || !environment.python) {
       throw new Error(
         [
@@ -417,14 +431,6 @@ async function runPython(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
           `- next_action: ${environment.nextAction}`,
         ].join('\n')
       );
-    }
-    if (ctx.json) {
-      writeJson({
-        python: environment.python,
-        provider: environment.provider,
-        version: environment.version,
-      });
-      return;
     }
     process.stdout.write(`${environment.python}\n`);
     return;
