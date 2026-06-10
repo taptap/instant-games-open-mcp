@@ -106,6 +106,34 @@ describe('main package release version policy', () => {
     expect(result.stdout).toContain('Major/minor changed: true');
   });
 
+  it('allows manual recovery of the current npm latest version', () => {
+    const fakeBin = createFakeNpm('1.24.11');
+    const result = runResolver({
+      PATH: fakeBin,
+      GITHUB_REF_NAME: 'main',
+      MAIN_MANUAL_VERSION: '1.24.11',
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Resolved @taptap/instant-games-open-mcp version: 1.24.11');
+    expect(result.stdout).toContain('Version mode: manual');
+    expect(result.stdout).toContain('Major/minor changed: false');
+  });
+
+  it('rejects manual versions below the current npm latest version', () => {
+    const fakeBin = createFakeNpm('1.24.11');
+    const result = runResolver({
+      PATH: fakeBin,
+      GITHUB_REF_NAME: 'main',
+      MAIN_MANUAL_VERSION: '1.24.10',
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Manual target version 1.24.10 must be greater than or equal to current online latest 1.24.11.'
+    );
+  });
+
   it('rejects latest publishing outside main', () => {
     const fakeBin = createFakeNpm('1.24.5');
     const result = runResolver({
