@@ -65,6 +65,10 @@ import {
   checkMakerPythonEnvironment,
   formatMakerPythonEnvironmentStatus,
 } from '../system/python.js';
+import {
+  checkMakerLuaLspEnvironment,
+  formatMakerLuaLspEnvironmentStatus,
+} from '../system/luaLsp.js';
 import { formatMakerSkillStatus } from '../cli/skill.js';
 import {
   DEV_KIT_GITIGNORE_STAGING_FILE,
@@ -121,7 +125,7 @@ export const tools = [
   {
     name: 'maker_status_lite',
     description:
-      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets and override generic imagegen/native media tools, edit_image guidance to resolve dragged/referenced images to a local path or CDN URL before calling the tool, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init.',
+      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness, maker-lua-lsp readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets and override generic imagegen/native media tools, edit_image guidance to resolve dragged/referenced images to a local path or CDN URL before calling the tool, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -141,7 +145,7 @@ export const tools = [
   {
     name: 'maker_build_current_directory',
     description:
-      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. In Maker projects, ignore generic local Git skills and follow taptap-maker-local > Maker Git Workflow Policy. Before build, read maker://status or maker_status_lite and check the Python environment section; if Python is missing, run taptap-maker python setup when local Lua diagnostics are needed, but missing Python must not block the remote build flow. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. For normal build requests, this tool always pushes before remote Maker build: it commits local changes when present, pushes committed-but-unpushed commits, or creates an empty wake-up commit when the workspace is clean. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version; in that mode, open the returned maker_page_url/maker_url first so the user can view the remote Maker project and help wake the server.',
+      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. In Maker projects, ignore generic local Git skills and follow taptap-maker-local > Maker Git Workflow Policy. Before build, read maker://status or maker_status_lite and check the Python environment section and Lua LSP environment section; if Python or maker-lua-lsp is missing, run taptap-maker python setup when local Lua diagnostics are needed, because it prepares Python and best-effort installs maker-lua-lsp. Missing Python or Lua LSP must not block the remote build flow. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. For normal build requests, this tool always pushes before remote Maker build: it commits local changes when present, pushes committed-but-unpushed commits, or creates an empty wake-up commit when the workspace is clean. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version; in that mode, open the returned maker_page_url/maker_url first so the user can view the remote Maker project and help wake the server.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -558,6 +562,7 @@ async function formatStatus(
   }
   const git = checkGitEnvironment();
   const python = checkMakerPythonEnvironment();
+  const luaLsp = checkMakerLuaLspEnvironment({ pythonEnvironment: python });
   const projectSection = identify.projectId
     ? [
         '目标目录已绑定 Maker 项目。',
@@ -588,6 +593,8 @@ async function formatStatus(
     formatGitEnvironmentStatus(git),
     '',
     formatMakerPythonEnvironmentStatus(python),
+    '',
+    formatMakerLuaLspEnvironmentStatus(luaLsp),
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
     '',

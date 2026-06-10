@@ -57,11 +57,16 @@ import {
   formatMakerPythonEnvironmentStatus,
   setupMakerPythonEnvironment,
 } from '../system/python.js';
+import {
+  checkMakerLuaLspEnvironment,
+  formatMakerLuaLspEnvironmentStatus,
+  setupMakerLuaLspEnvironment,
+} from '../system/luaLsp.js';
 import { formatMakerSkillStatus } from './skill.js';
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
-const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit', 'logs', 'python']);
+const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit', 'logs', 'python', 'lua-lsp']);
 const BOOLEAN_OPTIONS = new Set([
   'json',
   'skip_confirm',
@@ -149,6 +154,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'python') {
     await runPython(parsed, ctx);
+    return;
+  }
+
+  if (command === 'lua-lsp') {
+    await runLuaLsp(parsed, ctx);
     return;
   }
 
@@ -316,6 +326,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const env = makerEnvOption(parsed);
   const git = checkGitEnvironment();
   const python = checkMakerPythonEnvironment();
+  const luaLsp = checkMakerLuaLspEnvironment({ pythonEnvironment: python });
   const pat = loadPat();
   const tapAuth = loadTapAuth();
   const identify = identifyMakerProject({ cwd: targetDir });
@@ -333,6 +344,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
         tap_auth: Boolean(tapAuth),
       },
       python,
+      lua_lsp: luaLsp,
       project: identify,
       dev_kit: devKit,
       dev_kit_update: devKitUpdate,
@@ -349,6 +361,8 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       formatGitEnvironmentStatus(git),
       '',
       formatMakerPythonEnvironmentStatus(python),
+      '',
+      formatMakerLuaLspEnvironmentStatus(luaLsp),
       '',
       'Auth',
       `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
@@ -388,6 +402,7 @@ function ensureInitPythonReady(ctx: CliContext, targetDir: string, env: MakerEnv
       version: initial.version,
       provider: initial.provider,
     });
+    ensureInitLuaLspReady(ctx, initial);
     return;
   }
 
@@ -405,6 +420,7 @@ function ensureInitPythonReady(ctx: CliContext, targetDir: string, env: MakerEnv
         provider: result.environment.provider,
         attempts: attempt,
       });
+      ensureInitLuaLspReady(ctx, result.environment);
       return;
     } catch (error) {
       lastError = error;
@@ -456,6 +472,27 @@ function ensureInitPythonReady(ctx: CliContext, targetDir: string, env: MakerEnv
   throw new Error(message);
 }
 
+function ensureInitLuaLspReady(
+  ctx: CliContext,
+  python: ReturnType<typeof checkMakerPythonEnvironment>
+): void {
+  const result = setupMakerLuaLspEnvironment({ pythonEnvironment: python });
+  emit(
+    ctx,
+    'lua_lsp',
+    result.environment.ready
+      ? 'Maker Lua LSP is ready'
+      : 'Maker Lua LSP setup did not complete; continuing because remote build is not blocked',
+    {
+      status: result.environment.status,
+      ready: result.environment.ready,
+      command: result.environment.command,
+      error: result.environment.error,
+      next_action: result.environment.nextAction,
+    }
+  );
+}
+
 function formatInitPythonBlockedMessage(error: unknown): string {
   const errorText = error instanceof Error ? error.message : String(error);
   return [
@@ -504,8 +541,9 @@ async function runPython(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       'Maker Python setup may download and run the official uv installer from https://astral.sh.\n'
     );
     const result = setupMakerPythonEnvironment();
+    const luaLsp = setupMakerLuaLspEnvironment({ pythonEnvironment: result.environment });
     if (ctx.json) {
-      writeJson(result);
+      writeJson({ ...result, luaLsp });
       return;
     }
     process.stdout.write(
@@ -513,6 +551,12 @@ async function runPython(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
         result.changed ? 'Maker Python runtime prepared' : 'Maker Python runtime already available',
         '',
         formatMakerPythonEnvironmentStatus(result.environment),
+        '',
+        luaLsp.environment.ready
+          ? 'Maker Lua LSP prepared'
+          : 'Maker Lua LSP setup did not complete; remote build is not blocked.',
+        '',
+        formatMakerLuaLspEnvironmentStatus(luaLsp.environment),
         '',
       ].join('\n')
     );
@@ -546,6 +590,40 @@ async function runPython(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   }
 
   throw new Error(`Unknown taptap-maker python command: ${formatUnknownCommand(parsed.command)}`);
+}
+
+async function runLuaLsp(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  const [, subcommand] = parsed.command;
+  if (!subcommand || subcommand === 'doctor') {
+    const environment = checkMakerLuaLspEnvironment();
+    if (ctx.json) {
+      writeJson(environment);
+      return;
+    }
+    process.stdout.write(`${formatMakerLuaLspEnvironmentStatus(environment)}\n`);
+    return;
+  }
+
+  if (subcommand === 'setup') {
+    const result = setupMakerLuaLspEnvironment();
+    if (ctx.json) {
+      writeJson(result);
+      return;
+    }
+    process.stdout.write(
+      [
+        result.environment.ready
+          ? 'Maker Lua LSP prepared'
+          : 'Maker Lua LSP setup did not complete; remote build is not blocked.',
+        '',
+        formatMakerLuaLspEnvironmentStatus(result.environment),
+        '',
+      ].join('\n')
+    );
+    return;
+  }
+
+  throw new Error(`Unknown taptap-maker lua-lsp command: ${formatUnknownCommand(parsed.command)}`);
 }
 
 async function runApps(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -1561,7 +1639,8 @@ function isKnownSubcommand(command: string, subcommand: string): boolean {
     (command === 'dev-kit' && subcommand === 'update') ||
     (command === 'logs' && subcommand === 'watch') ||
     (command === 'python' &&
-      (subcommand === 'doctor' || subcommand === 'setup' || subcommand === 'path'))
+      (subcommand === 'doctor' || subcommand === 'setup' || subcommand === 'path')) ||
+    (command === 'lua-lsp' && (subcommand === 'doctor' || subcommand === 'setup'))
   );
 }
 
@@ -1675,6 +1754,8 @@ function printHelp(): void {
       '  taptap-maker python doctor [--json]',
       '  taptap-maker python setup [--json]',
       '  taptap-maker python path [--json]',
+      '  taptap-maker lua-lsp doctor [--json]',
+      '  taptap-maker lua-lsp setup [--json]',
       '  taptap-maker apps [--pat PAT] [--all] [--json]',
       '                     # --pat warns: PAT appears in ps/history',
       '  taptap-maker login [--env rnd|production] [--json]',
