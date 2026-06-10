@@ -20,6 +20,33 @@ import {
 import { resolveNpxCliCommand, runMakerCli } from '../maker/cli/commands';
 import { loadProjectConfig, saveProjectConfig } from '../maker/storage';
 
+function mockReadyPython(spawnSyncMock: jest.MockedFunction<typeof spawnSync>): void {
+  spawnSyncMock.mockImplementation((command, args) => {
+    if (command === 'python3' && Array.isArray(args) && args.includes('-c')) {
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          executable: '/opt/maker-python/bin/python3',
+          version: '3.12.11',
+        }),
+        stderr: '',
+      } as ReturnType<typeof spawnSync>;
+    }
+    if (
+      command === '/opt/maker-python/bin/python3' &&
+      Array.isArray(args) &&
+      args.join(' ') === '-m pip --version'
+    ) {
+      return {
+        status: 0,
+        stdout: 'pip 25.1 from /opt/maker-python/lib/python3.12/site-packages/pip\n',
+        stderr: '',
+      } as ReturnType<typeof spawnSync>;
+    }
+    return { status: 0, stdout: 'help output', stderr: '' } as ReturnType<typeof spawnSync>;
+  });
+}
+
 jest.mock('node:child_process', () => ({
   ...jest.requireActual('node:child_process'),
   spawnSync: jest.fn(() => ({ status: 0, stdout: 'help output', stderr: '' })),
@@ -124,6 +151,7 @@ describe('Maker CLI commands', () => {
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
     jest.clearAllMocks();
+    mockReadyPython(spawnSyncMock);
   });
 
   afterEach(() => {
@@ -501,6 +529,129 @@ describe('Maker CLI commands', () => {
       })
     );
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat', 'production');
+  });
+
+  test('init retries Python setup twice and continues when the third attempt succeeds', async () => {
+    let setupAttempts = 0;
+    spawnSyncMock.mockImplementation((command, args, options) => {
+      if (command === 'python3' || command === 'python') {
+        return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+      }
+      if (command === 'sh' && Array.isArray(args) && args.includes('-c')) {
+        setupAttempts += 1;
+        if (setupAttempts < 3) {
+          return { status: 1, stdout: '', stderr: 'temporary download failure' } as ReturnType<
+            typeof spawnSync
+          >;
+        }
+        const uvInstallDir = (options?.env as NodeJS.ProcessEnv | undefined)?.UV_INSTALL_DIR;
+        if (uvInstallDir) {
+          fs.mkdirSync(uvInstallDir, { recursive: true });
+          fs.writeFileSync(path.join(uvInstallDir, 'uv'), '');
+        }
+        return { status: 0, stdout: 'installed uv\n', stderr: '' } as ReturnType<typeof spawnSync>;
+      }
+      if (typeof command === 'string' && command.endsWith('/uv')) {
+        if (Array.isArray(args) && args.join(' ') === 'python install 3.12 --managed-python') {
+          return { status: 0, stdout: 'installed python\n', stderr: '' } as ReturnType<
+            typeof spawnSync
+          >;
+        }
+        if (Array.isArray(args) && args.join(' ') === 'python find 3.12') {
+          return {
+            status: 0,
+            stdout: `${path.join(tempDir, 'maker-home', 'python', 'python3')}\n`,
+            stderr: '',
+          } as ReturnType<typeof spawnSync>;
+        }
+      }
+      if (
+        command === path.join(tempDir, 'maker-home', 'python', 'python3') &&
+        Array.isArray(args) &&
+        args.includes('-c')
+      ) {
+        return {
+          status: 0,
+          stdout: JSON.stringify({
+            executable: path.join(tempDir, 'maker-home', 'python', 'python3'),
+            version: '3.12.11',
+          }),
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      if (
+        command === path.join(tempDir, 'maker-home', 'python', 'python3') &&
+        Array.isArray(args) &&
+        args.join(' ') === '-m pip --version'
+      ) {
+        return { status: 0, stdout: 'pip 25.1 from managed\n', stderr: '' } as ReturnType<
+          typeof spawnSync
+        >;
+      }
+      return { status: 0, stdout: 'help output', stderr: '' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'valid-maker-token',
+    ]);
+
+    expect(setupAttempts).toBe(3);
+    expect(stderrSpy.mock.calls.join('')).toContain('正在重试 1/2');
+    expect(stderrSpy.mock.calls.join('')).toContain('正在重试 2/2');
+    expect(listMakerProjects).toHaveBeenCalledWith({ pat: 'valid-maker-token' });
+    expect(cloneMakerProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'app-1',
+        targetDir: tempDir,
+      })
+    );
+  });
+
+  test('init pauses before auth and clone when Python setup fails three times', async () => {
+    spawnSyncMock.mockImplementation((command, args) => {
+      if (command === 'python3' || command === 'python') {
+        return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+      }
+      if (command === 'sh' && Array.isArray(args) && args.includes('-c')) {
+        return { status: 1, stdout: '', stderr: 'temporary download failure' } as ReturnType<
+          typeof spawnSync
+        >;
+      }
+      return { status: 1, stdout: '', stderr: 'not found' } as ReturnType<typeof spawnSync>;
+    });
+
+    let error: unknown;
+    try {
+      await runMakerCli([
+        'init',
+        '--skip-confirm',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'valid-maker-token',
+      ]);
+    } catch (caught) {
+      error = caught;
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    expect(message).toContain('TapTap Maker 初始化已暂停');
+    expect(message).toContain('已自动尝试 3 次');
+    expect(message).toContain('taptap-maker python setup');
+    expect(message).toContain('Python 3.12');
+    expect(message).not.toContain('私有 Python');
+    expect(requestTapAuthWithPat).not.toHaveBeenCalled();
+    expect(listMakerProjects).not.toHaveBeenCalled();
+    expect(cloneMakerProject).not.toHaveBeenCalled();
   });
 
   test('init PAT validation failures guide CLI login', async () => {

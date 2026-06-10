@@ -120,11 +120,16 @@ clone maker游戏
 继续开发maker项目
 ```
 
-触发后不要要求用户直接提供 app_id。`taptap-maker init` 会先检查 Git 和 PAT，获取 PAT 后自动获取 TapTap token 并列出 app，让用户从列表中选择，然后 clone 项目、准备 dev-kit，并按客户端写入 MCP 配置。
+触发后不要要求用户直接提供 app_id。`taptap-maker init` 会先检查 Git 和 Python 环境；
+如果 Python 环境未就绪，会自动尝试准备 3 次。3 次都失败时初始化会暂停，后续 PAT、
+app 列表、clone 和 MCP 配置不会继续执行。Python 修复后重新运行 `taptap-maker init`
+即可继续。Python 检查通过后，CLI 获取 PAT、自动获取 TapTap token 并列出 app，让用户从列表中选择，然后 clone 项目、准备 dev-kit，并按客户端写入 MCP 配置。
 
 ```text
 taptap-maker init
-检查 Git / PAT / TapTap token
+检查 Git / Python
+Python 未就绪时自动准备，失败最多重试 2 次
+检查 PAT / TapTap token
 列出 app 并让用户选择
 clone Maker 项目
 准备 AI dev-kit
@@ -142,7 +147,7 @@ CLI 命令：
   或应急联调。
 - `taptap-maker python doctor`：检查本地 Maker Python 运行时。优先复用可信系统 Python；
   Windows 会避开 Microsoft Store app execution alias。
-- `taptap-maker python setup`：自动准备 Maker 私有 Python。缺少可用系统 Python 时，CLI 会先把
+- `taptap-maker python setup`：自动准备 Python 环境。缺少可用系统 Python 时，CLI 会先把
   `uv` 安装到 `~/.taptap-maker/bin/`，再用 uv 安装 managed Python 到
   `~/.taptap-maker/python/uv/`，不修改系统 Python 或全局 PATH。
 - `taptap-maker python path`：输出 Maker 诊断脚本应使用的真实 Python 可执行文件路径。
@@ -154,12 +159,15 @@ Python 运行时策略：
 - Maker Lua 诊断脚本的 Python 最低要求是 3.8；低于 3.8 会被标记为
   `version_unsupported`，并提示运行 `taptap-maker python setup`。
 - Python 3.8 到 3.11 满足最低要求，可以继续使用；状态中会提示推荐使用 3.12 或更新版本。
-- `taptap-maker python setup` 使用 uv 安装 Maker 私有 Python 3.12，满足推荐版本要求。
+- `taptap-maker python setup` 使用 uv 安装 Python 3.12，满足推荐版本要求。
 - Windows 不信任 `%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe` 这类 Microsoft Store
   app execution alias；检测到 alias 时会提示运行 `taptap-maker python setup`。
 - macOS 不把 `/usr/bin/python3`、Xcode 或 Command Line Tools 自带 Python 作为 Maker 工具链，
   即使它们能输出版本号。自动准备会改用 uv managed Python，避免向 Apple/Xcode 目录安装诊断依赖。
 - `taptap-maker python setup` 使用 Node/npx 启动，不要求用户预先安装系统 Python、pip 或 Homebrew。
+- `taptap-maker init` 会把 Python 作为强制前置条件。Python 不可用时会自动运行 setup；
+  如果连续 3 次仍失败，init 会暂停并提示用户让 AI 重试 `taptap-maker python setup`，
+  或自行安装 Python 3.12 后运行 `taptap-maker python doctor`。
 - `taptap-maker install`：`taptap-maker mcp install` 的快捷别名，用于写入当前机器的
   AI 客户端 MCP 配置。
 - `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。Codex 配置写入
@@ -176,7 +184,7 @@ MCP 运行期能力：
   `MCP tool registration cwd` 诊断，说明当前会话的 `tools/list` 可能没有注册 proxy tools。
 - `maker://status` 和 `maker_status_lite` 会输出 `Python environment`。本地 Lua 诊断需要
   Python 时，Agent 应先看该段；如果 `python_status` 不是 `ready`，可运行
-  `taptap-maker python setup` 自动准备 Maker 私有 Python。Python 缺失不阻塞远端构建主流程。
+  `taptap-maker python setup` 准备 Python 环境。Python 缺失不阻塞远端构建主流程。
 - `maker_build_current_directory`：统一执行本地同步和远端构建。提交前会检查 Maker 远端同步状态；
   本地落后远端、分叉、当前不在 `main` 或无法确认远端同步时，会在创建 commit 前停止。普通构建会先
   push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit

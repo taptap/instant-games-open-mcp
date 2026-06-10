@@ -180,7 +180,13 @@ Workflow:
    initialization/clone path. Continue with the user's current intent in that bound project. Do not
    ask which app to clone unless the user explicitly asks to switch or re-clone.
 3. If Git is missing, stop. Tell the user Git is required for clone/submit/build-side Git work.
-4. Run `taptap-maker init` in the user's intended Maker directory. The CLI will request PAT if
+4. Python is a required prerequisite for Maker local development. `taptap-maker init` checks it
+   before PAT, app list, clone, and MCP config installation. If Python is not ready, init tries
+   `taptap-maker python setup` up to 3 total attempts. If setup still fails, explain that init has
+   paused before login/project clone/MCP config, then guide the user to retry
+   `taptap-maker python setup` with the current AI or install Python 3.12 manually and run
+   `taptap-maker python doctor`.
+5. Run `taptap-maker init` in the user's intended Maker directory. The CLI will request PAT if
    missing, fetch TapTap token, show a paged app preview, ask the user to choose, prepare the AI dev
    kit, clone the Maker project, and install/verify MCP config.
    The generated MCP config pins the selected Maker project directory as `cwd` when the target
@@ -189,11 +195,11 @@ Workflow:
    Tell the user that the first Maker clone can take 20+ seconds because the server may be
    preparing the repository, and that they should keep the command running while the CLI retries
    transient 503/5xx failures.
-5. If the CLI reports ordinary local files or parent Git repository risk, explain the warning and
+6. If the CLI reports ordinary local files or parent Git repository risk, explain the warning and
    ask whether the user wants to continue in this directory or switch to a clean independent one.
-6. After clone succeeds, run `taptap-maker doctor` again or explain that `.maker-mcp/config.json`
+7. After clone succeeds, run `taptap-maker doctor` again or explain that `.maker-mcp/config.json`
    now binds the directory to the Maker project.
-7. Tell the local AI/Agent to use the `taptap-maker-dev-kit-guide` skill for the installed dev-kit
+8. Tell the local AI/Agent to use the `taptap-maker-dev-kit-guide` skill for the installed dev-kit
    resources, especially `CLAUDE.md`, `examples/`, `templates/`, and `urhox-libs/`.
 
 Keep the user-facing explanation short:

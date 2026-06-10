@@ -72,6 +72,8 @@ interface PythonRuntimeConfig {
   provider?: MakerPythonProvider;
   python?: string;
   version?: string;
+  status?: MakerPythonStatus;
+  error?: string;
   saved_at?: string;
 }
 
@@ -170,6 +172,18 @@ export function checkMakerPythonEnvironment(
     return fallbackEnvironment;
   }
 
+  if (saved?.status === 'setup_failed') {
+    return {
+      ...base,
+      ready: false,
+      status: 'setup_failed',
+      missing: ['python'],
+      error: saved.error,
+      nextAction:
+        '上次 Python 环境准备失败。请检查网络、代理或目录权限后重试 `taptap-maker python setup`；也可以自行安装 Python 3.12 并确保 pip 可用。',
+    };
+  }
+
   const status = sawWindowsStoreAlias ? 'store_alias_only' : 'missing';
   return {
     ...base,
@@ -184,8 +198,8 @@ export function checkMakerPythonEnvironment(
           : undefined,
     nextAction:
       status === 'store_alias_only'
-        ? '检测到 Windows Store Python alias，但这不是真实 Python。请运行 `taptap-maker python setup` 自动准备 Maker 私有 Python。'
-        : '未检测到可用 Python。请运行 `taptap-maker python setup` 自动准备 Maker 私有 Python。',
+        ? '检测到 Windows Store Python alias，但这不是真实 Python。请运行 `taptap-maker python setup` 准备 Python 环境。'
+        : '未检测到可用 Python。请运行 `taptap-maker python setup` 准备 Python 环境。',
   };
 }
 
@@ -200,46 +214,55 @@ export function setupMakerPythonEnvironment(
 
   const platform = options.platform || process.platform;
   const runner = options.spawn || spawnSync;
-  const uvPath = ensureUvInstalled(platform, runner);
-  const uvEnv = createUvPythonEnv();
-  const install = runner(
-    uvPath,
-    ['python', 'install', DEFAULT_PYTHON_VERSION, '--managed-python'],
-    {
+  try {
+    const uvPath = ensureUvInstalled(platform, runner);
+    const uvEnv = createUvPythonEnv();
+    const install = runner(
+      uvPath,
+      ['python', 'install', DEFAULT_PYTHON_VERSION, '--managed-python'],
+      {
+        encoding: 'utf8',
+        env: uvEnv,
+      }
+    );
+    if (install.status !== 0) {
+      throw new Error(formatSetupFailure('uv python install failed', install));
+    }
+
+    const find = runner(uvPath, ['python', 'find', DEFAULT_PYTHON_VERSION], {
       encoding: 'utf8',
       env: uvEnv,
+    });
+    if (find.status !== 0 || !find.stdout.trim()) {
+      throw new Error(formatSetupFailure('uv python find failed', find));
     }
-  );
-  if (install.status !== 0) {
-    throw new Error(formatSetupFailure('uv python install failed', install));
-  }
 
-  const find = runner(uvPath, ['python', 'find', DEFAULT_PYTHON_VERSION], {
-    encoding: 'utf8',
-    env: uvEnv,
-  });
-  if (find.status !== 0 || !find.stdout.trim()) {
-    throw new Error(formatSetupFailure('uv python find failed', find));
+    const python = find.stdout.trim().split(/\r?\n/)[0];
+    const result = inspectPythonCandidate({ provider: 'uv-managed', command: python }, runner);
+    if (!result?.pipVersion) {
+      throw new Error('Python 3.12 was installed, but pip is not available.');
+    }
+    const environment = resultToEnvironment(result, {
+      platform,
+      configPath: getMakerPythonConfigPath(),
+      setupCommand: 'taptap-maker python setup',
+      pathCommand: 'taptap-maker python path',
+      uv: {
+        path: uvPath,
+        installed: true,
+        version: readUvVersion(uvPath, runner),
+      },
+    });
+    savePythonRuntimeConfig(environment);
+    return { changed: true, environment, uvInstalled: true };
+  } catch (error) {
+    try {
+      savePythonSetupFailure(error);
+    } catch {
+      // Keep the original Python setup error; persistence is best-effort.
+    }
+    throw error;
   }
-
-  const python = find.stdout.trim().split(/\r?\n/)[0];
-  const result = inspectPythonCandidate({ provider: 'uv-managed', command: python }, runner);
-  if (!result?.pipVersion) {
-    throw new Error('uv managed Python was installed, but pip is not available.');
-  }
-  const environment = resultToEnvironment(result, {
-    platform,
-    configPath: getMakerPythonConfigPath(),
-    setupCommand: 'taptap-maker python setup',
-    pathCommand: 'taptap-maker python path',
-    uv: {
-      path: uvPath,
-      installed: true,
-      version: readUvVersion(uvPath, runner),
-    },
-  });
-  savePythonRuntimeConfig(environment);
-  return { changed: true, environment, uvInstalled: true };
 }
 
 export function formatMakerPythonEnvironmentStatus(environment: MakerPythonEnvironment): string {
@@ -343,7 +366,7 @@ function resultToEnvironment(
       pipVersion: result.pipVersion,
       missing: [`python>=${MINIMUM_PYTHON_VERSION}`],
       error: `Python ${result.version} is below the minimum supported ${MINIMUM_PYTHON_VERSION}.`,
-      nextAction: `当前 Python 版本低于 Maker Lua 诊断最低要求 ${MINIMUM_PYTHON_VERSION}。请运行 \`taptap-maker python setup\` 自动准备 Maker 私有 Python ${DEFAULT_PYTHON_VERSION}。`,
+      nextAction: `当前 Python 版本低于 Maker Lua 诊断最低要求 ${MINIMUM_PYTHON_VERSION}。请运行 \`taptap-maker python setup\` 准备 Python ${DEFAULT_PYTHON_VERSION} 环境。`,
     };
   }
   const ready = Boolean(result.pipVersion);
@@ -365,9 +388,9 @@ function resultToEnvironment(
       : undefined,
     nextAction: ready
       ? shouldRecommendUpgrade
-        ? `本地 Python 满足最低要求 ${MINIMUM_PYTHON_VERSION}，但推荐使用 ${RECOMMENDED_PYTHON_VERSION} 或更新版本；如需统一环境，可运行 \`taptap-maker python setup\` 准备 Maker 私有 Python ${DEFAULT_PYTHON_VERSION}。`
+        ? `本地 Python 满足最低要求 ${MINIMUM_PYTHON_VERSION}，但推荐使用 ${RECOMMENDED_PYTHON_VERSION} 或更新版本；如需统一环境，可运行 \`taptap-maker python setup\` 准备 Python ${DEFAULT_PYTHON_VERSION} 环境。`
         : '本地 Python 运行时可用；Maker Lua 诊断脚本可以复用该解释器。'
-      : '检测到 Python，但 pip 不可用。请运行 `taptap-maker python setup` 自动准备 Maker 私有 Python。',
+      : '检测到 Python，但 pip 不可用。请运行 `taptap-maker python setup` 准备 Python 环境。',
   };
 }
 
@@ -501,7 +524,10 @@ function loadPythonRuntimeConfig(): PythonRuntimeConfig | undefined {
   }
   try {
     const data = JSON.parse(fs.readFileSync(configPath, 'utf8')) as PythonRuntimeConfig;
-    return typeof data.python === 'string' ? data : undefined;
+    if (typeof data.python === 'string' || data.status === 'setup_failed') {
+      return data;
+    }
+    return undefined;
   } catch {
     return undefined;
   }
@@ -515,6 +541,16 @@ function savePythonRuntimeConfig(environment: MakerPythonEnvironment): void {
     provider: environment.provider,
     python: environment.python,
     version: environment.version,
+    saved_at: new Date().toISOString(),
+  };
+  fs.mkdirSync(path.dirname(getMakerPythonConfigPath()), { recursive: true });
+  fs.writeFileSync(getMakerPythonConfigPath(), JSON.stringify(config, null, 2), 'utf8');
+}
+
+function savePythonSetupFailure(error: unknown): void {
+  const config: PythonRuntimeConfig = {
+    status: 'setup_failed',
+    error: error instanceof Error ? error.message : String(error),
     saved_at: new Date().toISOString(),
   };
   fs.mkdirSync(path.dirname(getMakerPythonConfigPath()), { recursive: true });
