@@ -1,3 +1,15 @@
+## <small>1.24.11 (2026-06-10)</small>
+
+### CI
+
+* workflow: fix app token git auth recovery (5e85d57)
+* release: use app token for release prs (6b7ba02)
+
+### Other Changes
+
+* Merge pull request #243 from taptap/fix/release-git-auth-recovery (bca07dc)
+* Merge pull request #242 from taptap/fix/release-app-token-recovery (4d66aea)
+
 ## <small>1.24.10 (2026-06-09)</small>
 
 ### Features
