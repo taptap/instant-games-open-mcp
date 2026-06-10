@@ -344,4 +344,30 @@ describe('Maker Python runtime', () => {
     expect(environment.nextAction).toContain('Python 3.12');
     expect(environment.nextAction).not.toContain('私有 Python');
   });
+
+  test('preserves original setup error when failure state cannot be saved', () => {
+    const originalMkdirSync = fs.mkdirSync;
+    jest.spyOn(fs, 'mkdirSync').mockImplementation((target, options) => {
+      if (String(target) === path.dirname(getMakerPythonConfigPath())) {
+        throw new Error('permission denied writing maker home');
+      }
+      return originalMkdirSync(target, options);
+    });
+    const spawn = (command: string) => {
+      if (command === 'python3' || command === 'python') {
+        return spawnResult(1, '', 'not found');
+      }
+      if (command === 'sh') {
+        return spawnResult(1, '', 'temporary download failure');
+      }
+      return spawnResult(1, '', 'not found');
+    };
+
+    expect(() =>
+      setupMakerPythonEnvironment({
+        platform: 'darwin',
+        spawn,
+      })
+    ).toThrow('uv installer failed');
+  });
 });

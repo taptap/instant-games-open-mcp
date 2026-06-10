@@ -256,7 +256,11 @@ export function setupMakerPythonEnvironment(
     savePythonRuntimeConfig(environment);
     return { changed: true, environment, uvInstalled: true };
   } catch (error) {
-    savePythonSetupFailure(error);
+    try {
+      savePythonSetupFailure(error);
+    } catch {
+      // Keep the original Python setup error; persistence is best-effort.
+    }
     throw error;
   }
 }
