@@ -150,11 +150,13 @@ CLI 命令：
 - `taptap-maker python setup`：自动准备本地 Lua 诊断环境。缺少可用系统 Python 时，CLI 会先把
   `uv` 安装到 `~/.taptap-maker/bin/`，再用 uv 安装 managed Python 到
   `~/.taptap-maker/python/uv/`，不修改系统 Python 或全局 PATH；Python ready 后会 best-effort
-  安装/升级 `maker-lua-lsp` 并执行 `maker-lua-lsp install --ide codex,cursor,claude`。
+  创建 Maker 私有 LSP venv，在其中安装/升级 `maker-lua-lsp` 并执行
+  `maker-lua-lsp install --ide codex,cursor,claude`。
 - `taptap-maker python path`：输出 Maker 诊断脚本应使用的真实 Python 可执行文件路径。
 - `taptap-maker lua-lsp doctor`：检查 `maker-lua-lsp` 是否已经可用于本地 Lua 诊断。
-- `taptap-maker lua-lsp setup`：使用当前 Maker Python 执行
-  `python -m pip install --upgrade maker-lua-lsp`，然后配置 Codex、Cursor 和 Claude。
+- `taptap-maker lua-lsp setup`：使用当前 Maker Python 创建
+  `~/.taptap-maker/lua-lsp-venv/`，在 venv 中安装/升级 `maker-lua-lsp`，
+  然后配置 Codex、Cursor 和 Claude。
 
 Python 运行时策略：
 
@@ -163,8 +165,8 @@ Python 运行时策略：
 - Maker Lua 诊断脚本的 Python 最低要求是 3.8；低于 3.8 会被标记为
   `version_unsupported`，并提示运行 `taptap-maker python setup`。
 - Python 3.8 到 3.11 满足最低要求，可以继续使用；状态中会提示推荐使用 3.12 或更新版本。
-- `taptap-maker python setup` 使用 uv 安装 Python 3.12，满足推荐版本要求；随后继续准备
-  `maker-lua-lsp`。LSP 安装成功或失败都会在命令输出和状态中展示，但失败不阻塞远端构建。
+- `taptap-maker python setup` 使用 uv 安装 Python 3.12，满足推荐版本要求；随后创建
+  Maker 私有 LSP venv 并继续准备 `maker-lua-lsp`。LSP 安装成功或失败都会在命令输出和状态中展示，但失败不阻塞远端构建。
 - Windows 不信任 `%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe` 这类 Microsoft Store
   app execution alias；检测到 alias 时会提示运行 `taptap-maker python setup`。
 - macOS 不把 `/usr/bin/python3`、Xcode 或 Command Line Tools 自带 Python 作为 Maker 工具链，

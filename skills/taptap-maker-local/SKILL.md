@@ -183,7 +183,8 @@ Workflow:
 4. Python plus `maker-lua-lsp` is the local Lua diagnostics prerequisite for Maker local
    development. `taptap-maker init` checks Python before PAT, app list, clone, and MCP config
    installation. If Python is not ready, init tries `taptap-maker python setup` up to 3 total
-   attempts. After Python is ready, setup best-effort installs/upgrades `maker-lua-lsp` and runs
+   attempts. After Python is ready, setup best-effort creates a Maker private LSP venv,
+   installs/upgrades `maker-lua-lsp` there, and runs
    `maker-lua-lsp install --ide codex,cursor,claude`; LSP failure should be reported but must not
    block remote build. If Python setup still fails, explain that init has paused before
    login/project clone/MCP config, then guide the user to retry `taptap-maker python setup` with

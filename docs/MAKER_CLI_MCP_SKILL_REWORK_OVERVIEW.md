@@ -54,14 +54,16 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
   `taptap-maker python setup` 才下载 uv，并用 uv 准备 `~/.taptap-maker/` 下的私有 Python；
   Python ready 后继续 best-effort 准备 `maker-lua-lsp`。
 - `maker-lua-lsp` 是本地 Lua 诊断真正使用的能力。CLI 会执行
-  `python -m pip install --upgrade maker-lua-lsp` 和
+  `python -m venv ~/.taptap-maker/lua-lsp-venv`，再用 venv Python 执行
+  `pip install --upgrade maker-lua-lsp` 和
   `maker-lua-lsp install --ide codex,cursor,claude`；失败只在状态和输出中提示，不阻塞远端构建。
 - Maker Lua 诊断的 Python 最低要求是 3.8，推荐 3.12 或更新；低于 3.8 会提示自动准备
   Maker 私有 Python，3.8 到 3.11 可用但会提示推荐升级。uv 自动准备的版本固定为 3.12。
 - Windows 不信任 `python.exe` 的 Microsoft Store app execution alias，检测优先使用 `py -3`；
   自动准备路径不调用系统 `python`，避免触发商店安装。
 - macOS 不把 Apple/Xcode/Command Line Tools 自带 Python 当作 Maker 工具链运行时；这类 Python
-  可能无法稳定安装诊断依赖，自动准备时会走 uv managed Python。
+  可能无法稳定安装诊断依赖，自动准备时会走 uv managed Python。Lua LSP 依赖安装在 Maker
+  私有 venv 中，不直接修改 uv-managed Python。
 - 本地分支测试可直接用 `node dist/maker.js`，不依赖 npm 发布。
 - Windows 下生成 MCP 配置时通过 `cmd.exe` 包装 `npx.cmd`，兼容无 shell 的 MCP 启动器。
 - 初始化失败时保留现场，返回可重试状态，不自动删除用户文件。

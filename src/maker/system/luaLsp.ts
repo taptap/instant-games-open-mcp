@@ -72,6 +72,10 @@ export function getMakerLuaLspConfigPath(): string {
   return path.join(getMakerHome(), 'lua-lsp.json');
 }
 
+export function getMakerLuaLspVenvDir(): string {
+  return path.join(getMakerHome(), 'lua-lsp-venv');
+}
+
 export function checkMakerLuaLspEnvironment(
   options: MakerLuaLspRuntimeOptions = {}
 ): MakerLuaLspEnvironment {
@@ -92,6 +96,24 @@ export function checkMakerLuaLspEnvironment(
     };
   }
 
+  const saved = loadLuaLspRuntimeConfig();
+  if (saved?.command) {
+    const version = readLuaLspVersion(saved.command, runner);
+    if (version) {
+      return {
+        ...base,
+        ready: true,
+        status: 'ready',
+        command: saved.command,
+        version,
+        python: saved.python || python.python,
+        scriptsDir: path.dirname(saved.command),
+        missing: [],
+        nextAction: 'maker-lua-lsp 已安装；本地 Lua 诊断可用。',
+      };
+    }
+  }
+
   const resolved = resolveLuaLspCommand(python, platform, runner);
   const command = resolved.command || LUA_LSP_PACKAGE;
   const version = readLuaLspVersion(command, runner);
@@ -109,7 +131,6 @@ export function checkMakerLuaLspEnvironment(
     };
   }
 
-  const saved = loadLuaLspRuntimeConfig();
   if (saved?.status === 'setup_failed') {
     return {
       ...base,
@@ -160,7 +181,21 @@ export function setupMakerLuaLspEnvironment(
     return { changed: false, environment, python };
   }
 
-  const pipInstall = runner(python.python, ['-m', 'pip', 'install', '--upgrade', LUA_LSP_PACKAGE], {
+  const venv = ensureLuaLspVenv(python, platform, runner);
+  if (venv.result && venv.result.status !== 0) {
+    const environment = formatLuaLspSetupFailure(
+      platform,
+      python,
+      'maker-lua-lsp venv creation failed',
+      venv.result,
+      venv.command,
+      venv.scriptsDir
+    );
+    saveLuaLspRuntimeConfig(environment);
+    return { changed: false, environment, python };
+  }
+
+  const pipInstall = runner(venv.python, ['-m', 'pip', 'install', '--upgrade', LUA_LSP_PACKAGE], {
     encoding: 'utf8',
     timeout: LUA_LSP_SETUP_TIMEOUT_MS,
   });
@@ -169,14 +204,24 @@ export function setupMakerLuaLspEnvironment(
       platform,
       python,
       'maker-lua-lsp pip install failed',
-      pipInstall
+      pipInstall,
+      venv.command,
+      venv.scriptsDir
     );
     saveLuaLspRuntimeConfig(environment);
     return { changed: false, environment, python };
   }
 
-  const resolved = resolveLuaLspCommand(python, platform, runner);
-  const command = resolved.command || LUA_LSP_PACKAGE;
+  const resolved = resolveLuaLspCommand(
+    {
+      ...python,
+      python: venv.python,
+    },
+    platform,
+    runner
+  );
+  const command = resolved.command || venv.command;
+  const scriptsDir = resolved.scriptsDir || venv.scriptsDir;
   const ideInstall = runner(command, ['install', '--ide', LUA_LSP_IDES], {
     encoding: 'utf8',
     timeout: LUA_LSP_SETUP_TIMEOUT_MS,
@@ -188,7 +233,7 @@ export function setupMakerLuaLspEnvironment(
       'maker-lua-lsp IDE install failed',
       ideInstall,
       command,
-      resolved.scriptsDir
+      scriptsDir
     );
     saveLuaLspRuntimeConfig(environment);
     return { changed: false, environment, python };
@@ -201,7 +246,7 @@ export function setupMakerLuaLspEnvironment(
     command,
     version: readLuaLspVersion(command, runner),
     python: python.python,
-    scriptsDir: resolved.scriptsDir,
+    scriptsDir,
     missing: [],
     nextAction: 'maker-lua-lsp 已安装并完成 Codex/Cursor/Claude 配置。',
   };
@@ -267,6 +312,11 @@ function resolveLuaLspCommand(
   platform: NodeJS.Platform,
   runner: SpawnRunner
 ): { command?: string; scriptsDir?: string } {
+  const venvCommand = getLuaLspVenvCommand(platform);
+  if (fs.existsSync(venvCommand)) {
+    return { command: venvCommand, scriptsDir: path.dirname(venvCommand) };
+  }
+
   const scriptsDir = readPythonScriptsDir(python.python, runner);
   if (scriptsDir) {
     const command = path.join(
@@ -281,6 +331,51 @@ function resolveLuaLspCommand(
   return {};
 }
 
+function ensureLuaLspVenv(
+  python: MakerPythonEnvironment,
+  platform: NodeJS.Platform,
+  runner: SpawnRunner
+): {
+  python: string;
+  scriptsDir: string;
+  command: string;
+  result?: SpawnSyncReturns<string>;
+} {
+  const venvDir = getMakerLuaLspVenvDir();
+  const venvPython = getLuaLspVenvPython(platform);
+  const scriptsDir = getLuaLspVenvScriptsDir(platform);
+  const command = getLuaLspVenvCommand(platform);
+  if (!fs.existsSync(venvPython)) {
+    const result = runner(python.python || '', ['-m', 'venv', venvDir], {
+      encoding: 'utf8',
+      timeout: LUA_LSP_SETUP_TIMEOUT_MS,
+    });
+    if (result.status !== 0) {
+      return { python: venvPython, scriptsDir, command, result };
+    }
+  }
+  return { python: venvPython, scriptsDir, command };
+}
+
+function getLuaLspVenvPython(platform: NodeJS.Platform): string {
+  return path.join(
+    getMakerLuaLspVenvDir(),
+    platform === 'win32' ? 'Scripts' : 'bin',
+    platform === 'win32' ? 'python.exe' : 'python'
+  );
+}
+
+function getLuaLspVenvScriptsDir(platform: NodeJS.Platform): string {
+  return path.join(getMakerLuaLspVenvDir(), platform === 'win32' ? 'Scripts' : 'bin');
+}
+
+function getLuaLspVenvCommand(platform: NodeJS.Platform): string {
+  return path.join(
+    getLuaLspVenvScriptsDir(platform),
+    platform === 'win32' ? 'maker-lua-lsp.exe' : 'maker-lua-lsp'
+  );
+}
+
 function readPythonScriptsDir(python: string | undefined, runner: SpawnRunner): string | undefined {
   if (!python) {
     return undefined;
@@ -291,7 +386,11 @@ function readPythonScriptsDir(python: string | undefined, runner: SpawnRunner): 
 
 function readLuaLspVersion(command: string, runner: SpawnRunner): string | undefined {
   const result = runner(command, ['--version'], { encoding: 'utf8' });
-  return result.status === 0 ? result.stdout.trim() || 'installed' : undefined;
+  if (result.status === 0) {
+    return result.stdout.trim() || 'installed';
+  }
+  const help = runner(command, ['--help'], { encoding: 'utf8' });
+  return help.status === 0 ? 'installed' : undefined;
 }
 
 function formatLuaLspSetupFailure(
