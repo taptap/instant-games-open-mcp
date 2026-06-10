@@ -17,7 +17,7 @@ import {
   installAiDevKit,
   installAiDevKitSkills,
 } from '../maker/cli/devKit';
-import { runMakerCli } from '../maker/cli/commands';
+import { resolveNpxCliCommand, runMakerCli } from '../maker/cli/commands';
 import { loadProjectConfig, saveProjectConfig } from '../maker/storage';
 
 jest.mock('node:child_process', () => ({
@@ -111,6 +111,7 @@ describe('Maker CLI commands', () => {
   let stderrSpy: jest.SpyInstance;
   const spawnSyncMock = jest.mocked(spawnSync);
   const cliLoginMock = jest.mocked(loginWithCliAuthCode);
+  const expectedNpxLaunch = resolveNpxCliCommand('@taptap/maker');
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-cli-commands-'));
@@ -158,6 +159,34 @@ describe('Maker CLI commands', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
+  test('resolves npx package commands for Windows and POSIX launchers', () => {
+    expect(resolveNpxCliCommand('@taptap/maker', 'win32')).toEqual({
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', 'npx.cmd', '-y', '-p', '@taptap/maker', 'taptap-maker'],
+      commandAndArgs: [
+        'cmd.exe',
+        '/d',
+        '/s',
+        '/c',
+        'npx.cmd',
+        '-y',
+        '-p',
+        '@taptap/maker',
+        'taptap-maker',
+      ],
+    });
+    expect(resolveNpxCliCommand('@taptap/maker', 'linux')).toEqual({
+      command: 'npx',
+      args: ['-y', '-p', '@taptap/maker', 'taptap-maker'],
+      commandAndArgs: ['npx', '-y', '-p', '@taptap/maker', 'taptap-maker'],
+    });
+    expect(resolveNpxCliCommand('@taptap/maker', 'darwin')).toEqual({
+      command: 'npx',
+      args: ['-y', '-p', '@taptap/maker', 'taptap-maker'],
+      commandAndArgs: ['npx', '-y', '-p', '@taptap/maker', 'taptap-maker'],
+    });
+  });
+
   test('codex mcp install replaces existing server table and env subtable', async () => {
     const configPath = path.join(tempDir, '.codex', 'config.toml');
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
@@ -187,7 +216,9 @@ describe('Maker CLI commands', () => {
     const text = fs.readFileSync(configPath, 'utf8');
     expect(text.match(/\[mcp_servers\."taptap-maker"\]/g)).toHaveLength(1);
     expect(text.match(/\[mcp_servers\."taptap-maker"\.env\]/g)).toHaveLength(1);
-    expect(text).toContain('args = ["-y", "-p", "@taptap/maker", "taptap-maker"]');
+    expect(text).toContain(
+      `args = [${expectedNpxLaunch.args.map((arg) => `"${arg}"`).join(', ')}]`
+    );
     expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
     expect(text).toContain('[mcp_servers."other".env]');
     expect(text).toContain('KEEP = "yes"');
@@ -200,9 +231,80 @@ describe('Maker CLI commands', () => {
 
     const text = fs.readFileSync(configPath, 'utf8');
     expect(text.match(/\[mcp_servers\."taptap-maker"\]/g)).toHaveLength(1);
-    expect(text).toContain('command = "npx"');
-    expect(text).toContain('args = ["-y", "-p", "@taptap/maker", "taptap-maker"]');
+    expect(text).toContain(`command = "${expectedNpxLaunch.command}"`);
+    expect(text).toContain(
+      `args = [${expectedNpxLaunch.args.map((arg) => `"${arg}"`).join(', ')}]`
+    );
     expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
+  });
+
+  test('json mcp install writes a Windows spawn-compatible package command', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--env', 'rnd']);
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: {
+        TAPTAP_MCP_ENV: 'rnd',
+      },
+    });
+    if (process.platform === 'win32') {
+      expect(config.mcpServers['taptap-maker'].command).not.toBe('npx.cmd');
+    }
+  });
+
+  test('json mcp install pins cwd when target directory is provided', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+    const projectDir = path.join(tempDir, 'maker-project');
+    fs.mkdirSync(projectDir, { recursive: true });
+
+    await runMakerCli([
+      'mcp',
+      'install',
+      '--ide',
+      'cursor',
+      '--env',
+      'rnd',
+      '--target-dir',
+      projectDir,
+    ]);
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      cwd: projectDir,
+      env: {
+        TAPTAP_MCP_ENV: 'rnd',
+      },
+    });
+  });
+
+  test('claude mcp install invokes Claude CLI through a Windows spawn-compatible command', async () => {
+    await runMakerCli(['mcp', 'install', '--ide', 'claude', '--env', 'rnd', '--json']);
+
+    const claudeArgs = [
+      'mcp',
+      'add',
+      '--scope',
+      'user',
+      '--transport',
+      'stdio',
+      '--env',
+      'TAPTAP_MCP_ENV=rnd',
+      'taptap-maker',
+      '--',
+      expectedNpxLaunch.command,
+      ...expectedNpxLaunch.args,
+    ];
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      process.platform === 'win32' ? 'cmd.exe' : 'claude',
+      process.platform === 'win32' ? ['/d', '/s', '/c', 'claude.cmd', ...claudeArgs] : claudeArgs,
+      { encoding: 'utf8' }
+    );
   });
 
   test('codex mcp install replaces existing bare server table and env subtable', async () => {
@@ -1123,7 +1225,7 @@ describe('Maker CLI commands', () => {
   });
 
   test('init uses CLI login when no cached PAT exists', async () => {
-    await runMakerCli(['init', '--app-id', 'app-1', '--skip-mcp-install']);
+    await runMakerCli(['init', '--app-id', 'app-1', '--target-dir', tempDir, '--skip-mcp-install']);
 
     expect(cliLoginMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1155,8 +1257,8 @@ describe('Maker CLI commands', () => {
     await runMakerCli(['mcp', 'verify', '--json']);
 
     expect(spawnSyncMock).toHaveBeenCalledWith(
-      process.platform === 'win32' ? 'npx.cmd' : 'npx',
-      ['-y', '-p', '@taptap/maker', 'taptap-maker', 'help'],
+      expectedNpxLaunch.command,
+      [...expectedNpxLaunch.args, 'help'],
       { encoding: 'utf8' }
     );
     expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual(

@@ -138,6 +138,26 @@ If status output returns `AI client workspace selection`, follow that hint: choo
 workspace first, then read `maker://status` or call `maker_status_lite` with the attached project
 directory.
 
+### Proxy Tools Missing From The Current Session
+
+If the user is in a bound Maker project but `generate_image`, `batch_generate_images`, `edit_image`,
+`create_video_task`, or `text_to_music` are missing from the current AI tool list, diagnose the MCP
+cwd before suggesting repeated restarts:
+
+1. Read `maker://status` or call `maker_status_lite` without `target_dir` to see the MCP server cwd.
+2. If the user provides or the client exposes the real Maker project directory, call
+   `maker_status_lite` with that directory as `target_dir`.
+3. If the status output includes `MCP tool registration cwd` with `status: mismatch`, explain that
+   `tools/list` ran from the MCP server cwd, not the Maker project directory. Passing `target_dir`
+   to `maker_status_lite` proves the project is valid, but it does not dynamically add proxy tools
+   to the already-started MCP session.
+4. Tell the user to start the AI client from the Maker project directory, or update the
+   `taptap-maker` MCP config `cwd` to the Maker project directory, then reconnect `taptap-maker`
+   from the client's MCP UI such as `/mcp`.
+
+Do not fall back to generic image/video/music tools when Maker proxy tools are missing. The missing
+tools indicate a session/configuration problem that must be fixed first.
+
 ## Initialization Workflow
 
 Trigger phrases include:
@@ -163,6 +183,9 @@ Workflow:
 4. Run `taptap-maker init` in the user's intended Maker directory. The CLI will request PAT if
    missing, fetch TapTap token, show a paged app preview, ask the user to choose, prepare the AI dev
    kit, clone the Maker project, and install/verify MCP config.
+   The generated MCP config pins the selected Maker project directory as `cwd` when the target
+   client supports it. If a user manually reinstalls MCP config later, prefer
+   `taptap-maker mcp install --target-dir <PROJECT_DIR>`.
    Tell the user that the first Maker clone can take 20+ seconds because the server may be
    preparing the repository, and that they should keep the command running while the CLI retries
    transient 503/5xx failures.

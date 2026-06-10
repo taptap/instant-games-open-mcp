@@ -524,6 +524,11 @@ async function formatStatus(
   const targetDir = resolveMakerToolTargetDir(options.targetDir);
   const env = getMakerEnvironment(undefined, targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
+  const mcpCwd = process.cwd();
+  const mcpCwdIdentify =
+    path.resolve(mcpCwd) === path.resolve(targetDir)
+      ? identify
+      : identifyMakerProject({ cwd: mcpCwd });
   const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
   const remoteSyncText =
     identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo && !options.skipRemoteSync
@@ -585,6 +590,13 @@ async function formatStatus(
     formatMakerPythonEnvironmentStatus(python),
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
+    '',
+    formatMakerToolRegistrationCwdStatus({
+      mcpCwd,
+      targetDir,
+      projectRoot: identify.projectRoot,
+      mcpProjectRoot: mcpCwdIdentify.projectRoot,
+    }),
     '',
     remoteSyncText,
     '',
@@ -650,6 +662,36 @@ export async function formatMakerRemoteSyncStatusSafely(projectRoot: string): Pr
   } catch (error) {
     return formatMakerRemoteSyncUnavailable(error);
   }
+}
+
+export function formatMakerToolRegistrationCwdStatus(options: {
+  mcpCwd: string;
+  targetDir: string;
+  projectRoot?: string;
+  mcpProjectRoot?: string;
+}): string {
+  if (!options.projectRoot) {
+    return '';
+  }
+  const mcpCwd = path.resolve(options.mcpCwd);
+  const targetDir = path.resolve(options.targetDir);
+  const projectRoot = path.resolve(options.projectRoot);
+  const mcpProjectRoot = options.mcpProjectRoot ? path.resolve(options.mcpProjectRoot) : undefined;
+  if (mcpProjectRoot === projectRoot) {
+    return '';
+  }
+
+  return [
+    'MCP tool registration cwd',
+    '',
+    '- status: mismatch',
+    `- mcp_cwd: ${mcpCwd}`,
+    `- inspected_target_dir: ${targetDir}`,
+    `- maker_project_dir: ${projectRoot}`,
+    `- mcp_cwd_project_dir: ${mcpProjectRoot || '(none)'}`,
+    '- impact: Maker proxy tools may not appear in this MCP session because tools/list used the MCP server cwd.',
+    '- next_action: Start Claude Code from the Maker project directory, or set the taptap-maker MCP config cwd to maker_project_dir, then Reconnect taptap-maker in /mcp.',
+  ].join('\n');
 }
 
 export async function formatMakerProxyToolsStatusSafely(options: {

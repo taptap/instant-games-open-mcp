@@ -19,6 +19,7 @@ import {
   formatBuildResult,
   formatAiDevKitStatus,
   formatClonePartialStateLines,
+  formatMakerToolRegistrationCwdStatus,
   formatMakerProxyToolsStatusSafely,
   formatMakerRemoteSyncStatusSafely,
   formatPushResult,
@@ -840,6 +841,24 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- build_available: no');
     expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');
     expect(output).toContain('远端 proxy tools 和 build 构建都不可用');
+  });
+
+  test('tool registration cwd status explains why proxy tools are missing from the session', () => {
+    const dialogueDir = path.join(tempDir, '..', 'dialogue-cwd');
+    const output = formatMakerToolRegistrationCwdStatus({
+      mcpCwd: dialogueDir,
+      targetDir: tempDir,
+      projectRoot: tempDir,
+      mcpProjectRoot: undefined,
+    });
+
+    expect(output).toContain('MCP tool registration cwd');
+    expect(output).toContain('- status: mismatch');
+    expect(output).toContain(`- mcp_cwd: ${path.resolve(dialogueDir)}`);
+    expect(output).toContain(`- maker_project_dir: ${tempDir}`);
+    expect(output).toContain('- mcp_cwd_project_dir: (none)');
+    expect(output).toContain('proxy tools may not appear in this MCP session');
+    expect(output).toContain('Reconnect');
   });
 
   test('proxy retry stops after the bounded default attempts', async () => {

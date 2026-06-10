@@ -347,7 +347,10 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - AI dev kit 安装/更新按当前环境查询最新版本信息，按返回的 `current.version` 生成版本化下载 URL；版本检查失败时降级使用内置默认下载地址。安装成功后记录本地已安装版本，`taptap-maker doctor`、`maker://status` 和 `maker_status_lite` 输出当前版本、最新版本和是否可更新。
 - `taptap-maker init` 首次拉取默认使用 `git init` + `git fetch --depth=1 origin` + checkout；Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
 - 首次 clone/fetch 前必须提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
-- CLI 写 MCP 配置时优先支持 Windows：Windows 使用 `npx.cmd`，Git 引导优先指向 Git for Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方 Git。
+- CLI 写 MCP 配置时优先支持 Windows：Windows 通过 `cmd.exe` 包装 `npx.cmd`，
+  避免无 shell 的 MCP 启动器直接 spawn `.cmd` 失败；Git 引导优先指向 Git for
+  Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方
+  Git。
 - `taptap-maker mcp verify` 默认验证 `mcp install` 写入配置的 npx 包命令能否启动；本地开发只验证当前 CLI 时使用 `--mode self`。
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
