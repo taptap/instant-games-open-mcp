@@ -493,7 +493,9 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.write-app-token.outputs.token }}
         run: |
-          git config --local http.https://github.com/.extraheader "AUTHORIZATION: bearer ${GH_TOKEN}"
+          GIT_AUTH_HEADER=$(printf "x-access-token:%s" "$GH_TOKEN" | base64 | tr -d '\n')
+          echo "::add-mask::${GIT_AUTH_HEADER}"
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${GIT_AUTH_HEADER}"
 
       - name: Resolve existing release PR
         id: release_pr
@@ -778,7 +780,9 @@ jobs:
           MERGE_COMMIT=${{ steps.wait_for_merge.outputs.merge_commit }}
 
           # PR 已合并，检出该 release PR 的 merge commit，避免 main 后续推进影响 tag 目标。
-          git config --local http.https://github.com/.extraheader "AUTHORIZATION: bearer ${GH_TOKEN}"
+          GIT_AUTH_HEADER=$(printf "x-access-token:%s" "$GH_TOKEN" | base64 | tr -d '\n')
+          echo "::add-mask::${GIT_AUTH_HEADER}"
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${GIT_AUTH_HEADER}"
           git fetch origin main
           git checkout -B main "$MERGE_COMMIT"
           git config user.name "github-actions[bot]"

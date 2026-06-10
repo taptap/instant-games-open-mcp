@@ -113,9 +113,9 @@ function resolveManualVersion(currentVersion) {
   const version = readEnv('MAIN_MANUAL_VERSION').trim();
   assertStableVersion(version);
 
-  if (compareStableVersions(version, currentVersion) <= 0) {
+  if (compareStableVersions(version, currentVersion) < 0) {
     throw new Error(
-      `Manual target version ${version} must be greater than current online latest ${currentVersion}.`
+      `Manual target version ${version} must be greater than or equal to current online latest ${currentVersion}.`
     );
   }
 
@@ -142,7 +142,7 @@ function main() {
     ? resolveManualVersion(currentVersion)
     : resolveAutoVersion(currentVersion, publishedVersions);
 
-  if (npmVersionExists(version)) {
+  if (!manualVersion && npmVersionExists(version)) {
     throw new Error(`${PACKAGE_NAME}@${version} already exists on npm.`);
   }
 

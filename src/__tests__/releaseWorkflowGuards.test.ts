@@ -130,7 +130,8 @@ describe('release PR required workflow guards', () => {
       "if: success() && steps.wait_for_merge.outputs.state == 'MERGED'"
     );
     expect(releaseStep).toContain('GH_TOKEN: ${{ steps.final-app-token.outputs.token }}');
-    expect(releaseStep).toContain('AUTHORIZATION: bearer ${GH_TOKEN}');
+    expect(releaseStep).toContain('echo "::add-mask::${GIT_AUTH_HEADER}"');
+    expect(releaseStep).toContain('AUTHORIZATION: basic ${GIT_AUTH_HEADER}');
     expect(releaseStep).not.toContain('for i in $(seq 1 360)');
   });
 
@@ -148,7 +149,10 @@ describe('release PR required workflow guards', () => {
 
     const configureStep = getStepBody(workflow, 'Configure release write app token');
     expect(configureStep).toContain('GH_TOKEN: ${{ steps.write-app-token.outputs.token }}');
-    expect(configureStep).toContain('AUTHORIZATION: bearer ${GH_TOKEN}');
+    expect(configureStep).toContain('x-access-token:%s');
+    expect(configureStep).toContain('echo "::add-mask::${GIT_AUTH_HEADER}"');
+    expect(configureStep).toContain('AUTHORIZATION: basic ${GIT_AUTH_HEADER}');
+    expect(configureStep).not.toContain('AUTHORIZATION: bearer');
 
     for (const stepName of [
       'Resolve existing release PR',
