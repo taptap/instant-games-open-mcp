@@ -1147,15 +1147,27 @@ function getCurrentCliCommand(): { command: string; args: string[] } {
   return { command: process.platform === 'win32' ? 'taptap-maker.cmd' : 'taptap-maker', args: [] };
 }
 
-function getNpxCliCommand(pkg: string): {
+type CliLaunchCommand = {
   command: string;
   args: string[];
   commandAndArgs: string[];
-} {
+};
+
+function getNpxCliCommand(pkg: string): CliLaunchCommand {
+  return resolveNpxCliCommand(pkg);
+}
+
+/**
+ * Resolve the package launcher written into MCP configs.
+ */
+export function resolveNpxCliCommand(
+  pkg: string,
+  platform: NodeJS.Platform = process.platform
+): CliLaunchCommand {
   const npxArgs = ['-y', '-p', pkg, 'taptap-maker'];
   const launch = getWindowsCmdLaunchCommand('npx.cmd', npxArgs);
-  const command = process.platform === 'win32' ? launch.command : 'npx';
-  const args = process.platform === 'win32' ? launch.args : npxArgs;
+  const command = platform === 'win32' ? launch.command : 'npx';
+  const args = platform === 'win32' ? launch.args : npxArgs;
   return { command, args, commandAndArgs: [command, ...args] };
 }
 

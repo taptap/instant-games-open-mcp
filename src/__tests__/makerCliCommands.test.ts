@@ -17,7 +17,7 @@ import {
   installAiDevKit,
   installAiDevKitSkills,
 } from '../maker/cli/devKit';
-import { runMakerCli } from '../maker/cli/commands';
+import { resolveNpxCliCommand, runMakerCli } from '../maker/cli/commands';
 import { loadProjectConfig, saveProjectConfig } from '../maker/storage';
 
 jest.mock('node:child_process', () => ({
@@ -110,16 +110,7 @@ describe('Maker CLI commands', () => {
   let stderrSpy: jest.SpyInstance;
   const spawnSyncMock = jest.mocked(spawnSync);
   const cliLoginMock = jest.mocked(loginWithCliAuthCode);
-  const expectedNpxLaunch =
-    process.platform === 'win32'
-      ? {
-          command: 'cmd.exe',
-          args: ['/d', '/s', '/c', 'npx.cmd', '-y', '-p', '@taptap/maker', 'taptap-maker'],
-        }
-      : {
-          command: 'npx',
-          args: ['-y', '-p', '@taptap/maker', 'taptap-maker'],
-        };
+  const expectedNpxLaunch = resolveNpxCliCommand('@taptap/maker');
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-cli-commands-'));
@@ -159,6 +150,34 @@ describe('Maker CLI commands', () => {
       delete (process.stdin as NodeJS.ReadStream & { isTTY?: boolean }).isTTY;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test('resolves npx package commands for Windows and POSIX launchers', () => {
+    expect(resolveNpxCliCommand('@taptap/maker', 'win32')).toEqual({
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', 'npx.cmd', '-y', '-p', '@taptap/maker', 'taptap-maker'],
+      commandAndArgs: [
+        'cmd.exe',
+        '/d',
+        '/s',
+        '/c',
+        'npx.cmd',
+        '-y',
+        '-p',
+        '@taptap/maker',
+        'taptap-maker',
+      ],
+    });
+    expect(resolveNpxCliCommand('@taptap/maker', 'linux')).toEqual({
+      command: 'npx',
+      args: ['-y', '-p', '@taptap/maker', 'taptap-maker'],
+      commandAndArgs: ['npx', '-y', '-p', '@taptap/maker', 'taptap-maker'],
+    });
+    expect(resolveNpxCliCommand('@taptap/maker', 'darwin')).toEqual({
+      command: 'npx',
+      args: ['-y', '-p', '@taptap/maker', 'taptap-maker'],
+      commandAndArgs: ['npx', '-y', '-p', '@taptap/maker', 'taptap-maker'],
+    });
   });
 
   test('codex mcp install replaces existing server table and env subtable', async () => {

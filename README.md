@@ -99,9 +99,10 @@ Maker MCP 也提供部分生成类能力，当前包括 `generate_image`、`batc
 `edit_image`、`create_video_task` 和 `text_to_music`；具体参数以 MCP 客户端展示的 tool
 schema 为准。代理转发和白名单细节见 [TapTap Maker 本地开发](docs/MAKER.md)。
 
-Windows 是默认优先级：CLI 写 MCP 配置时会在 Windows 使用 `npx.cmd`，Git 引导优先提示
-Git for Windows，并要求安装选项允许命令行和第三方工具通过 PATH 找到 Git。macOS 用户可通过
-`git --version` 触发 Xcode Command Line Tools，或安装官方 Git。
+Windows 是默认优先级：CLI 写 MCP 配置时会在 Windows 通过 `cmd.exe` 包装 `npx.cmd`，
+避免无 shell 的 MCP 启动器直接 spawn `.cmd` 失败；Git 引导优先提示 Git for Windows，
+并要求安装选项允许命令行和第三方工具通过 PATH 找到 Git。macOS 用户可通过 `git --version`
+触发 Xcode Command Line Tools，或安装官方 Git。
 
 详见：[TapTap Maker 本地开发](docs/MAKER.md)。面向团队介绍的功能总览见
 [Maker CLI + MCP + Skill Rework Overview](docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
