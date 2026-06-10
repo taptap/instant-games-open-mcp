@@ -16,6 +16,7 @@ import {
 const LUA_LSP_PACKAGE = 'maker-lua-lsp';
 const LUA_LSP_IDES = 'codex,cursor,claude';
 const LUA_LSP_SETUP_TIMEOUT_MS = 120_000;
+const LUA_LSP_PROBE_TIMEOUT_MS = 5_000;
 const PYTHON_SCRIPTS_DIR_SCRIPT = [
   'import sysconfig',
   'print(sysconfig.get_path("scripts") or "")',
@@ -345,7 +346,7 @@ function ensureLuaLspVenv(
   const venvPython = getLuaLspVenvPython(platform);
   const scriptsDir = getLuaLspVenvScriptsDir(platform);
   const command = getLuaLspVenvCommand(platform);
-  if (!fs.existsSync(venvPython)) {
+  if (!isLuaLspVenvComplete(platform)) {
     const result = runner(python.python || '', ['-m', 'venv', venvDir], {
       encoding: 'utf8',
       timeout: LUA_LSP_SETUP_TIMEOUT_MS,
@@ -355,6 +356,14 @@ function ensureLuaLspVenv(
     }
   }
   return { python: venvPython, scriptsDir, command };
+}
+
+function isLuaLspVenvComplete(platform: NodeJS.Platform): boolean {
+  return fs.existsSync(getLuaLspVenvPython(platform)) && fs.existsSync(getLuaLspVenvConfigPath());
+}
+
+function getLuaLspVenvConfigPath(): string {
+  return path.join(getMakerLuaLspVenvDir(), 'pyvenv.cfg');
 }
 
 function getLuaLspVenvPython(platform: NodeJS.Platform): string {
@@ -385,11 +394,17 @@ function readPythonScriptsDir(python: string | undefined, runner: SpawnRunner): 
 }
 
 function readLuaLspVersion(command: string, runner: SpawnRunner): string | undefined {
-  const result = runner(command, ['--version'], { encoding: 'utf8' });
+  const result = runner(command, ['--version'], {
+    encoding: 'utf8',
+    timeout: LUA_LSP_PROBE_TIMEOUT_MS,
+  });
   if (result.status === 0) {
     return result.stdout.trim() || 'installed';
   }
-  const help = runner(command, ['--help'], { encoding: 'utf8' });
+  const help = runner(command, ['--help'], {
+    encoding: 'utf8',
+    timeout: LUA_LSP_PROBE_TIMEOUT_MS,
+  });
   return help.status === 0 ? 'installed' : undefined;
 }
 

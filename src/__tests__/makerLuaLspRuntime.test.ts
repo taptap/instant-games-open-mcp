@@ -170,6 +170,51 @@ describe('Maker Lua LSP runtime', () => {
     );
   });
 
+  test('setup recreates venv when python exists but pyvenv config is missing', () => {
+    const calls: SpawnCall[] = [];
+    const python = path.join(tempDir, 'python', 'bin', 'python3');
+    const venvDir = path.join(tempDir, 'maker-home', 'lua-lsp-venv');
+    const venvPython = path.join(venvDir, 'bin', 'python');
+    const scriptsDir = path.join(venvDir, 'bin');
+    const lspCommand = path.join(scriptsDir, 'maker-lua-lsp');
+    fs.mkdirSync(scriptsDir, { recursive: true });
+    fs.writeFileSync(venvPython, '');
+
+    const spawn = (command: string, args: string[], options?: { timeout?: number }) => {
+      calls.push({ command, args, timeout: options?.timeout });
+      if (command === python && args.join(' ') === `-m venv ${venvDir}`) {
+        fs.writeFileSync(path.join(venvDir, 'pyvenv.cfg'), '');
+        fs.writeFileSync(lspCommand, '');
+        return spawnResult(0, 'recreated venv\n');
+      }
+      if (command === venvPython && args.join(' ') === '-m pip install --upgrade maker-lua-lsp') {
+        return spawnResult(0, 'installed maker-lua-lsp\n');
+      }
+      if (command === lspCommand && args.join(' ') === 'install --ide codex,cursor,claude') {
+        return spawnResult(0, 'configured\n');
+      }
+      if (command === lspCommand && args[0] === '--version') {
+        return spawnResult(0, 'maker-lua-lsp 1.0.0\n');
+      }
+      return spawnResult(1, '', `unexpected command: ${command} ${args.join(' ')}`);
+    };
+
+    const result = setupMakerLuaLspEnvironment({
+      pythonEnvironment: readyPython(python),
+      spawn,
+    });
+
+    expect(result.environment.status).toBe('ready');
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          command: python,
+          args: ['-m', 'venv', venvDir],
+        }),
+      ])
+    );
+  });
+
   test('doctor reports missing LSP when Python is ready but command is unavailable', () => {
     const python = path.join(tempDir, 'python', 'bin', 'python3');
     const scriptsDir = path.join(tempDir, 'python', 'bin');
@@ -191,13 +236,15 @@ describe('Maker Lua LSP runtime', () => {
   });
 
   test('doctor accepts LSP command that supports help but not version', () => {
+    const calls: SpawnCall[] = [];
     const python = path.join(tempDir, 'python', 'bin', 'python3');
     const scriptsDir = path.join(tempDir, 'maker-home', 'lua-lsp-venv', 'bin');
     const lspCommand = path.join(scriptsDir, 'maker-lua-lsp');
     fs.mkdirSync(scriptsDir, { recursive: true });
     fs.writeFileSync(lspCommand, '');
 
-    const spawn = (command: string, args: string[]) => {
+    const spawn = (command: string, args: string[], options?: { timeout?: number }) => {
+      calls.push({ command, args, timeout: options?.timeout });
       if (command === lspCommand && args[0] === '--version') {
         return spawnResult(2, '', 'maker-lua-lsp: error: unrecognized arguments: --version');
       }
@@ -216,5 +263,11 @@ describe('Maker Lua LSP runtime', () => {
     expect(environment.status).toBe('ready');
     expect(environment.command).toBe(lspCommand);
     expect(environment.version).toBe('installed');
+    expect(
+      calls.find((call) => call.command === lspCommand && call.args[0] === '--version')
+    ).toEqual(expect.objectContaining({ timeout: 5_000 }));
+    expect(calls.find((call) => call.command === lspCommand && call.args[0] === '--help')).toEqual(
+      expect.objectContaining({ timeout: 5_000 })
+    );
   });
 });
