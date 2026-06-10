@@ -50,6 +50,8 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 - 不新增运行时依赖，第一版使用 Node 内置能力完成交互和配置写入。
 - Python 运行时不是 MCP 主功能硬依赖。CLI 优先复用可信系统 Python；系统 Python 缺失或不可用时，
   `taptap-maker python setup` 才下载 uv，并用 uv 准备 `~/.taptap-maker/` 下的私有 Python。
+- Maker Lua 诊断的 Python 最低要求是 3.8，推荐 3.12 或更新；低于 3.8 会提示自动准备
+  Maker 私有 Python，3.8 到 3.11 可用但会提示推荐升级。uv 自动准备的版本固定为 3.12。
 - Windows 不信任 `python.exe` 的 Microsoft Store app execution alias，检测优先使用 `py -3`；
   自动准备路径不调用系统 `python`，避免触发商店安装。
 - macOS 不把 Apple/Xcode/Command Line Tools 自带 Python 当作 Maker 工具链运行时；这类 Python

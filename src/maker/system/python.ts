@@ -11,13 +11,16 @@ const PYTHON_INFO_SCRIPT = [
   'import json, sys',
   'print(json.dumps({"executable": sys.executable, "version": ".".join(map(str, sys.version_info[:3]))}))',
 ].join('; ');
-const DEFAULT_PYTHON_VERSION = '3.13';
+const DEFAULT_PYTHON_VERSION = '3.12';
+const MINIMUM_PYTHON_VERSION = '3.8';
+const RECOMMENDED_PYTHON_VERSION = '3.12';
 
 export type MakerPythonStatus =
   | 'ready'
   | 'missing'
   | 'pip_missing'
   | 'store_alias_only'
+  | 'version_unsupported'
   | 'setup_failed';
 
 export type MakerPythonProvider = 'system' | 'configured' | 'uv-managed';
@@ -41,6 +44,7 @@ export interface MakerPythonEnvironment {
     version?: string;
   };
   error?: string;
+  warning?: string;
 }
 
 export interface MakerPythonSetupResult {
@@ -239,6 +243,8 @@ export function formatMakerPythonEnvironmentStatus(environment: MakerPythonEnvir
     environment.provider ? `- provider: ${environment.provider}` : '',
     environment.python ? `- python: ${environment.python}` : '',
     environment.version ? `- python_version: ${environment.version}` : '',
+    `- python_version_requirement: >=${MINIMUM_PYTHON_VERSION}`,
+    `- recommended_python_version: >=${RECOMMENDED_PYTHON_VERSION}`,
     environment.pipVersion ? `- pip_version: ${environment.pipVersion}` : '',
     `- config: ${environment.configPath}`,
     `- uv_installed: ${environment.uv.installed ? 'yes' : 'no'}`,
@@ -246,6 +252,7 @@ export function formatMakerPythonEnvironmentStatus(environment: MakerPythonEnvir
     environment.uv.version ? `- uv_version: ${environment.uv.version}` : '',
     `- missing: ${environment.missing.join(', ') || '(none)'}`,
     environment.error ? `- error: ${environment.error}` : '',
+    environment.warning ? `- warning: ${environment.warning}` : '',
     `- setup_command: ${environment.setupCommand}`,
     `- path_command: ${environment.pathCommand}`,
     `- next_action: ${environment.nextAction}`,
@@ -316,7 +323,26 @@ function resultToEnvironment(
     'platform' | 'configPath' | 'setupCommand' | 'pathCommand' | 'uv'
   >
 ): MakerPythonEnvironment {
+  const versionStatus = comparePythonVersion(result.version, MINIMUM_PYTHON_VERSION);
+  if (versionStatus !== undefined && versionStatus < 0) {
+    return {
+      ...base,
+      ready: false,
+      status: 'version_unsupported',
+      provider: result.provider,
+      python: result.executable,
+      version: result.version,
+      pipVersion: result.pipVersion,
+      missing: [`python>=${MINIMUM_PYTHON_VERSION}`],
+      error: `Python ${result.version} is below the minimum supported ${MINIMUM_PYTHON_VERSION}.`,
+      nextAction: `当前 Python 版本低于 Maker Lua 诊断最低要求 ${MINIMUM_PYTHON_VERSION}。请运行 \`taptap-maker python setup\` 自动准备 Maker 私有 Python ${DEFAULT_PYTHON_VERSION}。`,
+    };
+  }
   const ready = Boolean(result.pipVersion);
+  const shouldRecommendUpgrade =
+    ready &&
+    versionStatus !== undefined &&
+    comparePythonVersion(result.version, RECOMMENDED_PYTHON_VERSION) < 0;
   return {
     ...base,
     ready,
@@ -326,8 +352,13 @@ function resultToEnvironment(
     version: result.version,
     pipVersion: result.pipVersion,
     missing: ready ? [] : ['pip'],
+    warning: shouldRecommendUpgrade
+      ? `Python ${RECOMMENDED_PYTHON_VERSION} or newer is recommended for Maker Lua diagnostics; current version is ${result.version}.`
+      : undefined,
     nextAction: ready
-      ? '本地 Python 运行时可用；Maker Lua 诊断脚本可以复用该解释器。'
+      ? shouldRecommendUpgrade
+        ? `本地 Python 满足最低要求 ${MINIMUM_PYTHON_VERSION}，但推荐使用 ${RECOMMENDED_PYTHON_VERSION} 或更新版本；如需统一环境，可运行 \`taptap-maker python setup\` 准备 Maker 私有 Python ${DEFAULT_PYTHON_VERSION}。`
+        : '本地 Python 运行时可用；Maker Lua 诊断脚本可以复用该解释器。'
       : '检测到 Python，但 pip 不可用。请运行 `taptap-maker python setup` 自动准备 Maker 私有 Python。',
   };
 }
@@ -426,6 +457,33 @@ function isUnsupportedSystemPython(
     executable.startsWith('/Applications/Xcode.app/') ||
     executable.startsWith('/Library/Developer/CommandLineTools/')
   );
+}
+
+function comparePythonVersion(version: string, target: string): number {
+  const left = parseVersionTuple(version);
+  const right = parseVersionTuple(target);
+  if (!left || !right) {
+    return 0;
+  }
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const leftPart = left[index] || 0;
+    const rightPart = right[index] || 0;
+    if (leftPart > rightPart) {
+      return 1;
+    }
+    if (leftPart < rightPart) {
+      return -1;
+    }
+  }
+  return 0;
+}
+
+function parseVersionTuple(version: string): number[] | undefined {
+  const match = /^(\d+)(?:\.(\d+))?(?:\.(\d+))?/.exec(version.trim());
+  if (!match) {
+    return undefined;
+  }
+  return match.slice(1).map((part) => (part === undefined ? 0 : Number(part)));
 }
 
 function loadPythonRuntimeConfig(): PythonRuntimeConfig | undefined {

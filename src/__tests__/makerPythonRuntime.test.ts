@@ -140,6 +140,60 @@ describe('Maker Python runtime', () => {
     );
   });
 
+  test('rejects Python versions below the minimum supported 3.8', () => {
+    const spawn = (command: string, args: string[]) => {
+      if (command === 'python3' && args.includes('-c')) {
+        return spawnResult(0, pythonInfo('/opt/python37/bin/python3', '3.7.17'));
+      }
+      if (command === '/opt/python37/bin/python3' && args.join(' ') === '-m pip --version') {
+        return spawnResult(0, 'pip 23.0 from /opt/python37/lib/site-packages/pip\n');
+      }
+      if (command === 'python') {
+        return spawnResult(1, '', 'not found');
+      }
+      return spawnResult(1, '', 'not found');
+    };
+
+    const environment = checkMakerPythonEnvironment({
+      platform: 'darwin',
+      spawn,
+    });
+
+    expect(environment.status).toBe('version_unsupported');
+    expect(environment.ready).toBe(false);
+    expect(environment.python).toBe('/opt/python37/bin/python3');
+    expect(environment.missing).toContain('python>=3.8');
+    expect(environment.nextAction).toContain('taptap-maker python setup');
+    expect(formatMakerPythonEnvironmentStatus(environment)).toContain(
+      '- python_version_requirement: >=3.8'
+    );
+  });
+
+  test('accepts Python 3.8 with a recommendation to use 3.12 or newer', () => {
+    const spawn = (command: string, args: string[]) => {
+      if (command === 'python3' && args.includes('-c')) {
+        return spawnResult(0, pythonInfo('/opt/python38/bin/python3', '3.8.18'));
+      }
+      if (command === '/opt/python38/bin/python3' && args.join(' ') === '-m pip --version') {
+        return spawnResult(0, 'pip 24.0 from /opt/python38/lib/site-packages/pip\n');
+      }
+      return spawnResult(1, '', 'not found');
+    };
+
+    const environment = checkMakerPythonEnvironment({
+      platform: 'darwin',
+      spawn,
+    });
+
+    expect(environment.status).toBe('ready');
+    expect(environment.ready).toBe(true);
+    expect(environment.python).toBe('/opt/python38/bin/python3');
+    expect(environment.warning).toContain('Python 3.12 or newer is recommended');
+    expect(formatMakerPythonEnvironmentStatus(environment)).toContain(
+      '- recommended_python_version: >=3.12'
+    );
+  });
+
   test('does not reuse Apple or Xcode Python as a Maker toolchain runtime', () => {
     const spawn = (command: string, args: string[]) => {
       if (command === 'python3' && args.includes('-c')) {
@@ -188,10 +242,10 @@ describe('Maker Python runtime', () => {
         fs.writeFileSync(uvPath, '');
         return spawnResult(0, 'installed uv\n');
       }
-      if (command === uvPath && args.join(' ') === 'python install 3.13 --managed-python') {
-        return spawnResult(0, 'Installed Python 3.13.3\n');
+      if (command === uvPath && args.join(' ') === 'python install 3.12 --managed-python') {
+        return spawnResult(0, 'Installed Python 3.12.11\n');
       }
-      if (command === uvPath && args.join(' ') === 'python find 3.13') {
+      if (command === uvPath && args.join(' ') === 'python find 3.12') {
         return spawnResult(0, `${managedPython}\n`);
       }
       if (command === managedPython && args.includes('-c')) {

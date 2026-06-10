@@ -150,6 +150,10 @@ Python 运行时策略：
 
 - 优先复用可信的用户级/开发者 Python，例如 python.org、Homebrew、pyenv、conda 或 Windows
   `py -3` 找到的真实 Python，并要求 `pip` 可用。
+- Maker Lua 诊断脚本的 Python 最低要求是 3.8；低于 3.8 会被标记为
+  `version_unsupported`，并提示运行 `taptap-maker python setup`。
+- Python 3.8 到 3.11 满足最低要求，可以继续使用；状态中会提示推荐使用 3.12 或更新版本。
+- `taptap-maker python setup` 使用 uv 安装 Maker 私有 Python 3.12，满足推荐版本要求。
 - Windows 不信任 `%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe` 这类 Microsoft Store
   app execution alias；检测到 alias 时会提示运行 `taptap-maker python setup`。
 - macOS 不把 `/usr/bin/python3`、Xcode 或 Command Line Tools 自带 Python 作为 Maker 工具链，
