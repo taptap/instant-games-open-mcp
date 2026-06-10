@@ -249,6 +249,33 @@ describe('Maker CLI commands', () => {
     }
   });
 
+  test('json mcp install pins cwd when target directory is provided', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+    const projectDir = path.join(tempDir, 'maker-project');
+    fs.mkdirSync(projectDir, { recursive: true });
+
+    await runMakerCli([
+      'mcp',
+      'install',
+      '--ide',
+      'cursor',
+      '--env',
+      'rnd',
+      '--target-dir',
+      projectDir,
+    ]);
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      cwd: projectDir,
+      env: {
+        TAPTAP_MCP_ENV: 'rnd',
+      },
+    });
+  });
+
   test('claude mcp install invokes Claude CLI through a Windows spawn-compatible command', async () => {
     await runMakerCli(['mcp', 'install', '--ide', 'claude', '--env', 'rnd', '--json']);
 
@@ -1191,7 +1218,7 @@ describe('Maker CLI commands', () => {
   });
 
   test('init uses CLI login when no cached PAT exists', async () => {
-    await runMakerCli(['init', '--app-id', 'app-1', '--skip-mcp-install']);
+    await runMakerCli(['init', '--app-id', 'app-1', '--target-dir', tempDir, '--skip-mcp-install']);
 
     expect(cliLoginMock).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -279,6 +279,7 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       env,
       pkg: MAKER_NPM_PACKAGE,
       mcpName: DEFAULT_MCP_NAME,
+      cwd: targetDir,
     });
     for (const result of installResults) {
       emit(ctx, 'mcp_install', result.message, result);
@@ -444,11 +445,13 @@ async function resolvePatSet(parsed: ParsedArgs, ctx: CliContext): Promise<strin
 async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   rejectPackageOption(parsed);
   const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
+  const explicitTargetDir = stringOption(parsed, 'target_dir');
   const results = installMcpConfigs({
     ides: ides.length > 0 ? ides : ['codex', 'cursor', 'claude'],
     env: makerEnvOption(parsed),
     pkg: MAKER_NPM_PACKAGE,
     mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
+    cwd: explicitTargetDir ? path.resolve(explicitTargetDir) : undefined,
   });
 
   if (ctx.json) {
@@ -945,13 +948,14 @@ function installMcpConfigs(options: {
   env: MakerEnvironment;
   pkg: string;
   mcpName: string;
+  cwd?: string;
 }): Array<{ ide: string; ok: boolean; message: string; path?: string }> {
   return options.ides.map((ide) => installMcpConfig(ide, options));
 }
 
 function installMcpConfig(
   ide: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string }
+  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
 ): { ide: string; ok: boolean; message: string; path?: string } {
   try {
     return installMcpConfigUnsafe(ide, options);
@@ -968,7 +972,7 @@ function installMcpConfig(
 
 function installMcpConfigUnsafe(
   ide: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string }
+  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
 ): { ide: string; ok: boolean; message: string; path?: string } {
   if (ide === 'codex') {
     const configPath = path.join(os.homedir(), '.codex', 'config.toml');
@@ -993,9 +997,11 @@ function installMcpConfigUnsafe(
   }
 
   if (ide === 'claude') {
-    const claudeResult = tryClaudeMcpAdd(options);
-    if (claudeResult.ok) {
-      return { ide, ok: true, message: '✓ Claude Code MCP config updated with claude mcp add' };
+    if (!options.cwd) {
+      const claudeResult = tryClaudeMcpAdd(options);
+      if (claudeResult.ok) {
+        return { ide, ok: true, message: '✓ Claude Code MCP config updated with claude mcp add' };
+      }
     }
     const configPath = path.join(os.homedir(), '.claude.json');
     mergeJsonMcpConfig(configPath, options);
@@ -1012,7 +1018,7 @@ function installMcpConfigUnsafe(
 
 function mergeJsonMcpConfig(
   configPath: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string }
+  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
 ): void {
   backupIfExists(configPath);
   const existing = readJsonObject(configPath);
@@ -1025,7 +1031,7 @@ function mergeJsonMcpConfig(
 
 function mergeCodexMcpConfig(
   configPath: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string }
+  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
 ): void {
   const backupPath = backupIfExists(configPath);
   const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
@@ -1036,6 +1042,7 @@ function mergeCodexMcpConfig(
     `[mcp_servers."${options.mcpName}"]`,
     `command = "${escapeToml(launch.command)}"`,
     `args = [${launch.args.map((arg) => `"${escapeToml(arg)}"`).join(', ')}]`,
+    options.cwd ? `cwd = "${escapeToml(options.cwd)}"` : '',
     '',
     `[mcp_servers."${options.mcpName}".env]`,
     `TAPTAP_MCP_ENV = "${options.env}"`,
@@ -1125,15 +1132,17 @@ function tryClaudeMcpAdd(options: { env: MakerEnvironment; pkg: string; mcpName:
   return { ok: result.status === 0 };
 }
 
-function createJsonMcpServerConfig(options: { env: MakerEnvironment; pkg: string }): {
+function createJsonMcpServerConfig(options: { env: MakerEnvironment; pkg: string; cwd?: string }): {
   command: string;
   args: string[];
+  cwd?: string;
   env: Record<string, string>;
 } {
   const launch = getNpxCliCommand(options.pkg);
   return {
     command: launch.command,
     args: launch.args,
+    ...(options.cwd ? { cwd: options.cwd } : {}),
     env: {
       TAPTAP_MCP_ENV: options.env,
     },
@@ -1479,9 +1488,10 @@ function printHelp(): void {
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # fallback; warns: PAT appears in ps/history',
       '  taptap-maker install [--ide codex,cursor,claude] [--env rnd|production]',
+      '                        [--target-dir DIR]',
       '                        [--json]  # alias for mcp install',
       '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',
-      '                             [--json]',
+      '                             [--target-dir DIR] [--json]',
       '  taptap-maker mcp verify [--mode npx|self] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
