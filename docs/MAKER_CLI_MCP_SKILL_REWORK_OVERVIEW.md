@@ -46,7 +46,7 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 
 - 不新增运行时依赖，第一版使用 Node 内置能力完成交互和配置写入。
 - 本地分支测试可直接用 `node dist/maker.js`，不依赖 npm 发布。
-- Windows 下生成 MCP 配置时自动使用 `npx.cmd`。
+- Windows 下生成 MCP 配置时通过 `cmd.exe` 包装 `npx.cmd`，兼容无 shell 的 MCP 启动器。
 - 初始化失败时保留现场，返回可重试状态，不自动删除用户文件。
 - 用户选择 app 后立即写入 `.maker-mcp/config.json`；clone/fetch 失败后重复执行
   `taptap-maker init` 会复用这个选择继续，后续缺失状态交给 `taptap-maker doctor` 判断。
@@ -174,7 +174,7 @@ CLI 先完成初始化、PAT、app 选择、clone
 
 本轮重构按 Windows 优先做了这些约束：
 
-- MCP 配置 command 在 Windows 使用 `npx.cmd`。
+- MCP 配置 command 在 Windows 使用 `cmd.exe` 包装 `npx.cmd`，避免直接 spawn `.cmd`。
 - Git 安装引导优先提示 Git for Windows。
 - 提醒用户安装时确保命令行和第三方工具可从 PATH 找到 Git。
 - 代码路径处理使用 Node `path` API，不手写 POSIX 分隔符。

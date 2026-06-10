@@ -74,7 +74,7 @@ function printHelp(): void {
       'Maker MCP configs and npx verification use @taptap/maker.',
       '',
       'Windows note:',
-      '  Generated MCP configs use npx.cmd automatically on Windows.',
+      '  Generated MCP configs wrap npx.cmd with cmd.exe on Windows for spawn compatibility.',
       '',
     ].join('\n')
   );

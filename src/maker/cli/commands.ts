@@ -1031,11 +1031,11 @@ function mergeCodexMcpConfig(
   const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
   const sectionPattern = createCodexMcpSectionPattern(options.mcpName);
   const withoutOld = existing.replace(sectionPattern, '').trimEnd();
-  const command = getNpxCommand();
+  const launch = getNpxCliCommand(options.pkg);
   const section = [
     `[mcp_servers."${options.mcpName}"]`,
-    `command = "${escapeToml(command)}"`,
-    `args = ["-y", "-p", "${escapeToml(options.pkg)}", "taptap-maker"]`,
+    `command = "${escapeToml(launch.command)}"`,
+    `args = [${launch.args.map((arg) => `"${escapeToml(arg)}"`).join(', ')}]`,
     '',
     `[mcp_servers."${options.mcpName}".env]`,
     `TAPTAP_MCP_ENV = "${options.env}"`,
@@ -1102,26 +1102,24 @@ function normalizeCodexMcpTablePath(tablePath: string, mcpName: string): string 
 function tryClaudeMcpAdd(options: { env: MakerEnvironment; pkg: string; mcpName: string }): {
   ok: boolean;
 } {
-  const command = process.platform === 'win32' ? 'claude.cmd' : 'claude';
+  const npxLaunch = getNpxCliCommand(options.pkg);
+  const claudeArgs = [
+    'mcp',
+    'add',
+    '--scope',
+    'user',
+    '--transport',
+    'stdio',
+    '--env',
+    `TAPTAP_MCP_ENV=${options.env}`,
+    options.mcpName,
+    '--',
+    ...npxLaunch.commandAndArgs,
+  ];
+  const claude = getWindowsCmdLaunchCommand('claude.cmd', claudeArgs);
   const result = spawnSync(
-    command,
-    [
-      'mcp',
-      'add',
-      '--scope',
-      'user',
-      '--transport',
-      'stdio',
-      '--env',
-      `TAPTAP_MCP_ENV=${options.env}`,
-      options.mcpName,
-      '--',
-      getNpxCommand(),
-      '-y',
-      '-p',
-      options.pkg,
-      'taptap-maker',
-    ],
+    process.platform === 'win32' ? claude.command : 'claude',
+    process.platform === 'win32' ? claude.args : claudeArgs,
     { encoding: 'utf8' }
   );
   return { ok: result.status === 0 };
@@ -1132,9 +1130,10 @@ function createJsonMcpServerConfig(options: { env: MakerEnvironment; pkg: string
   args: string[];
   env: Record<string, string>;
 } {
+  const launch = getNpxCliCommand(options.pkg);
   return {
-    command: getNpxCommand(),
-    args: ['-y', '-p', options.pkg, 'taptap-maker'],
+    command: launch.command,
+    args: launch.args,
     env: {
       TAPTAP_MCP_ENV: options.env,
     },
@@ -1148,12 +1147,23 @@ function getCurrentCliCommand(): { command: string; args: string[] } {
   return { command: process.platform === 'win32' ? 'taptap-maker.cmd' : 'taptap-maker', args: [] };
 }
 
-function getNpxCliCommand(pkg: string): { command: string; args: string[] } {
-  return { command: getNpxCommand(), args: ['-y', '-p', pkg, 'taptap-maker'] };
+function getNpxCliCommand(pkg: string): {
+  command: string;
+  args: string[];
+  commandAndArgs: string[];
+} {
+  const npxArgs = ['-y', '-p', pkg, 'taptap-maker'];
+  const launch = getWindowsCmdLaunchCommand('npx.cmd', npxArgs);
+  const command = process.platform === 'win32' ? launch.command : 'npx';
+  const args = process.platform === 'win32' ? launch.args : npxArgs;
+  return { command, args, commandAndArgs: [command, ...args] };
 }
 
-function getNpxCommand(): string {
-  return process.platform === 'win32' ? 'npx.cmd' : 'npx';
+function getWindowsCmdLaunchCommand(
+  command: string,
+  args: string[]
+): { command: string; args: string[] } {
+  return { command: 'cmd.exe', args: ['/d', '/s', '/c', command, ...args] };
 }
 
 function rejectPackageOption(parsed: ParsedArgs): void {
@@ -1468,7 +1478,7 @@ function printHelp(): void {
       'Maker MCP configs and npx verification use @taptap/maker.',
       '',
       'Windows note:',
-      '  Generated MCP configs use npx.cmd automatically on Windows.',
+      '  Generated MCP configs wrap npx.cmd with cmd.exe on Windows for spawn compatibility.',
       '',
     ].join('\n')
   );

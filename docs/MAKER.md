@@ -20,7 +20,8 @@
 - 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。
 - 本地 Git 是 clone/push 的硬性前置条件。Maker MCP 只检测和引导，不代替用户安装 Git。
-- Windows 是优先支持环境：生成 MCP 配置时 Windows 使用 `npx.cmd`，Git 引导优先指向 Git for Windows。
+- Windows 是优先支持环境：生成 MCP 配置时 Windows 通过 `cmd.exe` 包装 `npx.cmd`，避免无
+  shell 的 MCP 启动器直接 spawn `.cmd` 失败；Git 引导优先指向 Git for Windows。
 - 仓库同时提供 `taptap-maker-local`、`taptap-maker-dev-kit-guide` 和 `update-taptap-mcp` skills，用于把本地 Git 工作流、AI dev kit 内容说明和 MCP 更新缓存流程交给本地 AI/Agent 按业务规则执行。
 
 ## 本地测试
@@ -390,7 +391,8 @@ Windows 引导：
 
 Windows 兼容注意：
 
-- 写入 MCP 配置时，`npx` 在 Windows 下使用 `npx.cmd`，避免部分客户端 `spawn` 找不到命令。
+- 写入 MCP 配置时，Windows 下通过 `cmd.exe /d /s /c npx.cmd ...` 启动，避免部分客户端
+  无 shell 直接 `spawn` `.cmd` 时返回 `EINVAL`。
 - `taptap-maker mcp verify` 的 `status: null` 会被解释为本地 Node/npm/npx 启动验证失败，并输出 `failure_type`、原始 command 和下一步排查命令；这发生在 Maker MCP server 启动前。
 - `taptap-maker mcp install` 会逐 IDE 返回成功或失败；某个客户端配置写入失败不会阻塞其他客户端继续尝试。
 - Maker 内部路径必须使用 Node `path` API，不能手写 POSIX 路径分隔符。
