@@ -1576,17 +1576,12 @@ describe('Maker CLI commands', () => {
 
   test('lua-lsp setup installs maker-lua-lsp for Codex Cursor and Claude', async () => {
     process.env.TAPTAP_MAKER_PYTHON_BIN = '/opt/maker-python/bin/python3';
-    const scriptsDir = path.join(tempDir, 'python-bin');
+    const venvDir = path.join(tempDir, 'maker-home', 'lua-lsp-venv');
+    const venvPython = path.join(venvDir, 'bin', 'python');
+    const scriptsDir = path.join(venvDir, 'bin');
     const lspCommand = path.join(scriptsDir, 'maker-lua-lsp');
-    fs.mkdirSync(scriptsDir, { recursive: true });
-    fs.writeFileSync(lspCommand, '');
     spawnSyncMock.mockImplementation((command, args) => {
       if (command === '/opt/maker-python/bin/python3' && args.includes('-c')) {
-        if (String(args.at(-1)).includes('sysconfig.get_path')) {
-          return { status: 0, stdout: `${scriptsDir}\n`, stderr: '' } as ReturnType<
-            typeof spawnSync
-          >;
-        }
         return {
           status: 0,
           stdout: JSON.stringify({
@@ -1599,11 +1594,17 @@ describe('Maker CLI commands', () => {
       if (command === '/opt/maker-python/bin/python3' && args.join(' ') === '-m pip --version') {
         return { status: 0, stdout: 'pip 25.1\n', stderr: '' } as ReturnType<typeof spawnSync>;
       }
-      if (
-        command === '/opt/maker-python/bin/python3' &&
-        args.join(' ') === '-m pip install --upgrade maker-lua-lsp'
-      ) {
+      if (command === '/opt/maker-python/bin/python3' && args.join(' ') === `-m venv ${venvDir}`) {
+        fs.mkdirSync(scriptsDir, { recursive: true });
+        fs.writeFileSync(venvPython, '');
+        fs.writeFileSync(lspCommand, '');
+        return { status: 0, stdout: 'created venv\n', stderr: '' } as ReturnType<typeof spawnSync>;
+      }
+      if (command === venvPython && args.join(' ') === '-m pip install --upgrade maker-lua-lsp') {
         return { status: 0, stdout: 'installed\n', stderr: '' } as ReturnType<typeof spawnSync>;
+      }
+      if (command === venvPython && args.includes('-c')) {
+        return { status: 0, stdout: `${scriptsDir}\n`, stderr: '' } as ReturnType<typeof spawnSync>;
       }
       if (command === lspCommand && args.join(' ') === 'install --ide codex,cursor,claude') {
         return { status: 0, stdout: 'configured\n', stderr: '' } as ReturnType<typeof spawnSync>;
@@ -1628,6 +1629,11 @@ describe('Maker CLI commands', () => {
     );
     expect(spawnSyncMock).toHaveBeenCalledWith(
       '/opt/maker-python/bin/python3',
+      ['-m', 'venv', venvDir],
+      expect.any(Object)
+    );
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      venvPython,
       ['-m', 'pip', 'install', '--upgrade', 'maker-lua-lsp'],
       expect.any(Object)
     );
@@ -1640,11 +1646,10 @@ describe('Maker CLI commands', () => {
 
   test('python setup includes non-blocking Lua LSP setup result', async () => {
     process.env.TAPTAP_MAKER_PYTHON_BIN = '/opt/maker-python/bin/python3';
+    const venvDir = path.join(tempDir, 'maker-home', 'lua-lsp-venv');
+    const venvPython = path.join(venvDir, 'bin', 'python');
     spawnSyncMock.mockImplementation((command, args) => {
       if (command === '/opt/maker-python/bin/python3' && args.includes('-c')) {
-        if (String(args.at(-1)).includes('sysconfig.get_path')) {
-          return { status: 0, stdout: `${tempDir}\n`, stderr: '' } as ReturnType<typeof spawnSync>;
-        }
         return {
           status: 0,
           stdout: JSON.stringify({
@@ -1657,10 +1662,12 @@ describe('Maker CLI commands', () => {
       if (command === '/opt/maker-python/bin/python3' && args.join(' ') === '-m pip --version') {
         return { status: 0, stdout: 'pip 25.1\n', stderr: '' } as ReturnType<typeof spawnSync>;
       }
-      if (
-        command === '/opt/maker-python/bin/python3' &&
-        args.join(' ') === '-m pip install --upgrade maker-lua-lsp'
-      ) {
+      if (command === '/opt/maker-python/bin/python3' && args.join(' ') === `-m venv ${venvDir}`) {
+        fs.mkdirSync(path.dirname(venvPython), { recursive: true });
+        fs.writeFileSync(venvPython, '');
+        return { status: 0, stdout: 'created venv\n', stderr: '' } as ReturnType<typeof spawnSync>;
+      }
+      if (command === venvPython && args.join(' ') === '-m pip install --upgrade maker-lua-lsp') {
         return { status: 1, stdout: '', stderr: 'lsp package failed' } as ReturnType<
           typeof spawnSync
         >;
