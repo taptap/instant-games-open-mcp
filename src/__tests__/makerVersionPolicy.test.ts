@@ -8,18 +8,23 @@ const SCRIPT_PATH = join(process.cwd(), 'scripts', 'resolve-maker-version.js');
 function createFakeNpm(
   currentVersion: string,
   existingVersions: string[] = [currentVersion],
-  versionsJson = JSON.stringify(existingVersions)
+  versionsJson = JSON.stringify(existingVersions),
+  maxDistTagQueries?: number
 ) {
   const dir = mkdtempSync(join(tmpdir(), 'maker-version-policy-'));
   const binDir = join(dir, 'bin');
   mkdirSync(binDir, { recursive: true });
   const npmPath = join(binDir, 'npm');
+  const distTagQueryCountPath = join(dir, 'dist-tag-query-count');
   writeFileSync(
     npmPath,
     `#!/usr/bin/env node
+const fs = require('fs');
 const args = process.argv.slice(2);
 const current = ${JSON.stringify(currentVersion)};
 const existing = new Set(${JSON.stringify(existingVersions)});
+const maxDistTagQueries = ${maxDistTagQueries ?? 'null'};
+const distTagQueryCountPath = ${JSON.stringify(distTagQueryCountPath)};
 if (args[0] !== 'view') {
   console.error('Unsupported npm command: ' + args.join(' '));
   process.exit(1);
@@ -31,6 +36,18 @@ if (query === '@taptap/maker' && field === 'versions') {
   process.exit(0);
 }
 if (query === '@taptap/maker' && field.startsWith('dist-tags.')) {
+  if (maxDistTagQueries !== null) {
+    let queryCount = 0;
+    try {
+      queryCount = Number(fs.readFileSync(distTagQueryCountPath, 'utf8')) || 0;
+    } catch {}
+    queryCount += 1;
+    fs.writeFileSync(distTagQueryCountPath, String(queryCount));
+    if (queryCount > maxDistTagQueries) {
+      console.error('dist-tag queried too many times: ' + queryCount);
+      process.exit(1);
+    }
+  }
   console.log(current);
   process.exit(0);
 }
@@ -219,6 +236,41 @@ describe('Maker publish version policy', () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('Resolved @taptap/maker version: 0.1.1-beta.1');
+  });
+
+  it('uses prerelease semantics for alpha and next tags', () => {
+    const alphaBin = createFakeNpm('0.0.16', ['0.0.16']);
+    const alphaResult = runResolver({
+      PATH: alphaBin,
+      MAKER_VERSION_MODE: 'auto-last-number',
+      MAKER_NPM_TAG: 'alpha',
+      GITHUB_REF_NAME: 'beta',
+    });
+    const nextBin = createFakeNpm('0.0.16', ['0.0.16']);
+    const nextResult = runResolver({
+      PATH: nextBin,
+      MAKER_VERSION_MODE: 'auto-last-number',
+      MAKER_NPM_TAG: 'next',
+      GITHUB_REF_NAME: 'beta',
+    });
+
+    expect(alphaResult.status).toBe(0);
+    expect(alphaResult.stdout).toContain('Resolved @taptap/maker version: 0.0.17-alpha.1');
+    expect(nextResult.status).toBe(0);
+    expect(nextResult.stdout).toContain('Resolved @taptap/maker version: 0.0.17-next.1');
+  });
+
+  it('queries the current dist-tag only once in auto mode', () => {
+    const fakeBin = createFakeNpm('0.0.16', ['0.0.16'], JSON.stringify(['0.0.16']), 1);
+    const result = runResolver({
+      PATH: fakeBin,
+      MAKER_VERSION_MODE: 'auto-last-number',
+      MAKER_NPM_TAG: 'beta',
+      GITHUB_REF_NAME: 'beta',
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.17-beta.1');
   });
 
   it('allows manual major or minor changes and flags approval requirement', () => {

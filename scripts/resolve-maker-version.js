@@ -16,6 +16,7 @@ const FIRST_BETA_VERSION = '0.0.1-beta.1';
 const NPM_VIEW_TIMEOUT_MS = 30 * 1000;
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const RELEASE_BRANCHES = new Set(['main', 'beta']);
+// Keep this set in sync with the prerelease tag choices in publish-maker.yml.
 const PRERELEASE_TAGS = new Set(['alpha', 'beta', 'next']);
 
 function readEnv(name, fallback = '') {
@@ -215,7 +216,7 @@ function maxPrereleaseNumberForBase(baseVersion, tag, publishedVersions) {
   }, 0);
 }
 
-function resolveStableAutoVersion(tag, hasPublishedVersions, publishedVersions) {
+function resolveStableAutoVersion(tag, hasPublishedVersions, publishedVersions, currentVersion) {
   const branch = readEnv('GITHUB_REF_NAME');
   assertAutoReleaseBranch(branch);
 
@@ -225,28 +226,29 @@ function resolveStableAutoVersion(tag, hasPublishedVersions, publishedVersions) 
     );
   }
 
-  let current;
-  try {
-    current = npmView([`dist-tags.${tag}`]);
-  } catch (error) {
+  if (!currentVersion) {
     throw new Error(
       [
         `Cannot resolve current ${PACKAGE_NAME}@${tag} dist-tag for auto mode.`,
         'Use manual mode for the first publish or when changing version shape.',
-        error instanceof Error ? error.message : String(error),
       ].join('\n')
     );
   }
 
-  assertValidVersion(current);
-  assertStableThreeSegmentVersion(current);
-  const autoBase = maxStablePatchForCurrentLine(current, publishedVersions);
+  assertValidVersion(currentVersion);
+  assertStableThreeSegmentVersion(currentVersion);
+  const autoBase = maxStablePatchForCurrentLine(currentVersion, publishedVersions);
   const next = incrementFinalNumber(autoBase);
   assertValidVersion(next);
   return next;
 }
 
-function resolvePrereleaseAutoVersion(tag, hasPublishedVersions, publishedVersions) {
+function resolvePrereleaseAutoVersion(
+  tag,
+  hasPublishedVersions,
+  publishedVersions,
+  currentVersion
+) {
   const branch = readEnv('GITHUB_REF_NAME');
   assertAutoReleaseBranch(branch);
 
@@ -256,22 +258,18 @@ function resolvePrereleaseAutoVersion(tag, hasPublishedVersions, publishedVersio
     );
   }
 
-  let current;
-  try {
-    current = npmView([`dist-tags.${tag}`]);
-  } catch (error) {
+  if (!currentVersion) {
     throw new Error(
       [
         `Cannot resolve current ${PACKAGE_NAME}@${tag} dist-tag for auto mode.`,
         'Use manual mode for the first publish or when changing version shape.',
-        error instanceof Error ? error.message : String(error),
       ].join('\n')
     );
   }
 
-  assertValidVersion(current);
+  assertValidVersion(currentVersion);
 
-  const currentCore = parseVersionCore(current);
+  const currentCore = parseVersionCore(currentVersion);
   const highestStableCore = maxStableCore(publishedVersions);
   const nextBaseCore =
     highestStableCore && compareVersionCore(highestStableCore, currentCore) >= 0
@@ -284,11 +282,16 @@ function resolvePrereleaseAutoVersion(tag, hasPublishedVersions, publishedVersio
   return next;
 }
 
-function resolveAutoVersion(tag, hasPublishedVersions, publishedVersions) {
+function resolveAutoVersion(tag, hasPublishedVersions, publishedVersions, currentVersion) {
   if (PRERELEASE_TAGS.has(tag)) {
-    return resolvePrereleaseAutoVersion(tag, hasPublishedVersions, publishedVersions);
+    return resolvePrereleaseAutoVersion(
+      tag,
+      hasPublishedVersions,
+      publishedVersions,
+      currentVersion
+    );
   }
-  return resolveStableAutoVersion(tag, hasPublishedVersions, publishedVersions);
+  return resolveStableAutoVersion(tag, hasPublishedVersions, publishedVersions, currentVersion);
 }
 
 function writeOutput(name, value) {
@@ -316,7 +319,7 @@ function main() {
   const version =
     mode === 'manual'
       ? resolveManualVersion(currentVersion)
-      : resolveAutoVersion(tag, hasPublishedVersions, publishedVersions);
+      : resolveAutoVersion(tag, hasPublishedVersions, publishedVersions, currentVersion);
   const majorMinorChanged = Boolean(
     mode === 'manual' && currentVersion && changesMajorOrMinor(currentVersion, version)
   );
