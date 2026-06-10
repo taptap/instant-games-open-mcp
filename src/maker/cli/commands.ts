@@ -1249,10 +1249,15 @@ export function resolveNpxCliCommand(
   platform: NodeJS.Platform = process.platform
 ): CliLaunchCommand {
   const npxArgs = ['-y', '-p', pkg, 'taptap-maker'];
-  const launch = getWindowsCmdLaunchCommand('npx.cmd', npxArgs);
-  const command = platform === 'win32' ? launch.command : 'npx';
-  const args = platform === 'win32' ? launch.args : npxArgs;
-  return { command, args, commandAndArgs: [command, ...args] };
+  if (platform === 'win32') {
+    const launch = getWindowsCmdLaunchCommand('npx.cmd', npxArgs);
+    return {
+      command: launch.command,
+      args: launch.args,
+      commandAndArgs: [launch.command, ...launch.args],
+    };
+  }
+  return { command: 'npx', args: npxArgs, commandAndArgs: ['npx', ...npxArgs] };
 }
 
 function getWindowsCmdLaunchCommand(
