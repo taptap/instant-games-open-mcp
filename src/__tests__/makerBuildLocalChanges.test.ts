@@ -756,41 +756,7 @@ describe('maker build local-change guard', () => {
   });
 
   test('lists local Maker tools plus selected remote proxy tools', async () => {
-    const result = await listMakerTools({
-      targetDir: tempDir,
-      listRemoteTools: async () => [
-        {
-          name: 'generate_image',
-          description: 'Generate one image',
-          inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
-        },
-        {
-          name: 'batch_generate_images',
-          description: 'Generate several images',
-          inputSchema: { type: 'object', properties: { prompts: { type: 'array' } } },
-        },
-        {
-          name: 'edit_image',
-          description: 'Edit an image',
-          inputSchema: { type: 'object', properties: { image: { type: 'string' } } },
-        },
-        {
-          name: 'create_video_task',
-          description: 'Create a text-to-video generation task',
-          inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
-        },
-        {
-          name: 'text_to_music',
-          description: 'Generate music from text',
-          inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
-        },
-        {
-          name: 'build',
-          description: 'Hidden remote build tool',
-          inputSchema: { type: 'object' },
-        },
-      ],
-    });
+    const result = await listMakerTools();
 
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
@@ -801,7 +767,10 @@ describe('maker build local-change guard', () => {
       'create_video_task',
       'text_to_music',
     ]);
-    expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual([
+    expect(result.tools.slice(tools.length).map((item) => item.name)).toEqual(
+      MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES
+    );
+    expect([...MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES]).toEqual([
       'generate_image',
       'batch_generate_images',
       'edit_image',
@@ -810,17 +779,37 @@ describe('maker build local-change guard', () => {
     ]);
   });
 
-  test('falls back to local Maker tools when remote proxy tool listing is unavailable', async () => {
-    const result = await listMakerTools({
-      targetDir: tempDir,
-      listRemoteTools: async () => {
-        throw new Error('remote project is not bound');
-      },
-    });
+  test('lists remote proxy tools without waiting for remote discovery', async () => {
+    const result = await Promise.race([
+      listMakerTools(),
+      new Promise<'timeout'>((resolve) => {
+        setTimeout(() => resolve('timeout'), 50);
+      }),
+    ]);
+
+    expect(result).not.toBe('timeout');
+    expect(typeof result === 'string' ? [] : result.tools.map((item) => item.name)).toEqual([
+      'maker_status_lite',
+      'maker_build_current_directory',
+      'generate_image',
+      'batch_generate_images',
+      'edit_image',
+      'create_video_task',
+      'text_to_music',
+    ]);
+  });
+
+  test('keeps static remote proxy tools without remote proxy tool listing', async () => {
+    const result = await listMakerTools();
 
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
+      'generate_image',
+      'batch_generate_images',
+      'edit_image',
+      'create_video_task',
+      'text_to_music',
     ]);
   });
 
@@ -843,7 +832,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('远端 proxy tools 和 build 构建都不可用');
   });
 
-  test('tool registration cwd status explains why proxy tools are missing from the session', () => {
+  test('tool registration cwd status explains why proxy tool calls can fail', () => {
     const dialogueDir = path.join(tempDir, '..', 'dialogue-cwd');
     const output = formatMakerToolRegistrationCwdStatus({
       mcpCwd: dialogueDir,
@@ -857,7 +846,8 @@ describe('maker build local-change guard', () => {
     expect(output).toContain(`- mcp_cwd: ${path.resolve(dialogueDir)}`);
     expect(output).toContain(`- maker_project_dir: ${tempDir}`);
     expect(output).toContain('- mcp_cwd_project_dir: (none)');
-    expect(output).toContain('proxy tools may not appear in this MCP session');
+    expect(output).toContain('proxy tools are listed statically');
+    expect(output).toContain('proxy tool calls may fail');
     expect(output).toContain('Reconnect');
   });
 

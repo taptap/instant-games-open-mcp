@@ -1306,6 +1306,7 @@ function mergeCodexMcpConfig(
     `[mcp_servers."${options.mcpName}"]`,
     `command = "${escapeToml(launch.command)}"`,
     `args = [${launch.args.map((arg) => `"${escapeToml(arg)}"`).join(', ')}]`,
+    'startup_timeout_sec = 60',
     options.cwd ? `cwd = "${escapeToml(options.cwd)}"` : '',
     '',
     `[mcp_servers."${options.mcpName}".env]`,

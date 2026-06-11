@@ -247,6 +247,7 @@ describe('Maker CLI commands', () => {
     expect(text).toContain(
       `args = [${expectedNpxLaunch.args.map((arg) => `"${arg}"`).join(', ')}]`
     );
+    expect(text).toContain('startup_timeout_sec = 60');
     expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
     expect(text).toContain('[mcp_servers."other".env]');
     expect(text).toContain('KEEP = "yes"');
@@ -263,6 +264,7 @@ describe('Maker CLI commands', () => {
     expect(text).toContain(
       `args = [${expectedNpxLaunch.args.map((arg) => `"${arg}"`).join(', ')}]`
     );
+    expect(text).toContain('startup_timeout_sec = 60');
     expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
   });
 

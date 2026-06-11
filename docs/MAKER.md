@@ -180,7 +180,7 @@ Python 运行时策略：
   AI 客户端 MCP 配置。
 - `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。Codex 配置写入
   会同时清理 `[mcp_servers.taptap-maker]` 与 `[mcp_servers."taptap-maker"]`
-  两种 TOML 等价写法，重复运行或从旧配置升级时应保持幂等。
+  两种 TOML 等价写法，并默认设置 `startup_timeout_sec = 60`，重复运行或从旧配置升级时应保持幂等。
 - `taptap-maker mcp verify`：默认验证 AI 客户端 MCP 配置使用的 npx 包命令可启动；`--mode self` 只验证当前 CLI 二进制。验证失败时若出现 `failure_type` 或 `status: null`，表示本地启动命令还没正常退出，Maker MCP server 尚未启动，不要当作 PAT、项目或 Maker 业务接口错误。
 - `taptap-maker dev-kit update`：检查当前环境可用的最新 AI dev kit，恢复或更新当前目录。
 
@@ -189,7 +189,8 @@ MCP 运行期能力：
 - `maker://status`：资源形式的本地 Maker 状态，适合 Agent 首先读取。
 - `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。
   当 AI 客户端从父目录或对话目录启动 MCP server，而实际 Maker 项目位于子目录时，状态会输出
-  `MCP tool registration cwd` 诊断，说明当前会话的 `tools/list` 可能没有注册 proxy tools。
+  `MCP tool registration cwd` 诊断，说明 proxy tools 虽然会静态出现在 `tools/list`，但实际调用时
+  可能因为 MCP server cwd 不是 Maker 项目目录而失败。
 - `maker://status` 和 `maker_status_lite` 会输出 `Python environment` 和
   `Lua LSP environment`。本地 Lua 诊断需要环境时，Agent 应先看这两段；如果
   `python_status` 或 `lsp_status` 不是 `ready`，可运行 `taptap-maker python setup`
@@ -477,8 +478,9 @@ maker_build_current_directory()
 
 远端 proxy 配置默认是 Maker 本地 MCP 的内部能力，不作为普通 Agent tool 全量暴露。
 当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task` 和
-`text_to_music` 作为白名单公开；本地 MCP 不重新封装这些 tools，description、input schema、
-参数和返回值都来自远端 server 原始定义。内部配置内容等价于测试脚本中的：
+`text_to_music` 作为白名单公开；本地 MCP 为这些白名单 tools 静态注册 description 和
+input schema，保证 MCP 启动和 `tools/list` 不连接远端 Maker proxy。实际调用时才启动 proxy、
+连接远端 server，并继续沿用远端返回值。内部配置内容等价于测试脚本中的：
 
 本地 Maker MCP 会对生成类 tools 做客户端素材落地，并把本地生成素材到 CDN URL 的映射记录到
 `.maker/assets/generated-assets.json`。`generate_image`、`batch_generate_images` 和
@@ -491,8 +493,9 @@ maker_build_current_directory()
 
 已绑定 Maker 项目里，AI/Agent 应优先使用这些 Maker MCP proxy tools 生成或修改游戏素材，不应优先
 调用客户端自带的生图、生视频或音频生成能力。
-如果当前会话未暴露这些 Maker proxy tools，AI/Agent 应停止并说明工具未暴露，不应自动切到通用
-imagegen 或客户端原生媒体生成能力。
+如果当前会话没有暴露这些 Maker proxy tools，AI/Agent 应停止并说明工具未暴露，不应自动切到通用
+imagegen 或客户端原生媒体生成能力；如果 tools 可见但调用失败，应优先检查 Maker 项目绑定、
+MCP server cwd、PAT/TapTap token 和远端 proxy 状态。
 `maker_status_lite` 会主动检查 Maker proxy tools 状态；如果 proxy 连接失败，状态中会明确提示
 远端 proxy tools 与 build 构建都不可用。用户明确调用 proxy tool 或 build 时，MCP 对连接/握手类
 失败默认最多尝试 5 次，每次失败后间隔 30 秒再试；不会无限重试，也不会对远端已返回的业务失败

@@ -103,7 +103,9 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'edit_image',
   'create_video_task',
   'text_to_music',
-];
+] as const;
+
+type MakerRemoteProxyToolName = (typeof MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES)[number];
 
 type MakerToolDefinition = (typeof tools)[number];
 type RemoteToolDefinition = MakerToolDefinition & { [key: string]: unknown };
@@ -215,6 +217,266 @@ export const tools = [
   },
 ];
 
+const makerRemoteProxyToolDefinitions: Record<
+  MakerRemoteProxyToolName,
+  Omit<RemoteToolDefinition, 'name'>
+> = {
+  generate_image: {
+    description:
+      'Generate one game image asset through the remote Maker creative asset service. The tool is listed locally for fast MCP startup; the remote Maker proxy is connected only when this tool is called.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'Short image description.',
+        },
+        name: {
+          type: 'string',
+          description: 'Output file name without extension.',
+        },
+        target_size: {
+          type: 'string',
+          description: 'Final image dimensions, for example "256x256" or "512x1024".',
+        },
+        aspect_ratio: {
+          type: 'string',
+          enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9', '5:4', '4:5'],
+        },
+        transparent: {
+          type: 'boolean',
+          description: 'Whether to generate a transparent background.',
+        },
+        reference_image: {
+          type: 'string',
+          description: 'Deprecated single reference image path.',
+        },
+        reference_images: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Reference image paths or base64 data URLs.',
+        },
+        resolution: {
+          type: 'string',
+          enum: ['0.5K', '1K', '2K', '4K'],
+        },
+        seed: {
+          type: 'number',
+        },
+        thinking_level: {
+          type: 'string',
+          enum: ['minimal', 'high'],
+        },
+        model: {
+          type: 'string',
+          enum: ['nanobanana', 'gpt'],
+          description: 'Set only when the user explicitly asks for a model.',
+        },
+      },
+      required: ['prompt', 'name', 'target_size'],
+    },
+  },
+  batch_generate_images: {
+    description:
+      'Generate multiple game image assets in parallel through the remote Maker creative asset service. The tool is listed locally for fast MCP startup; the remote Maker proxy is connected only when this tool is called.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        images: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              prompt: { type: 'string' },
+              name: { type: 'string' },
+              target_size: { type: 'string' },
+              aspect_ratio: {
+                type: 'string',
+                enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9', '5:4', '4:5'],
+              },
+              transparent: { type: 'boolean' },
+              reference_image: { type: 'string' },
+              reference_images: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              resolution: {
+                type: 'string',
+                enum: ['0.5K', '1K', '2K', '4K'],
+              },
+              seed: { type: 'number' },
+              thinking_level: {
+                type: 'string',
+                enum: ['minimal', 'high'],
+              },
+              model: {
+                type: 'string',
+                enum: ['nanobanana', 'gpt'],
+              },
+            },
+            required: ['prompt', 'name', 'target_size'],
+          },
+        },
+      },
+      required: ['images'],
+    },
+  },
+  edit_image: {
+    description:
+      'Edit an existing image through the remote Maker creative asset service. Resolve dragged or referenced images to a local path or CDN URL before calling. The remote Maker proxy is connected only when this tool is called.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        image: {
+          type: 'string',
+          description: 'Local image path relative to workspace root, CDN URL, or http/https URL.',
+        },
+        prompt: {
+          type: 'string',
+          description: 'Edit instruction.',
+        },
+        name: {
+          type: 'string',
+          description: 'Output file name without extension.',
+        },
+        target_size: {
+          type: 'string',
+          description: 'Final image dimensions, for example "256x256" or "512x1024".',
+        },
+        aspect_ratio: {
+          type: 'string',
+          enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9', '5:4', '4:5'],
+        },
+        transparent: { type: 'boolean' },
+        reference_images: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        resolution: {
+          type: 'string',
+          enum: ['0.5K', '1K', '2K', '4K'],
+        },
+        seed: { type: 'number' },
+        thinking_level: {
+          type: 'string',
+          enum: ['minimal', 'high'],
+        },
+        model: {
+          type: 'string',
+          enum: ['nanobanana', 'gpt'],
+        },
+      },
+      required: ['image', 'prompt', 'name', 'target_size'],
+    },
+  },
+  create_video_task: {
+    description:
+      'Create a remote Maker video generation task. The tool is listed locally for fast MCP startup; the remote Maker proxy is connected only when this tool is called.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: {
+          type: 'string',
+          enum: ['text_to_video', 'first_frame', 'first_last_frame', 'multi_modal_reference'],
+        },
+        prompt: { type: 'string' },
+        images: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              url: { type: 'string' },
+              role: {
+                type: 'string',
+                enum: ['first_frame', 'last_frame', 'reference_image'],
+              },
+            },
+            required: ['url'],
+          },
+        },
+        videos: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              url: { type: 'string' },
+              role: { type: 'string', enum: ['reference_video'] },
+            },
+            required: ['url'],
+          },
+        },
+        audios: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              url: { type: 'string' },
+              role: { type: 'string', enum: ['reference_audio'] },
+            },
+            required: ['url'],
+          },
+        },
+        duration: { type: 'integer' },
+        enable_web_search: { type: 'boolean' },
+        generate_audio: { type: 'boolean' },
+        model: {
+          type: 'string',
+          enum: ['default', 'fast'],
+        },
+        ratio: {
+          type: 'string',
+          enum: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'],
+        },
+        resolution: {
+          type: 'string',
+          enum: ['480p', '720p'],
+        },
+        return_last_frame: { type: 'boolean' },
+        seed: { type: 'integer' },
+        execution_expires_after: { type: 'integer' },
+      },
+      required: ['mode'],
+    },
+  },
+  text_to_music: {
+    description:
+      'Generate game background music or vocal tracks through the remote Maker music service. This is not for short sound effects. The remote Maker proxy is connected only when this tool is called.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description: 'Simple mode music description, or lyrics/description in custom mode.',
+        },
+        customMode: { type: 'boolean' },
+        style: {
+          type: 'string',
+          description: 'Required when customMode is true.',
+        },
+        title: {
+          type: 'string',
+          description: 'Required when customMode is true.',
+        },
+        instrumental: { type: 'boolean' },
+        model: {
+          type: 'string',
+          enum: ['V3_5', 'V4', 'V4_5', 'V4_5PLUS', 'V5'],
+        },
+        negativeTags: { type: 'string' },
+        vocalGender: { type: 'string' },
+      },
+      required: ['prompt'],
+    },
+  },
+};
+
+const makerRemoteProxyTools: RemoteToolDefinition[] = MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.map(
+  (name) => ({
+    name,
+    ...makerRemoteProxyToolDefinitions[name],
+  })
+);
+
 export const resources = [
   {
     uri: 'maker://status',
@@ -225,29 +487,9 @@ export const resources = [
   },
 ];
 
-export async function listMakerTools(options: {
-  targetDir?: string;
-  serverUrl?: string;
-  env?: 'rnd' | 'production';
-  listRemoteTools?: () => Promise<RemoteToolDefinition[]>;
-}): Promise<{ tools: RemoteToolDefinition[] }> {
-  let remoteTools: RemoteToolDefinition[] = [];
-  try {
-    const listedRemoteTools =
-      options.listRemoteTools ??
-      (() =>
-        listRemoteProxyTools({
-          targetDir: resolveMakerToolTargetDir(options.targetDir),
-          serverUrl: options.serverUrl,
-          env: options.env,
-        }));
-    remoteTools = filterExposedRemoteProxyTools(await listedRemoteTools());
-  } catch {
-    remoteTools = [];
-  }
-
+export async function listMakerTools(): Promise<{ tools: RemoteToolDefinition[] }> {
   return {
-    tools: [...tools, ...remoteTools],
+    tools: [...tools, ...makerRemoteProxyTools],
   };
 }
 
@@ -259,7 +501,7 @@ function filterExposedRemoteProxyTools(
 }
 
 function isExposedRemoteProxyTool(name: string): boolean {
-  return MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.includes(name);
+  return (MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES as readonly string[]).includes(name);
 }
 
 async function listRemoteProxyTools(options: {
@@ -397,9 +639,7 @@ export async function startMakerMcpServer(): Promise<void> {
     }
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () =>
-    listMakerTools({ targetDir: process.cwd() })
-  );
+  server.setRequestHandler(ListToolsRequestSchema, async () => listMakerTools());
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources }));
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const uri = request.params.uri;
@@ -696,7 +936,7 @@ export function formatMakerToolRegistrationCwdStatus(options: {
     `- inspected_target_dir: ${targetDir}`,
     `- maker_project_dir: ${projectRoot}`,
     `- mcp_cwd_project_dir: ${mcpProjectRoot || '(none)'}`,
-    '- impact: Maker proxy tools may not appear in this MCP session because tools/list used the MCP server cwd.',
+    '- impact: Maker proxy tools are listed statically, but proxy tool calls may fail because calls resolve the Maker project from the MCP server cwd.',
     '- next_action: Start Claude Code from the Maker project directory, or set the taptap-maker MCP config cwd to maker_project_dir, then Reconnect taptap-maker in /mcp.',
   ].join('\n');
 }
