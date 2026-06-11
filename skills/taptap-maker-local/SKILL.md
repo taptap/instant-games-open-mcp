@@ -92,6 +92,8 @@ This policy overrides generic imagegen or native media skills for Maker game ass
 - Use `edit_image` for modifying project images.
 - Use `create_video_task` for game videos and image/video referenced generation.
 - Use `text_to_music` for game music or audio.
+- Use `create_3d_model_task` for game 3D models.
+- Use `query_3d_model_task` for polling 3D model tasks.
 - Before `edit_image`, resolve dragged or referenced images to a local project image path or CDN
   URL. If the user references an attached/local image, inspect the attachment or workspace file path
   first. If the image is under `assets/image`, pass that path. If only a file name is given, search
@@ -99,8 +101,8 @@ This policy overrides generic imagegen or native media skills for Maker game ass
 - Do not call `edit_image` without an image path or CDN URL.
 
 Generated assets should be saved by Maker MCP under `assets/image`, `assets/video`, or
-`assets/audio`. Do not prefer client-native image generation when the user is asking for Maker game
-assets in a bound project.
+`assets/audio`; generated 3D MDL zip files are saved under `assets/model`. Do not prefer
+client-native image generation when the user is asking for Maker game assets in a bound project.
 
 ## Project Detection
 
@@ -141,8 +143,8 @@ directory.
 ### Proxy Tools Missing From The Current Session
 
 If the user is in a bound Maker project but `generate_image`, `batch_generate_images`, `edit_image`,
-`create_video_task`, or `text_to_music` are missing from the current AI tool list, diagnose the MCP
-cwd before suggesting repeated restarts:
+`create_video_task`, `text_to_music`, `create_3d_model_task`, or `query_3d_model_task` are missing
+from the current AI tool list, diagnose the MCP cwd before suggesting repeated restarts:
 
 1. Read `maker://status` or call `maker_status_lite` without `target_dir` to see the MCP server cwd.
 2. If the user provides or the client exposes the real Maker project directory, call

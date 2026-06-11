@@ -126,6 +126,9 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('Do not call `edit_image` without an image path or CDN URL');
     expect(agentsGuide).toContain('batch_generate_images');
+    expect(agentsGuide).toContain('create_3d_model_task');
+    expect(agentsGuide).toContain('query_3d_model_task');
+    expect(agentsGuide).toContain('assets/model');
   });
 
   test('does not change existing Claude guide content', async () => {

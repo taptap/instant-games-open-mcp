@@ -505,6 +505,8 @@ function createMakerAssetPolicyBlock(): string {
     '- `edit_image` for modifying existing project images.',
     '- `create_video_task` for game video assets or referenced image/video generation.',
     '- `text_to_music` for game music or audio assets.',
+    '- `create_3d_model_task` for game 3D model assets.',
+    '- `query_3d_model_task` for polling 3D model tasks.',
     '',
     'Before calling `edit_image`, resolve dragged or referenced images to a local project image path',
     'or CDN URL first. If the user references an attached/local image, inspect the attachment or',
@@ -521,7 +523,8 @@ function createMakerAssetPolicyBlock(): string {
     'native media generation unless the user explicitly asks to leave the Maker asset workflow.',
     '',
     'Generated assets must stay in the Maker project asset workflow under `assets/image`,',
-    '`assets/video`, or `assets/audio`, with CDN mappings preserved for later edits and builds.',
+    '`assets/video`, `assets/audio`, or `assets/model`, with CDN mappings preserved for later edits',
+    'and builds.',
     '',
     MAKER_ASSET_POLICY_END,
   ].join('\n');

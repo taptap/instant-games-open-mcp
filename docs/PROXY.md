@@ -925,6 +925,8 @@ const config = {
       'edit_image',
       'create_video_task',
       'text_to_music',
+      'create_3d_model_task',
+      'query_3d_model_task',
     ], // 可选：客户端可见/可调用 tool 白名单
   },
 };
@@ -968,7 +970,9 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
       "batch_generate_images",
       "edit_image",
       "create_video_task",
-      "text_to_music"
+      "text_to_music",
+      "create_3d_model_task",
+      "query_3d_model_task"
     ]
   }
 }
@@ -977,7 +981,7 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
 配置后：
 
 - `tools/list` 只返回 `generate_image`、`batch_generate_images`、`edit_image`、
-  `create_video_task` 和 `text_to_music`。
+  `create_video_task`、`text_to_music`、`create_3d_model_task` 和 `query_3d_model_task`。
 - `tools/call` 会拒绝白名单外的 tool，避免客户端直接调用隐藏 tool。
 - Proxy 不重新封装这些 tool；tool description、input schema、调用参数和返回结果都来自上游。
 - 私有参数注入仍按原流程工作，包括 `_mac_token`、`_tag: "local"`、`_project_path`

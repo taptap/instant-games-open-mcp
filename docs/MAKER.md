@@ -14,8 +14,9 @@
 - CLI 负责 PAT 准备、app 选择、dev-kit 准备、clone 和 AI 客户端 MCP 配置。
 - MCP server 暴露固定运行期业务流：`maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；远端 proxy tools 默认隐藏，仅白名单公开
-  `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task` 和
-  `text_to_music` 试用图片/视频/音乐生成链路。
+  `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
+  `text_to_music`、`create_3d_model_task` 和 `query_3d_model_task` 试用图片/视频/音乐/3D
+  模型生成链路。
 - `maker_build_current_directory` 是用户感知里的提交/推送/远端构建入口；push 失败时会停止在构建前，让本地 Agent 处理冲突或合并。
 - 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。
@@ -495,15 +496,19 @@ maker_build_current_directory()
   `runtime_logs.state_file`。
 
 远端 proxy 配置默认是 Maker 本地 MCP 的内部能力，不作为普通 Agent tool 全量暴露。
-当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task` 和
-`text_to_music` 作为白名单公开；本地 MCP 不重新封装这些 tools，description、input schema、
-参数和返回值都来自远端 server 原始定义。内部配置内容等价于测试脚本中的：
+当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
+`text_to_music`、`create_3d_model_task` 和 `query_3d_model_task` 作为白名单公开；本地 MCP
+不重新封装这些 tools，description、input schema、参数和返回值都来自远端 server 原始定义。
+内部配置内容等价于测试脚本中的：
 
 本地 Maker MCP 会对生成类 tools 做客户端素材落地，并把本地生成素材到 CDN URL 的映射记录到
 `.maker/assets/generated-assets.json`。`generate_image`、`batch_generate_images` 和
 `edit_image` 的成功图片会下载到 `assets/image/`，`create_video_task` 的成功视频会下载到
-`assets/video/`，`text_to_music` 的成功音频会下载到 `assets/audio/`。`edit_image` 和
-`create_video_task` 调用前会基于映射，把本地新生成素材路径改写为 CDN URL。
+`assets/video/`，`text_to_music` 的成功音频会下载到 `assets/audio/`。
+`create_3d_model_task` 的 Phase 1 四视图预览会下载到 `assets/image/`，最终结果中的 MDL
+zip 会下载到 `assets/model/`，渲染预览图会下载到 `assets/image/`；`model_cdn_url` 指向的
+Tripo 原始 GLB 只记录到素材映射中，默认不下载。`edit_image`、`create_video_task` 和
+`create_3d_model_task` 调用前会基于映射，把本地新生成素材路径改写为 CDN URL。
 对于 `edit_image`，AI/Agent 调用前应先解析用户提供的图片：拖入/附件图片优先取客户端暴露的本地
 文件路径，`assets/image/...` 直接传项目素材路径，只给文件名时先搜索 `assets/image`，无法确认图片
 路径或 CDN URL 时应停下来说明缺少参数。

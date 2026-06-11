@@ -105,6 +105,8 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'edit_image',
   'create_video_task',
   'text_to_music',
+  'create_3d_model_task',
+  'query_3d_model_task',
 ];
 
 type MakerToolDefinition = (typeof tools)[number];
