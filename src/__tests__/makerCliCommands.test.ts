@@ -1338,6 +1338,22 @@ describe('Maker CLI commands', () => {
     expect(output).toContain('- action: safe_to_kill_orphan_maker_processes');
   });
 
+  test('subcommand --help prints usage instead of running the command', async () => {
+    await runMakerCli(['init', '--help']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Usage:');
+    expect(listMakerProjects).not.toHaveBeenCalled();
+  });
+
+  test('subcommand -h prints usage instead of running the command', async () => {
+    await runMakerCli(['doctor', '-h']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Usage:');
+    expect(output).not.toContain('TapTap Maker doctor');
+  });
+
   test('doctor reports check_failed when the process scan cannot run', async () => {
     spawnSyncMock.mockImplementation((command, args) => {
       if (command === 'ps' && Array.isArray(args) && args.includes('-axo')) {
