@@ -9,6 +9,12 @@ import { formatCliError, runMakerCli } from './cli/commands.js';
 import { appendMakerCrashLog } from './crashLog.js';
 import { loadConfig } from '../mcp-proxy/config.js';
 import { TapTapMCPProxy } from '../mcp-proxy/proxy.js';
+import {
+  installParentDeathWatchdog,
+  installProxyStdinExitHandler,
+  isDisconnectedStdioError,
+  logLifecycleEvent,
+} from './lifecycle.js';
 
 installCrashLogging();
 
@@ -39,13 +45,16 @@ async function startEmbeddedProxy(): Promise<void> {
   const proxy = new TapTapMCPProxy(config);
   await proxy.start();
 
-  const cleanup = (): void => {
+  const cleanup = (source = 'proxy-signal'): void => {
+    logLifecycleEvent(source, 'Embedded Maker proxy received shutdown signal; exiting.');
     proxy.cleanup();
     process.exit(0);
   };
 
-  process.on('SIGINT', cleanup);
-  process.on('SIGTERM', cleanup);
+  installProxyStdinExitHandler(proxy);
+  installParentDeathWatchdog(proxy);
+  process.on('SIGINT', () => cleanup('proxy-sigint'));
+  process.on('SIGTERM', () => cleanup('proxy-sigterm'));
 }
 
 function printHelp(): void {
@@ -87,22 +96,69 @@ function printHelp(): void {
 
 main().catch((error) => {
   logCrash('main.catch', error);
-  process.stderr.write(`❌ ${formatCliError(error)}\n`);
+  safeWriteStderr(`❌ ${formatCliError(error)}\n`);
   process.exit(1);
 });
 
 function installCrashLogging(): void {
+  installStdioErrorHandler(process.stdout, 'stdout-error');
+  installStdioErrorHandler(process.stderr, 'stderr-error');
+
+  let handlingFatalError = false;
   process.on('uncaughtException', (error) => {
     logCrash('uncaughtException', error);
-    process.stderr.write(`❌ Uncaught Maker MCP error: ${error.message}\n`);
+    if (isDisconnectedStdioError(error)) {
+      logLifecycleEvent('uncaughtException-stdio-closed', 'Maker stdio disconnected; exiting.');
+      process.exit(0);
+    }
+    if (handlingFatalError) {
+      logCrash('uncaughtException-recursive', error);
+      process.exit(1);
+    }
+    handlingFatalError = true;
+    safeWriteStderr(`❌ Uncaught Maker MCP error: ${error.message}\n`);
+    handlingFatalError = false;
   });
 
   process.on('unhandledRejection', (reason) => {
     logCrash('unhandledRejection', reason);
-    process.stderr.write(
+    if (isDisconnectedStdioError(reason)) {
+      logLifecycleEvent('unhandledRejection-stdio-closed', 'Maker stdio disconnected; exiting.');
+      process.exit(0);
+    }
+    if (handlingFatalError) {
+      logCrash('unhandledRejection-recursive', reason);
+      process.exit(1);
+    }
+    handlingFatalError = true;
+    safeWriteStderr(
       `❌ Unhandled Maker MCP rejection: ${reason instanceof Error ? reason.message : String(reason)}\n`
     );
+    handlingFatalError = false;
   });
+}
+
+function installStdioErrorHandler(
+  stream: NodeJS.WriteStream,
+  source: 'stdout-error' | 'stderr-error'
+): void {
+  stream.on('error', (error) => {
+    logCrash(source, error);
+    if (isDisconnectedStdioError(error)) {
+      process.exit(0);
+    }
+  });
+}
+
+function safeWriteStderr(message: string): void {
+  try {
+    process.stderr.write(message);
+  } catch (error) {
+    logCrash('stderr-write-failed', error);
+    if (isDisconnectedStdioError(error)) {
+      process.exit(0);
+    }
+  }
 }
 
 function logCrash(source: string, error: unknown): void {

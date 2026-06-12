@@ -91,6 +91,19 @@ type CliContext = {
   json: boolean;
 };
 
+type MakerOrphanProcess = {
+  pid: string;
+  ppid: string;
+  cpu: string;
+  elapsed: string;
+  command: string;
+};
+
+type MakerOrphanProcessCheck = {
+  status: 'ok' | 'not_supported_on_windows' | 'check_failed';
+  processes: MakerOrphanProcess[];
+};
+
 export async function runMakerCli(argv: string[]): Promise<void> {
   const parsed = parseArgs(argv);
   setMakerEnvironmentOverride(makerEnvOption(parsed));
@@ -334,6 +347,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const projectRoot = identify.projectRoot || targetDir;
   const devKit = inspectAiDevKit(projectRoot);
   const devKitUpdate = await checkAiDevKitUpdate(projectRoot, { environment: env });
+  const orphanProcessCheck = inspectMakerOrphanProcesses();
 
   if (ctx.json) {
     writeJson({
@@ -348,6 +362,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       project: identify,
       dev_kit: devKit,
       dev_kit_update: devKitUpdate,
+      orphan_process_check: orphanProcessCheck,
     });
     return;
   }
@@ -386,12 +401,80 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       `- update_available: ${devKitUpdate.updateAvailable ? 'yes' : 'no'}`,
       devKitUpdate.versionCheckError ? `- version_check: ${devKitUpdate.versionCheckError}` : '',
       '',
+      formatMakerOrphanProcessStatus(orphanProcessCheck),
+      '',
       formatMakerSkillStatus({ projectRoot }),
       '',
     ]
       .filter(Boolean)
       .join('\n')
   );
+}
+
+function inspectMakerOrphanProcesses(): MakerOrphanProcessCheck {
+  if (process.platform === 'win32') {
+    // The ps-based scan below is POSIX-only. Report that honestly instead of "none",
+    // because Windows is where orphan detection matters most and a false "none"
+    // misleads troubleshooting.
+    return { status: 'not_supported_on_windows', processes: [] };
+  }
+  const result = spawnSync('ps', ['-axo', 'pid,ppid,pcpu,etime,command'], {
+    encoding: 'utf8',
+  });
+  if (result.status !== 0 || typeof result.stdout !== 'string') {
+    return { status: 'check_failed', processes: [] };
+  }
+
+  const processes = result.stdout
+    .split(/\r?\n/)
+    .slice(1)
+    .map((line) => parseMakerProcessLine(line))
+    .filter((processInfo): processInfo is MakerOrphanProcess => Boolean(processInfo));
+  return { status: 'ok', processes };
+}
+
+function parseMakerProcessLine(line: string): MakerOrphanProcess | null {
+  const match = line.trim().match(/^(\d+)\s+(\d+)\s+([0-9.]+)\s+(\S+)\s+(.+)$/);
+  if (!match) {
+    return null;
+  }
+  const [, pid, ppid, cpu, elapsed, command] = match;
+  if (ppid !== '1') {
+    return null;
+  }
+  if (/\blogs\b.*\bwatch\b/.test(command)) {
+    return null;
+  }
+  if (
+    !/\bmaker\.js\b.*\b__maker-proxy\b/.test(command) &&
+    !/\bmaker\.js\b(?!.*\blogs\b.*\bwatch\b)/.test(command) &&
+    !/\btaptap-maker\b(?!.*\blogs\b.*\bwatch\b)/.test(command)
+  ) {
+    return null;
+  }
+  return { pid, ppid, cpu, elapsed, command };
+}
+
+function formatMakerOrphanProcessStatus(check: MakerOrphanProcessCheck): string {
+  const lines = ['Maker orphan process check'];
+  if (check.status === 'not_supported_on_windows') {
+    return [...lines, '- orphan_processes: not_supported_on_windows'].join('\n');
+  }
+  if (check.status === 'check_failed') {
+    return [...lines, '- orphan_processes: check_failed'].join('\n');
+  }
+  if (check.processes.length === 0) {
+    return [...lines, '- orphan_processes: none'].join('\n');
+  }
+  for (const processInfo of check.processes) {
+    lines.push(
+      `- pid: ${processInfo.pid} ppid: ${processInfo.ppid} cpu: ${processInfo.cpu} elapsed: ${processInfo.elapsed}`
+    );
+    lines.push(`  command: ${processInfo.command}`);
+  }
+  lines.push('- action: safe_to_kill_orphan_maker_processes');
+  lines.push('- note: these PPID=1 Maker processes are detached from the AI client.');
+  return lines.join('\n');
 }
 
 function ensureInitPythonReady(ctx: CliContext, targetDir: string, env: MakerEnvironment): void {
