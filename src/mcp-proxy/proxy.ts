@@ -128,7 +128,11 @@ export class TapTapMCPProxy {
   }
 
   public logLifecycleEvent(source: string, message: string): void {
-    this.log('info', `lifecycle:${source}: ${message}`);
+    try {
+      this.log('info', `lifecycle:${source}: ${message}`);
+    } catch {
+      // Lifecycle logging must not keep a broken stdio process alive.
+    }
   }
 
   /**
