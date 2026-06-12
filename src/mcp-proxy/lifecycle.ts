@@ -40,29 +40,23 @@ export function installStandaloneProxyLifecycleHandlers(options: {
 
   installStdinExitHandler({
     stdin,
-    cleanup: () =>
-      exitOnce('standalone-proxy-stdin-closed', 'Standalone proxy stdin closed; exiting.'),
+    cleanup: () => undefined,
     exit: () => undefined,
     source: 'standalone-proxy-stdin-closed',
     message: 'Standalone proxy stdin closed; exiting.',
+    onClosed: exitOnce,
   });
 
   installStdioErrorHandlers({
     streams: [stdin, stdout, stderr].filter(Boolean) as EventEmitter[],
-    cleanup: () =>
-      exitOnce(
-        'standalone-proxy-stdio-disconnected',
-        'Standalone proxy stdio disconnected; exiting.'
-      ),
+    cleanup: () => undefined,
     exit: () => undefined,
-    log: (source, message) => {
-      if (source !== 'standalone-proxy-stdio-disconnected') {
-        log?.(source, message);
-      }
-    },
+    log,
     disconnectedSource: 'standalone-proxy-stdio-disconnected',
     disconnectedMessage: 'Standalone proxy stdio disconnected; exiting.',
+    onDisconnected: exitOnce,
     ignoredSource: 'standalone-proxy-stdio-error',
+    ignoredMessage: (error) => `Standalone proxy stdio error ignored: ${formatError(error)}`,
   });
 
   if (options.installSignals !== false) {
@@ -84,4 +78,8 @@ export function installStandaloneProxyLifecycleHandlers(options: {
     source: 'standalone-proxy-parent-dead',
     message: 'Standalone proxy parent process is gone; exiting.',
   });
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

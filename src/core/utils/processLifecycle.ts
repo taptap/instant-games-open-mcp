@@ -66,6 +66,7 @@ export function installStdinExitHandler(options: {
   log?: LifecycleLog;
   source: string;
   message: string;
+  onClosed?: (source: string, message: string) => void;
 }): void {
   const stdin = options.stdin ?? process.stdin;
   const exit = options.exit ?? ((code: number) => process.exit(code));
@@ -76,6 +77,10 @@ export function installStdinExitHandler(options: {
       return;
     }
     exiting = true;
+    if (options.onClosed) {
+      options.onClosed(options.source, options.message);
+      return;
+    }
     options.log?.(options.source, options.message);
     options.cleanup();
     exit(0);
@@ -133,7 +138,9 @@ export function installStdioErrorHandlers(options: {
   log?: LifecycleLog;
   disconnectedSource: string;
   disconnectedMessage: string;
+  onDisconnected?: (source: string, message: string) => void;
   ignoredSource?: string;
+  ignoredMessage?: (error: unknown) => string;
 }): void {
   const exit = options.exit ?? ((code: number) => process.exit(code));
   let exiting = false;
@@ -143,7 +150,9 @@ export function installStdioErrorHandlers(options: {
       if (!isDisconnectedStdioError(error)) {
         options.log?.(
           options.ignoredSource ?? 'stdio-error',
-          `Standalone proxy stdio error ignored: ${formatError(error)}`
+          options.ignoredMessage
+            ? options.ignoredMessage(error)
+            : `stdio error ignored: ${formatError(error)}`
         );
         return;
       }
@@ -151,6 +160,10 @@ export function installStdioErrorHandlers(options: {
         return;
       }
       exiting = true;
+      if (options.onDisconnected) {
+        options.onDisconnected(options.disconnectedSource, options.disconnectedMessage);
+        return;
+      }
       options.log?.(options.disconnectedSource, options.disconnectedMessage);
       options.cleanup();
       exit(0);

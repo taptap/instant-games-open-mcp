@@ -2,6 +2,7 @@ import { PassThrough } from 'node:stream';
 import {
   installParentDeathWatchdog,
   installStdinExitHandler,
+  installStdioErrorHandlers,
   isDisconnectedStdioError,
   shouldExitForParentDeath,
 } from '../core/utils/processLifecycle';
@@ -51,6 +52,28 @@ describe('shared process lifecycle guards', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
     expect(exit).toHaveBeenCalledWith(0);
     expect(log).toHaveBeenCalledWith('test-stdin-closed', 'stdin closed');
+  });
+
+  test('stdin exit handler can delegate closed exits to caller-owned logic', () => {
+    const stdin = new PassThrough();
+    const cleanup = jest.fn();
+    const exit = jest.fn();
+    const onClosed = jest.fn();
+
+    installStdinExitHandler({
+      stdin,
+      cleanup,
+      exit,
+      source: 'test-stdin-closed',
+      message: 'stdin closed',
+      onClosed,
+    });
+
+    stdin.emit('end');
+
+    expect(onClosed).toHaveBeenCalledWith('test-stdin-closed', 'stdin closed');
+    expect(cleanup).not.toHaveBeenCalled();
+    expect(exit).not.toHaveBeenCalled();
   });
 
   test('detects parent death from orphan ppid or ESRCH probe', () => {
@@ -114,5 +137,51 @@ describe('shared process lifecycle guards', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  test('stdio error handler accepts a caller-owned ignored error message', () => {
+    const stream = new PassThrough();
+    const log = jest.fn();
+
+    installStdioErrorHandlers({
+      streams: [stream],
+      cleanup: jest.fn(),
+      exit: jest.fn(),
+      log,
+      disconnectedSource: 'test-disconnected',
+      disconnectedMessage: 'stdio disconnected',
+      ignoredSource: 'test-stdio-error',
+      ignoredMessage: (error) =>
+        `test stdio error ignored: ${error instanceof Error ? error.message : String(error)}`,
+    });
+
+    stream.emit('error', Object.assign(new Error('ordinary failure'), { code: 'EINVAL' }));
+
+    expect(log).toHaveBeenCalledWith(
+      'test-stdio-error',
+      'test stdio error ignored: ordinary failure'
+    );
+  });
+
+  test('stdio error handler can delegate disconnected exits to caller-owned logic', () => {
+    const stream = new PassThrough();
+    const cleanup = jest.fn();
+    const exit = jest.fn();
+    const onDisconnected = jest.fn();
+
+    installStdioErrorHandlers({
+      streams: [stream],
+      cleanup,
+      exit,
+      disconnectedSource: 'test-disconnected',
+      disconnectedMessage: 'stdio disconnected',
+      onDisconnected,
+    });
+
+    stream.emit('error', Object.assign(new Error('broken pipe'), { code: 'EPIPE' }));
+
+    expect(onDisconnected).toHaveBeenCalledWith('test-disconnected', 'stdio disconnected');
+    expect(cleanup).not.toHaveBeenCalled();
+    expect(exit).not.toHaveBeenCalled();
   });
 });
