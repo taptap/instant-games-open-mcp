@@ -12,6 +12,7 @@
 
 import { TapTapMCPProxy } from './proxy.js';
 import { loadConfig } from './config.js';
+import { installStandaloneProxyLifecycleHandlers } from './lifecycle.js';
 
 /**
  * 主函数
@@ -37,15 +38,11 @@ async function main() {
     const proxy = new TapTapMCPProxy(config);
     await proxy.start();
 
-    // 3. 处理进程信号
-    const cleanup = () => {
-      console.error('[Proxy] Shutting down...');
-      proxy.cleanup();
-      process.exit(0);
-    };
-
-    process.on('SIGINT', cleanup);
-    process.on('SIGTERM', cleanup);
+    // 3. 处理进程生命周期
+    installStandaloneProxyLifecycleHandlers({
+      proxy,
+      log: (source, message) => proxy.logLifecycleEvent(source, message),
+    });
   } catch (error) {
     console.error('[Proxy] Fatal error:', error instanceof Error ? error.message : String(error));
     process.exit(1);

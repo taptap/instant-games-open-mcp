@@ -127,6 +127,10 @@ export class TapTapMCPProxy {
     this.logWriter.writeSync(level, formattedMessage);
   }
 
+  public logLifecycleEvent(source: string, message: string): void {
+    this.log('info', `lifecycle:${source}: ${message}`);
+  }
+
   /**
    * 启动 Proxy
    */
