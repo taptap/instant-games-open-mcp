@@ -1759,7 +1759,7 @@ async function runWithTransientRetry(
   }
 ): Promise<number> {
   let retries = 0;
-  const maxRetries = 2;
+  const maxRetries = 3;
 
   for (;;) {
     try {
@@ -1780,7 +1780,7 @@ async function runWithTransientRetry(
         phase: options.stage,
         message: formatGitRetryProgressMessage(options.stage, decision, retries, maxRetries),
       });
-      await sleep(getGitRetryDelayMs() * retries);
+      await sleep(getMakerGitRetryDelayMs() * retries);
     }
   }
 }
@@ -1845,9 +1845,9 @@ function appendRetryExhausted(
   );
 }
 
-function getGitRetryDelayMs(): number {
+export function getMakerGitRetryDelayMs(): number {
   const value = Number.parseInt(process.env.TAPTAP_MAKER_GIT_RETRY_DELAY_MS || '', 10);
-  return Number.isFinite(value) && value >= 0 ? value : 1500;
+  return Number.isFinite(value) && value >= 0 ? value : 10_000;
 }
 
 function sleep(ms: number): Promise<void> {
