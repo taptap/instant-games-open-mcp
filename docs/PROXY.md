@@ -1147,6 +1147,20 @@ HTTP 403 - Authorization failed
 - ✅ 直接运行：`node proxy.js`
 - ✅ 跨平台（Node.js 18.14.1+）
 
+### 6.1.1 进程生命周期
+
+Standalone Proxy 只在宿主连接明确断开时被动退出，不会因为空闲时间或固定 TTL 主动
+自杀。退出触发条件包括：
+
+- stdin `end` / `close`
+- stdin / stdout / stderr 出现断连类错误（如 `EPIPE`、`EIO`、`ENXIO`）
+- 父进程死亡（Linux/macOS 下 PPID 变为 1，或探测父 PID 返回 `ESRCH`）
+- `SIGINT` / `SIGTERM`
+
+触发退出时，Proxy 会先执行本地 cleanup，停止健康检查和重连定时器，再以 exit 0
+结束进程。宿主进程（例如 TapCode 后端）应保持 Proxy 的 stdin 管道打开；如果宿主异常
+退出或关闭 stdin，Proxy 会自动退出，避免孤儿进程继续访问远端 MCP 服务。
+
 ### 6.2 获取文件
 
 #### 方式 1：从 npm 包中提取
