@@ -1759,7 +1759,7 @@ async function runWithTransientRetry(
   }
 ): Promise<number> {
   let retries = 0;
-  const maxRetries = 3;
+  const maxRetries = 5;
 
   for (;;) {
     try {
@@ -1847,7 +1847,7 @@ function appendRetryExhausted(
 
 export function getMakerGitRetryDelayMs(): number {
   const value = Number.parseInt(process.env.TAPTAP_MAKER_GIT_RETRY_DELAY_MS || '', 10);
-  return Number.isFinite(value) && value >= 0 ? value : 10_000;
+  return Number.isFinite(value) && value >= 0 ? value : 5_000;
 }
 
 function sleep(ms: number): Promise<void> {

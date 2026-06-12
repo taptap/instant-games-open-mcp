@@ -236,15 +236,15 @@ describe('maker clone binding safety', () => {
     expect(progressMessages.join('\n')).toContain('20+ seconds');
     expect(progressMessages.join('\n')).toContain('transient 503/5xx errors are retried');
     expect(progressMessages.join('\n')).toContain('Maker server may still be preparing');
-    expect(progressMessages.join('\n')).toContain('retrying 1/3');
+    expect(progressMessages.join('\n')).toContain('retrying 1/5');
     const commands = fs.readFileSync(gitLog, 'utf8');
     expect(commands.match(/^fetch --progress --depth=1 origin$/gm)).toHaveLength(2);
   });
 
-  test('uses a 10 second default delay for transient Maker git retries', () => {
+  test('uses a 5 second default delay for transient Maker git retries', () => {
     delete process.env.TAPTAP_MAKER_GIT_RETRY_DELAY_MS;
 
-    expect(getMakerGitRetryDelayMs()).toBe(10_000);
+    expect(getMakerGitRetryDelayMs()).toBe(5_000);
   });
 
   test('continues from a recorded project config after earlier clone failure', async () => {
