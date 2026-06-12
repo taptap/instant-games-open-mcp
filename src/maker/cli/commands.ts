@@ -526,11 +526,7 @@ function parseMakerProcessLine(line: string): MakerOrphanProcess | null {
   if (/\blogs\b.*\bwatch\b/.test(command)) {
     return null;
   }
-  if (
-    !/\bmaker\.js\b.*\b__maker-proxy\b/.test(command) &&
-    !/\bmaker\.js\b(?!.*\blogs\b.*\bwatch\b)/.test(command) &&
-    !/\btaptap-maker\b(?!.*\blogs\b.*\bwatch\b)/.test(command)
-  ) {
+  if (!/\bmaker\.js\b/.test(command) && !/\btaptap-maker\b/.test(command)) {
     return null;
   }
   return { pid, ppid, cpu, elapsed, command };

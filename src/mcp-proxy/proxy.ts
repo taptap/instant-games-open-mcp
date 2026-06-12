@@ -323,7 +323,8 @@ export class TapTapMCPProxy {
       this.connected = true;
       this.sessionValidated = true;
       this.lastValidationTime = Date.now();
-      this.reconnectDelayMs = DEFAULT_RECONNECT_INTERVAL_MS;
+      this.reconnectDelayMs =
+        this.config.options?.reconnect_interval ?? DEFAULT_RECONNECT_INTERVAL_MS;
 
       this.log('info', '✅ Connected and session validated');
 
