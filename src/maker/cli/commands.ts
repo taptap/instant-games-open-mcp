@@ -104,6 +104,14 @@ type MakerOrphanProcessCheck = {
   processes: MakerOrphanProcess[];
 };
 
+type MakerMcpToolsAvailability = {
+  tools_visibility: 'refresh_ai_client_if_missing';
+  pwd_alignment: 'same_project' | 'cwd_mismatch' | 'not_bound';
+  maker_project_dir?: string;
+  ai_pwd: string;
+  ai_pwd_project_dir?: string;
+};
+
 export async function runMakerCli(argv: string[]): Promise<void> {
   const parsed = parseArgs(argv);
   setMakerEnvironmentOverride(makerEnvOption(parsed));
@@ -348,6 +356,9 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const devKit = inspectAiDevKit(projectRoot);
   const devKitUpdate = await checkAiDevKitUpdate(projectRoot, { environment: env });
   const orphanProcessCheck = inspectMakerOrphanProcesses();
+  const mcpToolsAvailability = inspectMakerMcpToolsAvailability({
+    makerProjectDir: identify.projectRoot,
+  });
 
   if (ctx.json) {
     writeJson({
@@ -362,6 +373,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       project: identify,
       dev_kit: devKit,
       dev_kit_update: devKitUpdate,
+      mcp_tools_availability: mcpToolsAvailability,
       orphan_process_check: orphanProcessCheck,
     });
     return;
@@ -401,6 +413,8 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       `- update_available: ${devKitUpdate.updateAvailable ? 'yes' : 'no'}`,
       devKitUpdate.versionCheckError ? `- version_check: ${devKitUpdate.versionCheckError}` : '',
       '',
+      formatMakerMcpToolsAvailability(mcpToolsAvailability),
+      '',
       formatMakerOrphanProcessStatus(orphanProcessCheck),
       '',
       formatMakerSkillStatus({ projectRoot }),
@@ -409,6 +423,73 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       .filter(Boolean)
       .join('\n')
   );
+}
+
+function inspectMakerMcpToolsAvailability(options: {
+  makerProjectDir?: string;
+}): MakerMcpToolsAvailability {
+  const aiPwd = path.resolve(process.cwd());
+  const aiPwdIdentify = identifyMakerProject({ cwd: aiPwd });
+  const makerProjectDir = options.makerProjectDir
+    ? path.resolve(options.makerProjectDir)
+    : undefined;
+
+  if (!makerProjectDir) {
+    return {
+      tools_visibility: 'refresh_ai_client_if_missing',
+      pwd_alignment: 'not_bound',
+      ai_pwd: aiPwd,
+      ai_pwd_project_dir: aiPwdIdentify.projectRoot,
+    };
+  }
+
+  return {
+    tools_visibility: 'refresh_ai_client_if_missing',
+    pwd_alignment:
+      aiPwdIdentify.projectRoot && samePath(aiPwdIdentify.projectRoot, makerProjectDir)
+        ? 'same_project'
+        : 'cwd_mismatch',
+    maker_project_dir: makerProjectDir,
+    ai_pwd: aiPwd,
+    ai_pwd_project_dir: aiPwdIdentify.projectRoot,
+  };
+}
+
+function formatMakerMcpToolsAvailability(availability: MakerMcpToolsAvailability): string {
+  const lines = [
+    'Maker MCP tools availability',
+    `- tools_visibility: ${availability.tools_visibility}`,
+    '- hint: If Maker proxy tools are missing in this AI chat, this is common after install.',
+    '- next_action: Restart the AI client or open a new AI conversation; /mcp clients can Reconnect taptap-maker.',
+    `- pwd_alignment: ${availability.pwd_alignment}`,
+  ];
+
+  if (availability.pwd_alignment === 'cwd_mismatch') {
+    lines.push(`- maker_project_dir: ${availability.maker_project_dir}`);
+    lines.push(`- ai_pwd: ${availability.ai_pwd}`);
+    lines.push(`- ai_pwd_project_dir: ${availability.ai_pwd_project_dir || '(none)'}`);
+    lines.push(
+      '- impact: Maker proxy tools may not appear because tools/list uses the AI client pwd.'
+    );
+    lines.push(
+      '- next_action: Run the AI client from the Maker project directory, or reinstall MCP with --target-dir.'
+    );
+  }
+
+  return lines.join('\n');
+}
+
+function samePath(left: string, right: string): boolean {
+  return normalizePathForCompare(left) === normalizePathForCompare(right);
+}
+
+function normalizePathForCompare(value: string): string {
+  const resolved = path.resolve(value);
+  try {
+    return fs.realpathSync.native(resolved);
+  } catch {
+    return resolved;
+  }
 }
 
 function inspectMakerOrphanProcesses(): MakerOrphanProcessCheck {
