@@ -42,6 +42,12 @@ describe('Maker process lifecycle guards', () => {
     expect(
       isDisconnectedStdioError(Object.assign(new Error('reset'), { code: 'ECONNRESET' }))
     ).toBe(true);
+    expect(isDisconnectedStdioError(Object.assign(new Error('read EIO'), { code: 'EIO' }))).toBe(
+      true
+    );
+    expect(
+      isDisconnectedStdioError(Object.assign(new Error('read ENXIO'), { code: 'ENXIO' }))
+    ).toBe(true);
     expect(isDisconnectedStdioError(Object.assign(new Error('other'), { code: 'ENOENT' }))).toBe(
       false
     );

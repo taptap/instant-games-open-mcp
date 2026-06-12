@@ -103,6 +103,7 @@ main().catch((error) => {
 function installCrashLogging(): void {
   installStdioErrorHandler(process.stdout, 'stdout-error');
   installStdioErrorHandler(process.stderr, 'stderr-error');
+  installStdinErrorHandler();
 
   let handlingFatalError = false;
   process.on('uncaughtException', (error) => {
@@ -145,6 +146,18 @@ function installStdioErrorHandler(
   stream.on('error', (error) => {
     logCrash(source, error);
     if (isDisconnectedStdioError(error)) {
+      process.exit(0);
+    }
+  });
+}
+
+function installStdinErrorHandler(): void {
+  // Reads on a detached TTY fail with EIO/ENXIO; without a listener the stream error
+  // escalates to uncaughtException and an orphaned interactive CLI can spin forever.
+  process.stdin.on('error', (error) => {
+    logCrash('stdin-error', error);
+    if (isDisconnectedStdioError(error)) {
+      logLifecycleEvent('stdin-error-disconnected', 'Maker stdin became unreadable; exiting.');
       process.exit(0);
     }
   });

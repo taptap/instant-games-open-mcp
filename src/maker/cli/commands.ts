@@ -123,6 +123,14 @@ export async function runMakerCli(argv: string[]): Promise<void> {
     return;
   }
 
+  // `--help`/`-h` after a subcommand (e.g. `taptap-maker init --help`) must print help
+  // and exit. It must NEVER fall through into the real command: init is interactive and
+  // a help-seeking invocation left running can hang forever on prompts.
+  if (parsed.options.help || parsed.options.h) {
+    printHelp();
+    return;
+  }
+
   if (command === 'init') {
     await runInit(parsed, ctx);
     return;
@@ -1767,13 +1775,24 @@ async function promptRequired(label: string): Promise<string> {
     throw new Error(`${label} is required in non-interactive mode.`);
   }
   const rl = readline.createInterface({ input, output });
+  // stdin EOF (Ctrl+D, detached terminal) closes the interface without settling the
+  // pending question promise; without this guard the prompt awaits forever.
+  let settled = false;
+  const closed = new Promise<never>((_, reject) => {
+    rl.once('close', () => {
+      if (!settled) {
+        reject(new Error(`${label} input closed before a value was provided.`));
+      }
+    });
+  });
   try {
-    const answer = await rl.question(`${label}: `);
+    const answer = await Promise.race([rl.question(`${label}: `), closed]);
     if (!answer.trim()) {
       throw new Error(`${label} cannot be empty.`);
     }
     return answer.trim();
   } finally {
+    settled = true;
     rl.close();
   }
 }

@@ -2,7 +2,16 @@ import type { Readable } from 'node:stream';
 import { appendMakerCrashLog } from './crashLog.js';
 import type { TapTapMCPProxy } from '../mcp-proxy/proxy.js';
 
-const DISCONNECTED_STDIO_CODES = new Set(['EPIPE', 'ERR_STREAM_DESTROYED', 'ECONNRESET']);
+// EIO/ENXIO: reads on a TTY whose controlling terminal went away (closed window,
+// dropped SSH session) fail with these codes; treat them as "client gone" too,
+// otherwise an orphaned interactive CLI can spin on stdin errors at full CPU.
+const DISCONNECTED_STDIO_CODES = new Set([
+  'EPIPE',
+  'ERR_STREAM_DESTROYED',
+  'ECONNRESET',
+  'EIO',
+  'ENXIO',
+]);
 
 export function isDisconnectedStdioError(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
