@@ -91,6 +91,27 @@ type CliContext = {
   json: boolean;
 };
 
+type MakerOrphanProcess = {
+  pid: string;
+  ppid: string;
+  cpu: string;
+  elapsed: string;
+  command: string;
+};
+
+type MakerOrphanProcessCheck = {
+  status: 'ok' | 'not_supported_on_windows' | 'check_failed';
+  processes: MakerOrphanProcess[];
+};
+
+type MakerMcpToolsAvailability = {
+  tools_visibility: 'refresh_ai_client_if_missing';
+  pwd_alignment: 'same_project' | 'cwd_mismatch' | 'not_bound';
+  maker_project_dir?: string;
+  ai_pwd: string;
+  ai_pwd_project_dir?: string;
+};
+
 export async function runMakerCli(argv: string[]): Promise<void> {
   const parsed = parseArgs(argv);
   setMakerEnvironmentOverride(makerEnvOption(parsed));
@@ -334,6 +355,10 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const projectRoot = identify.projectRoot || targetDir;
   const devKit = inspectAiDevKit(projectRoot);
   const devKitUpdate = await checkAiDevKitUpdate(projectRoot, { environment: env });
+  const orphanProcessCheck = inspectMakerOrphanProcesses();
+  const mcpToolsAvailability = inspectMakerMcpToolsAvailability({
+    makerProjectDir: identify.projectRoot,
+  });
 
   if (ctx.json) {
     writeJson({
@@ -348,6 +373,8 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       project: identify,
       dev_kit: devKit,
       dev_kit_update: devKitUpdate,
+      mcp_tools_availability: mcpToolsAvailability,
+      orphan_process_check: orphanProcessCheck,
     });
     return;
   }
@@ -386,12 +413,145 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       `- update_available: ${devKitUpdate.updateAvailable ? 'yes' : 'no'}`,
       devKitUpdate.versionCheckError ? `- version_check: ${devKitUpdate.versionCheckError}` : '',
       '',
+      formatMakerMcpToolsAvailability(mcpToolsAvailability),
+      '',
+      formatMakerOrphanProcessStatus(orphanProcessCheck),
+      '',
       formatMakerSkillStatus({ projectRoot }),
       '',
     ]
       .filter(Boolean)
       .join('\n')
   );
+}
+
+function inspectMakerMcpToolsAvailability(options: {
+  makerProjectDir?: string;
+}): MakerMcpToolsAvailability {
+  const aiPwd = path.resolve(process.cwd());
+  const aiPwdIdentify = identifyMakerProject({ cwd: aiPwd });
+  const makerProjectDir = options.makerProjectDir
+    ? path.resolve(options.makerProjectDir)
+    : undefined;
+
+  if (!makerProjectDir) {
+    return {
+      tools_visibility: 'refresh_ai_client_if_missing',
+      pwd_alignment: 'not_bound',
+      ai_pwd: aiPwd,
+      ai_pwd_project_dir: aiPwdIdentify.projectRoot,
+    };
+  }
+
+  return {
+    tools_visibility: 'refresh_ai_client_if_missing',
+    pwd_alignment:
+      aiPwdIdentify.projectRoot && samePath(aiPwdIdentify.projectRoot, makerProjectDir)
+        ? 'same_project'
+        : 'cwd_mismatch',
+    maker_project_dir: makerProjectDir,
+    ai_pwd: aiPwd,
+    ai_pwd_project_dir: aiPwdIdentify.projectRoot,
+  };
+}
+
+function formatMakerMcpToolsAvailability(availability: MakerMcpToolsAvailability): string {
+  const lines = [
+    'Maker MCP tools availability',
+    `- tools_visibility: ${availability.tools_visibility}`,
+    '- hint: If Maker proxy tools are missing in this AI chat, this is common after install.',
+    '- next_action: Restart the AI client or open a new AI conversation; /mcp clients can Reconnect taptap-maker.',
+    `- pwd_alignment: ${availability.pwd_alignment}`,
+  ];
+
+  if (availability.pwd_alignment === 'cwd_mismatch') {
+    lines.push(`- maker_project_dir: ${availability.maker_project_dir}`);
+    lines.push(`- ai_pwd: ${availability.ai_pwd}`);
+    lines.push(`- ai_pwd_project_dir: ${availability.ai_pwd_project_dir || '(none)'}`);
+    lines.push(
+      '- impact: Maker proxy tools may not appear because tools/list uses the AI client pwd.'
+    );
+    lines.push(
+      '- next_action: Run the AI client from the Maker project directory, or reinstall MCP with --target-dir.'
+    );
+  }
+
+  return lines.join('\n');
+}
+
+function samePath(left: string, right: string): boolean {
+  return normalizePathForCompare(left) === normalizePathForCompare(right);
+}
+
+function normalizePathForCompare(value: string): string {
+  const resolved = path.resolve(value);
+  try {
+    return fs.realpathSync.native(resolved);
+  } catch {
+    return resolved;
+  }
+}
+
+function inspectMakerOrphanProcesses(): MakerOrphanProcessCheck {
+  if (process.platform === 'win32') {
+    // The ps-based scan below is POSIX-only. Report that honestly instead of "none",
+    // because Windows is where orphan detection matters most and a false "none"
+    // misleads troubleshooting.
+    return { status: 'not_supported_on_windows', processes: [] };
+  }
+  const result = spawnSync('ps', ['-axo', 'pid,ppid,pcpu,etime,command'], {
+    encoding: 'utf8',
+  });
+  if (result.status !== 0 || typeof result.stdout !== 'string') {
+    return { status: 'check_failed', processes: [] };
+  }
+
+  const processes = result.stdout
+    .split(/\r?\n/)
+    .slice(1)
+    .map((line) => parseMakerProcessLine(line))
+    .filter((processInfo): processInfo is MakerOrphanProcess => Boolean(processInfo));
+  return { status: 'ok', processes };
+}
+
+function parseMakerProcessLine(line: string): MakerOrphanProcess | null {
+  const match = line.trim().match(/^(\d+)\s+(\d+)\s+([0-9.]+)\s+(\S+)\s+(.+)$/);
+  if (!match) {
+    return null;
+  }
+  const [, pid, ppid, cpu, elapsed, command] = match;
+  if (ppid !== '1') {
+    return null;
+  }
+  if (/\blogs\b.*\bwatch\b/.test(command)) {
+    return null;
+  }
+  if (!/\bmaker\.js\b/.test(command) && !/\btaptap-maker\b/.test(command)) {
+    return null;
+  }
+  return { pid, ppid, cpu, elapsed, command };
+}
+
+function formatMakerOrphanProcessStatus(check: MakerOrphanProcessCheck): string {
+  const lines = ['Maker orphan process check'];
+  if (check.status === 'not_supported_on_windows') {
+    return [...lines, '- orphan_processes: not_supported_on_windows'].join('\n');
+  }
+  if (check.status === 'check_failed') {
+    return [...lines, '- orphan_processes: check_failed'].join('\n');
+  }
+  if (check.processes.length === 0) {
+    return [...lines, '- orphan_processes: none'].join('\n');
+  }
+  for (const processInfo of check.processes) {
+    lines.push(
+      `- pid: ${processInfo.pid} ppid: ${processInfo.ppid} cpu: ${processInfo.cpu} elapsed: ${processInfo.elapsed}`
+    );
+    lines.push(`  command: ${processInfo.command}`);
+  }
+  lines.push('- action: safe_to_kill_orphan_maker_processes');
+  lines.push('- note: these PPID=1 Maker processes are detached from the AI client.');
+  return lines.join('\n');
 }
 
 function ensureInitPythonReady(ctx: CliContext, targetDir: string, env: MakerEnvironment): void {

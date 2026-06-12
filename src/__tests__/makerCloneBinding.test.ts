@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createDevKitGitignoreBlock, DEV_KIT_GITIGNORE_STAGING_FILE } from '../maker/cli/devKit';
-import { cloneMakerProject } from '../maker/cli/projects';
+import { cloneMakerProject, getMakerGitRetryDelayMs } from '../maker/cli/projects';
 import { saveProjectConfig } from '../maker/storage';
 
 describe('maker clone binding safety', () => {
@@ -236,9 +236,15 @@ describe('maker clone binding safety', () => {
     expect(progressMessages.join('\n')).toContain('20+ seconds');
     expect(progressMessages.join('\n')).toContain('transient 503/5xx errors are retried');
     expect(progressMessages.join('\n')).toContain('Maker server may still be preparing');
-    expect(progressMessages.join('\n')).toContain('retrying 1/2');
+    expect(progressMessages.join('\n')).toContain('retrying 1/5');
     const commands = fs.readFileSync(gitLog, 'utf8');
     expect(commands.match(/^fetch --progress --depth=1 origin$/gm)).toHaveLength(2);
+  });
+
+  test('uses a 5 second default delay for transient Maker git retries', () => {
+    delete process.env.TAPTAP_MAKER_GIT_RETRY_DELAY_MS;
+
+    expect(getMakerGitRetryDelayMs()).toBe(5_000);
   });
 
   test('continues from a recorded project config after earlier clone failure', async () => {

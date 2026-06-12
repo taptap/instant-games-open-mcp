@@ -20,6 +20,8 @@ import { LogWriter, type LogLevel } from '../core/utils/logWriter.js';
 declare const __PROXY_VERSION__: string;
 const VERSION = typeof __PROXY_VERSION__ !== 'undefined' ? __PROXY_VERSION__ : 'dev';
 const LOCAL_PROXY_TAG = 'local';
+const DEFAULT_RECONNECT_INTERVAL_MS = 5000;
+const MAX_RECONNECT_INTERVAL_MS = 60 * 1000;
 
 /**
  * TapTap MCP Proxy
@@ -40,6 +42,7 @@ export class TapTapMCPProxy {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private healthCheckTimer: NodeJS.Timeout | null = null;
   private pendingRequests: PendingRequest[] = [];
+  private reconnectDelayMs: number = DEFAULT_RECONNECT_INTERVAL_MS;
 
   // 会话验证相关
   private sessionValidated: boolean = false;
@@ -62,16 +65,17 @@ export class TapTapMCPProxy {
     this.logWriter = this.createLogWriter();
 
     // 初始化 MCP Client（连接 TapTap Server）
-    this.client = new Client(
-      { name: 'taptap-proxy-client', version: '1.0.0' },
-      { capabilities: {} }
-    );
+    this.client = this.createClient();
 
     // 初始化 MCP Server（暴露给 Agent）
     this.server = new Server(
       { name: 'taptap-proxy', version: '1.0.0' },
       { capabilities: { tools: {}, resources: {} } }
     );
+  }
+
+  private createClient(): Client {
+    return new Client({ name: 'taptap-proxy-client', version: '1.0.0' }, { capabilities: {} });
   }
 
   /**
@@ -319,6 +323,8 @@ export class TapTapMCPProxy {
       this.connected = true;
       this.sessionValidated = true;
       this.lastValidationTime = Date.now();
+      this.reconnectDelayMs =
+        this.config.options?.reconnect_interval ?? DEFAULT_RECONNECT_INTERVAL_MS;
 
       this.log('info', '✅ Connected and session validated');
 
@@ -408,6 +414,7 @@ export class TapTapMCPProxy {
         }
       }
     }, interval);
+    this.healthCheckTimer.unref?.();
 
     this.log('debug', `Health check started (interval: ${interval}ms)`);
   }
@@ -484,6 +491,7 @@ export class TapTapMCPProxy {
 
     this.reconnecting = true;
     this.clearReconnectTimer();
+    this.stopHealthCheck();
 
     // Clear cookies to retrieve new routing information
     // This ensures correct routing cookies when connecting to different Pods
@@ -497,15 +505,13 @@ export class TapTapMCPProxy {
 
     try {
       // 重连时创建新的 Client 实例（避免旧 Client 状态异常）
-      this.client = new Client(
-        { name: 'taptap-proxy-client', version: '1.0.0' },
-        { capabilities: {} }
-      );
+      await this.closeClientSafely('reconnect-old-client');
+      this.client = this.createClient();
 
       await this.connectToServer();
       this.log('info', '✅ Reconnected successfully');
     } catch (error) {
-      const interval = this.config.options?.reconnect_interval ?? 5000;
+      const interval = this.reconnectDelayMs;
       this.log('error', `❌ Reconnect failed: ${this.formatError(error)}`);
       this.log('info', `Will retry in ${interval / 1000}s...`);
       this.reconnecting = false; // 重置状态，允许下次重连
@@ -518,10 +524,17 @@ export class TapTapMCPProxy {
    */
   private scheduleReconnect(): void {
     this.clearReconnectTimer();
-    const interval = this.config.options?.reconnect_interval ?? 5000;
+    const configuredInterval =
+      this.config.options?.reconnect_interval ?? DEFAULT_RECONNECT_INTERVAL_MS;
+    const interval = this.reconnectDelayMs || configuredInterval;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectToServer();
     }, interval);
+    this.reconnectTimer.unref?.();
+    this.reconnectDelayMs = Math.min(
+      Math.max(interval * 2, configuredInterval),
+      MAX_RECONNECT_INTERVAL_MS
+    );
   }
 
   /**
@@ -552,6 +565,18 @@ export class TapTapMCPProxy {
     while (this.pendingRequests.length > 0) {
       const req = this.pendingRequests.shift()!;
       req.reject(timeout);
+    }
+    void this.closeClientSafely('cleanup');
+  }
+
+  private async closeClientSafely(source: string): Promise<void> {
+    try {
+      await this.client.close();
+    } catch (error) {
+      this.log(
+        'warning',
+        `Failed to close proxy client during ${source}: ${this.formatError(error)}`
+      );
     }
   }
 

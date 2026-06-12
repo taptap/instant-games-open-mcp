@@ -26,6 +26,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { identifyMakerProject, formatIdentifyHint } from './identify.js';
 import { HiddenStdioClientTransport } from './hiddenStdioTransport.js';
+import { closeTrackedMakerChildTransports, trackMakerChildTransport } from './childTransports.js';
+import { logLifecycleEvent } from '../lifecycle.js';
 import {
   getPatPath,
   getTapAuthPath,
@@ -273,12 +275,14 @@ async function listRemoteProxyTools(options: {
     env: options.env,
     exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
   });
-  const transport = new StdioClientTransport({
-    command: proxy.command,
-    args: proxy.args,
-    env: mergeStringEnv(process.env, proxy.envVars),
-    stderr: 'pipe',
-  });
+  const transport = trackMakerChildTransport(
+    new StdioClientTransport({
+      command: proxy.command,
+      args: proxy.args,
+      env: mergeStringEnv(process.env, proxy.envVars),
+      stderr: 'pipe',
+    })
+  );
   const client = new Client(
     {
       name: 'taptap-maker-tool-list-forwarder',
@@ -316,12 +320,14 @@ async function callRemoteProxyTool(options: {
   });
   const result = await retryMakerProxyOperation(
     async () => {
-      const transport = new StdioClientTransport({
-        command: proxy.command,
-        args: proxy.args,
-        env: mergeStringEnv(process.env, proxy.envVars),
-        stderr: 'pipe',
-      });
+      const transport = trackMakerChildTransport(
+        new StdioClientTransport({
+          command: proxy.command,
+          args: proxy.args,
+          env: mergeStringEnv(process.env, proxy.envVars),
+          stderr: 'pipe',
+        })
+      );
       const client = new Client(
         {
           name: 'taptap-maker-tool-call-forwarder',
@@ -520,6 +526,41 @@ export async function startMakerMcpServer(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  installMakerServerExitHandlers();
+}
+
+const MAKER_SERVER_SHUTDOWN_TIMEOUT_MS = 3000;
+
+function installMakerServerExitHandlers(): void {
+  let exiting = false;
+  const shutdown = async (source: string): Promise<void> => {
+    if (exiting) {
+      return;
+    }
+    exiting = true;
+    logLifecycleEvent(source, 'Maker MCP server is exiting; closing active child transports.');
+    // Shutdown must never hang: if a child transport close stalls, exit anyway so the
+    // orphan fix cannot itself leave a stuck Maker server behind.
+    const timeout = new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, MAKER_SERVER_SHUTDOWN_TIMEOUT_MS);
+      timer.unref?.();
+    });
+    await Promise.race([closeTrackedMakerChildTransports(), timeout]);
+    process.exit(0);
+  };
+
+  process.stdin.once('end', () => {
+    void shutdown('maker-server-stdin-end');
+  });
+  process.stdin.once('close', () => {
+    void shutdown('maker-server-stdin-close');
+  });
+  process.once('SIGINT', () => {
+    void shutdown('maker-server-sigint');
+  });
+  process.once('SIGTERM', () => {
+    void shutdown('maker-server-sigterm');
+  });
 }
 
 async function formatStatus(
@@ -1553,12 +1594,14 @@ async function runRemoteBuildCurrentDirectory(
 
   const result = await retryMakerProxyOperation(
     async () => {
-      const transport = new StdioClientTransport({
-        command: proxy.command,
-        args: proxy.args,
-        env: mergeStringEnv(process.env, proxy.envVars),
-        stderr: 'pipe',
-      });
+      const transport = trackMakerChildTransport(
+        new StdioClientTransport({
+          command: proxy.command,
+          args: proxy.args,
+          env: mergeStringEnv(process.env, proxy.envVars),
+          stderr: 'pipe',
+        })
+      );
       const client = new Client(
         {
           name: 'taptap-maker-build-forwarder',
@@ -2061,12 +2104,14 @@ export function createRemoteRuntimeLogClient(
   const createTransport =
     options.createTransport ||
     (() =>
-      new HiddenStdioClientTransport({
-        command: proxy.command,
-        args: proxy.args,
-        env: mergeStringEnv(process.env, proxy.envVars),
-        stderr: 'pipe',
-      }));
+      trackMakerChildTransport(
+        new HiddenStdioClientTransport({
+          command: proxy.command,
+          args: proxy.args,
+          env: mergeStringEnv(process.env, proxy.envVars),
+          stderr: 'pipe',
+        })
+      ));
   const createClient =
     options.createClient ||
     (() =>

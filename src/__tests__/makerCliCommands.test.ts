@@ -1279,6 +1279,80 @@ describe('Maker CLI commands', () => {
     expect(output).not.toContain('- next_auth_step: taptap-maker login');
   });
 
+  test('doctor hints to refresh the AI client when Maker tools are missing', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      project_name: 'App One',
+      user_id: 'user-1',
+      env: 'rnd',
+    });
+
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Maker MCP tools availability');
+    expect(output).toContain('- tools_visibility: refresh_ai_client_if_missing');
+    expect(output).toContain('Restart the AI client or open a new AI conversation');
+  });
+
+  test('doctor warns when the AI pwd differs from the Maker project directory', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      project_name: 'App One',
+      user_id: 'user-1',
+      env: 'rnd',
+    });
+
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Maker MCP tools availability');
+    expect(output).toContain('- pwd_alignment: cwd_mismatch');
+    expect(output).toContain(`- maker_project_dir: ${tempDir}`);
+    expect(output).toContain(`- ai_pwd: ${process.cwd()}`);
+    expect(output).toContain('Run the AI client from the Maker project directory');
+  });
+
+  test('doctor reports orphan maker proxy processes', async () => {
+    spawnSyncMock.mockImplementation((command, args) => {
+      if (command === 'ps' && Array.isArray(args) && args.includes('-axo')) {
+        return {
+          status: 0,
+          stdout: [
+            '  PID  PPID  %CPU     ELAPSED COMMAND',
+            '12345     1  46.0  6-01:02:03 node dist/maker.js __maker-proxy',
+            '22345     1   0.1     01:02:03 taptap-maker logs watch --target-dir /tmp/game',
+          ].join('\n'),
+          stderr: '',
+        } as ReturnType<typeof spawnSync>;
+      }
+      return { status: 0, stdout: 'help output', stderr: '' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Maker orphan process check');
+    expect(output).toContain('- pid: 12345 ppid: 1 cpu: 46.0 elapsed: 6-01:02:03');
+    expect(output).not.toContain('22345');
+    expect(output).toContain('- action: safe_to_kill_orphan_maker_processes');
+  });
+
+  test('doctor reports check_failed when the process scan cannot run', async () => {
+    spawnSyncMock.mockImplementation((command, args) => {
+      if (command === 'ps' && Array.isArray(args) && args.includes('-axo')) {
+        return { status: 1, stdout: '', stderr: 'ps failed' } as ReturnType<typeof spawnSync>;
+      }
+      return { status: 0, stdout: 'help output', stderr: '' } as ReturnType<typeof spawnSync>;
+    });
+
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Maker orphan process check');
+    expect(output).toContain('- orphan_processes: check_failed');
+  });
+
   test('init selection index follows the recently active display order', async () => {
     jest.mocked(listMakerProjects).mockResolvedValueOnce([
       {

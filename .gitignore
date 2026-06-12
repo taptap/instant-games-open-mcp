@@ -91,6 +91,9 @@ web_modules/
 # Optional eslint cache
 .eslintcache
 
+# Local AI development documents
+.ai-dev-docs/
+
 # Optional stylelint cache
 .stylelintcache
 
