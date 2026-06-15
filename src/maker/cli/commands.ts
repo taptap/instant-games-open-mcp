@@ -33,7 +33,12 @@ import {
   stopExistingRuntimeLogWatcher,
 } from '../server/mcp.js';
 import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeLogs.js';
-import { cloneMakerProject, listMakerProjects, type MakerProjectProgress } from './projects.js';
+import {
+  cloneMakerProject,
+  createMakerProject,
+  listMakerProjects,
+  type MakerProjectProgress,
+} from './projects.js';
 import type { MakerProjectSummary } from '../types.js';
 import {
   checkAiDevKitUpdate,
@@ -75,6 +80,7 @@ const BOOLEAN_OPTIONS = new Set([
   'pat_from_stdin',
   'reset',
   'all',
+  'create',
   'h',
   'help',
 ]);
@@ -285,6 +291,7 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   });
   const selected = await resolveProjectSelection(parsed, projects, {
     existingProjectConfig,
+    pat,
     skipConfirm,
   });
   emit(ctx, 'app', 'Maker app selected', {
@@ -1180,10 +1187,20 @@ async function resolveProjectSelection(
   projects: MakerProjectSummary[],
   options: {
     existingProjectConfig?: { project_id?: string; user_id?: string; sce_endpoint?: string } | null;
+    pat: string;
     skipConfirm: boolean;
   }
 ): Promise<MakerProjectSummary> {
   const appId = stringOption(parsed, 'app_id') || parsed.positionals[0];
+  const createNewProject = booleanOption(parsed, 'create');
+  if (createNewProject && appId) {
+    throw new Error('Cannot use --create together with --app-id or a positional app id.');
+  }
+
+  if (createNewProject) {
+    return createProjectFromInit(parsed, options);
+  }
+
   if (appId) {
     return projects.find((project) => project.id === appId) || { id: appId };
   }
@@ -1200,7 +1217,11 @@ async function resolveProjectSelection(
   }
 
   if (projects.length === 0) {
-    throw new Error('No Maker apps found for this PAT.');
+    if (options.skipConfirm) {
+      throw new Error('No Maker apps found for this PAT. Use --create --name to create one.');
+    }
+    process.stdout.write(`${formatMakerProjectList(projects)}\n`);
+    return createProjectFromInit(parsed, options);
   }
 
   if (options.skipConfirm) {
@@ -1211,7 +1232,7 @@ async function resolveProjectSelection(
   let showAll = orderedProjects.length <= MAKER_PROJECT_DEFAULT_TEXT_LIMIT;
   for (;;) {
     process.stdout.write(`${formatMakerProjectList(orderedProjects, { showAll })}\n`);
-    const answer = await promptRequired("Choose app by index, app_id, or 'all' to show all");
+    const answer = await promptRequired("Choose app by index, app_id, 'new', or 'all' to show all");
     const normalized = answer.trim().toLowerCase();
     if (['a', 'all'].includes(normalized)) {
       if (showAll) {
@@ -1220,6 +1241,9 @@ async function resolveProjectSelection(
         showAll = true;
       }
       continue;
+    }
+    if (['0', 'n', 'new', 'create'].includes(normalized)) {
+      return createProjectFromInit(parsed, options);
     }
 
     const visibleCount = showAll
@@ -1235,6 +1259,39 @@ async function resolveProjectSelection(
     }
     return selected;
   }
+}
+
+async function createProjectFromInit(
+  parsed: ParsedArgs,
+  options: {
+    existingProjectConfig?: { project_id?: string; user_id?: string; sce_endpoint?: string } | null;
+    pat: string;
+    skipConfirm: boolean;
+  }
+): Promise<MakerProjectSummary> {
+  const existingProjectId = options.existingProjectConfig?.project_id;
+  if (existingProjectId) {
+    throw new Error(
+      [
+        `Current directory is already bound to Maker project ${existingProjectId}.`,
+        'A Maker workspace directory can only be bound to one project at a time.',
+        'Please create/open a new empty directory before creating a new Maker project.',
+      ].join('\n')
+    );
+  }
+
+  const name = stringOption(parsed, 'name') || stringOption(parsed, 'project_name');
+  if (!name && options.skipConfirm) {
+    throw new Error('Missing --name in non-interactive create mode.');
+  }
+  const projectName = name || (await promptRequired('Enter new Maker project name'));
+  return createMakerProject({
+    name: projectName,
+    gameType: 'sce',
+    pat: options.pat,
+  }).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
+  });
 }
 
 function ensureInitTargetCanRecordProject(
@@ -1730,7 +1787,7 @@ export function formatMakerProjectList(
   options: MakerProjectListFormatOptions = {}
 ): string {
   if (projects.length === 0) {
-    return 'No Maker apps found.';
+    return ['No Maker apps found.', '', '0. Create a new Maker project'].join('\n');
   }
   const sortedProjects = sortProjectsByRecentActivity(projects);
   const showAll = options.showAll === true;
@@ -1745,6 +1802,8 @@ export function formatMakerProjectList(
       : `Showing all ${visibleProjects.length} Maker apps, sorted by last activity.`,
     '',
     ...visibleProjects.map((project, index) => formatProjectListItem(project, index)),
+    '',
+    '0. Create a new Maker project',
   ]
     .filter((line) => line !== '')
     .join('\n');
@@ -1930,6 +1989,7 @@ function printHelp(): void {
       'Usage:',
       '  taptap-maker                         Start MCP server mode',
       '  taptap-maker init [--env rnd|production] [--app-id ID] [--target-dir DIR] [--pat PAT]',
+      '                     [--create --name NAME]',
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
       '                     [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',

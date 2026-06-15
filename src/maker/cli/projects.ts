@@ -25,6 +25,12 @@ export interface CloneMakerProjectOptions {
   onProgress?: MakerProjectProgressHandler;
 }
 
+export interface CreateMakerProjectOptions {
+  name: string;
+  gameType?: string;
+  pat: string;
+}
+
 export interface CloneMakerProjectResult {
   appId: string;
   targetDir: string;
@@ -270,6 +276,40 @@ export async function listMakerProjects(options?: {
   }
 
   return normalizeProjectsResponse(json);
+}
+
+export async function createMakerProject(
+  options: CreateMakerProjectOptions
+): Promise<MakerProjectSummary> {
+  const name = options.name.trim();
+  if (!name) {
+    throw new Error('Maker project name is required.');
+  }
+
+  const response = await fetch(`${getMakerApiBase()}/apps`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${options.pat}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name,
+      gameType: options.gameType || 'sce',
+    }),
+  });
+  const json = (await response.json()) as unknown;
+  if (!response.ok) {
+    throw new Error(`Maker project create failed: HTTP ${response.status} ${JSON.stringify(json)}`);
+  }
+
+  const body = json as Record<string, unknown>;
+  const projects = normalizeProjectsResponse(body.app ? { apps: [body.app] } : json);
+  const project = projects[0];
+  if (!project?.id) {
+    throw new Error(`Maker project create returned no app id: ${JSON.stringify(json)}`);
+  }
+  return project;
 }
 
 export async function cloneMakerProject(

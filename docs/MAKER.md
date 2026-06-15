@@ -15,7 +15,8 @@
 - MCP server 暴露固定运行期业务流：`maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；远端 proxy tools 默认隐藏，仅白名单公开
   `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
-  `query_video_task` 和 `text_to_music` 试用图片/视频/音乐生成链路。
+  `query_video_task`、`text_to_music`、`create_3d_model_task` 和 `query_3d_model_task`
+  试用图片/视频/音乐/3D 模型生成链路。
 - `maker_build_current_directory` 是用户感知里的提交/推送/远端构建入口；push 失败时会停止在构建前，让本地 Agent 处理冲突或合并。
 - 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。
@@ -133,7 +134,9 @@ clone maker游戏
 触发后不要要求用户直接提供 app_id。`taptap-maker init` 会先检查 Git 和 Python 环境；
 如果 Python 环境未就绪，会自动尝试准备 3 次。3 次都失败时初始化会暂停，后续 PAT、
 app 列表、clone 和 MCP 配置不会继续执行。Python 修复后重新运行 `taptap-maker init`
-即可继续。Python 检查通过后，CLI 获取 PAT、自动获取 TapTap token 并列出 app，让用户从列表中选择，然后 clone 项目、准备 dev-kit，并按客户端写入 MCP 配置。
+即可继续。Python 检查通过后，CLI 获取 PAT、自动获取 TapTap token 并列出 app，让用户从列表中选择；
+列表底部固定显示 `0. Create a new Maker project`，输入 `0` 或 `new` 可创建新项目。选择或创建完成后，
+CLI 会 clone 项目、准备 dev-kit，并按客户端写入 MCP 配置。
 
 ```text
 taptap-maker init
@@ -141,6 +144,7 @@ taptap-maker init
 Python 未就绪时自动准备，失败最多重试 2 次
 检查 PAT / TapTap token
 列出 app 并让用户选择
+或创建新 Maker 项目
 clone Maker 项目
 准备 AI dev-kit
 写入 Codex / Cursor / Claude MCP 配置
@@ -149,7 +153,7 @@ taptap-maker doctor
 
 CLI 命令：
 
-- `taptap-maker init`：一站式初始化当前目录。
+- `taptap-maker init`：一站式初始化当前目录，可选择已有 app 或创建新 Maker 项目。
 - `taptap-maker doctor`：检查 Git、PAT、TapTap token、项目绑定、dev-kit 版本、MCP tools
   可见性和 MCP 配置状态。
 - `taptap-maker apps`：列出当前 PAT 可访问的 Maker app。
@@ -490,9 +494,9 @@ maker_build_current_directory()
 
 远端 proxy 配置默认是 Maker 本地 MCP 的内部能力，不作为普通 Agent tool 全量暴露。
 当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
-`query_video_task` 和 `text_to_music` 作为白名单公开；本地 MCP 保留远端 tools 的 input
-schema、参数和成功返回值，但会在 description 中追加 Maker 素材链路提示，提醒 AI/Agent
-优先建议用户使用 Maker tools。
+`query_video_task`、`text_to_music`、`create_3d_model_task` 和 `query_3d_model_task` 作为
+白名单公开；本地 MCP 保留远端 tools 的 input schema、参数和成功返回值，但会在 description
+中追加 Maker 素材链路提示，提醒 AI/Agent 优先建议用户使用 Maker tools。
 内部配置内容等价于测试脚本中的：
 
 本地 Maker MCP 会对生成类 tools 做客户端素材落地，并把本地生成素材到远端 URL 的映射记录到
@@ -504,6 +508,13 @@ schema、参数和成功返回值，但会在 description 中追加 Maker 素材
 但能解析到本地文件，`generate_image` / `batch_generate_images` 的参考图、`edit_image` 的输入图
 和参考图，以及 `create_video_task` 的参考图片/视频/音频会被改写成标准 data URL。其他支持的输入
 形态以远端 tool schema 为准。
+`create_3d_model_task` 的 Phase 1 四视图预览会下载到 `assets/image/`，最终结果中的 MDL
+zip 会下载到 `assets/model/`，渲染预览图会下载到 `assets/image/`；`model_cdn_url` 指向的
+Tripo 原始 GLB 只记录到素材映射中，默认不下载。`edit_image`、`create_video_task` 和
+`create_3d_model_task` 调用前会基于映射，把本地新生成素材路径改写为 CDN URL。
+对于 `edit_image`，AI/Agent 调用前应先解析用户提供的图片：拖入/附件图片优先取客户端暴露的本地
+文件路径，`assets/image/...` 直接传项目素材路径，只给文件名时先搜索 `assets/image`，无法确认图片
+路径或 CDN URL 时应停下来说明缺少参数。
 
 已绑定 Maker 项目里，AI/Agent 应优先建议使用这些 Maker MCP proxy tools 生成或修改游戏素材。
 如果当前会话未暴露这些 Maker proxy tools，AI/Agent 应说明工具未暴露。
@@ -611,10 +622,15 @@ CLI 会按需打开当前环境的 `/pat-tokens?code=<code>`，并轮询
 兼容入口 `taptap-maker pat set --pat-stdin`、`taptap-maker pat set <PAT>` 和 `--pat PAT`
 仅用于 CI 或应急联调；普通本地流程不要引导用户手动复制 PAT。
 APP_ID 不应要求用户手动输入，而是通过 `taptap-maker init` 或 `taptap-maker apps` 返回的
-app 预览让用户选择。
+app 预览让用户选择。需要创建新项目时，仍使用 `taptap-maker init`：交互列表底部会固定显示
+`0. Create a new Maker project`，输入 `0` 或 `new` 后填写项目名称；非交互联调可运行
+`taptap-maker init --create --name "my-local-game"`，CLI 会向 Maker API 创建 `gameType=sce` 的项目。
+当前目录已经绑定 Maker 项目时，不允许在同一目录创建并覆盖绑定；请切换到一个新的独立目录再运行
+`taptap-maker init`。
 
 CLI app 列表行为：账号 app 很多时，文本输出默认按最近活跃排序展示前 40 个和总数。
-`taptap-maker init` 交互中输入 `all` 一次性展开全部 app 再选择；命令行单独查看时使用
+`taptap-maker init` 交互中输入 `all` 一次性展开全部 app 再选择；创建新项目入口
+`0. Create a new Maker project` 不参与裁剪，始终在列表底部显示。命令行单独查看时使用
 `taptap-maker apps --all` 直接列出全部。普通文本列表只展示名称、id 和最后活跃时间，
 便于人类阅读；完整机器可读字段使用 `taptap-maker apps --json`，给 AI / 脚本解析。
 
