@@ -63,6 +63,7 @@ function printHelp(): void {
       'Usage:',
       '  taptap-maker                         Start MCP server mode',
       '  taptap-maker init [--env rnd|production] [--app-id ID] [--target-dir DIR] [--pat PAT]',
+      '                     [--create --name NAME]',
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
       '                     [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
