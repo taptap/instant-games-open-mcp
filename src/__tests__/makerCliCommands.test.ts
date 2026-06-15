@@ -70,6 +70,13 @@ jest.mock('../maker/auth/cliLogin', () => ({
 }));
 
 jest.mock('../maker/cli/projects', () => ({
+  createMakerProject: jest.fn(async () => ({
+    id: 'created-app',
+    name: 'Created App',
+    user_id: 'created-user',
+    gameType: 'sce',
+    stage: 'plan',
+  })),
   cloneMakerProject: jest.fn(async (options) => ({
     targetDir: options.targetDir,
     appId: options.appId,
@@ -500,6 +507,70 @@ describe('Maker CLI commands', () => {
         targetDir: tempDir,
       })
     );
+  });
+
+  test('init can create a new Maker project before cloning', async () => {
+    const createMakerProject = jest.requireMock('../maker/cli/projects')
+      .createMakerProject as jest.Mock;
+
+    await runMakerCli([
+      'init',
+      '--create',
+      '--name',
+      'My Local Game',
+      '--target-dir',
+      tempDir,
+      '--skip-confirm',
+      '--skip-mcp-install',
+      '--pat',
+      'valid-maker-token',
+    ]);
+
+    expect(createMakerProject).toHaveBeenCalledWith({
+      name: 'My Local Game',
+      gameType: 'sce',
+      pat: 'valid-maker-token',
+    });
+    expect(cloneMakerProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appId: 'created-app',
+        targetDir: tempDir,
+        userId: 'created-user',
+      })
+    );
+    expect(loadProjectConfig(tempDir)).toEqual(
+      expect.objectContaining({
+        project_id: 'created-app',
+        user_id: 'created-user',
+      })
+    );
+  });
+
+  test('init refuses to create a new Maker project in an already-bound directory', async () => {
+    const createMakerProject = jest.requireMock('../maker/cli/projects')
+      .createMakerProject as jest.Mock;
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+    });
+
+    await expect(
+      runMakerCli([
+        'init',
+        '--create',
+        '--name',
+        'Another Game',
+        '--target-dir',
+        tempDir,
+        '--skip-confirm',
+        '--skip-mcp-install',
+        '--pat',
+        'valid-maker-token',
+      ])
+    ).rejects.toThrow('already bound to Maker project app-1');
+
+    expect(createMakerProject).not.toHaveBeenCalled();
+    expect(cloneMakerProject).not.toHaveBeenCalled();
   });
 
   test('init warns when PAT is passed with --pat', async () => {

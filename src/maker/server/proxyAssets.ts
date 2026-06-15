@@ -5,12 +5,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { extractZip } from '../cli/devKit.js';
 
 type RemoteProxyToolResult = Awaited<ReturnType<Client['callTool']>>;
 type RemoteProxyFetch = typeof fetch;
 const IMAGE_ASSET_DIRS = ['assets/image'];
 const VIDEO_ASSET_DIRS = ['assets/video'];
 const AUDIO_ASSET_DIRS = ['assets/audio'];
+const MODEL_ASSET_DIRS = ['assets/model'];
+const THREE_D_MODEL_VIEWS = ['front', 'left', 'back', 'right'] as const;
 const IMAGE_REFERENCE_MAX_BYTES = 10 * 1024 * 1024;
 const VIDEO_TASK_IMAGE_REFERENCE_MAX_BYTES = 30 * 1024 * 1024;
 const VIDEO_REFERENCE_MAX_BYTES = 50 * 1024 * 1024;
@@ -70,6 +73,9 @@ export function prepareRemoteProxyToolArgs(options: {
   }
   if (options.toolName === 'create_video_task') {
     return rewriteVideoReferenceAssetArgs(options.targetDir, options.args);
+  }
+  if (options.toolName === 'create_3d_model_task') {
+    return rewrite3dModelAssetArgs(options.targetDir, options.args);
   }
   return options.args;
 }
@@ -140,6 +146,8 @@ function shouldMaterializeRemoteProxyTool(toolName: string): boolean {
     'create_video_task',
     'query_video_task',
     'text_to_music',
+    'create_3d_model_task',
+    'query_3d_model_task',
   ].includes(toolName);
 }
 
@@ -207,6 +215,9 @@ async function materializeParsedProxyResult(options: {
   }
   if (options.toolName === 'text_to_music') {
     return await materializeMusicResult(options);
+  }
+  if (options.toolName === 'create_3d_model_task' || options.toolName === 'query_3d_model_task') {
+    return await materialize3dModelResult(options, options.toolName);
   }
   return options.payload;
 }
@@ -436,6 +447,193 @@ async function materializeMusicResult(options: {
     : options.payload;
 }
 
+async function materialize3dModelResult(
+  options: {
+    targetDir: string;
+    payload: Record<string, unknown>;
+    now: Date;
+    fetchImpl: RemoteProxyFetch;
+  },
+  toolName: 'create_3d_model_task' | 'query_3d_model_task'
+): Promise<Record<string, unknown>> {
+  if (options.payload.phase === 1) {
+    return await materialize3dPreviewResult(options);
+  }
+  return await materialize3dFinalResult(options, toolName);
+}
+
+async function materialize3dPreviewResult(options: {
+  targetDir: string;
+  payload: Record<string, unknown>;
+  now: Date;
+  fetchImpl: RemoteProxyFetch;
+}): Promise<Record<string, unknown>> {
+  if (!isRecord(options.payload.preview_urls)) {
+    return options.payload;
+  }
+
+  let changed = false;
+  const previewAssets: Record<string, unknown> = {};
+  const taskId = get3dTaskId(options.payload);
+  const mode = stringField(options.payload.mode);
+
+  for (const view of THREE_D_MODEL_VIEWS) {
+    const url = stringField(options.payload.preview_urls[view]);
+    const materialized = await materializeAsset({
+      targetDir: options.targetDir,
+      url,
+      baseName: `${taskId || '3d_model'}_${view}`,
+      relativeDir: 'assets/image',
+      extension: extensionFromUrl(url) || 'png',
+      now: options.now,
+      fetchImpl: options.fetchImpl,
+    });
+    if (!materialized) {
+      continue;
+    }
+
+    changed = true;
+    previewAssets[view] = { ...materialized, cdnUrl: url };
+    if ('localPath' in materialized && url) {
+      upsertGeneratedAssetRecord(options.targetDir, materialized.localPath, {
+        tool: 'create_3d_model_task',
+        name: `${taskId || '3d_model'}_${view}`,
+        cdnUrl: url,
+        previewUrl: url,
+        localPath: materialized.localPath,
+        absolutePath: materialized.absolutePath,
+        createdAt: options.now.toISOString(),
+        taskId,
+        mode,
+        phase: 1,
+        view,
+      });
+    }
+  }
+
+  return {
+    ...options.payload,
+    ...(changed ? { preview_assets: previewAssets } : {}),
+    ...create3dPreviewReviewGuidance(),
+  };
+}
+
+function create3dPreviewReviewGuidance(): Record<string, unknown> {
+  return {
+    workflow_state: 'awaiting_user_review',
+    user_review_required: true,
+    next_action:
+      'Show the four-view previews to the user and ask whether they approve them or want changes.',
+    approval_next_step:
+      'If the user approves, continue the original 3D model generation flow by calling create_3d_model_task again with the approved four-view images.',
+    revision_next_step:
+      'If the user requests changes, call create_3d_model_task again with the requested changes to regenerate the four-view previews before model generation.',
+    agent_instruction:
+      'Do not stop after phase 1. The 3D model is not complete until the user approves the four-view previews and final model generation finishes.',
+  };
+}
+
+async function materialize3dFinalResult(
+  options: {
+    targetDir: string;
+    payload: Record<string, unknown>;
+    now: Date;
+    fetchImpl: RemoteProxyFetch;
+  },
+  toolName: 'create_3d_model_task' | 'query_3d_model_task'
+): Promise<Record<string, unknown>> {
+  if (options.payload.status !== 'success') {
+    return options.payload;
+  }
+
+  let changed = false;
+  const nextPayload: Record<string, unknown> = { ...options.payload };
+  const taskId = get3dTaskId(options.payload);
+  const modelCdnUrl = stringField(options.payload.model_cdn_url);
+  const renderedImageUrl = stringField(options.payload.rendered_image_url);
+  const mdlConversionError = stringField(options.payload.mdl_conversion_error);
+
+  const mdlUrl = stringField(options.payload.mdl_cdn_url);
+  const mdlMaterialized = await materializeAsset({
+    targetDir: options.targetDir,
+    url: mdlUrl,
+    baseName: taskId || '3d_model',
+    relativeDir: MODEL_ASSET_DIRS[0],
+    extension: extensionFromUrl(mdlUrl) || 'zip',
+    now: options.now,
+    fetchImpl: options.fetchImpl,
+  });
+  if (mdlMaterialized) {
+    changed = true;
+    nextPayload.mdlDownload = mdlMaterialized.download;
+    if ('localPath' in mdlMaterialized) {
+      nextPayload.mdlLocalPath = mdlMaterialized.localPath;
+      nextPayload.mdlAbsolutePath = mdlMaterialized.absolutePath;
+      extractZip(
+        mdlMaterialized.absolutePath,
+        path.join(options.targetDir, 'assets'),
+        '3D model asset'
+      );
+      nextPayload.mdlExtracted = true;
+      nextPayload.mdlExtractedTo = 'assets';
+      if (mdlUrl) {
+        upsertGeneratedAssetRecord(options.targetDir, mdlMaterialized.localPath, {
+          tool: toolName,
+          name: taskId,
+          cdnUrl: mdlUrl,
+          previewUrl: renderedImageUrl || mdlUrl,
+          localPath: mdlMaterialized.localPath,
+          absolutePath: mdlMaterialized.absolutePath,
+          createdAt: options.now.toISOString(),
+          taskId,
+          modelCdnUrl,
+          renderedImageUrl,
+          mdlConversionError,
+        });
+      }
+    }
+  }
+
+  const renderedImageMaterialized = await materializeAsset({
+    targetDir: options.targetDir,
+    url: renderedImageUrl,
+    baseName: `${taskId || '3d_model'}_render`,
+    relativeDir: 'assets/image',
+    extension: extensionFromUrl(renderedImageUrl) || 'png',
+    now: options.now,
+    fetchImpl: options.fetchImpl,
+  });
+  if (renderedImageMaterialized) {
+    changed = true;
+    nextPayload.renderedImageDownload = renderedImageMaterialized.download;
+    if ('localPath' in renderedImageMaterialized) {
+      nextPayload.renderedImageLocalPath = renderedImageMaterialized.localPath;
+      nextPayload.renderedImageAbsolutePath = renderedImageMaterialized.absolutePath;
+      if (renderedImageUrl) {
+        upsertGeneratedAssetRecord(options.targetDir, renderedImageMaterialized.localPath, {
+          tool: toolName,
+          name: `${taskId || '3d_model'}_render`,
+          cdnUrl: renderedImageUrl,
+          previewUrl: renderedImageUrl,
+          localPath: renderedImageMaterialized.localPath,
+          absolutePath: renderedImageMaterialized.absolutePath,
+          createdAt: options.now.toISOString(),
+          taskId,
+          modelCdnUrl,
+          renderedImageUrl,
+          mdlConversionError,
+        });
+      }
+    }
+  }
+
+  return changed ? nextPayload : options.payload;
+}
+
+function get3dTaskId(payload: Record<string, unknown>): string | undefined {
+  return stringField(payload.task_id) || stringField(payload.taskId);
+}
+
 function persistMaterializedAsset(options: {
   targetDir: string;
   toolName: string;
@@ -555,6 +753,12 @@ type GeneratedAssetRegistry = Record<
     absolutePath?: string;
     createdAt?: string;
     taskId?: string;
+    mode?: string;
+    phase?: number;
+    view?: string;
+    modelCdnUrl?: string;
+    renderedImageUrl?: string;
+    mdlConversionError?: string;
   }
 >;
 
@@ -648,6 +852,64 @@ function rewriteVideoReferenceAssetArgs(
       mediaKind: 'audio',
       maxBytes: AUDIO_REFERENCE_MAX_BYTES,
     }),
+  };
+}
+
+function rewrite3dModelAssetArgs(
+  targetDir: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const registry = readGeneratedAssetRegistry(targetDir);
+  return {
+    ...args,
+    image: rewriteGeneratedAssetReference(targetDir, args.image, registry, IMAGE_ASSET_DIRS),
+    front_image: rewriteGeneratedAssetReference(
+      targetDir,
+      args.front_image,
+      registry,
+      IMAGE_ASSET_DIRS
+    ),
+    left_image: rewriteGeneratedAssetReference(
+      targetDir,
+      args.left_image,
+      registry,
+      IMAGE_ASSET_DIRS
+    ),
+    back_image: rewriteGeneratedAssetReference(
+      targetDir,
+      args.back_image,
+      registry,
+      IMAGE_ASSET_DIRS
+    ),
+    right_image: rewriteGeneratedAssetReference(
+      targetDir,
+      args.right_image,
+      registry,
+      IMAGE_ASSET_DIRS
+    ),
+    confirmed_image_paths: rewrite3dConfirmedImagePaths(
+      targetDir,
+      args.confirmed_image_paths,
+      registry
+    ),
+  };
+}
+
+function rewrite3dConfirmedImagePaths(
+  targetDir: string,
+  value: unknown,
+  registry: GeneratedAssetRegistry
+): unknown {
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return {
+    ...value,
+    front: rewriteGeneratedAssetReference(targetDir, value.front, registry, IMAGE_ASSET_DIRS),
+    left: rewriteGeneratedAssetReference(targetDir, value.left, registry, IMAGE_ASSET_DIRS),
+    back: rewriteGeneratedAssetReference(targetDir, value.back, registry, IMAGE_ASSET_DIRS),
+    right: rewriteGeneratedAssetReference(targetDir, value.right, registry, IMAGE_ASSET_DIRS),
   };
 }
 

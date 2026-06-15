@@ -506,6 +506,8 @@ function createMakerAssetPolicyBlock(): string {
     '- `create_video_task` for game video assets or referenced image/video generation.',
     '- `query_video_task` for refreshing video task status and fetching completed videos.',
     '- `text_to_music` for game music or audio assets.',
+    '- `create_3d_model_task` for game 3D model assets.',
+    '- `query_3d_model_task` for polling 3D model tasks.',
     '',
     'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs.',
     'If the user references attached/local media, inspect the attachment or workspace file path',
@@ -518,8 +520,10 @@ function createMakerAssetPolicyBlock(): string {
     'local path, remote URL, or data URL input.',
     '',
     'Generated Maker proxy assets should stay in the Maker project asset workflow under',
-    '`assets/image`, `assets/video`, or `assets/audio`, with remote mappings preserved for later',
-    'edits and builds.',
+    '`assets/image`, `assets/video`, `assets/audio`, or `assets/model`, with remote mappings',
+    'preserved for later edits and builds.',
+    '3D model results save MDL zip files, extracted MDL assets, and rendered preview images when',
+    'those URLs are returned.',
     '',
     MAKER_ASSET_POLICY_END,
   ].join('\n');
@@ -790,7 +794,7 @@ async function downloadAndExtractDevKit(
   return tempDir;
 }
 
-export function extractZip(zipPath: string, targetDir: string): void {
+export function extractZip(zipPath: string, targetDir: string, label = 'AI dev kit'): void {
   if (process.platform === 'win32') {
     const result = spawnSync(
       'powershell.exe',
@@ -807,12 +811,12 @@ export function extractZip(zipPath: string, targetDir: string): void {
       { encoding: 'utf8' }
     );
     if (result.status !== 0) {
-      throw new Error(`Failed to extract AI dev kit zip: ${formatSpawnFailure(result)}`);
+      throw new Error(`Failed to extract ${label} zip: ${formatSpawnFailure(result)}`);
     }
     return;
   }
 
-  const unzipResult = spawnSync('unzip', ['-q', zipPath, '-d', targetDir], { encoding: 'utf8' });
+  const unzipResult = spawnSync('unzip', ['-oq', zipPath, '-d', targetDir], { encoding: 'utf8' });
   if (unzipResult.status === 0) {
     return;
   }
@@ -832,7 +836,7 @@ export function extractZip(zipPath: string, targetDir: string): void {
 
   throw new Error(
     [
-      `Failed to extract AI dev kit zip: unzip: ${formatSpawnFailure(unzipResult)}`,
+      `Failed to extract ${label} zip: unzip: ${formatSpawnFailure(unzipResult)}`,
       ...pythonFailures,
     ].join('; ')
   );
