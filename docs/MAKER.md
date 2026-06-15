@@ -133,7 +133,9 @@ clone maker游戏
 触发后不要要求用户直接提供 app_id。`taptap-maker init` 会先检查 Git 和 Python 环境；
 如果 Python 环境未就绪，会自动尝试准备 3 次。3 次都失败时初始化会暂停，后续 PAT、
 app 列表、clone 和 MCP 配置不会继续执行。Python 修复后重新运行 `taptap-maker init`
-即可继续。Python 检查通过后，CLI 获取 PAT、自动获取 TapTap token 并列出 app，让用户从列表中选择，然后 clone 项目、准备 dev-kit，并按客户端写入 MCP 配置。
+即可继续。Python 检查通过后，CLI 获取 PAT、自动获取 TapTap token 并列出 app，让用户从列表中选择；
+列表底部固定显示 `0. Create a new Maker project`，输入 `0` 或 `new` 可创建新项目。选择或创建完成后，
+CLI 会 clone 项目、准备 dev-kit，并按客户端写入 MCP 配置。
 
 ```text
 taptap-maker init
@@ -141,6 +143,7 @@ taptap-maker init
 Python 未就绪时自动准备，失败最多重试 2 次
 检查 PAT / TapTap token
 列出 app 并让用户选择
+或创建新 Maker 项目
 clone Maker 项目
 准备 AI dev-kit
 写入 Codex / Cursor / Claude MCP 配置
@@ -149,7 +152,7 @@ taptap-maker doctor
 
 CLI 命令：
 
-- `taptap-maker init`：一站式初始化当前目录。
+- `taptap-maker init`：一站式初始化当前目录，可选择已有 app 或创建新 Maker 项目。
 - `taptap-maker doctor`：检查 Git、PAT、TapTap token、项目绑定、dev-kit 版本、MCP tools
   可见性和 MCP 配置状态。
 - `taptap-maker apps`：列出当前 PAT 可访问的 Maker app。
@@ -612,10 +615,15 @@ CLI 会按需打开当前环境的 `/pat-tokens?code=<code>`，并轮询
 兼容入口 `taptap-maker pat set --pat-stdin`、`taptap-maker pat set <PAT>` 和 `--pat PAT`
 仅用于 CI 或应急联调；普通本地流程不要引导用户手动复制 PAT。
 APP_ID 不应要求用户手动输入，而是通过 `taptap-maker init` 或 `taptap-maker apps` 返回的
-app 预览让用户选择。
+app 预览让用户选择。需要创建新项目时，仍使用 `taptap-maker init`：交互列表底部会固定显示
+`0. Create a new Maker project`，输入 `0` 或 `new` 后填写项目名称；非交互联调可运行
+`taptap-maker init --create --name "my-local-game"`，CLI 会向 Maker API 创建 `gameType=sce` 的项目。
+当前目录已经绑定 Maker 项目时，不允许在同一目录创建并覆盖绑定；请切换到一个新的独立目录再运行
+`taptap-maker init`。
 
 CLI app 列表行为：账号 app 很多时，文本输出默认按最近活跃排序展示前 40 个和总数。
-`taptap-maker init` 交互中输入 `all` 一次性展开全部 app 再选择；命令行单独查看时使用
+`taptap-maker init` 交互中输入 `all` 一次性展开全部 app 再选择；创建新项目入口
+`0. Create a new Maker project` 不参与裁剪，始终在列表底部显示。命令行单独查看时使用
 `taptap-maker apps --all` 直接列出全部。普通文本列表只展示名称、id 和最后活跃时间，
 便于人类阅读；完整机器可读字段使用 `taptap-maker apps --json`，给 AI / 脚本解析。
 

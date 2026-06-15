@@ -190,8 +190,12 @@ Workflow:
    login/project clone/MCP config, then guide the user to retry `taptap-maker python setup` with
    the current AI or install Python 3.12 manually and run `taptap-maker python doctor`.
 5. Run `taptap-maker init` in the user's intended Maker directory. The CLI will request PAT if
-   missing, fetch TapTap token, show a paged app preview, ask the user to choose, prepare the AI dev
-   kit, clone the Maker project, and install/verify MCP config.
+   missing, fetch TapTap token, show a paged app preview, ask the user to choose or create a Maker
+   project, clone the Maker project, prepare the AI dev kit, and install/verify MCP config.
+   The app preview always includes `0. Create a new Maker project` at the bottom. This row must
+   remain visible when an AI summarizes or truncates a long app list. Users can choose `0`/`new`
+   and enter a project name, or use `taptap-maker init --create --name "my-local-game"` for
+   non-interactive runs.
    The generated MCP config pins the selected Maker project directory as `cwd` when the target
    client supports it. If a user manually reinstalls MCP config later, prefer
    `taptap-maker mcp install --target-dir <PROJECT_DIR>`.
@@ -287,7 +291,8 @@ a Maker project, or when the user explicitly asks to switch or re-clone.
 
 If the current directory is already bound, app lists from `taptap-maker apps` are reference only.
 Continue operating on the current bound project. When the user explicitly requests a different
-project, start the project selection flow for that request.
+project or wants to create a new project, require a new independent directory before starting the
+project selection or creation flow.
 
 When app selection is needed, show the returned app preview and total count, then ask the user to
 choose by index, app id, or name. The default preview shows the 40 most recently active apps.
@@ -296,17 +301,21 @@ full list, or run `taptap-maker apps --all` for a one-shot human-readable dump; 
 `taptap-maker apps --json` only when AI / scripts need the machine-readable list. If the
 chat/client width is enough, you may present the preview as a compact two-column layout;
 otherwise keep a single column. Keep app_id visible in every app row, and include the preview
-details instead of only a summary such as "40 apps are available".
+details instead of only a summary such as "40 apps are available". Always preserve the final
+`0. Create a new Maker project` row, because it is the supported creation entry even when the app
+preview is cropped.
 
 Selection confirmation:
 
 - Ask the user to choose by index, app id, or name.
+- If the user wants a new project, tell them to choose `0`/`new` in `taptap-maker init` and enter a
+  project name; do not invent a project name unless the user explicitly asks the AI to name it.
 - Treat the user's explicit reply as the selected app.
 - If there is only one app, still ask for confirmation before selecting it.
 
-After the user chooses, route the next action to `taptap-maker init` so the Maker initialization
-workflow can continue with the selected app. For non-interactive CLI runs, pass the selected app id
-through the supported CLI option.
+After the user chooses or creates a project, route the next action to `taptap-maker init` so the
+Maker initialization workflow can continue. For non-interactive CLI runs, pass the selected app id
+through the supported CLI option, or use `--create --name <NAME>` for creation.
 
 ## Working Directory Compliance Check
 
@@ -320,6 +329,8 @@ After `taptap-maker doctor`, decide whether the directory is suitable for clone:
 
 - If the directory is already bound to a Maker project, do not clone again unless the user
   explicitly asks to switch or re-clone.
+- If the directory is already bound to a Maker project and the user wants a new project, stop and
+  require a new independent directory; do not create a new Maker project into the existing binding.
 - If Git is missing, stop and tell the user to install Git first.
 - If `Maker Git directory` reports `inside_parent_git_repo` or `target_is_git_root: no` with an
   outer `git_root`, explain that the directory is under another Git repository. Recommend a

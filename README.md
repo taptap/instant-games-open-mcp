@@ -52,7 +52,7 @@ npx -y @taptap/maker init
 ```
 
 CLI 负责一次性流程：Git 检查、Python 和 maker-lua-lsp 本地 Lua 诊断环境检查、CLI 登录、
-TapTap token 换取、app 列表选择、Maker Git clone、AI dev kit 准备、MCP 配置写入与基础验证。Python 环境准备连续 3 次失败时，
+TapTap token 换取、app 列表选择或新建 Maker 项目、Maker Git clone、AI dev kit 准备、MCP 配置写入与基础验证。Python 环境准备连续 3 次失败时，
 初始化会暂停在登录、项目拉取和 MCP 配置之前；修复后重新运行 `taptap-maker init`。安装或修改 MCP 配置后，Claude Code /
 Codex / Cursor 通常需要重启会话、刷新 MCP 或新开窗口才会出现新的 MCP tools；但当前终端
 里的 CLI 初始化流程可以继续完成到 PAT 鉴权和项目绑定。
@@ -68,6 +68,11 @@ taptap-maker install --ide codex,cursor,claude
 taptap-maker mcp verify
 taptap-maker dev-kit update
 ```
+
+如果需要创建新 Maker 项目，仍从 `taptap-maker init` 进入。app 列表底部会固定显示
+`0. Create a new Maker project`，输入 `0` 或 `new` 后填写项目名称；自动化场景可用
+`taptap-maker init --create --name "my-local-game"`。当前目录已绑定 Maker 项目时，不允许在同一目录
+创建并覆盖绑定；请先切到一个新的独立目录再运行 `taptap-maker init`。
 
 `taptap-maker login` 是 CLI 登录入口；它会按需打开 Maker 授权页，CLI 轮询授权结果并完成本地鉴权配置。
 `taptap-maker init` 缺 PAT 时会自动进入该流程。`taptap-maker pat set` 保留为兼容入口；
@@ -340,7 +345,7 @@ npm test
 
 ### Maker 本地开发预览
 
-Maker 本地开发现在以 CLI-first 为准。初始化、PAT、app 选择、dev-kit 和 clone 都走 CLI；MCP 只保留状态和同步构建：
+Maker 本地开发现在以 CLI-first 为准。初始化、PAT、app 选择/创建、dev-kit 和 clone 都走 CLI；MCP 只保留状态和同步构建：
 
 ```text
 taptap-maker init
@@ -356,7 +361,9 @@ maker_build_current_directory
 `taptap-maker mcp verify` 默认跑一次实际 MCP 配置使用的 npx 包命令；本地 dist 自测可用 `--mode self`。如果失败结果显示 `failure_type` 或 `status: null`，优先按本地 Node/npm/npx 启动问题处理，Maker MCP server 此时尚未启动，不要误判为 PAT 或 Maker 服务报错。
 
 测试时优先运行 `taptap-maker login`；CLI 会按需打开 Maker 授权页，授权完成后自动完成本地鉴权配置。
-当前目录未绑定时，APP_ID 应通过 `taptap-maker init` 或 `taptap-maker apps` 返回的 app 列表让用户选择；当前目录已绑定时不要再次引导 clone。
+当前目录未绑定时，APP_ID 应通过 `taptap-maker init` 或 `taptap-maker apps` 返回的 app 列表让用户选择；
+创建新项目时使用 `taptap-maker init` 列表底部的 `0. Create a new Maker project`，或运行
+`taptap-maker init --create --name "my-local-game"`；当前目录已绑定时不要再次引导 clone 或创建新项目。
 
 ```bash
 npm run build
