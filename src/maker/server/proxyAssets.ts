@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { extractZip } from '../cli/devKit.js';
 
 type RemoteProxyToolResult = Awaited<ReturnType<Client['callTool']>>;
 type RemoteProxyFetch = typeof fetch;
@@ -364,7 +365,26 @@ async function materialize3dPreviewResult(options: {
     }
   }
 
-  return changed ? { ...options.payload, preview_assets: previewAssets } : options.payload;
+  return {
+    ...options.payload,
+    ...(changed ? { preview_assets: previewAssets } : {}),
+    ...create3dPreviewReviewGuidance(),
+  };
+}
+
+function create3dPreviewReviewGuidance(): Record<string, unknown> {
+  return {
+    workflow_state: 'awaiting_user_review',
+    user_review_required: true,
+    next_action:
+      'Show the four-view previews to the user and ask whether they approve them or want changes.',
+    approval_next_step:
+      'If the user approves, continue the original 3D model generation flow by calling create_3d_model_task again with the approved four-view images.',
+    revision_next_step:
+      'If the user requests changes, call create_3d_model_task again with the requested changes to regenerate the four-view previews before model generation.',
+    agent_instruction:
+      'Do not stop after phase 1. The 3D model is not complete until the user approves the four-view previews and final model generation finishes.',
+  };
 }
 
 async function materialize3dFinalResult(
@@ -403,6 +423,13 @@ async function materialize3dFinalResult(
     if ('localPath' in mdlMaterialized) {
       nextPayload.mdlLocalPath = mdlMaterialized.localPath;
       nextPayload.mdlAbsolutePath = mdlMaterialized.absolutePath;
+      extractZip(
+        mdlMaterialized.absolutePath,
+        path.join(options.targetDir, 'assets'),
+        '3D model asset'
+      );
+      nextPayload.mdlExtracted = true;
+      nextPayload.mdlExtractedTo = 'assets';
       if (mdlUrl) {
         upsertGeneratedAssetRecord(options.targetDir, mdlMaterialized.localPath, {
           tool: toolName,

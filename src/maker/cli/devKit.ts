@@ -795,7 +795,7 @@ async function downloadAndExtractDevKit(
   return tempDir;
 }
 
-export function extractZip(zipPath: string, targetDir: string): void {
+export function extractZip(zipPath: string, targetDir: string, label = 'AI dev kit'): void {
   if (process.platform === 'win32') {
     const result = spawnSync(
       'powershell.exe',
@@ -812,12 +812,12 @@ export function extractZip(zipPath: string, targetDir: string): void {
       { encoding: 'utf8' }
     );
     if (result.status !== 0) {
-      throw new Error(`Failed to extract AI dev kit zip: ${formatSpawnFailure(result)}`);
+      throw new Error(`Failed to extract ${label} zip: ${formatSpawnFailure(result)}`);
     }
     return;
   }
 
-  const unzipResult = spawnSync('unzip', ['-q', zipPath, '-d', targetDir], { encoding: 'utf8' });
+  const unzipResult = spawnSync('unzip', ['-oq', zipPath, '-d', targetDir], { encoding: 'utf8' });
   if (unzipResult.status === 0) {
     return;
   }
@@ -837,7 +837,7 @@ export function extractZip(zipPath: string, targetDir: string): void {
 
   throw new Error(
     [
-      `Failed to extract AI dev kit zip: unzip: ${formatSpawnFailure(unzipResult)}`,
+      `Failed to extract ${label} zip: unzip: ${formatSpawnFailure(unzipResult)}`,
       ...pythonFailures,
     ].join('; ')
   );

@@ -3,6 +3,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import archiver from 'archiver';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -1371,6 +1372,12 @@ describe('maker build local-change guard', () => {
 
     const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
     const parsed = JSON.parse(text);
+    expect(parsed.workflow_state).toBe('awaiting_user_review');
+    expect(parsed.user_review_required).toBe(true);
+    expect(parsed.next_action).toContain('Show the four-view previews');
+    expect(parsed.approval_next_step).toContain('If the user approves');
+    expect(parsed.revision_next_step).toContain('If the user requests changes');
+    expect(parsed.agent_instruction).toContain('Do not stop after phase 1');
     expect(parsed.preview_assets.front.localPath).toBe(
       'assets/image/model-task-1_front_20260611080910.png'
     );
@@ -1403,11 +1410,18 @@ describe('maker build local-change guard', () => {
   });
 
   test('downloads successful 3d model results into Maker model and image assets', async () => {
+    const modelZip = await createZipBuffer({
+      'Meshes/MyModel.mdl': 'mdl-bytes',
+      'Materials/MyModel_00_Lambert.xml': '<material />',
+      'Textures/MyModel_00_D.xml': '<texture />',
+      'Textures/MyModel_00_D.png': 'texture-bytes',
+      'Prefabs/MyModel.prefab': '<prefab />',
+    });
     const result = await materializeRemoteProxyToolAssets({
       toolName: 'query_3d_model_task',
       targetDir: tempDir,
       now: new Date('2026-06-11T08:09:11Z'),
-      fetchImpl: fakeAssetFetch('model-bytes'),
+      fetchImpl: fake3dModelResultFetch(modelZip, 'render-image'),
       result: proxyTextResult({
         task_id: 'model-task-2',
         status: 'success',
@@ -1423,15 +1437,30 @@ describe('maker build local-change guard', () => {
     expect(parsed.renderedImageLocalPath).toBe(
       'assets/image/model-task-2_render_20260611080911.png'
     );
-    expect(
-      fs.readFileSync(path.join(tempDir, 'assets/model/model-task-2_20260611080911.zip'), 'utf8')
-    ).toBe('model-bytes');
+    expect(fs.existsSync(path.join(tempDir, 'assets/model/model-task-2_20260611080911.zip'))).toBe(
+      true
+    );
     expect(
       fs.readFileSync(
         path.join(tempDir, 'assets/image/model-task-2_render_20260611080911.png'),
         'utf8'
       )
-    ).toBe('model-bytes');
+    ).toBe('render-image');
+    expect(fs.readFileSync(path.join(tempDir, 'assets/Meshes/MyModel.mdl'), 'utf8')).toBe(
+      'mdl-bytes'
+    );
+    expect(
+      fs.readFileSync(path.join(tempDir, 'assets/Materials/MyModel_00_Lambert.xml'), 'utf8')
+    ).toBe('<material />');
+    expect(fs.readFileSync(path.join(tempDir, 'assets/Textures/MyModel_00_D.xml'), 'utf8')).toBe(
+      '<texture />'
+    );
+    expect(fs.readFileSync(path.join(tempDir, 'assets/Textures/MyModel_00_D.png'), 'utf8')).toBe(
+      'texture-bytes'
+    );
+    expect(fs.readFileSync(path.join(tempDir, 'assets/Prefabs/MyModel.prefab'), 'utf8')).toBe(
+      '<prefab />'
+    );
     expect(fs.existsSync(path.join(tempDir, 'assets/model/model-task-2_20260611080911.glb'))).toBe(
       false
     );
@@ -2524,5 +2553,23 @@ describe('maker build local-change guard', () => {
 
   function fakeAssetFetch(body: string): typeof fetch {
     return (async () => new Response(body, { status: 200 })) as typeof fetch;
+  }
+
+  function fake3dModelResultFetch(zipBody: Buffer, imageBody: string): typeof fetch {
+    return (async (input: Parameters<typeof fetch>[0]) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      return new Response(url.endsWith('.zip') ? zipBody : imageBody, { status: 200 });
+    }) as typeof fetch;
+  }
+
+  async function createZipBuffer(files: Record<string, string>): Promise<Buffer> {
+    const archive = archiver('zip');
+    const chunks: Buffer[] = [];
+    archive.on('data', (chunk: Buffer) => chunks.push(chunk));
+    for (const [name, content] of Object.entries(files)) {
+      archive.append(content, { name });
+    }
+    await archive.finalize();
+    return Buffer.concat(chunks);
   }
 });
