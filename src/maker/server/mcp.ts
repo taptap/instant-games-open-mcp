@@ -2859,8 +2859,8 @@ function sanitizeDiagnosticValue(value: unknown): unknown {
   return value;
 }
 
-function isSensitiveDiagnosticKey(key: string): boolean {
-  return /token|secret|mac[_-]?key|authorization|cookie|pat/i.test(key);
+export function isSensitiveDiagnosticKey(key: string): boolean {
+  return /token|secret|mac[_-]?key|authorization|cookie|(^|[_-])pat($|[_-])/i.test(key);
 }
 
 function formatDiagnosticJson(value: unknown): string {

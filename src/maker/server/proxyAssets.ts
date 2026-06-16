@@ -851,18 +851,38 @@ function resolveLocalAssetAbsolutePath(
 ): string | undefined {
   const candidates = [];
   if (options.localPath) {
-    candidates.push(path.join(targetDir, ...options.localPath.split('/')));
+    const localPath = resolveProjectRelativePath(targetDir, options.localPath);
+    if (localPath) {
+      candidates.push(localPath);
+    }
   }
   if (path.isAbsolute(options.value)) {
     candidates.push(options.value);
   } else {
-    candidates.push(path.join(targetDir, options.value));
+    const localPath = resolveProjectRelativePath(targetDir, options.value);
+    if (localPath) {
+      candidates.push(localPath);
+    }
   }
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
       return candidate;
     }
+  }
+  return undefined;
+}
+
+function resolveProjectRelativePath(targetDir: string, value: string): string | undefined {
+  const root = path.resolve(targetDir);
+  const absolutePath = path.resolve(root, value);
+  const relativePath = path.relative(root, absolutePath);
+  const escapesRoot =
+    relativePath === '..' ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath);
+  if (!escapesRoot) {
+    return absolutePath;
   }
   return undefined;
 }

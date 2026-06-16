@@ -24,6 +24,7 @@ import {
   formatMakerProxyToolsStatusSafely,
   formatMakerRemoteSyncStatusSafely,
   formatPushResult,
+  isSensitiveDiagnosticKey,
   pushThenBuildCurrentDirectory,
   resources,
   retryMakerProxyOperation,
@@ -1423,6 +1424,48 @@ describe('maker build local-change guard', () => {
     }
   });
 
+  test('keeps parent-relative outside-project references unchanged', () => {
+    const outsideDir = fs.mkdtempSync(path.join(path.dirname(tempDir), 'maker 外部素材 '));
+    try {
+      const outsideImage = path.join(outsideDir, '桌面 ref.png');
+      fs.writeFileSync(outsideImage, 'outside-image-bytes', 'utf8');
+      const parentRelativeImage = path.relative(tempDir, outsideImage);
+
+      const args = prepareRemoteProxyToolArgs({
+        toolName: 'generate_image',
+        targetDir: tempDir,
+        args: {
+          prompt: 'make a cartoon version',
+          reference_images: [parentRelativeImage],
+        },
+      });
+
+      expect(args.reference_images).toEqual([parentRelativeImage]);
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  test('converts project-relative references with spaces and chinese characters', () => {
+    fs.mkdirSync(path.join(tempDir, 'assets/image/参考 图'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, 'assets/image/参考 图/角色 草图.png'),
+      'image-bytes',
+      'utf8'
+    );
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'generate_image',
+      targetDir: tempDir,
+      args: {
+        prompt: 'make a cartoon version',
+        reference_images: ['assets/image/参考 图/角色 草图.png'],
+      },
+    });
+
+    expect(args.reference_images).toEqual([dataUrl('image/png', 'image-bytes')]);
+  });
+
   test('converts batch generate image local references to image data urls', () => {
     fs.mkdirSync(path.join(tempDir, 'assets/image'), { recursive: true });
     fs.writeFileSync(path.join(tempDir, 'assets/image/batch_ref.gif'), 'batch-bytes', 'utf8');
@@ -1549,6 +1592,15 @@ describe('maker build local-change guard', () => {
         },
       })
     ).rejects.toThrow(/remote_result:[\s\S]*upstream video generation failed/);
+  });
+
+  test('sensitive diagnostic keys do not redact path fields', () => {
+    expect(isSensitiveDiagnosticKey('pat')).toBe(true);
+    expect(isSensitiveDiagnosticKey('personal_access_token')).toBe(true);
+    expect(isSensitiveDiagnosticKey('path')).toBe(false);
+    expect(isSensitiveDiagnosticKey('localPath')).toBe(false);
+    expect(isSensitiveDiagnosticKey('absolutePath')).toBe(false);
+    expect(isSensitiveDiagnosticKey('project_path')).toBe(false);
   });
 
   test('status lite exposes skip_remote_sync for quick local polling', () => {
