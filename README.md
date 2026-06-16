@@ -65,6 +65,8 @@ taptap-maker login
 taptap-maker doctor
 taptap-maker apps --json
 taptap-maker install --ide codex,cursor,claude
+taptap-maker agents update
+taptap-maker upgrade
 taptap-maker mcp verify
 taptap-maker dev-kit update
 ```
@@ -78,6 +80,10 @@ taptap-maker dev-kit update
 `taptap-maker init` 缺 PAT 时会自动进入该流程。`taptap-maker pat set` 保留为兼容入口；
 自动化场景可用 `--pat-stdin` 从标准输入读取。`taptap-maker install` 是
 `taptap-maker mcp install` 的快捷别名，二者都会写入 AI 客户端 MCP 配置。
+`taptap-maker upgrade` 会刷新当前机器的 Maker MCP 配置，并在当前目录已绑定 Maker 项目时
+同步项目 `AGENTS.md` 的 TapTap Maker 受管策略块。`maker://status`、`maker_status_lite`
+和 `taptap-maker doctor` 会检查老项目 `AGENTS.md` 是否缺失或过期，并提示运行
+`taptap-maker agents update` 或 `taptap-maker upgrade`。
 `taptap-maker dev-kit update` 会检查当前环境可用的最新 AI dev kit 并更新当前目录。
 
 Maker MCP 精简为开发循环里的高频能力：

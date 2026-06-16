@@ -318,6 +318,49 @@ describe('Maker CLI commands', () => {
     });
   });
 
+  test('mcp install does not create backups when config is unchanged', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--env', 'rnd']);
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--env', 'rnd']);
+
+    expect(fs.existsSync(`${configPath}.taptap-maker.bak.latest`)).toBe(false);
+    expect(
+      fs.readdirSync(path.dirname(configPath)).filter((entry) => entry.startsWith('mcp.json.bak.'))
+    ).toEqual([]);
+  });
+
+  test('mcp install creates only the TapTap Maker latest backup when config changes', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    const legacyBackupPath = `${configPath}.bak.20260101000000`;
+    const previousConfig = `${JSON.stringify(
+      {
+        mcpServers: {
+          'taptap-maker': {
+            command: 'old',
+            args: ['old'],
+          },
+        },
+      },
+      null,
+      2
+    )}\n`;
+    fs.writeFileSync(configPath, previousConfig, 'utf8');
+    fs.writeFileSync(legacyBackupPath, 'legacy backup owned by an unknown tool\n', 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--env', 'rnd']);
+
+    const latestBackupPath = `${configPath}.taptap-maker.bak.latest`;
+    expect(fs.readFileSync(latestBackupPath, 'utf8')).toBe(previousConfig);
+    expect(fs.readFileSync(legacyBackupPath, 'utf8')).toBe(
+      'legacy backup owned by an unknown tool\n'
+    );
+    expect(
+      fs.readdirSync(path.dirname(configPath)).filter((entry) => /^mcp\.json\.bak\.\d+/.test(entry))
+    ).toEqual(['mcp.json.bak.20260101000000']);
+  });
+
   test('claude mcp install invokes Claude CLI through a Windows spawn-compatible command', async () => {
     await runMakerCli(['mcp', 'install', '--ide', 'claude', '--env', 'rnd', '--json']);
 
@@ -486,6 +529,72 @@ describe('Maker CLI commands', () => {
     const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
     expect(payloads.map((entry: { ide: string }) => entry.ide)).toEqual(['cursor', 'claude']);
     expect(payloads.every((entry: { ok: boolean }) => entry.ok)).toBe(true);
+  });
+
+  test('agents update writes a versioned managed AGENTS block and is idempotent', async () => {
+    const agentsPath = path.join(tempDir, 'AGENTS.md');
+    fs.writeFileSync(agentsPath, '# Project Rules\n\nKeep this user rule.\n', 'utf8');
+
+    await runMakerCli(['agents', 'update', '--target-dir', tempDir]);
+    const once = fs.readFileSync(agentsPath, 'utf8');
+
+    await runMakerCli(['agents', 'update', '--target-dir', tempDir]);
+    const twice = fs.readFileSync(agentsPath, 'utf8');
+
+    expect(twice).toBe(once);
+    expect(twice).toContain('TapTap Maker managed AGENTS policy');
+    expect(twice).toContain('version=');
+    expect(twice).toContain('hash=sha256:');
+    expect(twice).toContain('Keep this user rule.');
+    expect((twice.match(/TapTap Maker managed AGENTS policy/g) || []).length).toBe(2);
+  });
+
+  test('doctor reports outdated AGENTS policy for a bound old project', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+    });
+    fs.writeFileSync(
+      path.join(tempDir, 'AGENTS.md'),
+      [
+        '<!-- >>> TapTap Maker asset tool policy >>> -->',
+        'old managed policy',
+        '<!-- <<< TapTap Maker asset tool policy <<< -->',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['doctor', '--target-dir', tempDir]);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('AGENTS.md');
+    expect(output).toContain('outdated');
+    expect(output).toContain('taptap-maker agents update');
+  });
+
+  test('upgrade refreshes current project AGENTS policy and MCP config', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+    });
+    const agentsPath = path.join(tempDir, 'AGENTS.md');
+    fs.writeFileSync(agentsPath, 'Local project notes\n', 'utf8');
+
+    await runMakerCli(['upgrade', '--target-dir', tempDir, '--ide', 'cursor', '--env', 'rnd']);
+
+    const config = JSON.parse(fs.readFileSync(path.join(tempDir, '.cursor', 'mcp.json'), 'utf8'));
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      cwd: tempDir,
+      env: {
+        TAPTAP_MCP_ENV: 'rnd',
+      },
+    });
+    const agents = fs.readFileSync(agentsPath, 'utf8');
+    expect(agents).toContain('TapTap Maker managed AGENTS policy');
+    expect(agents).toContain('Local project notes');
   });
 
   test('init treats the token after command as positional app id', async () => {
@@ -1479,6 +1588,45 @@ describe('Maker CLI commands', () => {
         targetDir: tempDir,
       })
     );
+    expect(close).toHaveBeenCalled();
+  });
+
+  test('init selection prompt strongly advertises the create project option', async () => {
+    jest.mocked(listMakerProjects).mockResolvedValueOnce([
+      {
+        id: 'app-1',
+        name: 'App One',
+        lastConversationAt: '2026-02-01T00:00:00.000Z',
+      },
+    ]);
+    Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
+    const prompts: string[] = [];
+    const close = jest.fn();
+    const createInterfaceSpy = jest.spyOn(readline, 'createInterface').mockReturnValue({
+      question: jest.fn(async (prompt: string) => {
+        prompts.push(prompt);
+        return '1';
+      }),
+      close,
+    } as unknown as readline.Interface);
+
+    try {
+      await runMakerCli([
+        'init',
+        '--target-dir',
+        tempDir,
+        '--skip-mcp-install',
+        '--pat',
+        'secret-maker-token',
+      ]);
+    } finally {
+      createInterfaceSpy.mockRestore();
+    }
+
+    expect(prompts[0]).toContain('0');
+    expect(prompts[0]).toContain('new');
+    expect(prompts[0]).toContain('创建新项目');
+    expect(prompts[0]).toContain('Create a new Maker project');
     expect(close).toHaveBeenCalled();
   });
 

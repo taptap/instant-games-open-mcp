@@ -45,6 +45,8 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 | `taptap-maker install`        | `taptap-maker mcp install` 的快捷别名，写入 AI 客户端 MCP 配置                |
 | `taptap-maker mcp install`    | 写入 Codex / Cursor / Claude 的 MCP 配置                                      |
 | `taptap-maker mcp verify`     | 验证 MCP 配置使用的 npx 包命令是否可启动；`--mode self` 验证当前 CLI          |
+| `taptap-maker agents update`  | 更新当前项目 `AGENTS.md` 中 TapTap Maker 管理的策略块                         |
+| `taptap-maker upgrade`        | 刷新当前机器 MCP 配置，并更新当前绑定项目的 `AGENTS.md` 受管策略块            |
 | `taptap-maker dev-kit update` | 恢复或更新本地 AI dev-kit                                                     |
 
 设计原则：
@@ -96,9 +98,11 @@ maker_submit_current_directory
 maker_status
 ```
 
-`maker://status` 只做状态读取，不再下载 dev-kit、clone 项目或写客户端配置。已绑定项目会额外检查
-`Maker remote sync`：fetch 远端后比较 ahead/behind，提示 Agent 在开发前先处理远端领先、
-本地 dirty、分叉或非 main 分支。状态还会检查 AI dev-kit 版本并提示是否需要
+`maker://status` 只做状态读取，不再下载 dev-kit、clone 项目、写客户端配置或修改
+`AGENTS.md`。已绑定项目会额外检查 `AGENTS.md` managed policy block 和
+`Maker remote sync`：AGENTS 缺失或过期时提示运行 `taptap-maker agents update` 或
+`taptap-maker upgrade`；Git 远端检查会 fetch 后比较 ahead/behind，提示 Agent 在开发前先处理
+远端领先、本地 dirty、分叉或非 main 分支。状态还会检查 AI dev-kit 版本并提示是否需要
 `taptap-maker dev-kit update`，但真正修复和下载仍交给 update 命令。
 
 ### Skill：Agent 工作流和失败恢复层
@@ -107,13 +111,13 @@ Skill 不做底层 API 调用，而是负责告诉 Agent 该怎么走流程：
 
 - `taptap-maker-local`：初始化、状态解释、提交/构建、push 失败分类恢复、冲突处理。
 - `taptap-maker-dev-kit-guide`：解释 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
-- `update-taptap-mcp`：更新本地 npx 缓存，并提醒刷新/重启客户端。
+- `update-taptap-mcp`：调用 `taptap-maker upgrade`，并提醒刷新/重启客户端。
 
 重构后，Skill 的关键行为是：
 
 - 用户要初始化 Maker 项目时，转给 `taptap-maker init`。
 - 用户新开对话或继续开发时，先读 `maker://status` 或 `maker_status_lite`，按
-  `Maker remote sync` 的 next_action 处理是否需要 pull，并按 AI dev-kit 的
+  `AGENTS.md` 和 `Maker remote sync` 的 next_action 处理是否需要先升级项目规则或 pull，并按 AI dev-kit 的
   `update_available` / `next_step` 引导更新。
 - 用户要提交、push、构建、预览、跑一下时，统一调用 `maker_build_current_directory`。
 - push 失败时，不走通用 Git PR / 任务号流程，不手动执行 generic `git push`，而是解释失败原因并按分类恢复后重试 Maker build 工具。

@@ -128,6 +128,23 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).not.toContain('taptap-maker install-skill --ide codex');
   });
 
+  test('Maker local skill prioritizes explicit create-project intent', () => {
+    const skillPath = path.join(process.cwd(), 'skills', MAKER_LOCAL_SKILL_NAME, 'SKILL.md');
+    const skillText = fs.readFileSync(skillPath, 'utf8');
+
+    expect(skillText).toContain('Create New Maker Project Intent');
+    expect(skillText).toContain('创建新项目');
+    expect(skillText).toContain('创建项目');
+    expect(skillText).toContain('创建maker项目');
+    expect(skillText).toContain('创建游戏');
+    expect(skillText).toContain('创建新游戏/项目');
+    expect(skillText).toContain('新建项目');
+    expect(skillText).toContain('新建游戏');
+    expect(skillText).toContain('taptap-maker init --create');
+    expect(skillText).toContain('same-name app');
+    expect(skillText).toContain('must not override');
+  });
+
   test('Dev kit guide skill points agents to installed local resources', () => {
     const skillPath = path.join(
       process.cwd(),
@@ -157,6 +174,18 @@ describe('Maker bundled workflow skill documents', () => {
 
     expect(skillText).toContain('maker://status');
     expect(skillText).toContain('maker_status_lite');
+    expect(skillText).toContain('.maker-mcp/config.json');
+    expect(skillText).toContain('project-level MCP config');
     expect(skillText).not.toContain('maker_status`');
+  });
+
+  test('Update MCP skill remains valid after Maker package reference rewriting', () => {
+    const skillPath = path.join(process.cwd(), 'skills', UPDATE_TAPTAP_MCP_SKILL_NAME, 'SKILL.md');
+    const skillText = fs.readFileSync(skillPath, 'utf8');
+    const rewritten = skillText.replaceAll('@taptap/instant-games-open-mcp', '@taptap/maker');
+
+    expect(rewritten).toContain('@taptap/maker');
+    expect(rewritten).not.toContain('legacy\n`@taptap/maker`');
+    expect(rewritten).not.toContain('do not update the legacy\n`@taptap/maker`');
   });
 });
