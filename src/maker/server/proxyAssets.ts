@@ -11,6 +11,48 @@ type RemoteProxyFetch = typeof fetch;
 const IMAGE_ASSET_DIRS = ['assets/image'];
 const VIDEO_ASSET_DIRS = ['assets/video'];
 const AUDIO_ASSET_DIRS = ['assets/audio'];
+const IMAGE_REFERENCE_MAX_BYTES = 10 * 1024 * 1024;
+const VIDEO_TASK_IMAGE_REFERENCE_MAX_BYTES = 30 * 1024 * 1024;
+const VIDEO_REFERENCE_MAX_BYTES = 50 * 1024 * 1024;
+const AUDIO_REFERENCE_MAX_BYTES = 15 * 1024 * 1024;
+
+type DataUrlMediaKind = 'image' | 'video' | 'audio';
+
+const DATA_URL_MIME_BY_EXTENSION: Record<DataUrlMediaKind, Record<string, string>> = {
+  image: {
+    '.gif': 'image/gif',
+    '.jpeg': 'image/jpeg',
+    '.jpg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+  },
+  video: {
+    '.mov': 'video/quicktime',
+    '.mp4': 'video/mp4',
+  },
+  audio: {
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+  },
+};
+
+export class RemoteProxyToolResultError extends Error {
+  readonly toolName: string;
+  readonly result: RemoteProxyToolResult;
+
+  constructor(toolName: string, result: RemoteProxyToolResult) {
+    super(
+      [
+        `Remote proxy tool ${toolName} returned an error result.`,
+        '',
+        formatRemoteProxyToolResult(result),
+      ].join('\n')
+    );
+    this.name = 'RemoteProxyToolResultError';
+    this.toolName = toolName;
+    this.result = result;
+  }
+}
 
 export function prepareRemoteProxyToolArgs(options: {
   toolName: string;
@@ -22,6 +64,9 @@ export function prepareRemoteProxyToolArgs(options: {
   }
   if (options.toolName === 'generate_image') {
     return normalizeImageReferenceAssetArgs(options.targetDir, options.args);
+  }
+  if (options.toolName === 'batch_generate_images') {
+    return normalizeBatchImageReferenceAssetArgs(options.targetDir, options.args);
   }
   if (options.toolName === 'create_video_task') {
     return rewriteVideoReferenceAssetArgs(options.targetDir, options.args);
@@ -36,6 +81,10 @@ export async function materializeRemoteProxyToolAssets(options: {
   now?: Date;
   fetchImpl?: RemoteProxyFetch;
 }): Promise<RemoteProxyToolResult> {
+  if (isRemoteProxyToolErrorResult(options.result)) {
+    throw new RemoteProxyToolResultError(options.toolName, options.result);
+  }
+
   if (!shouldMaterializeRemoteProxyTool(options.toolName)) {
     return options.result;
   }
@@ -100,6 +149,29 @@ function isTextContent(item: unknown): item is { type: 'text'; text: string } {
     (item as { type?: unknown }).type === 'text' &&
     typeof (item as { text?: unknown }).text === 'string'
   );
+}
+
+function isRemoteProxyToolErrorResult(result: RemoteProxyToolResult): boolean {
+  return Boolean((result as { isError?: unknown }).isError);
+}
+
+export function formatRemoteProxyToolResult(result: RemoteProxyToolResult): string {
+  return ['remote_result:', indent(formatUnknownForDiagnostics(result))].join('\n');
+}
+
+function formatUnknownForDiagnostics(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2) || String(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function indent(value: string): string {
+  return value
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n');
 }
 
 function parseJsonObject(text: string): Record<string, unknown> | undefined {
@@ -419,10 +491,18 @@ function rewriteEditImageAssetArgs(
   const registry = readGeneratedAssetRegistry(targetDir);
   return {
     ...args,
-    image: rewriteGeneratedAssetReference(targetDir, args.image, registry, IMAGE_ASSET_DIRS),
+    image: rewriteGeneratedAssetReference(targetDir, args.image, registry, {
+      assetDirs: IMAGE_ASSET_DIRS,
+      mediaKind: 'image',
+      maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+    }),
     reference_images: Array.isArray(args.reference_images)
       ? args.reference_images.map((item) =>
-          rewriteGeneratedAssetReference(targetDir, item, registry, IMAGE_ASSET_DIRS)
+          rewriteGeneratedAssetReference(targetDir, item, registry, {
+            assetDirs: IMAGE_ASSET_DIRS,
+            mediaKind: 'image',
+            maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+          })
         )
       : args.reference_images,
   };
@@ -435,12 +515,40 @@ function normalizeImageReferenceAssetArgs(
   const registry = readGeneratedAssetRegistry(targetDir);
   return {
     ...args,
-    image: normalizeLocalAssetReference(targetDir, args.image, registry, IMAGE_ASSET_DIRS),
+    image: rewriteGeneratedAssetReference(targetDir, args.image, registry, {
+      assetDirs: IMAGE_ASSET_DIRS,
+      mediaKind: 'image',
+      maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+    }),
+    reference_image: rewriteGeneratedAssetReference(targetDir, args.reference_image, registry, {
+      assetDirs: IMAGE_ASSET_DIRS,
+      mediaKind: 'image',
+      maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+    }),
     reference_images: Array.isArray(args.reference_images)
       ? args.reference_images.map((item) =>
-          normalizeLocalAssetReference(targetDir, item, registry, IMAGE_ASSET_DIRS)
+          rewriteGeneratedAssetReference(targetDir, item, registry, {
+            assetDirs: IMAGE_ASSET_DIRS,
+            mediaKind: 'image',
+            maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+          })
         )
       : args.reference_images,
+  };
+}
+
+function normalizeBatchImageReferenceAssetArgs(
+  targetDir: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  if (!Array.isArray(args.images)) {
+    return args;
+  }
+  return {
+    ...args,
+    images: args.images.map((item) =>
+      isRecord(item) ? normalizeImageReferenceAssetArgs(targetDir, item) : item
+    ),
   };
 }
 
@@ -451,9 +559,21 @@ function rewriteVideoReferenceAssetArgs(
   const registry = readGeneratedAssetRegistry(targetDir);
   return {
     ...args,
-    images: rewriteUrlObjectArray(targetDir, args.images, registry, IMAGE_ASSET_DIRS),
-    videos: rewriteUrlObjectArray(targetDir, args.videos, registry, VIDEO_ASSET_DIRS),
-    audios: rewriteUrlObjectArray(targetDir, args.audios, registry, AUDIO_ASSET_DIRS),
+    images: rewriteUrlObjectArray(targetDir, args.images, registry, {
+      assetDirs: IMAGE_ASSET_DIRS,
+      mediaKind: 'image',
+      maxBytes: VIDEO_TASK_IMAGE_REFERENCE_MAX_BYTES,
+    }),
+    videos: rewriteUrlObjectArray(targetDir, args.videos, registry, {
+      assetDirs: VIDEO_ASSET_DIRS,
+      mediaKind: 'video',
+      maxBytes: VIDEO_REFERENCE_MAX_BYTES,
+    }),
+    audios: rewriteUrlObjectArray(targetDir, args.audios, registry, {
+      assetDirs: AUDIO_ASSET_DIRS,
+      mediaKind: 'audio',
+      maxBytes: AUDIO_REFERENCE_MAX_BYTES,
+    }),
   };
 }
 
@@ -461,7 +581,11 @@ function rewriteUrlObjectArray(
   targetDir: string,
   value: unknown,
   registry: GeneratedAssetRegistry,
-  assetDirs: string[]
+  options: {
+    assetDirs: string[];
+    mediaKind: DataUrlMediaKind;
+    maxBytes: number;
+  }
 ): unknown {
   if (!Array.isArray(value)) {
     return value;
@@ -470,7 +594,7 @@ function rewriteUrlObjectArray(
     isRecord(item)
       ? {
           ...item,
-          url: rewriteGeneratedAssetReference(targetDir, item.url, registry, assetDirs),
+          url: rewriteGeneratedAssetReference(targetDir, item.url, registry, options),
         }
       : item
   );
@@ -480,28 +604,35 @@ function rewriteGeneratedAssetReference(
   targetDir: string,
   value: unknown,
   registry: GeneratedAssetRegistry,
-  assetDirs: string[]
+  options: {
+    assetDirs: string[];
+    mediaKind: DataUrlMediaKind;
+    maxBytes: number;
+  }
 ): unknown {
   if (typeof value !== 'string') {
     return value;
   }
-  const localPath = resolveLocalAssetReference(targetDir, value, registry, assetDirs);
+  if (/^https?:\/\//i.test(value) || value.startsWith('data:')) {
+    return value;
+  }
+
+  const localPath = resolveLocalAssetReference(targetDir, value, registry, options.assetDirs);
   const cdnUrl = localPath
     ? registry[localPath]?.cdnUrl || registry[localPath]?.previewUrl
     : undefined;
-  return cdnUrl || localPath || value;
-}
-
-function normalizeLocalAssetReference(
-  targetDir: string,
-  value: unknown,
-  registry: GeneratedAssetRegistry,
-  assetDirs: string[]
-): unknown {
-  if (typeof value !== 'string') {
-    return value;
+  if (cdnUrl) {
+    return cdnUrl;
   }
-  return resolveLocalAssetReference(targetDir, value, registry, assetDirs) || value;
+
+  const dataUrl = localAssetReferenceToDataUrl({
+    targetDir,
+    value,
+    localPath,
+    mediaKind: options.mediaKind,
+    maxBytes: options.maxBytes,
+  });
+  return dataUrl || value;
 }
 
 function resolveLocalAssetReference(
@@ -601,6 +732,69 @@ function isKnownAssetPath(relativePath: string, assetDirs: string[]): boolean {
 
 function isBareAssetName(value: string): boolean {
   return !value.includes('/') && !value.includes('\\');
+}
+
+function localAssetReferenceToDataUrl(options: {
+  targetDir: string;
+  value: string;
+  localPath?: string;
+  mediaKind: DataUrlMediaKind;
+  maxBytes: number;
+}): string | undefined {
+  const absolutePath = resolveLocalAssetAbsolutePath(options.targetDir, {
+    value: options.value,
+    localPath: options.localPath,
+  });
+  if (!absolutePath) {
+    return undefined;
+  }
+
+  const mime = dataUrlMimeForPath(absolutePath, options.mediaKind);
+  if (!mime) {
+    return undefined;
+  }
+
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(absolutePath);
+  } catch {
+    return undefined;
+  }
+  if (!stat.isFile() || stat.size > options.maxBytes) {
+    return undefined;
+  }
+
+  const bytes = fs.readFileSync(absolutePath);
+  return `data:${mime};base64,${bytes.toString('base64')}`;
+}
+
+function resolveLocalAssetAbsolutePath(
+  targetDir: string,
+  options: {
+    value: string;
+    localPath?: string;
+  }
+): string | undefined {
+  const candidates = [];
+  if (options.localPath) {
+    candidates.push(path.join(targetDir, ...options.localPath.split('/')));
+  }
+  if (path.isAbsolute(options.value)) {
+    candidates.push(options.value);
+  } else {
+    candidates.push(path.join(targetDir, options.value));
+  }
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+function dataUrlMimeForPath(filePath: string, mediaKind: DataUrlMediaKind): string | undefined {
+  return DATA_URL_MIME_BY_EXTENSION[mediaKind][path.extname(filePath).toLowerCase()];
 }
 
 function upsertGeneratedAssetRecord(

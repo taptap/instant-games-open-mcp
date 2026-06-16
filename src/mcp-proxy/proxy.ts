@@ -15,6 +15,7 @@ import * as crypto from 'node:crypto';
 import type { ProxyConfig, PendingRequest } from './types.js';
 import { CookieJar, createCookieFetch } from './cookieJar.js';
 import { LogWriter, type LogLevel } from '../core/utils/logWriter.js';
+import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from './config.js';
 
 // Version placeholder - replaced at build time by esbuild
 declare const __PROXY_VERSION__: string;
@@ -661,7 +662,7 @@ export class TapTapMCPProxy {
           },
           undefined, // resultSchema
           {
-            timeout: this.config.options?.tool_call_timeout ?? 300000,
+            timeout: this.config.options?.tool_call_timeout ?? DEFAULT_TOOL_CALL_TIMEOUT_MS,
             resetTimeoutOnProgress: this.config.options?.reset_timeout_on_progress ?? true,
             onprogress: req.onprogress,
           }
@@ -775,7 +776,7 @@ export class TapTapMCPProxy {
         resetTimeoutOnProgress: boolean;
         onprogress?: (progress: { progress: number; total?: number; message?: string }) => void;
       } = {
-        timeout: this.config.options?.tool_call_timeout ?? 300000,
+        timeout: this.config.options?.tool_call_timeout ?? DEFAULT_TOOL_CALL_TIMEOUT_MS,
         resetTimeoutOnProgress: this.config.options?.reset_timeout_on_progress ?? true,
       };
 

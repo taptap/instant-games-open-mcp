@@ -117,14 +117,15 @@ describe('Maker AI dev kit install', () => {
     expect(claudeGuide).toBe('local agent docs\n');
     expect(claudeGuide).not.toContain('TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toMatch(/^# TapTap Maker Project Asset Tool Policy/);
-    expect(agentsGuide).toContain('MUST use Maker MCP proxy tools');
-    expect(agentsGuide).toContain('This policy overrides imagegen');
-    expect(agentsGuide).toContain('DO NOT invoke imagegen');
-    expect(agentsGuide).toContain('DO NOT fall back to generic imagegen');
+    expect(agentsGuide).toContain('should prefer Maker MCP proxy tools');
+    expect(agentsGuide).toContain('Maker proxy tool is unavailable');
+    expect(agentsGuide).toContain('Other client media tools may still be usable');
     expect(agentsGuide).toContain(
-      'Before calling `edit_image`, resolve dragged or referenced images'
+      'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
     );
-    expect(agentsGuide).toContain('Do not call `edit_image` without an image path or CDN URL');
+    expect(agentsGuide).toContain(
+      'Local proxy may convert resolvable local reference media to data URLs'
+    );
     expect(agentsGuide).toContain('batch_generate_images');
   });
 
@@ -311,8 +312,10 @@ describe('Maker AI dev kit install', () => {
     const agentsGuide = fs.readFileSync(path.join(targetDir, 'AGENTS.md'), 'utf8');
     const claudeGuide = fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8');
     expect(agentsGuide).toMatch(/^# TapTap Maker Project Asset Tool Policy/);
-    expect(agentsGuide).toContain('DO NOT invoke imagegen');
-    expect(agentsGuide).toContain('Do not call `edit_image` without an image path or CDN URL');
+    expect(agentsGuide).toContain('should prefer Maker MCP proxy tools');
+    expect(agentsGuide).toContain(
+      'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
+    );
     expect(claudeGuide).toBe('user edits\n');
     expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'templates', 'README.md'))).toBe(true);
