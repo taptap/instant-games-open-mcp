@@ -14,6 +14,7 @@ import {
   materializeRemoteProxyToolAssets,
   prepareRemoteProxyToolArgs,
   createRemoteProxyContext,
+  createRemoteProxyProgressHandler,
   createRemoteRuntimeLogClient,
   refreshMakerPreview,
   formatBuildResult,
@@ -23,6 +24,7 @@ import {
   formatMakerProxyToolsStatusSafely,
   formatMakerRemoteSyncStatusSafely,
   formatPushResult,
+  isSensitiveDiagnosticKey,
   pushThenBuildCurrentDirectory,
   resources,
   retryMakerProxyOperation,
@@ -143,6 +145,52 @@ describe('maker build local-change guard', () => {
     expect(proxyConfig.server.env).toBe('rnd');
     expect(proxyConfig.auth.kid).toBe('rnd-kid');
     expect(proxyConfig.auth.mac_key).toBe('rnd-mac-key');
+  });
+
+  test('remote proxy context configures progress token injection without tool timeout override', () => {
+    saveTapAuth({
+      kid: 'rnd-kid',
+      token: 'rnd-token',
+      mac_key: 'rnd-mac-key',
+    });
+
+    const proxy = createRemoteProxyContext({ targetDir: tempDir });
+    const proxyConfig = JSON.parse(proxy.proxyConfigJson);
+
+    expect(proxyConfig.options).not.toHaveProperty('tool_call_timeout');
+    expect(proxyConfig.options.reset_timeout_on_progress).toBe(true);
+    expect(proxyConfig.options.force_inject_progress_token).toBe(true);
+  });
+
+  test('remote proxy progress handler keeps upstream progress active without client token', () => {
+    const extra = {
+      sendNotification: jest.fn(),
+    };
+
+    const onprogress = createRemoteProxyProgressHandler(undefined, extra as never);
+
+    expect(typeof onprogress).toBe('function');
+    onprogress({ progress: 1, total: 100, message: '__keepalive__' });
+    expect(extra.sendNotification).not.toHaveBeenCalled();
+  });
+
+  test('remote proxy progress handler forwards progress when client token exists', () => {
+    const extra = {
+      sendNotification: jest.fn().mockResolvedValue(undefined),
+    };
+
+    const onprogress = createRemoteProxyProgressHandler('client-token', extra as never);
+
+    onprogress({ progress: 7, total: 100, message: 'working' });
+    expect(extra.sendNotification).toHaveBeenCalledWith({
+      method: 'notifications/progress',
+      params: {
+        progressToken: 'client-token',
+        progress: 7,
+        total: 100,
+        message: 'working',
+      },
+    });
   });
 
   test('reports committed but unpushed Maker changes', async () => {
@@ -780,6 +828,11 @@ describe('maker build local-change guard', () => {
           inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
         },
         {
+          name: 'query_video_task',
+          description: 'Query a text-to-video generation task',
+          inputSchema: { type: 'object', properties: { task_id: { type: 'string' } } },
+        },
+        {
           name: 'text_to_music',
           description: 'Generate music from text',
           inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
@@ -799,6 +852,7 @@ describe('maker build local-change guard', () => {
       'batch_generate_images',
       'edit_image',
       'create_video_task',
+      'query_video_task',
       'text_to_music',
     ]);
     expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual([
@@ -806,8 +860,24 @@ describe('maker build local-change guard', () => {
       'batch_generate_images',
       'edit_image',
       'create_video_task',
+      'query_video_task',
       'text_to_music',
     ]);
+    expect(result.tools.find((item) => item.name === 'generate_image')?.description).toContain(
+      'prefer this Maker MCP proxy tool for Maker project assets'
+    );
+    expect(result.tools.find((item) => item.name === 'edit_image')?.description).toContain(
+      'prefer this Maker MCP proxy tool for image editing'
+    );
+    expect(result.tools.find((item) => item.name === 'create_video_task')?.description).toContain(
+      'resolvable local files that the local proxy can forward as data URLs'
+    );
+    expect(result.tools.find((item) => item.name === 'create_video_task')?.description).toContain(
+      'Large local/data URL media can be slow or fail'
+    );
+    expect(result.tools.find((item) => item.name === 'query_video_task')?.description).toContain(
+      'Use this Maker MCP proxy tool to refresh video task status'
+    );
   });
 
   test('falls back to local Maker tools when remote proxy tool listing is unavailable', async () => {
@@ -836,7 +906,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- status: unavailable');
     expect(output).toContain('- available_tools: (none)');
     expect(output).toContain(
-      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, text_to_music'
+      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music'
     );
     expect(output).toContain('- build_available: no');
     expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');
@@ -1027,6 +1097,96 @@ describe('maker build local-change guard', () => {
     );
   });
 
+  test('downloads queried video proxy results into Maker asset directories', async () => {
+    const video = await materializeRemoteProxyToolAssets({
+      toolName: 'query_video_task',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:16Z'),
+      fetchImpl: fakeAssetFetch('queried-video-bytes'),
+      result: proxyTextResult({
+        task_id: 'cgt-20260602155659-query',
+        status: 'succeeded',
+        cdn_url: 'https://example.test/query-video.mp4',
+      }),
+    });
+
+    const videoText = video.content[0]?.type === 'text' ? video.content[0].text : '';
+    expect(JSON.parse(videoText).localPath).toBe(
+      'assets/video/cgt-20260602155659-query_20260602080916.mp4'
+    );
+    expect(
+      fs.readFileSync(
+        path.join(tempDir, 'assets/video/cgt-20260602155659-query_20260602080916.mp4'),
+        'utf8'
+      )
+    ).toBe('queried-video-bytes');
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
+    );
+    expect(registry['assets/video/cgt-20260602155659-query_20260602080916.mp4'].tool).toBe(
+      'query_video_task'
+    );
+    expect(registry['assets/video/cgt-20260602155659-query_20260602080916.mp4'].taskId).toBe(
+      'cgt-20260602155659-query'
+    );
+    expect(registry['assets/video/cgt-20260602155659-query_20260602080916.mp4'].cdnUrl).toBe(
+      'https://example.test/query-video.mp4'
+    );
+  });
+
+  test('reuses materialized video when querying the same task result again', async () => {
+    const firstFetch = jest.fn(fakeAssetFetch('video-bytes'));
+    const secondFetch = jest.fn(fakeAssetFetch('duplicate-video-bytes'));
+
+    const created = await materializeRemoteProxyToolAssets({
+      toolName: 'create_video_task',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:20Z'),
+      fetchImpl: firstFetch as typeof fetch,
+      result: proxyTextResult({
+        task_id: 'cgt-20260602155659-reuse',
+        status: 'succeeded',
+        cdn_url: 'https://example.test/reuse-video.mp4',
+      }),
+    });
+    const queried = await materializeRemoteProxyToolAssets({
+      toolName: 'query_video_task',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:10:20Z'),
+      fetchImpl: secondFetch as typeof fetch,
+      result: proxyTextResult({
+        task_id: 'cgt-20260602155659-reuse',
+        status: 'succeeded',
+        cdn_url: 'https://example.test/reuse-video.mp4',
+      }),
+    });
+
+    const createdText = created.content[0]?.type === 'text' ? created.content[0].text : '';
+    const queriedText = queried.content[0]?.type === 'text' ? queried.content[0].text : '';
+    const createdPayload = JSON.parse(createdText);
+    const queriedPayload = JSON.parse(queriedText);
+    expect(queriedPayload.localPath).toBe(createdPayload.localPath);
+    expect(firstFetch).toHaveBeenCalledTimes(1);
+    expect(secondFetch).not.toHaveBeenCalled();
+    expect(
+      fs.readFileSync(
+        path.join(tempDir, 'assets/video/cgt-20260602155659-reuse_20260602080920.mp4'),
+        'utf8'
+      )
+    ).toBe('video-bytes');
+
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
+    );
+    const matchingVideos = Object.values(registry).filter(
+      (record) =>
+        typeof record === 'object' &&
+        record !== null &&
+        (record as { taskId?: string }).taskId === 'cgt-20260602155659-reuse'
+    );
+    expect(matchingVideos).toHaveLength(1);
+  });
+
   test('downloads edit image proxy result into Maker image assets', async () => {
     const result = await materializeRemoteProxyToolAssets({
       toolName: 'edit_image',
@@ -1124,22 +1284,33 @@ describe('maker build local-change guard', () => {
     expect(args.reference_images).toEqual(['https://example.test/plane.png']);
   });
 
-  test('normalizes edit image bare file names to Maker image asset paths without cdn mapping', () => {
+  test('converts edit image local references without cdn mapping to image data urls', () => {
     fs.mkdirSync(path.join(tempDir, 'assets/image'), { recursive: true });
     fs.writeFileSync(path.join(tempDir, 'assets/image/manual_plane.png'), 'image-bytes', 'utf8');
+    fs.writeFileSync(path.join(tempDir, 'assets/image/manual_style.png'), 'style-bytes', 'utf8');
 
     const args = prepareRemoteProxyToolArgs({
       toolName: 'edit_image',
       targetDir: tempDir,
       args: {
         image: 'manual_plane.png',
+        reference_images: [
+          'manual_style.png',
+          'https://example.test/already-cdn.png',
+          'data:image/png;base64,YWxyZWFkeQ==',
+        ],
         prompt: 'make it cartoon',
         name: 'manual_plane_cartoon',
         target_size: '64x64',
       },
     });
 
-    expect(args.image).toBe('assets/image/manual_plane.png');
+    expect(args.image).toBe(dataUrl('image/png', 'image-bytes'));
+    expect(args.reference_images).toEqual([
+      dataUrl('image/png', 'style-bytes'),
+      'https://example.test/already-cdn.png',
+      'data:image/png;base64,YWxyZWFkeQ==',
+    ]);
   });
 
   test('keeps edit image input unchanged when no generated image mapping exists', () => {
@@ -1213,20 +1384,169 @@ describe('maker build local-change guard', () => {
     expect(args.audios).toEqual([{ url: 'https://example.test/audio-ref.mp3' }]);
   });
 
-  test('normalizes generate image reference image names to Maker asset paths', () => {
+  test('converts generate image reference image names to image data urls', () => {
     fs.mkdirSync(path.join(tempDir, 'assets/image'), { recursive: true });
     fs.writeFileSync(path.join(tempDir, 'assets/image/manual_ref.png'), 'image-bytes', 'utf8');
+    fs.writeFileSync(path.join(tempDir, 'assets/image/legacy_ref.webp'), 'legacy-bytes', 'utf8');
 
     const args = prepareRemoteProxyToolArgs({
       toolName: 'generate_image',
       targetDir: tempDir,
       args: {
         prompt: 'make a cartoon version',
+        reference_image: 'legacy_ref.webp',
         reference_images: ['manual_ref.png'],
       },
     });
 
-    expect(args.reference_images).toEqual(['assets/image/manual_ref.png']);
+    expect(args.reference_image).toBe(dataUrl('image/webp', 'legacy-bytes'));
+    expect(args.reference_images).toEqual([dataUrl('image/png', 'image-bytes')]);
+  });
+
+  test('converts generate image explicit outside-project reference path to image data url', () => {
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-reference-outside-'));
+    try {
+      const outsideImage = path.join(outsideDir, 'desktop-ref.jpg');
+      fs.writeFileSync(outsideImage, 'outside-image-bytes', 'utf8');
+
+      const args = prepareRemoteProxyToolArgs({
+        toolName: 'generate_image',
+        targetDir: tempDir,
+        args: {
+          prompt: 'make a cartoon version',
+          reference_images: [outsideImage],
+        },
+      });
+
+      expect(args.reference_images).toEqual([dataUrl('image/jpeg', 'outside-image-bytes')]);
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  test('keeps parent-relative outside-project references unchanged', () => {
+    const outsideDir = fs.mkdtempSync(path.join(path.dirname(tempDir), 'maker 外部素材 '));
+    try {
+      const outsideImage = path.join(outsideDir, '桌面 ref.png');
+      fs.writeFileSync(outsideImage, 'outside-image-bytes', 'utf8');
+      const parentRelativeImage = path.relative(tempDir, outsideImage);
+
+      const args = prepareRemoteProxyToolArgs({
+        toolName: 'generate_image',
+        targetDir: tempDir,
+        args: {
+          prompt: 'make a cartoon version',
+          reference_images: [parentRelativeImage],
+        },
+      });
+
+      expect(args.reference_images).toEqual([parentRelativeImage]);
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  test('converts project-relative references with spaces and chinese characters', () => {
+    fs.mkdirSync(path.join(tempDir, 'assets/image/参考 图'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, 'assets/image/参考 图/角色 草图.png'),
+      'image-bytes',
+      'utf8'
+    );
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'generate_image',
+      targetDir: tempDir,
+      args: {
+        prompt: 'make a cartoon version',
+        reference_images: ['assets/image/参考 图/角色 草图.png'],
+      },
+    });
+
+    expect(args.reference_images).toEqual([dataUrl('image/png', 'image-bytes')]);
+  });
+
+  test('converts batch generate image local references to image data urls', () => {
+    fs.mkdirSync(path.join(tempDir, 'assets/image'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'assets/image/batch_ref.gif'), 'batch-bytes', 'utf8');
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'batch_generate_images',
+      targetDir: tempDir,
+      args: {
+        images: [
+          {
+            prompt: 'make a cartoon version',
+            reference_images: ['batch_ref.gif'],
+          },
+        ],
+      },
+    });
+
+    expect(args.images).toEqual([
+      {
+        prompt: 'make a cartoon version',
+        reference_images: [dataUrl('image/gif', 'batch-bytes')],
+      },
+    ]);
+  });
+
+  test('converts video task local reference media to data urls', () => {
+    fs.mkdirSync(path.join(tempDir, 'assets/image'), { recursive: true });
+    fs.mkdirSync(path.join(tempDir, 'assets/video'), { recursive: true });
+    fs.mkdirSync(path.join(tempDir, 'assets/audio'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'assets/image/video_image_ref.png'), 'image-ref', 'utf8');
+    fs.writeFileSync(path.join(tempDir, 'assets/video/video_ref.mp4'), 'video-ref', 'utf8');
+    fs.writeFileSync(path.join(tempDir, 'assets/audio/audio_ref.mp3'), 'audio-ref', 'utf8');
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-video-reference-outside-'));
+
+    try {
+      const outsideImage = path.join(outsideDir, 'desktop-ref.webp');
+      const outsideVideo = path.join(outsideDir, 'desktop-ref.mov');
+      const outsideAudio = path.join(outsideDir, 'desktop-ref.wav');
+      fs.writeFileSync(outsideImage, 'outside-image-ref', 'utf8');
+      fs.writeFileSync(outsideVideo, 'outside-video-ref', 'utf8');
+      fs.writeFileSync(outsideAudio, 'outside-audio-ref', 'utf8');
+
+      const args = prepareRemoteProxyToolArgs({
+        toolName: 'create_video_task',
+        targetDir: tempDir,
+        args: {
+          mode: 'multi_modal_reference',
+          images: [
+            { role: 'reference_image', url: 'video_image_ref.png' },
+            { role: 'reference_image', url: outsideImage },
+            { role: 'reference_image', url: 'https://example.test/ref.png' },
+            { role: 'reference_image', url: 'data:image/png;base64,YWxyZWFkeQ==' },
+          ],
+          videos: [
+            { role: 'reference_video', url: 'video_ref.mp4' },
+            { role: 'reference_video', url: outsideVideo },
+          ],
+          audios: [
+            { role: 'reference_audio', url: 'audio_ref.mp3' },
+            { role: 'reference_audio', url: outsideAudio },
+          ],
+        },
+      });
+
+      expect(args.images).toEqual([
+        { role: 'reference_image', url: dataUrl('image/png', 'image-ref') },
+        { role: 'reference_image', url: dataUrl('image/webp', 'outside-image-ref') },
+        { role: 'reference_image', url: 'https://example.test/ref.png' },
+        { role: 'reference_image', url: 'data:image/png;base64,YWxyZWFkeQ==' },
+      ]);
+      expect(args.videos).toEqual([
+        { role: 'reference_video', url: dataUrl('video/mp4', 'video-ref') },
+        { role: 'reference_video', url: dataUrl('video/quicktime', 'outside-video-ref') },
+      ]);
+      expect(args.audios).toEqual([
+        { role: 'reference_audio', url: dataUrl('audio/mpeg', 'audio-ref') },
+        { role: 'reference_audio', url: dataUrl('audio/wav', 'outside-audio-ref') },
+      ]);
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 
   test('keeps proxy result readable when asset download fails', async () => {
@@ -1250,6 +1570,37 @@ describe('maker build local-change guard', () => {
       success: false,
       error: 'Asset download failed: HTTP 500',
     });
+  });
+
+  test('throws proxy error results with the remote payload intact', async () => {
+    await expect(
+      materializeRemoteProxyToolAssets({
+        toolName: 'create_video_task',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'failed',
+                task_id: 'video-task-1',
+                error: 'upstream video generation failed',
+              }),
+            },
+          ],
+        },
+      })
+    ).rejects.toThrow(/remote_result:[\s\S]*upstream video generation failed/);
+  });
+
+  test('sensitive diagnostic keys do not redact path fields', () => {
+    expect(isSensitiveDiagnosticKey('pat')).toBe(true);
+    expect(isSensitiveDiagnosticKey('personal_access_token')).toBe(true);
+    expect(isSensitiveDiagnosticKey('path')).toBe(false);
+    expect(isSensitiveDiagnosticKey('localPath')).toBe(false);
+    expect(isSensitiveDiagnosticKey('absolutePath')).toBe(false);
+    expect(isSensitiveDiagnosticKey('project_path')).toBe(false);
   });
 
   test('status lite exposes skip_remote_sync for quick local polling', () => {
@@ -2283,5 +2634,9 @@ describe('maker build local-change guard', () => {
 
   function fakeAssetFetch(body: string): typeof fetch {
     return (async () => new Response(body, { status: 200 })) as typeof fetch;
+  }
+
+  function dataUrl(mime: string, body: string): string {
+    return `data:${mime};base64,${Buffer.from(body).toString('base64')}`;
   }
 });

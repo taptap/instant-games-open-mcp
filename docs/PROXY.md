@@ -924,6 +924,7 @@ const config = {
       'batch_generate_images',
       'edit_image',
       'create_video_task',
+      'query_video_task',
       'text_to_music',
     ], // 可选：客户端可见/可调用 tool 白名单
   },
@@ -968,6 +969,7 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
       "batch_generate_images",
       "edit_image",
       "create_video_task",
+      "query_video_task",
       "text_to_music"
     ]
   }
@@ -977,7 +979,7 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
 配置后：
 
 - `tools/list` 只返回 `generate_image`、`batch_generate_images`、`edit_image`、
-  `create_video_task` 和 `text_to_music`。
+  `create_video_task`、`query_video_task` 和 `text_to_music`。
 - `tools/call` 会拒绝白名单外的 tool，避免客户端直接调用隐藏 tool。
 - Proxy 不重新封装这些 tool；tool description、input schema、调用参数和返回结果都来自上游。
 - 私有参数注入仍按原流程工作，包括 `_mac_token`、`_tag: "local"`、`_project_path`
@@ -1230,7 +1232,7 @@ cat config.json | node proxy.js
     "verbose": false,
     "reconnect_interval": 5000,
     "request_timeout": 30000,
-    "tool_call_timeout": 300000,
+    "tool_call_timeout": 3600000,
     "reset_timeout_on_progress": true,
     "health_check_interval": 30000,
     "enable_cookie_sticky": true,
@@ -1272,7 +1274,7 @@ node proxy.js
 - `options.verbose` - 详细日志模式（默认 `false`）
 - `options.reconnect_interval` - 重连间隔（毫秒，默认 `5000`）
 - `options.request_timeout` - 请求队列超时（毫秒，默认 `30000`）
-- `options.tool_call_timeout` - 工具调用超时（毫秒，默认 `300000`，即 5 分钟）
+- `options.tool_call_timeout` - 工具调用超时（毫秒，默认 `3600000`，即 1 小时）
 - `options.reset_timeout_on_progress` - 收到 progress 通知时重置超时计时器（默认 `true`）
   - 当客户端传入 `progressToken` 时，Proxy 会透传下游 `notifications/progress`
 - `options.health_check_interval` - 健康检查间隔（毫秒，默认 `30000`）- 定期验证 Server 会话是否有效
@@ -1502,7 +1504,7 @@ interface ProxyConfig {
     verbose?: boolean; // 详细日志（可选）
     reconnect_interval?: number; // 重连间隔（默认 5000ms）
     request_timeout?: number; // 请求队列超时（默认 30000ms）
-    tool_call_timeout?: number; // Tool 调用超时（默认 300000ms，即 5 分钟）
+    tool_call_timeout?: number; // Tool 调用超时（默认 3600000ms，即 1 小时）
     reset_timeout_on_progress?: boolean; // 收到 progress 通知时重置超时（默认 true）
     health_check_interval?: number; // 健康检查间隔（默认 30000ms）
     enable_cookie_sticky?: boolean; // 启用 Cookie 会话粘性（默认 true）
@@ -1559,7 +1561,7 @@ function generateProxyConfig(
     },
     options: {
       verbose: true, // 推荐开启详细日志
-      tool_call_timeout: 300000, // Tool 调用超时 5 分钟
+      tool_call_timeout: 3600000, // Tool 调用超时 1 小时
       reset_timeout_on_progress: true, // 收到 progress 通知时重置超时
       health_check_interval: 30000, // 健康检查间隔 30 秒
       enable_cookie_sticky: true, // 启用 Cookie 会话粘性

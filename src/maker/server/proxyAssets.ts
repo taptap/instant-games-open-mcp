@@ -11,6 +11,48 @@ type RemoteProxyFetch = typeof fetch;
 const IMAGE_ASSET_DIRS = ['assets/image'];
 const VIDEO_ASSET_DIRS = ['assets/video'];
 const AUDIO_ASSET_DIRS = ['assets/audio'];
+const IMAGE_REFERENCE_MAX_BYTES = 10 * 1024 * 1024;
+const VIDEO_TASK_IMAGE_REFERENCE_MAX_BYTES = 30 * 1024 * 1024;
+const VIDEO_REFERENCE_MAX_BYTES = 50 * 1024 * 1024;
+const AUDIO_REFERENCE_MAX_BYTES = 15 * 1024 * 1024;
+
+type DataUrlMediaKind = 'image' | 'video' | 'audio';
+
+const DATA_URL_MIME_BY_EXTENSION: Record<DataUrlMediaKind, Record<string, string>> = {
+  image: {
+    '.gif': 'image/gif',
+    '.jpeg': 'image/jpeg',
+    '.jpg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+  },
+  video: {
+    '.mov': 'video/quicktime',
+    '.mp4': 'video/mp4',
+  },
+  audio: {
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+  },
+};
+
+export class RemoteProxyToolResultError extends Error {
+  readonly toolName: string;
+  readonly result: RemoteProxyToolResult;
+
+  constructor(toolName: string, result: RemoteProxyToolResult) {
+    super(
+      [
+        `Remote proxy tool ${toolName} returned an error result.`,
+        '',
+        formatRemoteProxyToolResult(result),
+      ].join('\n')
+    );
+    this.name = 'RemoteProxyToolResultError';
+    this.toolName = toolName;
+    this.result = result;
+  }
+}
 
 export function prepareRemoteProxyToolArgs(options: {
   toolName: string;
@@ -22,6 +64,9 @@ export function prepareRemoteProxyToolArgs(options: {
   }
   if (options.toolName === 'generate_image') {
     return normalizeImageReferenceAssetArgs(options.targetDir, options.args);
+  }
+  if (options.toolName === 'batch_generate_images') {
+    return normalizeBatchImageReferenceAssetArgs(options.targetDir, options.args);
   }
   if (options.toolName === 'create_video_task') {
     return rewriteVideoReferenceAssetArgs(options.targetDir, options.args);
@@ -36,6 +81,10 @@ export async function materializeRemoteProxyToolAssets(options: {
   now?: Date;
   fetchImpl?: RemoteProxyFetch;
 }): Promise<RemoteProxyToolResult> {
+  if (isRemoteProxyToolErrorResult(options.result)) {
+    throw new RemoteProxyToolResultError(options.toolName, options.result);
+  }
+
   if (!shouldMaterializeRemoteProxyTool(options.toolName)) {
     return options.result;
   }
@@ -89,6 +138,7 @@ function shouldMaterializeRemoteProxyTool(toolName: string): boolean {
     'batch_generate_images',
     'edit_image',
     'create_video_task',
+    'query_video_task',
     'text_to_music',
   ].includes(toolName);
 }
@@ -100,6 +150,29 @@ function isTextContent(item: unknown): item is { type: 'text'; text: string } {
     (item as { type?: unknown }).type === 'text' &&
     typeof (item as { text?: unknown }).text === 'string'
   );
+}
+
+function isRemoteProxyToolErrorResult(result: RemoteProxyToolResult): boolean {
+  return Boolean((result as { isError?: unknown }).isError);
+}
+
+export function formatRemoteProxyToolResult(result: RemoteProxyToolResult): string {
+  return ['remote_result:', indent(formatUnknownForDiagnostics(result))].join('\n');
+}
+
+function formatUnknownForDiagnostics(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2) || String(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function indent(value: string): string {
+  return value
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n');
 }
 
 function parseJsonObject(text: string): Record<string, unknown> | undefined {
@@ -129,8 +202,8 @@ async function materializeParsedProxyResult(options: {
   if (options.toolName === 'edit_image') {
     return await materializeSingleImageResult(options, 'edit_image');
   }
-  if (options.toolName === 'create_video_task') {
-    return await materializeVideoResult(options);
+  if (options.toolName === 'create_video_task' || options.toolName === 'query_video_task') {
+    return await materializeVideoResult(options, options.toolName);
   }
   if (options.toolName === 'text_to_music') {
     return await materializeMusicResult(options);
@@ -214,20 +287,37 @@ async function materializeBatchImageResult(options: {
   return { ...options.payload, results };
 }
 
-async function materializeVideoResult(options: {
-  targetDir: string;
-  payload: Record<string, unknown>;
-  now: Date;
-  fetchImpl: RemoteProxyFetch;
-}): Promise<Record<string, unknown>> {
+async function materializeVideoResult(
+  options: {
+    targetDir: string;
+    payload: Record<string, unknown>;
+    now: Date;
+    fetchImpl: RemoteProxyFetch;
+  },
+  toolName: 'create_video_task' | 'query_video_task'
+): Promise<Record<string, unknown>> {
   if (options.payload.status !== 'succeeded') {
     return options.payload;
   }
 
+  const taskId = stringField(options.payload.task_id);
+  const cdnUrl = stringField(options.payload.cdn_url);
+  const existing = findExistingMaterializedVideo(options.targetDir, {
+    taskId,
+    cdnUrl,
+  });
+  if (existing) {
+    return {
+      ...options.payload,
+      ...existing,
+      download: { success: true },
+    };
+  }
+
   const materialized = await materializeAsset({
     targetDir: options.targetDir,
-    url: stringField(options.payload.cdn_url),
-    baseName: stringField(options.payload.task_id),
+    url: cdnUrl,
+    baseName: taskId,
     relativeDir: 'assets/video',
     extension: 'mp4',
     now: options.now,
@@ -236,16 +326,72 @@ async function materializeVideoResult(options: {
   return materialized
     ? persistMaterializedAsset({
         targetDir: options.targetDir,
-        toolName: 'create_video_task',
+        toolName,
         payload: options.payload,
         materialized,
         cdnUrl: stringField(options.payload.cdn_url),
         now: options.now,
         extraRegistryFields: {
-          taskId: stringField(options.payload.task_id),
+          taskId,
         },
       })
     : options.payload;
+}
+
+function findExistingMaterializedVideo(
+  targetDir: string,
+  options: {
+    taskId?: string;
+    cdnUrl?: string;
+  }
+): { localPath: string; absolutePath: string } | undefined {
+  if (!options.taskId || !options.cdnUrl) {
+    return undefined;
+  }
+
+  const registry = readGeneratedAssetRegistry(targetDir);
+  for (const record of Object.values(registry)) {
+    const localPath = stringField(record.localPath);
+    const recordCdnUrl = stringField(record.cdnUrl) || stringField(record.previewUrl);
+    if (
+      stringField(record.taskId) !== options.taskId ||
+      recordCdnUrl !== options.cdnUrl ||
+      !localPath.startsWith('assets/video/')
+    ) {
+      continue;
+    }
+
+    const absolutePath = resolveExistingMaterializedAssetPath(targetDir, record, localPath);
+    if (absolutePath) {
+      return { localPath, absolutePath };
+    }
+  }
+
+  return undefined;
+}
+
+function resolveExistingMaterializedAssetPath(
+  targetDir: string,
+  record: GeneratedAssetRegistry[string],
+  localPath: string
+): string | undefined {
+  const candidates = [];
+  const absolutePath = stringField(record.absolutePath);
+  if (absolutePath && path.isAbsolute(absolutePath)) {
+    candidates.push(absolutePath);
+  }
+  candidates.push(path.join(targetDir, ...localPath.split('/')));
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.statSync(candidate).isFile()) {
+        return candidate;
+      }
+    } catch {
+      // Keep checking the local registry path when an older absolute path is stale.
+    }
+  }
+  return undefined;
 }
 
 async function materializeMusicResult(options: {
@@ -419,10 +565,18 @@ function rewriteEditImageAssetArgs(
   const registry = readGeneratedAssetRegistry(targetDir);
   return {
     ...args,
-    image: rewriteGeneratedAssetReference(targetDir, args.image, registry, IMAGE_ASSET_DIRS),
+    image: rewriteGeneratedAssetReference(targetDir, args.image, registry, {
+      assetDirs: IMAGE_ASSET_DIRS,
+      mediaKind: 'image',
+      maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+    }),
     reference_images: Array.isArray(args.reference_images)
       ? args.reference_images.map((item) =>
-          rewriteGeneratedAssetReference(targetDir, item, registry, IMAGE_ASSET_DIRS)
+          rewriteGeneratedAssetReference(targetDir, item, registry, {
+            assetDirs: IMAGE_ASSET_DIRS,
+            mediaKind: 'image',
+            maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+          })
         )
       : args.reference_images,
   };
@@ -435,12 +589,40 @@ function normalizeImageReferenceAssetArgs(
   const registry = readGeneratedAssetRegistry(targetDir);
   return {
     ...args,
-    image: normalizeLocalAssetReference(targetDir, args.image, registry, IMAGE_ASSET_DIRS),
+    image: rewriteGeneratedAssetReference(targetDir, args.image, registry, {
+      assetDirs: IMAGE_ASSET_DIRS,
+      mediaKind: 'image',
+      maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+    }),
+    reference_image: rewriteGeneratedAssetReference(targetDir, args.reference_image, registry, {
+      assetDirs: IMAGE_ASSET_DIRS,
+      mediaKind: 'image',
+      maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+    }),
     reference_images: Array.isArray(args.reference_images)
       ? args.reference_images.map((item) =>
-          normalizeLocalAssetReference(targetDir, item, registry, IMAGE_ASSET_DIRS)
+          rewriteGeneratedAssetReference(targetDir, item, registry, {
+            assetDirs: IMAGE_ASSET_DIRS,
+            mediaKind: 'image',
+            maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+          })
         )
       : args.reference_images,
+  };
+}
+
+function normalizeBatchImageReferenceAssetArgs(
+  targetDir: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  if (!Array.isArray(args.images)) {
+    return args;
+  }
+  return {
+    ...args,
+    images: args.images.map((item) =>
+      isRecord(item) ? normalizeImageReferenceAssetArgs(targetDir, item) : item
+    ),
   };
 }
 
@@ -451,9 +633,21 @@ function rewriteVideoReferenceAssetArgs(
   const registry = readGeneratedAssetRegistry(targetDir);
   return {
     ...args,
-    images: rewriteUrlObjectArray(targetDir, args.images, registry, IMAGE_ASSET_DIRS),
-    videos: rewriteUrlObjectArray(targetDir, args.videos, registry, VIDEO_ASSET_DIRS),
-    audios: rewriteUrlObjectArray(targetDir, args.audios, registry, AUDIO_ASSET_DIRS),
+    images: rewriteUrlObjectArray(targetDir, args.images, registry, {
+      assetDirs: IMAGE_ASSET_DIRS,
+      mediaKind: 'image',
+      maxBytes: VIDEO_TASK_IMAGE_REFERENCE_MAX_BYTES,
+    }),
+    videos: rewriteUrlObjectArray(targetDir, args.videos, registry, {
+      assetDirs: VIDEO_ASSET_DIRS,
+      mediaKind: 'video',
+      maxBytes: VIDEO_REFERENCE_MAX_BYTES,
+    }),
+    audios: rewriteUrlObjectArray(targetDir, args.audios, registry, {
+      assetDirs: AUDIO_ASSET_DIRS,
+      mediaKind: 'audio',
+      maxBytes: AUDIO_REFERENCE_MAX_BYTES,
+    }),
   };
 }
 
@@ -461,7 +655,11 @@ function rewriteUrlObjectArray(
   targetDir: string,
   value: unknown,
   registry: GeneratedAssetRegistry,
-  assetDirs: string[]
+  options: {
+    assetDirs: string[];
+    mediaKind: DataUrlMediaKind;
+    maxBytes: number;
+  }
 ): unknown {
   if (!Array.isArray(value)) {
     return value;
@@ -470,7 +668,7 @@ function rewriteUrlObjectArray(
     isRecord(item)
       ? {
           ...item,
-          url: rewriteGeneratedAssetReference(targetDir, item.url, registry, assetDirs),
+          url: rewriteGeneratedAssetReference(targetDir, item.url, registry, options),
         }
       : item
   );
@@ -480,28 +678,35 @@ function rewriteGeneratedAssetReference(
   targetDir: string,
   value: unknown,
   registry: GeneratedAssetRegistry,
-  assetDirs: string[]
+  options: {
+    assetDirs: string[];
+    mediaKind: DataUrlMediaKind;
+    maxBytes: number;
+  }
 ): unknown {
   if (typeof value !== 'string') {
     return value;
   }
-  const localPath = resolveLocalAssetReference(targetDir, value, registry, assetDirs);
+  if (/^https?:\/\//i.test(value) || value.startsWith('data:')) {
+    return value;
+  }
+
+  const localPath = resolveLocalAssetReference(targetDir, value, registry, options.assetDirs);
   const cdnUrl = localPath
     ? registry[localPath]?.cdnUrl || registry[localPath]?.previewUrl
     : undefined;
-  return cdnUrl || localPath || value;
-}
-
-function normalizeLocalAssetReference(
-  targetDir: string,
-  value: unknown,
-  registry: GeneratedAssetRegistry,
-  assetDirs: string[]
-): unknown {
-  if (typeof value !== 'string') {
-    return value;
+  if (cdnUrl) {
+    return cdnUrl;
   }
-  return resolveLocalAssetReference(targetDir, value, registry, assetDirs) || value;
+
+  const dataUrl = localAssetReferenceToDataUrl({
+    targetDir,
+    value,
+    localPath,
+    mediaKind: options.mediaKind,
+    maxBytes: options.maxBytes,
+  });
+  return dataUrl || value;
 }
 
 function resolveLocalAssetReference(
@@ -601,6 +806,89 @@ function isKnownAssetPath(relativePath: string, assetDirs: string[]): boolean {
 
 function isBareAssetName(value: string): boolean {
   return !value.includes('/') && !value.includes('\\');
+}
+
+function localAssetReferenceToDataUrl(options: {
+  targetDir: string;
+  value: string;
+  localPath?: string;
+  mediaKind: DataUrlMediaKind;
+  maxBytes: number;
+}): string | undefined {
+  const absolutePath = resolveLocalAssetAbsolutePath(options.targetDir, {
+    value: options.value,
+    localPath: options.localPath,
+  });
+  if (!absolutePath) {
+    return undefined;
+  }
+
+  const mime = dataUrlMimeForPath(absolutePath, options.mediaKind);
+  if (!mime) {
+    return undefined;
+  }
+
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(absolutePath);
+  } catch {
+    return undefined;
+  }
+  if (!stat.isFile() || stat.size > options.maxBytes) {
+    return undefined;
+  }
+
+  const bytes = fs.readFileSync(absolutePath);
+  return `data:${mime};base64,${bytes.toString('base64')}`;
+}
+
+function resolveLocalAssetAbsolutePath(
+  targetDir: string,
+  options: {
+    value: string;
+    localPath?: string;
+  }
+): string | undefined {
+  const candidates = [];
+  if (options.localPath) {
+    const localPath = resolveProjectRelativePath(targetDir, options.localPath);
+    if (localPath) {
+      candidates.push(localPath);
+    }
+  }
+  if (path.isAbsolute(options.value)) {
+    candidates.push(options.value);
+  } else {
+    const localPath = resolveProjectRelativePath(targetDir, options.value);
+    if (localPath) {
+      candidates.push(localPath);
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+function resolveProjectRelativePath(targetDir: string, value: string): string | undefined {
+  const root = path.resolve(targetDir);
+  const absolutePath = path.resolve(root, value);
+  const relativePath = path.relative(root, absolutePath);
+  const escapesRoot =
+    relativePath === '..' ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath);
+  if (!escapesRoot) {
+    return absolutePath;
+  }
+  return undefined;
+}
+
+function dataUrlMimeForPath(filePath: string, mediaKind: DataUrlMediaKind): string | undefined {
+  return DATA_URL_MIME_BY_EXTENSION[mediaKind][path.extname(filePath).toLowerCase()];
 }
 
 function upsertGeneratedAssetRecord(

@@ -86,13 +86,19 @@ import {
   type RuntimeLogQueryArgs,
   type RuntimeLogQueryResult,
 } from './runtimeLogs.js';
-import { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './proxyAssets.js';
+import {
+  RemoteProxyToolResultError,
+  formatRemoteProxyToolResult,
+  materializeRemoteProxyToolAssets,
+  prepareRemoteProxyToolArgs,
+} from './proxyAssets.js';
 
 export { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './proxyAssets.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
 const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
+const REMOTE_PROXY_FORWARD_TIMEOUT_MS = 60 * 60 * 1000;
 const DEFAULT_PROXY_RETRY_ATTEMPTS = 5;
 const DEFAULT_PROXY_RETRY_DELAY_MS = 30 * 1000;
 const PREVIEW_REFRESH_TIMEOUT_MS = 15 * 1000;
@@ -104,6 +110,7 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'batch_generate_images',
   'edit_image',
   'create_video_task',
+  'query_video_task',
   'text_to_music',
 ];
 
@@ -127,7 +134,7 @@ export const tools = [
   {
     name: 'maker_status_lite',
     description:
-      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness, maker-lua-lsp readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets and override generic imagegen/native media tools, edit_image guidance to resolve dragged/referenced images to a local path or CDN URL before calling the tool, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init.',
+      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness, maker-lua-lsp readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets, supported local path/remote URL/data URL media inputs, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -243,7 +250,9 @@ export async function listMakerTools(options: {
           serverUrl: options.serverUrl,
           env: options.env,
         }));
-    remoteTools = filterExposedRemoteProxyTools(await listedRemoteTools());
+    remoteTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
+      decorateRemoteProxyToolDefinition
+    );
   } catch {
     remoteTools = [];
   }
@@ -258,6 +267,58 @@ function filterExposedRemoteProxyTools(
 ): RemoteToolDefinition[] {
   const exposedToolNames = new Set(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES);
   return toolsToFilter.filter((tool) => exposedToolNames.has(tool.name));
+}
+
+function decorateRemoteProxyToolDefinition(tool: RemoteToolDefinition): RemoteToolDefinition {
+  const guidance = remoteProxyToolGuidance(tool.name);
+  if (!guidance) {
+    return tool;
+  }
+  return {
+    ...tool,
+    description: [tool.description, guidance].filter(Boolean).join('\n\n'),
+  };
+}
+
+function remoteProxyToolGuidance(toolName: string): string | undefined {
+  const failurePolicy =
+    'If this Maker proxy tool fails or returns isError, include the full remote_result/error payload from the server so developers can diagnose the issue.';
+  const localMediaSizeHint =
+    'Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB.';
+  switch (toolName) {
+    case 'generate_image':
+    case 'batch_generate_images':
+      return [
+        '**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for Maker project assets. Successful results are downloaded into the Maker project and recorded with remote mapping for later edits or video references.',
+        localMediaSizeHint,
+        failurePolicy,
+      ].join(' ');
+    case 'edit_image':
+      return [
+        '**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for image editing.',
+        localMediaSizeHint,
+        failurePolicy,
+      ].join(' ');
+    case 'create_video_task':
+      return [
+        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker video generation. Image, video, and audio references may use remote URLs, existing data URLs, or resolvable local files that the local proxy can forward as data URLs.',
+        localMediaSizeHint,
+        failurePolicy,
+      ].join(' ');
+    case 'query_video_task':
+      return [
+        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool to refresh video task status, release completed task quota, and materialize successful video results into the Maker project.',
+        'Use this Maker MCP proxy tool to refresh video task status when create_video_task returns a task_id or reports video concurrency limits.',
+        failurePolicy,
+      ].join(' ');
+    case 'text_to_music':
+      return [
+        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker music generation so generated audio can be materialized into the project and recorded for later Maker references.',
+        failurePolicy,
+      ].join(' ');
+    default:
+      return undefined;
+  }
 }
 
 function isExposedRemoteProxyTool(name: string): boolean {
@@ -346,18 +407,9 @@ async function callRemoteProxyTool(options: {
           },
           undefined,
           {
-            timeout: DEFAULT_BUILD_TIMEOUT_MS,
+            timeout: REMOTE_PROXY_FORWARD_TIMEOUT_MS,
             resetTimeoutOnProgress: true,
-            onprogress: options.progressToken
-              ? (progress) => {
-                  options.extra
-                    .sendNotification({
-                      method: 'notifications/progress',
-                      params: { progressToken: options.progressToken, ...progress },
-                    })
-                    .catch(() => {});
-                }
-              : undefined,
+            onprogress: createRemoteProxyProgressHandler(options.progressToken, options.extra),
           }
         );
       } finally {
@@ -387,6 +439,26 @@ async function callRemoteProxyTool(options: {
     targetDir: proxy.projectRoot,
     result,
   });
+}
+
+export function createRemoteProxyProgressHandler(
+  progressToken: ProgressToken | undefined,
+  extra: RequestHandlerExtra<ServerRequest, ServerNotification>
+): (progress: { progress: number; total?: number; message?: string }) => void {
+  if (progressToken === undefined) {
+    // Registering a noop onprogress still makes the MCP SDK inject an outbound
+    // progressToken, allowing the remote server heartbeat to keep idle timeout alive.
+    return () => {};
+  }
+
+  return (progress) => {
+    extra
+      .sendNotification({
+        method: 'notifications/progress',
+        params: { progressToken, ...progress },
+      })
+      .catch(() => {});
+  };
 }
 
 export async function startMakerMcpServer(): Promise<void> {
@@ -1169,6 +1241,8 @@ export function createRemoteProxyContext(options: {
     },
     options: {
       verbose: true,
+      reset_timeout_on_progress: true,
+      force_inject_progress_token: true,
       exposed_tools: options.exposedTools,
     },
   };
@@ -2711,18 +2785,90 @@ function formatToolException(toolName: string, error: unknown): string {
     ].join('\n');
   }
 
+  if (error instanceof RemoteProxyToolResultError) {
+    return [
+      '✗ Maker MCP proxy tool failed',
+      '',
+      `- tool: ${toolName}`,
+      '- reason: remote_proxy_tool_result_error',
+      `- error_name: ${error.name}`,
+      `- message: ${firstLine(error.message)}`,
+      '',
+      formatRemoteProxyToolResult(error.result),
+      '',
+      'next_action: 远端 proxy tool 已返回失败结果；请把 remote_result 原样反馈给开发者，方便排查 server 返回内容。',
+    ].join('\n');
+  }
+
   return [
     '✗ Maker MCP tool failed',
     '',
     `- tool: ${toolName}`,
     `- error_name: ${error instanceof Error ? error.name : typeof error}`,
     `- message: ${message}`,
+    ...formatUnknownExceptionDetailLines(error),
     '',
     'debug:',
     stack ? indent(stack) : indent(message),
     '',
     'next_action: 请把上面的完整错误反馈给开发者；如果本地已有 commit 但 push 未完成，不要重复 commit，直接重试 maker_build_current_directory。',
   ].join('\n');
+}
+
+function firstLine(value: string): string {
+  return value.split('\n')[0] || value;
+}
+
+function formatUnknownExceptionDetailLines(error: unknown): string[] {
+  if (!(error instanceof Error)) {
+    return [];
+  }
+
+  const details = errorOwnDiagnosticFields(error);
+  if (Object.keys(details).length === 0) {
+    return [];
+  }
+
+  return ['', 'error_details:', indent(formatDiagnosticJson(details))];
+}
+
+function errorOwnDiagnosticFields(error: Error): Record<string, unknown> {
+  const details: Record<string, unknown> = {};
+  for (const key of Object.getOwnPropertyNames(error)) {
+    if (key === 'name' || key === 'message' || key === 'stack') {
+      continue;
+    }
+    details[key] = sanitizeDiagnosticValue((error as unknown as Record<string, unknown>)[key]);
+  }
+  return details;
+}
+
+function sanitizeDiagnosticValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeDiagnosticValue(item));
+  }
+  if (value && typeof value === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, nestedValue] of Object.entries(value)) {
+      result[key] = isSensitiveDiagnosticKey(key)
+        ? '<redacted>'
+        : sanitizeDiagnosticValue(nestedValue);
+    }
+    return result;
+  }
+  return value;
+}
+
+export function isSensitiveDiagnosticKey(key: string): boolean {
+  return /token|secret|mac[_-]?key|authorization|cookie|(^|[_-])pat($|[_-])/i.test(key);
+}
+
+function formatDiagnosticJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function indent(value: string): string {

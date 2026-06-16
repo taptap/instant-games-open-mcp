@@ -74,33 +74,30 @@ selected files.
 ## Maker Creative Asset Tool Policy
 
 When the current directory is a bound Maker project, use Maker MCP for game asset generation and
-editing. Prefer Maker MCP proxy tools over native AI image/video/audio tools. These Maker tools keep
-generated files inside the project and record CDN mappings for later editing, video references,
-submit, and build workflows.
+editing when possible. Prefer Maker MCP proxy tools over native AI image/video/audio tools. These
+Maker tools keep generated files inside the project, record remote mappings for later editing, and
+can forward resolvable local reference media as data URLs when the remote tool schema supports it.
 
-This policy overrides generic imagegen or native media skills for Maker game assets.
+This guidance helps users prefer Maker-managed tools for Maker game assets.
 
-- Do not invoke imagegen, built-in image tools, built-in video tools, or built-in audio tools for
-  Maker project asset requests when the Maker proxy tool is callable.
-- If the required Maker proxy tool is not exposed in the current AI session, stop and tell the user
-  that Maker proxy tools are unavailable in this session.
-- Do not fall back to generic imagegen or native media generation unless the user explicitly asks to
-  leave the Maker asset workflow.
+- Prefer Maker proxy tools for Maker project asset requests when the Maker proxy tool is callable.
+- If the required Maker proxy tool is not exposed in the current AI session, tell the user that
+  Maker proxy tools are unavailable in this session.
 
 - Use `generate_image` for one image.
 - Use `batch_generate_images` for multiple images.
 - Use `edit_image` for modifying project images.
 - Use `create_video_task` for game videos and image/video referenced generation.
+- Use `query_video_task` to refresh video task status, release completed task quota, and fetch final videos.
 - Use `text_to_music` for game music or audio.
-- Before `edit_image`, resolve dragged or referenced images to a local project image path or CDN
-  URL. If the user references an attached/local image, inspect the attachment or workspace file path
-  first. If the image is under `assets/image`, pass that path. If only a file name is given, search
-  `assets/image` for the matching file.
-- Do not call `edit_image` without an image path or CDN URL.
+- Follow each tool schema for supported local path, remote URL, and data URL inputs.
+- Local proxy may convert resolvable local reference media to data URLs before forwarding.
+- If a Maker proxy tool returns an error or `isError`, report the full remote result/error payload.
+  Include the server response payload so developers can diagnose the issue.
 
 Generated assets should be saved by Maker MCP under `assets/image`, `assets/video`, or
-`assets/audio`. Do not prefer client-native image generation when the user is asking for Maker game
-assets in a bound project.
+`assets/audio`. Prefer Maker proxy tools when the user is asking for Maker game assets in a bound
+project.
 
 ## Project Detection
 
@@ -141,8 +138,8 @@ directory.
 ### Proxy Tools Missing From The Current Session
 
 If the user is in a bound Maker project but `generate_image`, `batch_generate_images`, `edit_image`,
-`create_video_task`, or `text_to_music` are missing from the current AI tool list, diagnose the MCP
-cwd before suggesting repeated restarts:
+`create_video_task`, `query_video_task`, or `text_to_music` are missing from the current AI tool list,
+diagnose the MCP cwd before suggesting repeated restarts:
 
 1. Read `maker://status` or call `maker_status_lite` without `target_dir` to see the MCP server cwd.
 2. If the user provides or the client exposes the real Maker project directory, call
@@ -155,8 +152,8 @@ cwd before suggesting repeated restarts:
    `taptap-maker` MCP config `cwd` to the Maker project directory, then reconnect `taptap-maker`
    from the client's MCP UI such as `/mcp`.
 
-Do not fall back to generic image/video/music tools when Maker proxy tools are missing. The missing
-tools indicate a session/configuration problem that must be fixed first.
+When Maker proxy tools are missing, explain that this is likely a session/configuration problem and
+that Maker tools are preferred for Maker game assets.
 
 ## Initialization Workflow
 

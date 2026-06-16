@@ -1,4 +1,5 @@
 import { PassThrough } from 'node:stream';
+import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../mcp-proxy/config';
 import { installStandaloneProxyLifecycleHandlers } from '../mcp-proxy/lifecycle';
 import { TapTapMCPProxy } from '../mcp-proxy/proxy';
 import type { ProxyConfig } from '../mcp-proxy/types';
@@ -26,6 +27,10 @@ function createProxyConfig(): ProxyConfig {
 }
 
 describe('standalone MCP proxy lifecycle guards', () => {
+  test('defaults tool call timeout to one hour for long-running proxy tools', () => {
+    expect(DEFAULT_TOOL_CALL_TIMEOUT_MS).toBe(60 * 60 * 1000);
+  });
+
   test('cleans up and exits when stdin closes', () => {
     const stdin = new PassThrough();
     const cleanup = jest.fn();

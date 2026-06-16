@@ -9,6 +9,8 @@
 
 import type { ProxyConfig } from './types.js';
 
+export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60 * 60 * 1000;
+
 /**
  * 从标准输入读取数据
  */
@@ -188,7 +190,7 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
       verbose,
       reconnect_interval: config.options?.reconnect_interval ?? 5000,
       request_timeout: config.options?.request_timeout ?? 30000,
-      tool_call_timeout: config.options?.tool_call_timeout ?? 300000, // 5 分钟
+      tool_call_timeout: config.options?.tool_call_timeout ?? DEFAULT_TOOL_CALL_TIMEOUT_MS,
       reset_timeout_on_progress: config.options?.reset_timeout_on_progress ?? true,
       health_check_interval: config.options?.health_check_interval ?? 30000,
       enable_cookie_sticky: config.options?.enable_cookie_sticky ?? true,
