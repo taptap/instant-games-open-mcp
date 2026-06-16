@@ -103,8 +103,10 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
 - Do not call `edit_image` without an image path or CDN URL.
 
 Generated assets should be saved by Maker MCP under `assets/image`, `assets/video`, or
-`assets/audio`; generated 3D MDL zip files are saved under `assets/model`. Do not prefer
-client-native image generation when the user is asking for Maker game assets in a bound project.
+`assets/audio`; generated 3D model outputs save the original GLB/FBX and MDL zip under
+`assets/model`, then extract MDL contents into `assets/Meshes`, `assets/Materials`,
+`assets/Textures`, and `assets/Prefabs`. Do not prefer client-native image generation when the user
+is asking for Maker game assets in a bound project.
 
 ## Project Detection
 

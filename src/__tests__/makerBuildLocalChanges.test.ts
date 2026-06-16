@@ -10,6 +10,7 @@ import path from 'node:path';
 import {
   buildCurrentDirectory,
   createBuildArgs,
+  createRemoteProxyCallToolOptions,
   listMakerTools,
   MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
   materializeRemoteProxyToolAssets,
@@ -1741,7 +1742,7 @@ describe('maker build local-change guard', () => {
       toolName: 'query_3d_model_task',
       targetDir: tempDir,
       now: new Date('2026-06-11T08:09:11Z'),
-      fetchImpl: fake3dModelResultFetch(modelZip, 'render-image'),
+      fetchImpl: fake3dModelResultFetch(modelZip, 'model-bytes', 'render-image'),
       result: proxyTextResult({
         task_id: 'model-task-2',
         status: 'success',
@@ -1753,7 +1754,14 @@ describe('maker build local-change guard', () => {
 
     const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
     const parsed = JSON.parse(text);
+    expect((result as { structuredContent?: unknown }).structuredContent).toMatchObject({
+      task_id: 'model-task-2',
+      mdlLocalPath: 'assets/model/model-task-2_20260611080911.zip',
+      modelLocalPath: 'assets/model/model-task-2_20260611080911.glb',
+      renderedImageLocalPath: 'assets/image/model-task-2_render_20260611080911.png',
+    });
     expect(parsed.mdlLocalPath).toBe('assets/model/model-task-2_20260611080911.zip');
+    expect(parsed.modelLocalPath).toBe('assets/model/model-task-2_20260611080911.glb');
     expect(parsed.renderedImageLocalPath).toBe(
       'assets/image/model-task-2_render_20260611080911.png'
     );
@@ -1781,20 +1789,28 @@ describe('maker build local-change guard', () => {
     expect(fs.readFileSync(path.join(tempDir, 'assets/Prefabs/MyModel.prefab'), 'utf8')).toBe(
       '<prefab />'
     );
-    expect(fs.existsSync(path.join(tempDir, 'assets/model/model-task-2_20260611080911.glb'))).toBe(
-      false
-    );
+    expect(
+      fs.readFileSync(path.join(tempDir, 'assets/model/model-task-2_20260611080911.glb'), 'utf8')
+    ).toBe('model-bytes');
     const registry = JSON.parse(
       fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
     );
     expect(registry['assets/model/model-task-2_20260611080911.zip'].cdnUrl).toBe(
       'https://oss-cdn.example.test/model.zip'
     );
+    expect(registry['assets/model/model-task-2_20260611080911.zip'].assetKind).toBe('mdl_zip');
     expect(registry['assets/model/model-task-2_20260611080911.zip'].modelCdnUrl).toBe(
       'https://cdn.tripo3d.ai/model.glb'
     );
+    expect(registry['assets/model/model-task-2_20260611080911.glb'].cdnUrl).toBe(
+      'https://cdn.tripo3d.ai/model.glb'
+    );
+    expect(registry['assets/model/model-task-2_20260611080911.glb'].assetKind).toBe('model');
     expect(registry['assets/image/model-task-2_render_20260611080911.png'].renderedImageUrl).toBe(
       'https://cdn.tripo3d.ai/preview.png'
+    );
+    expect(registry['assets/image/model-task-2_render_20260611080911.png'].assetKind).toBe(
+      'render'
     );
   });
 
@@ -1817,6 +1833,16 @@ describe('maker build local-change guard', () => {
     expect(parsed.status).toBe('success');
     expect(parsed.mdl_conversion_error).toBe('UrhoXCLI failed');
     expect(parsed.mdlLocalPath).toBeUndefined();
+  });
+
+  test('does not add local timeout limits to remote proxy generation tool calls', () => {
+    const options = createRemoteProxyCallToolOptions(undefined, {
+      sendNotification: jest.fn(),
+    } as never);
+
+    expect(options).not.toHaveProperty('timeout');
+    expect(options).not.toHaveProperty('resetTimeoutOnProgress');
+    expect(typeof options.onprogress).toBe('function');
   });
 
   test('keeps proxy result readable when asset download fails', async () => {
@@ -2910,10 +2936,17 @@ describe('maker build local-change guard', () => {
     return `data:${mime};base64,${Buffer.from(body).toString('base64')}`;
   }
 
-  function fake3dModelResultFetch(zipBody: Buffer, imageBody: string): typeof fetch {
+  function fake3dModelResultFetch(
+    zipBody: Buffer,
+    modelBody: string,
+    imageBody: string
+  ): typeof fetch {
     return (async (input: Parameters<typeof fetch>[0]) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      return new Response(url.endsWith('.zip') ? zipBody : imageBody, { status: 200 });
+      if (url.endsWith('.zip')) {
+        return new Response(zipBody, { status: 200 });
+      }
+      return new Response(url.endsWith('.glb') ? modelBody : imageBody, { status: 200 });
     }) as typeof fetch;
   }
 

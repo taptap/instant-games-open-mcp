@@ -8,6 +8,9 @@ import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { extractZip } from '../cli/devKit.js';
 
 type RemoteProxyToolResult = Awaited<ReturnType<Client['callTool']>>;
+type RemoteProxyToolResultWithStructuredContent = RemoteProxyToolResult & {
+  structuredContent?: unknown;
+};
 type RemoteProxyFetch = typeof fetch;
 const IMAGE_ASSET_DIRS = ['assets/image'];
 const VIDEO_ASSET_DIRS = ['assets/video'];
@@ -102,6 +105,7 @@ export async function materializeRemoteProxyToolAssets(options: {
 
   let changed = false;
   const nextContent = [];
+  const structuredPayloads: Record<string, unknown>[] = [];
   for (const item of content) {
     if (!isTextContent(item)) {
       nextContent.push(item);
@@ -121,6 +125,7 @@ export async function materializeRemoteProxyToolAssets(options: {
       now: options.now ?? new Date(),
       fetchImpl: options.fetchImpl ?? fetch,
     });
+    structuredPayloads.push(nextParsed);
     if (nextParsed === parsed) {
       nextContent.push(item);
       continue;
@@ -131,6 +136,16 @@ export async function materializeRemoteProxyToolAssets(options: {
       ...item,
       text: JSON.stringify(nextParsed, null, 2),
     });
+  }
+
+  const structuredContent =
+    structuredPayloads.length === 1 ? structuredPayloads[0] : { results: structuredPayloads };
+  if (structuredPayloads.length > 0) {
+    return {
+      ...options.result,
+      ...(changed ? { content: nextContent } : {}),
+      structuredContent,
+    } as RemoteProxyToolResultWithStructuredContent;
   }
 
   return changed
@@ -553,6 +568,40 @@ async function materialize3dFinalResult(
   const renderedImageUrl = stringField(options.payload.rendered_image_url);
   const mdlConversionError = stringField(options.payload.mdl_conversion_error);
 
+  const modelMaterialized = await materializeAsset({
+    targetDir: options.targetDir,
+    url: modelCdnUrl,
+    baseName: taskId || '3d_model',
+    relativeDir: MODEL_ASSET_DIRS[0],
+    extension: extensionFromUrl(modelCdnUrl) || 'glb',
+    now: options.now,
+    fetchImpl: options.fetchImpl,
+  });
+  if (modelMaterialized) {
+    changed = true;
+    nextPayload.modelDownload = modelMaterialized.download;
+    if ('localPath' in modelMaterialized) {
+      nextPayload.modelLocalPath = modelMaterialized.localPath;
+      nextPayload.modelAbsolutePath = modelMaterialized.absolutePath;
+      if (modelCdnUrl) {
+        upsertGeneratedAssetRecord(options.targetDir, modelMaterialized.localPath, {
+          tool: toolName,
+          name: taskId,
+          assetKind: 'model',
+          cdnUrl: modelCdnUrl,
+          previewUrl: renderedImageUrl || modelCdnUrl,
+          localPath: modelMaterialized.localPath,
+          absolutePath: modelMaterialized.absolutePath,
+          createdAt: options.now.toISOString(),
+          taskId,
+          modelCdnUrl,
+          renderedImageUrl,
+          mdlConversionError,
+        });
+      }
+    }
+  }
+
   const mdlUrl = stringField(options.payload.mdl_cdn_url);
   const mdlMaterialized = await materializeAsset({
     targetDir: options.targetDir,
@@ -580,6 +629,7 @@ async function materialize3dFinalResult(
         upsertGeneratedAssetRecord(options.targetDir, mdlMaterialized.localPath, {
           tool: toolName,
           name: taskId,
+          assetKind: 'mdl_zip',
           cdnUrl: mdlUrl,
           previewUrl: renderedImageUrl || mdlUrl,
           localPath: mdlMaterialized.localPath,
@@ -613,6 +663,7 @@ async function materialize3dFinalResult(
         upsertGeneratedAssetRecord(options.targetDir, renderedImageMaterialized.localPath, {
           tool: toolName,
           name: `${taskId || '3d_model'}_render`,
+          assetKind: 'render',
           cdnUrl: renderedImageUrl,
           previewUrl: renderedImageUrl,
           localPath: renderedImageMaterialized.localPath,
@@ -746,6 +797,7 @@ type GeneratedAssetRegistry = Record<
   {
     tool?: string;
     name?: string;
+    assetKind?: 'model' | 'mdl_zip' | 'render';
     prompt?: string;
     cdnUrl?: string;
     previewUrl?: string;
@@ -860,37 +912,33 @@ function rewrite3dModelAssetArgs(
   args: Record<string, unknown>
 ): Record<string, unknown> {
   const registry = readGeneratedAssetRegistry(targetDir);
+  const imageOptions = {
+    assetDirs: IMAGE_ASSET_DIRS,
+    mediaKind: 'image' as const,
+    maxBytes: IMAGE_REFERENCE_MAX_BYTES,
+  };
   return {
     ...args,
-    image: rewriteGeneratedAssetReference(targetDir, args.image, registry, IMAGE_ASSET_DIRS),
+    image: rewriteGeneratedAssetReference(targetDir, args.image, registry, imageOptions),
     front_image: rewriteGeneratedAssetReference(
       targetDir,
       args.front_image,
       registry,
-      IMAGE_ASSET_DIRS
+      imageOptions
     ),
-    left_image: rewriteGeneratedAssetReference(
-      targetDir,
-      args.left_image,
-      registry,
-      IMAGE_ASSET_DIRS
-    ),
-    back_image: rewriteGeneratedAssetReference(
-      targetDir,
-      args.back_image,
-      registry,
-      IMAGE_ASSET_DIRS
-    ),
+    left_image: rewriteGeneratedAssetReference(targetDir, args.left_image, registry, imageOptions),
+    back_image: rewriteGeneratedAssetReference(targetDir, args.back_image, registry, imageOptions),
     right_image: rewriteGeneratedAssetReference(
       targetDir,
       args.right_image,
       registry,
-      IMAGE_ASSET_DIRS
+      imageOptions
     ),
     confirmed_image_paths: rewrite3dConfirmedImagePaths(
       targetDir,
       args.confirmed_image_paths,
-      registry
+      registry,
+      imageOptions
     ),
   };
 }
@@ -898,7 +946,12 @@ function rewrite3dModelAssetArgs(
 function rewrite3dConfirmedImagePaths(
   targetDir: string,
   value: unknown,
-  registry: GeneratedAssetRegistry
+  registry: GeneratedAssetRegistry,
+  options: {
+    assetDirs: string[];
+    mediaKind: DataUrlMediaKind;
+    maxBytes: number;
+  }
 ): unknown {
   if (!isRecord(value)) {
     return value;
@@ -906,10 +959,10 @@ function rewrite3dConfirmedImagePaths(
 
   return {
     ...value,
-    front: rewriteGeneratedAssetReference(targetDir, value.front, registry, IMAGE_ASSET_DIRS),
-    left: rewriteGeneratedAssetReference(targetDir, value.left, registry, IMAGE_ASSET_DIRS),
-    back: rewriteGeneratedAssetReference(targetDir, value.back, registry, IMAGE_ASSET_DIRS),
-    right: rewriteGeneratedAssetReference(targetDir, value.right, registry, IMAGE_ASSET_DIRS),
+    front: rewriteGeneratedAssetReference(targetDir, value.front, registry, options),
+    left: rewriteGeneratedAssetReference(targetDir, value.left, registry, options),
+    back: rewriteGeneratedAssetReference(targetDir, value.back, registry, options),
+    right: rewriteGeneratedAssetReference(targetDir, value.right, registry, options),
   };
 }
 

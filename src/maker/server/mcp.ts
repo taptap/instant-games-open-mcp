@@ -98,7 +98,6 @@ export { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
 const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
-const REMOTE_PROXY_FORWARD_TIMEOUT_MS = 60 * 60 * 1000;
 const DEFAULT_PROXY_RETRY_ATTEMPTS = 5;
 const DEFAULT_PROXY_RETRY_DELAY_MS = 30 * 1000;
 const PREVIEW_REFRESH_TIMEOUT_MS = 15 * 1000;
@@ -409,9 +408,7 @@ async function callRemoteProxyTool(options: {
           },
           undefined,
           {
-            timeout: REMOTE_PROXY_FORWARD_TIMEOUT_MS,
-            resetTimeoutOnProgress: true,
-            onprogress: createRemoteProxyProgressHandler(options.progressToken, options.extra),
+            ...createRemoteProxyCallToolOptions(options.progressToken, options.extra),
           }
         );
       } finally {
@@ -460,6 +457,17 @@ export function createRemoteProxyProgressHandler(
         params: { progressToken, ...progress },
       })
       .catch(() => {});
+  };
+}
+
+export function createRemoteProxyCallToolOptions(
+  progressToken: ProgressToken | undefined,
+  extra: RequestHandlerExtra<ServerRequest, ServerNotification>
+): {
+  onprogress: (progress: { progress: number; total?: number; message?: string }) => void;
+} {
+  return {
+    onprogress: createRemoteProxyProgressHandler(progressToken, extra),
   };
 }
 
