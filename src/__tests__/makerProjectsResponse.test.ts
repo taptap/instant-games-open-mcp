@@ -168,9 +168,14 @@ describe('maker app list display', () => {
     expect(output).not.toContain('gameType=');
     expect(output).not.toContain('stage=');
     expect(output).not.toContain('createdAt=');
+    expect(output).toContain('0，创建新项目');
+    expect(output.indexOf('0，创建新项目')).toBeLessThan(output.indexOf('1. App 120'));
     expect(output).toContain('0. Create a new Maker project');
+    expect(output.indexOf('0. Create a new Maker project')).toBeLessThan(
+      output.indexOf('1. App 120')
+    );
     expect(output.indexOf('40. App 81')).toBeLessThan(
-      output.indexOf('0. Create a new Maker project')
+      output.lastIndexOf('0. Create a new Maker project')
     );
   });
 
@@ -183,6 +188,7 @@ describe('maker app list display', () => {
     expect(output).toContain('120. App 1  id=app-1');
     expect(output).not.toContain('more hidden');
     expect(output).not.toContain('--all');
+    expect(output).toContain('0，创建新项目');
     expect(output).toContain('0. Create a new Maker project');
   });
 
@@ -198,6 +204,12 @@ describe('maker app list display', () => {
     const output = formatStatusProjectList(projects);
 
     expect(output).toContain('Maker apps (120)');
+    expect(output).toContain('0，创建新项目');
+    expect(output.indexOf('0，创建新项目')).toBeLessThan(output.indexOf('1. app-120'));
+    expect(output).toContain('0. Create a new Maker project');
+    expect(output.indexOf('0. Create a new Maker project')).toBeLessThan(
+      output.indexOf('1. app-120')
+    );
     expect(output).toContain(
       '为了保持友好的可读性，默认最多展示 40 个 app；如需完整列表，可以选择显示全部。'
     );
@@ -212,6 +224,16 @@ describe('maker app list display', () => {
     expect(output).toContain('两列紧凑布局');
     expect(output).toContain('用户回复序号或 app_id 后，next_step: 执行 `taptap-maker init`');
     expect(output).not.toContain('每一个 app 条目');
+  });
+
+  test('status output guides project creation when no apps exist', () => {
+    const output = formatStatusProjectList([]);
+
+    expect(output).toContain('No Maker apps found.');
+    expect(output).toContain('0，创建新项目');
+    expect(output).toContain('0. Create a new Maker project');
+    expect(output).toContain('taptap-maker init');
+    expect(output).toContain('new');
   });
 
   test('explains the status app page limit for readable output', () => {

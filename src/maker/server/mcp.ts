@@ -72,6 +72,7 @@ import {
   formatMakerLuaLspEnvironmentStatus,
 } from '../system/luaLsp.js';
 import { formatMakerSkillStatus } from '../cli/skill.js';
+import { formatMakerAgentsPolicyStatus } from '../cli/agentsPolicy.js';
 import {
   DEV_KIT_GITIGNORE_STAGING_FILE,
   checkAiDevKitUpdate,
@@ -135,7 +136,7 @@ export const tools = [
   {
     name: 'maker_status_lite',
     description:
-      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness, maker-lua-lsp readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets, supported local path/remote URL/data URL media inputs, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init.',
+      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness, maker-lua-lsp readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets, supported local path/remote URL/data URL inputs, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. If the user explicitly asks to create a project/game in an unbound directory, prioritize taptap-maker init --create over same-name app matching.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -230,7 +231,7 @@ export const resources = [
     uri: 'maker://status',
     name: 'Maker status',
     description:
-      'Local TapTap Maker project status, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init.',
+      'Local TapTap Maker project status, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. If the user explicitly asks to create a project/game in an unbound directory, prioritize taptap-maker init --create over same-name app matching.',
     mimeType: 'text/plain',
   },
 ];
@@ -738,6 +739,8 @@ async function formatStatus(
     '',
     tapAuthRefreshText,
     '',
+    identify.projectRoot ? formatMakerAgentsPolicyStatus(identify.projectRoot) : '',
+    '',
     identify.projectRoot
       ? await formatAiDevKitStatus(identify.projectRoot, {
           environment: env,
@@ -1069,8 +1072,10 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     const projects = await listMakerProjects();
     return [
       '本地已有 Maker PAT，当前目录尚未绑定 Maker 项目。',
+      '绑定项目时必须先提醒用户：0，创建新项目 / 0. Create a new Maker project。',
+      '即使发现和当前目录同名的 Maker app，也不能只推荐同名 app；必须同时展示创建新项目选项。',
       '当前目录未绑定时，先展示下面的 Maker Apps 预览和总数；选择、解释和 clone 顺序请参考 taptap-maker-local workflow guide document。',
-      '用户选择 app 后，next_step: 执行 `taptap-maker init`。',
+      '用户选择 0/new 或已有 app 后，next_step: 执行 `taptap-maker init`。',
       '',
       formatStatusProjectList(projects),
     ].join('\n');
@@ -1121,7 +1126,8 @@ export function formatStatusProjectList(projects: StatusProject[]): string {
     return [
       'No Maker apps found.',
       '',
-      '请确认 Maker PAT 是否有效，或等待 Maker app list 接口对齐。',
+      '0，创建新项目 / 0. Create a new Maker project',
+      '当前账号没有可展示的 Maker app。用户要开始新项目时，直接引导其执行 `taptap-maker init`，并在交互中选择 `0`/`new` 创建项目。',
     ].join('\n');
   }
   const visibleProjects = sortStatusProjectsByRecentActivity(projects).slice(
@@ -1137,6 +1143,8 @@ export function formatStatusProjectList(projects: StatusProject[]): string {
       ? `为了保持友好的可读性，默认最多展示 ${visibleProjects.length} 个 app；如需完整列表，可以选择显示全部。`
       : '已显示全部 app；请询问用户选择。',
     hiddenCount > 0 ? '如需完整列表，请运行 taptap-maker apps --json 查看全部 app。' : undefined,
+    '0，创建新项目 / 0. Create a new Maker project',
+    'AI 必须把上面这一行作为可选项展示给用户；即使压缩 app 列表，也不要删除创建项目入口。',
     'AI 展示建议：如果聊天或客户端宽度足够，可把 app 预览整理成两列紧凑布局；每个 app 保留序号、app_id、名称，以及可用的最近活跃时间或 user_id。窄屏保持单列。选择 app 前先获取用户确认。',
     '',
     ...visibleProjects.map(
@@ -1280,7 +1288,11 @@ export function resolveEmbeddedProxyCommand(options?: { makerEntry?: string }): 
   command: string;
   args: string[];
 } {
-  const makerEntry = options?.makerEntry ?? process.argv[1];
+  const currentEntry = process.argv[1];
+  const makerEntry =
+    options?.makerEntry ||
+    (isUsableEmbeddedMakerEntry(currentEntry) ? currentEntry : undefined) ||
+    resolveBundledMakerEntry();
   if (!makerEntry) {
     throw new Error('Cannot resolve current taptap-maker entry for embedded MCP proxy.');
   }
@@ -1289,6 +1301,19 @@ export function resolveEmbeddedProxyCommand(options?: { makerEntry?: string }): 
     command: process.execPath,
     args: [path.resolve(makerEntry), '__maker-proxy'],
   };
+}
+
+function resolveBundledMakerEntry(): string | undefined {
+  const bundledEntry = path.resolve(__dirname, '../../../bin/taptap-maker');
+  return fs.existsSync(bundledEntry) ? bundledEntry : undefined;
+}
+
+function isUsableEmbeddedMakerEntry(entry: string | undefined): entry is string {
+  if (!entry) {
+    return false;
+  }
+  const normalized = entry.replace(/\\/g, '/');
+  return /(?:^|\/)(?:taptap-maker(?:\.cmd)?|maker\.(?:c|m)?js)$/.test(normalized);
 }
 
 interface ToolProgressSummary {

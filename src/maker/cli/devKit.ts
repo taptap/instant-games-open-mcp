@@ -19,6 +19,7 @@ import {
   DEFAULT_SHORT_FETCH_TIMEOUT_MS,
   fetchWithTimeout,
 } from '../fetchTimeout.js';
+import { MAKER_AGENTS_FILE, updateMakerAgentsPolicy } from './agentsPolicy.js';
 
 export const AI_DEV_KIT_URLS: Record<MakerEnvironment, string> = {
   production: 'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip',
@@ -48,9 +49,6 @@ export function resolveDefaultAiDevKitUrl(
 
 const DEV_KIT_IGNORE_BEGIN = '# >>> TapTap Maker AI dev kit (local only) >>>';
 const DEV_KIT_IGNORE_END = '# <<< TapTap Maker AI dev kit (local only) <<<';
-const MAKER_ASSET_POLICY_BEGIN = '<!-- >>> TapTap Maker asset tool policy >>> -->';
-const MAKER_ASSET_POLICY_END = '<!-- <<< TapTap Maker asset tool policy <<< -->';
-const AGENTS_INSTRUCTION_FILE = 'AGENTS.md';
 export const DEV_KIT_GITIGNORE_STAGING_FILE = '.gitignore.dev-kit-before-clone';
 export const DEV_KIT_REQUIRED_ENTRIES = ['CLAUDE.md', 'examples', 'templates', 'urhox-libs'];
 const ALWAYS_IGNORED_LOCAL_ENTRIES = ['.DS_Store', '.maker', '.installer'];
@@ -461,75 +459,8 @@ export function writeDevKitStagedGitignore(stagedGitignorePath: string, entries:
 }
 
 export function ensureMakerAssetPolicyInstructionFiles(targetDir: string): string[] {
-  const resolvedTargetDir = path.resolve(targetDir);
-  fs.mkdirSync(resolvedTargetDir, { recursive: true });
-
-  const agentsPath = path.join(resolvedTargetDir, AGENTS_INSTRUCTION_FILE);
-  const existingAgents = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf8') : '';
-  fs.writeFileSync(agentsPath, prependMakerAssetPolicyBlock(existingAgents), 'utf8');
-
-  return [AGENTS_INSTRUCTION_FILE];
-}
-
-function prependMakerAssetPolicyBlock(existing: string): string {
-  const withoutOldBlock = removeMakerAssetPolicyBlock(existing).trimStart();
-  const block = createMakerAssetPolicyBlock();
-  return [block, withoutOldBlock].filter((part) => part.length > 0).join('\n\n');
-}
-
-function removeMakerAssetPolicyBlock(content: string): string {
-  return content
-    .replace(
-      new RegExp(
-        `${escapeRegExp(MAKER_ASSET_POLICY_BEGIN)}[\\s\\S]*?${escapeRegExp(
-          MAKER_ASSET_POLICY_END
-        )}\\n?`,
-        'g'
-      ),
-      ''
-    )
-    .replace(/^# TapTap Maker Project Asset Tool Policy\n\n(?=\s*)/, '');
-}
-
-function createMakerAssetPolicyBlock(): string {
-  return [
-    '# TapTap Maker Project Asset Tool Policy',
-    '',
-    MAKER_ASSET_POLICY_BEGIN,
-    '',
-    'This is a bound TapTap Maker project. For game asset generation or editing in this project,',
-    'the local AI/Agent should prefer Maker MCP proxy tools when they are available:',
-    '',
-    '- `generate_image` for one image asset.',
-    '- `batch_generate_images` for multiple image assets.',
-    '- `edit_image` for modifying existing project images.',
-    '- `create_video_task` for game video assets or referenced image/video generation.',
-    '- `query_video_task` for refreshing video task status and fetching completed videos.',
-    '- `text_to_music` for game music or audio assets.',
-    '- `create_3d_model_task` for game 3D model assets.',
-    '- `query_3d_model_task` for polling 3D model tasks.',
-    '- For 3D characters that need skeletons, animation, or FBX output, ask whether to use',
-    '  `rig=true`. Use it only for biped humanoid characters in A-pose or A-pose-compatible',
-    '  front-view inputs; otherwise keep static model generation.',
-    '',
-    'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs.',
-    'If the user references attached/local media, inspect the attachment or workspace file path',
-    'before calling the tool. Local proxy may convert resolvable local reference media to data URLs',
-    'before forwarding to the remote Maker MCP server.',
-    '',
-    'If the required Maker proxy tool is not exposed in the current AI session, explain that the',
-    'Maker proxy tool is unavailable and suggest checking/reconnecting the Maker MCP session.',
-    'Other client media tools may still be usable when their output is passed back through a supported',
-    'local path, remote URL, or data URL input.',
-    '',
-    'Generated Maker proxy assets should stay in the Maker project asset workflow under',
-    '`assets/image`, `assets/video`, `assets/audio`, or `assets/model`, with remote mappings',
-    'preserved for later edits and builds.',
-    '3D model results save the original GLB/FBX, the MDL zip, extracted MDL assets, and rendered',
-    'preview images when those URLs are returned.',
-    '',
-    MAKER_ASSET_POLICY_END,
-  ].join('\n');
+  updateMakerAgentsPolicy(targetDir);
+  return [MAKER_AGENTS_FILE];
 }
 
 export function mergeDevKitGitignoreBlock(gitignorePath: string, block: string): void {

@@ -144,10 +144,14 @@ taptap-maker apps --json
 taptap-maker pat set
 taptap-maker install --ide codex,cursor,claude
 taptap-maker mcp verify
+taptap-maker agents update
+taptap-maker upgrade
 taptap-maker dev-kit update
 \`\`\`
 
 \`taptap-maker install\` is a shortcut alias for \`taptap-maker mcp install\`.
+\`taptap-maker upgrade\` refreshes the current machine MCP config and the current bound project's
+managed \`AGENTS.md\` policy block.
 
 This package contains only the Maker CLI/MCP bundle and Maker workflow skills.
 It does not include the legacy TapTap Open API MCP server, proxy, native signer,

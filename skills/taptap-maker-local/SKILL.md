@@ -34,7 +34,8 @@ Keep this split clear:
 
 - Skill: user intent, step order, whether to ask the user, friendly explanations, failure recovery.
 - CLI: save PAT, fetch app list, clone, prepare dev kit, install MCP config, verify local setup,
-  and run the local runtime log watcher, including runtime log polling.
+  update the current project's managed `AGENTS.md` policy block, and run the local runtime log
+  watcher, including runtime log polling.
 - MCP tools/resources: inspect Maker status and run the combined commit/push/build path.
 
 Do not reimplement Maker API calls or Git authentication in shell when the Maker CLI or MCP tool
@@ -42,15 +43,49 @@ exists.
 
 ## Main Intent Table
 
-| User intent                                               | Required workflow                                                                                                                  |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| initialize / configure / continue Maker local development | Run the Maker CLI initialization workflow.                                                                                         |
-| clone / download Maker project locally                    | Follow "Initialization Workflow"; do not ask for app_id directly.                                                                  |
-| status / is Maker ready                                   | Read `maker://status`, call `maker_status_lite` if resources are unavailable, then follow `Maker remote sync` if present.          |
-| submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                        |
-| pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                             |
-| conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing. |
-| build / preview / run / verify                            | Use `maker_build_current_directory`; it starts the local runtime log watcher after a successful remote build result.               |
+| User intent                                               | Required workflow                                                                                                                               |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| initialize / configure / continue Maker local development | Run the Maker CLI initialization workflow.                                                                                                      |
+| clone / download Maker project locally                    | Follow "Initialization Workflow"; do not ask for app_id directly.                                                                               |
+| status / is Maker ready                                   | Read `maker://status`, call `maker_status_lite` if resources are unavailable, then follow `AGENTS.md` and `Maker remote sync` hints if present. |
+| upgrade Maker MCP / old project policy                    | Run `taptap-maker upgrade` for the current project directory; do not scan unrelated Maker projects.                                             |
+| submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                                     |
+| pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                                          |
+| conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing.              |
+| build / preview / run / verify                            | Use `maker_build_current_directory`; it starts the local runtime log watcher after a successful remote build result.                            |
+
+## Create New Maker Project Intent
+
+Treat these user phrases as an explicit request to create a new Maker project:
+
+- 创建新项目
+- 创建项目
+- 创建maker项目
+- 创建 Maker 项目
+- 创建游戏
+- 创建新游戏
+- 创建新游戏/项目
+- 新建项目
+- 新建游戏
+
+When this intent is present, project creation has higher priority than matching an existing app by
+name. If the current directory is unbound, guide the user into the Maker init creation path:
+
+```bash
+taptap-maker init --create
+```
+
+If the user already provided a project/game name, pass it explicitly:
+
+```bash
+taptap-maker init --create --name "<PROJECT_NAME>"
+```
+
+If no name is provided, ask for the project name or suggest the current directory name as the
+default, but do not silently invent a name. If the current directory is already bound to a Maker
+project, do not create a new project there; tell the user to open or create a new independent
+directory first. A same-name app may be shown as an alternative existing-project choice, but a
+same-name app must not override the user's explicit create-project intent.
 
 ## Maker Git Workflow Policy
 
@@ -117,6 +152,13 @@ A directory is a Maker project when the user's current project directory or one 
 ```
 
 When this file exists, explain that the directory is already bound to a Maker project.
+
+For a bound project, always inspect `maker://status` or `maker_status_lite` before continuing
+development after an MCP/package upgrade. If the status includes an `AGENTS.md` section with
+`status: missing_file`, `missing_block`, or `outdated`, run
+`taptap-maker agents update --target-dir <project dir>` or `taptap-maker upgrade --target-dir
+<project dir>` before making gameplay/code changes. After updating `AGENTS.md`, tell the user to
+restart/reconnect the AI client or open a new conversation so the updated instructions are loaded.
 
 When this file is missing and the user asks to clone, initialize, or continue Maker local
 development, do not ask the user for an app_id directly. Follow the initialization workflow.
@@ -199,10 +241,10 @@ Workflow:
 5. Run `taptap-maker init` in the user's intended Maker directory. The CLI will request PAT if
    missing, fetch TapTap token, show a paged app preview, ask the user to choose or create a Maker
    project, clone the Maker project, prepare the AI dev kit, and install/verify MCP config.
-   The app preview always includes `0. Create a new Maker project` at the bottom. This row must
-   remain visible when an AI summarizes or truncates a long app list. Users can choose `0`/`new`
-   and enter a project name, or use `taptap-maker init --create --name "my-local-game"` for
-   non-interactive runs.
+   The app preview always includes `0，创建新项目 / 0. Create a new Maker project`. This row must
+   remain visible when an AI summarizes or truncates a long app list, even if another app name
+   appears to match the current directory. Users can choose `0`/`new` and enter a project name,
+   or use `taptap-maker init --create --name "my-local-game"` for non-interactive runs.
    The generated MCP config pins the selected Maker project directory as `cwd` when the target
    client supports it. If a user manually reinstalls MCP config later, prefer
    `taptap-maker mcp install --target-dir <PROJECT_DIR>`.
@@ -308,9 +350,9 @@ full list, or run `taptap-maker apps --all` for a one-shot human-readable dump; 
 `taptap-maker apps --json` only when AI / scripts need the machine-readable list. If the
 chat/client width is enough, you may present the preview as a compact two-column layout;
 otherwise keep a single column. Keep app_id visible in every app row, and include the preview
-details instead of only a summary such as "40 apps are available". Always preserve the final
-`0. Create a new Maker project` row, because it is the supported creation entry even when the app
-preview is cropped.
+details instead of only a summary such as "40 apps are available". Always preserve and show
+`0，创建新项目 / 0. Create a new Maker project`, because it is the supported creation entry even
+when the app preview is cropped or a same-name app exists.
 
 Selection confirmation:
 
