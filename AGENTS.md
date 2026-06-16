@@ -355,7 +355,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
   远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、
-  `edit_image`、`create_video_task` 和 `text_to_music`，用于试用图片/视频/音乐生成链路，
+  `edit_image`、`create_video_task`、`query_video_task` 和 `text_to_music`，用于试用图片/视频/音乐生成链路，
   本地保留远端 tool schema 和成功返回值，但会在 description 追加 Maker 素材链路提示：
   已绑定 Maker 项目应优先建议用户使用这些 tools。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。

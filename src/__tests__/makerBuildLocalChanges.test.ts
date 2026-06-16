@@ -827,6 +827,11 @@ describe('maker build local-change guard', () => {
           inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
         },
         {
+          name: 'query_video_task',
+          description: 'Query a text-to-video generation task',
+          inputSchema: { type: 'object', properties: { task_id: { type: 'string' } } },
+        },
+        {
           name: 'text_to_music',
           description: 'Generate music from text',
           inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
@@ -846,6 +851,7 @@ describe('maker build local-change guard', () => {
       'batch_generate_images',
       'edit_image',
       'create_video_task',
+      'query_video_task',
       'text_to_music',
     ]);
     expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual([
@@ -853,6 +859,7 @@ describe('maker build local-change guard', () => {
       'batch_generate_images',
       'edit_image',
       'create_video_task',
+      'query_video_task',
       'text_to_music',
     ]);
     expect(result.tools.find((item) => item.name === 'generate_image')?.description).toContain(
@@ -866,6 +873,9 @@ describe('maker build local-change guard', () => {
     );
     expect(result.tools.find((item) => item.name === 'create_video_task')?.description).toContain(
       'Large local/data URL media can be slow or fail'
+    );
+    expect(result.tools.find((item) => item.name === 'query_video_task')?.description).toContain(
+      'Use this Maker MCP proxy tool to refresh video task status'
     );
   });
 
@@ -895,7 +905,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- status: unavailable');
     expect(output).toContain('- available_tools: (none)');
     expect(output).toContain(
-      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, text_to_music'
+      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music'
     );
     expect(output).toContain('- build_available: no');
     expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');
@@ -1084,6 +1094,96 @@ describe('maker build local-change guard', () => {
     expect(registry['assets/audio/Empty_Hall_Echo_20260602080913.mp3'].cdnUrl).toBe(
       'https://example.test/music.mp3'
     );
+  });
+
+  test('downloads queried video proxy results into Maker asset directories', async () => {
+    const video = await materializeRemoteProxyToolAssets({
+      toolName: 'query_video_task',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:16Z'),
+      fetchImpl: fakeAssetFetch('queried-video-bytes'),
+      result: proxyTextResult({
+        task_id: 'cgt-20260602155659-query',
+        status: 'succeeded',
+        cdn_url: 'https://example.test/query-video.mp4',
+      }),
+    });
+
+    const videoText = video.content[0]?.type === 'text' ? video.content[0].text : '';
+    expect(JSON.parse(videoText).localPath).toBe(
+      'assets/video/cgt-20260602155659-query_20260602080916.mp4'
+    );
+    expect(
+      fs.readFileSync(
+        path.join(tempDir, 'assets/video/cgt-20260602155659-query_20260602080916.mp4'),
+        'utf8'
+      )
+    ).toBe('queried-video-bytes');
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
+    );
+    expect(registry['assets/video/cgt-20260602155659-query_20260602080916.mp4'].tool).toBe(
+      'query_video_task'
+    );
+    expect(registry['assets/video/cgt-20260602155659-query_20260602080916.mp4'].taskId).toBe(
+      'cgt-20260602155659-query'
+    );
+    expect(registry['assets/video/cgt-20260602155659-query_20260602080916.mp4'].cdnUrl).toBe(
+      'https://example.test/query-video.mp4'
+    );
+  });
+
+  test('reuses materialized video when querying the same task result again', async () => {
+    const firstFetch = jest.fn(fakeAssetFetch('video-bytes'));
+    const secondFetch = jest.fn(fakeAssetFetch('duplicate-video-bytes'));
+
+    const created = await materializeRemoteProxyToolAssets({
+      toolName: 'create_video_task',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:09:20Z'),
+      fetchImpl: firstFetch as typeof fetch,
+      result: proxyTextResult({
+        task_id: 'cgt-20260602155659-reuse',
+        status: 'succeeded',
+        cdn_url: 'https://example.test/reuse-video.mp4',
+      }),
+    });
+    const queried = await materializeRemoteProxyToolAssets({
+      toolName: 'query_video_task',
+      targetDir: tempDir,
+      now: new Date('2026-06-02T08:10:20Z'),
+      fetchImpl: secondFetch as typeof fetch,
+      result: proxyTextResult({
+        task_id: 'cgt-20260602155659-reuse',
+        status: 'succeeded',
+        cdn_url: 'https://example.test/reuse-video.mp4',
+      }),
+    });
+
+    const createdText = created.content[0]?.type === 'text' ? created.content[0].text : '';
+    const queriedText = queried.content[0]?.type === 'text' ? queried.content[0].text : '';
+    const createdPayload = JSON.parse(createdText);
+    const queriedPayload = JSON.parse(queriedText);
+    expect(queriedPayload.localPath).toBe(createdPayload.localPath);
+    expect(firstFetch).toHaveBeenCalledTimes(1);
+    expect(secondFetch).not.toHaveBeenCalled();
+    expect(
+      fs.readFileSync(
+        path.join(tempDir, 'assets/video/cgt-20260602155659-reuse_20260602080920.mp4'),
+        'utf8'
+      )
+    ).toBe('video-bytes');
+
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
+    );
+    const matchingVideos = Object.values(registry).filter(
+      (record) =>
+        typeof record === 'object' &&
+        record !== null &&
+        (record as { taskId?: string }).taskId === 'cgt-20260602155659-reuse'
+    );
+    expect(matchingVideos).toHaveLength(1);
   });
 
   test('downloads edit image proxy result into Maker image assets', async () => {

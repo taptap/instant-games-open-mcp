@@ -88,6 +88,7 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
 - Use `batch_generate_images` for multiple images.
 - Use `edit_image` for modifying project images.
 - Use `create_video_task` for game videos and image/video referenced generation.
+- Use `query_video_task` to refresh video task status, release completed task quota, and fetch final videos.
 - Use `text_to_music` for game music or audio.
 - Follow each tool schema for supported local path, remote URL, and data URL inputs.
 - Local proxy may convert resolvable local reference media to data URLs before forwarding.
@@ -137,8 +138,8 @@ directory.
 ### Proxy Tools Missing From The Current Session
 
 If the user is in a bound Maker project but `generate_image`, `batch_generate_images`, `edit_image`,
-`create_video_task`, or `text_to_music` are missing from the current AI tool list, diagnose the MCP
-cwd before suggesting repeated restarts:
+`create_video_task`, `query_video_task`, or `text_to_music` are missing from the current AI tool list,
+diagnose the MCP cwd before suggesting repeated restarts:
 
 1. Read `maker://status` or call `maker_status_lite` without `target_dir` to see the MCP server cwd.
 2. If the user provides or the client exposes the real Maker project directory, call

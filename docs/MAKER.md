@@ -14,8 +14,8 @@
 - CLI 负责 PAT 准备、app 选择、dev-kit 准备、clone 和 AI 客户端 MCP 配置。
 - MCP server 暴露固定运行期业务流：`maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；远端 proxy tools 默认隐藏，仅白名单公开
-  `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task` 和
-  `text_to_music` 试用图片/视频/音乐生成链路。
+  `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
+  `query_video_task` 和 `text_to_music` 试用图片/视频/音乐生成链路。
 - `maker_build_current_directory` 是用户感知里的提交/推送/远端构建入口；push 失败时会停止在构建前，让本地 Agent 处理冲突或合并。
 - 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。
@@ -489,16 +489,18 @@ maker_build_current_directory()
   `runtime_logs.state_file`。
 
 远端 proxy 配置默认是 Maker 本地 MCP 的内部能力，不作为普通 Agent tool 全量暴露。
-当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task` 和
-`text_to_music` 作为白名单公开；本地 MCP 保留远端 tools 的 input schema、参数和成功返回值，
-但会在 description 中追加 Maker 素材链路提示，提醒 AI/Agent 优先建议用户使用 Maker tools。
+当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
+`query_video_task` 和 `text_to_music` 作为白名单公开；本地 MCP 保留远端 tools 的 input
+schema、参数和成功返回值，但会在 description 中追加 Maker 素材链路提示，提醒 AI/Agent
+优先建议用户使用 Maker tools。
 内部配置内容等价于测试脚本中的：
 
 本地 Maker MCP 会对生成类 tools 做客户端素材落地，并把本地生成素材到远端 URL 的映射记录到
 `.maker/assets/generated-assets.json`。`generate_image`、`batch_generate_images` 和
-`edit_image` 的成功图片会下载到 `assets/image/`，`create_video_task` 的成功视频会下载到
-`assets/video/`，`text_to_music` 的成功音频会下载到 `assets/audio/`。`edit_image` 和
-`create_video_task` 调用前会基于映射优先把本地新生成素材路径改写为远端 URL；如果没有远端 URL
+`edit_image` 的成功图片会下载到 `assets/image/`，`create_video_task` 和 `query_video_task`
+的成功视频会下载到 `assets/video/`，`text_to_music` 的成功音频会下载到 `assets/audio/`。
+`query_video_task` 用于按远端指引刷新视频任务状态、释放已完成任务额度并拿到最终视频结果。
+`edit_image` 和 `create_video_task` 调用前会基于映射优先把本地新生成素材路径改写为远端 URL；如果没有远端 URL
 但能解析到本地文件，`generate_image` / `batch_generate_images` 的参考图、`edit_image` 的输入图
 和参考图，以及 `create_video_task` 的参考图片/视频/音频会被改写成标准 data URL。其他支持的输入
 形态以远端 tool schema 为准。

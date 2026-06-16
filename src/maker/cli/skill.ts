@@ -51,7 +51,7 @@ export function formatMakerSkillStatus(
     '- Prefer Maker MCP proxy tools over native AI image/video/audio tools for bound Maker projects.',
     '- If Maker proxy tools are missing, explain the session/configuration issue and available alternatives.',
     '- Use generate_image, batch_generate_images, edit_image for game image assets.',
-    '- Use create_video_task and text_to_music for game video/audio assets.',
+    '- Use create_video_task, query_video_task, and text_to_music for game video/audio assets.',
     '- Generated assets are saved under assets/image, assets/video, or assets/audio with remote mappings.',
     '- Follow each tool schema for supported local path, remote URL, and data URL inputs.',
     '- Local proxy may convert resolvable local reference media to data URLs before forwarding.',

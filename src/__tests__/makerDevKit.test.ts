@@ -126,6 +126,7 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain(
       'Local proxy may convert resolvable local reference media to data URLs'
     );
+    expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
     expect(agentsGuide).toContain('batch_generate_images');
   });
 
@@ -316,6 +317,7 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain(
       'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
     );
+    expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
     expect(claudeGuide).toBe('user edits\n');
     expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'templates', 'README.md'))).toBe(true);

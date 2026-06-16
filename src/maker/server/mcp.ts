@@ -110,6 +110,7 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'batch_generate_images',
   'edit_image',
   'create_video_task',
+  'query_video_task',
   'text_to_music',
 ];
 
@@ -302,6 +303,12 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
       return [
         '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker video generation. Image, video, and audio references may use remote URLs, existing data URLs, or resolvable local files that the local proxy can forward as data URLs.',
         localMediaSizeHint,
+        failurePolicy,
+      ].join(' ');
+    case 'query_video_task':
+      return [
+        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool to refresh video task status, release completed task quota, and materialize successful video results into the Maker project.',
+        'Use this Maker MCP proxy tool to refresh video task status when create_video_task returns a task_id or reports video concurrency limits.',
         failurePolicy,
       ].join(' ');
     case 'text_to_music':

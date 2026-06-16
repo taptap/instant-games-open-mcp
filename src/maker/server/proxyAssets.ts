@@ -138,6 +138,7 @@ function shouldMaterializeRemoteProxyTool(toolName: string): boolean {
     'batch_generate_images',
     'edit_image',
     'create_video_task',
+    'query_video_task',
     'text_to_music',
   ].includes(toolName);
 }
@@ -201,8 +202,8 @@ async function materializeParsedProxyResult(options: {
   if (options.toolName === 'edit_image') {
     return await materializeSingleImageResult(options, 'edit_image');
   }
-  if (options.toolName === 'create_video_task') {
-    return await materializeVideoResult(options);
+  if (options.toolName === 'create_video_task' || options.toolName === 'query_video_task') {
+    return await materializeVideoResult(options, options.toolName);
   }
   if (options.toolName === 'text_to_music') {
     return await materializeMusicResult(options);
@@ -286,20 +287,37 @@ async function materializeBatchImageResult(options: {
   return { ...options.payload, results };
 }
 
-async function materializeVideoResult(options: {
-  targetDir: string;
-  payload: Record<string, unknown>;
-  now: Date;
-  fetchImpl: RemoteProxyFetch;
-}): Promise<Record<string, unknown>> {
+async function materializeVideoResult(
+  options: {
+    targetDir: string;
+    payload: Record<string, unknown>;
+    now: Date;
+    fetchImpl: RemoteProxyFetch;
+  },
+  toolName: 'create_video_task' | 'query_video_task'
+): Promise<Record<string, unknown>> {
   if (options.payload.status !== 'succeeded') {
     return options.payload;
   }
 
+  const taskId = stringField(options.payload.task_id);
+  const cdnUrl = stringField(options.payload.cdn_url);
+  const existing = findExistingMaterializedVideo(options.targetDir, {
+    taskId,
+    cdnUrl,
+  });
+  if (existing) {
+    return {
+      ...options.payload,
+      ...existing,
+      download: { success: true },
+    };
+  }
+
   const materialized = await materializeAsset({
     targetDir: options.targetDir,
-    url: stringField(options.payload.cdn_url),
-    baseName: stringField(options.payload.task_id),
+    url: cdnUrl,
+    baseName: taskId,
     relativeDir: 'assets/video',
     extension: 'mp4',
     now: options.now,
@@ -308,16 +326,72 @@ async function materializeVideoResult(options: {
   return materialized
     ? persistMaterializedAsset({
         targetDir: options.targetDir,
-        toolName: 'create_video_task',
+        toolName,
         payload: options.payload,
         materialized,
         cdnUrl: stringField(options.payload.cdn_url),
         now: options.now,
         extraRegistryFields: {
-          taskId: stringField(options.payload.task_id),
+          taskId,
         },
       })
     : options.payload;
+}
+
+function findExistingMaterializedVideo(
+  targetDir: string,
+  options: {
+    taskId?: string;
+    cdnUrl?: string;
+  }
+): { localPath: string; absolutePath: string } | undefined {
+  if (!options.taskId || !options.cdnUrl) {
+    return undefined;
+  }
+
+  const registry = readGeneratedAssetRegistry(targetDir);
+  for (const record of Object.values(registry)) {
+    const localPath = stringField(record.localPath);
+    const recordCdnUrl = stringField(record.cdnUrl) || stringField(record.previewUrl);
+    if (
+      stringField(record.taskId) !== options.taskId ||
+      recordCdnUrl !== options.cdnUrl ||
+      !localPath.startsWith('assets/video/')
+    ) {
+      continue;
+    }
+
+    const absolutePath = resolveExistingMaterializedAssetPath(targetDir, record, localPath);
+    if (absolutePath) {
+      return { localPath, absolutePath };
+    }
+  }
+
+  return undefined;
+}
+
+function resolveExistingMaterializedAssetPath(
+  targetDir: string,
+  record: GeneratedAssetRegistry[string],
+  localPath: string
+): string | undefined {
+  const candidates = [];
+  const absolutePath = stringField(record.absolutePath);
+  if (absolutePath && path.isAbsolute(absolutePath)) {
+    candidates.push(absolutePath);
+  }
+  candidates.push(path.join(targetDir, ...localPath.split('/')));
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.statSync(candidate).isFile()) {
+        return candidate;
+      }
+    } catch {
+      // Keep checking the local registry path when an older absolute path is stale.
+    }
+  }
+  return undefined;
 }
 
 async function materializeMusicResult(options: {

@@ -504,6 +504,7 @@ function createMakerAssetPolicyBlock(): string {
     '- `batch_generate_images` for multiple image assets.',
     '- `edit_image` for modifying existing project images.',
     '- `create_video_task` for game video assets or referenced image/video generation.',
+    '- `query_video_task` for refreshing video task status and fetching completed videos.',
     '- `text_to_music` for game music or audio assets.',
     '',
     'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs.',

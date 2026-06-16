@@ -43,7 +43,9 @@ describe('Maker bundled workflow skill documents', () => {
       'Local proxy may convert resolvable local reference media to data URLs'
     );
     expect(status).toContain('Use generate_image, batch_generate_images, edit_image');
-    expect(status).toContain('Use create_video_task and text_to_music for game video/audio');
+    expect(status).toContain(
+      'Use create_video_task, query_video_task, and text_to_music for game video/audio'
+    );
     expect(status).toContain('Maker initialization next_step: execute `taptap-maker init`');
     expect(status).not.toContain('Validation checklist for the local AI client');
     expect(status).not.toContain(`${MAKER_LOCAL_SKILL_NAME} / codex: missing`);
@@ -97,6 +99,7 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Use `batch_generate_images` for multiple images');
     expect(skillText).toContain('Use `edit_image` for modifying project images');
     expect(skillText).toContain('Use `create_video_task` for game videos');
+    expect(skillText).toContain('Use `query_video_task` to refresh video task status');
     expect(skillText).toContain('Use `text_to_music` for game music or audio');
     expect(skillText).toContain('assets/image');
     expect(skillText).toContain('assets/video');
