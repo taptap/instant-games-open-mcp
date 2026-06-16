@@ -508,10 +508,15 @@ maker_build_current_directory()
 但能解析到本地文件，`generate_image` / `batch_generate_images` 的参考图、`edit_image` 的输入图
 和参考图，以及 `create_video_task` 的参考图片/视频/音频会被改写成标准 data URL。其他支持的输入
 形态以远端 tool schema 为准。
-`create_3d_model_task` 的 Phase 1 四视图预览会下载到 `assets/image/`，最终结果中的 MDL
-zip 会下载到 `assets/model/`，渲染预览图会下载到 `assets/image/`；`model_cdn_url` 指向的
-Tripo 原始 GLB 只记录到素材映射中，默认不下载。`edit_image`、`create_video_task` 和
-`create_3d_model_task` 调用前会基于映射，把本地新生成素材路径改写为 CDN URL。
+`create_3d_model_task` 的 Phase 1 四视图预览会下载到 `assets/image/`，最终结果中的
+`model_cdn_url` 原始 GLB/FBX 和 MDL zip 会下载到 `assets/model/`，MDL zip 会解压到
+`assets/Meshes`、`assets/Materials`、`assets/Textures` 和 `assets/Prefabs`，渲染预览图会
+下载到 `assets/image/`。3D 最终结果的本地 registry 记录会使用 `assetKind` 区分
+`model`、`mdl_zip` 和 `render`。本地代理解析远端 JSON 文本结果后，会同步提供
+`structuredContent`，便于 AI/Agent 读取。`edit_image`、`create_video_task` 和
+`create_3d_model_task` 调用前会基于映射，把本地新生成素材路径改写为 CDN URL。3D 模型 Phase
+2 / multiview 可能同步等待模型和可选骨骼绑定完成；本地代理为这些远端生成工具预留比普通构建更长
+的调用超时。
 对于 `edit_image`，AI/Agent 调用前应先解析用户提供的图片：拖入/附件图片优先取客户端暴露的本地
 文件路径，`assets/image/...` 直接传项目素材路径，只给文件名时先搜索 `assets/image`，无法确认图片
 路径或 CDN URL 时应停下来说明缺少参数。

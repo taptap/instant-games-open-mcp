@@ -48,6 +48,11 @@ describe('Maker bundled workflow skill documents', () => {
     );
     expect(status).toContain('Use create_3d_model_task and query_3d_model_task for game 3D model');
     expect(status).toContain('assets/model');
+    expect(status).toContain('original GLB/FBX');
+    expect(status).toContain('assets/Meshes');
+    expect(status).toContain('assets/Materials');
+    expect(status).toContain('assets/Textures');
+    expect(status).toContain('assets/Prefabs');
     expect(status).toContain('Maker initialization next_step: execute `taptap-maker init`');
     expect(status).not.toContain('Validation checklist for the local AI client');
     expect(status).not.toContain(`${MAKER_LOCAL_SKILL_NAME} / codex: missing`);
@@ -109,6 +114,11 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('assets/video');
     expect(skillText).toContain('assets/audio');
     expect(skillText).toContain('assets/model');
+    expect(skillText).toContain('original GLB/FBX');
+    expect(skillText).toContain('assets/Meshes');
+    expect(skillText).toContain('assets/Materials');
+    expect(skillText).toContain('assets/Textures');
+    expect(skillText).toContain('assets/Prefabs');
     expect(skillText).toContain('Attached Workspace Selection');
     expect(skillText).toContain('dialogues');
     expect(skillText).toContain('single attached workspace');
