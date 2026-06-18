@@ -1835,6 +1835,44 @@ describe('maker build local-change guard', () => {
     expect(parsed.mdlLocalPath).toBeUndefined();
   });
 
+  test('continues 3d final materialization when mdl zip extraction fails', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'query_3d_model_task',
+      targetDir: tempDir,
+      now: new Date('2026-06-11T08:09:13Z'),
+      fetchImpl: fake3dModelResultFetch(Buffer.from('not-a-zip'), 'model-bytes', 'render-image'),
+      result: proxyTextResult({
+        task_id: 'model-task-4',
+        status: 'success',
+        model_cdn_url: 'https://cdn.tripo3d.ai/model.glb',
+        rendered_image_url: 'https://cdn.tripo3d.ai/preview.png',
+        mdl_cdn_url: 'https://oss-cdn.example.test/broken-model.zip',
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    expect(parsed.mdlLocalPath).toBe('assets/model/model-task-4_20260611080913.zip');
+    expect(parsed.mdlExtracted).toBe(false);
+    expect(parsed.mdlExtractError).toContain('3D model asset extraction failed');
+    expect(parsed.renderedImageLocalPath).toBe(
+      'assets/image/model-task-4_render_20260611080913.png'
+    );
+    expect(
+      fs.readFileSync(
+        path.join(tempDir, 'assets/image/model-task-4_render_20260611080913.png'),
+        'utf8'
+      )
+    ).toBe('render-image');
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
+    );
+    expect(registry['assets/model/model-task-4_20260611080913.zip'].assetKind).toBe('mdl_zip');
+    expect(registry['assets/image/model-task-4_render_20260611080913.png'].assetKind).toBe(
+      'render'
+    );
+  });
+
   test('does not add local timeout limits to remote proxy generation tool calls', () => {
     const options = createRemoteProxyCallToolOptions(undefined, {
       sendNotification: jest.fn(),
