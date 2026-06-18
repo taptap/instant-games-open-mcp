@@ -46,6 +46,13 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain(
       'Use create_video_task, query_video_task, and text_to_music for game video/audio'
     );
+    expect(status).toContain('Use create_3d_model_task and query_3d_model_task for game 3D model');
+    expect(status).toContain('assets/model');
+    expect(status).toContain('original GLB/FBX');
+    expect(status).toContain('assets/Meshes');
+    expect(status).toContain('assets/Materials');
+    expect(status).toContain('assets/Textures');
+    expect(status).toContain('assets/Prefabs');
     expect(status).toContain('Maker initialization next_step: execute `taptap-maker init`');
     expect(status).not.toContain('Validation checklist for the local AI client');
     expect(status).not.toContain(`${MAKER_LOCAL_SKILL_NAME} / codex: missing`);
@@ -101,9 +108,17 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Use `create_video_task` for game videos');
     expect(skillText).toContain('Use `query_video_task` to refresh video task status');
     expect(skillText).toContain('Use `text_to_music` for game music or audio');
+    expect(skillText).toContain('Use `create_3d_model_task` for game 3D models');
+    expect(skillText).toContain('Use `query_3d_model_task` for polling 3D model tasks');
     expect(skillText).toContain('assets/image');
     expect(skillText).toContain('assets/video');
     expect(skillText).toContain('assets/audio');
+    expect(skillText).toContain('assets/model');
+    expect(skillText).toContain('original GLB/FBX');
+    expect(skillText).toContain('assets/Meshes');
+    expect(skillText).toContain('assets/Materials');
+    expect(skillText).toContain('assets/Textures');
+    expect(skillText).toContain('assets/Prefabs');
     expect(skillText).toContain('Attached Workspace Selection');
     expect(skillText).toContain('dialogues');
     expect(skillText).toContain('single attached workspace');
@@ -111,6 +126,23 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).not.toContain('maker_clone_to_current_directory');
     expect(skillText).not.toContain('taptap-maker dev-kit install --target .');
     expect(skillText).not.toContain('taptap-maker install-skill --ide codex');
+  });
+
+  test('Maker local skill prioritizes explicit create-project intent', () => {
+    const skillPath = path.join(process.cwd(), 'skills', MAKER_LOCAL_SKILL_NAME, 'SKILL.md');
+    const skillText = fs.readFileSync(skillPath, 'utf8');
+
+    expect(skillText).toContain('Create New Maker Project Intent');
+    expect(skillText).toContain('创建新项目');
+    expect(skillText).toContain('创建项目');
+    expect(skillText).toContain('创建maker项目');
+    expect(skillText).toContain('创建游戏');
+    expect(skillText).toContain('创建新游戏/项目');
+    expect(skillText).toContain('新建项目');
+    expect(skillText).toContain('新建游戏');
+    expect(skillText).toContain('taptap-maker init --create');
+    expect(skillText).toContain('same-name app');
+    expect(skillText).toContain('must not override');
   });
 
   test('Dev kit guide skill points agents to installed local resources', () => {
@@ -142,6 +174,18 @@ describe('Maker bundled workflow skill documents', () => {
 
     expect(skillText).toContain('maker://status');
     expect(skillText).toContain('maker_status_lite');
+    expect(skillText).toContain('.maker-mcp/config.json');
+    expect(skillText).toContain('project-level MCP config');
     expect(skillText).not.toContain('maker_status`');
+  });
+
+  test('Update MCP skill remains valid after Maker package reference rewriting', () => {
+    const skillPath = path.join(process.cwd(), 'skills', UPDATE_TAPTAP_MCP_SKILL_NAME, 'SKILL.md');
+    const skillText = fs.readFileSync(skillPath, 'utf8');
+    const rewritten = skillText.replaceAll('@taptap/instant-games-open-mcp', '@taptap/maker');
+
+    expect(rewritten).toContain('@taptap/maker');
+    expect(rewritten).not.toContain('legacy\n`@taptap/maker`');
+    expect(rewritten).not.toContain('do not update the legacy\n`@taptap/maker`');
   });
 });

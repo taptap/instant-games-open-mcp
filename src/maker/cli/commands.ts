@@ -33,7 +33,12 @@ import {
   stopExistingRuntimeLogWatcher,
 } from '../server/mcp.js';
 import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeLogs.js';
-import { cloneMakerProject, listMakerProjects, type MakerProjectProgress } from './projects.js';
+import {
+  cloneMakerProject,
+  createMakerProject,
+  listMakerProjects,
+  type MakerProjectProgress,
+} from './projects.js';
 import type { MakerProjectSummary } from '../types.js';
 import {
   checkAiDevKitUpdate,
@@ -46,6 +51,11 @@ import {
   writeDevKitStagedGitignore,
   type AiDevKitSkillInstallerStart,
 } from './devKit.js';
+import {
+  formatMakerAgentsPolicyStatus,
+  inspectMakerAgentsPolicy,
+  updateMakerAgentsPolicy,
+} from './agentsPolicy.js';
 import {
   MakerGitNotFoundError,
   checkGitEnvironment,
@@ -66,7 +76,7 @@ import { formatMakerSkillStatus } from './skill.js';
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
-const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit', 'logs', 'python', 'lua-lsp']);
+const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit', 'logs', 'python', 'lua-lsp', 'agents']);
 const BOOLEAN_OPTIONS = new Set([
   'json',
   'skip_confirm',
@@ -75,6 +85,7 @@ const BOOLEAN_OPTIONS = new Set([
   'pat_from_stdin',
   'reset',
   'all',
+  'create',
   'h',
   'help',
 ]);
@@ -110,6 +121,11 @@ type MakerMcpToolsAvailability = {
   maker_project_dir?: string;
   ai_pwd: string;
   ai_pwd_project_dir?: string;
+};
+
+type ConfigWriteResult = {
+  changed: boolean;
+  backupPath?: string;
 };
 
 export async function runMakerCli(argv: string[]): Promise<void> {
@@ -168,6 +184,16 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'mcp' && subcommand === 'verify') {
     await runMcpVerify(parsed, ctx);
+    return;
+  }
+
+  if (command === 'agents' && subcommand === 'update') {
+    await runAgentsUpdate(parsed, ctx);
+    return;
+  }
+
+  if (command === 'upgrade') {
+    await runUpgrade(parsed, ctx);
     return;
   }
 
@@ -285,6 +311,7 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   });
   const selected = await resolveProjectSelection(parsed, projects, {
     existingProjectConfig,
+    pat,
     skipConfirm,
   });
   emit(ctx, 'app', 'Maker app selected', {
@@ -363,6 +390,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const projectRoot = identify.projectRoot || targetDir;
   const devKit = inspectAiDevKit(projectRoot);
   const devKitUpdate = await checkAiDevKitUpdate(projectRoot, { environment: env });
+  const agentsPolicy = isProjectBound ? inspectMakerAgentsPolicy(projectRoot) : undefined;
   const orphanProcessCheck = inspectMakerOrphanProcesses();
   const mcpToolsAvailability = inspectMakerMcpToolsAvailability({
     makerProjectDir: identify.projectRoot,
@@ -379,6 +407,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       python,
       lua_lsp: luaLsp,
       project: identify,
+      agents_policy: agentsPolicy,
       dev_kit: devKit,
       dev_kit_update: devKitUpdate,
       mcp_tools_availability: mcpToolsAvailability,
@@ -412,6 +441,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       `- target_dir: ${targetDir}`,
       `- project_id: ${identify.projectId || '(none)'}`,
       identify.configPath ? `- config: ${identify.configPath}` : '',
+      isProjectBound ? formatMakerAgentsPolicyStatus(projectRoot) : '',
       '',
       'AI dev kit',
       `- ready: ${devKit.ready ? 'yes' : 'no'}`,
@@ -950,6 +980,75 @@ async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
   );
 }
 
+async function runAgentsUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
+  const result = updateMakerAgentsPolicy(targetDir);
+  if (ctx.json) {
+    writeJson(result);
+    return;
+  }
+
+  process.stdout.write(
+    [
+      result.changed ? '✓ AGENTS.md managed policy updated' : '✓ AGENTS.md managed policy current',
+      `- path: ${result.path}`,
+      `- previous_status: ${result.previousStatus}`,
+      `- expected_hash: sha256:${result.expectedHash}`,
+      '',
+    ].join('\n')
+  );
+}
+
+async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  rejectPackageOption(parsed);
+  const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
+  const env = makerEnvOption(parsed);
+  const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
+  const installResults = installMcpConfigs({
+    ides: ides.length > 0 ? ides : ['codex', 'cursor', 'claude'],
+    env,
+    pkg: MAKER_NPM_PACKAGE,
+    mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
+    cwd: targetDir,
+  });
+  const identify = identifyMakerProject({ cwd: targetDir });
+  const agentsResult = identify.projectRoot
+    ? updateMakerAgentsPolicy(identify.projectRoot)
+    : undefined;
+  const payload = {
+    target_dir: targetDir,
+    env,
+    mcp_install: installResults,
+    agents_policy: agentsResult,
+    restart_required: true,
+  };
+  if (ctx.json) {
+    writeJson(payload);
+    return;
+  }
+
+  process.stdout.write(
+    [
+      'TapTap Maker upgrade completed',
+      '',
+      ...installResults.map((result) => result.message),
+      '',
+      agentsResult
+        ? [
+            agentsResult.changed
+              ? '✓ AGENTS.md managed policy updated'
+              : '✓ AGENTS.md managed policy current',
+            `- path: ${agentsResult.path}`,
+            `- previous_status: ${agentsResult.previousStatus}`,
+          ].join('\n')
+        : 'AGENTS.md managed policy skipped: current directory is not bound to a Maker project.',
+      '',
+      'Restart or reconnect the AI client MCP session so the updated server and AGENTS.md are loaded.',
+      '',
+    ].join('\n')
+  );
+}
+
 function classifyMcpVerifyFailure(
   result: ReturnType<typeof spawnSync>
 ): 'spawn_error' | 'signal' | 'non_zero_exit' | 'unknown_no_status' | undefined {
@@ -1180,10 +1279,20 @@ async function resolveProjectSelection(
   projects: MakerProjectSummary[],
   options: {
     existingProjectConfig?: { project_id?: string; user_id?: string; sce_endpoint?: string } | null;
+    pat: string;
     skipConfirm: boolean;
   }
 ): Promise<MakerProjectSummary> {
   const appId = stringOption(parsed, 'app_id') || parsed.positionals[0];
+  const createNewProject = booleanOption(parsed, 'create');
+  if (createNewProject && appId) {
+    throw new Error('Cannot use --create together with --app-id or a positional app id.');
+  }
+
+  if (createNewProject) {
+    return createProjectFromInit(parsed, options);
+  }
+
   if (appId) {
     return projects.find((project) => project.id === appId) || { id: appId };
   }
@@ -1200,7 +1309,11 @@ async function resolveProjectSelection(
   }
 
   if (projects.length === 0) {
-    throw new Error('No Maker apps found for this PAT.');
+    if (options.skipConfirm) {
+      throw new Error('No Maker apps found for this PAT. Use --create --name to create one.');
+    }
+    process.stdout.write(`${formatMakerProjectList(projects)}\n`);
+    return createProjectFromInit(parsed, options);
   }
 
   if (options.skipConfirm) {
@@ -1211,7 +1324,9 @@ async function resolveProjectSelection(
   let showAll = orderedProjects.length <= MAKER_PROJECT_DEFAULT_TEXT_LIMIT;
   for (;;) {
     process.stdout.write(`${formatMakerProjectList(orderedProjects, { showAll })}\n`);
-    const answer = await promptRequired("Choose app by index, app_id, or 'all' to show all");
+    const answer = await promptRequired(
+      "Choose app by index, app_id, '0'/'new' to 创建新项目 / Create a new Maker project, or 'all' to show all"
+    );
     const normalized = answer.trim().toLowerCase();
     if (['a', 'all'].includes(normalized)) {
       if (showAll) {
@@ -1220,6 +1335,9 @@ async function resolveProjectSelection(
         showAll = true;
       }
       continue;
+    }
+    if (['0', 'n', 'new', 'create'].includes(normalized)) {
+      return createProjectFromInit(parsed, options);
     }
 
     const visibleCount = showAll
@@ -1235,6 +1353,39 @@ async function resolveProjectSelection(
     }
     return selected;
   }
+}
+
+async function createProjectFromInit(
+  parsed: ParsedArgs,
+  options: {
+    existingProjectConfig?: { project_id?: string; user_id?: string; sce_endpoint?: string } | null;
+    pat: string;
+    skipConfirm: boolean;
+  }
+): Promise<MakerProjectSummary> {
+  const existingProjectId = options.existingProjectConfig?.project_id;
+  if (existingProjectId) {
+    throw new Error(
+      [
+        `Current directory is already bound to Maker project ${existingProjectId}.`,
+        'A Maker workspace directory can only be bound to one project at a time.',
+        'Please create/open a new empty directory before creating a new Maker project.',
+      ].join('\n')
+    );
+  }
+
+  const name = stringOption(parsed, 'name') || stringOption(parsed, 'project_name');
+  if (!name && options.skipConfirm) {
+    throw new Error('Missing --name in non-interactive create mode.');
+  }
+  const projectName = name || (await promptRequired('Enter new Maker project name'));
+  return createMakerProject({
+    name: projectName,
+    gameType: 'sce',
+    pat: options.pat,
+  }).catch((error) => {
+    throw appendPatRecoveryUrl(error, parsed);
+  });
 }
 
 function ensureInitTargetCanRecordProject(
@@ -1381,14 +1532,28 @@ function installMcpConfigs(options: {
   pkg: string;
   mcpName: string;
   cwd?: string;
-}): Array<{ ide: string; ok: boolean; message: string; path?: string }> {
+}): Array<{
+  ide: string;
+  ok: boolean;
+  message: string;
+  path?: string;
+  changed?: boolean;
+  backupPath?: string;
+}> {
   return options.ides.map((ide) => installMcpConfig(ide, options));
 }
 
 function installMcpConfig(
   ide: string,
   options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
-): { ide: string; ok: boolean; message: string; path?: string } {
+): {
+  ide: string;
+  ok: boolean;
+  message: string;
+  path?: string;
+  changed?: boolean;
+  backupPath?: string;
+} {
   try {
     return installMcpConfigUnsafe(ide, options);
   } catch (error) {
@@ -1405,26 +1570,37 @@ function installMcpConfig(
 function installMcpConfigUnsafe(
   ide: string,
   options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
-): { ide: string; ok: boolean; message: string; path?: string } {
+): {
+  ide: string;
+  ok: boolean;
+  message: string;
+  path?: string;
+  changed?: boolean;
+  backupPath?: string;
+} {
   if (ide === 'codex') {
     const configPath = path.join(os.homedir(), '.codex', 'config.toml');
-    mergeCodexMcpConfig(configPath, options);
+    const write = mergeCodexMcpConfig(configPath, options);
     return {
       ide,
       ok: true,
       path: configPath,
-      message: `✓ Codex MCP config updated: ${configPath}`,
+      changed: write.changed,
+      backupPath: write.backupPath,
+      message: formatMcpInstallMessage('Codex', configPath, write),
     };
   }
 
   if (ide === 'cursor') {
     const configPath = path.join(os.homedir(), '.cursor', 'mcp.json');
-    mergeJsonMcpConfig(configPath, options);
+    const write = mergeJsonMcpConfig(configPath, options);
     return {
       ide,
       ok: true,
       path: configPath,
-      message: `✓ Cursor MCP config updated: ${configPath}`,
+      changed: write.changed,
+      backupPath: write.backupPath,
+      message: formatMcpInstallMessage('Cursor', configPath, write),
     };
   }
 
@@ -1436,12 +1612,14 @@ function installMcpConfigUnsafe(
       }
     }
     const configPath = path.join(os.homedir(), '.claude.json');
-    mergeJsonMcpConfig(configPath, options);
+    const write = mergeJsonMcpConfig(configPath, options);
     return {
       ide,
       ok: true,
       path: configPath,
-      message: `✓ Claude fallback MCP config updated: ${configPath}`,
+      changed: write.changed,
+      backupPath: write.backupPath,
+      message: formatMcpInstallMessage('Claude fallback', configPath, write),
     };
   }
 
@@ -1451,21 +1629,18 @@ function installMcpConfigUnsafe(
 function mergeJsonMcpConfig(
   configPath: string,
   options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
-): void {
-  backupIfExists(configPath);
+): ConfigWriteResult {
   const existing = readJsonObject(configPath);
   const mcpServers = asObject(existing.mcpServers);
   mcpServers[options.mcpName] = createJsonMcpServerConfig(options);
   existing.mcpServers = mcpServers;
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(configPath, `${JSON.stringify(existing, null, 2)}\n`, 'utf8');
+  return writeConfigWithTapTapBackupIfChanged(configPath, `${JSON.stringify(existing, null, 2)}\n`);
 }
 
 function mergeCodexMcpConfig(
   configPath: string,
   options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
-): void {
-  const backupPath = backupIfExists(configPath);
+): ConfigWriteResult {
   const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
   const sectionPattern = createCodexMcpSectionPattern(options.mcpName);
   const withoutOld = existing.replace(sectionPattern, '').trimEnd();
@@ -1480,18 +1655,20 @@ function mergeCodexMcpConfig(
     `TAPTAP_MCP_ENV = "${options.env}"`,
     '',
   ].join('\n');
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(configPath, [withoutOld, section].filter(Boolean).join('\n\n'), 'utf8');
-  const updated = fs.readFileSync(configPath, 'utf8');
-  const duplicates = findCodexMcpTableDuplicates(updated, options.mcpName);
-  if (duplicates.length > 0) {
-    restoreBackup(configPath, backupPath);
-    throw new Error(
-      `Codex MCP config update would create duplicate table(s): ${duplicates.join(
-        ', '
-      )}. Restored previous config.`
-    );
-  }
+  return writeConfigWithTapTapBackupIfChanged(
+    configPath,
+    [withoutOld, section].filter(Boolean).join('\n\n'),
+    (updated) => {
+      const duplicates = findCodexMcpTableDuplicates(updated, options.mcpName);
+      if (duplicates.length > 0) {
+        throw new Error(
+          `Codex MCP config update would create duplicate table(s): ${duplicates.join(
+            ', '
+          )}. Restored previous config.`
+        );
+      }
+    }
+  );
 }
 
 function createCodexMcpSectionPattern(mcpName: string): RegExp {
@@ -1646,22 +1823,51 @@ function asObject(value: unknown): Record<string, unknown> {
   return {};
 }
 
-function backupIfExists(filePath: string): string | undefined {
-  if (!fs.existsSync(filePath)) {
-    return undefined;
+function writeConfigWithTapTapBackupIfChanged(
+  filePath: string,
+  nextContent: string,
+  validate?: (content: string) => void
+): ConfigWriteResult {
+  const existed = fs.existsSync(filePath);
+  const previousContent = existed ? fs.readFileSync(filePath, 'utf8') : undefined;
+  if (previousContent === nextContent) {
+    return { changed: false };
   }
-  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '');
-  const backupPath = `${filePath}.bak.${stamp}`;
-  fs.copyFileSync(filePath, backupPath);
-  return backupPath;
+
+  const backupPath = existed ? `${filePath}.taptap-maker.bak.latest` : undefined;
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  if (previousContent !== undefined && backupPath) {
+    fs.writeFileSync(backupPath, previousContent, 'utf8');
+  }
+
+  try {
+    fs.writeFileSync(filePath, nextContent, 'utf8');
+    validate?.(fs.readFileSync(filePath, 'utf8'));
+    return { changed: true, backupPath };
+  } catch (error) {
+    if (previousContent !== undefined) {
+      fs.writeFileSync(filePath, previousContent, 'utf8');
+    } else {
+      fs.rmSync(filePath, { force: true });
+    }
+    throw error;
+  }
 }
 
-function restoreBackup(filePath: string, backupPath: string | undefined): void {
-  if (backupPath) {
-    fs.copyFileSync(backupPath, filePath);
-    return;
+function formatMcpInstallMessage(
+  label: string,
+  configPath: string,
+  write: ConfigWriteResult
+): string {
+  if (!write.changed) {
+    return `✓ ${label} MCP config unchanged: ${configPath}`;
   }
-  fs.rmSync(filePath, { force: true });
+  return [
+    `✓ ${label} MCP config updated: ${configPath}`,
+    write.backupPath ? `  Backup: ${write.backupPath}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function saveInitState(targetDir: string, state: Record<string, unknown>): void {
@@ -1730,7 +1936,7 @@ export function formatMakerProjectList(
   options: MakerProjectListFormatOptions = {}
 ): string {
   if (projects.length === 0) {
-    return 'No Maker apps found.';
+    return ['No Maker apps found.', '', '0，创建新项目 / 0. Create a new Maker project'].join('\n');
   }
   const sortedProjects = sortProjectsByRecentActivity(projects);
   const showAll = options.showAll === true;
@@ -1743,8 +1949,11 @@ export function formatMakerProjectList(
     hiddenCount > 0
       ? `Showing ${visibleProjects.length} most recently active apps, sorted by last activity. ${hiddenCount} more hidden. Run \`taptap-maker apps --all\` to show all, or use \`--json\` for the complete machine-readable list.`
       : `Showing all ${visibleProjects.length} Maker apps, sorted by last activity.`,
+    '0，创建新项目 / 0. Create a new Maker project',
     '',
     ...visibleProjects.map((project, index) => formatProjectListItem(project, index)),
+    '',
+    '0，创建新项目 / 0. Create a new Maker project',
   ]
     .filter((line) => line !== '')
     .join('\n');
@@ -1818,6 +2027,8 @@ function isKnownSubcommand(command: string, subcommand: string): boolean {
   return (
     (command === 'pat' && subcommand === 'set') ||
     (command === 'mcp' && (subcommand === 'install' || subcommand === 'verify')) ||
+    (command === 'agents' && subcommand === 'update') ||
+    command === 'upgrade' ||
     (command === 'dev-kit' && subcommand === 'update') ||
     (command === 'logs' && subcommand === 'watch') ||
     (command === 'python' &&
@@ -1930,6 +2141,7 @@ function printHelp(): void {
       'Usage:',
       '  taptap-maker                         Start MCP server mode',
       '  taptap-maker init [--env rnd|production] [--app-id ID] [--target-dir DIR] [--pat PAT]',
+      '                     [--create --name NAME]',
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
       '                     [--json]',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
@@ -1949,6 +2161,9 @@ function printHelp(): void {
       '  taptap-maker mcp install [--ide codex,cursor,claude] [--env rnd|production]',
       '                             [--target-dir DIR] [--json]',
       '  taptap-maker mcp verify [--mode npx|self] [--json]',
+      '  taptap-maker agents update [--target-dir DIR] [--json]',
+      '  taptap-maker upgrade [--ide codex,cursor,claude] [--env rnd|production]',
+      '                         [--target-dir DIR] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',

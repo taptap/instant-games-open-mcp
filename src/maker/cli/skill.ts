@@ -52,9 +52,12 @@ export function formatMakerSkillStatus(
     '- If Maker proxy tools are missing, explain the session/configuration issue and available alternatives.',
     '- Use generate_image, batch_generate_images, edit_image for game image assets.',
     '- Use create_video_task, query_video_task, and text_to_music for game video/audio assets.',
-    '- Generated assets are saved under assets/image, assets/video, or assets/audio with remote mappings.',
+    '- Use create_3d_model_task and query_3d_model_task for game 3D model assets.',
+    '- Generated assets are saved under assets/image, assets/video, assets/audio, or assets/model with remote mappings.',
     '- Follow each tool schema for supported local path, remote URL, and data URL inputs.',
     '- Local proxy may convert resolvable local reference media to data URLs before forwarding.',
+    '- Generated 3D outputs save original GLB/FBX and MDL zip under assets/model.',
+    '- MDL zip contents are extracted into assets/Meshes, assets/Materials, assets/Textures, and assets/Prefabs.',
     'Maker initialization next_step: execute `taptap-maker init`.',
     'Load these documents when the current AI client supports reading local guide files.',
   ].join('\n');

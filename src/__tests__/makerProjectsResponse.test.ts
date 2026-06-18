@@ -2,7 +2,7 @@
  * Maker app list response normalization tests.
  */
 
-import { normalizeProjectsResponse } from '../maker/cli/projects';
+import { createMakerProject, normalizeProjectsResponse } from '../maker/cli/projects';
 import { formatMakerProjectList } from '../maker/cli/commands';
 import {
   formatAiDialogueDirectoryHint,
@@ -11,6 +11,18 @@ import {
 } from '../maker/server/mcp';
 
 describe('maker projects response normalization', () => {
+  const originalFetch = global.fetch;
+  const originalApiBase = process.env.TAPTAP_MAKER_API_BASE;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    if (originalApiBase === undefined) {
+      delete process.env.TAPTAP_MAKER_API_BASE;
+    } else {
+      process.env.TAPTAP_MAKER_API_BASE = originalApiBase;
+    }
+  });
+
   test('preserves all known app list fields returned by Maker API', () => {
     const projects = normalizeProjectsResponse({
       apps: [
@@ -50,6 +62,52 @@ describe('maker projects response normalization', () => {
       userId: 'user-1',
       user_id: 'user-1',
     });
+  });
+
+  test('creates Maker projects with sce game type and normalizes the app response', async () => {
+    process.env.TAPTAP_MAKER_API_BASE = 'https://maker.example.test/api/v1';
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        app: {
+          id: 'created-app',
+          name: 'My Local Game',
+          userId: 'user-1',
+          createdAt: '2026-06-12T09:33:30.591Z',
+          gameType: 'sce',
+          stage: 'plan',
+        },
+      }),
+    })) as jest.Mock;
+    global.fetch = fetchMock;
+
+    const project = await createMakerProject({
+      name: ' My Local Game ',
+      gameType: 'sce',
+      pat: 'valid-maker-token',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://maker.example.test/api/v1/apps', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer valid-maker-token',
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: 'My Local Game',
+        gameType: 'sce',
+      }),
+    });
+    expect(project).toEqual(
+      expect.objectContaining({
+        id: 'created-app',
+        name: 'My Local Game',
+        user_id: 'user-1',
+        gameType: 'sce',
+        stage: 'plan',
+      })
+    );
   });
 });
 
@@ -110,6 +168,15 @@ describe('maker app list display', () => {
     expect(output).not.toContain('gameType=');
     expect(output).not.toContain('stage=');
     expect(output).not.toContain('createdAt=');
+    expect(output).toContain('0，创建新项目');
+    expect(output.indexOf('0，创建新项目')).toBeLessThan(output.indexOf('1. App 120'));
+    expect(output).toContain('0. Create a new Maker project');
+    expect(output.indexOf('0. Create a new Maker project')).toBeLessThan(
+      output.indexOf('1. App 120')
+    );
+    expect(output.indexOf('40. App 81')).toBeLessThan(
+      output.lastIndexOf('0. Create a new Maker project')
+    );
   });
 
   test('shows every app when showAll is set', () => {
@@ -121,6 +188,8 @@ describe('maker app list display', () => {
     expect(output).toContain('120. App 1  id=app-1');
     expect(output).not.toContain('more hidden');
     expect(output).not.toContain('--all');
+    expect(output).toContain('0，创建新项目');
+    expect(output).toContain('0. Create a new Maker project');
   });
 
   test('hides the --all hint when the project count fits in one page', () => {
@@ -135,6 +204,12 @@ describe('maker app list display', () => {
     const output = formatStatusProjectList(projects);
 
     expect(output).toContain('Maker apps (120)');
+    expect(output).toContain('0，创建新项目');
+    expect(output.indexOf('0，创建新项目')).toBeLessThan(output.indexOf('1. app-120'));
+    expect(output).toContain('0. Create a new Maker project');
+    expect(output.indexOf('0. Create a new Maker project')).toBeLessThan(
+      output.indexOf('1. app-120')
+    );
     expect(output).toContain(
       '为了保持友好的可读性，默认最多展示 40 个 app；如需完整列表，可以选择显示全部。'
     );
@@ -149,6 +224,16 @@ describe('maker app list display', () => {
     expect(output).toContain('两列紧凑布局');
     expect(output).toContain('用户回复序号或 app_id 后，next_step: 执行 `taptap-maker init`');
     expect(output).not.toContain('每一个 app 条目');
+  });
+
+  test('status output guides project creation when no apps exist', () => {
+    const output = formatStatusProjectList([]);
+
+    expect(output).toContain('No Maker apps found.');
+    expect(output).toContain('0，创建新项目');
+    expect(output).toContain('0. Create a new Maker project');
+    expect(output).toContain('taptap-maker init');
+    expect(output).toContain('new');
   });
 
   test('explains the status app page limit for readable output', () => {

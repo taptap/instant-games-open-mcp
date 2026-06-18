@@ -116,7 +116,10 @@ describe('Maker AI dev kit install', () => {
     expect(claudeGuide).toContain('local agent docs');
     expect(claudeGuide).toBe('local agent docs\n');
     expect(claudeGuide).not.toContain('TapTap Maker Project Asset Tool Policy');
-    expect(agentsGuide).toMatch(/^# TapTap Maker Project Asset Tool Policy/);
+    expect(agentsGuide).toMatch(
+      /^<!-- >>> TapTap Maker managed AGENTS policy version=1 hash=sha256:[0-9a-f]+ >>> -->/
+    );
+    expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toContain('should prefer Maker MCP proxy tools');
     expect(agentsGuide).toContain('Maker proxy tool is unavailable');
     expect(agentsGuide).toContain('Other client media tools may still be usable');
@@ -128,6 +131,9 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
     expect(agentsGuide).toContain('batch_generate_images');
+    expect(agentsGuide).toContain('create_3d_model_task');
+    expect(agentsGuide).toContain('query_3d_model_task');
+    expect(agentsGuide).toContain('assets/model');
   });
 
   test('does not change existing Claude guide content', async () => {
@@ -312,7 +318,10 @@ describe('Maker AI dev kit install', () => {
 
     const agentsGuide = fs.readFileSync(path.join(targetDir, 'AGENTS.md'), 'utf8');
     const claudeGuide = fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8');
-    expect(agentsGuide).toMatch(/^# TapTap Maker Project Asset Tool Policy/);
+    expect(agentsGuide).toMatch(
+      /^<!-- >>> TapTap Maker managed AGENTS policy version=1 hash=sha256:[0-9a-f]+ >>> -->/
+    );
+    expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toContain('should prefer Maker MCP proxy tools');
     expect(agentsGuide).toContain(
       'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
