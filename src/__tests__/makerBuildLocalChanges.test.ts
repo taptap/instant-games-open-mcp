@@ -19,6 +19,7 @@ import {
   createRemoteProxyProgressHandler,
   createRemoteRuntimeLogClient,
   refreshMakerPreview,
+  splitRemoteProxyToolPrivateArgs,
   formatBuildResult,
   formatAiDevKitStatus,
   formatClonePartialStateLines,
@@ -893,6 +894,14 @@ describe('maker build local-change guard', () => {
     expect(result.tools.find((item) => item.name === 'generate_image')?.description).toContain(
       'prefer this Maker MCP proxy tool for Maker project assets'
     );
+    const imageTool = result.tools.find((item) => item.name === 'generate_image');
+    expect(imageTool?.inputSchema.properties).toHaveProperty('target_dir');
+    expect(imageTool?.inputSchema.properties.target_dir.description).toContain(
+      'local Maker MCP private parameter'
+    );
+    expect(imageTool?.inputSchema.properties.target_dir.description).toContain(
+      'not forwarded to the remote Maker generation tool'
+    );
     expect(result.tools.find((item) => item.name === 'edit_image')?.description).toContain(
       'prefer this Maker MCP proxy tool for image editing'
     );
@@ -907,10 +916,29 @@ describe('maker build local-change guard', () => {
     );
     const createModelTool = result.tools.find((item) => item.name === 'create_3d_model_task');
     const queryModelTool = result.tools.find((item) => item.name === 'query_3d_model_task');
+    expect(createModelTool?.inputSchema.properties).toHaveProperty('target_dir');
+    expect(queryModelTool?.inputSchema.properties).toHaveProperty('target_dir');
     expect(createModelTool?.inputSchema.properties).toHaveProperty('mode');
     expect(createModelTool?.inputSchema.properties).toHaveProperty('confirmed_image_paths');
     expect(createModelTool?.inputSchema.properties).toHaveProperty('front_image');
     expect(queryModelTool?.inputSchema.required).toEqual(['task_id']);
+  });
+
+  test('splits local private target_dir before forwarding remote proxy tool args', () => {
+    const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs({
+      target_dir: path.join(tempDir, 'nested'),
+      prompt: 'make a red icon',
+      name: 'red_icon',
+      target_size: '128x128',
+    });
+
+    expect(targetDir).toBe(path.join(tempDir, 'nested'));
+    expect(remoteArgs).toEqual({
+      prompt: 'make a red icon',
+      name: 'red_icon',
+      target_size: '128x128',
+    });
+    expect(remoteArgs).not.toHaveProperty('target_dir');
   });
 
   test('falls back to local Maker tools when remote proxy tool listing is unavailable', async () => {

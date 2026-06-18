@@ -510,7 +510,11 @@ maker_build_current_directory()
 当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
 `query_video_task`、`text_to_music`、`create_3d_model_task` 和 `query_3d_model_task` 作为
 白名单公开；本地 MCP 保留远端 tools 的 input schema、参数和成功返回值，但会在 description
-中追加 Maker 素材链路提示，提醒 AI/Agent 优先建议用户使用 Maker tools。
+中追加 Maker 素材链路提示，提醒 AI/Agent 优先建议用户使用 Maker tools。本地 MCP 还会为这些
+素材类 proxy tools 追加 `target_dir`，它是本地 MCP 私有控制参数，只用于在多项目开发或 MCP
+进程 cwd 与用户当前项目不一致时解析 Maker 项目目录、改写本地引用、下载素材和写入
+`.maker/assets/generated-assets.json`；调用远端 Maker 生成工具前会剥离该参数，不会把
+`target_dir` 转发给远端业务 tool。未传 `target_dir` 时保留旧行为，继续使用 MCP 进程 cwd。
 内部配置内容等价于测试脚本中的：
 
 本地 Maker MCP 会对生成类 tools 做客户端素材落地，并把本地生成素材到远端 URL 的映射记录到

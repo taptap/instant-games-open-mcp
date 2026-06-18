@@ -273,13 +273,32 @@ function filterExposedRemoteProxyTools(
 
 function decorateRemoteProxyToolDefinition(tool: RemoteToolDefinition): RemoteToolDefinition {
   const guidance = remoteProxyToolGuidance(tool.name);
-  if (!guidance) {
-    return tool;
-  }
   return {
     ...tool,
+    inputSchema: decorateRemoteProxyToolInputSchema(tool.inputSchema),
     description: [tool.description, guidance].filter(Boolean).join('\n\n'),
   };
+}
+
+function decorateRemoteProxyToolInputSchema(inputSchema: unknown): Record<string, unknown> {
+  const schema = isPlainRecord(inputSchema) ? inputSchema : {};
+  const properties = isPlainRecord(schema.properties) ? schema.properties : {};
+  return {
+    ...schema,
+    type: schema.type || 'object',
+    properties: {
+      ...properties,
+      target_dir: {
+        type: 'string',
+        description:
+          'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker generation tool.',
+      },
+    },
+  };
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function remoteProxyToolGuidance(toolName: string): string | undefined {
@@ -584,10 +603,13 @@ export async function startMakerMcpServer(): Promise<void> {
       }
 
       if (isExposedRemoteProxyTool(name)) {
+        const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs(
+          (request.params.arguments || {}) as Record<string, unknown>
+        );
         return await callRemoteProxyTool({
-          targetDir: process.cwd(),
+          targetDir: resolveMakerToolTargetDir(targetDir),
           name,
-          args: (request.params.arguments || {}) as Record<string, unknown>,
+          args: remoteArgs,
           progressToken: request.params._meta?.progressToken,
           extra,
         });
@@ -1019,6 +1041,23 @@ function resolveMakerToolTargetDir(targetDir?: string): string {
     return path.resolve(targetDir);
   }
   return process.cwd();
+}
+
+export function splitRemoteProxyToolPrivateArgs(args: Record<string, unknown>): {
+  targetDir?: string;
+  remoteArgs: Record<string, unknown>;
+} {
+  const remoteArgs = { ...args };
+  const targetDir = remoteArgs.target_dir;
+  delete remoteArgs.target_dir;
+
+  if (targetDir === undefined) {
+    return { remoteArgs };
+  }
+  if (typeof targetDir !== 'string') {
+    throw new Error('target_dir must be a string when provided.');
+  }
+  return { targetDir, remoteArgs };
 }
 
 export async function formatAiDevKitStatus(
