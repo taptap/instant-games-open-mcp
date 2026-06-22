@@ -7,6 +7,7 @@ import archiver from 'archiver';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   buildCurrentDirectory,
   createBuildArgs,
@@ -30,6 +31,8 @@ import {
   pushThenBuildCurrentDirectory,
   resources,
   retryMakerProxyOperation,
+  resolveMakerProjectContext,
+  splitRemoteProxyToolPrivateArgs,
   stopExistingRuntimeLogWatcher,
   tools,
 } from '../maker/server/mcp';
@@ -910,7 +913,28 @@ describe('maker build local-change guard', () => {
     expect(createModelTool?.inputSchema.properties).toHaveProperty('mode');
     expect(createModelTool?.inputSchema.properties).toHaveProperty('confirmed_image_paths');
     expect(createModelTool?.inputSchema.properties).toHaveProperty('front_image');
+    expect(createModelTool?.inputSchema.properties).toHaveProperty('target_dir');
+    expect(createModelTool?.inputSchema.properties.target_dir.description).toContain(
+      'not forwarded to the remote Maker generation tool'
+    );
+    expect(
+      result.tools.find((item) => item.name === 'generate_image')?.inputSchema.properties
+    ).toHaveProperty('target_dir');
     expect(queryModelTool?.inputSchema.required).toEqual(['task_id']);
+  });
+
+  test('remote proxy private target_dir is stripped before forwarding upstream', () => {
+    const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs({
+      target_dir: tempDir,
+      prompt: 'coin icon',
+      target_size: '128x128',
+    });
+
+    expect(targetDir).toBe(tempDir);
+    expect(remoteArgs).toEqual({
+      prompt: 'coin icon',
+      target_size: '128x128',
+    });
   });
 
   test('falls back to local Maker tools when remote proxy tool listing is unavailable', async () => {
@@ -962,6 +986,57 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- mcp_cwd_project_dir: (none)');
     expect(output).toContain('proxy tools may not appear in this MCP session');
     expect(output).toContain('Reconnect');
+  });
+
+  test('project context prefers the single MCP client root over stale MCP cwd', async () => {
+    const staleCwd = process.cwd();
+
+    const context = await resolveMakerProjectContext({
+      listClientRoots: async () => [{ uri: pathToFileURL(tempDir).href, name: 'current-game' }],
+    });
+
+    expect(normalizePath(context.targetDir)).toBe(normalizePath(tempDir));
+    expect(context.source).toBe('client_roots');
+    expect(normalizePath(context.targetDir)).not.toBe(normalizePath(staleCwd));
+  });
+
+  test('project context selects the only bound Maker project from multiple roots', async () => {
+    const notesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-notes-root-'));
+    try {
+      const context = await resolveMakerProjectContext({
+        listClientRoots: async () => [
+          { uri: pathToFileURL(notesDir).href, name: 'notes' },
+          { uri: pathToFileURL(tempDir).href, name: 'maker-game' },
+        ],
+      });
+
+      expect(normalizePath(context.targetDir)).toBe(normalizePath(tempDir));
+      expect(context.source).toBe('client_roots');
+      expect(context.roots.status).toBe('selected');
+    } finally {
+      fs.rmSync(notesDir, { recursive: true, force: true });
+    }
+  });
+
+  test('project context rejects multiple attached Maker project roots', async () => {
+    const otherMakerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-other-root-'));
+    try {
+      saveProjectConfig(otherMakerDir, {
+        project_id: 'app-2',
+        user_id: 'user-2',
+      });
+
+      await expect(
+        resolveMakerProjectContext({
+          listClientRoots: async () => [
+            { uri: pathToFileURL(tempDir).href, name: 'maker-a' },
+            { uri: pathToFileURL(otherMakerDir).href, name: 'maker-b' },
+          ],
+        })
+      ).rejects.toThrow('Multiple Maker project roots');
+    } finally {
+      fs.rmSync(otherMakerDir, { recursive: true, force: true });
+    }
   });
 
   test('proxy retry stops after the bounded default attempts', async () => {
@@ -1873,13 +1948,13 @@ describe('maker build local-change guard', () => {
     );
   });
 
-  test('does not add local timeout limits to remote proxy generation tool calls', () => {
+  test('overrides sdk default timeout for remote proxy generation tool calls', () => {
     const options = createRemoteProxyCallToolOptions(undefined, {
       sendNotification: jest.fn(),
     } as never);
 
-    expect(options).not.toHaveProperty('timeout');
-    expect(options).not.toHaveProperty('resetTimeoutOnProgress');
+    expect(options.timeout).toBe(60 * 60 * 1000);
+    expect(options.resetTimeoutOnProgress).toBe(true);
     expect(typeof options.onprogress).toBe('function');
   });
 
@@ -2864,6 +2939,55 @@ describe('maker build local-change guard', () => {
     expect(connect).toHaveBeenCalledTimes(1);
     expect(callTool).toHaveBeenCalledTimes(2);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  test('runtime log remote client defaults to long mcp tool timeout', async () => {
+    const connect = jest.fn(async () => undefined);
+    const callTool = jest.fn(async () => ({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            logs: [],
+            nextStartTime: 1710000001,
+            serverTime: 1710000001,
+            hasMore: false,
+          }),
+        },
+      ],
+    }));
+    const close = jest.fn(async () => undefined);
+    const createClient = jest.fn(() => ({ connect, callTool, close }));
+    const createTransport = jest.fn(() => ({}) as never);
+
+    const runtimeLogClient = createRemoteRuntimeLogClient(
+      {
+        projectRoot: tempDir,
+        serverUrl: 'https://maker.example.test/mcp',
+        env: 'rnd',
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        userId: 'user-1',
+        proxyConfigJson: '{}',
+        command: 'node',
+        args: ['proxy.js'],
+        envVars: {},
+      },
+      undefined,
+      { createClient, createTransport }
+    );
+
+    try {
+      await runtimeLogClient.call({ sinceSeconds: 0 });
+    } finally {
+      await runtimeLogClient.close();
+    }
+
+    expect(callTool).toHaveBeenCalledWith(
+      expect.any(Object),
+      undefined,
+      expect.objectContaining({ timeout: 60 * 60 * 1000 })
+    );
   });
 
   function runGit(args: string[], cwd = tempDir): void {

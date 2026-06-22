@@ -222,6 +222,7 @@ describe('maker app list display', () => {
     expect(output).not.toContain('next_page');
     expect(output).toContain('AI 展示建议');
     expect(output).toContain('两列紧凑布局');
+    expect(output).toContain('标准流程：先让用户从 app 列表选择已有 app');
     expect(output).toContain('用户回复序号或 app_id 后，next_step: 执行 `taptap-maker init`');
     expect(output).not.toContain('每一个 app 条目');
   });

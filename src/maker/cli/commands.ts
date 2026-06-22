@@ -32,6 +32,7 @@ import {
   createRemoteProxyContext,
   stopExistingRuntimeLogWatcher,
 } from '../server/mcp.js';
+import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeLogs.js';
 import {
   cloneMakerProject,
@@ -356,7 +357,6 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       env,
       pkg: MAKER_NPM_PACKAGE,
       mcpName: DEFAULT_MCP_NAME,
-      cwd: targetDir,
     });
     for (const result of installResults) {
       emit(ctx, 'mcp_install', result.message, result);
@@ -1001,7 +1001,8 @@ async function runAgentsUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
 
 async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   rejectPackageOption(parsed);
-  const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
+  const explicitTargetDir = stringOption(parsed, 'target_dir');
+  const targetDir = path.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
   const installResults = installMcpConfigs({
@@ -1009,7 +1010,7 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     env,
     pkg: MAKER_NPM_PACKAGE,
     mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
-    cwd: targetDir,
+    cwd: explicitTargetDir ? targetDir : undefined,
   });
   const identify = identifyMakerProject({ cwd: targetDir });
   const agentsResult = identify.projectRoot
@@ -1119,7 +1120,7 @@ async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
 async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
   const intervalMs = parseDurationMs(stringOption(parsed, 'interval') || '5s');
-  const timeoutMs = numberOption(parsed, 'timeout_ms') ?? 60 * 1000;
+  const timeoutMs = numberOption(parsed, 'timeout_ms') ?? DEFAULT_TOOL_CALL_TIMEOUT_MS;
   const maxPolls = numberOption(parsed, 'max_polls');
   const maxConsecutiveFailures = numberOption(parsed, 'max_consecutive_failures');
   const proxy = createRemoteProxyContext({
@@ -2144,6 +2145,13 @@ function printHelp(): void {
       '                     [--create --name NAME]',
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
       '                     [--json]',
+      '',
+      'Init flows:',
+      '  Standard init/clone/download flow: run `taptap-maker init`; the CLI shows',
+      '    the Maker app list, then the user chooses an existing app or 0/new.',
+      '  Create-new-project flow: add `--create --name NAME` only when the user',
+      '    clearly asks to create a new Maker project; NAME is the requested project name.',
+      '',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
       '  taptap-maker python doctor [--json]',
       '  taptap-maker python setup [--json]',
