@@ -1873,13 +1873,13 @@ describe('maker build local-change guard', () => {
     );
   });
 
-  test('does not add local timeout limits to remote proxy generation tool calls', () => {
+  test('overrides sdk default timeout for remote proxy generation tool calls', () => {
     const options = createRemoteProxyCallToolOptions(undefined, {
       sendNotification: jest.fn(),
     } as never);
 
-    expect(options).not.toHaveProperty('timeout');
-    expect(options).not.toHaveProperty('resetTimeoutOnProgress');
+    expect(options.timeout).toBe(60 * 60 * 1000);
+    expect(options.resetTimeoutOnProgress).toBe(true);
     expect(typeof options.onprogress).toBe('function');
   });
 
@@ -2864,6 +2864,55 @@ describe('maker build local-change guard', () => {
     expect(connect).toHaveBeenCalledTimes(1);
     expect(callTool).toHaveBeenCalledTimes(2);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  test('runtime log remote client defaults to long mcp tool timeout', async () => {
+    const connect = jest.fn(async () => undefined);
+    const callTool = jest.fn(async () => ({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            logs: [],
+            nextStartTime: 1710000001,
+            serverTime: 1710000001,
+            hasMore: false,
+          }),
+        },
+      ],
+    }));
+    const close = jest.fn(async () => undefined);
+    const createClient = jest.fn(() => ({ connect, callTool, close }));
+    const createTransport = jest.fn(() => ({}) as never);
+
+    const runtimeLogClient = createRemoteRuntimeLogClient(
+      {
+        projectRoot: tempDir,
+        serverUrl: 'https://maker.example.test/mcp',
+        env: 'rnd',
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        userId: 'user-1',
+        proxyConfigJson: '{}',
+        command: 'node',
+        args: ['proxy.js'],
+        envVars: {},
+      },
+      undefined,
+      { createClient, createTransport }
+    );
+
+    try {
+      await runtimeLogClient.call({ sinceSeconds: 0 });
+    } finally {
+      await runtimeLogClient.close();
+    }
+
+    expect(callTool).toHaveBeenCalledWith(
+      expect.any(Object),
+      undefined,
+      expect.objectContaining({ timeout: 60 * 60 * 1000 })
+    );
   });
 
   function runGit(args: string[], cwd = tempDir): void {

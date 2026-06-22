@@ -93,6 +93,7 @@ import {
   materializeRemoteProxyToolAssets,
   prepareRemoteProxyToolArgs,
 } from './proxyAssets.js';
+import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 
 export { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './proxyAssets.js';
 
@@ -465,9 +466,13 @@ export function createRemoteProxyCallToolOptions(
   progressToken: ProgressToken | undefined,
   extra: RequestHandlerExtra<ServerRequest, ServerNotification>
 ): {
+  timeout: number;
+  resetTimeoutOnProgress: boolean;
   onprogress: (progress: { progress: number; total?: number; message?: string }) => void;
 } {
   return {
+    timeout: DEFAULT_TOOL_CALL_TIMEOUT_MS,
+    resetTimeoutOnProgress: true,
     onprogress: createRemoteProxyProgressHandler(progressToken, extra),
   };
 }
@@ -2189,7 +2194,7 @@ export async function refreshMakerPreview(
 export async function callRemoteRuntimeLogs(
   proxy: RemoteProxyContext,
   args: RuntimeLogQueryArgs,
-  timeoutMs = 60 * 1000
+  timeoutMs = DEFAULT_TOOL_CALL_TIMEOUT_MS
 ): Promise<RuntimeLogQueryResult> {
   const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
 
@@ -2202,7 +2207,7 @@ export async function callRemoteRuntimeLogs(
 
 export function createRemoteRuntimeLogClient(
   proxy: RemoteProxyContext,
-  timeoutMs = 60 * 1000,
+  timeoutMs = DEFAULT_TOOL_CALL_TIMEOUT_MS,
   options: {
     createTransport?: () => Transport;
     createClient?: () => RuntimeLogMcpClient;
