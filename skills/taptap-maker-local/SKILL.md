@@ -56,6 +56,10 @@ exists.
 
 ## Create New Maker Project Intent
 
+Standard initialization, clone, download, continue, or "pull remote project" requests use
+`taptap-maker init`; the CLI shows the Maker app list and asks the user to choose an existing app
+or `0`/`new`. Add `--create` only when the user clearly asks to create a new Maker project.
+
 Treat these user phrases as an explicit request to create a new Maker project:
 
 - 创建新项目
@@ -241,6 +245,8 @@ Workflow:
 5. Run `taptap-maker init` in the user's intended Maker directory. The CLI will request PAT if
    missing, fetch TapTap token, show a paged app preview, ask the user to choose or create a Maker
    project, clone the Maker project, prepare the AI dev kit, and install/verify MCP config.
+   For ordinary init/clone/download requests, use `taptap-maker init` so the CLI shows the app
+   list first. Add `--create` only when the user clearly asks to create a new Maker project.
    The app preview always includes `0，创建新项目 / 0. Create a new Maker project`. This row must
    remain visible when an AI summarizes or truncates a long app list, even if another app name
    appears to match the current directory. Users can choose `0`/`new` and enter a project name,

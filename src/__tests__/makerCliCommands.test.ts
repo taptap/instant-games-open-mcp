@@ -1862,6 +1862,19 @@ describe('Maker CLI commands', () => {
     expect(output).toContain('taptap-maker lua-lsp setup');
   });
 
+  test('help documents the standard init flow before create-specific flags', async () => {
+    await runMakerCli(['help']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Standard init/clone/download flow: run `taptap-maker init`');
+    expect(output).toContain('Create-new-project flow: add `--create --name NAME`');
+    expect(output).toContain('only when the user');
+    expect(output).toContain('clearly asks to create a new Maker project');
+    expect(output.indexOf('Standard init/clone/download flow')).toBeLessThan(
+      output.indexOf('Create-new-project flow')
+    );
+  });
+
   test('python doctor json reports missing Python without failing the CLI', async () => {
     spawnSyncMock.mockImplementation((command) => {
       if (command === 'python3' || command === 'python') {

@@ -139,7 +139,7 @@ export const tools = [
   {
     name: 'maker_status_lite',
     description:
-      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness, maker-lua-lsp readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets, supported local path/remote URL/data URL inputs, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. If the user explicitly asks to create a project/game in an unbound directory, prioritize taptap-maker init --create over same-name app matching.',
+      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness, maker-lua-lsp readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets, supported local path/remote URL/data URL inputs, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. Standard init/clone/download flow: show the Maker app list first and let the user choose an existing app or 0/new. Create-new-project flow: use taptap-maker init --create only when the user clearly asks to create a new Maker project.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -234,7 +234,7 @@ export const resources = [
     uri: 'maker://status',
     name: 'Maker status',
     description:
-      'Local TapTap Maker project status, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. If the user explicitly asks to create a project/game in an unbound directory, prioritize taptap-maker init --create over same-name app matching.',
+      'Local TapTap Maker project status, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. Standard init/clone/download flow: show the Maker app list first and let the user choose an existing app or 0/new. Create-new-project flow: use taptap-maker init --create only when the user clearly asks to create a new Maker project.',
     mimeType: 'text/plain',
   },
 ];
@@ -1366,6 +1366,7 @@ async function formatAutoProjectListFromPat(): Promise<string> {
     return [
       '本地已有 Maker PAT，当前目录尚未绑定 Maker 项目。',
       '绑定项目时必须先提醒用户：0，创建新项目 / 0. Create a new Maker project。',
+      '普通初始化、clone、拉取远端项目的标准流程：先展示 app 列表，让用户选择已有 app；用户明确选择 0/new 或明确要求创建时再创建新项目。',
       '即使发现和当前目录同名的 Maker app，也不能只推荐同名 app；必须同时展示创建新项目选项。',
       '当前目录未绑定时，先展示下面的 Maker Apps 预览和总数；选择、解释和 clone 顺序请参考 taptap-maker-local workflow guide document。',
       '用户选择 0/new 或已有 app 后，next_step: 执行 `taptap-maker init`。',
@@ -1438,6 +1439,7 @@ export function formatStatusProjectList(projects: StatusProject[]): string {
     hiddenCount > 0 ? '如需完整列表，请运行 taptap-maker apps --json 查看全部 app。' : undefined,
     '0，创建新项目 / 0. Create a new Maker project',
     'AI 必须把上面这一行作为可选项展示给用户；即使压缩 app 列表，也不要删除创建项目入口。',
+    'AI 标准流程：先让用户从 app 列表选择已有 app；当用户选择 0/new 或明确要求创建新项目时，再进入创建流程。',
     'AI 展示建议：如果聊天或客户端宽度足够，可把 app 预览整理成两列紧凑布局；每个 app 保留序号、app_id、名称，以及可用的最近活跃时间或 user_id。窄屏保持单列。选择 app 前先获取用户确认。',
     '',
     ...visibleProjects.map(

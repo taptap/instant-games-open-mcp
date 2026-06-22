@@ -71,6 +71,8 @@ taptap-maker mcp verify
 taptap-maker dev-kit update
 ```
 
+普通初始化、clone、下载或拉取远端项目的标准命令是 `taptap-maker init`，CLI 会展示 app 列表，
+让用户选择已有 app 或 `0`/`new`。`--create` 只用于用户明确要求创建新 Maker 项目的场景。
 如果需要创建新 Maker 项目，仍从 `taptap-maker init` 进入。app 列表底部会固定显示
 `0. Create a new Maker project`，输入 `0` 或 `new` 后填写项目名称；自动化场景可用
 `taptap-maker init --create --name "my-local-game"`。当前目录已绑定 Maker 项目时，不允许在同一目录
