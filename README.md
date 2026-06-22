@@ -80,6 +80,9 @@ taptap-maker dev-kit update
 `taptap-maker init` 缺 PAT 时会自动进入该流程。`taptap-maker pat set` 保留为兼容入口；
 自动化场景可用 `--pat-stdin` 从标准输入读取。`taptap-maker install` 是
 `taptap-maker mcp install` 的快捷别名，二者都会写入 AI 客户端 MCP 配置。
+`taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置；支持 MCP Roots 的客户端
+会用当前 workspace root 识别 Maker 项目，避免多个客户端或多个项目互相覆盖 cwd。需要兼容
+不支持 Roots 的客户端时，可显式运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>`。
 `taptap-maker upgrade` 会刷新当前机器的 Maker MCP 配置，并在当前目录已绑定 Maker 项目时
 同步项目 `AGENTS.md` 的 TapTap Maker 受管策略块。`maker://status`、`maker_status_lite`
 和 `taptap-maker doctor` 会检查老项目 `AGENTS.md` 是否缺失或过期，并提示运行
@@ -365,7 +368,11 @@ maker_status_lite
 maker_build_current_directory
 ```
 
-`taptap-maker doctor` 会检查 Git、Python 环境、maker-lua-lsp、PAT、TapTap token、项目绑定、AI dev kit 版本和 MCP 配置。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过 `git --version` 验证。
+`taptap-maker doctor` 会检查 Git、Python 环境、maker-lua-lsp、PAT、TapTap token、项目绑定、
+AI dev kit 版本和 MCP 配置。`maker://status` 和 `maker_status_lite` 会输出
+`MCP client roots` 与 `project_context_source`，用于确认当前项目来自客户端 workspace roots
+还是 MCP cwd fallback。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过
+`git --version` 验证。
 `taptap-maker mcp verify` 默认跑一次实际 MCP 配置使用的 npx 包命令；本地 dist 自测可用 `--mode self`。如果失败结果显示 `failure_type` 或 `status: null`，优先按本地 Node/npm/npx 启动问题处理，Maker MCP server 此时尚未启动，不要误判为 PAT 或 Maker 服务报错。
 
 测试时优先运行 `taptap-maker login`；CLI 会按需打开 Maker 授权页，授权完成后自动完成本地鉴权配置。

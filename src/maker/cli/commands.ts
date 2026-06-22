@@ -357,7 +357,6 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       env,
       pkg: MAKER_NPM_PACKAGE,
       mcpName: DEFAULT_MCP_NAME,
-      cwd: targetDir,
     });
     for (const result of installResults) {
       emit(ctx, 'mcp_install', result.message, result);
@@ -1002,7 +1001,8 @@ async function runAgentsUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
 
 async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   rejectPackageOption(parsed);
-  const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
+  const explicitTargetDir = stringOption(parsed, 'target_dir');
+  const targetDir = path.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
   const installResults = installMcpConfigs({
@@ -1010,7 +1010,7 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     env,
     pkg: MAKER_NPM_PACKAGE,
     mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
-    cwd: targetDir,
+    cwd: explicitTargetDir ? targetDir : undefined,
   });
   const identify = identifyMakerProject({ cwd: targetDir });
   const agentsResult = identify.projectRoot
