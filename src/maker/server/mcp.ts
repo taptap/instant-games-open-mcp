@@ -5,6 +5,7 @@
 import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -16,6 +17,7 @@ import {
   ErrorCode,
 } from '@modelcontextprotocol/sdk/types.js';
 import type {
+  Root,
   ProgressToken,
   ServerNotification,
   ServerRequest,
@@ -93,6 +95,7 @@ import {
   materializeRemoteProxyToolAssets,
   prepareRemoteProxyToolArgs,
 } from './proxyAssets.js';
+import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 
 export { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './proxyAssets.js';
 
@@ -241,21 +244,30 @@ export async function listMakerTools(options: {
   serverUrl?: string;
   env?: 'rnd' | 'production';
   listRemoteTools?: () => Promise<RemoteToolDefinition[]>;
+  listClientRoots?: MakerClientRootsProvider;
 }): Promise<{ tools: RemoteToolDefinition[] }> {
   let remoteTools: RemoteToolDefinition[] = [];
   try {
+    const context = await resolveMakerProjectContext({
+      targetDir: options.targetDir,
+      listClientRoots: options.listClientRoots,
+      allowFallbackOnAmbiguousRoots: false,
+    });
     const listedRemoteTools =
       options.listRemoteTools ??
       (() =>
         listRemoteProxyTools({
-          targetDir: resolveMakerToolTargetDir(options.targetDir),
+          targetDir: context.targetDir,
           serverUrl: options.serverUrl,
           env: options.env,
         }));
     remoteTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
       decorateRemoteProxyToolDefinition
     );
-  } catch {
+  } catch (error) {
+    if (isMakerProjectContextAmbiguousError(error)) {
+      logLifecycleEvent('maker-tools-list-roots-ambiguous', String(error));
+    }
     remoteTools = [];
   }
 
@@ -273,13 +285,32 @@ function filterExposedRemoteProxyTools(
 
 function decorateRemoteProxyToolDefinition(tool: RemoteToolDefinition): RemoteToolDefinition {
   const guidance = remoteProxyToolGuidance(tool.name);
-  if (!guidance) {
-    return tool;
-  }
   return {
     ...tool,
+    inputSchema: decorateRemoteProxyToolInputSchema(tool.inputSchema),
     description: [tool.description, guidance].filter(Boolean).join('\n\n'),
   };
+}
+
+function decorateRemoteProxyToolInputSchema(inputSchema: unknown): Record<string, unknown> {
+  const schema = isPlainRecord(inputSchema) ? inputSchema : {};
+  const properties = isPlainRecord(schema.properties) ? schema.properties : {};
+  return {
+    ...schema,
+    type: schema.type || 'object',
+    properties: {
+      ...properties,
+      target_dir: {
+        type: 'string',
+        description:
+          'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker generation tool.',
+      },
+    },
+  };
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function remoteProxyToolGuidance(toolName: string): string | undefined {
@@ -465,9 +496,13 @@ export function createRemoteProxyCallToolOptions(
   progressToken: ProgressToken | undefined,
   extra: RequestHandlerExtra<ServerRequest, ServerNotification>
 ): {
+  timeout: number;
+  resetTimeoutOnProgress: boolean;
   onprogress: (progress: { progress: number; total?: number; message?: string }) => void;
 } {
   return {
+    timeout: DEFAULT_TOOL_CALL_TIMEOUT_MS,
+    resetTimeoutOnProgress: true,
     onprogress: createRemoteProxyProgressHandler(progressToken, extra),
   };
 }
@@ -486,9 +521,8 @@ export async function startMakerMcpServer(): Promise<void> {
     }
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () =>
-    listMakerTools({ targetDir: process.cwd() })
-  );
+  const listClientRoots = createServerClientRootsProvider(server);
+  server.setRequestHandler(ListToolsRequestSchema, async () => listMakerTools({ listClientRoots }));
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources }));
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const uri = request.params.uri;
@@ -501,7 +535,7 @@ export async function startMakerMcpServer(): Promise<void> {
         {
           uri,
           mimeType: 'text/plain',
-          text: await formatStatus(),
+          text: await formatStatus({ listClientRoots }),
         },
       ],
     };
@@ -522,6 +556,7 @@ export async function startMakerMcpServer(): Promise<void> {
               text: await formatStatus({
                 targetDir: args.target_dir,
                 skipRemoteSync: args.skip_remote_sync,
+                listClientRoots,
               }),
             },
           ],
@@ -552,8 +587,13 @@ export async function startMakerMcpServer(): Promise<void> {
         let result: Awaited<ReturnType<typeof buildCurrentDirectory>>;
         let progressSummary: ToolProgressSummary;
         try {
+          const context = await resolveMakerProjectContext({
+            targetDir: args.target_dir,
+            listClientRoots,
+            allowFallbackOnAmbiguousRoots: false,
+          });
           result = await buildCurrentDirectory({
-            targetDir: resolveMakerToolTargetDir(args.target_dir),
+            targetDir: context.targetDir,
             entry: args.entry,
             scriptsPath: args.scriptsPath,
             entryClient: args.entry_client,
@@ -584,10 +624,18 @@ export async function startMakerMcpServer(): Promise<void> {
       }
 
       if (isExposedRemoteProxyTool(name)) {
+        const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs(
+          (request.params.arguments || {}) as Record<string, unknown>
+        );
+        const context = await resolveMakerProjectContext({
+          targetDir,
+          listClientRoots,
+          allowFallbackOnAmbiguousRoots: false,
+        });
         return await callRemoteProxyTool({
-          targetDir: process.cwd(),
+          targetDir: context.targetDir,
           name,
-          args: (request.params.arguments || {}) as Record<string, unknown>,
+          args: remoteArgs,
           progressToken: request.params._meta?.progressToken,
           extra,
         });
@@ -647,9 +695,18 @@ function installMakerServerExitHandlers(): void {
 }
 
 async function formatStatus(
-  options: { targetDir?: string; skipRemoteSync?: boolean } = {}
+  options: {
+    targetDir?: string;
+    skipRemoteSync?: boolean;
+    listClientRoots?: MakerClientRootsProvider;
+  } = {}
 ): Promise<string> {
-  const targetDir = resolveMakerToolTargetDir(options.targetDir);
+  const projectContext = await resolveMakerProjectContext({
+    targetDir: options.targetDir,
+    listClientRoots: options.listClientRoots,
+    allowFallbackOnAmbiguousRoots: true,
+  });
+  const targetDir = projectContext.targetDir;
   const env = getMakerEnvironment(undefined, targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
   const mcpCwd = process.cwd();
@@ -707,6 +764,7 @@ async function formatStatus(
     `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath()})`,
     `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
     `- target_dir: ${targetDir}`,
+    `- project_context_source: ${projectContext.source}`,
     `- project_source: ${identify.source}`,
     `- project_id: ${identify.projectId || '(none)'}`,
     identify.configPath ? `- config: ${identify.configPath}` : '',
@@ -722,12 +780,16 @@ async function formatStatus(
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
     '',
-    formatMakerToolRegistrationCwdStatus({
-      mcpCwd,
-      targetDir,
-      projectRoot: identify.projectRoot,
-      mcpProjectRoot: mcpCwdIdentify.projectRoot,
-    }),
+    formatMakerClientRootsStatus(projectContext.roots),
+    '',
+    projectContext.source === 'client_roots'
+      ? ''
+      : formatMakerToolRegistrationCwdStatus({
+          mcpCwd,
+          targetDir,
+          projectRoot: identify.projectRoot,
+          mcpProjectRoot: mcpCwdIdentify.projectRoot,
+        }),
     '',
     remoteSyncText,
     '',
@@ -1014,11 +1076,242 @@ export function formatAiDialogueDirectoryHint(targetDir: string): string {
   ].join('\n');
 }
 
-function resolveMakerToolTargetDir(targetDir?: string): string {
-  if (targetDir) {
-    return path.resolve(targetDir);
+type MakerProjectContextSource = 'explicit_target_dir' | 'client_roots' | 'mcp_cwd_fallback';
+
+export type MakerClientRootsProvider = () => Promise<Root[] | undefined>;
+
+type MakerClientRootsResolution =
+  | {
+      status: 'not_requested' | 'unsupported' | 'unavailable' | 'no_roots';
+      roots: string[];
+      message?: string;
+    }
+  | {
+      status: 'selected';
+      roots: string[];
+      selectedRoot: string;
+      selectedProjectRoot?: string;
+      reason: 'single_root' | 'single_maker_project';
+    }
+  | {
+      status: 'ambiguous';
+      roots: string[];
+      makerProjectRoots: string[];
+      message: string;
+    };
+
+type MakerProjectContext = {
+  targetDir: string;
+  source: MakerProjectContextSource;
+  roots: MakerClientRootsResolution;
+};
+
+function createServerClientRootsProvider(server: Server): MakerClientRootsProvider {
+  return async () => {
+    const capabilities = server.getClientCapabilities();
+    if (!capabilities?.roots) {
+      return undefined;
+    }
+    const result = await server.listRoots(undefined, { timeout: 2000 });
+    return result.roots;
+  };
+}
+
+export async function resolveMakerProjectContext(
+  options: {
+    targetDir?: string;
+    listClientRoots?: MakerClientRootsProvider;
+    allowFallbackOnAmbiguousRoots?: boolean;
+  } = {}
+): Promise<MakerProjectContext> {
+  if (options.targetDir) {
+    return {
+      targetDir: path.resolve(options.targetDir),
+      source: 'explicit_target_dir',
+      roots: { status: 'not_requested', roots: [] },
+    };
   }
-  return process.cwd();
+
+  const roots = await resolveMakerClientRoots(options.listClientRoots);
+  if (roots.status === 'selected') {
+    return {
+      targetDir: roots.selectedProjectRoot || roots.selectedRoot,
+      source: 'client_roots',
+      roots,
+    };
+  }
+  if (roots.status === 'ambiguous' && !options.allowFallbackOnAmbiguousRoots) {
+    throw new MakerProjectContextAmbiguousError(
+      [
+        'Multiple Maker project roots are attached to this MCP session.',
+        `maker_project_roots: ${roots.makerProjectRoots.join(', ') || '(none)'}`,
+        'Open a single Maker workspace, or pass target_dir explicitly for this call.',
+      ].join('\n')
+    );
+  }
+
+  return {
+    targetDir: process.cwd(),
+    source: 'mcp_cwd_fallback',
+    roots,
+  };
+}
+
+class MakerProjectContextAmbiguousError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MakerProjectContextAmbiguousError';
+  }
+}
+
+function isMakerProjectContextAmbiguousError(error: unknown): boolean {
+  return error instanceof MakerProjectContextAmbiguousError;
+}
+
+export async function resolveMakerClientRoots(
+  listClientRoots?: MakerClientRootsProvider
+): Promise<MakerClientRootsResolution> {
+  if (!listClientRoots) {
+    return { status: 'not_requested', roots: [] };
+  }
+
+  let roots: Root[] | undefined;
+  try {
+    roots = await listClientRoots();
+  } catch (error) {
+    return {
+      status: 'unavailable',
+      roots: [],
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+  if (!roots) {
+    return { status: 'unsupported', roots: [] };
+  }
+
+  const rootPaths = uniquePaths(
+    roots.map(rootToLocalPath).filter((item): item is string => Boolean(item))
+  );
+  if (rootPaths.length === 0) {
+    return { status: 'no_roots', roots: [] };
+  }
+  if (rootPaths.length === 1) {
+    const identify = identifyMakerProject({ cwd: rootPaths[0] });
+    return {
+      status: 'selected',
+      roots: rootPaths,
+      selectedRoot: rootPaths[0],
+      selectedProjectRoot: identify.projectRoot,
+      reason: 'single_root',
+    };
+  }
+
+  const makerProjectRoots = uniquePaths(
+    rootPaths
+      .map((rootPath) => identifyMakerProject({ cwd: rootPath }).projectRoot)
+      .filter((item): item is string => Boolean(item))
+  );
+  if (makerProjectRoots.length === 1) {
+    return {
+      status: 'selected',
+      roots: rootPaths,
+      selectedRoot: makerProjectRoots[0],
+      selectedProjectRoot: makerProjectRoots[0],
+      reason: 'single_maker_project',
+    };
+  }
+
+  return {
+    status: 'ambiguous',
+    roots: rootPaths,
+    makerProjectRoots,
+    message:
+      makerProjectRoots.length > 1
+        ? 'Multiple attached roots are bound Maker projects.'
+        : 'Multiple attached roots are present and none is a bound Maker project.',
+  };
+}
+
+function rootToLocalPath(root: Root): string | undefined {
+  try {
+    const url = new URL(root.uri);
+    if (url.protocol !== 'file:') {
+      return undefined;
+    }
+    return path.resolve(fileURLToPath(url));
+  } catch {
+    return undefined;
+  }
+}
+
+function uniquePaths(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const normalized = normalizePathForCompare(value);
+    if (seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    result.push(path.resolve(value));
+  }
+  return result;
+}
+
+function normalizePathForCompare(value: string): string {
+  const resolved = path.resolve(value);
+  try {
+    return fs.realpathSync.native(resolved);
+  } catch {
+    return resolved;
+  }
+}
+
+function formatMakerClientRootsStatus(roots: MakerClientRootsResolution): string {
+  if (roots.status === 'not_requested') {
+    return '';
+  }
+  const lines = [
+    'MCP client roots',
+    '',
+    `- status: ${roots.status}`,
+    `- roots: ${roots.roots.join(', ') || '(none)'}`,
+  ];
+  if (roots.status === 'selected') {
+    lines.push(`- selected_root: ${roots.selectedRoot}`);
+    lines.push(`- selected_project_root: ${roots.selectedProjectRoot || '(none)'}`);
+    lines.push(`- reason: ${roots.reason}`);
+    lines.push('- next_action: Continue using the client workspace root as the Maker target.');
+  } else if (roots.status === 'ambiguous') {
+    lines.push(`- maker_project_roots: ${roots.makerProjectRoots.join(', ') || '(none)'}`);
+    lines.push(`- issue: ${roots.message}`);
+    lines.push(
+      '- next_action: Open a single Maker workspace, or pass target_dir explicitly for this call.'
+    );
+  } else if (roots.status === 'unsupported') {
+    lines.push('- next_action: This client did not advertise MCP roots; falling back to MCP cwd.');
+  } else if (roots.status === 'unavailable') {
+    lines.push(`- failure_message: ${roots.message || '(unknown)'}`);
+    lines.push('- next_action: Could not read MCP roots; falling back to MCP cwd.');
+  }
+  return lines.join('\n');
+}
+
+export function splitRemoteProxyToolPrivateArgs(args: Record<string, unknown>): {
+  targetDir?: string;
+  remoteArgs: Record<string, unknown>;
+} {
+  const remoteArgs = { ...args };
+  const targetDir = remoteArgs.target_dir;
+  delete remoteArgs.target_dir;
+
+  if (targetDir === undefined) {
+    return { remoteArgs };
+  }
+  if (typeof targetDir !== 'string') {
+    throw new Error('target_dir must be a string when provided.');
+  }
+  return { targetDir, remoteArgs };
 }
 
 export async function formatAiDevKitStatus(

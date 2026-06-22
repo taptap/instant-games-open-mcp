@@ -597,6 +597,31 @@ describe('Maker CLI commands', () => {
     expect(agents).toContain('Local project notes');
   });
 
+  test('upgrade without explicit target dir does not pin cwd into user-level MCP config', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+    });
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(tempDir);
+
+      await runMakerCli(['upgrade', '--ide', 'cursor', '--env', 'rnd']);
+    } finally {
+      process.chdir(originalCwd);
+    }
+
+    const config = JSON.parse(fs.readFileSync(path.join(tempDir, '.cursor', 'mcp.json'), 'utf8'));
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: {
+        TAPTAP_MCP_ENV: 'rnd',
+      },
+    });
+    expect(config.mcpServers['taptap-maker']).not.toHaveProperty('cwd');
+  });
+
   test('init treats the token after command as positional app id', async () => {
     await runMakerCli([
       'init',
@@ -709,6 +734,30 @@ describe('Maker CLI commands', () => {
       })
     );
     expect(requestTapAuthWithPat).toHaveBeenCalledWith('browser-maker-pat', 'production');
+  });
+
+  test('init does not pin project cwd into user-level MCP config by default', async () => {
+    await runMakerCli([
+      'init',
+      '--app-id',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--register-mcp',
+      'cursor',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    const config = JSON.parse(fs.readFileSync(path.join(tempDir, '.cursor', 'mcp.json'), 'utf8'));
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: {
+        TAPTAP_MCP_ENV: 'production',
+      },
+    });
+    expect(config.mcpServers['taptap-maker']).not.toHaveProperty('cwd');
   });
 
   test('init skips lua-lsp setup when LSP is already ready', async () => {

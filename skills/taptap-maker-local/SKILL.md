@@ -245,9 +245,11 @@ Workflow:
    remain visible when an AI summarizes or truncates a long app list, even if another app name
    appears to match the current directory. Users can choose `0`/`new` and enter a project name,
    or use `taptap-maker init --create --name "my-local-game"` for non-interactive runs.
-   The generated MCP config pins the selected Maker project directory as `cwd` when the target
-   client supports it. If a user manually reinstalls MCP config later, prefer
-   `taptap-maker mcp install --target-dir <PROJECT_DIR>`.
+   The generated user-level MCP config does not pin the selected Maker project directory as `cwd`
+   by default. Clients that support MCP Roots should let the current workspace root identify the
+   Maker project, so multiple AI clients or Maker projects do not overwrite one shared cwd. If a
+   client does not support MCP Roots, the user can explicitly run
+   `taptap-maker mcp install --target-dir <PROJECT_DIR>` as a compatibility fix.
    Tell the user that the first Maker clone can take 20+ seconds because the server may be
    preparing the repository, and that they should keep the command running while the CLI retries
    transient 503/5xx failures.

@@ -187,11 +187,14 @@ flowchart TD
 
 ```text
 CLI 先完成初始化、PAT、app 选择、clone
-然后提示用户刷新/重启客户端
-客户端重新加载后，MCP 只负责状态和构建循环
+然后写入不带项目 cwd 的用户级 MCP 启动配置
+客户端重新加载后，MCP 通过 Roots/workspace 识别当前项目，只负责状态和构建循环
 ```
 
 这样即使当前对话不能热加载新 MCP，用户也可以继续完成最关键的 PAT 校验和项目绑定。
+不支持 MCP Roots 的客户端仍可显式运行
+`taptap-maker mcp install --target-dir <PROJECT_DIR>` 固定 cwd，但这不是默认路径，
+避免 Codex、Trae、Cursor 等多个客户端共用用户级配置时互相覆盖项目目录。
 
 ## Windows 优先支持
 
