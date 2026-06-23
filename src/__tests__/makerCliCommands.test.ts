@@ -17,6 +17,7 @@ import {
   installAiDevKit,
   installAiDevKitSkills,
 } from '../maker/cli/devKit';
+import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../maker/versionCheck';
 import { resolveNpxCliCommand, runMakerCli } from '../maker/cli/commands';
 import { loadProjectConfig, saveProjectConfig } from '../maker/storage';
 
@@ -108,6 +109,25 @@ jest.mock('../maker/cli/devKit', () => ({
   installAiDevKitSkills: jest.fn(),
   listPresentDevKitManagedEntries: jest.fn(() => []),
   writeDevKitStagedGitignore: jest.fn(),
+}));
+
+jest.mock('../maker/versionCheck', () => ({
+  formatMakerPackageUpdateStatus: jest.fn(() =>
+    [
+      'Maker MCP package update',
+      '',
+      '- status: current',
+      '- current_version: 0.0.8',
+      '- next_action: Continue normal work; no package upgrade is required.',
+      '- restart_required: no',
+    ].join('\n')
+  ),
+  getMakerPackageUpdateStatus: jest.fn(async () => ({
+    status: 'current',
+    current_version: '0.0.8',
+    next_action: 'Continue normal work; no package upgrade is required.',
+    restart_required: false,
+  })),
 }));
 
 jest.mock('../maker/system/git', () => {
@@ -1498,6 +1518,50 @@ describe('Maker CLI commands', () => {
         latest: expect.objectContaining({ version: '20260605-053736' }),
       })
     );
+    expect(payload.package_update).toEqual(
+      expect.objectContaining({
+        status: 'current',
+        current_version: '0.0.8',
+      })
+    );
+  });
+
+  test('doctor includes Maker package update status in text output', async () => {
+    jest.mocked(getMakerPackageUpdateStatus).mockResolvedValueOnce({
+      status: 'required_upgrade',
+      current_version: '0.0.5',
+      target_version: '0.0.8',
+      reason: 'below_minimum_supported',
+      next_action:
+        'Ask the user for approval, then run `taptap-maker upgrade --target-dir <PROJECT_DIR>`.',
+      restart_required: true,
+    });
+    jest
+      .mocked(formatMakerPackageUpdateStatus)
+      .mockReturnValueOnce(
+        [
+          'Maker MCP package update',
+          '',
+          '- status: required_upgrade',
+          '- current_version: 0.0.5',
+          '- target_version: 0.0.8',
+          '- reason: below_minimum_supported',
+          '- next_action: Ask the user for approval, then run `taptap-maker upgrade --target-dir <PROJECT_DIR>`.',
+          '- restart_required: yes',
+        ].join('\n')
+      );
+
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(getMakerPackageUpdateStatus).toHaveBeenCalledWith({
+      currentVersion: 'dev',
+      allowRemoteFetch: false,
+    });
+    expect(output).toContain('Maker MCP package update');
+    expect(output).toContain('- status: required_upgrade');
+    expect(output).toContain('- next_action: Ask the user for approval');
+    expect(output).not.toContain('taptap-maker upgrade --target-dir <PROJECT_DIR>\n\n');
   });
 
   test('doctor guides unbound directories to init when PAT is missing', async () => {

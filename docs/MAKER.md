@@ -205,7 +205,9 @@ Python 运行时策略：
 - `taptap-maker agents update`：只更新当前目录 `AGENTS.md` 中 TapTap Maker 管理的策略块，
   保留用户自己的项目说明；缺少 `AGENTS.md` 时会创建文件。
 - `taptap-maker upgrade`：当前目录的一站式升级入口，刷新 AI 客户端 MCP 配置，并在当前目录
-  已绑定 Maker 项目时执行 `AGENTS.md` 受管策略块更新。它不扫描其它 Maker 项目。
+  已绑定 Maker 项目时执行 `AGENTS.md` 受管策略块更新。它不扫描其它 Maker 项目。升级动作
+  不由 MCP 自己执行；MCP 只做版本检查并输出 `required_upgrade`、`update_available`、
+  `current`、`unavailable` 或 `skipped`。
 - `taptap-maker dev-kit update`：检查当前环境可用的最新 AI dev kit，恢复或更新当前目录。
 
 MCP 运行期能力：
@@ -216,6 +218,20 @@ MCP 运行期能力：
   该 root 识别当前项目，并输出 `MCP client roots` 与 `project_context_source` 诊断。
   这样同一台机器上 Codex、Trae、Cursor 等客户端的用户级 MCP 配置不会因为某个项目写入
   `cwd` 而互相污染。
+- `maker://status` 和 `maker_status_lite` 会在启动后的异步检查完成后，以及最后一次成功远端
+  检查超过 12 小时时懒检查 `Maker MCP package update` 区块。这个检查只读取远端 policy，不执行升级，
+  也不会被业务 tools 触发。远端 policy 使用 `schema_version`、`latest`、`latest_beta`、
+  `minimum_supported`、`blacklist` 和 `message` 字段来决定是否需要升级。
+  状态只会报告 `required_upgrade`、`update_available`、`current`、`unavailable` 或 `skipped`。
+  如果状态是 `required_upgrade`，本地 AI 必须先向用户解释原因并征得同意；用户同意后，
+  若项目目录已确认，再运行 `npx -y -p @taptap/maker taptap-maker upgrade --target-dir <PROJECT_DIR>`；
+  如果还没有确认项目目录，只能说明 machine-level refresh 的取舍，再决定是否运行不带
+  `--target-dir` 的 `taptap-maker upgrade`。升级后要提示用户重启或 reconnect MCP session，
+  然后用 `maker://status` 或 `maker_status_lite` 复核结果。
+- `@taptap/maker` 发版成功后，`publish-maker.yml` 会用 `scripts/update-maker-version-policy.cjs`
+  更新 `config/maker-version-policy.json` 并创建一个可 review 的 PR。`tag=latest` 只自动更新
+  `latest`，`tag=beta` 只自动更新 `latest_beta`，并刷新 `updated_at`；`minimum_supported`、
+  `blacklist` 和 `message` 保持人工策略字段，不由发版流程自动改。
 - `taptap-maker doctor` 会输出 `Maker MCP tools availability`。如果当前 AI 对话里看不到
   Maker proxy tools，先按该段提示重启 AI 客户端、新开 AI 对话，或在支持 `/mcp` 的客户端中
   Reconnect `taptap-maker`；如果客户端不支持 MCP Roots 且输出 `pwd_alignment: cwd_mismatch`，

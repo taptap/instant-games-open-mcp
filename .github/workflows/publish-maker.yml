@@ -27,8 +27,9 @@ on:
           - alpha
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
+  pull-requests: write
 
 jobs:
   resolve-version:
@@ -137,3 +138,44 @@ jobs:
           MAKER_PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
           NPM_TAG: ${{ inputs.tag }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Update Maker version policy
+        id: version-policy
+        run: |
+          node scripts/update-maker-version-policy.cjs \
+            --tag "$NPM_TAG" \
+            --version "$MAKER_PACKAGE_VERSION"
+        env:
+          MAKER_PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
+          NPM_TAG: ${{ inputs.tag }}
+
+      - name: Generate version policy PR token
+        id: version-policy-token
+        if: steps.version-policy.outputs.changed == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Create Maker version policy PR
+        if: steps.version-policy.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ steps.version-policy-token.outputs.token }}
+          branch: chore/update-maker-version-policy-${{ needs.resolve-version.outputs.version }}
+          delete-branch: true
+          title: 'chore(maker): update maker version policy for ${{ needs.resolve-version.outputs.version }}'
+          commit-message: |
+            chore(maker): update maker version policy
+
+            - Update config/maker-version-policy.json after @taptap/maker publish
+            - Preserve minimum_supported, blacklist, and message policy fields
+            - Verification: publish-maker workflow completed npm publish first
+          body: |
+            Updates `config/maker-version-policy.json` after publishing
+            `@taptap/maker@${{ needs.resolve-version.outputs.version }}` with npm tag
+            `${{ inputs.tag }}`.
+
+            The workflow only updates `latest` or `latest_beta` plus `updated_at`.
+            Manual policy fields such as `minimum_supported`, `blacklist`, and `message`
+            are preserved for review-driven changes.

@@ -193,3 +193,4 @@ native/node_modules/
 # TapTap Maker local runtime state
 .maker/
 .npm-cache
+docs/superpowers
