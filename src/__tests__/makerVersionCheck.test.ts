@@ -235,6 +235,26 @@ describe('maker package version check', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  test('does not claim background retry when remote fetch and background refresh are disabled', async () => {
+    const fetchImpl = jest.fn<typeof fetch>();
+
+    const status = await getMakerPackageUpdateStatus({
+      currentVersion: '0.0.8',
+      now: new Date('2026-06-23T00:00:00.000Z'),
+      fetchImpl,
+      allowRemoteFetch: false,
+      backgroundRefresh: false,
+    });
+
+    expect(status).toMatchObject({
+      status: 'unavailable',
+      current_version: '0.0.8',
+      error: 'Maker package version check is temporarily unavailable.',
+    });
+    expect(status.error).not.toContain('background');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   test('fetches remote policy once cached success is 12 hours old', async () => {
     const checkedAt = '2026-06-23T00:00:00.000Z';
     const now = new Date(new Date(checkedAt).getTime() + PACKAGE_VERSION_CHECK_TTL_MS);

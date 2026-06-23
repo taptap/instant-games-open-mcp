@@ -278,15 +278,14 @@ export async function getMakerPackageUpdateStatus(
   }
 
   if (options.allowRemoteFetch === false) {
-    if (options.backgroundRefresh !== false) {
+    const shouldStartBackgroundRefresh = options.backgroundRefresh !== false;
+    if (shouldStartBackgroundRefresh) {
       startMakerPackageUpdateCheck(options);
     }
     return buildUnavailableStatus({
       cache,
       currentVersion,
-      error: cache?.error
-        ? `${cache.error}; background retry started.`
-        : 'Maker package version check is running in the background.',
+      error: formatUnavailableNonBlockingError(cache?.error, shouldStartBackgroundRefresh),
       checkedAt: now.toISOString(),
       policyUrl: resolvePolicyUrl(options.policyUrl),
     });
@@ -370,6 +369,18 @@ export function formatMakerPackageUpdateStatus(status: MakerPackageUpdateStatus)
   }
 
   return lines.join('\n');
+}
+
+function formatUnavailableNonBlockingError(
+  previousError: string | undefined,
+  backgroundRefresh: boolean
+): string {
+  if (backgroundRefresh) {
+    return previousError
+      ? `${previousError}; background retry started.`
+      : 'Maker package version check is running in the background.';
+  }
+  return previousError || 'Maker package version check is temporarily unavailable.';
 }
 
 async function fetchMakerPackageVersionPolicy(options: {
