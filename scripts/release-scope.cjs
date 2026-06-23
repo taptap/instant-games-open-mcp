@@ -17,11 +17,13 @@ const MAKER_PATH_PREFIXES = [
 const MAKER_EXACT_PATHS = new Set([
   '.github/workflows/publish-maker.yml',
   'bin/taptap-maker',
+  'config/maker-version-policy.json',
   'docs/MAKER.md',
   'docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md',
   'scripts/bundle-maker.js',
   'scripts/prepare-maker-package.js',
   'scripts/resolve-maker-version.js',
+  'scripts/update-maker-version-policy.cjs',
 ]);
 
 const RELEASE_INFRA_EXACT_PATHS = new Set([
@@ -32,6 +34,7 @@ const RELEASE_INFRA_EXACT_PATHS = new Set([
   '.releaserc.cjs',
   'CONTRIBUTING.md',
   'README.md',
+  'config/maker-version-policy.json',
   'docs/CI_CD.md',
   'docs/MAKER.md',
   'package-lock.json',
@@ -41,6 +44,7 @@ const RELEASE_INFRA_EXACT_PATHS = new Set([
   'scripts/release-scope.cjs',
   'scripts/resolve-main-release-version.js',
   'scripts/resolve-maker-version.js',
+  'scripts/update-maker-version-policy.cjs',
   'scripts/semantic-release-main-analyzer.cjs',
   'src/__tests__/mainPackageManifest.test.ts',
   'src/__tests__/mainReleaseVersionPolicy.test.ts',

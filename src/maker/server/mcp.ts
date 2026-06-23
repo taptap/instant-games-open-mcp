@@ -90,6 +90,11 @@ import {
   type RuntimeLogQueryResult,
 } from './runtimeLogs.js';
 import {
+  formatMakerPackageUpdateStatus,
+  getMakerPackageUpdateStatus,
+  startMakerPackageUpdateCheck,
+} from '../versionCheck.js';
+import {
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
@@ -508,6 +513,8 @@ export function createRemoteProxyCallToolOptions(
 }
 
 export async function startMakerMcpServer(): Promise<void> {
+  startMakerPackageUpdateCheck({ currentVersion: VERSION });
+
   const server = new Server(
     {
       name: 'taptap-maker',
@@ -744,6 +751,12 @@ async function formatStatus(
   const git = checkGitEnvironment();
   const python = checkMakerPythonEnvironment();
   const luaLsp = checkMakerLuaLspEnvironment({ pythonEnvironment: python });
+  const packageUpdateText = formatMakerPackageUpdateStatus(
+    await getMakerPackageUpdateStatus({
+      currentVersion: VERSION,
+      allowRemoteFetch: false,
+    })
+  );
   const projectSection = identify.projectId
     ? [
         '目标目录已绑定 Maker 项目。',
@@ -777,6 +790,8 @@ async function formatStatus(
     formatMakerPythonEnvironmentStatus(python),
     '',
     formatMakerLuaLspEnvironmentStatus(luaLsp),
+    '',
+    packageUpdateText,
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
     '',

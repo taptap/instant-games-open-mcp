@@ -74,6 +74,10 @@ import {
   setupMakerLuaLspEnvironment,
 } from '../system/luaLsp.js';
 import { formatMakerSkillStatus } from './skill.js';
+import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../versionCheck.js';
+
+declare const __MAKER_VERSION__: string | undefined;
+const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
@@ -390,6 +394,11 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const projectRoot = identify.projectRoot || targetDir;
   const devKit = inspectAiDevKit(projectRoot);
   const devKitUpdate = await checkAiDevKitUpdate(projectRoot, { environment: env });
+  const packageUpdate = await getMakerPackageUpdateStatus({
+    currentVersion: VERSION,
+    allowRemoteFetch: false,
+    backgroundRefresh: false,
+  });
   const agentsPolicy = isProjectBound ? inspectMakerAgentsPolicy(projectRoot) : undefined;
   const orphanProcessCheck = inspectMakerOrphanProcesses();
   const mcpToolsAvailability = inspectMakerMcpToolsAvailability({
@@ -410,6 +419,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       agents_policy: agentsPolicy,
       dev_kit: devKit,
       dev_kit_update: devKitUpdate,
+      package_update: packageUpdate,
       mcp_tools_availability: mcpToolsAvailability,
       orphan_process_check: orphanProcessCheck,
     });
@@ -450,6 +460,8 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       `- latest_version: ${devKitUpdate.latest?.version || '(unknown)'}`,
       `- update_available: ${devKitUpdate.updateAvailable ? 'yes' : 'no'}`,
       devKitUpdate.versionCheckError ? `- version_check: ${devKitUpdate.versionCheckError}` : '',
+      '',
+      formatMakerPackageUpdateStatus(packageUpdate),
       '',
       formatMakerMcpToolsAvailability(mcpToolsAvailability),
       '',

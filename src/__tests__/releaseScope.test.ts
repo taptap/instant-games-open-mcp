@@ -12,6 +12,8 @@ describe('release-scope classifier', () => {
     expect(releaseScope.isMakerOwnedPath('src/maker/server/mcp.ts')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('packages/maker/package.json')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('src/__tests__/makerRuntimeLogs.test.ts')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('config/maker-version-policy.json')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('scripts/update-maker-version-policy.cjs')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('.github/workflows/release.yml')).toBe(false);
     expect(releaseScope.isMakerOwnedPath('package.json')).toBe(false);
   });
@@ -44,8 +46,10 @@ describe('release-scope classifier', () => {
       '.github/workflows/release.yml',
       '.github/workflows/publish-maker.yml',
       'scripts/release-scope.cjs',
+      'scripts/update-maker-version-policy.cjs',
       'scripts/resolve-main-release-version.js',
       'scripts/resolve-maker-version.js',
+      'config/maker-version-policy.json',
       'src/__tests__/releaseScope.test.ts',
       'src/__tests__/makerVersionPolicy.test.ts',
       'CONTRIBUTING.md',

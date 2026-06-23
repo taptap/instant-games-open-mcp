@@ -112,6 +112,24 @@ describe('release PR required workflow guards', () => {
     expect(releaseStep).not.toContain('git checkout -B main origin/main');
   });
 
+  it('creates a reviewable Maker version policy PR after Maker package publish', () => {
+    const workflow = readWorkflow('publish-maker.yml');
+
+    expect(workflow).toContain('contents: write');
+    expect(workflow).toContain('pull-requests: write');
+    expect(workflow).toContain('node scripts/update-maker-version-policy.cjs');
+    expect(workflow).toContain('--tag "$NPM_TAG"');
+    expect(workflow).toContain('--version "$MAKER_PACKAGE_VERSION"');
+    expect(workflow).toContain('uses: actions/create-github-app-token@v2');
+    expect(workflow).toContain('id: version-policy-token');
+    expect(workflow).toContain('uses: peter-evans/create-pull-request@v6');
+    expect(workflow).toContain('token: ${{ steps.version-policy-token.outputs.token }}');
+    expect(workflow).toContain(
+      'chore/update-maker-version-policy-${{ needs.resolve-version.outputs.version }}'
+    );
+    expect(workflow).toContain('Preserve minimum_supported, blacklist, and message policy fields');
+  });
+
   it('refreshes the release app token after waiting for PR merge', () => {
     const workflow = readWorkflow('release.yml');
 
