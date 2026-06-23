@@ -182,7 +182,33 @@ describe('maker package version check', () => {
     });
   });
 
-  test('reuses recent failure-only cache without retrying remote fetch', async () => {
+  test('retries remote policy fetch when only a recent failure cache exists', async () => {
+    const checkedAt = '2026-06-23T00:00:00.000Z';
+    const now = new Date(new Date(checkedAt).getTime() + PACKAGE_VERSION_CHECK_TTL_MS - 1);
+    writeCache({
+      policy_url: 'https://example.com/policy.json',
+      error: 'network unavailable',
+      error_checked_at: checkedAt,
+    });
+    const fetchImpl = jest.fn<typeof fetch>(async () => jsonResponse(policy));
+
+    const status = await getMakerPackageUpdateStatus({
+      currentVersion: '0.0.7',
+      now,
+      fetchImpl,
+      policyUrl: 'https://example.com/policy.json',
+    });
+
+    expect(status).toMatchObject({
+      status: 'update_available',
+      current_version: '0.0.7',
+      target_version: '0.0.8',
+      policy_url: 'https://example.com/policy.json',
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  test('returns recent failure-only cache without fetch when remote fetch and background refresh are disabled', async () => {
     const checkedAt = '2026-06-23T00:00:00.000Z';
     const now = new Date(new Date(checkedAt).getTime() + PACKAGE_VERSION_CHECK_TTL_MS - 1);
     writeCache({
@@ -196,6 +222,8 @@ describe('maker package version check', () => {
       currentVersion: '0.0.8',
       now,
       fetchImpl,
+      allowRemoteFetch: false,
+      backgroundRefresh: false,
     });
 
     expect(status).toMatchObject({

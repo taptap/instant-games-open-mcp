@@ -397,6 +397,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const packageUpdate = await getMakerPackageUpdateStatus({
     currentVersion: VERSION,
     allowRemoteFetch: false,
+    backgroundRefresh: false,
   });
   const agentsPolicy = isProjectBound ? inspectMakerAgentsPolicy(projectRoot) : undefined;
   const orphanProcessCheck = inspectMakerOrphanProcesses();

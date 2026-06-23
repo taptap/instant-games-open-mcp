@@ -69,6 +69,44 @@ describe('Maker version policy updater', () => {
     expect(policy.blacklist).toEqual([]);
   });
 
+  test('rejects prerelease versions for latest publishes', () => {
+    const file = writePolicy({
+      latest: '0.0.20',
+      latest_beta: '0.0.19-beta.1',
+      minimum_supported: '0.0.1',
+      blacklist: [],
+      updated_at: '2026-06-23T00:00:00.000Z',
+    });
+
+    expect(() =>
+      updateMakerVersionPolicy({
+        file,
+        tag: 'latest',
+        version: '0.0.21-beta.1',
+        updatedAt: '2026-06-24T00:00:00.000Z',
+      })
+    ).toThrow('latest tag must publish a stable version');
+  });
+
+  test('rejects stable versions for beta publishes', () => {
+    const file = writePolicy({
+      latest: '0.0.20',
+      latest_beta: '0.0.19-beta.1',
+      minimum_supported: '0.0.1',
+      blacklist: [],
+      updated_at: '2026-06-23T00:00:00.000Z',
+    });
+
+    expect(() =>
+      updateMakerVersionPolicy({
+        file,
+        tag: 'beta',
+        version: '0.0.21',
+        updatedAt: '2026-06-24T00:00:00.000Z',
+      })
+    ).toThrow('beta tag must publish a prerelease version');
+  });
+
   test('does not update policy for alpha or next publishes', () => {
     const file = writePolicy({
       latest: '0.0.20',

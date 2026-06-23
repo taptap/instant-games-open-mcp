@@ -67,6 +67,7 @@ export interface MakerPackageUpdateCheckOptions {
   policyUrl?: string;
   now?: Date;
   allowRemoteFetch?: boolean;
+  backgroundRefresh?: boolean;
 }
 
 interface MakerPackageVersionCheckCache {
@@ -245,6 +246,11 @@ export async function getMakerPackageUpdateStatus(
   const lastSuccessCheckedAt = getLastSuccessCheckedAt(cache);
   const lastErrorCheckedAt = getLastErrorCheckedAt(cache);
   const hasCurrentVersionDecision = cache?.decision?.current_version === currentVersion;
+  const hasFreshErrorOnlyCache =
+    Boolean(cache?.error) &&
+    !cache?.decision &&
+    lastErrorCheckedAt !== undefined &&
+    isCacheFresh(lastErrorCheckedAt, now);
 
   if (
     cache?.decision &&
@@ -260,21 +266,21 @@ export async function getMakerPackageUpdateStatus(
       : cache.decision;
   }
 
-  if (
-    cache?.error &&
-    !cache?.decision &&
-    lastErrorCheckedAt &&
-    isCacheFresh(lastErrorCheckedAt, now)
-  ) {
+  if (hasFreshErrorOnlyCache && options.allowRemoteFetch === false) {
+    if (options.backgroundRefresh !== false) {
+      startMakerPackageUpdateCheck(options);
+    }
     return buildUnavailableStatus({
       cache,
       currentVersion,
-      error: cache.error,
+      error: cache?.error || 'Maker package version check is temporarily unavailable.',
     });
   }
 
   if (options.allowRemoteFetch === false) {
-    startMakerPackageUpdateCheck(options);
+    if (options.backgroundRefresh !== false) {
+      startMakerPackageUpdateCheck(options);
+    }
     return buildUnavailableStatus({
       cache,
       currentVersion,

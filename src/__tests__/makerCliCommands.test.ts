@@ -1557,6 +1557,7 @@ describe('Maker CLI commands', () => {
     expect(getMakerPackageUpdateStatus).toHaveBeenCalledWith({
       currentVersion: 'dev',
       allowRemoteFetch: false,
+      backgroundRefresh: false,
     });
     expect(output).toContain('Maker MCP package update');
     expect(output).toContain('- status: required_upgrade');

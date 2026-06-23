@@ -43,6 +43,7 @@ function updateMakerVersionPolicy(options) {
   const field = tag === 'latest' ? 'latest' : tag === 'beta' ? 'latest_beta' : undefined;
 
   assertValidVersion(version);
+  assertVersionMatchesTag(tag, version);
 
   if (!field) {
     return {
@@ -107,6 +108,16 @@ function assertPolicy(policy, file) {
 function assertValidVersion(version, label = 'version') {
   if (typeof version !== 'string' || !VERSION_PATTERN.test(version)) {
     throw new Error(`Invalid ${label}: ${version}. Expected semver like 0.0.1 or 0.0.1-beta.1.`);
+  }
+}
+
+function assertVersionMatchesTag(tag, version) {
+  const isPrerelease = version.includes('-');
+  if (tag === 'latest' && isPrerelease) {
+    throw new Error(`Invalid latest version: ${version}. The latest tag must publish a stable version.`);
+  }
+  if (tag === 'beta' && !isPrerelease) {
+    throw new Error(`Invalid beta version: ${version}. The beta tag must publish a prerelease version.`);
   }
 }
 
