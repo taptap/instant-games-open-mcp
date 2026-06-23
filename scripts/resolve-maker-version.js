@@ -59,6 +59,20 @@ function isStableThreeSegmentVersion(version) {
   return /^\d+\.\d+\.\d+$/.test(version);
 }
 
+function isPrereleaseVersion(version) {
+  return version.includes('-');
+}
+
+function assertVersionMatchesTag(tag, version) {
+  const isPrerelease = isPrereleaseVersion(version);
+  if (PRERELEASE_TAGS.has(tag) && !isPrerelease) {
+    throw new Error(`Manual ${tag} publish requires a prerelease version like 0.0.1-${tag}.1.`);
+  }
+  if (!PRERELEASE_TAGS.has(tag) && isPrerelease) {
+    throw new Error(`Manual ${tag} publish requires a stable version like 0.0.1.`);
+  }
+}
+
 function changesMajorOrMinor(previousVersion, nextVersion) {
   const previous = parseVersionCore(previousVersion);
   const next = parseVersionCore(nextVersion);
@@ -320,6 +334,9 @@ function main() {
     mode === 'manual'
       ? resolveManualVersion(currentVersion)
       : resolveAutoVersion(tag, hasPublishedVersions, publishedVersions, currentVersion);
+  if (mode === 'manual') {
+    assertVersionMatchesTag(tag, version);
+  }
   const majorMinorChanged = Boolean(
     mode === 'manual' && currentVersion && changesMajorOrMinor(currentVersion, version)
   );
