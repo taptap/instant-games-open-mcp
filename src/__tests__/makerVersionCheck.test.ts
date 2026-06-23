@@ -99,6 +99,7 @@ describe('maker package version check', () => {
       currentVersion: '0.0.7',
       now,
       fetchImpl,
+      policyUrl: 'https://example.com/policy.json',
     });
 
     expect(status).toMatchObject({
@@ -136,6 +137,7 @@ describe('maker package version check', () => {
       currentVersion: '0.0.7',
       now,
       fetchImpl,
+      policyUrl: 'https://example.com/policy.json',
     });
 
     expect(status).toMatchObject({
@@ -182,6 +184,47 @@ describe('maker package version check', () => {
     });
   });
 
+  test('does not reuse fresh successful cache for a different policy url', async () => {
+    const checkedAt = '2026-06-23T00:00:00.000Z';
+    const now = new Date(new Date(checkedAt).getTime() + PACKAGE_VERSION_CHECK_TTL_MS - 1);
+    writeCache({
+      checked_at: checkedAt,
+      policy_url: 'https://example.com/old-policy.json',
+      policy,
+      decision: {
+        status: 'current',
+        current_version: '0.0.8',
+        target_version: '0.0.8',
+        latest: '0.0.8',
+        latest_beta: '0.0.9-beta.2',
+        minimum_supported: '0.0.7',
+        checked_at: checkedAt,
+        policy_url: 'https://example.com/old-policy.json',
+      },
+    });
+    const nextPolicy: MakerPackageVersionPolicy = {
+      ...policy,
+      latest: '0.0.10',
+      updated_at: '2026-06-23T01:00:00.000Z',
+    };
+    const fetchImpl = jest.fn<typeof fetch>(async () => jsonResponse(nextPolicy));
+
+    const status = await getMakerPackageUpdateStatus({
+      currentVersion: '0.0.8',
+      now,
+      fetchImpl,
+      policyUrl: 'https://example.com/new-policy.json',
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(status).toMatchObject({
+      status: 'update_available',
+      current_version: '0.0.8',
+      target_version: '0.0.10',
+      policy_url: 'https://example.com/new-policy.json',
+    });
+  });
+
   test('retries remote policy fetch when only a recent failure cache exists', async () => {
     const checkedAt = '2026-06-23T00:00:00.000Z';
     const now = new Date(new Date(checkedAt).getTime() + PACKAGE_VERSION_CHECK_TTL_MS - 1);
@@ -206,6 +249,31 @@ describe('maker package version check', () => {
       policy_url: 'https://example.com/policy.json',
     });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not reuse fresh failure-only cache for a different policy url', async () => {
+    const checkedAt = '2026-06-23T00:00:00.000Z';
+    const now = new Date(new Date(checkedAt).getTime() + PACKAGE_VERSION_CHECK_TTL_MS - 1);
+    writeCache({
+      policy_url: 'https://example.com/old-policy.json',
+      error: 'network unavailable',
+      error_checked_at: checkedAt,
+    });
+    const fetchImpl = jest.fn<typeof fetch>(async () => jsonResponse(policy));
+
+    const status = await getMakerPackageUpdateStatus({
+      currentVersion: '0.0.8',
+      now,
+      fetchImpl,
+      policyUrl: 'https://example.com/new-policy.json',
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(status).toMatchObject({
+      status: 'current',
+      current_version: '0.0.8',
+      policy_url: 'https://example.com/new-policy.json',
+    });
   });
 
   test('returns recent failure-only cache without fetch when remote fetch and background refresh are disabled', async () => {

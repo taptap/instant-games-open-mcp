@@ -107,6 +107,27 @@ describe('Maker version policy updater', () => {
     ).toThrow('beta tag must publish a prerelease version');
   });
 
+  test('rejects invalid blacklist entries before writing policy', () => {
+    const file = writePolicy({
+      latest: '0.0.20',
+      latest_beta: '0.0.19-beta.1',
+      minimum_supported: '0.0.1',
+      blacklist: ['0.0.5', 'not-a-version'],
+      updated_at: '2026-06-23T00:00:00.000Z',
+    });
+    const before = fs.readFileSync(file, 'utf8');
+
+    expect(() =>
+      updateMakerVersionPolicy({
+        file,
+        tag: 'latest',
+        version: '0.0.21',
+        updatedAt: '2026-06-24T00:00:00.000Z',
+      })
+    ).toThrow('blacklist must be a semver string array');
+    expect(fs.readFileSync(file, 'utf8')).toBe(before);
+  });
+
   test('does not update policy for alpha or next publishes', () => {
     const file = writePolicy({
       latest: '0.0.20',

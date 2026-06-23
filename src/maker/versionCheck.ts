@@ -243,18 +243,23 @@ export async function getMakerPackageUpdateStatus(
 
   const cache = readCache();
   const now = options.now ?? new Date();
+  const policyUrl = resolvePolicyUrl(options.policyUrl);
   const lastSuccessCheckedAt = getLastSuccessCheckedAt(cache);
   const lastErrorCheckedAt = getLastErrorCheckedAt(cache);
   const hasCurrentVersionDecision = cache?.decision?.current_version === currentVersion;
+  const hasCurrentPolicyUrl =
+    cache?.policy_url === policyUrl || cache?.decision?.policy_url === policyUrl;
   const hasFreshErrorOnlyCache =
     Boolean(cache?.error) &&
     !cache?.decision &&
+    hasCurrentPolicyUrl &&
     lastErrorCheckedAt !== undefined &&
     isCacheFresh(lastErrorCheckedAt, now);
 
   if (
     cache?.decision &&
     hasCurrentVersionDecision &&
+    hasCurrentPolicyUrl &&
     lastSuccessCheckedAt &&
     isCacheFresh(lastSuccessCheckedAt, now)
   ) {
@@ -287,7 +292,7 @@ export async function getMakerPackageUpdateStatus(
       currentVersion,
       error: formatUnavailableNonBlockingError(cache?.error, shouldStartBackgroundRefresh),
       checkedAt: now.toISOString(),
-      policyUrl: resolvePolicyUrl(options.policyUrl),
+      policyUrl,
     });
   }
 

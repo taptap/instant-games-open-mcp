@@ -100,8 +100,11 @@ function assertPolicy(policy, file) {
   for (const field of ['latest', 'latest_beta', 'minimum_supported']) {
     assertValidVersion(policy[field], `policy.${field}`);
   }
-  if (!Array.isArray(policy.blacklist)) {
-    throw new Error(`Invalid Maker version policy ${file}: blacklist must be an array.`);
+  if (
+    !Array.isArray(policy.blacklist) ||
+    policy.blacklist.some((item) => typeof item !== 'string' || !VERSION_PATTERN.test(item))
+  ) {
+    throw new Error(`Invalid Maker version policy ${file}: blacklist must be a semver string array.`);
   }
 }
 
