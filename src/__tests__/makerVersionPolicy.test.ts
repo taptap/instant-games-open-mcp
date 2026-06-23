@@ -319,6 +319,20 @@ describe('Maker publish version policy', () => {
     expect(result.stderr).toContain('Manual beta publish requires a prerelease version');
   });
 
+  it('rejects manual prerelease publishes when the version identifier does not match the tag', () => {
+    const fakeBin = createFakeNpm('0.0.5-beta.1');
+    const result = runResolver({
+      PATH: fakeBin,
+      MAKER_VERSION_MODE: 'manual',
+      MAKER_MANUAL_VERSION: '0.0.6-beta.1',
+      MAKER_NPM_TAG: 'alpha',
+      GITHUB_REF_NAME: 'main',
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Manual alpha publish requires alpha prerelease version');
+  });
+
   it('rejects manual latest publishes with prerelease versions before npm publish', () => {
     const fakeBin = createFakeNpm('0.0.5');
     const result = runResolver({

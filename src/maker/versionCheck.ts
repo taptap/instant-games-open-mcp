@@ -212,6 +212,7 @@ export async function checkMakerPackageUpdate(
       cache: latestCache,
       currentVersion,
       error: message,
+      policyUrl,
     });
 
     writeCache({
@@ -653,7 +654,7 @@ function comparePrereleaseIdentifier(left: string, right: string): number {
   const rightNumeric = /^\d+$/.test(right);
 
   if (leftNumeric && rightNumeric) {
-    return Number(left) - Number(right);
+    return compareNumericPrereleaseIdentifier(left, right);
   }
   if (leftNumeric) {
     return -1;
@@ -662,4 +663,15 @@ function comparePrereleaseIdentifier(left: string, right: string): number {
     return 1;
   }
   return left.localeCompare(right);
+}
+
+function compareNumericPrereleaseIdentifier(left: string, right: string): number {
+  const normalizedLeft = left.replace(/^0+(?=\d)/, '');
+  const normalizedRight = right.replace(/^0+(?=\d)/, '');
+
+  if (normalizedLeft.length !== normalizedRight.length) {
+    return normalizedLeft.length - normalizedRight.length;
+  }
+
+  return normalizedLeft.localeCompare(normalizedRight);
 }

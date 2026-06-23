@@ -68,9 +68,19 @@ function assertVersionMatchesTag(tag, version) {
   if (PRERELEASE_TAGS.has(tag) && !isPrerelease) {
     throw new Error(`Manual ${tag} publish requires a prerelease version like 0.0.1-${tag}.1.`);
   }
+  if (PRERELEASE_TAGS.has(tag) && readPrereleaseTag(version) !== tag) {
+    throw new Error(
+      `Manual ${tag} publish requires ${tag} prerelease version like 0.0.1-${tag}.1.`
+    );
+  }
   if (!PRERELEASE_TAGS.has(tag) && isPrerelease) {
     throw new Error(`Manual ${tag} publish requires a stable version like 0.0.1.`);
   }
+}
+
+function readPrereleaseTag(version) {
+  const match = /^\d+\.\d+\.\d+-([0-9A-Za-z-]+)/.exec(version);
+  return match ? match[1] : '';
 }
 
 function changesMajorOrMinor(previousVersion, nextVersion) {

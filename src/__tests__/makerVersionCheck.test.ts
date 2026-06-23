@@ -59,6 +59,19 @@ describe('maker package version check', () => {
       target_version: '0.0.9-beta.2',
     });
 
+    expect(
+      decideMakerPackageUpdate('1.0.0-beta.9007199254740992', {
+        ...policy,
+        latest: '1.0.0',
+        latest_beta: '1.0.0-beta.9007199254740993',
+        minimum_supported: '0.0.1',
+      })
+    ).toMatchObject({
+      status: 'required_upgrade',
+      reason: 'beta_outdated',
+      target_version: '1.0.0-beta.9007199254740993',
+    });
+
     expect(decideMakerPackageUpdate('0.0.7', policy)).toMatchObject({
       status: 'update_available',
       target_version: '0.0.8',
@@ -457,6 +470,46 @@ describe('maker package version check', () => {
       target_version: '0.0.8',
       latest: '0.0.8',
     });
+  });
+
+  test('does not copy previous decision fields when blocking fetch fails for a different policy url', async () => {
+    const checkedAt = '2026-06-23T00:00:00.000Z';
+    writeCache({
+      checked_at: checkedAt,
+      policy_url: 'https://example.com/old-policy.json',
+      policy,
+      decision: {
+        status: 'update_available',
+        current_version: '0.0.7',
+        target_version: '0.0.8',
+        latest: '0.0.8',
+        latest_beta: '0.0.9-beta.2',
+        minimum_supported: '0.0.7',
+        checked_at: checkedAt,
+        policy_url: 'https://example.com/old-policy.json',
+      },
+    });
+    const fetchImpl = jest.fn<typeof fetch>(async () => {
+      throw new Error('network unavailable');
+    });
+
+    const status = await checkMakerPackageUpdate({
+      currentVersion: '0.0.7',
+      now: new Date('2026-06-24T00:00:00.000Z'),
+      fetchImpl,
+      policyUrl: 'https://example.com/new-policy.json',
+    });
+
+    expect(status).toMatchObject({
+      status: 'unavailable',
+      current_version: '0.0.7',
+      error: 'network unavailable',
+      policy_url: 'https://example.com/new-policy.json',
+    });
+    expect(status).not.toHaveProperty('target_version');
+    expect(status).not.toHaveProperty('latest');
+    expect(status).not.toHaveProperty('previous_status');
+    expect(status).not.toHaveProperty('last_success_checked_at');
   });
 
   test('does not copy previous decision fields when current version differs after fetch failure', async () => {
