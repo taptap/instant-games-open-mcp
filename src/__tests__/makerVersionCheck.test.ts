@@ -290,6 +290,7 @@ describe('maker package version check', () => {
       currentVersion: '0.0.8',
       now,
       fetchImpl,
+      policyUrl: 'https://example.com/policy.json',
       allowRemoteFetch: false,
       backgroundRefresh: false,
     });
@@ -320,6 +321,45 @@ describe('maker package version check', () => {
       error: 'Maker package version check is temporarily unavailable.',
     });
     expect(status.error).not.toContain('background');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test('does not expose stale decision fields when non-blocking status uses a different policy url', async () => {
+    const checkedAt = '2026-06-23T00:00:00.000Z';
+    writeCache({
+      checked_at: checkedAt,
+      policy_url: 'https://example.com/old-policy.json',
+      policy,
+      decision: {
+        status: 'update_available',
+        current_version: '0.0.7',
+        target_version: '0.0.8',
+        latest: '0.0.8',
+        latest_beta: '0.0.9-beta.2',
+        minimum_supported: '0.0.7',
+        checked_at: checkedAt,
+        policy_url: 'https://example.com/old-policy.json',
+      },
+    });
+    const fetchImpl = jest.fn<typeof fetch>();
+
+    const status = await getMakerPackageUpdateStatus({
+      currentVersion: '0.0.7',
+      now: new Date('2026-06-23T01:00:00.000Z'),
+      fetchImpl,
+      policyUrl: 'https://example.com/new-policy.json',
+      allowRemoteFetch: false,
+      backgroundRefresh: false,
+    });
+
+    expect(status).toMatchObject({
+      status: 'unavailable',
+      current_version: '0.0.7',
+      policy_url: 'https://example.com/new-policy.json',
+    });
+    expect(status).not.toHaveProperty('target_version');
+    expect(status).not.toHaveProperty('latest');
+    expect(status).not.toHaveProperty('previous_status');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 

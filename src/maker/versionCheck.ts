@@ -492,34 +492,38 @@ function buildUnavailableStatus(options: {
 }): MakerPackageUpdateStatus {
   const previousDecision = options.cache?.decision;
   const hasCurrentVersionDecision = previousDecision?.current_version === options.currentVersion;
-  const lastSuccessCheckedAt = hasCurrentVersionDecision
+  const hasCurrentPolicyUrl =
+    !options.policyUrl ||
+    options.cache?.policy_url === options.policyUrl ||
+    previousDecision?.policy_url === options.policyUrl;
+  const canUsePreviousDecision = hasCurrentVersionDecision && hasCurrentPolicyUrl;
+  const lastSuccessCheckedAt = canUsePreviousDecision
     ? getLastSuccessCheckedAt(options.cache)
     : undefined;
-  const previousPolicy = options.cache?.policy;
+  const previousPolicy = hasCurrentPolicyUrl ? options.cache?.policy : undefined;
 
   return compactStatus({
     status: 'unavailable',
     current_version: options.currentVersion,
-    target_version: hasCurrentVersionDecision ? previousDecision?.target_version : undefined,
-    reason: hasCurrentVersionDecision ? previousDecision?.reason : undefined,
+    target_version: canUsePreviousDecision ? previousDecision?.target_version : undefined,
+    reason: canUsePreviousDecision ? previousDecision?.reason : undefined,
     minimum_supported:
-      (hasCurrentVersionDecision ? previousDecision?.minimum_supported : undefined) ??
+      (canUsePreviousDecision ? previousDecision?.minimum_supported : undefined) ??
       previousPolicy?.minimum_supported,
     latest:
-      (hasCurrentVersionDecision ? previousDecision?.latest : undefined) ?? previousPolicy?.latest,
+      (canUsePreviousDecision ? previousDecision?.latest : undefined) ?? previousPolicy?.latest,
     latest_beta:
-      (hasCurrentVersionDecision ? previousDecision?.latest_beta : undefined) ??
+      (canUsePreviousDecision ? previousDecision?.latest_beta : undefined) ??
       previousPolicy?.latest_beta,
-    blacklist_match: hasCurrentVersionDecision ? previousDecision?.blacklist_match : undefined,
+    blacklist_match: canUsePreviousDecision ? previousDecision?.blacklist_match : undefined,
     checked_at: options.checkedAt,
-    policy_url: options.cache?.policy_url ?? options.policyUrl,
+    policy_url: options.policyUrl ?? options.cache?.policy_url,
     message:
-      (hasCurrentVersionDecision ? previousDecision?.message : undefined) ??
-      previousPolicy?.message,
+      (canUsePreviousDecision ? previousDecision?.message : undefined) ?? previousPolicy?.message,
     error: options.error,
     last_success_checked_at: lastSuccessCheckedAt,
     previous_status:
-      hasCurrentVersionDecision &&
+      canUsePreviousDecision &&
       previousDecision?.status &&
       previousDecision.status !== 'unavailable'
         ? previousDecision.status
