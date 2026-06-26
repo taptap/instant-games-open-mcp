@@ -166,6 +166,10 @@ describe('Maker CLI commands', () => {
   const spawnSyncMock = jest.mocked(spawnSync);
   const cliLoginMock = jest.mocked(loginWithCliAuthCode);
   const expectedNpxLaunch = resolveNpxCliCommand('@taptap/maker');
+  const expectedOpenCodeCommand =
+    process.platform === 'win32'
+      ? ['npx.cmd', '-y', '-p', '@taptap/maker', 'taptap-maker']
+      : ['npx', '-y', '-p', '@taptap/maker', 'taptap-maker'];
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-cli-commands-'));
@@ -379,6 +383,284 @@ describe('Maker CLI commands', () => {
     expect(
       fs.readdirSync(path.dirname(configPath)).filter((entry) => /^mcp\.json\.bak\.\d+/.test(entry))
     ).toEqual(['mcp.json.bak.20260101000000']);
+  });
+
+  test('default mcp install updates detected editor configs only', async () => {
+    const traePath =
+      process.platform === 'win32'
+        ? path.join(tempDir, 'AppData', 'Roaming', 'TRAE SOLO', 'User', 'mcp.json')
+        : path.join(tempDir, 'Library', 'Application Support', 'TRAE SOLO CN', 'User', 'mcp.json');
+    const openCodePath = path.join(tempDir, '.config', 'opencode', 'opencode.jsonc');
+    const workBuddyPath = path.join(tempDir, '.workbuddy', 'mcp.json');
+    fs.mkdirSync(path.dirname(traePath), { recursive: true });
+    fs.mkdirSync(path.dirname(openCodePath), { recursive: true });
+    fs.mkdirSync(path.dirname(workBuddyPath), { recursive: true });
+    fs.writeFileSync(traePath, '{ "mcpServers": {} }\n', 'utf8');
+    fs.writeFileSync(
+      openCodePath,
+      '{ "$schema": "https://opencode.ai/config.json", "mcp": {} }\n',
+      'utf8'
+    );
+    fs.writeFileSync(workBuddyPath, '{ "mcpServers": {} }\n', 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads.map((entry: { ide: string }) => entry.ide)).toEqual(
+      expect.arrayContaining(['codex', 'cursor', 'claude', 'trae', 'opencode', 'workbuddy'])
+    );
+    expect(JSON.parse(fs.readFileSync(traePath, 'utf8')).mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: { TAPTAP_MCP_ENV: 'rnd' },
+    });
+    expect(JSON.parse(fs.readFileSync(openCodePath, 'utf8')).mcp['taptap-maker']).toEqual({
+      type: 'local',
+      command: expectedOpenCodeCommand,
+      enabled: true,
+    });
+    expect(JSON.parse(fs.readFileSync(workBuddyPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: { TAPTAP_MCP_ENV: 'rnd' },
+    });
+    expect(fs.existsSync(path.join(tempDir, 'maker-home', 'mcp.json'))).toBe(false);
+  });
+
+  test('trae mcp install updates both solo and non-solo configs when both exist', async () => {
+    const traePaths =
+      process.platform === 'win32'
+        ? [
+            path.join(tempDir, 'AppData', 'Roaming', 'TRAE SOLO', 'User', 'mcp.json'),
+            path.join(tempDir, 'AppData', 'Roaming', 'Trae', 'User', 'mcp.json'),
+          ]
+        : [
+            path.join(
+              tempDir,
+              'Library',
+              'Application Support',
+              'TRAE SOLO CN',
+              'User',
+              'mcp.json'
+            ),
+            path.join(tempDir, 'Library', 'Application Support', 'Trae', 'User', 'mcp.json'),
+          ];
+    for (const configPath of traePaths) {
+      fs.mkdirSync(path.dirname(configPath), { recursive: true });
+      fs.writeFileSync(configPath, '{ "mcpServers": {} }\n', 'utf8');
+    }
+
+    await runMakerCli(['mcp', 'install', '--ide', 'trae', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads.filter((entry: { ide: string }) => entry.ide === 'trae')).toHaveLength(2);
+    for (const configPath of traePaths) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      expect(config.mcpServers['taptap-maker'].env.TAPTAP_MCP_ENV).toBe('rnd');
+    }
+  });
+
+  test('default mcp install creates Trae CN config when the user directory exists', async () => {
+    const traeCnConfigPath =
+      process.platform === 'win32'
+        ? path.join(tempDir, 'AppData', 'Roaming', 'Trae CN', 'User', 'mcp.json')
+        : path.join(tempDir, 'Library', 'Application Support', 'Trae CN', 'User', 'mcp.json');
+    fs.mkdirSync(path.dirname(traeCnConfigPath), { recursive: true });
+
+    await runMakerCli(['mcp', 'install', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads.map((entry: { ide: string }) => entry.ide)).toContain('trae');
+    expect(
+      JSON.parse(fs.readFileSync(traeCnConfigPath, 'utf8')).mcpServers['taptap-maker']
+    ).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: { TAPTAP_MCP_ENV: 'rnd' },
+    });
+  });
+
+  test('explicit trae mcp install creates config when the user directory exists', async () => {
+    const traeCnConfigPath =
+      process.platform === 'win32'
+        ? path.join(tempDir, 'AppData', 'Roaming', 'Trae CN', 'User', 'mcp.json')
+        : path.join(tempDir, 'Library', 'Application Support', 'Trae CN', 'User', 'mcp.json');
+    fs.mkdirSync(path.dirname(traeCnConfigPath), { recursive: true });
+
+    await runMakerCli(['mcp', 'install', '--ide', 'trae', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        ide: 'trae',
+        ok: true,
+        path: traeCnConfigPath,
+      }),
+    ]);
+    expect(
+      JSON.parse(fs.readFileSync(traeCnConfigPath, 'utf8')).mcpServers['taptap-maker']
+    ).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: { TAPTAP_MCP_ENV: 'rnd' },
+    });
+  });
+
+  test('opencode mcp install uses the official mcp schema without environment fields', async () => {
+    const configPath = path.join(tempDir, '.config', 'opencode', 'opencode.jsonc');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      [
+        '{',
+        '  "$schema": "https://opencode.ai/config.json",',
+        '  // Existing user setting must survive JSONC parsing.',
+        '  "autoupdate": false,',
+        '  "mcpServers": {',
+        '    "taptap-maker": { "command": "old", "args": [] }',
+        '  },',
+        '  "mcp": {',
+        '    "other": { "type": "local", "command": ["node", "other.js"] },',
+        '  },',
+        '}',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'opencode', '--env', 'rnd']);
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.autoupdate).toBe(false);
+    expect(config.mcp.other).toEqual({ type: 'local', command: ['node', 'other.js'] });
+    expect(config.mcp['taptap-maker']).toEqual({
+      type: 'local',
+      command: expectedOpenCodeCommand,
+      enabled: true,
+    });
+    expect(config.mcp['taptap-maker']).not.toHaveProperty('env');
+    expect(config.mcp['taptap-maker']).not.toHaveProperty('environment');
+    expect(config.mcpServers?.['taptap-maker']).toBeUndefined();
+  });
+
+  test('opencode mcp install omits production environment by default', async () => {
+    const configPath = path.join(tempDir, '.config', 'opencode', 'opencode.jsonc');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, '{ "mcp": {} }\n', 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'opencode']);
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.mcp['taptap-maker']).toEqual({
+      type: 'local',
+      command: expectedOpenCodeCommand,
+      enabled: true,
+    });
+    expect(config.mcp['taptap-maker']).not.toHaveProperty('env');
+    expect(config.mcp['taptap-maker']).not.toHaveProperty('environment');
+  });
+
+  test('explicit opencode mcp install does not create a missing config file', async () => {
+    const configPath = path.join(tempDir, '.config', 'opencode', 'opencode.jsonc');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'opencode', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        ide: 'opencode',
+        ok: false,
+        message: expect.stringContaining('no supported config file found'),
+      }),
+    ]);
+    expect(fs.existsSync(configPath)).toBe(false);
+  });
+
+  test('explicit workbuddy mcp install writes existing dot mcp config', async () => {
+    const configPath = path.join(tempDir, '.workbuddy', '.mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        { mcpServers: { 'connector-proxy': { type: 'http', url: 'http://127.0.0.1:1/mcp' } } },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'workbuddy', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        ide: 'workbuddy',
+        ok: true,
+        path: configPath,
+      }),
+    ]);
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.mcpServers['connector-proxy']).toEqual({
+      type: 'http',
+      url: 'http://127.0.0.1:1/mcp',
+    });
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: { TAPTAP_MCP_ENV: 'rnd' },
+    });
+  });
+
+  test('workbuddy auto install writes existing dot mcp config', async () => {
+    const runtimeConfigPath = path.join(tempDir, '.workbuddy', '.mcp.json');
+    fs.mkdirSync(path.dirname(runtimeConfigPath), { recursive: true });
+    const runtimeConfig = `${JSON.stringify(
+      {
+        mcpServers: {
+          'connector-proxy': {
+            type: 'http',
+            url: 'http://127.0.0.1:60000/mcp',
+          },
+        },
+      },
+      null,
+      2
+    )}\n`;
+    fs.writeFileSync(runtimeConfigPath, runtimeConfig, 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads.map((entry: { ide: string }) => entry.ide)).toContain('workbuddy');
+    const config = JSON.parse(fs.readFileSync(runtimeConfigPath, 'utf8'));
+    expect(config.mcpServers['connector-proxy']).toEqual({
+      type: 'http',
+      url: 'http://127.0.0.1:60000/mcp',
+    });
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: { TAPTAP_MCP_ENV: 'rnd' },
+    });
+  });
+
+  test('json mcp install rejects invalid existing JSON without overwriting it', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    const invalidJson = '{ "mcpServers": { "other": true, }\n';
+    fs.writeFileSync(configPath, invalidJson, 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        ide: 'cursor',
+        ok: false,
+        message: expect.stringContaining('Invalid JSON'),
+      }),
+    ]);
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(invalidJson);
+    expect(fs.existsSync(`${configPath}.taptap-maker.bak.latest`)).toBe(false);
   });
 
   test('claude mcp install invokes Claude CLI through a Windows spawn-compatible command', async () => {
@@ -773,10 +1055,8 @@ describe('Maker CLI commands', () => {
     expect(config.mcpServers['taptap-maker']).toEqual({
       command: expectedNpxLaunch.command,
       args: expectedNpxLaunch.args,
-      env: {
-        TAPTAP_MCP_ENV: 'production',
-      },
     });
+    expect(config.mcpServers['taptap-maker']).not.toHaveProperty('env');
     expect(config.mcpServers['taptap-maker']).not.toHaveProperty('cwd');
   });
 
