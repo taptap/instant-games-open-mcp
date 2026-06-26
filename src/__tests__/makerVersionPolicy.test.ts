@@ -279,13 +279,13 @@ describe('Maker publish version policy', () => {
       PATH: fakeBin,
       MAKER_VERSION_MODE: 'manual',
       MAKER_MANUAL_VERSION: '0.1.0',
-      MAKER_NPM_TAG: 'beta',
+      MAKER_NPM_TAG: 'latest',
       GITHUB_REF_NAME: 'main',
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('Current online @taptap/maker@beta version: 0.0.5');
-    expect(result.stdout.match(/Current online @taptap\/maker@beta version/g)).toHaveLength(1);
+    expect(result.stdout).toContain('Current online @taptap/maker@latest version: 0.0.5');
+    expect(result.stdout.match(/Current online @taptap\/maker@latest version/g)).toHaveLength(1);
     expect(result.stdout).toContain('Resolved @taptap/maker version: 0.1.0');
     expect(result.stdout).toContain('Major/minor changed: true');
   });
@@ -296,12 +296,54 @@ describe('Maker publish version policy', () => {
       PATH: fakeBin,
       MAKER_VERSION_MODE: 'manual',
       MAKER_MANUAL_VERSION: '0.0.6',
-      MAKER_NPM_TAG: 'beta',
+      MAKER_NPM_TAG: 'latest',
       GITHUB_REF_NAME: 'main',
     });
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.6');
     expect(result.stdout).toContain('Major/minor changed: false');
+  });
+
+  it('rejects manual beta publishes with stable versions before npm publish', () => {
+    const fakeBin = createFakeNpm('0.0.5');
+    const result = runResolver({
+      PATH: fakeBin,
+      MAKER_VERSION_MODE: 'manual',
+      MAKER_MANUAL_VERSION: '0.0.6',
+      MAKER_NPM_TAG: 'beta',
+      GITHUB_REF_NAME: 'main',
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Manual beta publish requires a prerelease version');
+  });
+
+  it('rejects manual prerelease publishes when the version identifier does not match the tag', () => {
+    const fakeBin = createFakeNpm('0.0.5-beta.1');
+    const result = runResolver({
+      PATH: fakeBin,
+      MAKER_VERSION_MODE: 'manual',
+      MAKER_MANUAL_VERSION: '0.0.6-beta.1',
+      MAKER_NPM_TAG: 'alpha',
+      GITHUB_REF_NAME: 'main',
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Manual alpha publish requires alpha prerelease version');
+  });
+
+  it('rejects manual latest publishes with prerelease versions before npm publish', () => {
+    const fakeBin = createFakeNpm('0.0.5');
+    const result = runResolver({
+      PATH: fakeBin,
+      MAKER_VERSION_MODE: 'manual',
+      MAKER_MANUAL_VERSION: '0.0.6-beta.1',
+      MAKER_NPM_TAG: 'latest',
+      GITHUB_REF_NAME: 'main',
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Manual latest publish requires a stable version');
   });
 });

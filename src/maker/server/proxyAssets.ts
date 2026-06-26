@@ -618,13 +618,22 @@ async function materialize3dFinalResult(
     if ('localPath' in mdlMaterialized) {
       nextPayload.mdlLocalPath = mdlMaterialized.localPath;
       nextPayload.mdlAbsolutePath = mdlMaterialized.absolutePath;
-      extractZip(
-        mdlMaterialized.absolutePath,
-        path.join(options.targetDir, 'assets'),
-        '3D model asset'
-      );
-      nextPayload.mdlExtracted = true;
-      nextPayload.mdlExtractedTo = 'assets';
+      let mdlExtractError: string | undefined;
+      try {
+        extractZip(
+          mdlMaterialized.absolutePath,
+          path.join(options.targetDir, 'assets'),
+          '3D model asset'
+        );
+        nextPayload.mdlExtracted = true;
+        nextPayload.mdlExtractedTo = 'assets';
+      } catch (error) {
+        mdlExtractError = `3D model asset extraction failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`;
+        nextPayload.mdlExtracted = false;
+        nextPayload.mdlExtractError = mdlExtractError;
+      }
       if (mdlUrl) {
         upsertGeneratedAssetRecord(options.targetDir, mdlMaterialized.localPath, {
           tool: toolName,
@@ -639,6 +648,7 @@ async function materialize3dFinalResult(
           modelCdnUrl,
           renderedImageUrl,
           mdlConversionError,
+          mdlExtractError,
         });
       }
     }
@@ -811,6 +821,7 @@ type GeneratedAssetRegistry = Record<
     modelCdnUrl?: string;
     renderedImageUrl?: string;
     mdlConversionError?: string;
+    mdlExtractError?: string;
   }
 >;
 

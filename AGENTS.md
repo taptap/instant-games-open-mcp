@@ -338,7 +338,7 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 Maker 本地开发的默认路径是 CLI-first + PAT-first：
 
 - Maker CLI-first 重构后的正式说明在 `docs/MAKER.md`；面向团队介绍的功能总览在 `docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`。上下文压缩或长时间中断后，先读这两份文档再继续。
-- 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，由该 CLI 统一处理初始化流程。
+- 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，由该 CLI 展示 app 列表并让用户选择已有 app 或 `0`/`new`。只有用户明确说“创建/新建项目或游戏”时，才使用 `taptap-maker init --create`。
 - 如果本地没有当前环境的 Maker PAT，CLI 默认运行 CLI 登录：生成满足 `^[A-Za-z0-9_-]{16,128}$` 的临时 code，按需打开当前环境的 `/pat-tokens?code=<code>`，用户登录并点击“创建 token”后，CLI 轮询 `/api/v1/cli-auth/result?code=<code>`，拿到授权结果后完成本地鉴权配置。
 - Maker 鉴权文件必须沿用线上已发布版本的原始本地保存路径，不要为 production 或 rnd 新建环境子目录；不要在用户文档或普通用户说明里暴露具体凭证缓存路径。
 - 用户可运行 `taptap-maker login` 主动刷新当前环境鉴权；`taptap-maker init` 和无参数 `taptap-maker pat set` 缺 PAT 时也走 CLI 登录。兼容写法 `taptap-maker pat set <PAT>`、`--pat PAT` 或 `--pat-stdin` 仅用于 CI / 应急联调，其中 argv 形式会让 PAT 进入 `ps`/shell history。
@@ -350,7 +350,10 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - CLI 写 MCP 配置时优先支持 Windows：Windows 通过 `cmd.exe` 包装 `npx.cmd`，
   避免无 shell 的 MCP 启动器直接 spawn `.cmd` 失败；Git 引导优先指向 Git for
   Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方
-  Git。
+  Git。`taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置，避免 Codex、Trae、
+  Cursor 等客户端或多个 Maker 项目互相覆盖全局 cwd；支持 MCP Roots 的客户端由当前
+  workspace root 决定 Maker 项目。只有显式运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>`
+  或 `taptap-maker upgrade --target-dir <PROJECT_DIR>` 时，才把该目录写入 MCP 配置的 `cwd`。
 - `taptap-maker mcp verify` 默认验证 `mcp install` 写入配置的 npx 包命令能否启动；本地开发只验证当前 CLI 时使用 `--mode self`。
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
@@ -359,7 +362,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   本地保留远端 tool schema 和成功返回值，但会在 description 追加 Maker 素材链路提示：
   已绑定 Maker 项目应优先建议用户使用这些 tools。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
-- 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。已绑定项目会输出 `Maker remote sync` 和 AI dev kit 版本检查结果，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main，以及是否需要运行 `taptap-maker dev-kit update`；按其中 `next_action` / `next_step` 引导用户。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
+- 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。支持 MCP Roots 的客户端会输出 `MCP client roots` 与 `project_context_source`；只有一个 workspace root 时直接作为 Maker 操作目标，多个 root 中只有一个已绑定 Maker 项目时自动选择该项目，多个 Maker root 时必须让用户只保留一个 Maker workspace 或显式传 `target_dir`，不要猜测。已绑定项目会输出 `Maker remote sync` 和 AI dev kit 版本检查结果，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main，以及是否需要运行 `taptap-maker dev-kit update`；按其中 `next_action` / `next_step` 引导用户。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
 - 用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都调用 `maker_build_current_directory`。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务；push 成功后才远端 build。
 - push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。

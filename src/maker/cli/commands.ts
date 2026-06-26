@@ -32,6 +32,7 @@ import {
   createRemoteProxyContext,
   stopExistingRuntimeLogWatcher,
 } from '../server/mcp.js';
+import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeLogs.js';
 import {
   cloneMakerProject,
@@ -73,6 +74,10 @@ import {
   setupMakerLuaLspEnvironment,
 } from '../system/luaLsp.js';
 import { formatMakerSkillStatus } from './skill.js';
+import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../versionCheck.js';
+
+declare const __MAKER_VERSION__: string | undefined;
+const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
@@ -356,7 +361,6 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       env,
       pkg: MAKER_NPM_PACKAGE,
       mcpName: DEFAULT_MCP_NAME,
-      cwd: targetDir,
     });
     for (const result of installResults) {
       emit(ctx, 'mcp_install', result.message, result);
@@ -390,6 +394,11 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const projectRoot = identify.projectRoot || targetDir;
   const devKit = inspectAiDevKit(projectRoot);
   const devKitUpdate = await checkAiDevKitUpdate(projectRoot, { environment: env });
+  const packageUpdate = await getMakerPackageUpdateStatus({
+    currentVersion: VERSION,
+    allowRemoteFetch: false,
+    backgroundRefresh: false,
+  });
   const agentsPolicy = isProjectBound ? inspectMakerAgentsPolicy(projectRoot) : undefined;
   const orphanProcessCheck = inspectMakerOrphanProcesses();
   const mcpToolsAvailability = inspectMakerMcpToolsAvailability({
@@ -410,6 +419,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       agents_policy: agentsPolicy,
       dev_kit: devKit,
       dev_kit_update: devKitUpdate,
+      package_update: packageUpdate,
       mcp_tools_availability: mcpToolsAvailability,
       orphan_process_check: orphanProcessCheck,
     });
@@ -450,6 +460,8 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       `- latest_version: ${devKitUpdate.latest?.version || '(unknown)'}`,
       `- update_available: ${devKitUpdate.updateAvailable ? 'yes' : 'no'}`,
       devKitUpdate.versionCheckError ? `- version_check: ${devKitUpdate.versionCheckError}` : '',
+      '',
+      formatMakerPackageUpdateStatus(packageUpdate),
       '',
       formatMakerMcpToolsAvailability(mcpToolsAvailability),
       '',
@@ -1001,7 +1013,8 @@ async function runAgentsUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
 
 async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   rejectPackageOption(parsed);
-  const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
+  const explicitTargetDir = stringOption(parsed, 'target_dir');
+  const targetDir = path.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
   const installResults = installMcpConfigs({
@@ -1009,7 +1022,7 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     env,
     pkg: MAKER_NPM_PACKAGE,
     mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
-    cwd: targetDir,
+    cwd: explicitTargetDir ? targetDir : undefined,
   });
   const identify = identifyMakerProject({ cwd: targetDir });
   const agentsResult = identify.projectRoot
@@ -1119,7 +1132,7 @@ async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
 async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
   const intervalMs = parseDurationMs(stringOption(parsed, 'interval') || '5s');
-  const timeoutMs = numberOption(parsed, 'timeout_ms') ?? 60 * 1000;
+  const timeoutMs = numberOption(parsed, 'timeout_ms') ?? DEFAULT_TOOL_CALL_TIMEOUT_MS;
   const maxPolls = numberOption(parsed, 'max_polls');
   const maxConsecutiveFailures = numberOption(parsed, 'max_consecutive_failures');
   const proxy = createRemoteProxyContext({
@@ -2144,6 +2157,13 @@ function printHelp(): void {
       '                     [--create --name NAME]',
       '                     [--skip-confirm] [--skip-mcp-install] [--register-mcp codex,cursor,claude]',
       '                     [--json]',
+      '',
+      'Init flows:',
+      '  Standard init/clone/download flow: run `taptap-maker init`; the CLI shows',
+      '    the Maker app list, then the user chooses an existing app or 0/new.',
+      '  Create-new-project flow: add `--create --name NAME` only when the user',
+      '    clearly asks to create a new Maker project; NAME is the requested project name.',
+      '',
       '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
       '  taptap-maker python doctor [--json]',
       '  taptap-maker python setup [--json]',

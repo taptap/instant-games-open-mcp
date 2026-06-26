@@ -17,17 +17,25 @@ This workflow upgrades only the current machine and the current Maker project di
 - Do not batch-upgrade multiple projects.
 - Do not delete old config backup files. Historical `.bak.*` files have no reliable ownership
   marker and must be left untouched.
+- The MCP status surface only checks the package policy and reports
+  `required_upgrade`, `update_available`, `current`, `unavailable`, or `skipped`.
+  It never runs `taptap-maker upgrade` by itself.
 
 ## Required Steps
 
-1. Identify the current Maker project directory. Use `--target-dir` only when the directory is
+1. Read `maker://status`; if resources are unavailable, fall back to `maker_status_lite`.
+   If the `Maker MCP package update` section reports `required_upgrade`, explain the version reason
+   to the user first.
+   Do not run any upgrade command before that explanation and approval step.
+2. Identify the current Maker project directory. Use `--target-dir` only when the directory is
    confirmed to be a Maker project, which means it or one of its parents contains
    `.maker-mcp/config.json`.
-2. If the AI client has exactly one attached workspace and that workspace is the Maker project, use
+3. If the AI client has exactly one attached workspace and that workspace is the Maker project, use
    that workspace as `<PROJECT_DIR>`. If there are multiple workspaces, or the current directory is
    not clearly a Maker project, ask the user for the Maker project directory before using
    `--target-dir`.
-3. Run the current package upgrade command for the confirmed project:
+4. After the user approves the upgrade, run the current package upgrade command for the confirmed
+   project:
 
 ```bash
 npx -y -p @taptap/maker taptap-maker upgrade --target-dir <PROJECT_DIR>
@@ -36,13 +44,25 @@ npx -y -p @taptap/maker taptap-maker upgrade --target-dir <PROJECT_DIR>
 If the user only wants one client, pass `--ide codex`, `--ide cursor`, or `--ide claude`.
 
 If the user only wants to refresh the machine-level MCP command and no Maker project directory is
-confirmed, run `npx -y -p @taptap/maker taptap-maker upgrade` without `--target-dir` only after
-explaining that project `AGENTS.md` will not be updated.
+confirmed, explain that this refresh will not update project `AGENTS.md`, then run
+`npx -y -p @taptap/maker taptap-maker upgrade` without `--target-dir` only after the user agrees.
 
-4. Ask the user to restart/reconnect the AI client MCP session, or open a new AI conversation.
+5. Ask the user to restart/reconnect the AI client MCP session, or open a new AI conversation.
    Current conversations usually do not hot-load a new MCP process or re-read `AGENTS.md`.
-5. After restart/reconnect, verify by reading `maker://status`; if resources are unavailable, call
+6. After restart/reconnect, verify by reading `maker://status`; if resources are unavailable, call
    `maker_status_lite`.
+
+## Status-Driven Upgrade Notes
+
+- Trigger timing is limited to the startup asynchronous check and the 12-hour TTL lazy check from
+  `maker://status` / `maker_status_lite`.
+- Business tools do not trigger version checks.
+- The remote policy fields are `schema_version`, `latest`, `latest_beta`,
+  `minimum_supported`, `blacklist`, and `message`.
+- `required_upgrade` means the local AI must explain the reason, ask the user for approval, and only
+  then run the appropriate upgrade command.
+- After any upgrade, restart or reconnect the MCP session before trusting the new status, then
+  verify with `maker://status` or `maker_status_lite`.
 
 ## Expected Effects
 
