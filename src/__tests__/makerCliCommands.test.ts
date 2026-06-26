@@ -460,6 +460,47 @@ describe('Maker CLI commands', () => {
     }
   });
 
+  test('trae mcp install continues when one matched config is invalid', async () => {
+    const soloConfigPath =
+      process.platform === 'win32'
+        ? path.join(tempDir, 'AppData', 'Roaming', 'TRAE SOLO', 'User', 'mcp.json')
+        : path.join(tempDir, 'Library', 'Application Support', 'TRAE SOLO CN', 'User', 'mcp.json');
+    const invalidConfigPath =
+      process.platform === 'win32'
+        ? path.join(tempDir, 'AppData', 'Roaming', 'Trae', 'User', 'mcp.json')
+        : path.join(tempDir, 'Library', 'Application Support', 'Trae CN', 'User', 'mcp.json');
+    fs.mkdirSync(path.dirname(soloConfigPath), { recursive: true });
+    fs.mkdirSync(path.dirname(invalidConfigPath), { recursive: true });
+    fs.writeFileSync(invalidConfigPath, '{ "mcpServers": { "broken": true, }\n', 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'trae', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ide: 'trae',
+          ok: true,
+          path: soloConfigPath,
+        }),
+        expect.objectContaining({
+          ide: 'trae',
+          ok: false,
+          path: invalidConfigPath,
+          message: expect.stringContaining('Invalid JSON'),
+        }),
+      ])
+    );
+    expect(JSON.parse(fs.readFileSync(soloConfigPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: { TAPTAP_MCP_ENV: 'rnd' },
+    });
+    expect(fs.readFileSync(invalidConfigPath, 'utf8')).toBe(
+      '{ "mcpServers": { "broken": true, }\n'
+    );
+  });
+
   test('default mcp install does not create unverified non-solo Trae config from user directory only', async () => {
     const traeCnConfigPath =
       process.platform === 'win32'
@@ -559,6 +600,21 @@ describe('Maker CLI commands', () => {
     expect(config.mcp['taptap-maker']).not.toHaveProperty('env');
     expect(config.mcp['taptap-maker']).not.toHaveProperty('environment');
     expect(config.mcpServers?.['taptap-maker']).toBeUndefined();
+  });
+
+  test('opencode mcp install reports that JSONC is rewritten as standard JSON', async () => {
+    const configPath = path.join(tempDir, '.config', 'opencode', 'opencode.jsonc');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      ['{', '  // user note', '  "mcp": {', '  },', '}'].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'opencode', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads[0].message).toContain('standard JSON');
   });
 
   test('opencode mcp install omits production environment by default', async () => {

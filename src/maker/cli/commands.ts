@@ -1612,7 +1612,7 @@ function installMcpConfigUnsafe(
   }
 
   if (ide === 'trae') {
-    return installJsonMcpConfigTargets(ide, getTraeMcpInstallPaths(true), 'Trae', options);
+    return installJsonMcpConfigTargets(ide, getTraeMcpInstallPaths(), 'Trae', options);
   }
 
   if (ide === 'opencode') {
@@ -1621,7 +1621,11 @@ function installMcpConfigUnsafe(
       return [{ ide, ok: false, message: 'Skipped OpenCode: no supported config file found' }];
     }
     const write = mergeOpenCodeMcpConfig(configPath, options);
-    return [createMcpInstallResult(ide, 'OpenCode', configPath, write)];
+    const result = createMcpInstallResult(ide, 'OpenCode', configPath, write);
+    if (write.changed) {
+      result.message += '\n  Note: OpenCode config was rewritten as standard JSON.';
+    }
+    return [result];
   }
 
   if (ide === 'workbuddy') {
@@ -1647,8 +1651,19 @@ function installJsonMcpConfigTargets(
   }
 
   return configPaths.map((configPath) => {
-    const write = mergeJsonMcpConfig(configPath, options);
-    return createMcpInstallResult(ide, label, configPath, write);
+    try {
+      const write = mergeJsonMcpConfig(configPath, options);
+      return createMcpInstallResult(ide, label, configPath, write);
+    } catch (error) {
+      return {
+        ide,
+        ok: false,
+        path: configPath,
+        message: `✗ ${label} MCP config update failed for ${configPath}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      };
+    }
   });
 }
 
@@ -1670,7 +1685,7 @@ function createMcpInstallResult(
 
 function getDefaultMcpInstallIdes(): string[] {
   const ides = ['codex', 'cursor', 'claude'];
-  if (getTraeMcpInstallPaths(false).length > 0) {
+  if (getTraeMcpInstallPaths().length > 0) {
     ides.push('trae');
   }
   if (fs.existsSync(getOpenCodeMcpConfigPath())) {
@@ -1682,7 +1697,7 @@ function getDefaultMcpInstallIdes(): string[] {
   return ides;
 }
 
-function getTraeMcpInstallPaths(_createDefault: boolean): string[] {
+function getTraeMcpInstallPaths(): string[] {
   const soloPaths = getExistingTraeUserConfigPaths(getTraeSoloMcpConfigPaths());
   const unverifiedPaths = getExistingConfigPaths(getTraeUnverifiedMcpConfigPaths());
   return uniqueStrings([...soloPaths, ...unverifiedPaths]);
