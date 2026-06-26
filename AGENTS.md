@@ -350,10 +350,17 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - CLI 写 MCP 配置时优先支持 Windows：Windows 通过 `cmd.exe` 包装 `npx.cmd`，
   避免无 shell 的 MCP 启动器直接 spawn `.cmd` 失败；Git 引导优先指向 Git for
   Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方
-  Git。`taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置，避免 Codex、Trae、
+  Git。`taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置，默认覆盖 Codex、
+  Cursor、Claude，并自动检测已存在配置文件的 Trae、OpenCode、WorkBuddy；避免 Codex、Trae、
   Cursor 等客户端或多个 Maker 项目互相覆盖全局 cwd；支持 MCP Roots 的客户端由当前
   workspace root 决定 Maker 项目。只有显式运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>`
   或 `taptap-maker upgrade --target-dir <PROJECT_DIR>` 时，才把该目录写入 MCP 配置的 `cwd`。
+  Trae 需同时检测 Solo、非 Solo 和 CN 版 `User/` 目录，并创建或合并 `User/mcp.json`；
+  OpenCode 使用官方 `mcp` schema 和 command 数组，
+  不写环境变量；
+  WorkBuddy 会写已存在的 `~/.workbuddy/.mcp.json` 或 `~/.workbuddy/mcp.json`；通用
+  `mcpServers` JSON 只作为 README/文档片段引导其它 AI 编辑器识别自己的实际配置文件后合并写入，
+  CLI 不生成额外通用配置文件。
 - `taptap-maker mcp verify` 默认验证 `mcp install` 写入配置的 npx 包命令能否启动；本地开发只验证当前 CLI 时使用 `--mode self`。
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
