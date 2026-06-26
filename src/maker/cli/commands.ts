@@ -2045,7 +2045,7 @@ function readJsonObject(
   }
   const raw = fs.readFileSync(filePath, 'utf8');
   try {
-    const normalized = options.jsonc ? normalizeJsonc(raw) : raw;
+    const normalized = normalizeJsonConfigContent(raw, options);
     const parsed = JSON.parse(normalized);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('top-level value must be an object');
@@ -2126,7 +2126,7 @@ function validateOpenCodeMcpConfig(
 }
 
 function parseGeneratedJsonObject(content: string): Record<string, unknown> {
-  const parsed = JSON.parse(content);
+  const parsed = JSON.parse(stripLeadingBom(content));
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('Generated JSON config top-level value must be an object.');
   }
@@ -2135,6 +2135,15 @@ function parseGeneratedJsonObject(content: string): Record<string, unknown> {
 
 function deepJsonEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function normalizeJsonConfigContent(content: string, options: { jsonc?: boolean } = {}): string {
+  const withoutBom = stripLeadingBom(content);
+  return options.jsonc ? normalizeJsonc(withoutBom) : withoutBom;
+}
+
+function stripLeadingBom(content: string): string {
+  return content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
 }
 
 function normalizeJsonc(content: string): string {

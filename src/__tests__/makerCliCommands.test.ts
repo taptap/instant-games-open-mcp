@@ -315,6 +315,24 @@ describe('Maker CLI commands', () => {
     }
   });
 
+  test('json mcp install accepts existing UTF-8 BOM config files', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, '\uFEFF{ "mcpServers": { "other": { "command": "node" } } }\n');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads[0]).toEqual(expect.objectContaining({ ide: 'cursor', ok: true }));
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.mcpServers.other).toEqual({ command: 'node' });
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: { TAPTAP_MCP_ENV: 'rnd' },
+    });
+  });
+
   test('json mcp install pins cwd when target directory is provided', async () => {
     const configPath = path.join(tempDir, '.cursor', 'mcp.json');
     const projectDir = path.join(tempDir, 'maker-project');
@@ -615,6 +633,27 @@ describe('Maker CLI commands', () => {
 
     const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
     expect(payloads[0].message).toContain('standard JSON');
+  });
+
+  test('opencode mcp install accepts existing UTF-8 BOM JSONC files', async () => {
+    const configPath = path.join(tempDir, '.config', 'opencode', 'opencode.jsonc');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      ['\uFEFF{', '  // user note', '  "mcp": {', '  },', '}'].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'opencode', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads[0]).toEqual(expect.objectContaining({ ide: 'opencode', ok: true }));
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.mcp['taptap-maker']).toEqual({
+      type: 'local',
+      command: expectedOpenCodeCommand,
+      enabled: true,
+    });
   });
 
   test('opencode mcp install omits production environment by default', async () => {
