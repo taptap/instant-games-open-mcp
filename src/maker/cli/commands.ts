@@ -1683,7 +1683,9 @@ function getDefaultMcpInstallIdes(): string[] {
 }
 
 function getTraeMcpInstallPaths(_createDefault: boolean): string[] {
-  return getExistingTraeUserConfigPaths(getTraeMcpConfigPaths());
+  const soloPaths = getExistingTraeUserConfigPaths(getTraeSoloMcpConfigPaths());
+  const unverifiedPaths = getExistingConfigPaths(getTraeUnverifiedMcpConfigPaths());
+  return uniqueStrings([...soloPaths, ...unverifiedPaths]);
 }
 
 function getExistingTraeUserConfigPaths(paths: string[]): string[] {
@@ -1698,6 +1700,18 @@ function getExistingTraeUserConfigPaths(paths: string[]): string[] {
   });
 }
 
+function getExistingConfigPaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  return paths.filter((configPath) => {
+    const key = normalizeConfigPathKey(configPath);
+    if (seen.has(key) || !fs.existsSync(configPath)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
 function normalizeConfigPathKey(configPath: string): string {
   const resolved = path.resolve(configPath);
   return process.platform === 'win32' || process.platform === 'darwin'
@@ -1705,12 +1719,26 @@ function normalizeConfigPathKey(configPath: string): string {
     : resolved;
 }
 
-function getTraeMcpConfigPaths(): string[] {
+function getTraeSoloMcpConfigPaths(): string[] {
   if (process.platform === 'win32') {
     const roaming = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
     return [
       path.join(roaming, 'TRAE SOLO', 'User', 'mcp.json'),
       path.join(roaming, 'TRAE SOLO CN', 'User', 'mcp.json'),
+    ];
+  }
+
+  const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
+  return [
+    path.join(appSupport, 'TRAE SOLO CN', 'User', 'mcp.json'),
+    path.join(appSupport, 'TRAE SOLO', 'User', 'mcp.json'),
+  ];
+}
+
+function getTraeUnverifiedMcpConfigPaths(): string[] {
+  if (process.platform === 'win32') {
+    const roaming = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+    return [
       path.join(roaming, 'Trae', 'User', 'mcp.json'),
       path.join(roaming, 'TRAE', 'User', 'mcp.json'),
       path.join(roaming, 'Trae CN', 'User', 'mcp.json'),
@@ -1719,8 +1747,6 @@ function getTraeMcpConfigPaths(): string[] {
 
   const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
   return [
-    path.join(appSupport, 'TRAE SOLO CN', 'User', 'mcp.json'),
-    path.join(appSupport, 'TRAE SOLO', 'User', 'mcp.json'),
     path.join(appSupport, 'Trae', 'User', 'mcp.json'),
     path.join(appSupport, 'TRAE', 'User', 'mcp.json'),
     path.join(appSupport, 'Trae CN', 'User', 'mcp.json'),
@@ -1734,12 +1760,14 @@ function getOpenCodeMcpConfigPath(): string {
 function getWorkBuddyMcpInstallPaths(_mcpName: string): string[] {
   const primary = path.join(os.homedir(), '.workbuddy', 'mcp.json');
   const runtime = path.join(os.homedir(), '.workbuddy', '.mcp.json');
+  const preferred = process.platform === 'win32' ? primary : runtime;
+  const fallback = process.platform === 'win32' ? runtime : primary;
   const paths: string[] = [];
-  if (fs.existsSync(primary)) {
-    paths.push(primary);
+  if (fs.existsSync(preferred)) {
+    paths.push(preferred);
   }
-  if (fs.existsSync(runtime)) {
-    paths.push(runtime);
+  if (fs.existsSync(fallback)) {
+    paths.push(fallback);
   }
   return paths;
 }

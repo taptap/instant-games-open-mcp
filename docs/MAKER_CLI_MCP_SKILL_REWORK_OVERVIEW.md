@@ -69,8 +69,9 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 - 本地分支测试可直接用 `node dist/maker.js`，不依赖 npm 发布。
 - Windows 下生成通用 `mcpServers` 配置时通过 `cmd.exe` 包装 `npx.cmd`，兼容无 shell 的 MCP 启动器。
 - OpenCode 使用官方 `mcp` schema 和 command 数组，不写环境变量，且只写已存在配置文件；
-  Trae 同时检测 Solo、非 Solo 和 CN 版 `User/` 目录，并创建或合并 `User/mcp.json`；
-  WorkBuddy 会写已存在的 `~/.workbuddy/.mcp.json` 或 `~/.workbuddy/mcp.json`。
+  Trae Solo/Solo CN 优先支持，按 `User/` 目录创建或合并 `User/mcp.json`，普通 Trae
+  只在 `mcp.json` 已存在时更新；WorkBuddy 按平台写配置，macOS 写
+  `~/.workbuddy/.mcp.json`，Windows 写 `%USERPROFILE%\.workbuddy\mcp.json`。
 - 初始化失败时保留现场，返回可重试状态，不自动删除用户文件。
 - 用户选择 app 后立即写入 `.maker-mcp/config.json`；clone/fetch 失败后重复执行
   `taptap-maker init` 会复用这个选择继续，后续缺失状态交给 `taptap-maker doctor` 判断。
