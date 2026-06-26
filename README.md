@@ -84,10 +84,12 @@ taptap-maker dev-kit update
 自动化场景可用 `--pat-stdin` 从标准输入读取。`taptap-maker install` 是
 `taptap-maker mcp install` 的快捷别名，二者都会写入 AI 客户端 MCP 配置。
 默认会写入 Codex、Cursor、Claude，并自动检测本机已有的 Trae、OpenCode、WorkBuddy
-配置文件；命中后会合并安装 `taptap-maker`。Trae 版本较多，CLI 会检查 Solo、非 Solo
-和 CN 版的常见路径；只要对应版本的 `User/` 目录存在，就会创建或合并 `User/mcp.json`。
-OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入。WorkBuddy 会写已存在的
-`~/.workbuddy/.mcp.json` 或 `~/.workbuddy/mcp.json`。
+配置文件；命中后会合并安装 `taptap-maker`。Trae Solo 是重点支持目标，CLI 会在 Solo
+或 Solo CN 的 `User/` 目录存在时创建或合并 `User/mcp.json`；普通 Trae/Trae CN 仍作为
+候选路径保留，但只有 `mcp.json` 已存在时才合并写入。WorkBuddy 在 macOS 写
+`~/.workbuddy/.mcp.json`，Windows 写 `%USERPROFILE%\.workbuddy\mcp.json`，另一配置文件
+仅在已存在时作为 fallback 合并。OpenCode 只在
+`~/.config/opencode/opencode.jsonc` 已存在时写入。
 其它 AI 编辑器可按下面的通用 `mcpServers` 片段，让本地 AI 识别自己的配置文件位置后合并写入：
 
 ```json

@@ -355,10 +355,12 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   Cursor 等客户端或多个 Maker 项目互相覆盖全局 cwd；支持 MCP Roots 的客户端由当前
   workspace root 决定 Maker 项目。只有显式运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>`
   或 `taptap-maker upgrade --target-dir <PROJECT_DIR>` 时，才把该目录写入 MCP 配置的 `cwd`。
-  Trae 需同时检测 Solo、非 Solo 和 CN 版 `User/` 目录，并创建或合并 `User/mcp.json`；
+  Trae Solo/Solo CN 优先支持，按 `User/` 目录创建或合并 `User/mcp.json`，普通 Trae
+  只在 `mcp.json` 已存在时更新；
   OpenCode 使用官方 `mcp` schema 和 command 数组，
   不写环境变量；
-  WorkBuddy 会写已存在的 `~/.workbuddy/.mcp.json` 或 `~/.workbuddy/mcp.json`；通用
+  WorkBuddy 按平台写配置，macOS 写 `~/.workbuddy/.mcp.json`，
+  Windows 写 `%USERPROFILE%\.workbuddy\mcp.json`；通用
   `mcpServers` JSON 只作为 README/文档片段引导其它 AI 编辑器识别自己的实际配置文件后合并写入，
   CLI 不生成额外通用配置文件。
 - `taptap-maker mcp verify` 默认验证 `mcp install` 写入配置的 npx 包命令能否启动；本地开发只验证当前 CLI 时使用 `--mode self`。

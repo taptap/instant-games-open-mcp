@@ -460,7 +460,7 @@ describe('Maker CLI commands', () => {
     }
   });
 
-  test('default mcp install creates Trae CN config when the user directory exists', async () => {
+  test('default mcp install does not create unverified non-solo Trae config from user directory only', async () => {
     const traeCnConfigPath =
       process.platform === 'win32'
         ? path.join(tempDir, 'AppData', 'Roaming', 'Trae CN', 'User', 'mcp.json')
@@ -470,21 +470,15 @@ describe('Maker CLI commands', () => {
     await runMakerCli(['mcp', 'install', '--env', 'rnd', '--json']);
 
     const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
-    expect(payloads.map((entry: { ide: string }) => entry.ide)).toContain('trae');
-    expect(
-      JSON.parse(fs.readFileSync(traeCnConfigPath, 'utf8')).mcpServers['taptap-maker']
-    ).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
-      env: { TAPTAP_MCP_ENV: 'rnd' },
-    });
+    expect(payloads.map((entry: { ide: string }) => entry.ide)).not.toContain('trae');
+    expect(fs.existsSync(traeCnConfigPath)).toBe(false);
   });
 
-  test('explicit trae mcp install creates config when the user directory exists', async () => {
+  test('explicit trae mcp install creates solo config when the user directory exists', async () => {
     const traeCnConfigPath =
       process.platform === 'win32'
-        ? path.join(tempDir, 'AppData', 'Roaming', 'Trae CN', 'User', 'mcp.json')
-        : path.join(tempDir, 'Library', 'Application Support', 'Trae CN', 'User', 'mcp.json');
+        ? path.join(tempDir, 'AppData', 'Roaming', 'TRAE SOLO', 'User', 'mcp.json')
+        : path.join(tempDir, 'Library', 'Application Support', 'TRAE SOLO CN', 'User', 'mcp.json');
     fs.mkdirSync(path.dirname(traeCnConfigPath), { recursive: true });
 
     await runMakerCli(['mcp', 'install', '--ide', 'trae', '--env', 'rnd', '--json']);
@@ -500,6 +494,31 @@ describe('Maker CLI commands', () => {
     expect(
       JSON.parse(fs.readFileSync(traeCnConfigPath, 'utf8')).mcpServers['taptap-maker']
     ).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: { TAPTAP_MCP_ENV: 'rnd' },
+    });
+  });
+
+  test('explicit trae mcp install updates existing unverified non-solo config', async () => {
+    const traeConfigPath =
+      process.platform === 'win32'
+        ? path.join(tempDir, 'AppData', 'Roaming', 'Trae', 'User', 'mcp.json')
+        : path.join(tempDir, 'Library', 'Application Support', 'Trae CN', 'User', 'mcp.json');
+    fs.mkdirSync(path.dirname(traeConfigPath), { recursive: true });
+    fs.writeFileSync(traeConfigPath, '{ "mcpServers": {} }\n', 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'trae', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        ide: 'trae',
+        ok: true,
+        path: traeConfigPath,
+      }),
+    ]);
+    expect(JSON.parse(fs.readFileSync(traeConfigPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
       command: expectedNpxLaunch.command,
       args: expectedNpxLaunch.args,
       env: { TAPTAP_MCP_ENV: 'rnd' },
@@ -575,8 +594,11 @@ describe('Maker CLI commands', () => {
     expect(fs.existsSync(configPath)).toBe(false);
   });
 
-  test('explicit workbuddy mcp install writes existing dot mcp config', async () => {
-    const configPath = path.join(tempDir, '.workbuddy', '.mcp.json');
+  test('explicit workbuddy mcp install writes platform config file', async () => {
+    const configPath =
+      process.platform === 'win32'
+        ? path.join(tempDir, '.workbuddy', 'mcp.json')
+        : path.join(tempDir, '.workbuddy', '.mcp.json');
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
     fs.writeFileSync(
       configPath,
@@ -610,9 +632,12 @@ describe('Maker CLI commands', () => {
     });
   });
 
-  test('workbuddy auto install writes existing dot mcp config', async () => {
-    const runtimeConfigPath = path.join(tempDir, '.workbuddy', '.mcp.json');
-    fs.mkdirSync(path.dirname(runtimeConfigPath), { recursive: true });
+  test('workbuddy auto install writes existing platform config file', async () => {
+    const workBuddyConfigPath =
+      process.platform === 'win32'
+        ? path.join(tempDir, '.workbuddy', 'mcp.json')
+        : path.join(tempDir, '.workbuddy', '.mcp.json');
+    fs.mkdirSync(path.dirname(workBuddyConfigPath), { recursive: true });
     const runtimeConfig = `${JSON.stringify(
       {
         mcpServers: {
@@ -625,13 +650,13 @@ describe('Maker CLI commands', () => {
       null,
       2
     )}\n`;
-    fs.writeFileSync(runtimeConfigPath, runtimeConfig, 'utf8');
+    fs.writeFileSync(workBuddyConfigPath, runtimeConfig, 'utf8');
 
     await runMakerCli(['mcp', 'install', '--env', 'rnd', '--json']);
 
     const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
     expect(payloads.map((entry: { ide: string }) => entry.ide)).toContain('workbuddy');
-    const config = JSON.parse(fs.readFileSync(runtimeConfigPath, 'utf8'));
+    const config = JSON.parse(fs.readFileSync(workBuddyConfigPath, 'utf8'));
     expect(config.mcpServers['connector-proxy']).toEqual({
       type: 'http',
       url: 'http://127.0.0.1:60000/mcp',

@@ -493,13 +493,15 @@ Windows 兼容注意：
   无 shell 直接 `spawn` `.cmd` 时返回 `EINVAL`。
 - OpenCode 使用官方 `mcp` 配置 schema：`~/.config/opencode/opencode.jsonc` 中的
   `mcp.<name>.command` 是数组，Windows 下写入 `npx.cmd`，不会套 `cmd.exe`，也不写环境变量。
-- Trae 会检测 Solo、非 Solo 和 CN 版配置路径；只要对应版本的 `User/` 目录存在，
-  就会创建或合并 `User/mcp.json`。macOS 常见位置包括
+- Trae Solo 是重点支持目标；Solo 或 Solo CN 的 `User/` 目录存在时会创建或合并
+  `User/mcp.json`。普通 Trae/Trae CN 仍作为候选路径保留，但只有 `mcp.json` 已存在时才合并写入。
+  macOS 常见位置包括
   `~/Library/Application Support/TRAE SOLO/User/mcp.json`、
   `Trae/User/mcp.json`、`Trae CN/User/mcp.json`，并兼容 `TRAE SOLO CN/User/mcp.json`；
   Windows 常见位置包括 `%APPDATA%\TRAE SOLO\User\mcp.json`、
   `%APPDATA%\Trae\User\mcp.json` 和 `%APPDATA%\Trae CN\User\mcp.json`。
-- WorkBuddy 会写已存在的 `~/.workbuddy/.mcp.json` 或 `~/.workbuddy/mcp.json`。
+- WorkBuddy 在 macOS 写 `~/.workbuddy/.mcp.json`，Windows 写
+  `%USERPROFILE%\.workbuddy\mcp.json`，另一配置文件仅在已存在时作为 fallback 合并。
 - OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入，不主动创建。
 - `taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置，避免多个项目或多个 AI
   客户端互相覆盖全局 cwd。支持 MCP Roots 的客户端由当前 workspace root 决定 Maker 项目。
