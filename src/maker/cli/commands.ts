@@ -131,6 +131,7 @@ type MakerMcpToolsAvailability = {
 type ConfigWriteResult = {
   changed: boolean;
   backupPath?: string;
+  rewroteJsonc?: boolean;
 };
 
 type McpInstallResult = {
@@ -1622,19 +1623,14 @@ function installMcpConfigUnsafe(
     }
     const write = mergeOpenCodeMcpConfig(configPath, options);
     const result = createMcpInstallResult(ide, 'OpenCode', configPath, write);
-    if (write.changed) {
+    if (write.rewroteJsonc) {
       result.message += '\n  Note: OpenCode config was rewritten as standard JSON.';
     }
     return [result];
   }
 
   if (ide === 'workbuddy') {
-    return installJsonMcpConfigTargets(
-      ide,
-      getWorkBuddyMcpInstallPaths(options.mcpName),
-      'WorkBuddy',
-      options
-    );
+    return installJsonMcpConfigTargets(ide, getWorkBuddyMcpInstallPaths(), 'WorkBuddy', options);
   }
 
   return [{ ide, ok: false, message: `Skipped unknown IDE: ${ide}` }];
@@ -1691,7 +1687,7 @@ function getDefaultMcpInstallIdes(): string[] {
   if (fs.existsSync(getOpenCodeMcpConfigPath())) {
     ides.push('opencode');
   }
-  if (getWorkBuddyMcpInstallPaths(DEFAULT_MCP_NAME).length > 0) {
+  if (getWorkBuddyMcpInstallPaths().length > 0) {
     ides.push('workbuddy');
   }
   return ides;
@@ -1772,7 +1768,7 @@ function getOpenCodeMcpConfigPath(): string {
   return path.join(os.homedir(), '.config', 'opencode', 'opencode.jsonc');
 }
 
-function getWorkBuddyMcpInstallPaths(_mcpName: string): string[] {
+function getWorkBuddyMcpInstallPaths(): string[] {
   const primary = path.join(os.homedir(), '.workbuddy', 'mcp.json');
   const runtime = path.join(os.homedir(), '.workbuddy', '.mcp.json');
   const preferred = process.platform === 'win32' ? primary : runtime;
@@ -1806,6 +1802,8 @@ function mergeOpenCodeMcpConfig(
   configPath: string,
   options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
 ): ConfigWriteResult {
+  const rawContent = fs.readFileSync(configPath, 'utf8');
+  const rewroteJsonc = normalizeJsonConfigContent(rawContent, { jsonc: true }) !== rawContent;
   const existing = readJsonObject(configPath, { jsonc: true });
   const mcp = asObject(existing.mcp);
   mcp[options.mcpName] = createOpenCodeMcpServerConfig(options);
@@ -1825,11 +1823,12 @@ function mergeOpenCodeMcpConfig(
     existing.$schema = 'https://opencode.ai/config.json';
   }
 
-  return writeConfigWithTapTapBackupIfChanged(
+  const write = writeConfigWithTapTapBackupIfChanged(
     configPath,
     `${JSON.stringify(existing, null, 2)}\n`,
     (updated) => validateOpenCodeMcpConfig(updated, options)
   );
+  return { ...write, rewroteJsonc: write.changed && rewroteJsonc };
 }
 
 function mergeCodexMcpConfig(

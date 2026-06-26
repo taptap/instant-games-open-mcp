@@ -635,6 +635,18 @@ describe('Maker CLI commands', () => {
     expect(payloads[0].message).toContain('standard JSON');
   });
 
+  test('opencode mcp install does not report JSON rewrite for standard JSON files', async () => {
+    const configPath = path.join(tempDir, '.config', 'opencode', 'opencode.jsonc');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, '{ "mcp": {} }\n', 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'opencode', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads[0]).toEqual(expect.objectContaining({ ide: 'opencode', ok: true }));
+    expect(payloads[0].message).not.toContain('standard JSON');
+  });
+
   test('opencode mcp install accepts existing UTF-8 BOM JSONC files', async () => {
     const configPath = path.join(tempDir, '.config', 'opencode', 'opencode.jsonc');
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
