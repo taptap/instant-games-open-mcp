@@ -150,7 +150,7 @@ Python 未就绪时自动准备，失败最多重试 2 次
 或创建新 Maker 项目
 clone Maker 项目
 准备 AI dev-kit
-写入 Codex / Cursor / Claude MCP 配置
+写入 AI 客户端 MCP 配置
 taptap-maker doctor
 ```
 
@@ -196,11 +196,17 @@ Python 运行时策略：
   或自行安装 Python 3.12 后运行 `taptap-maker python doctor`。
 - `taptap-maker install`：`taptap-maker mcp install` 的快捷别名，用于写入当前机器的
   AI 客户端 MCP 配置。
-- `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。Codex 配置写入
-  会同时清理 `[mcp_servers.taptap-maker]` 与 `[mcp_servers."taptap-maker"]`
-  两种 TOML 等价写法，重复运行或从旧配置升级时应保持幂等。配置内容未变化时不会写文件，
-  也不会生成备份；内容变化时只覆盖一份 `<config>.taptap-maker.bak.latest`，不会创建新的
-  时间戳备份，也不会删除历史 `.bak.*` 文件。
+- `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。无 `--ide` 时默认写入
+  Codex、Cursor、Claude，并自动检测已存在配置文件的 Trae、OpenCode、WorkBuddy。可用
+  `--ide codex,cursor,claude,trae,opencode,workbuddy` 显式指定目标。
+  Codex 配置写入会同时清理 `[mcp_servers.taptap-maker]` 与
+  `[mcp_servers."taptap-maker"]` 两种 TOML 等价写法，重复运行或从旧配置升级时应保持幂等。
+  JSON/JSONC 配置写入前会解析并保留其它 server；写入后会重新校验 JSON 结构和
+  `taptap-maker` server 内容。配置内容未变化时不会写文件，也不会生成备份；内容变化时只覆盖一份
+  `<config>.taptap-maker.bak.latest`，不会创建新的时间戳备份，也不会删除历史 `.bak.*` 文件。
+  如果已有 JSON 配置无法解析，CLI 会停止该目标写入并保留原文件。
+  其它 AI 编辑器可使用 README 中的通用 `mcpServers` JSON 片段，让本地 AI 先识别该编辑器的
+  实际配置文件位置，再合并写入；CLI 不会额外生成通用配置文件。
 - `taptap-maker mcp verify`：默认验证 AI 客户端 MCP 配置使用的 npx 包命令可启动；`--mode self` 只验证当前 CLI 二进制。验证失败时若出现 `failure_type` 或 `status: null`，表示本地启动命令还没正常退出，Maker MCP server 尚未启动，不要当作 PAT、项目或 Maker 业务接口错误。
 - `taptap-maker agents update`：只更新当前目录 `AGENTS.md` 中 TapTap Maker 管理的策略块，
   保留用户自己的项目说明；缺少 `AGENTS.md` 时会创建文件。
@@ -485,6 +491,18 @@ Windows 兼容注意：
 
 - 写入 MCP 配置时，Windows 下通过 `cmd.exe /d /s /c npx.cmd ...` 启动，避免部分客户端
   无 shell 直接 `spawn` `.cmd` 时返回 `EINVAL`。
+- OpenCode 使用官方 `mcp` 配置 schema：`~/.config/opencode/opencode.jsonc` 中的
+  `mcp.<name>.command` 是数组，Windows 下写入 `npx.cmd`，不会套 `cmd.exe`，也不写环境变量。
+- Trae Solo 是重点支持目标；Solo 或 Solo CN 的 `User/` 目录存在时会创建或合并
+  `User/mcp.json`。普通 Trae/Trae CN 仍作为候选路径保留，但只有 `mcp.json` 已存在时才合并写入。
+  macOS 常见位置包括
+  `~/Library/Application Support/TRAE SOLO/User/mcp.json`、
+  `Trae/User/mcp.json`、`Trae CN/User/mcp.json`，并兼容 `TRAE SOLO CN/User/mcp.json`；
+  Windows 常见位置包括 `%APPDATA%\TRAE SOLO\User\mcp.json`、
+  `%APPDATA%\Trae\User\mcp.json` 和 `%APPDATA%\Trae CN\User\mcp.json`。
+- WorkBuddy 在 macOS 写 `~/.workbuddy/.mcp.json`，Windows 写
+  `%USERPROFILE%\.workbuddy\mcp.json`，另一配置文件仅在已存在时作为 fallback 合并。
+- OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入，不主动创建。
 - `taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置，避免多个项目或多个 AI
   客户端互相覆盖全局 cwd。支持 MCP Roots 的客户端由当前 workspace root 决定 Maker 项目。
   单独运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>` 时才会显式写入该目录，

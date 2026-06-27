@@ -54,7 +54,7 @@ npx -y @taptap/maker init
 CLI 负责一次性流程：Git 检查、Python 和 maker-lua-lsp 本地 Lua 诊断环境检查、CLI 登录、
 TapTap token 换取、app 列表选择或新建 Maker 项目、Maker Git clone、AI dev kit 准备、MCP 配置写入与基础验证。Python 环境准备连续 3 次失败时，
 初始化会暂停在登录、项目拉取和 MCP 配置之前；修复后重新运行 `taptap-maker init`。安装或修改 MCP 配置后，Claude Code /
-Codex / Cursor 通常需要重启会话、刷新 MCP 或新开窗口才会出现新的 MCP tools；但当前终端
+Codex / Cursor / Trae / OpenCode / WorkBuddy 通常需要重启会话、刷新 MCP 或新开窗口才会出现新的 MCP tools；但当前终端
 里的 CLI 初始化流程可以继续完成到 PAT 鉴权和项目绑定。
 
 常用 CLI：
@@ -64,7 +64,8 @@ taptap-maker init
 taptap-maker login
 taptap-maker doctor
 taptap-maker apps --json
-taptap-maker install --ide codex,cursor,claude
+taptap-maker install
+taptap-maker install --ide codex,cursor,claude,trae,opencode,workbuddy
 taptap-maker agents update
 taptap-maker upgrade
 taptap-maker mcp verify
@@ -82,6 +83,29 @@ taptap-maker dev-kit update
 `taptap-maker init` 缺 PAT 时会自动进入该流程。`taptap-maker pat set` 保留为兼容入口；
 自动化场景可用 `--pat-stdin` 从标准输入读取。`taptap-maker install` 是
 `taptap-maker mcp install` 的快捷别名，二者都会写入 AI 客户端 MCP 配置。
+默认会写入 Codex、Cursor、Claude，并自动检测本机已有的 Trae、OpenCode、WorkBuddy
+配置文件；命中后会合并安装 `taptap-maker`。Trae Solo 是重点支持目标，CLI 会在 Solo
+或 Solo CN 的 `User/` 目录存在时创建或合并 `User/mcp.json`；普通 Trae/Trae CN 仍作为
+候选路径保留，但只有 `mcp.json` 已存在时才合并写入。WorkBuddy 在 macOS 写
+`~/.workbuddy/.mcp.json`，Windows 写 `%USERPROFILE%\.workbuddy\mcp.json`，另一配置文件
+仅在已存在时作为 fallback 合并。OpenCode 只在
+`~/.config/opencode/opencode.jsonc` 已存在时写入。
+其它 AI 编辑器可按下面的通用 `mcpServers` 片段，让本地 AI 识别自己的配置文件位置后合并写入：
+
+```json
+{
+  "mcpServers": {
+    "taptap-maker": {
+      "command": "npx",
+      "args": ["-y", "-p", "@taptap/maker", "taptap-maker"]
+    }
+  }
+}
+```
+
+`production` 是默认环境，通常不需要写 `env`。只有要切到 RND 时再增加
+`"env": { "TAPTAP_MCP_ENV": "rnd" }`。
+
 `taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置；支持 MCP Roots 的客户端
 会用当前 workspace root 识别 Maker 项目，避免多个客户端或多个项目互相覆盖 cwd。需要兼容
 不支持 Roots 的客户端时，可显式运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>`。
@@ -118,8 +142,9 @@ Maker MCP 也提供部分生成类能力，当前包括 `generate_image`、`batc
 已绑定 Maker 项目中建议优先使用这些 proxy tools；代理转发、错误透出和白名单细节见
 [TapTap Maker 本地开发](docs/MAKER.md)。
 
-Windows 是默认优先级：CLI 写 MCP 配置时会在 Windows 通过 `cmd.exe` 包装 `npx.cmd`，
-避免无 shell 的 MCP 启动器直接 spawn `.cmd` 失败；Git 引导优先提示 Git for Windows，
+Windows 是默认优先级：CLI 写通用 `mcpServers` 配置时会在 Windows 通过 `cmd.exe`
+包装 `npx.cmd`，避免无 shell 的 MCP 启动器直接 spawn `.cmd` 失败；OpenCode 使用自己的
+`mcp` schema 和 command 数组，在 Windows 下写入 `npx.cmd`，不写环境变量；Git 引导优先提示 Git for Windows，
 并要求安装选项允许命令行和第三方工具通过 PATH 找到 Git。macOS 用户可通过 `git --version`
 触发 Xcode Command Line Tools，或安装官方 Git。
 

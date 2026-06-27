@@ -43,7 +43,7 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 | `taptap-maker lua-lsp doctor` | 检查 maker-lua-lsp 是否可用于本地 Lua 诊断                                    |
 | `taptap-maker lua-lsp setup`  | 安装/升级 maker-lua-lsp 并执行 `install --ide codex,cursor,claude`            |
 | `taptap-maker install`        | `taptap-maker mcp install` 的快捷别名，写入 AI 客户端 MCP 配置                |
-| `taptap-maker mcp install`    | 写入 Codex / Cursor / Claude 的 MCP 配置                                      |
+| `taptap-maker mcp install`    | 写入默认客户端，并自动检测已存在配置文件的 Trae/OpenCode/WorkBuddy            |
 | `taptap-maker mcp verify`     | 验证 MCP 配置使用的 npx 包命令是否可启动；`--mode self` 验证当前 CLI          |
 | `taptap-maker agents update`  | 更新当前项目 `AGENTS.md` 中 TapTap Maker 管理的策略块                         |
 | `taptap-maker upgrade`        | 刷新当前机器 MCP 配置，并更新当前绑定项目的 `AGENTS.md` 受管策略块            |
@@ -67,7 +67,11 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
   可能无法稳定安装诊断依赖，自动准备时会走 uv managed Python。Lua LSP 依赖安装在 Maker
   私有 venv 中，不直接修改 uv-managed Python。
 - 本地分支测试可直接用 `node dist/maker.js`，不依赖 npm 发布。
-- Windows 下生成 MCP 配置时通过 `cmd.exe` 包装 `npx.cmd`，兼容无 shell 的 MCP 启动器。
+- Windows 下生成通用 `mcpServers` 配置时通过 `cmd.exe` 包装 `npx.cmd`，兼容无 shell 的 MCP 启动器。
+- OpenCode 使用官方 `mcp` schema 和 command 数组，不写环境变量，且只写已存在配置文件；
+  Trae Solo/Solo CN 优先支持，按 `User/` 目录创建或合并 `User/mcp.json`，普通 Trae
+  只在 `mcp.json` 已存在时更新；WorkBuddy 按平台写配置，macOS 写
+  `~/.workbuddy/.mcp.json`，Windows 写 `%USERPROFILE%\.workbuddy\mcp.json`。
 - 初始化失败时保留现场，返回可重试状态，不自动删除用户文件。
 - 用户选择 app 后立即写入 `.maker-mcp/config.json`；clone/fetch 失败后重复执行
   `taptap-maker init` 会复用这个选择继续，后续缺失状态交给 `taptap-maker doctor` 判断。
@@ -195,12 +199,14 @@ CLI 先完成初始化、PAT、app 选择、clone
 不支持 MCP Roots 的客户端仍可显式运行
 `taptap-maker mcp install --target-dir <PROJECT_DIR>` 固定 cwd，但这不是默认路径，
 避免 Codex、Trae、Cursor 等多个客户端共用用户级配置时互相覆盖项目目录。
+其它 AI 编辑器可复用 README 中的通用 `mcpServers` JSON 片段，由本地 AI 先识别该编辑器的
+实际配置文件位置后合并写入；CLI 不会额外生成通用配置文件。
 
 ## Windows 优先支持
 
 本轮重构按 Windows 优先做了这些约束：
 
-- MCP 配置 command 在 Windows 使用 `cmd.exe` 包装 `npx.cmd`，避免直接 spawn `.cmd`。
+- 通用 MCP 配置 command 在 Windows 使用 `cmd.exe` 包装 `npx.cmd`，避免直接 spawn `.cmd`。
 - Git 安装引导优先提示 Git for Windows。
 - 提醒用户安装时确保命令行和第三方工具可从 PATH 找到 Git。
 - 代码路径处理使用 Node `path` API，不手写 POSIX 分隔符。
