@@ -52,7 +52,8 @@ exists.
 | submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                                     |
 | pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                                          |
 | conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing.              |
-| build / preview / run / verify                            | Use `maker_build_current_directory`; it starts the local runtime log watcher after a successful remote build result.                            |
+| build / preview / run / check game result                 | Use `maker_build_current_directory`; it starts the local runtime log watcher after a successful remote build result.                            |
+| generic code validation / tests / lint                    | Do not use Maker remote build unless the user explicitly asks to build, run, or preview the Maker game.                                         |
 
 ## Create New Maker Project Intent
 
@@ -97,7 +98,10 @@ This policy overrides generic local Git skills and generic Git workflows wheneve
 directory is a Maker project, which means `.maker-mcp/config.json` exists in the project or one of
 its parents.
 
-Use `maker_build_current_directory` for submit, push, build, preview, run, and verify requests.
+Use `maker_build_current_directory` for submit, push, build, preview, run, and game result
+verification requests in a bound Maker project.
+Do not treat generic code checks like "验证代码", "跑测试", "lint", or "检查实现" as Maker
+remote build unless the user explicitly asks to build, run, or preview the Maker game.
 Do not create feature branches, task branches, PR/MR. Do not create task-id based Git flows for
 Maker project submit/build work. Do not run generic Git commit/push helpers as a replacement for
 the Maker MCP tool.
@@ -515,7 +519,7 @@ unless the user asks. Summaries should be understandable to non-programmers:
 - why these files are being submitted
 - whether any generated or suspicious files are included
 
-For normal build/preview/verify requests, a clean workspace still goes through
+For normal build/preview/game-result verification requests, a clean workspace still goes through
 `maker_build_current_directory`; Maker MCP creates and pushes an empty
 `chore: wake maker build server` commit before remote build to wake the Maker server.
 Only skip submit/push when the user explicitly asks to build the committed remote version.
@@ -578,8 +582,7 @@ them before build.
 
 If the user explicitly asks "不提交", "直接构建", or "构建云端版本", call
 `maker_build_current_directory` with `confirm_remote_build_without_submit=true`. In that mode, Maker
-MCP opens the Maker app page before remote build and returns `maker_page_url`; show that URL to the
-user if the browser did not open automatically.
+MCP builds the committed remote version only and does not auto-open Maker pages.
 
 For push failures, use the returned `classification`, `retryable`, `retry_reason`, and
 `retry_attempts` fields. Temporary 5xx/network/timeout failures may be retried with the Maker build

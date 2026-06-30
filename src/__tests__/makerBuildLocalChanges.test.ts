@@ -11,6 +11,7 @@ import { pathToFileURL } from 'node:url';
 import {
   buildCurrentDirectory,
   createBuildArgs,
+  createRemoteBuildCallResult,
   createRemoteProxyCallToolOptions,
   listMakerTools,
   MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
@@ -19,6 +20,8 @@ import {
   createRemoteProxyContext,
   createRemoteProxyProgressHandler,
   createRemoteRuntimeLogClient,
+  startAsyncBuildResultWatcher,
+  stopExistingAsyncBuildResultWatcher,
   refreshMakerPreview,
   formatBuildResult,
   formatAiDevKitStatus,
@@ -52,6 +55,8 @@ describe('maker build local-change guard', () => {
   const originalGitBase = process.env.TAPTAP_MAKER_GIT_BASE;
   const originalPat = process.env.PAT;
   const originalEnv = process.env.TAPTAP_MCP_ENV;
+  const originalRemoteAsyncBuildParam = process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_PARAM;
+  const originalRemoteAsyncBuildValueJson = process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_VALUE_JSON;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-build-local-changes-'));
@@ -92,6 +97,16 @@ describe('maker build local-change guard', () => {
     } else {
       process.env.TAPTAP_MCP_ENV = originalEnv;
     }
+    if (originalRemoteAsyncBuildParam === undefined) {
+      delete process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_PARAM;
+    } else {
+      process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_PARAM = originalRemoteAsyncBuildParam;
+    }
+    if (originalRemoteAsyncBuildValueJson === undefined) {
+      delete process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_VALUE_JSON;
+    } else {
+      process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_VALUE_JSON = originalRemoteAsyncBuildValueJson;
+    }
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -119,6 +134,270 @@ describe('maker build local-change guard', () => {
 
     expect(changes.hasChanges).toBe(true);
     expect(changes.files).toContain(fileName);
+  });
+
+  test('resolves async build preference from explicit argument and WorkBuddy default', () => {
+    const originalClientIde = process.env.TAPTAP_MCP_CLIENT_IDE;
+    try {
+      expect(
+        createBuildArgs(tempDir, {
+          clientIde: 'workbuddy',
+        })
+      ).toEqual({
+        entry: 'main.lua',
+        scriptsPath: 'scripts',
+        multiplayer: { enabled: false },
+        async: true,
+      });
+
+      expect(
+        createBuildArgs(tempDir, {
+          asyncBuild: true,
+          clientIde: 'codex',
+        })
+      ).toEqual({
+        entry: 'main.lua',
+        scriptsPath: 'scripts',
+        multiplayer: { enabled: false },
+        async: true,
+      });
+
+      expect(
+        createBuildArgs(tempDir, {
+          asyncBuild: false,
+          clientIde: 'workbuddy',
+        })
+      ).toEqual({
+        entry: 'main.lua',
+        scriptsPath: 'scripts',
+        multiplayer: { enabled: false },
+      });
+
+      process.env.TAPTAP_MCP_CLIENT_IDE = 'workbuddy';
+      expect(createBuildArgs(tempDir, {})).toEqual({
+        entry: 'main.lua',
+        scriptsPath: 'scripts',
+        multiplayer: { enabled: false },
+        async: true,
+      });
+    } finally {
+      if (originalClientIde === undefined) {
+        delete process.env.TAPTAP_MCP_CLIENT_IDE;
+      } else {
+        process.env.TAPTAP_MCP_CLIENT_IDE = originalClientIde;
+      }
+    }
+  });
+
+  test('supports configurable remote async build argument contract', () => {
+    process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_PARAM = 'build_mode';
+    process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_VALUE_JSON = '{"mode":"async"}';
+
+    expect(
+      createBuildArgs(tempDir, {
+        asyncBuild: true,
+        clientIde: 'workbuddy',
+      })
+    ).toEqual({
+      entry: 'main.lua',
+      scriptsPath: 'scripts',
+      multiplayer: { enabled: false },
+      build_mode: { mode: 'async' },
+    });
+  });
+
+  test('parses server async build receipt from build_id and reused fields', () => {
+    const result = createRemoteBuildCallResult({
+      projectRoot: tempDir,
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      timeoutMs: 600000,
+      buildArgs: { async: true },
+      resultText: '{"build_id":"build-accepted","status":"running","reused":true}',
+      asyncBuild: true,
+    });
+
+    expect(result.mode).toBe('remote_build_async_started');
+    expect(result.buildArgs).toEqual({ async: true });
+    expect('taskId' in result ? result.taskId : undefined).toBe('build-accepted');
+    expect('reused' in result ? result.reused : undefined).toBe(true);
+  });
+
+  test('async build watcher polls every 5 seconds and stops after success', async () => {
+    jest.useFakeTimers();
+    const statuses: string[] = [];
+    const watcher = startAsyncBuildResultWatcher({
+      projectRoot: tempDir,
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      taskId: 'build-1',
+      reused: false,
+      queryBuildResult: async () => {
+        statuses.push('poll');
+        return statuses.length === 1
+          ? { status: 'running' }
+          : { status: 'succeeded', resultText: 'build ok' };
+      },
+      refreshPreview: async () => ({ ok: true, status: 200, url: 'https://maker.example.test' }),
+      startRuntimeLogWatch: async () => ({
+        started: true,
+        command: 'watch',
+        runtimeLog: path.join(tempDir, '.maker', 'logs', 'runtime', 'runtime.log'),
+      }),
+    });
+
+    expect(watcher.started).toBe(true);
+    expect(statuses).toEqual([]);
+
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(statuses).toHaveLength(1);
+    expect(JSON.parse(fs.readFileSync(watcher.stateFile, 'utf8')).status).toBe('running');
+
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(statuses).toHaveLength(2);
+    const finalState = JSON.parse(fs.readFileSync(watcher.stateFile, 'utf8'));
+    expect(finalState.status).toBe('succeeded');
+    expect(finalState.reused).toBe(false);
+    expect(finalState.previewRefresh.ok).toBe(true);
+    expect(finalState.runtimeLogWatch.started).toBe(true);
+
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(statuses).toHaveLength(2);
+    jest.useRealTimers();
+  });
+
+  test('async build watcher stops when query reports expired build id', async () => {
+    jest.useFakeTimers();
+    let polls = 0;
+    const watcher = startAsyncBuildResultWatcher({
+      projectRoot: tempDir,
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      taskId: 'build-expired',
+      queryBuildResult: async () => {
+        polls += 1;
+        throw new Error('未找到 build_id=build-expired 的构建任务（可能已过期或服务重启）');
+      },
+    });
+
+    await jest.advanceTimersByTimeAsync(5000);
+
+    expect(polls).toBe(1);
+    const state = JSON.parse(fs.readFileSync(watcher.stateFile, 'utf8'));
+    expect(state.status).toBe('expired');
+    expect(state.lastPollError).toContain('未找到');
+    expect(fs.existsSync(watcher.activeFile)).toBe(false);
+
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(polls).toBe(1);
+    jest.useRealTimers();
+  });
+
+  test('async build watcher stops after success even when success side effects fail', async () => {
+    jest.useFakeTimers();
+    let polls = 0;
+    const watcher = startAsyncBuildResultWatcher({
+      projectRoot: tempDir,
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      taskId: 'build-side-effect-fail',
+      queryBuildResult: async () => {
+        polls += 1;
+        return { status: 'succeeded', resultText: 'build ok' };
+      },
+      refreshPreview: async () => {
+        throw new Error('preview unavailable');
+      },
+      startRuntimeLogWatch: async () => {
+        throw new Error('watcher unavailable');
+      },
+    });
+
+    await jest.advanceTimersByTimeAsync(5000);
+
+    expect(polls).toBe(1);
+    const state = JSON.parse(fs.readFileSync(watcher.stateFile, 'utf8'));
+    expect(state.status).toBe('succeeded');
+    expect(state.previewRefresh.error).toBe('preview unavailable');
+    expect(state.runtimeLogWatch.error).toBe('watcher unavailable');
+    expect(fs.existsSync(watcher.activeFile)).toBe(false);
+
+    await jest.advanceTimersByTimeAsync(5000);
+    expect(polls).toBe(1);
+    jest.useRealTimers();
+  });
+
+  test('async build watcher times out after 30 minutes', async () => {
+    jest.useFakeTimers();
+    let polls = 0;
+    const watcher = startAsyncBuildResultWatcher({
+      projectRoot: tempDir,
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      taskId: 'build-timeout',
+      queryBuildResult: async () => {
+        polls += 1;
+        return { status: 'running' };
+      },
+    });
+
+    await jest.advanceTimersByTimeAsync(30 * 60 * 1000);
+
+    expect(polls).toBe(360);
+    expect(JSON.parse(fs.readFileSync(watcher.stateFile, 'utf8')).status).toBe('timeout');
+    jest.useRealTimers();
+  });
+
+  test('starting a new async build watcher cancels the previous watcher for the same project', async () => {
+    jest.useFakeTimers();
+    let firstPolls = 0;
+    let firstStopped = 0;
+    const first = startAsyncBuildResultWatcher({
+      projectRoot: tempDir,
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      taskId: 'build-old',
+      queryBuildResult: async () => {
+        firstPolls += 1;
+        return { status: 'running' };
+      },
+      onStop: () => {
+        firstStopped += 1;
+      },
+    });
+
+    const second = startAsyncBuildResultWatcher({
+      projectRoot: tempDir,
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      taskId: 'build-new',
+      queryBuildResult: async () => ({ status: 'running' }),
+    });
+
+    expect(JSON.parse(fs.readFileSync(first.stateFile, 'utf8')).status).toBe(
+      'cancelled_by_new_build'
+    );
+    expect(firstStopped).toBe(1);
+    expect(JSON.parse(fs.readFileSync(second.activeFile, 'utf8')).taskId).toBe('build-new');
+
+    await jest.advanceTimersByTimeAsync(30000);
+    expect(firstPolls).toBe(0);
+    stopExistingAsyncBuildResultWatcher(tempDir, 'cancelled');
+    jest.useRealTimers();
   });
 
   test('remote proxy context uses project local rnd environment config', () => {
@@ -604,6 +883,74 @@ describe('maker build local-change guard', () => {
     ]);
   });
 
+  test('workbuddy default async build waits for query result before returning', async () => {
+    const originalClientIde = process.env.TAPTAP_MCP_CLIENT_IDE;
+    process.env.TAPTAP_MCP_CLIENT_IDE = 'workbuddy';
+    try {
+      let queryCount = 0;
+      const progressMessages: string[] = [];
+      const resultPromise = buildCurrentDirectory({
+        targetDir: tempDir,
+        submitLocalChanges: async () => ({
+          branch: 'main',
+          committed: true,
+          commitHash: 'abc1234',
+          message: 'chore: update maker project',
+          pushed: true,
+          status: 'pushed',
+        }),
+        callRemoteBuild: async () => ({
+          mode: 'remote_build_async_started',
+          projectRoot: fs.realpathSync(tempDir),
+          projectId: 'app-1',
+          projectPath: 'app-1/workspace',
+          serverUrl: 'https://maker.example.test/mcp',
+          env: 'rnd',
+          timeoutMs: 600000,
+          buildArgs: { async: true },
+          taskId: 'build-flow',
+          reused: true,
+          resultText: '{"build_id":"build-flow","status":"running","reused":true}',
+        }),
+        queryAsyncBuildResult: async () => {
+          queryCount += 1;
+          return {
+            status: 'succeeded',
+            resultText: 'build ok',
+            result: { status: 'succeeded', progress: 100, phase: 'pack', elapsed_seconds: 12 },
+          };
+        },
+        refreshPreview: async () => ({ ok: true, status: 200, url: 'https://maker.example.test' }),
+        startRuntimeLogWatch: async () => ({
+          started: true,
+          command: 'watch',
+          runtimeLog: path.join(tempDir, '.maker', 'logs', 'runtime', 'runtime.log'),
+        }),
+        asyncBuildPollIntervalMs: 1,
+        onProgress: (progress) => {
+          progressMessages.push(`${progress.phase}:${progress.message}`);
+        },
+      });
+
+      const result = await resultPromise;
+
+      expect(queryCount).toBe(1);
+      expect(progressMessages).toContain(
+        'async_build_poll:build_id=build-flow status=succeeded phase=pack elapsed=12s'
+      );
+      expect(result.mode).toBe('remote_build');
+      expect('submitResult' in result ? result.submitResult.pushed : undefined).toBe(true);
+      expect('resultText' in result ? result.resultText : undefined).toBe('build ok');
+      expect('buildArgs' in result ? result.buildArgs : undefined).toEqual({ async: true });
+    } finally {
+      if (originalClientIde === undefined) {
+        delete process.env.TAPTAP_MCP_CLIENT_IDE;
+      } else {
+        process.env.TAPTAP_MCP_CLIENT_IDE = originalClientIde;
+      }
+    }
+  });
+
   test('syncs local changes from a Maker project subdirectory', async () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
     const submitCwds: string[] = [];
@@ -700,18 +1047,13 @@ describe('maker build local-change guard', () => {
     ]);
   });
 
-  test('build request opens Maker page when user confirms building committed remote version', async () => {
+  test('build request does not open Maker page when building committed remote version', async () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
     const remoteBuildTargetDirs: string[] = [];
-    const openedUrls: string[] = [];
 
     const result = await buildCurrentDirectory({
       targetDir: tempDir,
       confirmRemoteBuildWithoutSubmit: true,
-      openMakerPage: (url) => {
-        openedUrls.push(url);
-        return { ok: true, url };
-      },
       callRemoteBuild: async (targetDir) => {
         remoteBuildTargetDirs.push(targetDir);
         return {
@@ -730,11 +1072,7 @@ describe('maker build local-change guard', () => {
 
     expect(result.mode).toBe('remote_build');
     expect('submitResult' in result ? result.submitResult : undefined).toBeUndefined();
-    expect('makerPageOpen' in result ? result.makerPageOpen : undefined).toMatchObject({
-      ok: true,
-      url: 'https://maker.taptap.cn/app/app-1',
-    });
-    expect(openedUrls).toEqual(['https://maker.taptap.cn/app/app-1']);
+    expect('makerPageOpen' in result).toBe(false);
     expect(remoteBuildTargetDirs).toEqual([tempDir]);
   });
 
@@ -776,10 +1114,14 @@ describe('maker build local-change guard', () => {
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
     expect(buildTool?.description).toContain('always pushes before remote Maker build');
+    expect(buildTool?.description).toContain('bound Maker project');
+    expect(buildTool?.description).toContain('验证游戏效果');
+    expect(buildTool?.description).toContain('Do not treat generic code validation requests');
     expect(buildTool?.description).toContain('empty wake-up commit');
     expect(buildTool?.description).toContain('remote Maker build');
     expect(buildTool?.description).toContain('If push fails, build is not started');
-    expect(buildTool?.description).toContain('maker_page_url');
+    expect(buildTool?.description).toContain('does not auto-open Maker pages');
+    expect(buildTool?.description).not.toContain('maker_page_url');
     expect(buildTool?.description).toContain('runtime_logs.local_file');
     expect(buildTool?.description).toContain('runtime_logs.state_file');
     expect(buildTool?.description).not.toContain('maker_submit_current_directory');
@@ -2127,12 +2469,16 @@ describe('maker build local-change guard', () => {
     expect(buildTool?.description).toContain('must not block the remote build flow');
   });
 
-  test('build tool schema exposes sync inputs without build preference parameter', () => {
+  test('build tool schema exposes async build preference parameter', () => {
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
     expect(buildTool?.inputSchema.properties).toHaveProperty('message');
     expect(buildTool?.inputSchema.properties).toHaveProperty('files');
     expect(buildTool?.inputSchema.properties).toHaveProperty('confirm_remote_build_without_submit');
+    expect(buildTool?.inputSchema.properties).toHaveProperty('async_build');
+    expect(buildTool?.inputSchema.properties.async_build.description).toContain(
+      'WorkBuddy defaults to async'
+    );
     expect(buildTool?.inputSchema.properties).not.toHaveProperty(
       'remember_build_submit_preference'
     );
@@ -2327,7 +2673,7 @@ describe('maker build local-change guard', () => {
     );
   });
 
-  test('formats remote-only build with Maker page open guidance', () => {
+  test('formats remote-only build without Maker page open guidance', () => {
     const output = formatBuildResult(
       {
         mode: 'remote_build',
@@ -2339,10 +2685,6 @@ describe('maker build local-change guard', () => {
         timeoutMs: 600000,
         buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
         resultText: 'build ok',
-        makerPageOpen: {
-          ok: true,
-          url: 'https://maker.taptap.cn/app/app-1',
-        },
       },
       {
         elapsedMs: 1000,
@@ -2351,9 +2693,10 @@ describe('maker build local-change guard', () => {
       }
     );
 
-    expect(output).toContain('- maker_page_open: ok');
-    expect(output).toContain('- maker_page_url: https://maker.taptap.cn/app/app-1');
-    expect(output).toContain('如果没有自动弹出，请手动打开 maker_page_url');
+    expect(output).toContain('- maker_url: https://maker.taptap.cn/app/app-1');
+    expect(output).not.toContain('maker_page_open');
+    expect(output).not.toContain('maker_page_url');
+    expect(output).not.toContain('自动弹出');
   });
 
   test('submit tool pushes and then runs remote build', async () => {
@@ -2566,6 +2909,45 @@ describe('maker build local-change guard', () => {
     );
   });
 
+  test('formats remote build server error diagnostic fields for client output', async () => {
+    const output = formatBuildResult(
+      {
+        mode: 'build_failed_after_submit',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        submitResult: {
+          branch: 'main',
+          committed: true,
+          commitHash: 'def5678',
+          message: 'chore: update maker project',
+          pushed: true,
+          status: 'pushed',
+        },
+        buildFailure: {
+          name: 'McpError',
+          message: 'MCP error -32603: Remote build failed',
+          code: -32603,
+          data: {
+            remote_result: {
+              error: 'BUILD FAILED: lua syntax error',
+              token: 'secret-token',
+            },
+          },
+        },
+      },
+      {
+        elapsedMs: 1000,
+        elapsed: '1s',
+        progressEvents: 1,
+      }
+    );
+
+    expect(output).toContain('error_details:');
+    expect(output).toContain('BUILD FAILED: lua syntax error');
+    expect(output).toContain('"token": "<redacted>"');
+    expect(output).not.toContain('secret-token');
+  });
+
   test('remote build refreshes Maker web preview after a build result is returned', async () => {
     const refreshedProjects: string[] = [];
 
@@ -2744,7 +3126,6 @@ describe('maker build local-change guard', () => {
     const result = await buildCurrentDirectory({
       targetDir: tempDir,
       confirmRemoteBuildWithoutSubmit: true,
-      openMakerPage: (url) => ({ ok: true, url }),
       callRemoteBuild: async () => ({
         mode: 'remote_build',
         projectRoot: tempDir,

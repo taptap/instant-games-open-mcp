@@ -251,8 +251,7 @@ MCP 运行期能力：
   本地落后远端、分叉、当前不在 `main` 或无法确认远端同步时，会在创建 commit 前停止。普通构建会先
   push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit
   时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务。用户明确说“不提交，直接构建云端版本”时才传
-  `confirm_remote_build_without_submit=true`，此时工具会先打开并返回 `maker_page_url`，提示用户打开
-  Maker 远端页面后查看结果。
+  `confirm_remote_build_without_submit=true`；此时工具只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
 - 运行时日志：不作为本地公开 MCP tool 暴露。构建成功后 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs`，默认只拉 `engine`、`user_script`（客户端 Lua 脚本）和
   `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份
@@ -503,6 +502,9 @@ Windows 兼容注意：
 - WorkBuddy 在 macOS 写 `~/.workbuddy/.mcp.json`，Windows 写
   `%USERPROFILE%\.workbuddy\mcp.json`，另一配置文件仅在已存在时作为 fallback 合并。
 - OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入，不主动创建。
+- MCP 配置写入时会在对应 MCP server 进程环境中增加
+  `TAPTAP_MCP_CLIENT_IDE=<ide>`，取值为 `codex`、`cursor`、`claude`、`trae`、
+  `opencode` 或 `workbuddy`，用于本地 Maker MCP 识别当前请求来源。
 - `taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置，避免多个项目或多个 AI
   客户端互相覆盖全局 cwd。支持 MCP Roots 的客户端由当前 workspace root 决定 Maker 项目。
   单独运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>` 时才会显式写入该目录，
@@ -535,10 +537,11 @@ maker_build_current_directory()
 - 普通构建必须先 push 到 Maker 远端再 build；如果本地没有改动且没有 ahead commit，会创建
   `chore: wake maker build server` 空提交并 push，用于唤醒可能已挂起或销毁的远端服务。
 - 如果本地有改动或已经有本地 commit 未 push，默认先 commit/push，再远端 build。
-- 用户说“提交 / push / 构建 / 查看结果 / 预览 / 跑一下 / 验证一下 / 看看效果”时，都使用同一个工具。
+- 当前目录是已绑定 Maker 项目时，用户说“提交 / push / 构建 / 查看结果 / 预览 / 跑一下 /
+  看看效果 / 验证游戏效果”时，都使用同一个工具。普通“验证代码 / 跑测试 / lint /
+  检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。
 - 用户明确说“不提交 / 直接构建 / 构建云端版本”时，才允许传 `confirm_remote_build_without_submit=true`，
-  这会只构建 Maker 远端已提交版本；工具会先打开 Maker 远端页面，并在结果里返回 `maker_page_url`，
-  如果浏览器没有自动弹出，Agent 应把这个链接发给用户让其手动打开。
+  这会只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
 - push 被远端拒绝、认证失败、远端有新提交或发生冲突时，工具返回 `mode: submit_failed_before_build`，不会继续远端 build。Agent 应解释 push 失败原因，按 `classification` 使用对应恢复策略，再重试同一个构建工具。
 - 如果 push 成功但远端 build 失败，工具返回 `mode: build_failed_after_submit`，同时保留成功的提交/推送结果和构建错误。
 - 如果 build 成功，工具会启动本地 CLI watcher 并在返回里带出
@@ -609,6 +612,28 @@ maker_build_current_directory()
 - `entry_client` / `entry_server`：用户明确说明是多人游戏或给出入口文件时再传入；传入多人入口后不会自动补单机 `scripts/main.lua`。
 - `multiplayer`：用户未指定且本地不存在 `.project/settings.json` 时，默认传 `{ "enabled": false }`，用于第一次单机项目构建初始化。
 - 如果用户明确说明是多人游戏或给出入口文件，再把对应参数传入。
+
+异步远端构建不新增 MCP tool，通过本地参数和 IDE 默认策略控制：
+
+- `maker_build_current_directory` 暴露本地参数 `async_build`。显式传 `async_build=true` 时，
+  无论当前 IDE 是什么，本地 MCP 都会把 `async: true` 转发给远端 `build` tool；显式传
+  `async_build=false` 时保持同步构建。
+- 未传 `async_build` 时，当前 MCP server 进程环境中 `TAPTAP_MCP_CLIENT_IDE=workbuddy`
+  默认走异步构建；Codex、Cursor、Claude、Trae、OpenCode 等其它 IDE 默认保持同步构建。
+- 远端 server 仅在 `_tag=local` 会话暴露 async build 能力。本地默认转发 `async: true`，
+  并通过本地 proxy 私有参数继续注入 `_tag=local`。如需临时联调其它契约，可用
+  `TAPTAP_MAKER_REMOTE_ASYNC_BUILD_PARAM` 覆盖远端参数名，用
+  `TAPTAP_MAKER_REMOTE_ASYNC_BUILD_VALUE_JSON` 覆盖远端参数值（JSON 格式）。
+- 远端异步 build 返回 JSON 回执后，本地读取 `build_id`，并保留 `reused` 标记；本次
+  `maker_build_current_directory` MCP 调用不会立即结束，而是在本地继续轮询远端结果。
+- 本地默认每 5 秒调用远端 `query_build(build_id)`，最多 30 分钟；拿到
+  `succeeded` 或 `failed` 后结束本次 MCP 调用，同一 Maker 项目再次触发构建时会取消上一轮轮询。
+- `query_build` 返回 `status`、`progress`、`phase`、`elapsed_seconds` 以及
+  `result` / `error`，本地状态文件会原样保留这些字段用于诊断。
+- 轮询状态写入 `.maker/builds/active-build.json` 和 `.maker/builds/<build_id>.json`；
+  `maker://status` / `maker_status_lite` 会显示当前 active async build 摘要。
+- server 侧异步任务不跨进程重启持久化，完成结果保留约 30 分钟；本地 watcher 也只在当前
+  MCP server 进程内有效，重启后的残留 active 文件会在状态中标记为 stale。
 
 ## 提交和推送约束
 

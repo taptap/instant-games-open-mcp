@@ -598,6 +598,10 @@ export class TapTapMCPProxy {
     const errorMsg = error.message.toLowerCase();
     const errorCode = (error as any).code;
 
+    if (this.isMcpApplicationError(error)) {
+      return false;
+    }
+
     // 检查错误码（优先，更可靠）
     const networkErrorCodes = [
       'ECONNREFUSED', // 连接拒绝
@@ -633,6 +637,12 @@ export class TapTapMCPProxy {
     // 🔑 关键：会话无效错误也需要触发重连
     // 这解决了多副本部署时连接到未初始化 Server 副本的问题
     return this.isSessionInvalidError(error);
+  }
+
+  private isMcpApplicationError(error: Error): boolean {
+    const message = error.message.toLowerCase();
+    const code = (error as any).code;
+    return (typeof code === 'number' && code < 0) || /\bmcp error -\d+/.test(message);
   }
 
   /**

@@ -31,6 +31,23 @@ describe('standalone MCP proxy lifecycle guards', () => {
     expect(DEFAULT_TOOL_CALL_TIMEOUT_MS).toBe(60 * 60 * 1000);
   });
 
+  test('does not classify MCP server build errors as reconnectable network errors', () => {
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+    const serverBuildError = Object.assign(
+      new Error('MCP error -32603: build failed before timeout window'),
+      {
+        code: -32603,
+        data: {
+          remote_result: {
+            error: 'BUILD FAILED: lua syntax error',
+          },
+        },
+      }
+    );
+
+    expect((proxy as any).isNetworkError(serverBuildError)).toBe(false);
+  });
+
   test('cleans up and exits when stdin closes', () => {
     const stdin = new PassThrough();
     const cleanup = jest.fn();

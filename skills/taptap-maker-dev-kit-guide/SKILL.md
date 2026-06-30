@@ -43,13 +43,17 @@ asks and understands they are local environment files.
 
 Keep validation simple for Maker users. 用户可以直接说“提交”或“构建”:
 
-- If the user says “提交”, “推送”, “构建”, “预览”, or “跑一下”, use
+- If the current workspace is a bound Maker project and the user says “提交”, “推送”, “构建”,
+  “预览”, “跑一下”, “查看结果”, “看看效果”, or “验证游戏效果”, use
   `maker_build_current_directory`. The tool commits when needed, pushes to Maker remote, and then
   runs the remote build.
+- Do not treat generic code checks like “验证代码”, “跑测试”, “lint”, or “检查实现” as Maker
+  remote build unless the user explicitly asks to build, run, or preview the Maker game.
 - If push fails, do not start a separate build or generic Git push. Explain the returned recovery
   details, follow the returned classification-specific recovery (`remote_rejected`,
   `branch_not_allowed`, `forbidden_path`, or `auth`), then retry `maker_build_current_directory`.
-- After submit or build finishes, tell the user to open the TapMaker 网页端查看结果.
+- After submit or build finishes, report the returned Maker URL, build status, and runtime log file
+  path when available. Do not auto-open TapMaker pages.
 
 Do not create local-only test scripts just to verify Maker changes. The expected validation path is
-chat request -> Maker MCP submit/build tool -> TapMaker web result check.
+chat request -> Maker MCP submit/build tool -> returned build result, Maker URL, and runtime logs.
