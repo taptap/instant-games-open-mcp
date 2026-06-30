@@ -2,7 +2,7 @@
  * taptap-maker MCP server mode.
  */
 
-import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -107,6 +107,11 @@ export { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
 const DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1000;
+const ASYNC_BUILD_POLL_INTERVAL_MS = 5 * 1000;
+const ASYNC_BUILD_TIMEOUT_MS = 30 * 60 * 1000;
+const DEFAULT_REMOTE_ASYNC_BUILD_PARAM = 'async';
+const DEFAULT_REMOTE_ASYNC_BUILD_QUERY_TOOL = 'query_build';
+const DEFAULT_REMOTE_ASYNC_BUILD_QUERY_TASK_ID_PARAM = 'build_id';
 const DEFAULT_PROXY_RETRY_ATTEMPTS = 5;
 const DEFAULT_PROXY_RETRY_DELAY_MS = 30 * 1000;
 const PREVIEW_REFRESH_TIMEOUT_MS = 15 * 1000;
@@ -164,7 +169,7 @@ export const tools = [
   {
     name: 'maker_build_current_directory',
     description:
-      'Sync and build the current Maker game. Use this single tool for user requests like "构建", "build", "跑一下", "预览", "验证一下", "提交", "提交代码", "推送", or "push" in a Maker project. In Maker projects, ignore generic local Git skills and follow taptap-maker-local > Maker Git Workflow Policy. Before build, read maker://status or maker_status_lite and check the Python environment section and Lua LSP environment section; if Python or maker-lua-lsp is missing, run taptap-maker python setup when local Lua diagnostics are needed, because it prepares Python and best-effort installs maker-lua-lsp. Missing Python or Lua LSP must not block the remote build flow. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. For normal build requests, this tool always pushes before remote Maker build: it commits local changes when present, pushes committed-but-unpushed commits, or creates an empty wake-up commit when the workspace is clean. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version; in that mode, open the returned maker_page_url/maker_url first so the user can view the remote Maker project and help wake the server.',
+      'Sync and build the current Maker game. First read maker://status or maker_status_lite and use this tool only when the current workspace is a bound Maker project. Trigger it for Maker game requests like "构建", "build", "跑一下", "预览", "查看结果", "看看效果", "验证游戏效果", "提交", "提交代码", "推送", or "push". Do not treat generic code validation requests such as "验证一下代码", "跑测试", "lint", or "检查实现" as Maker remote build unless the user explicitly asks to build/run/preview the Maker game. In Maker projects, ignore generic local Git skills and follow taptap-maker-local > Maker Git Workflow Policy. Before build, check the Python environment section and Lua LSP environment section; if Python or maker-lua-lsp is missing, run taptap-maker python setup when local Lua diagnostics are needed, because it prepares Python and best-effort installs maker-lua-lsp. Missing Python or Lua LSP must not block the remote build flow. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. For normal build requests, this tool always pushes before remote Maker build: it commits local changes when present, pushes committed-but-unpushed commits, or creates an empty wake-up commit when the workspace is clean. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version; this mode does not submit local changes and does not auto-open Maker pages.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -213,6 +218,11 @@ export const tools = [
           description:
             'Optional remote build timeout in milliseconds. Defaults to 10 minutes. If timed out, do not retry blindly; inspect remote build logs first.',
         },
+        async_build: {
+          type: 'boolean',
+          description:
+            'Async remote build preference. If true, Maker MCP forwards remote build async:true in any IDE. If false, it keeps synchronous remote build. If omitted, WorkBuddy defaults to async and other IDEs default to sync. For async builds, this tool keeps the current MCP call open, polls query_build(build_id) every 5 seconds, and returns only after success, failure, replacement by a newer build, or 30 minutes.',
+        },
         message: {
           type: 'string',
           description:
@@ -227,7 +237,7 @@ export const tools = [
         confirm_remote_build_without_submit: {
           type: 'boolean',
           description:
-            'Set true only after the user explicitly confirms they do not want to submit local changes and want to build the current Maker remote committed version. This mode opens and returns the Maker app page URL before remote build.',
+            'Set true only after the user explicitly confirms they do not want to submit local changes and want to build the current Maker remote committed version. This mode does not submit local changes and does not auto-open Maker pages.',
         },
       },
     },
@@ -581,6 +591,7 @@ export async function startMakerMcpServer(): Promise<void> {
           server_url?: string;
           env?: 'rnd' | 'production';
           timeout_ms?: number;
+          async_build?: boolean;
           message?: string;
           files?: string[];
           confirm_remote_build_without_submit?: boolean;
@@ -609,6 +620,7 @@ export async function startMakerMcpServer(): Promise<void> {
             serverUrl: args.server_url,
             env: args.env,
             timeoutMs: args.timeout_ms,
+            asyncBuild: args.async_build,
             message: args.message,
             files: args.files,
             confirmRemoteBuildWithoutSubmit: args.confirm_remote_build_without_submit,
@@ -808,6 +820,8 @@ async function formatStatus(
     '',
     remoteSyncText,
     '',
+    identify.projectRoot ? formatAsyncBuildStatus(identify.projectRoot) : '',
+    '',
     identify.projectRoot
       ? await formatMakerProxyToolsStatusSafely({ targetDir: identify.projectRoot })
       : '',
@@ -828,6 +842,38 @@ async function formatStatus(
     formatMakerSkillStatus({ projectRoot: identify.projectRoot || targetDir }),
     '',
     projectSection,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function formatAsyncBuildStatus(projectRoot: string): string {
+  const active = readJsonFile(getAsyncBuildWatcherPaths(projectRoot, 'unused').activeFile) as
+    | { taskId?: string; stateFile?: string; deadlineAt?: string; pid?: number; reused?: boolean }
+    | undefined;
+  if (!active?.taskId) {
+    return ['Maker async build', '', '- status: inactive'].join('\n');
+  }
+  const stale = active.pid !== undefined && active.pid !== process.pid;
+  const state = active.stateFile
+    ? (readJsonFile(active.stateFile) as AsyncBuildWatcherState)
+    : undefined;
+  return [
+    'Maker async build',
+    '',
+    `- status: ${stale ? 'stale' : 'active'}`,
+    `- build_id: ${active.taskId}`,
+    active.reused !== undefined ? `- reused: ${active.reused ? 'yes' : 'no'}` : '',
+    active.pid ? `- watcher_pid: ${active.pid}` : '',
+    stale
+      ? '- note: active marker belongs to a previous MCP process; polling is not durable after restart'
+      : '',
+    active.stateFile ? `- state_file: ${active.stateFile}` : '',
+    active.deadlineAt ? `- deadline_at: ${active.deadlineAt}` : '',
+    state?.status ? `- last_status: ${state.status}` : '',
+    state?.updatedAt ? `- updated_at: ${state.updatedAt}` : '',
+    `- poll_interval_ms: ${ASYNC_BUILD_POLL_INTERVAL_MS}`,
+    `- timeout_ms: ${ASYNC_BUILD_TIMEOUT_MS}`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -1748,16 +1794,16 @@ type SubmitLocalChangesForBuild = (
 ) => Promise<PushMakerProjectResult>;
 
 type RemoteBuildResult = Extract<BuildCurrentDirectoryResult, { mode: 'remote_build' }>;
-type MakerPageOpenResult = {
-  ok: boolean;
-  url: string;
-  error?: string;
-};
-type OpenMakerPage = (url: string) => MakerPageOpenResult;
+type RemoteBuildAsyncStartedResult = Extract<
+  BuildCurrentDirectoryResult,
+  { mode: 'remote_build_async_started' }
+>;
+type RemoteBuildCallResult = RemoteBuildResult | RemoteBuildAsyncStartedResult;
 type MakerBuildFailure = {
   name: string;
   message: string;
   stack?: string;
+  [key: string]: unknown;
 };
 type PreviewRefreshResult = {
   ok: boolean;
@@ -1786,6 +1832,64 @@ type RuntimeLogWatcherPidState = {
   startedAt?: string;
   legacy?: boolean;
 };
+type AsyncBuildQueryStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+type AsyncBuildQueryResult = {
+  status: AsyncBuildQueryStatus;
+  resultText?: string;
+  result?: unknown;
+  error?: unknown;
+};
+type AsyncBuildWatcherStateStatus =
+  | AsyncBuildQueryStatus
+  | 'timeout'
+  | 'expired'
+  | 'cancelled'
+  | 'cancelled_by_new_build'
+  | 'poll_failed';
+type AsyncBuildWatcherState = {
+  mode: 'remote_build_async';
+  taskId: string;
+  reused?: boolean;
+  projectId: string;
+  projectPath: string;
+  projectRoot: string;
+  serverUrl: string;
+  env: string;
+  status: AsyncBuildWatcherStateStatus;
+  startedAt: string;
+  updatedAt: string;
+  deadlineAt: string;
+  pollIntervalMs: number;
+  resultText?: string;
+  result?: unknown;
+  error?: unknown;
+  lastPollError?: string;
+  sideEffectError?: string;
+  previewRefresh?: PreviewRefreshResult;
+  runtimeLogWatch?: RuntimeLogWatchStartResult;
+};
+type AsyncBuildWatcherStartResult = {
+  started: boolean;
+  taskId: string;
+  reused?: boolean;
+  activeFile: string;
+  stateFile: string;
+  pollIntervalMs: number;
+  timeoutMs: number;
+  previousTaskId?: string;
+  previousStopped?: boolean;
+  error?: string;
+};
+type ActiveAsyncBuildWatcher = {
+  timer?: NodeJS.Timeout;
+  stopped?: boolean;
+  state: AsyncBuildWatcherState;
+  activeFile: string;
+  stateFile: string;
+  onStop?: () => Promise<void> | void;
+  completion?: Promise<AsyncBuildWatcherState>;
+  complete?: (state: AsyncBuildWatcherState) => void;
+};
 type StopRuntimeLogWatcherOptions = {
   getProcessCommand?: (pid: number) => string | undefined;
   waitForExit?: (pid: number, timeoutMs: number) => boolean;
@@ -1796,48 +1900,11 @@ type RemoteRuntimeLogClient = {
   call: (args: RuntimeLogQueryArgs) => Promise<RuntimeLogQueryResult>;
   close: () => Promise<void>;
 };
+const activeAsyncBuildWatchers = new Map<string, ActiveAsyncBuildWatcher>();
 
 function formatMakerAppWebUrl(projectId: string, env: string): string {
   const makerEnv = env === 'rnd' || env === 'production' ? env : undefined;
   return `${getMakerWebUrl(makerEnv)}/app/${encodeURIComponent(projectId)}`;
-}
-
-function openRemoteBuildMakerPage(options: {
-  targetDir: string;
-  env?: 'rnd' | 'production';
-  openMakerPage?: OpenMakerPage;
-}): MakerPageOpenResult {
-  const identify = identifyMakerProject({ cwd: options.targetDir });
-  if (!identify.projectRoot || !identify.projectId) {
-    throw new Error(
-      `${options.targetDir} is not bound to a Maker project. Run taptap-maker init first.`
-    );
-  }
-  const projectConfig = loadProjectConfig(identify.projectRoot);
-  const projectId = projectConfig?.project_id || identify.projectId;
-  const env = getMakerEnvironment(options.env, identify.projectRoot);
-  const url = formatMakerAppWebUrl(projectId, env);
-  return (options.openMakerPage || openMakerPageInBrowser)(url);
-}
-
-function openMakerPageInBrowser(url: string): MakerPageOpenResult {
-  const command =
-    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
-  const args = process.platform === 'win32' ? ['/c', 'start', '', url] : [url];
-  const result = spawnSync(command, args, {
-    stdio: 'ignore',
-    windowsHide: true,
-    timeout: 5000,
-  });
-  if (result.error || result.status !== 0) {
-    return {
-      ok: false,
-      url,
-      error:
-        result.error?.message || `open command exited with status ${result.status ?? 'unknown'}`,
-    };
-  }
-  return { ok: true, url };
 }
 
 type BuildCurrentDirectoryResult =
@@ -1855,7 +1922,22 @@ type BuildCurrentDirectoryResult =
       previewRefresh?: PreviewRefreshResult;
       runtimeLogWatch?: RuntimeLogWatchStartResult;
       submitResult?: PushMakerProjectResult;
-      makerPageOpen?: MakerPageOpenResult;
+    }
+  | {
+      mode: 'remote_build_async_started';
+      projectRoot: string;
+      projectId: string;
+      projectPath: string;
+      serverUrl: string;
+      env: string;
+      makerUrl?: string;
+      timeoutMs: number;
+      buildArgs: Record<string, unknown>;
+      taskId: string;
+      reused?: boolean;
+      resultText: string;
+      asyncBuildWatch?: AsyncBuildWatcherStartResult;
+      submitResult?: PushMakerProjectResult;
     }
   | {
       mode: 'remote_build_failed';
@@ -1863,7 +1945,6 @@ type BuildCurrentDirectoryResult =
       projectId: string;
       buildResult: RemoteBuildResult;
       buildFailure: MakerBuildFailure;
-      makerPageOpen?: MakerPageOpenResult;
     }
   | {
       mode: 'submit_failed_before_build';
@@ -1899,14 +1980,16 @@ export async function buildCurrentDirectory(options: {
   serverUrl?: string;
   env?: 'rnd' | 'production';
   timeoutMs?: number;
+  asyncBuild?: boolean;
   message?: string;
   files?: string[];
   confirmRemoteBuildWithoutSubmit?: boolean;
   submitLocalChanges?: SubmitLocalChangesForBuild;
-  callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildResult>;
-  openMakerPage?: OpenMakerPage;
+  callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildCallResult>;
+  queryAsyncBuildResult?: (taskId: string) => Promise<AsyncBuildQueryResult>;
   refreshPreview?: RefreshMakerPreview;
   startRuntimeLogWatch?: StartRuntimeLogWatch;
+  asyncBuildPollIntervalMs?: number;
   onProgress?: MakerProjectProgressHandler;
 }): Promise<BuildCurrentDirectoryResult> {
   const localChanges = await readMakerProjectLocalChanges(options.targetDir);
@@ -1937,7 +2020,7 @@ export async function buildCurrentDirectory(options: {
         submitResult,
       };
     }
-    let buildResult: RemoteBuildResult;
+    let buildResult: RemoteBuildCallResult;
     try {
       buildResult = await runRemoteBuildCurrentDirectory(options, localChanges.projectRoot);
     } catch (error) {
@@ -1949,18 +2032,34 @@ export async function buildCurrentDirectory(options: {
         buildFailure: toMakerBuildFailure(error),
       };
     }
+    if (buildResult.mode === 'remote_build_async_started') {
+      try {
+        return {
+          ...(await attachAndWaitAsyncBuildResult(buildResult, options)),
+          submitResult,
+        };
+      } catch (error) {
+        return {
+          mode: 'build_failed_after_submit',
+          projectRoot: localChanges.projectRoot,
+          projectId: config?.project_id || 'unknown',
+          submitResult,
+          buildFailure: toMakerBuildFailure(error),
+        };
+      }
+    }
     return {
       ...buildResult,
       submitResult,
     };
   }
 
-  const makerPageOpen = openRemoteBuildMakerPage(options);
   try {
-    return {
-      ...(await runRemoteBuildCurrentDirectory(options, options.targetDir)),
-      makerPageOpen,
-    };
+    const buildResult = await runRemoteBuildCurrentDirectory(options, options.targetDir);
+    if (buildResult.mode === 'remote_build_async_started') {
+      return await attachAndWaitAsyncBuildResult(buildResult, options);
+    }
+    return buildResult;
   } catch (error) {
     if (error instanceof RemoteBuildFailedError) {
       return {
@@ -1969,7 +2068,6 @@ export async function buildCurrentDirectory(options: {
         projectId: error.buildResult.projectId,
         buildResult: error.buildResult,
         buildFailure: toMakerBuildFailure(error),
-        makerPageOpen,
       };
     }
     throw error;
@@ -1987,17 +2085,22 @@ async function runRemoteBuildCurrentDirectory(
     serverUrl?: string;
     env?: 'rnd' | 'production';
     timeoutMs?: number;
-    callRemoteBuild?: (
-      targetDir: string
-    ) => Promise<Extract<BuildCurrentDirectoryResult, { mode: 'remote_build' }>>;
+    asyncBuild?: boolean;
+    callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildCallResult>;
+    queryAsyncBuildResult?: (taskId: string) => Promise<AsyncBuildQueryResult>;
     refreshPreview?: RefreshMakerPreview;
     startRuntimeLogWatch?: StartRuntimeLogWatch;
+    asyncBuildPollIntervalMs?: number;
     onProgress?: MakerProjectProgressHandler;
   },
   targetDir: string
-): Promise<RemoteBuildResult> {
+): Promise<RemoteBuildCallResult> {
   if (options.callRemoteBuild) {
-    return attachBuildSuccessSideEffects(await options.callRemoteBuild(targetDir), {
+    const injectedResult = await options.callRemoteBuild(targetDir);
+    if (injectedResult.mode === 'remote_build_async_started') {
+      return injectedResult;
+    }
+    return attachBuildSuccessSideEffects(injectedResult, {
       refreshPreview: options.refreshPreview || skipPreviewRefresh,
       startRuntimeLogWatch: options.startRuntimeLogWatch,
     });
@@ -2009,6 +2112,7 @@ async function runRemoteBuildCurrentDirectory(
     env: options.env,
   });
   const buildArgs = createBuildArgs(proxy.projectRoot, options);
+  const asyncBuildForwarded = shouldForwardAsyncBuild(options.asyncBuild);
   const timeoutMs = options.timeoutMs || DEFAULT_BUILD_TIMEOUT_MS;
 
   const result = await retryMakerProxyOperation(
@@ -2071,24 +2175,288 @@ async function runRemoteBuildCurrentDirectory(
     throw new Error(formatRemoteToolResult(result));
   }
 
-  return attachBuildSuccessSideEffects(
-    {
-      mode: 'remote_build',
-      projectRoot: proxy.projectRoot,
-      projectId: proxy.projectId,
-      projectPath: proxy.projectPath,
-      serverUrl: proxy.serverUrl,
-      env: proxy.env,
-      makerUrl: formatMakerAppWebUrl(proxy.projectId, proxy.env),
-      timeoutMs,
-      buildArgs,
-      resultText: formatRemoteToolResult(result),
-    },
-    {
+  const resultText = formatRemoteToolResult(result);
+  const buildCallResult = createRemoteBuildCallResult({
+    projectRoot: proxy.projectRoot,
+    projectId: proxy.projectId,
+    projectPath: proxy.projectPath,
+    serverUrl: proxy.serverUrl,
+    env: proxy.env,
+    timeoutMs,
+    buildArgs,
+    resultText,
+    asyncBuild: asyncBuildForwarded,
+  });
+  if (buildCallResult.mode === 'remote_build_async_started') {
+    return buildCallResult;
+  }
+
+  return attachBuildSuccessSideEffects(buildCallResult, {
+    refreshPreview: options.refreshPreview,
+    startRuntimeLogWatch: options.startRuntimeLogWatch || startRuntimeLogWatch,
+  });
+}
+
+export function createRemoteBuildCallResult(options: {
+  projectRoot: string;
+  projectId: string;
+  projectPath: string;
+  serverUrl: string;
+  env: string;
+  timeoutMs: number;
+  buildArgs: Record<string, unknown>;
+  resultText: string;
+  asyncBuild?: boolean;
+}): RemoteBuildCallResult {
+  const asyncReceipt = options.asyncBuild
+    ? extractAsyncBuildReceipt(options.resultText)
+    : undefined;
+  const taskId = asyncReceipt?.taskId;
+  if (taskId) {
+    return {
+      mode: 'remote_build_async_started',
+      projectRoot: options.projectRoot,
+      projectId: options.projectId,
+      projectPath: options.projectPath,
+      serverUrl: options.serverUrl,
+      env: options.env,
+      makerUrl: formatMakerAppWebUrl(options.projectId, options.env),
+      timeoutMs: options.timeoutMs,
+      buildArgs: options.buildArgs,
+      taskId,
+      reused: asyncReceipt.reused,
+      resultText: options.resultText,
+    };
+  }
+  return {
+    mode: 'remote_build',
+    projectRoot: options.projectRoot,
+    projectId: options.projectId,
+    projectPath: options.projectPath,
+    serverUrl: options.serverUrl,
+    env: options.env,
+    makerUrl: formatMakerAppWebUrl(options.projectId, options.env),
+    timeoutMs: options.timeoutMs,
+    buildArgs: options.buildArgs,
+    resultText: options.resultText,
+  };
+}
+
+function extractAsyncBuildReceipt(
+  resultText: string
+): { taskId: string; reused?: boolean } | undefined {
+  const parsed = parseJsonObjectFromText(resultText);
+  const taskId =
+    parsed?.build_id ||
+    parsed?.buildId ||
+    parsed?.task_id ||
+    parsed?.taskId ||
+    parsed?.build_task_id ||
+    parsed?.buildTaskId;
+  if (typeof taskId !== 'string' || !taskId.trim()) {
+    return undefined;
+  }
+  return {
+    taskId: taskId.trim(),
+    ...(typeof parsed?.reused === 'boolean' ? { reused: parsed.reused } : {}),
+  };
+}
+
+function parseJsonObjectFromText(text: string): Record<string, unknown> | undefined {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function attachAsyncBuildWatcher(
+  buildResult: RemoteBuildAsyncStartedResult,
+  options: {
+    queryAsyncBuildResult?: (taskId: string) => Promise<AsyncBuildQueryResult>;
+    refreshPreview?: RefreshMakerPreview;
+    startRuntimeLogWatch?: StartRuntimeLogWatch;
+    asyncBuildPollIntervalMs?: number;
+    onProgress?: MakerProjectProgressHandler;
+  }
+): RemoteBuildAsyncStartedResult {
+  const remoteQueryRunner = options.queryAsyncBuildResult
+    ? undefined
+    : createRemoteAsyncBuildQueryRunner(buildResult);
+  const queryBuildResult =
+    options.queryAsyncBuildResult ||
+    ((taskId: string): Promise<AsyncBuildQueryResult> =>
+      remoteQueryRunner?.query(taskId) ||
+      Promise.reject(new Error('Async build query runner is not available')));
+  return {
+    ...buildResult,
+    asyncBuildWatch: startAsyncBuildResultWatcher({
+      projectRoot: buildResult.projectRoot,
+      projectId: buildResult.projectId,
+      projectPath: buildResult.projectPath,
+      serverUrl: buildResult.serverUrl,
+      env: buildResult.env,
+      taskId: buildResult.taskId,
+      reused: buildResult.reused,
+      queryBuildResult: () => queryBuildResult(buildResult.taskId),
       refreshPreview: options.refreshPreview,
       startRuntimeLogWatch: options.startRuntimeLogWatch || startRuntimeLogWatch,
+      pollIntervalMs: options.asyncBuildPollIntervalMs,
+      onProgress: options.onProgress,
+      onStop: () => remoteQueryRunner?.close(),
+    }),
+  };
+}
+
+async function attachAndWaitAsyncBuildResult(
+  buildResult: RemoteBuildAsyncStartedResult,
+  options: {
+    queryAsyncBuildResult?: (taskId: string) => Promise<AsyncBuildQueryResult>;
+    refreshPreview?: RefreshMakerPreview;
+    startRuntimeLogWatch?: StartRuntimeLogWatch;
+    asyncBuildPollIntervalMs?: number;
+    onProgress?: MakerProjectProgressHandler;
+  }
+): Promise<RemoteBuildResult> {
+  const watched = attachAsyncBuildWatcher(buildResult, options);
+  const activeFile = watched.asyncBuildWatch?.activeFile;
+  const completion = activeFile ? activeAsyncBuildWatchers.get(activeFile)?.completion : undefined;
+  if (!completion) {
+    throw new Error('Async build watcher did not start');
+  }
+  const finalState = await completion;
+  const finalResult = asyncWatcherStateToRemoteBuildResult(finalState, buildResult);
+  if (finalState.status === 'succeeded') {
+    return finalResult;
+  }
+  if (finalState.status === 'failed') {
+    throw new RemoteBuildFailedError(finalResult);
+  }
+  throw new Error(
+    `Async Maker build did not finish successfully: ${finalState.status}${
+      finalState.error ? `: ${formatAsyncBuildDiagnostic(finalState.error)}` : ''
+    }`
+  );
+}
+
+function formatAsyncBuildDiagnostic(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function createRemoteAsyncBuildQueryRunner(buildResult: RemoteBuildAsyncStartedResult): {
+  query: (taskId: string) => Promise<AsyncBuildQueryResult>;
+  close: () => Promise<void>;
+} {
+  const proxy = createRemoteProxyContext({
+    targetDir: buildResult.projectRoot,
+    serverUrl: buildResult.serverUrl,
+    env:
+      buildResult.env === 'rnd' || buildResult.env === 'production' ? buildResult.env : undefined,
+  });
+  const queryToolName =
+    process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_QUERY_TOOL?.trim() ||
+    DEFAULT_REMOTE_ASYNC_BUILD_QUERY_TOOL;
+  const taskIdParam =
+    process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_QUERY_TASK_ID_PARAM?.trim() ||
+    DEFAULT_REMOTE_ASYNC_BUILD_QUERY_TASK_ID_PARAM;
+  const transport = trackMakerChildTransport(
+    new HiddenStdioClientTransport({
+      command: proxy.command,
+      args: proxy.args,
+      env: mergeStringEnv(process.env, proxy.envVars),
+      stderr: 'pipe',
+    })
+  );
+  const client = new Client(
+    {
+      name: 'taptap-maker-async-build-query-forwarder',
+      version: VERSION,
+    },
+    {
+      capabilities: {},
     }
   );
+  let connectPromise: Promise<void> | undefined;
+  const ensureConnected = async (): Promise<void> => {
+    if (!connectPromise) {
+      connectPromise = client.connect(transport);
+    }
+    await connectPromise;
+  };
+
+  return {
+    query: async (taskId: string): Promise<AsyncBuildQueryResult> => {
+      await ensureConnected();
+      const result = await client.callTool(
+        {
+          name: queryToolName,
+          arguments: { [taskIdParam]: taskId },
+        },
+        undefined,
+        {
+          timeout: DEFAULT_BUILD_TIMEOUT_MS,
+        }
+      );
+      return normalizeAsyncBuildQueryResult(result);
+    },
+    close: async (): Promise<void> => {
+      await client.close().catch(() => {});
+    },
+  };
+}
+
+function normalizeAsyncBuildQueryResult(result: unknown): AsyncBuildQueryResult {
+  const resultText = formatRemoteToolResult(result);
+  const parsed = parseJsonObjectFromText(resultText);
+  const status = normalizeAsyncBuildStatus(parsed?.status || parsed?.state || parsed?.phase);
+  if (status) {
+    return {
+      status,
+      resultText,
+      result: parsed,
+      error: parsed?.error,
+    };
+  }
+  return {
+    status: isRemoteToolError(result) ? 'failed' : 'running',
+    resultText,
+    result: parsed || result,
+    ...(isRemoteToolError(result) ? { error: resultText } : {}),
+  };
+}
+
+function normalizeAsyncBuildStatus(status: unknown): AsyncBuildQueryStatus | undefined {
+  if (typeof status !== 'string') {
+    return undefined;
+  }
+  const normalized = status.trim().toLowerCase();
+  if (['queued', 'pending', 'created'].includes(normalized)) {
+    return 'queued';
+  }
+  if (['running', 'building', 'in_progress', 'processing'].includes(normalized)) {
+    return 'running';
+  }
+  if (['succeeded', 'success', 'done', 'completed', 'finished'].includes(normalized)) {
+    return 'succeeded';
+  }
+  if (['failed', 'failure', 'error', 'cancelled', 'canceled'].includes(normalized)) {
+    return 'failed';
+  }
+  return undefined;
 }
 
 async function attachBuildSuccessSideEffects(
@@ -2250,6 +2618,368 @@ async function startRuntimeLogWatch(
   } finally {
     fs.closeSync(outFd);
     fs.closeSync(errFd);
+  }
+}
+
+export function startAsyncBuildResultWatcher(options: {
+  projectRoot: string;
+  projectId: string;
+  projectPath: string;
+  serverUrl: string;
+  env: string;
+  taskId: string;
+  reused?: boolean;
+  queryBuildResult: () => Promise<AsyncBuildQueryResult>;
+  refreshPreview?: RefreshMakerPreview;
+  startRuntimeLogWatch?: StartRuntimeLogWatch;
+  onProgress?: MakerProjectProgressHandler;
+  pollIntervalMs?: number;
+  timeoutMs?: number;
+  onStop?: () => Promise<void> | void;
+}): AsyncBuildWatcherStartResult {
+  const pollIntervalMs = options.pollIntervalMs || ASYNC_BUILD_POLL_INTERVAL_MS;
+  const timeoutMs = options.timeoutMs || ASYNC_BUILD_TIMEOUT_MS;
+  const paths = getAsyncBuildWatcherPaths(options.projectRoot, options.taskId);
+  const previous = stopExistingAsyncBuildResultWatcher(
+    options.projectRoot,
+    'cancelled_by_new_build'
+  );
+  const now = new Date();
+  const state: AsyncBuildWatcherState = {
+    mode: 'remote_build_async',
+    taskId: options.taskId,
+    reused: options.reused,
+    projectId: options.projectId,
+    projectPath: options.projectPath,
+    projectRoot: options.projectRoot,
+    serverUrl: options.serverUrl,
+    env: options.env,
+    status: 'queued',
+    startedAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+    deadlineAt: new Date(now.getTime() + timeoutMs).toISOString(),
+    pollIntervalMs,
+  };
+  let completeWatcher: (state: AsyncBuildWatcherState) => void = () => {};
+  const completion = new Promise<AsyncBuildWatcherState>((resolve) => {
+    completeWatcher = resolve;
+  });
+  const watcher: ActiveAsyncBuildWatcher = {
+    state,
+    activeFile: paths.activeFile,
+    stateFile: paths.stateFile,
+    onStop: options.onStop,
+    completion,
+    complete: completeWatcher,
+  };
+  fs.mkdirSync(path.dirname(paths.activeFile), { recursive: true });
+  writeJsonFile(paths.stateFile, state);
+  writeJsonFile(paths.activeFile, {
+    taskId: options.taskId,
+    reused: options.reused,
+    projectId: options.projectId,
+    pid: process.pid,
+    startedAt: state.startedAt,
+    deadlineAt: state.deadlineAt,
+    stateFile: paths.stateFile,
+  });
+  activeAsyncBuildWatchers.set(paths.activeFile, watcher);
+
+  const poll = async (): Promise<void> => {
+    if (!activeAsyncBuildWatchers.has(paths.activeFile)) {
+      return;
+    }
+    try {
+      const result = await options.queryBuildResult();
+      updateAsyncBuildWatcherState(watcher, {
+        status: result.status,
+        resultText: result.resultText,
+        result: result.result,
+        error: result.error,
+        lastPollError: undefined,
+      });
+      emitAsyncBuildPollProgress(watcher, result, options.onProgress);
+      if (result.status === 'succeeded' || result.status === 'failed') {
+        if (result.status === 'succeeded') {
+          await finishAsyncBuildSuccessSideEffects(watcher, options);
+        }
+        stopAsyncBuildWatcherRuntime(watcher);
+        watcher.complete?.(watcher.state);
+        return;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (isAsyncBuildExpiredErrorMessage(message)) {
+        updateAsyncBuildWatcherState(watcher, {
+          status: 'expired',
+          error: message,
+          lastPollError: message,
+        });
+        stopAsyncBuildWatcherRuntime(watcher);
+        watcher.complete?.(watcher.state);
+        return;
+      }
+      const nextStatus: AsyncBuildQueryStatus = 'running';
+      updateAsyncBuildWatcherState(watcher, {
+        status: nextStatus,
+        lastPollError: message,
+      });
+      emitAsyncBuildPollProgress(
+        watcher,
+        { status: nextStatus, error: message },
+        options.onProgress
+      );
+    }
+
+    if (Date.now() >= Date.parse(watcher.state.deadlineAt)) {
+      updateAsyncBuildWatcherState(watcher, { status: 'timeout' });
+      stopAsyncBuildWatcherRuntime(watcher);
+      watcher.complete?.(watcher.state);
+      return;
+    }
+    watcher.timer = setTimeout(() => {
+      void poll();
+    }, pollIntervalMs);
+  };
+
+  watcher.timer = setTimeout(() => {
+    void poll();
+  }, pollIntervalMs);
+
+  return {
+    started: true,
+    taskId: options.taskId,
+    reused: options.reused,
+    activeFile: paths.activeFile,
+    stateFile: paths.stateFile,
+    pollIntervalMs,
+    timeoutMs,
+    previousTaskId: previous.previousTaskId,
+    previousStopped: previous.previousStopped,
+  };
+}
+
+function stopAsyncBuildWatcherRuntime(watcher: ActiveAsyncBuildWatcher): void {
+  if (watcher.stopped) {
+    return;
+  }
+  watcher.stopped = true;
+  if (watcher.timer) {
+    clearTimeout(watcher.timer);
+    watcher.timer = undefined;
+  }
+  activeAsyncBuildWatchers.delete(watcher.activeFile);
+  fs.rmSync(watcher.activeFile, { force: true });
+  void Promise.resolve(watcher.onStop?.()).catch((error) => {
+    updateAsyncBuildWatcherState(watcher, {
+      sideEffectError: `async query runner close failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    });
+  });
+}
+
+function isAsyncBuildExpiredErrorMessage(message: string): boolean {
+  const normalized = message.trim().toLowerCase();
+  return [
+    'not found',
+    'not_found',
+    'not exist',
+    'unknown build',
+    'unknown build_id',
+    'expired',
+    'restart',
+    'restarted',
+    '未找到',
+    '不存在',
+    '过期',
+    '服务重启',
+  ].some((pattern) => normalized.includes(pattern));
+}
+
+function emitAsyncBuildPollProgress(
+  watcher: ActiveAsyncBuildWatcher,
+  result: Pick<AsyncBuildQueryResult, 'status' | 'result' | 'error'>,
+  onProgress?: MakerProjectProgressHandler
+): void {
+  if (!onProgress) {
+    return;
+  }
+  const payload =
+    result.result && typeof result.result === 'object' && !Array.isArray(result.result)
+      ? (result.result as Record<string, unknown>)
+      : {};
+  const remoteProgress = typeof payload.progress === 'number' ? payload.progress : undefined;
+  const remotePhase =
+    typeof payload.phase === 'string' && payload.phase.trim() ? payload.phase.trim() : undefined;
+  const elapsedSeconds =
+    typeof payload.elapsed_seconds === 'number' ? payload.elapsed_seconds : undefined;
+  onProgress({
+    progress: remoteProgress,
+    total: remoteProgress === undefined ? undefined : 100,
+    phase: 'async_build_poll',
+    message: [
+      `build_id=${watcher.state.taskId}`,
+      `status=${result.status}`,
+      remotePhase ? `phase=${remotePhase}` : '',
+      elapsedSeconds !== undefined ? `elapsed=${elapsedSeconds}s` : '',
+      result.error ? `error=${formatAsyncBuildDiagnostic(result.error)}` : '',
+    ]
+      .filter(Boolean)
+      .join(' '),
+  });
+}
+
+export function stopExistingAsyncBuildResultWatcher(
+  projectRoot: string,
+  reason: Extract<
+    AsyncBuildWatcherStateStatus,
+    'cancelled' | 'cancelled_by_new_build'
+  > = 'cancelled'
+): { previousTaskId?: string; previousStopped?: boolean } {
+  const activeFile = getAsyncBuildWatcherPaths(projectRoot, 'unused').activeFile;
+  const active = readJsonFile(activeFile) as { taskId?: string; stateFile?: string } | undefined;
+  const watcher = activeAsyncBuildWatchers.get(activeFile);
+  if (!active && !watcher) {
+    return {};
+  }
+  const stateFile = active?.stateFile || watcher?.stateFile;
+  const taskId = active?.taskId || watcher?.state.taskId;
+  if (stateFile && fs.existsSync(stateFile)) {
+    const existing = (readJsonFile(stateFile) || {}) as Partial<AsyncBuildWatcherState>;
+    writeJsonFile(stateFile, {
+      ...existing,
+      status: reason,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  if (watcher) {
+    updateAsyncBuildWatcherState(watcher, {
+      status: reason,
+      updatedAt: new Date().toISOString(),
+    });
+    stopAsyncBuildWatcherRuntime(watcher);
+    watcher.complete?.(watcher.state);
+  } else {
+    fs.rmSync(activeFile, { force: true });
+  }
+  return {
+    previousTaskId: taskId,
+    previousStopped: Boolean(taskId),
+  };
+}
+
+async function finishAsyncBuildSuccessSideEffects(
+  watcher: ActiveAsyncBuildWatcher,
+  options: {
+    refreshPreview?: RefreshMakerPreview;
+    startRuntimeLogWatch?: StartRuntimeLogWatch;
+  }
+): Promise<void> {
+  const buildResult = asyncWatcherStateToRemoteBuildResult(watcher.state);
+  if (options.refreshPreview) {
+    try {
+      updateAsyncBuildWatcherState(watcher, {
+        previewRefresh: await options.refreshPreview(buildResult),
+      });
+    } catch (error) {
+      updateAsyncBuildWatcherState(watcher, {
+        previewRefresh: {
+          ok: false,
+          status: 0,
+          url: '',
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  }
+  if (options.startRuntimeLogWatch) {
+    try {
+      updateAsyncBuildWatcherState(watcher, {
+        runtimeLogWatch: await options.startRuntimeLogWatch(buildResult),
+      });
+    } catch (error) {
+      updateAsyncBuildWatcherState(watcher, {
+        runtimeLogWatch: {
+          started: false,
+          command: '',
+          runtimeLog: '',
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  }
+}
+
+function asyncWatcherStateToRemoteBuildResult(
+  state: AsyncBuildWatcherState,
+  originalBuildResult?: RemoteBuildAsyncStartedResult
+): RemoteBuildResult {
+  return {
+    mode: 'remote_build',
+    projectRoot: state.projectRoot,
+    projectId: state.projectId,
+    projectPath: state.projectPath,
+    serverUrl: state.serverUrl,
+    env: state.env,
+    makerUrl: formatMakerAppWebUrl(state.projectId, state.env),
+    timeoutMs: originalBuildResult?.timeoutMs || DEFAULT_BUILD_TIMEOUT_MS,
+    buildArgs: originalBuildResult?.buildArgs || {},
+    resultText: state.resultText || '',
+    previewRefresh: state.previewRefresh,
+    runtimeLogWatch: state.runtimeLogWatch,
+  };
+}
+
+function updateAsyncBuildWatcherState(
+  watcher: ActiveAsyncBuildWatcher,
+  patch: Partial<AsyncBuildWatcherState>
+): void {
+  watcher.state = {
+    ...watcher.state,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  writeJsonFile(watcher.stateFile, watcher.state);
+}
+
+function getAsyncBuildWatcherPaths(
+  projectRoot: string,
+  taskId: string
+): { activeFile: string; stateFile: string } {
+  const normalizedProjectRoot = normalizeExistingProjectPath(projectRoot);
+  const buildDir = path.join(normalizedProjectRoot, '.maker', 'builds');
+  return {
+    activeFile: path.join(buildDir, 'active-build.json'),
+    stateFile: path.join(buildDir, `${sanitizeAsyncBuildTaskId(taskId)}.json`),
+  };
+}
+
+function normalizeExistingProjectPath(projectRoot: string): string {
+  try {
+    return fs.realpathSync(projectRoot);
+  } catch {
+    return path.resolve(projectRoot);
+  }
+}
+
+function sanitizeAsyncBuildTaskId(taskId: string): string {
+  return taskId.replace(/[^A-Za-z0-9_.-]/g, '_') || 'unknown-task';
+}
+
+function writeJsonFile(filePath: string, value: unknown): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+function readJsonFile(filePath: string): unknown | undefined {
+  if (!fs.existsSync(filePath)) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return undefined;
   }
 }
 
@@ -2656,6 +3386,7 @@ function toMakerBuildFailure(error: unknown): MakerBuildFailure {
     name: error instanceof Error ? error.name : typeof error,
     message: error instanceof Error ? error.message : String(error),
     ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
+    ...(error instanceof Error ? errorOwnDiagnosticFields(error) : {}),
   };
 }
 
@@ -2667,6 +3398,8 @@ export function createBuildArgs(
     entryClient?: string;
     entryServer?: string;
     multiplayer?: Record<string, unknown>;
+    asyncBuild?: boolean;
+    clientIde?: string;
   }
 ): Record<string, unknown> {
   const buildArgs: Record<string, unknown> = {};
@@ -2698,8 +3431,46 @@ export function createBuildArgs(
   } else if (!fs.existsSync(path.join(projectRoot, '.project', 'settings.json'))) {
     buildArgs.multiplayer = { enabled: false };
   }
+  if (shouldForwardAsyncBuild(options.asyncBuild, options.clientIde)) {
+    buildArgs[getRemoteAsyncBuildParamName()] = getRemoteAsyncBuildParamValue();
+  }
 
   return buildArgs;
+}
+
+function shouldForwardAsyncBuild(asyncBuild?: boolean, clientIde?: string): boolean {
+  if (asyncBuild === true) {
+    return true;
+  }
+  if (asyncBuild === false) {
+    return false;
+  }
+  return normalizeClientIde(clientIde || process.env.TAPTAP_MCP_CLIENT_IDE) === 'workbuddy';
+}
+
+function normalizeClientIde(clientIde?: string): string {
+  return (clientIde || '').trim().toLowerCase();
+}
+
+function getRemoteAsyncBuildParamName(): string {
+  const paramName = process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_PARAM?.trim();
+  return paramName || DEFAULT_REMOTE_ASYNC_BUILD_PARAM;
+}
+
+function getRemoteAsyncBuildParamValue(): unknown {
+  const rawValue = process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_VALUE_JSON;
+  if (!rawValue) {
+    return true;
+  }
+  try {
+    return JSON.parse(rawValue);
+  } catch (error) {
+    throw new Error(
+      `Invalid TAPTAP_MAKER_REMOTE_ASYNC_BUILD_VALUE_JSON: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
 }
 
 function mergeStringEnv(
@@ -2749,7 +3520,6 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
-      ...formatMakerPageOpenLines(result.makerPageOpen),
       `- maker_url: ${
         result.buildResult.makerUrl ||
         formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
@@ -2830,6 +3600,50 @@ export function formatBuildResult(
       .join('\n');
   }
 
+  if (result.mode === 'remote_build_async_started') {
+    return [
+      result.submitResult
+        ? '✓ Maker project submitted, then remote Maker async build started'
+        : '✓ Remote Maker async build started',
+      '',
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      `- maker_url: ${result.makerUrl || formatMakerAppWebUrl(result.projectId, result.env)}`,
+      `- project_path: ${result.projectPath}`,
+      `- server_url: ${result.serverUrl}`,
+      `- env: ${result.env}`,
+      `- build_id: ${result.taskId}`,
+      result.reused !== undefined ? `- reused: ${result.reused ? 'yes' : 'no'}` : '',
+      `- timeout_ms: ${result.timeoutMs}`,
+      `- build_args: ${JSON.stringify(result.buildArgs)}`,
+      result.asyncBuildWatch
+        ? `- async_watch_started: ${result.asyncBuildWatch.started ? 'yes' : 'no'}`
+        : '',
+      result.asyncBuildWatch ? `- async_watch_state_file: ${result.asyncBuildWatch.stateFile}` : '',
+      result.asyncBuildWatch
+        ? `- async_watch_active_file: ${result.asyncBuildWatch.activeFile}`
+        : '',
+      result.asyncBuildWatch
+        ? `- async_watch_poll_interval_ms: ${result.asyncBuildWatch.pollIntervalMs}`
+        : '',
+      result.asyncBuildWatch ? `- async_watch_timeout_ms: ${result.asyncBuildWatch.timeoutMs}` : '',
+      result.asyncBuildWatch?.previousTaskId
+        ? `- previous_async_build_id: ${result.asyncBuildWatch.previousTaskId}`
+        : '',
+      result.asyncBuildWatch?.previousStopped !== undefined
+        ? `- previous_async_watch_stopped: ${result.asyncBuildWatch.previousStopped ? 'yes' : 'no'}`
+        : '',
+      ...formatProgressSummary(progressSummary),
+      '',
+      'note: 远端异步构建已启动；本地每 5 秒查询一次结果，最多轮询 30 分钟。',
+      'note: 如果同一 Maker 项目再次触发构建，上一轮异步轮询会被取消。',
+      'remote_result:',
+      indent(result.resultText),
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
   const submitLines = result.submitResult
     ? [
         'submit_result:',
@@ -2854,7 +3668,6 @@ export function formatBuildResult(
     `- project_root: ${result.projectRoot}`,
     `- project_id: ${result.projectId}`,
     `- maker_url: ${result.makerUrl || formatMakerAppWebUrl(result.projectId, result.env)}`,
-    ...formatMakerPageOpenLines(result.makerPageOpen),
     `- project_path: ${result.projectPath}`,
     `- server_url: ${result.serverUrl}`,
     `- env: ${result.env}`,
@@ -2975,19 +3788,6 @@ function formatPreviewRefreshLines(result?: PreviewRefreshResult): string[] {
   ].filter(Boolean);
 }
 
-function formatMakerPageOpenLines(result?: MakerPageOpenResult): string[] {
-  if (!result) {
-    return [];
-  }
-
-  return [
-    `- maker_page_open: ${result.ok ? 'ok' : 'failed'}`,
-    `- maker_page_url: ${result.url}`,
-    result.error ? `- maker_page_error: ${result.error}` : '',
-    '- next_action: 已按“不提交，只构建云端版本”打开 Maker 远端页面；如果没有自动弹出，请手动打开 maker_page_url 后再查看构建结果。',
-  ].filter(Boolean);
-}
-
 function formatRuntimeLogWatchNextActionLines(result: RemoteBuildResult): string[] {
   const command = formatLocalShellCommand([
     'taptap-maker',
@@ -3071,12 +3871,27 @@ function pushRecoveryUserMessage(failure?: MakerGitFailure): string {
 }
 
 function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {
+  const details = buildFailureDiagnosticFields(failure);
   return [
     'build_failure:',
     `- error_name: ${failure.name}`,
     `- message: ${failure.message}`,
+    Object.keys(details).length > 0
+      ? `- error_details:\n${indent(formatDiagnosticJson(details))}`
+      : '',
     failure.stack ? `- stack:\n${indent(failure.stack)}` : '',
   ].filter(Boolean);
+}
+
+function buildFailureDiagnosticFields(failure: MakerBuildFailure): Record<string, unknown> {
+  const details: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(failure)) {
+    if (key === 'name' || key === 'message' || key === 'stack') {
+      continue;
+    }
+    details[key] = sanitizeDiagnosticValue(value);
+  }
+  return details;
 }
 
 function formatMakerFailureLines(failure: MakerGitFailure): string[] {
