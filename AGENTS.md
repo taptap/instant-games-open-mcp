@@ -359,8 +359,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   只在 `mcp.json` 已存在时更新；
   OpenCode 使用官方 `mcp` schema 和 command 数组，
   不写环境变量；
-  WorkBuddy 按平台写配置，macOS 写 `~/.workbuddy/.mcp.json`，
-  Windows 写 `%USERPROFILE%\.workbuddy\mcp.json`；通用
+  WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的 `.workbuddy/mcp.json`；显式传
+  `--ide workbuddy` 时会创建该官方配置文件；未显式指定 IDE 的自动检测模式下，legacy
+  `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为 fallback 合并；通用
   `mcpServers` JSON 只作为 README/文档片段引导其它 AI 编辑器识别自己的实际配置文件后合并写入，
   CLI 不生成额外通用配置文件。
 - `taptap-maker mcp verify` 默认验证 `mcp install` 写入配置的 npx 包命令能否启动；本地开发只验证当前 CLI 时使用 `--mode self`。

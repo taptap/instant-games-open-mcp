@@ -1905,7 +1905,9 @@ const activeAsyncBuildWatchers = new Map<string, ActiveAsyncBuildWatcher>();
 
 function formatMakerAppWebUrl(projectId: string, env: string): string {
   const makerEnv = env === 'rnd' || env === 'production' ? env : undefined;
-  return `${getMakerWebUrl(makerEnv)}/app/${encodeURIComponent(projectId)}`;
+  const url = new URL(`${getMakerWebUrl(makerEnv)}/app/${encodeURIComponent(projectId)}`);
+  url.searchParams.set('localDev', '1');
+  return url.toString();
 }
 
 type BuildCurrentDirectoryResult =

@@ -55,6 +55,7 @@ describe('maker build local-change guard', () => {
   const originalGitBase = process.env.TAPTAP_MAKER_GIT_BASE;
   const originalPat = process.env.PAT;
   const originalEnv = process.env.TAPTAP_MCP_ENV;
+  const originalMakerWebUrl = process.env.TAPTAP_MAKER_WEB_URL;
   const originalRemoteAsyncBuildParam = process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_PARAM;
   const originalRemoteAsyncBuildValueJson = process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_VALUE_JSON;
 
@@ -96,6 +97,11 @@ describe('maker build local-change guard', () => {
       delete process.env.TAPTAP_MCP_ENV;
     } else {
       process.env.TAPTAP_MCP_ENV = originalEnv;
+    }
+    if (originalMakerWebUrl === undefined) {
+      delete process.env.TAPTAP_MAKER_WEB_URL;
+    } else {
+      process.env.TAPTAP_MAKER_WEB_URL = originalMakerWebUrl;
     }
     if (originalRemoteAsyncBuildParam === undefined) {
       delete process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_PARAM;
@@ -2816,7 +2822,7 @@ describe('maker build local-change guard', () => {
     );
 
     expect(output).toContain(
-      '- maker_url: https://maker.taptap.cn/app/a161a4e5-a226-4133-908f-c28c228b7ea5'
+      '- maker_url: https://maker.taptap.cn/app/a161a4e5-a226-4133-908f-c28c228b7ea5?localDev=1'
     );
     expect(output).toContain('runtime_logs:');
     expect(output).toContain('- watch_started: yes');
@@ -2852,10 +2858,37 @@ describe('maker build local-change guard', () => {
       }
     );
 
-    expect(output).toContain('- maker_url: https://maker.taptap.cn/app/app-1');
+    expect(output).toContain('- maker_url: https://maker.taptap.cn/app/app-1?localDev=1');
     expect(output).not.toContain('maker_page_open');
     expect(output).not.toContain('maker_page_url');
     expect(output).not.toContain('自动弹出');
+  });
+
+  test('maker app preview URL keeps custom web URL path and appends localDev', () => {
+    process.env.TAPTAP_MAKER_WEB_URL = 'https://maker.example.test/tenant/dev';
+
+    const output = formatBuildResult(
+      {
+        mode: 'remote_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://maker.example.test/tenant/dev/mcp/v1',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+        resultText: 'build ok',
+      },
+      {
+        elapsedMs: 1000,
+        elapsed: '1s',
+        progressEvents: 1,
+      }
+    );
+
+    expect(output).toContain(
+      '- maker_url: https://maker.example.test/tenant/dev/app/app-1?localDev=1'
+    );
   });
 
   test('submit tool pushes and then runs remote build', async () => {
@@ -3000,7 +3033,7 @@ describe('maker build local-change guard', () => {
       }
     );
 
-    expect(output).toContain('- maker_url: https://fuping.agnt.xd.com/app/app-rnd');
+    expect(output).toContain('- maker_url: https://fuping.agnt.xd.com/app/app-rnd?localDev=1');
   });
 
   test('push failure output explains Maker retry path without generic git push', () => {

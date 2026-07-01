@@ -258,7 +258,8 @@ MCP 运行期能力：
   `.maker/logs/runtime/runtime.log`，保持 server 日志行格式（`t/topic/level/msg/userId`
   等），但去掉无用的 `id` 字段，也不再补 `time/message` 重复字段；并维护
   `.maker/logs/runtime/state.json` 的 `nextStartTime` 和心跳字段。
-- 构建成功输出会包含 `maker_url`，格式为 `https://maker.taptap.cn/app/<project_id>` 或当前环境对应的 Maker Web URL，可直接打开远端 Maker 页面预览。
+- 构建成功输出会包含 `maker_url`，格式为
+  `https://maker.taptap.cn/app/<project_id>?localDev=1` 或当前环境对应的 Maker Web URL，可直接打开远端 Maker 本地开发预览。
 - 构建成功并收到远端 build 返回后，MCP 会用本地缓存 Maker PAT 调用当前环境
   Maker API：`POST /api/v1/apps/<APP_ID>/preview-refresh`，主动刷新 Maker Web 端预览。
 - 构建成功输出会包含 `runtime_logs.watch_started`、`runtime_logs.watch_pid` 和
@@ -499,8 +500,9 @@ Windows 兼容注意：
   `Trae/User/mcp.json`、`Trae CN/User/mcp.json`，并兼容 `TRAE SOLO CN/User/mcp.json`；
   Windows 常见位置包括 `%APPDATA%\TRAE SOLO\User\mcp.json`、
   `%APPDATA%\Trae\User\mcp.json` 和 `%APPDATA%\Trae CN\User\mcp.json`。
-- WorkBuddy 在 macOS 写 `~/.workbuddy/.mcp.json`，Windows 写
-  `%USERPROFILE%\.workbuddy\mcp.json`，另一配置文件仅在已存在时作为 fallback 合并。
+- WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的 `.workbuddy/mcp.json`；
+  显式传 `--ide workbuddy` 时会创建该官方配置文件。未显式指定 IDE 的自动检测模式下，
+  legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为 fallback 合并。
 - OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入，不主动创建。
 - MCP 配置写入时会在对应 MCP server 进程环境中增加
   `TAPTAP_MCP_CLIENT_IDE=<ide>`，取值为 `codex`、`cursor`、`claude`、`trae`、

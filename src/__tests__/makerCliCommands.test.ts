@@ -721,10 +721,7 @@ describe('Maker CLI commands', () => {
   });
 
   test('explicit workbuddy mcp install writes platform config file', async () => {
-    const configPath =
-      process.platform === 'win32'
-        ? path.join(tempDir, '.workbuddy', 'mcp.json')
-        : path.join(tempDir, '.workbuddy', '.mcp.json');
+    const configPath = path.join(tempDir, '.workbuddy', 'mcp.json');
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
     fs.writeFileSync(
       configPath,
@@ -758,11 +755,63 @@ describe('Maker CLI commands', () => {
     });
   });
 
+  test('explicit workbuddy mcp install creates the official config file when missing', async () => {
+    const configPath = path.join(tempDir, '.workbuddy', 'mcp.json');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'workbuddy', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        ide: 'workbuddy',
+        ok: true,
+        path: configPath,
+      }),
+    ]);
+    expect(JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
+    });
+  });
+
+  test('workbuddy mcp install prefers official mcp.json over legacy .mcp.json', async () => {
+    const configPath = path.join(tempDir, '.workbuddy', 'mcp.json');
+    const legacyPath = path.join(tempDir, '.workbuddy', '.mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ mcpServers: { official: { command: 'official' } } }, null, 2),
+      'utf8'
+    );
+    fs.writeFileSync(
+      legacyPath,
+      JSON.stringify({ mcpServers: { legacy: { command: 'legacy' } } }, null, 2),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'workbuddy', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        ide: 'workbuddy',
+        ok: true,
+        path: configPath,
+      }),
+    ]);
+    expect(JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
+    });
+    expect(JSON.parse(fs.readFileSync(legacyPath, 'utf8')).mcpServers).toEqual({
+      legacy: { command: 'legacy' },
+    });
+  });
+
   test('workbuddy auto install writes existing platform config file', async () => {
-    const workBuddyConfigPath =
-      process.platform === 'win32'
-        ? path.join(tempDir, '.workbuddy', 'mcp.json')
-        : path.join(tempDir, '.workbuddy', '.mcp.json');
+    const workBuddyConfigPath = path.join(tempDir, '.workbuddy', 'mcp.json');
     fs.mkdirSync(path.dirname(workBuddyConfigPath), { recursive: true });
     const runtimeConfig = `${JSON.stringify(
       {
