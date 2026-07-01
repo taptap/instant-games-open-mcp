@@ -848,7 +848,7 @@ async function formatStatus(
 }
 
 function formatAsyncBuildStatus(projectRoot: string): string {
-  const active = readJsonFile(getAsyncBuildWatcherPaths(projectRoot, 'unused').activeFile) as
+  const active = readJsonFile(getAsyncBuildActiveFilePath(projectRoot)) as
     | { taskId?: string; stateFile?: string; deadlineAt?: string; pid?: number; reused?: boolean }
     | undefined;
   if (!active?.taskId) {
@@ -1897,6 +1897,7 @@ type StopRuntimeLogWatcherOptions = {
 };
 type StartRuntimeLogWatch = (buildResult: RemoteBuildResult) => Promise<RuntimeLogWatchStartResult>;
 type RuntimeLogMcpClient = Pick<Client, 'connect' | 'callTool' | 'close'>;
+type AsyncBuildMcpClient = Pick<Client, 'connect' | 'callTool' | 'close'>;
 type RemoteRuntimeLogClient = {
   call: (args: RuntimeLogQueryArgs) => Promise<RuntimeLogQueryResult>;
   close: () => Promise<void>;
@@ -2343,11 +2344,14 @@ async function attachAndWaitAsyncBuildResult(
   if (finalState.status === 'failed') {
     throw new RemoteBuildFailedError(finalResult);
   }
-  throw new Error(
-    `Async Maker build did not finish successfully: ${finalState.status}${
-      finalState.error ? `: ${formatAsyncBuildDiagnostic(finalState.error)}` : ''
-    }`
-  );
+  throw new RemoteBuildFailedError({
+    ...finalResult,
+    resultText:
+      finalResult.resultText ||
+      `Async Maker build did not finish successfully: ${finalState.status}${
+        finalState.error ? `: ${formatAsyncBuildDiagnostic(finalState.error)}` : ''
+      }`,
+  });
 }
 
 function formatAsyncBuildDiagnostic(value: unknown): string {
@@ -2361,7 +2365,13 @@ function formatAsyncBuildDiagnostic(value: unknown): string {
   }
 }
 
-function createRemoteAsyncBuildQueryRunner(buildResult: RemoteBuildAsyncStartedResult): {
+export function createRemoteAsyncBuildQueryRunner(
+  buildResult: RemoteBuildAsyncStartedResult,
+  options: {
+    createTransport?: () => Transport;
+    createClient?: () => AsyncBuildMcpClient;
+  } = {}
+): {
   query: (taskId: string) => Promise<AsyncBuildQueryResult>;
   close: () => Promise<void>;
 } {
@@ -2377,48 +2387,72 @@ function createRemoteAsyncBuildQueryRunner(buildResult: RemoteBuildAsyncStartedR
   const taskIdParam =
     process.env.TAPTAP_MAKER_REMOTE_ASYNC_BUILD_QUERY_TASK_ID_PARAM?.trim() ||
     DEFAULT_REMOTE_ASYNC_BUILD_QUERY_TASK_ID_PARAM;
-  const transport = trackMakerChildTransport(
-    new HiddenStdioClientTransport({
-      command: proxy.command,
-      args: proxy.args,
-      env: mergeStringEnv(process.env, proxy.envVars),
-      stderr: 'pipe',
-    })
-  );
-  const client = new Client(
-    {
-      name: 'taptap-maker-async-build-query-forwarder',
-      version: VERSION,
-    },
-    {
-      capabilities: {},
+  let client: AsyncBuildMcpClient | undefined;
+  const createTransport =
+    options.createTransport ||
+    (() =>
+      trackMakerChildTransport(
+        new HiddenStdioClientTransport({
+          command: proxy.command,
+          args: proxy.args,
+          env: mergeStringEnv(process.env, proxy.envVars),
+          stderr: 'pipe',
+        })
+      ));
+  const createClient =
+    options.createClient ||
+    (() =>
+      new Client(
+        {
+          name: 'taptap-maker-async-build-query-forwarder',
+          version: VERSION,
+        },
+        {
+          capabilities: {},
+        }
+      ));
+
+  const ensureClient = async (): Promise<AsyncBuildMcpClient> => {
+    if (client) {
+      return client;
     }
-  );
-  let connectPromise: Promise<void> | undefined;
-  const ensureConnected = async (): Promise<void> => {
-    if (!connectPromise) {
-      connectPromise = client.connect(transport);
+    const nextClient = createClient();
+    await nextClient.connect(createTransport());
+    client = nextClient;
+    return nextClient;
+  };
+
+  const close = async (): Promise<void> => {
+    const activeClient = client;
+    client = undefined;
+    if (activeClient) {
+      await activeClient.close();
     }
-    await connectPromise;
   };
 
   return {
     query: async (taskId: string): Promise<AsyncBuildQueryResult> => {
-      await ensureConnected();
-      const result = await client.callTool(
-        {
-          name: queryToolName,
-          arguments: { [taskIdParam]: taskId },
-        },
-        undefined,
-        {
-          timeout: DEFAULT_BUILD_TIMEOUT_MS,
-        }
-      );
+      const activeClient = await ensureClient();
+      let result: unknown;
+      try {
+        result = await activeClient.callTool(
+          {
+            name: queryToolName,
+            arguments: { [taskIdParam]: taskId },
+          },
+          undefined,
+          {
+            timeout: DEFAULT_BUILD_TIMEOUT_MS,
+          }
+        );
+      } catch (error) {
+        await close().catch(() => {});
+        throw error;
+      }
       return normalizeAsyncBuildQueryResult(result);
     },
     close: async (): Promise<void> => {
-      await client.close().catch(() => {});
+      await close().catch(() => {});
     },
   };
 }
@@ -2843,7 +2877,7 @@ export function stopExistingAsyncBuildResultWatcher(
     'cancelled' | 'cancelled_by_new_build'
   > = 'cancelled'
 ): { previousTaskId?: string; previousStopped?: boolean } {
-  const activeFile = getAsyncBuildWatcherPaths(projectRoot, 'unused').activeFile;
+  const activeFile = getAsyncBuildActiveFilePath(projectRoot);
   const active = readJsonFile(activeFile) as { taskId?: string; stateFile?: string } | undefined;
   const watcher = activeAsyncBuildWatchers.get(activeFile);
   if (!active && !watcher) {
@@ -2959,9 +2993,14 @@ function getAsyncBuildWatcherPaths(
   const normalizedProjectRoot = normalizeExistingProjectPath(projectRoot);
   const buildDir = path.join(normalizedProjectRoot, '.maker', 'builds');
   return {
-    activeFile: path.join(buildDir, 'active-build.json'),
+    activeFile: getAsyncBuildActiveFilePath(projectRoot),
     stateFile: path.join(buildDir, `${sanitizeAsyncBuildTaskId(taskId)}.json`),
   };
+}
+
+function getAsyncBuildActiveFilePath(projectRoot: string): string {
+  const normalizedProjectRoot = normalizeExistingProjectPath(projectRoot);
+  return path.join(normalizedProjectRoot, '.maker', 'builds', 'active-build.json');
 }
 
 function normalizeExistingProjectPath(projectRoot: string): string {

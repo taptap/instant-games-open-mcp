@@ -19,6 +19,7 @@ import {
   prepareRemoteProxyToolArgs,
   createRemoteProxyContext,
   createRemoteProxyProgressHandler,
+  createRemoteAsyncBuildQueryRunner,
   createRemoteRuntimeLogClient,
   startAsyncBuildResultWatcher,
   stopExistingAsyncBuildResultWatcher,
@@ -1064,6 +1065,38 @@ describe('maker build local-change guard', () => {
     expect(watchedProjects).toEqual(['app-remote-only']);
     expect('previewRefresh' in result ? result.previewRefresh?.ok : undefined).toBe(true);
     expect('runtimeLogWatch' in result ? result.runtimeLogWatch?.started : undefined).toBe(true);
+  });
+
+  test('confirmed remote-only async build expired state returns structured failure', async () => {
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      confirmRemoteBuildWithoutSubmit: true,
+      callRemoteBuild: async () => ({
+        mode: 'remote_build_async_started',
+        projectRoot: fs.realpathSync(tempDir),
+        projectId: 'app-remote-expired',
+        projectPath: 'app-remote-expired/workspace',
+        serverUrl: 'https://maker.example.test/mcp',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: { async: true },
+        taskId: 'build-remote-expired',
+        resultText: '{"build_id":"build-remote-expired","status":"running"}',
+      }),
+      queryAsyncBuildResult: async () => {
+        throw new Error('未找到 build_id=build-remote-expired 的构建任务（可能已过期）');
+      },
+      asyncBuildPollIntervalMs: 1,
+    });
+
+    expect(result.mode).toBe('remote_build_failed');
+    expect('buildResult' in result ? result.buildResult.projectId : undefined).toBe(
+      'app-remote-expired'
+    );
+    expect('buildFailure' in result ? result.buildFailure.name : undefined).toBe(
+      'RemoteBuildFailedError'
+    );
+    expect('buildFailure' in result ? result.buildFailure.message : '').toContain('expired');
   });
 
   test('async build failure after submit does not run success side effects', async () => {
@@ -3561,6 +3594,59 @@ describe('maker build local-change guard', () => {
       undefined,
       expect.objectContaining({ timeout: 60 * 60 * 1000 })
     );
+  });
+
+  test('async build query runner reconnects after call failure', async () => {
+    saveTapAuth({ kid: 'rnd-kid', token: 'rnd-token', mac_key: 'rnd-mac-key' });
+    const firstConnect = jest.fn(async () => undefined);
+    const secondConnect = jest.fn(async () => undefined);
+    const firstCallTool = jest.fn(async () => {
+      throw new Error('transport closed');
+    });
+    const secondCallTool = jest.fn(async () => ({
+      content: [{ type: 'text', text: '{"status":"succeeded","progress":100}' }],
+    }));
+    const firstClose = jest.fn(async () => undefined);
+    const secondClose = jest.fn(async () => undefined);
+    const createClient = jest
+      .fn()
+      .mockReturnValueOnce({ connect: firstConnect, callTool: firstCallTool, close: firstClose })
+      .mockReturnValueOnce({
+        connect: secondConnect,
+        callTool: secondCallTool,
+        close: secondClose,
+      });
+    const createTransport = jest.fn(() => ({}) as never);
+
+    const runner = createRemoteAsyncBuildQueryRunner(
+      {
+        mode: 'remote_build_async_started',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        projectPath: 'app-1/workspace',
+        serverUrl: 'https://maker.example.test/mcp',
+        env: 'rnd',
+        makerUrl: 'https://maker.example.test/app/app-1?localDev=1',
+        timeoutMs: 600000,
+        buildArgs: { async: true },
+        taskId: 'build-reconnect',
+        resultText: '{"build_id":"build-reconnect"}',
+      },
+      { createClient, createTransport }
+    );
+
+    await expect(runner.query('build-reconnect')).rejects.toThrow('transport closed');
+    await expect(runner.query('build-reconnect')).resolves.toEqual(
+      expect.objectContaining({ status: 'succeeded' })
+    );
+    await runner.close();
+
+    expect(createClient).toHaveBeenCalledTimes(2);
+    expect(createTransport).toHaveBeenCalledTimes(2);
+    expect(firstConnect).toHaveBeenCalledTimes(1);
+    expect(secondConnect).toHaveBeenCalledTimes(1);
+    expect(firstClose).toHaveBeenCalledTimes(1);
+    expect(secondClose).toHaveBeenCalledTimes(1);
   });
 
   function runGit(args: string[], cwd = tempDir): void {
