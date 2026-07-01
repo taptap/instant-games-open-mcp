@@ -341,9 +341,11 @@ npx commitlint --from HEAD~1 --to HEAD
 
 **认证方式**：
 
-- 优先使用 npm Trusted Publishing / GitHub OIDC。
+- 只使用 npm Trusted Publishing / GitHub OIDC。
 - workflow 必须保留 `permissions.id-token: write`。
-- `npm publish --provenance` 失败时 fallback 到不带 provenance 的 `npm publish`。
+- publish job 会先升级 npm CLI，确保满足 Trusted Publishing 版本要求。
+- workflow 不再读取 `NPM_TOKEN`，也不再降级到不带 provenance 的 `npm publish`。
+- 如果 OIDC Trusted Publishing 配置失效，发布 job 必须直接失败并停止。
 
 **执行步骤**：
 
@@ -373,7 +375,7 @@ npx commitlint --from HEAD~1 --to HEAD
 - 手动发布如果修改三段版本号里的前两段，CI 会先在 Actions Summary 显示当前
   线上 dist-tag 版本和目标版本，再由人工点击 protected environment 审批按钮继续。
 - 发布 job 在实际 `npm publish` 前会再次检查目标版本是否仍未发布。
-- 如果带 provenance 和不带 provenance 的发布都失败，workflow 必须失败并停止。
+- 如果 `npm publish --provenance` 失败，workflow 必须失败并停止，不能降级发布。
 
 ### 5.5 主包与 Maker 包发布隔离
 
