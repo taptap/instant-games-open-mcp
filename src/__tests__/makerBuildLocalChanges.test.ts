@@ -951,6 +951,165 @@ describe('maker build local-change guard', () => {
     }
   });
 
+  test('async build success runs default preview refresh and runtime log watcher with original build args', async () => {
+    process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home-async-side-effects');
+    process.env.TAPTAP_MCP_ENV = 'rnd';
+    savePat({ token: 'rnd-pat' });
+    delete process.env.TAPTAP_MCP_ENV;
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn(async () => new Response('ok', { status: 200 }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const runtimeBuildArgs: Record<string, unknown>[] = [];
+
+    try {
+      const result = await buildCurrentDirectory({
+        targetDir: tempDir,
+        submitLocalChanges: async () => ({
+          branch: 'main',
+          committed: true,
+          commitHash: 'abc1234',
+          message: 'chore: update maker project',
+          pushed: true,
+          status: 'pushed',
+        }),
+        callRemoteBuild: async () => ({
+          mode: 'remote_build_async_started',
+          projectRoot: fs.realpathSync(tempDir),
+          projectId: 'app-1',
+          projectPath: 'app-1/workspace',
+          serverUrl: 'https://fuping.agnt.xd.com/mcp/v1',
+          env: 'rnd',
+          timeoutMs: 600000,
+          buildArgs: { async: true },
+          taskId: 'build-side-effects',
+          resultText: '{"build_id":"build-side-effects","status":"running"}',
+        }),
+        queryAsyncBuildResult: async () => ({
+          status: 'succeeded',
+          resultText: 'build ok',
+          result: { status: 'succeeded', progress: 100, phase: 'pack' },
+        }),
+        startRuntimeLogWatch: async (buildResult) => {
+          runtimeBuildArgs.push(buildResult.buildArgs);
+          return {
+            started: true,
+            command: 'watch',
+            runtimeLog: path.join(tempDir, '.maker', 'logs', 'runtime', 'runtime.log'),
+          };
+        },
+        asyncBuildPollIntervalMs: 1,
+      });
+
+      expect(result.mode).toBe('remote_build');
+      expect('previewRefresh' in result ? result.previewRefresh?.ok : undefined).toBe(true);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://fuping.agnt.xd.com/api/v1/apps/app-1/preview-refresh',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer rnd-pat',
+          }),
+        })
+      );
+      expect(runtimeBuildArgs).toEqual([{ async: true }]);
+      expect('runtimeLogWatch' in result ? result.runtimeLogWatch?.started : undefined).toBe(true);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('confirmed remote-only async build still runs success side effects', async () => {
+    const refreshedProjects: string[] = [];
+    const watchedProjects: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      confirmRemoteBuildWithoutSubmit: true,
+      callRemoteBuild: async () => ({
+        mode: 'remote_build_async_started',
+        projectRoot: fs.realpathSync(tempDir),
+        projectId: 'app-remote-only',
+        projectPath: 'app-remote-only/workspace',
+        serverUrl: 'https://maker.example.test/mcp',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: { async: true },
+        taskId: 'build-remote-only',
+        resultText: '{"build_id":"build-remote-only","status":"running"}',
+      }),
+      queryAsyncBuildResult: async () => ({
+        status: 'succeeded',
+        resultText: 'build ok',
+        result: { status: 'succeeded', progress: 100, phase: 'pack' },
+      }),
+      refreshPreview: async (buildResult) => {
+        refreshedProjects.push(buildResult.projectId);
+        return { ok: true, status: 200, url: 'https://maker.example.test/preview-refresh' };
+      },
+      startRuntimeLogWatch: async (buildResult) => {
+        watchedProjects.push(buildResult.projectId);
+        return { started: true, command: 'watch', runtimeLog: 'runtime.log' };
+      },
+      asyncBuildPollIntervalMs: 1,
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect('submitResult' in result ? result.submitResult : undefined).toBeUndefined();
+    expect(refreshedProjects).toEqual(['app-remote-only']);
+    expect(watchedProjects).toEqual(['app-remote-only']);
+    expect('previewRefresh' in result ? result.previewRefresh?.ok : undefined).toBe(true);
+    expect('runtimeLogWatch' in result ? result.runtimeLogWatch?.started : undefined).toBe(true);
+  });
+
+  test('async build failure after submit does not run success side effects', async () => {
+    const refreshedProjects: string[] = [];
+    const watchedProjects: string[] = [];
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges: async () => ({
+        branch: 'main',
+        committed: true,
+        commitHash: 'abc1234',
+        message: 'chore: update maker project',
+        pushed: true,
+        status: 'pushed',
+      }),
+      callRemoteBuild: async () => ({
+        mode: 'remote_build_async_started',
+        projectRoot: fs.realpathSync(tempDir),
+        projectId: 'app-async-fail',
+        projectPath: 'app-async-fail/workspace',
+        serverUrl: 'https://maker.example.test/mcp',
+        env: 'rnd',
+        timeoutMs: 600000,
+        buildArgs: { async: true },
+        taskId: 'build-async-fail',
+        resultText: '{"build_id":"build-async-fail","status":"running"}',
+      }),
+      queryAsyncBuildResult: async () => ({
+        status: 'failed',
+        resultText: 'BUILD FAILED: lua syntax error',
+        result: { status: 'failed', error: 'lua syntax error' },
+        error: 'lua syntax error',
+      }),
+      refreshPreview: async (buildResult) => {
+        refreshedProjects.push(buildResult.projectId);
+        return { ok: true, status: 200, url: 'preview-refresh' };
+      },
+      startRuntimeLogWatch: async (buildResult) => {
+        watchedProjects.push(buildResult.projectId);
+        return { started: true, command: 'watch', runtimeLog: 'runtime.log' };
+      },
+      asyncBuildPollIntervalMs: 1,
+    });
+
+    expect(result.mode).toBe('build_failed_after_submit');
+    expect('submitResult' in result ? result.submitResult.pushed : undefined).toBe(true);
+    expect('buildFailure' in result ? result.buildFailure.message : '').toContain('BUILD FAILED');
+    expect(refreshedProjects).toEqual([]);
+    expect(watchedProjects).toEqual([]);
+  });
+
   test('syncs local changes from a Maker project subdirectory', async () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
     const submitCwds: string[] = [];

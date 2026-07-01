@@ -1884,6 +1884,7 @@ type ActiveAsyncBuildWatcher = {
   timer?: NodeJS.Timeout;
   stopped?: boolean;
   state: AsyncBuildWatcherState;
+  sourceBuildResult?: RemoteBuildAsyncStartedResult;
   activeFile: string;
   stateFile: string;
   onStop?: () => Promise<void> | void;
@@ -2305,8 +2306,9 @@ function attachAsyncBuildWatcher(
       env: buildResult.env,
       taskId: buildResult.taskId,
       reused: buildResult.reused,
+      sourceBuildResult: buildResult,
       queryBuildResult: () => queryBuildResult(buildResult.taskId),
-      refreshPreview: options.refreshPreview,
+      refreshPreview: options.refreshPreview || refreshMakerPreview,
       startRuntimeLogWatch: options.startRuntimeLogWatch || startRuntimeLogWatch,
       pollIntervalMs: options.asyncBuildPollIntervalMs,
       onProgress: options.onProgress,
@@ -2629,6 +2631,7 @@ export function startAsyncBuildResultWatcher(options: {
   env: string;
   taskId: string;
   reused?: boolean;
+  sourceBuildResult?: RemoteBuildAsyncStartedResult;
   queryBuildResult: () => Promise<AsyncBuildQueryResult>;
   refreshPreview?: RefreshMakerPreview;
   startRuntimeLogWatch?: StartRuntimeLogWatch;
@@ -2666,6 +2669,7 @@ export function startAsyncBuildResultWatcher(options: {
   });
   const watcher: ActiveAsyncBuildWatcher = {
     state,
+    sourceBuildResult: options.sourceBuildResult,
     activeFile: paths.activeFile,
     stateFile: paths.stateFile,
     onStop: options.onStop,
@@ -2876,7 +2880,10 @@ async function finishAsyncBuildSuccessSideEffects(
     startRuntimeLogWatch?: StartRuntimeLogWatch;
   }
 ): Promise<void> {
-  const buildResult = asyncWatcherStateToRemoteBuildResult(watcher.state);
+  const buildResult = asyncWatcherStateToRemoteBuildResult(
+    watcher.state,
+    watcher.sourceBuildResult
+  );
   if (options.refreshPreview) {
     try {
       updateAsyncBuildWatcherState(watcher, {
