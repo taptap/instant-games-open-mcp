@@ -70,8 +70,10 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 - Windows 下生成通用 `mcpServers` 配置时通过 `cmd.exe` 包装 `npx.cmd`，兼容无 shell 的 MCP 启动器。
 - OpenCode 使用官方 `mcp` schema 和 command 数组，不写环境变量，且只写已存在配置文件；
   Trae Solo/Solo CN 优先支持，按 `User/` 目录创建或合并 `User/mcp.json`，普通 Trae
-  只在 `mcp.json` 已存在时更新；WorkBuddy 按平台写配置，macOS 写
-  `~/.workbuddy/.mcp.json`，Windows 写 `%USERPROFILE%\.workbuddy\mcp.json`。
+  只在 `mcp.json` 已存在时更新；WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的
+  `.workbuddy/mcp.json`，显式传 `--ide workbuddy` 时会创建该官方配置文件。未显式指定 IDE
+  的自动检测模式下，legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为
+  fallback 合并。
 - 初始化失败时保留现场，返回可重试状态，不自动删除用户文件。
 - 用户选择 app 后立即写入 `.maker-mcp/config.json`；clone/fetch 失败后重复执行
   `taptap-maker init` 会复用这个选择继续，后续缺失状态交给 `taptap-maker doctor` 判断。

@@ -1638,10 +1638,15 @@ function installMcpConfigUnsafe(ide: string, options: McpInstallOptions): McpIns
   }
 
   if (ide === 'workbuddy') {
-    return installJsonMcpConfigTargets(ide, getWorkBuddyMcpInstallPaths(), 'WorkBuddy', {
-      ...options,
-      clientIde: 'workbuddy',
-    });
+    return installJsonMcpConfigTargets(
+      ide,
+      getWorkBuddyMcpInstallPaths({ createPrimary: true }),
+      'WorkBuddy',
+      {
+        ...options,
+        clientIde: 'workbuddy',
+      }
+    );
   }
 
   return [{ ide, ok: false, message: `Skipped unknown IDE: ${ide}` }];
@@ -1783,19 +1788,16 @@ function getOpenCodeMcpConfigPath(): string {
   return path.join(os.homedir(), '.config', 'opencode', 'opencode.jsonc');
 }
 
-function getWorkBuddyMcpInstallPaths(): string[] {
+function getWorkBuddyMcpInstallPaths(options: { createPrimary?: boolean } = {}): string[] {
   const primary = path.join(os.homedir(), '.workbuddy', 'mcp.json');
-  const runtime = path.join(os.homedir(), '.workbuddy', '.mcp.json');
-  const preferred = process.platform === 'win32' ? primary : runtime;
-  const fallback = process.platform === 'win32' ? runtime : primary;
-  const paths: string[] = [];
-  if (fs.existsSync(preferred)) {
-    paths.push(preferred);
+  if (fs.existsSync(primary) || options.createPrimary) {
+    return [primary];
   }
-  if (fs.existsSync(fallback)) {
-    paths.push(fallback);
+  const legacy = path.join(os.homedir(), '.workbuddy', '.mcp.json');
+  if (fs.existsSync(legacy)) {
+    return [legacy];
   }
-  return paths;
+  return [];
 }
 
 function mergeJsonMcpConfig(configPath: string, options: McpInstallOptions): ConfigWriteResult {
