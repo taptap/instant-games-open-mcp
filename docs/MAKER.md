@@ -628,6 +628,8 @@ maker_build_current_directory()
   `maker_build_current_directory` MCP 调用不会立即结束，而是在本地继续轮询远端结果。
 - 本地默认每 5 秒调用远端 `query_build(build_id)`，最多 30 分钟；拿到
   `succeeded` 或 `failed` 后结束本次 MCP 调用，同一 Maker 项目再次触发构建时会取消上一轮轮询。
+- 异步构建拿到 `succeeded` 后，会和同步构建成功路径一样刷新 Maker Web 预览，并启动本地
+  runtime log watcher；拿到 `failed` 时不会执行这些成功后的 side effects。
 - `query_build` 返回 `status`、`progress`、`phase`、`elapsed_seconds` 以及
   `result` / `error`，本地状态文件会原样保留这些字段用于诊断。
 - 轮询状态写入 `.maker/builds/active-build.json` 和 `.maker/builds/<build_id>.json`；
