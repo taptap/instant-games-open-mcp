@@ -232,6 +232,48 @@ describe('maker build local-change guard', () => {
     expect('reused' in result ? result.reused : undefined).toBe(true);
   });
 
+  test('parses async build receipt from multiline remote text', () => {
+    const result = createRemoteBuildCallResult({
+      projectRoot: tempDir,
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      timeoutMs: 600000,
+      buildArgs: { async: true },
+      resultText:
+        'Maker build accepted\n{"build_id":"build-multiline","status":"running","reused":false}',
+      asyncBuild: true,
+    });
+
+    expect(result.mode).toBe('remote_build_async_started');
+    expect('taskId' in result ? result.taskId : undefined).toBe('build-multiline');
+    expect('reused' in result ? result.reused : undefined).toBe(false);
+  });
+
+  test('parses async build receipt from fenced json remote text', () => {
+    const result = createRemoteBuildCallResult({
+      projectRoot: tempDir,
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      timeoutMs: 600000,
+      buildArgs: { async: true },
+      resultText: [
+        'Maker build accepted',
+        '```json',
+        '{"build_id":"build-fenced","status":"running","reused":true}',
+        '```',
+      ].join('\n'),
+      asyncBuild: true,
+    });
+
+    expect(result.mode).toBe('remote_build_async_started');
+    expect('taskId' in result ? result.taskId : undefined).toBe('build-fenced');
+    expect('reused' in result ? result.reused : undefined).toBe(true);
+  });
+
   test('async build watcher polls every 5 seconds and stops after success', async () => {
     jest.useFakeTimers();
     const statuses: string[] = [];

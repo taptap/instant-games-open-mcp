@@ -2271,14 +2271,68 @@ function parseJsonObjectFromText(text: string): Record<string, unknown> | undefi
   if (!trimmed) {
     return undefined;
   }
-  try {
-    const parsed = JSON.parse(trimmed);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : undefined;
-  } catch {
-    return undefined;
+  for (const candidate of extractJsonObjectCandidates(trimmed)) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Try the next candidate from multi-part MCP text.
+    }
   }
+  return undefined;
+}
+
+function extractJsonObjectCandidates(text: string): string[] {
+  const candidates = new Set<string>([text]);
+  const fencedJsonPattern = /```(?:json)?\s*([\s\S]*?)```/gi;
+  let fencedMatch: RegExpExecArray | null;
+  while ((fencedMatch = fencedJsonPattern.exec(text)) !== null) {
+    const candidate = fencedMatch[1]?.trim();
+    if (candidate) {
+      candidates.add(candidate);
+    }
+  }
+
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaping = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+      } else if (char === '\\') {
+        escaping = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === '{') {
+      if (depth === 0) {
+        start = index;
+      }
+      depth += 1;
+      continue;
+    }
+    if (char === '}' && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        candidates.add(text.slice(start, index + 1));
+        start = -1;
+      }
+    }
+  }
+
+  return [...candidates].map((candidate) => candidate.trim()).filter(Boolean);
 }
 
 function attachAsyncBuildWatcher(
