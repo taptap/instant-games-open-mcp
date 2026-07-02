@@ -143,6 +143,14 @@ type McpInstallResult = {
   backupPath?: string;
 };
 
+type McpInstallOptions = {
+  env: MakerEnvironment;
+  pkg: string;
+  mcpName: string;
+  cwd?: string;
+  clientIde?: string;
+};
+
 export async function runMakerCli(argv: string[]): Promise<void> {
   const parsed = parseArgs(argv);
   setMakerEnvironmentOverride(makerEnvOption(parsed));
@@ -1559,10 +1567,7 @@ function installMcpConfigs(options: {
   return uniqueStrings(options.ides).flatMap((ide) => installMcpConfig(ide, options));
 }
 
-function installMcpConfig(
-  ide: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
-): McpInstallResult[] {
+function installMcpConfig(ide: string, options: McpInstallOptions): McpInstallResult[] {
   try {
     return installMcpConfigUnsafe(ide, options);
   } catch (error) {
@@ -1578,25 +1583,23 @@ function installMcpConfig(
   }
 }
 
-function installMcpConfigUnsafe(
-  ide: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
-): McpInstallResult[] {
+function installMcpConfigUnsafe(ide: string, options: McpInstallOptions): McpInstallResult[] {
   if (ide === 'codex') {
     const configPath = path.join(os.homedir(), '.codex', 'config.toml');
-    const write = mergeCodexMcpConfig(configPath, options);
+    const write = mergeCodexMcpConfig(configPath, withClientIde(options, 'codex'));
     return [createMcpInstallResult(ide, 'Codex', configPath, write)];
   }
 
   if (ide === 'cursor') {
     const configPath = path.join(os.homedir(), '.cursor', 'mcp.json');
-    const write = mergeJsonMcpConfig(configPath, options);
+    const write = mergeJsonMcpConfig(configPath, withClientIde(options, 'cursor'));
     return [createMcpInstallResult(ide, 'Cursor', configPath, write)];
   }
 
   if (ide === 'claude') {
+    const claudeOptions = withClientIde(options, 'claude');
     if (!options.cwd) {
-      const claudeResult = tryClaudeMcpAdd(options);
+      const claudeResult = tryClaudeMcpAdd(claudeOptions);
       if (claudeResult.ok) {
         return [
           {
@@ -1608,12 +1611,17 @@ function installMcpConfigUnsafe(
       }
     }
     const configPath = path.join(os.homedir(), '.claude.json');
-    const write = mergeJsonMcpConfig(configPath, options);
+    const write = mergeJsonMcpConfig(configPath, claudeOptions);
     return [createMcpInstallResult(ide, 'Claude fallback', configPath, write)];
   }
 
   if (ide === 'trae') {
-    return installJsonMcpConfigTargets(ide, getTraeMcpInstallPaths(), 'Trae', options);
+    return installJsonMcpConfigTargets(
+      ide,
+      getTraeMcpInstallPaths(),
+      'Trae',
+      withClientIde(options, 'trae')
+    );
   }
 
   if (ide === 'opencode') {
@@ -1621,7 +1629,7 @@ function installMcpConfigUnsafe(
     if (!fs.existsSync(configPath)) {
       return [{ ide, ok: false, message: 'Skipped OpenCode: no supported config file found' }];
     }
-    const write = mergeOpenCodeMcpConfig(configPath, options);
+    const write = mergeOpenCodeMcpConfig(configPath, withClientIde(options, 'opencode'));
     const result = createMcpInstallResult(ide, 'OpenCode', configPath, write);
     if (write.rewroteJsonc) {
       result.message += '\n  Note: OpenCode config was rewritten as standard JSON.';
@@ -1630,17 +1638,29 @@ function installMcpConfigUnsafe(
   }
 
   if (ide === 'workbuddy') {
-    return installJsonMcpConfigTargets(ide, getWorkBuddyMcpInstallPaths(), 'WorkBuddy', options);
+    return installJsonMcpConfigTargets(
+      ide,
+      getWorkBuddyMcpInstallPaths({ createPrimary: true }),
+      'WorkBuddy',
+      {
+        ...options,
+        clientIde: 'workbuddy',
+      }
+    );
   }
 
   return [{ ide, ok: false, message: `Skipped unknown IDE: ${ide}` }];
+}
+
+function withClientIde(options: McpInstallOptions, clientIde: string): McpInstallOptions {
+  return { ...options, clientIde };
 }
 
 function installJsonMcpConfigTargets(
   ide: string,
   configPaths: string[],
   label: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
+  options: McpInstallOptions
 ): McpInstallResult[] {
   if (configPaths.length === 0) {
     return [{ ide, ok: false, message: `Skipped ${label}: no supported config file found` }];
@@ -1768,25 +1788,19 @@ function getOpenCodeMcpConfigPath(): string {
   return path.join(os.homedir(), '.config', 'opencode', 'opencode.jsonc');
 }
 
-function getWorkBuddyMcpInstallPaths(): string[] {
+function getWorkBuddyMcpInstallPaths(options: { createPrimary?: boolean } = {}): string[] {
   const primary = path.join(os.homedir(), '.workbuddy', 'mcp.json');
-  const runtime = path.join(os.homedir(), '.workbuddy', '.mcp.json');
-  const preferred = process.platform === 'win32' ? primary : runtime;
-  const fallback = process.platform === 'win32' ? runtime : primary;
-  const paths: string[] = [];
-  if (fs.existsSync(preferred)) {
-    paths.push(preferred);
+  if (fs.existsSync(primary) || options.createPrimary) {
+    return [primary];
   }
-  if (fs.existsSync(fallback)) {
-    paths.push(fallback);
+  const legacy = path.join(os.homedir(), '.workbuddy', '.mcp.json');
+  if (fs.existsSync(legacy)) {
+    return [legacy];
   }
-  return paths;
+  return [];
 }
 
-function mergeJsonMcpConfig(
-  configPath: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
-): ConfigWriteResult {
+function mergeJsonMcpConfig(configPath: string, options: McpInstallOptions): ConfigWriteResult {
   const existing = readJsonObject(configPath);
   const mcpServers = asObject(existing.mcpServers);
   mcpServers[options.mcpName] = createJsonMcpServerConfig(options);
@@ -1798,10 +1812,7 @@ function mergeJsonMcpConfig(
   );
 }
 
-function mergeOpenCodeMcpConfig(
-  configPath: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
-): ConfigWriteResult {
+function mergeOpenCodeMcpConfig(configPath: string, options: McpInstallOptions): ConfigWriteResult {
   const rawContent = fs.readFileSync(configPath, 'utf8');
   const rewroteJsonc = normalizeJsonConfigContent(rawContent, { jsonc: true }) !== rawContent;
   const existing = readJsonObject(configPath, { jsonc: true });
@@ -1831,18 +1842,20 @@ function mergeOpenCodeMcpConfig(
   return { ...write, rewroteJsonc: write.changed && rewroteJsonc };
 }
 
-function mergeCodexMcpConfig(
-  configPath: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
-): ConfigWriteResult {
+function mergeCodexMcpConfig(configPath: string, options: McpInstallOptions): ConfigWriteResult {
   const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
   const sectionPattern = createCodexMcpSectionPattern(options.mcpName);
   const withoutOld = existing.replace(sectionPattern, '').trimEnd();
   const launch = getNpxCliCommand(options.pkg);
+  const envValues = createMcpEnvironmentValues(options.env, options.clientIde);
   const envSection =
-    options.env === 'production'
+    Object.keys(envValues).length === 0
       ? []
-      : ['', `[mcp_servers."${options.mcpName}".env]`, `TAPTAP_MCP_ENV = "${options.env}"`];
+      : [
+          '',
+          `[mcp_servers."${options.mcpName}".env]`,
+          ...Object.entries(envValues).map(([key, value]) => `${key} = "${escapeToml(value)}"`),
+        ];
   const section = [
     `[mcp_servers."${options.mcpName}"]`,
     `command = "${escapeToml(launch.command)}"`,
@@ -1911,9 +1924,7 @@ function normalizeCodexMcpTablePath(tablePath: string, mcpName: string): string 
   return `mcp_servers.${mcpName}${match[1] || ''}`;
 }
 
-function tryClaudeMcpAdd(options: { env: MakerEnvironment; pkg: string; mcpName: string }): {
-  ok: boolean;
-} {
+function tryClaudeMcpAdd(options: McpInstallOptions): { ok: boolean } {
   const npxLaunch = getNpxCliCommand(options.pkg);
   const claudeArgs = [
     'mcp',
@@ -1923,6 +1934,7 @@ function tryClaudeMcpAdd(options: { env: MakerEnvironment; pkg: string; mcpName:
     '--transport',
     'stdio',
     ...(options.env === 'production' ? [] : ['--env', `TAPTAP_MCP_ENV=${options.env}`]),
+    ...(options.clientIde ? ['--env', `TAPTAP_MCP_CLIENT_IDE=${options.clientIde}`] : []),
     options.mcpName,
     '--',
     ...npxLaunch.commandAndArgs,
@@ -1936,7 +1948,7 @@ function tryClaudeMcpAdd(options: { env: MakerEnvironment; pkg: string; mcpName:
   return { ok: result.status === 0 };
 }
 
-function createJsonMcpServerConfig(options: { env: MakerEnvironment; pkg: string; cwd?: string }): {
+function createJsonMcpServerConfig(options: McpInstallOptions): {
   command: string;
   args: string[];
   cwd?: string;
@@ -1947,36 +1959,52 @@ function createJsonMcpServerConfig(options: { env: MakerEnvironment; pkg: string
     command: launch.command,
     args: launch.args,
     ...(options.cwd ? { cwd: options.cwd } : {}),
-    ...createOptionalMcpEnvironment(options.env, 'env'),
+    ...createOptionalMcpEnvironment(options.env, 'env', options.clientIde),
   };
 }
 
-function createOpenCodeMcpServerConfig(options: { pkg: string; cwd?: string }): {
+function createOpenCodeMcpServerConfig(options: McpInstallOptions): {
   type: 'local';
   command: string[];
   cwd?: string;
   enabled: true;
+  environment?: Record<string, string>;
 } {
   return {
     type: 'local',
     command: getOpenCodeNpxCliCommand(options.pkg),
     ...(options.cwd ? { cwd: options.cwd } : {}),
+    ...createOptionalMcpEnvironment(options.env, 'environment', options.clientIde),
     enabled: true,
   };
 }
 
 function createOptionalMcpEnvironment<Key extends 'env' | 'environment'>(
   env: MakerEnvironment,
-  key: Key
+  key: Key,
+  clientIde?: string
 ): Record<Key, Record<string, string>> | Record<string, never> {
-  if (env === 'production') {
+  const values = createMcpEnvironmentValues(env, clientIde);
+  if (Object.keys(values).length === 0) {
     return {};
   }
   return {
-    [key]: {
-      TAPTAP_MCP_ENV: env,
-    },
+    [key]: values,
   } as Record<Key, Record<string, string>>;
+}
+
+function createMcpEnvironmentValues(
+  env: MakerEnvironment,
+  clientIde?: string
+): Record<string, string> {
+  const values: Record<string, string> = {};
+  if (env !== 'production') {
+    values.TAPTAP_MCP_ENV = env;
+  }
+  if (clientIde) {
+    values.TAPTAP_MCP_CLIENT_IDE = clientIde;
+  }
+  return values;
 }
 
 function getOpenCodeNpxCliCommand(pkg: string): string[] {

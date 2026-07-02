@@ -614,6 +614,16 @@ export class TapTapMCPProxy {
       return true;
     }
 
+    // MCP SDK may wrap transport/session failures as McpError with negative codes.
+    // Keep these reconnectable before excluding real MCP application errors below.
+    if (errorMsg.includes('not connected') || this.isSessionInvalidError(error)) {
+      return true;
+    }
+
+    if (this.isMcpApplicationError(error)) {
+      return false;
+    }
+
     // 检查错误消息关键词（备选）
     const networkErrorKeywords = [
       'fetch failed',
@@ -623,7 +633,6 @@ export class TapTapMCPProxy {
       'connection reset',
       'timeout',
       'dns',
-      'not connected', // 连接断开
     ];
 
     if (networkErrorKeywords.some((keyword) => errorMsg.includes(keyword))) {
@@ -633,6 +642,12 @@ export class TapTapMCPProxy {
     // 🔑 关键：会话无效错误也需要触发重连
     // 这解决了多副本部署时连接到未初始化 Server 副本的问题
     return this.isSessionInvalidError(error);
+  }
+
+  private isMcpApplicationError(error: Error): boolean {
+    const message = error.message.toLowerCase();
+    const code = (error as any).code;
+    return (typeof code === 'number' && code < 0) || /\bmcp error -\d+/.test(message);
   }
 
   /**

@@ -86,9 +86,10 @@ taptap-maker dev-kit update
 默认会写入 Codex、Cursor、Claude，并自动检测本机已有的 Trae、OpenCode、WorkBuddy
 配置文件；命中后会合并安装 `taptap-maker`。Trae Solo 是重点支持目标，CLI 会在 Solo
 或 Solo CN 的 `User/` 目录存在时创建或合并 `User/mcp.json`；普通 Trae/Trae CN 仍作为
-候选路径保留，但只有 `mcp.json` 已存在时才合并写入。WorkBuddy 在 macOS 写
-`~/.workbuddy/.mcp.json`，Windows 写 `%USERPROFILE%\.workbuddy\mcp.json`，另一配置文件
-仅在已存在时作为 fallback 合并。OpenCode 只在
+候选路径保留，但只有 `mcp.json` 已存在时才合并写入。WorkBuddy 在 macOS 和 Windows 都优先写
+用户目录下的 `.workbuddy/mcp.json`；显式传 `--ide workbuddy` 时会创建该官方配置文件。
+未显式指定 IDE 的自动检测模式下，legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且
+自身已存在时作为 fallback 合并。OpenCode 只在
 `~/.config/opencode/opencode.jsonc` 已存在时写入。
 其它 AI 编辑器可按下面的通用 `mcpServers` 片段，让本地 AI 识别自己的配置文件位置后合并写入：
 
@@ -123,14 +124,16 @@ maker_status_lite               # Resource 不可用时的兼容 tool
 maker_build_current_directory   # commit/push/build 合并入口
 ```
 
-`maker_build_current_directory` 同时覆盖“构建 / 预览 / 跑一下 / 验证一下 / 提交 / 推送”。
+在已绑定 Maker 项目中，`maker_build_current_directory` 同时覆盖“构建 / 预览 / 跑一下 /
+查看结果 / 看看效果 / 验证游戏效果 / 提交 / 推送”。普通“验证代码 / 跑测试 / lint /
+检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。
 普通构建会先 push 到 Maker 远端再触发远端 build：本地有改动时提交改动，已有未推送 commit 时
 直接 push，本地干净且没有未推送 commit 时创建 `chore: wake maker build server` 空提交来唤醒远端
 服务。push 失败时不会继续 build，会返回本地 commit、ahead 状态、stderr/stdout 和下一步建议，
 交给本地 Agent/skill 处理 pull、rebase 或冲突；push 成功但 build 失败时，会明确说明代码已到
 Maker 远端但构建失败。只有用户明确说“不提交，只构建云端版本”时，才传
-`confirm_remote_build_without_submit=true`；该模式会先打开并返回 Maker 页面链接，方便用户查看远端
-项目并避免服务休眠导致构建失败。
+`confirm_remote_build_without_submit=true`；该模式只构建 Maker 远端已提交版本，不会自动打开
+Maker 页面。
 
 构建成功后，Maker MCP 会刷新 Maker Web 预览，并启动本地 runtime log watcher。后续如果用户询问
 游戏运行结果、Lua 报错或调试问题，本地 AI Agent 应优先读取构建返回中的

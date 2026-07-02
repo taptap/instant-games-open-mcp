@@ -85,7 +85,7 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('committed-but-unpushed local commits');
     expect(skillText).toContain('chore: wake maker build server');
     expect(skillText).toContain('confirm_remote_build_without_submit=true');
-    expect(skillText).toContain('maker_page_url');
+    expect(skillText).not.toContain('maker_page_url');
     expect(skillText).toContain('push_recovery');
     expect(skillText).toContain('Do not ask for permission to run a generic `git push`');
     expect(skillText).toContain('Maker Git Workflow Policy');
@@ -163,7 +163,9 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('用户可以直接说“提交”或“构建”');
     expect(skillText).toContain('taptap-maker dev-kit update');
     expect(skillText).toContain('maker_build_current_directory');
-    expect(skillText).toContain('TapMaker 网页端查看结果');
+    expect(skillText).toContain('验证游戏效果');
+    expect(skillText).toContain('Do not auto-open TapMaker pages');
+    expect(skillText).not.toContain('TapMaker 网页端查看结果');
     expect(skillText).not.toContain('maker_clone_to_current_directory');
     expect(skillText).not.toContain('maker_status`');
   });
