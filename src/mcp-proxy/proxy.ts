@@ -598,10 +598,6 @@ export class TapTapMCPProxy {
     const errorMsg = error.message.toLowerCase();
     const errorCode = (error as any).code;
 
-    if (this.isMcpApplicationError(error)) {
-      return false;
-    }
-
     // 检查错误码（优先，更可靠）
     const networkErrorCodes = [
       'ECONNREFUSED', // 连接拒绝
@@ -618,6 +614,16 @@ export class TapTapMCPProxy {
       return true;
     }
 
+    // MCP SDK may wrap transport/session failures as McpError with negative codes.
+    // Keep these reconnectable before excluding real MCP application errors below.
+    if (errorMsg.includes('not connected') || this.isSessionInvalidError(error)) {
+      return true;
+    }
+
+    if (this.isMcpApplicationError(error)) {
+      return false;
+    }
+
     // 检查错误消息关键词（备选）
     const networkErrorKeywords = [
       'fetch failed',
@@ -627,7 +633,6 @@ export class TapTapMCPProxy {
       'connection reset',
       'timeout',
       'dns',
-      'not connected', // 连接断开
     ];
 
     if (networkErrorKeywords.some((keyword) => errorMsg.includes(keyword))) {

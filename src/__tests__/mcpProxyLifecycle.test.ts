@@ -48,6 +48,19 @@ describe('standalone MCP proxy lifecycle guards', () => {
     expect((proxy as any).isNetworkError(serverBuildError)).toBe(false);
   });
 
+  test('classifies MCP disconnect errors as reconnectable network errors', () => {
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+    const notConnectedError = Object.assign(new Error('MCP error -32000: not connected'), {
+      code: -32000,
+    });
+    const sessionExpiredError = Object.assign(new Error('MCP error -32000: session expired'), {
+      code: -32000,
+    });
+
+    expect((proxy as any).isNetworkError(notConnectedError)).toBe(true);
+    expect((proxy as any).isNetworkError(sessionExpiredError)).toBe(true);
+  });
+
   test('cleans up and exits when stdin closes', () => {
     const stdin = new PassThrough();
     const cleanup = jest.fn();
