@@ -128,6 +128,23 @@ type MakerMcpToolsAvailability = {
   ai_pwd_project_dir?: string;
 };
 
+type WorkBuddyConnectorState = {
+  account_id: string;
+  path: string;
+  enabled: boolean;
+  ever_connected: boolean;
+  user_disabled: boolean;
+};
+
+type WorkBuddyTrustInspection = {
+  status: 'trusted' | 'pending' | 'not_found';
+  mcp_name: string;
+  workbuddy_home: string;
+  connectors_dir: string;
+  state_files: string[];
+  accounts: WorkBuddyConnectorState[];
+};
+
 type ConfigWriteResult = {
   changed: boolean;
   backupPath?: string;
@@ -149,6 +166,7 @@ type McpInstallOptions = {
   mcpName: string;
   cwd?: string;
   clientIde?: string;
+  disabled?: boolean;
 };
 
 export async function runMakerCli(argv: string[]): Promise<void> {
@@ -422,6 +440,9 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const mcpToolsAvailability = inspectMakerMcpToolsAvailability({
     makerProjectDir: identify.projectRoot,
   });
+  const workBuddyTrust = shouldShowWorkBuddyTrustInspection()
+    ? inspectWorkBuddyTrustState(DEFAULT_MCP_NAME)
+    : undefined;
 
   if (ctx.json) {
     writeJson({
@@ -439,6 +460,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       dev_kit_update: devKitUpdate,
       package_update: packageUpdate,
       mcp_tools_availability: mcpToolsAvailability,
+      ...(workBuddyTrust ? { workbuddy_trust: workBuddyTrust } : {}),
       orphan_process_check: orphanProcessCheck,
     });
     return;
@@ -483,6 +505,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       '',
       formatMakerMcpToolsAvailability(mcpToolsAvailability),
       '',
+      workBuddyTrust ? formatWorkBuddyTrustInspection(workBuddyTrust) : '',
       formatMakerOrphanProcessStatus(orphanProcessCheck),
       '',
       formatMakerSkillStatus({ projectRoot }),
@@ -1638,14 +1661,24 @@ function installMcpConfigUnsafe(ide: string, options: McpInstallOptions): McpIns
   }
 
   if (ide === 'workbuddy') {
-    return installJsonMcpConfigTargets(
+    const results = installJsonMcpConfigTargets(
       ide,
       getWorkBuddyMcpInstallPaths({ createPrimary: true }),
       'WorkBuddy',
       {
         ...options,
         clientIde: 'workbuddy',
+        disabled: false,
       }
+    );
+    const trust = inspectWorkBuddyTrustState(options.mcpName);
+    return results.map((result) =>
+      result.ok
+        ? {
+            ...result,
+            message: `${result.message}\n${formatWorkBuddyTrustInspection(trust)}`,
+          }
+        : result
     );
   }
 
@@ -1788,16 +1821,122 @@ function getOpenCodeMcpConfigPath(): string {
   return path.join(os.homedir(), '.config', 'opencode', 'opencode.jsonc');
 }
 
+function getWorkBuddyHome(): string {
+  return path.join(os.homedir(), '.workbuddy');
+}
+
+function shouldShowWorkBuddyTrustInspection(): boolean {
+  return fs.existsSync(getWorkBuddyHome());
+}
+
 function getWorkBuddyMcpInstallPaths(options: { createPrimary?: boolean } = {}): string[] {
-  const primary = path.join(os.homedir(), '.workbuddy', 'mcp.json');
+  const primary = path.join(getWorkBuddyHome(), 'mcp.json');
   if (fs.existsSync(primary) || options.createPrimary) {
     return [primary];
   }
-  const legacy = path.join(os.homedir(), '.workbuddy', '.mcp.json');
+  const legacy = path.join(getWorkBuddyHome(), '.mcp.json');
   if (fs.existsSync(legacy)) {
     return [legacy];
   }
   return [];
+}
+
+function inspectWorkBuddyTrustState(mcpName: string): WorkBuddyTrustInspection {
+  const workbuddyHome = getWorkBuddyHome();
+  const connectorsDir = path.join(workbuddyHome, 'connectors');
+  const accounts: WorkBuddyConnectorState[] = [];
+  const stateFiles: string[] = [];
+
+  if (!fs.existsSync(connectorsDir)) {
+    return {
+      status: 'not_found',
+      mcp_name: mcpName,
+      workbuddy_home: workbuddyHome,
+      connectors_dir: connectorsDir,
+      state_files: [],
+      accounts,
+    };
+  }
+
+  for (const entry of fs.readdirSync(connectorsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const statePath = path.join(connectorsDir, entry.name, 'connector-states.json');
+    if (!fs.existsSync(statePath)) {
+      continue;
+    }
+    stateFiles.push(statePath);
+    let state: Record<string, unknown>;
+    try {
+      state = readJsonObject(statePath);
+    } catch {
+      continue;
+    }
+    accounts.push({
+      account_id: entry.name,
+      path: statePath,
+      enabled: asStringArray(state.enabled).includes(mcpName),
+      ever_connected: asStringArray(state.everConnected).includes(mcpName),
+      user_disabled: asStringArray(state.userDisabled).includes(mcpName),
+    });
+  }
+
+  const trusted = accounts.some((account) => account.enabled && !account.user_disabled);
+  return {
+    status: trusted ? 'trusted' : stateFiles.length > 0 ? 'pending' : 'not_found',
+    mcp_name: mcpName,
+    workbuddy_home: workbuddyHome,
+    connectors_dir: connectorsDir,
+    state_files: stateFiles,
+    accounts,
+  };
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+}
+
+function formatWorkBuddyTrustInspection(inspection: WorkBuddyTrustInspection): string {
+  const lines = [
+    'WorkBuddy MCP trust',
+    `- config_server: ${inspection.mcp_name}`,
+    '- config_requirement: mcp.json mcpServers entry must include "disabled": false.',
+    `- trust_storage: ${getReadableWorkBuddyTrustPath()}`,
+  ];
+
+  if (inspection.status === 'trusted') {
+    const trustedAccounts = inspection.accounts
+      .filter((account) => account.enabled && !account.user_disabled)
+      .map((account) => account.account_id);
+    lines.push(`- status: trusted (${trustedAccounts.join(', ')})`);
+    lines.push('- next_action: none');
+    return lines.join('\n');
+  }
+
+  if (inspection.status === 'pending') {
+    lines.push('- status: pending_user_trust');
+    lines.push(`- state_files: ${inspection.state_files.join(', ')}`);
+  } else {
+    lines.push('- status: trust_state_not_found');
+    lines.push(`- checked: ${inspection.connectors_dir}`);
+  }
+
+  lines.push(
+    `- expected_state: enabled includes "${inspection.mcp_name}" and userDisabled does not include it.`
+  );
+  lines.push(
+    `- next_action: Open WorkBuddy MCP settings, enable/trust ${inspection.mcp_name}, then reconnect or restart WorkBuddy.`
+  );
+  return lines.join('\n');
+}
+
+function getReadableWorkBuddyTrustPath(): string {
+  return process.platform === 'win32'
+    ? '%USERPROFILE%\\.workbuddy\\connectors\\<account-id>\\connector-states.json'
+    : '~/.workbuddy/connectors/<account-id>/connector-states.json';
 }
 
 function mergeJsonMcpConfig(configPath: string, options: McpInstallOptions): ConfigWriteResult {
@@ -1953,6 +2092,7 @@ function createJsonMcpServerConfig(options: McpInstallOptions): {
   args: string[];
   cwd?: string;
   env?: Record<string, string>;
+  disabled?: boolean;
 } {
   const launch = getNpxCliCommand(options.pkg);
   return {
@@ -1960,6 +2100,7 @@ function createJsonMcpServerConfig(options: McpInstallOptions): {
     args: launch.args,
     ...(options.cwd ? { cwd: options.cwd } : {}),
     ...createOptionalMcpEnvironment(options.env, 'env', options.clientIde),
+    ...(options.disabled !== undefined ? { disabled: options.disabled } : {}),
   };
 }
 

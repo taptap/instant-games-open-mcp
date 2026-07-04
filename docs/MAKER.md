@@ -136,7 +136,8 @@ clone maker游戏
 app 列表、clone 和 MCP 配置不会继续执行。Python 修复后重新运行 `taptap-maker init`
 即可继续。Python 检查通过后，CLI 获取 PAT、自动获取 TapTap token 并列出 app，让用户从列表中选择；
 列表底部固定显示 `0. Create a new Maker project`，输入 `0` 或 `new` 可创建新项目。选择或创建完成后，
-CLI 会 clone 项目、准备 dev-kit，并按客户端写入 MCP 配置。
+CLI 会 clone 项目、补齐 `assets/image`、`assets/sprites`、`assets/video`、`assets/audio`
+和 `scripts` 基础目录、准备 dev-kit，并按客户端写入 MCP 配置。
 
 普通初始化、clone、下载或拉取远端项目的标准命令是 `taptap-maker init`，CLI 会展示 app
 列表，让用户选择已有 app 或 `0`/`new`。`--create` 只用于用户明确要求创建新 Maker 项目的场景。
@@ -503,6 +504,11 @@ Windows 兼容注意：
 - WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的 `.workbuddy/mcp.json`；
   显式传 `--ide workbuddy` 时会创建该官方配置文件。未显式指定 IDE 的自动检测模式下，
   legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为 fallback 合并。
+  WorkBuddy MCP server 配置必须写入 `disabled: false`；账号维度的启用/信任状态在
+  `.workbuddy/connectors/<account-id>/connector-states.json` 中维护，不在 `mcp.json` 中。CLI
+  只做只读诊断，并在 `mcp install --ide workbuddy` 和 `doctor` 中提示用户到 WorkBuddy MCP
+  设置里启用/信任 `taptap-maker`，不自动修改账号信任状态；Windows 用户对应路径是
+  `%USERPROFILE%\.workbuddy\connectors\<account-id>\connector-states.json`。
 - OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入，不主动创建。
 - MCP 配置写入时会在对应 MCP server 进程环境中增加
   `TAPTAP_MCP_CLIENT_IDE=<ide>`，取值为 `codex`、`cursor`、`claude`、`trae`、
@@ -615,30 +621,6 @@ maker_build_current_directory()
 - `multiplayer`：用户未指定且本地不存在 `.project/settings.json` 时，默认传 `{ "enabled": false }`，用于第一次单机项目构建初始化。
 - 如果用户明确说明是多人游戏或给出入口文件，再把对应参数传入。
 
-异步远端构建不新增 MCP tool，通过本地参数和 IDE 默认策略控制：
-
-- `maker_build_current_directory` 暴露本地参数 `async_build`。显式传 `async_build=true` 时，
-  无论当前 IDE 是什么，本地 MCP 都会把 `async: true` 转发给远端 `build` tool；显式传
-  `async_build=false` 时保持同步构建。
-- 未传 `async_build` 时，当前 MCP server 进程环境中 `TAPTAP_MCP_CLIENT_IDE=workbuddy`
-  默认走异步构建；Codex、Cursor、Claude、Trae、OpenCode 等其它 IDE 默认保持同步构建。
-- 远端 server 仅在 `_tag=local` 会话暴露 async build 能力。本地默认转发 `async: true`，
-  并通过本地 proxy 私有参数继续注入 `_tag=local`。如需临时联调其它契约，可用
-  `TAPTAP_MAKER_REMOTE_ASYNC_BUILD_PARAM` 覆盖远端参数名，用
-  `TAPTAP_MAKER_REMOTE_ASYNC_BUILD_VALUE_JSON` 覆盖远端参数值（JSON 格式）。
-- 远端异步 build 返回 JSON 回执后，本地读取 `build_id`，并保留 `reused` 标记；本次
-  `maker_build_current_directory` MCP 调用不会立即结束，而是在本地继续轮询远端结果。
-- 本地默认每 5 秒调用远端 `query_build(build_id)`，最多 30 分钟；拿到
-  `succeeded` 或 `failed` 后结束本次 MCP 调用，同一 Maker 项目再次触发构建时会取消上一轮轮询。
-- 异步构建拿到 `succeeded` 后，会和同步构建成功路径一样刷新 Maker Web 预览，并启动本地
-  runtime log watcher；拿到 `failed` 时不会执行这些成功后的 side effects。
-- `query_build` 返回 `status`、`progress`、`phase`、`elapsed_seconds` 以及
-  `result` / `error`，本地状态文件会原样保留这些字段用于诊断。
-- 轮询状态写入 `.maker/builds/active-build.json` 和 `.maker/builds/<build_id>.json`；
-  `maker://status` / `maker_status_lite` 会显示当前 active async build 摘要。
-- server 侧异步任务不跨进程重启持久化，完成结果保留约 30 分钟；本地 watcher 也只在当前
-  MCP server 进程内有效，重启后的残留 active 文件会在状态中标记为 stale。
-
 ## 提交和推送约束
 
 当前目录存在 `.maker-mcp/config.json` 时，说明它是 Maker 项目。此时提交/推送/构建请求必须走同一个 Maker MCP 工具：
@@ -713,6 +695,8 @@ APP_ID 不应要求用户手动输入，而是通过 `taptap-maker init` 或 `ta
 app 预览让用户选择。需要创建新项目时，仍使用 `taptap-maker init`：交互列表底部会固定显示
 `0. Create a new Maker project`，输入 `0` 或 `new` 后填写项目名称；非交互联调可运行
 `taptap-maker init --create --name "my-local-game"`，CLI 会向 Maker API 创建 `gameType=sce` 的项目。
+创建或选择项目并 checkout 成功后，CLI 会在本地补齐 `assets/image`、`assets/sprites`、
+`assets/video`、`assets/audio` 和 `scripts` 基础目录。
 普通初始化或 clone 远端项目时，先展示 app 列表并让用户选择；创建新项目时再使用 `--create`。
 当前目录已经绑定 Maker 项目时，不允许在同一目录创建并覆盖绑定；请切换到一个新的独立目录再运行
 `taptap-maker init`。
