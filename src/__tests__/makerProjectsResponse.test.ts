@@ -2,7 +2,14 @@
  * Maker app list response normalization tests.
  */
 
-import { createMakerProject, normalizeProjectsResponse } from '../maker/cli/projects';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {
+  createMakerProject,
+  ensureMakerProjectBaseDirectories,
+  normalizeProjectsResponse,
+} from '../maker/cli/projects';
 import { formatMakerProjectList } from '../maker/cli/commands';
 import {
   formatAiDialogueDirectoryHint,
@@ -21,6 +28,19 @@ describe('maker projects response normalization', () => {
     } else {
       process.env.TAPTAP_MAKER_API_BASE = originalApiBase;
     }
+  });
+
+  test('creates base directories for new local Maker projects', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-base-dirs-'));
+
+    ensureMakerProjectBaseDirectories(tempDir);
+
+    expect(fs.statSync(path.join(tempDir, 'assets')).isDirectory()).toBe(true);
+    expect(fs.statSync(path.join(tempDir, 'assets', 'image')).isDirectory()).toBe(true);
+    expect(fs.statSync(path.join(tempDir, 'assets', 'sprites')).isDirectory()).toBe(true);
+    expect(fs.statSync(path.join(tempDir, 'assets', 'video')).isDirectory()).toBe(true);
+    expect(fs.statSync(path.join(tempDir, 'assets', 'audio')).isDirectory()).toBe(true);
+    expect(fs.statSync(path.join(tempDir, 'scripts')).isDirectory()).toBe(true);
   });
 
   test('preserves all known app list fields returned by Maker API', () => {
