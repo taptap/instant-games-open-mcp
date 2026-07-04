@@ -445,6 +445,7 @@ describe('Maker CLI commands', () => {
       command: expectedNpxLaunch.command,
       args: expectedNpxLaunch.args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
+      disabled: false,
     });
     expect(fs.existsSync(path.join(tempDir, 'maker-home', 'mcp.json'))).toBe(false);
   });
@@ -460,6 +461,7 @@ describe('Maker CLI commands', () => {
       command: expectedNpxLaunch.command,
       args: expectedNpxLaunch.args,
       env: { TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
+      disabled: false,
     });
   });
 
@@ -752,6 +754,7 @@ describe('Maker CLI commands', () => {
       command: expectedNpxLaunch.command,
       args: expectedNpxLaunch.args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
+      disabled: false,
     });
   });
 
@@ -772,7 +775,65 @@ describe('Maker CLI commands', () => {
       command: expectedNpxLaunch.command,
       args: expectedNpxLaunch.args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
+      disabled: false,
     });
+  });
+
+  test('workbuddy mcp install reports pending account trust state', async () => {
+    const configPath = path.join(tempDir, '.workbuddy', 'mcp.json');
+    const statePath = path.join(
+      tempDir,
+      '.workbuddy',
+      'connectors',
+      'account-1',
+      'connector-states.json'
+    );
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(
+      statePath,
+      JSON.stringify({ enabled: [], everConnected: [], userDisabled: [] }, null, 2),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'workbuddy', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        ide: 'workbuddy',
+        ok: true,
+        path: configPath,
+        message: expect.stringContaining('status: pending_user_trust'),
+      }),
+    ]);
+    expect(payloads[0].message).toContain('connector-states.json');
+    expect(payloads[0].message).toContain('enabled includes "taptap-maker"');
+  });
+
+  test('workbuddy mcp install reports trusted account state', async () => {
+    const statePath = path.join(
+      tempDir,
+      '.workbuddy',
+      'connectors',
+      'account-1',
+      'connector-states.json'
+    );
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(
+      statePath,
+      JSON.stringify(
+        { enabled: ['taptap-maker'], everConnected: ['taptap-maker'], userDisabled: [] },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'workbuddy', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads[0].message).toContain('status: trusted (account-1)');
+    expect(payloads[0].message).toContain('next_action: none');
   });
 
   test('workbuddy mcp install prefers official mcp.json over legacy .mcp.json', async () => {
@@ -804,6 +865,7 @@ describe('Maker CLI commands', () => {
       command: expectedNpxLaunch.command,
       args: expectedNpxLaunch.args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
+      disabled: false,
     });
     expect(JSON.parse(fs.readFileSync(legacyPath, 'utf8')).mcpServers).toEqual({
       legacy: { command: 'legacy' },
@@ -840,6 +902,7 @@ describe('Maker CLI commands', () => {
       command: expectedNpxLaunch.command,
       args: expectedNpxLaunch.args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
+      disabled: false,
     });
   });
 
@@ -2073,6 +2136,26 @@ describe('Maker CLI commands', () => {
     expect(output).toContain('Maker MCP tools availability');
     expect(output).toContain('- tools_visibility: refresh_ai_client_if_missing');
     expect(output).toContain('Restart the AI client or open a new AI conversation');
+  });
+
+  test('doctor hides WorkBuddy trust guidance when WorkBuddy is not detected', async () => {
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).not.toContain('WorkBuddy MCP trust');
+    expect(output).not.toContain('Open WorkBuddy MCP settings');
+  });
+
+  test('doctor reports WorkBuddy trust guidance when WorkBuddy is detected', async () => {
+    fs.mkdirSync(path.join(tempDir, '.workbuddy'), { recursive: true });
+
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('WorkBuddy MCP trust');
+    expect(output).toContain('status: trust_state_not_found');
+    expect(output).toContain('Open WorkBuddy MCP settings');
+    expect(output).not.toContain('windows_trust_storage');
   });
 
   test('doctor warns when the AI pwd differs from the Maker project directory', async () => {
