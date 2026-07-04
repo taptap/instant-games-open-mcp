@@ -61,6 +61,15 @@ export interface MakerProjectProgress {
 
 export type MakerProjectProgressHandler = (progress: MakerProjectProgress) => void;
 
+const MAKER_PROJECT_BASE_DIRECTORIES = [
+  'assets',
+  'assets/image',
+  'assets/sprites',
+  'assets/video',
+  'assets/audio',
+  'scripts',
+];
+
 export interface PushMakerProjectResult {
   branch: string;
   committed: boolean;
@@ -312,6 +321,12 @@ export async function createMakerProject(
   return project;
 }
 
+export function ensureMakerProjectBaseDirectories(targetDir: string): void {
+  for (const relativeDir of MAKER_PROJECT_BASE_DIRECTORIES) {
+    fs.mkdirSync(path.join(targetDir, relativeDir), { recursive: true });
+  }
+}
+
 export async function cloneMakerProject(
   options: CloneMakerProjectOptions
 ): Promise<CloneMakerProjectResult> {
@@ -388,6 +403,7 @@ export async function cloneMakerProject(
       user_id: options.userId || (await resolveMakerProjectUserId(options)),
       sce_endpoint: options.sceEndpoint,
     });
+    ensureMakerProjectBaseDirectories(target);
     finalizeStagedDevKitGitignore(target);
     options.onProgress?.({
       progress: 100,
@@ -463,6 +479,7 @@ export async function cloneMakerProject(
     user_id: options.userId || (await resolveMakerProjectUserId(options)),
     sce_endpoint: options.sceEndpoint,
   });
+  ensureMakerProjectBaseDirectories(target);
   options.onProgress?.({
     progress: 100,
     total: 100,

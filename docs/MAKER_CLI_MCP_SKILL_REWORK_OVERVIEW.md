@@ -73,7 +73,10 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
   只在 `mcp.json` 已存在时更新；WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的
   `.workbuddy/mcp.json`，显式传 `--ide workbuddy` 时会创建该官方配置文件。未显式指定 IDE
   的自动检测模式下，legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为
-  fallback 合并。
+  fallback 合并；写入的 WorkBuddy MCP server 必须包含 `disabled: false`。WorkBuddy
+  账号维度的启用/信任状态由 `.workbuddy/connectors/<account-id>/connector-states.json`
+  管理，不在 `mcp.json` 中；CLI 只做只读诊断，并提示用户在 WorkBuddy MCP 设置里启用/信任
+  `taptap-maker`，不自动写账号信任状态。
 - 初始化失败时保留现场，返回可重试状态，不自动删除用户文件。
 - 用户选择 app 后立即写入 `.maker-mcp/config.json`；clone/fetch 失败后重复执行
   `taptap-maker init` 会复用这个选择继续，后续缺失状态交给 `taptap-maker doctor` 判断。
@@ -81,6 +84,8 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
   要求用户换目录。
 - 首次拉取默认使用浅拉取。`taptap-maker init` 在记录已选 app 后，通常执行
   `git init` + `git fetch --depth=1 origin` + checkout。
+- checkout 成功后，CLI 会补齐 `assets/image`、`assets/sprites`、`assets/video`、
+  `assets/audio` 和 `scripts` 基础目录。
 - fetch 阶段遇到远端临时错误时自动重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试，直接返回明确分类。
 - 首次 clone/fetch 前主动提示 Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，避免用户误以为卡住后中断命令。
 
