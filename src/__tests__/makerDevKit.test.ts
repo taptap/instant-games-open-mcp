@@ -133,6 +133,11 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain('batch_generate_images');
     expect(agentsGuide).toContain('create_3d_model_task');
     expect(agentsGuide).toContain('query_3d_model_task');
+    expect(agentsGuide).toContain('call `get_ad_config` first to get the');
+    expect(agentsGuide).toContain('Do not infer ad readiness from local SDK docs');
+    expect(agentsGuide).toContain('build once with `maker_build_current_directory`');
+    expect(agentsGuide).toContain('`generate_test_qrcode` once');
+    expect(agentsGuide).toContain('`ShowRewardVideoAd`');
     expect(agentsGuide).toContain('assets/model');
   });
 
@@ -327,6 +332,9 @@ describe('Maker AI dev kit install', () => {
       'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
+    expect(agentsGuide).toContain('call `get_ad_config` first to get the');
+    expect(agentsGuide).toContain('`generate_test_qrcode` once');
+    expect(agentsGuide).toContain('build once with `maker_build_current_directory`');
     expect(claudeGuide).toBe('user edits\n');
     expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'templates', 'README.md'))).toBe(true);

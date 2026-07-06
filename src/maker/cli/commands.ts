@@ -75,6 +75,10 @@ import {
 } from '../system/luaLsp.js';
 import { formatMakerSkillStatus } from './skill.js';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../versionCheck.js';
+import {
+  formatMakerProjectInitializationStatus,
+  inspectMakerProjectInitialization,
+} from '../projectInitialization.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
@@ -440,6 +444,9 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const mcpToolsAvailability = inspectMakerMcpToolsAvailability({
     makerProjectDir: identify.projectRoot,
   });
+  const projectInitialization = isProjectBound
+    ? inspectMakerProjectInitialization(projectRoot)
+    : undefined;
   const workBuddyTrust = shouldShowWorkBuddyTrustInspection()
     ? inspectWorkBuddyTrustState(DEFAULT_MCP_NAME)
     : undefined;
@@ -459,6 +466,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       dev_kit: devKit,
       dev_kit_update: devKitUpdate,
       package_update: packageUpdate,
+      project_initialization: projectInitialization,
       mcp_tools_availability: mcpToolsAvailability,
       ...(workBuddyTrust ? { workbuddy_trust: workBuddyTrust } : {}),
       orphan_process_check: orphanProcessCheck,
@@ -491,6 +499,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       `- target_dir: ${targetDir}`,
       `- project_id: ${identify.projectId || '(none)'}`,
       identify.configPath ? `- config: ${identify.configPath}` : '',
+      projectInitialization ? formatMakerProjectInitializationStatus(projectInitialization) : '',
       isProjectBound ? formatMakerAgentsPolicyStatus(projectRoot) : '',
       '',
       'AI dev kit',

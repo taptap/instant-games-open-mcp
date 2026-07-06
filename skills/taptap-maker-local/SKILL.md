@@ -139,6 +139,19 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
   Include the server response payload so developers can diagnose the issue.
 - Use `create_3d_model_task` for game 3D models.
 - Use `query_3d_model_task` for polling 3D model tasks.
+- For any ad-related request such as 广告, rewarded videos, play ads, ad ID, ad placement,
+  ad status, ad config, or `ShowRewardVideoAd`, call `get_ad_config` first to get the
+  current project ad activation status and ad config.
+- Do not infer ad readiness from local SDK docs, `.maker-mcp/config.json`, or runtime callbacks.
+  If `.project/project.json` is missing, build once with `maker_build_current_directory` to
+  initialize the project, then call `get_ad_config` again. Implement or test ad code only
+  after the config is available.
+- If `get_ad_config` reports missing `app_id` or `developer_id`, call `generate_test_qrcode` once
+  to generate test QR code metadata, then call `get_ad_config` again. Do not use publish-only tools
+  for this recovery path.
+- If status or doctor reports `Maker project initialization` with `missing_project_json` or
+  `missing_taptap_identity`, follow that `next_action` before using tools that depend on remote
+  project config.
 - Before `edit_image`, resolve dragged or referenced images to a local project image path or CDN
   URL. If the user references an attached/local image, inspect the attachment or workspace file path
   first. If the image is under `assets/image`, pass that path. If only a file name is given, search
@@ -197,8 +210,9 @@ directory.
 ### Proxy Tools Missing From The Current Session
 
 If the user is in a bound Maker project but `generate_image`, `batch_generate_images`, `edit_image`,
-`create_video_task`, `query_video_task`, `text_to_music`, `create_3d_model_task`, or
-`query_3d_model_task` are missing from the current AI tool list, diagnose the MCP cwd before
+`create_video_task`, `query_video_task`, `text_to_music`, `create_3d_model_task`,
+`query_3d_model_task`, `generate_test_qrcode`, `get_ad_config`, or `get_debug_feedbacks`
+are missing from the current AI tool list, diagnose the MCP cwd before
 suggesting repeated restarts:
 
 1. Read `maker://status` or call `maker_status_lite` without `target_dir` to see the MCP server cwd.
