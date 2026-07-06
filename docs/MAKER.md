@@ -16,8 +16,8 @@
   `maker_build_current_directory`；远端 proxy tools 默认隐藏，仅白名单公开
   `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
   `query_video_task`、`text_to_music`、`create_3d_model_task`、`query_3d_model_task`、
-  `get_ad_config` 和 `get_debug_feedbacks`，用于试用图片/视频/音乐/3D 模型生成、
-  广告配置同步和远端玩家反馈查询链路。
+  `generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks`，用于试用图片/视频/音乐/3D
+  模型生成、测试二维码生成、广告配置同步和远端玩家反馈查询链路。
 - `maker_build_current_directory` 是用户感知里的提交/推送/远端构建入口；push 失败时会停止在构建前，让本地 Agent 处理冲突或合并。
 - 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。
@@ -261,7 +261,8 @@ MCP 运行期能力：
   等），但去掉无用的 `id` 字段，也不再补 `time/message` 重复字段；并维护
   `.maker/logs/runtime/state.json` 的 `nextStartTime` 和心跳字段。
 - 构建成功输出会包含 `maker_url`，格式为
-  `https://maker.taptap.cn/app/<project_id>?localDev=1` 或当前环境对应的 Maker Web URL，可直接打开远端 Maker 本地开发预览。
+  `https://maker.taptap.cn/app/<project_id>` 或当前环境对应的 Maker Web URL，用于验证刚完成的远端构建预览。
+  构建结果不默认追加 `localDev=1`，避免把远端构建预览误切到本地开发工作区。
 - 构建成功并收到远端 build 返回后，MCP 会用本地缓存 Maker PAT 调用当前环境
   Maker API：`POST /api/v1/apps/<APP_ID>/preview-refresh`，主动刷新 Maker Web 端预览。
 - 构建成功输出会包含 `runtime_logs.watch_started`、`runtime_logs.watch_pid` 和
@@ -561,7 +562,7 @@ maker_build_current_directory()
 远端 proxy 配置默认是 Maker 本地 MCP 的内部能力，不作为普通 Agent tool 全量暴露。
 当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
 `query_video_task`、`text_to_music`、`create_3d_model_task`、`query_3d_model_task`、
-`get_ad_config` 和 `get_debug_feedbacks` 作为白名单公开；本地 MCP 保留远端 tools 的
+`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks` 作为白名单公开；本地 MCP 保留远端 tools 的
 input schema、参数和成功返回值，但会在 description 中追加简短 Maker 本地开发提示。
 内部配置内容等价于测试脚本中的：
 
@@ -583,9 +584,17 @@ input schema、参数和成功返回值，但会在 description 中追加简短 
 `create_3d_model_task` 调用前会基于映射，把本地新生成素材路径改写为 CDN URL。3D 模型 Phase
 2 / multiview 可能同步等待模型和可选骨骼绑定完成；本地代理为这些远端生成工具预留比普通构建更长
 的调用超时。
-`get_ad_config` 和 `get_debug_feedbacks` 不进入本地素材落地流程，远端结果原样返回。
+`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks` 不进入本地素材落地流程，远端结果原样返回。
 主 MCP 的 H5 `get_debug_feedbacks` 会由本地 handler 下载附件；Maker proxy 的同名工具是远端
 tool 透传，参数和落盘行为以远端 tool schema 为准。
+新建 Maker 项目首次查询广告配置时，如果 `get_ad_config` 返回缺少 `.project/project.json`，
+应先调用 `maker_build_current_directory` 构建一次初始化项目配置，再重试 `get_ad_config`。
+如果 `get_ad_config` 返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode`
+一次生成测试二维码元数据，再重试 `get_ad_config`；不要为这个恢复流程调用发布类 tools。
+`taptap-maker doctor`、`maker://status` 和 `maker_status_lite` 也会在已绑定项目缺少
+`.project/project.json` 时输出 `Maker project initialization` / `missing_project_json`，
+提示先构建一次；如果 `.project/project.json` 已存在但缺少 `app_id` 或 `developer_id`，
+则输出 `missing_taptap_identity`，提示先调用 `generate_test_qrcode`。
 对于 `edit_image`，AI/Agent 调用前应先解析用户提供的图片：拖入/附件图片优先取客户端暴露的本地
 文件路径，`assets/image/...` 直接传项目素材路径，只给文件名时先搜索 `assets/image`，无法确认图片
 路径或 CDN URL 时应停下来说明缺少参数。

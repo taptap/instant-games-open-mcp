@@ -45,6 +45,10 @@ import {
 } from '../maker/cli/projects';
 import { savePat, saveProjectConfig, saveTapAuth } from '../maker/storage';
 import { AI_DEV_KIT_VERSION_METADATA_FILE } from '../maker/cli/devKit';
+import {
+  formatMakerProjectInitializationStatus,
+  inspectMakerProjectInitialization,
+} from '../maker/projectInitialization';
 
 describe('maker build local-change guard', () => {
   let tempDir: string;
@@ -865,6 +869,15 @@ describe('maker build local-change guard', () => {
           },
         },
         {
+          name: 'generate_test_qrcode',
+          description: 'Generate a test QR code for mobile testing',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+            required: [],
+          },
+        },
+        {
           name: 'get_ad_config',
           description: 'Sync ad config into project settings',
           inputSchema: {
@@ -904,6 +917,7 @@ describe('maker build local-change guard', () => {
       'text_to_music',
       'create_3d_model_task',
       'query_3d_model_task',
+      'generate_test_qrcode',
       'get_ad_config',
       'get_debug_feedbacks',
     ]);
@@ -916,6 +930,7 @@ describe('maker build local-change guard', () => {
       'text_to_music',
       'create_3d_model_task',
       'query_3d_model_task',
+      'generate_test_qrcode',
       'get_ad_config',
       'get_debug_feedbacks',
     ]);
@@ -948,8 +963,35 @@ describe('maker build local-change guard', () => {
     ).toHaveProperty('target_dir');
     expect(queryModelTool?.inputSchema.required).toEqual(['task_id']);
     expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'Sync TapTap ad config'
+      'Trigger this tool for any ad-related request'
     );
+    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
+      'ad activation status and ad config'
+    );
+    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
+      'do not infer ad readiness from local SDK docs'
+    );
+    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
+      'ShowRewardVideoAd'
+    );
+    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
+      'If .project/project.json is missing'
+    );
+    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
+      'app_id or developer_id is missing'
+    );
+    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
+      'generate_test_qrcode'
+    );
+    expect(
+      result.tools.find((item) => item.name === 'generate_test_qrcode')?.description
+    ).toContain('user explicitly asks for a test QR code');
+    expect(
+      result.tools.find((item) => item.name === 'generate_test_qrcode')?.description
+    ).toContain('after get_ad_config reports missing app_id or developer_id');
+    expect(
+      result.tools.find((item) => item.name === 'generate_test_qrcode')?.inputSchema.properties
+    ).toHaveProperty('target_dir');
     expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toContain(
       'Fetch remote player feedback'
     );
@@ -995,7 +1037,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- status: unavailable');
     expect(output).toContain('- available_tools: (none)');
     expect(output).toContain(
-      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, create_3d_model_task, query_3d_model_task, get_ad_config, get_debug_feedbacks'
+      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, create_3d_model_task, query_3d_model_task, generate_test_qrcode, get_ad_config, get_debug_feedbacks'
     );
     expect(output).toContain('- build_available: no');
     expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');
@@ -2060,6 +2102,61 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- status: unavailable');
     expect(output).toContain('- failure_message:');
     expect(output).toContain('- next_action: 远端同步检查失败');
+  });
+
+  test('project initialization status guides first build when project json is missing', () => {
+    const status = inspectMakerProjectInitialization(tempDir);
+    const output = formatMakerProjectInitializationStatus(status);
+
+    expect(status.status).toBe('missing_project_json');
+    expect(status.projectJsonPath).toBe(path.join(tempDir, '.project', 'project.json'));
+    expect(output).toContain('Maker project initialization');
+    expect(output).toContain('- status: missing_project_json');
+    expect(output).toContain('get_ad_config');
+    expect(output).toContain('maker_build_current_directory');
+    expect(output).toContain('.project/project.json');
+  });
+
+  test('project initialization status guides test QR code when TapTap identity is missing', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'project.json'), '{}\n', 'utf8');
+
+    const status = inspectMakerProjectInitialization(tempDir);
+    const output = formatMakerProjectInitializationStatus(status);
+
+    expect(status.status).toBe('missing_taptap_identity');
+    expect(status.missingFields).toEqual(['app_id', 'developer_id']);
+    expect(output).toContain('Maker project initialization');
+    expect(output).toContain('- status: missing_taptap_identity');
+    expect(output).toContain('- missing_fields: app_id, developer_id');
+    expect(output).toContain('get_ad_config');
+    expect(output).toContain('generate_test_qrcode');
+    expect(output).toContain('不要为这个恢复流程调用发布类工具');
+  });
+
+  test('project initialization status stays quiet after project identity exists', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify(
+        {
+          project_id: 'project-1',
+          taptap_publish: {
+            app_id: 'app-1',
+            developer_id: 'developer-1',
+          },
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectInitialization(tempDir);
+    const output = formatMakerProjectInitializationStatus(status);
+
+    expect(status.status).toBe('ready');
+    expect(output).toBe('');
   });
 
   test('AI dev kit status checks latest version for new AI conversations', async () => {

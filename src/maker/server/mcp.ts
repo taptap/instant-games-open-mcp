@@ -95,6 +95,10 @@ import {
   startMakerPackageUpdateCheck,
 } from '../versionCheck.js';
 import {
+  formatMakerProjectInitializationStatus,
+  inspectMakerProjectInitialization,
+} from '../projectInitialization.js';
+import {
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
@@ -122,6 +126,7 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'text_to_music',
   'create_3d_model_task',
   'query_3d_model_task',
+  'generate_test_qrcode',
   'get_ad_config',
   'get_debug_feedbacks',
 ];
@@ -358,7 +363,12 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
       ].join(' ');
     case 'get_ad_config':
       return [
-        '**Maker hint:** Sync TapTap ad config for the current Maker project into local project settings. Use before adding or testing ad features.',
+        '**Maker hint:** Trigger this tool for any ad-related request (广告, 激励视频, 播放广告, ad ID, ad placement, ShowRewardVideoAd, ad status, or ad config). Call it first to get the current Maker project ad activation status and ad config; do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks. If .project/project.json is missing, build the project once with maker_build_current_directory to initialize it, then call this tool again. If this tool says app_id or developer_id is missing, call generate_test_qrcode once to generate test QR code metadata, then call this tool again.',
+        failurePolicy,
+      ].join(' ');
+    case 'generate_test_qrcode':
+      return [
+        '**Maker hint:** Use this only when the user explicitly asks for a test QR code/mobile scan test, or as the recovery step after get_ad_config reports missing app_id or developer_id. It has no business parameters; follow the remote schema and report the returned QR code or failure payload.',
         failurePolicy,
       ].join(' ');
     case 'get_debug_feedbacks':
@@ -806,6 +816,12 @@ async function formatStatus(
     packageUpdateText,
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
+    '',
+    identify.projectRoot
+      ? formatMakerProjectInitializationStatus(
+          inspectMakerProjectInitialization(identify.projectRoot)
+        )
+      : '',
     '',
     formatMakerClientRootsStatus(projectContext.roots),
     '',
