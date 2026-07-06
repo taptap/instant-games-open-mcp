@@ -865,6 +865,27 @@ describe('maker build local-change guard', () => {
           },
         },
         {
+          name: 'get_ad_config',
+          description: 'Sync ad config into project settings',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+            required: [],
+          },
+        },
+        {
+          name: 'get_debug_feedbacks',
+          description: 'Download debug feedbacks and query game session logs',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              limit: { type: 'number' },
+              game_session_id: { type: 'string' },
+            },
+            required: [],
+          },
+        },
+        {
           name: 'build',
           description: 'Hidden remote build tool',
           inputSchema: { type: 'object' },
@@ -883,6 +904,8 @@ describe('maker build local-change guard', () => {
       'text_to_music',
       'create_3d_model_task',
       'query_3d_model_task',
+      'get_ad_config',
+      'get_debug_feedbacks',
     ]);
     expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual([
       'generate_image',
@@ -893,6 +916,8 @@ describe('maker build local-change guard', () => {
       'text_to_music',
       'create_3d_model_task',
       'query_3d_model_task',
+      'get_ad_config',
+      'get_debug_feedbacks',
     ]);
     expect(result.tools.find((item) => item.name === 'generate_image')?.description).toContain(
       'prefer this Maker MCP proxy tool for Maker project assets'
@@ -916,12 +941,18 @@ describe('maker build local-change guard', () => {
     expect(createModelTool?.inputSchema.properties).toHaveProperty('front_image');
     expect(createModelTool?.inputSchema.properties).toHaveProperty('target_dir');
     expect(createModelTool?.inputSchema.properties.target_dir.description).toContain(
-      'not forwarded to the remote Maker generation tool'
+      'not forwarded to the remote Maker tool'
     );
     expect(
       result.tools.find((item) => item.name === 'generate_image')?.inputSchema.properties
     ).toHaveProperty('target_dir');
     expect(queryModelTool?.inputSchema.required).toEqual(['task_id']);
+    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
+      'Sync TapTap ad config'
+    );
+    expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toContain(
+      'Fetch remote player feedback'
+    );
   });
 
   test('remote proxy private target_dir is stripped before forwarding upstream', () => {
@@ -964,7 +995,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- status: unavailable');
     expect(output).toContain('- available_tools: (none)');
     expect(output).toContain(
-      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, create_3d_model_task, query_3d_model_task'
+      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, create_3d_model_task, query_3d_model_task, get_ad_config, get_debug_feedbacks'
     );
     expect(output).toContain('- build_available: no');
     expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');

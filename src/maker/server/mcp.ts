@@ -122,6 +122,8 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'text_to_music',
   'create_3d_model_task',
   'query_3d_model_task',
+  'get_ad_config',
+  'get_debug_feedbacks',
 ];
 
 type MakerToolDefinition = (typeof tools)[number];
@@ -308,7 +310,7 @@ function decorateRemoteProxyToolInputSchema(inputSchema: unknown): Record<string
       target_dir: {
         type: 'string',
         description:
-          'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker generation tool.',
+          'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool.',
       },
     },
   };
@@ -352,6 +354,16 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
     case 'text_to_music':
       return [
         '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker music generation so generated audio can be materialized into the project and recorded for later Maker references.',
+        failurePolicy,
+      ].join(' ');
+    case 'get_ad_config':
+      return [
+        '**Maker hint:** Sync TapTap ad config for the current Maker project into local project settings. Use before adding or testing ad features.',
+        failurePolicy,
+      ].join(' ');
+    case 'get_debug_feedbacks':
+      return [
+        '**Maker hint:** Fetch remote player feedback for the current Maker project, including related device logs and screenshots when available.',
         failurePolicy,
       ].join(' ');
     default:

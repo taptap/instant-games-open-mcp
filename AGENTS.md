@@ -368,8 +368,10 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
   远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、
-  `edit_image`、`create_video_task`、`query_video_task` 和 `text_to_music`，用于试用图片/视频/音乐生成链路，
-  本地保留远端 tool schema 和成功返回值，但会在 description 追加 Maker 素材链路提示：
+  `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
+  `create_3d_model_task`、`query_3d_model_task`、`get_ad_config` 和 `get_debug_feedbacks`，
+  用于试用图片/视频/音乐/3D 模型生成、广告配置同步和远端玩家反馈查询链路，
+  本地保留远端 tool schema 和成功返回值，但会在 description 追加简短 Maker 本地开发提示：
   已绑定 Maker 项目应优先建议用户使用这些 tools。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
 - 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。支持 MCP Roots 的客户端会输出 `MCP client roots` 与 `project_context_source`；只有一个 workspace root 时直接作为 Maker 操作目标，多个 root 中只有一个已绑定 Maker 项目时自动选择该项目，多个 Maker root 时必须让用户只保留一个 Maker workspace 或显式传 `target_dir`，不要猜测。已绑定项目会输出 `Maker remote sync` 和 AI dev kit 版本检查结果，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main，以及是否需要运行 `taptap-maker dev-kit update`；按其中 `next_action` / `next_step` 引导用户。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
