@@ -152,6 +152,11 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
 - If status or doctor reports `Maker project initialization` with `missing_project_json` or
   `missing_taptap_identity`, follow that `next_action` before using tools that depend on remote
   project config.
+- For online player feedback, problem reports, issue reports, debug feedback, real-device logs,
+  screenshots, 问题反馈, 问题上报, 真机日志, or 玩家反馈, call the Maker proxy
+  `get_debug_feedbacks` tool when available.
+- Use local runtime log files only for the current local build/runtime session. Do not use local logs
+  as a substitute for remote player-submitted feedback.
 - Before `edit_image`, resolve dragged or referenced images to a local project image path or CDN
   URL. If the user references an attached/local image, inspect the attachment or workspace file path
   first. If the image is under `assets/image`, pass that path. If only a file name is given, search

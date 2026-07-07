@@ -120,7 +120,17 @@ describe('Maker AI dev kit install', () => {
       /^<!-- >>> TapTap Maker managed AGENTS policy version=1 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
-    expect(agentsGuide).toContain('should prefer Maker MCP proxy tools');
+    expect(agentsGuide).toContain('Maker build workflow');
+    expect(agentsGuide).toContain('call `maker_build_current_directory`');
+    expect(agentsGuide).toContain('Do not tell the user to open the Maker web page');
+    expect(agentsGuide).toContain('Do not use generic Git commit, push, branch, PR, or MR');
+    expect(agentsGuide).toContain('Maker ad workflow');
+    expect(agentsGuide).toContain('first call `get_ad_config` before reading');
+    expect(agentsGuide).toContain('source of truth for current project ad activation status');
+    expect(agentsGuide).toContain('Maker feedback workflow');
+    expect(agentsGuide).toContain('the Maker proxy `get_debug_feedbacks` tool');
+    expect(agentsGuide).toContain('local logs as a substitute');
+    expect(agentsGuide).toContain('Maker MCP proxy tools when they are available');
     expect(agentsGuide).toContain('Maker proxy tool is unavailable');
     expect(agentsGuide).toContain('Other client media tools may still be usable');
     expect(agentsGuide).toContain(
@@ -133,7 +143,6 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain('batch_generate_images');
     expect(agentsGuide).toContain('create_3d_model_task');
     expect(agentsGuide).toContain('query_3d_model_task');
-    expect(agentsGuide).toContain('call `get_ad_config` first to get the');
     expect(agentsGuide).toContain('Do not infer ad readiness from local SDK docs');
     expect(agentsGuide).toContain('build once with `maker_build_current_directory`');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');
@@ -327,12 +336,17 @@ describe('Maker AI dev kit install', () => {
       /^<!-- >>> TapTap Maker managed AGENTS policy version=1 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
-    expect(agentsGuide).toContain('should prefer Maker MCP proxy tools');
+    expect(agentsGuide).toContain('call `maker_build_current_directory`');
+    expect(agentsGuide).toContain('Do not tell the user to open the Maker web page');
+    expect(agentsGuide).toContain('Maker ad workflow');
+    expect(agentsGuide).toContain('first call `get_ad_config` before reading');
+    expect(agentsGuide).toContain('Maker feedback workflow');
+    expect(agentsGuide).toContain('the Maker proxy `get_debug_feedbacks` tool');
+    expect(agentsGuide).toContain('Maker MCP proxy tools when they are available');
     expect(agentsGuide).toContain(
       'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
-    expect(agentsGuide).toContain('call `get_ad_config` first to get the');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');
     expect(agentsGuide).toContain('build once with `maker_build_current_directory`');
     expect(claudeGuide).toBe('user edits\n');
