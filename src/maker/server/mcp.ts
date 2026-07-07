@@ -779,6 +779,11 @@ async function formatStatus(
       allowRemoteFetch: false,
     })
   );
+  const projectInitializationText = identify.projectRoot
+    ? formatMakerProjectInitializationStatus(
+        inspectMakerProjectInitialization(identify.projectRoot)
+      )
+    : '';
   const projectSection = identify.projectId
     ? [
         '目标目录已绑定 Maker 项目。',
@@ -816,13 +821,7 @@ async function formatStatus(
     packageUpdateText,
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
-    '',
-    identify.projectRoot
-      ? formatMakerProjectInitializationStatus(
-          inspectMakerProjectInitialization(identify.projectRoot)
-        )
-      : '',
-    '',
+    ...(projectInitializationText ? ['', projectInitializationText, ''] : ['']),
     formatMakerClientRootsStatus(projectContext.roots),
     '',
     projectContext.source === 'client_roots'

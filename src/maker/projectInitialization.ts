@@ -43,7 +43,7 @@ export function inspectMakerProjectInitialization(
   }
 
   const missingFields = ['app_id', 'developer_id'].filter(
-    (field) => !hasNonEmptyField(projectJson, field)
+    (field) => !hasNonEmptyIdentityField(projectJson, field)
   );
   if (missingFields.length > 0) {
     return {
@@ -92,31 +92,38 @@ export function formatMakerProjectInitializationStatus(
       .join('\n');
   }
 
-  return [
-    'Maker project initialization',
-    '',
-    '- status: missing_project_json',
-    `- config: ${status.projectJsonPath}`,
-    '- impact: get_ad_config and other remote project-config tools cannot read project metadata yet.',
-    '- next_action: 先调用 maker_build_current_directory 构建一次，生成 .project/project.json 后再重试。',
-  ].join('\n');
+  if (status.status === 'missing_project_json') {
+    return [
+      'Maker project initialization',
+      '',
+      '- status: missing_project_json',
+      `- config: ${status.projectJsonPath}`,
+      '- impact: get_ad_config and other remote project-config tools cannot read project metadata yet.',
+      '- next_action: 先调用 maker_build_current_directory 构建一次，生成 .project/project.json 后再重试。',
+    ].join('\n');
+  }
+
+  return '';
 }
 
-function hasNonEmptyField(value: unknown, fieldName: string): boolean {
+function hasNonEmptyIdentityField(value: unknown, fieldName: string): boolean {
   if (!value || typeof value !== 'object') {
     return false;
   }
 
-  if (Object.prototype.hasOwnProperty.call(value, fieldName)) {
-    const fieldValue = (value as Record<string, unknown>)[fieldName];
-    if (fieldValue !== undefined && fieldValue !== null && String(fieldValue).trim() !== '') {
-      return true;
-    }
+  const record = value as Record<string, unknown>;
+  if (isNonEmptyStringLike(record[fieldName])) {
+    return true;
   }
 
-  if (Array.isArray(value)) {
-    return value.some((item) => hasNonEmptyField(item, fieldName));
+  const taptapPublish = record.taptap_publish;
+  if (!taptapPublish || typeof taptapPublish !== 'object' || Array.isArray(taptapPublish)) {
+    return false;
   }
 
-  return Object.values(value).some((item) => hasNonEmptyField(item, fieldName));
+  return isNonEmptyStringLike((taptapPublish as Record<string, unknown>)[fieldName]);
+}
+
+function isNonEmptyStringLike(value: unknown): boolean {
+  return value !== undefined && value !== null && String(value).trim() !== '';
 }

@@ -2134,6 +2134,31 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('不要为这个恢复流程调用发布类工具');
   });
 
+  test('project initialization does not treat unrelated nested identity-like fields as ready', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify(
+        {
+          build_config: {
+            app_id: 'not-taptap-app',
+            developer_id: 'not-taptap-developer',
+          },
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectInitialization(tempDir);
+    const output = formatMakerProjectInitializationStatus(status);
+
+    expect(status.status).toBe('missing_taptap_identity');
+    expect(status.missingFields).toEqual(['app_id', 'developer_id']);
+    expect(output).toContain('generate_test_qrcode');
+  });
+
   test('project initialization status stays quiet after project identity exists', () => {
     fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
     fs.writeFileSync(
