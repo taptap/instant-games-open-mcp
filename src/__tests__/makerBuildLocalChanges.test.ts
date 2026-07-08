@@ -766,6 +766,20 @@ describe('maker build local-change guard', () => {
     });
   });
 
+  test('does not inject single-player multiplayer default for explicit multiplayer entries', () => {
+    const buildArgs = createBuildArgs(tempDir, {
+      scriptsPath: 'scripts',
+      entryClient: 'client_main.lua',
+      entryServer: 'server_main.lua',
+    });
+
+    expect(buildArgs).toEqual({
+      scriptsPath: 'scripts',
+      entry_client: 'client_main.lua',
+      entry_server: 'server_main.lua',
+    });
+  });
+
   test('keeps explicit build entry when user overrides the default', () => {
     const buildArgs = createBuildArgs(tempDir, {
       scriptsPath: 'custom',
@@ -975,7 +989,6 @@ describe('maker build local-change guard', () => {
     const multiplayer = {
       enabled: true,
       max_players: 8,
-      mode: 'match',
       background_match: true,
       match_info: {
         desc_name: 'free_match_with_ai',
@@ -2561,7 +2574,7 @@ describe('maker build local-change guard', () => {
     expect(properties.multiplayer.description).toContain('First multiplayer build');
     expect(multiplayerProperties).toHaveProperty('enabled');
     expect(multiplayerProperties).toHaveProperty('max_players');
-    expect(multiplayerProperties).toHaveProperty('mode');
+    expect(multiplayerProperties).not.toHaveProperty('mode');
     expect(multiplayerProperties).toHaveProperty('background_match');
     expect(multiplayerProperties).toHaveProperty('match_info');
     expect(multiplayerProperties).toHaveProperty('persistent_world');

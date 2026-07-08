@@ -376,7 +376,6 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   已绑定 Maker 项目应优先建议用户使用这些 tools。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
 - 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。支持 MCP Roots 的客户端会输出 `MCP client roots` 与 `project_context_source`；只有一个 workspace root 时直接作为 Maker 操作目标，多个 root 中只有一个已绑定 Maker 项目时自动选择该项目，多个 Maker root 时必须让用户只保留一个 Maker workspace 或显式传 `target_dir`，不要猜测。已绑定项目会输出 `Maker remote sync`、AI dev kit 版本检查结果和必要的 `Maker project initialization`，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main、是否需要运行 `taptap-maker dev-kit update`，以及新项目是否需要先构建一次生成 `.project/project.json` 或先调用 `generate_test_qrcode` 生成 `app_id` / `developer_id`；按其中 `next_action` / `next_step` 引导用户。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
-- `maker://status`、`maker_status_lite` 和 `taptap-maker doctor` 会轻量检查 `.project/settings.json` 的构建关键字段；普通 `maker_build_current_directory` 会在 commit/push 前阻断非法 JSON 或被改坏的 settings。检查要求 `$schema`、`sources`、`build` 保持默认构建格式，`build.asset_ignores` 只要求字段存在；不要让 AI 裸改 `sources`、`build.asset_dirs`、`build.output_dir` 等构建关键字段；如果检查失败，只恢复构建关键字段并保留合法的 `@runtime` 配置。
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），第一步必须调用 `get_ad_config` 获取当前项目广告开通状态和广告配置；不要先查本地 SDK 文档、`.maker-mcp/config.json` 或用运行回调推断广告是否开通。若返回缺少 `.project/project.json`，说明新项目尚未构建初始化，应先调用 `maker_build_current_directory` 构建一次生成项目配置，再重试 `get_ad_config`。若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`；不要为这个恢复流程调用发布类工具。只有确认广告配置可用后，再实现或测试广告代码。
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及线上玩家反馈、问题反馈、问题上报、debug feedback、真机日志、截图或玩家反馈，应优先调用 Maker proxy `get_debug_feedbacks`；本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代远端玩家提交的反馈。
 - 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 查看结果 / 看看效果 / 验证游戏效果”时，都调用 `maker_build_current_directory`。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务；push 成功后才远端 build。
@@ -384,7 +383,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。
 - push 成功但远端 build 失败时，工具返回 `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端和具体构建错误。
 - 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`；这种模式只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
-- 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。`entry_client` / `entry_server` 由远端 build 写入 `project.json` 的 `entry@client` / `entry@server`；首次多人构建传多人入口时，应在同一次调用里传 `multiplayer.enabled=true`。`multiplayer` schema 与 `maker-tools` build 保持同步，支持 `enabled`、`max_players`、`mode`、`background_match`、`match_info` 和 `persistent_world`，并写入 `.project/settings.json` 的 `@runtime.multiplayer`；后续构建只更新传入字段，未传字段保留现有配置。
+- 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。
 - 远端 Maker MCP tools 所需的 TapTap MAC token 通过 PAT 获取。
 
 ### 测试和验证

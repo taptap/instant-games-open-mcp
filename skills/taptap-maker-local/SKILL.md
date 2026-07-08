@@ -30,11 +30,11 @@ post-build runtime log polling loop belongs to the local Maker CLI watcher.
 
 For multiplayer builds, use `maker_build_current_directory` structured parameters instead of
 editing project JSON directly. `entry_client` / `entry_server` map to `project.json`
-`entry@client` / `entry@server`; `multiplayer.enabled`, `max_players`, `mode`,
-`background_match`, `match_info`, and `persistent_world` map to `.project/settings.json`
-`@runtime.multiplayer`. On the first multiplayer build, pass `multiplayer.enabled=true` together
-with `entry_client` / `entry_server`; otherwise first-build defaults may initialize multiplayer as
-disabled. The remote build keeps omitted multiplayer fields unchanged on later builds.
+`entry@client` / `entry@server`; `multiplayer.enabled`, `max_players`, `background_match`,
+`match_info`, and `persistent_world` map to `.project/settings.json` `@runtime.multiplayer`.
+On the first multiplayer build, pass `multiplayer.enabled=true` together with
+`entry_client` / `entry_server`; single-player defaults are only injected when no multiplayer entry
+is provided. The remote build keeps omitted multiplayer fields unchanged on later builds.
 
 Maker status, status_lite, and doctor run a lightweight `.project/settings.json` health check.
 Normal `maker_build_current_directory` blocks before commit/push when settings JSON is invalid or

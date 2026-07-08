@@ -154,11 +154,6 @@ const MAKER_BUILD_MULTIPLAYER_SCHEMA = {
       description:
         'Maximum players allowed in one session (2-100). Actual match size can be smaller via match_info.player_number. Runtime default: 4.',
     },
-    mode: {
-      type: 'string',
-      description:
-        'Optional maker-tools multiplayer runtime mode. Forwarded as-is to @runtime.multiplayer.mode when provided.',
-    },
     background_match: {
       type: 'boolean',
       description:
@@ -2789,7 +2784,11 @@ export function createBuildArgs(
   }
   if (options.multiplayer) {
     buildArgs.multiplayer = options.multiplayer;
-  } else if (!fs.existsSync(path.join(projectRoot, '.project', 'settings.json'))) {
+  } else if (
+    !options.entryClient &&
+    !options.entryServer &&
+    !fs.existsSync(path.join(projectRoot, '.project', 'settings.json'))
+  ) {
     buildArgs.multiplayer = { enabled: false };
   }
 
