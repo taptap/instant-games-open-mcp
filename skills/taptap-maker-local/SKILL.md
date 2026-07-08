@@ -28,6 +28,14 @@ This skill covers:
 Build, submit, push, preview, and verify behavior belongs to the single Maker MCP build tool. The
 post-build runtime log polling loop belongs to the local Maker CLI watcher.
 
+For multiplayer builds, use `maker_build_current_directory` structured parameters instead of
+editing project JSON directly. `entry_client` / `entry_server` map to `project.json`
+`entry@client` / `entry@server`; `multiplayer.enabled`, `max_players`, `mode`,
+`background_match`, `match_info`, and `persistent_world` map to `.project/settings.json`
+`@runtime.multiplayer`. On the first multiplayer build, pass `multiplayer.enabled=true` together
+with `entry_client` / `entry_server`; otherwise first-build defaults may initialize multiplayer as
+disabled. The remote build keeps omitted multiplayer fields unchanged on later builds.
+
 ## Responsibilities
 
 Keep this split clear:

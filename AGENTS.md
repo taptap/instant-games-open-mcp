@@ -383,7 +383,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。
 - push 成功但远端 build 失败时，工具返回 `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端和具体构建错误。
 - 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`；这种模式只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
-- 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。
+- 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。`entry_client` / `entry_server` 由远端 build 写入 `project.json` 的 `entry@client` / `entry@server`；首次多人构建传多人入口时，应在同一次调用里传 `multiplayer.enabled=true`。`multiplayer` schema 与 `maker-tools` build 保持同步，支持 `enabled`、`max_players`、`mode`、`background_match`、`match_info` 和 `persistent_world`，并写入 `.project/settings.json` 的 `@runtime.multiplayer`；后续构建只更新传入字段，未传字段保留现有配置。
 - 远端 Maker MCP tools 所需的 TapTap MAC token 通过 PAT 获取。
 
 ### 测试和验证

@@ -773,6 +773,55 @@ describe('maker build local-change guard', () => {
     });
   });
 
+  test('forwards complete multiplayer build config without changing nested fields', () => {
+    const multiplayer = {
+      enabled: true,
+      max_players: 8,
+      mode: 'match',
+      background_match: true,
+      match_info: {
+        desc_name: 'free_match_with_ai',
+        player_number: 4,
+        immediately_start: false,
+        match_timeout: 30,
+      },
+      persistent_world: {
+        enabled: false,
+      },
+    };
+
+    const buildArgs = createBuildArgs(tempDir, {
+      scriptsPath: 'scripts',
+      entryClient: 'client_main.lua',
+      entryServer: 'server_main.lua',
+      multiplayer,
+    });
+
+    expect(buildArgs).toEqual({
+      scriptsPath: 'scripts',
+      entry_client: 'client_main.lua',
+      entry_server: 'server_main.lua',
+      multiplayer,
+    });
+  });
+
+  test('does not inject default multiplayer when settings.json exists', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({ '@runtime': { multiplayer: { enabled: true, max_players: 4 } } }),
+      'utf8'
+    );
+
+    const buildArgs = createBuildArgs(tempDir, {});
+
+    expect(buildArgs).toMatchObject({
+      scriptsPath: 'scripts',
+      entry: 'main.lua',
+    });
+    expect(buildArgs).not.toHaveProperty('multiplayer');
+  });
+
   test('build tool description owns commit, push, and build', () => {
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
@@ -2294,6 +2343,38 @@ describe('maker build local-change guard', () => {
     expect(buildTool?.inputSchema.properties).not.toHaveProperty(
       'submit_local_changes_before_build'
     );
+  });
+
+  test('build tool schema exposes maker-tools multiplayer fields', () => {
+    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
+    const properties = buildTool?.inputSchema.properties || {};
+    const multiplayer = properties.multiplayer as {
+      properties?: Record<string, { properties?: Record<string, unknown>; enum?: string[] }>;
+    };
+    const multiplayerProperties = multiplayer.properties || {};
+    const matchInfo = multiplayerProperties.match_info;
+    const persistentWorld = multiplayerProperties.persistent_world;
+
+    expect(properties.entry_client.description).toContain('entry@client');
+    expect(properties.entry_client.description).toContain('multiplayer.enabled=true');
+    expect(properties.entry_server.description).toContain('entry@server');
+    expect(properties.entry_server.description).toContain('multiplayer.enabled=true');
+    expect(properties.multiplayer.description).toContain('Maker MCP sends { enabled: false }');
+    expect(properties.multiplayer.description).toContain('First multiplayer build');
+    expect(multiplayerProperties).toHaveProperty('enabled');
+    expect(multiplayerProperties).toHaveProperty('max_players');
+    expect(multiplayerProperties).toHaveProperty('mode');
+    expect(multiplayerProperties).toHaveProperty('background_match');
+    expect(multiplayerProperties).toHaveProperty('match_info');
+    expect(multiplayerProperties).toHaveProperty('persistent_world');
+    expect(multiplayerProperties.max_players).toMatchObject({ minimum: 2, maximum: 100 });
+    expect(matchInfo?.properties?.desc_name).toMatchObject({
+      enum: ['free_match', 'free_match_with_ai'],
+    });
+    expect(matchInfo?.properties).toHaveProperty('player_number');
+    expect(matchInfo?.properties).toHaveProperty('immediately_start');
+    expect(matchInfo?.properties).toHaveProperty('match_timeout');
+    expect(persistentWorld?.properties).toHaveProperty('enabled');
   });
 
   test('runtime log pull is not exposed as a public MCP tool', () => {

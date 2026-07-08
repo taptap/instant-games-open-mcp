@@ -633,8 +633,10 @@ tool 透传，参数和落盘行为以远端 tool schema 为准。
 本地工具会复用同一份 `proxy_cfg` 连接远端 MCP server，并转发到远端 `build` tool。默认不要求用户传参：
 
 - `entry` / `scriptsPath`：用户未指定且本地存在 `scripts/main.lua`、也没有显式多人入口参数时，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`，减少远端第一次构建的“入口配置缺失”提示。
-- `entry_client` / `entry_server`：用户明确说明是多人游戏或给出入口文件时再传入；传入多人入口后不会自动补单机 `scripts/main.lua`。
-- `multiplayer`：用户未指定且本地不存在 `.project/settings.json` 时，默认传 `{ "enabled": false }`，用于第一次单机项目构建初始化。
+- `entry_client` / `entry_server`：用户明确说明是多人游戏或给出入口文件时再传入；传入多人入口后不会自动补单机 `scripts/main.lua`；远端 build 会写入 `project.json` 的 `entry@client` / `entry@server`。首次多人构建传多人入口时，应在同一次调用里传 `multiplayer.enabled=true`，避免首次初始化成禁用多人。
+- `multiplayer`：schema 与 `maker-tools` build 工具同步，支持 `enabled`、`max_players`、`mode`、`background_match`、`match_info` 和 `persistent_world`；远端 build 会写入 `.project/settings.json` 的 `@runtime.multiplayer`。用户未指定且本地不存在 `.project/settings.json` 时，默认传 `{ "enabled": false }`，用于第一次单机项目构建初始化；后续构建只更新传入字段，未传字段保持现有配置。
+- `multiplayer.match_info`：房间制 / 对局制配置，支持 `desc_name`（`free_match` / `free_match_with_ai`）、`player_number`、`immediately_start` 和 `match_timeout`。
+- `multiplayer.persistent_world.enabled`：常驻服 / 持续世界配置，用于玩家可加入已运行世界的玩法。
 - 如果用户明确说明是多人游戏或给出入口文件，再把对应参数传入。
 
 ## 提交和推送约束

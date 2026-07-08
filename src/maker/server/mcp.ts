@@ -131,6 +131,77 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'get_debug_feedbacks',
 ];
 
+const MAKER_BUILD_MULTIPLAYER_SCHEMA = {
+  type: 'object',
+  description:
+    'Optional Maker multiplayer config forwarded to remote build and written by maker-tools to .project/settings.json @runtime.multiplayer. If omitted and no .project/settings.json exists, Maker MCP sends { enabled: false } for first single-player build initialization. First multiplayer build with entry_client/entry_server should pass multiplayer.enabled=true and any needed match/world fields in the same call. Later builds update only the provided fields and keep existing config for omitted fields. Runtime defaults: enabled=false, max_players=4, background_match=false.',
+  properties: {
+    enabled: {
+      type: 'boolean',
+      description:
+        'Enable multiplayer mode. When true, initializes the networking subsystem and lobby. Runtime default: false.',
+    },
+    max_players: {
+      type: 'number',
+      minimum: 2,
+      maximum: 100,
+      description:
+        'Maximum players allowed in one session (2-100). Actual match size can be smaller via match_info.player_number. Runtime default: 4.',
+    },
+    mode: {
+      type: 'string',
+      description:
+        'Optional maker-tools multiplayer runtime mode. Forwarded as-is to @runtime.multiplayer.mode when provided.',
+    },
+    background_match: {
+      type: 'boolean',
+      description:
+        'Enable background matching. When true, game scripts load immediately and matching runs in the background; handle the ServerReady event after match success. Runtime default: false.',
+    },
+    match_info: {
+      type: 'object',
+      description:
+        'Match/session-based gameplay config for lobby, room, or round-based games. Examples: LoL, CS2, PUBG, DotA 2.',
+      properties: {
+        desc_name: {
+          type: 'string',
+          enum: ['free_match', 'free_match_with_ai'],
+          description:
+            'Matching algorithm: free_match waits without AI fill; free_match_with_ai fills with AI after timeout.',
+        },
+        player_number: {
+          type: 'number',
+          minimum: 1,
+          description:
+            'Players required to start the match. Must be less than or equal to multiplayer.max_players.',
+        },
+        immediately_start: {
+          type: 'boolean',
+          description: 'Start immediately without waiting for a full match.',
+        },
+        match_timeout: {
+          type: 'number',
+          minimum: 0,
+          description:
+            'Match timeout in seconds. Only effective for desc_name=free_match_with_ai; AI fills after timeout.',
+        },
+      },
+    },
+    persistent_world: {
+      type: 'object',
+      description:
+        'Persistent-world config for long-running/shared worlds where players can join an already running world. Examples: Roblox, World of Warcraft, Minecraft.',
+      properties: {
+        enabled: {
+          type: 'boolean',
+          description:
+            'Enable persistent-world mode instead of starting a separate match/session first. Runtime default: false.',
+        },
+      },
+    },
+  },
+};
+
 type MakerToolDefinition = (typeof tools)[number];
 type RemoteToolDefinition = MakerToolDefinition & { [key: string]: unknown };
 
@@ -193,18 +264,14 @@ export const tools = [
         entry_client: {
           type: 'string',
           description:
-            'Optional multiplayer client entry relative to scriptsPath, e.g. "client_main.lua".',
+            'Optional multiplayer C/S client entry relative to scriptsPath, e.g. "client_main.lua". Forwarded to maker-tools build and written to project.json as entry@client. On the first multiplayer build, pass multiplayer.enabled=true in the same call; otherwise first-build defaults may initialize multiplayer as disabled.',
         },
         entry_server: {
           type: 'string',
           description:
-            'Optional multiplayer server entry relative to scriptsPath, e.g. "server_main.lua".',
+            'Optional multiplayer C/S server entry relative to scriptsPath, e.g. "server_main.lua". Forwarded to maker-tools build and written to project.json as entry@server. On the first multiplayer build, pass multiplayer.enabled=true in the same call; otherwise first-build defaults may initialize multiplayer as disabled.',
         },
-        multiplayer: {
-          type: 'object',
-          description:
-            'Optional multiplayer config forwarded to remote build. If omitted and no .project/settings.json exists, Maker MCP sends { enabled: false } for first single-player build initialization.',
-        },
+        multiplayer: MAKER_BUILD_MULTIPLAYER_SCHEMA,
         server_url: {
           type: 'string',
           description:
