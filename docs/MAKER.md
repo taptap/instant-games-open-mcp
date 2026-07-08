@@ -643,9 +643,10 @@ tool 透传，参数和落盘行为以远端 tool schema 为准。
 `maker_status_lite` 和 `taptap-maker doctor` 中执行轻量 settings 健康检查；普通
 `maker_build_current_directory` 会在本地 commit/push 前阻断非法 JSON 或被改坏的构建关键字段。
 检查只读取 `.project/settings.json`，不跑 git、不查网络、不扫资源目录；`$schema`、
-`sources`、`build` 必须保持默认构建格式，`build.asset_ignores` 只要求字段存在，并允许保留
-合法的 `@runtime` 配置。修复 settings 时只恢复构建关键字段，不要为了功能开发裸改
-`sources`、`build.asset_dirs`、`build.output_dir` 等字段。
+`sources`、`build` 必须保持默认构建格式，`sources.*.tag` 允许 `stable` 或 `latest`，
+`build.asset_ignores` 只要求字段存在，并允许保留合法的 `@runtime` 配置。修复 settings
+时只恢复构建关键字段，不要为了功能开发裸改 `sources`、`build.asset_dirs`、
+`build.output_dir` 等字段。
 
 ## 提交和推送约束
 

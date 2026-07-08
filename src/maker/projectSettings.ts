@@ -5,6 +5,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+const REQUIRED_SOURCE_TAGS = ['stable', 'latest'];
+
 export type MakerProjectSettingsStatus = {
   status: 'ready' | 'missing_settings_json' | 'invalid_settings_json' | 'invalid_project_settings';
   projectRoot: string;
@@ -95,9 +97,9 @@ function validateMakerProjectSettings(settings: unknown): string[] {
   if (!isPlainObject(sources)) {
     issues.push('sources must be an object');
   } else {
-    expectValue(settings, 'sources.engine.tag', 'latest', issues);
-    expectValue(settings, 'sources.engine-res.tag', 'latest', issues);
-    expectValue(settings, 'sources.official-res.tag', 'latest', issues);
+    expectOneOf(settings, 'sources.engine.tag', REQUIRED_SOURCE_TAGS, issues);
+    expectOneOf(settings, 'sources.engine-res.tag', REQUIRED_SOURCE_TAGS, issues);
+    expectOneOf(settings, 'sources.official-res.tag', REQUIRED_SOURCE_TAGS, issues);
   }
 
   const build = readPath(settings, 'build');
@@ -129,6 +131,19 @@ function expectValue(
 ): void {
   if (readPath(settings, fieldPath) !== expected) {
     issues.push(`${fieldPath} must be ${JSON.stringify(expected)}`);
+  }
+}
+
+function expectOneOf(
+  settings: Record<string, unknown>,
+  fieldPath: string,
+  expectedValues: string[],
+  issues: string[]
+): void {
+  if (!expectedValues.includes(String(readPath(settings, fieldPath)))) {
+    issues.push(
+      `${fieldPath} must be ${expectedValues.map((value) => JSON.stringify(value)).join(' or ')}`
+    );
   }
 }
 
