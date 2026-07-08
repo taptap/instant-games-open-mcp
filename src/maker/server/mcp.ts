@@ -95,6 +95,10 @@ import {
   startMakerPackageUpdateCheck,
 } from '../versionCheck.js';
 import {
+  formatMakerProjectInitializationStatus,
+  inspectMakerProjectInitialization,
+} from '../projectInitialization.js';
+import {
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
@@ -122,6 +126,9 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'text_to_music',
   'create_3d_model_task',
   'query_3d_model_task',
+  'generate_test_qrcode',
+  'get_ad_config',
+  'get_debug_feedbacks',
 ];
 
 type MakerToolDefinition = (typeof tools)[number];
@@ -308,7 +315,7 @@ function decorateRemoteProxyToolInputSchema(inputSchema: unknown): Record<string
       target_dir: {
         type: 'string',
         description:
-          'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker generation tool.',
+          'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool.',
       },
     },
   };
@@ -352,6 +359,21 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
     case 'text_to_music':
       return [
         '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker music generation so generated audio can be materialized into the project and recorded for later Maker references.',
+        failurePolicy,
+      ].join(' ');
+    case 'get_ad_config':
+      return [
+        '**Maker hint:** Trigger this tool for any ad-related request (广告, 激励视频, 播放广告, ad ID, ad placement, ShowRewardVideoAd, ad status, or ad config). Call it first to get the current Maker project ad activation status and ad config; do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks. If .project/project.json is missing, build the project once with maker_build_current_directory to initialize it, then call this tool again. If this tool says app_id or developer_id is missing, call generate_test_qrcode once to generate test QR code metadata, then call this tool again.',
+        failurePolicy,
+      ].join(' ');
+    case 'generate_test_qrcode':
+      return [
+        '**Maker hint:** Use this only when the user explicitly asks for a test QR code/mobile scan test, or as the recovery step after get_ad_config reports missing app_id or developer_id. It has no business parameters; follow the remote schema and report the returned QR code or failure payload.',
+        failurePolicy,
+      ].join(' ');
+    case 'get_debug_feedbacks':
+      return [
+        '**Maker hint:** Fetch remote player feedback for the current Maker project, including related device logs and screenshots when available.',
         failurePolicy,
       ].join(' ');
     default:
@@ -757,6 +779,11 @@ async function formatStatus(
       allowRemoteFetch: false,
     })
   );
+  const projectInitializationText = identify.projectRoot
+    ? formatMakerProjectInitializationStatus(
+        inspectMakerProjectInitialization(identify.projectRoot)
+      )
+    : '';
   const projectSection = identify.projectId
     ? [
         '目标目录已绑定 Maker 项目。',
@@ -794,7 +821,7 @@ async function formatStatus(
     packageUpdateText,
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
-    '',
+    ...(projectInitializationText ? ['', projectInitializationText, ''] : ['']),
     formatMakerClientRootsStatus(projectContext.roots),
     '',
     projectContext.source === 'client_roots'

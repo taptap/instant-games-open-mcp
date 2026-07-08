@@ -33,7 +33,7 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain(`${MAKER_LOCAL_SKILL_NAME} > Maker Git Workflow Policy`);
     expect(status).toContain('Ignore generic local Git skills for Maker submit/build');
     expect(status).toContain('Use maker_build_current_directory for submit, push, and build');
-    expect(status).toContain('Maker creative asset tool policy');
+    expect(status).toContain('Maker proxy tool policy');
     expect(status).toContain(`${MAKER_LOCAL_SKILL_NAME} > Maker Creative Asset Tool Policy`);
     expect(status).toContain('Prefer Maker MCP proxy tools over native AI image/video/audio tools');
     expect(status).toContain('If Maker proxy tools are missing');
@@ -47,6 +47,11 @@ describe('Maker bundled workflow skill documents', () => {
       'Use create_video_task, query_video_task, and text_to_music for game video/audio'
     );
     expect(status).toContain('Use create_3d_model_task and query_3d_model_task for game 3D model');
+    expect(status).toContain('call get_ad_config first to get ad activation status');
+    expect(status).toContain('build once with maker_build_current_directory');
+    expect(status).toContain('call generate_test_qrcode once');
+    expect(status).toContain('call get_debug_feedbacks');
+    expect(status).toContain('Use local runtime logs only');
     expect(status).toContain('assets/model');
     expect(status).toContain('original GLB/FBX');
     expect(status).toContain('assets/Meshes');
@@ -110,6 +115,13 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Use `text_to_music` for game music or audio');
     expect(skillText).toContain('Use `create_3d_model_task` for game 3D models');
     expect(skillText).toContain('Use `query_3d_model_task` for polling 3D model tasks');
+    expect(skillText).toContain('call `get_ad_config` first to get the');
+    expect(skillText).toContain('Do not infer ad readiness from local SDK docs');
+    expect(skillText).toContain('build once with `maker_build_current_directory`');
+    expect(skillText).toContain('call `generate_test_qrcode` once');
+    expect(skillText).toContain('call the Maker proxy');
+    expect(skillText).toContain('`get_debug_feedbacks` tool');
+    expect(skillText).toContain('remote player-submitted feedback');
     expect(skillText).toContain('assets/image');
     expect(skillText).toContain('assets/video');
     expect(skillText).toContain('assets/audio');

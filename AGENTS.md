@@ -368,11 +368,16 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
   远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、
-  `edit_image`、`create_video_task`、`query_video_task` 和 `text_to_music`，用于试用图片/视频/音乐生成链路，
-  本地保留远端 tool schema 和成功返回值，但会在 description 追加 Maker 素材链路提示：
+  `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
+  `create_3d_model_task`、`query_3d_model_task`、`generate_test_qrcode`、`get_ad_config`
+  和 `get_debug_feedbacks`，
+  用于试用图片/视频/音乐/3D 模型生成、广告配置同步和远端玩家反馈查询链路，
+  本地保留远端 tool schema 和成功返回值，但会在 description 追加简短 Maker 本地开发提示：
   已绑定 Maker 项目应优先建议用户使用这些 tools。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
-- 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。支持 MCP Roots 的客户端会输出 `MCP client roots` 与 `project_context_source`；只有一个 workspace root 时直接作为 Maker 操作目标，多个 root 中只有一个已绑定 Maker 项目时自动选择该项目，多个 Maker root 时必须让用户只保留一个 Maker workspace 或显式传 `target_dir`，不要猜测。已绑定项目会输出 `Maker remote sync` 和 AI dev kit 版本检查结果，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main，以及是否需要运行 `taptap-maker dev-kit update`；按其中 `next_action` / `next_step` 引导用户。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
+- 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。支持 MCP Roots 的客户端会输出 `MCP client roots` 与 `project_context_source`；只有一个 workspace root 时直接作为 Maker 操作目标，多个 root 中只有一个已绑定 Maker 项目时自动选择该项目，多个 Maker root 时必须让用户只保留一个 Maker workspace 或显式传 `target_dir`，不要猜测。已绑定项目会输出 `Maker remote sync`、AI dev kit 版本检查结果和必要的 `Maker project initialization`，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main、是否需要运行 `taptap-maker dev-kit update`，以及新项目是否需要先构建一次生成 `.project/project.json` 或先调用 `generate_test_qrcode` 生成 `app_id` / `developer_id`；按其中 `next_action` / `next_step` 引导用户。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
+- 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），第一步必须调用 `get_ad_config` 获取当前项目广告开通状态和广告配置；不要先查本地 SDK 文档、`.maker-mcp/config.json` 或用运行回调推断广告是否开通。若返回缺少 `.project/project.json`，说明新项目尚未构建初始化，应先调用 `maker_build_current_directory` 构建一次生成项目配置，再重试 `get_ad_config`。若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`；不要为这个恢复流程调用发布类工具。只有确认广告配置可用后，再实现或测试广告代码。
+- 当前目录是已绑定 Maker 项目时，只要用户消息涉及线上玩家反馈、问题反馈、问题上报、debug feedback、真机日志、截图或玩家反馈，应优先调用 Maker proxy `get_debug_feedbacks`；本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代远端玩家提交的反馈。
 - 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 查看结果 / 看看效果 / 验证游戏效果”时，都调用 `maker_build_current_directory`。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务；push 成功后才远端 build。
 - push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。
