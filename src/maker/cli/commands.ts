@@ -79,6 +79,10 @@ import {
   formatMakerProjectInitializationStatus,
   inspectMakerProjectInitialization,
 } from '../projectInitialization.js';
+import {
+  formatMakerProjectSettingsStatus,
+  inspectMakerProjectSettings,
+} from '../projectSettings.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
@@ -447,6 +451,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const projectInitialization = isProjectBound
     ? inspectMakerProjectInitialization(projectRoot)
     : undefined;
+  const projectSettings = isProjectBound ? inspectMakerProjectSettings(projectRoot) : undefined;
   const workBuddyTrust = shouldShowWorkBuddyTrustInspection()
     ? inspectWorkBuddyTrustState(DEFAULT_MCP_NAME)
     : undefined;
@@ -467,6 +472,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       dev_kit_update: devKitUpdate,
       package_update: packageUpdate,
       project_initialization: projectInitialization,
+      project_settings: projectSettings,
       mcp_tools_availability: mcpToolsAvailability,
       ...(workBuddyTrust ? { workbuddy_trust: workBuddyTrust } : {}),
       orphan_process_check: orphanProcessCheck,
@@ -500,6 +506,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       `- project_id: ${identify.projectId || '(none)'}`,
       identify.configPath ? `- config: ${identify.configPath}` : '',
       projectInitialization ? formatMakerProjectInitializationStatus(projectInitialization) : '',
+      projectSettings ? formatMakerProjectSettingsStatus(projectSettings) : '',
       isProjectBound ? formatMakerAgentsPolicyStatus(projectRoot) : '',
       '',
       'AI dev kit',

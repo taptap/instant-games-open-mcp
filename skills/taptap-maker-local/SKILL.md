@@ -36,6 +36,13 @@ editing project JSON directly. `entry_client` / `entry_server` map to `project.j
 with `entry_client` / `entry_server`; otherwise first-build defaults may initialize multiplayer as
 disabled. The remote build keeps omitted multiplayer fields unchanged on later builds.
 
+Maker status, status_lite, and doctor run a lightweight `.project/settings.json` health check.
+Normal `maker_build_current_directory` blocks before commit/push when settings JSON is invalid or
+build-critical fields are damaged. `$schema`, `sources`, and `build` must keep the default build
+shape; `build.asset_ignores` only needs to exist. Do not edit settings build fields directly for
+feature work; restore only the build-critical fields when the check fails, and preserve valid
+`@runtime` config.
+
 ## Responsibilities
 
 Keep this split clear:

@@ -99,6 +99,12 @@ import {
   inspectMakerProjectInitialization,
 } from '../projectInitialization.js';
 import {
+  formatMakerProjectSettingsStatus,
+  inspectMakerProjectSettings,
+  isMakerProjectSettingsBlocking,
+  type MakerProjectSettingsStatus,
+} from '../projectSettings.js';
+import {
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
@@ -790,7 +796,7 @@ function installMakerServerExitHandlers(): void {
   });
 }
 
-async function formatStatus(
+export async function formatStatus(
   options: {
     targetDir?: string;
     skipRemoteSync?: boolean;
@@ -851,6 +857,9 @@ async function formatStatus(
         inspectMakerProjectInitialization(identify.projectRoot)
       )
     : '';
+  const projectSettingsText = identify.projectRoot
+    ? formatMakerProjectSettingsStatus(inspectMakerProjectSettings(identify.projectRoot))
+    : '';
   const projectSection = identify.projectId
     ? [
         '目标目录已绑定 Maker 项目。',
@@ -889,6 +898,7 @@ async function formatStatus(
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
     ...(projectInitializationText ? ['', projectInitializationText, ''] : ['']),
+    ...(projectSettingsText ? ['', projectSettingsText, ''] : ['']),
     formatMakerClientRootsStatus(projectContext.roots),
     '',
     projectContext.source === 'client_roots'
@@ -1924,6 +1934,12 @@ type BuildCurrentDirectoryResult =
       submitResult: PushMakerProjectResult;
     }
   | {
+      mode: 'settings_invalid_before_build';
+      projectRoot: string;
+      projectId: string;
+      settingsStatus: MakerProjectSettingsStatus;
+    }
+  | {
       mode: 'build_failed_after_submit';
       projectRoot: string;
       projectId: string;
@@ -1963,6 +1979,15 @@ export async function buildCurrentDirectory(options: {
   const localChanges = await readMakerProjectLocalChanges(options.targetDir);
   if (!options.confirmRemoteBuildWithoutSubmit) {
     const config = loadProjectConfig(localChanges.projectRoot);
+    const settingsStatus = inspectMakerProjectSettings(localChanges.projectRoot);
+    if (isMakerProjectSettingsBlocking(settingsStatus)) {
+      return {
+        mode: 'settings_invalid_before_build',
+        projectRoot: localChanges.projectRoot,
+        projectId: config?.project_id || 'unknown',
+        settingsStatus,
+      };
+    }
     options.onProgress?.({
       progress: 0,
       total: 100,
@@ -2870,6 +2895,20 @@ export function formatBuildResult(
             ...formatMakerFailureLines(result.submitResult.failure),
           ]
         : []),
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (result.mode === 'settings_invalid_before_build') {
+    return [
+      '✗ Maker project settings are invalid; submit and remote build were not started',
+      '',
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      ...formatProgressSummary(progressSummary),
+      '',
+      formatMakerProjectSettingsStatus(result.settingsStatus),
     ]
       .filter(Boolean)
       .join('\n');

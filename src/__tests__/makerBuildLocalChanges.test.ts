@@ -21,6 +21,7 @@ import {
   createRemoteRuntimeLogClient,
   refreshMakerPreview,
   formatBuildResult,
+  formatStatus,
   formatAiDevKitStatus,
   formatClonePartialStateLines,
   formatMakerToolRegistrationCwdStatus,
@@ -49,6 +50,10 @@ import {
   formatMakerProjectInitializationStatus,
   inspectMakerProjectInitialization,
 } from '../maker/projectInitialization';
+import {
+  formatMakerProjectSettingsStatus,
+  inspectMakerProjectSettings,
+} from '../maker/projectSettings';
 
 describe('maker build local-change guard', () => {
   let tempDir: string;
@@ -771,6 +776,199 @@ describe('maker build local-change guard', () => {
       scriptsPath: 'custom',
       entry: 'boot.lua',
     });
+  });
+
+  test('project settings check allows runtime config but reports broken build fields', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'latest' },
+          'engine-res': { tag: 'custom' },
+          'official-res': { tag: 'latest' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+          asset_ignores: [],
+        },
+        '@runtime': {
+          multiplayer: { enabled: true },
+        },
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+    const output = formatMakerProjectSettingsStatus(status);
+
+    expect(status.status).toBe('invalid_project_settings');
+    expect(status.issues).toEqual(['sources.engine-res.tag must be "latest"']);
+    expect(output).toContain('Maker project settings');
+    expect(output).toContain('- status: invalid_project_settings');
+    expect(output).toContain('sources.engine-res.tag must be "latest"');
+  });
+
+  test('project settings check only requires asset ignores to exist', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'latest' },
+          'engine-res': { tag: 'latest' },
+          'official-res': { tag: 'latest' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+          asset_ignores: 'remote-managed-value',
+        },
+        '@runtime': {
+          multiplayer: { enabled: true },
+        },
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+
+    expect(status.status).toBe('ready');
+    expect(formatMakerProjectSettingsStatus(status)).toBe('');
+  });
+
+  test('project settings check reports missing asset ignores field', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'latest' },
+          'engine-res': { tag: 'latest' },
+          'official-res': { tag: 'latest' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+        },
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+
+    expect(status.status).toBe('invalid_project_settings');
+    expect(status.issues).toEqual(['build.asset_ignores must exist']);
+  });
+
+  test('project settings check reports missing required root sections', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+
+    expect(status.status).toBe('invalid_project_settings');
+    expect(status.issues).toEqual(['sources must be an object', 'build must be an object']);
+  });
+
+  test('status reports project settings problems without remote sync', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+
+    const output = await formatStatus({ targetDir: tempDir, skipRemoteSync: true });
+
+    expect(output).toContain('Maker project settings');
+    expect(output).toContain('- status: invalid_settings_json');
+    expect(output).toContain('构建可能失败或游戏黑屏');
+  });
+
+  test('build blocks before submit when required project settings fields drift from template', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'latest' },
+          'engine-res': { tag: 'latest' },
+          'official-res': { tag: 'latest' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets'],
+          asset_ignores: [],
+        },
+      }),
+      'utf8'
+    );
+    const submitLocalChanges = jest.fn();
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+    });
+
+    expect(result.mode).toBe('settings_invalid_before_build');
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      'build.asset_dirs must contain only "../assets" and "../scripts"'
+    );
+  });
+
+  test('build blocks before submit when project settings json is invalid', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+    const submitLocalChanges = jest.fn();
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+    });
+
+    expect(result.mode).toBe('settings_invalid_before_build');
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      'Maker project settings are invalid'
+    );
+  });
+
+  test('remote-only build skips local project settings validation', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+    const callRemoteBuild = jest.fn(async () => ({
+      mode: 'remote_build' as const,
+      projectRoot: fs.realpathSync(tempDir),
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      timeoutMs: 600000,
+      buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+      resultText: 'build ok',
+    }));
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      confirmRemoteBuildWithoutSubmit: true,
+      callRemoteBuild,
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect(callRemoteBuild).toHaveBeenCalledWith(tempDir);
   });
 
   test('forwards complete multiplayer build config without changing nested fields', () => {
@@ -3394,6 +3592,18 @@ describe('maker build local-change guard', () => {
 
   function dataUrl(mime: string, body: string): string {
     return `data:${mime};base64,${Buffer.from(body).toString('base64')}`;
+  }
+
+  function emptyProgressSummary(): {
+    elapsedMs: number;
+    elapsed: string;
+    progressEvents: number;
+  } {
+    return {
+      elapsedMs: 0,
+      elapsed: '0s',
+      progressEvents: 0,
+    };
   }
 
   function fake3dModelResultFetch(

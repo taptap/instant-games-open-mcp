@@ -145,6 +145,12 @@ Maker 页面。
 `@runtime.multiplayer`。后续构建只更新传入字段，未传字段保留现有配置。首次多人构建传
 `entry_client` / `entry_server` 时，应在同一次调用里传 `multiplayer.enabled=true`。
 
+Maker MCP 会对 `.project/settings.json` 做轻量本地健康检查：`maker://status`、
+`maker_status_lite` 和 `taptap-maker doctor` 会展示损坏风险；普通构建会在提交 / push 前
+拦截非法 JSON 或被改坏的构建关键字段，避免黑屏/构建失败配置进入 Maker 远端。检查只读取
+单个 settings 文件：`$schema`、`sources`、`build` 必须保持默认构建格式，
+`build.asset_ignores` 只要求字段存在；合法的 `@runtime` 配置会被保留。
+
 构建成功后，Maker MCP 会刷新 Maker Web 预览，并启动本地 runtime log watcher。后续如果用户询问
 游戏运行结果、Lua 报错或调试问题，本地 AI Agent 应优先读取构建返回中的
 `runtime_logs.local_file`；如需判断 watcher 是否正常，读取 `runtime_logs.state_file`。
