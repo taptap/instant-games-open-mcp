@@ -21,6 +21,8 @@ const IMAGE_REFERENCE_MAX_BYTES = 10 * 1024 * 1024;
 const VIDEO_TASK_IMAGE_REFERENCE_MAX_BYTES = 30 * 1024 * 1024;
 const VIDEO_REFERENCE_MAX_BYTES = 50 * 1024 * 1024;
 const AUDIO_REFERENCE_MAX_BYTES = 15 * 1024 * 1024;
+const DEBUG_FEEDBACK_PATH_HINT =
+  'Use local_dir/local_log_paths/local_screenshot_paths when they are returned. If only local_candidate_* is present, it is a possible project-relative location and must not be treated as a downloaded local file.';
 
 type DataUrlMediaKind = 'image' | 'video' | 'audio';
 
@@ -163,6 +165,7 @@ function shouldMaterializeRemoteProxyTool(toolName: string): boolean {
     'text_to_music',
     'create_3d_model_task',
     'query_3d_model_task',
+    'get_debug_feedbacks',
   ].includes(toolName);
 }
 
@@ -234,7 +237,274 @@ async function materializeParsedProxyResult(options: {
   if (options.toolName === 'create_3d_model_task' || options.toolName === 'query_3d_model_task') {
     return await materialize3dModelResult(options, options.toolName);
   }
+  if (options.toolName === 'get_debug_feedbacks') {
+    return await materializeDebugFeedbackResult(options);
+  }
   return options.payload;
+}
+
+async function materializeDebugFeedbackResult(options: {
+  targetDir: string;
+  payload: Record<string, unknown>;
+  fetchImpl: RemoteProxyFetch;
+}): Promise<Record<string, unknown>> {
+  if (options.payload.success !== true) {
+    return options.payload;
+  }
+
+  const feedbacks = getDebugFeedbackItems(options.payload);
+  const remoteSaveDir = getDebugFeedbackSaveDir(options.payload);
+  if (feedbacks.length === 0 && !remoteSaveDir) {
+    return options.payload;
+  }
+
+  const nextFeedbacks = [];
+  for (const feedback of feedbacks) {
+    const remoteDir = stringField(feedback.dir);
+    const localCandidateDir = remoteDir
+      ? resolveDebugFeedbackCandidatePath(options.targetDir, remoteDir)
+      : undefined;
+    const materialized = await materializeDebugFeedbackArtifacts({
+      targetDir: options.targetDir,
+      feedback,
+      fetchImpl: options.fetchImpl,
+    });
+    nextFeedbacks.push({
+      ...feedback,
+      ...(localCandidateDir ? { local_candidate_dir: localCandidateDir } : {}),
+      ...materialized,
+    });
+  }
+  const localCandidateSaveDir = remoteSaveDir
+    ? resolveDebugFeedbackCandidatePath(options.targetDir, remoteSaveDir)
+    : feedbacks.some(hasDebugFeedbackArtifactUrls)
+      ? path.join(options.targetDir, 'logs', 'feed_back')
+      : undefined;
+  const filesVerifiedLocally = nextFeedbacks.some(
+    (feedback) => numberField(feedback.artifacts_downloaded) > 0
+  );
+
+  return {
+    ...replaceDebugFeedbackItems(options.payload, nextFeedbacks),
+    local_path_hint: {
+      remote_save_dir: remoteSaveDir,
+      local_candidate_save_dir: localCandidateSaveDir,
+      local_project_dir: options.targetDir,
+      files_verified_locally: filesVerifiedLocally,
+      note: DEBUG_FEEDBACK_PATH_HINT,
+    },
+  };
+}
+
+async function materializeDebugFeedbackArtifacts(options: {
+  targetDir: string;
+  feedback: Record<string, unknown>;
+  fetchImpl: RemoteProxyFetch;
+}): Promise<Record<string, unknown>> {
+  const feedbackId =
+    stringField(options.feedback.feedback_id) || String(options.feedback.feedback_id || '');
+  if (!feedbackId) {
+    return {};
+  }
+
+  const logUrls = stringArrayField(options.feedback.log_file_urls);
+  const screenshotUrls = stringArrayField(options.feedback.screenshots);
+  const extraUrls = stringArrayField(options.feedback.download_urls).filter(
+    (url) => !logUrls.includes(url) && !screenshotUrls.includes(url)
+  );
+  if (logUrls.length === 0 && screenshotUrls.length === 0 && extraUrls.length === 0) {
+    return {};
+  }
+
+  const localDir = path.join(options.targetDir, 'logs', 'feed_back', `feedback_${feedbackId}`);
+  const localLogPaths = [];
+  const localScreenshotPaths = [];
+  const localDownloadPaths = [];
+  const errors = [];
+
+  for (const [index, url] of logUrls.entries()) {
+    const result = await downloadDebugFeedbackArtifact({
+      url,
+      directory: path.join(localDir, 'logs'),
+      fallbackName: `log_${index + 1}.log`,
+      fetchImpl: options.fetchImpl,
+    });
+    if (result.success) {
+      localLogPaths.push(result.path);
+    } else {
+      errors.push(result.error);
+    }
+  }
+
+  for (const [index, url] of screenshotUrls.entries()) {
+    const result = await downloadDebugFeedbackArtifact({
+      url,
+      directory: path.join(localDir, 'screenshots'),
+      fallbackName: `screenshot_${index + 1}.png`,
+      fetchImpl: options.fetchImpl,
+    });
+    if (result.success) {
+      localScreenshotPaths.push(result.path);
+    } else {
+      errors.push(result.error);
+    }
+  }
+
+  for (const [index, url] of extraUrls.entries()) {
+    const result = await downloadDebugFeedbackArtifact({
+      url,
+      directory: path.join(localDir, 'downloads'),
+      fallbackName: `artifact_${index + 1}`,
+      fetchImpl: options.fetchImpl,
+    });
+    if (result.success) {
+      localDownloadPaths.push(result.path);
+    } else {
+      errors.push(result.error);
+    }
+  }
+
+  return {
+    local_dir: localDir,
+    local_log_paths: localLogPaths,
+    local_screenshot_paths: localScreenshotPaths,
+    local_download_paths: localDownloadPaths,
+    artifacts_downloaded:
+      localLogPaths.length + localScreenshotPaths.length + localDownloadPaths.length,
+    artifact_download_errors: errors,
+  };
+}
+
+async function downloadDebugFeedbackArtifact(options: {
+  url: string;
+  directory: string;
+  fallbackName: string;
+  fetchImpl: RemoteProxyFetch;
+}): Promise<{ success: true; path: string } | { success: false; error: string }> {
+  try {
+    const response = await options.fetchImpl(options.url);
+    if (!response.ok) {
+      return {
+        success: false,
+        error: `${options.url}: HTTP ${response.status}`,
+      };
+    }
+    fs.mkdirSync(options.directory, { recursive: true });
+    const filePath = allocateDebugFeedbackArtifactPath(
+      options.directory,
+      options.url,
+      options.fallbackName
+    );
+    const bytes = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(filePath, bytes);
+    return { success: true, path: filePath };
+  } catch (error) {
+    return {
+      success: false,
+      error: `${options.url}: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+function allocateDebugFeedbackArtifactPath(
+  directory: string,
+  url: string,
+  fallbackName: string
+): string {
+  const rawName = fileNameFromUrl(url) || fallbackName;
+  const rawExtension = path.extname(rawName);
+  const finalExtension =
+    rawExtension && rawExtension !== '.' ? rawExtension.replace(/[^A-Za-z0-9.]/g, '_') : '';
+  const rawStem = finalExtension ? rawName.slice(0, -rawExtension.length) : rawName;
+  const stem = sanitizeAssetBaseName(rawStem);
+
+  for (let index = 1; index <= 9999; index += 1) {
+    const suffix = index === 1 ? '' : `_${index}`;
+    const candidate = path.join(directory, `${stem}${suffix}${finalExtension}`);
+    if (!fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error(`Unable to allocate debug feedback artifact path for ${stem}${finalExtension}`);
+}
+
+function fileNameFromUrl(url: string): string | undefined {
+  try {
+    const pathname = new URL(url).pathname;
+    const name = decodeURIComponent(path.basename(pathname));
+    return name && name !== '/' ? name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function hasDebugFeedbackArtifactUrls(feedback: Record<string, unknown>): boolean {
+  return (
+    stringArrayField(feedback.log_file_urls).length > 0 ||
+    stringArrayField(feedback.screenshots).length > 0 ||
+    stringArrayField(feedback.download_urls).length > 0
+  );
+}
+
+function getDebugFeedbackSaveDir(payload: Record<string, unknown>): string | undefined {
+  const summary = payload.summary;
+  return (
+    stringField(payload.save_dir) || (isRecord(summary) ? stringField(summary.save_dir) : undefined)
+  );
+}
+
+function resolveDebugFeedbackCandidatePath(
+  targetDir: string,
+  remotePath: string
+): string | undefined {
+  if (path.isAbsolute(remotePath)) {
+    return undefined;
+  }
+  const trimmedRemotePath = remotePath.replace(/[\\/]+$/, '');
+  return path.normalize(path.join(targetDir, trimmedRemotePath || '.'));
+}
+
+function replaceDebugFeedbackItems(
+  payload: Record<string, unknown>,
+  nextFeedbacks: Record<string, unknown>[]
+): Record<string, unknown> {
+  const summary = payload.summary;
+  if (isRecord(summary) && Array.isArray(summary.feedbacks)) {
+    return {
+      ...payload,
+      summary: {
+        ...summary,
+        feedbacks: nextFeedbacks,
+      },
+    };
+  }
+  if (Array.isArray(payload.feedbacks)) {
+    return {
+      ...payload,
+      feedbacks: nextFeedbacks,
+    };
+  }
+  if (Array.isArray(payload.list)) {
+    return {
+      ...payload,
+      list: nextFeedbacks,
+    };
+  }
+  return payload;
+}
+
+function getDebugFeedbackItems(payload: Record<string, unknown>): Record<string, unknown>[] {
+  const summary = payload.summary;
+  if (isRecord(summary) && Array.isArray(summary.feedbacks)) {
+    return summary.feedbacks.filter(isRecord);
+  }
+  if (Array.isArray(payload.feedbacks)) {
+    return payload.feedbacks.filter(isRecord);
+  }
+  if (Array.isArray(payload.list)) {
+    return payload.list.filter(isRecord);
+  }
+  return [];
 }
 
 async function materializeSingleImageResult(
@@ -1262,14 +1532,32 @@ function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
+function stringArrayField(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => Boolean(stringField(item)))
+    : [];
+}
+
+function numberField(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
 function sanitizeAssetBaseName(value: string): string {
-  const sanitized = value
+  const sanitized = replaceControlCharacters(value)
     .trim()
     .replace(/\s+/g, '_')
     .replace(/[/\\:*?"<>|]+/g, '_')
     .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  return sanitized || 'asset';
+    .replace(/^_+|_+$/g, '')
+    .replace(/[. ]+$/g, '');
+  const safeName = sanitized || 'asset';
+  return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(safeName) ? `_${safeName}` : safeName;
+}
+
+function replaceControlCharacters(value: string): string {
+  return Array.from(value)
+    .map((character) => (character.charCodeAt(0) < 32 ? '_' : character))
+    .join('');
 }
 
 function formatAssetTimestamp(date: Date): string {

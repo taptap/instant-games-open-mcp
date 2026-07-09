@@ -2315,6 +2315,144 @@ describe('maker build local-change guard', () => {
     });
   });
 
+  test('annotates maker feedback proxy relative paths without local downloading', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'get_debug_feedbacks',
+      targetDir: tempDir,
+      result: proxyTextResult({
+        success: true,
+        save_dir: 'logs/feed_back/',
+        summary: {
+          fetched: 1,
+          logs_downloaded: 1,
+          screenshots_downloaded: 1,
+          feedbacks: [
+            {
+              feedback_id: 11001,
+              dir: 'logs/feed_back/feedback_11001',
+              logs_downloaded: 1,
+              screenshots_downloaded: 1,
+            },
+          ],
+        },
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+
+    expect(parsed.save_dir).toBe('logs/feed_back/');
+    expect(parsed.local_path_hint).toEqual({
+      remote_save_dir: 'logs/feed_back/',
+      local_candidate_save_dir: path.join(tempDir, 'logs', 'feed_back'),
+      local_project_dir: tempDir,
+      files_verified_locally: false,
+      note: 'Use local_dir/local_log_paths/local_screenshot_paths when they are returned. If only local_candidate_* is present, it is a possible project-relative location and must not be treated as a downloaded local file.',
+    });
+    expect(parsed.summary.feedbacks[0].dir).toBe('logs/feed_back/feedback_11001');
+    expect(parsed.summary.feedbacks[0].local_candidate_dir).toBe(
+      path.join(tempDir, 'logs', 'feed_back', 'feedback_11001')
+    );
+    expect(fs.existsSync(path.join(tempDir, 'logs', 'feed_back'))).toBe(false);
+  });
+
+  test('keeps maker feedback no-data results unchanged', async () => {
+    const payload = {
+      success: true,
+      total: 0,
+      message: '没有找到调试反馈数据',
+      list: [],
+    };
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'get_debug_feedbacks',
+      targetDir: tempDir,
+      result: proxyTextResult(payload),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+
+    expect(parsed).toEqual(payload);
+    expect('structuredContent' in result).toBe(true);
+  });
+
+  test('downloads maker feedback artifact urls into local feedback directories', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'get_debug_feedbacks',
+      targetDir: tempDir,
+      fetchImpl: (async (url: string) => {
+        if (url.endsWith('/runtime.log')) {
+          return new Response('runtime log body');
+        }
+        if (url.endsWith('/screenshot.png')) {
+          return new Response(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        }
+        return new Response('missing', { status: 404 });
+      }) as typeof fetch,
+      result: proxyTextResult({
+        success: true,
+        message: '已拉取 1 条反馈，仅返回下载地址',
+        total: 1,
+        fetched: 1,
+        save_dir: null,
+        feedbacks: [
+          {
+            feedback_id: 10001,
+            description: 'crash',
+            log_file_urls: ['https://cdn.example.com/runtime.log'],
+            screenshots: ['https://cdn.example.com/screenshot.png'],
+            download_urls: [
+              'https://cdn.example.com/runtime.log',
+              'https://cdn.example.com/screenshot.png',
+            ],
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    const feedback = parsed.feedbacks[0];
+
+    expect(feedback.local_dir).toBe(path.join(tempDir, 'logs', 'feed_back', 'feedback_10001'));
+    expect(feedback.local_log_paths).toEqual([
+      path.join(tempDir, 'logs', 'feed_back', 'feedback_10001', 'logs', 'runtime.log'),
+    ]);
+    expect(feedback.local_screenshot_paths).toEqual([
+      path.join(tempDir, 'logs', 'feed_back', 'feedback_10001', 'screenshots', 'screenshot.png'),
+    ]);
+    expect(feedback.artifacts_downloaded).toBe(2);
+    expect(feedback.artifact_download_errors).toEqual([]);
+    expect(fs.readFileSync(feedback.local_log_paths[0], 'utf8')).toBe('runtime log body');
+    expect(fs.readFileSync(feedback.local_screenshot_paths[0])).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47])
+    );
+  });
+
+  test('uses windows-safe names for maker feedback artifact files', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'get_debug_feedbacks',
+      targetDir: tempDir,
+      fetchImpl: (async () => new Response('reserved name log')) as typeof fetch,
+      result: proxyTextResult({
+        success: true,
+        feedbacks: [
+          {
+            feedback_id: 10002,
+            log_file_urls: ['https://cdn.example.com/CON.log'],
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    const logPath = parsed.feedbacks[0].local_log_paths[0];
+
+    expect(path.basename(logPath)).toBe('_CON.log');
+    expect(fs.readFileSync(logPath, 'utf8')).toBe('reserved name log');
+  });
+
   test('throws proxy error results with the remote payload intact', async () => {
     await expect(
       materializeRemoteProxyToolAssets({
