@@ -2432,6 +2432,34 @@ describe('maker build local-change guard', () => {
     );
   });
 
+  test('downloads maker feedback artifacts when feedback id is zero', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'get_debug_feedbacks',
+      targetDir: tempDir,
+      fetchImpl: (async () => new Response('zero id runtime log')) as typeof fetch,
+      result: proxyTextResult({
+        success: true,
+        feedbacks: [
+          {
+            feedback_id: 0,
+            log_file_urls: ['https://cdn.example.com/runtime.log'],
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    const feedback = parsed.feedbacks[0];
+
+    expect(feedback.local_dir).toBe(path.join(tempDir, 'logs', 'feed_back', 'feedback_0'));
+    expect(feedback.local_log_paths).toEqual([
+      path.join(tempDir, 'logs', 'feed_back', 'feedback_0', 'logs', 'runtime.log'),
+    ]);
+    expect(feedback.artifacts_downloaded).toBe(1);
+    expect(fs.readFileSync(feedback.local_log_paths[0], 'utf8')).toBe('zero id runtime log');
+  });
+
   test('uses windows-safe names for maker feedback artifact files', async () => {
     const result = await materializeRemoteProxyToolAssets({
       toolName: 'get_debug_feedbacks',

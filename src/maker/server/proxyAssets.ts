@@ -302,7 +302,8 @@ async function materializeDebugFeedbackArtifacts(options: {
   fetchImpl: RemoteProxyFetch;
 }): Promise<Record<string, unknown>> {
   const feedbackId =
-    stringField(options.feedback.feedback_id) || String(options.feedback.feedback_id || '');
+    stringField(options.feedback.feedback_id) ??
+    (options.feedback.feedback_id != null ? String(options.feedback.feedback_id) : '');
   if (!feedbackId) {
     return {};
   }
