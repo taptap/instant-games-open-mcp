@@ -373,7 +373,7 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
       ].join(' ');
     case 'get_debug_feedbacks':
       return [
-        '**Maker hint:** Fetch remote player feedback for the current Maker project, including related device logs and screenshots when available.',
+        '**Maker hint:** Fetch online player feedback for the current Maker project. When logs or screenshots can be downloaded, this tool saves them under logs/feed_back/feedback_<id>/ in the local Maker project and returns local_dir/local_log_paths/local_screenshot_paths. Read those returned local paths before diagnosing the issue. Do not guess drive letters or fixed directories; only treat attachments as local files when local_* paths are returned.',
         failurePolicy,
       ].join(' ');
     default:

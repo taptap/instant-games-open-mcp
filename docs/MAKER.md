@@ -587,9 +587,13 @@ input schema、参数和成功返回值，但会在 description 中追加简短 
 `create_3d_model_task` 调用前会基于映射，把本地新生成素材路径改写为 CDN URL。3D 模型 Phase
 2 / multiview 可能同步等待模型和可选骨骼绑定完成；本地代理为这些远端生成工具预留比普通构建更长
 的调用超时。
-`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks` 不进入本地素材落地流程，远端结果原样返回。
-主 MCP 的 H5 `get_debug_feedbacks` 会由本地 handler 下载附件；Maker proxy 的同名工具是远端
-tool 透传，参数和落盘行为以远端 tool schema 为准。
+`generate_test_qrcode` 和 `get_ad_config` 不进入本地素材落地流程，远端结果原样返回。
+`get_debug_feedbacks` 会拉取线上玩家反馈；当日志或截图可下载时，本地会保存到当前 Maker 项目的
+`logs/feed_back/feedback_<id>/`，并在结果里补充 `local_dir`、`local_log_paths`、
+`local_screenshot_paths`、`local_download_paths`、`artifacts_downloaded` 和
+`artifact_download_errors`。AI/Agent 诊断问题时应优先读取这些返回的本地路径；不要自行猜测
+工作盘符或固定目录。只有返回 `local_*` 路径时，才把附件视为已经下载到本机。
+主 MCP 的 H5 `get_debug_feedbacks` 仍由 H5 本地 handler 处理，两者不要混用应用选择状态。
 新建 Maker 项目首次查询广告配置时，如果 `get_ad_config` 返回缺少 `.project/project.json`，
 应先调用 `maker_build_current_directory` 构建一次初始化项目配置，再重试 `get_ad_config`。
 如果 `get_ad_config` 返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode`
