@@ -587,9 +587,13 @@ input schema、参数和成功返回值，但会在 description 中追加简短 
 `create_3d_model_task` 调用前会基于映射，把本地新生成素材路径改写为 CDN URL。3D 模型 Phase
 2 / multiview 可能同步等待模型和可选骨骼绑定完成；本地代理为这些远端生成工具预留比普通构建更长
 的调用超时。
-`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks` 不进入本地素材落地流程，远端结果原样返回。
-主 MCP 的 H5 `get_debug_feedbacks` 会由本地 handler 下载附件；Maker proxy 的同名工具是远端
-tool 透传，参数和落盘行为以远端 tool schema 为准。
+`generate_test_qrcode` 和 `get_ad_config` 不进入本地素材落地流程，远端结果原样返回。
+`get_debug_feedbacks` 会拉取线上玩家反馈；当日志或截图可下载时，本地会保存到当前 Maker 项目的
+`logs/feed_back/feedback_<id>/`，并在结果里补充 `local_dir`、`local_log_paths`、
+`local_screenshot_paths`、`local_download_paths`、`artifacts_downloaded` 和
+`artifact_download_errors`。AI/Agent 诊断问题时应优先读取这些返回的本地路径；不要自行猜测
+工作盘符或固定目录。只有返回 `local_*` 路径时，才把附件视为已经下载到本机。
+主 MCP 的 H5 `get_debug_feedbacks` 仍由 H5 本地 handler 处理，两者不要混用应用选择状态。
 新建 Maker 项目首次查询广告配置时，如果 `get_ad_config` 返回缺少 `.project/project.json`，
 应先调用 `maker_build_current_directory` 构建一次初始化项目配置，再重试 `get_ad_config`。
 如果 `get_ad_config` 返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode`
@@ -633,9 +637,20 @@ tool 透传，参数和落盘行为以远端 tool schema 为准。
 本地工具会复用同一份 `proxy_cfg` 连接远端 MCP server，并转发到远端 `build` tool。默认不要求用户传参：
 
 - `entry` / `scriptsPath`：用户未指定且本地存在 `scripts/main.lua`、也没有显式多人入口参数时，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`，减少远端第一次构建的“入口配置缺失”提示。
-- `entry_client` / `entry_server`：用户明确说明是多人游戏或给出入口文件时再传入；传入多人入口后不会自动补单机 `scripts/main.lua`。
-- `multiplayer`：用户未指定且本地不存在 `.project/settings.json` 时，默认传 `{ "enabled": false }`，用于第一次单机项目构建初始化。
+- `entry_client` / `entry_server`：用户明确说明是多人游戏或给出入口文件时再传入；传入多人入口后不会自动补单机 `scripts/main.lua`；远端 build 会写入 `project.json` 的 `entry@client` / `entry@server`。首次多人构建传多人入口时，应在同一次调用里传 `multiplayer.enabled=true`，避免首次初始化成禁用多人。
+- `multiplayer`：schema 与 `maker-tools` build 工具同步，支持 `enabled`、`max_players`、`background_match`、`match_info` 和 `persistent_world`；远端 build 会写入 `.project/settings.json` 的 `@runtime.multiplayer`。用户未指定、未传多人入口且本地不存在 `.project/settings.json` 时，默认传 `{ "enabled": false }`，用于第一次单机项目构建初始化；后续构建只更新传入字段，未传字段保持现有配置。
+- `multiplayer.match_info`：房间制 / 对局制配置，支持 `desc_name`（`free_match` / `free_match_with_ai`）、`player_number`、`immediately_start` 和 `match_timeout`。
+- `multiplayer.persistent_world.enabled`：常驻服 / 持续世界配置，用于玩家可加入已运行世界的玩法。
 - 如果用户明确说明是多人游戏或给出入口文件，再把对应参数传入。
+
+`.project/settings.json` 是构建关键配置。Maker MCP 会在 `maker://status`、
+`maker_status_lite` 和 `taptap-maker doctor` 中执行轻量 settings 健康检查；普通
+`maker_build_current_directory` 会在本地 commit/push 前阻断非法 JSON 或被改坏的构建关键字段。
+检查只读取 `.project/settings.json`，不跑 git、不查网络、不扫资源目录；`$schema`、
+`sources`、`build` 必须保持默认构建格式，线上用户项目的 `sources.*.tag` 必须是 `stable`，
+`build.asset_ignores` 只要求字段存在，并允许保留合法的 `@runtime` 配置。修复 settings
+时只恢复构建关键字段，不要为了功能开发裸改 `sources`、`build.asset_dirs`、`build.output_dir`
+等字段。
 
 ## 提交和推送约束
 

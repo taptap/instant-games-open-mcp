@@ -2114,6 +2114,34 @@ describe('Maker CLI commands', () => {
     expect(output).not.toContain('taptap-maker upgrade --target-dir <PROJECT_DIR>\n\n');
   });
 
+  test('doctor reports invalid project settings in text and json output', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      project_name: 'App One',
+      user_id: 'user-1',
+      env: 'rnd',
+    });
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
+
+    const textOutput = stdoutSpy.mock.calls.join('');
+    expect(textOutput).toContain('Maker project settings');
+    expect(textOutput).toContain('- status: invalid_settings_json');
+
+    stdoutSpy.mockClear();
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd', '--json']);
+
+    const payload = JSON.parse(stdoutSpy.mock.calls.join(''));
+    expect(payload.project_settings).toEqual(
+      expect.objectContaining({
+        status: 'invalid_settings_json',
+        settingsJsonPath: path.join(tempDir, '.project', 'settings.json'),
+      })
+    );
+  });
+
   test('doctor guides unbound directories to init when PAT is missing', async () => {
     await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
 

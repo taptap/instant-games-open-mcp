@@ -99,6 +99,12 @@ import {
   inspectMakerProjectInitialization,
 } from '../projectInitialization.js';
 import {
+  formatMakerProjectSettingsStatus,
+  inspectMakerProjectSettings,
+  isMakerProjectSettingsBlocking,
+  type MakerProjectSettingsStatus,
+} from '../projectSettings.js';
+import {
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
@@ -130,6 +136,72 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'get_ad_config',
   'get_debug_feedbacks',
 ];
+
+const MAKER_BUILD_MULTIPLAYER_SCHEMA = {
+  type: 'object',
+  description:
+    'Optional Maker multiplayer config forwarded to remote build and written by maker-tools to .project/settings.json @runtime.multiplayer. If omitted and no .project/settings.json exists, Maker MCP sends { enabled: false } for first single-player build initialization. First multiplayer build with entry_client/entry_server should pass multiplayer.enabled=true and any needed match/world fields in the same call. Later builds update only the provided fields and keep existing config for omitted fields. Runtime defaults: enabled=false, max_players=4, background_match=false.',
+  properties: {
+    enabled: {
+      type: 'boolean',
+      description:
+        'Enable multiplayer mode. When true, initializes the networking subsystem and lobby. Runtime default: false.',
+    },
+    max_players: {
+      type: 'number',
+      minimum: 2,
+      maximum: 100,
+      description:
+        'Maximum players allowed in one session (2-100). Actual match size can be smaller via match_info.player_number. Runtime default: 4.',
+    },
+    background_match: {
+      type: 'boolean',
+      description:
+        'Enable background matching. When true, game scripts load immediately and matching runs in the background; handle the ServerReady event after match success. Runtime default: false.',
+    },
+    match_info: {
+      type: 'object',
+      description:
+        'Match/session-based gameplay config for lobby, room, or round-based games. Examples: LoL, CS2, PUBG, DotA 2.',
+      properties: {
+        desc_name: {
+          type: 'string',
+          enum: ['free_match', 'free_match_with_ai'],
+          description:
+            'Matching algorithm: free_match waits without AI fill; free_match_with_ai fills with AI after timeout.',
+        },
+        player_number: {
+          type: 'number',
+          minimum: 1,
+          description:
+            'Players required to start the match. Must be less than or equal to multiplayer.max_players.',
+        },
+        immediately_start: {
+          type: 'boolean',
+          description: 'Start immediately without waiting for a full match.',
+        },
+        match_timeout: {
+          type: 'number',
+          minimum: 0,
+          description:
+            'Match timeout in seconds. Only effective for desc_name=free_match_with_ai; AI fills after timeout.',
+        },
+      },
+    },
+    persistent_world: {
+      type: 'object',
+      description:
+        'Persistent-world config for long-running/shared worlds where players can join an already running world. Examples: Roblox, World of Warcraft, Minecraft.',
+      properties: {
+        enabled: {
+          type: 'boolean',
+          description:
+            'Enable persistent-world mode instead of starting a separate match/session first. Runtime default: false.',
+        },
+      },
+    },
+  },
+};
 
 type MakerToolDefinition = (typeof tools)[number];
 type RemoteToolDefinition = MakerToolDefinition & { [key: string]: unknown };
@@ -193,18 +265,14 @@ export const tools = [
         entry_client: {
           type: 'string',
           description:
-            'Optional multiplayer client entry relative to scriptsPath, e.g. "client_main.lua".',
+            'Optional multiplayer C/S client entry relative to scriptsPath, e.g. "client_main.lua". Forwarded to maker-tools build and written to project.json as entry@client. On the first multiplayer build, pass multiplayer.enabled=true in the same call; otherwise first-build defaults may initialize multiplayer as disabled.',
         },
         entry_server: {
           type: 'string',
           description:
-            'Optional multiplayer server entry relative to scriptsPath, e.g. "server_main.lua".',
+            'Optional multiplayer C/S server entry relative to scriptsPath, e.g. "server_main.lua". Forwarded to maker-tools build and written to project.json as entry@server. On the first multiplayer build, pass multiplayer.enabled=true in the same call; otherwise first-build defaults may initialize multiplayer as disabled.',
         },
-        multiplayer: {
-          type: 'object',
-          description:
-            'Optional multiplayer config forwarded to remote build. If omitted and no .project/settings.json exists, Maker MCP sends { enabled: false } for first single-player build initialization.',
-        },
+        multiplayer: MAKER_BUILD_MULTIPLAYER_SCHEMA,
         server_url: {
           type: 'string',
           description:
@@ -373,7 +441,7 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
       ].join(' ');
     case 'get_debug_feedbacks':
       return [
-        '**Maker hint:** Fetch remote player feedback for the current Maker project, including related device logs and screenshots when available.',
+        '**Maker hint:** Fetch online player feedback for the current Maker project. When logs or screenshots can be downloaded, this tool saves them under logs/feed_back/feedback_<id>/ in the local Maker project and returns local_dir/local_log_paths/local_screenshot_paths. Read those returned local paths before diagnosing the issue. Do not guess drive letters or fixed directories; only treat attachments as local files when local_* paths are returned.',
         failurePolicy,
       ].join(' ');
     default:
@@ -723,7 +791,7 @@ function installMakerServerExitHandlers(): void {
   });
 }
 
-async function formatStatus(
+export async function formatStatus(
   options: {
     targetDir?: string;
     skipRemoteSync?: boolean;
@@ -784,6 +852,9 @@ async function formatStatus(
         inspectMakerProjectInitialization(identify.projectRoot)
       )
     : '';
+  const projectSettingsText = identify.projectRoot
+    ? formatMakerProjectSettingsStatus(inspectMakerProjectSettings(identify.projectRoot))
+    : '';
   const projectSection = identify.projectId
     ? [
         '目标目录已绑定 Maker 项目。',
@@ -822,6 +893,7 @@ async function formatStatus(
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
     ...(projectInitializationText ? ['', projectInitializationText, ''] : ['']),
+    ...(projectSettingsText ? ['', projectSettingsText, ''] : ['']),
     formatMakerClientRootsStatus(projectContext.roots),
     '',
     projectContext.source === 'client_roots'
@@ -1857,6 +1929,12 @@ type BuildCurrentDirectoryResult =
       submitResult: PushMakerProjectResult;
     }
   | {
+      mode: 'settings_invalid_before_build';
+      projectRoot: string;
+      projectId: string;
+      settingsStatus: MakerProjectSettingsStatus;
+    }
+  | {
       mode: 'build_failed_after_submit';
       projectRoot: string;
       projectId: string;
@@ -1896,6 +1974,15 @@ export async function buildCurrentDirectory(options: {
   const localChanges = await readMakerProjectLocalChanges(options.targetDir);
   if (!options.confirmRemoteBuildWithoutSubmit) {
     const config = loadProjectConfig(localChanges.projectRoot);
+    const settingsStatus = inspectMakerProjectSettings(localChanges.projectRoot);
+    if (isMakerProjectSettingsBlocking(settingsStatus)) {
+      return {
+        mode: 'settings_invalid_before_build',
+        projectRoot: localChanges.projectRoot,
+        projectId: config?.project_id || 'unknown',
+        settingsStatus,
+      };
+    }
     options.onProgress?.({
       progress: 0,
       total: 100,
@@ -2697,7 +2784,11 @@ export function createBuildArgs(
   }
   if (options.multiplayer) {
     buildArgs.multiplayer = options.multiplayer;
-  } else if (!fs.existsSync(path.join(projectRoot, '.project', 'settings.json'))) {
+  } else if (
+    !options.entryClient &&
+    !options.entryServer &&
+    !fs.existsSync(path.join(projectRoot, '.project', 'settings.json'))
+  ) {
     buildArgs.multiplayer = { enabled: false };
   }
 
@@ -2803,6 +2894,20 @@ export function formatBuildResult(
             ...formatMakerFailureLines(result.submitResult.failure),
           ]
         : []),
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (result.mode === 'settings_invalid_before_build') {
+    return [
+      '✗ Maker project settings are invalid; submit and remote build were not started',
+      '',
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      ...formatProgressSummary(progressSummary),
+      '',
+      formatMakerProjectSettingsStatus(result.settingsStatus),
     ]
       .filter(Boolean)
       .join('\n');

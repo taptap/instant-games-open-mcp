@@ -28,6 +28,21 @@ This skill covers:
 Build, submit, push, preview, and verify behavior belongs to the single Maker MCP build tool. The
 post-build runtime log polling loop belongs to the local Maker CLI watcher.
 
+For multiplayer builds, use `maker_build_current_directory` structured parameters instead of
+editing project JSON directly. `entry_client` / `entry_server` map to `project.json`
+`entry@client` / `entry@server`; `multiplayer.enabled`, `max_players`, `background_match`,
+`match_info`, and `persistent_world` map to `.project/settings.json` `@runtime.multiplayer`.
+On the first multiplayer build, pass `multiplayer.enabled=true` together with
+`entry_client` / `entry_server`; single-player defaults are only injected when no multiplayer entry
+is provided. The remote build keeps omitted multiplayer fields unchanged on later builds.
+
+Maker status, status_lite, and doctor run a lightweight `.project/settings.json` health check.
+Normal `maker_build_current_directory` blocks before commit/push when settings JSON is invalid or
+build-critical fields are damaged. `$schema`, `sources`, and `build` must keep the default build
+shape; `sources.*.tag` must be `stable` for online user projects, and `build.asset_ignores` only
+needs to exist. Do not edit settings build fields directly for feature work; restore only the
+build-critical fields when the check fails, and preserve valid `@runtime` config.
+
 ## Responsibilities
 
 Keep this split clear:

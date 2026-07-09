@@ -146,7 +146,9 @@ Maker MCP 也提供部分远端 proxy 能力，当前包括 `generate_image`、`
 `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
 `create_3d_model_task`、`query_3d_model_task`、`generate_test_qrcode`、
 `get_ad_config` 和 `get_debug_feedbacks`；具体参数以 MCP 客户端展示的 tool schema 为准。
-已绑定 Maker 项目中建议优先使用这些 proxy tools；代理转发、错误透出和白名单细节见
+已绑定 Maker 项目中建议优先使用这些 proxy tools；其中 `get_debug_feedbacks` 会拉取线上玩家反馈，
+并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`，
+返回 `local_dir` / `local_log_paths` / `local_screenshot_paths` 等本地路径。代理转发、错误透出和白名单细节见
 [TapTap Maker 本地开发](docs/MAKER.md)。
 
 Windows 是默认优先级：CLI 写通用 `mcpServers` 配置时会在 Windows 通过 `cmd.exe`

@@ -21,6 +21,7 @@ import {
   createRemoteRuntimeLogClient,
   refreshMakerPreview,
   formatBuildResult,
+  formatStatus,
   formatAiDevKitStatus,
   formatClonePartialStateLines,
   formatMakerToolRegistrationCwdStatus,
@@ -49,6 +50,10 @@ import {
   formatMakerProjectInitializationStatus,
   inspectMakerProjectInitialization,
 } from '../maker/projectInitialization';
+import {
+  formatMakerProjectSettingsStatus,
+  inspectMakerProjectSettings,
+} from '../maker/projectSettings';
 
 describe('maker build local-change guard', () => {
   let tempDir: string;
@@ -761,6 +766,20 @@ describe('maker build local-change guard', () => {
     });
   });
 
+  test('does not inject single-player multiplayer default for explicit multiplayer entries', () => {
+    const buildArgs = createBuildArgs(tempDir, {
+      scriptsPath: 'scripts',
+      entryClient: 'client_main.lua',
+      entryServer: 'server_main.lua',
+    });
+
+    expect(buildArgs).toEqual({
+      scriptsPath: 'scripts',
+      entry_client: 'client_main.lua',
+      entry_server: 'server_main.lua',
+    });
+  });
+
   test('keeps explicit build entry when user overrides the default', () => {
     const buildArgs = createBuildArgs(tempDir, {
       scriptsPath: 'custom',
@@ -771,6 +790,247 @@ describe('maker build local-change guard', () => {
       scriptsPath: 'custom',
       entry: 'boot.lua',
     });
+  });
+
+  test('project settings check allows runtime config but reports broken build fields', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'latest' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+          asset_ignores: [],
+        },
+        '@runtime': {
+          multiplayer: { enabled: true },
+        },
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+    const output = formatMakerProjectSettingsStatus(status);
+
+    expect(status.status).toBe('invalid_project_settings');
+    expect(status.issues).toEqual(['sources.engine-res.tag must be "stable"']);
+    expect(output).toContain('Maker project settings');
+    expect(output).toContain('- status: invalid_project_settings');
+    expect(output).toContain('sources.engine-res.tag must be "stable"');
+  });
+
+  test('project settings check only requires asset ignores to exist', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+          asset_ignores: 'remote-managed-value',
+        },
+        '@runtime': {
+          multiplayer: { enabled: true },
+        },
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+
+    expect(status.status).toBe('ready');
+    expect(formatMakerProjectSettingsStatus(status)).toBe('');
+  });
+
+  test('project settings check reports missing asset ignores field', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+        },
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+
+    expect(status.status).toBe('invalid_project_settings');
+    expect(status.issues).toEqual(['build.asset_ignores must exist']);
+  });
+
+  test('project settings check reports missing required root sections', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+
+    expect(status.status).toBe('invalid_project_settings');
+    expect(status.issues).toEqual(['sources must be an object', 'build must be an object']);
+  });
+
+  test('status reports project settings problems without remote sync', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+
+    const output = await formatStatus({ targetDir: tempDir, skipRemoteSync: true });
+
+    expect(output).toContain('Maker project settings');
+    expect(output).toContain('- status: invalid_settings_json');
+    expect(output).toContain('构建可能失败或游戏黑屏');
+  });
+
+  test('build blocks before submit when required project settings fields drift from template', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets'],
+          asset_ignores: [],
+        },
+      }),
+      'utf8'
+    );
+    const submitLocalChanges = jest.fn();
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+    });
+
+    expect(result.mode).toBe('settings_invalid_before_build');
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      'build.asset_dirs must contain only "../assets" and "../scripts"'
+    );
+  });
+
+  test('build blocks before submit when project settings json is invalid', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+    const submitLocalChanges = jest.fn();
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+    });
+
+    expect(result.mode).toBe('settings_invalid_before_build');
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      'Maker project settings are invalid'
+    );
+  });
+
+  test('remote-only build skips local project settings validation', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+    const callRemoteBuild = jest.fn(async () => ({
+      mode: 'remote_build' as const,
+      projectRoot: fs.realpathSync(tempDir),
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      timeoutMs: 600000,
+      buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+      resultText: 'build ok',
+    }));
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      confirmRemoteBuildWithoutSubmit: true,
+      callRemoteBuild,
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect(callRemoteBuild).toHaveBeenCalledWith(tempDir);
+  });
+
+  test('forwards complete multiplayer build config without changing nested fields', () => {
+    const multiplayer = {
+      enabled: true,
+      max_players: 8,
+      background_match: true,
+      match_info: {
+        desc_name: 'free_match_with_ai',
+        player_number: 4,
+        immediately_start: false,
+        match_timeout: 30,
+      },
+      persistent_world: {
+        enabled: false,
+      },
+    };
+
+    const buildArgs = createBuildArgs(tempDir, {
+      scriptsPath: 'scripts',
+      entryClient: 'client_main.lua',
+      entryServer: 'server_main.lua',
+      multiplayer,
+    });
+
+    expect(buildArgs).toEqual({
+      scriptsPath: 'scripts',
+      entry_client: 'client_main.lua',
+      entry_server: 'server_main.lua',
+      multiplayer,
+    });
+  });
+
+  test('does not inject default multiplayer when settings.json exists', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({ '@runtime': { multiplayer: { enabled: true, max_players: 4 } } }),
+      'utf8'
+    );
+
+    const buildArgs = createBuildArgs(tempDir, {});
+
+    expect(buildArgs).toMatchObject({
+      scriptsPath: 'scripts',
+      entry: 'main.lua',
+    });
+    expect(buildArgs).not.toHaveProperty('multiplayer');
   });
 
   test('build tool description owns commit, push, and build', () => {
@@ -993,7 +1253,10 @@ describe('maker build local-change guard', () => {
       result.tools.find((item) => item.name === 'generate_test_qrcode')?.inputSchema.properties
     ).toHaveProperty('target_dir');
     expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toContain(
-      'Fetch remote player feedback'
+      'Fetch online player feedback'
+    );
+    expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toContain(
+      'local_dir/local_log_paths/local_screenshot_paths'
     );
   });
 
@@ -2055,6 +2318,172 @@ describe('maker build local-change guard', () => {
     });
   });
 
+  test('annotates maker feedback proxy relative paths without local downloading', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'get_debug_feedbacks',
+      targetDir: tempDir,
+      result: proxyTextResult({
+        success: true,
+        save_dir: 'logs/feed_back/',
+        summary: {
+          fetched: 1,
+          logs_downloaded: 1,
+          screenshots_downloaded: 1,
+          feedbacks: [
+            {
+              feedback_id: 11001,
+              dir: 'logs/feed_back/feedback_11001',
+              logs_downloaded: 1,
+              screenshots_downloaded: 1,
+            },
+          ],
+        },
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+
+    expect(parsed.save_dir).toBe('logs/feed_back/');
+    expect(parsed.local_path_hint).toEqual({
+      remote_save_dir: 'logs/feed_back/',
+      local_candidate_save_dir: path.join(tempDir, 'logs', 'feed_back'),
+      local_project_dir: tempDir,
+      files_verified_locally: false,
+      note: 'Use local_dir/local_log_paths/local_screenshot_paths when they are returned. If only local_candidate_* is present, it is a possible project-relative location and must not be treated as a downloaded local file.',
+    });
+    expect(parsed.summary.feedbacks[0].dir).toBe('logs/feed_back/feedback_11001');
+    expect(parsed.summary.feedbacks[0].local_candidate_dir).toBe(
+      path.join(tempDir, 'logs', 'feed_back', 'feedback_11001')
+    );
+    expect(fs.existsSync(path.join(tempDir, 'logs', 'feed_back'))).toBe(false);
+  });
+
+  test('keeps maker feedback no-data results unchanged', async () => {
+    const payload = {
+      success: true,
+      total: 0,
+      message: '没有找到调试反馈数据',
+      list: [],
+    };
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'get_debug_feedbacks',
+      targetDir: tempDir,
+      result: proxyTextResult(payload),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+
+    expect(parsed).toEqual(payload);
+    expect('structuredContent' in result).toBe(true);
+  });
+
+  test('downloads maker feedback artifact urls into local feedback directories', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'get_debug_feedbacks',
+      targetDir: tempDir,
+      fetchImpl: (async (url: string) => {
+        if (url.endsWith('/runtime.log')) {
+          return new Response('runtime log body');
+        }
+        if (url.endsWith('/screenshot.png')) {
+          return new Response(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        }
+        return new Response('missing', { status: 404 });
+      }) as typeof fetch,
+      result: proxyTextResult({
+        success: true,
+        message: '已拉取 1 条反馈，仅返回下载地址',
+        total: 1,
+        fetched: 1,
+        save_dir: null,
+        feedbacks: [
+          {
+            feedback_id: 10001,
+            description: 'crash',
+            log_file_urls: ['https://cdn.example.com/runtime.log'],
+            screenshots: ['https://cdn.example.com/screenshot.png'],
+            download_urls: [
+              'https://cdn.example.com/runtime.log',
+              'https://cdn.example.com/screenshot.png',
+            ],
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    const feedback = parsed.feedbacks[0];
+
+    expect(feedback.local_dir).toBe(path.join(tempDir, 'logs', 'feed_back', 'feedback_10001'));
+    expect(feedback.local_log_paths).toEqual([
+      path.join(tempDir, 'logs', 'feed_back', 'feedback_10001', 'logs', 'runtime.log'),
+    ]);
+    expect(feedback.local_screenshot_paths).toEqual([
+      path.join(tempDir, 'logs', 'feed_back', 'feedback_10001', 'screenshots', 'screenshot.png'),
+    ]);
+    expect(feedback.artifacts_downloaded).toBe(2);
+    expect(feedback.artifact_download_errors).toEqual([]);
+    expect(fs.readFileSync(feedback.local_log_paths[0], 'utf8')).toBe('runtime log body');
+    expect(fs.readFileSync(feedback.local_screenshot_paths[0])).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47])
+    );
+  });
+
+  test('downloads maker feedback artifacts when feedback id is zero', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'get_debug_feedbacks',
+      targetDir: tempDir,
+      fetchImpl: (async () => new Response('zero id runtime log')) as typeof fetch,
+      result: proxyTextResult({
+        success: true,
+        feedbacks: [
+          {
+            feedback_id: 0,
+            log_file_urls: ['https://cdn.example.com/runtime.log'],
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    const feedback = parsed.feedbacks[0];
+
+    expect(feedback.local_dir).toBe(path.join(tempDir, 'logs', 'feed_back', 'feedback_0'));
+    expect(feedback.local_log_paths).toEqual([
+      path.join(tempDir, 'logs', 'feed_back', 'feedback_0', 'logs', 'runtime.log'),
+    ]);
+    expect(feedback.artifacts_downloaded).toBe(1);
+    expect(fs.readFileSync(feedback.local_log_paths[0], 'utf8')).toBe('zero id runtime log');
+  });
+
+  test('uses windows-safe names for maker feedback artifact files', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'get_debug_feedbacks',
+      targetDir: tempDir,
+      fetchImpl: (async () => new Response('reserved name log')) as typeof fetch,
+      result: proxyTextResult({
+        success: true,
+        feedbacks: [
+          {
+            feedback_id: 10002,
+            log_file_urls: ['https://cdn.example.com/CON.log'],
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    const logPath = parsed.feedbacks[0].local_log_paths[0];
+
+    expect(path.basename(logPath)).toBe('_CON.log');
+    expect(fs.readFileSync(logPath, 'utf8')).toBe('reserved name log');
+  });
+
   test('throws proxy error results with the remote payload intact', async () => {
     await expect(
       materializeRemoteProxyToolAssets({
@@ -2294,6 +2723,38 @@ describe('maker build local-change guard', () => {
     expect(buildTool?.inputSchema.properties).not.toHaveProperty(
       'submit_local_changes_before_build'
     );
+  });
+
+  test('build tool schema exposes maker-tools multiplayer fields', () => {
+    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
+    const properties = buildTool?.inputSchema.properties || {};
+    const multiplayer = properties.multiplayer as {
+      properties?: Record<string, { properties?: Record<string, unknown>; enum?: string[] }>;
+    };
+    const multiplayerProperties = multiplayer.properties || {};
+    const matchInfo = multiplayerProperties.match_info;
+    const persistentWorld = multiplayerProperties.persistent_world;
+
+    expect(properties.entry_client.description).toContain('entry@client');
+    expect(properties.entry_client.description).toContain('multiplayer.enabled=true');
+    expect(properties.entry_server.description).toContain('entry@server');
+    expect(properties.entry_server.description).toContain('multiplayer.enabled=true');
+    expect(properties.multiplayer.description).toContain('Maker MCP sends { enabled: false }');
+    expect(properties.multiplayer.description).toContain('First multiplayer build');
+    expect(multiplayerProperties).toHaveProperty('enabled');
+    expect(multiplayerProperties).toHaveProperty('max_players');
+    expect(multiplayerProperties).not.toHaveProperty('mode');
+    expect(multiplayerProperties).toHaveProperty('background_match');
+    expect(multiplayerProperties).toHaveProperty('match_info');
+    expect(multiplayerProperties).toHaveProperty('persistent_world');
+    expect(multiplayerProperties.max_players).toMatchObject({ minimum: 2, maximum: 100 });
+    expect(matchInfo?.properties?.desc_name).toMatchObject({
+      enum: ['free_match', 'free_match_with_ai'],
+    });
+    expect(matchInfo?.properties).toHaveProperty('player_number');
+    expect(matchInfo?.properties).toHaveProperty('immediately_start');
+    expect(matchInfo?.properties).toHaveProperty('match_timeout');
+    expect(persistentWorld?.properties).toHaveProperty('enabled');
   });
 
   test('runtime log pull is not exposed as a public MCP tool', () => {
@@ -3313,6 +3774,18 @@ describe('maker build local-change guard', () => {
 
   function dataUrl(mime: string, body: string): string {
     return `data:${mime};base64,${Buffer.from(body).toString('base64')}`;
+  }
+
+  function emptyProgressSummary(): {
+    elapsedMs: number;
+    elapsed: string;
+    progressEvents: number;
+  } {
+    return {
+      elapsedMs: 0,
+      elapsed: '0s',
+      progressEvents: 0,
+    };
   }
 
   function fake3dModelResultFetch(
