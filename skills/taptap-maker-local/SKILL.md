@@ -39,9 +39,9 @@ is provided. The remote build keeps omitted multiplayer fields unchanged on late
 Maker status, status_lite, and doctor run a lightweight `.project/settings.json` health check.
 Normal `maker_build_current_directory` blocks before commit/push when settings JSON is invalid or
 build-critical fields are damaged. `$schema`, `sources`, and `build` must keep the default build
-shape; `sources.*.tag` can be `stable` or `latest`, and `build.asset_ignores` only needs to exist.
-Do not edit settings build fields directly for feature work; restore only the build-critical fields
-when the check fails, and preserve valid `@runtime` config.
+shape; `sources.*.tag` must be `stable` for online user projects, and `build.asset_ignores` only
+needs to exist. Do not edit settings build fields directly for feature work; restore only the
+build-critical fields when the check fails, and preserve valid `@runtime` config.
 
 ## Responsibilities
 

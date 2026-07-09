@@ -799,9 +799,9 @@ describe('maker build local-change guard', () => {
       JSON.stringify({
         $schema: '../schemas/settings.schema.json',
         sources: {
-          engine: { tag: 'latest' },
-          'engine-res': { tag: 'custom' },
-          'official-res': { tag: 'latest' },
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'latest' },
+          'official-res': { tag: 'stable' },
         },
         build: {
           generate_fs_path: true,
@@ -820,10 +820,10 @@ describe('maker build local-change guard', () => {
     const output = formatMakerProjectSettingsStatus(status);
 
     expect(status.status).toBe('invalid_project_settings');
-    expect(status.issues).toEqual(['sources.engine-res.tag must be "stable" or "latest"']);
+    expect(status.issues).toEqual(['sources.engine-res.tag must be "stable"']);
     expect(output).toContain('Maker project settings');
     expect(output).toContain('- status: invalid_project_settings');
-    expect(output).toContain('sources.engine-res.tag must be "stable" or "latest"');
+    expect(output).toContain('sources.engine-res.tag must be "stable"');
   });
 
   test('project settings check only requires asset ignores to exist', () => {
@@ -863,9 +863,9 @@ describe('maker build local-change guard', () => {
       JSON.stringify({
         $schema: '../schemas/settings.schema.json',
         sources: {
-          engine: { tag: 'latest' },
-          'engine-res': { tag: 'latest' },
-          'official-res': { tag: 'latest' },
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
         },
         build: {
           generate_fs_path: true,
@@ -916,9 +916,9 @@ describe('maker build local-change guard', () => {
       JSON.stringify({
         $schema: '../schemas/settings.schema.json',
         sources: {
-          engine: { tag: 'latest' },
-          'engine-res': { tag: 'latest' },
-          'official-res': { tag: 'latest' },
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
         },
         build: {
           generate_fs_path: true,

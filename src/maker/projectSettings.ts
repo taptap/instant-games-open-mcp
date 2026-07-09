@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const REQUIRED_SOURCE_TAGS = ['stable', 'latest'];
+const REQUIRED_SOURCE_TAGS = ['stable'];
 
 export type MakerProjectSettingsStatus = {
   status: 'ready' | 'missing_settings_json' | 'invalid_settings_json' | 'invalid_project_settings';
