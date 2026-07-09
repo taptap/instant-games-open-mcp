@@ -1253,7 +1253,10 @@ describe('maker build local-change guard', () => {
       result.tools.find((item) => item.name === 'generate_test_qrcode')?.inputSchema.properties
     ).toHaveProperty('target_dir');
     expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toContain(
-      'Fetch remote player feedback'
+      'Fetch online player feedback'
+    );
+    expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toContain(
+      'local_dir/local_log_paths/local_screenshot_paths'
     );
   });
 
