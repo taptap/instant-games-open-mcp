@@ -147,7 +147,16 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
 - Use `edit_image` for modifying project images.
 - Use `create_video_task` for game videos and image/video referenced generation.
 - Use `query_video_task` to refresh video task status, release completed task quota, and fetch final videos.
-- Use `text_to_music` for game music or audio.
+- Use `text_to_music` for game music.
+- Use `text_to_sound_effect` for one sound effect.
+- Use `batch_sound_effects` for multiple sound effects.
+- Use `text_to_dialogue` for final character dialogue.
+- After `audition_voices_for_character` returns previews, show them to the user and wait
+  for the user to choose. Do not select or confirm a voice automatically.
+- Call `confirm_character_voice` only after the user explicitly chooses one preview.
+- Generated sound effects and dialogue are saved in the project.
+- Voice audition previews are not saved to the project.
+- Local MCP does not transcode generated audio to OGG.
 - Follow each tool schema for supported local path, remote URL, and data URL inputs.
 - Local proxy may convert resolvable local reference media to data URLs before forwarding.
 - If a Maker proxy tool returns an error or `isError`, report the full remote result/error payload.
@@ -230,9 +239,11 @@ directory.
 ### Proxy Tools Missing From The Current Session
 
 If the user is in a bound Maker project but `generate_image`, `batch_generate_images`, `edit_image`,
-`create_video_task`, `query_video_task`, `text_to_music`, `create_3d_model_task`,
-`query_3d_model_task`, `generate_test_qrcode`, `get_ad_config`, or `get_debug_feedbacks`
-are missing from the current AI tool list, diagnose the MCP cwd before
+`create_video_task`, `query_video_task`, `text_to_music`, `text_to_sound_effect`,
+`batch_sound_effects`, `text_to_dialogue`, `audition_voices_for_character`,
+`confirm_character_voice`, `create_3d_model_task`, `query_3d_model_task`,
+`generate_test_qrcode`, `get_ad_config`, or `get_debug_feedbacks` are missing from the current AI
+tool list, diagnose the MCP cwd before
 suggesting repeated restarts:
 
 1. Read `maker://status` or call `maker_status_lite` without `target_dir` to see the MCP server cwd.

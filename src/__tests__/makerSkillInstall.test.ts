@@ -43,9 +43,20 @@ describe('Maker bundled workflow skill documents', () => {
       'Local proxy may convert resolvable local reference media to data URLs'
     );
     expect(status).toContain('Use generate_image, batch_generate_images, edit_image');
+    expect(status).toContain('Use create_video_task and query_video_task for game video assets');
+    expect(status).toContain('Use text_to_music for game music');
+    expect(status).toContain('Use text_to_sound_effect for one sound effect');
+    expect(status).toContain('Use batch_sound_effects for multiple sound effects');
+    expect(status).toContain('Use text_to_dialogue for final character dialogue');
     expect(status).toContain(
-      'Use create_video_task, query_video_task, and text_to_music for game video/audio'
+      'After audition_voices_for_character returns previews, wait for the user to choose'
     );
+    expect(status).toContain(
+      'Call confirm_character_voice only after the user explicitly chooses a preview'
+    );
+    expect(status).toContain('Generated sound effects and dialogue are saved in the project');
+    expect(status).toContain('Voice audition previews are not saved to the project');
+    expect(status).toContain('Local MCP does not transcode generated audio to OGG');
     expect(status).toContain('Use create_3d_model_task and query_3d_model_task for game 3D model');
     expect(status).toContain('call get_ad_config first to get ad activation status');
     expect(status).toContain('build once with maker_build_current_directory');
@@ -112,7 +123,19 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Use `edit_image` for modifying project images');
     expect(skillText).toContain('Use `create_video_task` for game videos');
     expect(skillText).toContain('Use `query_video_task` to refresh video task status');
-    expect(skillText).toContain('Use `text_to_music` for game music or audio');
+    expect(skillText).toContain('Use `text_to_music` for game music');
+    expect(skillText).toContain('Use `text_to_sound_effect` for one sound effect');
+    expect(skillText).toContain('Use `batch_sound_effects` for multiple sound effects');
+    expect(skillText).toContain('Use `text_to_dialogue` for final character dialogue');
+    expect(skillText).toContain(
+      'After `audition_voices_for_character` returns previews, show them to the user and wait'
+    );
+    expect(skillText).toContain(
+      'Call `confirm_character_voice` only after the user explicitly chooses one preview'
+    );
+    expect(skillText).toContain('Generated sound effects and dialogue are saved in the project');
+    expect(skillText).toContain('Voice audition previews are not saved to the project');
+    expect(skillText).toContain('Local MCP does not transcode generated audio to OGG');
     expect(skillText).toContain('Use `create_3d_model_task` for game 3D models');
     expect(skillText).toContain('Use `query_3d_model_task` for polling 3D model tasks');
     expect(skillText).toContain('call `get_ad_config` first to get the');

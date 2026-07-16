@@ -141,6 +141,19 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
     expect(agentsGuide).toContain('batch_generate_images');
+    expect(agentsGuide).toContain('`text_to_music` for game music');
+    expect(agentsGuide).toContain('`text_to_sound_effect` for one sound effect');
+    expect(agentsGuide).toContain('`batch_sound_effects` for multiple sound effects');
+    expect(agentsGuide).toContain('`text_to_dialogue` for final character dialogue');
+    expect(agentsGuide).toContain(
+      'After `audition_voices_for_character` returns previews, show them to the user and wait'
+    );
+    expect(agentsGuide).toContain(
+      'Call `confirm_character_voice` only after the user explicitly chooses one preview'
+    );
+    expect(agentsGuide).toContain('Generated sound effects and dialogue are saved in the project');
+    expect(agentsGuide).toContain('Voice audition previews are not saved to the project');
+    expect(agentsGuide).toContain('Local MCP does not transcode generated audio to OGG');
     expect(agentsGuide).toContain('create_3d_model_task');
     expect(agentsGuide).toContain('query_3d_model_task');
     expect(agentsGuide).toContain('Do not infer ad readiness from local SDK docs');
@@ -347,6 +360,14 @@ describe('Maker AI dev kit install', () => {
       'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
+    expect(agentsGuide).toContain('`text_to_sound_effect` for one sound effect');
+    expect(agentsGuide).toContain('`batch_sound_effects` for multiple sound effects');
+    expect(agentsGuide).toContain('`text_to_dialogue` for final character dialogue');
+    expect(agentsGuide).toContain('`audition_voices_for_character` returns previews');
+    expect(agentsGuide).toContain(
+      '`confirm_character_voice` only after the user explicitly chooses'
+    );
+    expect(agentsGuide).toContain('Local MCP does not transcode generated audio to OGG');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');
     expect(agentsGuide).toContain('build once with `maker_build_current_directory`');
     expect(claudeGuide).toBe('user edits\n');
