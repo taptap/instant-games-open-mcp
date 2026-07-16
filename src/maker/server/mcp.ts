@@ -108,7 +108,6 @@ import {
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
-  prepareRemoteProxyToolArgs,
   prepareRemoteProxyToolArgsAsync,
 } from './proxyAssets.js';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
