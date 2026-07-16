@@ -785,12 +785,15 @@ async function materializeAudioFilesResult(
     const item = { ...rawItem };
     const audioUrl = stringField(item.audioUrl);
     const kind = stringField(item.kind);
-    const expectedDirectory = kind === 'dialogue' ? 'assets/audio/voice' : 'assets/audio/sfx';
+    const expectedKind = toolName === 'text_to_dialogue' ? 'dialogue' : 'sound_effect';
+    const expectedDirectory =
+      expectedKind === 'dialogue' ? 'assets/audio/voice' : 'assets/audio/sfx';
     const targetDirectory = stringField(item.targetDirectory);
     const suggestedFileName = stringField(item.suggestedFileName);
     const validationError = validateAudioAssetContract({
       audioUrl,
       kind,
+      expectedKind,
       targetDirectory,
       expectedDirectory,
       suggestedFileName,
@@ -837,6 +840,7 @@ async function materializeAudioFilesResult(
 function validateAudioAssetContract(options: {
   audioUrl?: string;
   kind?: string;
+  expectedKind: 'sound_effect' | 'dialogue';
   targetDirectory?: string;
   expectedDirectory: string;
   suggestedFileName?: string;
@@ -846,8 +850,8 @@ function validateAudioAssetContract(options: {
   if (!options.audioUrl || !/^https?:\/\//i.test(options.audioUrl)) {
     return 'audioUrl must be an HTTP(S) URL.';
   }
-  if (options.kind !== 'sound_effect' && options.kind !== 'dialogue') {
-    return 'audio_files item kind is unsupported.';
+  if (options.kind !== options.expectedKind) {
+    return `audio_files item kind must be ${options.expectedKind} for this tool.`;
   }
   if (options.targetDirectory !== options.expectedDirectory) {
     return `targetDirectory must be ${options.expectedDirectory}.`;
@@ -1156,9 +1160,11 @@ function mergeVoiceMappingFile(options: {
   const referenceDirectory = referencePath ? path.dirname(referencePath) : undefined;
   fs.mkdirSync(configDirectory, { recursive: true });
   assertProjectDirectory(options.targetDir, configDirectory);
+  assertFileIsNotSymlink(configPath);
   if (referenceDirectory) {
     fs.mkdirSync(referenceDirectory, { recursive: true });
     assertProjectDirectory(options.targetDir, referenceDirectory);
+    assertFileIsNotSymlink(referencePath!);
   }
   const oldConfig = snapshotFile(configPath);
   const oldReference = referencePath ? snapshotFile(referencePath) : undefined;
@@ -1229,13 +1235,18 @@ type FileSnapshot = { exists: boolean; bytes?: Buffer };
 
 function snapshotFile(filePath: string): FileSnapshot {
   try {
+    assertFileIsNotSymlink(filePath);
     return { exists: true, bytes: fs.readFileSync(filePath) };
   } catch {
+    if (isSymlink(filePath)) {
+      throw new Error(`refusing to read symlinked file: ${filePath}`);
+    }
     return { exists: false };
   }
 }
 
 function restoreFile(filePath: string, snapshot: FileSnapshot): void {
+  assertFileIsNotSymlink(filePath);
   if (snapshot.exists && snapshot.bytes) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, snapshot.bytes);
@@ -1245,6 +1256,7 @@ function restoreFile(filePath: string, snapshot: FileSnapshot): void {
 }
 
 function readJsonFile(filePath: string): Record<string, any> | undefined {
+  assertFileIsNotSymlink(filePath);
   try {
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     return isRecord(parsed) ? parsed : undefined;
@@ -2248,17 +2260,19 @@ function upsertGeneratedAssetRecord(
   localPath: string,
   record: GeneratedAssetRegistry[string]
 ): void {
-  const registry = readGeneratedAssetRegistry(targetDir);
-  registry[localPath] = record;
   const registryPath = getGeneratedAssetRegistryPath(targetDir);
   const registryDirectory = path.dirname(registryPath);
   fs.mkdirSync(registryDirectory, { recursive: true });
   assertProjectDirectory(targetDir, registryDirectory);
+  assertFileIsNotSymlink(registryPath);
+  const registry = readGeneratedAssetRegistry(targetDir);
+  registry[localPath] = record;
   fs.writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`, 'utf8');
 }
 
 function readGeneratedAssetRegistry(targetDir: string): GeneratedAssetRegistry {
   const registryPath = getGeneratedAssetRegistryPath(targetDir);
+  assertFileIsNotSymlink(registryPath);
   if (!fs.existsSync(registryPath)) {
     return {};
   }
@@ -2272,6 +2286,20 @@ function readGeneratedAssetRegistry(targetDir: string): GeneratedAssetRegistry {
 
 function getGeneratedAssetRegistryPath(targetDir: string): string {
   return path.join(targetDir, '.maker', 'assets', 'generated-assets.json');
+}
+
+function isSymlink(filePath: string): boolean {
+  try {
+    return fs.lstatSync(filePath).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+function assertFileIsNotSymlink(filePath: string): void {
+  if (isSymlink(filePath)) {
+    throw new Error(`refusing to access symlinked file: ${filePath}`);
+  }
 }
 
 function normalizeAssetRegistryKey(targetDir: string, value: string): string | undefined {
