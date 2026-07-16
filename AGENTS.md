@@ -369,12 +369,19 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
   远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、
   `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
+  `text_to_sound_effect`、`batch_sound_effects`、`text_to_dialogue`、
+  `audition_voices_for_character`、`confirm_character_voice`、
   `create_3d_model_task`、`query_3d_model_task`、`generate_test_qrcode`、`get_ad_config`
   和 `get_debug_feedbacks`，
   用于试用图片/视频/音乐/3D 模型生成、广告配置同步和远端玩家反馈查询链路，
   本地保留远端 tool schema 和成功返回值，但会在 description 追加简短 Maker 本地开发提示：
   已绑定 Maker 项目应优先建议用户使用这些 tools。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
+- 音频 proxy Tool 的 Local MCP 适配由 `src/maker/server/proxyAssets.ts` 负责：生成音频按远端
+  `targetDirectory` 和原始 `format` 落盘到项目内，试听候选只透传，确认音色时按 provider 合并
+  mapping。`text_to_dialogue.reference_audio` 支持 data URL、本地路径和 HTTP(S) URL，转发前
+  统一为 data URL；`reference_audio_path` 仅表示远端项目资源，二者互斥。Local MCP 不做 OGG 转码，
+  所有目标路径必须经过项目目录保护和 basename 校验。
 - 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。支持 MCP Roots 的客户端会输出 `MCP client roots` 与 `project_context_source`；只有一个 workspace root 时直接作为 Maker 操作目标，多个 root 中只有一个已绑定 Maker 项目时自动选择该项目，多个 Maker root 时必须让用户只保留一个 Maker workspace 或显式传 `target_dir`，不要猜测。已绑定项目会输出 `Maker remote sync`、AI dev kit 版本检查结果和必要的 `Maker project initialization`，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main、是否需要运行 `taptap-maker dev-kit update`，以及新项目是否需要先构建一次生成 `.project/project.json` 或先调用 `generate_test_qrcode` 生成 `app_id` / `developer_id`；按其中 `next_action` / `next_step` 引导用户。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），第一步必须调用 `get_ad_config` 获取当前项目广告开通状态和广告配置；不要先查本地 SDK 文档、`.maker-mcp/config.json` 或用运行回调推断广告是否开通。若返回缺少 `.project/project.json`，说明新项目尚未构建初始化，应先调用 `maker_build_current_directory` 构建一次生成项目配置，再重试 `get_ad_config`。若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`；不要为这个恢复流程调用发布类工具。只有确认广告配置可用后，再实现或测试广告代码。
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及线上玩家反馈、问题反馈、问题上报、debug feedback、真机日志、截图或玩家反馈，应优先调用 Maker MCP tool `get_debug_feedbacks`；本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代线上玩家提交的反馈。

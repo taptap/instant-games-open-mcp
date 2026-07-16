@@ -926,6 +926,11 @@ const config = {
       'create_video_task',
       'query_video_task',
       'text_to_music',
+      'text_to_sound_effect',
+      'batch_sound_effects',
+      'text_to_dialogue',
+      'audition_voices_for_character',
+      'confirm_character_voice',
       'create_3d_model_task',
       'query_3d_model_task',
       'generate_test_qrcode',
@@ -976,6 +981,11 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
       "create_video_task",
       "query_video_task",
       "text_to_music",
+      "text_to_sound_effect",
+      "batch_sound_effects",
+      "text_to_dialogue",
+      "audition_voices_for_character",
+      "confirm_character_voice",
       "create_3d_model_task",
       "query_3d_model_task",
       "generate_test_qrcode",
@@ -989,8 +999,10 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
 配置后：
 
 - `tools/list` 只返回 `generate_image`、`batch_generate_images`、`edit_image`、
-  `create_video_task`、`query_video_task`、`text_to_music`、`create_3d_model_task` 和
-  `query_3d_model_task`、`generate_test_qrcode`、`get_ad_config`、`get_debug_feedbacks`。
+  `create_video_task`、`query_video_task`、`text_to_music`、`text_to_sound_effect`、
+  `batch_sound_effects`、`text_to_dialogue`、`audition_voices_for_character`、
+  `confirm_character_voice`、`create_3d_model_task` 和 `query_3d_model_task`、
+  `generate_test_qrcode`、`get_ad_config`、`get_debug_feedbacks`。
 - `tools/call` 会拒绝白名单外的 tool，避免客户端直接调用隐藏 tool。
 - Proxy 不重新封装这些 tool；tool description、input schema、调用参数和返回结果都来自上游。
 - 私有参数注入仍按原流程工作，包括 `_mac_token`、`_tag: "local"`、`_project_path`
@@ -998,6 +1010,23 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
 
 这个配置适合先暴露少量 proxy 代理过来的 server tools，把参数缺口、返回结构或客户端适配问题
 原样暴露出来，再决定是否扩大白名单。
+
+### 5.6.1 Maker Local MCP 音频工具
+
+绑定 Maker 项目时，Local MCP 会为以下 5 个音频 Tool 注入私有 `target_dir`，并在本地完成资源适配：
+
+- `text_to_sound_effect`、`batch_sound_effects`：将返回的 `audio_files` 写入
+  `assets/audio/sfx`。
+- `text_to_dialogue`：将返回的对话音频写入 `assets/audio/voice`；每个
+  `inputs[].reference_audio` 可使用 data URL、本地文件或 HTTP(S) URL，后两者会在远端调用前转为
+  data URL。`reference_audio` 与 `reference_audio_path` 互斥，已提交的项目资源才使用后者。
+- `audition_voices_for_character`：只透传试听候选 URL 和 voice ID，不下载候选或登记项目资产。
+- `confirm_character_voice`：豆包下载并原子保存参考 MP3 到 `assets/audio/voice-reference`，合并
+  `.project/audio-voice-mapping.json`；ElevenLabs 只合并
+  `.project/elevenlabs-voice-mapping.json`。
+
+音频文件按服务端返回的 `format` 和扩展名原样保存，不做 OGG 转码。下载失败会保留 CDN URL 和错误
+信息，同一批次的其他成功项仍会落盘；所有本地路径都经过项目目录和 basename 校验。
 
 ### 5.7 路径配置说明
 
