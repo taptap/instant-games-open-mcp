@@ -1108,6 +1108,71 @@ describe('maker build local-change guard', () => {
           inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
         },
         {
+          name: 'text_to_sound_effect',
+          description: 'Generate one sound effect',
+          inputSchema: {
+            type: 'object',
+            properties: { text: { type: 'string' } },
+            required: ['text'],
+          },
+        },
+        {
+          name: 'batch_sound_effects',
+          description: 'Generate several sound effects',
+          inputSchema: {
+            type: 'object',
+            properties: { sounds: { type: 'array' } },
+            required: ['sounds'],
+          },
+        },
+        {
+          name: 'text_to_dialogue',
+          description: 'Generate character dialogue',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              inputs: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    character_name: { type: 'string' },
+                    text: { type: 'string' },
+                    reference_audio: {
+                      type: 'string',
+                      description: 'Optional Doubao-only audio data URL.',
+                    },
+                    reference_audio_path: {
+                      type: 'string',
+                      description: 'Optional Doubao-only project audio resource.',
+                    },
+                  },
+                  required: ['character_name', 'text'],
+                },
+              },
+            },
+            required: ['inputs'],
+          },
+        },
+        {
+          name: 'audition_voices_for_character',
+          description: 'Generate voice candidates for one character',
+          inputSchema: {
+            type: 'object',
+            properties: { character_name: { type: 'string' } },
+            required: ['character_name'],
+          },
+        },
+        {
+          name: 'confirm_character_voice',
+          description: 'Confirm one voice candidate',
+          inputSchema: {
+            type: 'object',
+            properties: { character_name: { type: 'string' } },
+            required: ['character_name'],
+          },
+        },
+        {
           name: 'create_3d_model_task',
           description: 'Create a 3D model generation task',
           inputSchema: {
@@ -1175,6 +1240,11 @@ describe('maker build local-change guard', () => {
       'create_video_task',
       'query_video_task',
       'text_to_music',
+      'text_to_sound_effect',
+      'batch_sound_effects',
+      'text_to_dialogue',
+      'audition_voices_for_character',
+      'confirm_character_voice',
       'create_3d_model_task',
       'query_3d_model_task',
       'generate_test_qrcode',
@@ -1188,6 +1258,11 @@ describe('maker build local-change guard', () => {
       'create_video_task',
       'query_video_task',
       'text_to_music',
+      'text_to_sound_effect',
+      'batch_sound_effects',
+      'text_to_dialogue',
+      'audition_voices_for_character',
+      'confirm_character_voice',
       'create_3d_model_task',
       'query_3d_model_task',
       'generate_test_qrcode',
@@ -1209,6 +1284,49 @@ describe('maker build local-change guard', () => {
     expect(result.tools.find((item) => item.name === 'query_video_task')?.description).toContain(
       'Use this Maker MCP proxy tool to refresh video task status'
     );
+    const audioTools = [
+      'text_to_sound_effect',
+      'batch_sound_effects',
+      'text_to_dialogue',
+      'audition_voices_for_character',
+      'confirm_character_voice',
+    ];
+    for (const audioToolName of audioTools) {
+      expect(
+        result.tools.find((item) => item.name === audioToolName)?.inputSchema.properties
+      ).toHaveProperty('target_dir');
+    }
+    expect(
+      result.tools.find((item) => item.name === 'text_to_sound_effect')?.inputSchema.required
+    ).toEqual(['text']);
+    expect(
+      result.tools.find((item) => item.name === 'batch_sound_effects')?.inputSchema.required
+    ).toEqual(['sounds']);
+    const dialogueTool = result.tools.find((item) => item.name === 'text_to_dialogue');
+    expect(dialogueTool?.inputSchema.required).toEqual(['inputs']);
+    expect(dialogueTool?.inputSchema.properties.inputs.items.required).toEqual([
+      'character_name',
+      'text',
+    ]);
+    expect(
+      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio.description
+    ).toContain('local audio file path or HTTP(S) URL');
+    expect(
+      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio.description
+    ).toContain('converted to an audio data URL');
+    expect(
+      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio_path.description
+    ).toContain('remote project audio resource');
+    expect(dialogueTool?.description).toContain(
+      'reference_audio and reference_audio_path are mutually exclusive'
+    );
+    expect(dialogueTool?.description).toContain('uncommitted local audio');
+    expect(
+      result.tools.find((item) => item.name === 'audition_voices_for_character')?.description
+    ).toContain('temporary preview');
+    expect(
+      result.tools.find((item) => item.name === 'confirm_character_voice')?.description
+    ).toContain('after the user selects');
     const createModelTool = result.tools.find((item) => item.name === 'create_3d_model_task');
     const queryModelTool = result.tools.find((item) => item.name === 'query_3d_model_task');
     expect(createModelTool?.inputSchema.properties).toHaveProperty('mode');
@@ -1300,7 +1418,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- status: unavailable');
     expect(output).toContain('- available_tools: (none)');
     expect(output).toContain(
-      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, create_3d_model_task, query_3d_model_task, generate_test_qrcode, get_ad_config, get_debug_feedbacks'
+      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, text_to_sound_effect, batch_sound_effects, text_to_dialogue, audition_voices_for_character, confirm_character_voice, create_3d_model_task, query_3d_model_task, generate_test_qrcode, get_ad_config, get_debug_feedbacks'
     );
     expect(output).toContain('- build_available: no');
     expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');

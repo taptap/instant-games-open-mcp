@@ -109,10 +109,15 @@ import {
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
   prepareRemoteProxyToolArgs,
+  prepareRemoteProxyToolArgsAsync,
 } from './proxyAssets.js';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 
-export { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './proxyAssets.js';
+export {
+  materializeRemoteProxyToolAssets,
+  prepareRemoteProxyToolArgs,
+  prepareRemoteProxyToolArgsAsync,
+} from './proxyAssets.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
@@ -130,6 +135,11 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'create_video_task',
   'query_video_task',
   'text_to_music',
+  'text_to_sound_effect',
+  'batch_sound_effects',
+  'text_to_dialogue',
+  'audition_voices_for_character',
+  'confirm_character_voice',
   'create_3d_model_task',
   'query_3d_model_task',
   'generate_test_qrcode',
@@ -367,23 +377,84 @@ function decorateRemoteProxyToolDefinition(tool: RemoteToolDefinition): RemoteTo
   const guidance = remoteProxyToolGuidance(tool.name);
   return {
     ...tool,
-    inputSchema: decorateRemoteProxyToolInputSchema(tool.inputSchema),
+    inputSchema: decorateRemoteProxyToolInputSchema(tool.inputSchema, tool.name),
     description: [tool.description, guidance].filter(Boolean).join('\n\n'),
   };
 }
 
-function decorateRemoteProxyToolInputSchema(inputSchema: unknown): Record<string, unknown> {
+function decorateRemoteProxyToolInputSchema(
+  inputSchema: unknown,
+  toolName: string
+): Record<string, unknown> {
   const schema = isPlainRecord(inputSchema) ? inputSchema : {};
   const properties = isPlainRecord(schema.properties) ? schema.properties : {};
+  const decoratedProperties =
+    toolName === 'text_to_dialogue'
+      ? decorateTextToDialogueInputProperties(properties)
+      : properties;
   return {
     ...schema,
     type: schema.type || 'object',
     properties: {
-      ...properties,
+      ...decoratedProperties,
       target_dir: {
         type: 'string',
         description:
           'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool.',
+      },
+    },
+  };
+}
+
+function decorateTextToDialogueInputProperties(
+  properties: Record<string, unknown>
+): Record<string, unknown> {
+  const inputs = properties.inputs;
+  if (!isPlainRecord(inputs) || !isPlainRecord(inputs.items)) {
+    return properties;
+  }
+  const itemProperties = inputs.items.properties;
+  if (!isPlainRecord(itemProperties)) {
+    return properties;
+  }
+
+  const referenceAudio = itemProperties.reference_audio;
+  const referenceAudioPath = itemProperties.reference_audio_path;
+  return {
+    ...properties,
+    inputs: {
+      ...inputs,
+      items: {
+        ...inputs.items,
+        properties: {
+          ...itemProperties,
+          ...(isPlainRecord(referenceAudio)
+            ? {
+                reference_audio: {
+                  ...referenceAudio,
+                  description: [
+                    referenceAudio.description,
+                    'The local Maker MCP also accepts a resolvable local audio file path or HTTP(S) URL here; these sources are converted to an audio data URL before forwarding. Use this field for uncommitted local audio; do not pass bare base64.',
+                  ]
+                    .filter(Boolean)
+                    .join(' '),
+                },
+              }
+            : {}),
+          ...(isPlainRecord(referenceAudioPath)
+            ? {
+                reference_audio_path: {
+                  ...referenceAudioPath,
+                  description: [
+                    referenceAudioPath.description,
+                    'This remains a remote project audio resource under assets/audio/ or workspace/assets/audio/ and is forwarded unchanged; it is not a local filesystem path.',
+                  ]
+                    .filter(Boolean)
+                    .join(' '),
+                },
+              }
+            : {}),
+        },
       },
     },
   };
@@ -427,6 +498,27 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
     case 'text_to_music':
       return [
         '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker music generation so generated audio can be materialized into the project and recorded for later Maker references.',
+        failurePolicy,
+      ].join(' ');
+    case 'text_to_sound_effect':
+    case 'batch_sound_effects':
+      return [
+        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for game sound effects. Successful audio is materialized in its original format under assets/audio/sfx and recorded for later Maker references.',
+        failurePolicy,
+      ].join(' ');
+    case 'text_to_dialogue':
+      return [
+        '**Maker voice workflow hint:** Use this Maker MCP proxy tool for character dialogue after the character has a confirmed voice mapping, or provide a per-call reference. reference_audio accepts an audio data URL, a resolvable local audio file path, or an HTTP(S) URL; the local proxy converts file and HTTP(S) sources to data URLs. reference_audio and reference_audio_path are mutually exclusive: use reference_audio for inline or uncommitted local audio, while reference_audio_path identifies an existing remote project resource under assets/audio/ or workspace/assets/audio/. Successful dialogue audio is materialized under assets/audio/voice.',
+        failurePolicy,
+      ].join(' ');
+    case 'audition_voices_for_character':
+      return [
+        '**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary preview voices for one character. Show every returned preview URL to the user and wait for their choice before calling confirm_character_voice. Preview candidates are not saved as game assets.',
+        failurePolicy,
+      ].join(' ');
+    case 'confirm_character_voice':
+      return [
+        '**Maker voice workflow hint:** Call this Maker MCP proxy tool only after audition_voices_for_character and after the user selects a candidate or accepts the recommendation. Confirmation persists the provider-specific voice mapping for later text_to_dialogue calls.',
         failurePolicy,
       ].join(' ');
     case 'get_ad_config':
@@ -502,7 +594,7 @@ async function callRemoteProxyTool(options: {
     targetDir: options.targetDir,
     exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
   });
-  const finalArgs = prepareRemoteProxyToolArgs({
+  const finalArgs = await prepareRemoteProxyToolArgsAsync({
     toolName: options.name,
     targetDir: proxy.projectRoot,
     args: options.args,
