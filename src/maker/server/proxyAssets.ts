@@ -4,6 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { extractZip } from '../cli/devKit.js';
 
@@ -793,6 +794,8 @@ async function materializeAudioFilesResult(
       targetDirectory,
       expectedDirectory,
       suggestedFileName,
+      format: stringField(item.format),
+      mimeType: stringField(item.mimeType),
     });
     if (validationError) {
       audioFiles.push({
@@ -837,6 +840,8 @@ function validateAudioAssetContract(options: {
   targetDirectory?: string;
   expectedDirectory: string;
   suggestedFileName?: string;
+  format?: string;
+  mimeType?: string;
 }): string | undefined {
   if (!options.audioUrl || !/^https?:\/\//i.test(options.audioUrl)) {
     return 'audioUrl must be an HTTP(S) URL.';
@@ -860,6 +865,21 @@ function validateAudioAssetContract(options: {
   }
   if (path.basename(fileName) !== fileName || fileName.endsWith('.') || fileName.endsWith(' ')) {
     return 'suggestedFileName must be a safe basename.';
+  }
+  const format = options.format?.toLowerCase();
+  const mimeType = options.mimeType?.toLowerCase();
+  const extension = path.extname(fileName).toLowerCase();
+  const contract = {
+    mp3: { mimeType: 'audio/mpeg', extension: '.mp3' },
+    wav: { mimeType: 'audio/wav', extension: '.wav' },
+    pcm: { mimeType: 'audio/l16', extension: '.pcm' },
+    ogg_opus: { mimeType: 'audio/ogg', extension: '.ogg' },
+  }[format || ''];
+  if (!contract) {
+    return 'audio output format is unsupported; format must be one of mp3, wav, pcm, or ogg_opus.';
+  }
+  if (mimeType !== contract.mimeType || extension !== contract.extension) {
+    return `audio output contract mismatch: format ${format} requires mime ${contract.mimeType} and extension ${contract.extension}.`;
   }
   return undefined;
 }
@@ -889,6 +909,17 @@ async function materializeAudioAsset(options: {
 }): Promise<MaterializedAssetResult> {
   const relativeDir = options.targetDirectory;
   const directory = path.join(options.targetDir, ...relativeDir.split('/'));
+  try {
+    fs.mkdirSync(directory, { recursive: true });
+    assertProjectDirectory(options.targetDir, directory);
+  } catch (error) {
+    return {
+      download: {
+        success: false,
+        error: `Audio target directory is outside the project: ${error instanceof Error ? error.message : String(error)}`,
+      },
+    };
+  }
   const baseName = path.basename(options.fileName, path.extname(options.fileName));
   let absolutePath: string | undefined;
   let relativePath: string | undefined;
@@ -916,7 +947,6 @@ async function materializeAudioAsset(options: {
     if (bytes.length === 0) {
       return { download: { success: false, error: 'Asset download failed: empty response.' } };
     }
-    fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(absolutePath, bytes, { flag: 'wx' });
     return { localPath: relativePath, absolutePath, download: { success: true } };
   } catch (error) {
@@ -944,14 +974,23 @@ async function materializeVoiceConfirmationResult(options: {
     stringField(mapping.characterName) || stringField(options.payload.characterName);
   if (!characterName || provider === 'elevenlabs') {
     if (provider !== 'elevenlabs' || !characterName) return options.payload;
-    mergeVoiceMappingFile({
-      targetDir: options.targetDir,
-      provider: 'elevenlabs',
-      characterName,
-      mapping,
-      now: options.now,
-    });
-    return options.payload;
+    try {
+      mergeVoiceMappingFile({
+        targetDir: options.targetDir,
+        provider: 'elevenlabs',
+        characterName,
+        mapping,
+        now: options.now,
+      });
+      return options.payload;
+    } catch (error) {
+      const message = `ElevenLabs voice mapping persistence failed: ${error instanceof Error ? error.message : String(error)}`;
+      return {
+        ...options.payload,
+        localPersistenceError: message,
+        mappingPersistenceError: message,
+      };
+    }
   }
   if (provider !== 'doubao' || !isRecord(options.payload.referenceAudio)) {
     return options.payload;
@@ -1113,6 +1152,14 @@ function mergeVoiceMappingFile(options: {
   const referencePath = options.referenceAudio
     ? path.join(options.targetDir, ...options.referenceAudio.targetPath.split('/'))
     : undefined;
+  const configDirectory = path.dirname(configPath);
+  const referenceDirectory = referencePath ? path.dirname(referencePath) : undefined;
+  fs.mkdirSync(configDirectory, { recursive: true });
+  assertProjectDirectory(options.targetDir, configDirectory);
+  if (referenceDirectory) {
+    fs.mkdirSync(referenceDirectory, { recursive: true });
+    assertProjectDirectory(options.targetDir, referenceDirectory);
+  }
   const oldConfig = snapshotFile(configPath);
   const oldReference = referencePath ? snapshotFile(referencePath) : undefined;
   const existing = readJsonFile(configPath);
@@ -1155,14 +1202,11 @@ function mergeVoiceMappingFile(options: {
     characters,
   };
   const configBytes = Buffer.from(`${JSON.stringify(nextConfig, null, 2)}\n`, 'utf8');
-  const configTemp = `${configPath}.${process.pid}.${Date.now()}.tmp`;
-  const referenceTemp = referencePath
-    ? `${referencePath}.${process.pid}.${Date.now()}.tmp`
-    : undefined;
+  const transactionId = randomUUID();
+  const configTemp = `${configPath}.${transactionId}.tmp`;
+  const referenceTemp = referencePath ? `${referencePath}.${transactionId}.tmp` : undefined;
   try {
-    fs.mkdirSync(path.dirname(configPath), { recursive: true });
     if (referenceTemp && options.referenceAudio) {
-      fs.mkdirSync(path.dirname(referencePath!), { recursive: true });
       fs.writeFileSync(referenceTemp, options.referenceAudio.bytes, { flag: 'wx' });
       fs.renameSync(referenceTemp, referencePath!);
     }
@@ -1456,17 +1500,25 @@ function persistMaterializedAsset(options: {
     return nextPayload;
   }
 
-  upsertGeneratedAssetRecord(options.targetDir, options.materialized.localPath, {
-    tool: options.toolName,
-    name: stringField(options.payload.name) || stringField(options.payload.title),
-    prompt: stringField(options.payload.prompt),
-    cdnUrl: options.cdnUrl,
-    previewUrl: options.cdnUrl,
-    localPath: options.materialized.localPath,
-    absolutePath: options.materialized.absolutePath,
-    createdAt: options.now.toISOString(),
-    ...options.extraRegistryFields,
-  });
+  try {
+    upsertGeneratedAssetRecord(options.targetDir, options.materialized.localPath, {
+      tool: options.toolName,
+      name: stringField(options.payload.name) || stringField(options.payload.title),
+      prompt: stringField(options.payload.prompt),
+      cdnUrl: options.cdnUrl,
+      previewUrl: options.cdnUrl,
+      localPath: options.materialized.localPath,
+      absolutePath: options.materialized.absolutePath,
+      createdAt: options.now.toISOString(),
+      ...options.extraRegistryFields,
+    });
+  } catch (error) {
+    return {
+      ...nextPayload,
+      registryError: `Generated asset registry persistence failed: ${error instanceof Error ? error.message : String(error)}`,
+      localPersistenceError: `Generated asset registry persistence failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 
   return nextPayload;
 }
@@ -1860,15 +1912,65 @@ async function rewriteAudioReference(options: {
   if (/^https?:\/\//i.test(value)) {
     const response = await options.fetchImpl(value);
     if (!response.ok) throw new Error(`reference_audio download failed: HTTP ${response.status}`);
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length === 0 || bytes.length > AUDIO_DIALOGUE_REFERENCE_MAX_BYTES) {
-      throw new Error('reference_audio must be a non-empty source no larger than 20 MiB.');
-    }
+    const bytes = await readResponseBytesLimited(
+      response,
+      AUDIO_DIALOGUE_REFERENCE_MAX_BYTES,
+      'reference_audio'
+    );
     const mime = audioMimeFromResponse(response, value);
     if (!mime) throw new Error('reference_audio URL has an unsupported audio format.');
     return `data:${mime};base64,${bytes.toString('base64')}`;
   }
   return rewriteAudioReferenceSync(options);
+}
+
+async function readResponseBytesLimited(
+  response: Response,
+  maxBytes: number,
+  label: string
+): Promise<Buffer> {
+  const contentLength = response.headers?.get('content-length');
+  if (contentLength) {
+    const declaredLength = Number.parseInt(contentLength, 10);
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      await response.body?.cancel();
+      throw new Error(`${label} must be a non-empty source no larger than 20 MiB.`);
+    }
+  }
+  if (!response.body) {
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length === 0 || bytes.length > maxBytes) {
+      throw new Error(`${label} must be a non-empty source no larger than 20 MiB.`);
+    }
+    return bytes;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    let streamEnded = false;
+    while (!streamEnded) {
+      const { done, value } = await reader.read();
+      if (done) {
+        streamEnded = true;
+        continue;
+      }
+      const chunk = Buffer.from(value);
+      total += chunk.length;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error(`${label} must be a non-empty source no larger than 20 MiB.`);
+      }
+      chunks.push(chunk);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (total === 0) {
+    throw new Error(`${label} must be a non-empty source no larger than 20 MiB.`);
+  }
+  return Buffer.concat(chunks, total);
 }
 
 function validateAudioDataUrl(value: string): void {
@@ -2128,6 +2230,15 @@ function resolveProjectRelativePath(targetDir: string, value: string): string | 
   return undefined;
 }
 
+function assertProjectDirectory(targetDir: string, directory: string): void {
+  const projectRoot = fs.realpathSync(path.resolve(targetDir));
+  const realDirectory = fs.realpathSync(directory);
+  const relative = path.relative(projectRoot, realDirectory);
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error('resolved directory escapes the project target directory');
+  }
+}
+
 function dataUrlMimeForPath(filePath: string, mediaKind: DataUrlMediaKind): string | undefined {
   return DATA_URL_MIME_BY_EXTENSION[mediaKind][path.extname(filePath).toLowerCase()];
 }
@@ -2140,7 +2251,9 @@ function upsertGeneratedAssetRecord(
   const registry = readGeneratedAssetRegistry(targetDir);
   registry[localPath] = record;
   const registryPath = getGeneratedAssetRegistryPath(targetDir);
-  fs.mkdirSync(path.dirname(registryPath), { recursive: true });
+  const registryDirectory = path.dirname(registryPath);
+  fs.mkdirSync(registryDirectory, { recursive: true });
+  assertProjectDirectory(targetDir, registryDirectory);
   fs.writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`, 'utf8');
 }
 

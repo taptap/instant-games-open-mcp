@@ -133,6 +133,97 @@ describe('Maker audio proxy tools', () => {
     expect(registry[payload.audio_files[0].localPath].tool).toBe('batch_sound_effects');
   });
 
+  test('rejects unsupported audio output contracts without writing a file', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'text_to_sound_effect',
+      targetDir,
+      fetchImpl: (async () => new Response(Buffer.from('bytes'), { status: 200 })) as typeof fetch,
+      result: proxyTextResult({
+        success: true,
+        audio_files: [
+          {
+            kind: 'sound_effect',
+            name: 'bad',
+            audioUrl: 'https://x.test/bad',
+            mimeType: 'audio/wav',
+            format: 'mp3',
+            suggestedFileName: 'bad.wav',
+            targetDirectory: 'assets/audio/sfx',
+          },
+        ],
+      }),
+    });
+
+    const payload = JSON.parse(result.content[0].text);
+    expect(payload.audio_files[0].download.success).toBe(false);
+    expect(payload.audio_files[0].download.error).toMatch(/format|mime|extension/i);
+    expect(fs.existsSync(path.join(targetDir, 'assets/audio/sfx/bad.wav'))).toBe(false);
+  });
+
+  test('rejects HTTP reference audio from Content-Length over 20 MiB before reading body', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+        controller.close();
+      },
+    });
+    const fetchImpl = jest.fn(
+      async () =>
+        new Response(body, {
+          status: 200,
+          headers: { 'content-length': String(20 * 1024 * 1024 + 1), 'content-type': 'audio/mpeg' },
+        })
+    ) as unknown as typeof fetch;
+
+    await expect(
+      prepareRemoteProxyToolArgsAsync({
+        toolName: 'text_to_dialogue',
+        targetDir,
+        fetchImpl,
+        args: {
+          inputs: [{ character_name: 'A', text: 'hello', reference_audio: 'https://x.test/a' }],
+        },
+      })
+    ).rejects.toThrow(/20 MiB|too large/i);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  test('rejects HTTP reference audio when streamed bytes exceed 20 MiB and cancels the body', async () => {
+    let cancelled = false;
+    let reads = 0;
+    const fetchImpl = (async () =>
+      ({
+        ok: true,
+        headers: new Headers({ 'content-type': 'audio/mpeg' }),
+        body: {
+          getReader: () => ({
+            read: async () => {
+              reads += 1;
+              return reads === 1
+                ? { done: false, value: new Uint8Array(20 * 1024 * 1024) }
+                : { done: false, value: new Uint8Array([1]) };
+            },
+            cancel: async () => {
+              cancelled = true;
+            },
+            releaseLock: () => undefined,
+          }),
+        },
+      }) as unknown as Response) as typeof fetch;
+
+    await expect(
+      prepareRemoteProxyToolArgsAsync({
+        toolName: 'text_to_dialogue',
+        targetDir,
+        fetchImpl,
+        args: {
+          inputs: [{ character_name: 'A', text: 'hello', reference_audio: 'https://x.test/a' }],
+        },
+      })
+    ).rejects.toThrow(/20 MiB|too large/i);
+    expect(cancelled).toBe(true);
+  });
+
   test('does not materialize audition candidates', async () => {
     const result = await materializeRemoteProxyToolAssets({
       toolName: 'audition_voices_for_character',
@@ -254,6 +345,174 @@ describe('Maker audio proxy tools', () => {
     );
     expect(mapping.version).toBe('1.0');
     expect(mapping.characters.A.voice_id).toBe('voice-1');
+  });
+
+  test('returns ElevenLabs mapping persistence diagnostics without dropping remote success fields', async () => {
+    const mappingPath = path.join(targetDir, '.project/elevenlabs-voice-mapping.json');
+    const originalRename = fs.renameSync;
+    const rename = jest.spyOn(fs, 'renameSync').mockImplementation((source, destination) => {
+      if (String(destination) === mappingPath) throw new Error('forced elevenlabs mapping failure');
+      return originalRename(source, destination);
+    });
+    try {
+      const result = await materializeRemoteProxyToolAssets({
+        toolName: 'confirm_character_voice',
+        targetDir,
+        result: proxyTextResult({
+          success: true,
+          cleanupWarning: 'do not retry',
+          remoteVoiceId: 'voice-1',
+          mapping: { provider: 'elevenlabs', characterName: 'A', voice_id: 'voice-1' },
+        }),
+      });
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.success).toBe(true);
+      expect(payload.remoteVoiceId).toBe('voice-1');
+      expect(payload.cleanupWarning).toBe('do not retry');
+      expect(payload.localPersistenceError || payload.mappingError).toMatch(
+        /elevenlabs mapping failure/i
+      );
+    } finally {
+      rename.mockRestore();
+    }
+  });
+
+  test('keeps successful downloads and continues batch when registry persistence fails', async () => {
+    const registryPath = path.join(targetDir, '.maker/assets/generated-assets.json');
+    const originalWrite = fs.writeFileSync;
+    const write = jest.spyOn(fs, 'writeFileSync').mockImplementation((filePath, data, options) => {
+      if (String(filePath) === registryPath) throw new Error('forced registry failure');
+      return originalWrite(filePath, data, options);
+    });
+    try {
+      const result = await materializeRemoteProxyToolAssets({
+        toolName: 'batch_sound_effects',
+        targetDir,
+        fetchImpl: (async (url: string) =>
+          new Response(Buffer.from(url.endsWith('a') ? 'a' : 'b'), {
+            status: 200,
+            headers: { 'content-type': 'audio/mpeg' },
+          })) as typeof fetch,
+        result: proxyTextResult({
+          success: true,
+          audio_files: [
+            {
+              kind: 'sound_effect',
+              name: 'a',
+              audioUrl: 'https://x.test/a',
+              mimeType: 'audio/mpeg',
+              format: 'mp3',
+              suggestedFileName: 'a.mp3',
+              targetDirectory: 'assets/audio/sfx',
+            },
+            {
+              kind: 'sound_effect',
+              name: 'b',
+              audioUrl: 'https://x.test/b',
+              mimeType: 'audio/mpeg',
+              format: 'mp3',
+              suggestedFileName: 'b.mp3',
+              targetDirectory: 'assets/audio/sfx',
+            },
+          ],
+        }),
+      });
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.audio_files).toHaveLength(2);
+      expect(payload.audio_files[0].download.success).toBe(true);
+      expect(payload.audio_files[0].localPath).toBe('assets/audio/sfx/a.mp3');
+      expect(
+        payload.audio_files[0].registryError || payload.audio_files[0].localPersistenceError
+      ).toMatch(/registry failure/i);
+      expect(payload.audio_files[1].download.success).toBe(true);
+      expect(fs.existsSync(path.join(targetDir, 'assets/audio/sfx/b.mp3'))).toBe(true);
+    } finally {
+      write.mockRestore();
+    }
+  });
+
+  test('rejects symlinked audio target directories that escape the project', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-audio-outside-'));
+    try {
+      fs.mkdirSync(path.join(targetDir, 'assets/audio'), { recursive: true });
+      fs.symlinkSync(outside, path.join(targetDir, 'assets/audio/sfx'));
+      const result = await materializeRemoteProxyToolAssets({
+        toolName: 'text_to_sound_effect',
+        targetDir,
+        fetchImpl: (async () =>
+          new Response(Buffer.from('bytes'), { status: 200 })) as typeof fetch,
+        result: proxyTextResult({
+          success: true,
+          audio_files: [
+            {
+              kind: 'sound_effect',
+              name: 'escape',
+              audioUrl: 'https://x.test/escape',
+              mimeType: 'audio/mpeg',
+              format: 'mp3',
+              suggestedFileName: 'escape.mp3',
+              targetDirectory: 'assets/audio/sfx',
+            },
+          ],
+        }),
+      });
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.audio_files[0].download.success).toBe(false);
+      expect(payload.audio_files[0].download.error).toMatch(/project|symlink|outside|target/i);
+      expect(fs.existsSync(path.join(outside, 'escape.mp3'))).toBe(false);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects symlinked voice mapping and registry parents without writing outside project', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-audio-metadata-outside-'));
+    try {
+      fs.symlinkSync(outside, path.join(targetDir, '.project'));
+      const mappingResult = await materializeRemoteProxyToolAssets({
+        toolName: 'confirm_character_voice',
+        targetDir,
+        result: proxyTextResult({
+          success: true,
+          mapping: { provider: 'elevenlabs', characterName: 'A', voice_id: 'voice-1' },
+        }),
+      });
+      const mappingPayload = JSON.parse(mappingResult.content[0].text);
+      expect(mappingPayload.localPersistenceError).toMatch(/outside|project/i);
+      expect(fs.existsSync(path.join(outside, 'elevenlabs-voice-mapping.json'))).toBe(false);
+
+      fs.rmSync(path.join(targetDir, '.project'), { force: true });
+      fs.mkdirSync(path.join(targetDir, '.maker'), { recursive: true });
+      fs.symlinkSync(outside, path.join(targetDir, '.maker/assets'));
+      const registryResult = await materializeRemoteProxyToolAssets({
+        toolName: 'text_to_sound_effect',
+        targetDir,
+        fetchImpl: (async () =>
+          new Response(Buffer.from('bytes'), {
+            status: 200,
+            headers: { 'content-type': 'audio/mpeg' },
+          })) as typeof fetch,
+        result: proxyTextResult({
+          success: true,
+          audio_files: [
+            {
+              kind: 'sound_effect',
+              name: 'sfx',
+              audioUrl: 'https://x.test/sfx',
+              mimeType: 'audio/mpeg',
+              format: 'mp3',
+              suggestedFileName: 'sfx.mp3',
+              targetDirectory: 'assets/audio/sfx',
+            },
+          ],
+        }),
+      });
+      const registryPayload = JSON.parse(registryResult.content[0].text);
+      expect(registryPayload.audio_files[0].registryError).toMatch(/outside|project/i);
+      expect(fs.existsSync(path.join(outside, 'generated-assets.json'))).toBe(false);
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
   });
 });
 

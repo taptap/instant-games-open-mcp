@@ -1302,6 +1302,18 @@ describe('maker build local-change guard', () => {
     expect(
       result.tools.find((item) => item.name === 'batch_sound_effects')?.inputSchema.required
     ).toEqual(['sounds']);
+    for (const audioToolName of audioTools) {
+      expect(
+        result.tools.find((item) => item.name === audioToolName)?.inputSchema.required || []
+      ).not.toContain('target_dir');
+    }
+    expect(
+      result.tools.find((item) => item.name === 'audition_voices_for_character')?.inputSchema
+        .required
+    ).toEqual(['character_name']);
+    expect(
+      result.tools.find((item) => item.name === 'confirm_character_voice')?.inputSchema.required
+    ).toEqual(['character_name']);
     const dialogueTool = result.tools.find((item) => item.name === 'text_to_dialogue');
     expect(dialogueTool?.inputSchema.required).toEqual(['inputs']);
     expect(dialogueTool?.inputSchema.properties.inputs.items.required).toEqual([
