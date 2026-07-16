@@ -71,4 +71,3 @@
 - [ ] Run `npm run build`, `npm run lint`, `npm run format:check`, and the complete relevant Jest suite.
 - [ ] Review the combined diff for path traversal, accidental remote argument mutation, and documentation consistency.
 - [ ] Commit documentation and final verification changes with a Conventional Commit body.
-
