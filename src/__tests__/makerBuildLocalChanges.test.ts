@@ -21,6 +21,7 @@ import {
   createRemoteRuntimeLogClient,
   refreshMakerPreview,
   formatBuildResult,
+  formatToolException,
   formatStatus,
   formatAiDevKitStatus,
   formatClonePartialStateLines,
@@ -1108,24 +1109,18 @@ describe('maker build local-change guard', () => {
           inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
         },
         {
-          name: 'create_3d_model_task',
-          description: 'Create a 3D model generation task',
+          name: 'create_3d_asset',
+          description: 'Create or continue a controlled 3D asset generation lifecycle',
           inputSchema: {
             type: 'object',
             properties: {
-              mode: { type: 'string' },
-              confirmed_image_paths: { type: 'object' },
-              front_image: { type: 'string' },
+              action: { type: 'string' },
+              asset_id: { type: 'string' },
+              task_id: { type: 'string' },
+              step_id: { type: 'string' },
+              payload: { type: 'object' },
             },
-          },
-        },
-        {
-          name: 'query_3d_model_task',
-          description: 'Query a 3D model generation task',
-          inputSchema: {
-            type: 'object',
-            properties: { task_id: { type: 'string' } },
-            required: ['task_id'],
+            required: ['action'],
           },
         },
         {
@@ -1175,8 +1170,7 @@ describe('maker build local-change guard', () => {
       'create_video_task',
       'query_video_task',
       'text_to_music',
-      'create_3d_model_task',
-      'query_3d_model_task',
+      'create_3d_asset',
       'generate_test_qrcode',
       'get_ad_config',
       'get_debug_feedbacks',
@@ -1188,8 +1182,7 @@ describe('maker build local-change guard', () => {
       'create_video_task',
       'query_video_task',
       'text_to_music',
-      'create_3d_model_task',
-      'query_3d_model_task',
+      'create_3d_asset',
       'generate_test_qrcode',
       'get_ad_config',
       'get_debug_feedbacks',
@@ -1209,19 +1202,20 @@ describe('maker build local-change guard', () => {
     expect(result.tools.find((item) => item.name === 'query_video_task')?.description).toContain(
       'Use this Maker MCP proxy tool to refresh video task status'
     );
-    const createModelTool = result.tools.find((item) => item.name === 'create_3d_model_task');
-    const queryModelTool = result.tools.find((item) => item.name === 'query_3d_model_task');
-    expect(createModelTool?.inputSchema.properties).toHaveProperty('mode');
-    expect(createModelTool?.inputSchema.properties).toHaveProperty('confirmed_image_paths');
-    expect(createModelTool?.inputSchema.properties).toHaveProperty('front_image');
-    expect(createModelTool?.inputSchema.properties).toHaveProperty('target_dir');
-    expect(createModelTool?.inputSchema.properties.target_dir.description).toContain(
+    const createAssetTool = result.tools.find((item) => item.name === 'create_3d_asset');
+    expect(createAssetTool?.inputSchema.properties).toHaveProperty('action');
+    expect(createAssetTool?.inputSchema.properties).toHaveProperty('asset_id');
+    expect(createAssetTool?.inputSchema.properties).toHaveProperty('step_id');
+    expect(createAssetTool?.inputSchema.properties).toHaveProperty('payload');
+    expect(createAssetTool?.inputSchema.properties).toHaveProperty('target_dir');
+    expect(createAssetTool?.inputSchema.properties.target_dir.description).toContain(
       'not forwarded to the remote Maker tool'
     );
+    expect(createAssetTool?.inputSchema.required).toEqual(['action']);
+    expect(createAssetTool?.description).toContain('start, query, continue');
     expect(
       result.tools.find((item) => item.name === 'generate_image')?.inputSchema.properties
     ).toHaveProperty('target_dir');
-    expect(queryModelTool?.inputSchema.required).toEqual(['task_id']);
     expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
       'Trigger this tool for any ad-related request'
     );
@@ -1300,7 +1294,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- status: unavailable');
     expect(output).toContain('- available_tools: (none)');
     expect(output).toContain(
-      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, create_3d_model_task, query_3d_model_task, generate_test_qrcode, get_ad_config, get_debug_feedbacks'
+      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, create_3d_asset, generate_test_qrcode, get_ad_config, get_debug_feedbacks'
     );
     expect(output).toContain('- build_available: no');
     expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');
@@ -1994,295 +1988,292 @@ describe('maker build local-change guard', () => {
     }
   });
 
-  test('rewrites 3d model confirmation image paths to cdn urls', async () => {
+  test('rewrites create_3d_asset nested local image inputs without changing lifecycle fields', async () => {
     await materializeRemoteProxyToolAssets({
       toolName: 'generate_image',
       targetDir: tempDir,
-      now: new Date('2026-06-02T08:09:21Z'),
+      now: new Date('2026-07-16T08:09:20Z'),
       fetchImpl: fakeAssetFetch('front-image'),
       result: proxyTextResult({
         success: true,
-        name: 'model_front',
-        previewUrl: 'https://example.test/model-front.png',
+        name: 'hero_front',
+        previewUrl: 'https://example.test/hero-front.png',
       }),
     });
-    await materializeRemoteProxyToolAssets({
-      toolName: 'generate_image',
-      targetDir: tempDir,
-      now: new Date('2026-06-02T08:09:22Z'),
-      fetchImpl: fakeAssetFetch('right-image'),
-      result: proxyTextResult({
-        success: true,
-        name: 'model_right',
-        previewUrl: 'https://example.test/model-right.png',
-      }),
-    });
+    fs.mkdirSync(path.join(tempDir, 'assets/image'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'assets/image/hero-left.png'), 'left-image', 'utf8');
 
     const args = prepareRemoteProxyToolArgs({
-      toolName: 'create_3d_model_task',
+      toolName: 'create_3d_asset',
       targetDir: tempDir,
       args: {
-        mode: 'text_to_model',
-        image: 'model_front',
-        confirmed_image_paths: {
-          front: 'model_front',
-          left: 'https://example.test/model-left.png',
-          back: 'assets/image/server-existing-back.png',
-          right: path.join(tempDir, 'assets/image/model_right_20260602080922.png'),
+        action: 'start',
+        asset_id: 'asset-preserved',
+        payload: {
+          generation_strategy: 'reviewed',
+          quality_tier: 'balanced',
+          images: {
+            front: 'hero_front',
+            left: 'assets/image/hero-left.png',
+            back: 'https://example.test/hero-back.png',
+            right: 'data:image/png;base64,cmlnaHQ=',
+          },
         },
       },
     });
 
-    expect(args.image).toBe('https://example.test/model-front.png');
-    expect(args.confirmed_image_paths).toEqual({
-      front: 'https://example.test/model-front.png',
-      left: 'https://example.test/model-left.png',
-      back: 'assets/image/server-existing-back.png',
-      right: 'https://example.test/model-right.png',
-    });
-  });
-
-  test('rewrites multiview 3d model image inputs to cdn urls', async () => {
-    await materializeRemoteProxyToolAssets({
-      toolName: 'generate_image',
-      targetDir: tempDir,
-      now: new Date('2026-06-02T08:09:23Z'),
-      fetchImpl: fakeAssetFetch('front-image'),
-      result: proxyTextResult({
-        success: true,
-        name: 'multiview_front',
-        previewUrl: 'https://example.test/multiview-front.png',
-      }),
-    });
-    await materializeRemoteProxyToolAssets({
-      toolName: 'generate_image',
-      targetDir: tempDir,
-      now: new Date('2026-06-02T08:09:24Z'),
-      fetchImpl: fakeAssetFetch('back-image'),
-      result: proxyTextResult({
-        success: true,
-        name: 'multiview_back',
-        previewUrl: 'https://example.test/multiview-back.png',
-      }),
-    });
-
-    const args = prepareRemoteProxyToolArgs({
-      toolName: 'create_3d_model_task',
-      targetDir: tempDir,
-      args: {
-        mode: 'multiview_to_model',
-        front_image: 'multiview_front',
-        left_image: 'https://example.test/multiview-left.png',
-        back_image: 'assets/image/multiview_back_20260602080924.png',
-        right_image: 'assets/image/manual-right.png',
+    expect(args.action).toBe('start');
+    expect(args.asset_id).toBe('asset-preserved');
+    expect(args.payload).toEqual({
+      generation_strategy: 'reviewed',
+      quality_tier: 'balanced',
+      images: {
+        front: 'https://example.test/hero-front.png',
+        left: dataUrl('image/png', 'left-image'),
+        back: 'https://example.test/hero-back.png',
+        right: 'data:image/png;base64,cmlnaHQ=',
       },
     });
-
-    expect(args.front_image).toBe('https://example.test/multiview-front.png');
-    expect(args.left_image).toBe('https://example.test/multiview-left.png');
-    expect(args.back_image).toBe('https://example.test/multiview-back.png');
-    expect(args.right_image).toBe('assets/image/manual-right.png');
   });
 
-  test('downloads 3d model phase one preview images into Maker image assets', async () => {
+  test('preserves unknown create_3d_asset review fields in structured content', async () => {
+    const payload = {
+      asset_id: 'asset-review-1',
+      status: 'awaiting_review',
+      current_step: 'four_view_review',
+      review_contract_from_server: {
+        tiles: [
+          { view: 'front', cdn_url: 'https://example.test/front.png' },
+          { view: 'back', cdn_url: 'https://example.test/back.png' },
+        ],
+        server_revision: 7,
+      },
+    };
+
     const result = await materializeRemoteProxyToolAssets({
-      toolName: 'create_3d_model_task',
+      toolName: 'create_3d_asset',
       targetDir: tempDir,
-      now: new Date('2026-06-11T08:09:10Z'),
-      fetchImpl: fakeAssetFetch('preview-image'),
+      result: proxyTextResult(payload),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    expect(JSON.parse(text)).toEqual(payload);
+    expect((result as { structuredContent?: unknown }).structuredContent).toEqual(payload);
+  });
+
+  test('materializes create_3d_asset copy instructions into the requested local path', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      now: new Date('2026-07-16T08:09:21Z'),
+      fetchImpl: fakeAssetFetch('new-model-bytes'),
       result: proxyTextResult({
-        phase: 1,
-        mode: 'text_to_model',
-        task_id: 'model-task-1',
-        preview_urls: {
-          front: 'https://example.test/model-front.png',
-          left: 'https://example.test/model-left.png',
-          back: 'https://example.test/model-back.png',
-          right: 'https://example.test/model-right.png',
+        asset_id: 'asset-final-1',
+        status: 'completed',
+        runtime: 'local',
+        model_files: [
+          {
+            kind: 'model',
+            assetId: 'asset-final-1',
+            modelUrl: 'https://cdn.example.test/final-model.glb',
+            mimeType: 'model/gltf-binary',
+            format: 'glb',
+            suggestedFileName: 'asset-final-1.glb',
+            targetDirectory: 'assets/model',
+            materialization: 'copy',
+          },
+        ],
+        delivery_failures: [],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    expect(parsed.model_files).toHaveLength(1);
+    expect(parsed.local_delivery).toMatchObject({
+      status: 'success',
+      asset_id: 'asset-final-1',
+      model: {
+        remote_url: 'https://cdn.example.test/final-model.glb',
+        local_path: 'assets/model/asset-final-1.glb',
+        format: 'glb',
+        materialization: 'copy',
+      },
+    });
+    expect(
+      fs.readFileSync(path.join(tempDir, parsed.local_delivery.model.local_path), 'utf8')
+    ).toBe('new-model-bytes');
+  });
+
+  test('rejects create_3d_asset copy targets outside assets/model', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      fetchImpl: fakeAssetFetch('malicious-script'),
+      result: proxyTextResult({
+        asset_id: 'asset-escape-copy',
+        status: 'completed',
+        runtime: 'local',
+        model_files: [
+          {
+            kind: 'model',
+            assetId: 'asset-escape-copy',
+            modelUrl: 'https://cdn.example.test/model.glb',
+            format: 'glb',
+            suggestedFileName: 'main.lua',
+            targetDirectory: 'assets/model/../../scripts',
+            materialization: 'copy',
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    expect(parsed.local_delivery.status).toBe('failed');
+    expect(parsed.local_delivery.model.download.error).toMatch(/invalid.*target path/i);
+    expect(fs.readFileSync(path.join(tempDir, 'scripts/main.lua'), 'utf8')).toBe('-- initial\n');
+  });
+
+  test('rejects create_3d_asset extract targets outside assets/model', async () => {
+    const modelZip = await createZipBuffer({ 'Meshes/main.mdl': 'mdl-bytes' });
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      fetchImpl: (async () => new Response(modelZip, { status: 200 })) as typeof fetch,
+      result: proxyTextResult({
+        asset_id: 'asset-escape-extract',
+        status: 'completed',
+        runtime: 'local',
+        model_files: [
+          {
+            kind: 'model',
+            assetId: 'asset-escape-extract',
+            modelUrl: 'https://cdn.example.test/model.zip',
+            format: 'mdl',
+            suggestedFileName: 'model.zip',
+            targetDirectory: 'assets/model/../../config',
+            materialization: 'extract',
+            entrypointExtension: '.mdl',
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    expect(parsed.local_delivery.status).toBe('failed');
+    expect(parsed.local_delivery.model.download.error).toMatch(/invalid.*target path/i);
+    expect(fs.existsSync(path.join(tempDir, 'config/Meshes/main.mdl'))).toBe(false);
+  });
+
+  test('extracts create_3d_asset MDL bundles and reuses the local entrypoint', async () => {
+    const modelZip = await createZipBuffer({
+      'Meshes/main.mdl': 'mdl-bytes',
+      'Materials/main.xml': '<material />',
+    });
+    let downloadCount = 0;
+    const fetchImpl = (async () => {
+      downloadCount += 1;
+      return new Response(modelZip, { status: 200 });
+    }) as typeof fetch;
+    const remoteResult = proxyTextResult({
+      asset_id: 'asset-stable-1',
+      status: 'completed',
+      runtime: 'local',
+      model_files: [
+        {
+          kind: 'model',
+          assetId: 'asset-stable-1',
+          modelUrl: 'https://cdn.example.test/stable-model.zip',
+          mimeType: 'application/zip',
+          format: 'mdl',
+          archiveFormat: 'zip',
+          suggestedFileName: 'asset-stable-1.zip',
+          targetDirectory: 'assets/model/asset-stable-1',
+          materialization: 'extract',
+          entrypointExtension: '.mdl',
+        },
+      ],
+      delivery_failures: [],
+    });
+
+    const first = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      now: new Date('2026-07-16T08:09:22Z'),
+      fetchImpl,
+      result: remoteResult,
+    });
+    const second = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      now: new Date('2026-07-16T08:10:22Z'),
+      fetchImpl,
+      result: remoteResult,
+    });
+
+    const firstParsed = JSON.parse(first.content[0]?.type === 'text' ? first.content[0].text : '');
+    const secondParsed = JSON.parse(
+      second.content[0]?.type === 'text' ? second.content[0].text : ''
+    );
+    expect(downloadCount).toBe(1);
+    expect(firstParsed.local_delivery.model.local_path).toBe(
+      'assets/model/asset-stable-1/Meshes/main.mdl'
+    );
+    expect(secondParsed.local_delivery.model.local_path).toBe(
+      'assets/model/asset-stable-1/Meshes/main.mdl'
+    );
+    expect(secondParsed.local_delivery.model.reused).toBe(true);
+    expect(secondParsed.local_delivery.model.format).toBe('mdl');
+    expect(
+      fs.readFileSync(path.join(tempDir, 'assets/model/asset-stable-1/Meshes/main.mdl'), 'utf8')
+    ).toBe('mdl-bytes');
+  });
+
+  test('downloads create_3d_asset review previews for local user confirmation', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      now: new Date('2026-07-16T08:09:23Z'),
+      fetchImpl: fakeAssetFetch('preview-bytes'),
+      result: proxyTextResult({
+        asset_id: 'asset-review-2',
+        status: 'waiting_user_confirmation',
+        current_step: 'multiview_review',
+        preview: {
+          front: 'https://cdn.example.test/front.png',
+          left: 'https://cdn.example.test/left.png',
+          back: 'https://cdn.example.test/back.png',
+          right: 'https://cdn.example.test/right.png',
+        },
+        next_action: {
+          action: 'continue',
+          step_id: 'multiview_review',
+          payload: { confirm: true },
         },
       }),
     });
 
     const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
     const parsed = JSON.parse(text);
-    expect(parsed.workflow_state).toBe('awaiting_user_review');
-    expect(parsed.user_review_required).toBe(true);
-    expect(parsed.next_action).toContain('Show the four-view previews');
-    expect(parsed.approval_next_step).toContain('If the user approves');
-    expect(parsed.revision_next_step).toContain('If the user requests changes');
-    expect(parsed.agent_instruction).toContain('Do not stop after phase 1');
+    expect(parsed.next_action).toEqual({
+      action: 'continue',
+      step_id: 'multiview_review',
+      payload: { confirm: true },
+    });
     expect(parsed.preview_assets.front.localPath).toBe(
-      'assets/image/model-task-1_front_20260611080910.png'
-    );
-    expect(parsed.preview_assets.left.localPath).toBe(
-      'assets/image/model-task-1_left_20260611080910.png'
-    );
-    expect(parsed.preview_assets.back.localPath).toBe(
-      'assets/image/model-task-1_back_20260611080910.png'
+      'assets/image/asset-review-2_front_20260716080923.png'
     );
     expect(parsed.preview_assets.right.localPath).toBe(
-      'assets/image/model-task-1_right_20260611080910.png'
+      'assets/image/asset-review-2_right_20260716080923.png'
     );
     expect(
       fs.readFileSync(
-        path.join(tempDir, 'assets/image/model-task-1_front_20260611080910.png'),
+        path.join(tempDir, 'assets/image/asset-review-2_front_20260716080923.png'),
         'utf8'
       )
-    ).toBe('preview-image');
-    const registry = JSON.parse(
-      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
-    );
-    expect(registry['assets/image/model-task-1_front_20260611080910.png'].tool).toBe(
-      'create_3d_model_task'
-    );
-    expect(registry['assets/image/model-task-1_front_20260611080910.png'].phase).toBe(1);
-    expect(registry['assets/image/model-task-1_front_20260611080910.png'].view).toBe('front');
-    expect(registry['assets/image/model-task-1_front_20260611080910.png'].taskId).toBe(
-      'model-task-1'
-    );
-  });
-
-  test('downloads successful 3d model results into Maker model and image assets', async () => {
-    const modelZip = await createZipBuffer({
-      'Meshes/MyModel.mdl': 'mdl-bytes',
-      'Materials/MyModel_00_Lambert.xml': '<material />',
-      'Textures/MyModel_00_D.xml': '<texture />',
-      'Textures/MyModel_00_D.png': 'texture-bytes',
-      'Prefabs/MyModel.prefab': '<prefab />',
-    });
-    const result = await materializeRemoteProxyToolAssets({
-      toolName: 'query_3d_model_task',
-      targetDir: tempDir,
-      now: new Date('2026-06-11T08:09:11Z'),
-      fetchImpl: fake3dModelResultFetch(modelZip, 'model-bytes', 'render-image'),
-      result: proxyTextResult({
-        task_id: 'model-task-2',
-        status: 'success',
-        model_cdn_url: 'https://cdn.tripo3d.ai/model.glb',
-        rendered_image_url: 'https://cdn.tripo3d.ai/preview.png',
-        mdl_cdn_url: 'https://oss-cdn.example.test/model.zip',
-      }),
-    });
-
-    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
-    const parsed = JSON.parse(text);
-    expect((result as { structuredContent?: unknown }).structuredContent).toMatchObject({
-      task_id: 'model-task-2',
-      mdlLocalPath: 'assets/model/model-task-2_20260611080911.zip',
-      modelLocalPath: 'assets/model/model-task-2_20260611080911.glb',
-      renderedImageLocalPath: 'assets/image/model-task-2_render_20260611080911.png',
-    });
-    expect(parsed.mdlLocalPath).toBe('assets/model/model-task-2_20260611080911.zip');
-    expect(parsed.modelLocalPath).toBe('assets/model/model-task-2_20260611080911.glb');
-    expect(parsed.renderedImageLocalPath).toBe(
-      'assets/image/model-task-2_render_20260611080911.png'
-    );
-    expect(fs.existsSync(path.join(tempDir, 'assets/model/model-task-2_20260611080911.zip'))).toBe(
-      true
-    );
-    expect(
-      fs.readFileSync(
-        path.join(tempDir, 'assets/image/model-task-2_render_20260611080911.png'),
-        'utf8'
-      )
-    ).toBe('render-image');
-    expect(fs.readFileSync(path.join(tempDir, 'assets/Meshes/MyModel.mdl'), 'utf8')).toBe(
-      'mdl-bytes'
-    );
-    expect(
-      fs.readFileSync(path.join(tempDir, 'assets/Materials/MyModel_00_Lambert.xml'), 'utf8')
-    ).toBe('<material />');
-    expect(fs.readFileSync(path.join(tempDir, 'assets/Textures/MyModel_00_D.xml'), 'utf8')).toBe(
-      '<texture />'
-    );
-    expect(fs.readFileSync(path.join(tempDir, 'assets/Textures/MyModel_00_D.png'), 'utf8')).toBe(
-      'texture-bytes'
-    );
-    expect(fs.readFileSync(path.join(tempDir, 'assets/Prefabs/MyModel.prefab'), 'utf8')).toBe(
-      '<prefab />'
-    );
-    expect(
-      fs.readFileSync(path.join(tempDir, 'assets/model/model-task-2_20260611080911.glb'), 'utf8')
-    ).toBe('model-bytes');
-    const registry = JSON.parse(
-      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
-    );
-    expect(registry['assets/model/model-task-2_20260611080911.zip'].cdnUrl).toBe(
-      'https://oss-cdn.example.test/model.zip'
-    );
-    expect(registry['assets/model/model-task-2_20260611080911.zip'].assetKind).toBe('mdl_zip');
-    expect(registry['assets/model/model-task-2_20260611080911.zip'].modelCdnUrl).toBe(
-      'https://cdn.tripo3d.ai/model.glb'
-    );
-    expect(registry['assets/model/model-task-2_20260611080911.glb'].cdnUrl).toBe(
-      'https://cdn.tripo3d.ai/model.glb'
-    );
-    expect(registry['assets/model/model-task-2_20260611080911.glb'].assetKind).toBe('model');
-    expect(registry['assets/image/model-task-2_render_20260611080911.png'].renderedImageUrl).toBe(
-      'https://cdn.tripo3d.ai/preview.png'
-    );
-    expect(registry['assets/image/model-task-2_render_20260611080911.png'].assetKind).toBe(
-      'render'
-    );
-  });
-
-  test('preserves 3d model conversion errors when mdl download is unavailable', async () => {
-    const result = await materializeRemoteProxyToolAssets({
-      toolName: 'query_3d_model_task',
-      targetDir: tempDir,
-      now: new Date('2026-06-11T08:09:12Z'),
-      fetchImpl: fakeAssetFetch('model-bytes'),
-      result: proxyTextResult({
-        task_id: 'model-task-3',
-        status: 'success',
-        model_cdn_url: 'https://cdn.tripo3d.ai/model.glb',
-        mdl_conversion_error: 'UrhoXCLI failed',
-      }),
-    });
-
-    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
-    const parsed = JSON.parse(text);
-    expect(parsed.status).toBe('success');
-    expect(parsed.mdl_conversion_error).toBe('UrhoXCLI failed');
-    expect(parsed.mdlLocalPath).toBeUndefined();
-  });
-
-  test('continues 3d final materialization when mdl zip extraction fails', async () => {
-    const result = await materializeRemoteProxyToolAssets({
-      toolName: 'query_3d_model_task',
-      targetDir: tempDir,
-      now: new Date('2026-06-11T08:09:13Z'),
-      fetchImpl: fake3dModelResultFetch(Buffer.from('not-a-zip'), 'model-bytes', 'render-image'),
-      result: proxyTextResult({
-        task_id: 'model-task-4',
-        status: 'success',
-        model_cdn_url: 'https://cdn.tripo3d.ai/model.glb',
-        rendered_image_url: 'https://cdn.tripo3d.ai/preview.png',
-        mdl_cdn_url: 'https://oss-cdn.example.test/broken-model.zip',
-      }),
-    });
-
-    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
-    const parsed = JSON.parse(text);
-    expect(parsed.mdlLocalPath).toBe('assets/model/model-task-4_20260611080913.zip');
-    expect(parsed.mdlExtracted).toBe(false);
-    expect(parsed.mdlExtractError).toContain('3D model asset extraction failed');
-    expect(parsed.renderedImageLocalPath).toBe(
-      'assets/image/model-task-4_render_20260611080913.png'
-    );
-    expect(
-      fs.readFileSync(
-        path.join(tempDir, 'assets/image/model-task-4_render_20260611080913.png'),
-        'utf8'
-      )
-    ).toBe('render-image');
-    const registry = JSON.parse(
-      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
-    );
-    expect(registry['assets/model/model-task-4_20260611080913.zip'].assetKind).toBe('mdl_zip');
-    expect(registry['assets/image/model-task-4_render_20260611080913.png'].assetKind).toBe(
-      'render'
-    );
+    ).toBe('preview-bytes');
   });
 
   test('overrides sdk default timeout for remote proxy generation tool calls', () => {
@@ -2504,6 +2495,88 @@ describe('maker build local-change guard', () => {
         },
       })
     ).rejects.toThrow(/remote_result:[\s\S]*upstream video generation failed/);
+  });
+
+  test('formats nested remote MCP errors with a concise user-facing message', () => {
+    const error = Object.assign(
+      new Error(
+        "MCP error -32603: MCP error -32603: MCP error -32603: Tool 'create_3d_asset' failed: unsupported MDL source format"
+      ),
+      {
+        name: 'McpError',
+        code: -32603,
+        data: { operation: 'convert' },
+      }
+    );
+
+    const output = formatToolException('create_3d_asset', error);
+
+    expect(output).toContain('- reason: remote_proxy_tool_call_error');
+    expect(output).toContain(
+      "- message: Tool 'create_3d_asset' failed: unsupported MDL source format"
+    );
+    expect(output).not.toContain('- message: MCP error -32603');
+    expect(output).toContain('debug:');
+    expect(output).toContain('MCP error -32603: MCP error -32603: MCP error -32603:');
+    expect(output).toContain('"operation": "convert"');
+  });
+
+  test('flattens nested MCP prefixes inside remote proxy isError results', async () => {
+    let thrown: unknown;
+    try {
+      await materializeRemoteProxyToolAssets({
+        toolName: 'create_3d_asset',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: "MCP error -32603: MCP error -32603: MCP error -32603: Tool 'create_3d_asset' failed: unsupported MDL source format",
+            },
+          ],
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    const output = formatToolException('create_3d_asset', thrown);
+
+    expect(output).toContain('- reason: remote_proxy_tool_result_error');
+    expect(output).toContain(
+      "- message: Tool 'create_3d_asset' failed: unsupported MDL source format"
+    );
+    expect(output).not.toContain('MCP error -32603: MCP error -32603:');
+    expect(output).toContain("Tool 'create_3d_asset' failed: unsupported MDL source format");
+  });
+
+  test('uses the proxy error summary when structured error content has no message field', async () => {
+    let thrown: unknown;
+    try {
+      await materializeRemoteProxyToolAssets({
+        toolName: 'create_3d_asset',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ status: 'failed', code: 400 }, null, 2),
+            },
+          ],
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    const output = formatToolException('create_3d_asset', thrown);
+
+    expect(output).toContain(
+      '- message: Remote proxy tool create_3d_asset returned an error result.'
+    );
+    expect(output).not.toContain('- message: {');
   });
 
   test('sensitive diagnostic keys do not redact path fields', () => {
@@ -3786,20 +3859,6 @@ describe('maker build local-change guard', () => {
       elapsed: '0s',
       progressEvents: 0,
     };
-  }
-
-  function fake3dModelResultFetch(
-    zipBody: Buffer,
-    modelBody: string,
-    imageBody: string
-  ): typeof fetch {
-    return (async (input: Parameters<typeof fetch>[0]) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      if (url.endsWith('.zip')) {
-        return new Response(zipBody, { status: 200 });
-      }
-      return new Response(url.endsWith('.glb') ? modelBody : imageBody, { status: 200 });
-    }) as typeof fetch;
   }
 
   async function createZipBuffer(files: Record<string, string>): Promise<Buffer> {

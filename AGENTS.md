@@ -369,7 +369,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
   远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、
   `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
-  `create_3d_model_task`、`query_3d_model_task`、`generate_test_qrcode`、`get_ad_config`
+  `create_3d_asset`、`generate_test_qrcode`、`get_ad_config`
   和 `get_debug_feedbacks`，
   用于试用图片/视频/音乐/3D 模型生成、广告配置同步和远端玩家反馈查询链路，
   本地保留远端 tool schema 和成功返回值，但会在 description 追加简短 Maker 本地开发提示：

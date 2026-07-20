@@ -46,18 +46,14 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain(
       'Use create_video_task, query_video_task, and text_to_music for game video/audio'
     );
-    expect(status).toContain('Use create_3d_model_task and query_3d_model_task for game 3D model');
+    expect(status).toContain('Use create_3d_asset with start/query/continue/post_process');
     expect(status).toContain('call get_ad_config first to get ad activation status');
     expect(status).toContain('build once with maker_build_current_directory');
     expect(status).toContain('call generate_test_qrcode once');
     expect(status).toContain('call get_debug_feedbacks');
     expect(status).toContain('Use local runtime logs only');
     expect(status).toContain('assets/model');
-    expect(status).toContain('original GLB/FBX');
-    expect(status).toContain('assets/Meshes');
-    expect(status).toContain('assets/Materials');
-    expect(status).toContain('assets/Textures');
-    expect(status).toContain('assets/Prefabs');
+    expect(status).toContain('assets/model');
     expect(status).toContain('Maker initialization next_step: execute `taptap-maker init`');
     expect(status).not.toContain('Validation checklist for the local AI client');
     expect(status).not.toContain(`${MAKER_LOCAL_SKILL_NAME} / codex: missing`);
@@ -113,8 +109,9 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Use `create_video_task` for game videos');
     expect(skillText).toContain('Use `query_video_task` to refresh video task status');
     expect(skillText).toContain('Use `text_to_music` for game music or audio');
-    expect(skillText).toContain('Use `create_3d_model_task` for game 3D models');
-    expect(skillText).toContain('Use `query_3d_model_task` for polling 3D model tasks');
+    expect(skillText).toContain('Use `create_3d_asset` for the complete 3D asset lifecycle');
+    expect(skillText).toContain('action="continue"');
+    expect(skillText).toContain('local_delivery.status');
     expect(skillText).toContain('call `get_ad_config` first to get the');
     expect(skillText).toContain('Do not infer ad readiness from local SDK docs');
     expect(skillText).toContain('build once with `maker_build_current_directory`');
@@ -126,11 +123,8 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('assets/video');
     expect(skillText).toContain('assets/audio');
     expect(skillText).toContain('assets/model');
-    expect(skillText).toContain('original GLB/FBX');
-    expect(skillText).toContain('assets/Meshes');
-    expect(skillText).toContain('assets/Materials');
-    expect(skillText).toContain('assets/Textures');
-    expect(skillText).toContain('assets/Prefabs');
+    expect(skillText).toContain('`create_3d_asset` local runtime `model_files` instructions');
+    expect(skillText).toContain('local_delivery');
     expect(skillText).toContain('Attached Workspace Selection');
     expect(skillText).toContain('dialogues');
     expect(skillText).toContain('single attached workspace');

@@ -152,8 +152,13 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
 - Local proxy may convert resolvable local reference media to data URLs before forwarding.
 - If a Maker proxy tool returns an error or `isError`, report the full remote result/error payload.
   Include the server response payload so developers can diagnose the issue.
-- Use `create_3d_model_task` for game 3D models.
-- Use `query_3d_model_task` for polling 3D model tasks.
+- Use `create_3d_asset` for the complete 3D asset lifecycle. Start with `action="start"`, poll
+  with `action="query"`, and use `action="continue"` only after explicit user approval of a
+  returned review step. Use `action="post_process"` for rigging, texturing, retopology, or format
+  conversion when supported by the remote schema.
+- Preserve and inspect the complete remote 3D response. When `local_delivery.status` is `success`,
+  use the returned local model path. The local proxy materializes only the `model_files` copy/extract
+  instructions returned by the local runtime; report `delivery_failures` when no model can be delivered.
 - For any ad-related request such as 广告, rewarded videos, play ads, ad ID, ad placement,
   ad status, ad config, or `ShowRewardVideoAd`, call `get_ad_config` first to get the
   current project ad activation status and ad config.
@@ -179,10 +184,10 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
 - Do not call `edit_image` without an image path or CDN URL.
 
 Generated assets should be saved by Maker MCP under `assets/image`, `assets/video`, or
-`assets/audio`; generated 3D model outputs save the original GLB/FBX and MDL zip under
-`assets/model`, then extract MDL contents into `assets/Meshes`, `assets/Materials`,
-`assets/Textures`, and `assets/Prefabs`. Do not prefer client-native image generation when the user
-is asking for Maker game assets in a bound project.
+`assets/audio`. `create_3d_asset` local runtime `model_files` instructions are materialized under
+`assets/model`; use `local_delivery` for the usable model path and `preview_assets` for local review images.
+Do not prefer client-native image generation when the user is asking for Maker game assets in a
+bound project.
 
 ## Project Detection
 
@@ -230,8 +235,8 @@ directory.
 ### Proxy Tools Missing From The Current Session
 
 If the user is in a bound Maker project but `generate_image`, `batch_generate_images`, `edit_image`,
-`create_video_task`, `query_video_task`, `text_to_music`, `create_3d_model_task`,
-`query_3d_model_task`, `generate_test_qrcode`, `get_ad_config`, or `get_debug_feedbacks`
+`create_video_task`, `query_video_task`, `text_to_music`, `create_3d_asset`,
+`generate_test_qrcode`, `get_ad_config`, or `get_debug_feedbacks`
 are missing from the current AI tool list, diagnose the MCP cwd before
 suggesting repeated restarts:
 

@@ -172,11 +172,10 @@ function createMakerAgentsPolicyBody(): string {
     '- `create_video_task` for game video assets or referenced image/video generation.',
     '- `query_video_task` for refreshing video task status and fetching completed videos.',
     '- `text_to_music` for game music or audio assets.',
-    '- `create_3d_model_task` for game 3D model assets.',
-    '- `query_3d_model_task` for polling 3D model tasks.',
-    '- For 3D characters that need skeletons, animation, or FBX output, ask whether to use',
-    '  `rig=true`. Use it only for biped humanoid characters in A-pose or A-pose-compatible',
-    '  front-view inputs; otherwise keep static model generation.',
+    '- `create_3d_asset` for the complete 3D lifecycle: start, query, explicit review continuation,',
+    '  option inspection, and post-processing.',
+    '- Never automatically continue a 3D review step. Show returned previews and wait for explicit',
+    '  user approval before calling `create_3d_asset` with `action="continue"`.',
     '',
     'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs.',
     'If the user references attached/local media, inspect the attachment or workspace file path',
@@ -191,8 +190,8 @@ function createMakerAgentsPolicyBody(): string {
     'Generated Maker proxy assets should stay in the Maker project asset workflow under',
     '`assets/image`, `assets/video`, `assets/audio`, or `assets/model`, with remote mappings',
     'preserved for later edits and builds.',
-    '3D model results save the original GLB/FBX, the MDL zip, extracted MDL assets, and rendered',
-    'preview images when those URLs are returned.',
+    '`create_3d_asset` local runtime `model_files` copy/extract instructions are materialized into',
+    '`assets/model`. Use `local_delivery` for the usable local model path and preserve the remote result.',
   ].join('\n');
 }
 
