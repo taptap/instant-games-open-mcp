@@ -141,8 +141,8 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
     expect(agentsGuide).toContain('batch_generate_images');
-    expect(agentsGuide).toContain('create_3d_model_task');
-    expect(agentsGuide).toContain('query_3d_model_task');
+    expect(agentsGuide).toContain('create_3d_asset');
+    expect(agentsGuide).toContain('action="continue"');
     expect(agentsGuide).toContain('Do not infer ad readiness from local SDK docs');
     expect(agentsGuide).toContain('build once with `maker_build_current_directory`');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');

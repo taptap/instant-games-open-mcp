@@ -105,6 +105,7 @@ import {
   type MakerProjectSettingsStatus,
 } from '../projectSettings.js';
 import {
+  CREATE_3D_ASSET_PROXY_TOOL_NAME,
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
@@ -130,8 +131,7 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'create_video_task',
   'query_video_task',
   'text_to_music',
-  'create_3d_model_task',
-  'query_3d_model_task',
+  CREATE_3D_ASSET_PROXY_TOOL_NAME,
   'generate_test_qrcode',
   'get_ad_config',
   'get_debug_feedbacks',
@@ -427,6 +427,14 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
     case 'text_to_music':
       return [
         '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker music generation so generated audio can be materialized into the project and recorded for later Maker references.',
+        failurePolicy,
+      ].join(' ');
+    case CREATE_3D_ASSET_PROXY_TOOL_NAME:
+      return [
+        '**Maker asset workflow hint:** Use this tool for the complete Maker 3D asset lifecycle: start, query, continue after explicit user review, inspect options, and post-process completed assets.',
+        'Local image paths in payload.images are forwarded as data URLs when they resolve inside the Maker project. Unknown server response fields are preserved. In local runtime query results, model_files copy/extract instructions are materialized into assets/model and local_delivery reports the usable local model path.',
+        'Review preview URLs are materialized into assets/image and returned in preview_assets when possible.',
+        'Do not automatically approve review steps; show the returned previews to the user and wait for explicit confirmation before action="continue".',
         failurePolicy,
       ].join(' ');
     case 'get_ad_config':
@@ -3202,7 +3210,7 @@ function formatMakerFailureLines(failure: MakerGitFailure): string[] {
   ].filter(Boolean);
 }
 
-function formatToolException(toolName: string, error: unknown): string {
+export function formatToolException(toolName: string, error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : undefined;
   if (error instanceof MakerGitNotFoundError) {
@@ -3238,17 +3246,36 @@ function formatToolException(toolName: string, error: unknown): string {
   }
 
   if (error instanceof RemoteProxyToolResultError) {
+    const displayResult = flattenNestedMcpErrorPrefixes(error.result) as typeof error.result;
+    const remoteMessage = extractRemoteProxyErrorMessage(displayResult);
     return [
       '✗ Maker MCP proxy tool failed',
       '',
       `- tool: ${toolName}`,
       '- reason: remote_proxy_tool_result_error',
       `- error_name: ${error.name}`,
-      `- message: ${firstLine(error.message)}`,
+      `- message: ${remoteMessage ?? firstLine(error.message)}`,
       '',
-      formatRemoteProxyToolResult(error.result),
+      formatRemoteProxyToolResult(displayResult),
       '',
       'next_action: 远端 proxy tool 已返回失败结果；请把 remote_result 原样反馈给开发者，方便排查 server 返回内容。',
+    ].join('\n');
+  }
+
+  if (isExposedRemoteProxyTool(toolName)) {
+    return [
+      '✗ Maker MCP proxy tool failed',
+      '',
+      `- tool: ${toolName}`,
+      '- reason: remote_proxy_tool_call_error',
+      `- error_name: ${error instanceof Error ? error.name : typeof error}`,
+      `- message: ${stripNestedMcpErrorPrefixes(message)}`,
+      ...formatUnknownExceptionDetailLines(error),
+      '',
+      'debug:',
+      stack ? indent(stack) : indent(message),
+      '',
+      'next_action: 请根据上面的简化 message 判断失败原因；参数或能力不支持时不要重复调用，并保留 error_details/debug 反馈给开发者。',
     ].join('\n');
   }
 
@@ -3265,6 +3292,72 @@ function formatToolException(toolName: string, error: unknown): string {
     '',
     'next_action: 请把上面的完整错误反馈给开发者；如果本地已有 commit 但 push 未完成，不要重复 commit，直接重试 maker_build_current_directory。',
   ].join('\n');
+}
+
+function stripNestedMcpErrorPrefixes(message: string): string {
+  const prefix = /^MCP error -?\d+:\s*/i;
+  let concise = message.trim();
+  while (prefix.test(concise)) {
+    concise = concise.replace(prefix, '');
+  }
+  return concise || message;
+}
+
+function flattenNestedMcpErrorPrefixes(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return stripNestedMcpErrorPrefixes(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => flattenNestedMcpErrorPrefixes(item));
+  }
+  if (isPlainRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        flattenNestedMcpErrorPrefixes(nestedValue),
+      ])
+    );
+  }
+  return value;
+}
+
+function extractRemoteProxyErrorMessage(result: unknown): string | undefined {
+  if (!isPlainRecord(result) || !Array.isArray(result.content)) {
+    return undefined;
+  }
+  for (const item of result.content) {
+    if (!isPlainRecord(item) || typeof item.text !== 'string') {
+      continue;
+    }
+    const text = item.text.trim();
+    if (!text) {
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      const structuredMessage = extractStructuredErrorMessage(parsed);
+      if (structuredMessage) {
+        return firstLine(structuredMessage);
+      }
+    } catch {
+      return firstLine(text);
+    }
+    return firstLine(text);
+  }
+  return undefined;
+}
+
+function extractStructuredErrorMessage(value: unknown): string | undefined {
+  if (!isPlainRecord(value)) {
+    return undefined;
+  }
+  for (const key of ['message', 'error', 'detail']) {
+    const candidate = value[key];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return stripNestedMcpErrorPrefixes(candidate);
+    }
+  }
+  return undefined;
 }
 
 function firstLine(value: string): string {
