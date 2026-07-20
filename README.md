@@ -155,10 +155,18 @@ Maker MCP 也提供部分远端 proxy 能力，当前包括 `generate_image`、`
 
 音频生成结果会按服务端返回的原始格式写入 `assets/audio/sfx` 或
 `assets/audio/voice`，并登记到 `.maker/assets/generated-assets.json`。`text_to_dialogue`
-支持 data URL、本地音频路径和 HTTP(S) 音频 URL 作为参考音频；本地代理会在转发前统一改写为
-data URL。试听候选只返回给客户端，不会写入项目。确认角色音色时，豆包会保存参考 MP3 和
+支持项目 `assets/audio/` 路径、HTTP(S) 音频 URL 和 data URL 作为可选参考音频；项目路径必须
+在当前本地项目中存在，并自动转为 data URL。未显式传参考音频时会自动复用本地已确认的音色
+mapping。HTTP(S) URL 交给远端 server 做公网地址安全、大小和音频格式校验。
+试听候选只返回给客户端，不会写入项目。确认角色音色时，豆包会保存参考 MP3 和
 `.project/audio-voice-mapping.json`，ElevenLabs 只更新
-`.project/elevenlabs-voice-mapping.json`。Local MCP 保留 Provider 原格式，不做 OGG 转码。
+`.project/elevenlabs-voice-mapping.json`；后续对话会自动复用对应的本地参考音频或 Voice ID，
+无需依赖远端项目 mapping。Local MCP 保留 Provider 原格式，不做 OGG 转码。
+确认成功结果包含 `next_step_hint`，提示 AI 下一步只传角色名和台词调用
+`text_to_dialogue`；除非用户要求单次覆盖，否则不再传 `reference_audio`。
+豆包角色试听要求 AI 从角色设定或 `character_description` 中提取性别，并显式传入
+`voice_profile.gender`（`male` 或 `female`）；Local MCP 会在远端调用前拒绝缺失值，避免静默使用
+错误的男性默认值。`age_group` 和 `voice_type` 等其他 profile 字段仍可省略并使用服务端默认值。
 
 Windows 是默认优先级：CLI 写通用 `mcpServers` 配置时会在 Windows 通过 `cmd.exe`
 包装 `npx.cmd`，避免无 shell 的 MCP 启动器直接 spawn `.cmd` 失败；OpenCode 使用自己的

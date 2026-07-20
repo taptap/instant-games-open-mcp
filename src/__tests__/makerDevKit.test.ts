@@ -146,6 +146,9 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain('`batch_sound_effects` for multiple sound effects');
     expect(agentsGuide).toContain('`text_to_dialogue` for final character dialogue');
     expect(agentsGuide).toContain(
+      '`text_to_dialogue` automatically converts local project audio to data URLs and reuses confirmed local voice mappings'
+    );
+    expect(agentsGuide).toContain(
       'After `audition_voices_for_character` returns previews, show them to the user and wait'
     );
     expect(agentsGuide).toContain(

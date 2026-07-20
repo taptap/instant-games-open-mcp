@@ -56,6 +56,7 @@ export function formatMakerSkillStatus(
     '- Use text_to_sound_effect for one sound effect.',
     '- Use batch_sound_effects for multiple sound effects.',
     '- Use text_to_dialogue for final character dialogue.',
+    '- text_to_dialogue automatically converts local project audio to data URLs and reuses confirmed local voice mappings.',
     '- After audition_voices_for_character returns previews, wait for the user to choose.',
     '- Call confirm_character_voice only after the user explicitly chooses a preview.',
     '- Generated sound effects and dialogue are saved in the project.',

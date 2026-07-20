@@ -49,6 +49,9 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain('Use batch_sound_effects for multiple sound effects');
     expect(status).toContain('Use text_to_dialogue for final character dialogue');
     expect(status).toContain(
+      'text_to_dialogue automatically converts local project audio to data URLs and reuses confirmed local voice mappings'
+    );
+    expect(status).toContain(
       'After audition_voices_for_character returns previews, wait for the user to choose'
     );
     expect(status).toContain(
@@ -127,6 +130,9 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Use `text_to_sound_effect` for one sound effect');
     expect(skillText).toContain('Use `batch_sound_effects` for multiple sound effects');
     expect(skillText).toContain('Use `text_to_dialogue` for final character dialogue');
+    expect(skillText).toContain(
+      '`text_to_dialogue` automatically converts local project audio to data URLs and reuses confirmed local voice mappings'
+    );
     expect(skillText).toContain(
       'After `audition_voices_for_character` returns previews, show them to the user and wait'
     );

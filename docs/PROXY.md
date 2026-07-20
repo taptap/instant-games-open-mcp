@@ -1018,12 +1018,20 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
 - `text_to_sound_effect`、`batch_sound_effects`：将返回的 `audio_files` 写入
   `assets/audio/sfx`。
 - `text_to_dialogue`：将返回的对话音频写入 `assets/audio/voice`；每个
-  `inputs[].reference_audio` 可使用 data URL、本地文件或 HTTP(S) URL，后两者会在远端调用前转为
-  data URL。`reference_audio` 与 `reference_audio_path` 互斥，已提交的项目资源才使用后者。
-- `audition_voices_for_character`：只透传试听候选 URL 和 voice ID，不下载候选或登记项目资产。
+  `inputs[].reference_audio` 是可选的单次覆盖，可使用本地项目 `assets/audio/` 路径、HTTP(S) URL
+  或 data URL。项目路径必须在当前本地项目中存在并自动转为 data URL；未显式传参考音频时，
+  Local MCP 自动读取本地已确认 mapping，并注入豆包参考音频或 ElevenLabs Voice ID。HTTP(S) URL
+  原样交给远端 server
+  做公网地址安全、大小和音频格式校验。旧 `reference_audio_path` 仅作为本地路径兼容字段，且与
+  `reference_audio` 互斥。
+- `audition_voices_for_character`：豆包试听要求 AI 从角色设定或 `character_description` 提取并显式
+  传入 `voice_profile.gender`（`male` / `female`）；Local MCP 在转发前校验，避免远端静默补成
+  `male`。试听结果只透传候选 URL 和 voice ID，不下载候选或登记项目资产。
 - `confirm_character_voice`：豆包下载并原子保存参考 MP3 到 `assets/audio/voice-reference`，合并
   `.project/audio-voice-mapping.json`；ElevenLabs 只合并
-  `.project/elevenlabs-voice-mapping.json`。
+  `.project/elevenlabs-voice-mapping.json`。后续对话不读取远端项目 mapping。成功结果保留或补充
+  `next_step_hint`，明确下一步只需用
+  角色名和台词调用 `text_to_dialogue`，无需重复传参考音频。
 
 音频文件按服务端返回的 `format` 和扩展名原样保存，不做 OGG 转码。下载失败会保留 CDN URL 和错误
 信息，同一批次的其他成功项仍会落盘；所有本地路径都经过项目目录和 basename 校验。

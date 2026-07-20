@@ -23,7 +23,10 @@ const VIDEO_TASK_IMAGE_REFERENCE_MAX_BYTES = 30 * 1024 * 1024;
 const VIDEO_REFERENCE_MAX_BYTES = 50 * 1024 * 1024;
 const AUDIO_REFERENCE_MAX_BYTES = 15 * 1024 * 1024;
 const AUDIO_DIALOGUE_REFERENCE_MAX_BYTES = 20 * 1024 * 1024;
+const AUDIO_DIALOGUE_INPUT_TOTAL_MAX_BYTES = 28 * 1024 * 1024;
 const AUDIO_CONFIRM_MAX_BYTES = 1 * 1024 * 1024;
+const VOICE_CONFIRMATION_NEXT_STEP_HINT =
+  'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically; omit reference_audio unless the user requests a one-time override.';
 const DEBUG_FEEDBACK_PATH_HINT =
   'Use local_dir/local_log_paths/local_screenshot_paths when they are returned. If only local_candidate_* is present, it is a possible project-relative location and must not be treated as a downloaded local file.';
 
@@ -81,6 +84,9 @@ export function prepareRemoteProxyToolArgs(options: {
   targetDir: string;
   args: Record<string, unknown>;
 }): Record<string, unknown> {
+  if (options.toolName === 'audition_voices_for_character') {
+    return validateVoiceAuditionArgs(options.args);
+  }
   if (options.toolName === 'edit_image') {
     return rewriteEditImageAssetArgs(options.targetDir, options.args);
   }
@@ -100,6 +106,18 @@ export function prepareRemoteProxyToolArgs(options: {
     return rewriteTextToDialogueArgs(options.targetDir, options.args);
   }
   return options.args;
+}
+
+function validateVoiceAuditionArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const voiceProfile = args.voice_profile;
+  const gender = isRecord(voiceProfile) ? voiceProfile.gender : undefined;
+  if (gender !== 'male' && gender !== 'female') {
+    throw new Error(
+      'voice_profile.gender is required for character voice audition and must be male or female. ' +
+        'Extract it from character_description or the character settings before retrying.'
+    );
+  }
+  return args;
 }
 
 export async function materializeRemoteProxyToolAssets(options: {
@@ -970,14 +988,15 @@ async function materializeVoiceConfirmationResult(options: {
   fetchImpl: RemoteProxyFetch;
 }): Promise<Record<string, unknown>> {
   if (options.payload.success !== true || !isRecord(options.payload.mapping)) {
-    return options.payload;
+    return withoutVoiceConfirmationNextStepHint(options.payload);
   }
-  const mapping = options.payload.mapping;
+  const payload = withoutVoiceConfirmationNextStepHint(options.payload);
+  const successfulPayload = withVoiceConfirmationNextStepHint(options.payload);
+  const mapping = payload.mapping as Record<string, unknown>;
   const provider = stringField(mapping.provider);
-  const characterName =
-    stringField(mapping.characterName) || stringField(options.payload.characterName);
+  const characterName = stringField(mapping.characterName) || stringField(payload.characterName);
   if (!characterName || provider === 'elevenlabs') {
-    if (provider !== 'elevenlabs' || !characterName) return options.payload;
+    if (provider !== 'elevenlabs' || !characterName) return payload;
     try {
       mergeVoiceMappingFile({
         targetDir: options.targetDir,
@@ -986,27 +1005,27 @@ async function materializeVoiceConfirmationResult(options: {
         mapping,
         now: options.now,
       });
-      return options.payload;
+      return successfulPayload;
     } catch (error) {
       const message = `ElevenLabs voice mapping persistence failed: ${error instanceof Error ? error.message : String(error)}`;
       return {
-        ...options.payload,
+        ...payload,
         localPersistenceError: message,
         mappingPersistenceError: message,
       };
     }
   }
-  if (provider !== 'doubao' || !isRecord(options.payload.referenceAudio)) {
-    return options.payload;
+  if (provider !== 'doubao' || !isRecord(payload.referenceAudio)) {
+    return payload;
   }
 
-  const referenceAudio = options.payload.referenceAudio;
+  const referenceAudio = payload.referenceAudio;
   const audioUrl = stringField(referenceAudio.audioUrl);
   const targetPath = stringField(referenceAudio.targetPath);
   const pathError = validateDoubaoReferenceTarget(targetPath);
   if (!audioUrl || pathError) {
     return {
-      ...options.payload,
+      ...payload,
       referenceAudio: {
         ...referenceAudio,
         download: { success: false, error: pathError || 'referenceAudio.audioUrl is required.' },
@@ -1021,7 +1040,7 @@ async function materializeVoiceConfirmationResult(options: {
     bytes = Buffer.from(await response.arrayBuffer());
   } catch (error) {
     return {
-      ...options.payload,
+      ...payload,
       referenceAudio: {
         ...referenceAudio,
         download: {
@@ -1037,7 +1056,7 @@ async function materializeVoiceConfirmationResult(options: {
     !isStructurallyValidMp3(bytes)
   ) {
     return {
-      ...options.payload,
+      ...payload,
       referenceAudio: {
         ...referenceAudio,
         download: {
@@ -1058,7 +1077,7 @@ async function materializeVoiceConfirmationResult(options: {
       referenceAudio: { targetPath, bytes },
     });
     return {
-      ...options.payload,
+      ...successfulPayload,
       referenceAudio: {
         ...referenceAudio,
         localPath: targetPath,
@@ -1068,7 +1087,7 @@ async function materializeVoiceConfirmationResult(options: {
     };
   } catch (error) {
     return {
-      ...options.payload,
+      ...payload,
       referenceAudio: {
         ...referenceAudio,
         download: {
@@ -1078,6 +1097,23 @@ async function materializeVoiceConfirmationResult(options: {
       },
     };
   }
+}
+
+function withVoiceConfirmationNextStepHint(
+  payload: Record<string, unknown>
+): Record<string, unknown> {
+  return typeof payload.next_step_hint === 'string' && payload.next_step_hint.trim()
+    ? payload
+    : { ...payload, next_step_hint: VOICE_CONFIRMATION_NEXT_STEP_HINT };
+}
+
+function withoutVoiceConfirmationNextStepHint(
+  payload: Record<string, unknown>
+): Record<string, unknown> {
+  if (!Object.prototype.hasOwnProperty.call(payload, 'next_step_hint')) return payload;
+  const nextPayload = { ...payload };
+  delete nextPayload.next_step_hint;
+  return nextPayload;
 }
 
 function validateDoubaoReferenceTarget(targetPath: string | undefined): string | undefined {
@@ -1796,214 +1832,248 @@ function rewriteTextToDialogueArgs(
     return args;
   }
   const registry = readGeneratedAssetRegistry(targetDir);
+  const localElevenLabsMapping = readLocalElevenLabsVoiceMapping(targetDir);
+  const localDoubaoMapping = args.inputs.some(
+    (value) =>
+      isRecord(value) &&
+      normalizeOptionalDialogueReference(value.reference_audio) === undefined &&
+      normalizeOptionalDialogueReference(value.reference_audio_path) === undefined
+  )
+    ? readLocalDoubaoVoiceMapping(targetDir)
+    : undefined;
+  let referenceAudioInputBytes = 0;
   return {
     ...args,
     inputs: args.inputs.map((value, index) => {
       if (!isRecord(value)) {
         return value;
       }
-      if (value.reference_audio !== undefined && value.reference_audio_path !== undefined) {
+      let canonicalReference = normalizeOptionalDialogueReference(value.reference_audio);
+      const legacyReference = normalizeOptionalDialogueReference(value.reference_audio_path);
+      if (canonicalReference !== undefined && legacyReference !== undefined) {
         throw new Error(
           `inputs[${index}].reference_audio and reference_audio_path are mutually exclusive.`
         );
       }
-      if (value.reference_audio === undefined) {
-        return value;
+      const normalizedValue = { ...value };
+      delete normalizedValue.reference_audio;
+      delete normalizedValue.reference_audio_path;
+      delete normalizedValue._local_voice_id;
+      const localVoiceId = resolveLocalElevenLabsVoiceId(
+        value.character_name,
+        localElevenLabsMapping
+      );
+      if (localVoiceId) {
+        normalizedValue._local_voice_id = localVoiceId;
+      }
+      if (canonicalReference === undefined && legacyReference === undefined) {
+        canonicalReference = resolveLocalDoubaoMappingReference({
+          targetDir,
+          characterName: value.character_name,
+          mapping: localDoubaoMapping,
+          registry,
+          index,
+        });
+      }
+      if (canonicalReference === undefined) canonicalReference = legacyReference;
+      if (canonicalReference === undefined) return normalizedValue;
+      const referenceAudio = normalizeDialogueReference(
+        targetDir,
+        canonicalReference,
+        registry,
+        index
+      );
+      referenceAudioInputBytes += Buffer.byteLength(referenceAudio, 'utf8');
+      if (referenceAudioInputBytes > AUDIO_DIALOGUE_INPUT_TOTAL_MAX_BYTES) {
+        throw new Error(
+          `reference_audio input total must not exceed ${AUDIO_DIALOGUE_INPUT_TOTAL_MAX_BYTES / 1024 / 1024} MiB.`
+        );
       }
       return {
-        ...value,
-        reference_audio: rewriteAudioReferenceSync({
-          targetDir,
-          value: value.reference_audio,
-          registry,
-        }),
+        ...normalizedValue,
+        reference_audio: referenceAudio,
       };
     }),
   };
 }
 
-/**
- * Asynchronous variant used by callers that need HTTP(S) reference conversion.
- * The legacy synchronous helper remains available for existing MCP callers.
- */
+/** Async-compatible entry used by the remote call path. */
 export async function prepareRemoteProxyToolArgsAsync(options: {
   toolName: string;
   targetDir: string;
   args: Record<string, unknown>;
   fetchImpl?: RemoteProxyFetch;
 }): Promise<Record<string, unknown>> {
-  if (options.toolName !== 'text_to_dialogue' || !Array.isArray(options.args.inputs)) {
-    return prepareRemoteProxyToolArgs(options);
-  }
-  const fetcher = options.fetchImpl ?? fetch;
-  const registry = readGeneratedAssetRegistry(options.targetDir);
-  const inputs = await Promise.all(
-    options.args.inputs.map(async (value, index) => {
-      if (!isRecord(value)) return value;
-      if (value.reference_audio !== undefined && value.reference_audio_path !== undefined) {
-        throw new Error(
-          `inputs[${index}].reference_audio and reference_audio_path are mutually exclusive.`
-        );
-      }
-      if (value.reference_audio === undefined) return value;
-      return {
-        ...value,
-        reference_audio: await rewriteAudioReference({
-          targetDir: options.targetDir,
-          value: value.reference_audio,
-          registry,
-          fetchImpl: fetcher,
-        }),
-      };
-    })
-  );
-  return { ...options.args, inputs };
+  return prepareRemoteProxyToolArgs(options);
 }
 
-function rewriteAudioReferenceSync(options: {
+function readLocalDoubaoVoiceMapping(targetDir: string): Record<string, unknown> | undefined {
+  const mappingPath = path.join(targetDir, '.project', 'audio-voice-mapping.json');
+  if (!fs.existsSync(mappingPath)) return undefined;
+  assertProjectDirectory(targetDir, path.dirname(mappingPath));
+  const mapping = readJsonFile(mappingPath);
+  return mapping?.provider === 'doubao' ? mapping : undefined;
+}
+
+function readLocalElevenLabsVoiceMapping(targetDir: string): Record<string, unknown> | undefined {
+  const mappingPath = path.join(targetDir, '.project', 'elevenlabs-voice-mapping.json');
+  if (!fs.existsSync(mappingPath)) return undefined;
+  assertProjectDirectory(targetDir, path.dirname(mappingPath));
+  const mapping = readJsonFile(mappingPath);
+  return mapping?.provider === 'elevenlabs' ? mapping : undefined;
+}
+
+function resolveLocalElevenLabsVoiceId(
+  characterName: unknown,
+  mapping: Record<string, unknown> | undefined
+): string | undefined {
+  if (typeof characterName !== 'string' || !mapping) return undefined;
+  const characters = mapping.characters;
+  if (!isRecord(characters)) return undefined;
+  const character = characters[characterName];
+  if (!isRecord(character) || character.provider !== 'elevenlabs') return undefined;
+  return stringField(character.voice_id);
+}
+
+function resolveLocalDoubaoMappingReference(options: {
   targetDir: string;
-  value: unknown;
+  characterName: unknown;
+  mapping: Record<string, unknown> | undefined;
   registry: GeneratedAssetRegistry;
-}): string {
-  if (typeof options.value !== 'string' || !options.value.trim()) {
-    throw new Error('reference_audio must be an audio data URL or local audio file path.');
-  }
-  const value = options.value.trim();
-  if (value.startsWith('data:')) {
-    validateAudioDataUrl(value);
-    return value;
-  }
-  if (/^https?:\/\//i.test(value)) {
-    // The synchronous public API cannot block on fetch. Callers needing HTTP use
-    // prepareRemoteProxyToolArgsAsync; keeping this URL unchanged avoids a false claim.
-    return value;
-  }
-  if (/^[A-Za-z0-9+/]+={0,2}$/.test(value) && !value.includes('.') && !value.includes('/')) {
-    throw new Error('reference_audio must not be bare base64; provide an audio data URL.');
-  }
-  const localPath = resolveLocalAssetReference(
+  index: number;
+}): string | undefined {
+  if (typeof options.characterName !== 'string' || !options.mapping) return undefined;
+  const characters = options.mapping.characters;
+  if (!isRecord(characters)) return undefined;
+  const character = characters[options.characterName];
+  if (!isRecord(character) || character.provider !== 'doubao') return undefined;
+  const referencePath = stringField(character.reference_audio_path);
+  if (!referencePath) return undefined;
+  const reference = normalizeDialogueReference(
     options.targetDir,
-    value,
+    referencePath,
     options.registry,
-    AUDIO_ASSET_DIRS
+    options.index
   );
-  const absolutePath = resolveLocalAssetAbsolutePath(options.targetDir, {
-    value,
-    localPath,
+  return reference.toLowerCase().startsWith('data:') ? reference : undefined;
+}
+
+function normalizeOptionalDialogueReference(value: unknown): unknown {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    if (normalized === '' || /^data:audio\/[^,]*,\s*$/i.test(normalized)) return undefined;
+  }
+  return value;
+}
+
+function normalizeDialogueReference(
+  targetDir: string,
+  value: unknown,
+  registry: GeneratedAssetRegistry,
+  index: number
+): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`inputs[${index}].reference_audio must be a non-empty string.`);
+  }
+  const trimmed = value.trim();
+  if (trimmed.toLowerCase().startsWith('data:')) {
+    validateAudioDataUrl(trimmed);
+    return trimmed;
+  }
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  const projectReference = normalizeDialogueProjectReference(targetDir, trimmed, registry, index);
+  return localDialogueAudioReferenceToDataUrl({
+    targetDir,
+    value: projectReference,
+    localPath: projectReference,
   });
-  if (!absolutePath) {
-    throw new Error(`reference_audio local file was not found: ${value}`);
-  }
-  const mime = dataUrlMimeForPath(absolutePath, 'audio');
-  if (!mime) {
-    throw new Error('reference_audio format is unsupported; use MP3, WAV, OGG, M4A, or AAC.');
-  }
-  const stat = fs.statSync(absolutePath);
-  if (!stat.isFile() || stat.size > AUDIO_DIALOGUE_REFERENCE_MAX_BYTES) {
-    throw new Error('reference_audio must be a file no larger than 20 MiB.');
-  }
-  return `data:${mime};base64,${fs.readFileSync(absolutePath).toString('base64')}`;
 }
 
-async function rewriteAudioReference(options: {
+function localDialogueAudioReferenceToDataUrl(options: {
   targetDir: string;
-  value: unknown;
-  registry: GeneratedAssetRegistry;
-  fetchImpl: RemoteProxyFetch;
-}): Promise<string> {
-  if (typeof options.value !== 'string' || !options.value.trim()) {
-    throw new Error(
-      'reference_audio must be an audio data URL, local audio file path, or HTTP(S) URL.'
-    );
+  value: string;
+  localPath?: string;
+}): string {
+  const absolutePath = resolveLocalAssetAbsolutePath(options.targetDir, options);
+  if (!absolutePath) {
+    throw new Error(`local reference audio file was not found: ${options.value}`);
   }
-  const value = options.value.trim();
-  if (value.startsWith('data:')) {
-    validateAudioDataUrl(value);
-    return value;
+  const projectRoot = fs.realpathSync(path.resolve(options.targetDir));
+  const realFile = fs.realpathSync(absolutePath);
+  const relative = path.relative(projectRoot, realFile);
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error('local dialogue reference resolves outside the project target directory');
   }
-  if (/^https?:\/\//i.test(value)) {
-    const response = await options.fetchImpl(value);
-    if (!response.ok) throw new Error(`reference_audio download failed: HTTP ${response.status}`);
-    const bytes = await readResponseBytesLimited(
-      response,
-      AUDIO_DIALOGUE_REFERENCE_MAX_BYTES,
-      'reference_audio'
-    );
-    const mime = audioMimeFromResponse(response, value);
-    if (!mime) throw new Error('reference_audio URL has an unsupported audio format.');
-    return `data:${mime};base64,${bytes.toString('base64')}`;
+  const stat = fs.statSync(realFile);
+  if (!stat.isFile()) {
+    throw new Error(`local reference audio path is not a file: ${options.value}`);
   }
-  return rewriteAudioReferenceSync(options);
+  if (stat.size > AUDIO_DIALOGUE_REFERENCE_MAX_BYTES) {
+    throw new Error('local reference audio file must be no larger than 20 MiB.');
+  }
+  const mime = dataUrlMimeForPath(realFile, 'audio');
+  if (!mime) {
+    throw new Error('local reference audio format is unsupported.');
+  }
+  return `data:${mime};base64,${fs.readFileSync(realFile).toString('base64')}`;
 }
 
-async function readResponseBytesLimited(
-  response: Response,
-  maxBytes: number,
-  label: string
-): Promise<Buffer> {
-  const contentLength = response.headers?.get('content-length');
-  if (contentLength) {
-    const declaredLength = Number.parseInt(contentLength, 10);
-    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-      await response.body?.cancel();
-      throw new Error(`${label} must be a non-empty source no larger than 20 MiB.`);
-    }
+function normalizeDialogueProjectReference(
+  targetDir: string,
+  value: unknown,
+  registry: GeneratedAssetRegistry,
+  index: number
+): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`inputs[${index}].reference_audio must be a non-empty project audio path.`);
   }
-  if (!response.body) {
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length === 0 || bytes.length > maxBytes) {
-      throw new Error(`${label} must be a non-empty source no larger than 20 MiB.`);
+  let normalized = value.trim().replace(/^workspace\//, '');
+  if (path.isAbsolute(normalized)) {
+    const relative = path.relative(path.resolve(targetDir), path.resolve(normalized));
+    if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      throw new Error(`inputs[${index}].reference_audio must stay inside project assets/audio.`);
     }
-    return bytes;
+    normalized = relative.split(path.sep).join('/');
   }
 
-  const reader = response.body.getReader();
-  const chunks: Buffer[] = [];
-  let total = 0;
-  try {
-    let streamEnded = false;
-    while (!streamEnded) {
-      const { done, value } = await reader.read();
-      if (done) {
-        streamEnded = true;
-        continue;
-      }
-      const chunk = Buffer.from(value);
-      total += chunk.length;
-      if (total > maxBytes) {
-        await reader.cancel();
-        throw new Error(`${label} must be a non-empty source no larger than 20 MiB.`);
-      }
-      chunks.push(chunk);
-    }
-  } finally {
-    reader.releaseLock();
+  const localPath = resolveLocalAssetReference(targetDir, normalized, registry, AUDIO_ASSET_DIRS);
+  if (localPath) {
+    normalized = localPath;
   }
-  if (total === 0) {
-    throw new Error(`${label} must be a non-empty source no larger than 20 MiB.`);
+  const segments = normalized.split('/');
+  const extension = path.extname(normalized).toLowerCase();
+  if (
+    segments.some((segment) => segment === '' || segment === '.' || segment === '..') ||
+    !isKnownAssetPath(normalized, AUDIO_ASSET_DIRS) ||
+    !AUDIO_MIME_BY_EXTENSION[extension]
+  ) {
+    throw new Error(`inputs[${index}].reference_audio must be an audio path under assets/audio.`);
   }
-  return Buffer.concat(chunks, total);
+  return normalized;
 }
 
 function validateAudioDataUrl(value: string): void {
-  const match = /^data:(audio\/(?:mpeg|wav|ogg|mp4|aac));base64,([A-Za-z0-9+/]*={0,2})$/i.exec(
-    value
-  );
-  if (!match || match[2].length === 0 || match[2].length % 4 !== 0) {
+  const match =
+    /^data:([a-z0-9.+-]+\/[a-z0-9.+-]+)((?:;[a-z0-9.+-]+=[^;,]*)*);base64,([\s\S]+)$/i.exec(value);
+  if (!match || !Object.values(AUDIO_MIME_BY_EXTENSION).includes(match[1].toLowerCase())) {
     throw new Error('reference_audio must be a valid audio data URL, not bare base64.');
   }
-  const bytes = Buffer.from(match[2], 'base64');
+  const cleaned = match[3].replace(/\s/g, '');
+  if (cleaned.length === 0 || cleaned.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(cleaned)) {
+    throw new Error('reference_audio must be a valid audio data URL, not bare base64.');
+  }
+  const padding = cleaned.endsWith('==') ? 2 : cleaned.endsWith('=') ? 1 : 0;
+  const estimatedBytes = (cleaned.length / 4) * 3 - padding;
+  if (estimatedBytes > AUDIO_DIALOGUE_REFERENCE_MAX_BYTES) {
+    throw new Error('reference_audio data URL must be no larger than 20 MiB.');
+  }
+  const bytes = Buffer.from(cleaned, 'base64');
   if (bytes.length === 0 || bytes.length > AUDIO_DIALOGUE_REFERENCE_MAX_BYTES) {
     throw new Error('reference_audio data URL must be no larger than 20 MiB.');
   }
-}
-
-function audioMimeFromResponse(response: Response, url: string): string | undefined {
-  const contentType = response.headers?.get('content-type')?.split(';')[0].trim().toLowerCase();
-  if (contentType && Object.values(AUDIO_MIME_BY_EXTENSION).includes(contentType))
-    return contentType;
-  const extension = path.extname(new URL(url).pathname).toLowerCase();
-  return AUDIO_MIME_BY_EXTENSION[extension];
 }
 
 function rewriteUrlObjectArray(

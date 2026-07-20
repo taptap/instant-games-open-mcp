@@ -390,10 +390,16 @@ function decorateRemoteProxyToolInputSchema(
   const decoratedProperties =
     toolName === 'text_to_dialogue'
       ? decorateTextToDialogueInputProperties(properties)
-      : properties;
+      : toolName === 'audition_voices_for_character'
+        ? decorateVoiceAuditionInputProperties(properties)
+        : properties;
+  const required = Array.isArray(schema.required) ? schema.required : [];
   return {
     ...schema,
     type: schema.type || 'object',
+    ...(toolName === 'audition_voices_for_character'
+      ? { required: [...new Set([...required, 'voice_profile'])] }
+      : {}),
     properties: {
       ...decoratedProperties,
       target_dir: {
@@ -401,6 +407,40 @@ function decorateRemoteProxyToolInputSchema(
         description:
           'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool.',
       },
+    },
+  };
+}
+
+function decorateVoiceAuditionInputProperties(
+  properties: Record<string, unknown>
+): Record<string, unknown> {
+  const remoteVoiceProfile = properties.voice_profile;
+  const voiceProfile = isPlainRecord(remoteVoiceProfile) ? remoteVoiceProfile : {};
+  const profileProperties = isPlainRecord(voiceProfile.properties) ? voiceProfile.properties : {};
+  const profileRequired = Array.isArray(voiceProfile.required) ? voiceProfile.required : [];
+  const remoteGender = profileProperties.gender;
+  return {
+    ...properties,
+    voice_profile: {
+      ...voiceProfile,
+      type: voiceProfile.type || 'object',
+      description: [
+        voiceProfile.description,
+        'Required for character voice audition. Extract gender from character_description or the character settings instead of relying on a default.',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      properties: {
+        ...profileProperties,
+        gender: {
+          ...(isPlainRecord(remoteGender) ? remoteGender : {}),
+          type: 'string',
+          enum: ['male', 'female'],
+          description:
+            'Required structured character gender. Extract male or female from character_description or the character settings.',
+        },
+      },
+      required: [...new Set([...profileRequired, 'gender'])],
     },
   };
 }
@@ -433,7 +473,7 @@ function decorateTextToDialogueInputProperties(
                   ...referenceAudio,
                   description: [
                     referenceAudio.description,
-                    'The local Maker MCP also accepts a resolvable local audio file path or HTTP(S) URL here; these sources are converted to an audio data URL before forwarding. Use this field for uncommitted local audio; do not pass bare base64.',
+                    'Use a local project audio path under assets/audio/, an HTTP(S) URL, or an audio data URL here. Local project audio must exist in the current project and is converted to a data URL automatically. Do not pass bare base64.',
                   ]
                     .filter(Boolean)
                     .join(' '),
@@ -446,7 +486,7 @@ function decorateTextToDialogueInputProperties(
                   ...referenceAudioPath,
                   description: [
                     referenceAudioPath.description,
-                    'This remains a remote project audio resource under assets/audio/ or workspace/assets/audio/ and is forwarded unchanged; it is not a local filesystem path.',
+                    'This legacy local project audio path must exist under assets/audio/ or workspace/assets/audio/. The local proxy converts it to the canonical reference_audio data URL; it is not a project-external filesystem path.',
                   ]
                     .filter(Boolean)
                     .join(' '),
@@ -507,12 +547,12 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
       ].join(' ');
     case 'text_to_dialogue':
       return [
-        '**Maker voice workflow hint:** Use this Maker MCP proxy tool for character dialogue after the character has a confirmed voice mapping, or provide a per-call reference. reference_audio accepts an audio data URL, a resolvable local audio file path, or an HTTP(S) URL; the local proxy converts file and HTTP(S) sources to data URLs. reference_audio and reference_audio_path are mutually exclusive: use reference_audio for inline or uncommitted local audio, while reference_audio_path identifies an existing remote project resource under assets/audio/ or workspace/assets/audio/. Successful dialogue audio is materialized under assets/audio/voice.',
+        '**Maker voice workflow hint:** For normal dialogue, pass only character_name and text after voice confirmation; the local proxy automatically reuses a confirmed local Doubao reference. reference_audio is an optional per-call override and accepts a local project audio path under assets/audio/, an HTTP(S) URL, or an audio data URL. Project audio must exist locally and is converted to a data URL automatically. reference_audio and reference_audio_path are mutually exclusive; reference_audio is canonical and reference_audio_path is the legacy local-path field. Successful dialogue audio is materialized under assets/audio/voice.',
         failurePolicy,
       ].join(' ');
     case 'audition_voices_for_character':
       return [
-        '**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary preview voices for one character. Show every returned preview URL to the user and wait for their choice before calling confirm_character_voice. Preview candidates are not saved as game assets.',
+        '**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary preview voices for one character. voice_profile.gender is required: extract male or female from character_description or the character settings and pass it explicitly. Show every returned preview URL to the user and wait for their choice before calling confirm_character_voice. Preview candidates are not saved as game assets.',
         failurePolicy,
       ].join(' ');
     case 'confirm_character_voice':

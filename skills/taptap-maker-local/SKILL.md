@@ -151,9 +151,15 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
 - Use `text_to_sound_effect` for one sound effect.
 - Use `batch_sound_effects` for multiple sound effects.
 - Use `text_to_dialogue` for final character dialogue.
+- `text_to_dialogue` automatically converts local project audio to data URLs and reuses confirmed local voice mappings.
 - After `audition_voices_for_character` returns previews, show them to the user and wait
   for the user to choose. Do not select or confirm a voice automatically.
+- Before a Doubao audition, extract the character gender from the character settings or
+  `character_description` and pass `voice_profile.gender` as `male` or `female`; never rely on a
+  default gender.
 - Call `confirm_character_voice` only after the user explicitly chooses one preview.
+- After confirmation, follow `next_step_hint`: call `text_to_dialogue` with the character name and
+  text, and omit `reference_audio` unless the user requests a one-time override.
 - Generated sound effects and dialogue are saved in the project.
 - Voice audition previews are not saved to the project.
 - Local MCP does not transcode generated audio to OGG.

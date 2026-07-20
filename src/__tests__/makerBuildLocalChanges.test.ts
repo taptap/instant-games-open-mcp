@@ -1133,6 +1133,7 @@ describe('maker build local-change guard', () => {
             properties: {
               inputs: {
                 type: 'array',
+                maxItems: 50,
                 items: {
                   type: 'object',
                   properties: {
@@ -1140,7 +1141,16 @@ describe('maker build local-change guard', () => {
                     text: { type: 'string' },
                     reference_audio: {
                       type: 'string',
-                      description: 'Optional Doubao-only audio data URL.',
+                      minLength: 1,
+                      maxLength: 28 * 1024 * 1024,
+                      description:
+                        'Optional Doubao project audio path, HTTP(S) URL, or audio data URL.',
+                    },
+                    delivery_instruction: {
+                      type: 'string',
+                      minLength: 1,
+                      maxLength: 300,
+                      description: 'Optional line-specific delivery instruction.',
                     },
                     reference_audio_path: {
                       type: 'string',
@@ -1159,7 +1169,15 @@ describe('maker build local-change guard', () => {
           description: 'Generate voice candidates for one character',
           inputSchema: {
             type: 'object',
-            properties: { character_name: { type: 'string' } },
+            properties: {
+              character_name: { type: 'string' },
+              voice_profile: {
+                type: 'object',
+                properties: {
+                  gender: { type: 'string', enum: ['male', 'female'] },
+                },
+              },
+            },
             required: ['character_name'],
           },
         },
@@ -1310,32 +1328,51 @@ describe('maker build local-change guard', () => {
     expect(
       result.tools.find((item) => item.name === 'audition_voices_for_character')?.inputSchema
         .required
-    ).toEqual(['character_name']);
+    ).toEqual(['character_name', 'voice_profile']);
+    expect(
+      result.tools.find((item) => item.name === 'audition_voices_for_character')?.inputSchema
+        .properties.voice_profile.required
+    ).toEqual(['gender']);
     expect(
       result.tools.find((item) => item.name === 'confirm_character_voice')?.inputSchema.required
     ).toEqual(['character_name']);
     const dialogueTool = result.tools.find((item) => item.name === 'text_to_dialogue');
     expect(dialogueTool?.inputSchema.required).toEqual(['inputs']);
+    expect(dialogueTool?.inputSchema.properties.inputs.maxItems).toBe(50);
     expect(dialogueTool?.inputSchema.properties.inputs.items.required).toEqual([
       'character_name',
       'text',
     ]);
     expect(
-      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio.description
-    ).toContain('local audio file path or HTTP(S) URL');
+      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio.maxLength
+    ).toBe(28 * 1024 * 1024);
+    expect(
+      dialogueTool?.inputSchema.properties.inputs.items.properties.delivery_instruction.maxLength
+    ).toBe(300);
     expect(
       dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio.description
-    ).toContain('converted to an audio data URL');
+    ).toContain('project audio path under assets/audio/');
+    expect(
+      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio.description
+    ).toContain('HTTP(S) URL');
+    expect(
+      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio.description
+    ).toContain('must exist in the current project and is converted to a data URL');
     expect(
       dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio_path.description
-    ).toContain('remote project audio resource');
+    ).toContain('legacy local project audio path');
     expect(dialogueTool?.description).toContain(
       'reference_audio and reference_audio_path are mutually exclusive'
     );
-    expect(dialogueTool?.description).toContain('uncommitted local audio');
+    expect(dialogueTool?.description).toContain(
+      'automatically reuses a confirmed local Doubao reference'
+    );
     expect(
       result.tools.find((item) => item.name === 'audition_voices_for_character')?.description
     ).toContain('temporary preview');
+    expect(
+      result.tools.find((item) => item.name === 'audition_voices_for_character')?.description
+    ).toContain('voice_profile.gender');
     expect(
       result.tools.find((item) => item.name === 'confirm_character_voice')?.description
     ).toContain('after the user selects');

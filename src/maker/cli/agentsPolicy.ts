@@ -175,6 +175,7 @@ function createMakerAgentsPolicyBody(): string {
     '- `text_to_sound_effect` for one sound effect.',
     '- `batch_sound_effects` for multiple sound effects.',
     '- `text_to_dialogue` for final character dialogue.',
+    '- `text_to_dialogue` automatically converts local project audio to data URLs and reuses confirmed local voice mappings.',
     '- After `audition_voices_for_character` returns previews, show them to the user and wait',
     '  for the user to choose. Do not select or confirm a voice automatically.',
     '- Call `confirm_character_voice` only after the user explicitly chooses one preview.',

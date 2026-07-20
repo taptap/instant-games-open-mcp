@@ -16,11 +16,40 @@ describe('Maker audio proxy tools', () => {
 
   afterEach(() => fs.rmSync(targetDir, { recursive: true, force: true }));
 
-  test('rewrites local reference audio to a data URL and preserves existing data URLs', () => {
+  test('requires an explicit character gender before forwarding a voice audition', () => {
+    expect(() =>
+      prepareRemoteProxyToolArgs({
+        toolName: 'audition_voices_for_character',
+        targetDir,
+        args: {
+          character_name: '暗影刺客',
+          character_description: 'Young adult female rogue assassin',
+          audition_line: '目标已经进入视野。',
+        },
+      })
+    ).toThrow(/voice_profile\.gender.*required.*male.*female/i);
+
+    const args = {
+      character_name: '暗影刺客',
+      character_description: 'Young adult female rogue assassin',
+      audition_line: '目标已经进入视野。',
+      voice_profile: { gender: 'female' },
+    };
+    expect(
+      prepareRemoteProxyToolArgs({
+        toolName: 'audition_voices_for_character',
+        targetDir,
+        args,
+      })
+    ).toEqual(args);
+  });
+
+  test('converts local project reference paths to data URLs and rejects missing files', () => {
     fs.mkdirSync(path.join(targetDir, 'assets/audio'), { recursive: true });
     const source = Buffer.from('wav-source');
     fs.writeFileSync(path.join(targetDir, 'assets/audio/reference.wav'), source);
     const existing = `data:audio/mpeg;base64,${Buffer.from('mp3').toString('base64')}`;
+    const localDataUrl = `data:audio/wav;base64,${source.toString('base64')}`;
 
     const args = prepareRemoteProxyToolArgs({
       toolName: 'text_to_dialogue',
@@ -28,7 +57,17 @@ describe('Maker audio proxy tools', () => {
       args: {
         inputs: [
           { character_name: 'A', text: 'hello', reference_audio: 'reference.wav' },
-          { character_name: 'B', text: 'hi', reference_audio: existing },
+          {
+            character_name: 'B',
+            text: 'hi',
+            reference_audio: 'workspace/assets/audio/reference.wav',
+          },
+          {
+            character_name: 'C',
+            text: 'hey',
+            reference_audio: path.join(targetDir, 'assets/audio/reference.wav'),
+          },
+          { character_name: 'D', text: 'yo', reference_audio: existing },
         ],
       },
     });
@@ -37,18 +76,164 @@ describe('Maker audio proxy tools', () => {
       {
         character_name: 'A',
         text: 'hello',
-        reference_audio: `data:audio/wav;base64,${source.toString('base64')}`,
+        reference_audio: localDataUrl,
       },
-      { character_name: 'B', text: 'hi', reference_audio: existing },
+      {
+        character_name: 'B',
+        text: 'hi',
+        reference_audio: localDataUrl,
+      },
+      {
+        character_name: 'C',
+        text: 'hey',
+        reference_audio: localDataUrl,
+      },
+      { character_name: 'D', text: 'yo', reference_audio: existing },
+    ]);
+
+    expect(() =>
+      prepareRemoteProxyToolArgs({
+        toolName: 'text_to_dialogue',
+        targetDir,
+        args: {
+          inputs: [
+            {
+              character_name: 'E',
+              text: 'missing',
+              reference_audio: 'assets/audio/missing.mp3',
+            },
+          ],
+        },
+      })
+    ).toThrow(/local|not found|missing/i);
+
+    const outsidePath = path.join(targetDir, '..', 'maker-audio-outside-source.mp3');
+    fs.writeFileSync(outsidePath, 'outside-audio');
+    try {
+      expect(() =>
+        prepareRemoteProxyToolArgs({
+          toolName: 'text_to_dialogue',
+          targetDir,
+          args: {
+            inputs: [{ reference_audio: outsidePath }],
+          },
+        })
+      ).toThrow(/project|assets\/audio|reference_audio/i);
+    } finally {
+      fs.rmSync(outsidePath, { force: true });
+    }
+  });
+
+  test('reuses a confirmed local Doubao reference without user-supplied audio', () => {
+    const referencePath = 'assets/audio/voice-reference/hero.mp3';
+    const referenceBytes = Buffer.from('confirmed-reference');
+    fs.mkdirSync(path.join(targetDir, '.project'), { recursive: true });
+    fs.mkdirSync(path.join(targetDir, 'assets/audio/voice-reference'), { recursive: true });
+    fs.writeFileSync(path.join(targetDir, referencePath), referenceBytes);
+    fs.writeFileSync(
+      path.join(targetDir, '.project/audio-voice-mapping.json'),
+      JSON.stringify({
+        version: 4,
+        provider: 'doubao',
+        characters: {
+          Hero: {
+            provider: 'doubao',
+            reference_audio_path: referencePath,
+          },
+        },
+      })
+    );
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'text_to_dialogue',
+      targetDir,
+      args: {
+        inputs: [{ character_name: 'Hero', text: 'hello' }],
+      },
+    });
+
+    expect(args.inputs).toEqual([
+      {
+        character_name: 'Hero',
+        text: 'hello',
+        reference_audio: `data:audio/mpeg;base64,${referenceBytes.toString('base64')}`,
+      },
     ]);
   });
 
-  test('converts HTTP reference audio asynchronously and rejects mutual exclusion', async () => {
-    const fetchImpl = (async () =>
-      new Response(Buffer.from('mp3-http'), {
-        status: 200,
-        headers: { 'content-type': 'audio/mpeg' },
-      })) as typeof fetch;
+  test('does not encode a mapped reference symlink that escapes the project', () => {
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-audio-reference-outside-'));
+    const outsideAudio = path.join(outsideDir, 'secret.mp3');
+    const referencePath = 'assets/audio/voice-reference/hero.mp3';
+    try {
+      fs.writeFileSync(outsideAudio, 'secret-reference');
+      fs.mkdirSync(path.join(targetDir, '.project'), { recursive: true });
+      fs.mkdirSync(path.join(targetDir, 'assets/audio/voice-reference'), { recursive: true });
+      fs.symlinkSync(outsideAudio, path.join(targetDir, referencePath));
+      fs.writeFileSync(
+        path.join(targetDir, '.project/audio-voice-mapping.json'),
+        JSON.stringify({
+          version: 4,
+          provider: 'doubao',
+          characters: {
+            Hero: { provider: 'doubao', reference_audio_path: referencePath },
+          },
+        })
+      );
+
+      expect(() =>
+        prepareRemoteProxyToolArgs({
+          toolName: 'text_to_dialogue',
+          targetDir,
+          args: { inputs: [{ character_name: 'Hero', text: 'hello' }] },
+        })
+      ).toThrow(/outside|project|symlink/i);
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
+  test('uses the real project file extension for an internal audio symlink data URL', () => {
+    const audioDir = path.join(targetDir, 'assets/audio');
+    fs.mkdirSync(audioDir, { recursive: true });
+    fs.writeFileSync(path.join(audioDir, 'reference.wav'), Buffer.from('wav-source'));
+    fs.symlinkSync('reference.wav', path.join(audioDir, 'reference.mp3'));
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'text_to_dialogue',
+      targetDir,
+      args: {
+        inputs: [
+          {
+            character_name: 'A',
+            text: 'hello',
+            reference_audio: 'assets/audio/reference.mp3',
+          },
+        ],
+      },
+    });
+
+    expect(args.inputs[0].reference_audio).toMatch(/^data:audio\/wav;base64,/);
+  });
+
+  test('accepts the same case-insensitive parameterized data URLs as the server', () => {
+    const referenceAudio = `DATA:AUDIO/MPEG;charset=utf-8;BASE64,${Buffer.from('hello')
+      .toString('base64')
+      .replace('V', 'V\n')}`;
+
+    const args = prepareRemoteProxyToolArgs({
+      toolName: 'text_to_dialogue',
+      targetDir,
+      args: {
+        inputs: [{ character_name: 'A', text: 'hello', reference_audio: referenceAudio }],
+      },
+    });
+
+    expect(args.inputs[0].reference_audio).toBe(referenceAudio);
+  });
+
+  test('preserves HTTP reference audio for server-side validation and rejects mutual exclusion', async () => {
+    const fetchImpl = jest.fn() as unknown as typeof fetch;
     const args = await prepareRemoteProxyToolArgsAsync({
       toolName: 'text_to_dialogue',
       targetDir,
@@ -57,9 +242,33 @@ describe('Maker audio proxy tools', () => {
         inputs: [{ character_name: 'A', text: 'hello', reference_audio: 'https://x.test/a' }],
       },
     });
-    expect(args.inputs[0].reference_audio).toBe(
-      `data:audio/mpeg;base64,${Buffer.from('mp3-http').toString('base64')}`
-    );
+    expect(args.inputs[0].reference_audio).toBe('https://x.test/a');
+    expect(fetchImpl).not.toHaveBeenCalled();
+
+    const legacyBytes = Buffer.from('legacy-reference');
+    fs.mkdirSync(path.join(targetDir, 'assets/audio'), { recursive: true });
+    fs.writeFileSync(path.join(targetDir, 'assets/audio/legacy.mp3'), legacyBytes);
+    expect(
+      prepareRemoteProxyToolArgs({
+        toolName: 'text_to_dialogue',
+        targetDir,
+        args: {
+          inputs: [
+            {
+              character_name: 'Legacy',
+              text: 'hello',
+              reference_audio_path: 'workspace/assets/audio/legacy.mp3',
+            },
+          ],
+        },
+      }).inputs
+    ).toEqual([
+      {
+        character_name: 'Legacy',
+        text: 'hello',
+        reference_audio: `data:audio/mpeg;base64,${legacyBytes.toString('base64')}`,
+      },
+    ]);
 
     expect(() =>
       prepareRemoteProxyToolArgs({
@@ -73,6 +282,37 @@ describe('Maker audio proxy tools', () => {
       })
     ).toThrow(/mutually exclusive/);
   });
+
+  test.each([null, '', '   ', 'data:audio/mpeg;base64,   '])(
+    'treats omitted canonical reference %p as compatible with the legacy project path',
+    (referenceAudio) => {
+      const legacyBytes = Buffer.from('legacy-reference');
+      fs.mkdirSync(path.join(targetDir, 'assets/audio'), { recursive: true });
+      fs.writeFileSync(path.join(targetDir, 'assets/audio/legacy.mp3'), legacyBytes);
+      const args = prepareRemoteProxyToolArgs({
+        toolName: 'text_to_dialogue',
+        targetDir,
+        args: {
+          inputs: [
+            {
+              character_name: 'Legacy',
+              text: 'hello',
+              reference_audio: referenceAudio,
+              reference_audio_path: 'workspace/assets/audio/legacy.mp3',
+            },
+          ],
+        },
+      });
+
+      expect(args.inputs).toEqual([
+        {
+          character_name: 'Legacy',
+          text: 'hello',
+          reference_audio: `data:audio/mpeg;base64,${legacyBytes.toString('base64')}`,
+        },
+      ]);
+    }
+  );
 
   test('materializes audio files with collision suffixes and registry entries', async () => {
     const now = new Date('2026-07-16T10:11:12Z');
@@ -228,71 +468,7 @@ describe('Maker audio proxy tools', () => {
     }
   });
 
-  test('rejects HTTP reference audio from Content-Length over 20 MiB before reading body', async () => {
-    const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new Uint8Array([1, 2, 3]));
-        controller.close();
-      },
-    });
-    const fetchImpl = jest.fn(
-      async () =>
-        new Response(body, {
-          status: 200,
-          headers: { 'content-length': String(20 * 1024 * 1024 + 1), 'content-type': 'audio/mpeg' },
-        })
-    ) as unknown as typeof fetch;
-
-    await expect(
-      prepareRemoteProxyToolArgsAsync({
-        toolName: 'text_to_dialogue',
-        targetDir,
-        fetchImpl,
-        args: {
-          inputs: [{ character_name: 'A', text: 'hello', reference_audio: 'https://x.test/a' }],
-        },
-      })
-    ).rejects.toThrow(/20 MiB|too large/i);
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-  });
-
-  test('rejects HTTP reference audio when streamed bytes exceed 20 MiB and cancels the body', async () => {
-    let cancelled = false;
-    let reads = 0;
-    const fetchImpl = (async () =>
-      ({
-        ok: true,
-        headers: new Headers({ 'content-type': 'audio/mpeg' }),
-        body: {
-          getReader: () => ({
-            read: async () => {
-              reads += 1;
-              return reads === 1
-                ? { done: false, value: new Uint8Array(20 * 1024 * 1024) }
-                : { done: false, value: new Uint8Array([1]) };
-            },
-            cancel: async () => {
-              cancelled = true;
-            },
-            releaseLock: () => undefined,
-          }),
-        },
-      }) as unknown as Response) as typeof fetch;
-
-    await expect(
-      prepareRemoteProxyToolArgsAsync({
-        toolName: 'text_to_dialogue',
-        targetDir,
-        fetchImpl,
-        args: {
-          inputs: [{ character_name: 'A', text: 'hello', reference_audio: 'https://x.test/a' }],
-        },
-      })
-    ).rejects.toThrow(/20 MiB|too large/i);
-    expect(cancelled).toBe(true);
-  });
-
-  test('rejects data URL and absolute local reference audio over 20 MiB', async () => {
+  test('rejects oversized data URLs and oversized local project files', async () => {
     const oversized = Buffer.alloc(20 * 1024 * 1024 + 1, 1);
     await expect(
       prepareRemoteProxyToolArgsAsync({
@@ -308,7 +484,8 @@ describe('Maker audio proxy tools', () => {
       })
     ).rejects.toThrow(/20 MiB|too large/i);
 
-    const localPath = path.join(targetDir, 'oversized.mp3');
+    const localPath = path.join(targetDir, 'assets/audio/oversized.mp3');
+    fs.mkdirSync(path.dirname(localPath), { recursive: true });
     fs.writeFileSync(localPath, oversized);
     await expect(
       prepareRemoteProxyToolArgsAsync({
@@ -317,6 +494,35 @@ describe('Maker audio proxy tools', () => {
         args: { inputs: [{ reference_audio: localPath }] },
       })
     ).rejects.toThrow(/20 MiB|too large/i);
+  });
+
+  test('rejects reference audio inputs whose encoded total exceeds 28 MiB', async () => {
+    const encoded = `data:audio/mpeg;base64,${Buffer.alloc(11 * 1024 * 1024, 1).toString('base64')}`;
+    await expect(
+      prepareRemoteProxyToolArgsAsync({
+        toolName: 'text_to_dialogue',
+        targetDir,
+        args: {
+          inputs: [{ reference_audio: encoded }, { reference_audio: encoded }],
+        },
+      })
+    ).rejects.toThrow(/28 MiB|input total/i);
+
+    const legacyPath = path.join(targetDir, 'assets/audio/legacy-large.mp3');
+    fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+    fs.writeFileSync(legacyPath, Buffer.alloc(11 * 1024 * 1024, 1));
+    await expect(
+      prepareRemoteProxyToolArgsAsync({
+        toolName: 'text_to_dialogue',
+        targetDir,
+        args: {
+          inputs: [
+            { reference_audio_path: 'assets/audio/legacy-large.mp3' },
+            { reference_audio_path: 'assets/audio/legacy-large.mp3' },
+          ],
+        },
+      })
+    ).rejects.toThrow(/28 MiB|input total/i);
   });
 
   test('rejects Doubao reference audio over 1 MiB', async () => {
@@ -389,6 +595,9 @@ describe('Maker audio proxy tools', () => {
     });
     const payload = JSON.parse(result.content[0].text);
     expect(payload.referenceAudio.download.success).toBe(true);
+    expect(payload.next_step_hint).toBe(
+      'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically; omit reference_audio unless the user requests a one-time override.'
+    );
     expect(fs.readFileSync(path.join(targetDir, 'assets/audio/voice-reference/a.mp3'))).toEqual(
       mp3
     );
@@ -422,6 +631,8 @@ describe('Maker audio proxy tools', () => {
         result: proxyTextResult({
           success: true,
           characterName: 'A',
+          next_step_hint:
+            'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically; omit reference_audio unless the user requests a one-time override.',
           referenceAudio: {
             audioUrl: 'https://x.test/ref.mp3',
             targetPath: 'assets/audio/voice-reference/a.mp3',
@@ -433,7 +644,9 @@ describe('Maker audio proxy tools', () => {
           },
         }),
       });
-      expect(JSON.parse(result.content[0].text).referenceAudio.download.success).toBe(false);
+      const payload = JSON.parse(result.content[0].text);
+      expect(payload.referenceAudio.download.success).toBe(false);
+      expect(payload.next_step_hint).toBeUndefined();
       expect(fs.readFileSync(referencePath)).toEqual(oldReference);
       expect(fs.readFileSync(mappingPath)).toEqual(oldMapping);
     } finally {
@@ -456,12 +669,28 @@ describe('Maker audio proxy tools', () => {
       }),
     });
     expect(JSON.parse(result.content[0].text).cleanupWarning).toBe('do not retry');
+    expect(JSON.parse(result.content[0].text).next_step_hint).toBe(
+      'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically; omit reference_audio unless the user requests a one-time override.'
+    );
     expect(fs.existsSync(path.join(targetDir, 'assets/audio'))).toBe(false);
     const mapping = JSON.parse(
       fs.readFileSync(path.join(targetDir, '.project/elevenlabs-voice-mapping.json'), 'utf8')
     );
     expect(mapping.version).toBe('1.0');
     expect(mapping.characters.A.voice_id).toBe('voice-1');
+
+    const dialogueArgs = prepareRemoteProxyToolArgs({
+      toolName: 'text_to_dialogue',
+      targetDir,
+      args: { inputs: [{ character_name: 'A', text: 'hello' }] },
+    });
+    expect(dialogueArgs.inputs).toEqual([
+      {
+        character_name: 'A',
+        text: 'hello',
+        _local_voice_id: 'voice-1',
+      },
+    ]);
   });
 
   test('returns ElevenLabs mapping persistence diagnostics without dropping remote success fields', async () => {
@@ -479,6 +708,8 @@ describe('Maker audio proxy tools', () => {
           success: true,
           cleanupWarning: 'do not retry',
           remoteVoiceId: 'voice-1',
+          next_step_hint:
+            'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically; omit reference_audio unless the user requests a one-time override.',
           mapping: { provider: 'elevenlabs', characterName: 'A', voice_id: 'voice-1' },
         }),
       });
@@ -489,6 +720,7 @@ describe('Maker audio proxy tools', () => {
       expect(payload.localPersistenceError || payload.mappingError).toMatch(
         /elevenlabs mapping failure/i
       );
+      expect(payload.next_step_hint).toBeUndefined();
     } finally {
       rename.mockRestore();
     }
