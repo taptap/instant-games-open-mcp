@@ -371,7 +371,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
   `text_to_sound_effect`、`batch_sound_effects`、`text_to_dialogue`、
   `audition_voices_for_character`、`confirm_character_voice`、
-  `create_3d_model_task`、`query_3d_model_task`、`generate_test_qrcode`、`get_ad_config`
+  `create_3d_asset`、`generate_test_qrcode`、`get_ad_config`
   和 `get_debug_feedbacks`，
   用于试用图片/视频/音乐/音效/配音/3D 模型生成、广告配置同步和远端玩家反馈查询链路，
   本地保留远端 tool schema 和成功返回值，但会在 description 追加简短 Maker 本地开发提示：

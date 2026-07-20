@@ -157,8 +157,8 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain('Generated sound effects and dialogue are saved in the project');
     expect(agentsGuide).toContain('Voice audition previews are not saved to the project');
     expect(agentsGuide).toContain('Local MCP does not transcode generated audio to OGG');
-    expect(agentsGuide).toContain('create_3d_model_task');
-    expect(agentsGuide).toContain('query_3d_model_task');
+    expect(agentsGuide).toContain('create_3d_asset');
+    expect(agentsGuide).toContain('action="continue"');
     expect(agentsGuide).toContain('Do not infer ad readiness from local SDK docs');
     expect(agentsGuide).toContain('build once with `maker_build_current_directory`');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');

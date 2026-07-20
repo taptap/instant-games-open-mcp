@@ -145,9 +145,9 @@ Maker 页面。
 Maker MCP 也提供部分远端 proxy 能力，当前包括 `generate_image`、`batch_generate_images`、
 `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
 `text_to_sound_effect`、`batch_sound_effects`、`text_to_dialogue`、
-`audition_voices_for_character`、`confirm_character_voice`、`create_3d_model_task`、
-`query_3d_model_task`、`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks`；
-具体参数以 MCP 客户端展示的 tool schema 为准。
+`audition_voices_for_character`、`confirm_character_voice`、`create_3d_asset`、
+`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks`；具体参数以 MCP 客户端展示的
+tool schema 为准。
 已绑定 Maker 项目中建议优先使用这些 proxy tools；其中 `get_debug_feedbacks` 会拉取线上玩家反馈，
 并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`，
 返回 `local_dir` / `local_log_paths` / `local_screenshot_paths` 等本地路径。代理转发、错误透出和白名单细节见

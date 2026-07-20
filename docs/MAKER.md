@@ -17,9 +17,8 @@
   `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
   `query_video_task`、`text_to_music`、`text_to_sound_effect`、`batch_sound_effects`、
   `text_to_dialogue`、`audition_voices_for_character`、`confirm_character_voice`、
-  `create_3d_model_task`、`query_3d_model_task`、
-  `generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks`，用于试用图片/视频/音乐/音效/
-  配音/3D 模型生成、测试二维码生成、广告配置同步和远端玩家反馈查询链路。
+  `create_3d_asset`、`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks`，用于试用
+  图片/视频/音乐/音效/配音/3D 模型生成、测试二维码生成、广告配置同步和远端玩家反馈查询链路。
 - `maker_build_current_directory` 是用户感知里的提交/推送/远端构建入口；push 失败时会停止在构建前，让本地 Agent 处理冲突或合并。
 - 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。
@@ -568,9 +567,9 @@ maker_build_current_directory()
 当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
 `query_video_task`、`text_to_music`、`text_to_sound_effect`、`batch_sound_effects`、
 `text_to_dialogue`、`audition_voices_for_character`、`confirm_character_voice`、
-`create_3d_model_task`、`query_3d_model_task`、
-`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks` 作为白名单公开；本地 MCP 保留远端 tools 的
-input schema、参数和成功返回值，但会在 description 中追加简短 Maker 本地开发提示。
+`create_3d_asset`、`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks` 作为白名单公开；
+本地 MCP 保留远端 tools 的 input schema、参数和成功返回值，但会在 description 中追加简短
+Maker 本地开发提示。
 内部配置内容等价于测试脚本中的：
 
 本地 Maker MCP 会对生成类 tools 做客户端素材落地，并把本地生成素材到远端 URL 的映射记录到
@@ -587,15 +586,13 @@ input schema、参数和成功返回值，但会在 description 中追加简短 
 但能解析到本地文件，`generate_image` / `batch_generate_images` 的参考图、`edit_image` 的输入图
 和参考图，以及 `create_video_task` 的参考图片/视频/音频会被改写成标准 data URL。其他支持的输入
 形态以远端 tool schema 为准。
-`create_3d_model_task` 的 Phase 1 四视图预览会下载到 `assets/image/`，最终结果中的
-`model_cdn_url` 原始 GLB/FBX 和 MDL zip 会下载到 `assets/model/`，MDL zip 会解压到
-`assets/Meshes`、`assets/Materials`、`assets/Textures` 和 `assets/Prefabs`，渲染预览图会
-下载到 `assets/image/`。3D 最终结果的本地 registry 记录会使用 `assetKind` 区分
-`model`、`mdl_zip` 和 `render`。本地代理解析远端 JSON 文本结果后，会同步提供
-`structuredContent`，便于 AI/Agent 读取。`edit_image`、`create_video_task` 和
-`create_3d_model_task` 调用前会基于映射，把本地新生成素材路径改写为 CDN URL。3D 模型 Phase
-2 / multiview 可能同步等待模型和可选骨骼绑定完成；本地代理为这些远端生成工具预留比普通构建更长
-的调用超时。
+`create_3d_asset` 通过 `action=start/query/continue/get_options/post_process` 管理完整 3D
+资产生命周期。远端返回的未知字段和审核数据会完整保留；`payload.images` 中可解析的本地图片会
+转换为 CDN URL 或标准 data URL 后再转发。local runtime 的 `query` 结果通过 `model_files`
+提供模型 URL、目标目录和 `copy` / `extract` 落盘指令；本地代理执行这些指令，将 GLB/FBX
+复制到 `assets/model/`，或将 MDL ZIP 解压到指定模型目录，并通过 `local_delivery` 返回实际
+可用的本地模型路径。重复查询会复用已经登记且仍存在的本地文件。审核阶段的四视图会下载到
+`assets/image/`；必须展示预览并等待用户明确确认，再调用 `action=continue`，本地代理不会自动确认。
 `generate_test_qrcode` 和 `get_ad_config` 不进入本地素材落地流程，远端结果原样返回。
 `get_debug_feedbacks` 会拉取线上玩家反馈；当日志或截图可下载时，本地会保存到当前 Maker 项目的
 `logs/feed_back/feedback_<id>/`，并在结果里补充 `local_dir`、`local_log_paths`、
