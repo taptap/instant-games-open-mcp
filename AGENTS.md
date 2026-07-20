@@ -101,14 +101,17 @@ Closes #123
 ### 分支工作流
 
 - ❌ **不要直接 commit 到 main 分支**（已配置分支保护）
-- ✅ **创建 feature/fix 分支** → 提交代码 → 创建 PR
+- ✅ **默认创建 `fix/` 分支** → 提交代码 → 创建 PR
+- ⚠️ **谨慎创建 `feature/` 分支**：仅当改动是明确的新功能，并且确认应触发 minor 版本升级时使用
+- ❌ 不要因为改动较大、开发时间较长或包含多个提交就使用 `feature/`；无法确认时使用 `fix/`
+- ✅ 分支前缀和 commit type 都必须反映实际改动；`feature/` 通常对应 `feat:`，会使中版本号 +1
 - ❌ **PR 合并后不会自动发布 npm**
 - ✅ **主包 npm 发布只能手动运行 GitHub Actions workflow**
 
 **工作流程：**
 
 ```
-feature 分支开发 → git commit (规范格式) → git push → 创建 PR
+默认 fix 分支开发 → git commit (规范格式) → git push → 创建 PR
 → CI 检查 → Code Review → Merge PR → 需要发布时人工触发 workflow → 更新文档
 ```
 
