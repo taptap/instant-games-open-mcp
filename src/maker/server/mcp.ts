@@ -109,11 +109,15 @@ import {
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
-  prepareRemoteProxyToolArgs,
+  prepareRemoteProxyToolArgsAsync,
 } from './proxyAssets.js';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 
-export { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './proxyAssets.js';
+export {
+  materializeRemoteProxyToolAssets,
+  prepareRemoteProxyToolArgs,
+  prepareRemoteProxyToolArgsAsync,
+} from './proxyAssets.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
@@ -131,6 +135,11 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'create_video_task',
   'query_video_task',
   'text_to_music',
+  'text_to_sound_effect',
+  'batch_sound_effects',
+  'text_to_dialogue',
+  'audition_voices_for_character',
+  'confirm_character_voice',
   CREATE_3D_ASSET_PROXY_TOOL_NAME,
   'generate_test_qrcode',
   'get_ad_config',
@@ -367,23 +376,124 @@ function decorateRemoteProxyToolDefinition(tool: RemoteToolDefinition): RemoteTo
   const guidance = remoteProxyToolGuidance(tool.name);
   return {
     ...tool,
-    inputSchema: decorateRemoteProxyToolInputSchema(tool.inputSchema),
+    inputSchema: decorateRemoteProxyToolInputSchema(tool.inputSchema, tool.name),
     description: [tool.description, guidance].filter(Boolean).join('\n\n'),
   };
 }
 
-function decorateRemoteProxyToolInputSchema(inputSchema: unknown): Record<string, unknown> {
+function decorateRemoteProxyToolInputSchema(
+  inputSchema: unknown,
+  toolName: string
+): Record<string, unknown> {
   const schema = isPlainRecord(inputSchema) ? inputSchema : {};
   const properties = isPlainRecord(schema.properties) ? schema.properties : {};
+  const decoratedProperties =
+    toolName === 'text_to_dialogue'
+      ? decorateTextToDialogueInputProperties(properties)
+      : toolName === 'audition_voices_for_character'
+        ? decorateVoiceAuditionInputProperties(properties)
+        : properties;
+  const required = Array.isArray(schema.required) ? schema.required : [];
   return {
     ...schema,
     type: schema.type || 'object',
+    ...(toolName === 'audition_voices_for_character'
+      ? { required: [...new Set([...required, 'voice_profile'])] }
+      : {}),
     properties: {
-      ...properties,
+      ...decoratedProperties,
       target_dir: {
         type: 'string',
         description:
           'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool.',
+      },
+    },
+  };
+}
+
+function decorateVoiceAuditionInputProperties(
+  properties: Record<string, unknown>
+): Record<string, unknown> {
+  const remoteVoiceProfile = properties.voice_profile;
+  const voiceProfile = isPlainRecord(remoteVoiceProfile) ? remoteVoiceProfile : {};
+  const profileProperties = isPlainRecord(voiceProfile.properties) ? voiceProfile.properties : {};
+  const profileRequired = Array.isArray(voiceProfile.required) ? voiceProfile.required : [];
+  const remoteGender = profileProperties.gender;
+  return {
+    ...properties,
+    voice_profile: {
+      ...voiceProfile,
+      type: voiceProfile.type || 'object',
+      description: [
+        voiceProfile.description,
+        'Required for character voice audition. Extract gender from character_description or the character settings instead of relying on a default.',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      properties: {
+        ...profileProperties,
+        gender: {
+          ...(isPlainRecord(remoteGender) ? remoteGender : {}),
+          type: 'string',
+          enum: ['male', 'female'],
+          description:
+            'Required structured character gender. Extract male or female from character_description or the character settings.',
+        },
+      },
+      required: [...new Set([...profileRequired, 'gender'])],
+    },
+  };
+}
+
+function decorateTextToDialogueInputProperties(
+  properties: Record<string, unknown>
+): Record<string, unknown> {
+  const inputs = properties.inputs;
+  if (!isPlainRecord(inputs) || !isPlainRecord(inputs.items)) {
+    return properties;
+  }
+  const itemProperties = inputs.items.properties;
+  if (!isPlainRecord(itemProperties)) {
+    return properties;
+  }
+
+  const referenceAudio = itemProperties.reference_audio;
+  const referenceAudioPath = itemProperties.reference_audio_path;
+  return {
+    ...properties,
+    inputs: {
+      ...inputs,
+      items: {
+        ...inputs.items,
+        properties: {
+          ...itemProperties,
+          ...(isPlainRecord(referenceAudio)
+            ? {
+                reference_audio: {
+                  ...referenceAudio,
+                  description: [
+                    referenceAudio.description,
+                    'Use a local project audio path under assets/audio/, an HTTP(S) URL, or an audio data URL here. Local project audio must exist in the current project and is converted to a data URL automatically. Do not pass bare base64.',
+                  ]
+                    .filter(Boolean)
+                    .join(' '),
+                },
+              }
+            : {}),
+          ...(isPlainRecord(referenceAudioPath)
+            ? {
+                reference_audio_path: {
+                  ...referenceAudioPath,
+                  description: [
+                    referenceAudioPath.description,
+                    'This legacy local project audio path must exist under assets/audio/ or workspace/assets/audio/. The local proxy converts it to the canonical reference_audio data URL; it is not a project-external filesystem path.',
+                  ]
+                    .filter(Boolean)
+                    .join(' '),
+                },
+              }
+            : {}),
+        },
       },
     },
   };
@@ -427,6 +537,27 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
     case 'text_to_music':
       return [
         '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker music generation so generated audio can be materialized into the project and recorded for later Maker references.',
+        failurePolicy,
+      ].join(' ');
+    case 'text_to_sound_effect':
+    case 'batch_sound_effects':
+      return [
+        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for game sound effects. Successful audio is materialized in its original format under assets/audio/sfx and recorded for later Maker references.',
+        failurePolicy,
+      ].join(' ');
+    case 'text_to_dialogue':
+      return [
+        '**Maker voice workflow hint:** For normal dialogue, pass only character_name and text after voice confirmation; the local proxy automatically reuses a confirmed local Doubao reference. reference_audio is an optional per-call override and accepts a local project audio path under assets/audio/, an HTTP(S) URL, or an audio data URL. Project audio must exist locally and is converted to a data URL automatically. reference_audio and reference_audio_path are mutually exclusive; reference_audio is canonical and reference_audio_path is the legacy local-path field. Successful dialogue audio is materialized under assets/audio/voice.',
+        failurePolicy,
+      ].join(' ');
+    case 'audition_voices_for_character':
+      return [
+        '**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary preview voices for one character. voice_profile.gender is required: extract male or female from character_description or the character settings and pass it explicitly. Show every returned preview URL to the user and wait for their choice before calling confirm_character_voice. Preview candidates are not saved as game assets.',
+        failurePolicy,
+      ].join(' ');
+    case 'confirm_character_voice':
+      return [
+        '**Maker voice workflow hint:** Call this Maker MCP proxy tool only after audition_voices_for_character and after the user selects a candidate or accepts the recommendation. Confirmation persists the provider-specific voice mapping for later text_to_dialogue calls.',
         failurePolicy,
       ].join(' ');
     case CREATE_3D_ASSET_PROXY_TOOL_NAME:
@@ -510,7 +641,7 @@ async function callRemoteProxyTool(options: {
     targetDir: options.targetDir,
     exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
   });
-  const finalArgs = prepareRemoteProxyToolArgs({
+  const finalArgs = await prepareRemoteProxyToolArgsAsync({
     toolName: options.name,
     targetDir: proxy.projectRoot,
     args: options.args,

@@ -4,6 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { extractZip } from '../cli/devKit.js';
 
@@ -21,6 +22,11 @@ const IMAGE_REFERENCE_MAX_BYTES = 10 * 1024 * 1024;
 const VIDEO_TASK_IMAGE_REFERENCE_MAX_BYTES = 30 * 1024 * 1024;
 const VIDEO_REFERENCE_MAX_BYTES = 50 * 1024 * 1024;
 const AUDIO_REFERENCE_MAX_BYTES = 15 * 1024 * 1024;
+const AUDIO_DIALOGUE_REFERENCE_MAX_BYTES = 20 * 1024 * 1024;
+const AUDIO_DIALOGUE_INPUT_TOTAL_MAX_BYTES = 28 * 1024 * 1024;
+const AUDIO_CONFIRM_MAX_BYTES = 1 * 1024 * 1024;
+const VOICE_CONFIRMATION_NEXT_STEP_HINT =
+  'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically; omit reference_audio unless the user requests a one-time override.';
 const DEBUG_FEEDBACK_PATH_HINT =
   'Use local_dir/local_log_paths/local_screenshot_paths when they are returned. If only local_candidate_* is present, it is a possible project-relative location and must not be treated as a downloaded local file.';
 
@@ -41,9 +47,20 @@ const DATA_URL_MIME_BY_EXTENSION: Record<DataUrlMediaKind, Record<string, string
     '.mp4': 'video/mp4',
   },
   audio: {
+    '.aac': 'audio/aac',
+    '.m4a': 'audio/mp4',
     '.mp3': 'audio/mpeg',
+    '.ogg': 'audio/ogg',
     '.wav': 'audio/wav',
   },
+};
+
+const AUDIO_MIME_BY_EXTENSION: Record<string, string> = {
+  '.aac': 'audio/aac',
+  '.m4a': 'audio/mp4',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.wav': 'audio/wav',
 };
 
 export class RemoteProxyToolResultError extends Error {
@@ -69,6 +86,9 @@ export function prepareRemoteProxyToolArgs(options: {
   targetDir: string;
   args: Record<string, unknown>;
 }): Record<string, unknown> {
+  if (options.toolName === 'audition_voices_for_character') {
+    return validateVoiceAuditionArgs(options.args);
+  }
   if (options.toolName === 'edit_image') {
     return rewriteEditImageAssetArgs(options.targetDir, options.args);
   }
@@ -84,7 +104,22 @@ export function prepareRemoteProxyToolArgs(options: {
   if (options.toolName === CREATE_3D_ASSET_PROXY_TOOL_NAME) {
     return rewriteCreate3dAssetArgs(options.targetDir, options.args);
   }
+  if (options.toolName === 'text_to_dialogue') {
+    return rewriteTextToDialogueArgs(options.targetDir, options.args);
+  }
   return options.args;
+}
+
+function validateVoiceAuditionArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const voiceProfile = args.voice_profile;
+  const gender = isRecord(voiceProfile) ? voiceProfile.gender : undefined;
+  if (gender !== 'male' && gender !== 'female') {
+    throw new Error(
+      'voice_profile.gender is required for character voice audition and must be male or female. ' +
+        'Extract it from character_description or the character settings before retrying.'
+    );
+  }
+  return args;
 }
 
 export async function materializeRemoteProxyToolAssets(options: {
@@ -165,6 +200,11 @@ function shouldMaterializeRemoteProxyTool(toolName: string): boolean {
     'create_video_task',
     'query_video_task',
     'text_to_music',
+    'text_to_sound_effect',
+    'batch_sound_effects',
+    'text_to_dialogue',
+    'audition_voices_for_character',
+    'confirm_character_voice',
     CREATE_3D_ASSET_PROXY_TOOL_NAME,
     'get_debug_feedbacks',
   ].includes(toolName);
@@ -234,6 +274,16 @@ async function materializeParsedProxyResult(options: {
   }
   if (options.toolName === 'text_to_music') {
     return await materializeMusicResult(options);
+  }
+  if (
+    options.toolName === 'text_to_sound_effect' ||
+    options.toolName === 'batch_sound_effects' ||
+    options.toolName === 'text_to_dialogue'
+  ) {
+    return await materializeAudioFilesResult(options, options.toolName);
+  }
+  if (options.toolName === 'confirm_character_voice') {
+    return await materializeVoiceConfirmationResult(options);
   }
   if (options.toolName === CREATE_3D_ASSET_PROXY_TOOL_NAME) {
     return await materializeCreate3dAssetResult(options);
@@ -734,6 +784,530 @@ async function materializeMusicResult(options: {
     : options.payload;
 }
 
+async function materializeAudioFilesResult(
+  options: {
+    targetDir: string;
+    payload: Record<string, unknown>;
+    now: Date;
+    fetchImpl: RemoteProxyFetch;
+  },
+  toolName: 'text_to_sound_effect' | 'batch_sound_effects' | 'text_to_dialogue'
+): Promise<Record<string, unknown>> {
+  if (!Array.isArray(options.payload.audio_files)) return options.payload;
+
+  const audioFiles = [];
+  for (const rawItem of options.payload.audio_files) {
+    if (!isRecord(rawItem)) {
+      audioFiles.push(rawItem);
+      continue;
+    }
+    const item = { ...rawItem };
+    const audioUrl = stringField(item.audioUrl);
+    const kind = stringField(item.kind);
+    const expectedKind = toolName === 'text_to_dialogue' ? 'dialogue' : 'sound_effect';
+    const expectedDirectory =
+      expectedKind === 'dialogue' ? 'assets/audio/voice' : 'assets/audio/sfx';
+    const targetDirectory = stringField(item.targetDirectory);
+    const suggestedFileName = stringField(item.suggestedFileName);
+    const validationError = validateAudioAssetContract({
+      audioUrl,
+      kind,
+      expectedKind,
+      targetDirectory,
+      expectedDirectory,
+      suggestedFileName,
+      format: stringField(item.format),
+      mimeType: stringField(item.mimeType),
+    });
+    if (validationError) {
+      audioFiles.push({
+        ...item,
+        ...(audioUrl ? { audioUrl } : {}),
+        download: { success: false, error: validationError },
+      });
+      continue;
+    }
+
+    const extension = audioExtensionForItem(item, suggestedFileName!);
+    const materialized = await materializeAudioAsset({
+      targetDir: options.targetDir,
+      targetDirectory: expectedDirectory,
+      fileName: suggestedFileName!,
+      url: audioUrl!,
+      extension,
+      now: options.now,
+      fetchImpl: options.fetchImpl,
+    });
+    audioFiles.push(
+      materialized
+        ? persistMaterializedAsset({
+            targetDir: options.targetDir,
+            toolName,
+            payload: item,
+            materialized,
+            cdnUrl: audioUrl,
+            now: options.now,
+            extraRegistryFields: { assetKind: 'audio', kind },
+          })
+        : item
+    );
+  }
+
+  return { ...options.payload, audio_files: audioFiles };
+}
+
+function validateAudioAssetContract(options: {
+  audioUrl?: string;
+  kind?: string;
+  expectedKind: 'sound_effect' | 'dialogue';
+  targetDirectory?: string;
+  expectedDirectory: string;
+  suggestedFileName?: string;
+  format?: string;
+  mimeType?: string;
+}): string | undefined {
+  if (!options.audioUrl || !/^https?:\/\//i.test(options.audioUrl)) {
+    return 'audioUrl must be an HTTP(S) URL.';
+  }
+  if (options.kind !== options.expectedKind) {
+    return `audio_files item kind must be ${options.expectedKind} for this tool.`;
+  }
+  if (options.targetDirectory !== options.expectedDirectory) {
+    return `targetDirectory must be ${options.expectedDirectory}.`;
+  }
+  const fileName = options.suggestedFileName;
+  if (
+    !fileName ||
+    fileName === '.' ||
+    fileName === '..' ||
+    fileName.includes('/') ||
+    fileName.includes('\\') ||
+    fileName.includes('\0')
+  ) {
+    return 'suggestedFileName must be a safe basename.';
+  }
+  if (path.basename(fileName) !== fileName || fileName.endsWith('.') || fileName.endsWith(' ')) {
+    return 'suggestedFileName must be a safe basename.';
+  }
+  const format = options.format?.toLowerCase();
+  const mimeType = options.mimeType?.toLowerCase();
+  const extension = path.extname(fileName).toLowerCase();
+  const contract = {
+    mp3: { mimeType: 'audio/mpeg', extension: '.mp3' },
+    wav: { mimeType: 'audio/wav', extension: '.wav' },
+    pcm: { mimeType: 'audio/l16', extension: '.pcm' },
+    ogg_opus: { mimeType: 'audio/ogg', extension: '.ogg' },
+  }[format || ''];
+  if (!contract) {
+    return 'audio output format is unsupported; format must be one of mp3, wav, pcm, or ogg_opus.';
+  }
+  if (mimeType !== contract.mimeType || extension !== contract.extension) {
+    return `audio output contract mismatch: format ${format} requires mime ${contract.mimeType} and extension ${contract.extension}.`;
+  }
+  return undefined;
+}
+
+function audioExtensionForItem(item: Record<string, unknown>, fileName: string): string {
+  const format = stringField(item.format)?.toLowerCase();
+  const byFormat: Record<string, string> = {
+    mp3: 'mp3',
+    wav: 'wav',
+    pcm: 'pcm',
+    ogg_opus: 'ogg',
+    ogg: 'ogg',
+    m4a: 'm4a',
+    aac: 'aac',
+  };
+  return byFormat[format || ''] || path.extname(fileName).slice(1).toLowerCase() || 'mp3';
+}
+
+async function materializeAudioAsset(options: {
+  targetDir: string;
+  targetDirectory: string;
+  fileName: string;
+  url: string;
+  extension: string;
+  now: Date;
+  fetchImpl: RemoteProxyFetch;
+}): Promise<MaterializedAssetResult> {
+  const relativeDir = options.targetDirectory;
+  const directory = path.join(options.targetDir, ...relativeDir.split('/'));
+  try {
+    fs.mkdirSync(directory, { recursive: true });
+    assertProjectDirectory(options.targetDir, directory);
+  } catch (error) {
+    return {
+      download: {
+        success: false,
+        error: `Audio target directory is outside the project: ${error instanceof Error ? error.message : String(error)}`,
+      },
+    };
+  }
+  const baseName = path.basename(options.fileName, path.extname(options.fileName));
+  let absolutePath: string | undefined;
+  let relativePath: string | undefined;
+  for (let index = 1; index <= 9999; index += 1) {
+    const suffix = index === 1 ? '' : `_${index}`;
+    const candidateName = `${baseName}${suffix}.${options.extension}`;
+    const candidate = path.join(directory, candidateName);
+    if (!fs.existsSync(candidate)) {
+      absolutePath = candidate;
+      relativePath = path.posix.join(relativeDir, candidateName);
+      break;
+    }
+  }
+  if (!absolutePath || !relativePath) {
+    return { download: { success: false, error: 'Unable to allocate a unique audio asset path.' } };
+  }
+  try {
+    const response = await options.fetchImpl(options.url);
+    if (!response.ok) {
+      return {
+        download: { success: false, error: `Asset download failed: HTTP ${response.status}` },
+      };
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length === 0) {
+      return { download: { success: false, error: 'Asset download failed: empty response.' } };
+    }
+    fs.writeFileSync(absolutePath, bytes, { flag: 'wx' });
+    return { localPath: relativePath, absolutePath, download: { success: true } };
+  } catch (error) {
+    return {
+      download: {
+        success: false,
+        error: `Asset download failed: ${error instanceof Error ? error.message : String(error)}`,
+      },
+    };
+  }
+}
+
+async function materializeVoiceConfirmationResult(options: {
+  targetDir: string;
+  payload: Record<string, unknown>;
+  now: Date;
+  fetchImpl: RemoteProxyFetch;
+}): Promise<Record<string, unknown>> {
+  if (options.payload.success !== true || !isRecord(options.payload.mapping)) {
+    return withoutVoiceConfirmationNextStepHint(options.payload);
+  }
+  const payload = withoutVoiceConfirmationNextStepHint(options.payload);
+  const successfulPayload = withVoiceConfirmationNextStepHint(options.payload);
+  const mapping = payload.mapping as Record<string, unknown>;
+  const provider = stringField(mapping.provider);
+  const characterName = stringField(mapping.characterName) || stringField(payload.characterName);
+  if (!characterName || provider === 'elevenlabs') {
+    if (provider !== 'elevenlabs' || !characterName) return payload;
+    try {
+      mergeVoiceMappingFile({
+        targetDir: options.targetDir,
+        provider: 'elevenlabs',
+        characterName,
+        mapping,
+        now: options.now,
+      });
+      return successfulPayload;
+    } catch (error) {
+      const message = `ElevenLabs voice mapping persistence failed: ${error instanceof Error ? error.message : String(error)}`;
+      return {
+        ...payload,
+        localPersistenceError: message,
+        mappingPersistenceError: message,
+      };
+    }
+  }
+  if (provider !== 'doubao' || !isRecord(payload.referenceAudio)) {
+    return payload;
+  }
+
+  const referenceAudio = payload.referenceAudio;
+  const audioUrl = stringField(referenceAudio.audioUrl);
+  const targetPath = stringField(referenceAudio.targetPath);
+  const pathError = validateDoubaoReferenceTarget(targetPath);
+  if (!audioUrl || pathError) {
+    return {
+      ...payload,
+      referenceAudio: {
+        ...referenceAudio,
+        download: { success: false, error: pathError || 'referenceAudio.audioUrl is required.' },
+      },
+    };
+  }
+
+  let bytes: Buffer;
+  try {
+    const response = await options.fetchImpl(audioUrl);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    bytes = Buffer.from(await response.arrayBuffer());
+  } catch (error) {
+    return {
+      ...payload,
+      referenceAudio: {
+        ...referenceAudio,
+        download: {
+          success: false,
+          error: `Reference audio download failed: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      },
+    };
+  }
+  if (
+    bytes.length === 0 ||
+    bytes.length > AUDIO_CONFIRM_MAX_BYTES ||
+    !isStructurallyValidMp3(bytes)
+  ) {
+    return {
+      ...payload,
+      referenceAudio: {
+        ...referenceAudio,
+        download: {
+          success: false,
+          error: 'Reference audio must be a non-empty valid MP3 no larger than 1 MiB.',
+        },
+      },
+    };
+  }
+
+  try {
+    mergeVoiceMappingFile({
+      targetDir: options.targetDir,
+      provider: 'doubao',
+      characterName,
+      mapping,
+      now: options.now,
+      referenceAudio: { targetPath, bytes },
+    });
+    return {
+      ...successfulPayload,
+      referenceAudio: {
+        ...referenceAudio,
+        localPath: targetPath,
+        absolutePath: path.join(options.targetDir, ...targetPath.split('/')),
+        download: { success: true },
+      },
+    };
+  } catch (error) {
+    return {
+      ...payload,
+      referenceAudio: {
+        ...referenceAudio,
+        download: {
+          success: false,
+          error: `Voice mapping transaction failed: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      },
+    };
+  }
+}
+
+function withVoiceConfirmationNextStepHint(
+  payload: Record<string, unknown>
+): Record<string, unknown> {
+  return typeof payload.next_step_hint === 'string' && payload.next_step_hint.trim()
+    ? payload
+    : { ...payload, next_step_hint: VOICE_CONFIRMATION_NEXT_STEP_HINT };
+}
+
+function withoutVoiceConfirmationNextStepHint(
+  payload: Record<string, unknown>
+): Record<string, unknown> {
+  if (!Object.prototype.hasOwnProperty.call(payload, 'next_step_hint')) return payload;
+  const nextPayload = { ...payload };
+  delete nextPayload.next_step_hint;
+  return nextPayload;
+}
+
+function validateDoubaoReferenceTarget(targetPath: string | undefined): string | undefined {
+  if (!targetPath) return 'referenceAudio.targetPath is required.';
+  if (!/^assets\/audio\/voice-reference\/[^/]+\.mp3$/.test(targetPath)) {
+    return 'referenceAudio.targetPath must be assets/audio/voice-reference/<basename>.mp3.';
+  }
+  const base = path.posix.basename(targetPath, '.mp3');
+  if (!base || base === '.' || base === '..' || base.includes('\\') || base.includes('\0')) {
+    return 'referenceAudio.targetPath contains an unsafe basename.';
+  }
+  return undefined;
+}
+
+function isStructurallyValidMp3(bytes: Buffer): boolean {
+  const firstOffset = mp3AudioOffset(bytes);
+  if (firstOffset === undefined) return false;
+  const first = parseMp3Frame(bytes, firstOffset);
+  if (!first) return false;
+  const second = parseMp3Frame(bytes, firstOffset + first.length);
+  return Boolean(
+    second && second.version === first.version && second.sampleRate === first.sampleRate
+  );
+}
+
+function mp3AudioOffset(bytes: Buffer): number | undefined {
+  if (bytes.subarray(0, 3).toString('ascii') !== 'ID3') return 0;
+  if (bytes.length < 10 || bytes[3] < 2 || bytes[3] > 4) return undefined;
+  const sizeBytes = bytes.subarray(6, 10);
+  if (sizeBytes.some((value) => (value & 0x80) !== 0)) return undefined;
+  const size = (sizeBytes[0] << 21) | (sizeBytes[1] << 14) | (sizeBytes[2] << 7) | sizeBytes[3];
+  const offset = 10 + size + (bytes[3] === 4 && (bytes[5] & 0x10) !== 0 ? 10 : 0);
+  return offset <= bytes.length ? offset : undefined;
+}
+
+function parseMp3Frame(
+  bytes: Buffer,
+  offset: number
+): { length: number; version: 1 | 2 | 2.5; sampleRate: number } | undefined {
+  if (offset + 4 > bytes.length || bytes[offset] !== 0xff || (bytes[offset + 1] & 0xe0) !== 0xe0) {
+    return undefined;
+  }
+  const versionBits = (bytes[offset + 1] >> 3) & 3;
+  const version =
+    versionBits === 3 ? 1 : versionBits === 2 ? 2 : versionBits === 0 ? 2.5 : undefined;
+  if (!version || ((bytes[offset + 1] >> 1) & 3) !== 1) return undefined;
+  const bitrateIndex = (bytes[offset + 2] >> 4) & 15;
+  const rateIndex = (bytes[offset + 2] >> 2) & 3;
+  if (bitrateIndex === 0 || bitrateIndex === 15 || rateIndex === 3) return undefined;
+  const mpeg1Rates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+  const mpeg2Rates = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
+  const bitrate = (version === 1 ? mpeg1Rates : mpeg2Rates)[bitrateIndex];
+  const baseSampleRate = [44100, 48000, 32000][rateIndex];
+  const sampleRate =
+    version === 1 ? baseSampleRate : version === 2 ? baseSampleRate / 2 : baseSampleRate / 4;
+  const padding = (bytes[offset + 2] >> 1) & 1;
+  const length = Math.floor(((version === 1 ? 144 : 72) * bitrate * 1000) / sampleRate) + padding;
+  return length > 4 && offset + length <= bytes.length
+    ? { length, version, sampleRate }
+    : undefined;
+}
+
+function mergeVoiceMappingFile(options: {
+  targetDir: string;
+  provider: 'doubao' | 'elevenlabs';
+  characterName: string;
+  mapping: Record<string, unknown>;
+  now: Date;
+  referenceAudio?: { targetPath: string; bytes: Buffer };
+}): void {
+  const configPath = path.join(
+    options.targetDir,
+    '.project',
+    options.provider === 'doubao' ? 'audio-voice-mapping.json' : 'elevenlabs-voice-mapping.json'
+  );
+  const referencePath = options.referenceAudio
+    ? path.join(options.targetDir, ...options.referenceAudio.targetPath.split('/'))
+    : undefined;
+  const configDirectory = path.dirname(configPath);
+  const referenceDirectory = referencePath ? path.dirname(referencePath) : undefined;
+  fs.mkdirSync(configDirectory, { recursive: true });
+  assertProjectDirectory(options.targetDir, configDirectory);
+  assertFileIsNotSymlink(configPath);
+  if (referenceDirectory) {
+    fs.mkdirSync(referenceDirectory, { recursive: true });
+    assertProjectDirectory(options.targetDir, referenceDirectory);
+    assertFileIsNotSymlink(referencePath!);
+  }
+  const oldConfig = snapshotFile(configPath);
+  const oldReference = referencePath ? snapshotFile(referencePath) : undefined;
+  const existing = readJsonFile(configPath);
+  const characters = isRecord(existing?.characters) ? { ...existing.characters } : {};
+  const oldCharacter: Record<string, unknown> = isRecord(characters[options.characterName])
+    ? characters[options.characterName]
+    : {};
+  const createdAt = stringField(oldCharacter.created_at) || options.now.toISOString();
+  const character = {
+    ...oldCharacter,
+    ...Object.fromEntries(
+      Object.entries(options.mapping).filter(([key]) => key !== 'characterName')
+    ),
+    provider: options.provider,
+    language:
+      stringField(options.mapping.language) ||
+      stringField(oldCharacter.language) ||
+      stringField(existing?.default_language) ||
+      'cmn',
+    stability:
+      typeof options.mapping.stability === 'number'
+        ? options.mapping.stability
+        : typeof oldCharacter.stability === 'number'
+          ? oldCharacter.stability
+          : typeof existing?.default_stability === 'number'
+            ? existing.default_stability
+            : 0.5,
+    created_at: createdAt,
+    last_used: options.now.toISOString(),
+  };
+  characters[options.characterName] = character;
+  const nextConfig: Record<string, unknown> = {
+    ...existing,
+    version: options.provider === 'doubao' ? 4 : '1.0',
+    provider: options.provider,
+    characters,
+  };
+  if (options.provider === 'doubao') {
+    nextConfig.default_language = stringField(existing?.default_language) || 'cmn';
+    nextConfig.default_stability =
+      typeof existing?.default_stability === 'number' ? existing.default_stability : 0.5;
+    nextConfig.special_voices = isRecord(existing?.special_voices) ? existing.special_voices : {};
+  } else {
+    delete nextConfig.default_language;
+    delete nextConfig.default_stability;
+    delete nextConfig.special_voices;
+  }
+  const configBytes = Buffer.from(`${JSON.stringify(nextConfig, null, 2)}\n`, 'utf8');
+  const transactionId = randomUUID();
+  const configTemp = `${configPath}.${transactionId}.tmp`;
+  const referenceTemp = referencePath ? `${referencePath}.${transactionId}.tmp` : undefined;
+  try {
+    if (referenceTemp && options.referenceAudio) {
+      fs.writeFileSync(referenceTemp, options.referenceAudio.bytes, { flag: 'wx' });
+      fs.renameSync(referenceTemp, referencePath!);
+    }
+    fs.writeFileSync(configTemp, configBytes, { flag: 'wx' });
+    fs.renameSync(configTemp, configPath);
+  } catch (error) {
+    try {
+      if (fs.existsSync(configTemp)) fs.rmSync(configTemp, { force: true });
+      if (referenceTemp && fs.existsSync(referenceTemp)) fs.rmSync(referenceTemp, { force: true });
+      restoreFile(configPath, oldConfig);
+      if (referencePath) restoreFile(referencePath, oldReference!);
+    } catch {
+      // Keep the original failure; callers still receive a visible transaction error.
+    }
+    throw error;
+  }
+}
+
+type FileSnapshot = { exists: boolean; bytes?: Buffer };
+
+function snapshotFile(filePath: string): FileSnapshot {
+  try {
+    assertFileIsNotSymlink(filePath);
+    return { exists: true, bytes: fs.readFileSync(filePath) };
+  } catch {
+    if (isSymlink(filePath)) {
+      throw new Error(`refusing to read symlinked file: ${filePath}`);
+    }
+    return { exists: false };
+  }
+}
+
+function restoreFile(filePath: string, snapshot: FileSnapshot): void {
+  assertFileIsNotSymlink(filePath);
+  if (snapshot.exists && snapshot.bytes) {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, snapshot.bytes);
+  } else {
+    fs.rmSync(filePath, { force: true });
+  }
+}
+
+function readJsonFile(filePath: string): Record<string, any> | undefined {
+  assertFileIsNotSymlink(filePath);
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return isRecord(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function materializeCreate3dAssetResult(options: {
   targetDir: string;
   payload: Record<string, unknown>;
@@ -1107,17 +1681,25 @@ function persistMaterializedAsset(options: {
     return nextPayload;
   }
 
-  upsertGeneratedAssetRecord(options.targetDir, options.materialized.localPath, {
-    tool: options.toolName,
-    name: stringField(options.payload.name) || stringField(options.payload.title),
-    prompt: stringField(options.payload.prompt),
-    cdnUrl: options.cdnUrl,
-    previewUrl: options.cdnUrl,
-    localPath: options.materialized.localPath,
-    absolutePath: options.materialized.absolutePath,
-    createdAt: options.now.toISOString(),
-    ...options.extraRegistryFields,
-  });
+  try {
+    upsertGeneratedAssetRecord(options.targetDir, options.materialized.localPath, {
+      tool: options.toolName,
+      name: stringField(options.payload.name) || stringField(options.payload.title),
+      prompt: stringField(options.payload.prompt),
+      cdnUrl: options.cdnUrl,
+      previewUrl: options.cdnUrl,
+      localPath: options.materialized.localPath,
+      absolutePath: options.materialized.absolutePath,
+      createdAt: options.now.toISOString(),
+      ...options.extraRegistryFields,
+    });
+  } catch (error) {
+    return {
+      ...nextPayload,
+      registryError: `Generated asset registry persistence failed: ${error instanceof Error ? error.message : String(error)}`,
+      localPersistenceError: `Generated asset registry persistence failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 
   return nextPayload;
 }
@@ -1205,7 +1787,7 @@ type GeneratedAssetRegistry = Record<
   {
     tool?: string;
     name?: string;
-    assetKind?: 'model';
+    assetKind?: 'model' | 'mdl_zip' | 'render' | 'audio';
     assetId?: string;
     prompt?: string;
     cdnUrl?: string;
@@ -1340,6 +1922,265 @@ function rewriteCreate3dAssetArgs(
       },
     },
   };
+}
+
+function rewriteTextToDialogueArgs(
+  targetDir: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  if (!Array.isArray(args.inputs)) {
+    return args;
+  }
+  const registry = readGeneratedAssetRegistry(targetDir);
+  const localElevenLabsMapping = readLocalElevenLabsVoiceMapping(targetDir);
+  const localDoubaoMapping = args.inputs.some(
+    (value) =>
+      isRecord(value) &&
+      normalizeOptionalDialogueReference(value.reference_audio) === undefined &&
+      normalizeOptionalDialogueReference(value.reference_audio_path) === undefined
+  )
+    ? readLocalDoubaoVoiceMapping(targetDir)
+    : undefined;
+  let referenceAudioInputBytes = 0;
+  return {
+    ...args,
+    inputs: args.inputs.map((value, index) => {
+      if (!isRecord(value)) {
+        return value;
+      }
+      let canonicalReference = normalizeOptionalDialogueReference(value.reference_audio);
+      const legacyReference = normalizeOptionalDialogueReference(value.reference_audio_path);
+      if (canonicalReference !== undefined && legacyReference !== undefined) {
+        throw new Error(
+          `inputs[${index}].reference_audio and reference_audio_path are mutually exclusive.`
+        );
+      }
+      const normalizedValue = { ...value };
+      delete normalizedValue.reference_audio;
+      delete normalizedValue.reference_audio_path;
+      delete normalizedValue._local_voice_id;
+      const localVoiceId = resolveLocalElevenLabsVoiceId(
+        value.character_name,
+        localElevenLabsMapping
+      );
+      if (localVoiceId) {
+        normalizedValue._local_voice_id = localVoiceId;
+      }
+      if (canonicalReference === undefined && legacyReference === undefined) {
+        canonicalReference = resolveLocalDoubaoMappingReference({
+          targetDir,
+          characterName: value.character_name,
+          mapping: localDoubaoMapping,
+          registry,
+          index,
+        });
+      }
+      if (canonicalReference === undefined) canonicalReference = legacyReference;
+      if (canonicalReference === undefined) return normalizedValue;
+      const referenceAudio = normalizeDialogueReference(
+        targetDir,
+        canonicalReference,
+        registry,
+        index
+      );
+      referenceAudioInputBytes += Buffer.byteLength(referenceAudio, 'utf8');
+      if (referenceAudioInputBytes > AUDIO_DIALOGUE_INPUT_TOTAL_MAX_BYTES) {
+        throw new Error(
+          `reference_audio input total must not exceed ${AUDIO_DIALOGUE_INPUT_TOTAL_MAX_BYTES / 1024 / 1024} MiB.`
+        );
+      }
+      return {
+        ...normalizedValue,
+        reference_audio: referenceAudio,
+      };
+    }),
+  };
+}
+
+/** Async-compatible entry used by the remote call path. */
+export async function prepareRemoteProxyToolArgsAsync(options: {
+  toolName: string;
+  targetDir: string;
+  args: Record<string, unknown>;
+}): Promise<Record<string, unknown>> {
+  return prepareRemoteProxyToolArgs(options);
+}
+
+function readLocalDoubaoVoiceMapping(targetDir: string): Record<string, unknown> | undefined {
+  const mappingPath = path.join(targetDir, '.project', 'audio-voice-mapping.json');
+  if (!fs.existsSync(mappingPath)) return undefined;
+  assertProjectDirectory(targetDir, path.dirname(mappingPath));
+  const mapping = readJsonFile(mappingPath);
+  return mapping?.provider === 'doubao' ? mapping : undefined;
+}
+
+function readLocalElevenLabsVoiceMapping(targetDir: string): Record<string, unknown> | undefined {
+  const mappingPath = path.join(targetDir, '.project', 'elevenlabs-voice-mapping.json');
+  if (!fs.existsSync(mappingPath)) return undefined;
+  assertProjectDirectory(targetDir, path.dirname(mappingPath));
+  const mapping = readJsonFile(mappingPath);
+  return mapping?.provider === 'elevenlabs' ? mapping : undefined;
+}
+
+function resolveLocalElevenLabsVoiceId(
+  characterName: unknown,
+  mapping: Record<string, unknown> | undefined
+): string | undefined {
+  if (typeof characterName !== 'string' || !mapping) return undefined;
+  const characters = mapping.characters;
+  if (!isRecord(characters)) return undefined;
+  const character = characters[characterName];
+  if (!isRecord(character) || character.provider !== 'elevenlabs') return undefined;
+  return stringField(character.voice_id);
+}
+
+function resolveLocalDoubaoMappingReference(options: {
+  targetDir: string;
+  characterName: unknown;
+  mapping: Record<string, unknown> | undefined;
+  registry: GeneratedAssetRegistry;
+  index: number;
+}): string | undefined {
+  if (typeof options.characterName !== 'string' || !options.mapping) return undefined;
+  const characters = options.mapping.characters;
+  if (!isRecord(characters)) return undefined;
+  const character = characters[options.characterName];
+  if (!isRecord(character) || character.provider !== 'doubao') return undefined;
+  const referencePath = stringField(character.reference_audio_path);
+  if (!referencePath) return undefined;
+  try {
+    const reference = normalizeDialogueReference(
+      options.targetDir,
+      referencePath,
+      options.registry,
+      options.index
+    );
+    return reference.toLowerCase().startsWith('data:') ? reference : undefined;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Local Doubao voice mapping for character "${options.characterName}" references unavailable audio ` +
+        `"${referencePath}". Re-run confirm_character_voice to restore it. ${reason}`
+    );
+  }
+}
+
+function normalizeOptionalDialogueReference(value: unknown): unknown {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    if (normalized === '' || /^data:audio\/[^,]*,\s*$/i.test(normalized)) return undefined;
+  }
+  return value;
+}
+
+function normalizeDialogueReference(
+  targetDir: string,
+  value: unknown,
+  registry: GeneratedAssetRegistry,
+  index: number
+): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`inputs[${index}].reference_audio must be a non-empty string.`);
+  }
+  const trimmed = value.trim();
+  if (trimmed.toLowerCase().startsWith('data:')) {
+    validateAudioDataUrl(trimmed);
+    return trimmed;
+  }
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  const projectReference = normalizeDialogueProjectReference(targetDir, trimmed, registry, index);
+  return localDialogueAudioReferenceToDataUrl({
+    targetDir,
+    value: projectReference,
+    localPath: projectReference,
+  });
+}
+
+function localDialogueAudioReferenceToDataUrl(options: {
+  targetDir: string;
+  value: string;
+  localPath?: string;
+}): string {
+  const absolutePath = resolveLocalAssetAbsolutePath(options.targetDir, options);
+  if (!absolutePath) {
+    throw new Error(`local reference audio file was not found: ${options.value}`);
+  }
+  const projectRoot = fs.realpathSync(path.resolve(options.targetDir));
+  const realFile = fs.realpathSync(absolutePath);
+  const relative = path.relative(projectRoot, realFile);
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error('local dialogue reference resolves outside the project target directory');
+  }
+  const stat = fs.statSync(realFile);
+  if (!stat.isFile()) {
+    throw new Error(`local reference audio path is not a file: ${options.value}`);
+  }
+  if (stat.size > AUDIO_DIALOGUE_REFERENCE_MAX_BYTES) {
+    throw new Error('local reference audio file must be no larger than 20 MiB.');
+  }
+  const mime = dataUrlMimeForPath(realFile, 'audio');
+  if (!mime) {
+    throw new Error('local reference audio format is unsupported.');
+  }
+  return `data:${mime};base64,${fs.readFileSync(realFile).toString('base64')}`;
+}
+
+function normalizeDialogueProjectReference(
+  targetDir: string,
+  value: unknown,
+  registry: GeneratedAssetRegistry,
+  index: number
+): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`inputs[${index}].reference_audio must be a non-empty project audio path.`);
+  }
+  let normalized = value.trim().replace(/^workspace\//, '');
+  if (path.isAbsolute(normalized)) {
+    const relative = path.relative(path.resolve(targetDir), path.resolve(normalized));
+    if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      throw new Error(`inputs[${index}].reference_audio must stay inside project assets/audio.`);
+    }
+    normalized = relative.split(path.sep).join('/');
+  }
+
+  const localPath = resolveLocalAssetReference(targetDir, normalized, registry, AUDIO_ASSET_DIRS);
+  if (localPath) {
+    normalized = localPath;
+  }
+  const segments = normalized.split('/');
+  const extension = path.extname(normalized).toLowerCase();
+  if (
+    segments.some((segment) => segment === '' || segment === '.' || segment === '..') ||
+    !isKnownAssetPath(normalized, AUDIO_ASSET_DIRS) ||
+    !AUDIO_MIME_BY_EXTENSION[extension]
+  ) {
+    throw new Error(`inputs[${index}].reference_audio must be an audio path under assets/audio.`);
+  }
+  return normalized;
+}
+
+function validateAudioDataUrl(value: string): void {
+  const match =
+    /^data:([a-z0-9.+-]+\/[a-z0-9.+-]+)((?:;[a-z0-9.+-]+=[^;,]*)*);base64,([\s\S]+)$/i.exec(value);
+  if (!match || !Object.values(AUDIO_MIME_BY_EXTENSION).includes(match[1].toLowerCase())) {
+    throw new Error('reference_audio must be a valid audio data URL, not bare base64.');
+  }
+  const cleaned = match[3].replace(/\s/g, '');
+  if (cleaned.length === 0 || cleaned.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(cleaned)) {
+    throw new Error('reference_audio must be a valid audio data URL, not bare base64.');
+  }
+  const padding = cleaned.endsWith('==') ? 2 : cleaned.endsWith('=') ? 1 : 0;
+  const estimatedBytes = (cleaned.length / 4) * 3 - padding;
+  if (estimatedBytes > AUDIO_DIALOGUE_REFERENCE_MAX_BYTES) {
+    throw new Error('reference_audio data URL must be no larger than 20 MiB.');
+  }
+  const bytes = Buffer.from(cleaned, 'base64');
+  if (bytes.length === 0 || bytes.length > AUDIO_DIALOGUE_REFERENCE_MAX_BYTES) {
+    throw new Error('reference_audio data URL must be no larger than 20 MiB.');
+  }
 }
 
 function rewriteUrlObjectArray(
@@ -1578,6 +2419,15 @@ function resolveProjectRelativePath(targetDir: string, value: string): string | 
   return undefined;
 }
 
+function assertProjectDirectory(targetDir: string, directory: string): void {
+  const projectRoot = fs.realpathSync(path.resolve(targetDir));
+  const realDirectory = fs.realpathSync(directory);
+  const relative = path.relative(projectRoot, realDirectory);
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error('resolved directory escapes the project target directory');
+  }
+}
+
 function isPathWithinDirectory(rootDir: string, candidatePath: string): boolean {
   const relativePath = path.relative(path.resolve(rootDir), path.resolve(candidatePath));
   return (
@@ -1597,15 +2447,19 @@ function upsertGeneratedAssetRecord(
   localPath: string,
   record: GeneratedAssetRegistry[string]
 ): void {
+  const registryPath = getGeneratedAssetRegistryPath(targetDir);
+  const registryDirectory = path.dirname(registryPath);
+  fs.mkdirSync(registryDirectory, { recursive: true });
+  assertProjectDirectory(targetDir, registryDirectory);
+  assertFileIsNotSymlink(registryPath);
   const registry = readGeneratedAssetRegistry(targetDir);
   registry[localPath] = record;
-  const registryPath = getGeneratedAssetRegistryPath(targetDir);
-  fs.mkdirSync(path.dirname(registryPath), { recursive: true });
   fs.writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`, 'utf8');
 }
 
 function readGeneratedAssetRegistry(targetDir: string): GeneratedAssetRegistry {
   const registryPath = getGeneratedAssetRegistryPath(targetDir);
+  assertFileIsNotSymlink(registryPath);
   if (!fs.existsSync(registryPath)) {
     return {};
   }
@@ -1619,6 +2473,20 @@ function readGeneratedAssetRegistry(targetDir: string): GeneratedAssetRegistry {
 
 function getGeneratedAssetRegistryPath(targetDir: string): string {
   return path.join(targetDir, '.maker', 'assets', 'generated-assets.json');
+}
+
+function isSymlink(filePath: string): boolean {
+  try {
+    return fs.lstatSync(filePath).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+function assertFileIsNotSymlink(filePath: string): void {
+  if (isSymlink(filePath)) {
+    throw new Error(`refusing to access symlinked file: ${filePath}`);
+  }
 }
 
 function normalizeAssetRegistryKey(targetDir: string, value: string): string | undefined {

@@ -110,6 +110,15 @@ docs(notes): document approach for issue #123
 
 ---
 
+## Branch Naming Convention
+
+- Use `fix/` as the default branch prefix.
+- Use `feature/` only for a confirmed new feature that should trigger a minor version bump.
+- Do not choose `feature/` merely because the change is large or spans multiple commits.
+- When the release impact is unclear, use `fix/` and keep the commit type aligned with the actual change.
+
+---
+
 ## Code Style & Standards
 
 ### TypeScript
