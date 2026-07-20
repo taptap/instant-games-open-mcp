@@ -3339,10 +3339,10 @@ function extractRemoteProxyErrorMessage(result: unknown): string | undefined {
       if (structuredMessage) {
         return firstLine(structuredMessage);
       }
+      return undefined;
     } catch {
       return firstLine(text);
     }
-    return firstLine(text);
   }
   return undefined;
 }

@@ -743,6 +743,7 @@ async function materializeCreate3dAssetResult(options: {
   const payload = isRecord(options.payload.preview)
     ? await materializeCreate3dAssetPreviewResult(options)
     : options.payload;
+  // The remote contract emits one primary model delivery instruction for each asset query.
   const modelFile = Array.isArray(payload.model_files)
     ? payload.model_files.find(isRecord)
     : undefined;

@@ -2551,6 +2551,34 @@ describe('maker build local-change guard', () => {
     expect(output).toContain("Tool 'create_3d_asset' failed: unsupported MDL source format");
   });
 
+  test('uses the proxy error summary when structured error content has no message field', async () => {
+    let thrown: unknown;
+    try {
+      await materializeRemoteProxyToolAssets({
+        toolName: 'create_3d_asset',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ status: 'failed', code: 400 }, null, 2),
+            },
+          ],
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    const output = formatToolException('create_3d_asset', thrown);
+
+    expect(output).toContain(
+      '- message: Remote proxy tool create_3d_asset returned an error result.'
+    );
+    expect(output).not.toContain('- message: {');
+  });
+
   test('sensitive diagnostic keys do not redact path fields', () => {
     expect(isSensitiveDiagnosticKey('pat')).toBe(true);
     expect(isSensitiveDiagnosticKey('personal_access_token')).toBe(true);
