@@ -237,6 +237,7 @@ describe('Maker audio proxy tools', () => {
     const args = await prepareRemoteProxyToolArgsAsync({
       toolName: 'text_to_dialogue',
       targetDir,
+      // @ts-expect-error argument preparation never fetches remote audio
       fetchImpl,
       args: {
         inputs: [{ character_name: 'A', text: 'hello', reference_audio: 'https://x.test/a' }],
@@ -281,6 +282,31 @@ describe('Maker audio proxy tools', () => {
         },
       })
     ).toThrow(/mutually exclusive/);
+  });
+
+  test('explains how to restore a missing reference resolved from the local Doubao mapping', () => {
+    fs.mkdirSync(path.join(targetDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(targetDir, '.project/audio-voice-mapping.json'),
+      JSON.stringify({
+        version: 4,
+        provider: 'doubao',
+        characters: {
+          Hero: {
+            provider: 'doubao',
+            reference_audio_path: 'assets/audio/voice-reference/missing.mp3',
+          },
+        },
+      })
+    );
+
+    expect(() =>
+      prepareRemoteProxyToolArgs({
+        toolName: 'text_to_dialogue',
+        targetDir,
+        args: { inputs: [{ character_name: 'Hero', text: 'hello' }] },
+      })
+    ).toThrow(/Doubao voice mapping.*Hero.*confirm_character_voice/i);
   });
 
   test.each([null, '', '   ', 'data:audio/mpeg;base64,   '])(
@@ -655,6 +681,18 @@ describe('Maker audio proxy tools', () => {
   });
 
   test('merges ElevenLabs mapping without creating audio files', async () => {
+    fs.mkdirSync(path.join(targetDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(targetDir, '.project/elevenlabs-voice-mapping.json'),
+      JSON.stringify({
+        version: '1.0',
+        provider: 'elevenlabs',
+        default_language: 'cmn',
+        default_stability: 0.5,
+        special_voices: {},
+        characters: { Existing: { provider: 'elevenlabs', voice_id: 'voice-existing' } },
+      })
+    );
     const result = await materializeRemoteProxyToolAssets({
       toolName: 'confirm_character_voice',
       targetDir,
@@ -677,6 +715,10 @@ describe('Maker audio proxy tools', () => {
       fs.readFileSync(path.join(targetDir, '.project/elevenlabs-voice-mapping.json'), 'utf8')
     );
     expect(mapping.version).toBe('1.0');
+    expect(mapping).not.toHaveProperty('default_language');
+    expect(mapping).not.toHaveProperty('default_stability');
+    expect(mapping).not.toHaveProperty('special_voices');
+    expect(mapping.characters.Existing.voice_id).toBe('voice-existing');
     expect(mapping.characters.A.voice_id).toBe('voice-1');
 
     const dialogueArgs = prepareRemoteProxyToolArgs({

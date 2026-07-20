@@ -1234,16 +1234,22 @@ function mergeVoiceMappingFile(options: {
     last_used: options.now.toISOString(),
   };
   characters[options.characterName] = character;
-  const nextConfig = {
+  const nextConfig: Record<string, unknown> = {
     ...existing,
     version: options.provider === 'doubao' ? 4 : '1.0',
     provider: options.provider,
-    default_language: stringField(existing?.default_language) || 'cmn',
-    default_stability:
-      typeof existing?.default_stability === 'number' ? existing.default_stability : 0.5,
-    special_voices: isRecord(existing?.special_voices) ? existing.special_voices : {},
     characters,
   };
+  if (options.provider === 'doubao') {
+    nextConfig.default_language = stringField(existing?.default_language) || 'cmn';
+    nextConfig.default_stability =
+      typeof existing?.default_stability === 'number' ? existing.default_stability : 0.5;
+    nextConfig.special_voices = isRecord(existing?.special_voices) ? existing.special_voices : {};
+  } else {
+    delete nextConfig.default_language;
+    delete nextConfig.default_stability;
+    delete nextConfig.special_voices;
+  }
   const configBytes = Buffer.from(`${JSON.stringify(nextConfig, null, 2)}\n`, 'utf8');
   const transactionId = randomUUID();
   const configTemp = `${configPath}.${transactionId}.tmp`;
@@ -1996,7 +2002,6 @@ export async function prepareRemoteProxyToolArgsAsync(options: {
   toolName: string;
   targetDir: string;
   args: Record<string, unknown>;
-  fetchImpl?: RemoteProxyFetch;
 }): Promise<Record<string, unknown>> {
   return prepareRemoteProxyToolArgs(options);
 }
@@ -2043,13 +2048,21 @@ function resolveLocalDoubaoMappingReference(options: {
   if (!isRecord(character) || character.provider !== 'doubao') return undefined;
   const referencePath = stringField(character.reference_audio_path);
   if (!referencePath) return undefined;
-  const reference = normalizeDialogueReference(
-    options.targetDir,
-    referencePath,
-    options.registry,
-    options.index
-  );
-  return reference.toLowerCase().startsWith('data:') ? reference : undefined;
+  try {
+    const reference = normalizeDialogueReference(
+      options.targetDir,
+      referencePath,
+      options.registry,
+      options.index
+    );
+    return reference.toLowerCase().startsWith('data:') ? reference : undefined;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Local Doubao voice mapping for character "${options.characterName}" references unavailable audio ` +
+        `"${referencePath}". Re-run confirm_character_voice to restore it. ${reason}`
+    );
+  }
 }
 
 function normalizeOptionalDialogueReference(value: unknown): unknown {
