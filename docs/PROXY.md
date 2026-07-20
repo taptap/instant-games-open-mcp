@@ -926,11 +926,6 @@ const config = {
       'create_video_task',
       'query_video_task',
       'text_to_music',
-      'text_to_sound_effect',
-      'batch_sound_effects',
-      'text_to_dialogue',
-      'audition_voices_for_character',
-      'confirm_character_voice',
       'create_3d_model_task',
       'query_3d_model_task',
       'generate_test_qrcode',
@@ -981,11 +976,6 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
       "create_video_task",
       "query_video_task",
       "text_to_music",
-      "text_to_sound_effect",
-      "batch_sound_effects",
-      "text_to_dialogue",
-      "audition_voices_for_character",
-      "confirm_character_voice",
       "create_3d_model_task",
       "query_3d_model_task",
       "generate_test_qrcode",
@@ -999,10 +989,8 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
 配置后：
 
 - `tools/list` 只返回 `generate_image`、`batch_generate_images`、`edit_image`、
-  `create_video_task`、`query_video_task`、`text_to_music`、`text_to_sound_effect`、
-  `batch_sound_effects`、`text_to_dialogue`、`audition_voices_for_character`、
-  `confirm_character_voice`、`create_3d_model_task` 和 `query_3d_model_task`、
-  `generate_test_qrcode`、`get_ad_config`、`get_debug_feedbacks`。
+  `create_video_task`、`query_video_task`、`text_to_music`、`create_3d_model_task` 和
+  `query_3d_model_task`、`generate_test_qrcode`、`get_ad_config`、`get_debug_feedbacks`。
 - `tools/call` 会拒绝白名单外的 tool，避免客户端直接调用隐藏 tool。
 - Proxy 不重新封装这些 tool；tool description、input schema、调用参数和返回结果都来自上游。
 - 私有参数注入仍按原流程工作，包括 `_mac_token`、`_tag: "local"`、`_project_path`
@@ -1010,31 +998,6 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
 
 这个配置适合先暴露少量 proxy 代理过来的 server tools，把参数缺口、返回结构或客户端适配问题
 原样暴露出来，再决定是否扩大白名单。
-
-### 5.6.1 Maker Local MCP 音频工具
-
-绑定 Maker 项目时，Local MCP 会为以下 5 个音频 Tool 注入私有 `target_dir`，并在本地完成资源适配：
-
-- `text_to_sound_effect`、`batch_sound_effects`：将返回的 `audio_files` 写入
-  `assets/audio/sfx`。
-- `text_to_dialogue`：将返回的对话音频写入 `assets/audio/voice`；每个
-  `inputs[].reference_audio` 是可选的单次覆盖，可使用本地项目 `assets/audio/` 路径、HTTP(S) URL
-  或 data URL。项目路径必须在当前本地项目中存在并自动转为 data URL；未显式传参考音频时，
-  Local MCP 自动读取本地已确认 mapping，并注入豆包参考音频或 ElevenLabs Voice ID。HTTP(S) URL
-  原样交给远端 server
-  做公网地址安全、大小和音频格式校验。旧 `reference_audio_path` 仅作为本地路径兼容字段，且与
-  `reference_audio` 互斥。
-- `audition_voices_for_character`：豆包试听要求 AI 从角色设定或 `character_description` 提取并显式
-  传入 `voice_profile.gender`（`male` / `female`）；Local MCP 在转发前校验，避免远端静默补成
-  `male`。试听结果只透传候选 URL 和 voice ID，不下载候选或登记项目资产。
-- `confirm_character_voice`：豆包下载并原子保存参考 MP3 到 `assets/audio/voice-reference`，合并
-  `.project/audio-voice-mapping.json`；ElevenLabs 只合并
-  `.project/elevenlabs-voice-mapping.json`。后续对话不读取远端项目 mapping。成功结果保留或补充
-  `next_step_hint`，明确下一步只需用
-  角色名和台词调用 `text_to_dialogue`，无需重复传参考音频。
-
-音频文件按服务端返回的 `format` 和扩展名原样保存，不做 OGG 转码。下载失败会保留 CDN URL 和错误
-信息，同一批次的其他成功项仍会落盘；所有本地路径都经过项目目录和 basename 校验。
 
 ### 5.7 路径配置说明
 
