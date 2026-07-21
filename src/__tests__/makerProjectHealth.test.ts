@@ -412,6 +412,32 @@ describe('Maker project health check', () => {
     );
   });
 
+  test('reports moved root config when the canonical path is a symlink', () => {
+    const projectDir = path.join(projectRoot, '.project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    const externalProject = path.join(projectRoot, 'external-project.json');
+    fs.writeFileSync(externalProject, JSON.stringify(validProjectJson()));
+    fs.symlinkSync(externalProject, path.join(projectDir, 'project.json'));
+    fs.writeFileSync(path.join(projectRoot, 'project.json'), JSON.stringify(validProjectJson()));
+    fs.writeFileSync(path.join(projectDir, 'resources.json'), JSON.stringify(validResourcesJson()));
+
+    const health = inspectMakerProjectHealth(projectRoot, 'build');
+
+    expect(health.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'invalid_path_type',
+          path: '.project/project.json',
+        }),
+        expect.objectContaining({
+          code: 'misplaced_config',
+          path: 'project.json',
+          expectedPath: '.project/project.json',
+        }),
+      ])
+    );
+  });
+
   test('does not treat a dangling .project symlink as an uninitialized project', () => {
     fs.symlinkSync(
       path.join(projectRoot, 'missing-project-dir'),

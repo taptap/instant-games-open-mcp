@@ -91,7 +91,7 @@ export function inspectMakerProjectHealth(
   for (const [name, canonicalPath] of rootCandidates) {
     const rootPath = path.join(resolvedProjectRoot, name);
     const rootState = inspectPath(rootPath, 'file');
-    if (rootState === 'file' && !fs.existsSync(canonicalPath)) {
+    if (rootState === 'file' && inspectPath(canonicalPath, 'file') !== 'file') {
       if (
         name === 'assets/project.json' &&
         !hasTapTapPublish(path.join(resolvedProjectRoot, name))
