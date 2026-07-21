@@ -271,12 +271,29 @@ for the initial diagnosis. Work offline first:
    state. Do not edit account trust storage automatically; ask the user to enable it in WorkBuddy.
 6. On Windows, keep `cmd.exe`, `npx.cmd`, and each argument separate. Never replace cwd with a
    `cd /d "<project>" && npx.cmd ...` command string, including for Chinese project paths.
-7. Remember that multiple AI conversations share user-level MCP config. One conversation can break
-   every other conversation by rewriting the shared command or cwd.
-8. Classify the root cause from evidence before repairing it. Do not automatically change trust
-   storage, PATH, cwd, credentials, or game code. Use `taptap-maker mcp install --ide <client>` only
-   after evidence confirms that the active config entry is damaged. Reconnect and verify again in
-   both the current and a new conversation.
+7. If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field. Use the active
+   workspace/Roots and record the process actual cwd instead.
+8. Do not assume Windows 8.3 short paths exist or differ from the original long path. Verify the
+   result first; an unchanged or missing short path is not a usable cwd workaround.
+9. Reproduce the configured Windows launch with the same direct argv boundary when possible.
+   Separate outer shell quoting or stderr decoding failures from the MCP child process result, and
+   record both without treating wrapper failures as server evidence.
+10. Remember that multiple AI conversations share user-level MCP config. One conversation can break
+    every other conversation by rewriting the shared command or cwd.
+11. Classify the root cause from evidence before repairing it. Do not automatically change trust
+    storage, PATH, cwd, credentials, or game code. Use `taptap-maker mcp install --ide <client>` only
+    after evidence confirms that the active config entry is damaged. Reconnect and verify again in
+    both the current and a new conversation.
+
+If the MCP connection is established but a tool or resource call fails, including `-32003`, use a
+separate evidence-first runtime-error workflow. Do not assign a fixed meaning to `-32003`; preserve
+the exact client error. `mcp verify` is not the primary check for an already connected session
+because it only tests the standard npx/CLI launch path. Collect the failed tool/resource, redacted
+request parameters, current `tools/list`, exact error code/message/data, complete sanitized
+`remote_result`, request/correlation IDs, timestamp with timezone, OS/architecture, AI client and
+`@taptap/maker` package versions, and stable reproduction steps. Preserve useful nested error,
+warning, debug, and remote status fields while removing credentials. Do not rewrite command, cwd,
+PATH, trust state, credentials, or game code unless the collected evidence identifies that cause.
 
 Only after the base Maker MCP connection works should you use the following MCP-based cwd checks.
 
@@ -295,9 +312,10 @@ suggesting repeated restarts:
    `tools/list` ran from the MCP server cwd, not the Maker project directory. Passing `target_dir`
    to `maker_status_lite` proves the project is valid, but it does not dynamically add proxy tools
    to the already-started MCP session.
-4. Tell the user to start the AI client from the Maker project directory, or update the
-   `taptap-maker` MCP config `cwd` to the Maker project directory, then reconnect `taptap-maker`
-   from the client's MCP UI such as `/mcp`.
+4. If the client is confirmed to honor MCP cwd, tell the user to start it from the Maker project
+   directory or update the `taptap-maker` config cwd, then reconnect from the client MCP UI. If
+   WorkBuddy ignores configured cwd, do not keep rewriting that field; use its active workspace,
+   MCP Roots, and actual process cwd evidence instead.
 
 When Maker proxy tools are missing, explain that this is likely a session/configuration problem and
 that Maker tools are preferred for Maker game assets.

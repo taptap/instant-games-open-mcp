@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const MAKER_AGENTS_FILE = 'AGENTS.md';
-const POLICY_VERSION = '2';
+const POLICY_VERSION = '3';
 const LEGACY_POLICY_BEGIN = '<!-- >>> TapTap Maker asset tool policy >>> -->';
 const LEGACY_POLICY_END = '<!-- <<< TapTap Maker asset tool policy <<< -->';
 const POLICY_END = '<!-- <<< TapTap Maker managed AGENTS policy <<< -->';
@@ -162,8 +162,26 @@ function createMakerAgentsPolicyBody(): string {
     '- Never repair cwd by wrapping the command with `cd /d "<project>" && npx.cmd ...`.',
     '  Maker supports Chinese project paths; command-shell quoting or client startup can fail',
     '  independently of the project path.',
+    '- If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field. Use the active',
+    '  workspace/Roots and record the process actual cwd instead.',
+    '- Do not assume Windows 8.3 short paths exist or differ from the original long path. Verify',
+    '  the result first; an unchanged or missing short path is not a usable cwd workaround.',
+    '- Reproduce the configured Windows launch with the same direct argv boundary when possible.',
+    '  Separate outer shell quoting or stderr decoding failures from the MCP child process result,',
+    '  and record both without treating wrapper failures as server evidence.',
     '- AI conversations share user-level MCP config. Back up the active config before any repair,',
     '  then reconnect and verify in both the current and a new conversation.',
+    '- If the MCP connection is established but a tool or resource call fails, including `-32003`,',
+    '  use a separate evidence-first runtime-error workflow. Do not assign a fixed meaning to the',
+    '  error code; preserve the exact client error.',
+    '- `mcp verify` is not the primary check for an already connected session because it only tests',
+    '  the standard npx/CLI launch path.',
+    '- Collect the failed tool/resource, redacted request parameters, current `tools/list`, exact',
+    '  error code/message/data, complete sanitized `remote_result`, request/correlation IDs,',
+    '  timestamp with timezone, OS/architecture, AI client and `@taptap/maker` package versions,',
+    '  and stable reproduction steps. Preserve useful nested fields while removing credentials.',
+    '- Do not rewrite command, cwd, PATH, trust state, credentials, or game code unless the',
+    '  collected evidence identifies that cause.',
     '',
     'Maker ad workflow:',
     '',

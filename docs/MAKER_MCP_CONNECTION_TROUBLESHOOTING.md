@@ -51,6 +51,28 @@ command、status、signal、stdout、stderr、error 和 failure_type。它不会
 有序 args、cwd、WorkBuddy enable/trust、workspace/Roots、Node/npm/npx 路径、client PATH、退出状态
 和 stderr。
 
+### MCP 已连接但 tool/resource 调用失败
+
+如果 `tools/list` 或其它 Maker MCP 调用已经成功，但某个 tool/resource 调用失败（包括客户端显示
+`-32003`），说明当前会话已经建立连接。不要给 `-32003` 假定固定含义，也不要直接套用启动失败结论；
+应保留客户端返回的原始错误 code、message 和 data，按实际证据分类。
+
+对于已经连接的会话，`mcp verify` 不是首要检查。它只验证标准 npx/CLI 启动链路，不能解释单次
+tool/resource 调用中的请求校验、项目上下文、远端响应或业务错误。用户 AI 应先保存以下证据：
+
+- 失败的 tool/resource 名称，以及可稳定复现的操作步骤。
+- 完整但已脱敏的请求参数；保留字段名、类型和结构，不保留 PAT、token、Authorization、Cookie、
+  secret 或其它凭证值。
+- 当前会话的 `tools/list`，用于确认失败能力是否实际注册，以及 schema 是否与请求一致。
+- 原始 error code、message、完整 data，以及完整、已脱敏的 `remote_result`；不要删掉嵌套错误、
+  warning、debug 或远端状态字段。
+- request ID、correlation ID、trace ID 等关联标识；不存在时记录 `unknown`。
+- 错误发生时间（含时区）、操作系统与架构、AI 客户端名称和版本、`@taptap/maker` 包版本。
+
+先用相同脱敏参数稳定复现一次，再判断是 schema/参数错误、项目上下文错误、客户端转发错误、远端
+业务错误还是临时服务错误。不要因为 MCP 已连接后的单次调用失败就重写 command、cwd、PATH、信任
+状态或用户项目代码。只有证据同时显示启动链路也异常时，才回到本指南的离线启动检查流程。
+
 ## 3. 找到实际生效的 MCP 配置
 
 常见位置：
@@ -107,6 +129,10 @@ cd /d "<Maker项目路径>" && npx.cmd ...
 Maker 支持中文项目路径；但 Windows `cmd.exe`、客户端参数转义、编码和 argv 直传可能让上述
 `cd &&` 形式以 rc=1 退出或产生乱码。这是启动命令问题，不代表 Maker 不支持中文路径。
 
+Windows 8.3 短路径名称可能未启用，不能把短路径当作默认兜底。只有在同一台机器、同一磁盘卷上
+验证后才能把结果作为诊断证据；如果 `%~sI` 返回原始长路径、空值或仍含原始路径特征，说明没有可用
+的短路径别名，不要继续把它拼进 MCP 启动命令。
+
 ## 6. 检查 Node、npm、npx 和客户端 PATH
 
 Windows 普通终端：
@@ -153,7 +179,8 @@ npx --version
 - 支持 MCP Roots 的客户端应只打开当前 Maker 项目，使用 workspace root 识别项目。
 - 不支持 MCP Roots 的客户端可用 `--target-dir <Maker项目绝对路径>` 重新安装配置。
 - 某些 WorkBuddy 版本可能忽略 `mcp.json` 的 `cwd`。此时仍禁止使用 `cd && npx` 补丁；应恢复
-  标准启动命令、只打开正确项目 workspace，并收集 WorkBuddy 的实际 cwd 和启动日志。
+  标准启动命令、只打开正确项目 workspace，并收集 WorkBuddy 的实际 cwd 和启动日志。已经确认
+  WorkBuddy 忽略 `cwd` 时，不能依赖该字段修复项目上下文，也不要反复重写它。
 - 本地配置中的项目 id 与当前项目不一致时，先检查客户端启动目录和实际读取的配置，不要重新绑定
   或覆盖用户项目。
 
@@ -166,6 +193,11 @@ Maker tools 列表。向 `maker_status_lite` 传 `target_dir` 只能证明项目
 使用实际生效配置中的相同 command、有序 args 和 cwd 执行只读启动检查，并保存退出码、signal、
 spawn error、stdout 和完整 stderr。不要用第 2 节的标准命令代替这一步；两者比较后才能区分标准
 npx/CLI 启动链路故障和客户端真实配置故障。
+
+Windows 复现应尽量使用与 MCP 客户端相同的 argv 直传边界。通过 Bash、PowerShell 或其它外层
+shell 再包一层 `cmd.exe` 时，外层 shell 的引号或转义失败必须单独记录，不能替代 MCP 子进程的真实
+退出结果。同样，stderr 解码失败只说明当前读取方式或代码页不匹配；应分别记录子进程退出码、原始
+stderr、尝试的编码和解码错误，不能把解码异常直接当成 Maker MCP server 的错误。
 
 例如，配置使用 Windows 标准 argv 时，按相同顺序复现：
 
@@ -239,8 +271,23 @@ client_PATH:
 exit_status:
 signal:
 spawn_error:
+wrapper_error:
 stdout:
 stderr:
+stderr_encoding:
+occurred_at:
+os_arch:
+client_version:
+maker_package_version:
+failed_operation:
+redacted_request_params:
+tools_list:
+error_code:
+error_message:
+error_data:
+remote_result:
+request_or_correlation_id:
+reproduction_steps:
 workbuddy_trust:
 workspace_roots:
 classification:
@@ -249,5 +296,7 @@ repair:
 verification:
 ```
 
-其中 `evidence` 应包含标准 `mcp verify --json` 结果和客户端真实配置复现结果；`repair` 只记录基于
-证据采取的修改；`verification` 同时记录当前对话和新对话的重连结果。
+启动失败时，`evidence` 应包含标准 `mcp verify --json` 结果和客户端真实配置复现结果。MCP 已连接但
+调用失败时，优先填写运行期错误字段，不要求把 `mcp verify` 当作首要证据。`repair` 只记录基于证据
+采取的修改；`verification` 记录重连或稳定复现后的结果。`redacted_request_params`、`error_data` 和
+`remote_result` 中的凭证值必须脱敏，同时保留排障所需的完整结构和非敏感内容。

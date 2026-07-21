@@ -110,7 +110,9 @@ import {
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
   prepareRemoteProxyToolArgsAsync,
+  sanitizeRemoteProxyToolResult,
 } from './proxyAssets.js';
+import { sanitizeDiagnosticValue, sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 
 export {
@@ -497,7 +499,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 
 function remoteProxyToolGuidance(toolName: string): string | undefined {
   const failurePolicy =
-    'If this Maker proxy tool fails or returns isError, include the full remote_result/error payload from the server so developers can diagnose the issue.';
+    'If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.';
   const localMediaSizeHint =
     'Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB.';
   switch (toolName) {
@@ -2941,12 +2943,16 @@ function mergeStringEnv(
 
 function formatRemoteToolResult(result: unknown): string {
   if (!result || typeof result !== 'object') {
-    return String(result);
+    return String(sanitizeRemoteDiagnosticValue(result));
   }
 
-  const content = (result as { content?: Array<{ type?: string; text?: string }> }).content;
+  const sanitizedResult = sanitizeRemoteDiagnosticValue(result) as {
+    content?: Array<{ type?: string; text?: string }>;
+  };
+
+  const content = sanitizedResult.content;
   if (!Array.isArray(content)) {
-    return JSON.stringify(result, null, 2);
+    return JSON.stringify(sanitizedResult, null, 2);
   }
 
   return content
@@ -2981,7 +2987,7 @@ export function formatBuildResult(
       ...formatMakerBuildFailureLines(result.buildFailure),
       '',
       'remote_result:',
-      indent(result.buildResult.resultText),
+      indent(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText))),
     ]
       .filter(Boolean)
       .join('\n');
@@ -3099,7 +3105,7 @@ export function formatBuildResult(
   if (submitLines.length > 0) {
     lines.push(...submitLines);
   }
-  lines.push('remote_result:', indent(result.resultText));
+  lines.push('remote_result:', indent(String(sanitizeRemoteDiagnosticValue(result.resultText))));
   return lines.join('\n');
 }
 
@@ -3151,7 +3157,7 @@ export function formatPushResult(
           ...formatPreviewRefreshLines(result.buildResult.previewRefresh),
           '',
           'remote_result:',
-          indent(result.buildResult.resultText),
+          indent(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText))),
         ].join('\n')
       ),
     ].join('\n');
@@ -3288,11 +3294,13 @@ function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {
   return [
     'build_failure:',
     `- error_name: ${failure.name}`,
-    `- message: ${failure.message}`,
+    `- message: ${String(sanitizeRemoteDiagnosticValue(failure.message))}`,
     Object.keys(details).length > 0
       ? `- error_details:\n${indent(formatDiagnosticJson(details))}`
       : '',
-    failure.stack ? `- stack:\n${indent(failure.stack)}` : '',
+    failure.stack
+      ? `- stack:\n${indent(String(sanitizeRemoteDiagnosticValue(failure.stack)))}`
+      : '',
   ].filter(Boolean);
 }
 
@@ -3359,7 +3367,9 @@ export function formatToolException(toolName: string, error: unknown): string {
   }
 
   if (error instanceof RemoteProxyToolResultError) {
-    const displayResult = flattenNestedMcpErrorPrefixes(error.result) as typeof error.result;
+    const displayResult = sanitizeRemoteProxyToolResult(
+      flattenNestedMcpErrorPrefixes(error.result) as typeof error.result
+    );
     const remoteMessage = extractRemoteProxyErrorMessage(displayResult);
     return [
       '✗ Maker MCP proxy tool failed',
@@ -3371,22 +3381,26 @@ export function formatToolException(toolName: string, error: unknown): string {
       '',
       formatRemoteProxyToolResult(displayResult),
       '',
-      'next_action: 远端 proxy tool 已返回失败结果；请把 remote_result 原样反馈给开发者，方便排查 server 返回内容。',
+      'next_action: 远端 proxy tool 已返回失败结果；请把完整、已脱敏的 remote_result 反馈给开发者，方便排查 server 返回内容。',
     ].join('\n');
   }
 
   if (isExposedRemoteProxyTool(toolName)) {
+    const sanitizedMessage = sanitizeRemoteDiagnosticValue(
+      stripNestedMcpErrorPrefixes(message)
+    ) as string;
+    const sanitizedStack = stack ? (sanitizeRemoteDiagnosticValue(stack) as string) : undefined;
     return [
       '✗ Maker MCP proxy tool failed',
       '',
       `- tool: ${toolName}`,
       '- reason: remote_proxy_tool_call_error',
       `- error_name: ${error instanceof Error ? error.name : typeof error}`,
-      `- message: ${stripNestedMcpErrorPrefixes(message)}`,
+      `- message: ${sanitizedMessage}`,
       ...formatUnknownExceptionDetailLines(error),
       '',
       'debug:',
-      stack ? indent(stack) : indent(message),
+      sanitizedStack ? indent(sanitizedStack) : indent(sanitizedMessage),
       '',
       'next_action: 请根据上面的简化 message 判断失败原因；参数或能力不支持时不要重复调用，并保留 error_details/debug 反馈给开发者。',
     ].join('\n');
@@ -3501,26 +3515,6 @@ function errorOwnDiagnosticFields(error: Error): Record<string, unknown> {
   return details;
 }
 
-function sanitizeDiagnosticValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeDiagnosticValue(item));
-  }
-  if (value && typeof value === 'object') {
-    const result: Record<string, unknown> = {};
-    for (const [key, nestedValue] of Object.entries(value)) {
-      result[key] = isSensitiveDiagnosticKey(key)
-        ? '<redacted>'
-        : sanitizeDiagnosticValue(nestedValue);
-    }
-    return result;
-  }
-  return value;
-}
-
-export function isSensitiveDiagnosticKey(key: string): boolean {
-  return /token|secret|mac[_-]?key|authorization|cookie|(^|[_-])pat($|[_-])/i.test(key);
-}
-
 function formatDiagnosticJson(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
@@ -3528,6 +3522,8 @@ function formatDiagnosticJson(value: unknown): string {
     return String(value);
   }
 }
+
+export { isSensitiveDiagnosticKey } from './diagnosticRedaction.js';
 
 function indent(value: string): string {
   return value

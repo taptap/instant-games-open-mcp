@@ -2668,6 +2668,114 @@ describe('maker build local-change guard', () => {
     ).rejects.toThrow(/remote_result:[\s\S]*upstream video generation failed/);
   });
 
+  test('redacts credentials from remote proxy error diagnostics while preserving useful evidence', async () => {
+    let thrown: unknown;
+    try {
+      await materializeRemoteProxyToolAssets({
+        toolName: 'create_video_task',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: 'upstream video generation failed',
+                token: 'text-secret-token',
+                nested: {
+                  Authorization: 'Bearer text-secret-authorization',
+                  Cookie: 'session=text-secret-cookie',
+                  client_secret: 'text-client-secret',
+                },
+              }),
+            },
+          ],
+          structuredContent: {
+            request_id: 'request-123',
+            access_token: 'structured-secret-token',
+          },
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    const output = formatToolException('create_video_task', thrown);
+
+    expect(output).toContain('upstream video generation failed');
+    expect(output).toContain('request-123');
+    expect(output).toContain('<redacted>');
+    expect(output).toContain('完整、已脱敏的 remote_result');
+    for (const secret of [
+      'text-secret-token',
+      'text-secret-authorization',
+      'text-secret-cookie',
+      'text-client-secret',
+      'structured-secret-token',
+    ]) {
+      expect(output).not.toContain(secret);
+    }
+  });
+
+  test('redacts bearer credentials embedded in remote error messages', async () => {
+    let thrown: unknown;
+    try {
+      await materializeRemoteProxyToolAssets({
+        toolName: 'create_video_task',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                message: 'upstream rejected request: Bearer REAL_REMOTE_TOKEN',
+              }),
+            },
+          ],
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    const output = formatToolException('create_video_task', thrown);
+
+    expect(output).toContain('Bearer <redacted>');
+    expect(output).not.toContain('REAL_REMOTE_TOKEN');
+  });
+
+  test('redacts credentials from generic exposed proxy error messages and stacks', () => {
+    const error = Object.assign(new Error('Authorization: Bearer EXPOSED_TOOL_TOKEN'), {
+      stack: 'Error: Cookie: session=EXPOSED_TOOL_COOKIE',
+    });
+
+    const output = formatToolException('create_video_task', error);
+
+    expect(output).not.toContain('EXPOSED_TOOL_TOKEN');
+    expect(output).not.toContain('EXPOSED_TOOL_COOKIE');
+  });
+
+  test('redacts credentials nested under non-sensitive MCP error data keys', () => {
+    const error = Object.assign(new Error('MCP error -32003: remote request failed'), {
+      name: 'McpError',
+      code: -32003,
+      data: {
+        message: 'Authorization: Bearer ERROR_DATA_TOKEN',
+        remote_result: {
+          detail: 'Bearer REMOTE_DETAIL_TOKEN',
+          request_id: 'request-456',
+        },
+      },
+    });
+
+    const output = formatToolException('create_video_task', error);
+
+    expect(output).toContain('request-456');
+    expect(output).not.toContain('ERROR_DATA_TOKEN');
+    expect(output).not.toContain('REMOTE_DETAIL_TOKEN');
+  });
+
   test('formats nested remote MCP errors with a concise user-facing message', () => {
     const error = Object.assign(
       new Error(
@@ -3472,7 +3580,8 @@ describe('maker build local-change guard', () => {
         },
         buildFailure: {
           name: 'McpError',
-          message: 'MCP error -32603: Remote build failed',
+          message: 'MCP error -32603: Authorization: Bearer BUILD_SECRET_TOKEN',
+          stack: 'Error: Cookie: session=BUILD_SECRET_COOKIE',
           code: -32603,
           data: {
             remote_result: {
@@ -3493,6 +3602,8 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('BUILD FAILED: lua syntax error');
     expect(output).toContain('"token": "<redacted>"');
     expect(output).not.toContain('secret-token');
+    expect(output).not.toContain('BUILD_SECRET_TOKEN');
+    expect(output).not.toContain('BUILD_SECRET_COOKIE');
   });
 
   test('remote build refreshes Maker web preview after a build result is returned', async () => {

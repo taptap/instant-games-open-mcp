@@ -1138,6 +1138,25 @@ describe('Maker CLI commands', () => {
     expect(normalizedPolicy).toContain(
       'only after evidence confirms that the active config entry is damaged'
     );
+    expect(normalizedPolicy).toContain(
+      'If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field'
+    );
+    expect(normalizedPolicy).toContain(
+      'Do not assume Windows 8.3 short paths exist or differ from the original long path'
+    );
+    expect(normalizedPolicy).toContain(
+      'Separate outer shell quoting or stderr decoding failures from the MCP child process result'
+    );
+    expect(normalizedPolicy).toContain(
+      'If the MCP connection is established but a tool or resource call fails, including `-32003`'
+    );
+    expect(normalizedPolicy).toContain(
+      '`mcp verify` is not the primary check for an already connected session'
+    );
+    expect(normalizedPolicy).toContain('complete sanitized `remote_result`');
+    expect(normalizedPolicy).toContain(
+      'failed tool/resource, redacted request parameters, current `tools/list`'
+    );
     expect(twice).toContain('WorkBuddy');
     expect(twice).toContain('npx');
     expect(twice).toContain(

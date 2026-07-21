@@ -61,6 +61,16 @@ describe('Maker public documentation', () => {
       '成功不代表客户端 MCP 配置正常',
       '按证据分类根因',
       '仅在证据确认实际配置项损坏时',
+      '不能依赖该字段修复项目上下文',
+      '8.3 短路径名称可能未启用',
+      '%~sI',
+      '外层 shell 的引号或转义失败',
+      'stderr 解码失败',
+      '不能替代 MCP 子进程',
+      '-32003',
+      'MCP 已连接但 tool/resource 调用失败',
+      'mcp verify` 不是首要检查',
+      '完整、已脱敏的 `remote_result`',
     ]) {
       expect(guide).toContain(expected);
     }
@@ -78,8 +88,23 @@ describe('Maker public documentation', () => {
       'exit_status:',
       'signal:',
       'spawn_error:',
+      'wrapper_error:',
       'stdout:',
       'stderr:',
+      'stderr_encoding:',
+      'occurred_at:',
+      'os_arch:',
+      'client_version:',
+      'maker_package_version:',
+      'failed_operation:',
+      'redacted_request_params:',
+      'tools_list:',
+      'error_code:',
+      'error_message:',
+      'error_data:',
+      'remote_result:',
+      'request_or_correlation_id:',
+      'reproduction_steps:',
       'workbuddy_trust:',
       'workspace_roots:',
       'classification:',
@@ -108,9 +133,31 @@ describe('Maker public documentation', () => {
       'Classify the root cause from evidence before repairing it',
       'only after evidence confirms that the active config entry is damaged',
       'Do not automatically change trust storage, PATH, cwd, credentials',
+      'If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field',
+      'Do not assume Windows 8.3 short paths exist or differ from the original long path',
+      'Separate outer shell quoting or stderr decoding failures from the MCP child process result',
+      'If the MCP connection is established but a tool or resource call fails, including `-32003`',
+      '`mcp verify` is not the primary check for an already connected session',
+      'complete sanitized `remote_result`',
+      'failed tool/resource, redacted request parameters, current `tools/list`',
     ]) {
       expect(normalizedSkill).toContain(expected);
     }
     expect(skill).not.toMatch(INTERNAL_ENVIRONMENT_PATTERN);
+  });
+
+  test('Maker package preparation includes the full troubleshooting guide', () => {
+    const prepareScript = fs.readFileSync(path.resolve('scripts/prepare-maker-package.js'), 'utf8');
+
+    expect(prepareScript).toContain("'docs/'");
+    expect(prepareScript).toContain(
+      "join(packageRoot, 'docs', 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md')"
+    );
+    expect(prepareScript).toContain(
+      "join(projectRoot, 'docs', 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md')"
+    );
+    expect(prepareScript).toContain(
+      'Full connection and tool-call troubleshooting guide: `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md`.'
+    );
   });
 });
