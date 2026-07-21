@@ -41,6 +41,25 @@ describe('maker MCP tracking', () => {
     ).toBeNull();
   });
 
+  test('omits unavailable optional request and duration values', () => {
+    expect(
+      buildMakerMcpTrackingPayload({
+        context: { userId: 'user-1', projectId: 'project-1' },
+        toolName: 'maker://status',
+        requestId: '',
+        durationMs: -1,
+      })
+    ).toEqual({
+      action: 'tapmaker_mcp_call',
+      args: {
+        user_id: 'user-1',
+        project_id: 'project-1',
+        tool_name: 'maker://status',
+        source: 'local_mcp',
+      },
+    });
+  });
+
   test('posts the event and isolates a failed tracking request', async () => {
     const fetchImpl = jest.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
 

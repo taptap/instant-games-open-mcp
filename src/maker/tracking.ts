@@ -62,11 +62,15 @@ export function buildMakerMcpTrackingPayload(
     source: MAKER_MCP_TRACKING_SOURCE,
   };
 
-  if (event.requestId !== undefined) {
+  if (event.requestId !== undefined && String(event.requestId).trim()) {
     args.tool_id = String(event.requestId);
   }
-  if (event.durationMs !== undefined && Number.isFinite(event.durationMs)) {
-    args.duration_ms = Math.max(0, Math.round(event.durationMs));
+  if (
+    event.durationMs !== undefined &&
+    Number.isFinite(event.durationMs) &&
+    event.durationMs >= 0
+  ) {
+    args.duration_ms = Math.round(event.durationMs);
   }
   if (event.success !== undefined) {
     args.success = event.success;
