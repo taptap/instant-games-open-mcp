@@ -3,7 +3,14 @@
  */
 
 export function isSensitiveDiagnosticKey(key: string): boolean {
-  return /token|secret|mac[_-]?key|authorization|cookie|(^|[_-])pat($|[_-])/i.test(key);
+  const normalized = key.replace(/[-\s]/gu, '_').toLowerCase();
+  return (
+    /^(?:authorization|cookie|pat|token|secret)$/u.test(normalized) ||
+    /(?:^|_)(?:access|refresh|id|api|auth|bearer|personal_access)?_?token$/u.test(normalized) ||
+    /(?:^|_)(?:client|app|api|mac)?_?secret$/u.test(normalized) ||
+    /(?:^|_)(?:api|auth|mac|private)?_?key$/u.test(normalized) ||
+    /(?:^|_)pat$/u.test(normalized)
+  );
 }
 
 export function sanitizeDiagnosticValue(value: unknown): unknown {
@@ -58,6 +65,6 @@ function sanitizeDiagnosticText(value: string): string {
       /\b(token|secret|mac[_-]?key|pat)\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/giu,
       '$1=<redacted>'
     )
-    .replace(/\bBearer\s+[^\s,;]+/giu, 'Bearer <redacted>')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{16,}(?=$|[\s,;])/giu, 'Bearer <redacted>')
     .replace(/\beyJ[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2}\b/gu, '<redacted>');
 }

@@ -2756,6 +2756,16 @@ describe('maker build local-change guard', () => {
     expect(output).not.toContain('EXPOSED_TOOL_COOKIE');
   });
 
+  test('preserves ordinary Bearer error descriptions', () => {
+    const output = formatToolException(
+      'create_video_task',
+      new Error('Bearer authentication is unsupported by this endpoint')
+    );
+
+    expect(output).toContain('Bearer authentication is unsupported by this endpoint');
+    expect(output).not.toContain('Bearer <redacted>');
+  });
+
   test('redacts credentials nested under non-sensitive MCP error data keys', () => {
     const error = Object.assign(new Error('MCP error -32003: remote request failed'), {
       name: 'McpError',
@@ -2861,6 +2871,10 @@ describe('maker build local-change guard', () => {
   test('sensitive diagnostic keys do not redact path fields', () => {
     expect(isSensitiveDiagnosticKey('pat')).toBe(true);
     expect(isSensitiveDiagnosticKey('personal_access_token')).toBe(true);
+    expect(isSensitiveDiagnosticKey('token_count')).toBe(false);
+    expect(isSensitiveDiagnosticKey('token_type')).toBe(false);
+    expect(isSensitiveDiagnosticKey('secret_algorithm')).toBe(false);
+    expect(isSensitiveDiagnosticKey('client_secret')).toBe(true);
     expect(isSensitiveDiagnosticKey('path')).toBe(false);
     expect(isSensitiveDiagnosticKey('localPath')).toBe(false);
     expect(isSensitiveDiagnosticKey('absolutePath')).toBe(false);
