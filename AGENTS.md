@@ -375,6 +375,10 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   本地保留远端 tool schema 和成功返回值，但会在 description 追加简短 Maker 本地开发提示：
   已绑定 Maker 项目应优先建议用户使用这些 tools。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
+- 本地 Maker MCP 活跃上报复用 `tapmaker_mcp_call`，并在 `args.source` 写入 `local_mcp`。
+  `user_id` 和 `project_id` 只从当前项目 `.maker-mcp/config.json` 读取；缺少关键字段或项目上下文
+  无法准确解析时不上报，不使用 JWT、PAT、默认值或其它项目配置补齐。Tool、`maker://status`
+  Resource 和 MCP 启动事件计入本地活跃，上报失败不得影响 MCP 结果。
 - 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。支持 MCP Roots 的客户端会输出 `MCP client roots` 与 `project_context_source`；只有一个 workspace root 时直接作为 Maker 操作目标，多个 root 中只有一个已绑定 Maker 项目时自动选择该项目，多个 Maker root 时必须让用户只保留一个 Maker workspace 或显式传 `target_dir`，不要猜测。已绑定项目会输出 `Maker remote sync`、AI dev kit 版本检查结果和必要的 `Maker project initialization`，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main、是否需要运行 `taptap-maker dev-kit update`，以及新项目是否需要先构建一次生成 `.project/project.json` 或先调用 `generate_test_qrcode` 生成 `app_id` / `developer_id`；按其中 `next_action` / `next_step` 引导用户。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），第一步必须调用 `get_ad_config` 获取当前项目广告开通状态和广告配置；不要先查本地 SDK 文档、`.maker-mcp/config.json` 或用运行回调推断广告是否开通。若返回缺少 `.project/project.json`，说明新项目尚未构建初始化，应先调用 `maker_build_current_directory` 构建一次生成项目配置，再重试 `get_ad_config`。若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`；不要为这个恢复流程调用发布类工具。只有确认广告配置可用后，再实现或测试广告代码。
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及线上玩家反馈、问题反馈、问题上报、debug feedback、真机日志、截图或玩家反馈，应优先调用 Maker MCP tool `get_debug_feedbacks`；本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代线上玩家提交的反馈。
