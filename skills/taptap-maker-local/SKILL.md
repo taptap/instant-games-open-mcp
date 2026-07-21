@@ -46,6 +46,16 @@ build-critical fields are damaged. `$schema`, `sources`, and `build` must keep t
 shape; `sources.*.tag` must be `stable` for online user projects, and `build.asset_ignores` only
 needs to exist. Do not edit settings build fields directly for feature work; restore only the
 build-critical fields when the check fails, and preserve valid `@runtime` config.
+The health checker itself is read-only. When repair is needed, prefer the exact
+file from Git or an intact misplaced copy; only repair fixed fields in a parseable
+settings object. Never synthesize project identity, entry, version, publish metadata,
+or resource groups from defaults. With user confirmation, missing settings defaults may
+be added without overwriting existing intent: `$schema`, `build.output_dir=../dist`,
+`build.asset_dirs=["../assets","../scripts"]`, `build.generate_fs_path=true`,
+`build.asset_ignores=[]`, `assets_7z_threshold=50`, `preload_include_refs=true`,
+`trim_remote_refs=true`, `legacy_binary=false`, and `tags={}`. Do not invent locked
+`sources.*.tag` values; recover them from Git or an intact copy. `entry=main.lua`
+is only safe after confirming that the project uses that entry script.
 
 ## Responsibilities
 
@@ -190,7 +200,8 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
   for this recovery path.
 - If status or doctor reports `Maker project initialization` with `missing_project_json` or
   `missing_taptap_identity`, follow that `next_action` before using tools that depend on remote
-  project config.
+  project config. A first build is only valid when `.project` does not exist; if `.project` already
+  exists and `project.json` was deleted, restore it from Git or an intact copy first.
 - For online player feedback, problem reports, issue reports, debug feedback, real-device logs,
   screenshots, 问题反馈, 问题上报, 真机日志, or 玩家反馈, call the Maker proxy
   `get_debug_feedbacks` tool when available.

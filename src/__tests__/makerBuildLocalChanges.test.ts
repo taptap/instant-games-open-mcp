@@ -29,6 +29,7 @@ import {
   formatMakerProxyToolsStatusSafely,
   formatMakerRemoteSyncStatusSafely,
   formatPushResult,
+  inspectMakerProxyToolPreflight,
   isSensitiveDiagnosticKey,
   pushThenBuildCurrentDirectory,
   resources,
@@ -913,6 +914,25 @@ describe('maker build local-change guard', () => {
   test('build blocks before submit when required project settings fields drift from template', async () => {
     fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
     fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify({
+        project_id: 'p_test',
+        version: '1.0.0',
+        entry: 'main.lua',
+        taptap_publish: {
+          title: '测试项目',
+          category: 'strategy',
+          screen_orientation: 'landscape',
+        },
+      }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    fs.writeFileSync(
       path.join(tempDir, '.project', 'settings.json'),
       JSON.stringify({
         $schema: '../schemas/settings.schema.json',
@@ -946,6 +966,25 @@ describe('maker build local-change guard', () => {
 
   test('build blocks before submit when project settings json is invalid', async () => {
     fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify({
+        project_id: 'p_test',
+        version: '1.0.0',
+        entry: 'main.lua',
+        taptap_publish: {
+          title: '测试项目',
+          category: 'strategy',
+          screen_orientation: 'landscape',
+        },
+      }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
     fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
     const submitLocalChanges = jest.fn();
 
@@ -959,6 +998,158 @@ describe('maker build local-change guard', () => {
     expect(formatBuildResult(result, emptyProgressSummary())).toContain(
       'Maker project settings are invalid'
     );
+  });
+
+  test('build blocks before submit when project.json is moved to the project root', async () => {
+    fs.writeFileSync(
+      path.join(tempDir, 'project.json'),
+      JSON.stringify({
+        project_id: 'p_test',
+        version: '1.0.0',
+        entry: 'main.lua',
+        taptap_publish: {
+          title: '测试项目',
+          category: 'strategy',
+          screen_orientation: 'landscape',
+        },
+      }),
+      'utf8'
+    );
+    const submitLocalChanges = jest.fn();
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+    });
+
+    expect(result.mode).toBe('project_invalid_before_build');
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain('misplaced_config');
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain('.project/project.json');
+  });
+
+  test('build blocks before submit when project.json is deleted from an initialized project', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+          asset_ignores: [],
+        },
+      }),
+      'utf8'
+    );
+    const submitLocalChanges = jest.fn();
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+    });
+
+    expect(result.mode).toBe('project_invalid_before_build');
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain('missing_required_file');
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain('.project/project.json');
+  });
+
+  test('build keeps project findings when settings and project structure are both invalid', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+    fs.writeFileSync(path.join(tempDir, '.project', 'project.json'), '{ bad json', 'utf8');
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    const submitLocalChanges = jest.fn();
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+    });
+
+    expect(result.mode).toBe('project_invalid_before_build');
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain('invalid_project_json');
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain('invalid_settings_json');
+  });
+
+  test('status includes unified project structure findings', async () => {
+    fs.writeFileSync(
+      path.join(tempDir, 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {},
+        build: {},
+      }),
+      'utf8'
+    );
+
+    const output = await formatStatus({ targetDir: tempDir, skipRemoteSync: true });
+
+    expect(output).toContain('Maker project structure');
+    expect(output).toContain('misplaced_config');
+    expect(output).toContain('.project/settings.json');
+  });
+
+  test('QR proxy preflight uses the unified project health check', () => {
+    fs.writeFileSync(path.join(tempDir, 'project.json'), '{}', 'utf8');
+
+    const health = inspectMakerProxyToolPreflight('generate_test_qrcode', tempDir);
+
+    expect(health?.mode).toBe('qrcode');
+    expect(health?.canGenerateTestQrcode).toBe(false);
+    expect(inspectMakerProxyToolPreflight('generate_image', tempDir)).toBeUndefined();
+  });
+
+  test('QR proxy preflight resolves a bound project when target_dir is a subdirectory', () => {
+    fs.mkdirSync(path.join(tempDir, '.maker-mcp'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.maker-mcp', 'config.json'),
+      JSON.stringify({ project_id: 'p_test' }),
+      'utf8'
+    );
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify({
+        project_id: 'p_test',
+        version: '1.0.0',
+        entry: 'main.lua',
+        taptap_publish: {
+          title: '测试项目',
+          category: 'strategy',
+          screen_orientation: 'landscape',
+        },
+      }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    const subdirectory = path.join(tempDir, 'scripts');
+    fs.mkdirSync(subdirectory, { recursive: true });
+
+    const health = inspectMakerProxyToolPreflight('generate_test_qrcode', subdirectory);
+
+    expect(health?.projectRoot).toBe(path.resolve(tempDir));
+    expect(health?.canGenerateTestQrcode).toBe(true);
   });
 
   test('remote-only build skips local project settings validation', async () => {
@@ -2921,6 +3112,28 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('get_ad_config');
     expect(output).toContain('maker_build_current_directory');
     expect(output).toContain('.project/project.json');
+  });
+
+  test('project initialization does not tell build to recreate a deleted project json', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+
+    const status = inspectMakerProjectInitialization(tempDir);
+    const output = formatMakerProjectInitializationStatus(status);
+
+    expect(status.status).toBe('missing_project_json');
+    expect(output).toContain('从 Git 或完整副本恢复');
+    expect(output).not.toContain('先调用 maker_build_current_directory 构建一次');
+  });
+
+  test('project initialization does not treat a dangling .project symlink as uninitialized', () => {
+    fs.symlinkSync(path.join(tempDir, 'missing-project-dir'), path.join(tempDir, '.project'));
+
+    const status = inspectMakerProjectInitialization(tempDir);
+    const output = formatMakerProjectInitializationStatus(status);
+
+    expect(status.status).toBe('missing_project_json');
+    expect(output).toContain('.project 路径异常');
+    expect(output).not.toContain('先调用 maker_build_current_directory 构建一次');
   });
 
   test('project initialization status guides test QR code when TapTap identity is missing', () => {
