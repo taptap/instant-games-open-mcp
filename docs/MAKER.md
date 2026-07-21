@@ -601,9 +601,11 @@ Maker 本地开发提示。
 如果 `get_ad_config` 返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode`
 一次生成测试二维码元数据，再重试 `get_ad_config`；不要为这个恢复流程调用发布类 tools。
 `taptap-maker doctor`、`maker://status` 和 `maker_status_lite` 也会在已绑定项目缺少
-`.project/project.json` 时输出 `Maker project initialization` / `missing_project_json`，
-提示先构建一次；如果 `.project/project.json` 已存在但缺少 `app_id` 或 `developer_id`，
-则输出 `missing_taptap_identity`，提示先调用 `generate_test_qrcode`。
+`.project/project.json` 时输出 `Maker project initialization` / `missing_project_json`。
+如果 `.project` 尚不存在，才提示先构建一次；如果 `.project` 已存在但文件被删除，
+应先从 Git 或完整副本恢复，因为构建预检不会覆盖缺失文件。若 `.project/project.json`
+已存在但缺少 `app_id` 或 `developer_id`，则输出 `missing_taptap_identity`，提示先调用
+`generate_test_qrcode`。
 对于 `edit_image`，AI/Agent 调用前应先解析用户提供的图片：拖入/附件图片优先取客户端暴露的本地
 文件路径，`assets/image/...` 直接传项目素材路径，只给文件名时先搜索 `assets/image`，无法确认图片
 路径或 CDN URL 时应停下来说明缺少参数。
@@ -645,14 +647,44 @@ Maker 本地开发提示。
 - `multiplayer.persistent_world.enabled`：常驻服 / 持续世界配置，用于玩家可加入已运行世界的玩法。
 - 如果用户明确说明是多人游戏或给出入口文件，再把对应参数传入。
 
-`.project/settings.json` 是构建关键配置。Maker MCP 会在 `maker://status`、
-`maker_status_lite` 和 `taptap-maker doctor` 中执行轻量 settings 健康检查；普通
-`maker_build_current_directory` 会在本地 commit/push 前阻断非法 JSON 或被改坏的构建关键字段。
-检查只读取 `.project/settings.json`，不跑 git、不查网络、不扫资源目录；`$schema`、
-`sources`、`build` 必须保持默认构建格式，线上用户项目的 `sources.*.tag` 必须是 `stable`，
-`build.asset_ignores` 只要求字段存在，并允许保留合法的 `@runtime` 配置。修复 settings
-时只恢复构建关键字段，不要为了功能开发裸改 `sources`、`build.asset_dirs`、`build.output_dir`
-等字段。
+`.project/settings.json` 是构建关键配置。Maker MCP 现在通过统一的本地项目健康检查入口，
+在 `maker://status`、`maker_status_lite`、`maker_build_current_directory` 和
+`generate_test_qrcode` 中检查项目结构。规范源配置路径是：
+
+```text
+.project/project.json
+.project/resources.json
+.project/settings.json
+```
+
+检查只读取上述固定路径和项目根目录下、内容明确符合 Maker `$schema` 或完整发布字段特征的同名候选文件，不跑 Git、不查网络、不递归扫资源目录、
+不执行完整 JSON Schema。如果 `.project` 不存在，本地视为尚未触发过远端构建，跳过 `.project`
+内部配置检查，只快速检查根目录或已知 `assets/project.json` 是否出现被移动的配置。若 AI 把配置
+移动到项目根目录，或在已有 `.project` 中删除 `.project/project.json` / `.project/resources.json`，
+检查会报告规范路径错误，构建会在 commit/push 前停止；`dist` 是构建产物，不参与源配置有效性判断。
+
+统一检查仍保留原有 settings 内容校验：`$schema`、`sources`、`build` 必须保持默认构建格式，
+线上用户项目的 `sources.*.tag` 必须是 `stable`，`build.asset_ignores` 只要求字段存在，
+并允许合法的 `@runtime` 配置。远端首次初始化可能使用任意非空版本字符串或
+`project_id` / 发布字段占位符；build/status 模式会提示 warning 并允许远端初始化，
+二维码模式仍会严格拒绝这些占位配置。`generate_test_qrcode` 额外要求规范位置的
+`.project/project.json`、`project_id`、入口和有效的 `taptap_publish`；settings 内容错误本身
+不会阻断二维码生成，但缺少或损坏 `resources.json` 会阻断二维码流程。`canBuild` 只表示结构和 JSON 是否可构建，二维码专属的身份或发布字段错误不会把它改为 `no`。修复配置时只恢复构建关键字段，不要为了功能开发裸改 `sources`、
+`build.asset_dirs`、`build.output_dir` 等字段。健康检查不会自动写文件；AI 修复时优先从 Git
+或完整错位副本恢复，只有在 JSON 仍可解析时才做固定字段级恢复，并保留 `@runtime`、
+`asset_ignores` 和未知字段。`resources.json` 的资源分组、`project.json` 的项目身份/入口/版本/
+发布元数据不能凭默认值重建。
+
+修复边界要区分“固定字段”和“用户意图”：在用户确认修复且 `settings.json` 仍是 object 时，
+可以只补缺失的 `$schema`、`build.output_dir`（`../dist`）、`build.asset_dirs`
+（`["../assets", "../scripts"]`）、`build.generate_fs_path`（`true`）和
+`build.asset_ignores`（`[]`）。Maker 配置 schema 还为缺失的 `build.assets_7z_threshold`
+（`50`）、`preload_include_refs`（`true`）、`trim_remote_refs`（`true`）、
+`legacy_binary`（`false`）和 `tags`（`{}`）提供默认值；这些只能在字段缺失时补入，不能
+覆盖用户已有的非默认值。`sources.*.tag` 是初始化流程管理的锁定字段，只能从 Git 或完整副本
+恢复，不能凭“stable”猜写。`project.json` 的 `entry` 虽有 `main.lua` 默认值，也只有在确认
+项目确实使用该入口时才能补；`project_id`、作者/开发者身份、版本、发布信息和
+`resources.json` 分组没有可安全推断的默认值。
 
 ## 提交和推送约束
 

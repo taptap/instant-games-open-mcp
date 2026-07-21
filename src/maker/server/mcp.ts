@@ -99,9 +99,12 @@ import {
   inspectMakerProjectInitialization,
 } from '../projectInitialization.js';
 import {
+  formatMakerProjectHealthStatus,
   formatMakerProjectSettingsStatus,
+  inspectMakerProjectHealth,
   inspectMakerProjectSettings,
   isMakerProjectSettingsBlocking,
+  type MakerProjectHealth,
   type MakerProjectSettingsStatus,
 } from '../projectSettings.js';
 import {
@@ -720,6 +723,29 @@ export function createRemoteProxyProgressHandler(
   };
 }
 
+export function inspectMakerProxyToolPreflight(
+  toolName: 'generate_test_qrcode',
+  targetDir: string
+): MakerProjectHealth;
+export function inspectMakerProxyToolPreflight(
+  toolName: string,
+  targetDir: string
+): MakerProjectHealth | undefined;
+export function inspectMakerProxyToolPreflight(
+  toolName: string,
+  targetDir: string
+): MakerProjectHealth | undefined {
+  if (toolName !== 'generate_test_qrcode') {
+    return undefined;
+  }
+
+  // The proxy accepts a project subdirectory as target_dir and resolves its
+  // bound project root when it starts. Run the local preflight against that
+  // same root so QR checks do not disagree with the subsequent proxy call.
+  const identify = identifyMakerProject({ cwd: targetDir });
+  return inspectMakerProjectHealth(identify.projectRoot || path.resolve(targetDir), 'qrcode');
+}
+
 export function createRemoteProxyCallToolOptions(
   progressToken: ProgressToken | undefined,
   extra: RequestHandlerExtra<ServerRequest, ServerNotification>
@@ -858,6 +884,20 @@ export async function startMakerMcpServer(): Promise<void> {
           listClientRoots,
           allowFallbackOnAmbiguousRoots: false,
         });
+        if (name === 'generate_test_qrcode') {
+          const projectHealth = inspectMakerProxyToolPreflight(name, context.targetDir);
+          if (!projectHealth.canGenerateTestQrcode) {
+            return {
+              isError: true,
+              content: [
+                {
+                  type: 'text',
+                  text: formatMakerProjectHealthStatus(projectHealth),
+                },
+              ],
+            };
+          }
+        }
         return await callRemoteProxyTool({
           targetDir: context.targetDir,
           name,
@@ -981,8 +1021,8 @@ export async function formatStatus(
         inspectMakerProjectInitialization(identify.projectRoot)
       )
     : '';
-  const projectSettingsText = identify.projectRoot
-    ? formatMakerProjectSettingsStatus(inspectMakerProjectSettings(identify.projectRoot))
+  const projectHealthText = identify.projectRoot
+    ? formatMakerProjectHealthStatus(inspectMakerProjectHealth(identify.projectRoot, 'status'))
     : '';
   const projectSection = identify.projectId
     ? [
@@ -1022,7 +1062,7 @@ export async function formatStatus(
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
     ...(projectInitializationText ? ['', projectInitializationText, ''] : ['']),
-    ...(projectSettingsText ? ['', projectSettingsText, ''] : ['']),
+    ...(projectHealthText ? ['', projectHealthText, ''] : ['']),
     formatMakerClientRootsStatus(projectContext.roots),
     '',
     projectContext.source === 'client_roots'
@@ -2064,6 +2104,12 @@ type BuildCurrentDirectoryResult =
       settingsStatus: MakerProjectSettingsStatus;
     }
   | {
+      mode: 'project_invalid_before_build';
+      projectRoot: string;
+      projectId: string;
+      projectHealth: MakerProjectHealth;
+    }
+  | {
       mode: 'build_failed_after_submit';
       projectRoot: string;
       projectId: string;
@@ -2103,13 +2149,28 @@ export async function buildCurrentDirectory(options: {
   const localChanges = await readMakerProjectLocalChanges(options.targetDir);
   if (!options.confirmRemoteBuildWithoutSubmit) {
     const config = loadProjectConfig(localChanges.projectRoot);
-    const settingsStatus = inspectMakerProjectSettings(localChanges.projectRoot);
-    if (isMakerProjectSettingsBlocking(settingsStatus)) {
+    const projectHealth = inspectMakerProjectHealth(localChanges.projectRoot, 'build');
+    if (!projectHealth.canBuild) {
+      const settingsStatus = inspectMakerProjectSettings(localChanges.projectRoot);
+      const hasNonSettingsErrors = projectHealth.issues.some(
+        (item) =>
+          item.severity === 'error' &&
+          item.code !== 'invalid_settings_json' &&
+          item.code !== 'invalid_project_settings'
+      );
+      if (isMakerProjectSettingsBlocking(settingsStatus) && !hasNonSettingsErrors) {
+        return {
+          mode: 'settings_invalid_before_build',
+          projectRoot: localChanges.projectRoot,
+          projectId: config?.project_id || 'unknown',
+          settingsStatus,
+        };
+      }
       return {
-        mode: 'settings_invalid_before_build',
+        mode: 'project_invalid_before_build',
         projectRoot: localChanges.projectRoot,
         projectId: config?.project_id || 'unknown',
-        settingsStatus,
+        projectHealth,
       };
     }
     options.onProgress?.({
@@ -3039,6 +3100,20 @@ export function formatBuildResult(
       ...formatProgressSummary(progressSummary),
       '',
       formatMakerProjectSettingsStatus(result.settingsStatus),
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (result.mode === 'project_invalid_before_build') {
+    return [
+      '✗ Maker project structure is invalid; submit and remote build were not started',
+      '',
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      ...formatProgressSummary(progressSummary),
+      '',
+      formatMakerProjectHealthStatus(result.projectHealth),
     ]
       .filter(Boolean)
       .join('\n');
