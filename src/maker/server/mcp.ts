@@ -677,14 +677,17 @@ export async function startMakerMcpServer(): Promise<void> {
     const name = request.params.name;
     const startedAt = Date.now();
     const rawArgs = (request.params.arguments || {}) as Record<string, unknown>;
+    const hasInvalidTargetDir =
+      rawArgs.target_dir !== undefined &&
+      (typeof rawArgs.target_dir !== 'string' || !rawArgs.target_dir.trim());
     const targetDir =
-      rawArgs.target_dir === undefined || typeof rawArgs.target_dir === 'string'
+      !hasInvalidTargetDir &&
+      (rawArgs.target_dir === undefined || typeof rawArgs.target_dir === 'string')
         ? (rawArgs.target_dir as string | undefined)
         : undefined;
-    const contextPromise =
-      rawArgs.target_dir !== undefined && typeof rawArgs.target_dir !== 'string'
-        ? Promise.resolve(null)
-        : resolveMakerMcpTrackingContext({ targetDir, listClientRoots });
+    const contextPromise = hasInvalidTargetDir
+      ? Promise.resolve(null)
+      : resolveMakerMcpTrackingContext({ targetDir, listClientRoots });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
 
     try {

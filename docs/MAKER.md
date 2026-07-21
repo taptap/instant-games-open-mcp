@@ -246,7 +246,8 @@ Maker MCP 使用已有 `tapmaker_mcp_call` action 上报本地开发活跃，并
 
 Tool 调用、`maker://status` Resource 读取和 MCP 启动都计入本地活跃；Tool 使用真实工具名，
 Resource 使用 `maker://status`，启动事件使用 `@taptap/maker@<version>`。上报是异步的，
-tracking 请求失败不会改变 MCP Tool 或 Resource 的结果。
+tracking 请求失败不会改变 MCP Tool 或 Resource 的结果。错误信息上报前会脱敏 PAT、Bearer、
+access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、project_id 和路径等诊断信息。
 
 - `@taptap/maker` 发版成功后，`publish-maker.yml` 会用 `scripts/update-maker-version-policy.cjs`
   更新 `config/maker-version-policy.json` 并创建一个可 review 的 PR。`tag=latest` 只自动更新

@@ -7,6 +7,7 @@ import { getMakerApiBaseUrl } from './config.js';
 export const MAKER_MCP_TRACKING_ACTION = 'tapmaker_mcp_call';
 export const MAKER_MCP_TRACKING_SOURCE = 'local_mcp';
 export const MAKER_MCP_TRACKING_TIMEOUT_MS = 1500;
+const TRACKING_ERROR_MAX_LENGTH = 500;
 
 export interface MakerMcpTrackingContext {
   userId: string;
@@ -79,7 +80,7 @@ export function buildMakerMcpTrackingPayload(
     args.error_code = event.errorCode.trim();
   }
   if (event.errorMessage?.trim()) {
-    args.error_message = event.errorMessage.trim().slice(0, 500);
+    args.error_message = sanitizeMakerMcpTrackingError(event.errorMessage);
   }
 
   return {
@@ -87,6 +88,21 @@ export function buildMakerMcpTrackingPayload(
     ...(event.userAgent?.trim() ? { user_agent: event.userAgent.trim() } : {}),
     args,
   };
+}
+
+/**
+ * Remove credential values from error text while preserving paths and identifiers.
+ */
+export function sanitizeMakerMcpTrackingError(message: string): string {
+  return message
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, '<redacted>')
+    .replace(
+      /((?:authorization|access[_-]?token|refresh[_-]?token|mac[_-]?key|pat|token)\s*[:=]\s*)(["']?)[^,\s"'}<]+/gi,
+      '$1$2<redacted>'
+    )
+    .replace(/(https?:\/\/[^:\s/@]+:)[^@\s]+@/gi, '$1<redacted>@')
+    .trim()
+    .slice(0, TRACKING_ERROR_MAX_LENGTH);
 }
 
 /**

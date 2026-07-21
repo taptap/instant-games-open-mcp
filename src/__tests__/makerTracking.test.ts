@@ -1,4 +1,8 @@
-import { buildMakerMcpTrackingPayload, reportMakerMcpActivity } from '../maker/tracking';
+import {
+  buildMakerMcpTrackingPayload,
+  reportMakerMcpActivity,
+  sanitizeMakerMcpTrackingError,
+} from '../maker/tracking';
 
 describe('maker MCP tracking', () => {
   test('builds a local MCP event with the configured identity and source', () => {
@@ -58,6 +62,17 @@ describe('maker MCP tracking', () => {
         source: 'local_mcp',
       },
     });
+  });
+
+  test('redacts credentials from error messages without hiding paths or identifiers', () => {
+    expect(
+      sanitizeMakerMcpTrackingError(
+        'PAT=secret-value failed at /Users/test/game for user_id=user-1 project_id=project-1'
+      )
+    ).toBe('PAT=<redacted> failed at /Users/test/game for user_id=user-1 project_id=project-1');
+    expect(sanitizeMakerMcpTrackingError('Authorization: Bearer secret-value')).toBe(
+      'Authorization: <redacted>'
+    );
   });
 
   test('posts the event and isolates a failed tracking request', async () => {
