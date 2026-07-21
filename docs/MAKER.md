@@ -236,6 +236,18 @@ MCP 运行期能力：
   如果还没有确认项目目录，只能说明 machine-level refresh 的取舍，再决定是否运行不带
   `--target-dir` 的 `taptap-maker upgrade`。升级后要提示用户重启或 reconnect MCP session，
   然后用 `maker://status` 或 `maker_status_lite` 复核结果。
+
+### 本地开发活跃上报
+
+Maker MCP 使用已有 `tapmaker_mcp_call` action 上报本地开发活跃，并在
+`args.source` 中固定写入 `local_mcp`。`user_id` 与 `project_id` 只从当前项目的
+`.maker-mcp/config.json` 读取；缺少任一字段、或当前调用无法准确解析到项目时不发送事件，
+不会使用 JWT、PAT、默认值或其它项目配置补齐。
+
+Tool 调用、`maker://status` Resource 读取和 MCP 启动都计入本地活跃；Tool 使用真实工具名，
+Resource 使用 `maker://status`，启动事件使用 `@taptap/maker@<version>`。上报是异步的，
+tracking 请求失败不会改变 MCP Tool 或 Resource 的结果。
+
 - `@taptap/maker` 发版成功后，`publish-maker.yml` 会用 `scripts/update-maker-version-policy.cjs`
   更新 `config/maker-version-policy.json` 并创建一个可 review 的 PR。`tag=latest` 只自动更新
   `latest`，`tag=beta` 只自动更新 `latest_beta`，并刷新 `updated_at`；`minimum_supported`、

@@ -160,6 +160,12 @@ Windows 是默认优先级：CLI 写通用 `mcpServers` 配置时会在 Windows 
 详见：[TapTap Maker 本地开发](docs/MAKER.md)。面向团队介绍的功能总览见
 [Maker CLI + MCP + Skill Rework Overview](docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
 
+本地 Maker MCP 会透明上报本地开发活跃事件，复用 `tapmaker_mcp_call` 并在
+`args.source` 写入 `local_mcp`。事件只使用当前绑定项目配置中的 `user_id` 和
+`project_id`；任一关键字段缺失或项目上下文无法准确解析时跳过上报，不使用默认值或
+其它账号信息代替。Tool、`maker://status` Resource 和 MCP 启动事件均可作为活跃行为，
+上报失败不会影响 MCP 工具结果。
+
 ## 🧩 Codex Skills（运营简报）
 
 本仓库内置一个面向运营/工作室的 Codex Skill：`taptap-dc-ops-brief`，用于把“当前游戏 DC 数据”整理成 30 秒可读的结论简报，并在你确认后执行评价点赞/官方回复等动作。

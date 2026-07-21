@@ -111,6 +111,11 @@ import {
   prepareRemoteProxyToolArgs,
 } from './proxyAssets.js';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
+import {
+  reportMakerMcpActivity,
+  type MakerMcpActivityEvent,
+  type MakerMcpTrackingContext,
+} from '../tracking.js';
 
 export { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './proxyAssets.js';
 
@@ -619,26 +624,68 @@ export async function startMakerMcpServer(): Promise<void> {
   );
 
   const listClientRoots = createServerClientRootsProvider(server);
-  server.setRequestHandler(ListToolsRequestSchema, async () => listMakerTools({ listClientRoots }));
-  server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources }));
-  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const startupReportedProjects = new Set<string>();
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
+    return listMakerTools({ listClientRoots });
+  });
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
+    return { resources };
+  });
+  server.setRequestHandler(ReadResourceRequestSchema, async (request, extra) => {
     const uri = request.params.uri;
     if (uri !== 'maker://status') {
       throw new McpError(ErrorCode.InvalidParams, `Unknown Maker resource: ${uri}`);
     }
 
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: 'text/plain',
-          text: await formatStatus({ listClientRoots }),
-        },
-      ],
-    };
+    const startedAt = Date.now();
+    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
+    try {
+      const result = {
+        contents: [
+          {
+            uri,
+            mimeType: 'text/plain',
+            text: await formatStatus({ listClientRoots }),
+          },
+        ],
+      };
+      void reportMakerMcpActivityFromPromise(contextPromise, {
+        toolName: uri,
+        requestId: extra.requestId,
+        durationMs: Date.now() - startedAt,
+        success: true,
+      });
+      return result;
+    } catch (error) {
+      void reportMakerMcpActivityFromPromise(contextPromise, {
+        toolName: uri,
+        requestId: extra.requestId,
+        durationMs: Date.now() - startedAt,
+        success: false,
+        errorCode: error instanceof Error ? error.name : undefined,
+        errorMessage: error instanceof Error ? error.message : undefined,
+      });
+      throw error;
+    }
   });
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const name = request.params.name;
+    const startedAt = Date.now();
+    const rawArgs = (request.params.arguments || {}) as Record<string, unknown>;
+    const targetDir =
+      rawArgs.target_dir === undefined || typeof rawArgs.target_dir === 'string'
+        ? (rawArgs.target_dir as string | undefined)
+        : undefined;
+    const contextPromise =
+      rawArgs.target_dir !== undefined && typeof rawArgs.target_dir !== 'string'
+        ? Promise.resolve(null)
+        : resolveMakerMcpTrackingContext({ targetDir, listClientRoots });
+    void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
 
     try {
       if (name === 'maker_status_lite') {
@@ -646,7 +693,7 @@ export async function startMakerMcpServer(): Promise<void> {
           target_dir?: string;
           skip_remote_sync?: boolean;
         };
-        return {
+        const toolResult = {
           content: [
             {
               type: 'text',
@@ -658,6 +705,13 @@ export async function startMakerMcpServer(): Promise<void> {
             },
           ],
         };
+        void reportMakerMcpActivityFromPromise(contextPromise, {
+          toolName: name,
+          requestId: extra.requestId,
+          durationMs: Date.now() - startedAt,
+          success: true,
+        });
+        return toolResult;
       }
 
       if (name === 'maker_build_current_directory') {
@@ -710,7 +764,7 @@ export async function startMakerMcpServer(): Promise<void> {
           throw error;
         }
 
-        return {
+        const toolResult = {
           content: [
             {
               type: 'text',
@@ -718,6 +772,13 @@ export async function startMakerMcpServer(): Promise<void> {
             },
           ],
         };
+        void reportMakerMcpActivityFromPromise(contextPromise, {
+          toolName: name,
+          requestId: extra.requestId,
+          durationMs: Date.now() - startedAt,
+          success: true,
+        });
+        return toolResult;
       }
 
       if (isExposedRemoteProxyTool(name)) {
@@ -729,17 +790,32 @@ export async function startMakerMcpServer(): Promise<void> {
           listClientRoots,
           allowFallbackOnAmbiguousRoots: false,
         });
-        return await callRemoteProxyTool({
+        const result = await callRemoteProxyTool({
           targetDir: context.targetDir,
           name,
           args: remoteArgs,
           progressToken: request.params._meta?.progressToken,
           extra,
         });
+        void reportMakerMcpActivityFromPromise(contextPromise, {
+          toolName: name,
+          requestId: extra.requestId,
+          durationMs: Date.now() - startedAt,
+          success: !result.isError,
+        });
+        return result;
       }
 
       throw new McpError(ErrorCode.MethodNotFound, `Unknown Maker tool: ${name}`);
     } catch (error) {
+      void reportMakerMcpActivityFromPromise(contextPromise, {
+        toolName: name,
+        requestId: extra.requestId,
+        durationMs: Date.now() - startedAt,
+        success: false,
+        errorCode: error instanceof Error ? error.name : undefined,
+        errorMessage: error instanceof Error ? error.message : undefined,
+      });
       return {
         isError: true,
         content: [
@@ -755,6 +831,68 @@ export async function startMakerMcpServer(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   installMakerServerExitHandlers();
+}
+
+async function resolveMakerMcpTrackingContext(options: {
+  targetDir?: string;
+  listClientRoots?: MakerClientRootsProvider;
+}): Promise<MakerMcpTrackingContext | null> {
+  try {
+    const context = await resolveMakerProjectContext({
+      targetDir: options.targetDir,
+      listClientRoots: options.listClientRoots,
+      allowFallbackOnAmbiguousRoots: false,
+    });
+    const identify = identifyMakerProject({ cwd: context.targetDir });
+    const projectConfig = identify.projectRoot ? loadProjectConfig(identify.projectRoot) : null;
+    const userId = projectConfig?.user_id?.trim();
+    const projectId = projectConfig?.project_id?.trim();
+    if (!userId || !projectId) {
+      return null;
+    }
+    return { userId, projectId };
+  } catch {
+    return null;
+  }
+}
+
+async function reportMakerMcpActivityFromPromise(
+  contextPromise: Promise<MakerMcpTrackingContext | null>,
+  event: Omit<MakerMcpActivityEvent, 'context'>
+): Promise<void> {
+  try {
+    const context = await contextPromise;
+    if (!context) {
+      return;
+    }
+    await reportMakerMcpActivity({ context, ...event });
+  } catch {
+    // Activity reporting must never affect the MCP request or resource result.
+  }
+}
+
+async function reportMakerMcpStartupFromPromise(
+  contextPromise: Promise<MakerMcpTrackingContext | null>,
+  reportedProjects: Set<string>
+): Promise<void> {
+  try {
+    const context = await contextPromise;
+    if (!context) {
+      return;
+    }
+    const key = `${context.userId}\u0000${context.projectId}`;
+    if (reportedProjects.has(key)) {
+      return;
+    }
+    reportedProjects.add(key);
+    await reportMakerMcpActivity({
+      context,
+      toolName: `@taptap/maker@${VERSION}`,
+      success: true,
+    });
+  } catch {
+    // Activity reporting must never affect the MCP request or resource result.
+  }
 }
 
 const MAKER_SERVER_SHUTDOWN_TIMEOUT_MS = 3000;
