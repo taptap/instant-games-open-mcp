@@ -1107,12 +1107,44 @@ describe('Maker CLI commands', () => {
 
     await runMakerCli(['agents', 'update', '--target-dir', tempDir]);
     const twice = fs.readFileSync(agentsPath, 'utf8');
+    const normalizedPolicy = twice.replace(/\s+/gu, ' ');
 
     expect(twice).toBe(once);
     expect(twice).toContain('TapTap Maker managed AGENTS policy');
     expect(twice).toContain('version=');
     expect(twice).toContain('hash=sha256:');
     expect(twice).toContain('Keep this user rule.');
+    expect(twice).toContain('Maker MCP connection recovery');
+    expect(normalizedPolicy).toContain('Maker MCP tools for initial diagnosis');
+    expect(normalizedPolicy).toContain('npx -y -p @taptap/maker taptap-maker mcp verify --json');
+    expect(normalizedPolicy).toContain(
+      'tools are missing, the process exits immediately, or the client reports `-32000`,'
+    );
+    expect(normalizedPolicy).toContain('`Connection closed`, or `command not found`');
+    expect(normalizedPolicy).toContain('standard `@taptap/maker` npx/CLI launch path');
+    expect(normalizedPolicy).toContain('does not start the Maker MCP server');
+    expect(normalizedPolicy).toContain("does not read or validate the client's active MCP config");
+    expect(normalizedPolicy).toContain(
+      'command, status, signal, stdout, stderr, error, and failure_type'
+    );
+    expect(normalizedPolicy).toContain(
+      'A successful verify result does not prove that the client MCP config works'
+    );
+    expect(normalizedPolicy).toContain('config path, command, ordered args, cwd');
+    expect(normalizedPolicy).toContain('Classify the root cause from evidence before repairing it');
+    expect(normalizedPolicy).toContain(
+      'Do not automatically change trust storage, PATH, cwd, credentials'
+    );
+    expect(normalizedPolicy).toContain(
+      'only after evidence confirms that the active config entry is damaged'
+    );
+    expect(twice).toContain('WorkBuddy');
+    expect(twice).toContain('npx');
+    expect(twice).toContain(
+      'Preview, build, test, and local-development intent must never select or change the service'
+    );
+    expect(twice).toContain('Do not add environment parameters');
+    expect(twice).not.toMatch(/\brnd\b|xdrnd|TAPTAP_MCP_ENV/iu);
     expect((twice.match(/TapTap Maker managed AGENTS policy/g) || []).length).toBe(2);
   });
 
@@ -2511,6 +2543,12 @@ describe('Maker CLI commands', () => {
     expect(stdoutSpy.mock.calls.join('')).toContain('taptap-maker logs watch');
     expect(stdoutSpy.mock.calls.join('')).toContain('--interval 5s');
     expect(stdoutSpy.mock.calls.join('')).toContain('--reset');
+  });
+
+  test('help does not expose internal environment selection', async () => {
+    await runMakerCli(['help']);
+
+    expect(stdoutSpy.mock.calls.join('')).not.toMatch(/\brnd\b|TAPTAP_MCP_ENV|--env/iu);
   });
 
   test('help documents Python runtime commands', async () => {

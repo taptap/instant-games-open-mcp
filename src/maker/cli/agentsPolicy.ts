@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const MAKER_AGENTS_FILE = 'AGENTS.md';
-const POLICY_VERSION = '1';
+const POLICY_VERSION = '2';
 const LEGACY_POLICY_BEGIN = '<!-- >>> TapTap Maker asset tool policy >>> -->';
 const LEGACY_POLICY_END = '<!-- <<< TapTap Maker asset tool policy <<< -->';
 const POLICY_END = '<!-- <<< TapTap Maker managed AGENTS policy <<< -->';
@@ -137,6 +137,33 @@ function createMakerAgentsPolicyBody(): string {
     '',
     'Generic code checks such as 验证代码, 跑测试, lint, or 检查实现 should not trigger a Maker',
     'remote build unless the user explicitly asks to build, run, or preview the Maker game.',
+    '- Preview, build, test, and local-development intent must never select or change the service',
+    '  environment. Do not add environment parameters to Maker tool calls or user MCP config;',
+    '  use the default Maker service configuration.',
+    '',
+    'Maker MCP connection recovery:',
+    '',
+    '- If tools are missing, the process exits immediately, or the client reports `-32000`,',
+    '  `Connection closed`, or `command not found`, do not depend on Maker MCP tools for initial',
+    '  diagnosis. Work from local config, shell output, and client logs.',
+    '- Attempt `npx -y -p @taptap/maker taptap-maker mcp verify --json`; on Windows use',
+    '  `npx.cmd -y -p @taptap/maker taptap-maker mcp verify --json`. Record command failure as',
+    '  diagnostic evidence instead of skipping the check.',
+    '- This verifies only the standard `@taptap/maker` npx/CLI launch path and returns command,',
+    '  status, signal, stdout, stderr, error, and failure_type. It does not start the Maker MCP server',
+    "  and does not read or validate the client's active MCP config, WorkBuddy trust, cwd, or Roots.",
+    '  A successful verify result does not prove that the client MCP config works.',
+    '- Then inspect and reproduce the active config path, command, ordered args, cwd, WorkBuddy',
+    '  enable/trust state, workspace/Roots, Node/npm/npx paths, client PATH, exit status, and stderr.',
+    '- Classify the root cause from evidence before repairing it. Do not automatically change trust',
+    '  storage, PATH, cwd, credentials, or game code.',
+    '- Treat `taptap-maker mcp install --ide <client>` as an optional recovery only after evidence',
+    '  confirms that the active config entry is damaged.',
+    '- Never repair cwd by wrapping the command with `cd /d "<project>" && npx.cmd ...`.',
+    '  Maker supports Chinese project paths; command-shell quoting or client startup can fail',
+    '  independently of the project path.',
+    '- AI conversations share user-level MCP config. Back up the active config before any repair,',
+    '  then reconnect and verify in both the current and a new conversation.',
     '',
     'Maker ad workflow:',
     '',

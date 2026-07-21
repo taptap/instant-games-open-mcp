@@ -1041,6 +1041,10 @@ describe('maker build local-change guard', () => {
     expect(buildTool?.description).toContain('bound Maker project');
     expect(buildTool?.description).toContain('验证游戏效果');
     expect(buildTool?.description).toContain('Do not treat generic code validation requests');
+    expect(buildTool?.description).toContain(
+      'Preview/build intent does not select or change the service environment'
+    );
+    expect(buildTool?.description).toContain('Do not add environment parameters');
     expect(buildTool?.description).toContain('empty wake-up commit');
     expect(buildTool?.description).toContain('remote Maker build');
     expect(buildTool?.description).toContain('If push fails, build is not started');
@@ -2953,9 +2957,13 @@ describe('maker build local-change guard', () => {
   test('build tool schema keeps remote build controls synchronous', () => {
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
+    expect(buildTool?.inputSchema).toMatchObject({ additionalProperties: false });
     expect(buildTool?.inputSchema.properties).toHaveProperty('message');
     expect(buildTool?.inputSchema.properties).toHaveProperty('files');
     expect(buildTool?.inputSchema.properties).toHaveProperty('confirm_remote_build_without_submit');
+    expect(buildTool?.inputSchema.properties).not.toHaveProperty('env');
+    expect(buildTool?.inputSchema.properties).not.toHaveProperty('server_url');
+    expect(JSON.stringify(buildTool?.inputSchema)).not.toMatch(/\brnd\b|TAPTAP_MCP_ENV/iu);
     expect(buildTool?.inputSchema.properties).not.toHaveProperty('async_build');
     expect(buildTool?.inputSchema.properties).not.toHaveProperty(
       'remember_build_submit_preference'
@@ -3169,6 +3177,8 @@ describe('maker build local-change guard', () => {
     expect(output).toContain(
       '- maker_url: https://maker.taptap.cn/app/a161a4e5-a226-4133-908f-c28c228b7ea5?localDev=1'
     );
+    expect(output).not.toContain('- server_url:');
+    expect(output).not.toContain('- env:');
     expect(output).toContain('runtime_logs:');
     expect(output).toContain('- watch_started: yes');
     expect(output).toContain('- watch_pid: 12345');

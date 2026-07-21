@@ -28,6 +28,10 @@ This skill covers:
 Build, submit, push, preview, and verify behavior belongs to the single Maker MCP build tool. The
 post-build runtime log polling loop belongs to the local Maker CLI watcher.
 
+Do not infer or set a service environment from preview, build, test, or local-development intent.
+Do not add environment parameters to Maker tool calls or user MCP config; use the default Maker
+service configuration.
+
 For multiplayer builds, use `maker_build_current_directory` structured parameters instead of
 editing project JSON directly. `entry_client` / `entry_server` map to `project.json`
 `entry@client` / `entry@server`; `multiplayer.enabled`, `max_players`, `background_match`,
@@ -248,6 +252,33 @@ workspace first, then read `maker://status` or call `maker_status_lite` with the
 directory.
 
 ### Proxy Tools Missing From The Current Session
+
+If Maker MCP is completely unavailable, tools are missing, the process exits immediately, or the
+client reports `-32000`, `Connection closed`, or `command not found`, do not call Maker MCP tools
+for the initial diagnosis. Work offline first:
+
+1. Find the MCP config file the current client actually reads and back it up.
+2. Attempt `npx -y -p @taptap/maker taptap-maker mcp verify --json`; on Windows use
+   `npx.cmd -y -p @taptap/maker taptap-maker mcp verify --json`. If the command itself fails, keep
+   that failure as diagnostic evidence.
+3. This command checks only the standard `@taptap/maker` npx/CLI launch path and returns command,
+   status, signal, stdout, stderr, error, and failure_type. It does not start the Maker MCP server
+   and does not read or validate the client's active MCP config, WorkBuddy trust, cwd, or Roots.
+   A successful verify result does not prove that the client MCP config works.
+4. Inspect and reproduce the active config path, command, ordered args, cwd, WorkBuddy enable/trust
+   state, workspace/Roots, Node/npm/npx paths, the AI client's PATH, exit status, and stderr.
+5. For WorkBuddy, verify both the `taptap-maker` server entry and the account-level enable/trust
+   state. Do not edit account trust storage automatically; ask the user to enable it in WorkBuddy.
+6. On Windows, keep `cmd.exe`, `npx.cmd`, and each argument separate. Never replace cwd with a
+   `cd /d "<project>" && npx.cmd ...` command string, including for Chinese project paths.
+7. Remember that multiple AI conversations share user-level MCP config. One conversation can break
+   every other conversation by rewriting the shared command or cwd.
+8. Classify the root cause from evidence before repairing it. Do not automatically change trust
+   storage, PATH, cwd, credentials, or game code. Use `taptap-maker mcp install --ide <client>` only
+   after evidence confirms that the active config entry is damaged. Reconnect and verify again in
+   both the current and a new conversation.
+
+Only after the base Maker MCP connection works should you use the following MCP-based cwd checks.
 
 If the user is in a bound Maker project but `generate_image`, `batch_generate_images`, `edit_image`,
 `create_video_task`, `query_video_task`, `text_to_music`, `text_to_sound_effect`,
