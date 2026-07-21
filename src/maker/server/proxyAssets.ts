@@ -7,6 +7,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { extractZip } from '../cli/devKit.js';
+import { sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
 
 type RemoteProxyToolResult = Awaited<ReturnType<Client['callTool']>>;
 type RemoteProxyToolResultWithStructuredContent = RemoteProxyToolResult & {
@@ -224,7 +225,16 @@ function isRemoteProxyToolErrorResult(result: RemoteProxyToolResult): boolean {
 }
 
 export function formatRemoteProxyToolResult(result: RemoteProxyToolResult): string {
-  return ['remote_result:', indent(formatUnknownForDiagnostics(result))].join('\n');
+  return [
+    'remote_result:',
+    indent(formatUnknownForDiagnostics(sanitizeRemoteProxyToolResult(result))),
+  ].join('\n');
+}
+
+export function sanitizeRemoteProxyToolResult(
+  result: RemoteProxyToolResult
+): RemoteProxyToolResult {
+  return sanitizeRemoteDiagnosticValue(result) as RemoteProxyToolResult;
 }
 
 function formatUnknownForDiagnostics(value: unknown): string {

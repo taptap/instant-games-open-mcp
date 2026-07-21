@@ -117,7 +117,7 @@ describe('Maker AI dev kit install', () => {
     expect(claudeGuide).toBe('local agent docs\n');
     expect(claudeGuide).not.toContain('TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toMatch(
-      /^<!-- >>> TapTap Maker managed AGENTS policy version=1 hash=sha256:[0-9a-f]+ >>> -->/
+      /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toContain('Maker build workflow');
@@ -349,7 +349,7 @@ describe('Maker AI dev kit install', () => {
     const agentsGuide = fs.readFileSync(path.join(targetDir, 'AGENTS.md'), 'utf8');
     const claudeGuide = fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8');
     expect(agentsGuide).toMatch(
-      /^<!-- >>> TapTap Maker managed AGENTS policy version=1 hash=sha256:[0-9a-f]+ >>> -->/
+      /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toContain('call `maker_build_current_directory`');

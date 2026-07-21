@@ -110,7 +110,9 @@ import {
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
   prepareRemoteProxyToolArgsAsync,
+  sanitizeRemoteProxyToolResult,
 } from './proxyAssets.js';
+import { sanitizeDiagnosticValue, sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 
 export {
@@ -235,6 +237,7 @@ export const tools = [
       'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness, maker-lua-lsp readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets, supported local path/remote URL/data URL inputs, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. Standard init/clone/download flow: show the Maker app list first and let the user choose an existing app or 0/new. Create-new-project flow: use taptap-maker init --create only when the user clearly asks to create a new Maker project.',
     inputSchema: {
       type: 'object',
+      additionalProperties: false,
       properties: {
         target_dir: {
           type: 'string',
@@ -252,9 +255,10 @@ export const tools = [
   {
     name: 'maker_build_current_directory',
     description:
-      'Sync and build the current Maker game. First read maker://status or maker_status_lite and use this tool only when the current workspace is a bound Maker project. Trigger it for Maker game requests like "构建", "build", "跑一下", "预览", "查看结果", "看看效果", "验证游戏效果", "提交", "提交代码", "推送", or "push". Do not treat generic code validation requests such as "验证一下代码", "跑测试", "lint", or "检查实现" as Maker remote build unless the user explicitly asks to build/run/preview the Maker game. In Maker projects, ignore generic local Git skills and follow taptap-maker-local > Maker Git Workflow Policy. Before build, check the Python environment section and Lua LSP environment section; if Python or maker-lua-lsp is missing, run taptap-maker python setup when local Lua diagnostics are needed, because it prepares Python and best-effort installs maker-lua-lsp. Missing Python or Lua LSP must not block the remote build flow. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. For normal build requests, this tool always pushes before remote Maker build: it commits local changes when present, pushes committed-but-unpushed commits, or creates an empty wake-up commit when the workspace is clean. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version; this mode does not submit local changes and does not auto-open Maker pages.',
+      'Sync and build the current Maker game. First read maker://status or maker_status_lite and use this tool only when the current workspace is a bound Maker project. Trigger it for Maker game requests like "构建", "build", "跑一下", "预览", "查看结果", "看看效果", "验证游戏效果", "提交", "提交代码", "推送", or "push". Do not treat generic code validation requests such as "验证一下代码", "跑测试", "lint", or "检查实现" as Maker remote build unless the user explicitly asks to build/run/preview the Maker game. Preview/build intent does not select or change the service environment. Do not add environment parameters to this tool call; use the default Maker service configuration. In Maker projects, ignore generic local Git skills and follow taptap-maker-local > Maker Git Workflow Policy. Before build, check the Python environment section and Lua LSP environment section; if Python or maker-lua-lsp is missing, run taptap-maker python setup when local Lua diagnostics are needed, because it prepares Python and best-effort installs maker-lua-lsp. Missing Python or Lua LSP must not block the remote build flow. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. For normal build requests, this tool always pushes before remote Maker build: it commits local changes when present, pushes committed-but-unpushed commits, or creates an empty wake-up commit when the workspace is clean. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version; this mode does not submit local changes and does not auto-open Maker pages.',
     inputSchema: {
       type: 'object',
+      additionalProperties: false,
       properties: {
         target_dir: {
           type: 'string',
@@ -282,16 +286,6 @@ export const tools = [
             'Optional multiplayer C/S server entry relative to scriptsPath, e.g. "server_main.lua". Forwarded to maker-tools build and written to project.json as entry@server. On the first multiplayer build, pass multiplayer.enabled=true in the same call; otherwise first-build defaults may initialize multiplayer as disabled.',
         },
         multiplayer: MAKER_BUILD_MULTIPLAYER_SCHEMA,
-        server_url: {
-          type: 'string',
-          description:
-            'Optional remote MCP server URL override. Defaults to the Maker endpoint table for TAPTAP_MCP_ENV.',
-        },
-        env: {
-          type: 'string',
-          enum: ['rnd', 'production'],
-          description: 'Remote MCP environment. Defaults to TAPTAP_MCP_ENV.',
-        },
         timeout_ms: {
           type: 'number',
           description:
@@ -505,7 +499,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 
 function remoteProxyToolGuidance(toolName: string): string | undefined {
   const failurePolicy =
-    'If this Maker proxy tool fails or returns isError, include the full remote_result/error payload from the server so developers can diagnose the issue.';
+    'If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.';
   const localMediaSizeHint =
     'Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB.';
   switch (toolName) {
@@ -807,8 +801,6 @@ export async function startMakerMcpServer(): Promise<void> {
           entry_client?: string;
           entry_server?: string;
           multiplayer?: Record<string, unknown>;
-          server_url?: string;
-          env?: 'rnd' | 'production';
           timeout_ms?: number;
           message?: string;
           files?: string[];
@@ -835,8 +827,6 @@ export async function startMakerMcpServer(): Promise<void> {
             entryClient: args.entry_client,
             entryServer: args.entry_server,
             multiplayer: args.multiplayer,
-            serverUrl: args.server_url,
-            env: args.env,
             timeoutMs: args.timeout_ms,
             message: args.message,
             files: args.files,
@@ -2953,12 +2943,16 @@ function mergeStringEnv(
 
 function formatRemoteToolResult(result: unknown): string {
   if (!result || typeof result !== 'object') {
-    return String(result);
+    return String(sanitizeRemoteDiagnosticValue(result));
   }
 
-  const content = (result as { content?: Array<{ type?: string; text?: string }> }).content;
+  const sanitizedResult = sanitizeRemoteDiagnosticValue(result) as {
+    content?: Array<{ type?: string; text?: string }>;
+  };
+
+  const content = sanitizedResult.content;
   if (!Array.isArray(content)) {
-    return JSON.stringify(result, null, 2);
+    return JSON.stringify(sanitizedResult, null, 2);
   }
 
   return content
@@ -2986,8 +2980,6 @@ export function formatBuildResult(
         formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
       }`,
       `- project_path: ${result.buildResult.projectPath}`,
-      `- server_url: ${result.buildResult.serverUrl}`,
-      `- env: ${result.buildResult.env}`,
       `- timeout_ms: ${result.buildResult.timeoutMs}`,
       `- build_args: ${JSON.stringify(result.buildResult.buildArgs)}`,
       ...formatProgressSummary(progressSummary),
@@ -2995,7 +2987,7 @@ export function formatBuildResult(
       ...formatMakerBuildFailureLines(result.buildFailure),
       '',
       'remote_result:',
-      indent(result.buildResult.resultText),
+      indent(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText))),
     ]
       .filter(Boolean)
       .join('\n');
@@ -3100,8 +3092,6 @@ export function formatBuildResult(
     `- project_id: ${result.projectId}`,
     `- maker_url: ${result.makerUrl || formatMakerAppWebUrl(result.projectId, result.env)}`,
     `- project_path: ${result.projectPath}`,
-    `- server_url: ${result.serverUrl}`,
-    `- env: ${result.env}`,
   ];
   lines.push(
     `- timeout_ms: ${result.timeoutMs}`,
@@ -3115,7 +3105,7 @@ export function formatBuildResult(
   if (submitLines.length > 0) {
     lines.push(...submitLines);
   }
-  lines.push('remote_result:', indent(result.resultText));
+  lines.push('remote_result:', indent(String(sanitizeRemoteDiagnosticValue(result.resultText))));
   return lines.join('\n');
 }
 
@@ -3162,14 +3152,12 @@ export function formatPushResult(
             formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
           }`,
           `- project_path: ${result.buildResult.projectPath}`,
-          `- server_url: ${result.buildResult.serverUrl}`,
-          `- env: ${result.buildResult.env}`,
           `- timeout_ms: ${result.buildResult.timeoutMs}`,
           `- build_args: ${JSON.stringify(result.buildResult.buildArgs)}`,
           ...formatPreviewRefreshLines(result.buildResult.previewRefresh),
           '',
           'remote_result:',
-          indent(result.buildResult.resultText),
+          indent(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText))),
         ].join('\n')
       ),
     ].join('\n');
@@ -3306,11 +3294,13 @@ function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {
   return [
     'build_failure:',
     `- error_name: ${failure.name}`,
-    `- message: ${failure.message}`,
+    `- message: ${String(sanitizeRemoteDiagnosticValue(failure.message))}`,
     Object.keys(details).length > 0
       ? `- error_details:\n${indent(formatDiagnosticJson(details))}`
       : '',
-    failure.stack ? `- stack:\n${indent(failure.stack)}` : '',
+    failure.stack
+      ? `- stack:\n${indent(String(sanitizeRemoteDiagnosticValue(failure.stack)))}`
+      : '',
   ].filter(Boolean);
 }
 
@@ -3377,7 +3367,9 @@ export function formatToolException(toolName: string, error: unknown): string {
   }
 
   if (error instanceof RemoteProxyToolResultError) {
-    const displayResult = flattenNestedMcpErrorPrefixes(error.result) as typeof error.result;
+    const displayResult = sanitizeRemoteProxyToolResult(
+      flattenNestedMcpErrorPrefixes(error.result) as typeof error.result
+    );
     const remoteMessage = extractRemoteProxyErrorMessage(displayResult);
     return [
       '✗ Maker MCP proxy tool failed',
@@ -3389,22 +3381,26 @@ export function formatToolException(toolName: string, error: unknown): string {
       '',
       formatRemoteProxyToolResult(displayResult),
       '',
-      'next_action: 远端 proxy tool 已返回失败结果；请把 remote_result 原样反馈给开发者，方便排查 server 返回内容。',
+      'next_action: 远端 proxy tool 已返回失败结果；请把完整、已脱敏的 remote_result 反馈给开发者，方便排查 server 返回内容。',
     ].join('\n');
   }
 
   if (isExposedRemoteProxyTool(toolName)) {
+    const sanitizedMessage = sanitizeRemoteDiagnosticValue(
+      stripNestedMcpErrorPrefixes(message)
+    ) as string;
+    const sanitizedStack = stack ? (sanitizeRemoteDiagnosticValue(stack) as string) : undefined;
     return [
       '✗ Maker MCP proxy tool failed',
       '',
       `- tool: ${toolName}`,
       '- reason: remote_proxy_tool_call_error',
       `- error_name: ${error instanceof Error ? error.name : typeof error}`,
-      `- message: ${stripNestedMcpErrorPrefixes(message)}`,
+      `- message: ${sanitizedMessage}`,
       ...formatUnknownExceptionDetailLines(error),
       '',
       'debug:',
-      stack ? indent(stack) : indent(message),
+      sanitizedStack ? indent(sanitizedStack) : indent(sanitizedMessage),
       '',
       'next_action: 请根据上面的简化 message 判断失败原因；参数或能力不支持时不要重复调用，并保留 error_details/debug 反馈给开发者。',
     ].join('\n');
@@ -3519,26 +3515,6 @@ function errorOwnDiagnosticFields(error: Error): Record<string, unknown> {
   return details;
 }
 
-function sanitizeDiagnosticValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeDiagnosticValue(item));
-  }
-  if (value && typeof value === 'object') {
-    const result: Record<string, unknown> = {};
-    for (const [key, nestedValue] of Object.entries(value)) {
-      result[key] = isSensitiveDiagnosticKey(key)
-        ? '<redacted>'
-        : sanitizeDiagnosticValue(nestedValue);
-    }
-    return result;
-  }
-  return value;
-}
-
-export function isSensitiveDiagnosticKey(key: string): boolean {
-  return /token|secret|mac[_-]?key|authorization|cookie|(^|[_-])pat($|[_-])/i.test(key);
-}
-
 function formatDiagnosticJson(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
@@ -3546,6 +3522,8 @@ function formatDiagnosticJson(value: unknown): string {
     return String(value);
   }
 }
+
+export { isSensitiveDiagnosticKey } from './diagnosticRedaction.js';
 
 function indent(value: string): string {
   return value

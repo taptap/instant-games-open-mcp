@@ -28,6 +28,8 @@ const REQUIRED_SKILLS = ['taptap-maker-local', 'taptap-maker-dev-kit-guide', 'up
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const LEGACY_PACKAGE = '@taptap/instant-games-open-mcp';
 const MAKER_PACKAGE = '@taptap/maker';
+const TROUBLESHOOTING_GUIDE_README_LINE =
+  'Full connection and tool-call troubleshooting guide: `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md`.';
 
 function parseArgs(argv) {
   const parsed = {};
@@ -101,6 +103,8 @@ function createPackageJson(version) {
       'skills/taptap-maker-local/',
       'skills/taptap-maker-dev-kit-guide/',
       'skills/update-taptap-mcp/',
+      'docs/',
+      'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md',
       'README.md',
     ],
     keywords: ['taptap', 'maker', 'mcp', 'cli', 'game-development'],
@@ -157,6 +161,8 @@ This package contains only the Maker CLI/MCP bundle and Maker workflow skills.
 It does not include the legacy TapTap Open API MCP server, proxy, native signer,
 or OpenClaw plugin package contents.
 
+${TROUBLESHOOTING_GUIDE_README_LINE}
+
 Version: ${version}
 `;
 }
@@ -190,6 +196,12 @@ function main() {
   }
   rewriteMakerSkillPackageReferences(join(packageRoot, 'skills'));
 
+  copyRequiredFile(
+    join(projectRoot, 'docs', 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
+    join(packageRoot, 'docs', 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
+    'Maker MCP connection troubleshooting guide'
+  );
+
   writeFileSync(
     join(packageRoot, 'package.json'),
     `${JSON.stringify(createPackageJson(version), null, 2)}\n`,
@@ -199,7 +211,9 @@ function main() {
 
   const packageJson = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
   console.log(`Prepared ${packageJson.name}@${packageJson.version} at ${packageRoot}`);
-  console.log('Included: bin/taptap-maker, dist/maker.js, Maker skills, README.md');
+  console.log(
+    'Included: bin/taptap-maker, dist/maker.js, Maker skills, troubleshooting guide, README.md'
+  );
 }
 
 try {

@@ -107,8 +107,7 @@ WorkBuddy 账号维度的启用/信任状态在 `.workbuddy/connectors/<account-
 }
 ```
 
-`production` 是默认环境，通常不需要写 `env`。只有要切到 RND 时再增加
-`"env": { "TAPTAP_MCP_ENV": "rnd" }`。
+TapTap Maker 的用户配置不需要设置服务环境。预览、构建、测试二维码和本地开发都使用官方服务配置。
 
 `taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置；支持 MCP Roots 的客户端
 会用当前 workspace root 识别 Maker 项目，避免多个客户端或多个项目互相覆盖 cwd。需要兼容
@@ -118,6 +117,10 @@ WorkBuddy 账号维度的启用/信任状态在 `.workbuddy/connectors/<account-
 和 `taptap-maker doctor` 会检查老项目 `AGENTS.md` 是否缺失或过期，并提示运行
 `taptap-maker agents update` 或 `taptap-maker upgrade`。
 `taptap-maker dev-kit update` 会检查当前环境可用的最新 AI dev kit 并更新当前目录。
+
+如果 Maker MCP tools 缺失或出现 `-32000` / `Connection closed`，先按
+[TapTap Maker MCP 本地连接自检与修复指引](docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md)
+检查本地客户端配置、信任状态、cwd、Node/npm/npx 和启动日志。MCP 未连接时不要依赖 MCP tools 自检。
 
 Maker MCP 精简为开发循环里的高频能力：
 
