@@ -2766,6 +2766,17 @@ describe('maker build local-change guard', () => {
     expect(output).not.toContain('Bearer <redacted>');
   });
 
+  test('redacts bearer credentials before common closing delimiters', () => {
+    for (const suffix of [')', ']', '}', '"']) {
+      const output = formatToolException(
+        'create_video_task',
+        new Error(`upstream response: (Bearer DELIMITED_SECRET_TOKEN${suffix}`)
+      );
+
+      expect(output).not.toContain('DELIMITED_SECRET_TOKEN');
+    }
+  });
+
   test('redacts credentials nested under non-sensitive MCP error data keys', () => {
     const error = Object.assign(new Error('MCP error -32003: remote request failed'), {
       name: 'McpError',
