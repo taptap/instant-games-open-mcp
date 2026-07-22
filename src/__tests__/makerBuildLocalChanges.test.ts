@@ -752,8 +752,8 @@ describe('maker build local-change guard', () => {
     expect(buildArgs).toMatchObject({
       scriptsPath: 'scripts',
       entry: 'main.lua',
-      multiplayer: { enabled: false },
     });
+    expect(buildArgs).not.toHaveProperty('multiplayer');
   });
 
   test('does not default build entry when scripts/main.lua is missing', () => {
@@ -763,7 +763,15 @@ describe('maker build local-change guard', () => {
 
     expect(buildArgs).not.toHaveProperty('scriptsPath');
     expect(buildArgs).not.toHaveProperty('entry');
-    expect(buildArgs).toMatchObject({
+    expect(buildArgs).not.toHaveProperty('multiplayer');
+  });
+
+  test('forwards an explicit single-player multiplayer setting', () => {
+    const buildArgs = createBuildArgs(tempDir, {
+      multiplayer: { enabled: false },
+    });
+
+    expect(buildArgs).toEqual({
       multiplayer: { enabled: false },
     });
   });
@@ -1000,6 +1008,43 @@ describe('maker build local-change guard', () => {
     );
   });
 
+  test('build proceeds when .project contains only a local voice mapping', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'audio-voice-mapping.json'),
+      JSON.stringify({ provider: 'doubao', characters: {} }),
+      'utf8'
+    );
+    const submitLocalChanges = jest.fn(async () => ({
+      branch: 'main',
+      committed: true,
+      commitHash: 'voice123',
+      pushed: true,
+      status: 'pushed' as const,
+    }));
+    const callRemoteBuild = jest.fn(async () => ({
+      mode: 'remote_build' as const,
+      projectRoot: fs.realpathSync(tempDir),
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      timeoutMs: 600000,
+      buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+      resultText: 'build ok',
+    }));
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+      callRemoteBuild,
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect(submitLocalChanges).toHaveBeenCalledTimes(1);
+    expect(callRemoteBuild).toHaveBeenCalledWith(tempDir);
+  });
+
   test('build blocks before submit when project.json is moved to the project root', async () => {
     fs.writeFileSync(
       path.join(tempDir, 'project.json'),
@@ -1028,7 +1073,7 @@ describe('maker build local-change guard', () => {
     expect(formatBuildResult(result, emptyProgressSummary())).toContain('.project/project.json');
   });
 
-  test('build blocks before submit when project.json is deleted from an initialized project', async () => {
+  test('build proceeds when settings exists but project.json is absent', async () => {
     fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
     fs.writeFileSync(
       path.join(tempDir, '.project', 'resources.json'),
@@ -1053,17 +1098,34 @@ describe('maker build local-change guard', () => {
       }),
       'utf8'
     );
-    const submitLocalChanges = jest.fn();
+    const submitLocalChanges = jest.fn(async () => ({
+      branch: 'main',
+      committed: true,
+      commitHash: 'settings123',
+      pushed: true,
+      status: 'pushed' as const,
+    }));
+    const callRemoteBuild = jest.fn(async () => ({
+      mode: 'remote_build' as const,
+      projectRoot: fs.realpathSync(tempDir),
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      timeoutMs: 600000,
+      buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+      resultText: 'build ok',
+    }));
 
     const result = await buildCurrentDirectory({
       targetDir: tempDir,
       submitLocalChanges,
+      callRemoteBuild,
     });
 
-    expect(result.mode).toBe('project_invalid_before_build');
-    expect(submitLocalChanges).not.toHaveBeenCalled();
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain('missing_required_file');
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain('.project/project.json');
+    expect(result.mode).toBe('remote_build');
+    expect(submitLocalChanges).toHaveBeenCalledTimes(1);
+    expect(callRemoteBuild).toHaveBeenCalledWith(tempDir);
   });
 
   test('build keeps project findings when settings and project structure are both invalid', async () => {
@@ -1113,6 +1175,12 @@ describe('maker build local-change guard', () => {
 
     expect(health?.mode).toBe('qrcode');
     expect(health?.canGenerateTestQrcode).toBe(false);
+    expect(inspectMakerProxyToolPreflight('get_ad_config', tempDir)?.status).toBe(
+      'not_initialized'
+    );
+    expect(inspectMakerProxyToolPreflight('add_test_whitelist', tempDir)?.status).toBe(
+      'not_initialized'
+    );
     expect(inspectMakerProxyToolPreflight('generate_image', tempDir)).toBeUndefined();
   });
 
@@ -1141,6 +1209,24 @@ describe('maker build local-change guard', () => {
     fs.writeFileSync(
       path.join(tempDir, '.project', 'resources.json'),
       JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+          asset_ignores: [],
+        },
+      }),
       'utf8'
     );
     const subdirectory = path.join(tempDir, 'scripts');
@@ -1589,27 +1675,15 @@ describe('maker build local-change guard', () => {
     expect(
       result.tools.find((item) => item.name === 'generate_image')?.inputSchema.properties
     ).toHaveProperty('target_dir');
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'Trigger this tool for any ad-related request'
-    );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'ad activation status and ad config'
-    );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'do not infer ad readiness from local SDK docs'
-    );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'ShowRewardVideoAd'
-    );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'If .project/project.json is missing'
-    );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'app_id or developer_id is missing'
-    );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'generate_test_qrcode'
-    );
+    const adConfigDescription =
+      result.tools.find((item) => item.name === 'get_ad_config')?.description || '';
+    expect(adConfigDescription).toContain('ad-related requests');
+    expect(adConfigDescription).toContain('primary local configs are initialized');
+    expect(adConfigDescription).toContain('does not call the remote tool');
+    expect(adConfigDescription).toMatch(/do not infer ad readiness from local SDK docs/iu);
+    expect(adConfigDescription).toContain('do not rebuild automatically');
+    expect(adConfigDescription).toContain('app_id or developer_id is missing');
+    expect(adConfigDescription).toContain('generate_test_qrcode');
     expect(
       result.tools.find((item) => item.name === 'generate_test_qrcode')?.description
     ).toContain('user explicitly asks for a test QR code');
@@ -3160,17 +3234,21 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('get_ad_config');
     expect(output).toContain('maker_build_current_directory');
     expect(output).toContain('.project/project.json');
+    expect(output).toContain('用户明确要求');
+    expect(output).toContain('不要自动重复构建');
+    expect(output).not.toContain('生成 .project/project.json');
   });
 
-  test('project initialization does not tell build to recreate a deleted project json', () => {
+  test('project initialization does not treat an empty .project directory as a deleted config', () => {
     fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
 
     const status = inspectMakerProjectInitialization(tempDir);
     const output = formatMakerProjectInitializationStatus(status);
 
     expect(status.status).toBe('missing_project_json');
-    expect(output).toContain('从 Git 或完整副本恢复');
-    expect(output).not.toContain('先调用 maker_build_current_directory 构建一次');
+    expect(output).toContain('用户明确要求');
+    expect(output).toContain('不要自动重复构建');
+    expect(output).not.toContain('从 Git 或完整副本恢复');
   });
 
   test('project initialization does not treat a dangling .project symlink as uninitialized', () => {
@@ -3381,7 +3459,7 @@ describe('maker build local-change guard', () => {
     expect(properties.entry_client.description).toContain('multiplayer.enabled=true');
     expect(properties.entry_server.description).toContain('entry@server');
     expect(properties.entry_server.description).toContain('multiplayer.enabled=true');
-    expect(properties.multiplayer.description).toContain('Maker MCP sends { enabled: false }');
+    expect(properties.multiplayer.description).toContain('forwarded only when explicitly provided');
     expect(properties.multiplayer.description).toContain('First multiplayer build');
     expect(multiplayerProperties).toHaveProperty('enabled');
     expect(multiplayerProperties).toHaveProperty('max_players');

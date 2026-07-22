@@ -37,8 +37,9 @@ editing project JSON directly. `entry_client` / `entry_server` map to `project.j
 `entry@client` / `entry@server`; `multiplayer.enabled`, `max_players`, `background_match`,
 `match_info`, and `persistent_world` map to `.project/settings.json` `@runtime.multiplayer`.
 On the first multiplayer build, pass `multiplayer.enabled=true` together with
-`entry_client` / `entry_server`; single-player defaults are only injected when no multiplayer entry
-is provided. The remote build keeps omitted multiplayer fields unchanged on later builds.
+`entry_client` / `entry_server`. Send multiplayer settings only when the user explicitly provides
+them; missing local `.project/settings.json` must not inject `enabled=false`. The remote build keeps
+omitted multiplayer fields unchanged on later builds.
 
 Maker status, status_lite, and doctor run a lightweight `.project/settings.json` health check.
 Normal `maker_build_current_directory` blocks before commit/push when settings JSON is invalid or
@@ -189,19 +190,19 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
   use the returned local model path. The local proxy materializes only the `model_files` copy/extract
   instructions returned by the local runtime; report `delivery_failures` when no model can be delivered.
 - For any ad-related request such as 广告, rewarded videos, play ads, ad ID, ad placement,
-  ad status, ad config, or `ShowRewardVideoAd`, call `get_ad_config` first to get the
-  current project ad activation status and ad config.
+  ad status, ad config, or `ShowRewardVideoAd`, inspect Maker project status first. Call
+  `get_ad_config` only after the primary local project configs are initialized.
 - Do not infer ad readiness from local SDK docs, `.maker-mcp/config.json`, or runtime callbacks.
-  If `.project/project.json` is missing, build once with `maker_build_current_directory` to
-  initialize the project, then call `get_ad_config` again. Implement or test ad code only
-  after the config is available.
+  If the primary local project configs are missing, keep ad config unavailable and do not call the
+  remote tool. Build only for an explicit user build/submit/preview request. If a successful build
+  still leaves local configs missing, explain the known limitation and do not automatically rebuild.
 - If `get_ad_config` reports missing `app_id` or `developer_id`, call `generate_test_qrcode` once
   to generate test QR code metadata, then call `get_ad_config` again. Do not use publish-only tools
   for this recovery path.
 - If status or doctor reports `Maker project initialization` with `missing_project_json` or
   `missing_taptap_identity`, follow that `next_action` before using tools that depend on remote
-  project config. A first build is only valid when `.project` does not exist; if `.project` already
-  exists and `project.json` was deleted, restore it from Git or an intact copy first.
+  project config. `.project` directory presence alone is never proof of initialization; empty,
+  voice-mapping-only, and primary-config-incomplete directories remain buildable new-project state.
 - For online player feedback, problem reports, issue reports, debug feedback, real-device logs,
   screenshots, 问题反馈, 问题上报, 真机日志, or 玩家反馈, call the Maker proxy
   `get_debug_feedbacks` tool when available.

@@ -61,8 +61,11 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain('Voice audition previews are not saved to the project');
     expect(status).toContain('Local MCP does not transcode generated audio to OGG');
     expect(status).toContain('Use create_3d_asset with start/query/continue/post_process');
-    expect(status).toContain('call get_ad_config first to get ad activation status');
-    expect(status).toContain('build once with maker_build_current_directory');
+    expect(status).toContain(
+      'call get_ad_config only after primary local project configs are initialized'
+    );
+    expect(status).toContain('Build only for an explicit user build/submit/preview request');
+    expect(status).toContain('do not automatically rebuild');
     expect(status).toContain('call generate_test_qrcode once');
     expect(status).toContain('call get_debug_feedbacks');
     expect(status).toContain('Use local runtime logs only');
@@ -141,9 +144,12 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Use `create_3d_asset` for the complete 3D asset lifecycle');
     expect(skillText).toContain('action="continue"');
     expect(skillText).toContain('local_delivery.status');
-    expect(skillText).toContain('call `get_ad_config` first to get the');
+    expect(skillText).toContain(
+      '`get_ad_config` only after the primary local project configs are initialized'
+    );
     expect(skillText).toContain('Do not infer ad readiness from local SDK docs');
-    expect(skillText).toContain('build once with `maker_build_current_directory`');
+    expect(skillText).toContain('Build only for an explicit user build/submit/preview request');
+    expect(skillText).toContain('do not automatically rebuild');
     expect(skillText).toContain('call `generate_test_qrcode` once');
     expect(skillText).toContain('call the Maker proxy');
     expect(skillText).toContain('`get_debug_feedbacks` tool');

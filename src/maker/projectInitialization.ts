@@ -100,11 +100,9 @@ export function formatMakerProjectInitializationStatus(
       '- status: missing_project_json',
       `- config: ${status.projectJsonPath}`,
       '- impact: get_ad_config and other remote project-config tools cannot read project metadata yet.',
-      projectDirState === 'directory'
-        ? '- next_action: 已存在 .project 但 project.json 缺失；先从 Git 或完整副本恢复，构建不会覆盖该缺失文件。'
-        : projectDirState === 'invalid'
-          ? '- next_action: .project 路径异常；先恢复为正常目录，再检查或恢复 project.json。'
-          : '- next_action: 先调用 maker_build_current_directory 构建一次，生成 .project/project.json 后再重试。',
+      projectDirState === 'invalid'
+        ? '- next_action: .project 路径异常；先恢复为正常目录，再检查或恢复 project.json。'
+        : '- next_action: 本地主要配置尚未初始化；仅当用户明确要求构建、提交或预览时调用 maker_build_current_directory。构建成功后若本地仍缺少 .project/project.json，保持配置依赖功能不可用，不要自动重复构建。',
     ].join('\n');
   }
 

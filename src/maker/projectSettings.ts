@@ -121,8 +121,9 @@ export function inspectMakerProjectHealth(
   const resourcesJsonExists = resourcesJsonState === 'file';
   const settingsJsonExists = settingsJsonState === 'file';
   const hasMisplacedConfig = issues.some((item) => item.code === 'misplaced_config');
+  const hasNoPrimaryConfig = projectJsonState === 'missing' && settingsJsonState === 'missing';
 
-  if (!projectDirExists && !hasMisplacedConfig && issues.length === 0) {
+  if (hasNoPrimaryConfig && !hasMisplacedConfig && issues.length === 0) {
     return createHealthResult(
       resolvedProjectRoot,
       mode,
@@ -134,15 +135,10 @@ export function inspectMakerProjectHealth(
     );
   }
 
-  addCanonicalFileIssue(projectJsonState, '.project/project.json', issues, projectDirExists);
-  addCanonicalFileIssue(
-    resourcesJsonState,
-    '.project/resources.json',
-    issues,
-    mode === 'qrcode' || projectDirExists
-  );
+  addCanonicalFileIssue(projectJsonState, '.project/project.json', issues, mode === 'qrcode');
+  addCanonicalFileIssue(resourcesJsonState, '.project/resources.json', issues, mode === 'qrcode');
   addCanonicalFileIssue(settingsJsonState, '.project/settings.json', issues, false);
-  if (projectDirExists && settingsJsonState === 'missing' && mode !== 'qrcode') {
+  if (projectJsonExists && settingsJsonState === 'missing' && mode !== 'qrcode') {
     issues.push(
       issue(
         'missing_settings_json',
@@ -210,15 +206,18 @@ export function inspectMakerProjectHealth(
   }
 
   const hasFatalIssues = issues.some((item) => item.severity === 'error');
+  const hasCompletePrimaryConfig = projectJsonExists && settingsJsonExists;
   const status: MakerProjectHealthStatus = hasMisplacedConfig
     ? 'misplaced_config'
     : hasFatalIssues
       ? 'error'
-      : issues.length > 0
-        ? 'warning'
-        : 'ready';
+      : !hasCompletePrimaryConfig
+        ? 'not_initialized'
+        : issues.length > 0
+          ? 'warning'
+          : 'ready';
   const canBuild = !issues.some((item) => item.severity === 'error' && isBuildBlockingIssue(item));
-  const canGenerateTestQrcode = canGenerateQrcode(project, resources, issues);
+  const canGenerateTestQrcode = canGenerateQrcode(project, resources, settingsJsonExists, issues);
 
   return createHealthResult(
     resolvedProjectRoot,
@@ -581,11 +580,13 @@ function isConfiguredTitle(value: unknown): value is string {
 function canGenerateQrcode(
   project: unknown,
   resources: unknown,
+  settingsExists: boolean,
   issues: MakerProjectHealthIssue[]
 ): boolean {
   if (
     !isPlainObject(project) ||
     !isPlainObject(resources) ||
+    !settingsExists ||
     !isConfiguredString(project.project_id) ||
     !isConfiguredString(project.version) ||
     !hasProjectEntry(project, resources, 'qrcode') ||

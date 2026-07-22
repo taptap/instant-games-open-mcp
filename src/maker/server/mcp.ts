@@ -162,7 +162,7 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
 const MAKER_BUILD_MULTIPLAYER_SCHEMA = {
   type: 'object',
   description:
-    'Optional Maker multiplayer config forwarded to remote build and written by maker-tools to .project/settings.json @runtime.multiplayer. If omitted and no .project/settings.json exists, Maker MCP sends { enabled: false } for first single-player build initialization. First multiplayer build with entry_client/entry_server should pass multiplayer.enabled=true and any needed match/world fields in the same call. Later builds update only the provided fields and keep existing config for omitted fields. Runtime defaults: enabled=false, max_players=4, background_match=false.',
+    'Optional Maker multiplayer config forwarded only when explicitly provided and written by maker-tools to .project/settings.json @runtime.multiplayer. Missing local .project/settings.json does not imply single-player mode and does not inject enabled=false. First multiplayer build with entry_client/entry_server should pass multiplayer.enabled=true and any needed match/world fields in the same call. Explicit enabled=false remains supported for a user-confirmed single-player configuration. Later builds update only the provided fields and keep existing config for omitted fields. Runtime defaults: enabled=false, max_players=4, background_match=false.',
   properties: {
     enabled: {
       type: 'boolean',
@@ -587,7 +587,7 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
       ].join(' ');
     case 'get_ad_config':
       return [
-        '**Maker hint:** Trigger this tool for any ad-related request (广告, 激励视频, 播放广告, ad ID, ad placement, ShowRewardVideoAd, ad status, or ad config). Call it first to get the current Maker project ad activation status and ad config; do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks. If .project/project.json is missing, build the project once with maker_build_current_directory to initialize it, then call this tool again. If this tool says app_id or developer_id is missing, call generate_test_qrcode once to generate test QR code metadata, then call this tool again.',
+        '**Maker hint:** Trigger this tool for ad-related requests only after Maker project status shows the primary local configs are initialized. The local preflight keeps ad config unavailable and does not call the remote tool while project.json or settings.json is missing. Build only for an explicit user build, submit, or preview request; if local configs remain missing after a successful build, explain the known limitation and do not rebuild automatically. Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks. If this tool says app_id or developer_id is missing after configs are ready, call generate_test_qrcode once to generate test QR code metadata, then call this tool again.',
         failurePolicy,
       ].join(' ');
     case 'generate_test_qrcode':
@@ -760,7 +760,11 @@ export function inspectMakerProxyToolPreflight(
   toolName: string,
   targetDir: string
 ): MakerProjectHealth | undefined {
-  if (toolName !== 'generate_test_qrcode') {
+  if (
+    toolName !== 'generate_test_qrcode' &&
+    toolName !== 'get_ad_config' &&
+    toolName !== 'add_test_whitelist'
+  ) {
     return undefined;
   }
 
@@ -768,7 +772,10 @@ export function inspectMakerProxyToolPreflight(
   // bound project root when it starts. Run the local preflight against that
   // same root so QR checks do not disagree with the subsequent proxy call.
   const identify = identifyMakerProject({ cwd: targetDir });
-  return inspectMakerProjectHealth(identify.projectRoot || path.resolve(targetDir), 'qrcode');
+  return inspectMakerProjectHealth(
+    identify.projectRoot || path.resolve(targetDir),
+    toolName === 'generate_test_qrcode' ? 'qrcode' : 'status'
+  );
 }
 
 export function createRemoteProxyCallToolOptions(
@@ -996,6 +1003,29 @@ export async function startMakerMcpServer(): Promise<void> {
             const result = {
               isError: true,
               content: [{ type: 'text', text: preflight.message }],
+            };
+            void reportMakerMcpActivityFromPromise(contextPromise, {
+              toolName: name,
+              requestId: extra.requestId,
+              durationMs: Date.now() - startedAt,
+              success: false,
+            });
+            return result;
+          }
+        } else if (name === 'get_ad_config' || name === 'add_test_whitelist') {
+          const projectHealth = inspectMakerProxyToolPreflight(name, context.targetDir);
+          if (
+            projectHealth &&
+            (projectHealth.status === 'not_initialized' || !projectHealth.canBuild)
+          ) {
+            const result = {
+              isError: true,
+              content: [
+                {
+                  type: 'text',
+                  text: formatMakerProjectHealthStatus(projectHealth),
+                },
+              ],
             };
             void reportMakerMcpActivityFromPromise(contextPromise, {
               toolName: name,
@@ -3165,12 +3195,6 @@ export function createBuildArgs(
   }
   if (options.multiplayer) {
     buildArgs.multiplayer = options.multiplayer;
-  } else if (
-    !options.entryClient &&
-    !options.entryServer &&
-    !fs.existsSync(path.join(projectRoot, '.project', 'settings.json'))
-  ) {
-    buildArgs.multiplayer = { enabled: false };
   }
 
   return buildArgs;
