@@ -1620,12 +1620,13 @@ describe('maker build local-change guard', () => {
       result.tools.find((item) => item.name === 'generate_test_qrcode')?.inputSchema.properties
     ).toHaveProperty('target_dir');
     const qrcodeTool = result.tools.find((item) => item.name === 'generate_test_qrcode');
-    expect(qrcodeTool?.inputSchema.required).toContain('confirmed_screen_orientation');
+    expect(qrcodeTool?.inputSchema.required).not.toContain('confirmed_screen_orientation');
     expect(qrcodeTool?.inputSchema.properties.confirmed_screen_orientation).toMatchObject({
       type: 'string',
       enum: ['landscape', 'portrait'],
     });
-    expect(qrcodeTool?.description).toContain('separate conversation turn');
+    expect(qrcodeTool?.description).toContain('already configured');
+    expect(qrcodeTool?.description).toContain('Only if it is missing');
     const whitelistTool = result.tools.find((item) => item.name === 'add_test_whitelist');
     expect(whitelistTool?.inputSchema.required).toEqual(['user_id']);
     expect(whitelistTool?.inputSchema.properties).toHaveProperty('target_dir');

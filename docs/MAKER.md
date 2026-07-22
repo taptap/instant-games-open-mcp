@@ -606,12 +606,12 @@ Maker 本地开发提示。
 可用的本地模型路径。重复查询会复用已经登记且仍存在的本地文件。审核阶段的四视图会下载到
 `assets/image/`；必须展示预览并等待用户明确确认，再调用 `action=continue`，本地代理不会自动确认。
 `generate_test_qrcode`、`add_test_whitelist` 和 `get_ad_config` 不进入本地素材落地流程，远端结果原样返回。
-调用 `generate_test_qrcode` 前，Agent 必须在单独的对话轮次让用户选择横屏或竖屏，禁止从代码、
-截图或历史配置推断，也禁止默认使用横屏。本地 tool schema 要求传
-`confirmed_screen_orientation=landscape|portrait`；该参数只用于本地前置检查，不转发远端。
-本地 MCP 会在远端调用前读取 `.project/project.json`，确认用户选择与
-`taptap_publish.screen_orientation` 一致。缺失或不一致时先修改项目配置并通过
-`maker_build_current_directory` 同步，再重试二维码生成。二维码已经生成并写入应用身份后，
+调用 `generate_test_qrcode` 时，Agent 应先不传方向参数直接调用。本地 MCP 会读取
+`.project/project.json`：如果 `taptap_publish.screen_orientation` 已是 `landscape` 或 `portrait`，
+直接沿用该值，不再询问用户，也不允许后续输入覆盖。只有该字段从未设置时，才要求 Agent 在单独的
+对话轮次让用户选择横屏或竖屏，禁止推断或默认；随后重试并传本地私有参数
+`confirmed_screen_orientation=landscape|portrait`。本地 MCP 只在首次缺失时写入该值，参数不转发远端。
+二维码已经生成并写入应用身份后，
 只有用户明确提供 TapTap `user_id` 时才调用 `add_test_whitelist`，不要猜测账号 ID。
 `get_debug_feedbacks` 会拉取线上玩家反馈；当日志或截图可下载时，本地会保存到当前 Maker 项目的
 `logs/feed_back/feedback_<id>/`，并在结果里补充 `local_dir`、`local_log_paths`、

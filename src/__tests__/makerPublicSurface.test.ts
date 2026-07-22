@@ -13,6 +13,7 @@ describe('Maker public documentation', () => {
       const text = fs.readFileSync(path.resolve(file), 'utf8');
       expect(text).toContain('add_test_whitelist');
       expect(text).toContain('confirmed_screen_orientation');
+      expect(text).toContain('只有');
       expect(text).toContain('landscape');
       expect(text).toContain('portrait');
     }

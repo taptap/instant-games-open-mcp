@@ -158,10 +158,11 @@ tool schema 为准。
 音频 tools 支持音效、角色试听、音色确认和配音；生成音频以及确认后的参考音频会保存到
 当前本地 Maker 项目。
 
-生成测试二维码前，Agent 必须单独询问用户选择横屏（`landscape`）或竖屏（`portrait`），禁止推断或使用默认方向。用户选择后，
-调用 `generate_test_qrcode` 时通过本地私有参数 `confirmed_screen_orientation` 传入选择；本地 MCP
-会校验它与 `.project/project.json` 中的 `taptap_publish.screen_orientation` 一致，并在调用远端
-proxy tool 前阻断缺失或不一致的配置。二维码生成并建立应用身份后，可使用
+生成测试二维码时，Agent 应先直接调用 `generate_test_qrcode`。如果 `.project/project.json` 已有
+`taptap_publish.screen_orientation`，本地 MCP 会直接沿用，不能重复设置，也不应再次询问用户。只有该字段
+从未设置时，Agent 才必须单独询问用户选择横屏（`landscape`）或竖屏（`portrait`），并在重试时通过本地私有参数
+`confirmed_screen_orientation` 传入首次选择；本地 MCP 会写入该值，且不会转发给远端 proxy tool。
+二维码生成并建立应用身份后，可使用
 `add_test_whitelist` 将用户明确提供的 TapTap `user_id` 加入测试白名单。
 
 Windows 是默认优先级：CLI 写通用 `mcpServers` 配置时会在 Windows 通过 `cmd.exe`

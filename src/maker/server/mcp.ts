@@ -402,9 +402,7 @@ function decorateRemoteProxyToolInputSchema(
   const decoratedRequired =
     toolName === 'audition_voices_for_character'
       ? [...new Set([...required, 'voice_profile'])]
-      : toolName === 'generate_test_qrcode'
-        ? [...new Set([...required, 'confirmed_screen_orientation'])]
-        : required;
+      : required;
   return {
     ...schema,
     type: schema.type || 'object',
@@ -417,7 +415,7 @@ function decorateRemoteProxyToolInputSchema(
               type: 'string',
               enum: ['landscape', 'portrait'],
               description:
-                'Local-only confirmation of the orientation explicitly selected by the user in a separate conversation turn. Never infer or default this value. It is not forwarded to the remote Maker tool.',
+                'Local-only first-time orientation choice. Omit this when the project already has screen_orientation. Supply it only after the tool reports that orientation is missing and the user selects a value in a separate conversation turn. Existing project orientation is immutable and takes precedence. This value is not forwarded to the remote Maker tool.',
             },
           }
         : {}),
@@ -594,7 +592,7 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
       ].join(' ');
     case 'generate_test_qrcode':
       return [
-        '**Maker hint:** Use this only when the user explicitly asks for a test QR code/mobile scan test, or as the recovery step after get_ad_config reports missing app_id or developer_id. Before calling it, ask the user in a separate conversation turn to choose landscape or portrait; do not infer or default the orientation. Pass that choice as confirmed_screen_orientation. The local proxy verifies it against .project/project.json and does not forward this private parameter. Report the returned QR code or failure payload.',
+        '**Maker hint:** Use this only when the user explicitly asks for a test QR code/mobile scan test, or as the recovery step after get_ad_config reports missing app_id or developer_id. Call it without confirmed_screen_orientation first. If .project/project.json already has screen_orientation, reuse it and do not ask the user again. Only if it is missing, ask the user in a separate conversation turn to choose landscape or portrait, then retry with confirmed_screen_orientation. The local proxy records this first choice; an already configured orientation is immutable and always takes precedence. The private parameter is not forwarded to the remote Maker tool. Report the returned QR code or failure payload.',
         failurePolicy,
       ].join(' ');
     case 'add_test_whitelist':
