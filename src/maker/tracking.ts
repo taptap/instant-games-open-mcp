@@ -112,10 +112,11 @@ export function sanitizeMakerMcpTrackingError(message: string): string {
   return message
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, '<redacted>')
     .replace(
-      /((?:authorization|access[_-]?token|refresh[_-]?token|mac[_-]?key|pat|token)\s*[:=]\s*)(["']?)[^,\s"'}<]+/gi,
+      /((?:authorization|access[_-]?token|refresh[_-]?token|mac[_\s-]?key|pat|token)\s*[:=]\s*)(["']?)[^,\s"'}<]+/gi,
       '$1$2<redacted>'
     )
     .replace(/(https?:\/\/[^:\s/@]+:)[^@\s]+@/gi, '$1<redacted>@')
+    .replace(/(https?:\/\/)[^:/\s@]+@/gi, '$1<redacted>@')
     .trim()
     .slice(0, TRACKING_ERROR_MAX_LENGTH);
 }
@@ -143,6 +144,7 @@ export async function reportMakerMcpActivity(event: MakerMcpActivityEvent): Prom
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
+    await response.body?.cancel();
     if (!response.ok) {
       throw new Error(`tracking request failed with HTTP ${response.status}`);
     }

@@ -96,6 +96,12 @@ describe('maker MCP tracking', () => {
     expect(sanitizeMakerMcpTrackingError('Authorization: Bearer secret-value')).toBe(
       'Authorization: <redacted>'
     );
+    expect(sanitizeMakerMcpTrackingError('Invalid MAC key: secret-value')).toBe(
+      'Invalid MAC key: <redacted>'
+    );
+    expect(
+      sanitizeMakerMcpTrackingError('Git failed for https://secret-value@example.com/repo')
+    ).toBe('Git failed for https://<redacted>@example.com/repo');
   });
 
   test('posts the event and isolates a failed tracking request', async () => {
@@ -131,5 +137,20 @@ describe('maker MCP tracking', () => {
         fetchImpl: failingFetch,
       })
     ).resolves.toBeUndefined();
+  });
+
+  test('releases response bodies before isolating tracking failures', async () => {
+    const response = new Response('temporary failure', { status: 502 });
+    const fetchImpl = jest.fn<typeof fetch>(async () => response);
+
+    await expect(
+      reportMakerMcpActivity({
+        context: { userId: 'user-1', projectId: 'project-1' },
+        toolName: 'maker_status_lite',
+        fetchImpl,
+      })
+    ).resolves.toBeUndefined();
+
+    expect(response.bodyUsed).toBe(true);
   });
 });
