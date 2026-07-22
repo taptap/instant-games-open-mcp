@@ -240,9 +240,11 @@ MCP 运行期能力：
 ### 本地开发活跃上报
 
 Maker MCP 使用已有 `tapmaker_mcp_call` action 上报本地开发活跃，并在
-`args.source` 中固定写入 `local_mcp`。`user_id` 与 `project_id` 只从当前项目的
-`.maker-mcp/config.json` 读取；缺少任一字段、或当前调用无法准确解析到项目时不发送事件，
-不会使用 JWT、PAT、默认值或其它项目配置补齐。
+`args.source` 中固定写入 `local_mcp`，在 `args.mcp_version` 写入当前
+`@taptap/maker` 版本。正式发布通过 `MAKER_PACKAGE_VERSION` 注入准确版本，普通开发构建
+使用 `dev`，不会回退到 `@taptap/instant-games-open-mcp` 主包版本。`user_id` 与
+`project_id` 只从当前项目的 `.maker-mcp/config.json` 读取；缺少任一字段、或当前调用
+无法准确解析到项目时不发送事件，不会使用 JWT、PAT、默认值或其它项目配置补齐。
 
 Tool 调用、`maker://status` Resource 读取和 MCP 启动都计入本地活跃；Tool 使用真实工具名，
 Resource 使用 `maker://status`，启动事件使用 `@taptap/maker@<version>`。上报是异步的，

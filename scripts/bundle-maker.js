@@ -11,7 +11,7 @@
 import * as esbuild from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -20,8 +20,7 @@ const projectRoot = join(__dirname, '..');
 console.log('🚀 Bundling TapTap Maker...');
 console.log('📁 Project root:', projectRoot);
 
-const packageJson = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf-8'));
-const VERSION = process.env.MAKER_PACKAGE_VERSION || packageJson.version;
+const VERSION = process.env.MAKER_PACKAGE_VERSION || 'dev';
 console.log('📦 Version:', VERSION);
 
 const distDir = join(projectRoot, 'dist');

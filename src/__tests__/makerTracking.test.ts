@@ -1,5 +1,8 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   buildMakerMcpTrackingPayload,
+  isMakerBuildActivitySuccessful,
   reportMakerMcpActivity,
   sanitizeMakerMcpTrackingError,
 } from '../maker/tracking';
@@ -23,6 +26,7 @@ describe('maker MCP tracking', () => {
         project_id: 'project-1',
         tool_name: 'maker_status_lite',
         source: 'local_mcp',
+        mcp_version: 'dev',
         tool_id: '7',
         duration_ms: 13,
         success: true,
@@ -60,8 +64,27 @@ describe('maker MCP tracking', () => {
         project_id: 'project-1',
         tool_name: 'maker://status',
         source: 'local_mcp',
+        mcp_version: 'dev',
       },
     });
+  });
+
+  test('marks only a completed remote build as successful activity', () => {
+    expect(isMakerBuildActivitySuccessful('remote_build')).toBe(true);
+    expect(isMakerBuildActivitySuccessful('remote_build_failed')).toBe(false);
+    expect(isMakerBuildActivitySuccessful('submit_failed_before_build')).toBe(false);
+    expect(isMakerBuildActivitySuccessful('settings_invalid_before_build')).toBe(false);
+    expect(isMakerBuildActivitySuccessful('build_failed_after_submit')).toBe(false);
+  });
+
+  test('uses dev instead of the root package version for local Maker bundles', () => {
+    const bundleScript = fs.readFileSync(
+      path.resolve(process.cwd(), 'scripts/bundle-maker.js'),
+      'utf8'
+    );
+
+    expect(bundleScript).toContain("const VERSION = process.env.MAKER_PACKAGE_VERSION || 'dev';");
+    expect(bundleScript).not.toContain('process.env.MAKER_PACKAGE_VERSION || packageJson.version');
   });
 
   test('redacts credentials from error messages without hiding paths or identifiers', () => {
@@ -94,6 +117,7 @@ describe('maker MCP tracking', () => {
         project_id: 'project-1',
         tool_name: 'maker_status_lite',
         source: 'local_mcp',
+        mcp_version: 'dev',
       },
     });
 

@@ -161,10 +161,11 @@ Windows 是默认优先级：CLI 写通用 `mcpServers` 配置时会在 Windows 
 [Maker CLI + MCP + Skill Rework Overview](docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
 
 本地 Maker MCP 会透明上报本地开发活跃事件，复用 `tapmaker_mcp_call` 并在
-`args.source` 写入 `local_mcp`。事件只使用当前绑定项目配置中的 `user_id` 和
-`project_id`；任一关键字段缺失或项目上下文无法准确解析时跳过上报，不使用默认值或
-其它账号信息代替。Tool、`maker://status` Resource 和 MCP 启动事件均可作为活跃行为，
-上报失败不会影响 MCP 工具结果。
+`args.source` 写入 `local_mcp`，在 `args.mcp_version` 写入当前 `@taptap/maker`
+版本；普通开发构建使用 `dev`，不会使用主包版本代替。事件只使用当前绑定项目配置中的
+`user_id` 和 `project_id`；任一关键字段缺失或项目上下文无法准确解析时跳过上报，不使用
+默认值或其它账号信息代替。Tool、`maker://status` Resource 和 MCP 启动事件均可作为
+活跃行为，上报失败不会影响 MCP 工具结果。
 
 ## 🧩 Codex Skills（运营简报）
 

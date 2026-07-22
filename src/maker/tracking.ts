@@ -4,9 +4,15 @@
 
 import { getMakerApiBaseUrl } from './config.js';
 
+declare const __MAKER_VERSION__: string | undefined;
+
 export const MAKER_MCP_TRACKING_ACTION = 'tapmaker_mcp_call';
 export const MAKER_MCP_TRACKING_SOURCE = 'local_mcp';
 export const MAKER_MCP_TRACKING_TIMEOUT_MS = 1500;
+const MAKER_MCP_VERSION =
+  typeof __MAKER_VERSION__ !== 'undefined' && __MAKER_VERSION__.trim()
+    ? __MAKER_VERSION__.trim()
+    : 'dev';
 const TRACKING_ERROR_MAX_LENGTH = 500;
 
 export interface MakerMcpTrackingContext {
@@ -35,6 +41,7 @@ export interface MakerMcpTrackingPayload {
     project_id: string;
     tool_name: string;
     source: typeof MAKER_MCP_TRACKING_SOURCE;
+    mcp_version: string;
     tool_id?: string;
     duration_ms?: number;
     success?: boolean;
@@ -61,6 +68,7 @@ export function buildMakerMcpTrackingPayload(
     project_id: projectId,
     tool_name: toolName,
     source: MAKER_MCP_TRACKING_SOURCE,
+    mcp_version: MAKER_MCP_VERSION,
   };
 
   if (event.requestId !== undefined && String(event.requestId).trim()) {
@@ -88,6 +96,13 @@ export function buildMakerMcpTrackingPayload(
     ...(event.userAgent?.trim() ? { user_agent: event.userAgent.trim() } : {}),
     args,
   };
+}
+
+/**
+ * Return whether a Maker build result represents a completed remote build.
+ */
+export function isMakerBuildActivitySuccessful(mode: string): boolean {
+  return mode === 'remote_build';
 }
 
 /**

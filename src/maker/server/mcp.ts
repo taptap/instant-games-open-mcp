@@ -112,6 +112,7 @@ import {
 } from './proxyAssets.js';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 import {
+  isMakerBuildActivitySuccessful,
   reportMakerMcpActivity,
   type MakerMcpActivityEvent,
   type MakerMcpTrackingContext,
@@ -779,7 +780,7 @@ export async function startMakerMcpServer(): Promise<void> {
           toolName: name,
           requestId: extra.requestId,
           durationMs: Date.now() - startedAt,
-          success: true,
+          success: isMakerBuildActivitySuccessful(result.mode),
         });
         return toolResult;
       }

@@ -375,10 +375,11 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   本地保留远端 tool schema 和成功返回值，但会在 description 追加简短 Maker 本地开发提示：
   已绑定 Maker 项目应优先建议用户使用这些 tools。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
-- 本地 Maker MCP 活跃上报复用 `tapmaker_mcp_call`，并在 `args.source` 写入 `local_mcp`。
-  `user_id` 和 `project_id` 只从当前项目 `.maker-mcp/config.json` 读取；缺少关键字段或项目上下文
-  无法准确解析时不上报，不使用 JWT、PAT、默认值或其它项目配置补齐。Tool、`maker://status`
-  Resource 和 MCP 启动事件计入本地活跃，上报失败不得影响 MCP 结果。
+- 本地 Maker MCP 活跃上报复用 `tapmaker_mcp_call`，在 `args.source` 写入 `local_mcp`，
+  在 `args.mcp_version` 写入 `@taptap/maker` 版本；开发构建使用 `dev`，禁止使用主包版本
+  代替。`user_id` 和 `project_id` 只从当前项目 `.maker-mcp/config.json` 读取；缺少关键字段或
+  项目上下文无法准确解析时不上报，不使用 JWT、PAT、默认值或其它项目配置补齐。Tool、
+  `maker://status` Resource 和 MCP 启动事件计入本地活跃，上报失败不得影响 MCP 结果。
   错误信息上报前必须脱敏 PAT、Bearer、access token、refresh token、MAC key 和 URL 凭证，
   可保留 user_id、project_id、路径等诊断信息。
 - 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。支持 MCP Roots 的客户端会输出 `MCP client roots` 与 `project_context_source`；只有一个 workspace root 时直接作为 Maker 操作目标，多个 root 中只有一个已绑定 Maker 项目时自动选择该项目，多个 Maker root 时必须让用户只保留一个 Maker workspace 或显式传 `target_dir`，不要猜测。已绑定项目会输出 `Maker remote sync`、AI dev kit 版本检查结果和必要的 `Maker project initialization`，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main、是否需要运行 `taptap-maker dev-kit update`，以及新项目是否需要先构建一次生成 `.project/project.json` 或先调用 `generate_test_qrcode` 生成 `app_id` / `developer_id`；按其中 `next_action` / `next_step` 引导用户。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
