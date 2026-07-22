@@ -578,7 +578,8 @@ maker_build_current_directory()
 当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
 `query_video_task`、`text_to_music`、`text_to_sound_effect`、`batch_sound_effects`、
 `text_to_dialogue`、`audition_voices_for_character`、`confirm_character_voice`、
-`create_3d_asset`、`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks` 作为白名单公开；
+`create_3d_asset`、`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config` 和
+`get_debug_feedbacks` 作为白名单公开；
 本地 MCP 保留远端 tools 的 input schema、参数和成功返回值，但会在 description 中追加简短
 Maker 本地开发提示。
 内部配置内容等价于测试脚本中的：
@@ -604,7 +605,14 @@ Maker 本地开发提示。
 复制到 `assets/model/`，或将 MDL ZIP 解压到指定模型目录，并通过 `local_delivery` 返回实际
 可用的本地模型路径。重复查询会复用已经登记且仍存在的本地文件。审核阶段的四视图会下载到
 `assets/image/`；必须展示预览并等待用户明确确认，再调用 `action=continue`，本地代理不会自动确认。
-`generate_test_qrcode` 和 `get_ad_config` 不进入本地素材落地流程，远端结果原样返回。
+`generate_test_qrcode`、`add_test_whitelist` 和 `get_ad_config` 不进入本地素材落地流程，远端结果原样返回。
+调用 `generate_test_qrcode` 前，Agent 必须在单独的对话轮次让用户选择横屏或竖屏，禁止从代码、
+截图或历史配置推断，也禁止默认使用横屏。本地 tool schema 要求传
+`confirmed_screen_orientation=landscape|portrait`；该参数只用于本地前置检查，不转发远端。
+本地 MCP 会在远端调用前读取 `.project/project.json`，确认用户选择与
+`taptap_publish.screen_orientation` 一致。缺失或不一致时先修改项目配置并通过
+`maker_build_current_directory` 同步，再重试二维码生成。二维码已经生成并写入应用身份后，
+只有用户明确提供 TapTap `user_id` 时才调用 `add_test_whitelist`，不要猜测账号 ID。
 `get_debug_feedbacks` 会拉取线上玩家反馈；当日志或截图可下载时，本地会保存到当前 Maker 项目的
 `logs/feed_back/feedback_<id>/`，并在结果里补充 `local_dir`、`local_log_paths`、
 `local_screenshot_paths`、`local_download_paths`、`artifacts_downloaded` 和

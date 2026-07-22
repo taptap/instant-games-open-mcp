@@ -1411,6 +1411,15 @@ describe('maker build local-change guard', () => {
           },
         },
         {
+          name: 'add_test_whitelist',
+          description: 'Add one TapTap user to the test whitelist',
+          inputSchema: {
+            type: 'object',
+            properties: { user_id: { type: 'number' } },
+            required: ['user_id'],
+          },
+        },
+        {
           name: 'get_ad_config',
           description: 'Sync ad config into project settings',
           inputSchema: {
@@ -1455,6 +1464,7 @@ describe('maker build local-change guard', () => {
       'confirm_character_voice',
       'create_3d_asset',
       'generate_test_qrcode',
+      'add_test_whitelist',
       'get_ad_config',
       'get_debug_feedbacks',
     ]);
@@ -1472,6 +1482,7 @@ describe('maker build local-change guard', () => {
       'confirm_character_voice',
       'create_3d_asset',
       'generate_test_qrcode',
+      'add_test_whitelist',
       'get_ad_config',
       'get_debug_feedbacks',
     ]);
@@ -1608,6 +1619,17 @@ describe('maker build local-change guard', () => {
     expect(
       result.tools.find((item) => item.name === 'generate_test_qrcode')?.inputSchema.properties
     ).toHaveProperty('target_dir');
+    const qrcodeTool = result.tools.find((item) => item.name === 'generate_test_qrcode');
+    expect(qrcodeTool?.inputSchema.required).toContain('confirmed_screen_orientation');
+    expect(qrcodeTool?.inputSchema.properties.confirmed_screen_orientation).toMatchObject({
+      type: 'string',
+      enum: ['landscape', 'portrait'],
+    });
+    expect(qrcodeTool?.description).toContain('separate conversation turn');
+    const whitelistTool = result.tools.find((item) => item.name === 'add_test_whitelist');
+    expect(whitelistTool?.inputSchema.required).toEqual(['user_id']);
+    expect(whitelistTool?.inputSchema.properties).toHaveProperty('target_dir');
+    expect(whitelistTool?.description).toContain('generate_test_qrcode');
     expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toContain(
       'Fetch online player feedback'
     );
@@ -1617,17 +1639,42 @@ describe('maker build local-change guard', () => {
   });
 
   test('remote proxy private target_dir is stripped before forwarding upstream', () => {
-    const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs({
-      target_dir: tempDir,
-      prompt: 'coin icon',
-      target_size: '128x128',
-    });
+    const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs(
+      {
+        target_dir: tempDir,
+        prompt: 'coin icon',
+        target_size: '128x128',
+      },
+      'generate_image'
+    );
 
     expect(targetDir).toBe(tempDir);
     expect(remoteArgs).toEqual({
       prompt: 'coin icon',
       target_size: '128x128',
     });
+  });
+
+  test('QR orientation confirmation is local-only while whitelist user_id is forwarded', () => {
+    expect(
+      splitRemoteProxyToolPrivateArgs(
+        {
+          target_dir: tempDir,
+          confirmed_screen_orientation: 'portrait',
+        },
+        'generate_test_qrcode'
+      )
+    ).toEqual({ targetDir: tempDir, remoteArgs: {} });
+
+    expect(
+      splitRemoteProxyToolPrivateArgs(
+        {
+          target_dir: tempDir,
+          user_id: 12345,
+        },
+        'add_test_whitelist'
+      )
+    ).toEqual({ targetDir: tempDir, remoteArgs: { user_id: 12345 } });
   });
 
   test('falls back to local Maker tools when remote proxy tool listing is unavailable', async () => {
@@ -1656,7 +1703,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- status: unavailable');
     expect(output).toContain('- available_tools: (none)');
     expect(output).toContain(
-      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, text_to_sound_effect, batch_sound_effects, text_to_dialogue, audition_voices_for_character, confirm_character_voice, create_3d_asset, generate_test_qrcode, get_ad_config, get_debug_feedbacks'
+      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, text_to_sound_effect, batch_sound_effects, text_to_dialogue, audition_voices_for_character, confirm_character_voice, create_3d_asset, generate_test_qrcode, add_test_whitelist, get_ad_config, get_debug_feedbacks'
     );
     expect(output).toContain('- build_available: no');
     expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');

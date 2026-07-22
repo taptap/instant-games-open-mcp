@@ -107,6 +107,7 @@ import {
   type MakerProjectHealth,
   type MakerProjectSettingsStatus,
 } from '../projectSettings.js';
+import { inspectMakerQrcodePreflight } from '../qrcodePreflight.js';
 import {
   CREATE_3D_ASSET_PROXY_TOOL_NAME,
   RemoteProxyToolResultError,
@@ -153,6 +154,7 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'confirm_character_voice',
   CREATE_3D_ASSET_PROXY_TOOL_NAME,
   'generate_test_qrcode',
+  'add_test_whitelist',
   'get_ad_config',
   'get_debug_feedbacks',
 ];
@@ -397,14 +399,28 @@ function decorateRemoteProxyToolInputSchema(
         ? decorateVoiceAuditionInputProperties(properties)
         : properties;
   const required = Array.isArray(schema.required) ? schema.required : [];
+  const decoratedRequired =
+    toolName === 'audition_voices_for_character'
+      ? [...new Set([...required, 'voice_profile'])]
+      : toolName === 'generate_test_qrcode'
+        ? [...new Set([...required, 'confirmed_screen_orientation'])]
+        : required;
   return {
     ...schema,
     type: schema.type || 'object',
-    ...(toolName === 'audition_voices_for_character'
-      ? { required: [...new Set([...required, 'voice_profile'])] }
-      : {}),
+    required: decoratedRequired,
     properties: {
       ...decoratedProperties,
+      ...(toolName === 'generate_test_qrcode'
+        ? {
+            confirmed_screen_orientation: {
+              type: 'string',
+              enum: ['landscape', 'portrait'],
+              description:
+                'Local-only confirmation of the orientation explicitly selected by the user in a separate conversation turn. Never infer or default this value. It is not forwarded to the remote Maker tool.',
+            },
+          }
+        : {}),
       target_dir: {
         type: 'string',
         description:
@@ -578,7 +594,12 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
       ].join(' ');
     case 'generate_test_qrcode':
       return [
-        '**Maker hint:** Use this only when the user explicitly asks for a test QR code/mobile scan test, or as the recovery step after get_ad_config reports missing app_id or developer_id. It has no business parameters; follow the remote schema and report the returned QR code or failure payload.',
+        '**Maker hint:** Use this only when the user explicitly asks for a test QR code/mobile scan test, or as the recovery step after get_ad_config reports missing app_id or developer_id. Before calling it, ask the user in a separate conversation turn to choose landscape or portrait; do not infer or default the orientation. Pass that choice as confirmed_screen_orientation. The local proxy verifies it against .project/project.json and does not forward this private parameter. Report the returned QR code or failure payload.',
+        failurePolicy,
+      ].join(' ');
+    case 'add_test_whitelist':
+      return [
+        '**Maker hint:** Use this after the project has been built and generate_test_qrcode has created the TapTap app identity. Call it only with the TapTap user_id explicitly provided by the user; do not infer an account ID.',
         failurePolicy,
       ].join(' ');
     case 'get_debug_feedbacks':
@@ -941,9 +962,8 @@ export async function startMakerMcpServer(): Promise<void> {
       }
 
       if (isExposedRemoteProxyTool(name)) {
-        const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs(
-          (request.params.arguments || {}) as Record<string, unknown>
-        );
+        const requestArgs = (request.params.arguments || {}) as Record<string, unknown>;
+        const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs(requestArgs, name);
         const context = await resolveMakerProjectContext({
           targetDir,
           listClientRoots,
@@ -960,6 +980,24 @@ export async function startMakerMcpServer(): Promise<void> {
                   text: formatMakerProjectHealthStatus(projectHealth),
                 },
               ],
+            };
+            void reportMakerMcpActivityFromPromise(contextPromise, {
+              toolName: name,
+              requestId: extra.requestId,
+              durationMs: Date.now() - startedAt,
+              success: false,
+            });
+            return result;
+          }
+          const identify = identifyMakerProject({ cwd: context.targetDir });
+          const preflight = inspectMakerQrcodePreflight(
+            identify.projectRoot || context.targetDir,
+            requestArgs.confirmed_screen_orientation
+          );
+          if (!preflight.ok) {
+            const result = {
+              isError: true,
+              content: [{ type: 'text', text: preflight.message }],
             };
             void reportMakerMcpActivityFromPromise(contextPromise, {
               toolName: name,
@@ -1729,13 +1767,19 @@ function formatMakerClientRootsStatus(roots: MakerClientRootsResolution): string
   return lines.join('\n');
 }
 
-export function splitRemoteProxyToolPrivateArgs(args: Record<string, unknown>): {
+export function splitRemoteProxyToolPrivateArgs(
+  args: Record<string, unknown>,
+  toolName?: string
+): {
   targetDir?: string;
   remoteArgs: Record<string, unknown>;
 } {
   const remoteArgs = { ...args };
   const targetDir = remoteArgs.target_dir;
   delete remoteArgs.target_dir;
+  if (toolName === 'generate_test_qrcode') {
+    delete remoteArgs.confirmed_screen_orientation;
+  }
 
   if (targetDir === undefined) {
     return { remoteArgs };
