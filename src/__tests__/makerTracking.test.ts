@@ -96,12 +96,19 @@ describe('maker MCP tracking', () => {
     expect(sanitizeMakerMcpTrackingError('Authorization: Bearer secret-value')).toBe(
       'Authorization: <redacted>'
     );
+    expect(sanitizeMakerMcpTrackingError('Authorization: Bearer abc%2Ftoken failed')).toBe(
+      'Authorization: <redacted> failed'
+    );
     expect(sanitizeMakerMcpTrackingError('Invalid MAC key: secret-value')).toBe(
       'Invalid MAC key: <redacted>'
     );
     expect(
       sanitizeMakerMcpTrackingError('Git failed for https://secret-value@example.com/repo')
     ).toBe('Git failed for https://<redacted>@example.com/repo');
+  });
+
+  test('does not mistake ordinary diagnostic keys for PAT credentials', () => {
+    expect(sanitizeMakerMcpTrackingError('compat=v1.0')).toBe('compat=v1.0');
   });
 
   test('posts the event and isolates a failed tracking request', async () => {

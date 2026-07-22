@@ -110,9 +110,9 @@ export function isMakerBuildActivitySuccessful(mode: string): boolean {
  */
 export function sanitizeMakerMcpTrackingError(message: string): string {
   return message
-    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, '<redacted>')
+    .replace(/Bearer\s+[^,\s"'}<]+/gi, '<redacted>')
     .replace(
-      /((?:authorization|access[_-]?token|refresh[_-]?token|mac[_\s-]?key|pat|token)\s*[:=]\s*)(["']?)[^,\s"'}<]+/gi,
+      /((?:authorization|access[_-]?token|refresh[_-]?token|mac[_\s-]?key|\bpat\b|token)\s*[:=]\s*)(["']?)[^,\s"'}<]+/gi,
       '$1$2<redacted>'
     )
     .replace(/(https?:\/\/[^:\s/@]+:)[^@\s]+@/gi, '$1<redacted>@')
