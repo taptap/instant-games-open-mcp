@@ -8,6 +8,17 @@ import path from 'node:path';
 const INTERNAL_ENVIRONMENT_PATTERN = /\brnd\b|xdrnd|TAPTAP_MCP_ENV|--env/iu;
 
 describe('Maker public documentation', () => {
+  test('documents the QR orientation gate and test whitelist proxy workflow', () => {
+    for (const file of ['AGENTS.md', 'README.md', 'docs/MAKER.md']) {
+      const text = fs.readFileSync(path.resolve(file), 'utf8');
+      expect(text).toContain('add_test_whitelist');
+      expect(text).toContain('confirmed_screen_orientation');
+      expect(text).toContain('只有');
+      expect(text).toContain('landscape');
+      expect(text).toContain('portrait');
+    }
+  });
+
   test('Maker-facing docs do not expose internal environment selection', () => {
     const readme = fs.readFileSync(path.resolve('README.md'), 'utf8');
     const makerSection = readme.match(

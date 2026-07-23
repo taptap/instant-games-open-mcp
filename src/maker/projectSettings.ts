@@ -121,8 +121,9 @@ export function inspectMakerProjectHealth(
   const resourcesJsonExists = resourcesJsonState === 'file';
   const settingsJsonExists = settingsJsonState === 'file';
   const hasMisplacedConfig = issues.some((item) => item.code === 'misplaced_config');
+  const hasNoPrimaryConfig = projectJsonState === 'missing' && settingsJsonState === 'missing';
 
-  if (!projectDirExists && !hasMisplacedConfig && issues.length === 0) {
+  if (hasNoPrimaryConfig && !hasMisplacedConfig && issues.length === 0) {
     return createHealthResult(
       resolvedProjectRoot,
       mode,
@@ -134,15 +135,10 @@ export function inspectMakerProjectHealth(
     );
   }
 
-  addCanonicalFileIssue(projectJsonState, '.project/project.json', issues, projectDirExists);
-  addCanonicalFileIssue(
-    resourcesJsonState,
-    '.project/resources.json',
-    issues,
-    mode === 'qrcode' || projectDirExists
-  );
+  addCanonicalFileIssue(projectJsonState, '.project/project.json', issues, mode === 'qrcode');
+  addCanonicalFileIssue(resourcesJsonState, '.project/resources.json', issues, mode === 'qrcode');
   addCanonicalFileIssue(settingsJsonState, '.project/settings.json', issues, false);
-  if (projectDirExists && settingsJsonState === 'missing' && mode !== 'qrcode') {
+  if (projectJsonExists && settingsJsonState === 'missing') {
     issues.push(
       issue(
         'missing_settings_json',
@@ -210,15 +206,18 @@ export function inspectMakerProjectHealth(
   }
 
   const hasFatalIssues = issues.some((item) => item.severity === 'error');
+  const hasCompletePrimaryConfig = projectJsonExists && settingsJsonExists;
   const status: MakerProjectHealthStatus = hasMisplacedConfig
     ? 'misplaced_config'
     : hasFatalIssues
       ? 'error'
-      : issues.length > 0
-        ? 'warning'
-        : 'ready';
+      : !hasCompletePrimaryConfig
+        ? 'not_initialized'
+        : issues.length > 0
+          ? 'warning'
+          : 'ready';
   const canBuild = !issues.some((item) => item.severity === 'error' && isBuildBlockingIssue(item));
-  const canGenerateTestQrcode = canGenerateQrcode(project, resources, issues);
+  const canGenerateTestQrcode = canGenerateQrcode(project, resources, settingsJsonExists, issues);
 
   return createHealthResult(
     resolvedProjectRoot,
@@ -258,9 +257,12 @@ export function formatMakerProjectHealthStatus(health: MakerProjectHealth): stri
   if (settingsSection) {
     lines.push('', settingsSection);
   }
+  const isMissingSettings = health.issues.some((item) => item.code === 'missing_settings_json');
   lines.push(
     health.canBuild && !health.canGenerateTestQrcode
-      ? '- next_action: 可以继续构建；生成测试二维码前请完善 .project/project.json 发布配置。'
+      ? isMissingSettings
+        ? '- next_action: 可以继续构建；生成测试二维码前需要 .project/settings.json。'
+        : '- next_action: 可以继续构建；生成测试二维码前请完善 .project/project.json 发布配置。'
       : health.canBuild
         ? '- next_action: 可以继续构建；检查器不会自动移动或覆盖文件。'
         : '- next_action: 修复上面的规范路径或配置问题后再构建；检查器不会自动移动或覆盖文件。'
@@ -581,11 +583,13 @@ function isConfiguredTitle(value: unknown): value is string {
 function canGenerateQrcode(
   project: unknown,
   resources: unknown,
+  settingsExists: boolean,
   issues: MakerProjectHealthIssue[]
 ): boolean {
   if (
     !isPlainObject(project) ||
     !isPlainObject(resources) ||
+    !settingsExists ||
     !isConfiguredString(project.project_id) ||
     !isConfiguredString(project.version) ||
     !hasProjectEntry(project, resources, 'qrcode') ||
@@ -594,15 +598,27 @@ function canGenerateQrcode(
     return false;
   }
   const publish = project.taptap_publish;
-  if (
-    !isConfiguredTitle(publish.title) ||
-    !isConfiguredString(publish.category) ||
-    (publish.screen_orientation !== 'landscape' && publish.screen_orientation !== 'portrait')
-  ) {
+  if (!isConfiguredTitle(publish.title) || !isConfiguredString(publish.category)) {
     return false;
   }
+
+  // The QR handler owns the first-time orientation confirmation. Allow an
+  // absent field through so it can ask the user and persist the choice; an
+  // explicitly invalid value remains a hard project error.
+  const orientation = publish.screen_orientation;
+  if (orientation !== undefined && orientation !== 'landscape' && orientation !== 'portrait') {
+    return false;
+  }
+
   return !issues.some((item) => {
     if (item.severity !== 'error') {
+      return false;
+    }
+    if (
+      orientation === undefined &&
+      item.code === 'invalid_publish_field' &&
+      item.path === 'taptap_publish.screen_orientation'
+    ) {
       return false;
     }
     if (item.path === 'taptap_publish' || item.path.startsWith('taptap_publish.')) {

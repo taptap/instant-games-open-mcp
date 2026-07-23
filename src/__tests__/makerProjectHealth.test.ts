@@ -28,6 +28,55 @@ describe('Maker project health check', () => {
     expect(health.issues).toEqual([]);
   });
 
+  test('treats an empty .project directory as uninitialized', () => {
+    fs.mkdirSync(path.join(projectRoot, '.project'), { recursive: true });
+
+    const health = inspectMakerProjectHealth(projectRoot, 'build');
+
+    expect(health.status).toBe('not_initialized');
+    expect(health.canBuild).toBe(true);
+    expect(health.canGenerateTestQrcode).toBe(false);
+    expect(health.issues).toEqual([]);
+  });
+
+  test('treats local voice mappings without primary configs as uninitialized', () => {
+    const projectDir = path.join(projectRoot, '.project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(projectDir, 'audio-voice-mapping.json'),
+      JSON.stringify({ provider: 'doubao', characters: {} })
+    );
+
+    const health = inspectMakerProjectHealth(projectRoot, 'build');
+
+    expect(health.status).toBe('not_initialized');
+    expect(health.canBuild).toBe(true);
+    expect(health.canGenerateTestQrcode).toBe(false);
+    expect(health.issues).toEqual([]);
+  });
+
+  test('treats resources.json without primary configs as uninitialized', () => {
+    writeProjectFiles({ resources: validResourcesJson() });
+
+    const health = inspectMakerProjectHealth(projectRoot, 'build');
+
+    expect(health.status).toBe('not_initialized');
+    expect(health.canBuild).toBe(true);
+    expect(health.canGenerateTestQrcode).toBe(false);
+    expect(health.issues).toEqual([]);
+  });
+
+  test('keeps a valid settings-only project buildable but uninitialized', () => {
+    writeProjectFiles({ settings: validSettingsJson() });
+
+    const health = inspectMakerProjectHealth(projectRoot, 'build');
+
+    expect(health.status).toBe('not_initialized');
+    expect(health.canBuild).toBe(true);
+    expect(health.canGenerateTestQrcode).toBe(false);
+    expect(health.issues).toEqual([]);
+  });
+
   test('ignores an unrelated dist directory before the first Maker build', () => {
     fs.mkdirSync(path.join(projectRoot, 'dist'), { recursive: true });
     fs.writeFileSync(path.join(projectRoot, 'dist', 'maker.js'), 'bundle');
@@ -124,6 +173,7 @@ describe('Maker project health check', () => {
         },
       },
       resources: validResourcesJson(),
+      settings: validSettingsJson(),
     });
 
     const buildHealth = inspectMakerProjectHealth(projectRoot, 'build');
@@ -134,7 +184,7 @@ describe('Maker project health check', () => {
     expect(qrcodeHealth.canGenerateTestQrcode).toBe(false);
   });
 
-  test('reports a source-ready project without requiring a local dist directory', () => {
+  test('keeps a project without settings in the uninitialized buildable state', () => {
     writeProjectFiles({
       project: validProjectJson(),
       resources: validResourcesJson(),
@@ -142,9 +192,9 @@ describe('Maker project health check', () => {
 
     const health = inspectMakerProjectHealth(projectRoot, 'status');
 
-    expect(health.status).toBe('warning');
+    expect(health.status).toBe('not_initialized');
     expect(health.canBuild).toBe(true);
-    expect(health.canGenerateTestQrcode).toBe(true);
+    expect(health.canGenerateTestQrcode).toBe(false);
     expect(health.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ code: 'missing_settings_json', severity: 'warning' }),
@@ -152,10 +202,35 @@ describe('Maker project health check', () => {
     );
   });
 
+  test('reports missing settings as the QR blocker', () => {
+    writeProjectFiles({
+      project: validProjectJson(),
+      resources: validResourcesJson(),
+    });
+
+    const health = inspectMakerProjectHealth(projectRoot, 'qrcode');
+    const output = formatMakerProjectHealthStatus(health);
+
+    expect(health.canBuild).toBe(true);
+    expect(health.canGenerateTestQrcode).toBe(false);
+    expect(health.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'missing_settings_json',
+          path: '.project/settings.json',
+          severity: 'warning',
+        }),
+      ])
+    );
+    expect(output).toContain('.project/settings.json');
+    expect(output).not.toContain('请完善 .project/project.json 发布配置');
+  });
+
   test('warns about the remote builder version template without blocking build', () => {
     writeProjectFiles({
       project: { ...validProjectJson(), version: '1.0.{x}' },
       resources: validResourcesJson(),
+      settings: validSettingsJson(),
     });
 
     const health = inspectMakerProjectHealth(projectRoot, 'build');
@@ -229,7 +304,11 @@ describe('Maker project health check', () => {
   test('warns when publish configuration is missing without blocking build', () => {
     const project = validProjectJson();
     delete project.taptap_publish;
-    writeProjectFiles({ project, resources: validResourcesJson() });
+    writeProjectFiles({
+      project,
+      resources: validResourcesJson(),
+      settings: validSettingsJson(),
+    });
 
     const health = inspectMakerProjectHealth(projectRoot, 'status');
 
@@ -287,14 +366,15 @@ describe('Maker project health check', () => {
     );
   });
 
-  test('blocks a built project when required resources.json is deleted', () => {
-    writeProjectFiles({ project: validProjectJson() });
+  test('keeps build available when resources.json is missing', () => {
+    writeProjectFiles({ project: validProjectJson(), settings: validSettingsJson() });
 
-    const health = inspectMakerProjectHealth(projectRoot, 'build');
+    const buildHealth = inspectMakerProjectHealth(projectRoot, 'build');
+    const qrcodeHealth = inspectMakerProjectHealth(projectRoot, 'qrcode');
 
-    expect(health.status).toBe('error');
-    expect(health.canBuild).toBe(false);
-    expect(health.issues).toEqual(
+    expect(buildHealth.canBuild).toBe(true);
+    expect(qrcodeHealth.canGenerateTestQrcode).toBe(false);
+    expect(qrcodeHealth.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: 'missing_required_file',
@@ -305,7 +385,7 @@ describe('Maker project health check', () => {
     );
   });
 
-  test('blocks a built project when project.json is deleted', () => {
+  test('keeps a settings-only project buildable when project.json is absent', () => {
     writeProjectFiles({
       resources: validResourcesJson(),
       settings: validSettingsJson(),
@@ -313,36 +393,20 @@ describe('Maker project health check', () => {
 
     const health = inspectMakerProjectHealth(projectRoot, 'build');
 
-    expect(health.status).toBe('error');
-    expect(health.canBuild).toBe(false);
-    expect(health.issues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: 'missing_required_file',
-          path: '.project/project.json',
-          severity: 'error',
-        }),
-      ])
-    );
+    expect(health.status).toBe('not_initialized');
+    expect(health.canBuild).toBe(true);
+    expect(health.canGenerateTestQrcode).toBe(false);
+    expect(health.issues).toEqual([]);
   });
 
-  test('reports both required project files when both are missing', () => {
+  test('does not report required-file errors for an empty .project directory', () => {
     fs.mkdirSync(path.join(projectRoot, '.project'), { recursive: true });
 
     const health = inspectMakerProjectHealth(projectRoot, 'build');
 
-    expect(health.issues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: 'missing_required_file',
-          path: '.project/project.json',
-        }),
-        expect.objectContaining({
-          code: 'missing_required_file',
-          path: '.project/resources.json',
-        }),
-      ])
-    );
+    expect(health.status).toBe('not_initialized');
+    expect(health.canBuild).toBe(true);
+    expect(health.issues).toEqual([]);
   });
 
   test('reports a canonical JSON path changed into a directory', () => {
@@ -511,7 +575,11 @@ describe('Maker project health check', () => {
 
   test('returns a ready QR state when source configs are valid', () => {
     const project = validProjectJson();
-    writeProjectFiles({ project, resources: validResourcesJson() });
+    writeProjectFiles({
+      project,
+      resources: validResourcesJson(),
+      settings: validSettingsJson(),
+    });
 
     const health = inspectMakerProjectHealth(projectRoot, 'qrcode');
 
@@ -527,7 +595,11 @@ describe('Maker project health check', () => {
       ...(project.taptap_publish as Record<string, unknown>),
       title: '勇者{重生}',
     };
-    writeProjectFiles({ project, resources: validResourcesJson() });
+    writeProjectFiles({
+      project,
+      resources: validResourcesJson(),
+      settings: validSettingsJson(),
+    });
 
     const health = inspectMakerProjectHealth(projectRoot, 'qrcode');
 
@@ -548,7 +620,11 @@ describe('Maker project health check', () => {
       ...(project.taptap_publish as Record<string, unknown>),
       category: 'future-category',
     };
-    writeProjectFiles({ project, resources: validResourcesJson() });
+    writeProjectFiles({
+      project,
+      resources: validResourcesJson(),
+      settings: validSettingsJson(),
+    });
 
     const health = inspectMakerProjectHealth(projectRoot, 'qrcode');
 
@@ -571,6 +647,7 @@ describe('Maker project health check', () => {
         version: '<version, auto-generated>',
       },
       resources: validResourcesJson(),
+      settings: validSettingsJson(),
     });
 
     const health = inspectMakerProjectHealth(projectRoot, 'qrcode');
@@ -603,6 +680,7 @@ describe('Maker project health check', () => {
         },
       },
       resources: validResourcesJson(),
+      settings: validSettingsJson(),
     });
 
     const health = inspectMakerProjectHealth(projectRoot, 'qrcode');
@@ -652,6 +730,7 @@ describe('Maker project health check', () => {
     writeProjectFiles({
       project,
       resources: { ...validResourcesJson(), entry: 'main.lua' },
+      settings: validSettingsJson(),
     });
 
     const health = inspectMakerProjectHealth(projectRoot, 'qrcode');
@@ -660,7 +739,7 @@ describe('Maker project health check', () => {
   });
 
   test('blocks QR generation when required resources.json is missing', () => {
-    writeProjectFiles({ project: validProjectJson() });
+    writeProjectFiles({ project: validProjectJson(), settings: validSettingsJson() });
 
     const health = inspectMakerProjectHealth(projectRoot, 'qrcode');
 

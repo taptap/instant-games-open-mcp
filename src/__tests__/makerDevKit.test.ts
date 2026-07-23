@@ -19,6 +19,7 @@ import {
   resolveDefaultAiDevKitUrl,
   writeAiDevKitVersionMetadata,
 } from '../maker/cli/devKit';
+import { MAKER_CAPABILITY_ROUTING_INDEX } from '../maker/capabilityRouting';
 
 describe('Maker AI dev kit install', () => {
   let tempDir: string;
@@ -120,12 +121,18 @@ describe('Maker AI dev kit install', () => {
       /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
+    expect(agentsGuide).toContain(MAKER_CAPABILITY_ROUTING_INDEX);
+    expect(agentsGuide.indexOf(MAKER_CAPABILITY_ROUTING_INDEX)).toBeLessThan(
+      agentsGuide.indexOf('Maker build workflow')
+    );
     expect(agentsGuide).toContain('Maker build workflow');
     expect(agentsGuide).toContain('call `maker_build_current_directory`');
     expect(agentsGuide).toContain('Do not tell the user to open the Maker web page');
     expect(agentsGuide).toContain('Do not use generic Git commit, push, branch, PR, or MR');
     expect(agentsGuide).toContain('Maker ad workflow');
-    expect(agentsGuide).toContain('first call `get_ad_config` before reading');
+    expect(agentsGuide).toContain(
+      '`get_ad_config` only after primary local project configs are initialized'
+    );
     expect(agentsGuide).toContain('source of truth for current project ad activation status');
     expect(agentsGuide).toContain('Maker feedback workflow');
     expect(agentsGuide).toContain('the Maker proxy `get_debug_feedbacks` tool');
@@ -160,7 +167,8 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain('create_3d_asset');
     expect(agentsGuide).toContain('action="continue"');
     expect(agentsGuide).toContain('Do not infer ad readiness from local SDK docs');
-    expect(agentsGuide).toContain('build once with `maker_build_current_directory`');
+    expect(agentsGuide).toContain('Build only for an explicit user build/submit/preview request');
+    expect(agentsGuide).toContain('do not rebuild');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');
     expect(agentsGuide).toContain('`ShowRewardVideoAd`');
     expect(agentsGuide).toContain('assets/model');
@@ -352,10 +360,13 @@ describe('Maker AI dev kit install', () => {
       /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
+    expect(agentsGuide).toContain(MAKER_CAPABILITY_ROUTING_INDEX);
     expect(agentsGuide).toContain('call `maker_build_current_directory`');
     expect(agentsGuide).toContain('Do not tell the user to open the Maker web page');
     expect(agentsGuide).toContain('Maker ad workflow');
-    expect(agentsGuide).toContain('first call `get_ad_config` before reading');
+    expect(agentsGuide).toContain(
+      '`get_ad_config` only after primary local project configs are initialized'
+    );
     expect(agentsGuide).toContain('Maker feedback workflow');
     expect(agentsGuide).toContain('the Maker proxy `get_debug_feedbacks` tool');
     expect(agentsGuide).toContain('Maker MCP proxy tools when they are available');
@@ -372,7 +383,8 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('Local MCP does not transcode generated audio to OGG');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');
-    expect(agentsGuide).toContain('build once with `maker_build_current_directory`');
+    expect(agentsGuide).toContain('Build only for an explicit user build/submit/preview request');
+    expect(agentsGuide).toContain('do not rebuild');
     expect(claudeGuide).toBe('user edits\n');
     expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'templates', 'README.md'))).toBe(true);

@@ -1,12 +1,15 @@
 const mockServers: Array<{
   handlers: Map<unknown, (...args: any[]) => any>;
+  options?: Record<string, unknown>;
 }> = [];
 
 jest.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
   Server: class MockServer {
     handlers = new Map<unknown, (...args: any[]) => any>();
+    options?: Record<string, unknown>;
 
-    constructor(..._args: unknown[]) {
+    constructor(_serverInfo: unknown, options?: Record<string, unknown>) {
+      this.options = options;
       mockServers.push(this);
     }
 
@@ -188,5 +191,26 @@ describe('maker MCP version status integration', () => {
     expect(result.content[0].text).toContain('Maker MCP package update');
     expect(result.content[0].text).toContain('- status: required_upgrade');
     expect(result.content[0].text).toContain('- next_action: Ask the user for approval');
+  });
+
+  test('exposes a concise capability routing index through initialize instructions', async () => {
+    const { startMakerMcpServer } = await import('../maker/server/mcp');
+
+    await startMakerMcpServer();
+
+    const instructions = mockServers[0]?.options?.instructions;
+    expect(typeof instructions).toBe('string');
+    expect(instructions).toContain('TapTap Maker routing index:');
+    expect(instructions).toContain('maker://status');
+    expect(instructions).toContain('maker_status_lite');
+    expect(instructions).toContain('maker_build_current_directory');
+    expect(instructions).toContain('generate_test_qrcode');
+    expect(instructions).toContain('get_ad_config');
+    expect(instructions).toContain('get_debug_feedbacks');
+    expect(instructions).toContain('image, video, music, sound-effect');
+    expect((instructions as string).length).toBeLessThanOrEqual(1200);
+    expect(instructions).not.toMatch(
+      /agents update|global memory|~\/.(?:codex|claude|workbuddy)/iu
+    );
   });
 });

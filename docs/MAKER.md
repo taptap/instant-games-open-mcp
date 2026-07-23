@@ -221,6 +221,14 @@ Python 运行时策略：
 
 MCP 运行期能力：
 
+- Maker MCP 在 `initialize` 响应的 `instructions` 中提供精简能力路由，帮助 Agent 优先发现
+  状态、构建、测试二维码、广告配置、线上玩家反馈和游戏资源生成入口。该提示不会在 MCP
+  初始化时写文件，也不会替代具体 tool schema。
+- 新项目初始化、`taptap-maker agents update` 和已绑定项目中的 `taptap-maker upgrade`
+  会把同一份路由写入目标 Maker 项目 `AGENTS.md` 的受管策略块，并保留用户自己的内容。
+  受管 body hash 变化会让旧项目状态显示为 `outdated`，不需要升级 policy version。
+- 更新 `@taptap/maker` 后，需要 reconnect/restart MCP 或新开 AI 会话才能收到新的
+  `initialize.instructions`；旧项目按状态输出继续执行 `agents update` 或 `upgrade`。
 - `maker://status`：资源形式的本地 Maker 状态，适合 Agent 首先读取。
 - `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。
   支持 MCP Roots 的 AI 客户端会把当前 workspace root 暴露给 Maker MCP；状态会优先使用
@@ -578,9 +586,12 @@ maker_build_current_directory()
 当前只把 `generate_image`、`batch_generate_images`、`edit_image`、`create_video_task`、
 `query_video_task`、`text_to_music`、`text_to_sound_effect`、`batch_sound_effects`、
 `text_to_dialogue`、`audition_voices_for_character`、`confirm_character_voice`、
-`create_3d_asset`、`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks` 作为白名单公开；
-本地 MCP 保留远端 tools 的 input schema、参数和成功返回值，但会在 description 中追加简短
-Maker 本地开发提示。
+`create_3d_asset`、`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config` 和
+`get_debug_feedbacks` 作为白名单公开；
+本地 MCP 保留远端 tools 的 input schema、参数语义和成功返回值。当前公开 tools 的
+description 使用 `src/maker/server/toolDescriptions.ts` 中逐工具审核过的本地 override，避免
+远端通用教程与 Maker 本地确认门、素材落盘和恢复工作流冲突。未来没有本地 override 的
+白名单 tool fallback 到远端 description，并在存在对应规则时追加简短 Maker 本地 guidance。
 内部配置内容等价于测试脚本中的：
 
 本地 Maker MCP 会对生成类 tools 做客户端素材落地，并把本地生成素材到远端 URL 的映射记录到
@@ -604,21 +615,29 @@ Maker 本地开发提示。
 复制到 `assets/model/`，或将 MDL ZIP 解压到指定模型目录，并通过 `local_delivery` 返回实际
 可用的本地模型路径。重复查询会复用已经登记且仍存在的本地文件。审核阶段的四视图会下载到
 `assets/image/`；必须展示预览并等待用户明确确认，再调用 `action=continue`，本地代理不会自动确认。
-`generate_test_qrcode` 和 `get_ad_config` 不进入本地素材落地流程，远端结果原样返回。
+`generate_test_qrcode`、`add_test_whitelist` 和 `get_ad_config` 不进入本地素材落地流程，远端结果原样返回。
+调用 `generate_test_qrcode` 时，Agent 应先不传方向参数直接调用。本地 MCP 会读取
+`.project/project.json`：如果 `taptap_publish.screen_orientation` 已是 `landscape` 或 `portrait`，
+直接沿用该值，不再询问用户，也不允许后续输入覆盖。只有该字段从未设置时，才要求 Agent 在单独的
+对话轮次让用户选择横屏或竖屏，禁止推断或默认；随后重试并传本地私有参数
+`confirmed_screen_orientation=landscape|portrait`。本地 MCP 只在首次缺失时写入该值，参数不转发远端。
+二维码已经生成并写入应用身份后，
+只有用户明确提供 TapTap `user_id` 时才调用 `add_test_whitelist`，不要猜测账号 ID。
 `get_debug_feedbacks` 会拉取线上玩家反馈；当日志或截图可下载时，本地会保存到当前 Maker 项目的
 `logs/feed_back/feedback_<id>/`，并在结果里补充 `local_dir`、`local_log_paths`、
 `local_screenshot_paths`、`local_download_paths`、`artifacts_downloaded` 和
 `artifact_download_errors`。AI/Agent 诊断问题时应优先读取这些返回的本地路径；不要自行猜测
 工作盘符或固定目录。只有返回 `local_*` 路径时，才把附件视为已经下载到本机。
 主 MCP 的 H5 `get_debug_feedbacks` 仍由 H5 本地 handler 处理，两者不要混用应用选择状态。
-新建 Maker 项目首次查询广告配置时，如果 `get_ad_config` 返回缺少 `.project/project.json`，
-应先调用 `maker_build_current_directory` 构建一次初始化项目配置，再重试 `get_ad_config`。
+新建 Maker 项目主配置缺失时，`get_ad_config` 的本地 preflight 会保持广告能力不可用且不调用远端。
+仅在用户明确要求构建、提交或预览时调用 `maker_build_current_directory`；构建成功后本地配置仍可能
+缺失，此时直接说明已知限制，不要自动重复构建或重试 `get_ad_config`。
 如果 `get_ad_config` 返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode`
 一次生成测试二维码元数据，再重试 `get_ad_config`；不要为这个恢复流程调用发布类 tools。
 `taptap-maker doctor`、`maker://status` 和 `maker_status_lite` 也会在已绑定项目缺少
 `.project/project.json` 时输出 `Maker project initialization` / `missing_project_json`。
-如果 `.project` 尚不存在，才提示先构建一次；如果 `.project` 已存在但文件被删除，
-应先从 Git 或完整副本恢复，因为构建预检不会覆盖缺失文件。若 `.project/project.json`
+无论 `.project` 目录是否存在，只要本地主配置尚未就绪，都保持 `not_initialized` 并允许用户显式构建；
+目录存在本身不表示配置曾经完整。若实际存在的 `.project/project.json`
 已存在但缺少 `app_id` 或 `developer_id`，则输出 `missing_taptap_identity`，提示先调用
 `generate_test_qrcode`。
 对于 `edit_image`，AI/Agent 调用前应先解析用户提供的图片：拖入/附件图片优先取客户端暴露的本地
@@ -657,7 +676,7 @@ Maker 本地开发提示。
 
 - `entry` / `scriptsPath`：用户未指定且本地存在 `scripts/main.lua`、也没有显式多人入口参数时，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`，减少远端第一次构建的“入口配置缺失”提示。
 - `entry_client` / `entry_server`：用户明确说明是多人游戏或给出入口文件时再传入；传入多人入口后不会自动补单机 `scripts/main.lua`；远端 build 会写入 `project.json` 的 `entry@client` / `entry@server`。首次多人构建传多人入口时，应在同一次调用里传 `multiplayer.enabled=true`，避免首次初始化成禁用多人。
-- `multiplayer`：schema 与 `maker-tools` build 工具同步，支持 `enabled`、`max_players`、`background_match`、`match_info` 和 `persistent_world`；远端 build 会写入 `.project/settings.json` 的 `@runtime.multiplayer`。用户未指定、未传多人入口且本地不存在 `.project/settings.json` 时，默认传 `{ "enabled": false }`，用于第一次单机项目构建初始化；后续构建只更新传入字段，未传字段保持现有配置。
+- `multiplayer`：schema 与 `maker-tools` build 工具同步，支持 `enabled`、`max_players`、`background_match`、`match_info` 和 `persistent_world`；远端 build 会写入 `.project/settings.json` 的 `@runtime.multiplayer`。只有用户明确提供配置时才转发；本地缺少 `.project/settings.json` 不能代表远端是单机项目，也不会自动注入 `{ "enabled": false }`。用户明确选择单机时仍可显式传 `enabled=false`，未传字段由远端保留或推断。
 - `multiplayer.match_info`：房间制 / 对局制配置，支持 `desc_name`（`free_match` / `free_match_with_ai`）、`player_number`、`immediately_start` 和 `match_timeout`。
 - `multiplayer.persistent_world.enabled`：常驻服 / 持续世界配置，用于玩家可加入已运行世界的玩法。
 - 如果用户明确说明是多人游戏或给出入口文件，再把对应参数传入。
@@ -673,18 +692,20 @@ Maker 本地开发提示。
 ```
 
 检查只读取上述固定路径和项目根目录下、内容明确符合 Maker `$schema` 或完整发布字段特征的同名候选文件，不跑 Git、不查网络、不递归扫资源目录、
-不执行完整 JSON Schema。如果 `.project` 不存在，本地视为尚未触发过远端构建，跳过 `.project`
-内部配置检查，只快速检查根目录或已知 `assets/project.json` 是否出现被移动的配置。若 AI 把配置
-移动到项目根目录，或在已有 `.project` 中删除 `.project/project.json` / `.project/resources.json`，
-检查会报告规范路径错误，构建会在 commit/push 前停止；`dist` 是构建产物，不参与源配置有效性判断。
+不执行完整 JSON Schema。初始化状态按具体主配置文件判断，不按 `.project` 目录判断：目录不存在、
+空目录、只含音色 mapping/其它本地辅助文件、只含 `resources.json`，或缺少 `project.json` /
+`settings.json` 时，都保持 `not_initialized` 且允许显式构建。配置依赖的二维码、广告、测试白名单
+和多人设置不自动触发。若 AI 把实际 Maker 配置移动到项目根目录，或写入无法解析、类型错误的
+规范配置文件，检查仍会报告错误并在 commit/push 前停止；`dist` 是构建产物，不参与源配置有效性判断。
 
 统一检查仍保留原有 settings 内容校验：`$schema`、`sources`、`build` 必须保持默认构建格式，
 线上用户项目的 `sources.*.tag` 必须是 `stable`，`build.asset_ignores` 只要求字段存在，
 并允许合法的 `@runtime` 配置。远端首次初始化可能使用任意非空版本字符串或
 `project_id` / 发布字段占位符；build/status 模式会提示 warning 并允许远端初始化，
 二维码模式仍会严格拒绝这些占位配置。`generate_test_qrcode` 额外要求规范位置的
-`.project/project.json`、`project_id`、入口和有效的 `taptap_publish`；settings 内容错误本身
-不会阻断二维码生成，但缺少或损坏 `resources.json` 会阻断二维码流程。`canBuild` 只表示结构和 JSON 是否可构建，二维码专属的身份或发布字段错误不会把它改为 `no`。修复配置时只恢复构建关键字段，不要为了功能开发裸改 `sources`、
+`.project/project.json`、`.project/settings.json`、`project_id`、入口和有效的 `taptap_publish`；
+settings 文件存在但内容错误本身不会阻断二维码生成，缺少 settings 或缺少/损坏 `resources.json`
+会阻断二维码流程。`canBuild` 只表示实际存在配置的结构和 JSON 是否可构建，二维码专属的身份或发布字段错误不会把它改为 `no`。修复配置时只恢复构建关键字段，不要为了功能开发裸改 `sources`、
 `build.asset_dirs`、`build.output_dir` 等字段。健康检查不会自动写文件；AI 修复时优先从 Git
 或完整错位副本恢复，只有在 JSON 仍可解析时才做固定字段级恢复，并保留 `@runtime`、
 `asset_ignores` 和未知字段。`resources.json` 的资源分组、`project.json` 的项目身份/入口/版本/

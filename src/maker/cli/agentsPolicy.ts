@@ -5,6 +5,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { MAKER_CAPABILITY_ROUTING_INDEX } from '../capabilityRouting.js';
 
 export const MAKER_AGENTS_FILE = 'AGENTS.md';
 const POLICY_VERSION = '3';
@@ -127,6 +128,8 @@ function createMakerAgentsPolicyBody(): string {
     '',
     'This is a bound TapTap Maker project.',
     '',
+    MAKER_CAPABILITY_ROUTING_INDEX,
+    '',
     'Maker build workflow:',
     '',
     '- For user requests such as 构建, build, 预览, 跑一下, 查看结果, 看看效果, 验证游戏效果,',
@@ -185,15 +188,17 @@ function createMakerAgentsPolicyBody(): string {
     '',
     'Maker ad workflow:',
     '',
-    '- For any ad-related request or code touching ads, first call `get_ad_config` before reading',
+    '- For any ad-related request or code touching ads, first inspect Maker project status. Call',
+    '  `get_ad_config` only after primary local project configs are initialized and before reading',
     '  local SDK docs, editing ad code, or testing ad behavior. Triggers include 广告, 激励视频,',
     '  播放广告, ad ID, ad placement, ad status, ad config, and `ShowRewardVideoAd`.',
     '- Treat `get_ad_config` as the source of truth for current project ad activation status and',
     '  ad config. Do not infer ad readiness from local SDK docs, `.maker-mcp/config.json`, or',
     '  runtime callbacks.',
-    '- If `.project/project.json` is missing, build once with `maker_build_current_directory` to',
-    '  initialize the project, then call `get_ad_config` again. Implement or test ad code only',
-    '  after the config is available.',
+    '- If primary local project configs are missing, keep ad config unavailable and do not call the',
+    '  remote tool. Build only for an explicit user build/submit/preview request. If a successful',
+    '  build still leaves local configs missing, explain the known limitation and do not rebuild',
+    '  automatically. Implement or test ad code only after the config is available.',
     '- If `get_ad_config` reports missing `app_id` or `developer_id`, call',
     '  `generate_test_qrcode` once to generate test QR code metadata, then call `get_ad_config`',
     '  again. Do not use publish-only tools for this recovery path.',
