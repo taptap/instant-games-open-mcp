@@ -2024,6 +2024,46 @@ describe('maker build local-change guard', () => {
     expect(clientAttempts).toBe(1);
   });
 
+  test('does not retry HTTP 408 or 429 errors matched by transport keywords', async () => {
+    const requestTimeoutError = Object.assign(new Error('HTTP 408: Request Timeout'), {
+      code: 408,
+    });
+    let requestTimeoutAttempts = 0;
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          requestTimeoutAttempts += 1;
+          throw requestTimeoutError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(requestTimeoutError);
+    expect(requestTimeoutAttempts).toBe(1);
+
+    const rateLimitError = new Error('HTTP 429: Too Many Requests');
+    let rateLimitAttempts = 0;
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          rateLimitAttempts += 1;
+          throw rateLimitError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(rateLimitError);
+    expect(rateLimitAttempts).toBe(1);
+  });
+
   test('downloads generated image proxy result into Maker image assets', async () => {
     const result = await materializeRemoteProxyToolAssets({
       toolName: 'generate_image',

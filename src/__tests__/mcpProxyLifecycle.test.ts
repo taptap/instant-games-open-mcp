@@ -1,4 +1,5 @@
 import { PassThrough } from 'node:stream';
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../mcp-proxy/config';
 import { installStandaloneProxyLifecycleHandlers } from '../mcp-proxy/lifecycle';
 import { convertMcpApplicationErrorToToolResult, TapTapMCPProxy } from '../mcp-proxy/proxy';
@@ -155,6 +156,20 @@ describe('standalone MCP proxy lifecycle guards', () => {
     expect((proxy as any).isNetworkError(sessionExpiredError)).toBe(true);
   });
 
+  test('classifies the MCP SDK connection-closed code as reconnectable', () => {
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+    const connectionClosedError = new McpError(ErrorCode.ConnectionClosed, 'Connection closed');
+
+    expect((proxy as any).isNetworkError(connectionClosedError)).toBe(true);
+  });
+
+  test('classifies the MCP SDK request-timeout code as reconnectable', () => {
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+    const requestTimeoutError = new McpError(ErrorCode.RequestTimeout, 'Request timed out');
+
+    expect((proxy as any).isNetworkError(requestTimeoutError)).toBe(true);
+  });
+
   test('classifies HTTP 5xx as network errors without retrying HTTP 4xx', () => {
     const proxy = new TapTapMCPProxy(createProxyConfig());
 
@@ -165,6 +180,12 @@ describe('standalone MCP proxy lifecycle guards', () => {
     expect(
       (proxy as any).isNetworkError(Object.assign(new Error('HTTP request failed'), { code: 400 }))
     ).toBe(false);
+    expect(
+      (proxy as any).isNetworkError(
+        Object.assign(new Error('HTTP 408: Request Timeout'), { code: 408 })
+      )
+    ).toBe(false);
+    expect((proxy as any).isNetworkError(new Error('HTTP 429: Too Many Requests'))).toBe(false);
   });
 
   test('requeues pending requests when replay loses the network again', async () => {

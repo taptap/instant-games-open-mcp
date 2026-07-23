@@ -1485,6 +1485,10 @@ function isRetryableMakerProxyError(error: unknown): boolean {
     return false;
   }
 
+  if (isHttpClientError(error)) {
+    return false;
+  }
+
   if (isExplicitProxyUnavailableError(error) || isTransientHttpServerError(error)) {
     return true;
   }
@@ -1528,6 +1532,26 @@ function isTransientHttpServerError(error: unknown): boolean {
   }
 
   return /\bHTTP\s+5\d\d\b|bad gateway|service unavailable|gateway timeout/i.test(error.message);
+}
+
+/** Return whether an error explicitly represents an HTTP client (4xx) response. */
+function isHttpClientError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const code = (error as Error & { code?: unknown }).code;
+  const numericCode =
+    typeof code === 'number'
+      ? code
+      : typeof code === 'string' && /^4\d\d$/.test(code)
+        ? Number(code)
+        : undefined;
+
+  return (
+    (numericCode !== undefined && numericCode >= 400 && numericCode < 500) ||
+    /\bHTTP\s+4\d\d\b/i.test(error.message)
+  );
 }
 
 /** Keep JSON-RPC/MCP application failures out of the transport retry path. */

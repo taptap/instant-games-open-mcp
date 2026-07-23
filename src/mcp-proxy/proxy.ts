@@ -91,6 +91,22 @@ function isTransientHttpServerError(error: Error): boolean {
   return /\bHTTP\s+5\d\d\b|bad gateway|service unavailable|gateway timeout/i.test(error.message);
 }
 
+/** Return whether an error explicitly represents an HTTP client (4xx) response. */
+function isHttpClientError(error: Error): boolean {
+  const code = (error as Error & { code?: unknown }).code;
+  const numericCode =
+    typeof code === 'number'
+      ? code
+      : typeof code === 'string' && /^4\d\d$/.test(code)
+        ? Number(code)
+        : undefined;
+
+  return (
+    (numericCode !== undefined && numericCode >= 400 && numericCode < 500) ||
+    /\bHTTP\s+4\d\d\b/i.test(error.message)
+  );
+}
+
 /**
  * TapTap MCP Proxy
  *
@@ -666,6 +682,10 @@ export class TapTapMCPProxy {
       return false;
     }
 
+    if (isHttpClientError(error)) {
+      return false;
+    }
+
     if (isTransientHttpServerError(error)) {
       return true;
     }
@@ -686,6 +706,10 @@ export class TapTapMCPProxy {
     ];
 
     if (errorCode && networkErrorCodes.includes(errorCode)) {
+      return true;
+    }
+
+    if (errorCode === ErrorCode.ConnectionClosed || errorCode === ErrorCode.RequestTimeout) {
       return true;
     }
 
