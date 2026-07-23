@@ -202,6 +202,30 @@ describe('Maker project health check', () => {
     );
   });
 
+  test('reports missing settings as the QR blocker', () => {
+    writeProjectFiles({
+      project: validProjectJson(),
+      resources: validResourcesJson(),
+    });
+
+    const health = inspectMakerProjectHealth(projectRoot, 'qrcode');
+    const output = formatMakerProjectHealthStatus(health);
+
+    expect(health.canBuild).toBe(true);
+    expect(health.canGenerateTestQrcode).toBe(false);
+    expect(health.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'missing_settings_json',
+          path: '.project/settings.json',
+          severity: 'warning',
+        }),
+      ])
+    );
+    expect(output).toContain('.project/settings.json');
+    expect(output).not.toContain('请完善 .project/project.json 发布配置');
+  });
+
   test('warns about the remote builder version template without blocking build', () => {
     writeProjectFiles({
       project: { ...validProjectJson(), version: '1.0.{x}' },

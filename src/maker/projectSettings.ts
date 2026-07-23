@@ -138,7 +138,7 @@ export function inspectMakerProjectHealth(
   addCanonicalFileIssue(projectJsonState, '.project/project.json', issues, mode === 'qrcode');
   addCanonicalFileIssue(resourcesJsonState, '.project/resources.json', issues, mode === 'qrcode');
   addCanonicalFileIssue(settingsJsonState, '.project/settings.json', issues, false);
-  if (projectJsonExists && settingsJsonState === 'missing' && mode !== 'qrcode') {
+  if (projectJsonExists && settingsJsonState === 'missing') {
     issues.push(
       issue(
         'missing_settings_json',
@@ -257,9 +257,12 @@ export function formatMakerProjectHealthStatus(health: MakerProjectHealth): stri
   if (settingsSection) {
     lines.push('', settingsSection);
   }
+  const isMissingSettings = health.issues.some((item) => item.code === 'missing_settings_json');
   lines.push(
     health.canBuild && !health.canGenerateTestQrcode
-      ? '- next_action: 可以继续构建；生成测试二维码前请完善 .project/project.json 发布配置。'
+      ? isMissingSettings
+        ? '- next_action: 可以继续构建；生成测试二维码前需要 .project/settings.json。'
+        : '- next_action: 可以继续构建；生成测试二维码前请完善 .project/project.json 发布配置。'
       : health.canBuild
         ? '- next_action: 可以继续构建；检查器不会自动移动或覆盖文件。'
         : '- next_action: 修复上面的规范路径或配置问题后再构建；检查器不会自动移动或覆盖文件。'
