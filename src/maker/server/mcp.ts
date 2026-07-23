@@ -129,6 +129,7 @@ import {
   type MakerMcpActivityEvent,
   type MakerMcpTrackingContext,
 } from '../tracking.js';
+import { MAKER_CAPABILITY_ROUTING_INDEX } from '../capabilityRouting.js';
 
 export {
   materializeRemoteProxyToolAssets,
@@ -827,6 +828,7 @@ export async function startMakerMcpServer(): Promise<void> {
         tools: {},
         resources: {},
       },
+      instructions: MAKER_CAPABILITY_ROUTING_INDEX,
     }
   );
 

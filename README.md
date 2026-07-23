@@ -130,6 +130,13 @@ maker_status_lite               # Resource 不可用时的兼容 tool
 maker_build_current_directory   # commit/push/build 合并入口
 ```
 
+Maker MCP 初始化时会通过标准 `initialize.instructions` 向 AI 客户端提供一份精简能力路由，
+优先标出状态、构建、Tap 流程和游戏资源生成入口。新项目初始化或执行
+`taptap-maker agents update` / `taptap-maker upgrade` 时，同一份路由也会写入目标 Maker
+项目 `AGENTS.md` 的受管策略块，供后续会话继续使用；用户自己编写的内容保持不变。升级
+`@taptap/maker` 后，需要 reconnect/restart MCP 或新开 AI 会话，当前客户端才会收到新的
+初始化提示。
+
 在已绑定 Maker 项目中，`maker_build_current_directory` 同时覆盖“构建 / 预览 / 跑一下 /
 查看结果 / 看看效果 / 验证游戏效果 / 提交 / 推送”。普通“验证代码 / 跑测试 / lint /
 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。

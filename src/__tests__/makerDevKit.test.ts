@@ -19,6 +19,7 @@ import {
   resolveDefaultAiDevKitUrl,
   writeAiDevKitVersionMetadata,
 } from '../maker/cli/devKit';
+import { MAKER_CAPABILITY_ROUTING_INDEX } from '../maker/capabilityRouting';
 
 describe('Maker AI dev kit install', () => {
   let tempDir: string;
@@ -120,6 +121,10 @@ describe('Maker AI dev kit install', () => {
       /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
+    expect(agentsGuide).toContain(MAKER_CAPABILITY_ROUTING_INDEX);
+    expect(agentsGuide.indexOf(MAKER_CAPABILITY_ROUTING_INDEX)).toBeLessThan(
+      agentsGuide.indexOf('Maker build workflow')
+    );
     expect(agentsGuide).toContain('Maker build workflow');
     expect(agentsGuide).toContain('call `maker_build_current_directory`');
     expect(agentsGuide).toContain('Do not tell the user to open the Maker web page');
@@ -355,6 +360,7 @@ describe('Maker AI dev kit install', () => {
       /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
+    expect(agentsGuide).toContain(MAKER_CAPABILITY_ROUTING_INDEX);
     expect(agentsGuide).toContain('call `maker_build_current_directory`');
     expect(agentsGuide).toContain('Do not tell the user to open the Maker web page');
     expect(agentsGuide).toContain('Maker ad workflow');

@@ -19,6 +19,7 @@ import {
 } from '../maker/cli/devKit';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../maker/versionCheck';
 import { resolveNpxCliCommand, runMakerCli } from '../maker/cli/commands';
+import { MAKER_CAPABILITY_ROUTING_INDEX } from '../maker/capabilityRouting';
 import { loadProjectConfig, saveProjectConfig } from '../maker/storage';
 
 function mockReadyPython(spawnSyncMock: jest.MockedFunction<typeof spawnSync>): void {
@@ -1113,6 +1114,10 @@ describe('Maker CLI commands', () => {
     expect(twice).toContain('TapTap Maker managed AGENTS policy');
     expect(twice).toContain('version=');
     expect(twice).toContain('hash=sha256:');
+    expect(twice).toContain(MAKER_CAPABILITY_ROUTING_INDEX);
+    expect(twice.indexOf(MAKER_CAPABILITY_ROUTING_INDEX)).toBeLessThan(
+      twice.indexOf('Maker build workflow')
+    );
     expect(twice).toContain('Keep this user rule.');
     expect(twice).toContain('Maker MCP connection recovery');
     expect(normalizedPolicy).toContain('Maker MCP tools for initial diagnosis');
@@ -1188,6 +1193,31 @@ describe('Maker CLI commands', () => {
     const output = stdoutSpy.mock.calls.join('');
     expect(output).toContain('AGENTS.md');
     expect(output).toContain('outdated');
+    expect(output).toContain('taptap-maker agents update');
+  });
+
+  test('doctor reports a same-version AGENTS policy with an old hash as outdated', async () => {
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+    });
+    fs.writeFileSync(
+      path.join(tempDir, 'AGENTS.md'),
+      [
+        `<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:${'0'.repeat(64)} >>> -->`,
+        'old managed policy body',
+        '<!-- <<< TapTap Maker managed AGENTS policy <<< -->',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['doctor', '--target-dir', tempDir]);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('AGENTS.md');
+    expect(output).toContain('outdated');
+    expect(output).toContain('current_version: 3');
     expect(output).toContain('taptap-maker agents update');
   });
 

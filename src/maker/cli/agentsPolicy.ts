@@ -5,6 +5,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { MAKER_CAPABILITY_ROUTING_INDEX } from '../capabilityRouting.js';
 
 export const MAKER_AGENTS_FILE = 'AGENTS.md';
 const POLICY_VERSION = '3';
@@ -126,6 +127,8 @@ function createMakerAgentsPolicyBody(): string {
     '# TapTap Maker Project Asset Tool Policy',
     '',
     'This is a bound TapTap Maker project.',
+    '',
+    MAKER_CAPABILITY_ROUTING_INDEX,
     '',
     'Maker build workflow:',
     '',

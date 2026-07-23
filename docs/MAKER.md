@@ -221,6 +221,14 @@ Python 运行时策略：
 
 MCP 运行期能力：
 
+- Maker MCP 在 `initialize` 响应的 `instructions` 中提供精简能力路由，帮助 Agent 优先发现
+  状态、构建、测试二维码、广告配置、线上玩家反馈和游戏资源生成入口。该提示不会在 MCP
+  初始化时写文件，也不会替代具体 tool schema。
+- 新项目初始化、`taptap-maker agents update` 和已绑定项目中的 `taptap-maker upgrade`
+  会把同一份路由写入目标 Maker 项目 `AGENTS.md` 的受管策略块，并保留用户自己的内容。
+  受管 body hash 变化会让旧项目状态显示为 `outdated`，不需要升级 policy version。
+- 更新 `@taptap/maker` 后，需要 reconnect/restart MCP 或新开 AI 会话才能收到新的
+  `initialize.instructions`；旧项目按状态输出继续执行 `agents update` 或 `upgrade`。
 - `maker://status`：资源形式的本地 Maker 状态，适合 Agent 首先读取。
 - `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。
   支持 MCP Roots 的 AI 客户端会把当前 workspace root 暴露给 Maker MCP；状态会优先使用
