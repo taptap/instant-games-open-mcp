@@ -595,15 +595,27 @@ function canGenerateQrcode(
     return false;
   }
   const publish = project.taptap_publish;
-  if (
-    !isConfiguredTitle(publish.title) ||
-    !isConfiguredString(publish.category) ||
-    (publish.screen_orientation !== 'landscape' && publish.screen_orientation !== 'portrait')
-  ) {
+  if (!isConfiguredTitle(publish.title) || !isConfiguredString(publish.category)) {
     return false;
   }
+
+  // The QR handler owns the first-time orientation confirmation. Allow an
+  // absent field through so it can ask the user and persist the choice; an
+  // explicitly invalid value remains a hard project error.
+  const orientation = publish.screen_orientation;
+  if (orientation !== undefined && orientation !== 'landscape' && orientation !== 'portrait') {
+    return false;
+  }
+
   return !issues.some((item) => {
     if (item.severity !== 'error') {
+      return false;
+    }
+    if (
+      orientation === undefined &&
+      item.code === 'invalid_publish_field' &&
+      item.path === 'taptap_publish.screen_orientation'
+    ) {
       return false;
     }
     if (item.path === 'taptap_publish' || item.path.startsWith('taptap_publish.')) {

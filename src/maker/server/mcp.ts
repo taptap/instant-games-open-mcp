@@ -117,6 +117,11 @@ import {
   sanitizeRemoteProxyToolResult,
 } from './proxyAssets.js';
 import { sanitizeDiagnosticValue, sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
+import {
+  getMakerRemoteProxyPublicDescriptionOverride,
+  MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION,
+  MAKER_STATUS_LITE_PUBLIC_DESCRIPTION,
+} from './toolDescriptions.js';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 import {
   isMakerBuildActivitySuccessful,
@@ -244,8 +249,7 @@ class MakerCloneFailedError extends Error {
 export const tools = [
   {
     name: 'maker_status_lite',
-    description:
-      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness, maker-lua-lsp readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets, supported local path/remote URL/data URL inputs, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. Standard init/clone/download flow: show the Maker app list first and let the user choose an existing app or 0/new. Create-new-project flow: use taptap-maker init --create only when the user clearly asks to create a new Maker project.',
+    description: MAKER_STATUS_LITE_PUBLIC_DESCRIPTION,
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -265,8 +269,7 @@ export const tools = [
   },
   {
     name: 'maker_build_current_directory',
-    description:
-      'Sync and build the current Maker game. First read maker://status or maker_status_lite and use this tool only when the current workspace is a bound Maker project. Trigger it for Maker game requests like "构建", "build", "跑一下", "预览", "查看结果", "看看效果", "验证游戏效果", "提交", "提交代码", "推送", or "push". Do not treat generic code validation requests such as "验证一下代码", "跑测试", "lint", or "检查实现" as Maker remote build unless the user explicitly asks to build/run/preview the Maker game. Preview/build intent does not select or change the service environment. Do not add environment parameters to this tool call; use the default Maker service configuration. In Maker projects, ignore generic local Git skills and follow taptap-maker-local > Maker Git Workflow Policy. Before build, check the Python environment section and Lua LSP environment section; if Python or maker-lua-lsp is missing, run taptap-maker python setup when local Lua diagnostics are needed, because it prepares Python and best-effort installs maker-lua-lsp. Missing Python or Lua LSP must not block the remote build flow. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. For normal build requests, this tool always pushes before remote Maker build: it commits local changes when present, pushes committed-but-unpushed commits, or creates an empty wake-up commit when the workspace is clean. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version; this mode does not submit local changes and does not auto-open Maker pages.',
+    description: MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION,
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -378,11 +381,12 @@ function filterExposedRemoteProxyTools(
 }
 
 function decorateRemoteProxyToolDefinition(tool: RemoteToolDefinition): RemoteToolDefinition {
+  const publicDescription = getMakerRemoteProxyPublicDescriptionOverride(tool.name);
   const guidance = remoteProxyToolGuidance(tool.name);
   return {
     ...tool,
     inputSchema: decorateRemoteProxyToolInputSchema(tool.inputSchema, tool.name),
-    description: [tool.description, guidance].filter(Boolean).join('\n\n'),
+    description: publicDescription || [tool.description, guidance].filter(Boolean).join('\n\n'),
   };
 }
 
@@ -778,6 +782,23 @@ export function inspectMakerProxyToolPreflight(
   );
 }
 
+/**
+ * Runs the same local checks used by the QR MCP handler, including the
+ * first-call orientation prompt and the confirmed retry that persists it.
+ */
+export function inspectMakerQrcodeToolPreflight(
+  targetDir: string,
+  confirmedOrientation: unknown
+): { ok: true; orientation: 'landscape' | 'portrait' } | { ok: false; message: string } {
+  const projectHealth = inspectMakerProxyToolPreflight('generate_test_qrcode', targetDir);
+  if (!projectHealth.canGenerateTestQrcode) {
+    return { ok: false, message: formatMakerProjectHealthStatus(projectHealth) };
+  }
+
+  const identify = identifyMakerProject({ cwd: targetDir });
+  return inspectMakerQrcodePreflight(identify.projectRoot || targetDir, confirmedOrientation);
+}
+
 export function createRemoteProxyCallToolOptions(
   progressToken: ProgressToken | undefined,
   extra: RequestHandlerExtra<ServerRequest, ServerNotification>
@@ -975,28 +996,8 @@ export async function startMakerMcpServer(): Promise<void> {
           allowFallbackOnAmbiguousRoots: false,
         });
         if (name === 'generate_test_qrcode') {
-          const projectHealth = inspectMakerProxyToolPreflight(name, context.targetDir);
-          if (!projectHealth.canGenerateTestQrcode) {
-            const result = {
-              isError: true,
-              content: [
-                {
-                  type: 'text',
-                  text: formatMakerProjectHealthStatus(projectHealth),
-                },
-              ],
-            };
-            void reportMakerMcpActivityFromPromise(contextPromise, {
-              toolName: name,
-              requestId: extra.requestId,
-              durationMs: Date.now() - startedAt,
-              success: false,
-            });
-            return result;
-          }
-          const identify = identifyMakerProject({ cwd: context.targetDir });
-          const preflight = inspectMakerQrcodePreflight(
-            identify.projectRoot || context.targetDir,
+          const preflight = inspectMakerQrcodeToolPreflight(
+            context.targetDir,
             requestArgs.confirmed_screen_orientation
           );
           if (!preflight.ok) {

@@ -580,8 +580,10 @@ maker_build_current_directory()
 `text_to_dialogue`、`audition_voices_for_character`、`confirm_character_voice`、
 `create_3d_asset`、`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config` 和
 `get_debug_feedbacks` 作为白名单公开；
-本地 MCP 保留远端 tools 的 input schema、参数和成功返回值，但会在 description 中追加简短
-Maker 本地开发提示。
+本地 MCP 保留远端 tools 的 input schema、参数语义和成功返回值。当前公开 tools 的
+description 使用 `src/maker/server/toolDescriptions.ts` 中逐工具审核过的本地 override，避免
+远端通用教程与 Maker 本地确认门、素材落盘和恢复工作流冲突。未来没有本地 override 的
+白名单 tool fallback 到远端 description，并在存在对应规则时追加简短 Maker 本地 guidance。
 内部配置内容等价于测试脚本中的：
 
 本地 Maker MCP 会对生成类 tools 做客户端素材落地，并把本地生成素材到远端 URL 的映射记录到

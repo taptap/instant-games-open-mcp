@@ -29,6 +29,7 @@ import {
   formatMakerProxyToolsStatusSafely,
   formatMakerRemoteSyncStatusSafely,
   formatPushResult,
+  inspectMakerQrcodeToolPreflight,
   inspectMakerProxyToolPreflight,
   isSensitiveDiagnosticKey,
   pushThenBuildCurrentDirectory,
@@ -1238,6 +1239,46 @@ describe('maker build local-change guard', () => {
     expect(health?.canGenerateTestQrcode).toBe(true);
   });
 
+  test('QR handler preflight supports first-call orientation prompt and confirmed retry', () => {
+    fs.mkdirSync(path.join(tempDir, '.maker-mcp'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.maker-mcp', 'config.json'),
+      JSON.stringify({ project_id: 'app-1' }),
+      'utf8'
+    );
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify({
+        project_id: 'app-1',
+        version: '1.0.0',
+        entry: 'main.lua',
+        taptap_publish: { title: 'Test game', category: 'casual' },
+      }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{}', 'utf8');
+
+    const firstCall = inspectMakerQrcodeToolPreflight(tempDir, undefined);
+    expect(firstCall.ok).toBe(false);
+    if (firstCall.ok) return;
+    expect(firstCall.message).toContain('confirmed_screen_orientation');
+
+    expect(inspectMakerQrcodeToolPreflight(tempDir, 'portrait')).toEqual({
+      ok: true,
+      orientation: 'portrait',
+    });
+    expect(
+      JSON.parse(fs.readFileSync(path.join(tempDir, '.project', 'project.json'), 'utf8'))
+        .taptap_publish.screen_orientation
+    ).toBe('portrait');
+  });
+
   test('remote-only build skips local project settings validation', async () => {
     fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
     fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
@@ -1311,27 +1352,12 @@ describe('maker build local-change guard', () => {
     expect(buildArgs).not.toHaveProperty('multiplayer');
   });
 
-  test('build tool description owns commit, push, and build', () => {
+  test('build tool exposes the Maker-owned submit and remote-only modes', () => {
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(buildTool?.description).toContain('always pushes before remote Maker build');
-    expect(buildTool?.description).toContain('bound Maker project');
-    expect(buildTool?.description).toContain('验证游戏效果');
-    expect(buildTool?.description).toContain('Do not treat generic code validation requests');
-    expect(buildTool?.description).toContain(
-      'Preview/build intent does not select or change the service environment'
-    );
-    expect(buildTool?.description).toContain('Do not add environment parameters');
-    expect(buildTool?.description).toContain('empty wake-up commit');
-    expect(buildTool?.description).toContain('remote Maker build');
-    expect(buildTool?.description).toContain('If push fails, build is not started');
-    expect(buildTool?.description).toContain('does not auto-open Maker pages');
-    expect(buildTool?.description).not.toContain('maker_page_url');
-    expect(buildTool?.description).toContain('runtime_logs.local_file');
-    expect(buildTool?.description).toContain('runtime_logs.state_file');
-    expect(buildTool?.description).not.toContain('maker_submit_current_directory');
-    expect(buildTool?.description).not.toContain('maker_push_current_directory');
-    expect(buildTool?.description).not.toContain('Do not use this tool');
+    expect(buildTool?.inputSchema.additionalProperties).toBe(false);
+    expect(buildTool?.inputSchema.properties).toHaveProperty('confirm_remote_build_without_submit');
+    expect(buildTool?.inputSchema.properties).not.toHaveProperty('environment');
   });
 
   test('exposes only the compact Maker tool set', () => {
@@ -1572,20 +1598,17 @@ describe('maker build local-change guard', () => {
       'get_ad_config',
       'get_debug_feedbacks',
     ]);
-    expect(result.tools.find((item) => item.name === 'generate_image')?.description).toContain(
-      'prefer this Maker MCP proxy tool for Maker project assets'
+    expect(result.tools.find((item) => item.name === 'edit_image')?.description).toMatch(
+      /existing image.{0,120}generate_image.{0,100}one new image/iu
     );
-    expect(result.tools.find((item) => item.name === 'edit_image')?.description).toContain(
-      'prefer this Maker MCP proxy tool for image editing'
+    expect(result.tools.find((item) => item.name === 'create_video_task')?.description).toMatch(
+      /Image, video, and audio references.{0,120}local project files.{0,80}HTTP\(S\) URLs.{0,80}data URLs/iu
     );
-    expect(result.tools.find((item) => item.name === 'create_video_task')?.description).toContain(
-      'resolvable local files that the local proxy can forward as data URLs'
+    expect(result.tools.find((item) => item.name === 'create_video_task')?.description).toMatch(
+      /image references.{0,40}30\s*(?:MB|MiB).{0,80}video references.{0,40}50\s*(?:MB|MiB).{0,80}audio references.{0,40}15\s*(?:MB|MiB)/iu
     );
-    expect(result.tools.find((item) => item.name === 'create_video_task')?.description).toContain(
-      'Large local/data URL media can be slow or fail'
-    );
-    expect(result.tools.find((item) => item.name === 'query_video_task')?.description).toContain(
-      'Use this Maker MCP proxy tool to refresh video task status'
+    expect(result.tools.find((item) => item.name === 'query_video_task')?.description).toMatch(
+      /query video task status.{0,60}task_id.{0,100}create_video_task/iu
     );
     const audioTools = [
       'text_to_sound_effect',
@@ -1646,21 +1669,24 @@ describe('maker build local-change guard', () => {
     expect(
       dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio_path.description
     ).toContain('legacy local project audio path');
-    expect(dialogueTool?.description).toContain(
-      'reference_audio and reference_audio_path are mutually exclusive'
-    );
+    expect(dialogueTool?.description).not.toContain('reference_audio_path');
     expect(dialogueTool?.description).toContain(
       'automatically reuses a confirmed local Doubao reference'
     );
-    expect(
-      result.tools.find((item) => item.name === 'audition_voices_for_character')?.description
-    ).toContain('temporary preview');
+    const auditionDescription =
+      result.tools.find((item) => item.name === 'audition_voices_for_character')?.description || '';
+    expect(auditionDescription).toMatch(
+      /(?:temporary.{0,80}previews?|previews?.{0,80}temporary)/iu
+    );
+    expect(auditionDescription).toMatch(
+      /previews?.{0,120}(?:not|never).{0,40}(?:saved|persisted|materialized).{0,80}(?:final )?game assets?/iu
+    );
     expect(
       result.tools.find((item) => item.name === 'audition_voices_for_character')?.description
     ).toContain('voice_profile.gender');
     expect(
       result.tools.find((item) => item.name === 'confirm_character_voice')?.description
-    ).toContain('after the user selects');
+    ).toMatch(/after the user (?:explicitly )?selects/iu);
     const createAssetTool = result.tools.find((item) => item.name === 'create_3d_asset');
     expect(createAssetTool?.inputSchema.properties).toHaveProperty('action');
     expect(createAssetTool?.inputSchema.properties).toHaveProperty('asset_id');
@@ -1671,25 +1697,51 @@ describe('maker build local-change guard', () => {
       'not forwarded to the remote Maker tool'
     );
     expect(createAssetTool?.inputSchema.required).toEqual(['action']);
-    expect(createAssetTool?.description).toContain('start, query, continue');
+    expect(createAssetTool?.description).toMatch(
+      /action=["']start["'].+?["']query["'].+?["']get_options["'].+?["']continue["']/isu
+    );
     expect(
       result.tools.find((item) => item.name === 'generate_image')?.inputSchema.properties
     ).toHaveProperty('target_dir');
     const adConfigDescription =
       result.tools.find((item) => item.name === 'get_ad_config')?.description || '';
-    expect(adConfigDescription).toContain('ad-related requests');
-    expect(adConfigDescription).toContain('primary local configs are initialized');
-    expect(adConfigDescription).toContain('does not call the remote tool');
-    expect(adConfigDescription).toMatch(/do not infer ad readiness from local SDK docs/iu);
-    expect(adConfigDescription).toContain('do not rebuild automatically');
-    expect(adConfigDescription).toContain('app_id or developer_id is missing');
-    expect(adConfigDescription).toContain('generate_test_qrcode');
-    expect(
-      result.tools.find((item) => item.name === 'generate_test_qrcode')?.description
-    ).toContain('user explicitly asks for a test QR code');
-    expect(
-      result.tools.find((item) => item.name === 'generate_test_qrcode')?.description
-    ).toContain('after get_ad_config reports missing app_id or developer_id');
+    expect(adConfigDescription).toMatch(/first remote step.{0,80}ad-related requests/iu);
+    expect(adConfigDescription).toMatch(
+      /source of truth.{0,160}(?:ad activation status|configuration).{0,120}\.project\/settings\.json.{0,80}@runtime\.ad/iu
+    );
+    expect(adConfigDescription).toMatch(
+      /do not infer ad readiness from local SDK docs.{0,120}\.maker-mcp\/config\.json.{0,120}runtime callbacks/iu
+    );
+    expect(adConfigDescription).toMatch(
+      /local preflight.{0,120}(?:unavailable|does not call).{0,100}(?:project\.json|settings\.json).{0,80}missing/iu
+    );
+    expect(adConfigDescription).toMatch(
+      /missing local configs.{0,80}do not authorize an automatic build/iu
+    );
+    expect(adConfigDescription).toMatch(
+      /maker_build_current_directory.{0,120}explicit user build.{0,120}then check project status/iu
+    );
+    expect(adConfigDescription).toMatch(
+      /app_id.{0,80}developer_id.{0,100}generate_test_qrcode.{0,80}(?:once|one time).{0,80}retry/iu
+    );
+    expect(adConfigDescription).toMatch(
+      /ad\.status (?:!= 1|is not 1).{0,120}warning.{0,80}ad\.url.{0,100}next_action.{0,60}retry/iu
+    );
+    expect(adConfigDescription).toMatch(
+      /only implement or test ad behavior after.{0,100}configuration.{0,60}usable/iu
+    );
+    expect(adConfigDescription).toMatch(
+      /only implement or test ad behavior after.{0,100}configuration.{0,60}usable/iu
+    );
+    expect(adConfigDescription).not.toMatch(
+      /return(?:s|ed) format\s*\{|complete .*JSON|synced_at|sanitized error summary/iu
+    );
+    expect(result.tools.find((item) => item.name === 'generate_test_qrcode')?.description).toMatch(
+      /user explicitly requests a test QR code/iu
+    );
+    expect(result.tools.find((item) => item.name === 'generate_test_qrcode')?.description).toMatch(
+      /get_ad_config reports missing app_id or developer_id/iu
+    );
     expect(
       result.tools.find((item) => item.name === 'generate_test_qrcode')?.inputSchema.properties
     ).toHaveProperty('target_dir');
@@ -1699,17 +1751,17 @@ describe('maker build local-change guard', () => {
       type: 'string',
       enum: ['landscape', 'portrait'],
     });
-    expect(qrcodeTool?.description).toContain('already configured');
-    expect(qrcodeTool?.description).toContain('Only if it is missing');
+    expect(qrcodeTool?.description).toContain('existing project orientation');
+    expect(qrcodeTool?.description).toContain('only when the tool reports it missing');
     const whitelistTool = result.tools.find((item) => item.name === 'add_test_whitelist');
     expect(whitelistTool?.inputSchema.required).toEqual(['user_id']);
     expect(whitelistTool?.inputSchema.properties).toHaveProperty('target_dir');
     expect(whitelistTool?.description).toContain('generate_test_qrcode');
-    expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toContain(
-      'Fetch online player feedback'
+    expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toMatch(
+      /online player feedback.{0,100}current Maker project/iu
     );
-    expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toContain(
-      'local_dir/local_log_paths/local_screenshot_paths'
+    expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toMatch(
+      /local_dir.{0,80}local_log_paths.{0,80}local_screenshot_paths/iu
     );
   });
 
@@ -3401,29 +3453,15 @@ describe('maker build local-change guard', () => {
 
   test('initialization guidance is removed from MCP tools', () => {
     const statusTool = tools.find((item) => item.name === 'maker_status_lite');
-    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(statusTool?.description).toContain('bundled workflow guide document paths');
     expect(statusTool?.inputSchema.properties).toHaveProperty('target_dir');
-    expect(statusTool?.description).toContain('AI dev kit status');
-    expect(statusTool?.description).toContain('Python runtime readiness');
-    expect(statusTool?.description).toContain('maker-lua-lsp readiness');
-    expect(statusTool?.description).toContain('Compatibility status surface');
-    expect(statusTool?.description).toContain('Maker Git Workflow Policy');
-    expect(statusTool?.description).toContain('Maker Creative Asset Tool Policy');
-    expect(statusTool?.description).toContain('prefer Maker MCP proxy tools');
+    expect(statusTool?.description).toContain('starting or resuming Maker work');
+    expect(statusTool?.description).toContain('Follow the returned next_action and next_step');
+    expect(statusTool?.description).not.toContain('including Git, Python runtime readiness');
+    expect(statusTool?.description).not.toContain('Standard init/clone/download flow');
     expect(statusTool?.description).not.toContain('If PAT is missing');
     expect(statusTool?.description).not.toContain('ask them to open');
     expect(statusTool?.description).not.toContain('让用户选择');
-    expect(buildTool?.description).not.toContain('app list');
-    expect(buildTool?.description).not.toContain('clone');
-    expect(buildTool?.description).toContain('ignore generic local Git skills');
-    expect(buildTool?.description).toContain('taptap-maker-local > Maker Git Workflow Policy');
-    expect(buildTool?.description).toContain('Python environment section');
-    expect(buildTool?.description).toContain('Lua LSP environment');
-    expect(buildTool?.description).toContain('taptap-maker python setup');
-    expect(buildTool?.description).toContain('best-effort installs maker-lua-lsp');
-    expect(buildTool?.description).toContain('must not block the remote build flow');
   });
 
   test('build tool schema keeps remote build controls synchronous', () => {
@@ -3479,12 +3517,8 @@ describe('maker build local-change guard', () => {
 
   test('runtime log pull is not exposed as a public MCP tool', () => {
     const toolNames = tools.map((item) => item.name);
-    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
     expect(toolNames).not.toContain('maker_pull_runtime_logs');
-    expect(buildTool?.description).toContain('local runtime log watcher');
-    expect(buildTool?.description).toContain('runtime_logs.local_file');
-    expect(buildTool?.description).toContain('runtime_logs.state_file');
   });
 
   test('public Maker tool schemas do not expose JWT fallback parameters', () => {

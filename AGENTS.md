@@ -378,7 +378,10 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `create_3d_asset`、`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config`
   和 `get_debug_feedbacks`，
   用于试用图片/视频/音乐/音效/配音/3D 模型生成、广告配置同步和远端玩家反馈查询链路，
-  本地保留远端 tool schema 和成功返回值，但会在 description 追加简短 Maker 本地开发提示：
+  本地保留远端 input schema、参数语义和成功返回值；当前公开工具的 description 使用
+  `src/maker/server/toolDescriptions.ts` 中逐工具审核过的本地 override，避免远端通用教程与
+  Maker 本地确认门、素材落盘和恢复工作流冲突。未来没有本地 override 的白名单工具 fallback
+  到远端 description，并在存在对应规则时追加简短 Maker 本地 guidance。
   已绑定 Maker 项目应优先建议用户使用这些 tools。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
 - 音频 proxy tools 在本地 Maker 项目中必须保留 Provider 原格式并落盘生成结果。
