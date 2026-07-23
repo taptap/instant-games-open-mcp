@@ -2,6 +2,7 @@
  * Local preflight for the remote Maker test QR code tool.
  */
 
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -19,9 +20,11 @@ export function inspectMakerQrcodePreflight(
   confirmedOrientation: unknown
 ): MakerQrcodePreflightResult {
   const projectJsonPath = path.join(path.resolve(projectRoot), '.project', 'project.json');
+  let projectJsonText: string;
   let project: unknown;
   try {
-    project = JSON.parse(fs.readFileSync(projectJsonPath, 'utf8'));
+    projectJsonText = fs.readFileSync(projectJsonPath, 'utf8');
+    project = JSON.parse(projectJsonText);
   } catch (error) {
     return {
       ok: false,
@@ -63,9 +66,22 @@ export function inspectMakerQrcodePreflight(
   }
 
   project.taptap_publish.screen_orientation = confirmedOrientation;
+  const tempPath = `${projectJsonPath}.${randomUUID()}.tmp`;
   try {
-    fs.writeFileSync(projectJsonPath, `${JSON.stringify(project, null, 2)}\n`, 'utf8');
+    fs.writeFileSync(tempPath, `${JSON.stringify(project, null, 2)}\n`, {
+      encoding: 'utf8',
+      flag: 'wx',
+    });
+    if (fs.readFileSync(projectJsonPath, 'utf8') !== projectJsonText) {
+      throw new Error('Maker QR project configuration changed while saving; retry the operation.');
+    }
+    fs.renameSync(tempPath, projectJsonPath);
   } catch (error) {
+    try {
+      fs.rmSync(tempPath, { force: true });
+    } catch {
+      // Preserve the original persistence error in the tool result.
+    }
     return {
       ok: false,
       message: [

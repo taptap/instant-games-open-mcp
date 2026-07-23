@@ -59,6 +59,58 @@ describe('Maker QR code orientation preflight', () => {
       screen_orientation: 'landscape',
     });
   });
+
+  test('keeps the original project config when atomic replacement fails', () => {
+    writeProjectConfig(projectRoot);
+    const projectJsonPath = path.join(projectRoot, '.project', 'project.json');
+    const originalConfig = fs.readFileSync(projectJsonPath, 'utf8');
+    const originalRename = fs.renameSync;
+    const rename = jest.spyOn(fs, 'renameSync').mockImplementation((source, destination) => {
+      if (String(destination) === projectJsonPath) {
+        throw new Error('forced project config rename failure');
+      }
+      return originalRename(source, destination);
+    });
+
+    try {
+      const result = inspectMakerQrcodePreflight(projectRoot, 'portrait');
+
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain('forced project config rename failure');
+      expect(fs.readFileSync(projectJsonPath, 'utf8')).toBe(originalConfig);
+      expect(fs.readdirSync(path.dirname(projectJsonPath))).toEqual(['project.json']);
+    } finally {
+      rename.mockRestore();
+    }
+  });
+
+  test('does not overwrite project config changed during orientation persistence', () => {
+    writeProjectConfig(projectRoot);
+    const projectJsonPath = path.join(projectRoot, '.project', 'project.json');
+    const originalWrite = fs.writeFileSync;
+    const externalConfig = {
+      ...readProjectConfig(projectRoot),
+      version: 'changed-by-another-process',
+    };
+    const write = jest.spyOn(fs, 'writeFileSync').mockImplementation((filePath, data, options) => {
+      const result = originalWrite(filePath, data, options);
+      if (String(filePath) !== projectJsonPath && String(filePath).endsWith('.tmp')) {
+        originalWrite(projectJsonPath, JSON.stringify(externalConfig), 'utf8');
+      }
+      return result;
+    });
+
+    try {
+      const result = inspectMakerQrcodePreflight(projectRoot, 'portrait');
+
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain('changed while saving');
+      expect(readProjectConfig(projectRoot)).toEqual(externalConfig);
+      expect(fs.readdirSync(path.dirname(projectJsonPath))).toEqual(['project.json']);
+    } finally {
+      write.mockRestore();
+    }
+  });
 });
 
 function writeProjectConfig(projectRoot: string, screenOrientation?: string): void {
