@@ -1481,6 +1481,18 @@ function sleepMs(delayMs: number): Promise<void> {
 }
 
 function isRetryableMakerProxyError(error: unknown): boolean {
+  if (hasRemoteDiagnostic(error)) {
+    return false;
+  }
+
+  if (isExplicitProxyUnavailableError(error) || isTransientHttpServerError(error)) {
+    return true;
+  }
+
+  if (isMcpBusinessError(error)) {
+    return false;
+  }
+
   const message = error instanceof Error ? error.message : String(error);
   if (
     /\bBUILD FAILED\b|validation|invalid arguments|bad request|forbidden|unauthorized/i.test(
@@ -1491,6 +1503,59 @@ function isRetryableMakerProxyError(error: unknown): boolean {
   }
   return /connect|connection|ECONN|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|timeout|timed out|socket|closed|reset|refused|network|fetch failed|transport/i.test(
     message
+  );
+}
+
+/** Return whether the embedded proxy explicitly reports a reconnectable unavailable state. */
+function isExplicitProxyUnavailableError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /TapTap MCP Server is currently unavailable|proxy .*reconnect|attempting to reconnect/i.test(
+      error.message
+    )
+  );
+}
+
+/** Return whether an error represents a transient HTTP server or gateway failure. */
+function isTransientHttpServerError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const code = (error as Error & { code?: unknown }).code;
+  if (typeof code === 'number' && code >= 500 && code < 600) {
+    return true;
+  }
+
+  return /\bHTTP\s+5\d\d\b|bad gateway|service unavailable|gateway timeout/i.test(error.message);
+}
+
+/** Keep JSON-RPC/MCP application failures out of the transport retry path. */
+function isMcpBusinessError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const code = (error as Error & { code?: unknown }).code;
+  if (typeof code === 'number' && code < 0) {
+    return code !== ErrorCode.ConnectionClosed && code !== ErrorCode.RequestTimeout;
+  }
+
+  return (
+    /\bmcp error -\d+:/i.test(error.message) &&
+    !/not connected|session expired|connection closed|transport closed/i.test(error.message)
+  );
+}
+
+/** Return whether an exception carries a structured upstream business result. */
+function hasRemoteDiagnostic(error: unknown): boolean {
+  if (!(error instanceof Error) || !isPlainRecord((error as Error & { data?: unknown }).data)) {
+    return false;
+  }
+
+  return Object.prototype.hasOwnProperty.call(
+    (error as Error & { data: Record<string, unknown> }).data,
+    'remote_result'
   );
 }
 

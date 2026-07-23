@@ -407,6 +407,11 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。
 - push 成功但远端 build 失败时，工具返回 `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端和具体构建错误。
+- 远端 Lua/LSP 编译失败属于工具级业务错误。代理必须把带 `error.data.remote_result` 的上游 `McpError(-32603)`
+  转换为 `CallToolResult.isError` 并保留完整诊断；只有连接断开、会话失效等传输故障才允许进入重连路径，
+  不得用 `TapTap MCP Server is currently unavailable` 覆盖原始编译错误。Maker 本地重试器必须优先依据
+  `remote_result` 和 MCP 错误码分类，业务错误不得重复发起构建；明确的 proxy unavailable、连接关闭、
+  请求超时和 HTTP 5xx 可重试。pending 请求重放期间再次断线时，保留未完成队列并进入下一轮退避重连。
 - 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`；这种模式只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
 - 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。
 - 远端 Maker MCP tools 所需的 TapTap MAC token 通过 PAT 获取。

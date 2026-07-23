@@ -278,6 +278,12 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit
   时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务。用户明确说“不提交，直接构建云端版本”时才传
   `confirm_remote_build_without_submit=true`；此时工具只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
+- 远端 Lua/LSP 编译失败属于业务失败，不属于 MCP 连接故障。代理会将带有 `remote_result` 的上游
+  `McpError(-32603)` 转换为 `CallToolResult.isError`，并保留原始 `content` 诊断；只有连接断开或会话
+  失效才进入重连路径。Maker 本地重试器会优先识别 `error.data.remote_result` 和 MCP 业务错误码，
+  只重试明确的 proxy unavailable、连接关闭、请求超时和 HTTP 5xx 等传输故障。重连后重放请求若
+  再次断线，当前请求和剩余队列会保留到下一轮退避重连；排查构建问题时先读取工具结果中的
+  `remote_result`，不要用 generic unavailable 覆盖原始编译错误，也不要重复发起同一次构建。
 - 运行时日志：不作为本地公开 MCP tool 暴露。构建成功后 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs`，默认只拉 `engine`、`user_script`（客户端 Lua 脚本）和
   `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份
