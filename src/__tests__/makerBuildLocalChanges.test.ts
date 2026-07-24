@@ -1930,6 +1930,140 @@ describe('maker build local-change guard', () => {
     expect(retryMessages[3]).toContain('attempt 4/5');
   });
 
+  test('does not retry MCP business errors with remote diagnostics', async () => {
+    let attempts = 0;
+    const buildError = Object.assign(
+      new Error('MCP error -32603: build connection timeout while compiling Lua'),
+      {
+        name: 'McpError',
+        code: -32603,
+        data: {
+          remote_result: {
+            error: 'Lua compiler reported a syntax error',
+          },
+        },
+      }
+    );
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          attempts += 1;
+          throw buildError;
+        },
+        {
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(buildError);
+
+    expect(attempts).toBe(1);
+  });
+
+  test('retries explicit proxy unavailable MCP errors', async () => {
+    let attempts = 0;
+    const unavailableError = Object.assign(
+      new Error(
+        'MCP error -32603: TapTap MCP Server is currently unavailable. The proxy will attempt to reconnect automatically.'
+      ),
+      { name: 'McpError', code: -32603 }
+    );
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          attempts += 1;
+          throw unavailableError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(unavailableError);
+
+    expect(attempts).toBe(2);
+  });
+
+  test('retries transient HTTP 5xx errors but not HTTP 4xx errors', async () => {
+    let serverAttempts = 0;
+    const serverError = Object.assign(new Error('HTTP request failed'), { code: 503 });
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          serverAttempts += 1;
+          throw serverError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(serverError);
+    expect(serverAttempts).toBe(2);
+
+    let clientAttempts = 0;
+    const clientError = Object.assign(new Error('HTTP request failed'), { code: 400 });
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          clientAttempts += 1;
+          throw clientError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(clientError);
+    expect(clientAttempts).toBe(1);
+  });
+
+  test('does not retry HTTP 408 or 429 errors matched by transport keywords', async () => {
+    const requestTimeoutError = Object.assign(new Error('HTTP 408: Request Timeout'), {
+      code: 408,
+    });
+    let requestTimeoutAttempts = 0;
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          requestTimeoutAttempts += 1;
+          throw requestTimeoutError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(requestTimeoutError);
+    expect(requestTimeoutAttempts).toBe(1);
+
+    const rateLimitError = new Error('HTTP 429: Too Many Requests');
+    let rateLimitAttempts = 0;
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          rateLimitAttempts += 1;
+          throw rateLimitError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(rateLimitError);
+    expect(rateLimitAttempts).toBe(1);
+  });
+
   test('downloads generated image proxy result into Maker image assets', async () => {
     const result = await materializeRemoteProxyToolAssets({
       toolName: 'generate_image',

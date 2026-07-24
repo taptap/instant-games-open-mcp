@@ -60,6 +60,13 @@ command、status、signal、stdout、stderr、error 和 failure_type。它不会
 对于已经连接的会话，`mcp verify` 不是首要检查。它只验证标准 npx/CLI 启动链路，不能解释单次
 tool/resource 调用中的请求校验、项目上下文、远端响应或业务错误。用户 AI 应先保存以下证据：
 
+远端 Maker 构建中的 Lua/LSP 编译错误是工具级业务失败。代理会把带 `error.data.remote_result` 的
+上游 MCP 协议异常转换成 `CallToolResult.isError: true`，原始编译诊断放在 `content` 和
+`remote_result` 中；这类错误不应触发重连，也不应被“TapTap MCP Server is currently unavailable”
+替换。Maker 本地重试器也会根据 `error.data.remote_result` 和 MCP 错误码跳过业务错误重试，避免
+同一次构建被重复提交。明确的 proxy unavailable、连接断开、会话失效、请求超时或 HTTP 5xx 才按
+重试策略处理；pending 请求重放期间再次断线时，未完成队列会保留到下一轮退避重连。
+
 - 失败的 tool/resource 名称，以及可稳定复现的操作步骤。
 - 完整但已脱敏的请求参数；保留字段名、类型和结构，不保留 PAT、token、Authorization、Cookie、
   secret 或其它凭证值。

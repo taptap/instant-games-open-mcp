@@ -24,6 +24,89 @@ const LOCAL_PROXY_TAG = 'local';
 const DEFAULT_RECONNECT_INTERVAL_MS = 5000;
 const MAX_RECONNECT_INTERVAL_MS = 60 * 1000;
 
+type ProxyToolErrorResult = {
+  isError: true;
+  content: [{ type: 'text'; text: string }];
+};
+
+/**
+ * Convert an upstream MCP application error with remote diagnostics into a tool result.
+ *
+ * Build/LSP failures are business failures, not transport failures. Keeping them in the
+ * CallToolResult channel prevents outer MCP clients from replacing the original diagnostics
+ * with a generic connection-unavailable error.
+ */
+export function convertMcpApplicationErrorToToolResult(
+  error: unknown
+): ProxyToolErrorResult | undefined {
+  if (!(error instanceof Error)) {
+    return undefined;
+  }
+
+  const data = (error as Error & { data?: unknown }).data;
+  if (!isRecord(data) || !('remote_result' in data) || data.remote_result === undefined) {
+    return undefined;
+  }
+
+  return {
+    isError: true,
+    content: [
+      {
+        type: 'text',
+        text: [
+          error.message,
+          'remote_result:',
+          formatProxyDiagnosticValue(data.remote_result),
+        ].join('\n'),
+      },
+    ],
+  };
+}
+
+/** Return whether a value is a non-null, non-array object record. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Format remote diagnostic payloads without losing structured compiler details. */
+function formatProxyDiagnosticValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2) || String(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/** Return whether an error represents a transient HTTP server or gateway failure. */
+function isTransientHttpServerError(error: Error): boolean {
+  const code = (error as Error & { code?: unknown }).code;
+  if (typeof code === 'number' && code >= 500 && code < 600) {
+    return true;
+  }
+
+  return /\bHTTP\s+5\d\d\b|bad gateway|service unavailable|gateway timeout/i.test(error.message);
+}
+
+/** Return whether an error explicitly represents an HTTP client (4xx) response. */
+function isHttpClientError(error: Error): boolean {
+  const code = (error as Error & { code?: unknown }).code;
+  const numericCode =
+    typeof code === 'number'
+      ? code
+      : typeof code === 'string' && /^4\d\d$/.test(code)
+        ? Number(code)
+        : undefined;
+
+  return (
+    (numericCode !== undefined && numericCode >= 400 && numericCode < 500) ||
+    /\bHTTP\s+4\d\d\b/i.test(error.message)
+  );
+}
+
 /**
  * TapTap MCP Proxy
  *
@@ -342,8 +425,8 @@ export class TapTapMCPProxy {
 
       // 如果是重连，处理待处理的请求
       if (this.reconnecting) {
-        await this.notifyReconnected();
         await this.processPendingRequests();
+        await this.notifyReconnected();
         this.reconnecting = false;
       }
     } catch (error) {
@@ -595,6 +678,18 @@ export class TapTapMCPProxy {
   private isNetworkError(error: unknown): boolean {
     if (!(error instanceof Error)) return false;
 
+    if (convertMcpApplicationErrorToToolResult(error)) {
+      return false;
+    }
+
+    if (isHttpClientError(error)) {
+      return false;
+    }
+
+    if (isTransientHttpServerError(error)) {
+      return true;
+    }
+
     const errorMsg = error.message.toLowerCase();
     const errorCode = (error as any).code;
 
@@ -611,6 +706,10 @@ export class TapTapMCPProxy {
     ];
 
     if (errorCode && networkErrorCodes.includes(errorCode)) {
+      return true;
+    }
+
+    if (errorCode === ErrorCode.ConnectionClosed || errorCode === ErrorCode.RequestTimeout) {
       return true;
     }
 
@@ -684,6 +783,19 @@ export class TapTapMCPProxy {
         );
         req.resolve(result);
       } catch (error) {
+        const toolErrorResult = convertMcpApplicationErrorToToolResult(error);
+        if (toolErrorResult) {
+          req.resolve(toolErrorResult);
+          continue;
+        }
+
+        if (this.isNetworkError(error)) {
+          this.connected = false;
+          this.sessionValidated = false;
+          this.pendingRequests.unshift(req);
+          throw error;
+        }
+
         req.reject(error instanceof Error ? error : new Error(String(error)));
       }
     }
@@ -873,6 +985,11 @@ export class TapTapMCPProxy {
         );
         return result;
       } catch (error) {
+        const toolErrorResult = convertMcpApplicationErrorToToolResult(error);
+        if (toolErrorResult) {
+          return toolErrorResult;
+        }
+
         // 检查是否是网络错误（使用增强的检测）
         if (this.isNetworkError(error)) {
           this.log('error', '❌ Network error detected, marking connection as lost');
