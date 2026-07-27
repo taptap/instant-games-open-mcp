@@ -819,6 +819,16 @@ function generateRequestSign(
 
 ---
 
+## Maker Proxy 生命周期
+
+Maker server 通过 `MakerRemoteProxyManager` 按项目上下文复用 embedded proxy：每个活动
+项目各自拥有独立 child、远端 session、工具缓存和重连状态。项目 A 的断线、环境变化或
+授权变化不会关闭或重连项目 B；连接 key 包含项目根目录、环境、用户、项目和授权配置
+指纹。同项目连接 key 变化时，新连接立即接管后续调用，旧连接在活跃请求全部结束后关闭，
+避免中断进行中的构建或远端工具。远端断线由 manager 自动恢复，无需重新安装或重启本地 MCP。包版本或本地工具白名单
+改变后，需 Reconnect 本地 MCP；若 AI 客户端不支持 `tools/list_changed`，同样需要手动
+Reconnect 以刷新工具列表。runtime-log watcher 仍使用独立的 polling connection lifecycle。
+
 ## 总结
 
 TapTap MCP Server 的架构设计具有以下特点：

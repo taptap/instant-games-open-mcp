@@ -134,6 +134,10 @@ import {
   MAKER_ADS_INTEGRATION_GUIDE_URI,
   formatMakerAdsIntegrationGuide,
 } from './adIntegrationGuide.js';
+import {
+  createMakerRemoteProxyManager,
+  type MakerRemoteProxyManager,
+} from './remoteProxyManager.js';
 
 export {
   materializeRemoteProxyToolAssets,
@@ -353,6 +357,7 @@ export async function listMakerTools(options: {
   serverUrl?: string;
   env?: 'rnd' | 'production';
   listRemoteTools?: () => Promise<RemoteToolDefinition[]>;
+  getCachedRemoteTools?: () => RemoteToolDefinition[] | undefined;
   listClientRoots?: MakerClientRootsProvider;
 }): Promise<{ tools: RemoteToolDefinition[] }> {
   let remoteTools: RemoteToolDefinition[] = [];
@@ -370,9 +375,19 @@ export async function listMakerTools(options: {
           serverUrl: options.serverUrl,
           env: options.env,
         }));
-    remoteTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
-      decorateRemoteProxyToolDefinition
-    );
+    try {
+      remoteTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
+        decorateRemoteProxyToolDefinition
+      );
+    } catch (error) {
+      const cachedTools = options.getCachedRemoteTools?.();
+      if (!cachedTools) {
+        throw error;
+      }
+      remoteTools = filterExposedRemoteProxyTools(cachedTools).map(
+        decorateRemoteProxyToolDefinition
+      );
+    }
   } catch (error) {
     if (isMakerProjectContextAmbiguousError(error)) {
       logLifecycleEvent('maker-tools-list-roots-ambiguous', String(error));
@@ -668,75 +683,86 @@ async function listRemoteProxyTools(options: {
   }
 }
 
-async function callRemoteProxyTool(options: {
+export async function callRemoteProxyTool(options: {
   targetDir: string;
   name: string;
   args: Record<string, unknown>;
   progressToken?: ProgressToken;
   extra: RequestHandlerExtra<ServerRequest, ServerNotification>;
+  manager?: MakerRemoteProxyManager;
 }): Promise<Awaited<ReturnType<Client['callTool']>>> {
-  const proxy = createRemoteProxyContext({
-    targetDir: options.targetDir,
-    exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
-  });
+  const createProxy = (): RemoteProxyContext =>
+    createRemoteProxyContext({
+      targetDir: options.targetDir,
+      exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
+    });
+  let proxy = createProxy();
   const finalArgs = await prepareRemoteProxyToolArgsAsync({
     toolName: options.name,
     targetDir: proxy.projectRoot,
     args: options.args,
   });
-  const result = await retryMakerProxyOperation(
-    async () => {
-      const transport = trackMakerChildTransport(
-        new StdioClientTransport({
-          command: proxy.command,
-          args: proxy.args,
-          env: mergeStringEnv(process.env, proxy.envVars),
-          stderr: 'pipe',
-        })
-      );
-      const client = new Client(
-        {
-          name: 'taptap-maker-tool-call-forwarder',
-          version: VERSION,
-        },
-        {
-          capabilities: {},
-        }
-      );
-      try {
-        await client.connect(transport);
-        return await client.callTool(
+  const requestOptions = createRemoteProxyCallToolOptions(options.progressToken, options.extra);
+  const callTool = options.manager
+    ? async () => {
+        proxy = createProxy();
+        return await options.manager!.callTool(
+          proxy,
+          { name: options.name, arguments: finalArgs },
+          requestOptions
+        );
+      }
+    : async () => {
+        const transport = trackMakerChildTransport(
+          new StdioClientTransport({
+            command: proxy.command,
+            args: proxy.args,
+            env: mergeStringEnv(process.env, proxy.envVars),
+            stderr: 'pipe',
+          })
+        );
+        const client = new Client(
           {
-            name: options.name,
-            arguments: finalArgs,
+            name: 'taptap-maker-tool-call-forwarder',
+            version: VERSION,
           },
-          undefined,
           {
-            ...createRemoteProxyCallToolOptions(options.progressToken, options.extra),
+            capabilities: {},
           }
         );
-      } finally {
-        await client.close().catch(() => {});
-      }
-    },
-    {
-      onRetry: options.progressToken
-        ? (event) => {
-            options.extra
-              .sendNotification({
-                method: 'notifications/progress',
-                params: {
-                  progressToken: options.progressToken,
-                  progress: event.attempt,
-                  total: event.attempts,
-                  message: event.message,
-                },
-              })
-              .catch(() => {});
-          }
-        : undefined,
-    }
-  );
+        try {
+          await client.connect(transport);
+          return await client.callTool(
+            {
+              name: options.name,
+              arguments: finalArgs,
+            },
+            undefined,
+            {
+              ...requestOptions,
+            }
+          );
+        } finally {
+          await client.close().catch(() => {});
+        }
+      };
+  const result = await retryMakerProxyOperation(callTool, {
+    onRetry: options.progressToken
+      ? (event) => {
+          options.extra
+            .sendNotification({
+              method: 'notifications/progress',
+              params: {
+                progressToken: options.progressToken,
+                progress: event.attempt,
+                total: event.attempts,
+                message: event.message,
+              },
+            })
+            .catch(() => {});
+        }
+      : undefined,
+  });
   return await materializeRemoteProxyToolAssets({
     toolName: options.name,
     targetDir: proxy.projectRoot,
@@ -836,7 +862,7 @@ export async function startMakerMcpServer(): Promise<void> {
     },
     {
       capabilities: {
-        tools: {},
+        tools: { listChanged: true },
         resources: {},
       },
       instructions: MAKER_CAPABILITY_ROUTING_INDEX,
@@ -844,11 +870,44 @@ export async function startMakerMcpServer(): Promise<void> {
   );
 
   const listClientRoots = createServerClientRootsProvider(server);
+  const remoteProxyManager: MakerRemoteProxyManager = createMakerRemoteProxyManager({
+    onToolsChanged: async (_context, _definitions) => {
+      try {
+        await server.notification({
+          method: 'notifications/tools/list_changed',
+          params: {},
+        });
+      } catch (error) {
+        logLifecycleEvent('maker-tools-list-changed-notification-failed', String(error));
+      }
+    },
+  });
   const startupReportedProjects = new Set<string>();
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
-    return listMakerTools({ listClientRoots });
+    let context: RemoteProxyContext | undefined;
+    try {
+      const resolved = await resolveMakerProjectContext({
+        listClientRoots,
+        allowFallbackOnAmbiguousRoots: false,
+      });
+      context = createRemoteProxyContext({
+        targetDir: resolved.targetDir,
+        exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
+      });
+    } catch {
+      // listMakerTools preserves local tools when project context is unavailable.
+    }
+    return listMakerTools({
+      listClientRoots,
+      listRemoteTools: context
+        ? () => remoteProxyManager.listTools(context as RemoteProxyContext)
+        : undefined,
+      getCachedRemoteTools: context
+        ? () => remoteProxyManager.getCachedTools(context as RemoteProxyContext)
+        : undefined,
+    });
   });
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
     const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
@@ -873,7 +932,7 @@ export async function startMakerMcpServer(): Promise<void> {
             text:
               uri === MAKER_ADS_INTEGRATION_GUIDE_URI
                 ? formatMakerAdsIntegrationGuide()
-                : await formatStatus({ listClientRoots }),
+                : await formatStatus({ listClientRoots, remoteProxyManager }),
           },
         ],
       };
@@ -927,6 +986,7 @@ export async function startMakerMcpServer(): Promise<void> {
                 targetDir: args.target_dir,
                 skipRemoteSync: args.skip_remote_sync,
                 listClientRoots,
+                remoteProxyManager,
               }),
             },
           ],
@@ -978,6 +1038,7 @@ export async function startMakerMcpServer(): Promise<void> {
             message: args.message,
             files: args.files,
             confirmRemoteBuildWithoutSubmit: args.confirm_remote_build_without_submit,
+            remoteProxyManager,
             onProgress: progressReporter.report,
           });
           progressSummary = progressReporter.finish();
@@ -1059,6 +1120,7 @@ export async function startMakerMcpServer(): Promise<void> {
           args: remoteArgs,
           progressToken: request.params._meta?.progressToken,
           extra,
+          manager: remoteProxyManager,
         });
         void reportMakerMcpActivityFromPromise(contextPromise, {
           toolName: name,
@@ -1093,7 +1155,7 @@ export async function startMakerMcpServer(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  installMakerServerExitHandlers();
+  installMakerServerExitHandlers(remoteProxyManager);
 }
 
 async function resolveMakerMcpTrackingContext(options: {
@@ -1160,7 +1222,7 @@ async function reportMakerMcpStartupFromPromise(
 
 const MAKER_SERVER_SHUTDOWN_TIMEOUT_MS = 3000;
 
-function installMakerServerExitHandlers(): void {
+export function installMakerServerExitHandlers(remoteProxyManager?: MakerRemoteProxyManager): void {
   let exiting = false;
   const shutdown = async (source: string): Promise<void> => {
     if (exiting) {
@@ -1174,7 +1236,13 @@ function installMakerServerExitHandlers(): void {
       const timer = setTimeout(resolve, MAKER_SERVER_SHUTDOWN_TIMEOUT_MS);
       timer.unref?.();
     });
-    await Promise.race([closeTrackedMakerChildTransports(), timeout]);
+    await Promise.race([
+      Promise.allSettled([
+        remoteProxyManager?.closeAll() || Promise.resolve(),
+        closeTrackedMakerChildTransports(),
+      ]).then(() => undefined),
+      timeout,
+    ]);
     process.exit(0);
   };
 
@@ -1197,6 +1265,7 @@ export async function formatStatus(
     targetDir?: string;
     skipRemoteSync?: boolean;
     listClientRoots?: MakerClientRootsProvider;
+    remoteProxyManager?: MakerRemoteProxyManager;
   } = {}
 ): Promise<string> {
   const projectContext = await resolveMakerProjectContext({
@@ -1309,7 +1378,10 @@ export async function formatStatus(
     remoteSyncText,
     '',
     identify.projectRoot
-      ? await formatMakerProxyToolsStatusSafely({ targetDir: identify.projectRoot })
+      ? await formatMakerProxyToolsStatusSafely({
+          targetDir: identify.projectRoot,
+          remoteProxyManager: options.remoteProxyManager,
+        })
       : '',
     '',
     formatAuthNextStep({ hasPat: Boolean(pat), isProjectBound: Boolean(identify.projectRoot) }),
@@ -1407,14 +1479,23 @@ export function formatMakerToolRegistrationCwdStatus(options: {
 export async function formatMakerProxyToolsStatusSafely(options: {
   targetDir: string;
   listRemoteTools?: () => Promise<RemoteToolDefinition[]>;
+  remoteProxyManager?: MakerRemoteProxyManager;
 }): Promise<string> {
   try {
     const listedRemoteTools =
       options.listRemoteTools ??
-      (() =>
-        listRemoteProxyTools({
-          targetDir: options.targetDir,
-        }));
+      (options.remoteProxyManager
+        ? async () =>
+            options.remoteProxyManager!.listTools(
+              createRemoteProxyContext({
+                targetDir: options.targetDir,
+                exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
+              })
+            )
+        : () =>
+            listRemoteProxyTools({
+              targetDir: options.targetDir,
+            }));
     const availableTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
       (tool) => tool.name
     );
@@ -2469,6 +2550,7 @@ export async function buildCurrentDirectory(options: {
   confirmRemoteBuildWithoutSubmit?: boolean;
   submitLocalChanges?: SubmitLocalChangesForBuild;
   callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildCallResult>;
+  remoteProxyManager?: MakerRemoteProxyManager;
   refreshPreview?: RefreshMakerPreview;
   startRuntimeLogWatch?: StartRuntimeLogWatch;
   onProgress?: MakerProjectProgressHandler;
@@ -2571,6 +2653,7 @@ async function runRemoteBuildCurrentDirectory(
     serverUrl?: string;
     env?: 'rnd' | 'production';
     timeoutMs?: number;
+    remoteProxyManager?: MakerRemoteProxyManager;
     callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildCallResult>;
     refreshPreview?: RefreshMakerPreview;
     startRuntimeLogWatch?: StartRuntimeLogWatch;
@@ -2586,69 +2669,81 @@ async function runRemoteBuildCurrentDirectory(
     });
   }
 
-  const proxy = createRemoteProxyContext({
-    targetDir,
-    serverUrl: options.serverUrl,
-    env: options.env,
-  });
+  const createProxy = (): RemoteProxyContext =>
+    createRemoteProxyContext({
+      targetDir,
+      serverUrl: options.serverUrl,
+      env: options.env,
+    });
+  let proxy = createProxy();
   const buildArgs = createBuildArgs(proxy.projectRoot, options);
   const timeoutMs = options.timeoutMs || DEFAULT_BUILD_TIMEOUT_MS;
 
-  const result = await retryMakerProxyOperation(
-    async () => {
-      const transport = trackMakerChildTransport(
-        new StdioClientTransport({
-          command: proxy.command,
-          args: proxy.args,
-          env: mergeStringEnv(process.env, proxy.envVars),
-          stderr: 'pipe',
-        })
-      );
-      const client = new Client(
-        {
-          name: 'taptap-maker-build-forwarder',
-          version: VERSION,
-        },
-        {
-          capabilities: {},
-        }
-      );
-      try {
-        await client.connect(transport);
-        return await client.callTool(
+  const requestOptions = {
+    timeout: timeoutMs,
+    resetTimeoutOnProgress: true,
+    onprogress: (progress: { progress: number; total?: number; message?: string }) => {
+      options.onProgress?.({
+        progress: progress.progress,
+        total: progress.total,
+        phase: 'remote_build',
+        message: progress.message || 'Remote Maker build progress',
+      });
+    },
+  };
+  const callBuild = options.remoteProxyManager
+    ? async () => {
+        proxy = createProxy();
+        return await options.remoteProxyManager!.callTool(
+          proxy,
+          { name: 'build', arguments: buildArgs },
+          requestOptions
+        );
+      }
+    : async () => {
+        const transport = trackMakerChildTransport(
+          new StdioClientTransport({
+            command: proxy.command,
+            args: proxy.args,
+            env: mergeStringEnv(process.env, proxy.envVars),
+            stderr: 'pipe',
+          })
+        );
+        const client = new Client(
           {
-            name: 'build',
-            arguments: buildArgs,
+            name: 'taptap-maker-build-forwarder',
+            version: VERSION,
           },
-          undefined,
           {
-            timeout: timeoutMs,
-            resetTimeoutOnProgress: true,
-            onprogress: (progress) => {
-              options.onProgress?.({
-                progress: progress.progress,
-                total: progress.total,
-                phase: 'remote_build',
-                message: progress.message || 'Remote Maker build progress',
-              });
-            },
+            capabilities: {},
           }
         );
-      } finally {
-        await client.close().catch(() => {});
-      }
+        try {
+          await client.connect(transport);
+          return await client.callTool(
+            {
+              name: 'build',
+              arguments: buildArgs,
+            },
+            undefined,
+            {
+              ...requestOptions,
+            }
+          );
+        } finally {
+          await client.close().catch(() => {});
+        }
+      };
+  const result = await retryMakerProxyOperation(callBuild, {
+    onRetry: (event) => {
+      options.onProgress?.({
+        progress: event.attempt,
+        total: event.attempts,
+        phase: 'remote_build',
+        message: event.message,
+      });
     },
-    {
-      onRetry: (event) => {
-        options.onProgress?.({
-          progress: event.attempt,
-          total: event.attempts,
-          phase: 'remote_build',
-          message: event.message,
-        });
-      },
-    }
-  );
+  });
 
   if (isRemoteToolError(result)) {
     throw new Error(formatRemoteToolResult(result));
