@@ -350,8 +350,10 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - AI dev kit 安装/更新按当前环境查询最新版本信息，按返回的 `current.version` 生成版本化下载 URL；版本检查失败时降级使用内置默认下载地址。安装成功后记录本地已安装版本，`taptap-maker doctor`、`maker://status` 和 `maker_status_lite` 输出当前版本、最新版本和是否可更新。
 - `taptap-maker init` 首次拉取默认使用 `git init` + `git fetch --depth=1 origin` + checkout；Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
 - 首次 clone/fetch 前必须提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
-- CLI 写 MCP 配置时优先支持 Windows：Windows 通过 `cmd.exe` 包装 `npx.cmd`，
-  避免无 shell 的 MCP 启动器直接 spawn `.cmd` 失败；Git 引导优先指向 Git for
+- CLI 写 MCP 配置时优先支持 Windows：只固化当前进程的绝对 `node.exe` 与
+  `npm-cli.js`，不把 `.cmd` shell 命令写入客户端配置。找不到绝对 Node/npm CLI 时安装失败，
+  不生成依赖客户端 PATH 的裸 `npx.cmd`。最终命令必须先完成 MCP `initialize` 和 `tools/list`，验证失败时
+  不修改任何客户端配置或备份；Git 引导优先指向 Git for
   Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方
   Git。`taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置，默认覆盖 Codex、
   Cursor、Claude，并自动检测已存在配置文件的 Trae、OpenCode、WorkBuddy；避免 Codex、Trae、
@@ -366,8 +368,11 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `--ide workbuddy` 时会创建该官方配置文件；未显式指定 IDE 的自动检测模式下，legacy
   `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为 fallback 合并；通用
   `mcpServers` JSON 只作为 README/文档片段引导其它 AI 编辑器识别自己的实际配置文件后合并写入，
-  CLI 不生成额外通用配置文件。
-- `taptap-maker mcp verify` 默认验证 `mcp install` 写入配置的 npx 包命令能否启动；本地开发只验证当前 CLI 时使用 `--mode self`。
+  CLI 不生成额外通用配置文件。`taptap-maker init` 写入多个客户端配置时，任一目标失败都必须
+  记录 `mcp_install_failed`、返回非零且不报告初始化完成；已成功写入的目标保持不变，失败项可用
+  `taptap-maker mcp install --ide <client>` 单独重试。
+- `taptap-maker mcp verify` 默认用 `mcp install` 的同一启动器执行 MCP `initialize` 和
+  `tools/list`；本地开发只验证当前 CLI 时使用 `--mode self`。验证失败必须返回非零退出码。
 - Maker MCP tools 缺失或出现 `-32000` / `Connection closed` 时，先按 `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md` 做不依赖 MCP tools 的本地自检。必须检查真实配置文件、WorkBuddy 信任、command/args/cwd、MCP Roots、Node/npm/npx 与客户端 PATH、退出码和 stderr；禁止用 Windows 中文路径 `cd && npx` 拼接命令修复 cwd。
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。

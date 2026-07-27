@@ -273,16 +273,18 @@ for the initial diagnosis. Work offline first:
 2. Attempt `npx -y -p @taptap/maker taptap-maker mcp verify --json`; on Windows use
    `npx.cmd -y -p @taptap/maker taptap-maker mcp verify --json`. If the command itself fails, keep
    that failure as diagnostic evidence.
-3. This command checks only the standard `@taptap/maker` npx/CLI launch path and returns command,
-   status, signal, stdout, stderr, error, and failure_type. It does not start the Maker MCP server
-   and does not read or validate the client's active MCP config, WorkBuddy trust, cwd, or Roots.
-   A successful verify result does not prove that the client MCP config works.
+3. This command uses the same resolved launcher as MCP install, starts `@taptap/maker`, completes MCP
+   initialize and tools/list, and returns launcher_kind, command, stage, tools, stderr, error, and
+   failure_type. It does not read the client's active config or validate WorkBuddy trust, client
+   config caching, or Roots.
 4. Inspect and reproduce the active config path, command, ordered args, cwd, WorkBuddy enable/trust
    state, workspace/Roots, Node/npm/npx paths, the AI client's PATH, exit status, and stderr.
 5. For WorkBuddy, verify both the `taptap-maker` server entry and the account-level enable/trust
    state. Do not edit account trust storage automatically; ask the user to enable it in WorkBuddy.
-6. On Windows, keep `cmd.exe`, `npx.cmd`, and each argument separate. Never replace cwd with a
-   `cd /d "<project>" && npx.cmd ...` command string, including for Chinese project paths.
+6. On Windows, configs written by the CLI must use the verified absolute Node/npm launcher. Treat
+   existing `cmd.exe` or `npx.cmd` configs as legacy diagnostic evidence; do not persist them as a
+   repair. Never replace cwd with a `cd /d "<project>" && npx.cmd ...` command string, including for
+   Chinese project paths.
 7. If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field. Use the active
    workspace/Roots and record the process actual cwd instead.
 8. Do not assume Windows 8.3 short paths exist or differ from the original long path. Verify the
@@ -300,7 +302,7 @@ for the initial diagnosis. Work offline first:
 If the MCP connection is established but a tool or resource call fails, including `-32003`, use a
 separate evidence-first runtime-error workflow. Do not assign a fixed meaning to `-32003`; preserve
 the exact client error. `mcp verify` is not the primary check for an already connected session
-because it only tests the standard npx/CLI launch path. Collect the failed tool/resource, redacted
+because it tests only the local launcher and stdio MCP path. Collect the failed tool/resource, redacted
 request parameters, current `tools/list`, exact error code/message/data, complete sanitized
 `remote_result`, request/correlation IDs, timestamp with timezone, OS/architecture, AI client and
 `@taptap/maker` package versions, and stable reproduction steps. Preserve useful nested error,

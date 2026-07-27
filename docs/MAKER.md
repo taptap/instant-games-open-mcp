@@ -23,8 +23,8 @@
 - 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。
 - 本地 Git 是 clone/push 的硬性前置条件。Maker MCP 只检测和引导，不代替用户安装 Git。
-- Windows 是优先支持环境：生成 MCP 配置时 Windows 通过 `cmd.exe` 包装 `npx.cmd`，避免无
-  shell 的 MCP 启动器直接 spawn `.cmd` 失败；Git 引导优先指向 Git for Windows。
+- Windows 是优先支持环境：生成 MCP 配置时只固化绝对 `node.exe` 与 `npm-cli.js`；找不到
+  该组合时安装失败，不持久化 `.cmd` shell 命令或依赖客户端 PATH；Git 引导优先指向 Git for Windows。
 - 仓库同时提供 `taptap-maker-local`、`taptap-maker-dev-kit-guide` 和 `update-taptap-mcp` skills，用于把本地 Git 工作流、AI dev kit 内容说明和 MCP 更新缓存流程交给本地 AI/Agent 按业务规则执行。
 
 ## 本地测试
@@ -140,6 +140,9 @@ app 列表、clone 和 MCP 配置不会继续执行。Python 修复后重新运�
 列表底部固定显示 `0. Create a new Maker project`，输入 `0` 或 `new` 可创建新项目。选择或创建完成后，
 CLI 会 clone 项目、补齐 `assets/image`、`assets/sprites`、`assets/video`、`assets/audio`
 和 `scripts` 基础目录、准备 dev-kit，并按客户端写入 MCP 配置。
+如果任一客户端配置写入失败，CLI 会继续尝试其余目标，但最终记录 `mcp_install_failed`、
+返回非零且不输出初始化完成。已成功写入的客户端配置不会回滚；修复失败项后可运行
+`taptap-maker mcp install --ide <client>` 单独重试。
 
 普通初始化、clone、下载或拉取远端项目的标准命令是 `taptap-maker init`，CLI 会展示 app
 列表，让用户选择已有 app 或 `0`/`new`。`--create` 只用于用户明确要求创建新 Maker 项目的场景。
@@ -199,7 +202,8 @@ Python 运行时策略：
   或自行安装 Python 3.12 后运行 `taptap-maker python doctor`。
 - `taptap-maker install`：`taptap-maker mcp install` 的快捷别名，用于写入当前机器的
   AI 客户端 MCP 配置。
-- `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。无 `--ide` 时默认写入
+- `taptap-maker mcp install`：先用最终 launcher 完成 MCP `initialize` 和 `tools/list`，成功后
+  写入当前机器的 AI 客户端 MCP 配置。验证失败不修改配置或备份。无 `--ide` 时默认写入
   Codex、Cursor、Claude，并自动检测已存在配置文件的 Trae、OpenCode、WorkBuddy。可用
   `--ide codex,cursor,claude,trae,opencode,workbuddy` 显式指定目标。
   Codex 配置写入会同时清理 `[mcp_servers.taptap-maker]` 与
@@ -210,7 +214,9 @@ Python 运行时策略：
   如果已有 JSON 配置无法解析，CLI 会停止该目标写入并保留原文件。
   其它 AI 编辑器可使用 README 中的通用 `mcpServers` JSON 片段，让本地 AI 先识别该编辑器的
   实际配置文件位置，再合并写入；CLI 不会额外生成通用配置文件。
-- `taptap-maker mcp verify`：默认验证 AI 客户端 MCP 配置使用的 npx 包命令可启动；`--mode self` 只验证当前 CLI 二进制。验证失败时若出现 `failure_type` 或 `status: null`，表示本地启动命令还没正常退出，Maker MCP server 尚未启动，不要当作 PAT、项目或 Maker 业务接口错误。
+- `taptap-maker mcp verify`：默认使用安装器的同一 launcher 完成 MCP `initialize` 和
+  `tools/list`；`--mode self` 验证当前 CLI 二进制。失败会输出 `stage`、`failure_type`、最终
+  command 和 stderr，并返回非零退出码；不要当作 PAT、项目或 Maker 业务接口错误。
 - `taptap-maker agents update`：只更新当前目录 `AGENTS.md` 中 TapTap Maker 管理的策略块，
   保留用户自己的项目说明；缺少 `AGENTS.md` 时会创建文件。
 - `taptap-maker upgrade`：当前目录的一站式升级入口，刷新 AI 客户端 MCP 配置，并在当前目录
@@ -525,10 +531,10 @@ Windows 引导：
 
 Windows 兼容注意：
 
-- 写入 MCP 配置时，Windows 下通过 `cmd.exe /d /s /c npx.cmd ...` 启动，避免部分客户端
-  无 shell 直接 `spawn` `.cmd` 时返回 `EINVAL`。
+- 写入 MCP 配置时，Windows 只使用绝对 `node.exe` 加绝对 `npm-cli.js`；该组合不可用时
+  安装失败，不通过 `cmd.exe` 持久化 `.cmd` launcher，也不会写入依赖客户端 PATH 的裸命令。
 - OpenCode 使用官方 `mcp` 配置 schema：`~/.config/opencode/opencode.jsonc` 中的
-  `mcp.<name>.command` 是数组，Windows 下写入 `npx.cmd`，不会套 `cmd.exe`，也不写环境变量。
+  `mcp.<name>.command` 是数组，并复用和其它客户端相同的已验证 launcher，不写环境变量。
 - Trae Solo 是重点支持目标；Solo 或 Solo CN 的 `User/` 目录存在时会创建或合并
   `User/mcp.json`。普通 Trae/Trae CN 仍作为候选路径保留，但只有 `mcp.json` 已存在时才合并写入。
   macOS 常见位置包括
@@ -552,8 +558,12 @@ Windows 兼容注意：
   客户端互相覆盖全局 cwd。支持 MCP Roots 的客户端由当前 workspace root 决定 Maker 项目。
   单独运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>` 时才会显式写入该目录，
   用于不支持 MCP Roots 的客户端或临时修复。
-- `taptap-maker mcp verify` 的 `status: null` 会被解释为本地 Node/npm/npx 启动验证失败，并输出 `failure_type`、原始 command 和下一步排查命令；这发生在 Maker MCP server 启动前。
-- `taptap-maker mcp install` 会逐 IDE 返回成功或失败；某个客户端配置写入失败不会阻塞其他客户端继续尝试。
+- 安装器在任何配置写入前完成 MCP `initialize` 和 `tools/list`；失败时所有目标配置和
+  `<config>.taptap-maker.bak.latest` 均保持不变。
+- `taptap-maker mcp verify` 复用相同协议验证，失败时输出阶段和诊断并返回非零退出码。
+- `taptap-maker mcp install` 会逐 IDE 返回成功或失败；某个客户端配置写入失败不会阻塞其他客户端继续尝试，但最终退出码为非零。
+- `taptap-maker init` 遵循相同的整体成功契约；任一客户端写入失败时记录
+  `mcp_install_failed`，不保存 `completed` 状态，也不输出初始化完成事件。
 - MCP 配置写入只维护 `<config>.taptap-maker.bak.latest` 作为最近一次 TapTap Maker 回滚备份；
   历史 `.bak.*` 文件来源不可可靠判断，CLI 不会自动删除或改名。
 - Maker 内部路径必须使用 Node `path` API，不能手写 POSIX 路径分隔符。

@@ -18,7 +18,8 @@ import {
   installAiDevKitSkills,
 } from '../maker/cli/devKit';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../maker/versionCheck';
-import { resolveNpxCliCommand, runMakerCli } from '../maker/cli/commands';
+import { runMakerCli } from '../maker/cli/commands';
+import { resolveMakerMcpLauncher, verifyMakerMcpLauncher } from '../maker/cli/mcpLauncher';
 import { MAKER_CAPABILITY_ROUTING_INDEX } from '../maker/capabilityRouting';
 import { loadProjectConfig, saveProjectConfig } from '../maker/storage';
 
@@ -53,6 +54,20 @@ jest.mock('node:child_process', () => ({
   ...jest.requireActual('node:child_process'),
   spawnSync: jest.fn(() => ({ status: 0, stdout: 'help output', stderr: '' })),
 }));
+
+jest.mock('../maker/cli/mcpLauncher', () => {
+  const actual = jest.requireActual('../maker/cli/mcpLauncher');
+  return {
+    ...actual,
+    verifyMakerMcpLauncher: jest.fn(async (launcher) => ({
+      ok: true,
+      stage: 'tools_list',
+      launcherKind: launcher.kind,
+      command: launcher.commandAndArgs.join(' '),
+      toolNames: ['maker_status_lite'],
+    })),
+  };
+});
 
 jest.mock('../maker/auth/patTap', () => ({
   requestTapAuthWithPat: jest.fn(async () => ({
@@ -165,12 +180,10 @@ describe('Maker CLI commands', () => {
   let stdoutSpy: jest.SpyInstance;
   let stderrSpy: jest.SpyInstance;
   const spawnSyncMock = jest.mocked(spawnSync);
+  const verifyMakerMcpLauncherMock = jest.mocked(verifyMakerMcpLauncher);
   const cliLoginMock = jest.mocked(loginWithCliAuthCode);
-  const expectedNpxLaunch = resolveNpxCliCommand('@taptap/maker');
-  const expectedOpenCodeCommand =
-    process.platform === 'win32'
-      ? ['npx.cmd', '-y', '-p', '@taptap/maker', 'taptap-maker']
-      : ['npx', '-y', '-p', '@taptap/maker', 'taptap-maker'];
+  const expectedNpxLaunch = resolveMakerMcpLauncher({ packageName: '@taptap/maker' });
+  const expectedOpenCodeCommand = expectedNpxLaunch.commandAndArgs;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-cli-commands-'));
@@ -184,6 +197,14 @@ describe('Maker CLI commands', () => {
     stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
     jest.clearAllMocks();
     mockReadyPython(spawnSyncMock);
+    verifyMakerMcpLauncherMock.mockImplementation(async (launcher) => ({
+      ok: true,
+      stage: 'tools_list',
+      launcherKind: launcher.kind,
+      command: launcher.commandAndArgs.join(' '),
+      toolNames: ['maker_status_lite'],
+    }));
+    process.exitCode = undefined;
   });
 
   afterEach(() => {
@@ -216,35 +237,8 @@ describe('Maker CLI commands', () => {
     } else {
       delete (process.stdin as NodeJS.ReadStream & { isTTY?: boolean }).isTTY;
     }
+    process.exitCode = undefined;
     fs.rmSync(tempDir, { recursive: true, force: true });
-  });
-
-  test('resolves npx package commands for Windows and POSIX launchers', () => {
-    expect(resolveNpxCliCommand('@taptap/maker', 'win32')).toEqual({
-      command: 'cmd.exe',
-      args: ['/d', '/s', '/c', 'npx.cmd', '-y', '-p', '@taptap/maker', 'taptap-maker'],
-      commandAndArgs: [
-        'cmd.exe',
-        '/d',
-        '/s',
-        '/c',
-        'npx.cmd',
-        '-y',
-        '-p',
-        '@taptap/maker',
-        'taptap-maker',
-      ],
-    });
-    expect(resolveNpxCliCommand('@taptap/maker', 'linux')).toEqual({
-      command: 'npx',
-      args: ['-y', '-p', '@taptap/maker', 'taptap-maker'],
-      commandAndArgs: ['npx', '-y', '-p', '@taptap/maker', 'taptap-maker'],
-    });
-    expect(resolveNpxCliCommand('@taptap/maker', 'darwin')).toEqual({
-      command: 'npx',
-      args: ['-y', '-p', '@taptap/maker', 'taptap-maker'],
-      commandAndArgs: ['npx', '-y', '-p', '@taptap/maker', 'taptap-maker'],
-    });
   });
 
   test('codex mcp install replaces existing server table and env subtable', async () => {
@@ -316,6 +310,34 @@ describe('Maker CLI commands', () => {
     if (process.platform === 'win32') {
       expect(config.mcpServers['taptap-maker'].command).not.toBe('npx.cmd');
     }
+  });
+
+  test('mcp install does not modify config or backup when MCP handshake fails', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    const original = '{ "mcpServers": { "existing": { "command": "keep" } } }\n';
+    fs.writeFileSync(configPath, original, 'utf8');
+    verifyMakerMcpLauncherMock.mockResolvedValueOnce({
+      ok: false,
+      stage: 'initialize',
+      launcherKind: expectedNpxLaunch.kind,
+      command: expectedNpxLaunch.commandAndArgs.join(' '),
+      toolNames: [],
+      error: 'MCP error -32000: Connection closed',
+      failureType: 'protocol_error',
+    });
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--json']);
+
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(original);
+    expect(fs.existsSync(`${configPath}.taptap-maker.bak.latest`)).toBe(false);
+    expect(process.exitCode).toBe(1);
+    expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual(
+      expect.objectContaining({
+        ok: false,
+        failure_type: 'protocol_error',
+      })
+    );
   });
 
   test('json mcp install accepts existing UTF-8 BOM config files', async () => {
@@ -1055,6 +1077,7 @@ describe('Maker CLI commands', () => {
       }),
     ]);
     expect(fs.existsSync(path.join(tempDir, '.cursor', 'mcp.json'))).toBe(true);
+    expect(process.exitCode).toBe(1);
   });
 
   test('mcp install resolves space-joined --ide from PowerShell 5.1 array expansion', async () => {
@@ -1089,6 +1112,16 @@ describe('Maker CLI commands', () => {
         message: expect.stringContaining('Skipped unknown IDE: foobar'),
       }),
     ]);
+    expect(process.exitCode).toBe(1);
+  });
+
+  test('upgrade reports partial MCP config failure and exits non-zero', async () => {
+    await runMakerCli(['upgrade', '--ide', 'foobar', '--target-dir', tempDir]);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('TapTap Maker upgrade completed with errors');
+    expect(output).toContain('Skipped unknown IDE: foobar');
+    expect(process.exitCode).toBe(1);
   });
 
   test('mcp install accepts the --ides alias with whitespace separators', async () => {
@@ -1126,15 +1159,13 @@ describe('Maker CLI commands', () => {
       'tools are missing, the process exits immediately, or the client reports `-32000`,'
     );
     expect(normalizedPolicy).toContain('`Connection closed`, or `command not found`');
-    expect(normalizedPolicy).toContain('standard `@taptap/maker` npx/CLI launch path');
-    expect(normalizedPolicy).toContain('does not start the Maker MCP server');
-    expect(normalizedPolicy).toContain("does not read or validate the client's active MCP config");
+    expect(normalizedPolicy).toContain('same resolved launcher as MCP install');
+    expect(normalizedPolicy).toContain('completes MCP initialize and tools/list');
+    expect(normalizedPolicy).toContain("does not read the client's active config");
     expect(normalizedPolicy).toContain(
-      'command, status, signal, stdout, stderr, error, and failure_type'
+      'launcher_kind, command, stage, tools, stderr, error, and failure_type'
     );
-    expect(normalizedPolicy).toContain(
-      'A successful verify result does not prove that the client MCP config works'
-    );
+    expect(normalizedPolicy).toContain('client config caching, or Roots');
     expect(normalizedPolicy).toContain('config path, command, ordered args, cwd');
     expect(normalizedPolicy).toContain('Classify the root cause from evidence before repairing it');
     expect(normalizedPolicy).toContain(
@@ -1291,6 +1322,37 @@ describe('Maker CLI commands', () => {
         targetDir: tempDir,
       })
     );
+  });
+
+  test('init fails and records recovery state when MCP config installation is partial', async () => {
+    await expect(
+      runMakerCli([
+        'init',
+        'app-1',
+        '--target-dir',
+        tempDir,
+        '--skip-confirm',
+        '--register-mcp',
+        'foobar',
+        '--pat',
+        'valid-maker-token',
+      ])
+    ).rejects.toThrow('MCP config installation failed');
+
+    const stateFile = fs
+      .readdirSync(process.env.TAPTAP_MAKER_HOME!)
+      .find((entry) => entry.startsWith('init-state-'));
+    expect(stateFile).toBeDefined();
+    const state = JSON.parse(
+      fs.readFileSync(path.join(process.env.TAPTAP_MAKER_HOME!, stateFile!), 'utf8')
+    );
+    expect(state).toEqual(
+      expect.objectContaining({
+        status: 'mcp_install_failed',
+        selected_app_id: 'app-1',
+      })
+    );
+    expect(stdoutSpy.mock.calls.join('')).not.toContain('TapTap Maker initialization completed');
   });
 
   test('init can create a new Maker project before cloning', async () => {
@@ -2318,6 +2380,15 @@ describe('Maker CLI commands', () => {
     expect(listMakerProjects).not.toHaveBeenCalled();
   });
 
+  test('subcommand help documents the verified Windows Node/npm launcher', async () => {
+    await runMakerCli(['mcp', 'verify', '--help']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('absolute node.exe + npm-cli.js');
+    expect(output).not.toContain('wrap npx.cmd with cmd.exe');
+    expect(output).not.toContain('command array with npx.cmd');
+  });
+
   test('subcommand -h prints usage instead of running the command', async () => {
     await runMakerCli(['doctor', '-h']);
 
@@ -2563,18 +2634,15 @@ describe('Maker CLI commands', () => {
     );
   });
 
-  test('mcp verify checks the configured npx package command by default', async () => {
+  test('mcp verify checks the configured package launcher through MCP by default', async () => {
     await runMakerCli(['mcp', 'verify', '--json']);
 
-    expect(spawnSyncMock).toHaveBeenCalledWith(
-      expectedNpxLaunch.command,
-      [...expectedNpxLaunch.args, 'help'],
-      { encoding: 'utf8' }
-    );
+    expect(verifyMakerMcpLauncherMock).toHaveBeenCalledWith(expectedNpxLaunch);
     expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual(
       expect.objectContaining({
         mode: 'npx',
-        command: expect.stringContaining('@taptap/maker taptap-maker help'),
+        command: expect.stringContaining('@taptap/maker taptap-maker'),
+        stage: 'tools_list',
         ok: true,
       })
     );
@@ -2836,45 +2904,70 @@ describe('Maker CLI commands', () => {
     expect(stdoutSpy.mock.calls.join('')).toBe('/opt/maker-python/bin/python3\n');
   });
 
-  test('mcp verify explains null status as local startup failure before Maker MCP starts', async () => {
-    spawnSyncMock.mockReturnValueOnce({
-      status: null,
-      signal: null,
-      stdout: '',
-      stderr: '',
-      error: undefined,
-    } as ReturnType<typeof spawnSync>);
+  test('mcp verify explains initialize failure before Maker MCP tools are available', async () => {
+    verifyMakerMcpLauncherMock.mockResolvedValueOnce({
+      ok: false,
+      stage: 'initialize',
+      launcherKind: expectedNpxLaunch.kind,
+      command: expectedNpxLaunch.commandAndArgs.join(' '),
+      toolNames: [],
+      error: 'MCP error -32000: Connection closed',
+      failureType: 'protocol_error',
+    });
 
     await runMakerCli(['mcp', 'verify']);
 
     const output = stdoutSpy.mock.calls.join('');
     expect(output).toContain('MCP config command check failed before Maker MCP started');
-    expect(output).toContain('- failure_type: unknown_no_status');
-    expect(output).toContain('local Node/npm/npx startup check');
+    expect(output).toContain('- failure_type: protocol_error');
+    expect(output).toContain('stdio MCP connectivity check');
     expect(output).toContain('Run the command above directly');
-    expect(output).not.toContain('MCP config command spawn failed');
+    expect(process.exitCode).toBe(1);
   });
 
-  test('mcp verify json classifies non-zero npx exit without treating it as MCP startup', async () => {
-    spawnSyncMock.mockReturnValueOnce({
-      status: 1,
-      signal: null,
-      stdout: '',
+  test('mcp verify json classifies launcher failure without treating tools as available', async () => {
+    verifyMakerMcpLauncherMock.mockResolvedValueOnce({
+      ok: false,
+      stage: 'initialize',
+      launcherKind: expectedNpxLaunch.kind,
+      command: expectedNpxLaunch.commandAndArgs.join(' '),
+      toolNames: [],
       stderr: 'npm error network timeout',
-      error: undefined,
-    } as ReturnType<typeof spawnSync>);
+      error: 'MCP error -32000: Connection closed',
+      failureType: 'protocol_error',
+    });
 
     await runMakerCli(['mcp', 'verify', '--json']);
 
     expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual(
       expect.objectContaining({
         ok: false,
-        status: 1,
-        failure_type: 'non_zero_exit',
+        stage: 'initialize',
+        failure_type: 'protocol_error',
         is_maker_mcp_started: false,
         stderr: 'npm error network timeout',
       })
     );
+    expect(process.exitCode).toBe(1);
+  });
+
+  test('mcp verify reports tools/list validation failure after Maker MCP starts', async () => {
+    verifyMakerMcpLauncherMock.mockResolvedValueOnce({
+      ok: false,
+      stage: 'tools_list',
+      launcherKind: expectedNpxLaunch.kind,
+      command: expectedNpxLaunch.commandAndArgs.join(' '),
+      toolNames: [],
+      error: 'MCP tools/list did not include maker_status_lite.',
+      failureType: 'missing_required_tool',
+    });
+
+    await runMakerCli(['mcp', 'verify']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('Maker MCP started but tools/list validation failed');
+    expect(output).not.toContain('failed before Maker MCP started');
+    expect(process.exitCode).toBe(1);
   });
 
   test('unknown command errors do not include raw argv tokens', async () => {

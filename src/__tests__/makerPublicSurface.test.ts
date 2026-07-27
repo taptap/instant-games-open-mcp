@@ -66,10 +66,10 @@ describe('Maker public documentation', () => {
       'connector-states.json',
       'npx -y -p @taptap/maker taptap-maker mcp verify --json',
       'npx.cmd -y -p @taptap/maker taptap-maker mcp verify --json',
-      'command、status、signal、stdout、stderr、error 和 failure_type',
-      '不会启动 Maker MCP server',
-      '不会读取或验证客户端实际生效的 MCP 配置',
-      '成功不代表客户端 MCP 配置正常',
+      'launcher_kind、command、stage、tools、stderr、error 和',
+      '`initialize` 和 `tools/list`',
+      '不会读取',
+      '客户端实际生效的配置',
       '按证据分类根因',
       '仅在证据确认实际配置项损坏时',
       '不能依赖该字段修复项目上下文',
@@ -136,10 +136,10 @@ describe('Maker public documentation', () => {
 
     for (const expected of [
       'npx -y -p @taptap/maker taptap-maker mcp verify --json',
-      'standard `@taptap/maker` npx/CLI launch path',
-      'does not start the Maker MCP server',
-      "does not read or validate the client's active MCP config",
-      'A successful verify result does not prove that the client MCP config works',
+      'same resolved launcher as MCP install',
+      'completes MCP initialize and tools/list',
+      "does not read the client's active config",
+      'client config caching, or Roots',
       'config path, command, ordered args, cwd',
       'Classify the root cause from evidence before repairing it',
       'only after evidence confirms that the active config entry is damaged',
@@ -151,10 +151,12 @@ describe('Maker public documentation', () => {
       '`mcp verify` is not the primary check for an already connected session',
       'complete sanitized `remote_result`',
       'failed tool/resource, redacted request parameters, current `tools/list`',
+      'absolute Node/npm launcher',
     ]) {
       expect(normalizedSkill).toContain(expected);
     }
     expect(skill).not.toMatch(INTERNAL_ENVIRONMENT_PATTERN);
+    expect(normalizedSkill).not.toContain('keep `cmd.exe`, `npx.cmd`');
   });
 
   test('Maker package preparation includes the full troubleshooting guide', () => {
