@@ -161,7 +161,9 @@ describe('Maker non-audio tool descriptions', () => {
     expect(descriptions.add_test_whitelist).toMatch(/user_id.{0,100}explicitly provided/iu);
     expect(descriptions.add_test_whitelist).not.toContain('publish_game_as_tool');
 
-    expect(descriptions.get_ad_config).toMatch(/Maker project status.{0,160}first remote step/iu);
+    expect(descriptions.get_ad_config).toMatch(
+      /maker:\/\/ads-integration-guide.{0,120}first remote step/iu
+    );
     expect(descriptions.get_ad_config).toMatch(/\.project\/settings\.json.{0,80}@runtime\.ad/iu);
     expect(descriptions.get_ad_config).toMatch(
       /app_id.{0,80}developer_id.{0,120}generate_test_qrcode.{0,100}retry/iu

@@ -236,6 +236,8 @@ MCP 运行期能力：
 - 更新 `@taptap/maker` 后，需要 reconnect/restart MCP 或新开 AI 会话才能收到新的
   `initialize.instructions`；旧项目按状态输出继续执行 `agents update` 或 `upgrade`。
 - `maker://status`：资源形式的本地 Maker 状态，适合 Agent 首先读取。
+- `maker://ads-integration-guide`：广告接入入口，串联 `get_ad_config` 与项目内
+  `engine-docs/recipes/sdk.md`，前者负责状态/配置，后者负责 Lua 代码实现。
 - `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。
   支持 MCP Roots 的 AI 客户端会把当前 workspace root 暴露给 Maker MCP；状态会优先使用
   该 root 识别当前项目，并输出 `MCP client roots` 与 `project_context_source` 诊断。

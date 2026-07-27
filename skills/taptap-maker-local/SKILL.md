@@ -190,8 +190,9 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
   use the returned local model path. The local proxy materializes only the `model_files` copy/extract
   instructions returned by the local runtime; report `delivery_failures` when no model can be delivered.
 - For any ad-related request such as 广告, rewarded videos, play ads, ad ID, ad placement,
-  ad status, ad config, or `ShowRewardVideoAd`, inspect Maker project status first. Call
-  `get_ad_config` only after the primary local project configs are initialized.
+  ad status, ad config, or `ShowRewardVideoAd`, first read `maker://ads-integration-guide`, then
+  follow it to inspect Maker project status, call `get_ad_config`, and read the project engine
+  document before editing ad code or testing ad behavior.
 - Do not infer ad readiness from local SDK docs, `.maker-mcp/config.json`, or runtime callbacks.
   If the primary local project configs are missing, keep ad config unavailable and do not call the
   remote tool. Build only for an explicit user build/submit/preview request. If a successful build

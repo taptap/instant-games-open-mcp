@@ -1364,7 +1364,10 @@ describe('maker build local-change guard', () => {
     const toolNames = tools.map((item) => item.name);
 
     expect(toolNames).toEqual(['maker_status_lite', 'maker_build_current_directory']);
-    expect(resources.map((item) => item.uri)).toEqual(['maker://status']);
+    expect(resources.map((item) => item.uri)).toEqual([
+      'maker://status',
+      'maker://ads-integration-guide',
+    ]);
     expect(toolNames).not.toContain('maker_pull_runtime_logs');
     expect(toolNames).not.toContain('maker_exchange_pat');
     expect(toolNames).not.toContain('maker_list_apps');
@@ -1705,7 +1708,9 @@ describe('maker build local-change guard', () => {
     ).toHaveProperty('target_dir');
     const adConfigDescription =
       result.tools.find((item) => item.name === 'get_ad_config')?.description || '';
-    expect(adConfigDescription).toMatch(/first remote step.{0,80}ad-related requests/iu);
+    expect(adConfigDescription).toMatch(
+      /ad-related request.{0,120}maker:\/\/ads-integration-guide.{0,180}first remote step/iu
+    );
     expect(adConfigDescription).toMatch(
       /source of truth.{0,160}(?:ad activation status|configuration).{0,120}\.project\/settings\.json.{0,80}@runtime\.ad/iu
     );

@@ -130,6 +130,7 @@ Maker MCP 精简为开发循环里的高频能力：
 
 ```text
 maker://status                  # Resource，读取本地 Maker 状态
+maker://ads-integration-guide   # Resource，广告接入入口与项目引擎文档索引
 maker_status_lite               # Resource 不可用时的兼容 tool
 maker_build_current_directory   # commit/push/build 合并入口
 ```

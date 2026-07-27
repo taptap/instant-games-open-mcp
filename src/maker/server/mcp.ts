@@ -130,6 +130,10 @@ import {
   type MakerMcpTrackingContext,
 } from '../tracking.js';
 import { MAKER_CAPABILITY_ROUTING_INDEX } from '../capabilityRouting.js';
+import {
+  MAKER_ADS_INTEGRATION_GUIDE_URI,
+  formatMakerAdsIntegrationGuide,
+} from './adIntegrationGuide.js';
 
 export {
   materializeRemoteProxyToolAssets,
@@ -333,6 +337,13 @@ export const resources = [
     name: 'Maker status',
     description:
       'Local TapTap Maker project status, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. Standard init/clone/download flow: show the Maker app list first and let the user choose an existing app or 0/new. Create-new-project flow: use taptap-maker init --create only when the user clearly asks to create a new Maker project.',
+    mimeType: 'text/plain',
+  },
+  {
+    uri: MAKER_ADS_INTEGRATION_GUIDE_URI,
+    name: 'Maker ads integration guide',
+    description:
+      'Canonical entry document for Maker ads. Connects get_ad_config activation and configuration checks with the project-local engine-docs/recipes/sdk.md implementation guide.',
     mimeType: 'text/plain',
   },
 ];
@@ -846,7 +857,7 @@ export async function startMakerMcpServer(): Promise<void> {
   });
   server.setRequestHandler(ReadResourceRequestSchema, async (request, extra) => {
     const uri = request.params.uri;
-    if (uri !== 'maker://status') {
+    if (uri !== 'maker://status' && uri !== MAKER_ADS_INTEGRATION_GUIDE_URI) {
       throw new McpError(ErrorCode.InvalidParams, `Unknown Maker resource: ${uri}`);
     }
 
@@ -859,7 +870,10 @@ export async function startMakerMcpServer(): Promise<void> {
           {
             uri,
             mimeType: 'text/plain',
-            text: await formatStatus({ listClientRoots }),
+            text:
+              uri === MAKER_ADS_INTEGRATION_GUIDE_URI
+                ? formatMakerAdsIntegrationGuide()
+                : await formatStatus({ listClientRoots }),
           },
         ],
       };

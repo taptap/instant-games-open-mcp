@@ -63,7 +63,7 @@ export function formatMakerSkillStatus(
     '- Voice audition previews are not saved to the project.',
     '- Local MCP does not transcode generated audio to OGG.',
     '- Use create_3d_asset with start/query/continue/post_process for game 3D model assets.',
-    '- For any ad-related request, inspect Maker project status first and call get_ad_config only after primary local project configs are initialized.',
+    '- For any ad-related request, first read `maker://ads-integration-guide`, then follow it to inspect Maker project status, call get_ad_config, and read the project engine document.',
     '- Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks.',
     '- If primary local project configs are missing, keep ad config unavailable. Build only for an explicit user build/submit/preview request, and do not automatically rebuild when local configs remain missing after success.',
     '- If get_ad_config reports missing app_id or developer_id, call generate_test_qrcode once, then call get_ad_config again.',

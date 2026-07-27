@@ -61,8 +61,9 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain('Voice audition previews are not saved to the project');
     expect(status).toContain('Local MCP does not transcode generated audio to OGG');
     expect(status).toContain('Use create_3d_asset with start/query/continue/post_process');
-    expect(status).toContain(
-      'call get_ad_config only after primary local project configs are initialized'
+    expect(status).toContain('first read `maker://ads-integration-guide`, then follow it');
+    expect(status.indexOf('maker://ads-integration-guide')).toBeLessThan(
+      status.indexOf('get_ad_config')
     );
     expect(status).toContain('Build only for an explicit user build/submit/preview request');
     expect(status).toContain('do not automatically rebuild');
@@ -144,8 +145,11 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Use `create_3d_asset` for the complete 3D asset lifecycle');
     expect(skillText).toContain('action="continue"');
     expect(skillText).toContain('local_delivery.status');
-    expect(skillText).toContain(
-      '`get_ad_config` only after the primary local project configs are initialized'
+    expect(skillText.replace(/\s+/gu, ' ')).toContain(
+      'first read `maker://ads-integration-guide`, then follow it'
+    );
+    expect(skillText.indexOf('maker://ads-integration-guide')).toBeLessThan(
+      skillText.indexOf('`get_ad_config`')
     );
     expect(skillText).toContain('Do not infer ad readiness from local SDK docs');
     expect(skillText).toContain('Build only for an explicit user build/submit/preview request');
