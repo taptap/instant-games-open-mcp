@@ -267,6 +267,17 @@ describe('Maker CLI commands', () => {
 
     await runMakerCli(['mcp', 'install', '--ide', 'codex', '--env', 'rnd']);
 
+    expect(verifyMakerMcpLauncherMock).toHaveBeenCalledWith(
+      expectedNpxLaunch,
+      expect.objectContaining({
+        env: expect.objectContaining({
+          HOME: process.env.HOME,
+          PATH: process.env.PATH,
+          TAPTAP_MCP_ENV: 'rnd',
+        }),
+      })
+    );
+
     const text = fs.readFileSync(configPath, 'utf8');
     expect(text.match(/\[mcp_servers\."taptap-maker"\]/g)).toHaveLength(1);
     expect(text.match(/\[mcp_servers\."taptap-maker"\.env\]/g)).toHaveLength(1);

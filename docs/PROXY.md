@@ -636,7 +636,6 @@ docker-compose up -d
 
 # 或使用脚本
 ./run.sh -p 5003  # Production
-./run.sh --rnd -p 5002  # RND
 ```
 
 详见：[docker/README.md](../docker/README.md)
@@ -797,7 +796,7 @@ npm install -g @taptap/instant-games-open-mcp@latest
     "taptap": {
       "command": "taptap-mcp-proxy",
       "args": [
-        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"rnd\"},\"tenant\":{\"user_id\":\"your-user-id\",\"project_id\":\"your-project-id\",\"project_path\":\"/Users/you/workspace\"},\"auth\":{\"kid\":\"your_kid\",\"mac_key\":\"your_mac_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"},\"options\":{\"verbose\":false}}"
+        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"production\"},\"tenant\":{\"user_id\":\"your-user-id\",\"project_id\":\"your-project-id\",\"project_path\":\"/Users/you/workspace\"},\"auth\":{\"kid\":\"your_kid\",\"mac_key\":\"your_mac_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"},\"options\":{\"verbose\":false}}"
       ]
     }
   }
@@ -815,7 +814,7 @@ npm install -g @taptap/instant-games-open-mcp@latest
         "-y",
         "@taptap/instant-games-open-mcp@latest",
         "taptap-mcp-proxy",
-        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"rnd\"},\"tenant\":{\"user_id\":\"your-user-id\",\"project_id\":\"your-project-id\"},\"auth\":{\"kid\":\"your_kid\",\"mac_key\":\"your_mac_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"}}"
+        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"production\"},\"tenant\":{\"user_id\":\"your-user-id\",\"project_id\":\"your-project-id\"},\"auth\":{\"kid\":\"your_kid\",\"mac_key\":\"your_mac_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"}}"
       ]
     }
   }
@@ -831,7 +830,7 @@ npm install -g @taptap/instant-games-open-mcp@latest
       "command": "node",
       "args": [
         "/path/to/taptap-minigame-mcp-server/dist/mcp-proxy/index.js",
-        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"rnd\"},\"tenant\":{\"user_id\":\"test-user\",\"project_id\":\"test-project\"},\"auth\":{\"kid\":\"test_kid\",\"mac_key\":\"test_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"}}"
+        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"production\"},\"tenant\":{\"user_id\":\"test-user\",\"project_id\":\"test-project\"},\"auth\":{\"kid\":\"test_kid\",\"mac_key\":\"test_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"}}"
       ]
     }
   }
@@ -850,7 +849,7 @@ npm install -g @taptap/instant-games-open-mcp@latest
     "taptap": {
       "command": "taptap-mcp-proxy",
       "args": [
-        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"rnd\"},\"tenant\":{\"user_id\":\"your-user-id\",\"project_id\":\"your-project-id\"},\"auth\":{\"kid\":\"your_kid\",\"mac_key\":\"your_mac_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"}}"
+        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"production\"},\"tenant\":{\"user_id\":\"your-user-id\",\"project_id\":\"your-project-id\"},\"auth\":{\"kid\":\"your_kid\",\"mac_key\":\"your_mac_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"}}"
       ]
     }
   }
@@ -867,7 +866,7 @@ npm install -g @taptap/instant-games-open-mcp@latest
     "taptap": {
       "command": "taptap-mcp-proxy.cmd",
       "args": [
-        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"rnd\"},\"tenant\":{\"user_id\":\"your-user-id\",\"project_id\":\"your-project-id\"},\"auth\":{\"kid\":\"your_kid\",\"mac_key\":\"your_mac_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"}}"
+        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"production\"},\"tenant\":{\"user_id\":\"your-user-id\",\"project_id\":\"your-project-id\"},\"auth\":{\"kid\":\"your_kid\",\"mac_key\":\"your_mac_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"}}"
       ]
     }
   }
@@ -886,7 +885,7 @@ npm install -g @taptap/instant-games-open-mcp@latest
     "taptap": {
       "command": "taptap-mcp-proxy",
       "args": [
-        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"rnd\"},\"tenant\":{\"user_id\":\"your-user-id\",\"project_id\":\"your-project-id\"},\"auth\":{\"kid\":\"your_kid\",\"mac_key\":\"your_mac_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"}}"
+        "{\"server\":{\"url\":\"http://localhost:5003\",\"env\":\"production\"},\"tenant\":{\"user_id\":\"your-user-id\",\"project_id\":\"your-project-id\"},\"auth\":{\"kid\":\"your_kid\",\"mac_key\":\"your_mac_key\",\"token_type\":\"mac\",\"mac_algorithm\":\"hmac-sha-1\"}}"
       ]
     }
   }
@@ -903,7 +902,7 @@ npm install -g @taptap/instant-games-open-mcp@latest
 const config = {
   server: {
     url: 'http://localhost:5003', // MCP Server 地址
-    env: 'rnd', // rnd | production
+    env: 'production',
   },
   tenant: {
     user_id: 'your-user-id', // 你的用户 ID（用于标识租户）
@@ -960,7 +959,7 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
 {
   "server": {
     "url": "http://localhost:5003",
-    "env": "rnd"
+    "env": "production"
   },
   "tenant": {
     "user_id": "your-user-id",
@@ -1094,7 +1093,7 @@ cat ~/.config/taptap-minigame/token.json
    ```
    [Proxy] Configuration loaded successfully
    [Proxy] Server: http://localhost:5003
-   [Proxy] Environment: rnd
+   [Proxy] Environment: production
    [Proxy] Project: your-project-id
    [Proxy] User: your-user-id
    [Proxy] Connecting to http://localhost:5003...
@@ -1231,7 +1230,7 @@ cat config.json | node proxy.js
 {
   "server": {
     "url": "http://localhost:3000",
-    "env": "rnd"
+    "env": "production"
   },
   "tenant": {
     "project_path": ".",
@@ -1286,7 +1285,7 @@ node proxy.js
 
 #### 可选字段
 
-- `server.env` - 环境选择（`rnd` 或 `production`，默认 `rnd`）
+- `server.env` - 服务环境（默认 `production`）
 - `tenant.project_path` - 项目路径（相对路径，默认 `.`）
 - `tenant.user_id` - 用户标识符（可选，仅用于日志）
 - `tenant.project_id` - 项目标识符（可选，仅用于日志）
@@ -1475,12 +1474,10 @@ npm run build:proxy -- --minify
 ```bash
 cd docker/npm
 
-# RND 环境变量从项目根目录 .env 读取
 docker-compose up -d
 
 # 验证启动
 curl http://localhost:5003/health  # Production
-curl http://localhost:5002/health  # RND
 ```
 
 **方式 2：使用脚本**
@@ -1491,10 +1488,6 @@ cd docker/npm
 # Production 环境
 ./run.sh -p 5003
 
-# RND 环境（需要配置环境变量）
-export TAPTAP_MCP_CLIENT_ID=your_client_id
-export TAPTAP_MCP_CLIENT_SECRET=your_client_secret
-./run.sh --rnd -p 5002
 ```
 
 详见：[docker/README.md](../docker/README.md)
@@ -1507,7 +1500,7 @@ export TAPTAP_MCP_CLIENT_SECRET=your_client_secret
 interface ProxyConfig {
   server: {
     url: string; // TapTap MCP Server 地址
-    env?: 'rnd' | 'production'; // 环境选择
+    env?: 'production'; // 正式服务
   };
   tenant: {
     user_id: string; // 用户 ID（TapCode 用户标识）
@@ -1554,7 +1547,7 @@ function generateProxyConfig(
   const config = {
     server: {
       url: 'http://localhost:5003', // TapTap MCP Server 地址
-      env: 'rnd', // 或 "production"
+      env: 'production',
     },
     tenant: {
       user_id: user.id, // TapCode 用户 ID
@@ -1687,7 +1680,6 @@ class TapTapMCPService {
       WORKSPACE_ROOT: workspaceRoot,
       TAPTAP_MCP_CLIENT_ID: process.env.TAPTAP_CLIENT_ID!,
       TAPTAP_MCP_CLIENT_SECRET: process.env.TAPTAP_CLIENT_SECRET!,
-      TAPTAP_MCP_ENV: 'rnd',
       TAPTAP_MCP_VERBOSE: 'true',
     };
 
@@ -1713,7 +1705,7 @@ class TapTapMCPService {
     const config = {
       server: {
         url: 'http://localhost:5003',
-        env: 'rnd',
+        env: 'production',
       },
       tenant: {
         user_id: user.id,
@@ -1792,7 +1784,7 @@ curl http://localhost:5003/health
 ```
 [Proxy] Configuration loaded successfully
 [Proxy] Server: http://localhost:5003
-[Proxy] Environment: rnd
+[Proxy] Environment: production
 [Proxy] Project: minigame_h5_demo
 [Proxy] User: mikoto
 [Proxy] Workspace: /workspace

@@ -455,7 +455,6 @@ npm run openclaw:pack
 | `TAPTAP_MCP_PORT`                    | HTTP/SSE 模式端口                  | 3000                  |
 | `TAPTAP_MCP_VERBOSE`                 | 详细日志模式                       | false                 |
 | `TAPTAP_MCP_ENABLE_RAW_TOOLS`        | 是否暴露 `*_raw` 工具              | false                 |
-| `TAPTAP_MCP_ENV`                     | 环境选择（production/rnd）         | production            |
 | `TAPTAP_MCP_DC_CURRENT_APP_BASE_URL` | 当前游戏 DC 接口 host 覆盖（可选） | 空                    |
 | `TAPTAP_MCP_CACHE_DIR`               | 缓存根目录                         | /tmp/taptap-mcp/cache |
 | `TAPTAP_MCP_TEMP_DIR`                | 临时文件根目录                     | /tmp/taptap-mcp/temp  |
@@ -712,4 +711,3 @@ const allModules = [..., yourFeatureModule];
 - 环境变量名称使用 TAPTAP*MCP* 前缀
 - MAC Token 必须是 JSON 字符串格式
 - 请求签名使用两层机制（MAC + X-Tap-Sign）
-- 默认环境为 production，可通过 TAPTAP_MCP_ENV 切换

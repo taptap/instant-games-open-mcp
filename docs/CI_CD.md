@@ -133,7 +133,7 @@ git push origin fix/critical-bug
 Maker Beta 用于内部预览测试，走 `@taptap/maker@beta` dist-tag，不会创建 release PR，
 也不会把 `package.json` / `CHANGELOG.md` 的版本变更写回仓库。
 注意：npm 包仍发布到 public registry，`@beta` 不是访问控制；beta 包必须按对外发布标准处理，
-不能包含 RND 凭证、内部账号 Token 或未公开的敏感配置。
+不能包含内部服务凭证、内部账号 Token 或未公开的敏感配置。
 
 ```bash
 # 1. Maker 修复通过 PR 合并到 beta 或 main
@@ -151,26 +151,18 @@ npx -y @taptap/maker@beta init
 # 4. 测试稳定后，再通过 PR 将对应修复同步到 main
 ```
 
-产品侧 Maker MCP 配置可以直接使用 beta 包：
+产品侧 Maker MCP 配置可以直接使用 beta 包，服务配置由包内管理：
 
 ```json
 {
   "mcpServers": {
     "taptap-maker-beta": {
       "command": "npx",
-      "args": ["-y", "@taptap/maker@beta", "mcp"],
-      "env": {
-        "TAPTAP_MCP_ENV": "rnd",
-        "TAPTAP_MCP_CLIENT_ID": "your_rnd_client_id",
-        "TAPTAP_MCP_CLIENT_SECRET": "your_rnd_client_secret",
-        "TAPTAP_MCP_WORKSPACE_ROOT": "${workspaceFolder}"
-      }
+      "args": ["-y", "@taptap/maker@beta", "mcp"]
     }
   }
 }
 ```
-
-> RND 凭证只在 MCP 客户端配置或受控环境变量中注入，不要提交到仓库。
 
 ### 3.4 重要注意事项
 
