@@ -278,24 +278,28 @@ for the initial diagnosis. Work offline first:
    initialize and tools/list, and returns launcher_kind, command, stage, tools, stderr, error, and
    failure_type. It does not read the client's active config or validate WorkBuddy trust, client
    config caching, or Roots.
-4. Inspect and reproduce the active config path, command, ordered args, cwd, WorkBuddy enable/trust
-   state, workspace/Roots, Node/npm/npx paths, the AI client's PATH, exit status, and stderr.
-5. For WorkBuddy, verify both the `taptap-maker` server entry and the account-level enable/trust
-   state. Do not edit account trust storage automatically; ask the user to enable it in WorkBuddy.
-6. On Windows, configs written by the CLI must use the verified absolute Node/npm launcher. Treat
+4. First identify the active AI client from reliable evidence, then inspect and reproduce only that
+   client's active config path, command, ordered args, cwd, workspace/Roots, Node/npm/npx paths,
+   client PATH, exit status, and stderr.
+5. Only when the active client is confirmed to be WorkBuddy, verify both the `taptap-maker` server
+   entry and the account-level enable/trust state. Do not edit account trust storage automatically;
+   ask the user to enable it in WorkBuddy.
+6. Never use one client's configuration or trust state to diagnose another client. `doctor` does not
+   inspect the active AI client's loaded tools or configuration.
+7. On Windows, configs written by the CLI must use the verified absolute Node/npm launcher. Treat
    existing `cmd.exe` or `npx.cmd` configs as legacy diagnostic evidence; do not persist them as a
    repair. Never replace cwd with a `cd /d "<project>" && npx.cmd ...` command string, including for
    Chinese project paths.
-7. If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field. Use the active
+8. If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field. Use the active
    workspace/Roots and record the process actual cwd instead.
-8. Do not assume Windows 8.3 short paths exist or differ from the original long path. Verify the
+9. Do not assume Windows 8.3 short paths exist or differ from the original long path. Verify the
    result first; an unchanged or missing short path is not a usable cwd workaround.
-9. Reproduce the configured Windows launch with the same direct argv boundary when possible.
-   Separate outer shell quoting or stderr decoding failures from the MCP child process result, and
-   record both without treating wrapper failures as server evidence.
-10. Remember that multiple AI conversations share user-level MCP config. One conversation can break
+10. Reproduce the configured Windows launch with the same direct argv boundary when possible.
+    Separate outer shell quoting or stderr decoding failures from the MCP child process result, and
+    record both without treating wrapper failures as server evidence.
+11. Remember that multiple AI conversations share user-level MCP config. One conversation can break
     every other conversation by rewriting the shared command or cwd.
-11. Classify the root cause from evidence before repairing it. Do not automatically change trust
+12. Classify the root cause from evidence before repairing it. Do not automatically change trust
     storage, PATH, cwd, credentials, or game code. Use `taptap-maker mcp install --ide <client>` only
     after evidence confirms that the active config entry is damaged. Reconnect and verify again in
     both the current and a new conversation.

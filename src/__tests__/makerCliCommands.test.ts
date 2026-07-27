@@ -1166,6 +1166,15 @@ describe('Maker CLI commands', () => {
       'launcher_kind, command, stage, tools, stderr, error, and failure_type'
     );
     expect(normalizedPolicy).toContain('client config caching, or Roots');
+    expect(normalizedPolicy).toContain(
+      'First identify the active AI client from reliable evidence'
+    );
+    expect(normalizedPolicy).toContain(
+      'Only when the active client is confirmed to be WorkBuddy, inspect its enable/trust state'
+    );
+    expect(normalizedPolicy).toContain(
+      "Never use one client's configuration or trust state to diagnose another client"
+    );
     expect(normalizedPolicy).toContain('config path, command, ordered args, cwd');
     expect(normalizedPolicy).toContain('Classify the root cause from evidence before repairing it');
     expect(normalizedPolicy).toContain(
@@ -2293,7 +2302,7 @@ describe('Maker CLI commands', () => {
     expect(output).not.toContain('- next_auth_step: taptap-maker login');
   });
 
-  test('doctor hints to refresh the AI client when Maker tools are missing', async () => {
+  test('doctor reports that active client tool visibility was not checked', async () => {
     saveProjectConfig(tempDir, {
       project_id: 'app-1',
       project_name: 'App One',
@@ -2304,9 +2313,10 @@ describe('Maker CLI commands', () => {
     await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
 
     const output = stdoutSpy.mock.calls.join('');
-    expect(output).toContain('Maker MCP tools availability');
-    expect(output).toContain('- tools_visibility: refresh_ai_client_if_missing');
-    expect(output).toContain('Restart the AI client or open a new AI conversation');
+    expect(output).toContain('Doctor execution context');
+    expect(output).toContain('- active_client_session: not_checked');
+    expect(output).toContain('- tools_visibility: not_checked');
+    expect(output).toContain('doctor cannot inspect the active AI client');
   });
 
   test('doctor hides WorkBuddy trust guidance when WorkBuddy is not detected', async () => {
@@ -2317,16 +2327,28 @@ describe('Maker CLI commands', () => {
     expect(output).not.toContain('Open WorkBuddy MCP settings');
   });
 
-  test('doctor reports WorkBuddy trust guidance when WorkBuddy is detected', async () => {
+  test('doctor never reports WorkBuddy trust from home-directory presence', async () => {
     fs.mkdirSync(path.join(tempDir, '.workbuddy'), { recursive: true });
 
-    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
+    await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd', '--json']);
 
-    const output = stdoutSpy.mock.calls.join('');
-    expect(output).toContain('WorkBuddy MCP trust');
-    expect(output).toContain('status: trust_state_not_found');
-    expect(output).toContain('Open WorkBuddy MCP settings');
-    expect(output).not.toContain('windows_trust_storage');
+    const payload = JSON.parse(stdoutSpy.mock.calls.join(''));
+    expect(payload).not.toHaveProperty('workbuddy_trust');
+  });
+
+  test('explicit WorkBuddy install retains trust guidance', async () => {
+    fs.mkdirSync(path.join(tempDir, '.workbuddy'), { recursive: true });
+
+    await runMakerCli(['mcp', 'install', '--ide', 'workbuddy', '--env', 'rnd', '--json']);
+
+    const payloads = JSON.parse(stdoutSpy.mock.calls.join(''));
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        ide: 'workbuddy',
+        ok: true,
+        message: expect.stringContaining('WorkBuddy MCP trust'),
+      }),
+    ]);
   });
 
   test('doctor warns when the AI pwd differs from the Maker project directory', async () => {
@@ -2340,11 +2362,11 @@ describe('Maker CLI commands', () => {
     await runMakerCli(['doctor', '--target-dir', tempDir, '--env', 'rnd']);
 
     const output = stdoutSpy.mock.calls.join('');
-    expect(output).toContain('Maker MCP tools availability');
-    expect(output).toContain('- pwd_alignment: cwd_mismatch');
-    expect(output).toContain(`- maker_project_dir: ${tempDir}`);
-    expect(output).toContain(`- ai_pwd: ${process.cwd()}`);
-    expect(output).toContain('Run the AI client from the Maker project directory');
+    expect(output).toContain('Doctor execution context');
+    expect(output).toContain('- doctor_cwd_alignment: different_from_target');
+    expect(output).toContain(`- target_dir: ${tempDir}`);
+    expect(output).toContain(`- doctor_cwd: ${process.cwd()}`);
+    expect(output).not.toContain('Run the AI client from the Maker project directory');
   });
 
   test('doctor reports orphan maker proxy processes', async () => {

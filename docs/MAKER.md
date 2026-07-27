@@ -272,15 +272,14 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   更新 `config/maker-version-policy.json` 并创建一个可 review 的 PR。`tag=latest` 只自动更新
   `latest`，`tag=beta` 只自动更新 `latest_beta`，并刷新 `updated_at`；`minimum_supported`、
   `blacklist` 和 `message` 保持人工策略字段，不由发版流程自动改。
-- `taptap-maker doctor` 会输出 `Maker MCP tools availability`。如果当前 AI 对话里看不到
-  Maker proxy tools，先按该段提示重启 AI 客户端、新开 AI 对话，或在支持 `/mcp` 的客户端中
-  Reconnect `taptap-maker`；如果客户端不支持 MCP Roots 且输出 `pwd_alignment: cwd_mismatch`，
-  说明 AI 的 pwd 和 Maker 项目目录不一致，可重新安装 MCP 配置并用
-  `--target-dir <PROJECT_DIR>` 显式固定 cwd。
+- `taptap-maker doctor` 只输出离线主机、项目和 CLI 执行上下文检查；它不会检查当前 AI 会话
+  是否已加载 Maker tools，也不会读取当前客户端的实际配置。`doctor_cwd` 是运行 doctor 的
+  CLI 进程目录，不是 AI 客户端 cwd；不要仅凭该字段重装 MCP 或修改客户端配置。
 - `maker://status` 和 `maker_status_lite` 会输出 `Python environment` 和
   `Lua LSP environment`。本地 Lua 诊断需要环境时，Agent 应先看这两段；如果
   `python_status` 或 `lsp_status` 不是 `ready`，可运行 `taptap-maker python setup`
-  准备完整本地 Lua 诊断环境。Python 或 LSP 缺失不阻塞远端构建主流程。
+  准备完整本地 Lua 诊断环境。Python 或 LSP 缺失只影响本地 Lua 诊断，不阻塞 MCP 连接或远端
+  构建主流程。Dev-kit、版本和 AGENTS policy 检查属于维护信息，不能单独证明客户端连接失败。
 - `maker_build_current_directory`：统一执行本地同步和远端构建。提交前会检查 Maker 远端同步状态；
   本地落后远端、分叉、当前不在 `main` 或无法确认远端同步时，会在创建 commit 前停止。普通构建会先
   push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit
@@ -356,7 +355,7 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 - 发生冲突时解释为什么冲突、冲突文件在哪里、冲突内容是什么，并让 Agent 给出解决建议。
 - 冲突解决前必须让用户确认，不隐藏 unresolved conflict。
 
-`taptap-maker doctor` 和 `maker://status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。Maker 操作目标是用户当前项目目录；支持 MCP Roots 的客户端会由 workspace root 提供该目录，MCP 进程 cwd 只作为诊断信息。若状态输出 `MCP client roots` 且只有一个 root，或多个 root 中只有一个已绑定 Maker 项目，Maker MCP 会自动选择该目录；如果多个 root 都是 Maker 项目，Agent 不应猜测，应让用户只打开一个 Maker workspace 或显式传 `target_dir`。若客户端不支持 MCP Roots，且 `taptap-maker doctor` 输出 `Maker MCP tools availability` / `pwd_alignment: cwd_mismatch`，或状态输出 `MCP tool registration cwd` 且 `mcp_cwd_project_dir` 不是当前 `maker_project_dir`，说明当前会话启动 MCP 时的 cwd 错误；可修正 `taptap-maker` MCP 配置里的 `cwd` 后在 `/mcp` 中 Reconnect，而不是反复普通重启。若只是首次安装后当前对话看不到 tools，优先重启 AI 客户端或新开 AI 对话。
+`taptap-maker doctor` 和 `maker://status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。Maker 操作目标是用户当前项目目录；支持 MCP Roots 的客户端会由 workspace root 提供该目录，MCP 进程 cwd 只作为诊断信息。若状态输出 `MCP client roots` 且只有一个 root，或多个 root 中只有一个已绑定 Maker 项目，Maker MCP 会自动选择该目录；如果多个 root 都是 Maker 项目，Agent 不应猜测，应让用户只打开一个 Maker workspace 或显式传 `target_dir`。`taptap-maker doctor` 不检查当前 AI 会话的 tools 或客户端配置；`doctor_cwd` 只代表 CLI 进程目录，不能单独证明会话 cwd 错误。若只是首次安装后当前对话看不到 tools，应根据当前客户端的实际配置和日志排查，并在确认客户端支持时重启或 Reconnect。
 
 已绑定项目还会检查 `AGENTS.md` 中 TapTap Maker managed policy block 的版本和 hash。
 如果状态显示 `missing_file`、`missing_block` 或 `outdated`，说明用户进入了旧项目或本地规则
@@ -549,8 +548,9 @@ Windows 兼容注意：
   legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为 fallback 合并。
   WorkBuddy MCP server 配置必须写入 `disabled: false`；账号维度的启用/信任状态在
   `.workbuddy/connectors/<account-id>/connector-states.json` 中维护，不在 `mcp.json` 中。CLI
-  只做只读诊断，并在 `mcp install --ide workbuddy` 和 `doctor` 中提示用户到 WorkBuddy MCP
-  设置里启用/信任 `taptap-maker`，不自动修改账号信任状态；Windows 用户对应路径是
+  只做只读诊断，并在显式 `mcp install --ide workbuddy` 结果中提示用户到 WorkBuddy MCP
+  设置里启用/信任 `taptap-maker`，普通 `doctor` 不会因为存在 `.workbuddy` 就输出 WorkBuddy
+  诊断，不自动修改账号信任状态；Windows 用户对应路径是
   `%USERPROFILE%\.workbuddy\connectors\<account-id>\connector-states.json`。
 - OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入，不主动创建。
 - MCP 配置写入时会在对应 MCP server 进程环境中增加

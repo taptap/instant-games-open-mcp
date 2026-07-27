@@ -373,7 +373,11 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `taptap-maker mcp install --ide <client>` 单独重试。
 - `taptap-maker mcp verify` 默认用 `mcp install` 的同一启动器执行 MCP `initialize` 和
   `tools/list`；本地开发只验证当前 CLI 时使用 `--mode self`。验证失败必须返回非零退出码。
-- Maker MCP tools 缺失或出现 `-32000` / `Connection closed` 时，先按 `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md` 做不依赖 MCP tools 的本地自检。必须检查真实配置文件、WorkBuddy 信任、command/args/cwd、MCP Roots、Node/npm/npx 与客户端 PATH、退出码和 stderr；禁止用 Windows 中文路径 `cd && npx` 拼接命令修复 cwd。
+- `taptap-maker doctor` 只做离线主机、项目和 CLI 执行上下文检查，不检查当前 AI 会话是否已
+  加载 Maker tools，也不读取客户端实际配置；不要因为存在 `.workbuddy` 就把 WorkBuddy trust
+  当作其它客户端的故障原因。Python/Lua LSP、dev-kit、版本和 AGENTS policy 检查属于维护信息，
+  不能单独证明 MCP 连接失败。
+- Maker MCP tools 缺失或出现 `-32000` / `Connection closed` 时，先按 `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md` 做不依赖 MCP tools 的本地自检。先根据真实配置、日志或 MCP 初始化信息确认当前客户端，再检查该客户端的 command/args/cwd、MCP Roots、Node/npm/npx、client PATH、退出码和 stderr；只有确认当前客户端为 WorkBuddy 时才检查其信任状态。禁止用 Windows 中文路径 `cd && npx` 拼接命令修复 cwd。
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
   远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、

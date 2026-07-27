@@ -134,12 +134,12 @@ type MakerOrphanProcessCheck = {
   processes: MakerOrphanProcess[];
 };
 
-type MakerMcpToolsAvailability = {
-  tools_visibility: 'refresh_ai_client_if_missing';
-  pwd_alignment: 'same_project' | 'cwd_mismatch' | 'not_bound';
-  maker_project_dir?: string;
-  ai_pwd: string;
-  ai_pwd_project_dir?: string;
+type MakerDoctorExecutionContext = {
+  active_client_session: 'not_checked';
+  tools_visibility: 'not_checked';
+  target_dir?: string;
+  doctor_cwd: string;
+  doctor_cwd_alignment: 'same_project' | 'different_from_target' | 'not_bound';
 };
 
 type WorkBuddyConnectorState = {
@@ -495,17 +495,13 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   });
   const agentsPolicy = isProjectBound ? inspectMakerAgentsPolicy(projectRoot) : undefined;
   const orphanProcessCheck = inspectMakerOrphanProcesses();
-  const mcpToolsAvailability = inspectMakerMcpToolsAvailability({
+  const doctorExecutionContext = inspectMakerDoctorExecutionContext({
     makerProjectDir: identify.projectRoot,
   });
   const projectInitialization = isProjectBound
     ? inspectMakerProjectInitialization(projectRoot)
     : undefined;
   const projectSettings = isProjectBound ? inspectMakerProjectSettings(projectRoot) : undefined;
-  const workBuddyTrust = shouldShowWorkBuddyTrustInspection()
-    ? inspectWorkBuddyTrustState(DEFAULT_MCP_NAME)
-    : undefined;
-
   if (ctx.json) {
     writeJson({
       env,
@@ -523,8 +519,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       package_update: packageUpdate,
       project_initialization: projectInitialization,
       project_settings: projectSettings,
-      mcp_tools_availability: mcpToolsAvailability,
-      ...(workBuddyTrust ? { workbuddy_trust: workBuddyTrust } : {}),
+      doctor_execution_context: doctorExecutionContext,
       orphan_process_check: orphanProcessCheck,
     });
     return;
@@ -569,9 +564,8 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       '',
       formatMakerPackageUpdateStatus(packageUpdate),
       '',
-      formatMakerMcpToolsAvailability(mcpToolsAvailability),
+      formatMakerDoctorExecutionContext(doctorExecutionContext),
       '',
-      workBuddyTrust ? formatWorkBuddyTrustInspection(workBuddyTrust) : '',
       formatMakerOrphanProcessStatus(orphanProcessCheck),
       '',
       formatMakerSkillStatus({ projectRoot }),
@@ -582,55 +576,46 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   );
 }
 
-function inspectMakerMcpToolsAvailability(options: {
+function inspectMakerDoctorExecutionContext(options: {
   makerProjectDir?: string;
-}): MakerMcpToolsAvailability {
-  const aiPwd = path.resolve(process.cwd());
-  const aiPwdIdentify = identifyMakerProject({ cwd: aiPwd });
+}): MakerDoctorExecutionContext {
+  const doctorCwd = path.resolve(process.cwd());
   const makerProjectDir = options.makerProjectDir
     ? path.resolve(options.makerProjectDir)
     : undefined;
 
   if (!makerProjectDir) {
     return {
-      tools_visibility: 'refresh_ai_client_if_missing',
-      pwd_alignment: 'not_bound',
-      ai_pwd: aiPwd,
-      ai_pwd_project_dir: aiPwdIdentify.projectRoot,
+      active_client_session: 'not_checked',
+      tools_visibility: 'not_checked',
+      doctor_cwd: doctorCwd,
+      doctor_cwd_alignment: 'not_bound',
     };
   }
 
   return {
-    tools_visibility: 'refresh_ai_client_if_missing',
-    pwd_alignment:
-      aiPwdIdentify.projectRoot && samePath(aiPwdIdentify.projectRoot, makerProjectDir)
-        ? 'same_project'
-        : 'cwd_mismatch',
-    maker_project_dir: makerProjectDir,
-    ai_pwd: aiPwd,
-    ai_pwd_project_dir: aiPwdIdentify.projectRoot,
+    active_client_session: 'not_checked',
+    tools_visibility: 'not_checked',
+    target_dir: makerProjectDir,
+    doctor_cwd: doctorCwd,
+    doctor_cwd_alignment: samePath(doctorCwd, makerProjectDir)
+      ? 'same_project'
+      : 'different_from_target',
   };
 }
 
-function formatMakerMcpToolsAvailability(availability: MakerMcpToolsAvailability): string {
+function formatMakerDoctorExecutionContext(context: MakerDoctorExecutionContext): string {
   const lines = [
-    'Maker MCP tools availability',
-    `- tools_visibility: ${availability.tools_visibility}`,
-    '- hint: If Maker proxy tools are missing in this AI chat, this is common after install.',
-    '- next_action: Restart the AI client or open a new AI conversation; /mcp clients can Reconnect taptap-maker.',
-    `- pwd_alignment: ${availability.pwd_alignment}`,
+    'Doctor execution context',
+    `- active_client_session: ${context.active_client_session}`,
+    `- tools_visibility: ${context.tools_visibility}`,
+    "- note: doctor cannot inspect the active AI client's loaded tools or configuration.",
+    `- doctor_cwd_alignment: ${context.doctor_cwd_alignment}`,
+    `- doctor_cwd: ${context.doctor_cwd}`,
   ];
 
-  if (availability.pwd_alignment === 'cwd_mismatch') {
-    lines.push(`- maker_project_dir: ${availability.maker_project_dir}`);
-    lines.push(`- ai_pwd: ${availability.ai_pwd}`);
-    lines.push(`- ai_pwd_project_dir: ${availability.ai_pwd_project_dir || '(none)'}`);
-    lines.push(
-      '- impact: Maker proxy tools may not appear because tools/list uses the AI client pwd.'
-    );
-    lines.push(
-      '- next_action: Run the AI client from the Maker project directory, or reinstall MCP with --target-dir.'
-    );
+  if (context.target_dir) {
+    lines.push(`- target_dir: ${context.target_dir}`);
   }
 
   return lines.join('\n');
@@ -1965,10 +1950,6 @@ function getOpenCodeMcpConfigPath(): string {
 
 function getWorkBuddyHome(): string {
   return path.join(os.homedir(), '.workbuddy');
-}
-
-function shouldShowWorkBuddyTrustInspection(): boolean {
-  return fs.existsSync(getWorkBuddyHome());
 }
 
 function getWorkBuddyMcpInstallPaths(options: { createPrimary?: boolean } = {}): string[] {

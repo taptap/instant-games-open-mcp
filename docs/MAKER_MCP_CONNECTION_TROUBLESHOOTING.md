@@ -45,11 +45,11 @@ npx -y -p @taptap/maker taptap-maker mcp verify --json
 `mcp verify --json` 使用安装器的同一 launcher 启动 `@taptap/maker`，完成 MCP
 `initialize` 和 `tools/list`，并返回 launcher_kind、command、stage、tools、stderr、error 和
 failure_type。失败时命令退出码非零。它证明本机最终启动命令和 stdio MCP 通路可用，但不会读取
-客户端实际生效的配置，也不能检查 WorkBuddy trust、客户端配置缓存或 MCP Roots。
+客户端实际生效的配置，也不能检查任意客户端 trust、客户端配置缓存或 MCP Roots。
 
-因此，无论该命令成功还是失败，后续都必须继续检查并复现客户端真实使用的 config path、command、
-有序 args、cwd、WorkBuddy enable/trust、workspace/Roots、Node/npm/npx 路径、client PATH、退出状态
-和 stderr。
+因此，无论该命令成功还是失败，后续都必须先确认当前客户端，再检查并复现该客户端真实使用的
+config path、command、有序 args、cwd、workspace/Roots、Node/npm/npx 路径、client PATH、退出状态
+和 stderr。WorkBuddy enable/trust 只适用于已确认的 WorkBuddy 客户端。
 
 ### MCP 已连接但 tool/resource 调用失败
 
@@ -95,7 +95,12 @@ Windows 中 `~` 对应 `%USERPROFILE%`。
 多开 AI 对话不会隔离用户级 MCP 配置。某个对话如果修改了共享配置中的 command、args 或 cwd，
 其它对话在重连或重启后也会失效。应比较配置备份和最近修改时间，确认是否被其它对话重写。
 
-## 4. 检查 WorkBuddy 启用和信任状态
+## 4. 当前客户端与 WorkBuddy 专属检查
+
+先根据当前客户端的真实配置、启动日志或 MCP `initialize` 信息确认客户端类型。
+不要因为本机存在 `.workbuddy` 就判断当前请求经过 WorkBuddy。
+
+只有确认当前客户端是 WorkBuddy 时，才检查以下启用和信任状态。
 
 WorkBuddy 需要同时满足：
 

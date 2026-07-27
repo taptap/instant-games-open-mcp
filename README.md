@@ -95,9 +95,10 @@ taptap-maker dev-kit update
 未显式指定 IDE 的自动检测模式下，legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且
 自身已存在时作为 fallback 合并；写入的 WorkBuddy MCP server 会包含 `disabled: false`。
 WorkBuddy 账号维度的启用/信任状态在 `.workbuddy/connectors/<account-id>/connector-states.json`
-中维护，不在 `mcp.json` 中；CLI 只做只读诊断，并在 `mcp install --ide workbuddy`
-和 `doctor` 输出中提示用户到 WorkBuddy MCP 设置里启用/信任 `taptap-maker`，不会自动修改账号
-信任状态。OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入。
+中维护，不在 `mcp.json` 中；CLI 只做只读诊断，并在显式 `mcp install --ide workbuddy`
+结果中提示用户到 WorkBuddy MCP 设置里启用/信任 `taptap-maker`，不会自动修改账号信任状态。
+普通 `doctor` 不会因为发现 `.workbuddy` 就输出 WorkBuddy 诊断。OpenCode 只在
+`~/.config/opencode/opencode.jsonc` 已存在时写入。
 其它 AI 编辑器可按下面的通用 `mcpServers` 片段，让本地 AI 识别自己的配置文件位置后合并写入：
 
 ```json
