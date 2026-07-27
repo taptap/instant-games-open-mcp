@@ -292,12 +292,13 @@ npx @taptap/instant-games-open-mcp
 ### Docker 部署
 
 ```bash
-# 快速启动正式服务
+# 快速启动（同时运行 Production 和 RND 环境）
 cd docker/npm
-docker-compose up -d production
+docker-compose up -d
 
 # 健康检查
 curl http://localhost:5003/health  # Production
+curl http://localhost:5002/health  # RND
 ```
 
 详见: [Docker 部署文档](docker/README.md)
@@ -310,10 +311,11 @@ curl http://localhost:5003/health  # Production
 
 - `get_leaderboard_integration_guide` - 排行榜完整接入工作流指引
 
-#### 信息查询 (2)
+#### 信息查询 (3)
 
 - `get_current_app_info` - 获取当前应用信息
 - `check_environment` - 检查环境配置
+- `get_environment_switch_guide` - 获取 production/RND 环境切换配置指引
 
 #### 认证 (3)
 
@@ -497,6 +499,7 @@ npx @modelcontextprotocol/inspector node dist/maker.js
 
 **其他**:
 
+- `TAPTAP_MCP_ENV` - 环境：`production`（默认）或 `rnd`
 - `TAPTAP_MCP_DC_CURRENT_APP_BASE_URL` - 当前游戏 DC 接口 host 覆盖（可选，路径仍为 `/mcp/v1/current-app/...`）
 - `TAPTAP_MCP_TRANSPORT` - 传输模式：`stdio`（默认）、`sse`、`http`
 - `TAPTAP_MCP_PORT` - 端口（默认 3000）
@@ -514,6 +517,13 @@ npx @modelcontextprotocol/inspector node dist/maker.js
 - `TAPTAP_MCP_LOG_MAX_DAYS` - 日志保留天数（默认 7）
 
 详细说明请参考 [docs/LOG_SYSTEM.md](docs/LOG_SYSTEM.md)
+
+### 环境切换帮助
+
+如果需要在 AI 对话中切换测试环境，可以让 AI 调用
+`get_environment_switch_guide` 查看配置示例，再更新 MCP 客户端配置中的 `env` 字段。
+RND 环境需要显式配置 `TAPTAP_MCP_CLIENT_ID` 和 `TAPTAP_MCP_CLIENT_SECRET`，
+production 通常使用内置 native signer，无需额外配置。
 
 ### 添加新功能
 

@@ -351,6 +351,7 @@ npm run format
 | `TAPTAP_MCP_TRANSPORT`    | 传输协议（stdio/sse/http） | stdio                 |
 | `TAPTAP_MCP_PORT`         | HTTP/SSE 模式端口          | 3000                  |
 | `TAPTAP_MCP_VERBOSE`      | 详细日志模式               | false                 |
+| `TAPTAP_MCP_ENV`          | 环境选择（production/rnd） | production            |
 | `TAPTAP_MCP_CACHE_DIR`    | 缓存根目录                 | /tmp/taptap-mcp/cache |
 | `TAPTAP_MCP_TEMP_DIR`     | 临时文件根目录             | /tmp/taptap-mcp/temp  |
 | `WORKSPACE_ROOT`          | 工作空间根路径（推荐设置） | process.cwd()         |
@@ -599,3 +600,4 @@ PR 自动审查遵循 Puer 方法论。完整规范见 [docs/CODE_REVIEW.md](doc
 - 环境变量名称使用 TAPTAP*MCP* 前缀
 - MAC Token 必须是 JSON 字符串格式
 - 请求签名使用两层机制（MAC + X-Tap-Sign）
+- 默认环境为 production，可通过 TAPTAP_MCP_ENV 切换

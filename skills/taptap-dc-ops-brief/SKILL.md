@@ -56,7 +56,8 @@ description: 生成 TapTap 当前游戏 DC 运营简报与结论解读（商店/
 3. 认证与参数
    - **默认线上用法不需要再向用户索要 `TAPTAP_MCP_CLIENT_ID` 或 `TAPTAP_MCP_CLIENT_SECRET`**
    - 发布到 npm 的正式包通常已经内置生产环境所需参数，安装后应先直接尝试 `check_environment`
-   - 只有在本地开发、自托管或包维护者明确要求时，才额外配置客户端凭证
+   - 只有在以下场景才需要额外环境变量：本地开发、自托管、指定 RND 环境、或包维护者明确要求覆盖默认配置
+   - 如需显式覆盖，常见变量为：`TAPTAP_MCP_ENV`、`TAPTAP_MCP_CLIENT_ID`、`TAPTAP_MCP_CLIENT_SECRET`
 4. 首次授权
    - 走 `start_oauth_authorization` -> 用户扫码 -> `complete_oauth_authorization`
 

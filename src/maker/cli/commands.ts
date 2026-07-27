@@ -9,7 +9,6 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
-import { getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
 import {
   getMakerEnvironment,
   setMakerEnvironmentOverride,
@@ -1053,10 +1052,7 @@ async function prepareMcpLauncher(options: {
 
   const verification = await verifyMakerMcpLauncher(launcher, {
     cwd: options.cwd,
-    env:
-      options.env === 'production'
-        ? undefined
-        : { ...getDefaultEnvironment(), TAPTAP_MCP_ENV: options.env },
+    env: options.env === 'production' ? undefined : { TAPTAP_MCP_ENV: options.env },
   });
   if (!verification.ok) {
     return {

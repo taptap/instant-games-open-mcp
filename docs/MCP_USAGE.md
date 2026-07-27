@@ -46,7 +46,7 @@ TapTap Minigame MCP Server 是一个基于 [Model Context Protocol (MCP)](https:
 
 ### 平台接入与环境变量
 
-对于需要更细粒度控制（如手动认证、日志调试）的场景，可以通过环境变量进行配置。你可以在 `.mcp.json` 的 `env` 字段中设置这些变量。
+对于需要更细粒度控制（如手动认证、环境切换、日志调试）的场景，可以通过环境变量进行配置。你可以在 `.mcp.json` 的 `env` 字段中设置这些变量。
 
 #### 环境变量列表
 
@@ -54,6 +54,7 @@ TapTap Minigame MCP Server 是一个基于 [Model Context Protocol (MCP)](https:
 
 | 变量名                               | 描述                                                                   | 默认值          |
 | :----------------------------------- | :--------------------------------------------------------------------- | :-------------- |
+| `TAPTAP_MCP_ENV`                     | 环境选择，`production` (生产环境) 或 `rnd` (测试环境)                  | `production`    |
 | `TAPTAP_MCP_DC_CURRENT_APP_BASE_URL` | 当前游戏 DC 接口 host 覆盖（可选，路径仍为 `/mcp/v1/current-app/...`） | 未设置          |
 | `TAPTAP_MCP_VERBOSE`                 | 是否启用详细调试日志，`true` 或 `false`                                | `false`         |
 | `TAPTAP_MCP_WORKSPACE_ROOT`          | 项目工作区根目录，用于解析相对路径。推荐设置为 `${workspaceFolder}`    | `process.cwd()` |
@@ -94,6 +95,7 @@ TapTap Minigame MCP Server 是一个基于 [Model Context Protocol (MCP)](https:
       "command": "npx",
       "args": ["-y", "@taptap/instant-games-open-mcp"],
       "env": {
+        "TAPTAP_MCP_ENV": "production",
         "TAPTAP_MCP_VERBOSE": "true",
         "TAPTAP_MCP_WORKSPACE_ROOT": "${workspaceFolder}",
         "TAPTAP_MCP_LOG_FILE": "true"
@@ -102,6 +104,44 @@ TapTap Minigame MCP Server 是一个基于 [Model Context Protocol (MCP)](https:
   }
 }
 ```
+
+#### 环境切换辅助
+
+MCP 内置 `get_environment_switch_guide` 工具，用于在 AI 对话中获取
+production / RND 的配置示例。你可以直接对 AI 说：
+
+```text
+帮我把 TapTap MCP 切到 RND 环境
+```
+
+AI 应先调用 `get_environment_switch_guide`，再根据返回的步骤修改 MCP 客户端配置中的
+`env` 字段。RND 配置示例：
+
+```json
+{
+  "mcpServers": {
+    "taptap-minigame": {
+      "command": "npx",
+      "args": ["-y", "@taptap/instant-games-open-mcp@beta"],
+      "env": {
+        "TAPTAP_MCP_ENV": "rnd",
+        "TAPTAP_MCP_CLIENT_ID": "your_rnd_client_id",
+        "TAPTAP_MCP_CLIENT_SECRET": "your_rnd_client_secret",
+        "TAPTAP_MCP_WORKSPACE_ROOT": "${workspaceFolder}"
+      }
+    }
+  }
+}
+```
+
+切换后需要重启 MCP 客户端或刷新 MCP server，再调用 `check_environment`
+确认 `TAPTAP_MCP_ENV` 已生效。`TAPTAP_MCP_CLIENT_SECRET` 是敏感信息，
+只应放在本地 MCP 配置或受控环境变量中，不要提交到仓库。
+
+> `@beta` 包也发布在 public npm registry 上，不能把 RND 凭证打进包里。
+> RND 凭证只能由本地 MCP 配置或受控环境变量注入。
+
+---
 
 ### 接入模式详解
 
@@ -172,6 +212,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 const transport = new StdioClientTransport({
   command: 'npx',
   args: ['-y', '@taptap/instant-games-open-mcp'],
+  env: {
+    TAPTAP_MCP_ENV: 'production', // 可选：指定环境变量
+  },
 });
 
 // 2. 初始化客户端
@@ -212,6 +255,7 @@ console.log(result);
 
 - `get_current_app_info`: 获取当前选中的应用信息。**重要：操作前请先检查此项。**
 - `check_environment`: 检查环境变量配置和认证状态。
+- `get_environment_switch_guide`: 获取 production / RND 环境切换配置指引。
 - `start_oauth_authorization`: 开始 OAuth 2.0 授权流程（获取二维码）。
 - `complete_oauth_authorization`: 完成 OAuth 授权（用户扫码后调用）。
 - `list_developers_and_apps`: 列出当前账号下的所有开发者和应用，包含关卡游戏和非关卡游戏。

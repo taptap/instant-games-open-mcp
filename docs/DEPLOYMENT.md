@@ -174,12 +174,18 @@ export TAPTAP_MCP_MAC_TOKEN='{"kid":"your_kid","token_type":"mac","mac_key":"you
 
 #### 环境和传输（可选）
 
-| 变量                                 | 说明                               | 默认值  |
-| ------------------------------------ | ---------------------------------- | ------- |
-| `TAPTAP_MCP_DC_CURRENT_APP_BASE_URL` | 当前游戏 DC 接口 host 覆盖（可选） | -       |
-| `TAPTAP_MCP_TRANSPORT`               | 传输协议                           | `stdio` |
-| `TAPTAP_MCP_PORT`                    | HTTP/SSE 端口                      | `3000`  |
-| `TAPTAP_MCP_VERBOSE`                 | 详细日志模式                       | `false` |
+| 变量                                 | 说明                               | 默认值       |
+| ------------------------------------ | ---------------------------------- | ------------ |
+| `TAPTAP_MCP_ENV`                     | 环境选择                           | `production` |
+| `TAPTAP_MCP_DC_CURRENT_APP_BASE_URL` | 当前游戏 DC 接口 host 覆盖（可选） | -            |
+| `TAPTAP_MCP_TRANSPORT`               | 传输协议                           | `stdio`      |
+| `TAPTAP_MCP_PORT`                    | HTTP/SSE 端口                      | `3000`       |
+| `TAPTAP_MCP_VERBOSE`                 | 详细日志模式                       | `false`      |
+
+**环境选项**：
+
+- `production`：https://agent.tapapis.cn
+- `rnd`：https://agent.api.xdrnd.cn（测试环境）
 
 **当前游戏 DC 接口覆盖**：
 
@@ -224,7 +230,10 @@ Docker 部署文件已整理到 `docker/` 目录下，提供两种部署方式�
 ```bash
 cd docker/npm
 
-# 启动正式服务（端口 5003）
+# RND 环境变量从项目根目录 .env 读取
+# 确保 .env 中配置了 TAPTAP_MCP_CLIENT_ID 和 TAPTAP_MCP_CLIENT_SECRET
+
+# 同时启动 Production (端口 5003) 和 RND (端口 5002) 两个环境
 docker-compose up -d
 
 # 查看状态
@@ -242,8 +251,13 @@ docker-compose down
 ```bash
 cd docker/npm
 
-# 正式服务（使用 Native Signer，无需配置）
+# Production 环境（使用 Native Signer，无需配置）
 ./run.sh -p 5003
+
+# RND 环境（需要配置环境变量）
+export TAPTAP_MCP_CLIENT_ID=your_client_id
+export TAPTAP_MCP_CLIENT_SECRET=your_client_secret
+./run.sh --rnd -p 5002
 
 # 更新到最新 npm 版本
 ./run.sh --no-cache
@@ -275,18 +289,20 @@ npx -y @taptap/instant-games-open-mcp
 
 ### 2.2 端口配置
 
-| 服务       | 端口 | API Base         |
-| ---------- | ---- | ---------------- |
-| Production | 5003 | agent.tapapis.cn |
+| 服务       | 端口 | 环境       | API Base           |
+| ---------- | ---- | ---------- | ------------------ |
+| Production | 5003 | production | agent.tapapis.cn   |
+| RND        | 5002 | rnd        | agent.api.xdrnd.cn |
 
 ### 2.3 环境变量
 
-| 变量                                 | 说明                  | 默认值        |
-| ------------------------------------ | --------------------- | ------------- |
-| `TAPTAP_MCP_CLIENT_ID`               | Client ID             | 内置 (Signer) |
-| `TAPTAP_MCP_CLIENT_SECRET`           | Client Secret         | 内置 (Signer) |
-| `TAPTAP_MCP_DC_CURRENT_APP_BASE_URL` | 当前游戏 DC host 覆盖 | -             |
-| `TAPTAP_MCP_VERBOSE`                 | 详细日志              | true          |
+| 变量                                 | 说明                  | Production    | RND    |
+| ------------------------------------ | --------------------- | ------------- | ------ |
+| `TAPTAP_MCP_ENV`                     | 环境                  | production    | rnd    |
+| `TAPTAP_MCP_CLIENT_ID`               | Client ID             | 内置 (Signer) | 需配置 |
+| `TAPTAP_MCP_CLIENT_SECRET`           | Client Secret         | 内置 (Signer) | 需配置 |
+| `TAPTAP_MCP_DC_CURRENT_APP_BASE_URL` | 当前游戏 DC host 覆盖 | -             | -      |
+| `TAPTAP_MCP_VERBOSE`                 | 详细日志              | true          | true   |
 
 ### 2.4 使用方式
 
@@ -299,6 +315,7 @@ docker-compose logs -f
 
 # 单独容器方式
 docker logs -f taptap-mcp-npm-production  # Production
+docker logs -f taptap-mcp-npm-rnd         # RND
 ```
 
 #### 健康检查
@@ -306,6 +323,9 @@ docker logs -f taptap-mcp-npm-production  # Production
 ```bash
 # Production
 curl http://localhost:5003/health
+
+# RND
+curl http://localhost:5002/health
 
 # 示例响应：
 # {
@@ -326,7 +346,7 @@ cd docker/npm
 docker-compose down
 
 # 单独容器方式
-docker stop taptap-mcp-npm-production
+docker stop taptap-mcp-npm-production taptap-mcp-npm-rnd
 ```
 
 #### 更新镜像
@@ -394,6 +414,7 @@ version: '3.8'
 services:
   taptap-mcp-server:
     environment:
+      - TAPTAP_MCP_ENV=rnd
       - TAPTAP_MCP_VERBOSE=true
 ```
 
@@ -404,6 +425,7 @@ version: '3.8'
 services:
   taptap-mcp-server:
     environment:
+      - TAPTAP_MCP_ENV=production
       - TAPTAP_MCP_VERBOSE=false
     deploy:
       replicas: 2 # 多实例
