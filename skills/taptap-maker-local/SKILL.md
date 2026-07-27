@@ -190,8 +190,9 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
   use the returned local model path. The local proxy materializes only the `model_files` copy/extract
   instructions returned by the local runtime; report `delivery_failures` when no model can be delivered.
 - For any ad-related request such as 广告, rewarded videos, play ads, ad ID, ad placement,
-  ad status, ad config, or `ShowRewardVideoAd`, inspect Maker project status first. Call
-  `get_ad_config` only after the primary local project configs are initialized.
+  ad status, ad config, or `ShowRewardVideoAd`, first read `maker://ads-integration-guide`, then
+  follow it to inspect Maker project status, call `get_ad_config`, and read the project engine
+  document before editing ad code or testing ad behavior.
 - Do not infer ad readiness from local SDK docs, `.maker-mcp/config.json`, or runtime callbacks.
   If the primary local project configs are missing, keep ad config unavailable and do not call the
   remote tool. Build only for an explicit user build/submit/preview request. If a successful build
@@ -273,26 +274,32 @@ for the initial diagnosis. Work offline first:
 2. Attempt `npx -y -p @taptap/maker taptap-maker mcp verify --json`; on Windows use
    `npx.cmd -y -p @taptap/maker taptap-maker mcp verify --json`. If the command itself fails, keep
    that failure as diagnostic evidence.
-3. This command checks only the standard `@taptap/maker` npx/CLI launch path and returns command,
-   status, signal, stdout, stderr, error, and failure_type. It does not start the Maker MCP server
-   and does not read or validate the client's active MCP config, WorkBuddy trust, cwd, or Roots.
-   A successful verify result does not prove that the client MCP config works.
-4. Inspect and reproduce the active config path, command, ordered args, cwd, WorkBuddy enable/trust
-   state, workspace/Roots, Node/npm/npx paths, the AI client's PATH, exit status, and stderr.
-5. For WorkBuddy, verify both the `taptap-maker` server entry and the account-level enable/trust
-   state. Do not edit account trust storage automatically; ask the user to enable it in WorkBuddy.
-6. On Windows, keep `cmd.exe`, `npx.cmd`, and each argument separate. Never replace cwd with a
-   `cd /d "<project>" && npx.cmd ...` command string, including for Chinese project paths.
-7. If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field. Use the active
+3. This command uses the same resolved launcher as MCP install, starts `@taptap/maker`, completes MCP
+   initialize and tools/list, and returns launcher_kind, command, stage, tools, stderr, error, and
+   failure_type. It does not read the client's active config or validate WorkBuddy trust, client
+   config caching, or Roots.
+4. First identify the active AI client from reliable evidence, then inspect and reproduce only that
+   client's active config path, command, ordered args, cwd, workspace/Roots, Node/npm/npx paths,
+   client PATH, exit status, and stderr.
+5. Only when the active client is confirmed to be WorkBuddy, verify both the `taptap-maker` server
+   entry and the account-level enable/trust state. Do not edit account trust storage automatically;
+   ask the user to enable it in WorkBuddy.
+6. Never use one client's configuration or trust state to diagnose another client. `doctor` does not
+   inspect the active AI client's loaded tools or configuration.
+7. On Windows, configs written by the CLI must use the verified absolute Node/npm launcher. Treat
+   existing `cmd.exe` or `npx.cmd` configs as legacy diagnostic evidence; do not persist them as a
+   repair. Never replace cwd with a `cd /d "<project>" && npx.cmd ...` command string, including for
+   Chinese project paths.
+8. If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field. Use the active
    workspace/Roots and record the process actual cwd instead.
-8. Do not assume Windows 8.3 short paths exist or differ from the original long path. Verify the
+9. Do not assume Windows 8.3 short paths exist or differ from the original long path. Verify the
    result first; an unchanged or missing short path is not a usable cwd workaround.
-9. Reproduce the configured Windows launch with the same direct argv boundary when possible.
-   Separate outer shell quoting or stderr decoding failures from the MCP child process result, and
-   record both without treating wrapper failures as server evidence.
-10. Remember that multiple AI conversations share user-level MCP config. One conversation can break
+10. Reproduce the configured Windows launch with the same direct argv boundary when possible.
+    Separate outer shell quoting or stderr decoding failures from the MCP child process result, and
+    record both without treating wrapper failures as server evidence.
+11. Remember that multiple AI conversations share user-level MCP config. One conversation can break
     every other conversation by rewriting the shared command or cwd.
-11. Classify the root cause from evidence before repairing it. Do not automatically change trust
+12. Classify the root cause from evidence before repairing it. Do not automatically change trust
     storage, PATH, cwd, credentials, or game code. Use `taptap-maker mcp install --ide <client>` only
     after evidence confirms that the active config entry is damaged. Reconnect and verify again in
     both the current and a new conversation.
@@ -300,7 +307,7 @@ for the initial diagnosis. Work offline first:
 If the MCP connection is established but a tool or resource call fails, including `-32003`, use a
 separate evidence-first runtime-error workflow. Do not assign a fixed meaning to `-32003`; preserve
 the exact client error. `mcp verify` is not the primary check for an already connected session
-because it only tests the standard npx/CLI launch path. Collect the failed tool/resource, redacted
+because it tests only the local launcher and stdio MCP path. Collect the failed tool/resource, redacted
 request parameters, current `tools/list`, exact error code/message/data, complete sanitized
 `remote_result`, request/correlation IDs, timestamp with timezone, OS/architecture, AI client and
 `@taptap/maker` package versions, and stable reproduction steps. Preserve useful nested error,

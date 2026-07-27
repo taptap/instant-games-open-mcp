@@ -23,8 +23,8 @@
 - 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。
 - 本地 Git 是 clone/push 的硬性前置条件。Maker MCP 只检测和引导，不代替用户安装 Git。
-- Windows 是优先支持环境：生成 MCP 配置时 Windows 通过 `cmd.exe` 包装 `npx.cmd`，避免无
-  shell 的 MCP 启动器直接 spawn `.cmd` 失败；Git 引导优先指向 Git for Windows。
+- Windows 是优先支持环境：生成 MCP 配置时只固化绝对 `node.exe` 与 `npm-cli.js`；找不到
+  该组合时安装失败，不持久化 `.cmd` shell 命令或依赖客户端 PATH；Git 引导优先指向 Git for Windows。
 - 仓库同时提供 `taptap-maker-local`、`taptap-maker-dev-kit-guide` 和 `update-taptap-mcp` skills，用于把本地 Git 工作流、AI dev kit 内容说明和 MCP 更新缓存流程交给本地 AI/Agent 按业务规则执行。
 
 ## 本地测试
@@ -140,6 +140,9 @@ app 列表、clone 和 MCP 配置不会继续执行。Python 修复后重新运�
 列表底部固定显示 `0. Create a new Maker project`，输入 `0` 或 `new` 可创建新项目。选择或创建完成后，
 CLI 会 clone 项目、补齐 `assets/image`、`assets/sprites`、`assets/video`、`assets/audio`
 和 `scripts` 基础目录、准备 dev-kit，并按客户端写入 MCP 配置。
+如果任一客户端配置写入失败，CLI 会继续尝试其余目标，但最终记录 `mcp_install_failed`、
+返回非零且不输出初始化完成。已成功写入的客户端配置不会回滚；修复失败项后可运行
+`taptap-maker mcp install --ide <client>` 单独重试。
 
 普通初始化、clone、下载或拉取远端项目的标准命令是 `taptap-maker init`，CLI 会展示 app
 列表，让用户选择已有 app 或 `0`/`new`。`--create` 只用于用户明确要求创建新 Maker 项目的场景。
@@ -199,7 +202,8 @@ Python 运行时策略：
   或自行安装 Python 3.12 后运行 `taptap-maker python doctor`。
 - `taptap-maker install`：`taptap-maker mcp install` 的快捷别名，用于写入当前机器的
   AI 客户端 MCP 配置。
-- `taptap-maker mcp install`：写入当前机器的 AI 客户端 MCP 配置。无 `--ide` 时默认写入
+- `taptap-maker mcp install`：先用最终 launcher 完成 MCP `initialize` 和 `tools/list`，成功后
+  写入当前机器的 AI 客户端 MCP 配置。验证失败不修改配置或备份。无 `--ide` 时默认写入
   Codex、Cursor、Claude，并自动检测已存在配置文件的 Trae、OpenCode、WorkBuddy。可用
   `--ide codex,cursor,claude,trae,opencode,workbuddy` 显式指定目标。
   Codex 配置写入会同时清理 `[mcp_servers.taptap-maker]` 与
@@ -210,7 +214,9 @@ Python 运行时策略：
   如果已有 JSON 配置无法解析，CLI 会停止该目标写入并保留原文件。
   其它 AI 编辑器可使用 README 中的通用 `mcpServers` JSON 片段，让本地 AI 先识别该编辑器的
   实际配置文件位置，再合并写入；CLI 不会额外生成通用配置文件。
-- `taptap-maker mcp verify`：默认验证 AI 客户端 MCP 配置使用的 npx 包命令可启动；`--mode self` 只验证当前 CLI 二进制。验证失败时若出现 `failure_type` 或 `status: null`，表示本地启动命令还没正常退出，Maker MCP server 尚未启动，不要当作 PAT、项目或 Maker 业务接口错误。
+- `taptap-maker mcp verify`：默认使用安装器的同一 launcher 完成 MCP `initialize` 和
+  `tools/list`；`--mode self` 验证当前 CLI 二进制。失败会输出 `stage`、`failure_type`、最终
+  command 和 stderr，并返回非零退出码；不要当作 PAT、项目或 Maker 业务接口错误。
 - `taptap-maker agents update`：只更新当前目录 `AGENTS.md` 中 TapTap Maker 管理的策略块，
   保留用户自己的项目说明；缺少 `AGENTS.md` 时会创建文件。
 - `taptap-maker upgrade`：当前目录的一站式升级入口，刷新 AI 客户端 MCP 配置，并在当前目录
@@ -230,6 +236,8 @@ MCP 运行期能力：
 - 更新 `@taptap/maker` 后，需要 reconnect/restart MCP 或新开 AI 会话才能收到新的
   `initialize.instructions`；旧项目按状态输出继续执行 `agents update` 或 `upgrade`。
 - `maker://status`：资源形式的本地 Maker 状态，适合 Agent 首先读取。
+- `maker://ads-integration-guide`：广告接入入口，串联 `get_ad_config` 与项目内
+  `engine-docs/recipes/sdk.md`，前者负责状态/配置，后者负责 Lua 代码实现。
 - `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。
   支持 MCP Roots 的 AI 客户端会把当前 workspace root 暴露给 Maker MCP；状态会优先使用
   该 root 识别当前项目，并输出 `MCP client roots` 与 `project_context_source` 诊断。
@@ -264,15 +272,14 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   更新 `config/maker-version-policy.json` 并创建一个可 review 的 PR。`tag=latest` 只自动更新
   `latest`，`tag=beta` 只自动更新 `latest_beta`，并刷新 `updated_at`；`minimum_supported`、
   `blacklist` 和 `message` 保持人工策略字段，不由发版流程自动改。
-- `taptap-maker doctor` 会输出 `Maker MCP tools availability`。如果当前 AI 对话里看不到
-  Maker proxy tools，先按该段提示重启 AI 客户端、新开 AI 对话，或在支持 `/mcp` 的客户端中
-  Reconnect `taptap-maker`；如果客户端不支持 MCP Roots 且输出 `pwd_alignment: cwd_mismatch`，
-  说明 AI 的 pwd 和 Maker 项目目录不一致，可重新安装 MCP 配置并用
-  `--target-dir <PROJECT_DIR>` 显式固定 cwd。
+- `taptap-maker doctor` 只输出离线主机、项目和 CLI 执行上下文检查；它不会检查当前 AI 会话
+  是否已加载 Maker tools，也不会读取当前客户端的实际配置。`doctor_cwd` 是运行 doctor 的
+  CLI 进程目录，不是 AI 客户端 cwd；不要仅凭该字段重装 MCP 或修改客户端配置。
 - `maker://status` 和 `maker_status_lite` 会输出 `Python environment` 和
   `Lua LSP environment`。本地 Lua 诊断需要环境时，Agent 应先看这两段；如果
   `python_status` 或 `lsp_status` 不是 `ready`，可运行 `taptap-maker python setup`
-  准备完整本地 Lua 诊断环境。Python 或 LSP 缺失不阻塞远端构建主流程。
+  准备完整本地 Lua 诊断环境。Python 或 LSP 缺失只影响本地 Lua 诊断，不阻塞 MCP 连接或远端
+  构建主流程。Dev-kit、版本和 AGENTS policy 检查属于维护信息，不能单独证明客户端连接失败。
 - `maker_build_current_directory`：统一执行本地同步和远端构建。提交前会检查 Maker 远端同步状态；
   本地落后远端、分叉、当前不在 `main` 或无法确认远端同步时，会在创建 commit 前停止。普通构建会先
   push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit
@@ -348,7 +355,7 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 - 发生冲突时解释为什么冲突、冲突文件在哪里、冲突内容是什么，并让 Agent 给出解决建议。
 - 冲突解决前必须让用户确认，不隐藏 unresolved conflict。
 
-`taptap-maker doctor` 和 `maker://status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。Maker 操作目标是用户当前项目目录；支持 MCP Roots 的客户端会由 workspace root 提供该目录，MCP 进程 cwd 只作为诊断信息。若状态输出 `MCP client roots` 且只有一个 root，或多个 root 中只有一个已绑定 Maker 项目，Maker MCP 会自动选择该目录；如果多个 root 都是 Maker 项目，Agent 不应猜测，应让用户只打开一个 Maker workspace 或显式传 `target_dir`。若客户端不支持 MCP Roots，且 `taptap-maker doctor` 输出 `Maker MCP tools availability` / `pwd_alignment: cwd_mismatch`，或状态输出 `MCP tool registration cwd` 且 `mcp_cwd_project_dir` 不是当前 `maker_project_dir`，说明当前会话启动 MCP 时的 cwd 错误；可修正 `taptap-maker` MCP 配置里的 `cwd` 后在 `/mcp` 中 Reconnect，而不是反复普通重启。若只是首次安装后当前对话看不到 tools，优先重启 AI 客户端或新开 AI 对话。
+`taptap-maker doctor` 和 `maker://status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。Maker 操作目标是用户当前项目目录；支持 MCP Roots 的客户端会由 workspace root 提供该目录，MCP 进程 cwd 只作为诊断信息。若状态输出 `MCP client roots` 且只有一个 root，或多个 root 中只有一个已绑定 Maker 项目，Maker MCP 会自动选择该目录；如果多个 root 都是 Maker 项目，Agent 不应猜测，应让用户只打开一个 Maker workspace 或显式传 `target_dir`。`taptap-maker doctor` 不检查当前 AI 会话的 tools 或客户端配置；`doctor_cwd` 只代表 CLI 进程目录，不能单独证明会话 cwd 错误。若只是首次安装后当前对话看不到 tools，应根据当前客户端的实际配置和日志排查，并在确认客户端支持时重启或 Reconnect。
 
 已绑定项目还会检查 `AGENTS.md` 中 TapTap Maker managed policy block 的版本和 hash。
 如果状态显示 `missing_file`、`missing_block` 或 `outdated`，说明用户进入了旧项目或本地规则
@@ -525,10 +532,10 @@ Windows 引导：
 
 Windows 兼容注意：
 
-- 写入 MCP 配置时，Windows 下通过 `cmd.exe /d /s /c npx.cmd ...` 启动，避免部分客户端
-  无 shell 直接 `spawn` `.cmd` 时返回 `EINVAL`。
+- 写入 MCP 配置时，Windows 只使用绝对 `node.exe` 加绝对 `npm-cli.js`；该组合不可用时
+  安装失败，不通过 `cmd.exe` 持久化 `.cmd` launcher，也不会写入依赖客户端 PATH 的裸命令。
 - OpenCode 使用官方 `mcp` 配置 schema：`~/.config/opencode/opencode.jsonc` 中的
-  `mcp.<name>.command` 是数组，Windows 下写入 `npx.cmd`，不会套 `cmd.exe`，也不写环境变量。
+  `mcp.<name>.command` 是数组，并复用和其它客户端相同的已验证 launcher，不写环境变量。
 - Trae Solo 是重点支持目标；Solo 或 Solo CN 的 `User/` 目录存在时会创建或合并
   `User/mcp.json`。普通 Trae/Trae CN 仍作为候选路径保留，但只有 `mcp.json` 已存在时才合并写入。
   macOS 常见位置包括
@@ -541,8 +548,9 @@ Windows 兼容注意：
   legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为 fallback 合并。
   WorkBuddy MCP server 配置必须写入 `disabled: false`；账号维度的启用/信任状态在
   `.workbuddy/connectors/<account-id>/connector-states.json` 中维护，不在 `mcp.json` 中。CLI
-  只做只读诊断，并在 `mcp install --ide workbuddy` 和 `doctor` 中提示用户到 WorkBuddy MCP
-  设置里启用/信任 `taptap-maker`，不自动修改账号信任状态；Windows 用户对应路径是
+  只做只读诊断，并在显式 `mcp install --ide workbuddy` 结果中提示用户到 WorkBuddy MCP
+  设置里启用/信任 `taptap-maker`，普通 `doctor` 不会因为存在 `.workbuddy` 就输出 WorkBuddy
+  诊断，不自动修改账号信任状态；Windows 用户对应路径是
   `%USERPROFILE%\.workbuddy\connectors\<account-id>\connector-states.json`。
 - OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入，不主动创建。
 - MCP 配置写入时会在对应 MCP server 进程环境中增加
@@ -552,8 +560,12 @@ Windows 兼容注意：
   客户端互相覆盖全局 cwd。支持 MCP Roots 的客户端由当前 workspace root 决定 Maker 项目。
   单独运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>` 时才会显式写入该目录，
   用于不支持 MCP Roots 的客户端或临时修复。
-- `taptap-maker mcp verify` 的 `status: null` 会被解释为本地 Node/npm/npx 启动验证失败，并输出 `failure_type`、原始 command 和下一步排查命令；这发生在 Maker MCP server 启动前。
-- `taptap-maker mcp install` 会逐 IDE 返回成功或失败；某个客户端配置写入失败不会阻塞其他客户端继续尝试。
+- 安装器在任何配置写入前完成 MCP `initialize` 和 `tools/list`；失败时所有目标配置和
+  `<config>.taptap-maker.bak.latest` 均保持不变。
+- `taptap-maker mcp verify` 复用相同协议验证，失败时输出阶段和诊断并返回非零退出码。
+- `taptap-maker mcp install` 会逐 IDE 返回成功或失败；某个客户端配置写入失败不会阻塞其他客户端继续尝试，但最终退出码为非零。
+- `taptap-maker init` 遵循相同的整体成功契约；任一客户端写入失败时记录
+  `mcp_install_failed`，不保存 `completed` 状态，也不输出初始化完成事件。
 - MCP 配置写入只维护 `<config>.taptap-maker.bak.latest` 作为最近一次 TapTap Maker 回滚备份；
   历史 `.bak.*` 文件来源不可可靠判断，CLI 不会自动删除或改名。
 - Maker 内部路径必须使用 Node `path` API，不能手写 POSIX 路径分隔符。

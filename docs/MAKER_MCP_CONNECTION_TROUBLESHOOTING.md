@@ -42,14 +42,14 @@ macOS/Linux：
 npx -y -p @taptap/maker taptap-maker mcp verify --json
 ```
 
-`mcp verify --json` 只检查标准 `@taptap/maker` npx/CLI 启动链路，并返回
-command、status、signal、stdout、stderr、error 和 failure_type。它不会启动 Maker MCP server，
-不会读取或验证客户端实际生效的 MCP 配置，也不会检查 WorkBuddy trust、cwd 或 MCP Roots。
-`mcp verify` 成功不代表客户端 MCP 配置正常。
+`mcp verify --json` 使用安装器的同一 launcher 启动 `@taptap/maker`，完成 MCP
+`initialize` 和 `tools/list`，并返回 launcher_kind、command、stage、tools、stderr、error 和
+failure_type。失败时命令退出码非零。它证明本机最终启动命令和 stdio MCP 通路可用，但不会读取
+客户端实际生效的配置，也不能检查任意客户端 trust、客户端配置缓存或 MCP Roots。
 
-因此，无论该命令成功还是失败，后续都必须继续检查并复现客户端真实使用的 config path、command、
-有序 args、cwd、WorkBuddy enable/trust、workspace/Roots、Node/npm/npx 路径、client PATH、退出状态
-和 stderr。
+因此，无论该命令成功还是失败，后续都必须先确认当前客户端，再检查并复现该客户端真实使用的
+config path、command、有序 args、cwd、workspace/Roots、Node/npm/npx 路径、client PATH、退出状态
+和 stderr。WorkBuddy enable/trust 只适用于已确认的 WorkBuddy 客户端。
 
 ### MCP 已连接但 tool/resource 调用失败
 
@@ -57,7 +57,7 @@ command、status、signal、stdout、stderr、error 和 failure_type。它不会
 `-32003`），说明当前会话已经建立连接。不要给 `-32003` 假定固定含义，也不要直接套用启动失败结论；
 应保留客户端返回的原始错误 code、message 和 data，按实际证据分类。
 
-对于已经连接的会话，`mcp verify` 不是首要检查。它只验证标准 npx/CLI 启动链路，不能解释单次
+对于已经连接的会话，`mcp verify` 不是首要检查。它只验证本地 launcher 和 stdio MCP 通路，不能解释单次
 tool/resource 调用中的请求校验、项目上下文、远端响应或业务错误。用户 AI 应先保存以下证据：
 
 远端 Maker 构建中的 Lua/LSP 编译错误是工具级业务失败。代理会把带 `error.data.remote_result` 的
@@ -95,7 +95,12 @@ Windows 中 `~` 对应 `%USERPROFILE%`。
 多开 AI 对话不会隔离用户级 MCP 配置。某个对话如果修改了共享配置中的 command、args 或 cwd，
 其它对话在重连或重启后也会失效。应比较配置备份和最近修改时间，确认是否被其它对话重写。
 
-## 4. 检查 WorkBuddy 启用和信任状态
+## 4. 当前客户端与 WorkBuddy 专属检查
+
+先根据当前客户端的真实配置、启动日志或 MCP `initialize` 信息确认客户端类型。
+不要因为本机存在 `.workbuddy` 就判断当前请求经过 WorkBuddy。
+
+只有确认当前客户端是 WorkBuddy 时，才检查以下启用和信任状态。
 
 WorkBuddy 需要同时满足：
 
@@ -113,12 +118,15 @@ AI 只读取该文件用于诊断，不自动修改账号信任状态。未信�
 
 ## 5. 检查标准启动命令
 
-Windows 通用 `mcpServers` 配置应使用独立 command 和 args：
+Windows 通用 `mcpServers` 配置应使用安装器探测并验证后的独立 command 和 args。首选形式是：
 
 ```text
-command: cmd.exe
-args: ["/d", "/s", "/c", "npx.cmd", "-y", "-p", "@taptap/maker", "taptap-maker"]
+command: <绝对 node.exe>
+args: ["<绝对 npm-cli.js>", "exec", "--yes", "--package", "@taptap/maker", "--", "taptap-maker"]
 ```
+
+找不到绝对 Node/npm CLI 组合时，安装器会失败且不修改配置。安装器不会把 `cmd.exe` 或
+`.cmd` launcher 持久化到客户端配置，也不要手工改回依赖客户端 PATH 的裸 `npx.cmd`。
 
 macOS/Linux：
 
@@ -206,11 +214,13 @@ shell 再包一层 `cmd.exe` 时，外层 shell 的引号或转义失败必须�
 退出结果。同样，stderr 解码失败只说明当前读取方式或代码页不匹配；应分别记录子进程退出码、原始
 stderr、尝试的编码和解码错误，不能把解码异常直接当成 Maker MCP server 的错误。
 
-例如，配置使用 Windows 标准 argv 时，按相同顺序复现：
+例如，配置使用 Windows 绝对 Node/npm CLI 时，按相同顺序复现：
 
 ```bat
-cmd.exe /d /s /c npx.cmd -y -p @taptap/maker taptap-maker help
+"<绝对 node.exe>" "<绝对 npm-cli.js>" exec --yes --package @taptap/maker -- taptap-maker
 ```
+
+然后用该 CLI 执行 `mcp verify --json`；不要只用 `help` 代替 MCP 协议握手。
 
 配置使用 macOS/Linux 标准 argv 时：
 
@@ -241,7 +251,8 @@ npx -y -p @taptap/maker taptap-maker help
 npx -y -p @taptap/maker taptap-maker mcp install --ide <当前客户端>
 ```
 
-Windows 可将开头的 `npx` 替换为 `npx.cmd`。客户端不支持 MCP Roots 时才追加：
+Windows 如无法从 PATH 运行上述恢复命令，应使用当前可用 npm 的绝对路径启动 CLI；安装器只会把
+验证过的绝对 Node/npm launcher 写入配置。客户端不支持 MCP Roots 时才追加：
 
 ```text
 --target-dir "<Maker项目绝对路径>"

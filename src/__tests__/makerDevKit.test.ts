@@ -130,8 +130,8 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain('Do not tell the user to open the Maker web page');
     expect(agentsGuide).toContain('Do not use generic Git commit, push, branch, PR, or MR');
     expect(agentsGuide).toContain('Maker ad workflow');
-    expect(agentsGuide).toContain(
-      '`get_ad_config` only after primary local project configs are initialized'
+    expect(agentsGuide.replace(/\s+/gu, ' ')).toContain(
+      'first read `maker://ads-integration-guide`, then follow it'
     );
     expect(agentsGuide).toContain('source of truth for current project ad activation status');
     expect(agentsGuide).toContain('Maker feedback workflow');
@@ -364,8 +364,8 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain('call `maker_build_current_directory`');
     expect(agentsGuide).toContain('Do not tell the user to open the Maker web page');
     expect(agentsGuide).toContain('Maker ad workflow');
-    expect(agentsGuide).toContain(
-      '`get_ad_config` only after primary local project configs are initialized'
+    expect(agentsGuide.replace(/\s+/gu, ' ')).toContain(
+      'first read `maker://ads-integration-guide`, then follow it'
     );
     expect(agentsGuide).toContain('Maker feedback workflow');
     expect(agentsGuide).toContain('the Maker proxy `get_debug_feedbacks` tool');

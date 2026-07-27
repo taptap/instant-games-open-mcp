@@ -6,9 +6,9 @@ export const MAKER_CAPABILITY_ROUTING_INDEX = `TapTap Maker routing index:
   maker://status; use maker_status_lite when resources are unavailable.
 - Build, preview, run, submit, or push: after checking project status, use
   maker_build_current_directory.
-- Tap flows: test QR -> generate_test_qrcode; ads or ad code -> first check
-  Maker project status, then use get_ad_config when primary configs are ready;
-  online player feedback, logs, or screenshots -> get_debug_feedbacks.
+- Ads: read maker://ads-integration-guide before any ad-related work.
+- Tap flows: test QR -> generate_test_qrcode; online player feedback, logs, or
+  screenshots -> get_debug_feedbacks.
 - Game assets: Maker MCP also provides image, video, music, sound-effect,
   dialogue/voice, and 3D generation tools when exposed.
 

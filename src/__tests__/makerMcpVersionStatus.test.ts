@@ -205,12 +205,50 @@ describe('maker MCP version status integration', () => {
     expect(instructions).toContain('maker_status_lite');
     expect(instructions).toContain('maker_build_current_directory');
     expect(instructions).toContain('generate_test_qrcode');
-    expect(instructions).toContain('get_ad_config');
+    expect(instructions).toContain(
+      'Ads: read maker://ads-integration-guide before any ad-related work.'
+    );
+    expect((instructions as string).match(/^- Ads:/gmu)).toHaveLength(1);
     expect(instructions).toContain('get_debug_feedbacks');
     expect(instructions).toContain('image, video, music, sound-effect');
     expect((instructions as string).length).toBeLessThanOrEqual(1200);
     expect(instructions).not.toMatch(
       /agents update|global memory|~\/.(?:codex|claude|workbuddy)/iu
     );
+  });
+
+  test('exposes the built-in Maker ads integration entry document', async () => {
+    const { startMakerMcpServer } = await import('../maker/server/mcp');
+    const { ListResourcesRequestSchema, ReadResourceRequestSchema } = await import(
+      '@modelcontextprotocol/sdk/types.js'
+    );
+
+    await startMakerMcpServer();
+
+    const server = mockServers[0];
+    const listHandler = server.handlers.get(ListResourcesRequestSchema);
+    const readHandler = server.handlers.get(ReadResourceRequestSchema);
+    const listed = await listHandler({}, {});
+
+    expect(listed.resources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          uri: 'maker://ads-integration-guide',
+          name: 'Maker ads integration guide',
+        }),
+      ])
+    );
+
+    const result = await readHandler(
+      { params: { uri: 'maker://ads-integration-guide' } },
+      { requestId: 'ads-guide-test' }
+    );
+    const text = result.contents[0].text;
+
+    expect(text).toContain('get_ad_config');
+    expect(text).toContain('engine-docs/recipes/sdk.md');
+    expect(text).toContain('sdk:ShowRewardVideoAd');
+    expect(text).toContain('result.success');
+    expect(text).toContain('consecutive steps');
   });
 });

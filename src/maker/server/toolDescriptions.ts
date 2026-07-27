@@ -110,7 +110,7 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
     'Call it only with the TapTap user_id explicitly provided by the user; never infer an account ID.',
   ].join(' '),
   get_ad_config: [
-    'After Maker project status confirms the primary local project configs are initialized, use this as the first remote step for ad-related requests.',
+    'For any ad-related request, read maker://ads-integration-guide first. After Maker project status confirms the primary local project configs are initialized, use this as the first remote step.',
     'It is the source of truth for current ad activation and configuration, and synchronizes the result into .project/settings.json at @runtime.ad.',
     'The local preflight does not call the remote tool while project.json or settings.json is missing. Missing local configs do not authorize an automatic build.',
     'Use maker_build_current_directory only for an explicit user build, submit, or preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically.',

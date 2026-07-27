@@ -350,8 +350,10 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - AI dev kit 安装/更新按当前环境查询最新版本信息，按返回的 `current.version` 生成版本化下载 URL；版本检查失败时降级使用内置默认下载地址。安装成功后记录本地已安装版本，`taptap-maker doctor`、`maker://status` 和 `maker_status_lite` 输出当前版本、最新版本和是否可更新。
 - `taptap-maker init` 首次拉取默认使用 `git init` + `git fetch --depth=1 origin` + checkout；Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
 - 首次 clone/fetch 前必须提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
-- CLI 写 MCP 配置时优先支持 Windows：Windows 通过 `cmd.exe` 包装 `npx.cmd`，
-  避免无 shell 的 MCP 启动器直接 spawn `.cmd` 失败；Git 引导优先指向 Git for
+- CLI 写 MCP 配置时优先支持 Windows：只固化当前进程的绝对 `node.exe` 与
+  `npm-cli.js`，不把 `.cmd` shell 命令写入客户端配置。找不到绝对 Node/npm CLI 时安装失败，
+  不生成依赖客户端 PATH 的裸 `npx.cmd`。最终命令必须先完成 MCP `initialize` 和 `tools/list`，验证失败时
+  不修改任何客户端配置或备份；Git 引导优先指向 Git for
   Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方
   Git。`taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置，默认覆盖 Codex、
   Cursor、Claude，并自动检测已存在配置文件的 Trae、OpenCode、WorkBuddy；避免 Codex、Trae、
@@ -366,9 +368,16 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `--ide workbuddy` 时会创建该官方配置文件；未显式指定 IDE 的自动检测模式下，legacy
   `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为 fallback 合并；通用
   `mcpServers` JSON 只作为 README/文档片段引导其它 AI 编辑器识别自己的实际配置文件后合并写入，
-  CLI 不生成额外通用配置文件。
-- `taptap-maker mcp verify` 默认验证 `mcp install` 写入配置的 npx 包命令能否启动；本地开发只验证当前 CLI 时使用 `--mode self`。
-- Maker MCP tools 缺失或出现 `-32000` / `Connection closed` 时，先按 `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md` 做不依赖 MCP tools 的本地自检。必须检查真实配置文件、WorkBuddy 信任、command/args/cwd、MCP Roots、Node/npm/npx 与客户端 PATH、退出码和 stderr；禁止用 Windows 中文路径 `cd && npx` 拼接命令修复 cwd。
+  CLI 不生成额外通用配置文件。`taptap-maker init` 写入多个客户端配置时，任一目标失败都必须
+  记录 `mcp_install_failed`、返回非零且不报告初始化完成；已成功写入的目标保持不变，失败项可用
+  `taptap-maker mcp install --ide <client>` 单独重试。
+- `taptap-maker mcp verify` 默认用 `mcp install` 的同一启动器执行 MCP `initialize` 和
+  `tools/list`；本地开发只验证当前 CLI 时使用 `--mode self`。验证失败必须返回非零退出码。
+- `taptap-maker doctor` 只做离线主机、项目和 CLI 执行上下文检查，不检查当前 AI 会话是否已
+  加载 Maker tools，也不读取客户端实际配置；不要因为存在 `.workbuddy` 就把 WorkBuddy trust
+  当作其它客户端的故障原因。Python/Lua LSP、dev-kit、版本和 AGENTS policy 检查属于维护信息，
+  不能单独证明 MCP 连接失败。
+- Maker MCP tools 缺失或出现 `-32000` / `Connection closed` 时，先按 `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md` 做不依赖 MCP tools 的本地自检。先根据真实配置、日志或 MCP 初始化信息确认当前客户端，再检查该客户端的 command/args/cwd、MCP Roots、Node/npm/npx、client PATH、退出码和 stderr；只有确认当前客户端为 WorkBuddy 时才检查其信任状态。禁止用 Windows 中文路径 `cd && npx` 拼接命令修复 cwd。
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
   远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、
@@ -400,7 +409,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 新开对话、继续开发或检查 Maker 状态时，先读 `maker://status` 或调用 `maker_status_lite`。支持 MCP Roots 的客户端会输出 `MCP client roots` 与 `project_context_source`；只有一个 workspace root 时直接作为 Maker 操作目标，多个 root 中只有一个已绑定 Maker 项目时自动选择该项目，多个 Maker root 时必须让用户只保留一个 Maker workspace 或显式传 `target_dir`，不要猜测。已绑定项目会输出 `Maker remote sync`、AI dev kit 版本检查结果和必要的 `Maker project initialization`，提示是否需要先 pull、是否本地 dirty、是否分叉或是否不在 main、是否需要运行 `taptap-maker dev-kit update`。本地主配置缺失时保持 `not_initialized` 且允许显式构建；仅在用户明确要求构建、提交或预览时调用 `maker_build_current_directory`。构建成功后本地配置仍可能缺失，此时保持二维码、广告和多人配置等依赖能力不可用，不要自动重复构建。频繁轮询或只要快速本地状态时，`maker_status_lite` 可传 `skip_remote_sync=true`，同时跳过远端 Git 同步和 dev-kit 最新版本检查。
 - 统一项目健康检查保持只读，不自动移动、覆盖或重建 `.project` 配置。不得用 `.project` 目录是否存在判断项目已经初始化；`.project` 为空、只含音色 mapping/其它本地文件、只含 `resources.json`，或缺少 `project.json` / `settings.json` 时，都按具体文件状态保持新项目可构建。只有规范位置的配置文件实际存在且内容错误时才进入校验/修复路径：`settings.json` 仍可解析为 object 时，可在用户确认后补入缺失的 schema/build 默认字段，并保留 `@runtime`、`asset_ignores` 与未知字段。`sources.*.tag` 是锁定字段，只能从完整副本恢复；不要凭默认值生成项目身份、版本、发布元数据或资源分组。`entry=main.lua` 也必须先确认项目实际入口。
 - 当前目录是已绑定 Maker 项目时，调用 `generate_test_qrcode` 应先不传方向参数。本地 MCP 会读取 `.project/project.json`：已有合法 `taptap_publish.screen_orientation` 时直接沿用，不再询问用户，且后续输入不能覆盖；只有该字段从未设置时，才单独发起一次对话，让用户明确选择横屏（`landscape`）或竖屏（`portrait`），禁止推断或默认。用户选择后重试并传本地私有参数 `confirmed_screen_orientation`，本地 MCP 只在首次缺失时写入该值，不会把私有参数转发给远端。二维码生成并建立应用身份后，只有用户明确提供 TapTap `user_id` 时才调用 `add_test_whitelist`，不要猜测账号 ID。
-- 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），先检查 Maker 项目状态。主配置未初始化时，本地 preflight 会保持广告能力不可用且不调用远端 `get_ad_config`；仅在用户明确要求构建时调用 `maker_build_current_directory`。构建后本地配置仍缺失时直接说明当前已知限制，不要自动重复构建。配置就绪后再调用 `get_ad_config` 获取广告开通状态和配置；若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。不要先查本地 SDK 文档、`.maker-mcp/config.json` 或用运行回调推断广告是否开通，也不要为这个恢复流程调用发布类工具。
+- 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），先阅读 `maker://ads-integration-guide`，再按其中流程检查 Maker 项目状态、调用 `get_ad_config` 并阅读项目内 `engine-docs/recipes/sdk.md`。主配置未初始化时，本地 preflight 会保持广告能力不可用且不调用远端 `get_ad_config`；仅在用户明确要求构建时调用 `maker_build_current_directory`。构建后本地配置仍缺失时直接说明当前已知限制，不要自动重复构建。配置就绪后再调用 `get_ad_config` 获取广告开通状态和配置；若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。不要先查 `.maker-mcp/config.json` 或用运行回调推断广告是否开通，也不要为这个恢复流程调用发布类工具。
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及线上玩家反馈、问题反馈、问题上报、debug feedback、真机日志、截图或玩家反馈，应优先调用 Maker MCP tool `get_debug_feedbacks`；本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代线上玩家提交的反馈。
 - `get_debug_feedbacks` 会拉取线上玩家反馈，并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`；调用后优先使用返回的 `local_dir`、`local_log_paths`、`local_screenshot_paths` 读取日志和查看截图。附件路径以 tool 返回的 `local_*` 字段为准；没有 `local_*` 字段时，不要把附件当成本地文件读取。
 - 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 查看结果 / 看看效果 / 验证游戏效果”时，都调用 `maker_build_current_directory`。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务；push 成功后才远端 build。

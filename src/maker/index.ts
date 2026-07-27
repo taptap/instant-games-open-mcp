@@ -96,11 +96,12 @@ function printHelp(): void {
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
-      'MCP verify defaults to the npx command written into AI client config.',
-      'Maker MCP configs and npx verification use @taptap/maker.',
+      'MCP install verifies initialize + tools/list before writing AI client config.',
+      'Maker MCP configs and launcher verification use @taptap/maker.',
       '',
       'Windows note:',
-      '  Generated MCP configs wrap npx.cmd with cmd.exe on Windows for spawn compatibility.',
+      '  Generated MCP configs prefer absolute node.exe + npm-cli.js on Windows.',
+      '  Project cwd is always structured; the CLI never generates cd && npx commands.',
       '',
     ].join('\n')
   );

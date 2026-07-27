@@ -44,7 +44,7 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 | `taptap-maker lua-lsp setup`  | 安装/升级 maker-lua-lsp 并执行 `install --ide codex,cursor,claude`            |
 | `taptap-maker install`        | `taptap-maker mcp install` 的快捷别名，写入 AI 客户端 MCP 配置                |
 | `taptap-maker mcp install`    | 写入默认客户端，并自动检测已存在配置文件的 Trae/OpenCode/WorkBuddy            |
-| `taptap-maker mcp verify`     | 验证 MCP 配置使用的 npx 包命令是否可启动；`--mode self` 验证当前 CLI          |
+| `taptap-maker mcp verify`     | 用最终 launcher 完成 MCP 握手与 tools/list；`--mode self` 验证当前 CLI        |
 | `taptap-maker agents update`  | 更新当前项目 `AGENTS.md` 中 TapTap Maker 管理的策略块                         |
 | `taptap-maker upgrade`        | 刷新当前机器 MCP 配置，并更新当前绑定项目的 `AGENTS.md` 受管策略块            |
 | `taptap-maker dev-kit update` | 恢复或更新本地 AI dev-kit                                                     |
@@ -67,7 +67,8 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
   可能无法稳定安装诊断依赖，自动准备时会走 uv managed Python。Lua LSP 依赖安装在 Maker
   私有 venv 中，不直接修改 uv-managed Python。
 - 本地分支测试可直接用 `node dist/maker.js`，不依赖 npm 发布。
-- Windows 下生成通用 `mcpServers` 配置时通过 `cmd.exe` 包装 `npx.cmd`，兼容无 shell 的 MCP 启动器。
+- Windows 下只写绝对 `node.exe + npm-cli.js`；找不到该组合时安装失败，不持久化 `.cmd`
+  shell 命令。写入前完成 MCP `initialize + tools/list`，不依赖客户端 PATH。
 - OpenCode 使用官方 `mcp` schema 和 command 数组，不写环境变量，且只写已存在配置文件；
   Trae Solo/Solo CN 优先支持，按 `User/` 目录创建或合并 `User/mcp.json`，普通 Trae
   只在 `mcp.json` 已存在时更新；WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的
@@ -153,7 +154,9 @@ flowchart TD
   H --> I["clone Maker 项目"]
   I --> J["准备 AI dev-kit"]
   J --> K["写 MCP 配置"]
-  K --> L["提示刷新或重启 AI 客户端"]
+  K --> L{"全部目标写入成功？"}
+  L -- "是" --> M["提示刷新或重启 AI 客户端"]
+  L -- "否" --> N["记录 mcp_install_failed 并返回非零"]
 ```
 
 用户感知：
@@ -203,6 +206,9 @@ CLI 先完成初始化、PAT、app 选择、clone
 ```
 
 这样即使当前对话不能热加载新 MCP，用户也可以继续完成最关键的 PAT 校验和项目绑定。
+如果 init 写入任一客户端配置失败，会保留已完成的项目 checkout 和已成功配置的客户端，
+记录 `mcp_install_failed` 并以非零状态结束，不会误报初始化完成。失败客户端可通过
+`taptap-maker mcp install --ide <client>` 单独重试。
 不支持 MCP Roots 的客户端仍可显式运行
 `taptap-maker mcp install --target-dir <PROJECT_DIR>` 固定 cwd，但这不是默认路径，
 避免 Codex、Trae、Cursor 等多个客户端共用用户级配置时互相覆盖项目目录。
@@ -213,7 +219,8 @@ CLI 先完成初始化、PAT、app 选择、clone
 
 本轮重构按 Windows 优先做了这些约束：
 
-- 通用 MCP 配置 command 在 Windows 使用 `cmd.exe` 包装 `npx.cmd`，避免直接 spawn `.cmd`。
+- 通用 MCP 配置在 Windows 使用已验证的绝对 launcher；项目目录仅通过结构化 `cwd` 传递，
+  不生成 `cd && npx.cmd`。
 - Git 安装引导优先提示 Git for Windows。
 - 提醒用户安装时确保命令行和第三方工具可从 PATH 找到 Git。
 - 代码路径处理使用 Node `path` API，不手写 POSIX 分隔符。

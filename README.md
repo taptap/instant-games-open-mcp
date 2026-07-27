@@ -82,7 +82,11 @@ taptap-maker dev-kit update
 `taptap-maker login` 是 CLI 登录入口；它会按需打开 Maker 授权页，CLI 轮询授权结果并完成本地鉴权配置。
 `taptap-maker init` 缺 PAT 时会自动进入该流程。`taptap-maker pat set` 保留为兼容入口；
 自动化场景可用 `--pat-stdin` 从标准输入读取。`taptap-maker install` 是
-`taptap-maker mcp install` 的快捷别名，二者都会写入 AI 客户端 MCP 配置。
+`taptap-maker mcp install` 的快捷别名。二者都会先用最终启动命令完成 MCP
+`initialize` 和 `tools/list`，验证成功后才写入 AI 客户端 MCP 配置；失败不会改动配置或备份。
+`taptap-maker init` 写入多个客户端配置时会继续尝试其余目标；只要任一目标失败，init 就记录
+`mcp_install_failed`、以非零状态结束且不报告初始化完成。已经成功写入的客户端配置会保留，
+修复失败项后可运行 `taptap-maker mcp install --ide <client>` 单独重试。
 默认会写入 Codex、Cursor、Claude，并自动检测本机已有的 Trae、OpenCode、WorkBuddy
 配置文件；命中后会合并安装 `taptap-maker`。Trae Solo 是重点支持目标，CLI 会在 Solo
 或 Solo CN 的 `User/` 目录存在时创建或合并 `User/mcp.json`；普通 Trae/Trae CN 仍作为
@@ -91,9 +95,10 @@ taptap-maker dev-kit update
 未显式指定 IDE 的自动检测模式下，legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且
 自身已存在时作为 fallback 合并；写入的 WorkBuddy MCP server 会包含 `disabled: false`。
 WorkBuddy 账号维度的启用/信任状态在 `.workbuddy/connectors/<account-id>/connector-states.json`
-中维护，不在 `mcp.json` 中；CLI 只做只读诊断，并在 `mcp install --ide workbuddy`
-和 `doctor` 输出中提示用户到 WorkBuddy MCP 设置里启用/信任 `taptap-maker`，不会自动修改账号
-信任状态。OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入。
+中维护，不在 `mcp.json` 中；CLI 只做只读诊断，并在显式 `mcp install --ide workbuddy`
+结果中提示用户到 WorkBuddy MCP 设置里启用/信任 `taptap-maker`，不会自动修改账号信任状态。
+普通 `doctor` 不会因为发现 `.workbuddy` 就输出 WorkBuddy 诊断。OpenCode 只在
+`~/.config/opencode/opencode.jsonc` 已存在时写入。
 其它 AI 编辑器可按下面的通用 `mcpServers` 片段，让本地 AI 识别自己的配置文件位置后合并写入：
 
 ```json
@@ -126,6 +131,7 @@ Maker MCP 精简为开发循环里的高频能力：
 
 ```text
 maker://status                  # Resource，读取本地 Maker 状态
+maker://ads-integration-guide   # Resource，广告接入入口与项目引擎文档索引
 maker_status_lite               # Resource 不可用时的兼容 tool
 maker_build_current_directory   # commit/push/build 合并入口
 ```
@@ -179,9 +185,10 @@ tool schema 为准。
 二维码生成并建立应用身份后，可使用
 `add_test_whitelist` 将用户明确提供的 TapTap `user_id` 加入测试白名单。
 
-Windows 是默认优先级：CLI 写通用 `mcpServers` 配置时会在 Windows 通过 `cmd.exe`
-包装 `npx.cmd`，避免无 shell 的 MCP 启动器直接 spawn `.cmd` 失败；OpenCode 使用自己的
-`mcp` schema 和 command 数组，在 Windows 下写入 `npx.cmd`，不写环境变量；Git 引导优先提示 Git for Windows，
+Windows 是默认优先级：CLI 只把当前进程可用的绝对 `node.exe` 与 `npm-cli.js` 写入所有
+客户端配置；找不到该组合时安装失败，不会持久化 `.cmd` shell 命令或依赖客户端 PATH 的裸
+`npx.cmd`。OpenCode 使用相同已验证 launcher 的 command 数组。项目目录只写入结构化 `cwd`，
+禁止生成 `cd && npx.cmd`；Git 引导优先提示 Git for Windows，
 并要求安装选项允许命令行和第三方工具通过 PATH 找到 Git。macOS 用户可通过 `git --version`
 触发 Xcode Command Line Tools，或安装官方 Git。
 
@@ -460,7 +467,10 @@ AI dev kit 版本和 MCP 配置。`maker://status` 和 `maker_status_lite` 会�
 以及 schema 中的 `assets_7z_threshold=50`、`preload_include_refs=true`、
 `trim_remote_refs=true`、`legacy_binary=false`、`tags={}`；已有非默认值不得覆盖。
 `sources.*.tag`、项目身份、版本、入口、发布信息和 resources 分组只允许从完整副本恢复。
-`taptap-maker mcp verify` 默认跑一次实际 MCP 配置使用的 npx 包命令；本地 dist 自测可用 `--mode self`。如果失败结果显示 `failure_type` 或 `status: null`，优先按本地 Node/npm/npx 启动问题处理，Maker MCP server 此时尚未启动，不要误判为 PAT 或 Maker 服务报错。
+`taptap-maker mcp verify` 默认使用安装器的同一 launcher 完成 MCP `initialize` 和
+`tools/list`；本地 dist 自测可用 `--mode self`。失败结果会标明 `stage`、`failure_type`、
+最终 command 和 stderr，并返回非零退出码；不要把本地启动或 stdio 握手失败误判为 PAT 或
+Maker 业务接口错误。
 
 测试时优先运行 `taptap-maker login`；CLI 会按需打开 Maker 授权页，授权完成后自动完成本地鉴权配置。
 当前目录未绑定时，APP_ID 应通过 `taptap-maker init` 或 `taptap-maker apps` 返回的 app 列表让用户选择；
