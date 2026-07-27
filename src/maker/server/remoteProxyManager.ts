@@ -50,12 +50,16 @@ export interface MakerRemoteProxyManagerOptions {
 }
 
 interface ConnectionEntry {
+  key: string;
   projectRoot: string;
   client: MakerRemoteProxyClient;
   transport: Transport;
   connectPromise: Promise<MakerRemoteProxyClient>;
   lastUsedAt: number;
+  activeOperations: number;
+  retiring: boolean;
   closing: boolean;
+  closePromise?: Promise<void>;
 }
 
 function createContextKey(context: RemoteProxyContext): string {
@@ -133,21 +137,49 @@ export function createMakerRemoteProxyManager(
   options: MakerRemoteProxyManagerOptions = {}
 ): MakerRemoteProxyManager {
   const connections = new Map<string, ConnectionEntry>();
+  const retiredEntries = new Set<ConnectionEntry>();
   const cachedTools = new Map<string, RemoteProxyToolDefinition[]>();
   const createClient = options.createClient || createDefaultClient;
   const createTransport = options.createTransport || createDefaultTransport;
   let closed = false;
   let closePromise: Promise<void> | undefined;
 
-  const closeEntry = async (key: string, entry: ConnectionEntry): Promise<void> => {
-    if (connections.get(key) === entry) {
-      connections.delete(key);
+  const closeEntry = (entry: ConnectionEntry): Promise<void> => {
+    if (connections.get(entry.key) === entry) {
+      connections.delete(entry.key);
     }
-    if (entry.closing) {
+    entry.retiring = true;
+    if (entry.closePromise) {
+      return entry.closePromise;
+    }
+    retiredEntries.add(entry);
+    entry.closing = true;
+    entry.closePromise = Promise.resolve()
+      .then(async () => await entry.client.close())
+      .catch(() => {})
+      .finally(() => {
+        retiredEntries.delete(entry);
+      });
+    return entry.closePromise;
+  };
+
+  const retireEntry = (entry: ConnectionEntry): void => {
+    if (connections.get(entry.key) === entry) {
+      connections.delete(entry.key);
+    }
+    entry.retiring = true;
+    retiredEntries.add(entry);
+    if (entry.activeOperations > 0) {
       return;
     }
-    entry.closing = true;
-    await entry.client.close().catch(() => {});
+    void closeEntry(entry);
+  };
+
+  const releaseEntry = async (entry: ConnectionEntry): Promise<void> => {
+    entry.activeOperations = Math.max(0, entry.activeOperations - 1);
+    if (entry.retiring && entry.activeOperations === 0) {
+      await closeEntry(entry);
+    }
   };
 
   const acquire = async (context: RemoteProxyContext): Promise<ConnectionEntry> => {
@@ -159,20 +191,22 @@ export function createMakerRemoteProxyManager(
     const existing = connections.get(key);
     if (existing) {
       existing.lastUsedAt = Date.now();
-      await existing.connectPromise;
-      return existing;
+      existing.activeOperations += 1;
+      try {
+        await existing.connectPromise;
+        return existing;
+      } catch (error) {
+        await releaseEntry(existing);
+        throw error;
+      }
     }
 
     const staleProjectEntries = [...connections.entries()].filter(
       ([entryKey, entry]) => entryKey !== key && entry.projectRoot === context.projectRoot
     );
-    if (staleProjectEntries.length > 0) {
-      await Promise.allSettled(
-        staleProjectEntries.map(async ([entryKey, entry]) => {
-          cachedTools.delete(entryKey);
-          await closeEntry(entryKey, entry);
-        })
-      );
+    for (const [entryKey, entry] of staleProjectEntries) {
+      cachedTools.delete(entryKey);
+      retireEntry(entry);
     }
 
     const transport = createTransport(context);
@@ -192,11 +226,14 @@ export function createMakerRemoteProxyManager(
     };
     const client = createClient(context, handlers);
     const entry: ConnectionEntry = {
+      key,
       projectRoot: context.projectRoot,
       client,
       transport,
       connectPromise: Promise.resolve(client),
       lastUsedAt: Date.now(),
+      activeOperations: 1,
+      retiring: false,
       closing: false,
     };
     connections.set(key, entry);
@@ -211,7 +248,8 @@ export function createMakerRemoteProxyManager(
       await entry.connectPromise;
       return entry;
     } catch (error) {
-      await closeEntry(key, entry);
+      entry.activeOperations -= 1;
+      await closeEntry(entry);
       throw error;
     }
   };
@@ -220,16 +258,17 @@ export function createMakerRemoteProxyManager(
     context: RemoteProxyContext,
     operation: (client: MakerRemoteProxyClient) => Promise<T>
   ): Promise<T> => {
-    const key = createContextKey(context);
     const entry = await acquire(context);
     entry.lastUsedAt = Date.now();
     try {
       return await operation(entry.client);
     } catch (error) {
       if (isConnectionClosedError(error)) {
-        await closeEntry(key, entry);
+        await closeEntry(entry);
       }
       throw error;
+    } finally {
+      await releaseEntry(entry);
     }
   };
 
@@ -258,10 +297,11 @@ export function createMakerRemoteProxyManager(
         return await closePromise;
       }
       closed = true;
-      const entries = [...connections.entries()];
+      const entries = new Set([...connections.values(), ...retiredEntries]);
       connections.clear();
+      retiredEntries.clear();
       closePromise = Promise.allSettled(
-        entries.map(async ([key, entry]) => await closeEntry(key, entry))
+        [...entries].map(async (entry) => await closeEntry(entry))
       ).then(() => undefined);
       return await closePromise;
     },

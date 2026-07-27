@@ -476,6 +476,8 @@ npm run openclaw:pack
   和重连状态，多个本地项目可并行开发。
 - 单项目断线自动恢复，不要求重新安装或重启 Maker MCP；项目、环境、用户、项目 ID 和授权
   配置指纹共同决定连接身份，禁止跨项目复用连接。
+- 同项目连接身份变化时新连接立即接管；旧连接必须等待已开始的请求结束后再关闭，避免中断
+  构建或远端工具调用。
 - MCP 包版本或本地 proxy 工具白名单变化后需要 Reconnect 本地 MCP；不支持
   `tools/list_changed` 的 AI 客户端可能需要手动重连刷新工具列表。
 - runtime-log watcher 保持独立 polling connection lifecycle，不纳入远端 proxy manager。

@@ -215,6 +215,117 @@ describe('MakerRemoteProxyManager', () => {
     expect(harness.clients[0].callTool).toHaveBeenCalledTimes(1);
   });
 
+  test('defers closing the replaced connection until its active request finishes', async () => {
+    const harness = createHarness();
+    const oldContext = createContext();
+    await harness.manager.callTool(oldContext, { name: 'generate_image', arguments: {} });
+
+    let resolveOldRequest: (() => void) | undefined;
+    let markOldRequestStarted: (() => void) | undefined;
+    const oldRequestStarted = new Promise<void>((resolve) => {
+      markOldRequestStarted = resolve;
+    });
+    const oldRequestGate = new Promise<void>((resolve) => {
+      resolveOldRequest = resolve;
+    });
+    harness.clients[0].callTool.mockImplementationOnce(async () => {
+      markOldRequestStarted?.();
+      await oldRequestGate;
+      return { content: [{ type: 'text', text: 'old request complete' }] };
+    });
+
+    const oldRequest = harness.manager.callTool(oldContext, {
+      name: 'get_debug_feedbacks',
+      arguments: {},
+    });
+    await oldRequestStarted;
+
+    const refreshedContext = createContext({ proxyConfigJson: '{"authority":"rotated"}' });
+    await harness.manager.callTool(refreshedContext, { name: 'generate_image', arguments: {} });
+
+    expect(harness.createClient).toHaveBeenCalledTimes(2);
+    expect(harness.clients[0].close).not.toHaveBeenCalled();
+
+    resolveOldRequest?.();
+    await oldRequest;
+
+    expect(harness.clients[0].close).toHaveBeenCalledTimes(1);
+  });
+
+  test('shares one replacement connection while the stale connection closes slowly', async () => {
+    const harness = createHarness();
+    const oldContext = createContext();
+    await harness.manager.callTool(oldContext, { name: 'generate_image', arguments: {} });
+
+    let resolveOldClose: (() => void) | undefined;
+    let markOldCloseStarted: (() => void) | undefined;
+    const oldCloseStarted = new Promise<void>((resolve) => {
+      markOldCloseStarted = resolve;
+    });
+    const oldCloseGate = new Promise<void>((resolve) => {
+      resolveOldClose = resolve;
+    });
+    harness.clients[0].close.mockImplementationOnce(async () => {
+      markOldCloseStarted?.();
+      await oldCloseGate;
+    });
+
+    const refreshedContext = createContext({ proxyConfigJson: '{"authority":"rotated"}' });
+    const firstRequest = harness.manager.callTool(refreshedContext, {
+      name: 'generate_image',
+      arguments: {},
+    });
+    await oldCloseStarted;
+
+    const secondRequest = harness.manager.callTool(refreshedContext, {
+      name: 'get_debug_feedbacks',
+      arguments: {},
+    });
+    await secondRequest;
+    resolveOldClose?.();
+    await firstRequest;
+
+    expect(harness.createClient).toHaveBeenCalledTimes(2);
+    expect(harness.clients[1].callTool).toHaveBeenCalledTimes(2);
+  });
+
+  test('closeAll tracks every connection created during a context switch', async () => {
+    const harness = createHarness();
+    const oldContext = createContext();
+    await harness.manager.callTool(oldContext, { name: 'generate_image', arguments: {} });
+
+    let resolveOldClose: (() => void) | undefined;
+    let markOldCloseStarted: (() => void) | undefined;
+    const oldCloseStarted = new Promise<void>((resolve) => {
+      markOldCloseStarted = resolve;
+    });
+    const oldCloseGate = new Promise<void>((resolve) => {
+      resolveOldClose = resolve;
+    });
+    harness.clients[0].close.mockImplementationOnce(async () => {
+      markOldCloseStarted?.();
+      await oldCloseGate;
+    });
+
+    const refreshedContext = createContext({ proxyConfigJson: '{"authority":"rotated"}' });
+    const switchedRequest = harness.manager.callTool(refreshedContext, {
+      name: 'generate_image',
+      arguments: {},
+    });
+    await oldCloseStarted;
+
+    const shutdown = harness.manager.closeAll();
+    resolveOldClose?.();
+    await shutdown;
+    await Promise.allSettled([switchedRequest]);
+
+    expect(harness.createClient).toHaveBeenCalledTimes(2);
+    expect(harness.clients[1].close).toHaveBeenCalledTimes(1);
+    await expect(
+      harness.manager.callTool(refreshedContext, { name: 'generate_image', arguments: {} })
+    ).rejects.toThrow('closed');
+  });
+
   test('keeps the current project connection when an old request retries with refreshed context', async () => {
     const harness = createHarness();
     const oldContext = createContext();
