@@ -856,6 +856,14 @@ taptap-maker doctor
 maker://status
 ```
 
+## Proxy 生命周期与多项目并行
+
+Maker MCP 为每个活动项目维护一个 embedded proxy 连接。多个本地项目可以同时开发，连接、
+工具缓存、环境和授权上下文按项目隔离；一个项目远端断线时只自动恢复该项目，不需要重新
+安装或重启 Maker MCP。发布新包版本或修改本地 proxy 工具白名单后，需要重新连接本地 MCP。
+支持 `tools/list_changed` 的客户端会收到工具列表刷新通知；不支持该能力的客户端可能需要
+手动 Reconnect MCP。runtime-log watcher 保留独立的轮询连接生命周期。
+
 ## 当前边界
 
 - 远端 MCP tools 所需的 Tap token 默认由 Maker PAT 获取并缓存。

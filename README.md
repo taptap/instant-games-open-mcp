@@ -616,6 +616,15 @@ graph LR
 - **[docs/PROXY.md](docs/PROXY.md)** - MCP Proxy 开发指南（面向 TapCode 等平台）
 - **[docs/PATH_RESOLUTION.md](docs/PATH_RESOLUTION.md)** - 路径解析系统
 
+## Maker 持久化 Proxy 与多项目
+
+Maker MCP 在本地 server 进程内按活动项目维护一个 embedded proxy 和远端 MCP session。
+多个本地 Maker 项目可以并行使用，项目、环境和授权上下文彼此隔离；一个项目断线只会
+触发该项目的自动恢复，不需要重新安装或重启 Maker MCP。MCP 包版本升级或本地 proxy
+工具白名单变化后，需要重新连接本地 MCP；不支持 `tools/list_changed` 的 AI 客户端也
+可能需要手动 Reconnect MCP 才能刷新已显示的工具。runtime-log watcher 保持独立的
+轮询连接生命周期，不与远端 proxy session 共享。
+
 ## 🤝 贡献
 
 欢迎贡献！请遵循：

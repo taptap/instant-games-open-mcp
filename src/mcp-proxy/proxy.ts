@@ -154,7 +154,7 @@ export class TapTapMCPProxy {
     // 初始化 MCP Server（暴露给 Agent）
     this.server = new Server(
       { name: 'taptap-proxy', version: '1.0.0' },
-      { capabilities: { tools: {}, resources: {} } }
+      { capabilities: { tools: { listChanged: true }, resources: {} } }
     );
   }
 

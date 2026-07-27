@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import * as makerMcp from '../maker/server/mcp';
 import {
   buildCurrentDirectory,
   createBuildArgs,
@@ -57,6 +58,7 @@ import {
   formatMakerProjectSettingsStatus,
   inspectMakerProjectSettings,
 } from '../maker/projectSettings';
+import type { MakerRemoteProxyManager } from '../maker/server/remoteProxyManager';
 
 describe('maker build local-change guard', () => {
   let tempDir: string;
@@ -1823,6 +1825,29 @@ describe('maker build local-change guard', () => {
     ]);
   });
 
+  test('keeps cached proxy tools when a managed refresh temporarily fails', async () => {
+    const result = await listMakerTools({
+      targetDir: tempDir,
+      listRemoteTools: async () => {
+        throw new Error('temporary refresh failure');
+      },
+      getCachedRemoteTools: () => [
+        {
+          name: 'generate_image',
+          description: 'Generate one image',
+          inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+        },
+      ],
+    });
+
+    expect(result.tools.map((item) => item.name)).toEqual([
+      'maker_status_lite',
+      'maker_build_current_directory',
+      'generate_image',
+    ]);
+    expect(result.tools[2].description).toContain('Generate one new image asset for a Maker game');
+  });
+
   test('proxy status warns that remote tools and build are unavailable when proxy fails', async () => {
     const output = await formatMakerProxyToolsStatusSafely({
       targetDir: tempDir,
@@ -1933,6 +1958,126 @@ describe('maker build local-change guard', () => {
     expect(retryMessages).toHaveLength(4);
     expect(retryMessages[0]).toContain('attempt 1/5');
     expect(retryMessages[3]).toContain('attempt 4/5');
+  });
+
+  test('managed remote build retries a transient connection failure and reports progress', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+    try {
+      saveTapAuth({
+        kid: 'rnd-kid',
+        token: 'rnd-token',
+        mac_key: 'rnd-mac-key',
+      });
+      const callTool = jest
+        .fn()
+        .mockImplementationOnce(async () => {
+          saveTapAuth({
+            kid: 'rotated-kid',
+            token: 'rotated-token',
+            mac_key: 'rotated-mac-key',
+          });
+          throw new Error('connect ECONNRESET embedded proxy');
+        })
+        .mockResolvedValueOnce({ content: [{ type: 'text', text: 'build ok' }] });
+      const remoteProxyManager = {
+        callTool,
+        listTools: jest.fn(),
+        getCachedTools: jest.fn(),
+        closeAll: jest.fn(),
+      } as unknown as MakerRemoteProxyManager;
+      const progressMessages: string[] = [];
+
+      const buildPromise = buildCurrentDirectory({
+        targetDir: tempDir,
+        confirmRemoteBuildWithoutSubmit: true,
+        remoteProxyManager,
+        refreshPreview: async () => ({ ok: true, status: 200, url: 'preview-refresh' }),
+        startRuntimeLogWatch: async () => ({
+          started: true,
+          command: 'watch',
+          runtimeLog: 'runtime.log',
+        }),
+        onProgress: (event) => progressMessages.push(event.message),
+      });
+
+      while (callTool.mock.calls.length === 0) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      await jest.advanceTimersByTimeAsync(30000);
+      const result = await buildPromise;
+
+      expect(result.mode).toBe('remote_build');
+      expect(callTool).toHaveBeenCalledTimes(2);
+      expect(JSON.parse(callTool.mock.calls[1][0].proxyConfigJson).auth.kid).toBe('rotated-kid');
+      expect(progressMessages).toEqual(
+        expect.arrayContaining([expect.stringContaining('attempt 1/5')])
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('managed proxy tool retries a transient connection failure and reports MCP progress', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+    try {
+      saveTapAuth({
+        kid: 'rnd-kid',
+        token: 'rnd-token',
+        mac_key: 'rnd-mac-key',
+      });
+      const callTool = jest
+        .fn()
+        .mockImplementationOnce(async () => {
+          saveTapAuth({
+            kid: 'rotated-kid',
+            token: 'rotated-token',
+            mac_key: 'rotated-mac-key',
+          });
+          throw new Error('Connection closed by embedded proxy');
+        })
+        .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"ok":true}' }] });
+      const manager = {
+        callTool,
+        listTools: jest.fn(),
+        getCachedTools: jest.fn(),
+        closeAll: jest.fn(),
+      } as unknown as MakerRemoteProxyManager;
+      const sendNotification = jest.fn(async () => undefined);
+      const callRemoteProxyTool = (
+        makerMcp as typeof makerMcp & {
+          callRemoteProxyTool: (options: Record<string, unknown>) => Promise<unknown>;
+        }
+      ).callRemoteProxyTool;
+
+      const resultPromise = callRemoteProxyTool({
+        targetDir: tempDir,
+        name: 'get_ad_config',
+        args: {},
+        progressToken: 'proxy-retry',
+        extra: { sendNotification },
+        manager,
+      });
+
+      while (callTool.mock.calls.length === 0) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      await jest.advanceTimersByTimeAsync(30000);
+      await resultPromise;
+
+      expect(callTool).toHaveBeenCalledTimes(2);
+      expect(JSON.parse(callTool.mock.calls[1][0].proxyConfigJson).auth.kid).toBe('rotated-kid');
+      expect(sendNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'notifications/progress',
+          params: expect.objectContaining({
+            progressToken: 'proxy-retry',
+            message: expect.stringContaining('attempt 1/5'),
+          }),
+        })
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   test('does not retry MCP business errors with remote diagnostics', async () => {
