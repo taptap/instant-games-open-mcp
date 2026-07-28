@@ -210,6 +210,11 @@ describe('maker MCP version status integration', () => {
     );
     expect((instructions as string).match(/^- Ads:/gmu)).toHaveLength(1);
     expect(instructions).toContain('get_debug_feedbacks');
+    expect(instructions).toContain("current Maker game's online player feedback");
+    expect(instructions).toContain('real-device game logs');
+    expect(instructions).toContain('server/Lua logs for a specified game session');
+    expect(instructions).toContain('exposed by the current Maker tool list');
+    expect(instructions).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
     expect(instructions).toContain('image, video, music, sound-effect');
     expect((instructions as string).length).toBeLessThanOrEqual(1200);
     expect(instructions).not.toMatch(

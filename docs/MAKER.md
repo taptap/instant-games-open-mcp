@@ -227,7 +227,7 @@ Python 运行时策略：
 
 MCP 运行期能力：
 
-- Maker MCP 在 `initialize` 响应的 `instructions` 中提供精简能力路由，帮助 Agent 优先发现
+- Maker MCP 在 `initialize` 响应的 `instructions` 中提供精简能力路由，帮助 Agent 发现
   状态、构建、测试二维码、广告配置、线上玩家反馈和游戏资源生成入口。该提示不会在 MCP
   初始化时写文件，也不会替代具体 tool schema。
 - 新项目初始化、`taptap-maker agents update` 和已绑定项目中的 `taptap-maker upgrade`
@@ -348,10 +348,9 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 - Maker 项目内 Git 操作的入口是 `taptap-maker-local > Maker Git Workflow Policy`。如果本机 AI
   环境还安装了通用 Git skills，Maker 本地开发应忽略这些通用 Git workflow，优先遵循 Maker
   内置 workflow guide。
-- Maker 项目内游戏素材生成的入口是 `taptap-maker-local > Maker Creative Asset Tool Policy`。
-  项目已绑定后，生图、批量生图、修改图片、生成视频和生成音乐应优先建议使用 Maker MCP proxy
-  tools。如果当前会话没有暴露 Maker proxy tools，应提示用户 MCP 会话不可用或需要重启/检查配置。
-  调用 `edit_image` 时按 tool schema 使用支持的图片输入格式。
+- Maker 项目内游戏素材能力记录在 `taptap-maker-local > Maker Creative Asset Tool Policy`。
+  Maker MCP 提供生图、批量生图、修改图片、生成视频、音乐、音效、配音和 3D 素材 tools；
+  使用其中某个 tool 时按其 schema 传入支持的参数和素材格式。
 - 发生冲突时解释为什么冲突、冲突文件在哪里、冲突内容是什么，并让 Agent 给出解决建议。
 - 冲突解决前必须让用户确认，不隐藏 unresolved conflict。
 
@@ -363,8 +362,9 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 `taptap-maker upgrade --target-dir <PROJECT_DIR>`，然后提醒用户重启或新开 AI 会话，让客户端重新读取
 更新后的 `AGENTS.md`。受管块会提醒本地 AI：构建、预览、提交和推送必须走
 `maker_build_current_directory`，不要默认引导用户去 Maker 网页端点击构建按钮；任何广告相关
-请求或广告代码改动都必须先调用 `get_ad_config` 获取广告开通状态和配置；线上玩家反馈、
-问题上报或真机日志查询应调用 `get_debug_feedbacks`。状态读取本身不写文件，避免只是检查状态就弄脏工作区。
+请求或广告代码改动都必须先调用 `get_ad_config` 获取广告开通状态和配置。只有当前 Maker 游戏的
+线上玩家反馈（包括玩家提交的游戏故障、真机游戏日志或截图），以及指定游戏会话的服务端/Lua 日志查询才应调用
+`get_debug_feedbacks`；AI 客户端、插件或其它产品反馈不属于该工具。状态读取本身不写文件，避免只是检查状态就弄脏工作区。
 
 已绑定项目还会检查 AI dev kit 状态：`CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 缺失时，`taptap-maker dev-kit update` 可以恢复本地 dev kit，并刷新 `.gitignore` 管理块。`maker://status` 和 `maker_status_lite` 也会输出已安装版本、当前环境最新版本和是否需要更新，供新开 AI 对话先发现 dev-kit 过期状态。
 
@@ -662,8 +662,8 @@ description 使用 `src/maker/server/toolDescriptions.ts` 中逐工具审核过�
 文件路径，`assets/image/...` 直接传项目素材路径，只给文件名时先搜索 `assets/image`，无法确认图片
 路径或 CDN URL 时应停下来说明缺少参数。
 
-已绑定 Maker 项目里，AI/Agent 应优先建议使用这些 Maker MCP proxy tools 生成或修改游戏素材。
-如果当前会话未暴露这些 Maker proxy tools，AI/Agent 应说明工具未暴露。
+Maker MCP 提供这些 proxy tools 用于生成或修改游戏素材；使用其中某个 tool 时按其 schema
+传入支持的参数和素材格式。
 `maker_status_lite` 会主动检查 Maker proxy tools 状态；如果 proxy 连接失败，状态中会明确提示
 远端 proxy tools 与 build 构建都不可用。用户明确调用 proxy tool 或 build 时，MCP 对连接/握手类
 失败默认最多尝试 5 次，每次失败后间隔 30 秒再试；不会无限重试，也不会对远端已返回的业务失败

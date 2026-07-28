@@ -136,10 +136,19 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain('source of truth for current project ad activation status');
     expect(agentsGuide).toContain('Maker feedback workflow');
     expect(agentsGuide).toContain('the Maker proxy `get_debug_feedbacks` tool');
+    expect(agentsGuide).toContain("current Maker game's online player feedback");
+    expect(agentsGuide).toContain('real-device game logs');
+    expect(agentsGuide).toContain('server/Lua logs for a specified game session');
+    expect(agentsGuide).toContain('exposed by the current Maker tool list');
+    expect(agentsGuide).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
     expect(agentsGuide).toContain('local logs as a substitute');
-    expect(agentsGuide).toContain('Maker MCP proxy tools when they are available');
-    expect(agentsGuide).toContain('Maker proxy tool is unavailable');
-    expect(agentsGuide).toContain('Other client media tools may still be usable');
+    expect(agentsGuide).toContain(
+      'Maker MCP provides the following game asset generation and editing tools'
+    );
+    expect(agentsGuide).not.toMatch(
+      /prefer Maker(?:-managed)?(?: MCP)? proxy tools|over native AI|client-native/iu
+    );
+    expect(agentsGuide).not.toContain('Other client media tools may still be usable');
     expect(agentsGuide).toContain(
       'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
     );
@@ -369,7 +378,18 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('Maker feedback workflow');
     expect(agentsGuide).toContain('the Maker proxy `get_debug_feedbacks` tool');
-    expect(agentsGuide).toContain('Maker MCP proxy tools when they are available');
+    expect(agentsGuide).toContain("current Maker game's online player feedback");
+    expect(agentsGuide).toContain('real-device game logs');
+    expect(agentsGuide).toContain('server/Lua logs for a specified game session');
+    expect(agentsGuide).toContain('exposed by the current Maker tool list');
+    expect(agentsGuide).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
+    expect(agentsGuide).toContain(
+      'Maker MCP provides the following game asset generation and editing tools'
+    );
+    expect(agentsGuide).not.toMatch(
+      /prefer Maker(?:-managed)?(?: MCP)? proxy tools|over native AI|client-native/iu
+    );
+    expect(agentsGuide).not.toContain('Other client media tools may still be usable');
     expect(agentsGuide).toContain(
       'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
     );

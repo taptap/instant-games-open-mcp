@@ -35,14 +35,18 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain('Use maker_build_current_directory for submit, push, and build');
     expect(status).toContain('Maker proxy tool policy');
     expect(status).toContain(`${MAKER_LOCAL_SKILL_NAME} > Maker Creative Asset Tool Policy`);
-    expect(status).toContain('Prefer Maker MCP proxy tools over native AI image/video/audio tools');
-    expect(status).toContain('If Maker proxy tools are missing');
-    expect(status).toContain('available alternatives');
+    expect(status).toContain(
+      'Maker MCP provides image, video, music, sound-effect, dialogue/voice, and 3D asset tools'
+    );
+    expect(status).toContain('Follow the selected tool schema when one of these tools is used');
     expect(status).toContain('Follow each tool schema for supported local path');
     expect(status).toContain(
       'Local proxy may convert resolvable local reference media to data URLs'
     );
     expect(status).toContain('Use generate_image, batch_generate_images, edit_image');
+    expect(status).not.toMatch(
+      /prefer Maker(?:-managed)?(?: MCP)? proxy tools|over native AI|client-native/iu
+    );
     expect(status).toContain('Use create_video_task and query_video_task for game video assets');
     expect(status).toContain('Use text_to_music for game music');
     expect(status).toContain('Use text_to_sound_effect for one sound effect');
@@ -69,6 +73,11 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain('do not automatically rebuild');
     expect(status).toContain('call generate_test_qrcode once');
     expect(status).toContain('call get_debug_feedbacks');
+    expect(status).toContain("current Maker game's online player feedback");
+    expect(status).toContain('real-device game logs');
+    expect(status).toContain('server/Lua logs for a specified game session');
+    expect(status).toContain('exposed by the current Maker tool list');
+    expect(status).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
     expect(status).toContain('Use local runtime logs only');
     expect(status).toContain('assets/model');
     expect(status).toContain('assets/model');
@@ -114,14 +123,17 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('The root `.gitignore` is a required Maker project file');
     expect(skillText).toContain('Maker Creative Asset Tool Policy');
     expect(skillText).toContain(
-      'Prefer Maker MCP proxy tools over native AI image/video/audio tools'
+      'Maker MCP provides image, video, music, sound-effect, dialogue/voice, and 3D asset tools'
     );
-    expect(skillText).toContain('This guidance helps users prefer Maker-managed tools');
+    expect(skillText).toContain('Follow the selected tool schema when one of these tools is used');
     expect(skillText).toContain('Follow each tool schema for supported local path');
     expect(skillText).toContain(
       'Local proxy may convert resolvable local reference media to data URLs'
     );
     expect(skillText).toContain('Use `generate_image` for one image');
+    expect(skillText).not.toMatch(
+      /prefer Maker(?:-managed)?(?: MCP)? proxy tools|over native AI|client-native/iu
+    );
     expect(skillText).toContain('Use `batch_generate_images` for multiple images');
     expect(skillText).toContain('Use `edit_image` for modifying project images');
     expect(skillText).toContain('Use `create_video_task` for game videos');
@@ -157,6 +169,11 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('call `generate_test_qrcode` once');
     expect(skillText).toContain('call the Maker proxy');
     expect(skillText).toContain('`get_debug_feedbacks` tool');
+    expect(skillText).toContain("current Maker game's online player feedback");
+    expect(skillText).toContain('real-device game logs');
+    expect(skillText).toContain('server/Lua logs for a specified game session');
+    expect(skillText).toContain('exposed by the current Maker tool list');
+    expect(skillText).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
     expect(skillText).toContain('remote player-submitted feedback');
     expect(skillText).toContain('assets/image');
     expect(skillText).toContain('assets/video');
