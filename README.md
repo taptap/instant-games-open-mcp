@@ -137,7 +137,7 @@ maker_build_current_directory   # commit/push/build 合并入口
 ```
 
 Maker MCP 初始化时会通过标准 `initialize.instructions` 向 AI 客户端提供一份精简能力路由，
-优先标出状态、构建、Tap 流程和游戏资源生成入口。新项目初始化或执行
+标出状态、构建、Tap 流程和游戏资源生成入口。新项目初始化或执行
 `taptap-maker agents update` / `taptap-maker upgrade` 时，同一份路由也会写入目标 Maker
 项目 `AGENTS.md` 的受管策略块，供后续会话继续使用；用户自己编写的内容保持不变。升级
 `@taptap/maker` 后，需要 reconnect/restart MCP 或新开 AI 会话，当前客户端才会收到新的
@@ -171,7 +171,7 @@ Maker MCP 也提供部分远端 proxy 能力，当前包括 `generate_image`、`
 `audition_voices_for_character`、`confirm_character_voice`、`create_3d_asset`、
 `generate_test_qrcode`、`add_test_whitelist`、`get_ad_config` 和 `get_debug_feedbacks`；具体参数以 MCP 客户端展示的
 tool schema 为准。
-已绑定 Maker 项目中建议优先使用这些 proxy tools；其中 `get_debug_feedbacks` 会拉取线上玩家反馈，
+这些 proxy tools 为 Maker 项目提供素材生成和平台工作流能力；其中 `get_debug_feedbacks` 会拉取线上玩家反馈，
 并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`，
 返回 `local_dir` / `local_log_paths` / `local_screenshot_paths` 等本地路径。代理转发、错误透出和白名单细节见
 [TapTap Maker 本地开发](docs/MAKER.md)。

@@ -146,16 +146,10 @@ selected files.
 
 ## Maker Creative Asset Tool Policy
 
-When the current directory is a bound Maker project, use Maker MCP for game asset generation and
-editing when possible. Prefer Maker MCP proxy tools over native AI image/video/audio tools. These
-Maker tools keep generated files inside the project, record remote mappings for later editing, and
-can forward resolvable local reference media as data URLs when the remote tool schema supports it.
-
-This guidance helps users prefer Maker-managed tools for Maker game assets.
-
-- Prefer Maker proxy tools for Maker project asset requests when the Maker proxy tool is callable.
-- If the required Maker proxy tool is not exposed in the current AI session, tell the user that
-  Maker proxy tools are unavailable in this session.
+Maker MCP provides image, video, music, sound-effect, dialogue/voice, and 3D asset tools for Maker
+projects. These tools keep generated files inside the project, record remote mappings for later
+editing, and can forward resolvable local reference media as data URLs when the remote tool schema
+supports it. Follow the selected tool schema when one of these tools is used.
 
 - Use `generate_image` for one image.
 - Use `batch_generate_images` for multiple images.
@@ -204,9 +198,12 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
   `missing_taptap_identity`, follow that `next_action` before using tools that depend on remote
   project config. `.project` directory presence alone is never proof of initialization; empty,
   voice-mapping-only, and primary-config-incomplete directories remain buildable new-project state.
-- For online player feedback, problem reports, issue reports, debug feedback, real-device logs,
-  screenshots, 问题反馈, 问题上报, 真机日志, or 玩家反馈, call the Maker proxy
-  `get_debug_feedbacks` tool when available.
+- For the current Maker game's online player feedback, including player-submitted game bug reports,
+  real-device game logs, or screenshots, or server/Lua logs for a specified game session,
+  call the Maker proxy `get_debug_feedbacks` tool only when it is exposed by the current Maker tool list.
+  This includes 当前 Maker 游戏的玩家反馈、
+  玩家提交的游戏故障、真机游戏日志或截图、指定游戏会话的服务端/Lua 日志. It does not include
+  AI client, plugin, or other product feedback.
 - Use local runtime log files only for the current local build/runtime session. Do not use local logs
   as a substitute for remote player-submitted feedback.
 - Before `edit_image`, resolve dragged or referenced images to a local project image path or CDN
@@ -218,8 +215,6 @@ This guidance helps users prefer Maker-managed tools for Maker game assets.
 Generated assets should be saved by Maker MCP under `assets/image`, `assets/video`, or
 `assets/audio`. `create_3d_asset` local runtime `model_files` instructions are materialized under
 `assets/model`; use `local_delivery` for the usable model path and `preview_assets` for local review images.
-Do not prefer client-native image generation when the user is asking for Maker game assets in a
-bound project.
 
 ## Project Detection
 
@@ -337,7 +332,7 @@ suggesting repeated restarts:
    MCP Roots, and actual process cwd evidence instead.
 
 When Maker proxy tools are missing, explain that this is likely a session/configuration problem and
-that Maker tools are preferred for Maker game assets.
+that requests specifically requiring those tools cannot use them in the current session.
 
 ## Initialization Workflow
 

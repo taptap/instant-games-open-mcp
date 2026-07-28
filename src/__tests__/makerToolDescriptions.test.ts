@@ -94,6 +94,12 @@ describe('Maker non-audio tool descriptions', () => {
   test('preserves image and video routing plus local materialization contracts', async () => {
     const descriptions = await listDescriptions();
 
+    for (const description of Object.values(descriptions)) {
+      expect(description).not.toMatch(
+        /prefer this Maker MCP proxy tool|over native AI|client-native/iu
+      );
+    }
+
     expect(descriptions.generate_image).toMatch(
       /one new image.{0,120}batch_generate_images.{0,100}edit_image/iu
     );

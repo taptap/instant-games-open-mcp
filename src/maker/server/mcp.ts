@@ -560,37 +560,33 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
     case 'generate_image':
     case 'batch_generate_images':
       return [
-        '**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for Maker project assets. Successful results are downloaded into the Maker project and recorded with remote mapping for later edits or video references.',
+        '**Maker asset workflow hint:** Successful results are downloaded into the Maker project and recorded with remote mapping for later edits or video references.',
         localMediaSizeHint,
         failurePolicy,
       ].join(' ');
     case 'edit_image':
-      return [
-        '**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for image editing.',
-        localMediaSizeHint,
-        failurePolicy,
-      ].join(' ');
+      return [localMediaSizeHint, failurePolicy].join(' ');
     case 'create_video_task':
       return [
-        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker video generation. Image, video, and audio references may use remote URLs, existing data URLs, or resolvable local files that the local proxy can forward as data URLs.',
+        '**Maker asset workflow hint:** Image, video, and audio references may use remote URLs, existing data URLs, or resolvable local files that the local proxy can forward as data URLs.',
         localMediaSizeHint,
         failurePolicy,
       ].join(' ');
     case 'query_video_task':
       return [
-        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool to refresh video task status, release completed task quota, and materialize successful video results into the Maker project.',
+        '**Maker asset workflow hint:** Refreshing video task status releases completed task quota and materializes successful video results into the Maker project.',
         'Use this Maker MCP proxy tool to refresh video task status when create_video_task returns a task_id or reports video concurrency limits.',
         failurePolicy,
       ].join(' ');
     case 'text_to_music':
       return [
-        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker music generation so generated audio can be materialized into the project and recorded for later Maker references.',
+        '**Maker asset workflow hint:** Generated audio can be materialized into the project and recorded for later Maker references.',
         failurePolicy,
       ].join(' ');
     case 'text_to_sound_effect':
     case 'batch_sound_effects':
       return [
-        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for game sound effects. Successful audio is materialized in its original format under assets/audio/sfx and recorded for later Maker references.',
+        '**Maker asset workflow hint:** Successful audio is materialized in its original format under assets/audio/sfx and recorded for later Maker references.',
         failurePolicy,
       ].join(' ');
     case 'text_to_dialogue':

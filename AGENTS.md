@@ -391,7 +391,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `src/maker/server/toolDescriptions.ts` 中逐工具审核过的本地 override，避免远端通用教程与
   Maker 本地确认门、素材落盘和恢复工作流冲突。未来没有本地 override 的白名单工具 fallback
   到远端 description，并在存在对应规则时追加简短 Maker 本地 guidance。
-  已绑定 Maker 项目应优先建议用户使用这些 tools。远端 proxy tool 返回 `isError` 时，本地 MCP
+  这些 tools 为 Maker 项目提供对应的素材和平台能力。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
 - 音频 proxy tools 在本地 Maker 项目中必须保留 Provider 原格式并落盘生成结果。
   `text_to_dialogue` 接收项目内音频路径时要转为 data URL；未显式传参考音频时，
@@ -410,7 +410,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 统一项目健康检查保持只读，不自动移动、覆盖或重建 `.project` 配置。不得用 `.project` 目录是否存在判断项目已经初始化；`.project` 为空、只含音色 mapping/其它本地文件、只含 `resources.json`，或缺少 `project.json` / `settings.json` 时，都按具体文件状态保持新项目可构建。只有规范位置的配置文件实际存在且内容错误时才进入校验/修复路径：`settings.json` 仍可解析为 object 时，可在用户确认后补入缺失的 schema/build 默认字段，并保留 `@runtime`、`asset_ignores` 与未知字段。`sources.*.tag` 是锁定字段，只能从完整副本恢复；不要凭默认值生成项目身份、版本、发布元数据或资源分组。`entry=main.lua` 也必须先确认项目实际入口。
 - 当前目录是已绑定 Maker 项目时，调用 `generate_test_qrcode` 应先不传方向参数。本地 MCP 会读取 `.project/project.json`：已有合法 `taptap_publish.screen_orientation` 时直接沿用，不再询问用户，且后续输入不能覆盖；只有该字段从未设置时，才单独发起一次对话，让用户明确选择横屏（`landscape`）或竖屏（`portrait`），禁止推断或默认。用户选择后重试并传本地私有参数 `confirmed_screen_orientation`，本地 MCP 只在首次缺失时写入该值，不会把私有参数转发给远端。二维码生成并建立应用身份后，只有用户明确提供 TapTap `user_id` 时才调用 `add_test_whitelist`，不要猜测账号 ID。
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），先阅读 `maker://ads-integration-guide`，再按其中流程检查 Maker 项目状态、调用 `get_ad_config` 并阅读项目内 `engine-docs/recipes/sdk.md`。主配置未初始化时，本地 preflight 会保持广告能力不可用且不调用远端 `get_ad_config`；仅在用户明确要求构建时调用 `maker_build_current_directory`。构建后本地配置仍缺失时直接说明当前已知限制，不要自动重复构建。配置就绪后再调用 `get_ad_config` 获取广告开通状态和配置；若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。不要先查 `.maker-mcp/config.json` 或用运行回调推断广告是否开通，也不要为这个恢复流程调用发布类工具。
-- 当前目录是已绑定 Maker 项目时，只要用户消息涉及线上玩家反馈、问题反馈、问题上报、debug feedback、真机日志、截图或玩家反馈，应优先调用 Maker MCP tool `get_debug_feedbacks`；本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代线上玩家提交的反馈。
+- 当前目录是已绑定 Maker 项目时，只有用户明确询问当前 Maker 游戏的线上玩家反馈（包括玩家提交的游戏故障、真机游戏日志或截图），或指定游戏会话的服务端/Lua 日志时，才调用 Maker MCP tool `get_debug_feedbacks`；Cindy 等 AI 客户端、插件、通用开发工具或其它产品的问题反馈/问题上报不属于该工具。本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代线上玩家提交的反馈。
 - `get_debug_feedbacks` 会拉取线上玩家反馈，并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`；调用后优先使用返回的 `local_dir`、`local_log_paths`、`local_screenshot_paths` 读取日志和查看截图。附件路径以 tool 返回的 `local_*` 字段为准；没有 `local_*` 字段时，不要把附件当成本地文件读取。
 - 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 查看结果 / 看看效果 / 验证游戏效果”时，都调用 `maker_build_current_directory`。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务；push 成功后才远端 build。
 - push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
