@@ -113,6 +113,7 @@ export function prepareRemoteProxyToolArgs(options: {
 
 function validateVoiceAuditionArgs(args: Record<string, unknown>): Record<string, unknown> {
   const voiceProfile = args.voice_profile;
+  if (voiceProfile === undefined) return args;
   const gender = isRecord(voiceProfile) ? voiceProfile.gender : undefined;
   if (gender !== 'male' && gender !== 'female') {
     throw new Error(

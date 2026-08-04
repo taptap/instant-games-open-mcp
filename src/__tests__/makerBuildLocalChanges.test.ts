@@ -1675,9 +1675,7 @@ describe('maker build local-change guard', () => {
       dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio_path.description
     ).toContain('legacy local project audio path');
     expect(dialogueTool?.description).not.toContain('reference_audio_path');
-    expect(dialogueTool?.description).toContain(
-      'automatically reuses a confirmed local Doubao reference'
-    );
+    expect(dialogueTool?.description).toContain('confirmed Doubao reference mapping');
     const auditionDescription =
       result.tools.find((item) => item.name === 'audition_voices_for_character')?.description || '';
     expect(auditionDescription).toMatch(

@@ -118,8 +118,10 @@ import {
 import { sanitizeDiagnosticValue, sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
 import {
   getMakerRemoteProxyPublicDescriptionOverride,
+  inferMakerAudioProvider,
   MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION,
   MAKER_STATUS_LITE_PUBLIC_DESCRIPTION,
+  type MakerAudioProvider,
 } from './toolDescriptions.js';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 import {
@@ -380,16 +382,20 @@ export async function listMakerTools(options: {
           env: options.env,
         }));
     try {
-      remoteTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
-        decorateRemoteProxyToolDefinition
+      const exposedTools = filterExposedRemoteProxyTools(await listedRemoteTools());
+      const audioProvider = inferMakerAudioProvider(exposedTools);
+      remoteTools = exposedTools.map((tool) =>
+        decorateRemoteProxyToolDefinition(tool, audioProvider)
       );
     } catch (error) {
       const cachedTools = options.getCachedRemoteTools?.();
       if (!cachedTools) {
         throw error;
       }
-      remoteTools = filterExposedRemoteProxyTools(cachedTools).map(
-        decorateRemoteProxyToolDefinition
+      const exposedTools = filterExposedRemoteProxyTools(cachedTools);
+      const audioProvider = inferMakerAudioProvider(exposedTools);
+      remoteTools = exposedTools.map((tool) =>
+        decorateRemoteProxyToolDefinition(tool, audioProvider)
       );
     }
   } catch (error) {
@@ -411,9 +417,12 @@ function filterExposedRemoteProxyTools(
   return toolsToFilter.filter((tool) => exposedToolNames.has(tool.name));
 }
 
-function decorateRemoteProxyToolDefinition(tool: RemoteToolDefinition): RemoteToolDefinition {
-  const publicDescription = getMakerRemoteProxyPublicDescriptionOverride(tool.name);
-  const guidance = remoteProxyToolGuidance(tool.name);
+function decorateRemoteProxyToolDefinition(
+  tool: RemoteToolDefinition,
+  audioProvider: MakerAudioProvider
+): RemoteToolDefinition {
+  const publicDescription = getMakerRemoteProxyPublicDescriptionOverride(tool.name, audioProvider);
+  const guidance = remoteProxyToolGuidance(tool.name, audioProvider);
   return {
     ...tool,
     inputSchema: decorateRemoteProxyToolInputSchema(tool.inputSchema, tool.name),
@@ -435,7 +444,8 @@ function decorateRemoteProxyToolInputSchema(
         : properties;
   const required = Array.isArray(schema.required) ? schema.required : [];
   const decoratedRequired =
-    toolName === 'audition_voices_for_character'
+    toolName === 'audition_voices_for_character' &&
+    Object.prototype.hasOwnProperty.call(properties, 'voice_profile')
       ? [...new Set([...required, 'voice_profile'])]
       : required;
   return {
@@ -467,6 +477,7 @@ function decorateVoiceAuditionInputProperties(
   properties: Record<string, unknown>
 ): Record<string, unknown> {
   const remoteVoiceProfile = properties.voice_profile;
+  if (!isPlainRecord(remoteVoiceProfile)) return properties;
   const voiceProfile = isPlainRecord(remoteVoiceProfile) ? remoteVoiceProfile : {};
   const profileProperties = isPlainRecord(voiceProfile.properties) ? voiceProfile.properties : {};
   const profileRequired = Array.isArray(voiceProfile.required) ? voiceProfile.required : [];
@@ -555,7 +566,10 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function remoteProxyToolGuidance(toolName: string): string | undefined {
+function remoteProxyToolGuidance(
+  toolName: string,
+  audioProvider: MakerAudioProvider = 'elevenlabs'
+): string | undefined {
   const failurePolicy =
     'If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.';
   const localMediaSizeHint =
@@ -594,11 +608,23 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
         failurePolicy,
       ].join(' ');
     case 'text_to_dialogue':
+      if (audioProvider === 'elevenlabs') {
+        return [
+          '**Maker voice workflow hint:** Pass character_name and text after ElevenLabs voice confirmation; the local proxy reuses the confirmed local voice_id mapping and materializes successful dialogue under assets/audio/voice.',
+          failurePolicy,
+        ].join(' ');
+      }
       return [
         '**Maker voice workflow hint:** For normal dialogue, pass only character_name and text after voice confirmation; the local proxy automatically reuses a confirmed local Doubao reference. reference_audio is an optional per-call override and accepts a local project audio path under assets/audio/, an HTTP(S) URL, or an audio data URL. Project audio must exist locally and is converted to a data URL automatically. reference_audio and reference_audio_path are mutually exclusive; reference_audio is canonical and reference_audio_path is the legacy local-path field. Successful dialogue audio is materialized under assets/audio/voice.',
         failurePolicy,
       ].join(' ');
     case 'audition_voices_for_character':
+      if (audioProvider === 'elevenlabs') {
+        return [
+          '**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary ElevenLabs Voice Design previews. Prepare a representative line of at least 100 characters, show every returned preview, and wait for the user choice before calling confirm_character_voice. Preview candidates are not saved as game assets.',
+          failurePolicy,
+        ].join(' ');
+      }
       return [
         '**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary preview voices for one character. voice_profile.gender is required: extract male or female from character_description or the character settings and pass it explicitly. Show every returned preview URL to the user and wait for their choice before calling confirm_character_voice. Preview candidates are not saved as game assets.',
         failurePolicy,

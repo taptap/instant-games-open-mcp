@@ -16,24 +16,11 @@ describe('Maker audio proxy tools', () => {
 
   afterEach(() => fs.rmSync(targetDir, { recursive: true, force: true }));
 
-  test('requires an explicit character gender before forwarding a voice audition', () => {
-    expect(() =>
-      prepareRemoteProxyToolArgs({
-        toolName: 'audition_voices_for_character',
-        targetDir,
-        args: {
-          character_name: '暗影刺客',
-          character_description: 'Young adult female rogue assassin',
-          audition_line: '目标已经进入视野。',
-        },
-      })
-    ).toThrow(/voice_profile\.gender.*required.*male.*female/i);
-
+  test('forwards an ElevenLabs voice audition without a Doubao voice profile', () => {
     const args = {
       character_name: '暗影刺客',
       character_description: 'Young adult female rogue assassin',
       audition_line: '目标已经进入视野。',
-      voice_profile: { gender: 'female' },
     };
     expect(
       prepareRemoteProxyToolArgs({
