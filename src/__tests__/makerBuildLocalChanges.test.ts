@@ -915,7 +915,7 @@ describe('maker build local-change guard', () => {
     fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
     fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
 
-    const output = await formatStatus({ targetDir: tempDir, skipRemoteSync: true });
+    const output = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
 
     expect(output).toContain('Maker project settings');
     expect(output).toContain('- status: invalid_settings_json');
@@ -1164,7 +1164,7 @@ describe('maker build local-change guard', () => {
       'utf8'
     );
 
-    const output = await formatStatus({ targetDir: tempDir, skipRemoteSync: true });
+    const output = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
 
     expect(output).toContain('Maker project structure');
     expect(output).toContain('misplaced_config');
@@ -3548,6 +3548,131 @@ describe('maker build local-change guard', () => {
     expect(statusTool?.inputSchema.properties.skip_remote_sync.description).toContain(
       'frequent polling'
     );
+    expect(statusTool?.inputSchema.properties).toHaveProperty('detail');
+    expect(statusTool?.inputSchema.properties.detail.description).toContain('diagnostic');
+  });
+
+  test('status summary is concise while detail mode retains diagnostic sections', async () => {
+    const summary = await formatStatus({ targetDir: tempDir });
+    const detail = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
+
+    expect(summary).toContain('TapTap Maker MCP status');
+    expect(summary).toContain('Status summary');
+    expect(summary).toContain('Maker MCP package update');
+    expect(summary).not.toContain('Maker remote sync');
+    expect(summary).not.toContain('AI dev kit');
+    expect(summary).toContain('maker_build_current_directory');
+    expect(detail).toContain('Maker remote sync');
+    expect(detail).toContain('AI dev kit');
+  });
+
+  test('status summary guides PAT-only projects to refresh Tap auth', async () => {
+    savePat({ token: 'maker-pat' });
+
+    const output = await formatStatus({ targetDir: tempDir });
+
+    expect(output).toContain('- tap_auth: missing');
+    expect(output).toContain('- pat: found');
+    expect(output).toContain('taptap-maker login');
+  });
+
+  test('status summary exposes ambiguous MCP roots before using the cwd fallback', async () => {
+    const firstRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-status-root-'));
+    const secondRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-status-root-'));
+    const originalCwd = process.cwd();
+
+    try {
+      process.chdir(firstRoot);
+      const output = await formatStatus({
+        listClientRoots: async () => [
+          { name: 'first', uri: pathToFileURL(firstRoot).toString() },
+          { name: 'second', uri: pathToFileURL(secondRoot).toString() },
+        ],
+      });
+
+      expect(output).toContain('MCP client roots');
+      expect(output).toContain('- status: ambiguous');
+      expect(output).toContain('Open a single Maker workspace');
+      expect(output).not.toContain('请继续在当前绑定项目上执行状态、提交、构建等操作');
+      expect(output).not.toContain('taptap-maker init');
+      expect(output).not.toContain('maker_build_current_directory');
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(firstRoot, { recursive: true, force: true });
+      fs.rmSync(secondRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('status summary gives a recovery action for a broken project configuration', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify({ app_id: 'app-1', developer_id: 'developer-1' }),
+      'utf8'
+    );
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+
+    const output = await formatStatus({ targetDir: tempDir });
+
+    expect(output).toContain('- project_health: error');
+    expect(output).toContain('恢复 .project/settings.json');
+  });
+
+  test('status summary gives a recovery action when the project Git directory is missing', async () => {
+    const untrackedProject = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-status-no-git-'));
+    saveProjectConfig(untrackedProject, {
+      project_id: 'app-no-git',
+      user_id: 'user-1',
+    });
+
+    try {
+      const output = await formatStatus({ targetDir: untrackedProject });
+
+      expect(output).toContain('- git: missing_git_repo');
+      expect(output).toContain('taptap-maker init');
+    } finally {
+      fs.rmSync(untrackedProject, { recursive: true, force: true });
+    }
+  });
+
+  test('status summary prioritizes Git installation when the Git executable is unavailable', async () => {
+    const originalGitBin = process.env.TAPTAP_MAKER_GIT_BIN;
+    process.env.TAPTAP_MAKER_GIT_BIN = path.join(tempDir, 'missing-git');
+
+    try {
+      const output = await formatStatus({ targetDir: tempDir });
+
+      expect(output).toContain('Git 未安装');
+      expect(output).toContain('git --version');
+      expect(output).not.toContain('taptap-maker init` 重新初始化');
+    } finally {
+      if (originalGitBin === undefined) {
+        delete process.env.TAPTAP_MAKER_GIT_BIN;
+      } else {
+        process.env.TAPTAP_MAKER_GIT_BIN = originalGitBin;
+      }
+    }
+  });
+
+  test('status summary prioritizes misplaced configuration over missing project json', async () => {
+    fs.writeFileSync(
+      path.join(tempDir, 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {},
+        build: {},
+      }),
+      'utf8'
+    );
+
+    const output = await formatStatus({ targetDir: tempDir });
+
+    expect(output).toContain('- project_initialization: missing_project_json');
+    expect(output).toContain('- project_health: misplaced_config');
+    expect(output).toContain('修复 Maker 项目结构或配置问题后再构建');
+    expect(output).not.toContain(
+      '仅当用户明确要求构建、提交或预览时调用 `maker_build_current_directory`'
+    );
   });
 
   test('remote sync status falls back when git inspection throws', async () => {
@@ -3812,6 +3937,7 @@ describe('maker build local-change guard', () => {
     expect(Object.keys(statusTool?.inputSchema.properties || {})).toEqual([
       'target_dir',
       'skip_remote_sync',
+      'detail',
     ]);
     for (const tool of [statusTool, buildTool]) {
       expect(tool?.inputSchema.properties).not.toHaveProperty('jwt');

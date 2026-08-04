@@ -5,7 +5,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { MAKER_CAPABILITY_ROUTING_INDEX } from '../capabilityRouting.js';
+import { MAKER_PROJECT_POLICY_ROUTING_INDEX } from '../capabilityRouting.js';
 
 export const MAKER_AGENTS_FILE = 'AGENTS.md';
 const POLICY_VERSION = '3';
@@ -128,7 +128,7 @@ function createMakerAgentsPolicyBody(): string {
     '',
     'This is a bound TapTap Maker project.',
     '',
-    MAKER_CAPABILITY_ROUTING_INDEX,
+    MAKER_PROJECT_POLICY_ROUTING_INDEX,
     '',
     'Maker build workflow:',
     '',
@@ -209,20 +209,6 @@ function createMakerAgentsPolicyBody(): string {
     '- If `get_ad_config` reports missing `app_id` or `developer_id`, call',
     '  `generate_test_qrcode` once to generate test QR code metadata, then call `get_ad_config`',
     '  again. Do not use publish-only tools for this recovery path.',
-    '',
-    'Maker feedback workflow:',
-    '',
-    "- For user requests about the current Maker game's online player feedback, including",
-    '  player-submitted game bug reports, real-device game logs, or screenshots, or server/Lua',
-    '  logs for a specified game session, call the Maker proxy `get_debug_feedbacks` tool only',
-    '  when it is exposed by the current Maker tool list.',
-    '- This includes 当前 Maker 游戏的玩家反馈、玩家提交的游戏故障、真机游戏日志或截图、',
-    '  指定游戏会话的服务端/Lua 日志. It does not include AI client, plugin, or other product',
-    '  feedback.',
-    '- Use local runtime log files only for the current local build/runtime session. Do not use',
-    '  local logs as a substitute for remote player-submitted feedback.',
-    '- Follow the remote tool schema and return the feedback records, logs, screenshots, and',
-    '  full error payloads as provided by the remote Maker MCP server.',
     '',
     'Maker MCP provides the following game asset generation and editing tools when they are',
     'exposed in the current session:',

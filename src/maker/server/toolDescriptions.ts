@@ -7,7 +7,7 @@ export const MAKER_STATUS_LITE_PUBLIC_DESCRIPTION = [
   'Compatibility tool for clients that cannot read the maker://status resource; prefer the resource when it is available.',
   'Use it when starting or resuming Maker work, or when the current project context and readiness are uncertain.',
   'Pass target_dir when the project cannot be resolved from MCP Roots or the server working directory; if multiple Maker projects remain ambiguous, ask the user instead of guessing.',
-  'By default the check may perform remote Git, package, dev-kit, proxy, and authentication probes. skip_remote_sync skips only remote Git and dev-kit freshness checks; it is not an offline or read-only mode.',
+  'By default this is a fast local, read-only summary. Set detail=true only for explicit diagnostics; it enables remote Git, dev-kit, proxy, and maintenance checks. skip_remote_sync skips remote Git and dev-kit freshness checks in detail mode.',
   'Follow the returned next_action and next_step.',
 ].join(' ');
 

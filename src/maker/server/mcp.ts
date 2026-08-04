@@ -51,7 +51,6 @@ import {
   type MakerProjectProgressHandler,
   type MakerGitFailure,
 } from '../cli/projects.js';
-import { requestTapAuthWithPat } from '../auth/patTap.js';
 import {
   getMakerEndpoints,
   getMakerEnvironment,
@@ -271,7 +270,12 @@ export const tools = [
         skip_remote_sync: {
           type: 'boolean',
           description:
-            'If true, skip git fetch/ahead-behind remote sync checks. Use this for frequent polling or quick local status checks.',
+            'In detail mode, skip git fetch/ahead-behind remote sync and dev-kit freshness checks. Summary mode is already local-only; use this for frequent polling.',
+        },
+        detail: {
+          type: 'boolean',
+          description:
+            'Set true only for explicit diagnostics. The default is a fast local summary without remote checks.',
         },
       },
     },
@@ -973,6 +977,7 @@ export async function startMakerMcpServer(): Promise<void> {
         const args = (request.params.arguments || {}) as {
           target_dir?: string;
           skip_remote_sync?: boolean;
+          detail?: boolean;
         };
         const toolResult = {
           content: [
@@ -981,6 +986,7 @@ export async function startMakerMcpServer(): Promise<void> {
               text: await formatStatus({
                 targetDir: args.target_dir,
                 skipRemoteSync: args.skip_remote_sync,
+                detail: args.detail,
                 listClientRoots,
                 remoteProxyManager,
               }),
@@ -1044,6 +1050,7 @@ export async function startMakerMcpServer(): Promise<void> {
         }
 
         const toolResult = {
+          isError: !isMakerBuildActivitySuccessful(result.mode),
           content: [
             {
               type: 'text',
@@ -1260,10 +1267,12 @@ export async function formatStatus(
   options: {
     targetDir?: string;
     skipRemoteSync?: boolean;
+    detail?: boolean;
     listClientRoots?: MakerClientRootsProvider;
     remoteProxyManager?: MakerRemoteProxyManager;
   } = {}
 ): Promise<string> {
+  const detail = options.detail === true;
   const projectContext = await resolveMakerProjectContext({
     targetDir: options.targetDir,
     listClientRoots: options.listClientRoots,
@@ -1279,59 +1288,104 @@ export async function formatStatus(
       : identifyMakerProject({ cwd: mcpCwd });
   const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
   const remoteSyncText =
-    identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo && !options.skipRemoteSync
+    detail &&
+    identify.projectRoot &&
+    gitDirectoryStatus.isUsableMakerGitRepo &&
+    !options.skipRemoteSync
       ? await formatMakerRemoteSyncStatusSafely(identify.projectRoot)
-      : identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo
+      : detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo
         ? formatMakerRemoteSyncSkipped()
         : '';
   const pat = loadPat();
-  let tapAuth = loadTapAuth();
-  let tapAuthRefreshText = '';
-  if (pat && !tapAuth) {
-    try {
-      tapAuth = await requestTapAuthWithPat(pat.token, env);
-      tapAuthRefreshText = [
-        'TapTap token',
-        '',
-        `本地已有 Maker PAT，已自动获取并保存 TapTap token: ${getTapAuthPath()}`,
-      ].join('\n');
-    } catch (error) {
-      tapAuthRefreshText = [
-        'TapTap token',
-        '',
-        '本地已有 Maker PAT，但自动获取 TapTap token 失败。',
-        `原因：${error instanceof Error ? error.message : String(error)}`,
-      ].join('\n');
-    }
-  }
+  const tapAuth = loadTapAuth();
   const git = checkGitEnvironment();
   const python = checkMakerPythonEnvironment();
   const luaLsp = checkMakerLuaLspEnvironment({ pythonEnvironment: python });
-  const packageUpdateText = formatMakerPackageUpdateStatus(
-    await getMakerPackageUpdateStatus({
-      currentVersion: VERSION,
-      allowRemoteFetch: false,
-    })
-  );
-  const projectInitializationText = identify.projectRoot
-    ? formatMakerProjectInitializationStatus(
-        inspectMakerProjectInitialization(identify.projectRoot)
-      )
+  const packageUpdateStatus = await getMakerPackageUpdateStatus({
+    currentVersion: VERSION,
+    allowRemoteFetch: false,
+    ...(detail ? {} : { backgroundRefresh: false }),
+  });
+  const packageUpdateText = detail ? formatMakerPackageUpdateStatus(packageUpdateStatus) : '';
+  const projectInitialization = identify.projectRoot
+    ? inspectMakerProjectInitialization(identify.projectRoot)
+    : undefined;
+  const projectHealth = identify.projectRoot
+    ? inspectMakerProjectHealth(identify.projectRoot, 'status')
+    : undefined;
+  const projectInitializationText = projectInitialization
+    ? formatMakerProjectInitializationStatus(projectInitialization)
     : '';
-  const projectHealthText = identify.projectRoot
-    ? formatMakerProjectHealthStatus(inspectMakerProjectHealth(identify.projectRoot, 'status'))
-    : '';
-  const projectSection = identify.projectId
-    ? [
-        '目标目录已绑定 Maker 项目。',
-        '请继续在当前绑定项目上执行状态、提交、构建等操作；用户明确要求切换或重新拉取项目时，再进入项目选择流程。',
-        '本地 Maker 工作流请参考 taptap-maker-local workflow guide document；CLI 负责初始化/PAT/app/clone，MCP 只保留状态和同步构建。',
-      ].join('\n')
-    : isLikelyAiDialogueDirectory(targetDir)
-      ? formatAiDialogueDirectoryHint(targetDir)
-      : pat
-        ? await formatAutoProjectListFromPat()
-        : formatIdentifyHint();
+  const projectHealthText = projectHealth ? formatMakerProjectHealthStatus(projectHealth) : '';
+  let projectSection: string;
+  if (projectContext.roots.status === 'ambiguous') {
+    projectSection = [
+      'MCP client roots are ambiguous; do not continue Maker operations from the cwd fallback.',
+      'Open a single Maker workspace or pass target_dir explicitly before status-dependent actions.',
+    ].join('\n');
+  } else if (identify.projectId) {
+    projectSection = [
+      '目标目录已绑定 Maker 项目。',
+      '请继续在当前绑定项目上执行状态、提交、构建等操作；用户明确要求切换或重新拉取项目时，再进入项目选择流程。',
+      '本地 Maker 工作流请参考 taptap-maker-local workflow guide document；CLI 负责初始化/PAT/app/clone，MCP 只保留状态和同步构建。',
+    ].join('\n');
+  } else if (isLikelyAiDialogueDirectory(targetDir)) {
+    projectSection = formatAiDialogueDirectoryHint(targetDir);
+  } else if (detail && pat) {
+    projectSection = await formatAutoProjectListFromPat();
+  } else {
+    projectSection = formatIdentifyHint();
+  }
+
+  const summaryText = [
+    'Status summary',
+    '',
+    `- project: ${identify.projectId ? 'bound' : 'unbound'}`,
+    `- target_dir: ${targetDir}`,
+    `- tap_auth: ${tapAuth ? 'found' : 'missing'}`,
+    `- pat: ${pat ? 'found' : 'missing'}`,
+    `- git: ${gitDirectoryStatus.isUsableMakerGitRepo ? 'ready' : gitDirectoryStatus.issue || 'unavailable'}`,
+    `- python: ${python.status}`,
+    `- lua_lsp: ${luaLsp.status}`,
+    'Maker MCP package update',
+    `- status: ${packageUpdateStatus.status}`,
+    packageUpdateStatus.target_version
+      ? `- target_version: ${packageUpdateStatus.target_version}`
+      : '',
+    packageUpdateStatus.next_action ? `- next_action: ${packageUpdateStatus.next_action}` : '',
+    projectInitialization ? `- project_initialization: ${projectInitialization.status}` : '',
+    projectHealth ? `- project_health: ${projectHealth.status}` : '',
+    formatMakerClientRootsSummary(projectContext.roots),
+    '',
+    formatAuthNextStep({
+      hasPat: Boolean(pat),
+      hasTapAuth: Boolean(tapAuth),
+      isProjectBound: Boolean(identify.projectRoot),
+      rootsAmbiguous: projectContext.roots.status === 'ambiguous',
+    }),
+    formatMakerSummaryNextAction({
+      git,
+      gitDirectoryStatus,
+      projectInitialization,
+      projectHealth,
+      rootsAmbiguous: projectContext.roots.status === 'ambiguous',
+    }),
+    '',
+    projectSection,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  if (!detail) {
+    return [
+      'TapTap Maker MCP status',
+      '',
+      `- version: ${VERSION}`,
+      `- env: ${env}`,
+      `- project_context_source: ${projectContext.source}`,
+      summaryText,
+    ].join('\n');
+  }
 
   return [
     'TapTap Maker MCP status',
@@ -1380,9 +1434,14 @@ export async function formatStatus(
         })
       : '',
     '',
-    formatAuthNextStep({ hasPat: Boolean(pat), isProjectBound: Boolean(identify.projectRoot) }),
+    formatAuthNextStep({
+      hasPat: Boolean(pat),
+      hasTapAuth: Boolean(tapAuth),
+      isProjectBound: Boolean(identify.projectRoot),
+      rootsAmbiguous: projectContext.roots.status === 'ambiguous',
+    }),
     '',
-    tapAuthRefreshText,
+    '',
     '',
     identify.projectRoot ? formatMakerAgentsPolicyStatus(identify.projectRoot) : '',
     '',
@@ -1401,7 +1460,28 @@ export async function formatStatus(
     .join('\n');
 }
 
-function formatAuthNextStep(options: { hasPat: boolean; isProjectBound: boolean }): string {
+function formatAuthNextStep(options: {
+  hasPat: boolean;
+  hasTapAuth: boolean;
+  isProjectBound: boolean;
+  rootsAmbiguous: boolean;
+}): string {
+  if (!options.hasTapAuth) {
+    if (options.hasPat) {
+      return [
+        'Auth next step',
+        '',
+        'TapTap auth 缺失。请运行 `taptap-maker login` 刷新登录授权。',
+      ].join('\n');
+    }
+    if (options.isProjectBound) {
+      return [
+        'Auth next step',
+        '',
+        'Maker PAT 和 TapTap auth 缺失。请运行 `taptap-maker login` 刷新登录授权。',
+      ].join('\n');
+    }
+  }
   if (options.hasPat) {
     return '';
   }
@@ -1412,12 +1492,113 @@ function formatAuthNextStep(options: { hasPat: boolean; isProjectBound: boolean 
       'Maker PAT 缺失。请运行 `taptap-maker login` 刷新登录授权。',
     ].join('\n');
   }
+  if (options.rootsAmbiguous) {
+    return '';
+  }
   return [
     'Initialization next step',
     '',
     '当前目录尚未绑定 Maker 项目。请运行 `taptap-maker init`。',
     '如果缺少 Maker PAT，CLI 会在 init 流程内自动打开登录授权页面并完成本地保存。',
   ].join('\n');
+}
+
+function formatMakerClientRootsSummary(roots: MakerClientRootsResolution): string {
+  if (roots.status === 'not_requested') {
+    return '';
+  }
+
+  const lines = ['MCP client roots', '', `- status: ${roots.status}`];
+  if (roots.status === 'selected') {
+    lines.push(
+      `- selected_project_root: ${roots.selectedProjectRoot || roots.selectedRoot}`,
+      `- reason: ${roots.reason}`
+    );
+  } else if (roots.status === 'ambiguous') {
+    lines.push(
+      `- roots: ${roots.roots.join(', ') || '(none)'}`,
+      `- maker_project_roots: ${roots.makerProjectRoots.join(', ') || '(none)'}`,
+      '- next_action: Open a single Maker workspace, or pass target_dir explicitly for this call.'
+    );
+  } else if (roots.status === 'unsupported') {
+    lines.push('- next_action: This client did not advertise MCP roots; falling back to MCP cwd.');
+  } else if (roots.status === 'unavailable') {
+    lines.push(
+      `- failure_message: ${roots.message || '(unknown)'}`,
+      '- next_action: Could not read MCP roots; falling back to MCP cwd.'
+    );
+  } else {
+    lines.push('- next_action: No MCP roots are attached; using MCP cwd.');
+  }
+  return lines.join('\n');
+}
+
+function formatMakerSummaryNextAction(options: {
+  git: ReturnType<typeof checkGitEnvironment>;
+  gitDirectoryStatus: ReturnType<typeof inspectMakerDirectoryGitStatus>;
+  projectInitialization?: ReturnType<typeof inspectMakerProjectInitialization>;
+  projectHealth?: MakerProjectHealth;
+  rootsAmbiguous: boolean;
+}): string {
+  if (options.rootsAmbiguous) {
+    return '';
+  }
+  if (!options.git.installed) {
+    return '- next_action: Git 未安装。请先安装 Git，并执行 `git --version` 验证。';
+  }
+  if (!options.gitDirectoryStatus.isUsableMakerGitRepo) {
+    const nextAction =
+      options.gitDirectoryStatus.issue === 'inside_parent_git_repo'
+        ? '当前目录位于外层 Git 仓库中；请使用独立 Maker 项目目录重新 clone。'
+        : '当前目录没有可用的独立 Maker Git 仓库；请运行 `taptap-maker init` 重新初始化。';
+    return `- next_action: ${nextAction}`;
+  }
+
+  if (options.projectHealth?.status === 'misplaced_config') {
+    return '- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。';
+  }
+  if (
+    options.projectHealth?.status === 'error' &&
+    !options.projectHealth.issues.some((issue) => issue.code === 'invalid_project_json')
+  ) {
+    const settingsIssue = options.projectHealth.issues.find(
+      (issue) => issue.code === 'invalid_settings_json' || issue.code === 'invalid_project_settings'
+    );
+    if (settingsIssue) {
+      return '- next_action: 恢复 .project/settings.json 的构建关键字段后再构建；保留合法的 @runtime 配置。';
+    }
+    return '- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。';
+  }
+
+  if (options.projectInitialization) {
+    switch (options.projectInitialization.status) {
+      case 'missing_taptap_identity':
+        return '- next_action: 先调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。';
+      case 'invalid_project_json':
+        return '- next_action: 从 Git 或完整副本恢复合法的 `.project/project.json`，不要依赖构建覆盖已有坏文件。';
+      case 'missing_project_json':
+        return '- next_action: 仅当用户明确要求构建、提交或预览时调用 `maker_build_current_directory`。';
+      default:
+        break;
+    }
+  }
+
+  if (options.projectHealth?.status === 'error') {
+    const settingsIssue = options.projectHealth.issues.find(
+      (issue) => issue.code === 'invalid_settings_json' || issue.code === 'invalid_project_settings'
+    );
+    if (settingsIssue) {
+      return '- next_action: 恢复 .project/settings.json 的构建关键字段后再构建；保留合法的 @runtime 配置。';
+    }
+    return '- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。';
+  }
+  if (options.projectHealth?.status === 'warning') {
+    return '- next_action: 调用 `maker_status_lite` 并设置 `detail=true` 查看项目结构告警后再继续。';
+  }
+  if (options.projectHealth?.status === 'not_initialized') {
+    return '- next_action: 仅当用户明确要求构建、提交或预览时调用 `maker_build_current_directory`。';
+  }
+  return '';
 }
 
 function formatMakerRemoteSyncSkipped(): string {

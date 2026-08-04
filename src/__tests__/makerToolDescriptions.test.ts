@@ -38,7 +38,7 @@ describe('Maker non-audio tool descriptions', () => {
 
     expect(statusDescription).toMatch(/compatibility.{0,100}maker:\/\/status/iu);
     expect(statusDescription).toMatch(/starting or resuming.{0,100}Maker/iu);
-    expect(statusDescription).toMatch(/skip_remote_sync.{0,160}not.{0,80}offline/iu);
+    expect(statusDescription).toMatch(/detail=true.{0,180}diagnostics/iu);
     expect(statusDescription).toMatch(/next_action.{0,40}next_step/iu);
     expect(statusDescription).not.toContain('including Git, Python runtime readiness');
     expect(statusDescription).not.toContain('Standard init/clone/download flow');
