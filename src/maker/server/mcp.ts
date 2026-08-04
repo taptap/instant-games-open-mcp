@@ -1050,6 +1050,7 @@ export async function startMakerMcpServer(): Promise<void> {
         }
 
         const toolResult = {
+          isError: !isMakerBuildActivitySuccessful(result.mode),
           content: [
             {
               type: 'text',

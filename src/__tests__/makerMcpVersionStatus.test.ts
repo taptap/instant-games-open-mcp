@@ -103,6 +103,20 @@ jest.mock('../maker/cli/projects', () => ({
     isOwnGitRoot: false,
     message: undefined,
   })),
+  readMakerProjectLocalChanges: jest.fn(),
+  pushMakerProject: jest.fn(),
+}));
+
+jest.mock('../maker/projectSettings', () => ({
+  formatMakerProjectHealthStatus: jest.fn(),
+  formatMakerProjectSettingsStatus: jest.fn(),
+  inspectMakerProjectHealth: jest.fn(() => ({
+    canBuild: true,
+    status: 'ready',
+    issues: [],
+  })),
+  inspectMakerProjectSettings: jest.fn(),
+  isMakerProjectSettingsBlocking: jest.fn(),
 }));
 
 jest.mock('../maker/auth/patTap', () => ({
@@ -210,6 +224,50 @@ describe('maker MCP version status integration', () => {
       allowRemoteFetch: false,
       backgroundRefresh: false,
     });
+  });
+
+  test('marks a blocked Maker submission as a tool error', async () => {
+    const projects = await import('../maker/cli/projects');
+    const storage = await import('../maker/storage');
+    const { startMakerMcpServer } = await import('../maker/server/mcp');
+    const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+
+    (storage.loadProjectConfig as jest.Mock).mockReturnValue({ project_id: 'app-1' });
+    (projects.readMakerProjectLocalChanges as jest.Mock).mockResolvedValue({
+      hasChanges: true,
+      projectRoot: '/tmp/maker-project',
+      files: ['scripts/main.lua'],
+      rawStatus: ' M scripts/main.lua',
+    });
+    (projects.pushMakerProject as jest.Mock).mockResolvedValue({
+      branch: 'main',
+      committed: false,
+      pushed: false,
+      status: 'clean',
+      failure: {
+        stage: 'remote_sync',
+        classification: 'remote_rejected',
+        retryable: false,
+        message: 'Maker remote is ahead',
+        nextAction: 'Ask the user whether to sync the Maker remote changes before retrying.',
+      },
+    });
+
+    await startMakerMcpServer();
+    const handler = mockServers[0].handlers.get(CallToolRequestSchema);
+    const result = await handler(
+      {
+        params: {
+          name: 'maker_build_current_directory',
+          arguments: { target_dir: '/tmp/maker-project' },
+        },
+      },
+      {}
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('submit blocked before commit/push');
+    expect(result.content[0].text).toContain('remote_rejected');
   });
 
   test('exposes a concise capability routing index through initialize instructions', async () => {
