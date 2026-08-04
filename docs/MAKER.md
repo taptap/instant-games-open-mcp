@@ -233,26 +233,28 @@ MCP 运行期能力：
 - 新项目初始化、`taptap-maker agents update` 和已绑定项目中的 `taptap-maker upgrade`
   会把同一份路由写入目标 Maker 项目 `AGENTS.md` 的受管策略块，并保留用户自己的内容。
   受管 body hash 变化会让旧项目状态显示为 `outdated`，不需要升级 policy version。
-- 更新 `@taptap/maker` 后，需要 reconnect/restart MCP 或新开 AI 会话才能收到新的
-  `initialize.instructions`；旧项目按状态输出继续执行 `agents update` 或 `upgrade`。
+- `taptap-maker upgrade` 不会主动重启或重连当前 MCP；当前会话继续使用已加载版本和已有
+  proxy tools。更新后的包和 `initialize.instructions` 会在下一次 MCP 启动或用户主动 reconnect
+  后生效，升级命令会明确提示这一点。
 - `maker://status`：资源形式的本地 Maker 状态，适合 Agent 首先读取。
 - `maker://ads-integration-guide`：广告接入入口，串联 `get_ad_config` 与项目内
   `engine-docs/recipes/sdk.md`，前者负责状态/配置，后者负责 Lua 代码实现。
-- `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。
+- `maker_status_lite`：工具形式的轻量状态，兼容不会读取 MCP resources 的客户端。默认只做快速
+  本地摘要；只有显式传入 `detail=true` 才执行远端同步、proxy、dev-kit 和维护信息诊断。
   支持 MCP Roots 的 AI 客户端会把当前 workspace root 暴露给 Maker MCP；状态会优先使用
   该 root 识别当前项目，并输出 `MCP client roots` 与 `project_context_source` 诊断。
   这样同一台机器上 Codex、Trae、Cursor 等客户端的用户级 MCP 配置不会因为某个项目写入
   `cwd` 而互相污染。
-- `maker://status` 和 `maker_status_lite` 会在启动后的异步检查完成后，以及最后一次成功远端
-  检查超过 12 小时时懒检查 `Maker MCP package update` 区块。这个检查只读取远端 policy，不执行升级，
-  也不会被业务 tools 触发。远端 policy 使用 `schema_version`、`latest`、`latest_beta`、
-  `minimum_supported`、`blacklist` 和 `message` 字段来决定是否需要升级。
+- 详细状态模式会在启动后的异步检查完成后，以及最后一次成功远端检查超过 12 小时时懒检查
+  `Maker MCP package update` 区块。这个检查只读取缓存或远端 policy，不执行升级，也不会被业务 tools
+  触发。默认 status summary 只读取本地缓存中的 package update 摘要，不访问远端 policy。远端 policy 使用 `schema_version`、`latest`、
+  `latest_beta`、`minimum_supported`、`blacklist` 和 `message` 字段来决定是否需要升级。
   状态只会报告 `required_upgrade`、`update_available`、`current`、`unavailable` 或 `skipped`。
   如果状态是 `required_upgrade`，本地 AI 必须先向用户解释原因并征得同意；用户同意后，
   若项目目录已确认，再运行 `npx -y -p @taptap/maker taptap-maker upgrade --target-dir <PROJECT_DIR>`；
   如果还没有确认项目目录，只能说明 machine-level refresh 的取舍，再决定是否运行不带
-  `--target-dir` 的 `taptap-maker upgrade`。升级后要提示用户重启或 reconnect MCP session，
-  然后用 `maker://status` 或 `maker_status_lite` 复核结果。
+  `--target-dir` 的 `taptap-maker upgrade`。升级后当前会话继续可用；提示用户新版本将在下一次
+  MCP 启动或主动 reconnect 后生效，再用 `maker://status` 或 `maker_status_lite` 复核结果。
 
 ### 本地开发活跃上报
 
@@ -321,9 +323,9 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   首次 init 后如果出现或变化，应随游戏代码一起提交。即使 AI 传了 `files` 白名单，Maker MCP 也会把
   已变化的根 `.gitignore` 纳入提交。
 - 已绑定项目的状态输出会包含 `Maker remote sync`。该段会 fetch Maker 远端并比较 `HEAD...origin/main`：本地干净且远端领先时提示先 fast-forward pull；本地有未提交改动时提示不要直接 pull，让本地 Agent 先引导提交、stash 或取消同步。
-- 频繁轮询状态或只需要快速本地状态时，调用 `maker_status_lite` 应传
-  `skip_remote_sync=true`，避免每次状态查询都触发 `git fetch origin` 和 AI dev kit
-  最新版本检查网络往返。
+- 频繁轮询或只需要快速本地状态时，直接调用默认 `maker_status_lite`；它本身不访问远端。
+  只有调用 `maker_status_lite({ detail: true })` 进行诊断时，`skip_remote_sync=true` 才用于跳过
+  `git fetch origin` 和 AI dev kit 最新版本检查。
 
 ## Maker 本地 Workflow Skills
 

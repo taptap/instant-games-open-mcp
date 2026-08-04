@@ -19,7 +19,7 @@ import {
   resolveDefaultAiDevKitUrl,
   writeAiDevKitVersionMetadata,
 } from '../maker/cli/devKit';
-import { MAKER_CAPABILITY_ROUTING_INDEX } from '../maker/capabilityRouting';
+import { MAKER_PROJECT_POLICY_ROUTING_INDEX } from '../maker/capabilityRouting';
 
 describe('Maker AI dev kit install', () => {
   let tempDir: string;
@@ -121,8 +121,8 @@ describe('Maker AI dev kit install', () => {
       /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
-    expect(agentsGuide).toContain(MAKER_CAPABILITY_ROUTING_INDEX);
-    expect(agentsGuide.indexOf(MAKER_CAPABILITY_ROUTING_INDEX)).toBeLessThan(
+    expect(agentsGuide).toContain(MAKER_PROJECT_POLICY_ROUTING_INDEX);
+    expect(agentsGuide.indexOf(MAKER_PROJECT_POLICY_ROUTING_INDEX)).toBeLessThan(
       agentsGuide.indexOf('Maker build workflow')
     );
     expect(agentsGuide).toContain('Maker build workflow');
@@ -134,14 +134,10 @@ describe('Maker AI dev kit install', () => {
       'first read `maker://ads-integration-guide`, then follow it'
     );
     expect(agentsGuide).toContain('source of truth for current project ad activation status');
-    expect(agentsGuide).toContain('Maker feedback workflow');
-    expect(agentsGuide).toContain('the Maker proxy `get_debug_feedbacks` tool');
-    expect(agentsGuide).toContain("current Maker game's online player feedback");
-    expect(agentsGuide).toContain('real-device game logs');
-    expect(agentsGuide).toContain('server/Lua logs for a specified game session');
-    expect(agentsGuide).toContain('exposed by the current Maker tool list');
+    expect(agentsGuide).not.toContain('Maker feedback workflow');
+    expect(agentsGuide).not.toContain('get_debug_feedbacks');
+    expect(agentsGuide).not.toContain("current Maker game's online player feedback");
     expect(agentsGuide).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
-    expect(agentsGuide).toContain('local logs as a substitute');
     expect(agentsGuide).toContain(
       'Maker MCP provides the following game asset generation and editing tools'
     );
@@ -369,19 +365,16 @@ describe('Maker AI dev kit install', () => {
       /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
-    expect(agentsGuide).toContain(MAKER_CAPABILITY_ROUTING_INDEX);
+    expect(agentsGuide).toContain(MAKER_PROJECT_POLICY_ROUTING_INDEX);
     expect(agentsGuide).toContain('call `maker_build_current_directory`');
     expect(agentsGuide).toContain('Do not tell the user to open the Maker web page');
     expect(agentsGuide).toContain('Maker ad workflow');
     expect(agentsGuide.replace(/\s+/gu, ' ')).toContain(
       'first read `maker://ads-integration-guide`, then follow it'
     );
-    expect(agentsGuide).toContain('Maker feedback workflow');
-    expect(agentsGuide).toContain('the Maker proxy `get_debug_feedbacks` tool');
-    expect(agentsGuide).toContain("current Maker game's online player feedback");
-    expect(agentsGuide).toContain('real-device game logs');
-    expect(agentsGuide).toContain('server/Lua logs for a specified game session');
-    expect(agentsGuide).toContain('exposed by the current Maker tool list');
+    expect(agentsGuide).not.toContain('Maker feedback workflow');
+    expect(agentsGuide).not.toContain('get_debug_feedbacks');
+    expect(agentsGuide).not.toContain("current Maker game's online player feedback");
     expect(agentsGuide).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
     expect(agentsGuide).toContain(
       'Maker MCP provides the following game asset generation and editing tools'

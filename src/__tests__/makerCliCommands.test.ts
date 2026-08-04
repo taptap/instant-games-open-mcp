@@ -20,7 +20,7 @@ import {
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../maker/versionCheck';
 import { runMakerCli } from '../maker/cli/commands';
 import { resolveMakerMcpLauncher, verifyMakerMcpLauncher } from '../maker/cli/mcpLauncher';
-import { MAKER_CAPABILITY_ROUTING_INDEX } from '../maker/capabilityRouting';
+import { MAKER_PROJECT_POLICY_ROUTING_INDEX } from '../maker/capabilityRouting';
 import { loadProjectConfig, saveProjectConfig } from '../maker/storage';
 
 function mockReadyPython(spawnSyncMock: jest.MockedFunction<typeof spawnSync>): void {
@@ -1147,8 +1147,8 @@ describe('Maker CLI commands', () => {
     expect(twice).toContain('TapTap Maker managed AGENTS policy');
     expect(twice).toContain('version=');
     expect(twice).toContain('hash=sha256:');
-    expect(twice).toContain(MAKER_CAPABILITY_ROUTING_INDEX);
-    expect(twice.indexOf(MAKER_CAPABILITY_ROUTING_INDEX)).toBeLessThan(
+    expect(twice).toContain(MAKER_PROJECT_POLICY_ROUTING_INDEX);
+    expect(twice.indexOf(MAKER_PROJECT_POLICY_ROUTING_INDEX)).toBeLessThan(
       twice.indexOf('Maker build workflow')
     );
     expect(twice).toContain('Keep this user rule.');
@@ -1284,6 +1284,15 @@ describe('Maker CLI commands', () => {
     const agents = fs.readFileSync(agentsPath, 'utf8');
     expect(agents).toContain('TapTap Maker managed AGENTS policy');
     expect(agents).toContain('Local project notes');
+  });
+
+  test('upgrade preserves the current MCP session and defers package activation', async () => {
+    await runMakerCli(['upgrade', '--target-dir', tempDir, '--ide', 'cursor', '--json']);
+
+    const payload = JSON.parse(stdoutSpy.mock.calls.join(''));
+    expect(payload.restart_required).toBe(false);
+    expect(payload.apply_mode).toBe('next_mcp_start');
+    expect(payload.current_session).toBe('preserved');
   });
 
   test('upgrade without explicit target dir does not pin cwd into user-level MCP config', async () => {

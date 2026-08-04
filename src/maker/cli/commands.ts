@@ -1217,7 +1217,9 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     env,
     mcp_install: installResults,
     agents_policy: agentsResult,
-    restart_required: true,
+    restart_required: false,
+    apply_mode: 'next_mcp_start',
+    current_session: 'preserved',
   };
   if (!payload.ok) {
     process.exitCode = 1;
@@ -1243,7 +1245,8 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
           ].join('\n')
         : 'AGENTS.md managed policy skipped: current directory is not bound to a Maker project.',
       '',
-      'Restart or reconnect the AI client MCP session so the updated server and AGENTS.md are loaded.',
+      'Current MCP session remains unchanged and continues using the existing version.',
+      'The updated package and AGENTS.md will take effect on the next MCP start or user-requested reconnect.',
       '',
     ].join('\n')
   );

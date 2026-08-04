@@ -230,8 +230,9 @@ For a bound project, always inspect `maker://status` or `maker_status_lite` befo
 development after an MCP/package upgrade. If the status includes an `AGENTS.md` section with
 `status: missing_file`, `missing_block`, or `outdated`, run
 `taptap-maker agents update --target-dir <project dir>` or `taptap-maker upgrade --target-dir
-<project dir>` before making gameplay/code changes. After updating `AGENTS.md`, tell the user to
-restart/reconnect the AI client or open a new conversation so the updated instructions are loaded.
+<project dir>` before making gameplay/code changes. After updating `AGENTS.md`, tell the user the
+current session remains usable; updated instructions load on the next MCP start or user-requested
+reconnect. Do not require a new conversation.
 
 When this file is missing and the user asks to clone, initialize, or continue Maker local
 development, do not ask the user for an app_id directly. Follow the initialization workflow.
@@ -603,12 +604,12 @@ being tied to a specific project folder.
 
 ## Remote Sync Status
 
-For a bound Maker project, `maker://status` and `maker_status_lite` include `Maker remote sync`.
-Read this section before the user starts editing in a fresh conversation:
+For a bound Maker project, detailed status includes `Maker remote sync`. Read the default local summary
+before routine work; use `maker_status_lite` with `detail: true` before explicit sync diagnostics:
 
-- For frequent polling or quick local-only status checks, call `maker_status_lite` with
-  `skip_remote_sync: true` to avoid `git fetch origin` and AI dev kit latest-version network round
-  trips on every status read.
+- For frequent polling or quick local-only status checks, call the default `maker_status_lite`; it is
+  already local-only. In detail mode, pass `skip_remote_sync: true` to avoid `git fetch origin` and
+  AI dev kit latest-version network round trips.
 - `up_to_date`: continue development.
 - `needs_pull` with `local_changes: no`: tell the user the workspace is clean and the local AI can
   run `git pull --ff-only origin main` before editing.

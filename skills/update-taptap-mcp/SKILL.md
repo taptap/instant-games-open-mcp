@@ -24,6 +24,7 @@ This workflow upgrades only the current machine and the current Maker project di
 ## Required Steps
 
 1. Read `maker://status`; if resources are unavailable, fall back to `maker_status_lite`.
+   Use `maker_status_lite({ detail: true })` only when package or connection diagnostics are explicitly needed.
    If the `Maker MCP package update` section reports `required_upgrade`, explain the version reason
    to the user first.
    Do not run any upgrade command before that explanation and approval step.
@@ -47,10 +48,11 @@ If the user only wants to refresh the machine-level MCP command and no Maker pro
 confirmed, explain that this refresh will not update project `AGENTS.md`, then run
 `npx -y -p @taptap/maker taptap-maker upgrade` without `--target-dir` only after the user agrees.
 
-5. Ask the user to restart/reconnect the AI client MCP session, or open a new AI conversation.
-   Current conversations usually do not hot-load a new MCP process or re-read `AGENTS.md`.
-6. After restart/reconnect, verify by reading `maker://status`; if resources are unavailable, call
-   `maker_status_lite`.
+5. Tell the user that the current MCP session remains available and continues using the existing
+   version and proxy tools. The updated package and `AGENTS.md` take effect on the next MCP start or
+   user-requested reconnect; do not require a new conversation.
+6. After the next restart/reconnect, verify by reading `maker://status`; if resources are unavailable,
+   call `maker_status_lite`.
 
 ## Status-Driven Upgrade Notes
 
@@ -61,8 +63,8 @@ confirmed, explain that this refresh will not update project `AGENTS.md`, then r
   `minimum_supported`, `blacklist`, and `message`.
 - `required_upgrade` means the local AI must explain the reason, ask the user for approval, and only
   then run the appropriate upgrade command.
-- After any upgrade, restart or reconnect the MCP session before trusting the new status, then
-  verify with `maker://status` or `maker_status_lite`.
+- After any upgrade, the current session remains usable. Restart or reconnect only when the user wants
+  the new package loaded, then verify with `maker://status` or `maker_status_lite`.
 
 ## Expected Effects
 
@@ -103,8 +105,8 @@ When a user upgrades MCP and later opens an old Maker project:
 npx -y -p @taptap/maker taptap-maker agents update --target-dir <PROJECT_DIR>
 ```
 
-3. Tell the user to restart/reconnect the AI client or open a new conversation so the updated
-   `AGENTS.md` instructions are loaded.
+3. Tell the user the current session remains usable. The updated `AGENTS.md` instructions load on the
+   next MCP start or user-requested reconnect; do not require a new conversation.
 
 Status reads are intentionally read-only. Do not modify `AGENTS.md` from `maker://status` or
 `maker_status_lite`; use the CLI update command.

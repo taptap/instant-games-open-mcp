@@ -140,8 +140,8 @@ Maker MCP 初始化时会通过标准 `initialize.instructions` 向 AI 客户端
 标出状态、构建、Tap 流程和游戏资源生成入口。新项目初始化或执行
 `taptap-maker agents update` / `taptap-maker upgrade` 时，同一份路由也会写入目标 Maker
 项目 `AGENTS.md` 的受管策略块，供后续会话继续使用；用户自己编写的内容保持不变。升级
-`@taptap/maker` 后，需要 reconnect/restart MCP 或新开 AI 会话，当前客户端才会收到新的
-初始化提示。
+`@taptap/maker` 后，当前 MCP 会话不会被 `taptap-maker upgrade` 主动中断，已有 proxy tools
+继续可用；新版本和新的初始化提示会在下一次 MCP 启动或用户主动 reconnect 后生效。
 
 在已绑定 Maker 项目中，`maker_build_current_directory` 同时覆盖“构建 / 预览 / 跑一下 /
 查看结果 / 看看效果 / 验证游戏效果 / 提交 / 推送”。普通“验证代码 / 跑测试 / lint /
@@ -449,7 +449,8 @@ maker_build_current_directory
 `taptap-maker doctor` 会检查 Git、Python 环境、maker-lua-lsp、PAT、TapTap token、项目绑定、
 AI dev kit 版本和 MCP 配置。`maker://status` 和 `maker_status_lite` 会输出
 `MCP client roots` 与 `project_context_source`，用于确认当前项目来自客户端 workspace roots
-还是 MCP cwd fallback。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过
+还是 MCP cwd fallback。默认 status 只输出快速本地摘要；需要远端同步、proxy、dev-kit 或完整维护
+诊断时，调用 `maker_status_lite({ detail: true })`。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过
 `git --version` 验证。
 已绑定项目还会执行轻量的统一项目结构检查：分别检查 `.project/project.json`、
 `.project/resources.json`、`.project/settings.json`，识别实际存在的配置被 AI 写坏或移动到项目根目录、

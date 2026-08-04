@@ -178,6 +178,7 @@ describe('maker MCP version status integration', () => {
           arguments: {
             target_dir: '/tmp/maker-project',
             skip_remote_sync: true,
+            detail: true,
           },
         },
       },
@@ -191,6 +192,24 @@ describe('maker MCP version status integration', () => {
     expect(result.content[0].text).toContain('Maker MCP package update');
     expect(result.content[0].text).toContain('- status: required_upgrade');
     expect(result.content[0].text).toContain('- next_action: Ask the user for approval');
+
+    await handler(
+      {
+        params: {
+          name: 'maker_status_lite',
+          arguments: {
+            target_dir: '/tmp/maker-project',
+          },
+        },
+      },
+      {}
+    );
+
+    expect(versionCheck.getMakerPackageUpdateStatus).toHaveBeenLastCalledWith({
+      currentVersion: expect.any(String),
+      allowRemoteFetch: false,
+      backgroundRefresh: false,
+    });
   });
 
   test('exposes a concise capability routing index through initialize instructions', async () => {
