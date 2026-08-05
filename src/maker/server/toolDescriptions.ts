@@ -21,8 +21,6 @@ export const MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION = [
   'Set confirm_remote_build_without_submit=true only after the user explicitly requests building the already committed remote version without submitting local changes.',
 ].join(' ');
 
-export type MakerAudioProvider = 'elevenlabs' | 'doubao';
-
 const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> = {
   generate_image: [
     'Generate one new image asset for a Maker game. Use batch_generate_images for multiple new images and edit_image to modify an existing image.',
@@ -62,13 +60,14 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
     'The local proxy attempts to materialize successful audio and metadata into the Maker project and record them for later Maker references; use returned local paths when present.',
   ].join(' '),
   text_to_sound_effect: [
-    'Generate one game sound effect with ElevenLabs.',
-    'Use a specific English description. duration_seconds must be between 0.5 and 30 seconds; prompt_influence accepts 0 to 1 and defaults to 0.3.',
+    'Generate one game sound effect from a Chinese or English description with Doubao Seed Audio.',
+    'Each call produces one output of at most 120 seconds. Split longer audio across multiple generations because this tool does not stitch outputs.',
+    'duration_seconds is an approximate target and the actual duration may differ.',
     'The local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present.',
   ].join(' '),
   batch_sound_effects: [
-    'Generate multiple game sound effects with ElevenLabs in one batch.',
-    'Each item may request 0.5 to 30 seconds. Items are generated sequentially and one item can fail without discarding successful outputs.',
+    'Generate multiple game sound effects with Doubao Seed Audio in one batch.',
+    'Each item is an independent output of at most 120 seconds. Split longer audio across items or calls because this tool does not stitch outputs.',
     'The result preserves per-item failures while the local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present.',
   ].join(' '),
   text_to_dialogue: [
@@ -126,86 +125,7 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
   ].join(' '),
 };
 
-const MAKER_DOUBAO_AUDIO_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> = {
-  text_to_sound_effect: [
-    'Generate one game sound effect from a Chinese or English description.',
-    'For Doubao Seed Audio, each call produces one output of at most 120 seconds. Split longer audio across multiple generations because this tool does not stitch outputs.',
-    'duration_seconds is an approximate target and the actual duration may differ.',
-    'The local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present.',
-  ].join(' '),
-  batch_sound_effects: [
-    'Generate multiple game sound effects with Doubao Seed Audio in one batch.',
-    'Each item is an independent output of at most 120 seconds. Split longer audio across items or calls because this tool does not stitch outputs.',
-    'The result preserves per-item failures while the local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present.',
-  ].join(' '),
-  text_to_dialogue: [
-    'Generate final character dialogue audio with Doubao Seed Audio.',
-    'Each input needs a confirmed Doubao reference mapping or a reference_audio override. When neither is available, call audition_voices_for_character and then confirm_character_voice before retrying.',
-    'reference_audio accepts a local project path, HTTP(S) URL, or audio data URL; delivery_instruction controls the line-specific performance.',
-    'Each input produces at most 120 seconds of audio. Split longer dialogue across inputs or calls because this tool does not stitch outputs.',
-    'The local proxy attempts to materialize successful dialogue under assets/audio/voice; use returned local paths when present.',
-  ].join(' '),
-  audition_voices_for_character: [
-    'Create exactly three temporary Doubao Seed Audio voice previews for one game character.',
-    'voice_profile.gender is required and must be passed explicitly as male or female.',
-    'Show every returned preview to the user and wait for an explicit choice before calling confirm_character_voice.',
-    'Complete audition and confirmation for one character before starting another in the same project; do not run them in parallel.',
-    'Preview files are temporary and are not saved as final game assets.',
-  ].join(' '),
-  confirm_character_voice: [
-    'Confirm a Doubao Seed Audio voice selection and persist the character reference mapping for later text_to_dialogue calls.',
-    'Call this tool only after audition_voices_for_character and only after the user explicitly selects a candidate or explicitly accepts the recommended candidate.',
-    'Omit selected_index only after the user explicitly accepts the recommendation; absence of a user choice is not acceptance.',
-    'Process one character at a time and do not call this tool in parallel for the same project.',
-  ].join(' '),
-};
-
 /** Return a reviewed public description for an exposed Maker remote proxy tool. */
-export function getMakerRemoteProxyPublicDescriptionOverride(
-  toolName: string,
-  audioProvider: MakerAudioProvider = 'elevenlabs'
-): string | undefined {
-  if (audioProvider === 'doubao' && MAKER_DOUBAO_AUDIO_PUBLIC_DESCRIPTIONS[toolName]) {
-    return MAKER_DOUBAO_AUDIO_PUBLIC_DESCRIPTIONS[toolName];
-  }
+export function getMakerRemoteProxyPublicDescriptionOverride(toolName: string): string | undefined {
   return MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS[toolName];
-}
-
-export function inferMakerAudioProvider(
-  remoteTools: ReadonlyArray<{ name: string; inputSchema?: unknown }>
-): MakerAudioProvider {
-  const audioTools = remoteTools.filter((tool) =>
-    [
-      'text_to_sound_effect',
-      'batch_sound_effects',
-      'text_to_dialogue',
-      'audition_voices_for_character',
-    ].includes(tool.name)
-  );
-  const hasProperty = (toolName: string, propertyName: string): boolean => {
-    const tool = audioTools.find((item) => item.name === toolName);
-    const schema = isRecord(tool?.inputSchema) ? tool.inputSchema : undefined;
-    const properties = isRecord(schema?.properties) ? schema.properties : undefined;
-    return Boolean(properties && Object.prototype.hasOwnProperty.call(properties, propertyName));
-  };
-  const hasDialogueItemProperty = (propertyName: string): boolean => {
-    const tool = audioTools.find((item) => item.name === 'text_to_dialogue');
-    const schema = isRecord(tool?.inputSchema) ? tool.inputSchema : undefined;
-    const properties = isRecord(schema?.properties) ? schema.properties : undefined;
-    const inputs = isRecord(properties?.inputs) ? properties.inputs : undefined;
-    const items = isRecord(inputs?.items) ? inputs.items : undefined;
-    const itemProperties = isRecord(items?.properties) ? items.properties : undefined;
-    return Boolean(
-      itemProperties && Object.prototype.hasOwnProperty.call(itemProperties, propertyName)
-    );
-  };
-  return hasProperty('audition_voices_for_character', 'voice_profile') ||
-    hasDialogueItemProperty('reference_audio') ||
-    hasDialogueItemProperty('delivery_instruction')
-    ? 'doubao'
-    : 'elevenlabs';
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

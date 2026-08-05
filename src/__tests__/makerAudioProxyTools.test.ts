@@ -111,7 +111,7 @@ describe('Maker audio proxy tools', () => {
     }
   });
 
-  test('reuses a confirmed local Doubao reference without user-supplied audio', () => {
+  test('does not reuse a historical Doubao mapping for fixed ElevenLabs dialogue', () => {
     const referencePath = 'assets/audio/voice-reference/hero.mp3';
     const referenceBytes = Buffer.from('confirmed-reference');
     fs.mkdirSync(path.join(targetDir, '.project'), { recursive: true });
@@ -139,16 +139,10 @@ describe('Maker audio proxy tools', () => {
       },
     });
 
-    expect(args.inputs).toEqual([
-      {
-        character_name: 'Hero',
-        text: 'hello',
-        reference_audio: `data:audio/mpeg;base64,${referenceBytes.toString('base64')}`,
-      },
-    ]);
+    expect(args.inputs).toEqual([{ character_name: 'Hero', text: 'hello' }]);
   });
 
-  test('does not encode a mapped reference symlink that escapes the project', () => {
+  test('does not inspect historical Doubao reference files during ElevenLabs dialogue', () => {
     const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-audio-reference-outside-'));
     const outsideAudio = path.join(outsideDir, 'secret.mp3');
     const referencePath = 'assets/audio/voice-reference/hero.mp3';
@@ -168,13 +162,13 @@ describe('Maker audio proxy tools', () => {
         })
       );
 
-      expect(() =>
+      expect(
         prepareRemoteProxyToolArgs({
           toolName: 'text_to_dialogue',
           targetDir,
           args: { inputs: [{ character_name: 'Hero', text: 'hello' }] },
-        })
-      ).toThrow(/outside|project|symlink/i);
+        }).inputs
+      ).toEqual([{ character_name: 'Hero', text: 'hello' }]);
     } finally {
       fs.rmSync(outsideDir, { recursive: true, force: true });
     }
@@ -271,7 +265,7 @@ describe('Maker audio proxy tools', () => {
     ).toThrow(/mutually exclusive/);
   });
 
-  test('explains how to restore a missing reference resolved from the local Doubao mapping', () => {
+  test('ignores missing references in historical Doubao mappings', () => {
     fs.mkdirSync(path.join(targetDir, '.project'), { recursive: true });
     fs.writeFileSync(
       path.join(targetDir, '.project/audio-voice-mapping.json'),
@@ -287,13 +281,13 @@ describe('Maker audio proxy tools', () => {
       })
     );
 
-    expect(() =>
+    expect(
       prepareRemoteProxyToolArgs({
         toolName: 'text_to_dialogue',
         targetDir,
         args: { inputs: [{ character_name: 'Hero', text: 'hello' }] },
-      })
-    ).toThrow(/Doubao voice mapping.*Hero.*confirm_character_voice/i);
+      }).inputs
+    ).toEqual([{ character_name: 'Hero', text: 'hello' }]);
   });
 
   test.each([null, '', '   ', 'data:audio/mpeg;base64,   '])(
@@ -609,7 +603,7 @@ describe('Maker audio proxy tools', () => {
     const payload = JSON.parse(result.content[0].text);
     expect(payload.referenceAudio.download.success).toBe(true);
     expect(payload.next_step_hint).toBe(
-      'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically; omit reference_audio unless the user requests a one-time override.'
+      'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically.'
     );
     expect(fs.readFileSync(path.join(targetDir, 'assets/audio/voice-reference/a.mp3'))).toEqual(
       mp3
@@ -695,7 +689,7 @@ describe('Maker audio proxy tools', () => {
     });
     expect(JSON.parse(result.content[0].text).cleanupWarning).toBe('do not retry');
     expect(JSON.parse(result.content[0].text).next_step_hint).toBe(
-      'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically; omit reference_audio unless the user requests a one-time override.'
+      'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically.'
     );
     expect(fs.existsSync(path.join(targetDir, 'assets/audio'))).toBe(false);
     const mapping = JSON.parse(
@@ -738,7 +732,7 @@ describe('Maker audio proxy tools', () => {
           cleanupWarning: 'do not retry',
           remoteVoiceId: 'voice-1',
           next_step_hint:
-            'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically; omit reference_audio unless the user requests a one-time override.',
+            'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically.',
           mapping: { provider: 'elevenlabs', characterName: 'A', voice_id: 'voice-1' },
         }),
       });

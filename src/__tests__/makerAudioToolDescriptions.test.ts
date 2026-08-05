@@ -84,14 +84,12 @@ describe('Maker audio tool descriptions', () => {
     expect(description('text_to_music')).toMatch(/wait.{0,80}50 minutes/iu);
     expect(description('text_to_music')).toMatch(/attempts to materialize.{0,100}Maker project/iu);
 
-    expect(description('text_to_sound_effect')).toMatch(/ElevenLabs/iu);
-    expect(description('text_to_sound_effect')).toMatch(
-      /0\.5.{0,80}30 seconds.{0,100}prompt_influence/iu
-    );
+    expect(description('text_to_sound_effect')).toMatch(/Doubao Seed Audio/iu);
+    expect(description('text_to_sound_effect')).toMatch(/120 seconds.{0,100}does not stitch/iu);
     expect(description('text_to_sound_effect')).toContain('assets/audio/sfx');
 
     expect(description('batch_sound_effects')).toMatch(
-      /multiple game sound effects.{0,100}ElevenLabs/iu
+      /multiple game sound effects.{0,100}Doubao Seed Audio/iu
     );
     expect(description('batch_sound_effects')).toMatch(/per-item failures/iu);
     expect(description('batch_sound_effects')).toContain('assets/audio/sfx');
@@ -132,7 +130,7 @@ describe('Maker audio tool descriptions', () => {
     );
   });
 
-  test('keeps Doubao-specific descriptions and schema decoration for explicit Doubao tools', async () => {
+  test('uses fixed per-tool descriptions without changing the authoritative remote schema', async () => {
     const result = await listMakerTools({
       targetDir,
       listRemoteTools: async () =>
@@ -181,10 +179,10 @@ describe('Maker audio tool descriptions', () => {
 
     const dialogue = result.tools.find((tool) => tool.name === 'text_to_dialogue');
     const audition = result.tools.find((tool) => tool.name === 'audition_voices_for_character');
-    expect(dialogue?.description).toContain('Doubao');
+    expect(dialogue?.description).toContain('ElevenLabs');
     expect(dialogue?.inputSchema.properties.inputs.items.properties.reference_audio).toBeDefined();
     expect(audition?.inputSchema.required).toContain('voice_profile');
-    expect(audition?.description).toContain('voice_profile.gender');
+    expect(audition?.description).toContain('ElevenLabs Voice Design');
   });
 
   test('does not inject Doubao-only fields into an ElevenLabs schema', async () => {
