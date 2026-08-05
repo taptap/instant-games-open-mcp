@@ -158,8 +158,13 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain('`batch_sound_effects` for multiple sound effects');
     expect(agentsGuide).toContain('`text_to_dialogue` for final character dialogue');
     expect(agentsGuide).toContain(
-      '`text_to_dialogue` automatically converts local project audio to data URLs and reuses confirmed local voice mappings'
+      '`text_to_dialogue` reuses confirmed local ElevenLabs voice mappings. After confirmation, pass only `character_name` and `text`'
     );
+    expect(agentsGuide).toContain(
+      'For ElevenLabs auditions, pass a detailed `character_description` and an `audition_line` of at least 100 characters'
+    );
+    expect(agentsGuide).not.toContain('voice_profile.gender');
+    expect(agentsGuide).not.toContain('omit `reference_audio`');
     expect(agentsGuide).toContain(
       'After `audition_voices_for_character` returns previews, show them to the user and wait'
     );
