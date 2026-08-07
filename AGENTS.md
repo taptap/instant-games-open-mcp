@@ -394,11 +394,12 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   这些 tools 为 Maker 项目提供对应的素材和平台能力。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
 - 音频 proxy tools 在本地 Maker 项目中必须保留 Provider 原格式并落盘生成结果。
-  `text_to_dialogue` 接收项目内音频路径时要转为 data URL；未显式传参考音频时，
-  自动复用本地已确认的豆包参考音频或 ElevenLabs Voice ID。豆包角色试听必须从
-  角色设定或 `character_description` 提取并显式传入 `voice_profile.gender`。确认成功后，
-  选中的参考 MP3 和 mapping 必须保存到本地项目，并通过 `next_step_hint` 引导 Agent
-  只使用角色名和台词继续调用 `text_to_dialogue`。
+  `text_to_sound_effect` 和 `batch_sound_effects` 固定使用豆包 Seed Audio；
+  `text_to_dialogue`、`audition_voices_for_character` 和 `confirm_character_voice` 固定使用
+  ElevenLabs；`text_to_music` 固定使用 Suno。`AUDIO_PROVIDER` 不再切换这些公开工具。
+  ElevenLabs 确认成功后必须保存本地 Voice ID mapping，并通过 `next_step_hint` 引导 Agent
+  只使用角色名和台词继续调用 `text_to_dialogue`；历史豆包 mapping 保留但不用于固定的
+  ElevenLabs 对白、试听和确认流程。
 - 本地 Maker MCP 活跃上报复用 `tapmaker_mcp_call`，在 `args.source` 写入 `local_mcp`，
   在 `args.mcp_version` 写入 `@taptap/maker` 版本；开发构建使用 `dev`，禁止使用主包版本
   代替。`user_id` 和 `project_id` 只从当前项目 `.maker-mcp/config.json` 读取；缺少关键字段或

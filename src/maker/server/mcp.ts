@@ -380,17 +380,15 @@ export async function listMakerTools(options: {
           env: options.env,
         }));
     try {
-      remoteTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
-        decorateRemoteProxyToolDefinition
-      );
+      const exposedTools = filterExposedRemoteProxyTools(await listedRemoteTools());
+      remoteTools = exposedTools.map(decorateRemoteProxyToolDefinition);
     } catch (error) {
       const cachedTools = options.getCachedRemoteTools?.();
       if (!cachedTools) {
         throw error;
       }
-      remoteTools = filterExposedRemoteProxyTools(cachedTools).map(
-        decorateRemoteProxyToolDefinition
-      );
+      const exposedTools = filterExposedRemoteProxyTools(cachedTools);
+      remoteTools = exposedTools.map(decorateRemoteProxyToolDefinition);
     }
   } catch (error) {
     if (isMakerProjectContextAmbiguousError(error)) {
@@ -435,7 +433,8 @@ function decorateRemoteProxyToolInputSchema(
         : properties;
   const required = Array.isArray(schema.required) ? schema.required : [];
   const decoratedRequired =
-    toolName === 'audition_voices_for_character'
+    toolName === 'audition_voices_for_character' &&
+    Object.prototype.hasOwnProperty.call(properties, 'voice_profile')
       ? [...new Set([...required, 'voice_profile'])]
       : required;
   return {
@@ -467,6 +466,7 @@ function decorateVoiceAuditionInputProperties(
   properties: Record<string, unknown>
 ): Record<string, unknown> {
   const remoteVoiceProfile = properties.voice_profile;
+  if (!isPlainRecord(remoteVoiceProfile)) return properties;
   const voiceProfile = isPlainRecord(remoteVoiceProfile) ? remoteVoiceProfile : {};
   const profileProperties = isPlainRecord(voiceProfile.properties) ? voiceProfile.properties : {};
   const profileRequired = Array.isArray(voiceProfile.required) ? voiceProfile.required : [];
@@ -595,17 +595,17 @@ function remoteProxyToolGuidance(toolName: string): string | undefined {
       ].join(' ');
     case 'text_to_dialogue':
       return [
-        '**Maker voice workflow hint:** For normal dialogue, pass only character_name and text after voice confirmation; the local proxy automatically reuses a confirmed local Doubao reference. reference_audio is an optional per-call override and accepts a local project audio path under assets/audio/, an HTTP(S) URL, or an audio data URL. Project audio must exist locally and is converted to a data URL automatically. reference_audio and reference_audio_path are mutually exclusive; reference_audio is canonical and reference_audio_path is the legacy local-path field. Successful dialogue audio is materialized under assets/audio/voice.',
+        '**Maker voice workflow hint:** Pass character_name and text after ElevenLabs voice confirmation; the local proxy reuses the confirmed local voice_id mapping and materializes successful dialogue under assets/audio/voice.',
         failurePolicy,
       ].join(' ');
     case 'audition_voices_for_character':
       return [
-        '**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary preview voices for one character. voice_profile.gender is required: extract male or female from character_description or the character settings and pass it explicitly. Show every returned preview URL to the user and wait for their choice before calling confirm_character_voice. Preview candidates are not saved as game assets.',
+        '**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary ElevenLabs Voice Design previews. Prepare a representative line of at least 100 characters, show every returned preview, and wait for the user choice before calling confirm_character_voice. Preview candidates are not saved as game assets.',
         failurePolicy,
       ].join(' ');
     case 'confirm_character_voice':
       return [
-        '**Maker voice workflow hint:** Call this Maker MCP proxy tool only after audition_voices_for_character and after the user selects a candidate or accepts the recommendation. Confirmation persists the provider-specific voice mapping for later text_to_dialogue calls.',
+        '**Maker voice workflow hint:** Call this Maker MCP proxy tool only after audition_voices_for_character and after the user selects a candidate or accepts the recommendation. Confirmation persists the ElevenLabs voice mapping for later text_to_dialogue calls.',
         failurePolicy,
       ].join(' ');
     case CREATE_3D_ASSET_PROXY_TOOL_NAME:

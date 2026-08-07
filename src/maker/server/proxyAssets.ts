@@ -27,7 +27,7 @@ const AUDIO_DIALOGUE_REFERENCE_MAX_BYTES = 20 * 1024 * 1024;
 const AUDIO_DIALOGUE_INPUT_TOTAL_MAX_BYTES = 28 * 1024 * 1024;
 const AUDIO_CONFIRM_MAX_BYTES = 1 * 1024 * 1024;
 const VOICE_CONFIRMATION_NEXT_STEP_HINT =
-  'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically; omit reference_audio unless the user requests a one-time override.';
+  'Call text_to_dialogue with character_name and text. The confirmed voice mapping is reused automatically.';
 const DEBUG_FEEDBACK_PATH_HINT =
   'Use local_dir/local_log_paths/local_screenshot_paths when they are returned. If only local_candidate_* is present, it is a possible project-relative location and must not be treated as a downloaded local file.';
 
@@ -113,6 +113,7 @@ export function prepareRemoteProxyToolArgs(options: {
 
 function validateVoiceAuditionArgs(args: Record<string, unknown>): Record<string, unknown> {
   const voiceProfile = args.voice_profile;
+  if (voiceProfile === undefined) return args;
   const gender = isRecord(voiceProfile) ? voiceProfile.gender : undefined;
   if (gender !== 'male' && gender !== 'female') {
     throw new Error(
@@ -1943,14 +1944,6 @@ function rewriteTextToDialogueArgs(
   }
   const registry = readGeneratedAssetRegistry(targetDir);
   const localElevenLabsMapping = readLocalElevenLabsVoiceMapping(targetDir);
-  const localDoubaoMapping = args.inputs.some(
-    (value) =>
-      isRecord(value) &&
-      normalizeOptionalDialogueReference(value.reference_audio) === undefined &&
-      normalizeOptionalDialogueReference(value.reference_audio_path) === undefined
-  )
-    ? readLocalDoubaoVoiceMapping(targetDir)
-    : undefined;
   let referenceAudioInputBytes = 0;
   return {
     ...args,
@@ -1975,15 +1968,6 @@ function rewriteTextToDialogueArgs(
       );
       if (localVoiceId) {
         normalizedValue._local_voice_id = localVoiceId;
-      }
-      if (canonicalReference === undefined && legacyReference === undefined) {
-        canonicalReference = resolveLocalDoubaoMappingReference({
-          targetDir,
-          characterName: value.character_name,
-          mapping: localDoubaoMapping,
-          registry,
-          index,
-        });
       }
       if (canonicalReference === undefined) canonicalReference = legacyReference;
       if (canonicalReference === undefined) return normalizedValue;
@@ -2016,14 +2000,6 @@ export async function prepareRemoteProxyToolArgsAsync(options: {
   return prepareRemoteProxyToolArgs(options);
 }
 
-function readLocalDoubaoVoiceMapping(targetDir: string): Record<string, unknown> | undefined {
-  const mappingPath = path.join(targetDir, '.project', 'audio-voice-mapping.json');
-  if (!fs.existsSync(mappingPath)) return undefined;
-  assertProjectDirectory(targetDir, path.dirname(mappingPath));
-  const mapping = readJsonFile(mappingPath);
-  return mapping?.provider === 'doubao' ? mapping : undefined;
-}
-
 function readLocalElevenLabsVoiceMapping(targetDir: string): Record<string, unknown> | undefined {
   const mappingPath = path.join(targetDir, '.project', 'elevenlabs-voice-mapping.json');
   if (!fs.existsSync(mappingPath)) return undefined;
@@ -2042,37 +2018,6 @@ function resolveLocalElevenLabsVoiceId(
   const character = characters[characterName];
   if (!isRecord(character) || character.provider !== 'elevenlabs') return undefined;
   return stringField(character.voice_id);
-}
-
-function resolveLocalDoubaoMappingReference(options: {
-  targetDir: string;
-  characterName: unknown;
-  mapping: Record<string, unknown> | undefined;
-  registry: GeneratedAssetRegistry;
-  index: number;
-}): string | undefined {
-  if (typeof options.characterName !== 'string' || !options.mapping) return undefined;
-  const characters = options.mapping.characters;
-  if (!isRecord(characters)) return undefined;
-  const character = characters[options.characterName];
-  if (!isRecord(character) || character.provider !== 'doubao') return undefined;
-  const referencePath = stringField(character.reference_audio_path);
-  if (!referencePath) return undefined;
-  try {
-    const reference = normalizeDialogueReference(
-      options.targetDir,
-      referencePath,
-      options.registry,
-      options.index
-    );
-    return reference.toLowerCase().startsWith('data:') ? reference : undefined;
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `Local Doubao voice mapping for character "${options.characterName}" references unavailable audio ` +
-        `"${referencePath}". Re-run confirm_character_voice to restore it. ${reason}`
-    );
-  }
 }
 
 function normalizeOptionalDialogueReference(value: unknown): unknown {

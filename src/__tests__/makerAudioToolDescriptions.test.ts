@@ -84,41 +84,38 @@ describe('Maker audio tool descriptions', () => {
     expect(description('text_to_music')).toMatch(/wait.{0,80}50 minutes/iu);
     expect(description('text_to_music')).toMatch(/attempts to materialize.{0,100}Maker project/iu);
 
-    expect(description('text_to_sound_effect')).toMatch(/one game sound effect/iu);
-    expect(description('text_to_sound_effect')).toMatch(
-      /current Seed Audio provider.{0,100}120 seconds.{0,100}does not stitch/iu
-    );
+    expect(description('text_to_sound_effect')).toMatch(/Doubao Seed Audio/iu);
+    expect(description('text_to_sound_effect')).toMatch(/120 seconds.{0,100}does not stitch/iu);
     expect(description('text_to_sound_effect')).toContain('assets/audio/sfx');
 
-    expect(description('batch_sound_effects')).toMatch(/multiple game sound effects/iu);
-    expect(description('batch_sound_effects')).toMatch(/current Seed Audio provider/iu);
+    expect(description('batch_sound_effects')).toMatch(
+      /multiple game sound effects.{0,100}Doubao Seed Audio/iu
+    );
     expect(description('batch_sound_effects')).toMatch(/per-item failures/iu);
     expect(description('batch_sound_effects')).toContain('assets/audio/sfx');
 
-    expect(description('text_to_dialogue')).toMatch(
-      /confirmed voice mapping.{0,160}reference_audio/iu
-    );
+    expect(description('text_to_dialogue')).toMatch(/ElevenLabs.{0,120}voice mapping/iu);
+    expect(description('text_to_dialogue')).toMatch(/stability.{0,80}0\.5/iu);
+    expect(description('text_to_dialogue')).toContain('Eleven v3');
     expect(description('text_to_dialogue')).toMatch(
       /audition_voices_for_character.{0,120}confirm_character_voice/iu
     );
-    expect(description('text_to_dialogue')).toMatch(
-      /For Doubao,.{0,100}120 seconds.{0,100}does not stitch/iu
-    );
     expect(description('text_to_dialogue')).toContain('assets/audio/voice');
+    expect(description('text_to_dialogue')).toContain('elevenlabs-voice-mapping.json');
     expect(description('text_to_dialogue')).not.toContain('reference_audio_path');
-    expect(description('text_to_dialogue')).not.toContain('audio-voice-mapping.json');
-    expect(description('text_to_dialogue')).not.toContain('elevenlabs-voice-mapping.json');
 
+    expect(description('audition_voices_for_character')).toMatch(/ElevenLabs Voice Design/iu);
     expect(description('audition_voices_for_character')).toMatch(
-      /character definition.{0,180}voice_profile\.gender.{0,80}required/iu
+      /candidate_count.{0,80}1.{0,20}3/iu
     );
+    expect(description('audition_voices_for_character')).toMatch(/at least 100 characters/iu);
     expect(description('audition_voices_for_character')).toMatch(
       /show every returned preview.{0,80}user.{0,40}wait/iu
     );
     expect(description('audition_voices_for_character')).toMatch(
       /temporary.{0,100}not saved as final game assets/iu
     );
-    expect(description('audition_voices_for_character')).not.toContain('optional voice_profile');
+    expect(description('audition_voices_for_character')).not.toContain('voice_profile.gender');
     expect(description('audition_voices_for_character')).not.toContain('read_file');
     expect(description('audition_voices_for_character')).not.toContain('ARCHETYPE TEMPLATES');
 
@@ -126,9 +123,132 @@ describe('Maker audio tool descriptions', () => {
       /only after audition_voices_for_character.{0,160}explicitly selects.{0,160}explicitly accepts/iu
     );
     expect(description('confirm_character_voice')).toMatch(/persist\w*.{0,100}text_to_dialogue/iu);
+    expect(description('confirm_character_voice')).toMatch(/ElevenLabs.{0,120}Voice Slot/iu);
     expect(description('confirm_character_voice')).not.toMatch(/doesn.t specify/iu);
     expect(description('confirm_character_voice')).not.toContain(
       'If omitted, uses the recommended'
     );
+  });
+
+  test('uses fixed per-tool descriptions without changing the authoritative remote schema', async () => {
+    const result = await listMakerTools({
+      targetDir,
+      listRemoteTools: async () =>
+        AUDIO_TOOL_NAMES.map((name) => ({
+          name,
+          description: 'Remote description',
+          inputSchema:
+            name === 'audition_voices_for_character'
+              ? {
+                  type: 'object',
+                  properties: {
+                    character_name: { type: 'string' },
+                    character_description: { type: 'string' },
+                    audition_line: { type: 'string' },
+                    voice_profile: { type: 'object', properties: {} },
+                  },
+                  required: ['character_name', 'character_description', 'audition_line'],
+                }
+              : name === 'text_to_dialogue'
+                ? {
+                    type: 'object',
+                    properties: {
+                      inputs: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            character_name: { type: 'string' },
+                            text: { type: 'string' },
+                            reference_audio: { type: 'string' },
+                            delivery_instruction: { type: 'string' },
+                          },
+                        },
+                      },
+                    },
+                    required: ['inputs'],
+                  }
+                : {
+                    type: 'object',
+                    properties: {
+                      duration_seconds: { type: 'number', maximum: 120 },
+                    },
+                  },
+        })),
+    });
+
+    const dialogue = result.tools.find((tool) => tool.name === 'text_to_dialogue');
+    const audition = result.tools.find((tool) => tool.name === 'audition_voices_for_character');
+    expect(dialogue?.description).toContain('ElevenLabs');
+    expect(dialogue?.inputSchema.properties.inputs.items.properties.reference_audio).toBeDefined();
+    expect(audition?.inputSchema.required).toContain('voice_profile');
+    expect(audition?.description).toContain('ElevenLabs Voice Design');
+  });
+
+  test('does not inject Doubao-only fields into an ElevenLabs schema', async () => {
+    const result = await listMakerTools({
+      targetDir,
+      listRemoteTools: async () => [
+        {
+          name: 'text_to_sound_effect',
+          description: 'Remote ElevenLabs sound effect',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              text: { type: 'string' },
+              duration_seconds: { type: 'number', minimum: 0.5, maximum: 30 },
+              prompt_influence: { type: 'number', minimum: 0, maximum: 1 },
+            },
+            required: ['text'],
+          },
+        },
+        {
+          name: 'text_to_dialogue',
+          description: 'Remote ElevenLabs dialogue',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              inputs: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    character_name: { type: 'string' },
+                    text: { type: 'string' },
+                  },
+                },
+              },
+              stability: { type: 'number', minimum: 0, maximum: 1 },
+            },
+            required: ['inputs'],
+          },
+        },
+        {
+          name: 'audition_voices_for_character',
+          description: 'Remote ElevenLabs audition',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              character_name: { type: 'string' },
+              character_description: { type: 'string' },
+              audition_line: { type: 'string', minLength: 100 },
+              candidate_count: { type: 'integer', minimum: 1, maximum: 3 },
+            },
+            required: ['character_name', 'character_description', 'audition_line'],
+          },
+        },
+      ],
+    });
+
+    const dialogue = result.tools.find((tool) => tool.name === 'text_to_dialogue');
+    const audition = result.tools.find((tool) => tool.name === 'audition_voices_for_character');
+    expect(dialogue?.inputSchema.properties.inputs.items.properties).not.toHaveProperty(
+      'reference_audio'
+    );
+    expect(dialogue?.inputSchema.properties.inputs.items.properties).not.toHaveProperty(
+      'delivery_instruction'
+    );
+    expect(audition?.inputSchema.properties).not.toHaveProperty('voice_profile');
+    expect(audition?.inputSchema.required).not.toContain('voice_profile');
   });
 });

@@ -53,8 +53,13 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain('Use batch_sound_effects for multiple sound effects');
     expect(status).toContain('Use text_to_dialogue for final character dialogue');
     expect(status).toContain(
-      'text_to_dialogue automatically converts local project audio to data URLs and reuses confirmed local voice mappings'
+      'text_to_dialogue reuses confirmed local ElevenLabs voice mappings; after confirmation pass only character_name and text'
     );
+    expect(status).toContain(
+      'For ElevenLabs auditions, pass character_description and an audition_line of at least 100 characters; candidate_count is optional (1-3)'
+    );
+    expect(status).not.toContain('voice_profile.gender');
+    expect(status).not.toContain('omit reference_audio');
     expect(status).toContain(
       'After audition_voices_for_character returns previews, wait for the user to choose'
     );
@@ -143,8 +148,13 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Use `batch_sound_effects` for multiple sound effects');
     expect(skillText).toContain('Use `text_to_dialogue` for final character dialogue');
     expect(skillText).toContain(
-      '`text_to_dialogue` automatically converts local project audio to data URLs and reuses confirmed local voice mappings'
+      '`text_to_dialogue` reuses confirmed local ElevenLabs voice mappings. After confirmation, pass only `character_name` and `text`'
     );
+    expect(skillText).toContain(
+      'For ElevenLabs auditions, pass a detailed `character_description` and an `audition_line` of at least 100 characters'
+    );
+    expect(skillText).not.toContain('voice_profile.gender');
+    expect(skillText).not.toContain('omit `reference_audio`');
     expect(skillText).toContain(
       'After `audition_voices_for_character` returns previews, show them to the user and wait'
     );

@@ -620,9 +620,13 @@ description 使用 `src/maker/server/toolDescriptions.ts` 中逐工具审核过�
 的成功视频会下载到 `assets/video/`，`text_to_music` 的成功音频会下载到 `assets/audio/`。
 `text_to_sound_effect` 和 `batch_sound_effects` 会把音效保存到 `assets/audio/sfx/`，
 `text_to_dialogue` 会把角色配音保存到 `assets/audio/voice/`，并在后续调用中自动复用
-已确认的本地音色。豆包角色试听需要显式提供 `voice_profile.gender`；确认后，选中的
-参考 MP3 和音色 mapping 会保存在本地项目中。未选中的试听候选是临时资源，仅返回
-试听 URL，不作为项目资产保存。
+已确认的本地音色。音频工具使用固定路由：`text_to_sound_effect` 和
+`batch_sound_effects` 固定使用豆包 Seed Audio，单项近似目标时长大于 0 且不超过 120 秒；
+`text_to_dialogue`、`audition_voices_for_character` 和 `confirm_character_voice` 固定使用
+ElevenLabs，对话使用 Eleven v3 的 `stability` 与表演标签，角色试听使用 Voice Design 的
+`candidate_count`（1～3）和至少 100 个字符的 `audition_line`；`text_to_music` 固定使用 Suno。
+`AUDIO_PROVIDER` 不再切换这些公开工具的 Provider。历史豆包角色 mapping 会保留，但角色对白、
+试听和确认只复用 ElevenLabs mapping；未选中的试听候选是临时资源，仅返回试听 URL，不作为项目资产保存。
 `query_video_task` 用于按远端指引刷新视频任务状态、释放已完成任务额度并拿到最终视频结果。
 `edit_image` 和 `create_video_task` 调用前会基于映射优先把本地新生成素材路径改写为远端 URL；如果没有远端 URL
 但能解析到本地文件，`generate_image` / `batch_generate_images` 的参考图、`edit_image` 的输入图

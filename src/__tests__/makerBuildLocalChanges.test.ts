@@ -1425,7 +1425,10 @@ describe('maker build local-change guard', () => {
           description: 'Generate one sound effect',
           inputSchema: {
             type: 'object',
-            properties: { text: { type: 'string' } },
+            properties: {
+              text: { type: 'string' },
+              duration_seconds: { type: 'number', exclusiveMinimum: 0, maximum: 120 },
+            },
             required: ['text'],
           },
         },
@@ -1434,7 +1437,20 @@ describe('maker build local-change guard', () => {
           description: 'Generate several sound effects',
           inputSchema: {
             type: 'object',
-            properties: { sounds: { type: 'array' } },
+            properties: {
+              sounds: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    text: { type: 'string' },
+                    duration: { type: 'number' },
+                    loop: { type: 'boolean' },
+                  },
+                },
+              },
+            },
             required: ['sounds'],
           },
         },
@@ -1446,33 +1462,17 @@ describe('maker build local-change guard', () => {
             properties: {
               inputs: {
                 type: 'array',
-                maxItems: 50,
                 items: {
                   type: 'object',
                   properties: {
                     character_name: { type: 'string' },
                     text: { type: 'string' },
-                    reference_audio: {
-                      type: 'string',
-                      minLength: 1,
-                      maxLength: 28 * 1024 * 1024,
-                      description:
-                        'Optional Doubao project audio path, HTTP(S) URL, or audio data URL.',
-                    },
-                    delivery_instruction: {
-                      type: 'string',
-                      minLength: 1,
-                      maxLength: 300,
-                      description: 'Optional line-specific delivery instruction.',
-                    },
-                    reference_audio_path: {
-                      type: 'string',
-                      description: 'Optional Doubao-only project audio resource.',
-                    },
                   },
                   required: ['character_name', 'text'],
                 },
               },
+              language_code: { type: 'string', default: 'cmn' },
+              stability: { type: 'number', default: 0.5 },
             },
             required: ['inputs'],
           },
@@ -1484,14 +1484,11 @@ describe('maker build local-change guard', () => {
             type: 'object',
             properties: {
               character_name: { type: 'string' },
-              voice_profile: {
-                type: 'object',
-                properties: {
-                  gender: { type: 'string', enum: ['male', 'female'] },
-                },
-              },
+              character_description: { type: 'string' },
+              audition_line: { type: 'string', minLength: 100 },
+              candidate_count: { type: 'number', minimum: 1, maximum: 3, default: 3 },
             },
-            required: ['character_name'],
+            required: ['character_name', 'character_description', 'audition_line'],
           },
         },
         {
@@ -1633,6 +1630,10 @@ describe('maker build local-change guard', () => {
     expect(
       result.tools.find((item) => item.name === 'batch_sound_effects')?.inputSchema.required
     ).toEqual(['sounds']);
+    expect(
+      result.tools.find((item) => item.name === 'batch_sound_effects')?.inputSchema.properties
+        .sounds.items.properties.duration
+    ).toEqual({ type: 'number' });
     for (const audioToolName of audioTools) {
       expect(
         result.tools.find((item) => item.name === audioToolName)?.inputSchema.required || []
@@ -1641,43 +1642,37 @@ describe('maker build local-change guard', () => {
     expect(
       result.tools.find((item) => item.name === 'audition_voices_for_character')?.inputSchema
         .required
-    ).toEqual(['character_name', 'voice_profile']);
+    ).toEqual(['character_name', 'character_description', 'audition_line']);
     expect(
       result.tools.find((item) => item.name === 'audition_voices_for_character')?.inputSchema
-        .properties.voice_profile.required
-    ).toEqual(['gender']);
+        .properties.audition_line.minLength
+    ).toBe(100);
+    expect(
+      result.tools.find((item) => item.name === 'audition_voices_for_character')?.inputSchema
+        .properties.candidate_count.type
+    ).toBe('number');
     expect(
       result.tools.find((item) => item.name === 'confirm_character_voice')?.inputSchema.required
     ).toEqual(['character_name']);
     const dialogueTool = result.tools.find((item) => item.name === 'text_to_dialogue');
     expect(dialogueTool?.inputSchema.required).toEqual(['inputs']);
-    expect(dialogueTool?.inputSchema.properties.inputs.maxItems).toBe(50);
+    expect(dialogueTool?.inputSchema.properties.stability).toEqual({
+      type: 'number',
+      default: 0.5,
+    });
+    expect(dialogueTool?.inputSchema.properties.inputs).not.toHaveProperty('maxItems');
     expect(dialogueTool?.inputSchema.properties.inputs.items.required).toEqual([
       'character_name',
       'text',
     ]);
-    expect(
-      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio.maxLength
-    ).toBe(28 * 1024 * 1024);
-    expect(
-      dialogueTool?.inputSchema.properties.inputs.items.properties.delivery_instruction.maxLength
-    ).toBe(300);
-    expect(
-      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio.description
-    ).toContain('project audio path under assets/audio/');
-    expect(
-      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio.description
-    ).toContain('HTTP(S) URL');
-    expect(
-      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio.description
-    ).toContain('must exist in the current project and is converted to a data URL');
-    expect(
-      dialogueTool?.inputSchema.properties.inputs.items.properties.reference_audio_path.description
-    ).toContain('legacy local project audio path');
-    expect(dialogueTool?.description).not.toContain('reference_audio_path');
-    expect(dialogueTool?.description).toContain(
-      'automatically reuses a confirmed local Doubao reference'
+    expect(dialogueTool?.inputSchema.properties.inputs.items.properties).not.toHaveProperty(
+      'reference_audio'
     );
+    expect(dialogueTool?.inputSchema.properties.inputs.items.properties).not.toHaveProperty(
+      'delivery_instruction'
+    );
+    expect(dialogueTool?.description).not.toContain('reference_audio_path');
+    expect(dialogueTool?.description).toContain('ElevenLabs voice mapping');
     const auditionDescription =
       result.tools.find((item) => item.name === 'audition_voices_for_character')?.description || '';
     expect(auditionDescription).toMatch(
@@ -1688,7 +1683,7 @@ describe('maker build local-change guard', () => {
     );
     expect(
       result.tools.find((item) => item.name === 'audition_voices_for_character')?.description
-    ).toContain('voice_profile.gender');
+    ).toContain('ElevenLabs Voice Design');
     expect(
       result.tools.find((item) => item.name === 'confirm_character_voice')?.description
     ).toMatch(/after the user (?:explicitly )?selects/iu);
