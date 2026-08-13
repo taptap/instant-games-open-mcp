@@ -1,0 +1,1207 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-22T06:16:17.146Z",
+  "source": {
+    "invocation": "listMakerTools({ targetDir: process.cwd() })",
+    "targetDir": "/Users/liangdong/Documents/Mcp/taptap_minigame_open_mcp",
+    "publicSurface": "one resolved Maker MCP tools/list result"
+  },
+  "toolCount": 18,
+  "toolOrder": [
+    "maker_status_lite",
+    "maker_build_current_directory",
+    "generate_image",
+    "batch_generate_images",
+    "edit_image",
+    "create_3d_asset",
+    "text_to_music",
+    "create_video_task",
+    "query_video_task",
+    "text_to_sound_effect",
+    "batch_sound_effects",
+    "text_to_dialogue",
+    "audition_voices_for_character",
+    "confirm_character_voice",
+    "generate_test_qrcode",
+    "add_test_whitelist",
+    "get_ad_config",
+    "get_debug_feedbacks"
+  ],
+  "hashAlgorithm": "SHA-256 over UTF-8 bytes",
+  "hashRules": {
+    "canonicalJson": "Recursively sort object keys lexicographically; preserve array order; serialize primitives with JSON.stringify; join without whitespace.",
+    "descriptionHash": "SHA-256 of the exact public description UTF-8 bytes.",
+    "inputSchemaHash": "SHA-256 of canonicalJson(inputSchema).",
+    "toolHash": "SHA-256 of canonicalJson({ order, name, description, inputSchema }).",
+    "componentHashes": "SHA-256 of each exact remote component UTF-8 bytes.",
+    "publicSurfaceHash": "SHA-256 of canonicalJson(tools projected to { order, name, description, inputSchema }).",
+    "artifactHash": "SHA-256 of canonicalJson(the complete artifact object with artifactHash omitted)."
+  },
+  "publicSurfaceHash": "1cd19634737f1b23c4bafa4a17bb1e867b2522400115ba688d4703a1774454b4",
+  "tools": [
+    {
+      "order": 0,
+      "name": "maker_status_lite",
+      "source": "local-fixed",
+      "description": "Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness, maker-lua-lsp readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets, supported local path/remote URL/data URL inputs, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. Standard init/clone/download flow: show the Maker app list first and let the user choose an existing app or 0/new. Create-new-project flow: use taptap-maker init --create only when the user clearly asks to create a new Maker project.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target_dir": {
+            "type": "string",
+            "description": "Optional user current working directory to inspect. Use when the MCP process cwd differs from the user project CWD."
+          },
+          "skip_remote_sync": {
+            "type": "boolean",
+            "description": "If true, skip git fetch/ahead-behind remote sync checks. Use this for frequent polling or quick local status checks."
+          }
+        }
+      },
+      "descriptionHash": "4923385fb9fcded958d2e3c54f77363296df305cfa0e1638782c252d9e9df4d5",
+      "inputSchemaHash": "6ac45c41d7c2d56f8b2acb66118d407768c8c9d604fd4b7e174e43f37ae91fbe",
+      "toolHash": "95e99f81b5507762f48ba957be7b6006642bc5e17df5b2e634d6eaefd45e1046"
+    },
+    {
+      "order": 1,
+      "name": "maker_build_current_directory",
+      "source": "local-fixed",
+      "description": "Sync and build the current Maker game. First read maker://status or maker_status_lite and use this tool only when the current workspace is a bound Maker project. Trigger it for Maker game requests like \"构建\", \"build\", \"跑一下\", \"预览\", \"查看结果\", \"看看效果\", \"验证游戏效果\", \"提交\", \"提交代码\", \"推送\", or \"push\". Do not treat generic code validation requests such as \"验证一下代码\", \"跑测试\", \"lint\", or \"检查实现\" as Maker remote build unless the user explicitly asks to build/run/preview the Maker game. Preview/build intent does not select or change the service environment. Do not add environment parameters to this tool call; use the default Maker service configuration. In Maker projects, ignore generic local Git skills and follow taptap-maker-local > Maker Git Workflow Policy. Before build, check the Python environment section and Lua LSP environment section; if Python or maker-lua-lsp is missing, run taptap-maker python setup when local Lua diagnostics are needed, because it prepares Python and best-effort installs maker-lua-lsp. Missing Python or Lua LSP must not block the remote build flow. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. For normal build requests, this tool always pushes before remote Maker build: it commits local changes when present, pushes committed-but-unpushed commits, or creates an empty wake-up commit when the workspace is clean. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version; this mode does not submit local changes and does not auto-open Maker pages.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target_dir": {
+            "type": "string",
+            "description": "Optional Maker project directory. Defaults to the MCP process cwd. Pass the user current working directory when it differs from the MCP process cwd."
+          },
+          "entry": {
+            "type": "string",
+            "description": "Optional single-player Lua entry file relative to scriptsPath, e.g. \"main.lua\". If omitted and local scripts/main.lua exists with no explicit multiplayer entries, Maker MCP sends entry=\"main.lua\" and scriptsPath=\"scripts\" by default to avoid remote entry-missing prompts. Otherwise omit to let the remote build tool infer/default."
+          },
+          "scriptsPath": {
+            "type": "string",
+            "description": "Optional scripts directory relative to workspace. If omitted and local scripts/main.lua exists with no explicit entry overrides, Maker MCP sends scriptsPath=\"scripts\" by default."
+          },
+          "entry_client": {
+            "type": "string",
+            "description": "Optional multiplayer C/S client entry relative to scriptsPath, e.g. \"client_main.lua\". Forwarded to maker-tools build and written to project.json as entry@client. On the first multiplayer build, pass multiplayer.enabled=true in the same call; otherwise first-build defaults may initialize multiplayer as disabled."
+          },
+          "entry_server": {
+            "type": "string",
+            "description": "Optional multiplayer C/S server entry relative to scriptsPath, e.g. \"server_main.lua\". Forwarded to maker-tools build and written to project.json as entry@server. On the first multiplayer build, pass multiplayer.enabled=true in the same call; otherwise first-build defaults may initialize multiplayer as disabled."
+          },
+          "multiplayer": {
+            "type": "object",
+            "description": "Optional Maker multiplayer config forwarded to remote build and written by maker-tools to .project/settings.json @runtime.multiplayer. If omitted and no .project/settings.json exists, Maker MCP sends { enabled: false } for first single-player build initialization. First multiplayer build with entry_client/entry_server should pass multiplayer.enabled=true and any needed match/world fields in the same call. Later builds update only the provided fields and keep existing config for omitted fields. Runtime defaults: enabled=false, max_players=4, background_match=false.",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "Enable multiplayer mode. When true, initializes the networking subsystem and lobby. Runtime default: false."
+              },
+              "max_players": {
+                "type": "number",
+                "minimum": 2,
+                "maximum": 100,
+                "description": "Maximum players allowed in one session (2-100). Actual match size can be smaller via match_info.player_number. Runtime default: 4."
+              },
+              "background_match": {
+                "type": "boolean",
+                "description": "Enable background matching. When true, game scripts load immediately and matching runs in the background; handle the ServerReady event after match success. Runtime default: false."
+              },
+              "match_info": {
+                "type": "object",
+                "description": "Match/session-based gameplay config for lobby, room, or round-based games. Examples: LoL, CS2, PUBG, DotA 2.",
+                "properties": {
+                  "desc_name": {
+                    "type": "string",
+                    "enum": ["free_match", "free_match_with_ai"],
+                    "description": "Matching algorithm: free_match waits without AI fill; free_match_with_ai fills with AI after timeout."
+                  },
+                  "player_number": {
+                    "type": "number",
+                    "minimum": 1,
+                    "description": "Players required to start the match. Must be less than or equal to multiplayer.max_players."
+                  },
+                  "immediately_start": {
+                    "type": "boolean",
+                    "description": "Start immediately without waiting for a full match."
+                  },
+                  "match_timeout": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Match timeout in seconds. Only effective for desc_name=free_match_with_ai; AI fills after timeout."
+                  }
+                }
+              },
+              "persistent_world": {
+                "type": "object",
+                "description": "Persistent-world config for long-running/shared worlds where players can join an already running world. Examples: Roblox, World of Warcraft, Minecraft.",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Enable persistent-world mode instead of starting a separate match/session first. Runtime default: false."
+                  }
+                }
+              }
+            }
+          },
+          "timeout_ms": {
+            "type": "number",
+            "description": "Optional remote build timeout in milliseconds. Defaults to 10 minutes. If timed out, do not retry blindly; inspect remote build logs first."
+          },
+          "message": {
+            "type": "string",
+            "description": "Optional commit message used when local changes or the empty wake-up commit need to be committed before build."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional files to stage before build. Defaults to all local changes. Maker generated .gitignore changes are mandatory project files and are included even when omitted here."
+          },
+          "confirm_remote_build_without_submit": {
+            "type": "boolean",
+            "description": "Set true only after the user explicitly confirms they do not want to submit local changes and want to build the current Maker remote committed version. This mode does not submit local changes and does not auto-open Maker pages."
+          }
+        }
+      },
+      "descriptionHash": "8e2b28cfd8d8f02d674794da43854a0ce7d488d0737054068c6af2d89084aeb2",
+      "inputSchemaHash": "f19a0c08c764da72712491fcb9be942834b116e309a392d3af727cdb72c3bcbc",
+      "toolHash": "d9dde913ee229753f25a4ea70834427aae310e79c8e55a3223a6b0f102aa2b83"
+    },
+    {
+      "order": 2,
+      "name": "generate_image",
+      "source": "remote-proxy",
+      "description": "Generate images based on text descriptions with customizable aspect ratios, transparency, size, and reference image options.\n\nThis tool uses AI to generate images from short Chinese descriptions (max 50KB).\n\n**⚠️ How Image Size Works (2-Step Process):**\n1. AI generates image at a fixed size based on aspect_ratio (see table below)\n2. Image is then SCALED to your target_size (required parameter)\n\n**Step 1 - Choose aspect_ratio (determines shape):**\n| Ratio | AI Generated Size | Use Case |\n|-------|-------------------|----------|\n| 1:1   | 1024×1024         | Icons, avatars, square assets (default) |\n| 2:3   | 832×1248          | Vertical posters, character illustrations |\n| 3:2   | 1248×832          | Horizontal scenes, landscape images |\n| 3:4   | 864×1184          | Vertical cards, phone wallpapers |\n| 4:3   | 1184×864          | Traditional horizontal, PPT images |\n| 9:16  | 768×1344          | Full-screen vertical, short video covers |\n| 16:9  | 1344×768          | Widescreen, game scenes, video covers |\n| 21:9  | 1536×672          | Ultra-wide, cinematic format |\n| 5:4   | 1152×896          | Near-square horizontal |\n| 4:5   | 896×1152          | Near-square vertical, social media images |\n\n**Step 2 - Specify target_size (REQUIRED, determines final dimensions):**\nCommon game asset sizes (power-of-2 recommended for GPU):\n- Icons: \"64x64\", \"128x128\", \"256x256\"\n- UI elements: \"256x256\", \"512x512\"\n- Character sprites: \"256x512\", \"512x1024\"\n- Textures: \"512x512\", \"1024x1024\"\n\nExample: aspect_ratio=\"1:1\" + target_size=\"256x256\" → 256×256 game icon\n\n**Transparent Background Detection:**\nThe system automatically detects if transparent background is needed based on keywords:\n- \"透明\" (transparent)\n- \"透明背景\" (transparent background)\n- \"抠图\" (cut-out)\n- \"无背景\" (no background)\n\n**Reference Images:**\nProvide one or more reference images for style/content guidance (up to 14).\n- reference_images: array of file paths or base64 data URLs (preferred, supports multiple)\n- reference_image: single file path (legacy, kept for compatibility)\nExample: [\"assets/cat.png\", \"assets/style.png\"]\n\n**Advanced Options:**\n- seed: integer for reproducible results (e.g., 42)\n- thinking_level: \"minimal\" (faster) or \"high\" (better quality for complex prompts)\n- resolution: generation resolution \"0.5K\" | \"1K\" | \"2K\" | \"4K\" (default: \"1K\")\n\n**Naming Convention:**\nFiles are named as: {name}_{timestamp}.png\nExample: 小猫_20250107143052.png\n\n**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for Maker project assets. Successful results are downloaded into the Maker project and recorded with remote mapping for later edits or video references. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "Short Chinese description of the image to generate (max 50KB). Example: \"橙色小猫\", \"蓝色飞龙\", \"金币图标\""
+          },
+          "name": {
+            "type": "string",
+            "description": "File name for the generated image (without extension, max 100 characters). This will be used in the output filename: {name}_{timestamp}.png. Example: \"小猫\", \"飞龙\", \"金币\""
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "enum": ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9", "5:4", "4:5"],
+            "description": "Image aspect ratio. Default is \"1:1\". See tool description for use cases of each ratio."
+          },
+          "transparent": {
+            "type": "boolean",
+            "description": "Whether to generate image with transparent background. Auto-detected if user mentions \"透明\", \"透明背景\", \"抠图\", or \"无背景\" in their request."
+          },
+          "target_size": {
+            "type": "string",
+            "description": "**REQUIRED.** Final image dimensions after scaling (format: \"widthxheight\").\nExamples: \"256x256\" (icon), \"512x1024\" (sprite).\nChoose aspect_ratio for shape, then target_size for exact pixel dimensions."
+          },
+          "reference_image": {
+            "type": "string",
+            "description": "[Deprecated] Path to a single reference image file (relative to workspace root). Use reference_images instead for multi-reference support. Example: \"assets/cat.png\""
+          },
+          "reference_images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of reference images (up to 14). Each item can be a file path (relative to workspace root) OR a base64 data URL. Takes priority over reference_image. The generated image will incorporate style/content from these references."
+          },
+          "seed": {
+            "type": "number",
+            "description": "Random seed for reproducible results. Use the same seed with the same prompt to get consistent outputs. Example: 42"
+          },
+          "thinking_level": {
+            "type": "string",
+            "enum": ["minimal", "high"],
+            "description": "AI reasoning depth. \"minimal\" is faster, \"high\" produces better results for complex prompts."
+          },
+          "resolution": {
+            "type": "string",
+            "enum": ["0.5K", "1K", "2K", "4K"],
+            "description": "Generation resolution before scaling to target_size. Default is \"1K\". Higher values produce more detail but take longer."
+          },
+          "model": {
+            "type": "string",
+            "enum": ["nanobanana", "gpt"],
+            "description": "Model to use for generation. \"nanobanana\" uses Nano Banana 2 (Gemini). \"gpt\" uses GPT Image 2 (OpenAI). IMPORTANT: Do NOT set this parameter unless the user has explicitly named a model (e.g. \"use nanobanana\" / \"switch to gpt\"). When the user does not specify, omit this field entirely so the server picks the default — never guess or default it yourself."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["prompt", "name", "target_size"]
+      },
+      "descriptionHash": "1367d48bfa40628088b3342df1f32ec247c3a7ababfeadfaea202f0429ddb35f",
+      "inputSchemaHash": "0f32cc339fd79a7fff2857027437a762fe28c14ab8fbb48b04adfe5540bca698",
+      "remoteComponents": {
+        "baseDescription": "Generate images based on text descriptions with customizable aspect ratios, transparency, size, and reference image options.\n\nThis tool uses AI to generate images from short Chinese descriptions (max 50KB).\n\n**⚠️ How Image Size Works (2-Step Process):**\n1. AI generates image at a fixed size based on aspect_ratio (see table below)\n2. Image is then SCALED to your target_size (required parameter)\n\n**Step 1 - Choose aspect_ratio (determines shape):**\n| Ratio | AI Generated Size | Use Case |\n|-------|-------------------|----------|\n| 1:1   | 1024×1024         | Icons, avatars, square assets (default) |\n| 2:3   | 832×1248          | Vertical posters, character illustrations |\n| 3:2   | 1248×832          | Horizontal scenes, landscape images |\n| 3:4   | 864×1184          | Vertical cards, phone wallpapers |\n| 4:3   | 1184×864          | Traditional horizontal, PPT images |\n| 9:16  | 768×1344          | Full-screen vertical, short video covers |\n| 16:9  | 1344×768          | Widescreen, game scenes, video covers |\n| 21:9  | 1536×672          | Ultra-wide, cinematic format |\n| 5:4   | 1152×896          | Near-square horizontal |\n| 4:5   | 896×1152          | Near-square vertical, social media images |\n\n**Step 2 - Specify target_size (REQUIRED, determines final dimensions):**\nCommon game asset sizes (power-of-2 recommended for GPU):\n- Icons: \"64x64\", \"128x128\", \"256x256\"\n- UI elements: \"256x256\", \"512x512\"\n- Character sprites: \"256x512\", \"512x1024\"\n- Textures: \"512x512\", \"1024x1024\"\n\nExample: aspect_ratio=\"1:1\" + target_size=\"256x256\" → 256×256 game icon\n\n**Transparent Background Detection:**\nThe system automatically detects if transparent background is needed based on keywords:\n- \"透明\" (transparent)\n- \"透明背景\" (transparent background)\n- \"抠图\" (cut-out)\n- \"无背景\" (no background)\n\n**Reference Images:**\nProvide one or more reference images for style/content guidance (up to 14).\n- reference_images: array of file paths or base64 data URLs (preferred, supports multiple)\n- reference_image: single file path (legacy, kept for compatibility)\nExample: [\"assets/cat.png\", \"assets/style.png\"]\n\n**Advanced Options:**\n- seed: integer for reproducible results (e.g., 42)\n- thinking_level: \"minimal\" (faster) or \"high\" (better quality for complex prompts)\n- resolution: generation resolution \"0.5K\" | \"1K\" | \"2K\" | \"4K\" (default: \"1K\")\n\n**Naming Convention:**\nFiles are named as: {name}_{timestamp}.png\nExample: 小猫_20250107143052.png",
+        "localGuidance": "**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for Maker project assets. Successful results are downloaded into the Maker project and recorded with remote mapping for later edits or video references. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Generate images based on text descriptions with customizable aspect ratios, transparency, size, and reference image options.\n\nThis tool uses AI to generate images from short Chinese descriptions (max 50KB).\n\n**⚠️ How Image Size Works (2-Step Process):**\n1. AI generates image at a fixed size based on aspect_ratio (see table below)\n2. Image is then SCALED to your target_size (required parameter)\n\n**Step 1 - Choose aspect_ratio (determines shape):**\n| Ratio | AI Generated Size | Use Case |\n|-------|-------------------|----------|\n| 1:1   | 1024×1024         | Icons, avatars, square assets (default) |\n| 2:3   | 832×1248          | Vertical posters, character illustrations |\n| 3:2   | 1248×832          | Horizontal scenes, landscape images |\n| 3:4   | 864×1184          | Vertical cards, phone wallpapers |\n| 4:3   | 1184×864          | Traditional horizontal, PPT images |\n| 9:16  | 768×1344          | Full-screen vertical, short video covers |\n| 16:9  | 1344×768          | Widescreen, game scenes, video covers |\n| 21:9  | 1536×672          | Ultra-wide, cinematic format |\n| 5:4   | 1152×896          | Near-square horizontal |\n| 4:5   | 896×1152          | Near-square vertical, social media images |\n\n**Step 2 - Specify target_size (REQUIRED, determines final dimensions):**\nCommon game asset sizes (power-of-2 recommended for GPU):\n- Icons: \"64x64\", \"128x128\", \"256x256\"\n- UI elements: \"256x256\", \"512x512\"\n- Character sprites: \"256x512\", \"512x1024\"\n- Textures: \"512x512\", \"1024x1024\"\n\nExample: aspect_ratio=\"1:1\" + target_size=\"256x256\" → 256×256 game icon\n\n**Transparent Background Detection:**\nThe system automatically detects if transparent background is needed based on keywords:\n- \"透明\" (transparent)\n- \"透明背景\" (transparent background)\n- \"抠图\" (cut-out)\n- \"无背景\" (no background)\n\n**Reference Images:**\nProvide one or more reference images for style/content guidance (up to 14).\n- reference_images: array of file paths or base64 data URLs (preferred, supports multiple)\n- reference_image: single file path (legacy, kept for compatibility)\nExample: [\"assets/cat.png\", \"assets/style.png\"]\n\n**Advanced Options:**\n- seed: integer for reproducible results (e.g., 42)\n- thinking_level: \"minimal\" (faster) or \"high\" (better quality for complex prompts)\n- resolution: generation resolution \"0.5K\" | \"1K\" | \"2K\" | \"4K\" (default: \"1K\")\n\n**Naming Convention:**\nFiles are named as: {name}_{timestamp}.png\nExample: 小猫_20250107143052.png\n\n**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for Maker project assets. Successful results are downloaded into the Maker project and recorded with remote mapping for later edits or video references. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "38bef0709bbd55da3f9e459da8d710c451b2c7682e0cf37c055a42d0f4adc08d",
+        "localGuidanceHash": "c39a62ab696102dbdbee8a17ae22995af7102504ad8a4052185b774a12810ca1",
+        "composedDescriptionHash": "1367d48bfa40628088b3342df1f32ec247c3a7ababfeadfaea202f0429ddb35f"
+      },
+      "toolHash": "1cce8d56a151c902b261fca64a0cc4702bc3050282bf95342f8dc2238ef8733a"
+    },
+    {
+      "order": 3,
+      "name": "batch_generate_images",
+      "source": "remote-proxy",
+      "description": "Batch generate multiple images simultaneously in parallel. Use this tool instead of calling generate_image multiple times when you need to create 2 or more images at once.\n\n**When to use this tool:**\n- Generating a set of game UI icons (coin, gem, heart, star, etc.)\n- Creating multiple character sprites or variants\n- Producing multiple textures or backgrounds in one go\n- Any scenario where multiple images are needed\n\n**Advantages over calling generate_image multiple times:**\n- All images are generated in parallel, significantly reducing total wait time\n- Single tool call instead of multiple back-and-forth exchanges\n- Consolidated result summary\n\nEach image in the batch supports the same parameters as generate_image (prompt, name, aspect_ratio, transparent, target_size, reference_image). See generate_image description for detailed parameter documentation.\n\n**Example input:**\n```json\n{\n  \"images\": [\n    { \"prompt\": \"金币图标，像素风格\", \"name\": \"金币\", \"target_size\": \"128x128\" },\n    { \"prompt\": \"红色宝石图标，像素风格\", \"name\": \"宝石\", \"target_size\": \"128x128\" },\n    { \"prompt\": \"红色爱心图标，像素风格\", \"name\": \"爱心\", \"target_size\": \"128x128\" }\n  ]\n}\n```\n\n**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for Maker project assets. Successful results are downloaded into the Maker project and recorded with remote mapping for later edits or video references. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "images": {
+            "type": "array",
+            "description": "Array of image generation requests to process in parallel (2-10 images recommended)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "type": "string",
+                  "description": "Short Chinese description of the image to generate (max 50KB). Example: \"橙色小猫\", \"蓝色飞龙\", \"金币图标\""
+                },
+                "name": {
+                  "type": "string",
+                  "description": "File name for the generated image (without extension, max 100 characters). This will be used in the output filename: {name}_{timestamp}.png. Example: \"小猫\", \"飞龙\", \"金币\""
+                },
+                "aspect_ratio": {
+                  "type": "string",
+                  "enum": ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9", "5:4", "4:5"],
+                  "description": "Image aspect ratio. Default is \"1:1\". See tool description for use cases of each ratio."
+                },
+                "transparent": {
+                  "type": "boolean",
+                  "description": "Whether to generate image with transparent background. Auto-detected if user mentions \"透明\", \"透明背景\", \"抠图\", or \"无背景\" in their request."
+                },
+                "target_size": {
+                  "type": "string",
+                  "description": "**REQUIRED.** Final image dimensions after scaling (format: \"widthxheight\").\nExamples: \"256x256\" (icon), \"512x1024\" (sprite).\nChoose aspect_ratio for shape, then target_size for exact pixel dimensions."
+                },
+                "reference_image": {
+                  "type": "string",
+                  "description": "[Deprecated] Path to a single reference image file (relative to workspace root). Use reference_images instead for multi-reference support. Example: \"assets/cat.png\""
+                },
+                "reference_images": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "List of reference images (up to 14). Each item can be a file path (relative to workspace root) OR a base64 data URL. Takes priority over reference_image. The generated image will incorporate style/content from these references."
+                },
+                "seed": {
+                  "type": "number",
+                  "description": "Random seed for reproducible results. Use the same seed with the same prompt to get consistent outputs. Example: 42"
+                },
+                "thinking_level": {
+                  "type": "string",
+                  "enum": ["minimal", "high"],
+                  "description": "AI reasoning depth. \"minimal\" is faster, \"high\" produces better results for complex prompts."
+                },
+                "resolution": {
+                  "type": "string",
+                  "enum": ["0.5K", "1K", "2K", "4K"],
+                  "description": "Generation resolution before scaling to target_size. Default is \"1K\". Higher values produce more detail but take longer."
+                },
+                "model": {
+                  "type": "string",
+                  "enum": ["nanobanana", "gpt"],
+                  "description": "Model to use for generation. \"nanobanana\" uses Nano Banana 2 (Gemini). \"gpt\" uses GPT Image 2 (OpenAI). IMPORTANT: Do NOT set this parameter unless the user has explicitly named a model (e.g. \"use nanobanana\" / \"switch to gpt\"). When the user does not specify, omit this field entirely so the server picks the default — never guess or default it yourself."
+                }
+              },
+              "required": ["prompt", "name", "target_size"]
+            }
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["images"]
+      },
+      "descriptionHash": "a56453341c35740be01beb9a3c5806fb5f68e687d9340f5262fb7d35fa07df7e",
+      "inputSchemaHash": "877aa43e01a626c05387fb9f8b160ca9132bf45265c01a9a37e23d224d25f533",
+      "remoteComponents": {
+        "baseDescription": "Batch generate multiple images simultaneously in parallel. Use this tool instead of calling generate_image multiple times when you need to create 2 or more images at once.\n\n**When to use this tool:**\n- Generating a set of game UI icons (coin, gem, heart, star, etc.)\n- Creating multiple character sprites or variants\n- Producing multiple textures or backgrounds in one go\n- Any scenario where multiple images are needed\n\n**Advantages over calling generate_image multiple times:**\n- All images are generated in parallel, significantly reducing total wait time\n- Single tool call instead of multiple back-and-forth exchanges\n- Consolidated result summary\n\nEach image in the batch supports the same parameters as generate_image (prompt, name, aspect_ratio, transparent, target_size, reference_image). See generate_image description for detailed parameter documentation.\n\n**Example input:**\n```json\n{\n  \"images\": [\n    { \"prompt\": \"金币图标，像素风格\", \"name\": \"金币\", \"target_size\": \"128x128\" },\n    { \"prompt\": \"红色宝石图标，像素风格\", \"name\": \"宝石\", \"target_size\": \"128x128\" },\n    { \"prompt\": \"红色爱心图标，像素风格\", \"name\": \"爱心\", \"target_size\": \"128x128\" }\n  ]\n}\n```",
+        "localGuidance": "**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for Maker project assets. Successful results are downloaded into the Maker project and recorded with remote mapping for later edits or video references. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Batch generate multiple images simultaneously in parallel. Use this tool instead of calling generate_image multiple times when you need to create 2 or more images at once.\n\n**When to use this tool:**\n- Generating a set of game UI icons (coin, gem, heart, star, etc.)\n- Creating multiple character sprites or variants\n- Producing multiple textures or backgrounds in one go\n- Any scenario where multiple images are needed\n\n**Advantages over calling generate_image multiple times:**\n- All images are generated in parallel, significantly reducing total wait time\n- Single tool call instead of multiple back-and-forth exchanges\n- Consolidated result summary\n\nEach image in the batch supports the same parameters as generate_image (prompt, name, aspect_ratio, transparent, target_size, reference_image). See generate_image description for detailed parameter documentation.\n\n**Example input:**\n```json\n{\n  \"images\": [\n    { \"prompt\": \"金币图标，像素风格\", \"name\": \"金币\", \"target_size\": \"128x128\" },\n    { \"prompt\": \"红色宝石图标，像素风格\", \"name\": \"宝石\", \"target_size\": \"128x128\" },\n    { \"prompt\": \"红色爱心图标，像素风格\", \"name\": \"爱心\", \"target_size\": \"128x128\" }\n  ]\n}\n```\n\n**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for Maker project assets. Successful results are downloaded into the Maker project and recorded with remote mapping for later edits or video references. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "e0cf040bb9598ab65cf73fd315df90da94376e79bdbc8ac4454d23a52370bb0f",
+        "localGuidanceHash": "c39a62ab696102dbdbee8a17ae22995af7102504ad8a4052185b774a12810ca1",
+        "composedDescriptionHash": "a56453341c35740be01beb9a3c5806fb5f68e687d9340f5262fb7d35fa07df7e"
+      },
+      "toolHash": "708c888c481d1f92b2037049aa5d60964c9ea773aad29d34e06f8dfbf5ca9685"
+    },
+    {
+      "order": 4,
+      "name": "edit_image",
+      "source": "remote-proxy",
+      "description": "Edit/modify an existing image based on text instructions using AI.\n\nThis tool uses AI to edit images according to the provided prompt instructions.\n\n**Usage:**\n- Provide a local image path (relative to workspace) or a remote http/https image URL\n- Describe what modifications you want to make to the image\n\n**Examples:**\n- \"把背景改成蓝色\" (Change background to blue)\n- \"添加一个太阳\" (Add a sun)\n- \"去除水印\" (Remove watermark)\n- \"把图片风格改成卡通\" (Change style to cartoon)\n\n**⚠️ How Image Size Works (2-Step Process):**\n1. AI generates image at a fixed size based on aspect_ratio (see table below)\n2. Image is then SCALED to your target_size (required parameter)\n\n**Step 1 - Choose aspect_ratio (determines shape):**\n| Ratio | AI Generated Size | Use Case |\n|-------|-------------------|----------|\n| 1:1   | 1024×1024         | Icons, avatars, square assets (default) |\n| 2:3   | 832×1248          | Vertical posters, character illustrations |\n| 3:2   | 1248×832          | Horizontal scenes, landscape images |\n| 3:4   | 864×1184          | Vertical cards, phone wallpapers |\n| 4:3   | 1184×864          | Traditional horizontal, PPT images |\n| 9:16  | 768×1344          | Full-screen vertical, short video covers |\n| 16:9  | 1344×768          | Widescreen, game scenes, video covers |\n| 21:9  | 1536×672          | Ultra-wide, cinematic format |\n| 5:4   | 1152×896          | Near-square horizontal |\n| 4:5   | 896×1152          | Near-square vertical, social media images |\n\n**Step 2 - Specify target_size (REQUIRED, determines final dimensions):**\nCommon game asset sizes (power-of-2 recommended for GPU):\n- Icons: \"64x64\", \"128x128\", \"256x256\"\n- UI elements: \"256x256\", \"512x512\"\n- Character sprites: \"256x512\", \"512x1024\"\n\nExample: aspect_ratio=\"1:1\" + target_size=\"256x256\" → 256×256 game icon\n\n**Transparent Background Detection:**\nThe system automatically detects if transparent background is needed based on keywords:\n- \"透明\" (transparent)\n- \"透明背景\" (transparent background)\n- \"抠图\" (cut-out)\n- \"无背景\" (no background)\n\n**Reference Images (for style/character consistency):**\nProvide up to 13 additional reference images. The original image counts as 1, totaling 14 max (Nano Banana 2 limit).\nEach item can be a file path (relative to workspace root), a remote http/https image URL, or a base64 data URL.\n\n**Advanced Options:**\n- seed: integer for reproducible results (e.g., 42)\n- thinking_level: \"minimal\" (faster) or \"high\" (better quality for complex edits)\n- resolution: generation resolution \"0.5K\" | \"1K\" | \"2K\" | \"4K\" (default: \"1K\")\n\n**Naming Convention:**\nEdited files are saved as: edited_{name}_{timestamp}.png\n\n**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for image editing. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "image": {
+            "type": "string",
+            "description": "Path to the image file (relative to workspace root), remote http/https image URL, or a base64 data URL (data:image/png;base64,...). Example: \"assets/cat.png\", \"https://cdn.example.com/cat.png\", \"data:image/png;base64,iVBOR...\""
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Edit instructions describing what modifications to make. Example: \"把背景改成蓝色\", \"添加一个太阳\""
+          },
+          "name": {
+            "type": "string",
+            "description": "Output filename (without extension, max 100 characters). This will be used in the output filename: edited_{name}_{timestamp}.png"
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "enum": ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9", "5:4", "4:5"],
+            "description": "Output image aspect ratio"
+          },
+          "target_size": {
+            "type": "string",
+            "description": "**REQUIRED.** Final image dimensions after scaling (format: \"widthxheight\").\nExamples: \"256x256\" (icon), \"512x1024\" (sprite).\nChoose aspect_ratio for shape, then target_size for exact pixel dimensions."
+          },
+          "transparent": {
+            "type": "boolean",
+            "description": "Whether to generate image with transparent background."
+          },
+          "reference_images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of reference images for style/character consistency (up to 13). Each item can be a file path (relative to workspace root), remote http/https image URL, OR a base64 data URL. Combined with the original image, total must not exceed 14 (Nano Banana 2 limit)."
+          },
+          "seed": {
+            "type": "number",
+            "description": "Random seed for reproducible results. Example: 42"
+          },
+          "thinking_level": {
+            "type": "string",
+            "enum": ["minimal", "high"],
+            "description": "AI reasoning depth. \"minimal\" is faster, \"high\" produces better quality for complex edits."
+          },
+          "resolution": {
+            "type": "string",
+            "enum": ["0.5K", "1K", "2K", "4K"],
+            "description": "Generation resolution before scaling to target_size. Default is \"1K\"."
+          },
+          "model": {
+            "type": "string",
+            "enum": ["nanobanana", "gpt"],
+            "description": "Model to use for generation. \"nanobanana\" uses Nano Banana 2 (Gemini). \"gpt\" uses GPT Image 2 (OpenAI). IMPORTANT: Do NOT set this parameter unless the user has explicitly named a model (e.g. \"use nanobanana\" / \"switch to gpt\"). When the user does not specify, omit this field entirely so the server picks the default — never guess or default it yourself."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["image", "prompt", "name", "target_size"]
+      },
+      "descriptionHash": "661240f4482822b6d99e2a912c4e37def2375378b52e4cbefcef065e41166f26",
+      "inputSchemaHash": "cc5fbc6c00d97a34dc56a5b4bf44d96a7ce3249a2a3b21eab3566696d0ddfa37",
+      "remoteComponents": {
+        "baseDescription": "Edit/modify an existing image based on text instructions using AI.\n\nThis tool uses AI to edit images according to the provided prompt instructions.\n\n**Usage:**\n- Provide a local image path (relative to workspace) or a remote http/https image URL\n- Describe what modifications you want to make to the image\n\n**Examples:**\n- \"把背景改成蓝色\" (Change background to blue)\n- \"添加一个太阳\" (Add a sun)\n- \"去除水印\" (Remove watermark)\n- \"把图片风格改成卡通\" (Change style to cartoon)\n\n**⚠️ How Image Size Works (2-Step Process):**\n1. AI generates image at a fixed size based on aspect_ratio (see table below)\n2. Image is then SCALED to your target_size (required parameter)\n\n**Step 1 - Choose aspect_ratio (determines shape):**\n| Ratio | AI Generated Size | Use Case |\n|-------|-------------------|----------|\n| 1:1   | 1024×1024         | Icons, avatars, square assets (default) |\n| 2:3   | 832×1248          | Vertical posters, character illustrations |\n| 3:2   | 1248×832          | Horizontal scenes, landscape images |\n| 3:4   | 864×1184          | Vertical cards, phone wallpapers |\n| 4:3   | 1184×864          | Traditional horizontal, PPT images |\n| 9:16  | 768×1344          | Full-screen vertical, short video covers |\n| 16:9  | 1344×768          | Widescreen, game scenes, video covers |\n| 21:9  | 1536×672          | Ultra-wide, cinematic format |\n| 5:4   | 1152×896          | Near-square horizontal |\n| 4:5   | 896×1152          | Near-square vertical, social media images |\n\n**Step 2 - Specify target_size (REQUIRED, determines final dimensions):**\nCommon game asset sizes (power-of-2 recommended for GPU):\n- Icons: \"64x64\", \"128x128\", \"256x256\"\n- UI elements: \"256x256\", \"512x512\"\n- Character sprites: \"256x512\", \"512x1024\"\n\nExample: aspect_ratio=\"1:1\" + target_size=\"256x256\" → 256×256 game icon\n\n**Transparent Background Detection:**\nThe system automatically detects if transparent background is needed based on keywords:\n- \"透明\" (transparent)\n- \"透明背景\" (transparent background)\n- \"抠图\" (cut-out)\n- \"无背景\" (no background)\n\n**Reference Images (for style/character consistency):**\nProvide up to 13 additional reference images. The original image counts as 1, totaling 14 max (Nano Banana 2 limit).\nEach item can be a file path (relative to workspace root), a remote http/https image URL, or a base64 data URL.\n\n**Advanced Options:**\n- seed: integer for reproducible results (e.g., 42)\n- thinking_level: \"minimal\" (faster) or \"high\" (better quality for complex edits)\n- resolution: generation resolution \"0.5K\" | \"1K\" | \"2K\" | \"4K\" (default: \"1K\")\n\n**Naming Convention:**\nEdited files are saved as: edited_{name}_{timestamp}.png",
+        "localGuidance": "**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for image editing. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Edit/modify an existing image based on text instructions using AI.\n\nThis tool uses AI to edit images according to the provided prompt instructions.\n\n**Usage:**\n- Provide a local image path (relative to workspace) or a remote http/https image URL\n- Describe what modifications you want to make to the image\n\n**Examples:**\n- \"把背景改成蓝色\" (Change background to blue)\n- \"添加一个太阳\" (Add a sun)\n- \"去除水印\" (Remove watermark)\n- \"把图片风格改成卡通\" (Change style to cartoon)\n\n**⚠️ How Image Size Works (2-Step Process):**\n1. AI generates image at a fixed size based on aspect_ratio (see table below)\n2. Image is then SCALED to your target_size (required parameter)\n\n**Step 1 - Choose aspect_ratio (determines shape):**\n| Ratio | AI Generated Size | Use Case |\n|-------|-------------------|----------|\n| 1:1   | 1024×1024         | Icons, avatars, square assets (default) |\n| 2:3   | 832×1248          | Vertical posters, character illustrations |\n| 3:2   | 1248×832          | Horizontal scenes, landscape images |\n| 3:4   | 864×1184          | Vertical cards, phone wallpapers |\n| 4:3   | 1184×864          | Traditional horizontal, PPT images |\n| 9:16  | 768×1344          | Full-screen vertical, short video covers |\n| 16:9  | 1344×768          | Widescreen, game scenes, video covers |\n| 21:9  | 1536×672          | Ultra-wide, cinematic format |\n| 5:4   | 1152×896          | Near-square horizontal |\n| 4:5   | 896×1152          | Near-square vertical, social media images |\n\n**Step 2 - Specify target_size (REQUIRED, determines final dimensions):**\nCommon game asset sizes (power-of-2 recommended for GPU):\n- Icons: \"64x64\", \"128x128\", \"256x256\"\n- UI elements: \"256x256\", \"512x512\"\n- Character sprites: \"256x512\", \"512x1024\"\n\nExample: aspect_ratio=\"1:1\" + target_size=\"256x256\" → 256×256 game icon\n\n**Transparent Background Detection:**\nThe system automatically detects if transparent background is needed based on keywords:\n- \"透明\" (transparent)\n- \"透明背景\" (transparent background)\n- \"抠图\" (cut-out)\n- \"无背景\" (no background)\n\n**Reference Images (for style/character consistency):**\nProvide up to 13 additional reference images. The original image counts as 1, totaling 14 max (Nano Banana 2 limit).\nEach item can be a file path (relative to workspace root), a remote http/https image URL, or a base64 data URL.\n\n**Advanced Options:**\n- seed: integer for reproducible results (e.g., 42)\n- thinking_level: \"minimal\" (faster) or \"high\" (better quality for complex edits)\n- resolution: generation resolution \"0.5K\" | \"1K\" | \"2K\" | \"4K\" (default: \"1K\")\n\n**Naming Convention:**\nEdited files are saved as: edited_{name}_{timestamp}.png\n\n**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for image editing. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "9308044d19bb8d06ce779f904bfdafdd3ff137cbf5065dfd0e2956647195a2e0",
+        "localGuidanceHash": "d7b961a9296e04bf092b90be14e344e122fe1b447e515af8d7346ff24753db1b",
+        "composedDescriptionHash": "661240f4482822b6d99e2a912c4e37def2375378b52e4cbefcef065e41166f26"
+      },
+      "toolHash": "adcad53ff5ca6e2096bedcd2637f485db516ab9e5808e528680966baa1cccf2f"
+    },
+    {
+      "order": 5,
+      "name": "create_3d_asset",
+      "source": "remote-proxy",
+      "description": "Create or continue a controlled 3D asset generation lifecycle using Tripo3D V3. Use action=\"start\" to begin, action=\"continue\" after user confirmation, action=\"query\" to check state, action=\"get_options\" to inspect advanced options for a step, and action=\"post_process\" for later lifecycle work on an already generated asset. First-level payload should stay simple: generation_strategy, quality_tier, prompt, images, and options. If prompt and images are both provided, images take precedence and prompt is reported in ignored_options. Image values may be public HTTPS URLs, workspace project paths, or image data URLs; project/data images are normalized and uploaded to a public URL before calling Tripo. Local callers with unsynced private images must use image data URLs or HTTPS upload URLs because the server cannot read machine-local absolute paths. In the server runtime, a completed query materializes the project-ready MDL bundle into assets/model/... and returns the usable .mdl path in model.workspace_path. Treat that path as the delivered project asset; do not invoke a separate GLB/FBX conversion tool. In runtime=\"local\", a completed query skips server workspace delivery and returns structured model_files entries with public URLs and copy/extract instructions. Choose generation_strategy=\"direct\" for immediate final model generation. Choose generation_strategy=\"reviewed\" when the user needs preview/review before final generation, such as characters, creatures, NPCs, hero props, important gameplay objects, or precise art direction. Choose quality_tier only for final model parameters: fast for simple low-importance props, balanced by default, and high_quality for higher face limit and detailed textures. The same tool owns the follow-up asset lifecycle. For action=\"post_process\", payload.operation supports rig, texture, retopology, and convert. Rig capability checks are handled inside the rig operation. Do not use Tripo animation retargeting; animation generation is not exposed by this tool.\n\n**Maker asset workflow hint:** Use this tool for the complete Maker 3D asset lifecycle: start, query, continue after explicit user review, inspect options, and post-process completed assets. Local image paths in payload.images are forwarded as data URLs when they resolve inside the Maker project. Unknown server response fields are preserved. In local runtime query results, model_files copy/extract instructions are materialized into assets/model and local_delivery reports the usable local model path. Review preview URLs are materialized into assets/image and returned in preview_assets when possible. Do not automatically approve review steps; show the returned previews to the user and wait for explicit confirmation before action=\"continue\". If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["start", "continue", "query", "get_options", "post_process"],
+            "description": "Required lifecycle action: start, continue, query, get_options, or post_process."
+          },
+          "asset_id": {
+            "type": "string",
+            "description": "Asset lifecycle id returned by this tool. Required for continue and post_process; preferred for query."
+          },
+          "task_id": {
+            "type": "string",
+            "description": "Underlying Tripo task id. Query supports this as a fallback when asset_id is unavailable."
+          },
+          "step_id": {
+            "type": "string",
+            "description": "Current lifecycle step, such as four_view_review or multiview_review. Required for continue."
+          },
+          "payload": {
+            "type": "object",
+            "description": "Action payload. For start: { generation_strategy?: \"direct\"|\"reviewed\", quality_tier?: \"fast\"|\"balanced\"|\"high_quality\", prompt?: string, images?: {front,left?,back?,right?}, options?: object }. For continue: { confirm?: true, images?: object, options?: object }. For post_process: { operation: \"rig\"|\"texture\"|\"retopology\"|\"convert\", options?: object }. Advanced options are service-controlled and may be ignored by policy.",
+            "properties": {
+              "generation_strategy": {
+                "type": "string",
+                "enum": ["direct", "reviewed", "reviewed_multiview"],
+                "description": "Workflow strategy. direct means submit prompt/image/multiview directly to final model generation. reviewed means create or derive reviewable views first, wait for user confirmation, then submit multiview-to-model. Use reviewed for characters, creatures, NPCs, hero props, important gameplay objects, or precise art direction."
+              },
+              "quality_tier": {
+                "type": "string",
+                "enum": ["fast", "balanced", "high_quality"],
+                "description": "Final model quality tier, independent from workflow strategy. Use fast only for simple low-importance props or rough throwaway objects. Use balanced by default for ordinary assets. Use high_quality when the final model needs higher face limit and detailed texture settings."
+              },
+              "operation": {
+                "type": "string",
+                "enum": ["rig", "texture", "retopology", "convert"],
+                "description": "Required for action=\"post_process\". rig checks bindability internally and adds skeleton when possible. texture regenerates/adjusts materials and texture. retopology reduces/optimizes face count. convert exports another format. Tripo animation retargeting is intentionally not supported."
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "images": {
+                "type": "object",
+                "properties": {
+                  "front": {
+                    "type": "string",
+                    "description": "Required front image. In local mode, use an image data URL or HTTPS upload URL for an unsynced private image. Server mode may also use a synced workspace project path."
+                  },
+                  "left": {
+                    "type": "string",
+                    "description": "Optional left-view image. Local unsynced private images must use a data URL or HTTPS upload URL."
+                  },
+                  "back": {
+                    "type": "string",
+                    "description": "Optional back-view image. Local unsynced private images must use a data URL or HTTPS upload URL."
+                  },
+                  "right": {
+                    "type": "string",
+                    "description": "Optional right-view image. Local unsynced private images must use a data URL or HTTPS upload URL."
+                  }
+                }
+              },
+              "options": {
+                "type": "object",
+                "description": "Advanced options. For post_process: input/source_task_id/source_url can override the default current asset input; rig supports rig_type/model/spec and uses the service-controlled output format; texture supports texture_prompt/pbr/texture_quality/texture_alignment/bake; retopology supports face_limit/model/quad/bake; convert requires format and supports face_limit/texture_size/fbx_preset."
+              },
+              "confirm": {
+                "type": "boolean"
+              }
+            }
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["action"]
+      },
+      "descriptionHash": "441946c4229cb505e87a211812071d61dc1ec06df6a6276b3cbfe2f750e49954",
+      "inputSchemaHash": "89e81c31b2ff06e7ed2aa9a6362173de453a01e98f6ff89c007f4baa610b2d6e",
+      "remoteComponents": {
+        "baseDescription": "Create or continue a controlled 3D asset generation lifecycle using Tripo3D V3. Use action=\"start\" to begin, action=\"continue\" after user confirmation, action=\"query\" to check state, action=\"get_options\" to inspect advanced options for a step, and action=\"post_process\" for later lifecycle work on an already generated asset. First-level payload should stay simple: generation_strategy, quality_tier, prompt, images, and options. If prompt and images are both provided, images take precedence and prompt is reported in ignored_options. Image values may be public HTTPS URLs, workspace project paths, or image data URLs; project/data images are normalized and uploaded to a public URL before calling Tripo. Local callers with unsynced private images must use image data URLs or HTTPS upload URLs because the server cannot read machine-local absolute paths. In the server runtime, a completed query materializes the project-ready MDL bundle into assets/model/... and returns the usable .mdl path in model.workspace_path. Treat that path as the delivered project asset; do not invoke a separate GLB/FBX conversion tool. In runtime=\"local\", a completed query skips server workspace delivery and returns structured model_files entries with public URLs and copy/extract instructions. Choose generation_strategy=\"direct\" for immediate final model generation. Choose generation_strategy=\"reviewed\" when the user needs preview/review before final generation, such as characters, creatures, NPCs, hero props, important gameplay objects, or precise art direction. Choose quality_tier only for final model parameters: fast for simple low-importance props, balanced by default, and high_quality for higher face limit and detailed textures. The same tool owns the follow-up asset lifecycle. For action=\"post_process\", payload.operation supports rig, texture, retopology, and convert. Rig capability checks are handled inside the rig operation. Do not use Tripo animation retargeting; animation generation is not exposed by this tool.",
+        "localGuidance": "**Maker asset workflow hint:** Use this tool for the complete Maker 3D asset lifecycle: start, query, continue after explicit user review, inspect options, and post-process completed assets. Local image paths in payload.images are forwarded as data URLs when they resolve inside the Maker project. Unknown server response fields are preserved. In local runtime query results, model_files copy/extract instructions are materialized into assets/model and local_delivery reports the usable local model path. Review preview URLs are materialized into assets/image and returned in preview_assets when possible. Do not automatically approve review steps; show the returned previews to the user and wait for explicit confirmation before action=\"continue\". If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Create or continue a controlled 3D asset generation lifecycle using Tripo3D V3. Use action=\"start\" to begin, action=\"continue\" after user confirmation, action=\"query\" to check state, action=\"get_options\" to inspect advanced options for a step, and action=\"post_process\" for later lifecycle work on an already generated asset. First-level payload should stay simple: generation_strategy, quality_tier, prompt, images, and options. If prompt and images are both provided, images take precedence and prompt is reported in ignored_options. Image values may be public HTTPS URLs, workspace project paths, or image data URLs; project/data images are normalized and uploaded to a public URL before calling Tripo. Local callers with unsynced private images must use image data URLs or HTTPS upload URLs because the server cannot read machine-local absolute paths. In the server runtime, a completed query materializes the project-ready MDL bundle into assets/model/... and returns the usable .mdl path in model.workspace_path. Treat that path as the delivered project asset; do not invoke a separate GLB/FBX conversion tool. In runtime=\"local\", a completed query skips server workspace delivery and returns structured model_files entries with public URLs and copy/extract instructions. Choose generation_strategy=\"direct\" for immediate final model generation. Choose generation_strategy=\"reviewed\" when the user needs preview/review before final generation, such as characters, creatures, NPCs, hero props, important gameplay objects, or precise art direction. Choose quality_tier only for final model parameters: fast for simple low-importance props, balanced by default, and high_quality for higher face limit and detailed textures. The same tool owns the follow-up asset lifecycle. For action=\"post_process\", payload.operation supports rig, texture, retopology, and convert. Rig capability checks are handled inside the rig operation. Do not use Tripo animation retargeting; animation generation is not exposed by this tool.\n\n**Maker asset workflow hint:** Use this tool for the complete Maker 3D asset lifecycle: start, query, continue after explicit user review, inspect options, and post-process completed assets. Local image paths in payload.images are forwarded as data URLs when they resolve inside the Maker project. Unknown server response fields are preserved. In local runtime query results, model_files copy/extract instructions are materialized into assets/model and local_delivery reports the usable local model path. Review preview URLs are materialized into assets/image and returned in preview_assets when possible. Do not automatically approve review steps; show the returned previews to the user and wait for explicit confirmation before action=\"continue\". If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "059f9dd9b7c3530176787cdc6645e5bbd89d4b4138284a66942b1b0375541681",
+        "localGuidanceHash": "b54e2cfdb694bf549386db617f778a0090a7e4b903e60a9c653a33ce5722bff9",
+        "composedDescriptionHash": "441946c4229cb505e87a211812071d61dc1ec06df6a6276b3cbfe2f750e49954"
+      },
+      "toolHash": "909a59c6c5403b50a13e301edc934979fe4c24149d1a9f3bd556a05873717cef"
+    },
+    {
+      "order": 6,
+      "name": "text_to_music",
+      "source": "remote-proxy",
+      "description": "Generate music using AI. Use this when user wants to create background music, vocal tracks for their game. (Note: This tool is NOT suitable for generating sound effects. Do NOT use it for sound effects.)\n\nIMPORTANT BEHAVIOR: This tool automatically polls every 20 seconds for up to 50 minutes. If generation is still running, the call times out and includes the task ID for operational tracking.\n\nReturns: Audio URLs and metadata when generation succeeds.\n\nTwo modes available:\n- Simple mode (default): Just provide a prompt describing the music (max 500 chars). Example: \"upbeat electronic game menu music\"\n- Custom mode (customMode=true): Fine-grained control with style, title, instrumental options. Requires style + title params.\n\n**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker music generation so generated audio can be materialized into the project and recorded for later Maker references. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customMode": {
+            "type": "boolean",
+            "description": "Enable Custom Mode for fine-grained control. When true, you must provide style and title. When false (default), only prompt is needed.",
+            "default": false
+          },
+          "instrumental": {
+            "type": "boolean",
+            "description": "Generate instrumental track without vocals. Default false (with vocals). Only effective in custom mode.",
+            "default": false
+          },
+          "model": {
+            "type": "string",
+            "description": "Model version. V4_5 recommended for best quality. Newer models (V4_5+) support longer prompts and styles.",
+            "enum": ["V3_5", "V4", "V4_5", "V4_5PLUS", "V5"],
+            "default": "V4_5"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Music description or lyrics. Simple mode: describe the music you want (max 500 chars), e.g. \"epic orchestral battle theme\". Custom mode: can include lyrics (max 3000-5000 chars depending on model)."
+          },
+          "style": {
+            "type": "string",
+            "description": "Music style/genre. Required in custom mode. Examples: \"electronic, ambient, synth\", \"orchestral, epic, cinematic\". Max 200-1000 chars depending on model."
+          },
+          "title": {
+            "type": "string",
+            "description": "Track title. Required in custom mode. Max 80 chars. Example: \"Battle Theme\", \"Menu Music\"."
+          },
+          "negativeTags": {
+            "type": "string",
+            "description": "Styles to avoid, comma-separated. Example: \"vocals, loud, aggressive\"."
+          },
+          "vocalGender": {
+            "type": "string",
+            "description": "Preferred vocal gender when instrumental=false. Use \"m\" for male, \"f\" for female."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["prompt"]
+      },
+      "descriptionHash": "3bd16d212627fe61d858ffa7504e65d37fc65f87528b63e408810c5de13742b7",
+      "inputSchemaHash": "77052f98eca4a35fc74e3943068b3711e89323759391f6f70521600c7432d357",
+      "remoteComponents": {
+        "baseDescription": "Generate music using AI. Use this when user wants to create background music, vocal tracks for their game. (Note: This tool is NOT suitable for generating sound effects. Do NOT use it for sound effects.)\n\nIMPORTANT BEHAVIOR: This tool automatically polls every 20 seconds for up to 50 minutes. If generation is still running, the call times out and includes the task ID for operational tracking.\n\nReturns: Audio URLs and metadata when generation succeeds.\n\nTwo modes available:\n- Simple mode (default): Just provide a prompt describing the music (max 500 chars). Example: \"upbeat electronic game menu music\"\n- Custom mode (customMode=true): Fine-grained control with style, title, instrumental options. Requires style + title params.",
+        "localGuidance": "**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker music generation so generated audio can be materialized into the project and recorded for later Maker references. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Generate music using AI. Use this when user wants to create background music, vocal tracks for their game. (Note: This tool is NOT suitable for generating sound effects. Do NOT use it for sound effects.)\n\nIMPORTANT BEHAVIOR: This tool automatically polls every 20 seconds for up to 50 minutes. If generation is still running, the call times out and includes the task ID for operational tracking.\n\nReturns: Audio URLs and metadata when generation succeeds.\n\nTwo modes available:\n- Simple mode (default): Just provide a prompt describing the music (max 500 chars). Example: \"upbeat electronic game menu music\"\n- Custom mode (customMode=true): Fine-grained control with style, title, instrumental options. Requires style + title params.\n\n**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker music generation so generated audio can be materialized into the project and recorded for later Maker references. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "049df101d3d5e1ae26c3afb140fecb2d26cfe1b03c4b8028be27c9dc870575b5",
+        "localGuidanceHash": "df03bc086bf7c24e34341ca05e96399bbaefda8790abe5f8547dd363c7bdbcec",
+        "composedDescriptionHash": "3bd16d212627fe61d858ffa7504e65d37fc65f87528b63e408810c5de13742b7"
+      },
+      "toolHash": "15b1e75be8951412858a1214e912fdcf139300cf5dbbade69e9be0f8a6b629fc"
+    },
+    {
+      "order": 7,
+      "name": "create_video_task",
+      "source": "remote-proxy",
+      "description": "Create a video generation task and synchronously wait for the final result (server-side polling, no client polling needed in the common case). The `mode` parameter is REQUIRED and specifies one of 4 mutually exclusive modes: \"text_to_video\" (text prompt only), \"first_frame\" (1 image as first frame), \"first_last_frame\" (exactly 2 images as first+last frame), \"multi_modal_reference\" (1-9 reference images, optionally with videos/audios). In the common case (task completes within ~50 minutes), this returns the final query result with workspace_video_path / workspace_last_frame_path and displayable media links in the tool output. Prefer workspace paths and metadata; mention CDN URLs only when the user needs an external share link. If the task does not finish within the server-side wait budget, this returns task_id with status still pending/running plus an agent_instruction asking you to fall back to query_video_task (no faster than every 120 s).\n\n**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker video generation. Image, video, and audio references may use remote URLs, existing data URLs, or resolvable local files that the local proxy can forward as data URLs. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["text_to_video", "first_frame", "first_last_frame", "multi_modal_reference"],
+            "description": "REQUIRED. Video generation mode (4 mutually exclusive modes):\n- \"text_to_video\": Text prompt only. No images/videos/audios allowed.\n- \"first_frame\": Exactly 1 image as the video's first frame. No videos/audios.\n- \"first_last_frame\": Exactly 2 images (first frame + last frame). No videos/audios.\n- \"multi_modal_reference\": 1-9 reference images, optionally with reference videos (max 3) and audios (max 3)."
+          },
+          "model": {
+            "type": "string",
+            "enum": ["default", "fast", "mini"],
+            "description": "模型档位。`default` 映射到标准模型，`fast` 映射到快速模型，`mini` 映射到 Mini 模型。默认使用 default。"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "视频生成提示词。mode=\"text_to_video\" 时必填；其他模式可选。"
+          },
+          "images": {
+            "type": "array",
+            "description": "Image inputs. How images are used depends on the `mode` parameter:\n- mode=\"text_to_video\": Do NOT provide images.\n- mode=\"first_frame\": Provide exactly 1 image (role=first_frame).\n- mode=\"first_last_frame\": Provide exactly 2 images (role=first_frame + last_frame).\n- mode=\"multi_modal_reference\": Provide 1-9 images (role=reference_image). Can combine with videos/audios.\nRoles are auto-assigned based on mode. You may override by setting each image's role explicitly.\nSupported sources: local file path, https URL, asset://<asset_id> (from asset library), or data URL (data:image/png;base64,...).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "图片本地文件路径、远程 URL、素材库资产 URI（asset://<asset_id>）或 data URL（data:image/png;base64,...）。"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": ["first_frame", "last_frame", "reference_image"],
+                  "description": "图片角色。通常由 mode 自动决定，仅在需要覆盖时手动指定。"
+                }
+              },
+              "required": ["url"]
+            }
+          },
+          "videos": {
+            "type": "array",
+            "description": "参考视频输入列表，最多 3 个。支持本地文件路径、远程 URL 或 data URL（data:video/mp4;base64,...）；本地文件与 data URL 会先自动上传阿里云 OSS，再以 URL 形式提交给上游接口。仅支持 reference_video。",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "视频本地文件路径、远程 URL 或 data URL（data:video/mp4;base64,...）。"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": ["reference_video"],
+                  "description": "默认 reference_video。"
+                }
+              },
+              "required": ["url"]
+            }
+          },
+          "audios": {
+            "type": "array",
+            "description": "参考音频输入列表，最多 3 个。支持本地文件路径、远程 URL 或 data URL（data:audio/mpeg;base64,...）。本地音频/data URL 会自动转成上游所需格式。仅支持 reference_audio，且不能单独使用。",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "音频本地文件路径、远程 URL 或 data URL（data:audio/mpeg;base64,...）。"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": ["reference_audio"],
+                  "description": "默认 reference_audio。"
+                }
+              },
+              "required": ["url"]
+            }
+          },
+          "generate_audio": {
+            "type": "boolean",
+            "description": "是否生成有声视频。"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": ["480p", "720p", "1080p"],
+            "description": "输出分辨率。fast/mini 模型仅支持 480p/720p；default 模型支持 480p/720p/1080p。"
+          },
+          "ratio": {
+            "type": "string",
+            "enum": ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"],
+            "description": "输出宽高比。"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "视频时长。支持 -1 或 4 到 15 之间的整数。不建议设为 -1；模型会自主选择时长，但这会直接影响计费与结果可预期性，建议明确指定 4 到 15 之间的整数。"
+          },
+          "seed": {
+            "type": "integer",
+            "description": "随机种子，用于结果复现。"
+          },
+          "return_last_frame": {
+            "type": "boolean",
+            "description": "是否返回尾帧图片 URL。默认 true；如不需要可显式传 false。"
+          },
+          "suppress_preview_links": {
+            "type": "boolean",
+            "description": "是否抑制工具结果中的会话预览链接以便静默执行。默认 false。"
+          },
+          "enable_web_search": {
+            "type": "boolean",
+            "description": "启用联网搜索增强，仅支持纯文本生视频。默认关闭；仅在确实需要联网补充信息时显式开启。"
+          },
+          "execution_expires_after": {
+            "type": "integer",
+            "description": "任务超时时间（秒），默认 172800，取值范围 3600-259200。"
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["mode"]
+      },
+      "descriptionHash": "4ab79ee492c472ea29ebf5a653cc2b8ec3eb5fa450974f32302c700f66106875",
+      "inputSchemaHash": "0a607ca8ec0d065f16cbe3a8407be43a3d17aba9e6767abeb27b181ac6391ec3",
+      "remoteComponents": {
+        "baseDescription": "Create a video generation task and synchronously wait for the final result (server-side polling, no client polling needed in the common case). The `mode` parameter is REQUIRED and specifies one of 4 mutually exclusive modes: \"text_to_video\" (text prompt only), \"first_frame\" (1 image as first frame), \"first_last_frame\" (exactly 2 images as first+last frame), \"multi_modal_reference\" (1-9 reference images, optionally with videos/audios). In the common case (task completes within ~50 minutes), this returns the final query result with workspace_video_path / workspace_last_frame_path and displayable media links in the tool output. Prefer workspace paths and metadata; mention CDN URLs only when the user needs an external share link. If the task does not finish within the server-side wait budget, this returns task_id with status still pending/running plus an agent_instruction asking you to fall back to query_video_task (no faster than every 120 s).",
+        "localGuidance": "**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker video generation. Image, video, and audio references may use remote URLs, existing data URLs, or resolvable local files that the local proxy can forward as data URLs. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Create a video generation task and synchronously wait for the final result (server-side polling, no client polling needed in the common case). The `mode` parameter is REQUIRED and specifies one of 4 mutually exclusive modes: \"text_to_video\" (text prompt only), \"first_frame\" (1 image as first frame), \"first_last_frame\" (exactly 2 images as first+last frame), \"multi_modal_reference\" (1-9 reference images, optionally with videos/audios). In the common case (task completes within ~50 minutes), this returns the final query result with workspace_video_path / workspace_last_frame_path and displayable media links in the tool output. Prefer workspace paths and metadata; mention CDN URLs only when the user needs an external share link. If the task does not finish within the server-side wait budget, this returns task_id with status still pending/running plus an agent_instruction asking you to fall back to query_video_task (no faster than every 120 s).\n\n**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker video generation. Image, video, and audio references may use remote URLs, existing data URLs, or resolvable local files that the local proxy can forward as data URLs. Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "581df334c0bcdf83119e835feb8422eaf7103053fdf275b9a58c58a80a85bd4e",
+        "localGuidanceHash": "3484fbe6eb89fc44800702e40e29a74150140b172f5d488d016abca52d9468c6",
+        "composedDescriptionHash": "4ab79ee492c472ea29ebf5a653cc2b8ec3eb5fa450974f32302c700f66106875"
+      },
+      "toolHash": "c568b1ed801084fbf5618bc48ae6a70a53d1b9fafdd84bfb9cdf6a74e9d64cb4"
+    },
+    {
+      "order": 8,
+      "name": "query_video_task",
+      "source": "remote-proxy",
+      "description": "Query a video generation task by task_id to check status and fetch the final result. If the task is still pending or running, continue with other work and query again no sooner than 120 seconds later. Do not poll continuously. When task succeeds, summarize duration/resolution/ratio, local workspace path (workspace_video_path), and last frame availability. The tool output includes displayable media links when workspace files are available; mention CDN URLs only when the user needs an external share link.\n\n**Maker asset workflow hint:** Prefer this Maker MCP proxy tool to refresh video task status, release completed task quota, and materialize successful video results into the Maker project. Use this Maker MCP proxy tool to refresh video task status when create_video_task returns a task_id or reports video concurrency limits. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "由 create_video_task 返回的任务 ID。"
+          },
+          "suppress_preview_links": {
+            "type": "boolean",
+            "description": "是否抑制工具结果中的会话预览链接以便静默执行。默认 false。"
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["task_id"]
+      },
+      "descriptionHash": "7375c415f95f62648434690ddbe5548f59b80e3051425b9fb6311f7639fa30ef",
+      "inputSchemaHash": "8e1ce0caf79f660821b07bb6e69b01b8fd099d54bcc6759d243effea9301b20c",
+      "remoteComponents": {
+        "baseDescription": "Query a video generation task by task_id to check status and fetch the final result. If the task is still pending or running, continue with other work and query again no sooner than 120 seconds later. Do not poll continuously. When task succeeds, summarize duration/resolution/ratio, local workspace path (workspace_video_path), and last frame availability. The tool output includes displayable media links when workspace files are available; mention CDN URLs only when the user needs an external share link.",
+        "localGuidance": "**Maker asset workflow hint:** Prefer this Maker MCP proxy tool to refresh video task status, release completed task quota, and materialize successful video results into the Maker project. Use this Maker MCP proxy tool to refresh video task status when create_video_task returns a task_id or reports video concurrency limits. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Query a video generation task by task_id to check status and fetch the final result. If the task is still pending or running, continue with other work and query again no sooner than 120 seconds later. Do not poll continuously. When task succeeds, summarize duration/resolution/ratio, local workspace path (workspace_video_path), and last frame availability. The tool output includes displayable media links when workspace files are available; mention CDN URLs only when the user needs an external share link.\n\n**Maker asset workflow hint:** Prefer this Maker MCP proxy tool to refresh video task status, release completed task quota, and materialize successful video results into the Maker project. Use this Maker MCP proxy tool to refresh video task status when create_video_task returns a task_id or reports video concurrency limits. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "cf61bdb1795d31cd91100abca71068da751b12de72830655dcb7d3f9d692aa26",
+        "localGuidanceHash": "17fc3bea7fe2db9fdd7a675c2bd349e2c22d083edaff5eab9d61f82ac5d0ab40",
+        "composedDescriptionHash": "7375c415f95f62648434690ddbe5548f59b80e3051425b9fb6311f7639fa30ef"
+      },
+      "toolHash": "54eb4245aedf99be36ad3095e54d862f84e28be52d92f1bd37ec12e37c83fa33"
+    },
+    {
+      "order": 9,
+      "name": "text_to_sound_effect",
+      "source": "remote-proxy",
+      "description": "Generate game sound effects using the configured audio provider. Use this for explosions, UI sounds, footsteps, ambient sounds, etc.\n\nIMPORTANT: Sound effect descriptions can be in Chinese or English. Be specific for best results.\n\nExamples:\n- \"Futuristic sci-fi laser gun shot, bright and sharp\"\n- \"Massive cinematic explosion with deep bass impact\"\n- \"Gentle healing magic sound, soft chimes and warm glow\"\n\nParameters:\n- text: Sound effect description in Chinese or English (required)\n- duration_seconds: Provider-specific duration intent (optional). Seed Audio accepts an approximate target greater than 0 and up to its 120-second output limit; the actual duration may differ.\n- loop: Generate seamlessly looping sound for ambient/background (optional)\n- output_name: Output filename without extension (optional)\n\nSEED AUDIO DURATION LIMIT: The provider limits each single output to 120 seconds. Longer audio must be split into multiple generations; this tool does not automatically stitch them. duration_seconds is an approximate target, not an exact duration. When the provider reports the actual duration, local results expose it as audio_files[].durationSeconds and non-local results show it as \"actual duration\".\n\nReturns: Non-local runtime saves the provider original format to the workspace. Local runtime preserves the provider original format, uploads it to a public CDN, and returns a structured audio contract.\n\n**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for game sound effects. Successful audio is materialized in its original format under assets/audio/sfx and recorded for later Maker references. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Sound effect description in Chinese or English. Be specific and detailed."
+          },
+          "duration_seconds": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 120,
+            "description": "Provider-specific duration intent. Seed Audio accepts an approximate target greater than 0 and up to its 120-second output limit; the actual duration may differ."
+          },
+          "loop": {
+            "type": "boolean",
+            "description": "Generate seamlessly looping sound. Good for ambient/background sounds.",
+            "default": false
+          },
+          "output_name": {
+            "type": "string",
+            "description": "Output filename without extension. If not provided, auto-generated."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["text"]
+      },
+      "descriptionHash": "29c5ac36432aaa156fdc8d281e11db824937f84d70f2807c9cf9af4392690661",
+      "inputSchemaHash": "b72f5fdca3a72aacd1c4253b66053f698a63f3ef5cfd6534a4f48b732c337103",
+      "remoteComponents": {
+        "baseDescription": "Generate game sound effects using the configured audio provider. Use this for explosions, UI sounds, footsteps, ambient sounds, etc.\n\nIMPORTANT: Sound effect descriptions can be in Chinese or English. Be specific for best results.\n\nExamples:\n- \"Futuristic sci-fi laser gun shot, bright and sharp\"\n- \"Massive cinematic explosion with deep bass impact\"\n- \"Gentle healing magic sound, soft chimes and warm glow\"\n\nParameters:\n- text: Sound effect description in Chinese or English (required)\n- duration_seconds: Provider-specific duration intent (optional). Seed Audio accepts an approximate target greater than 0 and up to its 120-second output limit; the actual duration may differ.\n- loop: Generate seamlessly looping sound for ambient/background (optional)\n- output_name: Output filename without extension (optional)\n\nSEED AUDIO DURATION LIMIT: The provider limits each single output to 120 seconds. Longer audio must be split into multiple generations; this tool does not automatically stitch them. duration_seconds is an approximate target, not an exact duration. When the provider reports the actual duration, local results expose it as audio_files[].durationSeconds and non-local results show it as \"actual duration\".\n\nReturns: Non-local runtime saves the provider original format to the workspace. Local runtime preserves the provider original format, uploads it to a public CDN, and returns a structured audio contract.",
+        "localGuidance": "**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for game sound effects. Successful audio is materialized in its original format under assets/audio/sfx and recorded for later Maker references. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Generate game sound effects using the configured audio provider. Use this for explosions, UI sounds, footsteps, ambient sounds, etc.\n\nIMPORTANT: Sound effect descriptions can be in Chinese or English. Be specific for best results.\n\nExamples:\n- \"Futuristic sci-fi laser gun shot, bright and sharp\"\n- \"Massive cinematic explosion with deep bass impact\"\n- \"Gentle healing magic sound, soft chimes and warm glow\"\n\nParameters:\n- text: Sound effect description in Chinese or English (required)\n- duration_seconds: Provider-specific duration intent (optional). Seed Audio accepts an approximate target greater than 0 and up to its 120-second output limit; the actual duration may differ.\n- loop: Generate seamlessly looping sound for ambient/background (optional)\n- output_name: Output filename without extension (optional)\n\nSEED AUDIO DURATION LIMIT: The provider limits each single output to 120 seconds. Longer audio must be split into multiple generations; this tool does not automatically stitch them. duration_seconds is an approximate target, not an exact duration. When the provider reports the actual duration, local results expose it as audio_files[].durationSeconds and non-local results show it as \"actual duration\".\n\nReturns: Non-local runtime saves the provider original format to the workspace. Local runtime preserves the provider original format, uploads it to a public CDN, and returns a structured audio contract.\n\n**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for game sound effects. Successful audio is materialized in its original format under assets/audio/sfx and recorded for later Maker references. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "6cf1ae41e5e75682b5a35acd8dca2112883b70c72b5ded89c18812661b546510",
+        "localGuidanceHash": "6709fe373510df5d7276c03271c7f935e832221421ccecd1db90166f3cbfc15f",
+        "composedDescriptionHash": "29c5ac36432aaa156fdc8d281e11db824937f84d70f2807c9cf9af4392690661"
+      },
+      "toolHash": "e58b69509551c35509368898173bb0e4415b04e85334ad75403b29a502e824a8"
+    },
+    {
+      "order": 10,
+      "name": "batch_sound_effects",
+      "source": "remote-proxy",
+      "description": "Generate multiple game sound effects in batch. Efficient for creating a set of related sounds.\n\nEach sound effect needs:\n- name: Output filename (required)\n- text: Sound description in Chinese or English (required)\n- duration: Provider-specific duration intent (optional). Seed Audio accepts an approximate target greater than 0 and up to its 120-second output limit; the actual duration may differ.\n- loop: Whether to create looping sound (optional)\n\nSEED AUDIO DURATION LIMIT: Every item is a separate single output with a 120-second maximum. Longer audio must be split into multiple items or generations; this tool does not automatically stitch them.\n\nReturns: Non-local runtime saves provider original formats to workspace paths. Local runtime preserves provider original formats, uploads them to public CDN URLs, and returns structured audio contracts with per-item failures.\n\n**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for game sound effects. Successful audio is materialized in its original format under assets/audio/sfx and recorded for later Maker references. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sounds": {
+            "type": "array",
+            "description": "Array of sound effect definitions",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Output filename without extension"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Sound effect description in Chinese or English"
+                },
+                "duration": {
+                  "type": "number",
+                  "description": "Provider-specific duration intent validated independently per item. Seed Audio accepts an approximate target greater than 0 and up to its 120-second output limit; the actual duration may differ."
+                },
+                "loop": {
+                  "type": "boolean",
+                  "description": "Create looping sound"
+                }
+              },
+              "required": ["name", "text"]
+            }
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["sounds"]
+      },
+      "descriptionHash": "bd3e6a0febaa105072d5ff33a1ee754c2b63bb61663fc618659952d657084620",
+      "inputSchemaHash": "3d5ff561df942eea7f1f578410b62cf3f778e838653ec955107c0ac1c96bc229",
+      "remoteComponents": {
+        "baseDescription": "Generate multiple game sound effects in batch. Efficient for creating a set of related sounds.\n\nEach sound effect needs:\n- name: Output filename (required)\n- text: Sound description in Chinese or English (required)\n- duration: Provider-specific duration intent (optional). Seed Audio accepts an approximate target greater than 0 and up to its 120-second output limit; the actual duration may differ.\n- loop: Whether to create looping sound (optional)\n\nSEED AUDIO DURATION LIMIT: Every item is a separate single output with a 120-second maximum. Longer audio must be split into multiple items or generations; this tool does not automatically stitch them.\n\nReturns: Non-local runtime saves provider original formats to workspace paths. Local runtime preserves provider original formats, uploads them to public CDN URLs, and returns structured audio contracts with per-item failures.",
+        "localGuidance": "**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for game sound effects. Successful audio is materialized in its original format under assets/audio/sfx and recorded for later Maker references. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Generate multiple game sound effects in batch. Efficient for creating a set of related sounds.\n\nEach sound effect needs:\n- name: Output filename (required)\n- text: Sound description in Chinese or English (required)\n- duration: Provider-specific duration intent (optional). Seed Audio accepts an approximate target greater than 0 and up to its 120-second output limit; the actual duration may differ.\n- loop: Whether to create looping sound (optional)\n\nSEED AUDIO DURATION LIMIT: Every item is a separate single output with a 120-second maximum. Longer audio must be split into multiple items or generations; this tool does not automatically stitch them.\n\nReturns: Non-local runtime saves provider original formats to workspace paths. Local runtime preserves provider original formats, uploads them to public CDN URLs, and returns structured audio contracts with per-item failures.\n\n**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for game sound effects. Successful audio is materialized in its original format under assets/audio/sfx and recorded for later Maker references. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "4b74de18da2ea8819363dbcf7fac467eff52150509e808de3fe06f21e0d5664e",
+        "localGuidanceHash": "6709fe373510df5d7276c03271c7f935e832221421ccecd1db90166f3cbfc15f",
+        "composedDescriptionHash": "bd3e6a0febaa105072d5ff33a1ee754c2b63bb61663fc618659952d657084620"
+      },
+      "toolHash": "e99ad39ae8c34cd335bb71a81842bc863ededed4c726abfb51d484470522d098"
+    },
+    {
+      "order": 11,
+      "name": "text_to_dialogue",
+      "source": "remote-proxy",
+      "description": "Generate character dialogue audio using the configured audio provider.\n\nSEED AUDIO DURATION LIMIT: Each Doubao input produces a single dialogue output of at most 120 seconds. Longer dialogue must be split across multiple inputs or calls; this tool does not automatically stitch the outputs.\n\nIMPORTANT: Each Doubao input needs either an existing voice mapping or reference_audio. The reference_audio value may be a project audio path, an HTTP/HTTPS URL, or an audio data URL. The legacy provider still requires a voice mapping.\n- If a Doubao input has neither, this tool will guide you to provide an existing project audio resource or use audition_voices_for_character first\n- Doubao reuses the confirmed project reference MP3 (valid MP3, at most 1 MiB) and generates each line with Seed Audio 1.0\n- Voice mapping files are provider-specific:\n  - Doubao: {workspace}/.project/audio-voice-mapping.json\n  - Legacy provider: {workspace}/.project/elevenlabs-voice-mapping.json\n\nUSE CASES:\n✅ Character has voice mapping → Generate dialogue directly\n✅ Doubao character has project audio → Pass reference_audio with the project audio path for this call\n❌ Neither is available → Follow the returned recovery guidance\n\nText is sent to the selected provider as written. Provider-specific emotion or action syntax is not portable and is not guaranteed by this tool.\n\nFor Doubao, each input may provide one reference_audio value: a project audio path, an HTTP/HTTPS URL, or an audio data URL. When a saved mapping is available, omit reference_audio. Empty optional values are treated as omitted. The source is normalized to at most 10 seconds, affects the current call only, and takes priority over the saved mapping without updating it.\n\nCreate delivery_instruction from the current plot and line when the acting style should differ for that line. delivery_instruction affects the current line only and does not update the confirmed reference or saved voice profile.\n\nlanguage_code and stability are only for the legacy provider.\n\nParameters:\n- inputs: Array of { character_name, text, reference_audio?, delivery_instruction? }. reference_audio accepts a project audio path, HTTP/HTTPS URL, or audio data URL; the legacy provider ignores Doubao-only fields\n- language_code: Legacy provider language code only\n- stability: Legacy provider stability value only\n- output_name: Safe output basename without a directory (optional)\n\n**Maker voice workflow hint:** For normal dialogue, pass only character_name and text after voice confirmation; the local proxy automatically reuses a confirmed local Doubao reference. reference_audio is an optional per-call override and accepts a local project audio path under assets/audio/, an HTTP(S) URL, or an audio data URL. Project audio must exist locally and is converted to a data URL automatically. reference_audio and reference_audio_path are mutually exclusive; reference_audio is canonical and reference_audio_path is the legacy local-path field. Successful dialogue audio is materialized under assets/audio/voice. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "inputs": {
+            "type": "array",
+            "maxItems": 50,
+            "description": "Array of dialogue inputs",
+            "items": {
+              "type": "object",
+              "properties": {
+                "character_name": {
+                  "type": "string",
+                  "description": "Character name (required). Doubao can accept reference_audio when no saved mapping exists."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Dialogue text sent to the selected provider as written. Provider-specific control syntax is not guaranteed."
+                },
+                "reference_audio": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 29360128,
+                  "description": "Optional Doubao-only project audio path, HTTP/HTTPS URL, or audio data URL. Omit when using a saved mapping. It is normalized to MP3, trimmed to at most 10 seconds, and used only for this call. Use a local project audio path under assets/audio/, an HTTP(S) URL, or an audio data URL here. Local project audio must exist in the current project and is converted to a data URL automatically. Do not pass bare base64."
+                },
+                "delivery_instruction": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300,
+                  "description": "Optional Doubao delivery instruction for the current line only; the legacy provider ignores it."
+                }
+              },
+              "required": ["character_name", "text"]
+            }
+          },
+          "language_code": {
+            "type": "string",
+            "description": "Language code only for the legacy provider.",
+            "default": "cmn"
+          },
+          "stability": {
+            "type": "number",
+            "description": "Voice stability only for the legacy provider."
+          },
+          "output_name": {
+            "type": "string",
+            "description": "Safe output basename without directory separators."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["inputs"]
+      },
+      "descriptionHash": "ac6cc515782df69e816889ab5d6fc0716fcb88910eb9364ddd2033d68b62d340",
+      "inputSchemaHash": "3e6e22d01c7a2cd5253fd524e63c18615b2ce3628b7b8284a863050c67470828",
+      "remoteComponents": {
+        "baseDescription": "Generate character dialogue audio using the configured audio provider.\n\nSEED AUDIO DURATION LIMIT: Each Doubao input produces a single dialogue output of at most 120 seconds. Longer dialogue must be split across multiple inputs or calls; this tool does not automatically stitch the outputs.\n\nIMPORTANT: Each Doubao input needs either an existing voice mapping or reference_audio. The reference_audio value may be a project audio path, an HTTP/HTTPS URL, or an audio data URL. The legacy provider still requires a voice mapping.\n- If a Doubao input has neither, this tool will guide you to provide an existing project audio resource or use audition_voices_for_character first\n- Doubao reuses the confirmed project reference MP3 (valid MP3, at most 1 MiB) and generates each line with Seed Audio 1.0\n- Voice mapping files are provider-specific:\n  - Doubao: {workspace}/.project/audio-voice-mapping.json\n  - Legacy provider: {workspace}/.project/elevenlabs-voice-mapping.json\n\nUSE CASES:\n✅ Character has voice mapping → Generate dialogue directly\n✅ Doubao character has project audio → Pass reference_audio with the project audio path for this call\n❌ Neither is available → Follow the returned recovery guidance\n\nText is sent to the selected provider as written. Provider-specific emotion or action syntax is not portable and is not guaranteed by this tool.\n\nFor Doubao, each input may provide one reference_audio value: a project audio path, an HTTP/HTTPS URL, or an audio data URL. When a saved mapping is available, omit reference_audio. Empty optional values are treated as omitted. The source is normalized to at most 10 seconds, affects the current call only, and takes priority over the saved mapping without updating it.\n\nCreate delivery_instruction from the current plot and line when the acting style should differ for that line. delivery_instruction affects the current line only and does not update the confirmed reference or saved voice profile.\n\nlanguage_code and stability are only for the legacy provider.\n\nParameters:\n- inputs: Array of { character_name, text, reference_audio?, delivery_instruction? }. reference_audio accepts a project audio path, HTTP/HTTPS URL, or audio data URL; the legacy provider ignores Doubao-only fields\n- language_code: Legacy provider language code only\n- stability: Legacy provider stability value only\n- output_name: Safe output basename without a directory (optional)",
+        "localGuidance": "**Maker voice workflow hint:** For normal dialogue, pass only character_name and text after voice confirmation; the local proxy automatically reuses a confirmed local Doubao reference. reference_audio is an optional per-call override and accepts a local project audio path under assets/audio/, an HTTP(S) URL, or an audio data URL. Project audio must exist locally and is converted to a data URL automatically. reference_audio and reference_audio_path are mutually exclusive; reference_audio is canonical and reference_audio_path is the legacy local-path field. Successful dialogue audio is materialized under assets/audio/voice. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Generate character dialogue audio using the configured audio provider.\n\nSEED AUDIO DURATION LIMIT: Each Doubao input produces a single dialogue output of at most 120 seconds. Longer dialogue must be split across multiple inputs or calls; this tool does not automatically stitch the outputs.\n\nIMPORTANT: Each Doubao input needs either an existing voice mapping or reference_audio. The reference_audio value may be a project audio path, an HTTP/HTTPS URL, or an audio data URL. The legacy provider still requires a voice mapping.\n- If a Doubao input has neither, this tool will guide you to provide an existing project audio resource or use audition_voices_for_character first\n- Doubao reuses the confirmed project reference MP3 (valid MP3, at most 1 MiB) and generates each line with Seed Audio 1.0\n- Voice mapping files are provider-specific:\n  - Doubao: {workspace}/.project/audio-voice-mapping.json\n  - Legacy provider: {workspace}/.project/elevenlabs-voice-mapping.json\n\nUSE CASES:\n✅ Character has voice mapping → Generate dialogue directly\n✅ Doubao character has project audio → Pass reference_audio with the project audio path for this call\n❌ Neither is available → Follow the returned recovery guidance\n\nText is sent to the selected provider as written. Provider-specific emotion or action syntax is not portable and is not guaranteed by this tool.\n\nFor Doubao, each input may provide one reference_audio value: a project audio path, an HTTP/HTTPS URL, or an audio data URL. When a saved mapping is available, omit reference_audio. Empty optional values are treated as omitted. The source is normalized to at most 10 seconds, affects the current call only, and takes priority over the saved mapping without updating it.\n\nCreate delivery_instruction from the current plot and line when the acting style should differ for that line. delivery_instruction affects the current line only and does not update the confirmed reference or saved voice profile.\n\nlanguage_code and stability are only for the legacy provider.\n\nParameters:\n- inputs: Array of { character_name, text, reference_audio?, delivery_instruction? }. reference_audio accepts a project audio path, HTTP/HTTPS URL, or audio data URL; the legacy provider ignores Doubao-only fields\n- language_code: Legacy provider language code only\n- stability: Legacy provider stability value only\n- output_name: Safe output basename without a directory (optional)\n\n**Maker voice workflow hint:** For normal dialogue, pass only character_name and text after voice confirmation; the local proxy automatically reuses a confirmed local Doubao reference. reference_audio is an optional per-call override and accepts a local project audio path under assets/audio/, an HTTP(S) URL, or an audio data URL. Project audio must exist locally and is converted to a data URL automatically. reference_audio and reference_audio_path are mutually exclusive; reference_audio is canonical and reference_audio_path is the legacy local-path field. Successful dialogue audio is materialized under assets/audio/voice. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "81cfa17652c87aec4683c558a660163e46ecdcdaec59c49c0ffa6f7c0cd3b69a",
+        "localGuidanceHash": "296c8c9c85379cb59d19445a050383ecadf7acc26b14862f4eb45156a0d563a0",
+        "composedDescriptionHash": "ac6cc515782df69e816889ab5d6fc0716fcb88910eb9364ddd2033d68b62d340"
+      },
+      "toolHash": "fd00d8bad15abc52f546d5e163a17c9057d745f9aa549f0ad46352ed01f25e5a"
+    },
+    {
+      "order": 12,
+      "name": "audition_voices_for_character",
+      "source": "remote-proxy",
+      "description": "Create and audition voice candidates for a game character using the configured audio provider.\n\nWith Doubao, this tool generates exactly three short Seed Audio previews. Each preview must be a valid MP3 of at most 1 MiB. With the legacy provider, it keeps the existing Voice Design flow.\n\n=== DOUBAO MAKER AGENT WORKFLOW (REQUIRED WHEN AUDIO_PROVIDER=doubao) ===\n1. Read the complete character design/profile and relevant project context.\n2. Build an optional voice_profile with age, gender, timbre, emotion, pacing, and environment requirements.\n3. Prepare one representative audition line. The final assembled Seed Audio text_prompt cannot exceed 3000 Unicode characters.\n4. Call this tool and show all three returned preview links to the user.\n5. Wait for the user's selection before calling confirm_character_voice.\n6. Finish audition and confirmation for one character before starting another; do not run these steps in parallel for the same project.\n\nIMPORTANT - BEFORE CALLING:\n1. First use read_file to read the character's design document/profile\n2. Understand the character's gender, age, personality, and speaking style\n3. Prepare ONE typical dialogue line from the game for audition\n\nHOW IT WORKS:\n1. Doubao returns exactly 3 valid candidates; the legacy provider follows candidate_count\n2. Preview audio files are uploaded to OSS and returned as URLs\n3. User listens to candidates and selects one\n4. Call confirm_character_voice to save the selected voice for future dialogue\n\nVOICE CONFIRMATION:\n- Previews are temporary audition assets\n- confirm_character_voice saves the selected candidate mapping for future dialogue\n\n=== LEGACY VOICE DESIGN PROMPTING GUIDE (LEGACY PROVIDER ONLY) ===\nFor stable legacy Voice Design auditions, prompts SHOULD include these 6 dimensions:\n\n1. [Age/Gender]: Age range + gender or character type\n   Examples: \"young adult male in his 20s\", \"middle-aged female in her 40s\", \"elderly man in his 70s\"\n\n2. [Tone/Timbre]: Voice quality and texture\n   Examples: warm, magnetic, husky, raspy, smooth, deep, high-pitched, breathy, squeaky, crisp, rich\n\n3. [Pacing]: Speaking speed and rhythm\n   Examples: fast-paced, slow and deliberate, steady, measured, varied, with dramatic pauses\n\n4. [Emotion/Vibe]: Personality and emotional quality\n   Examples: energetic, aloof, confident, gentle, mysterious, playful, authoritative, cheerful, sarcastic\n\n5. [Style]: Voice acting style or reference\n   Examples: anime style, movie trailer style, news anchor, professional Chinese voice actor, prince-like quality\n\n6. [Quality]: Audio quality (ALWAYS include this)\n   Must include: \"studio-quality recording\" or \"professional audio, clear articulation\"\n\n=== LEGACY SAFETY FILTER & CHILD VOICE ALTERNATIVES ===\nLegacy Voice Design only: avoid child-like voice prompts and use these alternatives. Doubao instead uses voice_profile.age_group=child.\n\n❌ FORBIDDEN: child, young girl, kid, little boy, 儿童, 幼女, 萝莉, 童声\n✅ ALTERNATIVES:\n- For cute/mascot voices: \"High-pitched female, fantasy mascot character, fairy-like, chibi style, professional voice acting\"\n- For young-sounding: \"Young adult female with soft youthfulness but NOT child-like, gentle, warm timbre\"\n- For anime style: \"High-pitched anime voice, energetic and bubbly, hyper-enthusiastic, fantasy character\"\n\n=== ARCHETYPE TEMPLATES ===\nUse these as starting points for common character types:\n\n【TYPE A: 华丽公子/温暖男主】\n\"Young adult male in his 20s, professional Chinese voice actor, clear and magnetic tone, elegant, confident, crisp articulation, prince-like quality. Studio-quality recording.\"\n\n【TYPE B: 动漫萌系/吉祥物】\n\"High-pitched female anime voice, fantasy mascot character, fairy-like, energetic and bubbly, hyper-enthusiastic, professional voice acting, chibi style. Studio-quality recording.\"\n\n【TYPE C: 高冷御姐/女王】\n\"Young adult female in her late 20s, deep and cool tone, icy, aloof, authoritative, slow and deliberate pacing, low emotional variation, mysterious, regal. Studio-quality recording.\"\n\n【TYPE D: 智慧老者/导师】\n\"Elderly wise man in his 70s, voice deep and gravelly, speaking slowly with dramatic pauses, mysterious and calm tone, warm undertone, storyteller quality. Studio-quality recording.\"\n\n【TYPE E: 热血少年/冒险者】\n\"Young adult male, energetic and passionate, fast-paced speaking, enthusiastic, slight breathiness from excitement, adventurous spirit, anime protagonist style. Studio-quality recording.\"\n\n=== AUDITION_LINE REQUIREMENTS ===\n- Doubao: non-empty after trimming; the final assembled Seed Audio text_prompt cannot exceed 3000 Unicode characters\n- Legacy provider: at least 100 characters; shorter direct inputs keep the existing padding behavior\n- MUST match the character's personality and speaking style\n- Use complete sentences that showcase the character's voice\n- Include emotions or actions relevant to the character\n- The audition line quality directly affects voice generation quality\n\n⚠️ CRITICAL: Audition line MUST match the prompt's emotion/style!\n- If prompt says \"calm, gentle\" → use soft, peaceful dialogue\n- If prompt says \"energetic, excited\" → use enthusiastic, lively dialogue\n- Mismatch will produce inconsistent voice quality\n\n【Example Lines by Character Type】\n\nTYPE A 华丽公子: \"自古英雄多磨难，但请相信，黎明终将到来。让我陪你走过这段路，无论前方有多少荆棘，我都会为你披荆斩棘。\"\n\nTYPE B 萌系吉祥物: \"哇！这里好漂亮啊！快看快看，那边有好多闪闪发光的东西！我们去探险吧，说不定能找到超级厉害的宝藏呢！\"\n\nTYPE C 高冷御姐: \"在我登上王座的那一刻，所有臣服于我的人，都将明白真正的权力来自掌控。不要试图揣测我的心思，那只会让你更快地走向毁灭。\"\n\nTYPE D 智慧老者: \"年轻人，你可知道，真正的智慧并非来自书本，而是来自岁月的沉淀。当你经历过足够多的风雨，自然会明白这个道理。\"\n\nTYPE E 热血少年: \"我绝对不会放弃的！就算前面有一百个敌人，一千个困难，我也要冲过去！因为这是我的梦想，是我必须守护的东西！\"\n\n=== LEGACY PROVIDER NOTE ===\nLegacy Voice Design only: accents heard in a preview may weaken after the generated voice is saved. If accent is critical, test the saved legacy voice with actual dialogue.\n\nParameters:\n- character_name: Character name (required)\n- character_description: Detailed voice description using 6-dimension format (required, see guide above)\n- audition_line: Dialogue for preview. Doubao requires a non-empty line; the legacy provider requires at least 100 characters\n- candidate_count: Number of voice candidates 1-3, default 3\n\n**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary preview voices for one character. voice_profile.gender is required: extract male or female from character_description or the character settings and pass it explicitly. Show every returned preview URL to the user and wait for their choice before calling confirm_character_voice. Preview candidates are not saved as game assets. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "character_name": {
+            "type": "string",
+            "description": "Character name"
+          },
+          "character_description": {
+            "type": "string",
+            "description": "Detailed voice description for AI. Include: gender, age, tone/timbre, emotion/style, accent, pacing. Add \"studio-quality recording\" for professional audio."
+          },
+          "audition_line": {
+            "type": "string",
+            "description": "Dialogue for preview. Doubao requires a non-empty line and limits the final assembled text_prompt to 3000 Unicode characters; the legacy provider keeps its 100-character behavior.",
+            "minLength": 1
+          },
+          "candidate_count": {
+            "type": "integer",
+            "description": "Number of voice candidates (1-3), default 3",
+            "default": 3,
+            "minimum": 1,
+            "maximum": 3
+          },
+          "voice_profile": {
+            "type": "object",
+            "description": "Doubao Seed Audio voice profile. Unknown fields are rejected. Required for character voice audition. Extract gender from character_description or the character settings instead of relying on a default.",
+            "additionalProperties": false,
+            "properties": {
+              "age_group": {
+                "type": "string",
+                "enum": ["child", "teen", "young", "middle_aged", "elderly"]
+              },
+              "gender": {
+                "type": "string",
+                "enum": ["male", "female"],
+                "description": "Required structured character gender. Extract male or female from character_description or the character settings."
+              },
+              "voice_type": {
+                "type": "string",
+                "enum": ["human", "robot"]
+              },
+              "timbre": {
+                "type": "string",
+                "minLength": 1
+              },
+              "emotion": {
+                "type": "string",
+                "minLength": 1
+              },
+              "speaking_style": {
+                "type": "string",
+                "minLength": 1
+              },
+              "accent": {
+                "type": "string",
+                "minLength": 1
+              },
+              "environment": {
+                "type": "string",
+                "minLength": 1
+              },
+              "speech_rate": {
+                "type": "integer",
+                "minimum": -50,
+                "maximum": 100
+              },
+              "pitch_rate": {
+                "type": "integer",
+                "minimum": -12,
+                "maximum": 12
+              },
+              "loudness_rate": {
+                "type": "integer",
+                "minimum": -50,
+                "maximum": 100
+              }
+            },
+            "required": ["gender"]
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["character_name", "character_description", "audition_line", "voice_profile"]
+      },
+      "descriptionHash": "a49e478a520e3da3e6f96830f1c2892b83cecf1211a6d2ccc0491ba392e0d470",
+      "inputSchemaHash": "f6c07643b103cbcb35dd21d14d0f86a26b19f0ffae2451d2080de3a8adf1a4bb",
+      "remoteComponents": {
+        "baseDescription": "Create and audition voice candidates for a game character using the configured audio provider.\n\nWith Doubao, this tool generates exactly three short Seed Audio previews. Each preview must be a valid MP3 of at most 1 MiB. With the legacy provider, it keeps the existing Voice Design flow.\n\n=== DOUBAO MAKER AGENT WORKFLOW (REQUIRED WHEN AUDIO_PROVIDER=doubao) ===\n1. Read the complete character design/profile and relevant project context.\n2. Build an optional voice_profile with age, gender, timbre, emotion, pacing, and environment requirements.\n3. Prepare one representative audition line. The final assembled Seed Audio text_prompt cannot exceed 3000 Unicode characters.\n4. Call this tool and show all three returned preview links to the user.\n5. Wait for the user's selection before calling confirm_character_voice.\n6. Finish audition and confirmation for one character before starting another; do not run these steps in parallel for the same project.\n\nIMPORTANT - BEFORE CALLING:\n1. First use read_file to read the character's design document/profile\n2. Understand the character's gender, age, personality, and speaking style\n3. Prepare ONE typical dialogue line from the game for audition\n\nHOW IT WORKS:\n1. Doubao returns exactly 3 valid candidates; the legacy provider follows candidate_count\n2. Preview audio files are uploaded to OSS and returned as URLs\n3. User listens to candidates and selects one\n4. Call confirm_character_voice to save the selected voice for future dialogue\n\nVOICE CONFIRMATION:\n- Previews are temporary audition assets\n- confirm_character_voice saves the selected candidate mapping for future dialogue\n\n=== LEGACY VOICE DESIGN PROMPTING GUIDE (LEGACY PROVIDER ONLY) ===\nFor stable legacy Voice Design auditions, prompts SHOULD include these 6 dimensions:\n\n1. [Age/Gender]: Age range + gender or character type\n   Examples: \"young adult male in his 20s\", \"middle-aged female in her 40s\", \"elderly man in his 70s\"\n\n2. [Tone/Timbre]: Voice quality and texture\n   Examples: warm, magnetic, husky, raspy, smooth, deep, high-pitched, breathy, squeaky, crisp, rich\n\n3. [Pacing]: Speaking speed and rhythm\n   Examples: fast-paced, slow and deliberate, steady, measured, varied, with dramatic pauses\n\n4. [Emotion/Vibe]: Personality and emotional quality\n   Examples: energetic, aloof, confident, gentle, mysterious, playful, authoritative, cheerful, sarcastic\n\n5. [Style]: Voice acting style or reference\n   Examples: anime style, movie trailer style, news anchor, professional Chinese voice actor, prince-like quality\n\n6. [Quality]: Audio quality (ALWAYS include this)\n   Must include: \"studio-quality recording\" or \"professional audio, clear articulation\"\n\n=== LEGACY SAFETY FILTER & CHILD VOICE ALTERNATIVES ===\nLegacy Voice Design only: avoid child-like voice prompts and use these alternatives. Doubao instead uses voice_profile.age_group=child.\n\n❌ FORBIDDEN: child, young girl, kid, little boy, 儿童, 幼女, 萝莉, 童声\n✅ ALTERNATIVES:\n- For cute/mascot voices: \"High-pitched female, fantasy mascot character, fairy-like, chibi style, professional voice acting\"\n- For young-sounding: \"Young adult female with soft youthfulness but NOT child-like, gentle, warm timbre\"\n- For anime style: \"High-pitched anime voice, energetic and bubbly, hyper-enthusiastic, fantasy character\"\n\n=== ARCHETYPE TEMPLATES ===\nUse these as starting points for common character types:\n\n【TYPE A: 华丽公子/温暖男主】\n\"Young adult male in his 20s, professional Chinese voice actor, clear and magnetic tone, elegant, confident, crisp articulation, prince-like quality. Studio-quality recording.\"\n\n【TYPE B: 动漫萌系/吉祥物】\n\"High-pitched female anime voice, fantasy mascot character, fairy-like, energetic and bubbly, hyper-enthusiastic, professional voice acting, chibi style. Studio-quality recording.\"\n\n【TYPE C: 高冷御姐/女王】\n\"Young adult female in her late 20s, deep and cool tone, icy, aloof, authoritative, slow and deliberate pacing, low emotional variation, mysterious, regal. Studio-quality recording.\"\n\n【TYPE D: 智慧老者/导师】\n\"Elderly wise man in his 70s, voice deep and gravelly, speaking slowly with dramatic pauses, mysterious and calm tone, warm undertone, storyteller quality. Studio-quality recording.\"\n\n【TYPE E: 热血少年/冒险者】\n\"Young adult male, energetic and passionate, fast-paced speaking, enthusiastic, slight breathiness from excitement, adventurous spirit, anime protagonist style. Studio-quality recording.\"\n\n=== AUDITION_LINE REQUIREMENTS ===\n- Doubao: non-empty after trimming; the final assembled Seed Audio text_prompt cannot exceed 3000 Unicode characters\n- Legacy provider: at least 100 characters; shorter direct inputs keep the existing padding behavior\n- MUST match the character's personality and speaking style\n- Use complete sentences that showcase the character's voice\n- Include emotions or actions relevant to the character\n- The audition line quality directly affects voice generation quality\n\n⚠️ CRITICAL: Audition line MUST match the prompt's emotion/style!\n- If prompt says \"calm, gentle\" → use soft, peaceful dialogue\n- If prompt says \"energetic, excited\" → use enthusiastic, lively dialogue\n- Mismatch will produce inconsistent voice quality\n\n【Example Lines by Character Type】\n\nTYPE A 华丽公子: \"自古英雄多磨难，但请相信，黎明终将到来。让我陪你走过这段路，无论前方有多少荆棘，我都会为你披荆斩棘。\"\n\nTYPE B 萌系吉祥物: \"哇！这里好漂亮啊！快看快看，那边有好多闪闪发光的东西！我们去探险吧，说不定能找到超级厉害的宝藏呢！\"\n\nTYPE C 高冷御姐: \"在我登上王座的那一刻，所有臣服于我的人，都将明白真正的权力来自掌控。不要试图揣测我的心思，那只会让你更快地走向毁灭。\"\n\nTYPE D 智慧老者: \"年轻人，你可知道，真正的智慧并非来自书本，而是来自岁月的沉淀。当你经历过足够多的风雨，自然会明白这个道理。\"\n\nTYPE E 热血少年: \"我绝对不会放弃的！就算前面有一百个敌人，一千个困难，我也要冲过去！因为这是我的梦想，是我必须守护的东西！\"\n\n=== LEGACY PROVIDER NOTE ===\nLegacy Voice Design only: accents heard in a preview may weaken after the generated voice is saved. If accent is critical, test the saved legacy voice with actual dialogue.\n\nParameters:\n- character_name: Character name (required)\n- character_description: Detailed voice description using 6-dimension format (required, see guide above)\n- audition_line: Dialogue for preview. Doubao requires a non-empty line; the legacy provider requires at least 100 characters\n- candidate_count: Number of voice candidates 1-3, default 3",
+        "localGuidance": "**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary preview voices for one character. voice_profile.gender is required: extract male or female from character_description or the character settings and pass it explicitly. Show every returned preview URL to the user and wait for their choice before calling confirm_character_voice. Preview candidates are not saved as game assets. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Create and audition voice candidates for a game character using the configured audio provider.\n\nWith Doubao, this tool generates exactly three short Seed Audio previews. Each preview must be a valid MP3 of at most 1 MiB. With the legacy provider, it keeps the existing Voice Design flow.\n\n=== DOUBAO MAKER AGENT WORKFLOW (REQUIRED WHEN AUDIO_PROVIDER=doubao) ===\n1. Read the complete character design/profile and relevant project context.\n2. Build an optional voice_profile with age, gender, timbre, emotion, pacing, and environment requirements.\n3. Prepare one representative audition line. The final assembled Seed Audio text_prompt cannot exceed 3000 Unicode characters.\n4. Call this tool and show all three returned preview links to the user.\n5. Wait for the user's selection before calling confirm_character_voice.\n6. Finish audition and confirmation for one character before starting another; do not run these steps in parallel for the same project.\n\nIMPORTANT - BEFORE CALLING:\n1. First use read_file to read the character's design document/profile\n2. Understand the character's gender, age, personality, and speaking style\n3. Prepare ONE typical dialogue line from the game for audition\n\nHOW IT WORKS:\n1. Doubao returns exactly 3 valid candidates; the legacy provider follows candidate_count\n2. Preview audio files are uploaded to OSS and returned as URLs\n3. User listens to candidates and selects one\n4. Call confirm_character_voice to save the selected voice for future dialogue\n\nVOICE CONFIRMATION:\n- Previews are temporary audition assets\n- confirm_character_voice saves the selected candidate mapping for future dialogue\n\n=== LEGACY VOICE DESIGN PROMPTING GUIDE (LEGACY PROVIDER ONLY) ===\nFor stable legacy Voice Design auditions, prompts SHOULD include these 6 dimensions:\n\n1. [Age/Gender]: Age range + gender or character type\n   Examples: \"young adult male in his 20s\", \"middle-aged female in her 40s\", \"elderly man in his 70s\"\n\n2. [Tone/Timbre]: Voice quality and texture\n   Examples: warm, magnetic, husky, raspy, smooth, deep, high-pitched, breathy, squeaky, crisp, rich\n\n3. [Pacing]: Speaking speed and rhythm\n   Examples: fast-paced, slow and deliberate, steady, measured, varied, with dramatic pauses\n\n4. [Emotion/Vibe]: Personality and emotional quality\n   Examples: energetic, aloof, confident, gentle, mysterious, playful, authoritative, cheerful, sarcastic\n\n5. [Style]: Voice acting style or reference\n   Examples: anime style, movie trailer style, news anchor, professional Chinese voice actor, prince-like quality\n\n6. [Quality]: Audio quality (ALWAYS include this)\n   Must include: \"studio-quality recording\" or \"professional audio, clear articulation\"\n\n=== LEGACY SAFETY FILTER & CHILD VOICE ALTERNATIVES ===\nLegacy Voice Design only: avoid child-like voice prompts and use these alternatives. Doubao instead uses voice_profile.age_group=child.\n\n❌ FORBIDDEN: child, young girl, kid, little boy, 儿童, 幼女, 萝莉, 童声\n✅ ALTERNATIVES:\n- For cute/mascot voices: \"High-pitched female, fantasy mascot character, fairy-like, chibi style, professional voice acting\"\n- For young-sounding: \"Young adult female with soft youthfulness but NOT child-like, gentle, warm timbre\"\n- For anime style: \"High-pitched anime voice, energetic and bubbly, hyper-enthusiastic, fantasy character\"\n\n=== ARCHETYPE TEMPLATES ===\nUse these as starting points for common character types:\n\n【TYPE A: 华丽公子/温暖男主】\n\"Young adult male in his 20s, professional Chinese voice actor, clear and magnetic tone, elegant, confident, crisp articulation, prince-like quality. Studio-quality recording.\"\n\n【TYPE B: 动漫萌系/吉祥物】\n\"High-pitched female anime voice, fantasy mascot character, fairy-like, energetic and bubbly, hyper-enthusiastic, professional voice acting, chibi style. Studio-quality recording.\"\n\n【TYPE C: 高冷御姐/女王】\n\"Young adult female in her late 20s, deep and cool tone, icy, aloof, authoritative, slow and deliberate pacing, low emotional variation, mysterious, regal. Studio-quality recording.\"\n\n【TYPE D: 智慧老者/导师】\n\"Elderly wise man in his 70s, voice deep and gravelly, speaking slowly with dramatic pauses, mysterious and calm tone, warm undertone, storyteller quality. Studio-quality recording.\"\n\n【TYPE E: 热血少年/冒险者】\n\"Young adult male, energetic and passionate, fast-paced speaking, enthusiastic, slight breathiness from excitement, adventurous spirit, anime protagonist style. Studio-quality recording.\"\n\n=== AUDITION_LINE REQUIREMENTS ===\n- Doubao: non-empty after trimming; the final assembled Seed Audio text_prompt cannot exceed 3000 Unicode characters\n- Legacy provider: at least 100 characters; shorter direct inputs keep the existing padding behavior\n- MUST match the character's personality and speaking style\n- Use complete sentences that showcase the character's voice\n- Include emotions or actions relevant to the character\n- The audition line quality directly affects voice generation quality\n\n⚠️ CRITICAL: Audition line MUST match the prompt's emotion/style!\n- If prompt says \"calm, gentle\" → use soft, peaceful dialogue\n- If prompt says \"energetic, excited\" → use enthusiastic, lively dialogue\n- Mismatch will produce inconsistent voice quality\n\n【Example Lines by Character Type】\n\nTYPE A 华丽公子: \"自古英雄多磨难，但请相信，黎明终将到来。让我陪你走过这段路，无论前方有多少荆棘，我都会为你披荆斩棘。\"\n\nTYPE B 萌系吉祥物: \"哇！这里好漂亮啊！快看快看，那边有好多闪闪发光的东西！我们去探险吧，说不定能找到超级厉害的宝藏呢！\"\n\nTYPE C 高冷御姐: \"在我登上王座的那一刻，所有臣服于我的人，都将明白真正的权力来自掌控。不要试图揣测我的心思，那只会让你更快地走向毁灭。\"\n\nTYPE D 智慧老者: \"年轻人，你可知道，真正的智慧并非来自书本，而是来自岁月的沉淀。当你经历过足够多的风雨，自然会明白这个道理。\"\n\nTYPE E 热血少年: \"我绝对不会放弃的！就算前面有一百个敌人，一千个困难，我也要冲过去！因为这是我的梦想，是我必须守护的东西！\"\n\n=== LEGACY PROVIDER NOTE ===\nLegacy Voice Design only: accents heard in a preview may weaken after the generated voice is saved. If accent is critical, test the saved legacy voice with actual dialogue.\n\nParameters:\n- character_name: Character name (required)\n- character_description: Detailed voice description using 6-dimension format (required, see guide above)\n- audition_line: Dialogue for preview. Doubao requires a non-empty line; the legacy provider requires at least 100 characters\n- candidate_count: Number of voice candidates 1-3, default 3\n\n**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary preview voices for one character. voice_profile.gender is required: extract male or female from character_description or the character settings and pass it explicitly. Show every returned preview URL to the user and wait for their choice before calling confirm_character_voice. Preview candidates are not saved as game assets. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "f28ac3746cb1f72dd0302d66f7cba79eefe82f6af51ff1bad9994a00ccebed75",
+        "localGuidanceHash": "c44669334d689e212a42429c07043f8936ce774726fcd637483a62f5244ffc72",
+        "composedDescriptionHash": "a49e478a520e3da3e6f96830f1c2892b83cecf1211a6d2ccc0491ba392e0d470"
+      },
+      "toolHash": "400fe32d50625258c6ae51453fb4ee8fe78e68d09a34b099aa0ac85e64a5fd3c"
+    },
+    {
+      "order": 13,
+      "name": "confirm_character_voice",
+      "source": "remote-proxy",
+      "description": "Confirm the voice selection for a character and save the final mapping.\n\nUSE CASE:\n- After user says \"I choose option 2\", call this tool with selected_index=2\n- If user says \"continue\" or doesn't specify, omit selected_index to use the recommended voice\n\nIMPORTANT: Doubao saves the selected Seed Audio preview as a project reference MP3 only when it is a valid MP3 of at most 1 MiB. The legacy provider keeps its existing Voice Design confirmation behavior. Process one character at a time and do not call this tool in parallel for the same project.\n\nPREREQUISITE:\nMust have called audition_voices_for_character for this character first.\n\nParameters:\n- character_name: Character name (required)\n- selected_index: The candidate number user selected (1, 2, 3...). Optional - if omitted, uses the recommended candidate\n\n**Maker voice workflow hint:** Call this Maker MCP proxy tool only after audition_voices_for_character and after the user selects a candidate or accepts the recommendation. Confirmation persists the provider-specific voice mapping for later text_to_dialogue calls. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "character_name": {
+            "type": "string",
+            "description": "Character name"
+          },
+          "selected_index": {
+            "type": "number",
+            "description": "The candidate number user selected (1-based). If omitted, uses recommended candidate"
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["character_name"]
+      },
+      "descriptionHash": "ec7ae1e1e6752d0de06db3000def8ccfac9c3b827e472ceae5bdf73d703f7b20",
+      "inputSchemaHash": "4b7954717636117640edb3ab64a03fc0430af72a8a4fab74bf4a26fb330fc1f0",
+      "remoteComponents": {
+        "baseDescription": "Confirm the voice selection for a character and save the final mapping.\n\nUSE CASE:\n- After user says \"I choose option 2\", call this tool with selected_index=2\n- If user says \"continue\" or doesn't specify, omit selected_index to use the recommended voice\n\nIMPORTANT: Doubao saves the selected Seed Audio preview as a project reference MP3 only when it is a valid MP3 of at most 1 MiB. The legacy provider keeps its existing Voice Design confirmation behavior. Process one character at a time and do not call this tool in parallel for the same project.\n\nPREREQUISITE:\nMust have called audition_voices_for_character for this character first.\n\nParameters:\n- character_name: Character name (required)\n- selected_index: The candidate number user selected (1, 2, 3...). Optional - if omitted, uses the recommended candidate",
+        "localGuidance": "**Maker voice workflow hint:** Call this Maker MCP proxy tool only after audition_voices_for_character and after the user selects a candidate or accepts the recommendation. Confirmation persists the provider-specific voice mapping for later text_to_dialogue calls. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Confirm the voice selection for a character and save the final mapping.\n\nUSE CASE:\n- After user says \"I choose option 2\", call this tool with selected_index=2\n- If user says \"continue\" or doesn't specify, omit selected_index to use the recommended voice\n\nIMPORTANT: Doubao saves the selected Seed Audio preview as a project reference MP3 only when it is a valid MP3 of at most 1 MiB. The legacy provider keeps its existing Voice Design confirmation behavior. Process one character at a time and do not call this tool in parallel for the same project.\n\nPREREQUISITE:\nMust have called audition_voices_for_character for this character first.\n\nParameters:\n- character_name: Character name (required)\n- selected_index: The candidate number user selected (1, 2, 3...). Optional - if omitted, uses the recommended candidate\n\n**Maker voice workflow hint:** Call this Maker MCP proxy tool only after audition_voices_for_character and after the user selects a candidate or accepts the recommendation. Confirmation persists the provider-specific voice mapping for later text_to_dialogue calls. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "1cba02d8d42341d2e3dbffe5eff32a4fb76628e3a10cc9f26a203c81359d778e",
+        "localGuidanceHash": "bd2374bbffef2b04a8c4b55e0f83af0526db0538b0c6285f36e76a7aa6395e2b",
+        "composedDescriptionHash": "ec7ae1e1e6752d0de06db3000def8ccfac9c3b827e472ceae5bdf73d703f7b20"
+      },
+      "toolHash": "28e7273130651f84d55f8726f8ec4183578223f550f82d4a827db6c54d6b67cb"
+    },
+    {
+      "order": 14,
+      "name": "generate_test_qrcode",
+      "source": "remote-proxy",
+      "description": "Generate a test QR code for SCE/UrhoX game projects only when the user explicitly asks to create a test QR code for mobile testing.\n\nThis is an optional tool. Do not call it automatically as part of build, project initialization, or publish workflows unless the user explicitly requests QR code generation or mobile scan testing.\n\nUse this tool only after the project has already been initialized and the required TapTap publishing fields have been configured.\n\n**PREREQUISITES**\n- The 'build' tool has already been run and generated project_id\n- The '.project/project.json' file already contains a valid 'taptap_publish' section\n- The user wants a scannable QR code for testing on mobile devices\n\n**CONFIGURATION FILE: .project/project.json**\n\nBefore calling this tool, ensure the .project/project.json file includes the taptap_publish section:\n\n```json\n{\n  \"project_id\": \"<auto-generated by build>\",\n  \"taptap_publish\": {\n    \"title\": \"Your Game Title\",\n    \"category\": \"casual\",\n    \"screen_orientation\": \"landscape\"\n  }\n}\n```\n\n**REQUIRED FIELDS**\n- **title**: Game name displayed on TapTap (required, e.g. \"我的游戏\")\n- **category**: Game type (required), must be one of: rpg, casual, action, strategy, simulation, trivia, arcade, adventure, card, sports, racing, puzzle, educational, music, word, board\n- **screen_orientation**: \"landscape\" (horizontal) or \"portrait\" (vertical) (required)\n\nIf taptap_publish is missing or incomplete, the tool will fail. It is a prerequisite, not an instruction to proceed automatically.\n\n**What this tool does:**\n1. Uploads a new version of the game to CDN\n2. Creates App on TapTap (if not already created)\n3. Generates QR code via publisher API\n4. Returns QR code image in Markdown format\n\n**Maker hint:** Use this only when the user explicitly asks for a test QR code/mobile scan test, or as the recovery step after get_ad_config reports missing app_id or developer_id. Call it without confirmed_screen_orientation first. If .project/project.json already has screen_orientation, reuse it and do not ask the user again. Only if it is missing, ask the user in a separate conversation turn to choose landscape or portrait, then retry with confirmed_screen_orientation. The local proxy records this first choice; an already configured orientation is immutable and always takes precedence. The private parameter is not forwarded to the remote Maker tool. Report the returned QR code or failure payload. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "confirmed_screen_orientation": {
+            "type": "string",
+            "enum": ["landscape", "portrait"],
+            "description": "Local-only first-time orientation choice. Omit this when the project already has screen_orientation. Supply it only after the tool reports that orientation is missing and the user selects a value in a separate conversation turn. Existing project orientation is immutable and takes precedence. This value is not forwarded to the remote Maker tool."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": []
+      },
+      "descriptionHash": "d03fc7a943a3cc477c84d090e13bf2606220797bc31eb89ed4ba041786e2336e",
+      "inputSchemaHash": "4ad8705a8315ed1e06f150c2c7c82d8c5f88ed6bb4a982a59c4ddaf944ec6030",
+      "remoteComponents": {
+        "baseDescription": "Generate a test QR code for SCE/UrhoX game projects only when the user explicitly asks to create a test QR code for mobile testing.\n\nThis is an optional tool. Do not call it automatically as part of build, project initialization, or publish workflows unless the user explicitly requests QR code generation or mobile scan testing.\n\nUse this tool only after the project has already been initialized and the required TapTap publishing fields have been configured.\n\n**PREREQUISITES**\n- The 'build' tool has already been run and generated project_id\n- The '.project/project.json' file already contains a valid 'taptap_publish' section\n- The user wants a scannable QR code for testing on mobile devices\n\n**CONFIGURATION FILE: .project/project.json**\n\nBefore calling this tool, ensure the .project/project.json file includes the taptap_publish section:\n\n```json\n{\n  \"project_id\": \"<auto-generated by build>\",\n  \"taptap_publish\": {\n    \"title\": \"Your Game Title\",\n    \"category\": \"casual\",\n    \"screen_orientation\": \"landscape\"\n  }\n}\n```\n\n**REQUIRED FIELDS**\n- **title**: Game name displayed on TapTap (required, e.g. \"我的游戏\")\n- **category**: Game type (required), must be one of: rpg, casual, action, strategy, simulation, trivia, arcade, adventure, card, sports, racing, puzzle, educational, music, word, board\n- **screen_orientation**: \"landscape\" (horizontal) or \"portrait\" (vertical) (required)\n\nIf taptap_publish is missing or incomplete, the tool will fail. It is a prerequisite, not an instruction to proceed automatically.\n\n**What this tool does:**\n1. Uploads a new version of the game to CDN\n2. Creates App on TapTap (if not already created)\n3. Generates QR code via publisher API\n4. Returns QR code image in Markdown format",
+        "localGuidance": "**Maker hint:** Use this only when the user explicitly asks for a test QR code/mobile scan test, or as the recovery step after get_ad_config reports missing app_id or developer_id. Call it without confirmed_screen_orientation first. If .project/project.json already has screen_orientation, reuse it and do not ask the user again. Only if it is missing, ask the user in a separate conversation turn to choose landscape or portrait, then retry with confirmed_screen_orientation. The local proxy records this first choice; an already configured orientation is immutable and always takes precedence. The private parameter is not forwarded to the remote Maker tool. Report the returned QR code or failure payload. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Generate a test QR code for SCE/UrhoX game projects only when the user explicitly asks to create a test QR code for mobile testing.\n\nThis is an optional tool. Do not call it automatically as part of build, project initialization, or publish workflows unless the user explicitly requests QR code generation or mobile scan testing.\n\nUse this tool only after the project has already been initialized and the required TapTap publishing fields have been configured.\n\n**PREREQUISITES**\n- The 'build' tool has already been run and generated project_id\n- The '.project/project.json' file already contains a valid 'taptap_publish' section\n- The user wants a scannable QR code for testing on mobile devices\n\n**CONFIGURATION FILE: .project/project.json**\n\nBefore calling this tool, ensure the .project/project.json file includes the taptap_publish section:\n\n```json\n{\n  \"project_id\": \"<auto-generated by build>\",\n  \"taptap_publish\": {\n    \"title\": \"Your Game Title\",\n    \"category\": \"casual\",\n    \"screen_orientation\": \"landscape\"\n  }\n}\n```\n\n**REQUIRED FIELDS**\n- **title**: Game name displayed on TapTap (required, e.g. \"我的游戏\")\n- **category**: Game type (required), must be one of: rpg, casual, action, strategy, simulation, trivia, arcade, adventure, card, sports, racing, puzzle, educational, music, word, board\n- **screen_orientation**: \"landscape\" (horizontal) or \"portrait\" (vertical) (required)\n\nIf taptap_publish is missing or incomplete, the tool will fail. It is a prerequisite, not an instruction to proceed automatically.\n\n**What this tool does:**\n1. Uploads a new version of the game to CDN\n2. Creates App on TapTap (if not already created)\n3. Generates QR code via publisher API\n4. Returns QR code image in Markdown format\n\n**Maker hint:** Use this only when the user explicitly asks for a test QR code/mobile scan test, or as the recovery step after get_ad_config reports missing app_id or developer_id. Call it without confirmed_screen_orientation first. If .project/project.json already has screen_orientation, reuse it and do not ask the user again. Only if it is missing, ask the user in a separate conversation turn to choose landscape or portrait, then retry with confirmed_screen_orientation. The local proxy records this first choice; an already configured orientation is immutable and always takes precedence. The private parameter is not forwarded to the remote Maker tool. Report the returned QR code or failure payload. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "900f825df5b388962ea373fb10cc30f4798ba33bb601e5e3518f1271f49d9886",
+        "localGuidanceHash": "b236d86cbfc284960aeb6d51aa62c5087403c57cef0a019f50a8e631053eb54e",
+        "composedDescriptionHash": "d03fc7a943a3cc477c84d090e13bf2606220797bc31eb89ed4ba041786e2336e"
+      },
+      "toolHash": "14b3e378a4247b2879365edf9d9d581eb4efdc63cc451fd9104212b46d196738"
+    },
+    {
+      "order": 15,
+      "name": "add_test_whitelist",
+      "source": "remote-proxy",
+      "description": "Add a user to the test whitelist.\n\nThis tool adds a specified user account to the test whitelist, allowing them to test the game.\n\n**WORKFLOW (MUST FOLLOW IN ORDER):**\n1. Run 'build' tool first to initialize the project\n2. Run 'generate_test_qrcode' (for game) or 'publish_game_as_tool' (for game-tool)\n3. Call this tool with the user_id to add to whitelist\n\n**REQUIRED PARAMETER:**\n- **user_id**: The TapTap user ID to add to the test whitelist\n\n**What this tool does:**\n1. Reads taptap_publish from project config and chooses the call mode automatically:\n   - If `tool_id` exists → call add-miniapp-dev-user with `{ tool_id, user_id }` (game-tool projects)\n   - Else if `app_id` + `developer_id` exist → call with `{ app_id, developer_id, user_id }`\n2. Calls the add-miniapp-dev-user API to add the user to the whitelist\n3. Returns success/failure status\n\n**Maker hint:** Use this after the project has been built and generate_test_qrcode has created the TapTap app identity. Call it only with the TapTap user_id explicitly provided by the user; do not infer an account ID. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "number",
+            "description": "The TapTap user ID to add to the test whitelist"
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["user_id"]
+      },
+      "descriptionHash": "c0d09b2b6c98907a5af9463194ba9542cccf5554c3da7fba4eceb9f0a42241ab",
+      "inputSchemaHash": "565ac8ae5167cd88bb5f07b1ccfca770a3df76a224f3f694f4c3f7743e76671f",
+      "remoteComponents": {
+        "baseDescription": "Add a user to the test whitelist.\n\nThis tool adds a specified user account to the test whitelist, allowing them to test the game.\n\n**WORKFLOW (MUST FOLLOW IN ORDER):**\n1. Run 'build' tool first to initialize the project\n2. Run 'generate_test_qrcode' (for game) or 'publish_game_as_tool' (for game-tool)\n3. Call this tool with the user_id to add to whitelist\n\n**REQUIRED PARAMETER:**\n- **user_id**: The TapTap user ID to add to the test whitelist\n\n**What this tool does:**\n1. Reads taptap_publish from project config and chooses the call mode automatically:\n   - If `tool_id` exists → call add-miniapp-dev-user with `{ tool_id, user_id }` (game-tool projects)\n   - Else if `app_id` + `developer_id` exist → call with `{ app_id, developer_id, user_id }`\n2. Calls the add-miniapp-dev-user API to add the user to the whitelist\n3. Returns success/failure status",
+        "localGuidance": "**Maker hint:** Use this after the project has been built and generate_test_qrcode has created the TapTap app identity. Call it only with the TapTap user_id explicitly provided by the user; do not infer an account ID. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "Add a user to the test whitelist.\n\nThis tool adds a specified user account to the test whitelist, allowing them to test the game.\n\n**WORKFLOW (MUST FOLLOW IN ORDER):**\n1. Run 'build' tool first to initialize the project\n2. Run 'generate_test_qrcode' (for game) or 'publish_game_as_tool' (for game-tool)\n3. Call this tool with the user_id to add to whitelist\n\n**REQUIRED PARAMETER:**\n- **user_id**: The TapTap user ID to add to the test whitelist\n\n**What this tool does:**\n1. Reads taptap_publish from project config and chooses the call mode automatically:\n   - If `tool_id` exists → call add-miniapp-dev-user with `{ tool_id, user_id }` (game-tool projects)\n   - Else if `app_id` + `developer_id` exist → call with `{ app_id, developer_id, user_id }`\n2. Calls the add-miniapp-dev-user API to add the user to the whitelist\n3. Returns success/failure status\n\n**Maker hint:** Use this after the project has been built and generate_test_qrcode has created the TapTap app identity. Call it only with the TapTap user_id explicitly provided by the user; do not infer an account ID. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "72b1fcbb27b8f6a40a1f3c9220e48a4c78fe3307db56ac209bda3d14162beb18",
+        "localGuidanceHash": "634e66b0a04a92508c0f841a5a7d21293fb30c9034e49ea42a4769d4e27f2c9c",
+        "composedDescriptionHash": "c0d09b2b6c98907a5af9463194ba9542cccf5554c3da7fba4eceb9f0a42241ab"
+      },
+      "toolHash": "23a80db31de18685d30c96fb597578a2d3b4d2ee7b7549fc81e4d8119ff768da"
+    },
+    {
+      "order": 16,
+      "name": "get_ad_config",
+      "source": "remote-proxy",
+      "description": "同步当前项目的广告配置到 .project/settings.json。\n\n当用户需要使用广告能力时，必须先调用此工具；不要假设广告配置已经存在。\n\n此工具会自动从 .project/project.json 读取 developer_id 和 app_id，调用广告配置接口，并把结果写入 .project/settings.json 的 @runtime.ad。\n\n当返回的广告状态异常（status != 1）时：\n1. 先查看返回结果中的 warning 和 ad.url\n2. 如果 ad.url 存在，前往该引导办理 URL 地址完成广告开通或异常处理\n3. 处理完成后，再重新调用此工具同步最新广告配置\n4. 只有当 status = 1 时，才表示广告配置已生效，可以按正常广告能力继续使用\n\n返回格式：\n{\n  \"success\": true,\n  \"app_id\": 12345,\n  \"developer_id\": 67890,\n  \"settings_path\": \"/path/to/.project/settings.json\",\n  \"status_message\": \"广告变现已生效\",\n  \"warning\": null,\n  \"ad\": {\n    \"status\": 1,\n    \"url\": \"https://...\",\n    \"ad_spaces\": [\n      {\n        \"id\": \"ad-space-id\",\n        \"type\": 1\n      }\n    ],\n    \"top_on_placements\": [\n      {\n        \"id\": \"taptap-ad-id\",\n        \"type\": 1,\n        \"url\": \"https://...\"\n      }\n    ],\n    \"synced_at\": \"2026-03-09T00:00:00.000Z\"\n  }\n}\n\n**Maker hint:** Trigger this tool for any ad-related request (广告, 激励视频, 播放广告, ad ID, ad placement, ShowRewardVideoAd, ad status, or ad config). Call it first to get the current Maker project ad activation status and ad config; do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks. If .project/project.json is missing, build the project once with maker_build_current_directory to initialize it, then call this tool again. If this tool says app_id or developer_id is missing, call generate_test_qrcode once to generate test QR code metadata, then call this tool again. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": []
+      },
+      "descriptionHash": "da846ebbe368b6a2ea44243b33fdd67f95ea5250614e2679b4a8144c0728dcb2",
+      "inputSchemaHash": "457d6945406f9f4a860a12c42948c2cbe3f0852ea9b4f0556cd83130112976b2",
+      "remoteComponents": {
+        "baseDescription": "同步当前项目的广告配置到 .project/settings.json。\n\n当用户需要使用广告能力时，必须先调用此工具；不要假设广告配置已经存在。\n\n此工具会自动从 .project/project.json 读取 developer_id 和 app_id，调用广告配置接口，并把结果写入 .project/settings.json 的 @runtime.ad。\n\n当返回的广告状态异常（status != 1）时：\n1. 先查看返回结果中的 warning 和 ad.url\n2. 如果 ad.url 存在，前往该引导办理 URL 地址完成广告开通或异常处理\n3. 处理完成后，再重新调用此工具同步最新广告配置\n4. 只有当 status = 1 时，才表示广告配置已生效，可以按正常广告能力继续使用\n\n返回格式：\n{\n  \"success\": true,\n  \"app_id\": 12345,\n  \"developer_id\": 67890,\n  \"settings_path\": \"/path/to/.project/settings.json\",\n  \"status_message\": \"广告变现已生效\",\n  \"warning\": null,\n  \"ad\": {\n    \"status\": 1,\n    \"url\": \"https://...\",\n    \"ad_spaces\": [\n      {\n        \"id\": \"ad-space-id\",\n        \"type\": 1\n      }\n    ],\n    \"top_on_placements\": [\n      {\n        \"id\": \"taptap-ad-id\",\n        \"type\": 1,\n        \"url\": \"https://...\"\n      }\n    ],\n    \"synced_at\": \"2026-03-09T00:00:00.000Z\"\n  }\n}",
+        "localGuidance": "**Maker hint:** Trigger this tool for any ad-related request (广告, 激励视频, 播放广告, ad ID, ad placement, ShowRewardVideoAd, ad status, or ad config). Call it first to get the current Maker project ad activation status and ad config; do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks. If .project/project.json is missing, build the project once with maker_build_current_directory to initialize it, then call this tool again. If this tool says app_id or developer_id is missing, call generate_test_qrcode once to generate test QR code metadata, then call this tool again. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "同步当前项目的广告配置到 .project/settings.json。\n\n当用户需要使用广告能力时，必须先调用此工具；不要假设广告配置已经存在。\n\n此工具会自动从 .project/project.json 读取 developer_id 和 app_id，调用广告配置接口，并把结果写入 .project/settings.json 的 @runtime.ad。\n\n当返回的广告状态异常（status != 1）时：\n1. 先查看返回结果中的 warning 和 ad.url\n2. 如果 ad.url 存在，前往该引导办理 URL 地址完成广告开通或异常处理\n3. 处理完成后，再重新调用此工具同步最新广告配置\n4. 只有当 status = 1 时，才表示广告配置已生效，可以按正常广告能力继续使用\n\n返回格式：\n{\n  \"success\": true,\n  \"app_id\": 12345,\n  \"developer_id\": 67890,\n  \"settings_path\": \"/path/to/.project/settings.json\",\n  \"status_message\": \"广告变现已生效\",\n  \"warning\": null,\n  \"ad\": {\n    \"status\": 1,\n    \"url\": \"https://...\",\n    \"ad_spaces\": [\n      {\n        \"id\": \"ad-space-id\",\n        \"type\": 1\n      }\n    ],\n    \"top_on_placements\": [\n      {\n        \"id\": \"taptap-ad-id\",\n        \"type\": 1,\n        \"url\": \"https://...\"\n      }\n    ],\n    \"synced_at\": \"2026-03-09T00:00:00.000Z\"\n  }\n}\n\n**Maker hint:** Trigger this tool for any ad-related request (广告, 激励视频, 播放广告, ad ID, ad placement, ShowRewardVideoAd, ad status, or ad config). Call it first to get the current Maker project ad activation status and ad config; do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks. If .project/project.json is missing, build the project once with maker_build_current_directory to initialize it, then call this tool again. If this tool says app_id or developer_id is missing, call generate_test_qrcode once to generate test QR code metadata, then call this tool again. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "0add44bbd0f1a9fac7da979109d17946b8a3bbb9ca01ad06ea460c5818f75173",
+        "localGuidanceHash": "3429ac6ba69e6c6afcd5eb5a6476f394b22b4c82a881bfe87b21a2c45d5b12e5",
+        "composedDescriptionHash": "da846ebbe368b6a2ea44243b33fdd67f95ea5250614e2679b4a8144c0728dcb2"
+      },
+      "toolHash": "8deaa62313f6c2c9f6c7c3ff7f85ae44e3814af8002624f2b8a7980edc1da33e"
+    },
+    {
+      "order": 17,
+      "name": "get_debug_feedbacks",
+      "source": "remote-proxy",
+      "description": "获取 TapTap 小游戏的调试反馈列表，并将反馈数据、日志文件、截图下载到本地 logs/feed_back/ 目录。\n\n此工具会：\n1. 从 .project/project.json 中读取 app_id 和 developer_id\n2. 调用 TapTap API 拉取调试反馈列表（默认仅拉取未处理数据并标记为已处理）\n3. 为每条反馈创建独立目录（以 feedback_id 命名）\n4. 下载反馈中的日志文件和截图到对应子目录\n5. 生成 summary.json 汇总信息\n\n目录结构：\nlogs/feed_back/\n├── summary.json\n├── feedback_10001/\n│   ├── info.json\n│   ├── description.txt\n│   ├── logs/\n│   │   └── runtime.log\n│   └── screenshots/\n│       └── screenshot_1.png\n└── feedback_10002/\n    └── ...\n\n参数说明：\n- developer_id: 开发者 ID（可选，默认从 .project/project.json 读取）\n- app_id: 应用 ID（可选，默认从 .project/project.json 读取）\n- limit: 返回数量（可选，默认 5）\n- status: 状态过滤，0=全部, 1=未处理, 2=已处理（可选）\n- fetch_and_mark_processed: 仅拉取未处理数据并标记为已处理，优先级高于 status（可选，默认 true）\n- moment_id: 按玩家说帖子 ID 精确查询，传入时忽略 status 和 fetch_and_mark_processed 过滤（可选）\n- user_id: 按提交反馈的玩家 user_id 过滤，可与 status 组合；与 moment_id 互不影响（可选）\n\n【game_session_id 模式】传入 game_session_id（19 位数字）时，改为查询该局的服务端+Lua 游戏局日志，并落盘到 userpod /opt/log/server/<id>/{server.log,lua.log,meta.json}。只需要传 game_session_id，无需传时间范围、分页或日志级别；工具会自动选择合适的查询范围并优先返回最新可用结果。历史稳定结果会复用本地落盘，暂时没有日志的结果会短时间复用以避免频繁重复请求。若返回提示日志较多，可再次使用同一个 game_session_id 查询以继续获取更多历史日志。返回包含日志总数、已拉取行数、通道/级别统计、时间跨度和保存目录；如需按级别过滤请自行 grep 落盘文件。\n\n**Maker hint:** Fetch online player feedback for the current Maker project. When logs or screenshots can be downloaded, this tool saves them under logs/feed_back/feedback_<id>/ in the local Maker project and returns local_dir/local_log_paths/local_screenshot_paths. Read those returned local paths before diagnosing the issue. Do not guess drive letters or fixed directories; only treat attachments as local files when local_* paths are returned. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "developer_id": {
+            "type": "number",
+            "description": "开发者 ID（可选，默认从 .project/project.json 读取）"
+          },
+          "app_id": {
+            "type": "number",
+            "description": "应用 ID（可选，默认从 .project/project.json 读取）"
+          },
+          "limit": {
+            "type": "number",
+            "description": "返回数量（默认 5）"
+          },
+          "status": {
+            "type": "number",
+            "description": "状态过滤：0=全部, 1=未处理, 2=已处理"
+          },
+          "fetch_and_mark_processed": {
+            "type": "boolean",
+            "description": "仅拉取未处理数据并标记为已处理，优先级高于 status（默认 true）"
+          },
+          "moment_id": {
+            "type": "string",
+            "description": "按玩家说帖子 ID 精确查询（64 位大整数，用字符串避免精度丢失）。传入时忽略 status 和 fetch_and_mark_processed 过滤"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "按提交反馈的玩家 user_id 过滤（64 位大整数，用字符串避免精度丢失），可与 status 组合；与 moment_id 互不影响"
+          },
+          "game_session_id": {
+            "type": "string",
+            "description": "游戏局 ID（19 位数字）。提供时改为查询该局服务端+Lua 游戏局日志，落盘到 userpod /opt/log/server/<id>/"
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": []
+      },
+      "descriptionHash": "3682474c797fe7f383c4ae55bf590a90238cac6eae2213f367f57c1d42565a20",
+      "inputSchemaHash": "6b47ce7e2b2b3debaae56993c7d4823d7d51d09970c7e542d52df2c500f092a6",
+      "remoteComponents": {
+        "baseDescription": "获取 TapTap 小游戏的调试反馈列表，并将反馈数据、日志文件、截图下载到本地 logs/feed_back/ 目录。\n\n此工具会：\n1. 从 .project/project.json 中读取 app_id 和 developer_id\n2. 调用 TapTap API 拉取调试反馈列表（默认仅拉取未处理数据并标记为已处理）\n3. 为每条反馈创建独立目录（以 feedback_id 命名）\n4. 下载反馈中的日志文件和截图到对应子目录\n5. 生成 summary.json 汇总信息\n\n目录结构：\nlogs/feed_back/\n├── summary.json\n├── feedback_10001/\n│   ├── info.json\n│   ├── description.txt\n│   ├── logs/\n│   │   └── runtime.log\n│   └── screenshots/\n│       └── screenshot_1.png\n└── feedback_10002/\n    └── ...\n\n参数说明：\n- developer_id: 开发者 ID（可选，默认从 .project/project.json 读取）\n- app_id: 应用 ID（可选，默认从 .project/project.json 读取）\n- limit: 返回数量（可选，默认 5）\n- status: 状态过滤，0=全部, 1=未处理, 2=已处理（可选）\n- fetch_and_mark_processed: 仅拉取未处理数据并标记为已处理，优先级高于 status（可选，默认 true）\n- moment_id: 按玩家说帖子 ID 精确查询，传入时忽略 status 和 fetch_and_mark_processed 过滤（可选）\n- user_id: 按提交反馈的玩家 user_id 过滤，可与 status 组合；与 moment_id 互不影响（可选）\n\n【game_session_id 模式】传入 game_session_id（19 位数字）时，改为查询该局的服务端+Lua 游戏局日志，并落盘到 userpod /opt/log/server/<id>/{server.log,lua.log,meta.json}。只需要传 game_session_id，无需传时间范围、分页或日志级别；工具会自动选择合适的查询范围并优先返回最新可用结果。历史稳定结果会复用本地落盘，暂时没有日志的结果会短时间复用以避免频繁重复请求。若返回提示日志较多，可再次使用同一个 game_session_id 查询以继续获取更多历史日志。返回包含日志总数、已拉取行数、通道/级别统计、时间跨度和保存目录；如需按级别过滤请自行 grep 落盘文件。",
+        "localGuidance": "**Maker hint:** Fetch online player feedback for the current Maker project. When logs or screenshots can be downloaded, this tool saves them under logs/feed_back/feedback_<id>/ in the local Maker project and returns local_dir/local_log_paths/local_screenshot_paths. Read those returned local paths before diagnosing the issue. Do not guess drive letters or fixed directories; only treat attachments as local files when local_* paths are returned. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "composedDescription": "获取 TapTap 小游戏的调试反馈列表，并将反馈数据、日志文件、截图下载到本地 logs/feed_back/ 目录。\n\n此工具会：\n1. 从 .project/project.json 中读取 app_id 和 developer_id\n2. 调用 TapTap API 拉取调试反馈列表（默认仅拉取未处理数据并标记为已处理）\n3. 为每条反馈创建独立目录（以 feedback_id 命名）\n4. 下载反馈中的日志文件和截图到对应子目录\n5. 生成 summary.json 汇总信息\n\n目录结构：\nlogs/feed_back/\n├── summary.json\n├── feedback_10001/\n│   ├── info.json\n│   ├── description.txt\n│   ├── logs/\n│   │   └── runtime.log\n│   └── screenshots/\n│       └── screenshot_1.png\n└── feedback_10002/\n    └── ...\n\n参数说明：\n- developer_id: 开发者 ID（可选，默认从 .project/project.json 读取）\n- app_id: 应用 ID（可选，默认从 .project/project.json 读取）\n- limit: 返回数量（可选，默认 5）\n- status: 状态过滤，0=全部, 1=未处理, 2=已处理（可选）\n- fetch_and_mark_processed: 仅拉取未处理数据并标记为已处理，优先级高于 status（可选，默认 true）\n- moment_id: 按玩家说帖子 ID 精确查询，传入时忽略 status 和 fetch_and_mark_processed 过滤（可选）\n- user_id: 按提交反馈的玩家 user_id 过滤，可与 status 组合；与 moment_id 互不影响（可选）\n\n【game_session_id 模式】传入 game_session_id（19 位数字）时，改为查询该局的服务端+Lua 游戏局日志，并落盘到 userpod /opt/log/server/<id>/{server.log,lua.log,meta.json}。只需要传 game_session_id，无需传时间范围、分页或日志级别；工具会自动选择合适的查询范围并优先返回最新可用结果。历史稳定结果会复用本地落盘，暂时没有日志的结果会短时间复用以避免频繁重复请求。若返回提示日志较多，可再次使用同一个 game_session_id 查询以继续获取更多历史日志。返回包含日志总数、已拉取行数、通道/级别统计、时间跨度和保存目录；如需按级别过滤请自行 grep 落盘文件。\n\n**Maker hint:** Fetch online player feedback for the current Maker project. When logs or screenshots can be downloaded, this tool saves them under logs/feed_back/feedback_<id>/ in the local Maker project and returns local_dir/local_log_paths/local_screenshot_paths. Read those returned local paths before diagnosing the issue. Do not guess drive letters or fixed directories; only treat attachments as local files when local_* paths are returned. If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.",
+        "baseDescriptionHash": "ec59a1215068e3d1ead9658609c6b4767d253e0da8e240551ed64160c65be2c1",
+        "localGuidanceHash": "11ba813ce8e30f51d5c0f4b20959dc219ee0f16e6f97d5dd1e69d565e24098dd",
+        "composedDescriptionHash": "3682474c797fe7f383c4ae55bf590a90238cac6eae2213f367f57c1d42565a20"
+      },
+      "toolHash": "fe509339df2dee15758d5f23c8c950ad9f71bebfc43c8fe16f1611eae002204d"
+    }
+  ],
+  "artifactHash": "883f3b6e1f4490f92ffd8c338cc4cef0fde08df3b771fe6bc741193cdd580f12"
+}

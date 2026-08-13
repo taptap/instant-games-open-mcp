@@ -88,8 +88,7 @@ User Space 容器内：
       "edit_image",
       "create_video_task",
       "text_to_music",
-      "create_3d_model_task",
-      "query_3d_model_task"
+      "create_3d_asset"
     ]
   }
 }
@@ -223,8 +222,7 @@ const sessionResult = await connection.newSession({
       "edit_image",
       "create_video_task",
       "text_to_music",
-      "create_3d_model_task",
-      "query_3d_model_task"
+      "create_3d_asset"
     ]
   }
 }

@@ -82,7 +82,11 @@ taptap-maker dev-kit update
 `taptap-maker login` 是 CLI 登录入口；它会按需打开 Maker 授权页，CLI 轮询授权结果并完成本地鉴权配置。
 `taptap-maker init` 缺 PAT 时会自动进入该流程。`taptap-maker pat set` 保留为兼容入口；
 自动化场景可用 `--pat-stdin` 从标准输入读取。`taptap-maker install` 是
-`taptap-maker mcp install` 的快捷别名，二者都会写入 AI 客户端 MCP 配置。
+`taptap-maker mcp install` 的快捷别名。二者都会先用最终启动命令完成 MCP
+`initialize` 和 `tools/list`，验证成功后才写入 AI 客户端 MCP 配置；失败不会改动配置或备份。
+`taptap-maker init` 写入多个客户端配置时会继续尝试其余目标；只要任一目标失败，init 就记录
+`mcp_install_failed`、以非零状态结束且不报告初始化完成。已经成功写入的客户端配置会保留，
+修复失败项后可运行 `taptap-maker mcp install --ide <client>` 单独重试。
 默认会写入 Codex、Cursor、Claude，并自动检测本机已有的 Trae、OpenCode、WorkBuddy
 配置文件；命中后会合并安装 `taptap-maker`。Trae Solo 是重点支持目标，CLI 会在 Solo
 或 Solo CN 的 `User/` 目录存在时创建或合并 `User/mcp.json`；普通 Trae/Trae CN 仍作为
@@ -91,9 +95,10 @@ taptap-maker dev-kit update
 未显式指定 IDE 的自动检测模式下，legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且
 自身已存在时作为 fallback 合并；写入的 WorkBuddy MCP server 会包含 `disabled: false`。
 WorkBuddy 账号维度的启用/信任状态在 `.workbuddy/connectors/<account-id>/connector-states.json`
-中维护，不在 `mcp.json` 中；CLI 只做只读诊断，并在 `mcp install --ide workbuddy`
-和 `doctor` 输出中提示用户到 WorkBuddy MCP 设置里启用/信任 `taptap-maker`，不会自动修改账号
-信任状态。OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入。
+中维护，不在 `mcp.json` 中；CLI 只做只读诊断，并在显式 `mcp install --ide workbuddy`
+结果中提示用户到 WorkBuddy MCP 设置里启用/信任 `taptap-maker`，不会自动修改账号信任状态。
+普通 `doctor` 不会因为发现 `.workbuddy` 就输出 WorkBuddy 诊断。OpenCode 只在
+`~/.config/opencode/opencode.jsonc` 已存在时写入。
 其它 AI 编辑器可按下面的通用 `mcpServers` 片段，让本地 AI 识别自己的配置文件位置后合并写入：
 
 ```json
@@ -107,8 +112,7 @@ WorkBuddy 账号维度的启用/信任状态在 `.workbuddy/connectors/<account-
 }
 ```
 
-`production` 是默认环境，通常不需要写 `env`。只有要切到 RND 时再增加
-`"env": { "TAPTAP_MCP_ENV": "rnd" }`。
+TapTap Maker 的用户配置不需要设置服务环境。预览、构建、测试二维码和本地开发都使用官方服务配置。
 
 `taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置；支持 MCP Roots 的客户端
 会用当前 workspace root 识别 Maker 项目，避免多个客户端或多个项目互相覆盖 cwd。需要兼容
@@ -119,13 +123,25 @@ WorkBuddy 账号维度的启用/信任状态在 `.workbuddy/connectors/<account-
 `taptap-maker agents update` 或 `taptap-maker upgrade`。
 `taptap-maker dev-kit update` 会检查当前环境可用的最新 AI dev kit 并更新当前目录。
 
+如果 Maker MCP tools 缺失或出现 `-32000` / `Connection closed`，先按
+[TapTap Maker MCP 本地连接自检与修复指引](docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md)
+检查本地客户端配置、信任状态、cwd、Node/npm/npx 和启动日志。MCP 未连接时不要依赖 MCP tools 自检。
+
 Maker MCP 精简为开发循环里的高频能力：
 
 ```text
 maker://status                  # Resource，读取本地 Maker 状态
+maker://ads-integration-guide   # Resource，广告接入入口与项目引擎文档索引
 maker_status_lite               # Resource 不可用时的兼容 tool
 maker_build_current_directory   # commit/push/build 合并入口
 ```
+
+Maker MCP 初始化时会通过标准 `initialize.instructions` 向 AI 客户端提供一份精简能力路由，
+标出状态、构建、Tap 流程和游戏资源生成入口。新项目初始化或执行
+`taptap-maker agents update` / `taptap-maker upgrade` 时，同一份路由也会写入目标 Maker
+项目 `AGENTS.md` 的受管策略块，供后续会话继续使用；用户自己编写的内容保持不变。升级
+`@taptap/maker` 后，当前 MCP 会话不会被 `taptap-maker upgrade` 主动中断，已有 proxy tools
+继续可用；新版本和新的初始化提示会在下一次 MCP 启动或用户主动 reconnect 后生效。
 
 在已绑定 Maker 项目中，`maker_build_current_directory` 同时覆盖“构建 / 预览 / 跑一下 /
 查看结果 / 看看效果 / 验证游戏效果 / 提交 / 推送”。普通“验证代码 / 跑测试 / lint /
@@ -138,27 +154,53 @@ Maker 远端但构建失败。只有用户明确说“不提交，只构建云�
 `confirm_remote_build_without_submit=true`；该模式只构建 Maker 远端已提交版本，不会自动打开
 Maker 页面。
 
+远端 Lua/LSP 编译失败属于构建业务错误，MCP 会以工具结果 `isError: true` 返回，并在
+`content`/`remote_result` 中保留原始诊断（包括文件、行号和编译器消息）。只有连接断开、会话失效等
+传输故障才使用 MCP 协议错误；排查构建失败时应优先查看工具结果中的 `remote_result`，不要把
+`-32603` 直接当作服务不可用。Maker 本地重试只针对连接类故障；带结构化 `remote_result` 的业务错误
+不会重复发起构建。明确的 proxy unavailable、连接关闭、请求超时和 HTTP 5xx 会按退避策略重试；
+重连后重放请求若再次断线，会保留未完成队列并继续下一轮重连。
+
 构建成功后，Maker MCP 会刷新 Maker Web 预览，并启动本地 runtime log watcher。后续如果用户询问
 游戏运行结果、Lua 报错或调试问题，本地 AI Agent 应优先读取构建返回中的
 `runtime_logs.local_file`；如需判断 watcher 是否正常，读取 `runtime_logs.state_file`。
 
 Maker MCP 也提供部分远端 proxy 能力，当前包括 `generate_image`、`batch_generate_images`、
 `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
-`create_3d_model_task`、`query_3d_model_task`、`generate_test_qrcode`、
-`get_ad_config` 和 `get_debug_feedbacks`；具体参数以 MCP 客户端展示的 tool schema 为准。
-已绑定 Maker 项目中建议优先使用这些 proxy tools；其中 `get_debug_feedbacks` 会拉取线上玩家反馈，
+`text_to_sound_effect`、`batch_sound_effects`、`text_to_dialogue`、
+`audition_voices_for_character`、`confirm_character_voice`、`create_3d_asset`、
+`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config` 和 `get_debug_feedbacks`；具体参数以 MCP 客户端展示的
+tool schema 为准。
+这些 proxy tools 为 Maker 项目提供素材生成和平台工作流能力；其中 `get_debug_feedbacks` 会拉取线上玩家反馈，
 并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`，
 返回 `local_dir` / `local_log_paths` / `local_screenshot_paths` 等本地路径。代理转发、错误透出和白名单细节见
 [TapTap Maker 本地开发](docs/MAKER.md)。
+音频 tools 支持音效、角色试听、音色确认和配音；生成音频以及确认后的参考音频会保存到
+当前本地 Maker 项目。
 
-Windows 是默认优先级：CLI 写通用 `mcpServers` 配置时会在 Windows 通过 `cmd.exe`
-包装 `npx.cmd`，避免无 shell 的 MCP 启动器直接 spawn `.cmd` 失败；OpenCode 使用自己的
-`mcp` schema 和 command 数组，在 Windows 下写入 `npx.cmd`，不写环境变量；Git 引导优先提示 Git for Windows，
+生成测试二维码时，Agent 应先直接调用 `generate_test_qrcode`。如果 `.project/project.json` 已有
+`taptap_publish.screen_orientation`，本地 MCP 会直接沿用，不能重复设置，也不应再次询问用户。只有该字段
+从未设置时，Agent 才必须单独询问用户选择横屏（`landscape`）或竖屏（`portrait`），并在重试时通过本地私有参数
+`confirmed_screen_orientation` 传入首次选择；本地 MCP 会写入该值，且不会转发给远端 proxy tool。
+二维码生成并建立应用身份后，可使用
+`add_test_whitelist` 将用户明确提供的 TapTap `user_id` 加入测试白名单。
+
+Windows 是默认优先级：CLI 只把当前进程可用的绝对 `node.exe` 与 `npm-cli.js` 写入所有
+客户端配置；找不到该组合时安装失败，不会持久化 `.cmd` shell 命令或依赖客户端 PATH 的裸
+`npx.cmd`。OpenCode 使用相同已验证 launcher 的 command 数组。项目目录只写入结构化 `cwd`，
+禁止生成 `cd && npx.cmd`；Git 引导优先提示 Git for Windows，
 并要求安装选项允许命令行和第三方工具通过 PATH 找到 Git。macOS 用户可通过 `git --version`
 触发 Xcode Command Line Tools，或安装官方 Git。
 
 详见：[TapTap Maker 本地开发](docs/MAKER.md)。面向团队介绍的功能总览见
 [Maker CLI + MCP + Skill Rework Overview](docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
+
+本地 Maker MCP 会透明上报本地开发活跃事件，复用 `tapmaker_mcp_call` 并在
+`args.source` 写入 `local_mcp`，在 `args.mcp_version` 写入当前 `@taptap/maker`
+版本；普通开发构建使用 `dev`，不会使用主包版本代替。事件只使用当前绑定项目配置中的
+`user_id` 和 `project_id`；任一关键字段缺失或项目上下文无法准确解析时跳过上报，不使用
+默认值或其它账号信息代替。Tool、`maker://status` Resource 和 MCP 启动事件均可作为
+活跃行为，上报失败不会影响 MCP 工具结果。
 
 ## 🧩 Codex Skills（运营简报）
 
@@ -392,7 +434,8 @@ npm test
 
 ### Maker 本地开发预览
 
-Maker 本地开发现在以 CLI-first 为准。初始化、PAT、app 选择/创建、dev-kit 和 clone 都走 CLI；MCP 只保留状态和同步构建：
+Maker 本地开发现在以 CLI-first 为准。初始化、PAT、app 选择/创建、dev-kit 和 clone 都走 CLI；MCP
+保留状态、同步构建和审核过的 proxy tools：
 
 ```text
 taptap-maker init
@@ -404,12 +447,36 @@ maker_status_lite
 maker_build_current_directory
 ```
 
+远端 proxy tools 使用版本化的本地完整定义在首次 `tools/list` 时立即注册，不等待 cwd、Maker 项目绑定、
+PAT/TapTap token 或远端 proxy 连接。项目定位和鉴权只在实际调用 tool 时校验；远端 schema 不会在运行时
+替换本地定义。schema 变更通过本地 MCP 版本更新发布，远端不可用不会让 proxy tools 从当前会话消失。
+
 `taptap-maker doctor` 会检查 Git、Python 环境、maker-lua-lsp、PAT、TapTap token、项目绑定、
 AI dev kit 版本和 MCP 配置。`maker://status` 和 `maker_status_lite` 会输出
 `MCP client roots` 与 `project_context_source`，用于确认当前项目来自客户端 workspace roots
-还是 MCP cwd fallback。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过
+还是 MCP cwd fallback。默认 status 只输出快速本地摘要；需要远端同步、proxy、dev-kit 或完整维护
+诊断时，调用 `maker_status_lite({ detail: true })`。若 Git 不可用，clone/push 会直接停止，直到用户自行安装 Git 并通过
 `git --version` 验证。
-`taptap-maker mcp verify` 默认跑一次实际 MCP 配置使用的 npx 包命令；本地 dist 自测可用 `--mode self`。如果失败结果显示 `failure_type` 或 `status: null`，优先按本地 Node/npm/npx 启动问题处理，Maker MCP server 此时尚未启动，不要误判为 PAT 或 Maker 服务报错。
+已绑定项目还会执行轻量的统一项目结构检查：分别检查 `.project/project.json`、
+`.project/resources.json`、`.project/settings.json`，识别实际存在的配置被 AI 写坏或移动到项目根目录、
+以及已知 `assets/project.json` 错位的情况。根目录候选只有在匹配 Maker `$schema` 或完整的
+`project.json` 发布字段组合时才会判定为错位；普通同名业务文件不会阻断构建。`.project` 目录
+是否存在不代表项目已经初始化；目录为空、只含本地音色 mapping/其它辅助文件，或主配置不完整时，
+项目保持 `not_initialized` 且允许显式构建。`dist` 是构建产物，不参与源配置有效性判断。
+构建会在 commit/push 前阻断实际存在配置的明确路径或 JSON 错误，`generate_test_qrcode`、
+`get_ad_config` 和测试白名单会在远端调用前检查主配置，但不会自动搬运或覆盖本地文件。
+健康检查本身保持只读；需要修复时，AI 应优先从 Git 或完整的错位副本恢复文件。只有在
+`settings.json` 仍是可解析 object 时，才可恢复 `$schema` 和构建固定字段（资源 tag 仅从完整副本恢复），
+并保留 `@runtime` 与未知字段；不要凭默认值重建 `project_id`、入口、版本、发布信息或资源分组。
+在用户确认后，可以只补入缺失且不会覆盖意图的 settings 默认字段：`output_dir=../dist`、
+`asset_dirs=["../assets","../scripts"]`、`generate_fs_path=true`、`asset_ignores=[]`，
+以及 schema 中的 `assets_7z_threshold=50`、`preload_include_refs=true`、
+`trim_remote_refs=true`、`legacy_binary=false`、`tags={}`；已有非默认值不得覆盖。
+`sources.*.tag`、项目身份、版本、入口、发布信息和 resources 分组只允许从完整副本恢复。
+`taptap-maker mcp verify` 默认使用安装器的同一 launcher 完成 MCP `initialize` 和
+`tools/list`；本地 dist 自测可用 `--mode self`。失败结果会标明 `stage`、`failure_type`、
+最终 command 和 stderr，并返回非零退出码；不要把本地启动或 stdio 握手失败误判为 PAT 或
+Maker 业务接口错误。
 
 测试时优先运行 `taptap-maker login`；CLI 会按需打开 Maker 授权页，授权完成后自动完成本地鉴权配置。
 当前目录未绑定时，APP_ID 应通过 `taptap-maker init` 或 `taptap-maker apps` 返回的 app 列表让用户选择；
@@ -554,6 +621,16 @@ graph LR
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - 部署指南（本地、Docker、开发者测试）
 - **[docs/PROXY.md](docs/PROXY.md)** - MCP Proxy 开发指南（面向 TapCode 等平台）
 - **[docs/PATH_RESOLUTION.md](docs/PATH_RESOLUTION.md)** - 路径解析系统
+
+## Maker 持久化 Proxy 与多项目
+
+Maker MCP 在本地 server 进程内按活动项目维护一个 embedded proxy 和远端 MCP session。
+多个本地 Maker 项目可以并行使用，项目、环境和授权上下文彼此隔离；一个项目断线只会
+触发该项目的自动恢复，不需要重新安装或重启 Maker MCP。MCP 包版本升级或本地 proxy
+工具白名单/schema 变化后，需要重新连接本地 MCP 以加载新的本地定义。同项目认证或环境变化时，新连接立即接管，
+旧连接会在已开始的请求结束后关闭，不会中断正在执行的构建或远端工具。proxy tools 不依赖运行时
+`tools/list_changed` 刷新。runtime-log watcher 保持独立的
+轮询连接生命周期，不与远端 proxy session 共享。
 
 ## 🤝 贡献
 

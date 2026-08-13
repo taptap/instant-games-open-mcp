@@ -19,6 +19,7 @@ import {
   resolveDefaultAiDevKitUrl,
   writeAiDevKitVersionMetadata,
 } from '../maker/cli/devKit';
+import { MAKER_PROJECT_POLICY_ROUTING_INDEX } from '../maker/capabilityRouting';
 
 describe('Maker AI dev kit install', () => {
   let tempDir: string;
@@ -117,22 +118,33 @@ describe('Maker AI dev kit install', () => {
     expect(claudeGuide).toBe('local agent docs\n');
     expect(claudeGuide).not.toContain('TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toMatch(
-      /^<!-- >>> TapTap Maker managed AGENTS policy version=1 hash=sha256:[0-9a-f]+ >>> -->/
+      /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
+    expect(agentsGuide).toContain(MAKER_PROJECT_POLICY_ROUTING_INDEX);
+    expect(agentsGuide.indexOf(MAKER_PROJECT_POLICY_ROUTING_INDEX)).toBeLessThan(
+      agentsGuide.indexOf('Maker build workflow')
+    );
     expect(agentsGuide).toContain('Maker build workflow');
     expect(agentsGuide).toContain('call `maker_build_current_directory`');
     expect(agentsGuide).toContain('Do not tell the user to open the Maker web page');
     expect(agentsGuide).toContain('Do not use generic Git commit, push, branch, PR, or MR');
     expect(agentsGuide).toContain('Maker ad workflow');
-    expect(agentsGuide).toContain('first call `get_ad_config` before reading');
+    expect(agentsGuide.replace(/\s+/gu, ' ')).toContain(
+      'first read `maker://ads-integration-guide`, then follow it'
+    );
     expect(agentsGuide).toContain('source of truth for current project ad activation status');
-    expect(agentsGuide).toContain('Maker feedback workflow');
-    expect(agentsGuide).toContain('the Maker proxy `get_debug_feedbacks` tool');
-    expect(agentsGuide).toContain('local logs as a substitute');
-    expect(agentsGuide).toContain('Maker MCP proxy tools when they are available');
-    expect(agentsGuide).toContain('Maker proxy tool is unavailable');
-    expect(agentsGuide).toContain('Other client media tools may still be usable');
+    expect(agentsGuide).not.toContain('Maker feedback workflow');
+    expect(agentsGuide).not.toContain('get_debug_feedbacks');
+    expect(agentsGuide).not.toContain("current Maker game's online player feedback");
+    expect(agentsGuide).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
+    expect(agentsGuide).toContain(
+      'Maker MCP provides the following game asset generation and editing tools'
+    );
+    expect(agentsGuide).not.toMatch(
+      /prefer Maker(?:-managed)?(?: MCP)? proxy tools|over native AI|client-native/iu
+    );
+    expect(agentsGuide).not.toContain('Other client media tools may still be usable');
     expect(agentsGuide).toContain(
       'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
     );
@@ -141,10 +153,32 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
     expect(agentsGuide).toContain('batch_generate_images');
-    expect(agentsGuide).toContain('create_3d_model_task');
-    expect(agentsGuide).toContain('query_3d_model_task');
+    expect(agentsGuide).toContain('`text_to_music` for game music');
+    expect(agentsGuide).toContain('`text_to_sound_effect` for one sound effect');
+    expect(agentsGuide).toContain('`batch_sound_effects` for multiple sound effects');
+    expect(agentsGuide).toContain('`text_to_dialogue` for final character dialogue');
+    expect(agentsGuide).toContain(
+      '`text_to_dialogue` reuses confirmed local ElevenLabs voice mappings. After confirmation, pass only `character_name` and `text`'
+    );
+    expect(agentsGuide).toContain(
+      'For ElevenLabs auditions, pass a detailed `character_description` and an `audition_line` of at least 100 characters'
+    );
+    expect(agentsGuide).not.toContain('voice_profile.gender');
+    expect(agentsGuide).not.toContain('omit `reference_audio`');
+    expect(agentsGuide).toContain(
+      'After `audition_voices_for_character` returns previews, show them to the user and wait'
+    );
+    expect(agentsGuide).toContain(
+      'Call `confirm_character_voice` only after the user explicitly chooses one preview'
+    );
+    expect(agentsGuide).toContain('Generated sound effects and dialogue are saved in the project');
+    expect(agentsGuide).toContain('Voice audition previews are not saved to the project');
+    expect(agentsGuide).toContain('Local MCP does not transcode generated audio to OGG');
+    expect(agentsGuide).toContain('create_3d_asset');
+    expect(agentsGuide).toContain('action="continue"');
     expect(agentsGuide).toContain('Do not infer ad readiness from local SDK docs');
-    expect(agentsGuide).toContain('build once with `maker_build_current_directory`');
+    expect(agentsGuide).toContain('Build only for an explicit user build/submit/preview request');
+    expect(agentsGuide).toContain('do not rebuild');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');
     expect(agentsGuide).toContain('`ShowRewardVideoAd`');
     expect(agentsGuide).toContain('assets/model');
@@ -333,22 +367,42 @@ describe('Maker AI dev kit install', () => {
     const agentsGuide = fs.readFileSync(path.join(targetDir, 'AGENTS.md'), 'utf8');
     const claudeGuide = fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8');
     expect(agentsGuide).toMatch(
-      /^<!-- >>> TapTap Maker managed AGENTS policy version=1 hash=sha256:[0-9a-f]+ >>> -->/
+      /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
+    expect(agentsGuide).toContain(MAKER_PROJECT_POLICY_ROUTING_INDEX);
     expect(agentsGuide).toContain('call `maker_build_current_directory`');
     expect(agentsGuide).toContain('Do not tell the user to open the Maker web page');
     expect(agentsGuide).toContain('Maker ad workflow');
-    expect(agentsGuide).toContain('first call `get_ad_config` before reading');
-    expect(agentsGuide).toContain('Maker feedback workflow');
-    expect(agentsGuide).toContain('the Maker proxy `get_debug_feedbacks` tool');
-    expect(agentsGuide).toContain('Maker MCP proxy tools when they are available');
+    expect(agentsGuide.replace(/\s+/gu, ' ')).toContain(
+      'first read `maker://ads-integration-guide`, then follow it'
+    );
+    expect(agentsGuide).not.toContain('Maker feedback workflow');
+    expect(agentsGuide).not.toContain('get_debug_feedbacks');
+    expect(agentsGuide).not.toContain("current Maker game's online player feedback");
+    expect(agentsGuide).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
+    expect(agentsGuide).toContain(
+      'Maker MCP provides the following game asset generation and editing tools'
+    );
+    expect(agentsGuide).not.toMatch(
+      /prefer Maker(?:-managed)?(?: MCP)? proxy tools|over native AI|client-native/iu
+    );
+    expect(agentsGuide).not.toContain('Other client media tools may still be usable');
     expect(agentsGuide).toContain(
       'Follow each Maker tool schema for supported local path, remote URL, and data URL inputs'
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
+    expect(agentsGuide).toContain('`text_to_sound_effect` for one sound effect');
+    expect(agentsGuide).toContain('`batch_sound_effects` for multiple sound effects');
+    expect(agentsGuide).toContain('`text_to_dialogue` for final character dialogue');
+    expect(agentsGuide).toContain('`audition_voices_for_character` returns previews');
+    expect(agentsGuide).toContain(
+      '`confirm_character_voice` only after the user explicitly chooses'
+    );
+    expect(agentsGuide).toContain('Local MCP does not transcode generated audio to OGG');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');
-    expect(agentsGuide).toContain('build once with `maker_build_current_directory`');
+    expect(agentsGuide).toContain('Build only for an explicit user build/submit/preview request');
+    expect(agentsGuide).toContain('do not rebuild');
     expect(claudeGuide).toBe('user edits\n');
     expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);
     expect(fs.existsSync(path.join(targetDir, 'templates', 'README.md'))).toBe(true);

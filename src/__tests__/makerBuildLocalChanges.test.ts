@@ -8,6 +8,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import * as makerMcp from '../maker/server/mcp';
+import proxySnapshot from '../maker/server/remoteProxyToolSnapshot.json';
 import {
   buildCurrentDirectory,
   createBuildArgs,
@@ -21,12 +23,16 @@ import {
   createRemoteRuntimeLogClient,
   refreshMakerPreview,
   formatBuildResult,
+  formatToolException,
+  formatStatus,
   formatAiDevKitStatus,
   formatClonePartialStateLines,
   formatMakerToolRegistrationCwdStatus,
   formatMakerProxyToolsStatusSafely,
   formatMakerRemoteSyncStatusSafely,
   formatPushResult,
+  inspectMakerQrcodeToolPreflight,
+  inspectMakerProxyToolPreflight,
   isSensitiveDiagnosticKey,
   pushThenBuildCurrentDirectory,
   resources,
@@ -49,6 +55,11 @@ import {
   formatMakerProjectInitializationStatus,
   inspectMakerProjectInitialization,
 } from '../maker/projectInitialization';
+import {
+  formatMakerProjectSettingsStatus,
+  inspectMakerProjectSettings,
+} from '../maker/projectSettings';
+import type { MakerRemoteProxyManager } from '../maker/server/remoteProxyManager';
 
 describe('maker build local-change guard', () => {
   let tempDir: string;
@@ -745,8 +756,8 @@ describe('maker build local-change guard', () => {
     expect(buildArgs).toMatchObject({
       scriptsPath: 'scripts',
       entry: 'main.lua',
-      multiplayer: { enabled: false },
     });
+    expect(buildArgs).not.toHaveProperty('multiplayer');
   });
 
   test('does not default build entry when scripts/main.lua is missing', () => {
@@ -756,8 +767,30 @@ describe('maker build local-change guard', () => {
 
     expect(buildArgs).not.toHaveProperty('scriptsPath');
     expect(buildArgs).not.toHaveProperty('entry');
-    expect(buildArgs).toMatchObject({
+    expect(buildArgs).not.toHaveProperty('multiplayer');
+  });
+
+  test('forwards an explicit single-player multiplayer setting', () => {
+    const buildArgs = createBuildArgs(tempDir, {
       multiplayer: { enabled: false },
+    });
+
+    expect(buildArgs).toEqual({
+      multiplayer: { enabled: false },
+    });
+  });
+
+  test('does not inject single-player multiplayer default for explicit multiplayer entries', () => {
+    const buildArgs = createBuildArgs(tempDir, {
+      scriptsPath: 'scripts',
+      entryClient: 'client_main.lua',
+      entryServer: 'server_main.lua',
+    });
+
+    expect(buildArgs).toEqual({
+      scriptsPath: 'scripts',
+      entry_client: 'client_main.lua',
+      entry_server: 'server_main.lua',
     });
   });
 
@@ -773,30 +806,571 @@ describe('maker build local-change guard', () => {
     });
   });
 
-  test('build tool description owns commit, push, and build', () => {
+  test('project settings check allows runtime config but reports broken build fields', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'latest' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+          asset_ignores: [],
+        },
+        '@runtime': {
+          multiplayer: { enabled: true },
+        },
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+    const output = formatMakerProjectSettingsStatus(status);
+
+    expect(status.status).toBe('invalid_project_settings');
+    expect(status.issues).toEqual(['sources.engine-res.tag must be "stable"']);
+    expect(output).toContain('Maker project settings');
+    expect(output).toContain('- status: invalid_project_settings');
+    expect(output).toContain('sources.engine-res.tag must be "stable"');
+  });
+
+  test('project settings check only requires asset ignores to exist', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+          asset_ignores: 'remote-managed-value',
+        },
+        '@runtime': {
+          multiplayer: { enabled: true },
+        },
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+
+    expect(status.status).toBe('ready');
+    expect(formatMakerProjectSettingsStatus(status)).toBe('');
+  });
+
+  test('project settings check reports missing asset ignores field', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+        },
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+
+    expect(status.status).toBe('invalid_project_settings');
+    expect(status.issues).toEqual(['build.asset_ignores must exist']);
+  });
+
+  test('project settings check reports missing required root sections', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+      }),
+      'utf8'
+    );
+
+    const status = inspectMakerProjectSettings(tempDir);
+
+    expect(status.status).toBe('invalid_project_settings');
+    expect(status.issues).toEqual(['sources must be an object', 'build must be an object']);
+  });
+
+  test('status reports project settings problems without remote sync', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+
+    const output = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
+
+    expect(output).toContain('Maker project settings');
+    expect(output).toContain('- status: invalid_settings_json');
+    expect(output).toContain('构建可能失败或游戏黑屏');
+  });
+
+  test('build blocks before submit when required project settings fields drift from template', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify({
+        project_id: 'p_test',
+        version: '1.0.0',
+        entry: 'main.lua',
+        taptap_publish: {
+          title: '测试项目',
+          category: 'strategy',
+          screen_orientation: 'landscape',
+        },
+      }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets'],
+          asset_ignores: [],
+        },
+      }),
+      'utf8'
+    );
+    const submitLocalChanges = jest.fn();
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+    });
+
+    expect(result.mode).toBe('settings_invalid_before_build');
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      'build.asset_dirs must contain only "../assets" and "../scripts"'
+    );
+  });
+
+  test('build blocks before submit when project settings json is invalid', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify({
+        project_id: 'p_test',
+        version: '1.0.0',
+        entry: 'main.lua',
+        taptap_publish: {
+          title: '测试项目',
+          category: 'strategy',
+          screen_orientation: 'landscape',
+        },
+      }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+    const submitLocalChanges = jest.fn();
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+    });
+
+    expect(result.mode).toBe('settings_invalid_before_build');
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      'Maker project settings are invalid'
+    );
+  });
+
+  test('build proceeds when .project contains only a local voice mapping', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'audio-voice-mapping.json'),
+      JSON.stringify({ provider: 'doubao', characters: {} }),
+      'utf8'
+    );
+    const submitLocalChanges = jest.fn(async () => ({
+      branch: 'main',
+      committed: true,
+      commitHash: 'voice123',
+      pushed: true,
+      status: 'pushed' as const,
+    }));
+    const callRemoteBuild = jest.fn(async () => ({
+      mode: 'remote_build' as const,
+      projectRoot: fs.realpathSync(tempDir),
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      timeoutMs: 600000,
+      buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+      resultText: 'build ok',
+    }));
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+      callRemoteBuild,
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect(submitLocalChanges).toHaveBeenCalledTimes(1);
+    expect(callRemoteBuild).toHaveBeenCalledWith(tempDir);
+  });
+
+  test('build blocks before submit when project.json is moved to the project root', async () => {
+    fs.writeFileSync(
+      path.join(tempDir, 'project.json'),
+      JSON.stringify({
+        project_id: 'p_test',
+        version: '1.0.0',
+        entry: 'main.lua',
+        taptap_publish: {
+          title: '测试项目',
+          category: 'strategy',
+          screen_orientation: 'landscape',
+        },
+      }),
+      'utf8'
+    );
+    const submitLocalChanges = jest.fn();
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+    });
+
+    expect(result.mode).toBe('project_invalid_before_build');
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain('misplaced_config');
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain('.project/project.json');
+  });
+
+  test('build proceeds when settings exists but project.json is absent', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+          asset_ignores: [],
+        },
+      }),
+      'utf8'
+    );
+    const submitLocalChanges = jest.fn(async () => ({
+      branch: 'main',
+      committed: true,
+      commitHash: 'settings123',
+      pushed: true,
+      status: 'pushed' as const,
+    }));
+    const callRemoteBuild = jest.fn(async () => ({
+      mode: 'remote_build' as const,
+      projectRoot: fs.realpathSync(tempDir),
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      timeoutMs: 600000,
+      buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+      resultText: 'build ok',
+    }));
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+      callRemoteBuild,
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect(submitLocalChanges).toHaveBeenCalledTimes(1);
+    expect(callRemoteBuild).toHaveBeenCalledWith(tempDir);
+  });
+
+  test('build keeps project findings when settings and project structure are both invalid', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+    fs.writeFileSync(path.join(tempDir, '.project', 'project.json'), '{ bad json', 'utf8');
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    const submitLocalChanges = jest.fn();
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      submitLocalChanges,
+    });
+
+    expect(result.mode).toBe('project_invalid_before_build');
+    expect(submitLocalChanges).not.toHaveBeenCalled();
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain('invalid_project_json');
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain('invalid_settings_json');
+  });
+
+  test('status includes unified project structure findings', async () => {
+    fs.writeFileSync(
+      path.join(tempDir, 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {},
+        build: {},
+      }),
+      'utf8'
+    );
+
+    const output = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
+
+    expect(output).toContain('Maker project structure');
+    expect(output).toContain('misplaced_config');
+    expect(output).toContain('.project/settings.json');
+  });
+
+  test('QR proxy preflight uses the unified project health check', () => {
+    fs.writeFileSync(path.join(tempDir, 'project.json'), '{}', 'utf8');
+
+    const health = inspectMakerProxyToolPreflight('generate_test_qrcode', tempDir);
+
+    expect(health?.mode).toBe('qrcode');
+    expect(health?.canGenerateTestQrcode).toBe(false);
+    expect(inspectMakerProxyToolPreflight('get_ad_config', tempDir)?.status).toBe(
+      'not_initialized'
+    );
+    expect(inspectMakerProxyToolPreflight('add_test_whitelist', tempDir)?.status).toBe(
+      'not_initialized'
+    );
+    expect(inspectMakerProxyToolPreflight('generate_image', tempDir)).toBeUndefined();
+  });
+
+  test('QR proxy preflight resolves a bound project when target_dir is a subdirectory', () => {
+    fs.mkdirSync(path.join(tempDir, '.maker-mcp'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.maker-mcp', 'config.json'),
+      JSON.stringify({ project_id: 'p_test' }),
+      'utf8'
+    );
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify({
+        project_id: 'p_test',
+        version: '1.0.0',
+        entry: 'main.lua',
+        taptap_publish: {
+          title: '测试项目',
+          category: 'strategy',
+          screen_orientation: 'landscape',
+        },
+      }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+          asset_ignores: [],
+        },
+      }),
+      'utf8'
+    );
+    const subdirectory = path.join(tempDir, 'scripts');
+    fs.mkdirSync(subdirectory, { recursive: true });
+
+    const health = inspectMakerProxyToolPreflight('generate_test_qrcode', subdirectory);
+
+    expect(health?.projectRoot).toBe(path.resolve(tempDir));
+    expect(health?.canGenerateTestQrcode).toBe(true);
+  });
+
+  test('QR handler preflight supports first-call orientation prompt and confirmed retry', () => {
+    fs.mkdirSync(path.join(tempDir, '.maker-mcp'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.maker-mcp', 'config.json'),
+      JSON.stringify({ project_id: 'app-1' }),
+      'utf8'
+    );
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify({
+        project_id: 'app-1',
+        version: '1.0.0',
+        entry: 'main.lua',
+        taptap_publish: { title: 'Test game', category: 'casual' },
+      }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] } }),
+      'utf8'
+    );
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{}', 'utf8');
+
+    const firstCall = inspectMakerQrcodeToolPreflight(tempDir, undefined);
+    expect(firstCall.ok).toBe(false);
+    if (firstCall.ok) return;
+    expect(firstCall.message).toContain('confirmed_screen_orientation');
+
+    expect(inspectMakerQrcodeToolPreflight(tempDir, 'portrait')).toEqual({
+      ok: true,
+      orientation: 'portrait',
+    });
+    expect(
+      JSON.parse(fs.readFileSync(path.join(tempDir, '.project', 'project.json'), 'utf8'))
+        .taptap_publish.screen_orientation
+    ).toBe('portrait');
+  });
+
+  test('remote-only build skips local project settings validation', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+    const callRemoteBuild = jest.fn(async () => ({
+      mode: 'remote_build' as const,
+      projectRoot: fs.realpathSync(tempDir),
+      projectId: 'app-1',
+      projectPath: 'app-1/workspace',
+      serverUrl: 'https://maker.example.test/mcp',
+      env: 'rnd',
+      timeoutMs: 600000,
+      buildArgs: { scriptsPath: 'scripts', entry: 'main.lua' },
+      resultText: 'build ok',
+    }));
+
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      confirmRemoteBuildWithoutSubmit: true,
+      callRemoteBuild,
+    });
+
+    expect(result.mode).toBe('remote_build');
+    expect(callRemoteBuild).toHaveBeenCalledWith(tempDir);
+  });
+
+  test('forwards complete multiplayer build config without changing nested fields', () => {
+    const multiplayer = {
+      enabled: true,
+      max_players: 8,
+      background_match: true,
+      match_info: {
+        desc_name: 'free_match_with_ai',
+        player_number: 4,
+        immediately_start: false,
+        match_timeout: 30,
+      },
+      persistent_world: {
+        enabled: false,
+      },
+    };
+
+    const buildArgs = createBuildArgs(tempDir, {
+      scriptsPath: 'scripts',
+      entryClient: 'client_main.lua',
+      entryServer: 'server_main.lua',
+      multiplayer,
+    });
+
+    expect(buildArgs).toEqual({
+      scriptsPath: 'scripts',
+      entry_client: 'client_main.lua',
+      entry_server: 'server_main.lua',
+      multiplayer,
+    });
+  });
+
+  test('does not inject default multiplayer when settings.json exists', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'settings.json'),
+      JSON.stringify({ '@runtime': { multiplayer: { enabled: true, max_players: 4 } } }),
+      'utf8'
+    );
+
+    const buildArgs = createBuildArgs(tempDir, {});
+
+    expect(buildArgs).toMatchObject({
+      scriptsPath: 'scripts',
+      entry: 'main.lua',
+    });
+    expect(buildArgs).not.toHaveProperty('multiplayer');
+  });
+
+  test('build tool exposes the Maker-owned submit and remote-only modes', () => {
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(buildTool?.description).toContain('always pushes before remote Maker build');
-    expect(buildTool?.description).toContain('bound Maker project');
-    expect(buildTool?.description).toContain('验证游戏效果');
-    expect(buildTool?.description).toContain('Do not treat generic code validation requests');
-    expect(buildTool?.description).toContain('empty wake-up commit');
-    expect(buildTool?.description).toContain('remote Maker build');
-    expect(buildTool?.description).toContain('If push fails, build is not started');
-    expect(buildTool?.description).toContain('does not auto-open Maker pages');
-    expect(buildTool?.description).not.toContain('maker_page_url');
-    expect(buildTool?.description).toContain('runtime_logs.local_file');
-    expect(buildTool?.description).toContain('runtime_logs.state_file');
-    expect(buildTool?.description).not.toContain('maker_submit_current_directory');
-    expect(buildTool?.description).not.toContain('maker_push_current_directory');
-    expect(buildTool?.description).not.toContain('Do not use this tool');
+    expect(buildTool?.inputSchema.additionalProperties).toBe(false);
+    expect(buildTool?.inputSchema.properties).toHaveProperty('confirm_remote_build_without_submit');
+    expect(buildTool?.inputSchema.properties).not.toHaveProperty('environment');
   });
 
   test('exposes only the compact Maker tool set', () => {
     const toolNames = tools.map((item) => item.name);
 
     expect(toolNames).toEqual(['maker_status_lite', 'maker_build_current_directory']);
-    expect(resources.map((item) => item.uri)).toEqual(['maker://status']);
+    expect(resources.map((item) => item.uri)).toEqual([
+      'maker://status',
+      'maker://ads-integration-guide',
+    ]);
     expect(toolNames).not.toContain('maker_pull_runtime_logs');
     expect(toolNames).not.toContain('maker_exchange_pat');
     expect(toolNames).not.toContain('maker_list_apps');
@@ -813,7 +1387,7 @@ describe('maker build local-change guard', () => {
     expect(toolNames).not.toContain('maker_configure_remote_proxy');
   });
 
-  test('lists local Maker tools plus selected remote proxy tools', async () => {
+  test('lists local Maker tools plus the complete static proxy schema', async () => {
     const result = await listMakerTools({
       targetDir: tempDir,
       listRemoteTools: async () => [
@@ -848,24 +1422,101 @@ describe('maker build local-change guard', () => {
           inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
         },
         {
-          name: 'create_3d_model_task',
-          description: 'Create a 3D model generation task',
+          name: 'text_to_sound_effect',
+          description: 'Generate one sound effect',
           inputSchema: {
             type: 'object',
-            properties: {
-              mode: { type: 'string' },
-              confirmed_image_paths: { type: 'object' },
-              front_image: { type: 'string' },
-            },
+            properties: { text: { type: 'string' } },
+            required: ['text'],
           },
         },
         {
-          name: 'query_3d_model_task',
-          description: 'Query a 3D model generation task',
+          name: 'batch_sound_effects',
+          description: 'Generate several sound effects',
           inputSchema: {
             type: 'object',
-            properties: { task_id: { type: 'string' } },
-            required: ['task_id'],
+            properties: { sounds: { type: 'array' } },
+            required: ['sounds'],
+          },
+        },
+        {
+          name: 'text_to_dialogue',
+          description: 'Generate character dialogue',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              inputs: {
+                type: 'array',
+                maxItems: 50,
+                items: {
+                  type: 'object',
+                  properties: {
+                    character_name: { type: 'string' },
+                    text: { type: 'string' },
+                    reference_audio: {
+                      type: 'string',
+                      minLength: 1,
+                      maxLength: 28 * 1024 * 1024,
+                      description:
+                        'Optional Doubao project audio path, HTTP(S) URL, or audio data URL.',
+                    },
+                    delivery_instruction: {
+                      type: 'string',
+                      minLength: 1,
+                      maxLength: 300,
+                      description: 'Optional line-specific delivery instruction.',
+                    },
+                    reference_audio_path: {
+                      type: 'string',
+                      description: 'Optional Doubao-only project audio resource.',
+                    },
+                  },
+                  required: ['character_name', 'text'],
+                },
+              },
+            },
+            required: ['inputs'],
+          },
+        },
+        {
+          name: 'audition_voices_for_character',
+          description: 'Generate voice candidates for one character',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              character_name: { type: 'string' },
+              voice_profile: {
+                type: 'object',
+                properties: {
+                  gender: { type: 'string', enum: ['male', 'female'] },
+                },
+              },
+            },
+            required: ['character_name'],
+          },
+        },
+        {
+          name: 'confirm_character_voice',
+          description: 'Confirm one voice candidate',
+          inputSchema: {
+            type: 'object',
+            properties: { character_name: { type: 'string' } },
+            required: ['character_name'],
+          },
+        },
+        {
+          name: 'create_3d_asset',
+          description: 'Create or continue a controlled 3D asset generation lifecycle',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              action: { type: 'string' },
+              asset_id: { type: 'string' },
+              task_id: { type: 'string' },
+              step_id: { type: 'string' },
+              payload: { type: 'object' },
+            },
+            required: ['action'],
           },
         },
         {
@@ -875,6 +1526,15 @@ describe('maker build local-change guard', () => {
             type: 'object',
             properties: {},
             required: [],
+          },
+        },
+        {
+          name: 'add_test_whitelist',
+          description: 'Add one TapTap user to the test whitelist',
+          inputSchema: {
+            type: 'object',
+            properties: { user_id: { type: 'number' } },
+            required: ['user_id'],
           },
         },
         {
@@ -909,103 +1569,186 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
-      'generate_image',
-      'batch_generate_images',
-      'edit_image',
-      'create_video_task',
-      'query_video_task',
-      'text_to_music',
-      'create_3d_model_task',
-      'query_3d_model_task',
-      'generate_test_qrcode',
-      'get_ad_config',
-      'get_debug_feedbacks',
+      ...proxySnapshot.toolOrder,
     ]);
-    expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual([
-      'generate_image',
-      'batch_generate_images',
-      'edit_image',
-      'create_video_task',
-      'query_video_task',
-      'text_to_music',
-      'create_3d_model_task',
-      'query_3d_model_task',
-      'generate_test_qrcode',
-      'get_ad_config',
-      'get_debug_feedbacks',
+    expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual(proxySnapshot.toolOrder);
+    expect(result.tools.find((item) => item.name === 'edit_image')?.description).toMatch(
+      /existing image.{0,120}generate_image.{0,100}one new image/iu
+    );
+    expect(result.tools.find((item) => item.name === 'create_video_task')?.description).toMatch(
+      /Image, video, and audio references.{0,120}local project files.{0,80}HTTP\(S\) URLs.{0,80}data URLs/iu
+    );
+    expect(result.tools.find((item) => item.name === 'create_video_task')?.description).toMatch(
+      /image references.{0,40}30\s*(?:MB|MiB).{0,80}video references.{0,40}50\s*(?:MB|MiB).{0,80}audio references.{0,40}15\s*(?:MB|MiB)/iu
+    );
+    expect(result.tools.find((item) => item.name === 'query_video_task')?.description).toMatch(
+      /query video task status.{0,60}task_id.{0,100}create_video_task/iu
+    );
+    const audioTools = [
+      'text_to_sound_effect',
+      'batch_sound_effects',
+      'text_to_dialogue',
+      'audition_voices_for_character',
+      'confirm_character_voice',
+    ];
+    for (const audioToolName of audioTools) {
+      expect(
+        result.tools.find((item) => item.name === audioToolName)?.inputSchema.properties
+      ).toHaveProperty('target_dir');
+    }
+    expect(
+      result.tools.find((item) => item.name === 'text_to_sound_effect')?.inputSchema.required
+    ).toEqual(['text']);
+    expect(
+      result.tools.find((item) => item.name === 'batch_sound_effects')?.inputSchema.required
+    ).toEqual(['sounds']);
+    for (const audioToolName of audioTools) {
+      expect(
+        result.tools.find((item) => item.name === audioToolName)?.inputSchema.required || []
+      ).not.toContain('target_dir');
+    }
+    expect(
+      result.tools.find((item) => item.name === 'audition_voices_for_character')?.inputSchema
+        .required
+    ).toEqual(['character_name', 'character_description', 'audition_line']);
+    expect(
+      result.tools.find((item) => item.name === 'audition_voices_for_character')?.inputSchema
+        .properties.audition_line.minLength
+    ).toBe(100);
+    expect(
+      result.tools.find((item) => item.name === 'audition_voices_for_character')?.inputSchema
+        .properties.candidate_count.type
+    ).toBe('number');
+    expect(
+      result.tools.find((item) => item.name === 'confirm_character_voice')?.inputSchema.required
+    ).toEqual(['character_name']);
+    const dialogueTool = result.tools.find((item) => item.name === 'text_to_dialogue');
+    expect(dialogueTool?.inputSchema.required).toEqual(['inputs']);
+    expect(dialogueTool?.inputSchema.properties.stability).toEqual({
+      type: 'number',
+      description:
+        'Eleven v3 voice stability. Recommended range 0 to 1; finite legacy values are accepted and quantized to 0, 0.5, or 1.',
+      default: 0.5,
+    });
+    expect(dialogueTool?.inputSchema.properties.inputs).not.toHaveProperty('maxItems');
+    expect(dialogueTool?.inputSchema.properties.inputs.items.required).toEqual([
+      'character_name',
+      'text',
     ]);
-    expect(result.tools.find((item) => item.name === 'generate_image')?.description).toContain(
-      'prefer this Maker MCP proxy tool for Maker project assets'
+    expect(dialogueTool?.inputSchema.properties.inputs.items.properties).not.toHaveProperty(
+      'reference_audio'
     );
-    expect(result.tools.find((item) => item.name === 'edit_image')?.description).toContain(
-      'prefer this Maker MCP proxy tool for image editing'
+    expect(dialogueTool?.inputSchema.properties.inputs.items.properties).not.toHaveProperty(
+      'delivery_instruction'
     );
-    expect(result.tools.find((item) => item.name === 'create_video_task')?.description).toContain(
-      'resolvable local files that the local proxy can forward as data URLs'
+    expect(dialogueTool?.inputSchema.properties.inputs.items.properties).not.toHaveProperty(
+      'reference_audio_path'
     );
-    expect(result.tools.find((item) => item.name === 'create_video_task')?.description).toContain(
-      'Large local/data URL media can be slow or fail'
+    expect(dialogueTool?.description).not.toContain('reference_audio_path');
+    expect(dialogueTool?.description).toContain('ElevenLabs voice mapping');
+    const auditionDescription =
+      result.tools.find((item) => item.name === 'audition_voices_for_character')?.description || '';
+    expect(auditionDescription).toMatch(
+      /(?:temporary.{0,80}previews?|previews?.{0,80}temporary)/iu
     );
-    expect(result.tools.find((item) => item.name === 'query_video_task')?.description).toContain(
-      'Use this Maker MCP proxy tool to refresh video task status'
+    expect(auditionDescription).toMatch(
+      /previews?.{0,120}(?:not|never).{0,40}(?:saved|persisted|materialized).{0,80}(?:final )?game assets?/iu
     );
-    const createModelTool = result.tools.find((item) => item.name === 'create_3d_model_task');
-    const queryModelTool = result.tools.find((item) => item.name === 'query_3d_model_task');
-    expect(createModelTool?.inputSchema.properties).toHaveProperty('mode');
-    expect(createModelTool?.inputSchema.properties).toHaveProperty('confirmed_image_paths');
-    expect(createModelTool?.inputSchema.properties).toHaveProperty('front_image');
-    expect(createModelTool?.inputSchema.properties).toHaveProperty('target_dir');
-    expect(createModelTool?.inputSchema.properties.target_dir.description).toContain(
+    expect(
+      result.tools.find((item) => item.name === 'audition_voices_for_character')?.description
+    ).toContain('ElevenLabs Voice Design');
+    expect(
+      result.tools.find((item) => item.name === 'confirm_character_voice')?.description
+    ).toMatch(/after the user (?:explicitly )?selects/iu);
+    const createAssetTool = result.tools.find((item) => item.name === 'create_3d_asset');
+    expect(createAssetTool?.inputSchema.properties).toHaveProperty('action');
+    expect(createAssetTool?.inputSchema.properties).toHaveProperty('asset_id');
+    expect(createAssetTool?.inputSchema.properties).toHaveProperty('step_id');
+    expect(createAssetTool?.inputSchema.properties).toHaveProperty('payload');
+    expect(createAssetTool?.inputSchema.properties).toHaveProperty('target_dir');
+    expect(createAssetTool?.inputSchema.properties.target_dir.description).toContain(
       'not forwarded to the remote Maker tool'
+    );
+    expect(createAssetTool?.inputSchema.required).toEqual(['action']);
+    expect(createAssetTool?.description).toMatch(
+      /action=["']start["'].+?["']query["'].+?["']get_options["'].+?["']continue["']/isu
     );
     expect(
       result.tools.find((item) => item.name === 'generate_image')?.inputSchema.properties
     ).toHaveProperty('target_dir');
-    expect(queryModelTool?.inputSchema.required).toEqual(['task_id']);
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'Trigger this tool for any ad-related request'
+    const adConfigDescription =
+      result.tools.find((item) => item.name === 'get_ad_config')?.description || '';
+    expect(adConfigDescription).toMatch(
+      /ad-related request.{0,120}maker:\/\/ads-integration-guide.{0,180}first remote step/iu
     );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'ad activation status and ad config'
+    expect(adConfigDescription).toMatch(
+      /source of truth.{0,160}(?:ad activation status|configuration).{0,120}\.project\/settings\.json.{0,80}@runtime\.ad/iu
     );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'do not infer ad readiness from local SDK docs'
+    expect(adConfigDescription).toMatch(
+      /do not infer ad readiness from local SDK docs.{0,120}\.maker-mcp\/config\.json.{0,120}runtime callbacks/iu
     );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'ShowRewardVideoAd'
+    expect(adConfigDescription).toMatch(
+      /local preflight.{0,120}(?:unavailable|does not call).{0,100}(?:project\.json|settings\.json).{0,80}missing/iu
     );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'If .project/project.json is missing'
+    expect(adConfigDescription).toMatch(
+      /missing local configs.{0,80}do not authorize an automatic build/iu
     );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'app_id or developer_id is missing'
+    expect(adConfigDescription).toMatch(
+      /maker_build_current_directory.{0,120}explicit user build.{0,120}then check project status/iu
     );
-    expect(result.tools.find((item) => item.name === 'get_ad_config')?.description).toContain(
-      'generate_test_qrcode'
+    expect(adConfigDescription).toMatch(
+      /app_id.{0,80}developer_id.{0,100}generate_test_qrcode.{0,80}(?:once|one time).{0,80}retry/iu
     );
-    expect(
-      result.tools.find((item) => item.name === 'generate_test_qrcode')?.description
-    ).toContain('user explicitly asks for a test QR code');
-    expect(
-      result.tools.find((item) => item.name === 'generate_test_qrcode')?.description
-    ).toContain('after get_ad_config reports missing app_id or developer_id');
+    expect(adConfigDescription).toMatch(
+      /ad\.status (?:!= 1|is not 1).{0,120}warning.{0,80}ad\.url.{0,100}next_action.{0,60}retry/iu
+    );
+    expect(adConfigDescription).toMatch(
+      /only implement or test ad behavior after.{0,100}configuration.{0,60}usable/iu
+    );
+    expect(adConfigDescription).toMatch(
+      /only implement or test ad behavior after.{0,100}configuration.{0,60}usable/iu
+    );
+    expect(adConfigDescription).not.toMatch(
+      /return(?:s|ed) format\s*\{|complete .*JSON|synced_at|sanitized error summary/iu
+    );
+    expect(result.tools.find((item) => item.name === 'generate_test_qrcode')?.description).toMatch(
+      /user explicitly requests a test QR code/iu
+    );
+    expect(result.tools.find((item) => item.name === 'generate_test_qrcode')?.description).toMatch(
+      /get_ad_config reports missing app_id or developer_id/iu
+    );
     expect(
       result.tools.find((item) => item.name === 'generate_test_qrcode')?.inputSchema.properties
     ).toHaveProperty('target_dir');
-    expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toContain(
-      'Fetch online player feedback'
+    const qrcodeTool = result.tools.find((item) => item.name === 'generate_test_qrcode');
+    expect(qrcodeTool?.inputSchema.required).not.toContain('confirmed_screen_orientation');
+    expect(qrcodeTool?.inputSchema.properties.confirmed_screen_orientation).toMatchObject({
+      type: 'string',
+      enum: ['landscape', 'portrait'],
+    });
+    expect(qrcodeTool?.description).toContain('existing project orientation');
+    expect(qrcodeTool?.description).toContain('only when the tool reports it missing');
+    const whitelistTool = result.tools.find((item) => item.name === 'add_test_whitelist');
+    expect(whitelistTool?.inputSchema.required).toEqual(['user_id']);
+    expect(whitelistTool?.inputSchema.properties).toHaveProperty('target_dir');
+    expect(whitelistTool?.description).toContain('generate_test_qrcode');
+    expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toMatch(
+      /online player feedback.{0,100}current Maker project/iu
     );
-    expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toContain(
-      'local_dir/local_log_paths/local_screenshot_paths'
+    expect(result.tools.find((item) => item.name === 'get_debug_feedbacks')?.description).toMatch(
+      /local_dir.{0,80}local_log_paths.{0,80}local_screenshot_paths/iu
     );
   });
 
   test('remote proxy private target_dir is stripped before forwarding upstream', () => {
-    const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs({
-      target_dir: tempDir,
-      prompt: 'coin icon',
-      target_size: '128x128',
-    });
+    const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs(
+      {
+        target_dir: tempDir,
+        prompt: 'coin icon',
+        target_size: '128x128',
+      },
+      'generate_image'
+    );
 
     expect(targetDir).toBe(tempDir);
     expect(remoteArgs).toEqual({
@@ -1014,9 +1757,30 @@ describe('maker build local-change guard', () => {
     });
   });
 
-  test('falls back to local Maker tools when remote proxy tool listing is unavailable', async () => {
+  test('QR orientation confirmation is local-only while whitelist user_id is forwarded', () => {
+    expect(
+      splitRemoteProxyToolPrivateArgs(
+        {
+          target_dir: tempDir,
+          confirmed_screen_orientation: 'portrait',
+        },
+        'generate_test_qrcode'
+      )
+    ).toEqual({ targetDir: tempDir, remoteArgs: {} });
+
+    expect(
+      splitRemoteProxyToolPrivateArgs(
+        {
+          target_dir: tempDir,
+          user_id: 12345,
+        },
+        'add_test_whitelist'
+      )
+    ).toEqual({ targetDir: tempDir, remoteArgs: { user_id: 12345 } });
+  });
+
+  test('registers every proxy tool before project context or remote listing is available', async () => {
     const result = await listMakerTools({
-      targetDir: tempDir,
       listRemoteTools: async () => {
         throw new Error('remote project is not bound');
       },
@@ -1025,7 +1789,55 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
+      ...proxySnapshot.toolOrder,
     ]);
+    for (const toolName of MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES) {
+      const tool = result.tools.find((item) => item.name === toolName);
+      expect(tool?.description).toBeTruthy();
+      expect(tool?.inputSchema.properties).toHaveProperty('target_dir');
+    }
+    expect(
+      result.tools.find((item) => item.name === 'generate_image')?.inputSchema.properties
+    ).toHaveProperty('prompt');
+    expect(
+      result.tools.find((item) => item.name === 'generate_image')?.inputSchema.properties
+    ).toHaveProperty('target_size');
+    expect(
+      result.tools.find((item) => item.name === 'create_video_task')?.inputSchema.properties
+    ).toHaveProperty('mode');
+  });
+
+  test('keeps the local schema authoritative when remote or cached schemas are supplied', async () => {
+    const remoteList = jest.fn(async () => [
+      {
+        name: 'generate_image',
+        description: 'Remote description must not replace local definition',
+        inputSchema: { type: 'object', properties: { remote_only: { type: 'string' } } },
+      },
+    ]);
+    const result = await listMakerTools({
+      targetDir: tempDir,
+      listRemoteTools: remoteList,
+      getCachedRemoteTools: () => [
+        {
+          name: 'generate_image',
+          description: 'Cached description must not replace local definition',
+          inputSchema: { type: 'object', properties: { cached_only: { type: 'string' } } },
+        },
+      ],
+    });
+
+    expect(result.tools.map((item) => item.name)).toEqual([
+      'maker_status_lite',
+      'maker_build_current_directory',
+      ...proxySnapshot.toolOrder,
+    ]);
+    expect(result.tools[2].description).toContain('Generate one new image asset for a Maker game');
+    expect(result.tools[2].inputSchema.properties).toHaveProperty('prompt');
+    expect(result.tools[2].inputSchema.properties).toHaveProperty('target_size');
+    expect(result.tools[2].inputSchema.properties).not.toHaveProperty('remote_only');
+    expect(result.tools[2].inputSchema.properties).not.toHaveProperty('cached_only');
+    expect(remoteList).not.toHaveBeenCalled();
   });
 
   test('proxy status warns that remote tools and build are unavailable when proxy fails', async () => {
@@ -1040,14 +1852,14 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- status: unavailable');
     expect(output).toContain('- available_tools: (none)');
     expect(output).toContain(
-      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, create_3d_model_task, query_3d_model_task, generate_test_qrcode, get_ad_config, get_debug_feedbacks'
+      `- missing_tools: ${MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.join(', ')}`
     );
     expect(output).toContain('- build_available: no');
     expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');
     expect(output).toContain('远端 proxy tools 和 build 构建都不可用');
   });
 
-  test('tool registration cwd status explains why proxy tools are missing from the session', () => {
+  test('project context cwd status keeps registration separate from invocation context', () => {
     const dialogueDir = path.join(tempDir, '..', 'dialogue-cwd');
     const output = formatMakerToolRegistrationCwdStatus({
       mcpCwd: dialogueDir,
@@ -1056,13 +1868,14 @@ describe('maker build local-change guard', () => {
       mcpProjectRoot: undefined,
     });
 
-    expect(output).toContain('MCP tool registration cwd');
+    expect(output).toContain('MCP project context cwd');
     expect(output).toContain('- status: mismatch');
     expect(output).toContain(`- mcp_cwd: ${path.resolve(dialogueDir)}`);
     expect(output).toContain(`- maker_project_dir: ${tempDir}`);
     expect(output).toContain('- mcp_cwd_project_dir: (none)');
-    expect(output).toContain('proxy tools may not appear in this MCP session');
-    expect(output).toContain('Reconnect');
+    expect(output).toContain('proxy tools remain registered');
+    expect(output).toContain('pass maker_project_dir as target_dir');
+    expect(output).toContain('Do not rewrite a shared user-level MCP cwd');
   });
 
   test('project context prefers the single MCP client root over stale MCP cwd', async () => {
@@ -1138,6 +1951,260 @@ describe('maker build local-change guard', () => {
     expect(retryMessages).toHaveLength(4);
     expect(retryMessages[0]).toContain('attempt 1/5');
     expect(retryMessages[3]).toContain('attempt 4/5');
+  });
+
+  test('managed remote build retries a transient connection failure and reports progress', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+    try {
+      saveTapAuth({
+        kid: 'rnd-kid',
+        token: 'rnd-token',
+        mac_key: 'rnd-mac-key',
+      });
+      const callTool = jest
+        .fn()
+        .mockImplementationOnce(async () => {
+          saveTapAuth({
+            kid: 'rotated-kid',
+            token: 'rotated-token',
+            mac_key: 'rotated-mac-key',
+          });
+          throw new Error('connect ECONNRESET embedded proxy');
+        })
+        .mockResolvedValueOnce({ content: [{ type: 'text', text: 'build ok' }] });
+      const remoteProxyManager = {
+        callTool,
+        listTools: jest.fn(),
+        getCachedTools: jest.fn(),
+        closeAll: jest.fn(),
+      } as unknown as MakerRemoteProxyManager;
+      const progressMessages: string[] = [];
+
+      const buildPromise = buildCurrentDirectory({
+        targetDir: tempDir,
+        confirmRemoteBuildWithoutSubmit: true,
+        remoteProxyManager,
+        refreshPreview: async () => ({ ok: true, status: 200, url: 'preview-refresh' }),
+        startRuntimeLogWatch: async () => ({
+          started: true,
+          command: 'watch',
+          runtimeLog: 'runtime.log',
+        }),
+        onProgress: (event) => progressMessages.push(event.message),
+      });
+
+      while (callTool.mock.calls.length === 0) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      await jest.advanceTimersByTimeAsync(30000);
+      const result = await buildPromise;
+
+      expect(result.mode).toBe('remote_build');
+      expect(callTool).toHaveBeenCalledTimes(2);
+      expect(JSON.parse(callTool.mock.calls[1][0].proxyConfigJson).auth.kid).toBe('rotated-kid');
+      expect(progressMessages).toEqual(
+        expect.arrayContaining([expect.stringContaining('attempt 1/5')])
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('managed proxy tool retries a transient connection failure and reports MCP progress', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+    try {
+      saveTapAuth({
+        kid: 'rnd-kid',
+        token: 'rnd-token',
+        mac_key: 'rnd-mac-key',
+      });
+      const callTool = jest
+        .fn()
+        .mockImplementationOnce(async () => {
+          saveTapAuth({
+            kid: 'rotated-kid',
+            token: 'rotated-token',
+            mac_key: 'rotated-mac-key',
+          });
+          throw new Error('Connection closed by embedded proxy');
+        })
+        .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"ok":true}' }] });
+      const manager = {
+        callTool,
+        listTools: jest.fn(),
+        getCachedTools: jest.fn(),
+        closeAll: jest.fn(),
+      } as unknown as MakerRemoteProxyManager;
+      const sendNotification = jest.fn(async () => undefined);
+      const callRemoteProxyTool = (
+        makerMcp as typeof makerMcp & {
+          callRemoteProxyTool: (options: Record<string, unknown>) => Promise<unknown>;
+        }
+      ).callRemoteProxyTool;
+
+      const resultPromise = callRemoteProxyTool({
+        targetDir: tempDir,
+        name: 'get_ad_config',
+        args: {},
+        progressToken: 'proxy-retry',
+        extra: { sendNotification },
+        manager,
+      });
+
+      while (callTool.mock.calls.length === 0) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+      await jest.advanceTimersByTimeAsync(30000);
+      await resultPromise;
+
+      expect(callTool).toHaveBeenCalledTimes(2);
+      expect(JSON.parse(callTool.mock.calls[1][0].proxyConfigJson).auth.kid).toBe('rotated-kid');
+      expect(sendNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'notifications/progress',
+          params: expect.objectContaining({
+            progressToken: 'proxy-retry',
+            message: expect.stringContaining('attempt 1/5'),
+          }),
+        })
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('does not retry MCP business errors with remote diagnostics', async () => {
+    let attempts = 0;
+    const buildError = Object.assign(
+      new Error('MCP error -32603: build connection timeout while compiling Lua'),
+      {
+        name: 'McpError',
+        code: -32603,
+        data: {
+          remote_result: {
+            error: 'Lua compiler reported a syntax error',
+          },
+        },
+      }
+    );
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          attempts += 1;
+          throw buildError;
+        },
+        {
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(buildError);
+
+    expect(attempts).toBe(1);
+  });
+
+  test('retries explicit proxy unavailable MCP errors', async () => {
+    let attempts = 0;
+    const unavailableError = Object.assign(
+      new Error(
+        'MCP error -32603: TapTap MCP Server is currently unavailable. The proxy will attempt to reconnect automatically.'
+      ),
+      { name: 'McpError', code: -32603 }
+    );
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          attempts += 1;
+          throw unavailableError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(unavailableError);
+
+    expect(attempts).toBe(2);
+  });
+
+  test('retries transient HTTP 5xx errors but not HTTP 4xx errors', async () => {
+    let serverAttempts = 0;
+    const serverError = Object.assign(new Error('HTTP request failed'), { code: 503 });
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          serverAttempts += 1;
+          throw serverError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(serverError);
+    expect(serverAttempts).toBe(2);
+
+    let clientAttempts = 0;
+    const clientError = Object.assign(new Error('HTTP request failed'), { code: 400 });
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          clientAttempts += 1;
+          throw clientError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(clientError);
+    expect(clientAttempts).toBe(1);
+  });
+
+  test('does not retry HTTP 408 or 429 errors matched by transport keywords', async () => {
+    const requestTimeoutError = Object.assign(new Error('HTTP 408: Request Timeout'), {
+      code: 408,
+    });
+    let requestTimeoutAttempts = 0;
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          requestTimeoutAttempts += 1;
+          throw requestTimeoutError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(requestTimeoutError);
+    expect(requestTimeoutAttempts).toBe(1);
+
+    const rateLimitError = new Error('HTTP 429: Too Many Requests');
+    let rateLimitAttempts = 0;
+
+    await expect(
+      retryMakerProxyOperation(
+        async () => {
+          rateLimitAttempts += 1;
+          throw rateLimitError;
+        },
+        {
+          attempts: 2,
+          delayMs: 0,
+          sleep: async () => {},
+        }
+      )
+    ).rejects.toBe(rateLimitError);
+    expect(rateLimitAttempts).toBe(1);
   });
 
   test('downloads generated image proxy result into Maker image assets', async () => {
@@ -1734,295 +2801,292 @@ describe('maker build local-change guard', () => {
     }
   });
 
-  test('rewrites 3d model confirmation image paths to cdn urls', async () => {
+  test('rewrites create_3d_asset nested local image inputs without changing lifecycle fields', async () => {
     await materializeRemoteProxyToolAssets({
       toolName: 'generate_image',
       targetDir: tempDir,
-      now: new Date('2026-06-02T08:09:21Z'),
+      now: new Date('2026-07-16T08:09:20Z'),
       fetchImpl: fakeAssetFetch('front-image'),
       result: proxyTextResult({
         success: true,
-        name: 'model_front',
-        previewUrl: 'https://example.test/model-front.png',
+        name: 'hero_front',
+        previewUrl: 'https://example.test/hero-front.png',
       }),
     });
-    await materializeRemoteProxyToolAssets({
-      toolName: 'generate_image',
-      targetDir: tempDir,
-      now: new Date('2026-06-02T08:09:22Z'),
-      fetchImpl: fakeAssetFetch('right-image'),
-      result: proxyTextResult({
-        success: true,
-        name: 'model_right',
-        previewUrl: 'https://example.test/model-right.png',
-      }),
-    });
+    fs.mkdirSync(path.join(tempDir, 'assets/image'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'assets/image/hero-left.png'), 'left-image', 'utf8');
 
     const args = prepareRemoteProxyToolArgs({
-      toolName: 'create_3d_model_task',
+      toolName: 'create_3d_asset',
       targetDir: tempDir,
       args: {
-        mode: 'text_to_model',
-        image: 'model_front',
-        confirmed_image_paths: {
-          front: 'model_front',
-          left: 'https://example.test/model-left.png',
-          back: 'assets/image/server-existing-back.png',
-          right: path.join(tempDir, 'assets/image/model_right_20260602080922.png'),
+        action: 'start',
+        asset_id: 'asset-preserved',
+        payload: {
+          generation_strategy: 'reviewed',
+          quality_tier: 'balanced',
+          images: {
+            front: 'hero_front',
+            left: 'assets/image/hero-left.png',
+            back: 'https://example.test/hero-back.png',
+            right: 'data:image/png;base64,cmlnaHQ=',
+          },
         },
       },
     });
 
-    expect(args.image).toBe('https://example.test/model-front.png');
-    expect(args.confirmed_image_paths).toEqual({
-      front: 'https://example.test/model-front.png',
-      left: 'https://example.test/model-left.png',
-      back: 'assets/image/server-existing-back.png',
-      right: 'https://example.test/model-right.png',
-    });
-  });
-
-  test('rewrites multiview 3d model image inputs to cdn urls', async () => {
-    await materializeRemoteProxyToolAssets({
-      toolName: 'generate_image',
-      targetDir: tempDir,
-      now: new Date('2026-06-02T08:09:23Z'),
-      fetchImpl: fakeAssetFetch('front-image'),
-      result: proxyTextResult({
-        success: true,
-        name: 'multiview_front',
-        previewUrl: 'https://example.test/multiview-front.png',
-      }),
-    });
-    await materializeRemoteProxyToolAssets({
-      toolName: 'generate_image',
-      targetDir: tempDir,
-      now: new Date('2026-06-02T08:09:24Z'),
-      fetchImpl: fakeAssetFetch('back-image'),
-      result: proxyTextResult({
-        success: true,
-        name: 'multiview_back',
-        previewUrl: 'https://example.test/multiview-back.png',
-      }),
-    });
-
-    const args = prepareRemoteProxyToolArgs({
-      toolName: 'create_3d_model_task',
-      targetDir: tempDir,
-      args: {
-        mode: 'multiview_to_model',
-        front_image: 'multiview_front',
-        left_image: 'https://example.test/multiview-left.png',
-        back_image: 'assets/image/multiview_back_20260602080924.png',
-        right_image: 'assets/image/manual-right.png',
+    expect(args.action).toBe('start');
+    expect(args.asset_id).toBe('asset-preserved');
+    expect(args.payload).toEqual({
+      generation_strategy: 'reviewed',
+      quality_tier: 'balanced',
+      images: {
+        front: 'https://example.test/hero-front.png',
+        left: dataUrl('image/png', 'left-image'),
+        back: 'https://example.test/hero-back.png',
+        right: 'data:image/png;base64,cmlnaHQ=',
       },
     });
-
-    expect(args.front_image).toBe('https://example.test/multiview-front.png');
-    expect(args.left_image).toBe('https://example.test/multiview-left.png');
-    expect(args.back_image).toBe('https://example.test/multiview-back.png');
-    expect(args.right_image).toBe('assets/image/manual-right.png');
   });
 
-  test('downloads 3d model phase one preview images into Maker image assets', async () => {
+  test('preserves unknown create_3d_asset review fields in structured content', async () => {
+    const payload = {
+      asset_id: 'asset-review-1',
+      status: 'awaiting_review',
+      current_step: 'four_view_review',
+      review_contract_from_server: {
+        tiles: [
+          { view: 'front', cdn_url: 'https://example.test/front.png' },
+          { view: 'back', cdn_url: 'https://example.test/back.png' },
+        ],
+        server_revision: 7,
+      },
+    };
+
     const result = await materializeRemoteProxyToolAssets({
-      toolName: 'create_3d_model_task',
+      toolName: 'create_3d_asset',
       targetDir: tempDir,
-      now: new Date('2026-06-11T08:09:10Z'),
-      fetchImpl: fakeAssetFetch('preview-image'),
+      result: proxyTextResult(payload),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    expect(JSON.parse(text)).toEqual(payload);
+    expect((result as { structuredContent?: unknown }).structuredContent).toEqual(payload);
+  });
+
+  test('materializes create_3d_asset copy instructions into the requested local path', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      now: new Date('2026-07-16T08:09:21Z'),
+      fetchImpl: fakeAssetFetch('new-model-bytes'),
       result: proxyTextResult({
-        phase: 1,
-        mode: 'text_to_model',
-        task_id: 'model-task-1',
-        preview_urls: {
-          front: 'https://example.test/model-front.png',
-          left: 'https://example.test/model-left.png',
-          back: 'https://example.test/model-back.png',
-          right: 'https://example.test/model-right.png',
+        asset_id: 'asset-final-1',
+        status: 'completed',
+        runtime: 'local',
+        model_files: [
+          {
+            kind: 'model',
+            assetId: 'asset-final-1',
+            modelUrl: 'https://cdn.example.test/final-model.glb',
+            mimeType: 'model/gltf-binary',
+            format: 'glb',
+            suggestedFileName: 'asset-final-1.glb',
+            targetDirectory: 'assets/model',
+            materialization: 'copy',
+          },
+        ],
+        delivery_failures: [],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    expect(parsed.model_files).toHaveLength(1);
+    expect(parsed.local_delivery).toMatchObject({
+      status: 'success',
+      asset_id: 'asset-final-1',
+      model: {
+        remote_url: 'https://cdn.example.test/final-model.glb',
+        local_path: 'assets/model/asset-final-1.glb',
+        format: 'glb',
+        materialization: 'copy',
+      },
+    });
+    expect(
+      fs.readFileSync(path.join(tempDir, parsed.local_delivery.model.local_path), 'utf8')
+    ).toBe('new-model-bytes');
+  });
+
+  test('rejects create_3d_asset copy targets outside assets/model', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      fetchImpl: fakeAssetFetch('malicious-script'),
+      result: proxyTextResult({
+        asset_id: 'asset-escape-copy',
+        status: 'completed',
+        runtime: 'local',
+        model_files: [
+          {
+            kind: 'model',
+            assetId: 'asset-escape-copy',
+            modelUrl: 'https://cdn.example.test/model.glb',
+            format: 'glb',
+            suggestedFileName: 'main.lua',
+            targetDirectory: 'assets/model/../../scripts',
+            materialization: 'copy',
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    expect(parsed.local_delivery.status).toBe('failed');
+    expect(parsed.local_delivery.model.download.error).toMatch(/invalid.*target path/i);
+    expect(fs.readFileSync(path.join(tempDir, 'scripts/main.lua'), 'utf8')).toBe('-- initial\n');
+  });
+
+  test('rejects create_3d_asset extract targets outside assets/model', async () => {
+    const modelZip = await createZipBuffer({ 'Meshes/main.mdl': 'mdl-bytes' });
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      fetchImpl: (async () => new Response(modelZip, { status: 200 })) as typeof fetch,
+      result: proxyTextResult({
+        asset_id: 'asset-escape-extract',
+        status: 'completed',
+        runtime: 'local',
+        model_files: [
+          {
+            kind: 'model',
+            assetId: 'asset-escape-extract',
+            modelUrl: 'https://cdn.example.test/model.zip',
+            format: 'mdl',
+            suggestedFileName: 'model.zip',
+            targetDirectory: 'assets/model/../../config',
+            materialization: 'extract',
+            entrypointExtension: '.mdl',
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    expect(parsed.local_delivery.status).toBe('failed');
+    expect(parsed.local_delivery.model.download.error).toMatch(/invalid.*target path/i);
+    expect(fs.existsSync(path.join(tempDir, 'config/Meshes/main.mdl'))).toBe(false);
+  });
+
+  test('extracts create_3d_asset MDL bundles and reuses the local entrypoint', async () => {
+    const modelZip = await createZipBuffer({
+      'Meshes/main.mdl': 'mdl-bytes',
+      'Materials/main.xml': '<material />',
+    });
+    let downloadCount = 0;
+    const fetchImpl = (async () => {
+      downloadCount += 1;
+      return new Response(modelZip, { status: 200 });
+    }) as typeof fetch;
+    const remoteResult = proxyTextResult({
+      asset_id: 'asset-stable-1',
+      status: 'completed',
+      runtime: 'local',
+      model_files: [
+        {
+          kind: 'model',
+          assetId: 'asset-stable-1',
+          modelUrl: 'https://cdn.example.test/stable-model.zip',
+          mimeType: 'application/zip',
+          format: 'mdl',
+          archiveFormat: 'zip',
+          suggestedFileName: 'asset-stable-1.zip',
+          targetDirectory: 'assets/model/asset-stable-1',
+          materialization: 'extract',
+          entrypointExtension: '.mdl',
+        },
+      ],
+      delivery_failures: [],
+    });
+
+    const first = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      now: new Date('2026-07-16T08:09:22Z'),
+      fetchImpl,
+      result: remoteResult,
+    });
+    const second = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      now: new Date('2026-07-16T08:10:22Z'),
+      fetchImpl,
+      result: remoteResult,
+    });
+
+    const firstParsed = JSON.parse(first.content[0]?.type === 'text' ? first.content[0].text : '');
+    const secondParsed = JSON.parse(
+      second.content[0]?.type === 'text' ? second.content[0].text : ''
+    );
+    expect(downloadCount).toBe(1);
+    expect(firstParsed.local_delivery.model.local_path).toBe(
+      'assets/model/asset-stable-1/Meshes/main.mdl'
+    );
+    expect(secondParsed.local_delivery.model.local_path).toBe(
+      'assets/model/asset-stable-1/Meshes/main.mdl'
+    );
+    expect(secondParsed.local_delivery.model.reused).toBe(true);
+    expect(secondParsed.local_delivery.model.format).toBe('mdl');
+    expect(
+      fs.readFileSync(path.join(tempDir, 'assets/model/asset-stable-1/Meshes/main.mdl'), 'utf8')
+    ).toBe('mdl-bytes');
+  });
+
+  test('downloads create_3d_asset review previews for local user confirmation', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'create_3d_asset',
+      targetDir: tempDir,
+      now: new Date('2026-07-16T08:09:23Z'),
+      fetchImpl: fakeAssetFetch('preview-bytes'),
+      result: proxyTextResult({
+        asset_id: 'asset-review-2',
+        status: 'waiting_user_confirmation',
+        current_step: 'multiview_review',
+        preview: {
+          front: 'https://cdn.example.test/front.png',
+          left: 'https://cdn.example.test/left.png',
+          back: 'https://cdn.example.test/back.png',
+          right: 'https://cdn.example.test/right.png',
+        },
+        next_action: {
+          action: 'continue',
+          step_id: 'multiview_review',
+          payload: { confirm: true },
         },
       }),
     });
 
     const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
     const parsed = JSON.parse(text);
-    expect(parsed.workflow_state).toBe('awaiting_user_review');
-    expect(parsed.user_review_required).toBe(true);
-    expect(parsed.next_action).toContain('Show the four-view previews');
-    expect(parsed.approval_next_step).toContain('If the user approves');
-    expect(parsed.revision_next_step).toContain('If the user requests changes');
-    expect(parsed.agent_instruction).toContain('Do not stop after phase 1');
+    expect(parsed.next_action).toEqual({
+      action: 'continue',
+      step_id: 'multiview_review',
+      payload: { confirm: true },
+    });
     expect(parsed.preview_assets.front.localPath).toBe(
-      'assets/image/model-task-1_front_20260611080910.png'
-    );
-    expect(parsed.preview_assets.left.localPath).toBe(
-      'assets/image/model-task-1_left_20260611080910.png'
-    );
-    expect(parsed.preview_assets.back.localPath).toBe(
-      'assets/image/model-task-1_back_20260611080910.png'
+      'assets/image/asset-review-2_front_20260716080923.png'
     );
     expect(parsed.preview_assets.right.localPath).toBe(
-      'assets/image/model-task-1_right_20260611080910.png'
+      'assets/image/asset-review-2_right_20260716080923.png'
     );
     expect(
       fs.readFileSync(
-        path.join(tempDir, 'assets/image/model-task-1_front_20260611080910.png'),
+        path.join(tempDir, 'assets/image/asset-review-2_front_20260716080923.png'),
         'utf8'
       )
-    ).toBe('preview-image');
-    const registry = JSON.parse(
-      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
-    );
-    expect(registry['assets/image/model-task-1_front_20260611080910.png'].tool).toBe(
-      'create_3d_model_task'
-    );
-    expect(registry['assets/image/model-task-1_front_20260611080910.png'].phase).toBe(1);
-    expect(registry['assets/image/model-task-1_front_20260611080910.png'].view).toBe('front');
-    expect(registry['assets/image/model-task-1_front_20260611080910.png'].taskId).toBe(
-      'model-task-1'
-    );
-  });
-
-  test('downloads successful 3d model results into Maker model and image assets', async () => {
-    const modelZip = await createZipBuffer({
-      'Meshes/MyModel.mdl': 'mdl-bytes',
-      'Materials/MyModel_00_Lambert.xml': '<material />',
-      'Textures/MyModel_00_D.xml': '<texture />',
-      'Textures/MyModel_00_D.png': 'texture-bytes',
-      'Prefabs/MyModel.prefab': '<prefab />',
-    });
-    const result = await materializeRemoteProxyToolAssets({
-      toolName: 'query_3d_model_task',
-      targetDir: tempDir,
-      now: new Date('2026-06-11T08:09:11Z'),
-      fetchImpl: fake3dModelResultFetch(modelZip, 'model-bytes', 'render-image'),
-      result: proxyTextResult({
-        task_id: 'model-task-2',
-        status: 'success',
-        model_cdn_url: 'https://cdn.tripo3d.ai/model.glb',
-        rendered_image_url: 'https://cdn.tripo3d.ai/preview.png',
-        mdl_cdn_url: 'https://oss-cdn.example.test/model.zip',
-      }),
-    });
-
-    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
-    const parsed = JSON.parse(text);
-    expect((result as { structuredContent?: unknown }).structuredContent).toMatchObject({
-      task_id: 'model-task-2',
-      mdlLocalPath: 'assets/model/model-task-2_20260611080911.zip',
-      modelLocalPath: 'assets/model/model-task-2_20260611080911.glb',
-      renderedImageLocalPath: 'assets/image/model-task-2_render_20260611080911.png',
-    });
-    expect(parsed.mdlLocalPath).toBe('assets/model/model-task-2_20260611080911.zip');
-    expect(parsed.modelLocalPath).toBe('assets/model/model-task-2_20260611080911.glb');
-    expect(parsed.renderedImageLocalPath).toBe(
-      'assets/image/model-task-2_render_20260611080911.png'
-    );
-    expect(fs.existsSync(path.join(tempDir, 'assets/model/model-task-2_20260611080911.zip'))).toBe(
-      true
-    );
-    expect(
-      fs.readFileSync(
-        path.join(tempDir, 'assets/image/model-task-2_render_20260611080911.png'),
-        'utf8'
-      )
-    ).toBe('render-image');
-    expect(fs.readFileSync(path.join(tempDir, 'assets/Meshes/MyModel.mdl'), 'utf8')).toBe(
-      'mdl-bytes'
-    );
-    expect(
-      fs.readFileSync(path.join(tempDir, 'assets/Materials/MyModel_00_Lambert.xml'), 'utf8')
-    ).toBe('<material />');
-    expect(fs.readFileSync(path.join(tempDir, 'assets/Textures/MyModel_00_D.xml'), 'utf8')).toBe(
-      '<texture />'
-    );
-    expect(fs.readFileSync(path.join(tempDir, 'assets/Textures/MyModel_00_D.png'), 'utf8')).toBe(
-      'texture-bytes'
-    );
-    expect(fs.readFileSync(path.join(tempDir, 'assets/Prefabs/MyModel.prefab'), 'utf8')).toBe(
-      '<prefab />'
-    );
-    expect(
-      fs.readFileSync(path.join(tempDir, 'assets/model/model-task-2_20260611080911.glb'), 'utf8')
-    ).toBe('model-bytes');
-    const registry = JSON.parse(
-      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
-    );
-    expect(registry['assets/model/model-task-2_20260611080911.zip'].cdnUrl).toBe(
-      'https://oss-cdn.example.test/model.zip'
-    );
-    expect(registry['assets/model/model-task-2_20260611080911.zip'].assetKind).toBe('mdl_zip');
-    expect(registry['assets/model/model-task-2_20260611080911.zip'].modelCdnUrl).toBe(
-      'https://cdn.tripo3d.ai/model.glb'
-    );
-    expect(registry['assets/model/model-task-2_20260611080911.glb'].cdnUrl).toBe(
-      'https://cdn.tripo3d.ai/model.glb'
-    );
-    expect(registry['assets/model/model-task-2_20260611080911.glb'].assetKind).toBe('model');
-    expect(registry['assets/image/model-task-2_render_20260611080911.png'].renderedImageUrl).toBe(
-      'https://cdn.tripo3d.ai/preview.png'
-    );
-    expect(registry['assets/image/model-task-2_render_20260611080911.png'].assetKind).toBe(
-      'render'
-    );
-  });
-
-  test('preserves 3d model conversion errors when mdl download is unavailable', async () => {
-    const result = await materializeRemoteProxyToolAssets({
-      toolName: 'query_3d_model_task',
-      targetDir: tempDir,
-      now: new Date('2026-06-11T08:09:12Z'),
-      fetchImpl: fakeAssetFetch('model-bytes'),
-      result: proxyTextResult({
-        task_id: 'model-task-3',
-        status: 'success',
-        model_cdn_url: 'https://cdn.tripo3d.ai/model.glb',
-        mdl_conversion_error: 'UrhoXCLI failed',
-      }),
-    });
-
-    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
-    const parsed = JSON.parse(text);
-    expect(parsed.status).toBe('success');
-    expect(parsed.mdl_conversion_error).toBe('UrhoXCLI failed');
-    expect(parsed.mdlLocalPath).toBeUndefined();
-  });
-
-  test('continues 3d final materialization when mdl zip extraction fails', async () => {
-    const result = await materializeRemoteProxyToolAssets({
-      toolName: 'query_3d_model_task',
-      targetDir: tempDir,
-      now: new Date('2026-06-11T08:09:13Z'),
-      fetchImpl: fake3dModelResultFetch(Buffer.from('not-a-zip'), 'model-bytes', 'render-image'),
-      result: proxyTextResult({
-        task_id: 'model-task-4',
-        status: 'success',
-        model_cdn_url: 'https://cdn.tripo3d.ai/model.glb',
-        rendered_image_url: 'https://cdn.tripo3d.ai/preview.png',
-        mdl_cdn_url: 'https://oss-cdn.example.test/broken-model.zip',
-      }),
-    });
-
-    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
-    const parsed = JSON.parse(text);
-    expect(parsed.mdlLocalPath).toBe('assets/model/model-task-4_20260611080913.zip');
-    expect(parsed.mdlExtracted).toBe(false);
-    expect(parsed.mdlExtractError).toContain('3D model asset extraction failed');
-    expect(parsed.renderedImageLocalPath).toBe(
-      'assets/image/model-task-4_render_20260611080913.png'
-    );
-    expect(
-      fs.readFileSync(
-        path.join(tempDir, 'assets/image/model-task-4_render_20260611080913.png'),
-        'utf8'
-      )
-    ).toBe('render-image');
-    const registry = JSON.parse(
-      fs.readFileSync(path.join(tempDir, '.maker/assets/generated-assets.json'), 'utf8')
-    );
-    expect(registry['assets/model/model-task-4_20260611080913.zip'].assetKind).toBe('mdl_zip');
-    expect(registry['assets/image/model-task-4_render_20260611080913.png'].assetKind).toBe(
-      'render'
-    );
+    ).toBe('preview-bytes');
   });
 
   test('overrides sdk default timeout for remote proxy generation tool calls', () => {
@@ -2172,6 +3236,34 @@ describe('maker build local-change guard', () => {
     );
   });
 
+  test('downloads maker feedback artifacts when feedback id is zero', async () => {
+    const result = await materializeRemoteProxyToolAssets({
+      toolName: 'get_debug_feedbacks',
+      targetDir: tempDir,
+      fetchImpl: (async () => new Response('zero id runtime log')) as typeof fetch,
+      result: proxyTextResult({
+        success: true,
+        feedbacks: [
+          {
+            feedback_id: 0,
+            log_file_urls: ['https://cdn.example.com/runtime.log'],
+          },
+        ],
+      }),
+    });
+
+    const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+    const parsed = JSON.parse(text);
+    const feedback = parsed.feedbacks[0];
+
+    expect(feedback.local_dir).toBe(path.join(tempDir, 'logs', 'feed_back', 'feedback_0'));
+    expect(feedback.local_log_paths).toEqual([
+      path.join(tempDir, 'logs', 'feed_back', 'feedback_0', 'logs', 'runtime.log'),
+    ]);
+    expect(feedback.artifacts_downloaded).toBe(1);
+    expect(fs.readFileSync(feedback.local_log_paths[0], 'utf8')).toBe('zero id runtime log');
+  });
+
   test('uses windows-safe names for maker feedback artifact files', async () => {
     const result = await materializeRemoteProxyToolAssets({
       toolName: 'get_debug_feedbacks',
@@ -2218,9 +3310,224 @@ describe('maker build local-change guard', () => {
     ).rejects.toThrow(/remote_result:[\s\S]*upstream video generation failed/);
   });
 
+  test('redacts credentials from remote proxy error diagnostics while preserving useful evidence', async () => {
+    let thrown: unknown;
+    try {
+      await materializeRemoteProxyToolAssets({
+        toolName: 'create_video_task',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: 'upstream video generation failed',
+                token: 'text-secret-token',
+                nested: {
+                  Authorization: 'Bearer text-secret-authorization',
+                  Cookie: 'session=text-secret-cookie',
+                  client_secret: 'text-client-secret',
+                },
+              }),
+            },
+          ],
+          structuredContent: {
+            request_id: 'request-123',
+            access_token: 'structured-secret-token',
+          },
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    const output = formatToolException('create_video_task', thrown);
+
+    expect(output).toContain('upstream video generation failed');
+    expect(output).toContain('request-123');
+    expect(output).toContain('<redacted>');
+    expect(output).toContain('完整、已脱敏的 remote_result');
+    for (const secret of [
+      'text-secret-token',
+      'text-secret-authorization',
+      'text-secret-cookie',
+      'text-client-secret',
+      'structured-secret-token',
+    ]) {
+      expect(output).not.toContain(secret);
+    }
+  });
+
+  test('redacts bearer credentials embedded in remote error messages', async () => {
+    let thrown: unknown;
+    try {
+      await materializeRemoteProxyToolAssets({
+        toolName: 'create_video_task',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                message: 'upstream rejected request: Bearer REAL_REMOTE_TOKEN',
+              }),
+            },
+          ],
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    const output = formatToolException('create_video_task', thrown);
+
+    expect(output).toContain('Bearer <redacted>');
+    expect(output).not.toContain('REAL_REMOTE_TOKEN');
+  });
+
+  test('redacts credentials from generic exposed proxy error messages and stacks', () => {
+    const error = Object.assign(new Error('Authorization: Bearer EXPOSED_TOOL_TOKEN'), {
+      stack: 'Error: Cookie: session=EXPOSED_TOOL_COOKIE',
+    });
+
+    const output = formatToolException('create_video_task', error);
+
+    expect(output).not.toContain('EXPOSED_TOOL_TOKEN');
+    expect(output).not.toContain('EXPOSED_TOOL_COOKIE');
+  });
+
+  test('preserves ordinary Bearer error descriptions', () => {
+    const output = formatToolException(
+      'create_video_task',
+      new Error('Bearer authentication is unsupported by this endpoint')
+    );
+
+    expect(output).toContain('Bearer authentication is unsupported by this endpoint');
+    expect(output).not.toContain('Bearer <redacted>');
+  });
+
+  test('redacts bearer credentials before common closing delimiters', () => {
+    for (const suffix of [')', ']', '}', '"']) {
+      const output = formatToolException(
+        'create_video_task',
+        new Error(`upstream response: (Bearer DELIMITED_SECRET_TOKEN${suffix}`)
+      );
+
+      expect(output).not.toContain('DELIMITED_SECRET_TOKEN');
+    }
+  });
+
+  test('redacts credentials nested under non-sensitive MCP error data keys', () => {
+    const error = Object.assign(new Error('MCP error -32003: remote request failed'), {
+      name: 'McpError',
+      code: -32003,
+      data: {
+        message: 'Authorization: Bearer ERROR_DATA_TOKEN',
+        remote_result: {
+          detail: 'Bearer REMOTE_DETAIL_TOKEN',
+          request_id: 'request-456',
+        },
+      },
+    });
+
+    const output = formatToolException('create_video_task', error);
+
+    expect(output).toContain('request-456');
+    expect(output).not.toContain('ERROR_DATA_TOKEN');
+    expect(output).not.toContain('REMOTE_DETAIL_TOKEN');
+  });
+
+  test('formats nested remote MCP errors with a concise user-facing message', () => {
+    const error = Object.assign(
+      new Error(
+        "MCP error -32603: MCP error -32603: MCP error -32603: Tool 'create_3d_asset' failed: unsupported MDL source format"
+      ),
+      {
+        name: 'McpError',
+        code: -32603,
+        data: { operation: 'convert' },
+      }
+    );
+
+    const output = formatToolException('create_3d_asset', error);
+
+    expect(output).toContain('- reason: remote_proxy_tool_call_error');
+    expect(output).toContain(
+      "- message: Tool 'create_3d_asset' failed: unsupported MDL source format"
+    );
+    expect(output).not.toContain('- message: MCP error -32603');
+    expect(output).toContain('debug:');
+    expect(output).toContain('MCP error -32603: MCP error -32603: MCP error -32603:');
+    expect(output).toContain('"operation": "convert"');
+  });
+
+  test('flattens nested MCP prefixes inside remote proxy isError results', async () => {
+    let thrown: unknown;
+    try {
+      await materializeRemoteProxyToolAssets({
+        toolName: 'create_3d_asset',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: "MCP error -32603: MCP error -32603: MCP error -32603: Tool 'create_3d_asset' failed: unsupported MDL source format",
+            },
+          ],
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    const output = formatToolException('create_3d_asset', thrown);
+
+    expect(output).toContain('- reason: remote_proxy_tool_result_error');
+    expect(output).toContain(
+      "- message: Tool 'create_3d_asset' failed: unsupported MDL source format"
+    );
+    expect(output).not.toContain('MCP error -32603: MCP error -32603:');
+    expect(output).toContain("Tool 'create_3d_asset' failed: unsupported MDL source format");
+  });
+
+  test('uses the proxy error summary when structured error content has no message field', async () => {
+    let thrown: unknown;
+    try {
+      await materializeRemoteProxyToolAssets({
+        toolName: 'create_3d_asset',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ status: 'failed', code: 400 }, null, 2),
+            },
+          ],
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    const output = formatToolException('create_3d_asset', thrown);
+
+    expect(output).toContain(
+      '- message: Remote proxy tool create_3d_asset returned an error result.'
+    );
+    expect(output).not.toContain('- message: {');
+  });
+
   test('sensitive diagnostic keys do not redact path fields', () => {
     expect(isSensitiveDiagnosticKey('pat')).toBe(true);
     expect(isSensitiveDiagnosticKey('personal_access_token')).toBe(true);
+    expect(isSensitiveDiagnosticKey('token_count')).toBe(false);
+    expect(isSensitiveDiagnosticKey('token_type')).toBe(false);
+    expect(isSensitiveDiagnosticKey('secret_algorithm')).toBe(false);
+    expect(isSensitiveDiagnosticKey('client_secret')).toBe(true);
     expect(isSensitiveDiagnosticKey('path')).toBe(false);
     expect(isSensitiveDiagnosticKey('localPath')).toBe(false);
     expect(isSensitiveDiagnosticKey('absolutePath')).toBe(false);
@@ -2233,6 +3540,131 @@ describe('maker build local-change guard', () => {
     expect(statusTool?.inputSchema.properties).toHaveProperty('skip_remote_sync');
     expect(statusTool?.inputSchema.properties.skip_remote_sync.description).toContain(
       'frequent polling'
+    );
+    expect(statusTool?.inputSchema.properties).toHaveProperty('detail');
+    expect(statusTool?.inputSchema.properties.detail.description).toContain('diagnostic');
+  });
+
+  test('status summary is concise while detail mode retains diagnostic sections', async () => {
+    const summary = await formatStatus({ targetDir: tempDir });
+    const detail = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
+
+    expect(summary).toContain('TapTap Maker MCP status');
+    expect(summary).toContain('Status summary');
+    expect(summary).toContain('Maker MCP package update');
+    expect(summary).not.toContain('Maker remote sync');
+    expect(summary).not.toContain('AI dev kit');
+    expect(summary).toContain('maker_build_current_directory');
+    expect(detail).toContain('Maker remote sync');
+    expect(detail).toContain('AI dev kit');
+  });
+
+  test('status summary guides PAT-only projects to refresh Tap auth', async () => {
+    savePat({ token: 'maker-pat' });
+
+    const output = await formatStatus({ targetDir: tempDir });
+
+    expect(output).toContain('- tap_auth: missing');
+    expect(output).toContain('- pat: found');
+    expect(output).toContain('taptap-maker login');
+  });
+
+  test('status summary exposes ambiguous MCP roots before using the cwd fallback', async () => {
+    const firstRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-status-root-'));
+    const secondRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-status-root-'));
+    const originalCwd = process.cwd();
+
+    try {
+      process.chdir(firstRoot);
+      const output = await formatStatus({
+        listClientRoots: async () => [
+          { name: 'first', uri: pathToFileURL(firstRoot).toString() },
+          { name: 'second', uri: pathToFileURL(secondRoot).toString() },
+        ],
+      });
+
+      expect(output).toContain('MCP client roots');
+      expect(output).toContain('- status: ambiguous');
+      expect(output).toContain('Open a single Maker workspace');
+      expect(output).not.toContain('请继续在当前绑定项目上执行状态、提交、构建等操作');
+      expect(output).not.toContain('taptap-maker init');
+      expect(output).not.toContain('maker_build_current_directory');
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(firstRoot, { recursive: true, force: true });
+      fs.rmSync(secondRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('status summary gives a recovery action for a broken project configuration', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, '.project', 'project.json'),
+      JSON.stringify({ app_id: 'app-1', developer_id: 'developer-1' }),
+      'utf8'
+    );
+    fs.writeFileSync(path.join(tempDir, '.project', 'settings.json'), '{ bad json', 'utf8');
+
+    const output = await formatStatus({ targetDir: tempDir });
+
+    expect(output).toContain('- project_health: error');
+    expect(output).toContain('恢复 .project/settings.json');
+  });
+
+  test('status summary gives a recovery action when the project Git directory is missing', async () => {
+    const untrackedProject = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-status-no-git-'));
+    saveProjectConfig(untrackedProject, {
+      project_id: 'app-no-git',
+      user_id: 'user-1',
+    });
+
+    try {
+      const output = await formatStatus({ targetDir: untrackedProject });
+
+      expect(output).toContain('- git: missing_git_repo');
+      expect(output).toContain('taptap-maker init');
+    } finally {
+      fs.rmSync(untrackedProject, { recursive: true, force: true });
+    }
+  });
+
+  test('status summary prioritizes Git installation when the Git executable is unavailable', async () => {
+    const originalGitBin = process.env.TAPTAP_MAKER_GIT_BIN;
+    process.env.TAPTAP_MAKER_GIT_BIN = path.join(tempDir, 'missing-git');
+
+    try {
+      const output = await formatStatus({ targetDir: tempDir });
+
+      expect(output).toContain('Git 未安装');
+      expect(output).toContain('git --version');
+      expect(output).not.toContain('taptap-maker init` 重新初始化');
+    } finally {
+      if (originalGitBin === undefined) {
+        delete process.env.TAPTAP_MAKER_GIT_BIN;
+      } else {
+        process.env.TAPTAP_MAKER_GIT_BIN = originalGitBin;
+      }
+    }
+  });
+
+  test('status summary prioritizes misplaced configuration over missing project json', async () => {
+    fs.writeFileSync(
+      path.join(tempDir, 'settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {},
+        build: {},
+      }),
+      'utf8'
+    );
+
+    const output = await formatStatus({ targetDir: tempDir });
+
+    expect(output).toContain('- project_initialization: missing_project_json');
+    expect(output).toContain('- project_health: misplaced_config');
+    expect(output).toContain('修复 Maker 项目结构或配置问题后再构建');
+    expect(output).not.toContain(
+      '仅当用户明确要求构建、提交或预览时调用 `maker_build_current_directory`'
     );
   });
 
@@ -2256,6 +3688,32 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('get_ad_config');
     expect(output).toContain('maker_build_current_directory');
     expect(output).toContain('.project/project.json');
+    expect(output).toContain('用户明确要求');
+    expect(output).toContain('不要自动重复构建');
+    expect(output).not.toContain('生成 .project/project.json');
+  });
+
+  test('project initialization does not treat an empty .project directory as a deleted config', () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+
+    const status = inspectMakerProjectInitialization(tempDir);
+    const output = formatMakerProjectInitializationStatus(status);
+
+    expect(status.status).toBe('missing_project_json');
+    expect(output).toContain('用户明确要求');
+    expect(output).toContain('不要自动重复构建');
+    expect(output).not.toContain('从 Git 或完整副本恢复');
+  });
+
+  test('project initialization does not treat a dangling .project symlink as uninitialized', () => {
+    fs.symlinkSync(path.join(tempDir, 'missing-project-dir'), path.join(tempDir, '.project'));
+
+    const status = inspectMakerProjectInitialization(tempDir);
+    const output = formatMakerProjectInitializationStatus(status);
+
+    expect(status.status).toBe('missing_project_json');
+    expect(output).toContain('.project 路径异常');
+    expect(output).not.toContain('先调用 maker_build_current_directory 构建一次');
   });
 
   test('project initialization status guides test QR code when TapTap identity is missing', () => {
@@ -2397,37 +3855,27 @@ describe('maker build local-change guard', () => {
 
   test('initialization guidance is removed from MCP tools', () => {
     const statusTool = tools.find((item) => item.name === 'maker_status_lite');
-    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
-    expect(statusTool?.description).toContain('bundled workflow guide document paths');
     expect(statusTool?.inputSchema.properties).toHaveProperty('target_dir');
-    expect(statusTool?.description).toContain('AI dev kit status');
-    expect(statusTool?.description).toContain('Python runtime readiness');
-    expect(statusTool?.description).toContain('maker-lua-lsp readiness');
-    expect(statusTool?.description).toContain('Compatibility status surface');
-    expect(statusTool?.description).toContain('Maker Git Workflow Policy');
-    expect(statusTool?.description).toContain('Maker Creative Asset Tool Policy');
-    expect(statusTool?.description).toContain('prefer Maker MCP proxy tools');
+    expect(statusTool?.description).toContain('starting or resuming Maker work');
+    expect(statusTool?.description).toContain('Follow the returned next_action and next_step');
+    expect(statusTool?.description).not.toContain('including Git, Python runtime readiness');
+    expect(statusTool?.description).not.toContain('Standard init/clone/download flow');
     expect(statusTool?.description).not.toContain('If PAT is missing');
     expect(statusTool?.description).not.toContain('ask them to open');
     expect(statusTool?.description).not.toContain('让用户选择');
-    expect(buildTool?.description).not.toContain('app list');
-    expect(buildTool?.description).not.toContain('clone');
-    expect(buildTool?.description).toContain('ignore generic local Git skills');
-    expect(buildTool?.description).toContain('taptap-maker-local > Maker Git Workflow Policy');
-    expect(buildTool?.description).toContain('Python environment section');
-    expect(buildTool?.description).toContain('Lua LSP environment');
-    expect(buildTool?.description).toContain('taptap-maker python setup');
-    expect(buildTool?.description).toContain('best-effort installs maker-lua-lsp');
-    expect(buildTool?.description).toContain('must not block the remote build flow');
   });
 
   test('build tool schema keeps remote build controls synchronous', () => {
     const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
+    expect(buildTool?.inputSchema).toMatchObject({ additionalProperties: false });
     expect(buildTool?.inputSchema.properties).toHaveProperty('message');
     expect(buildTool?.inputSchema.properties).toHaveProperty('files');
     expect(buildTool?.inputSchema.properties).toHaveProperty('confirm_remote_build_without_submit');
+    expect(buildTool?.inputSchema.properties).not.toHaveProperty('env');
+    expect(buildTool?.inputSchema.properties).not.toHaveProperty('server_url');
+    expect(JSON.stringify(buildTool?.inputSchema)).not.toMatch(/\brnd\b|TAPTAP_MCP_ENV/iu);
     expect(buildTool?.inputSchema.properties).not.toHaveProperty('async_build');
     expect(buildTool?.inputSchema.properties).not.toHaveProperty(
       'remember_build_submit_preference'
@@ -2437,14 +3885,42 @@ describe('maker build local-change guard', () => {
     );
   });
 
+  test('build tool schema exposes maker-tools multiplayer fields', () => {
+    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
+    const properties = buildTool?.inputSchema.properties || {};
+    const multiplayer = properties.multiplayer as {
+      properties?: Record<string, { properties?: Record<string, unknown>; enum?: string[] }>;
+    };
+    const multiplayerProperties = multiplayer.properties || {};
+    const matchInfo = multiplayerProperties.match_info;
+    const persistentWorld = multiplayerProperties.persistent_world;
+
+    expect(properties.entry_client.description).toContain('entry@client');
+    expect(properties.entry_client.description).toContain('multiplayer.enabled=true');
+    expect(properties.entry_server.description).toContain('entry@server');
+    expect(properties.entry_server.description).toContain('multiplayer.enabled=true');
+    expect(properties.multiplayer.description).toContain('forwarded only when explicitly provided');
+    expect(properties.multiplayer.description).toContain('First multiplayer build');
+    expect(multiplayerProperties).toHaveProperty('enabled');
+    expect(multiplayerProperties).toHaveProperty('max_players');
+    expect(multiplayerProperties).not.toHaveProperty('mode');
+    expect(multiplayerProperties).toHaveProperty('background_match');
+    expect(multiplayerProperties).toHaveProperty('match_info');
+    expect(multiplayerProperties).toHaveProperty('persistent_world');
+    expect(multiplayerProperties.max_players).toMatchObject({ minimum: 2, maximum: 100 });
+    expect(matchInfo?.properties?.desc_name).toMatchObject({
+      enum: ['free_match', 'free_match_with_ai'],
+    });
+    expect(matchInfo?.properties).toHaveProperty('player_number');
+    expect(matchInfo?.properties).toHaveProperty('immediately_start');
+    expect(matchInfo?.properties).toHaveProperty('match_timeout');
+    expect(persistentWorld?.properties).toHaveProperty('enabled');
+  });
+
   test('runtime log pull is not exposed as a public MCP tool', () => {
     const toolNames = tools.map((item) => item.name);
-    const buildTool = tools.find((item) => item.name === 'maker_build_current_directory');
 
     expect(toolNames).not.toContain('maker_pull_runtime_logs');
-    expect(buildTool?.description).toContain('local runtime log watcher');
-    expect(buildTool?.description).toContain('runtime_logs.local_file');
-    expect(buildTool?.description).toContain('runtime_logs.state_file');
   });
 
   test('public Maker tool schemas do not expose JWT fallback parameters', () => {
@@ -2454,6 +3930,7 @@ describe('maker build local-change guard', () => {
     expect(Object.keys(statusTool?.inputSchema.properties || {})).toEqual([
       'target_dir',
       'skip_remote_sync',
+      'detail',
     ]);
     for (const tool of [statusTool, buildTool]) {
       expect(tool?.inputSchema.properties).not.toHaveProperty('jwt');
@@ -2609,6 +4086,8 @@ describe('maker build local-change guard', () => {
     expect(output).toContain(
       '- maker_url: https://maker.taptap.cn/app/a161a4e5-a226-4133-908f-c28c228b7ea5?localDev=1'
     );
+    expect(output).not.toContain('- server_url:');
+    expect(output).not.toContain('- env:');
     expect(output).toContain('runtime_logs:');
     expect(output).toContain('- watch_started: yes');
     expect(output).toContain('- watch_pid: 12345');
@@ -2902,7 +4381,8 @@ describe('maker build local-change guard', () => {
         },
         buildFailure: {
           name: 'McpError',
-          message: 'MCP error -32603: Remote build failed',
+          message: 'MCP error -32603: Authorization: Bearer BUILD_SECRET_TOKEN',
+          stack: 'Error: Cookie: session=BUILD_SECRET_COOKIE',
           code: -32603,
           data: {
             remote_result: {
@@ -2923,6 +4403,8 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('BUILD FAILED: lua syntax error');
     expect(output).toContain('"token": "<redacted>"');
     expect(output).not.toContain('secret-token');
+    expect(output).not.toContain('BUILD_SECRET_TOKEN');
+    expect(output).not.toContain('BUILD_SECRET_COOKIE');
   });
 
   test('remote build refreshes Maker web preview after a build result is returned', async () => {
@@ -3456,18 +4938,16 @@ describe('maker build local-change guard', () => {
     return `data:${mime};base64,${Buffer.from(body).toString('base64')}`;
   }
 
-  function fake3dModelResultFetch(
-    zipBody: Buffer,
-    modelBody: string,
-    imageBody: string
-  ): typeof fetch {
-    return (async (input: Parameters<typeof fetch>[0]) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      if (url.endsWith('.zip')) {
-        return new Response(zipBody, { status: 200 });
-      }
-      return new Response(url.endsWith('.glb') ? modelBody : imageBody, { status: 200 });
-    }) as typeof fetch;
+  function emptyProgressSummary(): {
+    elapsedMs: number;
+    elapsed: string;
+    progressEvents: number;
+  } {
+    return {
+      elapsedMs: 0,
+      elapsed: '0s',
+      progressEvents: 0,
+    };
   }
 
   async function createZipBuffer(files: Record<string, string>): Promise<Buffer> {

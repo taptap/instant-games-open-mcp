@@ -1,12 +1,15 @@
 const mockServers: Array<{
   handlers: Map<unknown, (...args: any[]) => any>;
+  options?: Record<string, unknown>;
 }> = [];
 
 jest.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
   Server: class MockServer {
     handlers = new Map<unknown, (...args: any[]) => any>();
+    options?: Record<string, unknown>;
 
-    constructor(..._args: unknown[]) {
+    constructor(_serverInfo: unknown, options?: Record<string, unknown>) {
+      this.options = options;
       mockServers.push(this);
     }
 
@@ -100,6 +103,20 @@ jest.mock('../maker/cli/projects', () => ({
     isOwnGitRoot: false,
     message: undefined,
   })),
+  readMakerProjectLocalChanges: jest.fn(),
+  pushMakerProject: jest.fn(),
+}));
+
+jest.mock('../maker/projectSettings', () => ({
+  formatMakerProjectHealthStatus: jest.fn(),
+  formatMakerProjectSettingsStatus: jest.fn(),
+  inspectMakerProjectHealth: jest.fn(() => ({
+    canBuild: true,
+    status: 'ready',
+    issues: [],
+  })),
+  inspectMakerProjectSettings: jest.fn(),
+  isMakerProjectSettingsBlocking: jest.fn(),
 }));
 
 jest.mock('../maker/auth/patTap', () => ({
@@ -175,6 +192,7 @@ describe('maker MCP version status integration', () => {
           arguments: {
             target_dir: '/tmp/maker-project',
             skip_remote_sync: true,
+            detail: true,
           },
         },
       },
@@ -188,5 +206,131 @@ describe('maker MCP version status integration', () => {
     expect(result.content[0].text).toContain('Maker MCP package update');
     expect(result.content[0].text).toContain('- status: required_upgrade');
     expect(result.content[0].text).toContain('- next_action: Ask the user for approval');
+
+    await handler(
+      {
+        params: {
+          name: 'maker_status_lite',
+          arguments: {
+            target_dir: '/tmp/maker-project',
+          },
+        },
+      },
+      {}
+    );
+
+    expect(versionCheck.getMakerPackageUpdateStatus).toHaveBeenLastCalledWith({
+      currentVersion: expect.any(String),
+      allowRemoteFetch: false,
+      backgroundRefresh: false,
+    });
+  });
+
+  test('marks a blocked Maker submission as a tool error', async () => {
+    const projects = await import('../maker/cli/projects');
+    const storage = await import('../maker/storage');
+    const { startMakerMcpServer } = await import('../maker/server/mcp');
+    const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+
+    (storage.loadProjectConfig as jest.Mock).mockReturnValue({ project_id: 'app-1' });
+    (projects.readMakerProjectLocalChanges as jest.Mock).mockResolvedValue({
+      hasChanges: true,
+      projectRoot: '/tmp/maker-project',
+      files: ['scripts/main.lua'],
+      rawStatus: ' M scripts/main.lua',
+    });
+    (projects.pushMakerProject as jest.Mock).mockResolvedValue({
+      branch: 'main',
+      committed: false,
+      pushed: false,
+      status: 'clean',
+      failure: {
+        stage: 'remote_sync',
+        classification: 'remote_rejected',
+        retryable: false,
+        message: 'Maker remote is ahead',
+        nextAction: 'Ask the user whether to sync the Maker remote changes before retrying.',
+      },
+    });
+
+    await startMakerMcpServer();
+    const handler = mockServers[0].handlers.get(CallToolRequestSchema);
+    const result = await handler(
+      {
+        params: {
+          name: 'maker_build_current_directory',
+          arguments: { target_dir: '/tmp/maker-project' },
+        },
+      },
+      {}
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('submit blocked before commit/push');
+    expect(result.content[0].text).toContain('remote_rejected');
+  });
+
+  test('exposes a concise capability routing index through initialize instructions', async () => {
+    const { startMakerMcpServer } = await import('../maker/server/mcp');
+
+    await startMakerMcpServer();
+
+    const instructions = mockServers[0]?.options?.instructions;
+    expect(typeof instructions).toBe('string');
+    expect(instructions).toContain('TapTap Maker routing index:');
+    expect(instructions).toContain('maker://status');
+    expect(instructions).toContain('maker_status_lite');
+    expect(instructions).toContain('maker_build_current_directory');
+    expect(instructions).toContain('generate_test_qrcode');
+    expect(instructions).toContain(
+      'Ads: read maker://ads-integration-guide before any ad-related work.'
+    );
+    expect((instructions as string).match(/^- Ads:/gmu)).toHaveLength(1);
+    expect(instructions).toContain('get_debug_feedbacks');
+    expect(instructions).toContain("current Maker game's online player feedback");
+    expect(instructions).toContain('real-device game logs');
+    expect(instructions).toContain('server/Lua logs for a specified game session');
+    expect(instructions).toContain('exposed by the current Maker tool list');
+    expect(instructions).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
+    expect(instructions).toContain('image, video, music, sound-effect');
+    expect((instructions as string).length).toBeLessThanOrEqual(1200);
+    expect(instructions).not.toMatch(
+      /agents update|global memory|~\/.(?:codex|claude|workbuddy)/iu
+    );
+  });
+
+  test('exposes the built-in Maker ads integration entry document', async () => {
+    const { startMakerMcpServer } = await import('../maker/server/mcp');
+    const { ListResourcesRequestSchema, ReadResourceRequestSchema } = await import(
+      '@modelcontextprotocol/sdk/types.js'
+    );
+
+    await startMakerMcpServer();
+
+    const server = mockServers[0];
+    const listHandler = server.handlers.get(ListResourcesRequestSchema);
+    const readHandler = server.handlers.get(ReadResourceRequestSchema);
+    const listed = await listHandler({}, {});
+
+    expect(listed.resources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          uri: 'maker://ads-integration-guide',
+          name: 'Maker ads integration guide',
+        }),
+      ])
+    );
+
+    const result = await readHandler(
+      { params: { uri: 'maker://ads-integration-guide' } },
+      { requestId: 'ads-guide-test' }
+    );
+    const text = result.contents[0].text;
+
+    expect(text).toContain('get_ad_config');
+    expect(text).toContain('engine-docs/recipes/sdk.md');
+    expect(text).toContain('sdk:ShowRewardVideoAd');
+    expect(text).toContain('result.success');
+    expect(text).toContain('consecutive steps');
   });
 });

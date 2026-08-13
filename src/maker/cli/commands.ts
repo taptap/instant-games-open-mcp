@@ -79,6 +79,16 @@ import {
   formatMakerProjectInitializationStatus,
   inspectMakerProjectInitialization,
 } from '../projectInitialization.js';
+import {
+  formatMakerProjectSettingsStatus,
+  inspectMakerProjectSettings,
+} from '../projectSettings.js';
+import {
+  resolveMakerMcpLauncher,
+  verifyMakerMcpLauncher,
+  type MakerMcpLauncher,
+  type MakerMcpLauncherVerification,
+} from './mcpLauncher.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
@@ -124,12 +134,12 @@ type MakerOrphanProcessCheck = {
   processes: MakerOrphanProcess[];
 };
 
-type MakerMcpToolsAvailability = {
-  tools_visibility: 'refresh_ai_client_if_missing';
-  pwd_alignment: 'same_project' | 'cwd_mismatch' | 'not_bound';
-  maker_project_dir?: string;
-  ai_pwd: string;
-  ai_pwd_project_dir?: string;
+type MakerDoctorExecutionContext = {
+  active_client_session: 'not_checked';
+  tools_visibility: 'not_checked';
+  target_dir?: string;
+  doctor_cwd: string;
+  doctor_cwd_alignment: 'same_project' | 'different_from_target' | 'not_bound';
 };
 
 type WorkBuddyConnectorState = {
@@ -162,15 +172,36 @@ type McpInstallResult = {
   path?: string;
   changed?: boolean;
   backupPath?: string;
+  launcher_kind?: MakerMcpLauncher['kind'];
+  verified?: boolean;
 };
 
 type McpInstallOptions = {
   env: MakerEnvironment;
-  pkg: string;
   mcpName: string;
+  launcher: MakerMcpLauncher;
   cwd?: string;
   clientIde?: string;
   disabled?: boolean;
+};
+
+type PreparedMcpLauncher =
+  | {
+      ok: true;
+      launcher: MakerMcpLauncher;
+      verification: MakerMcpLauncherVerification;
+    }
+  | McpLauncherFailure;
+
+type McpLauncherFailure = {
+  ok: false;
+  stage: 'resolve' | MakerMcpLauncherVerification['stage'];
+  launcher_kind?: MakerMcpLauncher['kind'];
+  command?: string;
+  failure_type: string;
+  error: string;
+  stderr?: string;
+  tools: string[];
 };
 
 export async function runMakerCli(argv: string[]): Promise<void> {
@@ -396,14 +427,37 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 
   if (!skipMcpInstall) {
     const ides = parseIdeList(stringOption(parsed, 'register_mcp') || '');
+    const prepared = await prepareMcpLauncher({ env });
+    if (!prepared.ok) {
+      emit(ctx, 'mcp_install', formatMcpLauncherFailure(prepared), prepared);
+      throw new Error(prepared.error);
+    }
     const installResults = installMcpConfigs({
       ides: ides.length > 0 ? ides : getDefaultMcpInstallIdes(),
       env,
-      pkg: MAKER_NPM_PACKAGE,
       mcpName: DEFAULT_MCP_NAME,
+      launcher: prepared.launcher,
     });
     for (const result of installResults) {
       emit(ctx, 'mcp_install', result.message, result);
+    }
+    const failedInstalls = installResults.filter((result) => !result.ok);
+    if (failedInstalls.length > 0) {
+      saveInitState(targetDir, {
+        status: 'mcp_install_failed',
+        target_dir: targetDir,
+        env,
+        selected_app_id: selected.id,
+        mcp_install_failures: failedInstalls.map((result) => ({
+          ide: result.ide,
+          message: result.message,
+        })),
+      });
+      throw new Error(
+        `Maker project checkout completed, but MCP config installation failed for: ${failedInstalls
+          .map((result) => result.ide)
+          .join(', ')}. Fix the reported client config issue, then rerun taptap-maker mcp install.`
+      );
     }
   }
 
@@ -441,16 +495,13 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   });
   const agentsPolicy = isProjectBound ? inspectMakerAgentsPolicy(projectRoot) : undefined;
   const orphanProcessCheck = inspectMakerOrphanProcesses();
-  const mcpToolsAvailability = inspectMakerMcpToolsAvailability({
+  const doctorExecutionContext = inspectMakerDoctorExecutionContext({
     makerProjectDir: identify.projectRoot,
   });
   const projectInitialization = isProjectBound
     ? inspectMakerProjectInitialization(projectRoot)
     : undefined;
-  const workBuddyTrust = shouldShowWorkBuddyTrustInspection()
-    ? inspectWorkBuddyTrustState(DEFAULT_MCP_NAME)
-    : undefined;
-
+  const projectSettings = isProjectBound ? inspectMakerProjectSettings(projectRoot) : undefined;
   if (ctx.json) {
     writeJson({
       env,
@@ -467,8 +518,8 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       dev_kit_update: devKitUpdate,
       package_update: packageUpdate,
       project_initialization: projectInitialization,
-      mcp_tools_availability: mcpToolsAvailability,
-      ...(workBuddyTrust ? { workbuddy_trust: workBuddyTrust } : {}),
+      project_settings: projectSettings,
+      doctor_execution_context: doctorExecutionContext,
       orphan_process_check: orphanProcessCheck,
     });
     return;
@@ -500,6 +551,7 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       `- project_id: ${identify.projectId || '(none)'}`,
       identify.configPath ? `- config: ${identify.configPath}` : '',
       projectInitialization ? formatMakerProjectInitializationStatus(projectInitialization) : '',
+      projectSettings ? formatMakerProjectSettingsStatus(projectSettings) : '',
       isProjectBound ? formatMakerAgentsPolicyStatus(projectRoot) : '',
       '',
       'AI dev kit',
@@ -512,9 +564,8 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       '',
       formatMakerPackageUpdateStatus(packageUpdate),
       '',
-      formatMakerMcpToolsAvailability(mcpToolsAvailability),
+      formatMakerDoctorExecutionContext(doctorExecutionContext),
       '',
-      workBuddyTrust ? formatWorkBuddyTrustInspection(workBuddyTrust) : '',
       formatMakerOrphanProcessStatus(orphanProcessCheck),
       '',
       formatMakerSkillStatus({ projectRoot }),
@@ -525,55 +576,46 @@ async function runDoctor(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   );
 }
 
-function inspectMakerMcpToolsAvailability(options: {
+function inspectMakerDoctorExecutionContext(options: {
   makerProjectDir?: string;
-}): MakerMcpToolsAvailability {
-  const aiPwd = path.resolve(process.cwd());
-  const aiPwdIdentify = identifyMakerProject({ cwd: aiPwd });
+}): MakerDoctorExecutionContext {
+  const doctorCwd = path.resolve(process.cwd());
   const makerProjectDir = options.makerProjectDir
     ? path.resolve(options.makerProjectDir)
     : undefined;
 
   if (!makerProjectDir) {
     return {
-      tools_visibility: 'refresh_ai_client_if_missing',
-      pwd_alignment: 'not_bound',
-      ai_pwd: aiPwd,
-      ai_pwd_project_dir: aiPwdIdentify.projectRoot,
+      active_client_session: 'not_checked',
+      tools_visibility: 'not_checked',
+      doctor_cwd: doctorCwd,
+      doctor_cwd_alignment: 'not_bound',
     };
   }
 
   return {
-    tools_visibility: 'refresh_ai_client_if_missing',
-    pwd_alignment:
-      aiPwdIdentify.projectRoot && samePath(aiPwdIdentify.projectRoot, makerProjectDir)
-        ? 'same_project'
-        : 'cwd_mismatch',
-    maker_project_dir: makerProjectDir,
-    ai_pwd: aiPwd,
-    ai_pwd_project_dir: aiPwdIdentify.projectRoot,
+    active_client_session: 'not_checked',
+    tools_visibility: 'not_checked',
+    target_dir: makerProjectDir,
+    doctor_cwd: doctorCwd,
+    doctor_cwd_alignment: samePath(doctorCwd, makerProjectDir)
+      ? 'same_project'
+      : 'different_from_target',
   };
 }
 
-function formatMakerMcpToolsAvailability(availability: MakerMcpToolsAvailability): string {
+function formatMakerDoctorExecutionContext(context: MakerDoctorExecutionContext): string {
   const lines = [
-    'Maker MCP tools availability',
-    `- tools_visibility: ${availability.tools_visibility}`,
-    '- hint: If Maker proxy tools are missing in this AI chat, this is common after install.',
-    '- next_action: Restart the AI client or open a new AI conversation; /mcp clients can Reconnect taptap-maker.',
-    `- pwd_alignment: ${availability.pwd_alignment}`,
+    'Doctor execution context',
+    `- active_client_session: ${context.active_client_session}`,
+    `- tools_visibility: ${context.tools_visibility}`,
+    "- note: doctor cannot inspect the active AI client's loaded tools or configuration.",
+    `- doctor_cwd_alignment: ${context.doctor_cwd_alignment}`,
+    `- doctor_cwd: ${context.doctor_cwd}`,
   ];
 
-  if (availability.pwd_alignment === 'cwd_mismatch') {
-    lines.push(`- maker_project_dir: ${availability.maker_project_dir}`);
-    lines.push(`- ai_pwd: ${availability.ai_pwd}`);
-    lines.push(`- ai_pwd_project_dir: ${availability.ai_pwd_project_dir || '(none)'}`);
-    lines.push(
-      '- impact: Maker proxy tools may not appear because tools/list uses the AI client pwd.'
-    );
-    lines.push(
-      '- next_action: Run the AI client from the Maker project directory, or reinstall MCP with --target-dir.'
-    );
+  if (context.target_dir) {
+    lines.push(`- target_dir: ${context.target_dir}`);
   }
 
   return lines.join('\n');
@@ -970,13 +1012,24 @@ async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void>
   rejectPackageOption(parsed);
   const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
   const explicitTargetDir = stringOption(parsed, 'target_dir');
+  const env = makerEnvOption(parsed);
+  const cwd = explicitTargetDir ? path.resolve(explicitTargetDir) : undefined;
+  const prepared = await prepareMcpLauncher({ env, cwd });
+  if (!prepared.ok) {
+    writeMcpLauncherFailure(ctx, prepared);
+    return;
+  }
   const results = installMcpConfigs({
     ides: ides.length > 0 ? ides : getDefaultMcpInstallIdes(),
-    env: makerEnvOption(parsed),
-    pkg: MAKER_NPM_PACKAGE,
+    env,
     mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
-    cwd: explicitTargetDir ? path.resolve(explicitTargetDir) : undefined,
+    cwd,
+    launcher: prepared.launcher,
   });
+  const ok = results.every((result) => result.ok);
+  if (!ok) {
+    process.exitCode = 1;
+  }
 
   if (ctx.json) {
     writeJson(results);
@@ -986,30 +1039,102 @@ async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void>
   process.stdout.write(`${results.map((result) => result.message).join('\n')}\n`);
 }
 
+async function prepareMcpLauncher(options: {
+  env: MakerEnvironment;
+  cwd?: string;
+}): Promise<PreparedMcpLauncher> {
+  let launcher: MakerMcpLauncher;
+  try {
+    launcher = resolveMakerMcpLauncher({ packageName: MAKER_NPM_PACKAGE });
+  } catch (error) {
+    return createMcpLauncherResolutionFailure(error);
+  }
+
+  const verification = await verifyMakerMcpLauncher(launcher, {
+    cwd: options.cwd,
+    env: options.env === 'production' ? undefined : { TAPTAP_MCP_ENV: options.env },
+  });
+  if (!verification.ok) {
+    return {
+      ok: false,
+      stage: verification.stage,
+      launcher_kind: verification.launcherKind,
+      command: verification.command,
+      failure_type: verification.failureType || 'protocol_error',
+      error: verification.error || 'Maker MCP launcher connectivity check failed.',
+      stderr: verification.stderr,
+      tools: verification.toolNames,
+    };
+  }
+  return { ok: true, launcher, verification };
+}
+
+function createMcpLauncherResolutionFailure(error: unknown): McpLauncherFailure {
+  return {
+    ok: false,
+    stage: 'resolve',
+    failure_type: 'launcher_not_found',
+    error: error instanceof Error ? error.message : String(error),
+    tools: [],
+  };
+}
+
+function writeMcpLauncherFailure(ctx: CliContext, failure: McpLauncherFailure): void {
+  process.exitCode = 1;
+  if (ctx.json) {
+    writeJson(failure);
+    return;
+  }
+  process.stdout.write(`${formatMcpLauncherFailure(failure)}\n`);
+}
+
+function formatMcpLauncherFailure(failure: McpLauncherFailure): string {
+  return [
+    '✗ Maker MCP launcher connectivity check failed; no client config was changed',
+    `- stage: ${failure.stage}`,
+    failure.launcher_kind ? `- launcher_kind: ${failure.launcher_kind}` : '',
+    failure.command ? `- command: ${failure.command}` : '',
+    `- failure_type: ${failure.failure_type}`,
+    `- error: ${failure.error}`,
+    failure.stderr ? `- stderr:\n${indent(failure.stderr)}` : '',
+    '- next_action: Fix the launcher shown above, then rerun taptap-maker mcp install.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   rejectPackageOption(parsed);
   const mode = mcpVerifyModeOption(parsed);
-  const command = mode === 'npx' ? getNpxCliCommand(MAKER_NPM_PACKAGE) : getCurrentCliCommand();
-  const result = spawnSync(command.command, [...command.args, 'help'], {
-    encoding: 'utf8',
-  });
-  const failureType = classifyMcpVerifyFailure(result);
-  const commandText = formatShellCommand([command.command, ...command.args, 'help']);
+  let launcher: MakerMcpLauncher;
+  try {
+    launcher =
+      mode === 'npx'
+        ? resolveMakerMcpLauncher({ packageName: MAKER_NPM_PACKAGE })
+        : getCurrentCliCommand();
+  } catch (error) {
+    writeMcpLauncherFailure(ctx, createMcpLauncherResolutionFailure(error));
+    return;
+  }
+  const result = await verifyMakerMcpLauncher(launcher);
   const payload = {
     mode,
     package: mode === 'npx' ? MAKER_NPM_PACKAGE : undefined,
-    command: commandText,
-    status: result.status,
-    signal: result.signal,
-    ok: result.status === 0,
-    stdout: result.stdout,
+    launcher_kind: result.launcherKind,
+    command: result.command,
+    stage: result.stage,
+    ok: result.ok,
+    tools: result.toolNames,
     stderr: result.stderr,
-    error: result.error?.message,
-    failure_type: failureType,
-    explanation: failureType ? getMcpVerifyFailureExplanation(mode, failureType) : undefined,
-    next_steps: failureType ? getMcpVerifyNextSteps(mode, commandText) : undefined,
-    is_maker_mcp_started: false,
+    error: result.error,
+    failure_type: result.failureType,
+    explanation: result.ok ? undefined : getMcpVerifyFailureExplanation(mode, result),
+    next_steps: result.ok ? undefined : getMcpVerifyNextSteps(mode, result.command),
+    is_maker_mcp_started: result.stage === 'tools_list',
   };
+  if (!payload.ok) {
+    process.exitCode = 1;
+  }
   if (ctx.json) {
     writeJson(payload);
     return;
@@ -1017,15 +1142,17 @@ async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
   process.stdout.write(
     [
       payload.ok
-        ? '✓ MCP config command can spawn taptap-maker'
-        : '✗ MCP config command check failed before Maker MCP started',
+        ? '✓ Maker MCP launcher connectivity verified'
+        : payload.stage === 'tools_list'
+          ? '✗ Maker MCP started but tools/list validation failed'
+          : '✗ MCP config command check failed before Maker MCP started',
       `- mode: ${payload.mode}`,
       `- command: ${payload.command}`,
       mode === 'npx'
-        ? '- scope: verifies the npx command written by taptap-maker mcp install'
+        ? '- scope: verifies the package launcher written by taptap-maker mcp install'
         : '- scope: verifies only the currently running CLI binary',
-      `- status: ${payload.status}`,
-      payload.signal ? `- signal: ${payload.signal}` : '',
+      `- launcher_kind: ${payload.launcher_kind}`,
+      `- stage: ${payload.stage}`,
       payload.failure_type ? `- failure_type: ${payload.failure_type}` : '',
       payload.explanation ? `- explanation: ${payload.explanation}` : '',
       payload.error ? `- error: ${payload.error}` : '',
@@ -1067,24 +1194,36 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const targetDir = path.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
+  const cwd = explicitTargetDir ? targetDir : undefined;
+  const prepared = await prepareMcpLauncher({ env, cwd });
+  if (!prepared.ok) {
+    writeMcpLauncherFailure(ctx, prepared);
+    return;
+  }
   const installResults = installMcpConfigs({
     ides: ides.length > 0 ? ides : getDefaultMcpInstallIdes(),
     env,
-    pkg: MAKER_NPM_PACKAGE,
     mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
-    cwd: explicitTargetDir ? targetDir : undefined,
+    cwd,
+    launcher: prepared.launcher,
   });
   const identify = identifyMakerProject({ cwd: targetDir });
   const agentsResult = identify.projectRoot
     ? updateMakerAgentsPolicy(identify.projectRoot)
     : undefined;
   const payload = {
+    ok: installResults.every((result) => result.ok),
     target_dir: targetDir,
     env,
     mcp_install: installResults,
     agents_policy: agentsResult,
-    restart_required: true,
+    restart_required: false,
+    apply_mode: 'next_mcp_start',
+    current_session: 'preserved',
   };
+  if (!payload.ok) {
+    process.exitCode = 1;
+  }
   if (ctx.json) {
     writeJson(payload);
     return;
@@ -1092,7 +1231,7 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 
   process.stdout.write(
     [
-      'TapTap Maker upgrade completed',
+      payload.ok ? 'TapTap Maker upgrade completed' : 'TapTap Maker upgrade completed with errors',
       '',
       ...installResults.map((result) => result.message),
       '',
@@ -1106,33 +1245,16 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
           ].join('\n')
         : 'AGENTS.md managed policy skipped: current directory is not bound to a Maker project.',
       '',
-      'Restart or reconnect the AI client MCP session so the updated server and AGENTS.md are loaded.',
+      'Current MCP session remains unchanged and continues using the existing version.',
+      'The updated package and AGENTS.md will take effect on the next MCP start or user-requested reconnect.',
       '',
     ].join('\n')
   );
 }
 
-function classifyMcpVerifyFailure(
-  result: ReturnType<typeof spawnSync>
-): 'spawn_error' | 'signal' | 'non_zero_exit' | 'unknown_no_status' | undefined {
-  if (result.status === 0) {
-    return undefined;
-  }
-  if (result.error) {
-    return 'spawn_error';
-  }
-  if (result.signal) {
-    return 'signal';
-  }
-  if (typeof result.status === 'number') {
-    return 'non_zero_exit';
-  }
-  return 'unknown_no_status';
-}
-
 function getMcpVerifyFailureExplanation(
   mode: 'npx' | 'self',
-  failureType: 'spawn_error' | 'signal' | 'non_zero_exit' | 'unknown_no_status'
+  result: MakerMcpLauncherVerification
 ): string {
   if (mode === 'self') {
     return [
@@ -1141,17 +1263,10 @@ function getMcpVerifyFailureExplanation(
     ].join(' ');
   }
 
-  const base = 'This is a local Node/npm/npx startup check, not a Maker MCP business error.';
-  if (failureType === 'non_zero_exit') {
-    return `The configured npx command exited with a non-zero status. ${base}`;
-  }
-  if (failureType === 'spawn_error') {
-    return `The configured npx command could not be spawned. ${base}`;
-  }
-  if (failureType === 'signal') {
-    return `The configured npx command was terminated by a signal. ${base}`;
-  }
-  return `The configured npx command did not exit normally. ${base}`;
+  return [
+    `The configured package launcher failed during MCP ${result.stage}.`,
+    'This is a local Node/npm/npx and stdio MCP connectivity check, not a Maker business tool error.',
+  ].join(' ');
 }
 
 function getMcpVerifyNextSteps(mode: 'npx' | 'self', commandText: string): string[] {
@@ -1162,7 +1277,7 @@ function getMcpVerifyNextSteps(mode: 'npx' | 'self', commandText: string): strin
   return [
     `Run the command above directly: ${commandText}`,
     'Run `taptap-maker mcp verify --mode self` to verify the current CLI binary.',
-    'If direct npx also fails, check `where.exe npx`, `where.exe node`, `where.exe npm`, `node -v`, and `npm -v`.',
+    'On Windows, check the absolute node/npm paths shown above; do not repair cwd with `cd && npx.cmd`.',
   ];
 }
 
@@ -1592,11 +1707,17 @@ function isPatValidationFailure(message: string): boolean {
 function installMcpConfigs(options: {
   ides: string[];
   env: MakerEnvironment;
-  pkg: string;
   mcpName: string;
   cwd?: string;
+  launcher: MakerMcpLauncher;
 }): McpInstallResult[] {
-  return uniqueStrings(options.ides).flatMap((ide) => installMcpConfig(ide, options));
+  return uniqueStrings(options.ides)
+    .flatMap((ide) => installMcpConfig(ide, options))
+    .map((result) => ({
+      ...result,
+      launcher_kind: options.launcher.kind,
+      verified: true,
+    }));
 }
 
 function installMcpConfig(ide: string, options: McpInstallOptions): McpInstallResult[] {
@@ -1834,10 +1955,6 @@ function getWorkBuddyHome(): string {
   return path.join(os.homedir(), '.workbuddy');
 }
 
-function shouldShowWorkBuddyTrustInspection(): boolean {
-  return fs.existsSync(getWorkBuddyHome());
-}
-
 function getWorkBuddyMcpInstallPaths(options: { createPrimary?: boolean } = {}): string[] {
   const primary = path.join(getWorkBuddyHome(), 'mcp.json');
   if (fs.existsSync(primary) || options.createPrimary) {
@@ -1994,7 +2111,7 @@ function mergeCodexMcpConfig(configPath: string, options: McpInstallOptions): Co
   const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
   const sectionPattern = createCodexMcpSectionPattern(options.mcpName);
   const withoutOld = existing.replace(sectionPattern, '').trimEnd();
-  const launch = getNpxCliCommand(options.pkg);
+  const launch = options.launcher;
   const envValues = createMcpEnvironmentValues(options.env, options.clientIde);
   const envSection =
     Object.keys(envValues).length === 0
@@ -2073,7 +2190,7 @@ function normalizeCodexMcpTablePath(tablePath: string, mcpName: string): string 
 }
 
 function tryClaudeMcpAdd(options: McpInstallOptions): { ok: boolean } {
-  const npxLaunch = getNpxCliCommand(options.pkg);
+  const npxLaunch = options.launcher;
   const claudeArgs = [
     'mcp',
     'add',
@@ -2103,7 +2220,7 @@ function createJsonMcpServerConfig(options: McpInstallOptions): {
   env?: Record<string, string>;
   disabled?: boolean;
 } {
-  const launch = getNpxCliCommand(options.pkg);
+  const launch = options.launcher;
   return {
     command: launch.command,
     args: launch.args,
@@ -2122,7 +2239,7 @@ function createOpenCodeMcpServerConfig(options: McpInstallOptions): {
 } {
   return {
     type: 'local',
-    command: getOpenCodeNpxCliCommand(options.pkg),
+    command: options.launcher.commandAndArgs,
     ...(options.cwd ? { cwd: options.cwd } : {}),
     ...createOptionalMcpEnvironment(options.env, 'environment', options.clientIde),
     enabled: true,
@@ -2157,45 +2274,17 @@ function createMcpEnvironmentValues(
   return values;
 }
 
-function getOpenCodeNpxCliCommand(pkg: string): string[] {
-  const executable = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-  return [executable, '-y', '-p', pkg, 'taptap-maker'];
-}
-
-function getCurrentCliCommand(): { command: string; args: string[] } {
+function getCurrentCliCommand(): MakerMcpLauncher {
   if (process.argv[1]) {
-    return { command: process.execPath, args: [process.argv[1]] };
-  }
-  return { command: process.platform === 'win32' ? 'taptap-maker.cmd' : 'taptap-maker', args: [] };
-}
-
-type CliLaunchCommand = {
-  command: string;
-  args: string[];
-  commandAndArgs: string[];
-};
-
-function getNpxCliCommand(pkg: string): CliLaunchCommand {
-  return resolveNpxCliCommand(pkg);
-}
-
-/**
- * Resolve the package launcher written into MCP configs.
- */
-export function resolveNpxCliCommand(
-  pkg: string,
-  platform: NodeJS.Platform = process.platform
-): CliLaunchCommand {
-  const npxArgs = ['-y', '-p', pkg, 'taptap-maker'];
-  if (platform === 'win32') {
-    const launch = getWindowsCmdLaunchCommand('npx.cmd', npxArgs);
     return {
-      command: launch.command,
-      args: launch.args,
-      commandAndArgs: [launch.command, ...launch.args],
+      kind: 'current_cli',
+      command: process.execPath,
+      args: [process.argv[1]],
+      commandAndArgs: [process.execPath, process.argv[1]],
     };
   }
-  return { command: 'npx', args: npxArgs, commandAndArgs: ['npx', ...npxArgs] };
+  const command = process.platform === 'win32' ? 'taptap-maker.cmd' : 'taptap-maker';
+  return { kind: 'current_cli', command, args: [], commandAndArgs: [command] };
 }
 
 function getWindowsCmdLaunchCommand(
@@ -2272,10 +2361,7 @@ function writeConfigWithTapTapBackupIfChanged(
   }
 }
 
-function validateJsonMcpServersConfig(
-  content: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
-): void {
+function validateJsonMcpServersConfig(content: string, options: McpInstallOptions): void {
   const parsed = parseGeneratedJsonObject(content);
   const server = asObject(asObject(parsed.mcpServers)[options.mcpName]);
   const expected = createJsonMcpServerConfig(options);
@@ -2284,10 +2370,7 @@ function validateJsonMcpServersConfig(
   }
 }
 
-function validateOpenCodeMcpConfig(
-  content: string,
-  options: { env: MakerEnvironment; pkg: string; mcpName: string; cwd?: string }
-): void {
+function validateOpenCodeMcpConfig(content: string, options: McpInstallOptions): void {
   const parsed = parseGeneratedJsonObject(content);
   const server = asObject(asObject(parsed.mcp)[options.mcpName]);
   const expected = createOpenCodeMcpServerConfig(options);
@@ -2723,7 +2806,7 @@ function printHelp(): void {
     [
       'Usage:',
       '  taptap-maker                         Start MCP server mode',
-      '  taptap-maker init [--env rnd|production] [--app-id ID] [--target-dir DIR] [--pat PAT]',
+      '  taptap-maker init [--app-id ID] [--target-dir DIR] [--pat PAT]',
       '                     [--create --name NAME]',
       '                     [--skip-confirm] [--skip-mcp-install]',
       '                     [--register-mcp codex,cursor,claude,trae,opencode,workbuddy]',
@@ -2735,7 +2818,7 @@ function printHelp(): void {
       '  Create-new-project flow: add `--create --name NAME` only when the user',
       '    clearly asks to create a new Maker project; NAME is the requested project name.',
       '',
-      '  taptap-maker doctor [--target-dir DIR] [--env rnd|production] [--json]',
+      '  taptap-maker doctor [--target-dir DIR] [--json]',
       '  taptap-maker python doctor [--json]',
       '  taptap-maker python setup [--json]',
       '  taptap-maker python path [--json]',
@@ -2743,33 +2826,30 @@ function printHelp(): void {
       '  taptap-maker lua-lsp setup [--json]',
       '  taptap-maker apps [--pat PAT] [--all] [--json]',
       '                     # --pat warns: PAT appears in ps/history',
-      '  taptap-maker login [--env rnd|production] [--json]',
+      '  taptap-maker login [--json]',
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # fallback; warns: PAT appears in ps/history',
       '  taptap-maker install [--ide codex,cursor,claude,trae,opencode,workbuddy]',
-      '                        [--env rnd|production]',
       '                        [--target-dir DIR]',
       '                        [--json]  # alias for mcp install',
       '  taptap-maker mcp install [--ide codex,cursor,claude,trae,opencode,workbuddy]',
-      '                             [--env rnd|production]',
       '                             [--target-dir DIR] [--json]',
       '  taptap-maker mcp verify [--mode npx|self] [--json]',
       '  taptap-maker agents update [--target-dir DIR] [--json]',
-      '  taptap-maker upgrade [--ide codex,cursor,claude] [--env rnd|production]',
+      '  taptap-maker upgrade [--ide codex,cursor,claude]',
       '                         [--target-dir DIR] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
-      'MCP verify defaults to the npx command written into AI client config.',
-      'Maker MCP configs and npx verification use @taptap/maker.',
+      'MCP install and verify use the same validated @taptap/maker package launcher.',
       '',
       'MCP install defaults:',
       '  Writes Codex, Cursor, Claude, detected Trae/OpenCode/WorkBuddy configs,',
       '  unless --ide is specified. It does not create missing Trae config files.',
       '',
       'Windows note:',
-      '  mcpServers configs wrap npx.cmd with cmd.exe on Windows for spawn compatibility.',
-      '  OpenCode uses its own mcp schema and writes a command array with npx.cmd.',
+      '  MCP configs use an absolute node.exe + npm-cli.js launcher on Windows.',
+      '  Missing absolute Node/npm launchers fail without changing client configs.',
       '',
     ].join('\n')
   );

@@ -1,0 +1,781 @@
+{
+  "schemaVersion": 1,
+  "toolOrder": [
+    "generate_image",
+    "batch_generate_images",
+    "edit_image",
+    "create_3d_asset",
+    "text_to_music",
+    "create_video_task",
+    "query_video_task",
+    "text_to_sound_effect",
+    "batch_sound_effects",
+    "text_to_dialogue",
+    "audition_voices_for_character",
+    "confirm_character_voice",
+    "generate_test_qrcode",
+    "add_test_whitelist",
+    "get_ad_config",
+    "get_debug_feedbacks"
+  ],
+  "tools": [
+    {
+      "name": "generate_image",
+      "description": "Generate one new image asset for a Maker game. Use batch_generate_images for multiple new images and edit_image to modify an existing image. Optional reference images may guide style or content; supported sources, generation controls, and final target_size requirements are defined by the input schema. Keep each reference image supplied through local paths or data URLs at 10 MiB or less. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "Short Chinese description of the image to generate (max 50KB). Example: \"橙色小猫\", \"蓝色飞龙\", \"金币图标\""
+          },
+          "name": {
+            "type": "string",
+            "description": "File name for the generated image (without extension, max 100 characters). This will be used in the output filename: {name}_{timestamp}.png. Example: \"小猫\", \"飞龙\", \"金币\""
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "enum": ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9", "5:4", "4:5"],
+            "description": "Image aspect ratio. Default is \"1:1\". See tool description for use cases of each ratio."
+          },
+          "transparent": {
+            "type": "boolean",
+            "description": "Whether to generate image with transparent background. Auto-detected if user mentions \"透明\", \"透明背景\", \"抠图\", or \"无背景\" in their request."
+          },
+          "target_size": {
+            "type": "string",
+            "description": "**REQUIRED.** Final image dimensions after scaling (format: \"widthxheight\").\nExamples: \"256x256\" (icon), \"512x1024\" (sprite).\nChoose aspect_ratio for shape, then target_size for exact pixel dimensions."
+          },
+          "reference_image": {
+            "type": "string",
+            "description": "[Deprecated] Path to a single reference image file (relative to workspace root). Use reference_images instead for multi-reference support. Example: \"assets/cat.png\""
+          },
+          "reference_images": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of reference images (up to 14). Each item can be a file path (relative to workspace root) OR a base64 data URL. Takes priority over reference_image. The generated image will incorporate style/content from these references."
+          },
+          "seed": {
+            "type": "number",
+            "description": "Random seed for reproducible results. Use the same seed with the same prompt to get consistent outputs. Example: 42"
+          },
+          "thinking_level": {
+            "type": "string",
+            "enum": ["minimal", "high"],
+            "description": "AI reasoning depth. \"minimal\" is faster, \"high\" produces better results for complex prompts."
+          },
+          "resolution": {
+            "type": "string",
+            "enum": ["0.5K", "1K", "2K", "4K"],
+            "description": "Generation resolution before scaling to target_size. Default is \"1K\". Higher values produce more detail but take longer."
+          },
+          "model": {
+            "type": "string",
+            "enum": ["nanobanana", "gpt"],
+            "description": "Model to use for generation. \"nanobanana\" uses Nano Banana 2 (Gemini). \"gpt\" uses GPT Image 2 (OpenAI). IMPORTANT: Do NOT set this parameter unless the user has explicitly named a model (e.g. \"use nanobanana\" / \"switch to gpt\"), or another parameter of this same tool documents that it requires a specific model. When the user does not specify, omit this field entirely so the server picks the default — never guess or default it yourself."
+          },
+          "quality": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "auto"],
+            "description": "Image quality, only supported when model is \"gpt\" (GPT Image 2). One of \"low\", \"medium\", \"high\", \"auto\" (default). If the user explicitly asked for a specific image quality, set this field AND set model to \"gpt\" together; otherwise omit both."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["prompt", "name", "target_size"]
+      }
+    },
+    {
+      "name": "batch_generate_images",
+      "description": "Generate two or more new image assets in parallel in one call. Use generate_image for one new image and edit_image to modify an existing image. Each image request uses the fields and constraints defined by the input schema. Keep each reference image supplied through local paths or data URLs at 10 MiB or less. A batch may partially succeed; preserve successful images and report failed items with their returned errors. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "images": {
+            "type": "array",
+            "description": "Array of image generation requests to process in parallel (2-10 images recommended)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "prompt": {
+                  "type": "string",
+                  "description": "Short Chinese description of the image to generate (max 50KB). Example: \"橙色小猫\", \"蓝色飞龙\", \"金币图标\""
+                },
+                "name": {
+                  "type": "string",
+                  "description": "File name for the generated image (without extension, max 100 characters). This will be used in the output filename: {name}_{timestamp}.png. Example: \"小猫\", \"飞龙\", \"金币\""
+                },
+                "aspect_ratio": {
+                  "type": "string",
+                  "enum": ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9", "5:4", "4:5"],
+                  "description": "Image aspect ratio. Default is \"1:1\". See tool description for use cases of each ratio."
+                },
+                "transparent": {
+                  "type": "boolean",
+                  "description": "Whether to generate image with transparent background. Auto-detected if user mentions \"透明\", \"透明背景\", \"抠图\", or \"无背景\" in their request."
+                },
+                "target_size": {
+                  "type": "string",
+                  "description": "**REQUIRED.** Final image dimensions after scaling (format: \"widthxheight\").\nExamples: \"256x256\" (icon), \"512x1024\" (sprite).\nChoose aspect_ratio for shape, then target_size for exact pixel dimensions."
+                },
+                "reference_image": {
+                  "type": "string",
+                  "description": "[Deprecated] Path to a single reference image file (relative to workspace root). Use reference_images instead for multi-reference support. Example: \"assets/cat.png\""
+                },
+                "reference_images": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "List of reference images (up to 14). Each item can be a file path (relative to workspace root) OR a base64 data URL. Takes priority over reference_image. The generated image will incorporate style/content from these references."
+                },
+                "seed": {
+                  "type": "number",
+                  "description": "Random seed for reproducible results. Use the same seed with the same prompt to get consistent outputs. Example: 42"
+                },
+                "thinking_level": {
+                  "type": "string",
+                  "enum": ["minimal", "high"],
+                  "description": "AI reasoning depth. \"minimal\" is faster, \"high\" produces better results for complex prompts."
+                },
+                "resolution": {
+                  "type": "string",
+                  "enum": ["0.5K", "1K", "2K", "4K"],
+                  "description": "Generation resolution before scaling to target_size. Default is \"1K\". Higher values produce more detail but take longer."
+                },
+                "model": {
+                  "type": "string",
+                  "enum": ["nanobanana", "gpt"],
+                  "description": "Model to use for generation. \"nanobanana\" uses Nano Banana 2 (Gemini). \"gpt\" uses GPT Image 2 (OpenAI). IMPORTANT: Do NOT set this parameter unless the user has explicitly named a model (e.g. \"use nanobanana\" / \"switch to gpt\"), or another parameter of this same tool documents that it requires a specific model. When the user does not specify, omit this field entirely so the server picks the default — never guess or default it yourself."
+                },
+                "quality": {
+                  "type": "string",
+                  "enum": ["low", "medium", "high", "auto"],
+                  "description": "Image quality, only supported when model is \"gpt\" (GPT Image 2). One of \"low\", \"medium\", \"high\", \"auto\" (default). If the user explicitly asked for a specific image quality, set this field AND set model to \"gpt\" together; otherwise omit both."
+                }
+              },
+              "required": ["prompt", "name", "target_size"]
+            }
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["images"]
+      }
+    },
+    {
+      "name": "edit_image",
+      "description": "Modify an existing image from text instructions. Use generate_image for one new image and batch_generate_images for multiple new images. The required original image accepts a local Maker project path, an HTTP(S) URL, or an image data URL. Additional reference images and output controls are defined by the input schema. Keep each local-path or data URL image at 10 MiB or less. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "image": {
+            "type": "string",
+            "description": "Path to the image file (relative to workspace root), remote http/https image URL, or a base64 data URL (data:image/png;base64,...). Example: \"assets/cat.png\", \"https://cdn.example.com/cat.png\", \"data:image/png;base64,iVBOR...\""
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Edit instructions describing what modifications to make. Example: \"把背景改成蓝色\", \"添加一个太阳\""
+          },
+          "name": {
+            "type": "string",
+            "description": "Output filename (without extension, max 100 characters). This will be used in the output filename: edited_{name}_{timestamp}.png"
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "enum": ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9", "5:4", "4:5"],
+            "description": "Output image aspect ratio"
+          },
+          "target_size": {
+            "type": "string",
+            "description": "**REQUIRED.** Final image dimensions after scaling (format: \"widthxheight\").\nExamples: \"256x256\" (icon), \"512x1024\" (sprite).\nChoose aspect_ratio for shape, then target_size for exact pixel dimensions."
+          },
+          "transparent": {
+            "type": "boolean",
+            "description": "Whether to generate image with transparent background."
+          },
+          "reference_images": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of reference images for style/character consistency (up to 13). Each item can be a file path (relative to workspace root), remote http/https image URL, OR a base64 data URL. Combined with the original image, total must not exceed 14 (Nano Banana 2 limit)."
+          },
+          "seed": {
+            "type": "number",
+            "description": "Random seed for reproducible results. Example: 42"
+          },
+          "thinking_level": {
+            "type": "string",
+            "enum": ["minimal", "high"],
+            "description": "AI reasoning depth. \"minimal\" is faster, \"high\" produces better quality for complex edits."
+          },
+          "resolution": {
+            "type": "string",
+            "enum": ["0.5K", "1K", "2K", "4K"],
+            "description": "Generation resolution before scaling to target_size. Default is \"1K\"."
+          },
+          "model": {
+            "type": "string",
+            "enum": ["nanobanana", "gpt"],
+            "description": "Model to use for generation. \"nanobanana\" uses Nano Banana 2 (Gemini). \"gpt\" uses GPT Image 2 (OpenAI). IMPORTANT: Do NOT set this parameter unless the user has explicitly named a model (e.g. \"use nanobanana\" / \"switch to gpt\"), or another parameter of this same tool documents that it requires a specific model. When the user does not specify, omit this field entirely so the server picks the default — never guess or default it yourself."
+          },
+          "quality": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "auto"],
+            "description": "Image quality, only supported when model is \"gpt\" (GPT Image 2). One of \"low\", \"medium\", \"high\", \"auto\" (default). If the user explicitly asked for a specific image quality, set this field AND set model to \"gpt\" together; otherwise omit both."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["image", "prompt", "name", "target_size"]
+      }
+    },
+    {
+      "name": "create_3d_asset",
+      "description": "Manage the complete Maker 3D asset lifecycle. Use action=\"start\" to begin, action=\"query\" to check progress, action=\"get_options\" to inspect step options, action=\"continue\" after review, and action=\"post_process\" for supported follow-up operations. Use direct generation when no review checkpoint is needed, and reviewed generation when the user needs a preview before final generation. For reviewed generation, show every returned preview and wait for explicit user approval before action=\"continue\"; never approve a review step automatically. Supported prompt, image, strategy, quality, and post-processing fields are defined by the input schema. Local image inputs are normalized for the remote service. The local proxy attempts to materialize completed model delivery under assets/model and review images under assets/image; use local_delivery, preview_assets, and other returned local paths when present.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["start", "continue", "query", "get_options", "post_process"],
+            "description": "Required lifecycle action: start, continue, query, get_options, or post_process."
+          },
+          "asset_id": {
+            "type": "string",
+            "description": "Asset lifecycle id returned by this tool. Required for continue and post_process; preferred for query."
+          },
+          "task_id": {
+            "type": "string",
+            "description": "Underlying Tripo task id. Query supports this as a fallback when asset_id is unavailable."
+          },
+          "step_id": {
+            "type": "string",
+            "description": "Current lifecycle step, such as multiview_review or post_process. Required for continue."
+          },
+          "payload": {
+            "type": "object",
+            "description": "Action payload. For start: { generation_strategy?: \"direct\"|\"reviewed\", quality_tier?: \"fast\"|\"balanced\"|\"high_quality\", prompt?: string, images?: {front,left?,back?,right?}, options?: object }. For continue: { confirm?: true, images?: object, options?: object }. For post_process: { operation: \"rig\"|\"texture\"|\"retopology\"|\"convert\", options?: object }. Advanced options are service-controlled and may be ignored by policy.",
+            "properties": {
+              "generation_strategy": {
+                "type": "string",
+                "enum": ["direct", "reviewed", "reviewed_multiview"],
+                "description": "Workflow strategy. direct means submit prompt/image/multiview directly to final model generation. reviewed means create or derive reviewable views first, wait for user confirmation, then submit multiview-to-model. Use reviewed for characters, creatures, NPCs, hero props, important gameplay objects, or precise art direction."
+              },
+              "quality_tier": {
+                "type": "string",
+                "enum": ["fast", "balanced", "high_quality"],
+                "description": "Final model quality tier, independent from workflow strategy. Use fast only for simple low-importance props or rough throwaway objects. Use balanced by default for ordinary assets. Use high_quality when the final model needs higher face limit and detailed texture settings."
+              },
+              "operation": {
+                "type": "string",
+                "enum": ["rig", "texture", "retopology", "convert"],
+                "description": "Required for action=\"post_process\". rig checks bindability internally and adds skeleton when possible. texture regenerates/adjusts materials and texture. retopology reduces/optimizes face count. convert exports another format. Tripo animation retargeting is intentionally not supported."
+              },
+              "prompt": { "type": "string" },
+              "subject_type": {
+                "type": "string",
+                "enum": ["biped", "quadruped", "scenery", "other"],
+                "description": "Required when starting a text prompt with generation_strategy=\"reviewed\". Describes the type of subject being generated, used to select the appropriate pose/composition prompt:\n- \"biped\": humanoid character standing on two legs (person, warrior, robot, etc.) — A-pose will be enforced\n- \"quadruped\": four-legged animal or creature — neutral standing pose\n- \"scenery\": landscape, terrain, environment, background scene — no pose instructions\n- \"other\": object, vehicle, building, weapon, prop, etc. — no pose instructions"
+              },
+              "images": {
+                "type": "object",
+                "properties": {
+                  "front": {
+                    "type": "string",
+                    "description": "Required front image. In local mode, use an image data URL or HTTPS upload URL for an unsynced private image. Server mode may also use a synced workspace project path."
+                  },
+                  "left": {
+                    "type": "string",
+                    "description": "Optional left-view image. Local unsynced private images must use a data URL or HTTPS upload URL."
+                  },
+                  "back": {
+                    "type": "string",
+                    "description": "Optional back-view image. Local unsynced private images must use a data URL or HTTPS upload URL."
+                  },
+                  "right": {
+                    "type": "string",
+                    "description": "Optional right-view image. Local unsynced private images must use a data URL or HTTPS upload URL."
+                  }
+                }
+              },
+              "options": {
+                "type": "object",
+                "description": "Advanced options. For post_process: input/source_task_id/source_url can override the default current asset input; rig supports rig_type/model/spec and uses the service-controlled output format; texture supports texture_prompt/pbr/texture_quality/texture_alignment/bake; retopology supports face_limit/model/quad/bake; convert requires format and supports face_limit/texture_size/fbx_preset."
+              },
+              "confirm": { "type": "boolean" }
+            }
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["action"]
+      }
+    },
+    {
+      "name": "text_to_music",
+      "description": "Generate AI music for a Maker game, including background music or vocal tracks; do not use this tool for sound effects. The remote call polls server-side every 20 seconds and may wait up to 50 minutes. If generation is still running when the call times out, the result includes the task ID for operational tracking. Simple and custom generation controls are defined by the input schema. The local proxy attempts to materialize successful audio and metadata into the Maker project and record them for later Maker references; use returned local paths when present.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customMode": {
+            "type": "boolean",
+            "description": "Enable Custom Mode for fine-grained control. When true, you must provide style and title. When false (default), only prompt is needed.",
+            "default": false
+          },
+          "instrumental": {
+            "type": "boolean",
+            "description": "Generate instrumental track without vocals. Default false (with vocals). Only effective in custom mode.",
+            "default": false
+          },
+          "model": {
+            "type": "string",
+            "description": "Model version. V4_5 recommended for best quality. Newer models (V4_5+) support longer prompts and styles.",
+            "enum": ["V3_5", "V4", "V4_5", "V4_5PLUS", "V5"],
+            "default": "V4_5"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Music description or lyrics. Simple mode: describe the music you want (max 500 chars), e.g. \"epic orchestral battle theme\". Custom mode: can include lyrics (max 3000-5000 chars depending on model)."
+          },
+          "style": {
+            "type": "string",
+            "description": "Music style/genre. Required in custom mode. Examples: \"electronic, ambient, synth\", \"orchestral, epic, cinematic\". Max 200-1000 chars depending on model."
+          },
+          "title": {
+            "type": "string",
+            "description": "Track title. Required in custom mode. Max 80 chars. Example: \"Battle Theme\", \"Menu Music\"."
+          },
+          "negativeTags": {
+            "type": "string",
+            "description": "Styles to avoid, comma-separated. Example: \"vocals, loud, aggressive\"."
+          },
+          "vocalGender": {
+            "type": "string",
+            "description": "Preferred vocal gender when instrumental=false. Use \"m\" for male, \"f\" for female."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["prompt"]
+      }
+    },
+    {
+      "name": "create_video_task",
+      "description": "Create a video generation task. The remote service normally performs server-side polling and waits for the final result in this call. If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later. Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema. Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less. The local proxy attempts to materialize successful video results into the Maker project; prefer returned workspace paths when present, unless the user needs an external share URL.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["text_to_video", "first_frame", "first_last_frame", "multi_modal_reference"],
+            "description": "REQUIRED. Video generation mode (4 mutually exclusive modes):\n- \"text_to_video\": Text prompt only. No images/videos/audios allowed.\n- \"first_frame\": Exactly 1 image as the video's first frame. No videos/audios.\n- \"first_last_frame\": Exactly 2 images (first frame + last frame). No videos/audios.\n- \"multi_modal_reference\": reference images, optionally with reference videos and audios. Per-model caps: see the `model` parameter."
+          },
+          "model": {
+            "type": "string",
+            "enum": ["2.0", "2.5"],
+            "description": "Seedance 模型版本，默认 \"2.0\"。\n- \"2.0\": Seedance 2.0 fast。duration 4-15s，参考图最多 9 张、参考视频 3 个、参考音频 3 个，音频不能单独输入。\n- \"2.5\": Seedance 2.5，效果与可控性更强、成本更高。duration 4-30s，参考图最多 30 张、参考视频 10 个、参考音频 10 个，支持仅传音频驱动生成。\n需要超过 15s 时长、大量参考素材或纯音频驱动时用 \"2.5\"，其余场景保持默认。"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "视频生成提示词。mode=\"text_to_video\" 时必填；其他模式可选。"
+          },
+          "images": {
+            "type": "array",
+            "description": "Image inputs. How images are used depends on the `mode` parameter:\n- mode=\"text_to_video\": Do NOT provide images.\n- mode=\"first_frame\": Provide exactly 1 image (role=first_frame).\n- mode=\"first_last_frame\": Provide exactly 2 images (role=first_frame + last_frame).\n- mode=\"multi_modal_reference\": Provide reference images (role=reference_image), up to 9 for model=\"2.0\" / 30 for model=\"2.5\". Can combine with videos/audios.\nRoles are auto-assigned based on mode. You may override by setting each image's role explicitly.\nSupported sources: local file path, https URL, asset://<asset_id> (from asset library), or data URL (data:image/png;base64,...).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "图片本地文件路径、远程 URL、素材库资产 URI（asset://<asset_id>）或 data URL（data:image/png;base64,...）。"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": ["first_frame", "last_frame", "reference_image"],
+                  "description": "图片角色。通常由 mode 自动决定，仅在需要覆盖时手动指定。"
+                }
+              },
+              "required": ["url"]
+            }
+          },
+          "videos": {
+            "type": "array",
+            "description": "参考视频输入列表，model=\"2.0\" 最多 3 个，model=\"2.5\" 最多 10 个。支持本地文件路径、远程 URL 或 data URL（data:video/mp4;base64,...）；本地文件与 data URL 会先自动上传阿里云 OSS，再以 URL 形式提交给上游接口。仅支持 reference_video。",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "视频本地文件路径、远程 URL 或 data URL（data:video/mp4;base64,...）。"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": ["reference_video"],
+                  "description": "默认 reference_video。"
+                }
+              },
+              "required": ["url"]
+            }
+          },
+          "audios": {
+            "type": "array",
+            "description": "参考音频输入列表，model=\"2.0\" 最多 3 个，model=\"2.5\" 最多 10 个。支持本地文件路径、远程 URL 或 data URL（data:audio/mpeg;base64,...）。本地音频/data URL 会自动转成上游所需格式。仅支持 reference_audio；model=\"2.0\" 下不能单独使用（需搭配参考图或参考视频），model=\"2.5\" 支持仅传音频。",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "音频本地文件路径、远程 URL 或 data URL（data:audio/mpeg;base64,...）。"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": ["reference_audio"],
+                  "description": "默认 reference_audio。"
+                }
+              },
+              "required": ["url"]
+            }
+          },
+          "generate_audio": {
+            "type": "boolean",
+            "description": "是否生成有声视频。"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": ["480p", "720p"],
+            "description": "输出分辨率，默认 720p。两个模型版本均仅支持 480p/720p。"
+          },
+          "ratio": {
+            "type": "string",
+            "enum": ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"],
+            "description": "输出宽高比，默认 \"adaptive\"（由模型按输入或 prompt 自动选择）。\nmodel=\"2.5\" 的以下场景只接受 \"adaptive\"，指定具体比例会被上游拒绝：mode=\"first_frame\" / \"first_last_frame\"（跟随首帧图片）、以参考视频做视频编辑/延长（跟随输入视频）。\nmodel=\"2.0\" 各场景均可指定具体比例。"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "视频时长（秒）。model=\"2.0\" 支持 4-15，model=\"2.5\" 支持 4-30；也可传 -1。不建议设为 -1；模型会自主选择时长，但这会直接影响计费与结果可预期性，建议明确指定整数秒。\nmodel=\"2.5\" 以参考视频做视频编辑时只接受 -1（输出时长跟随输入视频），且输入视频时长需在 4-30s 内。"
+          },
+          "return_last_frame": {
+            "type": "boolean",
+            "description": "是否返回尾帧图片 URL。默认 true；如不需要可显式传 false。"
+          },
+          "suppress_preview_links": {
+            "type": "boolean",
+            "description": "是否抑制工具结果中的会话预览链接以便静默执行。默认 false。"
+          },
+          "enable_web_search": {
+            "type": "boolean",
+            "description": "启用联网搜索增强，仅支持纯文本生视频。默认关闭；仅在确实需要联网补充信息时显式开启。"
+          },
+          "execution_expires_after": {
+            "type": "integer",
+            "description": "任务超时时间（秒），默认 172800，取值范围 3600-259200。"
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["mode"]
+      }
+    },
+    {
+      "name": "query_video_task",
+      "description": "Query video task status by task_id after create_video_task returns a pending task or reports a concurrency limit. If the task is still pending or running, continue other work and query again no sooner than 120 seconds later; do not poll continuously. Querying a completed task releases its task quota. The local proxy attempts to materialize successful video and last-frame results into the Maker project. Prefer workspace_video_path and workspace_last_frame_path when present; mention CDN URLs only when the user needs an external share link.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "由 create_video_task 返回的任务 ID。"
+          },
+          "suppress_preview_links": {
+            "type": "boolean",
+            "description": "是否抑制工具结果中的会话预览链接以便静默执行。默认 false。"
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["task_id"]
+      }
+    },
+    {
+      "name": "text_to_sound_effect",
+      "description": "Generate one game sound effect from a Chinese or English description with Doubao Seed Audio. Each call produces one output of at most 120 seconds. Split longer audio across multiple generations because this tool does not stitch outputs. duration_seconds is an approximate target and the actual duration may differ. The local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Sound effect description in Chinese or English. Be specific and detailed."
+          },
+          "duration_seconds": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 120,
+            "description": "Approximate duration target greater than 0 and up to Seed Audio's 120-second output limit; the actual duration may differ."
+          },
+          "loop": {
+            "type": "boolean",
+            "description": "Generate seamlessly looping sound. Good for ambient/background sounds.",
+            "default": false
+          },
+          "output_name": {
+            "type": "string",
+            "description": "Output filename without extension. If not provided, auto-generated."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["text"]
+      }
+    },
+    {
+      "name": "batch_sound_effects",
+      "description": "Generate multiple game sound effects with Doubao Seed Audio in one batch. Each item is an independent output of at most 120 seconds. Split longer audio across items or calls because this tool does not stitch outputs. The result preserves per-item failures while the local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sounds": {
+            "type": "array",
+            "description": "Array of sound effect definitions",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Output filename without extension"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Sound effect description in Chinese or English"
+                },
+                "duration": {
+                  "type": "number",
+                  "description": "Approximate duration target validated independently per item. It must be greater than 0 and no more than Seed Audio's 120-second output limit; the actual duration may differ."
+                },
+                "loop": {
+                  "type": "boolean",
+                  "description": "Create looping sound"
+                }
+              },
+              "required": ["name", "text"]
+            }
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["sounds"]
+      }
+    },
+    {
+      "name": "text_to_dialogue",
+      "description": "Generate final character dialogue audio with ElevenLabs Eleven v3. Each character needs a confirmed ElevenLabs voice mapping in .project/elevenlabs-voice-mapping.json; when one is missing, call audition_voices_for_character and then confirm_character_voice before retrying. Use stability from 0 to 1 (default 0.5) to tune variation. Eleven v3 supports audio tags such as [sad] and [laughing] plus punctuation-based pacing. The local proxy attempts to materialize successful dialogue under assets/audio/voice; use returned local paths when present.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "inputs": {
+            "type": "array",
+            "description": "Dialogue lines using confirmed ElevenLabs character voices.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "character_name": {
+                  "type": "string",
+                  "description": "Character name matching an ElevenLabs voice mapping."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Dialogue text. Eleven v3 audio tags such as [sad] and [laughing] are supported."
+                }
+              },
+              "required": ["character_name", "text"]
+            }
+          },
+          "language_code": {
+            "type": "string",
+            "default": "cmn",
+            "description": "ISO 639-1 language code. Defaults to cmn (Chinese Mandarin)."
+          },
+          "stability": {
+            "type": "number",
+            "default": 0.5,
+            "description": "Eleven v3 voice stability. Recommended range 0 to 1; finite legacy values are accepted and quantized to 0, 0.5, or 1."
+          },
+          "output_name": {
+            "type": "string",
+            "description": "Safe output basename without directory separators."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["inputs"]
+      }
+    },
+    {
+      "name": "audition_voices_for_character",
+      "description": "Create 1 to 3 temporary ElevenLabs Voice Design previews for one game character. Prepare a detailed character description and an audition line of at least 100 characters that matches the character personality and speaking style. candidate_count accepts 1 to 3 and defaults to 3. Show every returned preview to the user and wait for an explicit choice before calling confirm_character_voice. Complete audition and confirmation for one character before starting another in the same project; do not run them in parallel. Preview files are temporary and are not saved as final game assets.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "character_name": {
+            "type": "string",
+            "description": "Character name"
+          },
+          "character_description": {
+            "type": "string",
+            "description": "ElevenLabs Voice Design prompt covering age/gender, timbre, pacing, emotion, style, and recording quality."
+          },
+          "audition_line": {
+            "type": "string",
+            "description": "Representative dialogue for the preview. MUST be at least 100 characters and match the requested character style.",
+            "minLength": 100
+          },
+          "candidate_count": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 3,
+            "default": 3,
+            "description": "Number of voice candidates from 1 to 3, default 3."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["character_name", "character_description", "audition_line"]
+      }
+    },
+    {
+      "name": "confirm_character_voice",
+      "description": "Confirm an ElevenLabs Voice Design selection, create the permanent voice, and persist the character voice mapping for later text_to_dialogue calls. Call this tool only after audition_voices_for_character and only after the user explicitly selects a candidate or explicitly accepts the recommended candidate. Omit selected_index only after the user explicitly accepts the recommendation; absence of a user choice is not acceptance. Confirmation consumes one ElevenLabs Voice Slot. Process one character at a time and do not call this tool in parallel for the same project.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "character_name": {
+            "type": "string",
+            "description": "Character name"
+          },
+          "selected_index": {
+            "type": "number",
+            "description": "The candidate number user selected (1-based). If omitted, uses recommended candidate"
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["character_name"]
+      }
+    },
+    {
+      "name": "generate_test_qrcode",
+      "description": "Generate a mobile test QR code only when the user explicitly requests a test QR code or scan test, or when get_ad_config reports missing app_id or developer_id and requests this recovery step. Do not call this tool automatically during initialization, build, or publish workflows. When an explicit build is needed, use maker_build_current_directory separately. Call without confirmed_screen_orientation first. Reuse an existing project orientation; only when the tool reports it missing, ask the user in a separate conversation turn to choose landscape or portrait and then retry. An existing orientation is immutable. This operation may upload a test version, create the TapTap app identity, and return a displayable QR code.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "confirmed_screen_orientation": {
+            "type": "string",
+            "enum": ["landscape", "portrait"],
+            "description": "Local-only first-time orientation choice. Omit this when the project already has screen_orientation. Supply it only after the tool reports that orientation is missing and the user selects a value in a separate conversation turn. Existing project orientation is immutable and takes precedence. This value is not forwarded to the remote Maker tool."
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "add_test_whitelist",
+      "description": "Add one TapTap user to the current game test whitelist. Use this only after maker_build_current_directory has initialized the project and generate_test_qrcode has established the TapTap app identity. Call it only with the TapTap user_id explicitly provided by the user; never infer an account ID.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "number",
+            "description": "The TapTap user ID to add to the test whitelist"
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": ["user_id"]
+      }
+    },
+    {
+      "name": "get_ad_config",
+      "description": "For any ad-related request, read maker://ads-integration-guide first. After Maker project status confirms the primary local project configs are initialized, use this as the first remote step. It is the source of truth for current ad activation and configuration, and synchronizes the result into .project/settings.json at @runtime.ad. The local preflight does not call the remote tool while project.json or settings.json is missing. Missing local configs do not authorize an automatic build. Use maker_build_current_directory only for an explicit user build, submit, or preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically. Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks, and only implement or test ad behavior after the returned configuration is usable. If app_id or developer_id is missing, call generate_test_qrcode once and then retry this tool. If ad.status != 1, report warning and ad.url, follow the returned next_action, and retry only after the user completes that step.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "get_debug_feedbacks",
+      "description": "Fetch online player feedback for the current Maker project, or query server and Lua session logs when game_session_id is provided. The default feedback mode fetches unprocessed records and marks the returned records as processed. For a read-only feedback query, set fetch_and_mark_processed=false; use the input schema to select other filters or an exact feedback record. Downloaded feedback attachments are saved in the local project. Read only the returned local_dir, local_log_paths, and local_screenshot_paths; do not treat remote attachment paths as local files. Session-log mode returns its own saved paths and progress information; use the returned result to continue when more history is available.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "developer_id": {
+            "type": "number",
+            "description": "开发者 ID（可选，默认从 .project/project.json 读取）"
+          },
+          "app_id": {
+            "type": "number",
+            "description": "应用 ID（可选，默认从 .project/project.json 读取）"
+          },
+          "limit": { "type": "number", "description": "返回数量（默认 5）" },
+          "status": {
+            "type": "number",
+            "description": "状态过滤：0=全部, 1=未处理, 2=已处理"
+          },
+          "fetch_and_mark_processed": {
+            "type": "boolean",
+            "description": "仅拉取未处理数据并标记为已处理，优先级高于 status（默认 true）"
+          },
+          "moment_id": {
+            "type": "string",
+            "description": "按玩家说帖子 ID 精确查询（64 位大整数，用字符串避免精度丢失）。传入时忽略 status 和 fetch_and_mark_processed 过滤"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "按提交反馈的玩家 user_id 过滤（64 位大整数，用字符串避免精度丢失），可与 status 组合；与 moment_id 互不影响"
+          },
+          "game_session_id": {
+            "type": "string",
+            "description": "游戏局 ID（19 位数字）。提供时改为查询该局服务端+Lua 游戏局日志，落盘到 userpod /opt/log/server/<id>/"
+          },
+          "target_dir": {
+            "type": "string",
+            "description": "Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool."
+          }
+        },
+        "required": []
+      }
+    }
+  ]
+}

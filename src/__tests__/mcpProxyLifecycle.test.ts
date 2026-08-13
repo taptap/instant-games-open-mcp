@@ -1,7 +1,8 @@
 import { PassThrough } from 'node:stream';
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../mcp-proxy/config';
 import { installStandaloneProxyLifecycleHandlers } from '../mcp-proxy/lifecycle';
-import { TapTapMCPProxy } from '../mcp-proxy/proxy';
+import { convertMcpApplicationErrorToToolResult, TapTapMCPProxy } from '../mcp-proxy/proxy';
 import type { ProxyConfig } from '../mcp-proxy/types';
 
 function createProxyConfig(): ProxyConfig {
@@ -48,6 +49,100 @@ describe('standalone MCP proxy lifecycle guards', () => {
     expect((proxy as any).isNetworkError(serverBuildError)).toBe(false);
   });
 
+  test('does not classify remote diagnostics as network errors even with timeout codes', () => {
+    const serverBuildError = Object.assign(new Error('MCP error -32603: compiler timeout'), {
+      code: 'ETIMEDOUT',
+      data: {
+        remote_result: {
+          error: 'BUILD FAILED: lua syntax error',
+        },
+      },
+    });
+
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+
+    expect((proxy as any).isNetworkError(serverBuildError)).toBe(false);
+  });
+
+  test('converts remote build MCP errors into tool-level results with diagnostics', () => {
+    const serverBuildError = Object.assign(
+      new Error('MCP error -32603: build failed before timeout window'),
+      {
+        code: -32603,
+        data: {
+          remote_result: {
+            error: 'BUILD FAILED: lua syntax error',
+            diagnostics: [{ line: 12, message: "unexpected 'end'" }],
+          },
+        },
+      }
+    );
+
+    const result = convertMcpApplicationErrorToToolResult(serverBuildError);
+
+    expect(result?.isError).toBe(true);
+    expect(result?.content).toEqual([
+      {
+        type: 'text',
+        text: expect.stringContaining('BUILD FAILED: lua syntax error'),
+      },
+    ]);
+    expect(result?.content[0]?.text).toContain("unexpected 'end'");
+  });
+
+  test('converts remote diagnostics when replaying a pending request after reconnect', async () => {
+    const serverBuildError = Object.assign(
+      new Error('MCP error -32603: build failed after reconnect'),
+      {
+        code: -32603,
+        data: {
+          remote_result: {
+            error: 'BUILD FAILED: lua syntax error after reconnect',
+          },
+        },
+      }
+    );
+    const resolve = jest.fn();
+    const reject = jest.fn();
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+    const proxyInternals = proxy as any;
+    proxyInternals.client = {
+      callTool: jest.fn().mockRejectedValue(serverBuildError),
+    };
+    proxyInternals.pendingRequests = [
+      {
+        name: 'build',
+        arguments: {},
+        resolve,
+        reject,
+        timestamp: Date.now(),
+      },
+    ];
+
+    await proxyInternals.processPendingRequests();
+
+    expect(resolve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: expect.stringContaining('BUILD FAILED: lua syntax error after reconnect'),
+          },
+        ],
+      })
+    );
+    expect(reject).not.toHaveBeenCalled();
+  });
+
+  test('keeps MCP protocol errors without remote diagnostics as exceptions', () => {
+    const internalError = Object.assign(new Error('MCP error -32603: internal failure'), {
+      code: -32603,
+    });
+
+    expect(convertMcpApplicationErrorToToolResult(internalError)).toBeUndefined();
+  });
+
   test('classifies MCP disconnect errors as reconnectable network errors', () => {
     const proxy = new TapTapMCPProxy(createProxyConfig());
     const notConnectedError = Object.assign(new Error('MCP error -32000: not connected'), {
@@ -59,6 +154,79 @@ describe('standalone MCP proxy lifecycle guards', () => {
 
     expect((proxy as any).isNetworkError(notConnectedError)).toBe(true);
     expect((proxy as any).isNetworkError(sessionExpiredError)).toBe(true);
+  });
+
+  test('classifies the MCP SDK connection-closed code as reconnectable', () => {
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+    const connectionClosedError = new McpError(ErrorCode.ConnectionClosed, 'Connection closed');
+
+    expect((proxy as any).isNetworkError(connectionClosedError)).toBe(true);
+  });
+
+  test('classifies the MCP SDK request-timeout code as reconnectable', () => {
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+    const requestTimeoutError = new McpError(ErrorCode.RequestTimeout, 'Request timed out');
+
+    expect((proxy as any).isNetworkError(requestTimeoutError)).toBe(true);
+  });
+
+  test('classifies HTTP 5xx as network errors without retrying HTTP 4xx', () => {
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+
+    expect(
+      (proxy as any).isNetworkError(Object.assign(new Error('HTTP request failed'), { code: 503 }))
+    ).toBe(true);
+    expect((proxy as any).isNetworkError(new Error('HTTP 502: Bad Gateway'))).toBe(true);
+    expect(
+      (proxy as any).isNetworkError(Object.assign(new Error('HTTP request failed'), { code: 400 }))
+    ).toBe(false);
+    expect(
+      (proxy as any).isNetworkError(
+        Object.assign(new Error('HTTP 408: Request Timeout'), { code: 408 })
+      )
+    ).toBe(false);
+    expect((proxy as any).isNetworkError(new Error('HTTP 429: Too Many Requests'))).toBe(false);
+  });
+
+  test('requeues pending requests when replay loses the network again', async () => {
+    const networkError = Object.assign(new Error('connect ECONNRESET during replay'), {
+      code: 'ECONNRESET',
+    });
+    const firstResolve = jest.fn();
+    const firstReject = jest.fn();
+    const secondResolve = jest.fn();
+    const secondReject = jest.fn();
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+    const proxyInternals = proxy as any;
+    proxyInternals.connected = true;
+    proxyInternals.client = {
+      callTool: jest.fn().mockRejectedValue(networkError),
+    };
+    const firstRequest = {
+      name: 'build',
+      arguments: {},
+      resolve: firstResolve,
+      reject: firstReject,
+      timestamp: Date.now(),
+    };
+    const secondRequest = {
+      name: 'get_status',
+      arguments: {},
+      resolve: secondResolve,
+      reject: secondReject,
+      timestamp: Date.now(),
+    };
+    proxyInternals.pendingRequests = [firstRequest, secondRequest];
+
+    await expect(proxyInternals.processPendingRequests()).rejects.toBe(networkError);
+
+    expect(proxyInternals.connected).toBe(false);
+    expect(proxyInternals.pendingRequests).toEqual([firstRequest, secondRequest]);
+    expect(proxyInternals.client.callTool).toHaveBeenCalledTimes(1);
+    expect(firstResolve).not.toHaveBeenCalled();
+    expect(firstReject).not.toHaveBeenCalled();
+    expect(secondResolve).not.toHaveBeenCalled();
+    expect(secondReject).not.toHaveBeenCalled();
   });
 
   test('cleans up and exits when stdin closes', () => {

@@ -86,24 +86,35 @@ export function formatMakerProjectInitializationStatus(
       `- config: ${status.projectJsonPath}`,
       status.error ? `- error: ${status.error}` : '',
       '- impact: get_ad_config and other remote project-config tools cannot parse project metadata yet.',
-      '- next_action: 检查 .project/project.json 内容；必要时先调用 maker_build_current_directory 重新生成项目配置。',
+      '- next_action: 从 Git 或完整副本恢复合法的 .project/project.json；不要依赖 maker_build_current_directory 覆盖已有坏文件。',
     ]
       .filter(Boolean)
       .join('\n');
   }
 
   if (status.status === 'missing_project_json') {
+    const projectDirState = inspectProjectDirectory(status.projectRoot);
     return [
       'Maker project initialization',
       '',
       '- status: missing_project_json',
       `- config: ${status.projectJsonPath}`,
       '- impact: get_ad_config and other remote project-config tools cannot read project metadata yet.',
-      '- next_action: 先调用 maker_build_current_directory 构建一次，生成 .project/project.json 后再重试。',
+      projectDirState === 'invalid'
+        ? '- next_action: .project 路径异常；先恢复为正常目录，再检查或恢复 project.json。'
+        : '- next_action: 本地主要配置尚未初始化；仅当用户明确要求构建、提交或预览时调用 maker_build_current_directory。构建成功后若本地仍缺少 .project/project.json，保持配置依赖功能不可用，不要自动重复构建。',
     ].join('\n');
   }
 
   return '';
+}
+
+function inspectProjectDirectory(projectRoot: string): 'missing' | 'directory' | 'invalid' {
+  try {
+    return fs.lstatSync(path.join(projectRoot, '.project')).isDirectory() ? 'directory' : 'invalid';
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'missing' : 'invalid';
+  }
 }
 
 function hasNonEmptyIdentityField(value: unknown, fieldName: string): boolean {

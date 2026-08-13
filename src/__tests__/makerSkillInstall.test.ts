@@ -35,29 +35,57 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain('Use maker_build_current_directory for submit, push, and build');
     expect(status).toContain('Maker proxy tool policy');
     expect(status).toContain(`${MAKER_LOCAL_SKILL_NAME} > Maker Creative Asset Tool Policy`);
-    expect(status).toContain('Prefer Maker MCP proxy tools over native AI image/video/audio tools');
-    expect(status).toContain('If Maker proxy tools are missing');
-    expect(status).toContain('available alternatives');
+    expect(status).toContain(
+      'Maker MCP provides image, video, music, sound-effect, dialogue/voice, and 3D asset tools'
+    );
+    expect(status).toContain('Follow the selected tool schema when one of these tools is used');
     expect(status).toContain('Follow each tool schema for supported local path');
     expect(status).toContain(
       'Local proxy may convert resolvable local reference media to data URLs'
     );
     expect(status).toContain('Use generate_image, batch_generate_images, edit_image');
-    expect(status).toContain(
-      'Use create_video_task, query_video_task, and text_to_music for game video/audio'
+    expect(status).not.toMatch(
+      /prefer Maker(?:-managed)?(?: MCP)? proxy tools|over native AI|client-native/iu
     );
-    expect(status).toContain('Use create_3d_model_task and query_3d_model_task for game 3D model');
-    expect(status).toContain('call get_ad_config first to get ad activation status');
-    expect(status).toContain('build once with maker_build_current_directory');
+    expect(status).toContain('Use create_video_task and query_video_task for game video assets');
+    expect(status).toContain('Use text_to_music for game music');
+    expect(status).toContain('Use text_to_sound_effect for one sound effect');
+    expect(status).toContain('Use batch_sound_effects for multiple sound effects');
+    expect(status).toContain('Use text_to_dialogue for final character dialogue');
+    expect(status).toContain(
+      'text_to_dialogue reuses confirmed local ElevenLabs voice mappings; after confirmation pass only character_name and text'
+    );
+    expect(status).toContain(
+      'For ElevenLabs auditions, pass character_description and an audition_line of at least 100 characters; candidate_count is optional (1-3)'
+    );
+    expect(status).not.toContain('voice_profile.gender');
+    expect(status).not.toContain('omit reference_audio');
+    expect(status).toContain(
+      'After audition_voices_for_character returns previews, wait for the user to choose'
+    );
+    expect(status).toContain(
+      'Call confirm_character_voice only after the user explicitly chooses a preview'
+    );
+    expect(status).toContain('Generated sound effects and dialogue are saved in the project');
+    expect(status).toContain('Voice audition previews are not saved to the project');
+    expect(status).toContain('Local MCP does not transcode generated audio to OGG');
+    expect(status).toContain('Use create_3d_asset with start/query/continue/post_process');
+    expect(status).toContain('first read `maker://ads-integration-guide`, then follow it');
+    expect(status.indexOf('maker://ads-integration-guide')).toBeLessThan(
+      status.indexOf('get_ad_config')
+    );
+    expect(status).toContain('Build only for an explicit user build/submit/preview request');
+    expect(status).toContain('do not automatically rebuild');
     expect(status).toContain('call generate_test_qrcode once');
     expect(status).toContain('call get_debug_feedbacks');
+    expect(status).toContain("current Maker game's online player feedback");
+    expect(status).toContain('real-device game logs');
+    expect(status).toContain('server/Lua logs for a specified game session');
+    expect(status).toContain('exposed by the current Maker tool list');
+    expect(status).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
     expect(status).toContain('Use local runtime logs only');
     expect(status).toContain('assets/model');
-    expect(status).toContain('original GLB/FBX');
-    expect(status).toContain('assets/Meshes');
-    expect(status).toContain('assets/Materials');
-    expect(status).toContain('assets/Textures');
-    expect(status).toContain('assets/Prefabs');
+    expect(status).toContain('assets/model');
     expect(status).toContain('Maker initialization next_step: execute `taptap-maker init`');
     expect(status).not.toContain('Validation checklist for the local AI client');
     expect(status).not.toContain(`${MAKER_LOCAL_SKILL_NAME} / codex: missing`);
@@ -100,37 +128,69 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('The root `.gitignore` is a required Maker project file');
     expect(skillText).toContain('Maker Creative Asset Tool Policy');
     expect(skillText).toContain(
-      'Prefer Maker MCP proxy tools over native AI image/video/audio tools'
+      'Maker MCP provides image, video, music, sound-effect, dialogue/voice, and 3D asset tools'
     );
-    expect(skillText).toContain('This guidance helps users prefer Maker-managed tools');
+    expect(skillText).toContain('Follow the selected tool schema when one of these tools is used');
     expect(skillText).toContain('Follow each tool schema for supported local path');
     expect(skillText).toContain(
       'Local proxy may convert resolvable local reference media to data URLs'
     );
     expect(skillText).toContain('Use `generate_image` for one image');
+    expect(skillText).not.toMatch(
+      /prefer Maker(?:-managed)?(?: MCP)? proxy tools|over native AI|client-native/iu
+    );
     expect(skillText).toContain('Use `batch_generate_images` for multiple images');
     expect(skillText).toContain('Use `edit_image` for modifying project images');
     expect(skillText).toContain('Use `create_video_task` for game videos');
     expect(skillText).toContain('Use `query_video_task` to refresh video task status');
-    expect(skillText).toContain('Use `text_to_music` for game music or audio');
-    expect(skillText).toContain('Use `create_3d_model_task` for game 3D models');
-    expect(skillText).toContain('Use `query_3d_model_task` for polling 3D model tasks');
-    expect(skillText).toContain('call `get_ad_config` first to get the');
+    expect(skillText).toContain('Use `text_to_music` for game music');
+    expect(skillText).toContain('Use `text_to_sound_effect` for one sound effect');
+    expect(skillText).toContain('Use `batch_sound_effects` for multiple sound effects');
+    expect(skillText).toContain('Use `text_to_dialogue` for final character dialogue');
+    expect(skillText).toContain(
+      '`text_to_dialogue` reuses confirmed local ElevenLabs voice mappings. After confirmation, pass only `character_name` and `text`'
+    );
+    expect(skillText).toContain(
+      'For ElevenLabs auditions, pass a detailed `character_description` and an `audition_line` of at least 100 characters'
+    );
+    expect(skillText).not.toContain('voice_profile.gender');
+    expect(skillText).not.toContain('omit `reference_audio`');
+    expect(skillText).toContain(
+      'After `audition_voices_for_character` returns previews, show them to the user and wait'
+    );
+    expect(skillText).toContain(
+      'Call `confirm_character_voice` only after the user explicitly chooses one preview'
+    );
+    expect(skillText).toContain('Generated sound effects and dialogue are saved in the project');
+    expect(skillText).toContain('Voice audition previews are not saved to the project');
+    expect(skillText).toContain('Local MCP does not transcode generated audio to OGG');
+    expect(skillText).toContain('Use `create_3d_asset` for the complete 3D asset lifecycle');
+    expect(skillText).toContain('action="continue"');
+    expect(skillText).toContain('local_delivery.status');
+    expect(skillText.replace(/\s+/gu, ' ')).toContain(
+      'first read `maker://ads-integration-guide`, then follow it'
+    );
+    expect(skillText.indexOf('maker://ads-integration-guide')).toBeLessThan(
+      skillText.indexOf('`get_ad_config`')
+    );
     expect(skillText).toContain('Do not infer ad readiness from local SDK docs');
-    expect(skillText).toContain('build once with `maker_build_current_directory`');
+    expect(skillText).toContain('Build only for an explicit user build/submit/preview request');
+    expect(skillText).toContain('do not automatically rebuild');
     expect(skillText).toContain('call `generate_test_qrcode` once');
     expect(skillText).toContain('call the Maker proxy');
     expect(skillText).toContain('`get_debug_feedbacks` tool');
+    expect(skillText).toContain("current Maker game's online player feedback");
+    expect(skillText).toContain('real-device game logs');
+    expect(skillText).toContain('server/Lua logs for a specified game session');
+    expect(skillText).toContain('exposed by the current Maker tool list');
+    expect(skillText).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
     expect(skillText).toContain('remote player-submitted feedback');
     expect(skillText).toContain('assets/image');
     expect(skillText).toContain('assets/video');
     expect(skillText).toContain('assets/audio');
     expect(skillText).toContain('assets/model');
-    expect(skillText).toContain('original GLB/FBX');
-    expect(skillText).toContain('assets/Meshes');
-    expect(skillText).toContain('assets/Materials');
-    expect(skillText).toContain('assets/Textures');
-    expect(skillText).toContain('assets/Prefabs');
+    expect(skillText).toContain('`create_3d_asset` local runtime `model_files` instructions');
+    expect(skillText).toContain('local_delivery');
     expect(skillText).toContain('Attached Workspace Selection');
     expect(skillText).toContain('dialogues');
     expect(skillText).toContain('single attached workspace');

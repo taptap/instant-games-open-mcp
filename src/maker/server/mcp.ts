@@ -21,6 +21,7 @@ import type {
   ProgressToken,
   ServerNotification,
   ServerRequest,
+  Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
@@ -51,7 +52,6 @@ import {
   type MakerProjectProgressHandler,
   type MakerGitFailure,
 } from '../cli/projects.js';
-import { requestTapAuthWithPat } from '../auth/patTap.js';
 import {
   getMakerEndpoints,
   getMakerEnvironment,
@@ -99,14 +99,51 @@ import {
   inspectMakerProjectInitialization,
 } from '../projectInitialization.js';
 import {
+  formatMakerProjectHealthStatus,
+  formatMakerProjectSettingsStatus,
+  inspectMakerProjectHealth,
+  inspectMakerProjectSettings,
+  isMakerProjectSettingsBlocking,
+  type MakerProjectHealth,
+  type MakerProjectSettingsStatus,
+} from '../projectSettings.js';
+import { inspectMakerQrcodePreflight } from '../qrcodePreflight.js';
+import {
+  CREATE_3D_ASSET_PROXY_TOOL_NAME,
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
-  prepareRemoteProxyToolArgs,
+  prepareRemoteProxyToolArgsAsync,
+  sanitizeRemoteProxyToolResult,
 } from './proxyAssets.js';
+import { sanitizeDiagnosticValue, sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
+import {
+  MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION,
+  MAKER_STATUS_LITE_PUBLIC_DESCRIPTION,
+} from './toolDescriptions.js';
+import proxyToolSnapshot from './remoteProxyToolSnapshot.json';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
+import {
+  isMakerBuildActivitySuccessful,
+  reportMakerMcpActivity,
+  type MakerMcpActivityEvent,
+  type MakerMcpTrackingContext,
+} from '../tracking.js';
+import { MAKER_CAPABILITY_ROUTING_INDEX } from '../capabilityRouting.js';
+import {
+  MAKER_ADS_INTEGRATION_GUIDE_URI,
+  formatMakerAdsIntegrationGuide,
+} from './adIntegrationGuide.js';
+import {
+  createMakerRemoteProxyManager,
+  type MakerRemoteProxyManager,
+} from './remoteProxyManager.js';
 
-export { materializeRemoteProxyToolAssets, prepareRemoteProxyToolArgs } from './proxyAssets.js';
+export {
+  materializeRemoteProxyToolAssets,
+  prepareRemoteProxyToolArgs,
+  prepareRemoteProxyToolArgsAsync,
+} from './proxyAssets.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
@@ -121,18 +158,88 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'generate_image',
   'batch_generate_images',
   'edit_image',
+  CREATE_3D_ASSET_PROXY_TOOL_NAME,
+  'text_to_music',
   'create_video_task',
   'query_video_task',
-  'text_to_music',
-  'create_3d_model_task',
-  'query_3d_model_task',
+  'text_to_sound_effect',
+  'batch_sound_effects',
+  'text_to_dialogue',
+  'audition_voices_for_character',
+  'confirm_character_voice',
   'generate_test_qrcode',
+  'add_test_whitelist',
   'get_ad_config',
   'get_debug_feedbacks',
 ];
 
-type MakerToolDefinition = (typeof tools)[number];
-type RemoteToolDefinition = MakerToolDefinition & { [key: string]: unknown };
+const MAKER_BUILD_MULTIPLAYER_SCHEMA = {
+  type: 'object',
+  description:
+    'Optional Maker multiplayer config forwarded only when explicitly provided and written by maker-tools to .project/settings.json @runtime.multiplayer. Missing local .project/settings.json does not imply single-player mode and does not inject enabled=false. First multiplayer build with entry_client/entry_server should pass multiplayer.enabled=true and any needed match/world fields in the same call. Explicit enabled=false remains supported for a user-confirmed single-player configuration. Later builds update only the provided fields and keep existing config for omitted fields. Runtime defaults: enabled=false, max_players=4, background_match=false.',
+  properties: {
+    enabled: {
+      type: 'boolean',
+      description:
+        'Enable multiplayer mode. When true, initializes the networking subsystem and lobby. Runtime default: false.',
+    },
+    max_players: {
+      type: 'number',
+      minimum: 2,
+      maximum: 100,
+      description:
+        'Maximum players allowed in one session (2-100). Actual match size can be smaller via match_info.player_number. Runtime default: 4.',
+    },
+    background_match: {
+      type: 'boolean',
+      description:
+        'Enable background matching. When true, game scripts load immediately and matching runs in the background; handle the ServerReady event after match success. Runtime default: false.',
+    },
+    match_info: {
+      type: 'object',
+      description:
+        'Match/session-based gameplay config for lobby, room, or round-based games. Examples: LoL, CS2, PUBG, DotA 2.',
+      properties: {
+        desc_name: {
+          type: 'string',
+          enum: ['free_match', 'free_match_with_ai'],
+          description:
+            'Matching algorithm: free_match waits without AI fill; free_match_with_ai fills with AI after timeout.',
+        },
+        player_number: {
+          type: 'number',
+          minimum: 1,
+          description:
+            'Players required to start the match. Must be less than or equal to multiplayer.max_players.',
+        },
+        immediately_start: {
+          type: 'boolean',
+          description: 'Start immediately without waiting for a full match.',
+        },
+        match_timeout: {
+          type: 'number',
+          minimum: 0,
+          description:
+            'Match timeout in seconds. Only effective for desc_name=free_match_with_ai; AI fills after timeout.',
+        },
+      },
+    },
+    persistent_world: {
+      type: 'object',
+      description:
+        'Persistent-world config for long-running/shared worlds where players can join an already running world. Examples: Roblox, World of Warcraft, Minecraft.',
+      properties: {
+        enabled: {
+          type: 'boolean',
+          description:
+            'Enable persistent-world mode instead of starting a separate match/session first. Runtime default: false.',
+        },
+      },
+    },
+  },
+};
+
+type RemoteToolDefinition = Tool & { [key: string]: unknown };
 
 class MakerCloneFailedError extends Error {
   readonly targetDir: string;
@@ -150,10 +257,10 @@ class MakerCloneFailedError extends Error {
 export const tools = [
   {
     name: 'maker_status_lite',
-    description:
-      'Compatibility status surface for clients using tool output instead of the maker://status resource. Prefer reading maker://status when resources are available. Shows local Maker status for the user current working directory, including Git, Python runtime readiness, maker-lua-lsp readiness for local Lua diagnostics, PAT/TapTap auth, project binding, AI dev kit status, Maker proxy tools status and failures, Maker Git Workflow Policy guidance, Maker Creative Asset Tool Policy guidance to prefer Maker MCP proxy tools for bound game assets, supported local path/remote URL/data URL inputs, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. Standard init/clone/download flow: show the Maker app list first and let the user choose an existing app or 0/new. Create-new-project flow: use taptap-maker init --create only when the user clearly asks to create a new Maker project.',
+    description: MAKER_STATUS_LITE_PUBLIC_DESCRIPTION,
     inputSchema: {
       type: 'object',
+      additionalProperties: false,
       properties: {
         target_dir: {
           type: 'string',
@@ -163,17 +270,22 @@ export const tools = [
         skip_remote_sync: {
           type: 'boolean',
           description:
-            'If true, skip git fetch/ahead-behind remote sync checks. Use this for frequent polling or quick local status checks.',
+            'In detail mode, skip git fetch/ahead-behind remote sync and dev-kit freshness checks. Summary mode is already local-only; use this for frequent polling.',
+        },
+        detail: {
+          type: 'boolean',
+          description:
+            'Set true only for explicit diagnostics. The default is a fast local summary without remote checks.',
         },
       },
     },
   },
   {
     name: 'maker_build_current_directory',
-    description:
-      'Sync and build the current Maker game. First read maker://status or maker_status_lite and use this tool only when the current workspace is a bound Maker project. Trigger it for Maker game requests like "构建", "build", "跑一下", "预览", "查看结果", "看看效果", "验证游戏效果", "提交", "提交代码", "推送", or "push". Do not treat generic code validation requests such as "验证一下代码", "跑测试", "lint", or "检查实现" as Maker remote build unless the user explicitly asks to build/run/preview the Maker game. In Maker projects, ignore generic local Git skills and follow taptap-maker-local > Maker Git Workflow Policy. Before build, check the Python environment section and Lua LSP environment section; if Python or maker-lua-lsp is missing, run taptap-maker python setup when local Lua diagnostics are needed, because it prepares Python and best-effort installs maker-lua-lsp. Missing Python or Lua LSP must not block the remote build flow. Do not create branches, do not use generic git commit/push, and do not create PR/MR for Maker project submit/build requests. Before creating a commit, this tool checks Maker remote sync; if local main is behind/diverged, not on main, or remote sync cannot be verified, it stops before commit/push and returns recovery details. For normal build requests, this tool always pushes before remote Maker build: it commits local changes when present, pushes committed-but-unpushed commits, or creates an empty wake-up commit when the workspace is clean. Maker generated .gitignore changes are required project files and are submitted even if files selects a smaller change set. If push fails, build is not started and the result includes recovery details for the local Agent to handle merge/conflict resolution. If push succeeds but remote build fails, report that code is already on Maker remote and include build failure details. After a successful build, a local runtime log watcher is started; for gameplay/runtime diagnostics, read runtime_logs.local_file, and for watcher health read runtime_logs.state_file. Only set confirm_remote_build_without_submit=true when the user explicitly says they do not want to submit local changes and wants to build the current remote version; this mode does not submit local changes and does not auto-open Maker pages.',
+    description: MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION,
     inputSchema: {
       type: 'object',
+      additionalProperties: false,
       properties: {
         target_dir: {
           type: 'string',
@@ -193,28 +305,14 @@ export const tools = [
         entry_client: {
           type: 'string',
           description:
-            'Optional multiplayer client entry relative to scriptsPath, e.g. "client_main.lua".',
+            'Optional multiplayer C/S client entry relative to scriptsPath, e.g. "client_main.lua". Forwarded to maker-tools build and written to project.json as entry@client. On the first multiplayer build, pass multiplayer.enabled=true in the same call; otherwise first-build defaults may initialize multiplayer as disabled.',
         },
         entry_server: {
           type: 'string',
           description:
-            'Optional multiplayer server entry relative to scriptsPath, e.g. "server_main.lua".',
+            'Optional multiplayer C/S server entry relative to scriptsPath, e.g. "server_main.lua". Forwarded to maker-tools build and written to project.json as entry@server. On the first multiplayer build, pass multiplayer.enabled=true in the same call; otherwise first-build defaults may initialize multiplayer as disabled.',
         },
-        multiplayer: {
-          type: 'object',
-          description:
-            'Optional multiplayer config forwarded to remote build. If omitted and no .project/settings.json exists, Maker MCP sends { enabled: false } for first single-player build initialization.',
-        },
-        server_url: {
-          type: 'string',
-          description:
-            'Optional remote MCP server URL override. Defaults to the Maker endpoint table for TAPTAP_MCP_ENV.',
-        },
-        env: {
-          type: 'string',
-          enum: ['rnd', 'production'],
-          description: 'Remote MCP environment. Defaults to TAPTAP_MCP_ENV.',
-        },
+        multiplayer: MAKER_BUILD_MULTIPLAYER_SCHEMA,
         timeout_ms: {
           type: 'number',
           description:
@@ -249,43 +347,40 @@ export const resources = [
       'Local TapTap Maker project status, including Git, PAT/TapTap auth, project binding, AI dev kit status, and bundled workflow guide document paths. Maker initialization next_step: taptap-maker init. Standard init/clone/download flow: show the Maker app list first and let the user choose an existing app or 0/new. Create-new-project flow: use taptap-maker init --create only when the user clearly asks to create a new Maker project.',
     mimeType: 'text/plain',
   },
+  {
+    uri: MAKER_ADS_INTEGRATION_GUIDE_URI,
+    name: 'Maker ads integration guide',
+    description:
+      'Canonical entry document for Maker ads. Connects get_ad_config activation and configuration checks with the project-local engine-docs/recipes/sdk.md implementation guide.',
+    mimeType: 'text/plain',
+  },
 ];
 
-export async function listMakerTools(options: {
-  targetDir?: string;
-  serverUrl?: string;
-  env?: 'rnd' | 'production';
-  listRemoteTools?: () => Promise<RemoteToolDefinition[]>;
-  listClientRoots?: MakerClientRootsProvider;
-}): Promise<{ tools: RemoteToolDefinition[] }> {
-  let remoteTools: RemoteToolDefinition[] = [];
-  try {
-    const context = await resolveMakerProjectContext({
-      targetDir: options.targetDir,
-      listClientRoots: options.listClientRoots,
-      allowFallbackOnAmbiguousRoots: false,
-    });
-    const listedRemoteTools =
-      options.listRemoteTools ??
-      (() =>
-        listRemoteProxyTools({
-          targetDir: context.targetDir,
-          serverUrl: options.serverUrl,
-          env: options.env,
-        }));
-    remoteTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
-      decorateRemoteProxyToolDefinition
-    );
-  } catch (error) {
-    if (isMakerProjectContextAmbiguousError(error)) {
-      logLifecycleEvent('maker-tools-list-roots-ambiguous', String(error));
-    }
-    remoteTools = [];
-  }
-
+export async function listMakerTools(
+  _options: {
+    targetDir?: string;
+    serverUrl?: string;
+    env?: 'rnd' | 'production';
+    listRemoteTools?: () => Promise<RemoteToolDefinition[]>;
+    getCachedRemoteTools?: () => RemoteToolDefinition[] | undefined;
+    listClientRoots?: MakerClientRootsProvider;
+  } = {}
+): Promise<{ tools: RemoteToolDefinition[] }> {
+  // Keep the legacy options shape for callers while making registration independent of context.
   return {
-    tools: [...tools, ...remoteTools],
+    tools: [
+      ...(tools as unknown as RemoteToolDefinition[]),
+      ...createStaticRemoteProxyToolDefinitions(),
+    ],
   };
+}
+
+function createStaticRemoteProxyToolDefinitions(): RemoteToolDefinition[] {
+  return proxyToolSnapshot.tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+  })) as RemoteToolDefinition[];
 }
 
 function filterExposedRemoteProxyTools(
@@ -295,90 +390,8 @@ function filterExposedRemoteProxyTools(
   return toolsToFilter.filter((tool) => exposedToolNames.has(tool.name));
 }
 
-function decorateRemoteProxyToolDefinition(tool: RemoteToolDefinition): RemoteToolDefinition {
-  const guidance = remoteProxyToolGuidance(tool.name);
-  return {
-    ...tool,
-    inputSchema: decorateRemoteProxyToolInputSchema(tool.inputSchema),
-    description: [tool.description, guidance].filter(Boolean).join('\n\n'),
-  };
-}
-
-function decorateRemoteProxyToolInputSchema(inputSchema: unknown): Record<string, unknown> {
-  const schema = isPlainRecord(inputSchema) ? inputSchema : {};
-  const properties = isPlainRecord(schema.properties) ? schema.properties : {};
-  return {
-    ...schema,
-    type: schema.type || 'object',
-    properties: {
-      ...properties,
-      target_dir: {
-        type: 'string',
-        description:
-          'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool.',
-      },
-    },
-  };
-}
-
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function remoteProxyToolGuidance(toolName: string): string | undefined {
-  const failurePolicy =
-    'If this Maker proxy tool fails or returns isError, include the full remote_result/error payload from the server so developers can diagnose the issue.';
-  const localMediaSizeHint =
-    'Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB.';
-  switch (toolName) {
-    case 'generate_image':
-    case 'batch_generate_images':
-      return [
-        '**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for Maker project assets. Successful results are downloaded into the Maker project and recorded with remote mapping for later edits or video references.',
-        localMediaSizeHint,
-        failurePolicy,
-      ].join(' ');
-    case 'edit_image':
-      return [
-        '**Maker asset workflow hint:** In a bound Maker project, prefer this Maker MCP proxy tool for image editing.',
-        localMediaSizeHint,
-        failurePolicy,
-      ].join(' ');
-    case 'create_video_task':
-      return [
-        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker video generation. Image, video, and audio references may use remote URLs, existing data URLs, or resolvable local files that the local proxy can forward as data URLs.',
-        localMediaSizeHint,
-        failurePolicy,
-      ].join(' ');
-    case 'query_video_task':
-      return [
-        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool to refresh video task status, release completed task quota, and materialize successful video results into the Maker project.',
-        'Use this Maker MCP proxy tool to refresh video task status when create_video_task returns a task_id or reports video concurrency limits.',
-        failurePolicy,
-      ].join(' ');
-    case 'text_to_music':
-      return [
-        '**Maker asset workflow hint:** Prefer this Maker MCP proxy tool for Maker music generation so generated audio can be materialized into the project and recorded for later Maker references.',
-        failurePolicy,
-      ].join(' ');
-    case 'get_ad_config':
-      return [
-        '**Maker hint:** Trigger this tool for any ad-related request (广告, 激励视频, 播放广告, ad ID, ad placement, ShowRewardVideoAd, ad status, or ad config). Call it first to get the current Maker project ad activation status and ad config; do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks. If .project/project.json is missing, build the project once with maker_build_current_directory to initialize it, then call this tool again. If this tool says app_id or developer_id is missing, call generate_test_qrcode once to generate test QR code metadata, then call this tool again.',
-        failurePolicy,
-      ].join(' ');
-    case 'generate_test_qrcode':
-      return [
-        '**Maker hint:** Use this only when the user explicitly asks for a test QR code/mobile scan test, or as the recovery step after get_ad_config reports missing app_id or developer_id. It has no business parameters; follow the remote schema and report the returned QR code or failure payload.',
-        failurePolicy,
-      ].join(' ');
-    case 'get_debug_feedbacks':
-      return [
-        '**Maker hint:** Fetch online player feedback for the current Maker project. When logs or screenshots can be downloaded, this tool saves them under logs/feed_back/feedback_<id>/ in the local Maker project and returns local_dir/local_log_paths/local_screenshot_paths. Read those returned local paths before diagnosing the issue. Do not guess drive letters or fixed directories; only treat attachments as local files when local_* paths are returned.',
-        failurePolicy,
-      ].join(' ');
-    default:
-      return undefined;
-  }
 }
 
 function isExposedRemoteProxyTool(name: string): boolean {
@@ -423,75 +436,86 @@ async function listRemoteProxyTools(options: {
   }
 }
 
-async function callRemoteProxyTool(options: {
+export async function callRemoteProxyTool(options: {
   targetDir: string;
   name: string;
   args: Record<string, unknown>;
   progressToken?: ProgressToken;
   extra: RequestHandlerExtra<ServerRequest, ServerNotification>;
+  manager?: MakerRemoteProxyManager;
 }): Promise<Awaited<ReturnType<Client['callTool']>>> {
-  const proxy = createRemoteProxyContext({
-    targetDir: options.targetDir,
-    exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
-  });
-  const finalArgs = prepareRemoteProxyToolArgs({
+  const createProxy = (): RemoteProxyContext =>
+    createRemoteProxyContext({
+      targetDir: options.targetDir,
+      exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
+    });
+  let proxy = createProxy();
+  const finalArgs = await prepareRemoteProxyToolArgsAsync({
     toolName: options.name,
     targetDir: proxy.projectRoot,
     args: options.args,
   });
-  const result = await retryMakerProxyOperation(
-    async () => {
-      const transport = trackMakerChildTransport(
-        new StdioClientTransport({
-          command: proxy.command,
-          args: proxy.args,
-          env: mergeStringEnv(process.env, proxy.envVars),
-          stderr: 'pipe',
-        })
-      );
-      const client = new Client(
-        {
-          name: 'taptap-maker-tool-call-forwarder',
-          version: VERSION,
-        },
-        {
-          capabilities: {},
-        }
-      );
-      try {
-        await client.connect(transport);
-        return await client.callTool(
+  const requestOptions = createRemoteProxyCallToolOptions(options.progressToken, options.extra);
+  const callTool = options.manager
+    ? async () => {
+        proxy = createProxy();
+        return await options.manager!.callTool(
+          proxy,
+          { name: options.name, arguments: finalArgs },
+          requestOptions
+        );
+      }
+    : async () => {
+        const transport = trackMakerChildTransport(
+          new StdioClientTransport({
+            command: proxy.command,
+            args: proxy.args,
+            env: mergeStringEnv(process.env, proxy.envVars),
+            stderr: 'pipe',
+          })
+        );
+        const client = new Client(
           {
-            name: options.name,
-            arguments: finalArgs,
+            name: 'taptap-maker-tool-call-forwarder',
+            version: VERSION,
           },
-          undefined,
           {
-            ...createRemoteProxyCallToolOptions(options.progressToken, options.extra),
+            capabilities: {},
           }
         );
-      } finally {
-        await client.close().catch(() => {});
-      }
-    },
-    {
-      onRetry: options.progressToken
-        ? (event) => {
-            options.extra
-              .sendNotification({
-                method: 'notifications/progress',
-                params: {
-                  progressToken: options.progressToken,
-                  progress: event.attempt,
-                  total: event.attempts,
-                  message: event.message,
-                },
-              })
-              .catch(() => {});
-          }
-        : undefined,
-    }
-  );
+        try {
+          await client.connect(transport);
+          return await client.callTool(
+            {
+              name: options.name,
+              arguments: finalArgs,
+            },
+            undefined,
+            {
+              ...requestOptions,
+            }
+          );
+        } finally {
+          await client.close().catch(() => {});
+        }
+      };
+  const result = await retryMakerProxyOperation(callTool, {
+    onRetry: options.progressToken
+      ? (event) => {
+          options.extra
+            .sendNotification({
+              method: 'notifications/progress',
+              params: {
+                progressToken: options.progressToken,
+                progress: event.attempt,
+                total: event.attempts,
+                message: event.message,
+              },
+            })
+            .catch(() => {});
+        }
+      : undefined,
+  });
   return await materializeRemoteProxyToolAssets({
     toolName: options.name,
     targetDir: proxy.projectRoot,
@@ -517,6 +541,53 @@ export function createRemoteProxyProgressHandler(
       })
       .catch(() => {});
   };
+}
+
+export function inspectMakerProxyToolPreflight(
+  toolName: 'generate_test_qrcode',
+  targetDir: string
+): MakerProjectHealth;
+export function inspectMakerProxyToolPreflight(
+  toolName: string,
+  targetDir: string
+): MakerProjectHealth | undefined;
+export function inspectMakerProxyToolPreflight(
+  toolName: string,
+  targetDir: string
+): MakerProjectHealth | undefined {
+  if (
+    toolName !== 'generate_test_qrcode' &&
+    toolName !== 'get_ad_config' &&
+    toolName !== 'add_test_whitelist'
+  ) {
+    return undefined;
+  }
+
+  // The proxy accepts a project subdirectory as target_dir and resolves its
+  // bound project root when it starts. Run the local preflight against that
+  // same root so QR checks do not disagree with the subsequent proxy call.
+  const identify = identifyMakerProject({ cwd: targetDir });
+  return inspectMakerProjectHealth(
+    identify.projectRoot || path.resolve(targetDir),
+    toolName === 'generate_test_qrcode' ? 'qrcode' : 'status'
+  );
+}
+
+/**
+ * Runs the same local checks used by the QR MCP handler, including the
+ * first-call orientation prompt and the confirmed retry that persists it.
+ */
+export function inspectMakerQrcodeToolPreflight(
+  targetDir: string,
+  confirmedOrientation: unknown
+): { ok: true; orientation: 'landscape' | 'portrait' } | { ok: false; message: string } {
+  const projectHealth = inspectMakerProxyToolPreflight('generate_test_qrcode', targetDir);
+  if (!projectHealth.canGenerateTestQrcode) {
+    return { ok: false, message: formatMakerProjectHealthStatus(projectHealth) };
+  }
+
+  const identify = identifyMakerProject({ cwd: targetDir });
+  return inspectMakerQrcodePreflight(identify.projectRoot || targetDir, confirmedOrientation);
 }
 
 export function createRemoteProxyCallToolOptions(
@@ -547,49 +618,109 @@ export async function startMakerMcpServer(): Promise<void> {
         tools: {},
         resources: {},
       },
+      instructions: MAKER_CAPABILITY_ROUTING_INDEX,
     }
   );
 
   const listClientRoots = createServerClientRootsProvider(server);
-  server.setRequestHandler(ListToolsRequestSchema, async () => listMakerTools({ listClientRoots }));
-  server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources }));
-  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const remoteProxyManager: MakerRemoteProxyManager = createMakerRemoteProxyManager();
+  const startupReportedProjects = new Set<string>();
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
+    return listMakerTools();
+  });
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
+    return { resources };
+  });
+  server.setRequestHandler(ReadResourceRequestSchema, async (request, extra) => {
     const uri = request.params.uri;
-    if (uri !== 'maker://status') {
+    if (uri !== 'maker://status' && uri !== MAKER_ADS_INTEGRATION_GUIDE_URI) {
       throw new McpError(ErrorCode.InvalidParams, `Unknown Maker resource: ${uri}`);
     }
 
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: 'text/plain',
-          text: await formatStatus({ listClientRoots }),
-        },
-      ],
-    };
+    const startedAt = Date.now();
+    const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
+    void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
+    try {
+      const result = {
+        contents: [
+          {
+            uri,
+            mimeType: 'text/plain',
+            text:
+              uri === MAKER_ADS_INTEGRATION_GUIDE_URI
+                ? formatMakerAdsIntegrationGuide()
+                : await formatStatus({ listClientRoots, remoteProxyManager }),
+          },
+        ],
+      };
+      void reportMakerMcpActivityFromPromise(contextPromise, {
+        toolName: uri,
+        requestId: extra.requestId,
+        durationMs: Date.now() - startedAt,
+        success: true,
+      });
+      return result;
+    } catch (error) {
+      void reportMakerMcpActivityFromPromise(contextPromise, {
+        toolName: uri,
+        requestId: extra.requestId,
+        durationMs: Date.now() - startedAt,
+        success: false,
+        errorCode: error instanceof Error ? error.name : undefined,
+        errorMessage: error instanceof Error ? error.message : undefined,
+      });
+      throw error;
+    }
   });
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const name = request.params.name;
+    const startedAt = Date.now();
+    const rawArgs = (request.params.arguments || {}) as Record<string, unknown>;
+    const hasInvalidTargetDir =
+      rawArgs.target_dir !== undefined &&
+      (typeof rawArgs.target_dir !== 'string' || !rawArgs.target_dir.trim());
+    const targetDir =
+      !hasInvalidTargetDir &&
+      (rawArgs.target_dir === undefined || typeof rawArgs.target_dir === 'string')
+        ? (rawArgs.target_dir as string | undefined)
+        : undefined;
+    const contextPromise = hasInvalidTargetDir
+      ? Promise.resolve(null)
+      : resolveMakerMcpTrackingContext({ targetDir, listClientRoots });
+    void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
 
     try {
       if (name === 'maker_status_lite') {
         const args = (request.params.arguments || {}) as {
           target_dir?: string;
           skip_remote_sync?: boolean;
+          detail?: boolean;
         };
-        return {
+        const toolResult = {
           content: [
             {
               type: 'text',
               text: await formatStatus({
                 targetDir: args.target_dir,
                 skipRemoteSync: args.skip_remote_sync,
+                detail: args.detail,
                 listClientRoots,
+                remoteProxyManager,
               }),
             },
           ],
         };
+        void reportMakerMcpActivityFromPromise(contextPromise, {
+          toolName: name,
+          requestId: extra.requestId,
+          durationMs: Date.now() - startedAt,
+          success: true,
+        });
+        return toolResult;
       }
 
       if (name === 'maker_build_current_directory') {
@@ -600,8 +731,6 @@ export async function startMakerMcpServer(): Promise<void> {
           entry_client?: string;
           entry_server?: string;
           multiplayer?: Record<string, unknown>;
-          server_url?: string;
-          env?: 'rnd' | 'production';
           timeout_ms?: number;
           message?: string;
           files?: string[];
@@ -628,12 +757,11 @@ export async function startMakerMcpServer(): Promise<void> {
             entryClient: args.entry_client,
             entryServer: args.entry_server,
             multiplayer: args.multiplayer,
-            serverUrl: args.server_url,
-            env: args.env,
             timeoutMs: args.timeout_ms,
             message: args.message,
             files: args.files,
             confirmRemoteBuildWithoutSubmit: args.confirm_remote_build_without_submit,
+            remoteProxyManager,
             onProgress: progressReporter.report,
           });
           progressSummary = progressReporter.finish();
@@ -642,7 +770,8 @@ export async function startMakerMcpServer(): Promise<void> {
           throw error;
         }
 
-        return {
+        const toolResult = {
+          isError: !isMakerBuildActivitySuccessful(result.mode),
           content: [
             {
               type: 'text',
@@ -650,28 +779,92 @@ export async function startMakerMcpServer(): Promise<void> {
             },
           ],
         };
+        void reportMakerMcpActivityFromPromise(contextPromise, {
+          toolName: name,
+          requestId: extra.requestId,
+          durationMs: Date.now() - startedAt,
+          success: isMakerBuildActivitySuccessful(result.mode),
+        });
+        return toolResult;
       }
 
       if (isExposedRemoteProxyTool(name)) {
-        const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs(
-          (request.params.arguments || {}) as Record<string, unknown>
-        );
+        const requestArgs = (request.params.arguments || {}) as Record<string, unknown>;
+        const { targetDir, remoteArgs } = splitRemoteProxyToolPrivateArgs(requestArgs, name);
         const context = await resolveMakerProjectContext({
           targetDir,
           listClientRoots,
           allowFallbackOnAmbiguousRoots: false,
         });
-        return await callRemoteProxyTool({
+        if (name === 'generate_test_qrcode') {
+          const preflight = inspectMakerQrcodeToolPreflight(
+            context.targetDir,
+            requestArgs.confirmed_screen_orientation
+          );
+          if (!preflight.ok) {
+            const result = {
+              isError: true,
+              content: [{ type: 'text', text: preflight.message }],
+            };
+            void reportMakerMcpActivityFromPromise(contextPromise, {
+              toolName: name,
+              requestId: extra.requestId,
+              durationMs: Date.now() - startedAt,
+              success: false,
+            });
+            return result;
+          }
+        } else if (name === 'get_ad_config' || name === 'add_test_whitelist') {
+          const projectHealth = inspectMakerProxyToolPreflight(name, context.targetDir);
+          if (
+            projectHealth &&
+            (projectHealth.status === 'not_initialized' || !projectHealth.canBuild)
+          ) {
+            const result = {
+              isError: true,
+              content: [
+                {
+                  type: 'text',
+                  text: formatMakerProjectHealthStatus(projectHealth),
+                },
+              ],
+            };
+            void reportMakerMcpActivityFromPromise(contextPromise, {
+              toolName: name,
+              requestId: extra.requestId,
+              durationMs: Date.now() - startedAt,
+              success: false,
+            });
+            return result;
+          }
+        }
+        const result = await callRemoteProxyTool({
           targetDir: context.targetDir,
           name,
           args: remoteArgs,
           progressToken: request.params._meta?.progressToken,
           extra,
+          manager: remoteProxyManager,
         });
+        void reportMakerMcpActivityFromPromise(contextPromise, {
+          toolName: name,
+          requestId: extra.requestId,
+          durationMs: Date.now() - startedAt,
+          success: !result.isError,
+        });
+        return result;
       }
 
       throw new McpError(ErrorCode.MethodNotFound, `Unknown Maker tool: ${name}`);
     } catch (error) {
+      void reportMakerMcpActivityFromPromise(contextPromise, {
+        toolName: name,
+        requestId: extra.requestId,
+        durationMs: Date.now() - startedAt,
+        success: false,
+        errorCode: error instanceof Error ? error.name : undefined,
+        errorMessage: error instanceof Error ? error.message : undefined,
+      });
       return {
         isError: true,
         content: [
@@ -686,12 +879,74 @@ export async function startMakerMcpServer(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  installMakerServerExitHandlers();
+  installMakerServerExitHandlers(remoteProxyManager);
+}
+
+async function resolveMakerMcpTrackingContext(options: {
+  targetDir?: string;
+  listClientRoots?: MakerClientRootsProvider;
+}): Promise<MakerMcpTrackingContext | null> {
+  try {
+    const context = await resolveMakerProjectContext({
+      targetDir: options.targetDir,
+      listClientRoots: options.listClientRoots,
+      allowFallbackOnAmbiguousRoots: false,
+    });
+    const identify = identifyMakerProject({ cwd: context.targetDir });
+    const projectConfig = identify.projectRoot ? loadProjectConfig(identify.projectRoot) : null;
+    const userId = projectConfig?.user_id?.trim();
+    const projectId = projectConfig?.project_id?.trim();
+    if (!userId || !projectId) {
+      return null;
+    }
+    return { userId, projectId };
+  } catch {
+    return null;
+  }
+}
+
+async function reportMakerMcpActivityFromPromise(
+  contextPromise: Promise<MakerMcpTrackingContext | null>,
+  event: Omit<MakerMcpActivityEvent, 'context'>
+): Promise<void> {
+  try {
+    const context = await contextPromise;
+    if (!context) {
+      return;
+    }
+    await reportMakerMcpActivity({ context, ...event });
+  } catch {
+    // Activity reporting must never affect the MCP request or resource result.
+  }
+}
+
+async function reportMakerMcpStartupFromPromise(
+  contextPromise: Promise<MakerMcpTrackingContext | null>,
+  reportedProjects: Set<string>
+): Promise<void> {
+  try {
+    const context = await contextPromise;
+    if (!context) {
+      return;
+    }
+    const key = `${context.userId}\u0000${context.projectId}`;
+    if (reportedProjects.has(key)) {
+      return;
+    }
+    reportedProjects.add(key);
+    await reportMakerMcpActivity({
+      context,
+      toolName: `@taptap/maker@${VERSION}`,
+      success: true,
+    });
+  } catch {
+    // Activity reporting must never affect the MCP request or resource result.
+  }
 }
 
 const MAKER_SERVER_SHUTDOWN_TIMEOUT_MS = 3000;
 
-function installMakerServerExitHandlers(): void {
+export function installMakerServerExitHandlers(remoteProxyManager?: MakerRemoteProxyManager): void {
   let exiting = false;
   const shutdown = async (source: string): Promise<void> => {
     if (exiting) {
@@ -705,7 +960,13 @@ function installMakerServerExitHandlers(): void {
       const timer = setTimeout(resolve, MAKER_SERVER_SHUTDOWN_TIMEOUT_MS);
       timer.unref?.();
     });
-    await Promise.race([closeTrackedMakerChildTransports(), timeout]);
+    await Promise.race([
+      Promise.allSettled([
+        remoteProxyManager?.closeAll() || Promise.resolve(),
+        closeTrackedMakerChildTransports(),
+      ]).then(() => undefined),
+      timeout,
+    ]);
     process.exit(0);
   };
 
@@ -723,13 +984,16 @@ function installMakerServerExitHandlers(): void {
   });
 }
 
-async function formatStatus(
+export async function formatStatus(
   options: {
     targetDir?: string;
     skipRemoteSync?: boolean;
+    detail?: boolean;
     listClientRoots?: MakerClientRootsProvider;
+    remoteProxyManager?: MakerRemoteProxyManager;
   } = {}
 ): Promise<string> {
+  const detail = options.detail === true;
   const projectContext = await resolveMakerProjectContext({
     targetDir: options.targetDir,
     listClientRoots: options.listClientRoots,
@@ -745,56 +1009,104 @@ async function formatStatus(
       : identifyMakerProject({ cwd: mcpCwd });
   const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
   const remoteSyncText =
-    identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo && !options.skipRemoteSync
+    detail &&
+    identify.projectRoot &&
+    gitDirectoryStatus.isUsableMakerGitRepo &&
+    !options.skipRemoteSync
       ? await formatMakerRemoteSyncStatusSafely(identify.projectRoot)
-      : identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo
+      : detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo
         ? formatMakerRemoteSyncSkipped()
         : '';
   const pat = loadPat();
-  let tapAuth = loadTapAuth();
-  let tapAuthRefreshText = '';
-  if (pat && !tapAuth) {
-    try {
-      tapAuth = await requestTapAuthWithPat(pat.token, env);
-      tapAuthRefreshText = [
-        'TapTap token',
-        '',
-        `本地已有 Maker PAT，已自动获取并保存 TapTap token: ${getTapAuthPath()}`,
-      ].join('\n');
-    } catch (error) {
-      tapAuthRefreshText = [
-        'TapTap token',
-        '',
-        '本地已有 Maker PAT，但自动获取 TapTap token 失败。',
-        `原因：${error instanceof Error ? error.message : String(error)}`,
-      ].join('\n');
-    }
-  }
+  const tapAuth = loadTapAuth();
   const git = checkGitEnvironment();
   const python = checkMakerPythonEnvironment();
   const luaLsp = checkMakerLuaLspEnvironment({ pythonEnvironment: python });
-  const packageUpdateText = formatMakerPackageUpdateStatus(
-    await getMakerPackageUpdateStatus({
-      currentVersion: VERSION,
-      allowRemoteFetch: false,
-    })
-  );
-  const projectInitializationText = identify.projectRoot
-    ? formatMakerProjectInitializationStatus(
-        inspectMakerProjectInitialization(identify.projectRoot)
-      )
+  const packageUpdateStatus = await getMakerPackageUpdateStatus({
+    currentVersion: VERSION,
+    allowRemoteFetch: false,
+    ...(detail ? {} : { backgroundRefresh: false }),
+  });
+  const packageUpdateText = detail ? formatMakerPackageUpdateStatus(packageUpdateStatus) : '';
+  const projectInitialization = identify.projectRoot
+    ? inspectMakerProjectInitialization(identify.projectRoot)
+    : undefined;
+  const projectHealth = identify.projectRoot
+    ? inspectMakerProjectHealth(identify.projectRoot, 'status')
+    : undefined;
+  const projectInitializationText = projectInitialization
+    ? formatMakerProjectInitializationStatus(projectInitialization)
     : '';
-  const projectSection = identify.projectId
-    ? [
-        '目标目录已绑定 Maker 项目。',
-        '请继续在当前绑定项目上执行状态、提交、构建等操作；用户明确要求切换或重新拉取项目时，再进入项目选择流程。',
-        '本地 Maker 工作流请参考 taptap-maker-local workflow guide document；CLI 负责初始化/PAT/app/clone，MCP 只保留状态和同步构建。',
-      ].join('\n')
-    : isLikelyAiDialogueDirectory(targetDir)
-      ? formatAiDialogueDirectoryHint(targetDir)
-      : pat
-        ? await formatAutoProjectListFromPat()
-        : formatIdentifyHint();
+  const projectHealthText = projectHealth ? formatMakerProjectHealthStatus(projectHealth) : '';
+  let projectSection: string;
+  if (projectContext.roots.status === 'ambiguous') {
+    projectSection = [
+      'MCP client roots are ambiguous; do not continue Maker operations from the cwd fallback.',
+      'Open a single Maker workspace or pass target_dir explicitly before status-dependent actions.',
+    ].join('\n');
+  } else if (identify.projectId) {
+    projectSection = [
+      '目标目录已绑定 Maker 项目。',
+      '请继续在当前绑定项目上执行状态、提交、构建等操作；用户明确要求切换或重新拉取项目时，再进入项目选择流程。',
+      '本地 Maker 工作流请参考 taptap-maker-local workflow guide document；CLI 负责初始化/PAT/app/clone，MCP 只保留状态和同步构建。',
+    ].join('\n');
+  } else if (isLikelyAiDialogueDirectory(targetDir)) {
+    projectSection = formatAiDialogueDirectoryHint(targetDir);
+  } else if (detail && pat) {
+    projectSection = await formatAutoProjectListFromPat();
+  } else {
+    projectSection = formatIdentifyHint();
+  }
+
+  const summaryText = [
+    'Status summary',
+    '',
+    `- project: ${identify.projectId ? 'bound' : 'unbound'}`,
+    `- target_dir: ${targetDir}`,
+    `- tap_auth: ${tapAuth ? 'found' : 'missing'}`,
+    `- pat: ${pat ? 'found' : 'missing'}`,
+    `- git: ${gitDirectoryStatus.isUsableMakerGitRepo ? 'ready' : gitDirectoryStatus.issue || 'unavailable'}`,
+    `- python: ${python.status}`,
+    `- lua_lsp: ${luaLsp.status}`,
+    'Maker MCP package update',
+    `- status: ${packageUpdateStatus.status}`,
+    packageUpdateStatus.target_version
+      ? `- target_version: ${packageUpdateStatus.target_version}`
+      : '',
+    packageUpdateStatus.next_action ? `- next_action: ${packageUpdateStatus.next_action}` : '',
+    projectInitialization ? `- project_initialization: ${projectInitialization.status}` : '',
+    projectHealth ? `- project_health: ${projectHealth.status}` : '',
+    formatMakerClientRootsSummary(projectContext.roots),
+    '',
+    formatAuthNextStep({
+      hasPat: Boolean(pat),
+      hasTapAuth: Boolean(tapAuth),
+      isProjectBound: Boolean(identify.projectRoot),
+      rootsAmbiguous: projectContext.roots.status === 'ambiguous',
+    }),
+    formatMakerSummaryNextAction({
+      git,
+      gitDirectoryStatus,
+      projectInitialization,
+      projectHealth,
+      rootsAmbiguous: projectContext.roots.status === 'ambiguous',
+    }),
+    '',
+    projectSection,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  if (!detail) {
+    return [
+      'TapTap Maker MCP status',
+      '',
+      `- version: ${VERSION}`,
+      `- env: ${env}`,
+      `- project_context_source: ${projectContext.source}`,
+      summaryText,
+    ].join('\n');
+  }
 
   return [
     'TapTap Maker MCP status',
@@ -822,6 +1134,7 @@ async function formatStatus(
     '',
     formatMakerGitDirectoryStatus(gitDirectoryStatus),
     ...(projectInitializationText ? ['', projectInitializationText, ''] : ['']),
+    ...(projectHealthText ? ['', projectHealthText, ''] : ['']),
     formatMakerClientRootsStatus(projectContext.roots),
     '',
     projectContext.source === 'client_roots'
@@ -836,12 +1149,20 @@ async function formatStatus(
     remoteSyncText,
     '',
     identify.projectRoot
-      ? await formatMakerProxyToolsStatusSafely({ targetDir: identify.projectRoot })
+      ? await formatMakerProxyToolsStatusSafely({
+          targetDir: identify.projectRoot,
+          remoteProxyManager: options.remoteProxyManager,
+        })
       : '',
     '',
-    formatAuthNextStep({ hasPat: Boolean(pat), isProjectBound: Boolean(identify.projectRoot) }),
+    formatAuthNextStep({
+      hasPat: Boolean(pat),
+      hasTapAuth: Boolean(tapAuth),
+      isProjectBound: Boolean(identify.projectRoot),
+      rootsAmbiguous: projectContext.roots.status === 'ambiguous',
+    }),
     '',
-    tapAuthRefreshText,
+    '',
     '',
     identify.projectRoot ? formatMakerAgentsPolicyStatus(identify.projectRoot) : '',
     '',
@@ -860,7 +1181,28 @@ async function formatStatus(
     .join('\n');
 }
 
-function formatAuthNextStep(options: { hasPat: boolean; isProjectBound: boolean }): string {
+function formatAuthNextStep(options: {
+  hasPat: boolean;
+  hasTapAuth: boolean;
+  isProjectBound: boolean;
+  rootsAmbiguous: boolean;
+}): string {
+  if (!options.hasTapAuth) {
+    if (options.hasPat) {
+      return [
+        'Auth next step',
+        '',
+        'TapTap auth 缺失。请运行 `taptap-maker login` 刷新登录授权。',
+      ].join('\n');
+    }
+    if (options.isProjectBound) {
+      return [
+        'Auth next step',
+        '',
+        'Maker PAT 和 TapTap auth 缺失。请运行 `taptap-maker login` 刷新登录授权。',
+      ].join('\n');
+    }
+  }
   if (options.hasPat) {
     return '';
   }
@@ -871,12 +1213,113 @@ function formatAuthNextStep(options: { hasPat: boolean; isProjectBound: boolean 
       'Maker PAT 缺失。请运行 `taptap-maker login` 刷新登录授权。',
     ].join('\n');
   }
+  if (options.rootsAmbiguous) {
+    return '';
+  }
   return [
     'Initialization next step',
     '',
     '当前目录尚未绑定 Maker 项目。请运行 `taptap-maker init`。',
     '如果缺少 Maker PAT，CLI 会在 init 流程内自动打开登录授权页面并完成本地保存。',
   ].join('\n');
+}
+
+function formatMakerClientRootsSummary(roots: MakerClientRootsResolution): string {
+  if (roots.status === 'not_requested') {
+    return '';
+  }
+
+  const lines = ['MCP client roots', '', `- status: ${roots.status}`];
+  if (roots.status === 'selected') {
+    lines.push(
+      `- selected_project_root: ${roots.selectedProjectRoot || roots.selectedRoot}`,
+      `- reason: ${roots.reason}`
+    );
+  } else if (roots.status === 'ambiguous') {
+    lines.push(
+      `- roots: ${roots.roots.join(', ') || '(none)'}`,
+      `- maker_project_roots: ${roots.makerProjectRoots.join(', ') || '(none)'}`,
+      '- next_action: Open a single Maker workspace, or pass target_dir explicitly for this call.'
+    );
+  } else if (roots.status === 'unsupported') {
+    lines.push('- next_action: This client did not advertise MCP roots; falling back to MCP cwd.');
+  } else if (roots.status === 'unavailable') {
+    lines.push(
+      `- failure_message: ${roots.message || '(unknown)'}`,
+      '- next_action: Could not read MCP roots; falling back to MCP cwd.'
+    );
+  } else {
+    lines.push('- next_action: No MCP roots are attached; using MCP cwd.');
+  }
+  return lines.join('\n');
+}
+
+function formatMakerSummaryNextAction(options: {
+  git: ReturnType<typeof checkGitEnvironment>;
+  gitDirectoryStatus: ReturnType<typeof inspectMakerDirectoryGitStatus>;
+  projectInitialization?: ReturnType<typeof inspectMakerProjectInitialization>;
+  projectHealth?: MakerProjectHealth;
+  rootsAmbiguous: boolean;
+}): string {
+  if (options.rootsAmbiguous) {
+    return '';
+  }
+  if (!options.git.installed) {
+    return '- next_action: Git 未安装。请先安装 Git，并执行 `git --version` 验证。';
+  }
+  if (!options.gitDirectoryStatus.isUsableMakerGitRepo) {
+    const nextAction =
+      options.gitDirectoryStatus.issue === 'inside_parent_git_repo'
+        ? '当前目录位于外层 Git 仓库中；请使用独立 Maker 项目目录重新 clone。'
+        : '当前目录没有可用的独立 Maker Git 仓库；请运行 `taptap-maker init` 重新初始化。';
+    return `- next_action: ${nextAction}`;
+  }
+
+  if (options.projectHealth?.status === 'misplaced_config') {
+    return '- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。';
+  }
+  if (
+    options.projectHealth?.status === 'error' &&
+    !options.projectHealth.issues.some((issue) => issue.code === 'invalid_project_json')
+  ) {
+    const settingsIssue = options.projectHealth.issues.find(
+      (issue) => issue.code === 'invalid_settings_json' || issue.code === 'invalid_project_settings'
+    );
+    if (settingsIssue) {
+      return '- next_action: 恢复 .project/settings.json 的构建关键字段后再构建；保留合法的 @runtime 配置。';
+    }
+    return '- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。';
+  }
+
+  if (options.projectInitialization) {
+    switch (options.projectInitialization.status) {
+      case 'missing_taptap_identity':
+        return '- next_action: 先调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。';
+      case 'invalid_project_json':
+        return '- next_action: 从 Git 或完整副本恢复合法的 `.project/project.json`，不要依赖构建覆盖已有坏文件。';
+      case 'missing_project_json':
+        return '- next_action: 仅当用户明确要求构建、提交或预览时调用 `maker_build_current_directory`。';
+      default:
+        break;
+    }
+  }
+
+  if (options.projectHealth?.status === 'error') {
+    const settingsIssue = options.projectHealth.issues.find(
+      (issue) => issue.code === 'invalid_settings_json' || issue.code === 'invalid_project_settings'
+    );
+    if (settingsIssue) {
+      return '- next_action: 恢复 .project/settings.json 的构建关键字段后再构建；保留合法的 @runtime 配置。';
+    }
+    return '- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。';
+  }
+  if (options.projectHealth?.status === 'warning') {
+    return '- next_action: 调用 `maker_status_lite` 并设置 `detail=true` 查看项目结构告警后再继续。';
+  }
+  if (options.projectHealth?.status === 'not_initialized') {
+    return '- next_action: 仅当用户明确要求构建、提交或预览时调用 `maker_build_current_directory`。';
+  }
+  return '';
 }
 
 function formatMakerRemoteSyncSkipped(): string {
@@ -919,29 +1362,38 @@ export function formatMakerToolRegistrationCwdStatus(options: {
   }
 
   return [
-    'MCP tool registration cwd',
+    'MCP project context cwd',
     '',
     '- status: mismatch',
     `- mcp_cwd: ${mcpCwd}`,
     `- inspected_target_dir: ${targetDir}`,
     `- maker_project_dir: ${projectRoot}`,
     `- mcp_cwd_project_dir: ${mcpProjectRoot || '(none)'}`,
-    '- impact: Maker proxy tools may not appear in this MCP session because tools/list used the MCP server cwd.',
-    '- next_action: Start Claude Code from the Maker project directory, or set the taptap-maker MCP config cwd to maker_project_dir, then Reconnect taptap-maker in /mcp.',
+    '- impact: Maker proxy tools remain registered, but calls without target_dir may resolve an unbound or wrong project.',
+    '- next_action: Open the Maker project as the active workspace, or pass maker_project_dir as target_dir. Do not rewrite a shared user-level MCP cwd.',
   ].join('\n');
 }
 
 export async function formatMakerProxyToolsStatusSafely(options: {
   targetDir: string;
   listRemoteTools?: () => Promise<RemoteToolDefinition[]>;
+  remoteProxyManager?: MakerRemoteProxyManager;
 }): Promise<string> {
   try {
     const listedRemoteTools =
       options.listRemoteTools ??
-      (() =>
-        listRemoteProxyTools({
-          targetDir: options.targetDir,
-        }));
+      (options.remoteProxyManager
+        ? async () =>
+            options.remoteProxyManager!.listTools(
+              createRemoteProxyContext({
+                targetDir: options.targetDir,
+                exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
+              })
+            )
+        : () =>
+            listRemoteProxyTools({
+              targetDir: options.targetDir,
+            }));
     const availableTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
       (tool) => tool.name
     );
@@ -1022,6 +1474,22 @@ function sleepMs(delayMs: number): Promise<void> {
 }
 
 function isRetryableMakerProxyError(error: unknown): boolean {
+  if (hasRemoteDiagnostic(error)) {
+    return false;
+  }
+
+  if (isHttpClientError(error)) {
+    return false;
+  }
+
+  if (isExplicitProxyUnavailableError(error) || isTransientHttpServerError(error)) {
+    return true;
+  }
+
+  if (isMcpBusinessError(error)) {
+    return false;
+  }
+
   const message = error instanceof Error ? error.message : String(error);
   if (
     /\bBUILD FAILED\b|validation|invalid arguments|bad request|forbidden|unauthorized/i.test(
@@ -1032,6 +1500,79 @@ function isRetryableMakerProxyError(error: unknown): boolean {
   }
   return /connect|connection|ECONN|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|timeout|timed out|socket|closed|reset|refused|network|fetch failed|transport/i.test(
     message
+  );
+}
+
+/** Return whether the embedded proxy explicitly reports a reconnectable unavailable state. */
+function isExplicitProxyUnavailableError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /TapTap MCP Server is currently unavailable|proxy .*reconnect|attempting to reconnect/i.test(
+      error.message
+    )
+  );
+}
+
+/** Return whether an error represents a transient HTTP server or gateway failure. */
+function isTransientHttpServerError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const code = (error as Error & { code?: unknown }).code;
+  if (typeof code === 'number' && code >= 500 && code < 600) {
+    return true;
+  }
+
+  return /\bHTTP\s+5\d\d\b|bad gateway|service unavailable|gateway timeout/i.test(error.message);
+}
+
+/** Return whether an error explicitly represents an HTTP client (4xx) response. */
+function isHttpClientError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const code = (error as Error & { code?: unknown }).code;
+  const numericCode =
+    typeof code === 'number'
+      ? code
+      : typeof code === 'string' && /^4\d\d$/.test(code)
+        ? Number(code)
+        : undefined;
+
+  return (
+    (numericCode !== undefined && numericCode >= 400 && numericCode < 500) ||
+    /\bHTTP\s+4\d\d\b/i.test(error.message)
+  );
+}
+
+/** Keep JSON-RPC/MCP application failures out of the transport retry path. */
+function isMcpBusinessError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const code = (error as Error & { code?: unknown }).code;
+  if (typeof code === 'number' && code < 0) {
+    return code !== ErrorCode.ConnectionClosed && code !== ErrorCode.RequestTimeout;
+  }
+
+  return (
+    /\bmcp error -\d+:/i.test(error.message) &&
+    !/not connected|session expired|connection closed|transport closed/i.test(error.message)
+  );
+}
+
+/** Return whether an exception carries a structured upstream business result. */
+function hasRemoteDiagnostic(error: unknown): boolean {
+  if (!(error instanceof Error) || !isPlainRecord((error as Error & { data?: unknown }).data)) {
+    return false;
+  }
+
+  return Object.prototype.hasOwnProperty.call(
+    (error as Error & { data: Record<string, unknown> }).data,
+    'remote_result'
   );
 }
 
@@ -1206,10 +1747,6 @@ class MakerProjectContextAmbiguousError extends Error {
   }
 }
 
-function isMakerProjectContextAmbiguousError(error: unknown): boolean {
-  return error instanceof MakerProjectContextAmbiguousError;
-}
-
 export async function resolveMakerClientRoots(
   listClientRoots?: MakerClientRootsProvider
 ): Promise<MakerClientRootsResolution> {
@@ -1339,13 +1876,19 @@ function formatMakerClientRootsStatus(roots: MakerClientRootsResolution): string
   return lines.join('\n');
 }
 
-export function splitRemoteProxyToolPrivateArgs(args: Record<string, unknown>): {
+export function splitRemoteProxyToolPrivateArgs(
+  args: Record<string, unknown>,
+  toolName?: string
+): {
   targetDir?: string;
   remoteArgs: Record<string, unknown>;
 } {
   const remoteArgs = { ...args };
   const targetDir = remoteArgs.target_dir;
   delete remoteArgs.target_dir;
+  if (toolName === 'generate_test_qrcode') {
+    delete remoteArgs.confirmed_screen_orientation;
+  }
 
   if (targetDir === undefined) {
     return { remoteArgs };
@@ -1857,6 +2400,18 @@ type BuildCurrentDirectoryResult =
       submitResult: PushMakerProjectResult;
     }
   | {
+      mode: 'settings_invalid_before_build';
+      projectRoot: string;
+      projectId: string;
+      settingsStatus: MakerProjectSettingsStatus;
+    }
+  | {
+      mode: 'project_invalid_before_build';
+      projectRoot: string;
+      projectId: string;
+      projectHealth: MakerProjectHealth;
+    }
+  | {
       mode: 'build_failed_after_submit';
       projectRoot: string;
       projectId: string;
@@ -1889,6 +2444,7 @@ export async function buildCurrentDirectory(options: {
   confirmRemoteBuildWithoutSubmit?: boolean;
   submitLocalChanges?: SubmitLocalChangesForBuild;
   callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildCallResult>;
+  remoteProxyManager?: MakerRemoteProxyManager;
   refreshPreview?: RefreshMakerPreview;
   startRuntimeLogWatch?: StartRuntimeLogWatch;
   onProgress?: MakerProjectProgressHandler;
@@ -1896,6 +2452,30 @@ export async function buildCurrentDirectory(options: {
   const localChanges = await readMakerProjectLocalChanges(options.targetDir);
   if (!options.confirmRemoteBuildWithoutSubmit) {
     const config = loadProjectConfig(localChanges.projectRoot);
+    const projectHealth = inspectMakerProjectHealth(localChanges.projectRoot, 'build');
+    if (!projectHealth.canBuild) {
+      const settingsStatus = inspectMakerProjectSettings(localChanges.projectRoot);
+      const hasNonSettingsErrors = projectHealth.issues.some(
+        (item) =>
+          item.severity === 'error' &&
+          item.code !== 'invalid_settings_json' &&
+          item.code !== 'invalid_project_settings'
+      );
+      if (isMakerProjectSettingsBlocking(settingsStatus) && !hasNonSettingsErrors) {
+        return {
+          mode: 'settings_invalid_before_build',
+          projectRoot: localChanges.projectRoot,
+          projectId: config?.project_id || 'unknown',
+          settingsStatus,
+        };
+      }
+      return {
+        mode: 'project_invalid_before_build',
+        projectRoot: localChanges.projectRoot,
+        projectId: config?.project_id || 'unknown',
+        projectHealth,
+      };
+    }
     options.onProgress?.({
       progress: 0,
       total: 100,
@@ -1967,6 +2547,7 @@ async function runRemoteBuildCurrentDirectory(
     serverUrl?: string;
     env?: 'rnd' | 'production';
     timeoutMs?: number;
+    remoteProxyManager?: MakerRemoteProxyManager;
     callRemoteBuild?: (targetDir: string) => Promise<RemoteBuildCallResult>;
     refreshPreview?: RefreshMakerPreview;
     startRuntimeLogWatch?: StartRuntimeLogWatch;
@@ -1982,69 +2563,81 @@ async function runRemoteBuildCurrentDirectory(
     });
   }
 
-  const proxy = createRemoteProxyContext({
-    targetDir,
-    serverUrl: options.serverUrl,
-    env: options.env,
-  });
+  const createProxy = (): RemoteProxyContext =>
+    createRemoteProxyContext({
+      targetDir,
+      serverUrl: options.serverUrl,
+      env: options.env,
+    });
+  let proxy = createProxy();
   const buildArgs = createBuildArgs(proxy.projectRoot, options);
   const timeoutMs = options.timeoutMs || DEFAULT_BUILD_TIMEOUT_MS;
 
-  const result = await retryMakerProxyOperation(
-    async () => {
-      const transport = trackMakerChildTransport(
-        new StdioClientTransport({
-          command: proxy.command,
-          args: proxy.args,
-          env: mergeStringEnv(process.env, proxy.envVars),
-          stderr: 'pipe',
-        })
-      );
-      const client = new Client(
-        {
-          name: 'taptap-maker-build-forwarder',
-          version: VERSION,
-        },
-        {
-          capabilities: {},
-        }
-      );
-      try {
-        await client.connect(transport);
-        return await client.callTool(
+  const requestOptions = {
+    timeout: timeoutMs,
+    resetTimeoutOnProgress: true,
+    onprogress: (progress: { progress: number; total?: number; message?: string }) => {
+      options.onProgress?.({
+        progress: progress.progress,
+        total: progress.total,
+        phase: 'remote_build',
+        message: progress.message || 'Remote Maker build progress',
+      });
+    },
+  };
+  const callBuild = options.remoteProxyManager
+    ? async () => {
+        proxy = createProxy();
+        return await options.remoteProxyManager!.callTool(
+          proxy,
+          { name: 'build', arguments: buildArgs },
+          requestOptions
+        );
+      }
+    : async () => {
+        const transport = trackMakerChildTransport(
+          new StdioClientTransport({
+            command: proxy.command,
+            args: proxy.args,
+            env: mergeStringEnv(process.env, proxy.envVars),
+            stderr: 'pipe',
+          })
+        );
+        const client = new Client(
           {
-            name: 'build',
-            arguments: buildArgs,
+            name: 'taptap-maker-build-forwarder',
+            version: VERSION,
           },
-          undefined,
           {
-            timeout: timeoutMs,
-            resetTimeoutOnProgress: true,
-            onprogress: (progress) => {
-              options.onProgress?.({
-                progress: progress.progress,
-                total: progress.total,
-                phase: 'remote_build',
-                message: progress.message || 'Remote Maker build progress',
-              });
-            },
+            capabilities: {},
           }
         );
-      } finally {
-        await client.close().catch(() => {});
-      }
+        try {
+          await client.connect(transport);
+          return await client.callTool(
+            {
+              name: 'build',
+              arguments: buildArgs,
+            },
+            undefined,
+            {
+              ...requestOptions,
+            }
+          );
+        } finally {
+          await client.close().catch(() => {});
+        }
+      };
+  const result = await retryMakerProxyOperation(callBuild, {
+    onRetry: (event) => {
+      options.onProgress?.({
+        progress: event.attempt,
+        total: event.attempts,
+        phase: 'remote_build',
+        message: event.message,
+      });
     },
-    {
-      onRetry: (event) => {
-        options.onProgress?.({
-          progress: event.attempt,
-          total: event.attempts,
-          phase: 'remote_build',
-          message: event.message,
-        });
-      },
-    }
-  );
+  });
 
   if (isRemoteToolError(result)) {
     throw new Error(formatRemoteToolResult(result));
@@ -2697,8 +3290,6 @@ export function createBuildArgs(
   }
   if (options.multiplayer) {
     buildArgs.multiplayer = options.multiplayer;
-  } else if (!fs.existsSync(path.join(projectRoot, '.project', 'settings.json'))) {
-    buildArgs.multiplayer = { enabled: false };
   }
 
   return buildArgs;
@@ -2723,12 +3314,16 @@ function mergeStringEnv(
 
 function formatRemoteToolResult(result: unknown): string {
   if (!result || typeof result !== 'object') {
-    return String(result);
+    return String(sanitizeRemoteDiagnosticValue(result));
   }
 
-  const content = (result as { content?: Array<{ type?: string; text?: string }> }).content;
+  const sanitizedResult = sanitizeRemoteDiagnosticValue(result) as {
+    content?: Array<{ type?: string; text?: string }>;
+  };
+
+  const content = sanitizedResult.content;
   if (!Array.isArray(content)) {
-    return JSON.stringify(result, null, 2);
+    return JSON.stringify(sanitizedResult, null, 2);
   }
 
   return content
@@ -2756,8 +3351,6 @@ export function formatBuildResult(
         formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
       }`,
       `- project_path: ${result.buildResult.projectPath}`,
-      `- server_url: ${result.buildResult.serverUrl}`,
-      `- env: ${result.buildResult.env}`,
       `- timeout_ms: ${result.buildResult.timeoutMs}`,
       `- build_args: ${JSON.stringify(result.buildResult.buildArgs)}`,
       ...formatProgressSummary(progressSummary),
@@ -2765,7 +3358,7 @@ export function formatBuildResult(
       ...formatMakerBuildFailureLines(result.buildFailure),
       '',
       'remote_result:',
-      indent(result.buildResult.resultText),
+      indent(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText))),
     ]
       .filter(Boolean)
       .join('\n');
@@ -2803,6 +3396,34 @@ export function formatBuildResult(
             ...formatMakerFailureLines(result.submitResult.failure),
           ]
         : []),
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (result.mode === 'settings_invalid_before_build') {
+    return [
+      '✗ Maker project settings are invalid; submit and remote build were not started',
+      '',
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      ...formatProgressSummary(progressSummary),
+      '',
+      formatMakerProjectSettingsStatus(result.settingsStatus),
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (result.mode === 'project_invalid_before_build') {
+    return [
+      '✗ Maker project structure is invalid; submit and remote build were not started',
+      '',
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      ...formatProgressSummary(progressSummary),
+      '',
+      formatMakerProjectHealthStatus(result.projectHealth),
     ]
       .filter(Boolean)
       .join('\n');
@@ -2856,8 +3477,6 @@ export function formatBuildResult(
     `- project_id: ${result.projectId}`,
     `- maker_url: ${result.makerUrl || formatMakerAppWebUrl(result.projectId, result.env)}`,
     `- project_path: ${result.projectPath}`,
-    `- server_url: ${result.serverUrl}`,
-    `- env: ${result.env}`,
   ];
   lines.push(
     `- timeout_ms: ${result.timeoutMs}`,
@@ -2871,7 +3490,7 @@ export function formatBuildResult(
   if (submitLines.length > 0) {
     lines.push(...submitLines);
   }
-  lines.push('remote_result:', indent(result.resultText));
+  lines.push('remote_result:', indent(String(sanitizeRemoteDiagnosticValue(result.resultText))));
   return lines.join('\n');
 }
 
@@ -2918,14 +3537,12 @@ export function formatPushResult(
             formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
           }`,
           `- project_path: ${result.buildResult.projectPath}`,
-          `- server_url: ${result.buildResult.serverUrl}`,
-          `- env: ${result.buildResult.env}`,
           `- timeout_ms: ${result.buildResult.timeoutMs}`,
           `- build_args: ${JSON.stringify(result.buildResult.buildArgs)}`,
           ...formatPreviewRefreshLines(result.buildResult.previewRefresh),
           '',
           'remote_result:',
-          indent(result.buildResult.resultText),
+          indent(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText))),
         ].join('\n')
       ),
     ].join('\n');
@@ -3062,11 +3679,13 @@ function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {
   return [
     'build_failure:',
     `- error_name: ${failure.name}`,
-    `- message: ${failure.message}`,
+    `- message: ${String(sanitizeRemoteDiagnosticValue(failure.message))}`,
     Object.keys(details).length > 0
       ? `- error_details:\n${indent(formatDiagnosticJson(details))}`
       : '',
-    failure.stack ? `- stack:\n${indent(failure.stack)}` : '',
+    failure.stack
+      ? `- stack:\n${indent(String(sanitizeRemoteDiagnosticValue(failure.stack)))}`
+      : '',
   ].filter(Boolean);
 }
 
@@ -3097,7 +3716,7 @@ function formatMakerFailureLines(failure: MakerGitFailure): string[] {
   ].filter(Boolean);
 }
 
-function formatToolException(toolName: string, error: unknown): string {
+export function formatToolException(toolName: string, error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : undefined;
   if (error instanceof MakerGitNotFoundError) {
@@ -3133,17 +3752,42 @@ function formatToolException(toolName: string, error: unknown): string {
   }
 
   if (error instanceof RemoteProxyToolResultError) {
+    const displayResult = sanitizeRemoteProxyToolResult(
+      flattenNestedMcpErrorPrefixes(error.result) as typeof error.result
+    );
+    const remoteMessage = extractRemoteProxyErrorMessage(displayResult);
     return [
       '✗ Maker MCP proxy tool failed',
       '',
       `- tool: ${toolName}`,
       '- reason: remote_proxy_tool_result_error',
       `- error_name: ${error.name}`,
-      `- message: ${firstLine(error.message)}`,
+      `- message: ${remoteMessage ?? firstLine(error.message)}`,
       '',
-      formatRemoteProxyToolResult(error.result),
+      formatRemoteProxyToolResult(displayResult),
       '',
-      'next_action: 远端 proxy tool 已返回失败结果；请把 remote_result 原样反馈给开发者，方便排查 server 返回内容。',
+      'next_action: 远端 proxy tool 已返回失败结果；请把完整、已脱敏的 remote_result 反馈给开发者，方便排查 server 返回内容。',
+    ].join('\n');
+  }
+
+  if (isExposedRemoteProxyTool(toolName)) {
+    const sanitizedMessage = sanitizeRemoteDiagnosticValue(
+      stripNestedMcpErrorPrefixes(message)
+    ) as string;
+    const sanitizedStack = stack ? (sanitizeRemoteDiagnosticValue(stack) as string) : undefined;
+    return [
+      '✗ Maker MCP proxy tool failed',
+      '',
+      `- tool: ${toolName}`,
+      '- reason: remote_proxy_tool_call_error',
+      `- error_name: ${error instanceof Error ? error.name : typeof error}`,
+      `- message: ${sanitizedMessage}`,
+      ...formatUnknownExceptionDetailLines(error),
+      '',
+      'debug:',
+      sanitizedStack ? indent(sanitizedStack) : indent(sanitizedMessage),
+      '',
+      'next_action: 请根据上面的简化 message 判断失败原因；参数或能力不支持时不要重复调用，并保留 error_details/debug 反馈给开发者。',
     ].join('\n');
   }
 
@@ -3160,6 +3804,72 @@ function formatToolException(toolName: string, error: unknown): string {
     '',
     'next_action: 请把上面的完整错误反馈给开发者；如果本地已有 commit 但 push 未完成，不要重复 commit，直接重试 maker_build_current_directory。',
   ].join('\n');
+}
+
+function stripNestedMcpErrorPrefixes(message: string): string {
+  const prefix = /^MCP error -?\d+:\s*/i;
+  let concise = message.trim();
+  while (prefix.test(concise)) {
+    concise = concise.replace(prefix, '');
+  }
+  return concise || message;
+}
+
+function flattenNestedMcpErrorPrefixes(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return stripNestedMcpErrorPrefixes(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => flattenNestedMcpErrorPrefixes(item));
+  }
+  if (isPlainRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        flattenNestedMcpErrorPrefixes(nestedValue),
+      ])
+    );
+  }
+  return value;
+}
+
+function extractRemoteProxyErrorMessage(result: unknown): string | undefined {
+  if (!isPlainRecord(result) || !Array.isArray(result.content)) {
+    return undefined;
+  }
+  for (const item of result.content) {
+    if (!isPlainRecord(item) || typeof item.text !== 'string') {
+      continue;
+    }
+    const text = item.text.trim();
+    if (!text) {
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      const structuredMessage = extractStructuredErrorMessage(parsed);
+      if (structuredMessage) {
+        return firstLine(structuredMessage);
+      }
+      return undefined;
+    } catch {
+      return firstLine(text);
+    }
+  }
+  return undefined;
+}
+
+function extractStructuredErrorMessage(value: unknown): string | undefined {
+  if (!isPlainRecord(value)) {
+    return undefined;
+  }
+  for (const key of ['message', 'error', 'detail']) {
+    const candidate = value[key];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return stripNestedMcpErrorPrefixes(candidate);
+    }
+  }
+  return undefined;
 }
 
 function firstLine(value: string): string {
@@ -3190,26 +3900,6 @@ function errorOwnDiagnosticFields(error: Error): Record<string, unknown> {
   return details;
 }
 
-function sanitizeDiagnosticValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeDiagnosticValue(item));
-  }
-  if (value && typeof value === 'object') {
-    const result: Record<string, unknown> = {};
-    for (const [key, nestedValue] of Object.entries(value)) {
-      result[key] = isSensitiveDiagnosticKey(key)
-        ? '<redacted>'
-        : sanitizeDiagnosticValue(nestedValue);
-    }
-    return result;
-  }
-  return value;
-}
-
-export function isSensitiveDiagnosticKey(key: string): boolean {
-  return /token|secret|mac[_-]?key|authorization|cookie|(^|[_-])pat($|[_-])/i.test(key);
-}
-
 function formatDiagnosticJson(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
@@ -3217,6 +3907,8 @@ function formatDiagnosticJson(value: unknown): string {
     return String(value);
   }
 }
+
+export { isSensitiveDiagnosticKey } from './diagnosticRedaction.js';
 
 function indent(value: string): string {
   return value
