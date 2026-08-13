@@ -387,10 +387,12 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `create_3d_asset`、`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config`
   和 `get_debug_feedbacks`，
   用于试用图片/视频/音乐/音效/配音/3D 模型生成、广告配置同步和远端玩家反馈查询链路，
-  本地保留远端 input schema、参数语义和成功返回值；当前公开工具的 description 使用
-  `src/maker/server/toolDescriptions.ts` 中逐工具审核过的本地 override，避免远端通用教程与
-  Maker 本地确认门、素材落盘和恢复工作流冲突。未来没有本地 override 的白名单工具 fallback
-  到远端 description，并在存在对应规则时追加简短 Maker 本地 guidance。
+  本地保留远端 input schema、参数语义和成功返回值；完整公开定义固定在
+  `src/maker/server/remoteProxyToolSnapshot.json`，description 使用已审核的本地内容，避免远端通用
+  教程与 Maker 本地确认门、素材落盘和恢复工作流冲突。提交前用已绑定 Maker 项目运行
+  `npm run maker:proxy-schema:check -- --target-dir <PROJECT_DIR>` 对比实时远端 schema；发现漂移时运行
+  `npm run maker:proxy-schema:update -- --target-dir <PROJECT_DIR>` 生成快照，review diff 后再次检查。
+  schema 或白名单变化必须随本地 MCP 版本更新发布。
   这些 tools 为 Maker 项目提供对应的素材和平台能力。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
 - 音频 proxy tools 在本地 Maker 项目中必须保留 Provider 原格式并落盘生成结果。
@@ -479,8 +481,8 @@ npm run openclaw:pack
   配置指纹共同决定连接身份，禁止跨项目复用连接。
 - 同项目连接身份变化时新连接立即接管；旧连接必须等待已开始的请求结束后再关闭，避免中断
   构建或远端工具调用。
-- MCP 包版本或本地 proxy 工具白名单变化后需要 Reconnect 本地 MCP；不支持
-  `tools/list_changed` 的 AI 客户端可能需要手动重连刷新工具列表。
+- MCP 包版本或本地 proxy 工具白名单/schema 变化后需要 Reconnect 本地 MCP；proxy tools 使用
+  版本化本地定义，不依赖运行时 `tools/list_changed` 刷新工具列表。
 - runtime-log watcher 保持独立 polling connection lifecycle，不纳入远端 proxy manager。
 
 ### AI 行为规范

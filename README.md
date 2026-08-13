@@ -434,7 +434,8 @@ npm test
 
 ### Maker 本地开发预览
 
-Maker 本地开发现在以 CLI-first 为准。初始化、PAT、app 选择/创建、dev-kit 和 clone 都走 CLI；MCP 只保留状态和同步构建：
+Maker 本地开发现在以 CLI-first 为准。初始化、PAT、app 选择/创建、dev-kit 和 clone 都走 CLI；MCP
+保留状态、同步构建和审核过的 proxy tools：
 
 ```text
 taptap-maker init
@@ -445,6 +446,10 @@ maker://status
 maker_status_lite
 maker_build_current_directory
 ```
+
+远端 proxy tools 使用版本化的本地完整定义在首次 `tools/list` 时立即注册，不等待 cwd、Maker 项目绑定、
+PAT/TapTap token 或远端 proxy 连接。项目定位和鉴权只在实际调用 tool 时校验；远端 schema 不会在运行时
+替换本地定义。schema 变更通过本地 MCP 版本更新发布，远端不可用不会让 proxy tools 从当前会话消失。
 
 `taptap-maker doctor` 会检查 Git、Python 环境、maker-lua-lsp、PAT、TapTap token、项目绑定、
 AI dev kit 版本和 MCP 配置。`maker://status` 和 `maker_status_lite` 会输出
@@ -622,10 +627,9 @@ graph LR
 Maker MCP 在本地 server 进程内按活动项目维护一个 embedded proxy 和远端 MCP session。
 多个本地 Maker 项目可以并行使用，项目、环境和授权上下文彼此隔离；一个项目断线只会
 触发该项目的自动恢复，不需要重新安装或重启 Maker MCP。MCP 包版本升级或本地 proxy
-工具白名单变化后，需要重新连接本地 MCP。同项目认证或环境变化时，新连接立即接管，
-旧连接会在已开始的请求结束后关闭，不会中断正在执行的构建或远端工具。不支持
-`tools/list_changed` 的 AI 客户端也
-可能需要手动 Reconnect MCP 才能刷新已显示的工具。runtime-log watcher 保持独立的
+工具白名单/schema 变化后，需要重新连接本地 MCP 以加载新的本地定义。同项目认证或环境变化时，新连接立即接管，
+旧连接会在已开始的请求结束后关闭，不会中断正在执行的构建或远端工具。proxy tools 不依赖运行时
+`tools/list_changed` 刷新。runtime-log watcher 保持独立的
 轮询连接生命周期，不与远端 proxy session 共享。
 
 ## 🤝 贡献

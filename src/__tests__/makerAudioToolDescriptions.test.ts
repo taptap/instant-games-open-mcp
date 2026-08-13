@@ -26,7 +26,7 @@ describe('Maker audio tool descriptions', () => {
 
   afterEach(() => fs.rmSync(targetDir, { recursive: true, force: true }));
 
-  test('replaces remote audio manuals with precise public descriptions', async () => {
+  test('uses precise public descriptions and static audio schemas', async () => {
     const result = await listMakerTools({
       targetDir,
       listRemoteTools: async () =>
@@ -60,23 +60,13 @@ describe('Maker audio tool descriptions', () => {
       expect(tool?.description).not.toContain('Parameters:');
       expect(tool?.description).not.toContain('Non-local runtime');
       expect(tool?.description).not.toContain('include remote_result');
-      expect(tool?.inputSchema.properties.upstream_only_field).toMatchObject({
-        type: 'string',
-      });
-      expect(tool?.inputSchema.required).toContain('upstream_only_field');
+      expect(tool?.inputSchema.properties).not.toHaveProperty('upstream_only_field');
+      expect(tool?.inputSchema.properties).toHaveProperty('target_dir');
     }
   });
 
   test('keeps the decision-critical audio and local Maker workflow contracts', async () => {
-    const result = await listMakerTools({
-      targetDir,
-      listRemoteTools: async () =>
-        AUDIO_TOOL_NAMES.map((name) => ({
-          name,
-          description: 'Remote description replaced by the local public contract.',
-          inputSchema: { type: 'object', properties: {} },
-        })),
-    });
+    const result = await listMakerTools();
     const description = (name: (typeof AUDIO_TOOL_NAMES)[number]): string =>
       result.tools.find((item) => item.name === name)?.description || '';
 
@@ -130,115 +120,8 @@ describe('Maker audio tool descriptions', () => {
     );
   });
 
-  test('uses fixed per-tool descriptions without changing the authoritative remote schema', async () => {
-    const result = await listMakerTools({
-      targetDir,
-      listRemoteTools: async () =>
-        AUDIO_TOOL_NAMES.map((name) => ({
-          name,
-          description: 'Remote description',
-          inputSchema:
-            name === 'audition_voices_for_character'
-              ? {
-                  type: 'object',
-                  properties: {
-                    character_name: { type: 'string' },
-                    character_description: { type: 'string' },
-                    audition_line: { type: 'string' },
-                    voice_profile: { type: 'object', properties: {} },
-                  },
-                  required: ['character_name', 'character_description', 'audition_line'],
-                }
-              : name === 'text_to_dialogue'
-                ? {
-                    type: 'object',
-                    properties: {
-                      inputs: {
-                        type: 'array',
-                        items: {
-                          type: 'object',
-                          properties: {
-                            character_name: { type: 'string' },
-                            text: { type: 'string' },
-                            reference_audio: { type: 'string' },
-                            delivery_instruction: { type: 'string' },
-                          },
-                        },
-                      },
-                    },
-                    required: ['inputs'],
-                  }
-                : {
-                    type: 'object',
-                    properties: {
-                      duration_seconds: { type: 'number', maximum: 120 },
-                    },
-                  },
-        })),
-    });
-
-    const dialogue = result.tools.find((tool) => tool.name === 'text_to_dialogue');
-    const audition = result.tools.find((tool) => tool.name === 'audition_voices_for_character');
-    expect(dialogue?.description).toContain('ElevenLabs');
-    expect(dialogue?.inputSchema.properties.inputs.items.properties.reference_audio).toBeDefined();
-    expect(audition?.inputSchema.required).toContain('voice_profile');
-    expect(audition?.description).toContain('ElevenLabs Voice Design');
-  });
-
-  test('does not inject Doubao-only fields into an ElevenLabs schema', async () => {
-    const result = await listMakerTools({
-      targetDir,
-      listRemoteTools: async () => [
-        {
-          name: 'text_to_sound_effect',
-          description: 'Remote ElevenLabs sound effect',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              text: { type: 'string' },
-              duration_seconds: { type: 'number', minimum: 0.5, maximum: 30 },
-              prompt_influence: { type: 'number', minimum: 0, maximum: 1 },
-            },
-            required: ['text'],
-          },
-        },
-        {
-          name: 'text_to_dialogue',
-          description: 'Remote ElevenLabs dialogue',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              inputs: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    character_name: { type: 'string' },
-                    text: { type: 'string' },
-                  },
-                },
-              },
-              stability: { type: 'number', minimum: 0, maximum: 1 },
-            },
-            required: ['inputs'],
-          },
-        },
-        {
-          name: 'audition_voices_for_character',
-          description: 'Remote ElevenLabs audition',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              character_name: { type: 'string' },
-              character_description: { type: 'string' },
-              audition_line: { type: 'string', minLength: 100 },
-              candidate_count: { type: 'integer', minimum: 1, maximum: 3 },
-            },
-            required: ['character_name', 'character_description', 'audition_line'],
-          },
-        },
-      ],
-    });
+  test('uses the fixed ElevenLabs schema without Doubao-only dialogue fields', async () => {
+    const result = await listMakerTools();
 
     const dialogue = result.tools.find((tool) => tool.name === 'text_to_dialogue');
     const audition = result.tools.find((tool) => tool.name === 'audition_voices_for_character');
@@ -250,5 +133,6 @@ describe('Maker audio tool descriptions', () => {
     );
     expect(audition?.inputSchema.properties).not.toHaveProperty('voice_profile');
     expect(audition?.inputSchema.required).not.toContain('voice_profile');
+    expect(audition?.inputSchema.properties.audition_line.minLength).toBe(100);
   });
 });

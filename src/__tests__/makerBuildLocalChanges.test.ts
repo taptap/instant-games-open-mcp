@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as makerMcp from '../maker/server/mcp';
+import proxySnapshot from '../maker/server/remoteProxyToolSnapshot.json';
 import {
   buildCurrentDirectory,
   createBuildArgs,
@@ -1386,7 +1387,7 @@ describe('maker build local-change guard', () => {
     expect(toolNames).not.toContain('maker_configure_remote_proxy');
   });
 
-  test('lists local Maker tools plus selected remote proxy tools', async () => {
+  test('lists local Maker tools plus the complete static proxy schema', async () => {
     const result = await listMakerTools({
       targetDir: tempDir,
       listRemoteTools: async () => [
@@ -1425,10 +1426,7 @@ describe('maker build local-change guard', () => {
           description: 'Generate one sound effect',
           inputSchema: {
             type: 'object',
-            properties: {
-              text: { type: 'string' },
-              duration_seconds: { type: 'number', exclusiveMinimum: 0, maximum: 120 },
-            },
+            properties: { text: { type: 'string' } },
             required: ['text'],
           },
         },
@@ -1437,20 +1435,7 @@ describe('maker build local-change guard', () => {
           description: 'Generate several sound effects',
           inputSchema: {
             type: 'object',
-            properties: {
-              sounds: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    name: { type: 'string' },
-                    text: { type: 'string' },
-                    duration: { type: 'number' },
-                    loop: { type: 'boolean' },
-                  },
-                },
-              },
-            },
+            properties: { sounds: { type: 'array' } },
             required: ['sounds'],
           },
         },
@@ -1462,17 +1447,33 @@ describe('maker build local-change guard', () => {
             properties: {
               inputs: {
                 type: 'array',
+                maxItems: 50,
                 items: {
                   type: 'object',
                   properties: {
                     character_name: { type: 'string' },
                     text: { type: 'string' },
+                    reference_audio: {
+                      type: 'string',
+                      minLength: 1,
+                      maxLength: 28 * 1024 * 1024,
+                      description:
+                        'Optional Doubao project audio path, HTTP(S) URL, or audio data URL.',
+                    },
+                    delivery_instruction: {
+                      type: 'string',
+                      minLength: 1,
+                      maxLength: 300,
+                      description: 'Optional line-specific delivery instruction.',
+                    },
+                    reference_audio_path: {
+                      type: 'string',
+                      description: 'Optional Doubao-only project audio resource.',
+                    },
                   },
                   required: ['character_name', 'text'],
                 },
               },
-              language_code: { type: 'string', default: 'cmn' },
-              stability: { type: 'number', default: 0.5 },
             },
             required: ['inputs'],
           },
@@ -1484,11 +1485,14 @@ describe('maker build local-change guard', () => {
             type: 'object',
             properties: {
               character_name: { type: 'string' },
-              character_description: { type: 'string' },
-              audition_line: { type: 'string', minLength: 100 },
-              candidate_count: { type: 'number', minimum: 1, maximum: 3, default: 3 },
+              voice_profile: {
+                type: 'object',
+                properties: {
+                  gender: { type: 'string', enum: ['male', 'female'] },
+                },
+              },
             },
-            required: ['character_name', 'character_description', 'audition_line'],
+            required: ['character_name'],
           },
         },
         {
@@ -1565,41 +1569,9 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
-      'generate_image',
-      'batch_generate_images',
-      'edit_image',
-      'create_video_task',
-      'query_video_task',
-      'text_to_music',
-      'text_to_sound_effect',
-      'batch_sound_effects',
-      'text_to_dialogue',
-      'audition_voices_for_character',
-      'confirm_character_voice',
-      'create_3d_asset',
-      'generate_test_qrcode',
-      'add_test_whitelist',
-      'get_ad_config',
-      'get_debug_feedbacks',
+      ...proxySnapshot.toolOrder,
     ]);
-    expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual([
-      'generate_image',
-      'batch_generate_images',
-      'edit_image',
-      'create_video_task',
-      'query_video_task',
-      'text_to_music',
-      'text_to_sound_effect',
-      'batch_sound_effects',
-      'text_to_dialogue',
-      'audition_voices_for_character',
-      'confirm_character_voice',
-      'create_3d_asset',
-      'generate_test_qrcode',
-      'add_test_whitelist',
-      'get_ad_config',
-      'get_debug_feedbacks',
-    ]);
+    expect(MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES).toEqual(proxySnapshot.toolOrder);
     expect(result.tools.find((item) => item.name === 'edit_image')?.description).toMatch(
       /existing image.{0,120}generate_image.{0,100}one new image/iu
     );
@@ -1630,10 +1602,6 @@ describe('maker build local-change guard', () => {
     expect(
       result.tools.find((item) => item.name === 'batch_sound_effects')?.inputSchema.required
     ).toEqual(['sounds']);
-    expect(
-      result.tools.find((item) => item.name === 'batch_sound_effects')?.inputSchema.properties
-        .sounds.items.properties.duration
-    ).toEqual({ type: 'number' });
     for (const audioToolName of audioTools) {
       expect(
         result.tools.find((item) => item.name === audioToolName)?.inputSchema.required || []
@@ -1658,6 +1626,8 @@ describe('maker build local-change guard', () => {
     expect(dialogueTool?.inputSchema.required).toEqual(['inputs']);
     expect(dialogueTool?.inputSchema.properties.stability).toEqual({
       type: 'number',
+      description:
+        'Eleven v3 voice stability. Recommended range 0 to 1; finite legacy values are accepted and quantized to 0, 0.5, or 1.',
       default: 0.5,
     });
     expect(dialogueTool?.inputSchema.properties.inputs).not.toHaveProperty('maxItems');
@@ -1670,6 +1640,9 @@ describe('maker build local-change guard', () => {
     );
     expect(dialogueTool?.inputSchema.properties.inputs.items.properties).not.toHaveProperty(
       'delivery_instruction'
+    );
+    expect(dialogueTool?.inputSchema.properties.inputs.items.properties).not.toHaveProperty(
+      'reference_audio_path'
     );
     expect(dialogueTool?.description).not.toContain('reference_audio_path');
     expect(dialogueTool?.description).toContain('ElevenLabs voice mapping');
@@ -1806,9 +1779,8 @@ describe('maker build local-change guard', () => {
     ).toEqual({ targetDir: tempDir, remoteArgs: { user_id: 12345 } });
   });
 
-  test('falls back to local Maker tools when remote proxy tool listing is unavailable', async () => {
+  test('registers every proxy tool before project context or remote listing is available', async () => {
     const result = await listMakerTools({
-      targetDir: tempDir,
       listRemoteTools: async () => {
         throw new Error('remote project is not bound');
       },
@@ -1817,20 +1789,40 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
+      ...proxySnapshot.toolOrder,
     ]);
+    for (const toolName of MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES) {
+      const tool = result.tools.find((item) => item.name === toolName);
+      expect(tool?.description).toBeTruthy();
+      expect(tool?.inputSchema.properties).toHaveProperty('target_dir');
+    }
+    expect(
+      result.tools.find((item) => item.name === 'generate_image')?.inputSchema.properties
+    ).toHaveProperty('prompt');
+    expect(
+      result.tools.find((item) => item.name === 'generate_image')?.inputSchema.properties
+    ).toHaveProperty('target_size');
+    expect(
+      result.tools.find((item) => item.name === 'create_video_task')?.inputSchema.properties
+    ).toHaveProperty('mode');
   });
 
-  test('keeps cached proxy tools when a managed refresh temporarily fails', async () => {
+  test('keeps the local schema authoritative when remote or cached schemas are supplied', async () => {
+    const remoteList = jest.fn(async () => [
+      {
+        name: 'generate_image',
+        description: 'Remote description must not replace local definition',
+        inputSchema: { type: 'object', properties: { remote_only: { type: 'string' } } },
+      },
+    ]);
     const result = await listMakerTools({
       targetDir: tempDir,
-      listRemoteTools: async () => {
-        throw new Error('temporary refresh failure');
-      },
+      listRemoteTools: remoteList,
       getCachedRemoteTools: () => [
         {
           name: 'generate_image',
-          description: 'Generate one image',
-          inputSchema: { type: 'object', properties: { prompt: { type: 'string' } } },
+          description: 'Cached description must not replace local definition',
+          inputSchema: { type: 'object', properties: { cached_only: { type: 'string' } } },
         },
       ],
     });
@@ -1838,9 +1830,14 @@ describe('maker build local-change guard', () => {
     expect(result.tools.map((item) => item.name)).toEqual([
       'maker_status_lite',
       'maker_build_current_directory',
-      'generate_image',
+      ...proxySnapshot.toolOrder,
     ]);
     expect(result.tools[2].description).toContain('Generate one new image asset for a Maker game');
+    expect(result.tools[2].inputSchema.properties).toHaveProperty('prompt');
+    expect(result.tools[2].inputSchema.properties).toHaveProperty('target_size');
+    expect(result.tools[2].inputSchema.properties).not.toHaveProperty('remote_only');
+    expect(result.tools[2].inputSchema.properties).not.toHaveProperty('cached_only');
+    expect(remoteList).not.toHaveBeenCalled();
   });
 
   test('proxy status warns that remote tools and build are unavailable when proxy fails', async () => {
@@ -1855,14 +1852,14 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- status: unavailable');
     expect(output).toContain('- available_tools: (none)');
     expect(output).toContain(
-      '- missing_tools: generate_image, batch_generate_images, edit_image, create_video_task, query_video_task, text_to_music, text_to_sound_effect, batch_sound_effects, text_to_dialogue, audition_voices_for_character, confirm_character_voice, create_3d_asset, generate_test_qrcode, add_test_whitelist, get_ad_config, get_debug_feedbacks'
+      `- missing_tools: ${MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.join(', ')}`
     );
     expect(output).toContain('- build_available: no');
     expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');
     expect(output).toContain('远端 proxy tools 和 build 构建都不可用');
   });
 
-  test('tool registration cwd status explains why proxy tools are missing from the session', () => {
+  test('project context cwd status keeps registration separate from invocation context', () => {
     const dialogueDir = path.join(tempDir, '..', 'dialogue-cwd');
     const output = formatMakerToolRegistrationCwdStatus({
       mcpCwd: dialogueDir,
@@ -1871,13 +1868,14 @@ describe('maker build local-change guard', () => {
       mcpProjectRoot: undefined,
     });
 
-    expect(output).toContain('MCP tool registration cwd');
+    expect(output).toContain('MCP project context cwd');
     expect(output).toContain('- status: mismatch');
     expect(output).toContain(`- mcp_cwd: ${path.resolve(dialogueDir)}`);
     expect(output).toContain(`- maker_project_dir: ${tempDir}`);
     expect(output).toContain('- mcp_cwd_project_dir: (none)');
-    expect(output).toContain('proxy tools may not appear in this MCP session');
-    expect(output).toContain('Reconnect');
+    expect(output).toContain('proxy tools remain registered');
+    expect(output).toContain('pass maker_project_dir as target_dir');
+    expect(output).toContain('Do not rewrite a shared user-level MCP cwd');
   });
 
   test('project context prefers the single MCP client root over stale MCP cwd', async () => {

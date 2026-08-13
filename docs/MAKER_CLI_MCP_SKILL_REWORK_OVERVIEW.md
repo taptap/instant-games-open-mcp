@@ -92,13 +92,17 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 
 ### MCP：收敛为开发循环能力
 
-MCP 只保留高频、运行期需要的能力：
+MCP 只保留高频、运行期需要的本地流程能力，并额外公开审核过的 Proxy tools：
 
 | MCP 能力                        | 类型     | 作用                              |
 | ------------------------------- | -------- | --------------------------------- |
 | `maker://status`                | Resource | 首选状态入口，读取本地 Maker 状态 |
 | `maker_status_lite`             | Tool     | Resource 不可用时的兼容状态工具   |
 | `maker_build_current_directory` | Tool     | 提交、推送、远端构建的统一入口    |
+
+图片、视频、音乐、音效、配音、3D、测试二维码、广告配置和线上反馈等 Proxy tools 使用版本化
+本地 schema，在首次 `tools/list` 时直接注册；项目、PAT 和远端连接只在实际调用时解析。这样项目
+刚绑定或 MCP 进程 cwd 不同也不会让工具从当前会话消失。
 
 不再公开的旧工具：
 
@@ -250,7 +254,7 @@ node dist/maker.js mcp verify --mode self --json
 ```text
 4 test suites passed
 44 tests passed
-MCP tools: maker_status_lite, maker_build_current_directory
+MCP tools: maker_status_lite, maker_build_current_directory, 16 reviewed proxy tools
 MCP resources: maker://status
 ```
 

@@ -1,6 +1,6 @@
 # TapTap Maker 本地开发
 
-> Maker 本地开发改为 CLI-first。CLI 负责一次性初始化、PAT、app 选择、dev-kit 和客户端 MCP 配置；MCP 只保留运行期状态查询和“同步并构建”能力。
+> Maker 本地开发改为 CLI-first。CLI 负责一次性初始化、PAT、app 选择、dev-kit 和客户端 MCP 配置；MCP 提供运行期状态、同步构建和审核过的 Proxy 能力。
 
 面向团队介绍的功能总览见
 [`docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`](MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md)。
@@ -608,10 +608,21 @@ maker_build_current_directory()
 `text_to_dialogue`、`audition_voices_for_character`、`confirm_character_voice`、
 `create_3d_asset`、`generate_test_qrcode`、`add_test_whitelist`、`get_ad_config` 和
 `get_debug_feedbacks` 作为白名单公开；
-本地 MCP 保留远端 tools 的 input schema、参数语义和成功返回值。当前公开 tools 的
-description 使用 `src/maker/server/toolDescriptions.ts` 中逐工具审核过的本地 override，避免
-远端通用教程与 Maker 本地确认门、素材落盘和恢复工作流冲突。未来没有本地 override 的
-白名单 tool fallback 到远端 description，并在存在对应规则时追加简短 Maker 本地 guidance。
+本地 MCP 保留远端 tools 的 input schema、参数语义和成功返回值。当前公开 tools 的完整定义固定在
+`src/maker/server/remoteProxyToolSnapshot.json`，description 使用已审核的本地内容，避免远端通用
+教程与 Maker 本地确认门、素材落盘和恢复工作流冲突。schema 或白名单变化必须随本地 MCP 版本更新发布。
+维护快照时必须使用一个已绑定且可连接远端 Proxy 的 Maker 项目做契约检查：
+
+```bash
+npm run maker:proxy-schema:check -- --target-dir <PROJECT_DIR>
+npm run maker:proxy-schema:update -- --target-dir <PROJECT_DIR>
+npm run maker:proxy-schema:check -- --target-dir <PROJECT_DIR>
+```
+
+`check` 逐层比较远端 input schema（包括参数 description）与本地快照，只忽略 `target_dir`、首次二维码
+方向等本地私有字段；tool 顶层 description 使用审核过的本地文案，不参与远端 schema 比较。
+`update` 保留远端 schema、注入本地私有字段并复用审核过的公开 description。
+生成后必须 review diff，不能把远端 schema 漂移静默带入发布。
 内部配置内容等价于测试脚本中的：
 
 本地 Maker MCP 会对生成类 tools 做客户端素材落地，并把本地生成素材到远端 URL 的映射记录到
@@ -668,8 +679,10 @@ ElevenLabs，对话使用 Eleven v3 的 `stability` 与表演标签，角色试�
 文件路径，`assets/image/...` 直接传项目素材路径，只给文件名时先搜索 `assets/image`，无法确认图片
 路径或 CDN URL 时应停下来说明缺少参数。
 
-Maker MCP 提供这些 proxy tools 用于生成或修改游戏素材；使用其中某个 tool 时按其 schema
-传入支持的参数和素材格式。
+Maker MCP 使用版本化的本地完整定义在首次 `tools/list` 时立即注册全部白名单 proxy tools，不等待 cwd、
+Maker 项目绑定、PAT/TapTap token 或远端 proxy 连接。项目定位和鉴权是调用阶段的后置条件；远端
+连接不会在运行时替换本地 schema，连接失败也不会从当前会话移除 proxy tools。使用其中某个
+tool 时按本地版本携带的 schema 传入支持的参数和素材格式。
 `maker_status_lite` 会主动检查 Maker proxy tools 状态；如果 proxy 连接失败，状态中会明确提示
 远端 proxy tools 与 build 构建都不可用。用户明确调用 proxy tool 或 build 时，MCP 对连接/握手类
 失败默认最多尝试 5 次，每次失败后间隔 30 秒再试；不会无限重试，也不会对远端已返回的业务失败
@@ -867,10 +880,9 @@ maker://status
 Maker MCP 为每个活动项目维护一个 embedded proxy 连接。多个本地项目可以同时开发，连接、
 工具缓存、环境和授权上下文按项目隔离；一个项目远端断线时只自动恢复该项目，不需要重新
 安装或重启 Maker MCP。同项目认证或环境变化时，新连接立即接管，旧连接在已开始的请求
-结束后关闭，避免中断正在执行的构建或远端工具。发布新包版本或修改本地 proxy 工具白名单后，
-需要重新连接本地 MCP。
-支持 `tools/list_changed` 的客户端会收到工具列表刷新通知；不支持该能力的客户端可能需要
-手动 Reconnect MCP。runtime-log watcher 保留独立的轮询连接生命周期。
+结束后关闭，避免中断正在执行的构建或远端工具。发布新包版本或修改本地 proxy 工具白名单/schema 后，
+需要重新连接本地 MCP 以加载新的本地定义。proxy tools 不依赖运行时 `tools/list_changed` 刷新。
+runtime-log watcher 保留独立的轮询连接生命周期。
 
 ## 当前边界
 

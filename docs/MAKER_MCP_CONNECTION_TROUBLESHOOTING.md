@@ -200,8 +200,9 @@ npx --version
   或覆盖用户项目。
 
 MCP 恢复连接后，再调用 `maker_status_lite` 验证 `project_context_source`、`cwd_mismatch` 和
-Maker tools 列表。向 `maker_status_lite` 传 `target_dir` 只能证明项目目录有效，不能给已经启动的
-错误 MCP session 动态补注册 tools。
+Maker tools 列表。当前 Maker MCP 会在解析 cwd、项目和鉴权之前，根据版本化本地完整定义注册白名单 proxy tools；
+`target_dir` 只决定调用时的项目上下文，不负责动态补注册。若当前会话仍缺 proxy tools，应比较
+活动会话和 `mcp verify` 的包版本及 `tools/list`，按旧包或客户端缓存排查。
 
 ## 8. 复现客户端真实启动配置
 

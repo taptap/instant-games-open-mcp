@@ -21,6 +21,7 @@ import type {
   ProgressToken,
   ServerNotification,
   ServerRequest,
+  Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
@@ -117,10 +118,10 @@ import {
 } from './proxyAssets.js';
 import { sanitizeDiagnosticValue, sanitizeRemoteDiagnosticValue } from './diagnosticRedaction.js';
 import {
-  getMakerRemoteProxyPublicDescriptionOverride,
   MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION,
   MAKER_STATUS_LITE_PUBLIC_DESCRIPTION,
 } from './toolDescriptions.js';
+import proxyToolSnapshot from './remoteProxyToolSnapshot.json';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
 import {
   isMakerBuildActivitySuccessful,
@@ -157,15 +158,15 @@ export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'generate_image',
   'batch_generate_images',
   'edit_image',
+  CREATE_3D_ASSET_PROXY_TOOL_NAME,
+  'text_to_music',
   'create_video_task',
   'query_video_task',
-  'text_to_music',
   'text_to_sound_effect',
   'batch_sound_effects',
   'text_to_dialogue',
   'audition_voices_for_character',
   'confirm_character_voice',
-  CREATE_3D_ASSET_PROXY_TOOL_NAME,
   'generate_test_qrcode',
   'add_test_whitelist',
   'get_ad_config',
@@ -238,8 +239,7 @@ const MAKER_BUILD_MULTIPLAYER_SCHEMA = {
   },
 };
 
-type MakerToolDefinition = (typeof tools)[number];
-type RemoteToolDefinition = MakerToolDefinition & { [key: string]: unknown };
+type RemoteToolDefinition = Tool & { [key: string]: unknown };
 
 class MakerCloneFailedError extends Error {
   readonly targetDir: string;
@@ -356,50 +356,31 @@ export const resources = [
   },
 ];
 
-export async function listMakerTools(options: {
-  targetDir?: string;
-  serverUrl?: string;
-  env?: 'rnd' | 'production';
-  listRemoteTools?: () => Promise<RemoteToolDefinition[]>;
-  getCachedRemoteTools?: () => RemoteToolDefinition[] | undefined;
-  listClientRoots?: MakerClientRootsProvider;
-}): Promise<{ tools: RemoteToolDefinition[] }> {
-  let remoteTools: RemoteToolDefinition[] = [];
-  try {
-    const context = await resolveMakerProjectContext({
-      targetDir: options.targetDir,
-      listClientRoots: options.listClientRoots,
-      allowFallbackOnAmbiguousRoots: false,
-    });
-    const listedRemoteTools =
-      options.listRemoteTools ??
-      (() =>
-        listRemoteProxyTools({
-          targetDir: context.targetDir,
-          serverUrl: options.serverUrl,
-          env: options.env,
-        }));
-    try {
-      const exposedTools = filterExposedRemoteProxyTools(await listedRemoteTools());
-      remoteTools = exposedTools.map(decorateRemoteProxyToolDefinition);
-    } catch (error) {
-      const cachedTools = options.getCachedRemoteTools?.();
-      if (!cachedTools) {
-        throw error;
-      }
-      const exposedTools = filterExposedRemoteProxyTools(cachedTools);
-      remoteTools = exposedTools.map(decorateRemoteProxyToolDefinition);
-    }
-  } catch (error) {
-    if (isMakerProjectContextAmbiguousError(error)) {
-      logLifecycleEvent('maker-tools-list-roots-ambiguous', String(error));
-    }
-    remoteTools = [];
-  }
-
+export async function listMakerTools(
+  _options: {
+    targetDir?: string;
+    serverUrl?: string;
+    env?: 'rnd' | 'production';
+    listRemoteTools?: () => Promise<RemoteToolDefinition[]>;
+    getCachedRemoteTools?: () => RemoteToolDefinition[] | undefined;
+    listClientRoots?: MakerClientRootsProvider;
+  } = {}
+): Promise<{ tools: RemoteToolDefinition[] }> {
+  // Keep the legacy options shape for callers while making registration independent of context.
   return {
-    tools: [...tools, ...remoteTools],
+    tools: [
+      ...(tools as unknown as RemoteToolDefinition[]),
+      ...createStaticRemoteProxyToolDefinitions(),
+    ],
   };
+}
+
+function createStaticRemoteProxyToolDefinitions(): RemoteToolDefinition[] {
+  return proxyToolSnapshot.tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+  })) as RemoteToolDefinition[];
 }
 
 function filterExposedRemoteProxyTools(
@@ -409,236 +390,8 @@ function filterExposedRemoteProxyTools(
   return toolsToFilter.filter((tool) => exposedToolNames.has(tool.name));
 }
 
-function decorateRemoteProxyToolDefinition(tool: RemoteToolDefinition): RemoteToolDefinition {
-  const publicDescription = getMakerRemoteProxyPublicDescriptionOverride(tool.name);
-  const guidance = remoteProxyToolGuidance(tool.name);
-  return {
-    ...tool,
-    inputSchema: decorateRemoteProxyToolInputSchema(tool.inputSchema, tool.name),
-    description: publicDescription || [tool.description, guidance].filter(Boolean).join('\n\n'),
-  };
-}
-
-function decorateRemoteProxyToolInputSchema(
-  inputSchema: unknown,
-  toolName: string
-): Record<string, unknown> {
-  const schema = isPlainRecord(inputSchema) ? inputSchema : {};
-  const properties = isPlainRecord(schema.properties) ? schema.properties : {};
-  const decoratedProperties =
-    toolName === 'text_to_dialogue'
-      ? decorateTextToDialogueInputProperties(properties)
-      : toolName === 'audition_voices_for_character'
-        ? decorateVoiceAuditionInputProperties(properties)
-        : properties;
-  const required = Array.isArray(schema.required) ? schema.required : [];
-  const decoratedRequired =
-    toolName === 'audition_voices_for_character' &&
-    Object.prototype.hasOwnProperty.call(properties, 'voice_profile')
-      ? [...new Set([...required, 'voice_profile'])]
-      : required;
-  return {
-    ...schema,
-    type: schema.type || 'object',
-    required: decoratedRequired,
-    properties: {
-      ...decoratedProperties,
-      ...(toolName === 'generate_test_qrcode'
-        ? {
-            confirmed_screen_orientation: {
-              type: 'string',
-              enum: ['landscape', 'portrait'],
-              description:
-                'Local-only first-time orientation choice. Omit this when the project already has screen_orientation. Supply it only after the tool reports that orientation is missing and the user selects a value in a separate conversation turn. Existing project orientation is immutable and takes precedence. This value is not forwarded to the remote Maker tool.',
-            },
-          }
-        : {}),
-      target_dir: {
-        type: 'string',
-        description:
-          'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool.',
-      },
-    },
-  };
-}
-
-function decorateVoiceAuditionInputProperties(
-  properties: Record<string, unknown>
-): Record<string, unknown> {
-  const remoteVoiceProfile = properties.voice_profile;
-  if (!isPlainRecord(remoteVoiceProfile)) return properties;
-  const voiceProfile = isPlainRecord(remoteVoiceProfile) ? remoteVoiceProfile : {};
-  const profileProperties = isPlainRecord(voiceProfile.properties) ? voiceProfile.properties : {};
-  const profileRequired = Array.isArray(voiceProfile.required) ? voiceProfile.required : [];
-  const remoteGender = profileProperties.gender;
-  return {
-    ...properties,
-    voice_profile: {
-      ...voiceProfile,
-      type: voiceProfile.type || 'object',
-      description: [
-        voiceProfile.description,
-        'Required for character voice audition. Extract gender from character_description or the character settings instead of relying on a default.',
-      ]
-        .filter(Boolean)
-        .join(' '),
-      properties: {
-        ...profileProperties,
-        gender: {
-          ...(isPlainRecord(remoteGender) ? remoteGender : {}),
-          type: 'string',
-          enum: ['male', 'female'],
-          description:
-            'Required structured character gender. Extract male or female from character_description or the character settings.',
-        },
-      },
-      required: [...new Set([...profileRequired, 'gender'])],
-    },
-  };
-}
-
-function decorateTextToDialogueInputProperties(
-  properties: Record<string, unknown>
-): Record<string, unknown> {
-  const inputs = properties.inputs;
-  if (!isPlainRecord(inputs) || !isPlainRecord(inputs.items)) {
-    return properties;
-  }
-  const itemProperties = inputs.items.properties;
-  if (!isPlainRecord(itemProperties)) {
-    return properties;
-  }
-
-  const referenceAudio = itemProperties.reference_audio;
-  const referenceAudioPath = itemProperties.reference_audio_path;
-  return {
-    ...properties,
-    inputs: {
-      ...inputs,
-      items: {
-        ...inputs.items,
-        properties: {
-          ...itemProperties,
-          ...(isPlainRecord(referenceAudio)
-            ? {
-                reference_audio: {
-                  ...referenceAudio,
-                  description: [
-                    referenceAudio.description,
-                    'Use a local project audio path under assets/audio/, an HTTP(S) URL, or an audio data URL here. Local project audio must exist in the current project and is converted to a data URL automatically. Do not pass bare base64.',
-                  ]
-                    .filter(Boolean)
-                    .join(' '),
-                },
-              }
-            : {}),
-          ...(isPlainRecord(referenceAudioPath)
-            ? {
-                reference_audio_path: {
-                  ...referenceAudioPath,
-                  description: [
-                    referenceAudioPath.description,
-                    'This legacy local project audio path must exist under assets/audio/ or workspace/assets/audio/. The local proxy converts it to the canonical reference_audio data URL; it is not a project-external filesystem path.',
-                  ]
-                    .filter(Boolean)
-                    .join(' '),
-                },
-              }
-            : {}),
-        },
-      },
-    },
-  };
-}
-
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function remoteProxyToolGuidance(toolName: string): string | undefined {
-  const failurePolicy =
-    'If this Maker proxy tool fails or returns isError, include the complete sanitized remote_result/error payload from the server so developers can diagnose the issue.';
-  const localMediaSizeHint =
-    'Large local/data URL media can be slow or fail: image inputs are commonly limited to about 10 MB, video-task image inputs to about 30 MB, video inputs to about 50 MB, and audio inputs to about 15 MB.';
-  switch (toolName) {
-    case 'generate_image':
-    case 'batch_generate_images':
-      return [
-        '**Maker asset workflow hint:** Successful results are downloaded into the Maker project and recorded with remote mapping for later edits or video references.',
-        localMediaSizeHint,
-        failurePolicy,
-      ].join(' ');
-    case 'edit_image':
-      return [localMediaSizeHint, failurePolicy].join(' ');
-    case 'create_video_task':
-      return [
-        '**Maker asset workflow hint:** Image, video, and audio references may use remote URLs, existing data URLs, or resolvable local files that the local proxy can forward as data URLs.',
-        localMediaSizeHint,
-        failurePolicy,
-      ].join(' ');
-    case 'query_video_task':
-      return [
-        '**Maker asset workflow hint:** Refreshing video task status releases completed task quota and materializes successful video results into the Maker project.',
-        'Use this Maker MCP proxy tool to refresh video task status when create_video_task returns a task_id or reports video concurrency limits.',
-        failurePolicy,
-      ].join(' ');
-    case 'text_to_music':
-      return [
-        '**Maker asset workflow hint:** Generated audio can be materialized into the project and recorded for later Maker references.',
-        failurePolicy,
-      ].join(' ');
-    case 'text_to_sound_effect':
-    case 'batch_sound_effects':
-      return [
-        '**Maker asset workflow hint:** Successful audio is materialized in its original format under assets/audio/sfx and recorded for later Maker references.',
-        failurePolicy,
-      ].join(' ');
-    case 'text_to_dialogue':
-      return [
-        '**Maker voice workflow hint:** Pass character_name and text after ElevenLabs voice confirmation; the local proxy reuses the confirmed local voice_id mapping and materializes successful dialogue under assets/audio/voice.',
-        failurePolicy,
-      ].join(' ');
-    case 'audition_voices_for_character':
-      return [
-        '**Maker voice workflow hint:** Use this Maker MCP proxy tool to create temporary ElevenLabs Voice Design previews. Prepare a representative line of at least 100 characters, show every returned preview, and wait for the user choice before calling confirm_character_voice. Preview candidates are not saved as game assets.',
-        failurePolicy,
-      ].join(' ');
-    case 'confirm_character_voice':
-      return [
-        '**Maker voice workflow hint:** Call this Maker MCP proxy tool only after audition_voices_for_character and after the user selects a candidate or accepts the recommendation. Confirmation persists the ElevenLabs voice mapping for later text_to_dialogue calls.',
-        failurePolicy,
-      ].join(' ');
-    case CREATE_3D_ASSET_PROXY_TOOL_NAME:
-      return [
-        '**Maker asset workflow hint:** Use this tool for the complete Maker 3D asset lifecycle: start, query, continue after explicit user review, inspect options, and post-process completed assets.',
-        'Local image paths in payload.images are forwarded as data URLs when they resolve inside the Maker project. Unknown server response fields are preserved. In local runtime query results, model_files copy/extract instructions are materialized into assets/model and local_delivery reports the usable local model path.',
-        'Review preview URLs are materialized into assets/image and returned in preview_assets when possible.',
-        'Do not automatically approve review steps; show the returned previews to the user and wait for explicit confirmation before action="continue".',
-        failurePolicy,
-      ].join(' ');
-    case 'get_ad_config':
-      return [
-        '**Maker hint:** Trigger this tool for ad-related requests only after Maker project status shows the primary local configs are initialized. The local preflight keeps ad config unavailable and does not call the remote tool while project.json or settings.json is missing. Build only for an explicit user build, submit, or preview request; if local configs remain missing after a successful build, explain the known limitation and do not rebuild automatically. Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks. If this tool says app_id or developer_id is missing after configs are ready, call generate_test_qrcode once to generate test QR code metadata, then call this tool again.',
-        failurePolicy,
-      ].join(' ');
-    case 'generate_test_qrcode':
-      return [
-        '**Maker hint:** Use this only when the user explicitly asks for a test QR code/mobile scan test, or as the recovery step after get_ad_config reports missing app_id or developer_id. Call it without confirmed_screen_orientation first. If .project/project.json already has screen_orientation, reuse it and do not ask the user again. Only if it is missing, ask the user in a separate conversation turn to choose landscape or portrait, then retry with confirmed_screen_orientation. The local proxy records this first choice; an already configured orientation is immutable and always takes precedence. The private parameter is not forwarded to the remote Maker tool. Report the returned QR code or failure payload.',
-        failurePolicy,
-      ].join(' ');
-    case 'add_test_whitelist':
-      return [
-        '**Maker hint:** Use this after the project has been built and generate_test_qrcode has created the TapTap app identity. Call it only with the TapTap user_id explicitly provided by the user; do not infer an account ID.',
-        failurePolicy,
-      ].join(' ');
-    case 'get_debug_feedbacks':
-      return [
-        '**Maker hint:** Fetch online player feedback for the current Maker project. When logs or screenshots can be downloaded, this tool saves them under logs/feed_back/feedback_<id>/ in the local Maker project and returns local_dir/local_log_paths/local_screenshot_paths. Read those returned local paths before diagnosing the issue. Do not guess drive letters or fixed directories; only treat attachments as local files when local_* paths are returned.',
-        failurePolicy,
-      ].join(' ');
-    default:
-      return undefined;
-  }
 }
 
 function isExposedRemoteProxyTool(name: string): boolean {
@@ -862,7 +615,7 @@ export async function startMakerMcpServer(): Promise<void> {
     },
     {
       capabilities: {
-        tools: { listChanged: true },
+        tools: {},
         resources: {},
       },
       instructions: MAKER_CAPABILITY_ROUTING_INDEX,
@@ -870,44 +623,12 @@ export async function startMakerMcpServer(): Promise<void> {
   );
 
   const listClientRoots = createServerClientRootsProvider(server);
-  const remoteProxyManager: MakerRemoteProxyManager = createMakerRemoteProxyManager({
-    onToolsChanged: async (_context, _definitions) => {
-      try {
-        await server.notification({
-          method: 'notifications/tools/list_changed',
-          params: {},
-        });
-      } catch (error) {
-        logLifecycleEvent('maker-tools-list-changed-notification-failed', String(error));
-      }
-    },
-  });
+  const remoteProxyManager: MakerRemoteProxyManager = createMakerRemoteProxyManager();
   const startupReportedProjects = new Set<string>();
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
-    let context: RemoteProxyContext | undefined;
-    try {
-      const resolved = await resolveMakerProjectContext({
-        listClientRoots,
-        allowFallbackOnAmbiguousRoots: false,
-      });
-      context = createRemoteProxyContext({
-        targetDir: resolved.targetDir,
-        exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES,
-      });
-    } catch {
-      // listMakerTools preserves local tools when project context is unavailable.
-    }
-    return listMakerTools({
-      listClientRoots,
-      listRemoteTools: context
-        ? () => remoteProxyManager.listTools(context as RemoteProxyContext)
-        : undefined,
-      getCachedRemoteTools: context
-        ? () => remoteProxyManager.getCachedTools(context as RemoteProxyContext)
-        : undefined,
-    });
+    return listMakerTools();
   });
   server.setRequestHandler(ListResourcesRequestSchema, async () => {
     const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
@@ -1641,15 +1362,15 @@ export function formatMakerToolRegistrationCwdStatus(options: {
   }
 
   return [
-    'MCP tool registration cwd',
+    'MCP project context cwd',
     '',
     '- status: mismatch',
     `- mcp_cwd: ${mcpCwd}`,
     `- inspected_target_dir: ${targetDir}`,
     `- maker_project_dir: ${projectRoot}`,
     `- mcp_cwd_project_dir: ${mcpProjectRoot || '(none)'}`,
-    '- impact: Maker proxy tools may not appear in this MCP session because tools/list used the MCP server cwd.',
-    '- next_action: Start Claude Code from the Maker project directory, or set the taptap-maker MCP config cwd to maker_project_dir, then Reconnect taptap-maker in /mcp.',
+    '- impact: Maker proxy tools remain registered, but calls without target_dir may resolve an unbound or wrong project.',
+    '- next_action: Open the Maker project as the active workspace, or pass maker_project_dir as target_dir. Do not rewrite a shared user-level MCP cwd.',
   ].join('\n');
 }
 
@@ -2024,10 +1745,6 @@ class MakerProjectContextAmbiguousError extends Error {
     super(message);
     this.name = 'MakerProjectContextAmbiguousError';
   }
-}
-
-function isMakerProjectContextAmbiguousError(error: unknown): boolean {
-  return error instanceof MakerProjectContextAmbiguousError;
 }
 
 export async function resolveMakerClientRoots(

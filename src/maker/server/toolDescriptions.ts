@@ -1,6 +1,7 @@
 /**
- * Reviewed public descriptions for local Maker tools and remote proxy tools.
- * Remote input schemas, handlers, and result contracts remain authoritative.
+ * Reviewed public descriptions for local Maker tools and the versioned remote proxy snapshot.
+ * Runtime proxy registration uses the checked-in snapshot; remote handlers and result contracts
+ * remain authoritative during execution.
  */
 
 export const MAKER_STATUS_LITE_PUBLIC_DESCRIPTION = [

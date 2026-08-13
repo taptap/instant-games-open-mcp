@@ -53,7 +53,7 @@ describe('Maker non-audio tool descriptions', () => {
     expect(buildDescription).toContain('runtime_logs.local_file');
   });
 
-  test('replaces remote manuals without changing upstream schemas', async () => {
+  test('uses the reviewed local descriptions and static schemas', async () => {
     const result = await listMakerTools({
       targetDir,
       listRemoteTools: async () =>
@@ -86,8 +86,8 @@ describe('Maker non-audio tool descriptions', () => {
       expect(tool?.description).not.toContain('Parameters:');
       expect(tool?.description).not.toContain('返回格式');
       expect(tool?.description).not.toContain('include remote_result');
-      expect(tool?.inputSchema.properties.upstream_only_field).toMatchObject({ type: 'string' });
-      expect(tool?.inputSchema.required).toContain('upstream_only_field');
+      expect(tool?.inputSchema.properties).not.toHaveProperty('upstream_only_field');
+      expect(tool?.inputSchema.properties).toHaveProperty('target_dir');
     }
   });
 
@@ -192,15 +192,7 @@ describe('Maker non-audio tool descriptions', () => {
   });
 
   async function listDescriptions(): Promise<Record<(typeof REMOTE_TOOL_NAMES)[number], string>> {
-    const result = await listMakerTools({
-      targetDir,
-      listRemoteTools: async () =>
-        REMOTE_TOOL_NAMES.map((name) => ({
-          name,
-          description: 'Remote description replaced by the reviewed public contract.',
-          inputSchema: { type: 'object', properties: {} },
-        })),
-    });
+    const result = await listMakerTools();
     return Object.fromEntries(
       REMOTE_TOOL_NAMES.map((name) => [
         name,

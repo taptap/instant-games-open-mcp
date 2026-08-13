@@ -308,27 +308,25 @@ request parameters, current `tools/list`, exact error code/message/data, complet
 warning, debug, and remote status fields while removing credentials. Do not rewrite command, cwd,
 PATH, trust state, credentials, or game code unless the collected evidence identifies that cause.
 
-Only after the base Maker MCP connection works should you use the following MCP-based cwd checks.
+Only after the base Maker MCP connection works should you use the following MCP-based context checks.
 
 If the user is in a bound Maker project but `generate_image`, `batch_generate_images`, `edit_image`,
 `create_video_task`, `query_video_task`, `text_to_music`, `text_to_sound_effect`,
 `batch_sound_effects`, `text_to_dialogue`, `audition_voices_for_character`,
 `confirm_character_voice`, `create_3d_asset`,
 `generate_test_qrcode`, `get_ad_config`, or `get_debug_feedbacks` are missing from the current AI
-tool list, diagnose the MCP cwd before
-suggesting repeated restarts:
+tool list, do not diagnose project cwd as the registration cause. Current Maker MCP registers every
+whitelisted proxy tool from local definitions before resolving cwd, project binding, auth, or the
+remote proxy:
 
-1. Read `maker://status` or call `maker_status_lite` without `target_dir` to see the MCP server cwd.
-2. If the user provides or the client exposes the real Maker project directory, call
-   `maker_status_lite` with that directory as `target_dir`.
-3. If the status output includes `MCP tool registration cwd` with `status: mismatch`, explain that
-   `tools/list` ran from the MCP server cwd, not the Maker project directory. Passing `target_dir`
-   to `maker_status_lite` proves the project is valid, but it does not dynamically add proxy tools
-   to the already-started MCP session.
-4. If the client is confirmed to honor MCP cwd, tell the user to start it from the Maker project
-   directory or update the `taptap-maker` config cwd, then reconnect from the client MCP UI. If
-   WorkBuddy ignores configured cwd, do not keep rewriting that field; use its active workspace,
-   MCP Roots, and actual process cwd evidence instead.
+1. Capture the active client's exact `tools/list` and loaded `@taptap/maker` version.
+2. Verify the configured launcher with `taptap-maker mcp verify --json`; a successful current
+   launcher plus a stale active tool list indicates client/session caching, not missing project auth.
+3. Reconnect the active Maker MCP once from the client UI or start a new session so it loads the
+   current package. Do not rewrite a user-level cwd to make proxy tools appear.
+4. After the tools are present, read status. `MCP project context cwd` with `status: mismatch` means
+   calls without `target_dir` may select an unbound or wrong project; the tools remain registered.
+   Use the active workspace/MCP Roots or pass the real project directory as `target_dir` for that call.
 
 When Maker proxy tools are missing, explain that this is likely a session/configuration problem and
 that requests specifically requiring those tools cannot use them in the current session.
