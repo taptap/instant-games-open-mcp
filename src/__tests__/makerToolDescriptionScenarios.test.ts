@@ -28,6 +28,13 @@ describe('Maker tool description override coverage', () => {
       expect(tool.description).toBe(getMakerRemoteProxyPublicDescriptionOverride(tool.name));
       expect(tool.inputSchema).toMatchObject({ type: 'object' });
       expect(tool.inputSchema.properties).toHaveProperty('target_dir');
+      expect(tool.inputSchema.properties.target_dir.description).toContain('MCP Roots');
+      expect(tool.inputSchema.properties.target_dir.description).toContain(
+        'process cwd only as the final fallback'
+      );
+      expect(tool.inputSchema.properties.target_dir.description).toContain(
+        'not persisted in user-level MCP config'
+      );
     }
   });
 

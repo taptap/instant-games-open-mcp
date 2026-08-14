@@ -41,6 +41,8 @@ npm run maker:proxy-schema:update -- --target-dir <BOUND_MAKER_PROJECT>
 - 本次没有修改远端 Proxy Manager 的连接重试实现。
 - 工具可见但调用失败时，仍需区分 PAT、TapTap token、网络、远端服务和传输断线。
 - MCP 包版本或静态 schema 更新后，客户端仍需重连一次以加载新版本。
+- 上述重连只属于“加载新版本”；绑定或切换 Maker 项目走 MCP Roots 或逐次传入
+  `target_dir`，不改写用户级 MCP 配置，也不要求重启或新开会话。
 
 ## 2. 真实用户验收
 

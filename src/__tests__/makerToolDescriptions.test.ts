@@ -53,6 +53,19 @@ describe('Maker non-audio tool descriptions', () => {
     expect(buildDescription).toContain('runtime_logs.local_file');
   });
 
+  test('documents the Maker project context resolution order in local target_dir schemas', () => {
+    for (const name of ['maker_status_lite', 'maker_build_current_directory']) {
+      const targetDirDescription =
+        tools.find((tool) => tool.name === name)?.inputSchema.properties.target_dir.description ||
+        '';
+
+      expect(targetDirDescription).toContain('MCP Roots');
+      expect(targetDirDescription).toContain('process cwd only as the final fallback');
+      expect(targetDirDescription).toContain('user-level MCP config');
+      expect(targetDirDescription).not.toContain('Defaults to the MCP process cwd');
+    }
+  });
+
   test('uses the reviewed local descriptions and static schemas', async () => {
     const result = await listMakerTools({
       targetDir,

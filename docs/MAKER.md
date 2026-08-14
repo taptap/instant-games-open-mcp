@@ -211,6 +211,7 @@ Python 运行时策略：
   JSON/JSONC 配置写入前会解析并保留其它 server；写入后会重新校验 JSON 结构和
   `taptap-maker` server 内容。配置内容未变化时不会写文件，也不会生成备份；内容变化时只覆盖一份
   `<config>.taptap-maker.bak.latest`，不会创建新的时间戳备份，也不会删除历史 `.bak.*` 文件。
+  Claude 用户级条目内容一致时也会跳过 `claude mcp add`，避免重复触发配置信任或客户端重载。
   如果已有 JSON 配置无法解析，CLI 会停止该目标写入并保留原文件。
   其它 AI 编辑器可使用 README 中的通用 `mcpServers` JSON 片段，让本地 AI 先识别该编辑器的
   实际配置文件位置，再合并写入；CLI 不会额外生成通用配置文件。
@@ -341,7 +342,7 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 - clone Maker 项目。
 - 在 Maker 项目 checkout 后准备本地 AI dev kit。
 - 选择 Maker app，避免自动选择错误项目。
-- 解释 PAT、Git、项目绑定和编辑器重启。
+- 解释 PAT、Git、项目绑定，以及首次安装或工具版本变化后的编辑器重连边界。
 - 提交、推送本地改动。
 - pull 远端改动前检查本地 dirty 状态。
 - 新开对话或继续开发前先读 `maker://status`；如果 `Maker remote sync` 显示 `needs_pull`、`diverged` 或 `branch_not_allowed`，先处理同步/分支问题，再让用户继续开发。
@@ -356,13 +357,14 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 - 发生冲突时解释为什么冲突、冲突文件在哪里、冲突内容是什么，并让 Agent 给出解决建议。
 - 冲突解决前必须让用户确认，不隐藏 unresolved conflict。
 
-`taptap-maker doctor` 和 `maker://status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。Maker 操作目标是用户当前项目目录；支持 MCP Roots 的客户端会由 workspace root 提供该目录，MCP 进程 cwd 只作为诊断信息。若状态输出 `MCP client roots` 且只有一个 root，或多个 root 中只有一个已绑定 Maker 项目，Maker MCP 会自动选择该目录；如果多个 root 都是 Maker 项目，Agent 不应猜测，应让用户只打开一个 Maker workspace 或显式传 `target_dir`。`taptap-maker doctor` 不检查当前 AI 会话的 tools 或客户端配置；`doctor_cwd` 只代表 CLI 进程目录，不能单独证明会话 cwd 错误。若只是首次安装后当前对话看不到 tools，应根据当前客户端的实际配置和日志排查，并在确认客户端支持时重启或 Reconnect。
+`taptap-maker doctor` 和 `maker://status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。Maker 操作目标是用户当前项目目录；支持 MCP Roots 的客户端会由 workspace root 提供该目录。仅当没有可用 Roots 且调用未显式传 `target_dir` 时，MCP 进程 cwd 才作为最终兜底，并在状态中标明来源。若状态输出 `MCP client roots` 且只有一个 root，或多个 root 中只有一个已绑定 Maker 项目，Maker MCP 会自动选择该目录；如果多个 root 都是 Maker 项目，Agent 不应猜测，应让用户只打开一个 Maker workspace 或显式传 `target_dir`。`taptap-maker doctor` 不检查当前 AI 会话的 tools 或客户端配置；`doctor_cwd` 只代表 CLI 进程目录，不能单独证明会话 cwd 错误。若只是首次安装后当前对话看不到 tools，应根据当前客户端的实际配置和日志排查，并在确认客户端支持时重启或 Reconnect。
 
 已绑定项目还会检查 `AGENTS.md` 中 TapTap Maker managed policy block 的版本和 hash。
 如果状态显示 `missing_file`、`missing_block` 或 `outdated`，说明用户进入了旧项目或本地规则
 副本过期；Agent 应先运行 `taptap-maker agents update --target-dir <PROJECT_DIR>`，或直接运行
-`taptap-maker upgrade --target-dir <PROJECT_DIR>`，然后提醒用户重启或新开 AI 会话，让客户端重新读取
-更新后的 `AGENTS.md`。受管块会提醒本地 AI：构建、预览、提交和推送必须走
+`taptap-maker upgrade --target-dir <PROJECT_DIR>`。当前会话可以继续使用；更新后的规则会在客户端
+下次加载项目指令或用户主动 reconnect 后生效，不要求为了切换项目新建对话。受管块会提醒本地 AI：
+构建、预览、提交和推送必须走
 `maker_build_current_directory`，不要默认引导用户去 Maker 网页端点击构建按钮；任何广告相关
 请求或广告代码改动都必须先调用 `get_ad_config` 获取广告开通状态和配置。只有当前 Maker 游戏的
 线上玩家反馈（包括玩家提交的游戏故障、真机游戏日志或截图），以及指定游戏会话的服务端/Lua 日志查询才应调用
@@ -558,10 +560,13 @@ Windows 兼容注意：
 - MCP 配置写入时会在对应 MCP server 进程环境中增加
   `TAPTAP_MCP_CLIENT_IDE=<ide>`，取值为 `codex`、`cursor`、`claude`、`trae`、
   `opencode` 或 `workbuddy`，用于本地 Maker MCP 识别当前请求来源。
-- `taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置，避免多个项目或多个 AI
-  客户端互相覆盖全局 cwd。支持 MCP Roots 的客户端由当前 workspace root 决定 Maker 项目。
-  单独运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>` 时才会显式写入该目录，
-  用于不支持 MCP Roots 的客户端或临时修复。
+- `taptap-maker init`、`mcp install` 和 `upgrade` 写入的用户级 MCP 配置永远不包含项目 `cwd`，
+  避免多个项目、对话或 AI 客户端争用同一个全局路径。支持 MCP Roots 的客户端由当前
+  workspace root 决定 Maker 项目；不支持 Roots 时，由 Agent 在具体 Maker tool 调用中传入
+  `target_dir`。`upgrade --target-dir <PROJECT_DIR>` 只指定本次项目策略更新目标。
+  项目级本地研发服务选择只在调用时解析，不会提升为用户级 MCP 启动环境。
+- 从旧 beta 升级或重新安装时，安装器会替换 `taptap-maker` 条目并移除历史 `cwd`，但保留
+  同一配置文件中的其它 MCP server。迁移完成后，切换 Maker 项目不再重写用户级配置。
 - 安装器在任何配置写入前完成 MCP `initialize` 和 `tools/list`；失败时所有目标配置和
   `<config>.taptap-maker.bak.latest` 均保持不变。
 - `taptap-maker mcp verify` 复用相同协议验证，失败时输出阶段和诊断并返回非零退出码。

@@ -284,15 +284,16 @@ for the initial diagnosis. Work offline first:
    existing `cmd.exe` or `npx.cmd` configs as legacy diagnostic evidence; do not persist them as a
    repair. Never replace cwd with a `cd /d "<project>" && npx.cmd ...` command string, including for
    Chinese project paths.
-8. If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field. Use the active
-   workspace/Roots and record the process actual cwd instead.
+8. User-level MCP config must not contain a project cwd. If WorkBuddy does not expose Roots, pass
+   `target_dir` on the concrete Maker tool call and record the process actual cwd only as diagnostic
+   evidence.
 9. Do not assume Windows 8.3 short paths exist or differ from the original long path. Verify the
    result first; an unchanged or missing short path is not a usable cwd workaround.
 10. Reproduce the configured Windows launch with the same direct argv boundary when possible.
     Separate outer shell quoting or stderr decoding failures from the MCP child process result, and
     record both without treating wrapper failures as server evidence.
 11. Remember that multiple AI conversations share user-level MCP config. One conversation can break
-    every other conversation by rewriting the shared command or cwd.
+    every other conversation by rewriting the shared command or manually adding a project cwd.
 12. Classify the root cause from evidence before repairing it. Do not automatically change trust
     storage, PATH, cwd, credentials, or game code. Use `taptap-maker mcp install --ide <client>` only
     after evidence confirms that the active config entry is damaged. Reconnect and verify again in
@@ -371,11 +372,10 @@ Workflow:
    remain visible when an AI summarizes or truncates a long app list, even if another app name
    appears to match the current directory. Users can choose `0`/`new` and enter a project name,
    or use `taptap-maker init --create --name "my-local-game"` for non-interactive runs.
-   The generated user-level MCP config does not pin the selected Maker project directory as `cwd`
-   by default. Clients that support MCP Roots should let the current workspace root identify the
-   Maker project, so multiple AI clients or Maker projects do not overwrite one shared cwd. If a
-   client does not support MCP Roots, the user can explicitly run
-   `taptap-maker mcp install --target-dir <PROJECT_DIR>` as a compatibility fix.
+   User-level MCP config never pins the selected Maker project directory as `cwd`. Clients that
+   support MCP Roots should let the current workspace root identify the Maker project. If a client
+   does not support MCP Roots, pass the real project directory as `target_dir` on the concrete
+   Maker tool call. Never rewrite shared user-level MCP config to switch projects.
    Tell the user that the first Maker clone can take 20+ seconds because the server may be
    preparing the repository, and that they should keep the command running while the CLI retries
    transient 503/5xx failures.

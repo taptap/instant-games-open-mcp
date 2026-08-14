@@ -1,6 +1,6 @@
 ---
 name: update-taptap-mcp
-description: 更新本地 TapTap Maker MCP 到最新版本。当用户说"更新 taptap mcp"、"tap mcp 有新版本"、"刷新 mcp"、"升级 Maker MCP"时触发。
+description: Use when users ask to update, refresh, or upgrade the local TapTap Maker MCP package.
 ---
 
 # TapTap Maker MCP Upgrade Workflow
@@ -30,7 +30,8 @@ This workflow upgrades only the current machine and the current Maker project di
    Do not run any upgrade command before that explanation and approval step.
 2. Identify the current Maker project directory. Use `--target-dir` only when the directory is
    confirmed to be a Maker project, which means it or one of its parents contains
-   `.maker-mcp/config.json`.
+   `.maker-mcp/config.json`. This argument only selects the project whose managed `AGENTS.md` policy
+   is updated; it never writes that directory into user-level MCP config.
 3. If the AI client has exactly one attached workspace and that workspace is the Maker project, use
    that workspace as `<PROJECT_DIR>`. If there are multiple workspaces, or the current directory is
    not clearly a Maker project, ask the user for the Maker project directory before using
@@ -71,7 +72,8 @@ confirmed, explain that this refresh will not update project `AGENTS.md`, then r
 `taptap-maker upgrade` performs current-directory upgrade work:
 
 - Refreshes AI client MCP config to launch `npx -y -p @taptap/maker taptap-maker`.
-- Pins `cwd` to the current Maker project when `--target-dir` is provided.
+- User-level MCP config never contains a project `cwd`; unchanged entries are not rewritten.
+- `--target-dir` only selects the project whose managed `AGENTS.md` policy is updated.
 - Updates the current project's TapTap Maker managed `AGENTS.md` policy block when the directory is
   bound to a Maker project.
 - Keeps user-written `AGENTS.md` content outside the managed block.
@@ -80,8 +82,9 @@ confirmed, explain that this refresh will not update project `AGENTS.md`, then r
 
 ## If Upgrade Appears Not To Take Effect
 
-If `maker://status` still shows an old package, wrong `cwd`, or missing Maker proxy tools after
-restart/reconnect, check whether a project-level MCP config is overriding user/global config.
+If `maker://status` still shows an old package, an unexpected project context, or missing Maker
+proxy tools after restart/reconnect, first inspect MCP Roots and the tool call's `target_dir`. Also
+check whether a legacy project-level MCP config is overriding user/global config.
 Common project-level files include:
 
 - `.mcp.json`

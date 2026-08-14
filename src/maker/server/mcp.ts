@@ -241,6 +241,9 @@ const MAKER_BUILD_MULTIPLAYER_SCHEMA = {
 
 type RemoteToolDefinition = Tool & { [key: string]: unknown };
 
+const MAKER_TARGET_DIR_SCHEMA_DESCRIPTION =
+  'Optional Maker project directory. When omitted, Maker MCP uses one unambiguous MCP Roots workspace and process cwd only as the final fallback. Pass target_dir explicitly when Roots are unavailable or ambiguous, or when the fallback is not the intended project. This per-call value is never persisted in user-level MCP config.';
+
 class MakerCloneFailedError extends Error {
   readonly targetDir: string;
   readonly originalError: unknown;
@@ -264,8 +267,7 @@ export const tools = [
       properties: {
         target_dir: {
           type: 'string',
-          description:
-            'Optional user current working directory to inspect. Use when the MCP process cwd differs from the user project CWD.',
+          description: MAKER_TARGET_DIR_SCHEMA_DESCRIPTION,
         },
         skip_remote_sync: {
           type: 'boolean',
@@ -289,8 +291,7 @@ export const tools = [
       properties: {
         target_dir: {
           type: 'string',
-          description:
-            'Optional Maker project directory. Defaults to the MCP process cwd. Pass the user current working directory when it differs from the MCP process cwd.',
+          description: MAKER_TARGET_DIR_SCHEMA_DESCRIPTION,
         },
         entry: {
           type: 'string',
@@ -1242,14 +1243,18 @@ function formatMakerClientRootsSummary(roots: MakerClientRootsResolution): strin
       '- next_action: Open a single Maker workspace, or pass target_dir explicitly for this call.'
     );
   } else if (roots.status === 'unsupported') {
-    lines.push('- next_action: This client did not advertise MCP roots; falling back to MCP cwd.');
+    lines.push(
+      '- next_action: This client did not advertise MCP Roots. Maker MCP is using process cwd only as the final fallback; pass target_dir explicitly when that is not the intended Maker project. Do not rewrite user-level MCP config.'
+    );
   } else if (roots.status === 'unavailable') {
     lines.push(
       `- failure_message: ${roots.message || '(unknown)'}`,
-      '- next_action: Could not read MCP roots; falling back to MCP cwd.'
+      '- next_action: Could not read MCP Roots. Maker MCP is using process cwd only as the final fallback; pass target_dir explicitly when that is not the intended Maker project. Do not rewrite user-level MCP config.'
     );
   } else {
-    lines.push('- next_action: No MCP roots are attached; using MCP cwd.');
+    lines.push(
+      '- next_action: No MCP Roots are attached. Maker MCP is using process cwd only as the final fallback; pass target_dir explicitly when that is not the intended Maker project. Do not rewrite user-level MCP config.'
+    );
   }
   return lines.join('\n');
 }
@@ -1370,7 +1375,7 @@ export function formatMakerToolRegistrationCwdStatus(options: {
     `- maker_project_dir: ${projectRoot}`,
     `- mcp_cwd_project_dir: ${mcpProjectRoot || '(none)'}`,
     '- impact: Maker proxy tools remain registered, but calls without target_dir may resolve an unbound or wrong project.',
-    '- next_action: Open the Maker project as the active workspace, or pass maker_project_dir as target_dir. Do not rewrite a shared user-level MCP cwd.',
+    '- next_action: Open the Maker project as the active workspace, or pass the Maker project directory as target_dir. Do not rewrite a shared user-level MCP cwd.',
   ].join('\n');
 }
 
@@ -1868,10 +1873,18 @@ function formatMakerClientRootsStatus(roots: MakerClientRootsResolution): string
       '- next_action: Open a single Maker workspace, or pass target_dir explicitly for this call.'
     );
   } else if (roots.status === 'unsupported') {
-    lines.push('- next_action: This client did not advertise MCP roots; falling back to MCP cwd.');
+    lines.push(
+      '- next_action: This client did not advertise MCP Roots. Maker MCP is using process cwd only as the final fallback; pass target_dir explicitly when that is not the intended Maker project. Do not rewrite user-level MCP config.'
+    );
   } else if (roots.status === 'unavailable') {
     lines.push(`- failure_message: ${roots.message || '(unknown)'}`);
-    lines.push('- next_action: Could not read MCP roots; falling back to MCP cwd.');
+    lines.push(
+      '- next_action: Could not read MCP Roots. Maker MCP is using process cwd only as the final fallback; pass target_dir explicitly when that is not the intended Maker project. Do not rewrite user-level MCP config.'
+    );
+  } else {
+    lines.push(
+      '- next_action: No MCP Roots are attached. Maker MCP is using process cwd only as the final fallback; pass target_dir explicitly when that is not the intended Maker project. Do not rewrite user-level MCP config.'
+    );
   }
   return lines.join('\n');
 }

@@ -192,10 +192,11 @@ npx --version
 先确认用户本地项目目录存在 `.maker-mcp/config.json`，并记录客户端当前打开的 workspace。
 
 - 支持 MCP Roots 的客户端应只打开当前 Maker 项目，使用 workspace root 识别项目。
-- 不支持 MCP Roots 的客户端可用 `--target-dir <Maker项目绝对路径>` 重新安装配置。
-- 某些 WorkBuddy 版本可能忽略 `mcp.json` 的 `cwd`。此时仍禁止使用 `cd && npx` 补丁；应恢复
-  标准启动命令、只打开正确项目 workspace，并收集 WorkBuddy 的实际 cwd 和启动日志。已经确认
-  WorkBuddy 忽略 `cwd` 时，不能依赖该字段修复项目上下文，也不要反复重写它。
+- 不支持 MCP Roots 的客户端应由 Agent 在具体 Maker tool 调用中传入项目绝对路径作为
+  `target_dir`，不要把项目路径写入用户级 MCP 配置。
+- 某些 WorkBuddy 版本不会把当前 workspace 暴露为 MCP Roots。此时仍禁止使用 `cd && npx`
+  补丁；应恢复不含项目 `cwd` 的标准启动配置、只打开正确项目 workspace，并收集 WorkBuddy
+  的实际进程 cwd 和启动日志作为诊断信息，不能依赖反复重写配置来切换项目。
 - 本地配置中的项目 id 与当前项目不一致时，先检查客户端启动目录和实际读取的配置，不要重新绑定
   或覆盖用户项目。
 
@@ -240,7 +241,7 @@ npx -y -p @taptap/maker taptap-maker help
 - Node/npm/npx 缺失，或客户端 PATH 不完整。
 - 客户端读取了错误的配置文件。
 - WorkBuddy 未启用或未信任 MCP。
-- 客户端忽略 cwd 或 MCP Roots。
+- 客户端未暴露 MCP Roots，且调用未传 `target_dir`。
 - 多个 AI 对话修改了共享 MCP 配置。
 - IDE 安装路径、shell 转义或编码导致子进程启动失败。
 - MCP server 启动后的真实业务错误。
@@ -253,11 +254,8 @@ npx -y -p @taptap/maker taptap-maker mcp install --ide <当前客户端>
 ```
 
 Windows 如无法从 PATH 运行上述恢复命令，应使用当前可用 npm 的绝对路径启动 CLI；安装器只会把
-验证过的绝对 Node/npm launcher 写入配置。客户端不支持 MCP Roots 时才追加：
-
-```text
---target-dir "<Maker项目绝对路径>"
-```
+验证过的绝对 Node/npm launcher 写入配置。客户端不支持 MCP Roots 时，不要给安装命令追加项目
+目录；应让 Agent 在具体 Maker tool 调用中传入 `target_dir`。
 
 不要让多个 AI 对话同时修改共享 MCP 配置。配置恢复后，在客户端 MCP 设置中 reconnect；必要时完全
 退出并重启客户端，再新开一个对话。

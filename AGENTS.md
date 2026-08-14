@@ -355,15 +355,18 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   不生成依赖客户端 PATH 的裸 `npx.cmd`。最终命令必须先完成 MCP `initialize` 和 `tools/list`，验证失败时
   不修改任何客户端配置或备份；Git 引导优先指向 Git for
   Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方
-  Git。`taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置，默认覆盖 Codex、
-  Cursor、Claude，并自动检测已存在配置文件的 Trae、OpenCode、WorkBuddy；避免 Codex、Trae、
-  Cursor 等客户端或多个 Maker 项目互相覆盖全局 cwd；支持 MCP Roots 的客户端由当前
-  workspace root 决定 Maker 项目。只有显式运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>`
-  或 `taptap-maker upgrade --target-dir <PROJECT_DIR>` 时，才把该目录写入 MCP 配置的 `cwd`。
+  Git。`taptap-maker init`、`mcp install` 和 `upgrade` 写入的用户级 MCP 配置永远不包含项目
+  `cwd`，默认覆盖 Codex、Cursor、Claude，并自动检测已存在配置文件的 Trae、OpenCode、
+  WorkBuddy；避免多个客户端、对话或 Maker 项目争用同一个全局路径。支持 MCP Roots 的客户端
+  由当前 workspace root 决定 Maker 项目；不支持 Roots 时，由 Agent 在具体 Maker tool 调用中
+  传入 `target_dir`。`upgrade --target-dir <PROJECT_DIR>` 只指定本次项目策略更新目标，不把目录
+  持久化到 MCP 配置。项目级本地研发服务选择只在调用时解析，不会提升为用户级 MCP 启动环境。
+  MCP 进程 cwd 只作为最后兜底和诊断信息。安装器必须先比较现有
+  `taptap-maker` 条目，内容一致时不写文件；Claude 也不得重复执行 `claude mcp add`。
   Trae Solo/Solo CN 优先支持，按 `User/` 目录创建或合并 `User/mcp.json`，普通 Trae
   只在 `mcp.json` 已存在时更新；
-  OpenCode 使用官方 `mcp` schema 和 command 数组，
-  不写环境变量；
+  OpenCode 使用官方 `mcp` schema 和 command 数组，只写客户端标识，不持久化项目路径或
+  项目级本地研发服务选择；
   WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的 `.workbuddy/mcp.json`；显式传
   `--ide workbuddy` 时会创建该官方配置文件；未显式指定 IDE 的自动检测模式下，legacy
   `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为 fallback 合并；通用
