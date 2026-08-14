@@ -127,7 +127,8 @@ Skill 不做底层 API 调用，而是负责告诉 Agent 该怎么走流程：
 
 - `taptap-maker-local`：初始化、状态解释、提交/构建、push 失败分类恢复、冲突处理。
 - `taptap-maker-dev-kit-guide`：解释 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
-- `update-taptap-mcp`：调用 `taptap-maker upgrade`，并提醒刷新/重启客户端。
+- `update-taptap-mcp`：调用 `taptap-maker upgrade`；只有需要加载新的 Maker MCP 包或静态工具
+  schema 时才提醒重连客户端，项目绑定和切换不要求刷新、重启或新开会话。
 
 重构后，Skill 的关键行为是：
 
@@ -159,7 +160,7 @@ flowchart TD
   I --> J["准备 AI dev-kit"]
   J --> K["写 MCP 配置"]
   K --> L{"全部目标写入成功？"}
-  L -- "是" --> M["提示刷新或重启 AI 客户端"]
+  L -- "是" --> M["首次安装或工具版本变化时提示重连 AI 客户端"]
   L -- "否" --> N["记录 mcp_install_failed 并返回非零"]
 ```
 
@@ -169,7 +170,7 @@ flowchart TD
 安装配置好后，继续 PAT 校验
 校验成功后展示 app 列表
 选择 app 后自动准备本地项目
-刷新/重启客户端后进入开发循环
+首次安装时重连客户端加载 Maker MCP；后续切换项目直接进入开发循环
 ```
 
 ### 开发循环流程
@@ -213,9 +214,11 @@ CLI 先完成初始化、PAT、app 选择、clone
 如果 init 写入任一客户端配置失败，会保留已完成的项目 checkout 和已成功配置的客户端，
 记录 `mcp_install_failed` 并以非零状态结束，不会误报初始化完成。失败客户端可通过
 `taptap-maker mcp install --ide <client>` 单独重试。
-不支持 MCP Roots 的客户端仍可显式运行
-`taptap-maker mcp install --target-dir <PROJECT_DIR>` 固定 cwd，但这不是默认路径，
-避免 Codex、Trae、Cursor 等多个客户端共用用户级配置时互相覆盖项目目录。
+所有用户级 MCP 配置都不写项目 `cwd`。不支持 MCP Roots 的客户端由 Agent 在具体 Maker tool
+调用中传入 `target_dir`，避免 Codex、Trae、Cursor 等多个客户端、对话或项目共用配置时由
+最后一次安装覆盖其它项目。
+安装器会比较现有条目，内容一致时不写文件；Claude 也会跳过重复的 `claude mcp add`，因此后续
+项目初始化不会因为配置未变化而触发信任或重启。
 其它 AI 编辑器可复用 README 中的通用 `mcpServers` JSON 片段，由本地 AI 先识别该编辑器的
 实际配置文件位置后合并写入；CLI 不会额外生成通用配置文件。
 
@@ -223,8 +226,8 @@ CLI 先完成初始化、PAT、app 选择、clone
 
 本轮重构按 Windows 优先做了这些约束：
 
-- 通用 MCP 配置在 Windows 使用已验证的绝对 launcher；项目目录仅通过结构化 `cwd` 传递，
-  不生成 `cd && npx.cmd`。
+- 通用 MCP 配置在 Windows 使用已验证的绝对 launcher；用户级配置不持久化项目目录，
+  也不生成 `cd && npx.cmd`。
 - Git 安装引导优先提示 Git for Windows。
 - 提醒用户安装时确保命令行和第三方工具可从 PATH 找到 Git。
 - 代码路径处理使用 Node `path` API，不手写 POSIX 分隔符。
@@ -235,7 +238,8 @@ CLI 先完成初始化、PAT、app 选择、clone
 已完成验证：
 
 - 本机 CLI 自测流程通过。
-- Windows 自测流程通过。
+- Windows 路径与启动器自动化测试通过；Windows 真机验收尚未执行，按
+  `docs/MAKER_PROXY_TOOLS_FIX_AND_E2E_TEST.md` 在 Windows 电脑上完成。
 - MCP surface smoke 通过。
 - `maker_build_current_directory` 合并提交/推送/构建的关键测试通过。
 

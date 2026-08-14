@@ -1874,7 +1874,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain(`- maker_project_dir: ${tempDir}`);
     expect(output).toContain('- mcp_cwd_project_dir: (none)');
     expect(output).toContain('proxy tools remain registered');
-    expect(output).toContain('pass maker_project_dir as target_dir');
+    expect(output).toContain('pass the Maker project directory as target_dir');
     expect(output).toContain('Do not rewrite a shared user-level MCP cwd');
   });
 
@@ -3594,6 +3594,19 @@ describe('maker build local-change guard', () => {
       fs.rmSync(firstRoot, { recursive: true, force: true });
       fs.rmSync(secondRoot, { recursive: true, force: true });
     }
+  });
+
+  test('status summary explains the final cwd fallback when the client has no roots', async () => {
+    const output = await formatStatus({
+      listClientRoots: async () => [],
+      detail: true,
+      skipRemoteSync: true,
+    });
+
+    expect(output).toContain('- status: no_roots');
+    expect(output).toContain('process cwd only as the final fallback');
+    expect(output).toContain('pass target_dir explicitly');
+    expect(output).toContain('Do not rewrite user-level MCP config');
   });
 
   test('status summary gives a recovery action for a broken project configuration', async () => {

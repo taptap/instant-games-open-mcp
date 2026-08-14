@@ -146,7 +146,7 @@ taptap-maker init
 taptap-maker doctor
 taptap-maker apps --json
 taptap-maker pat set
-taptap-maker install --ide codex,cursor,claude
+taptap-maker install --ide codex,cursor,claude,trae,opencode,workbuddy
 taptap-maker mcp verify
 taptap-maker agents update
 taptap-maker upgrade
@@ -155,7 +155,13 @@ taptap-maker dev-kit update
 
 \`taptap-maker install\` is a shortcut alias for \`taptap-maker mcp install\`.
 \`taptap-maker upgrade\` refreshes the current machine MCP config and the current bound project's
-managed \`AGENTS.md\` policy block.
+managed \`AGENTS.md\` policy block. The user-level MCP entry never stores a project \`cwd\`;
+reinstall and upgrade also remove legacy project \`cwd\` values. On upgrade, \`--target-dir\` only
+selects the project whose managed \`AGENTS.md\` policy is updated. Clients with one unambiguous MCP
+Roots workspace resolve it automatically; clients without usable Roots pass \`target_dir\` on each
+concrete Maker tool call. Initial install or a package/static-schema change can require one client
+reconnect to load the new MCP tools. Binding or switching Maker projects does not rewrite MCP config
+and does not require a new conversation.
 
 This package contains only the Maker CLI/MCP bundle and Maker workflow skills.
 It does not include the legacy TapTap Open API MCP server, proxy, native signer,

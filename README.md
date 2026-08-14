@@ -53,9 +53,10 @@ npx -y @taptap/maker init
 
 CLI 负责一次性流程：Git 检查、Python 和 maker-lua-lsp 本地 Lua 诊断环境检查、CLI 登录、
 TapTap token 换取、app 列表选择或新建 Maker 项目、Maker Git clone、AI dev kit 准备、MCP 配置写入与基础验证。Python 环境准备连续 3 次失败时，
-初始化会暂停在登录、项目拉取和 MCP 配置之前；修复后重新运行 `taptap-maker init`。安装或修改 MCP 配置后，Claude Code /
-Codex / Cursor / Trae / OpenCode / WorkBuddy 通常需要重启会话、刷新 MCP 或新开窗口才会出现新的 MCP tools；但当前终端
-里的 CLI 初始化流程可以继续完成到 PAT 鉴权和项目绑定。
+初始化会暂停在登录、项目拉取和 MCP 配置之前；修复后重新运行 `taptap-maker init`。首次安装，或 Maker MCP 包/
+静态工具 schema 发生变化后，Claude Code / Codex / Cursor / Trae / OpenCode / WorkBuddy 通常需要重连或刷新一次 MCP，
+才能加载新的 MCP tools；单纯绑定或切换 Maker 项目不会修改用户级 MCP 配置，也不需要重启会话或新开对话。当前终端里的
+CLI 初始化流程可以继续完成到 PAT 鉴权和项目绑定。
 
 常用 CLI：
 
@@ -114,9 +115,14 @@ WorkBuddy 账号维度的启用/信任状态在 `.workbuddy/connectors/<account-
 
 TapTap Maker 的用户配置不需要设置服务环境。预览、构建、测试二维码和本地开发都使用官方服务配置。
 
-`taptap-maker init` 默认写入不带项目 `cwd` 的用户级 MCP 配置；支持 MCP Roots 的客户端
-会用当前 workspace root 识别 Maker 项目，避免多个客户端或多个项目互相覆盖 cwd。需要兼容
-不支持 Roots 的客户端时，可显式运行 `taptap-maker mcp install --target-dir <PROJECT_DIR>`。
+`taptap-maker init`、`mcp install` 和 `upgrade` 写入的用户级 MCP 配置永远不包含项目 `cwd`，
+避免多个客户端、对话或 Maker 项目争用同一个全局路径。支持 MCP Roots 的客户端会用当前
+workspace root 识别项目；不支持 Roots 时，由 Agent 在具体 Maker tool 调用中传入 `target_dir`。
+MCP 进程自身的 cwd 只作为最后兜底和诊断信息，不应通过重写用户配置来切换项目。
+安装器会先比较现有 `taptap-maker` 条目；内容一致时不写文件，Claude 也不会重复执行
+`claude mcp add`。因此后续项目 `init` 或无配置变化的 `upgrade` 不会触发配置重载。
+从旧 beta 升级时，安装器会移除现有 `taptap-maker` 条目中的历史 `cwd`，同时保留配置里的
+其它 MCP server；这次必要迁移完成后，切换项目不再修改用户级配置。
 `taptap-maker upgrade` 会刷新当前机器的 Maker MCP 配置，并在当前目录已绑定 Maker 项目时
 同步项目 `AGENTS.md` 的 TapTap Maker 受管策略块。`maker://status`、`maker_status_lite`
 和 `taptap-maker doctor` 会检查老项目 `AGENTS.md` 是否缺失或过期，并提示运行
@@ -187,8 +193,8 @@ tool schema 为准。
 
 Windows 是默认优先级：CLI 只把当前进程可用的绝对 `node.exe` 与 `npm-cli.js` 写入所有
 客户端配置；找不到该组合时安装失败，不会持久化 `.cmd` shell 命令或依赖客户端 PATH 的裸
-`npx.cmd`。OpenCode 使用相同已验证 launcher 的 command 数组。项目目录只写入结构化 `cwd`，
-禁止生成 `cd && npx.cmd`；Git 引导优先提示 Git for Windows，
+`npx.cmd`。OpenCode 使用相同已验证 launcher 的 command 数组。用户级 MCP 配置不会写入项目
+目录，也禁止生成 `cd && npx.cmd`；Git 引导优先提示 Git for Windows，
 并要求安装选项允许命令行和第三方工具通过 PATH 找到 Git。macOS 用户可通过 `git --version`
 触发 Xcode Command Line Tools，或安装官方 Git。
 

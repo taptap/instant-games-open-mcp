@@ -15,7 +15,7 @@ export type RemoteProxyToolSchemaDrift = {
 const TARGET_DIR_SCHEMA = {
   type: 'string',
   description:
-    'Optional local Maker project directory. This is a local Maker MCP private parameter used to resolve the current project for asset materialization and reference rewriting; it is not forwarded to the remote Maker tool.',
+    'Optional local Maker project directory. When omitted, Maker MCP uses one unambiguous MCP Roots workspace and process cwd only as the final fallback. Pass it explicitly when Roots are unavailable or ambiguous, or when the fallback is not the intended project. This local-only value is not persisted in user-level MCP config and is not forwarded to the remote Maker tool.',
 };
 
 const CONFIRMED_SCREEN_ORIENTATION_SCHEMA = {
