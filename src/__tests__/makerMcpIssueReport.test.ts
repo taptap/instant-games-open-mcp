@@ -127,7 +127,11 @@ describe('Maker MCP issue report', () => {
           'github_pat_abcdefghijklmnopqrstuvwxyz123456',
           '--pat spaced-pat-value',
           '--database-password "spaced-database-password-value"',
+          '--token comma-token-value,continued-token-value',
+          "--token apostrophe-token-value'continued-apostrophe-value",
           'password=plain-password-value',
+          'token=ampersand-token-value&continued-token-value',
+          'token=quote-token-value"continued-quote-value',
           'access_token=query-token-value&error=timeout',
           'TAPTAP_MCP_PAT=environment-pat-value',
         ].join(' '),
@@ -166,7 +170,14 @@ describe('Maker MCP issue report', () => {
     expect(issue.body).not.toContain('github_pat_abcdefghijklmnopqrstuvwxyz123456');
     expect(issue.body).not.toContain('spaced-pat-value');
     expect(issue.body).not.toContain('spaced-database-password-value');
+    expect(issue.body).not.toContain('comma-token-value');
+    expect(issue.body).not.toContain('continued-token-value');
+    expect(issue.body).not.toContain('apostrophe-token-value');
+    expect(issue.body).not.toContain('continued-apostrophe-value');
     expect(issue.body).not.toContain('plain-password-value');
+    expect(issue.body).not.toContain('ampersand-token-value');
+    expect(issue.body).not.toContain('quote-token-value');
+    expect(issue.body).not.toContain('continued-quote-value');
     expect(issue.body).not.toContain('query-token-value');
     expect(issue.body).toContain('error=timeout');
     expect(issue.body).not.toContain('environment-pat-value');

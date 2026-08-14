@@ -853,7 +853,7 @@ function isSensitiveCliFlag(value: string): boolean {
 function redactReportText(value: string): string {
   return value
     .replace(
-      /(^|[\s,;])(--(?:[a-z0-9]+[-_])*(?:pat|token|secret|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key))\s+(?:"[^"]*"|'[^']*'|[^\s,;]+)/gimu,
+      /(^|[\s,;])(--(?:[a-z0-9]+[-_])*(?:pat|token|secret|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key))\s+(?:"[^"]*"|'[^']*'|(?:(?![&,;][A-Za-z][A-Za-z0-9_.-]*\s*[:=])[^\s])+)/gimu,
       '$1$2 <redacted>'
     )
     .replace(
