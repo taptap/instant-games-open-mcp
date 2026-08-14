@@ -11,6 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { identifyMakerProject } from '../server/identify.js';
+import { findDshMakerPluginEntry, getDshHome, listDshMcpConfigPaths } from './dshMcpConfig.js';
 import {
   resolveMakerPackageSpec,
   resolveMakerMcpLauncher,
@@ -141,6 +142,7 @@ export function inspectMakerMcpClientConfig(options: {
   homeDir: string;
   platform: NodeJS.Platform;
   appData?: string;
+  dshHome?: string;
   mcpName?: string;
 }): MakerMcpConfigInspection {
   const ide = options.ide.trim().toLowerCase();
@@ -239,6 +241,7 @@ export async function collectMakerMcpIssueDiagnostics(options: {
         homeDir,
         platform,
         appData: options.appData || environment.APPDATA,
+        dshHome: client === 'dsh' ? getDshHome({ homeDir, environment }) : undefined,
       })
     : { status: 'not_checked', reason: 'active_client_not_provided' };
 
@@ -315,6 +318,7 @@ function getMcpConfigPaths(options: {
   homeDir: string;
   platform: NodeJS.Platform;
   appData?: string;
+  dshHome?: string;
 }): string[] | undefined {
   const { ide, homeDir, platform } = options;
   if (ide === 'codex') {
@@ -346,6 +350,9 @@ function getMcpConfigPaths(options: {
       path.join(root, name, 'User', 'mcp.json')
     );
   }
+  if (ide === 'dsh') {
+    return listDshMcpConfigPaths({ homeDir, dshHome: options.dshHome });
+  }
   return undefined;
 }
 
@@ -358,16 +365,62 @@ function inspectMcpConfigFile(
     const server =
       ide === 'codex'
         ? extractCodexMcpServerConfig(fs.readFileSync(configPath, 'utf8'), mcpName)
-        : extractMakerMcpServerConfig(
-            parseJsonConfig(fs.readFileSync(configPath, 'utf8'), ide === 'opencode'),
-            mcpName
-          );
+        : ide === 'dsh'
+          ? extractDshMcpServerConfig(fs.readFileSync(configPath, 'utf8'), mcpName, configPath)
+          : extractMakerMcpServerConfig(
+              parseJsonConfig(fs.readFileSync(configPath, 'utf8'), ide === 'opencode'),
+              mcpName
+            );
     return server
       ? { path: configPath, status: 'found', server }
       : { path: configPath, status: 'missing_entry' };
   } catch {
     return { path: configPath, status: 'unreadable' };
   }
+}
+
+function extractDshMcpServerConfig(
+  content: string,
+  mcpName: string,
+  source: string
+): Record<string, unknown> | undefined {
+  const plugin = findDshMakerPluginEntry(content, mcpName, source);
+  if (!plugin) {
+    return undefined;
+  }
+  const config = isRecord(plugin.config) ? plugin.config : {};
+  const server: Record<string, unknown> = {
+    id: plugin.id,
+    name: plugin.name,
+  };
+  if (typeof config.serverName === 'string') {
+    server.server_name = config.serverName;
+  }
+  if (typeof config.transport === 'string') {
+    server.transport = config.transport;
+  }
+  if (typeof config.command === 'string') {
+    server.command = config.command;
+  }
+  if (Array.isArray(config.args)) {
+    server.args = sanitizeCommandArguments(config.args);
+  }
+  if (typeof config.cwd === 'string') {
+    server.cwd = config.cwd;
+  }
+  if (typeof config.toolCallTimeoutMs === 'number') {
+    server.tool_call_timeout_ms = config.toolCallTimeoutMs;
+  }
+  if (typeof config.failOnStartupError === 'boolean') {
+    server.fail_on_startup_error = config.failOnStartupError;
+  }
+  if (isRecord(config.env)) {
+    server.env_keys = Object.keys(config.env).sort();
+    if (typeof config.env.TAPTAP_MCP_CLIENT_IDE === 'string') {
+      server.client_ide = config.env.TAPTAP_MCP_CLIENT_IDE;
+    }
+  }
+  return server;
 }
 
 function extractCodexMcpServerConfig(

@@ -98,6 +98,12 @@ import {
   parseMakerMcpReportContext,
   submitMakerMcpIssue,
 } from './mcpIssueReport.js';
+import {
+  createDshMakerPluginConfig,
+  getDshHome,
+  getDshMcpInstallPaths,
+  mergeDshMakerMcpConfig,
+} from './dshMcpConfig.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 declare const __MAKER_BUNDLE_URL__: string | undefined;
@@ -1951,6 +1957,23 @@ function installMcpConfigUnsafe(ide: string, options: McpInstallOptions): McpIns
     );
   }
 
+  if (ide === 'dsh') {
+    const dshOptions = withClientIde(options, 'dsh');
+    const desired = createDshMakerPluginConfig({
+      mcpName: dshOptions.mcpName,
+      command: dshOptions.launcher.command,
+      args: dshOptions.launcher.args,
+      env: createMcpEnvironmentValues(dshOptions.env, dshOptions.clientIde, dshOptions.launcherEnv),
+    });
+    return getDshMcpInstallPaths({ mcpName: dshOptions.mcpName }).map((configPath) => {
+      const write = mergeDshMakerMcpConfig(configPath, desired);
+      const result = createMcpInstallResult(ide, 'DeepSeek Harness', configPath, write);
+      result.message +=
+        '\n  DSH watches this patch and hot-reloads the MCP plugin; no IDE restart is required.';
+      return result;
+    });
+  }
+
   return [{ ide, ok: false, message: `Skipped unknown IDE: ${ide}` }];
 }
 
@@ -2011,6 +2034,9 @@ function getDefaultMcpInstallIdes(): string[] {
   }
   if (getWorkBuddyMcpInstallPaths().length > 0) {
     ides.push('workbuddy');
+  }
+  if (fs.existsSync(getDshHome())) {
+    ides.push('dsh');
   }
   return ides;
 }
@@ -3003,7 +3029,7 @@ function printHelp(): void {
       '                     [--create --name NAME]',
       '                     [--skip-confirm] [--skip-mcp-install]',
       '                     [--launcher self|npx]',
-      '                     [--register-mcp codex,cursor,claude,trae,opencode,workbuddy]',
+      '                     [--register-mcp codex,cursor,claude,trae,opencode,workbuddy,dsh]',
       '                     [--json]',
       '',
       'Init flows:',
@@ -3023,16 +3049,16 @@ function printHelp(): void {
       '  taptap-maker login [--json]',
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # fallback; warns: PAT appears in ps/history',
-      '  taptap-maker install [--ide codex,cursor,claude,trae,opencode,workbuddy]',
+      '  taptap-maker install [--ide codex,cursor,claude,trae,opencode,workbuddy,dsh]',
       '                        [--launcher self|npx] [--json]  # alias for mcp install',
-      '  taptap-maker mcp install [--ide codex,cursor,claude,trae,opencode,workbuddy]',
+      '  taptap-maker mcp install [--ide codex,cursor,claude,trae,opencode,workbuddy,dsh]',
       '                             [--launcher self|npx] [--json]',
       '  taptap-maker mcp verify [--mode npx|self] [--json]',
       '  taptap-maker mcp report [--ide CLIENT] [--target-dir DIR]',
       '                            [--context-stdin] [--consent] [--json]',
       '                            # Run only after the user agrees to submit',
       '  taptap-maker agents update [--target-dir DIR] [--json]',
-      '  taptap-maker upgrade [--ide codex,cursor,claude,trae,opencode,workbuddy]',
+      '  taptap-maker upgrade [--ide codex,cursor,claude,trae,opencode,workbuddy,dsh]',
       '                         [--launcher self|npx] [--target-dir DIR] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
@@ -3042,7 +3068,7 @@ function printHelp(): void {
       'the exact @taptap/maker version and persist a dedicated writable npm cache.',
       '',
       'MCP install defaults:',
-      '  Writes Codex, Cursor, Claude, detected Trae/OpenCode/WorkBuddy configs,',
+      '  Writes Codex, Cursor, Claude, detected Trae/OpenCode/WorkBuddy/DSH configs,',
       '  unless --ide is specified. It does not create missing Trae config files.',
       '',
       'Windows note:',

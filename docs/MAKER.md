@@ -203,8 +203,8 @@ Python 运行时策略：
   AI 客户端 MCP 配置。
 - `taptap-maker mcp install`：先用最终 launcher 完成 MCP `initialize` 和 `tools/list`，成功后
   写入当前机器的 AI 客户端 MCP 配置。验证失败不修改配置或备份。无 `--ide` 时默认写入
-  Codex、Cursor、Claude，并自动检测已存在配置文件的 Trae、OpenCode、WorkBuddy。可用
-  `--ide codex,cursor,claude,trae,opencode,workbuddy` 显式指定目标。
+  Codex、Cursor、Claude，并自动检测已存在配置的 Trae、OpenCode、WorkBuddy、DSH。可用
+  `--ide codex,cursor,claude,trae,opencode,workbuddy,dsh` 显式指定目标。
   Codex 配置写入会同时清理 `[mcp_servers.taptap-maker]` 与
   `[mcp_servers."taptap-maker"]` 两种 TOML 等价写法，重复运行或从旧配置升级时应保持幂等。
   JSON/JSONC 配置写入前会解析并保留其它 server；写入后会重新校验 JSON 结构和
@@ -212,6 +212,14 @@ Python 运行时策略：
   `<config>.taptap-maker.bak.latest`，不会创建新的时间戳备份，也不会删除历史 `.bak.*` 文件。
   Claude 用户级条目内容一致时也会跳过 `claude mcp add`，避免重复触发配置信任或客户端重载。
   如果已有 JSON 配置无法解析，CLI 会停止该目标写入并保留原文件。
+  DSH 使用 `@deepseek-ai/dsh-mcp-client` 插件和 YAML 插件数组。安装器写入用户级
+  `$DSH_HOME/cordis.patch.yml`（默认 `~/.dsh/cordis.patch.yml`），按插件 id 合并并保留其它项；
+  新注册必须使用 Cordis `insert` patch，不能把完整 plugin row 直接写成顶层 id patch，否则
+  DSH 会把未命中的 id 静默跳过。若已有 profile 级 Maker `insert`，安装器就地更新这些 profile
+  patch，不再额外添加全局重复 serverName；
+  YAML 无法解析或存在多个 Maker serverName 冲突项时停止写入并恢复原文件。生成项固定
+  `transport: stdio`、`failOnStartupError: true`，并把 `toolCallTimeoutMs` 设为 1 小时，避免 DSH
+  默认 60 秒在 Maker 构建或素材 proxy 调用完成前截断请求。DSH 会热重载该用户补丁，无需重启 IDE。
   默认 `--launcher self` 把当前包的 `dist/maker.js`、skills 和排障文档物化到
   `TAPTAP_MAKER_HOME/mcp-runtime/<version>/`，并写入绝对 Node + 稳定 bundle 路径。
   `--launcher npx` 作为兼容模式，发布包固定当前精确版本并把专用可写 npm cache 同步写入
@@ -577,10 +585,17 @@ Windows 兼容注意：
   设置里启用/信任 `taptap-maker`，普通 `doctor` 不会因为存在 `.workbuddy` 就输出 WorkBuddy
   诊断，不自动修改账号信任状态；Windows 用户对应路径是
   `%USERPROFILE%\.workbuddy\connectors\<account-id>\connector-states.json`。
+- DSH 不使用 `mcp.json`。CLI 写入 `$DSH_HOME/cordis.patch.yml`，未设置 `DSH_HOME` 时对应
+  macOS/Linux 的 `~/.dsh/cordis.patch.yml` 和 Windows 的
+  `%USERPROFILE%\.dsh\cordis.patch.yml`。默认 home 级补丁不绑定 `web` 或其它 profile；检测到已有
+  profile 级 Maker registration 时只更新对应 profile，避免重复。两种 patch 都可由 DSH HMR
+  热重载；启动使用绝对 Node 和版本化 Maker bundle，不依赖 PowerShell、`npx.cmd` 或 npm cache。
+  DSH 当前不广播 MCP Roots，因此每次项目相关 Maker 调用都应显式传入当前游戏目录
+  `target_dir`。生成配置不写 `cwd`，避免多个项目争用同一个用户级路径。
 - OpenCode 只在 `~/.config/opencode/opencode.jsonc` 已存在时写入，不主动创建。
 - MCP 配置写入时会在对应 MCP server 进程环境中增加
   `TAPTAP_MCP_CLIENT_IDE=<ide>`，取值为 `codex`、`cursor`、`claude`、`trae`、
-  `opencode` 或 `workbuddy`，用于本地 Maker MCP 识别当前请求来源。
+  `opencode`、`workbuddy` 或 `dsh`，用于本地 Maker MCP 识别当前请求来源。
 - `taptap-maker init`、`mcp install` 和 `upgrade` 写入的用户级 MCP 配置永远不包含项目 `cwd`，
   避免多个项目、对话或 AI 客户端争用同一个全局路径。支持 MCP Roots 的客户端由当前
   workspace root 决定 Maker 项目；不支持 Roots 时，由 Agent 在具体 Maker tool 调用中传入

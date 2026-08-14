@@ -415,6 +415,65 @@ describe('Maker MCP issue report', () => {
     expect(JSON.stringify(codex)).not.toContain('private-server');
   });
 
+  test('reads DSH user and profile patch entries without exposing environment values', () => {
+    const dshHome = path.join(tempDir, '.dsh');
+    const userPatch = path.join(dshHome, 'cordis.patch.yml');
+    const profilePatch = path.join(dshHome, 'profiles', 'web', 'cordis.patch.yml');
+    fs.mkdirSync(path.dirname(profilePatch), { recursive: true });
+    fs.writeFileSync(userPatch, '[]\n', 'utf8');
+    fs.writeFileSync(
+      profilePatch,
+      [
+        '- insert:',
+        '    - id: mcp-taptap-maker',
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        '      config:',
+        '        serverName: taptap-maker',
+        '        transport: stdio',
+        '        command: C:\\Program Files\\nodejs\\node.exe',
+        '        args:',
+        '          - C:\\Users\\alice\\.taptap-maker\\mcp-runtime\\maker.js',
+        '        env:',
+        '          TAPTAP_MCP_CLIENT_IDE: dsh',
+        '          TAPTAP_MCP_PAT: never-upload',
+        '        toolCallTimeoutMs: 3600000',
+        '        failOnStartupError: true',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    const inspection = inspectMakerMcpClientConfig({
+      ide: 'dsh',
+      homeDir: tempDir,
+      platform: 'win32',
+      dshHome,
+    });
+
+    expect(inspection.status).toBe('found');
+    expect(inspection.entries).toEqual(
+      expect.arrayContaining([
+        {
+          path: profilePatch,
+          status: 'found',
+          server: {
+            id: 'mcp-taptap-maker',
+            name: '@deepseek-ai/dsh-mcp-client',
+            server_name: 'taptap-maker',
+            transport: 'stdio',
+            command: 'C:\\Program Files\\nodejs\\node.exe',
+            args: ['C:\\Users\\alice\\.taptap-maker\\mcp-runtime\\maker.js'],
+            env_keys: ['TAPTAP_MCP_CLIENT_IDE', 'TAPTAP_MCP_PAT'],
+            client_ide: 'dsh',
+            tool_call_timeout_ms: 3_600_000,
+            fail_on_startup_error: true,
+          },
+        },
+      ])
+    );
+    expect(JSON.stringify(inspection)).not.toContain('never-upload');
+  });
+
   test('uses Windows APPDATA when collecting the active Trae config', async () => {
     const appData = path.join(tempDir, 'custom-roaming');
     const configPath = path.join(appData, 'TRAE SOLO', 'User', 'mcp.json');

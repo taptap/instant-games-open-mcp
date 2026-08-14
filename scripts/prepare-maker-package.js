@@ -155,7 +155,7 @@ taptap-maker init
 taptap-maker doctor
 taptap-maker apps --json
 taptap-maker pat set
-taptap-maker install --ide codex,cursor,claude,trae,opencode,workbuddy
+taptap-maker install --ide codex,cursor,claude,trae,opencode,workbuddy,dsh
 taptap-maker mcp verify
 taptap-maker mcp install --launcher npx --ide <client>
 taptap-maker mcp verify --mode npx
@@ -178,6 +178,14 @@ Roots workspace resolve it automatically; clients without usable Roots pass \`ta
 concrete Maker tool call. Initial install or a package/static-schema change can require one client
 reconnect to load the new MCP tools. Binding or switching Maker projects does not rewrite MCP config
 and does not require a new conversation.
+
+DeepSeek Harness (DSH) uses the \`@deepseek-ai/dsh-mcp-client\` plugin instead of \`mcp.json\`.
+\`taptap-maker mcp install --ide dsh\` merges the user-level \`$DSH_HOME/cordis.patch.yml\`, uses the
+stable self runtime, enables visible startup failures, and extends tool calls to one hour. DSH hot
+reloads that patch without an IDE restart. Because DSH does not currently advertise MCP Roots, its
+Agent must pass the active Maker game directory as \`target_dir\` on project-related tool calls.
+New plugin rows use Cordis \`insert\` patches; existing profile-scoped Maker rows are updated in place
+to avoid a duplicate server namespace.
 
 This package contains only the Maker CLI/MCP bundle and Maker workflow skills.
 It does not include the legacy TapTap Open API MCP server, proxy, native signer,
