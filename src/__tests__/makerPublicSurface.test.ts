@@ -4,10 +4,48 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const INTERNAL_ENVIRONMENT_PATTERN = /\brnd\b|xdrnd|TAPTAP_MCP_ENV|--env/iu;
 
 describe('Maker public documentation', () => {
+  test('Maker package preparation script remains valid JavaScript', () => {
+    const scriptPath = path.resolve('scripts/prepare-maker-package.js');
+    const result = spawnSync(process.execPath, ['--check', scriptPath], {
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe('');
+  });
+
+  test('documents consent-gated non-MCP issue reporting and non-blocking fallback', () => {
+    for (const file of [
+      'AGENTS.md',
+      'README.md',
+      'docs/MAKER.md',
+      'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md',
+    ]) {
+      const text = fs.readFileSync(path.resolve(file), 'utf8');
+      expect(text).toContain('@taptap/maker@<exact-version>');
+      expect(text).toMatch(/(?:原样|优先).*当前客户端|active client/iu);
+      expect(text).toContain('--context-stdin');
+      expect(text).toContain('--consent');
+      expect(text).toContain('manual_required');
+    }
+
+    const prepareScript = fs.readFileSync(path.resolve('scripts/prepare-maker-package.js'), 'utf8');
+    expect(prepareScript).toContain(
+      'npx -y --package @taptap/maker@${version} taptap-maker mcp report'
+    );
+    expect(prepareScript).toContain("'@taptap/maker@<exact-version>'");
+    expect(prepareScript).toContain(
+      "rewriteExactMakerVersion(join(packageRoot, 'dist', 'maker.js'), version)"
+    );
+    expect(prepareScript).toContain('user consent');
+    expect(prepareScript).toContain('manual_required');
+  });
+
   test('documents the QR orientation gate and test whitelist proxy workflow', () => {
     for (const file of ['AGENTS.md', 'README.md', 'docs/MAKER.md']) {
       const text = fs.readFileSync(path.resolve(file), 'utf8');
@@ -64,15 +102,18 @@ describe('Maker public documentation', () => {
       'PATH',
       'stderr',
       'connector-states.json',
-      'npx -y -p @taptap/maker taptap-maker mcp verify --json',
-      'npx.cmd -y -p @taptap/maker taptap-maker mcp verify --json',
+      'taptap-maker mcp verify --json',
+      'stable self runtime',
+      'npm_environment_error',
+      'evaluated_target_dir',
+      'project_context_source',
       'launcher_kind、command、stage、tools、stderr、error 和',
       '`initialize` 和 `tools/list`',
       '不会读取',
       '客户端实际生效的配置',
       '按证据分类根因',
       '仅在证据确认实际配置项损坏时',
-      '不能依赖该字段修复项目上下文',
+      '不要把项目路径写入用户级 MCP 配置',
       '8.3 短路径名称可能未启用',
       '%~sI',
       '外层 shell 的引号或转义失败',
@@ -135,8 +176,8 @@ describe('Maker public documentation', () => {
     const normalizedSkill = skill.replace(/\s+/gu, ' ');
 
     for (const expected of [
-      'npx -y -p @taptap/maker taptap-maker mcp verify --json',
-      'same resolved launcher as MCP install',
+      'taptap-maker mcp verify --json',
+      'same stable launcher as MCP install',
       'completes MCP initialize and tools/list',
       "does not read the client's active config",
       'client config caching, or Roots',
@@ -148,19 +189,41 @@ describe('Maker public documentation', () => {
       'Classify the root cause from evidence before repairing it',
       'only after evidence confirms that the active config entry is damaged',
       'Do not automatically change trust storage, PATH, cwd, credentials',
-      'If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field',
+      'User-level MCP config must not contain a project cwd',
       'Do not assume Windows 8.3 short paths exist or differ from the original long path',
       'Separate outer shell quoting or stderr decoding failures from the MCP child process result',
       'If the MCP connection is established but a tool or resource call fails, including `-32003`',
       '`mcp verify` is not the primary check for an already connected session',
       'complete sanitized `remote_result`',
       'failed tool/resource, redacted request parameters, current `tools/list`',
-      'absolute Node/npm launcher',
+      'absolute Node plus the versioned self runtime',
+      "reuse that config's absolute command and ordered args",
     ]) {
       expect(normalizedSkill).toContain(expected);
     }
     expect(skill).not.toMatch(INTERNAL_ENVIRONMENT_PATTERN);
     expect(normalizedSkill).not.toContain('keep `cmd.exe`, `npx.cmd`');
+  });
+
+  test('bundled update skill never persists a Maker project in user-level MCP config', () => {
+    const skill = fs.readFileSync(path.resolve('skills/update-taptap-mcp/SKILL.md'), 'utf8');
+
+    expect(skill).toContain('never contains a project `cwd`');
+    expect(skill).toContain('only selects the project whose managed `AGENTS.md` policy is updated');
+    expect(skill).toContain('@taptap/maker@<TARGET_VERSION>');
+    expect(skill).toContain('stable self runtime');
+    expect(skill).toContain('`--launcher npx`');
+    expect(skill).not.toContain('Refreshes AI client MCP config to launch `npx');
+    expect(skill).not.toContain('Pins `cwd`');
+    expect(skill).not.toContain('wrong `cwd`');
+  });
+
+  test('technical docs keep project-local service selection out of user-level MCP config', () => {
+    for (const file of ['AGENTS.md', 'docs/MAKER.md']) {
+      const text = fs.readFileSync(path.resolve(file), 'utf8');
+      expect(text).toContain('项目级本地研发服务选择只在调用时解析');
+      expect(text).toContain('不会提升为用户级 MCP 启动环境');
+    }
   });
 
   test('Maker package preparation includes the full troubleshooting guide', () => {
@@ -176,5 +239,29 @@ describe('Maker public documentation', () => {
     expect(prepareScript).toContain(
       'Full connection and tool-call troubleshooting guide: `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md`.'
     );
+    expect(prepareScript).toContain('never stores a project \\`cwd\\`');
+    expect(prepareScript).toContain('selects the project whose managed \\`AGENTS.md\\` policy');
+    expect(prepareScript).toContain('pass \\`target_dir\\` on each');
+    expect(prepareScript).toContain('concrete Maker tool call');
+  });
+
+  test('Maker overview reports Windows verification without claiming an unrun real-machine test', () => {
+    const overview = fs.readFileSync(
+      path.resolve('docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md'),
+      'utf8'
+    );
+
+    expect(overview).not.toContain('- Windows 自测流程通过。');
+    expect(overview).toContain('Windows 路径与启动器自动化测试通过');
+    expect(overview).toContain('Windows 真机验收尚未执行');
+  });
+
+  test('Maker proxy acceptance guide keeps each pass criterion once', () => {
+    const guide = fs.readFileSync(
+      path.resolve('docs/MAKER_PROXY_TOOLS_FIX_AND_E2E_TEST.md'),
+      'utf8'
+    );
+
+    expect(guide.match(/- 项目状态为 `bound`。/gu)).toHaveLength(1);
   });
 });

@@ -2,13 +2,29 @@
  * Maker MCP launcher resolution and protocol verification tests.
  */
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 import {
+  classifyVerificationFailure,
+  materializeMakerSelfLauncher,
+  resolveMakerPackageSpec,
   resolveMakerMcpLauncher,
   verifyMakerMcpLauncher,
   type MakerMcpLauncher,
 } from '../maker/cli/mcpLauncher';
 
 describe('Maker MCP launcher', () => {
+  test('pins published Maker versions instead of resolving the npm latest tag', () => {
+    expect(resolveMakerPackageSpec('@taptap/maker', '0.0.30-beta.2')).toBe(
+      '@taptap/maker@0.0.30-beta.2'
+    );
+    expect(resolveMakerPackageSpec('@taptap/maker', '0.0.31')).toBe('@taptap/maker@0.0.31');
+    expect(resolveMakerPackageSpec('@taptap/maker', 'dev')).toBe('@taptap/maker');
+  });
+
   test('uses absolute node and npm-cli paths on Windows without relying on PATH npx', () => {
     const nodePath = 'D:\\Program Files\\nodejs\\node.exe';
     const npmCliPath = 'D:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js';
@@ -94,5 +110,127 @@ describe('Maker MCP launcher', () => {
       })
     );
     expect(result.toolNames).toContain('maker_status_lite');
+  });
+
+  test('classifies npm cache permission stderr as an environment failure', () => {
+    expect(
+      classifyVerificationFailure(
+        'MCP error -32000: Connection closed',
+        'npm ERR! code EPERM\nnpm ERR! Your cache folder contains root-owned files'
+      )
+    ).toBe('npm_environment_error');
+    expect(
+      classifyVerificationFailure(
+        'MCP error -32000: Connection closed',
+        'npm error code EACCES\nnpm error path /home/user/.npm/_cacache'
+      )
+    ).toBe('npm_environment_error');
+  });
+
+  test('materializes a stable self runtime outside the temporary npx package cache', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-self-launcher-'));
+    try {
+      const packageRoot = path.join(tempDir, '_npx', 'node_modules', '@taptap', 'maker');
+      const makerHome = path.join(tempDir, 'maker-home');
+      const bundlePath = path.join(packageRoot, 'dist', 'maker.js');
+      fs.mkdirSync(path.dirname(bundlePath), { recursive: true });
+      fs.writeFileSync(bundlePath, '// maker bundle');
+      for (const skill of [
+        'taptap-maker-local',
+        'taptap-maker-dev-kit-guide',
+        'update-taptap-mcp',
+      ]) {
+        const skillDir = path.join(packageRoot, 'skills', skill);
+        fs.mkdirSync(skillDir, { recursive: true });
+        fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `# ${skill}`);
+      }
+      const docsDir = path.join(packageRoot, 'docs');
+      fs.mkdirSync(docsDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(docsDir, 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
+        '# Troubleshooting'
+      );
+
+      const launcher = materializeMakerSelfLauncher({
+        version: '0.0.30-beta.2',
+        bundleUrl: pathToFileURL(bundlePath).href,
+        makerHome,
+        execPath: process.execPath,
+      });
+
+      const stableBundle = path.join(makerHome, 'mcp-runtime', '0.0.30-beta.2', 'dist', 'maker.js');
+      expect(launcher).toEqual({
+        kind: 'self_runtime',
+        command: process.execPath,
+        args: [stableBundle],
+        commandAndArgs: [process.execPath, stableBundle],
+      });
+      expect(fs.readFileSync(stableBundle, 'utf8')).toBe('// maker bundle');
+      expect(
+        fs.readFileSync(
+          path.join(
+            makerHome,
+            'mcp-runtime',
+            '0.0.30-beta.2',
+            'skills',
+            'taptap-maker-local',
+            'SKILL.md'
+          ),
+          'utf8'
+        )
+      ).toBe('# taptap-maker-local');
+      expect(launcher.commandAndArgs.join(' ')).not.toContain('_npx');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('always materializes a self runtime to an absolute persistent path', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-self-relative-'));
+    const originalCwd = process.cwd();
+    try {
+      const packageRoot = path.join(tempDir, 'package');
+      const bundlePath = path.join(packageRoot, 'dist', 'maker.js');
+      fs.mkdirSync(path.dirname(bundlePath), { recursive: true });
+      fs.writeFileSync(bundlePath, '// maker bundle');
+      for (const skill of [
+        'taptap-maker-local',
+        'taptap-maker-dev-kit-guide',
+        'update-taptap-mcp',
+      ]) {
+        const skillDir = path.join(packageRoot, 'skills', skill);
+        fs.mkdirSync(skillDir, { recursive: true });
+        fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `# ${skill}`);
+      }
+      const docsDir = path.join(packageRoot, 'docs');
+      fs.mkdirSync(docsDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(docsDir, 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
+        '# Troubleshooting'
+      );
+      process.chdir(tempDir);
+
+      const launcher = materializeMakerSelfLauncher({
+        version: '0.0.30-beta.2',
+        bundleUrl: pathToFileURL(bundlePath).href,
+        makerHome: 'relative-maker-home',
+        execPath: process.execPath,
+      });
+
+      expect(path.isAbsolute(launcher.args[0])).toBe(true);
+      expect(launcher.args[0]).toBe(
+        path.join(
+          process.cwd(),
+          'relative-maker-home',
+          'mcp-runtime',
+          '0.0.30-beta.2',
+          'dist',
+          'maker.js'
+        )
+      );
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });

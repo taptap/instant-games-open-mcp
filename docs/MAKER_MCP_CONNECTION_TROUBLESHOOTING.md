@@ -25,27 +25,22 @@
 保存日志和配置时，凭证值必须脱敏，包括 PAT、token、Authorization、Cookie 和其它密钥；错误结构、
 字段名、路径、参数顺序、退出状态和脱敏后的 stderr 应保留完整。
 
-## 2. 报错时运行标准 npx/CLI 检查
+## 2. 报错时运行标准 launcher/CLI 检查
 
 只要 Maker tools 缺失，出现 `-32000`、`Connection closed`、`command not found` 或进程启动后立即
 退出，用户 AI 都应尝试运行以下只读命令。命令自身失败也是诊断证据，必须记录，不能因此跳过。
 
-Windows：
-
-```bat
-npx.cmd -y -p @taptap/maker taptap-maker mcp verify --json
-```
-
-macOS/Linux：
-
 ```bash
-npx -y -p @taptap/maker taptap-maker mcp verify --json
+taptap-maker mcp verify --json
 ```
 
-`mcp verify --json` 使用安装器的同一 launcher 启动 `@taptap/maker`，完成 MCP
+`mcp verify --json` 默认验证安装器物化到 Maker 用户目录的稳定 self runtime（stable self runtime），完成 MCP
 `initialize` 和 `tools/list`，并返回 launcher_kind、command、stage、tools、stderr、error 和
 failure_type。失败时命令退出码非零。它证明本机最终启动命令和 stdio MCP 通路可用，但不会读取
 客户端实际生效的配置，也不能检查任意客户端 trust、客户端配置缓存或 MCP Roots。
+只有明确检查 npm 启动链路时才追加 `--mode npx`；发布包会固定当前精确版本并使用专用可写 cache。
+如果当前 shell 找不到 `taptap-maker`，优先复用客户端配置中的绝对 command/args；最后才用当前
+精确版本的 npx 命令启动 CLI，禁止省略版本落到 npm `latest`。
 
 因此，无论该命令成功还是失败，后续都必须先确认当前客户端，再检查并复现该客户端真实使用的
 config path、command、有序 args、cwd、workspace/Roots、Node/npm/npx 路径、client PATH、退出状态
@@ -89,11 +84,24 @@ tool/resource 调用中的请求校验、项目上下文、远端响应或业务
 - Claude Code：用户级 Claude 配置或 `claude mcp` 管理的配置
 - WorkBuddy：`~/.workbuddy/mcp.json`
 - WorkBuddy 旧配置仅作为兼容检查：`~/.workbuddy/.mcp.json`
+- DeepSeek Harness（DSH）：`$DSH_HOME/cordis.patch.yml`，默认
+  `~/.dsh/cordis.patch.yml`；手工 profile 配置还可能位于
+  `~/.dsh/profiles/<profile>/cordis.yml` 或 `cordis.patch.yml`
 
 Windows 中 `~` 对应 `%USERPROFILE%`。
 
 多开 AI 对话不会隔离用户级 MCP 配置。某个对话如果修改了共享配置中的 command、args 或 cwd，
 其它对话在重连或重启后也会失效。应比较配置备份和最近修改时间，确认是否被其它对话重写。
+
+DSH 不使用 `mcpServers` JSON。运行 `taptap-maker install` 会自动检测 DSH，并按插件 id 合并用户级
+YAML 补丁，DSH 通过 HMR 热重载，无需重启 IDE。Maker 插件项应使用
+`@deepseek-ai/dsh-mcp-client`、`transport: stdio`、`failOnStartupError: true` 和
+`toolCallTimeoutMs: 3600000`。DSH 当前不广播 MCP Roots，不能把固定项目目录写入该用户级配置；
+Agent 应在每个项目相关 Maker tool 调用中显式传入真实游戏目录 `target_dir`。
+首次新增 plugin row 必须放在顶层 `insert` 操作内；裸的顶层 `id: mcp-taptap-maker` 只能覆盖
+已经由更低层插入的同 id row，在空根上会被跳过。应优先重新运行安装器修复，不要手工复制普通
+`mcpServers` JSON。若安装器发现现有 profile 级 Maker registration，会就地更新对应 profile
+patch，避免再写一个全局重复 `serverName`。
 
 ## 4. 当前客户端与 WorkBuddy 专属检查
 
@@ -118,22 +126,25 @@ AI 只读取该文件用于诊断，不自动修改账号信任状态。未信�
 
 ## 5. 检查标准启动命令
 
-Windows 通用 `mcpServers` 配置应使用安装器探测并验证后的独立 command 和 args。首选形式是：
+Windows 通用 `mcpServers` 配置应使用安装器探测并验证后的独立 command 和 args。默认形式是：
 
 ```text
 command: <绝对 node.exe>
-args: ["<绝对 npm-cli.js>", "exec", "--yes", "--package", "@taptap/maker", "--", "taptap-maker"]
+args: ["%USERPROFILE%\\.taptap-maker\\mcp-runtime\\<exact-version>\\dist\\maker.js"]
 ```
 
-找不到绝对 Node/npm CLI 组合时，安装器会失败且不修改配置。安装器不会把 `cmd.exe` 或
-`.cmd` launcher 持久化到客户端配置，也不要手工改回依赖客户端 PATH 的裸 `npx.cmd`。
+该路径由安装器创建，不能手工指向 `_npx` 临时缓存。显式 `--launcher npx` 才使用绝对
+`node.exe` + `npm-cli.js`，固定当前精确版本并设置专用 npm cache。安装器不会把 `cmd.exe` 或
+`.cmd` launcher 持久化到客户端配置。
 
 macOS/Linux：
 
 ```text
 command: npx
-args: ["-y", "-p", "@taptap/maker", "taptap-maker"]
+args: ["-y", "-p", "@taptap/maker@<exact-version>", "taptap-maker"]
 ```
+
+上面的 macOS/Linux npx 形式只是显式兼容模式；默认同样是绝对 Node + 版本化 self runtime。
 
 不要把 command、项目路径和参数拼成一个长字符串，尤其不要使用：
 
@@ -149,6 +160,9 @@ Windows 8.3 短路径名称可能未启用，不能把短路径当作默认兜�
 的短路径别名，不要继续把它拼进 MCP 启动命令。
 
 ## 6. 检查 Node、npm、npx 和客户端 PATH
+
+默认 self launcher 只要求配置中的绝对 Node 和版本化 Maker bundle 可用。以下 npm/npx 检查只在
+客户端仍使用旧 npx 配置，或用户显式选择 `--launcher npx` 时是必需项。
 
 Windows 普通终端：
 
@@ -173,8 +187,13 @@ npm --version
 npx --version
 ```
 
-如果普通终端找不到 `npx`，先修复或安装受支持的 Node.js/npm。不要继续排查 PAT 或远端服务，
-因为 Maker MCP server 尚未启动。
+如果普通终端找不到 `npx`，可先运行 `taptap-maker mcp install --launcher self`
+迁移到默认 launcher；只有必须使用 npx 时才修复或安装受支持的 Node.js/npm。
+
+DSH 应直接使用 `taptap-maker install` 自动生成的绝对 Node + self runtime 插件项。
+不要把手工 `npx` 示例当作长期配置；DSH 的 Agent 沙箱可能禁止 npx 冷启动写入默认 npm cache。
+如果 DSH 中工具调用总在约 60 秒失败，先确认实际生效的插件项包含
+`toolCallTimeoutMs: 3600000`，再区分客户端超时和 Maker server 返回的业务错误。
 
 如果普通终端能找到 `npx`，但 AI 客户端或其内置终端提示 `command not found`，根因通常是客户端
 进程没有继承相同的 PATH。继续比较客户端进程环境与普通登录 shell；macOS 可额外检查：
@@ -187,15 +206,24 @@ npx --version
 带版本号的临时绝对路径写入共享 MCP 配置；优先让客户端从正确的启动环境继承 PATH，并在修复后
 用同一客户端启动方式复测。
 
+若 stderr 同时出现 EPERM/EACCES、root-owned files 或 cache 不可写，`mcp verify` 会返回
+`failure_type: npm_environment_error`。这通常是沙箱或 npm cache 路径不可写，不应仅凭 npm 的
+通用提示执行 `chown ~/.npm`；优先迁移到 self launcher，或给 npx 模式提供明确可写的 cache。
+
 ## 7. 检查 cwd、workspace 和 MCP Roots
 
 先确认用户本地项目目录存在 `.maker-mcp/config.json`，并记录客户端当前打开的 workspace。
 
 - 支持 MCP Roots 的客户端应只打开当前 Maker 项目，使用 workspace root 识别项目。
-- 不支持 MCP Roots 的客户端可用 `--target-dir <Maker项目绝对路径>` 重新安装配置。
-- 某些 WorkBuddy 版本可能忽略 `mcp.json` 的 `cwd`。此时仍禁止使用 `cd && npx` 补丁；应恢复
-  标准启动命令、只打开正确项目 workspace，并收集 WorkBuddy 的实际 cwd 和启动日志。已经确认
-  WorkBuddy 忽略 `cwd` 时，不能依赖该字段修复项目上下文，也不要反复重写它。
+- 不支持 MCP Roots 的客户端应由 Agent 在具体 Maker tool 调用中传入项目绝对路径作为
+  `target_dir`，不要把项目路径写入用户级 MCP 配置。
+- 当最终 cwd fallback 中找不到 `.maker-mcp/config.json` 时，Maker MCP 不会阻断 server 启动或
+  隐藏 tools；项目相关 proxy tool 会返回 `evaluated_target_dir` 和 `project_context_source` 后
+  快速失败。看到 `/tmp`、会话目录或其它项目路径时，应修正 workspace/Roots 或在该次调用显式传
+  `target_dir`，不要把其它目录的 `not_initialized` 当成真实项目结论。
+- 某些 WorkBuddy 版本不会把当前 workspace 暴露为 MCP Roots。此时仍禁止使用 `cd && npx`
+  补丁；应恢复不含项目 `cwd` 的标准启动配置、只打开正确项目 workspace，并收集 WorkBuddy
+  的实际进程 cwd 和启动日志作为诊断信息，不能依赖反复重写配置来切换项目。
 - 本地配置中的项目 id 与当前项目不一致时，先检查客户端启动目录和实际读取的配置，不要重新绑定
   或覆盖用户项目。
 
@@ -218,7 +246,7 @@ stderr、尝试的编码和解码错误，不能把解码异常直接当成 Make
 例如，配置使用 Windows 绝对 Node/npm CLI 时，按相同顺序复现：
 
 ```bat
-"<绝对 node.exe>" "<绝对 npm-cli.js>" exec --yes --package @taptap/maker -- taptap-maker
+"<绝对 node.exe>" "<绝对 npm-cli.js>" exec --yes --package @taptap/maker@<exact-version> -- taptap-maker
 ```
 
 然后用该 CLI 执行 `mcp verify --json`；不要只用 `help` 代替 MCP 协议握手。
@@ -226,7 +254,7 @@ stderr、尝试的编码和解码错误，不能把解码异常直接当成 Make
 配置使用 macOS/Linux 标准 argv 时：
 
 ```bash
-npx -y -p @taptap/maker taptap-maker help
+npx -y -p @taptap/maker@<exact-version> taptap-maker help
 ```
 
 如果终端成功而客户端失败，应继续排查客户端读取的配置、信任状态、PATH、cwd 和子进程启动方式，
@@ -240,7 +268,7 @@ npx -y -p @taptap/maker taptap-maker help
 - Node/npm/npx 缺失，或客户端 PATH 不完整。
 - 客户端读取了错误的配置文件。
 - WorkBuddy 未启用或未信任 MCP。
-- 客户端忽略 cwd 或 MCP Roots。
+- 客户端未暴露 MCP Roots，且调用未传 `target_dir`。
 - 多个 AI 对话修改了共享 MCP 配置。
 - IDE 安装路径、shell 转义或编码导致子进程启动失败。
 - MCP server 启动后的真实业务错误。
@@ -249,15 +277,13 @@ npx -y -p @taptap/maker taptap-maker help
 作为可选恢复方式，并先备份实际生效的配置：
 
 ```bash
-npx -y -p @taptap/maker taptap-maker mcp install --ide <当前客户端>
+npx -y -p @taptap/maker@<exact-version> taptap-maker mcp install --launcher self
 ```
 
-Windows 如无法从 PATH 运行上述恢复命令，应使用当前可用 npm 的绝对路径启动 CLI；安装器只会把
-验证过的绝对 Node/npm launcher 写入配置。客户端不支持 MCP Roots 时才追加：
-
-```text
---target-dir "<Maker项目绝对路径>"
-```
+Windows 如无法从 PATH 运行上述恢复命令，应使用当前可用 npm 的绝对路径启动这一次 CLI；安装器
+默认会把验证过的绝对 Node 和版本化 self runtime 写入配置。只有显式 `--launcher npx` 才持久化
+绝对 Node/npm launcher。客户端不支持 MCP Roots 时，不要给安装命令追加项目目录；应让 Agent 在
+具体 Maker tool 调用中传入 `target_dir`。
 
 不要让多个 AI 对话同时修改共享 MCP 配置。配置恢复后，在客户端 MCP 设置中 reconnect；必要时完全
 退出并重启客户端，再新开一个对话。
@@ -272,7 +298,36 @@ Windows 如无法从 PATH 运行上述恢复命令，应使用当前可用 npm �
 - 预期的 Maker tools 已注册。
 - WorkBuddy 中 `taptap-maker` 仍处于启用和信任状态。
 
-## 11. 诊断报告模板
+## 11. 用户同意后的 GitHub Issue 上报
+
+当证据指向 Maker MCP、proxy、客户端集成或服务端基础设施异常时，AI 应主动询问用户是否允许把
+已脱敏诊断提交到官方 GitHub Issue。适合上报的现象包括启动/连接失败、tools 异常缺失、请求超时、
+反复重连失败、HTTP 5xx/unavailable 和未分类内部错误。普通参数错误、已有明确恢复路径的登录问题、
+项目文件缺失、用户取消、Lua 编译和业务校验错误不应提示上报。
+
+同一种故障按失败操作、错误码和稳定错误信息形成指纹；当前会话只询问一次。用户拒绝后不再针对该
+指纹打扰。用户明确同意后无需第二次确认，AI 将已脱敏的当前会话错误 JSON 通过 stdin 传入：
+
+```text
+npx -y --package @taptap/maker@<exact-version> taptap-maker mcp report --ide <client> --target-dir <project> --context-stdin --consent --json
+```
+
+优先原样复用当前客户端 Maker MCP 配置中的 command 和有序 args，再追加上述 `mcp report`
+参数。示例 npx 命令只在已确认当前精确版本时使用，禁止省略版本误启 npm `latest`；Windows
+找不到 `npx` 时使用配置中的绝对 `node.exe` 和 `npm-cli.js` argv。
+
+CLI 会读取当前客户端的 `taptap-maker` 配置项、执行有短超时保护的 launcher
+`initialize`/`tools/list` 验证、记录当前 cwd 和绑定项目状态，再生成 Issue 标题与 Markdown 正文。
+不会上传其它 MCP server、完整聊天、项目源码、PAT/token、完整环境变量或 project/user ID；用户
+主目录统一替换为 `~`。错误、`remote_result` 和请求参数保留非敏感结构，方便服务端按
+request/correlation ID 继续定位。
+
+成功时返回 `created` 和 Issue URL。GitHub CLI 不存在、未登录、网络不可达、超时或提交失败时返回
+`manual_required`、脱敏标题/正文和手动 Issue 地址，命令仍成功结束；AI 应明显告知用户没有自动
+提交，并展示可复制报告，然后继续原排障或开发任务。不带 `--consent` 时返回
+`consent_required`，只生成报告，不发起 GitHub 写操作。
+
+## 12. 诊断报告模板
 
 用户 AI 应尽量完整填写以下模板。未获取到的字段写 `unknown`，不要猜测；args 必须保持原始顺序，
 凭证值必须脱敏。

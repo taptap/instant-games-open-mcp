@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
+import { parse as parseYaml } from 'yaml';
 import { requestTapAuthWithPat } from '../maker/auth/patTap';
 import { loginWithCliAuthCode } from '../maker/auth/cliLogin';
 import { setMakerEnvironmentOverride } from '../maker/config';
@@ -19,7 +20,11 @@ import {
 } from '../maker/cli/devKit';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../maker/versionCheck';
 import { runMakerCli } from '../maker/cli/commands';
-import { resolveMakerMcpLauncher, verifyMakerMcpLauncher } from '../maker/cli/mcpLauncher';
+import {
+  materializeMakerSelfLauncher,
+  resolveMakerMcpLauncher,
+  verifyMakerMcpLauncher,
+} from '../maker/cli/mcpLauncher';
 import { MAKER_PROJECT_POLICY_ROUTING_INDEX } from '../maker/capabilityRouting';
 import { loadProjectConfig, saveProjectConfig } from '../maker/storage';
 
@@ -59,6 +64,21 @@ jest.mock('../maker/cli/mcpLauncher', () => {
   const actual = jest.requireActual('../maker/cli/mcpLauncher');
   return {
     ...actual,
+    materializeMakerSelfLauncher: jest.fn((options) => {
+      const stableBundle = path.join(
+        options.makerHome,
+        'mcp-runtime',
+        options.version,
+        'dist',
+        'maker.js'
+      );
+      return {
+        kind: 'self_runtime',
+        command: options.execPath || process.execPath,
+        args: [stableBundle],
+        commandAndArgs: [options.execPath || process.execPath, stableBundle],
+      };
+    }),
     verifyMakerMcpLauncher: jest.fn(async (launcher) => ({
       ok: true,
       stage: 'tools_list',
@@ -175,15 +195,41 @@ describe('Maker CLI commands', () => {
   const originalMakerHome = process.env.TAPTAP_MAKER_HOME;
   const originalEnv = process.env.TAPTAP_MCP_ENV;
   const originalPythonBin = process.env.TAPTAP_MAKER_PYTHON_BIN;
+  const originalNpmCache = process.env.npm_config_cache;
+  const originalDshHome = process.env.DSH_HOME;
   const originalStdinIsTty = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
   let homedirSpy: jest.SpyInstance;
   let stdoutSpy: jest.SpyInstance;
   let stderrSpy: jest.SpyInstance;
   const spawnSyncMock = jest.mocked(spawnSync);
+  const materializeMakerSelfLauncherMock = jest.mocked(materializeMakerSelfLauncher);
   const verifyMakerMcpLauncherMock = jest.mocked(verifyMakerMcpLauncher);
   const cliLoginMock = jest.mocked(loginWithCliAuthCode);
   const expectedNpxLaunch = resolveMakerMcpLauncher({ packageName: '@taptap/maker' });
-  const expectedOpenCodeCommand = expectedNpxLaunch.commandAndArgs;
+
+  function expectedSelfLaunch() {
+    const stableBundle = path.join(
+      process.env.TAPTAP_MAKER_HOME!,
+      'mcp-runtime',
+      'dev',
+      'dist',
+      'maker.js'
+    );
+    return {
+      kind: 'self_runtime' as const,
+      command: process.execPath,
+      args: [stableBundle],
+      commandAndArgs: [process.execPath, stableBundle],
+    };
+  }
+
+  function insertedDshPlugins(
+    patches: Array<Record<string, unknown>>
+  ): Array<Record<string, unknown>> {
+    return patches.flatMap((patch) =>
+      Array.isArray(patch.insert) ? (patch.insert as Array<Record<string, unknown>>) : []
+    );
+  }
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-cli-commands-'));
@@ -191,6 +237,8 @@ describe('Maker CLI commands', () => {
     process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home');
     delete process.env.TAPTAP_MCP_ENV;
     delete process.env.TAPTAP_MAKER_PYTHON_BIN;
+    delete process.env.npm_config_cache;
+    delete process.env.DSH_HOME;
     setMakerEnvironmentOverride(undefined);
     homedirSpy = jest.spyOn(os, 'homedir').mockReturnValue(tempDir);
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
@@ -230,6 +278,16 @@ describe('Maker CLI commands', () => {
       delete process.env.TAPTAP_MAKER_PYTHON_BIN;
     } else {
       process.env.TAPTAP_MAKER_PYTHON_BIN = originalPythonBin;
+    }
+    if (originalNpmCache === undefined) {
+      delete process.env.npm_config_cache;
+    } else {
+      process.env.npm_config_cache = originalNpmCache;
+    }
+    if (originalDshHome === undefined) {
+      delete process.env.DSH_HOME;
+    } else {
+      process.env.DSH_HOME = originalDshHome;
     }
     setMakerEnvironmentOverride(undefined);
     if (originalStdinIsTty) {
@@ -271,7 +329,9 @@ describe('Maker CLI commands', () => {
     expect(text.match(/\[mcp_servers\."taptap-maker"\]/g)).toHaveLength(1);
     expect(text.match(/\[mcp_servers\."taptap-maker"\.env\]/g)).toHaveLength(1);
     expect(text).toContain(
-      `args = [${expectedNpxLaunch.args.map((arg) => `"${arg}"`).join(', ')}]`
+      `args = [${expectedSelfLaunch()
+        .args.map((arg) => `"${arg}"`)
+        .join(', ')}]`
     );
     expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
     expect(text).toContain('TAPTAP_MCP_CLIENT_IDE = "codex"');
@@ -286,11 +346,56 @@ describe('Maker CLI commands', () => {
 
     const text = fs.readFileSync(configPath, 'utf8');
     expect(text.match(/\[mcp_servers\."taptap-maker"\]/g)).toHaveLength(1);
-    expect(text).toContain(`command = "${expectedNpxLaunch.command}"`);
+    expect(text).toContain(`command = "${expectedSelfLaunch().command}"`);
     expect(text).toContain(
-      `args = [${expectedNpxLaunch.args.map((arg) => `"${arg}"`).join(', ')}]`
+      `args = [${expectedSelfLaunch()
+        .args.map((arg) => `"${arg}"`)
+        .join(', ')}]`
     );
     expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
+  });
+
+  test('mcp install defaults to a stable self runtime outside the npx cache', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--json']);
+
+    const expected = expectedSelfLaunch();
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(materializeMakerSelfLauncherMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: 'dev',
+        makerHome: process.env.TAPTAP_MAKER_HOME,
+      })
+    );
+    expect(verifyMakerMcpLauncherMock).toHaveBeenCalledWith(expected, expect.any(Object));
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expected.command,
+      args: expected.args,
+      env: { TAPTAP_MCP_CLIENT_IDE: 'cursor' },
+    });
+    expect(config.mcpServers['taptap-maker'].args.join(' ')).not.toContain('_npx');
+  });
+
+  test('explicit npx launcher preserves a writable npm cache in verification and client config', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+    const npmCacheDir = path.join(tempDir, 'dsh-npm-cache');
+    process.env.npm_config_cache = npmCacheDir;
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--launcher', 'npx', '--json']);
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(verifyMakerMcpLauncherMock).toHaveBeenCalledWith(expectedNpxLaunch, {
+      env: { npm_config_cache: npmCacheDir },
+    });
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedNpxLaunch.command,
+      args: expectedNpxLaunch.args,
+      env: {
+        npm_config_cache: npmCacheDir,
+        TAPTAP_MCP_CLIENT_IDE: 'cursor',
+      },
+    });
   });
 
   test('json mcp install writes a Windows spawn-compatible package command', async () => {
@@ -300,8 +405,8 @@ describe('Maker CLI commands', () => {
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     expect(config.mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: {
         TAPTAP_MCP_ENV: 'rnd',
         TAPTAP_MCP_CLIENT_IDE: 'cursor',
@@ -320,8 +425,8 @@ describe('Maker CLI commands', () => {
     verifyMakerMcpLauncherMock.mockResolvedValueOnce({
       ok: false,
       stage: 'initialize',
-      launcherKind: expectedNpxLaunch.kind,
-      command: expectedNpxLaunch.commandAndArgs.join(' '),
+      launcherKind: expectedSelfLaunch().kind,
+      command: expectedSelfLaunch().commandAndArgs.join(' '),
       toolNames: [],
       error: 'MCP error -32000: Connection closed',
       failureType: 'protocol_error',
@@ -340,6 +445,49 @@ describe('Maker CLI commands', () => {
     );
   });
 
+  test('npx install cache failures guide self launcher without suggesting chown', async () => {
+    verifyMakerMcpLauncherMock.mockResolvedValueOnce({
+      ok: false,
+      stage: 'initialize',
+      launcherKind: expectedNpxLaunch.kind,
+      command: expectedNpxLaunch.commandAndArgs.join(' '),
+      toolNames: [],
+      stderr: 'npm ERR! code EPERM\nYour cache folder contains root-owned files',
+      error: 'MCP error -32000: Connection closed',
+      failureType: 'npm_environment_error',
+    });
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--launcher', 'npx']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('npm cache is not writable in the current environment');
+    expect(output).toContain('mcp install --launcher self');
+    expect(output).not.toContain('sudo chown');
+    expect(process.exitCode).toBe(1);
+  });
+
+  test('json npx install cache failures include structured self-launcher recovery', async () => {
+    verifyMakerMcpLauncherMock.mockResolvedValueOnce({
+      ok: false,
+      stage: 'initialize',
+      launcherKind: expectedNpxLaunch.kind,
+      command: expectedNpxLaunch.commandAndArgs.join(' '),
+      toolNames: [],
+      stderr: 'npm error code EPERM',
+      error: 'MCP error -32000: Connection closed',
+      failureType: 'npm_environment_error',
+    });
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--launcher', 'npx', '--json']);
+
+    const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payload.explanation).toContain('npm cache is not writable');
+    expect(payload.next_steps).toContain(
+      'Run `taptap-maker mcp install --launcher self` to auto-detect clients and avoid npm.'
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
   test('json mcp install accepts existing UTF-8 BOM config files', async () => {
     const configPath = path.join(tempDir, '.cursor', 'mcp.json');
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
@@ -352,16 +500,29 @@ describe('Maker CLI commands', () => {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     expect(config.mcpServers.other).toEqual({ command: 'node' });
     expect(config.mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'cursor' },
     });
   });
 
-  test('json mcp install pins cwd when target directory is provided', async () => {
+  test('json mcp install never persists a project cwd in user-level config', async () => {
     const configPath = path.join(tempDir, '.cursor', 'mcp.json');
     const projectDir = path.join(tempDir, 'maker-project');
     fs.mkdirSync(projectDir, { recursive: true });
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        mcpServers: {
+          'taptap-maker': {
+            command: 'old',
+            cwd: path.join(tempDir, 'stale-project'),
+          },
+          other: { command: 'keep' },
+        },
+      })
+    );
 
     await runMakerCli([
       'mcp',
@@ -376,14 +537,59 @@ describe('Maker CLI commands', () => {
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     expect(config.mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
-      cwd: projectDir,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: {
         TAPTAP_MCP_ENV: 'rnd',
         TAPTAP_MCP_CLIENT_IDE: 'cursor',
       },
     });
+    expect(config.mcpServers.other).toEqual({ command: 'keep' });
+    expect(verifyMakerMcpLauncherMock).toHaveBeenCalledWith(
+      expectedSelfLaunch(),
+      expect.not.objectContaining({ cwd: projectDir })
+    );
+  });
+
+  test('mcp install does not promote a project-local environment into user-level config', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+    const projectDir = path.join(tempDir, 'maker-project');
+    fs.mkdirSync(path.join(projectDir, '.maker'), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectDir, '.maker', 'taptap-maker.local.json'),
+      JSON.stringify({ env: 'rnd' }),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--target-dir', projectDir]);
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.mcpServers['taptap-maker'].env).toEqual({
+      TAPTAP_MCP_CLIENT_IDE: 'cursor',
+    });
+  });
+
+  test('codex mcp install removes a stale project cwd from user-level config', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+    const projectDir = path.join(tempDir, 'maker-project');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.mkdirSync(projectDir, { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      [
+        '[mcp_servers."taptap-maker"]',
+        'command = "old"',
+        `cwd = "${path.join(tempDir, 'stale-project')}"`,
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'codex', '--target-dir', projectDir]);
+
+    const text = fs.readFileSync(configPath, 'utf8');
+    expect(text).toContain('[mcp_servers."taptap-maker"]');
+    expect(text).not.toMatch(/^cwd\s*=/m);
   });
 
   test('mcp install does not create backups when config is unchanged', async () => {
@@ -396,6 +602,32 @@ describe('Maker CLI commands', () => {
     expect(
       fs.readdirSync(path.dirname(configPath)).filter((entry) => entry.startsWith('mcp.json.bak.'))
     ).toEqual([]);
+  });
+
+  test('json mcp install preserves semantically unchanged config formatting and field order', async () => {
+    const configPath = path.join(tempDir, '.cursor', 'mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    const original = JSON.stringify({
+      mcpServers: {
+        'taptap-maker': {
+          env: {
+            TAPTAP_MCP_CLIENT_IDE: 'cursor',
+            TAPTAP_MCP_ENV: 'rnd',
+          },
+          args: expectedSelfLaunch().args,
+          command: expectedSelfLaunch().command,
+        },
+        other: { command: 'keep' },
+      },
+    });
+    fs.writeFileSync(configPath, original, 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'cursor', '--env', 'rnd', '--json']);
+
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(original);
+    expect(fs.existsSync(`${configPath}.taptap-maker.bak.latest`)).toBe(false);
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads[0]).toEqual(expect.objectContaining({ changed: false }));
   });
 
   test('mcp install creates only the TapTap Maker latest backup when config changes', async () => {
@@ -454,19 +686,19 @@ describe('Maker CLI commands', () => {
       expect.arrayContaining(['codex', 'cursor', 'claude', 'trae', 'opencode', 'workbuddy'])
     );
     expect(JSON.parse(fs.readFileSync(traePath, 'utf8')).mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'trae' },
     });
     expect(JSON.parse(fs.readFileSync(openCodePath, 'utf8')).mcp['taptap-maker']).toEqual({
       type: 'local',
-      command: expectedOpenCodeCommand,
+      command: expectedSelfLaunch().commandAndArgs,
       environment: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'opencode' },
       enabled: true,
     });
     expect(JSON.parse(fs.readFileSync(workBuddyPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
       disabled: false,
     });
@@ -481,11 +713,196 @@ describe('Maker CLI commands', () => {
     await runMakerCli(['mcp', 'install', '--ide', 'workbuddy']);
 
     expect(JSON.parse(fs.readFileSync(workBuddyPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: { TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
       disabled: false,
     });
+  });
+
+  test('dsh mcp install writes the user patch with a stable launcher and long tool timeout', async () => {
+    const dshHome = path.join(tempDir, 'custom-dsh-home');
+    const configPath = path.join(dshHome, 'cordis.patch.yml');
+    process.env.DSH_HOME = dshHome;
+
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--env', 'rnd', '--json']);
+
+    const plugins = parseYaml(fs.readFileSync(configPath, 'utf8')) as Array<
+      Record<string, unknown>
+    >;
+    expect(plugins).toEqual([
+      {
+        insert: [
+          {
+            id: 'mcp-taptap-maker',
+            name: '@deepseek-ai/dsh-mcp-client',
+            config: {
+              serverName: 'taptap-maker',
+              transport: 'stdio',
+              command: expectedSelfLaunch().command,
+              args: expectedSelfLaunch().args,
+              env: {
+                TAPTAP_MCP_ENV: 'rnd',
+                TAPTAP_MCP_CLIENT_IDE: 'dsh',
+              },
+              toolCallTimeoutMs: 3_600_000,
+              failOnStartupError: true,
+            },
+          },
+        ],
+      },
+    ]);
+    expect(JSON.stringify(plugins)).not.toContain('cwd');
+  });
+
+  test('dsh mcp install preserves unrelated plugins and is idempotent', async () => {
+    const dshHome = path.join(tempDir, '.dsh');
+    const configPath = path.join(dshHome, 'cordis.patch.yml');
+    process.env.DSH_HOME = dshHome;
+    fs.mkdirSync(dshHome, { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      [
+        '# keep this user plugin',
+        '- insert:',
+        '    - id: other-plugin',
+        '      name: example-plugin',
+        '      config:',
+        '        keep: true',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--json']);
+    const first = fs.readFileSync(configPath, 'utf8');
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--json']);
+
+    const plugins = parseYaml(fs.readFileSync(configPath, 'utf8')) as Array<
+      Record<string, unknown>
+    >;
+    expect(insertedDshPlugins(plugins)[0]).toEqual({
+      id: 'other-plugin',
+      name: 'example-plugin',
+      config: { keep: true },
+    });
+    expect(plugins).toHaveLength(2);
+    expect(insertedDshPlugins(plugins)).toHaveLength(2);
+    expect(first).toContain('# keep this user plugin');
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(first);
+    expect(fs.existsSync(`${configPath}.taptap-maker.bak.latest`)).toBe(true);
+  });
+
+  test('dsh mcp install migrates a manual Maker plugin instead of creating a duplicate namespace', async () => {
+    const dshHome = path.join(tempDir, '.dsh');
+    const configPath = path.join(dshHome, 'cordis.patch.yml');
+    process.env.DSH_HOME = dshHome;
+    fs.mkdirSync(dshHome, { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      [
+        '- id: old-maker-registration',
+        "  name: '@deepseek-ai/dsh-mcp-client'",
+        '  config:',
+        '    serverName: taptap-maker',
+        '    transport: stdio',
+        '    command: npx',
+        "    args: ['-y', '-p', '@taptap/maker', 'taptap-maker']",
+        '    cwd: /tmp/stale-project',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--json']);
+
+    const plugins = parseYaml(fs.readFileSync(configPath, 'utf8')) as Array<
+      Record<string, unknown>
+    >;
+    expect(plugins).toHaveLength(1);
+    expect(insertedDshPlugins(plugins)[0]).toMatchObject({
+      id: 'mcp-taptap-maker',
+      name: '@deepseek-ai/dsh-mcp-client',
+      config: { serverName: 'taptap-maker', command: expectedSelfLaunch().command },
+    });
+    expect(JSON.stringify(plugins)).not.toContain('stale-project');
+  });
+
+  test('dsh mcp install updates an existing profile registration without adding a global duplicate', async () => {
+    const dshHome = path.join(tempDir, '.dsh');
+    const profilePath = path.join(dshHome, 'profiles', 'web', 'cordis.patch.yml');
+    const homePath = path.join(dshHome, 'cordis.patch.yml');
+    process.env.DSH_HOME = dshHome;
+    fs.mkdirSync(path.dirname(profilePath), { recursive: true });
+    fs.writeFileSync(
+      profilePath,
+      [
+        '- insert:',
+        '    - id: old-maker-registration',
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        '      config:',
+        '        serverName: taptap-maker',
+        '        transport: stdio',
+        '        command: npx',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--json']);
+
+    const patches = parseYaml(fs.readFileSync(profilePath, 'utf8')) as Array<
+      Record<string, unknown>
+    >;
+    expect(insertedDshPlugins(patches)).toEqual([
+      expect.objectContaining({
+        id: 'mcp-taptap-maker',
+        name: '@deepseek-ai/dsh-mcp-client',
+        config: expect.objectContaining({
+          serverName: 'taptap-maker',
+          command: expectedSelfLaunch().command,
+        }),
+      }),
+    ]);
+    expect(fs.existsSync(homePath)).toBe(false);
+  });
+
+  test('dsh mcp install refuses ambiguous Maker plugin entries without changing the file', async () => {
+    const dshHome = path.join(tempDir, '.dsh');
+    const configPath = path.join(dshHome, 'cordis.patch.yml');
+    process.env.DSH_HOME = dshHome;
+    fs.mkdirSync(dshHome, { recursive: true });
+    const original = [
+      '- id: mcp-taptap-maker',
+      "  name: '@deepseek-ai/dsh-mcp-client'",
+      '  config: { serverName: taptap-maker }',
+      '- id: duplicate-maker',
+      "  name: '@deepseek-ai/dsh-mcp-client'",
+      '  config: { serverName: taptap-maker }',
+      '',
+    ].join('\n');
+    fs.writeFileSync(configPath, original, 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads[0]).toMatchObject({ ide: 'dsh', ok: false });
+    expect(payloads[0].message).toContain('contains multiple Maker MCP plugin entries');
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(original);
+    expect(fs.existsSync(`${configPath}.taptap-maker.bak.latest`)).toBe(false);
+    expect(process.exitCode).toBe(1);
+  });
+
+  test('default mcp install includes DSH only when its home already exists', async () => {
+    const dshHome = path.join(tempDir, '.dsh');
+    process.env.DSH_HOME = dshHome;
+    fs.mkdirSync(dshHome, { recursive: true });
+
+    await runMakerCli(['mcp', 'install', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads.map((entry: { ide: string }) => entry.ide)).toContain('dsh');
+    expect(fs.existsSync(path.join(dshHome, 'cordis.patch.yml'))).toBe(true);
   });
 
   test('trae mcp install updates both solo and non-solo configs when both exist', async () => {
@@ -553,8 +970,8 @@ describe('Maker CLI commands', () => {
       ])
     );
     expect(JSON.parse(fs.readFileSync(soloConfigPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'trae' },
     });
     expect(fs.readFileSync(invalidConfigPath, 'utf8')).toBe(
@@ -596,8 +1013,8 @@ describe('Maker CLI commands', () => {
     expect(
       JSON.parse(fs.readFileSync(traeCnConfigPath, 'utf8')).mcpServers['taptap-maker']
     ).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'trae' },
     });
   });
@@ -621,8 +1038,8 @@ describe('Maker CLI commands', () => {
       }),
     ]);
     expect(JSON.parse(fs.readFileSync(traeConfigPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'trae' },
     });
   });
@@ -655,7 +1072,7 @@ describe('Maker CLI commands', () => {
     expect(config.mcp.other).toEqual({ type: 'local', command: ['node', 'other.js'] });
     expect(config.mcp['taptap-maker']).toEqual({
       type: 'local',
-      command: expectedOpenCodeCommand,
+      command: expectedSelfLaunch().commandAndArgs,
       environment: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'opencode' },
       enabled: true,
     });
@@ -690,6 +1107,33 @@ describe('Maker CLI commands', () => {
     expect(payloads[0].message).not.toContain('standard JSON');
   });
 
+  test('opencode mcp install preserves semantically unchanged JSONC without rewriting comments', async () => {
+    const configPath = path.join(tempDir, '.config', 'opencode', 'opencode.jsonc');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    const original = [
+      '{',
+      '  "$schema": "https://opencode.ai/config.json",',
+      '  // Keep this user comment.',
+      '  "mcp": {',
+      '    "taptap-maker": {',
+      '      "enabled": true,',
+      '      "environment": { "TAPTAP_MCP_CLIENT_IDE": "opencode" },',
+      `      "command": ${JSON.stringify(expectedSelfLaunch().commandAndArgs)},`,
+      '      "type": "local",',
+      '    },',
+      '  },',
+      '}',
+    ].join('\n');
+    fs.writeFileSync(configPath, original, 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'opencode', '--json']);
+
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(original);
+    expect(fs.existsSync(`${configPath}.taptap-maker.bak.latest`)).toBe(false);
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads[0]).toEqual(expect.objectContaining({ changed: false }));
+  });
+
   test('opencode mcp install accepts existing UTF-8 BOM JSONC files', async () => {
     const configPath = path.join(tempDir, '.config', 'opencode', 'opencode.jsonc');
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
@@ -706,7 +1150,7 @@ describe('Maker CLI commands', () => {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     expect(config.mcp['taptap-maker']).toEqual({
       type: 'local',
-      command: expectedOpenCodeCommand,
+      command: expectedSelfLaunch().commandAndArgs,
       environment: { TAPTAP_MCP_CLIENT_IDE: 'opencode' },
       enabled: true,
     });
@@ -722,7 +1166,7 @@ describe('Maker CLI commands', () => {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     expect(config.mcp['taptap-maker']).toEqual({
       type: 'local',
-      command: expectedOpenCodeCommand,
+      command: expectedSelfLaunch().commandAndArgs,
       environment: { TAPTAP_MCP_CLIENT_IDE: 'opencode' },
       enabled: true,
     });
@@ -774,11 +1218,46 @@ describe('Maker CLI commands', () => {
       url: 'http://127.0.0.1:1/mcp',
     });
     expect(config.mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
       disabled: false,
     });
+  });
+
+  test('workbuddy mcp install removes the stale Windows project cwd from beta config', async () => {
+    const configPath = path.join(tempDir, '.workbuddy', 'mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            'taptap-maker': {
+              command: 'C:\\Users\\liangdong\\.workbuddy\\node.exe',
+              args: ['npm-cli.js', 'exec', '--yes', '--package', '@taptap/maker@0.0.30-beta.1'],
+              cwd: 'F:\\MiniGame\\mcp\\test-2',
+              env: { TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
+              disabled: false,
+            },
+          },
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'workbuddy', '--json']);
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
+      env: { TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
+      disabled: false,
+    });
+    expect(config.mcpServers['taptap-maker']).not.toHaveProperty('cwd');
   });
 
   test('explicit workbuddy mcp install creates the official config file when missing', async () => {
@@ -795,8 +1274,8 @@ describe('Maker CLI commands', () => {
       }),
     ]);
     expect(JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
       disabled: false,
     });
@@ -885,8 +1364,8 @@ describe('Maker CLI commands', () => {
       }),
     ]);
     expect(JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
       disabled: false,
     });
@@ -922,8 +1401,8 @@ describe('Maker CLI commands', () => {
       url: 'http://127.0.0.1:60000/mcp',
     });
     expect(config.mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: { TAPTAP_MCP_ENV: 'rnd', TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
       disabled: false,
     });
@@ -965,14 +1444,72 @@ describe('Maker CLI commands', () => {
       'TAPTAP_MCP_CLIENT_IDE=claude',
       'taptap-maker',
       '--',
-      expectedNpxLaunch.command,
-      ...expectedNpxLaunch.args,
+      expectedSelfLaunch().command,
+      ...expectedSelfLaunch().args,
     ];
     expect(spawnSyncMock).toHaveBeenCalledWith(
       process.platform === 'win32' ? 'cmd.exe' : 'claude',
       process.platform === 'win32' ? ['/d', '/s', '/c', 'claude.cmd', ...claudeArgs] : claudeArgs,
       { encoding: 'utf8' }
     );
+  });
+
+  test('claude mcp install does not rewrite an unchanged user-level config', async () => {
+    const configPath = path.join(tempDir, '.claude.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        mcpServers: {
+          'taptap-maker': {
+            env: {
+              TAPTAP_MCP_CLIENT_IDE: 'claude',
+              TAPTAP_MCP_ENV: 'rnd',
+            },
+            args: expectedSelfLaunch().args,
+            command: expectedSelfLaunch().command,
+          },
+        },
+      })
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'claude', '--env', 'rnd', '--json']);
+
+    expect(spawnSyncMock).not.toHaveBeenCalled();
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads[0]).toEqual(
+      expect.objectContaining({ ide: 'claude', ok: true, changed: false })
+    );
+  });
+
+  test('claude mcp install removes stale cwd even when Claude CLI reports success without updating config', async () => {
+    const configPath = path.join(tempDir, '.claude.json');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        mcpServers: {
+          'taptap-maker': {
+            command: 'old',
+            args: ['old'],
+            cwd: 'F:\\MiniGame\\mcp\\test-2',
+          },
+          other: { command: 'keep' },
+        },
+      })
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'claude', '--env', 'rnd', '--json']);
+
+    expect(spawnSyncMock).toHaveBeenCalled();
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config.mcpServers['taptap-maker']).toEqual({
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
+      env: {
+        TAPTAP_MCP_ENV: 'rnd',
+        TAPTAP_MCP_CLIENT_IDE: 'claude',
+      },
+    });
+    expect(config.mcpServers.other).toEqual({ command: 'keep' });
   });
 
   test('codex mcp install replaces existing bare server table and env subtable', async () => {
@@ -1154,12 +1691,13 @@ describe('Maker CLI commands', () => {
     expect(twice).toContain('Keep this user rule.');
     expect(twice).toContain('Maker MCP connection recovery');
     expect(normalizedPolicy).toContain('Maker MCP tools for initial diagnosis');
-    expect(normalizedPolicy).toContain('npx -y -p @taptap/maker taptap-maker mcp verify --json');
+    expect(normalizedPolicy).toContain('taptap-maker mcp verify --json');
+    expect(normalizedPolicy).toContain("reuse that config's absolute command and ordered args");
     expect(normalizedPolicy).toContain(
       'tools are missing, the process exits immediately, or the client reports `-32000`,'
     );
     expect(normalizedPolicy).toContain('`Connection closed`, or `command not found`');
-    expect(normalizedPolicy).toContain('same resolved launcher as MCP install');
+    expect(normalizedPolicy).toContain('same stable launcher as MCP install');
     expect(normalizedPolicy).toContain('completes MCP initialize and tools/list');
     expect(normalizedPolicy).toContain("does not read the client's active config");
     expect(normalizedPolicy).toContain(
@@ -1183,9 +1721,8 @@ describe('Maker CLI commands', () => {
     expect(normalizedPolicy).toContain(
       'only after evidence confirms that the active config entry is damaged'
     );
-    expect(normalizedPolicy).toContain(
-      'If WorkBuddy ignores configured cwd, do not keep rewriting the cwd field'
-    );
+    expect(normalizedPolicy).toContain('User-level MCP config must not contain a project cwd');
+    expect(normalizedPolicy).toContain('If WorkBuddy or DSH does not expose Roots');
     expect(normalizedPolicy).toContain(
       'Do not assume Windows 8.3 short paths exist or differ from the original long path'
     );
@@ -1202,6 +1739,17 @@ describe('Maker CLI commands', () => {
     expect(normalizedPolicy).toContain(
       'failed tool/resource, redacted request parameters, current `tools/list`'
     );
+    expect(normalizedPolicy).toContain('Maker MCP issue reporting');
+    expect(normalizedPolicy).toContain('Ask the user once before submitting');
+    expect(normalizedPolicy).toContain('Only after the user explicitly agrees');
+    expect(normalizedPolicy).toContain("active client's exact Maker MCP command and ordered args");
+    expect(normalizedPolicy).toContain(
+      'mcp report --ide <client> --target-dir <project> --context-stdin --consent --json'
+    );
+    expect(normalizedPolicy).toContain('@taptap/maker@<exact-version>');
+    expect(normalizedPolicy).toContain('Never use an unversioned npm package');
+    expect(normalizedPolicy).toContain('manual_required');
+    expect(normalizedPolicy).toContain('Do not report expected user or project errors');
     expect(twice).toContain('WorkBuddy');
     expect(twice).toContain('npx');
     expect(twice).toContain(
@@ -1261,7 +1809,7 @@ describe('Maker CLI commands', () => {
     expect(output).toContain('taptap-maker agents update');
   });
 
-  test('upgrade refreshes current project AGENTS policy and MCP config', async () => {
+  test('upgrade refreshes project policy without persisting its cwd in user config', async () => {
     saveProjectConfig(tempDir, {
       project_id: 'app-1',
       user_id: 'user-1',
@@ -1273,9 +1821,8 @@ describe('Maker CLI commands', () => {
 
     const config = JSON.parse(fs.readFileSync(path.join(tempDir, '.cursor', 'mcp.json'), 'utf8'));
     expect(config.mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
-      cwd: tempDir,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: {
         TAPTAP_MCP_ENV: 'rnd',
         TAPTAP_MCP_CLIENT_IDE: 'cursor',
@@ -1311,8 +1858,8 @@ describe('Maker CLI commands', () => {
 
     const config = JSON.parse(fs.readFileSync(path.join(tempDir, '.cursor', 'mcp.json'), 'utf8'));
     expect(config.mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: {
         TAPTAP_MCP_ENV: 'rnd',
         TAPTAP_MCP_CLIENT_IDE: 'cursor',
@@ -1481,8 +2028,8 @@ describe('Maker CLI commands', () => {
 
     const config = JSON.parse(fs.readFileSync(path.join(tempDir, '.cursor', 'mcp.json'), 'utf8'));
     expect(config.mcpServers['taptap-maker']).toEqual({
-      command: expectedNpxLaunch.command,
-      args: expectedNpxLaunch.args,
+      command: expectedSelfLaunch().command,
+      args: expectedSelfLaunch().args,
       env: {
         TAPTAP_MCP_CLIENT_IDE: 'cursor',
       },
@@ -2420,6 +2967,20 @@ describe('Maker CLI commands', () => {
     expect(output).not.toContain('command array with npx.cmd');
   });
 
+  test('help presents automatic IDE detection instead of per-IDE install arguments', async () => {
+    await runMakerCli(['upgrade', '--help']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('taptap-maker install [--launcher self|npx] [--json]');
+    expect(output).toContain('Automatically detects supported installed IDEs');
+    expect(output).not.toContain('install [--ide');
+    expect(output).not.toContain('upgrade [--ide');
+
+    const entryHelp = fs.readFileSync(path.resolve('src/maker/index.ts'), 'utf8');
+    expect(entryHelp).not.toContain('install [--ide');
+    expect(entryHelp).not.toContain('upgrade [--ide');
+  });
+
   test('subcommand -h prints usage instead of running the command', async () => {
     await runMakerCli(['doctor', '-h']);
 
@@ -2665,18 +3226,72 @@ describe('Maker CLI commands', () => {
     );
   });
 
-  test('mcp verify checks the configured package launcher through MCP by default', async () => {
+  test('mcp verify checks the stable self launcher through MCP by default', async () => {
     await runMakerCli(['mcp', 'verify', '--json']);
 
-    expect(verifyMakerMcpLauncherMock).toHaveBeenCalledWith(expectedNpxLaunch);
+    expect(verifyMakerMcpLauncherMock).toHaveBeenCalledWith(expectedSelfLaunch(), { env: {} });
     expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual(
       expect.objectContaining({
-        mode: 'npx',
-        command: expect.stringContaining('@taptap/maker taptap-maker'),
+        mode: 'self',
+        command: expect.stringContaining('mcp-runtime'),
         stage: 'tools_list',
         ok: true,
       })
     );
+  });
+
+  test('mcp report returns a non-fatal manual fallback when GitHub submission is unavailable', async () => {
+    await runMakerCli([
+      'mcp',
+      'report',
+      '--ide',
+      'workbuddy',
+      '--target-dir',
+      tempDir,
+      '--consent',
+      '--json',
+    ]);
+
+    const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payload).toEqual(
+      expect.objectContaining({
+        status: 'manual_required',
+        issue_url: 'https://github.com/taptap/instant-games-open-mcp/issues/new',
+        title: '[Maker MCP] Maker MCP problem report',
+        body: expect.stringContaining('Maker MCP 本地诊断'),
+      })
+    );
+    expect(payload.body).toContain('workbuddy');
+    expect(process.exitCode).toBeUndefined();
+    expect(verifyMakerMcpLauncherMock).toHaveBeenCalledWith(expectedSelfLaunch(), { env: {} });
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      'gh',
+      expect.arrayContaining(['issue', 'create', '--body-file', '-']),
+      expect.objectContaining({
+        shell: false,
+        timeout: 15_000,
+        env: expect.objectContaining({ GH_PROMPT_DISABLED: '1' }),
+      })
+    );
+  });
+
+  test('mcp report never starts GitHub submission without explicit consent', async () => {
+    await runMakerCli(['mcp', 'report', '--ide', 'workbuddy', '--target-dir', tempDir, '--json']);
+
+    const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payload.status).toBe('consent_required');
+    expect(spawnSyncMock).not.toHaveBeenCalledWith('gh', expect.any(Array), expect.any(Object));
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  test('help documents consent-gated Maker MCP issue reporting', async () => {
+    await runMakerCli(['help']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('taptap-maker mcp report');
+    expect(output).toContain('--context-stdin');
+    expect(output).toContain('--consent');
+    expect(output).toContain('Run only after the user agrees to submit');
   });
 
   test('mcp package override is no longer supported', async () => {
@@ -2939,8 +3554,8 @@ describe('Maker CLI commands', () => {
     verifyMakerMcpLauncherMock.mockResolvedValueOnce({
       ok: false,
       stage: 'initialize',
-      launcherKind: expectedNpxLaunch.kind,
-      command: expectedNpxLaunch.commandAndArgs.join(' '),
+      launcherKind: expectedSelfLaunch().kind,
+      command: expectedSelfLaunch().commandAndArgs.join(' '),
       toolNames: [],
       error: 'MCP error -32000: Connection closed',
       failureType: 'protocol_error',
@@ -2951,7 +3566,7 @@ describe('Maker CLI commands', () => {
     const output = stdoutSpy.mock.calls.join('');
     expect(output).toContain('MCP config command check failed before Maker MCP started');
     expect(output).toContain('- failure_type: protocol_error');
-    expect(output).toContain('stdio MCP connectivity check');
+    expect(output).toContain('local Node and stdio MCP connectivity check');
     expect(output).toContain('Run the command above directly');
     expect(process.exitCode).toBe(1);
   });
@@ -2960,8 +3575,8 @@ describe('Maker CLI commands', () => {
     verifyMakerMcpLauncherMock.mockResolvedValueOnce({
       ok: false,
       stage: 'initialize',
-      launcherKind: expectedNpxLaunch.kind,
-      command: expectedNpxLaunch.commandAndArgs.join(' '),
+      launcherKind: expectedSelfLaunch().kind,
+      command: expectedSelfLaunch().commandAndArgs.join(' '),
       toolNames: [],
       stderr: 'npm error network timeout',
       error: 'MCP error -32000: Connection closed',
@@ -2986,8 +3601,8 @@ describe('Maker CLI commands', () => {
     verifyMakerMcpLauncherMock.mockResolvedValueOnce({
       ok: false,
       stage: 'tools_list',
-      launcherKind: expectedNpxLaunch.kind,
-      command: expectedNpxLaunch.commandAndArgs.join(' '),
+      launcherKind: expectedSelfLaunch().kind,
+      command: expectedSelfLaunch().commandAndArgs.join(' '),
       toolNames: [],
       error: 'MCP tools/list did not include maker_status_lite.',
       failureType: 'missing_required_tool',

@@ -291,7 +291,11 @@ describe('maker MCP version status integration', () => {
     expect(instructions).toContain('real-device game logs');
     expect(instructions).toContain('server/Lua logs for a specified game session');
     expect(instructions).toContain('exposed by the current Maker tool list');
-    expect(instructions).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
+    expect(instructions).toContain('MCP/proxy infrastructure failure');
+    expect(instructions).toContain('ask once for user consent');
+    expect(instructions).toContain("active client's exact Maker command/args with `mcp report`");
+    expect(instructions).toContain('never use an unversioned npm package');
+    expect(instructions).toContain('Do not report expected project or business errors');
     expect(instructions).toContain('image, video, music, sound-effect');
     expect((instructions as string).length).toBeLessThanOrEqual(1200);
     expect(instructions).not.toMatch(

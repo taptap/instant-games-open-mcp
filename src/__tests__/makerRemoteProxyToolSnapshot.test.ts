@@ -38,6 +38,14 @@ describe('Maker remote proxy tool snapshot', () => {
         },
       },
     ]);
+
+    const targetDir = snapshot.tools[0].inputSchema.properties?.target_dir as Record<
+      string,
+      unknown
+    >;
+    expect(targetDir.description).toContain('MCP Roots');
+    expect(targetDir.description).toContain('process cwd only as the final fallback');
+    expect(targetDir.description).toContain('not persisted in user-level MCP config');
   });
 
   test('reports missing and obsolete remote schema fields but ignores local-only fields', () => {

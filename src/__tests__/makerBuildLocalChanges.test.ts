@@ -33,6 +33,7 @@ import {
   formatPushResult,
   inspectMakerQrcodeToolPreflight,
   inspectMakerProxyToolPreflight,
+  inspectMakerProxyProjectContext,
   isSensitiveDiagnosticKey,
   pushThenBuildCurrentDirectory,
   resources,
@@ -1874,7 +1875,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain(`- maker_project_dir: ${tempDir}`);
     expect(output).toContain('- mcp_cwd_project_dir: (none)');
     expect(output).toContain('proxy tools remain registered');
-    expect(output).toContain('pass maker_project_dir as target_dir');
+    expect(output).toContain('pass the Maker project directory as target_dir');
     expect(output).toContain('Do not rewrite a shared user-level MCP cwd');
   });
 
@@ -1927,6 +1928,46 @@ describe('maker build local-change guard', () => {
     } finally {
       fs.rmSync(otherMakerDir, { recursive: true, force: true });
     }
+  });
+
+  test('proxy project context rejects an unbound cwd fallback with the evaluated directory', () => {
+    const unboundDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-unbound-cwd-'));
+    try {
+      const result = inspectMakerProxyProjectContext(
+        {
+          targetDir: unboundDir,
+          source: 'mcp_cwd_fallback',
+          roots: { status: 'unsupported', roots: [] },
+        },
+        'get_ad_config'
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.message).toContain('No bound Maker project was found');
+        expect(result.message).toContain(`evaluated_target_dir: ${unboundDir}`);
+        expect(result.message).toContain('project_context_source: mcp_cwd_fallback');
+        expect(result.message).toContain('pass target_dir explicitly');
+      }
+    } finally {
+      fs.rmSync(unboundDir, { recursive: true, force: true });
+    }
+  });
+
+  test('proxy project context normalizes a nested target to its bound project root', () => {
+    const nestedDir = path.join(tempDir, 'scripts', 'nested');
+    fs.mkdirSync(nestedDir, { recursive: true });
+
+    const result = inspectMakerProxyProjectContext(
+      {
+        targetDir: nestedDir,
+        source: 'explicit_target_dir',
+        roots: { status: 'not_requested', roots: [] },
+      },
+      'generate_image'
+    );
+
+    expect(result).toEqual({ ok: true, targetDir: tempDir });
   });
 
   test('proxy retry stops after the bounded default attempts', async () => {
@@ -3594,6 +3635,19 @@ describe('maker build local-change guard', () => {
       fs.rmSync(firstRoot, { recursive: true, force: true });
       fs.rmSync(secondRoot, { recursive: true, force: true });
     }
+  });
+
+  test('status summary explains the final cwd fallback when the client has no roots', async () => {
+    const output = await formatStatus({
+      listClientRoots: async () => [],
+      detail: true,
+      skipRemoteSync: true,
+    });
+
+    expect(output).toContain('- status: no_roots');
+    expect(output).toContain('process cwd only as the final fallback');
+    expect(output).toContain('pass target_dir explicitly');
+    expect(output).toContain('Do not rewrite user-level MCP config');
   });
 
   test('status summary gives a recovery action for a broken project configuration', async () => {

@@ -43,7 +43,7 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 | `taptap-maker lua-lsp doctor` | 检查 maker-lua-lsp 是否可用于本地 Lua 诊断                                    |
 | `taptap-maker lua-lsp setup`  | 安装/升级 maker-lua-lsp 并执行 `install --ide codex,cursor,claude`            |
 | `taptap-maker install`        | `taptap-maker mcp install` 的快捷别名，写入 AI 客户端 MCP 配置                |
-| `taptap-maker mcp install`    | 写入默认客户端，并自动检测已存在配置文件的 Trae/OpenCode/WorkBuddy            |
+| `taptap-maker mcp install`    | 写入默认客户端，并自动检测 Trae/OpenCode/WorkBuddy/DSH                        |
 | `taptap-maker mcp verify`     | 用最终 launcher 完成 MCP 握手与 tools/list；`--mode self` 验证当前 CLI        |
 | `taptap-maker agents update`  | 更新当前项目 `AGENTS.md` 中 TapTap Maker 管理的策略块                         |
 | `taptap-maker upgrade`        | 刷新当前机器 MCP 配置，并更新当前绑定项目的 `AGENTS.md` 受管策略块            |
@@ -51,7 +51,8 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 
 设计原则：
 
-- 不新增运行时依赖，第一版使用 Node 内置能力完成交互和配置写入。
+- JSON/TOML 客户端继续使用 Node 内置能力；DSH 的 Cordis YAML 使用 `yaml` 包解析和合并，避免用
+  字符串替换破坏用户的其它插件、注释或 Windows 路径。
 - Python 运行时不是 MCP 主功能硬依赖。CLI 优先复用可信系统 Python；系统 Python 缺失或不可用时，
   `taptap-maker python setup` 才下载 uv，并用 uv 准备 `~/.taptap-maker/` 下的私有 Python；
   Python ready 后继续 best-effort 准备 `maker-lua-lsp`。
@@ -67,9 +68,11 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
   可能无法稳定安装诊断依赖，自动准备时会走 uv managed Python。Lua LSP 依赖安装在 Maker
   私有 venv 中，不直接修改 uv-managed Python。
 - 本地分支测试可直接用 `node dist/maker.js`，不依赖 npm 发布。
-- Windows 下只写绝对 `node.exe + npm-cli.js`；找不到该组合时安装失败，不持久化 `.cmd`
-  shell 命令。写入前完成 MCP `initialize + tools/list`，不依赖客户端 PATH。
-- OpenCode 使用官方 `mcp` schema 和 command 数组，不写环境变量，且只写已存在配置文件；
+- 默认 launcher 把当前精确版本物化为稳定 self runtime，并写绝对 Node 与 Maker bundle 路径；
+  Windows 显式 npx 模式才写绝对 `node.exe + npm-cli.js`，不持久化 `.cmd` shell 命令。写入前
+  完成 MCP `initialize + tools/list`，不依赖客户端 PATH。
+- OpenCode 使用官方 `mcp` schema 和 command 数组；self 模式只写客户端标识，显式 npx 模式
+  额外写专用 npm cache，且只写已存在配置文件；
   Trae Solo/Solo CN 优先支持，按 `User/` 目录创建或合并 `User/mcp.json`，普通 Trae
   只在 `mcp.json` 已存在时更新；WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的
   `.workbuddy/mcp.json`，显式传 `--ide workbuddy` 时会创建该官方配置文件。未显式指定 IDE
@@ -78,6 +81,11 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
   账号维度的启用/信任状态由 `.workbuddy/connectors/<account-id>/connector-states.json`
   管理，不在 `mcp.json` 中；CLI 只做只读诊断，并提示用户在 WorkBuddy MCP 设置里启用/信任
   `taptap-maker`，不自动写账号信任状态。
+- DSH 使用 `@deepseek-ai/dsh-mcp-client`，CLI 合并用户级 `$DSH_HOME/cordis.patch.yml`，写入稳定
+  self launcher、`failOnStartupError: true` 和 1 小时 `toolCallTimeoutMs`。新增插件使用 Cordis
+  `insert` patch；已有 profile 级 Maker registration 时就地更新，避免重复 serverName。
+  DSH HMR 无需重启 IDE；
+  配置不写项目 `cwd`，无 MCP Roots 时由 Agent 在具体调用中传 `target_dir`。
 - 初始化失败时保留现场，返回可重试状态，不自动删除用户文件。
 - 用户选择 app 后立即写入 `.maker-mcp/config.json`；clone/fetch 失败后重复执行
   `taptap-maker init` 会复用这个选择继续，后续缺失状态交给 `taptap-maker doctor` 判断。
@@ -127,7 +135,8 @@ Skill 不做底层 API 调用，而是负责告诉 Agent 该怎么走流程：
 
 - `taptap-maker-local`：初始化、状态解释、提交/构建、push 失败分类恢复、冲突处理。
 - `taptap-maker-dev-kit-guide`：解释 `CLAUDE.md`、`examples/`、`templates/`、`urhox-libs/` 的用途。
-- `update-taptap-mcp`：调用 `taptap-maker upgrade`，并提醒刷新/重启客户端。
+- `update-taptap-mcp`：调用 `taptap-maker upgrade`；只有需要加载新的 Maker MCP 包或静态工具
+  schema 时才提醒重连客户端，项目绑定和切换不要求刷新、重启或新开会话。
 
 重构后，Skill 的关键行为是：
 
@@ -159,7 +168,7 @@ flowchart TD
   I --> J["准备 AI dev-kit"]
   J --> K["写 MCP 配置"]
   K --> L{"全部目标写入成功？"}
-  L -- "是" --> M["提示刷新或重启 AI 客户端"]
+  L -- "是" --> M["首次安装或工具版本变化时提示重连 AI 客户端"]
   L -- "否" --> N["记录 mcp_install_failed 并返回非零"]
 ```
 
@@ -169,7 +178,7 @@ flowchart TD
 安装配置好后，继续 PAT 校验
 校验成功后展示 app 列表
 选择 app 后自动准备本地项目
-刷新/重启客户端后进入开发循环
+首次安装时重连客户端加载 Maker MCP；后续切换项目直接进入开发循环
 ```
 
 ### 开发循环流程
@@ -212,10 +221,12 @@ CLI 先完成初始化、PAT、app 选择、clone
 这样即使当前对话不能热加载新 MCP，用户也可以继续完成最关键的 PAT 校验和项目绑定。
 如果 init 写入任一客户端配置失败，会保留已完成的项目 checkout 和已成功配置的客户端，
 记录 `mcp_install_failed` 并以非零状态结束，不会误报初始化完成。失败客户端可通过
-`taptap-maker mcp install --ide <client>` 单独重试。
-不支持 MCP Roots 的客户端仍可显式运行
-`taptap-maker mcp install --target-dir <PROJECT_DIR>` 固定 cwd，但这不是默认路径，
-避免 Codex、Trae、Cursor 等多个客户端共用用户级配置时互相覆盖项目目录。
+`taptap-maker install` 自动检测并幂等重试。
+所有用户级 MCP 配置都不写项目 `cwd`。不支持 MCP Roots 的客户端由 Agent 在具体 Maker tool
+调用中传入 `target_dir`，避免 Codex、Trae、Cursor 等多个客户端、对话或项目共用配置时由
+最后一次安装覆盖其它项目。
+安装器会比较现有条目，内容一致时不写文件；Claude 也会跳过重复的 `claude mcp add`，因此后续
+项目初始化不会因为配置未变化而触发信任或重启。
 其它 AI 编辑器可复用 README 中的通用 `mcpServers` JSON 片段，由本地 AI 先识别该编辑器的
 实际配置文件位置后合并写入；CLI 不会额外生成通用配置文件。
 
@@ -223,8 +234,8 @@ CLI 先完成初始化、PAT、app 选择、clone
 
 本轮重构按 Windows 优先做了这些约束：
 
-- 通用 MCP 配置在 Windows 使用已验证的绝对 launcher；项目目录仅通过结构化 `cwd` 传递，
-  不生成 `cd && npx.cmd`。
+- 通用 MCP 配置在 Windows 使用已验证的绝对 launcher；用户级配置不持久化项目目录，
+  也不生成 `cd && npx.cmd`。
 - Git 安装引导优先提示 Git for Windows。
 - 提醒用户安装时确保命令行和第三方工具可从 PATH 找到 Git。
 - 代码路径处理使用 Node `path` API，不手写 POSIX 分隔符。
@@ -235,7 +246,8 @@ CLI 先完成初始化、PAT、app 选择、clone
 已完成验证：
 
 - 本机 CLI 自测流程通过。
-- Windows 自测流程通过。
+- Windows 路径与启动器自动化测试通过；Windows 真机验收尚未执行，按
+  `docs/MAKER_PROXY_TOOLS_FIX_AND_E2E_TEST.md` 在 Windows 电脑上完成。
 - MCP surface smoke 通过。
 - `maker_build_current_directory` 合并提交/推送/构建的关键测试通过。
 
