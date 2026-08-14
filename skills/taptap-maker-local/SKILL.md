@@ -260,6 +260,11 @@ If status output returns `AI client workspace selection`, follow that hint: choo
 workspace first, then read `maker://status` or call `maker_status_lite` with the attached project
 directory.
 
+DeepSeek Harness (DSH) uses `@deepseek-ai/dsh-mcp-client` and currently does not advertise MCP
+Roots. In DSH, resolve the active game workspace from the conversation/IDE context and pass that
+absolute directory as `target_dir` on every project-related Maker call. Never persist it as plugin
+`cwd`; multiple DSH projects share the same user-level plugin configuration.
+
 ### Proxy Tools Missing From The Current Session
 
 If Maker MCP is completely unavailable, tools are missing, the process exits immediately, or the
@@ -290,19 +295,26 @@ for the initial diagnosis. Work offline first:
    Explicit npx mode uses absolute Node/npm. Treat existing `cmd.exe` or `npx.cmd` configs as legacy
    diagnostic evidence; do not persist them as a repair. Never replace cwd with a
    `cd /d "<project>" && npx.cmd ...` command string, including for Chinese project paths.
-8. User-level MCP config must not contain a project cwd. If WorkBuddy does not expose Roots, pass
+8. For DSH, inspect `$DSH_HOME/cordis.patch.yml` (default `~/.dsh/cordis.patch.yml`) and any active
+   profile `cordis.yml`/`cordis.patch.yml`. The generated Maker plugin uses the stable self runtime,
+   `failOnStartupError: true`, and `toolCallTimeoutMs: 3600000`; DSH hot-reloads the patch without an
+   IDE restart. A new plugin row must be inside a Cordis `insert` patch; a bare top-level id patch
+   cannot create the row over an empty root. A fixed project `cwd` is invalid. If calls fail at about 60 seconds, repair the
+   active plugin config with `taptap-maker mcp install --ide dsh` before diagnosing Maker server
+   latency.
+9. User-level MCP config must not contain a project cwd. If WorkBuddy or DSH does not expose Roots, pass
    `target_dir` on the concrete Maker tool call and record the process actual cwd only as diagnostic
    evidence.
    If cwd fallback is unbound, project-related proxy calls return `evaluated_target_dir` and
    `project_context_source` before remote access. Fix Roots or pass the correct `target_dir`.
-9. Do not assume Windows 8.3 short paths exist or differ from the original long path. Verify the
-   result first; an unchanged or missing short path is not a usable cwd workaround.
-10. Reproduce the configured Windows launch with the same direct argv boundary when possible.
+10. Do not assume Windows 8.3 short paths exist or differ from the original long path. Verify the
+    result first; an unchanged or missing short path is not a usable cwd workaround.
+11. Reproduce the configured Windows launch with the same direct argv boundary when possible.
     Separate outer shell quoting or stderr decoding failures from the MCP child process result, and
     record both without treating wrapper failures as server evidence.
-11. Remember that multiple AI conversations share user-level MCP config. One conversation can break
+12. Remember that multiple AI conversations share user-level MCP config. One conversation can break
     every other conversation by rewriting the shared command or manually adding a project cwd.
-12. Classify the root cause from evidence before repairing it. Do not automatically change trust
+13. Classify the root cause from evidence before repairing it. Do not automatically change trust
     storage, PATH, cwd, credentials, or game code. Use `taptap-maker mcp install --ide <client>` only
     after evidence confirms that the active config entry is damaged. Reconnect and verify again in
     both the current and a new conversation.
@@ -379,6 +391,8 @@ report` arguments above. This preserves the installed beta/stable version and, o
 absolute `node.exe` plus `npm-cli.js` launcher. Use the npx fallback only when it contains the exact
 installed Maker version. Never use an unversioned package spec,
 assume `taptap-maker` or `npx` is on PATH, or build a `cmd /c`, `cd && npx`, or PowerShell wrapper.
+For DSH, read only the active Maker plugin from the user/profile Cordis YAML and reuse its
+`config.command` plus ordered `config.args`; do not upload other DSH plugins or environment values.
 If neither an exact configured launcher nor an exact version is available, explain that automatic
 collection cannot start, show the manual Issue URL, and continue the original task.
 

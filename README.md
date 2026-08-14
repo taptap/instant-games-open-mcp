@@ -55,7 +55,8 @@ CLI 负责一次性流程：Git 检查、Python 和 maker-lua-lsp 本地 Lua 诊
 TapTap token 换取、app 列表选择或新建 Maker 项目、Maker Git clone、AI dev kit 准备、MCP 配置写入与基础验证。Python 环境准备连续 3 次失败时，
 初始化会暂停在登录、项目拉取和 MCP 配置之前；修复后重新运行 `taptap-maker init`。首次安装，或 Maker MCP 包/
 静态工具 schema 发生变化后，Claude Code / Codex / Cursor / Trae / OpenCode / WorkBuddy 通常需要重连或刷新一次 MCP，
-才能加载新的 MCP tools；单纯绑定或切换 Maker 项目不会修改用户级 MCP 配置，也不需要重启会话或新开对话。当前终端里的
+才能加载新的 MCP tools；DeepSeek Harness（DSH）会监听用户补丁并热重载，不要求重启 IDE。单纯绑定或切换 Maker 项目
+不会修改用户级 MCP 配置，也不需要重启会话或新开对话。当前终端里的
 CLI 初始化流程可以继续完成到 PAT 鉴权和项目绑定。
 
 常用 CLI：
@@ -66,7 +67,7 @@ taptap-maker login
 taptap-maker doctor
 taptap-maker apps --json
 taptap-maker install
-taptap-maker install --ide codex,cursor,claude,trae,opencode,workbuddy
+taptap-maker install --ide codex,cursor,claude,trae,opencode,workbuddy,dsh
 taptap-maker agents update
 taptap-maker upgrade
 taptap-maker mcp verify
@@ -92,7 +93,7 @@ taptap-maker dev-kit update
 `taptap-maker init` 写入多个客户端配置时会继续尝试其余目标；只要任一目标失败，init 就记录
 `mcp_install_failed`、以非零状态结束且不报告初始化完成。已经成功写入的客户端配置会保留，
 修复失败项后可运行 `taptap-maker mcp install --ide <client>` 单独重试。
-默认会写入 Codex、Cursor、Claude，并自动检测本机已有的 Trae、OpenCode、WorkBuddy
+默认会写入 Codex、Cursor、Claude，并自动检测本机已有的 Trae、OpenCode、WorkBuddy、DSH
 配置文件；命中后会合并安装 `taptap-maker`。Trae Solo 是重点支持目标，CLI 会在 Solo
 或 Solo CN 的 `User/` 目录存在时创建或合并 `User/mcp.json`；普通 Trae/Trae CN 仍作为
 候选路径保留，但只有 `mcp.json` 已存在时才合并写入。WorkBuddy 在 macOS 和 Windows 都优先写
@@ -104,6 +105,14 @@ WorkBuddy 账号维度的启用/信任状态在 `.workbuddy/connectors/<account-
 结果中提示用户到 WorkBuddy MCP 设置里启用/信任 `taptap-maker`，不会自动修改账号信任状态。
 普通 `doctor` 不会因为发现 `.workbuddy` 就输出 WorkBuddy 诊断。OpenCode 只在
 `~/.config/opencode/opencode.jsonc` 已存在时写入。
+DSH 使用 `@deepseek-ai/dsh-mcp-client` 插件，不使用 `mcp.json`。显式传 `--ide dsh` 时，
+CLI 会创建或合并 DSH 用户级 `$DSH_HOME/cordis.patch.yml`（默认 `~/.dsh/cordis.patch.yml`），
+写入稳定 self launcher、`failOnStartupError: true` 和 1 小时 `toolCallTimeoutMs`，并保留其它插件。
+新增项使用 DSH Cordis `insert` patch；若已经存在 profile 级 Maker registration，CLI 会就地更新
+对应 profile，避免全局和 profile 出现重复 `serverName`。
+默认 home 级补丁适用于 DSH 的不同 profile；检测到已有 profile 级注册时则只更新对应 profile。
+两者都可由 DSH HMR 热重载。配置不写项目 `cwd`；DSH 当前
+不广播 MCP Roots，因此 AI 必须在具体 Maker tool 调用中把当前游戏项目作为 `target_dir` 传入。
 其它 AI 编辑器应优先让本地 AI 复用 `taptap-maker mcp install` 已验证的绝对 command/args。
 只有无法复用安装器时，才使用下面固定精确版本的 npx 兼容片段：
 

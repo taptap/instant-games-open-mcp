@@ -84,11 +84,24 @@ tool/resource 调用中的请求校验、项目上下文、远端响应或业务
 - Claude Code：用户级 Claude 配置或 `claude mcp` 管理的配置
 - WorkBuddy：`~/.workbuddy/mcp.json`
 - WorkBuddy 旧配置仅作为兼容检查：`~/.workbuddy/.mcp.json`
+- DeepSeek Harness（DSH）：`$DSH_HOME/cordis.patch.yml`，默认
+  `~/.dsh/cordis.patch.yml`；手工 profile 配置还可能位于
+  `~/.dsh/profiles/<profile>/cordis.yml` 或 `cordis.patch.yml`
 
 Windows 中 `~` 对应 `%USERPROFILE%`。
 
 多开 AI 对话不会隔离用户级 MCP 配置。某个对话如果修改了共享配置中的 command、args 或 cwd，
 其它对话在重连或重启后也会失效。应比较配置备份和最近修改时间，确认是否被其它对话重写。
+
+DSH 不使用 `mcpServers` JSON。运行 `taptap-maker mcp install --ide dsh` 会按插件 id 合并用户级
+YAML 补丁，DSH 通过 HMR 热重载，无需重启 IDE。Maker 插件项应使用
+`@deepseek-ai/dsh-mcp-client`、`transport: stdio`、`failOnStartupError: true` 和
+`toolCallTimeoutMs: 3600000`。DSH 当前不广播 MCP Roots，不能把固定项目目录写入该用户级配置；
+Agent 应在每个项目相关 Maker tool 调用中显式传入真实游戏目录 `target_dir`。
+首次新增 plugin row 必须放在顶层 `insert` 操作内；裸的顶层 `id: mcp-taptap-maker` 只能覆盖
+已经由更低层插入的同 id row，在空根上会被跳过。应优先重新运行安装器修复，不要手工复制普通
+`mcpServers` JSON。若安装器发现现有 profile 级 Maker registration，会就地更新对应 profile
+patch，避免再写一个全局重复 `serverName`。
 
 ## 4. 当前客户端与 WorkBuddy 专属检查
 
@@ -176,6 +189,11 @@ npx --version
 
 如果普通终端找不到 `npx`，可先运行 `taptap-maker mcp install --launcher self --ide <client>`
 迁移到默认 launcher；只有必须使用 npx 时才修复或安装受支持的 Node.js/npm。
+
+DSH 应直接使用 `taptap-maker mcp install --ide dsh` 生成的绝对 Node + self runtime 插件项。
+不要把手工 `npx` 示例当作长期配置；DSH 的 Agent 沙箱可能禁止 npx 冷启动写入默认 npm cache。
+如果 DSH 中工具调用总在约 60 秒失败，先确认实际生效的插件项包含
+`toolCallTimeoutMs: 3600000`，再区分客户端超时和 Maker server 返回的业务错误。
 
 如果普通终端能找到 `npx`，但 AI 客户端或其内置终端提示 `command not found`，根因通常是客户端
 进程没有继承相同的 PATH。继续比较客户端进程环境与普通登录 shell；macOS 可额外检查：

@@ -43,7 +43,7 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 | `taptap-maker lua-lsp doctor` | 检查 maker-lua-lsp 是否可用于本地 Lua 诊断                                    |
 | `taptap-maker lua-lsp setup`  | 安装/升级 maker-lua-lsp 并执行 `install --ide codex,cursor,claude`            |
 | `taptap-maker install`        | `taptap-maker mcp install` 的快捷别名，写入 AI 客户端 MCP 配置                |
-| `taptap-maker mcp install`    | 写入默认客户端，并自动检测已存在配置文件的 Trae/OpenCode/WorkBuddy            |
+| `taptap-maker mcp install`    | 写入默认客户端，并自动检测 Trae/OpenCode/WorkBuddy/DSH                        |
 | `taptap-maker mcp verify`     | 用最终 launcher 完成 MCP 握手与 tools/list；`--mode self` 验证当前 CLI        |
 | `taptap-maker agents update`  | 更新当前项目 `AGENTS.md` 中 TapTap Maker 管理的策略块                         |
 | `taptap-maker upgrade`        | 刷新当前机器 MCP 配置，并更新当前绑定项目的 `AGENTS.md` 受管策略块            |
@@ -51,7 +51,8 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 
 设计原则：
 
-- 不新增运行时依赖，第一版使用 Node 内置能力完成交互和配置写入。
+- JSON/TOML 客户端继续使用 Node 内置能力；DSH 的 Cordis YAML 使用 `yaml` 包解析和合并，避免用
+  字符串替换破坏用户的其它插件、注释或 Windows 路径。
 - Python 运行时不是 MCP 主功能硬依赖。CLI 优先复用可信系统 Python；系统 Python 缺失或不可用时，
   `taptap-maker python setup` 才下载 uv，并用 uv 准备 `~/.taptap-maker/` 下的私有 Python；
   Python ready 后继续 best-effort 准备 `maker-lua-lsp`。
@@ -80,6 +81,11 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
   账号维度的启用/信任状态由 `.workbuddy/connectors/<account-id>/connector-states.json`
   管理，不在 `mcp.json` 中；CLI 只做只读诊断，并提示用户在 WorkBuddy MCP 设置里启用/信任
   `taptap-maker`，不自动写账号信任状态。
+- DSH 使用 `@deepseek-ai/dsh-mcp-client`，CLI 合并用户级 `$DSH_HOME/cordis.patch.yml`，写入稳定
+  self launcher、`failOnStartupError: true` 和 1 小时 `toolCallTimeoutMs`。新增插件使用 Cordis
+  `insert` patch；已有 profile 级 Maker registration 时就地更新，避免重复 serverName。
+  DSH HMR 无需重启 IDE；
+  配置不写项目 `cwd`，无 MCP Roots 时由 Agent 在具体调用中传 `target_dir`。
 - 初始化失败时保留现场，返回可重试状态，不自动删除用户文件。
 - 用户选择 app 后立即写入 `.maker-mcp/config.json`；clone/fetch 失败后重复执行
   `taptap-maker init` 会复用这个选择继续，后续缺失状态交给 `taptap-maker doctor` 判断。

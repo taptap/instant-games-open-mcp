@@ -176,7 +176,7 @@ function createMakerAgentsPolicyBody(): string {
     '- Never repair cwd by wrapping the command with `cd /d "<project>" && npx.cmd ...`.',
     '  Maker supports Chinese project paths; command-shell quoting or client startup can fail',
     '  independently of the project path.',
-    '- User-level MCP config must not contain a project cwd. If WorkBuddy does not expose Roots,',
+    '- User-level MCP config must not contain a project cwd. If WorkBuddy or DSH does not expose Roots,',
     '  pass target_dir on the concrete Maker tool call and record the process actual cwd only as',
     '  diagnostic evidence.',
     '- If cwd fallback is not a bound Maker project, project-related proxy calls fail before remote',

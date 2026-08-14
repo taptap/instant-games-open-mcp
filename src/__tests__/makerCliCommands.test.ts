@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
+import { parse as parseYaml } from 'yaml';
 import { requestTapAuthWithPat } from '../maker/auth/patTap';
 import { loginWithCliAuthCode } from '../maker/auth/cliLogin';
 import { setMakerEnvironmentOverride } from '../maker/config';
@@ -195,6 +196,7 @@ describe('Maker CLI commands', () => {
   const originalEnv = process.env.TAPTAP_MCP_ENV;
   const originalPythonBin = process.env.TAPTAP_MAKER_PYTHON_BIN;
   const originalNpmCache = process.env.npm_config_cache;
+  const originalDshHome = process.env.DSH_HOME;
   const originalStdinIsTty = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
   let homedirSpy: jest.SpyInstance;
   let stdoutSpy: jest.SpyInstance;
@@ -221,6 +223,14 @@ describe('Maker CLI commands', () => {
     };
   }
 
+  function insertedDshPlugins(
+    patches: Array<Record<string, unknown>>
+  ): Array<Record<string, unknown>> {
+    return patches.flatMap((patch) =>
+      Array.isArray(patch.insert) ? (patch.insert as Array<Record<string, unknown>>) : []
+    );
+  }
+
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-cli-commands-'));
     process.env.HOME = tempDir;
@@ -228,6 +238,7 @@ describe('Maker CLI commands', () => {
     delete process.env.TAPTAP_MCP_ENV;
     delete process.env.TAPTAP_MAKER_PYTHON_BIN;
     delete process.env.npm_config_cache;
+    delete process.env.DSH_HOME;
     setMakerEnvironmentOverride(undefined);
     homedirSpy = jest.spyOn(os, 'homedir').mockReturnValue(tempDir);
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
@@ -272,6 +283,11 @@ describe('Maker CLI commands', () => {
       delete process.env.npm_config_cache;
     } else {
       process.env.npm_config_cache = originalNpmCache;
+    }
+    if (originalDshHome === undefined) {
+      delete process.env.DSH_HOME;
+    } else {
+      process.env.DSH_HOME = originalDshHome;
     }
     setMakerEnvironmentOverride(undefined);
     if (originalStdinIsTty) {
@@ -702,6 +718,191 @@ describe('Maker CLI commands', () => {
       env: { TAPTAP_MCP_CLIENT_IDE: 'workbuddy' },
       disabled: false,
     });
+  });
+
+  test('dsh mcp install writes the user patch with a stable launcher and long tool timeout', async () => {
+    const dshHome = path.join(tempDir, 'custom-dsh-home');
+    const configPath = path.join(dshHome, 'cordis.patch.yml');
+    process.env.DSH_HOME = dshHome;
+
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--env', 'rnd', '--json']);
+
+    const plugins = parseYaml(fs.readFileSync(configPath, 'utf8')) as Array<
+      Record<string, unknown>
+    >;
+    expect(plugins).toEqual([
+      {
+        insert: [
+          {
+            id: 'mcp-taptap-maker',
+            name: '@deepseek-ai/dsh-mcp-client',
+            config: {
+              serverName: 'taptap-maker',
+              transport: 'stdio',
+              command: expectedSelfLaunch().command,
+              args: expectedSelfLaunch().args,
+              env: {
+                TAPTAP_MCP_ENV: 'rnd',
+                TAPTAP_MCP_CLIENT_IDE: 'dsh',
+              },
+              toolCallTimeoutMs: 3_600_000,
+              failOnStartupError: true,
+            },
+          },
+        ],
+      },
+    ]);
+    expect(JSON.stringify(plugins)).not.toContain('cwd');
+  });
+
+  test('dsh mcp install preserves unrelated plugins and is idempotent', async () => {
+    const dshHome = path.join(tempDir, '.dsh');
+    const configPath = path.join(dshHome, 'cordis.patch.yml');
+    process.env.DSH_HOME = dshHome;
+    fs.mkdirSync(dshHome, { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      [
+        '# keep this user plugin',
+        '- insert:',
+        '    - id: other-plugin',
+        '      name: example-plugin',
+        '      config:',
+        '        keep: true',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--json']);
+    const first = fs.readFileSync(configPath, 'utf8');
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--json']);
+
+    const plugins = parseYaml(fs.readFileSync(configPath, 'utf8')) as Array<
+      Record<string, unknown>
+    >;
+    expect(insertedDshPlugins(plugins)[0]).toEqual({
+      id: 'other-plugin',
+      name: 'example-plugin',
+      config: { keep: true },
+    });
+    expect(plugins).toHaveLength(2);
+    expect(insertedDshPlugins(plugins)).toHaveLength(2);
+    expect(first).toContain('# keep this user plugin');
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(first);
+    expect(fs.existsSync(`${configPath}.taptap-maker.bak.latest`)).toBe(true);
+  });
+
+  test('dsh mcp install migrates a manual Maker plugin instead of creating a duplicate namespace', async () => {
+    const dshHome = path.join(tempDir, '.dsh');
+    const configPath = path.join(dshHome, 'cordis.patch.yml');
+    process.env.DSH_HOME = dshHome;
+    fs.mkdirSync(dshHome, { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      [
+        '- id: old-maker-registration',
+        "  name: '@deepseek-ai/dsh-mcp-client'",
+        '  config:',
+        '    serverName: taptap-maker',
+        '    transport: stdio',
+        '    command: npx',
+        "    args: ['-y', '-p', '@taptap/maker', 'taptap-maker']",
+        '    cwd: /tmp/stale-project',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--json']);
+
+    const plugins = parseYaml(fs.readFileSync(configPath, 'utf8')) as Array<
+      Record<string, unknown>
+    >;
+    expect(plugins).toHaveLength(1);
+    expect(insertedDshPlugins(plugins)[0]).toMatchObject({
+      id: 'mcp-taptap-maker',
+      name: '@deepseek-ai/dsh-mcp-client',
+      config: { serverName: 'taptap-maker', command: expectedSelfLaunch().command },
+    });
+    expect(JSON.stringify(plugins)).not.toContain('stale-project');
+  });
+
+  test('dsh mcp install updates an existing profile registration without adding a global duplicate', async () => {
+    const dshHome = path.join(tempDir, '.dsh');
+    const profilePath = path.join(dshHome, 'profiles', 'web', 'cordis.patch.yml');
+    const homePath = path.join(dshHome, 'cordis.patch.yml');
+    process.env.DSH_HOME = dshHome;
+    fs.mkdirSync(path.dirname(profilePath), { recursive: true });
+    fs.writeFileSync(
+      profilePath,
+      [
+        '- insert:',
+        '    - id: old-maker-registration',
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        '      config:',
+        '        serverName: taptap-maker',
+        '        transport: stdio',
+        '        command: npx',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--json']);
+
+    const patches = parseYaml(fs.readFileSync(profilePath, 'utf8')) as Array<
+      Record<string, unknown>
+    >;
+    expect(insertedDshPlugins(patches)).toEqual([
+      expect.objectContaining({
+        id: 'mcp-taptap-maker',
+        name: '@deepseek-ai/dsh-mcp-client',
+        config: expect.objectContaining({
+          serverName: 'taptap-maker',
+          command: expectedSelfLaunch().command,
+        }),
+      }),
+    ]);
+    expect(fs.existsSync(homePath)).toBe(false);
+  });
+
+  test('dsh mcp install refuses ambiguous Maker plugin entries without changing the file', async () => {
+    const dshHome = path.join(tempDir, '.dsh');
+    const configPath = path.join(dshHome, 'cordis.patch.yml');
+    process.env.DSH_HOME = dshHome;
+    fs.mkdirSync(dshHome, { recursive: true });
+    const original = [
+      '- id: mcp-taptap-maker',
+      "  name: '@deepseek-ai/dsh-mcp-client'",
+      '  config: { serverName: taptap-maker }',
+      '- id: duplicate-maker',
+      "  name: '@deepseek-ai/dsh-mcp-client'",
+      '  config: { serverName: taptap-maker }',
+      '',
+    ].join('\n');
+    fs.writeFileSync(configPath, original, 'utf8');
+
+    await runMakerCli(['mcp', 'install', '--ide', 'dsh', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads[0]).toMatchObject({ ide: 'dsh', ok: false });
+    expect(payloads[0].message).toContain('contains multiple Maker MCP plugin entries');
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(original);
+    expect(fs.existsSync(`${configPath}.taptap-maker.bak.latest`)).toBe(false);
+    expect(process.exitCode).toBe(1);
+  });
+
+  test('default mcp install includes DSH only when its home already exists', async () => {
+    const dshHome = path.join(tempDir, '.dsh');
+    process.env.DSH_HOME = dshHome;
+    fs.mkdirSync(dshHome, { recursive: true });
+
+    await runMakerCli(['mcp', 'install', '--json']);
+
+    const payloads = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payloads.map((entry: { ide: string }) => entry.ide)).toContain('dsh');
+    expect(fs.existsSync(path.join(dshHome, 'cordis.patch.yml'))).toBe(true);
   });
 
   test('trae mcp install updates both solo and non-solo configs when both exist', async () => {
@@ -1521,6 +1722,7 @@ describe('Maker CLI commands', () => {
       'only after evidence confirms that the active config entry is damaged'
     );
     expect(normalizedPolicy).toContain('User-level MCP config must not contain a project cwd');
+    expect(normalizedPolicy).toContain('If WorkBuddy or DSH does not expose Roots');
     expect(normalizedPolicy).toContain(
       'Do not assume Windows 8.3 short paths exist or differ from the original long path'
     );
@@ -2768,7 +2970,7 @@ describe('Maker CLI commands', () => {
   test('help documents every IDE supported by upgrade', async () => {
     await runMakerCli(['upgrade', '--help']);
 
-    const expected = 'taptap-maker upgrade [--ide codex,cursor,claude,trae,opencode,workbuddy]';
+    const expected = 'taptap-maker upgrade [--ide codex,cursor,claude,trae,opencode,workbuddy,dsh]';
     expect(stdoutSpy.mock.calls.join('')).toContain(expected);
     expect(fs.readFileSync(path.resolve('src/maker/index.ts'), 'utf8')).toContain(expected);
   });

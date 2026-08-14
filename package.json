@@ -59,7 +59,8 @@
     "archiver": "7.0.1",
     "crypto-js": "^4.2.0",
     "dotenv": "17.2.3",
-    "qrcode": "1.5.4"
+    "qrcode": "1.5.4",
+    "yaml": "2.8.2"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.3",

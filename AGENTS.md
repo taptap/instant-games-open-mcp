@@ -360,7 +360,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方
   Git。`taptap-maker init`、`mcp install` 和 `upgrade` 写入的用户级 MCP 配置永远不包含项目
   `cwd`，默认覆盖 Codex、Cursor、Claude，并自动检测已存在配置文件的 Trae、OpenCode、
-  WorkBuddy；避免多个客户端、对话或 Maker 项目争用同一个全局路径。支持 MCP Roots 的客户端
+  WorkBuddy、DSH；避免多个客户端、对话或 Maker 项目争用同一个全局路径。支持 MCP Roots 的客户端
   由当前 workspace root 决定 Maker 项目；不支持 Roots 时，由 Agent 在具体 Maker tool 调用中
   传入 `target_dir`。`upgrade --target-dir <PROJECT_DIR>` 只指定本次项目策略更新目标，不把目录
   持久化到 MCP 配置。项目级本地研发服务选择只在调用时解析，不会提升为用户级 MCP 启动环境。
@@ -377,6 +377,13 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   CLI 不生成额外通用配置文件。`taptap-maker init` 写入多个客户端配置时，任一目标失败都必须
   记录 `mcp_install_failed`、返回非零且不报告初始化完成；已成功写入的目标保持不变，失败项可用
   `taptap-maker mcp install --ide <client>` 单独重试。
+  DSH 使用 `@deepseek-ai/dsh-mcp-client` 插件；CLI 写入用户级
+  `$DSH_HOME/cordis.patch.yml`（默认 `~/.dsh/cordis.patch.yml`），使用稳定 self launcher、
+  `failOnStartupError: true` 和一小时 `toolCallTimeoutMs`。首次注册必须写 Cordis `insert` patch；
+  裸顶层 id patch 不会在空根创建 plugin。已有 profile 级 Maker registration 时就地更新 profile，
+  不创建重复 serverName；所有配置都不写项目 `cwd`。
+  DSH HMR 可热重载该补丁，无需重启 IDE；DSH 当前不广播 MCP Roots，Agent 必须在每个项目相关
+  Maker tool 调用中显式传入当前游戏目录 `target_dir`。
 - `taptap-maker mcp verify` 默认验证安装器使用的稳定 self runtime；`--mode npx` 验证固定当前
   精确版本的 npm launcher。验证失败必须返回非零退出码。npm stderr 中的 EPERM、EACCES、
   root-owned/cache 不可写必须归类为 `npm_environment_error`，不能误报为普通 protocol error。
