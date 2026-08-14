@@ -218,6 +218,16 @@ Python 运行时策略：
 - `taptap-maker mcp verify`：默认使用安装器的同一 launcher 完成 MCP `initialize` 和
   `tools/list`；`--mode self` 验证当前 CLI 二进制。失败会输出 `stage`、`failure_type`、最终
   command 和 stderr，并返回非零退出码；不要当作 PAT、项目或 Maker 业务接口错误。
+- `taptap-maker mcp report`：Maker MCP 之外的轻量故障上报命令，MCP 或 proxy 无法连接时仍可
+  运行。AI 先对疑似基础设施缺陷向用户询问一次；只有用户明确同意后，才把当前会话错误 JSON
+  通过 stdin 传给报告 CLI。启动时优先原样复用当前客户端配置中的 Maker command 和有序 args，再追加
+  `mcp report --ide <client> --target-dir <project> --context-stdin --consent --json`。只有确认当前精确版本时才 fallback 到
+  `npx -y --package @taptap/maker@<exact-version> taptap-maker mcp report ...`；禁止使用无版本包名误启 npm `latest`。
+  Windows 无法从 PATH 找到 `npx` 时继续使用配置中的绝对 `node.exe` 和 `npm-cli.js`。
+  CLI 只读取当前客户端的 `taptap-maker` 配置项，结合 launcher `initialize`/`tools/list` 验证和
+  本地项目上下文生成脱敏报告，并尽力通过已登录的 GitHub CLI 创建 Issue。GitHub 不可达、未登录
+  或提交失败时返回 `manual_required` 和完整脱敏正文，退出保持成功，不能阻塞原 Maker 任务。
+  不带 `--consent` 时只生成报告并返回 `consent_required`，不会对外提交。
 - `taptap-maker agents update`：只更新当前目录 `AGENTS.md` 中 TapTap Maker 管理的策略块，
   保留用户自己的项目说明；缺少 `AGENTS.md` 时会创建文件。
 - `taptap-maker upgrade`：当前目录的一站式升级入口，刷新 AI 客户端 MCP 配置，并在当前目录

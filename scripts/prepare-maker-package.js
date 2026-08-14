@@ -73,7 +73,15 @@ function copyRequiredDirectory(source, target, description) {
   cpSync(source, target, { recursive: true });
 }
 
-function rewriteMakerSkillPackageReferences(skillRoot) {
+function rewriteExactMakerVersion(filePath, version) {
+  const content = readFileSync(filePath, 'utf8').replaceAll(
+    '@taptap/maker@<exact-version>',
+    `@taptap/maker@${version}`
+  );
+  writeFileSync(filePath, content, 'utf8');
+}
+
+function rewriteMakerSkillPackageReferences(skillRoot, version) {
   const skillPath = join(skillRoot, 'update-taptap-mcp', 'SKILL.md');
   if (!existsSync(skillPath)) {
     throw new Error(`Missing update-taptap-mcp skill after copy: ${skillPath}`);
@@ -81,6 +89,7 @@ function rewriteMakerSkillPackageReferences(skillRoot) {
 
   const content = readFileSync(skillPath, 'utf8').replaceAll(LEGACY_PACKAGE, MAKER_PACKAGE);
   writeFileSync(skillPath, content, 'utf8');
+  rewriteExactMakerVersion(join(skillRoot, 'taptap-maker-local', 'SKILL.md'), version);
 }
 
 function createPackageJson(version) {
@@ -148,6 +157,7 @@ taptap-maker apps --json
 taptap-maker pat set
 taptap-maker install --ide codex,cursor,claude,trae,opencode,workbuddy
 taptap-maker mcp verify
+npx -y --package @taptap/maker@${version} taptap-maker mcp report --ide <client> --target-dir <project> --context-stdin --consent --json
 taptap-maker agents update
 taptap-maker upgrade
 taptap-maker dev-kit update
@@ -166,6 +176,11 @@ and does not require a new conversation.
 This package contains only the Maker CLI/MCP bundle and Maker workflow skills.
 It does not include the legacy TapTap Open API MCP server, proxy, native signer,
 or OpenClaw plugin package contents.
+
+For likely Maker MCP/proxy infrastructure failures, the bundled workflow asks for user consent once
+before running \`npx -y --package @taptap/maker@${version} taptap-maker mcp report\`. The command submits a sanitized GitHub Issue only with
+\`--consent\`; unavailable GitHub CLI, auth, or network returns \`manual_required\` with a copyable
+report and never blocks the original Maker task.
 
 ${TROUBLESHOOTING_GUIDE_README_LINE}
 
@@ -192,6 +207,7 @@ function main() {
   );
   chmodSync(join(packageRoot, 'bin', 'taptap-maker'), 0o755);
   copyRequiredFile(makerBundle, join(packageRoot, 'dist', 'maker.js'), 'Maker bundle');
+  rewriteExactMakerVersion(join(packageRoot, 'dist', 'maker.js'), version);
 
   for (const skill of REQUIRED_SKILLS) {
     copyRequiredDirectory(
@@ -200,12 +216,16 @@ function main() {
       `${skill} skill`
     );
   }
-  rewriteMakerSkillPackageReferences(join(packageRoot, 'skills'));
+  rewriteMakerSkillPackageReferences(join(packageRoot, 'skills'), version);
 
   copyRequiredFile(
     join(projectRoot, 'docs', 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
     join(packageRoot, 'docs', 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
     'Maker MCP connection troubleshooting guide'
+  );
+  rewriteExactMakerVersion(
+    join(packageRoot, 'docs', 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
+    version
   );
 
   writeFileSync(

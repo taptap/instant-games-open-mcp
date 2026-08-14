@@ -21,6 +21,8 @@ function formatMakerCapabilityRoutingIndex(options: { includeFeedback: boolean }
     options.includeFeedback ? '  exposed by the current Maker tool list.' : '',
     '- Game assets: Maker MCP also provides image, video, music, sound-effect,',
     '  dialogue/voice, and 3D generation tools when exposed.',
+    '- MCP/proxy infrastructure failure: diagnose, ask once for user consent, then use the',
+    "  active client's exact Maker command/args with `mcp report`; never use an unversioned npm package. Do not report expected project or business errors.",
     '',
     'Follow the selected tool schema and returned next_action.',
   ]

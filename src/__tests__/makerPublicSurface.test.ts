@@ -4,10 +4,48 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const INTERNAL_ENVIRONMENT_PATTERN = /\brnd\b|xdrnd|TAPTAP_MCP_ENV|--env/iu;
 
 describe('Maker public documentation', () => {
+  test('Maker package preparation script remains valid JavaScript', () => {
+    const scriptPath = path.resolve('scripts/prepare-maker-package.js');
+    const result = spawnSync(process.execPath, ['--check', scriptPath], {
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe('');
+  });
+
+  test('documents consent-gated non-MCP issue reporting and non-blocking fallback', () => {
+    for (const file of [
+      'AGENTS.md',
+      'README.md',
+      'docs/MAKER.md',
+      'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md',
+    ]) {
+      const text = fs.readFileSync(path.resolve(file), 'utf8');
+      expect(text).toContain('@taptap/maker@<exact-version>');
+      expect(text).toMatch(/(?:原样|优先).*当前客户端|active client/iu);
+      expect(text).toContain('--context-stdin');
+      expect(text).toContain('--consent');
+      expect(text).toContain('manual_required');
+    }
+
+    const prepareScript = fs.readFileSync(path.resolve('scripts/prepare-maker-package.js'), 'utf8');
+    expect(prepareScript).toContain(
+      'npx -y --package @taptap/maker@${version} taptap-maker mcp report'
+    );
+    expect(prepareScript).toContain("'@taptap/maker@<exact-version>'");
+    expect(prepareScript).toContain(
+      "rewriteExactMakerVersion(join(packageRoot, 'dist', 'maker.js'), version)"
+    );
+    expect(prepareScript).toContain('user consent');
+    expect(prepareScript).toContain('manual_required');
+  });
+
   test('documents the QR orientation gate and test whitelist proxy workflow', () => {
     for (const file of ['AGENTS.md', 'README.md', 'docs/MAKER.md']) {
       const text = fs.readFileSync(path.resolve(file), 'utf8');

@@ -381,6 +381,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   当作其它客户端的故障原因。Python/Lua LSP、dev-kit、版本和 AGENTS policy 检查属于维护信息，
   不能单独证明 MCP 连接失败。
 - Maker MCP tools 缺失或出现 `-32000` / `Connection closed` 时，先按 `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md` 做不依赖 MCP tools 的本地自检。先根据真实配置、日志或 MCP 初始化信息确认当前客户端，再检查该客户端的 command/args/cwd、MCP Roots、Node/npm/npx、client PATH、退出码和 stderr；只有确认当前客户端为 WorkBuddy 时才检查其信任状态。禁止用 Windows 中文路径 `cd && npx` 拼接命令修复 cwd。
+- 疑似 Maker MCP、proxy、客户端集成或服务端基础设施缺陷（启动/连接失败、tools 异常缺失、超时、反复重连失败、HTTP 5xx/unavailable、未分类内部错误）时，AI 应先按错误码、操作和稳定错误信息形成故障指纹，并在当前会话只询问用户一次是否允许上报。用户明确同意后，把已脱敏的错误、当前 tools、workspace roots、客户端版本和复现步骤通过 stdin 交给 Maker 报告 CLI。优先原样复用当前客户端 `taptap-maker` 配置中的 command 和有序 args，再追加 `mcp report --ide <client> --target-dir <project> --context-stdin --consent --json`；不得依赖全局 PATH 中存在 `taptap-maker`，也不得用无版本的 `@taptap/maker` 启动可能落后的 npm `latest`。只有确认精确安装版本时才可使用 `npx -y --package @taptap/maker@<exact-version> taptap-maker ...` 作为 fallback；Windows 的 `npx` 不可用时继续使用配置内的绝对 `node.exe` 和 `npm-cli.js` argv。不要上传完整聊天、项目源码、其它 MCP server、PAT/token 或完整环境变量。普通参数错误、已有明确恢复路径的登录问题、项目文件缺失、用户取消、Lua 编译或业务校验错误不提示上报。返回 `manual_required` 表示 GitHub 不可达、未登录或自动提交失败；展示脱敏报告和手动 Issue 地址后继续原任务，不得把上报失败当作 Maker 任务失败。
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
   远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、
