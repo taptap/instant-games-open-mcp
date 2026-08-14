@@ -483,7 +483,7 @@ describe('Maker CLI commands', () => {
     const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
     expect(payload.explanation).toContain('npm cache is not writable');
     expect(payload.next_steps).toContain(
-      'Run `taptap-maker mcp install --launcher self --ide <client>` to avoid npm.'
+      'Run `taptap-maker mcp install --launcher self` to auto-detect clients and avoid npm.'
     );
     expect(process.exitCode).toBe(1);
   });
@@ -2967,12 +2967,18 @@ describe('Maker CLI commands', () => {
     expect(output).not.toContain('command array with npx.cmd');
   });
 
-  test('help documents every IDE supported by upgrade', async () => {
+  test('help presents automatic IDE detection instead of per-IDE install arguments', async () => {
     await runMakerCli(['upgrade', '--help']);
 
-    const expected = 'taptap-maker upgrade [--ide codex,cursor,claude,trae,opencode,workbuddy,dsh]';
-    expect(stdoutSpy.mock.calls.join('')).toContain(expected);
-    expect(fs.readFileSync(path.resolve('src/maker/index.ts'), 'utf8')).toContain(expected);
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('taptap-maker install [--launcher self|npx] [--json]');
+    expect(output).toContain('Automatically detects supported installed IDEs');
+    expect(output).not.toContain('install [--ide');
+    expect(output).not.toContain('upgrade [--ide');
+
+    const entryHelp = fs.readFileSync(path.resolve('src/maker/index.ts'), 'utf8');
+    expect(entryHelp).not.toContain('install [--ide');
+    expect(entryHelp).not.toContain('upgrade [--ide');
   });
 
   test('subcommand -h prints usage instead of running the command', async () => {

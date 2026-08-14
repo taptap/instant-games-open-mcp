@@ -93,7 +93,7 @@ Windows 中 `~` 对应 `%USERPROFILE%`。
 多开 AI 对话不会隔离用户级 MCP 配置。某个对话如果修改了共享配置中的 command、args 或 cwd，
 其它对话在重连或重启后也会失效。应比较配置备份和最近修改时间，确认是否被其它对话重写。
 
-DSH 不使用 `mcpServers` JSON。运行 `taptap-maker mcp install --ide dsh` 会按插件 id 合并用户级
+DSH 不使用 `mcpServers` JSON。运行 `taptap-maker install` 会自动检测 DSH，并按插件 id 合并用户级
 YAML 补丁，DSH 通过 HMR 热重载，无需重启 IDE。Maker 插件项应使用
 `@deepseek-ai/dsh-mcp-client`、`transport: stdio`、`failOnStartupError: true` 和
 `toolCallTimeoutMs: 3600000`。DSH 当前不广播 MCP Roots，不能把固定项目目录写入该用户级配置；
@@ -187,10 +187,10 @@ npm --version
 npx --version
 ```
 
-如果普通终端找不到 `npx`，可先运行 `taptap-maker mcp install --launcher self --ide <client>`
+如果普通终端找不到 `npx`，可先运行 `taptap-maker mcp install --launcher self`
 迁移到默认 launcher；只有必须使用 npx 时才修复或安装受支持的 Node.js/npm。
 
-DSH 应直接使用 `taptap-maker mcp install --ide dsh` 生成的绝对 Node + self runtime 插件项。
+DSH 应直接使用 `taptap-maker install` 自动生成的绝对 Node + self runtime 插件项。
 不要把手工 `npx` 示例当作长期配置；DSH 的 Agent 沙箱可能禁止 npx 冷启动写入默认 npm cache。
 如果 DSH 中工具调用总在约 60 秒失败，先确认实际生效的插件项包含
 `toolCallTimeoutMs: 3600000`，再区分客户端超时和 Maker server 返回的业务错误。
@@ -277,7 +277,7 @@ npx -y -p @taptap/maker@<exact-version> taptap-maker help
 作为可选恢复方式，并先备份实际生效的配置：
 
 ```bash
-npx -y -p @taptap/maker@<exact-version> taptap-maker mcp install --launcher self --ide <当前客户端>
+npx -y -p @taptap/maker@<exact-version> taptap-maker mcp install --launcher self
 ```
 
 Windows 如无法从 PATH 运行上述恢复命令，应使用当前可用 npm 的绝对路径启动这一次 CLI；安装器

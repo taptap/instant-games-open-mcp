@@ -376,7 +376,8 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `mcpServers` JSON 只作为 README/文档片段引导其它 AI 编辑器识别自己的实际配置文件后合并写入，
   CLI 不生成额外通用配置文件。`taptap-maker init` 写入多个客户端配置时，任一目标失败都必须
   记录 `mcp_install_failed`、返回非零且不报告初始化完成；已成功写入的目标保持不变，失败项可用
-  `taptap-maker mcp install --ide <client>` 单独重试。
+  `taptap-maker install` 自动检测并幂等重试。`--ide` / `--register-mcp` 只保留给历史自动化兼容；
+  新增客户端必须接入默认自动检测流程，不得要求用户传客户端参数。
   DSH 使用 `@deepseek-ai/dsh-mcp-client` 插件；CLI 写入用户级
   `$DSH_HOME/cordis.patch.yml`（默认 `~/.dsh/cordis.patch.yml`），使用稳定 self launcher、
   `failOnStartupError: true` 和一小时 `toolCallTimeoutMs`。首次注册必须写 Cordis `insert` patch；
