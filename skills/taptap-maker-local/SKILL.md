@@ -300,7 +300,7 @@ for the initial diagnosis. Work offline first:
    `failOnStartupError: true`, and `toolCallTimeoutMs: 3600000`; DSH hot-reloads the patch without an
    IDE restart. A new plugin row must be inside a Cordis `insert` patch; a bare top-level id patch
    cannot create the row over an empty root. A fixed project `cwd` is invalid. If calls fail at about 60 seconds, repair the
-   active plugin config with `taptap-maker mcp install --ide dsh` before diagnosing Maker server
+   active plugin config with `taptap-maker install` before diagnosing Maker server
    latency.
 9. User-level MCP config must not contain a project cwd. If WorkBuddy or DSH does not expose Roots, pass
    `target_dir` on the concrete Maker tool call and record the process actual cwd only as diagnostic
@@ -315,9 +315,9 @@ for the initial diagnosis. Work offline first:
 12. Remember that multiple AI conversations share user-level MCP config. One conversation can break
     every other conversation by rewriting the shared command or manually adding a project cwd.
 13. Classify the root cause from evidence before repairing it. Do not automatically change trust
-    storage, PATH, cwd, credentials, or game code. Use `taptap-maker mcp install --ide <client>` only
-    after evidence confirms that the active config entry is damaged. Reconnect and verify again in
-    both the current and a new conversation.
+    storage, PATH, cwd, credentials, or game code. Use `taptap-maker install` only after evidence
+    confirms that the active config entry is damaged; it auto-detects clients and keeps unchanged
+    entries untouched. Reconnect and verify again in both the current and a new conversation.
 
 If the MCP connection is established but a tool or resource call fails, including `-32003`, use a
 separate evidence-first runtime-error workflow. Do not assign a fixed meaning to `-32003`; preserve

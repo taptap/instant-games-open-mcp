@@ -221,7 +221,7 @@ CLI 先完成初始化、PAT、app 选择、clone
 这样即使当前对话不能热加载新 MCP，用户也可以继续完成最关键的 PAT 校验和项目绑定。
 如果 init 写入任一客户端配置失败，会保留已完成的项目 checkout 和已成功配置的客户端，
 记录 `mcp_install_failed` 并以非零状态结束，不会误报初始化完成。失败客户端可通过
-`taptap-maker mcp install --ide <client>` 单独重试。
+`taptap-maker install` 自动检测并幂等重试。
 所有用户级 MCP 配置都不写项目 `cwd`。不支持 MCP Roots 的客户端由 Agent 在具体 Maker tool
 调用中传入 `target_dir`，避免 Codex、Trae、Cursor 等多个客户端、对话或项目共用配置时由
 最后一次安装覆盖其它项目。

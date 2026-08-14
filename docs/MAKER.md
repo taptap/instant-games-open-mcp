@@ -141,7 +141,7 @@ CLI 会 clone 项目、补齐 `assets/image`、`assets/sprites`、`assets/video`
 和 `scripts` 基础目录、准备 dev-kit，并按客户端写入 MCP 配置。
 如果任一客户端配置写入失败，CLI 会继续尝试其余目标，但最终记录 `mcp_install_failed`、
 返回非零且不输出初始化完成。已成功写入的客户端配置不会回滚；修复失败项后可运行
-`taptap-maker mcp install --ide <client>` 单独重试。
+`taptap-maker install`，由 CLI 自动检测并幂等重试。
 
 普通初始化、clone、下载或拉取远端项目的标准命令是 `taptap-maker init`，CLI 会展示 app
 列表，让用户选择已有 app 或 `0`/`new`。`--create` 只用于用户明确要求创建新 Maker 项目的场景。
@@ -202,9 +202,9 @@ Python 运行时策略：
 - `taptap-maker install`：`taptap-maker mcp install` 的快捷别名，用于写入当前机器的
   AI 客户端 MCP 配置。
 - `taptap-maker mcp install`：先用最终 launcher 完成 MCP `initialize` 和 `tools/list`，成功后
-  写入当前机器的 AI 客户端 MCP 配置。验证失败不修改配置或备份。无 `--ide` 时默认写入
-  Codex、Cursor、Claude，并自动检测已存在配置的 Trae、OpenCode、WorkBuddy、DSH。可用
-  `--ide codex,cursor,claude,trae,opencode,workbuddy,dsh` 显式指定目标。
+  写入当前机器的 AI 客户端 MCP 配置。验证失败不修改配置或备份。默认写入 Codex、Cursor、
+  Claude，并自动检测已存在配置的 Trae、OpenCode、WorkBuddy、DSH。`--ide` 只保留给历史脚本
+  兼容；新增客户端必须接入默认自动检测流程，不能要求用户记忆客户端参数。
   Codex 配置写入会同时清理 `[mcp_servers.taptap-maker]` 与
   `[mcp_servers."taptap-maker"]` 两种 TOML 等价写法，重复运行或从旧配置升级时应保持幂等。
   JSON/JSONC 配置写入前会解析并保留其它 server；写入后会重新校验 JSON 结构和
@@ -576,12 +576,11 @@ Windows 兼容注意：
   `Trae/User/mcp.json`、`Trae CN/User/mcp.json`，并兼容 `TRAE SOLO CN/User/mcp.json`；
   Windows 常见位置包括 `%APPDATA%\TRAE SOLO\User\mcp.json`、
   `%APPDATA%\Trae\User\mcp.json` 和 `%APPDATA%\Trae CN\User\mcp.json`。
-- WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的 `.workbuddy/mcp.json`；
-  显式传 `--ide workbuddy` 时会创建该官方配置文件。未显式指定 IDE 的自动检测模式下，
+- WorkBuddy 在 macOS 和 Windows 都优先检测并合并用户目录下已有的 `.workbuddy/mcp.json`；
   legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为 fallback 合并。
   WorkBuddy MCP server 配置必须写入 `disabled: false`；账号维度的启用/信任状态在
   `.workbuddy/connectors/<account-id>/connector-states.json` 中维护，不在 `mcp.json` 中。CLI
-  只做只读诊断，并在显式 `mcp install --ide workbuddy` 结果中提示用户到 WorkBuddy MCP
+  只做只读诊断，并在安装结果中提示用户到 WorkBuddy MCP
   设置里启用/信任 `taptap-maker`，普通 `doctor` 不会因为存在 `.workbuddy` 就输出 WorkBuddy
   诊断，不自动修改账号信任状态；Windows 用户对应路径是
   `%USERPROFILE%\.workbuddy\connectors\<account-id>\connector-states.json`。

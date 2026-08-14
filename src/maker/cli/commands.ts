@@ -1161,7 +1161,7 @@ function addMcpLauncherFailureGuidance(failure: McpLauncherFailure): McpLauncher
     explanation:
       'The npm cache is not writable in the current environment. This is a local sandbox or cache restriction, not a Maker protocol error.',
     next_steps: [
-      'Run `taptap-maker mcp install --launcher self --ide <client>` to avoid npm.',
+      'Run `taptap-maker mcp install --launcher self` to auto-detect clients and avoid npm.',
       'If npx mode is required, set a writable `npm_config_cache` before retrying. Do not change npm cache ownership based only on the generic npm message.',
     ],
   };
@@ -2025,6 +2025,8 @@ function createMcpInstallResult(
 }
 
 function getDefaultMcpInstallIdes(): string[] {
+  // --ide is legacy compatibility only. Every newly supported client must add a reliable
+  // local detector here so normal install/init/upgrade never requires a client argument.
   const ides = ['codex', 'cursor', 'claude'];
   if (getTraeMcpInstallPaths().length > 0) {
     ides.push('trae');
@@ -3029,7 +3031,6 @@ function printHelp(): void {
       '                     [--create --name NAME]',
       '                     [--skip-confirm] [--skip-mcp-install]',
       '                     [--launcher self|npx]',
-      '                     [--register-mcp codex,cursor,claude,trae,opencode,workbuddy,dsh]',
       '                     [--json]',
       '',
       'Init flows:',
@@ -3049,17 +3050,14 @@ function printHelp(): void {
       '  taptap-maker login [--json]',
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # fallback; warns: PAT appears in ps/history',
-      '  taptap-maker install [--ide codex,cursor,claude,trae,opencode,workbuddy,dsh]',
-      '                        [--launcher self|npx] [--json]  # alias for mcp install',
-      '  taptap-maker mcp install [--ide codex,cursor,claude,trae,opencode,workbuddy,dsh]',
-      '                             [--launcher self|npx] [--json]',
+      '  taptap-maker install [--launcher self|npx] [--json]  # alias for mcp install',
+      '  taptap-maker mcp install [--launcher self|npx] [--json]',
       '  taptap-maker mcp verify [--mode npx|self] [--json]',
       '  taptap-maker mcp report [--ide CLIENT] [--target-dir DIR]',
       '                            [--context-stdin] [--consent] [--json]',
       '                            # Run only after the user agrees to submit',
       '  taptap-maker agents update [--target-dir DIR] [--json]',
-      '  taptap-maker upgrade [--ide codex,cursor,claude,trae,opencode,workbuddy,dsh]',
-      '                         [--launcher self|npx] [--target-dir DIR] [--json]',
+      '  taptap-maker upgrade [--launcher self|npx] [--target-dir DIR] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
@@ -3068,8 +3066,8 @@ function printHelp(): void {
       'the exact @taptap/maker version and persist a dedicated writable npm cache.',
       '',
       'MCP install defaults:',
-      '  Writes Codex, Cursor, Claude, detected Trae/OpenCode/WorkBuddy/DSH configs,',
-      '  unless --ide is specified. It does not create missing Trae config files.',
+      '  Automatically detects supported installed IDEs and writes their Maker MCP configs.',
+      '  Legacy --ide/--register-mcp selection remains accepted for existing automation only.',
       '',
       'Windows note:',
       '  The default self launcher uses absolute node.exe plus a stable versioned maker.js.',

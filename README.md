@@ -67,7 +67,6 @@ taptap-maker login
 taptap-maker doctor
 taptap-maker apps --json
 taptap-maker install
-taptap-maker install --ide codex,cursor,claude,trae,opencode,workbuddy,dsh
 taptap-maker agents update
 taptap-maker upgrade
 taptap-maker mcp verify
@@ -92,21 +91,20 @@ taptap-maker dev-kit update
 只有明确需要 npm 启动链路时才使用 `--launcher npx`；该模式固定当前包版本并使用专用可写缓存。
 `taptap-maker init` 写入多个客户端配置时会继续尝试其余目标；只要任一目标失败，init 就记录
 `mcp_install_failed`、以非零状态结束且不报告初始化完成。已经成功写入的客户端配置会保留，
-修复失败项后可运行 `taptap-maker mcp install --ide <client>` 单独重试。
+修复失败项后重新运行 `taptap-maker install` 即可自动检测并幂等重试。
 默认会写入 Codex、Cursor、Claude，并自动检测本机已有的 Trae、OpenCode、WorkBuddy、DSH
 配置文件；命中后会合并安装 `taptap-maker`。Trae Solo 是重点支持目标，CLI 会在 Solo
 或 Solo CN 的 `User/` 目录存在时创建或合并 `User/mcp.json`；普通 Trae/Trae CN 仍作为
-候选路径保留，但只有 `mcp.json` 已存在时才合并写入。WorkBuddy 在 macOS 和 Windows 都优先写
-用户目录下的 `.workbuddy/mcp.json`；显式传 `--ide workbuddy` 时会创建该官方配置文件。
-未显式指定 IDE 的自动检测模式下，legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且
+候选路径保留，但只有 `mcp.json` 已存在时才合并写入。WorkBuddy 在 macOS 和 Windows 都优先检测
+并合并用户目录下已有的 `.workbuddy/mcp.json`。legacy `.workbuddy/.mcp.json` 仅在官方配置文件不存在且
 自身已存在时作为 fallback 合并；写入的 WorkBuddy MCP server 会包含 `disabled: false`。
 WorkBuddy 账号维度的启用/信任状态在 `.workbuddy/connectors/<account-id>/connector-states.json`
-中维护，不在 `mcp.json` 中；CLI 只做只读诊断，并在显式 `mcp install --ide workbuddy`
-结果中提示用户到 WorkBuddy MCP 设置里启用/信任 `taptap-maker`，不会自动修改账号信任状态。
+中维护，不在 `mcp.json` 中；CLI 只做只读诊断，并在安装结果中提示用户到 WorkBuddy MCP 设置里
+启用/信任 `taptap-maker`，不会自动修改账号信任状态。
 普通 `doctor` 不会因为发现 `.workbuddy` 就输出 WorkBuddy 诊断。OpenCode 只在
 `~/.config/opencode/opencode.jsonc` 已存在时写入。
-DSH 使用 `@deepseek-ai/dsh-mcp-client` 插件，不使用 `mcp.json`。显式传 `--ide dsh` 时，
-CLI 会创建或合并 DSH 用户级 `$DSH_HOME/cordis.patch.yml`（默认 `~/.dsh/cordis.patch.yml`），
+DSH 使用 `@deepseek-ai/dsh-mcp-client` 插件，不使用 `mcp.json`。检测到 `$DSH_HOME`
+（默认 `~/.dsh`）后，普通 `taptap-maker install` 会自动创建或合并用户级 `cordis.patch.yml`，
 写入稳定 self launcher、`failOnStartupError: true` 和 1 小时 `toolCallTimeoutMs`，并保留其它插件。
 新增项使用 DSH Cordis `insert` patch；若已经存在 profile 级 Maker registration，CLI 会就地更新
 对应 profile，避免全局和 profile 出现重复 `serverName`。

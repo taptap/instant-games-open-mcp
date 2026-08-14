@@ -155,9 +155,9 @@ taptap-maker init
 taptap-maker doctor
 taptap-maker apps --json
 taptap-maker pat set
-taptap-maker install --ide codex,cursor,claude,trae,opencode,workbuddy,dsh
+taptap-maker install
 taptap-maker mcp verify
-taptap-maker mcp install --launcher npx --ide <client>
+taptap-maker mcp install --launcher npx
 taptap-maker mcp verify --mode npx
 npx -y --package @taptap/maker@${version} taptap-maker mcp report --ide <client> --target-dir <project> --context-stdin --consent --json
 taptap-maker agents update
@@ -180,7 +180,7 @@ reconnect to load the new MCP tools. Binding or switching Maker projects does no
 and does not require a new conversation.
 
 DeepSeek Harness (DSH) uses the \`@deepseek-ai/dsh-mcp-client\` plugin instead of \`mcp.json\`.
-\`taptap-maker mcp install --ide dsh\` merges the user-level \`$DSH_HOME/cordis.patch.yml\`, uses the
+\`taptap-maker install\` auto-detects DSH and merges the user-level \`$DSH_HOME/cordis.patch.yml\`, uses the
 stable self runtime, enables visible startup failures, and extends tool calls to one hour. DSH hot
 reloads that patch without an IDE restart. Because DSH does not currently advertise MCP Roots, its
 Agent must pass the active Maker game directory as \`target_dir\` on project-related tool calls.
