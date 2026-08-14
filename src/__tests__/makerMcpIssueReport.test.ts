@@ -113,6 +113,8 @@ describe('Maker MCP issue report', () => {
               '--database-password',
               'database-password-value',
               '--session-cookie=session-cookie-value',
+              '--request-signature',
+              'request-signature-value',
             ],
           },
         },
@@ -132,6 +134,7 @@ describe('Maker MCP issue report', () => {
           'password=plain-password-value',
           'token=ampersand-token-value&continued-token-value',
           'token=quote-token-value"continued-quote-value',
+          'token=compound-token-value&X-Amz-Signature=compound-signature-value&error=timeout',
           'access_token=query-token-value&error=timeout',
           'TAPTAP_MCP_PAT=environment-pat-value',
         ].join(' '),
@@ -139,6 +142,7 @@ describe('Maker MCP issue report', () => {
           database_password: 'structured-database-password',
           'proxy-password': 'structured-proxy-password',
           session_cookie: 'structured-session-cookie',
+          request_signature: 'structured-request-signature',
         },
       },
       diagnostics: {
@@ -163,6 +167,8 @@ describe('Maker MCP issue report', () => {
       '--database-password',
       '<redacted>',
       '--session-cookie=<redacted>',
+      '--request-signature',
+      '<redacted>',
     ]);
     expect(issue.body).not.toContain('legacy-pat-value');
     expect(issue.body).not.toContain('inline-token-value');
@@ -178,12 +184,15 @@ describe('Maker MCP issue report', () => {
     expect(issue.body).not.toContain('ampersand-token-value');
     expect(issue.body).not.toContain('quote-token-value');
     expect(issue.body).not.toContain('continued-quote-value');
+    expect(issue.body).not.toContain('compound-token-value');
+    expect(issue.body).not.toContain('compound-signature-value');
     expect(issue.body).not.toContain('query-token-value');
     expect(issue.body).toContain('error=timeout');
     expect(issue.body).not.toContain('environment-pat-value');
     expect(issue.body).not.toContain('structured-database-password');
     expect(issue.body).not.toContain('structured-proxy-password');
     expect(issue.body).not.toContain('structured-session-cookie');
+    expect(issue.body).not.toContain('structured-request-signature');
   });
 
   test('builds a public-safe issue body with normalized home paths and redacted credentials', () => {

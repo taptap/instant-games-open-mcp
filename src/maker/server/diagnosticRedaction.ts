@@ -5,7 +5,7 @@
 export function isSensitiveDiagnosticKey(key: string): boolean {
   const normalized = key.replace(/[-\s]/gu, '_').toLowerCase();
   return (
-    /(?:^|_)(?:authorization|cookie|password|passwd|passphrase|pat|token|secret)$/u.test(
+    /(?:^|_)(?:authorization|cookie|password|passwd|passphrase|pat|token|secret|signature|sig|credential|credentials)$/u.test(
       normalized
     ) ||
     /(?:^|_)(?:access|refresh|id|api|auth|bearer|personal_access)?_?token$/u.test(normalized) ||
@@ -64,11 +64,11 @@ function sanitizeDiagnosticText(value: string): string {
   return value
     .replace(/\b(authorization|cookie)\b\s*:\s*[^\r\n]*/giu, '$1: <redacted>')
     .replace(
-      /(^|[\s,;])(--(?:[a-z0-9]+[-_])*(?:pat|token|secret|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key))\s+(?:"[^"]*"|'[^']*'|(?:(?![&,;][A-Za-z][A-Za-z0-9_.-]*\s*[:=])[^\s])+)/gimu,
+      /(^|[\s,;])(--(?:[a-z0-9]+[-_])*(?:pat|token|secret|signature|sig|credential|credentials|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key))\s+(?:"[^"]*"|'[^']*'|(?:(?![&,;][A-Za-z][A-Za-z0-9_.-]*\s*[:=])[^\s])+)/gimu,
       '$1$2 <redacted>'
     )
     .replace(
-      /\b((?:[A-Za-z][A-Za-z0-9_-]*[_-])?(?:authorization|cookie|password|passwd|passphrase|pat|token|secret|(?:api|auth|mac|private)[_-]?key))\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|(?:(?![&,;][A-Za-z][A-Za-z0-9_.-]*\s*[:=])[^\s])+)/giu,
+      /\b((?:[A-Za-z][A-Za-z0-9_-]*[_-])?(?:authorization|cookie|password|passwd|passphrase|pat|token|secret|signature|sig|credential|credentials|(?:api|auth|mac|private)[_-]?key))\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|(?:(?![&,;][A-Za-z][A-Za-z0-9_.-]*\s*[:=])[^\s])+)/giu,
       '$1=<redacted>'
     )
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{16,}(?=$|[\s,;'"()\x5B\x5D{}])/giu, 'Bearer <redacted>')
