@@ -1404,6 +1404,17 @@ describe('Maker CLI commands', () => {
     expect(normalizedPolicy).toContain(
       'failed tool/resource, redacted request parameters, current `tools/list`'
     );
+    expect(normalizedPolicy).toContain('Maker MCP issue reporting');
+    expect(normalizedPolicy).toContain('Ask the user once before submitting');
+    expect(normalizedPolicy).toContain('Only after the user explicitly agrees');
+    expect(normalizedPolicy).toContain("active client's exact Maker MCP command and ordered args");
+    expect(normalizedPolicy).toContain(
+      'mcp report --ide <client> --target-dir <project> --context-stdin --consent --json'
+    );
+    expect(normalizedPolicy).toContain('@taptap/maker@<exact-version>');
+    expect(normalizedPolicy).toContain('Never use an unversioned npm package');
+    expect(normalizedPolicy).toContain('manual_required');
+    expect(normalizedPolicy).toContain('Do not report expected user or project errors');
     expect(twice).toContain('WorkBuddy');
     expect(twice).toContain('npx');
     expect(twice).toContain(
@@ -2886,6 +2897,62 @@ describe('Maker CLI commands', () => {
         ok: true,
       })
     );
+  });
+
+  test('mcp report returns a non-fatal manual fallback when GitHub submission is unavailable', async () => {
+    await runMakerCli([
+      'mcp',
+      'report',
+      '--ide',
+      'workbuddy',
+      '--target-dir',
+      tempDir,
+      '--consent',
+      '--json',
+    ]);
+
+    const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payload).toEqual(
+      expect.objectContaining({
+        status: 'manual_required',
+        issue_url: 'https://github.com/taptap/instant-games-open-mcp/issues/new',
+        title: '[Maker MCP] Maker MCP problem report',
+        body: expect.stringContaining('Maker MCP 本地诊断'),
+      })
+    );
+    expect(payload.body).toContain('workbuddy');
+    expect(process.exitCode).toBeUndefined();
+    expect(verifyMakerMcpLauncherMock).toHaveBeenCalledWith(expectedNpxLaunch, {
+      timeoutMs: 15_000,
+    });
+    expect(spawnSyncMock).toHaveBeenCalledWith(
+      'gh',
+      expect.arrayContaining(['issue', 'create', '--body-file', '-']),
+      expect.objectContaining({
+        shell: false,
+        timeout: 15_000,
+        env: expect.objectContaining({ GH_PROMPT_DISABLED: '1' }),
+      })
+    );
+  });
+
+  test('mcp report never starts GitHub submission without explicit consent', async () => {
+    await runMakerCli(['mcp', 'report', '--ide', 'workbuddy', '--target-dir', tempDir, '--json']);
+
+    const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payload.status).toBe('consent_required');
+    expect(spawnSyncMock).not.toHaveBeenCalledWith('gh', expect.any(Array), expect.any(Object));
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  test('help documents consent-gated Maker MCP issue reporting', async () => {
+    await runMakerCli(['help']);
+
+    const output = stdoutSpy.mock.calls.join('');
+    expect(output).toContain('taptap-maker mcp report');
+    expect(output).toContain('--context-stdin');
+    expect(output).toContain('--consent');
+    expect(output).toContain('Run only after the user agrees to submit');
   });
 
   test('mcp package override is no longer supported', async () => {

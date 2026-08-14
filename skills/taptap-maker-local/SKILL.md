@@ -1,6 +1,6 @@
 ---
 name: taptap-maker-local
-description: Guide TapTap Maker local development workflows. Use when a user asks to initialize Maker local development, clone/download a Maker project, continue a Maker project, inspect local Maker status, pull, submit, push, or resolve Git conflicts.
+description: Guide TapTap Maker local development workflows. Use when a user asks to initialize Maker local development, clone/download a Maker project, continue a Maker project, inspect local Maker status, diagnose or report Maker MCP connection/proxy failures, pull, submit, push, or resolve Git conflicts.
 ---
 
 # TapTap Maker Local Workflow
@@ -19,6 +19,7 @@ This skill covers:
 - prepare local AI dev kit after project checkout
 - choose a Maker app from the CLI app list
 - explain PAT, Git, project binding, and editor reloads
+- diagnose and report Maker MCP or proxy infrastructure failures with user consent
 - inspect local changes
 - pull remote changes
 - submit local changes
@@ -64,8 +65,8 @@ Keep this split clear:
 
 - Skill: user intent, step order, whether to ask the user, friendly explanations, failure recovery.
 - CLI: save PAT, fetch app list, clone, prepare dev kit, install MCP config, verify local setup,
-  update the current project's managed `AGENTS.md` policy block, and run the local runtime log
-  watcher, including runtime log polling.
+  collect and submit sanitized MCP issue reports, update the current project's managed `AGENTS.md`
+  policy block, and run the local runtime log watcher, including runtime log polling.
 - MCP tools/resources: inspect Maker status and run the combined commit/push/build path.
 
 Do not reimplement Maker API calls or Git authentication in shell when the Maker CLI or MCP tool
@@ -84,6 +85,7 @@ exists.
 | conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing.              |
 | build / preview / run / check game result                 | Use `maker_build_current_directory`; it starts the local runtime log watcher after a successful remote build result.                            |
 | generic code validation / tests / lint                    | Do not use Maker remote build unless the user explicitly asks to build, run, or preview the Maker game.                                         |
+| MCP unavailable / proxy timeout / unexpected server error | Diagnose first; offer one consent-gated GitHub issue report when the evidence suggests an MCP, proxy, client integration, or service defect.    |
 
 ## Create New Maker Project Intent
 
@@ -331,6 +333,55 @@ remote proxy:
 
 When Maker proxy tools are missing, explain that this is likely a session/configuration problem and
 that requests specifically requiring those tools cannot use them in the current session.
+
+### Maker MCP Issue Reporting
+
+Use this flow only for likely Maker infrastructure or integration defects. Examples include MCP
+startup failure, `Connection closed`, unexpected missing tools, proxy connection failure, request
+timeout, repeated reconnect failure, HTTP 5xx/unavailable responses, or an unclassified internal
+server error. Diagnose enough to distinguish these from expected user or project errors before
+offering a report.
+
+Do not propose issue reporting for expected user or project errors such as invalid parameters,
+missing project files, expired login with a documented recovery, user cancellation, project Lua
+compile errors, or other business validation errors with a concrete next action.
+
+Ask once per distinct failure fingerprint in the current conversation. Use the failed operation,
+error code, and stable error message as the fingerprint. If the user declines, do not ask again for
+that fingerprint during the conversation. A materially different infrastructure failure may be
+offered once separately.
+
+Before collecting or submitting, ask in the user's language. Explain that the report contains the
+sanitized error, only the active client's Maker MCP entry, local runtime/Maker status, and current
+workspace context. State that it excludes PAT/token values, other MCP servers, project source, and
+the complete conversation. A suitable Chinese prompt is:
+
+> Maker MCP 似乎遇到了连接或服务异常。是否允许我收集已脱敏的报错、Maker MCP 配置和运行环境，
+> 并提交到官方 GitHub Issue，帮助开发团队定位和修复？不会上传 PAT/token、完整聊天或项目源码。
+
+Only after explicit consent, create a compact JSON object with the useful current-session evidence:
+summary, exact sanitized error, failed operation, error code/data, sanitized `remote_result`,
+request/correlation ID, reproduction steps, visible Maker tools, client version, and workspace roots.
+Do not include the complete conversation. Send that JSON through stdin, never argv, while running:
+
+```text
+npx -y --package @taptap/maker@<exact-version> taptap-maker mcp report --ide <client> --target-dir <project> --context-stdin --consent --json
+```
+
+Prefer the active client's exact Maker MCP `command` plus ordered `args`, then append the `mcp
+report` arguments above. This preserves the installed beta/stable version and, on Windows, the
+absolute `node.exe` plus `npm-cli.js` launcher. Use the npx fallback only when it contains the exact
+installed Maker version. Never use an unversioned package spec,
+assume `taptap-maker` or `npx` is on PATH, or build a `cmd /c`, `cd && npx`, or PowerShell wrapper.
+If neither an exact configured launcher nor an exact version is available, explain that automatic
+collection cannot start, show the manual Issue URL, and continue the original task.
+
+Do not ask for a second confirmation after the user consents. If the result is `created`, show the
+returned Issue URL. If the result is `manual_required`, clearly tell the user that automatic GitHub
+submission was unavailable, show the returned sanitized title/body, and provide the returned manual
+Issue URL. This fallback is informational: it must not block troubleshooting or the user's original
+Maker task. If the result is `consent_required`, do not submit; ask for consent because the required
+authorization was not provided.
 
 ## Initialization Workflow
 

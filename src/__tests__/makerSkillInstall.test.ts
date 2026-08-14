@@ -82,7 +82,12 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status).toContain('real-device game logs');
     expect(status).toContain('server/Lua logs for a specified game session');
     expect(status).toContain('exposed by the current Maker tool list');
-    expect(status).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
+    expect(status).toContain('Maker MCP issue reporting');
+    expect(status).toContain('Ask the user once before submitting');
+    expect(status).toContain('exact Maker command/args');
+    expect(status).toContain('mcp report --ide <client>');
+    expect(status).toContain('Never use an unversioned npm package');
+    expect(status).toContain('--context-stdin --consent --json');
     expect(status).toContain('Use local runtime logs only');
     expect(status).toContain('assets/model');
     expect(status).toContain('assets/model');
@@ -183,7 +188,20 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('real-device game logs');
     expect(skillText).toContain('server/Lua logs for a specified game session');
     expect(skillText).toContain('exposed by the current Maker tool list');
-    expect(skillText).not.toMatch(/problem reports|issue reports|问题反馈|问题上报/iu);
+    expect(skillText).toContain('Maker MCP Issue Reporting');
+    expect(skillText).toContain('Ask once per distinct failure fingerprint');
+    expect(skillText).toContain('Only after explicit consent');
+    expect(skillText).toContain(
+      'npx -y --package @taptap/maker@<exact-version> taptap-maker mcp report --ide <client> --target-dir <project> --context-stdin --consent --json'
+    );
+    expect(skillText).toContain("active client's exact Maker MCP `command` plus ordered `args`");
+    expect(skillText).toContain('Never use an unversioned package spec');
+    expect(skillText.match(/<exact-version>/gu)).toHaveLength(1);
+    expect(skillText).toContain('Do not include the complete conversation');
+    expect(skillText).toContain('manual_required');
+    expect(skillText).toContain(
+      'Do not propose issue reporting for expected user or project errors'
+    );
     expect(skillText).toContain('remote player-submitted feedback');
     expect(skillText).toContain('assets/image');
     expect(skillText).toContain('assets/video');

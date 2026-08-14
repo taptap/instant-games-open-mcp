@@ -89,6 +89,12 @@ import {
   type MakerMcpLauncher,
   type MakerMcpLauncherVerification,
 } from './mcpLauncher.js';
+import {
+  buildMakerMcpIssue,
+  collectMakerMcpIssueDiagnostics,
+  parseMakerMcpReportContext,
+  submitMakerMcpIssue,
+} from './mcpIssueReport.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
@@ -105,6 +111,8 @@ const BOOLEAN_OPTIONS = new Set([
   'reset',
   'all',
   'create',
+  'consent',
+  'context_stdin',
   'h',
   'help',
 ]);
@@ -259,6 +267,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'mcp' && subcommand === 'verify') {
     await runMcpVerify(parsed, ctx);
+    return;
+  }
+
+  if (command === 'mcp' && subcommand === 'report') {
+    await runMcpReport(parsed, ctx);
     return;
   }
 
@@ -1160,6 +1173,52 @@ async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
     ]
       .filter(Boolean)
       .join('\n')
+  );
+}
+
+async function runMcpReport(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  rejectPackageOption(parsed);
+  const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
+  const contextInput = booleanOption(parsed, 'context_stdin') ? await readStdinText() : '';
+  const context = parseMakerMcpReportContext(contextInput);
+  const diagnostics = await collectMakerMcpIssueDiagnostics({
+    ide: stringOption(parsed, 'ide'),
+    targetDir,
+    makerVersion: VERSION,
+  });
+  const issue = buildMakerMcpIssue({
+    context,
+    diagnostics,
+    homeDir: os.homedir(),
+  });
+  const submission = booleanOption(parsed, 'consent')
+    ? submitMakerMcpIssue(issue)
+    : {
+        status: 'consent_required' as const,
+        issue_url: 'https://github.com/taptap/instant-games-open-mcp/issues/new',
+        ...issue,
+      };
+
+  if (ctx.json) {
+    writeJson(submission);
+    return;
+  }
+
+  if (submission.status === 'created') {
+    process.stdout.write(`Maker MCP issue submitted: ${submission.issue_url}\n`);
+    return;
+  }
+
+  process.stdout.write(
+    [
+      submission.status === 'consent_required'
+        ? 'Maker MCP issue report prepared but not submitted: user consent is required.'
+        : 'Maker MCP issue report prepared, but GitHub submission is unavailable.',
+      `Manual issue URL: ${submission.issue_url}`,
+      '',
+      submission.body,
+      '',
+    ].join('\n')
   );
 }
 
@@ -2726,7 +2785,8 @@ function formatUnknownCommand(command: string[]): string {
 function isKnownSubcommand(command: string, subcommand: string): boolean {
   return (
     (command === 'pat' && subcommand === 'set') ||
-    (command === 'mcp' && (subcommand === 'install' || subcommand === 'verify')) ||
+    (command === 'mcp' &&
+      (subcommand === 'install' || subcommand === 'verify' || subcommand === 'report')) ||
     (command === 'agents' && subcommand === 'update') ||
     command === 'upgrade' ||
     (command === 'dev-kit' && subcommand === 'update') ||
@@ -2876,6 +2936,9 @@ function printHelp(): void {
       '  taptap-maker mcp install [--ide codex,cursor,claude,trae,opencode,workbuddy]',
       '                             [--json]',
       '  taptap-maker mcp verify [--mode npx|self] [--json]',
+      '  taptap-maker mcp report [--ide CLIENT] [--target-dir DIR]',
+      '                            [--context-stdin] [--consent] [--json]',
+      '                            # Run only after the user agrees to submit',
       '  taptap-maker agents update [--target-dir DIR] [--json]',
       '  taptap-maker upgrade [--ide codex,cursor,claude,trae,opencode,workbuddy]',
       '                         [--target-dir DIR] [--json]',
@@ -2894,6 +2957,22 @@ function printHelp(): void {
       '',
     ].join('\n')
   );
+}
+
+async function readStdinText(): Promise<string> {
+  const chunks: string[] = [];
+  let length = 0;
+  const maxLength = 256 * 1024;
+  for await (const chunk of input) {
+    const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+    const remaining = maxLength - length;
+    if (remaining <= 0) {
+      break;
+    }
+    chunks.push(text.slice(0, remaining));
+    length += Math.min(text.length, remaining);
+  }
+  return chunks.join('');
 }
 
 export function formatCliError(error: unknown): string {

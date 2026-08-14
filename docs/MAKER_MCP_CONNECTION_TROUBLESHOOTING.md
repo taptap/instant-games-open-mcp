@@ -270,7 +270,36 @@ Windows 如无法从 PATH 运行上述恢复命令，应使用当前可用 npm �
 - 预期的 Maker tools 已注册。
 - WorkBuddy 中 `taptap-maker` 仍处于启用和信任状态。
 
-## 11. 诊断报告模板
+## 11. 用户同意后的 GitHub Issue 上报
+
+当证据指向 Maker MCP、proxy、客户端集成或服务端基础设施异常时，AI 应主动询问用户是否允许把
+已脱敏诊断提交到官方 GitHub Issue。适合上报的现象包括启动/连接失败、tools 异常缺失、请求超时、
+反复重连失败、HTTP 5xx/unavailable 和未分类内部错误。普通参数错误、已有明确恢复路径的登录问题、
+项目文件缺失、用户取消、Lua 编译和业务校验错误不应提示上报。
+
+同一种故障按失败操作、错误码和稳定错误信息形成指纹；当前会话只询问一次。用户拒绝后不再针对该
+指纹打扰。用户明确同意后无需第二次确认，AI 将已脱敏的当前会话错误 JSON 通过 stdin 传入：
+
+```text
+npx -y --package @taptap/maker@<exact-version> taptap-maker mcp report --ide <client> --target-dir <project> --context-stdin --consent --json
+```
+
+优先原样复用当前客户端 Maker MCP 配置中的 command 和有序 args，再追加上述 `mcp report`
+参数。示例 npx 命令只在已确认当前精确版本时使用，禁止省略版本误启 npm `latest`；Windows
+找不到 `npx` 时使用配置中的绝对 `node.exe` 和 `npm-cli.js` argv。
+
+CLI 会读取当前客户端的 `taptap-maker` 配置项、执行有短超时保护的 launcher
+`initialize`/`tools/list` 验证、记录当前 cwd 和绑定项目状态，再生成 Issue 标题与 Markdown 正文。
+不会上传其它 MCP server、完整聊天、项目源码、PAT/token、完整环境变量或 project/user ID；用户
+主目录统一替换为 `~`。错误、`remote_result` 和请求参数保留非敏感结构，方便服务端按
+request/correlation ID 继续定位。
+
+成功时返回 `created` 和 Issue URL。GitHub CLI 不存在、未登录、网络不可达、超时或提交失败时返回
+`manual_required`、脱敏标题/正文和手动 Issue 地址，命令仍成功结束；AI 应明显告知用户没有自动
+提交，并展示可复制报告，然后继续原排障或开发任务。不带 `--consent` 时返回
+`consent_required`，只生成报告，不发起 GitHub 写操作。
+
+## 12. 诊断报告模板
 
 用户 AI 应尽量完整填写以下模板。未获取到的字段写 `unknown`，不要猜测；args 必须保持原始顺序，
 凭证值必须脱敏。

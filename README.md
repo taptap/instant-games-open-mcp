@@ -70,6 +70,7 @@ taptap-maker install --ide codex,cursor,claude,trae,opencode,workbuddy
 taptap-maker agents update
 taptap-maker upgrade
 taptap-maker mcp verify
+npx -y --package @taptap/maker@<exact-version> taptap-maker mcp report --ide <client> --target-dir <project> --context-stdin --consent --json
 taptap-maker dev-kit update
 ```
 
@@ -132,6 +133,17 @@ MCP 进程自身的 cwd 只作为最后兜底和诊断信息，不应通过重�
 如果 Maker MCP tools 缺失或出现 `-32000` / `Connection closed`，先按
 [TapTap Maker MCP 本地连接自检与修复指引](docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md)
 检查本地客户端配置、信任状态、cwd、Node/npm/npx 和启动日志。MCP 未连接时不要依赖 MCP tools 自检。
+
+如果证据指向 Maker MCP、proxy、客户端集成或服务端基础设施异常，`taptap-maker-local` Skill
+会在当前会话对同一种故障只询问一次是否上报。用户同意后，AI 才通过 stdin 调用
+上报优先复用当前客户端 Maker MCP 配置中的原始 command 和有序 args，并追加
+`mcp report --ide <client> --target-dir <project> --context-stdin --consent --json`。只有确认当前精确版本时才 fallback 到
+`npx -y --package @taptap/maker@<exact-version> taptap-maker mcp report ...`，不要使用无版本包名误启 npm `latest`；
+Windows 无法从 PATH 找到 `npx` 时继续使用配置中的绝对 `node.exe` 和 `npm-cli.js`，
+收集当前客户端的 Maker 配置项、MCP launcher 验证、项目上下文和已脱敏的会话错误，并尽力创建
+GitHub Issue。报告不包含完整聊天、项目源码、其它 MCP server、PAT/token 或完整环境变量；用户主目录
+统一显示为 `~`。GitHub 不可达、未登录或提交失败时返回 `manual_required`，AI 会展示脱敏报告和手动
+Issue 地址，然后继续原任务，不把上报失败当作 Maker 故障。
 
 Maker MCP 精简为开发循环里的高频能力：
 
