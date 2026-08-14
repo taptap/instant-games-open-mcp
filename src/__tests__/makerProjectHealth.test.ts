@@ -24,7 +24,9 @@ describe('Maker project health check', () => {
     expect(health.status).toBe('not_initialized');
     expect(health.canBuild).toBe(true);
     expect(health.canGenerateTestQrcode).toBe(false);
-    expect(formatMakerProjectHealthStatus(health)).toContain('can_generate_test_qrcode: no');
+    const output = formatMakerProjectHealthStatus(health);
+    expect(output).toContain(`evaluated_target_dir: ${projectRoot}`);
+    expect(output).toContain('can_generate_test_qrcode: no');
     expect(health.issues).toEqual([]);
   });
 

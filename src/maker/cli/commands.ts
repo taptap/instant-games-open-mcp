@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import { pathToFileURL } from 'node:url';
 import {
   getMakerEnvironment,
   setMakerEnvironmentOverride,
@@ -84,6 +85,8 @@ import {
   inspectMakerProjectSettings,
 } from '../projectSettings.js';
 import {
+  materializeMakerSelfLauncher,
+  resolveMakerPackageSpec,
   resolveMakerMcpLauncher,
   verifyMakerMcpLauncher,
   type MakerMcpLauncher,
@@ -97,6 +100,7 @@ import {
 } from './mcpIssueReport.js';
 
 declare const __MAKER_VERSION__: string | undefined;
+declare const __MAKER_BUNDLE_URL__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : 'dev';
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
@@ -190,6 +194,7 @@ type McpInstallOptions = {
   launcher: MakerMcpLauncher;
   clientIde?: string;
   disabled?: boolean;
+  launcherEnv?: Record<string, string>;
 };
 
 type PreparedMcpLauncher =
@@ -197,6 +202,7 @@ type PreparedMcpLauncher =
       ok: true;
       launcher: MakerMcpLauncher;
       verification: MakerMcpLauncherVerification;
+      launcherEnv?: Record<string, string>;
     }
   | McpLauncherFailure;
 
@@ -209,6 +215,8 @@ type McpLauncherFailure = {
   error: string;
   stderr?: string;
   tools: string[];
+  explanation?: string;
+  next_steps?: string[];
 };
 
 export async function runMakerCli(argv: string[]): Promise<void> {
@@ -439,7 +447,7 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 
   if (!skipMcpInstall) {
     const ides = parseIdeList(stringOption(parsed, 'register_mcp') || '');
-    const prepared = await prepareMcpLauncher({ env });
+    const prepared = await prepareMcpLauncher({ env, mode: mcpLauncherOption(parsed) });
     if (!prepared.ok) {
       emit(ctx, 'mcp_install', formatMcpLauncherFailure(prepared), prepared);
       throw new Error(prepared.error);
@@ -449,6 +457,7 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
       env: makerMcpConfigEnvOption(parsed),
       mcpName: DEFAULT_MCP_NAME,
       launcher: prepared.launcher,
+      launcherEnv: prepared.launcherEnv,
     });
     for (const result of installResults) {
       emit(ctx, 'mcp_install', result.message, result);
@@ -1024,7 +1033,7 @@ async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void>
   rejectPackageOption(parsed);
   const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
   const env = makerEnvOption(parsed);
-  const prepared = await prepareMcpLauncher({ env });
+  const prepared = await prepareMcpLauncher({ env, mode: mcpLauncherOption(parsed) });
   if (!prepared.ok) {
     writeMcpLauncherFailure(ctx, prepared);
     return;
@@ -1034,6 +1043,7 @@ async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void>
     env: makerMcpConfigEnvOption(parsed),
     mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
     launcher: prepared.launcher,
+    launcherEnv: prepared.launcherEnv,
   });
   const ok = results.every((result) => result.ok);
   if (!ok) {
@@ -1050,19 +1060,42 @@ async function runMcpInstall(parsed: ParsedArgs, ctx: CliContext): Promise<void>
 
 async function prepareMcpLauncher(options: {
   env: MakerEnvironment;
+  mode: 'self' | 'npx';
 }): Promise<PreparedMcpLauncher> {
   let launcher: MakerMcpLauncher;
+  let launcherEnv: Record<string, string> | undefined;
   try {
-    launcher = resolveMakerMcpLauncher({ packageName: MAKER_NPM_PACKAGE });
+    if (options.mode === 'self') {
+      launcher = materializeMakerSelfLauncher({
+        version: VERSION,
+        bundleUrl:
+          typeof __MAKER_BUNDLE_URL__ !== 'undefined'
+            ? __MAKER_BUNDLE_URL__
+            : pathToFileURL(path.resolve(process.cwd(), 'dist', 'maker.js')).href,
+        makerHome: getMakerHome(),
+      });
+    } else {
+      const packageSpec = resolveMakerPackageSpec(MAKER_NPM_PACKAGE, VERSION);
+      launcher = resolveMakerMcpLauncher({ packageName: packageSpec });
+      const configuredCache = process.env.npm_config_cache || process.env.NPM_CONFIG_CACHE;
+      const npmCacheDir = path.resolve(
+        configuredCache || path.join(getMakerHome(), 'cache', 'npm')
+      );
+      fs.mkdirSync(npmCacheDir, { recursive: true });
+      launcherEnv = { npm_config_cache: npmCacheDir };
+    }
   } catch (error) {
     return createMcpLauncherResolutionFailure(error);
   }
 
   const verification = await verifyMakerMcpLauncher(launcher, {
-    env: options.env === 'production' ? undefined : { TAPTAP_MCP_ENV: options.env },
+    env: {
+      ...(options.env === 'production' ? {} : { TAPTAP_MCP_ENV: options.env }),
+      ...launcherEnv,
+    },
   });
   if (!verification.ok) {
-    return {
+    return addMcpLauncherFailureGuidance({
       ok: false,
       stage: verification.stage,
       launcher_kind: verification.launcherKind,
@@ -1071,9 +1104,9 @@ async function prepareMcpLauncher(options: {
       error: verification.error || 'Maker MCP launcher connectivity check failed.',
       stderr: verification.stderr,
       tools: verification.toolNames,
-    };
+    });
   }
-  return { ok: true, launcher, verification };
+  return { ok: true, launcher, verification, launcherEnv };
 }
 
 function createMcpLauncherResolutionFailure(error: unknown): McpLauncherFailure {
@@ -1104,29 +1137,53 @@ function formatMcpLauncherFailure(failure: McpLauncherFailure): string {
     `- failure_type: ${failure.failure_type}`,
     `- error: ${failure.error}`,
     failure.stderr ? `- stderr:\n${indent(failure.stderr)}` : '',
-    '- next_action: Fix the launcher shown above, then rerun taptap-maker mcp install.',
+    failure.explanation ? `- explanation: ${failure.explanation}` : '',
+    ...(
+      failure.next_steps || ['Fix the launcher shown above, then rerun `taptap-maker mcp install`.']
+    ).map((step) => `- next_action: ${step}`),
   ]
     .filter(Boolean)
     .join('\n');
 }
 
+function addMcpLauncherFailureGuidance(failure: McpLauncherFailure): McpLauncherFailure {
+  if (failure.failure_type !== 'npm_environment_error') {
+    return failure;
+  }
+  return {
+    ...failure,
+    explanation:
+      'The npm cache is not writable in the current environment. This is a local sandbox or cache restriction, not a Maker protocol error.',
+    next_steps: [
+      'Run `taptap-maker mcp install --launcher self --ide <client>` to avoid npm.',
+      'If npx mode is required, set a writable `npm_config_cache` before retrying. Do not change npm cache ownership based only on the generic npm message.',
+    ],
+  };
+}
+
 async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   rejectPackageOption(parsed);
   const mode = mcpVerifyModeOption(parsed);
-  let launcher: MakerMcpLauncher;
-  try {
-    launcher =
-      mode === 'npx'
-        ? resolveMakerMcpLauncher({ packageName: MAKER_NPM_PACKAGE })
-        : getCurrentCliCommand();
-  } catch (error) {
-    writeMcpLauncherFailure(ctx, createMcpLauncherResolutionFailure(error));
+  const prepared = await prepareMcpLauncher({ env: makerEnvOption(parsed), mode });
+  if (!prepared.ok && prepared.stage === 'resolve') {
+    writeMcpLauncherFailure(ctx, prepared);
     return;
   }
-  const result = await verifyMakerMcpLauncher(launcher);
+  const result: MakerMcpLauncherVerification = prepared.ok
+    ? prepared.verification
+    : {
+        ok: false,
+        stage: prepared.stage,
+        launcherKind: prepared.launcher_kind!,
+        command: prepared.command || '',
+        toolNames: prepared.tools,
+        stderr: prepared.stderr,
+        error: prepared.error,
+        failureType: prepared.failure_type as MakerMcpLauncherVerification['failureType'],
+      };
   const payload = {
     mode,
-    package: mode === 'npx' ? MAKER_NPM_PACKAGE : undefined,
+    package: mode === 'npx' ? resolveMakerPackageSpec(MAKER_NPM_PACKAGE, VERSION) : undefined,
     launcher_kind: result.launcherKind,
     command: result.command,
     stage: result.stage,
@@ -1156,8 +1213,8 @@ async function runMcpVerify(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
       `- mode: ${payload.mode}`,
       `- command: ${payload.command}`,
       mode === 'npx'
-        ? '- scope: verifies the package launcher written by taptap-maker mcp install'
-        : '- scope: verifies only the currently running CLI binary',
+        ? '- scope: verifies the exact-version npm package launcher'
+        : '- scope: verifies the stable self runtime written by taptap-maker mcp install',
       `- launcher_kind: ${payload.launcher_kind}`,
       `- stage: ${payload.stage}`,
       payload.failure_type ? `- failure_type: ${payload.failure_type}` : '',
@@ -1185,6 +1242,25 @@ async function runMcpReport(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
     ide: stringOption(parsed, 'ide'),
     targetDir,
     makerVersion: VERSION,
+    verify: async () => {
+      const prepared = await prepareMcpLauncher({
+        env: makerEnvOption(parsed),
+        mode: 'self',
+      });
+      if (!prepared.ok) {
+        return prepared;
+      }
+      return {
+        ok: prepared.verification.ok,
+        stage: prepared.verification.stage,
+        launcher_kind: prepared.verification.launcherKind,
+        command: prepared.verification.command,
+        tools: prepared.verification.toolNames,
+        stderr: prepared.verification.stderr,
+        error: prepared.verification.error,
+        failure_type: prepared.verification.failureType,
+      };
+    },
   });
   const issue = buildMakerMcpIssue({
     context,
@@ -1247,7 +1323,7 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const targetDir = path.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
-  const prepared = await prepareMcpLauncher({ env });
+  const prepared = await prepareMcpLauncher({ env, mode: mcpLauncherOption(parsed) });
   if (!prepared.ok) {
     writeMcpLauncherFailure(ctx, prepared);
     return;
@@ -1257,6 +1333,7 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     env: makerMcpConfigEnvOption(parsed),
     mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
     launcher: prepared.launcher,
+    launcherEnv: prepared.launcherEnv,
   });
   const identify = identifyMakerProject({ cwd: targetDir });
   const agentsResult = identify.projectRoot
@@ -1309,8 +1386,15 @@ function getMcpVerifyFailureExplanation(
 ): string {
   if (mode === 'self') {
     return [
-      'The current taptap-maker CLI help command did not exit cleanly.',
-      'This is a local CLI startup check, not a Maker MCP business error.',
+      `The stable self runtime failed during MCP ${result.stage}.`,
+      'This is a local Node and stdio MCP connectivity check, not a Maker business tool error.',
+    ].join(' ');
+  }
+
+  if (result.failureType === 'npm_environment_error') {
+    return [
+      'The npm launcher could not write its cache in the current sandbox or user environment.',
+      'Do not change cache ownership based only on npm generic guidance.',
     ].join(' ');
   }
 
@@ -1322,12 +1406,15 @@ function getMcpVerifyFailureExplanation(
 
 function getMcpVerifyNextSteps(mode: 'npx' | 'self', commandText: string): string[] {
   if (mode === 'self') {
-    return ['Run `taptap-maker help` directly and inspect the printed error.'];
+    return [
+      `Run the command above directly: ${commandText}`,
+      'Rerun `taptap-maker mcp install --launcher self` to rebuild the stable runtime.',
+    ];
   }
 
   return [
     `Run the command above directly: ${commandText}`,
-    'Run `taptap-maker mcp verify --mode self` to verify the current CLI binary.',
+    'Use `taptap-maker mcp install --launcher self` to avoid npm cache and npx startup.',
     'On Windows, check the absolute node/npm paths shown above; do not repair cwd with `cd && npx.cmd`.',
   ];
 }
@@ -1760,6 +1847,7 @@ function installMcpConfigs(options: {
   env: MakerEnvironment;
   mcpName: string;
   launcher: MakerMcpLauncher;
+  launcherEnv?: Record<string, string>;
 }): McpInstallResult[] {
   return uniqueStrings(options.ides)
     .flatMap((ide) => installMcpConfig(ide, options))
@@ -2176,7 +2264,7 @@ function mergeCodexMcpConfig(configPath: string, options: McpInstallOptions): Co
   const sectionPattern = createCodexMcpSectionPattern(options.mcpName);
   const withoutOld = existing.replace(sectionPattern, '').trimEnd();
   const launch = options.launcher;
-  const envValues = createMcpEnvironmentValues(options.env, options.clientIde);
+  const envValues = createMcpEnvironmentValues(options.env, options.clientIde, options.launcherEnv);
   const envSection =
     Object.keys(envValues).length === 0
       ? []
@@ -2273,8 +2361,9 @@ function tryClaudeMcpAdd(options: McpInstallOptions): { ok: boolean; changed: bo
     'user',
     '--transport',
     'stdio',
-    ...(options.env === 'production' ? [] : ['--env', `TAPTAP_MCP_ENV=${options.env}`]),
-    ...(options.clientIde ? ['--env', `TAPTAP_MCP_CLIENT_IDE=${options.clientIde}`] : []),
+    ...Object.entries(
+      createMcpEnvironmentValues(options.env, options.clientIde, options.launcherEnv)
+    ).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
     options.mcpName,
     '--',
     ...npxLaunch.commandAndArgs,
@@ -2310,7 +2399,7 @@ function createJsonMcpServerConfig(options: McpInstallOptions): {
   return {
     command: launch.command,
     args: launch.args,
-    ...createOptionalMcpEnvironment(options.env, 'env', options.clientIde),
+    ...createOptionalMcpEnvironment(options.env, 'env', options.clientIde, options.launcherEnv),
     ...(options.disabled !== undefined ? { disabled: options.disabled } : {}),
   };
 }
@@ -2324,7 +2413,12 @@ function createOpenCodeMcpServerConfig(options: McpInstallOptions): {
   return {
     type: 'local',
     command: options.launcher.commandAndArgs,
-    ...createOptionalMcpEnvironment(options.env, 'environment', options.clientIde),
+    ...createOptionalMcpEnvironment(
+      options.env,
+      'environment',
+      options.clientIde,
+      options.launcherEnv
+    ),
     enabled: true,
   };
 }
@@ -2332,9 +2426,10 @@ function createOpenCodeMcpServerConfig(options: McpInstallOptions): {
 function createOptionalMcpEnvironment<Key extends 'env' | 'environment'>(
   env: MakerEnvironment,
   key: Key,
-  clientIde?: string
+  clientIde?: string,
+  launcherEnv?: Record<string, string>
 ): Record<Key, Record<string, string>> | Record<string, never> {
-  const values = createMcpEnvironmentValues(env, clientIde);
+  const values = createMcpEnvironmentValues(env, clientIde, launcherEnv);
   if (Object.keys(values).length === 0) {
     return {};
   }
@@ -2345,9 +2440,10 @@ function createOptionalMcpEnvironment<Key extends 'env' | 'environment'>(
 
 function createMcpEnvironmentValues(
   env: MakerEnvironment,
-  clientIde?: string
+  clientIde?: string,
+  launcherEnv?: Record<string, string>
 ): Record<string, string> {
-  const values: Record<string, string> = {};
+  const values: Record<string, string> = { ...launcherEnv };
   if (env !== 'production') {
     values.TAPTAP_MCP_ENV = env;
   }
@@ -2355,19 +2451,6 @@ function createMcpEnvironmentValues(
     values.TAPTAP_MCP_CLIENT_IDE = clientIde;
   }
   return values;
-}
-
-function getCurrentCliCommand(): MakerMcpLauncher {
-  if (process.argv[1]) {
-    return {
-      kind: 'current_cli',
-      command: process.execPath,
-      args: [process.argv[1]],
-      commandAndArgs: [process.execPath, process.argv[1]],
-    };
-  }
-  const command = process.platform === 'win32' ? 'taptap-maker.cmd' : 'taptap-maker';
-  return { kind: 'current_cli', command, args: [], commandAndArgs: [command] };
 }
 
 function getWindowsCmdLaunchCommand(
@@ -2380,7 +2463,7 @@ function getWindowsCmdLaunchCommand(
 function rejectPackageOption(parsed: ParsedArgs): void {
   if (Object.prototype.hasOwnProperty.call(parsed.options, 'package')) {
     throw new Error(
-      '--package is no longer supported. Maker MCP configs and npx verification use @taptap/maker.'
+      '--package is no longer supported. @taptap/maker uses its packaged runtime; select only --launcher self or npx.'
     );
   }
 }
@@ -2842,11 +2925,19 @@ function makerMcpConfigEnvOption(parsed: ParsedArgs): MakerEnvironment {
 }
 
 function mcpVerifyModeOption(parsed: ParsedArgs): 'npx' | 'self' {
-  const mode = stringOption(parsed, 'mode') || 'npx';
+  const mode = stringOption(parsed, 'mode') || 'self';
   if (mode === 'npx' || mode === 'self') {
     return mode;
   }
   throw new Error('Invalid mcp verify --mode. Use npx or self.');
+}
+
+function mcpLauncherOption(parsed: ParsedArgs): 'npx' | 'self' {
+  const launcher = stringOption(parsed, 'launcher') || 'self';
+  if (launcher === 'npx' || launcher === 'self') {
+    return launcher;
+  }
+  throw new Error('Invalid --launcher value. Use self or npx.');
 }
 
 /**
@@ -2911,6 +3002,7 @@ function printHelp(): void {
       '  taptap-maker init [--app-id ID] [--target-dir DIR] [--pat PAT]',
       '                     [--create --name NAME]',
       '                     [--skip-confirm] [--skip-mcp-install]',
+      '                     [--launcher self|npx]',
       '                     [--register-mcp codex,cursor,claude,trae,opencode,workbuddy]',
       '                     [--json]',
       '',
@@ -2932,28 +3024,30 @@ function printHelp(): void {
       '  taptap-maker pat set [--pat-stdin] [--json]',
       '  taptap-maker pat set [PAT|--pat PAT] [--json]  # fallback; warns: PAT appears in ps/history',
       '  taptap-maker install [--ide codex,cursor,claude,trae,opencode,workbuddy]',
-      '                        [--json]  # alias for mcp install',
+      '                        [--launcher self|npx] [--json]  # alias for mcp install',
       '  taptap-maker mcp install [--ide codex,cursor,claude,trae,opencode,workbuddy]',
-      '                             [--json]',
+      '                             [--launcher self|npx] [--json]',
       '  taptap-maker mcp verify [--mode npx|self] [--json]',
       '  taptap-maker mcp report [--ide CLIENT] [--target-dir DIR]',
       '                            [--context-stdin] [--consent] [--json]',
       '                            # Run only after the user agrees to submit',
       '  taptap-maker agents update [--target-dir DIR] [--json]',
       '  taptap-maker upgrade [--ide codex,cursor,claude,trae,opencode,workbuddy]',
-      '                         [--target-dir DIR] [--json]',
+      '                         [--launcher self|npx] [--target-dir DIR] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
-      'MCP install and verify use the same validated @taptap/maker package launcher.',
+      'MCP install and verify default to a stable self runtime under the Maker home directory.',
+      'Use --launcher npx only when npm startup is explicitly required; released builds pin',
+      'the exact @taptap/maker version and persist a dedicated writable npm cache.',
       '',
       'MCP install defaults:',
       '  Writes Codex, Cursor, Claude, detected Trae/OpenCode/WorkBuddy configs,',
       '  unless --ide is specified. It does not create missing Trae config files.',
       '',
       'Windows note:',
-      '  MCP configs use an absolute node.exe + npm-cli.js launcher on Windows.',
-      '  Missing absolute Node/npm launchers fail without changing client configs.',
+      '  The default self launcher uses absolute node.exe plus a stable versioned maker.js.',
+      '  Explicit npx mode uses absolute node.exe + npm-cli.js and never persists .cmd wrappers.',
       '',
     ].join('\n')
   );

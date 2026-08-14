@@ -239,6 +239,7 @@ export function formatMakerProjectHealthStatus(health: MakerProjectHealth): stri
     'Maker project structure',
     '',
     `- status: ${health.status}`,
+    `- evaluated_target_dir: ${health.projectRoot}`,
     `- can_build: ${health.canBuild ? 'yes' : 'no'}`,
     `- can_generate_test_qrcode: ${health.canGenerateTestQrcode ? 'yes' : 'no'}`,
   ];

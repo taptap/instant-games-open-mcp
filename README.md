@@ -86,6 +86,9 @@ taptap-maker dev-kit update
 自动化场景可用 `--pat-stdin` 从标准输入读取。`taptap-maker install` 是
 `taptap-maker mcp install` 的快捷别名。二者都会先用最终启动命令完成 MCP
 `initialize` 和 `tools/list`，验证成功后才写入 AI 客户端 MCP 配置；失败不会改动配置或备份。
+默认 launcher 会把当前精确版本的 Maker bundle、skills 和排障文档复制到用户 Maker 目录下的
+版本化 `mcp-runtime`，配置使用绝对 Node 路径直接启动，不依赖 npx 缓存、网络或客户端 PATH。
+只有明确需要 npm 启动链路时才使用 `--launcher npx`；该模式固定当前包版本并使用专用可写缓存。
 `taptap-maker init` 写入多个客户端配置时会继续尝试其余目标；只要任一目标失败，init 就记录
 `mcp_install_failed`、以非零状态结束且不报告初始化完成。已经成功写入的客户端配置会保留，
 修复失败项后可运行 `taptap-maker mcp install --ide <client>` 单独重试。
@@ -101,14 +104,15 @@ WorkBuddy 账号维度的启用/信任状态在 `.workbuddy/connectors/<account-
 结果中提示用户到 WorkBuddy MCP 设置里启用/信任 `taptap-maker`，不会自动修改账号信任状态。
 普通 `doctor` 不会因为发现 `.workbuddy` 就输出 WorkBuddy 诊断。OpenCode 只在
 `~/.config/opencode/opencode.jsonc` 已存在时写入。
-其它 AI 编辑器可按下面的通用 `mcpServers` 片段，让本地 AI 识别自己的配置文件位置后合并写入：
+其它 AI 编辑器应优先让本地 AI 复用 `taptap-maker mcp install` 已验证的绝对 command/args。
+只有无法复用安装器时，才使用下面固定精确版本的 npx 兼容片段：
 
 ```json
 {
   "mcpServers": {
     "taptap-maker": {
       "command": "npx",
-      "args": ["-y", "-p", "@taptap/maker", "taptap-maker"]
+      "args": ["-y", "-p", "@taptap/maker@<exact-version>", "taptap-maker"]
     }
   }
 }
@@ -120,6 +124,8 @@ TapTap Maker 的用户配置不需要设置服务环境。预览、构建、测�
 避免多个客户端、对话或 Maker 项目争用同一个全局路径。支持 MCP Roots 的客户端会用当前
 workspace root 识别项目；不支持 Roots 时，由 Agent 在具体 Maker tool 调用中传入 `target_dir`。
 MCP 进程自身的 cwd 只作为最后兜底和诊断信息，不应通过重写用户配置来切换项目。
+若 cwd fallback 没有绑定项目，Maker MCP 仍正常启动并保留 status/tools/list，但项目相关 proxy tool
+会快速失败，明确返回实际评估目录和上下文来源，避免把其它目录的 `not_initialized` 当成当前项目状态。
 安装器会先比较现有 `taptap-maker` 条目；内容一致时不写文件，Claude 也不会重复执行
 `claude mcp add`。因此后续项目 `init` 或无配置变化的 `upgrade` 不会触发配置重载。
 从旧 beta 升级时，安装器会移除现有 `taptap-maker` 条目中的历史 `cwd`，同时保留配置里的
@@ -491,8 +497,8 @@ AI dev kit 版本和 MCP 配置。`maker://status` 和 `maker_status_lite` 会�
 以及 schema 中的 `assets_7z_threshold=50`、`preload_include_refs=true`、
 `trim_remote_refs=true`、`legacy_binary=false`、`tags={}`；已有非默认值不得覆盖。
 `sources.*.tag`、项目身份、版本、入口、发布信息和 resources 分组只允许从完整副本恢复。
-`taptap-maker mcp verify` 默认使用安装器的同一 launcher 完成 MCP `initialize` 和
-`tools/list`；本地 dist 自测可用 `--mode self`。失败结果会标明 `stage`、`failure_type`、
+`taptap-maker mcp verify` 默认使用安装器的稳定 self runtime 完成 MCP `initialize` 和
+`tools/list`；显式 `--mode npx` 才验证精确版本 npm launcher。失败结果会标明 `stage`、`failure_type`、
 最终 command 和 stderr，并返回非零退出码；不要把本地启动或 stdio 握手失败误判为 PAT 或
 Maker 业务接口错误。
 

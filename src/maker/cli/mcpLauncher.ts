@@ -4,10 +4,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-export type MakerMcpLauncherKind = 'node_npm_cli' | 'path_npx' | 'current_cli';
+export type MakerMcpLauncherKind = 'node_npm_cli' | 'path_npx' | 'self_runtime';
 
 export type MakerMcpLauncher = {
   kind: MakerMcpLauncherKind;
@@ -24,7 +25,12 @@ export type MakerMcpLauncherVerification = {
   toolNames: string[];
   stderr?: string;
   error?: string;
-  failureType?: 'spawn_error' | 'timeout' | 'protocol_error' | 'missing_required_tool';
+  failureType?:
+    | 'spawn_error'
+    | 'timeout'
+    | 'npm_environment_error'
+    | 'protocol_error'
+    | 'missing_required_tool';
 };
 
 type ResolveMakerMcpLauncherOptions = {
@@ -44,6 +50,67 @@ type VerifyMakerMcpLauncherOptions = {
 const DEFAULT_VERIFY_TIMEOUT_MS = 90_000;
 const VERIFY_CLIENT_VERSION = '1.0.0';
 const REQUIRED_TOOL_NAME = 'maker_status_lite';
+const PUBLISHED_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const SELF_RUNTIME_DIRECTORIES = [
+  'skills/taptap-maker-local',
+  'skills/taptap-maker-dev-kit-guide',
+  'skills/update-taptap-mcp',
+];
+const SELF_RUNTIME_FILES = ['dist/maker.js', 'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'];
+
+export function resolveMakerPackageSpec(packageName: string, currentVersion: string): string {
+  return PUBLISHED_VERSION_PATTERN.test(currentVersion)
+    ? `${packageName}@${currentVersion}`
+    : packageName;
+}
+
+export function materializeMakerSelfLauncher(options: {
+  version: string;
+  bundleUrl: string;
+  makerHome: string;
+  execPath?: string;
+}): MakerMcpLauncher {
+  if (!PUBLISHED_VERSION_PATTERN.test(options.version) && options.version !== 'dev') {
+    throw new Error(`Invalid Maker runtime version: ${options.version}`);
+  }
+
+  const execPath = options.execPath ?? process.execPath;
+  if (!path.isAbsolute(execPath) || !fs.existsSync(execPath)) {
+    throw new Error('Maker self launcher requires an existing absolute Node executable.');
+  }
+
+  const sourceBundle = fileURLToPath(options.bundleUrl);
+  const sourceRoot = path.dirname(path.dirname(sourceBundle));
+  const runtimeRoot = path.join(path.resolve(options.makerHome), 'mcp-runtime', options.version);
+  for (const relativePath of [...SELF_RUNTIME_FILES, ...SELF_RUNTIME_DIRECTORIES]) {
+    const sourcePath = path.join(sourceRoot, relativePath);
+    if (!fs.existsSync(sourcePath)) {
+      throw new Error(`Maker self runtime source is incomplete: ${sourcePath}`);
+    }
+  }
+
+  if (path.resolve(sourceRoot) !== path.resolve(runtimeRoot)) {
+    for (const relativePath of SELF_RUNTIME_FILES) {
+      const sourcePath = path.join(sourceRoot, relativePath);
+      const targetPath = path.join(runtimeRoot, relativePath);
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      fs.copyFileSync(sourcePath, targetPath);
+    }
+    for (const relativePath of SELF_RUNTIME_DIRECTORIES) {
+      fs.cpSync(path.join(sourceRoot, relativePath), path.join(runtimeRoot, relativePath), {
+        recursive: true,
+      });
+    }
+  }
+
+  const stableBundle = path.join(runtimeRoot, 'dist', 'maker.js');
+  return {
+    kind: 'self_runtime',
+    command: execPath,
+    args: [stableBundle],
+    commandAndArgs: [execPath, stableBundle],
+  };
+}
 
 /**
  * Resolve a package launcher that can be persisted in AI client MCP configs.
@@ -147,9 +214,16 @@ export async function verifyMakerMcpLauncher(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return failureResult(launcher, stage, stderr, classifyVerificationFailure(message), message);
+    return failureResult(
+      launcher,
+      stage,
+      stderr,
+      classifyVerificationFailure(message, stderr),
+      message
+    );
   } finally {
     await closeClient(client);
+    transport.stderr?.destroy();
   }
 }
 
@@ -173,9 +247,18 @@ function failureResult(
   };
 }
 
-function classifyVerificationFailure(
-  message: string
+export function classifyVerificationFailure(
+  message: string,
+  stderr: string
 ): NonNullable<MakerMcpLauncherVerification['failureType']> {
+  const diagnosticText = `${message}\n${stderr}`;
+  if (
+    /npm\s+(?:(?:ERR!|error)\s+)?(?:code\s+)?E(?:PERM|ACCES)|cache folder contains root-owned files|cache[^\n]*(?:permission|not writable|write failed)/i.test(
+      diagnosticText
+    )
+  ) {
+    return 'npm_environment_error';
+  }
   if (/timed out/i.test(message)) {
     return 'timeout';
   }

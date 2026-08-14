@@ -157,6 +157,8 @@ taptap-maker apps --json
 taptap-maker pat set
 taptap-maker install --ide codex,cursor,claude,trae,opencode,workbuddy
 taptap-maker mcp verify
+taptap-maker mcp install --launcher npx --ide <client>
+taptap-maker mcp verify --mode npx
 npx -y --package @taptap/maker@${version} taptap-maker mcp report --ide <client> --target-dir <project> --context-stdin --consent --json
 taptap-maker agents update
 taptap-maker upgrade
@@ -164,6 +166,10 @@ taptap-maker dev-kit update
 \`\`\`
 
 \`taptap-maker install\` is a shortcut alias for \`taptap-maker mcp install\`.
+\`mcp install\` defaults to a stable versioned self runtime under the Maker home directory, using
+the current absolute Node executable without an npx cache or network dependency. The explicit
+\`--launcher npx\` compatibility mode pins this package version and persists a dedicated writable
+npm cache for both verification and the AI client.
 \`taptap-maker upgrade\` refreshes the current machine MCP config and the current bound project's
 managed \`AGENTS.md\` policy block. The user-level MCP entry never stores a project \`cwd\`;
 reinstall and upgrade also remove legacy project \`cwd\` values. On upgrade, \`--target-dir\` only

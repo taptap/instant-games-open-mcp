@@ -267,13 +267,17 @@ client reports `-32000`, `Connection closed`, or `command not found`, do not cal
 for the initial diagnosis. Work offline first:
 
 1. Find the MCP config file the current client actually reads and back it up.
-2. Attempt `npx -y -p @taptap/maker taptap-maker mcp verify --json`; on Windows use
-   `npx.cmd -y -p @taptap/maker taptap-maker mcp verify --json`. If the command itself fails, keep
-   that failure as diagnostic evidence.
-3. This command uses the same resolved launcher as MCP install, starts `@taptap/maker`, completes MCP
+2. Attempt `taptap-maker mcp verify --json`. It verifies the stable self runtime by default; use
+   `--mode npx` only when diagnosing npm startup. If the command itself fails, keep that failure as
+   diagnostic evidence. If `taptap-maker` is not on PATH, reuse that config's absolute command and
+   ordered args, append `mcp verify --json`, and run the same argv directly.
+3. This command uses the same stable launcher as MCP install and completes MCP
    initialize and tools/list, and returns launcher_kind, command, stage, tools, stderr, error, and
    failure_type. It does not read the client's active config or validate WorkBuddy trust, client
    config caching, or Roots.
+   In explicit npx mode, EPERM/EACCES or an unwritable npm cache is
+   `npm_environment_error`; prefer `mcp install --launcher self` instead of blindly changing
+   `~/.npm` ownership.
 4. First identify the active AI client from reliable evidence, then inspect and reproduce only that
    client's active config path, command, ordered args, cwd, workspace/Roots, Node/npm/npx paths,
    client PATH, exit status, and stderr.
@@ -282,13 +286,15 @@ for the initial diagnosis. Work offline first:
    ask the user to enable it in WorkBuddy.
 6. Never use one client's configuration or trust state to diagnose another client. `doctor` does not
    inspect the active AI client's loaded tools or configuration.
-7. On Windows, configs written by the CLI must use the verified absolute Node/npm launcher. Treat
-   existing `cmd.exe` or `npx.cmd` configs as legacy diagnostic evidence; do not persist them as a
-   repair. Never replace cwd with a `cd /d "<project>" && npx.cmd ...` command string, including for
-   Chinese project paths.
+7. On Windows, configs written by the CLI default to absolute Node plus the versioned self runtime.
+   Explicit npx mode uses absolute Node/npm. Treat existing `cmd.exe` or `npx.cmd` configs as legacy
+   diagnostic evidence; do not persist them as a repair. Never replace cwd with a
+   `cd /d "<project>" && npx.cmd ...` command string, including for Chinese project paths.
 8. User-level MCP config must not contain a project cwd. If WorkBuddy does not expose Roots, pass
    `target_dir` on the concrete Maker tool call and record the process actual cwd only as diagnostic
    evidence.
+   If cwd fallback is unbound, project-related proxy calls return `evaluated_target_dir` and
+   `project_context_source` before remote access. Fix Roots or pass the correct `target_dir`.
 9. Do not assume Windows 8.3 short paths exist or differ from the original long path. Verify the
    result first; an unchanged or missing short path is not a usable cwd workaround.
 10. Reproduce the configured Windows launch with the same direct argv boundary when possible.

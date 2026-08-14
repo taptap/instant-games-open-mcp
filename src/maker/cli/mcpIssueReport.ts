@@ -11,7 +11,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { identifyMakerProject } from '../server/identify.js';
-import { resolveMakerMcpLauncher, verifyMakerMcpLauncher } from './mcpLauncher.js';
+import {
+  resolveMakerPackageSpec,
+  resolveMakerMcpLauncher,
+  verifyMakerMcpLauncher,
+} from './mcpLauncher.js';
 
 const MAKER_MCP_NAME = 'taptap-maker';
 const GITHUB_REPOSITORY = 'taptap/instant-games-open-mcp';
@@ -240,7 +244,9 @@ export async function collectMakerMcpIssueDiagnostics(options: {
 
   let mcpVerify: unknown;
   try {
-    mcpVerify = options.verify ? await options.verify() : await collectMcpVerifyEvidence();
+    mcpVerify = options.verify
+      ? await options.verify()
+      : await collectMcpVerifyEvidence(options.makerVersion);
   } catch {
     mcpVerify = {
       ok: false,
@@ -635,9 +641,11 @@ function asStringArray(value: unknown): string[] {
     : [];
 }
 
-async function collectMcpVerifyEvidence(): Promise<Record<string, unknown>> {
+async function collectMcpVerifyEvidence(makerVersion: string): Promise<Record<string, unknown>> {
   try {
-    const launcher = resolveMakerMcpLauncher({ packageName: '@taptap/maker' });
+    const launcher = resolveMakerMcpLauncher({
+      packageName: resolveMakerPackageSpec('@taptap/maker', makerVersion),
+    });
     const result = await verifyMakerMcpLauncher(launcher, { timeoutMs: 15_000 });
     return {
       ok: result.ok,

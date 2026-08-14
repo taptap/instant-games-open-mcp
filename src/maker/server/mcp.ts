@@ -797,9 +797,23 @@ export async function startMakerMcpServer(): Promise<void> {
           listClientRoots,
           allowFallbackOnAmbiguousRoots: false,
         });
+        const proxyProject = inspectMakerProxyProjectContext(context, name);
+        if (!proxyProject.ok) {
+          const result = {
+            isError: true,
+            content: [{ type: 'text', text: proxyProject.message }],
+          };
+          void reportMakerMcpActivityFromPromise(contextPromise, {
+            toolName: name,
+            requestId: extra.requestId,
+            durationMs: Date.now() - startedAt,
+            success: false,
+          });
+          return result;
+        }
         if (name === 'generate_test_qrcode') {
           const preflight = inspectMakerQrcodeToolPreflight(
-            context.targetDir,
+            proxyProject.targetDir,
             requestArgs.confirmed_screen_orientation
           );
           if (!preflight.ok) {
@@ -816,7 +830,7 @@ export async function startMakerMcpServer(): Promise<void> {
             return result;
           }
         } else if (name === 'get_ad_config' || name === 'add_test_whitelist') {
-          const projectHealth = inspectMakerProxyToolPreflight(name, context.targetDir);
+          const projectHealth = inspectMakerProxyToolPreflight(name, proxyProject.targetDir);
           if (
             projectHealth &&
             (projectHealth.status === 'not_initialized' || !projectHealth.canBuild)
@@ -840,7 +854,7 @@ export async function startMakerMcpServer(): Promise<void> {
           }
         }
         const result = await callRemoteProxyTool({
-          targetDir: context.targetDir,
+          targetDir: proxyProject.targetDir,
           name,
           args: remoteArgs,
           progressToken: request.params._meta?.progressToken,
@@ -1688,11 +1702,34 @@ type MakerClientRootsResolution =
       message: string;
     };
 
-type MakerProjectContext = {
+export type MakerProjectContext = {
   targetDir: string;
   source: MakerProjectContextSource;
   roots: MakerClientRootsResolution;
 };
+
+export function inspectMakerProxyProjectContext(
+  context: MakerProjectContext,
+  toolName: string
+): { ok: true; targetDir: string } | { ok: false; message: string } {
+  const evaluatedTargetDir = path.resolve(context.targetDir);
+  const identify = identifyMakerProject({ cwd: evaluatedTargetDir });
+  if (identify.projectRoot) {
+    return { ok: true, targetDir: identify.projectRoot };
+  }
+
+  return {
+    ok: false,
+    message: [
+      'No bound Maker project was found for this proxy tool call.',
+      `- tool: ${toolName}`,
+      `- evaluated_target_dir: ${evaluatedTargetDir}`,
+      `- project_context_source: ${context.source}`,
+      `- required_config: ${path.join(evaluatedTargetDir, '.maker-mcp', 'config.json')}`,
+      '- next_action: Open the Maker project as the active workspace, or pass target_dir explicitly. Do not write a project cwd into user-level MCP config.',
+    ].join('\n'),
+  };
+}
 
 function createServerClientRootsProvider(server: Server): MakerClientRootsProvider {
   return async () => {

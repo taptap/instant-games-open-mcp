@@ -79,8 +79,7 @@ Maker 包版本号使用三段式 semver，例如 `0.0.1`。Maker 包只能从�
 npx -y @taptap/maker init
 ```
 
-AI 客户端 MCP 配置也应使用 `taptap-maker mcp install` 写入的
-`npx -y -p @taptap/maker taptap-maker` 命令；不要再依赖
+AI 客户端 MCP 配置也应使用 `taptap-maker mcp install` 写入的稳定 self runtime；不要再依赖
 `@taptap/instant-games-open-mcp` 提供 Maker CLI。
 
 ## 崩溃日志保护
@@ -112,8 +111,8 @@ npx -y @taptap/maker init
 ```
 
 普通初始化不要在 `taptap-maker init` 后追加 `--package`。该参数已移除；CLI 写入
-AI 客户端 MCP 配置和 `taptap-maker mcp verify` 默认验证的 npx 包都固定为
-`@taptap/maker`。
+AI 客户端 MCP 配置和 `taptap-maker mcp verify` 默认使用当前精确版本的稳定 self runtime。
+只有明确检查 npm 启动链路时才使用 `--launcher npx` 或 `mcp verify --mode npx`。
 
 这些用户话术都应触发 Maker 本地开发初始化流程，并优先让 Agent 调用 CLI，而不是逐个调用 MCP tool：
 
@@ -213,10 +212,15 @@ Python 运行时策略：
   `<config>.taptap-maker.bak.latest`，不会创建新的时间戳备份，也不会删除历史 `.bak.*` 文件。
   Claude 用户级条目内容一致时也会跳过 `claude mcp add`，避免重复触发配置信任或客户端重载。
   如果已有 JSON 配置无法解析，CLI 会停止该目标写入并保留原文件。
+  默认 `--launcher self` 把当前包的 `dist/maker.js`、skills 和排障文档物化到
+  `TAPTAP_MAKER_HOME/mcp-runtime/<version>/`，并写入绝对 Node + 稳定 bundle 路径。
+  `--launcher npx` 作为兼容模式，发布包固定当前精确版本并把专用可写 npm cache 同步写入
+  验证进程和客户端配置，避免验证成功后客户端仍回落到不可写的默认缓存。
   其它 AI 编辑器可使用 README 中的通用 `mcpServers` JSON 片段，让本地 AI 先识别该编辑器的
   实际配置文件位置，再合并写入；CLI 不会额外生成通用配置文件。
-- `taptap-maker mcp verify`：默认使用安装器的同一 launcher 完成 MCP `initialize` 和
-  `tools/list`；`--mode self` 验证当前 CLI 二进制。失败会输出 `stage`、`failure_type`、最终
+- `taptap-maker mcp verify`：默认使用安装器的稳定 self runtime 完成 MCP `initialize` 和
+  `tools/list`；`--mode npx` 验证固定当前精确版本的 npm launcher。失败会输出 `stage`、
+  `failure_type`、最终
   command 和 stderr，并返回非零退出码；不要当作 PAT、项目或 Maker 业务接口错误。
 - `taptap-maker mcp report`：Maker MCP 之外的轻量故障上报命令，MCP 或 proxy 无法连接时仍可
   运行。AI 先对疑似基础设施缺陷向用户询问一次；只有用户明确同意后，才把当前会话错误 JSON
@@ -262,7 +266,7 @@ MCP 运行期能力：
   `latest_beta`、`minimum_supported`、`blacklist` 和 `message` 字段来决定是否需要升级。
   状态只会报告 `required_upgrade`、`update_available`、`current`、`unavailable` 或 `skipped`。
   如果状态是 `required_upgrade`，本地 AI 必须先向用户解释原因并征得同意；用户同意后，
-  若项目目录已确认，再运行 `npx -y -p @taptap/maker taptap-maker upgrade --target-dir <PROJECT_DIR>`；
+  若项目目录已确认，再运行 `taptap-maker upgrade --target-dir <PROJECT_DIR>`；
   如果还没有确认项目目录，只能说明 machine-level refresh 的取舍，再决定是否运行不带
   `--target-dir` 的 `taptap-maker upgrade`。升级后当前会话继续可用；提示用户新版本将在下一次
   MCP 启动或主动 reconnect 后生效，再用 `maker://status` 或 `maker_status_lite` 复核结果。
@@ -368,6 +372,11 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 - 冲突解决前必须让用户确认，不隐藏 unresolved conflict。
 
 `taptap-maker doctor` 和 `maker://status` 会输出已随包内置的 skill 名称和文档路径：`taptap-maker-local`、`taptap-maker-dev-kit-guide` 与 `update-taptap-mcp`。Maker 操作目标是用户当前项目目录；支持 MCP Roots 的客户端会由 workspace root 提供该目录。仅当没有可用 Roots 且调用未显式传 `target_dir` 时，MCP 进程 cwd 才作为最终兜底，并在状态中标明来源。若状态输出 `MCP client roots` 且只有一个 root，或多个 root 中只有一个已绑定 Maker 项目，Maker MCP 会自动选择该目录；如果多个 root 都是 Maker 项目，Agent 不应猜测，应让用户只打开一个 Maker workspace 或显式传 `target_dir`。`taptap-maker doctor` 不检查当前 AI 会话的 tools 或客户端配置；`doctor_cwd` 只代表 CLI 进程目录，不能单独证明会话 cwd 错误。若只是首次安装后当前对话看不到 tools，应根据当前客户端的实际配置和日志排查，并在确认客户端支持时重启或 Reconnect。
+
+当客户端不广播 MCP Roots 且进程 cwd 不是已绑定 Maker 项目时，MCP server、status 和
+`tools/list` 仍保持可用；依赖项目的 proxy tool 会在访问远端前快速失败，并返回
+`evaluated_target_dir`、`project_context_source` 和显式 `target_dir` 指引，避免静默评估 `/tmp`
+或其它对话目录。显式 `target_dir` 指向未绑定目录时使用同一错误边界。
 
 已绑定项目还会检查 `AGENTS.md` 中 TapTap Maker managed policy block 的版本和 hash。
 如果状态显示 `missing_file`、`missing_block` 或 `outdated`，说明用户进入了旧项目或本地规则
@@ -546,10 +555,12 @@ Windows 引导：
 
 Windows 兼容注意：
 
-- 写入 MCP 配置时，Windows 只使用绝对 `node.exe` 加绝对 `npm-cli.js`；该组合不可用时
-  安装失败，不通过 `cmd.exe` 持久化 `.cmd` launcher，也不会写入依赖客户端 PATH 的裸命令。
+- 默认 self launcher 使用绝对 `node.exe` 加 Maker 用户目录中的版本化 `dist/maker.js`，不依赖
+  npm/npx、网络或客户端 PATH。显式 npx 模式才使用绝对 `node.exe` 加绝对 `npm-cli.js`；该组合
+  不可用时安装失败，不通过 `cmd.exe` 持久化 `.cmd` launcher。
 - OpenCode 使用官方 `mcp` 配置 schema：`~/.config/opencode/opencode.jsonc` 中的
-  `mcp.<name>.command` 是数组，并复用和其它客户端相同的已验证 launcher，不写环境变量。
+  `mcp.<name>.command` 是数组，并复用和其它客户端相同的已验证 launcher。self 模式只写客户端
+  标识，显式 npx 模式额外写专用 npm cache；都不写项目路径或项目级本地研发服务选择。
 - Trae Solo 是重点支持目标；Solo 或 Solo CN 的 `User/` 目录存在时会创建或合并
   `User/mcp.json`。普通 Trae/Trae CN 仍作为候选路径保留，但只有 `mcp.json` 已存在时才合并写入。
   macOS 常见位置包括
@@ -580,6 +591,8 @@ Windows 兼容注意：
 - 安装器在任何配置写入前完成 MCP `initialize` 和 `tools/list`；失败时所有目标配置和
   `<config>.taptap-maker.bak.latest` 均保持不变。
 - `taptap-maker mcp verify` 复用相同协议验证，失败时输出阶段和诊断并返回非零退出码。
+- npm launcher stderr 中的 EPERM、EACCES、root-owned/cache 不可写归类为
+  `npm_environment_error`；不要按 npm 通用文案盲目修改 `~/.npm` 所有权，优先使用默认 self launcher。
 - `taptap-maker mcp install` 会逐 IDE 返回成功或失败；某个客户端配置写入失败不会阻塞其他客户端继续尝试，但最终退出码为非零。
 - `taptap-maker init` 遵循相同的整体成功契约；任一客户端写入失败时记录
   `mcp_install_failed`，不保存 `completed` 状态，也不输出初始化完成事件。

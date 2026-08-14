@@ -67,9 +67,11 @@ CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
   可能无法稳定安装诊断依赖，自动准备时会走 uv managed Python。Lua LSP 依赖安装在 Maker
   私有 venv 中，不直接修改 uv-managed Python。
 - 本地分支测试可直接用 `node dist/maker.js`，不依赖 npm 发布。
-- Windows 下只写绝对 `node.exe + npm-cli.js`；找不到该组合时安装失败，不持久化 `.cmd`
-  shell 命令。写入前完成 MCP `initialize + tools/list`，不依赖客户端 PATH。
-- OpenCode 使用官方 `mcp` schema 和 command 数组，不写环境变量，且只写已存在配置文件；
+- 默认 launcher 把当前精确版本物化为稳定 self runtime，并写绝对 Node 与 Maker bundle 路径；
+  Windows 显式 npx 模式才写绝对 `node.exe + npm-cli.js`，不持久化 `.cmd` shell 命令。写入前
+  完成 MCP `initialize + tools/list`，不依赖客户端 PATH。
+- OpenCode 使用官方 `mcp` schema 和 command 数组；self 模式只写客户端标识，显式 npx 模式
+  额外写专用 npm cache，且只写已存在配置文件；
   Trae Solo/Solo CN 优先支持，按 `User/` 目录创建或合并 `User/mcp.json`，普通 Trae
   只在 `mcp.json` 已存在时更新；WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的
   `.workbuddy/mcp.json`，显式传 `--ide workbuddy` 时会创建该官方配置文件。未显式指定 IDE
