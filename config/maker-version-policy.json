@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "latest": "0.0.28",
+  "latest": "0.0.29",
   "latest_beta": "0.0.30-beta.2",
   "minimum_supported": "0.0.1",
   "blacklist": [],
