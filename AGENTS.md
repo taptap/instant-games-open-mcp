@@ -350,9 +350,12 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - AI dev kit 安装/更新按当前环境查询最新版本信息，按返回的 `current.version` 生成版本化下载 URL；版本检查失败时降级使用内置默认下载地址。安装成功后记录本地已安装版本，`taptap-maker doctor`、`maker://status` 和 `maker_status_lite` 输出当前版本、最新版本和是否可更新。
 - `taptap-maker init` 首次拉取默认使用 `git init` + `git fetch --depth=1 origin` + checkout；Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
 - 首次 clone/fetch 前必须提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
-- CLI 写 MCP 配置时优先支持 Windows：只固化当前进程的绝对 `node.exe` 与
-  `npm-cli.js`，不把 `.cmd` shell 命令写入客户端配置。找不到绝对 Node/npm CLI 时安装失败，
-  不生成依赖客户端 PATH 的裸 `npx.cmd`。最终命令必须先完成 MCP `initialize` 和 `tools/list`，验证失败时
+- CLI 写 MCP 配置时优先支持 Windows：默认把当前包的 Maker bundle、skills 和排障文档物化到
+  `TAPTAP_MAKER_HOME/mcp-runtime/<version>/`，并固化当前进程的绝对 `node.exe` 与版本化
+  `dist/maker.js`，避免依赖 npx 缓存、网络和客户端 PATH。显式 `--launcher npx` 才使用 npm，
+  发布包必须固定当前精确版本、使用专用可写 npm cache；Windows 固化绝对 `node.exe` 与
+  `npm-cli.js`，不把 `.cmd` shell 命令写入客户端配置。最终命令必须先完成 MCP `initialize` 和
+  `tools/list`，验证失败时
   不修改任何客户端配置或备份；Git 引导优先指向 Git for
   Windows；macOS 用户可通过 `git --version` 触发 Xcode Command Line Tools 或安装官方
   Git。`taptap-maker init`、`mcp install` 和 `upgrade` 写入的用户级 MCP 配置永远不包含项目
@@ -365,8 +368,8 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `taptap-maker` 条目，内容一致时不写文件；Claude 也不得重复执行 `claude mcp add`。
   Trae Solo/Solo CN 优先支持，按 `User/` 目录创建或合并 `User/mcp.json`，普通 Trae
   只在 `mcp.json` 已存在时更新；
-  OpenCode 使用官方 `mcp` schema 和 command 数组，只写客户端标识，不持久化项目路径或
-  项目级本地研发服务选择；
+  OpenCode 使用官方 `mcp` schema 和 command 数组；self 模式只写客户端标识，显式 npx 模式
+  额外写专用 npm cache，不持久化项目路径或项目级本地研发服务选择；
   WorkBuddy 在 macOS 和 Windows 都优先写用户目录下的 `.workbuddy/mcp.json`；显式传
   `--ide workbuddy` 时会创建该官方配置文件；未显式指定 IDE 的自动检测模式下，legacy
   `.workbuddy/.mcp.json` 仅在官方配置文件不存在且自身已存在时作为 fallback 合并；通用
@@ -374,13 +377,17 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   CLI 不生成额外通用配置文件。`taptap-maker init` 写入多个客户端配置时，任一目标失败都必须
   记录 `mcp_install_failed`、返回非零且不报告初始化完成；已成功写入的目标保持不变，失败项可用
   `taptap-maker mcp install --ide <client>` 单独重试。
-- `taptap-maker mcp verify` 默认用 `mcp install` 的同一启动器执行 MCP `initialize` 和
-  `tools/list`；本地开发只验证当前 CLI 时使用 `--mode self`。验证失败必须返回非零退出码。
+- `taptap-maker mcp verify` 默认验证安装器使用的稳定 self runtime；`--mode npx` 验证固定当前
+  精确版本的 npm launcher。验证失败必须返回非零退出码。npm stderr 中的 EPERM、EACCES、
+  root-owned/cache 不可写必须归类为 `npm_environment_error`，不能误报为普通 protocol error。
 - `taptap-maker doctor` 只做离线主机、项目和 CLI 执行上下文检查，不检查当前 AI 会话是否已
   加载 Maker tools，也不读取客户端实际配置；不要因为存在 `.workbuddy` 就把 WorkBuddy trust
   当作其它客户端的故障原因。Python/Lua LSP、dev-kit、版本和 AGENTS policy 检查属于维护信息，
   不能单独证明 MCP 连接失败。
 - Maker MCP tools 缺失或出现 `-32000` / `Connection closed` 时，先按 `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md` 做不依赖 MCP tools 的本地自检。先根据真实配置、日志或 MCP 初始化信息确认当前客户端，再检查该客户端的 command/args/cwd、MCP Roots、Node/npm/npx、client PATH、退出码和 stderr；只有确认当前客户端为 WorkBuddy 时才检查其信任状态。禁止用 Windows 中文路径 `cd && npx` 拼接命令修复 cwd。
+- 远端 proxy tool 调用必须先确认解析出的目录存在有效 `.maker-mcp/config.json`。MCP Roots 不可用
+  且进程 cwd 未绑定时，只让该项目相关调用快速失败，错误必须包含 `evaluated_target_dir`、
+  `project_context_source` 和显式 `target_dir` 指引；不得阻止 MCP server、status 或 tools/list 启动。
 - 疑似 Maker MCP、proxy、客户端集成或服务端基础设施缺陷（启动/连接失败、tools 异常缺失、超时、反复重连失败、HTTP 5xx/unavailable、未分类内部错误）时，AI 应先按错误码、操作和稳定错误信息形成故障指纹，并在当前会话只询问用户一次是否允许上报。用户明确同意后，把已脱敏的错误、当前 tools、workspace roots、客户端版本和复现步骤通过 stdin 交给 Maker 报告 CLI。优先原样复用当前客户端 `taptap-maker` 配置中的 command 和有序 args，再追加 `mcp report --ide <client> --target-dir <project> --context-stdin --consent --json`；不得依赖全局 PATH 中存在 `taptap-maker`，也不得用无版本的 `@taptap/maker` 启动可能落后的 npm `latest`。只有确认精确安装版本时才可使用 `npx -y --package @taptap/maker@<exact-version> taptap-maker ...` 作为 fallback；Windows 的 `npx` 不可用时继续使用配置内的绝对 `node.exe` 和 `npm-cli.js` argv。不要上传完整聊天、项目源码、其它 MCP server、PAT/token 或完整环境变量。普通参数错误、已有明确恢复路径的登录问题、项目文件缺失、用户取消、Lua 编译或业务校验错误不提示上报。返回 `manual_required` 表示 GitHub 不可达、未登录或自动提交失败；展示脱敏报告和手动 Issue 地址后继续原任务，不得把上报失败当作 Maker 任务失败。
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。

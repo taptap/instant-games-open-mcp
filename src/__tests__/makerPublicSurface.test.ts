@@ -102,8 +102,11 @@ describe('Maker public documentation', () => {
       'PATH',
       'stderr',
       'connector-states.json',
-      'npx -y -p @taptap/maker taptap-maker mcp verify --json',
-      'npx.cmd -y -p @taptap/maker taptap-maker mcp verify --json',
+      'taptap-maker mcp verify --json',
+      'stable self runtime',
+      'npm_environment_error',
+      'evaluated_target_dir',
+      'project_context_source',
       'launcher_kind、command、stage、tools、stderr、error 和',
       '`initialize` 和 `tools/list`',
       '不会读取',
@@ -173,8 +176,8 @@ describe('Maker public documentation', () => {
     const normalizedSkill = skill.replace(/\s+/gu, ' ');
 
     for (const expected of [
-      'npx -y -p @taptap/maker taptap-maker mcp verify --json',
-      'same resolved launcher as MCP install',
+      'taptap-maker mcp verify --json',
+      'same stable launcher as MCP install',
       'completes MCP initialize and tools/list',
       "does not read the client's active config",
       'client config caching, or Roots',
@@ -193,7 +196,8 @@ describe('Maker public documentation', () => {
       '`mcp verify` is not the primary check for an already connected session',
       'complete sanitized `remote_result`',
       'failed tool/resource, redacted request parameters, current `tools/list`',
-      'absolute Node/npm launcher',
+      'absolute Node plus the versioned self runtime',
+      "reuse that config's absolute command and ordered args",
     ]) {
       expect(normalizedSkill).toContain(expected);
     }
@@ -206,6 +210,10 @@ describe('Maker public documentation', () => {
 
     expect(skill).toContain('never contains a project `cwd`');
     expect(skill).toContain('only selects the project whose managed `AGENTS.md` policy is updated');
+    expect(skill).toContain('@taptap/maker@<TARGET_VERSION>');
+    expect(skill).toContain('stable self runtime');
+    expect(skill).toContain('`--launcher npx`');
+    expect(skill).not.toContain('Refreshes AI client MCP config to launch `npx');
     expect(skill).not.toContain('Pins `cwd`');
     expect(skill).not.toContain('wrong `cwd`');
   });

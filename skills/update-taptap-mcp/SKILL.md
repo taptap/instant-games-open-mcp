@@ -36,18 +36,20 @@ This workflow upgrades only the current machine and the current Maker project di
    that workspace as `<PROJECT_DIR>`. If there are multiple workspaces, or the current directory is
    not clearly a Maker project, ask the user for the Maker project directory before using
    `--target-dir`.
-4. After the user approves the upgrade, run the current package upgrade command for the confirmed
-   project:
+4. Read the exact target package version from the status result (`latest` or `latest_beta`, matching
+   the user's current release channel). After the user approves the upgrade, run that exact package
+   version for the confirmed project:
 
 ```bash
-npx -y -p @taptap/maker taptap-maker upgrade --target-dir <PROJECT_DIR>
+npx -y -p @taptap/maker@<TARGET_VERSION> taptap-maker upgrade --target-dir <PROJECT_DIR>
 ```
 
 If the user only wants one client, pass `--ide codex`, `--ide cursor`, or `--ide claude`.
 
 If the user only wants to refresh the machine-level MCP command and no Maker project directory is
 confirmed, explain that this refresh will not update project `AGENTS.md`, then run
-`npx -y -p @taptap/maker taptap-maker upgrade` without `--target-dir` only after the user agrees.
+`npx -y -p @taptap/maker@<TARGET_VERSION> taptap-maker upgrade` without `--target-dir` only after the
+user agrees.
 
 5. Tell the user that the current MCP session remains available and continues using the existing
    version and proxy tools. The updated package and `AGENTS.md` take effect on the next MCP start or
@@ -71,7 +73,10 @@ confirmed, explain that this refresh will not update project `AGENTS.md`, then r
 
 `taptap-maker upgrade` performs current-directory upgrade work:
 
-- Refreshes AI client MCP config to launch `npx -y -p @taptap/maker taptap-maker`.
+- Materializes the exact package version as a stable self runtime and refreshes AI client MCP config
+  to use its absolute Node and bundle paths.
+- `--launcher npx` is an explicit compatibility mode; it pins the exact package version and uses a
+  dedicated writable npm cache instead of becoming the upgrade default.
 - User-level MCP config never contains a project `cwd`; unchanged entries are not rewritten.
 - `--target-dir` only selects the project whose managed `AGENTS.md` policy is updated.
 - Updates the current project's TapTap Maker managed `AGENTS.md` policy block when the directory is
@@ -105,7 +110,7 @@ When a user upgrades MCP and later opens an old Maker project:
 2. If the `AGENTS.md` section reports `missing_file`, `missing_block`, or `outdated`, run:
 
 ```bash
-npx -y -p @taptap/maker taptap-maker agents update --target-dir <PROJECT_DIR>
+npx -y -p @taptap/maker@<TARGET_VERSION> taptap-maker agents update --target-dir <PROJECT_DIR>
 ```
 
 3. Tell the user the current session remains usable. The updated `AGENTS.md` instructions load on the
