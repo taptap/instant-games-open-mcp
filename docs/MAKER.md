@@ -27,6 +27,41 @@
   该组合时安装失败，不持久化 `.cmd` shell 命令或依赖客户端 PATH；Git 引导优先指向 Git for Windows。
 - 仓库同时提供 `taptap-maker-local`、`taptap-maker-dev-kit-guide` 和 `update-taptap-mcp` skills，用于把本地 Git 工作流、AI dev kit 内容说明和 MCP 更新缓存流程交给本地 AI/Agent 按业务规则执行。
 
+## Codex Plugin（0.0.30）
+
+Codex 插件位于 `plugins/taptap-maker`，由
+`npm run maker:codex-plugin:prepare` 确定性生成，包含 `dist/maker.js`、`bin/taptap-maker`、
+Maker Skills 和连接排障文档。`.mcp.json` 以插件根目录为 `cwd`，使用宿主 Node.js 直接启动
+`./dist/maker.js`，运行时不依赖外部 npm/npx。
+默认版本来自 `config/maker-version-policy.json` 的 `latest`；构建脚本、manifest 和测试共享这一
+来源，`--version` 仅作为显式覆盖。打包测试使用临时输出目录，不重写仓库内的正式插件或 bundle。
+
+插件沿用现有 Maker CLI/MCP 的鉴权、项目绑定、clone、状态、构建和 proxy tool 实现，不复制
+业务逻辑。插件专属生命周期由 `taptap-maker-plugin-lifecycle` 管理：
+
+- 首次使用前只读检查 Codex 中旧的独立 Maker MCP。
+- 只有用户明确确认后才把旧注册设为 `enabled = false`，不删除配置，并保留
+  `.taptap-maker.bak.latest` 和可恢复状态。
+- 重复迁移与恢复保持幂等；迁移状态记录原注册和禁用后注册的结构指纹。同名注册被替换或修改后
+  restore 返回 `not_owned`，不会误启用新注册。用户自己禁用的旧注册也不归插件所有。
+- 新项目初始化运行插件内 CLI，并传 `--skip-mcp-install`，避免产生第二份 MCP 注册。
+- 插件内 `update-taptap-mcp` 是 Codex 专用版本，升级只走 Codex marketplace，不运行 npm/npx
+  或独立 `taptap-maker upgrade`；卸载前如需恢复旧 MCP，先执行确认式 restore。
+- 插件模式下 `mcp report` 读取插件自己的 `.mcp.json` 并直接验证当前 `dist/maker.js`；独立 MCP
+  继续读取用户级客户端配置并验证稳定 self runtime，两种诊断来源不会混用。
+
+相关命令：
+
+```text
+taptap-maker plugin inspect --client codex --json
+taptap-maker plugin migrate --client codex --confirm --json
+taptap-maker init --skip-mcp-install
+taptap-maker plugin restore --client codex --confirm --json
+```
+
+WorkBuddy 插件将复用相同 Maker runtime、CLI、Skills 和迁移状态模型，但属于下一阶段交付，
+当前插件包只面向 Codex。
+
 ## 本地测试
 
 不要拉线上 npm 包。修改后在仓库内执行：

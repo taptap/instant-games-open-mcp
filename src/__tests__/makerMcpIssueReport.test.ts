@@ -5,12 +5,14 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   buildMakerMcpIssue,
   collectMakerMcpIssueDiagnostics,
   extractMakerMcpServerConfig,
   inspectMakerMcpClientConfig,
   parseMakerMcpReportContext,
+  resolveMakerMcpReportRuntime,
   submitMakerMcpIssue,
 } from '../maker/cli/mcpIssueReport';
 
@@ -524,6 +526,93 @@ describe('Maker MCP issue report', () => {
       status: 'found',
       entries: [expect.objectContaining({ path: configPath, status: 'found' })],
     });
+  });
+
+  test('resolves Codex plugin reports to the active plugin config and bundle', () => {
+    const pluginRoot = path.join(tempDir, 'taptap-maker');
+    const bundlePath = path.join(pluginRoot, 'dist', 'maker.js');
+    const configPath = path.join(pluginRoot, '.mcp.json');
+
+    const runtime = resolveMakerMcpReportRuntime({
+      distribution: 'codex_plugin',
+      bundleUrl: pathToFileURL(bundlePath).href,
+      execPath: process.execPath,
+    });
+
+    expect(runtime).toEqual({
+      distribution: 'codex_plugin',
+      config_source: {
+        format: 'json',
+        paths: [configPath],
+        mcp_name: 'taptap-maker-plugin',
+      },
+      launcher: {
+        kind: 'self_runtime',
+        command: process.execPath,
+        args: [bundlePath],
+        commandAndArgs: [process.execPath, bundlePath],
+      },
+      cwd: pluginRoot,
+      env: {
+        TAPTAP_MAKER_DISTRIBUTION: 'codex_plugin',
+        TAPTAP_MCP_CLIENT_IDE: 'codex',
+      },
+    });
+    expect(resolveMakerMcpReportRuntime({ distribution: undefined })).toBeUndefined();
+  });
+
+  test('collects the plugin MCP entry instead of the disabled standalone Codex registration', async () => {
+    const standaloneConfig = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(standaloneConfig), { recursive: true });
+    fs.writeFileSync(
+      standaloneConfig,
+      ['[mcp_servers.taptap-maker]', 'command = "old-node"', 'enabled = false', ''].join('\n'),
+      'utf8'
+    );
+    const pluginConfig = path.join(tempDir, 'plugin', '.mcp.json');
+    fs.mkdirSync(path.dirname(pluginConfig), { recursive: true });
+    fs.writeFileSync(
+      pluginConfig,
+      JSON.stringify({
+        mcpServers: {
+          'taptap-maker-plugin': {
+            command: 'node',
+            args: ['./dist/maker.js'],
+            cwd: '.',
+          },
+        },
+      }),
+      'utf8'
+    );
+
+    const diagnostics = await collectMakerMcpIssueDiagnostics({
+      ide: 'codex',
+      homeDir: tempDir,
+      targetDir: tempDir,
+      makerVersion: 'dev',
+      configSource: {
+        format: 'json',
+        paths: [pluginConfig],
+        mcp_name: 'taptap-maker-plugin',
+      },
+      verify: async () => ({ ok: true, stage: 'tools_list' }),
+    });
+
+    expect(diagnostics.client_config).toMatchObject({
+      status: 'found',
+      entries: [
+        {
+          path: pluginConfig,
+          status: 'found',
+          server: {
+            command: 'node',
+            args: ['./dist/maker.js'],
+            cwd: '.',
+          },
+        },
+      ],
+    });
+    expect(JSON.stringify(diagnostics.client_config)).not.toContain('old-node');
   });
 
   test('creates an issue when GitHub CLI succeeds', () => {

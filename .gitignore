@@ -133,6 +133,8 @@ out
 # Nuxt.js build / generate output
 .nuxt
 dist
+!plugins/taptap-maker/dist/
+!plugins/taptap-maker/dist/maker.js
 
 # TypeScript build output (development)
 build
@@ -194,3 +196,4 @@ native/node_modules/
 .maker/
 .npm-cache
 docs/superpowers
+.workbuddy

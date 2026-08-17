@@ -340,6 +340,18 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 Maker 本地开发的默认路径是 CLI-first + PAT-first：
 
+- Codex Maker plugin 位于 `plugins/taptap-maker`，版本与 Maker `0.0.30` 对齐。使用
+  `npm run maker:codex-plugin:prepare` 生成完整自包含产物；运行时使用宿主 Node.js 和插件内
+  `dist/maker.js`，不得依赖外部 npm/npx。插件默认版本必须读取
+  `config/maker-version-policy.json` 的 `latest`，不得在 npm script 或打包测试重复硬编码。
+  `.agents/plugins/marketplace.json` 是仓库级测试 marketplace。
+- 插件模式必须先按 `taptap-maker-plugin-lifecycle` 检查旧 Codex Maker MCP。禁用和恢复都要求
+  用户明确确认；禁用只写 `enabled = false`，保留原配置、最新备份和恢复状态。不得删除旧注册、
+  PAT、Maker home、项目绑定或游戏文件。初始化必须使用 `taptap-maker init --skip-mcp-install`。
+  插件用户更新 Maker 时更新 Codex plugin，不运行独立 npm 包升级。WorkBuddy plugin 是后续适配。
+  Codex 插件产物必须使用插件专用 `update-taptap-mcp`，不得复制 npm 发行版的更新 Skill。旧 MCP
+  restore 必须校验迁移注册指纹；插件模式故障上报只检查插件 `.mcp.json` 和当前 bundle，不能把
+  已禁用的独立 `taptap-maker` 注册或物化 self runtime 当作插件运行证据。
 - Maker CLI-first 重构后的正式说明在 `docs/MAKER.md`；面向团队介绍的功能总览在 `docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`。上下文压缩或长时间中断后，先读这两份文档再继续。
 - 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，由该 CLI 展示 app 列表并让用户选择已有 app 或 `0`/`new`。只有用户明确说“创建/新建项目或游戏”时，才使用 `taptap-maker init --create`。
 - 如果本地没有当前环境的 Maker PAT，CLI 默认运行 CLI 登录：生成满足 `^[A-Za-z0-9_-]{16,128}$` 的临时 code，按需打开当前环境的 `/pat-tokens?code=<code>`，用户登录并点击“创建 token”后，CLI 轮询 `/api/v1/cli-auth/result?code=<code>`，拿到授权结果后完成本地鉴权配置。

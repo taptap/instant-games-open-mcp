@@ -10,7 +10,7 @@
 
 import * as esbuild from 'esbuild';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -23,7 +23,10 @@ console.log('📁 Project root:', projectRoot);
 const VERSION = process.env.MAKER_PACKAGE_VERSION || 'dev';
 console.log('📦 Version:', VERSION);
 
-const distDir = join(projectRoot, 'dist');
+const outfile = process.env.MAKER_BUNDLE_OUTFILE
+  ? resolve(process.env.MAKER_BUNDLE_OUTFILE)
+  : join(projectRoot, 'dist', 'maker.js');
+const distDir = dirname(outfile);
 if (!existsSync(distDir)) {
   mkdirSync(distDir, { recursive: true });
 }
@@ -35,7 +38,7 @@ try {
     platform: 'node',
     target: 'node16',
     format: 'esm',
-    outfile: join(projectRoot, 'dist/maker.js'),
+    outfile,
     external: [
       'node:*',
       'fs',
@@ -61,6 +64,7 @@ try {
     banner: {
       js: `#!/usr/bin/env node
 // TapTap Maker MCP - Standalone Bundle
+// TapTap Maker MCP version: ${VERSION}
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const __MAKER_BUNDLE_URL__ = import.meta.url;
@@ -76,10 +80,10 @@ const __MAKER_BUNDLE_URL__ = import.meta.url;
     charset: 'utf8',
   });
 
-  console.log('✅ Bundle created: dist/maker.js');
+  console.log('✅ Bundle created:', outfile);
   console.log('');
   console.log('📦 Usage:');
-  console.log('  node dist/maker.js');
+  console.log(`  node ${outfile}`);
 } catch (error) {
   console.error('❌ Build failed:', error);
   process.exit(1);

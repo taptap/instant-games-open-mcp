@@ -96,6 +96,7 @@ import {
   buildMakerMcpIssue,
   collectMakerMcpIssueDiagnostics,
   parseMakerMcpReportContext,
+  resolveMakerMcpReportRuntime,
   submitMakerMcpIssue,
 } from './mcpIssueReport.js';
 import {
@@ -104,6 +105,18 @@ import {
   getDshMcpInstallPaths,
   mergeDshMakerMcpConfig,
 } from './dshMcpConfig.js';
+import {
+  inspectCodexLegacyMakerMcp,
+  migrateCodexLegacyMakerMcp,
+  restoreCodexLegacyMakerMcp,
+  type CodexLegacyMakerMcpMigrationResult,
+} from './pluginMigration.js';
+import { writeConfigWithTapTapBackupIfChanged } from './configWrite.js';
+import {
+  escapeTomlString,
+  findCodexMcpTableDuplicates,
+  removeCodexMcpTables,
+} from './codexMcpConfig.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 declare const __MAKER_BUNDLE_URL__: string | undefined;
@@ -111,7 +124,16 @@ const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : '
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
-const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit', 'logs', 'python', 'lua-lsp', 'agents']);
+const TWO_PART_COMMANDS = new Set([
+  'pat',
+  'mcp',
+  'dev-kit',
+  'logs',
+  'python',
+  'lua-lsp',
+  'agents',
+  'plugin',
+]);
 const BOOLEAN_OPTIONS = new Set([
   'json',
   'skip_confirm',
@@ -122,6 +144,7 @@ const BOOLEAN_OPTIONS = new Set([
   'all',
   'create',
   'consent',
+  'confirm',
   'context_stdin',
   'h',
   'help',
@@ -294,6 +317,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
     return;
   }
 
+  if (command === 'plugin') {
+    runPluginLifecycle(parsed, ctx);
+    return;
+  }
+
   if (command === 'upgrade') {
     await runUpgrade(parsed, ctx);
     return;
@@ -320,6 +348,60 @@ export async function runMakerCli(argv: string[]): Promise<void> {
   }
 
   throw new Error(`Unknown taptap-maker command: ${formatUnknownCommand(parsed.command)}`);
+}
+
+function runPluginLifecycle(parsed: ParsedArgs, ctx: CliContext): void {
+  const subcommand = parsed.command[1];
+  const client = stringOption(parsed, 'client') || 'codex';
+  if (client !== 'codex') {
+    throw new Error(`Unsupported Maker plugin client: ${client}. Supported clients: codex.`);
+  }
+
+  if (subcommand === 'inspect') {
+    writePluginLifecycleResult(ctx, inspectCodexLegacyMakerMcp());
+    return;
+  }
+  if (subcommand === 'migrate') {
+    writePluginLifecycleResult(
+      ctx,
+      migrateCodexLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+    );
+    return;
+  }
+  if (subcommand === 'restore') {
+    writePluginLifecycleResult(
+      ctx,
+      restoreCodexLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+    );
+    return;
+  }
+
+  throw new Error('Unknown Maker plugin command. Use inspect, migrate, or restore.');
+}
+
+function writePluginLifecycleResult(
+  ctx: CliContext,
+  result: CodexLegacyMakerMcpMigrationResult | ReturnType<typeof inspectCodexLegacyMakerMcp>
+): void {
+  if (ctx.json) {
+    writeJson(result);
+    return;
+  }
+  process.stdout.write(
+    [
+      'TapTap Maker plugin migration',
+      '',
+      `- client: ${result.client}`,
+      `- legacy_mcp_status: ${result.status}`,
+      `- config_path: ${result.config_path}`,
+      `- registration_count: ${result.registration_count}`,
+      ...('action' in result ? [`- action: ${result.action}`, `- changed: ${result.changed}`] : []),
+      ...('backup_path' in result && result.backup_path
+        ? [`- backup_path: ${result.backup_path}`]
+        : []),
+      '',
+    ].join('\n')
+  );
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -1244,11 +1326,34 @@ async function runMcpReport(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
   const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
   const contextInput = booleanOption(parsed, 'context_stdin') ? await readStdinText() : '';
   const context = parseMakerMcpReportContext(contextInput);
+  const reportRuntime = resolveMakerMcpReportRuntime({
+    distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
+    bundleUrl: typeof __MAKER_BUNDLE_URL__ !== 'undefined' ? __MAKER_BUNDLE_URL__ : undefined,
+  });
   const diagnostics = await collectMakerMcpIssueDiagnostics({
-    ide: stringOption(parsed, 'ide'),
+    ide: stringOption(parsed, 'ide') || (reportRuntime ? 'codex' : undefined),
     targetDir,
     makerVersion: VERSION,
+    configSource: reportRuntime?.config_source,
+    distribution: reportRuntime?.distribution,
     verify: async () => {
+      if (reportRuntime) {
+        const verification = await verifyMakerMcpLauncher(reportRuntime.launcher, {
+          cwd: reportRuntime.cwd,
+          env: reportRuntime.env,
+          timeoutMs: 15_000,
+        });
+        return {
+          ok: verification.ok,
+          stage: verification.stage,
+          launcher_kind: verification.launcherKind,
+          command: verification.command,
+          tools: verification.toolNames,
+          stderr: verification.stderr,
+          error: verification.error,
+          failure_type: verification.failureType,
+        };
+      }
       const prepared = await prepareMcpLauncher({
         env: makerEnvOption(parsed),
         mode: 'self',
@@ -2289,8 +2394,7 @@ function mergeOpenCodeMcpConfig(configPath: string, options: McpInstallOptions):
 
 function mergeCodexMcpConfig(configPath: string, options: McpInstallOptions): ConfigWriteResult {
   const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
-  const sectionPattern = createCodexMcpSectionPattern(options.mcpName);
-  const withoutOld = existing.replace(sectionPattern, '').trimEnd();
+  const withoutOld = removeCodexMcpTables(existing, options.mcpName).trimEnd();
   const launch = options.launcher;
   const envValues = createMcpEnvironmentValues(options.env, options.clientIde, options.launcherEnv);
   const envSection =
@@ -2299,12 +2403,14 @@ function mergeCodexMcpConfig(configPath: string, options: McpInstallOptions): Co
       : [
           '',
           `[mcp_servers."${options.mcpName}".env]`,
-          ...Object.entries(envValues).map(([key, value]) => `${key} = "${escapeToml(value)}"`),
+          ...Object.entries(envValues).map(
+            ([key, value]) => `${key} = "${escapeTomlString(value)}"`
+          ),
         ];
   const section = [
     `[mcp_servers."${options.mcpName}"]`,
-    `command = "${escapeToml(launch.command)}"`,
-    `args = [${launch.args.map((arg) => `"${escapeToml(arg)}"`).join(', ')}]`,
+    `command = "${escapeTomlString(launch.command)}"`,
+    `args = [${launch.args.map((arg) => `"${escapeTomlString(arg)}"`).join(', ')}]`,
     ...envSection,
     '',
   ].join('\n');
@@ -2322,50 +2428,6 @@ function mergeCodexMcpConfig(configPath: string, options: McpInstallOptions): Co
       }
     }
   );
-}
-
-function createCodexMcpSectionPattern(mcpName: string): RegExp {
-  const keyPattern = createCodexMcpKeyPattern(mcpName);
-  return new RegExp(
-    `\\n?\\[mcp_servers\\.${keyPattern}(?:\\.[^\\]]+)?\\][\\s\\S]*?(?=\\n\\[(?!mcp_servers\\.${keyPattern}(?:\\.|\\]))|$)`,
-    'g'
-  );
-}
-
-function createCodexMcpKeyPattern(mcpName: string): string {
-  const quotedKey = `"${escapeRegExp(mcpName)}"`;
-  if (!isTomlBareKey(mcpName)) {
-    return quotedKey;
-  }
-  return `(?:${quotedKey}|${escapeRegExp(mcpName)})`;
-}
-
-function findCodexMcpTableDuplicates(text: string, mcpName: string): string[] {
-  const seen = new Set<string>();
-  const duplicates = new Set<string>();
-  const headerPattern = /^\s*\[([^\]]+)\]\s*$/gm;
-  let match: RegExpExecArray | null;
-  while ((match = headerPattern.exec(text)) !== null) {
-    const normalized = normalizeCodexMcpTablePath(match[1], mcpName);
-    if (!normalized) {
-      continue;
-    }
-    if (seen.has(normalized)) {
-      duplicates.add(normalized);
-      continue;
-    }
-    seen.add(normalized);
-  }
-  return Array.from(duplicates);
-}
-
-function normalizeCodexMcpTablePath(tablePath: string, mcpName: string): string | undefined {
-  const keyPattern = createCodexMcpKeyPattern(mcpName);
-  const match = new RegExp(`^mcp_servers\\.${keyPattern}(\\..+)?$`).exec(tablePath);
-  if (!match) {
-    return undefined;
-  }
-  return `mcp_servers.${mcpName}${match[1] || ''}`;
 }
 
 function tryClaudeMcpAdd(options: McpInstallOptions): { ok: boolean; changed: boolean } {
@@ -2522,37 +2584,6 @@ function asObject(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>;
   }
   return {};
-}
-
-function writeConfigWithTapTapBackupIfChanged(
-  filePath: string,
-  nextContent: string,
-  validate?: (content: string) => void
-): ConfigWriteResult {
-  const existed = fs.existsSync(filePath);
-  const previousContent = existed ? fs.readFileSync(filePath, 'utf8') : undefined;
-  if (previousContent === nextContent) {
-    return { changed: false };
-  }
-
-  const backupPath = existed ? `${filePath}.taptap-maker.bak.latest` : undefined;
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  if (previousContent !== undefined && backupPath) {
-    fs.writeFileSync(backupPath, previousContent, 'utf8');
-  }
-
-  try {
-    fs.writeFileSync(filePath, nextContent, 'utf8');
-    validate?.(fs.readFileSync(filePath, 'utf8'));
-    return { changed: true, backupPath };
-  } catch (error) {
-    if (previousContent !== undefined) {
-      fs.writeFileSync(filePath, previousContent, 'utf8');
-    } else {
-      fs.rmSync(filePath, { force: true });
-    }
-    throw error;
-  }
 }
 
 function validateJsonMcpServersConfig(content: string, options: McpInstallOptions): void {
@@ -2997,18 +3028,6 @@ function mask(value: string): string {
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function escapeToml(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
-
-function isTomlBareKey(value: string): boolean {
-  return /^[A-Za-z0-9_-]+$/.test(value);
-}
-
 function indent(value: string): string {
   return value
     .split('\n')
@@ -3057,6 +3076,9 @@ function printHelp(): void {
       '                            [--context-stdin] [--consent] [--json]',
       '                            # Run only after the user agrees to submit',
       '  taptap-maker agents update [--target-dir DIR] [--json]',
+      '  taptap-maker plugin inspect --client codex [--json]',
+      '  taptap-maker plugin migrate --client codex --confirm [--json]',
+      '  taptap-maker plugin restore --client codex --confirm [--json]',
       '  taptap-maker upgrade [--launcher self|npx] [--target-dir DIR] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "taptap-maker-plugin": {
+      "command": "node",
+      "args": ["./dist/maker.js"],
+      "cwd": ".",
+      "env": {
+        "TAPTAP_MAKER_DISTRIBUTION": "codex_plugin",
+        "TAPTAP_MCP_CLIENT_IDE": "codex"
+      }
+    }
+  }
+}

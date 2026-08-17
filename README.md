@@ -20,6 +20,35 @@
 **NPM**: [@taptap/instant-games-open-mcp](https://www.npmjs.com/package/@taptap/instant-games-open-mcp)
 **Maker NPM**: [@taptap/maker](https://www.npmjs.com/package/@taptap/maker)
 
+## TapTap Maker Codex Plugin（0.0.30）
+
+仓库内的 [`plugins/taptap-maker`](plugins/taptap-maker) 是首个 Maker 客户端插件实现。插件内置
+Maker MCP 单文件运行时、CLI、Skills 和排障文档；运行时只要求本机 Node.js，不通过 npm/npx
+下载或启动 Maker。
+
+```bash
+npm run maker:codex-plugin:prepare
+codex plugin marketplace add .
+codex plugin add taptap-maker@personal
+```
+
+插件构建默认读取 `config/maker-version-policy.json` 的 `latest`，不在 npm script 或测试中重复维护
+版本号；`--version` 只用于明确的临时覆盖。
+
+旧用户安装插件后，先用插件内 CLI 执行
+`taptap-maker plugin inspect --client codex --json`。如果旧的独立 Maker MCP 仍启用，向用户说明
+重复 tools 风险并取得明确确认，再执行
+`taptap-maker plugin migrate --client codex --confirm --json`。迁移只写入 `enabled = false`，保留
+原配置、最近备份、PAT、项目绑定和游戏文件；重复执行是幂等的。需要卸载插件并恢复旧 MCP 时，
+先执行 `taptap-maker plugin restore --client codex --confirm --json`。
+
+插件模式初始化使用 `taptap-maker init --skip-mcp-install`，避免 CLI 再写一份独立 MCP 配置。
+插件更新通过插件内专用 `update-taptap-mcp` Skill 和 Codex marketplace 完成，不执行 npm/npx
+或独立 `taptap-maker upgrade`。旧 MCP 恢复前会核对迁移时记录的注册指纹，同名注册已被替换时
+保持禁用并返回 `not_owned`。插件故障上报读取插件自己的 `.mcp.json` 并验证当前 bundle；独立
+Maker MCP 仍沿用原有用户配置和 self runtime 诊断。WorkBuddy 插件是下一阶段适配，
+不包含在当前 Codex 插件产物中。
+
 ## 🦞 OpenClaw Plugin（实验中）
 
 仓库内提供了一个可独立使用的 OpenClaw plugin 子包：

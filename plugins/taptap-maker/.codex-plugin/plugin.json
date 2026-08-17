@@ -1,0 +1,31 @@
+{
+  "name": "taptap-maker",
+  "version": "0.0.30",
+  "description": "Local TapTap Maker game development with bundled MCP, CLI, and workflows.",
+  "author": {
+    "name": "TapTap Team"
+  },
+  "homepage": "https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker",
+  "repository": "https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker",
+  "license": "MIT",
+  "keywords": ["taptap", "maker", "game-development", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "TapTap Maker",
+    "shortDescription": "Build and preview TapTap Maker games locally.",
+    "longDescription": "Bundled TapTap Maker MCP, CLI, skills, project workflows, asset tools, and remote build support.",
+    "developerName": "TapTap Team",
+    "category": "Developer Tools",
+    "capabilities": ["Local game development", "Maker MCP tools", "Project build and preview"],
+    "brandColor": "#16B8C4",
+    "websiteURL": "https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker",
+    "composerIcon": "./assets/taptap-maker.png",
+    "logo": "./assets/taptap-maker.png",
+    "logoDark": "./assets/taptap-maker.png",
+    "defaultPrompt": [
+      "快速创建一个新的 TapTap Maker 项目。必须先在 Codex 中选择并打开一个空目录。",
+      "同步 TapTap Maker 游戏到本地继续开发。必须先在 Codex 中选择并打开一个空目录。"
+    ]
+  }
+}

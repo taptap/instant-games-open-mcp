@@ -1009,6 +1009,8 @@ export async function formatStatus(
   } = {}
 ): Promise<string> {
   const detail = options.detail === true;
+  const distribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
+  const isCodexPlugin = distribution === 'codex_plugin';
   const projectContext = await resolveMakerProjectContext({
     targetDir: options.targetDir,
     listClientRoots: options.listClientRoots,
@@ -1042,7 +1044,9 @@ export async function formatStatus(
     allowRemoteFetch: false,
     ...(detail ? {} : { backgroundRefresh: false }),
   });
-  const packageUpdateText = detail ? formatMakerPackageUpdateStatus(packageUpdateStatus) : '';
+  const packageUpdateText = detail
+    ? formatMakerPackageUpdateStatusForDistribution(packageUpdateStatus, distribution)
+    : '';
   const projectInitialization = identify.projectRoot
     ? inspectMakerProjectInitialization(identify.projectRoot)
     : undefined;
@@ -1085,10 +1089,15 @@ export async function formatStatus(
     `- lua_lsp: ${luaLsp.status}`,
     'Maker MCP package update',
     `- status: ${packageUpdateStatus.status}`,
+    isCodexPlugin ? '- distribution: codex_plugin' : '',
     packageUpdateStatus.target_version
       ? `- target_version: ${packageUpdateStatus.target_version}`
       : '',
-    packageUpdateStatus.next_action ? `- next_action: ${packageUpdateStatus.next_action}` : '',
+    isCodexPlugin
+      ? '- next_action: Update the installed Codex plugin through its marketplace; do not install or upgrade the standalone npm package.'
+      : packageUpdateStatus.next_action
+        ? `- next_action: ${packageUpdateStatus.next_action}`
+        : '',
     projectInitialization ? `- project_initialization: ${projectInitialization.status}` : '',
     projectHealth ? `- project_health: ${projectHealth.status}` : '',
     formatMakerClientRootsSummary(projectContext.roots),
@@ -1117,6 +1126,7 @@ export async function formatStatus(
       'TapTap Maker MCP status',
       '',
       `- version: ${VERSION}`,
+      isCodexPlugin ? '- distribution: codex_plugin' : '',
       `- env: ${env}`,
       `- project_context_source: ${projectContext.source}`,
       summaryText,
@@ -1127,6 +1137,7 @@ export async function formatStatus(
     'TapTap Maker MCP status',
     '',
     `- version: ${VERSION}`,
+    isCodexPlugin ? '- distribution: codex_plugin' : '',
     `- env: ${env}`,
     `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath()})`,
     `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
@@ -1194,6 +1205,21 @@ export async function formatStatus(
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function formatMakerPackageUpdateStatusForDistribution(
+  status: Awaited<ReturnType<typeof getMakerPackageUpdateStatus>>,
+  distribution: string | undefined
+): string {
+  const formatted = formatMakerPackageUpdateStatus(status);
+  if (distribution !== 'codex_plugin') {
+    return formatted;
+  }
+  return [
+    ...formatted.split('\n').filter((line) => !line.startsWith('- next_action:')),
+    '- distribution: codex_plugin',
+    '- next_action: Update the installed Codex plugin through its marketplace; do not install or upgrade the standalone npm package.',
+  ].join('\n');
 }
 
 function formatAuthNextStep(options: {

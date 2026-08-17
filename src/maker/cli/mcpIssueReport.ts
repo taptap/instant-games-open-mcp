@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { identifyMakerProject } from '../server/identify.js';
 import { findDshMakerPluginEntry, getDshHome, listDshMcpConfigPaths } from './dshMcpConfig.js';
@@ -16,6 +17,7 @@ import {
   resolveMakerPackageSpec,
   resolveMakerMcpLauncher,
   verifyMakerMcpLauncher,
+  type MakerMcpLauncher,
 } from './mcpLauncher.js';
 
 const MAKER_MCP_NAME = 'taptap-maker';
@@ -50,6 +52,21 @@ export type MakerMcpIssueDiagnostics = {
   mcp_verify: unknown;
   network_proxy?: unknown;
   workbuddy_trust?: unknown;
+  distribution?: string;
+};
+
+export type MakerMcpConfigSource = {
+  format: 'codex_toml' | 'json' | 'jsonc' | 'dsh';
+  paths: string[];
+  mcp_name: string;
+};
+
+export type MakerMcpReportRuntime = {
+  distribution: 'codex_plugin';
+  config_source: MakerMcpConfigSource;
+  launcher: MakerMcpLauncher;
+  cwd: string;
+  env: Record<string, string>;
 };
 
 export type MakerMcpIssue = {
@@ -164,6 +181,42 @@ export function inspectMakerMcpClientConfig(options: {
   return { ide, status, entries };
 }
 
+export function resolveMakerMcpReportRuntime(options: {
+  distribution?: string;
+  bundleUrl?: string;
+  execPath?: string;
+}): MakerMcpReportRuntime | undefined {
+  if (options.distribution !== 'codex_plugin') {
+    return undefined;
+  }
+  if (!options.bundleUrl) {
+    throw new Error('Codex plugin diagnostics require the active Maker bundle URL.');
+  }
+
+  const bundlePath = path.resolve(fileURLToPath(options.bundleUrl));
+  const pluginRoot = path.dirname(path.dirname(bundlePath));
+  const execPath = options.execPath ?? process.execPath;
+  return {
+    distribution: 'codex_plugin',
+    config_source: {
+      format: 'json',
+      paths: [path.join(pluginRoot, '.mcp.json')],
+      mcp_name: 'taptap-maker-plugin',
+    },
+    launcher: {
+      kind: 'self_runtime',
+      command: execPath,
+      args: [bundlePath],
+      commandAndArgs: [execPath, bundlePath],
+    },
+    cwd: pluginRoot,
+    env: {
+      TAPTAP_MAKER_DISTRIBUTION: 'codex_plugin',
+      TAPTAP_MCP_CLIENT_IDE: 'codex',
+    },
+  };
+}
+
 export function buildMakerMcpIssue(options: {
   context: MakerMcpReportContext;
   diagnostics: MakerMcpIssueDiagnostics;
@@ -216,6 +269,8 @@ export async function collectMakerMcpIssueDiagnostics(options: {
   environment?: NodeJS.ProcessEnv;
   now?: () => Date;
   verify?: () => Promise<unknown>;
+  configSource?: MakerMcpConfigSource;
+  distribution?: string;
 }): Promise<MakerMcpIssueDiagnostics> {
   const platform = options.platform || process.platform;
   const homeDir = options.homeDir || os.homedir();
@@ -236,13 +291,15 @@ export async function collectMakerMcpIssueDiagnostics(options: {
   const client = options.ide?.trim().toLowerCase();
   const environment = options.environment || process.env;
   const clientConfig = client
-    ? inspectMakerMcpClientConfig({
-        ide: client,
-        homeDir,
-        platform,
-        appData: options.appData || environment.APPDATA,
-        dshHome: client === 'dsh' ? getDshHome({ homeDir, environment }) : undefined,
-      })
+    ? options.configSource
+      ? inspectMakerMcpConfigSource(client, options.configSource)
+      : inspectMakerMcpClientConfig({
+          ide: client,
+          homeDir,
+          platform,
+          appData: options.appData || environment.APPDATA,
+          dshHome: client === 'dsh' ? getDshHome({ homeDir, environment }) : undefined,
+        })
     : { status: 'not_checked', reason: 'active_client_not_provided' };
 
   let mcpVerify: unknown;
@@ -274,6 +331,7 @@ export async function collectMakerMcpIssueDiagnostics(options: {
       https_proxy_configured: hasEnvironmentValue(environment, 'HTTPS_PROXY'),
       no_proxy_configured: hasEnvironmentValue(environment, 'NO_PROXY'),
     },
+    ...(options.distribution ? { distribution: options.distribution } : {}),
   };
   if (client === 'workbuddy') {
     diagnostics.workbuddy_trust = inspectWorkBuddyTrust(homeDir);
@@ -359,16 +417,27 @@ function getMcpConfigPaths(options: {
 function inspectMcpConfigFile(
   configPath: string,
   ide: string,
-  mcpName: string
+  mcpName: string,
+  format?: MakerMcpConfigSource['format']
 ): MakerMcpConfigInspection['entries'][number] {
   try {
-    const server =
-      ide === 'codex'
-        ? extractCodexMcpServerConfig(fs.readFileSync(configPath, 'utf8'), mcpName)
+    const resolvedFormat =
+      format ??
+      (ide === 'codex'
+        ? 'codex_toml'
         : ide === 'dsh'
-          ? extractDshMcpServerConfig(fs.readFileSync(configPath, 'utf8'), mcpName, configPath)
+          ? 'dsh'
+          : ide === 'opencode'
+            ? 'jsonc'
+            : 'json');
+    const content = fs.readFileSync(configPath, 'utf8');
+    const server =
+      resolvedFormat === 'codex_toml'
+        ? extractCodexMcpServerConfig(content, mcpName)
+        : resolvedFormat === 'dsh'
+          ? extractDshMcpServerConfig(content, mcpName, configPath)
           : extractMakerMcpServerConfig(
-              parseJsonConfig(fs.readFileSync(configPath, 'utf8'), ide === 'opencode'),
+              parseJsonConfig(content, resolvedFormat === 'jsonc'),
               mcpName
             );
     return server
@@ -377,6 +446,23 @@ function inspectMcpConfigFile(
   } catch {
     return { path: configPath, status: 'unreadable' };
   }
+}
+
+function inspectMakerMcpConfigSource(
+  ide: string,
+  source: MakerMcpConfigSource
+): MakerMcpConfigInspection {
+  const entries = source.paths
+    .filter((configPath) => fs.existsSync(configPath))
+    .map((configPath) => inspectMcpConfigFile(configPath, ide, source.mcp_name, source.format));
+  const status = entries.some((entry) => entry.status === 'found')
+    ? 'found'
+    : entries.some((entry) => entry.status === 'unreadable')
+      ? 'unreadable'
+      : entries.length > 0
+        ? 'missing_entry'
+        : 'not_found';
+  return { ide, status, entries };
 }
 
 function extractDshMcpServerConfig(
