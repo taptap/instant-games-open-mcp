@@ -195,6 +195,46 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     expect(result.stdout.trim()).toBe('managed-node:maker.js --version');
   });
 
+  test('selects the newest managed Node without GNU version sort', () => {
+    if (process.platform === 'win32') {
+      return;
+    }
+
+    const workBuddyHome = path.join(tempDir, 'workbuddy-home-portable-sort');
+    const fakeBin = path.join(tempDir, 'portable-sort-bin');
+    fs.mkdirSync(fakeBin, { recursive: true });
+    fs.writeFileSync(
+      path.join(fakeBin, 'sort'),
+      '#!/bin/sh\ncase " $* " in *" -V"*|*" -Vr "*) exit 2;; esac\nexec /usr/bin/sort "$@"\n',
+      'utf8'
+    );
+    fs.chmodSync(path.join(fakeBin, 'sort'), 0o755);
+
+    for (const version of ['22.9.0', '22.10.0']) {
+      const managedBin = path.join(workBuddyHome, 'binaries', 'node', 'versions', version, 'bin');
+      fs.mkdirSync(managedBin, { recursive: true });
+      fs.writeFileSync(
+        path.join(managedBin, 'node'),
+        `#!/bin/sh\nprintf '${version}:%s\\n' "$*"\n`,
+        'utf8'
+      );
+      fs.chmodSync(path.join(managedBin, 'node'), 0o755);
+    }
+
+    const result = spawnSync(path.join(pluginRoot, 'bin', 'run-node'), ['maker.js'], {
+      cwd: pluginRoot,
+      encoding: 'utf8',
+      env: {
+        HOME: path.join(tempDir, 'empty-home-portable-sort'),
+        PATH: `${fakeBin}:/usr/bin:/bin`,
+        WORKBUDDY_CONFIG_DIR: workBuddyHome,
+      },
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe('22.10.0:maker.js');
+  });
+
   test('keeps launchers self-contained and covers WorkBuddy Windows managed Node layouts', () => {
     const posixLauncher = fs.readFileSync(path.join(pluginRoot, 'bin', 'run-node'), 'utf8');
     const windowsLauncher = fs.readFileSync(path.join(pluginRoot, 'bin', 'run-node.cmd'), 'utf8');

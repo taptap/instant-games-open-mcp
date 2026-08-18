@@ -37,7 +37,14 @@ resolve_from_managed_dirs() {
   done
   [ -n "$version_names" ] || return 1
 
-  for version in $(printf '%s' "$version_names" | sort -Vr); do
+  for version in $(
+    printf '%s' "$version_names" |
+      awk -F. '$1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ {
+        printf "%012d.%012d.%012d %s\n", $1, $2, $3, $0
+      }' |
+      sort -r |
+      awk '{ print $2 }'
+  ); do
     candidate="$versions_dir/$version/bin/node"
     if [ -x "$candidate" ]; then
       printf '%s\n' "$candidate"
