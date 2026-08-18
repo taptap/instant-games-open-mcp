@@ -358,8 +358,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   同名 Skill。该同步不得影响独立 Maker MCP、Codex 插件或其他客户端；目录链接不可用时才复制。
 - 客户端插件发布只使用 `Prepare Maker Plugin Release` 和 `Publish Maker Plugin` workflows。
   前者按最新 `maker-plugin-v*` tag 自动递增 patch 并创建版本 PR；后者在 PR 合并后发布两份完整
-  marketplace ZIP、`SHA256SUMS` 和 `maker-plugin-release.json`。插件发布不得调用 npm publish、
-  不得复用 Maker npm 或主包 release workflow。插件专属安装页固定为 `plugins/taptap-maker/README.md`。
+  marketplace ZIP、`INSTALL.md`、`SHA256SUMS` 和 `maker-plugin-release.json`。插件发布不得调用
+  npm publish、不得复用 Maker npm 或主包 release workflow。插件专属安装页固定为
+  `plugins/taptap-maker/README.md`。
 - 客户端专属源文件必须放在 `plugin-sources/taptap-maker/<client>/`；生成产物必须按客户端隔离。
   不得把 WorkBuddy manifest、commands、Skills 或 MCP 配置写入 Codex 插件目录。新增客户端时复用
   `src/maker/` 的 runtime/CLI，不复制 Maker tools、resources 或 proxy 业务逻辑。

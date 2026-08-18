@@ -10,6 +10,20 @@ import { formatMakerSkillStatus } from '../maker/cli/skill';
 const INTERNAL_ENVIRONMENT_PATTERN = /\brnd\b|xdrnd|TAPTAP_MCP_ENV|--env/iu;
 
 describe('Maker public documentation', () => {
+  test('documents the Codex legacy MCP check before plugin installation', () => {
+    const readme = fs.readFileSync(path.resolve('README.md'), 'utf8');
+
+    expect(readme).toContain('旧用户安装插件前');
+    expect(readme).not.toContain('旧用户安装插件后，先用插件内 CLI');
+  });
+
+  test('lists the generated install guide in every plugin release contract', () => {
+    for (const file of ['README.md', 'docs/MAKER.md', 'AGENTS.md']) {
+      const content = fs.readFileSync(path.resolve(file), 'utf8');
+      expect(content).toContain('`INSTALL.md`');
+    }
+  });
+
   test('Codex plugin lifecycle skill defines safe migration and plugin-native initialization', () => {
     const skillPath = path.resolve('skills/taptap-maker-plugin-lifecycle/SKILL.md');
     expect(fs.existsSync(skillPath)).toBe(true);

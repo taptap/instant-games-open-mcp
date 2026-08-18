@@ -37,9 +37,9 @@ Release，Maker MCP 版本继续用于 runtime、埋点、诊断和 npm 升级�
 发布时在 GitHub Actions 手动运行 `Prepare Maker Plugin Release`。workflow 根据最新
 `maker-plugin-v*` tag 自动将 patch 加一，更新版本源、生成两套插件、运行验证并创建版本 PR。PR
 合并后 `Publish Maker Plugin` 创建同版本 tag 和 GitHub Release，上传 Codex/WorkBuddy marketplace
-ZIP、`SHA256SUMS` 与 `maker-plugin-release.json`。这两条 workflow 不调用 npm 发布，也不修改原
-Maker MCP 或主 MCP 的发布流程。同一提交上的发布任务可以安全重跑：已有 Release 会更新说明并
-覆盖上传附件；如果同名 tag 已指向其它提交，任务会拒绝发布。
+ZIP、`INSTALL.md`、`SHA256SUMS` 与 `maker-plugin-release.json`。这两条 workflow 不调用 npm
+发布，也不修改原 Maker MCP 或主 MCP 的发布流程。同一提交上的发布任务可以安全重跑：已有
+Release 会更新说明并覆盖上传附件；如果同名 tag 已指向其它提交，任务会拒绝发布。
 
 对外固定安装页是
 `https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker`。Codex 优先直接把

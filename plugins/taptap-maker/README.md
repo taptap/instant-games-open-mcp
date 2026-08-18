@@ -67,7 +67,7 @@ ZIP 是完整的离线 marketplace 包。AI 必须只下载所选 ZIP 和 `SHA25
    和
    `node "<解压目录>/plugins/taptap-maker/dist/maker.js" plugin inspect --client codex --json`。
    只有检查状态为 `disabled` 或 `not_found` 时才算兼容检查通过；状态仍为 `active` 时不得
-   报告插件可用。
+   报告插件可用。迁移或检查返回 `ambiguous` 时立即停止并报告重复配置。
 5. 重新加载插件或新建任务，验证 TapTap Maker 插件已启用且 Maker MCP tools 已注册。
 
 ### WorkBuddy

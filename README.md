@@ -37,9 +37,9 @@ codex plugin add taptap-maker@taptap-maker
 插件 manifest 和 marketplace 版本读取 `config/maker-plugin-version.json`；bundle 运行时身份继续读取
 `config/maker-version-policy.json`。运行 GitHub Actions 中的 `Prepare Maker Plugin Release` 会自动把
 插件 patch 加一、重新生成两端产物并创建 PR；合并后 `Publish Maker Plugin` 自动发布两份 ZIP、
-`SHA256SUMS` 和机器可读发布清单，不触发 npm 发布。
+`INSTALL.md`、`SHA256SUMS` 和机器可读发布清单，不触发 npm 发布。
 
-旧用户安装插件后，先用插件内 CLI 执行
+旧用户安装插件前，先用解压目录中的插件 CLI 执行
 `taptap-maker plugin inspect --client codex --json`。如果旧的独立 Maker MCP 仍启用，向用户说明
 已发现重复注册并直接执行
 `taptap-maker plugin migrate --client codex --confirm --json`。迁移只写入 `enabled = false`，保留
