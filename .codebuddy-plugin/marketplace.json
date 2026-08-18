@@ -1,6 +1,6 @@
 {
-  "name": "taptap-maker-local",
-  "description": "TapTap Maker 客户端插件的本地测试市场。",
+  "name": "taptap-maker",
+  "description": "TapTap Maker 客户端插件市场。",
   "owner": {
     "name": "TapTap Team"
   },
@@ -9,14 +9,14 @@
       "name": "taptap-maker",
       "description": "TapTap Maker 本地游戏开发插件，内置 MCP、CLI、开发技能和项目工作流。",
       "description_en": "Local TapTap Maker game development with bundled MCP, CLI, and workflows.",
-      "version": "0.0.30",
+      "version": "0.0.1",
       "source": "./plugins/workbuddy/taptap-maker",
       "category": "game-development",
       "author": {
         "name": "TapTap Team"
       },
-      "homepage": "https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker",
-      "repository": "https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker",
+      "homepage": "https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker",
+      "repository": "https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker",
       "license": "MIT"
     }
   ]

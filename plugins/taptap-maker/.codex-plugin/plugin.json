@@ -1,12 +1,12 @@
 {
   "name": "taptap-maker",
-  "version": "0.0.30",
+  "version": "0.0.1",
   "description": "Local TapTap Maker game development with bundled MCP, CLI, and workflows.",
   "author": {
     "name": "TapTap Team"
   },
-  "homepage": "https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker",
-  "repository": "https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker",
+  "homepage": "https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker",
+  "repository": "https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker",
   "license": "MIT",
   "keywords": ["taptap", "maker", "game-development", "mcp"],
   "skills": "./skills/",
@@ -19,7 +19,7 @@
     "category": "Developer Tools",
     "capabilities": ["Local game development", "Maker MCP tools", "Project build and preview"],
     "brandColor": "#16B8C4",
-    "websiteURL": "https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker",
+    "websiteURL": "https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker",
     "composerIcon": "./assets/taptap-maker.png",
     "logo": "./assets/taptap-maker.png",
     "logoDark": "./assets/taptap-maker.png",

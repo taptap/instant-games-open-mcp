@@ -1,7 +1,7 @@
 {
-  "name": "personal",
+  "name": "taptap-maker",
   "interface": {
-    "displayName": "Personal"
+    "displayName": "TapTap Maker Plugins"
   },
   "plugins": [
     {

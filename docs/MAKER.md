@@ -27,14 +27,32 @@
   该组合时安装失败，不持久化 `.cmd` shell 命令或依赖客户端 PATH；Git 引导优先指向 Git for Windows。
 - 仓库同时提供 `taptap-maker-local`、`taptap-maker-dev-kit-guide` 和 `update-taptap-mcp` skills，用于把本地 Git 工作流、AI dev kit 内容说明和 MCP 更新缓存流程交给本地 AI/Agent 按业务规则执行。
 
-## Codex Plugin（0.0.30）
+## 客户端插件版本与发布
+
+Codex 和 WorkBuddy 插件共用独立版本，首版为 `0.0.1`，唯一来源是
+`config/maker-plugin-version.json`。内置 Maker MCP 版本继续由
+`config/maker-version-policy.json` 管理；插件版本只写入 manifest、marketplace、ZIP 名称和 GitHub
+Release，Maker MCP 版本继续用于 runtime、埋点、诊断和 npm 升级判断。
+
+发布时在 GitHub Actions 手动运行 `Prepare Maker Plugin Release`。workflow 根据最新
+`maker-plugin-v*` tag 自动将 patch 加一，更新版本源、生成两套插件、运行验证并创建版本 PR。PR
+合并后 `Publish Maker Plugin` 创建同版本 tag 和 GitHub Release，上传 Codex/WorkBuddy marketplace
+ZIP、`SHA256SUMS` 与 `maker-plugin-release.json`。这两条 workflow 不调用 npm 发布，也不修改原
+Maker MCP 或主 MCP 的发布流程。同一提交上的发布任务可以安全重跑：已有 Release 会更新说明并
+覆盖上传附件；如果同名 tag 已指向其它提交，任务会拒绝发布。
+
+对外固定安装页是
+`https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker`。Codex 优先直接把
+GitHub 仓库添加为 marketplace；ZIP 用于离线或客户端兼容安装。
+
+## Codex Plugin
 
 Codex 插件位于 `plugins/taptap-maker`，由
 `npm run maker:codex-plugin:prepare` 确定性生成，包含 `dist/maker.js`、`bin/taptap-maker`、
 Maker Skills 和连接排障文档。`.mcp.json` 以插件根目录为 `cwd`，使用宿主 Node.js 直接启动
 `./dist/maker.js`，运行时不依赖外部 npm/npx。
-默认版本来自 `config/maker-version-policy.json` 的 `latest`；构建脚本、manifest 和测试共享这一
-来源，`--version` 仅作为显式覆盖。打包测试使用临时输出目录，不重写仓库内的正式插件或 bundle。
+manifest 默认版本来自 `config/maker-plugin-version.json`，内置 bundle 版本来自
+`config/maker-version-policy.json`。打包测试使用临时输出目录，不重写仓库内的正式插件或 bundle。
 
 插件沿用现有 Maker CLI/MCP 的鉴权、项目绑定、clone、状态、构建和 proxy tool 实现，不复制
 业务逻辑。插件专属生命周期由 `taptap-maker-plugin-lifecycle` 管理：
@@ -59,7 +77,7 @@ taptap-maker init --skip-mcp-install
 taptap-maker plugin restore --client codex --confirm --json
 ```
 
-## WorkBuddy Plugin（0.0.30）
+## WorkBuddy Plugin
 
 WorkBuddy 插件位于 `plugins/workbuddy/taptap-maker`，通过
 `npm run maker:workbuddy-plugin:prepare` 生成。它使用共享的 CodeBuddy 插件规范：manifest 位于
@@ -86,6 +104,7 @@ WorkBuddy 插件位于 `plugins/workbuddy/taptap-maker`，通过
 ```bash
 npm test
 npm run build
+node scripts/package-maker-client-plugins.js --output-dir artifacts/maker-plugins
 node dist/maker.js
 npm run maker:workbuddy-plugin:prepare
 ```

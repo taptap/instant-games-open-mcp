@@ -19,12 +19,16 @@ Skills、项目初始化、素材生成、远端构建和预览流程。
 
 ## Codex Plugin
 
-Codex 插件位于 [`plugins/taptap-maker`](../../plugins/taptap-maker)，当前 Maker 版本为
-`0.0.30`。插件复用用户现有的 Maker 鉴权、项目绑定和游戏文件。
+Codex 插件位于 [`plugins/taptap-maker`](../../plugins/taptap-maker)。当前插件版本读取
+`config/maker-plugin-version.json`，内置 Maker MCP 版本读取 `config/maker-version-policy.json`。
+插件复用用户现有的 Maker 鉴权、项目绑定和游戏文件。
 
 插件首次使用时会检查是否存在旧的独立 Maker MCP。经用户确认后，只会把旧注册设置为
 `enabled = false`，不会删除原配置，并支持恢复。插件内初始化必须使用
 `taptap-maker init --skip-mcp-install`，避免重复安装 MCP。
+
+Codex 和 WorkBuddy 插件共用 `config/maker-plugin-version.json` 的独立版本号。Maker MCP 自身版本
+仍由 `config/maker-version-policy.json` 管理，插件发布不会触发 npm 发布。
 
 ## WorkBuddy Plugin
 
@@ -69,6 +73,7 @@ npm test
 npm run build
 npm run maker:codex-plugin:prepare
 npm run maker:workbuddy-plugin:prepare
+npm run maker:plugins:package -- --output-dir artifacts/maker-plugins
 ```
 
 Maker 代码位于当前目录，打包入口为 `src/maker/index.ts`，本地 MCP server 位于

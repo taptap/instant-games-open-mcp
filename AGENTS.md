@@ -340,11 +340,12 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 Maker 本地开发的默认路径是 CLI-first + PAT-first：
 
-- Codex Maker plugin 位于 `plugins/taptap-maker`，版本与 Maker `0.0.30` 对齐。使用
+- Codex Maker plugin 位于 `plugins/taptap-maker`。Codex 和 WorkBuddy 插件共用独立插件版本，
+  唯一来源为 `config/maker-plugin-version.json`，首版 `0.0.1`；内置 Maker MCP 版本仍读取
+  `config/maker-version-policy.json`，不得用插件版本覆盖 runtime、埋点、诊断或 npm 版本。使用
   `npm run maker:codex-plugin:prepare` 生成完整自包含产物；运行时使用宿主 Node.js 和插件内
-  `dist/maker.js`，不得依赖外部 npm/npx。插件默认版本必须读取
-  `config/maker-version-policy.json` 的 `latest`，不得在 npm script 或打包测试重复硬编码。
-  `.agents/plugins/marketplace.json` 是仓库级测试 marketplace。
+  `dist/maker.js`，不得依赖外部 npm/npx。`.agents/plugins/marketplace.json` 是仓库级 Codex
+  marketplace；正式 marketplace 名为 `taptap-maker`。
 - WorkBuddy Maker plugin 位于 `plugins/workbuddy/taptap-maker`，使用
   `npm run maker:workbuddy-plugin:prepare` 生成；仓库本地市场是
   `.codebuddy-plugin/marketplace.json`。MCP 和插件 CLI 必须通过插件内 `bin/run-node` 启动
@@ -352,6 +353,10 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   managed Node 目录，再回退系统 PATH。Windows 必须同时支持版本目录根和 `bin` 子目录中的
   `node.exe`。插件不依赖 npm/npx，也不固定项目 `cwd`。
   `create-project` 和 `sync-project` 是仅有的两个快捷命令，执行前必须要求空 workspace。
+- 客户端插件发布只使用 `Prepare Maker Plugin Release` 和 `Publish Maker Plugin` workflows。
+  前者按最新 `maker-plugin-v*` tag 自动递增 patch 并创建版本 PR；后者在 PR 合并后发布两份完整
+  marketplace ZIP、`SHA256SUMS` 和 `maker-plugin-release.json`。插件发布不得调用 npm publish、
+  不得复用 Maker npm 或主包 release workflow。插件专属安装页固定为 `plugins/taptap-maker/README.md`。
 - 客户端专属源文件必须放在 `plugin-sources/taptap-maker/<client>/`；生成产物必须按客户端隔离。
   不得把 WorkBuddy manifest、commands、Skills 或 MCP 配置写入 Codex 插件目录。新增客户端时复用
   `src/maker/` 的 runtime/CLI，不复制 Maker tools、resources 或 proxy 业务逻辑。

@@ -20,20 +20,24 @@
 **NPM**: [@taptap/instant-games-open-mcp](https://www.npmjs.com/package/@taptap/instant-games-open-mcp)
 **Maker NPM**: [@taptap/maker](https://www.npmjs.com/package/@taptap/maker)
 
-## TapTap Maker 客户端插件（0.0.30）
+## TapTap Maker 客户端插件
 
-仓库内的 [`plugins/taptap-maker`](plugins/taptap-maker) 是首个 Maker 客户端插件实现。插件内置
-Maker MCP 单文件运行时、CLI、Skills 和排障文档；运行时只要求本机 Node.js，不通过 npm/npx
-下载或启动 Maker。
+[`plugins/taptap-maker`](plugins/taptap-maker) 是插件专属安装与下载页面。Codex 和 WorkBuddy
+插件共用独立插件版本，当前值读取 `config/maker-plugin-version.json`；内置 Maker MCP 版本读取
+`config/maker-version-policy.json`，两条版本线互不覆盖。插件内置 Maker MCP 单文件运行时、CLI、
+Skills 和排障文档，不通过 npm/npx 下载或启动 Maker。
 
 ```bash
 npm run maker:codex-plugin:prepare
-codex plugin marketplace add .
-codex plugin add taptap-maker@personal
+codex plugin marketplace add taptap/instant-games-open-mcp --ref main \
+  --sparse .agents/plugins --sparse plugins/taptap-maker
+codex plugin add taptap-maker@taptap-maker
 ```
 
-插件构建默认读取 `config/maker-version-policy.json` 的 `latest`，不在 npm script 或测试中重复维护
-版本号；`--version` 只用于明确的临时覆盖。
+插件 manifest 和 marketplace 版本读取 `config/maker-plugin-version.json`；bundle 运行时身份继续读取
+`config/maker-version-policy.json`。运行 GitHub Actions 中的 `Prepare Maker Plugin Release` 会自动把
+插件 patch 加一、重新生成两端产物并创建 PR；合并后 `Publish Maker Plugin` 自动发布两份 ZIP、
+`SHA256SUMS` 和机器可读发布清单，不触发 npm 发布。
 
 旧用户安装插件后，先用插件内 CLI 执行
 `taptap-maker plugin inspect --client codex --json`。如果旧的独立 Maker MCP 仍启用，向用户说明
@@ -59,12 +63,12 @@ WorkBuddy 插件是独立产物，位于
 
 两个入口都要求当前 WorkBuddy workspace 为空目录。插件启动器优先解析 WorkBuddy managed
 Node.js（包括 Windows 上未加入 PATH 的 `node.exe`），必要时才回退系统 Node.js；运行插件内
-`${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js`，不依赖 npm/npx。仓库本地调试市场位于
+`${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js`，不依赖 npm/npx。仓库 marketplace 位于
 `.codebuddy-plugin/marketplace.json`：
 
 ```text
 /plugin marketplace add <REPOSITORY_ROOT>
-/plugin install taptap-maker@taptap-maker-local
+/plugin install taptap-maker@taptap-maker
 /reload-plugins
 ```
 

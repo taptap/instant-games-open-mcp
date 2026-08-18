@@ -12,7 +12,12 @@ const versionPolicy = JSON.parse(
   fs.readFileSync(path.join(projectRoot, 'config', 'maker-version-policy.json'), 'utf8')
 ) as { latest: string };
 const makerVersion = versionPolicy.latest;
-const makerSourceUrl = 'https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker';
+const pluginVersionPolicy = JSON.parse(
+  fs.readFileSync(path.join(projectRoot, 'config', 'maker-plugin-version.json'), 'utf8')
+) as { version: string };
+const pluginVersion = pluginVersionPolicy.version;
+const pluginSourceUrl =
+  'https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker';
 const pluginDescription = 'TapTap Maker 本地游戏开发插件，内置 MCP、CLI、开发技能和项目工作流。';
 const pluginDescriptionEn =
   'Local TapTap Maker game development with bundled MCP, CLI, and workflows.';
@@ -41,7 +46,7 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  test('uses the Maker release identity and shared CodeBuddy manifest format', () => {
+  test('uses the independent plugin version and shared CodeBuddy manifest format', () => {
     const manifest = JSON.parse(
       fs.readFileSync(path.join(pluginRoot, '.codebuddy-plugin', 'plugin.json'), 'utf8')
     );
@@ -49,11 +54,11 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     expect(manifest).toEqual(
       expect.objectContaining({
         name: 'taptap-maker',
-        version: makerVersion,
+        version: pluginVersion,
         description: pluginDescription,
         description_en: pluginDescriptionEn,
-        homepage: makerSourceUrl,
-        repository: makerSourceUrl,
+        homepage: pluginSourceUrl,
+        repository: pluginSourceUrl,
         skills: [
           './skills/taptap-maker-local',
           './skills/taptap-maker-dev-kit-guide',
@@ -268,11 +273,11 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
       (plugin: { name?: string }) => plugin.name === 'taptap-maker'
     );
 
-    expect(marketplace.name).toBe('taptap-maker-local');
+    expect(marketplace.name).toBe('taptap-maker');
     expect(entry).toEqual(
       expect.objectContaining({
         name: 'taptap-maker',
-        version: makerVersion,
+        version: pluginVersion,
         description: pluginDescription,
         description_en: pluginDescriptionEn,
         source: './plugins/workbuddy/taptap-maker',

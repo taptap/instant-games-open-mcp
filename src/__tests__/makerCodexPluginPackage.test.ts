@@ -12,7 +12,12 @@ const versionPolicy = JSON.parse(
   fs.readFileSync(path.join(projectRoot, 'config', 'maker-version-policy.json'), 'utf8')
 ) as { latest: string };
 const makerVersion = versionPolicy.latest;
-const makerSourceUrl = 'https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker';
+const pluginVersionPolicy = JSON.parse(
+  fs.readFileSync(path.join(projectRoot, 'config', 'maker-plugin-version.json'), 'utf8')
+) as { version: string };
+const pluginVersion = pluginVersionPolicy.version;
+const pluginSourceUrl =
+  'https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker';
 
 describe('TapTap Maker Codex plugin package', () => {
   let tempDir: string;
@@ -43,7 +48,7 @@ describe('TapTap Maker Codex plugin package', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  test('uses the exact Maker release identity and plugin metadata', () => {
+  test('uses an independent plugin version and the plugin landing page', () => {
     const manifest = JSON.parse(
       fs.readFileSync(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), 'utf8')
     );
@@ -51,9 +56,9 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(manifest).toEqual(
       expect.objectContaining({
         name: 'taptap-maker',
-        version: makerVersion,
-        homepage: makerSourceUrl,
-        repository: makerSourceUrl,
+        version: pluginVersion,
+        homepage: pluginSourceUrl,
+        repository: pluginSourceUrl,
         skills: './skills/',
         mcpServers: './.mcp.json',
         author: { name: 'TapTap Team' },
@@ -65,7 +70,7 @@ describe('TapTap Maker Codex plugin package', () => {
         developerName: 'TapTap Team',
         category: 'Developer Tools',
         brandColor: '#16B8C4',
-        websiteURL: makerSourceUrl,
+        websiteURL: pluginSourceUrl,
         composerIcon: './assets/taptap-maker.png',
         logo: './assets/taptap-maker.png',
         logoDark: './assets/taptap-maker.png',
@@ -125,6 +130,8 @@ describe('TapTap Maker Codex plugin package', () => {
       (plugin: { name?: string }) => plugin.name === 'taptap-maker'
     );
 
+    expect(marketplace.name).toBe('taptap-maker');
+    expect(marketplace.interface?.displayName).toBe('TapTap Maker Plugins');
     expect(entry?.category).toBe('Developer Tools');
   });
 
@@ -146,6 +153,19 @@ describe('TapTap Maker Codex plugin package', () => {
     const bundledRuntime = fs.readFileSync(path.join(pluginRoot, 'dist', 'maker.js'), 'utf8');
     expect(bundledRuntime).toContain(`// TapTap Maker MCP version: ${makerVersion}`);
     expect(bundledRuntime).not.toMatch(/[\t ]+$/mu);
+  });
+
+  test('documents both plugin and embedded Maker versions with stable release downloads', () => {
+    const readme = fs.readFileSync(path.join(pluginRoot, 'README.md'), 'utf8');
+
+    expect(readme).toContain(`插件版本：\`${pluginVersion}\``);
+    expect(readme).toContain(`内置 Maker MCP 版本：\`${makerVersion}\``);
+    expect(readme).toContain(
+      `/releases/download/maker-plugin-v${pluginVersion}/taptap-maker-codex-plugin-${pluginVersion}.zip`
+    );
+    expect(readme).toContain(
+      `/releases/download/maker-plugin-v${pluginVersion}/taptap-maker-workbuddy-plugin-${pluginVersion}.zip`
+    );
   });
 
   test('builds entirely in the requested output directory', () => {

@@ -3593,6 +3593,7 @@ describe('maker build local-change guard', () => {
   });
 
   test('status summary is concise while detail mode retains diagnostic sections', async () => {
+    delete process.env.TAPTAP_MAKER_DISTRIBUTION;
     const summary = await formatStatus({ targetDir: tempDir });
     const detail = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
 
@@ -3604,6 +3605,11 @@ describe('maker build local-change guard', () => {
     expect(summary).toContain('maker_build_current_directory');
     expect(detail).toContain('Maker remote sync');
     expect(detail).toContain('AI dev kit');
+    for (const output of [summary, detail]) {
+      expect(output).not.toContain('- distribution:');
+      expect(output).not.toContain('Update the installed Codex plugin');
+      expect(output).not.toContain('Update the installed WorkBuddy plugin');
+    }
   });
 
   test('Codex plugin status directs upgrades to the plugin instead of standalone npm', async () => {

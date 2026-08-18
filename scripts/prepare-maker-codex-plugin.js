@@ -21,7 +21,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, '..');
 const defaultPluginRoot = join(projectRoot, 'plugins', 'taptap-maker');
-const MAKER_SOURCE_URL = 'https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker';
+const PLUGIN_SOURCE_URL =
+  'https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker';
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const REQUIRED_SKILLS = [
   'taptap-maker-local',
@@ -38,14 +39,23 @@ const CODEX_PLUGIN_SKILLS_ROOT = join(
 );
 
 function parseArgs(argv) {
-  let version;
+  let pluginVersion;
+  let makerVersion;
   let outputDir;
   for (let index = 0; index < argv.length; index += 1) {
     const option = argv[index];
     const value = argv[index + 1];
-    if ((option === '--version' || option === '--output-dir') && value) {
-      if (option === '--version') {
-        version = value;
+    if (
+      (option === '--version' ||
+        option === '--plugin-version' ||
+        option === '--maker-version' ||
+        option === '--output-dir') &&
+      value
+    ) {
+      if (option === '--version' || option === '--plugin-version') {
+        pluginVersion = value;
+      } else if (option === '--maker-version') {
+        makerVersion = value;
       } else {
         outputDir = value;
       }
@@ -53,21 +63,31 @@ function parseArgs(argv) {
       continue;
     }
     throw new Error(
-      'Usage: node scripts/prepare-maker-codex-plugin.js [--version <semver>] [--output-dir <path>]'
+      'Usage: node scripts/prepare-maker-codex-plugin.js [--plugin-version <semver>] [--maker-version <semver>] [--output-dir <path>]'
     );
   }
 
-  if (!version) {
+  if (!pluginVersion) {
+    const policy = JSON.parse(
+      readFileSync(join(projectRoot, 'config', 'maker-plugin-version.json'), 'utf8')
+    );
+    pluginVersion = policy.version;
+  }
+  if (!makerVersion) {
     const policy = JSON.parse(
       readFileSync(join(projectRoot, 'config', 'maker-version-policy.json'), 'utf8')
     );
-    version = policy.latest;
+    makerVersion = policy.latest;
   }
-  if (!VERSION_PATTERN.test(version || '')) {
-    throw new Error(`Invalid Maker plugin version: ${String(version)}`);
+  if (!VERSION_PATTERN.test(pluginVersion || '')) {
+    throw new Error(`Invalid Maker plugin version: ${String(pluginVersion)}`);
+  }
+  if (!VERSION_PATTERN.test(makerVersion || '')) {
+    throw new Error(`Invalid embedded Maker MCP version: ${String(makerVersion)}`);
   }
   return {
-    version,
+    pluginVersion,
+    makerVersion,
     pluginRoot: outputDir ? resolve(outputDir) : defaultPluginRoot,
   };
 }
@@ -105,14 +125,14 @@ function buildMakerBundle(version, outfile) {
   writeFileSync(outfile, bundle, 'utf8');
 }
 
-function createManifest(version) {
+function createManifest(pluginVersion) {
   return {
     name: 'taptap-maker',
-    version,
+    version: pluginVersion,
     description: 'Local TapTap Maker game development with bundled MCP, CLI, and workflows.',
     author: { name: 'TapTap Team' },
-    homepage: MAKER_SOURCE_URL,
-    repository: MAKER_SOURCE_URL,
+    homepage: PLUGIN_SOURCE_URL,
+    repository: PLUGIN_SOURCE_URL,
     license: 'MIT',
     keywords: ['taptap', 'maker', 'game-development', 'mcp'],
     skills: './skills/',
@@ -126,7 +146,7 @@ function createManifest(version) {
       category: 'Developer Tools',
       capabilities: ['Local game development', 'Maker MCP tools', 'Project build and preview'],
       brandColor: '#16B8C4',
-      websiteURL: MAKER_SOURCE_URL,
+      websiteURL: PLUGIN_SOURCE_URL,
       composerIcon: './assets/taptap-maker.png',
       logo: './assets/taptap-maker.png',
       logoDark: './assets/taptap-maker.png',
@@ -154,24 +174,58 @@ function createMcpConfig() {
   };
 }
 
-function createReadme(version) {
-  return `# TapTap Maker Codex Plugin
+function createReadme(pluginVersion, makerVersion) {
+  return `# TapTap Maker 客户端插件
 
-This plugin bundles TapTap Maker ${version}: the local MCP runtime, CLI, workflow skills, and
-connection troubleshooting guide. Runtime startup uses the host Node.js executable and never
-downloads or launches the Maker package through npm or npx.
+TapTap Maker 的 Codex 与 WorkBuddy 客户端插件发布页。
 
-Existing Maker authentication and project bindings are reused. Before using the plugin alongside
-an older standalone Codex MCP registration, inspect and migrate that registration with the bundled
-CLI. Migration only sets the old registration to \`enabled = false\`, keeps a latest backup, and can
-be restored.
+- 插件版本：\`${pluginVersion}\`
+- 内置 Maker MCP 版本：\`${makerVersion}\`
 
-See \`skills/taptap-maker-local/SKILL.md\` for the normal Maker development workflow.
+## 交给 AI 安装
+
+将本页面链接交给 Codex 或 WorkBuddy，并告诉 AI：\`安装这个 TapTap Maker 插件\`。AI 应根据
+当前客户端选择对应安装方式，不要安装独立 npm MCP。
+
+### Codex
+
+\`\`\`bash
+codex plugin marketplace add taptap/instant-games-open-mcp --ref main \\
+  --sparse .agents/plugins --sparse plugins/taptap-maker
+codex plugin add taptap-maker@taptap-maker
+\`\`\`
+
+### WorkBuddy
+
+在插件市场中添加本 GitHub 仓库作为本地市场源，然后安装 \`taptap-maker\`。如果当前版本暂不
+支持 GitHub 市场源，可下载下方 WorkBuddy ZIP 并按客户端的本地插件导入方式安装。
+
+## 下载
+
+- [Codex 插件 ZIP](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v${pluginVersion}/taptap-maker-codex-plugin-${pluginVersion}.zip)
+- [WorkBuddy 插件 ZIP](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v${pluginVersion}/taptap-maker-workbuddy-plugin-${pluginVersion}.zip)
+- [SHA256 校验文件](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v${pluginVersion}/SHA256SUMS)
+
+ZIP 是完整的离线 marketplace 包。AI 下载对应 ZIP 和 \`SHA256SUMS\`、验证 SHA-256 并解压后：
+
+- Codex：执行 \`codex plugin marketplace add <解压目录>\`，再执行
+  \`codex plugin add taptap-maker@taptap-maker\`。
+- WorkBuddy：在 \`/plugin\` 中把解压目录添加为 marketplace，安装 \`taptap-maker\`，然后执行
+  \`/reload-plugins\`。
+
+插件内置本地 MCP runtime、CLI、工作流 Skills 和连接排障文档。运行时不会通过 npm 或 npx
+下载或启动 Maker 包。
+
+插件会复用现有 Maker 鉴权和项目绑定。首次使用时先通过插件内 CLI 检查旧的独立 Maker MCP；
+只有用户明确确认后，才把旧 Codex 注册设置为 \`enabled = false\`。迁移会保留最新备份并支持恢复，
+不会删除旧注册、鉴权、项目绑定或游戏文件。
+
+正常 Maker 开发流程见 \`skills/taptap-maker-local/SKILL.md\`。
 `;
 }
 
 function main() {
-  const { version, pluginRoot } = parseArgs(process.argv.slice(2));
+  const { pluginVersion, makerVersion, pluginRoot } = parseArgs(process.argv.slice(2));
 
   if (pluginRoot === defaultPluginRoot) {
     rmSync(pluginRoot, { recursive: true, force: true });
@@ -179,7 +233,7 @@ function main() {
     throw new Error(`Custom plugin output directory already exists: ${pluginRoot}`);
   }
   mkdirSync(join(pluginRoot, '.codex-plugin'), { recursive: true });
-  buildMakerBundle(version, join(pluginRoot, 'dist', 'maker.js'));
+  buildMakerBundle(makerVersion, join(pluginRoot, 'dist', 'maker.js'));
   copyRequiredFile(
     join(projectRoot, 'bin', 'taptap-maker'),
     join(pluginRoot, 'bin', 'taptap-maker'),
@@ -215,7 +269,7 @@ function main() {
 
   writeFileSync(
     join(pluginRoot, '.codex-plugin', 'plugin.json'),
-    `${JSON.stringify(createManifest(version), null, 2)}\n`,
+    `${JSON.stringify(createManifest(pluginVersion), null, 2)}\n`,
     'utf8'
   );
   writeFileSync(
@@ -223,13 +277,15 @@ function main() {
     `${JSON.stringify(createMcpConfig(), null, 2)}\n`,
     'utf8'
   );
-  writeFileSync(join(pluginRoot, 'README.md'), createReadme(version), 'utf8');
+  writeFileSync(join(pluginRoot, 'README.md'), createReadme(pluginVersion, makerVersion), 'utf8');
 
   const bundle = readFileSync(join(pluginRoot, 'dist', 'maker.js'), 'utf8');
-  if (!bundle.includes(`// TapTap Maker MCP version: ${version}`)) {
-    throw new Error(`Bundled Maker runtime does not contain version ${version}.`);
+  if (!bundle.includes(`// TapTap Maker MCP version: ${makerVersion}`)) {
+    throw new Error(`Bundled Maker runtime does not contain version ${makerVersion}.`);
   }
-  console.log(`Prepared TapTap Maker Codex plugin ${version} at ${pluginRoot}`);
+  console.log(
+    `Prepared TapTap Maker Codex plugin ${pluginVersion} with Maker MCP ${makerVersion} at ${pluginRoot}`
+  );
 }
 
 try {

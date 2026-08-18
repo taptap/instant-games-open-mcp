@@ -23,13 +23,13 @@ const projectRoot = join(__dirname, '..');
 const defaultPluginRoot = join(projectRoot, 'plugins', 'workbuddy', 'taptap-maker');
 const workBuddySourceRoot = join(projectRoot, 'plugin-sources', 'taptap-maker', 'workbuddy');
 const localMarketplacePath = join(projectRoot, '.codebuddy-plugin', 'marketplace.json');
-const MAKER_SOURCE_URL = 'https://github.com/taptap/instant-games-open-mcp/tree/main/src/maker';
+const PLUGIN_SOURCE_URL =
+  'https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker';
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const SHARED_SKILLS = ['taptap-maker-local', 'taptap-maker-dev-kit-guide'];
 const WORKBUDDY_SKILLS = ['taptap-maker-plugin-lifecycle', 'update-taptap-mcp'];
 const WORKBUDDY_COMMANDS = ['create-project.md', 'sync-project.md'];
-const PLUGIN_DESCRIPTION =
-  'TapTap Maker 本地游戏开发插件，内置 MCP、CLI、开发技能和项目工作流。';
+const PLUGIN_DESCRIPTION = 'TapTap Maker 本地游戏开发插件，内置 MCP、CLI、开发技能和项目工作流。';
 const PLUGIN_DESCRIPTION_EN =
   'Local TapTap Maker game development with bundled MCP, CLI, and workflows.';
 const WORKBUDDY_DISPLAY_DESCRIPTIONS = {
@@ -46,14 +46,23 @@ const WORKBUDDY_DISPLAY_DESCRIPTIONS = {
 };
 
 function parseArgs(argv) {
-  let version;
+  let pluginVersion;
+  let makerVersion;
   let outputDir;
   for (let index = 0; index < argv.length; index += 1) {
     const option = argv[index];
     const value = argv[index + 1];
-    if ((option === '--version' || option === '--output-dir') && value) {
-      if (option === '--version') {
-        version = value;
+    if (
+      (option === '--version' ||
+        option === '--plugin-version' ||
+        option === '--maker-version' ||
+        option === '--output-dir') &&
+      value
+    ) {
+      if (option === '--version' || option === '--plugin-version') {
+        pluginVersion = value;
+      } else if (option === '--maker-version') {
+        makerVersion = value;
       } else {
         outputDir = value;
       }
@@ -61,21 +70,31 @@ function parseArgs(argv) {
       continue;
     }
     throw new Error(
-      'Usage: node scripts/prepare-maker-workbuddy-plugin.js [--version <semver>] [--output-dir <path>]'
+      'Usage: node scripts/prepare-maker-workbuddy-plugin.js [--plugin-version <semver>] [--maker-version <semver>] [--output-dir <path>]'
     );
   }
 
-  if (!version) {
+  if (!pluginVersion) {
+    const policy = JSON.parse(
+      readFileSync(join(projectRoot, 'config', 'maker-plugin-version.json'), 'utf8')
+    );
+    pluginVersion = policy.version;
+  }
+  if (!makerVersion) {
     const policy = JSON.parse(
       readFileSync(join(projectRoot, 'config', 'maker-version-policy.json'), 'utf8')
     );
-    version = policy.latest;
+    makerVersion = policy.latest;
   }
-  if (!VERSION_PATTERN.test(version || '')) {
-    throw new Error(`Invalid Maker plugin version: ${String(version)}`);
+  if (!VERSION_PATTERN.test(pluginVersion || '')) {
+    throw new Error(`Invalid Maker plugin version: ${String(pluginVersion)}`);
+  }
+  if (!VERSION_PATTERN.test(makerVersion || '')) {
+    throw new Error(`Invalid embedded Maker MCP version: ${String(makerVersion)}`);
   }
   return {
-    version,
+    pluginVersion,
+    makerVersion,
     pluginRoot: outputDir ? resolve(outputDir) : defaultPluginRoot,
   };
 }
@@ -137,15 +156,15 @@ function buildMakerBundle(version, outfile) {
   writeFileSync(outfile, bundle, 'utf8');
 }
 
-function createManifest(version) {
+function createManifest(pluginVersion) {
   return {
     name: 'taptap-maker',
-    version,
+    version: pluginVersion,
     description: PLUGIN_DESCRIPTION,
     description_en: PLUGIN_DESCRIPTION_EN,
     author: { name: 'TapTap Team' },
-    homepage: MAKER_SOURCE_URL,
-    repository: MAKER_SOURCE_URL,
+    homepage: PLUGIN_SOURCE_URL,
+    repository: PLUGIN_SOURCE_URL,
     license: 'MIT',
     keywords: ['taptap', 'maker', 'game-development', 'mcp'],
     category: 'game-development',
@@ -170,16 +189,15 @@ function createMcpConfig() {
   };
 }
 
-function createReadme(version) {
+function createReadme(pluginVersion, makerVersion) {
   return `# TapTap Maker WorkBuddy Plugin
 
-This plugin bundles TapTap Maker ${version}: the local MCP runtime, CLI, workflow Skills, commands,
-and connection troubleshooting guide. Its launcher prefers WorkBuddy's managed Node.js, falls back
-to a system Node.js when needed, and never downloads or launches Maker through npm or npx.
+插件版本：${pluginVersion}。内置 Maker MCP 版本：${makerVersion}。插件包含本地 MCP runtime、
+CLI、工作流 Skills、快捷命令和连接排障文档。启动器优先使用 WorkBuddy 管理的 Node.js，必要时
+回退系统 Node.js，不会通过 npm 或 npx 下载和启动 Maker。
 
-Use \`/taptap-maker:create-project\` to create a new game in an empty workspace, or
-\`/taptap-maker:sync-project\` to sync an existing Maker game into an empty workspace. Existing
-Maker authentication and project bindings are reused.
+在空 workspace 中使用 \`/taptap-maker:create-project\` 创建新游戏，或使用
+\`/taptap-maker:sync-project\` 同步已有 Maker 游戏。插件复用现有 Maker 鉴权和项目绑定。
 `;
 }
 
@@ -203,7 +221,7 @@ function syncMarketplaceMetadata(version) {
 }
 
 function main() {
-  const { version, pluginRoot } = parseArgs(process.argv.slice(2));
+  const { pluginVersion, makerVersion, pluginRoot } = parseArgs(process.argv.slice(2));
 
   if (pluginRoot === defaultPluginRoot) {
     rmSync(pluginRoot, { recursive: true, force: true });
@@ -211,7 +229,7 @@ function main() {
     throw new Error(`Custom plugin output directory already exists: ${pluginRoot}`);
   }
   mkdirSync(join(pluginRoot, '.codebuddy-plugin'), { recursive: true });
-  buildMakerBundle(version, join(pluginRoot, 'dist', 'maker.js'));
+  buildMakerBundle(makerVersion, join(pluginRoot, 'dist', 'maker.js'));
 
   for (const launcher of ['run-node', 'run-node.cmd', 'taptap-maker', 'taptap-maker.cmd']) {
     copyRequiredFile(
@@ -267,7 +285,7 @@ function main() {
 
   writeFileSync(
     join(pluginRoot, '.codebuddy-plugin', 'plugin.json'),
-    `${JSON.stringify(createManifest(version), null, 2)}\n`,
+    `${JSON.stringify(createManifest(pluginVersion), null, 2)}\n`,
     'utf8'
   );
   writeFileSync(
@@ -275,16 +293,18 @@ function main() {
     `${JSON.stringify(createMcpConfig(), null, 2)}\n`,
     'utf8'
   );
-  writeFileSync(join(pluginRoot, 'README.md'), createReadme(version), 'utf8');
+  writeFileSync(join(pluginRoot, 'README.md'), createReadme(pluginVersion, makerVersion), 'utf8');
 
   const bundle = readFileSync(join(pluginRoot, 'dist', 'maker.js'), 'utf8');
-  if (!bundle.includes(`// TapTap Maker MCP version: ${version}`)) {
-    throw new Error(`Bundled Maker runtime does not contain version ${version}.`);
+  if (!bundle.includes(`// TapTap Maker MCP version: ${makerVersion}`)) {
+    throw new Error(`Bundled Maker runtime does not contain version ${makerVersion}.`);
   }
   if (pluginRoot === defaultPluginRoot) {
-    syncMarketplaceMetadata(version);
+    syncMarketplaceMetadata(pluginVersion);
   }
-  console.log(`Prepared TapTap Maker WorkBuddy plugin ${version} at ${pluginRoot}`);
+  console.log(
+    `Prepared TapTap Maker WorkBuddy plugin ${pluginVersion} with Maker MCP ${makerVersion} at ${pluginRoot}`
+  );
 }
 
 try {
