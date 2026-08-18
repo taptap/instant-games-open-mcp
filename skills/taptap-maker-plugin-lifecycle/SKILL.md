@@ -55,11 +55,14 @@ inspect`. Continue only when its status is `disabled` or `not_found`. If it rema
 idempotent migration once more and verify again; never report the plugin ready while both MCPs are
 active.
 
-During installation, retain the migration result. If this attempt returned `action: "disabled"`
-with `changed: true` and installation or verification fails, immediately run `plugin restore
---client codex --confirm --json`; do not ask for confirmation again because this is a rollback of
-the same installation transaction. Do not restore a registration that was already disabled, was
-not found, belonged to an earlier migration, or was not changed by this installation attempt.
+During installation, retain every migration result. If any migration in this installation attempt
+returned `action: "disabled"` with `changed: true` and installation or verification fails,
+first remove a plugin installed by this attempt and verify that it is no longer installed. Do not
+restore the old MCP while the new plugin remains installed. Once the plugin is absent, immediately
+run `plugin restore --client codex --confirm --json`; do not ask for confirmation again because this
+is a rollback of the same installation transaction. Do not restore a registration that was already
+disabled, was not found, belonged to an earlier migration, or was not changed by this installation
+attempt.
 
 ## Initialization
 

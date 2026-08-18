@@ -375,7 +375,8 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `taptap-maker init --skip-mcp-install`。插件用户通过当前客户端 marketplace 更新，不运行独立 npm
   包升级。
   Codex 只有在本次安装实际禁用旧注册后又安装或验证失败时，才自动 restore 作为事务回滚；原本已
-  禁用、未找到、此前已迁移或不是本次迁移的注册不得恢复。正常移除插件时仍要求用户明确确认。
+  禁用、未找到、此前已迁移或不是本次迁移的注册不得恢复。回滚前必须移除本次已安装的插件并确认
+  不再启用；插件移除失败时保持旧 MCP 禁用。正常移除插件时仍要求用户明确确认。
   Codex 插件产物必须使用插件专用 `update-taptap-mcp`，不得复制 npm 发行版的更新 Skill。旧 MCP
   restore 必须校验迁移注册指纹；插件模式故障上报只检查插件 `.mcp.json` 和当前 bundle，不能把
   已禁用的独立 `taptap-maker` 注册或物化 self runtime 当作插件运行证据。
