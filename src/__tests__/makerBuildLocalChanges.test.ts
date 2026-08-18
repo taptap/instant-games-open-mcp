@@ -3619,6 +3619,20 @@ describe('maker build local-change guard', () => {
     }
   });
 
+  test('WorkBuddy plugin status directs upgrades to WorkBuddy instead of standalone npm', async () => {
+    process.env.TAPTAP_MAKER_DISTRIBUTION = 'workbuddy_plugin';
+
+    const summary = await formatStatus({ targetDir: tempDir });
+    const detail = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
+
+    for (const output of [summary, detail]) {
+      expect(output).toContain('- distribution: workbuddy_plugin');
+      expect(output).toContain('Update the installed WorkBuddy plugin');
+      expect(output).not.toContain('Update the installed Codex plugin');
+      expect(output).not.toContain('npx -y -p @taptap/maker');
+    }
+  });
+
   test('status summary guides PAT-only projects to refresh Tap auth', async () => {
     savePat({ token: 'maker-pat' });
 

@@ -59,8 +59,25 @@ taptap-maker init --skip-mcp-install
 taptap-maker plugin restore --client codex --confirm --json
 ```
 
-WorkBuddy 插件将复用相同 Maker runtime、CLI、Skills 和迁移状态模型，但属于下一阶段交付，
-当前插件包只面向 Codex。
+## WorkBuddy Plugin（0.0.30）
+
+WorkBuddy 插件位于 `plugins/workbuddy/taptap-maker`，通过
+`npm run maker:workbuddy-plugin:prepare` 生成。它使用共享的 CodeBuddy 插件规范：manifest 位于
+`.codebuddy-plugin/plugin.json`，MCP 位于 `.mcp.json`，Skills 和 commands 位于插件根目录。
+
+插件以自身 `bin/run-node` 启动 `${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js`。启动器优先读取
+`WORKBUDDY_EXTRA_PATHS` 和 WorkBuddy managed Node 目录，必要时才回退系统 PATH；Windows 同时
+兼容版本目录根和 `bin` 子目录中的 `node.exe`。插件不使用 npm/npx，也不设置固定项目 `cwd`。
+`/taptap-maker:create-project` 和 `/taptap-maker:sync-project` 都要求 WorkBuddy 当前 workspace
+为空目录，并通过插件内 CLI 执行 `init --skip-mcp-install`。
+
+首次使用前，生命周期 Skill 同时检查 `~/.workbuddy/mcp.json` 和旧的
+`~/.workbuddy/.mcp.json`。只有用户确认后才把唯一活动的旧 `taptap-maker` 注册设为
+`disabled: true`；如果两份配置都含 Maker 注册则返回 `ambiguous`，不自动选择。迁移保留备份和
+注册指纹，恢复只处理插件拥有且未被用户修改的注册。WorkBuddy connector trust 不由插件修改。
+
+本地安装测试使用仓库 `.codebuddy-plugin/marketplace.json`。插件更新通过 WorkBuddy `/plugin`
+和 `/reload-plugins`，不执行独立 Maker 包升级。
 
 ## 本地测试
 
@@ -70,6 +87,7 @@ WorkBuddy 插件将复用相同 Maker runtime、CLI、Skills 和迁移状态模�
 npm test
 npm run build
 node dist/maker.js
+npm run maker:workbuddy-plugin:prepare
 ```
 
 MCP server 模式：

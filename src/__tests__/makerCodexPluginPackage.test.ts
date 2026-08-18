@@ -145,6 +145,7 @@ describe('TapTap Maker Codex plugin package', () => {
     }
     const bundledRuntime = fs.readFileSync(path.join(pluginRoot, 'dist', 'maker.js'), 'utf8');
     expect(bundledRuntime).toContain(`// TapTap Maker MCP version: ${makerVersion}`);
+    expect(bundledRuntime).not.toMatch(/[\t ]+$/mu);
   });
 
   test('builds entirely in the requested output directory', () => {
@@ -166,5 +167,18 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(updateSkill).toContain('Codex marketplace');
     expect(updateSkill).not.toMatch(/(?:^|\s)npx\s+-/mu);
     expect(updateSkill).not.toContain('taptap-maker upgrade');
+  });
+
+  test('keeps the checked-in shared local workflow synchronized with its source', () => {
+    const sourceSkill = fs.readFileSync(
+      path.join(projectRoot, 'skills', 'taptap-maker-local', 'SKILL.md'),
+      'utf8'
+    );
+    const checkedInSkill = fs.readFileSync(
+      path.join(projectRoot, 'plugins', 'taptap-maker', 'skills', 'taptap-maker-local', 'SKILL.md'),
+      'utf8'
+    );
+
+    expect(checkedInSkill).toBe(sourceSkill);
   });
 });

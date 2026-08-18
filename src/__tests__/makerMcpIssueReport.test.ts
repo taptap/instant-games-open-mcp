@@ -541,6 +541,7 @@ describe('Maker MCP issue report', () => {
 
     expect(runtime).toEqual({
       distribution: 'codex_plugin',
+      client: 'codex',
       config_source: {
         format: 'json',
         paths: [configPath],
@@ -559,6 +560,39 @@ describe('Maker MCP issue report', () => {
       },
     });
     expect(resolveMakerMcpReportRuntime({ distribution: undefined })).toBeUndefined();
+  });
+
+  test('resolves WorkBuddy plugin reports to the bundled runtime', () => {
+    const pluginRoot = path.join(tempDir, 'workbuddy-taptap-maker');
+    const bundlePath = path.join(pluginRoot, 'dist', 'maker.js');
+    const configPath = path.join(pluginRoot, '.mcp.json');
+
+    const runtime = resolveMakerMcpReportRuntime({
+      distribution: 'workbuddy_plugin',
+      bundleUrl: pathToFileURL(bundlePath).href,
+      execPath: process.execPath,
+    });
+
+    expect(runtime).toEqual({
+      distribution: 'workbuddy_plugin',
+      client: 'workbuddy',
+      config_source: {
+        format: 'json',
+        paths: [configPath],
+        mcp_name: 'taptap-maker-plugin',
+      },
+      launcher: {
+        kind: 'self_runtime',
+        command: process.execPath,
+        args: [bundlePath],
+        commandAndArgs: [process.execPath, bundlePath],
+      },
+      cwd: pluginRoot,
+      env: {
+        TAPTAP_MAKER_DISTRIBUTION: 'workbuddy_plugin',
+        TAPTAP_MCP_CLIENT_IDE: 'workbuddy',
+      },
+    });
   });
 
   test('collects the plugin MCP entry instead of the disabled standalone Codex registration', async () => {
@@ -613,6 +647,48 @@ describe('Maker MCP issue report', () => {
       ],
     });
     expect(JSON.stringify(diagnostics.client_config)).not.toContain('old-node');
+  });
+
+  test('collects WorkBuddy trust for the active plugin MCP instead of the standalone MCP', async () => {
+    const trustPath = path.join(
+      tempDir,
+      '.workbuddy',
+      'connectors',
+      'private-account-id',
+      'connector-states.json'
+    );
+    fs.mkdirSync(path.dirname(trustPath), { recursive: true });
+    fs.writeFileSync(
+      trustPath,
+      JSON.stringify({
+        enabled: ['taptap-maker'],
+        everConnected: ['taptap-maker', 'taptap-maker-plugin'],
+        userDisabled: ['taptap-maker-plugin'],
+      }),
+      'utf8'
+    );
+
+    const diagnostics = await collectMakerMcpIssueDiagnostics({
+      ide: 'workbuddy',
+      homeDir: tempDir,
+      targetDir: tempDir,
+      makerVersion: 'dev',
+      configSource: {
+        format: 'json',
+        paths: [path.join(tempDir, 'plugin', '.mcp.json')],
+        mcp_name: 'taptap-maker-plugin',
+      },
+      verify: async () => ({ ok: true, stage: 'tools_list' }),
+    });
+
+    expect(diagnostics.workbuddy_trust).toEqual({
+      status: 'disabled',
+      accounts_checked: 1,
+      trusted_accounts: 0,
+      disabled_accounts: 1,
+      pending_accounts: 0,
+      unreadable_accounts: 0,
+    });
   });
 
   test('creates an issue when GitHub CLI succeeds', () => {

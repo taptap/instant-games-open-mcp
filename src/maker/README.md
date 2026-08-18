@@ -14,6 +14,8 @@ Skills、项目初始化、素材生成、远端构建和预览流程。
   MCP 配置。
 - **Maker Skills**：约束 AI 客户端中的初始化、开发、构建、排障和插件迁移工作流。
 - **Codex Plugin**：内置 Maker MCP、CLI、Skills 和文档，运行时不依赖外部 npm/npx。
+- **WorkBuddy Plugin**：内置相同 Maker runtime、CLI 和平台专属工作流，通过共享 CodeBuddy 插件
+  规范安装，运行时不依赖外部 npm/npx。
 
 ## Codex Plugin
 
@@ -23,6 +25,21 @@ Codex 插件位于 [`plugins/taptap-maker`](../../plugins/taptap-maker)，当前
 插件首次使用时会检查是否存在旧的独立 Maker MCP。经用户确认后，只会把旧注册设置为
 `enabled = false`，不会删除原配置，并支持恢复。插件内初始化必须使用
 `taptap-maker init --skip-mcp-install`，避免重复安装 MCP。
+
+## WorkBuddy Plugin
+
+WorkBuddy 插件位于
+[`plugins/workbuddy/taptap-maker`](../../plugins/workbuddy/taptap-maker)，本地 marketplace 位于
+[`.codebuddy-plugin/marketplace.json`](../../.codebuddy-plugin/marketplace.json)。插件提供创建新项目
+和同步已有项目两个快捷命令，两者都要求当前 workspace 为空目录。
+
+MCP、快捷命令和插件 CLI 统一通过插件内 `bin/run-node` 启动。它优先使用 WorkBuddy 注入或管理的
+Node.js，兼容 Windows 上未配置全局 Node/PATH 的环境；只有 WorkBuddy Node 不可用时才回退系统
+Node.js。插件运行时仍完全来自自身 `dist/maker.js`，不下载或调用 npm/npx。
+
+旧 WorkBuddy Maker MCP 通过 `taptap-maker plugin inspect --client workbuddy` 检查；经用户确认后
+只设置 `disabled: true`，不删除注册、鉴权、项目绑定或 connector trust。更新使用 WorkBuddy
+插件管理器，不运行 npm/npx 或独立 `taptap-maker upgrade`。
 
 ## 独立 CLI
 
@@ -51,6 +68,7 @@ npm ci
 npm test
 npm run build
 npm run maker:codex-plugin:prepare
+npm run maker:workbuddy-plugin:prepare
 ```
 
 Maker 代码位于当前目录，打包入口为 `src/maker/index.ts`，本地 MCP server 位于

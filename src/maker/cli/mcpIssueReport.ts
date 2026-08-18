@@ -12,6 +12,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { identifyMakerProject } from '../server/identify.js';
+import {
+  resolveMakerPluginDistribution,
+  type MakerPluginDistributionId,
+} from '../pluginDistribution.js';
 import { findDshMakerPluginEntry, getDshHome, listDshMcpConfigPaths } from './dshMcpConfig.js';
 import {
   resolveMakerPackageSpec,
@@ -62,7 +66,8 @@ export type MakerMcpConfigSource = {
 };
 
 export type MakerMcpReportRuntime = {
-  distribution: 'codex_plugin';
+  distribution: MakerPluginDistributionId;
+  client: 'codex' | 'workbuddy';
   config_source: MakerMcpConfigSource;
   launcher: MakerMcpLauncher;
   cwd: string;
@@ -186,18 +191,22 @@ export function resolveMakerMcpReportRuntime(options: {
   bundleUrl?: string;
   execPath?: string;
 }): MakerMcpReportRuntime | undefined {
-  if (options.distribution !== 'codex_plugin') {
+  const pluginDistribution = resolveMakerPluginDistribution(options.distribution);
+  if (!pluginDistribution) {
     return undefined;
   }
   if (!options.bundleUrl) {
-    throw new Error('Codex plugin diagnostics require the active Maker bundle URL.');
+    throw new Error(
+      `${pluginDistribution.displayName} plugin diagnostics require the active Maker bundle URL.`
+    );
   }
 
   const bundlePath = path.resolve(fileURLToPath(options.bundleUrl));
   const pluginRoot = path.dirname(path.dirname(bundlePath));
   const execPath = options.execPath ?? process.execPath;
   return {
-    distribution: 'codex_plugin',
+    distribution: pluginDistribution.id,
+    client: pluginDistribution.client,
     config_source: {
       format: 'json',
       paths: [path.join(pluginRoot, '.mcp.json')],
@@ -211,8 +220,8 @@ export function resolveMakerMcpReportRuntime(options: {
     },
     cwd: pluginRoot,
     env: {
-      TAPTAP_MAKER_DISTRIBUTION: 'codex_plugin',
-      TAPTAP_MCP_CLIENT_IDE: 'codex',
+      TAPTAP_MAKER_DISTRIBUTION: pluginDistribution.id,
+      TAPTAP_MCP_CLIENT_IDE: pluginDistribution.client,
     },
   };
 }
@@ -334,7 +343,10 @@ export async function collectMakerMcpIssueDiagnostics(options: {
     ...(options.distribution ? { distribution: options.distribution } : {}),
   };
   if (client === 'workbuddy') {
-    diagnostics.workbuddy_trust = inspectWorkBuddyTrust(homeDir);
+    diagnostics.workbuddy_trust = inspectWorkBuddyTrust(
+      homeDir,
+      options.configSource?.mcp_name || MAKER_MCP_NAME
+    );
   }
   return diagnostics;
 }
@@ -685,7 +697,10 @@ function runGitHubIssueCreate(args: string[], input: string): GitHubCommandResul
   };
 }
 
-function inspectWorkBuddyTrust(homeDir: string): {
+function inspectWorkBuddyTrust(
+  homeDir: string,
+  mcpName: string
+): {
   status: 'trusted' | 'disabled' | 'pending' | 'mixed' | 'not_found' | 'unreadable';
   accounts_checked: number;
   trusted_accounts: number;
@@ -728,9 +743,9 @@ function inspectWorkBuddyTrust(homeDir: string): {
         counts.unreadable_accounts += 1;
         continue;
       }
-      const enabled = asStringArray(state.enabled).includes(MAKER_MCP_NAME);
-      const userDisabled = asStringArray(state.userDisabled).includes(MAKER_MCP_NAME);
-      const everConnected = asStringArray(state.everConnected).includes(MAKER_MCP_NAME);
+      const enabled = asStringArray(state.enabled).includes(mcpName);
+      const userDisabled = asStringArray(state.userDisabled).includes(mcpName);
+      const everConnected = asStringArray(state.everConnected).includes(mcpName);
       if (!enabled && !userDisabled && !everConnected) {
         continue;
       }

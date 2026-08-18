@@ -73,23 +73,23 @@ Do not reimplement Maker API calls or Git authentication in shell when the Maker
 exists.
 
 When `taptap-maker-plugin-lifecycle` is bundled, follow it before this workflow. Resolve and use the
-plugin's bundled CLI, initialize with `taptap-maker init --skip-mcp-install`, and update the Codex
-plugin instead of installing or upgrading a standalone Maker MCP package.
+plugin's bundled CLI, initialize with `taptap-maker init --skip-mcp-install`, and update through the
+active plugin's marketplace instead of installing or upgrading a standalone Maker MCP package.
 
 ## Main Intent Table
 
-| User intent                                               | Required workflow                                                                                                                                                                     |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| initialize / configure / continue Maker local development | Run the Maker CLI initialization workflow.                                                                                                                                            |
-| clone / download Maker project locally                    | Follow "Initialization Workflow"; do not ask for app_id directly.                                                                                                                     |
-| status / is Maker ready                                   | Read `maker://status`, call `maker_status_lite` if resources are unavailable, then follow `AGENTS.md` and `Maker remote sync` hints if present.                                       |
-| upgrade Maker MCP / old project policy                    | Follow the active distribution's update skill. Codex plugin users update through the Codex marketplace; standalone MCP users run `taptap-maker upgrade` for the current project only. |
-| submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                                                                           |
-| pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                                                                                |
-| conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing.                                                    |
-| build / preview / run / check game result                 | Use `maker_build_current_directory`; it starts the local runtime log watcher after a successful remote build result.                                                                  |
-| generic code validation / tests / lint                    | Do not use Maker remote build unless the user explicitly asks to build, run, or preview the Maker game.                                                                               |
-| MCP unavailable / proxy timeout / unexpected server error | Diagnose first; offer one consent-gated GitHub issue report when the evidence suggests an MCP, proxy, client integration, or service defect.                                          |
+| User intent                                               | Required workflow                                                                                                                                                                         |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| initialize / configure / continue Maker local development | Run the Maker CLI initialization workflow.                                                                                                                                                |
+| clone / download Maker project locally                    | Follow "Initialization Workflow"; do not ask for app_id directly.                                                                                                                         |
+| status / is Maker ready                                   | Read `maker://status`, call `maker_status_lite` if resources are unavailable, then follow `AGENTS.md` and `Maker remote sync` hints if present.                                           |
+| upgrade Maker MCP / old project policy                    | Follow the active distribution's update skill. Plugin users update through the active plugin's marketplace; standalone MCP users run `taptap-maker upgrade` for the current project only. |
+| submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                                                                               |
+| pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                                                                                    |
+| conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing.                                                        |
+| build / preview / run / check game result                 | Use `maker_build_current_directory`; it starts the local runtime log watcher after a successful remote build result.                                                                      |
+| generic code validation / tests / lint                    | Do not use Maker remote build unless the user explicitly asks to build, run, or preview the Maker game.                                                                                   |
+| MCP unavailable / proxy timeout / unexpected server error | Diagnose first; offer one consent-gated GitHub issue report when the evidence suggests an MCP, proxy, client integration, or service defect.                                              |
 
 ## Create New Maker Project Intent
 
@@ -231,12 +231,12 @@ A directory is a Maker project when the user's current project directory or one 
 When this file exists, explain that the directory is already bound to a Maker project.
 
 For a bound project, always inspect `maker://status` or `maker_status_lite` before continuing
-development after an MCP/package upgrade. If the status includes an `AGENTS.md` section with
-`status: missing_file`, `missing_block`, or `outdated`, run
-`taptap-maker agents update --target-dir <project dir>` or `taptap-maker upgrade --target-dir
-<project dir>` before making gameplay/code changes. After updating `AGENTS.md`, tell the user the
-current session remains usable; updated instructions load on the next MCP start or user-requested
-reconnect. Do not require a new conversation.
+development after an MCP/package or plugin upgrade. If the status includes an `AGENTS.md` section
+with `status: missing_file`, `missing_block`, or `outdated`, run
+`taptap-maker agents update --target-dir <project dir>` before making gameplay/code changes. After
+updating `AGENTS.md`, tell the user the current session remains usable; updated instructions load on
+the next MCP start or user-requested reconnect. Do not require a new conversation. Package or plugin
+updates are a separate workflow and must follow the active distribution's update skill.
 
 When this file is missing and the user asks to clone, initialize, or continue Maker local
 development, do not ask the user for an app_id directly. Follow the initialization workflow.
@@ -666,8 +666,8 @@ When `taptap-maker doctor`, `maker://status`, or `maker_status_lite` reports Tap
 skills, show the skill names and document paths. Do not install or register skills automatically.
 
 `taptap-maker-local` covers Maker local workflow. `taptap-maker-dev-kit-guide` explains the local
-AI dev-kit resources installed during clone. `update-taptap-mcp` covers local TapTap MCP cache
-updates.
+AI dev-kit resources installed during clone. `update-taptap-mcp` covers the active distribution's
+supported update workflow.
 
 Prefer user/global scope for Maker MCP installation. If a project/local config already exists,
 do not block the workflow; just explain that user/global scope is recommended to avoid config

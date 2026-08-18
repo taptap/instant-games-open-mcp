@@ -74,6 +74,10 @@ import {
   formatMakerLuaLspEnvironmentStatus,
 } from '../system/luaLsp.js';
 import { formatMakerSkillStatus } from '../cli/skill.js';
+import {
+  formatMakerPluginUpdateAction,
+  resolveMakerPluginDistribution,
+} from '../pluginDistribution.js';
 import { formatMakerAgentsPolicyStatus } from '../cli/agentsPolicy.js';
 import {
   DEV_KIT_GITIGNORE_STAGING_FILE,
@@ -1010,7 +1014,7 @@ export async function formatStatus(
 ): Promise<string> {
   const detail = options.detail === true;
   const distribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
-  const isCodexPlugin = distribution === 'codex_plugin';
+  const pluginDistribution = resolveMakerPluginDistribution(distribution);
   const projectContext = await resolveMakerProjectContext({
     targetDir: options.targetDir,
     listClientRoots: options.listClientRoots,
@@ -1089,12 +1093,12 @@ export async function formatStatus(
     `- lua_lsp: ${luaLsp.status}`,
     'Maker MCP package update',
     `- status: ${packageUpdateStatus.status}`,
-    isCodexPlugin ? '- distribution: codex_plugin' : '',
+    pluginDistribution ? `- distribution: ${pluginDistribution.id}` : '',
     packageUpdateStatus.target_version
       ? `- target_version: ${packageUpdateStatus.target_version}`
       : '',
-    isCodexPlugin
-      ? '- next_action: Update the installed Codex plugin through its marketplace; do not install or upgrade the standalone npm package.'
+    pluginDistribution
+      ? `- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}`
       : packageUpdateStatus.next_action
         ? `- next_action: ${packageUpdateStatus.next_action}`
         : '',
@@ -1126,7 +1130,7 @@ export async function formatStatus(
       'TapTap Maker MCP status',
       '',
       `- version: ${VERSION}`,
-      isCodexPlugin ? '- distribution: codex_plugin' : '',
+      pluginDistribution ? `- distribution: ${pluginDistribution.id}` : '',
       `- env: ${env}`,
       `- project_context_source: ${projectContext.source}`,
       summaryText,
@@ -1137,7 +1141,7 @@ export async function formatStatus(
     'TapTap Maker MCP status',
     '',
     `- version: ${VERSION}`,
-    isCodexPlugin ? '- distribution: codex_plugin' : '',
+    pluginDistribution ? `- distribution: ${pluginDistribution.id}` : '',
     `- env: ${env}`,
     `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath()})`,
     `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
@@ -1212,13 +1216,14 @@ function formatMakerPackageUpdateStatusForDistribution(
   distribution: string | undefined
 ): string {
   const formatted = formatMakerPackageUpdateStatus(status);
-  if (distribution !== 'codex_plugin') {
+  const pluginDistribution = resolveMakerPluginDistribution(distribution);
+  if (!pluginDistribution) {
     return formatted;
   }
   return [
     ...formatted.split('\n').filter((line) => !line.startsWith('- next_action:')),
-    '- distribution: codex_plugin',
-    '- next_action: Update the installed Codex plugin through its marketplace; do not install or upgrade the standalone npm package.',
+    `- distribution: ${pluginDistribution.id}`,
+    `- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}`,
   ].join('\n');
 }
 

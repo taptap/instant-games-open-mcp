@@ -49,6 +49,27 @@ describe('Maker public documentation', () => {
     }
   });
 
+  test('Maker skill status exposes WorkBuddy plugin-native lifecycle guidance', () => {
+    const previousDistribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
+    try {
+      process.env.TAPTAP_MAKER_DISTRIBUTION = 'workbuddy_plugin';
+      const pluginStatus = formatMakerSkillStatus();
+
+      expect(pluginStatus).toContain('taptap-maker-plugin-lifecycle');
+      expect(pluginStatus).toContain('Maker WorkBuddy plugin lifecycle');
+      expect(pluginStatus).toContain('legacy WorkBuddy Maker MCP');
+      expect(pluginStatus).toContain('taptap-maker init --skip-mcp-install');
+      expect(pluginStatus).toContain('Update the installed WorkBuddy plugin');
+      expect(pluginStatus).not.toContain('Update the installed Codex plugin');
+    } finally {
+      if (previousDistribution === undefined) {
+        delete process.env.TAPTAP_MAKER_DISTRIBUTION;
+      } else {
+        process.env.TAPTAP_MAKER_DISTRIBUTION = previousDistribution;
+      }
+    }
+  });
+
   test('Maker package preparation script remains valid JavaScript', () => {
     const scriptPath = path.resolve('scripts/prepare-maker-package.js');
     const result = spawnSync(process.execPath, ['--check', scriptPath], {

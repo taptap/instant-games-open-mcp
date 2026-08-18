@@ -101,6 +101,8 @@ function buildMakerBundle(version, outfile) {
   if (result.status !== 0) {
     throw new Error(`Maker bundle build failed:\n${result.stdout}\n${result.stderr}`);
   }
+  const bundle = readFileSync(outfile, 'utf8').replace(/[\t ]+$/gm, '');
+  writeFileSync(outfile, bundle, 'utf8');
 }
 
 function createManifest(version) {

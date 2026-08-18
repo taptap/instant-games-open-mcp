@@ -5,6 +5,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  formatMakerPluginUpdateAction,
+  resolveMakerPluginDistribution,
+} from '../pluginDistribution.js';
 
 declare const __MAKER_BUNDLE_URL__: string | undefined;
 
@@ -30,7 +34,7 @@ export function formatMakerSkillStatus(
     projectRoot?: string;
   } = {}
 ): string {
-  const pluginDistribution = process.env.TAPTAP_MAKER_DISTRIBUTION === 'codex_plugin';
+  const pluginDistribution = resolveMakerPluginDistribution();
   const bundledSkills = pluginDistribution
     ? [...BUNDLED_SKILLS, { name: MAKER_PLUGIN_LIFECYCLE_SKILL_NAME }]
     : BUNDLED_SKILLS;
@@ -47,12 +51,12 @@ export function formatMakerSkillStatus(
     ...(pluginDistribution
       ? [
           '',
-          'Maker Codex plugin lifecycle',
+          `Maker ${pluginDistribution.displayName} plugin lifecycle`,
           `- entry: ${MAKER_PLUGIN_LIFECYCLE_SKILL_NAME}`,
-          '- Inspect a legacy Codex Maker MCP registration before first use.',
+          `- Inspect a legacy ${pluginDistribution.displayName} Maker MCP registration before first use.`,
           '- Require explicit confirmation before disabling or restoring it.',
           '- Initialize with `taptap-maker init --skip-mcp-install`; the plugin already provides MCP.',
-          '- Update the installed Codex plugin instead of installing or upgrading the standalone npm package.',
+          `- ${formatMakerPluginUpdateAction(pluginDistribution)}`,
         ]
       : []),
     '',

@@ -1,0 +1,6 @@
+#!/bin/sh
+
+script_dir=${0%/*}
+[ "$script_dir" = "$0" ] && script_dir=.
+
+exec "$script_dir/run-node" "$script_dir/../dist/maker.js" "$@"

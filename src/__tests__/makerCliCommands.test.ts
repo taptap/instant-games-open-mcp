@@ -366,6 +366,52 @@ describe('Maker CLI commands', () => {
     expect(fs.readFileSync(configPath, 'utf8')).not.toContain('enabled = false');
   });
 
+  test('plugin lifecycle commands route WorkBuddy inspection, migration, and restoration', async () => {
+    const configPath = path.join(tempDir, '.workbuddy', '.mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      `${JSON.stringify(
+        {
+          mcpServers: {
+            'connector-proxy': { type: 'http', url: 'http://127.0.0.1:1/mcp' },
+            'taptap-maker': { command: 'npx', args: ['-y', '@taptap/maker'] },
+          },
+        },
+        null,
+        2
+      )}\n`,
+      'utf8'
+    );
+
+    await runMakerCli(['plugin', 'inspect', '--client', 'workbuddy', '--json']);
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toMatchObject({
+      client: 'workbuddy',
+      status: 'active',
+      config_path: configPath,
+    });
+
+    await runMakerCli(['plugin', 'migrate', '--client', 'workbuddy', '--confirm', '--json']);
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toMatchObject({
+      client: 'workbuddy',
+      action: 'disabled',
+      changed: true,
+    });
+    expect(
+      JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers['taptap-maker'].disabled
+    ).toBe(true);
+
+    await runMakerCli(['plugin', 'restore', '--client', 'workbuddy', '--confirm', '--json']);
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toMatchObject({
+      client: 'workbuddy',
+      action: 'restored',
+      changed: true,
+    });
+    expect(
+      JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers['taptap-maker']
+    ).not.toHaveProperty('disabled');
+  });
+
   test('codex mcp install replaces existing server table and env subtable', async () => {
     const configPath = path.join(tempDir, '.codex', 'config.toml');
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
