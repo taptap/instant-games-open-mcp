@@ -85,6 +85,8 @@ describe('TapTap Maker Codex plugin package', () => {
         [
           path.join(projectRoot, 'node_modules', 'prettier', 'bin', 'prettier.cjs'),
           '--check',
+          '--config',
+          path.join(projectRoot, '.prettierrc'),
           relativePath,
         ],
         { cwd: pluginRoot, encoding: 'utf8' }

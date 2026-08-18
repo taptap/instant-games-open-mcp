@@ -176,7 +176,11 @@ function createMcpConfig() {
 }
 
 async function writeJson(filePath, value) {
-  writeFileSync(filePath, await format(JSON.stringify(value), { parser: 'json' }), 'utf8');
+  writeFileSync(
+    filePath,
+    await format(JSON.stringify(value), { parser: 'json', printWidth: 100 }),
+    'utf8'
+  );
 }
 
 function createReadme(pluginVersion, makerVersion) {
