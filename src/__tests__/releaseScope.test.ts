@@ -14,6 +14,23 @@ describe('release-scope classifier', () => {
     expect(releaseScope.isMakerOwnedPath('src/__tests__/makerRuntimeLogs.test.ts')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('config/maker-version-policy.json')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('scripts/update-maker-version-policy.cjs')).toBe(true);
+    expect(
+      releaseScope.isMakerOwnedPath('.github/workflows/prepare-maker-plugin-release.yml')
+    ).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('.github/workflows/publish-maker-plugin.yml')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('config/maker-plugin-version.json')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('.agents/plugins/marketplace.json')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('.codebuddy-plugin/marketplace.json')).toBe(true);
+    expect(
+      releaseScope.isMakerOwnedPath('plugin-sources/taptap-maker/workbuddy/bin/run-node')
+    ).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('plugins/taptap-maker/.mcp.json')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('plugins/workbuddy/taptap-maker/.mcp.json')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('scripts/package-maker-client-plugins.js')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('scripts/prepare-maker-codex-plugin.js')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('scripts/prepare-maker-workbuddy-plugin.js')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('scripts/resolve-maker-plugin-version.js')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('scripts/update-maker-plugin-version.js')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('.github/workflows/release.yml')).toBe(false);
     expect(releaseScope.isMakerOwnedPath('package.json')).toBe(false);
   });
@@ -43,8 +60,11 @@ describe('release-scope classifier', () => {
   it('recognizes release infrastructure paths that intentionally span release ownership', () => {
     const classification = releaseScope.classifyFiles([
       '.github/workflows/claude-review.yml',
+      '.github/workflows/codeql.yml',
       '.github/workflows/release.yml',
       '.github/workflows/publish-maker.yml',
+      '.github/workflows/prepare-maker-plugin-release.yml',
+      '.github/workflows/publish-maker-plugin.yml',
       'scripts/release-scope.cjs',
       'scripts/update-maker-version-policy.cjs',
       'scripts/resolve-main-release-version.js',
@@ -65,6 +85,20 @@ describe('release-scope classifier', () => {
     expect(classification.hasMakerChanges).toBe(true);
     expect(classification.hasNonMakerChanges).toBe(true);
     expect(classification.onlyReleaseInfrastructureChanged).toBe(true);
+  });
+
+  it('keeps Maker plugin release workflows out of the main package release', () => {
+    const result = releaseScope.shouldSkipLegacyRelease({
+      files: [
+        '.github/workflows/prepare-maker-plugin-release.yml',
+        '.github/workflows/publish-maker-plugin.yml',
+      ],
+      markerText: 'ci(maker-plugin): update plugin publishing',
+    });
+
+    expect(result.onlyMakerChanged).toBe(true);
+    expect(result.onlyReleaseInfrastructureChanged).toBe(true);
+    expect(result.skipLegacyRelease).toBe(true);
   });
 
   it('uses three-dot diff to avoid base-only changes in PR scope detection', () => {

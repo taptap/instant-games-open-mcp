@@ -68,6 +68,18 @@ Maker 包版本号使用三段式 semver，例如 `0.0.1`。Maker 包只能从�
 目标版本，人工核对后点击 protected environment 审批按钮继续发布。发布 job 在
 `npm publish` 前会再次查询目标版本是否仍未发布，避免审批等待期间同版本被抢先发布。
 
+## Maker 客户端插件发布边界
+
+Codex 和 WorkBuddy 插件使用 `config/maker-plugin-version.json` 中的独立版本，不跟随
+`@taptap/maker` npm 版本。稳定版从 `0.0.1` 开始，只递增 patch。
+
+- 从 `main` 手动运行 `Prepare Maker Plugin Release`，生成版本 PR；PR 合入后自动创建
+  `maker-plugin-v<version>` GitHub Release，并上传两个客户端 ZIP 和 SHA-256 校验文件。
+- 从 `develop` 手动运行 `Publish Maker Plugin` 可发布 `-dev.<run_number>` 测试版；它不会因
+  `develop` push 自动触发，也不会占用稳定版本号。
+- 插件运行时不依赖 npm/npx；发布流程不执行 `npm publish`，不会发布或更新
+  `@taptap/maker`，也不会影响原 Maker MCP 的安装流程。
+
 ### 主包迁移说明
 
 主包 `@taptap/instant-games-open-mcp` 只保留 TapTap Open API MCP server 和 proxy 入口。

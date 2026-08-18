@@ -61,6 +61,7 @@
 
 ```
 main          # 稳定版本（1.2.3）- 受保护
+├── develop   # Maker 客户端插件公开测试分支，可通过 PR 合入 main
 ├── beta      # Beta 测试版（1.3.0-beta.1）
 ├── alpha     # Alpha 早期版（1.3.0-alpha.1）
 ├── next      # 下一个主版本（2.0.0-next.1）
@@ -71,6 +72,7 @@ main          # 稳定版本（1.2.3）- 受保护
 
 - **`main` 分支受组织级 Ruleset (trunk-guard) 保护**
 - 所有更改必须通过 PR 合并
+- `develop` 作为长期测试分支也必须通过 PR Check，验证后可以通过 PR 合入 `main`
 - PR 必须通过所有 CI 检查
 - Commit 消息必须符合 Conventional Commits 规范
 
@@ -399,6 +401,25 @@ Maker 包版本号使用 semver。CI 自动递增默认在 `beta` 或 `main` 分
 `0.0.17` 和 `tag=latest`。手动发布如果要改变 major 或 minor，CI 会在预检 job 的
 Actions Summary 展示当前线上 dist-tag 版本和目标版本，人工核对后点击 protected
 environment 审批按钮继续发布。
+
+### 5.6 Maker 客户端插件发布工作流
+
+Codex 和 WorkBuddy 插件共用独立插件版本，不复用 `@taptap/maker` npm 版本。版本真源是
+`config/maker-plugin-version.json`，稳定版本从 `0.0.1` 开始，只递增 patch。
+
+稳定版发布分成两个明确阶段：
+
+1. 从 `main` 手动运行 `Prepare Maker Plugin Release`。它计算下一个可用 patch，更新版本真源，
+   重新生成两个客户端插件并创建版本 PR。
+2. 版本 PR 通过普通 PR Check 并合入 `main` 后，`Publish Maker Plugin` 自动校验生成物，打包
+   Codex 与 WorkBuddy ZIP、校验和及机器可读元数据，并创建 `maker-plugin-v<version>` Release。
+
+公开测试版只能从 `develop` 手动运行 `Publish Maker Plugin`，版本格式为下一个稳定 patch 加
+`-dev.<run_number>`，并标记为 GitHub Prerelease。`develop` push 不自动发版。测试通过后，代码通过
+PR 合入 `main`，再走稳定版准备流程。
+
+插件发布只创建 GitHub Release，不执行 `npm publish`，也不修改 Maker MCP 或主包的 npm 发布规则。
+重复运行同一提交时允许更新同一 Release 的附件；同名 tag 指向其它提交时必须失败。
 
 ---
 
