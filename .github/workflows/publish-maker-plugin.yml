@@ -43,6 +43,15 @@ jobs:
           echo "::error::Publish from main, or manually dispatch from develop."
           exit 1
 
+      - name: Require plugin release support
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f config/maker-plugin-version.json ]]; then
+            echo "::error::Merge the Maker client plugin implementation before publishing."
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:

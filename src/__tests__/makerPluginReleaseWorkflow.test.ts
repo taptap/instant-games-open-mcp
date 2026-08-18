@@ -30,6 +30,9 @@ describe('Maker plugin release workflows', () => {
       expect(workflow).not.toContain('support_ready');
       expect(workflow).not.toContain('exit 0');
       expect(workflow).not.toContain('plugin support has not reached this branch');
+      expect(workflow).toContain('name: Require plugin release support');
+      expect(workflow).toContain('config/maker-plugin-version.json');
+      expect(workflow).toContain('Merge the Maker client plugin implementation before publishing.');
     }
   });
 
