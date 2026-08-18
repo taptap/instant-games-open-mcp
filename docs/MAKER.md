@@ -61,6 +61,8 @@ manifest 默认版本来自 `config/maker-plugin-version.json`，内置 bundle �
 - 活动的旧注册自动设为 `enabled = false`，不删除配置，并保留 `.taptap-maker.bak.latest` 和
   可恢复状态。检查返回 `ambiguous` 时必须在安装前停止；安装后只有状态为 `disabled` 或
   `not_found` 才能报告插件可用。
+- 只有本次安装实际禁用旧注册后又安装或验证失败时，才自动 restore 作为事务回滚。原本已禁用、
+  未找到或不是本次迁移的注册不恢复；正常移除插件时恢复旧 MCP 仍须用户明确确认。
 - 重复迁移与恢复保持幂等；迁移状态记录原注册和禁用后注册的结构指纹。同名注册被替换或修改后
   restore 返回 `not_owned`，不会误启用新注册。用户自己禁用的旧注册也不归插件所有。
 - 新项目初始化运行插件内 CLI，并传 `--skip-mcp-install`，避免产生第二份 MCP 注册。

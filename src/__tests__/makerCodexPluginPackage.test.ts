@@ -188,7 +188,12 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(readme).toContain('安装前自动禁用旧 Maker MCP');
     expect(readme).toContain('安装后必须再次检查');
     expect(readme).toContain('状态为 `ambiguous` 时必须在安装前停止');
+    expect(readme).toContain('安装、重新加载或 Maker MCP tools 验证失败');
+    expect(readme).toContain('plugin restore --client codex --confirm --json');
     expect(readme.indexOf('plugin migrate --client codex --confirm --json')).toBeLessThan(
+      readme.indexOf('codex plugin add taptap-maker@taptap-maker')
+    );
+    expect(readme.indexOf('plugin restore --client codex --confirm --json')).toBeGreaterThan(
       readme.indexOf('codex plugin add taptap-maker@taptap-maker')
     );
     expect(readme.lastIndexOf('plugin inspect --client codex --json')).toBeGreaterThan(

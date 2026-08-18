@@ -241,6 +241,7 @@ ZIP 是完整的离线 marketplace 包。AI 必须只下载所选 ZIP 和 \`SHA2
    如果状态为 \`active\`，告知用户已发现旧 Maker MCP，然后立即执行
    \`node "<解压目录>/plugins/taptap-maker/dist/maker.js" plugin migrate --client codex --confirm --json\`；
    不要再请求确认。迁移只把旧注册设为 \`enabled = false\`，不会删除原配置或用户数据。
+   记录迁移结果；只有本次返回 \`action: "disabled"\` 且 \`changed: true\` 时，失败回滚才恢复旧注册。
    状态为 \`ambiguous\` 时必须在安装前停止。报告重复配置，不要进入插件安装；状态为
    \`disabled\` 或 \`not_found\` 时继续。
 2. 执行 \`codex plugin marketplace add <解压目录>\`。
@@ -250,8 +251,13 @@ ZIP 是完整的离线 marketplace 包。AI 必须只下载所选 ZIP 和 \`SHA2
    和
    \`node "<解压目录>/plugins/taptap-maker/dist/maker.js" plugin inspect --client codex --json\`。
    只有检查状态为 \`disabled\` 或 \`not_found\` 时才算兼容检查通过；状态仍为 \`active\` 时不得
-   报告插件可用。迁移或检查返回 \`ambiguous\` 时立即停止并报告重复配置。
+   报告插件可用。迁移失败或检查返回 \`ambiguous\` 时立即停止并报告重复配置。
 5. 重新加载插件或新建任务，验证 TapTap Maker 插件已启用且 Maker MCP tools 已注册。
+6. 如果安装、重新加载或 Maker MCP tools 验证失败，并且步骤 1 的迁移结果是本次实际禁用了旧注册，
+   立即执行
+   \`node "<解压目录>/plugins/taptap-maker/dist/maker.js" plugin restore --client codex --confirm --json\`
+   自动回滚，再报告安装失败。失败回滚属于同一次安装事务，无需再次询问用户；不得恢复原本就已
+   禁用、未找到或并非本次迁移的注册。
 
 ### WorkBuddy
 
@@ -273,7 +279,8 @@ ZIP 是完整的离线 marketplace 包。AI 必须只下载所选 ZIP 和 \`SHA2
 检查旧的独立 Maker MCP，并自动把活动注册设置为 \`enabled = false\`，无需再次确认。WorkBuddy
 仍通过 SessionStart Hook 做只读检查并提醒 AI，只有用户明确确认后才把旧注册设置为
 \`disabled: true\`。迁移会保留最新备份并支持恢复，不会删除旧注册、鉴权、项目绑定或游戏文件；
-Codex 和 WorkBuddy 恢复旧 MCP 时都必须重新取得用户明确确认。
+Codex 和 WorkBuddy 在移除插件时恢复旧 MCP，都必须重新取得用户明确确认。Codex 本次安装实际
+禁用了旧注册但随后安装失败时，自动恢复该注册作为事务回滚。
 
 正常 Maker 开发流程见 \`skills/taptap-maker-local/SKILL.md\`。
 `;

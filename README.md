@@ -47,6 +47,8 @@ codex plugin add taptap-maker@taptap-maker
 重复执行也是幂等的。检查返回 `ambiguous` 时必须在安装前停止；安装完成后必须再次迁移并检查，
 只有状态为 `disabled` 或 `not_found` 才能报告插件可用。需要卸载插件并恢复旧 MCP 时，仍要先取得明确确认，再执行
 `taptap-maker plugin restore --client codex --confirm --json`。
+如果本次安装实际禁用了旧注册，但插件安装或验证失败，则用同一 restore 命令自动回滚；原本已禁用、
+未找到或不是本次迁移的注册不恢复。
 
 插件模式初始化使用 `taptap-maker init --skip-mcp-install`，避免 CLI 再写一份独立 MCP 配置。
 插件更新通过插件内专用 `update-taptap-mcp` Skill 和 Codex marketplace 完成，不执行 npm/npx
