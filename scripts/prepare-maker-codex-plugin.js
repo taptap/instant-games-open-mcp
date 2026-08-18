@@ -16,6 +16,7 @@ import {
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { format } from 'prettier';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -174,6 +175,10 @@ function createMcpConfig() {
   };
 }
 
+async function writeJson(filePath, value) {
+  writeFileSync(filePath, await format(JSON.stringify(value), { parser: 'json' }), 'utf8');
+}
+
 function createReadme(pluginVersion, makerVersion) {
   return `# TapTap Maker 客户端插件
 
@@ -224,7 +229,7 @@ ZIP 是完整的离线 marketplace 包。AI 下载对应 ZIP 和 \`SHA256SUMS\`�
 `;
 }
 
-function main() {
+async function main() {
   const { pluginVersion, makerVersion, pluginRoot } = parseArgs(process.argv.slice(2));
 
   if (pluginRoot === defaultPluginRoot) {
@@ -267,16 +272,8 @@ function main() {
     'Maker plugin icon'
   );
 
-  writeFileSync(
-    join(pluginRoot, '.codex-plugin', 'plugin.json'),
-    `${JSON.stringify(createManifest(pluginVersion), null, 2)}\n`,
-    'utf8'
-  );
-  writeFileSync(
-    join(pluginRoot, '.mcp.json'),
-    `${JSON.stringify(createMcpConfig(), null, 2)}\n`,
-    'utf8'
-  );
+  await writeJson(join(pluginRoot, '.codex-plugin', 'plugin.json'), createManifest(pluginVersion));
+  await writeJson(join(pluginRoot, '.mcp.json'), createMcpConfig());
   writeFileSync(join(pluginRoot, 'README.md'), createReadme(pluginVersion, makerVersion), 'utf8');
 
   const bundle = readFileSync(join(pluginRoot, 'dist', 'maker.js'), 'utf8');
@@ -288,9 +285,7 @@ function main() {
   );
 }
 
-try {
-  main();
-} catch (error) {
+main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
-}
+});

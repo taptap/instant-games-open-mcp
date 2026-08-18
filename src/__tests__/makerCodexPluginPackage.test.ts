@@ -78,6 +78,21 @@ describe('TapTap Maker Codex plugin package', () => {
     );
   });
 
+  test('writes generated JSON in the repository format', () => {
+    for (const relativePath of ['.codex-plugin/plugin.json', '.mcp.json']) {
+      const result = spawnSync(
+        process.execPath,
+        [
+          path.join(projectRoot, 'node_modules', 'prettier', 'bin', 'prettier.cjs'),
+          '--check',
+          relativePath,
+        ],
+        { cwd: pluginRoot, encoding: 'utf8' }
+      );
+      expect(result.status).toBe(0);
+    }
+  });
+
   test('offers only create and sync starter prompts with an empty-directory requirement', () => {
     const manifest = JSON.parse(
       fs.readFileSync(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), 'utf8')

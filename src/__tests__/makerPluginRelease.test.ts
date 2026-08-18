@@ -135,11 +135,11 @@ describe('TapTap Maker plugin release version', () => {
     expect(prepareWorkflow).toContain('scripts/update-maker-plugin-version.js');
     expect(prepareWorkflow).toContain('peter-evans/create-pull-request');
     expect(publishWorkflow).toContain('maker-plugin-v');
-    expect(publishWorkflow).toContain('scripts/package-maker-client-plugins.js');
+    expect(publishWorkflow).toContain('npm run maker:plugins:package --');
     expect(publishWorkflow).toContain('gh release create');
-    expect(publishWorkflow).toContain('gh release view "$tag"');
+    expect(publishWorkflow).toContain('gh release view "$RELEASE_TAG"');
     expect(publishWorkflow).toContain(
-      'gh release upload "$tag" artifacts/maker-plugins/* --clobber'
+      'gh release upload "$RELEASE_TAG" artifacts/maker-plugins/* --clobber'
     );
     expect(publishWorkflow).toContain('tagged_sha');
     for (const workflow of [prepareWorkflow, publishWorkflow]) {

@@ -73,6 +73,21 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     expect(manifest).not.toHaveProperty('interface');
   });
 
+  test('writes generated JSON in the repository format', () => {
+    for (const relativePath of ['.codebuddy-plugin/plugin.json', '.mcp.json']) {
+      const result = spawnSync(
+        process.execPath,
+        [
+          path.join(projectRoot, 'node_modules', 'prettier', 'bin', 'prettier.cjs'),
+          '--check',
+          relativePath,
+        ],
+        { cwd: pluginRoot, encoding: 'utf8' }
+      );
+      expect(result.status).toBe(0);
+    }
+  });
+
   test('launches the bundled runtime through the WorkBuddy-managed Node resolver', () => {
     const mcpText = fs.readFileSync(path.join(pluginRoot, '.mcp.json'), 'utf8');
     const mcp = JSON.parse(mcpText);
