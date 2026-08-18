@@ -370,8 +370,8 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `disabled` 或 `not_found` 才能报告插件可用，`ambiguous` 必须在安装前停止。WorkBuddy 同时检查
   `~/.workbuddy/mcp.json` 和旧
   `.mcp.json`，禁用只写 `disabled: true`，并通过只读 SessionStart Hook 向 AI 注入提醒；只有用户
-  明确确认后才调用迁移 CLI。两个客户端恢复旧注册时都必须明确确认；保留原配置、最新备份和恢复
-  状态。不得删除旧注册、PAT、Maker home、项目绑定、WorkBuddy connector trust 或游戏文件。初始化必须使用
+  明确确认后才调用迁移 CLI。两个客户端在正常移除插件时恢复旧注册都必须明确确认；保留原配置、
+  最新备份和恢复状态。不得删除旧注册、PAT、Maker home、项目绑定、WorkBuddy connector trust 或游戏文件。初始化必须使用
   `taptap-maker init --skip-mcp-install`。插件用户通过当前客户端 marketplace 更新，不运行独立 npm
   包升级。
   Codex 只有在本次安装实际禁用旧注册后又安装或验证失败时，才自动 restore 作为事务回滚；原本已

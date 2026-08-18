@@ -139,7 +139,10 @@ jobs:
         run: |
           set -euo pipefail
           notes="artifacts/maker-plugins/INSTALL.md"
-          test -s "$notes"
+          if [[ ! -s "$notes" ]]; then
+            echo "::error::Missing artifacts/maker-plugins/INSTALL.md"
+            exit 1
+          fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" \
               --title "TapTap Maker Client Plugins $RELEASE_VERSION" \

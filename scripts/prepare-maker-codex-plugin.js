@@ -229,8 +229,8 @@ function createReadme(pluginVersion, makerVersion) {
 - [SHA256 校验文件](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v${pluginVersion}/SHA256SUMS)
 
 ZIP 是完整的离线 marketplace 包。AI 必须只下载所选 ZIP 和 \`SHA256SUMS\`，验证 SHA-256
-匹配后解压到临时目录；校验失败时停止安装，不得继续使用该文件。临时解压目录必须保留到安装、
-重新加载和验证全部结束，不能在安装流程中提前清理。
+匹配后解压到不会自动清理的固定本地目录；校验失败时停止安装，不得继续使用该文件。这个目录是
+本地 marketplace 的来源，只要该 marketplace 仍已配置，就必须保留这个目录。
 
 ## 安装所选插件
 

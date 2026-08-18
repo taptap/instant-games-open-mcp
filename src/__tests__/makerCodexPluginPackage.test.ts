@@ -183,8 +183,8 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(readme).toContain('不要再次询问用户是否安装');
     expect(readme).toContain('不要只给出安装建议、命令或操作步骤');
     expect(readme).toContain('完成安装并验证插件已启用后再向用户报告结果');
-    expect(readme).toContain('临时解压目录必须保留到安装、');
-    expect(readme).toContain('重新加载和验证全部结束');
+    expect(readme).toContain('解压到不会自动清理的固定本地目录');
+    expect(readme).toContain('只要该 marketplace 仍已配置，就必须保留这个目录');
     expect(readme).toContain('plugin migrate --client codex --confirm --json');
     expect(readme).toContain('plugin inspect --client codex --json');
     expect(readme).toContain('安装前自动禁用旧 Maker MCP');
@@ -216,6 +216,17 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(readme).toContain(
       `/releases/download/maker-plugin-v${pluginVersion}/taptap-maker-workbuddy-plugin-${pluginVersion}.zip`
     );
+  });
+
+  test('keeps committed client bundles aligned with the shared plugin lifecycle guidance', () => {
+    for (const relativePath of [
+      'plugins/taptap-maker/dist/maker.js',
+      'plugins/workbuddy/taptap-maker/dist/maker.js',
+    ]) {
+      const bundle = fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
+      expect(bundle).toContain('Automatically disable an active legacy Codex Maker MCP');
+      expect(bundle).toContain('Require explicit confirmation before disabling or restoring it');
+    }
   });
 
   test('builds entirely in the requested output directory', () => {

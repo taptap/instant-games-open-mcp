@@ -149,6 +149,7 @@ describe('TapTap Maker plugin release version', () => {
     expect(publishWorkflow).toContain('gh release create');
     expect(publishWorkflow).toContain('gh release view "$RELEASE_TAG"');
     expect(publishWorkflow).toContain('notes="artifacts/maker-plugins/INSTALL.md"');
+    expect(publishWorkflow).toContain('::error::Missing artifacts/maker-plugins/INSTALL.md');
     expect(publishWorkflow).toContain(
       'gh release upload "$RELEASE_TAG" artifacts/maker-plugins/* --clobber'
     );

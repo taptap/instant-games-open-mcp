@@ -3234,8 +3234,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path27) {
-      let input2 = path27;
+    function removeDotSegments(path28) {
+      let input2 = path28;
       const output2 = [];
       let nextSlash = -1;
       let len = 0;
@@ -3434,8 +3434,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path27, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path27 && path27 !== "/" ? path27 : void 0;
+        const [path28, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path28 && path28 !== "/" ? path28 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -12492,12 +12492,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs25, exportName) {
+    function addFormats(ajv, list, fs26, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs25[f]);
+        ajv.addFormat(f, fs26[f]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -12510,8 +12510,8 @@ var require_windows = __commonJS({
   "node_modules/isexe/windows.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs25 = __require("fs");
-    function checkPathExt(path27, options) {
+    var fs26 = __require("fs");
+    function checkPathExt(path28, options) {
       var pathext = options.pathExt !== void 0 ? options.pathExt : process.env.PATHEXT;
       if (!pathext) {
         return true;
@@ -12522,25 +12522,25 @@ var require_windows = __commonJS({
       }
       for (var i = 0; i < pathext.length; i++) {
         var p = pathext[i].toLowerCase();
-        if (p && path27.substr(-p.length).toLowerCase() === p) {
+        if (p && path28.substr(-p.length).toLowerCase() === p) {
           return true;
         }
       }
       return false;
     }
-    function checkStat(stat, path27, options) {
+    function checkStat(stat, path28, options) {
       if (!stat.isSymbolicLink() && !stat.isFile()) {
         return false;
       }
-      return checkPathExt(path27, options);
+      return checkPathExt(path28, options);
     }
-    function isexe(path27, options, cb) {
-      fs25.stat(path27, function(er, stat) {
-        cb(er, er ? false : checkStat(stat, path27, options));
+    function isexe(path28, options, cb) {
+      fs26.stat(path28, function(er, stat) {
+        cb(er, er ? false : checkStat(stat, path28, options));
       });
     }
-    function sync(path27, options) {
-      return checkStat(fs25.statSync(path27), path27, options);
+    function sync(path28, options) {
+      return checkStat(fs26.statSync(path28), path28, options);
     }
   }
 });
@@ -12550,14 +12550,14 @@ var require_mode = __commonJS({
   "node_modules/isexe/mode.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs25 = __require("fs");
-    function isexe(path27, options, cb) {
-      fs25.stat(path27, function(er, stat) {
+    var fs26 = __require("fs");
+    function isexe(path28, options, cb) {
+      fs26.stat(path28, function(er, stat) {
         cb(er, er ? false : checkStat(stat, options));
       });
     }
-    function sync(path27, options) {
-      return checkStat(fs25.statSync(path27), options);
+    function sync(path28, options) {
+      return checkStat(fs26.statSync(path28), options);
     }
     function checkStat(stat, options) {
       return stat.isFile() && checkMode(stat, options);
@@ -12581,7 +12581,7 @@ var require_mode = __commonJS({
 // node_modules/isexe/index.js
 var require_isexe = __commonJS({
   "node_modules/isexe/index.js"(exports, module) {
-    var fs25 = __require("fs");
+    var fs26 = __require("fs");
     var core;
     if (process.platform === "win32" || global.TESTING_WINDOWS) {
       core = require_windows();
@@ -12590,7 +12590,7 @@ var require_isexe = __commonJS({
     }
     module.exports = isexe;
     isexe.sync = sync;
-    function isexe(path27, options, cb) {
+    function isexe(path28, options, cb) {
       if (typeof options === "function") {
         cb = options;
         options = {};
@@ -12600,7 +12600,7 @@ var require_isexe = __commonJS({
           throw new TypeError("callback not provided");
         }
         return new Promise(function(resolve, reject) {
-          isexe(path27, options || {}, function(er, is) {
+          isexe(path28, options || {}, function(er, is) {
             if (er) {
               reject(er);
             } else {
@@ -12609,7 +12609,7 @@ var require_isexe = __commonJS({
           });
         });
       }
-      core(path27, options || {}, function(er, is) {
+      core(path28, options || {}, function(er, is) {
         if (er) {
           if (er.code === "EACCES" || options && options.ignoreErrors) {
             er = null;
@@ -12619,9 +12619,9 @@ var require_isexe = __commonJS({
         cb(er, is);
       });
     }
-    function sync(path27, options) {
+    function sync(path28, options) {
       try {
-        return core.sync(path27, options || {});
+        return core.sync(path28, options || {});
       } catch (er) {
         if (options && options.ignoreErrors || er.code === "EACCES") {
           return false;
@@ -12637,7 +12637,7 @@ var require_isexe = __commonJS({
 var require_which = __commonJS({
   "node_modules/which/which.js"(exports, module) {
     var isWindows = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys";
-    var path27 = __require("path");
+    var path28 = __require("path");
     var COLON = isWindows ? ";" : ":";
     var isexe = require_isexe();
     var getNotFoundError = (cmd) => Object.assign(new Error(`not found: ${cmd}`), { code: "ENOENT" });
@@ -12675,7 +12675,7 @@ var require_which = __commonJS({
           return opt.all && found.length ? resolve(found) : reject(getNotFoundError(cmd));
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path27.join(pathPart, cmd);
+        const pCmd = path28.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         resolve(subStep(p, i, 0));
       });
@@ -12702,7 +12702,7 @@ var require_which = __commonJS({
       for (let i = 0; i < pathEnv.length; i++) {
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path27.join(pathPart, cmd);
+        const pCmd = path28.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         for (let j = 0; j < pathExt.length; j++) {
           const cur = p + pathExt[j];
@@ -12750,7 +12750,7 @@ var require_path_key = __commonJS({
 var require_resolveCommand = __commonJS({
   "node_modules/cross-spawn/lib/util/resolveCommand.js"(exports, module) {
     "use strict";
-    var path27 = __require("path");
+    var path28 = __require("path");
     var which = require_which();
     var getPathKey = require_path_key();
     function resolveCommandAttempt(parsed, withoutPathExt) {
@@ -12768,7 +12768,7 @@ var require_resolveCommand = __commonJS({
       try {
         resolved = which.sync(parsed.command, {
           path: env[getPathKey({ env })],
-          pathExt: withoutPathExt ? path27.delimiter : void 0
+          pathExt: withoutPathExt ? path28.delimiter : void 0
         });
       } catch (e) {
       } finally {
@@ -12777,7 +12777,7 @@ var require_resolveCommand = __commonJS({
         }
       }
       if (resolved) {
-        resolved = path27.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
+        resolved = path28.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
       }
       return resolved;
     }
@@ -12831,8 +12831,8 @@ var require_shebang_command = __commonJS({
       if (!match) {
         return null;
       }
-      const [path27, argument] = match[0].replace(/#! ?/, "").split(" ");
-      const binary = path27.split("/").pop();
+      const [path28, argument] = match[0].replace(/#! ?/, "").split(" ");
+      const binary = path28.split("/").pop();
       if (binary === "env") {
         return argument;
       }
@@ -12845,16 +12845,16 @@ var require_shebang_command = __commonJS({
 var require_readShebang = __commonJS({
   "node_modules/cross-spawn/lib/util/readShebang.js"(exports, module) {
     "use strict";
-    var fs25 = __require("fs");
+    var fs26 = __require("fs");
     var shebangCommand = require_shebang_command();
     function readShebang(command) {
       const size = 150;
       const buffer = Buffer.alloc(size);
       let fd;
       try {
-        fd = fs25.openSync(command, "r");
-        fs25.readSync(fd, buffer, 0, size, 0);
-        fs25.closeSync(fd);
+        fd = fs26.openSync(command, "r");
+        fs26.readSync(fd, buffer, 0, size, 0);
+        fs26.closeSync(fd);
       } catch (e) {
       }
       return shebangCommand(buffer.toString());
@@ -12867,7 +12867,7 @@ var require_readShebang = __commonJS({
 var require_parse = __commonJS({
   "node_modules/cross-spawn/lib/parse.js"(exports, module) {
     "use strict";
-    var path27 = __require("path");
+    var path28 = __require("path");
     var resolveCommand = require_resolveCommand();
     var escape2 = require_escape();
     var readShebang = require_readShebang();
@@ -12892,7 +12892,7 @@ var require_parse = __commonJS({
       const needsShell = !isExecutableRegExp.test(commandFile);
       if (parsed.options.forceShell || needsShell) {
         const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
-        parsed.command = path27.normalize(parsed.command);
+        parsed.command = path28.normalize(parsed.command);
         parsed.command = escape2.command(parsed.command);
         parsed.args = parsed.args.map((arg) => escape2.argument(arg, needsDoubleEscapeMetaChars));
         const shellCommand = [parsed.command].concat(parsed.args).join(" ");
@@ -13079,17 +13079,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path27) {
-      const ctrl = callVisitor(key, node, visitor, path27);
+    function visit_(key, node, visitor, path28) {
+      const ctrl = callVisitor(key, node, visitor, path28);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path27, ctrl);
-        return visit_(key, ctrl, visitor, path27);
+        replaceNode(key, path28, ctrl);
+        return visit_(key, ctrl, visitor, path28);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path27 = Object.freeze(path27.concat(node));
+          path28 = Object.freeze(path28.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path27);
+            const ci = visit_(i, node.items[i], visitor, path28);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -13100,13 +13100,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path27 = Object.freeze(path27.concat(node));
-          const ck = visit_("key", node.key, visitor, path27);
+          path28 = Object.freeze(path28.concat(node));
+          const ck = visit_("key", node.key, visitor, path28);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path27);
+          const cv = visit_("value", node.value, visitor, path28);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -13127,17 +13127,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path27) {
-      const ctrl = await callVisitor(key, node, visitor, path27);
+    async function visitAsync_(key, node, visitor, path28) {
+      const ctrl = await callVisitor(key, node, visitor, path28);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path27, ctrl);
-        return visitAsync_(key, ctrl, visitor, path27);
+        replaceNode(key, path28, ctrl);
+        return visitAsync_(key, ctrl, visitor, path28);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path27 = Object.freeze(path27.concat(node));
+          path28 = Object.freeze(path28.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path27);
+            const ci = await visitAsync_(i, node.items[i], visitor, path28);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -13148,13 +13148,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path27 = Object.freeze(path27.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path27);
+          path28 = Object.freeze(path28.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path28);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path27);
+          const cv = await visitAsync_("value", node.value, visitor, path28);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -13181,24 +13181,24 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path27) {
+    function callVisitor(key, node, visitor, path28) {
       var _a3, _b, _c, _d, _e;
       if (typeof visitor === "function")
-        return visitor(key, node, path27);
+        return visitor(key, node, path28);
       if (identity.isMap(node))
-        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path27);
+        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path28);
       if (identity.isSeq(node))
-        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path27);
+        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path28);
       if (identity.isPair(node))
-        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path27);
+        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path28);
       if (identity.isScalar(node))
-        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path27);
+        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path28);
       if (identity.isAlias(node))
-        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path27);
+        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path28);
       return void 0;
     }
-    function replaceNode(key, path27, node) {
-      const parent = path27[path27.length - 1];
+    function replaceNode(key, path28, node) {
+      const parent = path28[path28.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -13810,10 +13810,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path27, value) {
+    function collectionFromPath(schema, path28, value) {
       let v = value;
-      for (let i = path27.length - 1; i >= 0; --i) {
-        const k = path27[i];
+      for (let i = path28.length - 1; i >= 0; --i) {
+        const k = path28[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -13832,7 +13832,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path27) => path27 == null || typeof path27 === "object" && !!path27[Symbol.iterator]().next().done;
+    var isEmptyPath = (path28) => path28 == null || typeof path28 === "object" && !!path28[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -13862,11 +13862,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path27, value) {
-        if (isEmptyPath(path27))
+      addIn(path28, value) {
+        if (isEmptyPath(path28))
           this.add(value);
         else {
-          const [key, ...rest] = path27;
+          const [key, ...rest] = path28;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -13880,8 +13880,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path27) {
-        const [key, ...rest] = path27;
+      deleteIn(path28) {
+        const [key, ...rest] = path28;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -13895,8 +13895,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path27, keepScalar) {
-        const [key, ...rest] = path27;
+      getIn(path28, keepScalar) {
+        const [key, ...rest] = path28;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -13914,8 +13914,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path27) {
-        const [key, ...rest] = path27;
+      hasIn(path28) {
+        const [key, ...rest] = path28;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -13925,8 +13925,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path27, value) {
-        const [key, ...rest] = path27;
+      setIn(path28, value) {
+        const [key, ...rest] = path28;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -16440,9 +16440,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path27, value) {
+      addIn(path28, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path27, value);
+          this.contents.addIn(path28, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -16517,14 +16517,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path27) {
-        if (Collection.isEmptyPath(path27)) {
+      deleteIn(path28) {
+        if (Collection.isEmptyPath(path28)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path27) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path28) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -16539,10 +16539,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path27, keepScalar) {
-        if (Collection.isEmptyPath(path27))
+      getIn(path28, keepScalar) {
+        if (Collection.isEmptyPath(path28))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path27, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path28, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -16553,10 +16553,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path27) {
-        if (Collection.isEmptyPath(path27))
+      hasIn(path28) {
+        if (Collection.isEmptyPath(path28))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path27) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path28) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -16573,13 +16573,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path27, value) {
-        if (Collection.isEmptyPath(path27)) {
+      setIn(path28, value) {
+        if (Collection.isEmptyPath(path28)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path27), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path28), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path27, value);
+          this.contents.setIn(path28, value);
         }
       }
       /**
@@ -18542,9 +18542,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path27) => {
+    visit.itemAtPath = (cst, path28) => {
       let item = cst;
-      for (const [field, index] of path27) {
+      for (const [field, index] of path28) {
         const tok = item == null ? void 0 : item[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -18553,23 +18553,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path27) => {
-      const parent = visit.itemAtPath(cst, path27.slice(0, -1));
-      const field = path27[path27.length - 1][0];
+    visit.parentCollection = (cst, path28) => {
+      const parent = visit.itemAtPath(cst, path28.slice(0, -1));
+      const field = path28[path28.length - 1][0];
       const coll = parent == null ? void 0 : parent[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path27, item, visitor) {
-      let ctrl = visitor(item, path27);
+    function _visit(path28, item, visitor) {
+      let ctrl = visitor(item, path28);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path27.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path28.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -18580,10 +18580,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path27);
+            ctrl = ctrl(item, path28);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path27) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path28) : ctrl;
     }
     exports.visit = visit;
   }
@@ -19870,14 +19870,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs25 = this.flowScalar(this.type);
+              const fs26 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map2.items.push({ start, key: fs25, sep: [] });
+                map2.items.push({ start, key: fs26, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs25);
+                this.stack.push(fs26);
               } else {
-                Object.assign(it, { key: fs25, sep: [] });
+                Object.assign(it, { key: fs26, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -20006,13 +20006,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs25 = this.flowScalar(this.type);
+              const fs26 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs25, sep: [] });
+                fc.items.push({ start: [], key: fs26, sep: [] });
               else if (it.sep)
-                this.stack.push(fs25);
+                this.stack.push(fs26);
               else
-                Object.assign(it, { key: fs25, sep: [] });
+                Object.assign(it, { key: fs26, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -20685,8 +20685,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path27, errorMaps, issueData } = params;
-  const fullPath = [...path27, ...issueData.path || []];
+  const { data, path: path28, errorMaps, issueData } = params;
+  const fullPath = [...path28, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -20801,11 +20801,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path27, key) {
+  constructor(parent, value, path28, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path27;
+    this._path = path28;
     this._key = key;
   }
   get path() {
@@ -24454,10 +24454,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path27) {
-  if (!path27)
+function getElementAtPath(obj, path28) {
+  if (!path28)
     return obj;
-  return path27.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
+  return path28.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -24842,11 +24842,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path27, issues) {
+function prefixIssues(path28, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path27);
+    iss.path.unshift(path28);
     return iss;
   });
 }
@@ -39733,7 +39733,11 @@ function formatMakerSkillStatus(_options = {}) {
       `Maker ${pluginDistribution.displayName} plugin lifecycle`,
       `- entry: ${MAKER_PLUGIN_LIFECYCLE_SKILL_NAME}`,
       `- Inspect a legacy ${pluginDistribution.displayName} Maker MCP registration before first use.`,
-      "- Require explicit confirmation before disabling or restoring it.",
+      ...pluginDistribution.client === "codex" ? [
+        "- Automatically disable an active legacy Codex Maker MCP; the plugin installation request is the authorization.",
+        "- Verify the legacy registration is disabled or absent before reporting the plugin ready.",
+        "- Require explicit confirmation only when restoring the old MCP during plugin removal."
+      ] : ["- Require explicit confirmation before disabling or restoring it."],
       "- Initialize with `taptap-maker init --skip-mcp-install`; the plugin already provides MCP.",
       `- ${formatMakerPluginUpdateAction(pluginDistribution)}`
     ] : [],
@@ -47501,9 +47505,9 @@ function indent2(value) {
 // src/maker/cli/commands.ts
 import { spawnSync as spawnSync8 } from "node:child_process";
 import crypto4 from "node:crypto";
-import fs23 from "node:fs";
+import fs24 from "node:fs";
 import os7 from "node:os";
-import path24 from "node:path";
+import path25 from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { pathToFileURL } from "node:url";
@@ -49300,17 +49304,20 @@ function inspectWorkBuddyLegacyMakerMcp(options = {}) {
   if (registrations.length === 0) {
     return createWorkBuddyInspection(configPaths[0], "not_found", []);
   }
-  if (registrations.length > 1) {
+  const activeRegistrations = registrations.filter((entry) => entry.registration.disabled !== true);
+  if (activeRegistrations.length > 1) {
     return createWorkBuddyInspection(configPaths[0], "ambiguous", registrationPaths);
   }
-  const enabled = registrations[0].registration.disabled !== true;
+  if (activeRegistrations.length === 0) {
+    return {
+      ...createWorkBuddyInspection(registrations[0].configPath, "disabled", registrationPaths),
+      enabled: false
+    };
+  }
+  const active = activeRegistrations[0];
   return {
-    ...createWorkBuddyInspection(
-      registrations[0].configPath,
-      enabled ? "active" : "disabled",
-      registrationPaths
-    ),
-    enabled
+    ...createWorkBuddyInspection(active.configPath, "active", registrationPaths),
+    enabled: true
   };
 }
 function migrateWorkBuddyLegacyMakerMcp(options = {}) {
@@ -49326,12 +49333,16 @@ function migrateWorkBuddyLegacyMakerMcp(options = {}) {
       `WorkBuddy Maker MCP migration found registrations in multiple config files: ${inspection.config_paths.join(", ")}`
     );
   }
-  const current = findWorkBuddyMakerRegistrations(configPaths)[0];
+  const registrations = findWorkBuddyMakerRegistrations(configPaths);
   if (inspection.status === "disabled") {
     const state2 = readWorkBuddyMigrationState(statePath);
-    const owned = (state2 == null ? void 0 : state2.config_path) === current.configPath && hashWorkBuddyRegistration(current.registration) === state2.migrated_registration_sha256;
+    const current2 = state2 ? registrations.find((entry) => entry.configPath === state2.config_path) : registrations[0];
+    const owned = Boolean(
+      state2 && current2 && hashWorkBuddyRegistration(current2.registration) === state2.migrated_registration_sha256
+    );
     return {
       ...inspection,
+      ...owned && current2 ? { config_path: current2.configPath } : {},
       action: owned ? "already_migrated" : "already_disabled",
       changed: false,
       ...owned ? { state_path: statePath } : {}
@@ -49339,6 +49350,10 @@ function migrateWorkBuddyLegacyMakerMcp(options = {}) {
   }
   if (!options.confirm) {
     throw new Error("Disabling the legacy WorkBuddy Maker MCP requires explicit confirmation.");
+  }
+  const current = registrations.find((entry) => entry.configPath === inspection.config_path);
+  if (!current) {
+    throw new Error("The active WorkBuddy Maker MCP registration could not be resolved.");
   }
   const originalRegistration = { ...current.registration };
   const previousDisabled = Object.prototype.hasOwnProperty.call(originalRegistration, "disabled") ? false : "missing";
@@ -49357,8 +49372,10 @@ function migrateWorkBuddyLegacyMakerMcp(options = {}) {
   };
   fs22.mkdirSync(path23.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(current.configPath, nextContent, () => {
-    const migratedInspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
-    if (migratedInspection.status !== "disabled" || migratedInspection.config_path !== current.configPath) {
+    const migrated = findWorkBuddyMakerRegistrations(configPaths).find(
+      (entry) => entry.configPath === current.configPath
+    );
+    if (!migrated || hashWorkBuddyRegistration(migrated.registration) !== state.migrated_registration_sha256) {
       throw new Error(
         "WorkBuddy Maker MCP migration validation did not find the disabled registration."
       );
@@ -49366,8 +49383,10 @@ function migrateWorkBuddyLegacyMakerMcp(options = {}) {
     fs22.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
+  const migratedInspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
   return {
-    ...inspectWorkBuddyLegacyMakerMcp({ configPaths }),
+    ...migratedInspection,
+    config_path: current.configPath,
     action: "disabled",
     changed: write.changed,
     ...write.backupPath ? { backup_path: write.backupPath } : {},
@@ -49396,20 +49415,35 @@ function restoreWorkBuddyLegacyMakerMcp(options = {}) {
       "The migrated WorkBuddy Maker MCP registration no longer exists and cannot be restored."
     );
   }
-  if (inspection.config_path !== state.config_path) {
-    return { ...inspection, action: "not_owned", changed: false };
+  const current = findWorkBuddyMakerRegistrations(configPaths).find(
+    (entry) => entry.configPath === state.config_path
+  );
+  if (!current) {
+    throw new Error(
+      "The migrated WorkBuddy Maker MCP registration no longer exists and cannot be restored."
+    );
   }
-  const current = findWorkBuddyMakerRegistrations(configPaths)[0];
   const registrationSha256 = hashWorkBuddyRegistration(current.registration);
-  if (inspection.status === "active") {
+  const currentEnabled = current.registration.disabled !== true;
+  if (currentEnabled) {
     if (registrationSha256 !== state.original_registration_sha256) {
-      return { ...inspection, action: "not_owned", changed: false };
+      return {
+        ...inspection,
+        config_path: current.configPath,
+        action: "not_owned",
+        changed: false
+      };
     }
     fs22.unlinkSync(statePath);
-    return { ...inspection, action: "already_restored", changed: false };
+    return {
+      ...inspection,
+      config_path: current.configPath,
+      action: "already_restored",
+      changed: false
+    };
   }
   if (registrationSha256 !== state.migrated_registration_sha256) {
-    return { ...inspection, action: "not_owned", changed: false };
+    return { ...inspection, config_path: current.configPath, action: "not_owned", changed: false };
   }
   const restoredRegistration = { ...current.registration };
   if (state.previous_disabled === "missing") {
@@ -49427,14 +49461,17 @@ function restoreWorkBuddyLegacyMakerMcp(options = {}) {
         "WorkBuddy Maker MCP restoration validation did not find an active registration."
       );
     }
-    const restored = findWorkBuddyMakerRegistrations(configPaths)[0];
-    if (hashWorkBuddyRegistration(restored.registration) !== state.original_registration_sha256) {
+    const restored = findWorkBuddyMakerRegistrations(configPaths).find(
+      (entry) => entry.configPath === state.config_path
+    );
+    if (!restored || hashWorkBuddyRegistration(restored.registration) !== state.original_registration_sha256) {
       throw new Error("WorkBuddy Maker MCP restoration changed the registration identity.");
     }
     fs22.unlinkSync(statePath);
   });
   return {
     ...inspectWorkBuddyLegacyMakerMcp({ configPaths }),
+    config_path: current.configPath,
     action: "restored",
     changed: write.changed,
     ...write.backupPath ? { backup_path: write.backupPath } : {},
@@ -49517,6 +49554,94 @@ function createWorkBuddyInspection(configPath, status, configPaths) {
 }
 function isRecord5(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+// src/maker/cli/workBuddyProjectSkills.ts
+import fs23 from "node:fs";
+import path24 from "node:path";
+function syncWorkBuddyProjectSkills(targetDir, options = {}) {
+  const platform = options.platform ?? process.platform;
+  const projectDir = path24.resolve(targetDir);
+  const sourceDir = path24.join(projectDir, ".installer", "skills");
+  const workBuddySkillsDir = path24.join(projectDir, ".workbuddy", "skills");
+  const result = {
+    status: "skipped",
+    sourceDir,
+    targetDir: workBuddySkillsDir,
+    installedSkills: [],
+    skippedSkills: []
+  };
+  if (!isDirectory(sourceDir)) {
+    result.reason = "source_not_found";
+    return result;
+  }
+  const sourceSkills = fs23.readdirSync(sourceDir, { withFileTypes: true }).filter(
+    (entry) => entry.isDirectory() && fs23.existsSync(path24.join(sourceDir, entry.name, "SKILL.md"))
+  ).map((entry) => entry.name).sort();
+  for (const sourceSkillName of sourceSkills) {
+    const workBuddySkillName = `taptap-maker-${sourceSkillName}`;
+    const workBuddySkillDir = path24.join(workBuddySkillsDir, workBuddySkillName);
+    if (pathEntryExists(workBuddySkillDir)) {
+      result.skippedSkills.push(workBuddySkillName);
+      continue;
+    }
+    fs23.mkdirSync(workBuddySkillsDir, { recursive: true });
+    installSkillContents(path24.join(sourceDir, sourceSkillName), workBuddySkillDir, platform);
+    result.installedSkills.push(workBuddySkillName);
+  }
+  if (result.installedSkills.length > 0) {
+    result.status = "installed";
+  }
+  return result;
+}
+function installSkillContents(sourceDir, targetDir, platform) {
+  fs23.mkdirSync(targetDir);
+  try {
+    for (const entry of fs23.readdirSync(sourceDir)) {
+      linkOrCopyEntry(path24.join(sourceDir, entry), path24.join(targetDir, entry), platform);
+    }
+  } catch (error2) {
+    fs23.rmSync(targetDir, { recursive: true, force: true });
+    throw error2;
+  }
+}
+function linkOrCopyEntry(source, target, platform) {
+  const stat = fs23.statSync(source);
+  if (platform === "win32" && stat.isFile()) {
+    fs23.copyFileSync(source, target);
+    return;
+  }
+  try {
+    const linkTarget = platform === "win32" ? source : path24.relative(path24.dirname(target), source);
+    const linkType = stat.isDirectory() ? platform === "win32" ? "junction" : "dir" : "file";
+    fs23.symlinkSync(linkTarget, target, linkType);
+  } catch (error2) {
+    try {
+      fs23.cpSync(source, target, { recursive: stat.isDirectory() });
+    } catch (copyError) {
+      throw new Error(
+        `Failed to install WorkBuddy project skill entry ${source}: ${formatError3(error2)}; copy fallback: ${formatError3(copyError)}`
+      );
+    }
+  }
+}
+function isDirectory(value) {
+  try {
+    return fs23.statSync(value).isDirectory();
+  } catch {
+    return false;
+  }
+}
+function pathEntryExists(value) {
+  try {
+    fs23.lstatSync(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function formatError3(error2) {
+  return error2 instanceof Error ? error2.message : String(error2);
 }
 
 // src/maker/cli/commands.ts
@@ -49726,7 +49851,7 @@ function toOptionKey(value) {
 }
 async function runInit(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path24.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path25.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const skipConfirm = booleanOption(parsed, "skip_confirm");
   const skipMcpInstall = booleanOption(parsed, "skip_mcp_install");
@@ -49841,7 +49966,7 @@ async function runInit(parsed, ctx) {
 }
 async function runDoctor(parsed, ctx) {
   var _a3, _b;
-  const targetDir = path24.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path25.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const git = checkGitEnvironment();
   const python = checkMakerPythonEnvironment();
@@ -49932,8 +50057,8 @@ async function runDoctor(parsed, ctx) {
   );
 }
 function inspectMakerDoctorExecutionContext(options) {
-  const doctorCwd = path24.resolve(process.cwd());
-  const makerProjectDir = options.makerProjectDir ? path24.resolve(options.makerProjectDir) : void 0;
+  const doctorCwd = path25.resolve(process.cwd());
+  const makerProjectDir = options.makerProjectDir ? path25.resolve(options.makerProjectDir) : void 0;
   if (!makerProjectDir) {
     return {
       active_client_session: "not_checked",
@@ -49968,9 +50093,9 @@ function samePath2(left, right) {
   return normalizePathForCompare3(left) === normalizePathForCompare3(right);
 }
 function normalizePathForCompare3(value) {
-  const resolved = path24.resolve(value);
+  const resolved = path25.resolve(value);
   try {
-    return fs23.realpathSync.native(resolved);
+    return fs24.realpathSync.native(resolved);
   } catch {
     return resolved;
   }
@@ -50288,7 +50413,7 @@ async function runPatSet(parsed, ctx) {
 }
 async function resolvePatSet(parsed, ctx) {
   if (booleanOption(parsed, "pat_stdin") || booleanOption(parsed, "pat_from_stdin")) {
-    const pat = fs23.readFileSync(0, "utf8").trim();
+    const pat = fs24.readFileSync(0, "utf8").trim();
     if (!pat) {
       throw new Error("No PAT found on stdin.");
     }
@@ -50343,17 +50468,17 @@ async function prepareMcpLauncher(options) {
     if (options.mode === "self") {
       launcher = materializeMakerSelfLauncher({
         version: VERSION2,
-        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL(path24.resolve(process.cwd(), "dist", "maker.js")).href,
+        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL(path25.resolve(process.cwd(), "dist", "maker.js")).href,
         makerHome: getMakerHome()
       });
     } else {
       const packageSpec = resolveMakerPackageSpec(MAKER_NPM_PACKAGE, VERSION2);
       launcher = resolveMakerMcpLauncher({ packageName: packageSpec });
       const configuredCache = process.env.npm_config_cache || process.env.NPM_CONFIG_CACHE;
-      const npmCacheDir = path24.resolve(
-        configuredCache || path24.join(getMakerHome(), "cache", "npm")
+      const npmCacheDir = path25.resolve(
+        configuredCache || path25.join(getMakerHome(), "cache", "npm")
       );
-      fs23.mkdirSync(npmCacheDir, { recursive: true });
+      fs24.mkdirSync(npmCacheDir, { recursive: true });
       launcherEnv = { npm_config_cache: npmCacheDir };
     }
   } catch (error2) {
@@ -50486,7 +50611,7 @@ ${indent3(payload.stderr)}` : "",
 }
 async function runMcpReport(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path24.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path25.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const contextInput = booleanOption(parsed, "context_stdin") ? await readStdinText() : "";
   const context = parseMakerMcpReportContext(contextInput);
   const reportRuntime = resolveMakerMcpReportRuntime({
@@ -50566,7 +50691,7 @@ async function runMcpReport(parsed, ctx) {
   );
 }
 async function runAgentsUpdate(parsed, ctx) {
-  const targetDir = path24.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path25.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = updateMakerAgentsPolicy(targetDir);
   if (ctx.json) {
     writeJson(result);
@@ -50585,7 +50710,7 @@ async function runAgentsUpdate(parsed, ctx) {
 async function runUpgrade(parsed, ctx) {
   rejectPackageOption(parsed);
   const explicitTargetDir = stringOption(parsed, "target_dir");
-  const targetDir = path24.resolve(explicitTargetDir || process.cwd());
+  const targetDir = path25.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, "ide") || stringOption(parsed, "ides") || "");
   const prepared = await prepareMcpLauncher({ env, mode: mcpLauncherOption(parsed) });
@@ -50669,19 +50794,20 @@ function getMcpVerifyNextSteps(mode, commandText) {
   ];
 }
 async function runDevKitUpdate(parsed, ctx) {
-  const targetDir = path24.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path25.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = await installAiDevKit({
     targetDir,
     preserveExisting: false,
     replaceManagedEntries: true,
     environment: makerEnvOption(parsed)
   });
+  syncWorkBuddyDevKitSkills(targetDir, ctx);
   finalizeStagedDevKitGitignore(targetDir);
   emit(ctx, "dev_kit", formatDevKitInstallMessage("AI dev kit updated", result), result);
   emitDevKitSkillInstallerFailure(ctx, result.skillInstaller, "AI skills install failed");
 }
 async function runLogsWatch(parsed, ctx) {
-  const targetDir = path24.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path25.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const intervalMs = parseDurationMs(stringOption(parsed, "interval") || "5s");
   const timeoutMs = numberOption(parsed, "timeout_ms") ?? DEFAULT_TOOL_CALL_TIMEOUT_MS;
   const maxPolls = numberOption(parsed, "max_polls");
@@ -50691,9 +50817,9 @@ async function runLogsWatch(parsed, ctx) {
     serverUrl: stringOption(parsed, "server_url"),
     env: makerEnvOption(parsed)
   });
-  const runtimeDir = path24.join(proxy.projectRoot, ".maker", "logs", "runtime");
-  const runtimeLog = path24.join(runtimeDir, "runtime.log");
-  const pidFile = path24.join(runtimeDir, "watcher.pid");
+  const runtimeDir = path25.join(proxy.projectRoot, ".maker", "logs", "runtime");
+  const runtimeLog = path25.join(runtimeDir, "runtime.log");
+  const pidFile = path25.join(runtimeDir, "watcher.pid");
   const replacedWatcher = registerRuntimeLogWatcherProcess(pidFile);
   const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
   emit(ctx, "logs_watch_start", "Maker runtime log watcher started", {
@@ -50738,10 +50864,10 @@ async function runLogsWatch(parsed, ctx) {
   }
 }
 function registerRuntimeLogWatcherProcess(pidFile) {
-  fs23.mkdirSync(path24.dirname(pidFile), { recursive: true });
+  fs24.mkdirSync(path25.dirname(pidFile), { recursive: true });
   const existingPid = readPidFile(pidFile);
   const previous = existingPid && existingPid !== process.pid ? stopExistingRuntimeLogWatcher(pidFile) : {};
-  fs23.writeFileSync(
+  fs24.writeFileSync(
     pidFile,
     `${JSON.stringify(
       {
@@ -50759,10 +50885,10 @@ function registerRuntimeLogWatcherProcess(pidFile) {
   return previous;
 }
 function readPidFile(pidFile) {
-  if (!fs23.existsSync(pidFile)) {
+  if (!fs24.existsSync(pidFile)) {
     return void 0;
   }
-  const raw = fs23.readFileSync(pidFile, "utf8").trim();
+  const raw = fs24.readFileSync(pidFile, "utf8").trim();
   let pid = Number(raw);
   if (!Number.isInteger(pid) || pid <= 0) {
     try {
@@ -50782,7 +50908,7 @@ function installRuntimeLogWatcherPidCleanup(pidFile) {
     }
     cleaned = true;
     if (readPidFile(pidFile) === process.pid) {
-      fs23.rmSync(pidFile, { force: true });
+      fs24.rmSync(pidFile, { force: true });
     }
   };
   process.once("exit", cleanup);
@@ -50933,9 +51059,10 @@ async function prepareDevKit(targetDir, ctx, options = {}) {
         onStart: (event) => emitSkillInstallerStart(ctx, event)
       });
       writeDevKitStagedGitignore(
-        path24.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path25.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
+      syncWorkBuddyDevKitSkills(targetDir, ctx);
       if (options.finalizeGitignore) {
         finalizeStagedDevKitGitignore(targetDir);
       }
@@ -50950,7 +51077,7 @@ async function prepareDevKit(targetDir, ctx, options = {}) {
       );
     } catch (error2) {
       writeDevKitStagedGitignore(
-        path24.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path25.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
       if (options.finalizeGitignore) {
@@ -50971,6 +51098,7 @@ ${detail}`, {
       environment: options.environment,
       onSkillInstallerStart: (event) => emitSkillInstallerStart(ctx, event)
     });
+    syncWorkBuddyDevKitSkills(targetDir, ctx);
     if (options.finalizeGitignore) {
       finalizeStagedDevKitGitignore(targetDir);
     }
@@ -50983,6 +51111,38 @@ ${detail}`, {
   } catch (error2) {
     const detail = error2 instanceof Error ? error2.message : String(error2);
     emit(ctx, "dev_kit_warning", `AI dev kit preparation failed; clone will continue
+${detail}`, {
+      error: detail
+    });
+  }
+}
+function syncWorkBuddyDevKitSkills(targetDir, ctx) {
+  var _a3;
+  if (((_a3 = resolveMakerPluginDistribution()) == null ? void 0 : _a3.client) !== "workbuddy") {
+    return;
+  }
+  try {
+    const result = syncWorkBuddyProjectSkills(targetDir);
+    const managedSkillPaths = [...result.installedSkills, ...result.skippedSkills].map(
+      (skillName) => path25.join(".workbuddy", "skills", skillName)
+    );
+    if (managedSkillPaths.length > 0) {
+      writeDevKitStagedGitignore(path25.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
+        ...listPresentDevKitManagedEntries(targetDir),
+        ...managedSkillPaths
+      ]);
+    }
+    if (result.installedSkills.length > 0) {
+      emit(
+        ctx,
+        "dev_kit",
+        `WorkBuddy project skills installed: ${result.installedSkills.length}`,
+        result
+      );
+    }
+  } catch (error2) {
+    const detail = error2 instanceof Error ? error2.message : String(error2);
+    emit(ctx, "dev_kit_warning", `WorkBuddy project skills install failed
 ${detail}`, {
       error: detail
     });
@@ -51044,12 +51204,12 @@ function installMcpConfig(ide, options) {
 }
 function installMcpConfigUnsafe(ide, options) {
   if (ide === "codex") {
-    const configPath = path24.join(os7.homedir(), ".codex", "config.toml");
+    const configPath = path25.join(os7.homedir(), ".codex", "config.toml");
     const write = mergeCodexMcpConfig(configPath, withClientIde(options, "codex"));
     return [createMcpInstallResult(ide, "Codex", configPath, write)];
   }
   if (ide === "cursor") {
-    const configPath = path24.join(os7.homedir(), ".cursor", "mcp.json");
+    const configPath = path25.join(os7.homedir(), ".cursor", "mcp.json");
     const write = mergeJsonMcpConfig(configPath, withClientIde(options, "cursor"));
     return [createMcpInstallResult(ide, "Cursor", configPath, write)];
   }
@@ -51066,7 +51226,7 @@ function installMcpConfigUnsafe(ide, options) {
         }
       ];
     }
-    const configPath = path24.join(os7.homedir(), ".claude.json");
+    const configPath = path25.join(os7.homedir(), ".claude.json");
     const write = mergeJsonMcpConfig(configPath, claudeOptions);
     return [createMcpInstallResult(ide, "Claude fallback", configPath, write)];
   }
@@ -51080,7 +51240,7 @@ function installMcpConfigUnsafe(ide, options) {
   }
   if (ide === "opencode") {
     const configPath = getOpenCodeMcpConfigPath();
-    if (!fs23.existsSync(configPath)) {
+    if (!fs24.existsSync(configPath)) {
       return [{ ide, ok: false, message: "Skipped OpenCode: no supported config file found" }];
     }
     const write = mergeOpenCodeMcpConfig(configPath, withClientIde(options, "opencode"));
@@ -51163,13 +51323,13 @@ function getDefaultMcpInstallIdes() {
   if (getTraeMcpInstallPaths().length > 0) {
     ides.push("trae");
   }
-  if (fs23.existsSync(getOpenCodeMcpConfigPath())) {
+  if (fs24.existsSync(getOpenCodeMcpConfigPath())) {
     ides.push("opencode");
   }
   if (getWorkBuddyMcpInstallPaths().length > 0) {
     ides.push("workbuddy");
   }
-  if (fs23.existsSync(getDshHome())) {
+  if (fs24.existsSync(getDshHome())) {
     ides.push("dsh");
   }
   return ides;
@@ -51183,7 +51343,7 @@ function getExistingTraeUserConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs23.existsSync(path24.dirname(configPath))) {
+    if (seen.has(key) || !fs24.existsSync(path25.dirname(configPath))) {
       return false;
     }
     seen.add(key);
@@ -51194,7 +51354,7 @@ function getExistingConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs23.existsSync(configPath)) {
+    if (seen.has(key) || !fs24.existsSync(configPath)) {
       return false;
     }
     seen.add(key);
@@ -51202,62 +51362,62 @@ function getExistingConfigPaths(paths) {
   });
 }
 function normalizeConfigPathKey(configPath) {
-  const resolved = path24.resolve(configPath);
+  const resolved = path25.resolve(configPath);
   return process.platform === "win32" || process.platform === "darwin" ? resolved.toLowerCase() : resolved;
 }
 function getTraeSoloMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path24.join(os7.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path25.join(os7.homedir(), "AppData", "Roaming");
     return [
-      path24.join(roaming, "TRAE SOLO", "User", "mcp.json"),
-      path24.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
+      path25.join(roaming, "TRAE SOLO", "User", "mcp.json"),
+      path25.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path24.join(os7.homedir(), "Library", "Application Support");
+  const appSupport = path25.join(os7.homedir(), "Library", "Application Support");
   return [
-    path24.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
-    path24.join(appSupport, "TRAE SOLO", "User", "mcp.json")
+    path25.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
+    path25.join(appSupport, "TRAE SOLO", "User", "mcp.json")
   ];
 }
 function getTraeUnverifiedMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path24.join(os7.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path25.join(os7.homedir(), "AppData", "Roaming");
     return [
-      path24.join(roaming, "Trae", "User", "mcp.json"),
-      path24.join(roaming, "TRAE", "User", "mcp.json"),
-      path24.join(roaming, "Trae CN", "User", "mcp.json")
+      path25.join(roaming, "Trae", "User", "mcp.json"),
+      path25.join(roaming, "TRAE", "User", "mcp.json"),
+      path25.join(roaming, "Trae CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path24.join(os7.homedir(), "Library", "Application Support");
+  const appSupport = path25.join(os7.homedir(), "Library", "Application Support");
   return [
-    path24.join(appSupport, "Trae", "User", "mcp.json"),
-    path24.join(appSupport, "TRAE", "User", "mcp.json"),
-    path24.join(appSupport, "Trae CN", "User", "mcp.json")
+    path25.join(appSupport, "Trae", "User", "mcp.json"),
+    path25.join(appSupport, "TRAE", "User", "mcp.json"),
+    path25.join(appSupport, "Trae CN", "User", "mcp.json")
   ];
 }
 function getOpenCodeMcpConfigPath() {
-  return path24.join(os7.homedir(), ".config", "opencode", "opencode.jsonc");
+  return path25.join(os7.homedir(), ".config", "opencode", "opencode.jsonc");
 }
 function getWorkBuddyHome() {
-  return path24.join(os7.homedir(), ".workbuddy");
+  return path25.join(os7.homedir(), ".workbuddy");
 }
 function getWorkBuddyMcpInstallPaths(options = {}) {
-  const primary = path24.join(getWorkBuddyHome(), "mcp.json");
-  if (fs23.existsSync(primary) || options.createPrimary) {
+  const primary = path25.join(getWorkBuddyHome(), "mcp.json");
+  if (fs24.existsSync(primary) || options.createPrimary) {
     return [primary];
   }
-  const legacy = path24.join(getWorkBuddyHome(), ".mcp.json");
-  if (fs23.existsSync(legacy)) {
+  const legacy = path25.join(getWorkBuddyHome(), ".mcp.json");
+  if (fs24.existsSync(legacy)) {
     return [legacy];
   }
   return [];
 }
 function inspectWorkBuddyTrustState(mcpName) {
   const workbuddyHome = getWorkBuddyHome();
-  const connectorsDir = path24.join(workbuddyHome, "connectors");
+  const connectorsDir = path25.join(workbuddyHome, "connectors");
   const accounts = [];
   const stateFiles = [];
-  if (!fs23.existsSync(connectorsDir)) {
+  if (!fs24.existsSync(connectorsDir)) {
     return {
       status: "not_found",
       mcp_name: mcpName,
@@ -51267,12 +51427,12 @@ function inspectWorkBuddyTrustState(mcpName) {
       accounts
     };
   }
-  for (const entry of fs23.readdirSync(connectorsDir, { withFileTypes: true })) {
+  for (const entry of fs24.readdirSync(connectorsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const statePath = path24.join(connectorsDir, entry.name, "connector-states.json");
-    if (!fs23.existsSync(statePath)) {
+    const statePath = path25.join(connectorsDir, entry.name, "connector-states.json");
+    if (!fs24.existsSync(statePath)) {
       continue;
     }
     stateFiles.push(statePath);
@@ -51351,7 +51511,7 @@ function mergeJsonMcpConfig(configPath, options) {
   );
 }
 function mergeOpenCodeMcpConfig(configPath, options) {
-  const rawContent = fs23.readFileSync(configPath, "utf8");
+  const rawContent = fs24.readFileSync(configPath, "utf8");
   const rewroteJsonc = normalizeJsonConfigContent(rawContent, { jsonc: true }) !== rawContent;
   const existing = readJsonObject(configPath, { jsonc: true });
   const mcp = asObject(existing.mcp);
@@ -51383,7 +51543,7 @@ function mergeOpenCodeMcpConfig(configPath, options) {
   return { ...write, rewroteJsonc: write.changed && rewroteJsonc };
 }
 function mergeCodexMcpConfig(configPath, options) {
-  const existing = fs23.existsSync(configPath) ? fs23.readFileSync(configPath, "utf8") : "";
+  const existing = fs24.existsSync(configPath) ? fs24.readFileSync(configPath, "utf8") : "";
   const withoutOld = removeCodexMcpTables(existing, options.mcpName).trimEnd();
   const launch = options.launcher;
   const envValues = createMcpEnvironmentValues(options.env, options.clientIde, options.launcherEnv);
@@ -51417,7 +51577,7 @@ function mergeCodexMcpConfig(configPath, options) {
   );
 }
 function tryClaudeMcpAdd(options) {
-  const configPath = path24.join(os7.homedir(), ".claude.json");
+  const configPath = path25.join(os7.homedir(), ".claude.json");
   try {
     const existing = readJsonObject(configPath);
     const server = asObject(asObject(existing.mcpServers)[options.mcpName]);
@@ -51510,10 +51670,10 @@ function rejectPackageOption(parsed) {
   }
 }
 function readJsonObject(filePath, options = {}) {
-  if (!fs23.existsSync(filePath)) {
+  if (!fs24.existsSync(filePath)) {
     return {};
   }
-  const raw = fs23.readFileSync(filePath, "utf8");
+  const raw = fs24.readFileSync(filePath, "utf8");
   try {
     const normalized = normalizeJsonConfigContent(raw, options);
     const parsed = JSON.parse(normalized);
@@ -51685,10 +51845,10 @@ function formatMcpInstallMessage(label, configPath, write) {
   ].filter(Boolean).join("\n");
 }
 function saveInitState(targetDir, state) {
-  fs23.mkdirSync(getMakerHome(), { recursive: true });
-  const key = crypto4.createHash("sha256").update(path24.resolve(targetDir)).digest("hex").slice(0, 16);
-  fs23.writeFileSync(
-    path24.join(getMakerHome(), `init-state-${key}.json`),
+  fs24.mkdirSync(getMakerHome(), { recursive: true });
+  const key = crypto4.createHash("sha256").update(path25.resolve(targetDir)).digest("hex").slice(0, 16);
+  fs24.writeFileSync(
+    path25.join(getMakerHome(), `init-state-${key}.json`),
     `${JSON.stringify({ ...state, updated_at: (/* @__PURE__ */ new Date()).toISOString() }, null, 2)}
 `,
     "utf8"
@@ -51836,7 +51996,7 @@ function makerEnvOption(parsed) {
     return env;
   }
   const targetDir = stringOption(parsed, "target_dir");
-  return getMakerEnvironment(void 0, targetDir ? path24.resolve(targetDir) : process.cwd());
+  return getMakerEnvironment(void 0, targetDir ? path25.resolve(targetDir) : process.cwd());
 }
 function makerMcpConfigEnvOption(parsed) {
   return stringOption(parsed, "env") === "rnd" ? "rnd" : "production";
@@ -53357,7 +53517,7 @@ var StreamableHTTPClientTransport = class {
 };
 
 // src/mcp-proxy/proxy.ts
-import * as path26 from "node:path";
+import * as path27 from "node:path";
 import * as crypto7 from "node:crypto";
 
 // src/mcp-proxy/cookieJar.ts
@@ -53539,8 +53699,8 @@ function createCookieFetch(cookieJar) {
 }
 
 // src/core/utils/logWriter.ts
-import * as fs24 from "node:fs";
-import * as path25 from "node:path";
+import * as fs25 from "node:fs";
+import * as path26 from "node:path";
 import * as crypto6 from "node:crypto";
 
 // src/core/types/log.ts
@@ -53581,7 +53741,7 @@ var LogWriter = class {
       return;
     }
     try {
-      await fs24.promises.mkdir(this.config.logDir, { recursive: true });
+      await fs25.promises.mkdir(this.config.logDir, { recursive: true });
       await this.cleanupOldLogs();
       this.initialized = true;
     } catch (error2) {
@@ -53604,7 +53764,7 @@ var LogWriter = class {
    */
   getLogFilePath(date5) {
     const d = date5 || this.getCurrentDate();
-    return path25.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
+    return path26.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
   }
   /**
    * 获取或创建写入流
@@ -53619,7 +53779,7 @@ var LogWriter = class {
       }
       this.currentDate = date5;
       try {
-        this.writeStream = fs24.createWriteStream(this.getLogFilePath(date5), {
+        this.writeStream = fs25.createWriteStream(this.getLogFilePath(date5), {
           flags: "a",
           encoding: "utf8"
         });
@@ -53671,11 +53831,11 @@ var LogWriter = class {
     if (this.shouldWriteToFile(level) && this.initialized && this.config.enabled) {
       try {
         const filePath = this.getLogFilePath();
-        const dir = path25.dirname(filePath);
-        if (!fs24.existsSync(dir)) {
-          fs24.mkdirSync(dir, { recursive: true });
+        const dir = path26.dirname(filePath);
+        if (!fs25.existsSync(dir)) {
+          fs25.mkdirSync(dir, { recursive: true });
         }
-        fs24.appendFileSync(filePath, message, "utf8");
+        fs25.appendFileSync(filePath, message, "utf8");
       } catch {
       }
     }
@@ -53686,7 +53846,7 @@ var LogWriter = class {
   async cleanupOldLogs() {
     if (this.config.maxDays <= 0) return;
     try {
-      const files = await fs24.promises.readdir(this.config.logDir);
+      const files = await fs25.promises.readdir(this.config.logDir);
       const cutoffDate = /* @__PURE__ */ new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.config.maxDays);
       const prefix = this.config.prefix;
@@ -53701,7 +53861,7 @@ var LogWriter = class {
           if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
             const fileDate = new Date(year, month - 1, day);
             if (fileDate < cutoffDate) {
-              await fs24.promises.unlink(path25.join(this.config.logDir, file2));
+              await fs25.promises.unlink(path26.join(this.config.logDir, file2));
               process.stderr.write(`[LogWriter] Deleted old log: ${file2}
 `);
             }
@@ -53822,10 +53982,10 @@ var TapTapMCPProxy = class {
     const { user_id, project_id } = this.config.tenant;
     let logDir;
     if (user_id && project_id) {
-      logDir = path26.join(logRoot, "proxy", user_id, project_id);
+      logDir = path27.join(logRoot, "proxy", user_id, project_id);
     } else {
       const kidHash = crypto7.createHash("sha256").update(this.config.auth.kid).digest("hex").substring(0, 8);
-      logDir = path26.join(logRoot, "proxy", kidHash);
+      logDir = path27.join(logRoot, "proxy", kidHash);
     }
     return new LogWriter({
       logDir,
