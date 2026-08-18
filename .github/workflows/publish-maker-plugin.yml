@@ -1,0 +1,98 @@
+name: Publish Maker Plugin
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - config/maker-plugin-version.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-maker-plugin
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish Maker client plugin
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read release identity
+        id: version
+        shell: bash
+        run: |
+          version="$(node -e "const p=require('./config/maker-plugin-version.json'); process.stdout.write(p.version)")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=maker-plugin-v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Validate an existing release tag
+        shell: bash
+        run: |
+          if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            tagged_sha="$(git rev-list -n 1 "${{ steps.version.outputs.tag }}")"
+            if [[ "$tagged_sha" != "${{ github.sha }}" ]]; then
+              echo "::error::Release tag ${{ steps.version.outputs.tag }} points to $tagged_sha, not ${{ github.sha }}."
+              exit 1
+            fi
+          fi
+
+      - name: Verify generated plugins are current
+        run: |
+          npm run maker:codex-plugin:prepare
+          npm run maker:workbuddy-plugin:prepare
+          git diff --exit-code
+
+      - name: Verify release candidate
+        run: |
+          npm run lint
+          npm run format:check
+          npm test -- --runInBand
+
+      - name: Package release assets
+        run: node scripts/package-maker-client-plugins.js --output-dir artifacts/maker-plugins
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          tag="${{ steps.version.outputs.tag }}"
+          maker_version="$(node -e "const p=require('./config/maker-version-policy.json'); process.stdout.write(p.latest)")"
+          notes="$RUNNER_TEMP/maker-plugin-release-notes.md"
+          {
+            echo "# TapTap Maker Client Plugins $version"
+            echo
+            echo "Bundled Maker MCP version: $maker_version"
+            echo
+            echo "Assets: Codex plugin ZIP, WorkBuddy plugin ZIP, SHA256SUMS, and machine-readable release metadata."
+          } > "$notes"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" \
+              --title "TapTap Maker Client Plugins $version" \
+              --notes-file "$notes"
+            gh release upload "$tag" artifacts/maker-plugins/* --clobber
+          else
+            gh release create "$tag" artifacts/maker-plugins/* \
+              --target "${{ github.sha }}" \
+              --title "TapTap Maker Client Plugins $version" \
+              --notes-file "$notes"
+          fi

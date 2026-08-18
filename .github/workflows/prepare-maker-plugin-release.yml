@@ -1,0 +1,82 @@
+name: Prepare Maker Plugin Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: prepare-maker-plugin-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare next plugin patch
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve next plugin version
+        id: version
+        shell: bash
+        run: |
+          latest_tag="$(git tag --list 'maker-plugin-v*' --sort=-v:refname | head -n 1)"
+          latest_tag="${latest_tag:-none}"
+          result="$(node scripts/resolve-maker-plugin-version.js --latest-tag "$latest_tag" --json)"
+          echo "version=$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.version)' "$result")" >> "$GITHUB_OUTPUT"
+          echo "tag=$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.tag)' "$result")" >> "$GITHUB_OUTPUT"
+
+      - name: Update version and generated plugins
+        run: |
+          node scripts/update-maker-plugin-version.js --version "${{ steps.version.outputs.version }}"
+          npm run maker:codex-plugin:prepare
+          npm run maker:workbuddy-plugin:prepare
+
+      - name: Verify release candidate
+        run: |
+          npm run lint
+          npm run format:check
+          npm test -- --runInBand
+          npm run maker:plugins:package -- --output-dir "$RUNNER_TEMP/maker-plugins"
+
+      - name: Generate release PR token
+        id: release-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Create release PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ steps.release-token.outputs.token }}
+          branch: chore/maker-plugin-${{ steps.version.outputs.version }}
+          delete-branch: true
+          title: 'chore(maker-plugin): prepare ${{ steps.version.outputs.version }}'
+          commit-message: |
+            chore(maker-plugin): prepare ${{ steps.version.outputs.version }}
+
+            - Increment the independent Maker client plugin patch version
+            - Regenerate Codex and WorkBuddy self-contained plugin packages
+            - Keep the embedded Maker MCP version on its own release line
+            - Verification: lint, format check, tests, and release packaging
+          body: |
+            Prepares Maker client plugin `${{ steps.version.outputs.version }}`.
+
+            After merge, `Publish Maker Plugin` creates tag
+            `${{ steps.version.outputs.tag }}` and uploads both client ZIPs plus checksums.
