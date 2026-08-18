@@ -90,6 +90,7 @@ describe('TapTap Maker plugin release version', () => {
     const release = JSON.parse(
       fs.readFileSync(path.join(tempDir, 'maker-plugin-release.json'), 'utf8')
     );
+    const installGuide = fs.readFileSync(path.join(tempDir, 'INSTALL.md'), 'utf8');
     const checksums = fs.readFileSync(path.join(tempDir, 'SHA256SUMS'), 'utf8');
 
     expect(fs.statSync(path.join(tempDir, codexAsset)).size).toBeGreaterThan(0);
@@ -114,9 +115,18 @@ describe('TapTap Maker plugin release version', () => {
         plugin_version: pluginPolicy.version,
         maker_mcp_version: makerPolicy.latest,
         tag: `maker-plugin-v${pluginPolicy.version}`,
-        assets: { codex: codexAsset, workbuddy: workBuddyAsset, checksums: 'SHA256SUMS' },
+        assets: {
+          codex: codexAsset,
+          workbuddy: workBuddyAsset,
+          checksums: 'SHA256SUMS',
+          install_guide: 'INSTALL.md',
+        },
       })
     );
+    expect(installGuide).toContain(`插件版本：\`${pluginPolicy.version}\``);
+    expect(installGuide).toContain('发布渠道：`main 稳定版`');
+    expect(installGuide).toContain('当前宿主客户端是 Codex');
+    expect(installGuide).toContain('当前宿主客户端是 WorkBuddy');
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -138,6 +148,7 @@ describe('TapTap Maker plugin release version', () => {
     expect(publishWorkflow).toContain('npm run maker:plugins:package --');
     expect(publishWorkflow).toContain('gh release create');
     expect(publishWorkflow).toContain('gh release view "$RELEASE_TAG"');
+    expect(publishWorkflow).toContain('notes="artifacts/maker-plugins/INSTALL.md"');
     expect(publishWorkflow).toContain(
       'gh release upload "$RELEASE_TAG" artifacts/maker-plugins/* --clobber'
     );

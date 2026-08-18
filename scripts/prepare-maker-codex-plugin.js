@@ -180,12 +180,14 @@ async function writeJson(filePath, value) {
 }
 
 function createReadme(pluginVersion, makerVersion) {
+  const releaseChannel = pluginVersion.includes('-dev.') ? 'develop 预览版' : 'main 稳定版';
   return `# TapTap Maker 客户端插件安装
 
 这是 TapTap Maker 的统一插件安装入口，支持 Codex 和 WorkBuddy。两个插件使用同一版本，
 但安装包和客户端配置彼此独立。
 
 - 插件版本：\`${pluginVersion}\`
+- 发布渠道：\`${releaseChannel}\`
 - 内置 Maker MCP 版本：\`${makerVersion}\`
 
 ## 用户如何安装

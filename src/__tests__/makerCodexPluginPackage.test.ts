@@ -174,6 +174,7 @@ describe('TapTap Maker Codex plugin package', () => {
     const readme = fs.readFileSync(path.join(pluginRoot, 'README.md'), 'utf8');
 
     expect(readme).toContain(`插件版本：\`${pluginVersion}\``);
+    expect(readme).toContain('发布渠道：`main 稳定版`');
     expect(readme).toContain(`内置 Maker MCP 版本：\`${makerVersion}\``);
     expect(readme).toContain('当前宿主客户端是 Codex');
     expect(readme).toContain('当前宿主客户端是 WorkBuddy');
