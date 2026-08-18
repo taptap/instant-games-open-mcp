@@ -18,6 +18,7 @@ import {
   installAiDevKit,
   installAiDevKitSkills,
 } from '../maker/cli/devKit';
+import { syncWorkBuddyProjectSkills } from '../maker/cli/workBuddyProjectSkills';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../maker/versionCheck';
 import { runMakerCli } from '../maker/cli/commands';
 import {
@@ -147,6 +148,16 @@ jest.mock('../maker/cli/devKit', () => ({
   writeDevKitStagedGitignore: jest.fn(),
 }));
 
+jest.mock('../maker/cli/workBuddyProjectSkills', () => ({
+  syncWorkBuddyProjectSkills: jest.fn(() => ({
+    status: 'installed',
+    sourceDir: '/project/.installer/skills',
+    targetDir: '/project/.workbuddy/skills',
+    installedSkills: ['taptap-maker-materials'],
+    skippedSkills: [],
+  })),
+}));
+
 jest.mock('../maker/versionCheck', () => ({
   formatMakerPackageUpdateStatus: jest.fn(() =>
     [
@@ -197,6 +208,7 @@ describe('Maker CLI commands', () => {
   const originalPythonBin = process.env.TAPTAP_MAKER_PYTHON_BIN;
   const originalNpmCache = process.env.npm_config_cache;
   const originalDshHome = process.env.DSH_HOME;
+  const originalMakerDistribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
   const originalStdinIsTty = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
   let homedirSpy: jest.SpyInstance;
   let stdoutSpy: jest.SpyInstance;
@@ -239,6 +251,7 @@ describe('Maker CLI commands', () => {
     delete process.env.TAPTAP_MAKER_PYTHON_BIN;
     delete process.env.npm_config_cache;
     delete process.env.DSH_HOME;
+    delete process.env.TAPTAP_MAKER_DISTRIBUTION;
     setMakerEnvironmentOverride(undefined);
     homedirSpy = jest.spyOn(os, 'homedir').mockReturnValue(tempDir);
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
@@ -288,6 +301,11 @@ describe('Maker CLI commands', () => {
       delete process.env.DSH_HOME;
     } else {
       process.env.DSH_HOME = originalDshHome;
+    }
+    if (originalMakerDistribution === undefined) {
+      delete process.env.TAPTAP_MAKER_DISTRIBUTION;
+    } else {
+      process.env.TAPTAP_MAKER_DISTRIBUTION = originalMakerDistribution;
     }
     setMakerEnvironmentOverride(undefined);
     if (originalStdinIsTty) {
@@ -2712,6 +2730,70 @@ describe('Maker CLI commands', () => {
     expect(output).toContain('AI skills install result: claude=13, codex=13, cursor=13, gemini=13');
   });
 
+  test('WorkBuddy plugin init syncs missing project skills after dev-kit preparation', async () => {
+    process.env.TAPTAP_MAKER_DISTRIBUTION = 'workbuddy_plugin';
+    jest.mocked(inspectAiDevKit).mockReturnValueOnce({
+      targetDir: tempDir,
+      requiredEntries: ['CLAUDE.md'],
+      presentEntries: [],
+      missingEntries: ['CLAUDE.md'],
+      ready: false,
+    });
+    jest.mocked(installAiDevKit).mockResolvedValueOnce({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, 'source'),
+      installedEntries: ['.installer', 'CLAUDE.md', 'tools'],
+      skippedEntries: [],
+      gitignorePath: path.join(tempDir, '.gitignore'),
+      stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    expect(syncWorkBuddyProjectSkills).toHaveBeenCalledWith(tempDir);
+    expect(stdoutSpy.mock.calls.join('')).toContain('WorkBuddy project skills installed: 1');
+  });
+
+  test('standalone Maker init does not create WorkBuddy project skills', async () => {
+    jest.mocked(inspectAiDevKit).mockReturnValueOnce({
+      targetDir: tempDir,
+      requiredEntries: ['CLAUDE.md'],
+      presentEntries: [],
+      missingEntries: ['CLAUDE.md'],
+      ready: false,
+    });
+    jest.mocked(installAiDevKit).mockResolvedValueOnce({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, 'source'),
+      installedEntries: ['.installer', 'CLAUDE.md', 'tools'],
+      skippedEntries: [],
+      gitignorePath: path.join(tempDir, '.gitignore'),
+      stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    expect(syncWorkBuddyProjectSkills).not.toHaveBeenCalled();
+  });
+
   test('init clones before installing dev kit and allows dev kit to overwrite checkout files', async () => {
     jest.mocked(inspectAiDevKit).mockReturnValueOnce({
       targetDir: tempDir,
@@ -2882,6 +2964,22 @@ describe('Maker CLI commands', () => {
         environment: 'rnd',
       })
     );
+  });
+
+  test('WorkBuddy plugin dev-kit update restores missing project skills', async () => {
+    process.env.TAPTAP_MAKER_DISTRIBUTION = 'workbuddy_plugin';
+    jest.mocked(installAiDevKit).mockResolvedValueOnce({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, 'source'),
+      installedEntries: ['.installer', 'CLAUDE.md', 'tools'],
+      skippedEntries: [],
+      gitignorePath: path.join(tempDir, '.gitignore'),
+      stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+    });
+
+    await runMakerCli(['dev-kit', 'update', '--target-dir', tempDir]);
+
+    expect(syncWorkBuddyProjectSkills).toHaveBeenCalledWith(tempDir);
   });
 
   test('doctor includes AI dev kit update state in json output', async () => {

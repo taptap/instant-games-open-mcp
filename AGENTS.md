@@ -353,6 +353,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   managed Node 目录，再回退系统 PATH。Windows 必须同时支持版本目录根和 `bin` 子目录中的
   `node.exe`。插件不依赖 npm/npx，也不固定项目 `cwd`。
   `create-project` 和 `sync-project` 是仅有的两个快捷命令，执行前必须要求空 workspace。
+  WorkBuddy 插件的 `init` 和 `dev-kit update` 必须逐项检查
+  `.workbuddy/skills/taptap-maker-*`，只从 `.installer/skills` 补齐缺失的项目 Skill，不得覆盖已有
+  同名 Skill。该同步不得影响独立 Maker MCP、Codex 插件或其他客户端；目录链接不可用时才复制。
 - 客户端插件发布只使用 `Prepare Maker Plugin Release` 和 `Publish Maker Plugin` workflows。
   前者按最新 `maker-plugin-v*` tag 自动递增 patch 并创建版本 PR；后者在 PR 合并后发布两份完整
   marketplace ZIP、`SHA256SUMS` 和 `maker-plugin-release.json`。插件发布不得调用 npm publish、
@@ -362,8 +365,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `src/maker/` 的 runtime/CLI，不复制 Maker tools、resources 或 proxy 业务逻辑。
 - 插件模式必须先按 `taptap-maker-plugin-lifecycle` 检查对应客户端的旧 Maker MCP。Codex 禁用只写
   `enabled = false`；WorkBuddy 同时检查 `~/.workbuddy/mcp.json` 和旧 `.mcp.json`，禁用只写
-  `disabled: true`。禁用和恢复都要求用户明确确认，保留原配置、最新备份和恢复状态。不得删除旧注册、
-  PAT、Maker home、项目绑定、WorkBuddy connector trust 或游戏文件。初始化必须使用
+  `disabled: true`。WorkBuddy 插件通过只读 SessionStart Hook 检查冲突并向 AI 注入提醒；只有用户
+  明确确认后才调用迁移 CLI。禁用和恢复都要求用户明确确认，保留原配置、最新备份和恢复状态。
+  不得删除旧注册、PAT、Maker home、项目绑定、WorkBuddy connector trust 或游戏文件。初始化必须使用
   `taptap-maker init --skip-mcp-install`。插件用户通过当前客户端 marketplace 更新，不运行独立 npm
   包升级。
   Codex 插件产物必须使用插件专用 `update-taptap-mcp`，不得复制 npm 发行版的更新 Skill。旧 MCP

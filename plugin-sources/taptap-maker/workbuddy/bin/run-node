@@ -4,6 +4,10 @@
 
 set -e
 
+: "${TAPTAP_MAKER_DISTRIBUTION:=workbuddy_plugin}"
+: "${TAPTAP_MCP_CLIENT_IDE:=workbuddy}"
+export TAPTAP_MAKER_DISTRIBUTION TAPTAP_MCP_CLIENT_IDE
+
 resolve_from_extra_paths() {
   paths=${WORKBUDDY_EXTRA_PATHS:-}
   [ -n "$paths" ] || return 1

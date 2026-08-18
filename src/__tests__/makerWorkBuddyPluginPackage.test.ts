@@ -67,6 +67,7 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
         ],
         commands: ['./commands/create-project.md', './commands/sync-project.md'],
         mcpServers: './.mcp.json',
+        hooks: './hooks/hooks.json',
         author: { name: 'TapTap Team' },
       })
     );
@@ -88,12 +89,12 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     }
   });
 
-  test('launches the bundled runtime through the WorkBuddy-managed Node resolver', () => {
+  test('launches the bundled runtime through WorkBuddy-provided Node', () => {
     const mcpText = fs.readFileSync(path.join(pluginRoot, '.mcp.json'), 'utf8');
     const mcp = JSON.parse(mcpText);
 
     expect(mcp.mcpServers['taptap-maker-plugin']).toEqual({
-      command: '${CODEBUDDY_PLUGIN_ROOT}/bin/run-node',
+      command: 'node',
       args: ['${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js'],
       env: {
         TAPTAP_MAKER_DISTRIBUTION: 'workbuddy_plugin',
@@ -113,6 +114,8 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
       'bin/run-node.cmd',
       'bin/taptap-maker',
       'bin/taptap-maker.cmd',
+      'hooks/hooks.json',
+      'hooks/session-start.cjs',
       'commands/create-project.md',
       'commands/sync-project.md',
       'skills/taptap-maker-local/SKILL.md',
@@ -139,6 +142,9 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     expect(fs.readFileSync(path.join(pluginRoot, 'icon.svg'), 'utf8')).toContain(
       'href="assets/taptap-maker.png"'
     );
+    const readme = fs.readFileSync(path.join(pluginRoot, 'README.md'), 'utf8');
+    expect(readme).toContain('.workbuddy/skills/taptap-maker-*');
+    expect(readme).toContain('只补齐缺失项，不覆盖已有同名 Skill');
   });
 
   test('uses Chinese display descriptions for commands and skills', () => {
@@ -169,6 +175,73 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     }
   });
 
+  test('prompts for confirmation when a standalone WorkBuddy Maker MCP is active', () => {
+    const workBuddyHome = path.join(tempDir, 'hook-active-home');
+    const configPath = path.join(workBuddyHome, '.workbuddy', '.mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      `${JSON.stringify({ mcpServers: { 'taptap-maker': { command: 'npx' } } }, null, 2)}\n`,
+      'utf8'
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [path.join(pluginRoot, 'hooks', 'session-start.cjs')],
+      {
+        cwd: pluginRoot,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          HOME: workBuddyHome,
+          USERPROFILE: workBuddyHome,
+          CODEBUDDY_PLUGIN_ROOT: pluginRoot,
+        },
+      }
+    );
+
+    expect(result.status).toBe(0);
+    const output = JSON.parse(result.stdout);
+    expect(output.hookSpecificOutput.additionalContext).toContain('旧的独立 Maker MCP');
+    expect(output.hookSpecificOutput.additionalContext).toContain('明确确认');
+    expect(output.hookSpecificOutput.additionalContext).toContain(
+      'plugin migrate --client workbuddy'
+    );
+  });
+
+  test('keeps the session hook silent when standalone Maker registrations are disabled', () => {
+    const workBuddyHome = path.join(tempDir, 'hook-disabled-home');
+    const configPath = path.join(workBuddyHome, '.workbuddy', 'mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      `${JSON.stringify(
+        { mcpServers: { 'taptap-maker': { command: 'node', disabled: true } } },
+        null,
+        2
+      )}\n`,
+      'utf8'
+    );
+
+    const result = spawnSync(
+      process.execPath,
+      [path.join(pluginRoot, 'hooks', 'session-start.cjs')],
+      {
+        cwd: pluginRoot,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          HOME: workBuddyHome,
+          USERPROFILE: workBuddyHome,
+          CODEBUDDY_PLUGIN_ROOT: pluginRoot,
+        },
+      }
+    );
+
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ hookSpecificOutput: {} });
+  });
+
   test('resolves WorkBuddy managed Node without relying on Node in PATH', () => {
     if (process.platform === 'win32') {
       return;
@@ -193,6 +266,35 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout.trim()).toBe('managed-node:maker.js --version');
+  });
+
+  test('marks every bundled launcher invocation as the WorkBuddy plugin distribution', () => {
+    if (process.platform === 'win32') {
+      return;
+    }
+
+    const fakeBin = path.join(tempDir, 'distribution-node-bin');
+    const fakeNode = path.join(fakeBin, 'node');
+    fs.mkdirSync(fakeBin, { recursive: true });
+    fs.writeFileSync(
+      fakeNode,
+      '#!/bin/sh\nprintf "%s:%s\\n" "$TAPTAP_MAKER_DISTRIBUTION" "$TAPTAP_MCP_CLIENT_IDE"\n',
+      'utf8'
+    );
+    fs.chmodSync(fakeNode, 0o755);
+
+    const result = spawnSync(path.join(pluginRoot, 'bin', 'run-node'), ['maker.js'], {
+      cwd: pluginRoot,
+      encoding: 'utf8',
+      env: {
+        HOME: path.join(tempDir, 'distribution-empty-home'),
+        PATH: '/usr/bin:/bin',
+        WORKBUDDY_EXTRA_PATHS: fakeBin,
+      },
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe('workbuddy_plugin:workbuddy');
   });
 
   test('selects the newest managed Node without GNU version sort', () => {
@@ -285,8 +387,11 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
       const content = fs.readFileSync(path.join(pluginRoot, 'commands', command), 'utf8');
       expect(content).toContain('empty');
       expect(content).toContain('${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js');
-      expect(content).toContain('${CODEBUDDY_PLUGIN_ROOT}/bin/run-node');
-      expect(content).not.toMatch(/(?:^|\s)node\s+["']/mu);
+      expect(content).toContain('${CODEBUDDY_PLUGIN_ROOT}/bin/run-node"');
+      expect(content).toContain('${CODEBUDDY_PLUGIN_ROOT}/bin/run-node.cmd"');
+      expect(content).not.toMatch(
+        /(?:^|\s)node\s+"\$\{CODEBUDDY_PLUGIN_ROOT\}\/dist\/maker\.js"/mu
+      );
       expect(content).toContain('--skip-mcp-install');
     }
     expect(
@@ -304,6 +409,18 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     expect(updateSkill).toContain('/plugin');
     expect(updateSkill).not.toMatch(/(?:^|\s)npx\s+-/mu);
     expect(updateSkill).not.toContain('taptap-maker upgrade');
+  });
+
+  test('documents both Windows and POSIX bundled CLI launchers for lifecycle commands', () => {
+    const lifecycleSkill = fs.readFileSync(
+      path.join(pluginRoot, 'skills', 'taptap-maker-plugin-lifecycle', 'SKILL.md'),
+      'utf8'
+    );
+
+    expect(lifecycleSkill).toContain('${CODEBUDDY_PLUGIN_ROOT}/bin/run-node"');
+    expect(lifecycleSkill).toContain('${CODEBUDDY_PLUGIN_ROOT}/bin/run-node.cmd"');
+    expect(lifecycleSkill).toContain('TAPTAP_MAKER_DISTRIBUTION');
+    expect(lifecycleSkill).toContain('workbuddy_plugin');
   });
 
   test('keeps the shared local workflow neutral to the active plugin host', () => {

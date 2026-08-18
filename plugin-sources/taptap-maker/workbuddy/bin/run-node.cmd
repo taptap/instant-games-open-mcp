@@ -2,6 +2,8 @@
 setlocal EnableExtensions
 
 set "WB_NODE="
+if not defined TAPTAP_MAKER_DISTRIBUTION set "TAPTAP_MAKER_DISTRIBUTION=workbuddy_plugin"
+if not defined TAPTAP_MCP_CLIENT_IDE set "TAPTAP_MCP_CLIENT_IDE=workbuddy"
 
 if defined WORKBUDDY_EXTRA_PATHS (
   for %%D in ("%WORKBUDDY_EXTRA_PATHS:;=" "%") do (

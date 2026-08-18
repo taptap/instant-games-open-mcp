@@ -12,20 +12,32 @@ game files remain shared and unchanged.
 ## Bundled CLI
 
 Always use the plugin launcher with the bundled runtime. It resolves WorkBuddy's managed Node.js
-first and falls back to a system Node.js only when needed:
+first and falls back to a system Node.js only when needed. On Windows, use:
+
+```bat
+"${CODEBUDDY_PLUGIN_ROOT}/bin/run-node.cmd" "${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js" <arguments>
+```
+
+On macOS or Linux, use:
 
 ```bash
 "${CODEBUDDY_PLUGIN_ROOT}/bin/run-node" "${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js" <arguments>
 ```
 
+Both launchers set `TAPTAP_MAKER_DISTRIBUTION=workbuddy_plugin` and
+`TAPTAP_MCP_CLIENT_IDE=workbuddy` before starting the bundled runtime.
+In the commands below, replace `<PLUGIN_CLI>` with the complete two-part launcher command selected
+for the current operating system above.
 Do not assume `taptap-maker`, npm, or npx is on `PATH`.
 
 ## First Use and Legacy MCP Migration
 
-Before the first Maker workflow in a WorkBuddy plugin session, inspect standalone registrations:
+The plugin SessionStart hook performs a read-only inspection and injects a reminder when an active
+standalone registration exists. It never changes MCP configuration. Before the first Maker workflow
+in a WorkBuddy plugin session, follow that reminder or inspect standalone registrations directly:
 
 ```bash
-"${CODEBUDDY_PLUGIN_ROOT}/bin/run-node" "${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js" plugin inspect --client workbuddy --json
+<PLUGIN_CLI> plugin inspect --client workbuddy --json
 ```
 
 Act on `status`:
@@ -40,7 +52,7 @@ Act on `status`:
 Only after explicit confirmation, disable the active standalone registration:
 
 ```bash
-"${CODEBUDDY_PLUGIN_ROOT}/bin/run-node" "${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js" plugin migrate --client workbuddy --confirm --json
+<PLUGIN_CLI> plugin migrate --client workbuddy --confirm --json
 ```
 
 Migration only sets `disabled: true`, writes a latest backup, and records plugin ownership for
@@ -64,7 +76,7 @@ If the user wants to remove the plugin and resume a registration migrated by thi
 explicit confirmation, then run:
 
 ```bash
-"${CODEBUDDY_PLUGIN_ROOT}/bin/run-node" "${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js" plugin restore --client workbuddy --confirm --json
+<PLUGIN_CLI> plugin restore --client workbuddy --confirm --json
 ```
 
 Restore only configuration owned by the migration state. Preserve unrelated WorkBuddy settings and

@@ -77,7 +77,7 @@ describe('Maker WorkBuddy plugin migration', () => {
     expect(inspect()).toMatchObject({ status: 'disabled', enabled: false });
   });
 
-  test('refuses to choose when both WorkBuddy config files register Maker', () => {
+  test('selects the only active registration when another config already disabled Maker', () => {
     writeConfig(primaryPath, {
       mcpServers: { 'taptap-maker': { command: 'node', disabled: false } },
     });
@@ -87,10 +87,70 @@ describe('Maker WorkBuddy plugin migration', () => {
 
     expect(inspect()).toEqual({
       client: 'workbuddy',
+      status: 'active',
+      config_path: primaryPath,
+      config_paths: [primaryPath, legacyPath],
+      registration_count: 2,
+      enabled: true,
+    });
+  });
+
+  test('refuses to choose when both WorkBuddy config files enable Maker', () => {
+    writeConfig(primaryPath, {
+      mcpServers: { 'taptap-maker': { command: 'node', disabled: false } },
+    });
+    writeConfig(legacyPath, {
+      mcpServers: { 'taptap-maker': { command: 'npx' } },
+    });
+
+    expect(inspect()).toEqual({
+      client: 'workbuddy',
       status: 'ambiguous',
       config_path: primaryPath,
       config_paths: [primaryPath, legacyPath],
       registration_count: 2,
+    });
+  });
+
+  test('migrates and restores the only active registration across both config files', () => {
+    writeConfig(primaryPath, {
+      mcpServers: { 'taptap-maker': { command: 'node', disabled: true } },
+    });
+    writeConfig(legacyPath, {
+      mcpServers: { 'taptap-maker': { command: 'npx' } },
+    });
+
+    const migrated = migrateWorkBuddyLegacyMakerMcp({
+      configPaths: [primaryPath, legacyPath],
+      makerHome,
+      confirm: true,
+    });
+
+    expect(migrated).toMatchObject({
+      status: 'disabled',
+      action: 'disabled',
+      changed: true,
+      config_path: legacyPath,
+      registration_count: 2,
+    });
+    expect(JSON.parse(fs.readFileSync(primaryPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
+      command: 'node',
+      disabled: true,
+    });
+    expect(JSON.parse(fs.readFileSync(legacyPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
+      command: 'npx',
+      disabled: true,
+    });
+
+    const restored = restoreWorkBuddyLegacyMakerMcp({
+      configPaths: [primaryPath, legacyPath],
+      makerHome,
+      confirm: true,
+    });
+
+    expect(restored).toMatchObject({ action: 'restored', changed: true, config_path: legacyPath });
+    expect(JSON.parse(fs.readFileSync(legacyPath, 'utf8')).mcpServers['taptap-maker']).toEqual({
+      command: 'npx',
     });
   });
 

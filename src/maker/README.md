@@ -45,6 +45,9 @@ Node.js。插件运行时仍完全来自自身 `dist/maker.js`，不下载或调
 只设置 `disabled: true`，不删除注册、鉴权、项目绑定或 connector trust。更新使用 WorkBuddy
 插件管理器，不运行 npm/npx 或独立 `taptap-maker upgrade`。
 
+初始化或更新 dev-kit 后，WorkBuddy 插件会将 `.installer/skills` 中缺失的项目 Skills 链接到
+`.workbuddy/skills/taptap-maker-*`。已有同名 Skill 保持不变，独立 MCP 和其他插件不执行该步骤。
+
 ## 独立 CLI
 
 不使用插件时，可以通过独立包启动 Maker CLI：
