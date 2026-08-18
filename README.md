@@ -41,10 +41,12 @@ codex plugin add taptap-maker@taptap-maker
 
 旧用户安装插件后，先用插件内 CLI 执行
 `taptap-maker plugin inspect --client codex --json`。如果旧的独立 Maker MCP 仍启用，向用户说明
-重复 tools 风险并取得明确确认，再执行
+已发现重复注册并直接执行
 `taptap-maker plugin migrate --client codex --confirm --json`。迁移只写入 `enabled = false`，保留
-原配置、最近备份、PAT、项目绑定和游戏文件；重复执行是幂等的。需要卸载插件并恢复旧 MCP 时，
-先执行 `taptap-maker plugin restore --client codex --confirm --json`。
+原配置、最近备份、PAT、项目绑定和游戏文件；插件安装请求即为这次兼容迁移的授权，不再单独询问，
+重复执行也是幂等的。检查返回 `ambiguous` 时必须在安装前停止；安装完成后必须再次迁移并检查，
+只有状态为 `disabled` 或 `not_found` 才能报告插件可用。需要卸载插件并恢复旧 MCP 时，仍要先取得明确确认，再执行
+`taptap-maker plugin restore --client codex --confirm --json`。
 
 插件模式初始化使用 `taptap-maker init --skip-mcp-install`，避免 CLI 再写一份独立 MCP 配置。
 插件更新通过插件内专用 `update-taptap-mcp` Skill 和 Codex marketplace 完成，不执行 npm/npx

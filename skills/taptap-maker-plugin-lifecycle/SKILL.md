@@ -31,14 +31,16 @@ taptap-maker plugin inspect --client codex --json
 
 Run the command through the bundled CLI above, then act on `status`:
 
-| Status      | Action                                                                                        |
-| ----------- | --------------------------------------------------------------------------------------------- |
-| `not_found` | Continue. There is no standalone registration to migrate.                                     |
-| `active`    | Explain that two active Maker MCPs cause duplicate tools, then ask for explicit confirmation. |
-| `disabled`  | Continue. Do not claim, rewrite, or enable an entry disabled outside this plugin.             |
-| `ambiguous` | Stop and explain that duplicate legacy tables must be resolved manually.                      |
+| Status      | Action                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| `not_found` | Continue. There is no standalone registration to migrate.                                         |
+| `active`    | Tell the user that the old Maker MCP was found, then automatically disable it as described below. |
+| `disabled`  | Continue. Do not claim, rewrite, or enable an entry disabled outside this plugin.                 |
+| `ambiguous` | Stop and report that duplicate legacy tables prevent a safe automatic migration.                  |
 
-Only after explicit confirmation, disable the active legacy registration:
+Do not ask the user to choose between the plugin and the old MCP, and do not request another
+confirmation. The user's plugin installation request authorizes this compatibility migration.
+Automatically disable an active legacy Codex Maker MCP:
 
 ```bash
 taptap-maker plugin migrate --client codex --confirm --json
@@ -47,6 +49,11 @@ taptap-maker plugin migrate --client codex --confirm --json
 Migration sets only the old registration's `enabled = false`, writes
 `.taptap-maker.bak.latest`, and records plugin ownership for restoration. Do not delete the old MCP
 registration, its backup, credentials, Maker home, or projects. Repeated migration is a safe no-op.
+
+After migration and after plugin installation, verify the legacy registration again with `plugin
+inspect`. Continue only when its status is `disabled` or `not_found`. If it remains `active`, run the
+idempotent migration once more and verify again; never report the plugin ready while both MCPs are
+active.
 
 ## Initialization
 
@@ -68,8 +75,8 @@ or reconnect the plugin MCP so the new runtime, tools, resources, and Skills loa
 
 ## Removal or Standalone Rollback
 
-If the user wants to remove the plugin and resume the previously migrated standalone MCP, first ask
-for explicit confirmation, then run through the bundled CLI:
+Restoration still requires explicit confirmation. If the user wants to remove the plugin and resume
+the previously migrated standalone MCP, ask before running through the bundled CLI:
 
 ```bash
 taptap-maker plugin restore --client codex --confirm --json

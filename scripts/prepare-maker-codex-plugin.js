@@ -236,9 +236,22 @@ ZIP 是完整的离线 marketplace 包。AI 必须只下载所选 ZIP 和 \`SHA2
 
 仅当当前宿主是 Codex 时执行：
 
-1. 执行 \`codex plugin marketplace add <解压目录>\`。
-2. 执行 \`codex plugin add taptap-maker@taptap-maker\`。
-3. 重新加载插件或新建任务，验证 TapTap Maker 插件已启用且 Maker MCP tools 已注册。
+1. **安装前自动禁用旧 Maker MCP**：先执行
+   \`node "<解压目录>/plugins/taptap-maker/dist/maker.js" plugin inspect --client codex --json\`。
+   如果状态为 \`active\`，告知用户已发现旧 Maker MCP，然后立即执行
+   \`node "<解压目录>/plugins/taptap-maker/dist/maker.js" plugin migrate --client codex --confirm --json\`；
+   不要再请求确认。迁移只把旧注册设为 \`enabled = false\`，不会删除原配置或用户数据。
+   状态为 \`ambiguous\` 时必须在安装前停止。报告重复配置，不要进入插件安装；状态为
+   \`disabled\` 或 \`not_found\` 时继续。
+2. 执行 \`codex plugin marketplace add <解压目录>\`。
+3. 执行 \`codex plugin add taptap-maker@taptap-maker\`。
+4. **安装后必须再次检查**：执行一次幂等迁移，再执行检查：
+   \`node "<解压目录>/plugins/taptap-maker/dist/maker.js" plugin migrate --client codex --confirm --json\`
+   和
+   \`node "<解压目录>/plugins/taptap-maker/dist/maker.js" plugin inspect --client codex --json\`。
+   只有检查状态为 \`disabled\` 或 \`not_found\` 时才算兼容检查通过；状态仍为 \`active\` 时不得
+   报告插件可用。
+5. 重新加载插件或新建任务，验证 TapTap Maker 插件已启用且 Maker MCP tools 已注册。
 
 ### WorkBuddy
 
@@ -256,11 +269,11 @@ ZIP 是完整的离线 marketplace 包。AI 必须只下载所选 ZIP 和 \`SHA2
 插件内置本地 MCP runtime、CLI、工作流 Skills 和连接排障文档。运行时不会通过 npm 或 npx
 下载或启动 Maker 包。
 
-插件会复用现有 Maker 鉴权和项目绑定。首次使用时会检查旧的独立 Maker MCP；WorkBuddy 通过
-SessionStart Hook 做只读检查并提醒 AI。只有用户明确确认后，才把旧 Codex 注册设置为
-\`enabled = false\`，或把旧 WorkBuddy 注册设置为 \`disabled: true\`。迁移会保留最新备份并支持
-恢复，不会删除旧注册、鉴权、项目绑定或游戏文件。该确认只针对修改旧 MCP 配置，不得阻塞插件
-下载和安装，也不得在安装前向用户请求确认。
+插件会复用现有 Maker 鉴权和项目绑定。Codex 安装请求同时授权兼容迁移：安装 AI 必须在安装前后
+检查旧的独立 Maker MCP，并自动把活动注册设置为 \`enabled = false\`，无需再次确认。WorkBuddy
+仍通过 SessionStart Hook 做只读检查并提醒 AI，只有用户明确确认后才把旧注册设置为
+\`disabled: true\`。迁移会保留最新备份并支持恢复，不会删除旧注册、鉴权、项目绑定或游戏文件；
+Codex 和 WorkBuddy 恢复旧 MCP 时都必须重新取得用户明确确认。
 
 正常 Maker 开发流程见 \`skills/taptap-maker-local/SKILL.md\`。
 `;

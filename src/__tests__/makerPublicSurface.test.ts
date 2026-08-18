@@ -26,7 +26,10 @@ describe('Maker public documentation', () => {
       expect(skill).toContain(expected);
     }
     expect(skill).toContain('Do not delete');
-    expect(skill).toContain('explicit confirmation');
+    expect(skill).toContain('automatically disable');
+    expect(skill).toContain('Do not ask the user to choose');
+    expect(skill).toContain('verify the legacy registration again');
+    expect(skill).toContain('Restoration still requires explicit confirmation');
   });
 
   test('Maker skill status exposes plugin lifecycle guidance only in Codex plugin mode', () => {
@@ -40,6 +43,8 @@ describe('Maker public documentation', () => {
       expect(pluginStatus).toContain('taptap-maker-plugin-lifecycle');
       expect(pluginStatus).toContain('taptap-maker init --skip-mcp-install');
       expect(pluginStatus).toContain('Update the installed Codex plugin');
+      expect(pluginStatus).toContain('Automatically disable an active legacy Codex Maker MCP');
+      expect(pluginStatus).not.toContain('Require explicit confirmation before disabling');
     } finally {
       if (previousDistribution === undefined) {
         delete process.env.TAPTAP_MAKER_DISTRIBUTION;

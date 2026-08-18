@@ -363,11 +363,13 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 客户端专属源文件必须放在 `plugin-sources/taptap-maker/<client>/`；生成产物必须按客户端隔离。
   不得把 WorkBuddy manifest、commands、Skills 或 MCP 配置写入 Codex 插件目录。新增客户端时复用
   `src/maker/` 的 runtime/CLI，不复制 Maker tools、resources 或 proxy 业务逻辑。
-- 插件模式必须先按 `taptap-maker-plugin-lifecycle` 检查对应客户端的旧 Maker MCP。Codex 禁用只写
-  `enabled = false`；WorkBuddy 同时检查 `~/.workbuddy/mcp.json` 和旧 `.mcp.json`，禁用只写
-  `disabled: true`。WorkBuddy 插件通过只读 SessionStart Hook 检查冲突并向 AI 注入提醒；只有用户
-  明确确认后才调用迁移 CLI。禁用和恢复都要求用户明确确认，保留原配置、最新备份和恢复状态。
-  不得删除旧注册、PAT、Maker home、项目绑定、WorkBuddy connector trust 或游戏文件。初始化必须使用
+- 插件模式必须先按 `taptap-maker-plugin-lifecycle` 检查对应客户端的旧 Maker MCP。Codex 安装请求
+  即授权自动迁移：安装前后都要检查，活动旧注册只写 `enabled = false`，无需再次确认；只有状态为
+  `disabled` 或 `not_found` 才能报告插件可用，`ambiguous` 必须在安装前停止。WorkBuddy 同时检查
+  `~/.workbuddy/mcp.json` 和旧
+  `.mcp.json`，禁用只写 `disabled: true`，并通过只读 SessionStart Hook 向 AI 注入提醒；只有用户
+  明确确认后才调用迁移 CLI。两个客户端恢复旧注册时都必须明确确认；保留原配置、最新备份和恢复
+  状态。不得删除旧注册、PAT、Maker home、项目绑定、WorkBuddy connector trust 或游戏文件。初始化必须使用
   `taptap-maker init --skip-mcp-install`。插件用户通过当前客户端 marketplace 更新，不运行独立 npm
   包升级。
   Codex 插件产物必须使用插件专用 `update-taptap-mcp`，不得复制 npm 发行版的更新 Skill。旧 MCP

@@ -183,6 +183,17 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(readme).toContain('不要再次询问用户是否安装');
     expect(readme).toContain('不要只给出安装建议、命令或操作步骤');
     expect(readme).toContain('完成安装并验证插件已启用后再向用户报告结果');
+    expect(readme).toContain('plugin migrate --client codex --confirm --json');
+    expect(readme).toContain('plugin inspect --client codex --json');
+    expect(readme).toContain('安装前自动禁用旧 Maker MCP');
+    expect(readme).toContain('安装后必须再次检查');
+    expect(readme).toContain('状态为 `ambiguous` 时必须在安装前停止');
+    expect(readme.indexOf('plugin migrate --client codex --confirm --json')).toBeLessThan(
+      readme.indexOf('codex plugin add taptap-maker@taptap-maker')
+    );
+    expect(readme.lastIndexOf('plugin inspect --client codex --json')).toBeGreaterThan(
+      readme.indexOf('codex plugin add taptap-maker@taptap-maker')
+    );
     expect(readme).toContain('不要根据操作系统');
     expect(readme).toContain('不要同时安装两个插件包');
     expect(readme).toContain('无法确认当前宿主客户端');

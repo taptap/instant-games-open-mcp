@@ -54,7 +54,13 @@ export function formatMakerSkillStatus(
           `Maker ${pluginDistribution.displayName} plugin lifecycle`,
           `- entry: ${MAKER_PLUGIN_LIFECYCLE_SKILL_NAME}`,
           `- Inspect a legacy ${pluginDistribution.displayName} Maker MCP registration before first use.`,
-          '- Require explicit confirmation before disabling or restoring it.',
+          ...(pluginDistribution.client === 'codex'
+            ? [
+                '- Automatically disable an active legacy Codex Maker MCP; the plugin installation request is the authorization.',
+                '- Verify the legacy registration is disabled or absent before reporting the plugin ready.',
+                '- Require explicit confirmation only when restoring the old MCP during plugin removal.',
+              ]
+            : ['- Require explicit confirmation before disabling or restoring it.']),
           '- Initialize with `taptap-maker init --skip-mcp-install`; the plugin already provides MCP.',
           `- ${formatMakerPluginUpdateAction(pluginDistribution)}`,
         ]
