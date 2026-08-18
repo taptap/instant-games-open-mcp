@@ -9,17 +9,69 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: publish-maker-plugin
+  group: publish-maker-plugin-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    name: Check plugin release support
+    runs-on: ubuntu-latest
+    outputs:
+      support_ready: ${{ steps.support.outputs.support_ready }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect plugin release support
+        id: support
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_files=(
+            package.json
+            config/maker-plugin-version.json
+            scripts/package-maker-client-plugins.js
+            scripts/prepare-maker-codex-plugin.js
+            scripts/prepare-maker-workbuddy-plugin.js
+            scripts/resolve-maker-plugin-version.js
+          )
+          missing=()
+          for file in "${required_files[@]}"; do
+            [[ -f "$file" ]] || missing+=("$file")
+          done
+          required_scripts=(
+            maker:codex-plugin:prepare
+            maker:workbuddy-plugin:prepare
+            maker:plugins:package
+          )
+          for script in "${required_scripts[@]}"; do
+            node -e "const p=require('./package.json'); process.exit(p.scripts?.[process.argv[1]] ? 0 : 1)" "$script" || missing+=("package.json#scripts.$script")
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "support_ready=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Maker plugin release is not enabled yet"
+              echo
+              echo "The workflow is installed, but plugin support has not reached this branch."
+              echo "Missing files:"
+              printf -- '- `%s`\n' "${missing[@]}"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "support_ready=true" >> "$GITHUB_OUTPUT"
+
   publish:
     name: Publish Maker client plugin
-    if: github.ref_name == 'main'
+    needs: preflight
+    if: >-
+      needs.preflight.outputs.support_ready == 'true' &&
+      (github.ref_name == 'main' || github.ref_name == 'develop')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,13 +91,29 @@ jobs:
         id: version
         shell: bash
         run: |
-          version="$(node -e "const p=require('./config/maker-plugin-version.json'); process.stdout.write(p.version)")"
+          set -euo pipefail
+          base_version="$(node -e "const p=require('./config/maker-plugin-version.json'); process.stdout.write(p.version)")"
+          if [[ "${{ github.ref_name }}" == "develop" ]]; then
+            channel=dev
+            if git rev-parse "refs/tags/maker-plugin-v$base_version" >/dev/null 2>&1; then
+              next="$(node scripts/resolve-maker-plugin-version.js --latest-tag "maker-plugin-v$base_version" --json)"
+              next_version="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.version)' "$next")"
+            else
+              next_version="$base_version"
+            fi
+            version="${next_version}-dev.${GITHUB_RUN_NUMBER}"
+          else
+            channel=stable
+            version="$base_version"
+          fi
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=maker-plugin-v$version" >> "$GITHUB_OUTPUT"
 
       - name: Validate an existing release tag
         shell: bash
         run: |
+          set -euo pipefail
           if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
             tagged_sha="$(git rev-list -n 1 "${{ steps.version.outputs.tag }}")"
             if [[ "$tagged_sha" != "${{ github.sha }}" ]]; then
@@ -55,10 +123,17 @@ jobs:
           fi
 
       - name: Verify generated plugins are current
+        if: steps.version.outputs.channel == 'stable'
+        shell: bash
         run: |
+          set -euo pipefail
           npm run maker:codex-plugin:prepare
           npm run maker:workbuddy-plugin:prepare
-          git diff --exit-code
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::Generated plugin files are out of date. Run the prepare scripts and commit the result."
+            git status --porcelain
+            exit 1
+          fi
 
       - name: Verify release candidate
         run: |
@@ -67,15 +142,25 @@ jobs:
           npm test -- --runInBand
 
       - name: Package release assets
-        run: node scripts/package-maker-client-plugins.js --output-dir artifacts/maker-plugins
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          if [[ "${{ steps.version.outputs.channel }}" == "dev" ]]; then
+            node -e "const fs=require('fs'); const path='config/maker-plugin-version.json'; const p=require('./'+path); p.version=process.argv[1]; fs.writeFileSync(path, JSON.stringify(p, null, 2)+'\\n')" "$version"
+            node -e "const fs=require('fs'); const path='.codebuddy-plugin/marketplace.json'; const p=require('./'+path); const entry=p.plugins.find(item=>item.name==='taptap-maker'); if(!entry) throw new Error('Missing taptap-maker marketplace entry'); entry.version=process.argv[1]; fs.writeFileSync(path, JSON.stringify(p, null, 2)+'\\n')" "$version"
+          fi
+          npm run maker:plugins:package -- --output-dir artifacts/maker-plugins
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
+          set -euo pipefail
           version="${{ steps.version.outputs.version }}"
           tag="${{ steps.version.outputs.tag }}"
+          channel="${{ steps.version.outputs.channel }}"
           maker_version="$(node -e "const p=require('./config/maker-version-policy.json'); process.stdout.write(p.latest)")"
           notes="$RUNNER_TEMP/maker-plugin-release-notes.md"
           {
@@ -91,7 +176,11 @@ jobs:
               --notes-file "$notes"
             gh release upload "$tag" artifacts/maker-plugins/* --clobber
           else
-            gh release create "$tag" artifacts/maker-plugins/* \
+            release_flags=()
+            if [[ "$channel" == "dev" ]]; then
+              release_flags+=(--prerelease)
+            fi
+            gh release create "$tag" artifacts/maker-plugins/* "${release_flags[@]}" \
               --target "${{ github.sha }}" \
               --title "TapTap Maker Client Plugins $version" \
               --notes-file "$notes"

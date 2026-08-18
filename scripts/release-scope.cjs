@@ -15,6 +15,8 @@ const MAKER_PATH_PREFIXES = [
 ];
 
 const MAKER_EXACT_PATHS = new Set([
+  '.github/workflows/prepare-maker-plugin-release.yml',
+  '.github/workflows/publish-maker-plugin.yml',
   '.github/workflows/publish-maker.yml',
   'bin/taptap-maker',
   'config/maker-version-policy.json',
@@ -31,6 +33,8 @@ const RELEASE_INFRA_EXACT_PATHS = new Set([
   '.github/workflows/pr.yml',
   '.github/workflows/release.yml',
   '.github/workflows/publish-maker.yml',
+  '.github/workflows/prepare-maker-plugin-release.yml',
+  '.github/workflows/publish-maker-plugin.yml',
   '.releaserc.cjs',
   'CONTRIBUTING.md',
   'README.md',
@@ -50,6 +54,7 @@ const RELEASE_INFRA_EXACT_PATHS = new Set([
   'src/__tests__/mainReleaseVersionPolicy.test.ts',
   'src/__tests__/mainReleaseNotes.test.ts',
   'src/__tests__/makerVersionPolicy.test.ts',
+  'src/__tests__/makerPluginReleaseWorkflow.test.ts',
   'src/__tests__/releaseScope.test.ts',
   'src/__tests__/releaseScopeCli.test.ts',
   'src/__tests__/semanticReleaseMainAnalyzer.test.ts',

@@ -14,6 +14,10 @@ describe('release-scope classifier', () => {
     expect(releaseScope.isMakerOwnedPath('src/__tests__/makerRuntimeLogs.test.ts')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('config/maker-version-policy.json')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('scripts/update-maker-version-policy.cjs')).toBe(true);
+    expect(
+      releaseScope.isMakerOwnedPath('.github/workflows/prepare-maker-plugin-release.yml')
+    ).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('.github/workflows/publish-maker-plugin.yml')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('.github/workflows/release.yml')).toBe(false);
     expect(releaseScope.isMakerOwnedPath('package.json')).toBe(false);
   });
@@ -45,6 +49,8 @@ describe('release-scope classifier', () => {
       '.github/workflows/claude-review.yml',
       '.github/workflows/release.yml',
       '.github/workflows/publish-maker.yml',
+      '.github/workflows/prepare-maker-plugin-release.yml',
+      '.github/workflows/publish-maker-plugin.yml',
       'scripts/release-scope.cjs',
       'scripts/update-maker-version-policy.cjs',
       'scripts/resolve-main-release-version.js',
@@ -65,6 +71,20 @@ describe('release-scope classifier', () => {
     expect(classification.hasMakerChanges).toBe(true);
     expect(classification.hasNonMakerChanges).toBe(true);
     expect(classification.onlyReleaseInfrastructureChanged).toBe(true);
+  });
+
+  it('keeps Maker plugin release workflows out of the main package release', () => {
+    const result = releaseScope.shouldSkipLegacyRelease({
+      files: [
+        '.github/workflows/prepare-maker-plugin-release.yml',
+        '.github/workflows/publish-maker-plugin.yml',
+      ],
+      markerText: 'ci(maker-plugin): update plugin publishing',
+    });
+
+    expect(result.onlyMakerChanged).toBe(true);
+    expect(result.onlyReleaseInfrastructureChanged).toBe(true);
+    expect(result.skipLegacyRelease).toBe(true);
   });
 
   it('uses three-dot diff to avoid base-only changes in PR scope detection', () => {

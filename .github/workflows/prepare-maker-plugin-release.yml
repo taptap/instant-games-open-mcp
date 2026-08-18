@@ -4,18 +4,69 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: prepare-maker-plugin-release
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    name: Check plugin release support
+    runs-on: ubuntu-latest
+    outputs:
+      support_ready: ${{ steps.support.outputs.support_ready }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect plugin release support
+        id: support
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_files=(
+            package.json
+            config/maker-plugin-version.json
+            scripts/resolve-maker-plugin-version.js
+            scripts/update-maker-plugin-version.js
+            scripts/package-maker-client-plugins.js
+            scripts/prepare-maker-codex-plugin.js
+            scripts/prepare-maker-workbuddy-plugin.js
+          )
+          missing=()
+          for file in "${required_files[@]}"; do
+            [[ -f "$file" ]] || missing+=("$file")
+          done
+          required_scripts=(
+            maker:codex-plugin:prepare
+            maker:workbuddy-plugin:prepare
+            maker:plugins:package
+          )
+          for script in "${required_scripts[@]}"; do
+            node -e "const p=require('./package.json'); process.exit(p.scripts?.[process.argv[1]] ? 0 : 1)" "$script" || missing+=("package.json#scripts.$script")
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "support_ready=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Maker plugin release is not enabled yet"
+              echo
+              echo "The workflow is installed, but plugin support has not reached this branch."
+              echo "Missing files:"
+              printf -- '- `%s`\n' "${missing[@]}"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "support_ready=true" >> "$GITHUB_OUTPUT"
+
   prepare:
     name: Prepare next plugin patch
-    if: github.ref_name == 'main'
+    needs: preflight
+    if: github.ref_name == 'main' && needs.preflight.outputs.support_ready == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,9 +86,13 @@ jobs:
         id: version
         shell: bash
         run: |
-          latest_tag="$(git tag --list 'maker-plugin-v*' --sort=-v:refname | head -n 1)"
-          latest_tag="${latest_tag:-none}"
-          result="$(node scripts/resolve-maker-plugin-version.js --latest-tag "$latest_tag" --json)"
+          set -euo pipefail
+          current_version="$(node -e "const p=require('./config/maker-plugin-version.json'); process.stdout.write(p.version)")"
+          if git rev-parse "refs/tags/maker-plugin-v$current_version" >/dev/null 2>&1; then
+            result="$(node scripts/resolve-maker-plugin-version.js --latest-tag "maker-plugin-v$current_version" --json)"
+          else
+            result="$(node -e 'const version=process.argv[1]; process.stdout.write(JSON.stringify({version, tag:`maker-plugin-v${version}`}))' "$current_version")"
+          fi
           echo "version=$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.version)' "$result")" >> "$GITHUB_OUTPUT"
           echo "tag=$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.tag)' "$result")" >> "$GITHUB_OUTPUT"
 
@@ -56,13 +111,13 @@ jobs:
 
       - name: Generate release PR token
         id: release-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
       - name: Create release PR
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
         with:
           token: ${{ steps.release-token.outputs.token }}
           branch: chore/maker-plugin-${{ steps.version.outputs.version }}
