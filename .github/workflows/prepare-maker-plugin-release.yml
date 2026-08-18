@@ -1,0 +1,97 @@
+name: Prepare Maker Plugin Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-maker-plugin-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare next plugin patch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release branch
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$REF_NAME" != "main" ]]; then
+            echo "::error::Stable Maker plugin versions must be prepared from main."
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve next plugin version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_version="$(node -e "const p=require('./config/maker-plugin-version.json'); process.stdout.write(p.version)")"
+          if git rev-parse "refs/tags/maker-plugin-v$current_version" >/dev/null 2>&1; then
+            result="$(node scripts/resolve-maker-plugin-version.js --latest-tag "maker-plugin-v$current_version" --json)"
+          else
+            result="$(node -e 'const version=process.argv[1]; process.stdout.write(JSON.stringify({version, tag:`maker-plugin-v${version}`}))' "$current_version")"
+          fi
+          version="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.version)' "$result")"
+          tag="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.tag)' "$result")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$tag" == "maker-plugin-v$version" ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Update version and generated plugins
+        env:
+          PLUGIN_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node scripts/update-maker-plugin-version.js --version "$PLUGIN_VERSION"
+          npm run maker:codex-plugin:prepare
+          npm run maker:workbuddy-plugin:prepare
+
+      - name: Verify release candidate
+        run: npm run maker:plugins:package -- --output-dir "$RUNNER_TEMP/maker-plugins"
+
+      - name: Generate release PR token
+        id: release-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Create release PR
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
+        with:
+          token: ${{ steps.release-token.outputs.token }}
+          branch: chore/maker-plugin-${{ steps.version.outputs.version }}
+          delete-branch: true
+          title: 'chore(maker): prepare plugin ${{ steps.version.outputs.version }}'
+          commit-message: |
+            chore(maker): prepare plugin ${{ steps.version.outputs.version }}
+
+            - Increment the independent Maker client plugin patch version
+            - Regenerate Codex and WorkBuddy self-contained plugin packages
+            - Keep the embedded Maker MCP version on its own release line
+            - Verification: lint, format check, tests, and release packaging
+          body: |
+            Prepares Maker client plugin `${{ steps.version.outputs.version }}`.
+
+            After merge, `Publish Maker Plugin` creates tag
+            `${{ steps.version.outputs.tag }}` and uploads both client ZIPs plus checksums.

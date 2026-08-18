@@ -8,6 +8,9 @@ const MAKER_MARKER_PATTERN = /\(maker\)/i;
 
 const MAKER_PATH_PREFIXES = [
   'packages/maker/',
+  'plugin-sources/taptap-maker/',
+  'plugins/taptap-maker/',
+  'plugins/workbuddy/taptap-maker/',
   'src/maker/',
   'skills/taptap-maker-local/',
   'skills/taptap-maker-dev-kit-guide/',
@@ -15,22 +18,35 @@ const MAKER_PATH_PREFIXES = [
 ];
 
 const MAKER_EXACT_PATHS = new Set([
+  '.agents/plugins/marketplace.json',
+  '.codebuddy-plugin/marketplace.json',
+  '.github/workflows/prepare-maker-plugin-release.yml',
+  '.github/workflows/publish-maker-plugin.yml',
   '.github/workflows/publish-maker.yml',
   'bin/taptap-maker',
+  'config/maker-plugin-version.json',
   'config/maker-version-policy.json',
   'docs/MAKER.md',
   'docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md',
   'scripts/bundle-maker.js',
+  'scripts/package-maker-client-plugins.js',
   'scripts/prepare-maker-package.js',
+  'scripts/prepare-maker-codex-plugin.js',
+  'scripts/prepare-maker-workbuddy-plugin.js',
+  'scripts/resolve-maker-plugin-version.js',
   'scripts/resolve-maker-version.js',
+  'scripts/update-maker-plugin-version.js',
   'scripts/update-maker-version-policy.cjs',
 ]);
 
 const RELEASE_INFRA_EXACT_PATHS = new Set([
   '.github/workflows/claude-review.yml',
+  '.github/workflows/codeql.yml',
   '.github/workflows/pr.yml',
   '.github/workflows/release.yml',
   '.github/workflows/publish-maker.yml',
+  '.github/workflows/prepare-maker-plugin-release.yml',
+  '.github/workflows/publish-maker-plugin.yml',
   '.releaserc.cjs',
   'CONTRIBUTING.md',
   'README.md',
@@ -50,6 +66,7 @@ const RELEASE_INFRA_EXACT_PATHS = new Set([
   'src/__tests__/mainReleaseVersionPolicy.test.ts',
   'src/__tests__/mainReleaseNotes.test.ts',
   'src/__tests__/makerVersionPolicy.test.ts',
+  'src/__tests__/makerPluginReleaseWorkflow.test.ts',
   'src/__tests__/releaseScope.test.ts',
   'src/__tests__/releaseScopeCli.test.ts',
   'src/__tests__/semanticReleaseMainAnalyzer.test.ts',
