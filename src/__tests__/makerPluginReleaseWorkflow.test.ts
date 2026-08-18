@@ -16,12 +16,14 @@ describe('Maker plugin release workflows', () => {
       expect(workflow).toContain("needs.preflight.outputs.support_ready == 'true'");
       expect(workflow).toContain('package.json#scripts.$script');
     }
+    expect(publish).toContain('.codebuddy-plugin/marketplace.json');
   });
 
   it('keeps an unpublished configured stable version and only increments a published one', () => {
     expect(prepare).toContain('refs/tags/maker-plugin-v$current_version');
     expect(prepare).toContain('const version=process.argv[1]');
     expect(prepare).toContain('scripts/resolve-maker-plugin-version.js');
+    expect(prepare).toContain("title: 'chore(maker): prepare plugin");
   });
 
   it('supports stable main releases and public develop prereleases', () => {

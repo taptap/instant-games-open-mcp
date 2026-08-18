@@ -122,9 +122,9 @@ jobs:
           token: ${{ steps.release-token.outputs.token }}
           branch: chore/maker-plugin-${{ steps.version.outputs.version }}
           delete-branch: true
-          title: 'chore(maker-plugin): prepare ${{ steps.version.outputs.version }}'
+          title: 'chore(maker): prepare plugin ${{ steps.version.outputs.version }}'
           commit-message: |
-            chore(maker-plugin): prepare ${{ steps.version.outputs.version }}
+            chore(maker): prepare plugin ${{ steps.version.outputs.version }}
 
             - Increment the independent Maker client plugin patch version
             - Regenerate Codex and WorkBuddy self-contained plugin packages

@@ -18,6 +18,19 @@ describe('release-scope classifier', () => {
       releaseScope.isMakerOwnedPath('.github/workflows/prepare-maker-plugin-release.yml')
     ).toBe(true);
     expect(releaseScope.isMakerOwnedPath('.github/workflows/publish-maker-plugin.yml')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('config/maker-plugin-version.json')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('.agents/plugins/marketplace.json')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('.codebuddy-plugin/marketplace.json')).toBe(true);
+    expect(
+      releaseScope.isMakerOwnedPath('plugin-sources/taptap-maker/workbuddy/bin/run-node')
+    ).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('plugins/taptap-maker/.mcp.json')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('plugins/workbuddy/taptap-maker/.mcp.json')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('scripts/package-maker-client-plugins.js')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('scripts/prepare-maker-codex-plugin.js')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('scripts/prepare-maker-workbuddy-plugin.js')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('scripts/resolve-maker-plugin-version.js')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('scripts/update-maker-plugin-version.js')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('.github/workflows/release.yml')).toBe(false);
     expect(releaseScope.isMakerOwnedPath('package.json')).toBe(false);
   });

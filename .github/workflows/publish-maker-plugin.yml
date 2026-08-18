@@ -32,6 +32,7 @@ jobs:
           set -euo pipefail
           required_files=(
             package.json
+            .codebuddy-plugin/marketplace.json
             config/maker-plugin-version.json
             scripts/package-maker-client-plugins.js
             scripts/prepare-maker-codex-plugin.js
