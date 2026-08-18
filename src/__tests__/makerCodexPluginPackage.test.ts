@@ -175,6 +175,13 @@ describe('TapTap Maker Codex plugin package', () => {
 
     expect(readme).toContain(`插件版本：\`${pluginVersion}\``);
     expect(readme).toContain(`内置 Maker MCP 版本：\`${makerVersion}\``);
+    expect(readme).toContain('当前宿主客户端是 Codex');
+    expect(readme).toContain('当前宿主客户端是 WorkBuddy');
+    expect(readme).toContain('不要根据操作系统');
+    expect(readme).toContain('不要同时安装两个插件包');
+    expect(readme).toContain('无法确认当前宿主客户端');
+    expect(readme).toContain('SessionStart Hook');
+    expect(readme).toContain('`disabled: true`');
     expect(readme).toContain(
       `/releases/download/maker-plugin-v${pluginVersion}/taptap-maker-codex-plugin-${pluginVersion}.zip`
     );

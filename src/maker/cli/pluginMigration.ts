@@ -370,18 +370,21 @@ export function inspectWorkBuddyLegacyMakerMcp(
   if (registrations.length === 0) {
     return createWorkBuddyInspection(configPaths[0], 'not_found', []);
   }
-  if (registrations.length > 1) {
+  const activeRegistrations = registrations.filter((entry) => entry.registration.disabled !== true);
+  if (activeRegistrations.length > 1) {
     return createWorkBuddyInspection(configPaths[0], 'ambiguous', registrationPaths);
   }
+  if (activeRegistrations.length === 0) {
+    return {
+      ...createWorkBuddyInspection(registrations[0].configPath, 'disabled', registrationPaths),
+      enabled: false,
+    };
+  }
 
-  const enabled = registrations[0].registration.disabled !== true;
+  const active = activeRegistrations[0];
   return {
-    ...createWorkBuddyInspection(
-      registrations[0].configPath,
-      enabled ? 'active' : 'disabled',
-      registrationPaths
-    ),
-    enabled,
+    ...createWorkBuddyInspection(active.configPath, 'active', registrationPaths),
+    enabled: true,
   };
 }
 
@@ -402,14 +405,20 @@ export function migrateWorkBuddyLegacyMakerMcp(
     );
   }
 
-  const current = findWorkBuddyMakerRegistrations(configPaths)[0];
+  const registrations = findWorkBuddyMakerRegistrations(configPaths);
   if (inspection.status === 'disabled') {
     const state = readWorkBuddyMigrationState(statePath);
-    const owned =
-      state?.config_path === current.configPath &&
-      hashWorkBuddyRegistration(current.registration) === state.migrated_registration_sha256;
+    const current = state
+      ? registrations.find((entry) => entry.configPath === state.config_path)
+      : registrations[0];
+    const owned = Boolean(
+      state &&
+        current &&
+        hashWorkBuddyRegistration(current.registration) === state.migrated_registration_sha256
+    );
     return {
       ...inspection,
+      ...(owned && current ? { config_path: current.configPath } : {}),
       action: owned ? 'already_migrated' : 'already_disabled',
       changed: false,
       ...(owned ? { state_path: statePath } : {}),
@@ -417,6 +426,10 @@ export function migrateWorkBuddyLegacyMakerMcp(
   }
   if (!options.confirm) {
     throw new Error('Disabling the legacy WorkBuddy Maker MCP requires explicit confirmation.');
+  }
+  const current = registrations.find((entry) => entry.configPath === inspection.config_path);
+  if (!current) {
+    throw new Error('The active WorkBuddy Maker MCP registration could not be resolved.');
   }
 
   const originalRegistration = { ...current.registration };
@@ -438,10 +451,12 @@ export function migrateWorkBuddyLegacyMakerMcp(
 
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(current.configPath, nextContent, () => {
-    const migratedInspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
+    const migrated = findWorkBuddyMakerRegistrations(configPaths).find(
+      (entry) => entry.configPath === current.configPath
+    );
     if (
-      migratedInspection.status !== 'disabled' ||
-      migratedInspection.config_path !== current.configPath
+      !migrated ||
+      hashWorkBuddyRegistration(migrated.registration) !== state.migrated_registration_sha256
     ) {
       throw new Error(
         'WorkBuddy Maker MCP migration validation did not find the disabled registration.'
@@ -449,8 +464,10 @@ export function migrateWorkBuddyLegacyMakerMcp(
     }
     fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
   });
+  const migratedInspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
   return {
-    ...inspectWorkBuddyLegacyMakerMcp({ configPaths }),
+    ...migratedInspection,
+    config_path: current.configPath,
     action: 'disabled',
     changed: write.changed,
     ...(write.backupPath ? { backup_path: write.backupPath } : {}),
@@ -483,21 +500,35 @@ export function restoreWorkBuddyLegacyMakerMcp(
       'The migrated WorkBuddy Maker MCP registration no longer exists and cannot be restored.'
     );
   }
-  if (inspection.config_path !== state.config_path) {
-    return { ...inspection, action: 'not_owned', changed: false };
+  const current = findWorkBuddyMakerRegistrations(configPaths).find(
+    (entry) => entry.configPath === state.config_path
+  );
+  if (!current) {
+    throw new Error(
+      'The migrated WorkBuddy Maker MCP registration no longer exists and cannot be restored.'
+    );
   }
-
-  const current = findWorkBuddyMakerRegistrations(configPaths)[0];
   const registrationSha256 = hashWorkBuddyRegistration(current.registration);
-  if (inspection.status === 'active') {
+  const currentEnabled = current.registration.disabled !== true;
+  if (currentEnabled) {
     if (registrationSha256 !== state.original_registration_sha256) {
-      return { ...inspection, action: 'not_owned', changed: false };
+      return {
+        ...inspection,
+        config_path: current.configPath,
+        action: 'not_owned',
+        changed: false,
+      };
     }
     fs.unlinkSync(statePath);
-    return { ...inspection, action: 'already_restored', changed: false };
+    return {
+      ...inspection,
+      config_path: current.configPath,
+      action: 'already_restored',
+      changed: false,
+    };
   }
   if (registrationSha256 !== state.migrated_registration_sha256) {
-    return { ...inspection, action: 'not_owned', changed: false };
+    return { ...inspection, config_path: current.configPath, action: 'not_owned', changed: false };
   }
 
   const restoredRegistration = { ...current.registration };
@@ -515,14 +546,20 @@ export function restoreWorkBuddyLegacyMakerMcp(
         'WorkBuddy Maker MCP restoration validation did not find an active registration.'
       );
     }
-    const restored = findWorkBuddyMakerRegistrations(configPaths)[0];
-    if (hashWorkBuddyRegistration(restored.registration) !== state.original_registration_sha256) {
+    const restored = findWorkBuddyMakerRegistrations(configPaths).find(
+      (entry) => entry.configPath === state.config_path
+    );
+    if (
+      !restored ||
+      hashWorkBuddyRegistration(restored.registration) !== state.original_registration_sha256
+    ) {
       throw new Error('WorkBuddy Maker MCP restoration changed the registration identity.');
     }
     fs.unlinkSync(statePath);
   });
   return {
     ...inspectWorkBuddyLegacyMakerMcp({ configPaths }),
+    config_path: current.configPath,
     action: 'restored',
     changed: write.changed,
     ...(write.backupPath ? { backup_path: write.backupPath } : {}),

@@ -30,6 +30,7 @@ const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/
 const SHARED_SKILLS = ['taptap-maker-local', 'taptap-maker-dev-kit-guide'];
 const WORKBUDDY_SKILLS = ['taptap-maker-plugin-lifecycle', 'update-taptap-mcp'];
 const WORKBUDDY_COMMANDS = ['create-project.md', 'sync-project.md'];
+const WORKBUDDY_HOOK_FILES = ['hooks.json', 'session-start.cjs'];
 const PLUGIN_DESCRIPTION = 'TapTap Maker 本地游戏开发插件，内置 MCP、CLI、开发技能和项目工作流。';
 const PLUGIN_DESCRIPTION_EN =
   'Local TapTap Maker game development with bundled MCP, CLI, and workflows.';
@@ -172,6 +173,7 @@ function createManifest(pluginVersion) {
     commands: WORKBUDDY_COMMANDS.map((command) => `./commands/${command}`),
     skills: [...SHARED_SKILLS, ...WORKBUDDY_SKILLS].map((skill) => `./skills/${skill}`),
     mcpServers: './.mcp.json',
+    hooks: './hooks/hooks.json',
   };
 }
 
@@ -179,7 +181,7 @@ function createMcpConfig() {
   return {
     mcpServers: {
       'taptap-maker-plugin': {
-        command: '${CODEBUDDY_PLUGIN_ROOT}/bin/run-node',
+        command: 'node',
         args: ['${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js'],
         env: {
           TAPTAP_MAKER_DISTRIBUTION: 'workbuddy_plugin',
@@ -201,8 +203,14 @@ function createReadme(pluginVersion, makerVersion) {
 CLI、工作流 Skills、快捷命令和连接排障文档。启动器优先使用 WorkBuddy 管理的 Node.js，必要时
 回退系统 Node.js，不会通过 npm 或 npx 下载和启动 Maker。
 
+WorkBuddy 会话启动时，插件会只读检查是否仍有独立 Maker MCP 启用。发现冲突后会要求 AI 先向
+用户说明风险并取得明确确认，再把旧注册设置为 \`disabled: true\`；插件不会未经确认修改配置。
+
 在空 workspace 中使用 \`/taptap-maker:create-project\` 创建新游戏，或使用
 \`/taptap-maker:sync-project\` 同步已有 Maker 游戏。插件复用现有 Maker 鉴权和项目绑定。
+
+初始化或更新 dev-kit 后，插件会把项目内 \`.installer/skills\` 中的 Skills 补充到
+\`.workbuddy/skills/taptap-maker-*\`。同步只补齐缺失项，不覆盖已有同名 Skill。
 `;
 }
 
@@ -265,6 +273,13 @@ async function main() {
       join(workBuddySourceRoot, 'commands', command),
       join(pluginRoot, 'commands', command),
       `WorkBuddy plugin ${command} command`
+    );
+  }
+  for (const hookFile of WORKBUDDY_HOOK_FILES) {
+    copyRequiredFile(
+      join(workBuddySourceRoot, 'hooks', hookFile),
+      join(pluginRoot, 'hooks', hookFile),
+      `WorkBuddy plugin ${hookFile} hook`
     );
   }
   for (const [relativePath, description] of Object.entries(WORKBUDDY_DISPLAY_DESCRIPTIONS)) {

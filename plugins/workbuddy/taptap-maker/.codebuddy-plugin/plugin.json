@@ -16,5 +16,6 @@
     "./skills/taptap-maker-plugin-lifecycle",
     "./skills/update-taptap-mcp"
   ],
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json"
 }

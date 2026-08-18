@@ -8,7 +8,13 @@ Create a new TapTap Maker project only in an empty workspace directory.
    project or configuration files count as content. If it is not empty, stop and ask the user to
    open a new empty directory in WorkBuddy.
 2. If the user has not provided a project name, ask for one. Do not invent it.
-3. Run the bundled CLI without npm or npx:
+3. Run the bundled CLI without npm or npx. On Windows use:
+
+```bat
+"${CODEBUDDY_PLUGIN_ROOT}/bin/run-node.cmd" "${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js" init --create --name "<PROJECT_NAME>" --skip-mcp-install
+```
+
+On macOS or Linux use:
 
 ```bash
 "${CODEBUDDY_PLUGIN_ROOT}/bin/run-node" "${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js" init --create --name "<PROJECT_NAME>" --skip-mcp-install

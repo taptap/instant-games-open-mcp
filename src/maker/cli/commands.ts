@@ -76,6 +76,7 @@ import {
 } from '../system/luaLsp.js';
 import { formatMakerSkillStatus } from './skill.js';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../versionCheck.js';
+import { resolveMakerPluginDistribution } from '../pluginDistribution.js';
 import {
   formatMakerProjectInitializationStatus,
   inspectMakerProjectInitialization,
@@ -116,6 +117,7 @@ import {
   type WorkBuddyLegacyMakerMcpMigrationResult,
 } from './pluginMigration.js';
 import { writeConfigWithTapTapBackupIfChanged } from './configWrite.js';
+import { syncWorkBuddyProjectSkills } from './workBuddyProjectSkills.js';
 import {
   escapeTomlString,
   findCodexMcpTableDuplicates,
@@ -1558,6 +1560,7 @@ async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
     replaceManagedEntries: true,
     environment: makerEnvOption(parsed),
   });
+  syncWorkBuddyDevKitSkills(targetDir, ctx);
   finalizeStagedDevKitGitignore(targetDir);
   emit(ctx, 'dev_kit', formatDevKitInstallMessage('AI dev kit updated', result), result);
   emitDevKitSkillInstallerFailure(ctx, result.skillInstaller, 'AI skills install failed');
@@ -1874,6 +1877,7 @@ async function prepareDevKit(
         path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
+      syncWorkBuddyDevKitSkills(targetDir, ctx);
       if (options.finalizeGitignore) {
         finalizeStagedDevKitGitignore(targetDir);
       }
@@ -1909,6 +1913,7 @@ async function prepareDevKit(
       environment: options.environment,
       onSkillInstallerStart: (event) => emitSkillInstallerStart(ctx, event),
     });
+    syncWorkBuddyDevKitSkills(targetDir, ctx);
     if (options.finalizeGitignore) {
       finalizeStagedDevKitGitignore(targetDir);
     }
@@ -1921,6 +1926,38 @@ async function prepareDevKit(
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     emit(ctx, 'dev_kit_warning', `AI dev kit preparation failed; clone will continue\n${detail}`, {
+      error: detail,
+    });
+  }
+}
+
+function syncWorkBuddyDevKitSkills(targetDir: string, ctx: CliContext): void {
+  if (resolveMakerPluginDistribution()?.client !== 'workbuddy') {
+    return;
+  }
+
+  try {
+    const result = syncWorkBuddyProjectSkills(targetDir);
+    const managedSkillPaths = [...result.installedSkills, ...result.skippedSkills].map(
+      (skillName) => path.join('.workbuddy', 'skills', skillName)
+    );
+    if (managedSkillPaths.length > 0) {
+      writeDevKitStagedGitignore(path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
+        ...listPresentDevKitManagedEntries(targetDir),
+        ...managedSkillPaths,
+      ]);
+    }
+    if (result.installedSkills.length > 0) {
+      emit(
+        ctx,
+        'dev_kit',
+        `WorkBuddy project skills installed: ${result.installedSkills.length}`,
+        result
+      );
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    emit(ctx, 'dev_kit_warning', `WorkBuddy project skills install failed\n${detail}`, {
       error: detail,
     });
   }
