@@ -191,6 +191,7 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(readme).toContain('plugin inspect --client codex --json');
     expect(readme).toContain('安装前自动禁用旧 Maker MCP');
     expect(readme).toContain('安装后必须再次检查');
+    expect(readme).toContain('迁移失败或检查返回 `ambiguous` 时进入步骤 6 执行失败回滚');
     expect(readme).toContain('状态为 `ambiguous` 时必须在安装前停止');
     expect(readme).toContain('迁移命令失败时立即停止，不得进入插件安装');
     expect(readme).toContain('本次安装中任一次迁移结果');
