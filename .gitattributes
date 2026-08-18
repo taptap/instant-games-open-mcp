@@ -1,0 +1,2 @@
+# Generated esbuild bundle includes whitespace from bundled dependencies.
+plugins/taptap-maker/dist/maker.js -whitespace

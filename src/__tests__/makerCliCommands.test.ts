@@ -299,6 +299,119 @@ describe('Maker CLI commands', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
+  test('plugin inspect reports the legacy Codex Maker MCP registration without changing it', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    const original = [
+      '[mcp_servers.taptap-maker]',
+      'command = "node"',
+      'args = ["/tmp/maker.js"]',
+      '',
+    ].join('\n');
+    fs.writeFileSync(configPath, original, 'utf8');
+
+    await runMakerCli(['plugin', 'inspect', '--client', 'codex', '--json']);
+
+    expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual({
+      client: 'codex',
+      status: 'active',
+      config_path: configPath,
+      registration_count: 1,
+      enabled: true,
+    });
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(original);
+  });
+
+  test('plugin migrate requires confirmation and is idempotent after disabling Codex MCP', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      ['[mcp_servers.taptap-maker]', 'command = "node"', 'args = ["/tmp/maker.js"]', ''].join('\n'),
+      'utf8'
+    );
+
+    await expect(runMakerCli(['plugin', 'migrate', '--client', 'codex', '--json'])).rejects.toThrow(
+      'requires explicit confirmation'
+    );
+
+    await runMakerCli(['plugin', 'migrate', '--client', 'codex', '--confirm', '--json']);
+    const first = JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]));
+    expect(first).toEqual(
+      expect.objectContaining({ client: 'codex', action: 'disabled', changed: true })
+    );
+    expect(fs.readFileSync(configPath, 'utf8')).toContain('enabled = false');
+
+    await runMakerCli(['plugin', 'migrate', '--client', 'codex', '--confirm', '--json']);
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toEqual(
+      expect.objectContaining({ action: 'already_migrated', changed: false })
+    );
+  });
+
+  test('plugin restore re-enables only the plugin-owned legacy Codex MCP registration', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      ['[mcp_servers.taptap-maker]', 'command = "node"', 'args = ["/tmp/maker.js"]', ''].join('\n'),
+      'utf8'
+    );
+    await runMakerCli(['plugin', 'migrate', '--client', 'codex', '--confirm', '--json']);
+
+    await runMakerCli(['plugin', 'restore', '--client', 'codex', '--confirm', '--json']);
+
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toEqual(
+      expect.objectContaining({ client: 'codex', action: 'restored', changed: true })
+    );
+    expect(fs.readFileSync(configPath, 'utf8')).not.toContain('enabled = false');
+  });
+
+  test('plugin lifecycle commands route WorkBuddy inspection, migration, and restoration', async () => {
+    const configPath = path.join(tempDir, '.workbuddy', '.mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      `${JSON.stringify(
+        {
+          mcpServers: {
+            'connector-proxy': { type: 'http', url: 'http://127.0.0.1:1/mcp' },
+            'taptap-maker': { command: 'npx', args: ['-y', '@taptap/maker'] },
+          },
+        },
+        null,
+        2
+      )}\n`,
+      'utf8'
+    );
+
+    await runMakerCli(['plugin', 'inspect', '--client', 'workbuddy', '--json']);
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toMatchObject({
+      client: 'workbuddy',
+      status: 'active',
+      config_path: configPath,
+    });
+
+    await runMakerCli(['plugin', 'migrate', '--client', 'workbuddy', '--confirm', '--json']);
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toMatchObject({
+      client: 'workbuddy',
+      action: 'disabled',
+      changed: true,
+    });
+    expect(
+      JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers['taptap-maker'].disabled
+    ).toBe(true);
+
+    await runMakerCli(['plugin', 'restore', '--client', 'workbuddy', '--confirm', '--json']);
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toMatchObject({
+      client: 'workbuddy',
+      action: 'restored',
+      changed: true,
+    });
+    expect(
+      JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers['taptap-maker']
+    ).not.toHaveProperty('disabled');
+  });
+
   test('codex mcp install replaces existing server table and env subtable', async () => {
     const configPath = path.join(tempDir, '.codex', 'config.toml');
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
@@ -1581,6 +1694,39 @@ describe('Maker CLI commands', () => {
     expect(text.match(/\[mcp_servers\."taptap-maker"\.env\]/g)).toHaveLength(1);
     expect(text).toContain('TAPTAP_MCP_ENV = "rnd"');
     expect(text).toContain('[mcp_servers."other"]');
+  });
+
+  test('codex mcp install preserves table-like text inside TOML multiline strings', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    const instructions = [
+      'instructions = """',
+      '[mcp_servers.taptap-maker]',
+      'command = "documentation-example"',
+      '"""',
+    ].join('\n');
+    fs.writeFileSync(
+      configPath,
+      [
+        'model = "gpt-5"',
+        instructions,
+        '',
+        '[mcp_servers.taptap-maker]',
+        'command = "old-node"',
+        '',
+        '[mcp_servers."other"]',
+        'command = "other"',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'codex', '--env', 'rnd']);
+
+    const text = fs.readFileSync(configPath, 'utf8');
+    expect(text).toContain(instructions);
+    expect(text.match(/^\[mcp_servers\."taptap-maker"\]$/gm)).toHaveLength(1);
+    expect(text).toContain('[mcp_servers."other"]\ncommand = "other"');
   });
 
   test('codex mcp install is idempotent when repeated', async () => {

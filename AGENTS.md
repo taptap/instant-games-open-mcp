@@ -340,6 +340,35 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 Maker 本地开发的默认路径是 CLI-first + PAT-first：
 
+- Codex Maker plugin 位于 `plugins/taptap-maker`。Codex 和 WorkBuddy 插件共用独立插件版本，
+  唯一来源为 `config/maker-plugin-version.json`，首版 `0.0.1`；内置 Maker MCP 版本仍读取
+  `config/maker-version-policy.json`，不得用插件版本覆盖 runtime、埋点、诊断或 npm 版本。使用
+  `npm run maker:codex-plugin:prepare` 生成完整自包含产物；运行时使用宿主 Node.js 和插件内
+  `dist/maker.js`，不得依赖外部 npm/npx。`.agents/plugins/marketplace.json` 是仓库级 Codex
+  marketplace；正式 marketplace 名为 `taptap-maker`。
+- WorkBuddy Maker plugin 位于 `plugins/workbuddy/taptap-maker`，使用
+  `npm run maker:workbuddy-plugin:prepare` 生成；仓库本地市场是
+  `.codebuddy-plugin/marketplace.json`。MCP 和插件 CLI 必须通过插件内 `bin/run-node` 启动
+  `${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js`；启动器优先 `WORKBUDDY_EXTRA_PATHS` 和 WorkBuddy
+  managed Node 目录，再回退系统 PATH。Windows 必须同时支持版本目录根和 `bin` 子目录中的
+  `node.exe`。插件不依赖 npm/npx，也不固定项目 `cwd`。
+  `create-project` 和 `sync-project` 是仅有的两个快捷命令，执行前必须要求空 workspace。
+- 客户端插件发布只使用 `Prepare Maker Plugin Release` 和 `Publish Maker Plugin` workflows。
+  前者按最新 `maker-plugin-v*` tag 自动递增 patch 并创建版本 PR；后者在 PR 合并后发布两份完整
+  marketplace ZIP、`SHA256SUMS` 和 `maker-plugin-release.json`。插件发布不得调用 npm publish、
+  不得复用 Maker npm 或主包 release workflow。插件专属安装页固定为 `plugins/taptap-maker/README.md`。
+- 客户端专属源文件必须放在 `plugin-sources/taptap-maker/<client>/`；生成产物必须按客户端隔离。
+  不得把 WorkBuddy manifest、commands、Skills 或 MCP 配置写入 Codex 插件目录。新增客户端时复用
+  `src/maker/` 的 runtime/CLI，不复制 Maker tools、resources 或 proxy 业务逻辑。
+- 插件模式必须先按 `taptap-maker-plugin-lifecycle` 检查对应客户端的旧 Maker MCP。Codex 禁用只写
+  `enabled = false`；WorkBuddy 同时检查 `~/.workbuddy/mcp.json` 和旧 `.mcp.json`，禁用只写
+  `disabled: true`。禁用和恢复都要求用户明确确认，保留原配置、最新备份和恢复状态。不得删除旧注册、
+  PAT、Maker home、项目绑定、WorkBuddy connector trust 或游戏文件。初始化必须使用
+  `taptap-maker init --skip-mcp-install`。插件用户通过当前客户端 marketplace 更新，不运行独立 npm
+  包升级。
+  Codex 插件产物必须使用插件专用 `update-taptap-mcp`，不得复制 npm 发行版的更新 Skill。旧 MCP
+  restore 必须校验迁移注册指纹；插件模式故障上报只检查插件 `.mcp.json` 和当前 bundle，不能把
+  已禁用的独立 `taptap-maker` 注册或物化 self runtime 当作插件运行证据。
 - Maker CLI-first 重构后的正式说明在 `docs/MAKER.md`；面向团队介绍的功能总览在 `docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`。上下文压缩或长时间中断后，先读这两份文档再继续。
 - 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，由该 CLI 展示 app 列表并让用户选择已有 app 或 `0`/`new`。只有用户明确说“创建/新建项目或游戏”时，才使用 `taptap-maker init --create`。
 - 如果本地没有当前环境的 Maker PAT，CLI 默认运行 CLI 登录：生成满足 `^[A-Za-z0-9_-]{16,128}$` 的临时 code，按需打开当前环境的 `/pat-tokens?code=<code>`，用户登录并点击“创建 token”后，CLI 轮询 `/api/v1/cli-auth/result?code=<code>`，拿到授权结果后完成本地鉴权配置。

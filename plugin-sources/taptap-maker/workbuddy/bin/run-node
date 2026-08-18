@@ -1,0 +1,68 @@
+#!/bin/sh
+
+# Resolve WorkBuddy's managed Node before falling back to the host PATH.
+
+set -e
+
+resolve_from_extra_paths() {
+  paths=${WORKBUDDY_EXTRA_PATHS:-}
+  [ -n "$paths" ] || return 1
+  (
+    IFS=:
+    for directory in $paths; do
+      if [ -n "$directory" ] && [ -x "$directory/node" ]; then
+        printf '%s\n' "$directory/node"
+        exit 0
+      fi
+    done
+    exit 1
+  )
+}
+
+resolve_from_managed_dirs() {
+  workbuddy_root=${WORKBUDDY_CONFIG_DIR:-${CODEBUDDY_CONFIG_DIR:-$HOME/.workbuddy}}
+  versions_dir="$workbuddy_root/binaries/node/versions"
+  [ -d "$versions_dir" ] || return 1
+
+  version_names=""
+  for directory in "$versions_dir"/*/; do
+    [ -d "$directory" ] || continue
+    version=${directory%/}
+    version=${version##*/}
+    case "$version" in
+      *.installing.*|*.__extract_temp__*) continue ;;
+    esac
+    version_names="$version_names$version
+"
+  done
+  [ -n "$version_names" ] || return 1
+
+  for version in $(
+    printf '%s' "$version_names" |
+      awk -F. '$1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ {
+        printf "%012d.%012d.%012d %s\n", $1, $2, $3, $0
+      }' |
+      sort -r |
+      awk '{ print $2 }'
+  ); do
+    candidate="$versions_dir/$version/bin/node"
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+resolve_from_path() {
+  command -v node 2>/dev/null
+}
+
+node_bin=$(resolve_from_extra_paths || resolve_from_managed_dirs || resolve_from_path || true)
+
+if [ -z "$node_bin" ]; then
+  echo "[taptap-maker] FATAL: cannot locate Node.js (checked WORKBUDDY_EXTRA_PATHS, WorkBuddy managed binaries, and PATH)" >&2
+  exit 127
+fi
+
+exec "$node_bin" "$@"

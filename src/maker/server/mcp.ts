@@ -74,6 +74,10 @@ import {
   formatMakerLuaLspEnvironmentStatus,
 } from '../system/luaLsp.js';
 import { formatMakerSkillStatus } from '../cli/skill.js';
+import {
+  formatMakerPluginUpdateAction,
+  resolveMakerPluginDistribution,
+} from '../pluginDistribution.js';
 import { formatMakerAgentsPolicyStatus } from '../cli/agentsPolicy.js';
 import {
   DEV_KIT_GITIGNORE_STAGING_FILE,
@@ -1009,6 +1013,8 @@ export async function formatStatus(
   } = {}
 ): Promise<string> {
   const detail = options.detail === true;
+  const distribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
+  const pluginDistribution = resolveMakerPluginDistribution(distribution);
   const projectContext = await resolveMakerProjectContext({
     targetDir: options.targetDir,
     listClientRoots: options.listClientRoots,
@@ -1042,7 +1048,9 @@ export async function formatStatus(
     allowRemoteFetch: false,
     ...(detail ? {} : { backgroundRefresh: false }),
   });
-  const packageUpdateText = detail ? formatMakerPackageUpdateStatus(packageUpdateStatus) : '';
+  const packageUpdateText = detail
+    ? formatMakerPackageUpdateStatusForDistribution(packageUpdateStatus, distribution)
+    : '';
   const projectInitialization = identify.projectRoot
     ? inspectMakerProjectInitialization(identify.projectRoot)
     : undefined;
@@ -1085,10 +1093,15 @@ export async function formatStatus(
     `- lua_lsp: ${luaLsp.status}`,
     'Maker MCP package update',
     `- status: ${packageUpdateStatus.status}`,
+    pluginDistribution ? `- distribution: ${pluginDistribution.id}` : '',
     packageUpdateStatus.target_version
       ? `- target_version: ${packageUpdateStatus.target_version}`
       : '',
-    packageUpdateStatus.next_action ? `- next_action: ${packageUpdateStatus.next_action}` : '',
+    pluginDistribution
+      ? `- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}`
+      : packageUpdateStatus.next_action
+        ? `- next_action: ${packageUpdateStatus.next_action}`
+        : '',
     projectInitialization ? `- project_initialization: ${projectInitialization.status}` : '',
     projectHealth ? `- project_health: ${projectHealth.status}` : '',
     formatMakerClientRootsSummary(projectContext.roots),
@@ -1117,6 +1130,7 @@ export async function formatStatus(
       'TapTap Maker MCP status',
       '',
       `- version: ${VERSION}`,
+      pluginDistribution ? `- distribution: ${pluginDistribution.id}` : '',
       `- env: ${env}`,
       `- project_context_source: ${projectContext.source}`,
       summaryText,
@@ -1127,6 +1141,7 @@ export async function formatStatus(
     'TapTap Maker MCP status',
     '',
     `- version: ${VERSION}`,
+    pluginDistribution ? `- distribution: ${pluginDistribution.id}` : '',
     `- env: ${env}`,
     `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath()})`,
     `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
@@ -1194,6 +1209,22 @@ export async function formatStatus(
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function formatMakerPackageUpdateStatusForDistribution(
+  status: Awaited<ReturnType<typeof getMakerPackageUpdateStatus>>,
+  distribution: string | undefined
+): string {
+  const formatted = formatMakerPackageUpdateStatus(status);
+  const pluginDistribution = resolveMakerPluginDistribution(distribution);
+  if (!pluginDistribution) {
+    return formatted;
+  }
+  return [
+    ...formatted.split('\n').filter((line) => !line.startsWith('- next_action:')),
+    `- distribution: ${pluginDistribution.id}`,
+    `- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}`,
+  ].join('\n');
 }
 
 function formatAuthNextStep(options: {

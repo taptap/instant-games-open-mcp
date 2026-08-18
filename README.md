@@ -20,6 +20,61 @@
 **NPM**: [@taptap/instant-games-open-mcp](https://www.npmjs.com/package/@taptap/instant-games-open-mcp)
 **Maker NPM**: [@taptap/maker](https://www.npmjs.com/package/@taptap/maker)
 
+## TapTap Maker 客户端插件
+
+[`plugins/taptap-maker`](plugins/taptap-maker) 是插件专属安装与下载页面。Codex 和 WorkBuddy
+插件共用独立插件版本，当前值读取 `config/maker-plugin-version.json`；内置 Maker MCP 版本读取
+`config/maker-version-policy.json`，两条版本线互不覆盖。插件内置 Maker MCP 单文件运行时、CLI、
+Skills 和排障文档，不通过 npm/npx 下载或启动 Maker。
+
+```bash
+npm run maker:codex-plugin:prepare
+codex plugin marketplace add taptap/instant-games-open-mcp --ref main \
+  --sparse .agents/plugins --sparse plugins/taptap-maker
+codex plugin add taptap-maker@taptap-maker
+```
+
+插件 manifest 和 marketplace 版本读取 `config/maker-plugin-version.json`；bundle 运行时身份继续读取
+`config/maker-version-policy.json`。运行 GitHub Actions 中的 `Prepare Maker Plugin Release` 会自动把
+插件 patch 加一、重新生成两端产物并创建 PR；合并后 `Publish Maker Plugin` 自动发布两份 ZIP、
+`SHA256SUMS` 和机器可读发布清单，不触发 npm 发布。
+
+旧用户安装插件后，先用插件内 CLI 执行
+`taptap-maker plugin inspect --client codex --json`。如果旧的独立 Maker MCP 仍启用，向用户说明
+重复 tools 风险并取得明确确认，再执行
+`taptap-maker plugin migrate --client codex --confirm --json`。迁移只写入 `enabled = false`，保留
+原配置、最近备份、PAT、项目绑定和游戏文件；重复执行是幂等的。需要卸载插件并恢复旧 MCP 时，
+先执行 `taptap-maker plugin restore --client codex --confirm --json`。
+
+插件模式初始化使用 `taptap-maker init --skip-mcp-install`，避免 CLI 再写一份独立 MCP 配置。
+插件更新通过插件内专用 `update-taptap-mcp` Skill 和 Codex marketplace 完成，不执行 npm/npx
+或独立 `taptap-maker upgrade`。旧 MCP 恢复前会核对迁移时记录的注册指纹，同名注册已被替换时
+保持禁用并返回 `not_owned`。插件故障上报读取插件自己的 `.mcp.json` 并验证当前 bundle；独立
+Maker MCP 仍沿用原有用户配置和 self runtime 诊断。
+
+WorkBuddy 插件是独立产物，位于
+[`plugins/workbuddy/taptap-maker`](plugins/workbuddy/taptap-maker)，通过共享的 CodeBuddy 插件
+规范聚合 Maker MCP、CLI、Skills 和两个快捷命令：
+
+```text
+/taptap-maker:create-project
+/taptap-maker:sync-project
+```
+
+两个入口都要求当前 WorkBuddy workspace 为空目录。插件启动器优先解析 WorkBuddy managed
+Node.js（包括 Windows 上未加入 PATH 的 `node.exe`），必要时才回退系统 Node.js；运行插件内
+`${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js`，不依赖 npm/npx。仓库 marketplace 位于
+`.codebuddy-plugin/marketplace.json`：
+
+```text
+/plugin marketplace add <REPOSITORY_ROOT>
+/plugin install taptap-maker@taptap-maker
+/reload-plugins
+```
+
+WorkBuddy 旧独立 MCP 的迁移使用 `--client workbuddy`，只把旧注册的 `disabled` 设为 `true`，
+同时支持幂等检查和确认式恢复。插件更新通过 WorkBuddy `/plugin` 完成。
+
 ## 🦞 OpenClaw Plugin（实验中）
 
 仓库内提供了一个可独立使用的 OpenClaw plugin 子包：
