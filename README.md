@@ -27,6 +27,10 @@
 `config/maker-version-policy.json`，两条版本线互不覆盖。插件内置 Maker MCP 单文件运行时、CLI、
 Skills 和排障文档，不通过 npm/npx 下载或启动 Maker。
 
+对外安装应把对应渠道的 GitHub Release 页面交给 AI，由页面中的统一安装指南选择客户端 ZIP、
+校验并执行安装前后的旧 MCP 兼容检查。下面的仓库 marketplace 命令仅用于维护者从源码验证；
+执行 `marketplace add` 前，必须用刚生成的插件 CLI 完成下文同样的安装前检查和迁移。
+
 ```bash
 npm run maker:codex-plugin:prepare
 codex plugin marketplace add taptap/instant-games-open-mcp --ref main \
@@ -39,7 +43,7 @@ codex plugin add taptap-maker@taptap-maker
 插件 patch 加一、重新生成两端产物并创建 PR；合并后 `Publish Maker Plugin` 自动发布两份 ZIP、
 `INSTALL.md`、`SHA256SUMS` 和机器可读发布清单，不触发 npm 发布。
 
-旧用户安装插件前，先用解压目录中的插件 CLI 执行
+旧用户安装插件前，先用 ZIP 解压目录或本地生成目录中的插件 CLI 执行
 `taptap-maker plugin inspect --client codex --json`。如果旧的独立 Maker MCP 仍启用，向用户说明
 已发现重复注册并直接执行
 `taptap-maker plugin migrate --client codex --confirm --json`。迁移只写入 `enabled = false`，保留

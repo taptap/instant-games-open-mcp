@@ -43,7 +43,8 @@ describe('Maker public documentation', () => {
     expect(skill).toContain('automatically disable');
     expect(skill).toContain('Do not ask the user to choose');
     expect(skill).toContain('verify the legacy registration again');
-    expect(skill).toContain('Restoration still requires explicit confirmation');
+    expect(skill).toContain('do not ask for confirmation again');
+    expect(skill).toContain('Normal plugin removal still requires explicit confirmation');
   });
 
   test('Maker skill status exposes plugin lifecycle guidance only in Codex plugin mode', () => {

@@ -183,6 +183,8 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(readme).toContain('不要再次询问用户是否安装');
     expect(readme).toContain('不要只给出安装建议、命令或操作步骤');
     expect(readme).toContain('完成安装并验证插件已启用后再向用户报告结果');
+    expect(readme).toContain('临时解压目录必须保留到安装、');
+    expect(readme).toContain('重新加载和验证全部结束');
     expect(readme).toContain('plugin migrate --client codex --confirm --json');
     expect(readme).toContain('plugin inspect --client codex --json');
     expect(readme).toContain('安装前自动禁用旧 Maker MCP');
@@ -244,5 +246,28 @@ describe('TapTap Maker Codex plugin package', () => {
     );
 
     expect(checkedInSkill).toBe(sourceSkill);
+  });
+
+  test('documents automatic restore only for a failed installation transaction', () => {
+    const sourceSkill = fs.readFileSync(
+      path.join(projectRoot, 'skills', 'taptap-maker-plugin-lifecycle', 'SKILL.md'),
+      'utf8'
+    );
+    const checkedInSkill = fs.readFileSync(
+      path.join(
+        projectRoot,
+        'plugins',
+        'taptap-maker',
+        'skills',
+        'taptap-maker-plugin-lifecycle',
+        'SKILL.md'
+      ),
+      'utf8'
+    );
+
+    expect(checkedInSkill).toBe(sourceSkill);
+    expect(sourceSkill).toContain('installation or verification fails');
+    expect(sourceSkill).toContain('do not ask for confirmation again');
+    expect(sourceSkill).toContain('Normal plugin removal still requires explicit confirmation');
   });
 });

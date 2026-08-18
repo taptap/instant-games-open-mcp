@@ -55,6 +55,12 @@ inspect`. Continue only when its status is `disabled` or `not_found`. If it rema
 idempotent migration once more and verify again; never report the plugin ready while both MCPs are
 active.
 
+During installation, retain the migration result. If this attempt returned `action: "disabled"`
+with `changed: true` and installation or verification fails, immediately run `plugin restore
+--client codex --confirm --json`; do not ask for confirmation again because this is a rollback of
+the same installation transaction. Do not restore a registration that was already disabled, was
+not found, belonged to an earlier migration, or was not changed by this installation attempt.
+
 ## Initialization
 
 Use the normal `taptap-maker-local` workflow. When the target directory is not initialized, run the
@@ -75,8 +81,8 @@ or reconnect the plugin MCP so the new runtime, tools, resources, and Skills loa
 
 ## Removal or Standalone Rollback
 
-Restoration still requires explicit confirmation. If the user wants to remove the plugin and resume
-the previously migrated standalone MCP, ask before running through the bundled CLI:
+Normal plugin removal still requires explicit confirmation. If the user wants to remove the plugin
+and resume the previously migrated standalone MCP, ask before running through the bundled CLI:
 
 ```bash
 taptap-maker plugin restore --client codex --confirm --json
