@@ -8,7 +8,11 @@ function readWorkflow(name: string) {
 
 function readWorkflowDocument(name: string) {
   return parse(readWorkflow(name)) as {
-    on?: { push?: { branches?: string[] }; pull_request?: { branches?: string[] } };
+    on?: {
+      push?: { branches?: string[] };
+      pull_request?: { branches?: string[] };
+      workflow_dispatch?: { inputs?: Record<string, unknown> };
+    };
     jobs?: Record<string, { steps?: Array<{ run?: string }> }>;
   };
 }
@@ -24,6 +28,7 @@ function readRunScripts(name: string) {
 describe('Maker plugin release workflows', () => {
   const prepare = readWorkflow('prepare-maker-plugin-release.yml');
   const publish = readWorkflow('publish-maker-plugin.yml');
+  const publishDsh = readWorkflow('publish-dsh-maker-plugin.yml');
 
   it('fails normally when release inputs are missing instead of reporting a green no-op', () => {
     for (const workflow of [prepare, publish]) {
@@ -62,7 +67,11 @@ describe('Maker plugin release workflows', () => {
   });
 
   it('passes GitHub values to shell through environment variables', () => {
-    for (const workflowName of ['prepare-maker-plugin-release.yml', 'publish-maker-plugin.yml']) {
+    for (const workflowName of [
+      'prepare-maker-plugin-release.yml',
+      'publish-maker-plugin.yml',
+      'publish-dsh-maker-plugin.yml',
+    ]) {
       for (const run of readRunScripts(workflowName)) {
         expect(run).not.toContain('${{');
       }
@@ -77,7 +86,7 @@ describe('Maker plugin release workflows', () => {
   });
 
   it('pins actions that receive the release private key or token', () => {
-    for (const workflow of [prepare, publish]) {
+    for (const workflow of [prepare, publish, publishDsh]) {
       expect(workflow).toContain('actions/checkout@11d5960a326750d5838078e36cf38b85af677262');
       expect(workflow).toContain('actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020');
       expect(workflow).not.toContain('actions/checkout@v4');
@@ -94,12 +103,27 @@ describe('Maker plugin release workflows', () => {
   });
 
   it('grants write permissions only to jobs that publish repository state', () => {
-    for (const workflow of [prepare, publish]) {
+    for (const workflow of [prepare, publish, publishDsh]) {
       expect(workflow).toContain('permissions:\n  contents: read');
     }
     expect(prepare).not.toContain('contents: write');
     expect(prepare).not.toContain('pull-requests: write');
     expect(publish).toContain('permissions:\n      contents: write');
+    expect(publishDsh).toContain('permissions:\n      contents: write');
+  });
+
+  it('keeps DSH publishing manual and separates develop previews from stable releases', () => {
+    const workflow = readWorkflowDocument('publish-dsh-maker-plugin.yml');
+
+    expect(workflow.on?.push).toBeUndefined();
+    expect(workflow.on?.workflow_dispatch?.inputs).toHaveProperty('maker_version');
+    expect(publishDsh).toContain('Manually dispatch from main or develop.');
+    expect(publishDsh).toContain('name: Require DSH plugin release support');
+    expect(publishDsh).toContain('Selected branch does not contain DSH plugin release support');
+    expect(publishDsh).toContain('develop previews require an exact prerelease maker_version.');
+    expect(publishDsh).toContain('develop previews require a prerelease @taptap/maker version.');
+    expect(publishDsh).toContain('Stable DSH releases cannot depend on prerelease');
+    expect(publishDsh).toContain('npm view "@taptap/maker@${MAKER_VERSION}" version');
   });
 
   it('detects tracked and untracked generated changes and uses one package entry point', () => {
