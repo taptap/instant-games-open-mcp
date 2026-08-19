@@ -1,0 +1,199 @@
+name: Publish DSH Maker Plugin
+
+on:
+  workflow_dispatch:
+    inputs:
+      maker_version:
+        description: 'Exact @taptap/maker version for a develop preview, for example 0.0.31-beta.1'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-dsh-maker-plugin-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish TapTap Maker DSH plugin
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release channel
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$REF_NAME" == "main" || "$REF_NAME" == "develop" ]]; then
+            exit
+          fi
+          echo "::error::Manually dispatch from main or develop."
+          exit 1
+
+      - name: Require DSH plugin release support
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_files=(
+            packages/dsh-maker/package.json
+            scripts/package-maker-dsh-plugin.js
+            scripts/resolve-dsh-maker-version.js
+          )
+          for file in "${required_files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "::error::Selected branch does not contain DSH plugin release support: $file"
+              exit 1
+            fi
+          done
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read release identity
+        id: version
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REQUESTED_MAKER_VERSION: ${{ inputs.maker_version }}
+        run: |
+          set -euo pipefail
+          manifest_maker_version="$(node -e "const manifest=require('./packages/dsh-maker/package.json'); process.stdout.write(manifest.dependencies['@taptap/maker'])")"
+          if [[ "$REF_NAME" == "develop" ]]; then
+            channel=dev
+            if [[ -z "$REQUESTED_MAKER_VERSION" ]]; then
+              echo "::error::develop previews require an exact prerelease maker_version."
+              exit 1
+            fi
+            if [[ "$REQUESTED_MAKER_VERSION" != *-* ]]; then
+              echo "::error::develop previews require a prerelease @taptap/maker version."
+              exit 1
+            fi
+            maker_version="$REQUESTED_MAKER_VERSION"
+            base_version="$(node -e "const p=require('./packages/dsh-maker/package.json'); process.stdout.write(p.version)")"
+            if git rev-parse "refs/tags/dsh-maker-v$base_version" >/dev/null 2>&1; then
+              latest_tag="dsh-maker-v$base_version"
+            else
+              latest_tag="none"
+            fi
+            result="$(node scripts/resolve-dsh-maker-version.js --channel dev --run-number "$GITHUB_RUN_NUMBER" --latest-tag "$latest_tag" --json)"
+          else
+            channel=stable
+            maker_version="$manifest_maker_version"
+            result="$(node scripts/resolve-dsh-maker-version.js --channel stable --json)"
+          fi
+          version="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.version)' "$result")"
+          tag="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.tag)' "$result")"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "maker_version=$maker_version" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Maker runtime is published
+        shell: bash
+        env:
+          RELEASE_CHANNEL: ${{ steps.version.outputs.channel }}
+          MAKER_VERSION: ${{ steps.version.outputs.maker_version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$MAKER_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "::error::DSH plugin must pin an exact @taptap/maker version."
+            exit 1
+          fi
+          if [[ "$RELEASE_CHANNEL" == "stable" && "$MAKER_VERSION" == *-* ]]; then
+            echo "::error::Stable DSH releases cannot depend on prerelease @taptap/maker@$MAKER_VERSION."
+            exit 1
+          fi
+          if ! PUBLISHED_VERSION="$(npm view "@taptap/maker@${MAKER_VERSION}" version 2>/dev/null)"; then
+            echo "::error::Publish @taptap/maker@$MAKER_VERSION first, then retry the DSH plugin release."
+            exit 1
+          fi
+          if [[ "$PUBLISHED_VERSION" != "$MAKER_VERSION" ]]; then
+            echo "::error::Expected @taptap/maker@$MAKER_VERSION, npm returned $PUBLISHED_VERSION."
+            exit 1
+          fi
+
+      - name: Validate an existing release tag
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if git rev-parse "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            tagged_sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+            if [[ "$tagged_sha" != "$TARGET_SHA" ]]; then
+              echo "::error::Release tag $RELEASE_TAG points to $tagged_sha, not $TARGET_SHA."
+              exit 1
+            fi
+          fi
+
+      - name: Verify INSTALL.md is current
+        if: steps.version.outputs.channel == 'stable'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run maker:dsh-plugin:package -- --output-dir "$RUNNER_TEMP/dsh-maker"
+          if [[ -n "$(git status --porcelain packages/dsh-maker/INSTALL.md)" ]]; then
+            echo "::error::packages/dsh-maker/INSTALL.md is out of date. Run 'npm run maker:dsh-plugin:package' and commit the result."
+            git status --porcelain packages/dsh-maker/INSTALL.md
+            exit 1
+          fi
+
+      - name: Package release assets
+        shell: bash
+        env:
+          RELEASE_CHANNEL: ${{ steps.version.outputs.channel }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          MAKER_VERSION: ${{ steps.version.outputs.maker_version }}
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_CHANNEL" == "dev" ]]; then
+            node -e "const fs=require('fs'); const p='packages/dsh-maker/package.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); j.version=process.argv[1]; j.dependencies['@taptap/maker']=process.argv[2]; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')" "$RELEASE_VERSION" "$MAKER_VERSION"
+          fi
+          npm run maker:dsh-plugin:package -- --output-dir artifacts/dsh-maker
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_CHANNEL: ${{ steps.version.outputs.channel }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          TARGET_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="artifacts/dsh-maker/INSTALL.md"
+          if [[ ! -s "$notes" ]]; then
+            echo "::error::Missing artifacts/dsh-maker/INSTALL.md"
+            exit 1
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "TapTap Maker DSH Plugin $RELEASE_VERSION" \
+              --notes-file "$notes"
+            gh release upload "$RELEASE_TAG" artifacts/dsh-maker/* --clobber
+          else
+            release_flags=()
+            if [[ "$RELEASE_CHANNEL" == "dev" ]]; then
+              release_flags+=(--prerelease)
+            fi
+            gh release create "$RELEASE_TAG" artifacts/dsh-maker/* "${release_flags[@]}" \
+              --target "$TARGET_SHA" \
+              --title "TapTap Maker DSH Plugin $RELEASE_VERSION" \
+              --notes-file "$notes"
+          fi
