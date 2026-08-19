@@ -2006,6 +2006,25 @@ describe('Maker CLI commands', () => {
     expect(payload.current_session).toBe('preserved');
   });
 
+  test('plugin-distributed upgrade updates project policy without installing standalone MCP', async () => {
+    process.env.TAPTAP_MAKER_DISTRIBUTION = 'dsh_plugin';
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+    });
+
+    await runMakerCli(['upgrade', '--target-dir', tempDir, '--json']);
+
+    const payload = JSON.parse(stdoutSpy.mock.calls.join(''));
+    expect(payload.mcp_install).toEqual([]);
+    expect(payload.plugin_distribution).toBe('dsh_plugin');
+    expect(fs.existsSync(path.join(tempDir, '.dsh', 'cordis.patch.yml'))).toBe(false);
+    expect(fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf8')).toContain(
+      'TapTap Maker managed AGENTS policy'
+    );
+    expect(materializeMakerSelfLauncherMock).not.toHaveBeenCalled();
+  });
+
   test('upgrade without explicit target dir does not pin cwd into user-level MCP config', async () => {
     saveProjectConfig(tempDir, {
       project_id: 'app-1',

@@ -101,6 +101,27 @@ WorkBuddy 插件位于 `plugins/workbuddy/taptap-maker`，通过
 本地安装测试使用仓库 `.codebuddy-plugin/marketplace.json`。插件更新通过 WorkBuddy `/plugin`
 和 `/reload-plugins`，不执行独立 Maker 包升级。
 
+## DSH Plugin
+
+DeepSeek Harness（DSH）的 Maker 集成分两层：L1 是 `taptap-maker install --ide dsh` 写入的
+裸 `mcp-client` 行（见下文“环境变量”与 DSH 配置小节）；L2 是 bundle 插件 `@taptap/dsh-maker`，
+位于 `packages/dsh-maker/`，通过 npm 分发，把 **Maker MCP + 技能** 打包成可一键安装、可 HMR 的
+DSH bundle。
+
+插件由一个 bundle patch 行（`id: taptap-maker`）在激活时挂两个子插件并注册一个 shell 环境变量：
+宿主平面 `skill-filesystem` 实例（`providerName: maker` + `bundledSkillDir: skills/`，只读挂本包
+技能）、`dsh-mcp-client`（`require.resolve('@taptap/maker')` 解析出 `dist/maker.js`，以绝对 Node
+启动，不用 npx），以及 `DSH_TAPTAP_MAKER_BIN`（随包 CLI 绝对路径，供一次性 `init`/
+`agents update`/`mcp report` 用）。技能包含核心工作流 `taptap-maker-dsh` 与广告/云存档/排行榜
+三个功能指南，均
+内置“以工程内 `engine-docs` 为准、禁止网上搜错文档”的防错引导。
+
+与 Codex/WorkBuddy 的 ZIP marketplace 分发不同，DSH 插件走 npm（`dsh plugin add` 转发 pnpm），
+不经过 `scripts/package-maker-client-plugins.js`，也不属于 `config/maker-plugin-version.json`
+的插件版本线；它精确锁定包含所需 DSH 生命周期能力的 `@taptap/maker` 版本，develop 可先使用
+Maker beta 验证，main 只能使用稳定 Maker。发布工作流会先确认该版本已发布到 npm。完整设计、
+安装与配置见 [DSH_PLUGIN.md](DSH_PLUGIN.md)。
+
 ## 本地测试
 
 不要拉线上 npm 包。修改后在仓库内执行：
@@ -134,8 +155,8 @@ Maker CLI 独立发布为 `@taptap/maker`，不走主包
 Maker-only paths 跳过这类 push；如需发布 Maker CLI，使用 GitHub Actions 中的
 `Publish Maker Package` workflow。
 
-Maker 包版本号使用三段式 semver，例如 `0.0.1`。Maker 包只能从长期发布分支 `beta` 或
-`main` 发布，`fix/*` 分支只用于提交 PR，不作为发版来源。workflow 默认使用
+Maker 包版本号使用三段式 semver，例如 `0.0.1`。稳定包只能从长期发布分支 `main` 发布；
+prerelease 可从 `beta` 或 `develop` 发布，`fix/*` 分支只用于提交 PR，不作为发版来源。workflow 默认使用
 `auto-last-number`。`tag=latest` 会递增稳定 patch；`tag=beta`、`tag=alpha` 和 `tag=next`
 会基于当前 major/minor 下最高稳定版本生成 prerelease，例如已发布最高稳定版本为 `0.0.16`
 时，下一次 beta 自动发布 `0.0.17-beta.1`，后续同一条线递增为 `0.0.17-beta.2`。

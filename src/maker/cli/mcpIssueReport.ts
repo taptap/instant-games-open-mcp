@@ -67,7 +67,7 @@ export type MakerMcpConfigSource = {
 
 export type MakerMcpReportRuntime = {
   distribution: MakerPluginDistributionId;
-  client: 'codex' | 'workbuddy';
+  client: 'codex' | 'workbuddy' | 'dsh';
   config_source: MakerMcpConfigSource;
   launcher: MakerMcpLauncher;
   cwd: string;

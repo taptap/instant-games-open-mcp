@@ -25,6 +25,7 @@
     "maker:codex-plugin:prepare": "node scripts/prepare-maker-codex-plugin.js",
     "maker:workbuddy-plugin:prepare": "node scripts/prepare-maker-workbuddy-plugin.js",
     "maker:plugins:package": "node scripts/package-maker-client-plugins.js",
+    "maker:dsh-plugin:package": "node scripts/package-maker-dsh-plugin.js",
     "maker:proxy-schema:check": "tsx scripts/sync-maker-proxy-tool-snapshot.ts",
     "maker:proxy-schema:update": "tsx scripts/sync-maker-proxy-tool-snapshot.ts --write",
     "docker:npm": "cd docker/npm && docker-compose -p taptap-mcp up -d",
