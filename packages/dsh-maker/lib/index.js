@@ -103,19 +103,9 @@ export async function apply(ctx, config = {}) {
         description:
           'Absolute path to the bundled TapTap Maker CLI (bin/taptap-maker); run `node "$DSH_TAPTAP_MAKER_BIN" <subcommand>`.',
       },
-      TAPTAP_MAKER_DISTRIBUTION: {
-        description: 'Identifies CLI commands as running from the DSH plugin distribution.',
-      },
-      TAPTAP_MCP_CLIENT_IDE: {
-        description: 'Identifies DSH as the current Maker MCP client.',
-      },
     },
     resolve() {
-      return {
-        DSH_TAPTAP_MAKER_BIN: makerPaths.cliEntry,
-        TAPTAP_MAKER_DISTRIBUTION: 'dsh_plugin',
-        TAPTAP_MCP_CLIENT_IDE: 'dsh',
-      };
+      return { DSH_TAPTAP_MAKER_BIN: makerPaths.cliEntry };
     },
   });
 

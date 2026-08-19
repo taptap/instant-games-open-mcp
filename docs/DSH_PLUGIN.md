@@ -137,8 +137,9 @@ dsh plugin --profile web remove @taptap/dsh-maker
 
 ## 版本与发布
 
-- `@taptap/maker` 使用精确稳定版本；DSH 发布工作流会先通过 npm 校验该版本确实已发布，避免插件
-  依赖尚未包含 DSH 生命周期能力的旧 runtime。
+- `@taptap/maker` 使用精确版本；手动从 develop 发布预览版时可通过 `maker_version` 输入指定精确
+  beta runtime，main 稳定版只读取清单中的稳定 runtime。工作流会先通过 npm 校验该版本确实已
+  发布，避免安装时依赖不存在。
 - `packages/dsh-maker/` 与 `docs/DSH_PLUGIN*.md` 已纳入 `scripts/release-scope.cjs` 的 maker
   归属，只改本插件的提交不会误触发主包发布。
 - 发布：从 `packages/dsh-maker/` 执行 `npm publish --access public`。

@@ -7,6 +7,11 @@ on:
     paths:
       - packages/dsh-maker/package.json
   workflow_dispatch:
+    inputs:
+      maker_version:
+        description: 'Exact @taptap/maker version for a develop preview, for example 0.0.31-beta.1'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -52,13 +57,50 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify Maker runtime is published
+      - name: Read release identity
+        id: version
         shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REQUESTED_MAKER_VERSION: ${{ inputs.maker_version }}
         run: |
           set -euo pipefail
-          MAKER_VERSION="$(node -e "const manifest=require('./packages/dsh-maker/package.json'); process.stdout.write(manifest.dependencies['@taptap/maker'])")"
-          if [[ ! "$MAKER_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::DSH plugin must pin an exact stable @taptap/maker version."
+          manifest_maker_version="$(node -e "const manifest=require('./packages/dsh-maker/package.json'); process.stdout.write(manifest.dependencies['@taptap/maker'])")"
+          if [[ "$REF_NAME" == "develop" ]]; then
+            channel=dev
+            maker_version="${REQUESTED_MAKER_VERSION:-$manifest_maker_version}"
+            base_version="$(node -e "const p=require('./packages/dsh-maker/package.json'); process.stdout.write(p.version)")"
+            if git rev-parse "refs/tags/dsh-maker-v$base_version" >/dev/null 2>&1; then
+              latest_tag="dsh-maker-v$base_version"
+            else
+              latest_tag="none"
+            fi
+            result="$(node scripts/resolve-dsh-maker-version.js --channel dev --run-number "$GITHUB_RUN_NUMBER" --latest-tag "$latest_tag" --json)"
+          else
+            channel=stable
+            maker_version="$manifest_maker_version"
+            result="$(node scripts/resolve-dsh-maker-version.js --channel stable --json)"
+          fi
+          version="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.version)' "$result")"
+          tag="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.tag)' "$result")"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "maker_version=$maker_version" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Maker runtime is published
+        shell: bash
+        env:
+          RELEASE_CHANNEL: ${{ steps.version.outputs.channel }}
+          MAKER_VERSION: ${{ steps.version.outputs.maker_version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$MAKER_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "::error::DSH plugin must pin an exact @taptap/maker version."
+            exit 1
+          fi
+          if [[ "$RELEASE_CHANNEL" == "stable" && "$MAKER_VERSION" == *-* ]]; then
+            echo "::error::Stable DSH releases cannot depend on prerelease @taptap/maker@$MAKER_VERSION."
             exit 1
           fi
           if ! PUBLISHED_VERSION="$(npm view "@taptap/maker@${MAKER_VERSION}" version 2>/dev/null)"; then
@@ -69,32 +111,6 @@ jobs:
             echo "::error::Expected @taptap/maker@$MAKER_VERSION, npm returned $PUBLISHED_VERSION."
             exit 1
           fi
-
-      - name: Read release identity
-        id: version
-        shell: bash
-        env:
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          if [[ "$REF_NAME" == "develop" ]]; then
-            channel=dev
-            base_version="$(node -e "const p=require('./packages/dsh-maker/package.json'); process.stdout.write(p.version)")"
-            if git rev-parse "refs/tags/dsh-maker-v$base_version" >/dev/null 2>&1; then
-              latest_tag="dsh-maker-v$base_version"
-            else
-              latest_tag="none"
-            fi
-            result="$(node scripts/resolve-dsh-maker-version.js --channel dev --run-number "$GITHUB_RUN_NUMBER" --latest-tag "$latest_tag" --json)"
-          else
-            channel=stable
-            result="$(node scripts/resolve-dsh-maker-version.js --channel stable --json)"
-          fi
-          version="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.version)' "$result")"
-          tag="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.tag)' "$result")"
-          echo "channel=$channel" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Validate an existing release tag
         shell: bash
@@ -128,10 +144,11 @@ jobs:
         env:
           RELEASE_CHANNEL: ${{ steps.version.outputs.channel }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          MAKER_VERSION: ${{ steps.version.outputs.maker_version }}
         run: |
           set -euo pipefail
           if [[ "$RELEASE_CHANNEL" == "dev" ]]; then
-            node -e "const fs=require('fs'); const p='packages/dsh-maker/package.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); j.version=process.argv[1]; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')" "$RELEASE_VERSION"
+            node -e "const fs=require('fs'); const p='packages/dsh-maker/package.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); j.version=process.argv[1]; j.dependencies['@taptap/maker']=process.argv[2]; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')" "$RELEASE_VERSION" "$MAKER_VERSION"
           fi
           npm run maker:dsh-plugin:package -- --output-dir artifacts/dsh-maker
 

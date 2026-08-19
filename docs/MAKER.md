@@ -118,8 +118,9 @@ DSH bundle。
 
 与 Codex/WorkBuddy 的 ZIP marketplace 分发不同，DSH 插件走 npm（`dsh plugin add` 转发 pnpm），
 不经过 `scripts/package-maker-client-plugins.js`，也不属于 `config/maker-plugin-version.json`
-的插件版本线；它精确锁定包含所需 DSH 生命周期能力的 `@taptap/maker` 版本，发布工作流会先确认
-该版本已发布到 npm。完整设计、安装与配置见 [DSH_PLUGIN.md](DSH_PLUGIN.md)，机制证据见
+的插件版本线；它精确锁定包含所需 DSH 生命周期能力的 `@taptap/maker` 版本，develop 可先使用
+Maker beta 验证，main 只能使用稳定 Maker。发布工作流会先确认该版本已发布到 npm。完整设计、
+安装与配置见 [DSH_PLUGIN.md](DSH_PLUGIN.md)，机制证据见
 [DSH_PLUGIN_RESEARCH.md](DSH_PLUGIN_RESEARCH.md)。
 
 ## 本地测试
@@ -155,8 +156,8 @@ Maker CLI 独立发布为 `@taptap/maker`，不走主包
 Maker-only paths 跳过这类 push；如需发布 Maker CLI，使用 GitHub Actions 中的
 `Publish Maker Package` workflow。
 
-Maker 包版本号使用三段式 semver，例如 `0.0.1`。Maker 包只能从长期发布分支 `beta` 或
-`main` 发布，`fix/*` 分支只用于提交 PR，不作为发版来源。workflow 默认使用
+Maker 包版本号使用三段式 semver，例如 `0.0.1`。稳定包只能从长期发布分支 `main` 发布；
+prerelease 可从 `beta` 或 `develop` 发布，`fix/*` 分支只用于提交 PR，不作为发版来源。workflow 默认使用
 `auto-last-number`。`tag=latest` 会递增稳定 patch；`tag=beta`、`tag=alpha` 和 `tag=next`
 会基于当前 major/minor 下最高稳定版本生成 prerelease，例如已发布最高稳定版本为 `0.0.16`
 时，下一次 beta 自动发布 `0.0.17-beta.1`，后续同一条线递增为 `0.0.17-beta.2`。

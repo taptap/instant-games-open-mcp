@@ -23,7 +23,7 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(manifest.dsh.bundle.patch).toBe('./cordis.patch.yml');
   });
 
-  it('pins @taptap/maker to an exact stable version', () => {
+  it('pins the stable package source to an exact stable Maker version', () => {
     const manifest = readJson('packages/dsh-maker/package.json');
     expect(manifest.dependencies['@taptap/maker']).toMatch(/^\d+\.\d+\.\d+$/);
   });
@@ -36,6 +36,10 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(workflow).toContain("manifest.dependencies['@taptap/maker']");
     expect(workflow).toContain('npm view "@taptap/maker@${MAKER_VERSION}" version');
     expect(workflow).toContain('Publish @taptap/maker@$MAKER_VERSION first');
+    expect(workflow).toContain('RELEASE_CHANNEL: ${{ steps.version.outputs.channel }}');
+    expect(workflow).toContain('Stable DSH releases cannot depend on prerelease');
+    expect(workflow).toContain('REQUESTED_MAKER_VERSION: ${{ inputs.maker_version }}');
+    expect(workflow).toContain("j.dependencies['@taptap/maker']=process.argv[2]");
   });
 
   it('declares the DSH rc.6 peer surface', () => {
@@ -74,16 +78,18 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(source).toMatch(/bundledSkillDir: path\.join\(PACKAGE_ROOT, 'skills'\)/);
   });
 
-  it('exports the DSH distribution identity to bundled CLI invocations', () => {
+  it('registers only valid DSH shell environment variables', () => {
     const source = readFileSync(
       join(REPO_ROOT, 'packages', 'dsh-maker', 'lib', 'index.js'),
       'utf8'
     );
-    expect(source).toContain("TAPTAP_MAKER_DISTRIBUTION: 'dsh_plugin'");
-    expect(source).toContain("TAPTAP_MCP_CLIENT_IDE: 'dsh'");
-    expect(source).toMatch(
-      /resolve\(\) \{[\s\S]*DSH_TAPTAP_MAKER_BIN:[\s\S]*TAPTAP_MAKER_DISTRIBUTION/s
+    const registration = source.match(/ctx\.shellEnv\.register\(\{([\s\S]*?)\n\s{2}\}\);/)?.[1];
+    expect(registration).toBeDefined();
+    const declaredKeys = [...(registration || '').matchAll(/^\s{6}([A-Z][A-Z0-9_]+): \{/gm)].map(
+      (match) => match[1]
     );
+    expect(declaredKeys).toEqual(['DSH_TAPTAP_MAKER_BIN']);
+    expect(declaredKeys.every((key) => /^DSH_[A-Z][A-Z0-9_]*$/.test(key))).toBe(true);
   });
 
   it('uses the package-explicit npx fallback and an isolated project policy update', () => {
