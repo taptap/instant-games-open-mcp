@@ -38,6 +38,7 @@ const MAKER_EXACT_PATHS = new Set([
   'scripts/prepare-maker-package.js',
   'scripts/prepare-maker-codex-plugin.js',
   'scripts/prepare-maker-workbuddy-plugin.js',
+  'scripts/resolve-dsh-maker-version.js',
   'scripts/resolve-maker-plugin-version.js',
   'scripts/resolve-maker-version.js',
   'scripts/update-maker-plugin-version.js',

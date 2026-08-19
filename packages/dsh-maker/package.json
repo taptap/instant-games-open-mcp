@@ -43,7 +43,7 @@
     "@deepseek-ai/dsh-skill-filesystem": "^0.1.0-rc.6"
   },
   "dependencies": {
-    "@taptap/maker": "^0.0.30"
+    "@taptap/maker": "0.0.30"
   },
   "repository": {
     "type": "git",

@@ -23,10 +23,10 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(manifest.dsh.bundle.patch).toBe('./cordis.patch.yml');
   });
 
-  it('pins @taptap/maker to the maker version policy (no drift)', () => {
+  it('pins @taptap/maker to the exact maker version policy (no drift)', () => {
     const manifest = readJson('packages/dsh-maker/package.json');
     const policy = readJson('config/maker-version-policy.json');
-    expect(manifest.dependencies['@taptap/maker']).toBe(`^${policy.latest}`);
+    expect(manifest.dependencies['@taptap/maker']).toBe(policy.latest);
   });
 
   it('declares the DSH rc.6 peer surface', () => {
@@ -51,5 +51,17 @@ describe('@taptap/dsh-maker manifest', () => {
       expect(content).toContain(`name: ${skillName}`);
       expect(content).toMatch(/^description: .+/m);
     }
+  });
+
+  it('resolves the bundled skills dir from the package root, not lib/', () => {
+    const source = readFileSync(
+      join(REPO_ROOT, 'packages', 'dsh-maker', 'lib', 'index.js'),
+      'utf8'
+    );
+    // PACKAGE_ROOT must climb out of lib/ before joining skills, otherwise the
+    // tarball's package/skills is never found.
+    expect(source).toMatch(/const __dirname = path\.dirname\(fileURLToPath\(import\.meta\.url\)\)/);
+    expect(source).toMatch(/const PACKAGE_ROOT = path\.dirname\(__dirname\)/);
+    expect(source).toMatch(/bundledSkillDir: path\.join\(PACKAGE_ROOT, 'skills'\)/);
   });
 });

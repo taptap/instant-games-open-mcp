@@ -35,7 +35,9 @@ export function formatMakerSkillStatus(
   } = {}
 ): string {
   const pluginDistribution = resolveMakerPluginDistribution();
-  const bundledSkills = pluginDistribution
+  const clientPluginDistribution =
+    pluginDistribution && pluginDistribution.client !== 'dsh' ? pluginDistribution : undefined;
+  const bundledSkills = clientPluginDistribution
     ? [...BUNDLED_SKILLS, { name: MAKER_PLUGIN_LIFECYCLE_SKILL_NAME }]
     : BUNDLED_SKILLS;
   const skillDocuments = bundledSkills.map((skill) => ({
@@ -48,13 +50,13 @@ export function formatMakerSkillStatus(
     ...skillDocuments.map((skill) => `- ${skill.name}: ${skill.path}`),
     '',
     'Use these documents as reading references for Maker local workflows.',
-    ...(pluginDistribution
+    ...(clientPluginDistribution
       ? [
           '',
-          `Maker ${pluginDistribution.displayName} plugin lifecycle`,
+          `Maker ${clientPluginDistribution.displayName} plugin lifecycle`,
           `- entry: ${MAKER_PLUGIN_LIFECYCLE_SKILL_NAME}`,
-          `- Inspect a legacy ${pluginDistribution.displayName} Maker MCP registration before first use.`,
-          ...(pluginDistribution.client === 'codex'
+          `- Inspect a legacy ${clientPluginDistribution.displayName} Maker MCP registration before first use.`,
+          ...(clientPluginDistribution.client === 'codex'
             ? [
                 '- Automatically disable an active legacy Codex Maker MCP; the plugin installation request is the authorization.',
                 '- Verify the legacy registration is disabled or absent before reporting the plugin ready.',
@@ -62,6 +64,16 @@ export function formatMakerSkillStatus(
               ]
             : ['- Require explicit confirmation before disabling or restoring it.']),
           '- Initialize with `taptap-maker init --skip-mcp-install`; the plugin already provides MCP.',
+          `- ${formatMakerPluginUpdateAction(clientPluginDistribution)}`,
+        ]
+      : []),
+    ...(pluginDistribution?.client === 'dsh'
+      ? [
+          '',
+          'Maker DSH plugin lifecycle',
+          '- Inspect a legacy DSH L1 MCP registration with `taptap-maker plugin inspect --client dsh` before first use.',
+          '- Migrate/disable it with `taptap-maker plugin migrate --client dsh --confirm`; restore with `taptap-maker plugin restore --client dsh --confirm`.',
+          '- Initialize with `taptap-maker init --skip-mcp-install`; the DSH plugin already provides MCP.',
           `- ${formatMakerPluginUpdateAction(pluginDistribution)}`,
         ]
       : []),

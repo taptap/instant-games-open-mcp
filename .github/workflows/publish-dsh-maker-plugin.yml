@@ -55,12 +55,28 @@ jobs:
       - name: Read release identity
         id: version
         shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          version="$(node -e "const p=require('./packages/dsh-maker/package.json'); process.stdout.write(p.version)")"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ "$REF_NAME" == "develop" ]]; then
+            channel=dev
+            base_version="$(node -e "const p=require('./packages/dsh-maker/package.json'); process.stdout.write(p.version)")"
+            if git rev-parse "refs/tags/dsh-maker-v$base_version" >/dev/null 2>&1; then
+              latest_tag="dsh-maker-v$base_version"
+            else
+              latest_tag="none"
+            fi
+            result="$(node scripts/resolve-dsh-maker-version.js --channel dev --run-number "$GITHUB_RUN_NUMBER" --latest-tag "$latest_tag" --json)"
+          else
+            channel=stable
+            result="$(node scripts/resolve-dsh-maker-version.js --channel stable --json)"
+          fi
+          version="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.version)' "$result")"
+          tag="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.tag)' "$result")"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=dsh-maker-v$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Validate an existing release tag
         shell: bash
@@ -78,6 +94,7 @@ jobs:
           fi
 
       - name: Verify INSTALL.md is current
+        if: steps.version.outputs.channel == 'stable'
         shell: bash
         run: |
           set -euo pipefail
@@ -90,13 +107,20 @@ jobs:
 
       - name: Package release assets
         shell: bash
+        env:
+          RELEASE_CHANNEL: ${{ steps.version.outputs.channel }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
+          if [[ "$RELEASE_CHANNEL" == "dev" ]]; then
+            node -e "const fs=require('fs'); const p='packages/dsh-maker/package.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); j.version=process.argv[1]; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')" "$RELEASE_VERSION"
+          fi
           npm run maker:dsh-plugin:package -- --output-dir artifacts/dsh-maker
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_CHANNEL: ${{ steps.version.outputs.channel }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           TARGET_SHA: ${{ github.sha }}
@@ -114,7 +138,11 @@ jobs:
               --notes-file "$notes"
             gh release upload "$RELEASE_TAG" artifacts/dsh-maker/* --clobber
           else
-            gh release create "$RELEASE_TAG" artifacts/dsh-maker/* \
+            release_flags=()
+            if [[ "$RELEASE_CHANNEL" == "dev" ]]; then
+              release_flags+=(--prerelease)
+            fi
+            gh release create "$RELEASE_TAG" artifacts/dsh-maker/* "${release_flags[@]}" \
               --target "$TARGET_SHA" \
               --title "TapTap Maker DSH Plugin $RELEASE_VERSION" \
               --notes-file "$notes"

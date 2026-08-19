@@ -116,6 +116,12 @@ import {
   type CodexLegacyMakerMcpMigrationResult,
   type WorkBuddyLegacyMakerMcpMigrationResult,
 } from './pluginMigration.js';
+import {
+  inspectDshLegacyMakerMcp,
+  migrateDshLegacyMakerMcp,
+  restoreDshLegacyMakerMcp,
+  type DshLegacyMakerMcpMigrationResult,
+} from './dshPluginMigration.js';
 import { writeConfigWithTapTapBackupIfChanged } from './configWrite.js';
 import { syncWorkBuddyProjectSkills } from './workBuddyProjectSkills.js';
 import {
@@ -359,16 +365,20 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 function runPluginLifecycle(parsed: ParsedArgs, ctx: CliContext): void {
   const subcommand = parsed.command[1];
   const client = stringOption(parsed, 'client') || 'codex';
-  if (client !== 'codex' && client !== 'workbuddy') {
+  if (client !== 'codex' && client !== 'workbuddy' && client !== 'dsh') {
     throw new Error(
-      `Unsupported Maker plugin client: ${client}. Supported clients: codex, workbuddy.`
+      `Unsupported Maker plugin client: ${client}. Supported clients: codex, workbuddy, dsh.`
     );
   }
 
   if (subcommand === 'inspect') {
     writePluginLifecycleResult(
       ctx,
-      client === 'codex' ? inspectCodexLegacyMakerMcp() : inspectWorkBuddyLegacyMakerMcp()
+      client === 'codex'
+        ? inspectCodexLegacyMakerMcp()
+        : client === 'workbuddy'
+          ? inspectWorkBuddyLegacyMakerMcp()
+          : inspectDshLegacyMakerMcp()
     );
     return;
   }
@@ -377,7 +387,9 @@ function runPluginLifecycle(parsed: ParsedArgs, ctx: CliContext): void {
       ctx,
       client === 'codex'
         ? migrateCodexLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
-        : migrateWorkBuddyLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+        : client === 'workbuddy'
+          ? migrateWorkBuddyLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+          : migrateDshLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
     );
     return;
   }
@@ -386,7 +398,9 @@ function runPluginLifecycle(parsed: ParsedArgs, ctx: CliContext): void {
       ctx,
       client === 'codex'
         ? restoreCodexLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
-        : restoreWorkBuddyLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+        : client === 'workbuddy'
+          ? restoreWorkBuddyLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+          : restoreDshLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
     );
     return;
   }
@@ -399,8 +413,10 @@ function writePluginLifecycleResult(
   result:
     | CodexLegacyMakerMcpMigrationResult
     | WorkBuddyLegacyMakerMcpMigrationResult
+    | DshLegacyMakerMcpMigrationResult
     | ReturnType<typeof inspectCodexLegacyMakerMcp>
     | ReturnType<typeof inspectWorkBuddyLegacyMakerMcp>
+    | ReturnType<typeof inspectDshLegacyMakerMcp>
 ): void {
   if (ctx.json) {
     writeJson(result);
@@ -3133,9 +3149,9 @@ function printHelp(): void {
       '                            [--context-stdin] [--consent] [--json]',
       '                            # Run only after the user agrees to submit',
       '  taptap-maker agents update [--target-dir DIR] [--json]',
-      '  taptap-maker plugin inspect --client codex|workbuddy [--json]',
-      '  taptap-maker plugin migrate --client codex|workbuddy --confirm [--json]',
-      '  taptap-maker plugin restore --client codex|workbuddy --confirm [--json]',
+      '  taptap-maker plugin inspect --client codex|workbuddy|dsh [--json]',
+      '  taptap-maker plugin migrate --client codex|workbuddy|dsh --confirm [--json]',
+      '  taptap-maker plugin restore --client codex|workbuddy|dsh --confirm [--json]',
       '  taptap-maker upgrade [--launcher self|npx] [--target-dir DIR] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',

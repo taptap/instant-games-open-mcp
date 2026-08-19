@@ -23,7 +23,8 @@ import * as mcpClient from '@deepseek-ai/dsh-mcp-client';
 import * as skillFilesystem from '@deepseek-ai/dsh-skill-filesystem';
 
 const require = createRequire(import.meta.url);
-const PACKAGE_ROOT = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PACKAGE_ROOT = path.dirname(__dirname);
 
 export const name = 'taptap-maker';
 export const inject = ['shellEnv'];
@@ -70,7 +71,11 @@ function resolveMcpConfig(config) {
     // skills nor block DSH startup. The mcp-client still logs the failure and
     // keeps reconnecting, so a broken server is loud without being fatal.
     failOnStartupError: mcp.failOnStartupError ?? false,
-    env: { TAPTAP_MCP_CLIENT_IDE: 'dsh', ...(mcp.env ?? {}) },
+    env: {
+      TAPTAP_MCP_CLIENT_IDE: 'dsh',
+      TAPTAP_MAKER_DISTRIBUTION: 'dsh_plugin',
+      ...(mcp.env ?? {}),
+    },
     cwd: mcp.cwd,
   };
 }

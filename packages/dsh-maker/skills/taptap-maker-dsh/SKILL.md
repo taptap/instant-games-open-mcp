@@ -40,22 +40,26 @@ node "$DSH_TAPTAP_MAKER_BIN" <subcommand>
 
 ## 意图 → 工作流
 
-| 用户意图                             | 工作流                                                                              |
-| ------------------------------------ | ----------------------------------------------------------------------------------- |
-| 初始化 / 配置 / 继续 Maker 本地开发  | 运行 Maker CLI 初始化流程（`taptap-maker init`）                                    |
-| clone / 下载 Maker 项目              | 走"初始化流程"，不要直接索要 app_id                                                 |
-| 状态 / 是否就绪                      | 调 `maker_status_lite`（传 `target_dir`），再按 `AGENTS.md` 与 remote sync 提示处理 |
-| 升级 Maker MCP / 旧项目策略          | 当前项目目录跑 `taptap-maker upgrade`，不要扫描无关 Maker 项目                      |
-| 提交 / 推送 / 构建                   | 先检查本地 Git 状态与改动摘要，再调 `maker_build_current_directory`                 |
-| 拉取 / 更新                          | 先看本地改动；工作区有未提交内容时，先说明选项再拉取                                |
-| 冲突 / 合并失败                      | 解释冲突原因、列出冲突文件、查看冲突 hunk、给出方案并询问后再改                     |
-| 构建 / 预览 / 跑一下 / 看效果        | 用 `maker_build_current_directory`（成功后自动拉起本地运行时日志 watcher）          |
-| 验证代码 / 跑测试 / lint             | 不触发 Maker 远程构建，除非用户明确要求构建/运行/预览                               |
-| MCP 不可用 / proxy 超时 / 服务端错误 | 先证据诊断；疑似 MCP/proxy/客户端/服务缺陷时，询问用户一次后脱敏上报                |
+| 用户意图                             | 工作流                                                                                        |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| 初始化 / 配置 / 继续 Maker 本地开发  | 运行 `node "$DSH_TAPTAP_MAKER_BIN" init --skip-mcp-install`（插件已提供 MCP，不重复安装）     |
+| clone / 下载 Maker 项目              | 走"初始化流程"（`init --skip-mcp-install`），不要直接索要 app_id                              |
+| 状态 / 是否就绪                      | 调 `maker_status_lite`（传 `target_dir`），再按 `AGENTS.md` 与 remote sync 提示处理           |
+| 升级 Maker 插件                      | 走 DSH 插件渠道：`dsh plugin --profile <profile> update @taptap/dsh-maker`，不跑独立 MCP 安装 |
+| 升级旧项目策略 / 工程 AGENTS 块      | 当前项目目录跑 `node "$DSH_TAPTAP_MAKER_BIN" upgrade`，不扫描无关 Maker 项目                  |
+| 提交 / 推送 / 构建                   | 先检查本地 Git 状态与改动摘要，再调 `maker_build_current_directory`                           |
+| 拉取 / 更新                          | 先看本地改动；工作区有未提交内容时，先说明选项再拉取                                          |
+| 冲突 / 合并失败                      | 解释冲突原因、列出冲突文件、查看冲突 hunk、给出方案并询问后再改                               |
+| 构建 / 预览 / 跑一下 / 看效果        | 用 `maker_build_current_directory`（成功后自动拉起本地运行时日志 watcher）                    |
+| 验证代码 / 跑测试 / lint             | 不触发 Maker 远程构建，除非用户明确要求构建/运行/预览                                         |
+| MCP 不可用 / proxy 超时 / 服务端错误 | 先证据诊断；疑似 MCP/proxy/客户端/服务缺陷时，询问用户一次后脱敏上报                          |
 
 ## 新建项目
 
-"创建新项目/创建游戏/新建项目"等是显式创建意图（优先级高于按名匹配已有 app）。当前目录未绑定时引导：`taptap-maker init --create`，有名字则加 `--name "<名字>"`；无名字则询问或建议用当前目录名，不要自行编造。当前目录已绑定 Maker 项目时不要就地新建，让用户另开独立目录。
+"创建新项目/创建游戏/新建项目"等是显式创建意图（优先级高于按名匹配已有 app）。当前目录未绑定时引导：`node "$DSH_TAPTAP_MAKER_BIN" init --skip-mcp-install --create`，有名字则加 `--name "<名字>"`；无名字则询问或建议用当前目录名，不要自行编造。当前目录已绑定 Maker 项目时不要就地新建，让用户另开独立目录。
+
+> 初始化一律带 `--skip-mcp-install`：本插件已通过 DSH 注册 Maker MCP，重复安装会写入 L1 的
+> `mcp-taptap-maker` 行并造成双激活。
 
 ## 构建 / 提交策略（覆盖通用 Git 流程）
 
