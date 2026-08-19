@@ -37,13 +37,13 @@ Release，Maker MCP 版本继续用于 runtime、埋点、诊断和 npm 升级�
 发布时在 GitHub Actions 手动运行 `Prepare Maker Plugin Release`。workflow 根据最新
 `maker-plugin-v*` tag 自动将 patch 加一，更新版本源、生成两套插件、运行验证并创建版本 PR。PR
 合并后 `Publish Maker Plugin` 创建同版本 tag 和 GitHub Release，上传 Codex/WorkBuddy marketplace
-ZIP、`SHA256SUMS` 与 `maker-plugin-release.json`。这两条 workflow 不调用 npm 发布，也不修改原
-Maker MCP 或主 MCP 的发布流程。同一提交上的发布任务可以安全重跑：已有 Release 会更新说明并
-覆盖上传附件；如果同名 tag 已指向其它提交，任务会拒绝发布。
+ZIP、`INSTALL.md`、`SHA256SUMS` 与 `maker-plugin-release.json`。这两条 workflow 不调用 npm
+发布，也不修改原 Maker MCP 或主 MCP 的发布流程。同一提交上的发布任务可以安全重跑：已有
+Release 会更新说明并覆盖上传附件；如果同名 tag 已指向其它提交，任务会拒绝发布。
 
-对外固定安装页是
-`https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker`。Codex 优先直接把
-GitHub 仓库添加为 marketplace；ZIP 用于离线或客户端兼容安装。
+对外安装时把对应 main/develop 渠道的 GitHub Release 页面交给 AI，由同页 `INSTALL.md` 选择
+Codex 或 WorkBuddy ZIP、校验并执行完整安装。仓库 marketplace 方式只用于维护者从源码验证；
+执行安装前必须先生成插件，并用生成目录中的 CLI 完成旧 MCP 检查和迁移。
 
 ## Codex Plugin
 
@@ -57,14 +57,18 @@ manifest 默认版本来自 `config/maker-plugin-version.json`，内置 bundle �
 插件沿用现有 Maker CLI/MCP 的鉴权、项目绑定、clone、状态、构建和 proxy tool 实现，不复制
 业务逻辑。插件专属生命周期由 `taptap-maker-plugin-lifecycle` 管理：
 
-- 首次使用前只读检查 Codex 中旧的独立 Maker MCP。
-- 只有用户明确确认后才把旧注册设为 `enabled = false`，不删除配置，并保留
-  `.taptap-maker.bak.latest` 和可恢复状态。
+- 安装前和安装后都检查 Codex 中旧的独立 Maker MCP；安装请求即授权兼容迁移，不再单独询问。
+- 活动的旧注册自动设为 `enabled = false`，不删除配置，并保留 `.taptap-maker.bak.latest` 和
+  可恢复状态。检查返回 `ambiguous` 时必须在安装前停止；安装后只有状态为 `disabled` 或
+  `not_found` 才能报告插件可用。
+- 只有本次安装实际禁用旧注册后又安装或验证失败时，才自动 restore 作为事务回滚。原本已禁用、
+  未找到或不是本次迁移的注册不恢复。回滚前先移除本次已安装的插件并确认不再启用；插件移除失败时
+  保持旧 MCP 禁用，不能重新形成双激活。正常移除插件时恢复旧 MCP 仍须用户明确确认。
 - 重复迁移与恢复保持幂等；迁移状态记录原注册和禁用后注册的结构指纹。同名注册被替换或修改后
   restore 返回 `not_owned`，不会误启用新注册。用户自己禁用的旧注册也不归插件所有。
 - 新项目初始化运行插件内 CLI，并传 `--skip-mcp-install`，避免产生第二份 MCP 注册。
 - 插件内 `update-taptap-mcp` 是 Codex 专用版本，升级只走 Codex marketplace，不运行 npm/npx
-  或独立 `taptap-maker upgrade`；卸载前如需恢复旧 MCP，先执行确认式 restore。
+  或独立 `taptap-maker upgrade`；卸载前如需恢复旧 MCP，仍须先取得明确确认再执行 restore。
 - 插件模式下 `mcp report` 读取插件自己的 `.mcp.json` 并直接验证当前 `dist/maker.js`；独立 MCP
   继续读取用户级客户端配置并验证稳定 self runtime，两种诊断来源不会混用。
 

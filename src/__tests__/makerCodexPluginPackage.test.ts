@@ -85,6 +85,8 @@ describe('TapTap Maker Codex plugin package', () => {
         [
           path.join(projectRoot, 'node_modules', 'prettier', 'bin', 'prettier.cjs'),
           '--check',
+          '--config',
+          path.join(projectRoot, '.prettierrc'),
           relativePath,
         ],
         { cwd: pluginRoot, encoding: 'utf8' }
@@ -174,9 +176,38 @@ describe('TapTap Maker Codex plugin package', () => {
     const readme = fs.readFileSync(path.join(pluginRoot, 'README.md'), 'utf8');
 
     expect(readme).toContain(`插件版本：\`${pluginVersion}\``);
+    expect(readme).toContain('发布渠道：`main 稳定版`');
     expect(readme).toContain(`内置 Maker MCP 版本：\`${makerVersion}\``);
     expect(readme).toContain('当前宿主客户端是 Codex');
     expect(readme).toContain('当前宿主客户端是 WorkBuddy');
+    expect(readme).toContain('用户在当前对话中直接提供本页面链接');
+    expect(readme).toContain('立即执行完整安装流程');
+    expect(readme).toContain('不要再次询问用户是否安装');
+    expect(readme).toContain('不要只给出安装建议、命令或操作步骤');
+    expect(readme).toContain('完成安装并验证插件已启用后再向用户报告结果');
+    expect(readme).toContain('解压到不会自动清理的固定本地目录');
+    expect(readme).toContain('只要该 marketplace 仍已配置，就必须保留这个目录');
+    expect(readme).toContain('plugin migrate --client codex --confirm --json');
+    expect(readme).toContain('plugin inspect --client codex --json');
+    expect(readme).toContain('安装前自动禁用旧 Maker MCP');
+    expect(readme).toContain('安装后必须再次检查');
+    expect(readme).toContain('迁移失败或检查返回 `ambiguous` 时进入步骤 6 执行失败回滚');
+    expect(readme).toContain('状态为 `ambiguous` 时必须在安装前停止');
+    expect(readme).toContain('迁移命令失败时立即停止，不得进入插件安装');
+    expect(readme).toContain('本次安装中任一次迁移结果');
+    expect(readme).not.toContain('步骤 1 的迁移结果');
+    expect(readme).toContain('安装、重新加载或 Maker MCP tools 验证失败');
+    expect(readme).toContain('codex plugin remove taptap-maker@taptap-maker --json');
+    expect(readme).toContain('plugin restore --client codex --confirm --json');
+    expect(readme.indexOf('plugin migrate --client codex --confirm --json')).toBeLessThan(
+      readme.indexOf('codex plugin add taptap-maker@taptap-maker')
+    );
+    expect(readme.indexOf('plugin restore --client codex --confirm --json')).toBeGreaterThan(
+      readme.indexOf('codex plugin remove taptap-maker@taptap-maker --json')
+    );
+    expect(readme.lastIndexOf('plugin inspect --client codex --json')).toBeGreaterThan(
+      readme.indexOf('codex plugin add taptap-maker@taptap-maker')
+    );
     expect(readme).toContain('不要根据操作系统');
     expect(readme).toContain('不要同时安装两个插件包');
     expect(readme).toContain('无法确认当前宿主客户端');
@@ -188,6 +219,17 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(readme).toContain(
       `/releases/download/maker-plugin-v${pluginVersion}/taptap-maker-workbuddy-plugin-${pluginVersion}.zip`
     );
+  });
+
+  test('keeps committed client bundles aligned with the shared plugin lifecycle guidance', () => {
+    for (const relativePath of [
+      'plugins/taptap-maker/dist/maker.js',
+      'plugins/workbuddy/taptap-maker/dist/maker.js',
+    ]) {
+      const bundle = fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
+      expect(bundle).toContain('Automatically disable an active legacy Codex Maker MCP');
+      expect(bundle).toContain('Require explicit confirmation before disabling or restoring it');
+    }
   });
 
   test('builds entirely in the requested output directory', () => {
@@ -222,5 +264,29 @@ describe('TapTap Maker Codex plugin package', () => {
     );
 
     expect(checkedInSkill).toBe(sourceSkill);
+  });
+
+  test('documents automatic restore only for a failed installation transaction', () => {
+    const sourceSkill = fs.readFileSync(
+      path.join(projectRoot, 'skills', 'taptap-maker-plugin-lifecycle', 'SKILL.md'),
+      'utf8'
+    );
+    const checkedInSkill = fs.readFileSync(
+      path.join(
+        projectRoot,
+        'plugins',
+        'taptap-maker',
+        'skills',
+        'taptap-maker-plugin-lifecycle',
+        'SKILL.md'
+      ),
+      'utf8'
+    );
+
+    expect(checkedInSkill).toBe(sourceSkill);
+    expect(sourceSkill).toContain('retain every migration result');
+    expect(sourceSkill).toContain('installation or verification fails');
+    expect(sourceSkill).toContain('do not ask for confirmation again');
+    expect(sourceSkill).toContain('Normal plugin removal still requires explicit confirmation');
   });
 });

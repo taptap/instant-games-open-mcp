@@ -27,24 +27,38 @@
 `config/maker-version-policy.json`，两条版本线互不覆盖。插件内置 Maker MCP 单文件运行时、CLI、
 Skills 和排障文档，不通过 npm/npx 下载或启动 Maker。
 
+对外安装应把对应渠道的 GitHub Release 页面交给 AI，由页面中的统一安装指南选择客户端 ZIP、
+校验并执行安装前后的旧 MCP 兼容检查。下面的仓库 marketplace 命令仅用于维护者从源码验证；
+执行 `marketplace add` 前，必须用刚生成的插件 CLI 完成下文同样的安装前检查和迁移。
+
 ```bash
 npm run maker:codex-plugin:prepare
+node plugins/taptap-maker/dist/maker.js plugin inspect --client codex --json
+node plugins/taptap-maker/dist/maker.js plugin migrate --client codex --confirm --json
+node plugins/taptap-maker/dist/maker.js plugin inspect --client codex --json
 codex plugin marketplace add taptap/instant-games-open-mcp --ref main \
   --sparse .agents/plugins --sparse plugins/taptap-maker
 codex plugin add taptap-maker@taptap-maker
+node plugins/taptap-maker/dist/maker.js plugin migrate --client codex --confirm --json
+node plugins/taptap-maker/dist/maker.js plugin inspect --client codex --json
 ```
 
 插件 manifest 和 marketplace 版本读取 `config/maker-plugin-version.json`；bundle 运行时身份继续读取
 `config/maker-version-policy.json`。运行 GitHub Actions 中的 `Prepare Maker Plugin Release` 会自动把
 插件 patch 加一、重新生成两端产物并创建 PR；合并后 `Publish Maker Plugin` 自动发布两份 ZIP、
-`SHA256SUMS` 和机器可读发布清单，不触发 npm 发布。
+`INSTALL.md`、`SHA256SUMS` 和机器可读发布清单，不触发 npm 发布。
 
-旧用户安装插件后，先用插件内 CLI 执行
+旧用户安装插件前，先用 ZIP 解压目录或本地生成目录中的插件 CLI 执行
 `taptap-maker plugin inspect --client codex --json`。如果旧的独立 Maker MCP 仍启用，向用户说明
-重复 tools 风险并取得明确确认，再执行
+已发现重复注册并直接执行
 `taptap-maker plugin migrate --client codex --confirm --json`。迁移只写入 `enabled = false`，保留
-原配置、最近备份、PAT、项目绑定和游戏文件；重复执行是幂等的。需要卸载插件并恢复旧 MCP 时，
-先执行 `taptap-maker plugin restore --client codex --confirm --json`。
+原配置、最近备份、PAT、项目绑定和游戏文件；插件安装请求即为这次兼容迁移的授权，不再单独询问，
+重复执行也是幂等的。检查返回 `ambiguous` 时必须在安装前停止；安装完成后必须再次迁移并检查，
+只有状态为 `disabled` 或 `not_found` 才能报告插件可用。需要卸载插件并恢复旧 MCP 时，仍要先取得明确确认，再执行
+`taptap-maker plugin restore --client codex --confirm --json`。
+如果本次安装中任一次迁移实际禁用了旧注册，但插件安装或验证失败，则用同一 restore 命令自动回滚；
+回滚前先移除本次已安装的插件并确认其不再启用，不能在插件仍启用时恢复旧 MCP。原本已禁用、未找到
+或不是本次迁移的注册不恢复。安装前迁移失败时立即停止，不进入插件安装。
 
 插件模式初始化使用 `taptap-maker init --skip-mcp-install`，避免 CLI 再写一份独立 MCP 配置。
 插件更新通过插件内专用 `update-taptap-mcp` Skill 和 Codex marketplace 完成，不执行 npm/npx

@@ -358,18 +358,25 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   同名 Skill。该同步不得影响独立 Maker MCP、Codex 插件或其他客户端；目录链接不可用时才复制。
 - 客户端插件发布只使用 `Prepare Maker Plugin Release` 和 `Publish Maker Plugin` workflows。
   前者按最新 `maker-plugin-v*` tag 自动递增 patch 并创建版本 PR；后者在 PR 合并后发布两份完整
-  marketplace ZIP、`SHA256SUMS` 和 `maker-plugin-release.json`。插件发布不得调用 npm publish、
-  不得复用 Maker npm 或主包 release workflow。插件专属安装页固定为 `plugins/taptap-maker/README.md`。
+  marketplace ZIP、`INSTALL.md`、`SHA256SUMS` 和 `maker-plugin-release.json`。插件发布不得调用
+  npm publish、不得复用 Maker npm 或主包 release workflow。插件专属安装页固定为
+  `plugins/taptap-maker/README.md`；对外安装使用对应渠道的 GitHub Release 页面和 ZIP。直接从
+  仓库添加 marketplace 只用于源码验证，并且必须在添加前用生成目录中的 CLI 完成旧 MCP 检查。
 - 客户端专属源文件必须放在 `plugin-sources/taptap-maker/<client>/`；生成产物必须按客户端隔离。
   不得把 WorkBuddy manifest、commands、Skills 或 MCP 配置写入 Codex 插件目录。新增客户端时复用
   `src/maker/` 的 runtime/CLI，不复制 Maker tools、resources 或 proxy 业务逻辑。
-- 插件模式必须先按 `taptap-maker-plugin-lifecycle` 检查对应客户端的旧 Maker MCP。Codex 禁用只写
-  `enabled = false`；WorkBuddy 同时检查 `~/.workbuddy/mcp.json` 和旧 `.mcp.json`，禁用只写
-  `disabled: true`。WorkBuddy 插件通过只读 SessionStart Hook 检查冲突并向 AI 注入提醒；只有用户
-  明确确认后才调用迁移 CLI。禁用和恢复都要求用户明确确认，保留原配置、最新备份和恢复状态。
-  不得删除旧注册、PAT、Maker home、项目绑定、WorkBuddy connector trust 或游戏文件。初始化必须使用
+- 插件模式必须先按 `taptap-maker-plugin-lifecycle` 检查对应客户端的旧 Maker MCP。Codex 安装请求
+  即授权自动迁移：安装前后都要检查，活动旧注册只写 `enabled = false`，无需再次确认；只有状态为
+  `disabled` 或 `not_found` 才能报告插件可用，`ambiguous` 必须在安装前停止。WorkBuddy 同时检查
+  `~/.workbuddy/mcp.json` 和旧
+  `.mcp.json`，禁用只写 `disabled: true`，并通过只读 SessionStart Hook 向 AI 注入提醒；只有用户
+  明确确认后才调用迁移 CLI。两个客户端在正常移除插件时恢复旧注册都必须明确确认；保留原配置、
+  最新备份和恢复状态。不得删除旧注册、PAT、Maker home、项目绑定、WorkBuddy connector trust 或游戏文件。初始化必须使用
   `taptap-maker init --skip-mcp-install`。插件用户通过当前客户端 marketplace 更新，不运行独立 npm
   包升级。
+  Codex 只有在本次安装实际禁用旧注册后又安装或验证失败时，才自动 restore 作为事务回滚；原本已
+  禁用、未找到、此前已迁移或不是本次迁移的注册不得恢复。回滚前必须移除本次已安装的插件并确认
+  不再启用；插件移除失败时保持旧 MCP 禁用。正常移除插件时仍要求用户明确确认。
   Codex 插件产物必须使用插件专用 `update-taptap-mcp`，不得复制 npm 发行版的更新 Skill。旧 MCP
   restore 必须校验迁移注册指纹；插件模式故障上报只检查插件 `.mcp.json` 和当前 bundle，不能把
   已禁用的独立 `taptap-maker` 注册或物化 self runtime 当作插件运行证据。

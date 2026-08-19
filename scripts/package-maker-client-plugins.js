@@ -117,6 +117,7 @@ async function main() {
     );
     await createZip(codexMarketRoot, join(outputDir, codexAsset));
     await createZip(workBuddyMarketRoot, join(outputDir, workBuddyAsset));
+    copyFileSync(join(codexRoot, 'README.md'), join(outputDir, 'INSTALL.md'));
 
     const checksums = [
       `${await sha256(join(outputDir, codexAsset))}  ${codexAsset}`,
@@ -135,6 +136,7 @@ async function main() {
             codex: codexAsset,
             workbuddy: workBuddyAsset,
             checksums: 'SHA256SUMS',
+            install_guide: 'INSTALL.md',
           },
         },
         null,
