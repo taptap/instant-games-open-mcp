@@ -1,0 +1,11 @@
+# @taptap/dsh-maker bundle patch layer.
+#
+# One row: the plugin module (lib/index.js). At activation it mounts:
+#   1. the bundled Maker skills (host-plane skill-filesystem instance), and
+#   2. the Maker MCP bridge (@deepseek-ai/dsh-mcp-client, launched via the
+#      bundled @taptap/maker package).
+#
+# Optional per-row overrides live in the row `config`; see README "Configuration".
+- insert:
+    - id: taptap-maker
+      name: '@taptap/dsh-maker'

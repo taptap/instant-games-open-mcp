@@ -1,0 +1,121 @@
+name: Publish DSH Maker Plugin
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - packages/dsh-maker/package.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-dsh-maker-plugin-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish TapTap Maker DSH plugin
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release channel
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$REF_NAME" == "main" ]]; then
+            exit
+          fi
+          if [[ "$REF_NAME" == "develop" && "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            exit
+          fi
+          echo "::error::Publish from main, or manually dispatch from develop."
+          exit 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read release identity
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -e "const p=require('./packages/dsh-maker/package.json'); process.stdout.write(p.version)")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=dsh-maker-v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Validate an existing release tag
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if git rev-parse "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            tagged_sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+            if [[ "$tagged_sha" != "$TARGET_SHA" ]]; then
+              echo "::error::Release tag $RELEASE_TAG points to $tagged_sha, not $TARGET_SHA."
+              exit 1
+            fi
+          fi
+
+      - name: Verify INSTALL.md is current
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run maker:dsh-plugin:package -- --output-dir "$RUNNER_TEMP/dsh-maker"
+          if [[ -n "$(git status --porcelain packages/dsh-maker/INSTALL.md)" ]]; then
+            echo "::error::packages/dsh-maker/INSTALL.md is out of date. Run 'npm run maker:dsh-plugin:package' and commit the result."
+            git status --porcelain packages/dsh-maker/INSTALL.md
+            exit 1
+          fi
+
+      - name: Package release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run maker:dsh-plugin:package -- --output-dir artifacts/dsh-maker
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          TARGET_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="artifacts/dsh-maker/INSTALL.md"
+          if [[ ! -s "$notes" ]]; then
+            echo "::error::Missing artifacts/dsh-maker/INSTALL.md"
+            exit 1
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "TapTap Maker DSH Plugin $RELEASE_VERSION" \
+              --notes-file "$notes"
+            gh release upload "$RELEASE_TAG" artifacts/dsh-maker/* --clobber
+          else
+            gh release create "$RELEASE_TAG" artifacts/dsh-maker/* \
+              --target "$TARGET_SHA" \
+              --title "TapTap Maker DSH Plugin $RELEASE_VERSION" \
+              --notes-file "$notes"
+          fi

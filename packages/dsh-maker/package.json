@@ -1,0 +1,57 @@
+{
+  "name": "@taptap/dsh-maker",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "DeepSeek Harness plugin: registers the TapTap Maker MCP server and installs Maker workflow + feature skills.",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "lib/index.js",
+    "cordis.patch.yml",
+    "skills/",
+    "assets/",
+    "README.md"
+  ],
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "taptap",
+    "maker",
+    "mcp",
+    "skill"
+  ],
+  "engines": {
+    "node": ">=18.14.1"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-mcp-client": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-shell-env": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-skill-filesystem": "^0.1.0-rc.6"
+  },
+  "dependencies": {
+    "@taptap/maker": "^0.0.30"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taptap/instant-games-open-mcp.git",
+    "directory": "packages/dsh-maker"
+  },
+  "homepage": "https://github.com/taptap/instant-games-open-mcp/tree/main/packages/dsh-maker",
+  "bugs": {
+    "url": "https://github.com/taptap/instant-games-open-mcp/issues"
+  }
+}

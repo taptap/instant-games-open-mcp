@@ -101,6 +101,26 @@ WorkBuddy 插件位于 `plugins/workbuddy/taptap-maker`，通过
 本地安装测试使用仓库 `.codebuddy-plugin/marketplace.json`。插件更新通过 WorkBuddy `/plugin`
 和 `/reload-plugins`，不执行独立 Maker 包升级。
 
+## DSH Plugin
+
+DeepSeek Harness（DSH）的 Maker 集成分两层：L1 是 `taptap-maker install --ide dsh` 写入的
+裸 `mcp-client` 行（见下文“环境变量”与 DSH 配置小节）；L2 是 bundle 插件 `@taptap/dsh-maker`，
+位于 `packages/dsh-maker/`，通过 npm 分发，把 **Maker MCP + 技能** 打包成可一键安装、可 HMR 的
+DSH bundle。
+
+插件由一个 bundle patch 行（`id: taptap-maker`）在激活时挂两个子插件并注册一个 shell 环境变量：
+宿主平面 `skill-filesystem` 实例（`providerName: maker` + `bundledSkillDir: skills/`，只读挂本包
+技能）、`dsh-mcp-client`（`require.resolve('@taptap/maker')` 解析出 `dist/maker.js`，以绝对 Node
+启动，不用 npx），以及 `DSH_TAPTAP_MAKER_BIN`（随包 CLI 绝对路径，供一次性 `init`/`upgrade`/
+`mcp report` 用）。技能包含核心工作流 `taptap-maker-dsh` 与广告/云存档/排行榜三个功能指南，均
+内置“以工程内 `engine-docs` 为准、禁止网上搜错文档”的防错引导。
+
+与 Codex/WorkBuddy 的 ZIP marketplace 分发不同，DSH 插件走 npm（`dsh plugin add` 转发 pnpm），
+不经过 `scripts/package-maker-client-plugins.js`，也不属于 `config/maker-plugin-version.json`
+的插件版本线；它依赖的 `@taptap/maker` 版本与 `config/maker-version-policy.json` 的 `latest`
+保持一致。完整设计、安装与配置见 [DSH_PLUGIN.md](DSH_PLUGIN.md)，机制证据见
+[DSH_PLUGIN_RESEARCH.md](DSH_PLUGIN_RESEARCH.md)。
+
 ## 本地测试
 
 不要拉线上 npm 包。修改后在仓库内执行：
