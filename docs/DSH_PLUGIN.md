@@ -90,7 +90,8 @@ dsh plugin --profile web remove @taptap/dsh-maker
 ```
 
 > 与 L1 冲突：两者都占 `serverName: taptap-maker`。已用 L1（`taptap-maker install --ide dsh`）
-> 的用户要先删掉 `$DSH_HOME/cordis.patch.yml` 里的 `mcp-taptap-maker` 行，再装本插件。
+> 的用户先运行 `taptap-maker plugin inspect --client dsh --json` 检查，再用
+> `taptap-maker plugin migrate --client dsh --confirm --json` 结构化禁用旧注册，不能手改 YAML。
 
 ## 配置覆盖
 
@@ -136,9 +137,8 @@ dsh plugin --profile web remove @taptap/dsh-maker
 
 ## 版本与发布
 
-- `@taptap/maker` 依赖与 `config/maker-version-policy.json` 的 `latest` 保持一致；由
-  `src/__tests__/dshMakerManifest.test.ts` 在 `npm test` 里校验，升级 Maker 时若忘 bump 会直接
-  报红。
+- `@taptap/maker` 使用精确稳定版本；DSH 发布工作流会先通过 npm 校验该版本确实已发布，避免插件
+  依赖尚未包含 DSH 生命周期能力的旧 runtime。
 - `packages/dsh-maker/` 与 `docs/DSH_PLUGIN*.md` 已纳入 `scripts/release-scope.cjs` 的 maker
   归属，只改本插件的提交不会误触发主包发布。
 - 发布：从 `packages/dsh-maker/` 执行 `npm publish --access public`。

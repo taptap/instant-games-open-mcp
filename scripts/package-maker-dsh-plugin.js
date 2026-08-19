@@ -88,6 +88,7 @@ async function sha256(filePath) {
 }
 
 function createInstallMd(version, makerVersion) {
+  const releaseChannel = version.includes('-dev.') ? 'develop 预览版' : 'main 稳定版';
   return `# TapTap Maker DSH 插件安装（DeepSeek Harness）
 
 这是 TapTap Maker 的 **DeepSeek Harness（DSH）插件** 分发安装入口。
@@ -95,7 +96,7 @@ function createInstallMd(version, makerVersion) {
 - 插件包：\`@taptap/dsh-maker\`
 - 版本：\`${version}\`
 - 内置 Maker MCP 版本：\`${makerVersion}\`
-- 发布渠道：\`main 稳定版\`
+- 发布渠道：\`${releaseChannel}\`
 - 分发形态：npm tarball（\`dsh plugin add\` 直接安装，无需解压）
 
 ## 给安装 AI 的强制执行指令
@@ -124,10 +125,10 @@ function createInstallMd(version, makerVersion) {
    **不要手改 YAML、更不要只删 \`id\` 字段**（DSH 会给无 id 的行重新生成 id，旧 MCP 仍会启动）。
 
    迁移命令（\`<maker 版本>\` 取本页「内置 Maker MCP 版本」；本机已有 \`taptap-maker\` CLI 时去掉
-   \`npx -y @taptap/maker@<maker 版本> \` 前缀直接用）：
+   \`npx -y --package @taptap/maker@<maker 版本> \` 前缀直接用）：
 
-   - 检查：\`npx -y @taptap/maker@${makerVersion} taptap-maker plugin inspect --client dsh --json\`
-   - 状态为 \`active\` 时迁移：\`npx -y @taptap/maker@${makerVersion} taptap-maker plugin migrate --client dsh --confirm --json\`
+   - 检查：\`npx -y --package @taptap/maker@${makerVersion} taptap-maker plugin inspect --client dsh --json\`
+   - 状态为 \`active\` 时迁移：\`npx -y --package @taptap/maker@${makerVersion} taptap-maker plugin migrate --client dsh --confirm --json\`
    - 状态为 \`ambiguous\` 时必须停止安装并报告重复配置；\`not_found\` 时继续。
    - 迁移会保留备份和指纹，供失败回滚（\`plugin restore --client dsh --confirm\`）。
 

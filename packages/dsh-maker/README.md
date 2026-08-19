@@ -67,7 +67,8 @@ dsh --profile web --dump-config | grep -A 20 'mcp-taptap-maker\|taptap-maker'
   不要尝试读 `maker://*`。
 - 工程根 `AGENTS.md`（含 Maker 管理策略块）由 DSH 自动加载，无需额外操作。
 - 一次性初始化（登录 / 选 app / clone）走 `node "$DSH_TAPTAP_MAKER_BIN" init`（该变量由本插件
-  注入；若运行在未装本插件的客户端才退回 `npx -y @taptap/maker@<版本> taptap-maker init`）。
+  注入；若运行在未装本插件的客户端才退回
+  `npx -y --package @taptap/maker@<版本> taptap-maker init`）。
   高频开发循环（状态 / 构建 / 提交 / 预览）用 MCP 工具，不要重造 CLI/API。
 
 ## 配置（可选覆盖）

@@ -76,7 +76,10 @@ import {
 } from '../system/luaLsp.js';
 import { formatMakerSkillStatus } from './skill.js';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../versionCheck.js';
-import { resolveMakerPluginDistribution } from '../pluginDistribution.js';
+import {
+  formatMakerPluginUpdateAction,
+  resolveMakerPluginDistribution,
+} from '../pluginDistribution.js';
 import {
   formatMakerProjectInitializationStatus,
   inspectMakerProjectInitialization,
@@ -1472,18 +1475,22 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const targetDir = path.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
-  const prepared = await prepareMcpLauncher({ env, mode: mcpLauncherOption(parsed) });
-  if (!prepared.ok) {
-    writeMcpLauncherFailure(ctx, prepared);
-    return;
+  const pluginDistribution = resolveMakerPluginDistribution();
+  let installResults: ReturnType<typeof installMcpConfigs> = [];
+  if (!pluginDistribution) {
+    const prepared = await prepareMcpLauncher({ env, mode: mcpLauncherOption(parsed) });
+    if (!prepared.ok) {
+      writeMcpLauncherFailure(ctx, prepared);
+      return;
+    }
+    installResults = installMcpConfigs({
+      ides: ides.length > 0 ? ides : getDefaultMcpInstallIdes(),
+      env: makerMcpConfigEnvOption(parsed),
+      mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
+      launcher: prepared.launcher,
+      launcherEnv: prepared.launcherEnv,
+    });
   }
-  const installResults = installMcpConfigs({
-    ides: ides.length > 0 ? ides : getDefaultMcpInstallIdes(),
-    env: makerMcpConfigEnvOption(parsed),
-    mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
-    launcher: prepared.launcher,
-    launcherEnv: prepared.launcherEnv,
-  });
   const identify = identifyMakerProject({ cwd: targetDir });
   const agentsResult = identify.projectRoot
     ? updateMakerAgentsPolicy(identify.projectRoot)
@@ -1497,6 +1504,7 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     restart_required: false,
     apply_mode: 'next_mcp_start',
     current_session: 'preserved',
+    plugin_distribution: pluginDistribution?.id,
   };
   if (!payload.ok) {
     process.exitCode = 1;
@@ -1508,9 +1516,15 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 
   process.stdout.write(
     [
-      payload.ok ? 'TapTap Maker upgrade completed' : 'TapTap Maker upgrade completed with errors',
+      pluginDistribution
+        ? 'TapTap Maker project policy update completed'
+        : payload.ok
+          ? 'TapTap Maker upgrade completed'
+          : 'TapTap Maker upgrade completed with errors',
       '',
-      ...installResults.map((result) => result.message),
+      ...(pluginDistribution
+        ? [`✓ Standalone MCP registration unchanged (${pluginDistribution.displayName} plugin)`]
+        : installResults.map((result) => result.message)),
       '',
       agentsResult
         ? [
@@ -1522,8 +1536,12 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
           ].join('\n')
         : 'AGENTS.md managed policy skipped: current directory is not bound to a Maker project.',
       '',
-      'Current MCP session remains unchanged and continues using the existing version.',
-      'The updated package and AGENTS.md will take effect on the next MCP start or user-requested reconnect.',
+      pluginDistribution
+        ? formatMakerPluginUpdateAction(pluginDistribution)
+        : 'Current MCP session remains unchanged and continues using the existing version.',
+      pluginDistribution
+        ? 'The updated AGENTS.md policy is available to the current project.'
+        : 'The updated package and AGENTS.md will take effect on the next MCP start or user-requested reconnect.',
       '',
     ].join('\n')
   );

@@ -52,6 +52,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify Maker runtime is published
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAKER_VERSION="$(node -e "const manifest=require('./packages/dsh-maker/package.json'); process.stdout.write(manifest.dependencies['@taptap/maker'])")"
+          if [[ ! "$MAKER_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::DSH plugin must pin an exact stable @taptap/maker version."
+            exit 1
+          fi
+          if ! PUBLISHED_VERSION="$(npm view "@taptap/maker@${MAKER_VERSION}" version 2>/dev/null)"; then
+            echo "::error::Publish @taptap/maker@$MAKER_VERSION first, then retry the DSH plugin release."
+            exit 1
+          fi
+          if [[ "$PUBLISHED_VERSION" != "$MAKER_VERSION" ]]; then
+            echo "::error::Expected @taptap/maker@$MAKER_VERSION, npm returned $PUBLISHED_VERSION."
+            exit 1
+          fi
+
       - name: Read release identity
         id: version
         shell: bash

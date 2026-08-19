@@ -26,14 +26,14 @@ TapTap Maker 是 TapTap 小游戏的本地开发与构建闭环。本 skill 是�
 
 `taptap-maker` CLI 由本插件随包依赖的 `@taptap/maker` 提供，但 profile 的 `node_modules/.bin`
 不在会话 shell 的 PATH 上。插件通过 DSH shell-env 暴露了它的绝对路径
-`DSH_TAPTAP_MAKER_BIN`，一次性 CLI 操作（init / upgrade / mcp verify / mcp report）一律用：
+`DSH_TAPTAP_MAKER_BIN`，一次性 CLI 操作（init / agents update / mcp verify / mcp report）一律用：
 
 ```bash
 node "$DSH_TAPTAP_MAKER_BIN" <subcommand>
 ```
 
 跨平台且零网络。若该环境变量不存在（例如运行在未装本插件的其它客户端），才退回
-`npx -y @taptap/maker@<版本> taptap-maker <cmd>`（版本取本插件 `package.json` 里
+`npx -y --package @taptap/maker@<版本> taptap-maker <cmd>`（版本取本插件 `package.json` 里
 `@taptap/maker` 的依赖版本）。
 
 高频开发循环（状态 / 构建 / 提交 / 预览 / 素材）一律用 MCP 工具，不要为这些操作找 CLI。
@@ -46,7 +46,7 @@ node "$DSH_TAPTAP_MAKER_BIN" <subcommand>
 | clone / 下载 Maker 项目              | 走"初始化流程"（`init --skip-mcp-install`），不要直接索要 app_id                              |
 | 状态 / 是否就绪                      | 调 `maker_status_lite`（传 `target_dir`），再按 `AGENTS.md` 与 remote sync 提示处理           |
 | 升级 Maker 插件                      | 走 DSH 插件渠道：`dsh plugin --profile <profile> update @taptap/dsh-maker`，不跑独立 MCP 安装 |
-| 升级旧项目策略 / 工程 AGENTS 块      | 当前项目目录跑 `node "$DSH_TAPTAP_MAKER_BIN" upgrade`，不扫描无关 Maker 项目                  |
+| 升级旧项目策略 / 工程 AGENTS 块      | 跑 `node "$DSH_TAPTAP_MAKER_BIN" agents update --target-dir <当前游戏工程目录>`               |
 | 提交 / 推送 / 构建                   | 先检查本地 Git 状态与改动摘要，再调 `maker_build_current_directory`                           |
 | 拉取 / 更新                          | 先看本地改动；工作区有未提交内容时，先说明选项再拉取                                          |
 | 冲突 / 合并失败                      | 解释冲突原因、列出冲突文件、查看冲突 hunk、给出方案并询问后再改                               |

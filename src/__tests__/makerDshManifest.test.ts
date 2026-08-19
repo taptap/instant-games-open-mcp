@@ -23,10 +23,19 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(manifest.dsh.bundle.patch).toBe('./cordis.patch.yml');
   });
 
-  it('pins @taptap/maker to the exact maker version policy (no drift)', () => {
+  it('pins @taptap/maker to an exact stable version', () => {
     const manifest = readJson('packages/dsh-maker/package.json');
-    const policy = readJson('config/maker-version-policy.json');
-    expect(manifest.dependencies['@taptap/maker']).toBe(policy.latest);
+    expect(manifest.dependencies['@taptap/maker']).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it('gates DSH releases on the exact Maker runtime being published first', () => {
+    const workflow = readFileSync(
+      join(REPO_ROOT, '.github', 'workflows', 'publish-dsh-maker-plugin.yml'),
+      'utf8'
+    );
+    expect(workflow).toContain("manifest.dependencies['@taptap/maker']");
+    expect(workflow).toContain('npm view "@taptap/maker@${MAKER_VERSION}" version');
+    expect(workflow).toContain('Publish @taptap/maker@$MAKER_VERSION first');
   });
 
   it('declares the DSH rc.6 peer surface', () => {
@@ -63,5 +72,45 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(source).toMatch(/const __dirname = path\.dirname\(fileURLToPath\(import\.meta\.url\)\)/);
     expect(source).toMatch(/const PACKAGE_ROOT = path\.dirname\(__dirname\)/);
     expect(source).toMatch(/bundledSkillDir: path\.join\(PACKAGE_ROOT, 'skills'\)/);
+  });
+
+  it('exports the DSH distribution identity to bundled CLI invocations', () => {
+    const source = readFileSync(
+      join(REPO_ROOT, 'packages', 'dsh-maker', 'lib', 'index.js'),
+      'utf8'
+    );
+    expect(source).toContain("TAPTAP_MAKER_DISTRIBUTION: 'dsh_plugin'");
+    expect(source).toContain("TAPTAP_MCP_CLIENT_IDE: 'dsh'");
+    expect(source).toMatch(
+      /resolve\(\) \{[\s\S]*DSH_TAPTAP_MAKER_BIN:[\s\S]*TAPTAP_MAKER_DISTRIBUTION/s
+    );
+  });
+
+  it('uses the package-explicit npx fallback and an isolated project policy update', () => {
+    const skill = readFileSync(
+      join(REPO_ROOT, 'packages', 'dsh-maker', 'skills', 'taptap-maker-dsh', 'SKILL.md'),
+      'utf8'
+    );
+    const packageScript = readFileSync(
+      join(REPO_ROOT, 'scripts', 'package-maker-dsh-plugin.js'),
+      'utf8'
+    );
+    for (const content of [skill, packageScript]) {
+      expect(content).toContain('npx -y --package @taptap/maker@');
+      expect(content).not.toMatch(/npx -y @taptap\/maker@[^\s`]+ taptap-maker/);
+    }
+    expect(skill).toContain('agents update --target-dir');
+    expect(skill).not.toContain('"$DSH_TAPTAP_MAKER_BIN" upgrade');
+  });
+
+  it('labels generated install guides from the actual release version', () => {
+    const packageScript = readFileSync(
+      join(REPO_ROOT, 'scripts', 'package-maker-dsh-plugin.js'),
+      'utf8'
+    );
+    expect(packageScript).toContain("version.includes('-dev.')");
+    expect(packageScript).toContain('develop 预览版');
+    expect(packageScript).toContain('main 稳定版');
+    expect(packageScript).toContain('- 发布渠道：\\`${releaseChannel}\\`');
   });
 });
