@@ -120,8 +120,7 @@ DSH bundle。
 不经过 `scripts/package-maker-client-plugins.js`，也不属于 `config/maker-plugin-version.json`
 的插件版本线；它精确锁定包含所需 DSH 生命周期能力的 `@taptap/maker` 版本，develop 可先使用
 Maker beta 验证，main 只能使用稳定 Maker。发布工作流会先确认该版本已发布到 npm。完整设计、
-安装与配置见 [DSH_PLUGIN.md](DSH_PLUGIN.md)，机制证据见
-[DSH_PLUGIN_RESEARCH.md](DSH_PLUGIN_RESEARCH.md)。
+安装与配置见 [DSH_PLUGIN.md](DSH_PLUGIN.md)。
 
 ## 本地测试
 

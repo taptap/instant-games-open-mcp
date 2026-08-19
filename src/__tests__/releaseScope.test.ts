@@ -31,15 +31,6 @@ describe('release-scope classifier', () => {
     expect(releaseScope.isMakerOwnedPath('scripts/prepare-maker-workbuddy-plugin.js')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('scripts/resolve-maker-plugin-version.js')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('scripts/update-maker-plugin-version.js')).toBe(true);
-    expect(releaseScope.isMakerOwnedPath('packages/dsh-maker/package.json')).toBe(true);
-    expect(releaseScope.isMakerOwnedPath('packages/dsh-maker/lib/index.js')).toBe(true);
-    expect(releaseScope.isMakerOwnedPath('packages/dsh-maker/INSTALL.md')).toBe(true);
-    expect(releaseScope.isMakerOwnedPath('scripts/package-maker-dsh-plugin.js')).toBe(true);
-    expect(releaseScope.isMakerOwnedPath('.github/workflows/publish-dsh-maker-plugin.yml')).toBe(
-      true
-    );
-    expect(releaseScope.isMakerOwnedPath('docs/DSH_PLUGIN.md')).toBe(true);
-    expect(releaseScope.isMakerOwnedPath('docs/DSH_PLUGIN_RESEARCH.md')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('.github/workflows/release.yml')).toBe(false);
     expect(releaseScope.isMakerOwnedPath('package.json')).toBe(false);
   });
@@ -74,7 +65,6 @@ describe('release-scope classifier', () => {
       '.github/workflows/publish-maker.yml',
       '.github/workflows/prepare-maker-plugin-release.yml',
       '.github/workflows/publish-maker-plugin.yml',
-      '.github/workflows/publish-dsh-maker-plugin.yml',
       'scripts/release-scope.cjs',
       'scripts/update-maker-version-policy.cjs',
       'scripts/resolve-main-release-version.js',

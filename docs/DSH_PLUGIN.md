@@ -9,8 +9,7 @@
 | **L2** | bundle 插件 | `packages/dsh-maker/`（npm 包 `@taptap/dsh-maker`） | MCP + 技能打包，`dsh plugin add` 一键安装，自包含、可分发                                |
 
 本文档说明 **L2 插件**。L1 的实现与配置细节见
-[`docs/MAKER.md`](MAKER.md) 的 DSH 章节，底层机制证据见
-[`docs/DSH_PLUGIN_RESEARCH.md`](DSH_PLUGIN_RESEARCH.md)。
+[`docs/MAKER.md`](MAKER.md) 的 DSH 章节。
 
 ## 为什么是 bundle（而不是手写 patch 或原生工具）
 
@@ -126,9 +125,9 @@ dsh plugin --profile web remove @taptap/dsh-maker
   安装步骤、排障与回滚）。
 - **产物**：`npm run maker:dsh-plugin:package` 生成 `taptap-dsh-maker-<version>.tgz`、
   `SHA256SUMS`、`INSTALL.md`、`dsh-maker-release.json` 到 `artifacts/dsh-maker/`。
-- **发版**：`.github/workflows/publish-dsh-maker-plugin.yml` 在 `packages/dsh-maker/package.json`
-  版本 bump 合入 main 后（或手动触发），创建 tag `dsh-maker-v<version>` 的 GitHub Release，把
-  tarball、`SHA256SUMS` 上传为附件，`INSTALL.md` 作为 Release 说明。
+- **发版**：只手动运行 `.github/workflows/publish-dsh-maker-plugin.yml`。选择 `develop` 发布预览版，
+  选择 `main` 发布稳定版；工作流创建 tag `dsh-maker-v<version>` 的 GitHub Release，把 tarball、
+  `SHA256SUMS` 上传为附件，`INSTALL.md` 作为 Release 说明。
 
 本地（未发版）分发：跑一次 `npm run maker:dsh-plugin:package`，把 `taptap-dsh-maker-<version>.tgz`
 
@@ -140,7 +139,7 @@ dsh plugin --profile web remove @taptap/dsh-maker
 - `@taptap/maker` 使用精确版本；手动从 develop 发布预览版时可通过 `maker_version` 输入指定精确
   beta runtime，main 稳定版只读取清单中的稳定 runtime。工作流会先通过 npm 校验该版本确实已
   发布，避免安装时依赖不存在。
-- `packages/dsh-maker/` 与 `docs/DSH_PLUGIN*.md` 已纳入 `scripts/release-scope.cjs` 的 maker
+- `packages/dsh-maker/` 与 `docs/DSH_PLUGIN.md` 已纳入 `scripts/release-scope.cjs` 的 maker
   归属，只改本插件的提交不会误触发主包发布。
 - 发布：从 `packages/dsh-maker/` 执行 `npm publish --access public`。
 - 接入 DSH 插件市场：本包已保持标准 bundle 形态 + `assets/taptap-maker.png` 图标，市场开放后
@@ -148,5 +147,4 @@ dsh plugin --profile web remove @taptap/dsh-maker
 
 ## 相关文档
 
-- 机制证据：[`docs/DSH_PLUGIN_RESEARCH.md`](DSH_PLUGIN_RESEARCH.md)
 - L1 配置：[`docs/MAKER.md`](MAKER.md)（DSH 章节）

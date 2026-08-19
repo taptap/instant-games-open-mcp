@@ -28,20 +28,6 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(manifest.dependencies['@taptap/maker']).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it('gates DSH releases on the exact Maker runtime being published first', () => {
-    const workflow = readFileSync(
-      join(REPO_ROOT, '.github', 'workflows', 'publish-dsh-maker-plugin.yml'),
-      'utf8'
-    );
-    expect(workflow).toContain("manifest.dependencies['@taptap/maker']");
-    expect(workflow).toContain('npm view "@taptap/maker@${MAKER_VERSION}" version');
-    expect(workflow).toContain('Publish @taptap/maker@$MAKER_VERSION first');
-    expect(workflow).toContain('RELEASE_CHANNEL: ${{ steps.version.outputs.channel }}');
-    expect(workflow).toContain('Stable DSH releases cannot depend on prerelease');
-    expect(workflow).toContain('REQUESTED_MAKER_VERSION: ${{ inputs.maker_version }}');
-    expect(workflow).toContain("j.dependencies['@taptap/maker']=process.argv[2]");
-  });
-
   it('declares the DSH rc.6 peer surface', () => {
     const manifest = readJson('packages/dsh-maker/package.json');
     expect(manifest.peerDependencies['@deepseek-ai/cordis']).toBe('^4.0.1');

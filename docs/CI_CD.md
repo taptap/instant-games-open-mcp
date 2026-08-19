@@ -138,9 +138,9 @@ Maker Beta 用于内部预览测试，走 `@taptap/maker@beta` dist-tag，不会
 不能包含 RND 凭证、内部账号 Token 或未公开的敏感配置。
 
 ```bash
-# 1. Maker 修复通过 PR 合并到 beta、develop 或 main
+# 1. Maker 修复通过 PR 合并到 beta 或 main
 # 2. 人工运行 Publish Maker Package workflow
-#    - Use workflow from: beta 或 develop
+#    - Use workflow from: beta
 #    - Version mode: auto-last-number
 #    - tag: beta
 #    - version 留空
@@ -366,10 +366,9 @@ npx commitlint --from HEAD~1 --to HEAD
 - 旧包 semantic-release 分析、CHANGELOG 和 GitHub Release notes 会过滤 Maker-only commits。
 - workflow 默认使用 `auto-last-number`，通常只需要选择分支和 dist-tag 后直接运行。
 - 手动版本号只在需要指定版本时填写。
-- Maker 稳定包只能从 `main` 发布；prerelease 可从 `beta` 或 `develop` 发布；`fix/*` 分支只用于
-  提交 PR，不作为发版来源。
-- 自动稳定版本号只允许在 `main` 运行；自动 prerelease 版本号允许在 `beta`、`develop` 或
-  `main` 运行。
+- Maker 包只能从长期发布分支 `beta` 或 `main` 发布；`fix/*` 分支只用于提交 PR，
+  不作为发版来源。
+- 自动版本号只允许在 `beta` 或 `main` 分支上运行。
 - `tag=latest` 自动递增稳定 patch，例如 `0.0.16` → `0.0.17`。
 - `tag=beta`、`tag=alpha` 和 `tag=next` 自动发布 prerelease，例如最高稳定版本为
   `0.0.16` 时发布 `0.0.17-beta.1`，后续同一条线发布 `0.0.17-beta.2`。
@@ -390,14 +389,13 @@ npx commitlint --from HEAD~1 --to HEAD
   `fix(maker): repair local build`，便于审查和日报周报追踪。
 - PR 可以同时整理 root `README.md` 中的 Maker 对外使用说明；这不会自动触发主包发布。
 - 发布边界由手动 workflow 控制：主包只能从 `main` 运行
-  `.github/workflows/release.yml`；Maker 稳定包只能从 `main` 发布，Maker prerelease 可从
-  `main`、`beta` 或 `develop` 运行 `.github/workflows/publish-maker.yml`。
+  `.github/workflows/release.yml`，Maker 包只能从 `main` 或 `beta` 运行
+  `.github/workflows/publish-maker.yml`。
 - `package.json`、`.releaserc.cjs` 和 release workflow 等共享发布配置仍建议单独 PR，
   但该限制作为团队流程要求，不再由 PR Check 自动拦截。
 
-Maker 包版本号使用 semver。CI 自动递增可在 `main` 使用稳定或 prerelease tag，在 `beta` 或
-`develop` 只能使用 prerelease tag。`auto-last-number` 的 `tag=latest` 发布稳定三段版本；
-`tag=beta`、`tag=alpha` 和
+Maker 包版本号使用 semver。CI 自动递增默认在 `beta` 或 `main` 分支使用
+`auto-last-number`：`tag=latest` 发布稳定三段版本；`tag=beta`、`tag=alpha` 和
 `tag=next` 发布 prerelease 版本。如果最高稳定版本为 `0.0.16`，下一次 beta 自动发布
 `0.0.17-beta.1`，后续同一条线递增为 `0.0.17-beta.2`；正式发布再使用稳定三段版本
 `0.0.17` 和 `tag=latest`。手动发布如果要改变 major 或 minor，CI 会在预检 job 的

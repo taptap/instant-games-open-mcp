@@ -91,9 +91,7 @@ describe('Maker publish version policy', () => {
     });
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain(
-      'auto-last-number mode is only allowed from main, beta, develop'
-    );
+    expect(result.stderr).toContain('auto-last-number mode is only allowed from main or beta');
   });
 
   it('rejects manual publish from short-lived fix branches', () => {
@@ -147,32 +145,6 @@ describe('Maker publish version policy', () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.6');
-  });
-
-  it('allows prerelease auto publishing from develop', () => {
-    const fakeBin = createFakeNpm('0.0.30-beta.3', ['0.0.30', '0.0.30-beta.3']);
-    const result = runResolver({
-      PATH: fakeBin,
-      MAKER_VERSION_MODE: 'auto-last-number',
-      MAKER_NPM_TAG: 'beta',
-      GITHUB_REF_NAME: 'develop',
-    });
-
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain('Resolved @taptap/maker version: 0.0.31-beta.1');
-  });
-
-  it('rejects stable publishing from develop', () => {
-    const fakeBin = createFakeNpm('0.0.30', ['0.0.30']);
-    const result = runResolver({
-      PATH: fakeBin,
-      MAKER_VERSION_MODE: 'auto-last-number',
-      MAKER_NPM_TAG: 'latest',
-      GITHUB_REF_NAME: 'develop',
-    });
-
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain('develop can only publish prerelease tags');
   });
 
   it('publishes the stable version after beta prereleases without skipping the patch', () => {
