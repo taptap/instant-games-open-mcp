@@ -18,9 +18,12 @@ DSH bundle。两者不要同时启用，避免同 `serverName` 冲突。已用 L
 Maker CLI 的结构化命令检查并迁移旧注册：
 
 ```bash
-npx -y --package @taptap/maker@0.0.31 taptap-maker plugin inspect --client dsh --json
-npx -y --package @taptap/maker@0.0.31 taptap-maker plugin migrate --client dsh --confirm --json
+npx -y --package @taptap/maker@<maker-version> taptap-maker plugin inspect --client dsh --json
+npx -y --package @taptap/maker@<maker-version> taptap-maker plugin migrate --client dsh --confirm --json
 ```
+
+`<maker-version>` 使用本包 `package.json` 中 `dependencies["@taptap/maker"]` 的精确值；通过 GitHub
+Release 安装时直接执行 Release `INSTALL.md` 中已写入对应版本的命令。
 
 ## 安装
 
@@ -118,9 +121,9 @@ dsh plugin --profile web remove @taptap/dsh-maker
 
 - 依赖 `@deepseek-ai/cordis ^4.0.1` 及配套 `@deepseek-ai/dsh-mcp-client` /
   `dsh-skill-filesystem` / `dsh-shell-env`（`^0.1.0-rc.6`，peer 锁定，随 DSH rc 版本同步升级）。
-- Maker MCP 由随包依赖的 `@taptap/maker` 提供（当前精确固定为 `0.0.31`，与仓库
-  `config/maker-version-policy.json` 的 `latest` 一致）。升级 Maker 时同步 bump 本包的
-  `@taptap/maker` 依赖并随插件发版。
+- Maker MCP 由随包依赖的 `@taptap/maker` 提供；精确版本以本包 `package.json` 的依赖值为准，并与
+  仓库 `config/maker-version-policy.json` 的对应渠道一致。升级 Maker 时同步 bump 本包依赖并随
+  插件发版。
 
 ## 发布与市场
 
