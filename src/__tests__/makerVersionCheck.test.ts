@@ -26,6 +26,7 @@ describe('maker package version check', () => {
 
   const originalMakerHome = process.env.TAPTAP_MAKER_HOME;
   const originalPolicyUrl = process.env.TAPTAP_MAKER_VERSION_POLICY_URL;
+  const originalDistribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
 
   let tempDir: string;
 
@@ -38,6 +39,40 @@ describe('maker package version check', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
     restoreEnv('TAPTAP_MAKER_HOME', originalMakerHome);
     restoreEnv('TAPTAP_MAKER_VERSION_POLICY_URL', originalPolicyUrl);
+    restoreEnv('TAPTAP_MAKER_DISTRIBUTION', originalDistribution);
+  });
+
+  test('treats any non-empty distribution as plugin-managed without checking for updates', async () => {
+    process.env.TAPTAP_MAKER_DISTRIBUTION = 'cindy_plugin';
+    const cachePath = getCachePath();
+    writeCache({
+      checked_at: '2026-06-23T00:00:00.000Z',
+      policy_url: 'https://example.com/policy.json',
+      policy,
+      decision: {
+        status: 'required_upgrade',
+        current_version: '0.0.5',
+        target_version: '0.0.8',
+      },
+    });
+    const fetchImpl = jest.fn<typeof fetch>(async () => jsonResponse(policy));
+
+    const status = await getMakerPackageUpdateStatus({
+      currentVersion: '0.0.5',
+      fetchImpl,
+      policyUrl: 'https://example.com/policy.json',
+    });
+
+    expect(status).toEqual({
+      status: 'managed_by_plugin',
+      current_version: '0.0.5',
+      restart_required: false,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(formatMakerPackageUpdateStatus(status)).not.toMatch(
+      /target_version|update_available|required_upgrade|next_action/u
+    );
+    expect(fs.existsSync(cachePath)).toBe(true);
   });
 
   test('decides required and optional updates with stable beta and dev rules', () => {

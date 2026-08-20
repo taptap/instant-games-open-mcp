@@ -1097,7 +1097,7 @@ export async function formatStatus(
     packageUpdateStatus.target_version
       ? `- target_version: ${packageUpdateStatus.target_version}`
       : '',
-    pluginDistribution
+    pluginDistribution && packageUpdateStatus.status !== 'managed_by_plugin'
       ? `- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}`
       : packageUpdateStatus.next_action
         ? `- next_action: ${packageUpdateStatus.next_action}`
@@ -1220,11 +1220,14 @@ function formatMakerPackageUpdateStatusForDistribution(
   if (!pluginDistribution) {
     return formatted;
   }
-  return [
+  const lines = [
     ...formatted.split('\n').filter((line) => !line.startsWith('- next_action:')),
     `- distribution: ${pluginDistribution.id}`,
-    `- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}`,
-  ].join('\n');
+  ];
+  if (status.status !== 'managed_by_plugin') {
+    lines.push(`- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}`);
+  }
+  return lines.join('\n');
 }
 
 function formatAuthNextStep(options: {

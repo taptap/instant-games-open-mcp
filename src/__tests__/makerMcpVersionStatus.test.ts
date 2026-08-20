@@ -162,9 +162,20 @@ jest.mock('../maker/cli/devKit', () => ({
 }));
 
 describe('maker MCP version status integration', () => {
+  const originalDistribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
+
   beforeEach(() => {
     mockServers.length = 0;
     jest.clearAllMocks();
+    delete process.env.TAPTAP_MAKER_DISTRIBUTION;
+  });
+
+  afterEach(() => {
+    if (originalDistribution === undefined) {
+      delete process.env.TAPTAP_MAKER_DISTRIBUTION;
+    } else {
+      process.env.TAPTAP_MAKER_DISTRIBUTION = originalDistribution;
+    }
   });
 
   test('starts package update check on MCP startup and includes update status in maker_status_lite', async () => {
@@ -224,6 +235,48 @@ describe('maker MCP version status integration', () => {
       allowRemoteFetch: false,
       backgroundRefresh: false,
     });
+  });
+
+  test('does not add an update action when a plugin distribution manages the package', async () => {
+    process.env.TAPTAP_MAKER_DISTRIBUTION = 'codex_plugin';
+    const versionCheck = await import('../maker/versionCheck');
+    jest.mocked(versionCheck.getMakerPackageUpdateStatus).mockResolvedValue({
+      status: 'managed_by_plugin',
+      current_version: '0.0.30',
+      restart_required: false,
+    });
+    jest
+      .mocked(versionCheck.formatMakerPackageUpdateStatus)
+      .mockReturnValue(
+        [
+          'Maker MCP package update',
+          '',
+          '- status: managed_by_plugin',
+          '- current_version: 0.0.30',
+        ].join('\n')
+      );
+    const { startMakerMcpServer } = await import('../maker/server/mcp');
+    const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+
+    await startMakerMcpServer();
+    const handler = mockServers[0].handlers.get(CallToolRequestSchema);
+    const result = await handler(
+      {
+        params: {
+          name: 'maker_status_lite',
+          arguments: {
+            target_dir: '/tmp/maker-project',
+            skip_remote_sync: true,
+            detail: true,
+          },
+        },
+      },
+      {}
+    );
+
+    expect(result.content[0].text).toContain('- status: managed_by_plugin');
+    expect(result.content[0].text).not.toContain('- target_version:');
+    expect(result.content[0].text).not.toContain('Update the installed Codex plugin');
   });
 
   test('marks a blocked Maker submission as a tool error', async () => {
