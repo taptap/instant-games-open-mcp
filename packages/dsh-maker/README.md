@@ -14,21 +14,28 @@ DeepSeek Harness（DSH）插件：把 [TapTap Maker](https://github.com/taptap/i
 本插件是仓库 DSH 集成的 **L2 形态**（bundle 插件）。它叠加在已内置的
 **L1 形态**（`taptap-maker install --ide dsh` 写入 `$DSH_HOME/cordis.patch.yml`）之上：
 L1 只注册一个裸的 Maker MCP；本插件则把 **MCP + 技能** 打包成可分发、可一键安装、可 HMR 的
-DSH bundle。两者不要同时启用，避免同 `serverName` 冲突——已用 L1 时，先删掉那条
-`mcp-taptap-maker` patch 行再装本插件。
+DSH bundle。两者不要同时启用，避免同 `serverName` 冲突。已用 L1 时，不要手改 YAML；安装前用
+Maker CLI 的结构化命令检查并迁移旧注册：
+
+```bash
+npx -y --package @taptap/maker@0.0.31 taptap-maker plugin inspect --client dsh --json
+npx -y --package @taptap/maker@0.0.31 taptap-maker plugin migrate --client dsh --confirm --json
+```
 
 ## 安装
 
 前置：已安装 DSH（`dsh` 命令）与 [pnpm](https://pnpm.io/)。
 
 ```bash
-dsh plugin --profile web add @taptap/dsh-maker
+dsh plugin --profile web add \
+  'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'
 ```
 
 headless profile 同理：
 
 ```bash
-dsh plugin --profile headless add @taptap/dsh-maker
+dsh plugin --profile headless add \
+  'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'
 ```
 
 DSH 会热重载该 patch，无需重启。验证：
@@ -101,18 +108,20 @@ dsh plugin --profile web remove @taptap/dsh-maker
 | 工具列表没有 `mcp__taptap-maker__*`  | `dsh --profile web --dump-config` 确认 patch 合成；看 DSH 日志里的 `mcp-client(taptap-maker)` 重连信息 |
 | 工具调用约 60s 超时                  | 确认生效的是本插件的 1h 超时配置，而非旧的裸 `npx` 行                                                  |
 | 广告/云存档等接口用错                | 触发 `taptap-ads`/`taptap-cloud-save` 等技能，读工程内 `engine-docs`，不要网上搜索                     |
-| 与 L1 同时存在导致 `serverName` 冲突 | 移除 `$DSH_HOME/cordis.patch.yml` 里 L1 写入的 `mcp-taptap-maker` 行，只保留本插件                     |
+| 与 L1 同时存在导致 `serverName` 冲突 | 运行 `plugin inspect --client dsh` 检查，再用 `plugin migrate --client dsh --confirm` 结构化禁用旧注册 |
 
 ## 版本兼容
 
 - 依赖 `@deepseek-ai/cordis ^4.0.1` 及配套 `@deepseek-ai/dsh-mcp-client` /
   `dsh-skill-filesystem` / `dsh-shell-env`（`^0.1.0-rc.6`，peer 锁定，随 DSH rc 版本同步升级）。
-- Maker MCP 由随包依赖的 `@taptap/maker` 提供（当前钉 `^0.0.30`，与仓库
+- Maker MCP 由随包依赖的 `@taptap/maker` 提供（当前精确固定为 `0.0.31`，与仓库
   `config/maker-version-policy.json` 的 `latest` 一致）。升级 Maker 时同步 bump 本包的
   `@taptap/maker` 依赖并随插件发版。
 
 ## 发布与市场
 
-- npm 发布：`npm publish --access public`（从 `packages/dsh-maker/`）。
-- 对外仓库链接在 `package.json.repository`；接入 DSH 插件市场时按市场规范补充入口字段即可
-  （本包已保持标准 bundle 形态）。
+- 正式包由仓库的 `Publish DSH Maker Plugin` workflow 发布到 GitHub Release，不单独发布
+  `@taptap/dsh-maker` npm 包。
+- 1024Store 使用 GitHub 子目录源
+  `github:taptap/instant-games-open-mcp#path:packages/dsh-maker` 安装；对外仓库链接在
+  `package.json.repository`。
