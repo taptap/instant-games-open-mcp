@@ -104,8 +104,6 @@ dsh plugin --profile web remove @taptap/dsh-maker
       serverName: taptap-maker # 默认 taptap-maker
       toolCallTimeoutMs: 3600000 # 默认 1 小时
       failOnStartupError: false # 默认 false
-      env: # 合并进子进程环境（凭证类放这里）
-        TAPTAP_MCP_ENV: production
       cwd: '' # 默认不写（项目无关）
 ```
 
@@ -135,10 +133,9 @@ DSH 插件有两条互补的分发入口：
   选择 `main` 发布稳定版；工作流创建 tag `dsh-maker-v<version>` 的 GitHub Release，把 tarball、
   `SHA256SUMS` 上传为附件，`INSTALL.md` 作为 Release 说明。
 
-本地（未发版）分发：跑一次 `npm run maker:dsh-plugin:package`，把 `taptap-dsh-maker-<version>.tgz`
-
-- `SHA256SUMS` 交给测试用户，用户（或其 AI）执行
-  `dsh plugin --profile web add <tarball绝对路径>` 即可。
+本地（未发版）分发：跑一次 `npm run maker:dsh-plugin:package`，把
+`taptap-dsh-maker-<version>.tgz` 和 `SHA256SUMS` 交给测试用户，用户（或其 AI）执行
+`dsh plugin --profile web add <tarball绝对路径>` 即可。
 
 ## 版本与发布
 

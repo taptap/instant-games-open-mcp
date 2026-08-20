@@ -9,10 +9,10 @@ DeepSeek Harness（DSH）插件：把 [TapTap Maker](https://github.com/taptap/i
 2. **Maker 技能**：工作流 + 常用功能指南（广告 / 云存档 / 排行榜），并内置“以工程内
    `engine-docs` 为准、禁止网上搜错文档”的防错引导；
 3. **可发现的 CLI 路径**：环境变量 `DSH_TAPTAP_MAKER_BIN` 指向随包 `@taptap/maker` 的 CLI，
-   一次性 `init`/`upgrade`/`mcp report` 用 `node "$DSH_TAPTAP_MAKER_BIN" <cmd>` 零网络执行。
+   一次性 `init`/`agents update`/`mcp report` 用 `node "$DSH_TAPTAP_MAKER_BIN" <cmd>` 零网络执行。
 
-本插件是仓库 DSH 集成的 **L2 形态**（bundle 插件）。它叠加在已内置的
-**L1 形态**（`taptap-maker install --ide dsh` 写入 `$DSH_HOME/cordis.patch.yml`）之上：
+本插件是仓库 DSH 集成的 **L2 形态**（bundle 插件）。它区别于已有的
+**L1 形态**（`taptap-maker install --ide dsh` 写入 `$DSH_HOME/cordis.patch.yml`）：
 L1 只注册一个裸的 Maker MCP；本插件则把 **MCP + 技能** 打包成可分发、可一键安装、可 HMR 的
 DSH bundle。两者不要同时启用，避免同 `serverName` 冲突。已用 L1 时，不要手改 YAML；安装前用
 Maker CLI 的结构化命令检查并迁移旧注册：
@@ -96,8 +96,6 @@ dsh --profile web --dump-config | grep -A 20 'mcp-taptap-maker\|taptap-maker'
       serverName: taptap-maker # 默认 taptap-maker
       toolCallTimeoutMs: 3600000 # 默认 1 小时
       failOnStartupError: false # 默认 false：技能不受 MCP 启动失败影响，重连自愈
-      env: # 合并进子进程环境（凭证类放这里）
-        TAPTAP_MCP_ENV: production
       cwd: '' # 默认不写（保持项目无关）
 ```
 
