@@ -3612,7 +3612,7 @@ describe('maker build local-change guard', () => {
     }
   });
 
-  test('Codex plugin status directs upgrades to the plugin instead of standalone npm', async () => {
+  test('Codex plugin status does not prompt for package or plugin updates', async () => {
     process.env.TAPTAP_MAKER_DISTRIBUTION = 'codex_plugin';
 
     const summary = await formatStatus({ targetDir: tempDir });
@@ -3620,12 +3620,14 @@ describe('maker build local-change guard', () => {
 
     for (const output of [summary, detail]) {
       expect(output).toContain('- distribution: codex_plugin');
-      expect(output).toContain('Update the installed Codex plugin');
+      expect(output).toContain('- status: managed_by_plugin');
+      expect(output).not.toContain('- next_action: Update the installed Codex plugin');
+      expect(output).not.toContain('- target_version:');
       expect(output).not.toContain('npx -y -p @taptap/maker');
     }
   });
 
-  test('WorkBuddy plugin status directs upgrades to WorkBuddy instead of standalone npm', async () => {
+  test('WorkBuddy plugin status does not prompt for package or plugin updates', async () => {
     process.env.TAPTAP_MAKER_DISTRIBUTION = 'workbuddy_plugin';
 
     const summary = await formatStatus({ targetDir: tempDir });
@@ -3633,8 +3635,10 @@ describe('maker build local-change guard', () => {
 
     for (const output of [summary, detail]) {
       expect(output).toContain('- distribution: workbuddy_plugin');
-      expect(output).toContain('Update the installed WorkBuddy plugin');
-      expect(output).not.toContain('Update the installed Codex plugin');
+      expect(output).toContain('- status: managed_by_plugin');
+      expect(output).not.toContain('- next_action: Update the installed WorkBuddy plugin');
+      expect(output).not.toContain('- next_action: Update the installed Codex plugin');
+      expect(output).not.toContain('- target_version:');
       expect(output).not.toContain('npx -y -p @taptap/maker');
     }
   });

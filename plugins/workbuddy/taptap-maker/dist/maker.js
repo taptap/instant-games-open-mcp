@@ -39686,6 +39686,9 @@ import path11 from "node:path";
 import { fileURLToPath } from "node:url";
 
 // src/maker/pluginDistribution.ts
+function hasMakerPluginDistribution(distribution = process.env.TAPTAP_MAKER_DISTRIBUTION) {
+  return Boolean(distribution == null ? void 0 : distribution.trim());
+}
 function resolveMakerPluginDistribution(distribution = process.env.TAPTAP_MAKER_DISTRIBUTION) {
   if (distribution === "codex_plugin") {
     return { id: distribution, client: "codex", displayName: "Codex" };
@@ -40275,6 +40278,9 @@ function decideMakerPackageUpdate(currentVersion, policy) {
 async function checkMakerPackageUpdate(options) {
   const now = options.now ?? /* @__PURE__ */ new Date();
   const currentVersion = options.currentVersion;
+  if (hasMakerPluginDistribution()) {
+    return buildPluginManagedStatus(currentVersion);
+  }
   if (currentVersion === "dev") {
     return {
       status: "skipped",
@@ -40333,6 +40339,9 @@ async function checkMakerPackageUpdate(options) {
 async function getMakerPackageUpdateStatus(options) {
   var _a3, _b;
   const currentVersion = options.currentVersion;
+  if (hasMakerPluginDistribution()) {
+    return buildPluginManagedStatus(currentVersion);
+  }
   if (currentVersion === "dev") {
     return {
       status: "skipped",
@@ -40384,6 +40393,9 @@ async function getMakerPackageUpdateStatus(options) {
 }
 var backgroundCheck;
 function startMakerPackageUpdateCheck(options) {
+  if (hasMakerPluginDistribution()) {
+    return;
+  }
   const key = `${options.currentVersion}
 ${resolvePolicyUrl(options.policyUrl)}`;
   if ((backgroundCheck == null ? void 0 : backgroundCheck.key) === key) {
@@ -40417,7 +40429,7 @@ function formatMakerPackageUpdateStatus(status) {
   }
   if (status.blacklist_match) {
     lines.push(`- blacklist_match: ${status.blacklist_match}`);
-  } else if (status.status !== "skipped") {
+  } else if (status.status !== "skipped" && status.status !== "managed_by_plugin") {
     lines.push("- blacklist_match: no");
   }
   if (status.checked_at) {
@@ -40445,6 +40457,13 @@ function formatMakerPackageUpdateStatus(status) {
     lines.push(`- restart_required: ${status.restart_required ? "yes" : "no"}`);
   }
   return lines.join("\n");
+}
+function buildPluginManagedStatus(currentVersion) {
+  return {
+    status: "managed_by_plugin",
+    current_version: currentVersion,
+    restart_required: false
+  };
 }
 function formatUnavailableNonBlockingError(previousError, backgroundRefresh) {
   if (backgroundRefresh) {
@@ -45462,7 +45481,7 @@ async function formatStatus(options = {}) {
     `- status: ${packageUpdateStatus.status}`,
     pluginDistribution ? `- distribution: ${pluginDistribution.id}` : "",
     packageUpdateStatus.target_version ? `- target_version: ${packageUpdateStatus.target_version}` : "",
-    pluginDistribution ? `- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}` : packageUpdateStatus.next_action ? `- next_action: ${packageUpdateStatus.next_action}` : "",
+    pluginDistribution && packageUpdateStatus.status !== "managed_by_plugin" ? `- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}` : packageUpdateStatus.next_action ? `- next_action: ${packageUpdateStatus.next_action}` : "",
     projectInitialization ? `- project_initialization: ${projectInitialization.status}` : "",
     projectHealth ? `- project_health: ${projectHealth.status}` : "",
     formatMakerClientRootsSummary(projectContext.roots),
@@ -45565,11 +45584,14 @@ function formatMakerPackageUpdateStatusForDistribution(status, distribution) {
   if (!pluginDistribution) {
     return formatted;
   }
-  return [
+  const lines = [
     ...formatted.split("\n").filter((line) => !line.startsWith("- next_action:")),
-    `- distribution: ${pluginDistribution.id}`,
-    `- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}`
-  ].join("\n");
+    `- distribution: ${pluginDistribution.id}`
+  ];
+  if (status.status !== "managed_by_plugin") {
+    lines.push(`- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}`);
+  }
+  return lines.join("\n");
 }
 function formatAuthNextStep(options) {
   if (!options.hasTapAuth) {

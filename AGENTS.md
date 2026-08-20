@@ -365,6 +365,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 客户端专属源文件必须放在 `plugin-sources/taptap-maker/<client>/`；生成产物必须按客户端隔离。
   不得把 WorkBuddy manifest、commands、Skills 或 MCP 配置写入 Codex 插件目录。新增客户端时复用
   `src/maker/` 的 runtime/CLI，不复制 Maker tools、resources 或 proxy 业务逻辑。
+- 插件 runtime 必须设置非空的 `TAPTAP_MAKER_DISTRIBUTION`；任意非空值都表示由插件渠道管理，
+  Maker 不执行 npm 包版本检查或输出 npm 升级提示。具体值只用于识别 Codex、WorkBuddy、DSH 或
+  外部插件分发渠道；独立 Maker MCP 不设置该变量并保持现有 npm 更新策略。
 - 插件模式必须先按 `taptap-maker-plugin-lifecycle` 检查对应客户端的旧 Maker MCP。Codex 安装请求
   即授权自动迁移：安装前后都要检查，活动旧注册只写 `enabled = false`，无需再次确认；只有状态为
   `disabled` 或 `not_found` 才能报告插件可用，`ambiguous` 必须在安装前停止。WorkBuddy 同时检查
@@ -380,7 +383,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   Codex 插件产物必须使用插件专用 `update-taptap-mcp`，不得复制 npm 发行版的更新 Skill。旧 MCP
   restore 必须校验迁移注册指纹；插件模式故障上报只检查插件 `.mcp.json` 和当前 bundle，不能把
   已禁用的独立 `taptap-maker` 注册或物化 self runtime 当作插件运行证据。
-- Maker CLI-first 重构后的正式说明在 `docs/MAKER.md`；面向团队介绍的功能总览在 `docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`。上下文压缩或长时间中断后，先读这两份文档再继续。
+- Maker CLI-first 重构后的正式说明在 `docs/MAKER.md`；完整环境变量契约在
+  `docs/MAKER_ENVIRONMENT_VARIABLES.md`；面向团队介绍的功能总览在
+  `docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`。上下文压缩或长时间中断后，先读这些文档再继续。
 - 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，由该 CLI 展示 app 列表并让用户选择已有 app 或 `0`/`new`。只有用户明确说“创建/新建项目或游戏”时，才使用 `taptap-maker init --create`。
 - 如果本地没有当前环境的 Maker PAT，CLI 默认运行 CLI 登录：生成满足 `^[A-Za-z0-9_-]{16,128}$` 的临时 code，按需打开当前环境的 `/pat-tokens?code=<code>`，用户登录并点击“创建 token”后，CLI 轮询 `/api/v1/cli-auth/result?code=<code>`，拿到授权结果后完成本地鉴权配置。
 - Maker 鉴权文件必须沿用线上已发布版本的原始本地保存路径，不要新建环境子目录；不要在用户文档或普通用户说明里暴露具体凭证缓存路径。

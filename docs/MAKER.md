@@ -946,24 +946,11 @@ push
 
 ## 环境变量
 
-| 变量                                 | 说明                                              |
-| ------------------------------------ | ------------------------------------------------- |
-| `TAPTAP_MAKER_HOME`                  | 覆盖用户级 Maker 存储目录，默认 `~/.taptap-maker` |
-| `MAKER_PROJECT_ID`                   | MCP server 项目识别的环境变量覆盖                 |
-| `TAPTAP_MAKER_API_BASE`              | 可选：覆盖当前环境的 Maker 项目列表接口 base URL  |
-| `TAPTAP_MAKER_PAT_URL`               | 可选：覆盖当前环境的 Maker PAT 换取接口           |
-| `TAPTAP_MAKER_TAP_TOKEN_URL`         | 可选：覆盖当前环境的 PAT 获取 TapTap token 接口   |
-| `TAPTAP_MAKER_GIT_BASE`              | 可选：覆盖当前环境的 Maker git base URL           |
-| `TAPTAP_MAKER_REMOTE_MCP_SERVER_URL` | 可选：覆盖当前环境的远端 Maker MCP server URL     |
-| `TAPTAP_MAKER_WEB_URL`               | 可选：覆盖当前环境的 Maker 网页地址               |
-| `TAPTAP_MAKER_GIT_BIN`               | 可选：覆盖 Git 可执行文件路径                     |
-| `TAPTAP_MAKER_GIT_RETRY_DELAY_MS`    | 可选：覆盖 Git 临时错误重试基础延迟，默认 5000ms  |
-| `SCE_MCP_URL`                        | 云端 SCE MCP endpoint 默认值                      |
+完整清单、默认值、设置方、兼容变量、插件接入约束和新增规则统一维护在
+[Maker MCP 环境变量参考](MAKER_ENVIRONMENT_VARIABLES.md)。不要在其它文档复制环境变量表。
 
-Maker 后端默认地址集中在 `src/maker/config.ts`。兼容旧变量名：`MAKER_API_BASE`、
-`MAKER_PAT_URL`、`MAKER_TAP_TOKEN_URL`、`MAKER_GIT_BASE`、
-`TAPTAP_REMOTE_MCP_SERVER_URL`、`MAKER_WEB_URL`。新配置优先使用 `TAPTAP_MAKER_*`
-前缀。`TAPTAP_MAKER_REMOTE_MCP_SERVER_URL` 可覆盖当前环境的远端 Maker MCP server URL。
+关键边界：独立 Maker MCP 不设置 `TAPTAP_MAKER_DISTRIBUTION`；插件 runtime 必须设置非空分发
+标识。任意非空值都表示版本由插件渠道管理，Maker 不执行或提示 npm 包更新。
 
 ## CLI 登录联调
 

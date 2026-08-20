@@ -6,6 +6,12 @@ export type MakerPluginDistribution = {
   displayName: 'Codex' | 'WorkBuddy' | 'DSH';
 };
 
+export function hasMakerPluginDistribution(
+  distribution: string | undefined = process.env.TAPTAP_MAKER_DISTRIBUTION
+): boolean {
+  return Boolean(distribution?.trim());
+}
+
 export function resolveMakerPluginDistribution(
   distribution: string | undefined = process.env.TAPTAP_MAKER_DISTRIBUTION
 ): MakerPluginDistribution | undefined {
