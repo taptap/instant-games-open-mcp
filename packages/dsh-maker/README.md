@@ -96,6 +96,7 @@ dsh --profile web --dump-config | grep -A 20 'mcp-taptap-maker\|taptap-maker'
       serverName: taptap-maker # 默认 taptap-maker
       toolCallTimeoutMs: 3600000 # 默认 1 小时
       failOnStartupError: false # 默认 false：技能不受 MCP 启动失败影响，重连自愈
+      env: {} # 可选：合并进 MCP 子进程环境
       cwd: '' # 默认不写（保持项目无关）
 ```
 

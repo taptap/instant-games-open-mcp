@@ -104,6 +104,7 @@ dsh plugin --profile web remove @taptap/dsh-maker
       serverName: taptap-maker # 默认 taptap-maker
       toolCallTimeoutMs: 3600000 # 默认 1 小时
       failOnStartupError: false # 默认 false
+      env: {} # 可选：合并进 MCP 子进程环境
       cwd: '' # 默认不写（项目无关）
 ```
 
