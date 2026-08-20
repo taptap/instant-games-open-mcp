@@ -69,6 +69,7 @@ describe('maker build local-change guard', () => {
   const originalPat = process.env.PAT;
   const originalEnv = process.env.TAPTAP_MCP_ENV;
   const originalMakerWebUrl = process.env.TAPTAP_MAKER_WEB_URL;
+  const originalDistribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-build-local-changes-'));
@@ -113,6 +114,11 @@ describe('maker build local-change guard', () => {
       delete process.env.TAPTAP_MAKER_WEB_URL;
     } else {
       process.env.TAPTAP_MAKER_WEB_URL = originalMakerWebUrl;
+    }
+    if (originalDistribution === undefined) {
+      delete process.env.TAPTAP_MAKER_DISTRIBUTION;
+    } else {
+      process.env.TAPTAP_MAKER_DISTRIBUTION = originalDistribution;
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
@@ -3587,6 +3593,7 @@ describe('maker build local-change guard', () => {
   });
 
   test('status summary is concise while detail mode retains diagnostic sections', async () => {
+    delete process.env.TAPTAP_MAKER_DISTRIBUTION;
     const summary = await formatStatus({ targetDir: tempDir });
     const detail = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
 
@@ -3598,6 +3605,38 @@ describe('maker build local-change guard', () => {
     expect(summary).toContain('maker_build_current_directory');
     expect(detail).toContain('Maker remote sync');
     expect(detail).toContain('AI dev kit');
+    for (const output of [summary, detail]) {
+      expect(output).not.toContain('- distribution:');
+      expect(output).not.toContain('Update the installed Codex plugin');
+      expect(output).not.toContain('Update the installed WorkBuddy plugin');
+    }
+  });
+
+  test('Codex plugin status directs upgrades to the plugin instead of standalone npm', async () => {
+    process.env.TAPTAP_MAKER_DISTRIBUTION = 'codex_plugin';
+
+    const summary = await formatStatus({ targetDir: tempDir });
+    const detail = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
+
+    for (const output of [summary, detail]) {
+      expect(output).toContain('- distribution: codex_plugin');
+      expect(output).toContain('Update the installed Codex plugin');
+      expect(output).not.toContain('npx -y -p @taptap/maker');
+    }
+  });
+
+  test('WorkBuddy plugin status directs upgrades to WorkBuddy instead of standalone npm', async () => {
+    process.env.TAPTAP_MAKER_DISTRIBUTION = 'workbuddy_plugin';
+
+    const summary = await formatStatus({ targetDir: tempDir });
+    const detail = await formatStatus({ targetDir: tempDir, detail: true, skipRemoteSync: true });
+
+    for (const output of [summary, detail]) {
+      expect(output).toContain('- distribution: workbuddy_plugin');
+      expect(output).toContain('Update the installed WorkBuddy plugin');
+      expect(output).not.toContain('Update the installed Codex plugin');
+      expect(output).not.toContain('npx -y -p @taptap/maker');
+    }
   });
 
   test('status summary guides PAT-only projects to refresh Tap auth', async () => {

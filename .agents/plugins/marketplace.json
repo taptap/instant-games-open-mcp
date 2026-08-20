@@ -1,0 +1,20 @@
+{
+  "name": "taptap-maker",
+  "interface": {
+    "displayName": "TapTap Maker Plugins"
+  },
+  "plugins": [
+    {
+      "name": "taptap-maker",
+      "source": {
+        "source": "local",
+        "path": "./plugins/taptap-maker"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

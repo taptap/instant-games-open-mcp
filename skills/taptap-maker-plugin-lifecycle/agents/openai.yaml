@@ -1,0 +1,4 @@
+interface:
+  display_name: 'TapTap Maker Plugin Setup'
+  short_description: 'Manage Maker plugin migration and setup safely.'
+  default_prompt: 'Check my TapTap Maker plugin setup and continue safely.'

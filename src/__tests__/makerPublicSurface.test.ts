@@ -5,10 +5,91 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { formatMakerSkillStatus } from '../maker/cli/skill';
 
 const INTERNAL_ENVIRONMENT_PATTERN = /\brnd\b|xdrnd|TAPTAP_MCP_ENV|--env/iu;
 
 describe('Maker public documentation', () => {
+  test('documents the Codex legacy MCP check before plugin installation', () => {
+    const readme = fs.readFileSync(path.resolve('README.md'), 'utf8');
+
+    expect(readme).toContain('旧用户安装插件前');
+    expect(readme).not.toContain('旧用户安装插件后，先用插件内 CLI');
+  });
+
+  test('lists the generated install guide in every plugin release contract', () => {
+    for (const file of ['README.md', 'docs/MAKER.md', 'AGENTS.md']) {
+      const content = fs.readFileSync(path.resolve(file), 'utf8');
+      expect(content).toContain('`INSTALL.md`');
+    }
+  });
+
+  test('Codex plugin lifecycle skill defines safe migration and plugin-native initialization', () => {
+    const skillPath = path.resolve('skills/taptap-maker-plugin-lifecycle/SKILL.md');
+    expect(fs.existsSync(skillPath)).toBe(true);
+    const skill = fs.readFileSync(skillPath, 'utf8');
+
+    for (const expected of [
+      'taptap-maker plugin inspect --client codex --json',
+      'taptap-maker plugin migrate --client codex --confirm --json',
+      'taptap-maker plugin restore --client codex --confirm --json',
+      '--skip-mcp-install',
+      'enabled = false',
+      '${PLUGIN_ROOT}',
+    ]) {
+      expect(skill).toContain(expected);
+    }
+    expect(skill).toContain('Do not delete');
+    expect(skill).toContain('automatically disable');
+    expect(skill).toContain('Do not ask the user to choose');
+    expect(skill).toContain('verify the legacy registration again');
+    expect(skill).toContain('do not ask for confirmation again');
+    expect(skill).toContain('Normal plugin removal still requires explicit confirmation');
+  });
+
+  test('Maker skill status exposes plugin lifecycle guidance only in Codex plugin mode', () => {
+    const previousDistribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
+    try {
+      delete process.env.TAPTAP_MAKER_DISTRIBUTION;
+      expect(formatMakerSkillStatus()).not.toContain('taptap-maker-plugin-lifecycle');
+
+      process.env.TAPTAP_MAKER_DISTRIBUTION = 'codex_plugin';
+      const pluginStatus = formatMakerSkillStatus();
+      expect(pluginStatus).toContain('taptap-maker-plugin-lifecycle');
+      expect(pluginStatus).toContain('taptap-maker init --skip-mcp-install');
+      expect(pluginStatus).toContain('Update the installed Codex plugin');
+      expect(pluginStatus).toContain('Automatically disable an active legacy Codex Maker MCP');
+      expect(pluginStatus).not.toContain('Require explicit confirmation before disabling');
+    } finally {
+      if (previousDistribution === undefined) {
+        delete process.env.TAPTAP_MAKER_DISTRIBUTION;
+      } else {
+        process.env.TAPTAP_MAKER_DISTRIBUTION = previousDistribution;
+      }
+    }
+  });
+
+  test('Maker skill status exposes WorkBuddy plugin-native lifecycle guidance', () => {
+    const previousDistribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
+    try {
+      process.env.TAPTAP_MAKER_DISTRIBUTION = 'workbuddy_plugin';
+      const pluginStatus = formatMakerSkillStatus();
+
+      expect(pluginStatus).toContain('taptap-maker-plugin-lifecycle');
+      expect(pluginStatus).toContain('Maker WorkBuddy plugin lifecycle');
+      expect(pluginStatus).toContain('legacy WorkBuddy Maker MCP');
+      expect(pluginStatus).toContain('taptap-maker init --skip-mcp-install');
+      expect(pluginStatus).toContain('Update the installed WorkBuddy plugin');
+      expect(pluginStatus).not.toContain('Update the installed Codex plugin');
+    } finally {
+      if (previousDistribution === undefined) {
+        delete process.env.TAPTAP_MAKER_DISTRIBUTION;
+      } else {
+        process.env.TAPTAP_MAKER_DISTRIBUTION = previousDistribution;
+      }
+    }
+  });
+
   test('Maker package preparation script remains valid JavaScript', () => {
     const scriptPath = path.resolve('scripts/prepare-maker-package.js');
     const result = spawnSync(process.execPath, ['--check', scriptPath], {

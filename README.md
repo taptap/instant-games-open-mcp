@@ -20,6 +20,75 @@
 **NPM**: [@taptap/instant-games-open-mcp](https://www.npmjs.com/package/@taptap/instant-games-open-mcp)
 **Maker NPM**: [@taptap/maker](https://www.npmjs.com/package/@taptap/maker)
 
+## TapTap Maker 客户端插件
+
+[`plugins/taptap-maker`](plugins/taptap-maker) 是插件专属安装与下载页面。Codex 和 WorkBuddy
+插件共用独立插件版本，当前值读取 `config/maker-plugin-version.json`；内置 Maker MCP 版本读取
+`config/maker-version-policy.json`，两条版本线互不覆盖。插件内置 Maker MCP 单文件运行时、CLI、
+Skills 和排障文档，不通过 npm/npx 下载或启动 Maker。
+
+对外安装应把对应渠道的 GitHub Release 页面交给 AI，由页面中的统一安装指南选择客户端 ZIP、
+校验并执行安装前后的旧 MCP 兼容检查。下面的仓库 marketplace 命令仅用于维护者从源码验证；
+执行 `marketplace add` 前，必须用刚生成的插件 CLI 完成下文同样的安装前检查和迁移。
+
+```bash
+npm run maker:codex-plugin:prepare
+node plugins/taptap-maker/dist/maker.js plugin inspect --client codex --json
+node plugins/taptap-maker/dist/maker.js plugin migrate --client codex --confirm --json
+node plugins/taptap-maker/dist/maker.js plugin inspect --client codex --json
+codex plugin marketplace add taptap/instant-games-open-mcp --ref main \
+  --sparse .agents/plugins --sparse plugins/taptap-maker
+codex plugin add taptap-maker@taptap-maker
+node plugins/taptap-maker/dist/maker.js plugin migrate --client codex --confirm --json
+node plugins/taptap-maker/dist/maker.js plugin inspect --client codex --json
+```
+
+插件 manifest 和 marketplace 版本读取 `config/maker-plugin-version.json`；bundle 运行时身份继续读取
+`config/maker-version-policy.json`。运行 GitHub Actions 中的 `Prepare Maker Plugin Release` 会自动把
+插件 patch 加一、重新生成两端产物并创建 PR；合并后 `Publish Maker Plugin` 自动发布两份 ZIP、
+`INSTALL.md`、`SHA256SUMS` 和机器可读发布清单，不触发 npm 发布。
+
+旧用户安装插件前，先用 ZIP 解压目录或本地生成目录中的插件 CLI 执行
+`taptap-maker plugin inspect --client codex --json`。如果旧的独立 Maker MCP 仍启用，向用户说明
+已发现重复注册并直接执行
+`taptap-maker plugin migrate --client codex --confirm --json`。迁移只写入 `enabled = false`，保留
+原配置、最近备份、PAT、项目绑定和游戏文件；插件安装请求即为这次兼容迁移的授权，不再单独询问，
+重复执行也是幂等的。检查返回 `ambiguous` 时必须在安装前停止；安装完成后必须再次迁移并检查，
+只有状态为 `disabled` 或 `not_found` 才能报告插件可用。需要卸载插件并恢复旧 MCP 时，仍要先取得明确确认，再执行
+`taptap-maker plugin restore --client codex --confirm --json`。
+如果本次安装中任一次迁移实际禁用了旧注册，但插件安装或验证失败，则用同一 restore 命令自动回滚；
+回滚前先移除本次已安装的插件并确认其不再启用，不能在插件仍启用时恢复旧 MCP。原本已禁用、未找到
+或不是本次迁移的注册不恢复。安装前迁移失败时立即停止，不进入插件安装。
+
+插件模式初始化使用 `taptap-maker init --skip-mcp-install`，避免 CLI 再写一份独立 MCP 配置。
+插件更新通过插件内专用 `update-taptap-mcp` Skill 和 Codex marketplace 完成，不执行 npm/npx
+或独立 `taptap-maker upgrade`。旧 MCP 恢复前会核对迁移时记录的注册指纹，同名注册已被替换时
+保持禁用并返回 `not_owned`。插件故障上报读取插件自己的 `.mcp.json` 并验证当前 bundle；独立
+Maker MCP 仍沿用原有用户配置和 self runtime 诊断。
+
+WorkBuddy 插件是独立产物，位于
+[`plugins/workbuddy/taptap-maker`](plugins/workbuddy/taptap-maker)，通过共享的 CodeBuddy 插件
+规范聚合 Maker MCP、CLI、Skills 和两个快捷命令：
+
+```text
+/taptap-maker:create-project
+/taptap-maker:sync-project
+```
+
+两个入口都要求当前 WorkBuddy workspace 为空目录。插件启动器优先解析 WorkBuddy managed
+Node.js（包括 Windows 上未加入 PATH 的 `node.exe`），必要时才回退系统 Node.js；运行插件内
+`${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js`，不依赖 npm/npx。仓库 marketplace 位于
+`.codebuddy-plugin/marketplace.json`：
+
+```text
+/plugin marketplace add <REPOSITORY_ROOT>
+/plugin install taptap-maker@taptap-maker
+/reload-plugins
+```
+
+WorkBuddy 旧独立 MCP 的迁移使用 `--client workbuddy`，只把旧注册的 `disabled` 设为 `true`，
+同时支持幂等检查和确认式恢复。插件更新通过 WorkBuddy `/plugin` 完成。
+
 ## 🦞 OpenClaw Plugin（实验中）
 
 仓库内提供了一个可独立使用的 OpenClaw plugin 子包：
@@ -111,6 +180,9 @@ DSH 使用 `@deepseek-ai/dsh-mcp-client` 插件，不使用 `mcp.json`。检测�
 默认 home 级补丁适用于 DSH 的不同 profile；检测到已有 profile 级注册时则只更新对应 profile。
 两者都可由 DSH HMR 热重载。配置不写项目 `cwd`；DSH 当前
 不广播 MCP Roots，因此 AI 必须在具体 Maker tool 调用中把当前游戏项目作为 `target_dir` 传入。
+需要把 Maker 技能（工作流 + 广告/云存档/排行榜指南）一并打包进 DSH 时，可用 bundle 插件
+`@taptap/dsh-maker`（源码 `packages/dsh-maker/`，`dsh plugin --profile web add @taptap/dsh-maker`
+一键安装），详见 [docs/DSH_PLUGIN.md](docs/DSH_PLUGIN.md)。该插件与 L1 的裸 MCP 行不要同时启用。
 其它 AI 编辑器应优先让本地 AI 复用 `taptap-maker mcp install` 已验证的绝对 command/args。
 只有无法复用安装器时，才使用下面固定精确版本的 npx 兼容片段：
 

@@ -27,6 +27,101 @@
   该组合时安装失败，不持久化 `.cmd` shell 命令或依赖客户端 PATH；Git 引导优先指向 Git for Windows。
 - 仓库同时提供 `taptap-maker-local`、`taptap-maker-dev-kit-guide` 和 `update-taptap-mcp` skills，用于把本地 Git 工作流、AI dev kit 内容说明和 MCP 更新缓存流程交给本地 AI/Agent 按业务规则执行。
 
+## 客户端插件版本与发布
+
+Codex 和 WorkBuddy 插件共用独立版本，首版为 `0.0.1`，唯一来源是
+`config/maker-plugin-version.json`。内置 Maker MCP 版本继续由
+`config/maker-version-policy.json` 管理；插件版本只写入 manifest、marketplace、ZIP 名称和 GitHub
+Release，Maker MCP 版本继续用于 runtime、埋点、诊断和 npm 升级判断。
+
+发布时在 GitHub Actions 手动运行 `Prepare Maker Plugin Release`。workflow 根据最新
+`maker-plugin-v*` tag 自动将 patch 加一，更新版本源、生成两套插件、运行验证并创建版本 PR。PR
+合并后 `Publish Maker Plugin` 创建同版本 tag 和 GitHub Release，上传 Codex/WorkBuddy marketplace
+ZIP、`INSTALL.md`、`SHA256SUMS` 与 `maker-plugin-release.json`。这两条 workflow 不调用 npm
+发布，也不修改原 Maker MCP 或主 MCP 的发布流程。同一提交上的发布任务可以安全重跑：已有
+Release 会更新说明并覆盖上传附件；如果同名 tag 已指向其它提交，任务会拒绝发布。
+
+对外安装时把对应 main/develop 渠道的 GitHub Release 页面交给 AI，由同页 `INSTALL.md` 选择
+Codex 或 WorkBuddy ZIP、校验并执行完整安装。仓库 marketplace 方式只用于维护者从源码验证；
+执行安装前必须先生成插件，并用生成目录中的 CLI 完成旧 MCP 检查和迁移。
+
+## Codex Plugin
+
+Codex 插件位于 `plugins/taptap-maker`，由
+`npm run maker:codex-plugin:prepare` 确定性生成，包含 `dist/maker.js`、`bin/taptap-maker`、
+Maker Skills 和连接排障文档。`.mcp.json` 以插件根目录为 `cwd`，使用宿主 Node.js 直接启动
+`./dist/maker.js`，运行时不依赖外部 npm/npx。
+manifest 默认版本来自 `config/maker-plugin-version.json`，内置 bundle 版本来自
+`config/maker-version-policy.json`。打包测试使用临时输出目录，不重写仓库内的正式插件或 bundle。
+
+插件沿用现有 Maker CLI/MCP 的鉴权、项目绑定、clone、状态、构建和 proxy tool 实现，不复制
+业务逻辑。插件专属生命周期由 `taptap-maker-plugin-lifecycle` 管理：
+
+- 安装前和安装后都检查 Codex 中旧的独立 Maker MCP；安装请求即授权兼容迁移，不再单独询问。
+- 活动的旧注册自动设为 `enabled = false`，不删除配置，并保留 `.taptap-maker.bak.latest` 和
+  可恢复状态。检查返回 `ambiguous` 时必须在安装前停止；安装后只有状态为 `disabled` 或
+  `not_found` 才能报告插件可用。
+- 只有本次安装实际禁用旧注册后又安装或验证失败时，才自动 restore 作为事务回滚。原本已禁用、
+  未找到或不是本次迁移的注册不恢复。回滚前先移除本次已安装的插件并确认不再启用；插件移除失败时
+  保持旧 MCP 禁用，不能重新形成双激活。正常移除插件时恢复旧 MCP 仍须用户明确确认。
+- 重复迁移与恢复保持幂等；迁移状态记录原注册和禁用后注册的结构指纹。同名注册被替换或修改后
+  restore 返回 `not_owned`，不会误启用新注册。用户自己禁用的旧注册也不归插件所有。
+- 新项目初始化运行插件内 CLI，并传 `--skip-mcp-install`，避免产生第二份 MCP 注册。
+- 插件内 `update-taptap-mcp` 是 Codex 专用版本，升级只走 Codex marketplace，不运行 npm/npx
+  或独立 `taptap-maker upgrade`；卸载前如需恢复旧 MCP，仍须先取得明确确认再执行 restore。
+- 插件模式下 `mcp report` 读取插件自己的 `.mcp.json` 并直接验证当前 `dist/maker.js`；独立 MCP
+  继续读取用户级客户端配置并验证稳定 self runtime，两种诊断来源不会混用。
+
+相关命令：
+
+```text
+taptap-maker plugin inspect --client codex --json
+taptap-maker plugin migrate --client codex --confirm --json
+taptap-maker init --skip-mcp-install
+taptap-maker plugin restore --client codex --confirm --json
+```
+
+## WorkBuddy Plugin
+
+WorkBuddy 插件位于 `plugins/workbuddy/taptap-maker`，通过
+`npm run maker:workbuddy-plugin:prepare` 生成。它使用共享的 CodeBuddy 插件规范：manifest 位于
+`.codebuddy-plugin/plugin.json`，MCP 位于 `.mcp.json`，Skills 和 commands 位于插件根目录。
+
+插件以自身 `bin/run-node` 启动 `${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js`。启动器优先读取
+`WORKBUDDY_EXTRA_PATHS` 和 WorkBuddy managed Node 目录，必要时才回退系统 PATH；Windows 同时
+兼容版本目录根和 `bin` 子目录中的 `node.exe`。插件不使用 npm/npx，也不设置固定项目 `cwd`。
+`/taptap-maker:create-project` 和 `/taptap-maker:sync-project` 都要求 WorkBuddy 当前 workspace
+为空目录，并通过插件内 CLI 执行 `init --skip-mcp-install`。
+
+首次使用前，生命周期 Skill 同时检查 `~/.workbuddy/mcp.json` 和旧的
+`~/.workbuddy/.mcp.json`。只有用户确认后才把唯一活动的旧 `taptap-maker` 注册设为
+`disabled: true`；如果两份配置都含 Maker 注册则返回 `ambiguous`，不自动选择。迁移保留备份和
+注册指纹，恢复只处理插件拥有且未被用户修改的注册。WorkBuddy connector trust 不由插件修改。
+
+本地安装测试使用仓库 `.codebuddy-plugin/marketplace.json`。插件更新通过 WorkBuddy `/plugin`
+和 `/reload-plugins`，不执行独立 Maker 包升级。
+
+## DSH Plugin
+
+DeepSeek Harness（DSH）的 Maker 集成分两层：L1 是 `taptap-maker install --ide dsh` 写入的
+裸 `mcp-client` 行（见下文“环境变量”与 DSH 配置小节）；L2 是 bundle 插件 `@taptap/dsh-maker`，
+位于 `packages/dsh-maker/`，通过 npm 分发，把 **Maker MCP + 技能** 打包成可一键安装、可 HMR 的
+DSH bundle。
+
+插件由一个 bundle patch 行（`id: taptap-maker`）在激活时挂两个子插件并注册一个 shell 环境变量：
+宿主平面 `skill-filesystem` 实例（`providerName: maker` + `bundledSkillDir: skills/`，只读挂本包
+技能）、`dsh-mcp-client`（`require.resolve('@taptap/maker')` 解析出 `dist/maker.js`，以绝对 Node
+启动，不用 npx），以及 `DSH_TAPTAP_MAKER_BIN`（随包 CLI 绝对路径，供一次性 `init`/
+`agents update`/`mcp report` 用）。技能包含核心工作流 `taptap-maker-dsh` 与广告/云存档/排行榜
+三个功能指南，均
+内置“以工程内 `engine-docs` 为准、禁止网上搜错文档”的防错引导。
+
+与 Codex/WorkBuddy 的 ZIP marketplace 分发不同，DSH 插件走 npm（`dsh plugin add` 转发 pnpm），
+不经过 `scripts/package-maker-client-plugins.js`，也不属于 `config/maker-plugin-version.json`
+的插件版本线；它精确锁定包含所需 DSH 生命周期能力的 `@taptap/maker` 版本，develop 可先使用
+Maker beta 验证，main 只能使用稳定 Maker。发布工作流会先确认该版本已发布到 npm。完整设计、
+安装与配置见 [DSH_PLUGIN.md](DSH_PLUGIN.md)。
+
 ## 本地测试
 
 不要拉线上 npm 包。修改后在仓库内执行：
@@ -34,7 +129,9 @@
 ```bash
 npm test
 npm run build
+node scripts/package-maker-client-plugins.js --output-dir artifacts/maker-plugins
 node dist/maker.js
+npm run maker:workbuddy-plugin:prepare
 ```
 
 MCP server 模式：
@@ -58,8 +155,8 @@ Maker CLI 独立发布为 `@taptap/maker`，不走主包
 Maker-only paths 跳过这类 push；如需发布 Maker CLI，使用 GitHub Actions 中的
 `Publish Maker Package` workflow。
 
-Maker 包版本号使用三段式 semver，例如 `0.0.1`。Maker 包只能从长期发布分支 `beta` 或
-`main` 发布，`fix/*` 分支只用于提交 PR，不作为发版来源。workflow 默认使用
+Maker 包版本号使用三段式 semver，例如 `0.0.1`。稳定包只能从长期发布分支 `main` 发布；
+prerelease 可从 `beta` 或 `develop` 发布，`fix/*` 分支只用于提交 PR，不作为发版来源。workflow 默认使用
 `auto-last-number`。`tag=latest` 会递增稳定 patch；`tag=beta`、`tag=alpha` 和 `tag=next`
 会基于当前 major/minor 下最高稳定版本生成 prerelease，例如已发布最高稳定版本为 `0.0.16`
 时，下一次 beta 自动发布 `0.0.17-beta.1`，后续同一条线递增为 `0.0.17-beta.2`。

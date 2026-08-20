@@ -138,15 +138,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          maker_version="$(node -e "const p=require('./config/maker-version-policy.json'); process.stdout.write(p.latest)")"
-          notes="$RUNNER_TEMP/maker-plugin-release-notes.md"
-          {
-            echo "# TapTap Maker Client Plugins $RELEASE_VERSION"
-            echo
-            echo "Bundled Maker MCP version: $maker_version"
-            echo
-            echo "Assets: Codex plugin ZIP, WorkBuddy plugin ZIP, SHA256SUMS, and machine-readable release metadata."
-          } > "$notes"
+          notes="artifacts/maker-plugins/INSTALL.md"
+          if [[ ! -s "$notes" ]]; then
+            echo "::error::Missing artifacts/maker-plugins/INSTALL.md"
+            exit 1
+          fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" \
               --title "TapTap Maker Client Plugins $RELEASE_VERSION" \

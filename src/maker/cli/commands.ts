@@ -77,6 +77,10 @@ import {
 import { formatMakerSkillStatus } from './skill.js';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../versionCheck.js';
 import {
+  formatMakerPluginUpdateAction,
+  resolveMakerPluginDistribution,
+} from '../pluginDistribution.js';
+import {
   formatMakerProjectInitializationStatus,
   inspectMakerProjectInitialization,
 } from '../projectInitialization.js';
@@ -96,6 +100,7 @@ import {
   buildMakerMcpIssue,
   collectMakerMcpIssueDiagnostics,
   parseMakerMcpReportContext,
+  resolveMakerMcpReportRuntime,
   submitMakerMcpIssue,
 } from './mcpIssueReport.js';
 import {
@@ -104,6 +109,29 @@ import {
   getDshMcpInstallPaths,
   mergeDshMakerMcpConfig,
 } from './dshMcpConfig.js';
+import {
+  inspectCodexLegacyMakerMcp,
+  inspectWorkBuddyLegacyMakerMcp,
+  migrateCodexLegacyMakerMcp,
+  migrateWorkBuddyLegacyMakerMcp,
+  restoreCodexLegacyMakerMcp,
+  restoreWorkBuddyLegacyMakerMcp,
+  type CodexLegacyMakerMcpMigrationResult,
+  type WorkBuddyLegacyMakerMcpMigrationResult,
+} from './pluginMigration.js';
+import {
+  inspectDshLegacyMakerMcp,
+  migrateDshLegacyMakerMcp,
+  restoreDshLegacyMakerMcp,
+  type DshLegacyMakerMcpMigrationResult,
+} from './dshPluginMigration.js';
+import { writeConfigWithTapTapBackupIfChanged } from './configWrite.js';
+import { syncWorkBuddyProjectSkills } from './workBuddyProjectSkills.js';
+import {
+  escapeTomlString,
+  findCodexMcpTableDuplicates,
+  removeCodexMcpTables,
+} from './codexMcpConfig.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 declare const __MAKER_BUNDLE_URL__: string | undefined;
@@ -111,7 +139,16 @@ const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : '
 
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
-const TWO_PART_COMMANDS = new Set(['pat', 'mcp', 'dev-kit', 'logs', 'python', 'lua-lsp', 'agents']);
+const TWO_PART_COMMANDS = new Set([
+  'pat',
+  'mcp',
+  'dev-kit',
+  'logs',
+  'python',
+  'lua-lsp',
+  'agents',
+  'plugin',
+]);
 const BOOLEAN_OPTIONS = new Set([
   'json',
   'skip_confirm',
@@ -122,6 +159,7 @@ const BOOLEAN_OPTIONS = new Set([
   'all',
   'create',
   'consent',
+  'confirm',
   'context_stdin',
   'h',
   'help',
@@ -294,6 +332,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
     return;
   }
 
+  if (command === 'plugin') {
+    runPluginLifecycle(parsed, ctx);
+    return;
+  }
+
   if (command === 'upgrade') {
     await runUpgrade(parsed, ctx);
     return;
@@ -320,6 +363,86 @@ export async function runMakerCli(argv: string[]): Promise<void> {
   }
 
   throw new Error(`Unknown taptap-maker command: ${formatUnknownCommand(parsed.command)}`);
+}
+
+function runPluginLifecycle(parsed: ParsedArgs, ctx: CliContext): void {
+  const subcommand = parsed.command[1];
+  const client = stringOption(parsed, 'client') || 'codex';
+  if (client !== 'codex' && client !== 'workbuddy' && client !== 'dsh') {
+    throw new Error(
+      `Unsupported Maker plugin client: ${client}. Supported clients: codex, workbuddy, dsh.`
+    );
+  }
+
+  if (subcommand === 'inspect') {
+    writePluginLifecycleResult(
+      ctx,
+      client === 'codex'
+        ? inspectCodexLegacyMakerMcp()
+        : client === 'workbuddy'
+          ? inspectWorkBuddyLegacyMakerMcp()
+          : inspectDshLegacyMakerMcp()
+    );
+    return;
+  }
+  if (subcommand === 'migrate') {
+    writePluginLifecycleResult(
+      ctx,
+      client === 'codex'
+        ? migrateCodexLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+        : client === 'workbuddy'
+          ? migrateWorkBuddyLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+          : migrateDshLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+    );
+    return;
+  }
+  if (subcommand === 'restore') {
+    writePluginLifecycleResult(
+      ctx,
+      client === 'codex'
+        ? restoreCodexLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+        : client === 'workbuddy'
+          ? restoreWorkBuddyLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+          : restoreDshLegacyMakerMcp({ confirm: booleanOption(parsed, 'confirm') })
+    );
+    return;
+  }
+
+  throw new Error('Unknown Maker plugin command. Use inspect, migrate, or restore.');
+}
+
+function writePluginLifecycleResult(
+  ctx: CliContext,
+  result:
+    | CodexLegacyMakerMcpMigrationResult
+    | WorkBuddyLegacyMakerMcpMigrationResult
+    | DshLegacyMakerMcpMigrationResult
+    | ReturnType<typeof inspectCodexLegacyMakerMcp>
+    | ReturnType<typeof inspectWorkBuddyLegacyMakerMcp>
+    | ReturnType<typeof inspectDshLegacyMakerMcp>
+): void {
+  if (ctx.json) {
+    writeJson(result);
+    return;
+  }
+  process.stdout.write(
+    [
+      'TapTap Maker plugin migration',
+      '',
+      `- client: ${result.client}`,
+      `- legacy_mcp_status: ${result.status}`,
+      `- config_path: ${result.config_path}`,
+      ...('config_paths' in result && result.config_paths.length > 1
+        ? [`- config_paths: ${result.config_paths.join(', ')}`]
+        : []),
+      `- registration_count: ${result.registration_count}`,
+      ...('action' in result ? [`- action: ${result.action}`, `- changed: ${result.changed}`] : []),
+      ...('backup_path' in result && result.backup_path
+        ? [`- backup_path: ${result.backup_path}`]
+        : []),
+      '',
+    ].join('\n')
+  );
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -1244,11 +1367,34 @@ async function runMcpReport(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
   const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
   const contextInput = booleanOption(parsed, 'context_stdin') ? await readStdinText() : '';
   const context = parseMakerMcpReportContext(contextInput);
+  const reportRuntime = resolveMakerMcpReportRuntime({
+    distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
+    bundleUrl: typeof __MAKER_BUNDLE_URL__ !== 'undefined' ? __MAKER_BUNDLE_URL__ : undefined,
+  });
   const diagnostics = await collectMakerMcpIssueDiagnostics({
-    ide: stringOption(parsed, 'ide'),
+    ide: stringOption(parsed, 'ide') || reportRuntime?.client,
     targetDir,
     makerVersion: VERSION,
+    configSource: reportRuntime?.config_source,
+    distribution: reportRuntime?.distribution,
     verify: async () => {
+      if (reportRuntime) {
+        const verification = await verifyMakerMcpLauncher(reportRuntime.launcher, {
+          cwd: reportRuntime.cwd,
+          env: reportRuntime.env,
+          timeoutMs: 15_000,
+        });
+        return {
+          ok: verification.ok,
+          stage: verification.stage,
+          launcher_kind: verification.launcherKind,
+          command: verification.command,
+          tools: verification.toolNames,
+          stderr: verification.stderr,
+          error: verification.error,
+          failure_type: verification.failureType,
+        };
+      }
       const prepared = await prepareMcpLauncher({
         env: makerEnvOption(parsed),
         mode: 'self',
@@ -1329,18 +1475,22 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const targetDir = path.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, 'ide') || stringOption(parsed, 'ides') || '');
-  const prepared = await prepareMcpLauncher({ env, mode: mcpLauncherOption(parsed) });
-  if (!prepared.ok) {
-    writeMcpLauncherFailure(ctx, prepared);
-    return;
+  const pluginDistribution = resolveMakerPluginDistribution();
+  let installResults: ReturnType<typeof installMcpConfigs> = [];
+  if (!pluginDistribution) {
+    const prepared = await prepareMcpLauncher({ env, mode: mcpLauncherOption(parsed) });
+    if (!prepared.ok) {
+      writeMcpLauncherFailure(ctx, prepared);
+      return;
+    }
+    installResults = installMcpConfigs({
+      ides: ides.length > 0 ? ides : getDefaultMcpInstallIdes(),
+      env: makerMcpConfigEnvOption(parsed),
+      mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
+      launcher: prepared.launcher,
+      launcherEnv: prepared.launcherEnv,
+    });
   }
-  const installResults = installMcpConfigs({
-    ides: ides.length > 0 ? ides : getDefaultMcpInstallIdes(),
-    env: makerMcpConfigEnvOption(parsed),
-    mcpName: stringOption(parsed, 'name') || DEFAULT_MCP_NAME,
-    launcher: prepared.launcher,
-    launcherEnv: prepared.launcherEnv,
-  });
   const identify = identifyMakerProject({ cwd: targetDir });
   const agentsResult = identify.projectRoot
     ? updateMakerAgentsPolicy(identify.projectRoot)
@@ -1354,6 +1504,7 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     restart_required: false,
     apply_mode: 'next_mcp_start',
     current_session: 'preserved',
+    plugin_distribution: pluginDistribution?.id,
   };
   if (!payload.ok) {
     process.exitCode = 1;
@@ -1365,9 +1516,15 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
 
   process.stdout.write(
     [
-      payload.ok ? 'TapTap Maker upgrade completed' : 'TapTap Maker upgrade completed with errors',
+      pluginDistribution
+        ? 'TapTap Maker project policy update completed'
+        : payload.ok
+          ? 'TapTap Maker upgrade completed'
+          : 'TapTap Maker upgrade completed with errors',
       '',
-      ...installResults.map((result) => result.message),
+      ...(pluginDistribution
+        ? [`✓ Standalone MCP registration unchanged (${pluginDistribution.displayName} plugin)`]
+        : installResults.map((result) => result.message)),
       '',
       agentsResult
         ? [
@@ -1379,8 +1536,12 @@ async function runUpgrade(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
           ].join('\n')
         : 'AGENTS.md managed policy skipped: current directory is not bound to a Maker project.',
       '',
-      'Current MCP session remains unchanged and continues using the existing version.',
-      'The updated package and AGENTS.md will take effect on the next MCP start or user-requested reconnect.',
+      pluginDistribution
+        ? formatMakerPluginUpdateAction(pluginDistribution)
+        : 'Current MCP session remains unchanged and continues using the existing version.',
+      pluginDistribution
+        ? 'The updated AGENTS.md policy is available to the current project.'
+        : 'The updated package and AGENTS.md will take effect on the next MCP start or user-requested reconnect.',
       '',
     ].join('\n')
   );
@@ -1433,6 +1594,7 @@ async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
     replaceManagedEntries: true,
     environment: makerEnvOption(parsed),
   });
+  syncWorkBuddyDevKitSkills(targetDir, ctx);
   finalizeStagedDevKitGitignore(targetDir);
   emit(ctx, 'dev_kit', formatDevKitInstallMessage('AI dev kit updated', result), result);
   emitDevKitSkillInstallerFailure(ctx, result.skillInstaller, 'AI skills install failed');
@@ -1749,6 +1911,7 @@ async function prepareDevKit(
         path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
+      syncWorkBuddyDevKitSkills(targetDir, ctx);
       if (options.finalizeGitignore) {
         finalizeStagedDevKitGitignore(targetDir);
       }
@@ -1784,6 +1947,7 @@ async function prepareDevKit(
       environment: options.environment,
       onSkillInstallerStart: (event) => emitSkillInstallerStart(ctx, event),
     });
+    syncWorkBuddyDevKitSkills(targetDir, ctx);
     if (options.finalizeGitignore) {
       finalizeStagedDevKitGitignore(targetDir);
     }
@@ -1796,6 +1960,38 @@ async function prepareDevKit(
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     emit(ctx, 'dev_kit_warning', `AI dev kit preparation failed; clone will continue\n${detail}`, {
+      error: detail,
+    });
+  }
+}
+
+function syncWorkBuddyDevKitSkills(targetDir: string, ctx: CliContext): void {
+  if (resolveMakerPluginDistribution()?.client !== 'workbuddy') {
+    return;
+  }
+
+  try {
+    const result = syncWorkBuddyProjectSkills(targetDir);
+    const managedSkillPaths = [...result.installedSkills, ...result.skippedSkills].map(
+      (skillName) => path.join('.workbuddy', 'skills', skillName)
+    );
+    if (managedSkillPaths.length > 0) {
+      writeDevKitStagedGitignore(path.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
+        ...listPresentDevKitManagedEntries(targetDir),
+        ...managedSkillPaths,
+      ]);
+    }
+    if (result.installedSkills.length > 0) {
+      emit(
+        ctx,
+        'dev_kit',
+        `WorkBuddy project skills installed: ${result.installedSkills.length}`,
+        result
+      );
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    emit(ctx, 'dev_kit_warning', `WorkBuddy project skills install failed\n${detail}`, {
       error: detail,
     });
   }
@@ -2289,8 +2485,7 @@ function mergeOpenCodeMcpConfig(configPath: string, options: McpInstallOptions):
 
 function mergeCodexMcpConfig(configPath: string, options: McpInstallOptions): ConfigWriteResult {
   const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
-  const sectionPattern = createCodexMcpSectionPattern(options.mcpName);
-  const withoutOld = existing.replace(sectionPattern, '').trimEnd();
+  const withoutOld = removeCodexMcpTables(existing, options.mcpName).trimEnd();
   const launch = options.launcher;
   const envValues = createMcpEnvironmentValues(options.env, options.clientIde, options.launcherEnv);
   const envSection =
@@ -2299,12 +2494,14 @@ function mergeCodexMcpConfig(configPath: string, options: McpInstallOptions): Co
       : [
           '',
           `[mcp_servers."${options.mcpName}".env]`,
-          ...Object.entries(envValues).map(([key, value]) => `${key} = "${escapeToml(value)}"`),
+          ...Object.entries(envValues).map(
+            ([key, value]) => `${key} = "${escapeTomlString(value)}"`
+          ),
         ];
   const section = [
     `[mcp_servers."${options.mcpName}"]`,
-    `command = "${escapeToml(launch.command)}"`,
-    `args = [${launch.args.map((arg) => `"${escapeToml(arg)}"`).join(', ')}]`,
+    `command = "${escapeTomlString(launch.command)}"`,
+    `args = [${launch.args.map((arg) => `"${escapeTomlString(arg)}"`).join(', ')}]`,
     ...envSection,
     '',
   ].join('\n');
@@ -2322,50 +2519,6 @@ function mergeCodexMcpConfig(configPath: string, options: McpInstallOptions): Co
       }
     }
   );
-}
-
-function createCodexMcpSectionPattern(mcpName: string): RegExp {
-  const keyPattern = createCodexMcpKeyPattern(mcpName);
-  return new RegExp(
-    `\\n?\\[mcp_servers\\.${keyPattern}(?:\\.[^\\]]+)?\\][\\s\\S]*?(?=\\n\\[(?!mcp_servers\\.${keyPattern}(?:\\.|\\]))|$)`,
-    'g'
-  );
-}
-
-function createCodexMcpKeyPattern(mcpName: string): string {
-  const quotedKey = `"${escapeRegExp(mcpName)}"`;
-  if (!isTomlBareKey(mcpName)) {
-    return quotedKey;
-  }
-  return `(?:${quotedKey}|${escapeRegExp(mcpName)})`;
-}
-
-function findCodexMcpTableDuplicates(text: string, mcpName: string): string[] {
-  const seen = new Set<string>();
-  const duplicates = new Set<string>();
-  const headerPattern = /^\s*\[([^\]]+)\]\s*$/gm;
-  let match: RegExpExecArray | null;
-  while ((match = headerPattern.exec(text)) !== null) {
-    const normalized = normalizeCodexMcpTablePath(match[1], mcpName);
-    if (!normalized) {
-      continue;
-    }
-    if (seen.has(normalized)) {
-      duplicates.add(normalized);
-      continue;
-    }
-    seen.add(normalized);
-  }
-  return Array.from(duplicates);
-}
-
-function normalizeCodexMcpTablePath(tablePath: string, mcpName: string): string | undefined {
-  const keyPattern = createCodexMcpKeyPattern(mcpName);
-  const match = new RegExp(`^mcp_servers\\.${keyPattern}(\\..+)?$`).exec(tablePath);
-  if (!match) {
-    return undefined;
-  }
-  return `mcp_servers.${mcpName}${match[1] || ''}`;
 }
 
 function tryClaudeMcpAdd(options: McpInstallOptions): { ok: boolean; changed: boolean } {
@@ -2522,37 +2675,6 @@ function asObject(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>;
   }
   return {};
-}
-
-function writeConfigWithTapTapBackupIfChanged(
-  filePath: string,
-  nextContent: string,
-  validate?: (content: string) => void
-): ConfigWriteResult {
-  const existed = fs.existsSync(filePath);
-  const previousContent = existed ? fs.readFileSync(filePath, 'utf8') : undefined;
-  if (previousContent === nextContent) {
-    return { changed: false };
-  }
-
-  const backupPath = existed ? `${filePath}.taptap-maker.bak.latest` : undefined;
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  if (previousContent !== undefined && backupPath) {
-    fs.writeFileSync(backupPath, previousContent, 'utf8');
-  }
-
-  try {
-    fs.writeFileSync(filePath, nextContent, 'utf8');
-    validate?.(fs.readFileSync(filePath, 'utf8'));
-    return { changed: true, backupPath };
-  } catch (error) {
-    if (previousContent !== undefined) {
-      fs.writeFileSync(filePath, previousContent, 'utf8');
-    } else {
-      fs.rmSync(filePath, { force: true });
-    }
-    throw error;
-  }
 }
 
 function validateJsonMcpServersConfig(content: string, options: McpInstallOptions): void {
@@ -2997,18 +3119,6 @@ function mask(value: string): string {
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function escapeToml(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-}
-
-function isTomlBareKey(value: string): boolean {
-  return /^[A-Za-z0-9_-]+$/.test(value);
-}
-
 function indent(value: string): string {
   return value
     .split('\n')
@@ -3057,6 +3167,9 @@ function printHelp(): void {
       '                            [--context-stdin] [--consent] [--json]',
       '                            # Run only after the user agrees to submit',
       '  taptap-maker agents update [--target-dir DIR] [--json]',
+      '  taptap-maker plugin inspect --client codex|workbuddy|dsh [--json]',
+      '  taptap-maker plugin migrate --client codex|workbuddy|dsh --confirm [--json]',
+      '  taptap-maker plugin restore --client codex|workbuddy|dsh --confirm [--json]',
       '  taptap-maker upgrade [--launcher self|npx] [--target-dir DIR] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
