@@ -122,7 +122,8 @@ dsh plugin --profile web remove @taptap/dsh-maker
 DSH 插件有两条互补的分发入口：
 
 - **1024Store / GitHub 子目录源**：市场条目指向
-  `github:taptap/instant-games-open-mcp#path:packages/dsh-maker`，用于市场安装和更新。
+  `github:taptap/instant-games-open-mcp#path:packages/dsh-maker`，用于市场安装和更新。该无 ref 源按
+  1024Store 规范跟随仓库 `main`。
 - **GitHub Release tarball**：用于分享固定版本链接。用户把发版页链接交给 AI，AI 按页面下载、
   校验 SHA-256 后安装。
 

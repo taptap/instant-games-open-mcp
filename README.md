@@ -183,7 +183,8 @@ DSH 使用 `@deepseek-ai/dsh-mcp-client` 插件，不使用 `mcp.json`。检测�
 需要把 Maker 技能（工作流 + 广告/云存档/排行榜指南）一并打包进 DSH 时，可用 bundle 插件
 `@taptap/dsh-maker`（源码 `packages/dsh-maker/`），通过 1024Store 或 GitHub 子目录源
 `github:taptap/instant-games-open-mcp#path:packages/dsh-maker` 一键安装，详见
-[docs/DSH_PLUGIN.md](docs/DSH_PLUGIN.md)。该插件与 L1 的裸 MCP 行不要同时启用。
+[docs/DSH_PLUGIN.md](docs/DSH_PLUGIN.md)。该无 ref 源跟随 `main`；固定版本使用 `dsh-maker-v*`
+GitHub Release tarball。该插件与 L1 的裸 MCP 行不要同时启用。
 其它 AI 编辑器应优先让本地 AI 复用 `taptap-maker mcp install` 已验证的绝对 command/args。
 只有无法复用安装器时，才使用下面固定精确版本的 npx 兼容片段：
 

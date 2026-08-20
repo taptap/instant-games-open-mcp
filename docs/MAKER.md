@@ -105,8 +105,8 @@ WorkBuddy 插件位于 `plugins/workbuddy/taptap-maker`，通过
 
 DeepSeek Harness（DSH）的 Maker 集成分两层：L1 是 `taptap-maker install --ide dsh` 写入的
 裸 `mcp-client` 行（见下文“环境变量”与 DSH 配置小节）；L2 是 bundle 插件 `@taptap/dsh-maker`，
-位于 `packages/dsh-maker/`，通过 npm 分发，把 **Maker MCP + 技能** 打包成可一键安装、可 HMR 的
-DSH bundle。
+位于 `packages/dsh-maker/`，通过 1024Store 的 GitHub 子目录源或 GitHub Release tarball 分发，把
+**Maker MCP + 技能** 打包成可一键安装、可 HMR 的 DSH bundle；不单独发布 DSH npm 包。
 
 插件由一个 bundle patch 行（`id: taptap-maker`）在激活时挂两个子插件并注册一个 shell 环境变量：
 宿主平面 `skill-filesystem` 实例（`providerName: maker` + `bundledSkillDir: skills/`，只读挂本包
@@ -116,10 +116,11 @@ DSH bundle。
 三个功能指南，均
 内置“以工程内 `engine-docs` 为准、禁止网上搜错文档”的防错引导。
 
-与 Codex/WorkBuddy 的 ZIP marketplace 分发不同，DSH 插件走 npm（`dsh plugin add` 转发 pnpm），
-不经过 `scripts/package-maker-client-plugins.js`，也不属于 `config/maker-plugin-version.json`
-的插件版本线；它精确锁定包含所需 DSH 生命周期能力的 `@taptap/maker` 版本，develop 可先使用
-Maker beta 验证，main 只能使用稳定 Maker。发布工作流会先确认该版本已发布到 npm。完整设计、
+与 Codex/WorkBuddy 的 ZIP marketplace 分发不同，DSH 使用标准 bundle 包：`dsh plugin add` 由 pnpm
+安装 GitHub 子目录源或本地 tarball，但不从 npm registry 获取 `@taptap/dsh-maker`。它不经过
+`scripts/package-maker-client-plugins.js`，也不属于 `config/maker-plugin-version.json` 的插件
+版本线；它精确锁定包含所需 DSH 生命周期能力的 `@taptap/maker` 版本，develop 可先使用 Maker
+beta 验证，main 只能使用稳定 Maker。发布工作流会先确认 Maker 依赖版本已发布到 npm。完整设计、
 安装与配置见 [DSH_PLUGIN.md](DSH_PLUGIN.md)。
 
 ## 本地测试
