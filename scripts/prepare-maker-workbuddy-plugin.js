@@ -181,7 +181,7 @@ function createMcpConfig() {
   return {
     mcpServers: {
       'taptap-maker-plugin': {
-        command: 'node',
+        command: '${CODEBUDDY_PLUGIN_ROOT}/bin/run-node',
         args: ['${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js'],
         env: {
           TAPTAP_MAKER_DISTRIBUTION: 'workbuddy_plugin',
