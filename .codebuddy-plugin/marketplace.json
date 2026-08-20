@@ -9,7 +9,7 @@
       "name": "taptap-maker",
       "description": "TapTap Maker 本地游戏开发插件，内置 MCP、CLI、开发技能和项目工作流。",
       "description_en": "Local TapTap Maker game development with bundled MCP, CLI, and workflows.",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "source": "./plugins/workbuddy/taptap-maker",
       "category": "game-development",
       "author": {
