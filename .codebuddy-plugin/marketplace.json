@@ -15,8 +15,8 @@
       "author": {
         "name": "TapTap Team"
       },
-      "homepage": "https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker",
-      "repository": "https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker",
+      "homepage": "https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/workbuddy/taptap-maker",
+      "repository": "https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/workbuddy/taptap-maker",
       "license": "MIT"
     }
   ]

@@ -17,7 +17,7 @@ const pluginVersionPolicy = JSON.parse(
 ) as { version: string };
 const pluginVersion = pluginVersionPolicy.version;
 const pluginSourceUrl =
-  'https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker';
+  'https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/workbuddy/taptap-maker';
 const pluginDescription = 'TapTap Maker 本地游戏开发插件，内置 MCP、CLI、开发技能和项目工作流。';
 const pluginDescriptionEn =
   'Local TapTap Maker game development with bundled MCP, CLI, and workflows.';
@@ -453,6 +453,8 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
         description: pluginDescription,
         description_en: pluginDescriptionEn,
         source: './plugins/workbuddy/taptap-maker',
+        homepage: pluginSourceUrl,
+        repository: pluginSourceUrl,
       })
     );
   });
