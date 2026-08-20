@@ -172,6 +172,16 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(bundledRuntime).not.toMatch(/[\t ]+$/mu);
   });
 
+  test('does not leak the checkout dependency path into the bundled runtime', () => {
+    const bundledRuntime = fs.readFileSync(path.join(pluginRoot, 'dist', 'maker.js'), 'utf8');
+    const realNodeModulesPath = fs
+      .realpathSync(path.join(projectRoot, 'node_modules'))
+      .replaceAll('\\', '/')
+      .replace(/^\/+/, '');
+
+    expect(bundledRuntime).not.toContain(realNodeModulesPath);
+  });
+
   test('documents both plugin and embedded Maker versions with stable release downloads', () => {
     const readme = fs.readFileSync(path.join(pluginRoot, 'README.md'), 'utf8');
 
