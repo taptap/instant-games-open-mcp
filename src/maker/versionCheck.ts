@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fetchWithTimeout } from './fetchTimeout.js';
+import { hasMakerPluginDistribution } from './pluginDistribution.js';
 import { getMakerHome } from './storage.js';
 
 const DEFAULT_POLICY_URL =
@@ -22,6 +23,7 @@ type MakerPackageUpdateDecisionStatus =
   | 'current'
   | 'update_available'
   | 'required_upgrade'
+  | 'managed_by_plugin'
   | 'unavailable'
   | 'skipped';
 
@@ -167,6 +169,10 @@ export async function checkMakerPackageUpdate(
   const now = options.now ?? new Date();
   const currentVersion = options.currentVersion;
 
+  if (hasMakerPluginDistribution()) {
+    return buildPluginManagedStatus(currentVersion);
+  }
+
   if (currentVersion === 'dev') {
     return {
       status: 'skipped',
@@ -231,6 +237,9 @@ export async function getMakerPackageUpdateStatus(
   options: MakerPackageUpdateCheckOptions
 ): Promise<MakerPackageUpdateStatus> {
   const currentVersion = options.currentVersion;
+  if (hasMakerPluginDistribution()) {
+    return buildPluginManagedStatus(currentVersion);
+  }
   if (currentVersion === 'dev') {
     return {
       status: 'skipped',
@@ -308,6 +317,9 @@ let backgroundCheck:
   | undefined;
 
 export function startMakerPackageUpdateCheck(options: MakerPackageUpdateCheckOptions): void {
+  if (hasMakerPluginDistribution()) {
+    return;
+  }
   const key = `${options.currentVersion}\n${resolvePolicyUrl(options.policyUrl)}`;
   if (backgroundCheck?.key === key) {
     return;
@@ -346,7 +358,7 @@ export function formatMakerPackageUpdateStatus(status: MakerPackageUpdateStatus)
   }
   if (status.blacklist_match) {
     lines.push(`- blacklist_match: ${status.blacklist_match}`);
-  } else if (status.status !== 'skipped') {
+  } else if (status.status !== 'skipped' && status.status !== 'managed_by_plugin') {
     lines.push('- blacklist_match: no');
   }
   if (status.checked_at) {
@@ -375,6 +387,14 @@ export function formatMakerPackageUpdateStatus(status: MakerPackageUpdateStatus)
   }
 
   return lines.join('\n');
+}
+
+function buildPluginManagedStatus(currentVersion: string): MakerPackageUpdateStatus {
+  return {
+    status: 'managed_by_plugin',
+    current_version: currentVersion,
+    restart_required: false,
+  };
 }
 
 function formatUnavailableNonBlockingError(

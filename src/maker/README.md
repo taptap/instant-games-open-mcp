@@ -30,6 +30,11 @@ Codex 插件位于 [`plugins/taptap-maker`](../../plugins/taptap-maker)。当前
 Codex 和 WorkBuddy 插件共用 `config/maker-plugin-version.json` 的独立版本号。Maker MCP 自身版本
 仍由 `config/maker-version-policy.json` 管理，插件发布不会触发 npm 发布。
 
+插件启动 Maker runtime 时必须设置非空的 `TAPTAP_MAKER_DISTRIBUTION`。该变量非空表示当前
+runtime 由插件渠道管理，因此 Maker 不检查或提示 npm 包更新；具体值（如 `codex_plugin`、
+`workbuddy_plugin`、`dsh_plugin` 或外部插件自己的标识）只用于识别分发渠道。独立 Maker MCP
+不得设置该变量，并继续使用正常的 npm 版本策略。
+
 ## WorkBuddy Plugin
 
 WorkBuddy 插件位于
@@ -78,6 +83,10 @@ npm run maker:codex-plugin:prepare
 npm run maker:workbuddy-plugin:prepare
 npm run maker:plugins:package -- --output-dir artifacts/maker-plugins
 ```
+
+环境变量的完整契约见
+[Maker MCP 环境变量参考](../../docs/MAKER_ENVIRONMENT_VARIABLES.md)。新增或修改变量前必须先检查该
+文档，避免重复开关和跨层级配置。
 
 Maker 代码位于当前目录，打包入口为 `src/maker/index.ts`，本地 MCP server 位于
 `src/maker/server/`，CLI 位于 `src/maker/cli/`。
