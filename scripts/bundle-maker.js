@@ -76,6 +76,7 @@ const __MAKER_BUNDLE_URL__ = import.meta.url;
     minify: false,
     sourcemap: false,
     treeShaking: true,
+    preserveSymlinks: true,
     logLevel: 'info',
     charset: 'utf8',
   });
