@@ -94,7 +94,7 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     const mcp = JSON.parse(mcpText);
 
     expect(mcp.mcpServers['taptap-maker-plugin']).toEqual({
-      command: 'node',
+      command: '${CODEBUDDY_PLUGIN_ROOT}/bin/run-node',
       args: ['${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js'],
       env: {
         TAPTAP_MAKER_DISTRIBUTION: 'workbuddy_plugin',
