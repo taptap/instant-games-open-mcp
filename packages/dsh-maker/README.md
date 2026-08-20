@@ -38,6 +38,10 @@ dsh plugin --profile headless add \
   'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'
 ```
 
+上面的 GitHub 子目录源是 1024Store 使用的市场安装入口。需要安装固定版本或把链接交给 AI 自动
+安装时，使用仓库对应的 `dsh-maker-v*` GitHub Release，并按 Release 内的 `INSTALL.md` 下载和校验
+tarball。
+
 DSH 会热重载该 patch，无需重启。验证：
 
 ```bash
