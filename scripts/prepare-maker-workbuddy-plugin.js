@@ -25,7 +25,7 @@ const defaultPluginRoot = join(projectRoot, 'plugins', 'workbuddy', 'taptap-make
 const workBuddySourceRoot = join(projectRoot, 'plugin-sources', 'taptap-maker', 'workbuddy');
 const localMarketplacePath = join(projectRoot, '.codebuddy-plugin', 'marketplace.json');
 const PLUGIN_SOURCE_URL =
-  'https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker';
+  'https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/workbuddy/taptap-maker';
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const SHARED_SKILLS = ['taptap-maker-local', 'taptap-maker-dev-kit-guide'];
 const WORKBUDDY_SKILLS = ['taptap-maker-plugin-lifecycle', 'update-taptap-mcp'];
@@ -234,6 +234,8 @@ function syncMarketplaceMetadata(version) {
   entry.version = version;
   entry.description = PLUGIN_DESCRIPTION;
   entry.description_en = PLUGIN_DESCRIPTION_EN;
+  entry.homepage = PLUGIN_SOURCE_URL;
+  entry.repository = PLUGIN_SOURCE_URL;
   writeFileSync(localMarketplacePath, `${JSON.stringify(marketplace, null, 2)}\n`, 'utf8');
 }
 
