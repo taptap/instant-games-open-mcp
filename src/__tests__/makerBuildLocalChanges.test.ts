@@ -988,6 +988,15 @@ describe('maker build local-change guard', () => {
     expect(formatBuildResult(result, emptyProgressSummary())).toContain(
       'build.asset_dirs must contain only "../assets" and "../scripts"'
     );
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- failure_stage: project_validation'
+    );
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- code_submit_status: not_started'
+    );
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- remote_build_status: not_started'
+    );
   });
 
   test('build blocks before submit when project settings json is invalid', async () => {
@@ -1088,6 +1097,15 @@ describe('maker build local-change guard', () => {
     expect(result.mode).toBe('project_invalid_before_build');
     expect(submitLocalChanges).not.toHaveBeenCalled();
     expect(formatBuildResult(result, emptyProgressSummary())).toContain('misplaced_config');
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- failure_stage: project_validation'
+    );
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- code_submit_status: not_started'
+    );
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- remote_build_status: not_started'
+    );
     expect(formatBuildResult(result, emptyProgressSummary())).toContain(
       path.join('.project', 'project.json')
     );
@@ -4279,6 +4297,9 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- committed_but_unpushed: yes');
     expect(output).toContain('- retry_tool: maker_build_current_directory');
     expect(output).toContain('- do_not_use_generic_git_push: yes');
+    expect(output).toContain('- failure_stage: code_submit');
+    expect(output).toContain('- code_submit_status: failed');
+    expect(output).toContain('- remote_build_status: not_started');
   });
 
   test('formats successful remote build with Maker app preview URL', () => {
@@ -4629,6 +4650,59 @@ describe('maker build local-change guard', () => {
     expect(output).not.toContain('secret-token');
     expect(output).not.toContain('BUILD_SECRET_TOKEN');
     expect(output).not.toContain('BUILD_SECRET_COOKIE');
+    expect(output).toContain('- failure_stage: remote_build');
+    expect(output).toContain('- code_submit_status: succeeded');
+    expect(output).toContain('- remote_build_status: failed');
+    expect(output).toContain('- root_cause: unconfirmed');
+    expect(output).toContain(
+      '- inspect_first: returned build_failure and any remote_result for code or resource diagnostics'
+    );
+    expect(output).toContain('- diagnostic_action_modified_local_project_files: no');
+  });
+
+  test('classifies an MCP -32001 build timeout without blaming the Maker server', () => {
+    const output = formatBuildResult(
+      {
+        mode: 'build_failed_after_submit',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        submitResult: {
+          branch: 'main',
+          committed: true,
+          commitHash: 'timeout123',
+          message: 'chore: wake maker build server',
+          pushed: true,
+          status: 'pushed',
+        },
+        buildFailure: {
+          name: 'McpError',
+          message: 'MCP error -32001: Request timed out',
+          code: -32001,
+        },
+      },
+      emptyProgressSummary()
+    );
+
+    expect(output).toContain('- failure_signal: mcp_request_timeout');
+    expect(output).toContain('- root_cause: unconfirmed');
+    expect(output).toContain('- maker_server_fault_confirmed: no');
+    expect(output).toContain('mcp_timeout_local_diagnostics:');
+    expect(output).toContain(`- project_root: ${tempDir}`);
+    expect(output).toContain(`- node_version: ${process.version}`);
+    expect(output).toContain(`- platform: ${process.platform}/${process.arch}`);
+    expect(output).toContain('- active_client_config: not_checked');
+    expect(output).toContain('- active_client_session: not_checked');
+    expect(output).toContain(
+      "Maker MCP cannot inspect the active AI client's command, args, workspace Roots, session, or request timeout"
+    );
+    expect(output).toContain(
+      'Run Maker doctor for project_root through the active client launcher'
+    );
+    expect(output).toContain(
+      'standalone CLI equivalent: `taptap-maker doctor --target-dir <PROJECT_DIR>`'
+    );
+    expect(output).toContain('Do not claim a Maker server outage without HTTP 5xx');
+    expect(output).toContain('Do not retry the build blindly');
   });
 
   test('remote build refreshes Maker web preview after a build result is returned', async () => {
@@ -4835,6 +4909,14 @@ describe('maker build local-change guard', () => {
     expect('buildResult' in result ? result.buildResult.projectId : undefined).toBe('app-1');
     expect(refreshedProjects).toEqual([]);
     expect(startedProjects).toEqual([]);
+
+    const output = formatBuildResult(result, emptyProgressSummary());
+    expect(output).toContain('- failure_stage: remote_build');
+    expect(output).toContain('- code_submit_status: skipped_by_user');
+    expect(output).toContain('- remote_build_status: failed');
+    expect(output).toContain('- root_cause: unconfirmed');
+    expect(output).toContain('remote_result:');
+    expect(output).toContain('BUILD FAILED: lua syntax error');
   });
 
   test('runtime log watcher startup stops an existing watcher from pid file first', () => {

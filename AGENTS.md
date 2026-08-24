@@ -488,7 +488,16 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 查看结果 / 看看效果 / 验证游戏效果”时，都调用 `maker_build_current_directory`。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务；push 成功后才远端 build。
 - push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。
-- push 成功但远端 build 失败时，工具返回 `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端和具体构建错误。
+- 所有构建失败输出都必须返回 `failure_stage`、`code_submit_status` 和 `remote_build_status`，明确区分
+  项目校验、代码提交/推送和远端构建。push 成功但远端 build 失败时，工具返回
+  `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端，并优先检查返回的
+  `build_failure` / `remote_result` 中是否存在代码或资源诊断；不得自动修改项目文件。
+- `MCP error -32001: Request timed out` 只证明 MCP 请求超时，不能单独证明 Maker server 故障。
+  Maker MCP 能收到该错误时必须返回只读的本地进程、Node、cwd/project 对齐摘要，并把根因保持为
+  `unconfirmed`；随后通过活动客户端相同的 Maker launcher 对该项目运行 doctor（独立 CLI 等价命令为
+  `taptap-maker doctor --target-dir <PROJECT_DIR>`），再检查活动客户端实际生效的 command、args、
+  cwd/Roots、会话/tool 注册和 request timeout。doctor 不能读取活动客户端配置；没有
+  HTTP 5xx、服务端日志或服务状态等证据时禁止宣称服务端宕机，也禁止盲目重复构建。
 - 远端 Lua/LSP 编译失败属于工具级业务错误。代理必须把带 `error.data.remote_result` 的上游 `McpError(-32603)`
   转换为 `CallToolResult.isError` 并保留完整诊断；只有连接断开、会话失效等传输故障才允许进入重连路径，
   不得用 `TapTap MCP Server is currently unavailable` 覆盖原始编译错误。Maker 本地重试器必须优先依据

@@ -759,8 +759,19 @@ maker_build_current_directory()
   检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。
 - 用户明确说“不提交 / 直接构建 / 构建云端版本”时，才允许传 `confirm_remote_build_without_submit=true`，
   这会只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
-- push 被远端拒绝、认证失败、远端有新提交或发生冲突时，工具返回 `mode: submit_failed_before_build`，不会继续远端 build。Agent 应解释 push 失败原因，按 `classification` 使用对应恢复策略，再重试同一个构建工具。
-- 如果 push 成功但远端 build 失败，工具返回 `mode: build_failed_after_submit`，同时保留成功的提交/推送结果和构建错误。
+- push 被远端拒绝、认证失败、远端有新提交或发生冲突时，工具返回
+  `mode: submit_failed_before_build`，不会继续远端 build。Agent 应解释 push 失败原因，按
+  `classification` 使用对应恢复策略，再重试同一个构建工具。
+- 所有失败输出都包含 `failure_stage`、`code_submit_status` 和 `remote_build_status`。如果 push 成功但
+  远端 build 失败，工具返回 `mode: build_failed_after_submit`，同时保留成功的提交/推送结果和构建
+  错误。Agent 应先检查 `build_failure` / `remote_result` 中的代码或资源诊断，不会自动修改项目文件。
+- `MCP error -32001: Request timed out` 只表示 MCP 请求超时，根因保持为 `unconfirmed`，不能据此判断
+  Maker server 故障。Maker MCP 捕获到该错误时会返回只读的本地进程、Node 和 cwd/project 对齐摘要；
+  Agent 应通过活动客户端相同的 Maker launcher 对该项目运行 doctor（独立 CLI 等价命令为
+  `taptap-maker doctor --target-dir <PROJECT_DIR>`），再检查活动客户端实际 command、args、cwd/Roots、
+  会话/tool 注册和 request timeout。doctor 无法读取活动客户端配置；没有 HTTP 5xx、服务端日志或服务
+  状态证据时，不得宣称服务端宕机，也不要盲目重复构建。详细步骤见
+  `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md`。
 - 如果 build 成功，工具会启动本地 CLI watcher 并在返回里带出
   `runtime_logs.watch_started/watch_pid/watch_command/local_file/state_file`；MCP tool 不会长时间阻塞等待轮询。
   后续运行时诊断应优先读取 `runtime_logs.local_file`，watcher 健康状态读取
