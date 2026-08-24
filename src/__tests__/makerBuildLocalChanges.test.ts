@@ -4303,6 +4303,83 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- failure_stage: code_submit');
     expect(output).toContain('- code_submit_status: failed');
     expect(output).toContain('- remote_build_status: not_started');
+    expect(output).toContain('local_execution_check:');
+    expect(output).toContain('- restriction_signal: not_detected');
+    expect(output).toContain('Windows PowerShell');
+    expect(output).toContain('Full Access');
+    expect(output).toContain('not proof that sandbox restrictions caused this failure');
+  });
+
+  test('highlights the local execution check when a build failure contains a sandbox signal', () => {
+    const output = formatBuildResult(
+      {
+        mode: 'submit_failed_before_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        submitResult: {
+          branch: 'main',
+          committed: false,
+          pushed: false,
+          status: 'clean',
+          failure: {
+            stage: 'status',
+            classification: 'local',
+            retryable: false,
+            exitCode: 1,
+            stderr: 'PowerShell execution blocked by sandbox policy',
+            message: 'PowerShell execution blocked by sandbox policy',
+            nextAction: 'Check the local execution environment.',
+          },
+        },
+      },
+      emptyProgressSummary()
+    );
+
+    expect(output).toContain('local_execution_check:');
+    expect(output).toContain('- restriction_signal: detected');
+    expect(output).toContain('reports a sandbox or local access restriction');
+    expect(output).toContain('enable Full Access mode');
+    expect(output).not.toContain('sandbox_confirmed: yes');
+  });
+
+  test('keeps sandbox guidance non-conclusive before a structured build result exists', () => {
+    const output = formatToolException(
+      'maker_build_current_directory',
+      new Error('spawn powershell.exe EPERM: blocked by sandbox')
+    );
+
+    expect(output).toContain('local_execution_check:');
+    expect(output).toContain('- restriction_signal: not_detected');
+    expect(output).toContain('Windows PowerShell');
+    expect(output).toContain('enable Full Access mode');
+  });
+
+  test.each([
+    'remote build worker permission denied while reading an asset',
+    'remote build sandbox rejected an asset path',
+  ])('does not treat a remote build error as proof of a local sandbox signal: %s', (message) => {
+    const output = formatBuildResult(
+      {
+        mode: 'build_failed_after_submit',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        submitResult: {
+          branch: 'main',
+          committed: true,
+          pushed: true,
+          status: 'pushed',
+        },
+        buildFailure: {
+          name: 'Error',
+          message,
+        },
+      },
+      emptyProgressSummary()
+    );
+
+    expect(output).toContain('local_execution_check:');
+    expect(output).toContain('- restriction_signal: not_detected');
+    expect(output).toContain('Full Access mode');
   });
 
   test('formats successful remote build with Maker app preview URL', () => {

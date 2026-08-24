@@ -3451,6 +3451,8 @@ export function formatBuildResult(
       '',
       ...formatRemoteBuildDiagnosisLines(result.buildFailure, result.projectRoot),
       '',
+      ...formatBuildLocalExecutionCheckLines(),
+      '',
       'remote_result:',
       indent(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText))),
     ]
@@ -3489,8 +3491,12 @@ export function formatBuildResult(
             ...formatPushRecoveryLines(result.submitResult),
             '',
             ...formatMakerFailureLines(result.submitResult.failure),
+            '',
+            ...formatBuildLocalExecutionCheckLines(
+              gitFailureSearchText(result.submitResult.failure)
+            ),
           ]
-        : []),
+        : ['', ...formatBuildLocalExecutionCheckLines()]),
     ]
       .filter(Boolean)
       .join('\n');
@@ -3506,6 +3512,8 @@ export function formatBuildResult(
       ...formatProgressSummary(progressSummary),
       '',
       formatMakerProjectSettingsStatus(result.settingsStatus),
+      '',
+      ...formatBuildLocalExecutionCheckLines(),
     ]
       .filter(Boolean)
       .join('\n');
@@ -3521,6 +3529,8 @@ export function formatBuildResult(
       ...formatProgressSummary(progressSummary),
       '',
       formatMakerProjectHealthStatus(result.projectHealth),
+      '',
+      ...formatBuildLocalExecutionCheckLines(),
     ]
       .filter(Boolean)
       .join('\n');
@@ -3547,6 +3557,8 @@ export function formatBuildResult(
       ...formatMakerBuildFailureLines(result.buildFailure),
       '',
       ...formatRemoteBuildDiagnosisLines(result.buildFailure, result.projectRoot),
+      '',
+      ...formatBuildLocalExecutionCheckLines(),
     ]
       .filter(Boolean)
       .join('\n');
@@ -3801,6 +3813,32 @@ function formatBuildFailureStageLines(
   ];
 }
 
+function formatBuildLocalExecutionCheckLines(searchText = ''): string[] {
+  const restrictionSignal = hasLocalExecutionRestrictionSignal(searchText);
+  return [
+    'local_execution_check:',
+    `- restriction_signal: ${restrictionSignal ? 'detected' : 'not_detected'}`,
+    restrictionSignal
+      ? '- assessment: The current error reports a sandbox or local access restriction; code execution may be blocked before Maker can complete the build workflow.'
+      : '- assessment: Maker cannot inspect the AI client access-mode setting, so the current build failure does not confirm whether local execution is restricted.',
+    '- windows_check: Check whether the AI client is running Windows PowerShell, CLI, Git, or MCP commands in a sandbox or restricted mode.',
+    restrictionSignal
+      ? '- next_action: For a trusted project, enable Full Access mode ("完全访问模式") in the AI client, reconnect MCP, and retry only after confirming local commands can execute.'
+      : '- next_action: Check the AI client sandbox/access setting. For a trusted project, enable Full Access mode ("完全访问模式"), reconnect MCP, and retry after confirming local commands can execute.',
+    '- evidence_rule: This is a diagnostic check, not proof that sandbox restrictions caused this failure.',
+  ];
+}
+
+function hasLocalExecutionRestrictionSignal(value: string): boolean {
+  return /sandbox|沙盒|PowerShell.{0,80}(?:blocked|disabled|not permitted)|(?:blocked|disabled|not permitted).{0,80}PowerShell/iu.test(
+    value
+  );
+}
+
+function gitFailureSearchText(failure: MakerGitFailure): string {
+  return [failure.message, failure.stderr, failure.stdout].filter(Boolean).join('\n');
+}
+
 function formatRemoteBuildDiagnosisLines(
   failure: MakerBuildFailure,
   projectRoot: string
@@ -3877,6 +3915,10 @@ function formatMakerFailureLines(failure: MakerGitFailure): string[] {
 export function formatToolException(toolName: string, error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : undefined;
+  const buildLocalExecutionCheckLines =
+    toolName === 'maker_build_current_directory'
+      ? ['', ...formatBuildLocalExecutionCheckLines()]
+      : [];
   if (error instanceof MakerGitNotFoundError) {
     return [
       '✗ Maker MCP tool stopped',
@@ -3887,6 +3929,7 @@ export function formatToolException(toolName: string, error: unknown): string {
       message,
       '',
       'next_action: 请只引导用户安装 Git；在 `git --version` 可用之前，不要继续调用 clone、fetch、commit 或 push。',
+      ...buildLocalExecutionCheckLines,
     ].join('\n');
   }
 
@@ -3961,6 +4004,7 @@ export function formatToolException(toolName: string, error: unknown): string {
     stack ? indent(stack) : indent(message),
     '',
     'next_action: 请把上面的完整错误反馈给开发者；如果本地已有 commit 但 push 未完成，不要重复 commit，直接重试 maker_build_current_directory。',
+    ...buildLocalExecutionCheckLines,
   ].join('\n');
 }
 
