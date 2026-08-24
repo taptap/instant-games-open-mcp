@@ -2677,6 +2677,9 @@ describe('maker build local-change guard', () => {
       targetDir: tempDir,
       args: {
         mode: 'multi_modal_reference',
+        model: '2.5',
+        duration: 12,
+        user_confirmed: true,
         images: [{ url: 'video_ref_image' }, { url: 'https://example.test/already-cdn-image.png' }],
         videos: [{ url: 'video-ref-task' }],
         audios: [{ url: 'audio-ref-task' }],
@@ -2689,6 +2692,9 @@ describe('maker build local-change guard', () => {
     ]);
     expect(args.videos).toEqual([{ url: 'https://example.test/video-ref.mp4' }]);
     expect(args.audios).toEqual([{ url: 'https://example.test/audio-ref.mp3' }]);
+    expect(args.model).toBe('2.5');
+    expect(args.duration).toBe(12);
+    expect(args.user_confirmed).toBe(true);
   });
 
   test('converts generate image reference image names to image data urls', () => {

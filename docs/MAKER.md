@@ -490,6 +490,9 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 - Maker 项目内游戏素材能力记录在 `taptap-maker-local > Maker Creative Asset Tool Policy`。
   Maker MCP 提供生图、批量生图、修改图片、生成视频、音乐、音效、配音和 3D 素材 tools；
   使用其中某个 tool 时按其 schema 传入支持的参数和素材格式。
+  `create_video_task` 只在用户明确要求生成视频时调用，不得在实现玩法、补齐素材或自我优化时主动调用。
+  当明确指定 `duration > 10` 秒或使用 `model="2.5"` 时，必须先展示粗估积分及“实际按上游 token
+  结算”的说明，得到用户明确确认后再以相同参数并带 `user_confirmed=true` 重试。
 - 发生冲突时解释为什么冲突、冲突文件在哪里、冲突内容是什么，并让 Agent 给出解决建议。
 - 冲突解决前必须让用户确认，不隐藏 unresolved conflict。
 

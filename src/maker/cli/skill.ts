@@ -90,6 +90,8 @@ export function formatMakerSkillStatus(
     '- Follow the selected tool schema when one of these tools is used.',
     '- Use generate_image, batch_generate_images, edit_image for game image assets.',
     '- Use create_video_task and query_video_task for game video assets.',
+    '- Only call create_video_task after the user explicitly requests video generation; do not generate video proactively while implementing or filling asset gaps.',
+    '- When duration exceeds 10 seconds or model="2.5", show the rough credit estimate and upstream-token billing disclaimer, wait for explicit confirmation, then repeat the same request with user_confirmed=true.',
     '- Use text_to_music for game music.',
     '- Use text_to_sound_effect for one sound effect.',
     '- Use batch_sound_effects for multiple sound effects.',
