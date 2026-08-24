@@ -139,15 +139,20 @@ describe('maker build local-change guard', () => {
     expect(changes.files).toEqual(['scripts/main.lua']);
   });
 
-  test('reports local Maker project changes when filenames contain arrow text', async () => {
-    const fileName = 'scripts/name -> arrow.lua';
-    fs.writeFileSync(path.join(tempDir, fileName), '-- changed\n', 'utf8');
+  const testArrowFilename = process.platform === 'win32' ? test.skip : test;
 
-    const changes = await readMakerProjectLocalChanges(tempDir);
+  testArrowFilename(
+    'reports local Maker project changes when filenames contain arrow text',
+    async () => {
+      const fileName = 'scripts/name -> arrow.lua';
+      fs.writeFileSync(path.join(tempDir, fileName), '-- changed\n', 'utf8');
 
-    expect(changes.hasChanges).toBe(true);
-    expect(changes.files).toContain(fileName);
-  });
+      const changes = await readMakerProjectLocalChanges(tempDir);
+
+      expect(changes.hasChanges).toBe(true);
+      expect(changes.files).toContain(fileName);
+    }
+  );
 
   test('remote proxy context uses project local rnd environment config', () => {
     process.env.TAPTAP_MCP_ENV = 'production';
@@ -1082,7 +1087,9 @@ describe('maker build local-change guard', () => {
     expect(result.mode).toBe('project_invalid_before_build');
     expect(submitLocalChanges).not.toHaveBeenCalled();
     expect(formatBuildResult(result, emptyProgressSummary())).toContain('misplaced_config');
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain('.project/project.json');
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      path.join('.project', 'project.json')
+    );
   });
 
   test('build proceeds when settings exists but project.json is absent', async () => {
@@ -1177,7 +1184,7 @@ describe('maker build local-change guard', () => {
 
     expect(output).toContain('Maker project structure');
     expect(output).toContain('misplaced_config');
-    expect(output).toContain('.project/settings.json');
+    expect(output).toContain(path.join('.project', 'settings.json'));
   });
 
   test('QR proxy preflight uses the unified project health check', () => {
