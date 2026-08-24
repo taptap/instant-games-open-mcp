@@ -150,6 +150,13 @@ export interface ProxyConfig {
      * forwarding to the upstream server.
      */
     exposed_tools?: string[];
+    /**
+     * Tools that may wait for reconnection or be replayed after a transport failure.
+     *
+     * When omitted, the proxy preserves its historical behavior and may replay any tool.
+     * An empty array disables replay for every tool.
+     */
+    replayable_tools?: string[];
     /** 日志配置 */
     log?: LogConfig;
   };
@@ -164,6 +171,8 @@ export interface PendingRequest {
   resolve: (result: any) => void;
   reject: (error: Error) => void;
   timestamp: number;
+  /** 请求进入队列时已知的上游派发状态。 */
+  executionState?: 'not_executed' | 'unknown';
   /** Progress 回调（可选，用于重连后重放时转发 progress 通知） */
   onprogress?: (progress: { progress: number; total?: number; message?: string }) => void;
 }

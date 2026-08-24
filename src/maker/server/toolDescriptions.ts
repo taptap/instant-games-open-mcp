@@ -129,7 +129,14 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
   ].join(' '),
 };
 
+const MAKER_REMOTE_PROXY_RETRY_GUIDANCE = [
+  'This tool is not retried automatically by the local Maker runtime.',
+  'If its response is interrupted after dispatch, its execution state may be unknown.',
+  'For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.',
+].join(' ');
+
 /** Return a reviewed public description for an exposed Maker remote proxy tool. */
 export function getMakerRemoteProxyPublicDescriptionOverride(toolName: string): string | undefined {
-  return MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS[toolName];
+  const description = MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS[toolName];
+  return description ? `${description} ${MAKER_REMOTE_PROXY_RETRY_GUIDANCE}` : undefined;
 }

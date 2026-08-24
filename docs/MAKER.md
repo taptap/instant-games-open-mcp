@@ -422,10 +422,15 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   `confirm_remote_build_without_submit=true`；此时工具只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
 - 远端 Lua/LSP 编译失败属于业务失败，不属于 MCP 连接故障。代理会将带有 `remote_result` 的上游
   `McpError(-32603)` 转换为 `CallToolResult.isError`，并保留原始 `content` 诊断；只有连接断开或会话
-  失效才进入重连路径。Maker 本地重试器会优先识别 `error.data.remote_result` 和 MCP 业务错误码，
-  只重试明确的 proxy unavailable、连接关闭、请求超时和 HTTP 5xx 等传输故障。重连后重放请求若
-  再次断线，当前请求和剩余队列会保留到下一轮退避重连；排查构建问题时先读取工具结果中的
-  `remote_result`，不要用 generic unavailable 覆盖原始编译错误，也不要重复发起同一次构建。
+  失效才进入重连路径。只有 `build` 可以自动重试：Maker 本地重试器会优先识别
+  `error.data.remote_result` 和 MCP 业务错误码，只对明确的 proxy unavailable、连接关闭、请求超时和
+  HTTP 5xx 等传输故障最多尝试 5 次。重连后重放 build 若再次断线，当前请求会保留到下一轮退避重连。
+  排查构建问题时先读取工具结果中的 `remote_result`，不要用 generic unavailable 覆盖原始编译错误，
+  也不要重复发起同一次构建。
+- 其它 Maker Proxy tools（包括图片、视频、音频、3D、二维码和配置操作）固定为单次调用，不进入
+  本地重试器，也不会在 Proxy 重连后自动重放。派发前失败返回 `execution_state: not_executed`；请求
+  已派发但响应中断时返回 `execution_state: unknown`；两种情况都返回 `automatic_retry: false`。
+  对 `unknown` 结果必须先核对远端产物、任务、状态和用量，再决定是否由用户显式重试。
 - Maker 内嵌代理会对 MCP Streamable HTTP 的可选 standalone SSE GET 返回规范允许的 `405`，
   远端 `tools/list`、tool call、响应和 progress 均继续使用 POST SSE。Node.js 26.4.0 对照测试中，
   standalone GET 会阻塞后续 `tools/list` 并在 60 秒后超时；关闭该可选流后，Node.js 24.19.0 与

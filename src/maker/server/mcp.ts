@@ -114,6 +114,7 @@ import {
 import { inspectMakerQrcodePreflight } from '../qrcodePreflight.js';
 import {
   CREATE_3D_ASSET_PROXY_TOOL_NAME,
+  RemoteProxyToolCallError,
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
@@ -464,11 +465,23 @@ export async function callRemoteProxyTool(options: {
   const callTool = options.manager
     ? async () => {
         proxy = createProxy();
-        return await options.manager!.callTool(
-          proxy,
-          { name: options.name, arguments: finalArgs },
-          requestOptions
-        );
+        let dispatched = false;
+        try {
+          return await options.manager!.callTool(
+            proxy,
+            { name: options.name, arguments: finalArgs },
+            requestOptions,
+            () => {
+              dispatched = true;
+            }
+          );
+        } catch (error) {
+          throw new RemoteProxyToolCallError(
+            options.name,
+            dispatched ? 'unknown' : 'not_executed',
+            error
+          );
+        }
       }
     : async () => {
         const transport = trackMakerChildTransport(
@@ -490,6 +503,11 @@ export async function callRemoteProxyTool(options: {
         );
         try {
           await client.connect(transport);
+        } catch (error) {
+          await client.close().catch(() => {});
+          throw new RemoteProxyToolCallError(options.name, 'not_executed', error);
+        }
+        try {
           return await client.callTool(
             {
               name: options.name,
@@ -500,27 +518,13 @@ export async function callRemoteProxyTool(options: {
               ...requestOptions,
             }
           );
+        } catch (error) {
+          throw new RemoteProxyToolCallError(options.name, 'unknown', error);
         } finally {
           await client.close().catch(() => {});
         }
       };
-  const result = await retryMakerProxyOperation(callTool, {
-    onRetry: options.progressToken
-      ? (event) => {
-          options.extra
-            .sendNotification({
-              method: 'notifications/progress',
-              params: {
-                progressToken: options.progressToken,
-                progress: event.attempt,
-                total: event.attempts,
-                message: event.message,
-              },
-            })
-            .catch(() => {});
-        }
-      : undefined,
-  });
+  const result = await callTool();
   return await materializeRemoteProxyToolAssets({
     toolName: options.name,
     targetDir: proxy.projectRoot,
@@ -1474,7 +1478,8 @@ export async function formatMakerProxyToolsStatusSafely(options: {
       `- missing_tools: ${MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.join(', ')}`,
       '- build_available: no',
       `- failure_message: ${error instanceof Error ? error.message : String(error)}`,
-      '- retry_policy: explicit proxy tool/build calls retry 5 total attempts, 30s apart',
+      '- build_retry_policy: up to 5 total attempts, 30s apart',
+      '- proxy_tool_retry_policy: single attempt; never replayed automatically',
       '- next_action: Maker proxy 连接失败；远端 proxy tools 和 build 构建都不可用。请检查网络、PAT/TapTap token、Maker MCP 环境和远端服务后重试。',
     ].join('\n');
   }
@@ -2227,6 +2232,7 @@ export function createRemoteProxyContext(options: {
       force_inject_progress_token: true,
       disable_standalone_sse: true,
       exposed_tools: options.exposedTools,
+      replayable_tools: ['build'],
     },
   };
 
