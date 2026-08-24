@@ -389,10 +389,21 @@ export class TapTapMCPProxy {
     try {
       // 创建支持 Cookie 的 fetch（用于 K8s Ingress 会话粘性）
       const cookieEnabled = this.config.options?.enable_cookie_sticky ?? true;
-      const customFetch = cookieEnabled ? createCookieFetch(this.cookieJar) : undefined;
+      const standaloneSseDisabled = this.config.options?.disable_standalone_sse ?? false;
+      const customFetch =
+        cookieEnabled || standaloneSseDisabled
+          ? createCookieFetch(this.cookieJar, {
+              enableCookies: cookieEnabled,
+              rejectStandaloneSse: standaloneSseDisabled,
+            })
+          : undefined;
 
       if (cookieEnabled && this.config.options?.verbose) {
         this.log('debug', 'Cookie sticky session enabled');
+      }
+
+      if (standaloneSseDisabled && this.config.options?.verbose) {
+        this.log('debug', 'Standalone SSE disabled; using POST response streams');
       }
 
       // 构建会话 Headers（包含认证和上下文信息）

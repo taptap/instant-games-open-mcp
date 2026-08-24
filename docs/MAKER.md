@@ -426,6 +426,10 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   只重试明确的 proxy unavailable、连接关闭、请求超时和 HTTP 5xx 等传输故障。重连后重放请求若
   再次断线，当前请求和剩余队列会保留到下一轮退避重连；排查构建问题时先读取工具结果中的
   `remote_result`，不要用 generic unavailable 覆盖原始编译错误，也不要重复发起同一次构建。
+- Maker 内嵌代理会对 MCP Streamable HTTP 的可选 standalone SSE GET 返回规范允许的 `405`，
+  远端 `tools/list`、tool call、响应和 progress 均继续使用 POST SSE。Node.js 26.4.0 对照测试中，
+  standalone GET 会阻塞后续 `tools/list` 并在 60 秒后超时；关闭该可选流后，Node.js 24.19.0 与
+  26.4.0 均可在约 10 秒内完成同一远端构建。该行为只用于 Maker 内嵌代理，普通 Proxy 默认不变。
 - 运行时日志：不作为本地公开 MCP tool 暴露。构建成功后 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs`，默认只拉 `engine`、`user_script`（客户端 Lua 脚本）和
   `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份

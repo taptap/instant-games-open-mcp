@@ -193,6 +193,7 @@ describe('maker build local-change guard', () => {
     expect(proxyConfig.options).not.toHaveProperty('tool_call_timeout');
     expect(proxyConfig.options.reset_timeout_on_progress).toBe(true);
     expect(proxyConfig.options.force_inject_progress_token).toBe(true);
+    expect(proxyConfig.options.disable_standalone_sse).toBe(true);
   });
 
   test('remote proxy progress handler keeps upstream progress active without client token', () => {
