@@ -99,6 +99,8 @@ type MakerMcpIssueSubmission =
   | { status: 'created'; issue_url: string }
   | (MakerMcpIssue & { status: 'manual_required'; issue_url: string });
 
+export type MakerMcpReportContextValidation = { ok: true } | { ok: false; reason: string };
+
 export function parseMakerMcpReportContext(input: string): MakerMcpReportContext {
   const trimmed = input.trim();
   if (!trimmed) {
@@ -117,6 +119,33 @@ export function parseMakerMcpReportContext(input: string): MakerMcpReportContext
   return {
     summary: 'Maker MCP problem report',
     error_message: trimmed,
+  };
+}
+
+export function validateMakerMcpReportContext(
+  context: MakerMcpReportContext
+): MakerMcpReportContextValidation {
+  const errorMessage = context.error_message?.trim() || '';
+  const hasErrorCode =
+    typeof context.error_code === 'number' ||
+    (typeof context.error_code === 'string' && context.error_code.trim().length > 0);
+  const hasFailedOperation = Boolean(context.failed_operation?.trim());
+  if (errorMessage === 'Need to call maker_build_current_directory' && !hasErrorCode) {
+    return {
+      ok: false,
+      reason:
+        'This is an expected Maker project build prerequisite, not an MCP connectivity failure.',
+    };
+  }
+
+  if (hasErrorCode || hasFailedOperation || errorMessage) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    reason:
+      'Report context must include at least one of error_code, failed_operation, or error_message.',
   };
 }
 
@@ -961,7 +990,7 @@ function redactReportText(value: string): string {
       /(--(?:[a-z0-9]+[-_])*(?:pat|token|secret|signature|sig|credential|credentials|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key)=)([^\s]+)/giu,
       '$1<redacted>'
     )
-    .replace(/\b([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^@\s/]+)@/gu, '$1<redacted>@')
+    .replace(/\b([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^@\s/?#]+)@/gu, '$1<redacted>@')
     .replace(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/gu, '<redacted>')
     .replace(/\bgh[pousr]_[A-Za-z0-9]{20,}\b/gu, '<redacted>');
 }

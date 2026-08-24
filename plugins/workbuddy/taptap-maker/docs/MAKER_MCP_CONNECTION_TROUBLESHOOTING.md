@@ -3,6 +3,7 @@
 适用于以下现象：
 
 - AI 客户端提示 `-32000`、`Connection closed`、`command not found` 或启动后立即退出。
+- 构建或其它长调用返回 `MCP error -32001: Request timed out`。
 - 当前对话没有 `maker_status_lite`、`maker_build_current_directory` 等 Maker tools。
 - 同一项目之前可用，重启客户端、新开对话或多开对话后失效。
 - 普通终端可以运行 Maker CLI，但 Codex、WorkBuddy 等客户端无法启动 MCP。
@@ -38,6 +39,8 @@ taptap-maker mcp verify --json
 `initialize` 和 `tools/list`，并返回 launcher_kind、command、stage、tools、stderr、error 和
 failure_type。失败时命令退出码非零。它证明本机最终启动命令和 stdio MCP 通路可用，但不会读取
 客户端实际生效的配置，也不能检查任意客户端 trust、客户端配置缓存或 MCP Roots。
+Windows 物化 runtime 目录时，如果系统递归复制返回 `EIO`、`EACCES` 或 `EPERM`，安装器会自动
+回退为逐项复制；其它错误仍原样返回，便于保留真实诊断。
 只有明确检查 npm 启动链路时才追加 `--mode npx`；发布包会固定当前精确版本并使用专用可写 cache。
 如果当前 shell 找不到 `taptap-maker`，优先复用客户端配置中的绝对 command/args；最后才用当前
 精确版本的 npx 命令启动 CLI，禁止省略版本落到 npm `latest`。
@@ -54,6 +57,13 @@ config path、command、有序 args、cwd、workspace/Roots、Node/npm/npx 路�
 
 对于已经连接的会话，`mcp verify` 不是首要检查。它只验证本地 launcher 和 stdio MCP 通路，不能解释单次
 tool/resource 调用中的请求校验、项目上下文、远端响应或业务错误。用户 AI 应先保存以下证据：
+
+`MCP error -32001: Request timed out` 只证明某一层请求预算耗尽，根因仍是 `unconfirmed`。如果错误
+来自客户端自身的固定超时，Maker MCP 甚至无法返回诊断结果；如果 Maker MCP 捕获到它，构建结果会附带
+只读的本地进程、Node 和 cwd/project 对齐摘要。先通过活动客户端相同的 Maker launcher 对该项目运行
+doctor（独立 CLI 等价命令为 `taptap-maker doctor --target-dir <PROJECT_DIR>`），再核对活动客户端真实
+command、args、cwd/Roots、会话/tool 注册和 request timeout。doctor 不能读取活动客户端配置；没有
+HTTP 5xx、服务端日志或服务状态等证据时，不得称为 Maker server 故障，也不要盲目重复构建。
 
 远端 Maker 构建中的 Lua/LSP 编译错误是工具级业务失败。代理会把带 `error.data.remote_result` 的
 上游 MCP 协议异常转换成 `CallToolResult.isError: true`，原始编译诊断放在 `content` 和
@@ -321,6 +331,10 @@ CLI 会读取当前客户端的 `taptap-maker` 配置项、执行有短超时保
 不会上传其它 MCP server、完整聊天、项目源码、PAT/token、完整环境变量或 project/user ID；用户
 主目录统一替换为 `~`。错误、`remote_result` 和请求参数保留非敏感结构，方便服务端按
 request/correlation ID 继续定位。
+
+stdin 上下文必须至少包含非空的 `error_code`、`failed_operation` 或 `error_message`。空输入、只有
+默认摘要的输入，以及精确的 `Need to call maker_build_current_directory` 正常构建前置提示，会在
+收集本地诊断和调用 GitHub 前返回 `invalid_context`；`EIO`、`401` 等短错误仍是有效上下文。
 
 成功时返回 `created` 和 Issue URL。GitHub CLI 不存在、未登录、网络不可达、超时或提交失败时返回
 `manual_required`、脱敏标题/正文和手动 Issue 地址，命令仍成功结束；AI 应明显告知用户没有自动

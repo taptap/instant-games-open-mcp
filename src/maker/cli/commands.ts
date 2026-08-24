@@ -102,6 +102,7 @@ import {
   parseMakerMcpReportContext,
   resolveMakerMcpReportRuntime,
   submitMakerMcpIssue,
+  validateMakerMcpReportContext,
 } from './mcpIssueReport.js';
 import {
   createDshMakerPluginConfig,
@@ -1367,6 +1368,27 @@ async function runMcpReport(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
   const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
   const contextInput = booleanOption(parsed, 'context_stdin') ? await readStdinText() : '';
   const context = parseMakerMcpReportContext(contextInput);
+  const contextValidation = validateMakerMcpReportContext(context);
+  if (!contextValidation.ok) {
+    const payload = {
+      status: 'invalid_context' as const,
+      reason: contextValidation.reason,
+      issue_url: 'https://github.com/taptap/instant-games-open-mcp/issues/new',
+    };
+    if (ctx.json) {
+      writeJson(payload);
+      return;
+    }
+    process.stdout.write(
+      [
+        'Maker MCP issue report was not prepared: actionable error context is missing.',
+        `Reason: ${payload.reason}`,
+        `Manual issue URL: ${payload.issue_url}`,
+        '',
+      ].join('\n')
+    );
+    return;
+  }
   const reportRuntime = resolveMakerMcpReportRuntime({
     distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
     bundleUrl: typeof __MAKER_BUNDLE_URL__ !== 'undefined' ? __MAKER_BUNDLE_URL__ : undefined,
