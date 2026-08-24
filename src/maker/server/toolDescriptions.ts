@@ -14,6 +14,7 @@ export const MAKER_STATUS_LITE_PUBLIC_DESCRIPTION = [
 
 export const MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION = [
   'Submit and remotely build the current bound Maker project. First read maker://status or maker_status_lite and resolve exactly one bound Maker project.',
+  '`Need to call maker_build_current_directory` is a normal project build prerequisite, not an MCP connectivity failure or issue-report trigger.',
   'Use this tool for explicit Maker build, preview, submit, or push requests. Code tests and lint do not trigger this remote workflow unless the user also explicitly asks to build, run, or preview the Maker game.',
   'Normal mode commits local changes when needed, pushes existing or new commits, and then starts the remote build; a clean workspace creates the required wake-up commit.',
   'Unsafe remote-sync or branch states stop before commit and push. A push failure stops before build, while a build failure after a successful push means the code is already on Maker remote; follow the structured result for recovery.',

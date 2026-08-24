@@ -1395,6 +1395,9 @@ describe('maker build local-change guard', () => {
     expect(buildTool?.inputSchema.additionalProperties).toBe(false);
     expect(buildTool?.inputSchema.properties).toHaveProperty('confirm_remote_build_without_submit');
     expect(buildTool?.inputSchema.properties).not.toHaveProperty('environment');
+    expect(buildTool?.description).toContain(
+      'Need to call maker_build_current_directory` is a normal project build prerequisite'
+    );
   });
 
   test('exposes only the compact Maker tool set', () => {

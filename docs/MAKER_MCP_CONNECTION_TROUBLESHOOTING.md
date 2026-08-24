@@ -39,6 +39,8 @@ taptap-maker mcp verify --json
 `initialize` 和 `tools/list`，并返回 launcher_kind、command、stage、tools、stderr、error 和
 failure_type。失败时命令退出码非零。它证明本机最终启动命令和 stdio MCP 通路可用，但不会读取
 客户端实际生效的配置，也不能检查任意客户端 trust、客户端配置缓存或 MCP Roots。
+Windows 物化 runtime 目录时，如果系统递归复制返回 `EIO`、`EACCES` 或 `EPERM`，安装器会自动
+回退为逐项复制；其它错误仍原样返回，便于保留真实诊断。
 只有明确检查 npm 启动链路时才追加 `--mode npx`；发布包会固定当前精确版本并使用专用可写 cache。
 如果当前 shell 找不到 `taptap-maker`，优先复用客户端配置中的绝对 command/args；最后才用当前
 精确版本的 npx 命令启动 CLI，禁止省略版本落到 npm `latest`。
@@ -329,6 +331,10 @@ CLI 会读取当前客户端的 `taptap-maker` 配置项、执行有短超时保
 不会上传其它 MCP server、完整聊天、项目源码、PAT/token、完整环境变量或 project/user ID；用户
 主目录统一替换为 `~`。错误、`remote_result` 和请求参数保留非敏感结构，方便服务端按
 request/correlation ID 继续定位。
+
+stdin 上下文必须至少包含非空的 `error_code`、`failed_operation` 或 `error_message`。空输入、只有
+默认摘要的输入，以及精确的 `Need to call maker_build_current_directory` 正常构建前置提示，会在
+收集本地诊断和调用 GitHub 前返回 `invalid_context`；`EIO`、`401` 等短错误仍是有效上下文。
 
 成功时返回 `created` 和 Issue URL。GitHub CLI 不存在、未登录、网络不可达、超时或提交失败时返回
 `manual_required`、脱敏标题/正文和手动 Issue 地址，命令仍成功结束；AI 应明显告知用户没有自动
