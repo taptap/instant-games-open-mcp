@@ -3,10 +3,10 @@
 本仓库把 TapTap Maker 的本地开发闭环接入 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 （DSH），分两层交付，由轻到重：
 
-| 层     | 形态        | 入口                                                | 能力                                                                                     |
-| ------ | ----------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| **L1** | 零代码配置  | `taptap-maker install --ide dsh`                    | 只把 Maker MCP 注册成一条 `mcp-client` 行（写入 `$DSH_HOME/cordis.patch.yml`），HMR 生效 |
-| **L2** | bundle 插件 | `packages/dsh-maker/`（npm 包 `@taptap/dsh-maker`） | MCP + 技能打包，`dsh plugin add` 一键安装，自包含、可分发                                |
+| 层     | 形态        | 入口                                              | 能力                                                                                     |
+| ------ | ----------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **L1** | 零代码配置  | `taptap-maker install --ide dsh`                  | 只把 Maker MCP 注册成一条 `mcp-client` 行（写入 `$DSH_HOME/cordis.patch.yml`），HMR 生效 |
+| **L2** | bundle 插件 | `packages/dsh-maker/`（包名 `@taptap/dsh-maker`） | MCP + 技能打包，`dsh plugin add` 一键安装，自包含、可分发                                |
 
 本文档说明 **L2 插件**。L1 的实现与配置细节见
 [`docs/MAKER.md`](MAKER.md) 的 DSH 章节。
@@ -78,8 +78,9 @@ packages/dsh-maker/
 前置：已装 DSH（`dsh`）与 pnpm。
 
 ```bash
-# 安装（web profile；headless 同理）
-dsh plugin --profile web add @taptap/dsh-maker
+# 从 1024Store 使用的 GitHub 子目录源安装（web profile；headless 同理）
+dsh plugin --profile web add \
+  'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'
 
 # 验证
 dsh --profile web --dump-config | grep -A 20 'mcp-taptap-maker\|taptap-maker'
@@ -103,8 +104,7 @@ dsh plugin --profile web remove @taptap/dsh-maker
       serverName: taptap-maker # 默认 taptap-maker
       toolCallTimeoutMs: 3600000 # 默认 1 小时
       failOnStartupError: false # 默认 false
-      env: # 合并进子进程环境（凭证类放这里）
-        TAPTAP_MCP_ENV: production
+      env: {} # 可选：合并进 MCP 子进程环境
       cwd: '' # 默认不写（项目无关）
 ```
 
@@ -116,10 +116,15 @@ dsh plugin --profile web remove @taptap/dsh-maker
   `config.mcp.env`。
 - **超时**：DSH 默认每次 `tools/call` 60 秒，Maker 构建/素材会超时，插件已默认 1 小时。
 
-## 分发（GitHub 发版页）
+## 分发
 
-上架 DSH 插件市场之前，用与 Codex/WorkBuddy 相同的方式做 GitHub Release 分发：用户把发版页链接
-交给 AI，AI 按页面自动下载、校验、安装。
+DSH 插件有两条互补的分发入口：
+
+- **1024Store / GitHub 子目录源**：市场条目指向
+  `github:taptap/instant-games-open-mcp#path:packages/dsh-maker`，用于市场安装和更新。该无 ref 源按
+  1024Store 规范跟随仓库 `main`。
+- **GitHub Release tarball**：用于分享固定版本链接。用户把发版页链接交给 AI，AI 按页面下载、
+  校验 SHA-256 后安装。
 
 - **发版页**：`packages/dsh-maker/INSTALL.md`（稳定页，含“给安装 AI 的强制执行指令”、下载链接、
   安装步骤、排障与回滚）。
@@ -129,10 +134,9 @@ dsh plugin --profile web remove @taptap/dsh-maker
   选择 `main` 发布稳定版；工作流创建 tag `dsh-maker-v<version>` 的 GitHub Release，把 tarball、
   `SHA256SUMS` 上传为附件，`INSTALL.md` 作为 Release 说明。
 
-本地（未发版）分发：跑一次 `npm run maker:dsh-plugin:package`，把 `taptap-dsh-maker-<version>.tgz`
-
-- `SHA256SUMS` 交给测试用户，用户（或其 AI）执行
-  `dsh plugin --profile web add <tarball绝对路径>` 即可。
+本地（未发版）分发：跑一次 `npm run maker:dsh-plugin:package`，把
+`taptap-dsh-maker-<version>.tgz` 和 `SHA256SUMS` 交给测试用户，用户（或其 AI）执行
+`dsh plugin --profile web add <tarball绝对路径>` 即可。
 
 ## 版本与发布
 
@@ -141,9 +145,10 @@ dsh plugin --profile web remove @taptap/dsh-maker
   发布，避免安装时依赖不存在。
 - `packages/dsh-maker/` 与 `docs/DSH_PLUGIN.md` 已纳入 `scripts/release-scope.cjs` 的 maker
   归属，只改本插件的提交不会误触发主包发布。
-- 发布：从 `packages/dsh-maker/` 执行 `npm publish --access public`。
-- 接入 DSH 插件市场：本包已保持标准 bundle 形态 + `assets/taptap-maker.png` 图标，市场开放后
-  按规范补充入口字段即可。
+- 不发布 `@taptap/dsh-maker` npm 包；稳定包只通过 `Publish DSH Maker Plugin` workflow 发布到
+  GitHub Release。
+- 1024Store catalog 只登记 GitHub 仓库和 `packages/dsh-maker` 子目录；插件仍保持标准 bundle
+  形态，并使用 `assets/taptap-maker.png` 作为市场图标。
 
 ## 相关文档
 
