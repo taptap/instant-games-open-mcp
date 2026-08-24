@@ -61,6 +61,9 @@ describe('Maker non-audio tool descriptions', () => {
     expect(buildDescription).toMatch(/session.{0,80}request timeout/iu);
     expect(buildDescription).toMatch(/doctor.{0,160}read-only/iu);
     expect(buildDescription).toMatch(/do not retry.{0,80}blindly/iu);
+    expect(buildDescription).toMatch(/build fail.{0,240}sandbox/iu);
+    expect(buildDescription).toMatch(/Windows PowerShell.{0,240}Full Access/iu);
+    expect(buildDescription).toMatch(/diagnostic check.{0,120}not proof/iu);
   });
 
   test('documents the Maker project context resolution order in local target_dir schemas', () => {

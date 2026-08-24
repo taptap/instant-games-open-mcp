@@ -43424,6 +43424,7 @@ var MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION = [
   "Normal mode commits local changes when needed, pushes existing or new commits, and then starts the remote build; a clean workspace creates the required wake-up commit.",
   "Unsafe remote-sync or branch states stop before commit and push. A push failure stops before build, while a build failure after a successful push means the code is already on Maker remote; follow the structured result for recovery.",
   "On failure, read failure_stage, code_submit_status, and remote_build_status before explaining whether project validation, code submit/push, or remote build failed.",
+  'Whenever a build fails, ask the user to check whether the AI client is running Windows PowerShell, CLI, Git, or MCP commands in a sandbox or restricted mode. If the project is trusted, suggest enabling Full Access mode ("完全访问模式") and reconnecting MCP before retrying. This is a diagnostic check, not proof that sandbox restrictions caused the failure.',
   "If the host reports `MCP error -32001: Request timed out`, treat it only as a timeout signal: timeout alone is not evidence of a Maker server failure. Do not claim a Maker server outage without HTTP 5xx, server logs, or service-status evidence.",
   "Do not retry the build blindly. Run Maker doctor for the project through the active client launcher (`taptap-maker doctor --target-dir <PROJECT_DIR>` is the standalone CLI equivalent) for read-only host and project checks, then inspect the actual active client MCP command, args, cwd/Roots, session and tool registration, request timeout, and Node runtime. Doctor cannot inspect the active client configuration itself.",
   "After a successful build, read runtime_logs.local_file for gameplay diagnostics and runtime_logs.state_file for watcher health when those fields are returned.",
@@ -47228,6 +47229,8 @@ function formatBuildResult(result, progressSummary) {
       "",
       ...formatRemoteBuildDiagnosisLines(result.buildFailure, result.projectRoot),
       "",
+      ...formatBuildLocalExecutionCheckLines(),
+      "",
       "remote_result:",
       indent2(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText)))
     ].filter(Boolean).join("\n");
@@ -47253,8 +47256,12 @@ function formatBuildResult(result, progressSummary) {
         "",
         ...formatPushRecoveryLines(result.submitResult),
         "",
-        ...formatMakerFailureLines(result.submitResult.failure)
-      ] : []
+        ...formatMakerFailureLines(result.submitResult.failure),
+        "",
+        ...formatBuildLocalExecutionCheckLines(
+          gitFailureSearchText(result.submitResult.failure)
+        )
+      ] : ["", ...formatBuildLocalExecutionCheckLines()]
     ].filter(Boolean).join("\n");
   }
   if (result.mode === "settings_invalid_before_build") {
@@ -47266,7 +47273,9 @@ function formatBuildResult(result, progressSummary) {
       ...formatBuildFailureStageLines("project_validation", "not_started", "not_started"),
       ...formatProgressSummary(progressSummary),
       "",
-      formatMakerProjectSettingsStatus(result.settingsStatus)
+      formatMakerProjectSettingsStatus(result.settingsStatus),
+      "",
+      ...formatBuildLocalExecutionCheckLines()
     ].filter(Boolean).join("\n");
   }
   if (result.mode === "project_invalid_before_build") {
@@ -47278,7 +47287,9 @@ function formatBuildResult(result, progressSummary) {
       ...formatBuildFailureStageLines("project_validation", "not_started", "not_started"),
       ...formatProgressSummary(progressSummary),
       "",
-      formatMakerProjectHealthStatus(result.projectHealth)
+      formatMakerProjectHealthStatus(result.projectHealth),
+      "",
+      ...formatBuildLocalExecutionCheckLines()
     ].filter(Boolean).join("\n");
   }
   if (result.mode === "build_failed_after_submit") {
@@ -47299,7 +47310,9 @@ function formatBuildResult(result, progressSummary) {
       "",
       ...formatMakerBuildFailureLines(result.buildFailure),
       "",
-      ...formatRemoteBuildDiagnosisLines(result.buildFailure, result.projectRoot)
+      ...formatRemoteBuildDiagnosisLines(result.buildFailure, result.projectRoot),
+      "",
+      ...formatBuildLocalExecutionCheckLines()
     ].filter(Boolean).join("\n");
   }
   const submitLines = result.submitResult ? [
@@ -47426,6 +47439,25 @@ function formatBuildFailureStageLines(failureStage, codeSubmitStatus, remoteBuil
     `- remote_build_status: ${remoteBuildStatus}`
   ];
 }
+function formatBuildLocalExecutionCheckLines(searchText = "") {
+  const restrictionSignal = hasLocalExecutionRestrictionSignal(searchText);
+  return [
+    "local_execution_check:",
+    `- restriction_signal: ${restrictionSignal ? "detected" : "not_detected"}`,
+    restrictionSignal ? "- assessment: The current error reports a sandbox or local access restriction; code execution may be blocked before Maker can complete the build workflow." : "- assessment: Maker cannot inspect the AI client access-mode setting, so the current build failure does not confirm whether local execution is restricted.",
+    "- windows_check: Check whether the AI client is running Windows PowerShell, CLI, Git, or MCP commands in a sandbox or restricted mode.",
+    restrictionSignal ? '- next_action: For a trusted project, enable Full Access mode ("完全访问模式") in the AI client, reconnect MCP, and retry only after confirming local commands can execute.' : '- next_action: Check the AI client sandbox/access setting. For a trusted project, enable Full Access mode ("完全访问模式"), reconnect MCP, and retry after confirming local commands can execute.',
+    "- evidence_rule: This is a diagnostic check, not proof that sandbox restrictions caused this failure."
+  ];
+}
+function hasLocalExecutionRestrictionSignal(value) {
+  return /sandbox|沙盒|PowerShell.{0,80}(?:blocked|disabled|not permitted)|(?:blocked|disabled|not permitted).{0,80}PowerShell/iu.test(
+    value
+  );
+}
+function gitFailureSearchText(failure) {
+  return [failure.message, failure.stderr, failure.stdout].filter(Boolean).join("\n");
+}
 function formatRemoteBuildDiagnosisLines(failure, projectRoot) {
   const isRequestTimeout = isMcpRequestTimeoutFailure(failure);
   return [
@@ -47492,6 +47524,7 @@ ${indent2(failure.stdout)}` : "",
 function formatToolException(toolName, error2) {
   const message = error2 instanceof Error ? error2.message : String(error2);
   const stack = error2 instanceof Error ? error2.stack : void 0;
+  const buildLocalExecutionCheckLines = toolName === "maker_build_current_directory" ? ["", ...formatBuildLocalExecutionCheckLines()] : [];
   if (error2 instanceof MakerGitNotFoundError) {
     return [
       "✗ Maker MCP tool stopped",
@@ -47501,7 +47534,8 @@ function formatToolException(toolName, error2) {
       "",
       message,
       "",
-      "next_action: 请只引导用户安装 Git；在 `git --version` 可用之前，不要继续调用 clone、fetch、commit 或 push。"
+      "next_action: 请只引导用户安装 Git；在 `git --version` 可用之前，不要继续调用 clone、fetch、commit 或 push。",
+      ...buildLocalExecutionCheckLines
     ].join("\n");
   }
   if (error2 instanceof MakerCloneFailedError) {
@@ -47571,7 +47605,8 @@ function formatToolException(toolName, error2) {
     "debug:",
     stack ? indent2(stack) : indent2(message),
     "",
-    "next_action: 请把上面的完整错误反馈给开发者；如果本地已有 commit 但 push 未完成，不要重复 commit，直接重试 maker_build_current_directory。"
+    "next_action: 请把上面的完整错误反馈给开发者；如果本地已有 commit 但 push 未完成，不要重复 commit，直接重试 maker_build_current_directory。",
+    ...buildLocalExecutionCheckLines
   ].join("\n");
 }
 function stripNestedMcpErrorPrefixes(message) {

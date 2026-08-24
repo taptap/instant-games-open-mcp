@@ -65,6 +65,13 @@ doctor（独立 CLI 等价命令为 `taptap-maker doctor --target-dir <PROJECT_D
 command、args、cwd/Roots、会话/tool 注册和 request timeout。doctor 不能读取活动客户端配置；没有
 HTTP 5xx、服务端日志或服务状态等证据时，不得称为 Maker server 故障，也不要盲目重复构建。
 
+所有 Maker 构建失败都会附带 `local_execution_check`。在 Windows AI 客户端中，检查 PowerShell、
+CLI、Git 或 MCP 命令是否被沙盒拦截；对可信项目可开启 Full Access（“完全访问模式”）并重连 MCP。
+Maker MCP 无法读取客户端访问模式，因此这始终是排查项而不是根因结论。只有 `code_submit` / Git
+本地失败明确出现 `sandbox` / `沙盒` 或 PowerShell 策略拦截文本时，`restriction_signal` 才会标记为
+`detected`；远端构建和无法定位阶段的通用异常保持 `not_detected`，即使文本含 `sandbox` 或
+`permission denied` 也不足以证明本地沙盒限制。
+
 远端 Maker 构建中的 Lua/LSP 编译错误是工具级业务失败。代理会把带 `error.data.remote_result` 的
 上游 MCP 协议异常转换成 `CallToolResult.isError: true`，原始编译诊断放在 `content` 和
 `remote_result` 中；这类错误不应触发重连，也不应被“TapTap MCP Server is currently unavailable”
