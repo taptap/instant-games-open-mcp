@@ -42,7 +42,10 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
     'The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present.',
   ].join(' '),
   create_video_task: [
-    'Create a video generation task. The remote service normally performs server-side polling and waits for the final result in this call.',
+    'Create a video generation task only after the user explicitly requests video generation. Do not proactively or automatically generate videos while designing gameplay, implementing features, filling asset gaps, or self-improving the game.',
+    'Estimate the intended duration before calling. The confirmation estimate is 200 credits per second for model="2.0" and 300 credits per second for model="2.5"; it is only a rough estimate, while actual billing follows upstream token usage.',
+    'When duration exceeds 10 seconds or model="2.5" is used, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Default model="2.0" with omitted duration or duration=-1 does not require confirmation.',
+    'The remote service normally performs server-side polling and waits for the final result in this call.',
     'If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later.',
     'Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema.',
     'Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less.',

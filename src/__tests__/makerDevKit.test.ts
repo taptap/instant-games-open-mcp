@@ -152,6 +152,11 @@ describe('Maker AI dev kit install', () => {
       'Local proxy may convert resolvable local reference media to data URLs'
     );
     expect(agentsGuide).toContain('`query_video_task` for refreshing video task status');
+    expect(agentsGuide).toContain(
+      'Only call `create_video_task` after the user explicitly requests video generation'
+    );
+    expect(agentsGuide).toContain('duration exceeds 10 seconds or `model="2.5"`');
+    expect(agentsGuide).toContain('`user_confirmed=true`');
     expect(agentsGuide).toContain('batch_generate_images');
     expect(agentsGuide).toContain('`text_to_music` for game music');
     expect(agentsGuide).toContain('`text_to_sound_effect` for one sound effect');

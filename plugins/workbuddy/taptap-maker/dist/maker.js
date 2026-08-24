@@ -36714,6 +36714,11 @@ function createMakerAgentsPolicyBody() {
     "- `batch_generate_images` for multiple image assets.",
     "- `edit_image` for modifying existing project images.",
     "- `create_video_task` for game video assets or referenced image/video generation.",
+    "- Only call `create_video_task` after the user explicitly requests video generation; do not",
+    "  generate video proactively while implementing gameplay or filling asset gaps.",
+    '- When duration exceeds 10 seconds or `model="2.5"`, show the rough credit estimate and',
+    "  upstream-token billing disclaimer, wait for explicit confirmation, then repeat the same",
+    "  request with `user_confirmed=true`.",
     "- `query_video_task` for refreshing video task status and fetching completed videos.",
     "- `text_to_music` for game music.",
     "- `text_to_sound_effect` for one sound effect.",
@@ -39772,6 +39777,8 @@ function formatMakerSkillStatus(_options = {}) {
     "- Follow the selected tool schema when one of these tools is used.",
     "- Use generate_image, batch_generate_images, edit_image for game image assets.",
     "- Use create_video_task and query_video_task for game video assets.",
+    "- Only call create_video_task after the user explicitly requests video generation; do not generate video proactively while implementing or filling asset gaps.",
+    '- When duration exceeds 10 seconds or model="2.5", show the rough credit estimate and upstream-token billing disclaimer, wait for explicit confirmation, then repeat the same request with user_confirmed=true.',
     "- Use text_to_music for game music.",
     "- Use text_to_sound_effect for one sound effect.",
     "- Use batch_sound_effects for multiple sound effects.",
@@ -43405,7 +43412,10 @@ var MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS = {
     "The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present."
   ].join(" "),
   create_video_task: [
-    "Create a video generation task. The remote service normally performs server-side polling and waits for the final result in this call.",
+    "Create a video generation task only after the user explicitly requests video generation. Do not proactively or automatically generate videos while designing gameplay, implementing features, filling asset gaps, or self-improving the game.",
+    'Estimate the intended duration before calling. The confirmation estimate is 200 credits per second for model="2.0" and 300 credits per second for model="2.5"; it is only a rough estimate, while actual billing follows upstream token usage.',
+    'When duration exceeds 10 seconds or model="2.5" is used, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Default model="2.0" with omitted duration or duration=-1 does not require confirmation.',
+    "The remote service normally performs server-side polling and waits for the final result in this call.",
     "If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later.",
     "Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema.",
     "Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less.",
@@ -43527,7 +43537,18 @@ var remoteProxyToolSnapshot_default = {
           },
           aspect_ratio: {
             type: "string",
-            enum: ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9", "5:4", "4:5"],
+            enum: [
+              "1:1",
+              "2:3",
+              "3:2",
+              "3:4",
+              "4:3",
+              "9:16",
+              "16:9",
+              "21:9",
+              "5:4",
+              "4:5"
+            ],
             description: 'Image aspect ratio. Default is "1:1". See tool description for use cases of each ratio.'
           },
           transparent: {
@@ -43569,7 +43590,7 @@ var remoteProxyToolSnapshot_default = {
           quality: {
             type: "string",
             enum: ["low", "medium", "high", "auto"],
-            description: 'Image quality, only supported when model is "gpt" (GPT Image 2). One of "low", "medium", "high", "auto" (default). If the user explicitly asked for a specific image quality, set this field AND set model to "gpt" together; otherwise omit both.'
+            description: 'Image quality. One of "low", "medium", "high", "auto" (default). GPT Image 2 uses this setting; other models may ignore it.'
           },
           target_dir: {
             type: "string",
@@ -43601,7 +43622,18 @@ var remoteProxyToolSnapshot_default = {
                 },
                 aspect_ratio: {
                   type: "string",
-                  enum: ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9", "5:4", "4:5"],
+                  enum: [
+                    "1:1",
+                    "2:3",
+                    "3:2",
+                    "3:4",
+                    "4:3",
+                    "9:16",
+                    "16:9",
+                    "21:9",
+                    "5:4",
+                    "4:5"
+                  ],
                   description: 'Image aspect ratio. Default is "1:1". See tool description for use cases of each ratio.'
                 },
                 transparent: {
@@ -43643,7 +43675,7 @@ var remoteProxyToolSnapshot_default = {
                 quality: {
                   type: "string",
                   enum: ["low", "medium", "high", "auto"],
-                  description: 'Image quality, only supported when model is "gpt" (GPT Image 2). One of "low", "medium", "high", "auto" (default). If the user explicitly asked for a specific image quality, set this field AND set model to "gpt" together; otherwise omit both.'
+                  description: 'Image quality. One of "low", "medium", "high", "auto" (default). GPT Image 2 uses this setting; other models may ignore it.'
                 }
               },
               required: ["prompt", "name", "target_size"]
@@ -43677,7 +43709,18 @@ var remoteProxyToolSnapshot_default = {
           },
           aspect_ratio: {
             type: "string",
-            enum: ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9", "5:4", "4:5"],
+            enum: [
+              "1:1",
+              "2:3",
+              "3:2",
+              "3:4",
+              "4:3",
+              "9:16",
+              "16:9",
+              "21:9",
+              "5:4",
+              "4:5"
+            ],
             description: "Output image aspect ratio"
           },
           target_size: {
@@ -43715,7 +43758,7 @@ var remoteProxyToolSnapshot_default = {
           quality: {
             type: "string",
             enum: ["low", "medium", "high", "auto"],
-            description: 'Image quality, only supported when model is "gpt" (GPT Image 2). One of "low", "medium", "high", "auto" (default). If the user explicitly asked for a specific image quality, set this field AND set model to "gpt" together; otherwise omit both.'
+            description: 'Image quality. One of "low", "medium", "high", "auto" (default). GPT Image 2 uses this setting; other models may ignore it.'
           },
           target_dir: {
             type: "string",
@@ -43733,7 +43776,13 @@ var remoteProxyToolSnapshot_default = {
         properties: {
           action: {
             type: "string",
-            enum: ["start", "continue", "query", "get_options", "post_process"],
+            enum: [
+              "start",
+              "continue",
+              "query",
+              "get_options",
+              "post_process"
+            ],
             description: "Required lifecycle action: start, continue, query, get_options, or post_process."
           },
           asset_id: {
@@ -43861,19 +43910,24 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "create_video_task",
-      description: "Create a video generation task. The remote service normally performs server-side polling and waits for the final result in this call. If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later. Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema. Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less. The local proxy attempts to materialize successful video results into the Maker project; prefer returned workspace paths when present, unless the user needs an external share URL.",
+      description: 'Create a video generation task only after the user explicitly requests video generation. Do not proactively or automatically generate videos while designing gameplay, implementing features, filling asset gaps, or self-improving the game. Estimate the intended duration before calling. The confirmation estimate is 200 credits per second for model="2.0" and 300 credits per second for model="2.5"; it is only a rough estimate, while actual billing follows upstream token usage. When duration exceeds 10 seconds or model="2.5" is used, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Default model="2.0" with omitted duration or duration=-1 does not require confirmation. The remote service normally performs server-side polling and waits for the final result in this call. If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later. Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema. Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less. The local proxy attempts to materialize successful video results into the Maker project; prefer returned workspace paths when present, unless the user needs an external share URL.',
       inputSchema: {
         type: "object",
         properties: {
           mode: {
             type: "string",
-            enum: ["text_to_video", "first_frame", "first_last_frame", "multi_modal_reference"],
+            enum: [
+              "text_to_video",
+              "first_frame",
+              "first_last_frame",
+              "multi_modal_reference"
+            ],
             description: 'REQUIRED. Video generation mode (4 mutually exclusive modes):\n- "text_to_video": Text prompt only. No images/videos/audios allowed.\n- "first_frame": Exactly 1 image as the video\'s first frame. No videos/audios.\n- "first_last_frame": Exactly 2 images (first frame + last frame). No videos/audios.\n- "multi_modal_reference": reference images, optionally with reference videos and audios. Per-model caps: see the `model` parameter.'
           },
           model: {
             type: "string",
             enum: ["2.0", "2.5"],
-            description: 'Seedance 模型版本，默认 "2.0"。\n- "2.0": Seedance 2.0 fast。duration 4-15s，参考图最多 9 张、参考视频 3 个、参考音频 3 个，音频不能单独输入。\n- "2.5": Seedance 2.5，效果与可控性更强、成本更高。duration 4-30s，参考图最多 30 张、参考视频 10 个、参考音频 10 个，支持仅传音频驱动生成。\n需要超过 15s 时长、大量参考素材或纯音频驱动时用 "2.5"，其余场景保持默认。'
+            description: 'Seedance 模型版本，默认 "2.0"。\n- "2.0": Seedance 2.0 fast。duration 4-15s，参考图最多 9 张、参考视频 3 个、参考音频 3 个，音频不能单独输入。\n- "2.5": Seedance 2.5，效果与可控性更强、成本更高。duration 4-30s，参考图最多 30 张、参考视频 10 个、参考音频 10 个，支持仅传音频驱动生成。\n需要超过 15s 时长、大量参考素材或纯音频驱动时用 "2.5"，其余场景保持默认。使用 "2.5" 前须向开发者展示积分预估并二次确认。'
           },
           prompt: {
             type: "string",
@@ -43952,7 +44006,11 @@ var remoteProxyToolSnapshot_default = {
           },
           duration: {
             type: "integer",
-            description: '视频时长（秒）。model="2.0" 支持 4-15，model="2.5" 支持 4-30；也可传 -1。不建议设为 -1；模型会自主选择时长，但这会直接影响计费与结果可预期性，建议明确指定整数秒。\nmodel="2.5" 以参考视频做视频编辑时只接受 -1（输出时长跟随输入视频），且输入视频时长需在 4-30s 内。'
+            description: '视频时长（秒）。model="2.0" 支持 4-15，model="2.5" 支持 4-30；也可传 -1。明确传入超过 10 秒时，先按档位单价向开发者展示粗估并二次确认（2.0 为 200 积分/秒，2.5 为 300 积分/秒；仅供确认参考，实际按上游 token 扣费），再设 user_confirmed=true。不建议设为 -1；模型会自主选择时长。默认 2.0 下未指定或 -1 不触发确认。\nmodel="2.5" 以参考视频做视频编辑时只接受 -1（输出时长跟随输入视频），且输入视频时长需在 4-30s 内。'
+          },
+          user_confirmed: {
+            type: "boolean",
+            description: '仅当开发者已确认本次粗估（含「实际按上游 token 扣费」说明）后设为 true。触发条件：明确传入 duration 超过 10 秒，或使用 model="2.5"。未确认时不要传 true。默认 2.0 且时长未超过 10 秒时无需此参数。'
           },
           return_last_frame: {
             type: "boolean",
@@ -44379,7 +44437,7 @@ function validateConfig(config2) {
 }
 var DEFAULT_LOG_ROOT = "/tmp/taptap-mcp/logs";
 function applyDefaults(config2) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
   const verbose = ((_a3 = config2.options) == null ? void 0 : _a3.verbose) ?? false;
   return {
     server: {
@@ -44401,15 +44459,16 @@ function applyDefaults(config2) {
       reset_timeout_on_progress: ((_e = config2.options) == null ? void 0 : _e.reset_timeout_on_progress) ?? true,
       health_check_interval: ((_f = config2.options) == null ? void 0 : _f.health_check_interval) ?? 3e4,
       enable_cookie_sticky: ((_g = config2.options) == null ? void 0 : _g.enable_cookie_sticky) ?? true,
-      inject_params_per_call: ((_h = config2.options) == null ? void 0 : _h.inject_params_per_call) ?? true,
-      force_inject_progress_token: ((_i = config2.options) == null ? void 0 : _i.force_inject_progress_token) ?? false,
-      exposed_tools: (_j = config2.options) == null ? void 0 : _j.exposed_tools,
+      disable_standalone_sse: ((_h = config2.options) == null ? void 0 : _h.disable_standalone_sse) ?? false,
+      inject_params_per_call: ((_i = config2.options) == null ? void 0 : _i.inject_params_per_call) ?? true,
+      force_inject_progress_token: ((_j = config2.options) == null ? void 0 : _j.force_inject_progress_token) ?? false,
+      exposed_tools: (_k = config2.options) == null ? void 0 : _k.exposed_tools,
       log: {
-        root: ((_l = (_k = config2.options) == null ? void 0 : _k.log) == null ? void 0 : _l.root) ?? DEFAULT_LOG_ROOT,
-        enabled: ((_n = (_m = config2.options) == null ? void 0 : _m.log) == null ? void 0 : _n.enabled) ?? false,
+        root: ((_m = (_l = config2.options) == null ? void 0 : _l.log) == null ? void 0 : _m.root) ?? DEFAULT_LOG_ROOT,
+        enabled: ((_o = (_n = config2.options) == null ? void 0 : _n.log) == null ? void 0 : _o.enabled) ?? false,
         // verbose=true 时自动使用 debug 级别
-        level: verbose ? "debug" : ((_p = (_o = config2.options) == null ? void 0 : _o.log) == null ? void 0 : _p.level) ?? "info",
-        max_days: ((_r = (_q = config2.options) == null ? void 0 : _q.log) == null ? void 0 : _r.max_days) ?? 7
+        level: verbose ? "debug" : ((_q = (_p = config2.options) == null ? void 0 : _p.log) == null ? void 0 : _q.level) ?? "info",
+        max_days: ((_s = (_r = config2.options) == null ? void 0 : _r.log) == null ? void 0 : _s.max_days) ?? 7
       }
     }
   };
@@ -46333,6 +46392,7 @@ function createRemoteProxyContext(options) {
       verbose: true,
       reset_timeout_on_progress: true,
       force_inject_progress_token: true,
+      disable_standalone_sse: true,
       exposed_tools: options.exposedTools
     }
   };
@@ -53970,10 +54030,13 @@ var CookieJar = class {
     return this.cookies.size > 0;
   }
 };
-function createCookieFetch(cookieJar) {
+function createCookieFetch(cookieJar, options = {}) {
   return async (input2, init) => {
+    if (options.rejectStandaloneSse && isStandaloneSseRequest(input2, init)) {
+      return new Response(null, { status: 405, statusText: "Method Not Allowed" });
+    }
     const modifiedInit = { ...init };
-    const cookieHeader = cookieJar.getCookieHeader();
+    const cookieHeader = options.enableCookies === false ? void 0 : cookieJar.getCookieHeader();
     if (cookieHeader) {
       const headers = new Headers(modifiedInit.headers);
       headers.set("Cookie", cookieHeader);
@@ -53983,6 +54046,17 @@ function createCookieFetch(cookieJar) {
     cookieJar.setCookiesFromResponse(response);
     return response;
   };
+}
+function isStandaloneSseRequest(input2, init) {
+  var _a3;
+  const method = ((init == null ? void 0 : init.method) || (input2 instanceof Request ? input2.method : "GET")).toUpperCase();
+  if (method !== "GET") {
+    return false;
+  }
+  const headers = new Headers(
+    (init == null ? void 0 : init.headers) || (input2 instanceof Request ? input2.headers : void 0)
+  );
+  return ((_a3 = headers.get("accept")) == null ? void 0 : _a3.split(",").some((value) => value.trim().split(";", 1)[0].toLowerCase() === "text/event-stream")) === true;
 }
 
 // src/core/utils/logWriter.ts
@@ -54433,13 +54507,20 @@ var TapTapMCPProxy = class {
    * 连接到 TapTap MCP Server
    */
   async connectToServer() {
-    var _a3, _b, _c;
+    var _a3, _b, _c, _d, _e;
     this.log("info", `Connecting to ${this.config.server.url}...`);
     try {
       const cookieEnabled = ((_a3 = this.config.options) == null ? void 0 : _a3.enable_cookie_sticky) ?? true;
-      const customFetch = cookieEnabled ? createCookieFetch(this.cookieJar) : void 0;
-      if (cookieEnabled && ((_b = this.config.options) == null ? void 0 : _b.verbose)) {
+      const standaloneSseDisabled = ((_b = this.config.options) == null ? void 0 : _b.disable_standalone_sse) ?? false;
+      const customFetch = cookieEnabled || standaloneSseDisabled ? createCookieFetch(this.cookieJar, {
+        enableCookies: cookieEnabled,
+        rejectStandaloneSse: standaloneSseDisabled
+      }) : void 0;
+      if (cookieEnabled && ((_c = this.config.options) == null ? void 0 : _c.verbose)) {
         this.log("debug", "Cookie sticky session enabled");
+      }
+      if (standaloneSseDisabled && ((_d = this.config.options) == null ? void 0 : _d.verbose)) {
+        this.log("debug", "Standalone SSE disabled; using POST response streams");
       }
       const sessionHeaders = this.buildSessionHeaders();
       const transport = new StreamableHTTPClientTransport(new URL(this.config.server.url), {
@@ -54454,7 +54535,7 @@ var TapTapMCPProxy = class {
       this.connected = true;
       this.sessionValidated = true;
       this.lastValidationTime = Date.now();
-      this.reconnectDelayMs = ((_c = this.config.options) == null ? void 0 : _c.reconnect_interval) ?? DEFAULT_RECONNECT_INTERVAL_MS;
+      this.reconnectDelayMs = ((_e = this.config.options) == null ? void 0 : _e.reconnect_interval) ?? DEFAULT_RECONNECT_INTERVAL_MS;
       this.log("info", "✅ Connected and session validated");
       this.startHealthCheck();
       if (this.reconnecting) {

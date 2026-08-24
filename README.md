@@ -280,6 +280,8 @@ tool schema 为准。
 并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`，
 返回 `local_dir` / `local_log_paths` / `local_screenshot_paths` 等本地路径。代理转发、错误透出和白名单细节见
 [TapTap Maker 本地开发](docs/MAKER.md)。
+`create_video_task` 仅响应用户明确的视频生成请求；长于 10 秒或使用 Seedance 2.5 时，会先返回积分粗估，
+用户明确确认后才携带 `user_confirmed=true` 创建任务。
 音频 tools 支持音效、角色试听、音色确认和配音；生成音频以及确认后的参考音频会保存到
 当前本地 Maker 项目。
 

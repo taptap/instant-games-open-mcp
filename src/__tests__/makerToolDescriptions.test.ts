@@ -141,6 +141,31 @@ describe('Maker non-audio tool descriptions', () => {
     expect(descriptions.create_video_task).toMatch(
       /image references.{0,60}30 MiB.{0,80}video references.{0,60}50 MiB.{0,80}audio references.{0,60}15 MiB/iu
     );
+    expect(descriptions.create_video_task).toMatch(
+      /explicitly requests?.{0,160}do not.{0,80}(?:proactively|automatically) generate/iu
+    );
+    expect(descriptions.create_video_task).toMatch(
+      /duration.{0,40}(?:exceeds?|greater than).{0,20}10 seconds.{0,160}user_confirmed=true/iu
+    );
+    expect(descriptions.create_video_task).toMatch(/model="2\.5".{0,160}user_confirmed=true/iu);
+    expect(descriptions.create_video_task).toMatch(/200 credits per second.{0,40}model="2\.0"/iu);
+    expect(descriptions.create_video_task).toMatch(/300 credits per second.{0,40}model="2\.5"/iu);
+    expect(descriptions.create_video_task).toMatch(/actual billing.{0,80}upstream token usage/iu);
+
+    const listed = await listMakerTools();
+    const createVideoSchema = listed.tools.find(
+      (item) => item.name === 'create_video_task'
+    )?.inputSchema;
+    expect(createVideoSchema?.properties.user_confirmed).toEqual(
+      expect.objectContaining({
+        type: 'boolean',
+        description: expect.stringMatching(/explicit confirmation|(?:明确|已)确认/iu),
+      })
+    );
+    expect(createVideoSchema?.properties.model.description).toMatch(/2\.5.{0,120}二次确认/iu);
+    expect(createVideoSchema?.properties.duration.description).toMatch(
+      /超过 10 秒.{0,180}user_confirmed=true/iu
+    );
 
     expect(descriptions.query_video_task).toMatch(/task_id.{0,180}120 seconds/iu);
     expect(descriptions.query_video_task).toMatch(/completed task.{0,80}releases.{0,80}quota/iu);

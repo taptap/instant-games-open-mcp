@@ -462,6 +462,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   schema 或白名单变化必须随本地 MCP 版本更新发布。
   这些 tools 为 Maker 项目提供对应的素材和平台能力。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
+- `create_video_task` 仅在用户明确要求生成视频时调用，不得在实现玩法、补齐素材或自我优化时主动生成。
+  明确指定 `duration > 10` 秒或使用 `model="2.5"` 时，必须先展示粗估积分，并说明实际扣费按上游
+  token 结算；得到用户明确确认后，再以相同参数并带 `user_confirmed=true` 重试。
 - 音频 proxy tools 在本地 Maker 项目中必须保留 Provider 原格式并落盘生成结果。
   `text_to_sound_effect` 和 `batch_sound_effects` 固定使用豆包 Seed Audio；
   `text_to_dialogue`、`audition_voices_for_character` 和 `confirm_character_voice` 固定使用

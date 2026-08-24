@@ -77,7 +77,7 @@
           "quality": {
             "type": "string",
             "enum": ["low", "medium", "high", "auto"],
-            "description": "Image quality, only supported when model is \"gpt\" (GPT Image 2). One of \"low\", \"medium\", \"high\", \"auto\" (default). If the user explicitly asked for a specific image quality, set this field AND set model to \"gpt\" together; otherwise omit both."
+            "description": "Image quality. One of \"low\", \"medium\", \"high\", \"auto\" (default). GPT Image 2 uses this setting; other models may ignore it."
           },
           "target_dir": {
             "type": "string",
@@ -151,7 +151,7 @@
                 "quality": {
                   "type": "string",
                   "enum": ["low", "medium", "high", "auto"],
-                  "description": "Image quality, only supported when model is \"gpt\" (GPT Image 2). One of \"low\", \"medium\", \"high\", \"auto\" (default). If the user explicitly asked for a specific image quality, set this field AND set model to \"gpt\" together; otherwise omit both."
+                  "description": "Image quality. One of \"low\", \"medium\", \"high\", \"auto\" (default). GPT Image 2 uses this setting; other models may ignore it."
                 }
               },
               "required": ["prompt", "name", "target_size"]
@@ -223,7 +223,7 @@
           "quality": {
             "type": "string",
             "enum": ["low", "medium", "high", "auto"],
-            "description": "Image quality, only supported when model is \"gpt\" (GPT Image 2). One of \"low\", \"medium\", \"high\", \"auto\" (default). If the user explicitly asked for a specific image quality, set this field AND set model to \"gpt\" together; otherwise omit both."
+            "description": "Image quality. One of \"low\", \"medium\", \"high\", \"auto\" (default). GPT Image 2 uses this setting; other models may ignore it."
           },
           "target_dir": {
             "type": "string",
@@ -369,7 +369,7 @@
     },
     {
       "name": "create_video_task",
-      "description": "Create a video generation task. The remote service normally performs server-side polling and waits for the final result in this call. If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later. Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema. Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less. The local proxy attempts to materialize successful video results into the Maker project; prefer returned workspace paths when present, unless the user needs an external share URL.",
+      "description": "Create a video generation task only after the user explicitly requests video generation. Do not proactively or automatically generate videos while designing gameplay, implementing features, filling asset gaps, or self-improving the game. Estimate the intended duration before calling. The confirmation estimate is 200 credits per second for model=\"2.0\" and 300 credits per second for model=\"2.5\"; it is only a rough estimate, while actual billing follows upstream token usage. When duration exceeds 10 seconds or model=\"2.5\" is used, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Default model=\"2.0\" with omitted duration or duration=-1 does not require confirmation. The remote service normally performs server-side polling and waits for the final result in this call. If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later. Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema. Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less. The local proxy attempts to materialize successful video results into the Maker project; prefer returned workspace paths when present, unless the user needs an external share URL.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -381,7 +381,7 @@
           "model": {
             "type": "string",
             "enum": ["2.0", "2.5"],
-            "description": "Seedance 模型版本，默认 \"2.0\"。\n- \"2.0\": Seedance 2.0 fast。duration 4-15s，参考图最多 9 张、参考视频 3 个、参考音频 3 个，音频不能单独输入。\n- \"2.5\": Seedance 2.5，效果与可控性更强、成本更高。duration 4-30s，参考图最多 30 张、参考视频 10 个、参考音频 10 个，支持仅传音频驱动生成。\n需要超过 15s 时长、大量参考素材或纯音频驱动时用 \"2.5\"，其余场景保持默认。"
+            "description": "Seedance 模型版本，默认 \"2.0\"。\n- \"2.0\": Seedance 2.0 fast。duration 4-15s，参考图最多 9 张、参考视频 3 个、参考音频 3 个，音频不能单独输入。\n- \"2.5\": Seedance 2.5，效果与可控性更强、成本更高。duration 4-30s，参考图最多 30 张、参考视频 10 个、参考音频 10 个，支持仅传音频驱动生成。\n需要超过 15s 时长、大量参考素材或纯音频驱动时用 \"2.5\"，其余场景保持默认。使用 \"2.5\" 前须向开发者展示积分预估并二次确认。"
           },
           "prompt": {
             "type": "string",
@@ -460,7 +460,11 @@
           },
           "duration": {
             "type": "integer",
-            "description": "视频时长（秒）。model=\"2.0\" 支持 4-15，model=\"2.5\" 支持 4-30；也可传 -1。不建议设为 -1；模型会自主选择时长，但这会直接影响计费与结果可预期性，建议明确指定整数秒。\nmodel=\"2.5\" 以参考视频做视频编辑时只接受 -1（输出时长跟随输入视频），且输入视频时长需在 4-30s 内。"
+            "description": "视频时长（秒）。model=\"2.0\" 支持 4-15，model=\"2.5\" 支持 4-30；也可传 -1。明确传入超过 10 秒时，先按档位单价向开发者展示粗估并二次确认（2.0 为 200 积分/秒，2.5 为 300 积分/秒；仅供确认参考，实际按上游 token 扣费），再设 user_confirmed=true。不建议设为 -1；模型会自主选择时长。默认 2.0 下未指定或 -1 不触发确认。\nmodel=\"2.5\" 以参考视频做视频编辑时只接受 -1（输出时长跟随输入视频），且输入视频时长需在 4-30s 内。"
+          },
+          "user_confirmed": {
+            "type": "boolean",
+            "description": "仅当开发者已确认本次粗估（含「实际按上游 token 扣费」说明）后设为 true。触发条件：明确传入 duration 超过 10 秒，或使用 model=\"2.5\"。未确认时不要传 true。默认 2.0 且时长未超过 10 秒时无需此参数。"
           },
           "return_last_frame": {
             "type": "boolean",
