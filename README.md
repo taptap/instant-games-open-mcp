@@ -555,6 +555,9 @@ maker_build_current_directory
 远端 proxy tools 使用版本化的本地完整定义在首次 `tools/list` 时立即注册，不等待 cwd、Maker 项目绑定、
 PAT/TapTap token 或远端 proxy 连接。项目定位和鉴权只在实际调用 tool 时校验；远端 schema 不会在运行时
 替换本地定义。schema 变更通过本地 MCP 版本更新发布，远端不可用不会让 proxy tools 从当前会话消失。
+Maker 内嵌代理不打开可选的 standalone SSE GET，远端 RPC 响应和构建进度统一通过 POST SSE 返回；
+这避免 Node.js 26 中长连接占用后续 `tools/list` 请求而触发固定 60 秒超时。普通 MCP Proxy 默认仍保留
+standalone SSE，只有显式设置 `disable_standalone_sse` 才会关闭。
 
 `taptap-maker doctor` 会检查 Git、Python 环境、maker-lua-lsp、PAT、TapTap token、项目绑定、
 AI dev kit 版本和 MCP 配置。`maker://status` 和 `maker_status_lite` 会输出

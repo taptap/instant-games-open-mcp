@@ -194,6 +194,7 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
       reset_timeout_on_progress: config.options?.reset_timeout_on_progress ?? true,
       health_check_interval: config.options?.health_check_interval ?? 30000,
       enable_cookie_sticky: config.options?.enable_cookie_sticky ?? true,
+      disable_standalone_sse: config.options?.disable_standalone_sse ?? false,
       inject_params_per_call: config.options?.inject_params_per_call ?? true,
       force_inject_progress_token: config.options?.force_inject_progress_token ?? false,
       exposed_tools: config.options?.exposed_tools,

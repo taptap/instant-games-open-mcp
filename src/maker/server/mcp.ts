@@ -2225,6 +2225,7 @@ export function createRemoteProxyContext(options: {
       verbose: true,
       reset_timeout_on_progress: true,
       force_inject_progress_token: true,
+      disable_standalone_sse: true,
       exposed_tools: options.exposedTools,
     },
   };

@@ -194,13 +194,17 @@ const sessionResult = await connection.newSession({
 
 ### options（可选）
 
-| 字段                 | 类型    | 必需 | 说明                           | 默认值  |
-| -------------------- | ------- | ---- | ------------------------------ | ------- |
-| `verbose`            | boolean | ⚪   | 详细日志模式                   | `false` |
-| `reconnect_interval` | number  | ⚪   | 重连间隔（毫秒）               | `5000`  |
-| `monitor_interval`   | number  | ⚪   | 监控间隔（毫秒）               | `10000` |
-| `exposed_tools`      | array   | ⚪   | 对客户端暴露的 tool 名称白名单 | 不限制  |
-| `log`                | object  | ⚪   | 日志配置                       | 见下表  |
+| 字段                     | 类型    | 必需 | 说明                                              | 默认值  |
+| ------------------------ | ------- | ---- | ------------------------------------------------- | ------- |
+| `verbose`                | boolean | ⚪   | 详细日志模式                                      | `false` |
+| `reconnect_interval`     | number  | ⚪   | 重连间隔（毫秒）                                  | `5000`  |
+| `monitor_interval`       | number  | ⚪   | 监控间隔（毫秒）                                  | `10000` |
+| `disable_standalone_sse` | boolean | ⚪   | 对可选 standalone SSE GET 返回 405，改用 POST SSE | `false` |
+| `exposed_tools`          | array   | ⚪   | 对客户端暴露的 tool 名称白名单                    | 不限制  |
+| `log`                    | object  | ⚪   | 日志配置                                          | 见下表  |
+
+`disable_standalone_sse` 只影响用于接收服务端主动消息的可选 GET 长连接。MCP 请求、响应和 progress
+仍通过 POST SSE 传输。默认关闭该选项以保持通用 Proxy 的历史行为；Maker 内嵌代理会显式开启。
 
 ### options.exposed_tools（Proxy tool 白名单）
 

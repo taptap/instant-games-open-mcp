@@ -105,6 +105,13 @@ export interface ProxyConfig {
      */
     enable_cookie_sticky?: boolean;
     /**
+     * 禁用可选的 standalone SSE GET（默认 false）
+     *
+     * 开启后，Proxy 对该 GET 返回 MCP 规范允许的 405，并继续通过 POST SSE
+     * 接收请求响应和 progress。用于规避部分 Node.js 运行时中长连接占用后续请求的问题。
+     */
+    disable_standalone_sse?: boolean;
+    /**
      * 每次工具调用时也注入私有参数（默认 true）
      *
      * 私有参数（_mac_token, _user_id, _project_id, _project_path, _custom_fields）会在两个时机传递：
