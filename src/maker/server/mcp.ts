@@ -114,6 +114,7 @@ import {
 import { inspectMakerQrcodePreflight } from '../qrcodePreflight.js';
 import {
   CREATE_3D_ASSET_PROXY_TOOL_NAME,
+  RemoteProxyToolCallError,
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
@@ -464,11 +465,23 @@ export async function callRemoteProxyTool(options: {
   const callTool = options.manager
     ? async () => {
         proxy = createProxy();
-        return await options.manager!.callTool(
-          proxy,
-          { name: options.name, arguments: finalArgs },
-          requestOptions
-        );
+        let dispatched = false;
+        try {
+          return await options.manager!.callTool(
+            proxy,
+            { name: options.name, arguments: finalArgs },
+            requestOptions,
+            () => {
+              dispatched = true;
+            }
+          );
+        } catch (error) {
+          throw new RemoteProxyToolCallError(
+            options.name,
+            dispatched ? 'unknown' : 'not_executed',
+            error
+          );
+        }
       }
     : async () => {
         const transport = trackMakerChildTransport(
@@ -490,6 +503,11 @@ export async function callRemoteProxyTool(options: {
         );
         try {
           await client.connect(transport);
+        } catch (error) {
+          await client.close().catch(() => {});
+          throw new RemoteProxyToolCallError(options.name, 'not_executed', error);
+        }
+        try {
           return await client.callTool(
             {
               name: options.name,
@@ -500,27 +518,13 @@ export async function callRemoteProxyTool(options: {
               ...requestOptions,
             }
           );
+        } catch (error) {
+          throw new RemoteProxyToolCallError(options.name, 'unknown', error);
         } finally {
           await client.close().catch(() => {});
         }
       };
-  const result = await retryMakerProxyOperation(callTool, {
-    onRetry: options.progressToken
-      ? (event) => {
-          options.extra
-            .sendNotification({
-              method: 'notifications/progress',
-              params: {
-                progressToken: options.progressToken,
-                progress: event.attempt,
-                total: event.attempts,
-                message: event.message,
-              },
-            })
-            .catch(() => {});
-        }
-      : undefined,
-  });
+  const result = await callTool();
   return await materializeRemoteProxyToolAssets({
     toolName: options.name,
     targetDir: proxy.projectRoot,
@@ -1474,7 +1478,8 @@ export async function formatMakerProxyToolsStatusSafely(options: {
       `- missing_tools: ${MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.join(', ')}`,
       '- build_available: no',
       `- failure_message: ${error instanceof Error ? error.message : String(error)}`,
-      '- retry_policy: explicit proxy tool/build calls retry 5 total attempts, 30s apart',
+      '- build_retry_policy: up to 5 total attempts, 30s apart',
+      '- proxy_tool_retry_policy: single attempt; never replayed automatically',
       '- next_action: Maker proxy 连接失败；远端 proxy tools 和 build 构建都不可用。请检查网络、PAT/TapTap token、Maker MCP 环境和远端服务后重试。',
     ].join('\n');
   }
@@ -2227,6 +2232,7 @@ export function createRemoteProxyContext(options: {
       force_inject_progress_token: true,
       disable_standalone_sse: true,
       exposed_tools: options.exposedTools,
+      replayable_tools: ['build'],
     },
   };
 
@@ -3431,6 +3437,7 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines('remote_build', 'skipped_by_user', 'failed'),
       `- maker_url: ${
         result.buildResult.makerUrl ||
         formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
@@ -3441,6 +3448,8 @@ export function formatBuildResult(
       ...formatProgressSummary(progressSummary),
       '',
       ...formatMakerBuildFailureLines(result.buildFailure),
+      '',
+      ...formatRemoteBuildDiagnosisLines(result.buildFailure, result.projectRoot),
       '',
       'remote_result:',
       indent(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText))),
@@ -3461,6 +3470,7 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines('code_submit', 'failed', 'not_started'),
       `- branch: ${result.submitResult.branch}`,
       `- status: ${result.submitResult.status}`,
       `- committed: ${result.submitResult.committed ? 'yes' : 'no'}`,
@@ -3492,6 +3502,7 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines('project_validation', 'not_started', 'not_started'),
       ...formatProgressSummary(progressSummary),
       '',
       formatMakerProjectSettingsStatus(result.settingsStatus),
@@ -3506,6 +3517,7 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines('project_validation', 'not_started', 'not_started'),
       ...formatProgressSummary(progressSummary),
       '',
       formatMakerProjectHealthStatus(result.projectHealth),
@@ -3520,6 +3532,7 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines('remote_build', 'succeeded', 'failed'),
       `- branch: ${result.submitResult.branch}`,
       `- status: ${result.submitResult.status}`,
       `- committed: ${result.submitResult.committed ? 'yes' : 'no'}`,
@@ -3532,6 +3545,8 @@ export function formatBuildResult(
       ...formatProgressSummary(progressSummary),
       '',
       ...formatMakerBuildFailureLines(result.buildFailure),
+      '',
+      ...formatRemoteBuildDiagnosisLines(result.buildFailure, result.projectRoot),
     ]
       .filter(Boolean)
       .join('\n');
@@ -3772,6 +3787,64 @@ function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {
       ? `- stack:\n${indent(String(sanitizeRemoteDiagnosticValue(failure.stack)))}`
       : '',
   ].filter(Boolean);
+}
+
+function formatBuildFailureStageLines(
+  failureStage: 'project_validation' | 'code_submit' | 'remote_build',
+  codeSubmitStatus: 'not_started' | 'failed' | 'succeeded' | 'skipped_by_user',
+  remoteBuildStatus: 'not_started' | 'failed'
+): string[] {
+  return [
+    `- failure_stage: ${failureStage}`,
+    `- code_submit_status: ${codeSubmitStatus}`,
+    `- remote_build_status: ${remoteBuildStatus}`,
+  ];
+}
+
+function formatRemoteBuildDiagnosisLines(
+  failure: MakerBuildFailure,
+  projectRoot: string
+): string[] {
+  const isRequestTimeout = isMcpRequestTimeoutFailure(failure);
+  return [
+    'remote_build_diagnosis:',
+    isRequestTimeout ? '- failure_signal: mcp_request_timeout' : '',
+    '- root_cause: unconfirmed',
+    isRequestTimeout ? '- maker_server_fault_confirmed: no' : '',
+    '- inspect_first: returned build_failure and any remote_result for code or resource diagnostics',
+    '- diagnostic_action_modified_local_project_files: no',
+    ...(isRequestTimeout ? ['', ...formatMcpTimeoutLocalDiagnosticLines(projectRoot)] : []),
+  ].filter(Boolean);
+}
+
+function isMcpRequestTimeoutFailure(failure: MakerBuildFailure): boolean {
+  return /MCP error\s+-32001:\s*Request timed out/iu.test(failure.message);
+}
+
+function formatMcpTimeoutLocalDiagnosticLines(projectRoot: string): string[] {
+  const processCwd = process.cwd();
+  const cwdAlignment =
+    normalizePathForCompare(processCwd) === normalizePathForCompare(projectRoot)
+      ? 'same_project'
+      : 'different_from_project';
+
+  return [
+    'mcp_timeout_local_diagnostics:',
+    '- mode: read_only',
+    `- project_root: ${projectRoot}`,
+    `- mcp_process_cwd: ${processCwd}`,
+    `- cwd_alignment: ${cwdAlignment}`,
+    `- node_version: ${process.version}`,
+    `- platform: ${process.platform}/${process.arch}`,
+    `- node_exec_path: ${process.execPath}`,
+    '- active_client_config: not_checked',
+    '- active_client_session: not_checked',
+    "- limitation: Maker MCP cannot inspect the active AI client's command, args, workspace Roots, session, or request timeout.",
+    '- next_action_1: Run Maker doctor for project_root through the active client launcher; standalone CLI equivalent: `taptap-maker doctor --target-dir <PROJECT_DIR>`.',
+    '- next_action_2: Inspect the actual active client MCP command, args, cwd/Roots, session and tool registration, request timeout, and Node runtime.',
+    '- evidence_rule: Do not claim a Maker server outage without HTTP 5xx, server logs, or service status evidence.',
+    '- retry_rule: Do not retry the build blindly; diagnose the failed boundary first.',
+  ];
 }
 
 function buildFailureDiagnosticFields(failure: MakerBuildFailure): Record<string, unknown> {

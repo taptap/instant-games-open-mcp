@@ -17,6 +17,9 @@ export const MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION = [
   'Use this tool for explicit Maker build, preview, submit, or push requests. Code tests and lint do not trigger this remote workflow unless the user also explicitly asks to build, run, or preview the Maker game.',
   'Normal mode commits local changes when needed, pushes existing or new commits, and then starts the remote build; a clean workspace creates the required wake-up commit.',
   'Unsafe remote-sync or branch states stop before commit and push. A push failure stops before build, while a build failure after a successful push means the code is already on Maker remote; follow the structured result for recovery.',
+  'On failure, read failure_stage, code_submit_status, and remote_build_status before explaining whether project validation, code submit/push, or remote build failed.',
+  'If the host reports `MCP error -32001: Request timed out`, treat it only as a timeout signal: timeout alone is not evidence of a Maker server failure. Do not claim a Maker server outage without HTTP 5xx, server logs, or service-status evidence.',
+  'Do not retry the build blindly. Run Maker doctor for the project through the active client launcher (`taptap-maker doctor --target-dir <PROJECT_DIR>` is the standalone CLI equivalent) for read-only host and project checks, then inspect the actual active client MCP command, args, cwd/Roots, session and tool registration, request timeout, and Node runtime. Doctor cannot inspect the active client configuration itself.',
   'After a successful build, read runtime_logs.local_file for gameplay diagnostics and runtime_logs.state_file for watcher health when those fields are returned.',
   'Do not combine Maker submission with generic branch, PR/MR, or separate commit/push workflows.',
   'Set confirm_remote_build_without_submit=true only after the user explicitly requests building the already committed remote version without submitting local changes.',
@@ -129,7 +132,14 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
   ].join(' '),
 };
 
+const MAKER_REMOTE_PROXY_RETRY_GUIDANCE = [
+  'This tool is not retried automatically by the local Maker runtime.',
+  'If its response is interrupted after dispatch, its execution state may be unknown.',
+  'For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.',
+].join(' ');
+
 /** Return a reviewed public description for an exposed Maker remote proxy tool. */
 export function getMakerRemoteProxyPublicDescriptionOverride(toolName: string): string | undefined {
-  return MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS[toolName];
+  const description = MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS[toolName];
+  return description ? `${description} ${MAKER_REMOTE_PROXY_RETRY_GUIDANCE}` : undefined;
 }

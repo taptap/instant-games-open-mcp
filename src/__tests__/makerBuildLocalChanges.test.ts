@@ -199,6 +199,7 @@ describe('maker build local-change guard', () => {
     expect(proxyConfig.options.reset_timeout_on_progress).toBe(true);
     expect(proxyConfig.options.force_inject_progress_token).toBe(true);
     expect(proxyConfig.options.disable_standalone_sse).toBe(true);
+    expect(proxyConfig.options.replayable_tools).toEqual(['build']);
   });
 
   test('remote proxy progress handler keeps upstream progress active without client token', () => {
@@ -987,6 +988,15 @@ describe('maker build local-change guard', () => {
     expect(formatBuildResult(result, emptyProgressSummary())).toContain(
       'build.asset_dirs must contain only "../assets" and "../scripts"'
     );
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- failure_stage: project_validation'
+    );
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- code_submit_status: not_started'
+    );
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- remote_build_status: not_started'
+    );
   });
 
   test('build blocks before submit when project settings json is invalid', async () => {
@@ -1087,6 +1097,15 @@ describe('maker build local-change guard', () => {
     expect(result.mode).toBe('project_invalid_before_build');
     expect(submitLocalChanges).not.toHaveBeenCalled();
     expect(formatBuildResult(result, emptyProgressSummary())).toContain('misplaced_config');
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- failure_stage: project_validation'
+    );
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- code_submit_status: not_started'
+    );
+    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
+      '- remote_build_status: not_started'
+    );
     expect(formatBuildResult(result, emptyProgressSummary())).toContain(
       path.join('.project', 'project.json')
     );
@@ -1871,6 +1890,10 @@ describe('maker build local-change guard', () => {
     );
     expect(output).toContain('- build_available: no');
     expect(output).toContain('- failure_message: connect ECONNREFUSED remote maker proxy');
+    expect(output).toContain('- build_retry_policy: up to 5 total attempts, 30s apart');
+    expect(output).toContain(
+      '- proxy_tool_retry_policy: single attempt; never replayed automatically'
+    );
     expect(output).toContain('远端 proxy tools 和 build 构建都不可用');
   });
 
@@ -2065,7 +2088,7 @@ describe('maker build local-change guard', () => {
     }
   });
 
-  test('managed proxy tool retries a transient connection failure and reports MCP progress', async () => {
+  test('managed proxy tool does not retry a transient connection failure', async () => {
     jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
     try {
       saveTapAuth({
@@ -2073,17 +2096,8 @@ describe('maker build local-change guard', () => {
         token: 'rnd-token',
         mac_key: 'rnd-mac-key',
       });
-      const callTool = jest
-        .fn()
-        .mockImplementationOnce(async () => {
-          saveTapAuth({
-            kid: 'rotated-kid',
-            token: 'rotated-token',
-            mac_key: 'rotated-mac-key',
-          });
-          throw new Error('Connection closed by embedded proxy');
-        })
-        .mockResolvedValueOnce({ content: [{ type: 'text', text: '{"ok":true}' }] });
+      const connectionError = new Error('Connection closed by embedded proxy');
+      const callTool = jest.fn().mockRejectedValue(connectionError);
       const manager = {
         callTool,
         listTools: jest.fn(),
@@ -2105,27 +2119,97 @@ describe('maker build local-change guard', () => {
         extra: { sendNotification },
         manager,
       });
+      const observedResult = resultPromise.catch((error) => error);
 
       while (callTool.mock.calls.length === 0) {
         await new Promise<void>((resolve) => setImmediate(resolve));
       }
       await jest.advanceTimersByTimeAsync(30000);
-      await resultPromise;
 
-      expect(callTool).toHaveBeenCalledTimes(2);
-      expect(JSON.parse(callTool.mock.calls[1][0].proxyConfigJson).auth.kid).toBe('rotated-kid');
-      expect(sendNotification).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'notifications/progress',
-          params: expect.objectContaining({
-            progressToken: 'proxy-retry',
-            message: expect.stringContaining('attempt 1/5'),
-          }),
-        })
-      );
+      expect(callTool).toHaveBeenCalledTimes(1);
+      const result = await observedResult;
+      expect(result).toMatchObject({
+        executionState: 'not_executed',
+        automaticRetry: false,
+        originalError: connectionError,
+      });
+      expect(sendNotification).not.toHaveBeenCalled();
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  test('marks managed proxy connection failures as not_executed', async () => {
+    saveTapAuth({
+      kid: 'rnd-kid',
+      token: 'rnd-token',
+      mac_key: 'rnd-mac-key',
+    });
+    const connectionError = new Error('embedded proxy initialize failed');
+    const manager = {
+      callTool: jest.fn().mockRejectedValue(connectionError),
+      listTools: jest.fn(),
+      getCachedTools: jest.fn(),
+      closeAll: jest.fn(),
+    } as unknown as MakerRemoteProxyManager;
+    const callRemoteProxyTool = (
+      makerMcp as typeof makerMcp & {
+        callRemoteProxyTool: (options: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).callRemoteProxyTool;
+
+    await expect(
+      callRemoteProxyTool({
+        targetDir: tempDir,
+        name: 'generate_image',
+        args: {},
+        extra: { sendNotification: jest.fn() },
+        manager,
+      })
+    ).rejects.toMatchObject({
+      executionState: 'not_executed',
+      automaticRetry: false,
+    });
+  });
+
+  test('marks managed proxy failures after dispatch as unknown', async () => {
+    saveTapAuth({
+      kid: 'rnd-kid',
+      token: 'rnd-token',
+      mac_key: 'rnd-mac-key',
+    });
+    const networkError = new Error('embedded proxy response interrupted');
+    const callTool = jest.fn(
+      async (_context: unknown, _request: unknown, _options: unknown, onDispatch?: () => void) => {
+        onDispatch?.();
+        throw networkError;
+      }
+    );
+    const manager = {
+      callTool,
+      listTools: jest.fn(),
+      getCachedTools: jest.fn(),
+      closeAll: jest.fn(),
+    } as unknown as MakerRemoteProxyManager;
+    const callRemoteProxyTool = (
+      makerMcp as typeof makerMcp & {
+        callRemoteProxyTool: (options: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).callRemoteProxyTool;
+
+    await expect(
+      callRemoteProxyTool({
+        targetDir: tempDir,
+        name: 'generate_image',
+        args: {},
+        extra: { sendNotification: jest.fn() },
+        manager,
+      })
+    ).rejects.toMatchObject({
+      executionState: 'unknown',
+      automaticRetry: false,
+    });
+    expect(callTool).toHaveBeenCalledTimes(1);
   });
 
   test('does not retry MCP business errors with remote diagnostics', async () => {
@@ -3371,6 +3455,53 @@ describe('maker build local-change guard', () => {
     ).rejects.toThrow(/remote_result:[\s\S]*upstream video generation failed/);
   });
 
+  test('marks proxy isError results without execution evidence as unknown', async () => {
+    let thrown: any;
+    try {
+      await materializeRemoteProxyToolAssets({
+        toolName: 'generate_image',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [{ type: 'text', text: 'generation response failed' }],
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown.result.structuredContent).toMatchObject({
+      execution_state: 'unknown',
+      automatic_retry: false,
+    });
+  });
+
+  test('preserves an explicit not_executed state from a proxy isError result', async () => {
+    let thrown: any;
+    try {
+      await materializeRemoteProxyToolAssets({
+        toolName: 'generate_image',
+        targetDir: tempDir,
+        result: {
+          isError: true,
+          content: [{ type: 'text', text: 'request rejected before generation' }],
+          structuredContent: {
+            execution_state: 'not_executed',
+            request_id: 'request-not-sent',
+          },
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown.result.structuredContent).toEqual({
+      execution_state: 'not_executed',
+      request_id: 'request-not-sent',
+      automatic_retry: false,
+    });
+  });
+
   test('redacts credentials from remote proxy error diagnostics while preserving useful evidence', async () => {
     let thrown: unknown;
     try {
@@ -4166,6 +4297,9 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- committed_but_unpushed: yes');
     expect(output).toContain('- retry_tool: maker_build_current_directory');
     expect(output).toContain('- do_not_use_generic_git_push: yes');
+    expect(output).toContain('- failure_stage: code_submit');
+    expect(output).toContain('- code_submit_status: failed');
+    expect(output).toContain('- remote_build_status: not_started');
   });
 
   test('formats successful remote build with Maker app preview URL', () => {
@@ -4516,6 +4650,59 @@ describe('maker build local-change guard', () => {
     expect(output).not.toContain('secret-token');
     expect(output).not.toContain('BUILD_SECRET_TOKEN');
     expect(output).not.toContain('BUILD_SECRET_COOKIE');
+    expect(output).toContain('- failure_stage: remote_build');
+    expect(output).toContain('- code_submit_status: succeeded');
+    expect(output).toContain('- remote_build_status: failed');
+    expect(output).toContain('- root_cause: unconfirmed');
+    expect(output).toContain(
+      '- inspect_first: returned build_failure and any remote_result for code or resource diagnostics'
+    );
+    expect(output).toContain('- diagnostic_action_modified_local_project_files: no');
+  });
+
+  test('classifies an MCP -32001 build timeout without blaming the Maker server', () => {
+    const output = formatBuildResult(
+      {
+        mode: 'build_failed_after_submit',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        submitResult: {
+          branch: 'main',
+          committed: true,
+          commitHash: 'timeout123',
+          message: 'chore: wake maker build server',
+          pushed: true,
+          status: 'pushed',
+        },
+        buildFailure: {
+          name: 'McpError',
+          message: 'MCP error -32001: Request timed out',
+          code: -32001,
+        },
+      },
+      emptyProgressSummary()
+    );
+
+    expect(output).toContain('- failure_signal: mcp_request_timeout');
+    expect(output).toContain('- root_cause: unconfirmed');
+    expect(output).toContain('- maker_server_fault_confirmed: no');
+    expect(output).toContain('mcp_timeout_local_diagnostics:');
+    expect(output).toContain(`- project_root: ${tempDir}`);
+    expect(output).toContain(`- node_version: ${process.version}`);
+    expect(output).toContain(`- platform: ${process.platform}/${process.arch}`);
+    expect(output).toContain('- active_client_config: not_checked');
+    expect(output).toContain('- active_client_session: not_checked');
+    expect(output).toContain(
+      "Maker MCP cannot inspect the active AI client's command, args, workspace Roots, session, or request timeout"
+    );
+    expect(output).toContain(
+      'Run Maker doctor for project_root through the active client launcher'
+    );
+    expect(output).toContain(
+      'standalone CLI equivalent: `taptap-maker doctor --target-dir <PROJECT_DIR>`'
+    );
+    expect(output).toContain('Do not claim a Maker server outage without HTTP 5xx');
+    expect(output).toContain('Do not retry the build blindly');
   });
 
   test('remote build refreshes Maker web preview after a build result is returned', async () => {
@@ -4722,6 +4909,14 @@ describe('maker build local-change guard', () => {
     expect('buildResult' in result ? result.buildResult.projectId : undefined).toBe('app-1');
     expect(refreshedProjects).toEqual([]);
     expect(startedProjects).toEqual([]);
+
+    const output = formatBuildResult(result, emptyProgressSummary());
+    expect(output).toContain('- failure_stage: remote_build');
+    expect(output).toContain('- code_submit_status: skipped_by_user');
+    expect(output).toContain('- remote_build_status: failed');
+    expect(output).toContain('- root_cause: unconfirmed');
+    expect(output).toContain('remote_result:');
+    expect(output).toContain('BUILD FAILED: lua syntax error');
   });
 
   test('runtime log watcher startup stops an existing watcher from pid file first', () => {

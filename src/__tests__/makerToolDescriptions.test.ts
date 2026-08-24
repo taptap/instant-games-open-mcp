@@ -47,10 +47,20 @@ describe('Maker non-audio tool descriptions', () => {
     expect(buildDescription).toMatch(/build.{0,40}preview.{0,40}submit.{0,40}push/iu);
     expect(buildDescription).toMatch(/tests?.{0,40}lint.{0,100}do not trigger/iu);
     expect(buildDescription).toMatch(/commits?.{0,80}pushes?.{0,100}remote build/iu);
+    expect(buildDescription).toMatch(
+      /failure_stage.{0,80}code_submit_status.{0,80}remote_build_status/iu
+    );
     expect(buildDescription).toMatch(/confirm_remote_build_without_submit=true/iu);
     expect(buildDescription).not.toContain('Python environment section');
     expect(buildDescription).not.toContain('Lua LSP environment section');
     expect(buildDescription).toContain('runtime_logs.local_file');
+    expect(buildDescription).toContain('MCP error -32001: Request timed out');
+    expect(buildDescription).toMatch(/timeout alone.{0,120}not evidence.{0,120}server/iu);
+    expect(buildDescription).toMatch(/do not claim.{0,100}server outage.{0,120}evidence/iu);
+    expect(buildDescription).toMatch(/command.{0,40}args.{0,100}(?:cwd|Roots)/iu);
+    expect(buildDescription).toMatch(/session.{0,80}request timeout/iu);
+    expect(buildDescription).toMatch(/doctor.{0,160}read-only/iu);
+    expect(buildDescription).toMatch(/do not retry.{0,80}blindly/iu);
   });
 
   test('documents the Maker project context resolution order in local target_dir schemas', () => {

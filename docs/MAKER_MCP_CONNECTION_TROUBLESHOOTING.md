@@ -3,6 +3,7 @@
 适用于以下现象：
 
 - AI 客户端提示 `-32000`、`Connection closed`、`command not found` 或启动后立即退出。
+- 构建或其它长调用返回 `MCP error -32001: Request timed out`。
 - 当前对话没有 `maker_status_lite`、`maker_build_current_directory` 等 Maker tools。
 - 同一项目之前可用，重启客户端、新开对话或多开对话后失效。
 - 普通终端可以运行 Maker CLI，但 Codex、WorkBuddy 等客户端无法启动 MCP。
@@ -54,6 +55,13 @@ config path、command、有序 args、cwd、workspace/Roots、Node/npm/npx 路�
 
 对于已经连接的会话，`mcp verify` 不是首要检查。它只验证本地 launcher 和 stdio MCP 通路，不能解释单次
 tool/resource 调用中的请求校验、项目上下文、远端响应或业务错误。用户 AI 应先保存以下证据：
+
+`MCP error -32001: Request timed out` 只证明某一层请求预算耗尽，根因仍是 `unconfirmed`。如果错误
+来自客户端自身的固定超时，Maker MCP 甚至无法返回诊断结果；如果 Maker MCP 捕获到它，构建结果会附带
+只读的本地进程、Node 和 cwd/project 对齐摘要。先通过活动客户端相同的 Maker launcher 对该项目运行
+doctor（独立 CLI 等价命令为 `taptap-maker doctor --target-dir <PROJECT_DIR>`），再核对活动客户端真实
+command、args、cwd/Roots、会话/tool 注册和 request timeout。doctor 不能读取活动客户端配置；没有
+HTTP 5xx、服务端日志或服务状态等证据时，不得称为 Maker server 故障，也不要盲目重复构建。
 
 远端 Maker 构建中的 Lua/LSP 编译错误是工具级业务失败。代理会把带 `error.data.remote_result` 的
 上游 MCP 协议异常转换成 `CallToolResult.isError: true`，原始编译诊断放在 `content` 和
