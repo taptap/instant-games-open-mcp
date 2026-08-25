@@ -218,6 +218,20 @@ jobs:
           set -euo pipefail
           (cd artifacts/dsh-maker && sha256sum -c SHA256SUMS)
           tarball="artifacts/dsh-maker/taptap-dsh-maker-${RELEASE_VERSION}.tgz"
+          tar_contents="$RUNNER_TEMP/dsh-maker-tar-contents.txt"
+          tar -tzf "$tarball" > "$tar_contents"
+          required_paths=(
+            package/lib/index.js
+            package/cordis.patch.yml
+            package/skills/taptap-maker-dsh/SKILL.md
+            package/assets/taptap-maker.png
+          )
+          for required_path in "${required_paths[@]}"; do
+            if ! grep -Fxq "$required_path" "$tar_contents"; then
+              echo "::error::Missing required npm package entry: $required_path"
+              exit 1
+            fi
+          done
           local_shasum="$(sha1sum "$tarball" | awk '{print $1}')"
           view_error_file="$RUNNER_TEMP/dsh-maker-npm-view-error.txt"
 

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
@@ -136,6 +136,9 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(guides.stable).toContain(
       '改用 tarball 时必须先用同一 Release 的 SHA256SUMS 校验 SHA-256，校验失败时停止安装'
     );
+    expect(guides.preview).toContain('下载 tarball、校验 SHA-256、迁移旧 L1 配置、安装、验证');
+    expect(guides.preview).toContain('Get-FileHash');
+    expect(guides.preview).toContain('shasum -a 256');
     expect(guides.preview).toContain('dsh plugin --profile <profile> add <tarball绝对路径>');
     expect(guides.preview).not.toContain('- npm：`@taptap/dsh-maker@0.1.2-dev.7`');
   });
@@ -144,16 +147,23 @@ describe('@taptap/dsh-maker manifest', () => {
     const temporaryDir = mkdtempSync(join(tmpdir(), 'dsh-maker-package-symlink-'));
     const scriptLink = join(temporaryDir, 'package-maker-dsh-plugin.js');
     const outputDir = join(temporaryDir, 'output');
+    const committedInstallMd = join(REPO_ROOT, 'packages', 'dsh-maker', 'INSTALL.md');
 
     try {
       symlinkSync(join(REPO_ROOT, 'scripts', 'package-maker-dsh-plugin.js'), scriptLink);
-      const result = spawnSync(process.execPath, [scriptLink, '--output-dir', outputDir], {
-        cwd: REPO_ROOT,
-        encoding: 'utf8',
-      });
+      const installMtime = statSync(committedInstallMd, { bigint: true }).mtimeNs;
+      const result = spawnSync(
+        process.execPath,
+        [scriptLink, '--output-dir', outputDir, '--skip-committed-install-md'],
+        {
+          cwd: REPO_ROOT,
+          encoding: 'utf8',
+        }
+      );
 
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('Packaged @taptap/dsh-maker');
+      expect(statSync(committedInstallMd, { bigint: true }).mtimeNs).toBe(installMtime);
     } finally {
       rmSync(temporaryDir, { recursive: true, force: true });
     }
