@@ -1,6 +1,6 @@
 {
   "name": "taptap-maker",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Local TapTap Maker game development with bundled MCP, CLI, and workflows.",
   "author": { "name": "TapTap Team" },
   "homepage": "https://github.com/taptap/instant-games-open-mcp/tree/main/plugins/taptap-maker",

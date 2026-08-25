@@ -1,6 +1,6 @@
 # TapTap Maker WorkBuddy Plugin
 
-插件版本：0.0.2。内置 Maker MCP 版本：0.0.31。插件包含本地 MCP runtime、
+插件版本：0.0.3。内置 Maker MCP 版本：0.0.32。插件包含本地 MCP runtime、
 CLI、工作流 Skills、快捷命令和连接排障文档。启动器优先使用 WorkBuddy 管理的 Node.js，必要时
 回退系统 Node.js，不会通过 npm 或 npx 下载和启动 Maker。
 
