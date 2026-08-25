@@ -259,11 +259,15 @@ Maker 远端但构建失败。只有用户明确说“不提交，只构建云�
 `confirm_remote_build_without_submit=true`；该模式只构建 Maker 远端已提交版本，不会自动打开
 Maker 页面。
 
-所有构建失败都会附带 `local_execution_check`，提醒用户检查 AI 客户端是否在沙盒中运行 Windows
-PowerShell、CLI、Git 或 MCP 命令。Maker MCP 无法读取客户端的访问模式；该检查不是根因结论。
-如果可信项目中的本地命令被拦截，可开启客户端的 Full Access（“完全访问模式”）、重连 MCP 后再重试。
-只有 `code_submit` / Git 本地失败明确出现 `sandbox` / `沙盒` 或 PowerShell 被策略拦截时，
-`restriction_signal` 才会标记为 `detected`；远端构建和无法定位阶段的通用异常保持 `not_detected`。
+`code_submit` 或无法分类的构建执行失败会附带 `local_execution_check`，提醒检查 Windows PowerShell、
+CLI、Git 或 MCP 命令是否被 AI 客户端沙盒拦截。只有明确的本地 PowerShell/进程拦截证据才会标记
+`restriction_signal: detected`；远端 Git 返回的 `sandbox` 文本不会被当成本地信号。远端构建失败
+优先检查代码和资源诊断，只有本地命令也被拦截时才检查沙盒；已知项目配置、鉴权/上下文或结构错误
+不提示 Full Access。
+Maker MCP 无法读取客户端访问模式，因此该检查不是根因结论。可信项目可开启 Full Access
+（“完全访问模式”）、重连 MCP 后再重试本地命令。
+本地 Tap auth 或 `user_id` 上下文准备失败会返回 `failure_stage: local_build_context` 和
+`remote_build_status: not_started`，应直接按 login/init 提示恢复，不会描述成远端构建失败。
 
 远端 Lua/LSP 编译失败属于构建业务错误，MCP 会以工具结果 `isError: true` 返回，并在
 `content`/`remote_result` 中保留原始诊断（包括文件、行号和编译器消息）。只有连接断开、会话失效等

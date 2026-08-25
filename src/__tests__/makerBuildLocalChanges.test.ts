@@ -671,12 +671,18 @@ describe('maker build local-change guard', () => {
   test('allows explicitly confirmed remote build to pass the local-change guard', async () => {
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- changed\n', 'utf8');
 
-    await expect(
-      buildCurrentDirectory({
-        targetDir: tempDir,
-        confirmRemoteBuildWithoutSubmit: true,
-      })
-    ).rejects.toThrow('Tap auth not found');
+    const result = await buildCurrentDirectory({
+      targetDir: tempDir,
+      confirmRemoteBuildWithoutSubmit: true,
+    });
+
+    expect(result.mode).toBe('build_context_failed_before_remote');
+    expect('codeSubmitStatus' in result ? result.codeSubmitStatus : undefined).toBe(
+      'skipped_by_user'
+    );
+    expect('buildFailure' in result ? result.buildFailure.message : '').toContain(
+      'Tap auth not found'
+    );
   });
 
   test('build request pushes an empty commit before remote build when project has no local changes', async () => {
@@ -985,18 +991,13 @@ describe('maker build local-change guard', () => {
 
     expect(result.mode).toBe('settings_invalid_before_build');
     expect(submitLocalChanges).not.toHaveBeenCalled();
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
-      'build.asset_dirs must contain only "../assets" and "../scripts"'
-    );
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
-      '- failure_stage: project_validation'
-    );
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
-      '- code_submit_status: not_started'
-    );
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
-      '- remote_build_status: not_started'
-    );
+    const output = formatBuildResult(result, emptyProgressSummary());
+    expect(output).toContain('build.asset_dirs must contain only "../assets" and "../scripts"');
+    expect(output).toContain('- failure_stage: project_validation');
+    expect(output).toContain('- code_submit_status: not_started');
+    expect(output).toContain('- remote_build_status: not_started');
+    expect(output).not.toContain('local_execution_check:');
+    expect(output).not.toContain('Full Access');
   });
 
   test('build blocks before submit when project settings json is invalid', async () => {
@@ -1096,19 +1097,14 @@ describe('maker build local-change guard', () => {
 
     expect(result.mode).toBe('project_invalid_before_build');
     expect(submitLocalChanges).not.toHaveBeenCalled();
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain('misplaced_config');
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
-      '- failure_stage: project_validation'
-    );
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
-      '- code_submit_status: not_started'
-    );
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
-      '- remote_build_status: not_started'
-    );
-    expect(formatBuildResult(result, emptyProgressSummary())).toContain(
-      path.join('.project', 'project.json')
-    );
+    const output = formatBuildResult(result, emptyProgressSummary());
+    expect(output).toContain('misplaced_config');
+    expect(output).toContain('- failure_stage: project_validation');
+    expect(output).toContain('- code_submit_status: not_started');
+    expect(output).toContain('- remote_build_status: not_started');
+    expect(output).toContain(path.join('.project', 'project.json'));
+    expect(output).not.toContain('local_execution_check:');
+    expect(output).not.toContain('Full Access');
   });
 
   test('build proceeds when settings exists but project.json is absent', async () => {
@@ -4305,9 +4301,9 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- remote_build_status: not_started');
     expect(output).toContain('local_execution_check:');
     expect(output).toContain('- restriction_signal: not_detected');
-    expect(output).toContain('Windows PowerShell');
-    expect(output).toContain('Full Access');
-    expect(output).toContain('not proof that sandbox restrictions caused this failure');
+    expect(output).toContain('- diagnostic_priority: remote_git_error_first');
+    expect(output).toContain('- sandbox_check_condition: only_if_local_commands_are_also_blocked');
+    expect(output).not.toContain('- next_action: Check the AI client sandbox/access setting.');
   });
 
   test('highlights the local execution check when a build failure contains a sandbox signal', () => {
@@ -4322,7 +4318,7 @@ describe('maker build local-change guard', () => {
           pushed: false,
           status: 'clean',
           failure: {
-            stage: 'status',
+            stage: 'push',
             classification: 'local',
             retryable: false,
             exitCode: 1,
@@ -4341,6 +4337,246 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('enable Full Access mode');
     expect(output).not.toContain('sandbox_confirmed: yes');
   });
+
+  test('does not treat a remote Git sandbox message as a local execution restriction', () => {
+    const output = formatBuildResult(
+      {
+        mode: 'submit_failed_before_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        submitResult: {
+          branch: 'main',
+          committed: true,
+          pushed: false,
+          status: 'failed_after_commit',
+          failure: {
+            stage: 'push',
+            classification: 'remote_rejected',
+            retryable: false,
+            exitCode: 1,
+            stderr: 'remote: repository sandbox service unavailable',
+            message: 'remote: repository sandbox service unavailable',
+            nextAction: 'Inspect the remote rejection.',
+          },
+        },
+      },
+      emptyProgressSummary()
+    );
+
+    expect(output).toContain('local_execution_check:');
+    expect(output).toContain('- restriction_signal: not_detected');
+    expect(output).not.toContain('- restriction_signal: detected');
+  });
+
+  test.each([
+    {
+      stage: 'remote_sync',
+      message: 'remote: repository sandbox policy blocked update',
+    },
+    {
+      stage: 'push',
+      message: 'remote: PowerShell execution blocked by sandbox policy',
+    },
+  ])('does not treat remote Git output as local execution evidence: $stage', (failure) => {
+    const output = formatBuildResult(
+      {
+        mode: 'submit_failed_before_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        submitResult: {
+          branch: 'main',
+          committed: false,
+          pushed: false,
+          status: 'clean',
+          failure: {
+            ...failure,
+            classification: 'unknown',
+            retryable: false,
+            exitCode: 1,
+            stderr: failure.message,
+            nextAction: 'Inspect the Git failure.',
+          },
+        },
+      },
+      emptyProgressSummary()
+    );
+
+    expect(output).toContain('- restriction_signal: not_detected');
+    expect(output).toContain('- diagnostic_priority: remote_git_error_first');
+    expect(output).not.toContain('- restriction_signal: detected');
+    expect(output).not.toContain('- next_action: Check the AI client sandbox/access setting.');
+  });
+
+  test.each([
+    { message: 'spawn git EACCES', stage: 'push', classification: 'git_missing' as const },
+    {
+      message: 'spawn PowerShell.exe EPERM',
+      stage: 'status',
+      classification: 'local' as const,
+    },
+  ])(
+    'detects an explicit local process permission failure: $message',
+    ({ message, stage, classification }) => {
+      const output = formatBuildResult(
+        {
+          mode: 'submit_failed_before_build',
+          projectRoot: tempDir,
+          projectId: 'app-1',
+          submitResult: {
+            branch: 'main',
+            committed: false,
+            pushed: false,
+            status: 'clean',
+            failure: {
+              stage,
+              classification,
+              retryable: false,
+              exitCode: 1,
+              stderr: message,
+              message,
+              nextAction: 'Inspect the local process failure.',
+            },
+          },
+        },
+        emptyProgressSummary()
+      );
+
+      expect(output).toContain('- restriction_signal: detected');
+      expect(output).toContain('- next_action: For a trusted project, enable Full Access mode');
+    }
+  );
+
+  test.each([
+    {
+      stage: 'fetch',
+      classification: 'local' as const,
+      message: 'fatal: cannot open .git/FETCH_HEAD: Permission denied',
+    },
+    {
+      stage: 'push',
+      classification: 'unknown' as const,
+      message: 'unexpected local git wrapper failure',
+    },
+  ])('does not label a local or unknown Git failure as remote: $stage', (failure) => {
+    const output = formatBuildResult(
+      {
+        mode: 'submit_failed_before_build',
+        projectRoot: tempDir,
+        projectId: 'app-1',
+        submitResult: {
+          branch: 'main',
+          committed: false,
+          pushed: false,
+          status: 'clean',
+          failure: {
+            ...failure,
+            retryable: false,
+            exitCode: 1,
+            stderr: failure.message,
+            nextAction: 'Inspect the local Git failure.',
+          },
+        },
+      },
+      emptyProgressSummary()
+    );
+
+    expect(output).toContain('- restriction_signal: not_detected');
+    expect(output).toContain('- next_action: Check the AI client sandbox/access setting.');
+    expect(output).not.toContain('- diagnostic_priority: remote_git_error_first');
+  });
+
+  test('does not add sandbox guidance to an ambiguous Maker project context error', async () => {
+    const otherMakerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-build-other-root-'));
+    saveProjectConfig(otherMakerDir, { project_id: 'app-2', user_id: 'user-2' });
+
+    try {
+      let thrown: unknown;
+      try {
+        await resolveMakerProjectContext({
+          listClientRoots: async () => [
+            { uri: pathToFileURL(tempDir).href, name: 'maker-a' },
+            { uri: pathToFileURL(otherMakerDir).href, name: 'maker-b' },
+          ],
+        });
+      } catch (error) {
+        thrown = error;
+      }
+
+      const output = formatToolException('maker_build_current_directory', thrown);
+      expect(output).toContain('Multiple Maker project roots');
+      expect(output).not.toContain('local_execution_check:');
+      expect(output).not.toContain('Full Access');
+    } finally {
+      fs.rmSync(otherMakerDir, { recursive: true, force: true });
+    }
+  });
+
+  test('does not add sandbox guidance to a known Maker Git directory error', async () => {
+    fs.rmSync(path.join(tempDir, '.maker-mcp'), { recursive: true, force: true });
+    const nestedMakerDir = path.join(tempDir, 'nested-maker');
+    fs.mkdirSync(nestedMakerDir, { recursive: true });
+    saveProjectConfig(nestedMakerDir, { project_id: 'nested-app', user_id: 'user-1' });
+
+    let thrown: unknown;
+    try {
+      await readMakerProjectLocalChanges(nestedMakerDir);
+    } catch (error) {
+      thrown = error;
+    }
+
+    const output = formatToolException('maker_build_current_directory', thrown);
+    expect(output).toContain('independent Git repository');
+    expect(output).not.toContain('local_execution_check:');
+    expect(output).not.toContain('Full Access');
+  });
+
+  test.each([
+    {
+      message: 'Tap auth not found. Run `taptap-maker login` first.',
+      missingContext: 'tap_auth',
+      confirmRemoteBuildWithoutSubmit: false,
+      codeSubmitStatus: 'succeeded',
+    },
+    {
+      message:
+        'Cannot resolve user_id. Re-run taptap-maker init with PAT so the project config can cache user_id.',
+      missingContext: 'user_id',
+      confirmRemoteBuildWithoutSubmit: true,
+      codeSubmitStatus: 'skipped_by_user',
+    },
+  ])(
+    'formats a known local build context error before remote dispatch: $codeSubmitStatus',
+    async ({ message, missingContext, confirmRemoteBuildWithoutSubmit, codeSubmitStatus }) => {
+      if (missingContext === 'user_id') {
+        saveTapAuth({ kid: 'kid', token: 'token', mac_key: 'mac-key' });
+        saveProjectConfig(tempDir, { project_id: 'app-1', user_id: undefined });
+      }
+      const result = await buildCurrentDirectory({
+        targetDir: tempDir,
+        confirmRemoteBuildWithoutSubmit,
+        submitLocalChanges: async () => ({
+          branch: 'main',
+          committed: true,
+          pushed: true,
+          status: 'pushed',
+        }),
+      });
+      const output = formatBuildResult(result, emptyProgressSummary());
+
+      expect(result.mode).toBe('build_context_failed_before_remote');
+      expect(output).toMatch(/local build context preparation failed/iu);
+      expect(output).toContain('- failure_stage: local_build_context');
+      expect(output).toContain(`- code_submit_status: ${codeSubmitStatus}`);
+      expect(output).toContain('- remote_build_status: not_started');
+      expect(output).toContain(message);
+      expect(output).toContain('local_build_context_diagnosis:');
+      expect(output).toContain('- root_cause: known_local_context');
+      expect(output).toContain('- remote_request_status: not_started');
+      expect(output).not.toContain('remote Maker build failed');
+      expect(output).not.toContain('local_execution_check:');
+      expect(output).not.toContain('Full Access');
+    }
+  );
 
   test('keeps sandbox guidance non-conclusive before a structured build result exists', () => {
     const output = formatToolException(
@@ -4379,7 +4615,10 @@ describe('maker build local-change guard', () => {
 
     expect(output).toContain('local_execution_check:');
     expect(output).toContain('- restriction_signal: not_detected');
+    expect(output).toContain('- diagnostic_priority: remote_build_error_first');
+    expect(output).toContain('- sandbox_check_condition: only_if_local_commands_are_also_blocked');
     expect(output).toContain('Full Access mode');
+    expect(output).not.toContain('- next_action: Check the AI client sandbox/access setting.');
   });
 
   test('formats successful remote build with Maker app preview URL', () => {
@@ -4938,7 +5177,7 @@ describe('maker build local-change guard', () => {
         env: 'rnd',
         timeoutMs: 600000,
         buildArgs: {},
-        resultText: 'BUILD FAILED: lua syntax error',
+        resultText: 'BUILD FAILED: Tap auth not found in remote Lua output',
       }),
       refreshPreview: async (buildResult) => {
         refreshedProjects.push(buildResult.projectId);
@@ -4952,6 +5191,9 @@ describe('maker build local-change guard', () => {
 
     expect(result.mode).toBe('build_failed_after_submit');
     expect('buildFailure' in result ? result.buildFailure.message : '').toContain('BUILD FAILED');
+    expect(formatBuildResult(result, emptyProgressSummary())).not.toContain(
+      'local_build_context_diagnosis:'
+    );
     expect(refreshedProjects).toEqual([]);
     expect(startedProjects).toEqual([]);
   });
@@ -4972,7 +5214,7 @@ describe('maker build local-change guard', () => {
         env: 'rnd',
         timeoutMs: 600000,
         buildArgs: {},
-        resultText: 'BUILD FAILED: lua syntax error',
+        resultText: 'BUILD FAILED: Cannot resolve user_id in remote Lua output',
       }),
       refreshPreview: async (buildResult) => {
         refreshedProjects.push(buildResult.projectId);
@@ -4995,8 +5237,12 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- code_submit_status: skipped_by_user');
     expect(output).toContain('- remote_build_status: failed');
     expect(output).toContain('- root_cause: unconfirmed');
+    expect(output).not.toContain('local_build_context_diagnosis:');
+    expect(output).toContain('- diagnostic_priority: remote_build_error_first');
+    expect(output).toContain('- sandbox_check_condition: only_if_local_commands_are_also_blocked');
+    expect(output).not.toContain('- next_action: Check the AI client sandbox/access setting.');
     expect(output).toContain('remote_result:');
-    expect(output).toContain('BUILD FAILED: lua syntax error');
+    expect(output).toContain('BUILD FAILED: Cannot resolve user_id in remote Lua output');
   });
 
   test('runtime log watcher startup stops an existing watcher from pid file first', () => {

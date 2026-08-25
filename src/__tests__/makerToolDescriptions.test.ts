@@ -50,6 +50,9 @@ describe('Maker non-audio tool descriptions', () => {
     expect(buildDescription).toMatch(
       /failure_stage.{0,80}code_submit_status.{0,80}remote_build_status/iu
     );
+    expect(buildDescription).toMatch(
+      /local authentication or project-context.{0,160}local_build_context.{0,120}not_started/iu
+    );
     expect(buildDescription).toMatch(/confirm_remote_build_without_submit=true/iu);
     expect(buildDescription).not.toContain('Python environment section');
     expect(buildDescription).not.toContain('Lua LSP environment section');
@@ -61,9 +64,14 @@ describe('Maker non-audio tool descriptions', () => {
     expect(buildDescription).toMatch(/session.{0,80}request timeout/iu);
     expect(buildDescription).toMatch(/doctor.{0,160}read-only/iu);
     expect(buildDescription).toMatch(/do not retry.{0,80}blindly/iu);
-    expect(buildDescription).toMatch(/build fail.{0,240}sandbox/iu);
-    expect(buildDescription).toMatch(/Windows PowerShell.{0,240}Full Access/iu);
-    expect(buildDescription).toMatch(/diagnostic check.{0,120}not proof/iu);
+    expect(buildDescription).toMatch(/local PowerShell.{0,160}blocked.{0,160}Full Access/iu);
+    expect(buildDescription).toMatch(
+      /remote Git or remote build failures.{0,200}diagnostics first/iu
+    );
+    expect(buildDescription).toMatch(/sandbox as a check.{0,80}not a confirmed cause/iu);
+    expect(buildDescription).toMatch(
+      /returned fix.{0,100}known project-validation or project-context errors/iu
+    );
   });
 
   test('documents the Maker project context resolution order in local target_dir schemas', () => {

@@ -122,6 +122,9 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toContain(MAKER_PROJECT_POLICY_ROUTING_INDEX);
+    expect(agentsGuide.replace(/\s+/gu, ' ')).toContain(
+      'Do not use TapTap Developer Center documentation or docs for other TapTap game platforms when developing or debugging this Maker game; use Maker MCP and the project-local `AGENTS.md`, `engine-docs/`, `examples/`, `templates/`, `urhox-libs/`, and installed Maker skills as the sources of truth.'
+    );
     expect(agentsGuide.indexOf(MAKER_PROJECT_POLICY_ROUTING_INDEX)).toBeLessThan(
       agentsGuide.indexOf('Maker build workflow')
     );

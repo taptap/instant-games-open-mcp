@@ -393,7 +393,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 本地研发服务配置只作为内部开发能力处理；项目目录级配置只读取 `.maker/taptap-maker.local.json`，不读取项目根目录散落的本地配置文件。不要把内部环境名称、地址或切换方式写入面向用户的 schema、CLI help、README、skill、示例或错误指引。
 - `taptap-maker init` 会检查 Git、Python 环境、maker-lua-lsp 本地 Lua 诊断环境、PAT、TapTap token、当前目录绑定状态、app 列表、AI dev kit，并在用户选择 app 或创建新 Maker 项目后先记录 `.maker-mcp/config.json`，再 checkout 到当前目录；Python 未就绪时会自动尝试准备，最多 3 次，仍失败则暂停 init 且不继续 PAT、app、clone 或 MCP 配置；Python ready 后会 best-effort 创建 Maker 私有 LSP venv，在其中安装/升级 `maker-lua-lsp` 并执行 `maker-lua-lsp install --ide codex,cursor,claude`，LSP 失败只提示错误且不阻塞远端构建。clone/fetch 失败后重复执行 init 会复用已记录 app，显式选择不同 app 会拒绝覆盖已有绑定。app 文本预览默认展示前 40 个；创建新项目入口 `0. Create a new Maker project` 不参与裁剪，始终在列表底部显示；账号 app 很多时在 init 交互中输入 `all` 一次性展开全部，或单独跑 `taptap-maker apps --all`；`taptap-maker apps --json` 仅给 AI / 脚本解析使用。AI 转述时宽屏可用两列紧凑布局，窄屏保持单列；每个 app 保留 app_id，并在用户确认后选择 app；如需新建项目，可让用户在 init 中选择 `0`/`new` 并输入项目名称，或使用 `taptap-maker init --create --name "my-local-game"`；当前目录已绑定 Maker 项目时，必须切换到新的独立目录后再创建新项目。
 - AI dev kit 安装/更新按当前环境查询最新版本信息，按返回的 `current.version` 生成版本化下载 URL；版本检查失败时降级使用内置默认下载地址。安装成功后记录本地已安装版本，`taptap-maker doctor`、`maker://status` 和 `maker_status_lite` 输出当前版本、最新版本和是否可更新。
-- `taptap-maker init` 首次拉取默认使用 `git init` + `git fetch --depth=1 origin` + checkout；Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
+- `taptap-maker init` 首次拉取默认使用 `git init` + `git fetch --depth=1 origin` + checkout；Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；明确的 HTTP/2 传输错误会在后续 fetch/push 中通过命令级 `http.version=HTTP/1.1` 降级，不修改用户 Git 配置；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
 - 首次 clone/fetch 前必须提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
 - CLI 写 MCP 配置时优先支持 Windows：默认把当前包的 Maker bundle、skills 和排障文档物化到
   `TAPTAP_MAKER_HOME/mcp-runtime/<version>/`，并固化当前进程的绝对 `node.exe` 与版本化
@@ -497,12 +497,14 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   项目校验、代码提交/推送和远端构建。push 成功但远端 build 失败时，工具返回
   `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端，并优先检查返回的
   `build_failure` / `remote_result` 中是否存在代码或资源诊断；不得自动修改项目文件。
-- 所有构建失败必须附带 `local_execution_check`，提醒用户检查 AI 客户端是否在沙盒中运行 Windows
-  PowerShell、CLI、Git 或 MCP 命令。Maker MCP 不能读取客户端访问模式，因此该检查不能作为根因
-  结论。只有 `code_submit` / Git 本地失败明确包含 `sandbox` / `沙盒` 或 PowerShell 被策略拦截时才
-  输出 `restriction_signal: detected`；远端构建和无法定位阶段的通用异常必须保持 `not_detected`，
-  即使文本含 `sandbox` 或普通远端权限错误也不能升级为本地沙盒信号。可信项目可建议开启 Full
-  Access（“完全访问模式”）、重连 MCP 并确认本地命令可执行后再重试。
+- `code_submit` 或无法分类的构建执行失败必须附带 `local_execution_check`，提醒用户检查 AI 客户端
+  是否在沙盒中运行 Windows PowerShell、CLI、Git 或 MCP 命令。只有明确的本地 PowerShell/进程
+  拦截证据才输出 `restriction_signal: detected`；远端 Git 返回的 `sandbox` 文本不得升级为本地信号。
+  远端构建失败必须优先检查代码和资源诊断，只有本地命令也被拦截时才把沙盒作为次要排查项；已知
+  的项目配置、鉴权/上下文或结构校验错误不输出 Full Access 建议。Maker MCP 不能读取客户端访问模式，
+  因此任何沙盒提示都不能作为根因结论；可信项目才可建议开启 Full Access（“完全访问模式”）并重连 MCP。
+  本地 Tap auth 或 `user_id` 上下文准备失败必须返回 `failure_stage: local_build_context` 和
+  `remote_build_status: not_started`，不得描述成远端构建失败。
 - `MCP error -32001: Request timed out` 只证明 MCP 请求超时，不能单独证明 Maker server 故障。
   Maker MCP 能收到该错误时必须返回只读的本地进程、Node、cwd/project 对齐摘要，并把根因保持为
   `unconfirmed`；随后通过活动客户端相同的 Maker launcher 对该项目运行 doctor（独立 CLI 等价命令为
