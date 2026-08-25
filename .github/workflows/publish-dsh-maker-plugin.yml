@@ -64,6 +64,9 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Pin npm for reproducible packaging
+        run: npm install -g npm@11.5.1
+
       - name: Install dependencies
         run: npm ci
 
@@ -213,6 +216,7 @@ jobs:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
+          (cd artifacts/dsh-maker && sha256sum -c SHA256SUMS)
           tarball="artifacts/dsh-maker/taptap-dsh-maker-${RELEASE_VERSION}.tgz"
           local_shasum="$(sha1sum "$tarball" | awk '{print $1}')"
           view_error_file="$RUNNER_TEMP/dsh-maker-npm-view-error.txt"

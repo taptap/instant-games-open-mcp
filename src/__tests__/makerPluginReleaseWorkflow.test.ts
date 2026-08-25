@@ -150,6 +150,9 @@ describe('Maker plugin release workflows', () => {
     const prepareJob = workflow.jobs?.prepare;
     const npmPublishJob = workflow.jobs?.['publish-npm'];
     const releaseJob = workflow.jobs?.['publish-release'];
+    const prepareNpmStep = prepareJob?.steps?.find(
+      (step) => step.name === 'Pin npm for reproducible packaging'
+    );
     const upgradeStep = npmPublishJob?.steps?.find(
       (step) => step.name === 'Upgrade npm for trusted publishing'
     );
@@ -171,12 +174,14 @@ describe('Maker plugin release workflows', () => {
     expect(releaseJob?.if).toContain("needs.publish-npm.result == 'success'");
     expect(releaseJob?.if).toContain("needs.publish-npm.result == 'skipped'");
     expect(publishDsh).toContain('registry-url: https://registry.npmjs.org');
+    expect(prepareNpmStep?.run).toContain('npm install -g npm@11.5.1');
     expect(upgradeStep?.run).toContain('npm install -g npm@11.5.1');
     expect(npmPublishStep?.run).toContain(
       'npm publish "$tarball" --access public --tag latest --provenance'
     );
     expect(publishDsh).toContain('NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}');
     expect(npmPublishStep?.run).toContain('npm view "@taptap/dsh-maker@${RELEASE_VERSION}"');
+    expect(npmPublishStep?.run).toContain('(cd artifacts/dsh-maker && sha256sum -c SHA256SUMS)');
 
     expect(releaseJob?.steps?.some((step) => step.name === 'Publish GitHub Release')).toBe(true);
   });
