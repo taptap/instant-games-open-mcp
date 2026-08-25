@@ -194,13 +194,41 @@ const sessionResult = await connection.newSession({
 
 ### options（可选）
 
-| 字段                 | 类型    | 必需 | 说明                           | 默认值  |
-| -------------------- | ------- | ---- | ------------------------------ | ------- |
-| `verbose`            | boolean | ⚪   | 详细日志模式                   | `false` |
-| `reconnect_interval` | number  | ⚪   | 重连间隔（毫秒）               | `5000`  |
-| `monitor_interval`   | number  | ⚪   | 监控间隔（毫秒）               | `10000` |
-| `exposed_tools`      | array   | ⚪   | 对客户端暴露的 tool 名称白名单 | 不限制  |
-| `log`                | object  | ⚪   | 日志配置                       | 见下表  |
+| 字段                     | 类型    | 必需 | 说明                                              | 默认值  |
+| ------------------------ | ------- | ---- | ------------------------------------------------- | ------- |
+| `verbose`                | boolean | ⚪   | 详细日志模式                                      | `false` |
+| `reconnect_interval`     | number  | ⚪   | 重连间隔（毫秒）                                  | `5000`  |
+| `monitor_interval`       | number  | ⚪   | 监控间隔（毫秒）                                  | `10000` |
+| `disable_standalone_sse` | boolean | ⚪   | 对可选 standalone SSE GET 返回 405，改用 POST SSE | `false` |
+| `exposed_tools`          | array   | ⚪   | 对客户端暴露的 tool 名称白名单                    | 不限制  |
+| `replayable_tools`       | array   | ⚪   | 允许断线等待或自动重放的 tool 名称白名单          | 不限制  |
+| `log`                    | object  | ⚪   | 日志配置                                          | 见下表  |
+
+`disable_standalone_sse` 只影响用于接收服务端主动消息的可选 GET 长连接。MCP 请求、响应和 progress
+仍通过 POST SSE 传输。默认关闭该选项以保持通用 Proxy 的历史行为；Maker 内嵌代理会显式开启。
+
+### options.replayable_tools（断线重放白名单）
+
+`replayable_tools` 限制哪些 tool 可以在连接恢复后继续等待或自动重放：
+
+- 未配置时保持通用 Proxy 的历史行为：所有 tool 都可能等待重连或在传输失败后重放。
+- 配置后，只有白名单内的 tool 可以等待重连或自动重放。
+- 配置为空数组时，所有 tool 都只调用一次。
+- 不在白名单内的调用若在派发前失败，返回 `execution_state: not_executed`；若请求派发后响应中断，
+  返回 `execution_state: unknown`。两种情况都返回 `automatic_retry: false`。
+
+只应把具备幂等性或有明确去重保障的 tool 加入白名单。会产生费用、消耗配额或改变远端状态的 tool
+通常不应自动重放；收到 `unknown` 时，应先核对远端结果、状态和用量，再决定是否显式重试。
+
+Maker 内嵌代理只允许 `build` 自动重放：
+
+```json
+{
+  "options": {
+    "replayable_tools": ["build"]
+  }
+}
+```
 
 ### options.exposed_tools（Proxy tool 白名单）
 

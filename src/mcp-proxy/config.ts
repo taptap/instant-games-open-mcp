@@ -160,6 +160,19 @@ function validateConfig(config: ProxyConfig): void {
     }
   }
 
+  if (config.options?.replayable_tools !== undefined) {
+    const replayableTools = config.options.replayable_tools;
+    if (!Array.isArray(replayableTools)) {
+      errors.push('- options.replayable_tools must be an array of tool names');
+    } else if (
+      !replayableTools.every(
+        (toolName) => typeof toolName === 'string' && toolName.trim().length > 0
+      )
+    ) {
+      errors.push('- options.replayable_tools values must be non-empty strings');
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error('Invalid configuration:\n' + errors.join('\n'));
   }
@@ -194,9 +207,11 @@ function applyDefaults(config: ProxyConfig): ProxyConfig {
       reset_timeout_on_progress: config.options?.reset_timeout_on_progress ?? true,
       health_check_interval: config.options?.health_check_interval ?? 30000,
       enable_cookie_sticky: config.options?.enable_cookie_sticky ?? true,
+      disable_standalone_sse: config.options?.disable_standalone_sse ?? false,
       inject_params_per_call: config.options?.inject_params_per_call ?? true,
       force_inject_progress_token: config.options?.force_inject_progress_token ?? false,
       exposed_tools: config.options?.exposed_tools,
+      replayable_tools: config.options?.replayable_tools,
       log: {
         root: config.options?.log?.root ?? DEFAULT_LOG_ROOT,
         enabled: config.options?.log?.enabled ?? false,

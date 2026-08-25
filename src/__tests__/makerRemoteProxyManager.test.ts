@@ -128,6 +128,30 @@ describe('MakerRemoteProxyManager', () => {
     await calls;
   });
 
+  test('marks dispatch only after the persistent proxy connection is ready', async () => {
+    let resolveConnect: (() => void) | undefined;
+    const connectGate = new Promise<void>((resolve) => {
+      resolveConnect = resolve;
+    });
+    const harness = createHarness({ connect: async () => await connectGate });
+    const onDispatch = jest.fn();
+
+    const call = harness.manager.callTool(
+      createContext(),
+      { name: 'generate_image', arguments: {} },
+      undefined,
+      onDispatch
+    );
+    await Promise.resolve();
+
+    expect(onDispatch).not.toHaveBeenCalled();
+    resolveConnect?.();
+    await call;
+
+    expect(onDispatch).toHaveBeenCalledTimes(1);
+    expect(harness.clients[0].callTool).toHaveBeenCalledTimes(1);
+  });
+
   test('caches the latest successful tool list and preserves it after refresh failure', async () => {
     const harness = createHarness();
     const context = createContext();

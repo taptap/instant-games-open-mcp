@@ -1,6 +1,6 @@
 import { PassThrough } from 'node:stream';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types';
-import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../mcp-proxy/config';
+import { DEFAULT_TOOL_CALL_TIMEOUT_MS, loadConfig } from '../mcp-proxy/config';
 import { installStandaloneProxyLifecycleHandlers } from '../mcp-proxy/lifecycle';
 import { convertMcpApplicationErrorToToolResult, TapTapMCPProxy } from '../mcp-proxy/proxy';
 import type { ProxyConfig } from '../mcp-proxy/types';
@@ -27,9 +27,78 @@ function createProxyConfig(): ProxyConfig {
   };
 }
 
+function setReplayableTools(config: ProxyConfig, toolNames: string[]): void {
+  (config.options as ProxyConfig['options'] & { replayable_tools: string[] }).replayable_tools =
+    toolNames;
+}
+
+async function callProxyTool(
+  proxy: TapTapMCPProxy,
+  name: string
+): Promise<Record<string, unknown>> {
+  const proxyInternals = proxy as any;
+  if (!proxyInternals.server._requestHandlers.has('tools/call')) {
+    proxyInternals.setupHandlers();
+  }
+  const handler = proxyInternals.server._requestHandlers.get('tools/call');
+  return await handler(
+    {
+      method: 'tools/call',
+      params: { name, arguments: {} },
+    },
+    {
+      sendNotification: jest.fn().mockResolvedValue(undefined),
+    }
+  );
+}
+
 describe('standalone MCP proxy lifecycle guards', () => {
   test('defaults tool call timeout to one hour for long-running proxy tools', () => {
     expect(DEFAULT_TOOL_CALL_TIMEOUT_MS).toBe(60 * 60 * 1000);
+  });
+
+  test('loads a valid replayable tool allowlist from JSON configuration', async () => {
+    const previousArg = process.argv[2];
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.argv[2] = JSON.stringify({
+      ...createProxyConfig(),
+      options: { replayable_tools: ['build'] },
+    });
+
+    try {
+      await expect(loadConfig()).resolves.toMatchObject({
+        options: { replayable_tools: ['build'] },
+      });
+    } finally {
+      if (previousArg === undefined) {
+        delete process.argv[2];
+      } else {
+        process.argv[2] = previousArg;
+      }
+      consoleError.mockRestore();
+    }
+  });
+
+  test('rejects invalid replayable tool configuration', async () => {
+    const previousArg = process.argv[2];
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    process.argv[2] = JSON.stringify({
+      ...createProxyConfig(),
+      options: { replayable_tools: ['build', ''] },
+    });
+
+    try {
+      await expect(loadConfig()).rejects.toThrow(
+        'options.replayable_tools values must be non-empty strings'
+      );
+    } finally {
+      if (previousArg === undefined) {
+        delete process.argv[2];
+      } else {
+        process.argv[2] = previousArg;
+      }
+      consoleError.mockRestore();
+    }
   });
 
   test('does not classify MCP server build errors as reconnectable network errors', () => {
@@ -227,6 +296,125 @@ describe('standalone MCP proxy lifecycle guards', () => {
     expect(firstReject).not.toHaveBeenCalled();
     expect(secondResolve).not.toHaveBeenCalled();
     expect(secondReject).not.toHaveBeenCalled();
+  });
+
+  test('does not dispatch a non-replayable tool found in the pending queue', async () => {
+    const config = createProxyConfig();
+    setReplayableTools(config, ['build']);
+    const resolve = jest.fn();
+    const reject = jest.fn();
+    const proxy = new TapTapMCPProxy(config);
+    const proxyInternals = proxy as any;
+    proxyInternals.client = {
+      callTool: jest.fn(),
+    };
+    proxyInternals.pendingRequests = [
+      {
+        name: 'generate_image',
+        arguments: {},
+        resolve,
+        reject,
+        timestamp: Date.now(),
+        executionState: 'unknown',
+      },
+    ];
+
+    await proxyInternals.processPendingRequests();
+
+    expect(proxyInternals.client.callTool).not.toHaveBeenCalled();
+    expect(resolve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isError: true,
+        structuredContent: {
+          execution_state: 'unknown',
+          automatic_retry: false,
+        },
+      })
+    );
+    expect(reject).not.toHaveBeenCalled();
+  });
+
+  test('returns not_executed instead of queueing a non-replayable tool while reconnecting', async () => {
+    const config = createProxyConfig();
+    setReplayableTools(config, ['build']);
+    const proxy = new TapTapMCPProxy(config);
+    const proxyInternals = proxy as any;
+    proxyInternals.connected = false;
+    proxyInternals.reconnecting = true;
+
+    const resultPromise = callProxyTool(proxy, 'generate_image');
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(proxyInternals.pendingRequests).toHaveLength(0);
+    const result = await resultPromise;
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {
+        execution_state: 'not_executed',
+        automatic_retry: false,
+      },
+    });
+    expect((result.content as Array<{ text: string }>)[0].text).toContain('upstream MCP');
+  });
+
+  test('returns unknown without replaying a non-replayable tool after dispatch', async () => {
+    const config = createProxyConfig();
+    setReplayableTools(config, ['build']);
+    const proxy = new TapTapMCPProxy(config);
+    const proxyInternals = proxy as any;
+    const networkError = Object.assign(new Error('connect ECONNRESET after dispatch'), {
+      code: 'ECONNRESET',
+    });
+    proxyInternals.connected = true;
+    proxyInternals.reconnecting = false;
+    proxyInternals.reconnectToServer = jest.fn();
+    proxyInternals.client = {
+      callTool: jest.fn().mockRejectedValue(networkError),
+    };
+
+    const resultPromise = callProxyTool(proxy, 'generate_image');
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(proxyInternals.pendingRequests).toHaveLength(0);
+    const result = await resultPromise;
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: {
+        execution_state: 'unknown',
+        automatic_retry: false,
+      },
+    });
+    expect((result.content as Array<{ text: string }>)[0].text).toContain('upstream MCP');
+    expect(proxyInternals.client.callTool).toHaveBeenCalledTimes(1);
+    expect(proxyInternals.reconnectToServer).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps historical queueing when replayable_tools is not configured', async () => {
+    const proxy = new TapTapMCPProxy(createProxyConfig());
+    const proxyInternals = proxy as any;
+    proxyInternals.connected = false;
+    proxyInternals.reconnecting = true;
+
+    const resultPromise = callProxyTool(proxy, 'generate_image');
+
+    expect(proxyInternals.pendingRequests).toHaveLength(1);
+    proxyInternals.pendingRequests[0].resolve({ content: [] });
+    await expect(resultPromise).resolves.toEqual({ content: [] });
+  });
+
+  test('keeps build queueing when it is the only replayable Maker tool', async () => {
+    const config = createProxyConfig();
+    setReplayableTools(config, ['build']);
+    const proxy = new TapTapMCPProxy(config);
+    const proxyInternals = proxy as any;
+    proxyInternals.connected = false;
+    proxyInternals.reconnecting = true;
+
+    const resultPromise = callProxyTool(proxy, 'build');
+
+    expect(proxyInternals.pendingRequests).toHaveLength(1);
+    proxyInternals.pendingRequests[0].resolve({ content: [] });
+    await expect(resultPromise).resolves.toEqual({ content: [] });
   });
 
   test('cleans up and exits when stdin closes', () => {

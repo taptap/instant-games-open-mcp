@@ -242,13 +242,27 @@ export class CookieJar {
  * @param verbose 是否输出详细日志
  * @returns 包装后的 fetch 函数
  */
-export function createCookieFetch(cookieJar: CookieJar): typeof fetch {
-  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+export interface CookieFetchOptions {
+  /** Return the MCP-spec 405 response instead of opening the optional standalone SSE stream. */
+  rejectStandaloneSse?: boolean;
+  /** Preserve historical Cookie handling by default. */
+  enableCookies?: boolean;
+}
+
+export function createCookieFetch(
+  cookieJar: CookieJar,
+  options: CookieFetchOptions = {}
+): typeof fetch {
+  return async (input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
+    if (options.rejectStandaloneSse && isStandaloneSseRequest(input, init)) {
+      return new Response(null, { status: 405, statusText: 'Method Not Allowed' });
+    }
+
     // 克隆 init 以避免修改原始对象
     const modifiedInit: RequestInit = { ...init };
 
     // 添加 Cookie 到请求头
-    const cookieHeader = cookieJar.getCookieHeader();
+    const cookieHeader = options.enableCookies === false ? undefined : cookieJar.getCookieHeader();
     if (cookieHeader) {
       const headers = new Headers(modifiedInit.headers);
       headers.set('Cookie', cookieHeader);
@@ -263,4 +277,21 @@ export function createCookieFetch(cookieJar: CookieJar): typeof fetch {
 
     return response;
   };
+}
+
+function isStandaloneSseRequest(input: Parameters<typeof fetch>[0], init?: RequestInit): boolean {
+  const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+  if (method !== 'GET') {
+    return false;
+  }
+
+  const headers = new Headers(
+    init?.headers || (input instanceof Request ? input.headers : undefined)
+  );
+  return (
+    headers
+      .get('accept')
+      ?.split(',')
+      .some((value) => value.trim().split(';', 1)[0].toLowerCase() === 'text/event-stream') === true
+  );
 }

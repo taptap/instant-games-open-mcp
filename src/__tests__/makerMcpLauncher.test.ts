@@ -185,6 +185,63 @@ describe('Maker MCP launcher', () => {
     }
   });
 
+  test('falls back to entry-by-entry copying when recursive copy returns Windows EIO', () => {
+    const fixture = createSelfRuntimeFixture('maker-self-launcher-eio-');
+    const cpError = Object.assign(new Error('EIO: Access is denied'), { code: 'EIO' });
+    const cpSync = jest.spyOn(fs, 'cpSync').mockImplementation(() => {
+      throw cpError;
+    });
+    try {
+      const launcher = materializeMakerSelfLauncher({
+        version: '0.0.31',
+        bundleUrl: pathToFileURL(fixture.bundlePath).href,
+        makerHome: fixture.makerHome,
+        execPath: process.execPath,
+      });
+
+      expect(
+        fs.readFileSync(
+          path.join(
+            fixture.makerHome,
+            'mcp-runtime',
+            '0.0.31',
+            'skills',
+            'taptap-maker-local',
+            'SKILL.md'
+          ),
+          'utf8'
+        )
+      ).toBe('# taptap-maker-local');
+      expect(launcher.args[0]).toContain(path.join('mcp-runtime', '0.0.31', 'dist', 'maker.js'));
+    } finally {
+      cpSync.mockRestore();
+      fixture.cleanup();
+    }
+  });
+
+  test('preserves unexpected recursive copy errors', () => {
+    const fixture = createSelfRuntimeFixture('maker-self-launcher-copy-error-');
+    const cpError = Object.assign(new Error('Unexpected recursive copy failure'), {
+      code: 'EINVAL',
+    });
+    const cpSync = jest.spyOn(fs, 'cpSync').mockImplementation(() => {
+      throw cpError;
+    });
+    try {
+      expect(() =>
+        materializeMakerSelfLauncher({
+          version: '0.0.31',
+          bundleUrl: pathToFileURL(fixture.bundlePath).href,
+          makerHome: fixture.makerHome,
+          execPath: process.execPath,
+        })
+      ).toThrow(cpError);
+    } finally {
+      cpSync.mockRestore();
+      fixture.cleanup();
+    }
+  });
+
   test('always materializes a self runtime to an absolute persistent path', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-self-relative-'));
     const originalCwd = process.cwd();
@@ -234,3 +291,33 @@ describe('Maker MCP launcher', () => {
     }
   });
 });
+
+function createSelfRuntimeFixture(prefix: string): {
+  bundlePath: string;
+  makerHome: string;
+  cleanup: () => void;
+} {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const packageRoot = path.join(tempDir, 'package');
+  const bundlePath = path.join(packageRoot, 'dist', 'maker.js');
+  fs.mkdirSync(path.dirname(bundlePath), { recursive: true });
+  fs.writeFileSync(bundlePath, '// maker bundle', 'utf8');
+  for (const skill of ['taptap-maker-local', 'taptap-maker-dev-kit-guide', 'update-taptap-mcp']) {
+    const skillDir = path.join(packageRoot, 'skills', skill);
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `# ${skill}`, 'utf8');
+  }
+  const docsDir = path.join(packageRoot, 'docs');
+  fs.mkdirSync(docsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(docsDir, 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
+    '# Troubleshooting',
+    'utf8'
+  );
+
+  return {
+    bundlePath,
+    makerHome: path.join(tempDir, 'maker-home'),
+    cleanup: () => fs.rmSync(tempDir, { recursive: true, force: true }),
+  };
+}

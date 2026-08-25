@@ -14,7 +14,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "./scripts/build.sh --skip-native",
+    "build": "node scripts/build-cross-platform.js",
     "build:all": "./scripts/build.sh",
     "build:native": "./scripts/build.sh --native-only",
     "start": "node bin/instant-games-open-mcp",
@@ -33,7 +33,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" --end-of-line auto",
     "prepare": "husky",
     "prepublishOnly": "npm run build"
   },

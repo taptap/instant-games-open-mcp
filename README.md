@@ -259,6 +259,16 @@ Maker 远端但构建失败。只有用户明确说“不提交，只构建云�
 `confirm_remote_build_without_submit=true`；该模式只构建 Maker 远端已提交版本，不会自动打开
 Maker 页面。
 
+`code_submit` 或无法分类的构建执行失败会附带 `local_execution_check`，提醒检查 Windows PowerShell、
+CLI、Git 或 MCP 命令是否被 AI 客户端沙盒拦截。只有明确的本地 PowerShell/进程拦截证据才会标记
+`restriction_signal: detected`；远端 Git 返回的 `sandbox` 文本不会被当成本地信号。远端构建失败
+优先检查代码和资源诊断，只有本地命令也被拦截时才检查沙盒；已知项目配置、鉴权/上下文或结构错误
+不提示 Full Access。
+Maker MCP 无法读取客户端访问模式，因此该检查不是根因结论。可信项目可开启 Full Access
+（“完全访问模式”）、重连 MCP 后再重试本地命令。
+本地 Tap auth 或 `user_id` 上下文准备失败会返回 `failure_stage: local_build_context` 和
+`remote_build_status: not_started`，应直接按 login/init 提示恢复，不会描述成远端构建失败。
+
 远端 Lua/LSP 编译失败属于构建业务错误，MCP 会以工具结果 `isError: true` 返回，并在
 `content`/`remote_result` 中保留原始诊断（包括文件、行号和编译器消息）。只有连接断开、会话失效等
 传输故障才使用 MCP 协议错误；排查构建失败时应优先查看工具结果中的 `remote_result`，不要把
@@ -280,6 +290,8 @@ tool schema 为准。
 并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`，
 返回 `local_dir` / `local_log_paths` / `local_screenshot_paths` 等本地路径。代理转发、错误透出和白名单细节见
 [TapTap Maker 本地开发](docs/MAKER.md)。
+`create_video_task` 仅响应用户明确的视频生成请求；长于 10 秒或使用 Seedance 2.5 时，会先返回积分粗估，
+用户明确确认后才携带 `user_confirmed=true` 创建任务。
 音频 tools 支持音效、角色试听、音色确认和配音；生成音频以及确认后的参考音频会保存到
 当前本地 Maker 项目。
 
@@ -555,6 +567,9 @@ maker_build_current_directory
 远端 proxy tools 使用版本化的本地完整定义在首次 `tools/list` 时立即注册，不等待 cwd、Maker 项目绑定、
 PAT/TapTap token 或远端 proxy 连接。项目定位和鉴权只在实际调用 tool 时校验；远端 schema 不会在运行时
 替换本地定义。schema 变更通过本地 MCP 版本更新发布，远端不可用不会让 proxy tools 从当前会话消失。
+Maker 内嵌代理不打开可选的 standalone SSE GET，远端 RPC 响应和构建进度统一通过 POST SSE 返回；
+这避免 Node.js 26 中长连接占用后续 `tools/list` 请求而触发固定 60 秒超时。普通 MCP Proxy 默认仍保留
+standalone SSE，只有显式设置 `disable_standalone_sse` 才会关闭。
 
 `taptap-maker doctor` 会检查 Git、Python 环境、maker-lua-lsp、PAT、TapTap token、项目绑定、
 AI dev kit 版本和 MCP 配置。`maker://status` 和 `maker_status_lite` 会输出

@@ -422,10 +422,19 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   `confirm_remote_build_without_submit=true`；此时工具只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
 - 远端 Lua/LSP 编译失败属于业务失败，不属于 MCP 连接故障。代理会将带有 `remote_result` 的上游
   `McpError(-32603)` 转换为 `CallToolResult.isError`，并保留原始 `content` 诊断；只有连接断开或会话
-  失效才进入重连路径。Maker 本地重试器会优先识别 `error.data.remote_result` 和 MCP 业务错误码，
-  只重试明确的 proxy unavailable、连接关闭、请求超时和 HTTP 5xx 等传输故障。重连后重放请求若
-  再次断线，当前请求和剩余队列会保留到下一轮退避重连；排查构建问题时先读取工具结果中的
-  `remote_result`，不要用 generic unavailable 覆盖原始编译错误，也不要重复发起同一次构建。
+  失效才进入重连路径。只有 `build` 可以自动重试：Maker 本地重试器会优先识别
+  `error.data.remote_result` 和 MCP 业务错误码，只对明确的 proxy unavailable、连接关闭、请求超时和
+  HTTP 5xx 等传输故障最多尝试 5 次。重连后重放 build 若再次断线，当前请求会保留到下一轮退避重连。
+  排查构建问题时先读取工具结果中的 `remote_result`，不要用 generic unavailable 覆盖原始编译错误，
+  也不要重复发起同一次构建。
+- 其它 Maker Proxy tools（包括图片、视频、音频、3D、二维码和配置操作）固定为单次调用，不进入
+  本地重试器，也不会在 Proxy 重连后自动重放。派发前失败返回 `execution_state: not_executed`；请求
+  已派发但响应中断时返回 `execution_state: unknown`；两种情况都返回 `automatic_retry: false`。
+  对 `unknown` 结果必须先核对远端产物、任务、状态和用量，再决定是否由用户显式重试。
+- Maker 内嵌代理会对 MCP Streamable HTTP 的可选 standalone SSE GET 返回规范允许的 `405`，
+  远端 `tools/list`、tool call、响应和 progress 均继续使用 POST SSE。Node.js 26.4.0 对照测试中，
+  standalone GET 会阻塞后续 `tools/list` 并在 60 秒后超时；关闭该可选流后，Node.js 24.19.0 与
+  26.4.0 均可在约 10 秒内完成同一远端构建。该行为只用于 Maker 内嵌代理，普通 Proxy 默认不变。
 - 运行时日志：不作为本地公开 MCP tool 暴露。构建成功后 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs`，默认只拉 `engine`、`user_script`（客户端 Lua 脚本）和
   `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份
@@ -486,6 +495,9 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 - Maker 项目内游戏素材能力记录在 `taptap-maker-local > Maker Creative Asset Tool Policy`。
   Maker MCP 提供生图、批量生图、修改图片、生成视频、音乐、音效、配音和 3D 素材 tools；
   使用其中某个 tool 时按其 schema 传入支持的参数和素材格式。
+  `create_video_task` 只在用户明确要求生成视频时调用，不得在实现玩法、补齐素材或自我优化时主动调用。
+  当明确指定 `duration > 10` 秒或使用 `model="2.5"` 时，必须先展示粗估积分及“实际按上游 token
+  结算”的说明，得到用户明确确认后再以相同参数并带 `user_confirmed=true` 重试。
 - 发生冲突时解释为什么冲突、冲突文件在哪里、冲突内容是什么，并让 Agent 给出解决建议。
 - 冲突解决前必须让用户确认，不隐藏 unresolved conflict。
 
@@ -593,7 +605,7 @@ Maker app 列表关键字段：
 - 首次拉取默认使用浅拉取。`taptap-maker init` 在记录已选 app 后，通常执行
   `git init` + `git fetch --depth=1 origin`，再 checkout 远端默认分支，避免大项目在慢网环境下载完整历史。
 - 首次 clone/fetch 前会明确提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
-- `taptap-maker init` 会根据 Git stderr 判断是否自动重试：HTTP 5xx、503、超时、连接重置、HTTP2/RPC 中断、early EOF 等远端临时错误会在 fetch 阶段重试；认证失败、权限不足、仓库不存在、远端拒绝、非空目录冲突、本地权限错误不会重试。
+- `taptap-maker init` 会根据 Git stderr 判断是否自动重试：HTTP 5xx、503、超时、连接重置、HTTP2/RPC 中断、early EOF 等远端临时错误会在 fetch 阶段重试；遇到明确的 HTTP/2 传输错误时，后续 fetch/push 会使用命令级 `http.version=HTTP/1.1` 降级，不修改用户的全局或仓库 Git 配置；认证失败、权限不足、仓库不存在、远端拒绝、非空目录冲突、本地权限错误不会重试。
 - 首次 clone/fetch 默认最多自动重试 5 次，基础等待间隔为 5 秒；连续重试后仍失败时，错误会保留 `retryable`、`retry_reason` 和已重试次数，方便 Agent 判断是让用户稍后直接重试，还是先处理 PAT、权限或本地目录问题。
 - `maker_build_current_directory` 会在本地 commit、push 和远端 build 阶段输出状态，并解析 Git push stderr 中的百分比进度。
 - `maker_build_current_directory` 的 push 阶段也会对远端临时错误自动重试；push 最终失败时不会继续远端 build。
@@ -747,8 +759,26 @@ maker_build_current_directory()
   检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。
 - 用户明确说“不提交 / 直接构建 / 构建云端版本”时，才允许传 `confirm_remote_build_without_submit=true`，
   这会只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
-- push 被远端拒绝、认证失败、远端有新提交或发生冲突时，工具返回 `mode: submit_failed_before_build`，不会继续远端 build。Agent 应解释 push 失败原因，按 `classification` 使用对应恢复策略，再重试同一个构建工具。
-- 如果 push 成功但远端 build 失败，工具返回 `mode: build_failed_after_submit`，同时保留成功的提交/推送结果和构建错误。
+- push 被远端拒绝、认证失败、远端有新提交或发生冲突时，工具返回
+  `mode: submit_failed_before_build`，不会继续远端 build。Agent 应解释 push 失败原因，按
+  `classification` 使用对应恢复策略，再重试同一个构建工具。
+- 所有失败输出都包含 `failure_stage`、`code_submit_status` 和 `remote_build_status`。如果 push 成功但
+  远端 build 失败，工具返回 `mode: build_failed_after_submit`，同时保留成功的提交/推送结果和构建
+  错误。Agent 应先检查 `build_failure` / `remote_result` 中的代码或资源诊断，不会自动修改项目文件。
+- `code_submit` 或无法分类的构建执行失败会附带 `local_execution_check`，提醒检查 Windows PowerShell、
+  CLI、Git 或 MCP 命令是否被 AI 客户端沙盒拦截。只有明确的本地 PowerShell/进程拦截证据才会标记
+  `restriction_signal: detected`；远端 Git 返回的 `sandbox` 文本不会被当成本地信号。远端构建失败
+  优先检查代码和资源诊断，只有本地命令也被拦截时才检查沙盒；已知项目配置、鉴权/上下文或结构错误
+  不提示 Full Access。Maker MCP 无法读取客户端访问模式，因此该检查不是根因结论。
+- 本地 Tap auth 或 `user_id` 上下文准备失败返回 `mode: build_context_failed_before_remote`、
+  `failure_stage: local_build_context` 和 `remote_build_status: not_started`，直接保留 login/init 恢复动作。
+- `MCP error -32001: Request timed out` 只表示 MCP 请求超时，根因保持为 `unconfirmed`，不能据此判断
+  Maker server 故障。Maker MCP 捕获到该错误时会返回只读的本地进程、Node 和 cwd/project 对齐摘要；
+  Agent 应通过活动客户端相同的 Maker launcher 对该项目运行 doctor（独立 CLI 等价命令为
+  `taptap-maker doctor --target-dir <PROJECT_DIR>`），再检查活动客户端实际 command、args、cwd/Roots、
+  会话/tool 注册和 request timeout。doctor 无法读取活动客户端配置；没有 HTTP 5xx、服务端日志或服务
+  状态证据时，不得宣称服务端宕机，也不要盲目重复构建。详细步骤见
+  `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md`。
 - 如果 build 成功，工具会启动本地 CLI watcher 并在返回里带出
   `runtime_logs.watch_started/watch_pid/watch_command/local_file/state_file`；MCP tool 不会长时间阻塞等待轮询。
   后续运行时诊断应优先读取 `runtime_logs.local_file`，watcher 健康状态读取

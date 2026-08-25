@@ -161,6 +161,11 @@ supports it. Follow the selected tool schema when one of these tools is used.
 - Use `batch_generate_images` for multiple images.
 - Use `edit_image` for modifying project images.
 - Use `create_video_task` for game videos and image/video referenced generation.
+- Only call `create_video_task` after the user explicitly requests video generation. Do not generate
+  video proactively while implementing gameplay, filling asset gaps, or improving the game.
+- When duration exceeds 10 seconds or `model="2.5"`, show the rough credit estimate and explain that
+  actual billing follows upstream token usage. Wait for explicit confirmation, then repeat the same
+  request with `user_confirmed=true`.
 - Use `query_video_task` to refresh video task status, release completed task quota, and fetch final videos.
 - Use `text_to_music` for game music with Suno.
 - Use `text_to_sound_effect` for one sound effect with Doubao Seed Audio.

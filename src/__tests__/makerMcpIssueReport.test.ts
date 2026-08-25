@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { sanitizeDiagnosticValue } from '../maker/server/diagnosticRedaction';
 import {
   buildMakerMcpIssue,
   collectMakerMcpIssueDiagnostics,
@@ -14,6 +15,7 @@ import {
   parseMakerMcpReportContext,
   resolveMakerMcpReportRuntime,
   submitMakerMcpIssue,
+  validateMakerMcpReportContext,
 } from '../maker/cli/mcpIssueReport';
 
 describe('Maker MCP issue report', () => {
@@ -46,6 +48,62 @@ describe('Maker MCP issue report', () => {
       summary: 'Maker MCP problem report',
       error_message: 'MCP error -32000: Connection closed',
     });
+  });
+
+  test('rejects empty, default-only, and exact build-prerequisite report contexts', () => {
+    expect(validateMakerMcpReportContext(parseMakerMcpReportContext(''))).toEqual(
+      expect.objectContaining({ ok: false })
+    );
+    expect(validateMakerMcpReportContext({ summary: 'Maker MCP problem report' })).toEqual(
+      expect.objectContaining({ ok: false })
+    );
+    expect(
+      validateMakerMcpReportContext({
+        summary: 'Build prerequisite',
+        error_message: 'Need to call maker_build_current_directory',
+        failed_operation: 'maker_build_current_directory',
+      })
+    ).toEqual(
+      expect.objectContaining({
+        ok: false,
+        reason: expect.stringContaining('build prerequisite'),
+      })
+    );
+  });
+
+  test('accepts short error messages and numeric error codes', () => {
+    expect(
+      validateMakerMcpReportContext({
+        summary: 'Filesystem error',
+        error_message: 'EIO',
+      })
+    ).toEqual({ ok: true });
+    expect(
+      validateMakerMcpReportContext({
+        summary: 'Authentication error',
+        error_code: 401,
+      })
+    ).toEqual({ ok: true });
+  });
+
+  test('does not suppress errors that only mention the build tool in a larger message', () => {
+    expect(
+      validateMakerMcpReportContext({
+        summary: 'Connection failure',
+        error_message:
+          'Connection closed after Need to call maker_build_current_directory was returned',
+      })
+    ).toEqual({ ok: true });
+  });
+
+  test('does not suppress an exact build prerequisite when a real error code is present', () => {
+    expect(
+      validateMakerMcpReportContext({
+        summary: 'Authentication failure',
+        error_message: 'Need to call maker_build_current_directory',
+        error_code: 401,
+      })
+    ).toEqual({ ok: true });
   });
 
   test('drops unknown AI context fields instead of trusting the caller privacy boundary', () => {
@@ -195,6 +253,46 @@ describe('Maker MCP issue report', () => {
     expect(issue.body).not.toContain('structured-proxy-password');
     expect(issue.body).not.toContain('structured-session-cookie');
     expect(issue.body).not.toContain('structured-request-signature');
+  });
+
+  test('redacts URL userinfo while preserving query and fragment email addresses', () => {
+    const message = [
+      'Failed https://alice:password@example.com/private',
+      'Git failed ssh://git:secret@example.com/repository',
+      'query https://maker.example.test?email=user@example.com',
+      'fragment https://maker.example.test#owner=user@example.com',
+    ].join(' ');
+
+    expect(sanitizeDiagnosticValue(message)).toBe(
+      [
+        'Failed https://<redacted>@example.com/private',
+        'Git failed ssh://<redacted>@example.com/repository',
+        'query https://maker.example.test?email=user@example.com',
+        'fragment https://maker.example.test#owner=user@example.com',
+      ].join(' ')
+    );
+
+    const issue = buildMakerMcpIssue({
+      context: { summary: 'URL diagnostics', error_message: message },
+      diagnostics: {
+        occurred_at: '2026-08-24T12:00:00+08:00',
+        os_arch: 'win32 x64',
+        node_version: 'v26.4.0',
+        maker_package_version: '0.0.31',
+        process_cwd: tempDir,
+        target_dir: tempDir,
+        project_context: { status: 'not_bound' },
+        client_config: { status: 'not_found' },
+        mcp_verify: { ok: false },
+      },
+      homeDir: tempDir,
+    });
+
+    expect(issue.body).toContain('https://<redacted>@example.com/private');
+    expect(issue.body).toContain('ssh://<redacted>@example.com/repository');
+    expect(issue.body).toContain('https://maker.example.test?email=user@example.com');
+    expect(issue.body).toContain('https://maker.example.test#owner=user@example.com');
+    expect(issue.body).not.toContain('alice:password');
   });
 
   test('builds a public-safe issue body with normalized home paths and redacted credentials', () => {

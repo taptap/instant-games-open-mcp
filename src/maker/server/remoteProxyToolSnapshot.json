@@ -21,7 +21,7 @@
   "tools": [
     {
       "name": "generate_image",
-      "description": "Generate one new image asset for a Maker game. Use batch_generate_images for multiple new images and edit_image to modify an existing image. Optional reference images may guide style or content; supported sources, generation controls, and final target_size requirements are defined by the input schema. Keep each reference image supplied through local paths or data URLs at 10 MiB or less. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present.",
+      "description": "Generate one new image asset for a Maker game. Use batch_generate_images for multiple new images and edit_image to modify an existing image. Optional reference images may guide style or content; supported sources, generation controls, and final target_size requirements are defined by the input schema. Keep each reference image supplied through local paths or data URLs at 10 MiB or less. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -77,7 +77,7 @@
           "quality": {
             "type": "string",
             "enum": ["low", "medium", "high", "auto"],
-            "description": "Image quality, only supported when model is \"gpt\" (GPT Image 2). One of \"low\", \"medium\", \"high\", \"auto\" (default). If the user explicitly asked for a specific image quality, set this field AND set model to \"gpt\" together; otherwise omit both."
+            "description": "Image quality. One of \"low\", \"medium\", \"high\", \"auto\" (default). GPT Image 2 uses this setting; other models may ignore it."
           },
           "target_dir": {
             "type": "string",
@@ -89,7 +89,7 @@
     },
     {
       "name": "batch_generate_images",
-      "description": "Generate two or more new image assets in parallel in one call. Use generate_image for one new image and edit_image to modify an existing image. Each image request uses the fields and constraints defined by the input schema. Keep each reference image supplied through local paths or data URLs at 10 MiB or less. A batch may partially succeed; preserve successful images and report failed items with their returned errors. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present.",
+      "description": "Generate two or more new image assets in parallel in one call. Use generate_image for one new image and edit_image to modify an existing image. Each image request uses the fields and constraints defined by the input schema. Keep each reference image supplied through local paths or data URLs at 10 MiB or less. A batch may partially succeed; preserve successful images and report failed items with their returned errors. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -151,7 +151,7 @@
                 "quality": {
                   "type": "string",
                   "enum": ["low", "medium", "high", "auto"],
-                  "description": "Image quality, only supported when model is \"gpt\" (GPT Image 2). One of \"low\", \"medium\", \"high\", \"auto\" (default). If the user explicitly asked for a specific image quality, set this field AND set model to \"gpt\" together; otherwise omit both."
+                  "description": "Image quality. One of \"low\", \"medium\", \"high\", \"auto\" (default). GPT Image 2 uses this setting; other models may ignore it."
                 }
               },
               "required": ["prompt", "name", "target_size"]
@@ -167,7 +167,7 @@
     },
     {
       "name": "edit_image",
-      "description": "Modify an existing image from text instructions. Use generate_image for one new image and batch_generate_images for multiple new images. The required original image accepts a local Maker project path, an HTTP(S) URL, or an image data URL. Additional reference images and output controls are defined by the input schema. Keep each local-path or data URL image at 10 MiB or less. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present.",
+      "description": "Modify an existing image from text instructions. Use generate_image for one new image and batch_generate_images for multiple new images. The required original image accepts a local Maker project path, an HTTP(S) URL, or an image data URL. Additional reference images and output controls are defined by the input schema. Keep each local-path or data URL image at 10 MiB or less. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -223,7 +223,7 @@
           "quality": {
             "type": "string",
             "enum": ["low", "medium", "high", "auto"],
-            "description": "Image quality, only supported when model is \"gpt\" (GPT Image 2). One of \"low\", \"medium\", \"high\", \"auto\" (default). If the user explicitly asked for a specific image quality, set this field AND set model to \"gpt\" together; otherwise omit both."
+            "description": "Image quality. One of \"low\", \"medium\", \"high\", \"auto\" (default). GPT Image 2 uses this setting; other models may ignore it."
           },
           "target_dir": {
             "type": "string",
@@ -235,7 +235,7 @@
     },
     {
       "name": "create_3d_asset",
-      "description": "Manage the complete Maker 3D asset lifecycle. Use action=\"start\" to begin, action=\"query\" to check progress, action=\"get_options\" to inspect step options, action=\"continue\" after review, and action=\"post_process\" for supported follow-up operations. Use direct generation when no review checkpoint is needed, and reviewed generation when the user needs a preview before final generation. For reviewed generation, show every returned preview and wait for explicit user approval before action=\"continue\"; never approve a review step automatically. Supported prompt, image, strategy, quality, and post-processing fields are defined by the input schema. Local image inputs are normalized for the remote service. The local proxy attempts to materialize completed model delivery under assets/model and review images under assets/image; use local_delivery, preview_assets, and other returned local paths when present.",
+      "description": "Manage the complete Maker 3D asset lifecycle. Use action=\"start\" to begin, action=\"query\" to check progress, action=\"get_options\" to inspect step options, action=\"continue\" after review, and action=\"post_process\" for supported follow-up operations. Use direct generation when no review checkpoint is needed, and reviewed generation when the user needs a preview before final generation. For reviewed generation, show every returned preview and wait for explicit user approval before action=\"continue\"; never approve a review step automatically. Supported prompt, image, strategy, quality, and post-processing fields are defined by the input schema. Local image inputs are normalized for the remote service. The local proxy attempts to materialize completed model delivery under assets/model and review images under assets/image; use local_delivery, preview_assets, and other returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -319,7 +319,7 @@
     },
     {
       "name": "text_to_music",
-      "description": "Generate AI music for a Maker game, including background music or vocal tracks; do not use this tool for sound effects. The remote call polls server-side every 20 seconds and may wait up to 50 minutes. If generation is still running when the call times out, the result includes the task ID for operational tracking. Simple and custom generation controls are defined by the input schema. The local proxy attempts to materialize successful audio and metadata into the Maker project and record them for later Maker references; use returned local paths when present.",
+      "description": "Generate AI music for a Maker game, including background music or vocal tracks; do not use this tool for sound effects. The remote call polls server-side every 20 seconds and may wait up to 50 minutes. If generation is still running when the call times out, the result includes the task ID for operational tracking. Simple and custom generation controls are defined by the input schema. The local proxy attempts to materialize successful audio and metadata into the Maker project and record them for later Maker references; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -369,7 +369,7 @@
     },
     {
       "name": "create_video_task",
-      "description": "Create a video generation task. The remote service normally performs server-side polling and waits for the final result in this call. If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later. Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema. Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less. The local proxy attempts to materialize successful video results into the Maker project; prefer returned workspace paths when present, unless the user needs an external share URL.",
+      "description": "Create a video generation task only after the user explicitly requests video generation. Do not proactively or automatically generate videos while designing gameplay, implementing features, filling asset gaps, or self-improving the game. Estimate the intended duration before calling. The confirmation estimate is 200 credits per second for model=\"2.0\" and 300 credits per second for model=\"2.5\"; it is only a rough estimate, while actual billing follows upstream token usage. When duration exceeds 10 seconds or model=\"2.5\" is used, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Default model=\"2.0\" with omitted duration or duration=-1 does not require confirmation. The remote service normally performs server-side polling and waits for the final result in this call. If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later. Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema. Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less. The local proxy attempts to materialize successful video results into the Maker project; prefer returned workspace paths when present, unless the user needs an external share URL. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -381,7 +381,7 @@
           "model": {
             "type": "string",
             "enum": ["2.0", "2.5"],
-            "description": "Seedance 模型版本，默认 \"2.0\"。\n- \"2.0\": Seedance 2.0 fast。duration 4-15s，参考图最多 9 张、参考视频 3 个、参考音频 3 个，音频不能单独输入。\n- \"2.5\": Seedance 2.5，效果与可控性更强、成本更高。duration 4-30s，参考图最多 30 张、参考视频 10 个、参考音频 10 个，支持仅传音频驱动生成。\n需要超过 15s 时长、大量参考素材或纯音频驱动时用 \"2.5\"，其余场景保持默认。"
+            "description": "Seedance 模型版本，默认 \"2.0\"。\n- \"2.0\": Seedance 2.0 fast。duration 4-15s，参考图最多 9 张、参考视频 3 个、参考音频 3 个，音频不能单独输入。\n- \"2.5\": Seedance 2.5，效果与可控性更强、成本更高。duration 4-30s，参考图最多 30 张、参考视频 10 个、参考音频 10 个，支持仅传音频驱动生成。\n需要超过 15s 时长、大量参考素材或纯音频驱动时用 \"2.5\"，其余场景保持默认。使用 \"2.5\" 前须向开发者展示积分预估并二次确认。"
           },
           "prompt": {
             "type": "string",
@@ -460,7 +460,11 @@
           },
           "duration": {
             "type": "integer",
-            "description": "视频时长（秒）。model=\"2.0\" 支持 4-15，model=\"2.5\" 支持 4-30；也可传 -1。不建议设为 -1；模型会自主选择时长，但这会直接影响计费与结果可预期性，建议明确指定整数秒。\nmodel=\"2.5\" 以参考视频做视频编辑时只接受 -1（输出时长跟随输入视频），且输入视频时长需在 4-30s 内。"
+            "description": "视频时长（秒）。model=\"2.0\" 支持 4-15，model=\"2.5\" 支持 4-30；也可传 -1。明确传入超过 10 秒时，先按档位单价向开发者展示粗估并二次确认（2.0 为 200 积分/秒，2.5 为 300 积分/秒；仅供确认参考，实际按上游 token 扣费），再设 user_confirmed=true。不建议设为 -1；模型会自主选择时长。默认 2.0 下未指定或 -1 不触发确认。\nmodel=\"2.5\" 以参考视频做视频编辑时只接受 -1（输出时长跟随输入视频），且输入视频时长需在 4-30s 内。"
+          },
+          "user_confirmed": {
+            "type": "boolean",
+            "description": "仅当开发者已确认本次粗估（含「实际按上游 token 扣费」说明）后设为 true。触发条件：明确传入 duration 超过 10 秒，或使用 model=\"2.5\"。未确认时不要传 true。默认 2.0 且时长未超过 10 秒时无需此参数。"
           },
           "return_last_frame": {
             "type": "boolean",
@@ -488,7 +492,7 @@
     },
     {
       "name": "query_video_task",
-      "description": "Query video task status by task_id after create_video_task returns a pending task or reports a concurrency limit. If the task is still pending or running, continue other work and query again no sooner than 120 seconds later; do not poll continuously. Querying a completed task releases its task quota. The local proxy attempts to materialize successful video and last-frame results into the Maker project. Prefer workspace_video_path and workspace_last_frame_path when present; mention CDN URLs only when the user needs an external share link.",
+      "description": "Query video task status by task_id after create_video_task returns a pending task or reports a concurrency limit. If the task is still pending or running, continue other work and query again no sooner than 120 seconds later; do not poll continuously. Querying a completed task releases its task quota. The local proxy attempts to materialize successful video and last-frame results into the Maker project. Prefer workspace_video_path and workspace_last_frame_path when present; mention CDN URLs only when the user needs an external share link. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -510,7 +514,7 @@
     },
     {
       "name": "text_to_sound_effect",
-      "description": "Generate one game sound effect from a Chinese or English description with Doubao Seed Audio. Each call produces one output of at most 120 seconds. Split longer audio across multiple generations because this tool does not stitch outputs. duration_seconds is an approximate target and the actual duration may differ. The local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present.",
+      "description": "Generate one game sound effect from a Chinese or English description with Doubao Seed Audio. Each call produces one output of at most 120 seconds. Split longer audio across multiple generations because this tool does not stitch outputs. duration_seconds is an approximate target and the actual duration may differ. The local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -543,7 +547,7 @@
     },
     {
       "name": "batch_sound_effects",
-      "description": "Generate multiple game sound effects with Doubao Seed Audio in one batch. Each item is an independent output of at most 120 seconds. Split longer audio across items or calls because this tool does not stitch outputs. The result preserves per-item failures while the local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present.",
+      "description": "Generate multiple game sound effects with Doubao Seed Audio in one batch. Each item is an independent output of at most 120 seconds. Split longer audio across items or calls because this tool does not stitch outputs. The result preserves per-item failures while the local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -583,7 +587,7 @@
     },
     {
       "name": "text_to_dialogue",
-      "description": "Generate final character dialogue audio with ElevenLabs Eleven v3. Each character needs a confirmed ElevenLabs voice mapping in .project/elevenlabs-voice-mapping.json; when one is missing, call audition_voices_for_character and then confirm_character_voice before retrying. Use stability from 0 to 1 (default 0.5) to tune variation. Eleven v3 supports audio tags such as [sad] and [laughing] plus punctuation-based pacing. The local proxy attempts to materialize successful dialogue under assets/audio/voice; use returned local paths when present.",
+      "description": "Generate final character dialogue audio with ElevenLabs Eleven v3. Each character needs a confirmed ElevenLabs voice mapping in .project/elevenlabs-voice-mapping.json; when one is missing, call audition_voices_for_character and then confirm_character_voice before retrying. Use stability from 0 to 1 (default 0.5) to tune variation. Eleven v3 supports audio tags such as [sad] and [laughing] plus punctuation-based pacing. The local proxy attempts to materialize successful dialogue under assets/audio/voice; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -629,7 +633,7 @@
     },
     {
       "name": "audition_voices_for_character",
-      "description": "Create 1 to 3 temporary ElevenLabs Voice Design previews for one game character. Prepare a detailed character description and an audition line of at least 100 characters that matches the character personality and speaking style. candidate_count accepts 1 to 3 and defaults to 3. Show every returned preview to the user and wait for an explicit choice before calling confirm_character_voice. Complete audition and confirmation for one character before starting another in the same project; do not run them in parallel. Preview files are temporary and are not saved as final game assets.",
+      "description": "Create 1 to 3 temporary ElevenLabs Voice Design previews for one game character. Prepare a detailed character description and an audition line of at least 100 characters that matches the character personality and speaking style. candidate_count accepts 1 to 3 and defaults to 3. Show every returned preview to the user and wait for an explicit choice before calling confirm_character_voice. Complete audition and confirmation for one character before starting another in the same project; do not run them in parallel. Preview files are temporary and are not saved as final game assets. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -663,7 +667,7 @@
     },
     {
       "name": "confirm_character_voice",
-      "description": "Confirm an ElevenLabs Voice Design selection, create the permanent voice, and persist the character voice mapping for later text_to_dialogue calls. Call this tool only after audition_voices_for_character and only after the user explicitly selects a candidate or explicitly accepts the recommended candidate. Omit selected_index only after the user explicitly accepts the recommendation; absence of a user choice is not acceptance. Confirmation consumes one ElevenLabs Voice Slot. Process one character at a time and do not call this tool in parallel for the same project.",
+      "description": "Confirm an ElevenLabs Voice Design selection, create the permanent voice, and persist the character voice mapping for later text_to_dialogue calls. Call this tool only after audition_voices_for_character and only after the user explicitly selects a candidate or explicitly accepts the recommended candidate. Omit selected_index only after the user explicitly accepts the recommendation; absence of a user choice is not acceptance. Confirmation consumes one ElevenLabs Voice Slot. Process one character at a time and do not call this tool in parallel for the same project. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -685,7 +689,7 @@
     },
     {
       "name": "generate_test_qrcode",
-      "description": "Generate a mobile test QR code only when the user explicitly requests a test QR code or scan test, or when get_ad_config reports missing app_id or developer_id and requests this recovery step. Do not call this tool automatically during initialization, build, or publish workflows. When an explicit build is needed, use maker_build_current_directory separately. Call without confirmed_screen_orientation first. Reuse an existing project orientation; only when the tool reports it missing, ask the user in a separate conversation turn to choose landscape or portrait and then retry. An existing orientation is immutable. This operation may upload a test version, create the TapTap app identity, and return a displayable QR code.",
+      "description": "Generate a mobile test QR code only when the user explicitly requests a test QR code or scan test, or when get_ad_config reports missing app_id or developer_id and requests this recovery step. Do not call this tool automatically during initialization, build, or publish workflows. When an explicit build is needed, use maker_build_current_directory separately. Call without confirmed_screen_orientation first. Reuse an existing project orientation; only when the tool reports it missing, ask the user in a separate conversation turn to choose landscape or portrait and then retry. An existing orientation is immutable. This operation may upload a test version, create the TapTap app identity, and return a displayable QR code. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -704,7 +708,7 @@
     },
     {
       "name": "add_test_whitelist",
-      "description": "Add one TapTap user to the current game test whitelist. Use this only after maker_build_current_directory has initialized the project and generate_test_qrcode has established the TapTap app identity. Call it only with the TapTap user_id explicitly provided by the user; never infer an account ID.",
+      "description": "Add one TapTap user to the current game test whitelist. Use this only after maker_build_current_directory has initialized the project and generate_test_qrcode has established the TapTap app identity. Call it only with the TapTap user_id explicitly provided by the user; never infer an account ID. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -722,7 +726,7 @@
     },
     {
       "name": "get_ad_config",
-      "description": "For any ad-related request, read maker://ads-integration-guide first. After Maker project status confirms the primary local project configs are initialized, use this as the first remote step. It is the source of truth for current ad activation and configuration, and synchronizes the result into .project/settings.json at @runtime.ad. The local preflight does not call the remote tool while project.json or settings.json is missing. Missing local configs do not authorize an automatic build. Use maker_build_current_directory only for an explicit user build, submit, or preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically. Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks, and only implement or test ad behavior after the returned configuration is usable. If app_id or developer_id is missing, call generate_test_qrcode once and then retry this tool. If ad.status != 1, report warning and ad.url, follow the returned next_action, and retry only after the user completes that step.",
+      "description": "For any ad-related request, read maker://ads-integration-guide first. After Maker project status confirms the primary local project configs are initialized, use this as the first remote step. It is the source of truth for current ad activation and configuration, and synchronizes the result into .project/settings.json at @runtime.ad. The local preflight does not call the remote tool while project.json or settings.json is missing. Missing local configs do not authorize an automatic build. Use maker_build_current_directory only for an explicit user build, submit, or preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically. Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks, and only implement or test ad behavior after the returned configuration is usable. If app_id or developer_id is missing, call generate_test_qrcode once and then retry this tool. If ad.status != 1, report warning and ad.url, follow the returned next_action, and retry only after the user completes that step. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -736,7 +740,7 @@
     },
     {
       "name": "get_debug_feedbacks",
-      "description": "Fetch online player feedback for the current Maker project, or query server and Lua session logs when game_session_id is provided. The default feedback mode fetches unprocessed records and marks the returned records as processed. For a read-only feedback query, set fetch_and_mark_processed=false; use the input schema to select other filters or an exact feedback record. Downloaded feedback attachments are saved in the local project. Read only the returned local_dir, local_log_paths, and local_screenshot_paths; do not treat remote attachment paths as local files. Session-log mode returns its own saved paths and progress information; use the returned result to continue when more history is available.",
+      "description": "Fetch online player feedback for the current Maker project, or query server and Lua session logs when game_session_id is provided. The default feedback mode fetches unprocessed records and marks the returned records as processed. For a read-only feedback query, set fetch_and_mark_processed=false; use the input schema to select other filters or an exact feedback record. Downloaded feedback attachments are saved in the local project. Read only the returned local_dir, local_log_paths, and local_screenshot_paths; do not treat remote attachment paths as local files. Session-log mode returns its own saved paths and progress information; use the returned result to continue when more history is available. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       "inputSchema": {
         "type": "object",
         "properties": {

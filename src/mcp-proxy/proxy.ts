@@ -27,7 +27,32 @@ const MAX_RECONNECT_INTERVAL_MS = 60 * 1000;
 type ProxyToolErrorResult = {
   isError: true;
   content: [{ type: 'text'; text: string }];
+  structuredContent?: Record<string, unknown>;
 };
+
+type ProxyToolExecutionState = 'not_executed' | 'unknown';
+
+function createNonReplayableToolResult(
+  name: string,
+  executionState: ProxyToolExecutionState
+): ProxyToolErrorResult {
+  const text =
+    executionState === 'not_executed'
+      ? `${name} was not sent because the upstream MCP connection is unavailable. ` +
+        'It was not executed. ' +
+        'Automatic retry is disabled; retry explicitly after the connection recovers.'
+      : `${name} may have completed before the upstream MCP response was interrupted. ` +
+        'Its execution state is unknown. Automatic retry is disabled; verify remote output, ' +
+        'state, and usage before deciding whether to retry explicitly.';
+  return {
+    isError: true,
+    content: [{ type: 'text', text }],
+    structuredContent: {
+      execution_state: executionState,
+      automatic_retry: false,
+    },
+  };
+}
 
 /**
  * Convert an upstream MCP application error with remote diagnostics into a tool result.
@@ -380,6 +405,11 @@ export class TapTapMCPProxy {
     }
   }
 
+  private isToolReplayable(name: string): boolean {
+    const replayableTools = this.config.options?.replayable_tools;
+    return replayableTools === undefined || replayableTools.includes(name);
+  }
+
   /**
    * 连接到 TapTap MCP Server
    */
@@ -389,10 +419,21 @@ export class TapTapMCPProxy {
     try {
       // 创建支持 Cookie 的 fetch（用于 K8s Ingress 会话粘性）
       const cookieEnabled = this.config.options?.enable_cookie_sticky ?? true;
-      const customFetch = cookieEnabled ? createCookieFetch(this.cookieJar) : undefined;
+      const standaloneSseDisabled = this.config.options?.disable_standalone_sse ?? false;
+      const customFetch =
+        cookieEnabled || standaloneSseDisabled
+          ? createCookieFetch(this.cookieJar, {
+              enableCookies: cookieEnabled,
+              rejectStandaloneSse: standaloneSseDisabled,
+            })
+          : undefined;
 
       if (cookieEnabled && this.config.options?.verbose) {
         this.log('debug', 'Cookie sticky session enabled');
+      }
+
+      if (standaloneSseDisabled && this.config.options?.verbose) {
+        this.log('debug', 'Standalone SSE disabled; using POST response streams');
       }
 
       // 构建会话 Headers（包含认证和上下文信息）
@@ -761,6 +802,11 @@ export class TapTapMCPProxy {
     while (this.pendingRequests.length > 0) {
       const req = this.pendingRequests.shift()!;
 
+      if (!this.isToolReplayable(req.name)) {
+        req.resolve(createNonReplayableToolResult(req.name, req.executionState ?? 'unknown'));
+        continue;
+      }
+
       // 检查请求是否超时
       if (now - req.timestamp > timeout) {
         req.reject(new Error('Request timeout while waiting for reconnection'));
@@ -950,6 +996,10 @@ export class TapTapMCPProxy {
 
       // 检查连接状态
       if (!this.connected) {
+        if (!this.isToolReplayable(name)) {
+          return createNonReplayableToolResult(name, 'not_executed');
+        }
+
         // 如果正在重连，加入队列等待
         if (this.reconnecting) {
           this.log('info', `⏳ Queueing request: ${name} (reconnecting...)`);
@@ -961,6 +1011,7 @@ export class TapTapMCPProxy {
               resolve,
               reject,
               timestamp: Date.now(),
+              executionState: 'not_executed',
               onprogress: callToolOptions.onprogress,
             });
           });
@@ -1000,6 +1051,10 @@ export class TapTapMCPProxy {
             this.log('info', 'Triggering immediate reconnection...');
             this.reconnectToServer();
 
+            if (!this.isToolReplayable(name)) {
+              return createNonReplayableToolResult(name, 'unknown');
+            }
+
             // 将当前请求加入队列等待重连
             this.log('info', `⏳ Queueing current request: ${name}`);
             return new Promise((resolve, reject) => {
@@ -1009,9 +1064,14 @@ export class TapTapMCPProxy {
                 resolve,
                 reject,
                 timestamp: Date.now(),
+                executionState: 'unknown',
                 onprogress: callToolOptions.onprogress,
               });
             });
+          }
+
+          if (!this.isToolReplayable(name)) {
+            return createNonReplayableToolResult(name, 'unknown');
           }
         }
 

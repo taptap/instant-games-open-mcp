@@ -3504,23 +3504,36 @@ describe('Maker CLI commands', () => {
   });
 
   test('mcp report returns a non-fatal manual fallback when GitHub submission is unavailable', async () => {
-    await runMakerCli([
-      'mcp',
-      'report',
-      '--ide',
-      'workbuddy',
-      '--target-dir',
-      tempDir,
-      '--consent',
-      '--json',
-    ]);
+    const stdinIterator = jest.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(() =>
+      (async function* () {
+        yield JSON.stringify({
+          summary: 'MCP launcher unavailable',
+          error_message: 'tools/list failed with connection closed',
+        });
+      })()
+    );
+    try {
+      await runMakerCli([
+        'mcp',
+        'report',
+        '--ide',
+        'workbuddy',
+        '--target-dir',
+        tempDir,
+        '--context-stdin',
+        '--consent',
+        '--json',
+      ]);
+    } finally {
+      stdinIterator.mockRestore();
+    }
 
     const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
     expect(payload).toEqual(
       expect.objectContaining({
         status: 'manual_required',
         issue_url: 'https://github.com/taptap/instant-games-open-mcp/issues/new',
-        title: '[Maker MCP] Maker MCP problem report',
+        title: '[Maker MCP] MCP launcher unavailable',
         body: expect.stringContaining('Maker MCP 本地诊断'),
       })
     );
@@ -3538,8 +3551,49 @@ describe('Maker CLI commands', () => {
     );
   });
 
+  test('mcp report rejects empty context before collecting diagnostics or submitting', async () => {
+    await runMakerCli([
+      'mcp',
+      'report',
+      '--ide',
+      'workbuddy',
+      '--target-dir',
+      tempDir,
+      '--consent',
+      '--json',
+    ]);
+
+    const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payload).toEqual(
+      expect.objectContaining({
+        status: 'invalid_context',
+        reason: expect.stringContaining('error_code'),
+      })
+    );
+    expect(verifyMakerMcpLauncherMock).not.toHaveBeenCalled();
+    expect(spawnSyncMock).not.toHaveBeenCalledWith('gh', expect.any(Array), expect.any(Object));
+  });
+
   test('mcp report never starts GitHub submission without explicit consent', async () => {
-    await runMakerCli(['mcp', 'report', '--ide', 'workbuddy', '--target-dir', tempDir, '--json']);
+    const stdinIterator = jest.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(() =>
+      (async function* () {
+        yield JSON.stringify({ summary: 'Consent check', error_code: 401 });
+      })()
+    );
+    try {
+      await runMakerCli([
+        'mcp',
+        'report',
+        '--ide',
+        'workbuddy',
+        '--target-dir',
+        tempDir,
+        '--context-stdin',
+        '--json',
+      ]);
+    } finally {
+      stdinIterator.mockRestore();
+    }
 
     const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
     expect(payload.status).toBe('consent_required');
