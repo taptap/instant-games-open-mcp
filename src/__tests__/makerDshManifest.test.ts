@@ -28,13 +28,12 @@ describe('@taptap/dsh-maker manifest', () => {
   it('pins the stable package source to an exact stable Maker version', () => {
     const manifest = readJson('packages/dsh-maker/package.json');
     expect(manifest.dependencies['@taptap/maker']).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(manifest.dependencies['@taptap/maker']).toBe('0.0.32');
   });
 
   it('uses the published npm package as the DSH marketplace install source', () => {
     const readme = readFileSync(join(REPO_ROOT, 'packages', 'dsh-maker', 'README.md'), 'utf8');
     expect(readme).toContain('dsh plugin --profile web add @taptap/dsh-maker');
-    expect(readme).toContain('npm');
+    expect(readme).toContain('1024Store 使用公开 npm 包 `@taptap/dsh-maker`');
     expect(readme).not.toContain("'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'");
   });
 
@@ -133,6 +132,9 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(result.status).toBe(0);
     const guides = JSON.parse(result.stdout);
     expect(guides.stable).toContain('dsh plugin --profile <profile> add @taptap/dsh-maker@0.1.1');
+    expect(guides.stable).toContain(
+      '改用 tarball 时必须先用同一 Release 的 SHA256SUMS 校验 SHA-256，校验失败时停止安装'
+    );
     expect(guides.preview).toContain('dsh plugin --profile <profile> add <tarball绝对路径>');
     expect(guides.preview).not.toContain('- npm：`@taptap/dsh-maker@0.1.2-dev.7`');
   });

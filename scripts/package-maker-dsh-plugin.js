@@ -97,7 +97,7 @@ export function createInstallMd(version, makerVersion) {
   const installSource = isPreview ? '<tarball绝对路径>' : `@taptap/dsh-maker@${version}`;
   const installPreparation = isPreview
     ? `先下载本 Release 的 tarball 和 SHA256SUMS，验证 SHA-256 匹配后再安装；校验失败时停止安装。`
-    : `直接从 npm registry 安装精确版本 \`@taptap/dsh-maker@${version}\`。GitHub Release tarball 只作为离线安装和排障备用入口。`;
+    : `直接从 npm registry 安装精确版本 \`@taptap/dsh-maker@${version}\`。GitHub Release tarball 只作为离线安装和排障备用入口；改用 tarball 时必须先用同一 Release 的 SHA256SUMS 校验 SHA-256，校验失败时停止安装。`;
   const installSources = `${isPreview ? '' : `- npm：\`@taptap/dsh-maker@${version}\`\n`}- [DSH 插件 tarball](${GITHUB_REPO}/releases/download/dsh-maker-v${version}/taptap-dsh-maker-${version}.tgz)
 - [SHA256 校验文件](${GITHUB_REPO}/releases/download/dsh-maker-v${version}/SHA256SUMS)`;
   return `# TapTap Maker DSH 插件安装（DeepSeek Harness）

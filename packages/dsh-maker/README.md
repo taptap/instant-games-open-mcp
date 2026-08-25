@@ -40,7 +40,7 @@ dsh plugin --profile headless add @taptap/dsh-maker
 ```
 
 1024Store 使用公开 npm 包 `@taptap/dsh-maker` 作为市场安装和更新入口。需要固定版本时，在包名后
-追加版本号，例如 `@taptap/dsh-maker@0.1.1`。对应的 `dsh-maker-v*` GitHub Release 继续提供
+追加版本号，例如 `@taptap/dsh-maker@<version>`。对应的 `dsh-maker-v*` GitHub Release 继续提供
 tarball 和 SHA-256，作为预览版、离线安装及排障备用入口。
 
 DSH 会热重载该 patch，无需重启。验证：
