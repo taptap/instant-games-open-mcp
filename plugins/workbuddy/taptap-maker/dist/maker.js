@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // TapTap Maker MCP - Standalone Bundle
-// TapTap Maker MCP version: 0.0.31
+// TapTap Maker MCP version: 0.0.32
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const __MAKER_BUNDLE_URL__ = import.meta.url;
@@ -44530,7 +44530,7 @@ function applyDefaults(config2) {
 var MAKER_MCP_TRACKING_ACTION = "tapmaker_mcp_call";
 var MAKER_MCP_TRACKING_SOURCE = "local_mcp";
 var MAKER_MCP_TRACKING_TIMEOUT_MS = 1500;
-var MAKER_MCP_VERSION = "0.0.31".trim() ? "0.0.31".trim() : "dev";
+var MAKER_MCP_VERSION = "0.0.32".trim() ? "0.0.32".trim() : "dev";
 var TRACKING_ERROR_MAX_LENGTH = 500;
 function buildMakerMcpTrackingPayload(event) {
   var _a3, _b, _c;
@@ -44843,7 +44843,7 @@ function createMakerRemoteProxyManager(options = {}) {
 }
 
 // src/maker/server/mcp.ts
-var VERSION = true ? "0.0.31" : "dev";
+var VERSION = true ? "0.0.32" : "dev";
 var DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1e3;
 var DEFAULT_PROXY_RETRY_ATTEMPTS = 5;
 var DEFAULT_PROXY_RETRY_DELAY_MS = 30 * 1e3;
@@ -50274,7 +50274,7 @@ function formatError3(error2) {
 }
 
 // src/maker/cli/commands.ts
-var VERSION2 = true ? "0.0.31" : "dev";
+var VERSION2 = true ? "0.0.32" : "dev";
 var DEFAULT_MCP_NAME = "taptap-maker";
 var MAKER_NPM_PACKAGE = "@taptap/maker";
 var TWO_PART_COMMANDS = /* @__PURE__ */ new Set([
