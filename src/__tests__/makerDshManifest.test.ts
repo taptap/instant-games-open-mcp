@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const REPO_ROOT = process.cwd();
 
@@ -26,6 +28,14 @@ describe('@taptap/dsh-maker manifest', () => {
   it('pins the stable package source to an exact stable Maker version', () => {
     const manifest = readJson('packages/dsh-maker/package.json');
     expect(manifest.dependencies['@taptap/maker']).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(manifest.dependencies['@taptap/maker']).toBe('0.0.32');
+  });
+
+  it('uses the published npm package as the DSH marketplace install source', () => {
+    const readme = readFileSync(join(REPO_ROOT, 'packages', 'dsh-maker', 'README.md'), 'utf8');
+    expect(readme).toContain('dsh plugin --profile web add @taptap/dsh-maker');
+    expect(readme).toContain('npm');
+    expect(readme).not.toContain("'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'");
   });
 
   it('declares the DSH rc.6 peer surface', () => {
@@ -104,5 +114,26 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(packageScript).toContain('develop 预览版');
     expect(packageScript).toContain('main 稳定版');
     expect(packageScript).toContain('- 发布渠道：\\`${releaseChannel}\\`');
+  });
+
+  it('renders npm installation only for stable releases', () => {
+    const moduleUrl = pathToFileURL(join(REPO_ROOT, 'scripts', 'package-maker-dsh-plugin.js')).href;
+    const source = `
+      const { createInstallMd } = await import(${JSON.stringify(moduleUrl)});
+      process.stdout.write(JSON.stringify({
+        stable: createInstallMd('0.1.1', '0.0.32'),
+        preview: createInstallMd('0.1.2-dev.7', '0.0.32-beta.3')
+      }));
+    `;
+    const result = spawnSync(process.execPath, ['--input-type=module', '--eval', source], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    const guides = JSON.parse(result.stdout);
+    expect(guides.stable).toContain('dsh plugin --profile <profile> add @taptap/dsh-maker@0.1.1');
+    expect(guides.preview).toContain('dsh plugin --profile <profile> add <tarball绝对路径>');
+    expect(guides.preview).not.toContain('- npm：`@taptap/dsh-maker@0.1.2-dev.7`');
   });
 });

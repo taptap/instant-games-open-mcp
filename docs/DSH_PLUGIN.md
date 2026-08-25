@@ -78,9 +78,8 @@ packages/dsh-maker/
 前置：已装 DSH（`dsh`）与 pnpm。
 
 ```bash
-# 从 1024Store 使用的 GitHub 子目录源安装（web profile；headless 同理）
-dsh plugin --profile web add \
-  'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'
+# 从 1024Store 使用的 npm 包安装（web profile；headless 同理）
+dsh plugin --profile web add @taptap/dsh-maker
 
 # 验证
 dsh --profile web --dump-config | grep -A 20 'mcp-taptap-maker\|taptap-maker'
@@ -120,19 +119,21 @@ dsh plugin --profile web remove @taptap/dsh-maker
 
 DSH 插件有两条互补的分发入口：
 
-- **1024Store / GitHub 子目录源**：市场条目指向
-  `github:taptap/instant-games-open-mcp#path:packages/dsh-maker`，用于市场安装和更新。该无 ref 源按
-  1024Store 规范跟随仓库 `main`。
-- **GitHub Release tarball**：用于分享固定版本链接。用户把发版页链接交给 AI，AI 按页面下载、
-  校验 SHA-256 后安装。
+- **1024Store / npm**：市场条目使用公开包 `@taptap/dsh-maker`，稳定版安装和更新跟随 npm
+  `latest`；固定版本可使用 `@taptap/dsh-maker@<version>`。
+- **GitHub Release tarball**：用于 develop 预览、离线安装和排障。用户把发版页链接交给 AI，AI
+  按页面下载、校验 SHA-256 后安装。
 
 - **发版页**：`packages/dsh-maker/INSTALL.md`（稳定页，含“给安装 AI 的强制执行指令”、下载链接、
   安装步骤、排障与回滚）。
 - **产物**：`npm run maker:dsh-plugin:package` 生成 `taptap-dsh-maker-<version>.tgz`、
   `SHA256SUMS`、`INSTALL.md`、`dsh-maker-release.json` 到 `artifacts/dsh-maker/`。
 - **发版**：只手动运行 `.github/workflows/publish-dsh-maker-plugin.yml`。选择 `develop` 发布预览版，
-  选择 `main` 发布稳定版；工作流创建 tag `dsh-maker-v<version>` 的 GitHub Release，把 tarball、
-  `SHA256SUMS` 上传为附件，`INSTALL.md` 作为 Release 说明。
+  只创建 GitHub prerelease；选择 `main` 发布稳定版时，先把相同 tarball 发布到 npm `latest`，再创建
+  tag `dsh-maker-v<version>` 的 GitHub Release，把 tarball、`SHA256SUMS` 上传为附件，
+  `INSTALL.md` 作为 Release 说明。npm 发布使用仅允许 `main` 的专用
+  `dsh_npm_publish` environment；首次创建包可用仓库 `NPM_TOKEN`，配置 Trusted Publisher 后切换为
+  OIDC，并把 Trusted Publisher 的 Environment 设为 `dsh_npm_publish`。
 
 本地（未发版）分发：跑一次 `npm run maker:dsh-plugin:package`，把
 `taptap-dsh-maker-<version>.tgz` 和 `SHA256SUMS` 交给测试用户，用户（或其 AI）执行
@@ -145,10 +146,9 @@ DSH 插件有两条互补的分发入口：
   发布，避免安装时依赖不存在。
 - `packages/dsh-maker/` 与 `docs/DSH_PLUGIN.md` 已纳入 `scripts/release-scope.cjs` 的 maker
   归属，只改本插件的提交不会误触发主包发布。
-- 不发布 `@taptap/dsh-maker` npm 包；稳定包只通过 `Publish DSH Maker Plugin` workflow 发布到
-  GitHub Release。
-- 1024Store catalog 只登记 GitHub 仓库和 `packages/dsh-maker` 子目录；插件仍保持标准 bundle
-  形态，并使用 `assets/taptap-maker.png` 作为市场图标。
+- 稳定版发布公开 npm 包 `@taptap/dsh-maker`；develop 预览版不写入 npm registry。
+- 1024Store catalog 登记 npm 包名；插件保持标准 bundle 形态，并使用
+  `assets/taptap-maker.png` 作为市场图标。
 
 ## 相关文档
 
