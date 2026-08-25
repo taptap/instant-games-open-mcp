@@ -22,28 +22,26 @@ npx -y --package @taptap/maker@<maker-version> taptap-maker plugin inspect --cli
 npx -y --package @taptap/maker@<maker-version> taptap-maker plugin migrate --client dsh --confirm --json
 ```
 
-`<maker-version>` 使用本包 `package.json` 中 `dependencies["@taptap/maker"]` 的精确值；通过 GitHub
-Release 安装时直接执行 Release `INSTALL.md` 中已写入对应版本的命令。
+`<maker-version>` 使用本包 `package.json` 中 `dependencies["@taptap/maker"]` 的精确值；固定版本
+安装时直接使用对应 npm 包版本或 Release `INSTALL.md` 中已写入的命令。
 
 ## 安装
 
 前置：已安装 DSH（`dsh` 命令）与 [pnpm](https://pnpm.io/)。
 
 ```bash
-dsh plugin --profile web add \
-  'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'
+dsh plugin --profile web add @taptap/dsh-maker
 ```
 
 headless profile 同理：
 
 ```bash
-dsh plugin --profile headless add \
-  'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'
+dsh plugin --profile headless add @taptap/dsh-maker
 ```
 
-上面的无 ref GitHub 子目录源是 1024Store 使用的市场安装入口，会跟随仓库 `main`。需要安装固定
-版本或把链接交给 AI 自动安装时，使用仓库对应的 `dsh-maker-v*` GitHub Release，并按 Release 内的
-`INSTALL.md` 下载和校验 tarball。
+1024Store 使用公开 npm 包 `@taptap/dsh-maker` 作为市场安装和更新入口。需要固定版本时，在包名后
+追加版本号，例如 `@taptap/dsh-maker@<version>`。对应的 `dsh-maker-v*` GitHub Release 继续提供
+tarball 和 SHA-256，作为预览版、离线安装及排障备用入口。
 
 DSH 会热重载该 patch，无需重启。验证：
 
@@ -126,8 +124,6 @@ dsh plugin --profile web remove @taptap/dsh-maker
 
 ## 发布与市场
 
-- 正式包由仓库的 `Publish DSH Maker Plugin` workflow 发布到 GitHub Release，不单独发布
-  `@taptap/dsh-maker` npm 包。
-- 1024Store 使用 GitHub 子目录源
-  `github:taptap/instant-games-open-mcp#path:packages/dsh-maker` 安装；对外仓库链接在
-  `package.json.repository`。
+- 正式包由仓库的 `Publish DSH Maker Plugin` workflow 同时发布到 npm `latest` 和 GitHub Release。
+- `develop` 预览版只发布 GitHub prerelease，不写入 npm；`main` 稳定版才发布公开 npm 包。
+- 1024Store 使用 npm 包名 `@taptap/dsh-maker`；源码和问题反馈入口由 `package.json` 提供。

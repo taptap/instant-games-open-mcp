@@ -1,5 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const REPO_ROOT = process.cwd();
 
@@ -26,6 +29,13 @@ describe('@taptap/dsh-maker manifest', () => {
   it('pins the stable package source to an exact stable Maker version', () => {
     const manifest = readJson('packages/dsh-maker/package.json');
     expect(manifest.dependencies['@taptap/maker']).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it('uses the published npm package as the DSH marketplace install source', () => {
+    const readme = readFileSync(join(REPO_ROOT, 'packages', 'dsh-maker', 'README.md'), 'utf8');
+    expect(readme).toContain('dsh plugin --profile web add @taptap/dsh-maker');
+    expect(readme).toContain('1024Store 使用公开 npm 包 `@taptap/dsh-maker`');
+    expect(readme).not.toContain("'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'");
   });
 
   it('declares the DSH rc.6 peer surface', () => {
@@ -104,5 +114,58 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(packageScript).toContain('develop 预览版');
     expect(packageScript).toContain('main 稳定版');
     expect(packageScript).toContain('- 发布渠道：\\`${releaseChannel}\\`');
+  });
+
+  it('renders npm installation only for stable releases', () => {
+    const moduleUrl = pathToFileURL(join(REPO_ROOT, 'scripts', 'package-maker-dsh-plugin.js')).href;
+    const source = `
+      const { createInstallMd } = await import(${JSON.stringify(moduleUrl)});
+      process.stdout.write(JSON.stringify({
+        stable: createInstallMd('0.1.1', '0.0.32'),
+        preview: createInstallMd('0.1.2-dev.7', '0.0.32-beta.3')
+      }));
+    `;
+    const result = spawnSync(process.execPath, ['--input-type=module', '--eval', source], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    const guides = JSON.parse(result.stdout);
+    expect(guides.stable).toContain('dsh plugin --profile <profile> add @taptap/dsh-maker@0.1.1');
+    expect(guides.stable).toContain(
+      '改用 tarball 时必须先用同一 Release 的 SHA256SUMS 校验 SHA-256，校验失败时停止安装'
+    );
+    expect(guides.preview).toContain('下载 tarball、校验 SHA-256、迁移旧 L1 配置、安装、验证');
+    expect(guides.preview).toContain('Get-FileHash');
+    expect(guides.preview).toContain('shasum -a 256');
+    expect(guides.preview).toContain('dsh plugin --profile <profile> add <tarball绝对路径>');
+    expect(guides.preview).not.toContain('- npm：`@taptap/dsh-maker@0.1.2-dev.7`');
+  });
+
+  it('packages when the entry script is invoked through a symlink', () => {
+    const temporaryDir = mkdtempSync(join(tmpdir(), 'dsh-maker-package-symlink-'));
+    const scriptLink = join(temporaryDir, 'package-maker-dsh-plugin.js');
+    const outputDir = join(temporaryDir, 'output');
+    const committedInstallMd = join(REPO_ROOT, 'packages', 'dsh-maker', 'INSTALL.md');
+
+    try {
+      symlinkSync(join(REPO_ROOT, 'scripts', 'package-maker-dsh-plugin.js'), scriptLink);
+      const installMtime = statSync(committedInstallMd, { bigint: true }).mtimeNs;
+      const result = spawnSync(
+        process.execPath,
+        [scriptLink, '--output-dir', outputDir, '--skip-committed-install-md'],
+        {
+          cwd: REPO_ROOT,
+          encoding: 'utf8',
+        }
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('Packaged @taptap/dsh-maker');
+      expect(statSync(committedInstallMd, { bigint: true }).mtimeNs).toBe(installMtime);
+    } finally {
+      rmSync(temporaryDir, { recursive: true, force: true });
+    }
   });
 });
