@@ -65,12 +65,14 @@ doctor（独立 CLI 等价命令为 `taptap-maker doctor --target-dir <PROJECT_D
 command、args、cwd/Roots、会话/tool 注册和 request timeout。doctor 不能读取活动客户端配置；没有
 HTTP 5xx、服务端日志或服务状态等证据时，不得称为 Maker server 故障，也不要盲目重复构建。
 
-所有 Maker 构建失败都会附带 `local_execution_check`。在 Windows AI 客户端中，检查 PowerShell、
-CLI、Git 或 MCP 命令是否被沙盒拦截；对可信项目可开启 Full Access（“完全访问模式”）并重连 MCP。
-Maker MCP 无法读取客户端访问模式，因此这始终是排查项而不是根因结论。只有 `code_submit` / Git
-本地失败明确出现 `sandbox` / `沙盒` 或 PowerShell 策略拦截文本时，`restriction_signal` 才会标记为
-`detected`；远端构建和无法定位阶段的通用异常保持 `not_detected`，即使文本含 `sandbox` 或
-`permission denied` 也不足以证明本地沙盒限制。
+`code_submit` 或无法分类的构建执行失败会附带 `local_execution_check`。在 Windows AI 客户端中，
+检查 PowerShell、CLI、Git 或 MCP 命令是否被沙盒拦截；对可信项目可开启 Full Access
+（“完全访问模式”）并重连 MCP。只有明确的本地 PowerShell/进程拦截证据才会标记
+`restriction_signal: detected`；远端 Git 返回的 `sandbox` 文本不会被当成本地信号。远端构建失败
+必须先检查返回的代码和资源诊断，只有本地命令也被拦截时才把沙盒作为次要排查项；已知项目配置、
+鉴权/上下文或结构错误不提示 Full Access。Maker MCP 无法读取客户端访问模式，因此该检查不是根因结论。
+本地 Tap auth 或 `user_id` 上下文准备失败会明确返回 `failure_stage: local_build_context`、
+`remote_build_status: not_started` 和原始 login/init 恢复动作，不应解释成远端构建失败。
 
 远端 Maker 构建中的 Lua/LSP 编译错误是工具级业务失败。代理会把带 `error.data.remote_result` 的
 上游 MCP 协议异常转换成 `CallToolResult.isError: true`，原始编译诊断放在 `content` 和

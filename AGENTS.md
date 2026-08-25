@@ -497,12 +497,14 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   项目校验、代码提交/推送和远端构建。push 成功但远端 build 失败时，工具返回
   `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端，并优先检查返回的
   `build_failure` / `remote_result` 中是否存在代码或资源诊断；不得自动修改项目文件。
-- 所有构建失败必须附带 `local_execution_check`，提醒用户检查 AI 客户端是否在沙盒中运行 Windows
-  PowerShell、CLI、Git 或 MCP 命令。Maker MCP 不能读取客户端访问模式，因此该检查不能作为根因
-  结论。只有 `code_submit` / Git 本地失败明确包含 `sandbox` / `沙盒` 或 PowerShell 被策略拦截时才
-  输出 `restriction_signal: detected`；远端构建和无法定位阶段的通用异常必须保持 `not_detected`，
-  即使文本含 `sandbox` 或普通远端权限错误也不能升级为本地沙盒信号。可信项目可建议开启 Full
-  Access（“完全访问模式”）、重连 MCP 并确认本地命令可执行后再重试。
+- `code_submit` 或无法分类的构建执行失败必须附带 `local_execution_check`，提醒用户检查 AI 客户端
+  是否在沙盒中运行 Windows PowerShell、CLI、Git 或 MCP 命令。只有明确的本地 PowerShell/进程
+  拦截证据才输出 `restriction_signal: detected`；远端 Git 返回的 `sandbox` 文本不得升级为本地信号。
+  远端构建失败必须优先检查代码和资源诊断，只有本地命令也被拦截时才把沙盒作为次要排查项；已知
+  的项目配置、鉴权/上下文或结构校验错误不输出 Full Access 建议。Maker MCP 不能读取客户端访问模式，
+  因此任何沙盒提示都不能作为根因结论；可信项目才可建议开启 Full Access（“完全访问模式”）并重连 MCP。
+  本地 Tap auth 或 `user_id` 上下文准备失败必须返回 `failure_stage: local_build_context` 和
+  `remote_build_status: not_started`，不得描述成远端构建失败。
 - `MCP error -32001: Request timed out` 只证明 MCP 请求超时，不能单独证明 Maker server 故障。
   Maker MCP 能收到该错误时必须返回只读的本地进程、Node、cwd/project 对齐摘要，并把根因保持为
   `unconfirmed`；随后通过活动客户端相同的 Maker launcher 对该项目运行 doctor（独立 CLI 等价命令为

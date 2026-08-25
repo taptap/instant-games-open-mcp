@@ -765,11 +765,13 @@ maker_build_current_directory()
 - 所有失败输出都包含 `failure_stage`、`code_submit_status` 和 `remote_build_status`。如果 push 成功但
   远端 build 失败，工具返回 `mode: build_failed_after_submit`，同时保留成功的提交/推送结果和构建
   错误。Agent 应先检查 `build_failure` / `remote_result` 中的代码或资源诊断，不会自动修改项目文件。
-- 所有构建失败还会附带 `local_execution_check`，提醒检查 AI 客户端是否在沙盒中运行 Windows
-  PowerShell、CLI、Git 或 MCP 命令。Maker MCP 无法读取客户端的访问模式，该检查不能证明沙盒是
-  根因。只有 `code_submit` / Git 本地失败明确包含 `sandbox` / `沙盒` 或 PowerShell 被策略拦截时，
-  `restriction_signal` 才为 `detected`；远端构建和无法定位阶段的通用异常保持 `not_detected`。可信项目
-  可以开启客户端的 Full Access（“完全访问模式”）、重连 MCP 并确认本地命令可执行后再重试。
+- `code_submit` 或无法分类的构建执行失败会附带 `local_execution_check`，提醒检查 Windows PowerShell、
+  CLI、Git 或 MCP 命令是否被 AI 客户端沙盒拦截。只有明确的本地 PowerShell/进程拦截证据才会标记
+  `restriction_signal: detected`；远端 Git 返回的 `sandbox` 文本不会被当成本地信号。远端构建失败
+  优先检查代码和资源诊断，只有本地命令也被拦截时才检查沙盒；已知项目配置、鉴权/上下文或结构错误
+  不提示 Full Access。Maker MCP 无法读取客户端访问模式，因此该检查不是根因结论。
+- 本地 Tap auth 或 `user_id` 上下文准备失败返回 `mode: build_context_failed_before_remote`、
+  `failure_stage: local_build_context` 和 `remote_build_status: not_started`，直接保留 login/init 恢复动作。
 - `MCP error -32001: Request timed out` 只表示 MCP 请求超时，根因保持为 `unconfirmed`，不能据此判断
   Maker server 故障。Maker MCP 捕获到该错误时会返回只读的本地进程、Node 和 cwd/project 对齐摘要；
   Agent 应通过活动客户端相同的 Maker launcher 对该项目运行 doctor（独立 CLI 等价命令为
