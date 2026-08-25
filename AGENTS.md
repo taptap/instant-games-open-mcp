@@ -393,11 +393,13 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 本地研发服务配置只作为内部开发能力处理；项目目录级配置只读取 `.maker/taptap-maker.local.json`，不读取项目根目录散落的本地配置文件。不要把内部环境名称、地址或切换方式写入面向用户的 schema、CLI help、README、skill、示例或错误指引。
 - `taptap-maker init` 会检查 Git、Python 环境、maker-lua-lsp 本地 Lua 诊断环境、PAT、TapTap token、当前目录绑定状态、app 列表、AI dev kit，并在用户选择 app 或创建新 Maker 项目后先记录 `.maker-mcp/config.json`，再 checkout 到当前目录；Python 未就绪时会自动尝试准备，最多 3 次，仍失败则暂停 init 且不继续 PAT、app、clone 或 MCP 配置；Python ready 后会 best-effort 创建 Maker 私有 LSP venv，在其中安装/升级 `maker-lua-lsp` 并执行 `maker-lua-lsp install --ide codex,cursor,claude`，LSP 失败只提示错误且不阻塞远端构建。clone/fetch 失败后重复执行 init 会复用已记录 app，显式选择不同 app 会拒绝覆盖已有绑定。app 文本预览默认展示前 40 个；创建新项目入口 `0. Create a new Maker project` 不参与裁剪，始终在列表底部显示；账号 app 很多时在 init 交互中输入 `all` 一次性展开全部，或单独跑 `taptap-maker apps --all`；`taptap-maker apps --json` 仅给 AI / 脚本解析使用。AI 转述时宽屏可用两列紧凑布局，窄屏保持单列；每个 app 保留 app_id，并在用户确认后选择 app；如需新建项目，可让用户在 init 中选择 `0`/`new` 并输入项目名称，或使用 `taptap-maker init --create --name "my-local-game"`；当前目录已绑定 Maker 项目时，必须切换到新的独立目录后再创建新项目。
 - AI dev kit 安装/更新按当前环境查询最新版本信息，按返回的 `current.version` 生成版本化下载 URL；版本检查失败时降级使用内置默认下载地址。安装成功后记录本地已安装版本，`taptap-maker doctor`、`maker://status` 和 `maker_status_lite` 输出当前版本、最新版本和是否可更新。
-- `taptap-maker init` 首次拉取默认使用 `git init` + `git fetch --depth=1 origin` + checkout；Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
+- `taptap-maker init` 首次拉取默认使用 `git init` + `git fetch --depth=1 origin` + checkout；Git clone/fetch 会按错误内容判断是否自动重试：503、HTTP 5xx、超时、连接重置、RPC/HTTP2 中断等远端临时错误会重试；明确的 HTTP/2 传输错误会在后续 fetch/push 中通过命令级 `http.version=HTTP/1.1` 降级，不修改用户 Git 配置；认证、权限、仓库不存在、远端拒绝和本地目录冲突不重试。
 - 首次 clone/fetch 前必须提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
 - CLI 写 MCP 配置时优先支持 Windows：默认把当前包的 Maker bundle、skills 和排障文档物化到
   `TAPTAP_MAKER_HOME/mcp-runtime/<version>/`，并固化当前进程的绝对 `node.exe` 与版本化
   `dist/maker.js`，避免依赖 npx 缓存、网络和客户端 PATH。显式 `--launcher npx` 才使用 npm，
+  self runtime 复制目录遇到 Windows `EIO`、`EACCES` 或 `EPERM` 时回退为逐项复制；其它错误保持
+  原样失败，避免掩盖未知文件系统问题。
   发布包必须固定当前精确版本、使用专用可写 npm cache；Windows 固化绝对 `node.exe` 与
   `npm-cli.js`，不把 `.cmd` shell 命令写入客户端配置。最终命令必须先完成 MCP `initialize` 和
   `tools/list`，验证失败时
@@ -441,7 +443,13 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 远端 proxy tool 调用必须先确认解析出的目录存在有效 `.maker-mcp/config.json`。MCP Roots 不可用
   且进程 cwd 未绑定时，只让该项目相关调用快速失败，错误必须包含 `evaluated_target_dir`、
   `project_context_source` 和显式 `target_dir` 指引；不得阻止 MCP server、status 或 tools/list 启动。
+- Maker 内嵌 proxy 必须设置 `disable_standalone_sse=true`，不打开可选的 standalone SSE GET；
+  远端 RPC 响应与 progress 继续使用 POST SSE。该设置用于避免 Node.js 26 中长连接阻塞后续
+  `tools/list` 并触发 SDK 固定 60 秒超时。普通 MCP Proxy 默认保持 standalone SSE 可用，不能全局关闭。
 - 疑似 Maker MCP、proxy、客户端集成或服务端基础设施缺陷（启动/连接失败、tools 异常缺失、超时、反复重连失败、HTTP 5xx/unavailable、未分类内部错误）时，AI 应先按错误码、操作和稳定错误信息形成故障指纹，并在当前会话只询问用户一次是否允许上报。用户明确同意后，把已脱敏的错误、当前 tools、workspace roots、客户端版本和复现步骤通过 stdin 交给 Maker 报告 CLI。优先原样复用当前客户端 `taptap-maker` 配置中的 command 和有序 args，再追加 `mcp report --ide <client> --target-dir <project> --context-stdin --consent --json`；不得依赖全局 PATH 中存在 `taptap-maker`，也不得用无版本的 `@taptap/maker` 启动可能落后的 npm `latest`。只有确认精确安装版本时才可使用 `npx -y --package @taptap/maker@<exact-version> taptap-maker ...` 作为 fallback；Windows 的 `npx` 不可用时继续使用配置内的绝对 `node.exe` 和 `npm-cli.js` argv。不要上传完整聊天、项目源码、其它 MCP server、PAT/token 或完整环境变量。普通参数错误、已有明确恢复路径的登录问题、项目文件缺失、用户取消、Lua 编译或业务校验错误不提示上报。返回 `manual_required` 表示 GitHub 不可达、未登录或自动提交失败；展示脱敏报告和手动 Issue 地址后继续原任务，不得把上报失败当作 Maker 任务失败。
+  报告上下文必须至少包含非空 `error_code`、`failed_operation` 或 `error_message`；空输入和仅有默认
+  摘要的输入由 CLI 在收集诊断前拒绝。精确提示 `Need to call maker_build_current_directory` 是正常
+  构建前置条件，不得触发故障上报。
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
   远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、
@@ -459,6 +467,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   schema 或白名单变化必须随本地 MCP 版本更新发布。
   这些 tools 为 Maker 项目提供对应的素材和平台能力。远端 proxy tool 返回 `isError` 时，本地 MCP
   必须抛出失败并尽量输出完整 `remote_result` / server 返回内容。
+- `create_video_task` 仅在用户明确要求生成视频时调用，不得在实现玩法、补齐素材或自我优化时主动生成。
+  明确指定 `duration > 10` 秒或使用 `model="2.5"` 时，必须先展示粗估积分，并说明实际扣费按上游
+  token 结算；得到用户明确确认后，再以相同参数并带 `user_confirmed=true` 重试。
 - 音频 proxy tools 在本地 Maker 项目中必须保留 Provider 原格式并落盘生成结果。
   `text_to_sound_effect` 和 `batch_sound_effects` 固定使用豆包 Seed Audio；
   `text_to_dialogue`、`audition_voices_for_character` 和 `confirm_character_voice` 固定使用
@@ -482,12 +493,33 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 查看结果 / 看看效果 / 验证游戏效果”时，都调用 `maker_build_current_directory`。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务；push 成功后才远端 build。
 - push 被拒绝、远端有新提交、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。
-- push 成功但远端 build 失败时，工具返回 `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端和具体构建错误。
+- 所有构建失败输出都必须返回 `failure_stage`、`code_submit_status` 和 `remote_build_status`，明确区分
+  项目校验、代码提交/推送和远端构建。push 成功但远端 build 失败时，工具返回
+  `build_failed_after_submit`，必须同时说明代码已经提交到 Maker 远端，并优先检查返回的
+  `build_failure` / `remote_result` 中是否存在代码或资源诊断；不得自动修改项目文件。
+- `code_submit` 或无法分类的构建执行失败必须附带 `local_execution_check`，提醒用户检查 AI 客户端
+  是否在沙盒中运行 Windows PowerShell、CLI、Git 或 MCP 命令。只有明确的本地 PowerShell/进程
+  拦截证据才输出 `restriction_signal: detected`；远端 Git 返回的 `sandbox` 文本不得升级为本地信号。
+  远端构建失败必须优先检查代码和资源诊断，只有本地命令也被拦截时才把沙盒作为次要排查项；已知
+  的项目配置、鉴权/上下文或结构校验错误不输出 Full Access 建议。Maker MCP 不能读取客户端访问模式，
+  因此任何沙盒提示都不能作为根因结论；可信项目才可建议开启 Full Access（“完全访问模式”）并重连 MCP。
+  本地 Tap auth 或 `user_id` 上下文准备失败必须返回 `failure_stage: local_build_context` 和
+  `remote_build_status: not_started`，不得描述成远端构建失败。
+- `MCP error -32001: Request timed out` 只证明 MCP 请求超时，不能单独证明 Maker server 故障。
+  Maker MCP 能收到该错误时必须返回只读的本地进程、Node、cwd/project 对齐摘要，并把根因保持为
+  `unconfirmed`；随后通过活动客户端相同的 Maker launcher 对该项目运行 doctor（独立 CLI 等价命令为
+  `taptap-maker doctor --target-dir <PROJECT_DIR>`），再检查活动客户端实际生效的 command、args、
+  cwd/Roots、会话/tool 注册和 request timeout。doctor 不能读取活动客户端配置；没有
+  HTTP 5xx、服务端日志或服务状态等证据时禁止宣称服务端宕机，也禁止盲目重复构建。
 - 远端 Lua/LSP 编译失败属于工具级业务错误。代理必须把带 `error.data.remote_result` 的上游 `McpError(-32603)`
   转换为 `CallToolResult.isError` 并保留完整诊断；只有连接断开、会话失效等传输故障才允许进入重连路径，
   不得用 `TapTap MCP Server is currently unavailable` 覆盖原始编译错误。Maker 本地重试器必须优先依据
-  `remote_result` 和 MCP 错误码分类，业务错误不得重复发起构建；明确的 proxy unavailable、连接关闭、
-  请求超时和 HTTP 5xx 可重试。pending 请求重放期间再次断线时，保留未完成队列并进入下一轮退避重连。
+  `remote_result` 和 MCP 错误码分类，业务错误不得重复发起构建；只有 `build` 可对明确的 proxy
+  unavailable、连接关闭、请求超时和 HTTP 5xx 自动重试最多 5 次。build pending 请求重放期间再次
+  断线时，保留未完成请求并进入下一轮退避重连。其它 Maker Proxy tools 固定单次调用，不进入本地
+  重试器，也不在 Proxy 重连后自动重放；派发前失败返回 `execution_state=not_executed`，派发后响应中断
+  返回 `execution_state=unknown`，并统一返回 `automatic_retry=false`。遇到 `unknown` 时必须先核对远端
+  产物、任务、状态和用量，再决定是否由用户显式重试。
 - 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`；这种模式只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
 - 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。
 - 远端 Maker MCP tools 所需的 TapTap MAC token 通过 PAT 获取。

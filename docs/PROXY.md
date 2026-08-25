@@ -1257,6 +1257,7 @@ cat config.json | node proxy.js
     "reset_timeout_on_progress": true,
     "health_check_interval": 30000,
     "enable_cookie_sticky": true,
+    "disable_standalone_sse": false,
     "inject_params_per_call": true,
     "force_inject_progress_token": false,
     "log": {
@@ -1300,6 +1301,8 @@ node proxy.js
   - 当客户端传入 `progressToken` 时，Proxy 会透传下游 `notifications/progress`
 - `options.health_check_interval` - 健康检查间隔（毫秒，默认 `30000`）- 定期验证 Server 会话是否有效
 - `options.enable_cookie_sticky` - 启用 Cookie 会话粘性（默认 `true`）- 用于 K8s 多副本部署时的会话粘性
+- `options.disable_standalone_sse` - 对可选 standalone SSE GET 返回 `405`（默认 `false`）
+  - 开启后，MCP 请求、响应和 progress 仍通过 POST SSE 传输；只关闭服务端主动消息的独立 GET 长连接
 - `options.inject_params_per_call` - 每次工具调用时注入私有参数（默认 `true`）- 为兼容不同 MCP Server 实现，默认每次调用都注入；如果目标 Server 支持从 Session 获取参数，可设为 `false` 以减少数据传输
 - `options.force_inject_progress_token` - 始终注册 onprogress 回调（默认 `false`）
   - 仅在 client 未提供 `progressToken` 时生效：proxy 会注册一个空的 onprogress 哨兵，借此触发 SDK 自动给 `proxy → 上游` 出站请求注入 `_meta.progressToken = messageId`，让上游工具发的 `notifications/progress` 能命中 `resetTimeoutOnProgress` 路径，把 `tool_call_timeout` 的 deadline 持续重置
@@ -1529,6 +1532,7 @@ interface ProxyConfig {
     reset_timeout_on_progress?: boolean; // 收到 progress 通知时重置超时（默认 true）
     health_check_interval?: number; // 健康检查间隔（默认 30000ms）
     enable_cookie_sticky?: boolean; // 启用 Cookie 会话粘性（默认 true）
+    disable_standalone_sse?: boolean; // 禁用可选 standalone SSE GET，改用 POST SSE（默认 false）
     inject_params_per_call?: boolean; // 每次工具调用时注入私有参数（默认 true）
     force_inject_progress_token?: boolean; // 始终注册 onprogress 哨兵以注入 outbound progressToken（默认 false；仅在 client 未带 token 时生效）
     log?: {
@@ -1586,6 +1590,7 @@ function generateProxyConfig(
       reset_timeout_on_progress: true, // 收到 progress 通知时重置超时
       health_check_interval: 30000, // 健康检查间隔 30 秒
       enable_cookie_sticky: true, // 启用 Cookie 会话粘性
+      disable_standalone_sse: false, // 默认保留可选 standalone SSE GET
       inject_params_per_call: true, // 每次调用都注入私有参数（推荐）
       // force_inject_progress_token: true, // （可选）对接旧版 Claude Code 等不主动带 progressToken 的 client 时开启，让 SDK 给上游注入 token、命中 reset 路径；默认 false
       log: {

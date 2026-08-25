@@ -47,10 +47,31 @@ describe('Maker non-audio tool descriptions', () => {
     expect(buildDescription).toMatch(/build.{0,40}preview.{0,40}submit.{0,40}push/iu);
     expect(buildDescription).toMatch(/tests?.{0,40}lint.{0,100}do not trigger/iu);
     expect(buildDescription).toMatch(/commits?.{0,80}pushes?.{0,100}remote build/iu);
+    expect(buildDescription).toMatch(
+      /failure_stage.{0,80}code_submit_status.{0,80}remote_build_status/iu
+    );
+    expect(buildDescription).toMatch(
+      /local authentication or project-context.{0,160}local_build_context.{0,120}not_started/iu
+    );
     expect(buildDescription).toMatch(/confirm_remote_build_without_submit=true/iu);
     expect(buildDescription).not.toContain('Python environment section');
     expect(buildDescription).not.toContain('Lua LSP environment section');
     expect(buildDescription).toContain('runtime_logs.local_file');
+    expect(buildDescription).toContain('MCP error -32001: Request timed out');
+    expect(buildDescription).toMatch(/timeout alone.{0,120}not evidence.{0,120}server/iu);
+    expect(buildDescription).toMatch(/do not claim.{0,100}server outage.{0,120}evidence/iu);
+    expect(buildDescription).toMatch(/command.{0,40}args.{0,100}(?:cwd|Roots)/iu);
+    expect(buildDescription).toMatch(/session.{0,80}request timeout/iu);
+    expect(buildDescription).toMatch(/doctor.{0,160}read-only/iu);
+    expect(buildDescription).toMatch(/do not retry.{0,80}blindly/iu);
+    expect(buildDescription).toMatch(/local PowerShell.{0,160}blocked.{0,160}Full Access/iu);
+    expect(buildDescription).toMatch(
+      /remote Git or remote build failures.{0,200}diagnostics first/iu
+    );
+    expect(buildDescription).toMatch(/sandbox as a check.{0,80}not a confirmed cause/iu);
+    expect(buildDescription).toMatch(
+      /returned fix.{0,100}known project-validation or project-context errors/iu
+    );
   });
 
   test('documents the Maker project context resolution order in local target_dir schemas', () => {
@@ -140,6 +161,31 @@ describe('Maker non-audio tool descriptions', () => {
     );
     expect(descriptions.create_video_task).toMatch(
       /image references.{0,60}30 MiB.{0,80}video references.{0,60}50 MiB.{0,80}audio references.{0,60}15 MiB/iu
+    );
+    expect(descriptions.create_video_task).toMatch(
+      /explicitly requests?.{0,160}do not.{0,80}(?:proactively|automatically) generate/iu
+    );
+    expect(descriptions.create_video_task).toMatch(
+      /duration.{0,40}(?:exceeds?|greater than).{0,20}10 seconds.{0,160}user_confirmed=true/iu
+    );
+    expect(descriptions.create_video_task).toMatch(/model="2\.5".{0,160}user_confirmed=true/iu);
+    expect(descriptions.create_video_task).toMatch(/200 credits per second.{0,40}model="2\.0"/iu);
+    expect(descriptions.create_video_task).toMatch(/300 credits per second.{0,40}model="2\.5"/iu);
+    expect(descriptions.create_video_task).toMatch(/actual billing.{0,80}upstream token usage/iu);
+
+    const listed = await listMakerTools();
+    const createVideoSchema = listed.tools.find(
+      (item) => item.name === 'create_video_task'
+    )?.inputSchema;
+    expect(createVideoSchema?.properties.user_confirmed).toEqual(
+      expect.objectContaining({
+        type: 'boolean',
+        description: expect.stringMatching(/explicit confirmation|(?:明确|已)确认/iu),
+      })
+    );
+    expect(createVideoSchema?.properties.model.description).toMatch(/2\.5.{0,120}二次确认/iu);
+    expect(createVideoSchema?.properties.duration.description).toMatch(
+      /超过 10 秒.{0,180}user_confirmed=true/iu
     );
 
     expect(descriptions.query_video_task).toMatch(/task_id.{0,180}120 seconds/iu);

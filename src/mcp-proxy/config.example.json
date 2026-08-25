@@ -25,6 +25,8 @@
     "reconnect_interval": 5000,
     "monitor_interval": 10000,
     "enable_cookie_sticky": true,
+    "disable_standalone_sse": false,
+    "replayable_tools": ["build"],
     "exposed_tools": [
       "generate_image",
       "batch_generate_images",

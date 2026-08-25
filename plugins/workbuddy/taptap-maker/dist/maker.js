@@ -36591,6 +36591,10 @@ function createMakerAgentsPolicyBody() {
     "# TapTap Maker Project Asset Tool Policy",
     "",
     "This is a bound TapTap Maker project.",
+    "Do not use TapTap Developer Center documentation or docs for other TapTap game platforms",
+    "when developing or debugging this Maker game; use Maker MCP and the project-local",
+    "`AGENTS.md`, `engine-docs/`, `examples/`, `templates/`, `urhox-libs/`, and installed Maker",
+    "skills as the sources of truth.",
     "",
     MAKER_PROJECT_POLICY_ROUTING_INDEX,
     "",
@@ -36714,6 +36718,11 @@ function createMakerAgentsPolicyBody() {
     "- `batch_generate_images` for multiple image assets.",
     "- `edit_image` for modifying existing project images.",
     "- `create_video_task` for game video assets or referenced image/video generation.",
+    "- Only call `create_video_task` after the user explicitly requests video generation; do not",
+    "  generate video proactively while implementing gameplay or filling asset gaps.",
+    '- When duration exceeds 10 seconds or `model="2.5"`, show the rough credit estimate and',
+    "  upstream-token billing disclaimer, wait for explicit confirmation, then repeat the same",
+    "  request with `user_confirmed=true`.",
     "- `query_video_task` for refreshing video task status and fetching completed videos.",
     "- `text_to_music` for game music.",
     "- `text_to_sound_effect` for one sound effect.",
@@ -38196,7 +38205,16 @@ function getMakerGitRetryDecision(message) {
   )) {
     return { retry: true, reason: "network_or_timeout" };
   }
-  if (/connection reset|connection refused|connection closed|remote end hung up|unexpected disconnect|early EOF|RPC failed|index-pack failed|HTTP\/2 stream.*not closed cleanly|SSL_ERROR_SYSCALL|curl\s+(?:18|28|35|52|55|56|92)/i.test(
+  if (/curl\s+92\b|HTTP\/2 stream.*not closed cleanly|HTTP\/2.{0,80}(?:not supported|unsupported)|(?:server|remote).{0,80}does not support HTTP\/2/i.test(
+    text
+  )) {
+    return {
+      retry: true,
+      reason: "http2_transport_error",
+      fallbackHttpVersion: "HTTP/1.1"
+    };
+  }
+  if (/connection reset|connection refused|connection closed|remote end hung up|unexpected disconnect|early EOF|RPC failed|index-pack failed|SSL_ERROR_SYSCALL|curl\s+(?:18|28|35|52|55|56)/i.test(
     text
   )) {
     return { retry: true, reason: "connection_interrupted" };
@@ -38277,10 +38295,14 @@ function pushGit(args, cwd, onProgress) {
   });
 }
 function pushGitWithTransientRetry(args, cwd, onProgress) {
-  return runWithTransientRetry(() => pushGit(args, cwd, onProgress), {
-    stage: "push",
-    onProgress
-  });
+  return runMakerGitNetworkOperationWithTransientRetry(
+    args,
+    (effectiveArgs) => pushGit(effectiveArgs, cwd, onProgress),
+    {
+      stage: "push",
+      onProgress
+    }
+  );
 }
 async function resolveMakerProjectUserId(options) {
   var _a3;
@@ -38730,10 +38752,15 @@ function readGit(args, cwd) {
   });
 }
 async function runGitWithTransientRetry(args, options) {
-  return runWithTransientRetry(() => runGit(args, options), {
-    stage: args[0] || "git",
-    onProgress: options.onProgress
-  });
+  const stage = args[0] || "git";
+  return runMakerGitNetworkOperationWithTransientRetry(
+    args,
+    (effectiveArgs) => runGit(effectiveArgs, { ...options, stage }),
+    {
+      stage,
+      onProgress: options.onProgress
+    }
+  );
 }
 async function runGitCaptureWithTransientRetry(args, options = {}) {
   return runWithTransientRetry(() => runGitCapture(args, options), {
@@ -38742,7 +38769,7 @@ async function runGitCaptureWithTransientRetry(args, options = {}) {
   });
 }
 async function runWithTransientRetry(operation, options) {
-  var _a3;
+  var _a3, _b;
   let retries = 0;
   const maxRetries = 5;
   for (; ; ) {
@@ -38758,7 +38785,8 @@ async function runWithTransientRetry(operation, options) {
         throw appendRetryExhausted(error2, retries, decision);
       }
       retries += 1;
-      (_a3 = options.onProgress) == null ? void 0 : _a3.call(options, {
+      (_a3 = options.onRetry) == null ? void 0 : _a3.call(options, decision);
+      (_b = options.onProgress) == null ? void 0 : _b.call(options, {
         phase: options.stage,
         message: formatGitRetryProgressMessage(options.stage, decision, retries, maxRetries)
       });
@@ -38766,8 +38794,25 @@ async function runWithTransientRetry(operation, options) {
     }
   }
 }
+async function runMakerGitNetworkOperationWithTransientRetry(args, operation, options) {
+  let fallbackHttpVersion;
+  return runWithTransientRetry(
+    () => operation(
+      fallbackHttpVersion ? ["-c", `http.version=${fallbackHttpVersion}`, ...args] : [...args]
+    ),
+    {
+      ...options,
+      onRetry: (decision) => {
+        fallbackHttpVersion = decision.fallbackHttpVersion || fallbackHttpVersion;
+      }
+    }
+  );
+}
 function formatGitRetryProgressMessage(stage, decision, retries, maxRetries) {
   const reason = decision.reason || "temporary_remote_failure";
+  if (reason === "http2_transport_error") {
+    return `Maker git HTTP/2 transport failed; retrying with command-local HTTP/1.1 ${retries}/${maxRetries}. Please keep this running.`;
+  }
   const prefix = (stage === "clone" || stage === "fetch") && reason === "remote_http_5xx" ? "Maker server may still be preparing the repository" : "Maker git remote is temporarily unavailable";
   return `${prefix} (${reason}); retrying ${retries}/${maxRetries}. Please keep this running.`;
 }
@@ -38868,7 +38913,7 @@ function runGit(args, options) {
         reject(
           new MakerGitError(
             createGitFailure({
-              stage: args[0] || "git",
+              stage: options.stage || args[0] || "git",
               command: `${gitCommand} ${args.join(" ")}`,
               exitCode: code,
               stdout: options.quiet ? "" : stdout,
@@ -38882,7 +38927,7 @@ function runGit(args, options) {
       reject(
         new MakerGitError(
           createGitFailure({
-            stage: args[0] || "git",
+            stage: options.stage || args[0] || "git",
             command: `${gitCommand} ${args.join(" ")}`,
             exitCode: null,
             stdout: options.quiet ? "" : stdout,
@@ -39772,6 +39817,8 @@ function formatMakerSkillStatus(_options = {}) {
     "- Follow the selected tool schema when one of these tools is used.",
     "- Use generate_image, batch_generate_images, edit_image for game image assets.",
     "- Use create_video_task and query_video_task for game video assets.",
+    "- Only call create_video_task after the user explicitly requests video generation; do not generate video proactively while implementing or filling asset gaps.",
+    '- When duration exceeds 10 seconds or model="2.5", show the rough credit estimate and upstream-token billing disclaimer, wait for explicit confirmation, then repeat the same request with user_confirmed=true.',
     "- Use text_to_music for game music.",
     "- Use text_to_sound_effect for one sound effect.",
     "- Use batch_sound_effects for multiple sound effects.",
@@ -41477,7 +41524,7 @@ function sanitizeDiagnosticText(value) {
     }
   } catch {
   }
-  return value.replace(/\b(authorization|cookie)\b\s*:\s*[^\r\n]*/giu, "$1: <redacted>").replace(
+  return value.replace(/\b([A-Za-z][A-Za-z0-9+.-]*:\/\/)[^/?#\s@]+@/gu, "$1<redacted>@").replace(/\b(authorization|cookie)\b\s*:\s*[^\r\n]*/giu, "$1: <redacted>").replace(
     /(^|[\s,;])(--(?:[a-z0-9]+[-_])*(?:pat|token|secret|signature|sig|credential|credentials|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key))\s+(?:"[^"]*"|'[^']*'|(?:(?![&,;][A-Za-z][A-Za-z0-9_.-]*\s*[:=])[^\s])+)/gimu,
     "$1$2 <redacted>"
   ).replace(
@@ -41543,6 +41590,19 @@ var RemoteProxyToolResultError = class extends Error {
     this.result = result;
   }
 };
+var RemoteProxyToolCallError = class extends Error {
+  constructor(toolName, executionState, error2) {
+    const originalMessage = error2 instanceof Error ? error2.message : String(error2);
+    super(
+      `Remote proxy tool ${toolName} failed with execution_state=${executionState}; automatic retry is disabled. ${originalMessage}`
+    );
+    this.automaticRetry = false;
+    this.name = "RemoteProxyToolCallError";
+    this.toolName = toolName;
+    this.executionState = executionState;
+    this.originalError = error2;
+  }
+};
 function prepareRemoteProxyToolArgs(options) {
   if (options.toolName === "audition_voices_for_character") {
     return validateVoiceAuditionArgs(options.args);
@@ -41580,7 +41640,10 @@ function validateVoiceAuditionArgs(args) {
 }
 async function materializeRemoteProxyToolAssets(options) {
   if (isRemoteProxyToolErrorResult(options.result)) {
-    throw new RemoteProxyToolResultError(options.toolName, options.result);
+    throw new RemoteProxyToolResultError(
+      options.toolName,
+      addRemoteProxyErrorExecutionState(options.result)
+    );
   }
   if (!shouldMaterializeRemoteProxyTool(options.toolName)) {
     return options.result;
@@ -41629,6 +41692,24 @@ async function materializeRemoteProxyToolAssets(options) {
     };
   }
   return changed ? { ...options.result, content: nextContent } : options.result;
+}
+function addRemoteProxyErrorExecutionState(result) {
+  const resultWithStructuredContent = result;
+  const existingStructuredContent = resultWithStructuredContent.structuredContent;
+  const existingRecord = isRecord2(existingStructuredContent) ? existingStructuredContent : void 0;
+  const topLevelState = result.execution_state;
+  const explicitState = normalizeRemoteProxyExecutionState(existingRecord == null ? void 0 : existingRecord.execution_state) ?? normalizeRemoteProxyExecutionState(topLevelState);
+  return {
+    ...result,
+    structuredContent: {
+      ...existingRecord || (existingStructuredContent === void 0 ? {} : { remote_structured_content: existingStructuredContent }),
+      execution_state: explicitState ?? "unknown",
+      automatic_retry: false
+    }
+  };
+}
+function normalizeRemoteProxyExecutionState(value) {
+  return value === "not_executed" || value === "unknown" ? value : void 0;
 }
 function shouldMaterializeRemoteProxyTool(toolName) {
   return [
@@ -43378,9 +43459,15 @@ var MAKER_STATUS_LITE_PUBLIC_DESCRIPTION = [
 ].join(" ");
 var MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION = [
   "Submit and remotely build the current bound Maker project. First read maker://status or maker_status_lite and resolve exactly one bound Maker project.",
+  "`Need to call maker_build_current_directory` is a normal project build prerequisite, not an MCP connectivity failure or issue-report trigger.",
   "Use this tool for explicit Maker build, preview, submit, or push requests. Code tests and lint do not trigger this remote workflow unless the user also explicitly asks to build, run, or preview the Maker game.",
   "Normal mode commits local changes when needed, pushes existing or new commits, and then starts the remote build; a clean workspace creates the required wake-up commit.",
   "Unsafe remote-sync or branch states stop before commit and push. A push failure stops before build, while a build failure after a successful push means the code is already on Maker remote; follow the structured result for recovery.",
+  "On failure, read failure_stage, code_submit_status, and remote_build_status before explaining whether project validation, code submit/push, or remote build failed.",
+  'Known local authentication or project-context preparation failures use failure_stage="local_build_context" and remote_build_status="not_started"; follow the returned login or init recovery instead of describing a remote build failure.',
+  'When an error explicitly reports a local PowerShell, CLI, or Git process blocked by sandbox policy, EPERM, or EACCES, ask the user to check the AI client sandbox and suggest Full Access mode ("完全访问模式") only for a trusted project. For remote Git or remote build failures, inspect the returned Git, code, and resource diagnostics first and mention sandbox access only if local commands are also blocked. Treat sandbox as a check, not a confirmed cause, for otherwise unclassified local execution failures. Follow the returned fix directly for known project-validation or project-context errors.',
+  "If the host reports `MCP error -32001: Request timed out`, treat it only as a timeout signal: timeout alone is not evidence of a Maker server failure. Do not claim a Maker server outage without HTTP 5xx, server logs, or service-status evidence.",
+  "Do not retry the build blindly. Run Maker doctor for the project through the active client launcher (`taptap-maker doctor --target-dir <PROJECT_DIR>` is the standalone CLI equivalent) for read-only host and project checks, then inspect the actual active client MCP command, args, cwd/Roots, session and tool registration, request timeout, and Node runtime. Doctor cannot inspect the active client configuration itself.",
   "After a successful build, read runtime_logs.local_file for gameplay diagnostics and runtime_logs.state_file for watcher health when those fields are returned.",
   "Do not combine Maker submission with generic branch, PR/MR, or separate commit/push workflows.",
   "Set confirm_remote_build_without_submit=true only after the user explicitly requests building the already committed remote version without submitting local changes."
@@ -43405,7 +43492,10 @@ var MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS = {
     "The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present."
   ].join(" "),
   create_video_task: [
-    "Create a video generation task. The remote service normally performs server-side polling and waits for the final result in this call.",
+    "Create a video generation task only after the user explicitly requests video generation. Do not proactively or automatically generate videos while designing gameplay, implementing features, filling asset gaps, or self-improving the game.",
+    'Estimate the intended duration before calling. The confirmation estimate is 200 credits per second for model="2.0" and 300 credits per second for model="2.5"; it is only a rough estimate, while actual billing follows upstream token usage.',
+    'When duration exceeds 10 seconds or model="2.5" is used, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Default model="2.0" with omitted duration or duration=-1 does not require confirmation.',
+    "The remote service normally performs server-side polling and waits for the final result in this call.",
     "If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later.",
     "Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema.",
     "Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less.",
@@ -43488,6 +43578,11 @@ var MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS = {
     "Session-log mode returns its own saved paths and progress information; use the returned result to continue when more history is available."
   ].join(" ")
 };
+var MAKER_REMOTE_PROXY_RETRY_GUIDANCE = [
+  "This tool is not retried automatically by the local Maker runtime.",
+  "If its response is interrupted after dispatch, its execution state may be unknown.",
+  "For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly."
+].join(" ");
 
 // src/maker/server/remoteProxyToolSnapshot.json
 var remoteProxyToolSnapshot_default = {
@@ -43513,7 +43608,7 @@ var remoteProxyToolSnapshot_default = {
   tools: [
     {
       name: "generate_image",
-      description: "Generate one new image asset for a Maker game. Use batch_generate_images for multiple new images and edit_image to modify an existing image. Optional reference images may guide style or content; supported sources, generation controls, and final target_size requirements are defined by the input schema. Keep each reference image supplied through local paths or data URLs at 10 MiB or less. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present.",
+      description: "Generate one new image asset for a Maker game. Use batch_generate_images for multiple new images and edit_image to modify an existing image. Optional reference images may guide style or content; supported sources, generation controls, and final target_size requirements are defined by the input schema. Keep each reference image supplied through local paths or data URLs at 10 MiB or less. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -43569,7 +43664,7 @@ var remoteProxyToolSnapshot_default = {
           quality: {
             type: "string",
             enum: ["low", "medium", "high", "auto"],
-            description: 'Image quality, only supported when model is "gpt" (GPT Image 2). One of "low", "medium", "high", "auto" (default). If the user explicitly asked for a specific image quality, set this field AND set model to "gpt" together; otherwise omit both.'
+            description: 'Image quality. One of "low", "medium", "high", "auto" (default). GPT Image 2 uses this setting; other models may ignore it.'
           },
           target_dir: {
             type: "string",
@@ -43581,7 +43676,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "batch_generate_images",
-      description: "Generate two or more new image assets in parallel in one call. Use generate_image for one new image and edit_image to modify an existing image. Each image request uses the fields and constraints defined by the input schema. Keep each reference image supplied through local paths or data URLs at 10 MiB or less. A batch may partially succeed; preserve successful images and report failed items with their returned errors. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present.",
+      description: "Generate two or more new image assets in parallel in one call. Use generate_image for one new image and edit_image to modify an existing image. Each image request uses the fields and constraints defined by the input schema. Keep each reference image supplied through local paths or data URLs at 10 MiB or less. A batch may partially succeed; preserve successful images and report failed items with their returned errors. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -43643,7 +43738,7 @@ var remoteProxyToolSnapshot_default = {
                 quality: {
                   type: "string",
                   enum: ["low", "medium", "high", "auto"],
-                  description: 'Image quality, only supported when model is "gpt" (GPT Image 2). One of "low", "medium", "high", "auto" (default). If the user explicitly asked for a specific image quality, set this field AND set model to "gpt" together; otherwise omit both.'
+                  description: 'Image quality. One of "low", "medium", "high", "auto" (default). GPT Image 2 uses this setting; other models may ignore it.'
                 }
               },
               required: ["prompt", "name", "target_size"]
@@ -43659,7 +43754,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "edit_image",
-      description: "Modify an existing image from text instructions. Use generate_image for one new image and batch_generate_images for multiple new images. The required original image accepts a local Maker project path, an HTTP(S) URL, or an image data URL. Additional reference images and output controls are defined by the input schema. Keep each local-path or data URL image at 10 MiB or less. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present.",
+      description: "Modify an existing image from text instructions. Use generate_image for one new image and batch_generate_images for multiple new images. The required original image accepts a local Maker project path, an HTTP(S) URL, or an image data URL. Additional reference images and output controls are defined by the input schema. Keep each local-path or data URL image at 10 MiB or less. The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -43715,7 +43810,7 @@ var remoteProxyToolSnapshot_default = {
           quality: {
             type: "string",
             enum: ["low", "medium", "high", "auto"],
-            description: 'Image quality, only supported when model is "gpt" (GPT Image 2). One of "low", "medium", "high", "auto" (default). If the user explicitly asked for a specific image quality, set this field AND set model to "gpt" together; otherwise omit both.'
+            description: 'Image quality. One of "low", "medium", "high", "auto" (default). GPT Image 2 uses this setting; other models may ignore it.'
           },
           target_dir: {
             type: "string",
@@ -43727,7 +43822,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "create_3d_asset",
-      description: 'Manage the complete Maker 3D asset lifecycle. Use action="start" to begin, action="query" to check progress, action="get_options" to inspect step options, action="continue" after review, and action="post_process" for supported follow-up operations. Use direct generation when no review checkpoint is needed, and reviewed generation when the user needs a preview before final generation. For reviewed generation, show every returned preview and wait for explicit user approval before action="continue"; never approve a review step automatically. Supported prompt, image, strategy, quality, and post-processing fields are defined by the input schema. Local image inputs are normalized for the remote service. The local proxy attempts to materialize completed model delivery under assets/model and review images under assets/image; use local_delivery, preview_assets, and other returned local paths when present.',
+      description: 'Manage the complete Maker 3D asset lifecycle. Use action="start" to begin, action="query" to check progress, action="get_options" to inspect step options, action="continue" after review, and action="post_process" for supported follow-up operations. Use direct generation when no review checkpoint is needed, and reviewed generation when the user needs a preview before final generation. For reviewed generation, show every returned preview and wait for explicit user approval before action="continue"; never approve a review step automatically. Supported prompt, image, strategy, quality, and post-processing fields are defined by the input schema. Local image inputs are normalized for the remote service. The local proxy attempts to materialize completed model delivery under assets/model and review images under assets/image; use local_delivery, preview_assets, and other returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.',
       inputSchema: {
         type: "object",
         properties: {
@@ -43811,7 +43906,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "text_to_music",
-      description: "Generate AI music for a Maker game, including background music or vocal tracks; do not use this tool for sound effects. The remote call polls server-side every 20 seconds and may wait up to 50 minutes. If generation is still running when the call times out, the result includes the task ID for operational tracking. Simple and custom generation controls are defined by the input schema. The local proxy attempts to materialize successful audio and metadata into the Maker project and record them for later Maker references; use returned local paths when present.",
+      description: "Generate AI music for a Maker game, including background music or vocal tracks; do not use this tool for sound effects. The remote call polls server-side every 20 seconds and may wait up to 50 minutes. If generation is still running when the call times out, the result includes the task ID for operational tracking. Simple and custom generation controls are defined by the input schema. The local proxy attempts to materialize successful audio and metadata into the Maker project and record them for later Maker references; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -43861,7 +43956,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "create_video_task",
-      description: "Create a video generation task. The remote service normally performs server-side polling and waits for the final result in this call. If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later. Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema. Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less. The local proxy attempts to materialize successful video results into the Maker project; prefer returned workspace paths when present, unless the user needs an external share URL.",
+      description: 'Create a video generation task only after the user explicitly requests video generation. Do not proactively or automatically generate videos while designing gameplay, implementing features, filling asset gaps, or self-improving the game. Estimate the intended duration before calling. The confirmation estimate is 200 credits per second for model="2.0" and 300 credits per second for model="2.5"; it is only a rough estimate, while actual billing follows upstream token usage. When duration exceeds 10 seconds or model="2.5" is used, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Default model="2.0" with omitted duration or duration=-1 does not require confirmation. The remote service normally performs server-side polling and waits for the final result in this call. If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later. Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema. Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less. The local proxy attempts to materialize successful video results into the Maker project; prefer returned workspace paths when present, unless the user needs an external share URL. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.',
       inputSchema: {
         type: "object",
         properties: {
@@ -43873,7 +43968,7 @@ var remoteProxyToolSnapshot_default = {
           model: {
             type: "string",
             enum: ["2.0", "2.5"],
-            description: 'Seedance 模型版本，默认 "2.0"。\n- "2.0": Seedance 2.0 fast。duration 4-15s，参考图最多 9 张、参考视频 3 个、参考音频 3 个，音频不能单独输入。\n- "2.5": Seedance 2.5，效果与可控性更强、成本更高。duration 4-30s，参考图最多 30 张、参考视频 10 个、参考音频 10 个，支持仅传音频驱动生成。\n需要超过 15s 时长、大量参考素材或纯音频驱动时用 "2.5"，其余场景保持默认。'
+            description: 'Seedance 模型版本，默认 "2.0"。\n- "2.0": Seedance 2.0 fast。duration 4-15s，参考图最多 9 张、参考视频 3 个、参考音频 3 个，音频不能单独输入。\n- "2.5": Seedance 2.5，效果与可控性更强、成本更高。duration 4-30s，参考图最多 30 张、参考视频 10 个、参考音频 10 个，支持仅传音频驱动生成。\n需要超过 15s 时长、大量参考素材或纯音频驱动时用 "2.5"，其余场景保持默认。使用 "2.5" 前须向开发者展示积分预估并二次确认。'
           },
           prompt: {
             type: "string",
@@ -43952,7 +44047,11 @@ var remoteProxyToolSnapshot_default = {
           },
           duration: {
             type: "integer",
-            description: '视频时长（秒）。model="2.0" 支持 4-15，model="2.5" 支持 4-30；也可传 -1。不建议设为 -1；模型会自主选择时长，但这会直接影响计费与结果可预期性，建议明确指定整数秒。\nmodel="2.5" 以参考视频做视频编辑时只接受 -1（输出时长跟随输入视频），且输入视频时长需在 4-30s 内。'
+            description: '视频时长（秒）。model="2.0" 支持 4-15，model="2.5" 支持 4-30；也可传 -1。明确传入超过 10 秒时，先按档位单价向开发者展示粗估并二次确认（2.0 为 200 积分/秒，2.5 为 300 积分/秒；仅供确认参考，实际按上游 token 扣费），再设 user_confirmed=true。不建议设为 -1；模型会自主选择时长。默认 2.0 下未指定或 -1 不触发确认。\nmodel="2.5" 以参考视频做视频编辑时只接受 -1（输出时长跟随输入视频），且输入视频时长需在 4-30s 内。'
+          },
+          user_confirmed: {
+            type: "boolean",
+            description: '仅当开发者已确认本次粗估（含「实际按上游 token 扣费」说明）后设为 true。触发条件：明确传入 duration 超过 10 秒，或使用 model="2.5"。未确认时不要传 true。默认 2.0 且时长未超过 10 秒时无需此参数。'
           },
           return_last_frame: {
             type: "boolean",
@@ -43980,7 +44079,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "query_video_task",
-      description: "Query video task status by task_id after create_video_task returns a pending task or reports a concurrency limit. If the task is still pending or running, continue other work and query again no sooner than 120 seconds later; do not poll continuously. Querying a completed task releases its task quota. The local proxy attempts to materialize successful video and last-frame results into the Maker project. Prefer workspace_video_path and workspace_last_frame_path when present; mention CDN URLs only when the user needs an external share link.",
+      description: "Query video task status by task_id after create_video_task returns a pending task or reports a concurrency limit. If the task is still pending or running, continue other work and query again no sooner than 120 seconds later; do not poll continuously. Querying a completed task releases its task quota. The local proxy attempts to materialize successful video and last-frame results into the Maker project. Prefer workspace_video_path and workspace_last_frame_path when present; mention CDN URLs only when the user needs an external share link. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -44002,7 +44101,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "text_to_sound_effect",
-      description: "Generate one game sound effect from a Chinese or English description with Doubao Seed Audio. Each call produces one output of at most 120 seconds. Split longer audio across multiple generations because this tool does not stitch outputs. duration_seconds is an approximate target and the actual duration may differ. The local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present.",
+      description: "Generate one game sound effect from a Chinese or English description with Doubao Seed Audio. Each call produces one output of at most 120 seconds. Split longer audio across multiple generations because this tool does not stitch outputs. duration_seconds is an approximate target and the actual duration may differ. The local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -44035,7 +44134,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "batch_sound_effects",
-      description: "Generate multiple game sound effects with Doubao Seed Audio in one batch. Each item is an independent output of at most 120 seconds. Split longer audio across items or calls because this tool does not stitch outputs. The result preserves per-item failures while the local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present.",
+      description: "Generate multiple game sound effects with Doubao Seed Audio in one batch. Each item is an independent output of at most 120 seconds. Split longer audio across items or calls because this tool does not stitch outputs. The result preserves per-item failures while the local proxy attempts to materialize successful audio in the provider original format under assets/audio/sfx and record it for later Maker references; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -44075,7 +44174,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "text_to_dialogue",
-      description: "Generate final character dialogue audio with ElevenLabs Eleven v3. Each character needs a confirmed ElevenLabs voice mapping in .project/elevenlabs-voice-mapping.json; when one is missing, call audition_voices_for_character and then confirm_character_voice before retrying. Use stability from 0 to 1 (default 0.5) to tune variation. Eleven v3 supports audio tags such as [sad] and [laughing] plus punctuation-based pacing. The local proxy attempts to materialize successful dialogue under assets/audio/voice; use returned local paths when present.",
+      description: "Generate final character dialogue audio with ElevenLabs Eleven v3. Each character needs a confirmed ElevenLabs voice mapping in .project/elevenlabs-voice-mapping.json; when one is missing, call audition_voices_for_character and then confirm_character_voice before retrying. Use stability from 0 to 1 (default 0.5) to tune variation. Eleven v3 supports audio tags such as [sad] and [laughing] plus punctuation-based pacing. The local proxy attempts to materialize successful dialogue under assets/audio/voice; use returned local paths when present. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -44121,7 +44220,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "audition_voices_for_character",
-      description: "Create 1 to 3 temporary ElevenLabs Voice Design previews for one game character. Prepare a detailed character description and an audition line of at least 100 characters that matches the character personality and speaking style. candidate_count accepts 1 to 3 and defaults to 3. Show every returned preview to the user and wait for an explicit choice before calling confirm_character_voice. Complete audition and confirmation for one character before starting another in the same project; do not run them in parallel. Preview files are temporary and are not saved as final game assets.",
+      description: "Create 1 to 3 temporary ElevenLabs Voice Design previews for one game character. Prepare a detailed character description and an audition line of at least 100 characters that matches the character personality and speaking style. candidate_count accepts 1 to 3 and defaults to 3. Show every returned preview to the user and wait for an explicit choice before calling confirm_character_voice. Complete audition and confirmation for one character before starting another in the same project; do not run them in parallel. Preview files are temporary and are not saved as final game assets. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -44155,7 +44254,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "confirm_character_voice",
-      description: "Confirm an ElevenLabs Voice Design selection, create the permanent voice, and persist the character voice mapping for later text_to_dialogue calls. Call this tool only after audition_voices_for_character and only after the user explicitly selects a candidate or explicitly accepts the recommended candidate. Omit selected_index only after the user explicitly accepts the recommendation; absence of a user choice is not acceptance. Confirmation consumes one ElevenLabs Voice Slot. Process one character at a time and do not call this tool in parallel for the same project.",
+      description: "Confirm an ElevenLabs Voice Design selection, create the permanent voice, and persist the character voice mapping for later text_to_dialogue calls. Call this tool only after audition_voices_for_character and only after the user explicitly selects a candidate or explicitly accepts the recommended candidate. Omit selected_index only after the user explicitly accepts the recommendation; absence of a user choice is not acceptance. Confirmation consumes one ElevenLabs Voice Slot. Process one character at a time and do not call this tool in parallel for the same project. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -44177,7 +44276,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "generate_test_qrcode",
-      description: "Generate a mobile test QR code only when the user explicitly requests a test QR code or scan test, or when get_ad_config reports missing app_id or developer_id and requests this recovery step. Do not call this tool automatically during initialization, build, or publish workflows. When an explicit build is needed, use maker_build_current_directory separately. Call without confirmed_screen_orientation first. Reuse an existing project orientation; only when the tool reports it missing, ask the user in a separate conversation turn to choose landscape or portrait and then retry. An existing orientation is immutable. This operation may upload a test version, create the TapTap app identity, and return a displayable QR code.",
+      description: "Generate a mobile test QR code only when the user explicitly requests a test QR code or scan test, or when get_ad_config reports missing app_id or developer_id and requests this recovery step. Do not call this tool automatically during initialization, build, or publish workflows. When an explicit build is needed, use maker_build_current_directory separately. Call without confirmed_screen_orientation first. Reuse an existing project orientation; only when the tool reports it missing, ask the user in a separate conversation turn to choose landscape or portrait and then retry. An existing orientation is immutable. This operation may upload a test version, create the TapTap app identity, and return a displayable QR code. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -44196,7 +44295,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "add_test_whitelist",
-      description: "Add one TapTap user to the current game test whitelist. Use this only after maker_build_current_directory has initialized the project and generate_test_qrcode has established the TapTap app identity. Call it only with the TapTap user_id explicitly provided by the user; never infer an account ID.",
+      description: "Add one TapTap user to the current game test whitelist. Use this only after maker_build_current_directory has initialized the project and generate_test_qrcode has established the TapTap app identity. Call it only with the TapTap user_id explicitly provided by the user; never infer an account ID. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -44214,7 +44313,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "get_ad_config",
-      description: "For any ad-related request, read maker://ads-integration-guide first. After Maker project status confirms the primary local project configs are initialized, use this as the first remote step. It is the source of truth for current ad activation and configuration, and synchronizes the result into .project/settings.json at @runtime.ad. The local preflight does not call the remote tool while project.json or settings.json is missing. Missing local configs do not authorize an automatic build. Use maker_build_current_directory only for an explicit user build, submit, or preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically. Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks, and only implement or test ad behavior after the returned configuration is usable. If app_id or developer_id is missing, call generate_test_qrcode once and then retry this tool. If ad.status != 1, report warning and ad.url, follow the returned next_action, and retry only after the user completes that step.",
+      description: "For any ad-related request, read maker://ads-integration-guide first. After Maker project status confirms the primary local project configs are initialized, use this as the first remote step. It is the source of truth for current ad activation and configuration, and synchronizes the result into .project/settings.json at @runtime.ad. The local preflight does not call the remote tool while project.json or settings.json is missing. Missing local configs do not authorize an automatic build. Use maker_build_current_directory only for an explicit user build, submit, or preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically. Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks, and only implement or test ad behavior after the returned configuration is usable. If app_id or developer_id is missing, call generate_test_qrcode once and then retry this tool. If ad.status != 1, report warning and ad.url, follow the returned next_action, and retry only after the user completes that step. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -44228,7 +44327,7 @@ var remoteProxyToolSnapshot_default = {
     },
     {
       name: "get_debug_feedbacks",
-      description: "Fetch online player feedback for the current Maker project, or query server and Lua session logs when game_session_id is provided. The default feedback mode fetches unprocessed records and marks the returned records as processed. For a read-only feedback query, set fetch_and_mark_processed=false; use the input schema to select other filters or an exact feedback record. Downloaded feedback attachments are saved in the local project. Read only the returned local_dir, local_log_paths, and local_screenshot_paths; do not treat remote attachment paths as local files. Session-log mode returns its own saved paths and progress information; use the returned result to continue when more history is available.",
+      description: "Fetch online player feedback for the current Maker project, or query server and Lua session logs when game_session_id is provided. The default feedback mode fetches unprocessed records and marks the returned records as processed. For a read-only feedback query, set fetch_and_mark_processed=false; use the input schema to select other filters or an exact feedback record. Downloaded feedback attachments are saved in the local project. Read only the returned local_dir, local_log_paths, and local_screenshot_paths; do not treat remote attachment paths as local files. Session-log mode returns its own saved paths and progress information; use the returned result to continue when more history is available. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
       inputSchema: {
         type: "object",
         properties: {
@@ -44325,7 +44424,7 @@ Received: ${configJson.substring(0, 100)}...`
   return applyDefaults(config2);
 }
 function validateConfig(config2) {
-  var _a3;
+  var _a3, _b;
   const errors = [];
   if (!config2.server) {
     errors.push("- Missing required field: server");
@@ -44373,13 +44472,23 @@ function validateConfig(config2) {
       errors.push("- options.exposed_tools values must be non-empty strings");
     }
   }
+  if (((_b = config2.options) == null ? void 0 : _b.replayable_tools) !== void 0) {
+    const replayableTools = config2.options.replayable_tools;
+    if (!Array.isArray(replayableTools)) {
+      errors.push("- options.replayable_tools must be an array of tool names");
+    } else if (!replayableTools.every(
+      (toolName) => typeof toolName === "string" && toolName.trim().length > 0
+    )) {
+      errors.push("- options.replayable_tools values must be non-empty strings");
+    }
+  }
   if (errors.length > 0) {
     throw new Error("Invalid configuration:\n" + errors.join("\n"));
   }
 }
 var DEFAULT_LOG_ROOT = "/tmp/taptap-mcp/logs";
 function applyDefaults(config2) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
   const verbose = ((_a3 = config2.options) == null ? void 0 : _a3.verbose) ?? false;
   return {
     server: {
@@ -44401,15 +44510,17 @@ function applyDefaults(config2) {
       reset_timeout_on_progress: ((_e = config2.options) == null ? void 0 : _e.reset_timeout_on_progress) ?? true,
       health_check_interval: ((_f = config2.options) == null ? void 0 : _f.health_check_interval) ?? 3e4,
       enable_cookie_sticky: ((_g = config2.options) == null ? void 0 : _g.enable_cookie_sticky) ?? true,
-      inject_params_per_call: ((_h = config2.options) == null ? void 0 : _h.inject_params_per_call) ?? true,
-      force_inject_progress_token: ((_i = config2.options) == null ? void 0 : _i.force_inject_progress_token) ?? false,
-      exposed_tools: (_j = config2.options) == null ? void 0 : _j.exposed_tools,
+      disable_standalone_sse: ((_h = config2.options) == null ? void 0 : _h.disable_standalone_sse) ?? false,
+      inject_params_per_call: ((_i = config2.options) == null ? void 0 : _i.inject_params_per_call) ?? true,
+      force_inject_progress_token: ((_j = config2.options) == null ? void 0 : _j.force_inject_progress_token) ?? false,
+      exposed_tools: (_k = config2.options) == null ? void 0 : _k.exposed_tools,
+      replayable_tools: (_l = config2.options) == null ? void 0 : _l.replayable_tools,
       log: {
-        root: ((_l = (_k = config2.options) == null ? void 0 : _k.log) == null ? void 0 : _l.root) ?? DEFAULT_LOG_ROOT,
-        enabled: ((_n = (_m = config2.options) == null ? void 0 : _m.log) == null ? void 0 : _n.enabled) ?? false,
+        root: ((_n = (_m = config2.options) == null ? void 0 : _m.log) == null ? void 0 : _n.root) ?? DEFAULT_LOG_ROOT,
+        enabled: ((_p = (_o = config2.options) == null ? void 0 : _o.log) == null ? void 0 : _p.enabled) ?? false,
         // verbose=true 时自动使用 debug 级别
-        level: verbose ? "debug" : ((_p = (_o = config2.options) == null ? void 0 : _o.log) == null ? void 0 : _p.level) ?? "info",
-        max_days: ((_r = (_q = config2.options) == null ? void 0 : _q.log) == null ? void 0 : _r.max_days) ?? 7
+        level: verbose ? "debug" : ((_r = (_q = config2.options) == null ? void 0 : _q.log) == null ? void 0 : _r.level) ?? "info",
+        max_days: ((_t = (_s = config2.options) == null ? void 0 : _s.log) == null ? void 0 : _t.max_days) ?? 7
       }
     }
   };
@@ -44706,11 +44817,11 @@ function createMakerRemoteProxyManager(options = {}) {
       cachedTools.set(key, tools2);
       return tools2;
     },
-    async callTool(context, request, requestOptions) {
-      return await run(
-        context,
-        async (client) => await client.callTool(request, void 0, requestOptions)
-      );
+    async callTool(context, request, requestOptions, onDispatch) {
+      return await run(context, async (client) => {
+        onDispatch == null ? void 0 : onDispatch();
+        return await client.callTool(request, void 0, requestOptions);
+      });
     },
     getCachedTools(context) {
       return cachedTools.get(createContextKey(context));
@@ -44981,11 +45092,23 @@ async function callRemoteProxyTool(options) {
   const requestOptions = createRemoteProxyCallToolOptions(options.progressToken, options.extra);
   const callTool = options.manager ? async () => {
     proxy = createProxy();
-    return await options.manager.callTool(
-      proxy,
-      { name: options.name, arguments: finalArgs },
-      requestOptions
-    );
+    let dispatched = false;
+    try {
+      return await options.manager.callTool(
+        proxy,
+        { name: options.name, arguments: finalArgs },
+        requestOptions,
+        () => {
+          dispatched = true;
+        }
+      );
+    } catch (error2) {
+      throw new RemoteProxyToolCallError(
+        options.name,
+        dispatched ? "unknown" : "not_executed",
+        error2
+      );
+    }
   } : async () => {
     const transport = trackMakerChildTransport(
       new StdioClientTransport({
@@ -45006,6 +45129,12 @@ async function callRemoteProxyTool(options) {
     );
     try {
       await client.connect(transport);
+    } catch (error2) {
+      await client.close().catch(() => {
+      });
+      throw new RemoteProxyToolCallError(options.name, "not_executed", error2);
+    }
+    try {
       return await client.callTool(
         {
           name: options.name,
@@ -45016,25 +45145,14 @@ async function callRemoteProxyTool(options) {
           ...requestOptions
         }
       );
+    } catch (error2) {
+      throw new RemoteProxyToolCallError(options.name, "unknown", error2);
     } finally {
       await client.close().catch(() => {
       });
     }
   };
-  const result = await retryMakerProxyOperation(callTool, {
-    onRetry: options.progressToken ? (event) => {
-      options.extra.sendNotification({
-        method: "notifications/progress",
-        params: {
-          progressToken: options.progressToken,
-          progress: event.attempt,
-          total: event.attempts,
-          message: event.message
-        }
-      }).catch(() => {
-      });
-    } : void 0
-  });
+  const result = await callTool();
   return await materializeRemoteProxyToolAssets({
     toolName: options.name,
     targetDir: proxy.projectRoot,
@@ -45792,7 +45910,8 @@ async function formatMakerProxyToolsStatusSafely(options) {
       `- missing_tools: ${MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.join(", ")}`,
       "- build_available: no",
       `- failure_message: ${error2 instanceof Error ? error2.message : String(error2)}`,
-      "- retry_policy: explicit proxy tool/build calls retry 5 total attempts, 30s apart",
+      "- build_retry_policy: up to 5 total attempts, 30s apart",
+      "- proxy_tool_retry_policy: single attempt; never replayed automatically",
       "- next_action: Maker proxy 连接失败；远端 proxy tools 和 build 构建都不可用。请检查网络、PAT/TapTap token、Maker MCP 环境和远端服务后重试。"
     ].join("\n");
   }
@@ -46293,7 +46412,7 @@ function formatClonePartialStateLines(targetDir) {
 function createRemoteProxyContext(options) {
   const identify = identifyMakerProject({ cwd: options.targetDir });
   if (!identify.projectRoot || !identify.projectId) {
-    throw new Error(
+    throw new MakerBuildContextError(
       `${options.targetDir} is not bound to a Maker project. Run taptap-maker init first.`
     );
   }
@@ -46302,7 +46421,7 @@ function createRemoteProxyContext(options) {
   const env = getMakerEnvironment(options.env, identify.projectRoot);
   const tapAuth = loadTapAuth();
   if (!tapAuth) {
-    throw new Error("Tap auth not found. Run `taptap-maker login` first.");
+    throw new MakerBuildContextError("Tap auth not found. Run `taptap-maker login` first.");
   }
   let userId = projectConfig == null ? void 0 : projectConfig.user_id;
   if (!userId) {
@@ -46310,7 +46429,7 @@ function createRemoteProxyContext(options) {
     userId = jwt2 ? getUserIdFromMakerJwt(jwt2) : void 0;
   }
   if (!userId) {
-    throw new Error(
+    throw new MakerBuildContextError(
       "Cannot resolve user_id. Re-run taptap-maker init with PAT so the project config can cache user_id."
     );
   }
@@ -46333,7 +46452,9 @@ function createRemoteProxyContext(options) {
       verbose: true,
       reset_timeout_on_progress: true,
       force_inject_progress_token: true,
-      exposed_tools: options.exposedTools
+      disable_standalone_sse: true,
+      exposed_tools: options.exposedTools,
+      replayable_tools: ["build"]
     }
   };
   const proxyConfigJson = JSON.stringify(proxyCfg);
@@ -46466,6 +46587,12 @@ var RemoteBuildFailedError = class extends Error {
     this.buildResult = buildResult;
   }
 };
+var MakerBuildContextError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "MakerBuildContextError";
+  }
+};
 async function buildCurrentDirectory(options) {
   var _a3;
   const localChanges = await readMakerProjectLocalChanges(options.targetDir);
@@ -46517,12 +46644,23 @@ async function buildCurrentDirectory(options) {
     try {
       buildResult = await runRemoteBuildCurrentDirectory(options, localChanges.projectRoot);
     } catch (error2) {
+      const buildFailure = toMakerBuildFailure(error2);
+      if (error2 instanceof MakerBuildContextError) {
+        return {
+          mode: "build_context_failed_before_remote",
+          projectRoot: localChanges.projectRoot,
+          projectId: (config2 == null ? void 0 : config2.project_id) || "unknown",
+          codeSubmitStatus: "succeeded",
+          submitResult,
+          buildFailure
+        };
+      }
       return {
         mode: "build_failed_after_submit",
         projectRoot: localChanges.projectRoot,
         projectId: (config2 == null ? void 0 : config2.project_id) || "unknown",
         submitResult,
-        buildFailure: toMakerBuildFailure(error2)
+        buildFailure
       };
     }
     return {
@@ -46541,6 +46679,17 @@ async function buildCurrentDirectory(options) {
         projectId: error2.buildResult.projectId,
         buildResult: error2.buildResult,
         buildFailure: toMakerBuildFailure(error2)
+      };
+    }
+    const buildFailure = toMakerBuildFailure(error2);
+    if (error2 instanceof MakerBuildContextError) {
+      const identify = identifyMakerProject({ cwd: options.targetDir });
+      return {
+        mode: "build_context_failed_before_remote",
+        projectRoot: identify.projectRoot || path18.resolve(options.targetDir),
+        projectId: identify.projectId || "unknown",
+        codeSubmitStatus: "skipped_by_user",
+        buildFailure
       };
     }
     throw error2;
@@ -47132,12 +47281,14 @@ function formatRemoteToolResult(result) {
   }).join("\n");
 }
 function formatBuildResult(result, progressSummary) {
+  var _a3;
   if (result.mode === "remote_build_failed") {
     return [
       "✗ Remote Maker build failed",
       "",
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines("remote_build", "skipped_by_user", "failed"),
       `- maker_url: ${result.buildResult.makerUrl || formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)}`,
       `- project_path: ${result.buildResult.projectPath}`,
       `- timeout_ms: ${result.buildResult.timeoutMs}`,
@@ -47145,6 +47296,10 @@ function formatBuildResult(result, progressSummary) {
       ...formatProgressSummary(progressSummary),
       "",
       ...formatMakerBuildFailureLines(result.buildFailure),
+      "",
+      ...formatRemoteBuildDiagnosisLines(result.buildFailure, result.projectRoot),
+      "",
+      ...formatBuildLocalExecutionCheckLines({ context: "remote_build" }),
       "",
       "remote_result:",
       indent2(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText)))
@@ -47156,6 +47311,7 @@ function formatBuildResult(result, progressSummary) {
       "",
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines("code_submit", "failed", "not_started"),
       `- branch: ${result.submitResult.branch}`,
       `- status: ${result.submitResult.status}`,
       `- committed: ${result.submitResult.committed ? "yes" : "no"}`,
@@ -47170,8 +47326,10 @@ function formatBuildResult(result, progressSummary) {
         "",
         ...formatPushRecoveryLines(result.submitResult),
         "",
-        ...formatMakerFailureLines(result.submitResult.failure)
-      ] : []
+        ...formatMakerFailureLines(result.submitResult.failure),
+        "",
+        ...formatBuildLocalExecutionCheckLines({ failure: result.submitResult.failure })
+      ] : ["", ...formatBuildLocalExecutionCheckLines()]
     ].filter(Boolean).join("\n");
   }
   if (result.mode === "settings_invalid_before_build") {
@@ -47180,6 +47338,7 @@ function formatBuildResult(result, progressSummary) {
       "",
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines("project_validation", "not_started", "not_started"),
       ...formatProgressSummary(progressSummary),
       "",
       formatMakerProjectSettingsStatus(result.settingsStatus)
@@ -47191,9 +47350,32 @@ function formatBuildResult(result, progressSummary) {
       "",
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines("project_validation", "not_started", "not_started"),
       ...formatProgressSummary(progressSummary),
       "",
       formatMakerProjectHealthStatus(result.projectHealth)
+    ].filter(Boolean).join("\n");
+  }
+  if (result.mode === "build_context_failed_before_remote") {
+    return [
+      result.codeSubmitStatus === "succeeded" ? "✗ Maker project submitted, but local build context preparation failed; remote build was not started" : "✗ Local build context preparation failed; remote build was not started",
+      "",
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines(
+        "local_build_context",
+        result.codeSubmitStatus,
+        "not_started"
+      ),
+      result.submitResult ? `- branch: ${result.submitResult.branch}` : "",
+      result.submitResult ? `- status: ${result.submitResult.status}` : "",
+      result.submitResult ? `- committed: ${result.submitResult.committed ? "yes" : "no"}` : "",
+      ((_a3 = result.submitResult) == null ? void 0 : _a3.commitHash) ? `- commit_hash: ${result.submitResult.commitHash}` : "",
+      ...formatProgressSummary(progressSummary),
+      "",
+      ...formatMakerBuildFailureLines(result.buildFailure),
+      "",
+      ...formatLocalBuildContextDiagnosisLines(result.buildFailure)
     ].filter(Boolean).join("\n");
   }
   if (result.mode === "build_failed_after_submit") {
@@ -47202,6 +47384,7 @@ function formatBuildResult(result, progressSummary) {
       "",
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines("remote_build", "succeeded", "failed"),
       `- branch: ${result.submitResult.branch}`,
       `- status: ${result.submitResult.status}`,
       `- committed: ${result.submitResult.committed ? "yes" : "no"}`,
@@ -47211,7 +47394,11 @@ function formatBuildResult(result, progressSummary) {
       result.submitResult.transientRetries ? `- transient_git_retries: ${result.submitResult.transientRetries}` : "",
       ...formatProgressSummary(progressSummary),
       "",
-      ...formatMakerBuildFailureLines(result.buildFailure)
+      ...formatMakerBuildFailureLines(result.buildFailure),
+      "",
+      ...formatRemoteBuildDiagnosisLines(result.buildFailure, result.projectRoot),
+      "",
+      ...formatBuildLocalExecutionCheckLines({ context: "remote_build" })
     ].filter(Boolean).join("\n");
   }
   const submitLines = result.submitResult ? [
@@ -47331,6 +47518,110 @@ ${indent2(formatDiagnosticJson(details))}` : "",
 ${indent2(String(sanitizeRemoteDiagnosticValue(failure.stack)))}` : ""
   ].filter(Boolean);
 }
+function formatBuildFailureStageLines(failureStage, codeSubmitStatus, remoteBuildStatus) {
+  return [
+    `- failure_stage: ${failureStage}`,
+    `- code_submit_status: ${codeSubmitStatus}`,
+    `- remote_build_status: ${remoteBuildStatus}`
+  ];
+}
+function formatBuildLocalExecutionCheckLines(options = {}) {
+  if (options.context === "remote_build") {
+    return [
+      "local_execution_check:",
+      "- restriction_signal: not_detected",
+      "- diagnostic_priority: remote_build_error_first",
+      "- sandbox_check_condition: only_if_local_commands_are_also_blocked",
+      '- fallback_check: If Windows PowerShell, CLI, Git, or MCP commands are also blocked locally, ask the user to check the AI client sandbox/access setting and enable Full Access mode ("完全访问模式") only for a trusted project.',
+      "- evidence_rule: A remote build failure is not evidence of a local sandbox restriction."
+    ];
+  }
+  const restrictionSignal = options.failure ? hasLocalExecutionRestrictionSignal(options.failure) : false;
+  if (options.failure && !restrictionSignal && isRemoteGitFailure(options.failure)) {
+    return [
+      "local_execution_check:",
+      "- restriction_signal: not_detected",
+      "- diagnostic_priority: remote_git_error_first",
+      "- sandbox_check_condition: only_if_local_commands_are_also_blocked",
+      '- fallback_check: If Windows PowerShell, CLI, Git, or MCP commands are also blocked locally, ask the user to check the AI client sandbox/access setting and enable Full Access mode ("完全访问模式") only for a trusted project.',
+      "- evidence_rule: A remote Git failure is not evidence of a local sandbox restriction."
+    ];
+  }
+  return [
+    "local_execution_check:",
+    `- restriction_signal: ${restrictionSignal ? "detected" : "not_detected"}`,
+    restrictionSignal ? "- assessment: The current error reports a sandbox or local access restriction; code execution may be blocked before Maker can complete the build workflow." : "- assessment: Maker cannot inspect the AI client access-mode setting, so the current build failure does not confirm whether local execution is restricted.",
+    "- windows_check: Check whether the AI client is running Windows PowerShell, CLI, Git, or MCP commands in a sandbox or restricted mode.",
+    restrictionSignal ? '- next_action: For a trusted project, enable Full Access mode ("完全访问模式") in the AI client, reconnect MCP, and retry only after confirming local commands can execute.' : '- next_action: Check the AI client sandbox/access setting. For a trusted project, enable Full Access mode ("完全访问模式"), reconnect MCP, and retry after confirming local commands can execute.',
+    "- evidence_rule: This is a diagnostic check, not proof that sandbox restrictions caused this failure."
+  ];
+}
+function hasLocalExecutionRestrictionSignal(failure) {
+  const localText = gitFailureSearchText(failure).split(/\r?\n/u).filter((line) => !/^\s*remote:/iu.test(line)).join("\n");
+  const hasLocalProcessMarker = /\bPowerShell(?:\.exe)?\b|\bspawn\s+(?:(?:[^\r\n]{0,160})[\\/])?(?:git(?:\.exe)?|PowerShell(?:\.exe)?)\b/iu.test(
+    localText
+  );
+  const hasRestrictionMarker = /sandbox|沙盒|blocked|disabled|not permitted|EPERM|EACCES/iu.test(
+    localText
+  );
+  return hasLocalProcessMarker && hasRestrictionMarker;
+}
+function isRemoteGitFailure(failure) {
+  return [
+    "remote_transient",
+    "remote_rejected",
+    "auth",
+    "branch_not_allowed",
+    "forbidden_path"
+  ].includes(failure.classification) || /(?:^|\n)\s*remote:/iu.test(gitFailureSearchText(failure));
+}
+function gitFailureSearchText(failure) {
+  return [failure.message, failure.stderr, failure.stdout].filter(Boolean).join("\n");
+}
+function formatRemoteBuildDiagnosisLines(failure, projectRoot) {
+  const isRequestTimeout = isMcpRequestTimeoutFailure(failure);
+  return [
+    "remote_build_diagnosis:",
+    isRequestTimeout ? "- failure_signal: mcp_request_timeout" : "",
+    "- root_cause: unconfirmed",
+    isRequestTimeout ? "- maker_server_fault_confirmed: no" : "",
+    "- inspect_first: returned build_failure and any remote_result for code or resource diagnostics",
+    "- diagnostic_action_modified_local_project_files: no",
+    ...isRequestTimeout ? ["", ...formatMcpTimeoutLocalDiagnosticLines(projectRoot)] : []
+  ].filter(Boolean);
+}
+function formatLocalBuildContextDiagnosisLines(failure) {
+  return [
+    "local_build_context_diagnosis:",
+    "- root_cause: known_local_context",
+    "- remote_request_status: not_started",
+    `- next_action: ${failure.message}`
+  ];
+}
+function isMcpRequestTimeoutFailure(failure) {
+  return /MCP error\s+-32001:\s*Request timed out/iu.test(failure.message);
+}
+function formatMcpTimeoutLocalDiagnosticLines(projectRoot) {
+  const processCwd = process.cwd();
+  const cwdAlignment = normalizePathForCompare2(processCwd) === normalizePathForCompare2(projectRoot) ? "same_project" : "different_from_project";
+  return [
+    "mcp_timeout_local_diagnostics:",
+    "- mode: read_only",
+    `- project_root: ${projectRoot}`,
+    `- mcp_process_cwd: ${processCwd}`,
+    `- cwd_alignment: ${cwdAlignment}`,
+    `- node_version: ${process.version}`,
+    `- platform: ${process.platform}/${process.arch}`,
+    `- node_exec_path: ${process.execPath}`,
+    "- active_client_config: not_checked",
+    "- active_client_session: not_checked",
+    "- limitation: Maker MCP cannot inspect the active AI client's command, args, workspace Roots, session, or request timeout.",
+    "- next_action_1: Run Maker doctor for project_root through the active client launcher; standalone CLI equivalent: `taptap-maker doctor --target-dir <PROJECT_DIR>`.",
+    "- next_action_2: Inspect the actual active client MCP command, args, cwd/Roots, session and tool registration, request timeout, and Node runtime.",
+    "- evidence_rule: Do not claim a Maker server outage without HTTP 5xx, server logs, or service status evidence.",
+    "- retry_rule: Do not retry the build blindly; diagnose the failed boundary first."
+  ];
+}
 function buildFailureDiagnosticFields(failure) {
   const details = {};
   for (const [key, value] of Object.entries(failure)) {
@@ -47361,6 +47652,7 @@ ${indent2(failure.stdout)}` : "",
 function formatToolException(toolName, error2) {
   const message = error2 instanceof Error ? error2.message : String(error2);
   const stack = error2 instanceof Error ? error2.stack : void 0;
+  const buildLocalExecutionCheckLines = toolName === "maker_build_current_directory" && !isKnownBuildContextError(error2) ? ["", ...formatBuildLocalExecutionCheckLines()] : [];
   if (error2 instanceof MakerGitNotFoundError) {
     return [
       "✗ Maker MCP tool stopped",
@@ -47370,7 +47662,8 @@ function formatToolException(toolName, error2) {
       "",
       message,
       "",
-      "next_action: 请只引导用户安装 Git；在 `git --version` 可用之前，不要继续调用 clone、fetch、commit 或 push。"
+      "next_action: 请只引导用户安装 Git；在 `git --version` 可用之前，不要继续调用 clone、fetch、commit 或 push。",
+      ...buildLocalExecutionCheckLines
     ].join("\n");
   }
   if (error2 instanceof MakerCloneFailedError) {
@@ -47440,8 +47733,18 @@ function formatToolException(toolName, error2) {
     "debug:",
     stack ? indent2(stack) : indent2(message),
     "",
-    "next_action: 请把上面的完整错误反馈给开发者；如果本地已有 commit 但 push 未完成，不要重复 commit，直接重试 maker_build_current_directory。"
+    "next_action: 请把上面的完整错误反馈给开发者；如果本地已有 commit 但 push 未完成，不要重复 commit，直接重试 maker_build_current_directory。",
+    ...buildLocalExecutionCheckLines
   ].join("\n");
+}
+function isKnownBuildContextError(error2) {
+  if (error2 instanceof MakerBuildContextError || error2 instanceof MakerProjectContextAmbiguousError) {
+    return true;
+  }
+  const message = error2 instanceof Error ? error2.message : String(error2);
+  return /target_dir must be a string when provided|is not bound to a Maker project|must be an independent Git repository before build or submit|is bound to a Maker project but is not a Git repository/iu.test(
+    message
+  );
 }
 function stripNestedMcpErrorPrefixes(message) {
   const prefix = /^MCP error -?\d+:\s*/i;
@@ -47763,6 +48066,7 @@ var SELF_RUNTIME_DIRECTORIES = [
   "skills/update-taptap-mcp"
 ];
 var SELF_RUNTIME_FILES = ["dist/maker.js", "docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md"];
+var SELF_RUNTIME_COPY_FALLBACK_CODES = /* @__PURE__ */ new Set(["EIO", "EACCES", "EPERM"]);
 function resolveMakerPackageSpec(packageName, currentVersion) {
   return PUBLISHED_VERSION_PATTERN.test(currentVersion) ? `${packageName}@${currentVersion}` : packageName;
 }
@@ -47791,9 +48095,10 @@ function materializeMakerSelfLauncher(options) {
       fs18.copyFileSync(sourcePath, targetPath);
     }
     for (const relativePath of SELF_RUNTIME_DIRECTORIES) {
-      fs18.cpSync(path19.join(sourceRoot, relativePath), path19.join(runtimeRoot, relativePath), {
-        recursive: true
-      });
+      copySelfRuntimeDirectory(
+        path19.join(sourceRoot, relativePath),
+        path19.join(runtimeRoot, relativePath)
+      );
     }
   }
   const stableBundle = path19.join(runtimeRoot, "dist", "maker.js");
@@ -47803,6 +48108,29 @@ function materializeMakerSelfLauncher(options) {
     args: [stableBundle],
     commandAndArgs: [execPath, stableBundle]
   };
+}
+function copySelfRuntimeDirectory(sourcePath, targetPath) {
+  try {
+    fs18.cpSync(sourcePath, targetPath, { recursive: true });
+  } catch (error2) {
+    const code = typeof error2 === "object" && error2 !== null && "code" in error2 ? String(error2.code) : void 0;
+    if (!code || !SELF_RUNTIME_COPY_FALLBACK_CODES.has(code)) {
+      throw error2;
+    }
+    copyDirectoryEntries(sourcePath, targetPath);
+  }
+}
+function copyDirectoryEntries(sourcePath, targetPath) {
+  fs18.mkdirSync(targetPath, { recursive: true });
+  for (const entry of fs18.readdirSync(sourcePath, { withFileTypes: true })) {
+    const sourceEntry = path19.join(sourcePath, entry.name);
+    const targetEntry = path19.join(targetPath, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectoryEntries(sourceEntry, targetEntry);
+    } else {
+      fs18.copyFileSync(sourceEntry, targetEntry);
+    }
+  }
 }
 function resolveMakerMcpLauncher(options) {
   const platform = options.platform ?? process.platform;
@@ -48226,6 +48554,25 @@ function parseMakerMcpReportContext(input2) {
   return {
     summary: "Maker MCP problem report",
     error_message: trimmed
+  };
+}
+function validateMakerMcpReportContext(context) {
+  var _a3, _b;
+  const errorMessage = ((_a3 = context.error_message) == null ? void 0 : _a3.trim()) || "";
+  const hasErrorCode = typeof context.error_code === "number" || typeof context.error_code === "string" && context.error_code.trim().length > 0;
+  const hasFailedOperation = Boolean((_b = context.failed_operation) == null ? void 0 : _b.trim());
+  if (errorMessage === "Need to call maker_build_current_directory" && !hasErrorCode) {
+    return {
+      ok: false,
+      reason: "This is an expected Maker project build prerequisite, not an MCP connectivity failure."
+    };
+  }
+  if (hasErrorCode || hasFailedOperation || errorMessage) {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    reason: "Report context must include at least one of error_code, failed_operation, or error_message."
   };
 }
 function extractMakerMcpServerConfig(config2, mcpName) {
@@ -48874,7 +49221,7 @@ function redactReportText(value) {
   ).replace(
     /(--(?:[a-z0-9]+[-_])*(?:pat|token|secret|signature|sig|credential|credentials|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key)=)([^\s]+)/giu,
     "$1<redacted>"
-  ).replace(/\b([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^@\s/]+)@/gu, "$1<redacted>@").replace(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/gu, "<redacted>").replace(/\bgh[pousr]_[A-Za-z0-9]{20,}\b/gu, "<redacted>");
+  ).replace(/\b([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^@\s/?#]+)@/gu, "$1<redacted>@").replace(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/gu, "<redacted>").replace(/\bgh[pousr]_[A-Za-z0-9]{20,}\b/gu, "<redacted>");
 }
 function stripControlCharacters(value) {
   return Array.from(value, (character) => {
@@ -50896,6 +51243,27 @@ async function runMcpReport(parsed, ctx) {
   const targetDir = path26.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const contextInput = booleanOption(parsed, "context_stdin") ? await readStdinText() : "";
   const context = parseMakerMcpReportContext(contextInput);
+  const contextValidation = validateMakerMcpReportContext(context);
+  if (!contextValidation.ok) {
+    const payload = {
+      status: "invalid_context",
+      reason: contextValidation.reason,
+      issue_url: "https://github.com/taptap/instant-games-open-mcp/issues/new"
+    };
+    if (ctx.json) {
+      writeJson(payload);
+      return;
+    }
+    process.stdout.write(
+      [
+        "Maker MCP issue report was not prepared: actionable error context is missing.",
+        `Reason: ${payload.reason}`,
+        `Manual issue URL: ${payload.issue_url}`,
+        ""
+      ].join("\n")
+    );
+    return;
+  }
   const reportRuntime = resolveMakerMcpReportRuntime({
     distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
     bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : void 0
@@ -53970,10 +54338,13 @@ var CookieJar = class {
     return this.cookies.size > 0;
   }
 };
-function createCookieFetch(cookieJar) {
+function createCookieFetch(cookieJar, options = {}) {
   return async (input2, init) => {
+    if (options.rejectStandaloneSse && isStandaloneSseRequest(input2, init)) {
+      return new Response(null, { status: 405, statusText: "Method Not Allowed" });
+    }
     const modifiedInit = { ...init };
-    const cookieHeader = cookieJar.getCookieHeader();
+    const cookieHeader = options.enableCookies === false ? void 0 : cookieJar.getCookieHeader();
     if (cookieHeader) {
       const headers = new Headers(modifiedInit.headers);
       headers.set("Cookie", cookieHeader);
@@ -53983,6 +54354,17 @@ function createCookieFetch(cookieJar) {
     cookieJar.setCookiesFromResponse(response);
     return response;
   };
+}
+function isStandaloneSseRequest(input2, init) {
+  var _a3;
+  const method = ((init == null ? void 0 : init.method) || (input2 instanceof Request ? input2.method : "GET")).toUpperCase();
+  if (method !== "GET") {
+    return false;
+  }
+  const headers = new Headers(
+    (init == null ? void 0 : init.headers) || (input2 instanceof Request ? input2.headers : void 0)
+  );
+  return ((_a3 = headers.get("accept")) == null ? void 0 : _a3.split(",").some((value) => value.trim().split(";", 1)[0].toLowerCase() === "text/event-stream")) === true;
 }
 
 // src/core/utils/logWriter.ts
@@ -54187,6 +54569,17 @@ var VERSION3 = typeof __PROXY_VERSION__ !== "undefined" ? __PROXY_VERSION__ : "d
 var LOCAL_PROXY_TAG = "local";
 var DEFAULT_RECONNECT_INTERVAL_MS = 5e3;
 var MAX_RECONNECT_INTERVAL_MS = 60 * 1e3;
+function createNonReplayableToolResult(name, executionState) {
+  const text = executionState === "not_executed" ? `${name} was not sent because the upstream MCP connection is unavailable. It was not executed. Automatic retry is disabled; retry explicitly after the connection recovers.` : `${name} may have completed before the upstream MCP response was interrupted. Its execution state is unknown. Automatic retry is disabled; verify remote output, state, and usage before deciding whether to retry explicitly.`;
+  return {
+    isError: true,
+    content: [{ type: "text", text }],
+    structuredContent: {
+      execution_state: executionState,
+      automatic_retry: false
+    }
+  };
+}
 function convertMcpApplicationErrorToToolResult(error2) {
   if (!(error2 instanceof Error)) {
     return void 0;
@@ -54429,17 +54822,29 @@ var TapTapMCPProxy = class {
       throw new McpError(ErrorCode.MethodNotFound, `Tool is not exposed by this proxy: ${name}`);
     }
   }
+  isToolReplayable(name) {
+    var _a3;
+    const replayableTools = (_a3 = this.config.options) == null ? void 0 : _a3.replayable_tools;
+    return replayableTools === void 0 || replayableTools.includes(name);
+  }
   /**
    * 连接到 TapTap MCP Server
    */
   async connectToServer() {
-    var _a3, _b, _c;
+    var _a3, _b, _c, _d, _e;
     this.log("info", `Connecting to ${this.config.server.url}...`);
     try {
       const cookieEnabled = ((_a3 = this.config.options) == null ? void 0 : _a3.enable_cookie_sticky) ?? true;
-      const customFetch = cookieEnabled ? createCookieFetch(this.cookieJar) : void 0;
-      if (cookieEnabled && ((_b = this.config.options) == null ? void 0 : _b.verbose)) {
+      const standaloneSseDisabled = ((_b = this.config.options) == null ? void 0 : _b.disable_standalone_sse) ?? false;
+      const customFetch = cookieEnabled || standaloneSseDisabled ? createCookieFetch(this.cookieJar, {
+        enableCookies: cookieEnabled,
+        rejectStandaloneSse: standaloneSseDisabled
+      }) : void 0;
+      if (cookieEnabled && ((_c = this.config.options) == null ? void 0 : _c.verbose)) {
         this.log("debug", "Cookie sticky session enabled");
+      }
+      if (standaloneSseDisabled && ((_d = this.config.options) == null ? void 0 : _d.verbose)) {
+        this.log("debug", "Standalone SSE disabled; using POST response streams");
       }
       const sessionHeaders = this.buildSessionHeaders();
       const transport = new StreamableHTTPClientTransport(new URL(this.config.server.url), {
@@ -54454,7 +54859,7 @@ var TapTapMCPProxy = class {
       this.connected = true;
       this.sessionValidated = true;
       this.lastValidationTime = Date.now();
-      this.reconnectDelayMs = ((_c = this.config.options) == null ? void 0 : _c.reconnect_interval) ?? DEFAULT_RECONNECT_INTERVAL_MS;
+      this.reconnectDelayMs = ((_e = this.config.options) == null ? void 0 : _e.reconnect_interval) ?? DEFAULT_RECONNECT_INTERVAL_MS;
       this.log("info", "✅ Connected and session validated");
       this.startHealthCheck();
       if (this.reconnecting) {
@@ -54734,6 +55139,10 @@ var TapTapMCPProxy = class {
     this.log("info", `Processing ${this.pendingRequests.length} pending requests...`);
     while (this.pendingRequests.length > 0) {
       const req = this.pendingRequests.shift();
+      if (!this.isToolReplayable(req.name)) {
+        req.resolve(createNonReplayableToolResult(req.name, req.executionState ?? "unknown"));
+        continue;
+      }
       if (now - req.timestamp > timeout) {
         req.reject(new Error("Request timeout while waiting for reconnection"));
         continue;
@@ -54867,6 +55276,9 @@ var TapTapMCPProxy = class {
         }
       }
       if (!this.connected) {
+        if (!this.isToolReplayable(name)) {
+          return createNonReplayableToolResult(name, "not_executed");
+        }
         if (this.reconnecting) {
           this.log("info", `⏳ Queueing request: ${name} (reconnecting...)`);
           return new Promise((resolve, reject) => {
@@ -54876,6 +55288,7 @@ var TapTapMCPProxy = class {
               resolve,
               reject,
               timestamp: Date.now(),
+              executionState: "not_executed",
               onprogress: callToolOptions.onprogress
             });
           });
@@ -54907,6 +55320,9 @@ var TapTapMCPProxy = class {
           if (!this.reconnecting) {
             this.log("info", "Triggering immediate reconnection...");
             this.reconnectToServer();
+            if (!this.isToolReplayable(name)) {
+              return createNonReplayableToolResult(name, "unknown");
+            }
             this.log("info", `⏳ Queueing current request: ${name}`);
             return new Promise((resolve, reject) => {
               this.pendingRequests.push({
@@ -54915,9 +55331,13 @@ var TapTapMCPProxy = class {
                 resolve,
                 reject,
                 timestamp: Date.now(),
+                executionState: "unknown",
                 onprogress: callToolOptions.onprogress
               });
             });
+          }
+          if (!this.isToolReplayable(name)) {
+            return createNonReplayableToolResult(name, "unknown");
           }
         }
         throw error2;

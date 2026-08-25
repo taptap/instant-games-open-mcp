@@ -31,7 +31,8 @@ export interface MakerRemoteProxyManager {
   callTool(
     context: RemoteProxyContext,
     request: { name: string; arguments?: Record<string, unknown> },
-    options?: RequestOptions
+    options?: RequestOptions,
+    onDispatch?: () => void
   ): Promise<CallToolResult>;
   getCachedTools(context: RemoteProxyContext): RemoteProxyToolDefinition[] | undefined;
   closeAll(): Promise<void>;
@@ -281,11 +282,11 @@ export function createMakerRemoteProxyManager(
       return tools;
     },
 
-    async callTool(context, request, requestOptions): Promise<CallToolResult> {
-      return await run(
-        context,
-        async (client) => await client.callTool(request, undefined, requestOptions)
-      );
+    async callTool(context, request, requestOptions, onDispatch): Promise<CallToolResult> {
+      return await run(context, async (client) => {
+        onDispatch?.();
+        return await client.callTool(request, undefined, requestOptions);
+      });
     },
 
     getCachedTools(context): RemoteProxyToolDefinition[] | undefined {

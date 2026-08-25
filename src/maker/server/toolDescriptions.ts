@@ -14,9 +14,15 @@ export const MAKER_STATUS_LITE_PUBLIC_DESCRIPTION = [
 
 export const MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION = [
   'Submit and remotely build the current bound Maker project. First read maker://status or maker_status_lite and resolve exactly one bound Maker project.',
+  '`Need to call maker_build_current_directory` is a normal project build prerequisite, not an MCP connectivity failure or issue-report trigger.',
   'Use this tool for explicit Maker build, preview, submit, or push requests. Code tests and lint do not trigger this remote workflow unless the user also explicitly asks to build, run, or preview the Maker game.',
   'Normal mode commits local changes when needed, pushes existing or new commits, and then starts the remote build; a clean workspace creates the required wake-up commit.',
   'Unsafe remote-sync or branch states stop before commit and push. A push failure stops before build, while a build failure after a successful push means the code is already on Maker remote; follow the structured result for recovery.',
+  'On failure, read failure_stage, code_submit_status, and remote_build_status before explaining whether project validation, code submit/push, or remote build failed.',
+  'Known local authentication or project-context preparation failures use failure_stage="local_build_context" and remote_build_status="not_started"; follow the returned login or init recovery instead of describing a remote build failure.',
+  'When an error explicitly reports a local PowerShell, CLI, or Git process blocked by sandbox policy, EPERM, or EACCES, ask the user to check the AI client sandbox and suggest Full Access mode ("完全访问模式") only for a trusted project. For remote Git or remote build failures, inspect the returned Git, code, and resource diagnostics first and mention sandbox access only if local commands are also blocked. Treat sandbox as a check, not a confirmed cause, for otherwise unclassified local execution failures. Follow the returned fix directly for known project-validation or project-context errors.',
+  'If the host reports `MCP error -32001: Request timed out`, treat it only as a timeout signal: timeout alone is not evidence of a Maker server failure. Do not claim a Maker server outage without HTTP 5xx, server logs, or service-status evidence.',
+  'Do not retry the build blindly. Run Maker doctor for the project through the active client launcher (`taptap-maker doctor --target-dir <PROJECT_DIR>` is the standalone CLI equivalent) for read-only host and project checks, then inspect the actual active client MCP command, args, cwd/Roots, session and tool registration, request timeout, and Node runtime. Doctor cannot inspect the active client configuration itself.',
   'After a successful build, read runtime_logs.local_file for gameplay diagnostics and runtime_logs.state_file for watcher health when those fields are returned.',
   'Do not combine Maker submission with generic branch, PR/MR, or separate commit/push workflows.',
   'Set confirm_remote_build_without_submit=true only after the user explicitly requests building the already committed remote version without submitting local changes.',
@@ -42,7 +48,10 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
     'The local proxy attempts to materialize successful results into the Maker project and retain remote mapping; use returned workspace/local paths when present.',
   ].join(' '),
   create_video_task: [
-    'Create a video generation task. The remote service normally performs server-side polling and waits for the final result in this call.',
+    'Create a video generation task only after the user explicitly requests video generation. Do not proactively or automatically generate videos while designing gameplay, implementing features, filling asset gaps, or self-improving the game.',
+    'Estimate the intended duration before calling. The confirmation estimate is 200 credits per second for model="2.0" and 300 credits per second for model="2.5"; it is only a rough estimate, while actual billing follows upstream token usage.',
+    'When duration exceeds 10 seconds or model="2.5" is used, show the estimate and billing disclaimer, wait for explicit user confirmation, then repeat the same request with user_confirmed=true. Default model="2.0" with omitted duration or duration=-1 does not require confirmation.',
+    'The remote service normally performs server-side polling and waits for the final result in this call.',
     'If the wait budget expires, the result returns a task_id; continue other work and use query_video_task no sooner than 120 seconds later.',
     'Mode-specific inputs and limits are defined by the input schema. Image, video, and audio references may use local project files, HTTP(S) URLs, or data URLs supported by the schema.',
     'Keep image references at 30 MiB or less, video references at 50 MiB or less, and audio references at 15 MiB or less.',
@@ -126,7 +135,14 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
   ].join(' '),
 };
 
+const MAKER_REMOTE_PROXY_RETRY_GUIDANCE = [
+  'This tool is not retried automatically by the local Maker runtime.',
+  'If its response is interrupted after dispatch, its execution state may be unknown.',
+  'For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.',
+].join(' ');
+
 /** Return a reviewed public description for an exposed Maker remote proxy tool. */
 export function getMakerRemoteProxyPublicDescriptionOverride(toolName: string): string | undefined {
-  return MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS[toolName];
+  const description = MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS[toolName];
+  return description ? `${description} ${MAKER_REMOTE_PROXY_RETRY_GUIDANCE}` : undefined;
 }
