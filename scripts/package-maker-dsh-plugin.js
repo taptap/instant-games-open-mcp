@@ -20,6 +20,7 @@ import {
   createWriteStream,
   mkdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   statSync,
   writeFileSync,
@@ -216,7 +217,7 @@ async function main() {
   );
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === scriptPath) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(scriptPath)) {
   main().catch((error) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exit(1);

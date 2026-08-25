@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -137,5 +138,24 @@ describe('@taptap/dsh-maker manifest', () => {
     );
     expect(guides.preview).toContain('dsh plugin --profile <profile> add <tarball绝对路径>');
     expect(guides.preview).not.toContain('- npm：`@taptap/dsh-maker@0.1.2-dev.7`');
+  });
+
+  it('packages when the entry script is invoked through a symlink', () => {
+    const temporaryDir = mkdtempSync(join(tmpdir(), 'dsh-maker-package-symlink-'));
+    const scriptLink = join(temporaryDir, 'package-maker-dsh-plugin.js');
+    const outputDir = join(temporaryDir, 'output');
+
+    try {
+      symlinkSync(join(REPO_ROOT, 'scripts', 'package-maker-dsh-plugin.js'), scriptLink);
+      const result = spawnSync(process.execPath, [scriptLink, '--output-dir', outputDir], {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('Packaged @taptap/dsh-maker');
+    } finally {
+      rmSync(temporaryDir, { recursive: true, force: true });
+    }
   });
 });
