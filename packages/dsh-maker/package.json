@@ -1,6 +1,6 @@
 {
   "name": "@taptap/dsh-maker",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "DeepSeek Harness plugin: registers the TapTap Maker MCP server and installs Maker workflow + feature skills.",
   "main": "lib/index.js",
@@ -43,7 +43,7 @@
     "@deepseek-ai/dsh-skill-filesystem": "^0.1.0-rc.6"
   },
   "dependencies": {
-    "@taptap/maker": "0.0.31"
+    "@taptap/maker": "0.0.32"
   },
   "repository": {
     "type": "git",
