@@ -36591,6 +36591,10 @@ function createMakerAgentsPolicyBody() {
     "# TapTap Maker Project Asset Tool Policy",
     "",
     "This is a bound TapTap Maker project.",
+    "Do not use TapTap Developer Center documentation or docs for other TapTap game platforms",
+    "when developing or debugging this Maker game; use Maker MCP and the project-local",
+    "`AGENTS.md`, `engine-docs/`, `examples/`, `templates/`, `urhox-libs/`, and installed Maker",
+    "skills as the sources of truth.",
     "",
     MAKER_PROJECT_POLICY_ROUTING_INDEX,
     "",
@@ -38201,7 +38205,16 @@ function getMakerGitRetryDecision(message) {
   )) {
     return { retry: true, reason: "network_or_timeout" };
   }
-  if (/connection reset|connection refused|connection closed|remote end hung up|unexpected disconnect|early EOF|RPC failed|index-pack failed|HTTP\/2 stream.*not closed cleanly|SSL_ERROR_SYSCALL|curl\s+(?:18|28|35|52|55|56|92)/i.test(
+  if (/curl\s+92\b|HTTP\/2 stream.*not closed cleanly|HTTP\/2.{0,80}(?:not supported|unsupported)|(?:server|remote).{0,80}does not support HTTP\/2/i.test(
+    text
+  )) {
+    return {
+      retry: true,
+      reason: "http2_transport_error",
+      fallbackHttpVersion: "HTTP/1.1"
+    };
+  }
+  if (/connection reset|connection refused|connection closed|remote end hung up|unexpected disconnect|early EOF|RPC failed|index-pack failed|SSL_ERROR_SYSCALL|curl\s+(?:18|28|35|52|55|56)/i.test(
     text
   )) {
     return { retry: true, reason: "connection_interrupted" };
@@ -38282,10 +38295,14 @@ function pushGit(args, cwd, onProgress) {
   });
 }
 function pushGitWithTransientRetry(args, cwd, onProgress) {
-  return runWithTransientRetry(() => pushGit(args, cwd, onProgress), {
-    stage: "push",
-    onProgress
-  });
+  return runMakerGitNetworkOperationWithTransientRetry(
+    args,
+    (effectiveArgs) => pushGit(effectiveArgs, cwd, onProgress),
+    {
+      stage: "push",
+      onProgress
+    }
+  );
 }
 async function resolveMakerProjectUserId(options) {
   var _a3;
@@ -38735,10 +38752,15 @@ function readGit(args, cwd) {
   });
 }
 async function runGitWithTransientRetry(args, options) {
-  return runWithTransientRetry(() => runGit(args, options), {
-    stage: args[0] || "git",
-    onProgress: options.onProgress
-  });
+  const stage = args[0] || "git";
+  return runMakerGitNetworkOperationWithTransientRetry(
+    args,
+    (effectiveArgs) => runGit(effectiveArgs, { ...options, stage }),
+    {
+      stage,
+      onProgress: options.onProgress
+    }
+  );
 }
 async function runGitCaptureWithTransientRetry(args, options = {}) {
   return runWithTransientRetry(() => runGitCapture(args, options), {
@@ -38747,7 +38769,7 @@ async function runGitCaptureWithTransientRetry(args, options = {}) {
   });
 }
 async function runWithTransientRetry(operation, options) {
-  var _a3;
+  var _a3, _b;
   let retries = 0;
   const maxRetries = 5;
   for (; ; ) {
@@ -38763,7 +38785,8 @@ async function runWithTransientRetry(operation, options) {
         throw appendRetryExhausted(error2, retries, decision);
       }
       retries += 1;
-      (_a3 = options.onProgress) == null ? void 0 : _a3.call(options, {
+      (_a3 = options.onRetry) == null ? void 0 : _a3.call(options, decision);
+      (_b = options.onProgress) == null ? void 0 : _b.call(options, {
         phase: options.stage,
         message: formatGitRetryProgressMessage(options.stage, decision, retries, maxRetries)
       });
@@ -38771,8 +38794,25 @@ async function runWithTransientRetry(operation, options) {
     }
   }
 }
+async function runMakerGitNetworkOperationWithTransientRetry(args, operation, options) {
+  let fallbackHttpVersion;
+  return runWithTransientRetry(
+    () => operation(
+      fallbackHttpVersion ? ["-c", `http.version=${fallbackHttpVersion}`, ...args] : [...args]
+    ),
+    {
+      ...options,
+      onRetry: (decision) => {
+        fallbackHttpVersion = decision.fallbackHttpVersion || fallbackHttpVersion;
+      }
+    }
+  );
+}
 function formatGitRetryProgressMessage(stage, decision, retries, maxRetries) {
   const reason = decision.reason || "temporary_remote_failure";
+  if (reason === "http2_transport_error") {
+    return `Maker git HTTP/2 transport failed; retrying with command-local HTTP/1.1 ${retries}/${maxRetries}. Please keep this running.`;
+  }
   const prefix = (stage === "clone" || stage === "fetch") && reason === "remote_http_5xx" ? "Maker server may still be preparing the repository" : "Maker git remote is temporarily unavailable";
   return `${prefix} (${reason}); retrying ${retries}/${maxRetries}. Please keep this running.`;
 }
@@ -38873,7 +38913,7 @@ function runGit(args, options) {
         reject(
           new MakerGitError(
             createGitFailure({
-              stage: args[0] || "git",
+              stage: options.stage || args[0] || "git",
               command: `${gitCommand} ${args.join(" ")}`,
               exitCode: code,
               stdout: options.quiet ? "" : stdout,
@@ -38887,7 +38927,7 @@ function runGit(args, options) {
       reject(
         new MakerGitError(
           createGitFailure({
-            stage: args[0] || "git",
+            stage: options.stage || args[0] || "git",
             command: `${gitCommand} ${args.join(" ")}`,
             exitCode: null,
             stdout: options.quiet ? "" : stdout,

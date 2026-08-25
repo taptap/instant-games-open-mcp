@@ -150,6 +150,7 @@ export interface MakerGitFailure {
 export interface MakerGitRetryDecision {
   retry: boolean;
   reason?: string;
+  fallbackHttpVersion?: 'HTTP/1.1';
 }
 
 class MakerGitError extends Error {
@@ -1115,7 +1116,19 @@ export function getMakerGitRetryDecision(message: string): MakerGitRetryDecision
   }
 
   if (
-    /connection reset|connection refused|connection closed|remote end hung up|unexpected disconnect|early EOF|RPC failed|index-pack failed|HTTP\/2 stream.*not closed cleanly|SSL_ERROR_SYSCALL|curl\s+(?:18|28|35|52|55|56|92)/i.test(
+    /curl\s+92\b|HTTP\/2 stream.*not closed cleanly|HTTP\/2.{0,80}(?:not supported|unsupported)|(?:server|remote).{0,80}does not support HTTP\/2/i.test(
+      text
+    )
+  ) {
+    return {
+      retry: true,
+      reason: 'http2_transport_error',
+      fallbackHttpVersion: 'HTTP/1.1',
+    };
+  }
+
+  if (
+    /connection reset|connection refused|connection closed|remote end hung up|unexpected disconnect|early EOF|RPC failed|index-pack failed|SSL_ERROR_SYSCALL|curl\s+(?:18|28|35|52|55|56)/i.test(
       text
     )
   ) {
@@ -1211,10 +1224,14 @@ function pushGitWithTransientRetry(
   cwd: string,
   onProgress?: MakerProjectProgressHandler
 ): Promise<number> {
-  return runWithTransientRetry(() => pushGit(args, cwd, onProgress), {
-    stage: 'push',
-    onProgress,
-  });
+  return runMakerGitNetworkOperationWithTransientRetry(
+    args,
+    (effectiveArgs) => pushGit(effectiveArgs, cwd, onProgress),
+    {
+      stage: 'push',
+      onProgress,
+    }
+  );
 }
 
 async function resolveMakerProjectUserId(
@@ -1788,10 +1805,15 @@ async function runGitWithTransientRetry(
     onProgress?: MakerProjectProgressHandler;
   }
 ): Promise<number> {
-  return runWithTransientRetry(() => runGit(args, options), {
-    stage: args[0] || 'git',
-    onProgress: options.onProgress,
-  });
+  const stage = args[0] || 'git';
+  return runMakerGitNetworkOperationWithTransientRetry(
+    args,
+    (effectiveArgs) => runGit(effectiveArgs, { ...options, stage }),
+    {
+      stage,
+      onProgress: options.onProgress,
+    }
+  );
 }
 
 async function runGitCaptureWithTransientRetry(
@@ -1813,6 +1835,7 @@ async function runWithTransientRetry(
   options: {
     stage: string;
     onProgress?: MakerProjectProgressHandler;
+    onRetry?: (decision: MakerGitRetryDecision) => void;
   }
 ): Promise<number> {
   let retries = 0;
@@ -1833,6 +1856,7 @@ async function runWithTransientRetry(
       }
 
       retries += 1;
+      options.onRetry?.(decision);
       options.onProgress?.({
         phase: options.stage,
         message: formatGitRetryProgressMessage(options.stage, decision, retries, maxRetries),
@@ -1842,6 +1866,29 @@ async function runWithTransientRetry(
   }
 }
 
+export async function runMakerGitNetworkOperationWithTransientRetry(
+  args: string[],
+  operation: (effectiveArgs: string[]) => Promise<void>,
+  options: {
+    stage: string;
+    onProgress?: MakerProjectProgressHandler;
+  }
+): Promise<number> {
+  let fallbackHttpVersion: 'HTTP/1.1' | undefined;
+  return runWithTransientRetry(
+    () =>
+      operation(
+        fallbackHttpVersion ? ['-c', `http.version=${fallbackHttpVersion}`, ...args] : [...args]
+      ),
+    {
+      ...options,
+      onRetry: (decision) => {
+        fallbackHttpVersion = decision.fallbackHttpVersion || fallbackHttpVersion;
+      },
+    }
+  );
+}
+
 function formatGitRetryProgressMessage(
   stage: string,
   decision: MakerGitRetryDecision,
@@ -1849,6 +1896,9 @@ function formatGitRetryProgressMessage(
   maxRetries: number
 ): string {
   const reason = decision.reason || 'temporary_remote_failure';
+  if (reason === 'http2_transport_error') {
+    return `Maker git HTTP/2 transport failed; retrying with command-local HTTP/1.1 ${retries}/${maxRetries}. Please keep this running.`;
+  }
   const prefix =
     (stage === 'clone' || stage === 'fetch') && reason === 'remote_http_5xx'
       ? 'Maker server may still be preparing the repository'
@@ -1957,6 +2007,7 @@ function runGit(
   args: string[],
   options: {
     cwd: string;
+    stage?: string;
     quiet?: boolean;
     onProgress?: MakerProjectProgressHandler;
   }
@@ -1983,7 +2034,7 @@ function runGit(
         reject(
           new MakerGitError(
             createGitFailure({
-              stage: args[0] || 'git',
+              stage: options.stage || args[0] || 'git',
               command: `${gitCommand} ${args.join(' ')}`,
               exitCode: code,
               stdout: options.quiet ? '' : stdout,
@@ -1997,7 +2048,7 @@ function runGit(
       reject(
         new MakerGitError(
           createGitFailure({
-            stage: args[0] || 'git',
+            stage: options.stage || args[0] || 'git',
             command: `${gitCommand} ${args.join(' ')}`,
             exitCode: null,
             stdout: options.quiet ? '' : stdout,

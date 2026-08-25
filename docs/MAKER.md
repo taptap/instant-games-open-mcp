@@ -605,7 +605,7 @@ Maker app 列表关键字段：
 - 首次拉取默认使用浅拉取。`taptap-maker init` 在记录已选 app 后，通常执行
   `git init` + `git fetch --depth=1 origin`，再 checkout 远端默认分支，避免大项目在慢网环境下载完整历史。
 - 首次 clone/fetch 前会明确提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
-- `taptap-maker init` 会根据 Git stderr 判断是否自动重试：HTTP 5xx、503、超时、连接重置、HTTP2/RPC 中断、early EOF 等远端临时错误会在 fetch 阶段重试；认证失败、权限不足、仓库不存在、远端拒绝、非空目录冲突、本地权限错误不会重试。
+- `taptap-maker init` 会根据 Git stderr 判断是否自动重试：HTTP 5xx、503、超时、连接重置、HTTP2/RPC 中断、early EOF 等远端临时错误会在 fetch 阶段重试；遇到明确的 HTTP/2 传输错误时，后续 fetch/push 会使用命令级 `http.version=HTTP/1.1` 降级，不修改用户的全局或仓库 Git 配置；认证失败、权限不足、仓库不存在、远端拒绝、非空目录冲突、本地权限错误不会重试。
 - 首次 clone/fetch 默认最多自动重试 5 次，基础等待间隔为 5 秒；连续重试后仍失败时，错误会保留 `retryable`、`retry_reason` 和已重试次数，方便 Agent 判断是让用户稍后直接重试，还是先处理 PAT、权限或本地目录问题。
 - `maker_build_current_directory` 会在本地 commit、push 和远端 build 阶段输出状态，并解析 Git push stderr 中的百分比进度。
 - `maker_build_current_directory` 的 push 阶段也会对远端临时错误自动重试；push 最终失败时不会继续远端 build。
