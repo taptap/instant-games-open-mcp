@@ -16,7 +16,7 @@
 - 不要再次询问用户是否安装。
 - 不要只给出安装建议、命令或步骤，不要让用户手动完成你可以执行的操作。
 - 前置条件：本机需已安装 `dsh` 命令与 [pnpm](https://pnpm.io/)；缺失时先引导安装或直接安装。
-- 直接从 npm registry 安装精确版本 `@taptap/dsh-maker@0.1.1`。GitHub Release tarball 只作为离线安装和排障备用入口。
+- 直接从 npm registry 安装精确版本 `@taptap/dsh-maker@0.1.1`。GitHub Release tarball 只作为离线安装和排障备用入口；改用 tarball 时必须先用同一 Release 的 SHA256SUMS 校验 SHA-256，校验失败时停止安装。
 - 完成安装并验证插件已启用后再向用户报告结果；失败时直接报告具体失败步骤和错误。
 
 ## 安装源
