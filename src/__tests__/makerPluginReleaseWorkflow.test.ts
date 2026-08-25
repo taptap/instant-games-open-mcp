@@ -182,6 +182,14 @@ describe('Maker plugin release workflows', () => {
     expect(publishDsh).toContain('NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}');
     expect(npmPublishStep?.run).toContain('npm view "@taptap/dsh-maker@${RELEASE_VERSION}"');
     expect(npmPublishStep?.run).toContain('(cd artifacts/dsh-maker && sha256sum -c SHA256SUMS)');
+    for (const requiredPath of [
+      'package/lib/index.js',
+      'package/cordis.patch.yml',
+      'package/skills/taptap-maker-dsh/SKILL.md',
+      'package/assets/taptap-maker.png',
+    ]) {
+      expect(npmPublishStep?.run).toContain(requiredPath);
+    }
 
     expect(releaseJob?.steps?.some((step) => step.name === 'Publish GitHub Release')).toBe(true);
   });
