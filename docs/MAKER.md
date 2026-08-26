@@ -357,6 +357,11 @@ Python 运行时策略：
   不由 MCP 自己执行；MCP 只做版本检查并输出 `required_upgrade`、`update_available`、
   `current`、`unavailable` 或 `skipped`。
 - `taptap-maker dev-kit update`：检查当前环境可用的最新 AI dev kit，恢复或更新当前目录。
+- `taptap-maker user-skills pull`：可选地下载当前用户的 Skill ZIP，校验后只覆盖
+  `.installer/skills/` 中 ZIP 包含的同名 Skill，并以原始名称安装到项目内 `.codex/skills/`、
+  `.cursor/skills/` 和 `.workbuddy/skills/`，保留其它本地 Skill。安装优先链接到统一源目录，
+  链接不可用时回退复制。ZIP 使用随 Maker bundle 打包的 `yauzl` 解压，不依赖系统 `unzip`、
+  PowerShell 或 Python。该命令不接入正常开发流程，也不提供 MCP tool。
 
 MCP 运行期能力：
 

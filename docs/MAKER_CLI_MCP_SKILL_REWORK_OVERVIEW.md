@@ -30,24 +30,25 @@ Skill 负责 Agent 决策和失败恢复
 
 CLI 负责所有与本机环境、账号、项目绑定相关的低频动作：
 
-| 命令                          | 作用                                                                          |
-| ----------------------------- | ----------------------------------------------------------------------------- |
-| `taptap-maker init`           | 一站式初始化：Git 检查、PAT、TapTap token、app 选择、dev-kit、clone、MCP 配置 |
-| `taptap-maker doctor`         | 检查 Git、PAT、TapTap token、项目绑定、dev-kit、skill 状态                    |
-| `taptap-maker apps`           | 使用 PAT 获取 Maker app 列表                                                  |
-| `taptap-maker login`          | CLI 登录入口：打开 Maker 授权页，授权完成后自动保存本地鉴权                   |
-| `taptap-maker pat set`        | 兼容入口，仅用于 CI 或应急联调                                                |
-| `taptap-maker python doctor`  | 检查 Maker 本地 Python 运行时，识别 Windows Store alias 等不可用环境          |
-| `taptap-maker python setup`   | 自动准备本地 Lua 诊断环境；准备 Python 后 best-effort 安装 maker-lua-lsp      |
-| `taptap-maker python path`    | 输出 Maker 诊断脚本应使用的真实 Python 可执行文件路径                         |
-| `taptap-maker lua-lsp doctor` | 检查 maker-lua-lsp 是否可用于本地 Lua 诊断                                    |
-| `taptap-maker lua-lsp setup`  | 安装/升级 maker-lua-lsp 并执行 `install --ide codex,cursor,claude`            |
-| `taptap-maker install`        | `taptap-maker mcp install` 的快捷别名，写入 AI 客户端 MCP 配置                |
-| `taptap-maker mcp install`    | 写入默认客户端，并自动检测 Trae/OpenCode/WorkBuddy/DSH                        |
-| `taptap-maker mcp verify`     | 用最终 launcher 完成 MCP 握手与 tools/list；`--mode self` 验证当前 CLI        |
-| `taptap-maker agents update`  | 更新当前项目 `AGENTS.md` 中 TapTap Maker 管理的策略块                         |
-| `taptap-maker upgrade`        | 刷新当前机器 MCP 配置，并更新当前绑定项目的 `AGENTS.md` 受管策略块            |
-| `taptap-maker dev-kit update` | 恢复或更新本地 AI dev-kit                                                     |
+| 命令                            | 作用                                                                          |
+| ------------------------------- | ----------------------------------------------------------------------------- |
+| `taptap-maker init`             | 一站式初始化：Git 检查、PAT、TapTap token、app 选择、dev-kit、clone、MCP 配置 |
+| `taptap-maker doctor`           | 检查 Git、PAT、TapTap token、项目绑定、dev-kit、skill 状态                    |
+| `taptap-maker apps`             | 使用 PAT 获取 Maker app 列表                                                  |
+| `taptap-maker login`            | CLI 登录入口：打开 Maker 授权页，授权完成后自动保存本地鉴权                   |
+| `taptap-maker pat set`          | 兼容入口，仅用于 CI 或应急联调                                                |
+| `taptap-maker python doctor`    | 检查 Maker 本地 Python 运行时，识别 Windows Store alias 等不可用环境          |
+| `taptap-maker python setup`     | 自动准备本地 Lua 诊断环境；准备 Python 后 best-effort 安装 maker-lua-lsp      |
+| `taptap-maker python path`      | 输出 Maker 诊断脚本应使用的真实 Python 可执行文件路径                         |
+| `taptap-maker lua-lsp doctor`   | 检查 maker-lua-lsp 是否可用于本地 Lua 诊断                                    |
+| `taptap-maker lua-lsp setup`    | 安装/升级 maker-lua-lsp 并执行 `install --ide codex,cursor,claude`            |
+| `taptap-maker install`          | `taptap-maker mcp install` 的快捷别名，写入 AI 客户端 MCP 配置                |
+| `taptap-maker mcp install`      | 写入默认客户端，并自动检测 Trae/OpenCode/WorkBuddy/DSH                        |
+| `taptap-maker mcp verify`       | 用最终 launcher 完成 MCP 握手与 tools/list；`--mode self` 验证当前 CLI        |
+| `taptap-maker agents update`    | 更新当前项目 `AGENTS.md` 中 TapTap Maker 管理的策略块                         |
+| `taptap-maker upgrade`          | 刷新当前机器 MCP 配置，并更新当前绑定项目的 `AGENTS.md` 受管策略块            |
+| `taptap-maker dev-kit update`   | 恢复或更新本地 AI dev-kit                                                     |
+| `taptap-maker user-skills pull` | 下载个人 Skill，并安装到项目内 Codex、Cursor、WorkBuddy；不接入 init          |
 
 设计原则：
 

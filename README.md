@@ -141,6 +141,7 @@ taptap-maker upgrade
 taptap-maker mcp verify
 npx -y --package @taptap/maker@<exact-version> taptap-maker mcp report --ide <client> --target-dir <project> --context-stdin --consent --json
 taptap-maker dev-kit update
+taptap-maker user-skills pull --target-dir <project>
 ```
 
 普通初始化、clone、下载或拉取远端项目的标准命令是 `taptap-maker init`，CLI 会展示 app 列表，
@@ -215,6 +216,10 @@ MCP 进程自身的 cwd 只作为最后兜底和诊断信息，不应通过重�
 和 `taptap-maker doctor` 会检查老项目 `AGENTS.md` 是否缺失或过期，并提示运行
 `taptap-maker agents update` 或 `taptap-maker upgrade`。
 `taptap-maker dev-kit update` 会检查当前环境可用的最新 AI dev kit 并更新当前目录。
+`taptap-maker user-skills pull` 是可选的边缘命令，仅在用户明确要求时从 Maker Server 下载个人
+Skill，并覆盖项目 `.installer/skills/` 中 ZIP 包含的同名目录，再以原始 Skill 名称安装到项目内
+`.codex/skills/`、`.cursor/skills/` 和 `.workbuddy/skills/`；其它本地 Skill 保持不变。
+该命令不属于正常开发或初始化流程，也不会增加 MCP tool。
 
 如果 Maker MCP tools 缺失或出现 `-32000` / `Connection closed`，先按
 [TapTap Maker MCP 本地连接自检与修复指引](docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md)
