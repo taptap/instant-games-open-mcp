@@ -105,8 +105,10 @@ WorkBuddy 插件位于 `plugins/workbuddy/taptap-maker`，通过
 
 DeepSeek Harness（DSH）的 Maker 集成分两层：L1 是 `taptap-maker install --ide dsh` 写入的
 裸 `mcp-client` 行（见下文“环境变量”与 DSH 配置小节）；L2 是 bundle 插件 `@taptap/dsh-maker`，
-位于 `packages/dsh-maker/`，通过 1024Store 对应的公开 npm 包分发，把 **Maker MCP + 技能**
+位于 `packages/dsh-maker/`，通过官方 DSH CLI 从 npm registry 分发，把 **Maker MCP + 技能**
 打包成可一键安装、可 HMR 的 DSH bundle；GitHub Release tarball 保留为预览版和离线备用入口。
+
+社区目录和市场 UI 的关系见 [DSH_PLUGIN_MARKETS.md](DSH_PLUGIN_MARKETS.md)。
 
 插件由一个 bundle patch 行（`id: taptap-maker`）在激活时挂两个子插件并注册一个 shell 环境变量：
 宿主平面 `skill-filesystem` 实例（`providerName: maker` + `bundledSkillDir: skills/`，只读挂本包

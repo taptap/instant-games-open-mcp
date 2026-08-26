@@ -39,9 +39,11 @@ headless profile 同理：
 dsh plugin --profile headless add @taptap/dsh-maker
 ```
 
-1024Store 使用公开 npm 包 `@taptap/dsh-maker` 作为市场安装和更新入口。需要固定版本时，在包名后
-追加版本号，例如 `@taptap/dsh-maker@<version>`。对应的 `dsh-maker-v*` GitHub Release 继续提供
-tarball 和 SHA-256，作为预览版、离线安装及排障备用入口。
+官方 DSH CLI 直接从 npm registry 安装公开包 `@taptap/dsh-maker`。需要固定版本时，在包名后追加
+版本号，例如 `@taptap/dsh-maker@<version>`。对应的 `dsh-maker-v*` GitHub Release 继续提供
+tarball 和 SHA-256，作为预览版、离线安装及排障备用入口。社区市场收录关系见源码仓库的
+`docs/DSH_PLUGIN_MARKETS.md`：`awesome-dsh-plugin` 是社区目录，`dsh-market` 是读取该目录的
+市场 UI，`deepseek1024.com` 是第三方市场。
 
 DSH 会热重载该 patch，无需重启。验证：
 
@@ -126,4 +128,4 @@ dsh plugin --profile web remove @taptap/dsh-maker
 
 - 正式包由仓库的 `Publish DSH Maker Plugin` workflow 同时发布到 npm `latest` 和 GitHub Release。
 - `develop` 预览版只发布 GitHub prerelease，不写入 npm；`main` 稳定版才发布公开 npm 包。
-- 1024Store 使用 npm 包名 `@taptap/dsh-maker`；源码和问题反馈入口由 `package.json` 提供。
+- npm 包名为 `@taptap/dsh-maker`；源码和问题反馈入口由 `package.json` 提供。
