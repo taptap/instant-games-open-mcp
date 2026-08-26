@@ -7,6 +7,11 @@ on:
         description: 'Exact @taptap/maker version for a develop preview, for example 0.0.32-beta.1'
         required: false
         type: string
+      use_create_package_token:
+        description: 'Use NPM_CREATE_PKG_TOKEN for the first @taptap/dsh-maker publication only'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -212,7 +217,9 @@ jobs:
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CREATE_PKG_TOKEN: ${{ secrets.NPM_CREATE_PKG_TOKEN }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          USE_CREATE_PACKAGE_TOKEN: ${{ inputs.use_create_package_token }}
         run: |
           set -euo pipefail
           (cd artifacts/dsh-maker && sha256sum -c SHA256SUMS)
@@ -256,7 +263,33 @@ jobs:
             exit 1
           fi
 
-          npm publish "$tarball" --access public --tag latest
+          if [[ "$USE_CREATE_PACKAGE_TOKEN" == "true" ]]; then
+            if [[ -z "$NPM_CREATE_PKG_TOKEN" ]]; then
+              echo "::error::NPM_CREATE_PKG_TOKEN is not configured."
+              exit 1
+            fi
+
+            package_view_error_file="$RUNNER_TEMP/dsh-maker-package-view-error.txt"
+            set +e
+            npm view "@taptap/dsh-maker" version >/dev/null 2>"$package_view_error_file"
+            package_view_status=$?
+            set -e
+
+            if [[ $package_view_status -eq 0 ]]; then
+              echo "::error::@taptap/dsh-maker already exists; use the normal NPM_TOKEN."
+              exit 1
+            fi
+            if ! grep -q "E404" "$package_view_error_file"; then
+              echo "::error::Unable to confirm that @taptap/dsh-maker is unpublished."
+              cat "$package_view_error_file"
+              exit 1
+            fi
+
+            NODE_AUTH_TOKEN="$NPM_CREATE_PKG_TOKEN" npm publish \
+              "$tarball" --access public --tag latest
+          else
+            npm publish "$tarball" --access public --tag latest
+          fi
           echo "Published @taptap/dsh-maker@$RELEASE_VERSION"
 
   publish-release:
