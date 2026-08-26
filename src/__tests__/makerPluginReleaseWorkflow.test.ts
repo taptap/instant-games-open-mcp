@@ -135,6 +135,12 @@ describe('Maker plugin release workflows', () => {
 
     expect(workflow.on?.push).toBeUndefined();
     expect(workflow.on?.workflow_dispatch?.inputs).toHaveProperty('maker_version');
+    expect(workflow.on?.workflow_dispatch?.inputs?.use_create_package_token).toEqual(
+      expect.objectContaining({
+        default: false,
+        type: 'boolean',
+      })
+    );
     expect(publishDsh).toContain('Manually dispatch from main or develop.');
     expect(publishDsh).toContain('name: Require DSH plugin release support');
     expect(publishDsh).toContain('Selected branch does not contain DSH plugin release support');
@@ -179,7 +185,13 @@ describe('Maker plugin release workflows', () => {
     expect(npmPublishStep?.run).not.toContain('--provenance');
     expect(npmPublishJob?.permissions).toEqual({ contents: 'read' });
     expect(publishDsh).toContain('NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}');
+    expect(publishDsh).toContain('NPM_CREATE_PKG_TOKEN: ${{ secrets.NPM_CREATE_PKG_TOKEN }}');
+    expect(publishDsh).toContain(
+      'USE_CREATE_PACKAGE_TOKEN: ${{ inputs.use_create_package_token }}'
+    );
     expect(npmPublishStep?.run).toContain('npm view "@taptap/dsh-maker@${RELEASE_VERSION}"');
+    expect(npmPublishStep?.run).toContain('npm view "@taptap/dsh-maker" version');
+    expect(npmPublishStep?.run).toContain('NODE_AUTH_TOKEN="$NPM_CREATE_PKG_TOKEN" npm publish');
     expect(npmPublishStep?.run).toContain('(cd artifacts/dsh-maker && sha256sum -c SHA256SUMS)');
     for (const requiredPath of [
       'package/lib/index.js',
