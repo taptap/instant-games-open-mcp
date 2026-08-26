@@ -368,7 +368,8 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   同时发布 npm `latest` 和 GitHub Release；1024Store 使用 npm 包名作为市场入口。DSH 发布不得
   复用 Codex/WorkBuddy 插件版本、ZIP workflow 或 Maker 主包发布 workflow。DSH npm job 必须独占
   仅允许 `main` 的 `dsh_npm_publish` environment；不得复用需要支持 Maker develop beta 的
-  `npm_publish` environment。
+  `npm_publish` environment。DSH npm 发布只使用仓库 `NPM_TOKEN`，不使用 OIDC/provenance；OIDC
+  仅用于 Maker MCP 主包发布。
 - 客户端专属源文件必须放在 `plugin-sources/taptap-maker/<client>/`；生成产物必须按客户端隔离。
   不得把 WorkBuddy manifest、commands、Skills 或 MCP 配置写入 Codex 插件目录。新增客户端时复用
   `src/maker/` 的 runtime/CLI，不复制 Maker tools、resources 或 proxy 业务逻辑。
