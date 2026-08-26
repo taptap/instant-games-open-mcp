@@ -78,7 +78,7 @@ packages/dsh-maker/
 前置：已装 DSH（`dsh`）与 pnpm。
 
 ```bash
-# 从 1024Store 使用的 npm 包安装（web profile；headless 同理）
+# 直接从 npm registry 安装（web profile；headless 同理）
 dsh plugin --profile web add @taptap/dsh-maker
 
 # 验证
@@ -119,10 +119,15 @@ dsh plugin --profile web remove @taptap/dsh-maker
 
 DSH 插件有两条互补的分发入口：
 
-- **1024Store / npm**：市场条目使用公开包 `@taptap/dsh-maker`，稳定版安装和更新跟随 npm
+- **npm registry**：官方 DSH CLI 直接安装公开包 `@taptap/dsh-maker`，稳定版安装和更新跟随 npm
   `latest`；固定版本可使用 `@taptap/dsh-maker@<version>`。
 - **GitHub Release tarball**：用于 develop 预览、离线安装和排障。用户把发版页链接交给 AI，AI
   按页面下载、校验 SHA-256 后安装。
+
+社区市场的关系和提交入口见 [`docs/DSH_PLUGIN_MARKETS.md`](DSH_PLUGIN_MARKETS.md)。本插件已向
+[`awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 提交收录 PR；
+[`dsh-market`](https://github.com/dsh-market/dsh-market) 会读取该目录。`deepseek1024.com` 是
+第三方市场，不能当作 DSH 官方市场或社区主目录的替代入口。
 
 - **发版页**：`packages/dsh-maker/INSTALL.md`（稳定页，含“给安装 AI 的强制执行指令”、下载链接、
   安装步骤、排障与回滚）。
@@ -144,12 +149,13 @@ DSH 插件有两条互补的分发入口：
 - `@taptap/maker` 使用精确版本；手动从 develop 发布预览版时可通过 `maker_version` 输入指定精确
   beta runtime，main 稳定版只读取清单中的稳定 runtime。工作流会先通过 npm 校验该版本确实已
   发布，避免安装时依赖不存在。
-- `packages/dsh-maker/` 与 `docs/DSH_PLUGIN.md` 已纳入 `scripts/release-scope.cjs` 的 maker
-  归属，只改本插件的提交不会误触发主包发布。
+- `packages/dsh-maker/`、`docs/DSH_PLUGIN.md` 与 `docs/DSH_PLUGIN_MARKETS.md` 已纳入
+  `scripts/release-scope.cjs` 的 maker 归属，只改本插件的提交不会误触发主包发布。
 - 稳定版发布公开 npm 包 `@taptap/dsh-maker`；develop 预览版不写入 npm registry。
-- 1024Store catalog 登记 npm 包名；插件保持标准 bundle 形态，并使用
-  `assets/taptap-maker.png` 作为市场图标。
+- 社区 registry 根据 npm 包的 `repository` 和 `repository.directory` 自动关联包名；插件保持标准
+  bundle 形态，并使用 `assets/taptap-maker.png` 作为市场图标。
 
 ## 相关文档
 
 - L1 配置：[`docs/MAKER.md`](MAKER.md)（DSH 章节）
+- 市场辨识与提交入口：[`docs/DSH_PLUGIN_MARKETS.md`](DSH_PLUGIN_MARKETS.md)

@@ -39,6 +39,7 @@ describe('release-scope classifier', () => {
       true
     );
     expect(releaseScope.isMakerOwnedPath('docs/DSH_PLUGIN.md')).toBe(true);
+    expect(releaseScope.isMakerOwnedPath('docs/DSH_PLUGIN_MARKETS.md')).toBe(true);
     expect(releaseScope.isMakerOwnedPath('.github/workflows/release.yml')).toBe(false);
     expect(releaseScope.isMakerOwnedPath('package.json')).toBe(false);
   });

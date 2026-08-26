@@ -181,9 +181,11 @@ DSH 使用 `@deepseek-ai/dsh-mcp-client` 插件，不使用 `mcp.json`。检测�
 两者都可由 DSH HMR 热重载。配置不写项目 `cwd`；DSH 当前
 不广播 MCP Roots，因此 AI 必须在具体 Maker tool 调用中把当前游戏项目作为 `target_dir` 传入。
 需要把 Maker 技能（工作流 + 广告/云存档/排行榜指南）一并打包进 DSH 时，可用 bundle 插件
-`@taptap/dsh-maker`（源码 `packages/dsh-maker/`），通过 1024Store 对应的公开 npm 包一键安装，
-详见 [docs/DSH_PLUGIN.md](docs/DSH_PLUGIN.md)。稳定版从 npm 获取；`dsh-maker-v*` GitHub Release
-继续提供预览版和离线安装 tarball。该插件与 L1 的裸 MCP 行不要同时启用。
+`@taptap/dsh-maker`（源码 `packages/dsh-maker/`），通过官方 DSH CLI 从 npm registry 一键安装，
+详见 [docs/DSH_PLUGIN.md](docs/DSH_PLUGIN.md) 和 [docs/DSH_PLUGIN_MARKETS.md](docs/DSH_PLUGIN_MARKETS.md)。
+稳定版从 npm 获取；`dsh-maker-v*` GitHub Release 继续提供预览版和离线安装 tarball。该插件与
+L1 的裸 MCP 行不要同时启用。社区目录和市场 UI 的关系以 `awesome-dsh-plugin` → `dsh-market`
+为准，`deepseek1024.com` 是第三方市场。
 其它 AI 编辑器应优先让本地 AI 复用 `taptap-maker mcp install` 已验证的绝对 command/args。
 只有无法复用安装器时，才使用下面固定精确版本的 npx 兼容片段：
 

@@ -31,6 +31,7 @@ const MAKER_EXACT_PATHS = new Set([
   'docs/MAKER.md',
   'docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md',
   'docs/DSH_PLUGIN.md',
+  'docs/DSH_PLUGIN_MARKETS.md',
   'scripts/bundle-maker.js',
   'scripts/package-maker-client-plugins.js',
   'scripts/package-maker-dsh-plugin.js',

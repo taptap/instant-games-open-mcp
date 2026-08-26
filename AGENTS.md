@@ -365,7 +365,8 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   仓库添加 marketplace 只用于源码验证，并且必须在添加前用生成目录中的 CLI 完成旧 MCP 检查。
 - DSH bundle 插件 `@taptap/dsh-maker` 位于 `packages/dsh-maker/`，使用独立版本并精确依赖
   `@taptap/maker`。`Publish DSH Maker Plugin` 从 `develop` 只发布 GitHub prerelease，从 `main`
-  同时发布 npm `latest` 和 GitHub Release；1024Store 使用 npm 包名作为市场入口。DSH 发布不得
+  同时发布 npm `latest` 和 GitHub Release；官方 DSH CLI 直接从 npm registry 安装，社区市场入口见
+  `docs/DSH_PLUGIN_MARKETS.md`。DSH 发布不得
   复用 Codex/WorkBuddy 插件版本、ZIP workflow 或 Maker 主包发布 workflow。DSH npm job 必须独占
   仅允许 `main` 的 `dsh_npm_publish` environment；不得复用需要支持 Maker develop beta 的
   `npm_publish` environment。
