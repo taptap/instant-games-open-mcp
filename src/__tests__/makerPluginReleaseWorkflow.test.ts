@@ -124,7 +124,6 @@ describe('Maker plugin release workflows', () => {
     expect(dshWorkflow.jobs?.prepare?.permissions?.['id-token']).toBeUndefined();
     expect(dshWorkflow.jobs?.['publish-npm']?.permissions).toEqual({
       contents: 'read',
-      'id-token': 'write',
     });
     expect(dshWorkflow.jobs?.['publish-release']?.permissions).toEqual({
       contents: 'write',
@@ -154,7 +153,7 @@ describe('Maker plugin release workflows', () => {
       (step) => step.name === 'Pin npm for reproducible packaging'
     );
     const upgradeStep = npmPublishJob?.steps?.find(
-      (step) => step.name === 'Upgrade npm for trusted publishing'
+      (step) => step.name === 'Upgrade npm for token publishing'
     );
     const npmPublishStep = npmPublishJob?.steps?.find(
       (step) => step.name === 'Publish stable package to npm'
@@ -176,9 +175,9 @@ describe('Maker plugin release workflows', () => {
     expect(publishDsh).toContain('registry-url: https://registry.npmjs.org');
     expect(prepareNpmStep?.run).toContain('npm install -g npm@11.5.1');
     expect(upgradeStep?.run).toContain('npm install -g npm@11.5.1');
-    expect(npmPublishStep?.run).toContain(
-      'npm publish "$tarball" --access public --tag latest --provenance'
-    );
+    expect(npmPublishStep?.run).toContain('npm publish "$tarball" --access public --tag latest');
+    expect(npmPublishStep?.run).not.toContain('--provenance');
+    expect(npmPublishJob?.permissions).toEqual({ contents: 'read' });
     expect(publishDsh).toContain('NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}');
     expect(npmPublishStep?.run).toContain('npm view "@taptap/dsh-maker@${RELEASE_VERSION}"');
     expect(npmPublishStep?.run).toContain('(cd artifacts/dsh-maker && sha256sum -c SHA256SUMS)');

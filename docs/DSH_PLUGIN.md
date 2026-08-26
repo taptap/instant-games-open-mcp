@@ -132,8 +132,8 @@ DSH 插件有两条互补的分发入口：
   只创建 GitHub prerelease；选择 `main` 发布稳定版时，先把相同 tarball 发布到 npm `latest`，再创建
   tag `dsh-maker-v<version>` 的 GitHub Release，把 tarball、`SHA256SUMS` 上传为附件，
   `INSTALL.md` 作为 Release 说明。npm 发布使用仅允许 `main` 的专用
-  `dsh_npm_publish` environment；首次创建包可用仓库 `NPM_TOKEN`，配置 Trusted Publisher 后切换为
-  OIDC，并把 Trusted Publisher 的 Environment 设为 `dsh_npm_publish`。
+  `dsh_npm_publish` environment；使用仓库 `NPM_TOKEN` 发布新包，不启用 OIDC/provenance。
+  OIDC 仅用于 Maker MCP 主包发布，不用于 DSH 插件包。
 
 本地（未发版）分发：跑一次 `npm run maker:dsh-plugin:package`，把
 `taptap-dsh-maker-<version>.tgz` 和 `SHA256SUMS` 交给测试用户，用户（或其 AI）执行

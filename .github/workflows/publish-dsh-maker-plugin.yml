@@ -189,7 +189,6 @@ jobs:
     environment: dsh_npm_publish
     permissions:
       contents: read
-      id-token: write
     steps:
       - name: Download release artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -203,7 +202,7 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Upgrade npm for trusted publishing
+      - name: Upgrade npm for token publishing
         run: |
           npm install -g npm@11.5.1
           node --version
@@ -257,7 +256,7 @@ jobs:
             exit 1
           fi
 
-          npm publish "$tarball" --access public --tag latest --provenance
+          npm publish "$tarball" --access public --tag latest
           echo "Published @taptap/dsh-maker@$RELEASE_VERSION"
 
   publish-release:
