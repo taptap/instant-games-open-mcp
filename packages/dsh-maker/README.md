@@ -42,8 +42,9 @@ dsh plugin --profile headless add @taptap/dsh-maker
 官方 DSH CLI 直接从 npm registry 安装公开包 `@taptap/dsh-maker`。需要固定版本时，在包名后追加
 版本号，例如 `@taptap/dsh-maker@<version>`。对应的 `dsh-maker-v*` GitHub Release 继续提供
 tarball 和 SHA-256，作为预览版、离线安装及排障备用入口。社区市场收录关系见源码仓库的
-`docs/DSH_PLUGIN_MARKETS.md`：`awesome-dsh-plugin` 是社区目录，`dsh-market` 是读取该目录的
-市场 UI，`deepseek1024.com` 是第三方市场。
+[DSH 插件市场与分发入口](https://github.com/taptap/instant-games-open-mcp/blob/main/docs/DSH_PLUGIN_MARKETS.md)：
+`awesome-dsh-plugin` 是社区目录，`dsh-market` 是读取该目录的市场 UI，`deepseek1024.com` 是
+第三方市场。
 
 DSH 会热重载该 patch，无需重启。验证：
 

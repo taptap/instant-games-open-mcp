@@ -149,8 +149,8 @@ DSH 插件有两条互补的分发入口：
 - `@taptap/maker` 使用精确版本；手动从 develop 发布预览版时可通过 `maker_version` 输入指定精确
   beta runtime，main 稳定版只读取清单中的稳定 runtime。工作流会先通过 npm 校验该版本确实已
   发布，避免安装时依赖不存在。
-- `packages/dsh-maker/` 与 `docs/DSH_PLUGIN.md` 已纳入 `scripts/release-scope.cjs` 的 maker
-  归属，只改本插件的提交不会误触发主包发布。
+- `packages/dsh-maker/`、`docs/DSH_PLUGIN.md` 与 `docs/DSH_PLUGIN_MARKETS.md` 已纳入
+  `scripts/release-scope.cjs` 的 maker 归属，只改本插件的提交不会误触发主包发布。
 - 稳定版发布公开 npm 包 `@taptap/dsh-maker`；develop 预览版不写入 npm registry。
 - 社区 registry 根据 npm 包的 `repository` 和 `repository.directory` 自动关联包名；插件保持标准
   bundle 形态，并使用 `assets/taptap-maker.png` 作为市场图标。
@@ -158,3 +158,4 @@ DSH 插件有两条互补的分发入口：
 ## 相关文档
 
 - L1 配置：[`docs/MAKER.md`](MAKER.md)（DSH 章节）
+- 市场辨识与提交入口：[`docs/DSH_PLUGIN_MARKETS.md`](DSH_PLUGIN_MARKETS.md)

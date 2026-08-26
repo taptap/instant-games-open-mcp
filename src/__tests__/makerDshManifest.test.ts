@@ -34,7 +34,10 @@ describe('@taptap/dsh-maker manifest', () => {
   it('uses the published npm package as the DSH marketplace install source', () => {
     const readme = readFileSync(join(REPO_ROOT, 'packages', 'dsh-maker', 'README.md'), 'utf8');
     expect(readme).toContain('dsh plugin --profile web add @taptap/dsh-maker');
-    expect(readme).toContain('1024Store 使用公开 npm 包 `@taptap/dsh-maker`');
+    expect(readme).toContain('官方 DSH CLI 直接从 npm registry 安装公开包 `@taptap/dsh-maker`');
+    expect(readme).toContain(
+      '[DSH 插件市场与分发入口](https://github.com/taptap/instant-games-open-mcp/blob/main/docs/DSH_PLUGIN_MARKETS.md)'
+    );
     expect(readme).not.toContain("'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'");
   });
 
