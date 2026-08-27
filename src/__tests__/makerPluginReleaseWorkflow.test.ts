@@ -73,7 +73,8 @@ describe('Maker plugin release workflows', () => {
     expect(publish).toContain('next_version');
     expect(publish).toContain('--prerelease');
     expect(publish).toContain('p.version=process.argv[1]');
-    expect(publish).toContain("path='.codebuddy-plugin/marketplace.json'");
+    expect(publish).not.toContain("path='.agents/plugins/marketplace.json'");
+    expect(publish).not.toContain("path='.codebuddy-plugin/marketplace.json'");
   });
 
   it('passes GitHub values to shell through environment variables', () => {

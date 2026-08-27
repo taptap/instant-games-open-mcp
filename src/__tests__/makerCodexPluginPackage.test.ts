@@ -190,6 +190,8 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(readme).toContain(`内置 Maker MCP 版本：\`${makerVersion}\``);
     expect(readme).toContain('当前宿主客户端是 Codex');
     expect(readme).toContain('当前宿主客户端是 WorkBuddy');
+    expect(readme).toContain('WorkBuddy 官方插件市场');
+    expect(readme).toContain('WorkBuddy 发布 ZIP 只用于插件市场提交');
     expect(readme).toContain('用户在当前对话中直接提供本页面链接');
     expect(readme).toContain('立即执行完整安装流程');
     expect(readme).toContain('不要再次询问用户是否安装');
@@ -229,6 +231,8 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(readme).toContain(
       `/releases/download/maker-plugin-v${pluginVersion}/taptap-maker-workbuddy-plugin-${pluginVersion}.zip`
     );
+    expect(readme).not.toContain('/plugin marketplace add <解压目录>');
+    expect(readme).not.toContain('/plugin install taptap-maker@taptap-maker');
   });
 
   test('keeps committed client bundles aligned with the shared plugin lifecycle guidance', () => {

@@ -9,6 +9,40 @@ import { spawnSync } from 'node:child_process';
 
 const projectRoot = path.resolve(__dirname, '../..');
 
+function listZipEntries(archivePath: string) {
+  const archive = fs.readFileSync(archivePath);
+  const minimumEocdSize = 22;
+  const maximumCommentSize = 0xffff;
+  const searchStart = Math.max(0, archive.length - minimumEocdSize - maximumCommentSize);
+  let eocdOffset = -1;
+  for (let offset = archive.length - minimumEocdSize; offset >= searchStart; offset -= 1) {
+    if (archive.readUInt32LE(offset) === 0x06054b50) {
+      eocdOffset = offset;
+      break;
+    }
+  }
+  if (eocdOffset < 0) {
+    throw new Error(`Missing ZIP end-of-central-directory record: ${archivePath}`);
+  }
+
+  const entryCount = archive.readUInt16LE(eocdOffset + 10);
+  let offset = archive.readUInt32LE(eocdOffset + 16);
+  const entries: string[] = [];
+  for (let index = 0; index < entryCount; index += 1) {
+    if (archive.readUInt32LE(offset) !== 0x02014b50) {
+      throw new Error(`Invalid ZIP central-directory entry ${index}: ${archivePath}`);
+    }
+    const fileNameLength = archive.readUInt16LE(offset + 28);
+    const extraFieldLength = archive.readUInt16LE(offset + 30);
+    const commentLength = archive.readUInt16LE(offset + 32);
+    const fileNameStart = offset + 46;
+    const fileNameEnd = fileNameStart + fileNameLength;
+    entries.push(archive.subarray(fileNameStart, fileNameEnd).toString('utf8'));
+    offset = fileNameEnd + extraFieldLength + commentLength;
+  }
+  return entries;
+}
+
 describe('TapTap Maker plugin release version', () => {
   test('keeps a stable plugin version independently from the embedded Maker MCP', () => {
     const pluginPolicy = JSON.parse(
@@ -96,17 +130,27 @@ describe('TapTap Maker plugin release version', () => {
     expect(fs.statSync(path.join(tempDir, codexAsset)).size).toBeGreaterThan(0);
     expect(fs.statSync(path.join(tempDir, workBuddyAsset)).size).toBeGreaterThan(0);
     const codexArchive = fs.readFileSync(path.join(tempDir, codexAsset));
-    const workBuddyArchive = fs.readFileSync(path.join(tempDir, workBuddyAsset));
     expect(codexArchive.includes(Buffer.from('.agents/plugins/marketplace.json'))).toBe(true);
     expect(
       codexArchive.includes(Buffer.from('plugins/taptap-maker/.codex-plugin/plugin.json'))
     ).toBe(true);
-    expect(workBuddyArchive.includes(Buffer.from('.codebuddy-plugin/marketplace.json'))).toBe(true);
+    const workBuddyArchivePath = path.join(tempDir, workBuddyAsset);
+    const workBuddyEntries = listZipEntries(workBuddyArchivePath);
+    expect(workBuddyEntries).toContain('.codebuddy-plugin/plugin.json');
+    expect(workBuddyEntries).toContain('.mcp.json');
+    expect(workBuddyEntries).toContain('SKILL.md');
+    expect(workBuddyEntries).toContain('skills/taptap-maker-local/SKILL.md');
+    expect(workBuddyEntries).not.toContain('.codebuddy-plugin/marketplace.json');
+    expect(workBuddyEntries.some((entry) => entry.startsWith('plugins/'))).toBe(false);
     expect(
-      workBuddyArchive.includes(
-        Buffer.from('plugins/workbuddy/taptap-maker/.codebuddy-plugin/plugin.json')
-      )
-    ).toBe(true);
+      workBuddyEntries.some((entry) => entry.includes('__MACOSX') || entry.endsWith('.DS_Store'))
+    ).toBe(false);
+    for (const entry of workBuddyEntries) {
+      const normalized = entry.endsWith('/') ? entry.slice(0, -1) : entry;
+      const segments = normalized.split('/').filter(Boolean);
+      const directoryDepth = entry.endsWith('/') ? segments.length : segments.length - 1;
+      expect(directoryDepth).toBeLessThanOrEqual(2);
+    }
     expect(checksums).toMatch(new RegExp(`^[a-f0-9]{64}  ${codexAsset}$`, 'm'));
     expect(checksums).toMatch(new RegExp(`^[a-f0-9]{64}  ${workBuddyAsset}$`, 'm'));
     expect(release).toEqual(

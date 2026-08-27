@@ -12,3 +12,7 @@ WorkBuddy 会话启动时，插件会只读检查是否仍有独立 Maker MCP �
 
 初始化或更新 dev-kit 后，插件会把项目内 `.installer/skills` 中的 Skills 补充到
 `.workbuddy/skills/taptap-maker-*`。同步只补齐缺失项，不覆盖已有同名 Skill。
+
+正式发布 ZIP 直接以插件根目录作为压缩包根目录，不包含额外的 `taptap-maker/` 或
+`plugins/workbuddy/taptap-maker/` 外层目录。WorkBuddy 产物目录深度最多为两层，并在根目录包含
+`.codebuddy-plugin/plugin.json`、`.mcp.json`、`README.md` 和 `SKILL.md`。
