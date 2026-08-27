@@ -107,6 +107,12 @@ Closes #123
 - ✅ 分支前缀和 commit type 都必须反映实际改动；`feature/` 通常对应 `feat:`，会使中版本号 +1
 - ❌ **PR 合并后不会自动发布 npm**
 - ✅ **主包 npm 发布只能手动运行 GitHub Actions workflow**
+- ✅ 主包 Native 复用必须绑定 npm 当前线上版本对应的 `v<version>` tag 和 Release，并校验
+  6 个平台资产完整；不得读取仓库最新 Release，以免混入 Maker、DSH 或客户端插件版本。
+- ✅ 主包 release tag 必须指向实际发布源码提交；创建 tag 前比较 workflow 启动提交与 tag
+  目标的 Native 源码，存在差异必须停止，禁止让 tag 指向未参与 Native 构建的并发合并。
+- ✅ macOS Intel Native 必须显式传入 `x86_64-apple-darwin` target；ARM64 musl 交叉编译固定
+  Rust `1.97.0` 并启用 fail-fast，直到 Zig 工具链确认兼容 Rust 1.98 的新链接参数。
 
 **工作流程：**
 

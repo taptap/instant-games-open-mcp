@@ -316,11 +316,16 @@ npx commitlint --from HEAD~1 --to HEAD
 
 1. **解析版本** - 从 npm `latest` 读取当前线上版本，默认只递增 patch。
 2. **预检 Summary** - 展示当前线上版本、目标版本、是否修改 major/minor。
-3. **质量检查** - 运行 lint、format check、build、test。
-4. **生成发布产物** - 更新 `package.json`，生成主包 CHANGELOG / Release notes。
-5. **发布到 npm** - 发布 `@taptap/instant-games-open-mcp@latest`。
-6. **创建 release PR** - 写回 `package.json` / `package-lock.json` / `CHANGELOG.md`。
-7. **创建 GitHub Release** - release PR 合并后创建 tag 和 GitHub Release。
+3. **解析 Native 来源** - 仅使用当前线上主包版本对应的 `v<version>` tag 和 Release；
+   Maker、DSH 和客户端插件的独立 tag / Release 不参与主包 Native 变更比较或产物复用。
+   复用前必须确认 6 个受支持平台的 Native 资产全部存在，缺少任一平台都重新构建。
+   新 tag 指向实际发布源码提交；创建 tag 前再次校验该提交与 workflow 启动提交的 Native
+   源码完全一致，防止发布期间并发合并造成 tag 与二进制错位。
+4. **质量检查** - 运行 lint、format check、build、test。
+5. **生成发布产物** - 更新 `package.json`，生成主包 CHANGELOG / Release notes。
+6. **发布到 npm** - 发布 `@taptap/instant-games-open-mcp@latest`。
+7. **创建 release PR** - 写回 `package.json` / `package-lock.json` / `CHANGELOG.md`。
+8. **创建 GitHub Release** - release PR 合并后创建 tag 和 GitHub Release。
 
 **npm 发布策略**：
 
