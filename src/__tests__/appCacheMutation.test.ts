@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { spawn } from 'node:child_process';
 import {
   clearAppCache,
   getCachePath,
@@ -46,18 +47,66 @@ describe('app cache mutation recovery', () => {
     expect(fs.existsSync(cachePath)).toBe(false);
   });
 
-  test('readAppCache returns null promptly when another process holds the cache lock', () => {
+  test('readAppCache waits for a short mutation and returns the committed cache', async () => {
     const cacheKey = `/tmp/taptap-cache-mutation-locked-${Date.now()}-${Math.random()}`;
     const cachePath = getCachePath(cacheKey);
     const cacheDir = path.dirname(cachePath);
+    const lockPath = `${cachePath}.lock`;
     cacheDirs.push(cacheDir);
-    fs.mkdirSync(`${cachePath}.lock`, { recursive: true });
+    saveAppCache({ developer_id: 100, app_id: 200 }, cacheKey);
 
-    const startedAt = Date.now();
-    const cached = readAppCache(cacheKey);
+    const holder = spawn(
+      process.execPath,
+      [
+        '-e',
+        `
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const lockPath = process.argv[1];
+          const cachePath = process.argv[2];
+          fs.mkdirSync(lockPath, { recursive: true });
+          const ownerPath = path.join(lockPath, 'test-owner');
+          const ownerFd = fs.openSync(ownerPath, 'wx');
+          fs.writeFileSync(ownerFd, JSON.stringify({ pid: process.pid, holds_open: true }), 'utf8');
+          fs.writeSync(1, 'ready\\n');
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150);
+          const cache = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+          fs.writeFileSync(cachePath, JSON.stringify({ ...cache, app_id: 201 }, null, 2), 'utf8');
+          fs.closeSync(ownerFd);
+          try { fs.unlinkSync(ownerPath); } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+          }
+          try { fs.rmdirSync(lockPath); } catch (error) {
+            if (error.code !== 'ENOENT' && error.code !== 'ENOTEMPTY') throw error;
+          }
+        `,
+        lockPath,
+        cachePath,
+      ],
+      { stdio: ['ignore', 'pipe', 'inherit'] }
+    );
+    const holderExited = new Promise<void>((resolve, reject) => {
+      holder.once('error', reject);
+      holder.once('exit', (code) => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
+    });
+    const holderReady = new Promise<void>((resolve) => {
+      holder.stdout.once('data', () => resolve());
+    });
 
-    expect(cached).toBeNull();
-    expect(Date.now() - startedAt).toBeLessThan(1000);
+    try {
+      await Promise.race([
+        holderReady,
+        holderExited.then(() => {
+          throw new Error('cache lock holder exited before signaling ready');
+        }),
+      ]);
+
+      const cached = readAppCache(cacheKey);
+
+      expect(cached).toEqual(expect.objectContaining({ developer_id: 100, app_id: 201 }));
+    } finally {
+      await holderExited;
+    }
   });
 
   test('saveAppCache recovers a lock left by a dead process', () => {
