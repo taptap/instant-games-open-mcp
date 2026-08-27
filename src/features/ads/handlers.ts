@@ -190,17 +190,8 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
           ? getScreenOrientationFromCache(currentCache)
           : undefined;
 
-        // 展示广告位信息
         result += `✅ **广告变现已开通，服务端配置可用于生成接入代码**\n\n`;
         result += `> 此状态不代表 \`window.tap\` 已注入、当前 ZIP 已正确上传或广告已在真机成功播放。\n\n`;
-        result += `**广告位信息：**\n`;
-        if (landscapeSpace) {
-          result += `- 横屏广告位 ID（type=1）：\`${landscapeSpace.id}\`\n`;
-        }
-        if (portraitSpace) {
-          result += `- 竖屏广告位 ID（type=2）：\`${portraitSpace.id}\`\n`;
-        }
-        result += '\n';
 
         // 展示游戏横竖屏设置及对应广告位
         if (screenOrientation === undefined) {

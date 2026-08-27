@@ -636,6 +636,9 @@ describe('H5 ads workflow contract', () => {
 
     expect(output).toContain('未检测到游戏横竖屏设置');
     expect(output).not.toContain('游戏屏幕方向：** 竖屏');
+    expect(output).not.toContain('landscape-id');
+    expect(output).not.toContain('portrait-id');
+    expect(output).not.toContain('广告位信息：');
     expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
   });
 
@@ -674,6 +677,37 @@ describe('H5 ads workflow contract', () => {
     const output = await checkAdsStatus(createContext(projectPath));
 
     expect(output).toContain('未检测到游戏横竖屏设置');
+    expect(output).not.toContain('landscape-id');
+    expect(output).not.toContain('portrait-id');
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+  });
+
+  test('does not expose an unmatched ad space ID for the opposite orientation', async () => {
+    const projectPath = createProjectPath('missing-matched-orientation');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: { title: 'Game 200', screen_orientation: 2 },
+        },
+      },
+      projectPath
+    );
+    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
+      status: 1,
+      ad_spaces: [{ id: 'portrait-only-id', type: 2 }],
+    });
+
+    const output = await checkAdsStatus(createContext(projectPath));
+
+    expect(output).toContain('未返回与游戏方向（横屏）对应的广告位');
+    expect(output).not.toContain('portrait-only-id');
+    expect(output).not.toContain('广告位信息：');
     expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
   });
 
@@ -730,12 +764,17 @@ describe('H5 ads workflow contract', () => {
     );
     jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
       status: 1,
-      ad_spaces: [{ id: ' fresh-id ', type: 1 }],
+      ad_spaces: [
+        { id: ' fresh-id ', type: 1 },
+        { id: 'opposite-orientation-id', type: 2 },
+      ],
     });
 
-    await checkAdsStatus(createContext(projectPath));
+    const output = await checkAdsStatus(createContext(projectPath));
     const guide = await adsTools.getAdIntegrationGuide(createContext(projectPath));
 
+    expect(output).toContain('fresh-id');
+    expect(output).not.toContain('opposite-orientation-id');
     expect(getSpaceIdFromCache(createContext(projectPath))).toBe('fresh-id');
     expect(guide).toContain("this.spaceId = 'fresh-id'");
     expect(guide).not.toContain('stale-id');
