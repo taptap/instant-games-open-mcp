@@ -54,7 +54,7 @@ jobs:
               export PATH="$HOME/.cargo/bin:$PATH"
               echo "cargo version: $(cargo --version)"
               cd native
-              npm run build
+              npm run build -- --target x86_64-apple-darwin
               strip -x *.node
 
           # macOS Apple Silicon (ARM64)
@@ -98,11 +98,14 @@ jobs:
             artifact: taptap-signer.linux-arm64-musl.node
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             build: |
+              set -euo pipefail
               # 安装 zig 用于交叉编译
               apk add --no-cache zig
-              # 更新 Rust 并添加 ARM64 target
-              rustup update stable && rustup default stable
-              rustup target add aarch64-unknown-linux-musl
+              # Rust 1.98 新增的链接参数尚不受当前 Zig 工具链支持。
+              rustup toolchain install 1.97.0 --profile minimal --target aarch64-unknown-linux-musl
+              export RUSTUP_TOOLCHAIN=1.97.0
+              rustc --version
+              zig version
               cd native
               # 使用 zig 作为链接器进行交叉编译
               npm run build -- --target aarch64-unknown-linux-musl --zig

@@ -144,19 +144,18 @@ jobs:
       - name: Check native changes
         id: native_check
         run: |
-          # 获取上次发布的 tag
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          MAIN_RELEASE_TAG="v${{ steps.version.outputs.current_version }}"
 
-          echo "Last tag: $LAST_TAG"
+          echo "Current main package release tag: $MAIN_RELEASE_TAG"
 
-          if [ -z "$LAST_TAG" ]; then
-            echo "No previous tag found, need to build native"
+          if ! git rev-parse "refs/tags/$MAIN_RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Main package tag $MAIN_RELEASE_TAG not found, need to build native"
             echo "changed=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           # 检查 native/ 目录是否有变更（包括 Cargo.toml, Cargo.lock, src/, build.rs）
-          CHANGED_FILES=$(git diff --name-only "$LAST_TAG" HEAD -- \
+          CHANGED_FILES=$(git diff --name-only "$MAIN_RELEASE_TAG" HEAD -- \
             native/Cargo.toml \
             native/Cargo.lock \
             native/src/ \
@@ -169,7 +168,7 @@ jobs:
             echo "$CHANGED_FILES"
             echo "changed=true" >> $GITHUB_OUTPUT
           else
-            echo "No native files changed since $LAST_TAG"
+            echo "No native files changed since $MAIN_RELEASE_TAG"
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
@@ -186,24 +185,37 @@ jobs:
             exit 0
           fi
 
-          # 获取最新 Release
-          LATEST_RELEASE=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+          MAIN_RELEASE_TAG="v${{ steps.version.outputs.current_version }}"
 
-          if [ -z "$LATEST_RELEASE" ]; then
-            echo "No existing release found, need to build native"
+          if ! gh release view "$MAIN_RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Main package release $MAIN_RELEASE_TAG not found, need to build native"
             echo "has_assets=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # 检查是否有 native binaries
-          ASSETS=$(gh release view "$LATEST_RELEASE" --json assets --jq '.assets[].name' 2>/dev/null | grep "\.node$" || echo "")
+          REQUIRED_NATIVE_ASSETS=(
+            taptap-signer.darwin-x64.node
+            taptap-signer.darwin-arm64.node
+            taptap-signer.linux-x64-gnu.node
+            taptap-signer.linux-x64-musl.node
+            taptap-signer.linux-arm64-musl.node
+            taptap-signer.win32-x64-msvc.node
+          )
+          ASSETS=$(gh release view "$MAIN_RELEASE_TAG" --json assets --jq '.assets[].name')
+          MISSING_ASSETS=()
 
-          if [ -z "$ASSETS" ]; then
-            echo "No native binaries in release $LATEST_RELEASE, need to build"
+          for asset in "${REQUIRED_NATIVE_ASSETS[@]}"; do
+            if ! grep -Fxq "$asset" <<< "$ASSETS"; then
+              MISSING_ASSETS+=("$asset")
+            fi
+          done
+
+          if [ "${#MISSING_ASSETS[@]}" -gt 0 ]; then
+            echo "Release $MAIN_RELEASE_TAG is missing required native binaries:"
+            printf '  - %s\n' "${MISSING_ASSETS[@]}"
             echo "has_assets=false" >> $GITHUB_OUTPUT
           else
-            echo "Found native binaries in $LATEST_RELEASE:"
-            echo "$ASSETS"
+            echo "Found all required native binaries in $MAIN_RELEASE_TAG"
             echo "has_assets=true" >> $GITHUB_OUTPUT
           fi
 
@@ -242,7 +254,7 @@ jobs:
               export PATH="$HOME/.cargo/bin:$PATH"
               echo "cargo version: $(cargo --version)"
               cd native
-              npm run build
+              npm run build -- --target x86_64-apple-darwin
               strip -x *.node
 
           # macOS Apple Silicon (ARM64)
@@ -280,11 +292,14 @@ jobs:
             target: aarch64-unknown-linux-musl
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             build: |
+              set -euo pipefail
               # 安装 zig 用于交叉编译
               apk add --no-cache zig
-              # 更新 Rust 并添加 ARM64 target
-              rustup update stable && rustup default stable
-              rustup target add aarch64-unknown-linux-musl
+              # Rust 1.98 新增的链接参数尚不受当前 Zig 工具链支持。
+              rustup toolchain install 1.97.0 --profile minimal --target aarch64-unknown-linux-musl
+              export RUSTUP_TOOLCHAIN=1.97.0
+              rustc --version
+              zig version
               cd native
               # 使用 zig 作为链接器进行交叉编译
               npm run build -- --target aarch64-unknown-linux-musl --zig
@@ -377,18 +392,17 @@ jobs:
       needs.analyze.outputs.has_native_assets == 'true'
 
     steps:
-      - name: Download native binaries from latest release
+      - name: Download native binaries from main package release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p native
 
-          # 获取最新 Release
-          LATEST_RELEASE=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
-          echo "Downloading native binaries from release: $LATEST_RELEASE"
+          MAIN_RELEASE_TAG="v${{ needs.analyze.outputs.current_version }}"
+          echo "Downloading native binaries from release: $MAIN_RELEASE_TAG"
 
           # 下载所有 .node 文件
-          gh release download "$LATEST_RELEASE" \
+          gh release download "$MAIN_RELEASE_TAG" \
             --repo ${{ github.repository }} \
             --pattern "*.node" \
             --dir native/
@@ -593,6 +607,7 @@ jobs:
           cp release-notes.md "$RUNNER_TEMP/main-release-notes.md"
         env:
           RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          LAST_RELEASE_TAG: v${{ needs.analyze.outputs.current_version }}
 
       - name: Verify package contents before publish
         run: |
@@ -730,6 +745,7 @@ jobs:
           PR_URL="${{ steps.pr.outputs.pr_url || steps.release_pr.outputs.url }}"
           PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
           STATE="${{ steps.release_pr.outputs.state }}"
+          INITIAL_PR_STATE="${{ steps.release_pr.outputs.state }}"
 
           # 等待 PR 合并（auto-merge 是异步的）
           if [ "$STATE" != "MERGED" ]; then
@@ -755,12 +771,26 @@ jobs:
           fi
 
           echo "state=${STATE}" >> "$GITHUB_OUTPUT"
-          MERGE_COMMIT=$(gh pr view "$PR_NUMBER" --json mergeCommit --jq '.mergeCommit.oid // ""')
-          if [ -z "$MERGE_COMMIT" ]; then
-            echo "Release PR #${PR_NUMBER} is merged but merge commit is unavailable"
+          PR_COMMITS=$(gh pr view "$PR_NUMBER" \
+            --json mergeCommit,headRefOid \
+            --jq '[(.mergeCommit.oid // ""), (.headRefOid // "")] | @tsv')
+          IFS=$'\t' read -r MERGE_COMMIT PR_HEAD_COMMIT <<< "$PR_COMMITS"
+
+          if [ -z "$MERGE_COMMIT" ] || [ -z "$PR_HEAD_COMMIT" ]; then
+            echo "Release PR #${PR_NUMBER} commit information is unavailable"
             exit 1
           fi
+
+          if [ "$INITIAL_PR_STATE" = "MERGED" ]; then
+            RELEASE_COMMIT="$MERGE_COMMIT"
+          else
+            RELEASE_COMMIT="$PR_HEAD_COMMIT"
+          fi
+
           echo "merge_commit=${MERGE_COMMIT}" >> "$GITHUB_OUTPUT"
+          echo "release_commit=${RELEASE_COMMIT}" >> "$GITHUB_OUTPUT"
+          echo "pr_head_commit=${PR_HEAD_COMMIT}" >> "$GITHUB_OUTPUT"
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
 
       - name: Generate final release app token
         id: final-app-token
@@ -777,33 +807,71 @@ jobs:
           GH_TOKEN: ${{ steps.final-app-token.outputs.token }}
         run: |
           VERSION=${{ steps.release_version.outputs.version }}
+          PR_NUMBER=${{ steps.wait_for_merge.outputs.pr_number }}
+          RELEASE_COMMIT=${{ steps.wait_for_merge.outputs.release_commit }}
+          PR_HEAD_COMMIT=${{ steps.wait_for_merge.outputs.pr_head_commit }}
           MERGE_COMMIT=${{ steps.wait_for_merge.outputs.merge_commit }}
+          WORKFLOW_COMMIT=${{ github.sha }}
+          SOURCE_COMMIT="$RELEASE_COMMIT"
 
-          # PR 已合并，检出该 release PR 的 merge commit，避免 main 后续推进影响 tag 目标。
+          # PR 已合并，重新获取 PR head 与 main，确保 tag 目标仍可验证。
           GIT_AUTH_HEADER=$(printf "x-access-token:%s" "$GH_TOKEN" | base64 | tr -d '\n')
           echo "::add-mask::${GIT_AUTH_HEADER}"
           git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${GIT_AUTH_HEADER}"
           git fetch origin main
-          git checkout -B main "$MERGE_COMMIT"
+          git fetch origin "refs/pull/${PR_NUMBER}/head"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           test -s "$RUNNER_TEMP/main-release-notes.md"
 
-          # 在 main 最新 commit 上创建 tag（即 squash merge 后的 release commit）
+          TAG_EXISTS=false
           if git ls-remote --exit-code --tags origin "v${VERSION}" >/dev/null 2>&1; then
             git fetch --force origin "refs/tags/v${VERSION}:refs/tags/v${VERSION}"
             TAG_TARGET=$(git rev-list -n 1 "v${VERSION}")
-            MAIN_TARGET=$(git rev-parse HEAD)
 
-            if [ "$TAG_TARGET" != "$MAIN_TARGET" ]; then
-              echo "Existing tag v${VERSION} points to ${TAG_TARGET}, expected ${MAIN_TARGET}"
+            if [ "$TAG_TARGET" != "$PR_HEAD_COMMIT" ] && [ "$TAG_TARGET" != "$MERGE_COMMIT" ]; then
+              echo "Existing tag v${VERSION} points to unexpected commit ${TAG_TARGET}"
               exit 1
             fi
 
+            SOURCE_COMMIT="$TAG_TARGET"
+            TAG_EXISTS=true
+          fi
+
+          if ! git cat-file -e "${SOURCE_COMMIT}^{commit}"; then
+            echo "Release source commit ${SOURCE_COMMIT} is unavailable"
+            exit 1
+          fi
+
+          if ! git diff --quiet "$WORKFLOW_COMMIT" "$SOURCE_COMMIT" -- \
+            native/Cargo.toml \
+            native/Cargo.lock \
+            native/src/ \
+            native/build.rs \
+            native/package.json; then
+            echo "Native source changed after workflow dispatch:"
+            git diff --name-only "$WORKFLOW_COMMIT" "$SOURCE_COMMIT" -- \
+              native/Cargo.toml \
+              native/Cargo.lock \
+              native/src/ \
+              native/build.rs \
+              native/package.json
+            exit 1
+          fi
+
+          git show "${SOURCE_COMMIT}:package.json" > "$RUNNER_TEMP/release-package.json"
+          PACKAGE_VERSION=$(node -p "require(process.argv[1]).version" "$RUNNER_TEMP/release-package.json")
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "Release source package version ${PACKAGE_VERSION} does not match ${VERSION}"
+            exit 1
+          fi
+
+          # tag 指向实际发布源码，确保源码中的 Native 与本次构建资产一致。
+          if [ "$TAG_EXISTS" = "true" ]; then
             echo "Existing tag v${VERSION} points to ${TAG_TARGET}"
           else
-            git tag -a "v${VERSION}" -m "Release v${VERSION}"
+            git tag -a "v${VERSION}" "$RELEASE_COMMIT" -m "Release v${VERSION}"
             git push origin "v${VERSION}"
           fi
 
