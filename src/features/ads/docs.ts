@@ -17,7 +17,7 @@ export function getAdManagerCode(spaceId: string): string {
  * 核心功能：激励视频广告（Rewarded Video）
  * 额外功能：插屏广告（Interstitial）、Banner 广告（可选）
  *
- * 广告位 ID（从 TapTap 开放平台获取）：
+ * 广告位 ID（由 check_ads_status 自动获取并注入）：
  * - 激励视频/插屏/Banner：${spaceId}
  *
  * 重要机制：
@@ -27,7 +27,7 @@ export function getAdManagerCode(spaceId: string): string {
 
 class TapAdManager {
   constructor() {
-    // 广告位 ID（从 TapTap 后台获取）
+    // 广告位 ID（由 check_ads_status 自动获取并注入）
     this.spaceId = '${spaceId}';
 
     // 广告实例

@@ -568,6 +568,10 @@ export async function selectApp(
 
     // Preserve existing developer_name from cache if API returns empty
     const existingCache = readAppCache(projectPath);
+    const isSameApp =
+      existingCache?.app_id === appDetail.appId &&
+      (existingCache.developer_id === appDetail.developerId ||
+        existingCache.developer_id === developerId);
     const appInfo: AppCacheInfo = {
       developer_id: appDetail.developerId || developerId, // Use passed ID if detail has 0
       developer_name: appDetail.developerName || existingCache?.developer_name,
@@ -576,6 +580,7 @@ export async function selectApp(
       miniapp_id: appDetail.miniappId,
       level: appDetail.level,
       upload_level: appDetail.uploadLevel,
+      ad_config: isSameApp ? existingCache.ad_config : undefined,
       updated_at: Date.now(),
       status_updated_at: Date.now(),
     };

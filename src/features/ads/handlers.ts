@@ -7,6 +7,9 @@ import type { ResolvedContext } from '../../core/types/index.js';
 import { getAdConfig, AdsStatus, STATUS_DESCRIPTIONS, type AdConfigResponse } from './api.js';
 import { readAppCache, saveAppCache } from '../../core/utils/cache.js';
 
+const AUTOMATIC_AD_SPACE_ID_GUIDANCE =
+  '不要向开发者索要广告位 ID，也不要使用手工填写的 ID 作为兜底。';
+
 /**
  * 从缓存中获取游戏的横竖屏设置
  * screen_orientation: 1=竖屏, 2=横屏
@@ -62,7 +65,8 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
         if (adSpaces.length === 0) {
           result += `⚠️ **广告功能已生效，但广告位 ID 获取异常**\n\n`;
           result += `服务器未返回有效的广告位信息（ad_spaces 为空），这可能是服务端临时异常，请稍后重试。\n\n`;
-          result += `你可以稍后说"重新检查广告状态"来重新查询。\n`;
+          result += `${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n\n`;
+          result += `请稍后重新调用 \`check_ads_status\`。\n`;
           break;
         }
 
@@ -86,6 +90,7 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
           result += `无法自动匹配对应广告位 ID。请先通过 \`update_app_info\` 工具设置游戏的横竖屏方向：\n`;
           result += `- \`screenOrientation: 1\` → 竖屏\n`;
           result += `- \`screenOrientation: 2\` → 横屏\n\n`;
+          result += `${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n\n`;
           result += `设置后重新调用 \`check_ads_status\` 即可自动匹配广告位。\n`;
         } else {
           const orientationLabel = screenOrientation === 2 ? '横屏' : '竖屏';
@@ -98,7 +103,9 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
             result += `接下来请调用 \`get_ad_integration_guide\` 工具获取完整的接入文档。\n`;
             result += `文档中会自动使用匹配的广告位 ID（\`${matchedSpace.id}\`）。\n`;
           } else {
-            result += `⚠️ 服务器未返回与游戏方向（${orientationLabel}）对应的广告位，请联系 TapTap 运营确认。\n`;
+            result += `⚠️ 服务器未返回与游戏方向（${orientationLabel}）对应的广告位。\n\n`;
+            result += `${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n\n`;
+            result += `请稍后重新调用 \`check_ads_status\`；如果问题持续存在，请联系 TapTap 运营确认。\n`;
           }
         }
 
@@ -126,9 +133,9 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
     return result;
   } catch (error) {
     if (error instanceof Error) {
-      return `❌ 查询广告状态失败：${error.message}`;
+      return `❌ 查询广告状态失败：${error.message}\n\n${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n请解决上述错误后重新调用 \`check_ads_status\`。`;
     }
-    return `❌ 查询广告状态失败：${String(error)}`;
+    return `❌ 查询广告状态失败：${String(error)}\n\n${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n请解决上述错误后重新调用 \`check_ads_status\`。`;
   }
 }
 
@@ -185,6 +192,6 @@ export function getSpaceIdFromCache(ctx: ResolvedContext): string | null {
     return cache.ad_config.portrait_space_id ?? null;
   }
 
-  // 未设置横竖屏：返回任意一个可用的广告位
-  return cache.ad_config.landscape_space_id ?? cache.ad_config.portrait_space_id ?? null;
+  // 未设置横竖屏时不能猜测广告位，必须先完成应用方向配置
+  return null;
 }

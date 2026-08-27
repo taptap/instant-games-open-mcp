@@ -12,6 +12,12 @@ import type { ToolRegistration } from '../../core/types/index.js';
 import { adsTools } from './docTools.js';
 import { checkAdsStatus } from './handlers.js';
 
+const AUTOMATIC_AD_SPACE_ID_RULES = `**AD SPACE ID OWNERSHIP:**
+- check_ads_status is the only source of the ad space ID used by this MCP.
+- MUST NOT ask the user for an ad space ID or suggest manually copying one from a console.
+- MUST NOT accept a user-provided ID as a fallback.
+- If automatic lookup cannot return a usable ID, stop and follow the tool's recovery guidance.`;
+
 export const adsTools_Registration: ToolRegistration[] = [
   // ⭐ 入口工具：广告接入工作流指引
   {
@@ -27,6 +33,8 @@ The workflow will guide you through:
 1. App selection check
 2. Ads SDK status verification (MANDATORY before any integration)
 3. Integration code generation (only when status conditions are met)
+
+${AUTOMATIC_AD_SPACE_ID_RULES}
 
 This tool has NO prerequisites - call it immediately when ads topic comes up.`,
       inputSchema: {
@@ -49,11 +57,8 @@ This tool has NO prerequisites - call it immediately when ads topic comes up.`,
 Before calling this tool, ALWAYS call get_current_app_info to verify
 an app is selected. If not, guide user through app selection process.
 
-**When to call this tool:**
-- First time: when no ads status exists in local cache
-- Refresh: when user explicitly asks to re-check status (e.g. after activating ads in developer console)
-
-**DO NOT auto-poll** - only call when user requests or when no cached status exists.
+Call this tool after confirming the selected app, and call it again when the user explicitly asks
+to refresh status after completing an activation step. Do not repeatedly poll it in a loop.
 
 This tool queries the server, updates local cache, and returns:
 - Business status: 0=未开通 | 1=已生效 | 2=账号已被封禁
@@ -66,8 +71,10 @@ Both conditions MUST be met simultaneously:
 2. space_id must be valid (non-empty string)
 If status is 1 but space_id is empty → server-side issue, tell user to retry later.
 
+${AUTOMATIC_AD_SPACE_ID_RULES}
+
 **Status 0:** Tell user they can say "重新检查广告状态" to refresh after completing activation.
-**Status 3 (已封禁):** DO NOT proceed with any integration steps. Immediately inform user.`,
+**Status 2 (已封禁):** DO NOT proceed with any integration steps. Immediately inform user.`,
       inputSchema: {
         type: 'object',
         properties: {},
@@ -95,6 +102,8 @@ This tool reads the cached space_id and generates:
 - Core focus: Rewarded Video ads (激励视频) - init() + onReward() + showRewardedVideo()
 - Optional: Interstitial and Banner ads examples
 - Code examples for all common scenarios
+
+${AUTOMATIC_AD_SPACE_ID_RULES}
 
 CRITICAL:
 - NO Promise style, follows demo callback pattern

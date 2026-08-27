@@ -172,6 +172,7 @@ Closes #123
   ├── dcCurrentApp/ - 当前游戏 DC 能力模块
   ├── leaderboard/ - 排行榜模块
   ├── h5game/      - H5 游戏模块
+  ├── ads/         - 小游戏/H5 广告状态查询与接入闭环
   └── [未来]       - cloudSave/, share/ 等
        ↓ 依赖
 核心共享层 (src/core/)
@@ -302,6 +303,20 @@ graph TD
 - `src/features/app/tools.ts` - 应用管理工具定义
 - `src/features/leaderboard/tools.ts` - 排行榜工具定义
 - `src/features/h5Game/tools.ts` - H5 游戏工具定义
+- `src/features/ads/tools.ts` - 小游戏/H5 广告工作流与 Agent 契约
+
+### 小游戏/H5 广告接入闭环
+
+- 用户提出任何广告、激励视频、插屏、Banner 或变现相关需求时，先调用
+  `get_ads_integration_workflow`，再按流程确认应用并调用 `check_ads_status`。
+- 广告位 ID 的唯一来源是 `check_ads_status` 对 `/ad/v1/config` 的自动查询结果。AI 不得向开发者
+  索要广告位 ID，不得建议去后台手工查找，也不得接受用户提供的 ID 作为失败兜底。
+- `status=0` 时展示开通链接并等待用户完成操作；`status=1` 且匹配到游戏方向对应广告位时才调用
+  `get_ad_integration_guide`；`status=2` 时立即停止广告接入。
+- 未设置横竖屏时使用 `update_app_info` 设置 `screenOrientation` 后重新调用 `check_ads_status`，不得
+  随机选择任意广告位。服务端未返回广告位或查询失败时按工具指引重试，不生成占位代码。
+- `docs://ads/ad-manager` 只作为旧客户端兼容入口，不直接返回 AdManager 源码；完整代码只能由
+  `get_ad_integration_guide` 在真实广告位自动查询成功后生成。
 
 ## 常用命令
 
@@ -806,6 +821,12 @@ const allModules = [..., yourFeatureModule];
 - `get_debug_feedbacks` - 拉取用户调试反馈并下载附件到本地
 
 > 注：创建/编辑应用请使用 `create_app` 和 `update_app_info` 工具（在应用管理分类中）
+
+**小游戏/H5 广告接入（3个）**
+
+- `get_ads_integration_workflow` - 广告接入完整工作流入口
+- `check_ads_status` - 自动查询广告状态与广告位 ID
+- `get_ad_integration_guide` - 使用自动获取的广告位 ID 生成接入代码
 
 **振动 API 文档（1个）**
 

@@ -1,51 +1,33 @@
 /**
  * TapTap Ads Resources
- * 提供 AdManager 完整源码的 Resource（可选）
+ * 为旧客户端保留广告接入 Resource URI
  */
 
 import type { ResourceRegistration } from '../../core/types/index.js';
-import { getAdManagerCode } from './docs.js';
 
 /**
  * Resource 定义
- * 提供 AdManager.js 完整源码，方便 AI 直接访问
+ * 代码只能在广告位自动查询成功后由 get_ad_integration_guide 生成
  */
 export const adsResources: ResourceRegistration[] = [
   {
     uri: 'docs://ads/ad-manager',
-    name: 'AdManager.js - Complete Source Code',
+    name: 'AdManager.js - Ads Workflow Entry',
     description:
-      'Complete AdManager.js utility class source code. Handles all 3 ad types (Rewarded Video, Interstitial, Banner). Copy and use directly in your TapTap minigame project. Focuses on Rewarded Video ads with onReward() callback interface.',
+      'Compatibility entry for the ads workflow. Use get_ads_integration_workflow first; copy-ready AdManager.js code is available only from get_ad_integration_guide after check_ads_status automatically resolves the ad space ID.',
     mimeType: 'text/markdown',
     handler: async () => {
-      return `# AdManager.js - 完整源码
+      return `# TapTap 小游戏广告接入入口
 
-## 使用说明
+这个 Resource 为兼容旧客户端保留，不直接提供带占位广告位 ID 的代码。
 
-复制下面的代码到你的项目中（如 \`js/AdManager.js\`）
+## 正确流程
 
-## 源代码
+1. 调用 \`get_ads_integration_workflow\` 获取完整流程。
+2. 调用 \`check_ads_status\`，由 MCP 自动查询并缓存广告位 ID。
+3. 调用 \`get_ad_integration_guide\` 获取已经注入真实广告位 ID 的代码。
 
-\`\`\`javascript
-${getAdManagerCode('请先调用 check_ads_status 获取广告位ID')}
-\`\`\`
-
-## 快速使用
-
-\`\`\`javascript
-// 1. 初始化
-adManager.init();
-
-// 2. 绑定奖励回调
-adManager.onReward(() => {
-  player.coins += 100;
-});
-
-// 3. 显示广告
-adManager.showRewardedVideo();  // 激励视频（核心）
-adManager.showInterstitial();   // 插屏广告（可选）
-adManager.showBanner();         // Banner 广告（可选）
-\`\`\`
+**不要向开发者索要广告位 ID，也不要使用开发者手工提供的 ID 作为兜底。**
 `;
     },
   },

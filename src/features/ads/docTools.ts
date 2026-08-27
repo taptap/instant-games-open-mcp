@@ -37,6 +37,10 @@ async function getAdIntegrationGuide(ctx: ResolvedContext): Promise<string> {
 - 广告功能尚未开通（状态非"已生效"）
 - 未调用 \`check_ads_status\` 工具
 - 应用未选择
+- 游戏横竖屏方向尚未设置
+
+**不要向开发者索要广告位 ID，也不要使用开发者手工提供的 ID。**
+广告位 ID 的唯一来源是 \`check_ads_status\` 的自动查询结果。
 
 请先调用 \`check_ads_status\` 工具。`;
   }
@@ -72,7 +76,7 @@ async function getAdIntegrationGuide(ctx: ResolvedContext): Promise<string> {
 \`\`\`javascript
 // main.js 或游戏入口文件
 async function initGame() {
-  // 初始化广告管理器（会自动获取广告位配置）
+  // 初始化广告管理器（广告位配置已由 MCP 自动查询并注入）
   await adManager.init();
   console.log('广告初始化完成');
 }
@@ -263,7 +267,7 @@ function showCoinsAd() {
 
 ### Q4: 如何预加载广告？
 
-**A**: AdManager 在 \`init()\` 时会自动获取广告位配置并预加载激励视频广告，无需手动操作。每次播放后也会自动重新加载。
+**A**: MCP 会在生成代码前通过 \`check_ads_status\` 自动获取并注入广告位配置。AdManager 在 \`init()\` 时使用已注入的配置预加载激励视频广告，每次播放后也会自动重新加载。
 
 ---
 
@@ -289,8 +293,9 @@ function getAdsIntegrationWorkflow(): string {
 
 **任何广告相关操作之前，必须先检查广告 SDK 状态。**
 
-广告状态会缓存在本地，若本地无缓存则需查询服务器。
-状态为"未开通"时，用户可主动要求重新查询以获取最新状态。
+广告状态和广告位 ID 由 \`check_ads_status\` 从服务器自动查询并缓存。
+**不要向开发者索要广告位 ID，也不要使用开发者手工提供的 ID。**
+\`check_ads_status\` 的返回结果是广告位 ID 的唯一来源。
 
 ---
 
@@ -309,10 +314,7 @@ function getAdsIntegrationWorkflow(): string {
 
 **工具**：\`check_ads_status\`
 
-此工具会自动执行以下逻辑：
-- 读取本地缓存中的广告状态
-- 若无缓存，自动查询服务器并更新本地缓存
-- 返回当前状态及处理指引
+此工具会自动查询服务器、更新本地缓存，并返回当前状态及处理指引。
 
 **根据状态执行不同动作：**
 
@@ -373,6 +375,7 @@ AI 应再次调用 \`check_ads_status\` 工具（该工具会强制重新查询�
 
 - 客户端无需安装 SDK，tap 是全局对象
 - 不要搜索网页，所有文档由 \`get_ad_integration_guide\` 工具提供
+- 不要向开发者索要或接受手工提供的广告位 ID
 - 广告代码中不使用 Promise 风格，遵循 demo 回调模式
 - 核心关注激励视频广告，插屏和 Banner 为可选内容
 `;
