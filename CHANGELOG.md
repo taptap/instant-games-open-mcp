@@ -1,3 +1,111 @@
+## <small>1.24.12 (2026-08-27)</small>
+
+### Features
+
+* dsh: 接入 npm 插件市场发布 (4b35610)
+* maker: 添加 DeepSeek Harness（DSH）插件 (a8c5df0)
+* maker: 添加自包含 WorkBuddy 插件 (27e9c76)
+* maker: 添加自包含 Codex 插件 (15e4dd7)
+* maker: 完善多项目 MCP 稳定性并支持 DSH (#314) (2800bf6)
+* maker: 完善本地 MCP 能力路由和二维码流程 (#290) (7c63dfd)
+* maker: 上报本地 MCP 活跃事件 (#288) (0bc646d)
+* maker: expose ad config and feedback proxy tools (#275) (1ce9d70)
+* maker: 支持更多 AI 编辑器 MCP 安装 (#263) (de05cd1)
+* maker: add package update policy check (#258) (bf4ecf0)
+* maker: improve project creation and upgrade guidance (5765f21)
+* maker: add project creation and 3d proxy assets (29c24a9)
+* maker: add managed Python runtime setup (8cf65d1)
+
+### Bug Fixes
+
+* release: isolate and stabilize main native artifacts (#432) (a6e9a20)
+* h5: 避免短时缓存竞争误报应用状态 (0d5d8e8)
+* ads: 修复 H5 广告自动接入与配置隔离 (295dc51)
+* dsh: support first package publication token (#425) (8ee50d8)
+* dsh: use repository token for npm publishing (#424) (c0e4cde)
+* maker: 发布已验证的 0.0.32 正式版候选 (c1d1496)
+* maker: 插件运行时跳过 npm 更新提示 (85dd14b)
+* maker: 修复 DSH 激活并支持 beta 验证 (6bfa631)
+* maker: 修复 DSH 插件评审阻塞项 (338328f)
+* maker-plugin: 同步客户端插件发布产物 (fb7c883)
+* maker-plugin: 完成 Codex 安装事务回滚 (7e56b93)
+* maker-plugin: 对齐 Codex 安装回滚指引 (a97524a)
+* maker-plugin: 回滚失败的 Codex 安装迁移 (4491c90)
+* maker-plugin: 对齐安装前后兼容检查 (05a71a7)
+* maker-plugin: 自动禁用 Codex 旧 MCP (e83f2c4)
+* maker-plugin: 完善 WorkBuddy 插件生命周期与跨平台兼容 (d80fbd0)
+* maker: 固化 Proxy 工具定义并校验远端契约 (652dc1a)
+* maker: 同步固定音频工具路由 (#308) (a3d4b4c)
+* maker: 优化 MCP 会话与构建失败引导 (#306) (3d506ac)
+* maker: 收紧反馈意图并移除素材工具优先导向 (#303) (31afb0c)
+* maker: 复用项目级 proxy 长连接 (#300) (92a448e)
+* maker: 修复本地 MCP 启动与客户端诊断 (#297) (677f58f)
+* proxy: preserve remote build errors through retry paths (#292) (8d1126b)
+* maker: 修复项目结构检查和能力语义 (#286) (626c80b)
+* maker: 完善 MCP 连接错误诊断 (#285) (5347262)
+* maker: 完善本地音频代理全链路 (#281) (e87a1f2)
+* maker: 修复本地 3D 资产生成流程 (#280) (caae617)
+* maker: align multiplayer build defaults (#277) (a31410e)
+* maker: simplify maker project setup and build flow (#272) (4433069)
+* maker: 完善 WorkBuddy 异步构建流程 (#267) (ee0643a)
+* maker: clarify create flag usage in init guidance (af91234)
+* maker: resolve mcp project roots context (f711a31)
+* maker: expose video query proxy tool (6af0729)
+* maker: improve proxy media handling (b199c40)
+* proxy: exit standalone proxy on stdio disconnect (9a3a363)
+* maker: prevent orphan proxy processes (17f9363)
+* maker: publish beta packages as prereleases (90c445f)
+* maker: install lua lsp in private venv (a108b46)
+* maker: install lua lsp after python setup (b1bd969)
+* maker: block init on python setup failure (#247) (dd09fdd)
+* maker: pin mcp cwd for maker projects (#246) (be67d7e)
+* maker: enforce Python runtime version policy (67dbd78)
+
+### Documentation
+
+* dsh: correct stable plugin distribution guide (#339) (abaea35)
+
+### CI
+
+* maker: 分离 DSH 功能与发布基础设施 (8360bbf)
+* maker: 支持 develop 预发布与 DSH 手动发布 (aaf2e22)
+* release: 建立 Maker 插件独立发布流程 (#321) (cd26970)
+
+### Chores
+
+* maker: 同步 develop 发布基础设施 (abfa959)
+* release: 同步 main 发布基础设施到 develop (a250d92)
+* maker-plugin: 同步插件发布工作流 (6aa95ee)
+* maker-plugin: 建立独立插件版本与发布包 (deb64dc)
+
+### Other Changes
+
+* Merge pull request #423 from taptap/fix/dsh-maker-0.1.1-main (bb6ac6d)
+* Merge pull request #421 from taptap/chore/maker-plugin-0.0.3 (03320dd)
+* Merge pull request #419 from taptap/fix/maker-0.0.32-main (8fe0c6b)
+* Merge pull request #338 from taptap/chore/maker-plugin-0.0.2 (cf9c843)
+* Merge pull request #337 from taptap/chore/update-maker-version-policy-0.0.31 (0e11196)
+* Merge pull request #334 from taptap/chore/update-maker-version-policy-0.0.31-beta.2 (4f8fc1b)
+* Merge pull request #335 from taptap/develop (320cdfa)
+* Merge pull request #333 from taptap/fix/maker-plugin-update-notice (75c0a2c)
+* Merge pull request #332 from taptap/fix/maker-plugin-generated-bundles (0fbe00b)
+* Merge pull request #330 from taptap/develop (3acf380)
+* Merge pull request #331 from taptap/fix/workbuddy-managed-node (0899229)
+* Merge pull request #329 from taptap/fix/workbuddy-plugin-source-link (42ece25)
+* Merge pull request #328 from taptap/chore/update-maker-version-policy-0.0.31-beta.1 (9b48150)
+* Merge pull request #325 from taptap/fix/maker-plugin-distribution-entry (7033d72)
+* Merge pull request #327 from taptap/fix/sync-main-ci-to-develop (ea4e5e7)
+* Merge pull request #326 from taptap/fix/maker-develop-prerelease-ci (7385e53)
+* Merge pull request #324 from taptap/fix/maker-plugin-distribution-entry (62bc88b)
+* Merge pull request #323 from taptap/fix/maker-client-plugins (051e7b3)
+* Merge pull request #322 from taptap/fix/maker-client-plugins (ded0860)
+* Merge pull request #257 from taptap/fix/maker-remote-proxy-timeout (e2799e9)
+* Merge branch 'fix/maker-roots-project-context' into fix/maker-remote-proxy-timeout (3482bba)
+* Merge pull request #256 from taptap/fix/sync-beta-tested-changes (69cd9b1)
+* Merge pull request #255 from taptap/fix/maker-mcp-proxy-failures (d0c00fd)
+* Merge pull request #250 from taptap/fix/maker-lua-lsp-venv (6b7ac05)
+* Merge pull request #245 from taptap/fix/maker-python-runtime-pr (a1e93ff)
+
 ## <small>1.24.11 (2026-06-10)</small>
 
 ### CI
