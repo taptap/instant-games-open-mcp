@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { spawn } from 'node:child_process';
 import {
   clearAppCache,
   getCachePath,
@@ -46,18 +47,56 @@ describe('app cache mutation recovery', () => {
     expect(fs.existsSync(cachePath)).toBe(false);
   });
 
-  test('readAppCache returns null promptly when another process holds the cache lock', () => {
+  test('readAppCache waits for a short mutation and returns the committed cache', async () => {
     const cacheKey = `/tmp/taptap-cache-mutation-locked-${Date.now()}-${Math.random()}`;
     const cachePath = getCachePath(cacheKey);
     const cacheDir = path.dirname(cachePath);
+    const lockPath = `${cachePath}.lock`;
     cacheDirs.push(cacheDir);
-    fs.mkdirSync(`${cachePath}.lock`, { recursive: true });
+    saveAppCache({ developer_id: 100, app_id: 200 }, cacheKey);
+
+    const holder = spawn(
+      process.execPath,
+      [
+        '-e',
+        `
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const lockPath = process.argv[1];
+          fs.mkdirSync(lockPath, { recursive: true });
+          const ownerPath = path.join(lockPath, 'test-owner');
+          const ownerFd = fs.openSync(ownerPath, 'wx');
+          fs.writeFileSync(ownerFd, JSON.stringify({ pid: process.pid, holds_open: true }), 'utf8');
+          process.stdout.write('ready\\n');
+          setTimeout(() => {
+            fs.closeSync(ownerFd);
+            try { fs.unlinkSync(ownerPath); } catch (error) {
+              if (error.code !== 'ENOENT') throw error;
+            }
+            try { fs.rmdirSync(lockPath); } catch (error) {
+              if (error.code !== 'ENOENT') throw error;
+            }
+          }, 250);
+        `,
+        lockPath,
+      ],
+      { stdio: ['ignore', 'pipe', 'inherit'] }
+    );
+    await new Promise<void>((resolve, reject) => {
+      holder.once('error', reject);
+      holder.stdout.once('data', () => resolve());
+    });
 
     const startedAt = Date.now();
     const cached = readAppCache(cacheKey);
 
-    expect(cached).toBeNull();
+    expect(cached).toEqual(expect.objectContaining({ developer_id: 100, app_id: 200 }));
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(100);
     expect(Date.now() - startedAt).toBeLessThan(1000);
+    await new Promise<void>((resolve, reject) => {
+      holder.once('error', reject);
+      holder.once('exit', (code) => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
+    });
   });
 
   test('saveAppCache recovers a lock left by a dead process', () => {

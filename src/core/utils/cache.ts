@@ -24,7 +24,7 @@ import { EnvConfig } from './env.js';
  */
 const CACHE_ROOT = EnvConfig.cacheDir;
 const CACHE_LOCK_RETRY_MS = 10;
-const CACHE_READ_LOCK_TIMEOUT_MS = 100;
+const CACHE_READ_LOCK_TIMEOUT_MS = 500;
 const CACHE_LOCK_TIMEOUT_MS = 5000;
 const CACHE_LOCK_STALE_MS = 30000;
 const CACHE_LOCK_WAIT_BUFFER = new Int32Array(new SharedArrayBuffer(4));
