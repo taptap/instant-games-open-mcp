@@ -251,7 +251,7 @@ async function uploadFile(uploadParams: UploadParams, filePath: string): Promise
  * - 缓存通过 select_app 或 create_app 写入
  * - 如果没有缓存，返回引导消息
  *
- * @param ctx - 请求上下文（包含 projectPath）
+ * @param ctx - 请求上下文（包含缓存隔离信息）
  * @returns App 信息或错误消息
  */
 function getSelectedAppInfo(ctx?: ResolvedContext): {
@@ -263,8 +263,8 @@ function getSelectedAppInfo(ctx?: ResolvedContext): {
   appTitle?: string;
   miniappId?: string;
 } {
-  // 从缓存读取（使用 ctx.projectPath 作为隔离 key）
-  const cached = readAppCache(ctx?.projectPath);
+  // 从缓存读取（projectPath 优先，projectId 作为 SSE 直连模式的隔离 key）
+  const cached = readAppCache(ctx?.getCacheIsolationKey());
 
   if (!cached?.developer_id || !cached?.app_id) {
     return {

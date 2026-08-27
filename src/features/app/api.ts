@@ -6,7 +6,7 @@
 import { HttpClient } from '../../core/network/httpClient.js';
 import {
   readAppCache,
-  saveAppCache,
+  mutateAppCache,
   AppCacheInfo,
   CachedLevelInfo,
 } from '../../core/utils/cache.js';
@@ -478,18 +478,23 @@ export async function fetchAppDetail(
  * @param ctx - Resolved context
  * @returns Updated app information
  */
+function resolveAppCacheKey(projectPath?: string, ctx?: ResolvedContext): string | undefined {
+  return projectPath ?? ctx?.getCacheIsolationKey();
+}
+
 export async function refreshAppCache(
   projectPath?: string,
   ctx?: ResolvedContext
 ): Promise<AppCacheInfo> {
-  const cached = readAppCache(projectPath);
+  const cacheKey = resolveAppCacheKey(projectPath, ctx);
+  const cached = readAppCache(cacheKey);
   if (!cached?.app_id || !cached?.developer_id) {
     throw new Error('No app selected to refresh');
   }
 
   // Reuse selectApp to fetch fresh data and update cache
   // But allow developerId mismatch if it was 0 (from initial upload_level only cache)
-  return await selectApp(cached.developer_id, cached.app_id, projectPath, ctx);
+  return await selectApp(cached.developer_id, cached.app_id, cacheKey, ctx);
 }
 
 // TTL Constants
@@ -514,8 +519,9 @@ export async function ensureAppInfo(
   ctx?: ResolvedContext,
   forceRefresh: boolean = false
 ): Promise<AppCacheInfo | null> {
+  const cacheKey = resolveAppCacheKey(projectPath, ctx);
   // Check cache first
-  const cached = readAppCache(projectPath);
+  const cached = readAppCache(cacheKey);
 
   // No cache - return null (do not auto-select)
   if (!cached?.developer_id || !cached?.app_id) {
@@ -529,7 +535,7 @@ export async function ensureAppInfo(
   if (forceRefresh || isExpired) {
     try {
       // Try to refresh
-      return await refreshAppCache(projectPath, ctx);
+      return await refreshAppCache(cacheKey, ctx);
     } catch {
       // Refresh failed, return stale cache with warning flag
       return { ...cached, is_stale: true };
@@ -553,6 +559,7 @@ export async function selectApp(
   ctx?: ResolvedContext
 ): Promise<AppCacheInfo> {
   try {
+    const cacheKey = resolveAppCacheKey(projectPath, ctx);
     const appDetail = await fetchAppDetail(appId, ctx);
 
     if (!appDetail) {
@@ -566,24 +573,29 @@ export async function selectApp(
       );
     }
 
-    // Preserve existing developer_name from cache if API returns empty
-    const existingCache = readAppCache(projectPath);
-    const appInfo: AppCacheInfo = {
-      developer_id: appDetail.developerId || developerId, // Use passed ID if detail has 0
-      developer_name: appDetail.developerName || existingCache?.developer_name,
-      app_id: appDetail.appId,
-      app_title: appDetail.appTitle,
-      miniapp_id: appDetail.miniappId,
-      level: appDetail.level,
-      upload_level: appDetail.uploadLevel,
-      updated_at: Date.now(),
-      status_updated_at: Date.now(),
-    };
+    let appInfo: AppCacheInfo | undefined;
+    mutateAppCache(cacheKey, (existingCache) => {
+      const isSameApp =
+        existingCache?.app_id === appDetail.appId &&
+        (existingCache.developer_id === appDetail.developerId ||
+          existingCache.developer_id === developerId);
+      appInfo = {
+        developer_id: appDetail.developerId || developerId, // Use passed ID if detail has 0
+        developer_name: appDetail.developerName || existingCache?.developer_name,
+        app_id: appDetail.appId,
+        app_title: appDetail.appTitle,
+        miniapp_id: appDetail.miniappId,
+        level: appDetail.level,
+        upload_level: appDetail.uploadLevel,
+        ad_config_request_id: isSameApp ? existingCache.ad_config_request_id : undefined,
+        ad_config: isSameApp ? existingCache.ad_config : undefined,
+        updated_at: Date.now(),
+        status_updated_at: Date.now(),
+      };
+      return appInfo;
+    });
 
-    // Save to cache
-    saveAppCache(appInfo, projectPath);
-
-    return appInfo;
+    return appInfo!;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to select app: ${error.message}`);

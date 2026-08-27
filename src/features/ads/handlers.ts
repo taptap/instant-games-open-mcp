@@ -3,26 +3,128 @@
  * 负责广告状态检查、缓存管理等业务逻辑
  */
 
+import { randomUUID } from 'node:crypto';
 import type { ResolvedContext } from '../../core/types/index.js';
-import { getAdConfig, AdsStatus, STATUS_DESCRIPTIONS, type AdConfigResponse } from './api.js';
-import { readAppCache, saveAppCache } from '../../core/utils/cache.js';
+import {
+  getAdConfig,
+  AdsStatus,
+  STATUS_DESCRIPTIONS,
+  type AdConfigResponse,
+  type AdSpace,
+} from './api.js';
+import { mutateAppCache, readAppCache, type AppCacheInfo } from '../../core/utils/cache.js';
+
+const AUTOMATIC_AD_SPACE_ID_GUIDANCE =
+  '不要向开发者索要广告位 ID，也不要使用手工填写的 ID 作为兜底。';
+
+interface SelectedAppIdentity {
+  developerId: number;
+  appId: number;
+}
+
+interface AdsStatusRequestState {
+  key: string;
+  token: symbol;
+  cacheKey?: string;
+  requestId: string;
+  app: SelectedAppIdentity;
+}
+
+// 每个应用只有最新发起的查询才能发布可操作结果。
+const latestAdsStatusRequests = new Map<string, symbol>();
+const SUPERSEDED_STATUS_RESULT =
+  '⚠️ 已有更新的广告状态查询，本次较早查询结果已丢弃。\n\n请以最新查询结果为准。';
+
+function normalizeScreenOrientation(value: unknown): 1 | 2 | undefined {
+  return value === 1 || value === 2 ? value : undefined;
+}
+
+function normalizeAdSpaceId(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function findValidAdSpace(adSpaces: AdSpace[], type: 1 | 2): AdSpace | undefined {
+  const space = adSpaces.find((item) => item.type === type && normalizeAdSpaceId(item.id));
+  const id = normalizeAdSpaceId(space?.id);
+  return space && id ? { ...space, id } : undefined;
+}
+
+function getSelectedAppIdentity(ctx: ResolvedContext): SelectedAppIdentity | null {
+  const app = ctx.resolveApp();
+  if (!app.developerId || !app.appId) return null;
+  return { developerId: app.developerId, appId: app.appId };
+}
+
+function isCurrentSelectedApp(ctx: ResolvedContext, expected: SelectedAppIdentity): boolean {
+  const current = getSelectedAppIdentity(ctx);
+  return current?.developerId === expected.developerId && current.appId === expected.appId;
+}
+
+function getAdsCacheKey(ctx: ResolvedContext): string | undefined {
+  return ctx.getCacheIsolationKey();
+}
+
+function beginAdsStatusRequest(ctx: ResolvedContext): AdsStatusRequestState | null {
+  const cacheKey = getAdsCacheKey(ctx);
+  const requestId = randomUUID();
+  let app: SelectedAppIdentity | undefined;
+
+  mutateAppCache(cacheKey, (current) => {
+    if (!current?.developer_id || !current.app_id) return undefined;
+    app = { developerId: current.developer_id, appId: current.app_id };
+    return {
+      ...current,
+      ad_config_request_id: requestId,
+      ad_config: undefined,
+    };
+  });
+
+  if (!app) return null;
+
+  const key = `${cacheKey ?? '__workspace__'}\u0000${app.developerId}\u0000${app.appId}`;
+  const token = Symbol(key);
+  latestAdsStatusRequests.set(key, token);
+  return { key, token, cacheKey, requestId, app };
+}
+
+function isLatestAdsStatusRequest(state: AdsStatusRequestState | null): boolean {
+  return state !== null && latestAdsStatusRequests.get(state.key) === state.token;
+}
+
+function getCurrentPersistedAdsStatusRequest(
+  state: AdsStatusRequestState | null
+): AppCacheInfo | null {
+  if (!state) return null;
+  const current = readAppCache(state.cacheKey);
+  const isCurrent =
+    current?.developer_id === state.app.developerId &&
+    current.app_id === state.app.appId &&
+    current.ad_config_request_id === state.requestId;
+  return isCurrent ? current : null;
+}
+
+function finishAdsStatusRequest(state: AdsStatusRequestState | null): void {
+  if (state && latestAdsStatusRequests.get(state.key) === state.token) {
+    latestAdsStatusRequests.delete(state.key);
+  }
+}
 
 /**
  * 从缓存中获取游戏的横竖屏设置
  * screen_orientation: 1=竖屏, 2=横屏
  * 优先读取 upload_level（审核版本），其次读取 level（线上版本）
  */
-function getScreenOrientationFromCache(ctx: ResolvedContext): number | undefined {
-  const cache = readAppCache(ctx.projectPath);
-  if (!cache) return undefined;
-
+function getScreenOrientationFromCache(cache: AppCacheInfo): 1 | 2 | undefined {
   // 优先从审核版本读取
   const fromUpload = cache.upload_level?.form_data?.info?.screen_orientation;
-  if (fromUpload !== undefined) return fromUpload;
+  if (fromUpload !== undefined) return normalizeScreenOrientation(fromUpload);
 
   // 其次从线上版本读取
   const fromLevel = cache.level?.data?.screen_orientation;
-  if (fromLevel !== undefined) return fromLevel;
+  const levelOrientation = normalizeScreenOrientation(fromLevel);
+  if (levelOrientation !== undefined) return levelOrientation;
 
   return undefined;
 }
@@ -35,8 +137,24 @@ function getScreenOrientationFromCache(ctx: ResolvedContext): number | undefined
  * @returns 格式化的状态信息字符串
  */
 export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
+  let requestState: AdsStatusRequestState | null = null;
+
   try {
-    const config = await getAdConfig(ctx);
+    requestState = beginAdsStatusRequest(ctx);
+    const requestedApp = requestState?.app ?? getSelectedAppIdentity(ctx);
+    const config = await getAdConfig(ctx, requestedApp ?? undefined);
+
+    if (requestState && !isLatestAdsStatusRequest(requestState)) {
+      return SUPERSEDED_STATUS_RESULT;
+    }
+
+    if (!requestedApp || !isCurrentSelectedApp(ctx, requestedApp)) {
+      return `⚠️ 检查广告状态期间当前应用已切换，本次查询结果已丢弃。\n\n请为当前选中的应用重新调用 \`check_ads_status\`。`;
+    }
+    const currentCache = getCurrentPersistedAdsStatusRequest(requestState);
+    if (requestState && !currentCache) {
+      return SUPERSEDED_STATUS_RESULT;
+    }
 
     const statusText = STATUS_DESCRIPTIONS[config.status] || '未知状态';
 
@@ -55,30 +173,25 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
 
       case AdsStatus.Activated: {
         const adSpaces = config.ad_spaces ?? [];
-        const landscapeSpace = adSpaces.find((s) => s.type === 1);
-        const portraitSpace = adSpaces.find((s) => s.type === 2);
+        const landscapeSpace = findValidAdSpace(adSpaces, 1);
+        const portraitSpace = findValidAdSpace(adSpaces, 2);
 
         // 校验：至少需要有一个广告位
-        if (adSpaces.length === 0) {
+        if (!landscapeSpace && !portraitSpace) {
           result += `⚠️ **广告功能已生效，但广告位 ID 获取异常**\n\n`;
-          result += `服务器未返回有效的广告位信息（ad_spaces 为空），这可能是服务端临时异常，请稍后重试。\n\n`;
-          result += `你可以稍后说"重新检查广告状态"来重新查询。\n`;
+          result += `服务器未返回有效的广告位信息，这可能是服务端临时异常，请稍后重试。\n\n`;
+          result += `${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n\n`;
+          result += `请稍后重新调用 \`check_ads_status\`。\n`;
           break;
         }
 
         // 读取游戏横竖屏设置
-        const screenOrientation = getScreenOrientationFromCache(ctx);
+        const screenOrientation = currentCache
+          ? getScreenOrientationFromCache(currentCache)
+          : undefined;
 
-        // 展示广告位信息
-        result += `✅ **广告功能已开通，可以正常接入**\n\n`;
-        result += `**广告位信息：**\n`;
-        if (landscapeSpace) {
-          result += `- 横屏广告位 ID（type=1）：\`${landscapeSpace.id}\`\n`;
-        }
-        if (portraitSpace) {
-          result += `- 竖屏广告位 ID（type=2）：\`${portraitSpace.id}\`\n`;
-        }
-        result += '\n';
+        result += `✅ **广告变现已开通，服务端配置可用于生成接入代码**\n\n`;
+        result += `> 此状态不代表 \`window.tap\` 已注入、当前 ZIP 已正确上传或广告已在真机成功播放。\n\n`;
 
         // 展示游戏横竖屏设置及对应广告位
         if (screenOrientation === undefined) {
@@ -86,6 +199,7 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
           result += `无法自动匹配对应广告位 ID。请先通过 \`update_app_info\` 工具设置游戏的横竖屏方向：\n`;
           result += `- \`screenOrientation: 1\` → 竖屏\n`;
           result += `- \`screenOrientation: 2\` → 横屏\n\n`;
+          result += `${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n\n`;
           result += `设置后重新调用 \`check_ads_status\` 即可自动匹配广告位。\n`;
         } else {
           const orientationLabel = screenOrientation === 2 ? '横屏' : '竖屏';
@@ -94,16 +208,20 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
           result += `**游戏屏幕方向：** ${orientationLabel}（screen_orientation=${screenOrientation}）\n`;
 
           if (matchedSpace) {
+            const cached = cacheAdConfig(config, requestState, landscapeSpace, portraitSpace);
+            if (!cached) {
+              return `⚠️ 检查广告状态期间当前应用已切换或已有更新查询，本次查询结果已丢弃。\n\n请为当前选中的应用重新调用 \`check_ads_status\`。`;
+            }
             result += `**匹配广告位 ID：** \`${matchedSpace.id}\`\n\n`;
             result += `接下来请调用 \`get_ad_integration_guide\` 工具获取完整的接入文档。\n`;
             result += `文档中会自动使用匹配的广告位 ID（\`${matchedSpace.id}\`）。\n`;
           } else {
-            result += `⚠️ 服务器未返回与游戏方向（${orientationLabel}）对应的广告位，请联系 TapTap 运营确认。\n`;
+            result += `⚠️ 服务器未返回与游戏方向（${orientationLabel}）对应的广告位。\n\n`;
+            result += `${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n\n`;
+            result += `请稍后重新调用 \`check_ads_status\`；如果问题持续存在，请联系 TapTap 运营确认。\n`;
           }
         }
 
-        // 缓存广告配置
-        await cacheAdConfig(config, ctx);
         break;
       }
 
@@ -125,40 +243,58 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
 
     return result;
   } catch (error) {
-    if (error instanceof Error) {
-      return `❌ 查询广告状态失败：${error.message}`;
+    if (
+      requestState &&
+      (!isLatestAdsStatusRequest(requestState) ||
+        !getCurrentPersistedAdsStatusRequest(requestState))
+    ) {
+      return SUPERSEDED_STATUS_RESULT;
     }
-    return `❌ 查询广告状态失败：${String(error)}`;
+    if (error instanceof Error) {
+      return `❌ 查询广告状态失败：${error.message}\n\n${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n请解决上述错误后重新调用 \`check_ads_status\`。`;
+    }
+    return `❌ 查询广告状态失败：${String(error)}\n\n${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n请解决上述错误后重新调用 \`check_ads_status\`。`;
+  } finally {
+    finishAdsStatusRequest(requestState);
   }
 }
 
 /**
  * 缓存广告配置（仅在状态为"已生效"时调用）
  */
-async function cacheAdConfig(config: AdConfigResponse, ctx: ResolvedContext): Promise<void> {
-  const projectPath = ctx.projectPath;
-  const existingCache = readAppCache(projectPath);
+function cacheAdConfig(
+  config: AdConfigResponse,
+  requestState: AdsStatusRequestState | null,
+  landscapeSpace?: AdSpace,
+  portraitSpace?: AdSpace
+): boolean {
+  if (!requestState) return false;
 
-  if (!existingCache) {
-    return;
-  }
+  let cached = false;
+  mutateAppCache(requestState.cacheKey, (existingCache) => {
+    if (
+      !existingCache ||
+      existingCache.developer_id !== requestState.app.developerId ||
+      existingCache.app_id !== requestState.app.appId ||
+      existingCache.ad_config_request_id !== requestState.requestId
+    ) {
+      return undefined;
+    }
 
-  const adSpaces = config.ad_spaces ?? [];
-  const landscapeSpace = adSpaces.find((s) => s.type === 1);
-  const portraitSpace = adSpaces.find((s) => s.type === 2);
-
-  const updatedCache = {
-    ...existingCache,
-    ad_config: {
-      status: config.status,
-      landscape_space_id: landscapeSpace?.id,
-      portrait_space_id: portraitSpace?.id,
-      url: config.url,
-      updated_at: Date.now(),
-    },
-  };
-
-  saveAppCache(updatedCache, projectPath);
+    cached = true;
+    return {
+      ...existingCache,
+      ad_config: {
+        status: config.status,
+        landscape_space_id: landscapeSpace?.id,
+        portrait_space_id: portraitSpace?.id,
+        url: config.url,
+        updated_at: Date.now(),
+        request_id: requestState.requestId,
+      },
+    };
+  });
+  return cached;
 }
 
 /**
@@ -169,22 +305,25 @@ async function cacheAdConfig(config: AdConfigResponse, ctx: ResolvedContext): Pr
  * @returns 广告位ID，如果不存在或状态非"已生效"则返回 null
  */
 export function getSpaceIdFromCache(ctx: ResolvedContext): string | null {
-  const cache = readAppCache(ctx.projectPath);
+  const cache = readAppCache(getAdsCacheKey(ctx));
 
   if (!cache?.ad_config) return null;
+  if (!cache.ad_config_request_id || cache.ad_config.request_id !== cache.ad_config_request_id) {
+    return null;
+  }
   if (cache.ad_config.status !== AdsStatus.Activated) return null;
 
   // 读取游戏横竖屏设置
-  const screenOrientation = getScreenOrientationFromCache(ctx);
+  const screenOrientation = getScreenOrientationFromCache(cache);
 
   if (screenOrientation === 2) {
     // 横屏游戏 → 横屏广告位
-    return cache.ad_config.landscape_space_id ?? null;
+    return normalizeAdSpaceId(cache.ad_config.landscape_space_id) ?? null;
   } else if (screenOrientation === 1) {
     // 竖屏游戏 → 竖屏广告位
-    return cache.ad_config.portrait_space_id ?? null;
+    return normalizeAdSpaceId(cache.ad_config.portrait_space_id) ?? null;
   }
 
-  // 未设置横竖屏：返回任意一个可用的广告位
-  return cache.ad_config.landscape_space_id ?? cache.ad_config.portrait_space_id ?? null;
+  // 未设置横竖屏时不能猜测广告位，必须先完成应用方向配置
+  return null;
 }

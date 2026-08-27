@@ -37,6 +37,10 @@ async function getAdIntegrationGuide(ctx: ResolvedContext): Promise<string> {
 - 广告功能尚未开通（状态非"已生效"）
 - 未调用 \`check_ads_status\` 工具
 - 应用未选择
+- 游戏横竖屏方向尚未设置
+
+**不要向开发者索要广告位 ID，也不要使用开发者手工提供的 ID。**
+广告位 ID 的唯一来源是当前选中应用的本次 \`check_ads_status\` 自动查询结果。
 
 请先调用 \`check_ads_status\` 工具。`;
   }
@@ -72,7 +76,7 @@ async function getAdIntegrationGuide(ctx: ResolvedContext): Promise<string> {
 \`\`\`javascript
 // main.js 或游戏入口文件
 async function initGame() {
-  // 初始化广告管理器（会自动获取广告位配置）
+  // 初始化广告管理器（广告位配置已由 MCP 自动查询并注入）
   await adManager.init();
   console.log('广告初始化完成');
 }
@@ -259,11 +263,13 @@ function showCoinsAd() {
 
 ### Q3: 广告加载失败怎么办？
 
-**A**: AdManager 已经内置了错误处理，会在控制台输出详细日志。你可以通过监听 \`onError\` 回调来自定义错误处理（高级用法）。
+**A**: AdManager 会在 \`show()\` 因广告未就绪而失败时调用 \`load()\`，并在加载完成后重试一次；
+重试仍失败时只记录错误，不发放奖励。你也可以通过监听 \`onError\` 回调补充业务提示。
 
 ### Q4: 如何预加载广告？
 
-**A**: AdManager 在 \`init()\` 时会自动获取广告位配置并预加载激励视频广告，无需手动操作。每次播放后也会自动重新加载。
+**A**: MCP 会在生成代码前通过 \`check_ads_status\` 自动获取并注入广告位配置。AdManager 在 \`init()\`
+时预加载激励视频广告；如果显示时尚未就绪，会重新加载并只重试一次。
 
 ---
 
@@ -285,12 +291,23 @@ function showCoinsAd() {
 function getAdsIntegrationWorkflow(): string {
   return `# TapTap 广告接入完整工作流
 
+## MCP 适用范围
+
+**本流程仅适用于 TapTap 小游戏/H5，不适用于 TapTap Maker/UrhoX。**
+
+- 当前 MCP 使用 TapTap 小游戏/H5 的全局 \`tap\` JavaScript API。
+- 如果用户或项目明确属于 Maker/UrhoX，应停止本流程并提示改用 Maker MCP。
+- 禁止混用两套 MCP 的工具、应用上下文、广告配置、广告位 ID 或运行时 API。
+
 ## ⚠️ 核心原则
 
-**任何广告相关操作之前，必须先检查广告 SDK 状态。**
+**任何 TapTap 小游戏/H5 广告相关操作之前，必须先检查服务端广告变现状态与配置。**
 
-广告状态会缓存在本地，若本地无缓存则需查询服务器。
-状态为"未开通"时，用户可主动要求重新查询以获取最新状态。
+广告状态和广告位 ID 由 \`check_ads_status\` 从服务器自动查询并缓存。
+**不要向开发者索要广告位 ID，也不要使用开发者手工提供的 ID。**
+当前选中应用的本次 \`check_ads_status\` 查询结果是广告位 ID 的唯一来源。
+不得复用其他应用、历史输出或示例代码中的广告位 ID。不同应用返回相同 ID 时，只陈述服务端返回事实，
+不得据此推断广告位属于应用独享或开发者共享。
 
 ---
 
@@ -305,14 +322,11 @@ function getAdsIntegrationWorkflow(): string {
 2. 展示列表并让用户选择
 3. 调用 \`select_app\` 确认选择
 
-### 步骤 2: 检查广告 SDK 状态（必须！）
+### 步骤 2: 检查广告变现状态与服务端配置（必须！）
 
 **工具**：\`check_ads_status\`
 
-此工具会自动执行以下逻辑：
-- 读取本地缓存中的广告状态
-- 若无缓存，自动查询服务器并更新本地缓存
-- 返回当前状态及处理指引
+此工具会自动查询服务器、更新本地缓存，并返回当前状态及处理指引。
 
 **根据状态执行不同动作：**
 
@@ -327,6 +341,10 @@ function getAdsIntegrationWorkflow(): string {
 2. 游戏已设置横竖屏方向（否则提示用户先调用 \`update_app_info\` 设置 screenOrientation）
 
 两步均通过后，自动匹配正确的广告位 ID 并缓存，然后引导调用 \`get_ad_integration_guide\`。
+
+**能力边界：** \`status=1\` 且广告位有效只表示可以生成接入代码，不代表 \`window.tap\` 已注入，
+不代表当前 ZIP 已正确上传，也不代表广告已在真机环境中成功播放。最终播放必须在 TapTap 小游戏/H5
+宿主环境中验证。
 
 ### 步骤 3: 获取广告接入代码指南
 
@@ -371,9 +389,10 @@ AI 应再次调用 \`check_ads_status\` 工具（该工具会强制重新查询�
 
 ## 📝 注意事项
 
-- 客户端无需安装 SDK，tap 是全局对象
+- 在 TapTap 小游戏/H5 宿主中，\`tap\` 由宿主提供；普通浏览器中不能假设该对象存在
 - 不要搜索网页，所有文档由 \`get_ad_integration_guide\` 工具提供
-- 广告代码中不使用 Promise 风格，遵循 demo 回调模式
+- 不要向开发者索要或接受手工提供的广告位 ID
+- SDK 事件使用回调；仅在 \`show/load\` 的一次恢复重试中使用 Promise 链
 - 核心关注激励视频广告，插屏和 Banner 为可选内容
 `;
 }
