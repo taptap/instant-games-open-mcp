@@ -77,7 +77,7 @@ describe('app cache mutation recovery', () => {
             if (error.code !== 'ENOENT') throw error;
           }
           try { fs.rmdirSync(lockPath); } catch (error) {
-            if (error.code !== 'ENOENT') throw error;
+            if (error.code !== 'ENOENT' && error.code !== 'ENOTEMPTY') throw error;
           }
         `,
         lockPath,
