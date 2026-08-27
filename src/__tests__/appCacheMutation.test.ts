@@ -63,22 +63,25 @@ describe('app cache mutation recovery', () => {
           const fs = require('node:fs');
           const path = require('node:path');
           const lockPath = process.argv[1];
+          const cachePath = process.argv[2];
           fs.mkdirSync(lockPath, { recursive: true });
           const ownerPath = path.join(lockPath, 'test-owner');
           const ownerFd = fs.openSync(ownerPath, 'wx');
           fs.writeFileSync(ownerFd, JSON.stringify({ pid: process.pid, holds_open: true }), 'utf8');
-          process.stdout.write('ready\\n');
-          setTimeout(() => {
-            fs.closeSync(ownerFd);
-            try { fs.unlinkSync(ownerPath); } catch (error) {
-              if (error.code !== 'ENOENT') throw error;
-            }
-            try { fs.rmdirSync(lockPath); } catch (error) {
-              if (error.code !== 'ENOENT') throw error;
-            }
-          }, 250);
+          fs.writeSync(1, 'ready\\n');
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150);
+          const cache = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+          fs.writeFileSync(cachePath, JSON.stringify({ ...cache, app_id: 201 }, null, 2), 'utf8');
+          fs.closeSync(ownerFd);
+          try { fs.unlinkSync(ownerPath); } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+          }
+          try { fs.rmdirSync(lockPath); } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+          }
         `,
         lockPath,
+        cachePath,
       ],
       { stdio: ['ignore', 'pipe', 'inherit'] }
     );
@@ -98,12 +101,9 @@ describe('app cache mutation recovery', () => {
         }),
       ]);
 
-      const startedAt = Date.now();
       const cached = readAppCache(cacheKey);
 
-      expect(cached).toEqual(expect.objectContaining({ developer_id: 100, app_id: 200 }));
-      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(100);
-      expect(Date.now() - startedAt).toBeLessThan(1000);
+      expect(cached).toEqual(expect.objectContaining({ developer_id: 100, app_id: 201 }));
     } finally {
       await holderExited;
     }
