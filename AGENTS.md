@@ -307,6 +307,9 @@ graph TD
 
 ### 小游戏/H5 广告接入闭环
 
+- 本 MCP 的广告流程仅适用于 TapTap 小游戏/H5，不适用于 TapTap Maker/UrhoX。用户或项目明确属于
+  Maker/UrhoX 时停止当前流程并提示改用 Maker MCP；不得混用两套 MCP 的工具、应用上下文、广告配置、
+  广告位 ID 或运行时 API。
 - 用户提出任何广告、激励视频、插屏、Banner 或变现相关需求时，先调用
   `get_ads_integration_workflow`，再按流程确认应用并调用 `check_ads_status`。
 - 广告位 ID 的唯一来源是 `check_ads_status` 对 `/ad/v1/config` 的自动查询结果。AI 不得向开发者
@@ -315,6 +318,15 @@ graph TD
   `get_ad_integration_guide`；`status=2` 时立即停止广告接入。
 - 未设置横竖屏时使用 `update_app_info` 设置 `screenOrientation` 后重新调用 `check_ads_status`，不得
   随机选择任意广告位。服务端未返回广告位或查询失败时按工具指引重试，不生成占位代码。
+- 每次 `check_ads_status` 都先使旧广告缓存失效；只有最新响应属于当前选中应用、状态为 `1`、方向为
+  `1` 或 `2` 且匹配广告位 ID 为非空字符串时，才重新缓存可用于代码生成的配置。查询期间应用发生
+  切换时丢弃响应，禁止把旧应用广告位写入新应用缓存。同一应用有重叠查询时只允许最后发起的查询
+  更新缓存；广告缓存必须统一使用 `ResolvedContext.getCacheIsolationKey()`，同时支持 `projectPath` 和
+  `projectId` 隔离。
+- 审核版本 `upload_level` 的横竖屏字段优先级高于线上 `level`；字段存在但不是 `1` 或 `2` 时按方向
+  未设置处理，不得回退旧线上方向。
+- `status=1` 和有效广告位只证明服务端配置可用于生成代码，不证明 `window.tap` 已注入、ZIP 已正确
+  上传或真机广告可播放。激励视频启动时预加载；`show()` 未就绪时按官方流程 `load()` 后只重试一次。
 - `docs://ads/ad-manager` 只作为旧客户端兼容入口，不直接返回 AdManager 源码；完整代码只能由
   `get_ad_integration_guide` 在真实广告位自动查询成功后生成。
 

@@ -10,6 +10,8 @@ import { adsTools_Registration } from '../features/ads/tools';
 
 const AUTOMATIC_ID_CONTRACT = /must not ask the user for an ad space id/iu;
 const CHINESE_AUTOMATIC_ID_CONTRACT = /不要向开发者索要广告位 ID/u;
+const H5_SCOPE_CONTRACT = /only supports TapTap Minigame\/H5 ad integration/iu;
+const MAKER_EXCLUSION_CONTRACT = /must not be used for TapTap Maker\/UrhoX projects/iu;
 
 function createProjectPath(label: string): string {
   return `/tmp/taptap-ads-workflow-${label}-${Date.now()}-${Math.random()}`;
@@ -17,6 +19,10 @@ function createProjectPath(label: string): string {
 
 function createContext(projectPath: string): ResolvedContext {
   return new ResolvedContext({ _project_path: projectPath }, {});
+}
+
+function createProjectIdContext(projectId: string): ResolvedContext {
+  return new ResolvedContext({ _project_id: projectId }, {});
 }
 
 function mockAppDetail(appId: number, developerId: number): void {
@@ -59,6 +65,61 @@ describe('H5 ads workflow contract', () => {
     }
     expect(workflowOutput).toMatch(CHINESE_AUTOMATIC_ID_CONTRACT);
     expect(workflowOutput).toMatch(/check_ads_status.{0,80}唯一来源/su);
+  });
+
+  test('declares the H5-only scope across every ads tool entry', async () => {
+    const descriptions = adsTools_Registration.map((tool) => tool.definition.description || '');
+    const workflow = adsTools_Registration.find(
+      (tool) => tool.definition.name === 'get_ads_integration_workflow'
+    );
+    const workflowOutput = await workflow?.handler({}, createContext(createProjectPath('scope')));
+    const resource = adsResources.find((item) => item.uri === 'docs://ads/ad-manager');
+    const resourceOutput = await resource?.handler();
+
+    for (const description of descriptions) {
+      expect(description).toMatch(H5_SCOPE_CONTRACT);
+      expect(description).toMatch(MAKER_EXCLUSION_CONTRACT);
+    }
+    expect(workflowOutput).toContain('仅适用于 TapTap 小游戏/H5');
+    expect(workflowOutput).toContain('不适用于 TapTap Maker/UrhoX');
+    expect(resource?.description).toMatch(H5_SCOPE_CONTRACT);
+    expect(resource?.description).toMatch(MAKER_EXCLUSION_CONTRACT);
+    expect(resourceOutput).toContain('仅适用于 TapTap 小游戏/H5');
+    expect(resourceOutput).toContain('不适用于 TapTap Maker/UrhoX');
+  });
+
+  test('scopes the ads trigger to H5 instead of all advertising requests', async () => {
+    const workflow = adsTools_Registration.find(
+      (tool) => tool.definition.name === 'get_ads_integration_workflow'
+    );
+    const description = workflow?.definition.description || '';
+    const workflowOutput = await workflow?.handler(
+      {},
+      createContext(createProjectPath('scoped-trigger'))
+    );
+
+    expect(description).toMatch(/ANY TapTap Minigame\/H5 ads-related request/iu);
+    expect(description).not.toContain('For ANY ads-related request');
+    expect(workflowOutput).toContain('任何 TapTap 小游戏/H5 广告相关操作之前');
+  });
+
+  test('describes the latest selected-app lookup without claiming runtime playback readiness', async () => {
+    const descriptions = adsTools_Registration.map((tool) => tool.definition.description || '');
+    const workflow = adsTools_Registration.find(
+      (tool) => tool.definition.name === 'get_ads_integration_workflow'
+    );
+    const workflowOutput = await workflow?.handler(
+      {},
+      createContext(createProjectPath('runtime-boundary'))
+    );
+
+    for (const description of descriptions) {
+      expect(description).toMatch(/current selected app/iu);
+      expect(description).not.toMatch(/Ads SDK status/iu);
+    }
+    expect(workflowOutput).toContain('当前选中应用的本次 `check_ads_status` 查询结果');
+    expect(workflowOutput).toContain('不代表 `window.tap` 已注入');
+    expect(workflowOutput).toContain('不代表广告已在真机环境中成功播放');
   });
 
   test('uses status 2 as the banned state in tool guidance', () => {
@@ -137,6 +198,394 @@ describe('H5 ads workflow contract', () => {
     expect(output).toContain('稍后重新调用 `check_ads_status`');
   });
 
+  test.each([
+    ['not activated', { status: 0 }],
+    ['banned', { status: 2 }],
+    ['empty spaces', { status: 1, ad_spaces: [] }],
+    ['missing landscape space', { status: 1, ad_spaces: [{ id: 'portrait-id', type: 2 }] }],
+  ])('invalidates a stale cached ID when the latest status is %s', async (_, response) => {
+    const projectPath = createProjectPath('stale-status');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: {
+            title: 'Game 200',
+            screen_orientation: 2,
+          },
+        },
+        ad_config: {
+          status: 1,
+          landscape_space_id: 'stale-landscape-id',
+          updated_at: 123,
+        },
+      },
+      projectPath
+    );
+    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue(response);
+
+    await checkAdsStatus(createContext(projectPath));
+
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+    expect(await adsTools.getAdIntegrationGuide(createContext(projectPath))).not.toContain(
+      'stale-landscape-id'
+    );
+  });
+
+  test('invalidates a stale cached ID when status lookup fails', async () => {
+    const projectPath = createProjectPath('stale-error');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: {
+            title: 'Game 200',
+            screen_orientation: 2,
+          },
+        },
+        ad_config: {
+          status: 1,
+          landscape_space_id: 'stale-landscape-id',
+          updated_at: 123,
+        },
+      },
+      projectPath
+    );
+    jest.spyOn(HttpClient.prototype, 'get').mockRejectedValue(new Error('network unavailable'));
+
+    await checkAdsStatus(createContext(projectPath));
+
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+  });
+
+  test('discards an ads response when the selected app changes during the request', async () => {
+    const projectPath = createProjectPath('concurrent-switch');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: {
+            title: 'Game 200',
+            screen_orientation: 2,
+          },
+        },
+      },
+      projectPath
+    );
+
+    let resolveRequest: ((value: unknown) => void) | undefined;
+    const request = new Promise((resolve) => {
+      resolveRequest = resolve;
+    });
+    jest.spyOn(HttpClient.prototype, 'get').mockReturnValue(request);
+
+    const pendingStatus = checkAdsStatus(createContext(projectPath));
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 300,
+        level: {
+          app_id: 300,
+          app_title: 'game-300',
+          status: 4,
+          data: {
+            title: 'Game 300',
+            screen_orientation: 2,
+          },
+        },
+      },
+      projectPath
+    );
+    resolveRequest?.({
+      status: 1,
+      ad_spaces: [{ id: 'app-200-landscape-id', type: 1 }],
+    });
+
+    const output = await pendingStatus;
+
+    expect(output).toContain('应用已切换');
+    expect(readAppCache(projectPath)?.app_id).toBe(300);
+    expect(readAppCache(projectPath)?.ad_config).toBeUndefined();
+  });
+
+  test('does not let an older successful lookup restore cache after a newer lookup fails', async () => {
+    const projectPath = createProjectPath('same-app-newer-failure');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: { title: 'Game 200', screen_orientation: 2 },
+        },
+      },
+      projectPath
+    );
+
+    let resolveOlder: ((value: unknown) => void) | undefined;
+    const olderRequest = new Promise((resolve) => {
+      resolveOlder = resolve;
+    });
+    jest
+      .spyOn(HttpClient.prototype, 'get')
+      .mockReturnValueOnce(olderRequest)
+      .mockRejectedValueOnce(new Error('newer request failed'));
+
+    const olderStatus = checkAdsStatus(createContext(projectPath));
+    await checkAdsStatus(createContext(projectPath));
+    resolveOlder?.({ status: 1, ad_spaces: [{ id: 'older-id', type: 1 }] });
+
+    const olderOutput = await olderStatus;
+
+    expect(olderOutput).toContain('已有更新的广告状态查询');
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+  });
+
+  test('does not let an older response overwrite a newer successful lookup', async () => {
+    const projectPath = createProjectPath('same-app-newer-success');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: { title: 'Game 200', screen_orientation: 2 },
+        },
+      },
+      projectPath
+    );
+
+    let resolveOlder: ((value: unknown) => void) | undefined;
+    const olderRequest = new Promise((resolve) => {
+      resolveOlder = resolve;
+    });
+    jest
+      .spyOn(HttpClient.prototype, 'get')
+      .mockReturnValueOnce(olderRequest)
+      .mockResolvedValueOnce({ status: 1, ad_spaces: [{ id: 'newer-id', type: 1 }] });
+
+    const olderStatus = checkAdsStatus(createContext(projectPath));
+    await checkAdsStatus(createContext(projectPath));
+    resolveOlder?.({ status: 1, ad_spaces: [{ id: 'older-id', type: 1 }] });
+
+    const olderOutput = await olderStatus;
+
+    expect(olderOutput).toContain('已有更新的广告状态查询');
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBe('newer-id');
+  });
+
+  test('treats an unsupported screen orientation as unknown', async () => {
+    const projectPath = createProjectPath('invalid-orientation');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: {
+            title: 'Game 200',
+            screen_orientation: 0,
+          },
+        },
+      },
+      projectPath
+    );
+    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
+      status: 1,
+      ad_spaces: [
+        { id: 'landscape-id', type: 1 },
+        { id: 'portrait-id', type: 2 },
+      ],
+    });
+
+    const output = await checkAdsStatus(createContext(projectPath));
+
+    expect(output).toContain('未检测到游戏横竖屏设置');
+    expect(output).not.toContain('游戏屏幕方向：** 竖屏');
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+  });
+
+  test('does not fall back to the published orientation when the upload orientation is invalid', async () => {
+    const projectPath = createProjectPath('invalid-upload-orientation');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        upload_level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 2,
+          form_data: {
+            info: { title: 'Game 200 draft', screen_orientation: 0 },
+          },
+        },
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: { title: 'Game 200', screen_orientation: 2 },
+        },
+      },
+      projectPath
+    );
+    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
+      status: 1,
+      ad_spaces: [
+        { id: 'landscape-id', type: 1 },
+        { id: 'portrait-id', type: 2 },
+      ],
+    });
+
+    const output = await checkAdsStatus(createContext(projectPath));
+
+    expect(output).toContain('未检测到游戏横竖屏设置');
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+  });
+
+  test('rejects blank ad space IDs returned by the server', async () => {
+    const projectPath = createProjectPath('blank-space');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: {
+            title: 'Game 200',
+            screen_orientation: 2,
+          },
+        },
+      },
+      projectPath
+    );
+    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
+      status: 1,
+      ad_spaces: [{ id: '   ', type: 1 }],
+    });
+
+    const output = await checkAdsStatus(createContext(projectPath));
+
+    expect(output).not.toContain('匹配广告位 ID');
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+  });
+
+  test('stores the latest valid matched ID and injects it into the generated guide', async () => {
+    const projectPath = createProjectPath('fresh-success');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: { title: 'Game 200', screen_orientation: 2 },
+        },
+        ad_config: {
+          status: 1,
+          landscape_space_id: 'stale-id',
+          updated_at: 123,
+        },
+      },
+      projectPath
+    );
+    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
+      status: 1,
+      ad_spaces: [{ id: ' fresh-id ', type: 1 }],
+    });
+
+    await checkAdsStatus(createContext(projectPath));
+    const guide = await adsTools.getAdIntegrationGuide(createContext(projectPath));
+
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBe('fresh-id');
+    expect(guide).toContain("this.spaceId = 'fresh-id'");
+    expect(guide).not.toContain('stale-id');
+  });
+
+  test('uses projectId as the cache isolation key when projectPath is unavailable', async () => {
+    const projectId = createProjectPath('project-id-only');
+    cacheKeys.push(projectId);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: { title: 'Game 200', screen_orientation: 2 },
+        },
+      },
+      projectId
+    );
+    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
+      status: 1,
+      ad_spaces: [{ id: 'project-id-space', type: 1 }],
+    });
+
+    const context = createProjectIdContext(projectId);
+    await checkAdsStatus(context);
+
+    expect(getSpaceIdFromCache(context)).toBe('project-id-space');
+  });
+
+  test('keeps select_app and ads lookup on the same projectId-only cache', async () => {
+    const projectId = createProjectPath('project-id-selection');
+    cacheKeys.push(projectId);
+    const context = createProjectIdContext(projectId);
+    jest
+      .spyOn(HttpClient.prototype, 'get')
+      .mockResolvedValueOnce({
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          developer_id: 100,
+          developer_name: 'developer-100',
+          status: 4,
+          data: { title: 'Game 200', screen_orientation: 2 },
+        },
+      })
+      .mockResolvedValueOnce({
+        status: 1,
+        ad_spaces: [{ id: 'selected-project-id-space', type: 1 }],
+      });
+
+    await selectApp(100, 200, undefined, context);
+    await checkAdsStatus(context);
+
+    expect(context.resolveApp()).toEqual(expect.objectContaining({ developerId: 100, appId: 200 }));
+    expect(getSpaceIdFromCache(context)).toBe('selected-project-id-space');
+  });
+
   test('preserves cached ad configuration when refreshing the same app', async () => {
     const projectPath = createProjectPath('same-app');
     cacheKeys.push(projectPath);
@@ -194,5 +643,19 @@ describe('H5 ads workflow contract', () => {
 
     expect(code).toContain('由 check_ads_status 自动获取并注入');
     expect(code).not.toContain('从 TapTap 后台获取');
+  });
+
+  test('reloads and retries rewarded video once when show runs before the ad is ready', () => {
+    const code = getAdManagerCode('automatic-id');
+    const guideDescription =
+      adsTools_Registration.find((tool) => tool.definition.name === 'get_ad_integration_guide')
+        ?.definition.description || '';
+
+    expect(code).toMatch(/this\.rewardedVideoAd\.show\(\)\s*\.catch/isu);
+    expect(code).toMatch(
+      /this\.rewardedVideoAd\.load\(\)\s*\.then\(\(\) => this\.rewardedVideoAd\.show\(\)\)/isu
+    );
+    expect(guideDescription).not.toContain('NO Promise style');
+    expect(guideDescription).toMatch(/show\/load Promise recovery/iu);
   });
 });

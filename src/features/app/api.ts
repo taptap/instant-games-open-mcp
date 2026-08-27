@@ -478,18 +478,23 @@ export async function fetchAppDetail(
  * @param ctx - Resolved context
  * @returns Updated app information
  */
+function resolveAppCacheKey(projectPath?: string, ctx?: ResolvedContext): string | undefined {
+  return projectPath ?? ctx?.getCacheIsolationKey();
+}
+
 export async function refreshAppCache(
   projectPath?: string,
   ctx?: ResolvedContext
 ): Promise<AppCacheInfo> {
-  const cached = readAppCache(projectPath);
+  const cacheKey = resolveAppCacheKey(projectPath, ctx);
+  const cached = readAppCache(cacheKey);
   if (!cached?.app_id || !cached?.developer_id) {
     throw new Error('No app selected to refresh');
   }
 
   // Reuse selectApp to fetch fresh data and update cache
   // But allow developerId mismatch if it was 0 (from initial upload_level only cache)
-  return await selectApp(cached.developer_id, cached.app_id, projectPath, ctx);
+  return await selectApp(cached.developer_id, cached.app_id, cacheKey, ctx);
 }
 
 // TTL Constants
@@ -514,8 +519,9 @@ export async function ensureAppInfo(
   ctx?: ResolvedContext,
   forceRefresh: boolean = false
 ): Promise<AppCacheInfo | null> {
+  const cacheKey = resolveAppCacheKey(projectPath, ctx);
   // Check cache first
-  const cached = readAppCache(projectPath);
+  const cached = readAppCache(cacheKey);
 
   // No cache - return null (do not auto-select)
   if (!cached?.developer_id || !cached?.app_id) {
@@ -529,7 +535,7 @@ export async function ensureAppInfo(
   if (forceRefresh || isExpired) {
     try {
       // Try to refresh
-      return await refreshAppCache(projectPath, ctx);
+      return await refreshAppCache(cacheKey, ctx);
     } catch {
       // Refresh failed, return stale cache with warning flag
       return { ...cached, is_stale: true };
@@ -553,6 +559,7 @@ export async function selectApp(
   ctx?: ResolvedContext
 ): Promise<AppCacheInfo> {
   try {
+    const cacheKey = resolveAppCacheKey(projectPath, ctx);
     const appDetail = await fetchAppDetail(appId, ctx);
 
     if (!appDetail) {
@@ -567,7 +574,7 @@ export async function selectApp(
     }
 
     // Preserve existing developer_name from cache if API returns empty
-    const existingCache = readAppCache(projectPath);
+    const existingCache = readAppCache(cacheKey);
     const isSameApp =
       existingCache?.app_id === appDetail.appId &&
       (existingCache.developer_id === appDetail.developerId ||
@@ -586,7 +593,7 @@ export async function selectApp(
     };
 
     // Save to cache
-    saveAppCache(appInfo, projectPath);
+    saveAppCache(appInfo, cacheKey);
 
     return appInfo;
   } catch (error) {

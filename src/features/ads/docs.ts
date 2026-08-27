@@ -21,7 +21,7 @@ export function getAdManagerCode(spaceId: string): string {
  * - 激励视频/插屏/Banner：${spaceId}
  *
  * 重要机制：
- * - 激励视频和插屏广告：播放完会自动加载下一个广告，无需手动 load()
+ * - 激励视频：启动时预加载；show() 因未就绪失败时会 load() 并重试一次
  * - Banner 广告：不会自动刷新，需要手动销毁旧的并创建新的
  */
 
@@ -90,7 +90,14 @@ class TapAdManager {
       return;
     }
 
-    this.rewardedVideoAd.show();
+    this.rewardedVideoAd.show().catch((showError) => {
+      console.warn('[AdManager] 激励视频未就绪，重新加载后重试一次:', showError);
+      return this.rewardedVideoAd.load()
+        .then(() => this.rewardedVideoAd.show())
+        .catch((retryError) => {
+          console.error('[AdManager] 激励视频重试失败:', retryError);
+        });
+    });
   }
 
   /**
@@ -261,8 +268,6 @@ class TapAdManager {
         console.log('[AdManager] ⚠️ 用户提前关闭，未获得奖励');
       }
 
-      // 注意：广告播放完会自动加载下一个，无需手动 load()
-      console.log('[AdManager] 广告已自动加载下一个');
     });
 
     // 预加载第一次

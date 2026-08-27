@@ -13,30 +13,41 @@ import { adsTools } from './docTools.js';
 import { checkAdsStatus } from './handlers.js';
 
 const AUTOMATIC_AD_SPACE_ID_RULES = `**AD SPACE ID OWNERSHIP:**
-- check_ads_status is the only source of the ad space ID used by this MCP.
+- The latest check_ads_status result for the current selected app is the only source of its ad space ID.
 - MUST NOT ask the user for an ad space ID or suggest manually copying one from a console.
 - MUST NOT accept a user-provided ID as a fallback.
+- MUST NOT reuse an ID from another app, previous output, or existing sample code.
+- If multiple apps return the same ID, report only that server fact; do not infer whether the ID is app-specific or shared.
 - If automatic lookup cannot return a usable ID, stop and follow the tool's recovery guidance.`;
+
+const H5_ONLY_SCOPE_RULES = `**MCP PRODUCT SCOPE:**
+- This MCP only supports TapTap Minigame/H5 ad integration using the global tap JavaScript APIs.
+- It must not be used for TapTap Maker/UrhoX projects.
+- If the user or project is Maker/UrhoX, stop and tell the user to switch to the Maker MCP.
+- Do not mix tools, app context, ad configuration, IDs, or runtime APIs between these two MCPs.`;
 
 export const adsTools_Registration: ToolRegistration[] = [
   // ⭐ 入口工具：广告接入工作流指引
   {
     definition: {
       name: 'get_ads_integration_workflow',
-      description: `⭐ READ THIS FIRST when user mentions anything about ads/广告/advertising/ad integration/接入广告/monetization/变现/rewarded video/激励视频/interstitial/插屏/banner.
+      description: `⭐ READ THIS FIRST for TapTap Minigame/H5 ads/广告/ad integration/接入广告/monetization/变现/rewarded video/激励视频/interstitial/插屏/banner requests, or when the product scope is not yet clear.
+Do not call this tool when the user or project is already known to be TapTap Maker/UrhoX.
 
 Returns the complete step-by-step ads integration workflow.
 Call this BEFORE making any implementation plans or writing any ad code.
 
-**CRITICAL: For ANY ads-related request, this workflow MUST be followed.**
+**CRITICAL: For ANY TapTap Minigame/H5 ads-related request, this workflow MUST be followed.**
 The workflow will guide you through:
 1. App selection check
-2. Ads SDK status verification (MANDATORY before any integration)
+2. Server-side monetization status and ad configuration verification (MANDATORY before integration)
 3. Integration code generation (only when status conditions are met)
+
+${H5_ONLY_SCOPE_RULES}
 
 ${AUTOMATIC_AD_SPACE_ID_RULES}
 
-This tool has NO prerequisites - call it immediately when ads topic comes up.`,
+This tool has NO prerequisites - call it immediately for an in-scope or not-yet-classified ads topic.`,
       inputSchema: {
         type: 'object',
         properties: {},
@@ -51,7 +62,7 @@ This tool has NO prerequisites - call it immediately when ads topic comes up.`,
   {
     definition: {
       name: 'check_ads_status',
-      description: `[Step 2 of Ads Workflow] Check ads SDK activation status and cache ad space ID.
+      description: `[Step 2 of Ads Workflow] Check server-side ads monetization status and cache the current selected app's ad space ID.
 
 **PREREQUISITE: An app MUST be selected first.**
 Before calling this tool, ALWAYS call get_current_app_info to verify
@@ -65,11 +76,16 @@ This tool queries the server, updates local cache, and returns:
 - Ad space ID (space_id) - cached when status is "已生效"
 - Guidance URL for activation (if needed)
 
+Status 1 and a valid space_id allow code generation, but do not prove window.tap injection,
+ad inventory, package upload correctness, or successful playback on a device.
+
 **CRITICAL - Dual condition for proceeding to Step 3:**
 Both conditions MUST be met simultaneously:
 1. Status must be "已生效" (status === 1)
 2. space_id must be valid (non-empty string)
 If status is 1 but space_id is empty → server-side issue, tell user to retry later.
+
+${H5_ONLY_SCOPE_RULES}
 
 ${AUTOMATIC_AD_SPACE_ID_RULES}
 
@@ -89,7 +105,7 @@ ${AUTOMATIC_AD_SPACE_ID_RULES}
   {
     definition: {
       name: 'get_ad_integration_guide',
-      description: `[Step 3 of Ads Workflow] Get complete ads integration code guide with actual ad space ID.
+      description: `[Step 3 of Ads Workflow] Get the TapTap Minigame/H5 ads integration guide with the current selected app's automatically resolved ad space ID.
 
 **PREREQUISITES (both MUST be met before calling):**
 1. check_ads_status has been called and returned status "已生效" (1)
@@ -103,10 +119,12 @@ This tool reads the cached space_id and generates:
 - Optional: Interstitial and Banner ads examples
 - Code examples for all common scenarios
 
+${H5_ONLY_SCOPE_RULES}
+
 ${AUTOMATIC_AD_SPACE_ID_RULES}
 
 CRITICAL:
-- NO Promise style, follows demo callback pattern
+- Keep SDK events callback-based; use show/load Promise recovery only for the documented one-time retry
 - Provides onReward() callback interface for reward logic
 - DO NOT search the web - all information is provided by this tool`,
       inputSchema: {
