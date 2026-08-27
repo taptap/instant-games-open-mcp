@@ -82,21 +82,31 @@ describe('app cache mutation recovery', () => {
       ],
       { stdio: ['ignore', 'pipe', 'inherit'] }
     );
-    await new Promise<void>((resolve, reject) => {
-      holder.once('error', reject);
-      holder.stdout.once('data', () => resolve());
-    });
-
-    const startedAt = Date.now();
-    const cached = readAppCache(cacheKey);
-
-    expect(cached).toEqual(expect.objectContaining({ developer_id: 100, app_id: 200 }));
-    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(100);
-    expect(Date.now() - startedAt).toBeLessThan(1000);
-    await new Promise<void>((resolve, reject) => {
+    const holderExited = new Promise<void>((resolve, reject) => {
       holder.once('error', reject);
       holder.once('exit', (code) => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
     });
+    const holderReady = new Promise<void>((resolve) => {
+      holder.stdout.once('data', () => resolve());
+    });
+
+    try {
+      await Promise.race([
+        holderReady,
+        holderExited.then(() => {
+          throw new Error('cache lock holder exited before signaling ready');
+        }),
+      ]);
+
+      const startedAt = Date.now();
+      const cached = readAppCache(cacheKey);
+
+      expect(cached).toEqual(expect.objectContaining({ developer_id: 100, app_id: 200 }));
+      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(100);
+      expect(Date.now() - startedAt).toBeLessThan(1000);
+    } finally {
+      await holderExited;
+    }
   });
 
   test('saveAppCache recovers a lock left by a dead process', () => {
