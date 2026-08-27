@@ -15,6 +15,7 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { EnvConfig } from './env.js';
 
 /**
@@ -22,6 +23,11 @@ import { EnvConfig } from './env.js';
  * 优先级：环境变量 > 默认值
  */
 const CACHE_ROOT = EnvConfig.cacheDir;
+const CACHE_LOCK_RETRY_MS = 10;
+const CACHE_READ_LOCK_TIMEOUT_MS = 100;
+const CACHE_LOCK_TIMEOUT_MS = 5000;
+const CACHE_LOCK_STALE_MS = 30000;
+const CACHE_LOCK_WAIT_BUFFER = new Int32Array(new SharedArrayBuffer(4));
 
 /**
  * 版本信息（线上版本或审核版本）
@@ -95,12 +101,14 @@ export interface AppCacheInfo {
   upload_level?: CachedLevelInfo; // 审核版本完整详情
 
   // 广告配置信息（v1.x.x+）
+  ad_config_request_id?: string; // 当前广告状态查询 ID，用于跨进程丢弃过期响应
   ad_config?: {
     status: number; // 广告状态：0=未开通, 1=已生效, 2=已封禁
     landscape_space_id?: string; // 横屏广告位ID（type=1）
     portrait_space_id?: string; // 竖屏广告位ID（type=2）
     url?: string; // 引导URL（仅状态非"已生效"时有）
     updated_at: number; // 更新时间戳
+    request_id?: string; // 生成此配置的广告状态查询 ID
   };
 
   // 缓存时效控制
@@ -190,29 +198,329 @@ export function getIsolationKeyValue(projectPath?: string): string {
   return getIsolationKey(projectPath);
 }
 
+function readAppCacheFile(cachePath: string): AppCacheInfo | null {
+  if (!fs.existsSync(cachePath)) return null;
+
+  const content = fs.readFileSync(cachePath, 'utf8');
+  const cache = JSON.parse(content) as AppCacheInfo;
+  return cache.developer_id && cache.app_id ? cache : null;
+}
+
+function readAppCacheForMutation(cachePath: string): AppCacheInfo | null {
+  try {
+    return readAppCacheFile(cachePath);
+  } catch (error) {
+    if (error instanceof SyntaxError) return null;
+    throw error;
+  }
+}
+
+function isFileSystemError(error: unknown, code: string): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (isFileSystemError(error, 'ESRCH')) return false;
+    return true;
+  }
+}
+
+interface AppCacheLockOwner {
+  pid: number;
+  holds_open?: boolean;
+  process_start?: string;
+}
+
+let currentProcessStartFingerprint: string | null | undefined;
+
+function getProcessStartFingerprint(pid: number): string | null {
+  if (process.platform !== 'win32') return null;
+
+  try {
+    return execFileSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `(Get-Process -Id ${pid} -ErrorAction Stop).StartTime.ToUniversalTime().Ticks`,
+      ],
+      {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 1000,
+        windowsHide: true,
+      }
+    ).trim();
+  } catch {
+    return null;
+  }
+}
+
+function getCurrentProcessStartFingerprint(): string | null {
+  if (currentProcessStartFingerprint === undefined) {
+    currentProcessStartFingerprint = getProcessStartFingerprint(process.pid);
+  }
+  return currentProcessStartFingerprint;
+}
+
+function parseAppCacheLockOwner(content: string): AppCacheLockOwner | null {
+  try {
+    const parsed = JSON.parse(content) as Partial<AppCacheLockOwner>;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      Number.isInteger(parsed.pid) &&
+      parsed.pid! > 0
+    ) {
+      return {
+        pid: parsed.pid!,
+        holds_open: parsed.holds_open === true,
+        process_start:
+          typeof parsed.process_start === 'string' && parsed.process_start
+            ? parsed.process_start
+            : undefined,
+      };
+    }
+  } catch {
+    // 继续尝试兼容旧版纯数字 PID owner。
+  }
+
+  const legacyPid = Number(content);
+  if (Number.isInteger(legacyPid) && legacyPid > 0) return { pid: legacyPid };
+  return null;
+}
+
+function processHoldsAppCacheOwner(owner: AppCacheLockOwner, ownerPath: string): boolean | null {
+  if (!owner.holds_open) return null;
+
+  if (process.platform === 'linux') {
+    try {
+      const expectedPath = fs.realpathSync(ownerPath);
+      const fdDir = `/proc/${owner.pid}/fd`;
+      for (const fd of fs.readdirSync(fdDir)) {
+        try {
+          if (fs.realpathSync(path.join(fdDir, fd)) === expectedPath) return true;
+        } catch (error) {
+          if (!isFileSystemError(error, 'ENOENT')) throw error;
+        }
+      }
+      return false;
+    } catch (error) {
+      if (isFileSystemError(error, 'ENOENT')) return false;
+      return null;
+    }
+  }
+
+  if (process.platform === 'darwin') {
+    try {
+      execFileSync('/usr/sbin/lsof', ['-a', '-p', String(owner.pid), '-Fn', '--', ownerPath], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 1000,
+      });
+      return true;
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'status' in error && error.status === 1) {
+        return false;
+      }
+      return null;
+    }
+  }
+
+  if (process.platform === 'win32' && owner.process_start) {
+    const processStart = getProcessStartFingerprint(owner.pid);
+    return processStart ? processStart === owner.process_start : null;
+  }
+
+  return null;
+}
+
+function removeEmptyAppCacheLock(lockPath: string): boolean {
+  try {
+    fs.rmdirSync(lockPath);
+    return true;
+  } catch (error) {
+    if (isFileSystemError(error, 'ENOENT') || isFileSystemError(error, 'ENOTEMPTY')) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function tryRecoverAppCacheLock(lockPath: string): boolean {
+  try {
+    const ownerFiles = fs.readdirSync(lockPath);
+    if (ownerFiles.length === 0) {
+      const lockAge = Date.now() - fs.statSync(lockPath).mtimeMs;
+      return lockAge > CACHE_LOCK_STALE_MS && removeEmptyAppCacheLock(lockPath);
+    }
+    if (ownerFiles.length !== 1) return false;
+
+    const ownerPath = path.join(lockPath, ownerFiles[0]);
+    const ownerAge = Date.now() - fs.statSync(ownerPath).mtimeMs;
+    const owner = parseAppCacheLockOwner(fs.readFileSync(ownerPath, 'utf8'));
+    if (owner) {
+      if (isProcessAlive(owner.pid)) {
+        const holdsOwner = processHoldsAppCacheOwner(owner, ownerPath);
+        if (holdsOwner !== false) return false;
+      }
+    } else if (ownerAge <= CACHE_LOCK_STALE_MS) {
+      return false;
+    }
+
+    // unlink 是回收旧 owner 的原子抢占点，避免两个回收者误删后来创建的新锁。
+    try {
+      fs.unlinkSync(ownerPath);
+    } catch (error) {
+      if (isFileSystemError(error, 'ENOENT')) return false;
+      throw error;
+    }
+    return removeEmptyAppCacheLock(lockPath);
+  } catch (error) {
+    if (isFileSystemError(error, 'ENOENT')) return false;
+    throw error;
+  }
+}
+
+function acquireAppCacheLock(
+  cachePath: string,
+  timeoutMs: number = CACHE_LOCK_TIMEOUT_MS
+): () => void {
+  const cacheDir = path.dirname(cachePath);
+  const lockPath = `${cachePath}.lock`;
+  const deadline = Date.now() + timeoutMs;
+  fs.mkdirSync(cacheDir, { recursive: true });
+
+  for (;;) {
+    const ownerToken = crypto.randomUUID();
+    const ownerPath = path.join(lockPath, ownerToken);
+    let ownerFd: number | undefined;
+    try {
+      fs.mkdirSync(lockPath);
+      try {
+        ownerFd = fs.openSync(ownerPath, 'wx');
+        const owner: AppCacheLockOwner = {
+          pid: process.pid,
+          holds_open: true,
+          process_start: getCurrentProcessStartFingerprint() ?? undefined,
+        };
+        fs.writeFileSync(ownerFd, JSON.stringify(owner), 'utf8');
+      } catch (error) {
+        if (ownerFd !== undefined) {
+          fs.closeSync(ownerFd);
+          ownerFd = undefined;
+        }
+        try {
+          fs.unlinkSync(ownerPath);
+        } catch (cleanupError) {
+          if (!isFileSystemError(cleanupError, 'ENOENT')) throw cleanupError;
+        }
+        try {
+          fs.rmdirSync(lockPath);
+        } catch (cleanupError) {
+          if (
+            !isFileSystemError(cleanupError, 'ENOENT') &&
+            !isFileSystemError(cleanupError, 'ENOTEMPTY')
+          ) {
+            throw cleanupError;
+          }
+        }
+        if (isFileSystemError(error, 'ENOENT')) continue;
+        throw error;
+      }
+
+      return () => {
+        if (ownerFd !== undefined) {
+          fs.closeSync(ownerFd);
+          ownerFd = undefined;
+        }
+        try {
+          fs.unlinkSync(ownerPath);
+        } catch (error) {
+          if (isFileSystemError(error, 'ENOENT')) return;
+          throw error;
+        }
+        removeEmptyAppCacheLock(lockPath);
+      };
+    } catch (error) {
+      if (!isFileSystemError(error, 'EEXIST')) throw error;
+
+      if (tryRecoverAppCacheLock(lockPath)) continue;
+
+      if (Date.now() >= deadline) {
+        throw new Error(`Timed out waiting for app cache lock: ${lockPath}`);
+      }
+      Atomics.wait(CACHE_LOCK_WAIT_BUFFER, 0, 0, CACHE_LOCK_RETRY_MS);
+    }
+  }
+}
+
+function writeAppCacheFile(
+  info: AppCacheInfo,
+  cachePath: string,
+  isolationKey: string,
+  existingMeta?: CacheMetadata
+): AppCacheInfo {
+  const cacheData: AppCacheInfo = {
+    _meta: {
+      source_path: isolationKey,
+      tenant_id: computeTenantId(isolationKey),
+      created_at: existingMeta?.created_at || Date.now(),
+    },
+    ...info,
+    cached_at: Date.now(),
+  };
+
+  fs.writeFileSync(cachePath, JSON.stringify(cacheData, null, 2), 'utf8');
+  return cacheData;
+}
+
+/**
+ * 在单个租户缓存的跨进程短事务中执行同步读改写。
+ * updater 返回 undefined 表示不修改，null 表示删除缓存。
+ */
+export function mutateAppCache(
+  projectPath: string | undefined,
+  updater: (current: AppCacheInfo | null) => AppCacheInfo | null | undefined
+): AppCacheInfo | null {
+  const cachePath = getCachePath(projectPath);
+  const isolationKey = getIsolationKey(projectPath);
+  const releaseLock = acquireAppCacheLock(cachePath);
+
+  try {
+    const current = readAppCacheForMutation(cachePath);
+    const next = updater(current);
+    if (next === undefined) return current;
+    if (next === null) {
+      if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
+      return null;
+    }
+    return writeAppCacheFile(next, cachePath, isolationKey, current?._meta);
+  } finally {
+    releaseLock();
+  }
+}
+
 /**
  * Read cached app information
  */
 export function readAppCache(projectPath?: string): AppCacheInfo | null {
   const cachePath = getCachePath(projectPath);
-
-  if (!fs.existsSync(cachePath)) {
-    return null;
-  }
+  let releaseLock: (() => void) | undefined;
 
   try {
-    const content = fs.readFileSync(cachePath, 'utf8');
-    const cache = JSON.parse(content) as AppCacheInfo;
-
-    // Validate cache has required fields
-    if (cache.developer_id && cache.app_id) {
-      return cache;
-    }
-
-    return null;
+    releaseLock = acquireAppCacheLock(cachePath, CACHE_READ_LOCK_TIMEOUT_MS);
+    return readAppCacheFile(cachePath);
   } catch (error) {
     console.error('Failed to read cache:', error);
     return null;
+  } finally {
+    releaseLock?.();
   }
 }
 
@@ -225,41 +533,8 @@ export function readAppCache(projectPath?: string): AppCacheInfo | null {
  * - created_at: 首次创建时间
  */
 export function saveAppCache(info: AppCacheInfo, projectPath?: string): void {
-  const cachePath = getCachePath(projectPath);
-  const cacheDir = path.dirname(cachePath);
-  const isolationKey = getIsolationKey(projectPath);
-  const tenantId = computeTenantId(isolationKey);
-
   try {
-    // Ensure directory exists
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir, { recursive: true });
-    }
-
-    // 读取现有缓存以保留 created_at
-    let existingMeta: CacheMetadata | undefined;
-    if (fs.existsSync(cachePath)) {
-      try {
-        const existing = JSON.parse(fs.readFileSync(cachePath, 'utf8')) as AppCacheInfo;
-        existingMeta = existing._meta;
-      } catch {
-        // 忽略读取错误
-      }
-    }
-
-    // 构建缓存数据（包含元数据）
-    const cacheData: AppCacheInfo = {
-      _meta: {
-        source_path: isolationKey,
-        tenant_id: tenantId,
-        created_at: existingMeta?.created_at || Date.now(),
-      },
-      ...info,
-      cached_at: Date.now(),
-    };
-
-    // Write to file
-    fs.writeFileSync(cachePath, JSON.stringify(cacheData, null, 2), 'utf8');
+    mutateAppCache(projectPath, () => info);
   } catch (error) {
     console.error('Failed to save cache:', error);
   }
@@ -269,14 +544,10 @@ export function saveAppCache(info: AppCacheInfo, projectPath?: string): void {
  * Clear cached app information
  */
 export function clearAppCache(projectPath?: string): void {
-  const cachePath = getCachePath(projectPath);
-
-  if (fs.existsSync(cachePath)) {
-    try {
-      fs.unlinkSync(cachePath);
-    } catch (error) {
-      console.error('Failed to clear cache:', error);
-    }
+  try {
+    mutateAppCache(projectPath, () => null);
+  } catch (error) {
+    console.error('Failed to clear cache:', error);
   }
 }
 

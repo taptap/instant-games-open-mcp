@@ -1,5 +1,6 @@
 import { HttpClient } from '../core/network/httpClient';
 import { ResolvedContext } from '../core/types/context';
+import * as cacheUtils from '../core/utils/cache';
 import { clearAppCache, readAppCache, saveAppCache } from '../core/utils/cache';
 import { selectApp } from '../features/app/api';
 import { adsTools } from '../features/ads/docTools';
@@ -23,6 +24,31 @@ function createContext(projectPath: string): ResolvedContext {
 
 function createProjectIdContext(projectId: string): ResolvedContext {
   return new ResolvedContext({ _project_id: projectId }, {});
+}
+
+function loadIsolatedAdsProcess(): {
+  HttpClient: typeof HttpClient;
+  checkAdsStatus: typeof checkAdsStatus;
+} {
+  let isolatedProcess:
+    | {
+        HttpClient: typeof HttpClient;
+        checkAdsStatus: typeof checkAdsStatus;
+      }
+    | undefined;
+
+  jest.isolateModules(() => {
+    const isolatedNetwork =
+      require('../core/network/httpClient') as typeof import('../core/network/httpClient');
+    const isolatedHandlers =
+      require('../features/ads/handlers') as typeof import('../features/ads/handlers');
+    isolatedProcess = {
+      HttpClient: isolatedNetwork.HttpClient,
+      checkAdsStatus: isolatedHandlers.checkAdsStatus,
+    };
+  });
+
+  return isolatedProcess!;
 }
 
 function mockAppDetail(appId: number, developerId: number): void {
@@ -169,6 +195,53 @@ describe('H5 ads workflow contract', () => {
     );
 
     expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+  });
+
+  test('selects an ad space from one cache snapshot during an app switch', () => {
+    const firstSnapshot = {
+      developer_id: 100,
+      app_id: 200,
+      ad_config_request_id: 'request-a',
+      ad_config: {
+        status: 1,
+        landscape_space_id: 'app-a-landscape',
+        portrait_space_id: 'app-a-portrait',
+        updated_at: Date.now(),
+        request_id: 'request-a',
+      },
+      level: {
+        app_id: 200,
+        app_title: 'app-a',
+        status: 4,
+        data: { title: 'App A', screen_orientation: 2 },
+      },
+    };
+    const secondSnapshot = {
+      ...firstSnapshot,
+      app_id: 300,
+      ad_config_request_id: 'request-b',
+      ad_config: {
+        ...firstSnapshot.ad_config,
+        landscape_space_id: 'app-b-landscape',
+        portrait_space_id: 'app-b-portrait',
+        request_id: 'request-b',
+      },
+      level: {
+        app_id: 300,
+        app_title: 'app-b',
+        status: 4,
+        data: { title: 'App B', screen_orientation: 1 },
+      },
+    };
+    const readCache = jest
+      .spyOn(cacheUtils, 'readAppCache')
+      .mockReturnValueOnce(firstSnapshot)
+      .mockReturnValueOnce(secondSnapshot);
+
+    expect(getSpaceIdFromCache(createContext(createProjectPath('one-read')))).toBe(
+      'app-a-landscape'
+    );
+    expect(readCache).toHaveBeenCalledTimes(1);
   });
 
   test('explains that an empty server response must not be replaced with a developer-provided ID', async () => {
@@ -321,6 +394,143 @@ describe('H5 ads workflow contract', () => {
     expect(output).toContain('应用已切换');
     expect(readAppCache(projectPath)?.app_id).toBe(300);
     expect(readAppCache(projectPath)?.ad_config).toBeUndefined();
+  });
+
+  test('pins the ads API request to the app selected when the check starts', async () => {
+    const projectPath = createProjectPath('request-app-identity');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: { title: 'Game 200', screen_orientation: 2 },
+        },
+      },
+      projectPath
+    );
+
+    const context = createContext(projectPath);
+    let initialIdentityRead = false;
+    let requestStarted = false;
+    jest.spyOn(context, 'resolveApp').mockImplementation(() => {
+      if (requestStarted || !initialIdentityRead) {
+        initialIdentityRead = true;
+        return { developerId: 100, appId: 200, projectPath };
+      }
+      return { developerId: 100, appId: 300, projectPath };
+    });
+
+    const getRequest = jest
+      .spyOn(HttpClient.prototype, 'get')
+      .mockImplementation((_path, options) => {
+        requestStarted = true;
+        const appId = options.params?.app_id;
+        return Promise.resolve({
+          status: 1,
+          ad_spaces: [{ id: `app-${appId}-landscape-id`, type: 1 }],
+        });
+      });
+
+    const output = await checkAdsStatus(context);
+
+    expect(getRequest).toHaveBeenCalledWith('/ad/v1/config', {
+      params: { developer_id: '100', app_id: '200' },
+    });
+    expect(output).toContain('app-200-landscape-id');
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBe('app-200-landscape-id');
+  });
+
+  test('does not let an old process overwrite ads after an A-to-B-to-A switch', async () => {
+    const projectPath = createProjectPath('cross-process-aba');
+    cacheKeys.push(projectPath);
+    const appA = {
+      developer_id: 100,
+      app_id: 200,
+      level: {
+        app_id: 200,
+        app_title: 'game-200',
+        status: 4,
+        data: { title: 'Game 200', screen_orientation: 2 },
+      },
+    };
+    saveAppCache(appA, projectPath);
+
+    const processA = loadIsolatedAdsProcess();
+    const processB = loadIsolatedAdsProcess();
+    let resolveOlder: ((value: unknown) => void) | undefined;
+    const olderRequest = new Promise((resolve) => {
+      resolveOlder = resolve;
+    });
+    jest.spyOn(processA.HttpClient.prototype, 'get').mockReturnValue(olderRequest);
+    jest.spyOn(processB.HttpClient.prototype, 'get').mockResolvedValue({
+      status: 1,
+      ad_spaces: [{ id: 'newer-app-200-id', type: 1 }],
+    });
+
+    const olderStatus = processA.checkAdsStatus(createContext(projectPath));
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 300,
+        level: {
+          app_id: 300,
+          app_title: 'game-300',
+          status: 4,
+          data: { title: 'Game 300', screen_orientation: 2 },
+        },
+      },
+      projectPath
+    );
+    saveAppCache(appA, projectPath);
+    await processB.checkAdsStatus(createContext(projectPath));
+    resolveOlder?.({ status: 1, ad_spaces: [{ id: 'older-app-200-id', type: 1 }] });
+    await olderStatus;
+
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBe('newer-app-200-id');
+  });
+
+  test('does not publish an old process non-success status after a newer lookup', async () => {
+    const projectPath = createProjectPath('cross-process-stale-status');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: { title: 'Game 200', screen_orientation: 2 },
+        },
+      },
+      projectPath
+    );
+
+    const processA = loadIsolatedAdsProcess();
+    const processB = loadIsolatedAdsProcess();
+    let resolveOlder: ((value: unknown) => void) | undefined;
+    const olderRequest = new Promise((resolve) => {
+      resolveOlder = resolve;
+    });
+    jest.spyOn(processA.HttpClient.prototype, 'get').mockReturnValue(olderRequest);
+    jest.spyOn(processB.HttpClient.prototype, 'get').mockResolvedValue({
+      status: 1,
+      ad_spaces: [{ id: 'newer-app-200-id', type: 1 }],
+    });
+
+    const olderStatus = processA.checkAdsStatus(createContext(projectPath));
+    await processB.checkAdsStatus(createContext(projectPath));
+    resolveOlder?.({ status: 0, url: 'https://example.com/activate' });
+
+    const olderOutput = await olderStatus;
+
+    expect(olderOutput).toContain('已有更新的广告状态查询');
+    expect(olderOutput).not.toContain('广告功能尚未开通');
+    expect(getSpaceIdFromCache(createContext(projectPath))).toBe('newer-app-200-id');
   });
 
   test('does not let an older successful lookup restore cache after a newer lookup fails', async () => {

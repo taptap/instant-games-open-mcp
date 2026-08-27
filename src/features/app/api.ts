@@ -6,7 +6,7 @@
 import { HttpClient } from '../../core/network/httpClient.js';
 import {
   readAppCache,
-  saveAppCache,
+  mutateAppCache,
   AppCacheInfo,
   CachedLevelInfo,
 } from '../../core/utils/cache.js';
@@ -573,29 +573,29 @@ export async function selectApp(
       );
     }
 
-    // Preserve existing developer_name from cache if API returns empty
-    const existingCache = readAppCache(cacheKey);
-    const isSameApp =
-      existingCache?.app_id === appDetail.appId &&
-      (existingCache.developer_id === appDetail.developerId ||
-        existingCache.developer_id === developerId);
-    const appInfo: AppCacheInfo = {
-      developer_id: appDetail.developerId || developerId, // Use passed ID if detail has 0
-      developer_name: appDetail.developerName || existingCache?.developer_name,
-      app_id: appDetail.appId,
-      app_title: appDetail.appTitle,
-      miniapp_id: appDetail.miniappId,
-      level: appDetail.level,
-      upload_level: appDetail.uploadLevel,
-      ad_config: isSameApp ? existingCache.ad_config : undefined,
-      updated_at: Date.now(),
-      status_updated_at: Date.now(),
-    };
+    let appInfo: AppCacheInfo | undefined;
+    mutateAppCache(cacheKey, (existingCache) => {
+      const isSameApp =
+        existingCache?.app_id === appDetail.appId &&
+        (existingCache.developer_id === appDetail.developerId ||
+          existingCache.developer_id === developerId);
+      appInfo = {
+        developer_id: appDetail.developerId || developerId, // Use passed ID if detail has 0
+        developer_name: appDetail.developerName || existingCache?.developer_name,
+        app_id: appDetail.appId,
+        app_title: appDetail.appTitle,
+        miniapp_id: appDetail.miniappId,
+        level: appDetail.level,
+        upload_level: appDetail.uploadLevel,
+        ad_config_request_id: isSameApp ? existingCache.ad_config_request_id : undefined,
+        ad_config: isSameApp ? existingCache.ad_config : undefined,
+        updated_at: Date.now(),
+        status_updated_at: Date.now(),
+      };
+      return appInfo;
+    });
 
-    // Save to cache
-    saveAppCache(appInfo, cacheKey);
-
-    return appInfo;
+    return appInfo!;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to select app: ${error.message}`);
