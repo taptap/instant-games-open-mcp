@@ -193,10 +193,10 @@ describe('TapTap Maker Codex plugin package', () => {
     expect(readme).toContain('WorkBuddy 官方插件市场');
     expect(readme).toContain('WorkBuddy 发布 ZIP 只用于插件市场提交');
     expect(readme).toContain('用户在当前对话中直接提供本页面链接');
-    expect(readme).toContain('立即执行完整安装流程');
-    expect(readme).toContain('不要再次询问用户是否安装');
-    expect(readme).toContain('不要只给出安装建议、命令或操作步骤');
-    expect(readme).toContain('完成安装并验证插件已启用后再向用户报告结果');
+    expect(readme).toContain('Codex 渠道必须由安装 AI 自动执行');
+    expect(readme).toContain('WorkBuddy 渠道需要用户在 `/plugin` 面板中确认安装');
+    expect(readme).toContain('不得在用户确认前声称插件已经安装');
+    expect(readme).toContain('等待用户确认 UI 安装和重新加载');
     expect(readme).toContain('解压到不会自动清理的固定本地目录');
     expect(readme).toContain('只要该 marketplace 仍已配置，就必须保留这个目录');
     expect(readme).toContain('plugin migrate --client codex --confirm --json');
@@ -233,6 +233,14 @@ describe('TapTap Maker Codex plugin package', () => {
     );
     expect(readme).not.toContain('/plugin marketplace add <解压目录>');
     expect(readme).not.toContain('/plugin install taptap-maker@taptap-maker');
+    expect(readme).not.toContain('其中一个 ZIP 当作通用 MCP 包');
+    expect(readme).toContain('任何客户端插件 ZIP 当作通用 MCP 包');
+    const prepareScript = fs.readFileSync(
+      path.join(projectRoot, 'scripts', 'prepare-maker-codex-plugin.js'),
+      'utf8'
+    );
+    expect(prepareScript).toContain('develop 预览版，不会发布到 WorkBuddy 官方插件市场');
+    expect(prepareScript).toContain('源码 marketplace');
   });
 
   test('keeps committed client bundles aligned with the shared plugin lifecycle guidance', () => {
