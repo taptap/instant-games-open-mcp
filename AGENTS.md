@@ -400,8 +400,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   marketplace ZIP、WorkBuddy 官方市场根级 ZIP、`INSTALL.md`、`SHA256SUMS` 和
   `maker-plugin-release.json`。插件发布不得调用
   npm publish、不得复用 Maker npm 或主包 release workflow。插件专属安装页固定为
-  `plugins/taptap-maker/README.md`；对外安装使用对应渠道的 GitHub Release 页面和 ZIP。直接从
-  仓库添加 marketplace 只用于源码验证，并且必须在添加前用生成目录中的 CLI 完成旧 MCP 检查。
+  `plugins/taptap-maker/README.md`；Codex 对外安装使用对应渠道的 GitHub Release 页面和 ZIP，
+  WorkBuddy 对外安装使用官方插件市场。直接从仓库添加 marketplace 只用于源码或 develop 预览版
+  验证，并且必须在添加前用生成目录中的 CLI 完成旧 MCP 检查。
 - DSH bundle 插件 `@taptap/dsh-maker` 位于 `packages/dsh-maker/`，使用独立版本并精确依赖
   `@taptap/maker`。`Publish DSH Maker Plugin` 从 `develop` 只发布 GitHub prerelease，从 `main`
   同时发布 npm `latest` 和 GitHub Release；1024Store 使用 npm 包名作为市场入口。DSH 发布不得
