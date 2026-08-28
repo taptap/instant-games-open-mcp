@@ -16,6 +16,12 @@ const MAX_ARCHIVE_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES = 1000;
 const MAX_ARCHIVE_EXTRACTED_BYTES = 128 * 1024 * 1024;
 
+interface SkillInstallChange {
+  target: string;
+  backup: string;
+  hadExisting: boolean;
+}
+
 export interface PullMakerUserSkillsOptions {
   targetDir?: string;
   environment?: MakerEnvironment;
@@ -250,7 +256,8 @@ function installUserSkills(projectRoot: string, stagingDir: string, skillNames: 
   const transactionDir = path.join(installerDir, `.user-skills-${randomUUID()}`);
   const preparedDir = path.join(transactionDir, 'prepared');
   const backupDir = path.join(transactionDir, 'backup');
-  const completed: Array<{ target: string; backup: string; hadExisting: boolean }> = [];
+  const completed: SkillInstallChange[] = [];
+  let preserveTransaction = false;
   fs.mkdirSync(preparedDir, { recursive: true });
   fs.mkdirSync(sourceDir, { recursive: true });
 
@@ -269,28 +276,25 @@ function installUserSkills(projectRoot: string, stagingDir: string, skillNames: 
         fs.mkdirSync(path.dirname(backup), { recursive: true });
         fs.renameSync(target, backup);
       }
-      try {
-        fs.renameSync(path.join(preparedDir, skillName), target);
-        completed.push({ target, backup, hadExisting });
-      } catch (error) {
-        if (hadExisting && pathExists(backup) && !pathExists(target)) {
-          fs.renameSync(backup, target);
-        }
-        throw error;
-      }
+      completed.push({ target, backup, hadExisting });
+      fs.renameSync(path.join(preparedDir, skillName), target);
     }
 
     installUserSkillsForClients(projectRoot, skillNames);
   } catch (error) {
-    for (const item of completed.reverse()) {
-      fs.rmSync(item.target, { recursive: true, force: true });
-      if (item.hadExisting && pathExists(item.backup)) {
-        fs.renameSync(item.backup, item.target);
-      }
+    const rollbackErrors = rollbackSkillChanges(completed);
+    if (rollbackErrors.length > 0) {
+      preserveTransaction = true;
+      throw new Error(
+        `Failed to install Maker user Skills: ${formatError(error)}; rollback incomplete, ` +
+          `backups were preserved at ${transactionDir}: ${rollbackErrors.join('; ')}`
+      );
     }
     throw new Error(`Failed to install Maker user Skills: ${formatError(error)}`);
   } finally {
-    fs.rmSync(transactionDir, { recursive: true, force: true });
+    if (!preserveTransaction) {
+      fs.rmSync(transactionDir, { recursive: true, force: true });
+    }
   }
 }
 
@@ -306,7 +310,8 @@ function installUserSkillsForClients(projectRoot: string, skillNames: string[]):
     `.user-skill-clients-${randomUUID()}`
   );
   const backupRoot = path.join(transactionDir, 'backup');
-  const changed: Array<{ target: string; backup: string; hadExisting: boolean }> = [];
+  const changed: SkillInstallChange[] = [];
+  let preserveTransaction = false;
   try {
     for (const clientDir of USER_SKILL_CLIENT_DIRS) {
       const targetRoot = path.join(projectRoot, clientDir, 'skills');
@@ -326,16 +331,37 @@ function installUserSkillsForClients(projectRoot: string, skillNames: string[]):
       }
     }
   } catch (error) {
-    for (const item of changed.reverse()) {
+    const rollbackErrors = rollbackSkillChanges(changed);
+    if (rollbackErrors.length > 0) {
+      preserveTransaction = true;
+      throw new Error(
+        `Failed to install Maker user Skills for AI clients: ${formatError(error)}; ` +
+          `rollback incomplete, backups were preserved at ${transactionDir}: ` +
+          rollbackErrors.join('; ')
+      );
+    }
+    throw new Error(`Failed to install Maker user Skills for AI clients: ${formatError(error)}`);
+  } finally {
+    if (!preserveTransaction) {
+      fs.rmSync(transactionDir, { recursive: true, force: true });
+    }
+  }
+}
+
+function rollbackSkillChanges(changes: SkillInstallChange[]): string[] {
+  const errors: string[] = [];
+  for (let index = changes.length - 1; index >= 0; index -= 1) {
+    const item = changes[index];
+    try {
       removePathEntry(item.target);
       if (item.hadExisting && pathExists(item.backup)) {
         fs.renameSync(item.backup, item.target);
       }
+    } catch (error) {
+      errors.push(`${item.target}: ${formatError(error)}`);
     }
-    throw new Error(`Failed to install Maker user Skills for AI clients: ${formatError(error)}`);
-  } finally {
-    fs.rmSync(transactionDir, { recursive: true, force: true });
   }
+  return errors;
 }
 
 function linkOrCopySkill(source: string, target: string): void {

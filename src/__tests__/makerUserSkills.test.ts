@@ -187,6 +187,72 @@ describe('Maker user Skill pull', () => {
     ).toContain('old source');
   });
 
+  test('preserves source and client backups when rollback fails', async () => {
+    addLocalSkill('materials', 'old source');
+    for (const clientDir of ['.codex', '.cursor', '.workbuddy']) {
+      addClientSkill(clientDir, 'materials', `old ${clientDir}`);
+    }
+    const zip = await createZip({ 'materials/SKILL.md': '# new materials\n' });
+    const originalSymlinkSync = fs.symlinkSync;
+    const originalCpSync = fs.cpSync;
+    const originalRenameSync = fs.renameSync;
+    const failingClientTarget = path.join(projectDir, '.cursor', 'skills', 'materials');
+    const sourceTarget = path.join(projectDir, '.installer', 'skills', 'materials');
+    const symlinkSpy = jest.spyOn(fs, 'symlinkSync').mockImplementation((source, target, type) => {
+      if (path.resolve(String(target)) === failingClientTarget) {
+        throw Object.assign(new Error('simulated symlink failure'), { code: 'EACCES' });
+      }
+      return originalSymlinkSync(source, target, type);
+    });
+    const copySpy = jest.spyOn(fs, 'cpSync').mockImplementation((source, target, options) => {
+      if (path.resolve(String(target)) === failingClientTarget) {
+        throw Object.assign(new Error('simulated copy failure'), { code: 'ENOSPC' });
+      }
+      return originalCpSync(source, target, options);
+    });
+    const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((source, target) => {
+      const sourcePath = String(source);
+      const targetPath = path.resolve(String(target));
+      const isBackupRestore = sourcePath.includes(`${path.sep}backup${path.sep}`);
+      if (
+        isBackupRestore &&
+        sourcePath.includes('.user-skill-clients-') &&
+        targetPath === failingClientTarget
+      ) {
+        throw Object.assign(new Error('simulated client rollback failure'), { code: 'EACCES' });
+      }
+      if (isBackupRestore && sourcePath.includes('.user-skills-') && targetPath === sourceTarget) {
+        throw Object.assign(new Error('simulated source rollback failure'), { code: 'EBUSY' });
+      }
+      return originalRenameSync(source, target);
+    });
+
+    try {
+      await expect(
+        pullMakerUserSkills({
+          targetDir: projectDir,
+          fetchImpl: (async () => zipResponse(zip)) as typeof fetch,
+        })
+      ).rejects.toThrow('backups were preserved');
+    } finally {
+      symlinkSpy.mockRestore();
+      copySpy.mockRestore();
+      renameSpy.mockRestore();
+    }
+
+    const sourceTransactionDir = findInstallerTransaction('.user-skills-');
+    expect(
+      fs.readFileSync(path.join(sourceTransactionDir, 'backup', 'materials', 'SKILL.md'), 'utf8')
+    ).toContain('old source');
+    const clientTransactionDir = findInstallerTransaction('.user-skill-clients-');
+    expect(
+      fs.readFileSync(
+        path.join(clientTransactionDir, 'backup', '.cursor', 'materials', 'SKILL.md'),
+        'utf8'
+      )
+    ).toContain('old .cursor');
+  });
+
   test('rejects a download whose declared size exceeds the archive limit', async () => {
     const response = new Response(new Uint8Array([1]), {
       status: 200,
@@ -269,6 +335,13 @@ describe('Maker user Skill pull', () => {
     const skillDir = path.join(projectDir, clientDir, 'skills', name);
     fs.mkdirSync(skillDir, { recursive: true });
     fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `# ${name}\n\n${body}\n`, 'utf8');
+  }
+
+  function findInstallerTransaction(prefix: string): string {
+    const installerDir = path.join(projectDir, '.installer');
+    const entries = fs.readdirSync(installerDir).filter((entry) => entry.startsWith(prefix));
+    expect(entries).toHaveLength(1);
+    return path.join(installerDir, entries[0]);
   }
 });
 
