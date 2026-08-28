@@ -385,17 +385,24 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js`；启动器优先 `WORKBUDDY_EXTRA_PATHS` 和 WorkBuddy
   managed Node 目录，再回退系统 PATH。Windows 必须同时支持版本目录根和 `bin` 子目录中的
   `node.exe`。插件不依赖 npm/npx，也不固定项目 `cwd`。
+  WorkBuddy 官方市场 ZIP 必须直接压缩插件根目录内容，不得包含 `taptap-maker/` 或
+  `plugins/workbuddy/taptap-maker/` 外层目录；ZIP 根必须包含 `.codebuddy-plugin/plugin.json`、
+  `.mcp.json`、`README.md` 和 `SKILL.md`，所有文件的父目录深度最多为两层，并拒绝
+  `__MACOSX`、`.DS_Store` 等系统元数据。`.codebuddy-plugin/marketplace.json` 只用于仓库源码验证，
+  不得放入 WorkBuddy 官方市场 ZIP。
   `create-project` 和 `sync-project` 是仅有的两个快捷命令，执行前必须要求空 workspace。
   WorkBuddy 插件的 `init` 和 `dev-kit update` 必须逐项检查
   `.workbuddy/skills/taptap-maker-*`，只从 `.installer/skills` 补齐缺失的项目 Skill，不得覆盖已有
   同名 Skill。该同步不得影响独立 Maker MCP、Codex 插件或其他客户端；目录链接不可用时才复制。
 - Codex/WorkBuddy 客户端插件发布只使用 `Prepare Maker Plugin Release` 和
   `Publish Maker Plugin` workflows。
-  前者按最新 `maker-plugin-v*` tag 自动递增 patch 并创建版本 PR；后者在 PR 合并后发布两份完整
-  marketplace ZIP、`INSTALL.md`、`SHA256SUMS` 和 `maker-plugin-release.json`。插件发布不得调用
+  前者按最新 `maker-plugin-v*` tag 自动递增 patch 并创建版本 PR；后者在 PR 合并后发布 Codex
+  marketplace ZIP、WorkBuddy 官方市场根级 ZIP、`INSTALL.md`、`SHA256SUMS` 和
+  `maker-plugin-release.json`。插件发布不得调用
   npm publish、不得复用 Maker npm 或主包 release workflow。插件专属安装页固定为
-  `plugins/taptap-maker/README.md`；对外安装使用对应渠道的 GitHub Release 页面和 ZIP。直接从
-  仓库添加 marketplace 只用于源码验证，并且必须在添加前用生成目录中的 CLI 完成旧 MCP 检查。
+  `plugins/taptap-maker/README.md`；Codex 对外安装使用对应渠道的 GitHub Release 页面和 ZIP，
+  WorkBuddy 对外安装使用官方插件市场。直接从仓库添加 marketplace 只用于源码或 develop 预览版
+  验证，并且必须在添加前用生成目录中的 CLI 完成旧 MCP 检查。
 - DSH bundle 插件 `@taptap/dsh-maker` 位于 `packages/dsh-maker/`，使用独立版本并精确依赖
   `@taptap/maker`。`Publish DSH Maker Plugin` 从 `develop` 只发布 GitHub prerelease，从 `main`
   同时发布 npm `latest` 和 GitHub Release；1024Store 使用 npm 包名作为市场入口。DSH 发布不得
