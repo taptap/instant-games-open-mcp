@@ -128,6 +128,7 @@ import {
 } from './dshPluginMigration.js';
 import { writeConfigWithTapTapBackupIfChanged } from './configWrite.js';
 import { syncWorkBuddyProjectSkills } from './workBuddyProjectSkills.js';
+import { pullMakerUserSkills } from './userSkills.js';
 import {
   escapeTomlString,
   findCodexMcpTableDuplicates,
@@ -149,6 +150,7 @@ const TWO_PART_COMMANDS = new Set([
   'lua-lsp',
   'agents',
   'plugin',
+  'user-skills',
 ]);
 const BOOLEAN_OPTIONS = new Set([
   'json',
@@ -345,6 +347,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'dev-kit' && subcommand === 'update') {
     await runDevKitUpdate(parsed, ctx);
+    return;
+  }
+
+  if (command === 'user-skills' && subcommand === 'pull') {
+    await runUserSkillsPull(parsed, ctx);
     return;
   }
 
@@ -1620,6 +1627,28 @@ async function runDevKitUpdate(parsed: ParsedArgs, ctx: CliContext): Promise<voi
   finalizeStagedDevKitGitignore(targetDir);
   emit(ctx, 'dev_kit', formatDevKitInstallMessage('AI dev kit updated', result), result);
   emitDevKitSkillInstallerFailure(ctx, result.skillInstaller, 'AI skills install failed');
+}
+
+async function runUserSkillsPull(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
+  const result = await pullMakerUserSkills({
+    targetDir: path.resolve(stringOption(parsed, 'target_dir') || process.cwd()),
+    environment: makerEnvOption(parsed),
+  });
+  if (ctx.json) {
+    writeJson(result);
+    return;
+  }
+
+  process.stdout.write(
+    [
+      'Maker user Skills downloaded',
+      `- project: ${result.targetDir}`,
+      `- installed: ${result.installedSkills.length}`,
+      `- preserved: ${result.preservedSkills.length}`,
+      `- source: ${result.sourceDir}`,
+      '',
+    ].join('\n')
+  );
 }
 
 async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
@@ -3043,6 +3072,7 @@ function isKnownSubcommand(command: string, subcommand: string): boolean {
     (command === 'mcp' &&
       (subcommand === 'install' || subcommand === 'verify' || subcommand === 'report')) ||
     (command === 'agents' && subcommand === 'update') ||
+    (command === 'user-skills' && subcommand === 'pull') ||
     command === 'upgrade' ||
     (command === 'dev-kit' && subcommand === 'update') ||
     (command === 'logs' && subcommand === 'watch') ||
@@ -3194,6 +3224,7 @@ function printHelp(): void {
       '  taptap-maker plugin restore --client codex|workbuddy|dsh --confirm [--json]',
       '  taptap-maker upgrade [--launcher self|npx] [--target-dir DIR] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
+      '  taptap-maker user-skills pull [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
       'MCP install and verify default to a stable self runtime under the Maker home directory.',

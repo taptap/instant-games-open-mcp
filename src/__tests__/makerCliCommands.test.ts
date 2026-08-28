@@ -19,6 +19,7 @@ import {
   installAiDevKitSkills,
 } from '../maker/cli/devKit';
 import { syncWorkBuddyProjectSkills } from '../maker/cli/workBuddyProjectSkills';
+import { pullMakerUserSkills } from '../maker/cli/userSkills';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../maker/versionCheck';
 import { runMakerCli } from '../maker/cli/commands';
 import {
@@ -155,6 +156,16 @@ jest.mock('../maker/cli/workBuddyProjectSkills', () => ({
     targetDir: '/project/.workbuddy/skills',
     installedSkills: ['taptap-maker-materials'],
     skippedSkills: [],
+  })),
+}));
+
+jest.mock('../maker/cli/userSkills', () => ({
+  pullMakerUserSkills: jest.fn(async (options) => ({
+    targetDir: path.resolve(options.targetDir),
+    sourceDir: path.join(path.resolve(options.targetDir), '.installer', 'skills'),
+    environment: options.environment || 'production',
+    installedSkills: ['materials'],
+    preservedSkills: ['local-only'],
   })),
 }));
 
@@ -2999,6 +3010,30 @@ describe('Maker CLI commands', () => {
     await runMakerCli(['dev-kit', 'update', '--target-dir', tempDir]);
 
     expect(syncWorkBuddyProjectSkills).toHaveBeenCalledWith(tempDir);
+  });
+
+  test('user-skills pull routes to the lightweight downloader and prints one JSON result', async () => {
+    await runMakerCli(['user-skills', 'pull', '--target-dir', tempDir, '--env', 'rnd', '--json']);
+
+    expect(pullMakerUserSkills).toHaveBeenCalledWith({
+      targetDir: tempDir,
+      environment: 'rnd',
+    });
+    expect(JSON.parse(stdoutSpy.mock.calls.join(''))).toEqual({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, '.installer', 'skills'),
+      environment: 'rnd',
+      installedSkills: ['materials'],
+      preservedSkills: ['local-only'],
+    });
+  });
+
+  test('help documents the optional user Skill pull command', async () => {
+    await runMakerCli(['help']);
+
+    expect(stdoutSpy.mock.calls.join('')).toContain(
+      'taptap-maker user-skills pull [--target-dir DIR] [--json]'
+    );
   });
 
   test('doctor includes AI dev kit update state in json output', async () => {

@@ -97,6 +97,7 @@ function printHelp(): void {
       '  taptap-maker plugin restore --client codex|workbuddy --confirm [--json]',
       '  taptap-maker upgrade [--launcher self|npx] [--target-dir DIR] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
+      '  taptap-maker user-skills pull [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
       'MCP install and verify default to a stable self runtime under the Maker home directory.',
