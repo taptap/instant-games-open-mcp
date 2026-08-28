@@ -125,6 +125,7 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
       'assets/taptap-maker.png',
       'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md',
       'README.md',
+      'SKILL.md',
     ];
 
     for (const relativePath of requiredPaths) {
@@ -145,6 +146,10 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     const readme = fs.readFileSync(path.join(pluginRoot, 'README.md'), 'utf8');
     expect(readme).toContain('.workbuddy/skills/taptap-maker-*');
     expect(readme).toContain('只补齐缺失项，不覆盖已有同名 Skill');
+    const rootSkill = fs.readFileSync(path.join(pluginRoot, 'SKILL.md'), 'utf8');
+    expect(rootSkill).toContain('name: taptap-maker');
+    expect(rootSkill).toContain(`插件版本：\`${pluginVersion}\``);
+    expect(rootSkill).toContain(`内置 Maker MCP 版本：\`${makerVersion}\``);
   });
 
   test('uses Chinese display descriptions for commands and skills', () => {

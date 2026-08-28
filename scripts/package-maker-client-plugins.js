@@ -10,12 +10,13 @@ import {
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
 
@@ -82,6 +83,44 @@ async function createZip(sourceDir, outputPath) {
   }
 }
 
+function assertWorkBuddyPluginLayout(pluginRoot) {
+  const requiredRootPaths = ['.codebuddy-plugin/plugin.json', '.mcp.json', 'README.md', 'SKILL.md'];
+  for (const relativePath of requiredRootPaths) {
+    const entry = statSync(join(pluginRoot, relativePath), { throwIfNoEntry: false });
+    if (!entry?.isFile()) {
+      throw new Error(`Missing WorkBuddy plugin root entry: ${relativePath}`);
+    }
+  }
+
+  const visit = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const fullPath = join(directory, entry.name);
+      const relativePath = relative(pluginRoot, fullPath).replaceAll('\\', '/');
+      const segments = relativePath.split('/').filter(Boolean);
+      const directoryDepth = entry.isDirectory() ? segments.length : segments.length - 1;
+      if (segments.includes('__MACOSX') || segments.includes('.DS_Store')) {
+        throw new Error(`Forbidden WorkBuddy plugin archive entry: ${relativePath}`);
+      }
+      if (relativePath === '.codebuddy-plugin/marketplace.json') {
+        throw new Error(`WorkBuddy plugin must not contain marketplace metadata: ${relativePath}`);
+      }
+      if (segments[0] === 'plugins') {
+        throw new Error(`WorkBuddy plugin must not contain a marketplace wrapper: ${relativePath}`);
+      }
+      if (directoryDepth > 2) {
+        throw new Error(
+          `WorkBuddy plugin directory depth exceeds the official two-level limit: ${relativePath}`
+        );
+      }
+      if (entry.isDirectory()) {
+        visit(fullPath);
+      }
+    }
+  };
+
+  visit(pluginRoot);
+}
+
 async function sha256(filePath) {
   const hash = createHash('sha256');
   const input = createReadStream(filePath);
@@ -95,9 +134,8 @@ async function main() {
   const { pluginVersion, makerVersion } = readVersions();
   const stagingRoot = mkdtempSync(join(tmpdir(), 'maker-client-plugins-'));
   const codexMarketRoot = join(stagingRoot, 'codex');
-  const workBuddyMarketRoot = join(stagingRoot, 'workbuddy');
   const codexRoot = join(codexMarketRoot, 'plugins', 'taptap-maker');
-  const workBuddyRoot = join(workBuddyMarketRoot, 'plugins', 'workbuddy', 'taptap-maker');
+  const workBuddyRoot = join(stagingRoot, 'workbuddy');
   const codexAsset = `taptap-maker-codex-plugin-${pluginVersion}.zip`;
   const workBuddyAsset = `taptap-maker-workbuddy-plugin-${pluginVersion}.zip`;
   mkdirSync(outputDir, { recursive: true });
@@ -110,13 +148,9 @@ async function main() {
       join(projectRoot, '.agents', 'plugins', 'marketplace.json'),
       join(codexMarketRoot, '.agents', 'plugins', 'marketplace.json')
     );
-    mkdirSync(join(workBuddyMarketRoot, '.codebuddy-plugin'), { recursive: true });
-    copyFileSync(
-      join(projectRoot, '.codebuddy-plugin', 'marketplace.json'),
-      join(workBuddyMarketRoot, '.codebuddy-plugin', 'marketplace.json')
-    );
+    assertWorkBuddyPluginLayout(workBuddyRoot);
     await createZip(codexMarketRoot, join(outputDir, codexAsset));
-    await createZip(workBuddyMarketRoot, join(outputDir, workBuddyAsset));
+    await createZip(workBuddyRoot, join(outputDir, workBuddyAsset));
     copyFileSync(join(codexRoot, 'README.md'), join(outputDir, 'INSTALL.md'));
 
     const checksums = [
