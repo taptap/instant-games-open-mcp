@@ -419,11 +419,6 @@ Codex 和 WorkBuddy 插件共用独立插件版本，不复用 `@taptap/maker` n
 2. 版本 PR 通过普通 PR Check 并合入 `main` 后，`Publish Maker Plugin` 自动校验生成物，打包
    Codex 与 WorkBuddy ZIP、校验和及机器可读元数据，并创建 `maker-plugin-v<version>` Release。
 
-Codex ZIP 保持离线 marketplace 结构。WorkBuddy ZIP 直接以插件根目录内容为压缩包根，不包含
-`taptap-maker/`、`plugins/workbuddy/taptap-maker/` 或仓库级 marketplace 外壳；根目录必须包含
-`.codebuddy-plugin/plugin.json`、`.mcp.json`、`README.md` 和 `SKILL.md`，所有文件的父目录深度
-最多为两层。打包脚本会拒绝超深目录、`__MACOSX` 和 `.DS_Store`，避免官方市场上传失败。
-
 公开测试版只能从 `develop` 手动运行 `Publish Maker Plugin`，版本格式为下一个稳定 patch 加
 `-dev.<run_number>`，并标记为 GitHub Prerelease。`develop` push 不自动发版。测试通过后，代码通过
 PR 合入 `main`，再走稳定版准备流程。

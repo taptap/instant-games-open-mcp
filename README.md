@@ -87,11 +87,6 @@ Node.js（包括 Windows 上未加入 PATH 的 `node.exe`），必要时才回�
 /reload-plugins
 ```
 
-上述 marketplace 只用于从仓库源码验证。正式 WorkBuddy 市场发布 ZIP 直接以插件内容为根，
-不包含额外的 `taptap-maker/` 或 `plugins/workbuddy/taptap-maker/` 目录；根目录包含
-`.codebuddy-plugin/plugin.json`、`.mcp.json`、`README.md` 和 `SKILL.md`，所有文件的父目录深度
-最多为两层。普通用户通过 WorkBuddy 官方插件市场安装，不把发布 ZIP 当成本地 marketplace。
-
 WorkBuddy 旧独立 MCP 的迁移使用 `--client workbuddy`，只把旧注册的 `disabled` 设为 `true`，
 同时支持幂等检查和确认式恢复。插件更新通过 WorkBuddy `/plugin` 完成。
 
