@@ -2,7 +2,7 @@ import archiver from 'archiver';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { PassThrough } from 'node:stream';
+import { PassThrough, Readable } from 'node:stream';
 
 import { pullMakerUserSkills, validateUserSkillArchivePath } from '../maker/cli/userSkills';
 
@@ -140,6 +140,112 @@ describe('Maker user Skill pull', () => {
     ).toContain('keep me');
   });
 
+  test('restores every client Skill when a later client installation fails', async () => {
+    addLocalSkill('materials', 'old source');
+    for (const clientDir of ['.codex', '.cursor', '.workbuddy']) {
+      addClientSkill(clientDir, 'materials', `old ${clientDir}`);
+    }
+    const zip = await createZip({ 'materials/SKILL.md': '# new materials\n' });
+    const originalSymlinkSync = fs.symlinkSync;
+    const originalCpSync = fs.cpSync;
+    const failingTarget = path.join(projectDir, '.cursor', 'skills', 'materials');
+    const symlinkSpy = jest.spyOn(fs, 'symlinkSync').mockImplementation((source, target, type) => {
+      if (path.resolve(String(target)) === failingTarget) {
+        throw Object.assign(new Error('simulated symlink failure'), { code: 'EACCES' });
+      }
+      return originalSymlinkSync(source, target, type);
+    });
+    const copySpy = jest.spyOn(fs, 'cpSync').mockImplementation((source, target, options) => {
+      if (path.resolve(String(target)) === failingTarget) {
+        throw Object.assign(new Error('simulated copy failure'), { code: 'ENOSPC' });
+      }
+      return originalCpSync(source, target, options);
+    });
+
+    try {
+      await expect(
+        pullMakerUserSkills({
+          targetDir: projectDir,
+          fetchImpl: (async () => zipResponse(zip)) as typeof fetch,
+        })
+      ).rejects.toThrow('Failed to install Maker user Skills for AI clients');
+    } finally {
+      symlinkSpy.mockRestore();
+      copySpy.mockRestore();
+    }
+
+    for (const clientDir of ['.codex', '.cursor', '.workbuddy']) {
+      expect(
+        fs.readFileSync(path.join(projectDir, clientDir, 'skills', 'materials', 'SKILL.md'), 'utf8')
+      ).toContain(`old ${clientDir}`);
+    }
+  });
+
+  test('rejects a download whose declared size exceeds the archive limit', async () => {
+    const response = new Response(new Uint8Array([1]), {
+      status: 200,
+      headers: { 'Content-Length': String(64 * 1024 * 1024 + 1) },
+    });
+
+    await expect(
+      pullMakerUserSkills({
+        targetDir: projectDir,
+        fetchImpl: (async () => response) as typeof fetch,
+      })
+    ).rejects.toThrow('64 MiB');
+  });
+
+  test('stops a streamed download that exceeds the archive limit without a size header', async () => {
+    const chunk = new Uint8Array(1024 * 1024);
+    let emittedChunks = 0;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (emittedChunks >= 65) {
+            controller.close();
+            return;
+          }
+          emittedChunks += 1;
+          controller.enqueue(chunk);
+        },
+      }),
+      { status: 200 }
+    );
+
+    await expect(
+      pullMakerUserSkills({
+        targetDir: projectDir,
+        fetchImpl: (async () => response) as typeof fetch,
+      })
+    ).rejects.toThrow('64 MiB');
+  });
+
+  test('rejects an archive with more than 1000 entries', async () => {
+    const entries: Record<string, string> = { 'bulk/SKILL.md': '# bulk\n' };
+    for (let index = 0; index < 1000; index += 1) {
+      entries[`bulk/references/${index}.md`] = '';
+    }
+    const zip = await createZip(entries);
+
+    await expect(
+      pullMakerUserSkills({
+        targetDir: projectDir,
+        fetchImpl: (async () => zipResponse(zip)) as typeof fetch,
+      })
+    ).rejects.toThrow('1000 entries');
+  });
+
+  test('rejects an archive larger than 128 MiB after extraction', async () => {
+    const zip = await createRepeatedZip('large/SKILL.md', 129 * 1024 * 1024);
+
+    await expect(
+      pullMakerUserSkills({
+        targetDir: projectDir,
+        fetchImpl: (async () => zipResponse(zip)) as typeof fetch,
+      })
+    ).rejects.toThrow('128 MiB');
+  });
+
   test.each(['../escape/SKILL.md', '/absolute/SKILL.md', 'skill/../escape.md'])(
     'rejects unsafe archive path %s',
     (entryPath) => {
@@ -169,6 +275,32 @@ async function createZip(entries: Record<string, string>): Promise<Buffer> {
   for (const [name, content] of Object.entries(entries)) {
     archive.append(content, { name });
   }
+  const completed = new Promise<Buffer>((resolve, reject) => {
+    output.on('end', () => resolve(Buffer.concat(chunks)));
+    output.on('error', reject);
+    archive.on('error', reject);
+  });
+  await archive.finalize();
+  return completed;
+}
+
+async function createRepeatedZip(entryName: string, size: number): Promise<Buffer> {
+  const archive = archiver('zip', { zlib: { level: 9 } });
+  const output = new PassThrough();
+  const chunks: Buffer[] = [];
+  output.on('data', (chunk: Buffer) => chunks.push(chunk));
+  archive.pipe(output);
+  const chunk = Buffer.alloc(1024 * 1024);
+  archive.append(
+    Readable.from(
+      (function* (): Generator<Buffer> {
+        for (let emitted = 0; emitted < size; emitted += chunk.length) {
+          yield chunk.subarray(0, Math.min(chunk.length, size - emitted));
+        }
+      })()
+    ),
+    { name: entryName }
+  );
   const completed = new Promise<Buffer>((resolve, reject) => {
     output.on('end', () => resolve(Buffer.concat(chunks)));
     output.on('error', reject);

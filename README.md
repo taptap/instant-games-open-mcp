@@ -219,6 +219,7 @@ MCP 进程自身的 cwd 只作为最后兜底和诊断信息，不应通过重�
 `taptap-maker user-skills pull` 是可选的边缘命令，仅在用户明确要求时从 Maker Server 下载个人
 Skill，并覆盖项目 `.installer/skills/` 中 ZIP 包含的同名目录，再以原始 Skill 名称安装到项目内
 `.codex/skills/`、`.cursor/skills/` 和 `.workbuddy/skills/`；其它本地 Skill 保持不变。
+归档下载限制为 64 MiB，最多 1000 个条目、解压后最多 128 MiB。
 该命令不属于正常开发或初始化流程，也不会增加 MCP tool。
 
 如果 Maker MCP tools 缺失或出现 `-32000` / `Connection closed`，先按

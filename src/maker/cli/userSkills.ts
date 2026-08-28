@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import yauzl, { type Entry } from 'yauzl';
 
@@ -11,6 +12,9 @@ import { identifyMakerProject } from '../server/identify.js';
 import { loadJwt, loadPat } from '../storage.js';
 
 const USER_SKILL_CLIENT_DIRS = ['.codex', '.cursor', '.workbuddy'] as const;
+const MAX_ARCHIVE_DOWNLOAD_BYTES = 64 * 1024 * 1024;
+const MAX_ARCHIVE_ENTRIES = 1000;
+const MAX_ARCHIVE_EXTRACTED_BYTES = 128 * 1024 * 1024;
 
 export interface PullMakerUserSkillsOptions {
   targetDir?: string;
@@ -67,7 +71,7 @@ export async function pullMakerUserSkills(
       throw createDownloadError(response.status);
     }
 
-    fs.writeFileSync(archivePath, Buffer.from(await response.arrayBuffer()));
+    await writeArchiveResponse(response, archivePath);
     const installedSkills = await extractUserSkillsArchive(archivePath, stagingDir);
     const preservedSkills = listLocalSkills(sourceDir).filter(
       (name) => !installedSkills.includes(name)
@@ -85,6 +89,33 @@ export async function pullMakerUserSkills(
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+}
+
+async function writeArchiveResponse(response: Response, archivePath: string): Promise<void> {
+  const declaredSize = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declaredSize) && declaredSize > MAX_ARCHIVE_DOWNLOAD_BYTES) {
+    throw new Error('Maker user Skill archive exceeds the 64 MiB download limit.');
+  }
+  if (!response.body) {
+    throw new Error('Maker user Skill download returned an empty response body.');
+  }
+
+  let downloadedBytes = 0;
+  const limit = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      downloadedBytes += chunk.length;
+      if (downloadedBytes > MAX_ARCHIVE_DOWNLOAD_BYTES) {
+        callback(new Error('Maker user Skill archive exceeds the 64 MiB download limit.'));
+        return;
+      }
+      callback(null, chunk);
+    },
+  });
+  await pipeline(
+    Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]),
+    limit,
+    fs.createWriteStream(archivePath, { flags: 'wx' })
+  );
 }
 
 export function validateUserSkillArchivePath(entryPath: string): string[] {
@@ -119,9 +150,18 @@ async function extractUserSkillsArchive(
   });
   const skillNames = new Set<string>();
   const seenPaths = new Set<string>();
+  let entryCount = 0;
+  let extractedBytes = 0;
 
   try {
     for await (const entry of zipFile.eachEntry()) {
+      entryCount += 1;
+      if (entryCount > MAX_ARCHIVE_ENTRIES) {
+        throw new Error(
+          `Maker user Skill archive exceeds the ${MAX_ARCHIVE_ENTRIES} entries limit.`
+        );
+      }
+
       const segments = validateUserSkillArchivePath(entry.fileName);
       if (segments.some((segment) => path.basename(segment).startsWith('.nfs'))) {
         continue;
@@ -133,6 +173,12 @@ async function extractUserSkillsArchive(
         throw new Error(
           `Maker user Skill archive contains a file outside a Skill: ${entry.fileName}`
         );
+      }
+      if (!isDirectory) {
+        extractedBytes += entry.uncompressedSize;
+        if (extractedBytes > MAX_ARCHIVE_EXTRACTED_BYTES) {
+          throw new Error('Maker user Skill archive exceeds the 128 MiB extracted size limit.');
+        }
       }
 
       const collisionKey = segments.join('/').normalize('NFC').toLocaleLowerCase('en-US');
@@ -253,6 +299,13 @@ function installUserSkillsForClients(projectRoot: string, skillNames: string[]):
   }
 
   const sourceRoot = path.join(projectRoot, '.installer', 'skills');
+  const transactionDir = path.join(
+    projectRoot,
+    '.installer',
+    `.user-skill-clients-${randomUUID()}`
+  );
+  const backupRoot = path.join(transactionDir, 'backup');
+  const changed: Array<{ target: string; backup: string; hadExisting: boolean }> = [];
   try {
     for (const clientDir of USER_SKILL_CLIENT_DIRS) {
       const targetRoot = path.join(projectRoot, clientDir, 'skills');
@@ -261,12 +314,26 @@ function installUserSkillsForClients(projectRoot: string, skillNames: string[]):
       for (const skillName of skillNames) {
         const source = path.join(sourceRoot, skillName);
         const target = path.join(targetRoot, skillName);
-        removePathEntry(target);
+        const backup = path.join(backupRoot, clientDir, skillName);
+        const hadExisting = pathExists(target);
+        if (hadExisting) {
+          fs.mkdirSync(path.dirname(backup), { recursive: true });
+          fs.renameSync(target, backup);
+        }
+        changed.push({ target, backup, hadExisting });
         linkOrCopySkill(source, target);
       }
     }
   } catch (error) {
+    for (const item of changed.reverse()) {
+      removePathEntry(item.target);
+      if (item.hadExisting && pathExists(item.backup)) {
+        fs.renameSync(item.backup, item.target);
+      }
+    }
     throw new Error(`Failed to install Maker user Skills for AI clients: ${formatError(error)}`);
+  } finally {
+    fs.rmSync(transactionDir, { recursive: true, force: true });
   }
 }
 
