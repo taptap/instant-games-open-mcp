@@ -77,7 +77,6 @@ export async function pullMakerUserSkills(
       (name) => !installedSkills.includes(name)
     );
     installUserSkills(project.projectRoot, stagingDir, installedSkills);
-    installUserSkillsForClients(project.projectRoot, installedSkills);
 
     return {
       targetDir: project.projectRoot,
@@ -280,6 +279,8 @@ function installUserSkills(projectRoot: string, stagingDir: string, skillNames: 
         throw error;
       }
     }
+
+    installUserSkillsForClients(projectRoot, skillNames);
   } catch (error) {
     for (const item of completed.reverse()) {
       fs.rmSync(item.target, { recursive: true, force: true });

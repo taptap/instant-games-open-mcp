@@ -179,6 +179,12 @@ describe('Maker user Skill pull', () => {
         fs.readFileSync(path.join(projectDir, clientDir, 'skills', 'materials', 'SKILL.md'), 'utf8')
       ).toContain(`old ${clientDir}`);
     }
+    expect(
+      fs.readFileSync(
+        path.join(projectDir, '.installer', 'skills', 'materials', 'SKILL.md'),
+        'utf8'
+      )
+    ).toContain('old source');
   });
 
   test('rejects a download whose declared size exceeds the archive limit', async () => {
