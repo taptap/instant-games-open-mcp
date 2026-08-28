@@ -36,14 +36,15 @@ Release，Maker MCP 版本继续用于 runtime、埋点、诊断和 npm 升级�
 
 发布时在 GitHub Actions 手动运行 `Prepare Maker Plugin Release`。workflow 根据最新
 `maker-plugin-v*` tag 自动将 patch 加一，更新版本源、生成两套插件、运行验证并创建版本 PR。PR
-合并后 `Publish Maker Plugin` 创建同版本 tag 和 GitHub Release，上传 Codex/WorkBuddy marketplace
-ZIP、`INSTALL.md`、`SHA256SUMS` 与 `maker-plugin-release.json`。这两条 workflow 不调用 npm
+合并后 `Publish Maker Plugin` 创建同版本 tag 和 GitHub Release，上传 Codex marketplace ZIP、
+WorkBuddy 官方市场根级 ZIP、`INSTALL.md`、`SHA256SUMS` 与 `maker-plugin-release.json`。这两条
+workflow 不调用 npm
 发布，也不修改原 Maker MCP 或主 MCP 的发布流程。同一提交上的发布任务可以安全重跑：已有
 Release 会更新说明并覆盖上传附件；如果同名 tag 已指向其它提交，任务会拒绝发布。
 
-对外安装时把对应 main/develop 渠道的 GitHub Release 页面交给 AI，由同页 `INSTALL.md` 选择
-Codex 或 WorkBuddy ZIP、校验并执行完整安装。仓库 marketplace 方式只用于维护者从源码验证；
-执行安装前必须先生成插件，并用生成目录中的 CLI 完成旧 MCP 检查和迁移。
+对外安装时，Codex 使用对应 main/develop 渠道的 GitHub Release 页面和同页 `INSTALL.md` 下载、
+校验并安装 Codex ZIP；WorkBuddy 用户直接从官方插件市场安装。仓库 marketplace 方式只用于维护者
+从源码验证；执行安装前必须先生成插件，并用生成目录中的 CLI 完成旧 MCP 检查和迁移。
 
 ## Codex Plugin
 
@@ -87,6 +88,11 @@ WorkBuddy 插件位于 `plugins/workbuddy/taptap-maker`，通过
 `npm run maker:workbuddy-plugin:prepare` 生成。它使用共享的 CodeBuddy 插件规范：manifest 位于
 `.codebuddy-plugin/plugin.json`，MCP 位于 `.mcp.json`，Skills 和 commands 位于插件根目录。
 
+正式 WorkBuddy 发布 ZIP 从该插件根目录内部打包，不包含额外外层目录或仓库级
+`.codebuddy-plugin/marketplace.json`。ZIP 根包含 `.codebuddy-plugin/plugin.json`、`.mcp.json`、
+`README.md` 和 `SKILL.md`；所有文件的父目录深度最多为两层，以满足 WorkBuddy 官方市场限制。
+打包阶段同时拒绝 `plugins/` marketplace 外壳、`__MACOSX` 和 `.DS_Store`。
+
 插件以自身 `bin/run-node` 启动 `${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js`。启动器优先读取
 `WORKBUDDY_EXTRA_PATHS` 和 WorkBuddy managed Node 目录，必要时才回退系统 PATH；Windows 同时
 兼容版本目录根和 `bin` 子目录中的 `node.exe`。插件不使用 npm/npx，也不设置固定项目 `cwd`。
@@ -98,8 +104,8 @@ WorkBuddy 插件位于 `plugins/workbuddy/taptap-maker`，通过
 `disabled: true`；如果两份配置都含 Maker 注册则返回 `ambiguous`，不自动选择。迁移保留备份和
 注册指纹，恢复只处理插件拥有且未被用户修改的注册。WorkBuddy connector trust 不由插件修改。
 
-本地安装测试使用仓库 `.codebuddy-plugin/marketplace.json`。插件更新通过 WorkBuddy `/plugin`
-和 `/reload-plugins`，不执行独立 Maker 包升级。
+本地源码验证使用仓库 `.codebuddy-plugin/marketplace.json`。普通用户从 WorkBuddy 官方插件市场
+安装和更新，并通过 `/reload-plugins` 重新加载；不执行独立 Maker 包升级。
 
 ## DSH Plugin
 

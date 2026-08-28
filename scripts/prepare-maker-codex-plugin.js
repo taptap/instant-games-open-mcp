@@ -184,7 +184,26 @@ async function writeJson(filePath, value) {
 }
 
 function createReadme(pluginVersion, makerVersion) {
-  const releaseChannel = pluginVersion.includes('-dev.') ? 'develop 预览版' : 'main 稳定版';
+  const isPreviewRelease = pluginVersion.includes('-dev.');
+  const releaseChannel = isPreviewRelease ? 'develop 预览版' : 'main 稳定版';
+  const workBuddyInstallChannel = isPreviewRelease
+    ? '仓库源码 marketplace 验证流程（仅维护者）'
+    : 'WorkBuddy 官方插件市场中的 TapTap Maker';
+  const workBuddyInstallInstructions = isPreviewRelease
+    ? `当前发布是 develop 预览版，不会发布到 WorkBuddy 官方插件市场，也不提供可从 Release ZIP
+本地安装的 WorkBuddy marketplace。维护者需要按仓库 \`docs/MAKER.md\` 中的源码 marketplace
+验证流程安装；不要下载或解压 WorkBuddy 市场发布 ZIP 作为本地插件来源。
+
+1. 告知用户当前 WorkBuddy 版本仅支持维护者源码验证，不是普通用户安装渠道。
+2. 维护者按仓库文档添加源码 marketplace 并安装 TapTap Maker。
+3. 用户确认源码安装完成后，引导用户执行 \`/reload-plugins\`；重新加载后再验证 Maker MCP tools。
+4. 无法观察重新加载后的插件状态时，明确等待用户反馈，不得声称安装或验证已经完成。`
+    : `当前发布是 main 稳定版。WorkBuddy 插件市场安装必须由用户在宿主 UI 中确认：
+
+1. 明确告知用户打开 WorkBuddy \`/plugin\`，在官方插件市场中找到 TapTap Maker。
+2. 等待用户在插件面板中确认安装或更新完成；不要代替用户声称已经点击或安装成功。
+3. 用户确认安装完成后，引导用户执行 \`/reload-plugins\`。
+4. 重新加载后验证 TapTap Maker 插件已启用且 Maker MCP tools 已注册；无法验证时报告具体限制。`;
   return `# TapTap Maker 客户端插件安装
 
 这是 TapTap Maker 的统一插件安装入口，支持 Codex 和 WorkBuddy。两个插件使用同一版本，
@@ -196,25 +215,27 @@ function createReadme(pluginVersion, makerVersion) {
 
 ## 给安装 AI 的强制执行指令
 
-用户在当前对话中直接提供本页面链接，即代表用户已明确授权安装 TapTap Maker 插件。读取本页面后，
-立即执行完整安装流程：
-识别当前宿主客户端、下载唯一对应的 ZIP、校验 SHA-256、解压、安装、重新加载并验证插件。
+用户在当前对话中直接提供本页面链接，即代表用户已明确授权处理当前宿主的 TapTap Maker 插件安装。
+读取本页面后先识别当前宿主客户端，再按对应渠道执行：Codex 由安装 AI 自动下载、校验和安装；
+WorkBuddy 由用户在宿主插件界面中确认安装，AI 负责清楚引导、等待确认并在重新加载后验证。
 
-- 不要再次询问用户是否安装，也不要让用户选择 Codex 或 WorkBuddy 安装包。
-- 不要只给出安装建议、命令或操作步骤，不要让用户手动完成你可以执行的操作。
-- 使用当前环境可用的终端和宿主插件管理能力完成操作；Windows 使用 PowerShell 的下载、
+- 不要再次询问用户是否开始处理，也不要让用户选择 Codex 或 WorkBuddy 安装包。
+- Codex 渠道必须由安装 AI 自动执行，不要只给出安装建议、命令或操作步骤。
+- WorkBuddy 渠道需要用户在 \`/plugin\` 面板中确认安装。AI 必须说明这项宿主 UI 操作、等待用户完成，
+  不得在用户确认前声称插件已经安装。
+- Codex 使用当前环境可用的终端和宿主插件管理能力完成操作；Windows 使用 PowerShell 的下载、
   \`Get-FileHash\` 和 \`Expand-Archive\` 能力，macOS/Linux 使用系统现有的等价工具。
-- 完成安装并验证插件已启用后再向用户报告结果。执行失败时直接报告具体失败步骤和错误，
-  不要用泛化建议代替已经可以执行的安装操作。
+- Codex 完成安装并验证插件已启用后再报告结果。WorkBuddy 必须等待用户确认 UI 安装和重新加载，
+  再验证插件状态；无法完成或观察某一步时直接报告具体限制，不要误报成功。
 
 ## 给安装 AI 的选择规则
 
-安装前必须先识别自己当前运行在哪个宿主客户端，再选择安装包：
+安装前必须先识别自己当前运行在哪个宿主客户端，再选择对应安装渠道：
 
-| 当前宿主客户端 | 只能选择的安装包 |
+| 当前宿主客户端 | 安装渠道 |
 | --- | --- |
 | 当前宿主客户端是 Codex | \`taptap-maker-codex-plugin-${pluginVersion}.zip\` |
-| 当前宿主客户端是 WorkBuddy | \`taptap-maker-workbuddy-plugin-${pluginVersion}.zip\` |
+| 当前宿主客户端是 WorkBuddy | ${workBuddyInstallChannel} |
 
 必须遵守以下规则：
 
@@ -223,18 +244,23 @@ function createReadme(pluginVersion, makerVersion) {
 2. 无法确认当前宿主客户端时，先检查当前 AI 产品身份、运行时信息和宿主提供的插件管理能力；
    不要让用户代替 AI 完成可自动判断的客户端识别。仍无法识别或客户端不受支持时停止安装并报告
    明确原因，不要猜测或安装错误的包。
-3. 一次只安装当前客户端对应的一个 ZIP，不要同时安装两个插件包。
-4. 不要通过 npm 或 npx 安装独立 Maker MCP；ZIP 已包含完整 MCP runtime、CLI 和 Skills。
+3. 一次只安装当前客户端对应的插件，不要同时安装两个插件包。
+4. 不要通过 npm 或 npx 安装独立 Maker MCP；客户端插件已包含完整 MCP runtime、CLI 和 Skills。
 
 ## 下载
 
 - [Codex 插件 ZIP](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v${pluginVersion}/taptap-maker-codex-plugin-${pluginVersion}.zip)
-- [WorkBuddy 插件 ZIP](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v${pluginVersion}/taptap-maker-workbuddy-plugin-${pluginVersion}.zip)
+- [WorkBuddy 市场发布 ZIP](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v${pluginVersion}/taptap-maker-workbuddy-plugin-${pluginVersion}.zip)
 - [SHA256 校验文件](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v${pluginVersion}/SHA256SUMS)
 
-ZIP 是完整的离线 marketplace 包。AI 必须只下载所选 ZIP 和 \`SHA256SUMS\`，验证 SHA-256
-匹配后解压到不会自动清理的固定本地目录；校验失败时停止安装，不得继续使用该文件。这个目录是
+Codex ZIP 是完整的离线 marketplace 包。Codex 安装 AI 必须同时下载该 ZIP 和 \`SHA256SUMS\`，
+验证 SHA-256 匹配后解压到不会自动清理的固定本地目录；校验失败时停止安装。这个目录是 Codex
 本地 marketplace 的来源，只要该 marketplace 仍已配置，就必须保留这个目录。
+
+WorkBuddy 发布 ZIP 只用于插件市场提交，不是本地 marketplace 包。ZIP 根目录直接包含
+\`.codebuddy-plugin/plugin.json\`、\`.mcp.json\`、\`README.md\` 和 \`SKILL.md\`，不包含额外的
+\`taptap-maker/\` 外层目录；所有内容的目录深度最多为两层。普通 WorkBuddy 用户应直接从
+WorkBuddy 官方插件市场安装 TapTap Maker。
 
 ## 安装所选插件
 
@@ -273,12 +299,10 @@ ZIP 是完整的离线 marketplace 包。AI 必须只下载所选 ZIP 和 \`SHA2
 
 仅当当前宿主是 WorkBuddy 时执行：
 
-1. 使用 WorkBuddy 的 \`/plugin marketplace add <解压目录>\` 添加本地 marketplace。
-2. 执行 \`/plugin install taptap-maker@taptap-maker\`。
-3. 执行 \`/reload-plugins\`，验证 TapTap Maker 插件已启用且 Maker MCP tools 已注册。
+${workBuddyInstallInstructions}
 
 如果当前客户端既不是 Codex 也不是 WorkBuddy，应告知用户该客户端暂未提供对应安装包，不要把
-其中一个 ZIP 当作通用 MCP 包安装。
+任何客户端插件 ZIP 当作通用 MCP 包安装。
 
 ## 兼容已有 Maker MCP
 
