@@ -393,11 +393,13 @@ export interface AppDetail {
  * Fetch app detail information from API
  * @param appId - App ID to fetch
  * @param ctx - Optional resolved context
+ * @param throwOnError - Whether to preserve request errors for callers that must distinguish failures
  * @returns App detail or undefined if not found
  */
 export async function fetchAppDetail(
   appId: number,
-  ctx?: ResolvedContext
+  ctx?: ResolvedContext,
+  throwOnError: boolean = false
 ): Promise<AppDetail | undefined> {
   const client = new HttpClient(ctx);
 
@@ -468,6 +470,7 @@ export async function fetchAppDetail(
 
     return undefined;
   } catch (error) {
+    if (throwOnError) throw error;
     return undefined;
   }
 }

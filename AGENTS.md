@@ -322,8 +322,10 @@ graph TD
   索要广告位 ID，不得建议去后台手工查找，也不得接受用户提供的 ID 作为失败兜底。
 - `status=0` 时展示开通链接并等待用户完成操作；`status=1` 且匹配到游戏方向对应广告位时才调用
   `get_ad_integration_guide`；`status=2` 时立即停止广告接入。
-- 未设置横竖屏时使用 `update_app_info` 设置 `screenOrientation` 后重新调用 `check_ads_status`，不得
-  随机选择任意广告位。服务端未返回广告位或查询失败时按工具指引重试，不生成占位代码。
+- 广告检查从缓存未检测到横竖屏时，先刷新一次服务端应用信息；刷新后仍未设置，才询问用户选择
+  `1`（竖屏）或 `2`（横屏），使用 `update_app_info` 设置 `screenOrientation` 后重新调用
+  `check_ads_status`。不得随机选择任意方向或广告位。服务端未返回广告位或查询失败时按工具指引重试，
+  不生成占位代码。
 - 每次 `check_ads_status` 都先使旧广告缓存失效；只有最新响应属于当前选中应用、状态为 `1`、方向为
   `1` 或 `2` 且匹配广告位 ID 为非空字符串时，才重新缓存可用于代码生成的配置。查询期间应用发生
   切换时丢弃响应，禁止把旧应用广告位写入新应用缓存。同一应用有重叠查询时只允许最后发起的查询
@@ -848,7 +850,8 @@ const allModules = [..., yourFeatureModule];
 **H5 游戏管理（3个）**
 
 - `prepare_h5_upload` - 收集 H5 游戏信息（上传前）
-- `upload_h5_game` - 上传 H5 游戏包
+- `upload_h5_game` - 上传 H5 游戏包；未设置方向时在上传前要求用户选择 `screenOrientation`，
+  并在提交后回读服务端方向确认生效
 - `get_debug_feedbacks` - 拉取用户调试反馈并下载附件到本地
 
 > 注：创建/编辑应用请使用 `create_app` 和 `update_app_info` 工具（在应用管理分类中）

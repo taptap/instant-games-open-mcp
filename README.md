@@ -10,7 +10,8 @@
 - **📖 完整 API 文档** - 6 个排行榜 API + 详细代码示例
 - **⚙️ 服务端管理** - 创建/管理排行榜，自动处理 ID
 - **🎮 H5 游戏支持** - 上传、发布、状态查询
-- **📺 广告接入闭环** - 仅用于 TapTap 小游戏/H5，自动查询广告状态和广告位 ID，不与 Maker MCP 混用
+- **📺 广告接入闭环** - 仅用于 TapTap 小游戏/H5，自动查询广告状态和广告位 ID；方向缺失时先刷新
+  服务端应用信息，确认仍未设置后引导用户选择方向，不与 Maker MCP 混用
 - **🧭 当前游戏 DC 能力** - 商店/评价/社区统计概览、商店快照、论坛内容、评价列表、评价点赞、官方回复
 - **🦞 OpenClaw Plugin** - 提供一个原生 OpenClaw plugin 子包，内部复用 TapTap MCP 运行时并暴露 raw JSON 工具 + bundled skill
 - **🚀 三种传输模式** - stdio（本地）、SSE（远程/实时）、HTTP（兼容）
@@ -479,7 +480,7 @@ curl http://localhost:5002/health  # RND
 #### H5 游戏管理 (3)
 
 - `prepare_h5_upload` - 收集 H5 游戏信息（上传前）
-- `upload_h5_game` - 上传 H5 游戏包
+- `upload_h5_game` - 上传 H5 游戏包；首次上传未设置横竖屏时暂停并要求用户选择，提交后校验服务端方向
 - `get_debug_feedbacks` - 拉取用户调试反馈并下载日志/截图
 
 #### 振动 API 文档 (1)

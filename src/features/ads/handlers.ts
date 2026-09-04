@@ -12,6 +12,7 @@ import {
   type AdConfigResponse,
   type AdSpace,
 } from './api.js';
+import { fetchAppDetail } from '../app/api.js';
 import { mutateAppCache, readAppCache, type AppCacheInfo } from '../../core/utils/cache.js';
 
 const AUTOMATIC_AD_SPACE_ID_GUIDANCE =
@@ -129,6 +130,46 @@ function getScreenOrientationFromCache(cache: AppCacheInfo): 1 | 2 | undefined {
   return undefined;
 }
 
+async function refreshAppInfoForAds(
+  state: AdsStatusRequestState,
+  ctx: ResolvedContext
+): Promise<AppCacheInfo | null> {
+  const detail = await fetchAppDetail(state.app.appId, ctx);
+  if (
+    !detail ||
+    detail.appId !== state.app.appId ||
+    (detail.developerId !== 0 && detail.developerId !== state.app.developerId)
+  ) {
+    throw new Error('服务端未返回当前应用信息');
+  }
+
+  let refreshed: AppCacheInfo | null = null;
+  mutateAppCache(state.cacheKey, (current) => {
+    if (
+      !current ||
+      current.developer_id !== state.app.developerId ||
+      current.app_id !== state.app.appId ||
+      current.ad_config_request_id !== state.requestId
+    ) {
+      return undefined;
+    }
+
+    refreshed = {
+      ...current,
+      developer_name: detail.developerName || current.developer_name,
+      app_title: detail.appTitle || current.app_title,
+      miniapp_id: detail.miniappId || current.miniapp_id,
+      level: detail.level,
+      upload_level: detail.uploadLevel,
+      updated_at: Date.now(),
+      status_updated_at: Date.now(),
+    };
+    return refreshed;
+  });
+
+  return refreshed;
+}
+
 /**
  * 检查广告开通状态
  * 根据不同状态返回不同的引导信息，状态为"已生效"时自动缓存广告位ID
@@ -151,7 +192,7 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
     if (!requestedApp || !isCurrentSelectedApp(ctx, requestedApp)) {
       return `⚠️ 检查广告状态期间当前应用已切换，本次查询结果已丢弃。\n\n请为当前选中的应用重新调用 \`check_ads_status\`。`;
     }
-    const currentCache = getCurrentPersistedAdsStatusRequest(requestState);
+    let currentCache = getCurrentPersistedAdsStatusRequest(requestState);
     if (requestState && !currentCache) {
       return SUPERSEDED_STATUS_RESULT;
     }
@@ -186,9 +227,27 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
         }
 
         // 读取游戏横竖屏设置
-        const screenOrientation = currentCache
+        let screenOrientation = currentCache
           ? getScreenOrientationFromCache(currentCache)
           : undefined;
+
+        if (screenOrientation === undefined && currentCache && requestState) {
+          try {
+            await refreshAppInfoForAds(requestState, ctx);
+          } catch (refreshError) {
+            return `⚠️ **无法确认游戏横竖屏设置**\n\n刷新应用信息失败：${
+              refreshError instanceof Error ? refreshError.message : String(refreshError)
+            }\n\n请重新调用 \`check_ads_status\`，不要重复设置或猜测横竖屏。`;
+          }
+
+          if (!isLatestAdsStatusRequest(requestState) || !isCurrentSelectedApp(ctx, requestedApp)) {
+            return SUPERSEDED_STATUS_RESULT;
+          }
+
+          currentCache = getCurrentPersistedAdsStatusRequest(requestState);
+          if (!currentCache) return SUPERSEDED_STATUS_RESULT;
+          screenOrientation = getScreenOrientationFromCache(currentCache);
+        }
 
         result += `✅ **广告变现已开通，服务端配置可用于生成接入代码**\n\n`;
         result += `> 此状态不代表 \`window.tap\` 已注入、当前 ZIP 已正确上传或广告已在真机成功播放。\n\n`;
@@ -196,11 +255,16 @@ export async function checkAdsStatus(ctx: ResolvedContext): Promise<string> {
         // 展示游戏横竖屏设置及对应广告位
         if (screenOrientation === undefined) {
           result += `⚠️ **未检测到游戏横竖屏设置**\n\n`;
-          result += `无法自动匹配对应广告位 ID。请先通过 \`update_app_info\` 工具设置游戏的横竖屏方向：\n`;
+          result += `服务端当前没有有效的横竖屏设置，无法自动匹配对应广告位 ID。\n\n`;
+          result += `请先询问用户选择游戏方向：\n`;
           result += `- \`screenOrientation: 1\` → 竖屏\n`;
           result += `- \`screenOrientation: 2\` → 横屏\n\n`;
+          result += `用户确认后，调用 \`update_app_info\`：\n`;
+          result += `- \`developerId: ${requestedApp.developerId}\`\n`;
+          result += `- \`appId: ${requestedApp.appId}\`\n`;
+          result += `- \`screenOrientation: 用户选择的 1 或 2\`\n\n`;
           result += `${AUTOMATIC_AD_SPACE_ID_GUIDANCE}\n\n`;
-          result += `设置后重新调用 \`check_ads_status\` 即可自动匹配广告位。\n`;
+          result += `设置成功后重新调用 \`check_ads_status\`，自动匹配广告位并继续接入。\n`;
         } else {
           const orientationLabel = screenOrientation === 2 ? '横屏' : '竖屏';
           const matchedSpace = screenOrientation === 2 ? landscapeSpace : portraitSpace;
