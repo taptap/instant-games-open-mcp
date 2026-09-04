@@ -16,7 +16,7 @@ import {
   type GetDebugFeedbacksRequest,
   type UploadParams,
 } from './api.js';
-import { editAppInfo, refreshAppCache } from '../app/api.js';
+import { editAppInfo, fetchAppDetail, refreshAppCache, type AppDetail } from '../app/api.js';
 import { readAppCache } from '../../core/utils/cache.js';
 import { logger } from '../../core/utils/logger.js';
 import {
@@ -132,11 +132,37 @@ function getScreenOrientationFromCache(
   return normalizeScreenOrientation(cache.level?.data?.screen_orientation);
 }
 
+function getScreenOrientationFromAppDetail(
+  detail: AppDetail | undefined
+): ScreenOrientation | undefined {
+  const fromUpload = detail?.uploadLevel?.form_data?.info?.screen_orientation;
+  if (fromUpload !== undefined) return normalizeScreenOrientation(fromUpload);
+
+  return normalizeScreenOrientation(detail?.level?.data?.screen_orientation);
+}
+
 const SCREEN_ORIENTATION_REQUIRED = `请先选择游戏横竖屏，当前上传已暂停，尚未压缩或上传包体：
 - \`screenOrientation: 1\`：竖屏
 - \`screenOrientation: 2\`：横屏
 
 请询问用户选择，不要自行猜测；确认后再次调用 \`upload_h5_game\` 并携带 screenOrientation。`;
+
+function getScreenOrientationVerificationWarning(
+  expected: ScreenOrientation,
+  actual?: ScreenOrientation,
+  detail?: string
+): string {
+  let message = `游戏包已提交，但尚未确认横竖屏设置已同步：期望 ${expected}`;
+  if (actual !== undefined) {
+    message += `，服务端返回 ${actual}`;
+  } else if (detail) {
+    message += `，查询失败：${detail}`;
+  } else {
+    message += '，服务端暂未返回有效方向';
+  }
+
+  return `${message}。请不要重新上传包体；稍后重新查询应用信息确认。`;
+}
 
 /**
  * Debug feedback handler args
@@ -391,12 +417,9 @@ export async function handleUploadGame(
   const gamePath = pathResult.resolvedPath!;
   const developerId = appInfo.developerId!;
   const appId = appInfo.appId!;
-  const cachedOrientation = getScreenOrientationFromCache(
-    readAppCache(ctx?.getCacheIsolationKey())
-  );
   const screenOrientation =
     args.screenOrientation === undefined
-      ? cachedOrientation
+      ? getScreenOrientationFromAppDetail(await fetchAppDetail(appId, ctx))
       : normalizeScreenOrientation(args.screenOrientation);
 
   if (screenOrientation === undefined) {
@@ -452,25 +475,21 @@ export async function handleUploadGame(
       ctx // ctx
     );
 
-    // 5. Refresh App Cache and verify the submitted screen orientation
+    // 5. 刷新应用缓存并确认本次提交的横竖屏方向
     let refreshedAppInfo: Awaited<ReturnType<typeof refreshAppCache>>;
     try {
       refreshedAppInfo = await refreshAppCache(ctx?.projectPath, ctx);
     } catch (refreshError) {
-      throw new Error(
-        `游戏包已提交，但无法确认横竖屏设置是否生效：${
-          refreshError instanceof Error ? refreshError.message : String(refreshError)
-        }`
+      return getScreenOrientationVerificationWarning(
+        screenOrientation,
+        undefined,
+        refreshError instanceof Error ? refreshError.message : String(refreshError)
       );
     }
 
     const refreshedOrientation = getScreenOrientationFromCache(refreshedAppInfo);
     if (refreshedOrientation !== screenOrientation) {
-      throw new Error(
-        `游戏包已提交，但横竖屏设置未生效：期望 ${screenOrientation}，服务端返回 ${
-          refreshedOrientation ?? '未设置'
-        }`
-      );
+      return getScreenOrientationVerificationWarning(screenOrientation, refreshedOrientation);
     }
 
     let msg = MESSAGES.GAME_PUBLISH_SUCCESS(results.app_title, appId);

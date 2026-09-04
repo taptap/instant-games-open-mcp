@@ -3,13 +3,14 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { ResolvedContext } from '../core/types/context';
 import { clearAppCache, saveAppCache, type AppCacheInfo } from '../core/utils/cache';
-import { editAppInfo, refreshAppCache } from '../features/app/api';
+import { editAppInfo, fetchAppDetail, refreshAppCache } from '../features/app/api';
 import { getH5PackageUploadParams } from '../features/h5Game/api';
 import { handleUploadGame } from '../features/h5Game/handlers';
 import { h5GameTools } from '../features/h5Game/tools';
 
 jest.mock('../features/app/api', () => ({
   editAppInfo: jest.fn(),
+  fetchAppDetail: jest.fn(),
   refreshAppCache: jest.fn(),
 }));
 
@@ -65,6 +66,7 @@ describe('H5 first upload screen orientation', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.mocked(fetchAppDetail).mockResolvedValue(undefined);
     global.fetch = jest.fn().mockResolvedValue({ ok: true }) as jest.MockedFunction<typeof fetch>;
     jest.mocked(getH5PackageUploadParams).mockResolvedValue({
       h5_package_id: 41226,
@@ -138,12 +140,67 @@ describe('H5 first upload screen orientation', () => {
     expect(result).toContain('发布成功');
   });
 
-  test('does not report success when the refreshed orientation differs', async () => {
+  test('uses the latest server orientation instead of a stale valid cached value', async () => {
+    const { context } = createProject(1);
+    jest.mocked(fetchAppDetail).mockResolvedValue({
+      appId: 925728,
+      appTitle: 'H5 orientation test',
+      displayAppTitle: 'H5 orientation test',
+      developerId: 290607,
+      developerName: 'Test developer',
+      level: appCache(1).level,
+      uploadLevel: appCache(2).upload_level,
+    });
+    jest.mocked(refreshAppCache).mockResolvedValue(appCache(2));
+
+    const result = await handleUploadGame({ gamePath: '.', genre: 'casual' }, context);
+
+    expect(editAppInfo).toHaveBeenCalledWith(
+      925728,
+      290607,
+      41226,
+      undefined,
+      'casual',
+      undefined,
+      undefined,
+      undefined,
+      2,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      context
+    );
+    expect(result).toContain('发布成功');
+  });
+
+  test('warns not to re-upload when the submitted package orientation cannot be confirmed', async () => {
     const { context } = createProject(0);
     jest.mocked(refreshAppCache).mockResolvedValue(appCache(0));
 
-    await expect(
-      handleUploadGame({ gamePath: '.', genre: 'casual', screenOrientation: 2 }, context)
-    ).rejects.toThrow('横竖屏设置未生效');
+    const result = await handleUploadGame(
+      { gamePath: '.', genre: 'casual', screenOrientation: 2 },
+      context
+    );
+
+    expect(result).toContain('游戏包已提交');
+    expect(result).toContain('不要重新上传');
+    expect(result).toContain('尚未确认');
+    expect(result).not.toContain('发布成功');
+  });
+
+  test('warns not to re-upload when refreshing app info fails after submission', async () => {
+    const { context } = createProject(0);
+    jest.mocked(refreshAppCache).mockRejectedValue(new Error('temporary query failure'));
+
+    const result = await handleUploadGame(
+      { gamePath: '.', genre: 'casual', screenOrientation: 2 },
+      context
+    );
+
+    expect(result).toContain('游戏包已提交');
+    expect(result).toContain('不要重新上传');
+    expect(result).toContain('temporary query failure');
+    expect(result).not.toContain('发布成功');
   });
 });
