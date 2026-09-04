@@ -323,7 +323,9 @@ console.log(result);
 **Tools (工具):**
 
 - `prepare_h5_upload`: **上传第一步**。收集游戏信息，确认构建目录（如 dist/build）。
-- `upload_h5_game`: **上传第二步**。将确认好的游戏包上传到 TapTap 平台。
+- `upload_h5_game`: **上传第二步**。将确认好的游戏包上传到 TapTap 平台。首次上传没有横竖屏设置时，
+  工具会在压缩和上传前暂停，要求用户选择 `screenOrientation: 1`（竖屏）或
+  `screenOrientation: 2`（横屏）；再次调用时会把方向和包体一起提交，并回读服务端数据确认方向一致。
 - `get_debug_feedbacks`: 拉取用户调试反馈（可默认标记已处理），并下载截图/日志到本地 `logs/feed_back/`，同时生成 AI 可直接使用的调试上下文。
 
 ---

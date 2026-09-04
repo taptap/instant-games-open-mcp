@@ -479,7 +479,7 @@ curl http://localhost:5002/health  # RND
 #### H5 游戏管理 (3)
 
 - `prepare_h5_upload` - 收集 H5 游戏信息（上传前）
-- `upload_h5_game` - 上传 H5 游戏包
+- `upload_h5_game` - 上传 H5 游戏包；首次上传未设置横竖屏时暂停并要求用户选择，提交后校验服务端方向
 - `get_debug_feedbacks` - 拉取用户调试反馈并下载日志/截图
 
 #### 振动 API 文档 (1)

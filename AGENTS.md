@@ -848,7 +848,8 @@ const allModules = [..., yourFeatureModule];
 **H5 游戏管理（3个）**
 
 - `prepare_h5_upload` - 收集 H5 游戏信息（上传前）
-- `upload_h5_game` - 上传 H5 游戏包
+- `upload_h5_game` - 上传 H5 游戏包；未设置方向时在上传前要求用户选择 `screenOrientation`，
+  并在提交后回读服务端方向确认生效
 - `get_debug_feedbacks` - 拉取用户调试反馈并下载附件到本地
 
 > 注：创建/编辑应用请使用 `create_app` 和 `update_app_info` 工具（在应用管理分类中）
