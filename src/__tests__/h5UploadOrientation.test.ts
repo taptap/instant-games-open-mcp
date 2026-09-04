@@ -112,6 +112,21 @@ describe('H5 first upload screen orientation', () => {
     expect(editAppInfo).not.toHaveBeenCalled();
   });
 
+  test('pauses upload without asking for a direction when the server query fails', async () => {
+    const { context } = createProject(1);
+    jest.mocked(fetchAppDetail).mockRejectedValue(new Error('authorization expired'));
+
+    const result = await handleUploadGame({ gamePath: '.', genre: 'casual' }, context);
+
+    expect(result).toContain('无法确认服务端当前横竖屏设置');
+    expect(result).toContain('上传已暂停');
+    expect(result).toContain('请稍后重试');
+    expect(result).not.toContain('请先选择游戏横竖屏');
+    expect(fetchAppDetail).toHaveBeenCalledWith(925728, context, true);
+    expect(getH5PackageUploadParams).not.toHaveBeenCalled();
+    expect(editAppInfo).not.toHaveBeenCalled();
+  });
+
   test('submits the selected orientation with the first package and verifies it', async () => {
     const { context } = createProject(0);
     jest.mocked(refreshAppCache).mockResolvedValue(appCache(2));
