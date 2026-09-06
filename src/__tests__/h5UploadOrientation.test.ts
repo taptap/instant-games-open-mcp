@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { ResolvedContext } from '../core/types/context';
+import { createAuthError } from '../core/errors/authErrors';
 import { clearAppCache, saveAppCache, type AppCacheInfo } from '../core/utils/cache';
 import { editAppInfo, fetchAppDetail, refreshAppCache } from '../features/app/api';
 import { getH5PackageUploadParams } from '../features/h5Game/api';
@@ -124,6 +125,19 @@ describe('H5 first upload screen orientation', () => {
     expect(result).toContain('请稍后重试');
     expect(result).not.toContain('请先选择游戏横竖屏');
     expect(fetchAppDetail).toHaveBeenCalledWith(925728, context, true);
+    expect(getH5PackageUploadParams).not.toHaveBeenCalled();
+    expect(editAppInfo).not.toHaveBeenCalled();
+  });
+
+  test('guides reauthorization instead of retrying upload when authentication expired', async () => {
+    const { context } = createProject(1);
+    jest.mocked(fetchAppDetail).mockRejectedValue(createAuthError('TOKEN_EXPIRED'));
+
+    const result = await handleUploadGame({ gamePath: '.', genre: 'casual' }, context);
+
+    expect(result).toContain('授权已失效');
+    expect(result).toContain('clear_auth_data');
+    expect(result).toContain('完成授权后重新调用 `upload_h5_game`');
     expect(getH5PackageUploadParams).not.toHaveBeenCalled();
     expect(editAppInfo).not.toHaveBeenCalled();
   });

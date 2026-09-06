@@ -393,7 +393,7 @@ export interface AppDetail {
  * Fetch app detail information from API
  * @param appId - App ID to fetch
  * @param ctx - Optional resolved context
- * @param throwOnError - Whether to preserve request errors for callers that must distinguish failures
+ * @param throwOnError - 是否为需要区分失败的调用方保留请求错误
  * @returns App detail or undefined if not found
  */
 export async function fetchAppDetail(
