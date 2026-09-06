@@ -134,7 +134,7 @@ async function refreshAppInfoForAds(
   state: AdsStatusRequestState,
   ctx: ResolvedContext
 ): Promise<AppCacheInfo | null> {
-  const detail = await fetchAppDetail(state.app.appId, ctx);
+  const detail = await fetchAppDetail(state.app.appId, ctx, true);
   if (
     !detail ||
     detail.appId !== state.app.appId ||

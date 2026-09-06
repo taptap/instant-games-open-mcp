@@ -120,6 +120,7 @@ describe('H5 first upload screen orientation', () => {
 
     expect(result).toContain('无法确认服务端当前横竖屏设置');
     expect(result).toContain('上传已暂停');
+    expect(result).toContain('authorization expired');
     expect(result).toContain('请稍后重试');
     expect(result).not.toContain('请先选择游戏横竖屏');
     expect(fetchAppDetail).toHaveBeenCalledWith(925728, context, true);

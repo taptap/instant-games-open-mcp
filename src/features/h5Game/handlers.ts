@@ -147,9 +147,12 @@ const SCREEN_ORIENTATION_REQUIRED = `请先选择游戏横竖屏，当前上传�
 
 请询问用户选择，不要自行猜测；确认后再次调用 \`upload_h5_game\` 并携带 screenOrientation。`;
 
-const SCREEN_ORIENTATION_QUERY_FAILED = `无法确认服务端当前横竖屏设置，上传已暂停，尚未压缩或上传包体。
+function getScreenOrientationQueryFailedMessage(detail?: string): string {
+  const reason = detail ? `\n\n查询失败：${detail}` : '';
+  return `无法确认服务端当前横竖屏设置，上传已暂停，尚未压缩或上传包体。${reason}
 
 请稍后重试 \`upload_h5_game\`，不要根据本地缓存猜测或覆盖横竖屏方向。`;
+}
 
 function getScreenOrientationVerificationWarning(
   expected: ScreenOrientation,
@@ -425,8 +428,11 @@ export async function handleUploadGame(
   if (args.screenOrientation === undefined) {
     try {
       screenOrientation = getScreenOrientationFromAppDetail(await fetchAppDetail(appId, ctx, true));
-    } catch {
-      return SCREEN_ORIENTATION_QUERY_FAILED;
+    } catch (orientationError) {
+      const detail =
+        orientationError instanceof Error ? orientationError.message : String(orientationError);
+      await logger.warning(`[H5Game] 查询应用 ${appId} 横竖屏设置失败：${detail}`);
+      return getScreenOrientationQueryFailedMessage(detail);
     }
   } else {
     screenOrientation = normalizeScreenOrientation(args.screenOrientation);
