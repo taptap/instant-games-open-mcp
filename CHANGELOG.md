@@ -1,3 +1,14 @@
+## <small>1.24.13 (2026-09-07)</small>
+
+### Bug Fixes
+
+* h5: 完善首次传包与广告方向恢复流程 (#454) (fecb6ff)
+* maker: 支持主动拉取并安装用户 Skills (#427) (22d7f5d)
+
+### Documentation
+
+* workbuddy: 记录插件市场发布包结构 (#438) (2d14cc7)
+
 ## <small>1.24.12 (2026-08-27)</small>
 
 ### Features
