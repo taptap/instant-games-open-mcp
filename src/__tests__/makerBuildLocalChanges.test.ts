@@ -376,12 +376,39 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('请切回 main');
   });
 
-  test('push stops before commit when Maker remote is ahead', async () => {
+  test('push fast-forwards Maker remote changes before committing local work', async () => {
     runGit(['branch', '-M', 'main']);
-    prepareMakerRemote();
+    const branch = prepareMakerRemote();
     const remoteWorktree = cloneRemoteWorktree();
     writeRemoteScript(remoteWorktree);
     runGit(['add', 'scripts/remote.lua'], remoteWorktree);
+    runGit(['commit', '-m', 'chore: remote update'], remoteWorktree);
+    runGit(['push', 'origin', 'main'], remoteWorktree);
+    fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- local\n', 'utf8');
+
+    const result = await pushMakerProject({ cwd: tempDir });
+
+    expect(result.status).toBe('pushed');
+    expect(result.committed).toBe(true);
+    expect(result.pushed).toBe(true);
+    expect(result.failure).toBeUndefined();
+    expect(fs.readFileSync(path.join(tempDir, 'scripts', 'remote.lua'), 'utf8')).toBe(
+      '-- remote\n'
+    );
+    expect(
+      readGit(
+        ['rev-parse', '--short', branch],
+        path.join(process.env.TAPTAP_MAKER_GIT_BASE!, 'app-1.git')
+      )
+    ).toBe(readGit(['rev-parse', '--short', 'HEAD']));
+  });
+
+  test('push preserves local files when the automatic fast-forward conflicts', async () => {
+    runGit(['branch', '-M', 'main']);
+    prepareMakerRemote();
+    const remoteWorktree = cloneRemoteWorktree();
+    fs.writeFileSync(path.join(remoteWorktree, 'scripts', 'main.lua'), '-- remote\n', 'utf8');
+    runGit(['add', 'scripts/main.lua'], remoteWorktree);
     runGit(['commit', '-m', 'chore: remote update'], remoteWorktree);
     runGit(['push', 'origin', 'main'], remoteWorktree);
     fs.writeFileSync(path.join(tempDir, 'scripts', 'main.lua'), '-- local\n', 'utf8');
@@ -392,10 +419,9 @@ describe('maker build local-change guard', () => {
     expect(result.status).toBe('clean');
     expect(result.committed).toBe(false);
     expect(result.pushed).toBe(false);
-    expect(result.failure?.stage).toBe('remote_sync');
-    expect(result.failure?.classification).toBe('remote_rejected');
-    expect(result.failure?.stderr).toContain('Maker remote sync status: needs_pull');
-    expect(result.failure?.nextAction).toContain('远端有 1 个新提交');
+    expect(result.failure?.stage).toBe('pull');
+    expect(result.failure?.message).toContain('would be overwritten by merge');
+    expect(fs.readFileSync(path.join(tempDir, 'scripts', 'main.lua'), 'utf8')).toBe('-- local\n');
     expect(readGit(['rev-parse', '--short', 'HEAD']).trim()).toBe(headBefore);
   });
 

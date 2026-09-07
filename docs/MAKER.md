@@ -432,9 +432,11 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   准备完整本地 Lua 诊断环境。Python 或 LSP 缺失只影响本地 Lua 诊断，不阻塞 MCP 连接或远端
   构建主流程。Dev-kit、版本和 AGENTS policy 检查属于维护信息，不能单独证明客户端连接失败。
 - `maker_build_current_directory`：统一执行本地同步和远端构建。提交前会检查 Maker 远端同步状态；
-  本地落后远端、分叉、当前不在 `main` 或无法确认远端同步时，会在创建 commit 前停止。普通构建会先
-  push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit
-  时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务。用户明确说“不提交，直接构建云端版本”时才传
+  本地仅落后远端时会先自动 fast-forward，再继续现有提交和构建流程；如果 fast-forward 会覆盖本地
+  未提交修改，则在创建 commit 前停止并保留本地文件。分叉、当前不在 `main` 或无法确认远端同步时仍
+  会停止。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，
+  本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务。
+  用户明确说“不提交，直接构建云端版本”时才传
   `confirm_remote_build_without_submit=true`；此时工具只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
 - 远端 Lua/LSP 编译失败属于业务失败，不属于 MCP 连接故障。代理会将带有 `remote_result` 的上游
   `McpError(-32603)` 转换为 `CallToolResult.isError`，并保留原始 `content` 诊断；只有连接断开或会话
@@ -472,11 +474,12 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   远端日志 MCP 连接，不会每 5 秒重新启动一个 proxy 进程。
   后续分析游戏运行结果或 Lua 报错时，Agent 应读取 `runtime_logs.local_file`；判断 watcher
   是否正常时读取 `runtime_logs.state_file`。
-- 如果提交前发现远端有新提交、分叉、非 main 分支、认证失败或 push 被拒绝，
-  `maker_build_current_directory` 会在 build 前停止并返回失败阶段。远端同步类失败会尽量发生在创建
-  commit 前。Agent 应解释失败原因，并根据 `classification` 选择恢复路径：`remote_rejected` 才协助
-  pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden
-  pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
+- 如果提交前发现本地仅落后于远端，`maker_build_current_directory` 会自动执行
+  `git merge --ff-only origin/main`；无法 fast-forward 时会在创建 commit 前停止并保留本地文件。
+  分叉、非 main 分支、认证失败或 push 被拒绝仍会在 build 前返回失败阶段。Agent 应解释失败原因，
+  并根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed`
+  切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止
+  路径，`auth` 才刷新 PAT。
 - 构建前本地改动检查会忽略 `.maker-mcp/` 的本地配置变化；`.gitignore` 是 Maker 项目必要文件，
   首次 init 后如果出现或变化，应随游戏代码一起提交。即使 AI 传了 `files` 白名单，Maker MCP 也会把
   已变化的根 `.gitignore` 纳入提交。
@@ -502,7 +505,9 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 - 解释 PAT、Git、项目绑定，以及首次安装或工具版本变化后的编辑器重连边界。
 - 提交、推送本地改动。
 - pull 远端改动前检查本地 dirty 状态。
-- 新开对话或继续开发前先读 `maker://status`；如果 `Maker remote sync` 显示 `needs_pull`、`diverged` 或 `branch_not_allowed`，先处理同步/分支问题，再让用户继续开发。
+- 新开对话或继续开发前先读 `maker://status`。显式提交或构建时，`needs_pull` 可直接交给
+  `maker_build_current_directory` 自动 fast-forward；`diverged` 或 `branch_not_allowed` 仍需先处理
+  同步或分支问题，再让用户继续开发。
 - 提交、推送、构建时必须使用 `maker_build_current_directory`；不要为 Maker 项目新建功能分支、
   任务分支、PR/MR，或绕过 MCP 执行通用 `git commit` / `git push`。
 - Maker 项目内 Git 操作的入口是 `taptap-maker-local > Maker Git Workflow Policy`。如果本机 AI
@@ -770,12 +775,14 @@ maker_build_current_directory()
 - 普通构建必须先 push 到 Maker 远端再 build；如果本地没有改动且没有 ahead commit，会创建
   `chore: wake maker build server` 空提交并 push，用于唤醒可能已挂起或销毁的远端服务。
 - 如果本地有改动或已经有本地 commit 未 push，默认先 commit/push，再远端 build。
+- 如果本地仅落后于 Maker 远端，工具会在 commit 前自动 fast-forward；远端更新会覆盖本地未提交
+  修改时，工具会停止并保持工作区不变。分叉、非 `main`、鉴权或网络错误不会自动处理。
 - 当前目录是已绑定 Maker 项目时，用户说“提交 / push / 构建 / 查看结果 / 预览 / 跑一下 /
   看看效果 / 验证游戏效果”时，都使用同一个工具。普通“验证代码 / 跑测试 / lint /
   检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。
 - 用户明确说“不提交 / 直接构建 / 构建云端版本”时，才允许传 `confirm_remote_build_without_submit=true`，
   这会只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
-- push 被远端拒绝、认证失败、远端有新提交或发生冲突时，工具返回
+- push 被远端拒绝、认证失败、分叉或自动 fast-forward 失败时，工具返回
   `mode: submit_failed_before_build`，不会继续远端 build。Agent 应解释 push 失败原因，按
   `classification` 使用对应恢复策略，再重试同一个构建工具。
 - 所有失败输出都包含 `failure_stage`、`code_submit_status` 和 `remote_build_status`。如果 push 成功但

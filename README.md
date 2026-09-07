@@ -265,9 +265,10 @@ Maker MCP 初始化时会通过标准 `initialize.instructions` 向 AI 客户端
 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。
 普通构建会先 push 到 Maker 远端再触发远端 build：本地有改动时提交改动，已有未推送 commit 时
 直接 push，本地干净且没有未推送 commit 时创建 `chore: wake maker build server` 空提交来唤醒远端
-服务。push 失败时不会继续 build，会返回本地 commit、ahead 状态、stderr/stdout 和下一步建议，
-交给本地 Agent/skill 处理 pull、rebase 或冲突；push 成功但 build 失败时，会明确说明代码已到
-Maker 远端但构建失败。只有用户明确说“不提交，只构建云端版本”时，才传
+服务。提交前如果本地仅落后于 Maker 远端，会自动执行 fast-forward 后继续提交；如果远端更新会
+覆盖本地未提交修改，则会在创建 commit 前停止并保留本地文件。分叉、非 `main`、鉴权或网络失败仍
+按原有提示处理。push 成功但 build 失败时，会明确说明代码已到 Maker 远端但构建失败。只有用户明确
+说“不提交，只构建云端版本”时，才传
 `confirm_remote_build_without_submit=true`；该模式只构建 Maker 远端已提交版本，不会自动打开
 Maker 页面。
 

@@ -532,8 +532,37 @@ export async function pushMakerProject(
   });
 
   const remoteSyncStatus = await inspectMakerRemoteSyncStatus(cwd);
+  if (remoteSyncStatus.status === 'needs_pull') {
+    options.onProgress?.({
+      progress: 15,
+      total: 100,
+      phase: 'pull',
+      message: `Fast-forwarding Maker project from ${remoteSyncStatus.remoteRef}`,
+    });
+    try {
+      await runGit(['merge', '--ff-only', remoteSyncStatus.remoteRef], {
+        cwd,
+        stage: 'pull',
+      });
+    } catch (error) {
+      const failure = toMakerGitFailure(error, 'pull');
+      return {
+        branch: remoteSyncStatus.branch,
+        committed: false,
+        pushed: false,
+        status: 'clean',
+        failure: {
+          ...failure,
+          nextAction:
+            'Maker 远端有新提交，但自动 fast-forward 会覆盖本地修改，因此已在提交前停止。请先处理提示的冲突文件，再重试 maker_build_current_directory。',
+        },
+        ahead: await readAheadState(cwd),
+        transientRetries: 0,
+      };
+    }
+  }
   const remoteSyncFailure = getBlockingRemoteSyncFailure(remoteSyncStatus);
-  if (remoteSyncFailure) {
+  if (remoteSyncFailure && remoteSyncStatus.status !== 'needs_pull') {
     return {
       branch: remoteSyncStatus.branch,
       committed: false,

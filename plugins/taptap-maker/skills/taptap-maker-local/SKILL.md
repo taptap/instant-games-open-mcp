@@ -687,6 +687,9 @@ before routine work; use `maker_status_lite` with `detail: true` before explicit
   already local-only. In detail mode, pass `skip_remote_sync: true` to avoid `git fetch origin` and
   AI dev kit latest-version network round trips.
 - `up_to_date`: continue development.
+- For an explicit submit/build request, call `maker_build_current_directory` directly when status is
+  `needs_pull`. The tool attempts `git merge --ff-only origin/main` before creating the local commit.
+  If Git refuses because remote files overlap local edits, the tool stops and preserves the workspace.
 - `needs_pull` with `local_changes: no`: tell the user the workspace is clean and the local AI can
   run `git pull --ff-only origin main` before editing.
 - `needs_pull` with `local_changes: yes`: do not pull immediately. Explain that remote changes exist
