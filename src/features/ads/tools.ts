@@ -90,7 +90,10 @@ ${H5_ONLY_SCOPE_RULES}
 ${AUTOMATIC_AD_SPACE_ID_RULES}
 
 **Status 0:** Tell user they can say "重新检查广告状态" to refresh after completing activation.
-**Status 2 (已封禁):** DO NOT proceed with any integration steps. Immediately inform user.`,
+**Status 2 (已封禁):** DO NOT proceed with any integration steps. Immediately inform user.
+**Missing screen orientation:** Ask the user to choose 1 (portrait) or 2 (landscape), call
+update_app_info with the current developerId/appId and their chosen screenOrientation, then call
+check_ads_status again. DO NOT guess the orientation.`,
       inputSchema: {
         type: 'object',
         properties: {},

@@ -624,13 +624,28 @@ describe('H5 ads workflow contract', () => {
       },
       projectPath
     );
-    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
-      status: 1,
-      ad_spaces: [
-        { id: 'landscape-id', type: 1 },
-        { id: 'portrait-id', type: 2 },
-      ],
-    });
+    jest
+      .spyOn(HttpClient.prototype, 'get')
+      .mockResolvedValueOnce({
+        status: 1,
+        ad_spaces: [
+          { id: 'landscape-id', type: 1 },
+          { id: 'portrait-id', type: 2 },
+        ],
+      })
+      .mockResolvedValueOnce({
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          developer_id: 100,
+          developer_name: 'developer-100',
+          status: 4,
+          data: {
+            title: 'Game 200',
+            screen_orientation: 0,
+          },
+        },
+      });
 
     const output = await checkAdsStatus(createContext(projectPath));
 
@@ -639,7 +654,124 @@ describe('H5 ads workflow contract', () => {
     expect(output).not.toContain('landscape-id');
     expect(output).not.toContain('portrait-id');
     expect(output).not.toContain('广告位信息：');
+    expect(output).toContain('请先询问用户选择游戏方向');
+    expect(output).toContain('调用 `update_app_info`');
+    expect(output).toContain('重新调用 `check_ads_status`');
     expect(getSpaceIdFromCache(createContext(projectPath))).toBeNull();
+  });
+
+  test('refreshes app info before reporting that screen orientation is missing', async () => {
+    const projectPath = createProjectPath('stale-missing-orientation');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: {
+            title: 'Game 200',
+            screen_orientation: 0,
+          },
+        },
+      },
+      projectPath
+    );
+    const get = jest
+      .spyOn(HttpClient.prototype, 'get')
+      .mockResolvedValueOnce({
+        status: 1,
+        ad_spaces: [
+          { id: 'landscape-id', type: 1 },
+          { id: 'portrait-id', type: 2 },
+        ],
+      })
+      .mockResolvedValueOnce({
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          developer_id: 100,
+          developer_name: 'developer-100',
+          status: 4,
+          data: {
+            title: 'Game 200',
+            screen_orientation: 2,
+          },
+        },
+      });
+
+    const output = await checkAdsStatus(createContext(projectPath));
+
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(output).toContain('游戏屏幕方向：** 横屏');
+    expect(output).toContain('landscape-id');
+    expect(output).not.toContain('未检测到游戏横竖屏设置');
+  });
+
+  test('does not restore an old app when selection changes during orientation refresh', async () => {
+    const projectPath = createProjectPath('orientation-refresh-app-switch');
+    cacheKeys.push(projectPath);
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 200,
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          status: 4,
+          data: { title: 'Game 200', screen_orientation: 0 },
+        },
+      },
+      projectPath
+    );
+
+    let resolveAppDetail: ((value: unknown) => void) | undefined;
+    const pendingAppDetail = new Promise((resolve) => {
+      resolveAppDetail = resolve;
+    });
+    const get = jest
+      .spyOn(HttpClient.prototype, 'get')
+      .mockResolvedValueOnce({
+        status: 1,
+        ad_spaces: [{ id: 'app-200-landscape-id', type: 1 }],
+      })
+      .mockReturnValueOnce(pendingAppDetail);
+
+    const pendingStatus = checkAdsStatus(createContext(projectPath));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(get).toHaveBeenCalledTimes(2);
+
+    saveAppCache(
+      {
+        developer_id: 100,
+        app_id: 300,
+        level: {
+          app_id: 300,
+          app_title: 'game-300',
+          status: 4,
+          data: { title: 'Game 300', screen_orientation: 2 },
+        },
+      },
+      projectPath
+    );
+    resolveAppDetail?.({
+      level: {
+        app_id: 200,
+        app_title: 'game-200',
+        developer_id: 100,
+        developer_name: 'developer-100',
+        status: 4,
+        data: { title: 'Game 200', screen_orientation: 2 },
+      },
+    });
+
+    const output = await pendingStatus;
+
+    expect(output).toContain('查询结果已丢弃');
+    expect(readAppCache(projectPath)?.app_id).toBe(300);
+    expect(readAppCache(projectPath)?.ad_config).toBeUndefined();
   });
 
   test('does not fall back to the published orientation when the upload orientation is invalid', async () => {
@@ -666,13 +798,35 @@ describe('H5 ads workflow contract', () => {
       },
       projectPath
     );
-    jest.spyOn(HttpClient.prototype, 'get').mockResolvedValue({
-      status: 1,
-      ad_spaces: [
-        { id: 'landscape-id', type: 1 },
-        { id: 'portrait-id', type: 2 },
-      ],
-    });
+    jest
+      .spyOn(HttpClient.prototype, 'get')
+      .mockResolvedValueOnce({
+        status: 1,
+        ad_spaces: [
+          { id: 'landscape-id', type: 1 },
+          { id: 'portrait-id', type: 2 },
+        ],
+      })
+      .mockResolvedValueOnce({
+        upload_level: {
+          app_id: 200,
+          app_title: 'game-200',
+          developer_id: 100,
+          developer_name: 'developer-100',
+          status: 2,
+          form_data: {
+            info: { title: 'Game 200 draft', screen_orientation: 0 },
+          },
+        },
+        level: {
+          app_id: 200,
+          app_title: 'game-200',
+          developer_id: 100,
+          developer_name: 'developer-100',
+          status: 4,
+          data: { title: 'Game 200', screen_orientation: 2 },
+        },
+      });
 
     const output = await checkAdsStatus(createContext(projectPath));
 

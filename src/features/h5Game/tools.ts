@@ -82,6 +82,11 @@ export const h5GameTools: ToolRegistration[] = [
         **PREREQUISITE: An app MUST be selected first.**
         This tool reads app info from cache (selected via select_app or create_app).
         If no app is selected, it will return an error guiding user to select one first.
+
+        **SCREEN ORIENTATION:**
+        If the selected app has no screen orientation, this tool will pause before uploading.
+        Ask the user to choose 1 (portrait) or 2 (landscape), then call this tool again with
+        screenOrientation. DO NOT guess the orientation.
       `,
       inputSchema: {
         type: 'object',
@@ -98,6 +103,14 @@ Use the same path confirmed in prepare_h5_upload step.`,
           genre: {
             type: 'string',
             description: TOOL_DESCRIPTION.GENRE_DESCRIPTION,
+          },
+          screenOrientation: {
+            type: 'number',
+            enum: [1, 2],
+            description:
+              'Game screen orientation: 1 = portrait, 2 = landscape. ' +
+              'Provide this after the upload tool reports that the selected app has no orientation. ' +
+              'Ask the user to choose; do not guess.',
           },
         },
       },
