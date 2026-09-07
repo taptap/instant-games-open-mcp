@@ -9,10 +9,6 @@
 
 * workbuddy: 记录插件市场发布包结构 (#438) (2d14cc7)
 
-### Chores
-
-* release: 1.24.12 (#434) (906182c)
-
 ## <small>1.24.12 (2026-08-27)</small>
 
 ### Features
