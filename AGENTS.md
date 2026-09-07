@@ -509,6 +509,10 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   构建前置条件，不得触发故障上报。
 - MCP 公共能力保留 `maker://status`、`maker_status_lite` 和
   `maker_build_current_directory`；初始化、PAT 保存、app 列表和 clone 由 CLI/skill 承担。
+  Maker MCP 每个进程启动时复用 PAT 换取 TapTap MAC 凭据的现有接口检查一次账号状态；只有明确
+  返回 `BLACKLISTED` 才把 `tools/list` 收敛为 `maker_status_lite`，并在任何 tool call 和
+  `maker://status` 进入项目、构建或 proxy 逻辑前统一返回限制提示。PAT 缺失、过期、网络和其它
+  未知错误不得误判为黑名单；账号状态变化需要重连或重启 MCP 后生效。
   远端 proxy tools 默认隐藏，仅白名单公开 `generate_image`、`batch_generate_images`、
   `edit_image`、`create_video_task`、`query_video_task`、`text_to_music`、
   `text_to_sound_effect`、`batch_sound_effects`、`text_to_dialogue`、

@@ -2,6 +2,7 @@ const mockServers: Array<{
   handlers: Map<unknown, (...args: any[]) => any>;
   options?: Record<string, unknown>;
 }> = [];
+const mockRemoteProxyCallTool = jest.fn();
 
 jest.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
   Server: class MockServer {
@@ -123,6 +124,14 @@ jest.mock('../maker/auth/patTap', () => ({
   requestTapAuthWithPat: jest.fn(),
 }));
 
+jest.mock('../maker/server/remoteProxyManager', () => ({
+  createMakerRemoteProxyManager: jest.fn(() => ({
+    callTool: mockRemoteProxyCallTool,
+    close: jest.fn(),
+    listTools: jest.fn(),
+  })),
+}));
+
 jest.mock('../maker/config', () => ({
   getMakerEndpoints: jest.fn(),
   getMakerEnvironment: jest.fn(() => 'production'),
@@ -180,7 +189,10 @@ describe('maker MCP version status integration', () => {
 
   test('starts package update check on MCP startup and includes update status in maker_status_lite', async () => {
     const { startMakerMcpServer } = await import('../maker/server/mcp');
-    const { CallToolRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+    const { CallToolRequestSchema, ListToolsRequestSchema } = await import(
+      '@modelcontextprotocol/sdk/types.js'
+    );
+    const patTap = await import('../maker/auth/patTap');
     const versionCheck = await import('../maker/versionCheck');
 
     await startMakerMcpServer();
@@ -194,7 +206,12 @@ describe('maker MCP version status integration', () => {
     expect(server).toBeDefined();
 
     const handler = server.handlers.get(CallToolRequestSchema);
+    const listHandler = server.handlers.get(ListToolsRequestSchema);
     expect(handler).toBeDefined();
+    const firstList = await listHandler({}, {});
+    const secondList = await listHandler({}, {});
+    expect(firstList.tools).toHaveLength(18);
+    expect(secondList.tools).toHaveLength(18);
 
     const result = await handler(
       {
@@ -235,6 +252,8 @@ describe('maker MCP version status integration', () => {
       allowRemoteFetch: false,
       backgroundRefresh: false,
     });
+    expect(patTap.requestTapAuthWithPat).toHaveBeenCalledTimes(1);
+    expect(patTap.requestTapAuthWithPat).toHaveBeenCalledWith(undefined, 'production');
   });
 
   test('does not add an update action when a plugin distribution manages the package', async () => {
@@ -389,5 +408,88 @@ describe('maker MCP version status integration', () => {
     expect(text).toContain('sdk:ShowRewardVideoAd');
     expect(text).toContain('result.success');
     expect(text).toContain('consecutive steps');
+  });
+
+  test('limits blacklisted accounts to the status tool and blocks every tool call', async () => {
+    const patTap = await import('../maker/auth/patTap');
+    jest
+      .mocked(patTap.requestTapAuthWithPat)
+      .mockRejectedValueOnce(
+        new Error(
+          'TapTap token request failed: HTTP 406 {"code":"BLACKLISTED","message":"blocked"}'
+        )
+      );
+    const { startMakerMcpServer } = await import('../maker/server/mcp');
+    const { CallToolRequestSchema, ListToolsRequestSchema, ReadResourceRequestSchema } =
+      await import('@modelcontextprotocol/sdk/types.js');
+
+    await startMakerMcpServer();
+    const server = mockServers[0];
+    const listHandler = server.handlers.get(ListToolsRequestSchema);
+    const callHandler = server.handlers.get(CallToolRequestSchema);
+    const readHandler = server.handlers.get(ReadResourceRequestSchema);
+
+    await expect(listHandler({}, {})).resolves.toEqual({
+      tools: [expect.objectContaining({ name: 'maker_status_lite' })],
+    });
+
+    for (const name of ['maker_status_lite', 'maker_build_current_directory', 'generate_image']) {
+      const result = await callHandler(
+        { params: { name, arguments: { target_dir: '/tmp/maker-project' } } },
+        { requestId: `blocked-${name}` }
+      );
+      expect(result).toEqual({
+        isError: true,
+        content: [
+          {
+            type: 'text',
+            text: expect.stringContaining('BLACKLISTED'),
+          },
+        ],
+      });
+      expect(result.content[0].text).not.toContain('Bearer');
+      expect(result.content[0].text).not.toContain('mac_key');
+    }
+
+    const statusResource = await readHandler(
+      { params: { uri: 'maker://status' } },
+      { requestId: 'blocked-status-resource' }
+    );
+    expect(statusResource.contents[0].text).toContain('Maker MCP access blocked');
+    expect(statusResource.contents[0].text).toContain('- code: BLACKLISTED');
+
+    expect(patTap.requestTapAuthWithPat).toHaveBeenCalledTimes(1);
+    expect(patTap.requestTapAuthWithPat).toHaveBeenCalledWith(undefined, 'production');
+    expect(mockRemoteProxyCallTool).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['missing PAT', new Error('Maker PAT is not configured'), 'rnd'],
+    ['expired PAT', new Error('PAT_EXPIRED'), 'production'],
+    ['network timeout', new Error('TapTap token request timed out'), 'production'],
+    ['server failure', new Error('TapTap token request failed: HTTP 500'), 'production'],
+  ] as const)('keeps the complete tool list for %s', async (_label, accessError, environment) => {
+    const config = await import('../maker/config');
+    const patTap = await import('../maker/auth/patTap');
+    jest.mocked(config.getMakerEnvironment).mockReturnValueOnce(environment);
+    jest.mocked(patTap.requestTapAuthWithPat).mockRejectedValueOnce(accessError);
+    const { startMakerMcpServer } = await import('../maker/server/mcp');
+    const { ListToolsRequestSchema } = await import('@modelcontextprotocol/sdk/types.js');
+
+    await startMakerMcpServer();
+    const listHandler = mockServers[0].handlers.get(ListToolsRequestSchema);
+    const result = await listHandler({}, {});
+    const names = result.tools.map((tool: { name: string }) => tool.name);
+
+    expect(names).toHaveLength(18);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'maker_status_lite',
+        'maker_build_current_directory',
+        'generate_image',
+      ])
+    );
+    expect(patTap.requestTapAuthWithPat).toHaveBeenCalledTimes(1);
+    expect(patTap.requestTapAuthWithPat).toHaveBeenCalledWith(undefined, environment);
   });
 });

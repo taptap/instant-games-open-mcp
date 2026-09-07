@@ -579,6 +579,10 @@ maker_build_current_directory
 远端 proxy tools 使用版本化的本地完整定义在首次 `tools/list` 时立即注册，不等待 cwd、Maker 项目绑定、
 PAT/TapTap token 或远端 proxy 连接。项目定位和鉴权只在实际调用 tool 时校验；远端 schema 不会在运行时
 替换本地定义。schema 变更通过本地 MCP 版本更新发布，远端不可用不会让 proxy tools 从当前会话消失。
+唯一例外是 Maker Server 明确返回 `BLACKLISTED` 的账号：MCP 每个进程启动时只检查一次账号状态，
+`tools/list` 只保留 `maker_status_lite`，任何 tool call 和 `maker://status` 都直接返回限制提示，不进入
+本地构建或远端 proxy。PAT 缺失、过期、网络超时和其它非黑名单错误不会隐藏工具；账号状态变化需要
+重连或重启 MCP 后生效。
 Maker 内嵌代理不打开可选的 standalone SSE GET，远端 RPC 响应和构建进度统一通过 POST SSE 返回；
 这避免 Node.js 26 中长连接占用后续 `tools/list` 请求而触发固定 60 秒超时。普通 MCP Proxy 默认仍保留
 standalone SSE，只有显式设置 `disable_standalone_sse` 才会关闭。

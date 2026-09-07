@@ -19,6 +19,10 @@
   `text_to_dialogue`、`audition_voices_for_character`、`confirm_character_voice`、
   `create_3d_asset`、`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks`，用于试用
   图片/视频/音乐/音效/配音/3D 模型生成、测试二维码生成、广告配置同步和远端玩家反馈查询链路。
+- Maker MCP 启动时复用 PAT 换取 TapTap MAC 凭据的现有接口执行一次账号访问检查。只有接口明确返回
+  `BLACKLISTED` 时，`tools/list` 才只保留 `maker_status_lite`，所有 tool call 和
+  `maker://status` 直接返回限制提示，不执行项目状态、构建或远端 proxy 逻辑。PAT 缺失、过期、
+  网络或其它未知错误保持 fail-open；进程启动后的账号状态变化在下次重连或重启时生效。
 - `maker_build_current_directory` 是用户感知里的提交/推送/远端构建入口；push 失败时会停止在构建前，让本地 Agent 处理冲突或合并。
 - 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。

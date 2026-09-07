@@ -60,6 +60,7 @@ import {
   type MakerEnvironment,
 } from '../config.js';
 import { getUserIdFromMakerJwt } from '../auth/jwt.js';
+import { requestTapAuthWithPat } from '../auth/patTap.js';
 import {
   MakerGitNotFoundError,
   checkGitEnvironment,
@@ -159,6 +160,17 @@ const PREVIEW_REFRESH_TIMEOUT_MS = 15 * 1000;
 const WATCHER_STOP_TIMEOUT_MS = 1500;
 const WATCHER_PROCESS_PATTERN = /(?:\btaptap-maker\b|\bmaker\.js\b).*\blogs\b.*\bwatch\b/;
 const LONG_OPERATION_HEARTBEAT_MS = 3 * 60 * 1000;
+const MAKER_MCP_BLACKLISTED_MESSAGE = [
+  'Maker MCP access blocked',
+  '',
+  '- code: BLACKLISTED',
+  '- message: 当前 Maker 账号已被限制，无法使用 Maker MCP 工具。',
+].join('\n');
+
+type MakerMcpAccessState =
+  | { blocked: false }
+  | { blocked: true; code: 'BLACKLISTED'; message: string };
+
 export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'generate_image',
   'batch_generate_images',
@@ -616,6 +628,7 @@ export function createRemoteProxyCallToolOptions(
 
 export async function startMakerMcpServer(): Promise<void> {
   startMakerPackageUpdateCheck({ currentVersion: VERSION });
+  const accessStatePromise = resolveMakerMcpAccessState(getMakerEnvironment());
 
   const server = new Server(
     {
@@ -635,6 +648,10 @@ export async function startMakerMcpServer(): Promise<void> {
   const remoteProxyManager: MakerRemoteProxyManager = createMakerRemoteProxyManager();
   const startupReportedProjects = new Set<string>();
   server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const accessState = await accessStatePromise;
+    if (accessState.blocked) {
+      return { tools: [tools[0]] };
+    }
     const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
     return listMakerTools();
@@ -648,6 +665,19 @@ export async function startMakerMcpServer(): Promise<void> {
     const uri = request.params.uri;
     if (uri !== 'maker://status' && uri !== MAKER_ADS_INTEGRATION_GUIDE_URI) {
       throw new McpError(ErrorCode.InvalidParams, `Unknown Maker resource: ${uri}`);
+    }
+
+    const accessState = await accessStatePromise;
+    if (uri === 'maker://status' && accessState.blocked) {
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: 'text/plain',
+            text: accessState.message,
+          },
+        ],
+      };
     }
 
     const startedAt = Date.now();
@@ -687,6 +717,14 @@ export async function startMakerMcpServer(): Promise<void> {
   });
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const name = request.params.name;
+    const accessState = await accessStatePromise;
+    if (accessState.blocked) {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: accessState.message }],
+      };
+    }
+
     const startedAt = Date.now();
     const rawArgs = (request.params.arguments || {}) as Record<string, unknown>;
     const hasInvalidTargetDir =
@@ -903,6 +941,25 @@ export async function startMakerMcpServer(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   installMakerServerExitHandlers(remoteProxyManager);
+}
+
+async function resolveMakerMcpAccessState(
+  environment: MakerEnvironment
+): Promise<MakerMcpAccessState> {
+  try {
+    await requestTapAuthWithPat(undefined, environment);
+    return { blocked: false };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/\bBLACKLISTED\b/u.test(message)) {
+      return {
+        blocked: true,
+        code: 'BLACKLISTED',
+        message: MAKER_MCP_BLACKLISTED_MESSAGE,
+      };
+    }
+    return { blocked: false };
+  }
 }
 
 async function resolveMakerMcpTrackingContext(options: {
