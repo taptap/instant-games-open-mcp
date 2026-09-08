@@ -265,9 +265,10 @@ Maker MCP 初始化时会通过标准 `initialize.instructions` 向 AI 客户端
 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。
 普通构建会先 push 到 Maker 远端再触发远端 build：本地有改动时提交改动，已有未推送 commit 时
 直接 push，本地干净且没有未推送 commit 时创建 `chore: wake maker build server` 空提交来唤醒远端
-服务。push 失败时不会继续 build，会返回本地 commit、ahead 状态、stderr/stdout 和下一步建议，
-交给本地 Agent/skill 处理 pull、rebase 或冲突；push 成功但 build 失败时，会明确说明代码已到
-Maker 远端但构建失败。只有用户明确说“不提交，只构建云端版本”时，才传
+服务。提交前如果本地仅落后于 Maker 远端，会自动执行 fast-forward 后继续提交；如果远端更新会
+覆盖本地未提交修改，则会在创建 commit 前停止并保留本地文件。分叉、非 `main`、鉴权或网络失败仍
+按原有提示处理。push 成功但 build 失败时，会明确说明代码已到 Maker 远端但构建失败。只有用户明确
+说“不提交，只构建云端版本”时，才传
 `confirm_remote_build_without_submit=true`；该模式只构建 Maker 远端已提交版本，不会自动打开
 Maker 页面。
 
@@ -579,6 +580,10 @@ maker_build_current_directory
 远端 proxy tools 使用版本化的本地完整定义在首次 `tools/list` 时立即注册，不等待 cwd、Maker 项目绑定、
 PAT/TapTap token 或远端 proxy 连接。项目定位和鉴权只在实际调用 tool 时校验；远端 schema 不会在运行时
 替换本地定义。schema 变更通过本地 MCP 版本更新发布，远端不可用不会让 proxy tools 从当前会话消失。
+唯一例外是 Maker Server 明确返回 `BLACKLISTED` 的账号：MCP 每个进程启动时只检查一次账号状态，
+`tools/list` 只保留 `maker_status_lite`，任何 tool call 和 `maker://status` 都直接返回限制提示，不进入
+本地构建或远端 proxy。PAT 缺失、过期、网络超时和其它非黑名单错误不会隐藏工具；账号状态变化需要
+重连或重启 MCP 后生效。
 Maker 内嵌代理不打开可选的 standalone SSE GET，远端 RPC 响应和构建进度统一通过 POST SSE 返回；
 这避免 Node.js 26 中长连接占用后续 `tools/list` 请求而触发固定 60 秒超时。普通 MCP Proxy 默认仍保留
 standalone SSE，只有显式设置 `disable_standalone_sse` 才会关闭。

@@ -47,6 +47,8 @@ describe('Maker non-audio tool descriptions', () => {
     expect(buildDescription).toMatch(/build.{0,40}preview.{0,40}submit.{0,40}push/iu);
     expect(buildDescription).toMatch(/tests?.{0,40}lint.{0,100}do not trigger/iu);
     expect(buildDescription).toMatch(/commits?.{0,80}pushes?.{0,100}remote build/iu);
+    expect(buildDescription).toMatch(/only behind.{0,100}automatically fast-forwards/iu);
+    expect(buildDescription).toMatch(/Diverged history.{0,180}stops before commit/iu);
     expect(buildDescription).toMatch(
       /failure_stage.{0,80}code_submit_status.{0,80}remote_build_status/iu
     );

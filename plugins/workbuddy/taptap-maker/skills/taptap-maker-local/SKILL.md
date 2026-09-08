@@ -143,8 +143,9 @@ Maker project submit/build work. Do not run generic Git commit/push helpers as a
 the Maker MCP tool.
 
 `maker_build_current_directory` owns the Maker safety gate. It checks remote sync before creating a
-commit and stops when local `main` is behind remote, diverged, not on `main`, or remote sync cannot
-be verified.
+commit. When local `main` is only behind Maker remote, it automatically fast-forwards before
+committing. It stops when history is diverged, the branch is not `main`, remote sync cannot be
+verified, or fast-forward would overwrite local changes.
 
 The root `.gitignore` is a required Maker project file. If it changes after binding or dev-kit
 updates, include it with the game changes and mention it in the submit summary. Do not omit it from
@@ -687,6 +688,9 @@ before routine work; use `maker_status_lite` with `detail: true` before explicit
   already local-only. In detail mode, pass `skip_remote_sync: true` to avoid `git fetch origin` and
   AI dev kit latest-version network round trips.
 - `up_to_date`: continue development.
+- For an explicit submit/build request, call `maker_build_current_directory` directly when status is
+  `needs_pull`. The tool attempts `git merge --ff-only origin/main` before creating the local commit.
+  If Git refuses because remote files overlap local edits, the tool stops and preserves the workspace.
 - `needs_pull` with `local_changes: no`: tell the user the workspace is clean and the local AI can
   run `git pull --ff-only origin main` before editing.
 - `needs_pull` with `local_changes: yes`: do not pull immediately. Explain that remote changes exist
@@ -732,9 +736,10 @@ commit + push + Maker build
 Use `maker_build_current_directory` for this path. Do not use generic Git task-id,
 branch-creation, or PR rules inside Maker project repositories.
 
-`maker_build_current_directory` owns the safety gate before commit/push. It checks Maker remote
-sync and stops before creating a local commit when local `main` is behind remote, diverged, not on
-`main`, or remote sync cannot be verified. Do not work around this by creating a new branch,
+`maker_build_current_directory` owns the safety gate before commit/push. When local `main` is only
+behind Maker remote, it automatically fast-forwards before creating a local commit. It stops before
+commit and push when history is diverged, the branch is not `main`, remote sync cannot be verified,
+or fast-forward would overwrite local changes. Do not work around this by creating a new branch,
 requesting a task id, running generic Git commit/push, or opening a PR/MR.
 
 If `.gitignore` changed after Maker binding or dev-kit update, include it in the submit summary.
