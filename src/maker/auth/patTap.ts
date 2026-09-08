@@ -17,6 +17,19 @@ function getObjectValue(data: unknown, key: string): unknown {
   return (data as Record<string, unknown>)[key];
 }
 
+export class MakerTapTokenRequestError extends Error {
+  readonly status: number;
+  readonly responseCode?: string;
+
+  constructor(status: number, responseBody: unknown) {
+    super(`TapTap token request failed: HTTP ${status} ${JSON.stringify(responseBody)}`);
+    this.name = 'MakerTapTokenRequestError';
+    this.status = status;
+    const responseCode = getObjectValue(responseBody, 'code');
+    this.responseCode = typeof responseCode === 'string' ? responseCode : undefined;
+  }
+}
+
 function normalizeTapAuthResponse(data: unknown): MakerTapAuth {
   const body = data as Record<string, unknown>;
   const nested = getObjectValue(body, 'data');
@@ -80,7 +93,7 @@ export async function requestTapAuthWithPat(
   }
 
   if (!response.ok) {
-    throw new Error(`TapTap token request failed: HTTP ${response.status} ${JSON.stringify(json)}`);
+    throw new MakerTapTokenRequestError(response.status, json);
   }
 
   const auth = normalizeTapAuthResponse(json);

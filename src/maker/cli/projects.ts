@@ -546,16 +546,22 @@ export async function pushMakerProject(
       });
     } catch (error) {
       const failure = toMakerGitFailure(error, 'pull');
+      const failedBecauseLocalChangesWouldBeOverwritten =
+        /would be overwritten|conflicting local files/iu.test(
+          `${failure.stdout || ''}\n${failure.stderr || ''}`
+        );
       return {
         branch: remoteSyncStatus.branch,
         committed: false,
         pushed: false,
         status: 'clean',
-        failure: {
-          ...failure,
-          nextAction:
-            'Maker 远端有新提交，但自动 fast-forward 会覆盖本地修改，因此已在提交前停止。请先处理提示的冲突文件，再重试 maker_build_current_directory。',
-        },
+        failure: failedBecauseLocalChangesWouldBeOverwritten
+          ? {
+              ...failure,
+              nextAction:
+                'Maker 远端有新提交，但自动 fast-forward 会覆盖本地修改，因此已在提交前停止。请先处理提示的冲突文件，再重试 maker_build_current_directory。',
+            }
+          : failure,
         ahead: await readAheadState(cwd),
         transientRetries: 0,
       };

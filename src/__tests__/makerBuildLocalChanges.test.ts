@@ -425,6 +425,24 @@ describe('maker build local-change guard', () => {
     expect(readGit(['rev-parse', '--short', 'HEAD']).trim()).toBe(headBefore);
   });
 
+  test('push preserves the original recovery advice for non-conflict fast-forward failures', async () => {
+    runGit(['branch', '-M', 'main']);
+    prepareMakerRemote();
+    const remoteWorktree = cloneRemoteWorktree();
+    writeRemoteScript(remoteWorktree);
+    runGit(['add', 'scripts/remote.lua'], remoteWorktree);
+    runGit(['commit', '-m', 'chore: remote update'], remoteWorktree);
+    runGit(['push', 'origin', 'main'], remoteWorktree);
+    fs.writeFileSync(path.join(tempDir, '.git', 'index.lock'), '', 'utf8');
+
+    const result = await pushMakerProject({ cwd: tempDir });
+
+    expect(result.failure?.stage).toBe('pull');
+    expect(result.failure?.message).toContain('index.lock');
+    expect(result.failure?.nextAction).not.toContain('会覆盖本地修改');
+    expect(result.failure?.nextAction).not.toContain('冲突文件');
+  });
+
   test('push selected files still includes Maker generated .gitignore changes', async () => {
     runGit(['branch', '-M', 'main']);
     prepareMakerRemote();

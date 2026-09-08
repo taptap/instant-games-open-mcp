@@ -950,8 +950,11 @@ async function resolveMakerMcpAccessState(
     await requestTapAuthWithPat(undefined, environment);
     return { blocked: false };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (/\bBLACKLISTED\b/u.test(message)) {
+    const responseCode =
+      error && typeof error === 'object'
+        ? (error as { responseCode?: unknown }).responseCode
+        : undefined;
+    if (responseCode === 'BLACKLISTED') {
       return {
         blocked: true,
         code: 'BLACKLISTED',

@@ -415,8 +415,11 @@ describe('maker MCP version status integration', () => {
     jest
       .mocked(patTap.requestTapAuthWithPat)
       .mockRejectedValueOnce(
-        new Error(
-          'TapTap token request failed: HTTP 406 {"code":"BLACKLISTED","message":"blocked"}'
+        Object.assign(
+          new Error(
+            'TapTap token request failed: HTTP 406 {"code":"BLACKLISTED","message":"blocked"}'
+          ),
+          { responseCode: 'BLACKLISTED' }
         )
       );
     const { startMakerMcpServer } = await import('../maker/server/mcp');
@@ -468,6 +471,16 @@ describe('maker MCP version status integration', () => {
     ['expired PAT', new Error('PAT_EXPIRED'), 'production'],
     ['network timeout', new Error('TapTap token request timed out'), 'production'],
     ['server failure', new Error('TapTap token request failed: HTTP 500'), 'production'],
+    [
+      'non-blacklist response mentioning BLACKLISTED',
+      Object.assign(
+        new Error(
+          'TapTap token request failed: HTTP 400 {"code":"INVALID_REQUEST","message":"not BLACKLISTED"}'
+        ),
+        { responseCode: 'INVALID_REQUEST' }
+      ),
+      'production',
+    ],
   ] as const)('keeps the complete tool list for %s', async (_label, accessError, environment) => {
     const config = await import('../maker/config');
     const patTap = await import('../maker/auth/patTap');

@@ -79,6 +79,18 @@ describe('maker PAT TapTap token exchange', () => {
     expect(fs.existsSync(getTapAuthPath())).toBe(true);
   });
 
+  test('preserves the structured response code when the token request fails', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 406,
+      text: async () => JSON.stringify({ code: 'BLACKLISTED', message: 'blocked' }),
+    } as Response);
+
+    await expect(requestTapAuthWithPat()).rejects.toMatchObject({
+      responseCode: 'BLACKLISTED',
+    });
+  });
+
   test('uses the original flat auth paths for production and rnd', () => {
     setMakerEnvironmentOverride('production');
     savePat({ token: 'prod-pat' });
