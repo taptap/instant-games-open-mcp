@@ -33,7 +33,7 @@ import {
   createRemoteProxyContext,
   stopExistingRuntimeLogWatcher,
 } from '../server/mcp.js';
-import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
+import { MAKER_TOOL_CALL_TIMEOUT_MS } from '../proxyPolicy.js';
 import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeLogs.js';
 import {
   cloneMakerProject,
@@ -1654,7 +1654,7 @@ async function runUserSkillsPull(parsed: ParsedArgs, ctx: CliContext): Promise<v
 async function runLogsWatch(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
   const targetDir = path.resolve(stringOption(parsed, 'target_dir') || process.cwd());
   const intervalMs = parseDurationMs(stringOption(parsed, 'interval') || '5s');
-  const timeoutMs = numberOption(parsed, 'timeout_ms') ?? DEFAULT_TOOL_CALL_TIMEOUT_MS;
+  const timeoutMs = numberOption(parsed, 'timeout_ms') ?? MAKER_TOOL_CALL_TIMEOUT_MS;
   const maxPolls = numberOption(parsed, 'max_polls');
   const maxConsecutiveFailures = numberOption(parsed, 'max_consecutive_failures');
   const proxy = createRemoteProxyContext({

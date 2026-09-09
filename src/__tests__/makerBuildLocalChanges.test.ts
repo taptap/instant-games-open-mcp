@@ -185,7 +185,7 @@ describe('maker build local-change guard', () => {
     expect(proxyConfig.auth.mac_key).toBe('rnd-mac-key');
   });
 
-  test('remote proxy context configures progress token injection without tool timeout override', () => {
+  test('remote proxy context explicitly configures the long tool timeout and progress', () => {
     saveTapAuth({
       kid: 'rnd-kid',
       token: 'rnd-token',
@@ -195,7 +195,7 @@ describe('maker build local-change guard', () => {
     const proxy = createRemoteProxyContext({ targetDir: tempDir });
     const proxyConfig = JSON.parse(proxy.proxyConfigJson);
 
-    expect(proxyConfig.options).not.toHaveProperty('tool_call_timeout');
+    expect(proxyConfig.options.tool_call_timeout).toBe(60 * 60 * 1000);
     expect(proxyConfig.options.reset_timeout_on_progress).toBe(true);
     expect(proxyConfig.options.force_inject_progress_token).toBe(true);
     expect(proxyConfig.options.disable_standalone_sse).toBe(true);

@@ -107,6 +107,9 @@ Closes #123
 - ✅ 分支前缀和 commit type 都必须反映实际改动；`feature/` 通常对应 `feat:`，会使中版本号 +1
 - ❌ **PR 合并后不会自动发布 npm**
 - ✅ **主包 npm 发布只能手动运行 GitHub Actions workflow**
+- ✅ 主包发布前必须对选定 release 源码执行 Proxy 强制回归；复用 release 分支不得改变
+  workflow 启动时的源码、构建脚本或 Native 输入。复用已发布 npm 版本前必须比较 Proxy bundle
+  和 launcher，内容不同立即停止，不能仅因版本已存在就更新 `latest`。
 - ✅ 主包 Native 复用必须绑定 npm 当前线上版本对应的 `v<version>` tag 和 Release，并校验
   6 个平台资产完整；不得读取仓库最新 Release，以免混入 Maker、DSH 或客户端插件版本。
 - ✅ 主包 release tag 必须指向实际发布源码提交；创建 tag 前比较 workflow 启动提交与 tag
@@ -218,6 +221,12 @@ export const myTools: ToolRegistration[] = [
 - 支持 MCP Proxy 模式的多账号认证
 - 对 AI Agent 和业务层完全透明
 - 双模式注入：参数（`_mac_token`）或 Header（`X-TapTap-Mac-Token`）
+- `src/mcp-proxy` 是服务端与本地 Maker MCP 共用的通用组件。默认不发送 `X-TapTap-Tag`，
+  不新增或覆盖 `_tag`；只有本地 Maker 嵌入入口通过构造函数运行时选项
+  `sourceTag: 'local'` 显式启用标记。不得根据上游地址推断来源或改变通用默认行为。
+- 通用 Proxy 默认保留上游协议错误，工具超时为 5 分钟，按配置固定间隔重连，失败重放不循环入队。
+  Maker 通过 `src/maker/proxyPolicy.ts` 显式启用诊断转换、退避恢复与 1 小时超时，
+  不得把 Maker 专属策略作为共享组件默认值。详见 `src/mcp-proxy/README.md`。
 
 **完整架构详见：** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 

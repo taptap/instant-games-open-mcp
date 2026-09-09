@@ -609,6 +609,18 @@ jobs:
           RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
           LAST_RELEASE_TAG: v${{ needs.analyze.outputs.current_version }}
 
+      - name: Verify standalone proxy release
+        run: |
+          set -euo pipefail
+          # 复用 release 分支不能遗漏修复或改变 Native 构建输入。
+          git diff --exit-code "${{ github.sha }}" HEAD -- src/ scripts/ bin/ config/ native/
+          npm test -- --runInBand \
+            src/__tests__/mcpProxyCompatibility.test.ts \
+            src/__tests__/mcpProxyLifecycle.test.ts \
+            src/__tests__/mcpProxyTag.test.ts \
+            src/__tests__/mcpProxyCookieFetch.test.ts
+          node scripts/bundle-proxy.js
+
       - name: Verify package contents before publish
         run: |
           test -s "$RUNNER_TEMP/main-release-notes.md"
@@ -621,10 +633,20 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          set -euo pipefail
           VERSION=${{ steps.release_version.outputs.version }}
 
           if npm view "@taptap/instant-games-open-mcp@${VERSION}" version >/dev/null 2>&1; then
             echo "@taptap/instant-games-open-mcp@${VERSION} already exists on npm"
+            EXISTING_DIR=$(mktemp -d)
+            trap 'rm -rf "$EXISTING_DIR"' EXIT
+            npm pack "@taptap/instant-games-open-mcp@${VERSION}" \
+              --ignore-scripts --pack-destination "$EXISTING_DIR"
+            tar -xzf "$EXISTING_DIR"/*.tgz -C "$EXISTING_DIR" \
+              package/dist/proxy.js package/bin/taptap-mcp-proxy
+            # 不能仅因 npm 版本已存在就将旧 Proxy 推广为 latest。
+            cmp dist/proxy.js "$EXISTING_DIR/package/dist/proxy.js"
+            cmp bin/taptap-mcp-proxy "$EXISTING_DIR/package/bin/taptap-mcp-proxy"
             npm dist-tag add "@taptap/instant-games-open-mcp@${VERSION}" latest
             exit 0
           fi

@@ -1,6 +1,37 @@
 # TapTap MCP Proxy
 
-TapCode 的 MCP 代理实现，用于连接 AI Agent 和 TapTap MCP Server，自动注入 MAC Token 实现多租户隔离。
+通用的 TapTap MCP 代理组件，用于连接 MCP 客户端和远端 MCP Server，自动注入 MAC Token 实现多租户隔离。
+
+## 重要：共享组件与兼容性边界
+
+> **本目录不是本地 Maker MCP 的专属实现。服务端调用方和本地 Maker MCP 共用这里的代码，
+> 修改默认行为会影响不同场景的使用方，必须按公共组件维护。**
+
+- **服务端使用场景：** Maker 的服务端调用方会使用此 Proxy 与 `maker-tools` 进行业务交互。
+  该场景不等同于本地 Maker 开发，不能默认将这些请求标记为 `local`。
+- **本地 Maker MCP 场景：** `src/maker/index.ts` 直接复用 `TapTapMCPProxy`，构建时内置到
+  Maker npm 包的 `dist/maker.js` 中。Maker 的业务需求不代表其它 Proxy 使用方的需求。
+- **发布边界：** 独立 Proxy 随 `@taptap/instant-games-open-mcp` 发布，Maker 内置 Proxy 随
+  `@taptap/maker` 发布。两者发布独立，但共享源码的修改会进入各自后续构建，不能只验证 Maker。
+- **修改约束：** 来源标记（例如 `tag=local`）、默认超时、错误返回格式、会话与重连、
+  请求重放和工具过滤都属于兼容性契约。场景专属行为必须由对应入口或显式配置启用，
+  不得为了单个 Maker 场景直接改变通用默认行为。
+- **验证要求：** 修改共享逻辑前先检查两类调用方及既有配置；修改后必须覆盖服务端独立 Proxy
+  的兼容性测试和实际构建产物；本地 Maker MCP 必须在其后续发布前单独验证。
+  提交名称带有 `maker` 不代表影响仅限 Maker。
+
+### 通用默认行为与 Maker 专属行为
+
+- 通用 Proxy 默认不注入来源标记，原样保留上游协议错误的 `code`、`message` 和 `data`，
+  工具调用超时默认为 5 分钟，重连使用配置的固定间隔（默认 5 秒）。
+- 会话失效（包括明确返回 session 失效的 HTTP 400/404）会触发重连；普通 HTTP 4xx
+  不触发重连。新增识别的 HTTP 5xx、SDK 连接关闭和请求超时会恢复连接，但不会自动重放当前调用。
+- 保留历史网络错误和会话失效时的一次自动重放；重放再次失败就返回错误，不循环重放同一调用。
+  这不是“恰好执行一次”的保证：有副作用的工具应显式配置 `replayable_tools`。
+- 本地 Maker 通过 `src/maker/proxyPolicy.ts` 显式启用 `sourceTag: 'local'`、
+  `remoteErrorMode: 'tool-result'`、`recoveryMode: 'resilient'`，并在自己的配置中设置
+  1 小时工具超时。诊断转换、退避重连与持续重放是该入口的策略，不是通用默认行为。
+- 这些构造函数运行时选项不属于 JSON 配置，不能依据上游 URL 自动启用。
 
 ## 架构
 
@@ -81,15 +112,7 @@ User Space 容器内：
   "options": {
     "verbose": false,
     "reconnect_interval": 5000,
-    "monitor_interval": 10000,
-    "exposed_tools": [
-      "generate_image",
-      "batch_generate_images",
-      "edit_image",
-      "create_video_task",
-      "text_to_music",
-      "create_3d_asset"
-    ]
+    "monitor_interval": 10000
   }
 }
 ```
@@ -178,10 +201,10 @@ const sessionResult = await connection.newSession({
 - `user_id` 和 `project_id` 仅用于日志标识，不参与路径逻辑
 - 业务/编辑器 client session id 统一放在 `custom_fields.session_id`
 - Proxy 不再处理路径拼接，全部交给 MCP Server 的 `pathResolver` 统一处理
-- 连接上游 MCP Server 创建 session 时会额外发送 `X-TapTap-Tag: local`，用于远端
-  MCP 区分本地 proxy 调用来源；每次工具调用也会继续注入私有参数 `_tag:
-"local"` 用于兼容。该标记不写入 `PROXY_CONFIG`，也不用于普通 Open API
-  HTTP 请求
+- 通用 Proxy 默认不发送 `X-TapTap-Tag`，不新增或覆盖调用方的 `_tag`。只有本地 Maker
+  嵌入入口显式传入运行时选项 `sourceTag: 'local'` 时，才发送 `X-TapTap-Tag: local`，
+  并在启用 `inject_params_per_call` 时注入 `_tag: "local"`。该运行时选项不属于
+  `PROXY_CONFIG`，不根据服务端地址推断，也不用于普通 Open API HTTP 请求。
 
 ### auth（必需）
 
@@ -194,15 +217,16 @@ const sessionResult = await connection.newSession({
 
 ### options（可选）
 
-| 字段                     | 类型    | 必需 | 说明                                              | 默认值  |
-| ------------------------ | ------- | ---- | ------------------------------------------------- | ------- |
-| `verbose`                | boolean | ⚪   | 详细日志模式                                      | `false` |
-| `reconnect_interval`     | number  | ⚪   | 重连间隔（毫秒）                                  | `5000`  |
-| `monitor_interval`       | number  | ⚪   | 监控间隔（毫秒）                                  | `10000` |
-| `disable_standalone_sse` | boolean | ⚪   | 对可选 standalone SSE GET 返回 405，改用 POST SSE | `false` |
-| `exposed_tools`          | array   | ⚪   | 对客户端暴露的 tool 名称白名单                    | 不限制  |
-| `replayable_tools`       | array   | ⚪   | 允许断线等待或自动重放的 tool 名称白名单          | 不限制  |
-| `log`                    | object  | ⚪   | 日志配置                                          | 见下表  |
+| 字段                     | 类型    | 必需 | 说明                                              | 默认值   |
+| ------------------------ | ------- | ---- | ------------------------------------------------- | -------- |
+| `verbose`                | boolean | ⚪   | 详细日志模式                                      | `false`  |
+| `reconnect_interval`     | number  | ⚪   | 重连间隔（毫秒）                                  | `5000`   |
+| `monitor_interval`       | number  | ⚪   | 监控间隔（毫秒）                                  | `10000`  |
+| `tool_call_timeout`      | number  | ⚪   | 工具调用超时（毫秒，5 分钟）                      | `300000` |
+| `disable_standalone_sse` | boolean | ⚪   | 对可选 standalone SSE GET 返回 405，改用 POST SSE | `false`  |
+| `exposed_tools`          | array   | ⚪   | 对客户端暴露的 tool 名称白名单                    | 不限制   |
+| `replayable_tools`       | array   | ⚪   | 允许断线等待或自动重放的 tool 名称白名单          | 不限制   |
+| `log`                    | object  | ⚪   | 日志配置                                          | 见下表   |
 
 `disable_standalone_sse` 只影响用于接收服务端主动消息的可选 GET 长连接。MCP 请求、响应和 progress
 仍通过 POST SSE 传输。默认关闭该选项以保持通用 Proxy 的历史行为；Maker 内嵌代理会显式开启。

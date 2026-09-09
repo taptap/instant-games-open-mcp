@@ -9,7 +9,7 @@
 
 import type { ProxyConfig } from './types.js';
 
-export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60 * 60 * 1000;
+export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
  * 从标准输入读取数据
