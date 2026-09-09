@@ -14,8 +14,8 @@ TapTap Maker WorkBuddy 插件为 WorkBuddy 提供完整的 TapTap Maker 游戏�
 
 ## 插件信息
 
-- 插件版本：`0.0.3`
-- 内置 Maker MCP 版本：`0.0.32`
+- 插件版本：`0.0.4`
+- 内置 Maker MCP 版本：`0.0.33`
 - 适用客户端：WorkBuddy
 - 支持平台：Windows、macOS、Linux
 - 内置 runtime：`dist/maker.js`

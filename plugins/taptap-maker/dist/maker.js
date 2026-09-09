@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // TapTap Maker MCP - Standalone Bundle
-// TapTap Maker MCP version: 0.0.32
+// TapTap Maker MCP version: 0.0.33
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const __MAKER_BUNDLE_URL__ = import.meta.url;
@@ -3234,8 +3234,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path29) {
-      let input2 = path29;
+    function removeDotSegments(path30) {
+      let input2 = path30;
       const output2 = [];
       let nextSlash = -1;
       let len = 0;
@@ -3434,57 +3434,57 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path29, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path29 && path29 !== "/" ? path29 : void 0;
+        const [path30, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path30 && path30 !== "/" ? path30 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
       wsComponent.fragment = void 0;
       return wsComponent;
     }
-    function urnParse(urnComponent, options) {
+    function urnParse(urnComponent, options2) {
       if (!urnComponent.path) {
         urnComponent.error = "URN can not be parsed";
         return urnComponent;
       }
       const matches = urnComponent.path.match(URN_REG);
       if (matches) {
-        const scheme = options.scheme || urnComponent.scheme || "urn";
+        const scheme = options2.scheme || urnComponent.scheme || "urn";
         urnComponent.nid = matches[1].toLowerCase();
         urnComponent.nss = matches[2];
-        const urnScheme = `${scheme}:${options.nid || urnComponent.nid}`;
+        const urnScheme = `${scheme}:${options2.nid || urnComponent.nid}`;
         const schemeHandler = getSchemeHandler(urnScheme);
         urnComponent.path = void 0;
         if (schemeHandler) {
-          urnComponent = schemeHandler.parse(urnComponent, options);
+          urnComponent = schemeHandler.parse(urnComponent, options2);
         }
       } else {
         urnComponent.error = urnComponent.error || "URN can not be parsed.";
       }
       return urnComponent;
     }
-    function urnSerialize(urnComponent, options) {
+    function urnSerialize(urnComponent, options2) {
       if (urnComponent.nid === void 0) {
         throw new Error("URN without nid cannot be serialized");
       }
-      const scheme = options.scheme || urnComponent.scheme || "urn";
+      const scheme = options2.scheme || urnComponent.scheme || "urn";
       const nid = urnComponent.nid.toLowerCase();
-      const urnScheme = `${scheme}:${options.nid || nid}`;
+      const urnScheme = `${scheme}:${options2.nid || nid}`;
       const schemeHandler = getSchemeHandler(urnScheme);
       if (schemeHandler) {
-        urnComponent = schemeHandler.serialize(urnComponent, options);
+        urnComponent = schemeHandler.serialize(urnComponent, options2);
       }
       const uriComponent = urnComponent;
       const nss = urnComponent.nss;
-      uriComponent.path = `${nid || options.nid}:${nss}`;
-      options.skipEscape = true;
+      uriComponent.path = `${nid || options2.nid}:${nss}`;
+      options2.skipEscape = true;
       return uriComponent;
     }
-    function urnuuidParse(urnComponent, options) {
+    function urnuuidParse(urnComponent, options2) {
       const uuidComponent = urnComponent;
       uuidComponent.uuid = uuidComponent.nss;
       uuidComponent.nss = void 0;
-      if (!options.tolerant && (!uuidComponent.uuid || !isUUID(uuidComponent.uuid))) {
+      if (!options2.tolerant && (!uuidComponent.uuid || !isUUID(uuidComponent.uuid))) {
         uuidComponent.error = uuidComponent.error || "UUID is not valid.";
       }
       return uuidComponent;
@@ -3584,30 +3584,30 @@ var require_fast_uri = __commonJS({
     "use strict";
     var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizeComponentEncoding, isIPv4, nonSimpleDomain } = require_utils();
     var { SCHEMES, getSchemeHandler } = require_schemes();
-    function normalize(uri, options) {
+    function normalize(uri, options2) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
-        serialize(parse3(uri, options), options);
+        serialize(parse3(uri, options2), options2);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse3(serialize(uri, options), options);
+        parse3(serialize(uri, options2), options2);
       }
       return uri;
     }
-    function resolve(baseURI, relativeURI, options) {
-      const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
+    function resolve(baseURI, relativeURI, options2) {
+      const schemelessOptions = options2 ? Object.assign({ scheme: "null" }, options2) : { scheme: "null" };
       const resolved = resolveComponent(parse3(baseURI, schemelessOptions), parse3(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative, options, skipNormalization) {
+    function resolveComponent(base, relative, options2, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse3(serialize(base, options), options);
-        relative = parse3(serialize(relative, options), options);
+        base = parse3(serialize(base, options2), options2);
+        relative = parse3(serialize(relative, options2), options2);
       }
-      options = options || {};
-      if (!options.tolerant && relative.scheme) {
+      options2 = options2 || {};
+      if (!options2.tolerant && relative.scheme) {
         target.scheme = relative.scheme;
         target.userinfo = relative.userinfo;
         target.host = relative.host;
@@ -3653,18 +3653,18 @@ var require_fast_uri = __commonJS({
       target.fragment = relative.fragment;
       return target;
     }
-    function equal(uriA, uriB, options) {
+    function equal(uriA, uriB, options2) {
       if (typeof uriA === "string") {
         uriA = unescape(uriA);
-        uriA = serialize(normalizeComponentEncoding(parse3(uriA, options), true), { ...options, skipEscape: true });
+        uriA = serialize(normalizeComponentEncoding(parse3(uriA, options2), true), { ...options2, skipEscape: true });
       } else if (typeof uriA === "object") {
-        uriA = serialize(normalizeComponentEncoding(uriA, true), { ...options, skipEscape: true });
+        uriA = serialize(normalizeComponentEncoding(uriA, true), { ...options2, skipEscape: true });
       }
       if (typeof uriB === "string") {
         uriB = unescape(uriB);
-        uriB = serialize(normalizeComponentEncoding(parse3(uriB, options), true), { ...options, skipEscape: true });
+        uriB = serialize(normalizeComponentEncoding(parse3(uriB, options2), true), { ...options2, skipEscape: true });
       } else if (typeof uriB === "object") {
-        uriB = serialize(normalizeComponentEncoding(uriB, true), { ...options, skipEscape: true });
+        uriB = serialize(normalizeComponentEncoding(uriB, true), { ...options2, skipEscape: true });
       }
       return uriA.toLowerCase() === uriB.toLowerCase();
     }
@@ -3685,12 +3685,12 @@ var require_fast_uri = __commonJS({
         secure: cmpts.secure,
         error: ""
       };
-      const options = Object.assign({}, opts);
+      const options2 = Object.assign({}, opts);
       const uriTokens = [];
-      const schemeHandler = getSchemeHandler(options.scheme || component.scheme);
-      if (schemeHandler && schemeHandler.serialize) schemeHandler.serialize(component, options);
+      const schemeHandler = getSchemeHandler(options2.scheme || component.scheme);
+      if (schemeHandler && schemeHandler.serialize) schemeHandler.serialize(component, options2);
       if (component.path !== void 0) {
-        if (!options.skipEscape) {
+        if (!options2.skipEscape) {
           component.path = escape(component.path);
           if (component.scheme !== void 0) {
             component.path = component.path.split("%3A").join(":");
@@ -3699,12 +3699,12 @@ var require_fast_uri = __commonJS({
           component.path = unescape(component.path);
         }
       }
-      if (options.reference !== "suffix" && component.scheme) {
+      if (options2.reference !== "suffix" && component.scheme) {
         uriTokens.push(component.scheme, ":");
       }
       const authority = recomposeAuthority(component);
       if (authority !== void 0) {
-        if (options.reference !== "suffix") {
+        if (options2.reference !== "suffix") {
           uriTokens.push("//");
         }
         uriTokens.push(authority);
@@ -3714,7 +3714,7 @@ var require_fast_uri = __commonJS({
       }
       if (component.path !== void 0) {
         let s = component.path;
-        if (!options.absolutePath && (!schemeHandler || !schemeHandler.absolutePath)) {
+        if (!options2.absolutePath && (!schemeHandler || !schemeHandler.absolutePath)) {
           s = removeDotSegments(s);
         }
         if (authority === void 0 && s[0] === "/" && s[1] === "/") {
@@ -3732,7 +3732,7 @@ var require_fast_uri = __commonJS({
     }
     var URI_PARSE = /^(?:([^#/:?]+):)?(?:\/\/((?:([^#/?@]*)@)?(\[[^#/?\]]+\]|[^#/:?]*)(?::(\d*))?))?([^#?]*)(?:\?([^#]*))?(?:#((?:.|[\n\r])*))?/u;
     function parse3(uri, opts) {
-      const options = Object.assign({}, opts);
+      const options2 = Object.assign({}, opts);
       const parsed = {
         scheme: void 0,
         userinfo: void 0,
@@ -3743,9 +3743,9 @@ var require_fast_uri = __commonJS({
         fragment: void 0
       };
       let isIP = false;
-      if (options.reference === "suffix") {
-        if (options.scheme) {
-          uri = options.scheme + ":" + uri;
+      if (options2.reference === "suffix") {
+        if (options2.scheme) {
+          uri = options2.scheme + ":" + uri;
         } else {
           uri = "//" + uri;
         }
@@ -3781,12 +3781,12 @@ var require_fast_uri = __commonJS({
         } else {
           parsed.reference = "uri";
         }
-        if (options.reference && options.reference !== "suffix" && options.reference !== parsed.reference) {
-          parsed.error = parsed.error || "URI is not a " + options.reference + " reference.";
+        if (options2.reference && options2.reference !== "suffix" && options2.reference !== parsed.reference) {
+          parsed.error = parsed.error || "URI is not a " + options2.reference + " reference.";
         }
-        const schemeHandler = getSchemeHandler(options.scheme || parsed.scheme);
-        if (!options.unicodeSupport && (!schemeHandler || !schemeHandler.unicodeSupport)) {
-          if (parsed.host && (options.domainHost || schemeHandler && schemeHandler.domainHost) && isIP === false && nonSimpleDomain(parsed.host)) {
+        const schemeHandler = getSchemeHandler(options2.scheme || parsed.scheme);
+        if (!options2.unicodeSupport && (!schemeHandler || !schemeHandler.unicodeSupport)) {
+          if (parsed.host && (options2.domainHost || schemeHandler && schemeHandler.domainHost) && isIP === false && nonSimpleDomain(parsed.host)) {
             try {
               parsed.host = URL.domainToASCII(parsed.host.toLowerCase());
             } catch (e) {
@@ -3811,7 +3811,7 @@ var require_fast_uri = __commonJS({
           }
         }
         if (schemeHandler && schemeHandler.parse) {
-          schemeHandler.parse(parsed, options);
+          schemeHandler.parse(parsed, options2);
         }
       } else {
         parsed.error = parsed.error || "URI can not be parsed.";
@@ -4325,10 +4325,10 @@ var require_core = __commonJS({
     Ajv2.ValidationError = validation_error_1.default;
     Ajv2.MissingRefError = ref_error_1.default;
     exports.default = Ajv2;
-    function checkOptions(checkOpts, options, msg, log = "error") {
+    function checkOptions(checkOpts, options2, msg, log = "error") {
       for (const key in checkOpts) {
         const opt = key;
-        if (opt in options)
+        if (opt in options2)
           this.logger[log](`${msg}: option ${key}. ${checkOpts[opt]}`);
       }
     }
@@ -10223,10 +10223,10 @@ var require_core3 = __commonJS({
     Ajv2.ValidationError = validation_error_1.default;
     Ajv2.MissingRefError = ref_error_1.default;
     exports.default = Ajv2;
-    function checkOptions(checkOpts, options, msg, log = "error") {
+    function checkOptions(checkOpts, options2, msg, log = "error") {
       for (const key in checkOpts) {
         const opt = key;
-        if (opt in options)
+        if (opt in options2)
           this.logger[log](`${msg}: option ${key}. ${checkOpts[opt]}`);
       }
     }
@@ -12492,12 +12492,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs27, exportName) {
+    function addFormats(ajv, list, fs28, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs27[f]);
+        ajv.addFormat(f, fs28[f]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -12510,9 +12510,9 @@ var require_windows = __commonJS({
   "node_modules/isexe/windows.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs27 = __require("fs");
-    function checkPathExt(path29, options) {
-      var pathext = options.pathExt !== void 0 ? options.pathExt : process.env.PATHEXT;
+    var fs28 = __require("fs");
+    function checkPathExt(path30, options2) {
+      var pathext = options2.pathExt !== void 0 ? options2.pathExt : process.env.PATHEXT;
       if (!pathext) {
         return true;
       }
@@ -12522,25 +12522,25 @@ var require_windows = __commonJS({
       }
       for (var i = 0; i < pathext.length; i++) {
         var p = pathext[i].toLowerCase();
-        if (p && path29.substr(-p.length).toLowerCase() === p) {
+        if (p && path30.substr(-p.length).toLowerCase() === p) {
           return true;
         }
       }
       return false;
     }
-    function checkStat(stat, path29, options) {
+    function checkStat(stat, path30, options2) {
       if (!stat.isSymbolicLink() && !stat.isFile()) {
         return false;
       }
-      return checkPathExt(path29, options);
+      return checkPathExt(path30, options2);
     }
-    function isexe(path29, options, cb) {
-      fs27.stat(path29, function(er, stat) {
-        cb(er, er ? false : checkStat(stat, path29, options));
+    function isexe(path30, options2, cb) {
+      fs28.stat(path30, function(er, stat) {
+        cb(er, er ? false : checkStat(stat, path30, options2));
       });
     }
-    function sync(path29, options) {
-      return checkStat(fs27.statSync(path29), path29, options);
+    function sync(path30, options2) {
+      return checkStat(fs28.statSync(path30), path30, options2);
     }
   }
 });
@@ -12550,24 +12550,24 @@ var require_mode = __commonJS({
   "node_modules/isexe/mode.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs27 = __require("fs");
-    function isexe(path29, options, cb) {
-      fs27.stat(path29, function(er, stat) {
-        cb(er, er ? false : checkStat(stat, options));
+    var fs28 = __require("fs");
+    function isexe(path30, options2, cb) {
+      fs28.stat(path30, function(er, stat) {
+        cb(er, er ? false : checkStat(stat, options2));
       });
     }
-    function sync(path29, options) {
-      return checkStat(fs27.statSync(path29), options);
+    function sync(path30, options2) {
+      return checkStat(fs28.statSync(path30), options2);
     }
-    function checkStat(stat, options) {
-      return stat.isFile() && checkMode(stat, options);
+    function checkStat(stat, options2) {
+      return stat.isFile() && checkMode(stat, options2);
     }
-    function checkMode(stat, options) {
+    function checkMode(stat, options2) {
       var mod = stat.mode;
       var uid = stat.uid;
       var gid = stat.gid;
-      var myUid = options.uid !== void 0 ? options.uid : process.getuid && process.getuid();
-      var myGid = options.gid !== void 0 ? options.gid : process.getgid && process.getgid();
+      var myUid = options2.uid !== void 0 ? options2.uid : process.getuid && process.getuid();
+      var myGid = options2.gid !== void 0 ? options2.gid : process.getgid && process.getgid();
       var u = parseInt("100", 8);
       var g = parseInt("010", 8);
       var o = parseInt("001", 8);
@@ -12581,7 +12581,7 @@ var require_mode = __commonJS({
 // node_modules/isexe/index.js
 var require_isexe = __commonJS({
   "node_modules/isexe/index.js"(exports, module) {
-    var fs27 = __require("fs");
+    var fs28 = __require("fs");
     var core;
     if (process.platform === "win32" || global.TESTING_WINDOWS) {
       core = require_windows();
@@ -12590,17 +12590,17 @@ var require_isexe = __commonJS({
     }
     module.exports = isexe;
     isexe.sync = sync;
-    function isexe(path29, options, cb) {
-      if (typeof options === "function") {
-        cb = options;
-        options = {};
+    function isexe(path30, options2, cb) {
+      if (typeof options2 === "function") {
+        cb = options2;
+        options2 = {};
       }
       if (!cb) {
         if (typeof Promise !== "function") {
           throw new TypeError("callback not provided");
         }
         return new Promise(function(resolve, reject) {
-          isexe(path29, options || {}, function(er, is) {
+          isexe(path30, options2 || {}, function(er, is) {
             if (er) {
               reject(er);
             } else {
@@ -12609,9 +12609,9 @@ var require_isexe = __commonJS({
           });
         });
       }
-      core(path29, options || {}, function(er, is) {
+      core(path30, options2 || {}, function(er, is) {
         if (er) {
-          if (er.code === "EACCES" || options && options.ignoreErrors) {
+          if (er.code === "EACCES" || options2 && options2.ignoreErrors) {
             er = null;
             is = false;
           }
@@ -12619,11 +12619,11 @@ var require_isexe = __commonJS({
         cb(er, is);
       });
     }
-    function sync(path29, options) {
+    function sync(path30, options2) {
       try {
-        return core.sync(path29, options || {});
+        return core.sync(path30, options2 || {});
       } catch (er) {
-        if (options && options.ignoreErrors || er.code === "EACCES") {
+        if (options2 && options2.ignoreErrors || er.code === "EACCES") {
           return false;
         } else {
           throw er;
@@ -12637,7 +12637,7 @@ var require_isexe = __commonJS({
 var require_which = __commonJS({
   "node_modules/which/which.js"(exports, module) {
     var isWindows = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys";
-    var path29 = __require("path");
+    var path30 = __require("path");
     var COLON = isWindows ? ";" : ":";
     var isexe = require_isexe();
     var getNotFoundError = (cmd) => Object.assign(new Error(`not found: ${cmd}`), { code: "ENOENT" });
@@ -12675,7 +12675,7 @@ var require_which = __commonJS({
           return opt.all && found.length ? resolve(found) : reject(getNotFoundError(cmd));
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path29.join(pathPart, cmd);
+        const pCmd = path30.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         resolve(subStep(p, i, 0));
       });
@@ -12702,7 +12702,7 @@ var require_which = __commonJS({
       for (let i = 0; i < pathEnv.length; i++) {
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path29.join(pathPart, cmd);
+        const pCmd = path30.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         for (let j = 0; j < pathExt.length; j++) {
           const cur = p + pathExt[j];
@@ -12733,9 +12733,9 @@ var require_which = __commonJS({
 var require_path_key = __commonJS({
   "node_modules/path-key/index.js"(exports, module) {
     "use strict";
-    var pathKey = (options = {}) => {
-      const environment = options.env || process.env;
-      const platform = options.platform || process.platform;
+    var pathKey = (options2 = {}) => {
+      const environment = options2.env || process.env;
+      const platform = options2.platform || process.platform;
       if (platform !== "win32") {
         return "PATH";
       }
@@ -12750,7 +12750,7 @@ var require_path_key = __commonJS({
 var require_resolveCommand = __commonJS({
   "node_modules/cross-spawn/lib/util/resolveCommand.js"(exports, module) {
     "use strict";
-    var path29 = __require("path");
+    var path30 = __require("path");
     var which = require_which();
     var getPathKey = require_path_key();
     function resolveCommandAttempt(parsed, withoutPathExt) {
@@ -12768,7 +12768,7 @@ var require_resolveCommand = __commonJS({
       try {
         resolved = which.sync(parsed.command, {
           path: env[getPathKey({ env })],
-          pathExt: withoutPathExt ? path29.delimiter : void 0
+          pathExt: withoutPathExt ? path30.delimiter : void 0
         });
       } catch (e) {
       } finally {
@@ -12777,7 +12777,7 @@ var require_resolveCommand = __commonJS({
         }
       }
       if (resolved) {
-        resolved = path29.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
+        resolved = path30.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
       }
       return resolved;
     }
@@ -12831,8 +12831,8 @@ var require_shebang_command = __commonJS({
       if (!match) {
         return null;
       }
-      const [path29, argument] = match[0].replace(/#! ?/, "").split(" ");
-      const binary = path29.split("/").pop();
+      const [path30, argument] = match[0].replace(/#! ?/, "").split(" ");
+      const binary = path30.split("/").pop();
       if (binary === "env") {
         return argument;
       }
@@ -12845,16 +12845,16 @@ var require_shebang_command = __commonJS({
 var require_readShebang = __commonJS({
   "node_modules/cross-spawn/lib/util/readShebang.js"(exports, module) {
     "use strict";
-    var fs27 = __require("fs");
+    var fs28 = __require("fs");
     var shebangCommand = require_shebang_command();
     function readShebang(command) {
       const size = 150;
       const buffer = Buffer.alloc(size);
       let fd;
       try {
-        fd = fs27.openSync(command, "r");
-        fs27.readSync(fd, buffer, 0, size, 0);
-        fs27.closeSync(fd);
+        fd = fs28.openSync(command, "r");
+        fs28.readSync(fd, buffer, 0, size, 0);
+        fs28.closeSync(fd);
       } catch (e) {
       }
       return shebangCommand(buffer.toString());
@@ -12867,7 +12867,7 @@ var require_readShebang = __commonJS({
 var require_parse = __commonJS({
   "node_modules/cross-spawn/lib/parse.js"(exports, module) {
     "use strict";
-    var path29 = __require("path");
+    var path30 = __require("path");
     var resolveCommand = require_resolveCommand();
     var escape2 = require_escape();
     var readShebang = require_readShebang();
@@ -12892,7 +12892,7 @@ var require_parse = __commonJS({
       const needsShell = !isExecutableRegExp.test(commandFile);
       if (parsed.options.forceShell || needsShell) {
         const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
-        parsed.command = path29.normalize(parsed.command);
+        parsed.command = path30.normalize(parsed.command);
         parsed.command = escape2.command(parsed.command);
         parsed.args = parsed.args.map((arg) => escape2.argument(arg, needsDoubleEscapeMetaChars));
         const shellCommand = [parsed.command].concat(parsed.args).join(" ");
@@ -12902,24 +12902,24 @@ var require_parse = __commonJS({
       }
       return parsed;
     }
-    function parse3(command, args, options) {
+    function parse3(command, args, options2) {
       if (args && !Array.isArray(args)) {
-        options = args;
+        options2 = args;
         args = null;
       }
       args = args ? args.slice(0) : [];
-      options = Object.assign({}, options);
+      options2 = Object.assign({}, options2);
       const parsed = {
         command,
         args,
-        options,
+        options: options2,
         file: void 0,
         original: {
           command,
           args
         }
       };
-      return options.shell ? parsed : parseNonShell(parsed);
+      return options2.shell ? parsed : parseNonShell(parsed);
     }
     module.exports = parse3;
   }
@@ -12982,14 +12982,14 @@ var require_cross_spawn = __commonJS({
     var cp = __require("child_process");
     var parse3 = require_parse();
     var enoent = require_enoent();
-    function spawn5(command, args, options) {
-      const parsed = parse3(command, args, options);
+    function spawn5(command, args, options2) {
+      const parsed = parse3(command, args, options2);
       const spawned = cp.spawn(parsed.command, parsed.args, parsed.options);
       enoent.hookChildProcess(spawned, parsed);
       return spawned;
     }
-    function spawnSync9(command, args, options) {
-      const parsed = parse3(command, args, options);
+    function spawnSync9(command, args, options2) {
+      const parsed = parse3(command, args, options2);
       const result = cp.spawnSync(parsed.command, parsed.args, parsed.options);
       result.error = result.error || enoent.verifyENOENTSync(result.status, parsed);
       return result;
@@ -13079,17 +13079,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path29) {
-      const ctrl = callVisitor(key, node, visitor, path29);
+    function visit_(key, node, visitor, path30) {
+      const ctrl = callVisitor(key, node, visitor, path30);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path29, ctrl);
-        return visit_(key, ctrl, visitor, path29);
+        replaceNode(key, path30, ctrl);
+        return visit_(key, ctrl, visitor, path30);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path29 = Object.freeze(path29.concat(node));
+          path30 = Object.freeze(path30.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path29);
+            const ci = visit_(i, node.items[i], visitor, path30);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -13100,13 +13100,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path29 = Object.freeze(path29.concat(node));
-          const ck = visit_("key", node.key, visitor, path29);
+          path30 = Object.freeze(path30.concat(node));
+          const ck = visit_("key", node.key, visitor, path30);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path29);
+          const cv = visit_("value", node.value, visitor, path30);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -13127,17 +13127,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path29) {
-      const ctrl = await callVisitor(key, node, visitor, path29);
+    async function visitAsync_(key, node, visitor, path30) {
+      const ctrl = await callVisitor(key, node, visitor, path30);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path29, ctrl);
-        return visitAsync_(key, ctrl, visitor, path29);
+        replaceNode(key, path30, ctrl);
+        return visitAsync_(key, ctrl, visitor, path30);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path29 = Object.freeze(path29.concat(node));
+          path30 = Object.freeze(path30.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path29);
+            const ci = await visitAsync_(i, node.items[i], visitor, path30);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -13148,13 +13148,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path29 = Object.freeze(path29.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path29);
+          path30 = Object.freeze(path30.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path30);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path29);
+          const cv = await visitAsync_("value", node.value, visitor, path30);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -13181,24 +13181,24 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path29) {
+    function callVisitor(key, node, visitor, path30) {
       var _a3, _b, _c, _d, _e;
       if (typeof visitor === "function")
-        return visitor(key, node, path29);
+        return visitor(key, node, path30);
       if (identity.isMap(node))
-        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path29);
+        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path30);
       if (identity.isSeq(node))
-        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path29);
+        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path30);
       if (identity.isPair(node))
-        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path29);
+        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path30);
       if (identity.isScalar(node))
-        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path29);
+        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path30);
       if (identity.isAlias(node))
-        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path29);
+        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path30);
       return void 0;
     }
-    function replaceNode(key, path29, node) {
-      const parent = path29[path29.length - 1];
+    function replaceNode(key, path30, node) {
+      const parent = path30[path30.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -13810,10 +13810,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path29, value) {
+    function collectionFromPath(schema, path30, value) {
       let v = value;
-      for (let i = path29.length - 1; i >= 0; --i) {
-        const k = path29[i];
+      for (let i = path30.length - 1; i >= 0; --i) {
+        const k = path30[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -13832,7 +13832,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path29) => path29 == null || typeof path29 === "object" && !!path29[Symbol.iterator]().next().done;
+    var isEmptyPath = (path30) => path30 == null || typeof path30 === "object" && !!path30[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -13862,11 +13862,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path29, value) {
-        if (isEmptyPath(path29))
+      addIn(path30, value) {
+        if (isEmptyPath(path30))
           this.add(value);
         else {
-          const [key, ...rest] = path29;
+          const [key, ...rest] = path30;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -13880,8 +13880,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path29) {
-        const [key, ...rest] = path29;
+      deleteIn(path30) {
+        const [key, ...rest] = path30;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -13895,8 +13895,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path29, keepScalar) {
-        const [key, ...rest] = path29;
+      getIn(path30, keepScalar) {
+        const [key, ...rest] = path30;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -13914,8 +13914,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path29) {
-        const [key, ...rest] = path29;
+      hasIn(path30) {
+        const [key, ...rest] = path30;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -13925,8 +13925,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path29, value) {
-        const [key, ...rest] = path29;
+      setIn(path30, value) {
+        const [key, ...rest] = path30;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -14393,7 +14393,7 @@ var require_stringify = __commonJS({
     var identity = require_identity();
     var stringifyComment = require_stringifyComment();
     var stringifyString = require_stringifyString();
-    function createStringifyContext(doc, options) {
+    function createStringifyContext(doc, options2) {
       const opt = Object.assign({
         blockQuote: true,
         commentString: stringifyComment.stringifyComment,
@@ -14412,7 +14412,7 @@ var require_stringify = __commonJS({
         singleQuote: null,
         trueStr: "true",
         verifyAliasOrder: true
-      }, doc.schema.toStringOptions, options);
+      }, doc.schema.toStringOptions, options2);
       let inFlow;
       switch (opt.collectionStyle) {
         case "block":
@@ -14836,10 +14836,10 @@ var require_stringifyCollection = __commonJS({
     var identity = require_identity();
     var stringify = require_stringify();
     var stringifyComment = require_stringifyComment();
-    function stringifyCollection(collection, ctx, options) {
+    function stringifyCollection(collection, ctx, options2) {
       const flow = ctx.inFlow ?? collection.flow;
       const stringify2 = flow ? stringifyFlowCollection : stringifyBlockCollection;
-      return stringify2(collection, ctx, options);
+      return stringify2(collection, ctx, options2);
     }
     function stringifyBlockCollection({ comment, items }, ctx, { blockItemPrefix, flowChars, itemIndent, onChompKeep, onComment }) {
       const { indent: indent4, options: { commentString } } = ctx;
@@ -16288,11 +16288,11 @@ var require_stringifyDocument = __commonJS({
     var identity = require_identity();
     var stringify = require_stringify();
     var stringifyComment = require_stringifyComment();
-    function stringifyDocument(doc, options) {
+    function stringifyDocument(doc, options2) {
       var _a3;
       const lines = [];
-      let hasDirectives = options.directives === true;
-      if (options.directives !== false && doc.directives) {
+      let hasDirectives = options2.directives === true;
+      if (options2.directives !== false && doc.directives) {
         const dir = doc.directives.toString(doc);
         if (dir) {
           lines.push(dir);
@@ -16302,7 +16302,7 @@ var require_stringifyDocument = __commonJS({
       }
       if (hasDirectives)
         lines.push("---");
-      const ctx = stringify.createStringifyContext(doc, options);
+      const ctx = stringify.createStringifyContext(doc, options2);
       const { commentString } = ctx.options;
       if (doc.commentBefore) {
         if (lines.length !== 1)
@@ -16378,7 +16378,7 @@ var require_Document = __commonJS({
     var createNode = require_createNode();
     var directives = require_directives();
     var Document = class _Document {
-      constructor(value, replacer, options) {
+      constructor(value, replacer, options2) {
         this.commentBefore = null;
         this.comment = null;
         this.errors = [];
@@ -16387,8 +16387,8 @@ var require_Document = __commonJS({
         let _replacer = null;
         if (typeof replacer === "function" || Array.isArray(replacer)) {
           _replacer = replacer;
-        } else if (options === void 0 && replacer) {
-          options = replacer;
+        } else if (options2 === void 0 && replacer) {
+          options2 = replacer;
           replacer = void 0;
         }
         const opt = Object.assign({
@@ -16400,17 +16400,17 @@ var require_Document = __commonJS({
           stringKeys: false,
           uniqueKeys: true,
           version: "1.2"
-        }, options);
+        }, options2);
         this.options = opt;
         let { version: version2 } = opt;
-        if (options == null ? void 0 : options._directives) {
-          this.directives = options._directives.atDocument();
+        if (options2 == null ? void 0 : options2._directives) {
+          this.directives = options2._directives.atDocument();
           if (this.directives.yaml.explicit)
             version2 = this.directives.yaml.version;
         } else
           this.directives = new directives.Directives({ version: version2 });
-        this.setSchema(version2, options);
-        this.contents = value === void 0 ? null : this.createNode(value, _replacer, options);
+        this.setSchema(version2, options2);
+        this.contents = value === void 0 ? null : this.createNode(value, _replacer, options2);
       }
       /**
        * Create a deep copy of this Document and its contents.
@@ -16440,9 +16440,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path29, value) {
+      addIn(path30, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path29, value);
+          this.contents.addIn(path30, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -16461,7 +16461,7 @@ var require_Document = __commonJS({
         }
         return new Alias.Alias(node.anchor);
       }
-      createNode(value, replacer, options) {
+      createNode(value, replacer, options2) {
         let _replacer = void 0;
         if (typeof replacer === "function") {
           value = replacer.call({ "": value }, "", value);
@@ -16472,11 +16472,11 @@ var require_Document = __commonJS({
           if (asStr.length > 0)
             replacer = replacer.concat(asStr);
           _replacer = replacer;
-        } else if (options === void 0 && replacer) {
-          options = replacer;
+        } else if (options2 === void 0 && replacer) {
+          options2 = replacer;
           replacer = void 0;
         }
-        const { aliasDuplicateObjects, anchorPrefix, flow, keepUndefined, onTagObj, tag } = options ?? {};
+        const { aliasDuplicateObjects, anchorPrefix, flow, keepUndefined, onTagObj, tag } = options2 ?? {};
         const { onAnchor, setAnchors, sourceObjects } = anchors.createNodeAnchors(
           this,
           // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
@@ -16501,9 +16501,9 @@ var require_Document = __commonJS({
        * Convert a key and a value into a `Pair` using the current schema,
        * recursively wrapping all values as `Scalar` or `Collection` nodes.
        */
-      createPair(key, value, options = {}) {
-        const k = this.createNode(key, null, options);
-        const v = this.createNode(value, null, options);
+      createPair(key, value, options2 = {}) {
+        const k = this.createNode(key, null, options2);
+        const v = this.createNode(value, null, options2);
         return new Pair.Pair(k, v);
       }
       /**
@@ -16517,14 +16517,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path29) {
-        if (Collection.isEmptyPath(path29)) {
+      deleteIn(path30) {
+        if (Collection.isEmptyPath(path30)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path29) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path30) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -16539,10 +16539,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path29, keepScalar) {
-        if (Collection.isEmptyPath(path29))
+      getIn(path30, keepScalar) {
+        if (Collection.isEmptyPath(path30))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path29, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path30, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -16553,10 +16553,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path29) {
-        if (Collection.isEmptyPath(path29))
+      hasIn(path30) {
+        if (Collection.isEmptyPath(path30))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path29) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path30) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -16573,13 +16573,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path29, value) {
-        if (Collection.isEmptyPath(path29)) {
+      setIn(path30, value) {
+        if (Collection.isEmptyPath(path30)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path29), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path30), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path29, value);
+          this.contents.setIn(path30, value);
         }
       }
       /**
@@ -16589,7 +16589,7 @@ var require_Document = __commonJS({
        *
        * Overrides all previously set schema options.
        */
-      setSchema(version2, options = {}) {
+      setSchema(version2, options2 = {}) {
         if (typeof version2 === "number")
           version2 = String(version2);
         let opt;
@@ -16619,10 +16619,10 @@ var require_Document = __commonJS({
             throw new Error(`Expected '1.1', '1.2' or null as first argument, but found: ${sv}`);
           }
         }
-        if (options.schema instanceof Object)
-          this.schema = options.schema;
+        if (options2.schema instanceof Object)
+          this.schema = options2.schema;
         else if (opt)
-          this.schema = new Schema.Schema(Object.assign(opt, options));
+          this.schema = new Schema.Schema(Object.assign(opt, options2));
         else
           throw new Error(`With a null YAML version, the { schema: Schema } option is required`);
       }
@@ -16652,14 +16652,14 @@ var require_Document = __commonJS({
         return this.toJS({ json: true, jsonArg, mapAsMap: false, onAnchor });
       }
       /** A YAML representation of the document. */
-      toString(options = {}) {
+      toString(options2 = {}) {
         if (this.errors.length > 0)
           throw new Error("Document with errors cannot be stringified");
-        if ("indent" in options && (!Number.isInteger(options.indent) || Number(options.indent) <= 0)) {
-          const s = JSON.stringify(options.indent);
+        if ("indent" in options2 && (!Number.isInteger(options2.indent) || Number(options2.indent) <= 0)) {
+          const s = JSON.stringify(options2.indent);
           throw new Error(`"indent" option must be a positive integer, not ${s}`);
         }
-        return stringifyDocument.stringifyDocument(this, options);
+        return stringifyDocument.stringifyDocument(this, options2);
       }
     };
     function assertCollection(contents) {
@@ -18013,14 +18013,14 @@ var require_compose_node = __commonJS({
       }
       return node;
     }
-    function composeAlias({ options }, { offset, source, end }, onError) {
+    function composeAlias({ options: options2 }, { offset, source, end }, onError) {
       const alias = new Alias.Alias(source.substring(1));
       if (alias.source === "")
         onError(offset, "BAD_ALIAS", "Alias cannot be an empty string");
       if (alias.source.endsWith(":"))
         onError(offset + source.length - 1, "BAD_ALIAS", "Alias ending in : is ambiguous", true);
       const valueEnd = offset + source.length;
-      const re = resolveEnd.resolveEnd(end, valueEnd, options.strict, onError);
+      const re = resolveEnd.resolveEnd(end, valueEnd, options2.strict, onError);
       alias.range = [offset, valueEnd, re.offset];
       if (re.comment)
         alias.comment = re.comment;
@@ -18039,8 +18039,8 @@ var require_compose_doc = __commonJS({
     var composeNode = require_compose_node();
     var resolveEnd = require_resolve_end();
     var resolveProps = require_resolve_props();
-    function composeDoc(options, directives, { offset, start, value, end }, onError) {
-      const opts = Object.assign({ _directives: directives }, options);
+    function composeDoc(options2, directives, { offset, start, value, end }, onError) {
+      const opts = Object.assign({ _directives: directives }, options2);
       const doc = new Document.Document(void 0, opts);
       const ctx = {
         atKey: false,
@@ -18120,7 +18120,7 @@ var require_composer = __commonJS({
       return { comment, afterEmptyLine };
     }
     var Composer = class {
-      constructor(options = {}) {
+      constructor(options2 = {}) {
         this.doc = null;
         this.atDirectives = false;
         this.prelude = [];
@@ -18133,8 +18133,8 @@ var require_composer = __commonJS({
           else
             this.errors.push(new errors.YAMLParseError(pos, code, message));
         };
-        this.directives = new directives.Directives({ version: options.version || "1.2" });
-        this.options = options;
+        this.directives = new directives.Directives({ version: options2.version || "1.2" });
+        this.options = options2;
       }
       decorate(doc, afterDoc) {
         const { comment, afterEmptyLine } = parsePrelude(this.prelude);
@@ -18542,9 +18542,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path29) => {
+    visit.itemAtPath = (cst, path30) => {
       let item = cst;
-      for (const [field, index] of path29) {
+      for (const [field, index] of path30) {
         const tok = item == null ? void 0 : item[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -18553,23 +18553,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path29) => {
-      const parent = visit.itemAtPath(cst, path29.slice(0, -1));
-      const field = path29[path29.length - 1][0];
+    visit.parentCollection = (cst, path30) => {
+      const parent = visit.itemAtPath(cst, path30.slice(0, -1));
+      const field = path30[path30.length - 1][0];
       const coll = parent == null ? void 0 : parent[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path29, item, visitor) {
-      let ctrl = visitor(item, path29);
+    function _visit(path30, item, visitor) {
+      let ctrl = visitor(item, path30);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path29.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path30.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -18580,10 +18580,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path29);
+            ctrl = ctrl(item, path30);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path29) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path30) : ctrl;
     }
     exports.visit = visit;
   }
@@ -19870,14 +19870,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs27 = this.flowScalar(this.type);
+              const fs28 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map2.items.push({ start, key: fs27, sep: [] });
+                map2.items.push({ start, key: fs28, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs27);
+                this.stack.push(fs28);
               } else {
-                Object.assign(it, { key: fs27, sep: [] });
+                Object.assign(it, { key: fs28, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -20006,13 +20006,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs27 = this.flowScalar(this.type);
+              const fs28 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs27, sep: [] });
+                fc.items.push({ start: [], key: fs28, sep: [] });
               else if (it.sep)
-                this.stack.push(fs27);
+                this.stack.push(fs28);
               else
-                Object.assign(it, { key: fs27, sep: [] });
+                Object.assign(it, { key: fs28, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -20182,15 +20182,15 @@ var require_public_api = __commonJS({
     var identity = require_identity();
     var lineCounter = require_line_counter();
     var parser = require_parser();
-    function parseOptions(options) {
-      const prettyErrors = options.prettyErrors !== false;
-      const lineCounter$1 = options.lineCounter || prettyErrors && new lineCounter.LineCounter() || null;
+    function parseOptions(options2) {
+      const prettyErrors = options2.prettyErrors !== false;
+      const lineCounter$1 = options2.lineCounter || prettyErrors && new lineCounter.LineCounter() || null;
       return { lineCounter: lineCounter$1, prettyErrors };
     }
-    function parseAllDocuments(source, options = {}) {
-      const { lineCounter: lineCounter2, prettyErrors } = parseOptions(options);
+    function parseAllDocuments(source, options2 = {}) {
+      const { lineCounter: lineCounter2, prettyErrors } = parseOptions(options2);
       const parser$1 = new parser.Parser(lineCounter2 == null ? void 0 : lineCounter2.addNewLine);
-      const composer$1 = new composer.Composer(options);
+      const composer$1 = new composer.Composer(options2);
       const docs = Array.from(composer$1.compose(parser$1.parse(source)));
       if (prettyErrors && lineCounter2)
         for (const doc of docs) {
@@ -20201,10 +20201,10 @@ var require_public_api = __commonJS({
         return docs;
       return Object.assign([], { empty: true }, composer$1.streamInfo());
     }
-    function parseDocument3(source, options = {}) {
-      const { lineCounter: lineCounter2, prettyErrors } = parseOptions(options);
+    function parseDocument3(source, options2 = {}) {
+      const { lineCounter: lineCounter2, prettyErrors } = parseOptions(options2);
       const parser$1 = new parser.Parser(lineCounter2 == null ? void 0 : lineCounter2.addNewLine);
-      const composer$1 = new composer.Composer(options);
+      const composer$1 = new composer.Composer(options2);
       let doc = null;
       for (const _doc of composer$1.compose(parser$1.parse(source), true, source.length)) {
         if (!doc)
@@ -20220,14 +20220,14 @@ var require_public_api = __commonJS({
       }
       return doc;
     }
-    function parse3(src, reviver, options) {
+    function parse3(src, reviver, options2) {
       let _reviver = void 0;
       if (typeof reviver === "function") {
         _reviver = reviver;
-      } else if (options === void 0 && reviver && typeof reviver === "object") {
-        options = reviver;
+      } else if (options2 === void 0 && reviver && typeof reviver === "object") {
+        options2 = reviver;
       }
-      const doc = parseDocument3(src, options);
+      const doc = parseDocument3(src, options2);
       if (!doc)
         return null;
       doc.warnings.forEach((warning) => log.warn(doc.options.logLevel, warning));
@@ -20237,29 +20237,29 @@ var require_public_api = __commonJS({
         else
           doc.errors = [];
       }
-      return doc.toJS(Object.assign({ reviver: _reviver }, options));
+      return doc.toJS(Object.assign({ reviver: _reviver }, options2));
     }
-    function stringify(value, replacer, options) {
+    function stringify(value, replacer, options2) {
       let _replacer = null;
       if (typeof replacer === "function" || Array.isArray(replacer)) {
         _replacer = replacer;
-      } else if (options === void 0 && replacer) {
-        options = replacer;
+      } else if (options2 === void 0 && replacer) {
+        options2 = replacer;
       }
-      if (typeof options === "string")
-        options = options.length;
-      if (typeof options === "number") {
-        const indent4 = Math.round(options);
-        options = indent4 < 1 ? void 0 : indent4 > 8 ? { indent: 8 } : { indent: indent4 };
+      if (typeof options2 === "string")
+        options2 = options2.length;
+      if (typeof options2 === "number") {
+        const indent4 = Math.round(options2);
+        options2 = indent4 < 1 ? void 0 : indent4 > 8 ? { indent: 8 } : { indent: indent4 };
       }
       if (value === void 0) {
-        const { keepUndefined } = options ?? replacer ?? {};
+        const { keepUndefined } = options2 ?? replacer ?? {};
         if (!keepUndefined)
           return void 0;
       }
       if (identity.isDocument(value) && !_replacer)
-        return value.toString(options);
-      return new Document.Document(value, _replacer, options).toString(options);
+        return value.toString(options2);
+      return new Document.Document(value, _replacer, options2).toString(options2);
     }
     exports.parse = parse3;
     exports.parseAllDocuments = parseAllDocuments;
@@ -20317,6 +20317,1349 @@ var require_dist2 = __commonJS({
     exports.stringify = publicApi.stringify;
     exports.visit = visit.visit;
     exports.visitAsync = visit.visitAsync;
+  }
+});
+
+// node_modules/pend/index.js
+var require_pend = __commonJS({
+  "node_modules/pend/index.js"(exports, module) {
+    module.exports = Pend;
+    function Pend() {
+      this.pending = 0;
+      this.max = Infinity;
+      this.listeners = [];
+      this.waiting = [];
+      this.error = null;
+    }
+    Pend.prototype.go = function(fn) {
+      if (this.pending < this.max) {
+        pendGo(this, fn);
+      } else {
+        this.waiting.push(fn);
+      }
+    };
+    Pend.prototype.wait = function(cb) {
+      if (this.pending === 0) {
+        cb(this.error);
+      } else {
+        this.listeners.push(cb);
+      }
+    };
+    Pend.prototype.hold = function() {
+      return pendHold(this);
+    };
+    function pendHold(self) {
+      self.pending += 1;
+      var called = false;
+      return onCb;
+      function onCb(err) {
+        if (called) throw new Error("callback called twice");
+        called = true;
+        self.error = self.error || err;
+        self.pending -= 1;
+        if (self.waiting.length > 0 && self.pending < self.max) {
+          pendGo(self, self.waiting.shift());
+        } else if (self.pending === 0) {
+          var listeners = self.listeners;
+          self.listeners = [];
+          listeners.forEach(cbListener);
+        }
+      }
+      function cbListener(listener) {
+        listener(self.error);
+      }
+    }
+    function pendGo(self, fn) {
+      fn(pendHold(self));
+    }
+  }
+});
+
+// node_modules/yauzl/fd-slicer.js
+var require_fd_slicer = __commonJS({
+  "node_modules/yauzl/fd-slicer.js"(exports) {
+    var fs28 = __require("fs");
+    var util2 = __require("util");
+    var stream = __require("stream");
+    var Readable2 = stream.Readable;
+    var PassThrough3 = stream.PassThrough;
+    var Pend = require_pend();
+    var EventEmitter = __require("events").EventEmitter;
+    exports.BufferSlicer = BufferSlicer;
+    exports.FdSlicer = FdSlicer;
+    util2.inherits(FdSlicer, EventEmitter);
+    function FdSlicer(fd) {
+      EventEmitter.call(this);
+      this.fd = fd;
+      this.pend = new Pend();
+      this.pend.max = 1;
+      this.refCount = 0;
+    }
+    FdSlicer.prototype.read = function(buffer, offset, length, position, callback) {
+      var self = this;
+      self.pend.go(function(cb) {
+        fs28.read(self.fd, buffer, offset, length, position, function(err, bytesRead, buffer2) {
+          cb();
+          callback(err, bytesRead, buffer2);
+        });
+      });
+    };
+    FdSlicer.prototype.createReadStream = function(options2) {
+      return new ReadStream(this, options2);
+    };
+    FdSlicer.prototype.ref = function() {
+      this.refCount += 1;
+    };
+    FdSlicer.prototype.unref = function() {
+      var self = this;
+      self.refCount -= 1;
+      if (self.refCount < 0) throw new Error("invalid unref");
+      if (self.refCount > 0) return;
+      fs28.close(self.fd, onCloseDone);
+      function onCloseDone(err) {
+        if (err) {
+          self.emit("error", err);
+        } else {
+          self.emit("close");
+        }
+      }
+    };
+    util2.inherits(ReadStream, Readable2);
+    function ReadStream(context, options2) {
+      options2 = options2 || {};
+      Readable2.call(this, options2);
+      this.context = context;
+      this.context.ref();
+      this.start = options2.start || 0;
+      this.endOffset = options2.end;
+      this.pos = this.start;
+    }
+    ReadStream.prototype._read = function(n) {
+      var self = this;
+      var toRead = Math.min(self._readableState.highWaterMark, n);
+      if (self.endOffset != null) {
+        toRead = Math.min(toRead, self.endOffset - self.pos);
+      }
+      if (toRead <= 0) {
+        self.push(null);
+        this._cleanup();
+        return;
+      }
+      self.context.pend.go(function(cb) {
+        var buffer = Buffer.allocUnsafe(toRead);
+        fs28.read(self.context.fd, buffer, 0, toRead, self.pos, function(err, bytesRead) {
+          if (err) {
+            self.destroy(err);
+          } else if (bytesRead === 0) {
+            self.push(null);
+            self._cleanup();
+          } else {
+            self.pos += bytesRead;
+            self.push(buffer.slice(0, bytesRead));
+          }
+          cb();
+        });
+      });
+    };
+    ReadStream.prototype._destroy = function(err, cb) {
+      this._cleanup();
+      cb(err);
+    };
+    ReadStream.prototype._cleanup = function() {
+      if (this.context != null) {
+        this.context.unref();
+        this.context = null;
+      }
+    };
+    util2.inherits(BufferSlicer, EventEmitter);
+    function BufferSlicer(buffer) {
+      EventEmitter.call(this);
+      this.refCount = 0;
+      this.buffer = buffer;
+    }
+    BufferSlicer.prototype.read = function(buffer, offset, length, position, callback) {
+      if (!(0 <= offset && offset <= buffer.length)) throw new RangeError("offset outside buffer: 0 <= " + offset + " <= " + buffer.length);
+      if (position < 0) throw new RangeError("position is negative: " + position);
+      if (offset + length > buffer.length) {
+        length = buffer.length - offset;
+      }
+      if (position + length > this.buffer.length) {
+        length = this.buffer.length - position;
+      }
+      if (length <= 0) {
+        setImmediate(function() {
+          callback(null, 0);
+        });
+        return;
+      }
+      this.buffer.copy(buffer, offset, position, position + length);
+      setImmediate(function() {
+        callback(null, length);
+      });
+    };
+    BufferSlicer.prototype.createReadStream = function(options2) {
+      options2 = options2 || {};
+      var readStream = new PassThrough3(options2);
+      readStream.start = options2.start || 0;
+      readStream.endOffset = options2.end;
+      readStream.pos = readStream.endOffset || this.buffer.length;
+      var entireSlice = this.buffer.slice(readStream.start, readStream.pos);
+      var maxChunkSize = 65536;
+      var offset = 0;
+      while (true) {
+        var nextOffset = offset + maxChunkSize;
+        if (nextOffset >= entireSlice.length) {
+          if (offset < entireSlice.length) {
+            readStream.write(entireSlice.slice(offset, entireSlice.length));
+          }
+          break;
+        }
+        readStream.write(entireSlice.slice(offset, nextOffset));
+        offset = nextOffset;
+      }
+      readStream.end();
+      return readStream;
+    };
+    BufferSlicer.prototype.ref = function() {
+      this.refCount += 1;
+    };
+    BufferSlicer.prototype.unref = function() {
+      this.refCount -= 1;
+      if (this.refCount < 0) {
+        throw new Error("invalid unref");
+      }
+    };
+  }
+});
+
+// node_modules/yauzl/crc32.js
+var require_crc32 = __commonJS({
+  "node_modules/yauzl/crc32.js"(exports, module) {
+    var CRC_TABLE = new Int32Array([
+      0,
+      1996959894,
+      3993919788,
+      2567524794,
+      124634137,
+      1886057615,
+      3915621685,
+      2657392035,
+      249268274,
+      2044508324,
+      3772115230,
+      2547177864,
+      162941995,
+      2125561021,
+      3887607047,
+      2428444049,
+      498536548,
+      1789927666,
+      4089016648,
+      2227061214,
+      450548861,
+      1843258603,
+      4107580753,
+      2211677639,
+      325883990,
+      1684777152,
+      4251122042,
+      2321926636,
+      335633487,
+      1661365465,
+      4195302755,
+      2366115317,
+      997073096,
+      1281953886,
+      3579855332,
+      2724688242,
+      1006888145,
+      1258607687,
+      3524101629,
+      2768942443,
+      901097722,
+      1119000684,
+      3686517206,
+      2898065728,
+      853044451,
+      1172266101,
+      3705015759,
+      2882616665,
+      651767980,
+      1373503546,
+      3369554304,
+      3218104598,
+      565507253,
+      1454621731,
+      3485111705,
+      3099436303,
+      671266974,
+      1594198024,
+      3322730930,
+      2970347812,
+      795835527,
+      1483230225,
+      3244367275,
+      3060149565,
+      1994146192,
+      31158534,
+      2563907772,
+      4023717930,
+      1907459465,
+      112637215,
+      2680153253,
+      3904427059,
+      2013776290,
+      251722036,
+      2517215374,
+      3775830040,
+      2137656763,
+      141376813,
+      2439277719,
+      3865271297,
+      1802195444,
+      476864866,
+      2238001368,
+      4066508878,
+      1812370925,
+      453092731,
+      2181625025,
+      4111451223,
+      1706088902,
+      314042704,
+      2344532202,
+      4240017532,
+      1658658271,
+      366619977,
+      2362670323,
+      4224994405,
+      1303535960,
+      984961486,
+      2747007092,
+      3569037538,
+      1256170817,
+      1037604311,
+      2765210733,
+      3554079995,
+      1131014506,
+      879679996,
+      2909243462,
+      3663771856,
+      1141124467,
+      855842277,
+      2852801631,
+      3708648649,
+      1342533948,
+      654459306,
+      3188396048,
+      3373015174,
+      1466479909,
+      544179635,
+      3110523913,
+      3462522015,
+      1591671054,
+      702138776,
+      2966460450,
+      3352799412,
+      1504918807,
+      783551873,
+      3082640443,
+      3233442989,
+      3988292384,
+      2596254646,
+      62317068,
+      1957810842,
+      3939845945,
+      2647816111,
+      81470997,
+      1943803523,
+      3814918930,
+      2489596804,
+      225274430,
+      2053790376,
+      3826175755,
+      2466906013,
+      167816743,
+      2097651377,
+      4027552580,
+      2265490386,
+      503444072,
+      1762050814,
+      4150417245,
+      2154129355,
+      426522225,
+      1852507879,
+      4275313526,
+      2312317920,
+      282753626,
+      1742555852,
+      4189708143,
+      2394877945,
+      397917763,
+      1622183637,
+      3604390888,
+      2714866558,
+      953729732,
+      1340076626,
+      3518719985,
+      2797360999,
+      1068828381,
+      1219638859,
+      3624741850,
+      2936675148,
+      906185462,
+      1090812512,
+      3747672003,
+      2825379669,
+      829329135,
+      1181335161,
+      3412177804,
+      3160834842,
+      628085408,
+      1382605366,
+      3423369109,
+      3138078467,
+      570562233,
+      1426400815,
+      3317316542,
+      2998733608,
+      733239954,
+      1555261956,
+      3268935591,
+      3050360625,
+      752459403,
+      1541320221,
+      2607071920,
+      3965973030,
+      1969922972,
+      40735498,
+      2617837225,
+      3943577151,
+      1913087877,
+      83908371,
+      2512341634,
+      3803740692,
+      2075208622,
+      213261112,
+      2463272603,
+      3855990285,
+      2094854071,
+      198958881,
+      2262029012,
+      4057260610,
+      1759359992,
+      534414190,
+      2176718541,
+      4139329115,
+      1873836001,
+      414664567,
+      2282248934,
+      4279200368,
+      1711684554,
+      285281116,
+      2405801727,
+      4167216745,
+      1634467795,
+      376229701,
+      2685067896,
+      3608007406,
+      1308918612,
+      956543938,
+      2808555105,
+      3495958263,
+      1231636301,
+      1047427035,
+      2932959818,
+      3654703836,
+      1088359270,
+      936918e3,
+      2847714899,
+      3736837829,
+      1202900863,
+      817233897,
+      3183342108,
+      3401237130,
+      1404277552,
+      615818150,
+      3134207493,
+      3453421203,
+      1423857449,
+      601450431,
+      3009837614,
+      3294710456,
+      1567103746,
+      711928724,
+      3020668471,
+      3272380065,
+      1510334235,
+      755167117
+    ]);
+    function crc32(buf) {
+      let crc = -1;
+      for (let x of buf) {
+        crc = CRC_TABLE[(crc ^ x) & 255] ^ crc >>> 8;
+      }
+      return (crc ^ -1) >>> 0;
+    }
+    module.exports = crc32;
+  }
+});
+
+// node_modules/yauzl/index.js
+var require_yauzl = __commonJS({
+  "node_modules/yauzl/index.js"(exports) {
+    var fs28 = __require("fs");
+    var zlib = __require("zlib");
+    var fd_slicer = require_fd_slicer();
+    var util2 = __require("util");
+    var EventEmitter = __require("events").EventEmitter;
+    var Transform2 = __require("stream").Transform;
+    var PassThrough3 = __require("stream").PassThrough;
+    var Writable = __require("stream").Writable;
+    var crc32 = typeof zlib.crc32 === "function" ? zlib.crc32 : require_crc32();
+    exports.open = open;
+    exports.fromFd = fromFd;
+    exports.fromBuffer = fromBuffer;
+    exports.fromRandomAccessReader = fromRandomAccessReader;
+    exports.openPromise = openPromise;
+    exports.fromFdPromise = fromFdPromise;
+    exports.fromBufferPromise = fromBufferPromise;
+    exports.fromRandomAccessReaderPromise = fromRandomAccessReaderPromise;
+    exports.dosDateTimeToDate = dosDateTimeToDate;
+    exports.getFileNameLowLevel = getFileNameLowLevel;
+    exports.validateFileName = validateFileName;
+    exports.parseExtraFields = parseExtraFields;
+    exports.ZipFile = ZipFile;
+    exports.Entry = Entry;
+    exports.LocalFileHeader = LocalFileHeader;
+    exports.RandomAccessReader = RandomAccessReader;
+    function openPromise(path30, options2) {
+      return new Promise((resolve, reject) => {
+        open(path30, { ...options2, lazyEntries: true }, function(err, zipfile) {
+          if (err) return reject(err);
+          resolve(zipfile);
+        });
+      });
+    }
+    function fromFdPromise(fd, options2) {
+      return new Promise((resolve, reject) => {
+        fromFd(fd, { ...options2, lazyEntries: true }, function(err, zipfile) {
+          if (err) return reject(err);
+          resolve(zipfile);
+        });
+      });
+    }
+    function fromBufferPromise(buffer, options2) {
+      return new Promise((resolve, reject) => {
+        fromBuffer(buffer, { ...options2, lazyEntries: true }, function(err, zipfile) {
+          if (err) return reject(err);
+          resolve(zipfile);
+        });
+      });
+    }
+    function fromRandomAccessReaderPromise(reader, totalSize, options2) {
+      return new Promise((resolve, reject) => {
+        fromRandomAccessReader(reader, totalSize, { ...options2, lazyEntries: true }, function(err, zipfile) {
+          if (err) return reject(err);
+          resolve(zipfile);
+        });
+      });
+    }
+    function open(path30, options2, callback) {
+      if (typeof options2 === "function") {
+        callback = options2;
+        options2 = null;
+      }
+      if (options2 == null) options2 = {};
+      if (options2.autoClose == null) options2.autoClose = true;
+      if (options2.lazyEntries == null) options2.lazyEntries = false;
+      if (options2.decodeStrings == null) options2.decodeStrings = true;
+      if (options2.validateEntrySizes == null) options2.validateEntrySizes = true;
+      if (options2.strictFileNames == null) options2.strictFileNames = false;
+      if (callback == null) callback = defaultCallback;
+      fs28.open(path30, "r", function(err, fd) {
+        if (err) return callback(err);
+        fromFd(fd, options2, function(err2, zipfile) {
+          if (err2) fs28.close(fd, defaultCallback);
+          callback(err2, zipfile);
+        });
+      });
+    }
+    function fromFd(fd, options2, callback) {
+      if (typeof options2 === "function") {
+        callback = options2;
+        options2 = null;
+      }
+      if (options2 == null) options2 = {};
+      if (options2.autoClose == null) options2.autoClose = false;
+      if (options2.lazyEntries == null) options2.lazyEntries = false;
+      if (options2.decodeStrings == null) options2.decodeStrings = true;
+      if (options2.validateEntrySizes == null) options2.validateEntrySizes = true;
+      if (options2.strictFileNames == null) options2.strictFileNames = false;
+      if (callback == null) callback = defaultCallback;
+      fs28.fstat(fd, function(err, stats) {
+        if (err) return callback(err);
+        var reader = new fd_slicer.FdSlicer(fd);
+        fromRandomAccessReader(reader, stats.size, options2, callback);
+      });
+    }
+    function fromBuffer(buffer, options2, callback) {
+      if (typeof options2 === "function") {
+        callback = options2;
+        options2 = null;
+      }
+      if (options2 == null) options2 = {};
+      options2.autoClose = false;
+      if (options2.lazyEntries == null) options2.lazyEntries = false;
+      if (options2.decodeStrings == null) options2.decodeStrings = true;
+      if (options2.validateEntrySizes == null) options2.validateEntrySizes = true;
+      if (options2.strictFileNames == null) options2.strictFileNames = false;
+      var reader = new fd_slicer.BufferSlicer(buffer);
+      fromRandomAccessReader(reader, buffer.length, options2, callback);
+    }
+    function fromRandomAccessReader(reader, totalSize, options2, callback) {
+      if (typeof options2 === "function") {
+        callback = options2;
+        options2 = null;
+      }
+      if (options2 == null) options2 = {};
+      if (options2.autoClose == null) options2.autoClose = true;
+      if (options2.lazyEntries == null) options2.lazyEntries = false;
+      if (options2.decodeStrings == null) options2.decodeStrings = true;
+      var decodeStrings = !!options2.decodeStrings;
+      if (options2.validateEntrySizes == null) options2.validateEntrySizes = true;
+      if (options2.strictFileNames == null) options2.strictFileNames = false;
+      if (callback == null) callback = defaultCallback;
+      if (typeof totalSize !== "number") throw new Error("expected totalSize parameter to be a number");
+      if (totalSize > Number.MAX_SAFE_INTEGER) {
+        throw new Error("zip file too large. only file sizes up to 2^52 are supported due to JavaScript's Number type being an IEEE 754 double.");
+      }
+      reader.ref();
+      var eocdrWithoutCommentSize = 22;
+      var zip64EocdlSize = 20;
+      var maxCommentSize = 65535;
+      var bufferSize = Math.min(zip64EocdlSize + eocdrWithoutCommentSize + maxCommentSize, totalSize);
+      var buffer = newBuffer(bufferSize);
+      var bufferReadStart = totalSize - buffer.length;
+      readAndAssertNoEof(reader, buffer, 0, bufferSize, bufferReadStart, function(err) {
+        if (err) return callback(err);
+        for (var i = bufferSize - eocdrWithoutCommentSize; i >= 0; i -= 1) {
+          if (buffer.readUInt32LE(i) !== 101010256) continue;
+          var eocdrBuffer = buffer.subarray(i);
+          var diskNumber = eocdrBuffer.readUInt16LE(4);
+          var entryCount = eocdrBuffer.readUInt16LE(10);
+          var centralDirectoryOffset = eocdrBuffer.readUInt32LE(16);
+          var commentLength = eocdrBuffer.readUInt16LE(20);
+          var expectedCommentLength = eocdrBuffer.length - eocdrWithoutCommentSize;
+          if (commentLength !== expectedCommentLength) {
+            return callback(new Error("Invalid comment length. Expected: " + expectedCommentLength + ". Found: " + commentLength + ". Are there extra bytes at the end of the file? Or is the end of central dir signature `PK☺☻` in the comment?"));
+          }
+          var comment = decodeStrings ? decodeBuffer(eocdrBuffer.subarray(22), false) : eocdrBuffer.subarray(22);
+          if (i - zip64EocdlSize >= 0 && buffer.readUInt32LE(i - zip64EocdlSize) === 117853008) {
+            var zip64EocdlBuffer = buffer.subarray(i - zip64EocdlSize, i - zip64EocdlSize + zip64EocdlSize);
+            var zip64EocdrOffset = readUInt64LE(zip64EocdlBuffer, 8);
+            var zip64EocdrBuffer = newBuffer(56);
+            return readAndAssertNoEof(reader, zip64EocdrBuffer, 0, zip64EocdrBuffer.length, zip64EocdrOffset, function(err2) {
+              if (err2) return callback(err2);
+              if (zip64EocdrBuffer.readUInt32LE(0) !== 101075792) {
+                return callback(new Error("invalid zip64 end of central directory record signature"));
+              }
+              diskNumber = zip64EocdrBuffer.readUInt32LE(16);
+              if (diskNumber !== 0) {
+                return callback(new Error("multi-disk zip files are not supported: found disk number: " + diskNumber));
+              }
+              entryCount = readUInt64LE(zip64EocdrBuffer, 32);
+              centralDirectoryOffset = readUInt64LE(zip64EocdrBuffer, 48);
+              return callback(null, new ZipFile(reader, centralDirectoryOffset, totalSize, entryCount, comment, options2.autoClose, options2.lazyEntries, decodeStrings, options2.validateEntrySizes, options2.strictFileNames));
+            });
+          }
+          if (diskNumber !== 0) {
+            return callback(new Error("multi-disk zip files are not supported: found disk number: " + diskNumber));
+          }
+          return callback(null, new ZipFile(reader, centralDirectoryOffset, totalSize, entryCount, comment, options2.autoClose, options2.lazyEntries, decodeStrings, options2.validateEntrySizes, options2.strictFileNames));
+        }
+        callback(new Error("End of central directory record signature not found. Either not a zip file, or file is truncated."));
+      });
+    }
+    util2.inherits(ZipFile, EventEmitter);
+    function ZipFile(reader, centralDirectoryOffset, fileSize, entryCount, comment, autoClose, lazyEntries, decodeStrings, validateEntrySizes, strictFileNames) {
+      var self = this;
+      EventEmitter.call(self);
+      self.reader = reader;
+      self.reader.on("error", function(err) {
+        emitError(self, err);
+      });
+      self.reader.once("close", function() {
+        self.emit("close");
+      });
+      self.readEntryCursor = centralDirectoryOffset;
+      self.fileSize = fileSize;
+      self.entryCount = entryCount;
+      self.comment = comment;
+      self.entriesRead = 0;
+      self.autoClose = !!autoClose;
+      self.lazyEntries = !!lazyEntries;
+      self.decodeStrings = !!decodeStrings;
+      self.validateEntrySizes = !!validateEntrySizes;
+      self.strictFileNames = !!strictFileNames;
+      self.isOpen = true;
+      self.emittedError = false;
+      self.hasEachEntryBeenCalled = false;
+      if (!self.lazyEntries) self._readEntry();
+    }
+    ZipFile.prototype.close = function() {
+      if (!this.isOpen) return;
+      this.isOpen = false;
+      this.reader.unref();
+    };
+    function emitErrorAndAutoClose(self, err) {
+      if (self.autoClose) self.close();
+      emitError(self, err);
+    }
+    function emitError(self, err) {
+      if (self.emittedError) return;
+      self.emittedError = true;
+      self.emit("error", err);
+    }
+    ZipFile.prototype.readEntry = function() {
+      if (!this.lazyEntries) throw new Error("readEntry() called without lazyEntries:true");
+      this._readEntry();
+    };
+    ZipFile.prototype._readEntry = function() {
+      var self = this;
+      if (self.entryCount === self.entriesRead) {
+        setImmediate(function() {
+          if (self.autoClose) self.close();
+          if (self.emittedError) return;
+          self.emit("end");
+        });
+        return;
+      }
+      if (self.emittedError) return;
+      var buffer = newBuffer(46);
+      readAndAssertNoEof(self.reader, buffer, 0, buffer.length, self.readEntryCursor, function(err) {
+        if (err) return emitErrorAndAutoClose(self, err);
+        if (self.emittedError) return;
+        var entry = new Entry();
+        var signature = buffer.readUInt32LE(0);
+        if (signature !== 33639248) return emitErrorAndAutoClose(self, new Error("invalid central directory file header signature: 0x" + signature.toString(16)));
+        entry.versionMadeBy = buffer.readUInt16LE(4);
+        entry.versionNeededToExtract = buffer.readUInt16LE(6);
+        entry.generalPurposeBitFlag = buffer.readUInt16LE(8);
+        entry.compressionMethod = buffer.readUInt16LE(10);
+        entry.lastModFileTime = buffer.readUInt16LE(12);
+        entry.lastModFileDate = buffer.readUInt16LE(14);
+        entry.crc32 = buffer.readUInt32LE(16);
+        entry.compressedSize = buffer.readUInt32LE(20);
+        entry.uncompressedSize = buffer.readUInt32LE(24);
+        entry.fileNameLength = buffer.readUInt16LE(28);
+        entry.extraFieldLength = buffer.readUInt16LE(30);
+        entry.fileCommentLength = buffer.readUInt16LE(32);
+        entry.internalFileAttributes = buffer.readUInt16LE(36);
+        entry.externalFileAttributes = buffer.readUInt32LE(38);
+        entry.relativeOffsetOfLocalHeader = buffer.readUInt32LE(42);
+        if (entry.generalPurposeBitFlag & 64) return emitErrorAndAutoClose(self, new Error("strong encryption is not supported"));
+        self.readEntryCursor += 46;
+        buffer = newBuffer(entry.fileNameLength + entry.extraFieldLength + entry.fileCommentLength);
+        readAndAssertNoEof(self.reader, buffer, 0, buffer.length, self.readEntryCursor, function(err2) {
+          if (err2) return emitErrorAndAutoClose(self, err2);
+          if (self.emittedError) return;
+          entry.fileNameRaw = buffer.subarray(0, entry.fileNameLength);
+          var fileCommentStart = entry.fileNameLength + entry.extraFieldLength;
+          entry.extraFieldRaw = buffer.subarray(entry.fileNameLength, fileCommentStart);
+          entry.fileCommentRaw = buffer.subarray(fileCommentStart, fileCommentStart + entry.fileCommentLength);
+          try {
+            entry.extraFields = parseExtraFields(entry.extraFieldRaw);
+          } catch (err3) {
+            return emitErrorAndAutoClose(self, err3);
+          }
+          if (self.decodeStrings) {
+            var isUtf8 = (entry.generalPurposeBitFlag & 2048) !== 0;
+            entry.fileComment = decodeBuffer(entry.fileCommentRaw, isUtf8);
+            entry.fileName = getFileNameLowLevel(entry.generalPurposeBitFlag, entry.fileNameRaw, entry.extraFields, self.strictFileNames);
+            var errorMessage = validateFileName(entry.fileName);
+            if (errorMessage != null) return emitErrorAndAutoClose(self, new Error(errorMessage));
+          } else {
+            entry.fileComment = entry.fileCommentRaw;
+            entry.fileName = entry.fileNameRaw;
+          }
+          entry.comment = entry.fileComment;
+          self.readEntryCursor += buffer.length;
+          self.entriesRead += 1;
+          for (var i = 0; i < entry.extraFields.length; i++) {
+            var extraField = entry.extraFields[i];
+            if (extraField.id !== 1) continue;
+            var zip64EiefBuffer = extraField.data;
+            var index = 0;
+            if (entry.uncompressedSize === 4294967295) {
+              if (index + 8 > zip64EiefBuffer.length) {
+                return emitErrorAndAutoClose(self, new Error("zip64 extended information extra field does not include uncompressed size"));
+              }
+              entry.uncompressedSize = readUInt64LE(zip64EiefBuffer, index);
+              index += 8;
+            }
+            if (entry.compressedSize === 4294967295) {
+              if (index + 8 > zip64EiefBuffer.length) {
+                return emitErrorAndAutoClose(self, new Error("zip64 extended information extra field does not include compressed size"));
+              }
+              entry.compressedSize = readUInt64LE(zip64EiefBuffer, index);
+              index += 8;
+            }
+            if (entry.relativeOffsetOfLocalHeader === 4294967295) {
+              if (index + 8 > zip64EiefBuffer.length) {
+                return emitErrorAndAutoClose(self, new Error("zip64 extended information extra field does not include relative header offset"));
+              }
+              entry.relativeOffsetOfLocalHeader = readUInt64LE(zip64EiefBuffer, index);
+              index += 8;
+            }
+            break;
+          }
+          if (self.validateEntrySizes && entry.compressionMethod === 0) {
+            var expectedCompressedSize = entry.uncompressedSize;
+            if (entry.isEncrypted()) {
+              expectedCompressedSize += 12;
+            }
+            if (entry.compressedSize !== expectedCompressedSize) {
+              var msg = "compressed/uncompressed size mismatch for stored file: " + entry.compressedSize + " != " + entry.uncompressedSize;
+              return emitErrorAndAutoClose(self, new Error(msg));
+            }
+          }
+          self.emit("entry", entry);
+          if (!self.lazyEntries) self._readEntry();
+        });
+      });
+    };
+    ZipFile.prototype.eachEntry = function() {
+      const self = this;
+      if (!self.lazyEntries) throw new Error("eachEntry() requires lazyEntries: true");
+      if (self.hasEachEntryBeenCalled) throw new Error("eachEntry() must only be called once per ZipFile");
+      self.hasEachEntryBeenCalled = true;
+      let pendingResolveReject = null;
+      self.on("entry", onEntry);
+      self.on("end", onEnd);
+      self.on("error", onError);
+      function cleanup() {
+        self.removeListener("entry", onEntry);
+        self.removeListener("end", onEnd);
+        self.removeListener("error", onError);
+        if (self.autoClose) self.close();
+      }
+      function onEntry(entry) {
+        let { resolve } = pendingResolveReject;
+        pendingResolveReject = null;
+        resolve({ value: entry });
+      }
+      function onEnd() {
+        let { resolve } = pendingResolveReject;
+        pendingResolveReject = null;
+        cleanup();
+        resolve({ done: true });
+      }
+      function onError(err) {
+        let { reject } = pendingResolveReject;
+        pendingResolveReject = null;
+        cleanup();
+        reject(err);
+      }
+      return {
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+        next() {
+          const promise2 = new Promise((resolve, reject) => {
+            if (pendingResolveReject != null) throw new Error("next() called before previous Promise was resolved.");
+            pendingResolveReject = { resolve, reject };
+          });
+          self.readEntry();
+          return promise2;
+        },
+        return(value) {
+          cleanup();
+          return Promise.resolve({ done: true, value });
+        },
+        throw(value) {
+          cleanup();
+          return Promise.reject(value);
+        }
+      };
+    };
+    ZipFile.prototype.openReadStream = function(entry, options2, callback) {
+      var self = this;
+      var relativeStart = 0;
+      var relativeEnd = entry.compressedSize;
+      if (callback == null) {
+        callback = options2;
+        options2 = null;
+      }
+      if (options2 == null) {
+        options2 = {};
+      } else {
+        if (options2.decodeFileData === false) {
+          if (options2.decrypt != null) {
+            throw new Error("cannot use options.decrypt when options.decodeFileData === false");
+          }
+          if (options2.decompress != null) {
+            throw new Error("cannot use options.decompress when options.decodeFileData === false");
+          }
+        } else {
+          if (options2.decrypt != null) {
+            if (!entry.isEncrypted()) {
+              throw new Error("options.decrypt can only be specified for encrypted entries. See also option decodeFileData.");
+            }
+            if (options2.decrypt !== false) throw new Error("invalid options.decrypt value: " + options2.decrypt);
+            if (entry.isCompressed()) {
+              if (options2.decompress !== false) throw new Error("entry is encrypted and compressed, and options.decompress !== false. See also option decodeFileData.");
+            }
+          }
+          if (options2.decompress != null) {
+            if (!entry.isCompressed()) {
+              throw new Error("options.decompress can only be specified for compressed entries. See also option decodeFileData.");
+            }
+            if (!(options2.decompress === false || options2.decompress === true)) {
+              throw new Error("invalid options.decompress value: " + options2.decompress);
+            }
+            decompress = options2.decompress;
+          }
+        }
+        if (options2.start != null) {
+          relativeStart = options2.start;
+          if (relativeStart < 0) throw new Error("options.start < 0");
+          if (relativeStart > entry.compressedSize) throw new Error("options.start > entry.compressedSize");
+        }
+        if (options2.end != null) {
+          relativeEnd = options2.end;
+          if (relativeEnd < 0) throw new Error("options.end < 0");
+          if (relativeEnd > entry.compressedSize) throw new Error("options.end > entry.compressedSize");
+          if (relativeEnd < relativeStart) throw new Error("options.end < options.start");
+        }
+      }
+      var rawMode = options2.decodeFileData === false || // Explicitly requested raw.
+      (entry.compressionMethod === 0 || // Naturally without compression.
+      entry.compressionMethod === 8 && options2.decompress === false) && (!entry.isEncrypted() || // Naturally without encryption.
+      options2.decrypt === false);
+      if (options2.start != null || options2.end != null) {
+        if (!rawMode) throw new Error("start/end range require options.decodeFileData === false for non-trivial encoded entries.");
+      }
+      if (!self.isOpen) return callback(new Error("closed"));
+      if (entry.isEncrypted() && !rawMode) {
+        if (options2.decrypt !== false) return callback(new Error("entry is encrypted, and options.decodeFileData !== false"));
+      }
+      var decompress;
+      if (rawMode) {
+        decompress = false;
+      } else if (entry.compressionMethod === 8) {
+        decompress = options2.decodeFileData !== true;
+      } else {
+        return callback(new Error("unsupported compression method: " + entry.compressionMethod));
+      }
+      self.readLocalFileHeader(entry, { minimal: true }, function(err, localFileHeader) {
+        if (err) return callback(err);
+        self.openReadStreamLowLevel(
+          localFileHeader.fileDataStart,
+          entry.compressedSize,
+          relativeStart,
+          relativeEnd,
+          decompress,
+          entry.uncompressedSize,
+          callback
+        );
+      });
+    };
+    ZipFile.prototype.openReadStreamLowLevel = function(fileDataStart, compressedSize, relativeStart, relativeEnd, decompress, uncompressedSize, callback) {
+      var self = this;
+      var fileDataEnd = fileDataStart + compressedSize;
+      var readStream = self.reader.createReadStream({
+        start: fileDataStart + relativeStart,
+        end: fileDataStart + relativeEnd
+      });
+      var endpointStream = readStream;
+      if (decompress) {
+        var destroyed = false;
+        var inflateFilter = zlib.createInflateRaw();
+        readStream.on("error", function(err) {
+          setImmediate(function() {
+            if (!destroyed) inflateFilter.emit("error", err);
+          });
+        });
+        readStream.pipe(inflateFilter);
+        if (self.validateEntrySizes) {
+          endpointStream = new AssertByteCountStream(uncompressedSize);
+          inflateFilter.on("error", function(err) {
+            setImmediate(function() {
+              if (!destroyed) endpointStream.emit("error", err);
+            });
+          });
+          inflateFilter.pipe(endpointStream);
+        } else {
+          endpointStream = inflateFilter;
+        }
+        installDestroyFn(endpointStream, function() {
+          destroyed = true;
+          if (inflateFilter !== endpointStream) inflateFilter.unpipe(endpointStream);
+          readStream.unpipe(inflateFilter);
+          readStream.destroy();
+        });
+      }
+      callback(null, endpointStream);
+    };
+    ZipFile.prototype.readLocalFileHeader = function(entry, options2, callback) {
+      var self = this;
+      if (callback == null) {
+        callback = options2;
+        options2 = null;
+      }
+      if (options2 == null) options2 = {};
+      self.reader.ref();
+      var buffer = newBuffer(30);
+      readAndAssertNoEof(self.reader, buffer, 0, buffer.length, entry.relativeOffsetOfLocalHeader, function(err) {
+        try {
+          if (err) return callback(err);
+          var signature = buffer.readUInt32LE(0);
+          if (signature !== 67324752) {
+            return callback(new Error("invalid local file header signature: 0x" + signature.toString(16)));
+          }
+          var fileNameLength = buffer.readUInt16LE(26);
+          var extraFieldLength = buffer.readUInt16LE(28);
+          var fileDataStart = entry.relativeOffsetOfLocalHeader + 30 + fileNameLength + extraFieldLength;
+          if (fileDataStart + entry.compressedSize > self.fileSize) {
+            return callback(new Error("file data overflows file bounds: " + fileDataStart + " + " + entry.compressedSize + " > " + self.fileSize));
+          }
+          if (options2.minimal) {
+            return callback(null, { fileDataStart });
+          }
+          var localFileHeader = new LocalFileHeader();
+          localFileHeader.fileDataStart = fileDataStart;
+          localFileHeader.versionNeededToExtract = buffer.readUInt16LE(4);
+          localFileHeader.generalPurposeBitFlag = buffer.readUInt16LE(6);
+          localFileHeader.compressionMethod = buffer.readUInt16LE(8);
+          localFileHeader.lastModFileTime = buffer.readUInt16LE(10);
+          localFileHeader.lastModFileDate = buffer.readUInt16LE(12);
+          localFileHeader.crc32 = buffer.readUInt32LE(14);
+          localFileHeader.compressedSize = buffer.readUInt32LE(18);
+          localFileHeader.uncompressedSize = buffer.readUInt32LE(22);
+          localFileHeader.fileNameLength = fileNameLength;
+          localFileHeader.extraFieldLength = extraFieldLength;
+          buffer = newBuffer(fileNameLength + extraFieldLength);
+          self.reader.ref();
+          readAndAssertNoEof(self.reader, buffer, 0, buffer.length, entry.relativeOffsetOfLocalHeader + 30, function(err2) {
+            try {
+              if (err2) return callback(err2);
+              localFileHeader.fileName = buffer.subarray(0, fileNameLength);
+              localFileHeader.extraField = buffer.subarray(fileNameLength);
+              return callback(null, localFileHeader);
+            } finally {
+              self.reader.unref();
+            }
+          });
+        } finally {
+          self.reader.unref();
+        }
+      });
+    };
+    ZipFile.prototype.openReadStreamPromise = function(entry, options2) {
+      return new Promise((resolve, reject) => {
+        this.openReadStream(entry, options2, function(err, readStream) {
+          if (err) return reject(err);
+          resolve(readStream);
+        });
+      });
+    };
+    ZipFile.prototype.openReadStreamLowLevelPromise = function(fileDataStart, compressedSize, relativeStart, relativeEnd, decompress, uncompressedSize) {
+      return new Promise((resolve, reject) => {
+        this.openReadStream(fileDataStart, compressedSize, relativeStart, relativeEnd, decompress, uncompressedSize, function(err, readStream) {
+          if (err) return reject(err);
+          resolve(readStream);
+        });
+      });
+    };
+    ZipFile.prototype.readLocalFileHeaderPromise = function(entry, options2) {
+      return new Promise((resolve, reject) => {
+        this.readLocalFileHeader(entry, options2, function(err, localFileHeader) {
+          if (err) return reject(err);
+          resolve(localFileHeader);
+        });
+      });
+    };
+    function Entry() {
+    }
+    Entry.prototype.getLastModDate = function(options2) {
+      if (options2 == null) options2 = {};
+      if (!options2.forceDosFormat) {
+        for (var i = 0; i < this.extraFields.length; i++) {
+          var extraField = this.extraFields[i];
+          if (extraField.id === 21589) {
+            var data = extraField.data;
+            if (data.length < 5) continue;
+            var flags = data[0];
+            var HAS_MTIME = 1;
+            if (!(flags & HAS_MTIME)) continue;
+            var posixTimestamp = data.readInt32LE(1);
+            return new Date(posixTimestamp * 1e3);
+          } else if (extraField.id === 10) {
+            var data = extraField.data;
+            if (data.length !== 32) continue;
+            if (data.readUInt16LE(4) !== 1) continue;
+            if (data.readUInt16LE(6) !== 24) continue;
+            var hundredNanoSecondsSince1601 = data.readUInt32LE(8) + 4294967296 * data.readInt32LE(12);
+            var millisecondsSince1970 = hundredNanoSecondsSince1601 / 1e4 - 116444736e5;
+            return new Date(millisecondsSince1970);
+          }
+        }
+      }
+      return dosDateTimeToDate(this.lastModFileDate, this.lastModFileTime, options2.timezone);
+    };
+    Entry.prototype.canDecodeFileData = function() {
+      return !this.isEncrypted() && (this.compressionMethod === 0 || this.compressionMethod === 8);
+    };
+    Entry.prototype.isEncrypted = function() {
+      return (this.generalPurposeBitFlag & 1) !== 0;
+    };
+    Entry.prototype.isCompressed = function() {
+      return this.compressionMethod === 8;
+    };
+    function LocalFileHeader() {
+    }
+    function dosDateTimeToDate(date5, time3, timezone) {
+      var day = date5 & 31;
+      var month = (date5 >> 5 & 15) - 1;
+      var year = (date5 >> 9 & 127) + 1980;
+      var millisecond = 0;
+      var second = (time3 & 31) * 2;
+      var minute = time3 >> 5 & 63;
+      var hour = time3 >> 11 & 31;
+      if (timezone == null || timezone === "local") {
+        return new Date(year, month, day, hour, minute, second, millisecond);
+      } else if (timezone === "UTC") {
+        return new Date(Date.UTC(year, month, day, hour, minute, second, millisecond));
+      } else {
+        throw new Error("unrecognized options.timezone: " + options.timezone);
+      }
+    }
+    function getFileNameLowLevel(generalPurposeBitFlag, fileNameBuffer, extraFields, strictFileNames) {
+      var fileName = null;
+      for (var i = 0; i < extraFields.length; i++) {
+        var extraField = extraFields[i];
+        if (extraField.id === 28789) {
+          if (extraField.data.length < 6) {
+            continue;
+          }
+          if (extraField.data.readUInt8(0) !== 1) {
+            continue;
+          }
+          var oldNameCrc32 = extraField.data.readUInt32LE(1);
+          if (crc32(fileNameBuffer) !== oldNameCrc32) {
+            continue;
+          }
+          fileName = decodeBuffer(extraField.data.subarray(5), true);
+          break;
+        }
+      }
+      if (fileName == null) {
+        var isUtf8 = (generalPurposeBitFlag & 2048) !== 0;
+        fileName = decodeBuffer(fileNameBuffer, isUtf8);
+      }
+      if (!strictFileNames) {
+        fileName = fileName.replace(/\\/g, "/");
+      }
+      return fileName;
+    }
+    function validateFileName(fileName) {
+      if (fileName.indexOf("\\") !== -1) {
+        return "invalid characters in fileName: " + fileName;
+      }
+      if (/^[a-zA-Z]:/.test(fileName) || /^\//.test(fileName)) {
+        return "absolute path: " + fileName;
+      }
+      if (fileName.split("/").indexOf("..") !== -1) {
+        return "invalid relative path: " + fileName;
+      }
+      return null;
+    }
+    function parseExtraFields(extraFieldBuffer) {
+      var extraFields = [];
+      var i = 0;
+      while (i < extraFieldBuffer.length - 3) {
+        var headerId = extraFieldBuffer.readUInt16LE(i + 0);
+        var dataSize = extraFieldBuffer.readUInt16LE(i + 2);
+        var dataStart = i + 4;
+        var dataEnd = dataStart + dataSize;
+        if (dataEnd > extraFieldBuffer.length) throw new Error("extra field length exceeds extra field buffer size");
+        var dataBuffer = extraFieldBuffer.subarray(dataStart, dataEnd);
+        extraFields.push({
+          id: headerId,
+          data: dataBuffer
+        });
+        i = dataEnd;
+      }
+      return extraFields;
+    }
+    function readAndAssertNoEof(reader, buffer, offset, length, position, callback) {
+      if (length === 0) {
+        return setImmediate(function() {
+          callback(null, newBuffer(0));
+        });
+      }
+      reader.read(buffer, offset, length, position, function(err, bytesRead) {
+        if (err) return callback(err);
+        if (bytesRead < length) {
+          return callback(new Error("unexpected EOF"));
+        }
+        callback();
+      });
+    }
+    util2.inherits(AssertByteCountStream, Transform2);
+    function AssertByteCountStream(byteCount) {
+      Transform2.call(this);
+      this.actualByteCount = 0;
+      this.expectedByteCount = byteCount;
+    }
+    AssertByteCountStream.prototype._transform = function(chunk, encoding, cb) {
+      this.actualByteCount += chunk.length;
+      if (this.actualByteCount > this.expectedByteCount) {
+        var msg = "too many bytes in the stream. expected " + this.expectedByteCount + ". got at least " + this.actualByteCount;
+        return cb(new Error(msg));
+      }
+      cb(null, chunk);
+    };
+    AssertByteCountStream.prototype._flush = function(cb) {
+      if (this.actualByteCount < this.expectedByteCount) {
+        var msg = "not enough bytes in the stream. expected " + this.expectedByteCount + ". got only " + this.actualByteCount;
+        return cb(new Error(msg));
+      }
+      cb();
+    };
+    util2.inherits(RandomAccessReader, EventEmitter);
+    function RandomAccessReader() {
+      EventEmitter.call(this);
+      this.refCount = 0;
+    }
+    RandomAccessReader.prototype.ref = function() {
+      this.refCount += 1;
+    };
+    RandomAccessReader.prototype.unref = function() {
+      var self = this;
+      self.refCount -= 1;
+      if (self.refCount > 0) return;
+      if (self.refCount < 0) throw new Error("invalid unref");
+      self.close(onCloseDone);
+      function onCloseDone(err) {
+        if (err) return self.emit("error", err);
+        self.emit("close");
+      }
+    };
+    RandomAccessReader.prototype.createReadStream = function(options2) {
+      if (options2 == null) options2 = {};
+      var start = options2.start;
+      var end = options2.end;
+      if (start === end) {
+        var emptyStream = new PassThrough3();
+        setImmediate(function() {
+          emptyStream.end();
+        });
+        return emptyStream;
+      }
+      var stream = this._readStreamForRange(start, end);
+      var destroyed = false;
+      var refUnrefFilter = new RefUnrefFilter(this);
+      stream.on("error", function(err) {
+        setImmediate(function() {
+          if (!destroyed) refUnrefFilter.emit("error", err);
+        });
+      });
+      installDestroyFn(refUnrefFilter, function() {
+        stream.unpipe(refUnrefFilter);
+        refUnrefFilter.unref();
+        stream.destroy();
+      });
+      var byteCounter = new AssertByteCountStream(end - start);
+      refUnrefFilter.on("error", function(err) {
+        setImmediate(function() {
+          if (!destroyed) byteCounter.emit("error", err);
+        });
+      });
+      installDestroyFn(byteCounter, function() {
+        destroyed = true;
+        refUnrefFilter.unpipe(byteCounter);
+        refUnrefFilter.destroy();
+      });
+      return stream.pipe(refUnrefFilter).pipe(byteCounter);
+    };
+    RandomAccessReader.prototype._readStreamForRange = function(start, end) {
+      throw new Error("not implemented");
+    };
+    RandomAccessReader.prototype.read = function(buffer, offset, length, position, callback) {
+      var readStream = this.createReadStream({ start: position, end: position + length });
+      var writeStream = new Writable();
+      var written = 0;
+      writeStream._write = function(chunk, encoding, cb) {
+        chunk.copy(buffer, offset + written, 0, chunk.length);
+        written += chunk.length;
+        cb();
+      };
+      writeStream.on("finish", callback);
+      readStream.on("error", function(error2) {
+        callback(error2);
+      });
+      readStream.pipe(writeStream);
+    };
+    RandomAccessReader.prototype.close = function(callback) {
+      setImmediate(callback);
+    };
+    util2.inherits(RefUnrefFilter, PassThrough3);
+    function RefUnrefFilter(context) {
+      PassThrough3.call(this);
+      this.context = context;
+      this.context.ref();
+      this.unreffedYet = false;
+    }
+    RefUnrefFilter.prototype._flush = function(cb) {
+      this.unref();
+      cb();
+    };
+    RefUnrefFilter.prototype.unref = function(cb) {
+      if (this.unreffedYet) return;
+      this.unreffedYet = true;
+      this.context.unref();
+    };
+    var cp437 = "\0☺☻♥♦♣♠•◘○◙♂♀♪♫☼►◄↕‼¶§▬↨↑↓→←∟↔▲▼ !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~⌂ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ";
+    function decodeBuffer(buffer, isUtf8) {
+      if (isUtf8) {
+        return buffer.toString("utf8");
+      } else {
+        var result = "";
+        for (var i = 0; i < buffer.length; i++) {
+          result += cp437[buffer[i]];
+        }
+        return result;
+      }
+    }
+    function readUInt64LE(buffer, offset) {
+      var lower32 = buffer.readUInt32LE(offset);
+      var upper32 = buffer.readUInt32LE(offset + 4);
+      return upper32 * 4294967296 + lower32;
+    }
+    var newBuffer;
+    if (typeof Buffer.allocUnsafe === "function") {
+      newBuffer = function(len) {
+        return Buffer.allocUnsafe(len);
+      };
+    } else {
+      newBuffer = function(len) {
+        return new Buffer(len);
+      };
+    }
+    function installDestroyFn(stream, fn) {
+      if (typeof stream.destroy === "function") {
+        stream._destroy = function(err, cb) {
+          fn();
+          if (cb != null) cb(err);
+        };
+      } else {
+        stream.destroy = fn;
+      }
+    }
+    function defaultCallback(err) {
+      if (err) throw err;
+    }
   }
 });
 
@@ -20685,8 +22028,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path29, errorMaps, issueData } = params;
-  const fullPath = [...path29, ...issueData.path || []];
+  const { data, path: path30, errorMaps, issueData } = params;
+  const fullPath = [...path30, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -20801,11 +22144,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path29, key) {
+  constructor(parent, value, path30, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path29;
+    this._path = path30;
     this._key = key;
   }
   get path() {
@@ -21573,48 +22916,48 @@ var ZodString = class _ZodString2 extends ZodType {
       ...errorUtil.errToObj(message)
     });
   }
-  jwt(options) {
-    return this._addCheck({ kind: "jwt", ...errorUtil.errToObj(options) });
+  jwt(options2) {
+    return this._addCheck({ kind: "jwt", ...errorUtil.errToObj(options2) });
   }
-  ip(options) {
-    return this._addCheck({ kind: "ip", ...errorUtil.errToObj(options) });
+  ip(options2) {
+    return this._addCheck({ kind: "ip", ...errorUtil.errToObj(options2) });
   }
-  cidr(options) {
-    return this._addCheck({ kind: "cidr", ...errorUtil.errToObj(options) });
+  cidr(options2) {
+    return this._addCheck({ kind: "cidr", ...errorUtil.errToObj(options2) });
   }
-  datetime(options) {
-    if (typeof options === "string") {
+  datetime(options2) {
+    if (typeof options2 === "string") {
       return this._addCheck({
         kind: "datetime",
         precision: null,
         offset: false,
         local: false,
-        message: options
+        message: options2
       });
     }
     return this._addCheck({
       kind: "datetime",
-      precision: typeof (options == null ? void 0 : options.precision) === "undefined" ? null : options == null ? void 0 : options.precision,
-      offset: (options == null ? void 0 : options.offset) ?? false,
-      local: (options == null ? void 0 : options.local) ?? false,
-      ...errorUtil.errToObj(options == null ? void 0 : options.message)
+      precision: typeof (options2 == null ? void 0 : options2.precision) === "undefined" ? null : options2 == null ? void 0 : options2.precision,
+      offset: (options2 == null ? void 0 : options2.offset) ?? false,
+      local: (options2 == null ? void 0 : options2.local) ?? false,
+      ...errorUtil.errToObj(options2 == null ? void 0 : options2.message)
     });
   }
   date(message) {
     return this._addCheck({ kind: "date", message });
   }
-  time(options) {
-    if (typeof options === "string") {
+  time(options2) {
+    if (typeof options2 === "string") {
       return this._addCheck({
         kind: "time",
         precision: null,
-        message: options
+        message: options2
       });
     }
     return this._addCheck({
       kind: "time",
-      precision: typeof (options == null ? void 0 : options.precision) === "undefined" ? null : options == null ? void 0 : options.precision,
-      ...errorUtil.errToObj(options == null ? void 0 : options.message)
+      precision: typeof (options2 == null ? void 0 : options2.precision) === "undefined" ? null : options2 == null ? void 0 : options2.precision,
+      ...errorUtil.errToObj(options2 == null ? void 0 : options2.message)
     });
   }
   duration(message) {
@@ -21627,12 +22970,12 @@ var ZodString = class _ZodString2 extends ZodType {
       ...errorUtil.errToObj(message)
     });
   }
-  includes(value, options) {
+  includes(value, options2) {
     return this._addCheck({
       kind: "includes",
       value,
-      position: options == null ? void 0 : options.position,
-      ...errorUtil.errToObj(options == null ? void 0 : options.message)
+      position: options2 == null ? void 0 : options2.position,
+      ...errorUtil.errToObj(options2 == null ? void 0 : options2.message)
     });
   }
   startsWith(value, message) {
@@ -22917,7 +24260,7 @@ ZodObject.lazycreate = (shape, params) => {
 var ZodUnion = class extends ZodType {
   _parse(input2) {
     const { ctx } = this._processInputParams(input2);
-    const options = this._def.options;
+    const options2 = this._def.options;
     function handleResults(results) {
       for (const result of results) {
         if (result.result.status === "valid") {
@@ -22938,7 +24281,7 @@ var ZodUnion = class extends ZodType {
       return INVALID;
     }
     if (ctx.common.async) {
-      return Promise.all(options.map(async (option) => {
+      return Promise.all(options2.map(async (option) => {
         const childCtx = {
           ...ctx,
           common: {
@@ -22959,7 +24302,7 @@ var ZodUnion = class extends ZodType {
     } else {
       let dirty = void 0;
       const issues = [];
-      for (const option of options) {
+      for (const option of options2) {
         const childCtx = {
           ...ctx,
           common: {
@@ -23089,9 +24432,9 @@ var ZodDiscriminatedUnion = class _ZodDiscriminatedUnion extends ZodType {
    * @param types an array of object schemas
    * @param params
    */
-  static create(discriminator, options, params) {
+  static create(discriminator, options2, params) {
     const optionsMap = /* @__PURE__ */ new Map();
-    for (const type of options) {
+    for (const type of options2) {
       const discriminatorValues = getDiscriminator(type.shape[discriminator]);
       if (!discriminatorValues.length) {
         throw new Error(`A discriminator value for key \`${discriminator}\` could not be extracted from all schema options`);
@@ -23106,7 +24449,7 @@ var ZodDiscriminatedUnion = class _ZodDiscriminatedUnion extends ZodType {
     return new _ZodDiscriminatedUnion({
       typeName: ZodFirstPartyTypeKind.ZodDiscriminatedUnion,
       discriminator,
-      options,
+      options: options2,
       optionsMap,
       ...processCreateParams(params)
     });
@@ -24454,10 +25797,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path29) {
-  if (!path29)
+function getElementAtPath(obj, path30) {
+  if (!path30)
     return obj;
-  return path29.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
+  return path30.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -24842,11 +26185,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path29, issues) {
+function prefixIssues(path30, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path29);
+    iss.path.unshift(path30);
     return iss;
   });
 }
@@ -29510,14 +30853,14 @@ var objectProcessor = (schema, ctx, _json, params) => {
 var unionProcessor = (schema, ctx, json2, params) => {
   const def = schema._zod.def;
   const isExclusive = def.inclusive === false;
-  const options = def.options.map((x, i) => process2(x, ctx, {
+  const options2 = def.options.map((x, i) => process2(x, ctx, {
     ...params,
     path: [...params.path, isExclusive ? "oneOf" : "anyOf", i]
   }));
   if (isExclusive) {
-    json2.oneOf = options;
+    json2.oneOf = options2;
   } else {
-    json2.anyOf = options;
+    json2.anyOf = options2;
   }
 };
 var intersectionProcessor = (schema, ctx, json2, params) => {
@@ -30613,10 +31956,10 @@ var ZodUnion2 = /* @__PURE__ */ $constructor("ZodUnion", (inst, def) => {
   inst._zod.processJSONSchema = (ctx, json2, params) => unionProcessor(inst, ctx, json2, params);
   inst.options = def.options;
 });
-function union(options, params) {
+function union(options2, params) {
   return new ZodUnion2({
     type: "union",
-    options,
+    options: options2,
     ...util_exports.normalizeParams(params)
   });
 }
@@ -30626,10 +31969,10 @@ var ZodXor = /* @__PURE__ */ $constructor("ZodXor", (inst, def) => {
   inst._zod.processJSONSchema = (ctx, json2, params) => unionProcessor(inst, ctx, json2, params);
   inst.options = def.options;
 });
-function xor(options, params) {
+function xor(options2, params) {
   return new ZodXor({
     type: "union",
-    options,
+    options: options2,
     inclusive: false,
     ...util_exports.normalizeParams(params)
   });
@@ -30638,10 +31981,10 @@ var ZodDiscriminatedUnion2 = /* @__PURE__ */ $constructor("ZodDiscriminatedUnion
   ZodUnion2.init(inst, def);
   $ZodDiscriminatedUnion.init(inst, def);
 });
-function discriminatedUnion(discriminator, options, params) {
+function discriminatedUnion(discriminator, options2, params) {
   return new ZodDiscriminatedUnion2({
     type: "union",
-    options,
+    options: options2,
     discriminator,
     ...util_exports.normalizeParams(params)
   });
@@ -33009,12 +34352,12 @@ var Protocol = class {
         }
         await this.notification(notification, notificationOptions);
       },
-      sendRequest: async (r, resultSchema, options) => {
+      sendRequest: async (r, resultSchema, options2) => {
         var _a4;
         if (abortController.signal.aborted) {
           throw new McpError(ErrorCode.ConnectionClosed, "Request was cancelled");
         }
-        const requestOptions = { ...options, relatedRequestId: request.id };
+        const requestOptions = { ...options2, relatedRequestId: request.id };
         if (relatedTaskId && !requestOptions.relatedTask) {
           requestOptions.relatedTask = { taskId: relatedTaskId };
         }
@@ -33182,12 +34525,12 @@ var Protocol = class {
    *
    * @experimental Use `client.experimental.tasks.requestStream()` to access this method.
    */
-  async *requestStream(request, resultSchema, options) {
+  async *requestStream(request, resultSchema, options2) {
     var _a3, _b;
-    const { task } = options ?? {};
+    const { task } = options2 ?? {};
     if (!task) {
       try {
-        const result = await this.request(request, resultSchema, options);
+        const result = await this.request(request, resultSchema, options2);
         yield { type: "result", result };
       } catch (error2) {
         yield {
@@ -33199,7 +34542,7 @@ var Protocol = class {
     }
     let taskId;
     try {
-      const createResult = await this.request(request, CreateTaskResultSchema, options);
+      const createResult = await this.request(request, CreateTaskResultSchema, options2);
       if (createResult.task) {
         taskId = createResult.task.taskId;
         yield { type: "taskCreated", task: createResult.task };
@@ -33207,11 +34550,11 @@ var Protocol = class {
         throw new McpError(ErrorCode.InternalError, "Task creation did not return a task");
       }
       while (true) {
-        const task2 = await this.getTask({ taskId }, options);
+        const task2 = await this.getTask({ taskId }, options2);
         yield { type: "taskStatus", task: task2 };
         if (isTerminal(task2.status)) {
           if (task2.status === "completed") {
-            const result = await this.getTaskResult({ taskId }, resultSchema, options);
+            const result = await this.getTaskResult({ taskId }, resultSchema, options2);
             yield { type: "result", result };
           } else if (task2.status === "failed") {
             yield {
@@ -33227,13 +34570,13 @@ var Protocol = class {
           return;
         }
         if (task2.status === "input_required") {
-          const result = await this.getTaskResult({ taskId }, resultSchema, options);
+          const result = await this.getTaskResult({ taskId }, resultSchema, options2);
           yield { type: "result", result };
           return;
         }
         const pollInterval = task2.pollInterval ?? ((_a3 = this._options) == null ? void 0 : _a3.defaultTaskPollInterval) ?? 1e3;
         await new Promise((resolve) => setTimeout(resolve, pollInterval));
-        (_b = options == null ? void 0 : options.signal) == null ? void 0 : _b.throwIfAborted();
+        (_b = options2 == null ? void 0 : options2.signal) == null ? void 0 : _b.throwIfAborted();
       }
     } catch (error2) {
       yield {
@@ -33247,8 +34590,8 @@ var Protocol = class {
    *
    * Do not use this method to emit notifications! Use notification() instead.
    */
-  request(request, resultSchema, options) {
-    const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
+  request(request, resultSchema, options2) {
+    const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options2 ?? {};
     return new Promise((resolve, reject) => {
       var _a3, _b, _c, _d, _e;
       const earlyReject = (error2) => {
@@ -33269,15 +34612,15 @@ var Protocol = class {
           return;
         }
       }
-      (_b = options == null ? void 0 : options.signal) == null ? void 0 : _b.throwIfAborted();
+      (_b = options2 == null ? void 0 : options2.signal) == null ? void 0 : _b.throwIfAborted();
       const messageId = this._requestMessageId++;
       const jsonrpcRequest = {
         ...request,
         jsonrpc: "2.0",
         id: messageId
       };
-      if (options == null ? void 0 : options.onprogress) {
-        this._progressHandlers.set(messageId, options.onprogress);
+      if (options2 == null ? void 0 : options2.onprogress) {
+        this._progressHandlers.set(messageId, options2.onprogress);
         jsonrpcRequest.params = {
           ...request.params,
           _meta: {
@@ -33319,7 +34662,7 @@ var Protocol = class {
       };
       this._responseHandlers.set(messageId, (response) => {
         var _a4;
-        if ((_a4 = options == null ? void 0 : options.signal) == null ? void 0 : _a4.aborted) {
+        if ((_a4 = options2 == null ? void 0 : options2.signal) == null ? void 0 : _a4.aborted) {
           return;
         }
         if (response instanceof Error) {
@@ -33336,13 +34679,13 @@ var Protocol = class {
           reject(error2);
         }
       });
-      (_e = options == null ? void 0 : options.signal) == null ? void 0 : _e.addEventListener("abort", () => {
+      (_e = options2 == null ? void 0 : options2.signal) == null ? void 0 : _e.addEventListener("abort", () => {
         var _a4;
-        cancel((_a4 = options == null ? void 0 : options.signal) == null ? void 0 : _a4.reason);
+        cancel((_a4 = options2 == null ? void 0 : options2.signal) == null ? void 0 : _a4.reason);
       });
-      const timeout = (options == null ? void 0 : options.timeout) ?? DEFAULT_REQUEST_TIMEOUT_MSEC;
+      const timeout = (options2 == null ? void 0 : options2.timeout) ?? DEFAULT_REQUEST_TIMEOUT_MSEC;
       const timeoutHandler = () => cancel(McpError.fromError(ErrorCode.RequestTimeout, "Request timed out", { timeout }));
-      this._setupTimeout(messageId, timeout, options == null ? void 0 : options.maxTotalTimeout, timeoutHandler, (options == null ? void 0 : options.resetTimeoutOnProgress) ?? false);
+      this._setupTimeout(messageId, timeout, options2 == null ? void 0 : options2.maxTotalTimeout, timeoutHandler, (options2 == null ? void 0 : options2.resetTimeoutOnProgress) ?? false);
       const relatedTaskId = relatedTask == null ? void 0 : relatedTask.taskId;
       if (relatedTaskId) {
         const responseResolver = (response) => {
@@ -33375,43 +34718,43 @@ var Protocol = class {
    *
    * @experimental Use `client.experimental.tasks.getTask()` to access this method.
    */
-  async getTask(params, options) {
-    return this.request({ method: "tasks/get", params }, GetTaskResultSchema, options);
+  async getTask(params, options2) {
+    return this.request({ method: "tasks/get", params }, GetTaskResultSchema, options2);
   }
   /**
    * Retrieves the result of a completed task.
    *
    * @experimental Use `client.experimental.tasks.getTaskResult()` to access this method.
    */
-  async getTaskResult(params, resultSchema, options) {
-    return this.request({ method: "tasks/result", params }, resultSchema, options);
+  async getTaskResult(params, resultSchema, options2) {
+    return this.request({ method: "tasks/result", params }, resultSchema, options2);
   }
   /**
    * Lists tasks, optionally starting from a pagination cursor.
    *
    * @experimental Use `client.experimental.tasks.listTasks()` to access this method.
    */
-  async listTasks(params, options) {
-    return this.request({ method: "tasks/list", params }, ListTasksResultSchema, options);
+  async listTasks(params, options2) {
+    return this.request({ method: "tasks/list", params }, ListTasksResultSchema, options2);
   }
   /**
    * Cancels a specific task.
    *
    * @experimental Use `client.experimental.tasks.cancelTask()` to access this method.
    */
-  async cancelTask(params, options) {
-    return this.request({ method: "tasks/cancel", params }, CancelTaskResultSchema, options);
+  async cancelTask(params, options2) {
+    return this.request({ method: "tasks/cancel", params }, CancelTaskResultSchema, options2);
   }
   /**
    * Emits a notification, which is a one-way message that does not expect a response.
    */
-  async notification(notification, options) {
+  async notification(notification, options2) {
     var _a3, _b, _c, _d;
     if (!this._transport) {
       throw new Error("Not connected");
     }
     this.assertNotificationCapability(notification.method);
-    const relatedTaskId = (_a3 = options == null ? void 0 : options.relatedTask) == null ? void 0 : _a3.taskId;
+    const relatedTaskId = (_a3 = options2 == null ? void 0 : options2.relatedTask) == null ? void 0 : _a3.taskId;
     if (relatedTaskId) {
       const jsonrpcNotification2 = {
         ...notification,
@@ -33420,7 +34763,7 @@ var Protocol = class {
           ...notification.params,
           _meta: {
             ...((_b = notification.params) == null ? void 0 : _b._meta) || {},
-            [RELATED_TASK_META_KEY]: options.relatedTask
+            [RELATED_TASK_META_KEY]: options2.relatedTask
           }
         }
       };
@@ -33432,7 +34775,7 @@ var Protocol = class {
       return;
     }
     const debouncedMethods = ((_c = this._options) == null ? void 0 : _c.debouncedNotificationMethods) ?? [];
-    const canDebounce = debouncedMethods.includes(notification.method) && !notification.params && !(options == null ? void 0 : options.relatedRequestId) && !(options == null ? void 0 : options.relatedTask);
+    const canDebounce = debouncedMethods.includes(notification.method) && !notification.params && !(options2 == null ? void 0 : options2.relatedRequestId) && !(options2 == null ? void 0 : options2.relatedTask);
     if (canDebounce) {
       if (this._pendingDebouncedNotifications.has(notification.method)) {
         return;
@@ -33448,19 +34791,19 @@ var Protocol = class {
           ...notification,
           jsonrpc: "2.0"
         };
-        if (options == null ? void 0 : options.relatedTask) {
+        if (options2 == null ? void 0 : options2.relatedTask) {
           jsonrpcNotification2 = {
             ...jsonrpcNotification2,
             params: {
               ...jsonrpcNotification2.params,
               _meta: {
                 ...((_a4 = jsonrpcNotification2.params) == null ? void 0 : _a4._meta) || {},
-                [RELATED_TASK_META_KEY]: options.relatedTask
+                [RELATED_TASK_META_KEY]: options2.relatedTask
               }
             }
           };
         }
-        (_b2 = this._transport) == null ? void 0 : _b2.send(jsonrpcNotification2, options).catch((error2) => this._onerror(error2));
+        (_b2 = this._transport) == null ? void 0 : _b2.send(jsonrpcNotification2, options2).catch((error2) => this._onerror(error2));
       });
       return;
     }
@@ -33468,19 +34811,19 @@ var Protocol = class {
       ...notification,
       jsonrpc: "2.0"
     };
-    if (options == null ? void 0 : options.relatedTask) {
+    if (options2 == null ? void 0 : options2.relatedTask) {
       jsonrpcNotification = {
         ...jsonrpcNotification,
         params: {
           ...jsonrpcNotification.params,
           _meta: {
             ...((_d = jsonrpcNotification.params) == null ? void 0 : _d._meta) || {},
-            [RELATED_TASK_META_KEY]: options.relatedTask
+            [RELATED_TASK_META_KEY]: options2.relatedTask
           }
         }
       };
     }
-    await this._transport.send(jsonrpcNotification, options);
+    await this._transport.send(jsonrpcNotification, options2);
   }
   /**
    * Registers a handler to invoke when this protocol object receives a request with the given method.
@@ -33781,8 +35124,8 @@ var ExperimentalServerTasks = class {
    *
    * @experimental
    */
-  requestStream(request, resultSchema, options) {
-    return this._server.requestStream(request, resultSchema, options);
+  requestStream(request, resultSchema, options2) {
+    return this._server.requestStream(request, resultSchema, options2);
   }
   /**
    * Sends a sampling request and returns an AsyncGenerator that yields response messages.
@@ -33827,7 +35170,7 @@ var ExperimentalServerTasks = class {
    *
    * @experimental
    */
-  createMessageStream(params, options) {
+  createMessageStream(params, options2) {
     var _a3;
     const clientCapabilities = this._server.getClientCapabilities();
     if ((params.tools || params.toolChoice) && !((_a3 = clientCapabilities == null ? void 0 : clientCapabilities.sampling) == null ? void 0 : _a3.tools)) {
@@ -33859,7 +35202,7 @@ var ExperimentalServerTasks = class {
     return this.requestStream({
       method: "sampling/createMessage",
       params
-    }, CreateMessageResultSchema, options);
+    }, CreateMessageResultSchema, options2);
   }
   /**
    * Sends an elicitation request and returns an AsyncGenerator that yields response messages.
@@ -33903,7 +35246,7 @@ var ExperimentalServerTasks = class {
    *
    * @experimental
    */
-  elicitInputStream(params, options) {
+  elicitInputStream(params, options2) {
     var _a3, _b;
     const clientCapabilities = this._server.getClientCapabilities();
     const mode = params.mode ?? "form";
@@ -33925,7 +35268,7 @@ var ExperimentalServerTasks = class {
     return this.requestStream({
       method: "elicitation/create",
       params: normalizedParams
-    }, ElicitResultSchema, options);
+    }, ElicitResultSchema, options2);
   }
   /**
    * Gets the current status of a task.
@@ -33936,8 +35279,8 @@ var ExperimentalServerTasks = class {
    *
    * @experimental
    */
-  async getTask(taskId, options) {
-    return this._server.getTask({ taskId }, options);
+  async getTask(taskId, options2) {
+    return this._server.getTask({ taskId }, options2);
   }
   /**
    * Retrieves the result of a completed task.
@@ -33949,8 +35292,8 @@ var ExperimentalServerTasks = class {
    *
    * @experimental
    */
-  async getTaskResult(taskId, resultSchema, options) {
-    return this._server.getTaskResult({ taskId }, resultSchema, options);
+  async getTaskResult(taskId, resultSchema, options2) {
+    return this._server.getTaskResult({ taskId }, resultSchema, options2);
   }
   /**
    * Lists tasks with optional pagination.
@@ -33961,8 +35304,8 @@ var ExperimentalServerTasks = class {
    *
    * @experimental
    */
-  async listTasks(cursor, options) {
-    return this._server.listTasks(cursor ? { cursor } : void 0, options);
+  async listTasks(cursor, options2) {
+    return this._server.listTasks(cursor ? { cursor } : void 0, options2);
   }
   /**
    * Cancels a running task.
@@ -33972,8 +35315,8 @@ var ExperimentalServerTasks = class {
    *
    * @experimental
    */
-  async cancelTask(taskId, options) {
-    return this._server.cancelTask({ taskId }, options);
+  async cancelTask(taskId, options2) {
+    return this._server.cancelTask({ taskId }, options2);
   }
 };
 
@@ -34019,8 +35362,8 @@ var Server = class extends Protocol {
   /**
    * Initializes this server with the given name and version information.
    */
-  constructor(_serverInfo, options) {
-    super(options);
+  constructor(_serverInfo, options2) {
+    super(options2);
     this._serverInfo = _serverInfo;
     this._loggingLevels = /* @__PURE__ */ new Map();
     this.LOG_LEVEL_SEVERITY = new Map(LoggingLevelSchema.options.map((level, index) => [level, index]));
@@ -34028,9 +35371,9 @@ var Server = class extends Protocol {
       const currentLevel = this._loggingLevels.get(sessionId);
       return currentLevel ? this.LOG_LEVEL_SEVERITY.get(level) < this.LOG_LEVEL_SEVERITY.get(currentLevel) : false;
     };
-    this._capabilities = (options == null ? void 0 : options.capabilities) ?? {};
-    this._instructions = options == null ? void 0 : options.instructions;
-    this._jsonSchemaValidator = (options == null ? void 0 : options.jsonSchemaValidator) ?? new AjvJsonSchemaValidator();
+    this._capabilities = (options2 == null ? void 0 : options2.capabilities) ?? {};
+    this._instructions = options2 == null ? void 0 : options2.instructions;
+    this._jsonSchemaValidator = (options2 == null ? void 0 : options2.jsonSchemaValidator) ?? new AjvJsonSchemaValidator();
     this.setRequestHandler(InitializeRequestSchema, (request) => this._oninitialize(request));
     this.setNotificationHandler(InitializedNotificationSchema, () => {
       var _a3;
@@ -34273,7 +35616,7 @@ var Server = class extends Protocol {
     return this.request({ method: "ping" }, EmptyResultSchema);
   }
   // Implementation
-  async createMessage(params, options) {
+  async createMessage(params, options2) {
     var _a3, _b;
     if (params.tools || params.toolChoice) {
       if (!((_b = (_a3 = this._clientCapabilities) == null ? void 0 : _a3.sampling) == null ? void 0 : _b.tools)) {
@@ -34304,9 +35647,9 @@ var Server = class extends Protocol {
       }
     }
     if (params.tools) {
-      return this.request({ method: "sampling/createMessage", params }, CreateMessageResultWithToolsSchema, options);
+      return this.request({ method: "sampling/createMessage", params }, CreateMessageResultWithToolsSchema, options2);
     }
-    return this.request({ method: "sampling/createMessage", params }, CreateMessageResultSchema, options);
+    return this.request({ method: "sampling/createMessage", params }, CreateMessageResultSchema, options2);
   }
   /**
    * Creates an elicitation request for the given parameters.
@@ -34315,7 +35658,7 @@ var Server = class extends Protocol {
    * @param options Optional request options.
    * @returns The result of the elicitation request.
    */
-  async elicitInput(params, options) {
+  async elicitInput(params, options2) {
     var _a3, _b, _c, _d;
     const mode = params.mode ?? "form";
     switch (mode) {
@@ -34324,14 +35667,14 @@ var Server = class extends Protocol {
           throw new Error("Client does not support url elicitation.");
         }
         const urlParams = params;
-        return this.request({ method: "elicitation/create", params: urlParams }, ElicitResultSchema, options);
+        return this.request({ method: "elicitation/create", params: urlParams }, ElicitResultSchema, options2);
       }
       case "form": {
         if (!((_d = (_c = this._clientCapabilities) == null ? void 0 : _c.elicitation) == null ? void 0 : _d.form)) {
           throw new Error("Client does not support form elicitation.");
         }
         const formParams = params.mode === "form" ? params : { ...params, mode: "form" };
-        const result = await this.request({ method: "elicitation/create", params: formParams }, ElicitResultSchema, options);
+        const result = await this.request({ method: "elicitation/create", params: formParams }, ElicitResultSchema, options2);
         if (result.action === "accept" && result.content && formParams.requestedSchema) {
           try {
             const validator = this._jsonSchemaValidator.getValidator(formParams.requestedSchema);
@@ -34358,7 +35701,7 @@ var Server = class extends Protocol {
    * @param options Optional notification options. Useful when the completion notification should be related to a prior request.
    * @returns A function that emits the completion notification when awaited.
    */
-  createElicitationCompletionNotifier(elicitationId, options) {
+  createElicitationCompletionNotifier(elicitationId, options2) {
     var _a3, _b;
     if (!((_b = (_a3 = this._clientCapabilities) == null ? void 0 : _a3.elicitation) == null ? void 0 : _b.url)) {
       throw new Error("Client does not support URL elicitation (required for notifications/elicitation/complete)");
@@ -34368,10 +35711,10 @@ var Server = class extends Protocol {
       params: {
         elicitationId
       }
-    }, options);
+    }, options2);
   }
-  async listRoots(params, options) {
-    return this.request({ method: "roots/list", params }, ListRootsResultSchema, options);
+  async listRoots(params, options2) {
+    return this.request({ method: "roots/list", params }, ListRootsResultSchema, options2);
   }
   /**
    * Sends a logging message to the client, if connected.
@@ -34542,13 +35885,13 @@ var ExperimentalClientTasks = class {
    *
    * @experimental
    */
-  async *callToolStream(params, resultSchema = CallToolResultSchema, options) {
+  async *callToolStream(params, resultSchema = CallToolResultSchema, options2) {
     const clientInternal = this._client;
     const optionsWithTask = {
-      ...options,
+      ...options2,
       // We check if the tool is known to be a task during auto-configuration, but assume
       // the caller knows what they're doing if they pass this explicitly
-      task: (options == null ? void 0 : options.task) ?? (clientInternal.isToolTask(params.name) ? {} : void 0)
+      task: (options2 == null ? void 0 : options2.task) ?? (clientInternal.isToolTask(params.name) ? {} : void 0)
     };
     const stream = clientInternal.requestStream({ method: "tools/call", params }, resultSchema, optionsWithTask);
     const validator = clientInternal.getToolOutputValidator(params.name);
@@ -34597,8 +35940,8 @@ var ExperimentalClientTasks = class {
    *
    * @experimental
    */
-  async getTask(taskId, options) {
-    return this._client.getTask({ taskId }, options);
+  async getTask(taskId, options2) {
+    return this._client.getTask({ taskId }, options2);
   }
   /**
    * Retrieves the result of a completed task.
@@ -34610,8 +35953,8 @@ var ExperimentalClientTasks = class {
    *
    * @experimental
    */
-  async getTaskResult(taskId, resultSchema, options) {
-    return this._client.getTaskResult({ taskId }, resultSchema, options);
+  async getTaskResult(taskId, resultSchema, options2) {
+    return this._client.getTaskResult({ taskId }, resultSchema, options2);
   }
   /**
    * Lists tasks with optional pagination.
@@ -34622,8 +35965,8 @@ var ExperimentalClientTasks = class {
    *
    * @experimental
    */
-  async listTasks(cursor, options) {
-    return this._client.listTasks(cursor ? { cursor } : void 0, options);
+  async listTasks(cursor, options2) {
+    return this._client.listTasks(cursor ? { cursor } : void 0, options2);
   }
   /**
    * Cancels a running task.
@@ -34633,8 +35976,8 @@ var ExperimentalClientTasks = class {
    *
    * @experimental
    */
-  async cancelTask(taskId, options) {
-    return this._client.cancelTask({ taskId }, options);
+  async cancelTask(taskId, options2) {
+    return this._client.cancelTask({ taskId }, options2);
   }
   /**
    * Sends a request and returns an AsyncGenerator that yields response messages.
@@ -34650,8 +35993,8 @@ var ExperimentalClientTasks = class {
    *
    * @experimental
    */
-  requestStream(request, resultSchema, options) {
-    return this._client.requestStream(request, resultSchema, options);
+  requestStream(request, resultSchema, options2) {
+    return this._client.requestStream(request, resultSchema, options2);
   }
 };
 
@@ -34701,17 +36044,17 @@ var Client = class extends Protocol {
   /**
    * Initializes this client with the given name and version information.
    */
-  constructor(_clientInfo, options) {
-    super(options);
+  constructor(_clientInfo, options2) {
+    super(options2);
     this._clientInfo = _clientInfo;
     this._cachedToolOutputValidators = /* @__PURE__ */ new Map();
     this._cachedKnownTaskTools = /* @__PURE__ */ new Set();
     this._cachedRequiredTaskTools = /* @__PURE__ */ new Set();
     this._listChangedDebounceTimers = /* @__PURE__ */ new Map();
-    this._capabilities = (options == null ? void 0 : options.capabilities) ?? {};
-    this._jsonSchemaValidator = (options == null ? void 0 : options.jsonSchemaValidator) ?? new AjvJsonSchemaValidator();
-    if (options == null ? void 0 : options.listChanged) {
-      this._pendingListChangedConfig = options.listChanged;
+    this._capabilities = (options2 == null ? void 0 : options2.capabilities) ?? {};
+    this._jsonSchemaValidator = (options2 == null ? void 0 : options2.jsonSchemaValidator) ?? new AjvJsonSchemaValidator();
+    if (options2 == null ? void 0 : options2.listChanged) {
+      this._pendingListChangedConfig = options2.listChanged;
     }
   }
   /**
@@ -34872,7 +36215,7 @@ var Client = class extends Protocol {
       throw new Error(`Server does not support ${capability} (required for ${method})`);
     }
   }
-  async connect(transport, options) {
+  async connect(transport, options2) {
     await super.connect(transport);
     if (transport.sessionId !== void 0) {
       return;
@@ -34885,7 +36228,7 @@ var Client = class extends Protocol {
           capabilities: this._capabilities,
           clientInfo: this._clientInfo
         }
-      }, InitializeResultSchema, options);
+      }, InitializeResultSchema, options2);
       if (result === void 0) {
         throw new Error(`Server sent invalid initialize result: ${result}`);
       }
@@ -35030,46 +36373,46 @@ var Client = class extends Protocol {
     }
     assertClientRequestTaskCapability((_a3 = this._capabilities.tasks) == null ? void 0 : _a3.requests, method, "Client");
   }
-  async ping(options) {
-    return this.request({ method: "ping" }, EmptyResultSchema, options);
+  async ping(options2) {
+    return this.request({ method: "ping" }, EmptyResultSchema, options2);
   }
-  async complete(params, options) {
-    return this.request({ method: "completion/complete", params }, CompleteResultSchema, options);
+  async complete(params, options2) {
+    return this.request({ method: "completion/complete", params }, CompleteResultSchema, options2);
   }
-  async setLoggingLevel(level, options) {
-    return this.request({ method: "logging/setLevel", params: { level } }, EmptyResultSchema, options);
+  async setLoggingLevel(level, options2) {
+    return this.request({ method: "logging/setLevel", params: { level } }, EmptyResultSchema, options2);
   }
-  async getPrompt(params, options) {
-    return this.request({ method: "prompts/get", params }, GetPromptResultSchema, options);
+  async getPrompt(params, options2) {
+    return this.request({ method: "prompts/get", params }, GetPromptResultSchema, options2);
   }
-  async listPrompts(params, options) {
-    return this.request({ method: "prompts/list", params }, ListPromptsResultSchema, options);
+  async listPrompts(params, options2) {
+    return this.request({ method: "prompts/list", params }, ListPromptsResultSchema, options2);
   }
-  async listResources(params, options) {
-    return this.request({ method: "resources/list", params }, ListResourcesResultSchema, options);
+  async listResources(params, options2) {
+    return this.request({ method: "resources/list", params }, ListResourcesResultSchema, options2);
   }
-  async listResourceTemplates(params, options) {
-    return this.request({ method: "resources/templates/list", params }, ListResourceTemplatesResultSchema, options);
+  async listResourceTemplates(params, options2) {
+    return this.request({ method: "resources/templates/list", params }, ListResourceTemplatesResultSchema, options2);
   }
-  async readResource(params, options) {
-    return this.request({ method: "resources/read", params }, ReadResourceResultSchema, options);
+  async readResource(params, options2) {
+    return this.request({ method: "resources/read", params }, ReadResourceResultSchema, options2);
   }
-  async subscribeResource(params, options) {
-    return this.request({ method: "resources/subscribe", params }, EmptyResultSchema, options);
+  async subscribeResource(params, options2) {
+    return this.request({ method: "resources/subscribe", params }, EmptyResultSchema, options2);
   }
-  async unsubscribeResource(params, options) {
-    return this.request({ method: "resources/unsubscribe", params }, EmptyResultSchema, options);
+  async unsubscribeResource(params, options2) {
+    return this.request({ method: "resources/unsubscribe", params }, EmptyResultSchema, options2);
   }
   /**
    * Calls a tool and waits for the result. Automatically validates structured output if the tool has an outputSchema.
    *
    * For task-based execution with streaming behavior, use client.experimental.tasks.callToolStream() instead.
    */
-  async callTool(params, resultSchema = CallToolResultSchema, options) {
+  async callTool(params, resultSchema = CallToolResultSchema, options2) {
     if (this.isToolTaskRequired(params.name)) {
       throw new McpError(ErrorCode.InvalidRequest, `Tool "${params.name}" requires task-based execution. Use client.experimental.tasks.callToolStream() instead.`);
     }
-    const result = await this.request({ method: "tools/call", params }, resultSchema, options);
+    const result = await this.request({ method: "tools/call", params }, resultSchema, options2);
     const validator = this.getToolOutputValidator(params.name);
     if (validator) {
       if (!result.structuredContent && !result.isError) {
@@ -35134,8 +36477,8 @@ var Client = class extends Protocol {
   getToolOutputValidator(toolName) {
     return this._cachedToolOutputValidators.get(toolName);
   }
-  async listTools(params, options) {
-    const result = await this.request({ method: "tools/list", params }, ListToolsResultSchema, options);
+  async listTools(params, options2) {
+    const result = await this.request({ method: "tools/list", params }, ListToolsResultSchema, options2);
     this.cacheToolMetadata(result.tools);
     return result;
   }
@@ -35143,16 +36486,16 @@ var Client = class extends Protocol {
    * Set up a single list changed handler.
    * @internal
    */
-  _setupListChangedHandler(listType, notificationSchema, options, fetcher) {
-    const parseResult = ListChangedOptionsBaseSchema.safeParse(options);
+  _setupListChangedHandler(listType, notificationSchema, options2, fetcher) {
+    const parseResult = ListChangedOptionsBaseSchema.safeParse(options2);
     if (!parseResult.success) {
       throw new Error(`Invalid ${listType} listChanged options: ${parseResult.error.message}`);
     }
-    if (typeof options.onChanged !== "function") {
+    if (typeof options2.onChanged !== "function") {
       throw new Error(`Invalid ${listType} listChanged options: onChanged must be a function`);
     }
     const { autoRefresh, debounceMs } = parseResult.data;
-    const { onChanged } = options;
+    const { onChanged } = options2;
     const refresh = async () => {
       if (!autoRefresh) {
         onChanged(null, null);
@@ -35502,10 +36845,10 @@ function findProjectConfig(startDir = process.cwd()) {
   }
   return { source: "none" };
 }
-function identifyMakerProject(options) {
-  if (options == null ? void 0 : options.projectId) {
+function identifyMakerProject(options2) {
+  if (options2 == null ? void 0 : options2.projectId) {
     return {
-      projectId: options.projectId,
+      projectId: options2.projectId,
       source: "argv"
     };
   }
@@ -35515,7 +36858,7 @@ function identifyMakerProject(options) {
       source: "env"
     };
   }
-  return findProjectConfig((options == null ? void 0 : options.cwd) || process.cwd());
+  return findProjectConfig((options2 == null ? void 0 : options2.cwd) || process.cwd());
 }
 function formatIdentifyHint() {
   return [
@@ -35653,12 +36996,12 @@ import fs3 from "node:fs";
 import path3 from "node:path";
 var DEFAULT_MAX_BYTES = 1024 * 1024;
 var DEFAULT_MAX_ENTRY_BYTES = 16 * 1024;
-function appendMakerCrashLog(source, error2, options = {}) {
+function appendMakerCrashLog(source, error2, options2 = {}) {
   const makerHome = getMakerHome();
   fs3.mkdirSync(makerHome, { recursive: true });
   const logPath = path3.join(makerHome, "mcp-crash.log");
-  const maxBytes = positiveInteger(options.maxBytes) || resolveEnvBytes("TAPTAP_MAKER_CRASH_LOG_MAX_BYTES", DEFAULT_MAX_BYTES);
-  const maxEntryBytes = positiveInteger(options.maxEntryBytes) || resolveEnvBytes("TAPTAP_MAKER_CRASH_LOG_MAX_ENTRY_BYTES", DEFAULT_MAX_ENTRY_BYTES);
+  const maxBytes = positiveInteger(options2.maxBytes) || resolveEnvBytes("TAPTAP_MAKER_CRASH_LOG_MAX_BYTES", DEFAULT_MAX_BYTES);
+  const maxEntryBytes = positiveInteger(options2.maxEntryBytes) || resolveEnvBytes("TAPTAP_MAKER_CRASH_LOG_MAX_ENTRY_BYTES", DEFAULT_MAX_ENTRY_BYTES);
   const message = error2 instanceof Error ? error2.stack || error2.message : String(error2);
   const entry = truncateUtf8(
     [`[${(/* @__PURE__ */ new Date()).toISOString()}] ${source}`, message, ""].join("\n"),
@@ -35730,22 +37073,22 @@ function isDisconnectedStdioError(error2) {
   const message = error2 instanceof Error ? error2.message.toLowerCase() : "";
   return message.includes("epipe") || message.includes("stream destroyed");
 }
-function shouldExitForParentDeath(options) {
-  if ((options.platform === "darwin" || options.platform === "linux") && options.initialPpid > 1 && options.currentPpid === 1) {
+function shouldExitForParentDeath(options2) {
+  if ((options2.platform === "darwin" || options2.platform === "linux") && options2.initialPpid > 1 && options2.currentPpid === 1) {
     return true;
   }
   try {
-    options.probeParent();
+    options2.probeParent();
     return false;
   } catch (error2) {
     return Boolean(
-      error2 && typeof error2 === "object" && error2.code === "ESRCH" && options.initialPpid > 1
+      error2 && typeof error2 === "object" && error2.code === "ESRCH" && options2.initialPpid > 1
     );
   }
 }
-function installStdinExitHandler(options) {
-  const stdin = options.stdin ?? process.stdin;
-  const exit = options.exit ?? ((code) => process.exit(code));
+function installStdinExitHandler(options2) {
+  const stdin = options2.stdin ?? process.stdin;
+  const exit = options2.exit ?? ((code) => process.exit(code));
   let exiting = false;
   const exitOnStdinClosed = () => {
     var _a3;
@@ -35753,24 +37096,24 @@ function installStdinExitHandler(options) {
       return;
     }
     exiting = true;
-    if (options.onClosed) {
-      options.onClosed(options.source, options.message);
+    if (options2.onClosed) {
+      options2.onClosed(options2.source, options2.message);
       return;
     }
-    (_a3 = options.log) == null ? void 0 : _a3.call(options, options.source, options.message);
-    options.cleanup();
+    (_a3 = options2.log) == null ? void 0 : _a3.call(options2, options2.source, options2.message);
+    options2.cleanup();
     exit(0);
   };
   stdin.once("end", exitOnStdinClosed);
   stdin.once("close", exitOnStdinClosed);
 }
-function installParentDeathWatchdog(options) {
+function installParentDeathWatchdog(options2) {
   var _a3;
-  const initialPpid = options.initialPpid ?? process.ppid;
-  const getCurrentPpid = options.getCurrentPpid ?? (() => process.ppid);
-  const platform = options.platform ?? process.platform;
-  const probeParent = options.probeParent ?? (() => process.kill(initialPpid, 0));
-  const exit = options.exit ?? ((code) => process.exit(code));
+  const initialPpid = options2.initialPpid ?? process.ppid;
+  const getCurrentPpid = options2.getCurrentPpid ?? (() => process.ppid);
+  const platform = options2.platform ?? process.platform;
+  const probeParent = options2.probeParent ?? (() => process.kill(initialPpid, 0));
+  const exit = options2.exit ?? ((code) => process.exit(code));
   let exiting = false;
   const timer = setInterval(() => {
     var _a4;
@@ -35787,10 +37130,10 @@ function installParentDeathWatchdog(options) {
       return;
     }
     exiting = true;
-    (_a4 = options.log) == null ? void 0 : _a4.call(options, options.source, options.message);
-    options.cleanup();
+    (_a4 = options2.log) == null ? void 0 : _a4.call(options2, options2.source, options2.message);
+    options2.cleanup();
     exit(0);
-  }, options.intervalMs ?? 15e3);
+  }, options2.intervalMs ?? 15e3);
   (_a3 = timer.unref) == null ? void 0 : _a3.call(timer);
   return timer;
 }
@@ -35806,16 +37149,16 @@ function installProxyStdinExitHandler(proxy, stdin = process.stdin, exit = (code
     message: "Embedded Maker proxy stdin closed; exiting."
   });
 }
-function installParentDeathWatchdog2(proxy, options = {}) {
+function installParentDeathWatchdog2(proxy, options2 = {}) {
   return installParentDeathWatchdog({
     cleanup: () => proxy.cleanup(),
-    exit: options.exit,
+    exit: options2.exit,
     log: logLifecycleEvent,
     source: "proxy-parent-dead",
     message: "Embedded Maker proxy parent process is gone; exiting.",
-    intervalMs: options.intervalMs,
-    initialPpid: options.initialPpid,
-    getCurrentPpid: options.getCurrentPpid
+    intervalMs: options2.intervalMs,
+    initialPpid: options2.initialPpid,
+    getCurrentPpid: options2.getCurrentPpid
   });
 }
 function logLifecycleEvent(source, message) {
@@ -36303,15 +37646,15 @@ function getMakerPatUrl() {
   const patUrl = getConfiguredMakerPatUrl();
   return requireMakerEndpoint("patUrl", patUrl);
 }
-async function requestMakerPat(options) {
-  const manualPat = getManualMakerPat(options == null ? void 0 : options.pat);
+async function requestMakerPat(options2) {
+  const manualPat = getManualMakerPat(options2 == null ? void 0 : options2.pat);
   if (manualPat) {
-    if (options == null ? void 0 : options.pat) {
+    if (options2 == null ? void 0 : options2.pat) {
       savePat(manualPat);
     }
     return manualPat;
   }
-  if (!(options == null ? void 0 : options.force)) {
+  if (!(options2 == null ? void 0 : options2.force)) {
     const cachedPat = loadPat();
     if (cachedPat) {
       return cachedPat;
@@ -36320,7 +37663,7 @@ async function requestMakerPat(options) {
   const patUrl = getMakerPatUrl();
   let jwt2;
   try {
-    jwt2 = requireMakerJwt(options == null ? void 0 : options.jwt);
+    jwt2 = requireMakerJwt(options2 == null ? void 0 : options2.jwt);
   } catch {
     throw new Error(
       [
@@ -36337,7 +37680,7 @@ async function requestMakerPat(options) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      name: (options == null ? void 0 : options.name) || "first-pat"
+      name: (options2 == null ? void 0 : options2.name) || "first-pat"
     })
   });
   const json2 = await response.json();
@@ -36477,7 +37820,7 @@ import fs5 from "node:fs";
 import path6 from "node:path";
 
 // src/maker/capabilityRouting.ts
-function formatMakerCapabilityRoutingIndex(options) {
+function formatMakerCapabilityRoutingIndex(options2) {
   return [
     "TapTap Maker routing index:",
     "- Start or resume Maker work, or diagnose project/MCP readiness: read",
@@ -36485,10 +37828,10 @@ function formatMakerCapabilityRoutingIndex(options) {
     "- Build, preview, run, submit, or push: after checking project status, use",
     "  maker_build_current_directory.",
     "- Ads: read maker://ads-integration-guide before any ad-related work.",
-    options.includeFeedback ? "- Tap flows: test QR -> generate_test_qrcode; current Maker game's online player feedback" : "",
-    options.includeFeedback ? "  (including player-submitted game bug reports, real-device game logs, or screenshots), or" : "- Tap flows: test QR -> generate_test_qrcode.",
-    options.includeFeedback ? "  server/Lua logs for a specified game session -> call get_debug_feedbacks only when it is" : "",
-    options.includeFeedback ? "  exposed by the current Maker tool list." : "",
+    options2.includeFeedback ? "- Tap flows: test QR -> generate_test_qrcode; current Maker game's online player feedback" : "",
+    options2.includeFeedback ? "  (including player-submitted game bug reports, real-device game logs, or screenshots), or" : "- Tap flows: test QR -> generate_test_qrcode.",
+    options2.includeFeedback ? "  server/Lua logs for a specified game session -> call get_debug_feedbacks only when it is" : "",
+    options2.includeFeedback ? "  exposed by the current Maker tool list." : "",
     "- Game assets: Maker MCP also provides image, video, music, sound-effect,",
     "  dialogue/voice, and 3D generation tools when exposed.",
     "- MCP/proxy infrastructure failure: diagnose, ask once for user consent, then use the",
@@ -36844,10 +38187,10 @@ function writeAiDevKitVersionMetadata(targetDir, metadata) {
   fs6.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}
 `, "utf8");
 }
-async function fetchAiDevKitVersions(options = {}) {
-  const env = getMakerEnvironment(options.environment);
+async function fetchAiDevKitVersions(options2 = {}) {
+  const env = getMakerEnvironment(options2.environment);
   const versionsUrl = getAiDevKitVersionsUrl(env);
-  const fetchFn = options.fetchImpl || fetch;
+  const fetchFn = options2.fetchImpl || fetch;
   const response = await fetchWithTimeout(
     fetchFn,
     versionsUrl,
@@ -36856,7 +38199,7 @@ async function fetchAiDevKitVersions(options = {}) {
         Accept: "application/json"
       }
     },
-    options.timeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS,
+    options2.timeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS,
     "AI dev kit version check"
   );
   if (!response.ok) {
@@ -36870,14 +38213,14 @@ async function fetchAiDevKitVersions(options = {}) {
   }
   return payload;
 }
-async function resolveAiDevKitDownload(options = {}) {
-  const env = getMakerEnvironment(options.environment);
+async function resolveAiDevKitDownload(options2 = {}) {
+  const env = getMakerEnvironment(options2.environment);
   const versionsUrl = getAiDevKitVersionsUrl(env);
   try {
     const version2 = await fetchAiDevKitVersions({
       environment: env,
-      fetchImpl: options.fetchImpl,
-      timeoutMs: options.versionCheckTimeoutMs
+      fetchImpl: options2.fetchImpl,
+      timeoutMs: options2.versionCheckTimeoutMs
     });
     return {
       environment: env,
@@ -36894,14 +38237,14 @@ async function resolveAiDevKitDownload(options = {}) {
     };
   }
 }
-async function checkAiDevKitUpdate(targetDir, options = {}) {
+async function checkAiDevKitUpdate(targetDir, options2 = {}) {
   var _a3;
   const resolvedTargetDir = path7.resolve(targetDir);
   const installed = readAiDevKitVersionMetadata(resolvedTargetDir);
   const download = await resolveAiDevKitDownload({
-    environment: options.environment,
-    fetchImpl: options.fetchImpl,
-    versionCheckTimeoutMs: options.versionCheckTimeoutMs
+    environment: options2.environment,
+    fetchImpl: options2.fetchImpl,
+    versionCheckTimeoutMs: options2.versionCheckTimeoutMs
   });
   const latest = (_a3 = download.version) == null ? void 0 : _a3.current;
   return {
@@ -36919,22 +38262,22 @@ function listPresentDevKitManagedEntries(targetDir) {
     (entry) => fs6.existsSync(path7.join(resolvedTargetDir, entry))
   );
 }
-async function installAiDevKit(options = {}) {
+async function installAiDevKit(options2 = {}) {
   var _a3;
-  const targetDir = path7.resolve(options.targetDir || ".");
+  const targetDir = path7.resolve(options2.targetDir || ".");
   fs6.mkdirSync(targetDir, { recursive: true });
-  const download = options.sourceDir ? void 0 : options.url ? void 0 : await resolveAiDevKitDownload({
-    environment: options.environment,
-    fetchImpl: options.fetchImpl,
-    versionCheckTimeoutMs: options.versionCheckTimeoutMs
+  const download = options2.sourceDir ? void 0 : options2.url ? void 0 : await resolveAiDevKitDownload({
+    environment: options2.environment,
+    fetchImpl: options2.fetchImpl,
+    versionCheckTimeoutMs: options2.versionCheckTimeoutMs
   });
-  const downloadUrl = options.url || (download == null ? void 0 : download.url) || resolveDefaultAiDevKitUrl(options.environment);
-  const preparedSource = options.sourceDir ? path7.resolve(options.sourceDir) : await downloadAndExtractDevKit(downloadUrl, options.fetchImpl, options.downloadTimeoutMs);
+  const downloadUrl = options2.url || (download == null ? void 0 : download.url) || resolveDefaultAiDevKitUrl(options2.environment);
+  const preparedSource = options2.sourceDir ? path7.resolve(options2.sourceDir) : await downloadAndExtractDevKit(downloadUrl, options2.fetchImpl, options2.downloadTimeoutMs);
   const sourceDir = resolveDevKitRoot(preparedSource);
   const entries = fs6.readdirSync(sourceDir, { withFileTypes: true });
   const installedEntries = [];
   const skippedEntries = [];
-  if (options.replaceManagedEntries) {
+  if (options2.replaceManagedEntries) {
     replaceDevKitManagedEntries(
       targetDir,
       entries.map((entry) => entry.name)
@@ -36946,12 +38289,12 @@ async function installAiDevKit(options = {}) {
       continue;
     }
     copyEntry(path7.join(sourceDir, entry.name), path7.join(targetDir, entry.name), {
-      preserveExisting: options.preserveExisting
+      preserveExisting: options2.preserveExisting
     });
     installedEntries.push(entry.name);
   }
   const skillInstaller = runDevKitSkillInstallerForInstall(targetDir, {
-    onStart: options.onSkillInstallerStart
+    onStart: options2.onSkillInstallerStart
   });
   const instructionFiles = ensureMakerAssetPolicyInstructionFiles(targetDir);
   for (const entry of instructionFiles) {
@@ -37041,7 +38384,7 @@ function finalizeStagedDevKitGitignore(targetDir) {
   fs6.rmSync(stagedGitignorePath, { force: true });
   return true;
 }
-function copyEntry(source, target, options = {}) {
+function copyEntry(source, target, options2 = {}) {
   const stat = fs6.statSync(source);
   if (stat.isDirectory()) {
     fs6.mkdirSync(target, { recursive: true });
@@ -37049,12 +38392,12 @@ function copyEntry(source, target, options = {}) {
       if (child === ".DS_Store") {
         continue;
       }
-      copyEntry(path7.join(source, child), path7.join(target, child), options);
+      copyEntry(path7.join(source, child), path7.join(target, child), options2);
     }
     return;
   }
   if (stat.isFile()) {
-    if (options.preserveExisting && fs6.existsSync(target)) {
+    if (options2.preserveExisting && fs6.existsSync(target)) {
       return;
     }
     fs6.mkdirSync(path7.dirname(target), { recursive: true });
@@ -37107,7 +38450,7 @@ function readManagedGitignoreEntries(gitignorePath) {
   }
   return entries;
 }
-function installAiDevKitSkills(targetDir, options = {}) {
+function installAiDevKitSkills(targetDir, options2 = {}) {
   var _a3;
   const toolsDir = path7.join(targetDir, "tools");
   if (!fs6.existsSync(toolsDir) || !fs6.statSync(toolsDir).isDirectory()) {
@@ -37135,7 +38478,7 @@ function installAiDevKitSkills(targetDir, options = {}) {
     };
   }
   const command = isWindows ? ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "all"] : ["bash", scriptPath, "all"];
-  (_a3 = options.onStart) == null ? void 0 : _a3.call(options, {
+  (_a3 = options2.onStart) == null ? void 0 : _a3.call(options2, {
     platform: process.platform,
     script: scriptPath,
     cwd: toolsDir,
@@ -37164,9 +38507,9 @@ function installAiDevKitSkills(targetDir, options = {}) {
     summary: summarizeSkillInstallerOutput(stdout)
   };
 }
-function runDevKitSkillInstallerForInstall(targetDir, options = {}) {
+function runDevKitSkillInstallerForInstall(targetDir, options2 = {}) {
   try {
-    return installAiDevKitSkills(targetDir, options);
+    return installAiDevKitSkills(targetDir, options2);
   } catch (error2) {
     if (error2 instanceof AiDevKitSkillInstallerError) {
       return error2.result;
@@ -37292,32 +38635,32 @@ function formatSpawnFailure(result) {
   var _a3;
   return ((_a3 = result.error) == null ? void 0 : _a3.message) || String(result.stderr || "").trim() || String(result.stdout || "").trim() || `exit status ${result.status ?? "unknown"}`;
 }
-function formatDevKitSkillInstallerFailure(options) {
+function formatDevKitSkillInstallerFailure(options2) {
   return [
     "Failed to install AI dev kit skills",
-    `platform: ${options.platform}`,
-    `script: ${options.scriptPath}`,
-    `cwd: ${options.toolsDir}`,
-    `command: ${options.command.map(shellQuote).join(" ")}`,
-    `exit_status: ${options.result.status ?? "unknown"}`,
-    options.result.signal ? `signal: ${options.result.signal}` : "",
-    options.result.error ? `spawn_error: ${options.result.error.message}` : "",
+    `platform: ${options2.platform}`,
+    `script: ${options2.scriptPath}`,
+    `cwd: ${options2.toolsDir}`,
+    `command: ${options2.command.map(shellQuote).join(" ")}`,
+    `exit_status: ${options2.result.status ?? "unknown"}`,
+    options2.result.signal ? `signal: ${options2.result.signal}` : "",
+    options2.result.error ? `spawn_error: ${options2.result.error.message}` : "",
     "stdout:",
-    formatSpawnOutput(options.result.stdout),
+    formatSpawnOutput(options2.result.stdout),
     "stderr:",
-    formatSpawnOutput(options.result.stderr)
+    formatSpawnOutput(options2.result.stderr)
   ].filter((line) => line.length > 0).join("\n");
 }
-function formatFailedSkillInstallerResult(options) {
+function formatFailedSkillInstallerResult(options2) {
   return {
     ok: false,
     status: "failed",
-    script: options.scriptPath,
-    stdout: String(options.result.stdout || ""),
-    stderr: String(options.result.stderr || ""),
-    summary: summarizeSkillInstallerFailure(options.result),
+    script: options2.scriptPath,
+    stdout: String(options2.result.stdout || ""),
+    stderr: String(options2.result.stderr || ""),
+    summary: summarizeSkillInstallerFailure(options2.result),
     reason: "installer_failed",
-    error: formatDevKitSkillInstallerFailure(options)
+    error: formatDevKitSkillInstallerFailure(options2)
   };
 }
 function summarizeSkillInstallerFailure(result) {
@@ -37467,14 +38810,14 @@ function normalizeProjectsResponse(data) {
     };
   }).filter((project) => project.id.length > 0);
 }
-async function listMakerProjects(options) {
-  const pat = (options == null ? void 0 : options.pat) ? saveManualMakerPat(options.pat) : getManualMakerPat() || loadPat();
+async function listMakerProjects(options2) {
+  const pat = (options2 == null ? void 0 : options2.pat) ? saveManualMakerPat(options2.pat) : getManualMakerPat() || loadPat();
   const url2 = new URL(`${getMakerApiBase()}/apps`);
   let authToken = pat == null ? void 0 : pat.token;
   if (!authToken) {
-    const jwt2 = requireMakerJwt(options == null ? void 0 : options.jwt);
+    const jwt2 = requireMakerJwt(options2 == null ? void 0 : options2.jwt);
     const userId = getUserIdFromMakerJwt(jwt2);
-    authToken = (options == null ? void 0 : options.jwt) || jwt2.token;
+    authToken = (options2 == null ? void 0 : options2.jwt) || jwt2.token;
     if (userId) {
       url2.searchParams.set("userId", userId);
     }
@@ -37491,21 +38834,21 @@ async function listMakerProjects(options) {
   }
   return normalizeProjectsResponse(json2);
 }
-async function createMakerProject(options) {
-  const name = options.name.trim();
+async function createMakerProject(options2) {
+  const name = options2.name.trim();
   if (!name) {
     throw new Error("Maker project name is required.");
   }
   const response = await fetch(`${getMakerApiBase()}/apps`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${options.pat}`,
+      Authorization: `Bearer ${options2.pat}`,
       Accept: "application/json",
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
       name,
-      gameType: options.gameType || "sce"
+      gameType: options2.gameType || "sce"
     })
   });
   const json2 = await response.json();
@@ -37525,43 +38868,43 @@ function ensureMakerProjectBaseDirectories(targetDir) {
     fs7.mkdirSync(path8.join(targetDir, relativeDir), { recursive: true });
   }
 }
-async function cloneMakerProject(options) {
+async function cloneMakerProject(options2) {
   var _a3, _b, _c, _d, _e, _f, _g, _h;
-  const target = path8.resolve(options.targetDir);
-  ensureTargetCanBindApp(target, options.appId);
+  const target = path8.resolve(options2.targetDir);
+  ensureTargetCanBindApp(target, options2.appId);
   const warnings = createPreCloneWarnings(target);
-  (_a3 = options.onProgress) == null ? void 0 : _a3.call(options, {
+  (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
     progress: 0,
     total: 100,
     phase: "pre_clone_check",
-    message: formatPreCloneProgressMessage(options.appId, warnings)
+    message: formatPreCloneProgressMessage(options2.appId, warnings)
   });
   ensureGitAvailable();
-  (_b = options.onProgress) == null ? void 0 : _b.call(options, {
+  (_b = options2.onProgress) == null ? void 0 : _b.call(options2, {
     progress: 1,
     total: 100,
     phase: "prepare",
-    message: `Preparing Maker project ${options.appId}`
+    message: `Preparing Maker project ${options2.appId}`
   });
   let pat = await requestMakerPat({
-    jwt: options.jwt,
-    pat: options.pat,
-    name: options.patName || "first-pat",
-    force: options.forcePat
+    jwt: options2.jwt,
+    pat: options2.pat,
+    name: options2.patName || "first-pat",
+    force: options2.forcePat
   });
-  (_c = options.onProgress) == null ? void 0 : _c.call(options, {
+  (_c = options2.onProgress) == null ? void 0 : _c.call(options2, {
     progress: 5,
     total: 100,
     phase: "auth",
     message: "Maker PAT ready for git authentication"
   });
   const gitBase = getMakerGitBase();
-  const gitUrl = `${gitBase}/${options.appId}.git`;
+  const gitUrl = `${gitBase}/${options2.appId}.git`;
   let authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
   let retriedWithNewPat = false;
   let transientRetries = 0;
   if (isOwnGitRoot(target) && hasGitHead(target)) {
-    (_d = options.onProgress) == null ? void 0 : _d.call(options, {
+    (_d = options2.onProgress) == null ? void 0 : _d.call(options2, {
       progress: 10,
       total: 100,
       phase: "fetch",
@@ -37571,42 +38914,42 @@ async function cloneMakerProject(options) {
     try {
       transientRetries += await runGitWithTransientRetry(["fetch", "--progress", "origin"], {
         cwd: target,
-        onProgress: options.onProgress
+        onProgress: options2.onProgress
       });
     } catch (error2) {
-      if (options.forcePat || !isAuthGitError(error2)) {
+      if (options2.forcePat || !isAuthGitError(error2)) {
         throw withPreCloneWarnings(error2, warnings);
       }
       pat = await refreshPatAfterAuthFailure(error2, {
-        jwt: options.jwt,
-        pat: options.pat,
-        name: options.patName || "first-pat"
+        jwt: options2.jwt,
+        pat: options2.pat,
+        name: options2.patName || "first-pat"
       });
       authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
       retriedWithNewPat = true;
       await setOrigin(target, authUrl);
       transientRetries += await runGitWithTransientRetry(["fetch", "--progress", "origin"], {
         cwd: target,
-        onProgress: options.onProgress
+        onProgress: options2.onProgress
       }).catch((retryError) => {
         throw withPreCloneWarnings(retryError, warnings);
       });
     }
     saveProjectConfig(target, {
-      project_id: options.appId,
-      user_id: options.userId || await resolveMakerProjectUserId(options),
-      sce_endpoint: options.sceEndpoint
+      project_id: options2.appId,
+      user_id: options2.userId || await resolveMakerProjectUserId(options2),
+      sce_endpoint: options2.sceEndpoint
     });
     ensureMakerProjectBaseDirectories(target);
     finalizeStagedDevKitGitignore(target);
-    (_e = options.onProgress) == null ? void 0 : _e.call(options, {
+    (_e = options2.onProgress) == null ? void 0 : _e.call(options2, {
       progress: 100,
       total: 100,
       phase: "done",
       message: "Maker project fetch completed"
     });
     return {
-      appId: options.appId,
+      appId: options2.appId,
       targetDir: target,
       status: "fetched",
       retriedWithNewPat,
@@ -37620,40 +38963,40 @@ async function cloneMakerProject(options) {
     );
   }
   try {
-    (_f = options.onProgress) == null ? void 0 : _f.call(options, {
+    (_f = options2.onProgress) == null ? void 0 : _f.call(options2, {
       progress: 10,
       total: 100,
       phase: "clone",
-      message: `Checking out Maker project ${options.appId}`
+      message: `Checking out Maker project ${options2.appId}`
     });
     transientRetries += await fetchAndCheckoutTarget(
       target,
       authUrl,
       pat.token,
-      options.onProgress
+      options2.onProgress
     );
   } catch (error2) {
-    if (options.forcePat || !isAuthGitError(error2)) {
+    if (options2.forcePat || !isAuthGitError(error2)) {
       throw withPreCloneWarnings(error2, warnings);
     }
     pat = await refreshPatAfterAuthFailure(error2, {
-      jwt: options.jwt,
-      pat: options.pat,
-      name: options.patName || "first-pat"
+      jwt: options2.jwt,
+      pat: options2.pat,
+      name: options2.patName || "first-pat"
     });
     authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
     retriedWithNewPat = true;
-    (_g = options.onProgress) == null ? void 0 : _g.call(options, {
+    (_g = options2.onProgress) == null ? void 0 : _g.call(options2, {
       progress: 10,
       total: 100,
       phase: "clone",
-      message: `Retrying Maker project checkout ${options.appId} with refreshed PAT`
+      message: `Retrying Maker project checkout ${options2.appId} with refreshed PAT`
     });
     transientRetries += await fetchAndCheckoutTarget(
       target,
       authUrl,
       pat.token,
-      options.onProgress
+      options2.onProgress
     ).catch((retryError) => {
       throw withPreCloneWarnings(retryError, warnings);
     });
@@ -37666,19 +39009,19 @@ async function cloneMakerProject(options) {
   }
   finalizeStagedDevKitGitignore(target);
   saveProjectConfig(target, {
-    project_id: options.appId,
-    user_id: options.userId || await resolveMakerProjectUserId(options),
-    sce_endpoint: options.sceEndpoint
+    project_id: options2.appId,
+    user_id: options2.userId || await resolveMakerProjectUserId(options2),
+    sce_endpoint: options2.sceEndpoint
   });
   ensureMakerProjectBaseDirectories(target);
-  (_h = options.onProgress) == null ? void 0 : _h.call(options, {
+  (_h = options2.onProgress) == null ? void 0 : _h.call(options2, {
     progress: 100,
     total: 100,
     phase: "done",
     message: "Maker project checkout completed"
   });
   return {
-    appId: options.appId,
+    appId: options2.appId,
     targetDir: target,
     status: "cloned",
     retriedWithNewPat,
@@ -37686,16 +39029,16 @@ async function cloneMakerProject(options) {
     warnings
   };
 }
-async function pushMakerProject(options) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+async function pushMakerProject(options2) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   ensureGitAvailable();
-  (_a3 = options.onProgress) == null ? void 0 : _a3.call(options, {
+  (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
     progress: 0,
     total: 100,
     phase: "prepare",
     message: "Preparing Maker project push"
   });
-  const requestedCwd = path8.resolve(options.cwd);
+  const requestedCwd = path8.resolve(options2.cwd);
   const workspace = resolveUsableMakerGitWorkspace(requestedCwd);
   const cwd = workspace.projectRoot;
   const project = loadProjectConfig(cwd);
@@ -37705,20 +39048,52 @@ async function pushMakerProject(options) {
   await ensureAuthenticatedOrigin({
     cwd,
     appId: project.project_id,
-    jwt: options.jwt,
-    pat: options.pat,
-    forcePat: options.forcePat,
-    onProgress: options.onProgress
+    jwt: options2.jwt,
+    pat: options2.pat,
+    forcePat: options2.forcePat,
+    onProgress: options2.onProgress
   });
-  (_b = options.onProgress) == null ? void 0 : _b.call(options, {
+  (_b = options2.onProgress) == null ? void 0 : _b.call(options2, {
     progress: 10,
     total: 100,
     phase: "auth",
     message: "Authenticated Maker git origin ready"
   });
   const remoteSyncStatus = await inspectMakerRemoteSyncStatus(cwd);
+  if (remoteSyncStatus.status === "needs_pull") {
+    (_c = options2.onProgress) == null ? void 0 : _c.call(options2, {
+      progress: 15,
+      total: 100,
+      phase: "pull",
+      message: `Fast-forwarding Maker project from ${remoteSyncStatus.remoteRef}`
+    });
+    try {
+      await runGit(["merge", "--ff-only", remoteSyncStatus.remoteRef], {
+        cwd,
+        stage: "pull"
+      });
+    } catch (error2) {
+      const failure = toMakerGitFailure(error2, "pull");
+      const failedBecauseLocalChangesWouldBeOverwritten = /would be overwritten|conflicting local files/iu.test(
+        `${failure.stdout || ""}
+${failure.stderr || ""}`
+      );
+      return {
+        branch: remoteSyncStatus.branch,
+        committed: false,
+        pushed: false,
+        status: "clean",
+        failure: failedBecauseLocalChangesWouldBeOverwritten ? {
+          ...failure,
+          nextAction: "Maker 远端有新提交，但自动 fast-forward 会覆盖本地修改，因此已在提交前停止。请先处理提示的冲突文件，再重试 maker_build_current_directory。"
+        } : failure,
+        ahead: await readAheadState(cwd),
+        transientRetries: 0
+      };
+    }
+  }
   const remoteSyncFailure = getBlockingRemoteSyncFailure(remoteSyncStatus);
-  if (remoteSyncFailure) {
+  if (remoteSyncFailure && remoteSyncStatus.status !== "needs_pull") {
     return {
       branch: remoteSyncStatus.branch,
       committed: false,
@@ -37730,10 +39105,10 @@ async function pushMakerProject(options) {
     };
   }
   const statusBefore = await readGit(["status", "--porcelain"], cwd);
-  const branch = await currentBranch(cwd, options.branch);
+  const branch = await currentBranch(cwd, options2.branch);
   const unpushed = await readUnpushedCommitState(cwd, branch);
-  if (!statusBefore.trim() && !options.allowEmpty && !unpushed.hasUnpushedCommits) {
-    (_c = options.onProgress) == null ? void 0 : _c.call(options, {
+  if (!statusBefore.trim() && !options2.allowEmpty && !unpushed.hasUnpushedCommits) {
+    (_d = options2.onProgress) == null ? void 0 : _d.call(options2, {
       progress: 100,
       total: 100,
       phase: "done",
@@ -37751,20 +39126,20 @@ async function pushMakerProject(options) {
   let commitHash;
   let message;
   let transientRetries = 0;
-  if (!statusBefore.trim() && !options.allowEmpty && unpushed.hasUnpushedCommits) {
+  if (!statusBefore.trim() && !options2.allowEmpty && unpushed.hasUnpushedCommits) {
     commitHash = (await readGit(["rev-parse", "--short", "HEAD"], cwd)).trim();
-  } else if ((_d = options.files) == null ? void 0 : _d.length) {
-    (_e = options.onProgress) == null ? void 0 : _e.call(options, {
+  } else if ((_e = options2.files) == null ? void 0 : _e.length) {
+    (_f = options2.onProgress) == null ? void 0 : _f.call(options2, {
       progress: 20,
       total: 100,
       phase: "stage",
       message: "Staging selected files"
     });
-    await runGit(["add", ...includeMandatoryMakerSubmitFiles(cwd, options.files)], { cwd });
+    await runGit(["add", ...includeMandatoryMakerSubmitFiles(cwd, options2.files)], { cwd });
     const staged = await readGit(["diff", "--cached", "--name-only"], cwd);
-    message = options.message || generateCommitMessage(statusBefore);
-    if (staged.trim() || options.allowEmpty) {
-      (_f = options.onProgress) == null ? void 0 : _f.call(options, {
+    message = options2.message || generateCommitMessage(statusBefore);
+    if (staged.trim() || options2.allowEmpty) {
+      (_g = options2.onProgress) == null ? void 0 : _g.call(options2, {
         progress: 45,
         total: 100,
         phase: "commit",
@@ -37777,7 +39152,7 @@ async function pushMakerProject(options) {
           "-c",
           "user.name=taptap-maker",
           "commit",
-          ...options.allowEmpty ? ["--allow-empty"] : [],
+          ...options2.allowEmpty ? ["--allow-empty"] : [],
           "-m",
           message
         ],
@@ -37787,7 +39162,7 @@ async function pushMakerProject(options) {
       commitHash = (await readGit(["rev-parse", "--short", "HEAD"], cwd)).trim();
     }
   } else {
-    (_g = options.onProgress) == null ? void 0 : _g.call(options, {
+    (_h = options2.onProgress) == null ? void 0 : _h.call(options2, {
       progress: 20,
       total: 100,
       phase: "stage",
@@ -37795,9 +39170,9 @@ async function pushMakerProject(options) {
     });
     await runGit(["add", "-A"], { cwd });
     const staged = await readGit(["diff", "--cached", "--name-only"], cwd);
-    message = options.message || generateCommitMessage(statusBefore);
-    if (staged.trim() || options.allowEmpty) {
-      (_h = options.onProgress) == null ? void 0 : _h.call(options, {
+    message = options2.message || generateCommitMessage(statusBefore);
+    if (staged.trim() || options2.allowEmpty) {
+      (_i = options2.onProgress) == null ? void 0 : _i.call(options2, {
         progress: 45,
         total: 100,
         phase: "commit",
@@ -37810,7 +39185,7 @@ async function pushMakerProject(options) {
           "-c",
           "user.name=taptap-maker",
           "commit",
-          ...options.allowEmpty ? ["--allow-empty"] : [],
+          ...options2.allowEmpty ? ["--allow-empty"] : [],
           "-m",
           message
         ],
@@ -37821,7 +39196,7 @@ async function pushMakerProject(options) {
     }
   }
   try {
-    (_i = options.onProgress) == null ? void 0 : _i.call(options, {
+    (_j = options2.onProgress) == null ? void 0 : _j.call(options2, {
       progress: 65,
       total: 100,
       phase: "push",
@@ -37830,7 +39205,7 @@ async function pushMakerProject(options) {
     transientRetries += await pushGitWithTransientRetry(
       ["push", "origin", `HEAD:${branch}`],
       cwd,
-      options.onProgress
+      options2.onProgress
     );
   } catch (error2) {
     const failure = toMakerGitFailure(error2, "push");
@@ -37846,7 +39221,7 @@ async function pushMakerProject(options) {
       transientRetries
     };
   }
-  (_j = options.onProgress) == null ? void 0 : _j.call(options, {
+  (_k = options2.onProgress) == null ? void 0 : _k.call(options2, {
     progress: 100,
     total: 100,
     phase: "done",
@@ -38304,31 +39679,31 @@ function pushGitWithTransientRetry(args, cwd, onProgress) {
     }
   );
 }
-async function resolveMakerProjectUserId(options) {
+async function resolveMakerProjectUserId(options2) {
   var _a3;
   try {
     const projects = await listMakerProjects({
-      jwt: options.jwt,
-      pat: options.pat
+      jwt: options2.jwt,
+      pat: options2.pat
     });
-    return (_a3 = projects.find((project) => project.id === options.appId)) == null ? void 0 : _a3.user_id;
+    return (_a3 = projects.find((project) => project.id === options2.appId)) == null ? void 0 : _a3.user_id;
   } catch {
     return void 0;
   }
 }
-async function ensureAuthenticatedOrigin(options) {
+async function ensureAuthenticatedOrigin(options2) {
   var _a3;
   const pat = await requestMakerPat({
-    jwt: options.jwt,
-    pat: options.pat,
+    jwt: options2.jwt,
+    pat: options2.pat,
     name: "first-pat",
-    force: options.forcePat
+    force: options2.forcePat
   });
   const gitBase = getMakerGitBase();
-  const gitUrl = `${gitBase}/${options.appId}.git`;
+  const gitUrl = `${gitBase}/${options2.appId}.git`;
   const authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
-  await setOrigin(options.cwd, authUrl);
-  (_a3 = options.onProgress) == null ? void 0 : _a3.call(options, {
+  await setOrigin(options2.cwd, authUrl);
+  (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
     progress: 8,
     total: 100,
     phase: "auth",
@@ -38452,12 +39827,12 @@ function isIgnorablePreCloneEntry(entryName) {
 function isAuthGitError(error2) {
   return toMakerGitFailure(error2, "clone").classification === "auth";
 }
-async function refreshPatAfterAuthFailure(originalError, options) {
+async function refreshPatAfterAuthFailure(originalError, options2) {
   try {
     return await requestMakerPat({
-      jwt: options.jwt,
-      pat: options.pat,
-      name: options.name || "first-pat",
+      jwt: options2.jwt,
+      pat: options2.pat,
+      name: options2.name || "first-pat",
       force: true
     });
   } catch (refreshError) {
@@ -38751,24 +40126,24 @@ function readGit(args, cwd) {
     child.on("error", reject);
   });
 }
-async function runGitWithTransientRetry(args, options) {
+async function runGitWithTransientRetry(args, options2) {
   const stage = args[0] || "git";
   return runMakerGitNetworkOperationWithTransientRetry(
     args,
-    (effectiveArgs) => runGit(effectiveArgs, { ...options, stage }),
+    (effectiveArgs) => runGit(effectiveArgs, { ...options2, stage }),
     {
       stage,
-      onProgress: options.onProgress
+      onProgress: options2.onProgress
     }
   );
 }
-async function runGitCaptureWithTransientRetry(args, options = {}) {
-  return runWithTransientRetry(() => runGitCapture(args, options), {
+async function runGitCaptureWithTransientRetry(args, options2 = {}) {
+  return runWithTransientRetry(() => runGitCapture(args, options2), {
     stage: args[0] || "git",
-    onProgress: options.onProgress
+    onProgress: options2.onProgress
   });
 }
-async function runWithTransientRetry(operation, options) {
+async function runWithTransientRetry(operation, options2) {
   var _a3, _b;
   let retries = 0;
   const maxRetries = 5;
@@ -38785,23 +40160,23 @@ async function runWithTransientRetry(operation, options) {
         throw appendRetryExhausted(error2, retries, decision);
       }
       retries += 1;
-      (_a3 = options.onRetry) == null ? void 0 : _a3.call(options, decision);
-      (_b = options.onProgress) == null ? void 0 : _b.call(options, {
-        phase: options.stage,
-        message: formatGitRetryProgressMessage(options.stage, decision, retries, maxRetries)
+      (_a3 = options2.onRetry) == null ? void 0 : _a3.call(options2, decision);
+      (_b = options2.onProgress) == null ? void 0 : _b.call(options2, {
+        phase: options2.stage,
+        message: formatGitRetryProgressMessage(options2.stage, decision, retries, maxRetries)
       });
       await sleep(getMakerGitRetryDelayMs() * retries);
     }
   }
 }
-async function runMakerGitNetworkOperationWithTransientRetry(args, operation, options) {
+async function runMakerGitNetworkOperationWithTransientRetry(args, operation, options2) {
   let fallbackHttpVersion;
   return runWithTransientRetry(
     () => operation(
       fallbackHttpVersion ? ["-c", `http.version=${fallbackHttpVersion}`, ...args] : [...args]
     ),
     {
-      ...options,
+      ...options2,
       onRetry: (decision) => {
         fallbackHttpVersion = decision.fallbackHttpVersion || fallbackHttpVersion;
       }
@@ -38857,11 +40232,11 @@ function getMakerGitRetryDelayMs() {
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-function runGitCapture(args, options = {}) {
+function runGitCapture(args, options2 = {}) {
   return new Promise((resolve, reject) => {
     const gitCommand = getGitCommand();
     const child = spawn3(gitCommand, args, {
-      cwd: options.cwd,
+      cwd: options2.cwd,
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -38871,17 +40246,17 @@ function runGitCapture(args, options = {}) {
     });
     child.stderr.on("data", (chunk) => {
       stderr += String(chunk);
-      emitGitProgress(chunk, options.onProgress, options.sanitize);
+      emitGitProgress(chunk, options2.onProgress, options2.sanitize);
     });
     child.on("exit", (code) => {
       if (code === 0) {
         resolve();
         return;
       }
-      const pretty = `${gitCommand} ${args.map((arg) => sanitize(arg, options.sanitize)).join(" ")}`;
+      const pretty = `${gitCommand} ${args.map((arg) => sanitize(arg, options2.sanitize)).join(" ")}`;
       const detail = sanitize(
         [stdout.trim(), stderr.trim()].filter(Boolean).join("\n"),
-        options.sanitize
+        options2.sanitize
       );
       reject(
         new Error([`${pretty} failed with exit code ${code}`, detail].filter(Boolean).join("\n"))
@@ -38890,11 +40265,11 @@ function runGitCapture(args, options = {}) {
     child.on("error", reject);
   });
 }
-function runGit(args, options) {
+function runGit(args, options2) {
   return new Promise((resolve, reject) => {
     const gitCommand = getGitCommand();
     const child = spawn3(gitCommand, args, {
-      cwd: options.cwd,
+      cwd: options2.cwd,
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -38904,7 +40279,7 @@ function runGit(args, options) {
     });
     child.stderr.on("data", (chunk) => {
       stderr += String(chunk);
-      emitGitProgress(chunk, options.onProgress);
+      emitGitProgress(chunk, options2.onProgress);
     });
     child.on("exit", (code) => {
       if (code === 0) {
@@ -38913,11 +40288,11 @@ function runGit(args, options) {
         reject(
           new MakerGitError(
             createGitFailure({
-              stage: options.stage || args[0] || "git",
+              stage: options2.stage || args[0] || "git",
               command: `${gitCommand} ${args.join(" ")}`,
               exitCode: code,
-              stdout: options.quiet ? "" : stdout,
-              stderr: options.quiet ? "" : stderr
+              stdout: options2.quiet ? "" : stdout,
+              stderr: options2.quiet ? "" : stderr
             })
           )
         );
@@ -38927,10 +40302,10 @@ function runGit(args, options) {
       reject(
         new MakerGitError(
           createGitFailure({
-            stage: options.stage || args[0] || "git",
+            stage: options2.stage || args[0] || "git",
             command: `${gitCommand} ${args.join(" ")}`,
             exitCode: null,
-            stdout: options.quiet ? "" : stdout,
+            stdout: options2.quiet ? "" : stdout,
             stderr: error2.message
           })
         )
@@ -38981,6 +40356,74 @@ function parseGitProgressLine(line) {
   return void 0;
 }
 
+// src/maker/auth/patTap.ts
+function getObjectValue(data, key) {
+  if (!data || typeof data !== "object") {
+    return void 0;
+  }
+  return data[key];
+}
+var MakerTapTokenRequestError = class extends Error {
+  constructor(status, responseBody) {
+    super(`TapTap token request failed: HTTP ${status} ${JSON.stringify(responseBody)}`);
+    this.name = "MakerTapTokenRequestError";
+    this.status = status;
+    const responseCode = getObjectValue(responseBody, "code");
+    this.responseCode = typeof responseCode === "string" ? responseCode : void 0;
+  }
+};
+function normalizeTapAuthResponse(data) {
+  const body = data;
+  const nested = getObjectValue(body, "data");
+  const source = nested && typeof nested === "object" ? nested : body;
+  const kid = source.kid;
+  const macKey = source.mac_key;
+  if (typeof kid !== "string" || kid.length === 0 || typeof macKey !== "string" || macKey.length === 0) {
+    throw new Error("TapTap token response does not contain kid/mac_key");
+  }
+  return {
+    kid,
+    mac_key: macKey,
+    token_type: typeof source.token_type === "string" ? source.token_type : "mac",
+    mac_algorithm: typeof source.mac_algorithm === "string" ? source.mac_algorithm : "hmac-sha-1",
+    raw: data
+  };
+}
+function getMakerTapTokenUrl(environment) {
+  const tapTokenUrl = getMakerEndpoints(environment).tapTokenUrl;
+  return requireMakerEndpoint("tapTokenUrl", tapTokenUrl, environment);
+}
+async function requestTapAuthWithPat(manualPat, environment, options2 = {}) {
+  const pat = requireMakerPat(manualPat);
+  const response = await fetchWithTimeout(
+    options2.fetchImpl || fetch,
+    getMakerTapTokenUrl(environment),
+    {
+      headers: {
+        Authorization: `Bearer ${pat.token}`,
+        Accept: "application/json"
+      }
+    },
+    options2.timeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS,
+    "TapTap token request"
+  );
+  const text = await response.text();
+  let json2 = {};
+  if (text) {
+    try {
+      json2 = JSON.parse(text);
+    } catch {
+      json2 = { error: text };
+    }
+  }
+  if (!response.ok) {
+    throw new MakerTapTokenRequestError(response.status, json2);
+  }
+  const auth2 = normalizeTapAuthResponse(json2);
+  saveTapAuth(auth2);
+  return auth2;
+}
+
 // src/maker/system/python.ts
 import { spawnSync as spawnSync4 } from "node:child_process";
 import fs8 from "node:fs";
@@ -39004,10 +40447,10 @@ function getMakerUvPath(platform = process.platform) {
 function getMakerUvPythonInstallDir() {
   return path9.join(getMakerHome(), "python", "uv");
 }
-function checkMakerPythonEnvironment(options = {}) {
-  const platform = options.platform || process.platform;
-  const runner = options.spawn || spawnSync4;
-  const env = options.env || process.env;
+function checkMakerPythonEnvironment(options2 = {}) {
+  const platform = options2.platform || process.platform;
+  const runner = options2.spawn || spawnSync4;
+  const env = options2.env || process.env;
   const uvPath = getMakerUvPath(platform);
   const setupCommand = "taptap-maker python setup";
   const pathCommand = "taptap-maker python path";
@@ -39086,14 +40529,14 @@ function checkMakerPythonEnvironment(options = {}) {
     nextAction: status === "store_alias_only" ? "检测到 Windows Store Python alias，但这不是真实 Python。请运行 `taptap-maker python setup` 准备 Python 环境。" : "未检测到可用 Python。请运行 `taptap-maker python setup` 准备 Python 环境。"
   };
 }
-function setupMakerPythonEnvironment(options = {}) {
-  const before = checkMakerPythonEnvironment(options);
+function setupMakerPythonEnvironment(options2 = {}) {
+  const before = checkMakerPythonEnvironment(options2);
   if (before.ready) {
     savePythonRuntimeConfig(before);
     return { changed: false, environment: before, uvInstalled: before.uv.installed };
   }
-  const platform = options.platform || process.platform;
-  const runner = options.spawn || spawnSync4;
+  const platform = options2.platform || process.platform;
+  const runner = options2.spawn || spawnSync4;
   try {
     const uvPath = ensureUvInstalled(platform, runner);
     const uvEnv = createUvPythonEnv();
@@ -39404,10 +40847,10 @@ function getMakerLuaLspConfigPath() {
 function getMakerLuaLspVenvDir() {
   return path10.join(getMakerHome(), "lua-lsp-venv");
 }
-function checkMakerLuaLspEnvironment(options = {}) {
-  const runner = options.spawn || spawnSync5;
-  const python = options.pythonEnvironment || checkMakerPythonEnvironment(options);
-  const platform = options.platform || python.platform || process.platform;
+function checkMakerLuaLspEnvironment(options2 = {}) {
+  const runner = options2.spawn || spawnSync5;
+  const python = options2.pythonEnvironment || checkMakerPythonEnvironment(options2);
+  const platform = options2.platform || python.platform || process.platform;
   const base = createLuaLspBase(platform);
   if (!python.ready || !python.python) {
     return {
@@ -39476,10 +40919,10 @@ function checkMakerLuaLspEnvironment(options = {}) {
     nextAction: "未检测到 maker-lua-lsp。请运行 `taptap-maker lua-lsp setup`，或运行 `taptap-maker python setup` 自动准备完整本地 Lua 诊断环境。"
   };
 }
-function setupMakerLuaLspEnvironment(options = {}) {
-  const runner = options.spawn || spawnSync5;
-  const python = options.pythonEnvironment || ensurePythonForLuaLsp(options);
-  const platform = options.platform || python.platform || process.platform;
+function setupMakerLuaLspEnvironment(options2 = {}) {
+  const runner = options2.spawn || spawnSync5;
+  const python = options2.pythonEnvironment || ensurePythonForLuaLsp(options2);
+  const platform = options2.platform || python.platform || process.platform;
   if (!python.ready || !python.python) {
     const environment2 = {
       ...createLuaLspBase(platform),
@@ -39581,13 +41024,13 @@ function formatMakerLuaLspEnvironmentStatus(environment) {
     `- next_action: ${environment.nextAction}`
   ].filter(Boolean).join("\n");
 }
-function ensurePythonForLuaLsp(options) {
-  const current = checkMakerPythonEnvironment(options);
+function ensurePythonForLuaLsp(options2) {
+  const current = checkMakerPythonEnvironment(options2);
   if (current.ready) {
     return current;
   }
   try {
-    return setupMakerPythonEnvironment(options).environment;
+    return setupMakerPythonEnvironment(options2).environment;
   } catch (error2) {
     return {
       ...current,
@@ -39895,16 +41338,16 @@ var RUNTIME_LOG_FILES_TO_RESET = [
   "user_script.log",
   "server_user_script.log"
 ];
-async function watchRuntimeLogs(options) {
+async function watchRuntimeLogs(options2) {
   var _a3, _b;
-  if (options.reset) {
-    resetRuntimeLogs(options.projectRoot);
+  if (options2.reset) {
+    resetRuntimeLogs(options2.projectRoot);
   }
-  const intervalMs = options.intervalMs ?? 5e3;
-  const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_RUNTIME_LOG_IDLE_TIMEOUT_MS;
-  const maxConsecutiveFailures = options.maxConsecutiveFailures;
-  const sleep2 = options.sleep || defaultSleep;
-  const nowMs = options.nowMs || Date.now;
+  const intervalMs = options2.intervalMs ?? 5e3;
+  const idleTimeoutMs = options2.idleTimeoutMs ?? DEFAULT_RUNTIME_LOG_IDLE_TIMEOUT_MS;
+  const maxConsecutiveFailures = options2.maxConsecutiveFailures;
+  const sleep2 = options2.sleep || defaultSleep;
+  const nowMs = options2.nowMs || Date.now;
   let polls = 0;
   let writtenLogs = 0;
   let lastResult;
@@ -39914,32 +41357,32 @@ async function watchRuntimeLogs(options) {
     try {
       const previousCursor = lastResult == null ? void 0 : lastResult.nextStartTime;
       const result = await pullRuntimeLogs({
-        projectRoot: options.projectRoot,
-        projectId: options.projectId,
-        sinceSeconds: options.sinceSeconds,
-        limit: options.limit,
-        nowMs: options.nowMs,
-        callRemoteRuntimeLogs: options.callRemoteRuntimeLogs
+        projectRoot: options2.projectRoot,
+        projectId: options2.projectId,
+        sinceSeconds: options2.sinceSeconds,
+        limit: options2.limit,
+        nowMs: options2.nowMs,
+        callRemoteRuntimeLogs: options2.callRemoteRuntimeLogs
       });
       polls += 1;
       writtenLogs += result.writtenLogs;
       lastResult = result;
       consecutiveFailures = 0;
-      await ((_a3 = options.onPoll) == null ? void 0 : _a3.call(options, result));
+      await ((_a3 = options2.onPoll) == null ? void 0 : _a3.call(options2, result));
       if (result.writtenLogs > 0) {
         idleStartedAt = nowMs();
       } else if (nowMs() - idleStartedAt >= idleTimeoutMs) {
         return {
-          projectRoot: options.projectRoot,
+          projectRoot: options2.projectRoot,
           polls,
           writtenLogs,
           lastResult,
           stopReason: "idle_timeout"
         };
       }
-      if (options.maxPolls !== void 0 && polls >= options.maxPolls) {
+      if (options2.maxPolls !== void 0 && polls >= options2.maxPolls) {
         return {
-          projectRoot: options.projectRoot,
+          projectRoot: options2.projectRoot,
           polls,
           writtenLogs,
           lastResult,
@@ -39952,12 +41395,12 @@ async function watchRuntimeLogs(options) {
       }
     } catch (error2) {
       consecutiveFailures += 1;
-      writeRuntimeLogFailureState(options.projectRoot, {
+      writeRuntimeLogFailureState(options2.projectRoot, {
         nowMs,
         consecutiveFailures,
         error: error2
       });
-      await ((_b = options.onError) == null ? void 0 : _b.call(options, error2, consecutiveFailures));
+      await ((_b = options2.onError) == null ? void 0 : _b.call(options2, error2, consecutiveFailures));
       if (isNonRetryableRuntimeLogError(error2)) {
         throw new Error(
           `runtime log watch stopped after non-retryable failure: ${error2 instanceof Error ? error2.message : String(error2)}`
@@ -39972,32 +41415,32 @@ async function watchRuntimeLogs(options) {
     }
   }
 }
-async function pullRuntimeLogs(options) {
-  const nowMs = options.nowMs || Date.now;
-  const state = readRuntimeLogState(options.projectRoot);
+async function pullRuntimeLogs(options2) {
+  const nowMs = options2.nowMs || Date.now;
+  const state = readRuntimeLogState(options2.projectRoot);
   const nowSeconds = nowMs() / 1e3;
   const stateFresh = (state == null ? void 0 : state.nextStartTime) !== void 0 && isFreshRuntimeLogCursor(state.nextStartTime, nowSeconds);
   const queryArgs = {};
   let cursorExpired = false;
-  if (options.startTime !== void 0) {
-    queryArgs.startTime = options.startTime;
+  if (options2.startTime !== void 0) {
+    queryArgs.startTime = options2.startTime;
   } else if (stateFresh && state) {
     queryArgs.startTime = state.nextStartTime;
   } else {
     cursorExpired = Boolean(state == null ? void 0 : state.nextStartTime);
-    queryArgs.sinceSeconds = options.sinceSeconds ?? DEFAULT_RUNTIME_LOG_SINCE_SECONDS;
+    queryArgs.sinceSeconds = options2.sinceSeconds ?? DEFAULT_RUNTIME_LOG_SINCE_SECONDS;
   }
-  queryArgs.topics = options.topics && options.topics.length > 0 ? options.topics : DEFAULT_RUNTIME_LOG_TOPICS;
-  if (options.limit !== void 0) {
-    queryArgs.limit = options.limit;
+  queryArgs.topics = options2.topics && options2.topics.length > 0 ? options2.topics : DEFAULT_RUNTIME_LOG_TOPICS;
+  if (options2.limit !== void 0) {
+    queryArgs.limit = options2.limit;
   }
-  const result = await options.callRemoteRuntimeLogs(queryArgs);
-  const appendResult = appendRuntimeLogs(options.projectRoot, result.logs);
+  const result = await options2.callRemoteRuntimeLogs(queryArgs);
+  const appendResult = appendRuntimeLogs(options2.projectRoot, result.logs);
   const nextStartTime = resolveNextRuntimeLogCursor(result);
   const nowIso = new Date(nowMs()).toISOString();
   const nextState = {
     ...state || {},
-    ...options.projectId ? { appId: options.projectId, projectId: options.projectId } : {},
+    ...options2.projectId ? { appId: options2.projectId, projectId: options2.projectId } : {},
     nextStartTime,
     updatedAt: nowIso,
     lastPollAt: nowIso,
@@ -40006,13 +41449,13 @@ async function pullRuntimeLogs(options) {
     consecutiveFailures: 0,
     lastError: null
   };
-  writeRuntimeLogState(options.projectRoot, nextState);
+  writeRuntimeLogState(options2.projectRoot, nextState);
   return {
-    projectRoot: options.projectRoot,
+    projectRoot: options2.projectRoot,
     queryArgs,
     writtenLogs: appendResult.written,
     files: appendResult.files,
-    statePath: getRuntimeLogStatePath(options.projectRoot),
+    statePath: getRuntimeLogStatePath(options2.projectRoot),
     nextStartTime,
     serverTime: result.serverTime,
     hasMore: result.hasMore,
@@ -40094,14 +41537,14 @@ function writeRuntimeLogState(projectRoot, state) {
 `, "utf8");
   fs11.renameSync(tempPath, statePath);
 }
-function writeRuntimeLogFailureState(projectRoot, options) {
-  const nowIso = new Date(options.nowMs()).toISOString();
+function writeRuntimeLogFailureState(projectRoot, options2) {
+  const nowIso = new Date(options2.nowMs()).toISOString();
   writeRuntimeLogState(projectRoot, {
     ...readRuntimeLogState(projectRoot) || {},
     updatedAt: nowIso,
     lastPollAt: nowIso,
-    consecutiveFailures: options.consecutiveFailures,
-    lastError: options.error instanceof Error ? options.error.message : String(options.error)
+    consecutiveFailures: options2.consecutiveFailures,
+    lastError: options2.error instanceof Error ? options2.error.message : String(options2.error)
   });
 }
 function isRuntimeLogState(state) {
@@ -40322,9 +41765,9 @@ function decideMakerPackageUpdate(currentVersion, policy) {
     next_action: "Continue normal work; no package upgrade is required."
   });
 }
-async function checkMakerPackageUpdate(options) {
-  const now = options.now ?? /* @__PURE__ */ new Date();
-  const currentVersion = options.currentVersion;
+async function checkMakerPackageUpdate(options2) {
+  const now = options2.now ?? /* @__PURE__ */ new Date();
+  const currentVersion = options2.currentVersion;
   if (hasMakerPluginDistribution()) {
     return buildPluginManagedStatus(currentVersion);
   }
@@ -40338,12 +41781,12 @@ async function checkMakerPackageUpdate(options) {
       restart_required: false
     };
   }
-  const policyUrl = resolvePolicyUrl(options.policyUrl);
+  const policyUrl = resolvePolicyUrl(options2.policyUrl);
   try {
     const policy = await fetchMakerPackageVersionPolicy({
-      fetchImpl: options.fetchImpl,
+      fetchImpl: options2.fetchImpl,
       policyUrl,
-      timeoutMs: options.timeoutMs
+      timeoutMs: options2.timeoutMs
     });
     const decision = decideMakerPackageUpdate(currentVersion, policy);
     const status = {
@@ -40383,9 +41826,9 @@ async function checkMakerPackageUpdate(options) {
     return unavailableStatus;
   }
 }
-async function getMakerPackageUpdateStatus(options) {
+async function getMakerPackageUpdateStatus(options2) {
   var _a3, _b;
-  const currentVersion = options.currentVersion;
+  const currentVersion = options2.currentVersion;
   if (hasMakerPluginDistribution()) {
     return buildPluginManagedStatus(currentVersion);
   }
@@ -40394,14 +41837,14 @@ async function getMakerPackageUpdateStatus(options) {
       status: "skipped",
       current_version: currentVersion,
       reason: "dev_version",
-      checked_at: (options.now ?? /* @__PURE__ */ new Date()).toISOString(),
+      checked_at: (options2.now ?? /* @__PURE__ */ new Date()).toISOString(),
       next_action: "Continue normal work; dev builds do not use remote version policy.",
       restart_required: false
     };
   }
   const cache = readCache();
-  const now = options.now ?? /* @__PURE__ */ new Date();
-  const policyUrl = resolvePolicyUrl(options.policyUrl);
+  const now = options2.now ?? /* @__PURE__ */ new Date();
+  const policyUrl = resolvePolicyUrl(options2.policyUrl);
   const lastSuccessCheckedAt = getLastSuccessCheckedAt(cache);
   const lastErrorCheckedAt = getLastErrorCheckedAt(cache);
   const hasCurrentVersionDecision = ((_a3 = cache == null ? void 0 : cache.decision) == null ? void 0 : _a3.current_version) === currentVersion;
@@ -40413,9 +41856,9 @@ async function getMakerPackageUpdateStatus(options) {
       error: cache.error
     } : cache.decision;
   }
-  if (hasFreshErrorOnlyCache && options.allowRemoteFetch === false) {
-    if (options.backgroundRefresh !== false) {
-      startMakerPackageUpdateCheck(options);
+  if (hasFreshErrorOnlyCache && options2.allowRemoteFetch === false) {
+    if (options2.backgroundRefresh !== false) {
+      startMakerPackageUpdateCheck(options2);
     }
     return buildUnavailableStatus({
       cache,
@@ -40423,10 +41866,10 @@ async function getMakerPackageUpdateStatus(options) {
       error: (cache == null ? void 0 : cache.error) || "Maker package version check is temporarily unavailable."
     });
   }
-  if (options.allowRemoteFetch === false) {
-    const shouldStartBackgroundRefresh = options.backgroundRefresh !== false;
+  if (options2.allowRemoteFetch === false) {
+    const shouldStartBackgroundRefresh = options2.backgroundRefresh !== false;
     if (shouldStartBackgroundRefresh) {
-      startMakerPackageUpdateCheck(options);
+      startMakerPackageUpdateCheck(options2);
     }
     return buildUnavailableStatus({
       cache,
@@ -40436,19 +41879,19 @@ async function getMakerPackageUpdateStatus(options) {
       policyUrl
     });
   }
-  return checkMakerPackageUpdate(options);
+  return checkMakerPackageUpdate(options2);
 }
 var backgroundCheck;
-function startMakerPackageUpdateCheck(options) {
+function startMakerPackageUpdateCheck(options2) {
   if (hasMakerPluginDistribution()) {
     return;
   }
-  const key = `${options.currentVersion}
-${resolvePolicyUrl(options.policyUrl)}`;
+  const key = `${options2.currentVersion}
+${resolvePolicyUrl(options2.policyUrl)}`;
   if ((backgroundCheck == null ? void 0 : backgroundCheck.key) === key) {
     return;
   }
-  const promise2 = checkMakerPackageUpdate(options).then(() => void 0).catch(() => void 0).finally(() => {
+  const promise2 = checkMakerPackageUpdate(options2).then(() => void 0).catch(() => void 0).finally(() => {
     if ((backgroundCheck == null ? void 0 : backgroundCheck.promise) === promise2) {
       backgroundCheck = void 0;
     }
@@ -40518,17 +41961,17 @@ function formatUnavailableNonBlockingError(previousError, backgroundRefresh) {
   }
   return previousError || "Maker package version check is temporarily unavailable.";
 }
-async function fetchMakerPackageVersionPolicy(options) {
-  const fetchImpl = options.fetchImpl || fetch;
+async function fetchMakerPackageVersionPolicy(options2) {
+  const fetchImpl = options2.fetchImpl || fetch;
   const response = await fetchWithTimeout(
     fetchImpl,
-    options.policyUrl,
+    options2.policyUrl,
     {
       headers: {
         Accept: "application/json"
       }
     },
-    options.timeoutMs ?? DEFAULT_PACKAGE_VERSION_CHECK_TIMEOUT_MS,
+    options2.timeoutMs ?? DEFAULT_PACKAGE_VERSION_CHECK_TIMEOUT_MS,
     "Maker package version check"
   );
   if (!response.ok) {
@@ -40594,27 +42037,27 @@ function buildDecision(status, currentVersion, policy, overrides) {
     ...overrides
   };
 }
-function buildUnavailableStatus(options) {
+function buildUnavailableStatus(options2) {
   var _a3, _b, _c, _d;
-  const previousDecision = (_a3 = options.cache) == null ? void 0 : _a3.decision;
-  const hasCurrentVersionDecision = (previousDecision == null ? void 0 : previousDecision.current_version) === options.currentVersion;
-  const hasCurrentPolicyUrl = !options.policyUrl || ((_b = options.cache) == null ? void 0 : _b.policy_url) === options.policyUrl || (previousDecision == null ? void 0 : previousDecision.policy_url) === options.policyUrl;
+  const previousDecision = (_a3 = options2.cache) == null ? void 0 : _a3.decision;
+  const hasCurrentVersionDecision = (previousDecision == null ? void 0 : previousDecision.current_version) === options2.currentVersion;
+  const hasCurrentPolicyUrl = !options2.policyUrl || ((_b = options2.cache) == null ? void 0 : _b.policy_url) === options2.policyUrl || (previousDecision == null ? void 0 : previousDecision.policy_url) === options2.policyUrl;
   const canUsePreviousDecision = hasCurrentVersionDecision && hasCurrentPolicyUrl;
-  const lastSuccessCheckedAt = canUsePreviousDecision ? getLastSuccessCheckedAt(options.cache) : void 0;
-  const previousPolicy = hasCurrentPolicyUrl ? (_c = options.cache) == null ? void 0 : _c.policy : void 0;
+  const lastSuccessCheckedAt = canUsePreviousDecision ? getLastSuccessCheckedAt(options2.cache) : void 0;
+  const previousPolicy = hasCurrentPolicyUrl ? (_c = options2.cache) == null ? void 0 : _c.policy : void 0;
   return compactStatus({
     status: "unavailable",
-    current_version: options.currentVersion,
+    current_version: options2.currentVersion,
     target_version: canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.target_version : void 0,
     reason: canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.reason : void 0,
     minimum_supported: (canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.minimum_supported : void 0) ?? (previousPolicy == null ? void 0 : previousPolicy.minimum_supported),
     latest: (canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.latest : void 0) ?? (previousPolicy == null ? void 0 : previousPolicy.latest),
     latest_beta: (canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.latest_beta : void 0) ?? (previousPolicy == null ? void 0 : previousPolicy.latest_beta),
     blacklist_match: canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.blacklist_match : void 0,
-    checked_at: options.checkedAt,
-    policy_url: options.policyUrl ?? ((_d = options.cache) == null ? void 0 : _d.policy_url),
+    checked_at: options2.checkedAt,
+    policy_url: options2.policyUrl ?? ((_d = options2.cache) == null ? void 0 : _d.policy_url),
     message: (canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.message : void 0) ?? (previousPolicy == null ? void 0 : previousPolicy.message),
-    error: options.error,
+    error: options2.error,
     last_success_checked_at: lastSuccessCheckedAt,
     previous_status: canUsePreviousDecision && (previousDecision == null ? void 0 : previousDecision.status) && previousDecision.status !== "unavailable" ? previousDecision.status : void 0,
     next_action: "Continue normal work; retry status later.",
@@ -41603,29 +43046,29 @@ var RemoteProxyToolCallError = class extends Error {
     this.originalError = error2;
   }
 };
-function prepareRemoteProxyToolArgs(options) {
-  if (options.toolName === "audition_voices_for_character") {
-    return validateVoiceAuditionArgs(options.args);
+function prepareRemoteProxyToolArgs(options2) {
+  if (options2.toolName === "audition_voices_for_character") {
+    return validateVoiceAuditionArgs(options2.args);
   }
-  if (options.toolName === "edit_image") {
-    return rewriteEditImageAssetArgs(options.targetDir, options.args);
+  if (options2.toolName === "edit_image") {
+    return rewriteEditImageAssetArgs(options2.targetDir, options2.args);
   }
-  if (options.toolName === "generate_image") {
-    return normalizeImageReferenceAssetArgs(options.targetDir, options.args);
+  if (options2.toolName === "generate_image") {
+    return normalizeImageReferenceAssetArgs(options2.targetDir, options2.args);
   }
-  if (options.toolName === "batch_generate_images") {
-    return normalizeBatchImageReferenceAssetArgs(options.targetDir, options.args);
+  if (options2.toolName === "batch_generate_images") {
+    return normalizeBatchImageReferenceAssetArgs(options2.targetDir, options2.args);
   }
-  if (options.toolName === "create_video_task") {
-    return rewriteVideoReferenceAssetArgs(options.targetDir, options.args);
+  if (options2.toolName === "create_video_task") {
+    return rewriteVideoReferenceAssetArgs(options2.targetDir, options2.args);
   }
-  if (options.toolName === CREATE_3D_ASSET_PROXY_TOOL_NAME) {
-    return rewriteCreate3dAssetArgs(options.targetDir, options.args);
+  if (options2.toolName === CREATE_3D_ASSET_PROXY_TOOL_NAME) {
+    return rewriteCreate3dAssetArgs(options2.targetDir, options2.args);
   }
-  if (options.toolName === "text_to_dialogue") {
-    return rewriteTextToDialogueArgs(options.targetDir, options.args);
+  if (options2.toolName === "text_to_dialogue") {
+    return rewriteTextToDialogueArgs(options2.targetDir, options2.args);
   }
-  return options.args;
+  return options2.args;
 }
 function validateVoiceAuditionArgs(args) {
   const voiceProfile = args.voice_profile;
@@ -41638,19 +43081,19 @@ function validateVoiceAuditionArgs(args) {
   }
   return args;
 }
-async function materializeRemoteProxyToolAssets(options) {
-  if (isRemoteProxyToolErrorResult(options.result)) {
+async function materializeRemoteProxyToolAssets(options2) {
+  if (isRemoteProxyToolErrorResult(options2.result)) {
     throw new RemoteProxyToolResultError(
-      options.toolName,
-      addRemoteProxyErrorExecutionState(options.result)
+      options2.toolName,
+      addRemoteProxyErrorExecutionState(options2.result)
     );
   }
-  if (!shouldMaterializeRemoteProxyTool(options.toolName)) {
-    return options.result;
+  if (!shouldMaterializeRemoteProxyTool(options2.toolName)) {
+    return options2.result;
   }
-  const content = options.result.content;
+  const content = options2.result.content;
   if (!Array.isArray(content)) {
-    return options.result;
+    return options2.result;
   }
   let changed = false;
   const nextContent = [];
@@ -41666,11 +43109,11 @@ async function materializeRemoteProxyToolAssets(options) {
       continue;
     }
     const nextParsed = await materializeParsedProxyResult({
-      toolName: options.toolName,
-      targetDir: options.targetDir,
+      toolName: options2.toolName,
+      targetDir: options2.targetDir,
       payload: parsed,
-      now: options.now ?? /* @__PURE__ */ new Date(),
-      fetchImpl: options.fetchImpl ?? fetch
+      now: options2.now ?? /* @__PURE__ */ new Date(),
+      fetchImpl: options2.fetchImpl ?? fetch
     });
     structuredPayloads.push(nextParsed);
     if (nextParsed === parsed) {
@@ -41686,12 +43129,12 @@ async function materializeRemoteProxyToolAssets(options) {
   const structuredContent = structuredPayloads.length === 1 ? structuredPayloads[0] : { results: structuredPayloads };
   if (structuredPayloads.length > 0) {
     return {
-      ...options.result,
+      ...options2.result,
       ...changed ? { content: nextContent } : {},
       structuredContent
     };
   }
-  return changed ? { ...options.result, content: nextContent } : options.result;
+  return changed ? { ...options2.result, content: nextContent } : options2.result;
 }
 function addRemoteProxyErrorExecutionState(result) {
   const resultWithStructuredContent = result;
@@ -41761,53 +43204,53 @@ function parseJsonObject(text) {
     return void 0;
   }
 }
-async function materializeParsedProxyResult(options) {
-  if (options.toolName === "generate_image") {
-    return await materializeSingleImageResult(options, "generate_image");
+async function materializeParsedProxyResult(options2) {
+  if (options2.toolName === "generate_image") {
+    return await materializeSingleImageResult(options2, "generate_image");
   }
-  if (options.toolName === "batch_generate_images") {
-    return await materializeBatchImageResult(options);
+  if (options2.toolName === "batch_generate_images") {
+    return await materializeBatchImageResult(options2);
   }
-  if (options.toolName === "edit_image") {
-    return await materializeSingleImageResult(options, "edit_image");
+  if (options2.toolName === "edit_image") {
+    return await materializeSingleImageResult(options2, "edit_image");
   }
-  if (options.toolName === "create_video_task" || options.toolName === "query_video_task") {
-    return await materializeVideoResult(options, options.toolName);
+  if (options2.toolName === "create_video_task" || options2.toolName === "query_video_task") {
+    return await materializeVideoResult(options2, options2.toolName);
   }
-  if (options.toolName === "text_to_music") {
-    return await materializeMusicResult(options);
+  if (options2.toolName === "text_to_music") {
+    return await materializeMusicResult(options2);
   }
-  if (options.toolName === "text_to_sound_effect" || options.toolName === "batch_sound_effects" || options.toolName === "text_to_dialogue") {
-    return await materializeAudioFilesResult(options, options.toolName);
+  if (options2.toolName === "text_to_sound_effect" || options2.toolName === "batch_sound_effects" || options2.toolName === "text_to_dialogue") {
+    return await materializeAudioFilesResult(options2, options2.toolName);
   }
-  if (options.toolName === "confirm_character_voice") {
-    return await materializeVoiceConfirmationResult(options);
+  if (options2.toolName === "confirm_character_voice") {
+    return await materializeVoiceConfirmationResult(options2);
   }
-  if (options.toolName === CREATE_3D_ASSET_PROXY_TOOL_NAME) {
-    return await materializeCreate3dAssetResult(options);
+  if (options2.toolName === CREATE_3D_ASSET_PROXY_TOOL_NAME) {
+    return await materializeCreate3dAssetResult(options2);
   }
-  if (options.toolName === "get_debug_feedbacks") {
-    return await materializeDebugFeedbackResult(options);
+  if (options2.toolName === "get_debug_feedbacks") {
+    return await materializeDebugFeedbackResult(options2);
   }
-  return options.payload;
+  return options2.payload;
 }
-async function materializeDebugFeedbackResult(options) {
-  if (options.payload.success !== true) {
-    return options.payload;
+async function materializeDebugFeedbackResult(options2) {
+  if (options2.payload.success !== true) {
+    return options2.payload;
   }
-  const feedbacks = getDebugFeedbackItems(options.payload);
-  const remoteSaveDir = getDebugFeedbackSaveDir(options.payload);
+  const feedbacks = getDebugFeedbackItems(options2.payload);
+  const remoteSaveDir = getDebugFeedbackSaveDir(options2.payload);
   if (feedbacks.length === 0 && !remoteSaveDir) {
-    return options.payload;
+    return options2.payload;
   }
   const nextFeedbacks = [];
   for (const feedback of feedbacks) {
     const remoteDir = stringField2(feedback.dir);
-    const localCandidateDir = remoteDir ? resolveDebugFeedbackCandidatePath(options.targetDir, remoteDir) : void 0;
+    const localCandidateDir = remoteDir ? resolveDebugFeedbackCandidatePath(options2.targetDir, remoteDir) : void 0;
     const materialized = await materializeDebugFeedbackArtifacts({
-      targetDir: options.targetDir,
+      targetDir: options2.targetDir,
       feedback,
-      fetchImpl: options.fetchImpl
+      fetchImpl: options2.fetchImpl
     });
     nextFeedbacks.push({
       ...feedback,
@@ -41815,35 +43258,35 @@ async function materializeDebugFeedbackResult(options) {
       ...materialized
     });
   }
-  const localCandidateSaveDir = remoteSaveDir ? resolveDebugFeedbackCandidatePath(options.targetDir, remoteSaveDir) : feedbacks.some(hasDebugFeedbackArtifactUrls) ? path17.join(options.targetDir, "logs", "feed_back") : void 0;
+  const localCandidateSaveDir = remoteSaveDir ? resolveDebugFeedbackCandidatePath(options2.targetDir, remoteSaveDir) : feedbacks.some(hasDebugFeedbackArtifactUrls) ? path17.join(options2.targetDir, "logs", "feed_back") : void 0;
   const filesVerifiedLocally = nextFeedbacks.some(
     (feedback) => numberField2(feedback.artifacts_downloaded) > 0
   );
   return {
-    ...replaceDebugFeedbackItems(options.payload, nextFeedbacks),
+    ...replaceDebugFeedbackItems(options2.payload, nextFeedbacks),
     local_path_hint: {
       remote_save_dir: remoteSaveDir,
       local_candidate_save_dir: localCandidateSaveDir,
-      local_project_dir: options.targetDir,
+      local_project_dir: options2.targetDir,
       files_verified_locally: filesVerifiedLocally,
       note: DEBUG_FEEDBACK_PATH_HINT
     }
   };
 }
-async function materializeDebugFeedbackArtifacts(options) {
-  const feedbackId = stringField2(options.feedback.feedback_id) ?? (options.feedback.feedback_id != null ? String(options.feedback.feedback_id) : "");
+async function materializeDebugFeedbackArtifacts(options2) {
+  const feedbackId = stringField2(options2.feedback.feedback_id) ?? (options2.feedback.feedback_id != null ? String(options2.feedback.feedback_id) : "");
   if (!feedbackId) {
     return {};
   }
-  const logUrls = stringArrayField(options.feedback.log_file_urls);
-  const screenshotUrls = stringArrayField(options.feedback.screenshots);
-  const extraUrls = stringArrayField(options.feedback.download_urls).filter(
+  const logUrls = stringArrayField(options2.feedback.log_file_urls);
+  const screenshotUrls = stringArrayField(options2.feedback.screenshots);
+  const extraUrls = stringArrayField(options2.feedback.download_urls).filter(
     (url2) => !logUrls.includes(url2) && !screenshotUrls.includes(url2)
   );
   if (logUrls.length === 0 && screenshotUrls.length === 0 && extraUrls.length === 0) {
     return {};
   }
-  const localDir = path17.join(options.targetDir, "logs", "feed_back", `feedback_${feedbackId}`);
+  const localDir = path17.join(options2.targetDir, "logs", "feed_back", `feedback_${feedbackId}`);
   const localLogPaths = [];
   const localScreenshotPaths = [];
   const localDownloadPaths = [];
@@ -41853,7 +43296,7 @@ async function materializeDebugFeedbackArtifacts(options) {
       url: url2,
       directory: path17.join(localDir, "logs"),
       fallbackName: `log_${index + 1}.log`,
-      fetchImpl: options.fetchImpl
+      fetchImpl: options2.fetchImpl
     });
     if (result.success) {
       localLogPaths.push(result.path);
@@ -41866,7 +43309,7 @@ async function materializeDebugFeedbackArtifacts(options) {
       url: url2,
       directory: path17.join(localDir, "screenshots"),
       fallbackName: `screenshot_${index + 1}.png`,
-      fetchImpl: options.fetchImpl
+      fetchImpl: options2.fetchImpl
     });
     if (result.success) {
       localScreenshotPaths.push(result.path);
@@ -41879,7 +43322,7 @@ async function materializeDebugFeedbackArtifacts(options) {
       url: url2,
       directory: path17.join(localDir, "downloads"),
       fallbackName: `artifact_${index + 1}`,
-      fetchImpl: options.fetchImpl
+      fetchImpl: options2.fetchImpl
     });
     if (result.success) {
       localDownloadPaths.push(result.path);
@@ -41896,20 +43339,20 @@ async function materializeDebugFeedbackArtifacts(options) {
     artifact_download_errors: errors
   };
 }
-async function downloadDebugFeedbackArtifact(options) {
+async function downloadDebugFeedbackArtifact(options2) {
   try {
-    const response = await options.fetchImpl(options.url);
+    const response = await options2.fetchImpl(options2.url);
     if (!response.ok) {
       return {
         success: false,
-        error: `${options.url}: HTTP ${response.status}`
+        error: `${options2.url}: HTTP ${response.status}`
       };
     }
-    fs16.mkdirSync(options.directory, { recursive: true });
+    fs16.mkdirSync(options2.directory, { recursive: true });
     const filePath = allocateDebugFeedbackArtifactPath(
-      options.directory,
-      options.url,
-      options.fallbackName
+      options2.directory,
+      options2.url,
+      options2.fallbackName
     );
     const bytes = Buffer.from(await response.arrayBuffer());
     fs16.writeFileSync(filePath, bytes);
@@ -41917,7 +43360,7 @@ async function downloadDebugFeedbackArtifact(options) {
   } catch (error2) {
     return {
       success: false,
-      error: `${options.url}: ${error2 instanceof Error ? error2.message : String(error2)}`
+      error: `${options2.url}: ${error2 instanceof Error ? error2.message : String(error2)}`
     };
   }
 }
@@ -41997,107 +43440,107 @@ function getDebugFeedbackItems(payload) {
   }
   return [];
 }
-async function materializeSingleImageResult(options, toolName) {
-  if (options.payload.success !== true) {
-    return options.payload;
+async function materializeSingleImageResult(options2, toolName) {
+  if (options2.payload.success !== true) {
+    return options2.payload;
   }
   const materialized = await materializeAsset({
-    targetDir: options.targetDir,
-    url: stringField2(options.payload.previewUrl),
-    baseName: stringField2(options.payload.name),
+    targetDir: options2.targetDir,
+    url: stringField2(options2.payload.previewUrl),
+    baseName: stringField2(options2.payload.name),
     relativeDir: "assets/image",
     extension: "png",
-    now: options.now,
-    fetchImpl: options.fetchImpl
+    now: options2.now,
+    fetchImpl: options2.fetchImpl
   });
   return materialized ? persistMaterializedAsset({
-    targetDir: options.targetDir,
+    targetDir: options2.targetDir,
     toolName,
-    payload: options.payload,
+    payload: options2.payload,
     materialized,
-    cdnUrl: stringField2(options.payload.previewUrl),
-    now: options.now
-  }) : options.payload;
+    cdnUrl: stringField2(options2.payload.previewUrl),
+    now: options2.now
+  }) : options2.payload;
 }
-async function materializeBatchImageResult(options) {
-  if (!Array.isArray(options.payload.results)) {
-    return options.payload;
+async function materializeBatchImageResult(options2) {
+  if (!Array.isArray(options2.payload.results)) {
+    return options2.payload;
   }
   const results = [];
-  for (const item of options.payload.results) {
+  for (const item of options2.payload.results) {
     if (!isRecord2(item) || item.success !== true) {
       results.push(item);
       continue;
     }
     const materialized = await materializeAsset({
-      targetDir: options.targetDir,
+      targetDir: options2.targetDir,
       url: stringField2(item.previewUrl),
       baseName: stringField2(item.name),
       relativeDir: "assets/image",
       extension: "png",
-      now: options.now,
-      fetchImpl: options.fetchImpl
+      now: options2.now,
+      fetchImpl: options2.fetchImpl
     });
     results.push(
       materialized ? persistMaterializedAsset({
-        targetDir: options.targetDir,
+        targetDir: options2.targetDir,
         toolName: "batch_generate_images",
         payload: item,
         materialized,
         cdnUrl: stringField2(item.previewUrl),
-        now: options.now
+        now: options2.now
       }) : item
     );
   }
-  return { ...options.payload, results };
+  return { ...options2.payload, results };
 }
-async function materializeVideoResult(options, toolName) {
-  if (options.payload.status !== "succeeded") {
-    return options.payload;
+async function materializeVideoResult(options2, toolName) {
+  if (options2.payload.status !== "succeeded") {
+    return options2.payload;
   }
-  const taskId = stringField2(options.payload.task_id);
-  const cdnUrl = stringField2(options.payload.cdn_url);
-  const existing = findExistingMaterializedVideo(options.targetDir, {
+  const taskId = stringField2(options2.payload.task_id);
+  const cdnUrl = stringField2(options2.payload.cdn_url);
+  const existing = findExistingMaterializedVideo(options2.targetDir, {
     taskId,
     cdnUrl
   });
   if (existing) {
     return {
-      ...options.payload,
+      ...options2.payload,
       ...existing,
       download: { success: true }
     };
   }
   const materialized = await materializeAsset({
-    targetDir: options.targetDir,
+    targetDir: options2.targetDir,
     url: cdnUrl,
     baseName: taskId,
     relativeDir: "assets/video",
     extension: "mp4",
-    now: options.now,
-    fetchImpl: options.fetchImpl
+    now: options2.now,
+    fetchImpl: options2.fetchImpl
   });
   return materialized ? persistMaterializedAsset({
-    targetDir: options.targetDir,
+    targetDir: options2.targetDir,
     toolName,
-    payload: options.payload,
+    payload: options2.payload,
     materialized,
-    cdnUrl: stringField2(options.payload.cdn_url),
-    now: options.now,
+    cdnUrl: stringField2(options2.payload.cdn_url),
+    now: options2.now,
     extraRegistryFields: {
       taskId
     }
-  }) : options.payload;
+  }) : options2.payload;
 }
-function findExistingMaterializedVideo(targetDir, options) {
-  if (!options.taskId || !options.cdnUrl) {
+function findExistingMaterializedVideo(targetDir, options2) {
+  if (!options2.taskId || !options2.cdnUrl) {
     return void 0;
   }
   const registry2 = readGeneratedAssetRegistry(targetDir);
   for (const record2 of Object.values(registry2)) {
     const localPath = stringField2(record2.localPath);
     const recordCdnUrl = stringField2(record2.cdnUrl) || stringField2(record2.previewUrl);
-    if (stringField2(record2.taskId) !== options.taskId || recordCdnUrl !== options.cdnUrl || !localPath.startsWith("assets/video/")) {
+    if (stringField2(record2.taskId) !== options2.taskId || recordCdnUrl !== options2.cdnUrl || !localPath.startsWith("assets/video/")) {
       continue;
     }
     const absolutePath = resolveExistingMaterializedAssetPath(targetDir, record2, localPath);
@@ -42124,42 +43567,42 @@ function resolveExistingMaterializedAssetPath(targetDir, record2, localPath) {
   }
   return void 0;
 }
-async function materializeMusicResult(options) {
-  if (options.payload.success !== true) {
-    return options.payload;
+async function materializeMusicResult(options2) {
+  if (options2.payload.success !== true) {
+    return options2.payload;
   }
-  if (!isRecord2(options.payload.music)) {
-    return options.payload;
+  if (!isRecord2(options2.payload.music)) {
+    return options2.payload;
   }
-  const music = options.payload.music;
+  const music = options2.payload.music;
   const materialized = await materializeAsset({
-    targetDir: options.targetDir,
+    targetDir: options2.targetDir,
     url: stringField2(music.audioUrl),
-    baseName: stringField2(music.title) || stringField2(options.payload.taskId),
+    baseName: stringField2(music.title) || stringField2(options2.payload.taskId),
     relativeDir: "assets/audio",
     extension: extensionFromUrl(stringField2(music.audioUrl)) || "mp3",
-    now: options.now,
-    fetchImpl: options.fetchImpl
+    now: options2.now,
+    fetchImpl: options2.fetchImpl
   });
   return materialized ? {
-    ...options.payload,
+    ...options2.payload,
     music: persistMaterializedAsset({
-      targetDir: options.targetDir,
+      targetDir: options2.targetDir,
       toolName: "text_to_music",
       payload: music,
       materialized,
       cdnUrl: stringField2(music.audioUrl),
-      now: options.now,
+      now: options2.now,
       extraRegistryFields: {
-        taskId: stringField2(options.payload.taskId)
+        taskId: stringField2(options2.payload.taskId)
       }
     })
-  } : options.payload;
+  } : options2.payload;
 }
-async function materializeAudioFilesResult(options, toolName) {
-  if (!Array.isArray(options.payload.audio_files)) return options.payload;
+async function materializeAudioFilesResult(options2, toolName) {
+  if (!Array.isArray(options2.payload.audio_files)) return options2.payload;
   const audioFiles = [];
-  for (const rawItem of options.payload.audio_files) {
+  for (const rawItem of options2.payload.audio_files) {
     if (!isRecord2(rawItem)) {
       audioFiles.push(rawItem);
       continue;
@@ -42191,48 +43634,48 @@ async function materializeAudioFilesResult(options, toolName) {
     }
     const extension = audioExtensionForItem(item, suggestedFileName);
     const materialized = await materializeAudioAsset({
-      targetDir: options.targetDir,
+      targetDir: options2.targetDir,
       targetDirectory: expectedDirectory,
       fileName: suggestedFileName,
       url: audioUrl,
       extension,
-      now: options.now,
-      fetchImpl: options.fetchImpl
+      now: options2.now,
+      fetchImpl: options2.fetchImpl
     });
     audioFiles.push(
       materialized ? persistMaterializedAsset({
-        targetDir: options.targetDir,
+        targetDir: options2.targetDir,
         toolName,
         payload: item,
         materialized,
         cdnUrl: audioUrl,
-        now: options.now,
+        now: options2.now,
         extraRegistryFields: { assetKind: "audio", kind }
       }) : item
     );
   }
-  return { ...options.payload, audio_files: audioFiles };
+  return { ...options2.payload, audio_files: audioFiles };
 }
-function validateAudioAssetContract(options) {
+function validateAudioAssetContract(options2) {
   var _a3, _b;
-  if (!options.audioUrl || !/^https?:\/\//i.test(options.audioUrl)) {
+  if (!options2.audioUrl || !/^https?:\/\//i.test(options2.audioUrl)) {
     return "audioUrl must be an HTTP(S) URL.";
   }
-  if (options.kind !== options.expectedKind) {
-    return `audio_files item kind must be ${options.expectedKind} for this tool.`;
+  if (options2.kind !== options2.expectedKind) {
+    return `audio_files item kind must be ${options2.expectedKind} for this tool.`;
   }
-  if (options.targetDirectory !== options.expectedDirectory) {
-    return `targetDirectory must be ${options.expectedDirectory}.`;
+  if (options2.targetDirectory !== options2.expectedDirectory) {
+    return `targetDirectory must be ${options2.expectedDirectory}.`;
   }
-  const fileName = options.suggestedFileName;
+  const fileName = options2.suggestedFileName;
   if (!fileName || fileName === "." || fileName === ".." || fileName.includes("/") || fileName.includes("\\") || fileName.includes("\0")) {
     return "suggestedFileName must be a safe basename.";
   }
   if (path17.basename(fileName) !== fileName || fileName.endsWith(".") || fileName.endsWith(" ")) {
     return "suggestedFileName must be a safe basename.";
   }
-  const format = (_a3 = options.format) == null ? void 0 : _a3.toLowerCase();
-  const mimeType = (_b = options.mimeType) == null ? void 0 : _b.toLowerCase();
+  const format = (_a3 = options2.format) == null ? void 0 : _a3.toLowerCase();
+  const mimeType = (_b = options2.mimeType) == null ? void 0 : _b.toLowerCase();
   const extension = path17.extname(fileName).toLowerCase();
   const contract = {
     mp3: { mimeType: "audio/mpeg", extension: ".mp3" },
@@ -42262,12 +43705,12 @@ function audioExtensionForItem(item, fileName) {
   };
   return byFormat[format || ""] || path17.extname(fileName).slice(1).toLowerCase() || "mp3";
 }
-async function materializeAudioAsset(options) {
-  const relativeDir = options.targetDirectory;
-  const directory = path17.join(options.targetDir, ...relativeDir.split("/"));
+async function materializeAudioAsset(options2) {
+  const relativeDir = options2.targetDirectory;
+  const directory = path17.join(options2.targetDir, ...relativeDir.split("/"));
   try {
     fs16.mkdirSync(directory, { recursive: true });
-    assertProjectDirectory(options.targetDir, directory);
+    assertProjectDirectory(options2.targetDir, directory);
   } catch (error2) {
     return {
       download: {
@@ -42276,12 +43719,12 @@ async function materializeAudioAsset(options) {
       }
     };
   }
-  const baseName = path17.basename(options.fileName, path17.extname(options.fileName));
+  const baseName = path17.basename(options2.fileName, path17.extname(options2.fileName));
   let absolutePath;
   let relativePath;
   for (let index = 1; index <= 9999; index += 1) {
     const suffix = index === 1 ? "" : `_${index}`;
-    const candidateName = `${baseName}${suffix}.${options.extension}`;
+    const candidateName = `${baseName}${suffix}.${options2.extension}`;
     const candidate = path17.join(directory, candidateName);
     if (!fs16.existsSync(candidate)) {
       absolutePath = candidate;
@@ -42293,7 +43736,7 @@ async function materializeAudioAsset(options) {
     return { download: { success: false, error: "Unable to allocate a unique audio asset path." } };
   }
   try {
-    const response = await options.fetchImpl(options.url);
+    const response = await options2.fetchImpl(options2.url);
     if (!response.ok) {
       return {
         download: { success: false, error: `Asset download failed: HTTP ${response.status}` }
@@ -42314,12 +43757,12 @@ async function materializeAudioAsset(options) {
     };
   }
 }
-async function materializeVoiceConfirmationResult(options) {
-  if (options.payload.success !== true || !isRecord2(options.payload.mapping)) {
-    return withoutVoiceConfirmationNextStepHint(options.payload);
+async function materializeVoiceConfirmationResult(options2) {
+  if (options2.payload.success !== true || !isRecord2(options2.payload.mapping)) {
+    return withoutVoiceConfirmationNextStepHint(options2.payload);
   }
-  const payload = withoutVoiceConfirmationNextStepHint(options.payload);
-  const successfulPayload = withVoiceConfirmationNextStepHint(options.payload);
+  const payload = withoutVoiceConfirmationNextStepHint(options2.payload);
+  const successfulPayload = withVoiceConfirmationNextStepHint(options2.payload);
   const mapping = payload.mapping;
   const provider = stringField2(mapping.provider);
   const characterName = stringField2(mapping.characterName) || stringField2(payload.characterName);
@@ -42327,11 +43770,11 @@ async function materializeVoiceConfirmationResult(options) {
     if (provider !== "elevenlabs" || !characterName) return payload;
     try {
       mergeVoiceMappingFile({
-        targetDir: options.targetDir,
+        targetDir: options2.targetDir,
         provider: "elevenlabs",
         characterName,
         mapping,
-        now: options.now
+        now: options2.now
       });
       return successfulPayload;
     } catch (error2) {
@@ -42361,7 +43804,7 @@ async function materializeVoiceConfirmationResult(options) {
   }
   let bytes;
   try {
-    const response = await options.fetchImpl(audioUrl);
+    const response = await options2.fetchImpl(audioUrl);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     bytes = Buffer.from(await response.arrayBuffer());
   } catch (error2) {
@@ -42390,11 +43833,11 @@ async function materializeVoiceConfirmationResult(options) {
   }
   try {
     mergeVoiceMappingFile({
-      targetDir: options.targetDir,
+      targetDir: options2.targetDir,
       provider: "doubao",
       characterName,
       mapping,
-      now: options.now,
+      now: options2.now,
       referenceAudio: { targetPath, bytes }
     });
     return {
@@ -42402,7 +43845,7 @@ async function materializeVoiceConfirmationResult(options) {
       referenceAudio: {
         ...referenceAudio,
         localPath: targetPath,
-        absolutePath: path17.join(options.targetDir, ...targetPath.split("/")),
+        absolutePath: path17.join(options2.targetDir, ...targetPath.split("/")),
         download: { success: true }
       }
     };
@@ -42477,48 +43920,48 @@ function parseMp3Frame(bytes, offset) {
   const length = Math.floor((version2 === 1 ? 144 : 72) * bitrate * 1e3 / sampleRate) + padding;
   return length > 4 && offset + length <= bytes.length ? { length, version: version2, sampleRate } : void 0;
 }
-function mergeVoiceMappingFile(options) {
+function mergeVoiceMappingFile(options2) {
   const configPath = path17.join(
-    options.targetDir,
+    options2.targetDir,
     ".project",
-    options.provider === "doubao" ? "audio-voice-mapping.json" : "elevenlabs-voice-mapping.json"
+    options2.provider === "doubao" ? "audio-voice-mapping.json" : "elevenlabs-voice-mapping.json"
   );
-  const referencePath = options.referenceAudio ? path17.join(options.targetDir, ...options.referenceAudio.targetPath.split("/")) : void 0;
+  const referencePath = options2.referenceAudio ? path17.join(options2.targetDir, ...options2.referenceAudio.targetPath.split("/")) : void 0;
   const configDirectory = path17.dirname(configPath);
   const referenceDirectory = referencePath ? path17.dirname(referencePath) : void 0;
   fs16.mkdirSync(configDirectory, { recursive: true });
-  assertProjectDirectory(options.targetDir, configDirectory);
+  assertProjectDirectory(options2.targetDir, configDirectory);
   assertFileIsNotSymlink(configPath);
   if (referenceDirectory) {
     fs16.mkdirSync(referenceDirectory, { recursive: true });
-    assertProjectDirectory(options.targetDir, referenceDirectory);
+    assertProjectDirectory(options2.targetDir, referenceDirectory);
     assertFileIsNotSymlink(referencePath);
   }
   const oldConfig = snapshotFile(configPath);
   const oldReference = referencePath ? snapshotFile(referencePath) : void 0;
   const existing = readJsonFile2(configPath);
   const characters = isRecord2(existing == null ? void 0 : existing.characters) ? { ...existing.characters } : {};
-  const oldCharacter = isRecord2(characters[options.characterName]) ? characters[options.characterName] : {};
-  const createdAt = stringField2(oldCharacter.created_at) || options.now.toISOString();
+  const oldCharacter = isRecord2(characters[options2.characterName]) ? characters[options2.characterName] : {};
+  const createdAt = stringField2(oldCharacter.created_at) || options2.now.toISOString();
   const character = {
     ...oldCharacter,
     ...Object.fromEntries(
-      Object.entries(options.mapping).filter(([key]) => key !== "characterName")
+      Object.entries(options2.mapping).filter(([key]) => key !== "characterName")
     ),
-    provider: options.provider,
-    language: stringField2(options.mapping.language) || stringField2(oldCharacter.language) || stringField2(existing == null ? void 0 : existing.default_language) || "cmn",
-    stability: typeof options.mapping.stability === "number" ? options.mapping.stability : typeof oldCharacter.stability === "number" ? oldCharacter.stability : typeof (existing == null ? void 0 : existing.default_stability) === "number" ? existing.default_stability : 0.5,
+    provider: options2.provider,
+    language: stringField2(options2.mapping.language) || stringField2(oldCharacter.language) || stringField2(existing == null ? void 0 : existing.default_language) || "cmn",
+    stability: typeof options2.mapping.stability === "number" ? options2.mapping.stability : typeof oldCharacter.stability === "number" ? oldCharacter.stability : typeof (existing == null ? void 0 : existing.default_stability) === "number" ? existing.default_stability : 0.5,
     created_at: createdAt,
-    last_used: options.now.toISOString()
+    last_used: options2.now.toISOString()
   };
-  characters[options.characterName] = character;
+  characters[options2.characterName] = character;
   const nextConfig = {
     ...existing,
-    version: options.provider === "doubao" ? 4 : "1.0",
-    provider: options.provider,
+    version: options2.provider === "doubao" ? 4 : "1.0",
+    provider: options2.provider,
     characters
   };
-  if (options.provider === "doubao") {
+  if (options2.provider === "doubao") {
     nextConfig.default_language = stringField2(existing == null ? void 0 : existing.default_language) || "cmn";
     nextConfig.default_stability = typeof (existing == null ? void 0 : existing.default_stability) === "number" ? existing.default_stability : 0.5;
     nextConfig.special_voices = isRecord2(existing == null ? void 0 : existing.special_voices) ? existing.special_voices : {};
@@ -42533,8 +43976,8 @@ function mergeVoiceMappingFile(options) {
   const configTemp = `${configPath}.${transactionId}.tmp`;
   const referenceTemp = referencePath ? `${referencePath}.${transactionId}.tmp` : void 0;
   try {
-    if (referenceTemp && options.referenceAudio) {
-      fs16.writeFileSync(referenceTemp, options.referenceAudio.bytes, { flag: "wx" });
+    if (referenceTemp && options2.referenceAudio) {
+      fs16.writeFileSync(referenceTemp, options2.referenceAudio.bytes, { flag: "wx" });
       fs16.renameSync(referenceTemp, referencePath);
     }
     fs16.writeFileSync(configTemp, configBytes, { flag: "wx" });
@@ -42579,9 +44022,9 @@ function readJsonFile2(filePath) {
     return void 0;
   }
 }
-async function materializeCreate3dAssetResult(options) {
+async function materializeCreate3dAssetResult(options2) {
   var _a3;
-  const payload = isRecord2(options.payload.preview) ? await materializeCreate3dAssetPreviewResult(options) : options.payload;
+  const payload = isRecord2(options2.payload.preview) ? await materializeCreate3dAssetPreviewResult(options2) : options2.payload;
   const modelFile = Array.isArray(payload.model_files) ? payload.model_files.find(isRecord2) : void 0;
   if (!modelFile) {
     return payload;
@@ -42603,7 +44046,7 @@ async function materializeCreate3dAssetResult(options) {
     };
   }
   const existing = findExistingCreate3dAssetDelivery({
-    targetDir: options.targetDir,
+    targetDir: options2.targetDir,
     assetId,
     remoteUrl
   });
@@ -42621,7 +44064,7 @@ async function materializeCreate3dAssetResult(options) {
     };
   }
   const materialized = await materializeCreate3dAssetModelFile({
-    ...options,
+    ...options2,
     assetId,
     modelFile,
     remoteUrl,
@@ -42629,7 +44072,7 @@ async function materializeCreate3dAssetResult(options) {
     materialization
   });
   if ("localPath" in materialized) {
-    upsertGeneratedAssetRecord(options.targetDir, materialized.localPath, {
+    upsertGeneratedAssetRecord(options2.targetDir, materialized.localPath, {
       tool: CREATE_3D_ASSET_PROXY_TOOL_NAME,
       name: assetId,
       assetKind: "model",
@@ -42639,7 +44082,7 @@ async function materializeCreate3dAssetResult(options) {
       previewUrl: remoteUrl,
       localPath: materialized.localPath,
       absolutePath: materialized.absolutePath,
-      createdAt: options.now.toISOString(),
+      createdAt: options2.now.toISOString(),
       modelCdnUrl: remoteUrl
     });
   }
@@ -42655,25 +44098,25 @@ async function materializeCreate3dAssetResult(options) {
     })
   };
 }
-async function materializeCreate3dAssetPreviewResult(options) {
-  const preview = options.payload.preview;
-  const assetId = stringField2(options.payload.asset_id) || "3d_asset";
+async function materializeCreate3dAssetPreviewResult(options2) {
+  const preview = options2.payload.preview;
+  const assetId = stringField2(options2.payload.asset_id) || "3d_asset";
   const previewAssets = {};
   for (const view of THREE_D_MODEL_VIEWS) {
     const url2 = stringField2(preview[view]);
     const materialized = await materializeAsset({
-      targetDir: options.targetDir,
+      targetDir: options2.targetDir,
       url: url2,
       baseName: `${assetId}_${view}`,
       relativeDir: IMAGE_ASSET_DIRS[0],
       extension: extensionFromUrl(url2) || "png",
-      now: options.now,
-      fetchImpl: options.fetchImpl
+      now: options2.now,
+      fetchImpl: options2.fetchImpl
     });
     if (!materialized) continue;
     previewAssets[view] = { ...materialized, cdnUrl: url2 };
     if ("localPath" in materialized && url2) {
-      upsertGeneratedAssetRecord(options.targetDir, materialized.localPath, {
+      upsertGeneratedAssetRecord(options2.targetDir, materialized.localPath, {
         tool: CREATE_3D_ASSET_PROXY_TOOL_NAME,
         name: `${assetId}_${view}`,
         assetId,
@@ -42681,48 +44124,48 @@ async function materializeCreate3dAssetPreviewResult(options) {
         previewUrl: url2,
         localPath: materialized.localPath,
         absolutePath: materialized.absolutePath,
-        createdAt: options.now.toISOString(),
+        createdAt: options2.now.toISOString(),
         view
       });
     }
   }
-  return Object.keys(previewAssets).length > 0 ? { ...options.payload, preview_assets: previewAssets } : options.payload;
+  return Object.keys(previewAssets).length > 0 ? { ...options2.payload, preview_assets: previewAssets } : options2.payload;
 }
-async function materializeCreate3dAssetModelFile(options) {
+async function materializeCreate3dAssetModelFile(options2) {
   var _a3;
-  const targetDirectory = stringField2(options.modelFile.targetDirectory);
-  const suggestedFileName = stringField2(options.modelFile.suggestedFileName);
-  const targetAbsolutePath = targetDirectory ? resolveProjectRelativePath(options.targetDir, targetDirectory) : void 0;
-  const modelAssetRoot = path17.resolve(options.targetDir, MODEL_ASSET_DIRS[0]);
+  const targetDirectory = stringField2(options2.modelFile.targetDirectory);
+  const suggestedFileName = stringField2(options2.modelFile.suggestedFileName);
+  const targetAbsolutePath = targetDirectory ? resolveProjectRelativePath(options2.targetDir, targetDirectory) : void 0;
+  const modelAssetRoot = path17.resolve(options2.targetDir, MODEL_ASSET_DIRS[0]);
   if (!targetDirectory || !targetAbsolutePath || !isKnownAssetPath(targetDirectory, MODEL_ASSET_DIRS) || !isPathWithinDirectory(modelAssetRoot, targetAbsolutePath) || !suggestedFileName || path17.posix.basename(suggestedFileName) !== suggestedFileName || suggestedFileName.includes("\\")) {
     return {
       download: { success: false, error: "Invalid create_3d_asset local target path." }
     };
   }
-  if (options.materialization === "copy") {
+  if (options2.materialization === "copy") {
     return await materializeAssetAtPath({
-      url: options.remoteUrl,
+      url: options2.remoteUrl,
       relativePath: path17.posix.join(targetDirectory, suggestedFileName),
-      targetDir: options.targetDir,
-      fetchImpl: options.fetchImpl
+      targetDir: options2.targetDir,
+      fetchImpl: options2.fetchImpl
     });
   }
-  if (options.materialization !== "extract") {
+  if (options2.materialization !== "extract") {
     return {
       download: {
         success: false,
-        error: `Unsupported create_3d_asset materialization: ${options.materialization}`
+        error: `Unsupported create_3d_asset materialization: ${options2.materialization}`
       }
     };
   }
   const archive = await materializeAsset({
-    targetDir: options.targetDir,
-    url: options.remoteUrl,
-    baseName: options.assetId,
+    targetDir: options2.targetDir,
+    url: options2.remoteUrl,
+    baseName: options2.assetId,
     relativeDir: ".maker/assets/downloads",
     extension: path17.extname(suggestedFileName).replace(/^\./, "") || "zip",
-    now: options.now,
-    fetchImpl: options.fetchImpl
+    now: options2.now,
+    fetchImpl: options2.fetchImpl
   });
   if (!archive || !("localPath" in archive)) {
     return archive ?? {
@@ -42732,12 +44175,12 @@ async function materializeCreate3dAssetModelFile(options) {
   try {
     fs16.mkdirSync(targetAbsolutePath, { recursive: true });
     extractZip(archive.absolutePath, targetAbsolutePath, "3D model asset");
-    const entrypointExtension = ((_a3 = stringField2(options.modelFile.entrypointExtension)) == null ? void 0 : _a3.toLowerCase()) || ".mdl";
+    const entrypointExtension = ((_a3 = stringField2(options2.modelFile.entrypointExtension)) == null ? void 0 : _a3.toLowerCase()) || ".mdl";
     const entrypoint = findFileByExtension(targetAbsolutePath, entrypointExtension);
     if (!entrypoint) {
       throw new Error(`3D model archive contains no ${entrypointExtension} entrypoint.`);
     }
-    const localPath = path17.relative(options.targetDir, entrypoint).split(path17.sep).join("/");
+    const localPath = path17.relative(options2.targetDir, entrypoint).split(path17.sep).join("/");
     return {
       localPath,
       absolutePath: entrypoint,
@@ -42754,13 +44197,13 @@ async function materializeCreate3dAssetModelFile(options) {
     fs16.rmSync(archive.absolutePath, { force: true });
   }
 }
-async function materializeAssetAtPath(options) {
-  const absolutePath = resolveProjectRelativePath(options.targetDir, options.relativePath);
+async function materializeAssetAtPath(options2) {
+  const absolutePath = resolveProjectRelativePath(options2.targetDir, options2.relativePath);
   if (!absolutePath) {
     return { download: { success: false, error: "Asset target path escapes the project." } };
   }
   try {
-    const response = await options.fetchImpl(options.url);
+    const response = await options2.fetchImpl(options2.url);
     if (!response.ok) {
       return {
         download: { success: false, error: `Asset download failed: HTTP ${response.status}` }
@@ -42768,7 +44211,7 @@ async function materializeAssetAtPath(options) {
     }
     fs16.mkdirSync(path17.dirname(absolutePath), { recursive: true });
     fs16.writeFileSync(absolutePath, Buffer.from(await response.arrayBuffer()));
-    return { localPath: options.relativePath, absolutePath, download: { success: true } };
+    return { localPath: options2.relativePath, absolutePath, download: { success: true } };
   } catch (error2) {
     return {
       download: {
@@ -42791,10 +44234,10 @@ function findFileByExtension(directory, extension) {
   }
   return void 0;
 }
-function findExistingCreate3dAssetDelivery(options) {
-  const registry2 = readGeneratedAssetRegistry(options.targetDir);
+function findExistingCreate3dAssetDelivery(options2) {
+  const registry2 = readGeneratedAssetRegistry(options2.targetDir);
   const match = Object.entries(registry2).find(([, record3]) => {
-    return record3.tool === CREATE_3D_ASSET_PROXY_TOOL_NAME && record3.assetId === options.assetId && record3.cdnUrl === options.remoteUrl && typeof record3.absolutePath === "string" && fs16.existsSync(record3.absolutePath);
+    return record3.tool === CREATE_3D_ASSET_PROXY_TOOL_NAME && record3.assetId === options2.assetId && record3.cdnUrl === options2.remoteUrl && typeof record3.absolutePath === "string" && fs16.existsSync(record3.absolutePath);
   });
   if (!match) {
     return void 0;
@@ -42806,30 +44249,30 @@ function findExistingCreate3dAssetDelivery(options) {
     download: { success: true }
   };
 }
-function create3dAssetLocalDelivery(options) {
-  if (!("localPath" in options.materialized)) {
+function create3dAssetLocalDelivery(options2) {
+  if (!("localPath" in options2.materialized)) {
     return {
       status: "failed",
-      asset_id: options.assetId,
+      asset_id: options2.assetId,
       model: {
-        remote_url: options.remoteUrl,
-        format: options.format,
-        materialization: options.materialization,
-        download: options.materialized.download
+        remote_url: options2.remoteUrl,
+        format: options2.format,
+        materialization: options2.materialization,
+        download: options2.materialized.download
       }
     };
   }
   return {
     status: "success",
-    asset_id: options.assetId,
+    asset_id: options2.assetId,
     model: {
-      remote_url: options.remoteUrl,
-      local_path: options.materialized.localPath,
-      absolute_path: options.materialized.absolutePath,
-      format: options.format,
-      materialization: options.materialization,
-      reused: options.reused,
-      download: options.materialized.download
+      remote_url: options2.remoteUrl,
+      local_path: options2.materialized.localPath,
+      absolute_path: options2.materialized.absolutePath,
+      format: options2.format,
+      materialization: options2.materialization,
+      reused: options2.reused,
+      download: options2.materialized.download
     }
   };
 }
@@ -42845,22 +44288,22 @@ function create3dAssetDeliveryFailure(assetId, remoteUrl, format, materializatio
     }
   };
 }
-function persistMaterializedAsset(options) {
-  const nextPayload = { ...options.payload, ...options.materialized };
-  if (!("localPath" in options.materialized) || !options.cdnUrl) {
+function persistMaterializedAsset(options2) {
+  const nextPayload = { ...options2.payload, ...options2.materialized };
+  if (!("localPath" in options2.materialized) || !options2.cdnUrl) {
     return nextPayload;
   }
   try {
-    upsertGeneratedAssetRecord(options.targetDir, options.materialized.localPath, {
-      tool: options.toolName,
-      name: stringField2(options.payload.name) || stringField2(options.payload.title),
-      prompt: stringField2(options.payload.prompt),
-      cdnUrl: options.cdnUrl,
-      previewUrl: options.cdnUrl,
-      localPath: options.materialized.localPath,
-      absolutePath: options.materialized.absolutePath,
-      createdAt: options.now.toISOString(),
-      ...options.extraRegistryFields
+    upsertGeneratedAssetRecord(options2.targetDir, options2.materialized.localPath, {
+      tool: options2.toolName,
+      name: stringField2(options2.payload.name) || stringField2(options2.payload.title),
+      prompt: stringField2(options2.payload.prompt),
+      cdnUrl: options2.cdnUrl,
+      previewUrl: options2.cdnUrl,
+      localPath: options2.materialized.localPath,
+      absolutePath: options2.materialized.absolutePath,
+      createdAt: options2.now.toISOString(),
+      ...options2.extraRegistryFields
     });
   } catch (error2) {
     return {
@@ -42871,19 +44314,19 @@ function persistMaterializedAsset(options) {
   }
   return nextPayload;
 }
-async function materializeAsset(options) {
-  if (!options.url || !options.baseName) {
+async function materializeAsset(options2) {
+  if (!options2.url || !options2.baseName) {
     return void 0;
   }
   const { absolutePath, relativePath } = createUniqueAssetPath({
-    targetDir: options.targetDir,
-    relativeDir: options.relativeDir,
-    baseName: options.baseName,
-    extension: options.extension,
-    now: options.now
+    targetDir: options2.targetDir,
+    relativeDir: options2.relativeDir,
+    baseName: options2.baseName,
+    extension: options2.extension,
+    now: options2.now
   });
   try {
-    const response = await options.fetchImpl(options.url);
+    const response = await options2.fetchImpl(options2.url);
     if (!response.ok) {
       return {
         download: {
@@ -42905,19 +44348,19 @@ async function materializeAsset(options) {
     };
   }
 }
-function createUniqueAssetPath(options) {
-  const stem = `${sanitizeAssetBaseName(options.baseName)}_${formatAssetTimestamp(options.now)}`;
+function createUniqueAssetPath(options2) {
+  const stem = `${sanitizeAssetBaseName(options2.baseName)}_${formatAssetTimestamp(options2.now)}`;
   for (let index = 1; index <= 9999; index += 1) {
     const relativePath = path17.posix.join(
-      options.relativeDir,
-      `${stem}${index === 1 ? "" : `_${index}`}.${options.extension}`
+      options2.relativeDir,
+      `${stem}${index === 1 ? "" : `_${index}`}.${options2.extension}`
     );
-    const absolutePath = path17.join(options.targetDir, ...relativePath.split("/"));
+    const absolutePath = path17.join(options2.targetDir, ...relativePath.split("/"));
     if (!fs16.existsSync(absolutePath)) {
       return { relativePath, absolutePath };
     }
   }
-  throw new Error(`Unable to allocate unique asset path for ${stem}.${options.extension}`);
+  throw new Error(`Unable to allocate unique asset path for ${stem}.${options2.extension}`);
 }
 function rewriteEditImageAssetArgs(targetDir, args) {
   const registry2 = readGeneratedAssetRegistry(targetDir);
@@ -43069,8 +44512,8 @@ function rewriteTextToDialogueArgs(targetDir, args) {
     })
   };
 }
-async function prepareRemoteProxyToolArgsAsync(options) {
-  return prepareRemoteProxyToolArgs(options);
+async function prepareRemoteProxyToolArgsAsync(options2) {
+  return prepareRemoteProxyToolArgs(options2);
 }
 function readLocalElevenLabsVoiceMapping(targetDir) {
   const mappingPath = path17.join(targetDir, ".project", "elevenlabs-voice-mapping.json");
@@ -43114,12 +44557,12 @@ function normalizeDialogueReference(targetDir, value, registry2, index) {
     localPath: projectReference
   });
 }
-function localDialogueAudioReferenceToDataUrl(options) {
-  const absolutePath = resolveLocalAssetAbsolutePath(options.targetDir, options);
+function localDialogueAudioReferenceToDataUrl(options2) {
+  const absolutePath = resolveLocalAssetAbsolutePath(options2.targetDir, options2);
   if (!absolutePath) {
-    throw new Error(`local reference audio file was not found: ${options.value}`);
+    throw new Error(`local reference audio file was not found: ${options2.value}`);
   }
-  const projectRoot = fs16.realpathSync(path17.resolve(options.targetDir));
+  const projectRoot = fs16.realpathSync(path17.resolve(options2.targetDir));
   const realFile = fs16.realpathSync(absolutePath);
   const relative = path17.relative(projectRoot, realFile);
   if (relative === ".." || relative.startsWith(`..${path17.sep}`) || path17.isAbsolute(relative)) {
@@ -43127,7 +44570,7 @@ function localDialogueAudioReferenceToDataUrl(options) {
   }
   const stat = fs16.statSync(realFile);
   if (!stat.isFile()) {
-    throw new Error(`local reference audio path is not a file: ${options.value}`);
+    throw new Error(`local reference audio path is not a file: ${options2.value}`);
   }
   if (stat.size > AUDIO_DIALOGUE_REFERENCE_MAX_BYTES) {
     throw new Error("local reference audio file must be no larger than 20 MiB.");
@@ -43180,18 +44623,18 @@ function validateAudioDataUrl(value) {
     throw new Error("reference_audio data URL must be no larger than 20 MiB.");
   }
 }
-function rewriteUrlObjectArray(targetDir, value, registry2, options) {
+function rewriteUrlObjectArray(targetDir, value, registry2, options2) {
   if (!Array.isArray(value)) {
     return value;
   }
   return value.map(
     (item) => isRecord2(item) ? {
       ...item,
-      url: rewriteGeneratedAssetReference(targetDir, item.url, registry2, options)
+      url: rewriteGeneratedAssetReference(targetDir, item.url, registry2, options2)
     } : item
   );
 }
-function rewriteGeneratedAssetReference(targetDir, value, registry2, options) {
+function rewriteGeneratedAssetReference(targetDir, value, registry2, options2) {
   var _a3, _b;
   if (typeof value !== "string") {
     return value;
@@ -43199,7 +44642,7 @@ function rewriteGeneratedAssetReference(targetDir, value, registry2, options) {
   if (/^https?:\/\//i.test(value) || value.startsWith("data:")) {
     return value;
   }
-  const localPath = resolveLocalAssetReference(targetDir, value, registry2, options.assetDirs);
+  const localPath = resolveLocalAssetReference(targetDir, value, registry2, options2.assetDirs);
   const cdnUrl = localPath ? ((_a3 = registry2[localPath]) == null ? void 0 : _a3.cdnUrl) || ((_b = registry2[localPath]) == null ? void 0 : _b.previewUrl) : void 0;
   if (cdnUrl) {
     return cdnUrl;
@@ -43208,8 +44651,8 @@ function rewriteGeneratedAssetReference(targetDir, value, registry2, options) {
     targetDir,
     value,
     localPath,
-    mediaKind: options.mediaKind,
-    maxBytes: options.maxBytes
+    mediaKind: options2.mediaKind,
+    maxBytes: options2.maxBytes
   });
   return dataUrl || value;
 }
@@ -43287,15 +44730,15 @@ function isKnownAssetPath(relativePath, assetDirs) {
 function isBareAssetName(value) {
   return !value.includes("/") && !value.includes("\\");
 }
-function localAssetReferenceToDataUrl(options) {
-  const absolutePath = resolveLocalAssetAbsolutePath(options.targetDir, {
-    value: options.value,
-    localPath: options.localPath
+function localAssetReferenceToDataUrl(options2) {
+  const absolutePath = resolveLocalAssetAbsolutePath(options2.targetDir, {
+    value: options2.value,
+    localPath: options2.localPath
   });
   if (!absolutePath) {
     return void 0;
   }
-  const mime = dataUrlMimeForPath(absolutePath, options.mediaKind);
+  const mime = dataUrlMimeForPath(absolutePath, options2.mediaKind);
   if (!mime) {
     return void 0;
   }
@@ -43305,24 +44748,24 @@ function localAssetReferenceToDataUrl(options) {
   } catch {
     return void 0;
   }
-  if (!stat.isFile() || stat.size > options.maxBytes) {
+  if (!stat.isFile() || stat.size > options2.maxBytes) {
     return void 0;
   }
   const bytes = fs16.readFileSync(absolutePath);
   return `data:${mime};base64,${bytes.toString("base64")}`;
 }
-function resolveLocalAssetAbsolutePath(targetDir, options) {
+function resolveLocalAssetAbsolutePath(targetDir, options2) {
   const candidates = [];
-  if (options.localPath) {
-    const localPath = resolveProjectRelativePath(targetDir, options.localPath);
+  if (options2.localPath) {
+    const localPath = resolveProjectRelativePath(targetDir, options2.localPath);
     if (localPath) {
       candidates.push(localPath);
     }
   }
-  if (path17.isAbsolute(options.value)) {
-    candidates.push(options.value);
+  if (path17.isAbsolute(options2.value)) {
+    candidates.push(options2.value);
   } else {
-    const localPath = resolveProjectRelativePath(targetDir, options.value);
+    const localPath = resolveProjectRelativePath(targetDir, options2.value);
     if (localPath) {
       candidates.push(localPath);
     }
@@ -43462,7 +44905,8 @@ var MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION = [
   "`Need to call maker_build_current_directory` is a normal project build prerequisite, not an MCP connectivity failure or issue-report trigger.",
   "Use this tool for explicit Maker build, preview, submit, or push requests. Code tests and lint do not trigger this remote workflow unless the user also explicitly asks to build, run, or preview the Maker game.",
   "Normal mode commits local changes when needed, pushes existing or new commits, and then starts the remote build; a clean workspace creates the required wake-up commit.",
-  "Unsafe remote-sync or branch states stop before commit and push. A push failure stops before build, while a build failure after a successful push means the code is already on Maker remote; follow the structured result for recovery.",
+  "When local main is only behind Maker remote, normal mode automatically fast-forwards before committing. Diverged history, a non-main branch, unavailable remote sync, or a fast-forward that would overwrite local changes stops before commit and push.",
+  "A push failure stops before build, while a build failure after a successful push means the code is already on Maker remote; follow the structured result for recovery.",
   "On failure, read failure_stage, code_submit_status, and remote_build_status before explaining whether project validation, code submit/push, or remote build failed.",
   'Known local authentication or project-context preparation failures use failure_stage="local_build_context" and remote_build_status="not_started"; follow the returned login or init recovery instead of describing a remote build failure.',
   'When an error explicitly reports a local PowerShell, CLI, or Git process blocked by sandbox policy, EPERM, or EACCES, ask the user to check the AI client sandbox and suggest Full Access mode ("完全访问模式") only for a trusted project. For remote Git or remote build failures, inspect the returned Git, code, and resource diagnostics first and mention sandbox access only if local commands are also blocked. Treat sandbox as a check, not a confirmed cause, for otherwise unclassified local execution failures. Follow the returned fix directly for known project-validation or project-context errors.',
@@ -44371,166 +45815,19 @@ var remoteProxyToolSnapshot_default = {
   ]
 };
 
-// src/mcp-proxy/config.ts
-var DEFAULT_TOOL_CALL_TIMEOUT_MS = 60 * 60 * 1e3;
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    process.stdin.on("data", (chunk) => {
-      chunks.push(chunk);
-    });
-    process.stdin.on("end", () => {
-      resolve(Buffer.concat(chunks).toString("utf-8"));
-    });
-    process.stdin.on("error", reject);
-    setTimeout(() => {
-      reject(new Error("Timeout reading from stdin"));
-    }, 5e3);
-  });
-}
-async function loadConfig() {
-  let configJson;
-  let source;
-  if (process.argv[2]) {
-    configJson = process.argv[2];
-    source = "command line argument";
-  } else if (process.env.PROXY_CONFIG) {
-    configJson = process.env.PROXY_CONFIG;
-    source = "PROXY_CONFIG environment variable";
-  } else if (!process.stdin.isTTY) {
-    configJson = await readStdin();
-    source = "stdin";
-  } else {
-    throw new Error(
-      `No configuration provided. Please use one of:
-1. Command line: node index.js '{"server":{...}}'
-2. Env var: PROXY_CONFIG='{"server":{...}}' node index.js
-3. Stdin: echo '{"server":{...}}' | node index.js
-
-See config.example.json for configuration format.`
-    );
-  }
-  console.error(`[Proxy] Loading config from ${source}`);
-  let config2;
-  try {
-    config2 = JSON.parse(configJson);
-  } catch (error2) {
-    throw new Error(
-      `Failed to parse configuration JSON: ${error2 instanceof Error ? error2.message : String(error2)}
-Received: ${configJson.substring(0, 100)}...`
-    );
-  }
-  validateConfig(config2);
-  return applyDefaults(config2);
-}
-function validateConfig(config2) {
-  var _a3, _b;
-  const errors = [];
-  if (!config2.server) {
-    errors.push("- Missing required field: server");
-  } else {
-    if (!config2.server.url) {
-      errors.push("- Missing required field: server.url");
-    }
-    if (config2.server.env && !["rnd", "production"].includes(config2.server.env)) {
-      errors.push('- Invalid server.env: must be "rnd" or "production"');
-    }
-  }
-  if (!config2.tenant) {
-    errors.push("- Missing required field: tenant");
-  } else {
-    if (config2.tenant.custom_fields !== void 0) {
-      const cf = config2.tenant.custom_fields;
-      if (typeof cf !== "object" || cf === null || Array.isArray(cf) || Object.getPrototypeOf(cf) !== Object.prototype) {
-        errors.push("- tenant.custom_fields must be a plain object (Record<string, string>)");
-      } else if (!Object.values(cf).every((v) => typeof v === "string")) {
-        errors.push("- tenant.custom_fields values must all be strings");
-      }
-    }
-  }
-  if (!config2.auth) {
-    errors.push("- Missing required field: auth");
-  } else {
-    if (!config2.auth.kid) {
-      errors.push("- Missing required field: auth.kid");
-    }
-    if (!config2.auth.mac_key) {
-      errors.push("- Missing required field: auth.mac_key");
-    }
-    if (config2.auth.token_type !== "mac") {
-      errors.push('- Invalid auth.token_type: must be "mac"');
-    }
-    if (config2.auth.mac_algorithm !== "hmac-sha-1") {
-      errors.push('- Invalid auth.mac_algorithm: must be "hmac-sha-1"');
-    }
-  }
-  if (((_a3 = config2.options) == null ? void 0 : _a3.exposed_tools) !== void 0) {
-    const exposedTools = config2.options.exposed_tools;
-    if (!Array.isArray(exposedTools)) {
-      errors.push("- options.exposed_tools must be an array of tool names");
-    } else if (!exposedTools.every((toolName) => typeof toolName === "string" && toolName.trim().length > 0)) {
-      errors.push("- options.exposed_tools values must be non-empty strings");
-    }
-  }
-  if (((_b = config2.options) == null ? void 0 : _b.replayable_tools) !== void 0) {
-    const replayableTools = config2.options.replayable_tools;
-    if (!Array.isArray(replayableTools)) {
-      errors.push("- options.replayable_tools must be an array of tool names");
-    } else if (!replayableTools.every(
-      (toolName) => typeof toolName === "string" && toolName.trim().length > 0
-    )) {
-      errors.push("- options.replayable_tools values must be non-empty strings");
-    }
-  }
-  if (errors.length > 0) {
-    throw new Error("Invalid configuration:\n" + errors.join("\n"));
-  }
-}
-var DEFAULT_LOG_ROOT = "/tmp/taptap-mcp/logs";
-function applyDefaults(config2) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
-  const verbose = ((_a3 = config2.options) == null ? void 0 : _a3.verbose) ?? false;
-  return {
-    server: {
-      url: config2.server.url,
-      env: config2.server.env || "rnd"
-    },
-    tenant: {
-      project_path: config2.tenant.project_path || ".",
-      user_id: config2.tenant.user_id,
-      project_id: config2.tenant.project_id,
-      custom_fields: config2.tenant.custom_fields
-    },
-    auth: config2.auth,
-    options: {
-      verbose,
-      reconnect_interval: ((_b = config2.options) == null ? void 0 : _b.reconnect_interval) ?? 5e3,
-      request_timeout: ((_c = config2.options) == null ? void 0 : _c.request_timeout) ?? 3e4,
-      tool_call_timeout: ((_d = config2.options) == null ? void 0 : _d.tool_call_timeout) ?? DEFAULT_TOOL_CALL_TIMEOUT_MS,
-      reset_timeout_on_progress: ((_e = config2.options) == null ? void 0 : _e.reset_timeout_on_progress) ?? true,
-      health_check_interval: ((_f = config2.options) == null ? void 0 : _f.health_check_interval) ?? 3e4,
-      enable_cookie_sticky: ((_g = config2.options) == null ? void 0 : _g.enable_cookie_sticky) ?? true,
-      disable_standalone_sse: ((_h = config2.options) == null ? void 0 : _h.disable_standalone_sse) ?? false,
-      inject_params_per_call: ((_i = config2.options) == null ? void 0 : _i.inject_params_per_call) ?? true,
-      force_inject_progress_token: ((_j = config2.options) == null ? void 0 : _j.force_inject_progress_token) ?? false,
-      exposed_tools: (_k = config2.options) == null ? void 0 : _k.exposed_tools,
-      replayable_tools: (_l = config2.options) == null ? void 0 : _l.replayable_tools,
-      log: {
-        root: ((_n = (_m = config2.options) == null ? void 0 : _m.log) == null ? void 0 : _n.root) ?? DEFAULT_LOG_ROOT,
-        enabled: ((_p = (_o = config2.options) == null ? void 0 : _o.log) == null ? void 0 : _p.enabled) ?? false,
-        // verbose=true 时自动使用 debug 级别
-        level: verbose ? "debug" : ((_r = (_q = config2.options) == null ? void 0 : _q.log) == null ? void 0 : _r.level) ?? "info",
-        max_days: ((_t = (_s = config2.options) == null ? void 0 : _s.log) == null ? void 0 : _t.max_days) ?? 7
-      }
-    }
-  };
-}
+// src/maker/proxyPolicy.ts
+var MAKER_TOOL_CALL_TIMEOUT_MS = 60 * 60 * 1e3;
+var MAKER_PROXY_RUNTIME_OPTIONS = {
+  sourceTag: "local",
+  remoteErrorMode: "tool-result",
+  recoveryMode: "resilient"
+};
 
 // src/maker/tracking.ts
 var MAKER_MCP_TRACKING_ACTION = "tapmaker_mcp_call";
 var MAKER_MCP_TRACKING_SOURCE = "local_mcp";
 var MAKER_MCP_TRACKING_TIMEOUT_MS = 1500;
-var MAKER_MCP_VERSION = "0.0.32".trim() ? "0.0.32".trim() : "dev";
+var MAKER_MCP_VERSION = "0.0.33".trim() ? "0.0.33".trim() : "dev";
 var TRACKING_ERROR_MAX_LENGTH = 500;
 function buildMakerMcpTrackingPayload(event) {
   var _a3, _b, _c;
@@ -44687,12 +45984,12 @@ function createDefaultClient(_context, handlers) {
     }
   );
 }
-function createMakerRemoteProxyManager(options = {}) {
+function createMakerRemoteProxyManager(options2 = {}) {
   const connections = /* @__PURE__ */ new Map();
   const retiredEntries = /* @__PURE__ */ new Set();
   const cachedTools = /* @__PURE__ */ new Map();
-  const createClient = options.createClient || createDefaultClient;
-  const createTransport = options.createTransport || createDefaultTransport;
+  const createClient = options2.createClient || createDefaultClient;
+  const createTransport = options2.createTransport || createDefaultTransport;
   let closed = false;
   let closePromise;
   const closeEntry = (entry) => {
@@ -44762,7 +46059,7 @@ function createMakerRemoteProxyManager(options = {}) {
         const definitions = tools2;
         cachedTools.set(key, definitions);
         try {
-          await ((_b = options.onToolsChanged) == null ? void 0 : _b.call(options, context, definitions));
+          await ((_b = options2.onToolsChanged) == null ? void 0 : _b.call(options2, context, definitions));
         } catch {
         }
       }
@@ -44843,7 +46140,7 @@ function createMakerRemoteProxyManager(options = {}) {
 }
 
 // src/maker/server/mcp.ts
-var VERSION = true ? "0.0.32" : "dev";
+var VERSION = true ? "0.0.33" : "dev";
 var DEFAULT_BUILD_TIMEOUT_MS = 10 * 60 * 1e3;
 var DEFAULT_PROXY_RETRY_ATTEMPTS = 5;
 var DEFAULT_PROXY_RETRY_DELAY_MS = 30 * 1e3;
@@ -44851,6 +46148,12 @@ var PREVIEW_REFRESH_TIMEOUT_MS = 15 * 1e3;
 var WATCHER_STOP_TIMEOUT_MS = 1500;
 var WATCHER_PROCESS_PATTERN = /(?:\btaptap-maker\b|\bmaker\.js\b).*\blogs\b.*\bwatch\b/;
 var LONG_OPERATION_HEARTBEAT_MS = 3 * 60 * 1e3;
+var MAKER_MCP_BLACKLISTED_MESSAGE = [
+  "Maker MCP access blocked",
+  "",
+  "- code: BLACKLISTED",
+  "- message: 当前 Maker 账号已被限制，无法使用 Maker MCP 工具。"
+].join("\n");
 var MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   "generate_image",
   "batch_generate_images",
@@ -45045,11 +46348,11 @@ function isPlainRecord(value) {
 function isExposedRemoteProxyTool(name) {
   return MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.includes(name);
 }
-async function listRemoteProxyTools(options) {
+async function listRemoteProxyTools(options2) {
   const proxy = createRemoteProxyContext({
-    targetDir: options.targetDir,
-    serverUrl: options.serverUrl,
-    env: options.env,
+    targetDir: options2.targetDir,
+    serverUrl: options2.serverUrl,
+    env: options2.env,
     exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES
   });
   const transport = trackMakerChildTransport(
@@ -45078,25 +46381,25 @@ async function listRemoteProxyTools(options) {
     });
   }
 }
-async function callRemoteProxyTool(options) {
+async function callRemoteProxyTool(options2) {
   const createProxy = () => createRemoteProxyContext({
-    targetDir: options.targetDir,
+    targetDir: options2.targetDir,
     exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES
   });
   let proxy = createProxy();
   const finalArgs = await prepareRemoteProxyToolArgsAsync({
-    toolName: options.name,
+    toolName: options2.name,
     targetDir: proxy.projectRoot,
-    args: options.args
+    args: options2.args
   });
-  const requestOptions = createRemoteProxyCallToolOptions(options.progressToken, options.extra);
-  const callTool = options.manager ? async () => {
+  const requestOptions = createRemoteProxyCallToolOptions(options2.progressToken, options2.extra);
+  const callTool = options2.manager ? async () => {
     proxy = createProxy();
     let dispatched = false;
     try {
-      return await options.manager.callTool(
+      return await options2.manager.callTool(
         proxy,
-        { name: options.name, arguments: finalArgs },
+        { name: options2.name, arguments: finalArgs },
         requestOptions,
         () => {
           dispatched = true;
@@ -45104,7 +46407,7 @@ async function callRemoteProxyTool(options) {
       );
     } catch (error2) {
       throw new RemoteProxyToolCallError(
-        options.name,
+        options2.name,
         dispatched ? "unknown" : "not_executed",
         error2
       );
@@ -45132,12 +46435,12 @@ async function callRemoteProxyTool(options) {
     } catch (error2) {
       await client.close().catch(() => {
       });
-      throw new RemoteProxyToolCallError(options.name, "not_executed", error2);
+      throw new RemoteProxyToolCallError(options2.name, "not_executed", error2);
     }
     try {
       return await client.callTool(
         {
-          name: options.name,
+          name: options2.name,
           arguments: finalArgs
         },
         void 0,
@@ -45146,7 +46449,7 @@ async function callRemoteProxyTool(options) {
         }
       );
     } catch (error2) {
-      throw new RemoteProxyToolCallError(options.name, "unknown", error2);
+      throw new RemoteProxyToolCallError(options2.name, "unknown", error2);
     } finally {
       await client.close().catch(() => {
       });
@@ -45154,7 +46457,7 @@ async function callRemoteProxyTool(options) {
   };
   const result = await callTool();
   return await materializeRemoteProxyToolAssets({
-    toolName: options.name,
+    toolName: options2.name,
     targetDir: proxy.projectRoot,
     result
   });
@@ -45192,13 +46495,14 @@ function inspectMakerQrcodeToolPreflight(targetDir, confirmedOrientation) {
 }
 function createRemoteProxyCallToolOptions(progressToken, extra) {
   return {
-    timeout: DEFAULT_TOOL_CALL_TIMEOUT_MS,
+    timeout: MAKER_TOOL_CALL_TIMEOUT_MS,
     resetTimeoutOnProgress: true,
     onprogress: createRemoteProxyProgressHandler(progressToken, extra)
   };
 }
 async function startMakerMcpServer() {
   startMakerPackageUpdateCheck({ currentVersion: VERSION });
+  const accessStatePromise = resolveMakerMcpAccessState(getMakerEnvironment());
   const server = new Server(
     {
       name: "taptap-maker",
@@ -45216,6 +46520,10 @@ async function startMakerMcpServer() {
   const remoteProxyManager = createMakerRemoteProxyManager();
   const startupReportedProjects = /* @__PURE__ */ new Set();
   server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const accessState = await accessStatePromise;
+    if (accessState.blocked) {
+      return { tools: [tools[0]] };
+    }
     const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
     return listMakerTools();
@@ -45229,6 +46537,18 @@ async function startMakerMcpServer() {
     const uri = request.params.uri;
     if (uri !== "maker://status" && uri !== MAKER_ADS_INTEGRATION_GUIDE_URI) {
       throw new McpError(ErrorCode.InvalidParams, `Unknown Maker resource: ${uri}`);
+    }
+    const accessState = await accessStatePromise;
+    if (uri === "maker://status" && accessState.blocked) {
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: "text/plain",
+            text: accessState.message
+          }
+        ]
+      };
     }
     const startedAt = Date.now();
     const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
@@ -45265,6 +46585,13 @@ async function startMakerMcpServer() {
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     var _a3, _b;
     const name = request.params.name;
+    const accessState = await accessStatePromise;
+    if (accessState.blocked) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: accessState.message }]
+      };
+    }
     const startedAt = Date.now();
     const rawArgs = request.params.arguments || {};
     const hasInvalidTargetDir = rawArgs.target_dir !== void 0 && (typeof rawArgs.target_dir !== "string" || !rawArgs.target_dir.trim());
@@ -45449,12 +46776,28 @@ async function startMakerMcpServer() {
   await server.connect(transport);
   installMakerServerExitHandlers(remoteProxyManager);
 }
-async function resolveMakerMcpTrackingContext(options) {
+async function resolveMakerMcpAccessState(environment) {
+  try {
+    await requestTapAuthWithPat(void 0, environment);
+    return { blocked: false };
+  } catch (error2) {
+    const responseCode = error2 && typeof error2 === "object" ? error2.responseCode : void 0;
+    if (responseCode === "BLACKLISTED") {
+      return {
+        blocked: true,
+        code: "BLACKLISTED",
+        message: MAKER_MCP_BLACKLISTED_MESSAGE
+      };
+    }
+    return { blocked: false };
+  }
+}
+async function resolveMakerMcpTrackingContext(options2) {
   var _a3, _b;
   try {
     const context = await resolveMakerProjectContext({
-      targetDir: options.targetDir,
-      listClientRoots: options.listClientRoots,
+      targetDir: options2.targetDir,
+      listClientRoots: options2.listClientRoots,
       allowFallbackOnAmbiguousRoots: false
     });
     const identify = identifyMakerProject({ cwd: context.targetDir });
@@ -45534,14 +46877,14 @@ function installMakerServerExitHandlers(remoteProxyManager) {
     void shutdown("maker-server-sigterm");
   });
 }
-async function formatStatus(options = {}) {
+async function formatStatus(options2 = {}) {
   var _a3;
-  const detail = options.detail === true;
+  const detail = options2.detail === true;
   const distribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
   const pluginDistribution = resolveMakerPluginDistribution(distribution);
   const projectContext = await resolveMakerProjectContext({
-    targetDir: options.targetDir,
-    listClientRoots: options.listClientRoots,
+    targetDir: options2.targetDir,
+    listClientRoots: options2.listClientRoots,
     allowFallbackOnAmbiguousRoots: true
   });
   const targetDir = projectContext.targetDir;
@@ -45550,7 +46893,7 @@ async function formatStatus(options = {}) {
   const mcpCwd = process.cwd();
   const mcpCwdIdentify = path18.resolve(mcpCwd) === path18.resolve(targetDir) ? identify : identifyMakerProject({ cwd: mcpCwd });
   const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
-  const remoteSyncText = detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo && !options.skipRemoteSync ? await formatMakerRemoteSyncStatusSafely(identify.projectRoot) : detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo ? formatMakerRemoteSyncSkipped() : "";
+  const remoteSyncText = detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo && !options2.skipRemoteSync ? await formatMakerRemoteSyncStatusSafely(identify.projectRoot) : detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo ? formatMakerRemoteSyncSkipped() : "";
   const pat = loadPat();
   const tapAuth = loadTapAuth();
   const git = checkGitEnvironment();
@@ -45672,7 +47015,7 @@ async function formatStatus(options = {}) {
     "",
     identify.projectRoot ? await formatMakerProxyToolsStatusSafely({
       targetDir: identify.projectRoot,
-      remoteProxyManager: options.remoteProxyManager
+      remoteProxyManager: options2.remoteProxyManager
     }) : "",
     "",
     formatAuthNextStep({
@@ -45688,7 +47031,7 @@ async function formatStatus(options = {}) {
     "",
     identify.projectRoot ? await formatAiDevKitStatus(identify.projectRoot, {
       environment: env,
-      skipVersionCheck: options.skipRemoteSync
+      skipVersionCheck: options2.skipRemoteSync
     }) : "",
     "",
     formatMakerSkillStatus({ projectRoot: identify.projectRoot || targetDir }),
@@ -45711,16 +47054,16 @@ function formatMakerPackageUpdateStatusForDistribution(status, distribution) {
   }
   return lines.join("\n");
 }
-function formatAuthNextStep(options) {
-  if (!options.hasTapAuth) {
-    if (options.hasPat) {
+function formatAuthNextStep(options2) {
+  if (!options2.hasTapAuth) {
+    if (options2.hasPat) {
       return [
         "Auth next step",
         "",
         "TapTap auth 缺失。请运行 `taptap-maker login` 刷新登录授权。"
       ].join("\n");
     }
-    if (options.isProjectBound) {
+    if (options2.isProjectBound) {
       return [
         "Auth next step",
         "",
@@ -45728,17 +47071,17 @@ function formatAuthNextStep(options) {
       ].join("\n");
     }
   }
-  if (options.hasPat) {
+  if (options2.hasPat) {
     return "";
   }
-  if (options.isProjectBound) {
+  if (options2.isProjectBound) {
     return [
       "Auth next step",
       "",
       "Maker PAT 缺失。请运行 `taptap-maker login` 刷新登录授权。"
     ].join("\n");
   }
-  if (options.rootsAmbiguous) {
+  if (options2.rootsAmbiguous) {
     return "";
   }
   return [
@@ -45780,23 +47123,23 @@ function formatMakerClientRootsSummary(roots) {
   }
   return lines.join("\n");
 }
-function formatMakerSummaryNextAction(options) {
+function formatMakerSummaryNextAction(options2) {
   var _a3, _b, _c, _d, _e;
-  if (options.rootsAmbiguous) {
+  if (options2.rootsAmbiguous) {
     return "";
   }
-  if (!options.git.installed) {
+  if (!options2.git.installed) {
     return "- next_action: Git 未安装。请先安装 Git，并执行 `git --version` 验证。";
   }
-  if (!options.gitDirectoryStatus.isUsableMakerGitRepo) {
-    const nextAction = options.gitDirectoryStatus.issue === "inside_parent_git_repo" ? "当前目录位于外层 Git 仓库中；请使用独立 Maker 项目目录重新 clone。" : "当前目录没有可用的独立 Maker Git 仓库；请运行 `taptap-maker init` 重新初始化。";
+  if (!options2.gitDirectoryStatus.isUsableMakerGitRepo) {
+    const nextAction = options2.gitDirectoryStatus.issue === "inside_parent_git_repo" ? "当前目录位于外层 Git 仓库中；请使用独立 Maker 项目目录重新 clone。" : "当前目录没有可用的独立 Maker Git 仓库；请运行 `taptap-maker init` 重新初始化。";
     return `- next_action: ${nextAction}`;
   }
-  if (((_a3 = options.projectHealth) == null ? void 0 : _a3.status) === "misplaced_config") {
+  if (((_a3 = options2.projectHealth) == null ? void 0 : _a3.status) === "misplaced_config") {
     return "- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。";
   }
-  if (((_b = options.projectHealth) == null ? void 0 : _b.status) === "error" && !options.projectHealth.issues.some((issue3) => issue3.code === "invalid_project_json")) {
-    const settingsIssue = options.projectHealth.issues.find(
+  if (((_b = options2.projectHealth) == null ? void 0 : _b.status) === "error" && !options2.projectHealth.issues.some((issue3) => issue3.code === "invalid_project_json")) {
+    const settingsIssue = options2.projectHealth.issues.find(
       (issue3) => issue3.code === "invalid_settings_json" || issue3.code === "invalid_project_settings"
     );
     if (settingsIssue) {
@@ -45804,8 +47147,8 @@ function formatMakerSummaryNextAction(options) {
     }
     return "- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。";
   }
-  if (options.projectInitialization) {
-    switch (options.projectInitialization.status) {
+  if (options2.projectInitialization) {
+    switch (options2.projectInitialization.status) {
       case "missing_taptap_identity":
         return "- next_action: 先调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。";
       case "invalid_project_json":
@@ -45816,8 +47159,8 @@ function formatMakerSummaryNextAction(options) {
         break;
     }
   }
-  if (((_c = options.projectHealth) == null ? void 0 : _c.status) === "error") {
-    const settingsIssue = options.projectHealth.issues.find(
+  if (((_c = options2.projectHealth) == null ? void 0 : _c.status) === "error") {
+    const settingsIssue = options2.projectHealth.issues.find(
       (issue3) => issue3.code === "invalid_settings_json" || issue3.code === "invalid_project_settings"
     );
     if (settingsIssue) {
@@ -45825,10 +47168,10 @@ function formatMakerSummaryNextAction(options) {
     }
     return "- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。";
   }
-  if (((_d = options.projectHealth) == null ? void 0 : _d.status) === "warning") {
+  if (((_d = options2.projectHealth) == null ? void 0 : _d.status) === "warning") {
     return "- next_action: 调用 `maker_status_lite` 并设置 `detail=true` 查看项目结构告警后再继续。";
   }
-  if (((_e = options.projectHealth) == null ? void 0 : _e.status) === "not_initialized") {
+  if (((_e = options2.projectHealth) == null ? void 0 : _e.status) === "not_initialized") {
     return "- next_action: 仅当用户明确要求构建、提交或预览时调用 `maker_build_current_directory`。";
   }
   return "";
@@ -45852,14 +47195,14 @@ async function formatMakerRemoteSyncStatusSafely(projectRoot) {
     return formatMakerRemoteSyncUnavailable(error2);
   }
 }
-function formatMakerToolRegistrationCwdStatus(options) {
-  if (!options.projectRoot) {
+function formatMakerToolRegistrationCwdStatus(options2) {
+  if (!options2.projectRoot) {
     return "";
   }
-  const mcpCwd = path18.resolve(options.mcpCwd);
-  const targetDir = path18.resolve(options.targetDir);
-  const projectRoot = path18.resolve(options.projectRoot);
-  const mcpProjectRoot = options.mcpProjectRoot ? path18.resolve(options.mcpProjectRoot) : void 0;
+  const mcpCwd = path18.resolve(options2.mcpCwd);
+  const targetDir = path18.resolve(options2.targetDir);
+  const projectRoot = path18.resolve(options2.projectRoot);
+  const mcpProjectRoot = options2.mcpProjectRoot ? path18.resolve(options2.mcpProjectRoot) : void 0;
   if (mcpProjectRoot === projectRoot) {
     return "";
   }
@@ -45875,15 +47218,15 @@ function formatMakerToolRegistrationCwdStatus(options) {
     "- next_action: Open the Maker project as the active workspace, or pass the Maker project directory as target_dir. Do not rewrite a shared user-level MCP cwd."
   ].join("\n");
 }
-async function formatMakerProxyToolsStatusSafely(options) {
+async function formatMakerProxyToolsStatusSafely(options2) {
   try {
-    const listedRemoteTools = options.listRemoteTools ?? (options.remoteProxyManager ? async () => options.remoteProxyManager.listTools(
+    const listedRemoteTools = options2.listRemoteTools ?? (options2.remoteProxyManager ? async () => options2.remoteProxyManager.listTools(
       createRemoteProxyContext({
-        targetDir: options.targetDir,
+        targetDir: options2.targetDir,
         exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES
       })
     ) : () => listRemoteProxyTools({
-      targetDir: options.targetDir
+      targetDir: options2.targetDir
     }));
     const availableTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
       (tool) => tool.name
@@ -45916,12 +47259,12 @@ async function formatMakerProxyToolsStatusSafely(options) {
     ].join("\n");
   }
 }
-async function retryMakerProxyOperation(operation, options = {}) {
+async function retryMakerProxyOperation(operation, options2 = {}) {
   var _a3;
-  const attempts = Math.max(1, options.attempts || DEFAULT_PROXY_RETRY_ATTEMPTS);
-  const delayMs = Math.max(0, options.delayMs ?? DEFAULT_PROXY_RETRY_DELAY_MS);
-  const sleep2 = options.sleep || sleepMs;
-  const shouldRetry = options.shouldRetry || isRetryableMakerProxyError;
+  const attempts = Math.max(1, options2.attempts || DEFAULT_PROXY_RETRY_ATTEMPTS);
+  const delayMs = Math.max(0, options2.delayMs ?? DEFAULT_PROXY_RETRY_DELAY_MS);
+  const sleep2 = options2.sleep || sleepMs;
+  const shouldRetry = options2.shouldRetry || isRetryableMakerProxyError;
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -45934,7 +47277,7 @@ async function retryMakerProxyOperation(operation, options = {}) {
       const message = `Maker proxy connection failed on attempt ${attempt}/${attempts}; retrying in ${Math.round(
         delayMs / 1e3
       )}s. ${error2 instanceof Error ? error2.message : String(error2)}`;
-      (_a3 = options.onRetry) == null ? void 0 : _a3.call(options, { attempt, attempts, delayMs, message });
+      (_a3 = options2.onRetry) == null ? void 0 : _a3.call(options2, { attempt, attempts, delayMs, message });
       await sleep2(delayMs);
     }
   }
@@ -46107,15 +47450,15 @@ function createServerClientRootsProvider(server) {
     return result.roots;
   };
 }
-async function resolveMakerProjectContext(options = {}) {
-  if (options.targetDir) {
+async function resolveMakerProjectContext(options2 = {}) {
+  if (options2.targetDir) {
     return {
-      targetDir: path18.resolve(options.targetDir),
+      targetDir: path18.resolve(options2.targetDir),
       source: "explicit_target_dir",
       roots: { status: "not_requested", roots: [] }
     };
   }
-  const roots = await resolveMakerClientRoots(options.listClientRoots);
+  const roots = await resolveMakerClientRoots(options2.listClientRoots);
   if (roots.status === "selected") {
     return {
       targetDir: roots.selectedProjectRoot || roots.selectedRoot,
@@ -46123,7 +47466,7 @@ async function resolveMakerProjectContext(options = {}) {
       roots
     };
   }
-  if (roots.status === "ambiguous" && !options.allowFallbackOnAmbiguousRoots) {
+  if (roots.status === "ambiguous" && !options2.allowFallbackOnAmbiguousRoots) {
     throw new MakerProjectContextAmbiguousError(
       [
         "Multiple Maker project roots are attached to this MCP session.",
@@ -46280,9 +47623,9 @@ function splitRemoteProxyToolPrivateArgs(args, toolName) {
   }
   return { targetDir, remoteArgs };
 }
-async function formatAiDevKitStatus(projectRoot, options = {}) {
+async function formatAiDevKitStatus(projectRoot, options2 = {}) {
   const devKitStatus = inspectAiDevKit(projectRoot);
-  const updateStatus = options.skipVersionCheck ? void 0 : await checkAiDevKitUpdate(projectRoot, { environment: options.environment });
+  const updateStatus = options2.skipVersionCheck ? void 0 : await checkAiDevKitUpdate(projectRoot, { environment: options2.environment });
   if (devKitStatus.ready) {
     return formatAiDevKitStatusLines("ready", devKitStatus, updateStatus).join("\n");
   }
@@ -46409,16 +47752,16 @@ function formatClonePartialStateLines(targetDir) {
     safeToRetry ? "- next_step: 可以直接重试 taptap-maker init；如果连续失败，建议换一个全新的独立目录重新 clone。" : "- next_step: 当前目录已经有 Maker 绑定信息；先运行 taptap-maker doctor 或读取 maker://status 确认状态。"
   ].filter(Boolean);
 }
-function createRemoteProxyContext(options) {
-  const identify = identifyMakerProject({ cwd: options.targetDir });
+function createRemoteProxyContext(options2) {
+  const identify = identifyMakerProject({ cwd: options2.targetDir });
   if (!identify.projectRoot || !identify.projectId) {
     throw new MakerBuildContextError(
-      `${options.targetDir} is not bound to a Maker project. Run taptap-maker init first.`
+      `${options2.targetDir} is not bound to a Maker project. Run taptap-maker init first.`
     );
   }
   const projectConfig = loadProjectConfig(identify.projectRoot);
   const projectId = (projectConfig == null ? void 0 : projectConfig.project_id) || identify.projectId;
-  const env = getMakerEnvironment(options.env, identify.projectRoot);
+  const env = getMakerEnvironment(options2.env, identify.projectRoot);
   const tapAuth = loadTapAuth();
   if (!tapAuth) {
     throw new MakerBuildContextError("Tap auth not found. Run `taptap-maker login` first.");
@@ -46433,7 +47776,7 @@ function createRemoteProxyContext(options) {
       "Cannot resolve user_id. Re-run taptap-maker init with PAT so the project config can cache user_id."
     );
   }
-  const serverUrl = options.serverUrl || requireMakerEndpoint("remoteMcpServerUrl", getMakerEndpoints(env).remoteMcpServerUrl, env);
+  const serverUrl = options2.serverUrl || requireMakerEndpoint("remoteMcpServerUrl", getMakerEndpoints(env).remoteMcpServerUrl, env);
   const projectPath = `${projectId}/workspace`;
   const proxyCfg = {
     server: { url: serverUrl, env },
@@ -46450,10 +47793,11 @@ function createRemoteProxyContext(options) {
     },
     options: {
       verbose: true,
+      tool_call_timeout: MAKER_TOOL_CALL_TIMEOUT_MS,
       reset_timeout_on_progress: true,
       force_inject_progress_token: true,
       disable_standalone_sse: true,
-      exposed_tools: options.exposedTools,
+      exposed_tools: options2.exposedTools,
       replayable_tools: ["build"]
     }
   };
@@ -46474,9 +47818,9 @@ function createRemoteProxyContext(options) {
     }
   };
 }
-function resolveEmbeddedProxyCommand(options) {
+function resolveEmbeddedProxyCommand(options2) {
   const currentEntry = process.argv[1];
-  const makerEntry = (options == null ? void 0 : options.makerEntry) || (isUsableEmbeddedMakerEntry(currentEntry) ? currentEntry : void 0) || resolveBundledMakerEntry();
+  const makerEntry = (options2 == null ? void 0 : options2.makerEntry) || (isUsableEmbeddedMakerEntry(currentEntry) ? currentEntry : void 0) || resolveBundledMakerEntry();
   if (!makerEntry) {
     throw new Error("Cannot resolve current taptap-maker entry for embedded MCP proxy.");
   }
@@ -46593,10 +47937,10 @@ var MakerBuildContextError = class extends Error {
     this.name = "MakerBuildContextError";
   }
 };
-async function buildCurrentDirectory(options) {
+async function buildCurrentDirectory(options2) {
   var _a3;
-  const localChanges = await readMakerProjectLocalChanges(options.targetDir);
-  if (!options.confirmRemoteBuildWithoutSubmit) {
+  const localChanges = await readMakerProjectLocalChanges(options2.targetDir);
+  if (!options2.confirmRemoteBuildWithoutSubmit) {
     const config2 = loadProjectConfig(localChanges.projectRoot);
     const projectHealth = inspectMakerProjectHealth(localChanges.projectRoot, "build");
     if (!projectHealth.canBuild) {
@@ -46619,18 +47963,18 @@ async function buildCurrentDirectory(options) {
         projectHealth
       };
     }
-    (_a3 = options.onProgress) == null ? void 0 : _a3.call(options, {
+    (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
       progress: 0,
       total: 100,
       phase: "sync",
       message: localChanges.hasChanges ? "Syncing local Maker changes before remote build" : "Waking Maker build server before remote build"
     });
-    const submitResult = await (options.submitLocalChanges || pushMakerProject)({
+    const submitResult = await (options2.submitLocalChanges || pushMakerProject)({
       cwd: localChanges.projectRoot,
-      message: options.message || (!localChanges.hasChanges ? "chore: wake maker build server" : void 0),
-      files: options.files,
+      message: options2.message || (!localChanges.hasChanges ? "chore: wake maker build server" : void 0),
+      files: options2.files,
       allowEmpty: !localChanges.hasChanges,
-      onProgress: options.onProgress
+      onProgress: options2.onProgress
     });
     if (submitResult.failure || !submitResult.pushed && submitResult.status !== "clean") {
       return {
@@ -46642,7 +47986,7 @@ async function buildCurrentDirectory(options) {
     }
     let buildResult;
     try {
-      buildResult = await runRemoteBuildCurrentDirectory(options, localChanges.projectRoot);
+      buildResult = await runRemoteBuildCurrentDirectory(options2, localChanges.projectRoot);
     } catch (error2) {
       const buildFailure = toMakerBuildFailure(error2);
       if (error2 instanceof MakerBuildContextError) {
@@ -46669,7 +48013,7 @@ async function buildCurrentDirectory(options) {
     };
   }
   try {
-    const buildResult = await runRemoteBuildCurrentDirectory(options, options.targetDir);
+    const buildResult = await runRemoteBuildCurrentDirectory(options2, options2.targetDir);
     return buildResult;
   } catch (error2) {
     if (error2 instanceof RemoteBuildFailedError) {
@@ -46683,10 +48027,10 @@ async function buildCurrentDirectory(options) {
     }
     const buildFailure = toMakerBuildFailure(error2);
     if (error2 instanceof MakerBuildContextError) {
-      const identify = identifyMakerProject({ cwd: options.targetDir });
+      const identify = identifyMakerProject({ cwd: options2.targetDir });
       return {
         mode: "build_context_failed_before_remote",
-        projectRoot: identify.projectRoot || path18.resolve(options.targetDir),
+        projectRoot: identify.projectRoot || path18.resolve(options2.targetDir),
         projectId: identify.projectId || "unknown",
         codeSubmitStatus: "skipped_by_user",
         buildFailure
@@ -46695,28 +48039,28 @@ async function buildCurrentDirectory(options) {
     throw error2;
   }
 }
-async function runRemoteBuildCurrentDirectory(options, targetDir) {
-  if (options.callRemoteBuild) {
-    const injectedResult = await options.callRemoteBuild(targetDir);
+async function runRemoteBuildCurrentDirectory(options2, targetDir) {
+  if (options2.callRemoteBuild) {
+    const injectedResult = await options2.callRemoteBuild(targetDir);
     return attachBuildSuccessSideEffects(injectedResult, {
-      refreshPreview: options.refreshPreview || skipPreviewRefresh,
-      startRuntimeLogWatch: options.startRuntimeLogWatch
+      refreshPreview: options2.refreshPreview || skipPreviewRefresh,
+      startRuntimeLogWatch: options2.startRuntimeLogWatch
     });
   }
   const createProxy = () => createRemoteProxyContext({
     targetDir,
-    serverUrl: options.serverUrl,
-    env: options.env
+    serverUrl: options2.serverUrl,
+    env: options2.env
   });
   let proxy = createProxy();
-  const buildArgs = createBuildArgs(proxy.projectRoot, options);
-  const timeoutMs = options.timeoutMs || DEFAULT_BUILD_TIMEOUT_MS;
+  const buildArgs = createBuildArgs(proxy.projectRoot, options2);
+  const timeoutMs = options2.timeoutMs || DEFAULT_BUILD_TIMEOUT_MS;
   const requestOptions = {
     timeout: timeoutMs,
     resetTimeoutOnProgress: true,
     onprogress: (progress) => {
       var _a3;
-      (_a3 = options.onProgress) == null ? void 0 : _a3.call(options, {
+      (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
         progress: progress.progress,
         total: progress.total,
         phase: "remote_build",
@@ -46724,9 +48068,9 @@ async function runRemoteBuildCurrentDirectory(options, targetDir) {
       });
     }
   };
-  const callBuild = options.remoteProxyManager ? async () => {
+  const callBuild = options2.remoteProxyManager ? async () => {
     proxy = createProxy();
-    return await options.remoteProxyManager.callTool(
+    return await options2.remoteProxyManager.callTool(
       proxy,
       { name: "build", arguments: buildArgs },
       requestOptions
@@ -46769,7 +48113,7 @@ async function runRemoteBuildCurrentDirectory(options, targetDir) {
   const result = await retryMakerProxyOperation(callBuild, {
     onRetry: (event) => {
       var _a3;
-      (_a3 = options.onProgress) == null ? void 0 : _a3.call(options, {
+      (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
         progress: event.attempt,
         total: event.attempts,
         phase: "remote_build",
@@ -46792,33 +48136,33 @@ async function runRemoteBuildCurrentDirectory(options, targetDir) {
     resultText
   });
   return attachBuildSuccessSideEffects(buildCallResult, {
-    refreshPreview: options.refreshPreview,
-    startRuntimeLogWatch: options.startRuntimeLogWatch || startRuntimeLogWatch
+    refreshPreview: options2.refreshPreview,
+    startRuntimeLogWatch: options2.startRuntimeLogWatch || startRuntimeLogWatch
   });
 }
-function createRemoteBuildCallResult(options) {
+function createRemoteBuildCallResult(options2) {
   return {
     mode: "remote_build",
-    projectRoot: options.projectRoot,
-    projectId: options.projectId,
-    projectPath: options.projectPath,
-    serverUrl: options.serverUrl,
-    env: options.env,
-    makerUrl: formatMakerAppWebUrl(options.projectId, options.env),
-    timeoutMs: options.timeoutMs,
-    buildArgs: options.buildArgs,
-    resultText: options.resultText
+    projectRoot: options2.projectRoot,
+    projectId: options2.projectId,
+    projectPath: options2.projectPath,
+    serverUrl: options2.serverUrl,
+    env: options2.env,
+    makerUrl: formatMakerAppWebUrl(options2.projectId, options2.env),
+    timeoutMs: options2.timeoutMs,
+    buildArgs: options2.buildArgs,
+    resultText: options2.resultText
   };
 }
-async function attachBuildSuccessSideEffects(buildResult, options) {
+async function attachBuildSuccessSideEffects(buildResult, options2) {
   if (isRemoteBuildFailureResult(buildResult)) {
     throw new RemoteBuildFailedError(buildResult);
   }
-  const withPreview = await attachPreviewRefresh(buildResult, options.refreshPreview);
-  if (!options.startRuntimeLogWatch) {
+  const withPreview = await attachPreviewRefresh(buildResult, options2.refreshPreview);
+  if (!options2.startRuntimeLogWatch) {
     return withPreview;
   }
-  return attachRuntimeLogWatch(withPreview, options.startRuntimeLogWatch);
+  return attachRuntimeLogWatch(withPreview, options2.startRuntimeLogWatch);
 }
 function isRemoteToolError(result) {
   return Boolean(result && typeof result === "object" && result.isError);
@@ -46949,7 +48293,7 @@ async function startRuntimeLogWatch(buildResult) {
     fs17.closeSync(errFd);
   }
 }
-function stopExistingRuntimeLogWatcher(pidFile, options = {}) {
+function stopExistingRuntimeLogWatcher(pidFile, options2 = {}) {
   if (!fs17.existsSync(pidFile)) {
     return {};
   }
@@ -46961,7 +48305,7 @@ function stopExistingRuntimeLogWatcher(pidFile, options = {}) {
   }
   try {
     process.kill(pid, 0);
-    const processCommand = (options.getProcessCommand || getProcessCommand)(pid);
+    const processCommand = (options2.getProcessCommand || getProcessCommand)(pid);
     const verifiedCommand = getVerifiedRuntimeLogWatcherCommand(processCommand, pidState);
     if (!verifiedCommand) {
       fs17.rmSync(pidFile, { force: true });
@@ -46972,7 +48316,7 @@ function stopExistingRuntimeLogWatcher(pidFile, options = {}) {
       };
     }
     process.kill(pid, "SIGTERM");
-    const stopped = (options.waitForExit || waitForProcessExit)(pid, WATCHER_STOP_TIMEOUT_MS);
+    const stopped = (options2.waitForExit || waitForProcessExit)(pid, WATCHER_STOP_TIMEOUT_MS);
     if (stopped) {
       fs17.rmSync(pidFile, { force: true });
       return { previousPid: pid, previousStopped: true };
@@ -47150,9 +48494,9 @@ async function refreshMakerPreview(buildResult) {
     clearTimeout(timeout);
   }
 }
-function createRemoteRuntimeLogClient(proxy, timeoutMs = DEFAULT_TOOL_CALL_TIMEOUT_MS, options = {}) {
+function createRemoteRuntimeLogClient(proxy, timeoutMs = MAKER_TOOL_CALL_TIMEOUT_MS, options2 = {}) {
   let client;
-  const createTransport = options.createTransport || (() => trackMakerChildTransport(
+  const createTransport = options2.createTransport || (() => trackMakerChildTransport(
     new HiddenStdioClientTransport({
       command: proxy.command,
       args: proxy.args,
@@ -47160,7 +48504,7 @@ function createRemoteRuntimeLogClient(proxy, timeoutMs = DEFAULT_TOOL_CALL_TIMEO
       stderr: "pipe"
     })
   ));
-  const createClient = options.createClient || (() => new Client(
+  const createClient = options2.createClient || (() => new Client(
     {
       name: "taptap-maker-runtime-log-forwarder",
       version: VERSION
@@ -47227,26 +48571,26 @@ function toMakerBuildFailure(error2) {
     ...error2 instanceof Error ? errorOwnDiagnosticFields(error2) : {}
   };
 }
-function createBuildArgs(projectRoot, options) {
+function createBuildArgs(projectRoot, options2) {
   const buildArgs = {};
-  if (options.entry) {
-    buildArgs.entry = options.entry;
+  if (options2.entry) {
+    buildArgs.entry = options2.entry;
   }
-  if (options.scriptsPath) {
-    buildArgs.scriptsPath = options.scriptsPath;
+  if (options2.scriptsPath) {
+    buildArgs.scriptsPath = options2.scriptsPath;
   }
-  if (!options.entry && !options.scriptsPath && !options.entryClient && !options.entryServer && !options.multiplayer && fs17.existsSync(path18.join(projectRoot, "scripts", "main.lua"))) {
+  if (!options2.entry && !options2.scriptsPath && !options2.entryClient && !options2.entryServer && !options2.multiplayer && fs17.existsSync(path18.join(projectRoot, "scripts", "main.lua"))) {
     buildArgs.entry = "main.lua";
     buildArgs.scriptsPath = "scripts";
   }
-  if (options.entryClient) {
-    buildArgs.entry_client = options.entryClient;
+  if (options2.entryClient) {
+    buildArgs.entry_client = options2.entryClient;
   }
-  if (options.entryServer) {
-    buildArgs.entry_server = options.entryServer;
+  if (options2.entryServer) {
+    buildArgs.entry_server = options2.entryServer;
   }
-  if (options.multiplayer) {
-    buildArgs.multiplayer = options.multiplayer;
+  if (options2.multiplayer) {
+    buildArgs.multiplayer = options2.multiplayer;
   }
   return buildArgs;
 }
@@ -47525,8 +48869,8 @@ function formatBuildFailureStageLines(failureStage, codeSubmitStatus, remoteBuil
     `- remote_build_status: ${remoteBuildStatus}`
   ];
 }
-function formatBuildLocalExecutionCheckLines(options = {}) {
-  if (options.context === "remote_build") {
+function formatBuildLocalExecutionCheckLines(options2 = {}) {
+  if (options2.context === "remote_build") {
     return [
       "local_execution_check:",
       "- restriction_signal: not_detected",
@@ -47536,8 +48880,8 @@ function formatBuildLocalExecutionCheckLines(options = {}) {
       "- evidence_rule: A remote build failure is not evidence of a local sandbox restriction."
     ];
   }
-  const restrictionSignal = options.failure ? hasLocalExecutionRestrictionSignal(options.failure) : false;
-  if (options.failure && !restrictionSignal && isRemoteGitFailure(options.failure)) {
+  const restrictionSignal = options2.failure ? hasLocalExecutionRestrictionSignal(options2.failure) : false;
+  if (options2.failure && !restrictionSignal && isRemoteGitFailure(options2.failure)) {
     return [
       "local_execution_check:",
       "- restriction_signal: not_detected",
@@ -47845,9 +49189,9 @@ function indent2(value) {
 // src/maker/cli/commands.ts
 import { spawnSync as spawnSync8 } from "node:child_process";
 import crypto5 from "node:crypto";
-import fs25 from "node:fs";
-import os8 from "node:os";
-import path26 from "node:path";
+import fs26 from "node:fs";
+import os9 from "node:os";
+import path27 from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { pathToFileURL } from "node:url";
@@ -47870,21 +49214,21 @@ function getMakerCliLoginResultUrl(code, env) {
   url2.searchParams.set("code", code);
   return url2.toString();
 }
-async function loginWithCliAuthCode(options = {}) {
+async function loginWithCliAuthCode(options2 = {}) {
   var _a3;
-  const env = options.env || getMakerEnvironment();
+  const env = options2.env || getMakerEnvironment();
   const code = createCliLoginCode();
   const authUrl = getMakerCliLoginUrl(code, env);
-  (_a3 = options.onStatus) == null ? void 0 : _a3.call(
-    options,
+  (_a3 = options2.onStatus) == null ? void 0 : _a3.call(
+    options2,
     `Opening Maker PAT page: ${authUrl}
 请在页面登录并点击“创建 token”，CLI 会继续等待授权结果。`
   );
-  if (options.openBrowser !== false) {
+  if (options2.openBrowser !== false) {
     openBrowser(authUrl);
   }
   const pat = await pollCliLoginResult(code, {
-    ...options,
+    ...options2,
     env
   });
   return {
@@ -47893,13 +49237,13 @@ async function loginWithCliAuthCode(options = {}) {
     auth_url: authUrl
   };
 }
-async function pollCliLoginResult(code, options) {
-  const fetchImpl = options.fetchImpl || fetch;
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-  const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS;
+async function pollCliLoginResult(code, options2) {
+  const fetchImpl = options2.fetchImpl || fetch;
+  const timeoutMs = options2.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const pollIntervalMs = options2.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const requestTimeoutMs = options2.requestTimeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS;
   const deadline = Date.now() + timeoutMs;
-  const resultUrl = getMakerCliLoginResultUrl(code, options.env);
+  const resultUrl = getMakerCliLoginResultUrl(code, options2.env);
   let lastPollError;
   for (; ; ) {
     if (Date.now() >= deadline) {
@@ -47993,65 +49337,6 @@ function formatError2(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
 }
 
-// src/maker/auth/patTap.ts
-function getObjectValue(data, key) {
-  if (!data || typeof data !== "object") {
-    return void 0;
-  }
-  return data[key];
-}
-function normalizeTapAuthResponse(data) {
-  const body = data;
-  const nested = getObjectValue(body, "data");
-  const source = nested && typeof nested === "object" ? nested : body;
-  const kid = source.kid;
-  const macKey = source.mac_key;
-  if (typeof kid !== "string" || kid.length === 0 || typeof macKey !== "string" || macKey.length === 0) {
-    throw new Error("TapTap token response does not contain kid/mac_key");
-  }
-  return {
-    kid,
-    mac_key: macKey,
-    token_type: typeof source.token_type === "string" ? source.token_type : "mac",
-    mac_algorithm: typeof source.mac_algorithm === "string" ? source.mac_algorithm : "hmac-sha-1",
-    raw: data
-  };
-}
-function getMakerTapTokenUrl(environment) {
-  const tapTokenUrl = getMakerEndpoints(environment).tapTokenUrl;
-  return requireMakerEndpoint("tapTokenUrl", tapTokenUrl, environment);
-}
-async function requestTapAuthWithPat(manualPat, environment, options = {}) {
-  const pat = requireMakerPat(manualPat);
-  const response = await fetchWithTimeout(
-    options.fetchImpl || fetch,
-    getMakerTapTokenUrl(environment),
-    {
-      headers: {
-        Authorization: `Bearer ${pat.token}`,
-        Accept: "application/json"
-      }
-    },
-    options.timeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS,
-    "TapTap token request"
-  );
-  const text = await response.text();
-  let json2 = {};
-  if (text) {
-    try {
-      json2 = JSON.parse(text);
-    } catch {
-      json2 = { error: text };
-    }
-  }
-  if (!response.ok) {
-    throw new Error(`TapTap token request failed: HTTP ${response.status} ${JSON.stringify(json2)}`);
-  }
-  const auth2 = normalizeTapAuthResponse(json2);
-  saveTapAuth(auth2);
-  return auth2;
-}
-
 // src/maker/cli/mcpLauncher.ts
 import fs18 from "node:fs";
 import path19 from "node:path";
@@ -48070,17 +49355,17 @@ var SELF_RUNTIME_COPY_FALLBACK_CODES = /* @__PURE__ */ new Set(["EIO", "EACCES",
 function resolveMakerPackageSpec(packageName, currentVersion) {
   return PUBLISHED_VERSION_PATTERN.test(currentVersion) ? `${packageName}@${currentVersion}` : packageName;
 }
-function materializeMakerSelfLauncher(options) {
-  if (!PUBLISHED_VERSION_PATTERN.test(options.version) && options.version !== "dev") {
-    throw new Error(`Invalid Maker runtime version: ${options.version}`);
+function materializeMakerSelfLauncher(options2) {
+  if (!PUBLISHED_VERSION_PATTERN.test(options2.version) && options2.version !== "dev") {
+    throw new Error(`Invalid Maker runtime version: ${options2.version}`);
   }
-  const execPath = options.execPath ?? process.execPath;
+  const execPath = options2.execPath ?? process.execPath;
   if (!path19.isAbsolute(execPath) || !fs18.existsSync(execPath)) {
     throw new Error("Maker self launcher requires an existing absolute Node executable.");
   }
-  const sourceBundle = fileURLToPath3(options.bundleUrl);
+  const sourceBundle = fileURLToPath3(options2.bundleUrl);
   const sourceRoot = path19.dirname(path19.dirname(sourceBundle));
-  const runtimeRoot = path19.join(path19.resolve(options.makerHome), "mcp-runtime", options.version);
+  const runtimeRoot = path19.join(path19.resolve(options2.makerHome), "mcp-runtime", options2.version);
   for (const relativePath of [...SELF_RUNTIME_FILES, ...SELF_RUNTIME_DIRECTORIES]) {
     const sourcePath = path19.join(sourceRoot, relativePath);
     if (!fs18.existsSync(sourcePath)) {
@@ -48132,10 +49417,10 @@ function copyDirectoryEntries(sourcePath, targetPath) {
     }
   }
 }
-function resolveMakerMcpLauncher(options) {
-  const platform = options.platform ?? process.platform;
+function resolveMakerMcpLauncher(options2) {
+  const platform = options2.platform ?? process.platform;
   if (platform !== "win32") {
-    const args = ["-y", "-p", options.packageName, "taptap-maker"];
+    const args = ["-y", "-p", options2.packageName, "taptap-maker"];
     return {
       kind: "path_npx",
       command: "npx",
@@ -48143,9 +49428,9 @@ function resolveMakerMcpLauncher(options) {
       commandAndArgs: ["npx", ...args]
     };
   }
-  const existsSync2 = options.existsSync ?? fs18.existsSync;
-  const execPath = options.execPath ?? process.execPath;
-  const npmExecPath = options.npmExecPath ?? process.env.npm_execpath;
+  const existsSync2 = options2.existsSync ?? fs18.existsSync;
+  const execPath = options2.execPath ?? process.execPath;
+  const npmExecPath = options2.npmExecPath ?? process.env.npm_execpath;
   const windowsPath = path19.win32;
   const npmCliCandidates = uniqueStrings([
     npmExecPath,
@@ -48159,7 +49444,7 @@ function resolveMakerMcpLauncher(options) {
       "exec",
       "--yes",
       "--package",
-      options.packageName,
+      options2.packageName,
       "--",
       "taptap-maker"
     ];
@@ -48174,14 +49459,14 @@ function resolveMakerMcpLauncher(options) {
     "No runnable absolute Node/npm launcher was found. Install Node.js with npm, then rerun taptap-maker mcp install."
   );
 }
-async function verifyMakerMcpLauncher(launcher, options = {}) {
+async function verifyMakerMcpLauncher(launcher, options2 = {}) {
   var _a3, _b;
-  const timeoutMs = options.timeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS;
+  const timeoutMs = options2.timeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS;
   const transport = new StdioClientTransport({
     command: launcher.command,
     args: launcher.args,
-    cwd: options.cwd,
-    env: options.env,
+    cwd: options2.cwd,
+    env: options2.env,
     stderr: "pipe"
   });
   const client = new Client(
@@ -48307,25 +49592,25 @@ import path20 from "node:path";
 var DSH_MCP_PLUGIN_NAME = "@deepseek-ai/dsh-mcp-client";
 var DSH_MAKER_PLUGIN_ID = "mcp-taptap-maker";
 var DSH_MAKER_TOOL_CALL_TIMEOUT_MS = 60 * 60 * 1e3;
-function getDshHome(options = {}) {
+function getDshHome(options2 = {}) {
   var _a3;
-  const configured = (_a3 = (options.environment || process.env).DSH_HOME) == null ? void 0 : _a3.trim();
+  const configured = (_a3 = (options2.environment || process.env).DSH_HOME) == null ? void 0 : _a3.trim();
   if (configured) {
-    const expanded = configured === "~" ? options.homeDir || os4.homedir() : configured.startsWith("~/") || configured.startsWith("~\\") ? path20.join(options.homeDir || os4.homedir(), configured.slice(2)) : configured;
+    const expanded = configured === "~" ? options2.homeDir || os4.homedir() : configured.startsWith("~/") || configured.startsWith("~\\") ? path20.join(options2.homeDir || os4.homedir(), configured.slice(2)) : configured;
     return path20.resolve(expanded);
   }
-  return path20.join(options.homeDir || os4.homedir(), ".dsh");
+  return path20.join(options2.homeDir || os4.homedir(), ".dsh");
 }
-function createDshMakerPluginConfig(options) {
+function createDshMakerPluginConfig(options2) {
   return {
     id: DSH_MAKER_PLUGIN_ID,
     name: DSH_MCP_PLUGIN_NAME,
     config: {
-      serverName: options.mcpName,
+      serverName: options2.mcpName,
       transport: "stdio",
-      command: options.command,
-      args: [...options.args],
-      ...options.env && Object.keys(options.env).length > 0 ? { env: { ...options.env } } : {},
+      command: options2.command,
+      args: [...options2.args],
+      ...options2.env && Object.keys(options2.env).length > 0 ? { env: { ...options2.env } } : {},
       toolCallTimeoutMs: DSH_MAKER_TOOL_CALL_TIMEOUT_MS,
       failOnStartupError: true
     }
@@ -48390,12 +49675,12 @@ function findDshMakerPluginEntry(content, mcpName, source = "DSH config") {
   }
   return isRecord3((_a3 = matches[0]) == null ? void 0 : _a3.value) ? matches[0].value : void 0;
 }
-function getDshMcpInstallPaths(options) {
-  const dshHome = getDshHome(options);
+function getDshMcpInstallPaths(options2) {
+  const dshHome = getDshHome(options2);
   const homePatchPath = path20.join(dshHome, "cordis.patch.yml");
-  const homeHasMaker = dshConfigFileHasMaker(homePatchPath, options.mcpName);
+  const homeHasMaker = dshConfigFileHasMaker(homePatchPath, options2.mcpName);
   const profilePatchPaths = listDshProfilePatchPathsForInstall(dshHome).filter(
-    (configPath) => dshConfigFileHasMaker(configPath, options.mcpName)
+    (configPath) => dshConfigFileHasMaker(configPath, options2.mcpName)
   );
   if (homeHasMaker && profilePatchPaths.length > 0) {
     throw new Error(
@@ -48435,8 +49720,8 @@ function dshConfigFileHasMaker(configPath, mcpName) {
 function isMissingPathError(error2) {
   return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === "ENOENT";
 }
-function listDshMcpConfigPaths(options) {
-  const dshHome = options.dshHome || path20.join(options.homeDir, ".dsh");
+function listDshMcpConfigPaths(options2) {
+  const dshHome = options2.dshHome || path20.join(options2.homeDir, ".dsh");
   const paths = [path20.join(dshHome, "cordis.patch.yml")];
   const profilesDir = path20.join(dshHome, "profiles");
   if (!fs19.existsSync(profilesDir)) {
@@ -48596,29 +49881,29 @@ function extractMakerMcpServerConfig(config2, mcpName) {
   }
   return result;
 }
-function inspectMakerMcpClientConfig(options) {
-  const ide = options.ide.trim().toLowerCase();
-  const configPaths = getMcpConfigPaths({ ...options, ide });
+function inspectMakerMcpClientConfig(options2) {
+  const ide = options2.ide.trim().toLowerCase();
+  const configPaths = getMcpConfigPaths({ ...options2, ide });
   if (!configPaths) {
     return { ide, status: "unsupported", entries: [] };
   }
-  const entries = configPaths.filter((configPath) => fs20.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, options.mcpName || MAKER_MCP_NAME));
+  const entries = configPaths.filter((configPath) => fs20.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, options2.mcpName || MAKER_MCP_NAME));
   const status = entries.some((entry) => entry.status === "found") ? "found" : entries.some((entry) => entry.status === "unreadable") ? "unreadable" : entries.length > 0 ? "missing_entry" : "not_found";
   return { ide, status, entries };
 }
-function resolveMakerMcpReportRuntime(options) {
-  const pluginDistribution = resolveMakerPluginDistribution(options.distribution);
+function resolveMakerMcpReportRuntime(options2) {
+  const pluginDistribution = resolveMakerPluginDistribution(options2.distribution);
   if (!pluginDistribution) {
     return void 0;
   }
-  if (!options.bundleUrl) {
+  if (!options2.bundleUrl) {
     throw new Error(
       `${pluginDistribution.displayName} plugin diagnostics require the active Maker bundle URL.`
     );
   }
-  const bundlePath = path21.resolve(fileURLToPath4(options.bundleUrl));
+  const bundlePath = path21.resolve(fileURLToPath4(options2.bundleUrl));
   const pluginRoot = path21.dirname(path21.dirname(bundlePath));
-  const execPath = options.execPath ?? process.execPath;
+  const execPath = options2.execPath ?? process.execPath;
   return {
     distribution: pluginDistribution.id,
     client: pluginDistribution.client,
@@ -48640,13 +49925,13 @@ function resolveMakerMcpReportRuntime(options) {
     }
   };
 }
-function buildMakerMcpIssue(options) {
-  const context = sanitizePublicValue(options.context, options.homeDir);
+function buildMakerMcpIssue(options2) {
+  const context = sanitizePublicValue(options2.context, options2.homeDir);
   const diagnostics = sanitizePublicValue(
-    options.diagnostics,
-    options.homeDir
+    options2.diagnostics,
+    options2.homeDir
   );
-  const summary = stripControlCharacters(sanitizePublicText(context.summary, options.homeDir)).replace(/\s+/gu, " ").trim() || "Maker MCP problem report";
+  const summary = stripControlCharacters(sanitizePublicText(context.summary, options2.homeDir)).replace(/\s+/gu, " ").trim() || "Maker MCP problem report";
   const title = `[Maker MCP] ${summary}`.slice(0, 120);
   const body = [
     "<!-- maker-mcp-auto-report -->",
@@ -48671,12 +49956,12 @@ function buildMakerMcpIssue(options) {
   ].join("\n");
   return { title, body };
 }
-async function collectMakerMcpIssueDiagnostics(options) {
+async function collectMakerMcpIssueDiagnostics(options2) {
   var _a3, _b;
-  const platform = options.platform || process.platform;
-  const homeDir = options.homeDir || os5.homedir();
-  const processCwd = path21.resolve(options.processCwd || process.cwd());
-  const targetDir = path21.resolve(options.targetDir);
+  const platform = options2.platform || process.platform;
+  const homeDir = options2.homeDir || os5.homedir();
+  const processCwd = path21.resolve(options2.processCwd || process.cwd());
+  const targetDir = path21.resolve(options2.targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
   const projectContext = identify.projectRoot ? {
     status: "bound",
@@ -48687,18 +49972,18 @@ async function collectMakerMcpIssueDiagnostics(options) {
     status: "not_bound",
     source: identify.source
   };
-  const client = (_a3 = options.ide) == null ? void 0 : _a3.trim().toLowerCase();
-  const environment = options.environment || process.env;
-  const clientConfig = client ? options.configSource ? inspectMakerMcpConfigSource(client, options.configSource) : inspectMakerMcpClientConfig({
+  const client = (_a3 = options2.ide) == null ? void 0 : _a3.trim().toLowerCase();
+  const environment = options2.environment || process.env;
+  const clientConfig = client ? options2.configSource ? inspectMakerMcpConfigSource(client, options2.configSource) : inspectMakerMcpClientConfig({
     ide: client,
     homeDir,
     platform,
-    appData: options.appData || environment.APPDATA,
+    appData: options2.appData || environment.APPDATA,
     dshHome: client === "dsh" ? getDshHome({ homeDir, environment }) : void 0
   }) : { status: "not_checked", reason: "active_client_not_provided" };
   let mcpVerify;
   try {
-    mcpVerify = options.verify ? await options.verify() : await collectMcpVerifyEvidence(options.makerVersion);
+    mcpVerify = options2.verify ? await options2.verify() : await collectMcpVerifyEvidence(options2.makerVersion);
   } catch {
     mcpVerify = {
       ok: false,
@@ -48707,11 +49992,11 @@ async function collectMakerMcpIssueDiagnostics(options) {
     };
   }
   const diagnostics = {
-    occurred_at: (options.now || (() => /* @__PURE__ */ new Date()))().toISOString(),
+    occurred_at: (options2.now || (() => /* @__PURE__ */ new Date()))().toISOString(),
     client,
-    os_arch: `${platform} ${options.arch || process.arch}`,
+    os_arch: `${platform} ${options2.arch || process.arch}`,
     node_version: process.version,
-    maker_package_version: options.makerVersion,
+    maker_package_version: options2.makerVersion,
     process_cwd: processCwd,
     target_dir: targetDir,
     project_context: projectContext,
@@ -48722,19 +50007,19 @@ async function collectMakerMcpIssueDiagnostics(options) {
       https_proxy_configured: hasEnvironmentValue(environment, "HTTPS_PROXY"),
       no_proxy_configured: hasEnvironmentValue(environment, "NO_PROXY")
     },
-    ...options.distribution ? { distribution: options.distribution } : {}
+    ...options2.distribution ? { distribution: options2.distribution } : {}
   };
   if (client === "workbuddy") {
     diagnostics.workbuddy_trust = inspectWorkBuddyTrust(
       homeDir,
-      ((_b = options.configSource) == null ? void 0 : _b.mcp_name) || MAKER_MCP_NAME
+      ((_b = options2.configSource) == null ? void 0 : _b.mcp_name) || MAKER_MCP_NAME
     );
   }
   return diagnostics;
 }
-function submitMakerMcpIssue(issue3, options = {}) {
+function submitMakerMcpIssue(issue3, options2 = {}) {
   try {
-    const run = options.run || runGitHubIssueCreate;
+    const run = options2.run || runGitHubIssueCreate;
     const result = run(
       ["issue", "create", "--repo", GITHUB_REPOSITORY, "--title", issue3.title, "--body-file", "-"],
       issue3.body
@@ -48753,8 +50038,8 @@ function submitMakerMcpIssue(issue3, options = {}) {
     ...issue3
   };
 }
-function getMcpConfigPaths(options) {
-  const { ide, homeDir, platform } = options;
+function getMcpConfigPaths(options2) {
+  const { ide, homeDir, platform } = options2;
   if (ide === "codex") {
     return [path21.join(homeDir, ".codex", "config.toml")];
   }
@@ -48776,13 +50061,13 @@ function getMcpConfigPaths(options) {
     return fs20.existsSync(legacy) ? [legacy] : [primary];
   }
   if (ide === "trae") {
-    const root = platform === "win32" ? options.appData || path21.join(homeDir, "AppData", "Roaming") : path21.join(homeDir, "Library", "Application Support");
+    const root = platform === "win32" ? options2.appData || path21.join(homeDir, "AppData", "Roaming") : path21.join(homeDir, "Library", "Application Support");
     return ["TRAE SOLO", "TRAE SOLO CN", "Trae", "TRAE", "Trae CN"].map(
       (name) => path21.join(root, name, "User", "mcp.json")
     );
   }
   if (ide === "dsh") {
-    return listDshMcpConfigPaths({ homeDir, dshHome: options.dshHome });
+    return listDshMcpConfigPaths({ homeDir, dshHome: options2.dshHome });
   }
   return void 0;
 }
@@ -49468,8 +50753,8 @@ function writeConfigWithTapTapBackupIfChanged(filePath, nextContent, validate) {
 }
 
 // src/maker/cli/pluginMigration.ts
-function inspectCodexLegacyMakerMcp(options = {}) {
-  const configPath = options.configPath ?? path23.join(os6.homedir(), ".codex", "config.toml");
+function inspectCodexLegacyMakerMcp(options2 = {}) {
+  const configPath = options2.configPath ?? path23.join(os6.homedir(), ".codex", "config.toml");
   if (!fs22.existsSync(configPath)) {
     return createInspection(configPath, "not_found", 0);
   }
@@ -49487,9 +50772,9 @@ function inspectCodexLegacyMakerMcp(options = {}) {
     enabled
   };
 }
-function migrateCodexLegacyMakerMcp(options = {}) {
-  const configPath = options.configPath ?? path23.join(os6.homedir(), ".codex", "config.toml");
-  const makerHome = options.makerHome ?? getMakerHome();
+function migrateCodexLegacyMakerMcp(options2 = {}) {
+  const configPath = options2.configPath ?? path23.join(os6.homedir(), ".codex", "config.toml");
+  const makerHome = options2.makerHome ?? getMakerHome();
   const statePath = getCodexPluginMigrationStatePath(makerHome);
   const inspection = inspectCodexLegacyMakerMcp({ configPath });
   if (inspection.status === "not_found") {
@@ -49512,7 +50797,7 @@ function migrateCodexLegacyMakerMcp(options = {}) {
       ...owned ? { state_path: statePath } : {}
     };
   }
-  if (!options.confirm) {
+  if (!options2.confirm) {
     throw new Error("Disabling the legacy Codex Maker MCP requires explicit confirmation.");
   }
   const previousContent = fs22.readFileSync(configPath, "utf8");
@@ -49546,16 +50831,16 @@ function migrateCodexLegacyMakerMcp(options = {}) {
     state_path: statePath
   };
 }
-function restoreCodexLegacyMakerMcp(options = {}) {
-  const configPath = options.configPath ?? path23.join(os6.homedir(), ".codex", "config.toml");
-  const makerHome = options.makerHome ?? getMakerHome();
+function restoreCodexLegacyMakerMcp(options2 = {}) {
+  const configPath = options2.configPath ?? path23.join(os6.homedir(), ".codex", "config.toml");
+  const makerHome = options2.makerHome ?? getMakerHome();
   const statePath = getCodexPluginMigrationStatePath(makerHome);
   const inspection = inspectCodexLegacyMakerMcp({ configPath });
   const state = readMigrationState(statePath);
   if (!state || state.config_path !== configPath) {
     return { ...inspection, action: "not_owned", changed: false };
   }
-  if (!options.confirm) {
+  if (!options2.confirm) {
     throw new Error("Restoring the legacy Codex Maker MCP requires explicit confirmation.");
   }
   if (inspection.status === "ambiguous") {
@@ -49681,8 +50966,8 @@ function createInspection(configPath, status, registrationCount) {
     registration_count: registrationCount
   };
 }
-function inspectWorkBuddyLegacyMakerMcp(options = {}) {
-  const configPaths = getWorkBuddyConfigPaths(options.configPaths);
+function inspectWorkBuddyLegacyMakerMcp(options2 = {}) {
+  const configPaths = getWorkBuddyConfigPaths(options2.configPaths);
   const registrations = findWorkBuddyMakerRegistrations(configPaths);
   const registrationPaths = registrations.map((entry) => entry.configPath);
   if (registrations.length === 0) {
@@ -49704,9 +50989,9 @@ function inspectWorkBuddyLegacyMakerMcp(options = {}) {
     enabled: true
   };
 }
-function migrateWorkBuddyLegacyMakerMcp(options = {}) {
-  const configPaths = getWorkBuddyConfigPaths(options.configPaths);
-  const makerHome = options.makerHome ?? getMakerHome();
+function migrateWorkBuddyLegacyMakerMcp(options2 = {}) {
+  const configPaths = getWorkBuddyConfigPaths(options2.configPaths);
+  const makerHome = options2.makerHome ?? getMakerHome();
   const statePath = getWorkBuddyPluginMigrationStatePath(makerHome);
   const inspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
   if (inspection.status === "not_found") {
@@ -49732,7 +51017,7 @@ function migrateWorkBuddyLegacyMakerMcp(options = {}) {
       ...owned ? { state_path: statePath } : {}
     };
   }
-  if (!options.confirm) {
+  if (!options2.confirm) {
     throw new Error("Disabling the legacy WorkBuddy Maker MCP requires explicit confirmation.");
   }
   const current = registrations.find((entry) => entry.configPath === inspection.config_path);
@@ -49777,16 +51062,16 @@ function migrateWorkBuddyLegacyMakerMcp(options = {}) {
     state_path: statePath
   };
 }
-function restoreWorkBuddyLegacyMakerMcp(options = {}) {
-  const configPaths = getWorkBuddyConfigPaths(options.configPaths);
-  const makerHome = options.makerHome ?? getMakerHome();
+function restoreWorkBuddyLegacyMakerMcp(options2 = {}) {
+  const configPaths = getWorkBuddyConfigPaths(options2.configPaths);
+  const makerHome = options2.makerHome ?? getMakerHome();
   const statePath = getWorkBuddyPluginMigrationStatePath(makerHome);
   const inspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
   const state = readWorkBuddyMigrationState(statePath);
   if (!state) {
     return { ...inspection, action: "not_owned", changed: false };
   }
-  if (!options.confirm) {
+  if (!options2.confirm) {
     throw new Error("Restoring the legacy WorkBuddy Maker MCP requires explicit confirmation.");
   }
   if (inspection.status === "ambiguous") {
@@ -49947,8 +51232,8 @@ import os7 from "node:os";
 import path24 from "node:path";
 import crypto4 from "node:crypto";
 var DSH_MAKER_MCP_NAME = "taptap-maker";
-function inspectDshLegacyMakerMcp(options = {}) {
-  const registrations = findDshMakerRegistrations(options.dshHome);
+function inspectDshLegacyMakerMcp(options2 = {}) {
+  const registrations = findDshMakerRegistrations(options2.dshHome);
   const configPaths = unique(registrations.map((entry) => entry.configPath));
   if (registrations.length === 0) {
     return createDshInspection("not_found", [], configPaths);
@@ -49958,11 +51243,11 @@ function inspectDshLegacyMakerMcp(options = {}) {
   }
   return createDshInspection("active", [registrations[0].configPath], configPaths);
 }
-function migrateDshLegacyMakerMcp(options = {}) {
+function migrateDshLegacyMakerMcp(options2 = {}) {
   const makerHome = getMakerHome();
   const statePath = getDshPluginMigrationStatePath(makerHome);
-  const registrations = findDshMakerRegistrations(options.dshHome);
-  const inspection = inspectDshLegacyMakerMcp(options);
+  const registrations = findDshMakerRegistrations(options2.dshHome);
+  const inspection = inspectDshLegacyMakerMcp(options2);
   if (inspection.status === "not_found") {
     return { ...inspection, action: "not_found", changed: false };
   }
@@ -49971,7 +51256,7 @@ function migrateDshLegacyMakerMcp(options = {}) {
       `DSH Maker MCP migration found ${inspection.registration_count} registrations in ${inspection.config_paths.join(", ")}; resolve the duplicates before migrating.`
     );
   }
-  if (!options.confirm) {
+  if (!options2.confirm) {
     throw new Error(
       "Removing the legacy DSH Maker MCP registration requires explicit confirmation."
     );
@@ -49994,7 +51279,7 @@ function migrateDshLegacyMakerMcp(options = {}) {
   };
   fs23.mkdirSync(path24.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(registration.configPath, nextContent, () => {
-    const after = findDshMakerRegistrations(options.dshHome);
+    const after = findDshMakerRegistrations(options2.dshHome);
     if (after.some((entry) => entry.configPath === registration.configPath)) {
       throw new Error("DSH Maker MCP migration validation still found a registration.");
     }
@@ -50002,22 +51287,22 @@ function migrateDshLegacyMakerMcp(options = {}) {
 `, "utf8");
   });
   return {
-    ...inspectDshLegacyMakerMcp(options),
+    ...inspectDshLegacyMakerMcp(options2),
     action: "removed",
     changed: write.changed,
     ...write.backupPath ? { backup_path: write.backupPath } : {},
     state_path: statePath
   };
 }
-function restoreDshLegacyMakerMcp(options = {}) {
+function restoreDshLegacyMakerMcp(options2 = {}) {
   const makerHome = getMakerHome();
   const statePath = getDshPluginMigrationStatePath(makerHome);
-  const inspection = inspectDshLegacyMakerMcp(options);
+  const inspection = inspectDshLegacyMakerMcp(options2);
   const state = readDshMigrationState(statePath);
   if (!state) {
     return { ...inspection, action: "not_owned", changed: false };
   }
-  if (!options.confirm) {
+  if (!options2.confirm) {
     throw new Error(
       "Restoring the legacy DSH Maker MCP registration requires explicit confirmation."
     );
@@ -50028,7 +51313,7 @@ function restoreDshLegacyMakerMcp(options = {}) {
     );
   }
   if (inspection.status === "active") {
-    const current = findDshMakerRegistrations(options.dshHome)[0];
+    const current = findDshMakerRegistrations(options2.dshHome)[0];
     const currentSha = sha2562(JSON.stringify(current.registration));
     if (currentSha === state.removed_registration_sha256) {
       fs23.rmSync(statePath, { force: true });
@@ -50045,7 +51330,7 @@ function restoreDshLegacyMakerMcp(options = {}) {
   reinsertDshMakerRegistration(document, state.removed_registration);
   const nextContent = document.toString({ lineWidth: 0 });
   const write = writeConfigWithTapTapBackupIfChanged(configPath, nextContent, () => {
-    const restored = findDshMakerRegistrations(options.dshHome);
+    const restored = findDshMakerRegistrations(options2.dshHome);
     const match = restored.find((entry) => entry.configPath === configPath);
     if (!match || sha2562(JSON.stringify(match.registration)) !== state.removed_registration_sha256) {
       throw new Error("DSH Maker MCP restoration changed the registration identity.");
@@ -50053,7 +51338,7 @@ function restoreDshLegacyMakerMcp(options = {}) {
     fs23.rmSync(statePath, { force: true });
   });
   return {
-    ...inspectDshLegacyMakerMcp(options),
+    ...inspectDshLegacyMakerMcp(options2),
     action: "restored",
     changed: write.changed,
     ...write.backupPath ? { backup_path: write.backupPath } : {},
@@ -50188,8 +51473,8 @@ function unique(values) {
 // src/maker/cli/workBuddyProjectSkills.ts
 import fs24 from "node:fs";
 import path25 from "node:path";
-function syncWorkBuddyProjectSkills(targetDir, options = {}) {
-  const platform = options.platform ?? process.platform;
+function syncWorkBuddyProjectSkills(targetDir, options2 = {}) {
+  const platform = options2.platform ?? process.platform;
   const projectDir = path25.resolve(targetDir);
   const sourceDir = path25.join(projectDir, ".installer", "skills");
   const workBuddySkillsDir = path25.join(projectDir, ".workbuddy", "skills");
@@ -50273,8 +51558,367 @@ function formatError3(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
 }
 
+// src/maker/cli/userSkills.ts
+var import_yauzl = __toESM(require_yauzl());
+import fs25 from "node:fs";
+import os8 from "node:os";
+import path26 from "node:path";
+import { randomUUID as randomUUID3 } from "node:crypto";
+import { Readable, Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
+var USER_SKILL_CLIENT_DIRS = [".codex", ".cursor", ".workbuddy"];
+var MAX_ARCHIVE_DOWNLOAD_BYTES = 64 * 1024 * 1024;
+var MAX_ARCHIVE_ENTRIES = 1e3;
+var MAX_ARCHIVE_EXTRACTED_BYTES = 128 * 1024 * 1024;
+async function pullMakerUserSkills(options2 = {}) {
+  var _a3, _b;
+  const requestedDir = path26.resolve(options2.targetDir || process.cwd());
+  const project = identifyMakerProject({ cwd: requestedDir });
+  if (!project.projectRoot) {
+    throw new Error(
+      "Maker project not found. Run this command inside a bound Maker project or pass --target-dir."
+    );
+  }
+  const environment = getMakerEnvironment(options2.environment, project.projectRoot);
+  const token = ((_a3 = loadPat()) == null ? void 0 : _a3.token) || ((_b = loadJwt()) == null ? void 0 : _b.token);
+  if (!token) {
+    throw new Error("Maker authentication not found. Run `taptap-maker login` and try again.");
+  }
+  const sourceDir = path26.join(project.projectRoot, ".installer", "skills");
+  const tempDir = fs25.mkdtempSync(path26.join(os8.tmpdir(), "taptap-maker-user-skills-"));
+  const archivePath = path26.join(tempDir, "user-skills.zip");
+  const stagingDir = path26.join(tempDir, "skills");
+  try {
+    const response = await fetchWithTimeout(
+      options2.fetchImpl || fetch,
+      `${getMakerApiBaseUrl(environment)}/user/skills/archive`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/zip",
+          Authorization: `Bearer ${token}`
+        }
+      },
+      options2.timeoutMs ?? DEFAULT_DOWNLOAD_FETCH_TIMEOUT_MS,
+      "Maker user Skill download"
+    );
+    if (!response.ok) {
+      throw createDownloadError(response.status);
+    }
+    await writeArchiveResponse(response, archivePath);
+    const installedSkills = await extractUserSkillsArchive(archivePath, stagingDir);
+    const preservedSkills = listLocalSkills(sourceDir).filter(
+      (name) => !installedSkills.includes(name)
+    );
+    installUserSkills(project.projectRoot, stagingDir, installedSkills);
+    return {
+      targetDir: project.projectRoot,
+      sourceDir,
+      environment,
+      installedSkills,
+      preservedSkills
+    };
+  } finally {
+    fs25.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+async function writeArchiveResponse(response, archivePath) {
+  const declaredSize = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredSize) && declaredSize > MAX_ARCHIVE_DOWNLOAD_BYTES) {
+    throw new Error("Maker user Skill archive exceeds the 64 MiB download limit.");
+  }
+  if (!response.body) {
+    throw new Error("Maker user Skill download returned an empty response body.");
+  }
+  let downloadedBytes = 0;
+  const limit = new Transform({
+    transform(chunk, _encoding, callback) {
+      downloadedBytes += chunk.length;
+      if (downloadedBytes > MAX_ARCHIVE_DOWNLOAD_BYTES) {
+        callback(new Error("Maker user Skill archive exceeds the 64 MiB download limit."));
+        return;
+      }
+      callback(null, chunk);
+    }
+  });
+  await pipeline(
+    Readable.fromWeb(response.body),
+    limit,
+    fs25.createWriteStream(archivePath, { flags: "wx" })
+  );
+}
+function validateUserSkillArchivePath(entryPath) {
+  if (!entryPath || entryPath.includes("\\") || entryPath.startsWith("/") || /^[A-Za-z]:/u.test(entryPath) || hasControlCharacter(entryPath)) {
+    throw new Error(`Maker user Skill archive contains an unsafe path: ${entryPath}`);
+  }
+  const trimmed = entryPath.endsWith("/") ? entryPath.slice(0, -1) : entryPath;
+  const segments = trimmed.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
+    throw new Error(`Maker user Skill archive contains an unsafe path: ${entryPath}`);
+  }
+  return segments;
+}
+async function extractUserSkillsArchive(archivePath, stagingDir) {
+  fs25.mkdirSync(stagingDir, { recursive: true });
+  const zipFile = await import_yauzl.default.openPromise(archivePath, {
+    lazyEntries: true,
+    decodeStrings: true,
+    validateEntrySizes: true,
+    strictFileNames: true
+  });
+  const skillNames = /* @__PURE__ */ new Set();
+  const seenPaths = /* @__PURE__ */ new Set();
+  let entryCount = 0;
+  let extractedBytes = 0;
+  try {
+    for await (const entry of zipFile.eachEntry()) {
+      entryCount += 1;
+      if (entryCount > MAX_ARCHIVE_ENTRIES) {
+        throw new Error(
+          `Maker user Skill archive exceeds the ${MAX_ARCHIVE_ENTRIES} entries limit.`
+        );
+      }
+      const segments = validateUserSkillArchivePath(entry.fileName);
+      if (segments.some((segment) => path26.basename(segment).startsWith(".nfs"))) {
+        continue;
+      }
+      const isDirectory2 = isZipDirectory(entry);
+      validateZipEntryType(entry, isDirectory2);
+      if (!isDirectory2 && segments.length < 2) {
+        throw new Error(
+          `Maker user Skill archive contains a file outside a Skill: ${entry.fileName}`
+        );
+      }
+      if (!isDirectory2) {
+        extractedBytes += entry.uncompressedSize;
+        if (extractedBytes > MAX_ARCHIVE_EXTRACTED_BYTES) {
+          throw new Error("Maker user Skill archive exceeds the 128 MiB extracted size limit.");
+        }
+      }
+      const collisionKey = segments.join("/").normalize("NFC").toLocaleLowerCase("en-US");
+      if (seenPaths.has(collisionKey)) {
+        throw new Error(`Maker user Skill archive contains a duplicate path: ${entry.fileName}`);
+      }
+      seenPaths.add(collisionKey);
+      skillNames.add(segments[0]);
+      const destination = path26.join(stagingDir, ...segments);
+      if (isDirectory2) {
+        fs25.mkdirSync(destination, { recursive: true });
+        continue;
+      }
+      fs25.mkdirSync(path26.dirname(destination), { recursive: true });
+      const input2 = await zipFile.openReadStreamPromise(entry);
+      await pipeline(input2, fs25.createWriteStream(destination, { flags: "wx" }));
+    }
+  } finally {
+    zipFile.close();
+  }
+  const installedSkills = [...skillNames].sort();
+  for (const skillName of installedSkills) {
+    const definitionPath = path26.join(stagingDir, skillName, "SKILL.md");
+    let definition;
+    try {
+      definition = fs25.lstatSync(definitionPath);
+    } catch {
+      throw new Error(`Maker user Skill "${skillName}" is missing SKILL.md.`);
+    }
+    if (!definition.isFile() || definition.isSymbolicLink()) {
+      throw new Error(`Maker user Skill "${skillName}" must contain a regular SKILL.md file.`);
+    }
+  }
+  return installedSkills;
+}
+function validateZipEntryType(entry, isDirectory2) {
+  if (entry.isEncrypted() || !entry.canDecodeFileData()) {
+    throw new Error(`Maker user Skill archive contains an unsupported entry: ${entry.fileName}`);
+  }
+  if (entry.compressionMethod !== 0 && entry.compressionMethod !== 8) {
+    throw new Error(`Maker user Skill archive contains an unsupported entry: ${entry.fileName}`);
+  }
+  const unixMode = entry.externalFileAttributes >>> 16 & 65535;
+  const fileType = unixMode & 61440;
+  if (fileType !== 0 && fileType !== 32768 && fileType !== 16384) {
+    throw new Error(`Maker user Skill archive contains a non-file entry: ${entry.fileName}`);
+  }
+  if (fileType === 16384 && !isDirectory2) {
+    throw new Error(`Maker user Skill archive contains an invalid directory: ${entry.fileName}`);
+  }
+}
+function isZipDirectory(entry) {
+  const unixMode = entry.externalFileAttributes >>> 16 & 65535;
+  return entry.fileName.endsWith("/") || (unixMode & 61440) === 16384;
+}
+function installUserSkills(projectRoot, stagingDir, skillNames) {
+  if (skillNames.length === 0) {
+    return;
+  }
+  const installerDir = path26.join(projectRoot, ".installer");
+  const sourceDir = path26.join(installerDir, "skills");
+  const transactionDir = path26.join(installerDir, `.user-skills-${randomUUID3()}`);
+  const preparedDir = path26.join(transactionDir, "prepared");
+  const backupDir = path26.join(transactionDir, "backup");
+  const completed = [];
+  let preserveTransaction = false;
+  fs25.mkdirSync(preparedDir, { recursive: true });
+  fs25.mkdirSync(sourceDir, { recursive: true });
+  try {
+    for (const skillName of skillNames) {
+      fs25.cpSync(path26.join(stagingDir, skillName), path26.join(preparedDir, skillName), {
+        recursive: true
+      });
+    }
+    for (const skillName of skillNames) {
+      const target = path26.join(sourceDir, skillName);
+      const backup = path26.join(backupDir, skillName);
+      const hadExisting = pathExists(target);
+      if (hadExisting) {
+        fs25.mkdirSync(path26.dirname(backup), { recursive: true });
+        fs25.renameSync(target, backup);
+      }
+      completed.push({ target, backup, hadExisting });
+      fs25.renameSync(path26.join(preparedDir, skillName), target);
+    }
+    installUserSkillsForClients(projectRoot, skillNames);
+  } catch (error2) {
+    const rollbackErrors = rollbackSkillChanges(completed);
+    if (rollbackErrors.length > 0) {
+      preserveTransaction = true;
+      throw new Error(
+        `Failed to install Maker user Skills: ${formatError4(error2)}; rollback incomplete, backups were preserved at ${transactionDir}: ${rollbackErrors.join("; ")}`
+      );
+    }
+    throw new Error(`Failed to install Maker user Skills: ${formatError4(error2)}`);
+  } finally {
+    if (!preserveTransaction) {
+      fs25.rmSync(transactionDir, { recursive: true, force: true });
+    }
+  }
+}
+function installUserSkillsForClients(projectRoot, skillNames) {
+  if (skillNames.length === 0) {
+    return;
+  }
+  const sourceRoot = path26.join(projectRoot, ".installer", "skills");
+  const transactionDir = path26.join(
+    projectRoot,
+    ".installer",
+    `.user-skill-clients-${randomUUID3()}`
+  );
+  const backupRoot = path26.join(transactionDir, "backup");
+  const changed = [];
+  let preserveTransaction = false;
+  try {
+    for (const clientDir of USER_SKILL_CLIENT_DIRS) {
+      const targetRoot = path26.join(projectRoot, clientDir, "skills");
+      fs25.mkdirSync(targetRoot, { recursive: true });
+      for (const skillName of skillNames) {
+        const source = path26.join(sourceRoot, skillName);
+        const target = path26.join(targetRoot, skillName);
+        const backup = path26.join(backupRoot, clientDir, skillName);
+        const hadExisting = pathExists(target);
+        if (hadExisting) {
+          fs25.mkdirSync(path26.dirname(backup), { recursive: true });
+          fs25.renameSync(target, backup);
+        }
+        changed.push({ target, backup, hadExisting });
+        linkOrCopySkill(source, target);
+      }
+    }
+  } catch (error2) {
+    const rollbackErrors = rollbackSkillChanges(changed);
+    if (rollbackErrors.length > 0) {
+      preserveTransaction = true;
+      throw new Error(
+        `Failed to install Maker user Skills for AI clients: ${formatError4(error2)}; rollback incomplete, backups were preserved at ${transactionDir}: ` + rollbackErrors.join("; ")
+      );
+    }
+    throw new Error(`Failed to install Maker user Skills for AI clients: ${formatError4(error2)}`);
+  } finally {
+    if (!preserveTransaction) {
+      fs25.rmSync(transactionDir, { recursive: true, force: true });
+    }
+  }
+}
+function rollbackSkillChanges(changes) {
+  const errors = [];
+  for (let index = changes.length - 1; index >= 0; index -= 1) {
+    const item = changes[index];
+    try {
+      removePathEntry(item.target);
+      if (item.hadExisting && pathExists(item.backup)) {
+        fs25.renameSync(item.backup, item.target);
+      }
+    } catch (error2) {
+      errors.push(`${item.target}: ${formatError4(error2)}`);
+    }
+  }
+  return errors;
+}
+function linkOrCopySkill(source, target) {
+  try {
+    const linkTarget = process.platform === "win32" ? source : path26.relative(path26.dirname(target), source);
+    fs25.symlinkSync(linkTarget, target, process.platform === "win32" ? "junction" : "dir");
+  } catch (linkError) {
+    removePathEntry(target);
+    try {
+      fs25.cpSync(source, target, { recursive: true });
+    } catch (copyError) {
+      throw new Error(
+        `Failed to link ${source}: ${formatError4(linkError)}; copy fallback: ${formatError4(copyError)}`
+      );
+    }
+  }
+}
+function removePathEntry(value) {
+  try {
+    const stat = fs25.lstatSync(value);
+    if (stat.isSymbolicLink()) {
+      fs25.unlinkSync(value);
+      return;
+    }
+    fs25.rmSync(value, { recursive: true, force: true });
+  } catch (error2) {
+    if (error2.code !== "ENOENT") {
+      throw error2;
+    }
+  }
+}
+function listLocalSkills(sourceDir) {
+  try {
+    return fs25.readdirSync(sourceDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  } catch {
+    return [];
+  }
+}
+function createDownloadError(status) {
+  if (status === 401 || status === 403) {
+    return new Error("Maker authentication was rejected. Run `taptap-maker login` and try again.");
+  }
+  if (status === 413) {
+    return new Error("Maker user Skill archive is too large to download.");
+  }
+  return new Error(`Maker user Skill download failed with HTTP ${status}.`);
+}
+function pathExists(value) {
+  try {
+    fs25.lstatSync(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function formatError4(error2) {
+  return error2 instanceof Error ? error2.message : String(error2);
+}
+function hasControlCharacter(value) {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127;
+  });
+}
+
 // src/maker/cli/commands.ts
-var VERSION2 = true ? "0.0.32" : "dev";
+var VERSION2 = true ? "0.0.33" : "dev";
 var DEFAULT_MCP_NAME = "taptap-maker";
 var MAKER_NPM_PACKAGE = "@taptap/maker";
 var TWO_PART_COMMANDS = /* @__PURE__ */ new Set([
@@ -50285,7 +51929,8 @@ var TWO_PART_COMMANDS = /* @__PURE__ */ new Set([
   "python",
   "lua-lsp",
   "agents",
-  "plugin"
+  "plugin",
+  "user-skills"
 ]);
 var BOOLEAN_OPTIONS = /* @__PURE__ */ new Set([
   "json",
@@ -50368,6 +52013,10 @@ async function runMakerCli(argv) {
     await runDevKitUpdate(parsed, ctx);
     return;
   }
+  if (command === "user-skills" && subcommand === "pull") {
+    await runUserSkillsPull(parsed, ctx);
+    return;
+  }
   if (command === "logs" && subcommand === "watch") {
     await runLogsWatch(parsed, ctx);
     return;
@@ -50436,31 +52085,31 @@ function writePluginLifecycleResult(ctx, result) {
 function parseArgs(argv) {
   const command = [];
   const positionals = [];
-  const options = {};
+  const options2 = {};
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg.startsWith("--")) {
       const equalIndex = arg.indexOf("=");
       if (equalIndex > 0) {
-        options[toOptionKey(arg.slice(2, equalIndex))] = arg.slice(equalIndex + 1);
+        options2[toOptionKey(arg.slice(2, equalIndex))] = arg.slice(equalIndex + 1);
         continue;
       }
       const key = toOptionKey(arg.slice(2));
       if (BOOLEAN_OPTIONS.has(key)) {
-        options[key] = true;
+        options2[key] = true;
         continue;
       }
       const next = argv[index + 1];
       if (next && !next.startsWith("-")) {
-        options[key] = next;
+        options2[key] = next;
         index += 1;
       } else {
-        options[key] = true;
+        options2[key] = true;
       }
       continue;
     }
     if (arg.startsWith("-") && arg.length > 1) {
-      options[arg.slice(1)] = true;
+      options2[arg.slice(1)] = true;
       continue;
     }
     if (command.length === 0) {
@@ -50473,14 +52122,14 @@ function parseArgs(argv) {
       positionals.push(arg);
     }
   }
-  return { command, options, positionals };
+  return { command, options: options2, positionals };
 }
 function toOptionKey(value) {
   return value.replace(/-/g, "_");
 }
 async function runInit(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path26.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path27.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const skipConfirm = booleanOption(parsed, "skip_confirm");
   const skipMcpInstall = booleanOption(parsed, "skip_mcp_install");
@@ -50595,7 +52244,7 @@ async function runInit(parsed, ctx) {
 }
 async function runDoctor(parsed, ctx) {
   var _a3, _b;
-  const targetDir = path26.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path27.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const git = checkGitEnvironment();
   const python = checkMakerPythonEnvironment();
@@ -50685,9 +52334,9 @@ async function runDoctor(parsed, ctx) {
     ].filter(Boolean).join("\n")
   );
 }
-function inspectMakerDoctorExecutionContext(options) {
-  const doctorCwd = path26.resolve(process.cwd());
-  const makerProjectDir = options.makerProjectDir ? path26.resolve(options.makerProjectDir) : void 0;
+function inspectMakerDoctorExecutionContext(options2) {
+  const doctorCwd = path27.resolve(process.cwd());
+  const makerProjectDir = options2.makerProjectDir ? path27.resolve(options2.makerProjectDir) : void 0;
   if (!makerProjectDir) {
     return {
       active_client_session: "not_checked",
@@ -50722,9 +52371,9 @@ function samePath2(left, right) {
   return normalizePathForCompare3(left) === normalizePathForCompare3(right);
 }
 function normalizePathForCompare3(value) {
-  const resolved = path26.resolve(value);
+  const resolved = path27.resolve(value);
   try {
-    return fs25.realpathSync.native(resolved);
+    return fs26.realpathSync.native(resolved);
   } catch {
     return resolved;
   }
@@ -51042,7 +52691,7 @@ async function runPatSet(parsed, ctx) {
 }
 async function resolvePatSet(parsed, ctx) {
   if (booleanOption(parsed, "pat_stdin") || booleanOption(parsed, "pat_from_stdin")) {
-    const pat = fs25.readFileSync(0, "utf8").trim();
+    const pat = fs26.readFileSync(0, "utf8").trim();
     if (!pat) {
       throw new Error("No PAT found on stdin.");
     }
@@ -51090,24 +52739,24 @@ async function runMcpInstall(parsed, ctx) {
   process.stdout.write(`${results.map((result) => result.message).join("\n")}
 `);
 }
-async function prepareMcpLauncher(options) {
+async function prepareMcpLauncher(options2) {
   let launcher;
   let launcherEnv;
   try {
-    if (options.mode === "self") {
+    if (options2.mode === "self") {
       launcher = materializeMakerSelfLauncher({
         version: VERSION2,
-        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL(path26.resolve(process.cwd(), "dist", "maker.js")).href,
+        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL(path27.resolve(process.cwd(), "dist", "maker.js")).href,
         makerHome: getMakerHome()
       });
     } else {
       const packageSpec = resolveMakerPackageSpec(MAKER_NPM_PACKAGE, VERSION2);
       launcher = resolveMakerMcpLauncher({ packageName: packageSpec });
       const configuredCache = process.env.npm_config_cache || process.env.NPM_CONFIG_CACHE;
-      const npmCacheDir = path26.resolve(
-        configuredCache || path26.join(getMakerHome(), "cache", "npm")
+      const npmCacheDir = path27.resolve(
+        configuredCache || path27.join(getMakerHome(), "cache", "npm")
       );
-      fs25.mkdirSync(npmCacheDir, { recursive: true });
+      fs26.mkdirSync(npmCacheDir, { recursive: true });
       launcherEnv = { npm_config_cache: npmCacheDir };
     }
   } catch (error2) {
@@ -51115,7 +52764,7 @@ async function prepareMcpLauncher(options) {
   }
   const verification = await verifyMakerMcpLauncher(launcher, {
     env: {
-      ...options.env === "production" ? {} : { TAPTAP_MCP_ENV: options.env },
+      ...options2.env === "production" ? {} : { TAPTAP_MCP_ENV: options2.env },
       ...launcherEnv
     }
   });
@@ -51240,7 +52889,7 @@ ${indent3(payload.stderr)}` : "",
 }
 async function runMcpReport(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path26.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path27.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const contextInput = booleanOption(parsed, "context_stdin") ? await readStdinText() : "";
   const context = parseMakerMcpReportContext(contextInput);
   const contextValidation = validateMakerMcpReportContext(context);
@@ -51314,7 +52963,7 @@ async function runMcpReport(parsed, ctx) {
   const issue3 = buildMakerMcpIssue({
     context,
     diagnostics,
-    homeDir: os8.homedir()
+    homeDir: os9.homedir()
   });
   const submission = booleanOption(parsed, "consent") ? submitMakerMcpIssue(issue3) : {
     status: "consent_required",
@@ -51341,7 +52990,7 @@ async function runMcpReport(parsed, ctx) {
   );
 }
 async function runAgentsUpdate(parsed, ctx) {
-  const targetDir = path26.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path27.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = updateMakerAgentsPolicy(targetDir);
   if (ctx.json) {
     writeJson(result);
@@ -51360,7 +53009,7 @@ async function runAgentsUpdate(parsed, ctx) {
 async function runUpgrade(parsed, ctx) {
   rejectPackageOption(parsed);
   const explicitTargetDir = stringOption(parsed, "target_dir");
-  const targetDir = path26.resolve(explicitTargetDir || process.cwd());
+  const targetDir = path27.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, "ide") || stringOption(parsed, "ides") || "");
   const pluginDistribution = resolveMakerPluginDistribution();
@@ -51449,7 +53098,7 @@ function getMcpVerifyNextSteps(mode, commandText) {
   ];
 }
 async function runDevKitUpdate(parsed, ctx) {
-  const targetDir = path26.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path27.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = await installAiDevKit({
     targetDir,
     preserveExisting: false,
@@ -51461,10 +53110,30 @@ async function runDevKitUpdate(parsed, ctx) {
   emit(ctx, "dev_kit", formatDevKitInstallMessage("AI dev kit updated", result), result);
   emitDevKitSkillInstallerFailure(ctx, result.skillInstaller, "AI skills install failed");
 }
+async function runUserSkillsPull(parsed, ctx) {
+  const result = await pullMakerUserSkills({
+    targetDir: path27.resolve(stringOption(parsed, "target_dir") || process.cwd()),
+    environment: makerEnvOption(parsed)
+  });
+  if (ctx.json) {
+    writeJson(result);
+    return;
+  }
+  process.stdout.write(
+    [
+      "Maker user Skills downloaded",
+      `- project: ${result.targetDir}`,
+      `- installed: ${result.installedSkills.length}`,
+      `- preserved: ${result.preservedSkills.length}`,
+      `- source: ${result.sourceDir}`,
+      ""
+    ].join("\n")
+  );
+}
 async function runLogsWatch(parsed, ctx) {
-  const targetDir = path26.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path27.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const intervalMs = parseDurationMs(stringOption(parsed, "interval") || "5s");
-  const timeoutMs = numberOption(parsed, "timeout_ms") ?? DEFAULT_TOOL_CALL_TIMEOUT_MS;
+  const timeoutMs = numberOption(parsed, "timeout_ms") ?? MAKER_TOOL_CALL_TIMEOUT_MS;
   const maxPolls = numberOption(parsed, "max_polls");
   const maxConsecutiveFailures = numberOption(parsed, "max_consecutive_failures");
   const proxy = createRemoteProxyContext({
@@ -51472,9 +53141,9 @@ async function runLogsWatch(parsed, ctx) {
     serverUrl: stringOption(parsed, "server_url"),
     env: makerEnvOption(parsed)
   });
-  const runtimeDir = path26.join(proxy.projectRoot, ".maker", "logs", "runtime");
-  const runtimeLog = path26.join(runtimeDir, "runtime.log");
-  const pidFile = path26.join(runtimeDir, "watcher.pid");
+  const runtimeDir = path27.join(proxy.projectRoot, ".maker", "logs", "runtime");
+  const runtimeLog = path27.join(runtimeDir, "runtime.log");
+  const pidFile = path27.join(runtimeDir, "watcher.pid");
   const replacedWatcher = registerRuntimeLogWatcherProcess(pidFile);
   const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
   emit(ctx, "logs_watch_start", "Maker runtime log watcher started", {
@@ -51519,10 +53188,10 @@ async function runLogsWatch(parsed, ctx) {
   }
 }
 function registerRuntimeLogWatcherProcess(pidFile) {
-  fs25.mkdirSync(path26.dirname(pidFile), { recursive: true });
+  fs26.mkdirSync(path27.dirname(pidFile), { recursive: true });
   const existingPid = readPidFile(pidFile);
   const previous = existingPid && existingPid !== process.pid ? stopExistingRuntimeLogWatcher(pidFile) : {};
-  fs25.writeFileSync(
+  fs26.writeFileSync(
     pidFile,
     `${JSON.stringify(
       {
@@ -51540,10 +53209,10 @@ function registerRuntimeLogWatcherProcess(pidFile) {
   return previous;
 }
 function readPidFile(pidFile) {
-  if (!fs25.existsSync(pidFile)) {
+  if (!fs26.existsSync(pidFile)) {
     return void 0;
   }
-  const raw = fs25.readFileSync(pidFile, "utf8").trim();
+  const raw = fs26.readFileSync(pidFile, "utf8").trim();
   let pid = Number(raw);
   if (!Number.isInteger(pid) || pid <= 0) {
     try {
@@ -51563,7 +53232,7 @@ function installRuntimeLogWatcherPidCleanup(pidFile) {
     }
     cleaned = true;
     if (readPidFile(pidFile) === process.pid) {
-      fs25.rmSync(pidFile, { force: true });
+      fs26.rmSync(pidFile, { force: true });
     }
   };
   process.once("exit", cleanup);
@@ -51604,7 +53273,7 @@ async function resolvePat(parsed, ctx) {
   saveManualMakerPat(pat);
   return pat;
 }
-async function resolveProjectSelection(parsed, projects, options) {
+async function resolveProjectSelection(parsed, projects, options2) {
   var _a3;
   const appId = stringOption(parsed, "app_id") || parsed.positionals[0];
   const createNewProject = booleanOption(parsed, "create");
@@ -51612,28 +53281,28 @@ async function resolveProjectSelection(parsed, projects, options) {
     throw new Error("Cannot use --create together with --app-id or a positional app id.");
   }
   if (createNewProject) {
-    return createProjectFromInit(parsed, options);
+    return createProjectFromInit(parsed, options2);
   }
   if (appId) {
     return projects.find((project) => project.id === appId) || { id: appId };
   }
-  if ((_a3 = options.existingProjectConfig) == null ? void 0 : _a3.project_id) {
-    const projectId = options.existingProjectConfig.project_id;
+  if ((_a3 = options2.existingProjectConfig) == null ? void 0 : _a3.project_id) {
+    const projectId = options2.existingProjectConfig.project_id;
     return projects.find((project) => project.id === projectId) || {
       id: projectId,
-      user_id: options.existingProjectConfig.user_id,
-      sce_endpoint: options.existingProjectConfig.sce_endpoint
+      user_id: options2.existingProjectConfig.user_id,
+      sce_endpoint: options2.existingProjectConfig.sce_endpoint
     };
   }
   if (projects.length === 0) {
-    if (options.skipConfirm) {
+    if (options2.skipConfirm) {
       throw new Error("No Maker apps found for this PAT. Use --create --name to create one.");
     }
     process.stdout.write(`${formatMakerProjectList(projects)}
 `);
-    return createProjectFromInit(parsed, options);
+    return createProjectFromInit(parsed, options2);
   }
-  if (options.skipConfirm) {
+  if (options2.skipConfirm) {
     throw new Error("Missing --app-id in non-interactive init mode.");
   }
   const orderedProjects = sortProjectsByRecentActivity(projects);
@@ -51654,7 +53323,7 @@ async function resolveProjectSelection(parsed, projects, options) {
       continue;
     }
     if (["0", "n", "new", "create"].includes(normalized)) {
-      return createProjectFromInit(parsed, options);
+      return createProjectFromInit(parsed, options2);
     }
     const visibleCount = showAll ? orderedProjects.length : Math.min(MAKER_PROJECT_DEFAULT_TEXT_LIMIT, orderedProjects.length);
     const byIndex = Number(answer);
@@ -51668,9 +53337,9 @@ async function resolveProjectSelection(parsed, projects, options) {
     return selected;
   }
 }
-async function createProjectFromInit(parsed, options) {
+async function createProjectFromInit(parsed, options2) {
   var _a3;
-  const existingProjectId = (_a3 = options.existingProjectConfig) == null ? void 0 : _a3.project_id;
+  const existingProjectId = (_a3 = options2.existingProjectConfig) == null ? void 0 : _a3.project_id;
   if (existingProjectId) {
     throw new Error(
       [
@@ -51681,14 +53350,14 @@ async function createProjectFromInit(parsed, options) {
     );
   }
   const name = stringOption(parsed, "name") || stringOption(parsed, "project_name");
-  if (!name && options.skipConfirm) {
+  if (!name && options2.skipConfirm) {
     throw new Error("Missing --name in non-interactive create mode.");
   }
   const projectName = name || await promptRequired("Enter new Maker project name");
   return createMakerProject({
     name: projectName,
     gameType: "sce",
-    pat: options.pat
+    pat: options2.pat
   }).catch((error2) => {
     throw appendPatRecoveryUrl(error2, parsed);
   });
@@ -51706,19 +53375,19 @@ function ensureInitTargetCanRecordProject(targetDir, existingProjectId, selected
     ].join("\n")
   );
 }
-async function prepareDevKit(targetDir, ctx, options = {}) {
+async function prepareDevKit(targetDir, ctx, options2 = {}) {
   const before = inspectAiDevKit(targetDir);
-  if (before.ready && !options.forceInstall) {
+  if (before.ready && !options2.forceInstall) {
     try {
       const skillInstaller = installAiDevKitSkills(targetDir, {
         onStart: (event) => emitSkillInstallerStart(ctx, event)
       });
       writeDevKitStagedGitignore(
-        path26.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path27.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
       syncWorkBuddyDevKitSkills(targetDir, ctx);
-      if (options.finalizeGitignore) {
+      if (options2.finalizeGitignore) {
         finalizeStagedDevKitGitignore(targetDir);
       }
       emit(
@@ -51732,10 +53401,10 @@ async function prepareDevKit(targetDir, ctx, options = {}) {
       );
     } catch (error2) {
       writeDevKitStagedGitignore(
-        path26.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path27.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
-      if (options.finalizeGitignore) {
+      if (options2.finalizeGitignore) {
         finalizeStagedDevKitGitignore(targetDir);
       }
       const detail = error2 instanceof Error ? error2.message : String(error2);
@@ -51749,12 +53418,12 @@ ${detail}`, {
   try {
     const result = await installAiDevKit({
       targetDir,
-      preserveExisting: options.preserveExisting,
-      environment: options.environment,
+      preserveExisting: options2.preserveExisting,
+      environment: options2.environment,
       onSkillInstallerStart: (event) => emitSkillInstallerStart(ctx, event)
     });
     syncWorkBuddyDevKitSkills(targetDir, ctx);
-    if (options.finalizeGitignore) {
+    if (options2.finalizeGitignore) {
       finalizeStagedDevKitGitignore(targetDir);
     }
     emit(ctx, "dev_kit", formatDevKitInstallMessage("AI dev kit prepared", result), result);
@@ -51779,10 +53448,10 @@ function syncWorkBuddyDevKitSkills(targetDir, ctx) {
   try {
     const result = syncWorkBuddyProjectSkills(targetDir);
     const managedSkillPaths = [...result.installedSkills, ...result.skippedSkills].map(
-      (skillName) => path26.join(".workbuddy", "skills", skillName)
+      (skillName) => path27.join(".workbuddy", "skills", skillName)
     );
     if (managedSkillPaths.length > 0) {
-      writeDevKitStagedGitignore(path26.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
+      writeDevKitStagedGitignore(path27.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
         ...listPresentDevKitManagedEntries(targetDir),
         ...managedSkillPaths
       ]);
@@ -51837,16 +53506,16 @@ function isPatValidationFailure(message) {
     message
   ) || /(?:过期|失效)/.test(message);
 }
-function installMcpConfigs(options) {
-  return uniqueStrings2(options.ides).flatMap((ide) => installMcpConfig(ide, options)).map((result) => ({
+function installMcpConfigs(options2) {
+  return uniqueStrings2(options2.ides).flatMap((ide) => installMcpConfig(ide, options2)).map((result) => ({
     ...result,
-    launcher_kind: options.launcher.kind,
+    launcher_kind: options2.launcher.kind,
     verified: true
   }));
 }
-function installMcpConfig(ide, options) {
+function installMcpConfig(ide, options2) {
   try {
-    return installMcpConfigUnsafe(ide, options);
+    return installMcpConfigUnsafe(ide, options2);
   } catch (error2) {
     return [
       {
@@ -51857,19 +53526,19 @@ function installMcpConfig(ide, options) {
     ];
   }
 }
-function installMcpConfigUnsafe(ide, options) {
+function installMcpConfigUnsafe(ide, options2) {
   if (ide === "codex") {
-    const configPath = path26.join(os8.homedir(), ".codex", "config.toml");
-    const write = mergeCodexMcpConfig(configPath, withClientIde(options, "codex"));
+    const configPath = path27.join(os9.homedir(), ".codex", "config.toml");
+    const write = mergeCodexMcpConfig(configPath, withClientIde(options2, "codex"));
     return [createMcpInstallResult(ide, "Codex", configPath, write)];
   }
   if (ide === "cursor") {
-    const configPath = path26.join(os8.homedir(), ".cursor", "mcp.json");
-    const write = mergeJsonMcpConfig(configPath, withClientIde(options, "cursor"));
+    const configPath = path27.join(os9.homedir(), ".cursor", "mcp.json");
+    const write = mergeJsonMcpConfig(configPath, withClientIde(options2, "cursor"));
     return [createMcpInstallResult(ide, "Cursor", configPath, write)];
   }
   if (ide === "claude") {
-    const claudeOptions = withClientIde(options, "claude");
+    const claudeOptions = withClientIde(options2, "claude");
     const claudeResult = tryClaudeMcpAdd(claudeOptions);
     if (claudeResult.ok) {
       return [
@@ -51881,7 +53550,7 @@ function installMcpConfigUnsafe(ide, options) {
         }
       ];
     }
-    const configPath = path26.join(os8.homedir(), ".claude.json");
+    const configPath = path27.join(os9.homedir(), ".claude.json");
     const write = mergeJsonMcpConfig(configPath, claudeOptions);
     return [createMcpInstallResult(ide, "Claude fallback", configPath, write)];
   }
@@ -51890,15 +53559,15 @@ function installMcpConfigUnsafe(ide, options) {
       ide,
       getTraeMcpInstallPaths(),
       "Trae",
-      withClientIde(options, "trae")
+      withClientIde(options2, "trae")
     );
   }
   if (ide === "opencode") {
     const configPath = getOpenCodeMcpConfigPath();
-    if (!fs25.existsSync(configPath)) {
+    if (!fs26.existsSync(configPath)) {
       return [{ ide, ok: false, message: "Skipped OpenCode: no supported config file found" }];
     }
-    const write = mergeOpenCodeMcpConfig(configPath, withClientIde(options, "opencode"));
+    const write = mergeOpenCodeMcpConfig(configPath, withClientIde(options2, "opencode"));
     const result = createMcpInstallResult(ide, "OpenCode", configPath, write);
     if (write.rewroteJsonc) {
       result.message += "\n  Note: OpenCode config was rewritten as standard JSON.";
@@ -51911,12 +53580,12 @@ function installMcpConfigUnsafe(ide, options) {
       getWorkBuddyMcpInstallPaths({ createPrimary: true }),
       "WorkBuddy",
       {
-        ...options,
+        ...options2,
         clientIde: "workbuddy",
         disabled: false
       }
     );
-    const trust = inspectWorkBuddyTrustState(options.mcpName);
+    const trust = inspectWorkBuddyTrustState(options2.mcpName);
     return results.map(
       (result) => result.ok ? {
         ...result,
@@ -51926,7 +53595,7 @@ ${formatWorkBuddyTrustInspection(trust)}`
     );
   }
   if (ide === "dsh") {
-    const dshOptions = withClientIde(options, "dsh");
+    const dshOptions = withClientIde(options2, "dsh");
     const desired = createDshMakerPluginConfig({
       mcpName: dshOptions.mcpName,
       command: dshOptions.launcher.command,
@@ -51942,16 +53611,16 @@ ${formatWorkBuddyTrustInspection(trust)}`
   }
   return [{ ide, ok: false, message: `Skipped unknown IDE: ${ide}` }];
 }
-function withClientIde(options, clientIde) {
-  return { ...options, clientIde };
+function withClientIde(options2, clientIde) {
+  return { ...options2, clientIde };
 }
-function installJsonMcpConfigTargets(ide, configPaths, label, options) {
+function installJsonMcpConfigTargets(ide, configPaths, label, options2) {
   if (configPaths.length === 0) {
     return [{ ide, ok: false, message: `Skipped ${label}: no supported config file found` }];
   }
   return configPaths.map((configPath) => {
     try {
-      const write = mergeJsonMcpConfig(configPath, options);
+      const write = mergeJsonMcpConfig(configPath, options2);
       return createMcpInstallResult(ide, label, configPath, write);
     } catch (error2) {
       return {
@@ -51978,13 +53647,13 @@ function getDefaultMcpInstallIdes() {
   if (getTraeMcpInstallPaths().length > 0) {
     ides.push("trae");
   }
-  if (fs25.existsSync(getOpenCodeMcpConfigPath())) {
+  if (fs26.existsSync(getOpenCodeMcpConfigPath())) {
     ides.push("opencode");
   }
   if (getWorkBuddyMcpInstallPaths().length > 0) {
     ides.push("workbuddy");
   }
-  if (fs25.existsSync(getDshHome())) {
+  if (fs26.existsSync(getDshHome())) {
     ides.push("dsh");
   }
   return ides;
@@ -51998,7 +53667,7 @@ function getExistingTraeUserConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs25.existsSync(path26.dirname(configPath))) {
+    if (seen.has(key) || !fs26.existsSync(path27.dirname(configPath))) {
       return false;
     }
     seen.add(key);
@@ -52009,7 +53678,7 @@ function getExistingConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs25.existsSync(configPath)) {
+    if (seen.has(key) || !fs26.existsSync(configPath)) {
       return false;
     }
     seen.add(key);
@@ -52017,62 +53686,62 @@ function getExistingConfigPaths(paths) {
   });
 }
 function normalizeConfigPathKey(configPath) {
-  const resolved = path26.resolve(configPath);
+  const resolved = path27.resolve(configPath);
   return process.platform === "win32" || process.platform === "darwin" ? resolved.toLowerCase() : resolved;
 }
 function getTraeSoloMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path26.join(os8.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path27.join(os9.homedir(), "AppData", "Roaming");
     return [
-      path26.join(roaming, "TRAE SOLO", "User", "mcp.json"),
-      path26.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
+      path27.join(roaming, "TRAE SOLO", "User", "mcp.json"),
+      path27.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path26.join(os8.homedir(), "Library", "Application Support");
+  const appSupport = path27.join(os9.homedir(), "Library", "Application Support");
   return [
-    path26.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
-    path26.join(appSupport, "TRAE SOLO", "User", "mcp.json")
+    path27.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
+    path27.join(appSupport, "TRAE SOLO", "User", "mcp.json")
   ];
 }
 function getTraeUnverifiedMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path26.join(os8.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path27.join(os9.homedir(), "AppData", "Roaming");
     return [
-      path26.join(roaming, "Trae", "User", "mcp.json"),
-      path26.join(roaming, "TRAE", "User", "mcp.json"),
-      path26.join(roaming, "Trae CN", "User", "mcp.json")
+      path27.join(roaming, "Trae", "User", "mcp.json"),
+      path27.join(roaming, "TRAE", "User", "mcp.json"),
+      path27.join(roaming, "Trae CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path26.join(os8.homedir(), "Library", "Application Support");
+  const appSupport = path27.join(os9.homedir(), "Library", "Application Support");
   return [
-    path26.join(appSupport, "Trae", "User", "mcp.json"),
-    path26.join(appSupport, "TRAE", "User", "mcp.json"),
-    path26.join(appSupport, "Trae CN", "User", "mcp.json")
+    path27.join(appSupport, "Trae", "User", "mcp.json"),
+    path27.join(appSupport, "TRAE", "User", "mcp.json"),
+    path27.join(appSupport, "Trae CN", "User", "mcp.json")
   ];
 }
 function getOpenCodeMcpConfigPath() {
-  return path26.join(os8.homedir(), ".config", "opencode", "opencode.jsonc");
+  return path27.join(os9.homedir(), ".config", "opencode", "opencode.jsonc");
 }
 function getWorkBuddyHome() {
-  return path26.join(os8.homedir(), ".workbuddy");
+  return path27.join(os9.homedir(), ".workbuddy");
 }
-function getWorkBuddyMcpInstallPaths(options = {}) {
-  const primary = path26.join(getWorkBuddyHome(), "mcp.json");
-  if (fs25.existsSync(primary) || options.createPrimary) {
+function getWorkBuddyMcpInstallPaths(options2 = {}) {
+  const primary = path27.join(getWorkBuddyHome(), "mcp.json");
+  if (fs26.existsSync(primary) || options2.createPrimary) {
     return [primary];
   }
-  const legacy = path26.join(getWorkBuddyHome(), ".mcp.json");
-  if (fs25.existsSync(legacy)) {
+  const legacy = path27.join(getWorkBuddyHome(), ".mcp.json");
+  if (fs26.existsSync(legacy)) {
     return [legacy];
   }
   return [];
 }
 function inspectWorkBuddyTrustState(mcpName) {
   const workbuddyHome = getWorkBuddyHome();
-  const connectorsDir = path26.join(workbuddyHome, "connectors");
+  const connectorsDir = path27.join(workbuddyHome, "connectors");
   const accounts = [];
   const stateFiles = [];
-  if (!fs25.existsSync(connectorsDir)) {
+  if (!fs26.existsSync(connectorsDir)) {
     return {
       status: "not_found",
       mcp_name: mcpName,
@@ -52082,12 +53751,12 @@ function inspectWorkBuddyTrustState(mcpName) {
       accounts
     };
   }
-  for (const entry of fs25.readdirSync(connectorsDir, { withFileTypes: true })) {
+  for (const entry of fs26.readdirSync(connectorsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const statePath = path26.join(connectorsDir, entry.name, "connector-states.json");
-    if (!fs25.existsSync(statePath)) {
+    const statePath = path27.join(connectorsDir, entry.name, "connector-states.json");
+    if (!fs26.existsSync(statePath)) {
       continue;
     }
     stateFiles.push(statePath);
@@ -52149,37 +53818,37 @@ function formatWorkBuddyTrustInspection(inspection) {
 function getReadableWorkBuddyTrustPath() {
   return process.platform === "win32" ? "%USERPROFILE%\\.workbuddy\\connectors\\<account-id>\\connector-states.json" : "~/.workbuddy/connectors/<account-id>/connector-states.json";
 }
-function mergeJsonMcpConfig(configPath, options) {
+function mergeJsonMcpConfig(configPath, options2) {
   const existing = readJsonObject(configPath);
   const mcpServers = asObject(existing.mcpServers);
-  const desired = createJsonMcpServerConfig(options);
-  if (deepJsonEqual(mcpServers[options.mcpName], desired)) {
+  const desired = createJsonMcpServerConfig(options2);
+  if (deepJsonEqual(mcpServers[options2.mcpName], desired)) {
     return { changed: false };
   }
-  mcpServers[options.mcpName] = desired;
+  mcpServers[options2.mcpName] = desired;
   existing.mcpServers = mcpServers;
   return writeConfigWithTapTapBackupIfChanged(
     configPath,
     `${JSON.stringify(existing, null, 2)}
 `,
-    (updated) => validateJsonMcpServersConfig(updated, options)
+    (updated) => validateJsonMcpServersConfig(updated, options2)
   );
 }
-function mergeOpenCodeMcpConfig(configPath, options) {
-  const rawContent = fs25.readFileSync(configPath, "utf8");
+function mergeOpenCodeMcpConfig(configPath, options2) {
+  const rawContent = fs26.readFileSync(configPath, "utf8");
   const rewroteJsonc = normalizeJsonConfigContent(rawContent, { jsonc: true }) !== rawContent;
   const existing = readJsonObject(configPath, { jsonc: true });
   const mcp = asObject(existing.mcp);
-  const desired = createOpenCodeMcpServerConfig(options);
+  const desired = createOpenCodeMcpServerConfig(options2);
   const legacyMcpServers = asObject(existing.mcpServers);
-  if (deepJsonEqual(mcp[options.mcpName], desired) && !Object.prototype.hasOwnProperty.call(legacyMcpServers, options.mcpName) && existing.$schema === "https://opencode.ai/config.json") {
+  if (deepJsonEqual(mcp[options2.mcpName], desired) && !Object.prototype.hasOwnProperty.call(legacyMcpServers, options2.mcpName) && existing.$schema === "https://opencode.ai/config.json") {
     return { changed: false, rewroteJsonc: false };
   }
-  mcp[options.mcpName] = desired;
+  mcp[options2.mcpName] = desired;
   existing.mcp = mcp;
   const mcpServers = legacyMcpServers;
-  if (Object.prototype.hasOwnProperty.call(mcpServers, options.mcpName)) {
-    delete mcpServers[options.mcpName];
+  if (Object.prototype.hasOwnProperty.call(mcpServers, options2.mcpName)) {
+    delete mcpServers[options2.mcpName];
     if (Object.keys(mcpServers).length === 0) {
       delete existing.mcpServers;
     } else {
@@ -52193,24 +53862,24 @@ function mergeOpenCodeMcpConfig(configPath, options) {
     configPath,
     `${JSON.stringify(existing, null, 2)}
 `,
-    (updated) => validateOpenCodeMcpConfig(updated, options)
+    (updated) => validateOpenCodeMcpConfig(updated, options2)
   );
   return { ...write, rewroteJsonc: write.changed && rewroteJsonc };
 }
-function mergeCodexMcpConfig(configPath, options) {
-  const existing = fs25.existsSync(configPath) ? fs25.readFileSync(configPath, "utf8") : "";
-  const withoutOld = removeCodexMcpTables(existing, options.mcpName).trimEnd();
-  const launch = options.launcher;
-  const envValues = createMcpEnvironmentValues(options.env, options.clientIde, options.launcherEnv);
+function mergeCodexMcpConfig(configPath, options2) {
+  const existing = fs26.existsSync(configPath) ? fs26.readFileSync(configPath, "utf8") : "";
+  const withoutOld = removeCodexMcpTables(existing, options2.mcpName).trimEnd();
+  const launch = options2.launcher;
+  const envValues = createMcpEnvironmentValues(options2.env, options2.clientIde, options2.launcherEnv);
   const envSection = Object.keys(envValues).length === 0 ? [] : [
     "",
-    `[mcp_servers."${options.mcpName}".env]`,
+    `[mcp_servers."${options2.mcpName}".env]`,
     ...Object.entries(envValues).map(
       ([key, value]) => `${key} = "${escapeTomlString(value)}"`
     )
   ];
   const section = [
-    `[mcp_servers."${options.mcpName}"]`,
+    `[mcp_servers."${options2.mcpName}"]`,
     `command = "${escapeTomlString(launch.command)}"`,
     `args = [${launch.args.map((arg) => `"${escapeTomlString(arg)}"`).join(", ")}]`,
     ...envSection,
@@ -52220,7 +53889,7 @@ function mergeCodexMcpConfig(configPath, options) {
     configPath,
     [withoutOld, section].filter(Boolean).join("\n\n"),
     (updated) => {
-      const duplicates = findCodexMcpTableDuplicates(updated, options.mcpName);
+      const duplicates = findCodexMcpTableDuplicates(updated, options2.mcpName);
       if (duplicates.length > 0) {
         throw new Error(
           `Codex MCP config update would create duplicate table(s): ${duplicates.join(
@@ -52231,17 +53900,17 @@ function mergeCodexMcpConfig(configPath, options) {
     }
   );
 }
-function tryClaudeMcpAdd(options) {
-  const configPath = path26.join(os8.homedir(), ".claude.json");
+function tryClaudeMcpAdd(options2) {
+  const configPath = path27.join(os9.homedir(), ".claude.json");
   try {
     const existing = readJsonObject(configPath);
-    const server = asObject(asObject(existing.mcpServers)[options.mcpName]);
-    if (deepJsonEqual(server, createJsonMcpServerConfig(options))) {
+    const server = asObject(asObject(existing.mcpServers)[options2.mcpName]);
+    if (deepJsonEqual(server, createJsonMcpServerConfig(options2))) {
       return { ok: true, changed: false };
     }
   } catch {
   }
-  const npxLaunch = options.launcher;
+  const npxLaunch = options2.launcher;
   const claudeArgs = [
     "mcp",
     "add",
@@ -52250,9 +53919,9 @@ function tryClaudeMcpAdd(options) {
     "--transport",
     "stdio",
     ...Object.entries(
-      createMcpEnvironmentValues(options.env, options.clientIde, options.launcherEnv)
+      createMcpEnvironmentValues(options2.env, options2.clientIde, options2.launcherEnv)
     ).flatMap(([key, value]) => ["--env", `${key}=${value}`]),
-    options.mcpName,
+    options2.mcpName,
     "--",
     ...npxLaunch.commandAndArgs
   ];
@@ -52267,30 +53936,30 @@ function tryClaudeMcpAdd(options) {
   }
   try {
     const updated = readJsonObject(configPath);
-    const server = asObject(asObject(updated.mcpServers)[options.mcpName]);
-    return deepJsonEqual(server, createJsonMcpServerConfig(options)) ? { ok: true, changed: true } : { ok: false, changed: false };
+    const server = asObject(asObject(updated.mcpServers)[options2.mcpName]);
+    return deepJsonEqual(server, createJsonMcpServerConfig(options2)) ? { ok: true, changed: true } : { ok: false, changed: false };
   } catch {
     return { ok: false, changed: false };
   }
 }
-function createJsonMcpServerConfig(options) {
-  const launch = options.launcher;
+function createJsonMcpServerConfig(options2) {
+  const launch = options2.launcher;
   return {
     command: launch.command,
     args: launch.args,
-    ...createOptionalMcpEnvironment(options.env, "env", options.clientIde, options.launcherEnv),
-    ...options.disabled !== void 0 ? { disabled: options.disabled } : {}
+    ...createOptionalMcpEnvironment(options2.env, "env", options2.clientIde, options2.launcherEnv),
+    ...options2.disabled !== void 0 ? { disabled: options2.disabled } : {}
   };
 }
-function createOpenCodeMcpServerConfig(options) {
+function createOpenCodeMcpServerConfig(options2) {
   return {
     type: "local",
-    command: options.launcher.commandAndArgs,
+    command: options2.launcher.commandAndArgs,
     ...createOptionalMcpEnvironment(
-      options.env,
+      options2.env,
       "environment",
-      options.clientIde,
-      options.launcherEnv
+      options2.clientIde,
+      options2.launcherEnv
     ),
     enabled: true
   };
@@ -52324,13 +53993,13 @@ function rejectPackageOption(parsed) {
     );
   }
 }
-function readJsonObject(filePath, options = {}) {
-  if (!fs25.existsSync(filePath)) {
+function readJsonObject(filePath, options2 = {}) {
+  if (!fs26.existsSync(filePath)) {
     return {};
   }
-  const raw = fs25.readFileSync(filePath, "utf8");
+  const raw = fs26.readFileSync(filePath, "utf8");
   try {
-    const normalized = normalizeJsonConfigContent(raw, options);
+    const normalized = normalizeJsonConfigContent(raw, options2);
     const parsed = JSON.parse(normalized);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       throw new Error("top-level value must be an object");
@@ -52347,25 +54016,25 @@ function asObject(value) {
   }
   return {};
 }
-function validateJsonMcpServersConfig(content, options) {
+function validateJsonMcpServersConfig(content, options2) {
   const parsed = parseGeneratedJsonObject(content);
-  const server = asObject(asObject(parsed.mcpServers)[options.mcpName]);
-  const expected = createJsonMcpServerConfig(options);
+  const server = asObject(asObject(parsed.mcpServers)[options2.mcpName]);
+  const expected = createJsonMcpServerConfig(options2);
   if (!deepJsonEqual(server, expected)) {
-    throw new Error(`Generated MCP config for ${options.mcpName} failed validation.`);
+    throw new Error(`Generated MCP config for ${options2.mcpName} failed validation.`);
   }
 }
-function validateOpenCodeMcpConfig(content, options) {
+function validateOpenCodeMcpConfig(content, options2) {
   const parsed = parseGeneratedJsonObject(content);
-  const server = asObject(asObject(parsed.mcp)[options.mcpName]);
-  const expected = createOpenCodeMcpServerConfig(options);
+  const server = asObject(asObject(parsed.mcp)[options2.mcpName]);
+  const expected = createOpenCodeMcpServerConfig(options2);
   if (!deepJsonEqual(server, expected)) {
-    throw new Error(`Generated OpenCode MCP config for ${options.mcpName} failed validation.`);
+    throw new Error(`Generated OpenCode MCP config for ${options2.mcpName} failed validation.`);
   }
-  const legacyServer = asObject(parsed.mcpServers)[options.mcpName];
+  const legacyServer = asObject(parsed.mcpServers)[options2.mcpName];
   if (legacyServer !== void 0) {
     throw new Error(
-      `Generated OpenCode config still contains legacy mcpServers.${options.mcpName}.`
+      `Generated OpenCode config still contains legacy mcpServers.${options2.mcpName}.`
     );
   }
 }
@@ -52390,9 +54059,9 @@ function sortJsonObjectKeys(value) {
     Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, sortJsonObjectKeys(item)])
   );
 }
-function normalizeJsonConfigContent(content, options = {}) {
+function normalizeJsonConfigContent(content, options2 = {}) {
   const withoutBom = stripLeadingBom(content);
-  return options.jsonc ? normalizeJsonc(withoutBom) : withoutBom;
+  return options2.jsonc ? normalizeJsonc(withoutBom) : withoutBom;
 }
 function stripLeadingBom(content) {
   return content.charCodeAt(0) === 65279 ? content.slice(1) : content;
@@ -52500,10 +54169,10 @@ function formatMcpInstallMessage(label, configPath, write) {
   ].filter(Boolean).join("\n");
 }
 function saveInitState(targetDir, state) {
-  fs25.mkdirSync(getMakerHome(), { recursive: true });
-  const key = crypto5.createHash("sha256").update(path26.resolve(targetDir)).digest("hex").slice(0, 16);
-  fs25.writeFileSync(
-    path26.join(getMakerHome(), `init-state-${key}.json`),
+  fs26.mkdirSync(getMakerHome(), { recursive: true });
+  const key = crypto5.createHash("sha256").update(path27.resolve(targetDir)).digest("hex").slice(0, 16);
+  fs26.writeFileSync(
+    path27.join(getMakerHome(), `init-state-${key}.json`),
     `${JSON.stringify({ ...state, updated_at: (/* @__PURE__ */ new Date()).toISOString() }, null, 2)}
 `,
     "utf8"
@@ -52540,12 +54209,12 @@ function rejectRemovedAppsPaginationOptions(parsed) {
     )}. Use --all for the full human-readable list, or --json for the machine-readable output.`
   );
 }
-function formatMakerProjectList(projects, options = {}) {
+function formatMakerProjectList(projects, options2 = {}) {
   if (projects.length === 0) {
     return ["No Maker apps found.", "", "0，创建新项目 / 0. Create a new Maker project"].join("\n");
   }
   const sortedProjects = sortProjectsByRecentActivity(projects);
-  const showAll = options.showAll === true;
+  const showAll = options2.showAll === true;
   const visibleProjects = showAll ? sortedProjects : sortedProjects.slice(0, MAKER_PROJECT_DEFAULT_TEXT_LIMIT);
   const hiddenCount = sortedProjects.length - visibleProjects.length;
   return [
@@ -52616,7 +54285,7 @@ function formatUnknownCommand(command) {
   return `${primary} ${isKnownSubcommand(primary, secondary) ? secondary : "<redacted>"}`;
 }
 function isKnownSubcommand(command, subcommand) {
-  return command === "pat" && subcommand === "set" || command === "mcp" && (subcommand === "install" || subcommand === "verify" || subcommand === "report") || command === "agents" && subcommand === "update" || command === "upgrade" || command === "dev-kit" && subcommand === "update" || command === "logs" && subcommand === "watch" || command === "python" && (subcommand === "doctor" || subcommand === "setup" || subcommand === "path") || command === "lua-lsp" && (subcommand === "doctor" || subcommand === "setup");
+  return command === "pat" && subcommand === "set" || command === "mcp" && (subcommand === "install" || subcommand === "verify" || subcommand === "report") || command === "agents" && subcommand === "update" || command === "user-skills" && subcommand === "pull" || command === "upgrade" || command === "dev-kit" && subcommand === "update" || command === "logs" && subcommand === "watch" || command === "python" && (subcommand === "doctor" || subcommand === "setup" || subcommand === "path") || command === "lua-lsp" && (subcommand === "doctor" || subcommand === "setup");
 }
 function stringOption(parsed, key) {
   const value = parsed.options[key];
@@ -52651,7 +54320,7 @@ function makerEnvOption(parsed) {
     return env;
   }
   const targetDir = stringOption(parsed, "target_dir");
-  return getMakerEnvironment(void 0, targetDir ? path26.resolve(targetDir) : process.cwd());
+  return getMakerEnvironment(void 0, targetDir ? path27.resolve(targetDir) : process.cwd());
 }
 function makerMcpConfigEnvOption(parsed) {
   return stringOption(parsed, "env") === "rnd" ? "rnd" : "production";
@@ -52728,6 +54397,7 @@ function printHelp() {
       "  taptap-maker plugin restore --client codex|workbuddy|dsh --confirm [--json]",
       "  taptap-maker upgrade [--launcher self|npx] [--target-dir DIR] [--json]",
       "  taptap-maker dev-kit update [--target-dir DIR] [--json]",
+      "  taptap-maker user-skills pull [--target-dir DIR] [--json]",
       "  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]",
       "",
       "MCP install and verify default to a stable self runtime under the Maker home directory.",
@@ -52765,6 +54435,161 @@ function formatCliError(error2) {
     return error2.message;
   }
   return error2 instanceof Error ? error2.message : String(error2);
+}
+
+// src/mcp-proxy/config.ts
+var DEFAULT_TOOL_CALL_TIMEOUT_MS = 5 * 60 * 1e3;
+function readStdin() {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    process.stdin.on("data", (chunk) => {
+      chunks.push(chunk);
+    });
+    process.stdin.on("end", () => {
+      resolve(Buffer.concat(chunks).toString("utf-8"));
+    });
+    process.stdin.on("error", reject);
+    setTimeout(() => {
+      reject(new Error("Timeout reading from stdin"));
+    }, 5e3);
+  });
+}
+async function loadConfig() {
+  let configJson;
+  let source;
+  if (process.argv[2]) {
+    configJson = process.argv[2];
+    source = "command line argument";
+  } else if (process.env.PROXY_CONFIG) {
+    configJson = process.env.PROXY_CONFIG;
+    source = "PROXY_CONFIG environment variable";
+  } else if (!process.stdin.isTTY) {
+    configJson = await readStdin();
+    source = "stdin";
+  } else {
+    throw new Error(
+      `No configuration provided. Please use one of:
+1. Command line: node index.js '{"server":{...}}'
+2. Env var: PROXY_CONFIG='{"server":{...}}' node index.js
+3. Stdin: echo '{"server":{...}}' | node index.js
+
+See config.example.json for configuration format.`
+    );
+  }
+  console.error(`[Proxy] Loading config from ${source}`);
+  let config2;
+  try {
+    config2 = JSON.parse(configJson);
+  } catch (error2) {
+    throw new Error(
+      `Failed to parse configuration JSON: ${error2 instanceof Error ? error2.message : String(error2)}
+Received: ${configJson.substring(0, 100)}...`
+    );
+  }
+  validateConfig(config2);
+  return applyDefaults(config2);
+}
+function validateConfig(config2) {
+  var _a3, _b;
+  const errors = [];
+  if (!config2.server) {
+    errors.push("- Missing required field: server");
+  } else {
+    if (!config2.server.url) {
+      errors.push("- Missing required field: server.url");
+    }
+    if (config2.server.env && !["rnd", "production"].includes(config2.server.env)) {
+      errors.push('- Invalid server.env: must be "rnd" or "production"');
+    }
+  }
+  if (!config2.tenant) {
+    errors.push("- Missing required field: tenant");
+  } else {
+    if (config2.tenant.custom_fields !== void 0) {
+      const cf = config2.tenant.custom_fields;
+      if (typeof cf !== "object" || cf === null || Array.isArray(cf) || Object.getPrototypeOf(cf) !== Object.prototype) {
+        errors.push("- tenant.custom_fields must be a plain object (Record<string, string>)");
+      } else if (!Object.values(cf).every((v) => typeof v === "string")) {
+        errors.push("- tenant.custom_fields values must all be strings");
+      }
+    }
+  }
+  if (!config2.auth) {
+    errors.push("- Missing required field: auth");
+  } else {
+    if (!config2.auth.kid) {
+      errors.push("- Missing required field: auth.kid");
+    }
+    if (!config2.auth.mac_key) {
+      errors.push("- Missing required field: auth.mac_key");
+    }
+    if (config2.auth.token_type !== "mac") {
+      errors.push('- Invalid auth.token_type: must be "mac"');
+    }
+    if (config2.auth.mac_algorithm !== "hmac-sha-1") {
+      errors.push('- Invalid auth.mac_algorithm: must be "hmac-sha-1"');
+    }
+  }
+  if (((_a3 = config2.options) == null ? void 0 : _a3.exposed_tools) !== void 0) {
+    const exposedTools = config2.options.exposed_tools;
+    if (!Array.isArray(exposedTools)) {
+      errors.push("- options.exposed_tools must be an array of tool names");
+    } else if (!exposedTools.every((toolName) => typeof toolName === "string" && toolName.trim().length > 0)) {
+      errors.push("- options.exposed_tools values must be non-empty strings");
+    }
+  }
+  if (((_b = config2.options) == null ? void 0 : _b.replayable_tools) !== void 0) {
+    const replayableTools = config2.options.replayable_tools;
+    if (!Array.isArray(replayableTools)) {
+      errors.push("- options.replayable_tools must be an array of tool names");
+    } else if (!replayableTools.every(
+      (toolName) => typeof toolName === "string" && toolName.trim().length > 0
+    )) {
+      errors.push("- options.replayable_tools values must be non-empty strings");
+    }
+  }
+  if (errors.length > 0) {
+    throw new Error("Invalid configuration:\n" + errors.join("\n"));
+  }
+}
+var DEFAULT_LOG_ROOT = "/tmp/taptap-mcp/logs";
+function applyDefaults(config2) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
+  const verbose = ((_a3 = config2.options) == null ? void 0 : _a3.verbose) ?? false;
+  return {
+    server: {
+      url: config2.server.url,
+      env: config2.server.env || "rnd"
+    },
+    tenant: {
+      project_path: config2.tenant.project_path || ".",
+      user_id: config2.tenant.user_id,
+      project_id: config2.tenant.project_id,
+      custom_fields: config2.tenant.custom_fields
+    },
+    auth: config2.auth,
+    options: {
+      verbose,
+      reconnect_interval: ((_b = config2.options) == null ? void 0 : _b.reconnect_interval) ?? 5e3,
+      request_timeout: ((_c = config2.options) == null ? void 0 : _c.request_timeout) ?? 3e4,
+      tool_call_timeout: ((_d = config2.options) == null ? void 0 : _d.tool_call_timeout) ?? DEFAULT_TOOL_CALL_TIMEOUT_MS,
+      reset_timeout_on_progress: ((_e = config2.options) == null ? void 0 : _e.reset_timeout_on_progress) ?? true,
+      health_check_interval: ((_f = config2.options) == null ? void 0 : _f.health_check_interval) ?? 3e4,
+      enable_cookie_sticky: ((_g = config2.options) == null ? void 0 : _g.enable_cookie_sticky) ?? true,
+      disable_standalone_sse: ((_h = config2.options) == null ? void 0 : _h.disable_standalone_sse) ?? false,
+      inject_params_per_call: ((_i = config2.options) == null ? void 0 : _i.inject_params_per_call) ?? true,
+      force_inject_progress_token: ((_j = config2.options) == null ? void 0 : _j.force_inject_progress_token) ?? false,
+      exposed_tools: (_k = config2.options) == null ? void 0 : _k.exposed_tools,
+      replayable_tools: (_l = config2.options) == null ? void 0 : _l.replayable_tools,
+      log: {
+        root: ((_n = (_m = config2.options) == null ? void 0 : _m.log) == null ? void 0 : _n.root) ?? DEFAULT_LOG_ROOT,
+        enabled: ((_p = (_o = config2.options) == null ? void 0 : _o.log) == null ? void 0 : _p.enabled) ?? false,
+        // verbose=true 时自动使用 debug 级别
+        level: verbose ? "debug" : ((_r = (_q = config2.options) == null ? void 0 : _q.log) == null ? void 0 : _r.level) ?? "info",
+        max_days: ((_t = (_s = config2.options) == null ? void 0 : _s.log) == null ? void 0 : _t.max_days) ?? 7
+      }
+    }
+  };
 }
 
 // node_modules/@modelcontextprotocol/sdk/dist/esm/shared/transport.js
@@ -53168,17 +54993,17 @@ async function parseErrorResponse(input2) {
     return new ServerError(errorMessage);
   }
 }
-async function auth(provider, options) {
+async function auth(provider, options2) {
   var _a3, _b;
   try {
-    return await authInternal(provider, options);
+    return await authInternal(provider, options2);
   } catch (error2) {
     if (error2 instanceof InvalidClientError || error2 instanceof UnauthorizedClientError) {
       await ((_a3 = provider.invalidateCredentials) == null ? void 0 : _a3.call(provider, "all"));
-      return await authInternal(provider, options);
+      return await authInternal(provider, options2);
     } else if (error2 instanceof InvalidGrantError) {
       await ((_b = provider.invalidateCredentials) == null ? void 0 : _b.call(provider, "tokens"));
-      return await authInternal(provider, options);
+      return await authInternal(provider, options2);
     }
     throw error2;
   }
@@ -53387,11 +55212,11 @@ async function fetchWithCorsRetry(url2, headers, fetchFn = fetch) {
     throw error2;
   }
 }
-function buildWellKnownPath(wellKnownPrefix, pathname = "", options = {}) {
+function buildWellKnownPath(wellKnownPrefix, pathname = "", options2 = {}) {
   if (pathname.endsWith("/")) {
     pathname = pathname.slice(0, -1);
   }
-  return options.prependPathname ? `${pathname}/.well-known/${wellKnownPrefix}` : `/.well-known/${wellKnownPrefix}${pathname}`;
+  return options2.prependPathname ? `${pathname}/.well-known/${wellKnownPrefix}` : `/.well-known/${wellKnownPrefix}${pathname}`;
 }
 async function tryMetadataDiscovery(url2, protocolVersion, fetchFn = fetch) {
   const headers = {
@@ -53635,8 +55460,8 @@ async function registerClient(authorizationServerUrl, { metadata, clientMetadata
 
 // node_modules/eventsource-parser/dist/index.js
 var ParseError = class extends Error {
-  constructor(message, options) {
-    super(message), this.name = "ParseError", this.type = options.type, this.field = options.field, this.value = options.value, this.line = options.line;
+  constructor(message, options2) {
+    super(message), this.name = "ParseError", this.type = options2.type, this.field = options2.field, this.value = options2.value, this.line = options2.line;
   }
 };
 function noop(_arg) {
@@ -53712,8 +55537,8 @@ function createParser(callbacks) {
 `) ? data.slice(0, -1) : data
     }), id = void 0, data = "", eventType = "";
   }
-  function reset(options = {}) {
-    incompleteLine && options.consume && parseLine(incompleteLine), isFirstChunk = true, id = void 0, data = "", eventType = "", incompleteLine = "";
+  function reset(options2 = {}) {
+    incompleteLine && options2.consume && parseLine(incompleteLine), isFirstChunk = true, id = void 0, data = "", eventType = "", incompleteLine = "";
   }
   return { feed, reset };
 }
@@ -53829,9 +55654,9 @@ var StreamableHTTPClientTransport = class {
       ...extraHeaders
     });
   }
-  async _startOrAuthSse(options) {
+  async _startOrAuthSse(options2) {
     var _a3, _b, _c;
-    const { resumptionToken } = options;
+    const { resumptionToken } = options2;
     try {
       const headers = await this._commonHeaders();
       headers.set("Accept", "text/event-stream");
@@ -53853,7 +55678,7 @@ var StreamableHTTPClientTransport = class {
         }
         throw new StreamableHTTPError(response.status, `Failed to open SSE stream: ${response.statusText}`);
       }
-      this._handleSseStream(response.body, options, true);
+      this._handleSseStream(response.body, options2, true);
     } catch (error2) {
       (_c = this.onerror) == null ? void 0 : _c.call(this, error2);
       throw error2;
@@ -53880,7 +55705,7 @@ var StreamableHTTPClientTransport = class {
    * @param lastEventId The ID of the last received event for resumability
    * @param attemptCount Current reconnection attempt count for this specific stream
    */
-  _scheduleReconnection(options, attemptCount = 0) {
+  _scheduleReconnection(options2, attemptCount = 0) {
     var _a3;
     const maxRetries = this._reconnectionOptions.maxRetries;
     if (attemptCount >= maxRetries) {
@@ -53889,18 +55714,18 @@ var StreamableHTTPClientTransport = class {
     }
     const delay2 = this._getNextReconnectionDelay(attemptCount);
     this._reconnectionTimeout = setTimeout(() => {
-      this._startOrAuthSse(options).catch((error2) => {
+      this._startOrAuthSse(options2).catch((error2) => {
         var _a4;
         (_a4 = this.onerror) == null ? void 0 : _a4.call(this, new Error(`Failed to reconnect SSE stream: ${error2 instanceof Error ? error2.message : String(error2)}`));
-        this._scheduleReconnection(options, attemptCount + 1);
+        this._scheduleReconnection(options2, attemptCount + 1);
       });
     }, delay2);
   }
-  _handleSseStream(stream, options, isReconnectable) {
+  _handleSseStream(stream, options2, isReconnectable) {
     if (!stream) {
       return;
     }
-    const { onresumptiontoken, replayMessageId } = options;
+    const { onresumptiontoken, replayMessageId } = options2;
     let lastEventId;
     let hasPrimingEvent = false;
     let receivedResponse = false;
@@ -54001,10 +55826,10 @@ var StreamableHTTPClientTransport = class {
     (_a3 = this._abortController) == null ? void 0 : _a3.abort();
     (_b = this.onclose) == null ? void 0 : _b.call(this);
   }
-  async send(message, options) {
+  async send(message, options2) {
     var _a3, _b, _c, _d, _e, _f;
     try {
-      const { resumptionToken, onresumptiontoken } = options || {};
+      const { resumptionToken, onresumptiontoken } = options2 || {};
       if (resumptionToken) {
         this._startOrAuthSse({ resumptionToken, replayMessageId: isJSONRPCRequest(message) ? message.id : void 0 }).catch((err) => {
           var _a4;
@@ -54163,16 +55988,16 @@ var StreamableHTTPClientTransport = class {
    * @param lastEventId The event ID to resume from
    * @param options Optional callback to receive new resumption tokens
    */
-  async resumeStream(lastEventId, options) {
+  async resumeStream(lastEventId, options2) {
     await this._startOrAuthSse({
       resumptionToken: lastEventId,
-      onresumptiontoken: options == null ? void 0 : options.onresumptiontoken
+      onresumptiontoken: options2 == null ? void 0 : options2.onresumptiontoken
     });
   }
 };
 
 // src/mcp-proxy/proxy.ts
-import * as path28 from "node:path";
+import * as path29 from "node:path";
 import * as crypto8 from "node:crypto";
 
 // src/mcp-proxy/cookieJar.ts
@@ -54338,13 +56163,13 @@ var CookieJar = class {
     return this.cookies.size > 0;
   }
 };
-function createCookieFetch(cookieJar, options = {}) {
+function createCookieFetch(cookieJar, options2 = {}) {
   return async (input2, init) => {
-    if (options.rejectStandaloneSse && isStandaloneSseRequest(input2, init)) {
+    if (options2.rejectStandaloneSse && isStandaloneSseRequest(input2, init)) {
       return new Response(null, { status: 405, statusText: "Method Not Allowed" });
     }
     const modifiedInit = { ...init };
-    const cookieHeader = options.enableCookies === false ? void 0 : cookieJar.getCookieHeader();
+    const cookieHeader = options2.enableCookies === false ? void 0 : cookieJar.getCookieHeader();
     if (cookieHeader) {
       const headers = new Headers(modifiedInit.headers);
       headers.set("Cookie", cookieHeader);
@@ -54368,8 +56193,8 @@ function isStandaloneSseRequest(input2, init) {
 }
 
 // src/core/utils/logWriter.ts
-import * as fs26 from "node:fs";
-import * as path27 from "node:path";
+import * as fs27 from "node:fs";
+import * as path28 from "node:path";
 import * as crypto7 from "node:crypto";
 
 // src/core/types/log.ts
@@ -54410,7 +56235,7 @@ var LogWriter = class {
       return;
     }
     try {
-      await fs26.promises.mkdir(this.config.logDir, { recursive: true });
+      await fs27.promises.mkdir(this.config.logDir, { recursive: true });
       await this.cleanupOldLogs();
       this.initialized = true;
     } catch (error2) {
@@ -54433,7 +56258,7 @@ var LogWriter = class {
    */
   getLogFilePath(date5) {
     const d = date5 || this.getCurrentDate();
-    return path27.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
+    return path28.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
   }
   /**
    * 获取或创建写入流
@@ -54448,7 +56273,7 @@ var LogWriter = class {
       }
       this.currentDate = date5;
       try {
-        this.writeStream = fs26.createWriteStream(this.getLogFilePath(date5), {
+        this.writeStream = fs27.createWriteStream(this.getLogFilePath(date5), {
           flags: "a",
           encoding: "utf8"
         });
@@ -54500,11 +56325,11 @@ var LogWriter = class {
     if (this.shouldWriteToFile(level) && this.initialized && this.config.enabled) {
       try {
         const filePath = this.getLogFilePath();
-        const dir = path27.dirname(filePath);
-        if (!fs26.existsSync(dir)) {
-          fs26.mkdirSync(dir, { recursive: true });
+        const dir = path28.dirname(filePath);
+        if (!fs27.existsSync(dir)) {
+          fs27.mkdirSync(dir, { recursive: true });
         }
-        fs26.appendFileSync(filePath, message, "utf8");
+        fs27.appendFileSync(filePath, message, "utf8");
       } catch {
       }
     }
@@ -54515,7 +56340,7 @@ var LogWriter = class {
   async cleanupOldLogs() {
     if (this.config.maxDays <= 0) return;
     try {
-      const files = await fs26.promises.readdir(this.config.logDir);
+      const files = await fs27.promises.readdir(this.config.logDir);
       const cutoffDate = /* @__PURE__ */ new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.config.maxDays);
       const prefix = this.config.prefix;
@@ -54530,7 +56355,7 @@ var LogWriter = class {
           if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
             const fileDate = new Date(year, month - 1, day);
             if (fileDate < cutoffDate) {
-              await fs26.promises.unlink(path27.join(this.config.logDir, file2));
+              await fs27.promises.unlink(path28.join(this.config.logDir, file2));
               process.stderr.write(`[LogWriter] Deleted old log: ${file2}
 `);
             }
@@ -54566,7 +56391,6 @@ var LogWriter = class {
 
 // src/mcp-proxy/proxy.ts
 var VERSION3 = typeof __PROXY_VERSION__ !== "undefined" ? __PROXY_VERSION__ : "dev";
-var LOCAL_PROXY_TAG = "local";
 var DEFAULT_RECONNECT_INTERVAL_MS = 5e3;
 var MAX_RECONNECT_INTERVAL_MS = 60 * 1e3;
 function createNonReplayableToolResult(name, executionState) {
@@ -54628,20 +56452,23 @@ function isHttpClientError2(error2) {
   return numericCode !== void 0 && numericCode >= 400 && numericCode < 500 || /\bHTTP\s+4\d\d\b/i.test(error2.message);
 }
 var TapTapMCPProxy = class {
-  constructor(config2) {
+  constructor(config2, runtimeOptions = {}) {
     this.connected = false;
     this.reconnecting = false;
     this.reconnectTimer = null;
     this.healthCheckTimer = null;
     this.pendingRequests = [];
-    this.reconnectDelayMs = DEFAULT_RECONNECT_INTERVAL_MS;
     // 会话验证相关
     this.sessionValidated = false;
     this.lastValidationTime = 0;
     this.SESSION_VALIDATION_INTERVAL = 3e4;
-    var _a3;
+    var _a3, _b;
     this.config = config2;
-    this.cookieJar = new CookieJar(((_a3 = config2.options) == null ? void 0 : _a3.verbose) ?? false);
+    this.sourceTag = runtimeOptions.sourceTag;
+    this.remoteErrorMode = runtimeOptions.remoteErrorMode ?? "passthrough";
+    this.recoveryMode = runtimeOptions.recoveryMode ?? "compatible";
+    this.reconnectDelayMs = ((_a3 = config2.options) == null ? void 0 : _a3.reconnect_interval) ?? DEFAULT_RECONNECT_INTERVAL_MS;
+    this.cookieJar = new CookieJar(((_b = config2.options) == null ? void 0 : _b.verbose) ?? false);
     this.logWriter = this.createLogWriter();
     this.client = this.createClient();
     this.server = new Server(
@@ -54662,10 +56489,10 @@ var TapTapMCPProxy = class {
     const { user_id, project_id } = this.config.tenant;
     let logDir;
     if (user_id && project_id) {
-      logDir = path28.join(logRoot, "proxy", user_id, project_id);
+      logDir = path29.join(logRoot, "proxy", user_id, project_id);
     } else {
       const kidHash = crypto8.createHash("sha256").update(this.config.auth.kid).digest("hex").substring(0, 8);
-      logDir = path28.join(logRoot, "proxy", kidHash);
+      logDir = path29.join(logRoot, "proxy", kidHash);
     }
     return new LogWriter({
       logDir,
@@ -54739,11 +56566,13 @@ var TapTapMCPProxy = class {
    * - X-TapTap-Project-Path: 项目路径
    * - X-TapTap-Mac-Token: MAC 认证令牌（JSON）
    * - X-TapTap-Custom-Fields: 业务自定义字段（JSON）
-   * - X-TapTap-Tag: 调用来源标记，固定为 "local"
+   * - X-TapTap-Tag: 调用来源标记，仅在嵌入入口显式启用时发送
    */
   buildSessionHeaders() {
     const headers = {};
-    headers["X-TapTap-Tag"] = LOCAL_PROXY_TAG;
+    if (this.sourceTag !== void 0) {
+      headers["X-TapTap-Tag"] = this.sourceTag;
+    }
     if (this.config.tenant.user_id) {
       headers["X-TapTap-User-Id"] = this.config.tenant.user_id;
     }
@@ -54771,12 +56600,14 @@ var TapTapMCPProxy = class {
    * - _project_id: 项目标识（可选）
    * - _project_path: 项目路径（可选）
    * - _custom_fields: 业务自定义字段（可选）
-   * - _tag: 调用来源标记，固定为 "local"
+   * - _tag: 调用来源标记，仅在嵌入入口显式启用时注入
    */
   injectPrivateParams(args) {
     const injected = { ...args || {} };
     injected._mac_token = this.config.auth;
-    injected._tag = LOCAL_PROXY_TAG;
+    if (this.sourceTag !== void 0) {
+      injected._tag = this.sourceTag;
+    }
     if (this.config.tenant.user_id) {
       injected._user_id = this.config.tenant.user_id;
     }
@@ -54827,6 +56658,18 @@ var TapTapMCPProxy = class {
     const replayableTools = (_a3 = this.config.options) == null ? void 0 : _a3.replayable_tools;
     return replayableTools === void 0 || replayableTools.includes(name);
   }
+  toolErrorResult(error2) {
+    return this.remoteErrorMode === "tool-result" ? convertMcpApplicationErrorToToolResult(error2) : void 0;
+  }
+  shouldReplayToolFailure(name, error2) {
+    if (!this.isToolReplayable(name) || !(error2 instanceof Error)) return false;
+    if (this.recoveryMode === "resilient") return true;
+    if (this.isSessionInvalidError(error2) || error2.message.toLowerCase().includes("not connected")) {
+      return true;
+    }
+    const code = error2.code;
+    return !isTransientHttpServerError2(error2) && code !== ErrorCode.ConnectionClosed && code !== ErrorCode.RequestTimeout;
+  }
   /**
    * 连接到 TapTap MCP Server
    */
@@ -54863,8 +56706,13 @@ var TapTapMCPProxy = class {
       this.log("info", "✅ Connected and session validated");
       this.startHealthCheck();
       if (this.reconnecting) {
+        if (this.recoveryMode === "compatible") {
+          await this.notifyReconnected();
+        }
         await this.processPendingRequests();
-        await this.notifyReconnected();
+        if (this.recoveryMode === "resilient") {
+          await this.notifyReconnected();
+        }
         this.reconnecting = false;
       }
     } catch (error2) {
@@ -55019,15 +56867,17 @@ var TapTapMCPProxy = class {
     var _a3, _b, _c;
     this.clearReconnectTimer();
     const configuredInterval = ((_a3 = this.config.options) == null ? void 0 : _a3.reconnect_interval) ?? DEFAULT_RECONNECT_INTERVAL_MS;
-    const interval = this.reconnectDelayMs || configuredInterval;
+    const interval = this.recoveryMode === "resilient" ? this.reconnectDelayMs : configuredInterval;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectToServer();
     }, interval);
     (_c = (_b = this.reconnectTimer).unref) == null ? void 0 : _c.call(_b);
-    this.reconnectDelayMs = Math.min(
-      Math.max(interval * 2, configuredInterval),
-      MAX_RECONNECT_INTERVAL_MS
-    );
+    if (this.recoveryMode === "resilient") {
+      this.reconnectDelayMs = Math.min(
+        Math.max(interval * 2, configuredInterval),
+        Math.max(MAX_RECONNECT_INTERVAL_MS, configuredInterval)
+      );
+    }
   }
   /**
    * 清除重连定时器
@@ -55068,15 +56918,18 @@ var TapTapMCPProxy = class {
    * 检测是否是需要重连的错误（网络错误或会话无效）
    */
   isNetworkError(error2) {
+    var _a3;
     if (!(error2 instanceof Error)) return false;
     if (convertMcpApplicationErrorToToolResult(error2)) {
       return false;
     }
     if (isHttpClientError2(error2)) {
-      return false;
-    }
-    if (isTransientHttpServerError2(error2)) {
-      return true;
+      if (this.isMcpApplicationError(error2)) {
+        return false;
+      }
+      const code = error2.code;
+      const status = typeof code === "number" && code >= 400 && code < 500 ? code : typeof code === "string" && /^4\d\d$/.test(code) ? Number(code) : Number((_a3 = error2.message.match(/\bHTTP\s+(4\d\d)\b/i)) == null ? void 0 : _a3[1]);
+      return (status === 400 || status === 404) && this.isSessionInvalidError(error2);
     }
     const errorMsg = error2.message.toLowerCase();
     const errorCode = error2.code;
@@ -55104,11 +56957,14 @@ var TapTapMCPProxy = class {
     if (errorCode === ErrorCode.ConnectionClosed || errorCode === ErrorCode.RequestTimeout) {
       return true;
     }
+    if (this.isMcpApplicationError(error2)) {
+      return false;
+    }
     if (errorMsg.includes("not connected") || this.isSessionInvalidError(error2)) {
       return true;
     }
-    if (this.isMcpApplicationError(error2)) {
-      return false;
+    if (isTransientHttpServerError2(error2)) {
+      return true;
     }
     const networkErrorKeywords = [
       "fetch failed",
@@ -55135,7 +56991,6 @@ var TapTapMCPProxy = class {
   async processPendingRequests() {
     var _a3, _b, _c;
     const timeout = ((_a3 = this.config.options) == null ? void 0 : _a3.request_timeout) ?? 3e4;
-    const now = Date.now();
     this.log("info", `Processing ${this.pendingRequests.length} pending requests...`);
     while (this.pendingRequests.length > 0) {
       const req = this.pendingRequests.shift();
@@ -55143,7 +56998,7 @@ var TapTapMCPProxy = class {
         req.resolve(createNonReplayableToolResult(req.name, req.executionState ?? "unknown"));
         continue;
       }
-      if (now - req.timestamp > timeout) {
+      if (Date.now() - req.timestamp > timeout) {
         req.reject(new Error("Request timeout while waiting for reconnection"));
         continue;
       }
@@ -55163,7 +57018,7 @@ var TapTapMCPProxy = class {
         );
         req.resolve(result);
       } catch (error2) {
-        const toolErrorResult = convertMcpApplicationErrorToToolResult(error2);
+        const toolErrorResult = this.toolErrorResult(error2);
         if (toolErrorResult) {
           req.resolve(toolErrorResult);
           continue;
@@ -55171,7 +57026,11 @@ var TapTapMCPProxy = class {
         if (this.isNetworkError(error2)) {
           this.connected = false;
           this.sessionValidated = false;
-          this.pendingRequests.unshift(req);
+          if (this.recoveryMode === "resilient") {
+            this.pendingRequests.unshift(req);
+          } else {
+            req.reject(error2);
+          }
           throw error2;
         }
         req.reject(error2 instanceof Error ? error2 : new Error(String(error2)));
@@ -55310,18 +57169,22 @@ var TapTapMCPProxy = class {
         );
         return result;
       } catch (error2) {
-        const toolErrorResult = convertMcpApplicationErrorToToolResult(error2);
+        const toolErrorResult = this.toolErrorResult(error2);
         if (toolErrorResult) {
           return toolErrorResult;
         }
         if (this.isNetworkError(error2)) {
           this.log("error", "❌ Network error detected, marking connection as lost");
           this.connected = false;
+          this.sessionValidated = false;
           if (!this.reconnecting) {
             this.log("info", "Triggering immediate reconnection...");
             this.reconnectToServer();
             if (!this.isToolReplayable(name)) {
               return createNonReplayableToolResult(name, "unknown");
+            }
+            if (!this.shouldReplayToolFailure(name, error2)) {
+              throw error2;
             }
             this.log("info", `⏳ Queueing current request: ${name}`);
             return new Promise((resolve, reject) => {
@@ -55367,7 +57230,7 @@ async function main() {
 }
 async function startEmbeddedProxy() {
   const config2 = await loadConfig();
-  const proxy = new TapTapMCPProxy(config2);
+  const proxy = new TapTapMCPProxy(config2, MAKER_PROXY_RUNTIME_OPTIONS);
   await proxy.start();
   const cleanup = (source = "proxy-signal") => {
     logLifecycleEvent(source, "Embedded Maker proxy received shutdown signal; exiting.");
@@ -55419,6 +57282,7 @@ function printHelp2() {
       "  taptap-maker plugin restore --client codex|workbuddy --confirm [--json]",
       "  taptap-maker upgrade [--launcher self|npx] [--target-dir DIR] [--json]",
       "  taptap-maker dev-kit update [--target-dir DIR] [--json]",
+      "  taptap-maker user-skills pull [--target-dir DIR] [--json]",
       "  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]",
       "",
       "MCP install and verify default to a stable self runtime under the Maker home directory.",

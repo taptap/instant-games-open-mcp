@@ -3,9 +3,9 @@
 这是 TapTap Maker 的统一插件安装入口，支持 Codex 和 WorkBuddy。两个插件使用同一版本，
 但安装包和客户端配置彼此独立。
 
-- 插件版本：`0.0.3`
+- 插件版本：`0.0.4`
 - 发布渠道：`main 稳定版`
-- 内置 Maker MCP 版本：`0.0.32`
+- 内置 Maker MCP 版本：`0.0.33`
 
 ## 给安装 AI 的强制执行指令
 
@@ -28,7 +28,7 @@ WorkBuddy 由用户在宿主插件界面中确认安装，AI 负责清楚引导�
 
 | 当前宿主客户端             | 安装渠道                                |
 | -------------------------- | --------------------------------------- |
-| 当前宿主客户端是 Codex     | `taptap-maker-codex-plugin-0.0.3.zip`   |
+| 当前宿主客户端是 Codex     | `taptap-maker-codex-plugin-0.0.4.zip`   |
 | 当前宿主客户端是 WorkBuddy | WorkBuddy 官方插件市场中的 TapTap Maker |
 
 必须遵守以下规则：
@@ -43,9 +43,9 @@ WorkBuddy 由用户在宿主插件界面中确认安装，AI 负责清楚引导�
 
 ## 下载
 
-- [Codex 插件 ZIP](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v0.0.3/taptap-maker-codex-plugin-0.0.3.zip)
-- [WorkBuddy 市场发布 ZIP](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v0.0.3/taptap-maker-workbuddy-plugin-0.0.3.zip)
-- [SHA256 校验文件](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v0.0.3/SHA256SUMS)
+- [Codex 插件 ZIP](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v0.0.4/taptap-maker-codex-plugin-0.0.4.zip)
+- [WorkBuddy 市场发布 ZIP](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v0.0.4/taptap-maker-workbuddy-plugin-0.0.4.zip)
+- [SHA256 校验文件](https://github.com/taptap/instant-games-open-mcp/releases/download/maker-plugin-v0.0.4/SHA256SUMS)
 
 Codex ZIP 是完整的离线 marketplace 包。Codex 安装 AI 必须同时下载该 ZIP 和 `SHA256SUMS`，
 验证 SHA-256 匹配后解压到不会自动清理的固定本地目录；校验失败时停止安装。这个目录是 Codex
