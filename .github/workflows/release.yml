@@ -612,7 +612,7 @@ jobs:
       - name: Verify standalone proxy release
         run: |
           set -euo pipefail
-          # Reused release branches must not omit the hotfix or change native build inputs.
+          # 复用 release 分支不能遗漏修复或改变 Native 构建输入。
           git diff --exit-code "${{ github.sha }}" HEAD -- src/ scripts/ bin/ config/ native/
           npm test -- --runInBand \
             src/__tests__/mcpProxyCompatibility.test.ts \
@@ -644,7 +644,7 @@ jobs:
               --ignore-scripts --pack-destination "$EXISTING_DIR"
             tar -xzf "$EXISTING_DIR"/*.tgz -C "$EXISTING_DIR" \
               package/dist/proxy.js package/bin/taptap-mcp-proxy
-            # Never promote an older proxy merely because its version already exists.
+            # 不能仅因 npm 版本已存在就将旧 Proxy 推广为 latest。
             cmp dist/proxy.js "$EXISTING_DIR/package/dist/proxy.js"
             cmp bin/taptap-mcp-proxy "$EXISTING_DIR/package/bin/taptap-mcp-proxy"
             npm dist-tag add "@taptap/instant-games-open-mcp@${VERSION}" latest

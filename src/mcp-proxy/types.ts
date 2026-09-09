@@ -53,13 +53,13 @@ export interface LogConfig {
   max_days?: number;
 }
 
-/** Entry-specific behavior; never inferred from the upstream URL or JSON configuration. */
+/** 入口专属行为，不根据上游 URL 或 JSON 配置推断。 */
 export interface ProxyRuntimeOptions {
-  /** Only embedding entries that represent local calls should opt in. */
+  /** 仅代表本地调用的嵌入入口应显式启用。 */
   sourceTag?: 'local';
-  /** Preserve protocol errors unless the embedding entry needs tool-level diagnostics. */
+  /** 默认保留协议错误，嵌入入口需要工具级诊断时才转换。 */
   remoteErrorMode?: 'passthrough' | 'tool-result';
-  /** Broader retries and exponential backoff require an explicit embedding opt-in. */
+  /** 更广的重试范围和指数退避必须由嵌入入口显式启用。 */
   recoveryMode?: 'compatible' | 'resilient';
 }
 

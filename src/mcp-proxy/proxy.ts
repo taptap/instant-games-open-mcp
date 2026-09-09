@@ -436,7 +436,7 @@ export class TapTapMCPProxy {
       return true;
     }
 
-    // Recognizing a broken connection must not silently broaden business-request replay.
+    // 识别连接故障不能隐式扩大业务请求的重放范围。
     const code = (error as Error & { code?: unknown }).code;
     return (
       !isTransientHttpServerError(error) &&
@@ -766,7 +766,7 @@ export class TapTapMCPProxy {
     }
 
     if (isHttpClientError(error)) {
-      // Quoted HTTP status/session text must not turn a protocol error into a replay.
+      // 协议错误中引用的 HTTP 状态和会话文案不能触发重放。
       if (this.isMcpApplicationError(error)) {
         return false;
       }
