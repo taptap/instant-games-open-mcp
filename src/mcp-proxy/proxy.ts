@@ -803,14 +803,13 @@ export class TapTapMCPProxy {
       return true;
     }
 
-    // MCP SDK may wrap transport/session failures as McpError with negative codes.
-    // Keep these reconnectable before excluding real MCP application errors below.
-    if (errorMsg.includes('not connected') || this.isSessionInvalidError(error)) {
-      return true;
-    }
-
+    // 已知 SDK 传输错误已按错误码处理，业务错误不能再因会话文案触发重连。
     if (this.isMcpApplicationError(error)) {
       return false;
+    }
+
+    if (errorMsg.includes('not connected') || this.isSessionInvalidError(error)) {
+      return true;
     }
 
     if (isTransientHttpServerError(error)) {
