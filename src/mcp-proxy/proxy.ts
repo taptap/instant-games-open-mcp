@@ -766,6 +766,10 @@ export class TapTapMCPProxy {
     }
 
     if (isHttpClientError(error)) {
+      // Quoted HTTP status/session text must not turn a protocol error into a replay.
+      if (this.isMcpApplicationError(error)) {
+        return false;
+      }
       const code = (error as Error & { code?: unknown }).code;
       const status =
         typeof code === 'number' && code >= 400 && code < 500

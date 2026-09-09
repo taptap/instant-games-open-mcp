@@ -115,6 +115,24 @@ describe('standalone proxy compatibility', () => {
     ).toBe(false);
   });
 
+  test.each([400, 404])(
+    'does not replay a protocol business error quoting HTTP %s and session text',
+    async (status) => {
+      const proxy = createProxy();
+      proxy.sessionValidated = true;
+      const error = new McpError(-32603, `HTTP ${status}: invalid session for this game`);
+      proxy.client = { callTool: jest.fn().mockRejectedValue(error) };
+      proxy.reconnectToServer = jest.fn();
+      expect(proxy.isNetworkError(error)).toBe(false);
+      await expect(callTool(proxy)).rejects.toBe(error);
+      expect(proxy.reconnectToServer).not.toHaveBeenCalled();
+      expect(proxy.pendingRequests).toHaveLength(0);
+      expect(proxy.connected).toBe(true);
+      expect(proxy.sessionValidated).toBe(true);
+      expect(proxy.client.callTool).toHaveBeenCalledTimes(1);
+    }
+  );
+
   test.each([
     Object.assign(new Error('HTTP 503: Service Unavailable'), { code: 503 }),
     new McpError(ErrorCode.ConnectionClosed, 'Connection closed'),
