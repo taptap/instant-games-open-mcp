@@ -53,6 +53,16 @@ export interface LogConfig {
   max_days?: number;
 }
 
+/** Entry-specific behavior; never inferred from the upstream URL or JSON configuration. */
+export interface ProxyRuntimeOptions {
+  /** Only embedding entries that represent local calls should opt in. */
+  sourceTag?: 'local';
+  /** Preserve protocol errors unless the embedding entry needs tool-level diagnostics. */
+  remoteErrorMode?: 'passthrough' | 'tool-result';
+  /** Broader retries and exponential backoff require an explicit embedding opt-in. */
+  recoveryMode?: 'compatible' | 'resilient';
+}
+
 /**
  * Proxy 配置（通过 JSON 传递）
  */
@@ -92,7 +102,7 @@ export interface ProxyConfig {
     reconnect_interval?: number;
     /** 请求队列超时（毫秒，默认 30000） */
     request_timeout?: number;
-    /** Tool 调用超时（毫秒，默认 3600000 即 1 小时） */
+    /** Tool 调用超时（毫秒，默认 300000 即 5 分钟） */
     tool_call_timeout?: number;
     /** 收到 progress 通知时重置超时计时器（默认 true） */
     reset_timeout_on_progress?: boolean;
@@ -118,8 +128,8 @@ export interface ProxyConfig {
      * 1. 初始化连接时：始终通过 HTTP Headers 传递（不受此配置影响）
      * 2. 每次工具调用时：通过工具参数注入（由此配置控制）
      *
-     * Proxy 会在初始化连接时通过 X-TapTap-Tag: local 标记本地调用来源，
-     * 并在每次工具调用中继续注入 _tag: "local" 私有参数用于兼容。
+     * 通用 Proxy 默认不注入来源标记。只有嵌入入口显式设置 sourceTag 时才发送
+     * X-TapTap-Tag，并在启用本选项时注入 _tag；本选项不影响 Header。
      *
      * 为兼容不同的 MCP Server 实现，默认每次调用都注入。
      * 如果目标 Server 支持从 Session 获取这些参数，可设置为 false 以减少数据传输量。

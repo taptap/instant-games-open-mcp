@@ -12,7 +12,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
-import type { ProxyConfig, PendingRequest } from './types.js';
+import type { ProxyConfig, PendingRequest, ProxyRuntimeOptions } from './types.js';
 import { CookieJar, createCookieFetch } from './cookieJar.js';
 import { LogWriter, type LogLevel } from '../core/utils/logWriter.js';
 import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from './config.js';
@@ -20,7 +20,6 @@ import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from './config.js';
 // Version placeholder - replaced at build time by esbuild
 declare const __PROXY_VERSION__: string;
 const VERSION = typeof __PROXY_VERSION__ !== 'undefined' ? __PROXY_VERSION__ : 'dev';
-const LOCAL_PROXY_TAG = 'local';
 const DEFAULT_RECONNECT_INTERVAL_MS = 5000;
 const MAX_RECONNECT_INTERVAL_MS = 60 * 1000;
 
@@ -143,6 +142,9 @@ function isHttpClientError(error: Error): boolean {
  */
 export class TapTapMCPProxy {
   private config: ProxyConfig;
+  private readonly sourceTag: ProxyRuntimeOptions['sourceTag'];
+  private readonly remoteErrorMode: ProxyRuntimeOptions['remoteErrorMode'];
+  private readonly recoveryMode: ProxyRuntimeOptions['recoveryMode'];
   private client: Client;
   private server: Server;
 
@@ -151,7 +153,7 @@ export class TapTapMCPProxy {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private healthCheckTimer: NodeJS.Timeout | null = null;
   private pendingRequests: PendingRequest[] = [];
-  private reconnectDelayMs: number = DEFAULT_RECONNECT_INTERVAL_MS;
+  private reconnectDelayMs: number;
 
   // 会话验证相关
   private sessionValidated: boolean = false;
@@ -164,8 +166,12 @@ export class TapTapMCPProxy {
   // 文件日志写入器
   private logWriter: LogWriter;
 
-  constructor(config: ProxyConfig) {
+  constructor(config: ProxyConfig, runtimeOptions: ProxyRuntimeOptions = {}) {
     this.config = config;
+    this.sourceTag = runtimeOptions.sourceTag;
+    this.remoteErrorMode = runtimeOptions.remoteErrorMode ?? 'passthrough';
+    this.recoveryMode = runtimeOptions.recoveryMode ?? 'compatible';
+    this.reconnectDelayMs = config.options?.reconnect_interval ?? DEFAULT_RECONNECT_INTERVAL_MS;
 
     // 初始化 Cookie 管理器（用于会话粘性）
     this.cookieJar = new CookieJar(config.options?.verbose ?? false);
@@ -298,11 +304,13 @@ export class TapTapMCPProxy {
    * - X-TapTap-Project-Path: 项目路径
    * - X-TapTap-Mac-Token: MAC 认证令牌（JSON）
    * - X-TapTap-Custom-Fields: 业务自定义字段（JSON）
-   * - X-TapTap-Tag: 调用来源标记，固定为 "local"
+   * - X-TapTap-Tag: 调用来源标记，仅在嵌入入口显式启用时发送
    */
   private buildSessionHeaders(): Record<string, string> {
     const headers: Record<string, string> = {};
-    headers['X-TapTap-Tag'] = LOCAL_PROXY_TAG;
+    if (this.sourceTag !== undefined) {
+      headers['X-TapTap-Tag'] = this.sourceTag;
+    }
 
     // 会话上下文参数
     if (this.config.tenant.user_id) {
@@ -341,14 +349,16 @@ export class TapTapMCPProxy {
    * - _project_id: 项目标识（可选）
    * - _project_path: 项目路径（可选）
    * - _custom_fields: 业务自定义字段（可选）
-   * - _tag: 调用来源标记，固定为 "local"
+   * - _tag: 调用来源标记，仅在嵌入入口显式启用时注入
    */
   private injectPrivateParams(args: Record<string, unknown> | undefined): Record<string, unknown> {
     const injected: Record<string, unknown> = { ...(args || {}) };
 
     // 注入 MAC Token（必需）
     injected._mac_token = this.config.auth;
-    injected._tag = LOCAL_PROXY_TAG;
+    if (this.sourceTag !== undefined) {
+      injected._tag = this.sourceTag;
+    }
 
     // 注入可选的会话上下文参数
     if (this.config.tenant.user_id) {
@@ -410,6 +420,31 @@ export class TapTapMCPProxy {
     return replayableTools === undefined || replayableTools.includes(name);
   }
 
+  private toolErrorResult(error: unknown): ProxyToolErrorResult | undefined {
+    return this.remoteErrorMode === 'tool-result'
+      ? convertMcpApplicationErrorToToolResult(error)
+      : undefined;
+  }
+
+  private shouldReplayToolFailure(name: string, error: unknown): boolean {
+    if (!this.isToolReplayable(name) || !(error instanceof Error)) return false;
+    if (this.recoveryMode === 'resilient') return true;
+    if (
+      this.isSessionInvalidError(error) ||
+      error.message.toLowerCase().includes('not connected')
+    ) {
+      return true;
+    }
+
+    // Recognizing a broken connection must not silently broaden business-request replay.
+    const code = (error as Error & { code?: unknown }).code;
+    return (
+      !isTransientHttpServerError(error) &&
+      code !== ErrorCode.ConnectionClosed &&
+      code !== ErrorCode.RequestTimeout
+    );
+  }
+
   /**
    * 连接到 TapTap MCP Server
    */
@@ -466,8 +501,13 @@ export class TapTapMCPProxy {
 
       // 如果是重连，处理待处理的请求
       if (this.reconnecting) {
+        if (this.recoveryMode === 'compatible') {
+          await this.notifyReconnected();
+        }
         await this.processPendingRequests();
-        await this.notifyReconnected();
+        if (this.recoveryMode === 'resilient') {
+          await this.notifyReconnected();
+        }
         this.reconnecting = false;
       }
     } catch (error) {
@@ -659,15 +699,17 @@ export class TapTapMCPProxy {
     this.clearReconnectTimer();
     const configuredInterval =
       this.config.options?.reconnect_interval ?? DEFAULT_RECONNECT_INTERVAL_MS;
-    const interval = this.reconnectDelayMs || configuredInterval;
+    const interval = this.recoveryMode === 'resilient' ? this.reconnectDelayMs : configuredInterval;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectToServer();
     }, interval);
     this.reconnectTimer.unref?.();
-    this.reconnectDelayMs = Math.min(
-      Math.max(interval * 2, configuredInterval),
-      MAX_RECONNECT_INTERVAL_MS
-    );
+    if (this.recoveryMode === 'resilient') {
+      this.reconnectDelayMs = Math.min(
+        Math.max(interval * 2, configuredInterval),
+        Math.max(MAX_RECONNECT_INTERVAL_MS, configuredInterval)
+      );
+    }
   }
 
   /**
@@ -724,11 +766,14 @@ export class TapTapMCPProxy {
     }
 
     if (isHttpClientError(error)) {
-      return false;
-    }
-
-    if (isTransientHttpServerError(error)) {
-      return true;
+      const code = (error as Error & { code?: unknown }).code;
+      const status =
+        typeof code === 'number' && code >= 400 && code < 500
+          ? code
+          : typeof code === 'string' && /^4\d\d$/.test(code)
+            ? Number(code)
+            : Number(error.message.match(/\bHTTP\s+(4\d\d)\b/i)?.[1]);
+      return (status === 400 || status === 404) && this.isSessionInvalidError(error);
     }
 
     const errorMsg = error.message.toLowerCase();
@@ -764,6 +809,10 @@ export class TapTapMCPProxy {
       return false;
     }
 
+    if (isTransientHttpServerError(error)) {
+      return true;
+    }
+
     // 检查错误消息关键词（备选）
     const networkErrorKeywords = [
       'fetch failed',
@@ -795,7 +844,6 @@ export class TapTapMCPProxy {
    */
   private async processPendingRequests(): Promise<void> {
     const timeout = this.config.options?.request_timeout ?? 30000;
-    const now = Date.now();
 
     this.log('info', `Processing ${this.pendingRequests.length} pending requests...`);
 
@@ -808,7 +856,7 @@ export class TapTapMCPProxy {
       }
 
       // 检查请求是否超时
-      if (now - req.timestamp > timeout) {
+      if (Date.now() - req.timestamp > timeout) {
         req.reject(new Error('Request timeout while waiting for reconnection'));
         continue;
       }
@@ -829,7 +877,7 @@ export class TapTapMCPProxy {
         );
         req.resolve(result);
       } catch (error) {
-        const toolErrorResult = convertMcpApplicationErrorToToolResult(error);
+        const toolErrorResult = this.toolErrorResult(error);
         if (toolErrorResult) {
           req.resolve(toolErrorResult);
           continue;
@@ -838,7 +886,11 @@ export class TapTapMCPProxy {
         if (this.isNetworkError(error)) {
           this.connected = false;
           this.sessionValidated = false;
-          this.pendingRequests.unshift(req);
+          if (this.recoveryMode === 'resilient') {
+            this.pendingRequests.unshift(req);
+          } else {
+            req.reject(error);
+          }
           throw error;
         }
 
@@ -1036,7 +1088,7 @@ export class TapTapMCPProxy {
         );
         return result;
       } catch (error) {
-        const toolErrorResult = convertMcpApplicationErrorToToolResult(error);
+        const toolErrorResult = this.toolErrorResult(error);
         if (toolErrorResult) {
           return toolErrorResult;
         }
@@ -1045,6 +1097,7 @@ export class TapTapMCPProxy {
         if (this.isNetworkError(error)) {
           this.log('error', '❌ Network error detected, marking connection as lost');
           this.connected = false;
+          this.sessionValidated = false;
 
           // 立即触发重连
           if (!this.reconnecting) {
@@ -1053,6 +1106,10 @@ export class TapTapMCPProxy {
 
             if (!this.isToolReplayable(name)) {
               return createNonReplayableToolResult(name, 'unknown');
+            }
+
+            if (!this.shouldReplayToolFailure(name, error)) {
+              throw error;
             }
 
             // 将当前请求加入队列等待重连

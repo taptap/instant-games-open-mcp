@@ -104,15 +104,15 @@ MCP Proxy 是一个中间层服务，用于解决**一个 MCP Server 实例支�
 
 所有私有参数使用**下划线前缀** (`_`) 来区分业务参数。
 
-| 参数名           | 类型                     | 描述                               | 必需 |
-| ---------------- | ------------------------ | ---------------------------------- | ---- |
-| `_mac_token`     | `MacToken`               | 用户认证 Token                     | ✅   |
-| `_user_id`       | `string`                 | 用户唯一标识（用于缓存隔离）       | ✅   |
-| `_session_id`    | `string`                 | 会话 ID（用于会话追踪）            | ❌   |
-| `_project_id`    | `string`                 | 项目唯一标识（用于缓存隔离）       | ❌   |
-| `_project_path`  | `string`                 | 用户工作空间路径（用于文件操作）   | ❌   |
-| `_custom_fields` | `Record<string, string>` | 业务自定义字段（用于追踪、路由等） | ❌   |
-| `_tag`           | `string`                 | Proxy 调用来源标记，固定为 `local` | ❌   |
+| 参数名           | 类型                     | 描述                                | 必需 |
+| ---------------- | ------------------------ | ----------------------------------- | ---- |
+| `_mac_token`     | `MacToken`               | 用户认证 Token                      | ✅   |
+| `_user_id`       | `string`                 | 用户唯一标识（用于缓存隔离）        | ✅   |
+| `_session_id`    | `string`                 | 会话 ID（用于会话追踪）             | ❌   |
+| `_project_id`    | `string`                 | 项目唯一标识（用于缓存隔离）        | ❌   |
+| `_project_path`  | `string`                 | 用户工作空间路径（用于文件操作）    | ❌   |
+| `_custom_fields` | `Record<string, string>` | 业务自定义字段（用于追踪、路由等）  | ❌   |
+| `_tag`           | `string`                 | 调用来源标记，通用 Proxy 默认不注入 | ❌   |
 
 > **注意**：`developer_id` 和 `app_id` 不再作为私有参数传递，应通过 `select_app` 工具选择应用后从缓存中读取。
 > 业务/编辑器 client session id 统一放在 `_custom_fields.session_id`，不要使用独立私有参数。
@@ -155,16 +155,16 @@ MCP Proxy 直接在 `arguments` 中注入私有参数：
         "session_id": "client_session_abc",
         "team": "game-studio-a",
         "trace_id": "abc-123"
-      },
-      "_tag": "local"
+      }
     }
   }
 }
 ```
 
-MCP Proxy 在连接上游 MCP Server 创建 session 时会通过 `X-TapTap-Tag: local`
-标记本地调用来源，同时每次工具调用会继续注入 `_tag: "local"` 私有参数用于
-兼容。该 tag 不是普通 Open API 请求参数。
+通用 MCP Proxy 默认不发送 `X-TapTap-Tag`，也不新增或覆盖调用方的 `_tag`。
+本地 Maker 嵌入入口通过构造函数的运行时选项 `sourceTag: 'local'` 显式启用来源标记，
+才发送 `X-TapTap-Tag: local`，并在启用 `inject_params_per_call` 时注入 `_tag: "local"`。
+该选项不属于 `PROXY_CONFIG`，不根据上游地址推断；该 tag 不是普通 Open API 请求参数。
 
 #### 方式 2：HTTP Header 注入（仅 HTTP/SSE 模式）
 
@@ -194,7 +194,7 @@ X-TapTap-Mac-Token: eyJraWQiOiJhYmMxMjMiLCJtYWNfa2V5Ijoic2VjcmV0In0=
 - `Mcp-Session-Id`: MCP 会话 ID（必需）
 - `X-TapTap-Mac-Token`: Base64 编码的 MAC Token JSON（也支持直接传 JSON 字符串）
 - `X-TapTap-Custom-Fields`: 业务自定义字段 JSON（可选，如 `{"session_id":"client-session-789","team":"studio-a","env":"staging"}`）
-- `X-TapTap-Tag`: Proxy 调用来源标记，固定为 `local`
+- `X-TapTap-Tag`: 可选调用来源标记；通用 Proxy 默认不发送，本地 Maker 嵌入入口显式发送 `local`
 
 **Base64 编码示例：**
 
@@ -549,57 +549,19 @@ interface MacToken {
 
 Proxy → Server 使用 HTTP 连接，需要处理断线重连：
 
-**重连策略：**
+**通用默认策略：**
 
-- 🔄 **启动时重连** - 最多尝试 10 次，间隔 5 秒
-- 🔄 **运行时重连** - 监听错误事件，自动重连
-- 🔄 **请求重试** - 失败后最多重试 3 次
-- 💓 **健康检查** - 定期 ping（可选）
+- 初始化连接失败或运行时断线后，在后台按 `reconnect_interval` 固定间隔重连，默认 5 秒。
+- 明确的会话失效会重连，包括 HTTP 400/404 中的 session 失效；普通 HTTP 4xx 不重连。
+- 保留历史网络错误与会话失效的一次自动重放，重放失败不反复入队。
+  新增识别的 HTTP 5xx、SDK 连接关闭和请求超时只恢复连接，不自动重放当前调用。
+- 重连成功先发送工具列表变化通知，再处理等待队列；过期请求不会继续派发。
+- 有副作用的调用仍可能因历史的一次重放而重复执行，应使用 `replayable_tools` 限制，
+  空数组表示禁止自动重放。Proxy 不提供业务级幂等保证。
 
-**核心实现：**
-
-```typescript
-class TapTapMCPProxy {
-  private serverUrl = 'http://localhost:3001';
-
-  // 启动时带重连
-  private async connectWithRetry() {
-    for (let i = 0; i < 10; i++) {
-      try {
-        const transport = new HttpClientTransport(this.serverUrl);
-        await this.client.connect(transport);
-        return;
-      } catch (error) {
-        await this.sleep(5000); // 5秒后重试
-      }
-    }
-    throw new Error('Max reconnection attempts reached');
-  }
-
-  // 请求失败时重试
-  private async callWithRetry(request: any, maxRetries = 3) {
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        return await this.client.request(request);
-      } catch (error) {
-        if (this.isConnectionError(error) && i < maxRetries - 1) {
-          await this.connectWithRetry();
-        } else {
-          throw error;
-        }
-      }
-    }
-  }
-
-  private isConnectionError(error: any): boolean {
-    return (
-      error.code === 'ECONNREFUSED' ||
-      error.code === 'ECONNRESET' ||
-      error.message?.includes('fetch failed')
-    );
-  }
-}
-```
+通用 Proxy 保留上游协议错误的 `code`、`message` 和 `data`，不转换为工具结果。
+本地 Maker 嵌入入口在 `src/maker/proxyPolicy.ts` 显式选择诊断转换和退避恢复策略；
+这些专属行为不得修改通用默认值。实现以 `src/mcp-proxy/proxy.ts` 为准。
 
 ### 4.4 部署
 
@@ -1003,8 +965,8 @@ Proxy 默认保持透明代理行为：`tools/list` 全量转发上游 MCP Serve
   `generate_test_qrcode`、`get_ad_config`、`get_debug_feedbacks`。
 - `tools/call` 会拒绝白名单外的 tool，避免客户端直接调用隐藏 tool。
 - Proxy 不重新封装这些 tool；tool description、input schema、调用参数和返回结果都来自上游。
-- 私有参数注入仍按原流程工作，包括 `_mac_token`、`_tag: "local"`、`_project_path`
-  和 `_custom_fields`。
+- 私有参数注入仍按原流程工作，包括 `_mac_token`、`_project_path` 和 `_custom_fields`；
+  `_tag: "local"` 仅由显式启用来源标记的本地 Maker 嵌入入口注入，工具白名单不会启用该标记。
 
 这个配置适合先暴露少量 proxy 代理过来的 server tools，把参数缺口、返回结构或客户端适配问题
 原样暴露出来，再决定是否扩大白名单。
@@ -1253,7 +1215,7 @@ cat config.json | node proxy.js
     "verbose": false,
     "reconnect_interval": 5000,
     "request_timeout": 30000,
-    "tool_call_timeout": 3600000,
+    "tool_call_timeout": 300000,
     "reset_timeout_on_progress": true,
     "health_check_interval": 30000,
     "enable_cookie_sticky": true,
@@ -1296,7 +1258,7 @@ node proxy.js
 - `options.verbose` - 详细日志模式（默认 `false`）
 - `options.reconnect_interval` - 重连间隔（毫秒，默认 `5000`）
 - `options.request_timeout` - 请求队列超时（毫秒，默认 `30000`）
-- `options.tool_call_timeout` - 工具调用超时（毫秒，默认 `3600000`，即 1 小时）
+- `options.tool_call_timeout` - 工具调用超时（毫秒，默认 `300000`，即 5 分钟）
 - `options.reset_timeout_on_progress` - 收到 progress 通知时重置超时计时器（默认 `true`）
   - 当客户端传入 `progressToken` 时，Proxy 会透传下游 `notifications/progress`
 - `options.health_check_interval` - 健康检查间隔（毫秒，默认 `30000`）- 定期验证 Server 会话是否有效
@@ -1528,7 +1490,7 @@ interface ProxyConfig {
     verbose?: boolean; // 详细日志（可选）
     reconnect_interval?: number; // 重连间隔（默认 5000ms）
     request_timeout?: number; // 请求队列超时（默认 30000ms）
-    tool_call_timeout?: number; // Tool 调用超时（默认 3600000ms，即 1 小时）
+    tool_call_timeout?: number; // Tool 调用超时（默认 300000ms，即 5 分钟）
     reset_timeout_on_progress?: boolean; // 收到 progress 通知时重置超时（默认 true）
     health_check_interval?: number; // 健康检查间隔（默认 30000ms）
     enable_cookie_sticky?: boolean; // 启用 Cookie 会话粘性（默认 true）
@@ -1586,7 +1548,7 @@ function generateProxyConfig(
     },
     options: {
       verbose: true, // 推荐开启详细日志
-      tool_call_timeout: 3600000, // Tool 调用超时 1 小时
+      tool_call_timeout: 300000, // Tool 调用超时 5 分钟
       reset_timeout_on_progress: true, // 收到 progress 通知时重置超时
       health_check_interval: 30000, // 健康检查间隔 30 秒
       enable_cookie_sticky: true, // 启用 Cookie 会话粘性

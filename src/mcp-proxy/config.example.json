@@ -25,15 +25,6 @@
     "reconnect_interval": 5000,
     "monitor_interval": 10000,
     "enable_cookie_sticky": true,
-    "disable_standalone_sse": false,
-    "replayable_tools": ["build"],
-    "exposed_tools": [
-      "generate_image",
-      "batch_generate_images",
-      "edit_image",
-      "create_video_task",
-      "text_to_music",
-      "create_3d_asset"
-    ]
+    "disable_standalone_sse": false
   }
 }

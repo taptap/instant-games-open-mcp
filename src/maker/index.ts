@@ -9,6 +9,7 @@ import { formatCliError, runMakerCli } from './cli/commands.js';
 import { appendMakerCrashLog } from './crashLog.js';
 import { loadConfig } from '../mcp-proxy/config.js';
 import { TapTapMCPProxy } from '../mcp-proxy/proxy.js';
+import { MAKER_PROXY_RUNTIME_OPTIONS } from './proxyPolicy.js';
 import {
   installParentDeathWatchdog,
   installProxyStdinExitHandler,
@@ -42,7 +43,7 @@ async function main(): Promise<void> {
 
 async function startEmbeddedProxy(): Promise<void> {
   const config = await loadConfig();
-  const proxy = new TapTapMCPProxy(config);
+  const proxy = new TapTapMCPProxy(config, MAKER_PROXY_RUNTIME_OPTIONS);
   await proxy.start();
 
   const cleanup = (source = 'proxy-signal'): void => {

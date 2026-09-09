@@ -128,7 +128,7 @@ import {
   MAKER_STATUS_LITE_PUBLIC_DESCRIPTION,
 } from './toolDescriptions.js';
 import proxyToolSnapshot from './remoteProxyToolSnapshot.json';
-import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
+import { MAKER_TOOL_CALL_TIMEOUT_MS } from '../proxyPolicy.js';
 import {
   isMakerBuildActivitySuccessful,
   reportMakerMcpActivity,
@@ -620,7 +620,7 @@ export function createRemoteProxyCallToolOptions(
   onprogress: (progress: { progress: number; total?: number; message?: string }) => void;
 } {
   return {
-    timeout: DEFAULT_TOOL_CALL_TIMEOUT_MS,
+    timeout: MAKER_TOOL_CALL_TIMEOUT_MS,
     resetTimeoutOnProgress: true,
     onprogress: createRemoteProxyProgressHandler(progressToken, extra),
   };
@@ -2288,6 +2288,7 @@ export function createRemoteProxyContext(options: {
     },
     options: {
       verbose: true,
+      tool_call_timeout: MAKER_TOOL_CALL_TIMEOUT_MS,
       reset_timeout_on_progress: true,
       force_inject_progress_token: true,
       disable_standalone_sse: true,
@@ -3281,7 +3282,7 @@ export async function refreshMakerPreview(
 export async function callRemoteRuntimeLogs(
   proxy: RemoteProxyContext,
   args: RuntimeLogQueryArgs,
-  timeoutMs = DEFAULT_TOOL_CALL_TIMEOUT_MS
+  timeoutMs = MAKER_TOOL_CALL_TIMEOUT_MS
 ): Promise<RuntimeLogQueryResult> {
   const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
 
@@ -3294,7 +3295,7 @@ export async function callRemoteRuntimeLogs(
 
 export function createRemoteRuntimeLogClient(
   proxy: RemoteProxyContext,
-  timeoutMs = DEFAULT_TOOL_CALL_TIMEOUT_MS,
+  timeoutMs = MAKER_TOOL_CALL_TIMEOUT_MS,
   options: {
     createTransport?: () => Transport;
     createClient?: () => RuntimeLogMcpClient;

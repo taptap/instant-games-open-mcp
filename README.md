@@ -756,7 +756,8 @@ graph LR
 
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - 架构文档
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - 部署指南（本地、Docker、开发者测试）
-- **[docs/PROXY.md](docs/PROXY.md)** - MCP Proxy 开发指南（面向 TapCode 等平台）
+- **[docs/PROXY.md](docs/PROXY.md)** - MCP Proxy 开发指南（面向 TapCode 等平台）。
+  通用 Proxy 默认不添加 `local` 来源标记；本地 Maker 嵌入入口显式启用，服务端无需修改配置。
 - **[docs/PATH_RESOLUTION.md](docs/PATH_RESOLUTION.md)** - 路径解析系统
 
 ## Maker 持久化 Proxy 与多项目

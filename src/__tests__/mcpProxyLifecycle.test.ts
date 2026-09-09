@@ -53,8 +53,8 @@ async function callProxyTool(
 }
 
 describe('standalone MCP proxy lifecycle guards', () => {
-  test('defaults tool call timeout to one hour for long-running proxy tools', () => {
-    expect(DEFAULT_TOOL_CALL_TIMEOUT_MS).toBe(60 * 60 * 1000);
+  test('defaults standalone tool call timeout to five minutes', () => {
+    expect(DEFAULT_TOOL_CALL_TIMEOUT_MS).toBe(5 * 60 * 1000);
   });
 
   test('loads a valid replayable tool allowlist from JSON configuration', async () => {
@@ -173,7 +173,7 @@ describe('standalone MCP proxy lifecycle guards', () => {
     );
     const resolve = jest.fn();
     const reject = jest.fn();
-    const proxy = new TapTapMCPProxy(createProxyConfig());
+    const proxy = new TapTapMCPProxy(createProxyConfig(), { remoteErrorMode: 'tool-result' });
     const proxyInternals = proxy as any;
     proxyInternals.client = {
       callTool: jest.fn().mockRejectedValue(serverBuildError),
@@ -257,7 +257,7 @@ describe('standalone MCP proxy lifecycle guards', () => {
     expect((proxy as any).isNetworkError(new Error('HTTP 429: Too Many Requests'))).toBe(false);
   });
 
-  test('requeues pending requests when replay loses the network again', async () => {
+  test('requeues pending requests when resilient replay loses the network again', async () => {
     const networkError = Object.assign(new Error('connect ECONNRESET during replay'), {
       code: 'ECONNRESET',
     });
@@ -265,7 +265,7 @@ describe('standalone MCP proxy lifecycle guards', () => {
     const firstReject = jest.fn();
     const secondResolve = jest.fn();
     const secondReject = jest.fn();
-    const proxy = new TapTapMCPProxy(createProxyConfig());
+    const proxy = new TapTapMCPProxy(createProxyConfig(), { recoveryMode: 'resilient' });
     const proxyInternals = proxy as any;
     proxyInternals.connected = true;
     proxyInternals.client = {
