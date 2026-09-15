@@ -2081,6 +2081,22 @@ describe('Maker CLI commands', () => {
         targetDir: tempDir,
       })
     );
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(process.env.TAPTAP_MAKER_HOME!, 'projects.json'), 'utf8')
+    );
+    expect(registry.projects).toEqual([
+      expect.objectContaining({ path: fs.realpathSync(tempDir), binding: 'app-1' }),
+    ]);
+  });
+
+  test('init warns on corrupt registry without failing a successful checkout', async () => {
+    fs.mkdirSync(process.env.TAPTAP_MAKER_HOME!, { recursive: true });
+    const registry = path.join(process.env.TAPTAP_MAKER_HOME!, 'projects.json');
+    fs.writeFileSync(registry, 'broken');
+    await runMakerCli(['init', '--app-id', 'app-1', '--target-dir', tempDir, '--skip-mcp-install']);
+    expect(stdoutSpy.mock.calls.join('')).toContain('Local project registry registration failed');
+    expect(stdoutSpy.mock.calls.join('')).toContain('TapTap Maker initialization completed');
+    expect(fs.readFileSync(registry, 'utf8')).toBe('broken');
   });
 
   test('init fails and records recovery state when MCP config installation is partial', async () => {
@@ -2485,6 +2501,7 @@ describe('Maker CLI commands', () => {
       ])
     ).rejects.toThrow('RPC failed');
 
+    expect(fs.existsSync(path.join(process.env.TAPTAP_MAKER_HOME!, 'projects.json'))).toBe(false);
     expect(loadProjectConfig(tempDir)).toEqual(
       expect.objectContaining({
         project_id: 'app-1',

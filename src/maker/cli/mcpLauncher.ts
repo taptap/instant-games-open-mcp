@@ -56,7 +56,12 @@ const SELF_RUNTIME_DIRECTORIES = [
   'skills/taptap-maker-dev-kit-guide',
   'skills/update-taptap-mcp',
 ];
-const SELF_RUNTIME_FILES = ['dist/maker.js', 'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'];
+const SELF_RUNTIME_FILES = [
+  'dist/maker.js',
+  'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md',
+  'docs/MAKER_LOCAL_PREVIEW.md',
+  'docs/MAKER_CONSOLE.md',
+];
 const SELF_RUNTIME_COPY_FALLBACK_CODES = new Set(['EIO', 'EACCES', 'EPERM']);
 
 export function resolveMakerPackageSpec(packageName: string, currentVersion: string): string {

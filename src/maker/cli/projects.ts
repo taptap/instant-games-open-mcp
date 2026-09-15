@@ -12,6 +12,7 @@ import { getManualMakerPat, requestMakerPat, saveManualMakerPat } from '../git/p
 import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
 import { ensureGitAvailable, getGitCommand } from '../system/git.js';
 import { finalizeStagedDevKitGitignore } from './devKit.js';
+import { registerMakerProject } from '../projectRegistry.js';
 
 export interface CloneMakerProjectOptions {
   appId: string;
@@ -406,6 +407,8 @@ export async function cloneMakerProject(
     });
     ensureMakerProjectBaseDirectories(target);
     finalizeStagedDevKitGitignore(target);
+    const registryWarning = registerMakerProject(target);
+    if (registryWarning) warnings.push(registryWarning);
     options.onProgress?.({
       progress: 100,
       total: 100,
@@ -481,6 +484,8 @@ export async function cloneMakerProject(
     sce_endpoint: options.sceEndpoint,
   });
   ensureMakerProjectBaseDirectories(target);
+  const registryWarning = registerMakerProject(target);
+  if (registryWarning) warnings.push(registryWarning);
   options.onProgress?.({
     progress: 100,
     total: 100,

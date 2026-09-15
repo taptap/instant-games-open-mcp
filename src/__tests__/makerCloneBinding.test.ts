@@ -8,6 +8,7 @@ import path from 'node:path';
 import { createDevKitGitignoreBlock, DEV_KIT_GITIGNORE_STAGING_FILE } from '../maker/cli/devKit';
 import { cloneMakerProject, getMakerGitRetryDelayMs } from '../maker/cli/projects';
 import { saveProjectConfig } from '../maker/storage';
+import { MakerProjectRegistry } from '../maker/projectRegistry';
 
 describe('maker clone binding safety', () => {
   let tempDir: string;
@@ -19,6 +20,7 @@ describe('maker clone binding safety', () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-clone-binding-'));
+    process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home');
   });
 
   afterEach(() => {
@@ -71,6 +73,29 @@ describe('maker clone binding safety', () => {
     expect(commands).toContain('init ');
     expect(commands).toContain('fetch --progress --depth=1 origin');
     expect(commands).toContain('checkout -B main origin/main');
+    expect(new MakerProjectRegistry().list()).toEqual([
+      expect.objectContaining({ path: fs.realpathSync(tempDir), binding: 'new-app', valid: true }),
+    ]);
+  });
+
+  test('successful fetch registers again and registry failure only adds a warning', async () => {
+    process.env.TAPTAP_MAKER_GIT_BIN = createFakeGit(path.join(tempDir, '.test-tools/git.log'));
+    process.env.TAPTAP_MAKER_GIT_BASE = 'https://maker.example.test/git';
+    process.env.TAPTAP_MAKER_HOME = path.join(tempDir, 'maker-home');
+    process.env.PAT = 'tmpct_test_pat';
+    const options = { appId: 'new-app', targetDir: tempDir, userId: 'user-1' };
+    await cloneMakerProject(options);
+    const registry = new MakerProjectRegistry();
+    const first = registry.list()[0];
+    expect(first).toBeDefined();
+    registry.remove(first.key);
+    expect((await cloneMakerProject(options)).status).toBe('fetched');
+    expect(registry.list()).toHaveLength(1);
+    fs.writeFileSync(registry.filename, 'broken');
+    const fetched = await cloneMakerProject(options);
+    expect(fetched.status).toBe('fetched');
+    expect(fetched.warnings.join('\n')).toContain('Local project registry registration failed');
+    expect(fs.readFileSync(registry.filename, 'utf8')).toBe('broken');
   });
 
   test('uses explicit git progress for shallow fetch checkout operations', async () => {
@@ -317,6 +342,8 @@ describe('maker clone binding safety', () => {
         userId: 'user-1',
       })
     ).rejects.toThrow('Conflicting local files:');
+    expect(fs.existsSync(path.join(process.env.TAPTAP_MAKER_HOME!, 'projects.json'))).toBe(false);
+    expect(new MakerProjectRegistry().list()).toEqual([]);
   });
 });
 

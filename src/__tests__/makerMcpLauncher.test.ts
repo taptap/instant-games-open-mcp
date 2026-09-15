@@ -146,6 +146,9 @@ describe('Maker MCP launcher', () => {
       }
       const docsDir = path.join(packageRoot, 'docs');
       fs.mkdirSync(docsDir, { recursive: true });
+      for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+        fs.writeFileSync(path.join(docsDir, name), `# ${name}`);
+      }
       fs.writeFileSync(
         path.join(docsDir, 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
         '# Troubleshooting'
@@ -166,6 +169,11 @@ describe('Maker MCP launcher', () => {
         commandAndArgs: [process.execPath, stableBundle],
       });
       expect(fs.readFileSync(stableBundle, 'utf8')).toBe('// maker bundle');
+      for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+        expect(
+          fs.readFileSync(path.join(path.dirname(path.dirname(stableBundle)), 'docs', name), 'utf8')
+        ).toBe(`# ${name}`);
+      }
       expect(
         fs.readFileSync(
           path.join(
@@ -261,6 +269,9 @@ describe('Maker MCP launcher', () => {
       }
       const docsDir = path.join(packageRoot, 'docs');
       fs.mkdirSync(docsDir, { recursive: true });
+      for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+        fs.writeFileSync(path.join(docsDir, name), `# ${name}`);
+      }
       fs.writeFileSync(
         path.join(docsDir, 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
         '# Troubleshooting'
@@ -309,6 +320,9 @@ function createSelfRuntimeFixture(prefix: string): {
   }
   const docsDir = path.join(packageRoot, 'docs');
   fs.mkdirSync(docsDir, { recursive: true });
+  for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+    fs.writeFileSync(path.join(docsDir, name), `# ${name}`);
+  }
   fs.writeFileSync(
     path.join(docsDir, 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
     '# Troubleshooting',

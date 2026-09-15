@@ -124,12 +124,19 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
       'skills/update-taptap-mcp/SKILL.md',
       'assets/taptap-maker.png',
       'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md',
+      'docs/MAKER_LOCAL_PREVIEW.md',
+      'docs/MAKER_CONSOLE.md',
       'README.md',
       'SKILL.md',
     ];
 
     for (const relativePath of requiredPaths) {
       expect(fs.existsSync(path.join(pluginRoot, relativePath))).toBe(true);
+    }
+    for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+      expect(fs.readFileSync(path.join(pluginRoot, 'docs', name), 'utf8')).toBe(
+        fs.readFileSync(path.join(projectRoot, 'docs', name), 'utf8')
+      );
     }
     expect(fs.readFileSync(path.join(pluginRoot, 'dist', 'maker.js'), 'utf8')).toContain(
       `// TapTap Maker MCP version: ${makerVersion}`

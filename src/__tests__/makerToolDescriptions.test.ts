@@ -46,6 +46,8 @@ describe('Maker non-audio tool descriptions', () => {
     expect(buildDescription).toMatch(/bound Maker project.{0,120}status/iu);
     expect(buildDescription).toMatch(/build.{0,40}preview.{0,40}submit.{0,40}push/iu);
     expect(buildDescription).toMatch(/tests?.{0,40}lint.{0,100}do not trigger/iu);
+    expect(buildDescription).toContain('Local window preview uses taptap-maker preview CLI');
+    expect(buildDescription).toContain('Clarify ambiguous preview/run requests');
     expect(buildDescription).toMatch(/commits?.{0,80}pushes?.{0,100}remote build/iu);
     expect(buildDescription).toMatch(/only behind.{0,100}automatically fast-forwards/iu);
     expect(buildDescription).toMatch(/Diverged history.{0,180}stops before commit/iu);
@@ -237,6 +239,12 @@ describe('Maker non-audio tool descriptions', () => {
     );
     expect(descriptions.get_ad_config).toMatch(/ad\.status != 1.{0,120}warning.{0,80}ad\.url/iu);
     expect(descriptions.get_ad_config).not.toContain('synced_at');
+    expect(descriptions.get_ad_config).toContain(
+      'explicit user build, submit, or remote Web preview request'
+    );
+    expect(descriptions.get_ad_config).toContain(
+      'Local window preview uses CLI and does not authorize commit or push.'
+    );
 
     expect(descriptions.get_debug_feedbacks).toMatch(
       /online player feedback.{0,160}session logs.{0,80}game_session_id/iu

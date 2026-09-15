@@ -382,6 +382,17 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- 修改控制台前读 `docs/MAKER_CONSOLE.md`；修改 Runtime 安装或预览前读
+  `docs/MAKER_LOCAL_PREVIEW.md`。操作指引统一维护在 `skills/taptap-maker-local/SKILL.md`，
+  插件副本通过生成脚本同步，不手工维护。
+- 控制台复用 CLI 业务，不新增 MCP tool；操作必须显式绑定已校验的项目 realpath，
+  不依赖全局当前项目或 cwd。项目登记共用 `src/maker/projectRegistry.ts`，
+  登记失败不得改变 init/clone 的成功结果。
+- 本地服务仅监听 loopback；保留访问校验、空闲退出和有界资源管理，不增加常驻唤醒进程。
+  预览与控制台独立管理；只清理已确认所有权的进程和缓存，不把未知结果当作失败自动重试。
+- 本地预览只构建受管理副本，执行 Builder 前校验标准配置和版本路径，禁止配置回退绕过校验。
+  Builder 快照须逐字节匹配固定 Git 提交；不修改引擎、公共资源或游戏原目录来掩盖预览错误。
+
 Maker 本地开发的默认路径是 CLI-first + PAT-first：
 
 - Codex Maker plugin 位于 `plugins/taptap-maker`。Codex 和 WorkBuddy 插件共用独立插件版本，

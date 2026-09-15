@@ -118,7 +118,7 @@ describe('Maker AI dev kit install', () => {
     expect(claudeGuide).toBe('local agent docs\n');
     expect(claudeGuide).not.toContain('TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toMatch(
-      /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
+      /^<!-- >>> TapTap Maker managed AGENTS policy version=4 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toContain(MAKER_PROJECT_POLICY_ROUTING_INDEX);
@@ -185,7 +185,12 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain('create_3d_asset');
     expect(agentsGuide).toContain('action="continue"');
     expect(agentsGuide).toContain('Do not infer ad readiness from local SDK docs');
-    expect(agentsGuide).toContain('Build only for an explicit user build/submit/preview request');
+    expect(agentsGuide).toContain(
+      'Build only for an explicit user build/submit/remote Web preview request'
+    );
+    expect(agentsGuide).toContain(
+      'Local window preview uses CLI and does not authorize commit or push.'
+    );
     expect(agentsGuide).toContain('do not rebuild');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');
     expect(agentsGuide).toContain('`ShowRewardVideoAd`');
@@ -375,7 +380,7 @@ describe('Maker AI dev kit install', () => {
     const agentsGuide = fs.readFileSync(path.join(targetDir, 'AGENTS.md'), 'utf8');
     const claudeGuide = fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8');
     expect(agentsGuide).toMatch(
-      /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
+      /^<!-- >>> TapTap Maker managed AGENTS policy version=4 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toContain(MAKER_PROJECT_POLICY_ROUTING_INDEX);
@@ -409,7 +414,12 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('Local MCP does not transcode generated audio to OGG');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');
-    expect(agentsGuide).toContain('Build only for an explicit user build/submit/preview request');
+    expect(agentsGuide).toContain(
+      'Build only for an explicit user build/submit/remote Web preview request'
+    );
+    expect(agentsGuide).toContain(
+      'Local window preview uses CLI and does not authorize commit or push.'
+    );
     expect(agentsGuide).toContain('do not rebuild');
     expect(claudeGuide).toBe('user edits\n');
     expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);
