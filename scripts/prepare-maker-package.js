@@ -241,6 +241,16 @@ function main() {
     join(packageRoot, 'docs', 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
     version
   );
+  copyRequiredFile(
+    join(projectRoot, 'docs', 'MAKER_LOCAL_PREVIEW.md'),
+    join(packageRoot, 'docs', 'MAKER_LOCAL_PREVIEW.md'),
+    'Maker local preview guide'
+  );
+  copyRequiredFile(
+    join(projectRoot, 'docs', 'MAKER_CONSOLE.md'),
+    join(packageRoot, 'docs', 'MAKER_CONSOLE.md'),
+    'Maker local console guide'
+  );
 
   writeFileSync(
     join(packageRoot, 'package.json'),

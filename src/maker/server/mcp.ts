@@ -943,7 +943,7 @@ export async function startMakerMcpServer(): Promise<void> {
   installMakerServerExitHandlers(remoteProxyManager);
 }
 
-async function resolveMakerMcpAccessState(
+export async function resolveMakerMcpAccessState(
   environment: MakerEnvironment
 ): Promise<MakerMcpAccessState> {
   try {
@@ -1415,7 +1415,7 @@ function formatMakerSummaryNextAction(options: {
       case 'invalid_project_json':
         return '- next_action: 从 Git 或完整副本恢复合法的 `.project/project.json`，不要依赖构建覆盖已有坏文件。';
       case 'missing_project_json':
-        return '- next_action: 仅当用户明确要求构建、提交或预览时调用 `maker_build_current_directory`。';
+        return '- next_action: 仅当用户明确要求构建、提交或远端 Web 预览时调用 `maker_build_current_directory`；本地预览使用 CLI preview。';
       default:
         break;
     }
@@ -1434,7 +1434,7 @@ function formatMakerSummaryNextAction(options: {
     return '- next_action: 调用 `maker_status_lite` 并设置 `detail=true` 查看项目结构告警后再继续。';
   }
   if (options.projectHealth?.status === 'not_initialized') {
-    return '- next_action: 仅当用户明确要求构建、提交或预览时调用 `maker_build_current_directory`。';
+    return '- next_action: 仅当用户明确要求构建、提交或远端 Web 预览时调用 `maker_build_current_directory`；本地预览使用 CLI preview。';
   }
   return '';
 }
@@ -2829,7 +2829,7 @@ async function runRemoteBuildCurrentDirectory(
   });
 
   if (isRemoteToolError(result)) {
-    throw new Error(formatRemoteToolResult(result));
+    throw createMakerRemoteBuildError(result);
   }
 
   const resultText = formatRemoteToolResult(result);
@@ -2847,6 +2847,12 @@ async function runRemoteBuildCurrentDirectory(
   return attachBuildSuccessSideEffects(buildCallResult, {
     refreshPreview: options.refreshPreview,
     startRuntimeLogWatch: options.startRuntimeLogWatch || startRuntimeLogWatch,
+  });
+}
+
+export function createMakerRemoteBuildError(result: unknown): Error & { remote_result: unknown } {
+  return Object.assign(new Error(formatRemoteToolResult(result)), {
+    remote_result: sanitizeRemoteDiagnosticValue(result),
   });
 }
 

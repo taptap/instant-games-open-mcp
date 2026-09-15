@@ -1,6 +1,6 @@
 ---
 name: taptap-maker-local
-description: Guide TapTap Maker local development workflows. Use when a user asks to initialize Maker local development, clone/download a Maker project, continue a Maker project, inspect local Maker status, diagnose or report Maker MCP connection/proxy failures, pull, submit, push, or resolve Git conflicts.
+description: Guide TapTap Maker local development workflows, open the local web console, local preview, and automatic refresh after each related code-edit batch. Use for Maker initialization, clone, project status, console, preview start/refresh/stop and evidence, MCP diagnostics, pull, submit, push, or Git conflicts.
 ---
 
 # TapTap Maker Local Workflow
@@ -26,8 +26,10 @@ This skill covers:
 - push local commits
 - explain and resolve conflicts with user approval
 
-Build, submit, push, preview, and verify behavior belongs to the single Maker MCP build tool. The
-post-build runtime log polling loop belongs to the local Maker CLI watcher.
+Build, submit, push, and explicitly remote Web preview belong to the Maker MCP build tool.
+Local window preview belongs to the existing Maker CLI, not new MCP tools. Its logs are separate
+from the post-build remote runtime log watcher. Bare preview/run requests must be disambiguated
+using context or a question; they never silently authorize commit/push.
 
 Do not infer or set a service environment from preview, build, test, or local-development intent.
 Do not add environment parameters to Maker tool calls or user MCP config; use the default Maker
@@ -78,18 +80,82 @@ active plugin's marketplace instead of installing or upgrading a standalone Make
 
 ## Main Intent Table
 
-| User intent                                               | Required workflow                                                                                                                                                                         |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| initialize / configure / continue Maker local development | Run the Maker CLI initialization workflow.                                                                                                                                                |
-| clone / download Maker project locally                    | Follow "Initialization Workflow"; do not ask for app_id directly.                                                                                                                         |
-| status / is Maker ready                                   | Read `maker://status`, call `maker_status_lite` if resources are unavailable, then follow `AGENTS.md` and `Maker remote sync` hints if present.                                           |
-| upgrade Maker MCP / old project policy                    | Follow the active distribution's update skill. Plugin users update through the active plugin's marketplace; standalone MCP users run `taptap-maker upgrade` for the current project only. |
-| submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                                                                               |
-| pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                                                                                    |
-| conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing.                                                        |
-| build / preview / run / check game result                 | Use `maker_build_current_directory`; it starts the local runtime log watcher after a successful remote build result.                                                                      |
-| generic code validation / tests / lint                    | Do not use Maker remote build unless the user explicitly asks to build, run, or preview the Maker game.                                                                                   |
-| MCP unavailable / proxy timeout / unexpected server error | Diagnose first; offer one consent-gated GitHub issue report when the evidence suggests an MCP, proxy, client integration, or service defect.                                              |
+| User intent                                               | Required workflow                                                                                                                                                                                                     |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| open console / 打开控制台                                 | Run the active distribution's CLI `console open --target-dir <CURRENT_GAME_ABSOLUTE_PATH> --json`. Without a known game directory, omit target-dir to show the project list; never guess or choose the first project. |
+| initialize / configure / continue Maker local development | Run the Maker CLI initialization workflow.                                                                                                                                                                            |
+| clone / download Maker project locally                    | Follow "Initialization Workflow"; do not ask for app_id directly.                                                                                                                                                     |
+| status / is Maker ready                                   | Read `maker://status`, call `maker_status_lite` if resources are unavailable, then follow `AGENTS.md` and `Maker remote sync` hints if present.                                                                       |
+| upgrade Maker MCP / old project policy                    | Follow the active distribution's update skill. Plugin users update through the active plugin's marketplace; standalone MCP users run `taptap-maker upgrade` for the current project only.                             |
+| submit / commit / push to Maker                           | Inspect local Git state, summarize changed files, then call `maker_build_current_directory` unless blocked.                                                                                                           |
+| pull / update from remote                                 | Inspect local changes first; if dirty, explain options before pulling.                                                                                                                                                |
+| conflict / merge failed                                   | Explain why the conflict happened, list conflict files, inspect conflict hunks, propose a resolution plan, and ask before editing.                                                                                    |
+| build / submit / push / explicitly remote Web preview     | Use `maker_build_current_directory`; preserve its original authorization and remote log watcher.                                                                                                                      |
+| local preview / refresh preview / stop preview            | Follow Local Window Preview below; use CLI with explicit project path, never remote build.                                                                                                                            |
+| finish a related code-edit batch                          | Query real local preview status; automatically refresh only a live session, then collect evidence.                                                                                                                    |
+| bare preview / run / check game result                    | Resolve local vs remote from explicit context; if ambiguous ask, never silently commit.                                                                                                                               |
+| generic code validation / tests / lint                    | Do not use Maker remote build without an explicit remote build request.                                                                                                                                               |
+| MCP unavailable / proxy timeout / unexpected server error | Diagnose first; offer one consent-gated GitHub issue report when the evidence suggests an MCP, proxy, client integration, or service defect.                                                                          |
+
+## Local Web Console
+
+Use the active Maker CLI/bundle for `console open`, not an unversioned npm package.
+Opening the console only starts/reuses a loopback service, registers the explicit project
+directory and opens its page. It does not authorize build, push, Runtime installation or preview.
+Do not call init, build or preview just to open it. A missing/invalid directory is a selection
+problem, not permission to clone a game.
+
+The user selects the operation in the console. Each operation passes the selected project's
+absolute target directory to the CLI. `console status --json` inspects the service;
+`console stop --json` stops it only when no task is active. If a different Maker bundle owns
+the running service, ask before stopping it. Never expose PAT or copy local session credentials
+into project files. Console errors retain the CLI result; unknown results require verification,
+not an automatic retry.
+
+## Local Window Preview
+
+Use the active distribution's Maker CLI and the current real Maker project absolute path as
+`--target-dir`; never guess a business project from the dialogue directory. Every command supports
+`--json`. Local preview does not require Git clean, commit, push, PAT, or remote build.
+
+1. For an explicit local-preview request, run `taptap-maker preview status --target-dir <PROJECT> --json`.
+   If Runtime is missing, follow host approval for downloading/installing with
+   `taptap-maker preview install --target-dir <PROJECT> --json`, then start. Installation requires
+   Python and curl; do not install dependencies or bypass client approval silently.
+   Explain that preparation and Runtime may download public indexes/assets. Start/refresh prepare
+   a managed copy automatically; `preview prepare` diagnoses preparation alone. Platform support,
+   installation recovery and cache behavior are documented in `docs/MAKER_LOCAL_PREVIEW.md`.
+
+2. Run `taptap-maker preview start --target-dir <PROJECT> --json`. Report process launch only,
+   not game readiness. Never substitute validate/headless mode or remote build.
+3. After **each batch of related code/resource changes**, actually run preview status again.
+   If `process_alive=true`, automatically run preview refresh and collect logs/check.
+   This includes a failed-but-live Runtime after Lua fixes. Do not merely remind the user to refresh.
+   If stopped, missing, or ownership is unknown, do not start or revive the session.
+4. Explicit refresh also only refreshes an active session. Tell the user it is a restart and loses
+   in-memory state. Merge related edits into batches; do not restart on every file save. The CLI
+   coalesces overlapping refreshes, with stop/cancel taking priority. No default file watcher exists;
+   edits from other editors/agents need explicit refresh unless they follow this same rule.
+5. For stop, run `taptap-maker preview stop --target-dir <PROJECT> --json`. Manual window close
+   is detected by status. Never kill by process name or trust a stored PID alone.
+6. Fetch current evidence with `preview logs` and `preview check`, each with
+   the same `--target-dir`. Incremental logs use the returned `--session-id`, `--reload-id`,
+   `--cursor` and optionally `--limit` (1–500). Reset cursor after a reload. Keep local evidence
+   separate from `.maker/logs/runtime/`, which belongs to the remote watcher.
+
+Process launch and clean logs do not prove gameplay or visual correctness. Do not promise
+screenshots, input automation or cloud/server emulation; these are not supported.
+
+Only an AI authorized to modify the game may fix it. Bound automatic fixes to two attempts and an
+agreed time budget, permit cancellation, refresh after each attempt, and return remaining failures
+and evidence. Without modification authorization only report.
+
+Runtime preflight must prove that the client can run independently from project configuration,
+entry and dependencies. Server-required or unknown dependencies block local preview. There is no
+local Server, cloud mock, or supported local-client/remote-server bridge. Preserve
+remote build for the full Server experience. Do not classify shared scripts by filename suffix,
+inject stubs, delete old dist/manifest files, copy whole resource libraries, or silently fetch
+official-res/uuid assets. Explain missing references/cache state and seek approval for retrieval.
 
 ## Create New Maker Project Intent
 
@@ -134,10 +200,10 @@ This policy overrides generic local Git skills and generic Git workflows wheneve
 directory is a Maker project, which means `.maker-mcp/config.json` exists in the project or one of
 its parents.
 
-Use `maker_build_current_directory` for submit, push, build, preview, run, and game result
+Use `maker_build_current_directory` for submit, push, build, explicitly remote Web preview, and remote game result
 verification requests in a bound Maker project.
 Do not treat generic code checks like "验证代码", "跑测试", "lint", or "检查实现" as Maker
-remote build unless the user explicitly asks to build, run, or preview the Maker game.
+remote build unless the user explicitly asks for the remote build workflow. Local preview uses CLI.
 Do not create feature branches, task branches, PR/MR. Do not create task-id based Git flows for
 Maker project submit/build work. Do not run generic Git commit/push helpers as a replacement for
 the Maker MCP tool.
@@ -199,8 +265,9 @@ supports it. Follow the selected tool schema when one of these tools is used.
   document before editing ad code or testing ad behavior.
 - Do not infer ad readiness from local SDK docs, `.maker-mcp/config.json`, or runtime callbacks.
   If the primary local project configs are missing, keep ad config unavailable and do not call the
-  remote tool. Build only for an explicit user build/submit/preview request. If a successful build
+  remote tool. Build only for an explicit user build/submit/remote Web preview request. If a successful build
   still leaves local configs missing, explain the known limitation and do not automatically rebuild.
+- Local window preview uses CLI and does not authorize commit or push.
 - If `get_ad_config` reports missing `app_id` or `developer_id`, call `generate_test_qrcode` once
   to generate test QR code metadata, then call `get_ad_config` again. Do not use publish-only tools
   for this recovery path.
@@ -719,7 +786,7 @@ unless the user asks. Summaries should be understandable to non-programmers:
 - why these files are being submitted
 - whether any generated or suspicious files are included
 
-For normal build/preview/game-result verification requests, a clean workspace still goes through
+For normal remote build/Web-preview/game-result verification requests, a clean workspace still goes through
 `maker_build_current_directory`; Maker MCP creates and pushes an empty
 `chore: wake maker build server` commit before remote build to wake the Maker server.
 Only skip submit/push when the user explicitly asks to build the committed remote version.

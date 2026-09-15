@@ -22,6 +22,9 @@
 **NPM**: [@taptap/instant-games-open-mcp](https://www.npmjs.com/package/@taptap/instant-games-open-mcp)
 **Maker NPM**: [@taptap/maker](https://www.npmjs.com/package/@taptap/maker)
 
+Maker 支持[本地控制台](docs/MAKER_CONSOLE.md)管理项目、构建和 Git 历史，
+以及无需远端构建的[本地窗口预览](docs/MAKER_LOCAL_PREVIEW.md)。
+
 ## TapTap Maker 客户端插件
 
 [`plugins/taptap-maker`](plugins/taptap-maker) 是插件专属安装与下载页面。Codex 和 WorkBuddy

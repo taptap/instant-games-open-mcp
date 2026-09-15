@@ -3949,7 +3949,7 @@ describe('maker build local-change guard', () => {
     expect(output).toContain('- project_health: misplaced_config');
     expect(output).toContain('修复 Maker 项目结构或配置问题后再构建');
     expect(output).not.toContain(
-      '仅当用户明确要求构建、提交或预览时调用 `maker_build_current_directory`'
+      '仅当用户明确要求构建、提交或远端 Web 预览时调用 `maker_build_current_directory`'
     );
   });
 

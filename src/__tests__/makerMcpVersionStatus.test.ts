@@ -353,6 +353,8 @@ describe('maker MCP version status integration', () => {
     expect(instructions).toContain('maker://status');
     expect(instructions).toContain('maker_status_lite');
     expect(instructions).toContain('maker_build_current_directory');
+    expect(instructions).toContain('Local preview: taptap-maker preview --target-dir');
+    expect(instructions).toContain('Never revive stopped sessions');
     expect(instructions).toContain('generate_test_qrcode');
     expect(instructions).toContain(
       'Ads: read maker://ads-integration-guide before any ad-related work.'

@@ -28,6 +28,7 @@ import {
   saveProjectConfig,
 } from '../storage.js';
 import { identifyMakerProject } from '../server/identify.js';
+import { registerMakerProject } from '../projectRegistry.js';
 import {
   createRemoteRuntimeLogClient,
   createRemoteProxyContext,
@@ -35,6 +36,9 @@ import {
 } from '../server/mcp.js';
 import { MAKER_TOOL_CALL_TIMEOUT_MS } from '../proxyPolicy.js';
 import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeLogs.js';
+import { runPreviewCli } from './preview.js';
+import { runConsoleCli } from '../console/cli.js';
+import { runBuildCli } from './build.js';
 import {
   cloneMakerProject,
   createMakerProject,
@@ -142,6 +146,8 @@ const VERSION = typeof __MAKER_VERSION__ !== 'undefined' ? __MAKER_VERSION__ : '
 const DEFAULT_MCP_NAME = 'taptap-maker';
 const MAKER_NPM_PACKAGE = '@taptap/maker';
 const TWO_PART_COMMANDS = new Set([
+  'console',
+  'preview',
   'pat',
   'mcp',
   'dev-kit',
@@ -153,6 +159,7 @@ const TWO_PART_COMMANDS = new Set([
   'user-skills',
 ]);
 const BOOLEAN_OPTIONS = new Set([
+  'no_open',
   'json',
   'skip_confirm',
   'skip_mcp_install',
@@ -287,6 +294,21 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'init') {
     await runInit(parsed, ctx);
+    return;
+  }
+
+  if (command === 'preview') {
+    await runPreviewCli(subcommand, parsed.options);
+    return;
+  }
+
+  if (command === 'console') {
+    await runConsoleCli(subcommand, parsed.options);
+    return;
+  }
+
+  if (command === 'build') {
+    await runBuildCli(parsed.options);
     return;
   }
 
@@ -625,6 +647,8 @@ async function runInit(parsed: ParsedArgs, ctx: CliContext): Promise<void> {
     env,
     selected_app_id: selected.id,
   });
+  const registryWarning = registerMakerProject(targetDir);
+  if (registryWarning) emit(ctx, 'project_registry_warning', registryWarning);
   emit(ctx, 'done', 'TapTap Maker initialization completed', {
     target_dir: targetDir,
     app_id: selected.id,
@@ -3188,6 +3212,14 @@ function printHelp(): void {
   process.stdout.write(
     [
       'Usage:',
+      '  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]',
+      '  taptap-maker console status|stop [--json]',
+      '  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]',
+      '  taptap-maker preview install|prepare|start|status|refresh|stop|logs|screenshot|check',
+      '                       --target-dir PROJECT_ABSOLUTE_PATH [--json]',
+      '                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]',
+      '                       [--cursor N --session-id ID --reload-id N] [--limit 1..500]',
+      '  Local preview never commits, pushes, or remotely builds; refresh restarts and loses memory state.',
       '  taptap-maker                         Start MCP server mode',
       '  taptap-maker init [--app-id ID] [--target-dir DIR] [--pat PAT]',
       '                     [--create --name NAME]',

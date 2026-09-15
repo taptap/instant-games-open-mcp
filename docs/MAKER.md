@@ -7,6 +7,10 @@
 
 ## 目标
 
+CLI 功能指南：[本地控制台](MAKER_CONSOLE.md)、
+[Runtime 安装与本地预览](MAKER_LOCAL_PREVIEW.md)。两者复用现有 CLI，不新增 MCP tool；
+本地预览与提交、远端构建流程分离。
+
 `taptap-maker` 由独立 npm 包 `@taptap/maker` 提供：
 
 - 本地通过 cwd 向上查找 `.maker-mcp/config.json` 识别当前 Maker 项目。
