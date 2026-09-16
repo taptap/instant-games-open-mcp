@@ -9,6 +9,7 @@ import {
   type RuntimeInfo,
 } from './protocol.js';
 import { probeRuntime } from './runtime.js';
+import { ensurePreviewRuntimeResources } from './runtimeResources.js';
 import { PREVIEW_INSTALLER_SOURCE } from './installerSource.js';
 import { runPreviewInstaller } from './installerProcess.js';
 import { trimPreviewCache, UNVERIFIED_CLEANUP_MARKER } from './cache.js';
@@ -178,7 +179,13 @@ export async function installPreviewRuntime(
       () => false
     );
     if (signal?.aborted) throw new Error('CANCELLED');
-    if (compatible && !update) return previous;
+    if (compatible && !update) {
+      const resources = ensurePreviewRuntimeResources(previous.executable);
+      return {
+        ...previous,
+        warnings: [...new Set([...(previous.warnings || []), ...resources.warnings])],
+      };
+    }
   }
   const directory = runtimeDirectory();
   const unresolved =
@@ -222,6 +229,7 @@ export async function installPreviewRuntime(
     const executable = fs.realpathSync(
       path.join(staging, platform === 'win32' ? 'UrhoXRuntime.exe' : 'UrhoXRuntime')
     );
+    const resources = ensurePreviewRuntimeResources(executable);
     const runtime = await probeRuntime(executable, signal);
     const archive = path.join(staging, 'UrhoXRuntime.zip');
     const hash = createHash('sha256');
@@ -232,11 +240,15 @@ export async function installPreviewRuntime(
       runtime,
       archive_sha256: hash.digest('hex'),
       installed_at: new Date().toISOString(),
+      warnings: resources.warnings,
     };
     const protectedDirectories = [staging, ...activePreviewRuntimeDirectories(project)];
     if (previous.executable) protectedDirectories.push(path.dirname(previous.executable));
+    installation.warnings = [
+      ...(installation.warnings || []),
+      ...trimPreviewCache(directory, 'runtime-', 2, protectedDirectories),
+    ];
     writePrivateJson(path.join(directory, 'installation.json'), installation);
-    installation.warnings = trimPreviewCache(directory, 'runtime-', 2, protectedDirectories);
     return installation;
   } catch (error) {
     const cleanupUnverified = (error as { cleanupVerified?: boolean }).cleanupVerified === false;

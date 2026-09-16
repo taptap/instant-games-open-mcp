@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import {
   previewDirectory,
   previewProject,
   previewRoundDirectory,
+  previewSupervisorLogPath,
   readPreviewRecord,
   samePreviewIdentity,
   writePrivateJson,
@@ -18,10 +18,12 @@ import {
   withPreviewLock,
 } from '../preview/installation.js';
 import { probeRuntime } from '../preview/runtime.js';
+import { ensurePreviewRuntimeResources } from '../preview/runtimeResources.js';
 import { previewStatus, requestPreview } from '../preview/session.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { readStoredPreviewLogs } from '../preview/evidence.js';
 import { preparePreviewProject, previewPreparationDirectory } from '../preview/prepare.js';
+import { launchPreviewSupervisorProcess } from '../preview/processLauncher.js';
 
 const ACTIONS = [
   'install',
@@ -42,7 +44,6 @@ function isRetiredFailure(
   return Boolean(
     status &&
       record &&
-      record.state === 'failed' &&
       status.state === 'failed' &&
       status.process_alive === false &&
       status.supervisor_retired === true &&
@@ -117,7 +118,7 @@ export async function runPreviewCli(
           'Incremental logs require --session-id and --reload-id from the previous response.'
         );
       }
-      const failedStatus = record?.state === 'failed' ? await previewStatus(project) : undefined;
+      const failedStatus = record ? await previewStatus(project) : undefined;
       const retired = isRetiredFailure(failedStatus, record);
       if (action === 'logs' && record) {
         const reload =
@@ -236,8 +237,8 @@ async function startPreview(
     }
   }
   const installation = previewInstallation(project);
-  const configured =
-    typeof options.runtime === 'string' ? options.runtime : installation.executable;
+  const externalRuntime = typeof options.runtime === 'string';
+  const configured = externalRuntime ? options.runtime : installation.executable;
   if (!configured)
     return {
       ok: false,
@@ -251,6 +252,9 @@ async function startPreview(
   if (!path.isAbsolute(configured))
     throw new Error('--runtime must be an absolute executable path.');
   const executable = fs.realpathSync(configured);
+  const resourceWarnings = externalRuntime
+    ? []
+    : ensurePreviewRuntimeResources(executable).warnings;
   const runtime = await probeRuntime(executable, signal);
   checkCancelled();
   const record: PreviewRecord = {
@@ -260,6 +264,7 @@ async function startPreview(
     reload_id: 0,
     supervisor_id: randomUUID(),
     supervisor_pid: 0,
+    runtime_pid: 0,
     started_at: new Date().toISOString(),
     token: randomBytes(32).toString('hex'),
     port: 0,
@@ -268,30 +273,38 @@ async function startPreview(
     runtime,
   };
   writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
-  const child = spawn(
-    process.execPath,
-    [...process.execArgv, process.argv[1], '__maker-preview-supervisor', project],
-    {
-      cwd: path.dirname(executable),
-      detached: true,
-      windowsHide: true,
-      stdio: 'ignore',
-    }
-  );
-  let launchError: Error | undefined;
-  child.on('error', (error) => {
-    launchError = error;
+  // Broker errors can occur after launch; do not mark an unverified process stopped.
+  const launch = await launchPreviewSupervisorProcess({
+    execPath: process.execPath,
+    execArgv: process.execArgv,
+    entry: process.argv[1],
+    project,
+    cwd: path.dirname(executable),
+    logFile: previewSupervisorLogPath(project),
+    env: process.env,
+    signal,
   });
-  child.unref();
   const deadline = Date.now() + 15000;
   let active: PreviewRecord | undefined;
   try {
     while (Date.now() < deadline) {
       checkCancelled();
+      const launchError = launch.failure();
       if (launchError) throw launchError;
       active = readPreviewRecord(project);
-      if (active?.port && active.supervisor_pid)
-        return await requestPreview(active, 'start', {}, 360000, signal);
+      if (active?.port && active.supervisor_pid) {
+        const started = await requestPreview(active, 'start', {}, 360000, signal);
+        return resourceWarnings.length
+          ? {
+              ...started,
+              warnings: [
+                ...(Array.isArray(started.warnings) ? started.warnings : []),
+                ...resourceWarnings,
+              ],
+            }
+          : started;
+      }
+      if (launch.exited()) break;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     throw new Error('TIMEOUT: preview supervisor did not open its control channel.');
@@ -306,9 +319,16 @@ async function startPreview(
         );
       }
     } else {
-      if (!launchError) child.kill();
-      record.state = 'stopped';
-      writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+      if (launch.stopUnpublished()) {
+        record.state = 'stopped';
+        writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+      } else {
+        throw new Error(
+          String(error) +
+            '; supervisor exit is unverified. Inspect ' +
+            previewSupervisorLogPath(project)
+        );
+      }
     }
     throw error;
   }

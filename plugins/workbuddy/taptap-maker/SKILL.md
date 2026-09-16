@@ -2,7 +2,8 @@
 name: taptap-maker
 description: >
   TapTap Maker WorkBuddy 本地游戏开发插件。用于创建或同步 Maker 项目、开发 UrhoX 游戏、
-  检查项目状态、提交构建、预览运行、生成游戏素材、接入广告、配置测试、查询玩家反馈、
+  使用“打开make mcp控制台”、检查项目状态、提交构建、预览运行、生成游戏素材、接入广告、配置测试、
+  查询玩家反馈、
   诊断 Maker MCP，以及管理插件更新和旧 MCP 迁移。
 ---
 

@@ -9,11 +9,15 @@ import {
   withPreviewLock,
 } from '../maker/preview/installation.js';
 import { probeRuntime } from '../maker/preview/runtime.js';
+import { ensurePreviewRuntimeResources } from '../maker/preview/runtimeResources.js';
 import { previewDirectory, runtimeDirectory, writePrivateJson } from '../maker/preview/protocol.js';
 import { checkMakerPythonEnvironment } from '../maker/system/python.js';
 
 jest.mock('../maker/preview/installerProcess.js', () => ({ runPreviewInstaller: jest.fn() }));
 jest.mock('../maker/preview/runtime.js', () => ({ probeRuntime: jest.fn() }));
+jest.mock('../maker/preview/runtimeResources.js', () => ({
+  ensurePreviewRuntimeResources: jest.fn(),
+}));
 jest.mock('../maker/system/python.js', () => ({ checkMakerPythonEnvironment: jest.fn() }));
 
 const info = {
@@ -40,6 +44,10 @@ beforeEach(() => {
       typeof checkMakerPythonEnvironment
     >);
   jest.mocked(probeRuntime).mockResolvedValue(info);
+  jest.mocked(ensurePreviewRuntimeResources).mockReturnValue({
+    fallbackFont: 'existing',
+    warnings: [],
+  });
   jest.mocked(runPreviewInstaller).mockImplementation(async (_python, parameters) => {
     const destination = parameters[parameters.indexOf('--dest') + 1];
     fs.writeFileSync(path.join(destination, 'UrhoXRuntime'), 'binary');
@@ -81,6 +89,7 @@ test('installer is explicitly given a new managed destination and records valida
   expect(path.dirname(result.executable!)).toBe(args[args.indexOf('--dest') + 1]);
   expect(path.dirname(result.executable!).startsWith(runtimeDirectory() + path.sep)).toBe(true);
   expect(previewInstallation(root).executable).toBe(result.executable);
+  expect(ensurePreviewRuntimeResources).toHaveBeenCalledWith(result.executable);
 });
 
 test('one managed Runtime installation is shared by every project', async () => {
@@ -125,6 +134,7 @@ test('a compatible installation is reused without executing the installer', asyn
   const previous = previousInstallation();
   expect((await installPreviewRuntime(root)).executable).toBe(previous);
   expect(runPreviewInstaller).not.toHaveBeenCalled();
+  expect(ensurePreviewRuntimeResources).toHaveBeenCalledWith(previous);
 });
 
 test('executable verification failure preserves the old installation and removes only new staging', async () => {

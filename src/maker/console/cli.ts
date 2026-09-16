@@ -2,19 +2,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
+import { createServer } from 'node:net';
 import { getMakerHome } from '../storage.js';
 import {
   getMakerProjectRegistryPath,
   getLegacyMakerProjectRegistryPath,
 } from '../projectRegistry.js';
 import { writePrivateJson } from '../system/privateJson.js';
+import { processPresence } from '../system/processPresence.js';
 import { ConsoleProjects } from './projects.js';
 import { createConsoleExecutor } from './executor.js';
+import { launchConsoleServerProcess } from './processLauncher.js';
+export { openConsoleLog } from './processLauncher.js';
 import { startConsoleServer } from './server.js';
 import { ConsoleError } from './types.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ === 'undefined' ? 'dev' : __MAKER_VERSION__;
+const CONSOLE_PROTOCOL_VERSION = 1;
 type Session = {
   schema: 1;
   origin: string;
@@ -30,17 +35,33 @@ function home(): string {
 function sessionPath(): string {
   return path.join(home(), 'session.json');
 }
-function launcherIdentity(): string {
+export function createConsoleLauncherIdentity(
+  version: string,
+  developmentSource?: { entry: string; mtimeMs: number }
+): string {
   return createHash('sha256')
     .update(
       JSON.stringify({
-        entry: fs.realpathSync(process.argv[1]),
-        stat: fs.statSync(process.argv[1]).mtimeMs,
-        version: VERSION,
-        distribution: process.env.TAPTAP_MAKER_DISTRIBUTION || '',
+        protocol: CONSOLE_PROTOCOL_VERSION,
+        version,
+        ...(version === 'dev' ? { developmentSource } : {}),
       })
     )
     .digest('hex');
+}
+export function ensureCompatibleConsoleLauncher(actual: string, expected: string): void {
+  if (actual !== expected) {
+    throw new ConsoleError(
+      'Another Maker version is serving the console. Stop that console before opening this version.'
+    );
+  }
+}
+function launcherIdentity(): string {
+  const entry = fs.realpathSync(process.argv[1]);
+  return createConsoleLauncherIdentity(VERSION, {
+    entry,
+    mtimeMs: fs.statSync(entry).mtimeMs,
+  });
 }
 function readSession(): Session | undefined {
   if (!fs.existsSync(sessionPath())) return undefined;
@@ -128,7 +149,7 @@ async function availableSession(): Promise<Session | undefined> {
 }
 
 export async function runConsoleSupervisor(): Promise<void> {
-  const release = claimConsoleServerLock(home());
+  const release = await claimConsoleServerLock(home());
   try {
     if (await activeSession()) throw new ConsoleError('A console service is already running.');
     const { getConsoleHtml } = await import('./web.js');
@@ -190,29 +211,20 @@ export async function runConsoleSupervisor(): Promise<void> {
   }
 }
 
-export function claimConsoleServerLock(directory: string): () => void {
+export async function claimConsoleServerLock(directory: string): Promise<() => void> {
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   return claimOwnedLock(path.join(directory, 'server.lock'));
 }
 
-export function openConsoleLog(filename: string): number {
-  const oversized = fs.existsSync(filename) && fs.statSync(filename).size > 1024 * 1024;
-  return fs.openSync(filename, oversized ? 'w' : 'a', 0o600);
-}
-
-function claimOwnedLock(filename: string): () => void {
+async function claimOwnedLock(filename: string): Promise<() => void> {
+  filename = path.join(fs.realpathSync(path.dirname(filename)), path.basename(filename));
   const identity = `${process.pid}:${randomUUID()}`;
   // New acquisition and stale-owner recovery share the same guard. Otherwise
   // recovery can unlink a replacement acquired after the old owner exits.
-  let recovery: number;
+  const recoveryFilename = filename + '.recovery';
+  const releaseMutex = await claimRecoveryMutex(filename);
   try {
-    recovery = fs.openSync(filename + '.recovery', 'wx', 0o600);
-  } catch (cause) {
-    if ((cause as NodeJS.ErrnoException).code === 'EEXIST')
-      throw new ConsoleError('Console ownership recovery is already in progress.', 409);
-    throw cause;
-  }
-  try {
+    claimRecoveryGuard(recoveryFilename, identity);
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         fs.writeFileSync(filename, identity, { flag: 'wx', mode: 0o600 });
@@ -254,8 +266,99 @@ function claimOwnedLock(filename: string): () => void {
     }
     throw new ConsoleError('Console ownership changed during startup. Try again.');
   } finally {
-    fs.closeSync(recovery);
-    fs.unlinkSync(filename + '.recovery');
+    try {
+      removeOwnedFile(recoveryFilename, identity);
+    } finally {
+      await releaseMutex();
+    }
+  }
+}
+
+function claimRecoveryMutex(filename: string): Promise<() => Promise<void>> {
+  // A deterministic loopback bind serializes recovery and is released by the OS
+  // on exit. Port collisions fail closed; never probe or stop the existing peer.
+  const port = 49152 + (createHash('sha256').update(filename).digest().readUInt16BE(0) % 16384);
+  const server = createServer((socket) => socket.destroy());
+  return new Promise((resolve, reject) => {
+    server.once('error', (error: NodeJS.ErrnoException) => {
+      reject(
+        error.code === 'EADDRINUSE'
+          ? new ConsoleError(
+              `Console ownership recovery is busy (loopback port ${port} is in use). Try again.`,
+              409
+            )
+          : error
+      );
+    });
+    server.listen({ host: '127.0.0.1', port, exclusive: true }, () => {
+      resolve(
+        () =>
+          new Promise<void>((done, fail) => {
+            server.close((error) => (error ? fail(error) : done()));
+          })
+      );
+    });
+  });
+}
+
+function claimRecoveryGuard(filename: string, identity: string): void {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let descriptor: number;
+    try {
+      descriptor = fs.openSync(filename, 'wx', 0o600);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      if (reclaimStaleRecoveryGuard(filename)) continue;
+      throw new ConsoleError('Console ownership recovery is already in progress.', 409);
+    }
+    try {
+      fs.writeFileSync(descriptor, identity, 'utf8');
+    } catch (error) {
+      fs.unlinkSync(filename);
+      throw error;
+    } finally {
+      fs.closeSync(descriptor);
+    }
+    return;
+  }
+  throw new ConsoleError('Console ownership recovery changed during startup.', 409);
+}
+
+// Only called while holding the publication/reclamation socket mutex.
+function reclaimStaleRecoveryGuard(filename: string): boolean {
+  let content: string;
+  let modified: number;
+  try {
+    content = fs.readFileSync(filename, 'utf8');
+    modified = fs.statSync(filename).mtimeMs;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT';
+  }
+  const pid = Number(content.split(':')[0]);
+  const stale =
+    Number.isInteger(pid) && pid > 0
+      ? processPresence(pid) === 'missing'
+      : content === '' && Date.now() - modified >= 2000;
+  if (!stale) return false;
+  try {
+    if (
+      fs.readFileSync(filename, 'utf8') === content &&
+      fs.statSync(filename).mtimeMs === modified
+    ) {
+      fs.unlinkSync(filename);
+      return true;
+    }
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT';
+  }
+  return false;
+}
+
+function removeOwnedFile(filename: string, identity: string): void {
+  try {
+    if (fs.readFileSync(filename, 'utf8') === identity) fs.unlinkSync(filename);
+  } catch {
+    // Preserve a replacement guard.
   }
 }
 
@@ -263,24 +366,20 @@ async function ensureSession(): Promise<Session> {
   fs.mkdirSync(home(), { recursive: true, mode: 0o700 });
   const existing = await availableSession();
   if (existing) {
-    if (existing.launcher !== launcherIdentity())
-      throw new ConsoleError(
-        'Another Maker version is serving the console. Stop that console before opening this version.'
-      );
+    ensureCompatibleConsoleLauncher(existing.launcher, launcherIdentity());
     return existing;
   }
   const lock = path.join(home(), 'launch.lock');
   let releaseLaunch: (() => void) | undefined;
   for (let attempt = 0; attempt < 60; attempt++) {
     try {
-      releaseLaunch = claimOwnedLock(lock);
+      releaseLaunch = await claimOwnedLock(lock);
       break;
     } catch (error) {
       if (!(error instanceof ConsoleError) || error.status !== 409) throw error;
       const launched = await availableSession();
       if (launched) {
-        if (launched.launcher !== launcherIdentity())
-          throw new ConsoleError('Another Maker version opened the console.');
+        ensureCompatibleConsoleLauncher(launched.launcher, launcherIdentity());
         return launched;
       }
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -291,47 +390,34 @@ async function ensureSession(): Promise<Session> {
   try {
     const launched = await availableSession();
     if (launched) {
-      if (launched.launcher !== launcherIdentity())
-        throw new ConsoleError('Another Maker version opened the console.');
+      ensureCompatibleConsoleLauncher(launched.launcher, launcherIdentity());
       return launched;
     }
-    const stderr = openConsoleLog(path.join(home(), 'server.log'));
-    let child: ReturnType<typeof spawn>;
-    try {
-      child = spawn(
-        process.execPath,
-        [...process.execArgv, process.argv[1], '__maker-console-server'],
-        {
-          cwd: home(),
-          detached: true,
-          windowsHide: true,
-          stdio: ['ignore', 'ignore', stderr],
-          env: process.env,
-        }
-      );
-    } finally {
-      fs.closeSync(stderr);
-    }
-    let failure: Error | undefined;
-    child.on('error', (error) => {
-      failure = error;
+    const launch = await launchConsoleServerProcess({
+      execPath: process.execPath,
+      execArgv: process.execArgv,
+      entry: process.argv[1],
+      cwd: home(),
+      logFile: path.join(home(), 'server.log'),
+      env: process.env,
     });
-    child.unref();
     for (let attempt = 0; attempt < 80; attempt++) {
+      const failure = launch.failure();
       if (failure) throw failure;
       const session = readSession();
-      if (session?.pid === child.pid) {
+      if (session && (!launch.expectedPid || session.pid === launch.expectedPid)) {
         const active = await availableSession();
-        if (active) return active;
+        if (active) {
+          ensureCompatibleConsoleLauncher(active.launcher, launcherIdentity());
+          return active;
+        }
       }
-      if (child.exitCode !== null) break;
+      if (launch.exited()) break;
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
     // Reap only our unadvertised startup child. A published session may already
     // be serving another opener and must not be terminated on a probe failure.
-    if (child.exitCode === null && readSession()?.pid !== child.pid) {
-      child.kill('SIGTERM');
-    }
+    if (!launch.expectedPid || readSession()?.pid !== launch.expectedPid) launch.stopUnpublished();
     throw new ConsoleError('Console did not start. Inspect the Maker console server log.');
   } finally {
     releaseLaunch();

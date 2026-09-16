@@ -13,6 +13,8 @@ import {
   type PreviewRecord,
 } from '../maker/preview/protocol.js';
 import { preflightPreview, PreviewRuntime } from '../maker/preview/runtime.js';
+import { ensurePreviewRuntimeResources } from '../maker/preview/runtimeResources.js';
+import { buildWindowsPreviewLaunchScripts } from '../maker/preview/processLauncher.js';
 import { previewStatus, requestPreview, runPreviewSupervisor } from '../maker/preview/session.js';
 import { runPreviewCli } from '../maker/cli/preview.js';
 
@@ -87,6 +89,9 @@ jest.mock('../maker/preview/runtime.js', () => {
     })),
   };
 });
+jest.mock('../maker/preview/runtimeResources.js', () => ({
+  ensurePreviewRuntimeResources: jest.fn(() => ({ fallbackFont: 'existing', warnings: [] })),
+}));
 
 const runtime = PreviewRuntime as unknown as {
   mode: string;
@@ -150,14 +155,17 @@ async function isClosed(): Promise<boolean> {
   );
 }
 
-async function callCli(action: string): Promise<Record<string, unknown>> {
+async function callCli(
+  action: string,
+  runtimePath: string | null = path.join(root, 'runtime')
+): Promise<Record<string, unknown>> {
   const stdout = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
   const exitCode = process.exitCode;
   process.exitCode = 0;
   try {
     await runPreviewCli(action, {
       target_dir: project,
-      runtime: path.join(root, 'runtime'),
+      ...(runtimePath ? { runtime: runtimePath } : {}),
       json: true,
     });
     return JSON.parse(stdout.mock.calls.map(([text]) => String(text)).join(''));
@@ -179,9 +187,15 @@ beforeEach(() => {
   runtime.mode = 'fail';
   runtime.holdStop = false;
   runtime.instances = [];
+  jest.mocked(ensurePreviewRuntimeResources).mockClear();
   jest.mocked(spawn).mockReset();
   jest.mocked(spawn).mockImplementation(() => {
-    const child = Object.assign(new EventEmitter(), { unref: jest.fn(), kill: jest.fn() });
+    const child = Object.assign(new EventEmitter(), {
+      pid: 12345,
+      exitCode: null,
+      unref: jest.fn(),
+      kill: jest.fn(),
+    });
     void runPreviewSupervisor(project).catch((error) => child.emit('error', error));
     return child as unknown as ReturnType<typeof spawn>;
   });
@@ -191,6 +205,48 @@ beforeEach(() => {
       process.listeners(signal) as NodeJS.SignalsListener[],
     ])
   );
+});
+
+test('CLI start repairs the shared managed Runtime before probing it', async () => {
+  const installedExecutable = path.join(root, 'installed-runtime');
+  fs.writeFileSync(installedExecutable, '');
+  writePrivateJson(path.join(runtimeDirectory(), 'installation.json'), {
+    install_state: 'ready',
+    executable: installedExecutable,
+  });
+  runtime.mode = 'running';
+
+  expect(await callCli('start', null)).toMatchObject({ ok: true, state: 'running' });
+  expect(ensurePreviewRuntimeResources).toHaveBeenCalledWith(installedExecutable);
+});
+
+test('CLI start does not modify an explicitly supplied external Runtime', async () => {
+  runtime.mode = 'running';
+
+  expect(await callCli('start')).toMatchObject({ ok: true, state: 'running' });
+  expect(ensurePreviewRuntimeResources).not.toHaveBeenCalled();
+});
+
+test('builds a Windows system-broker launch for the preview supervisor', () => {
+  const scripts = buildWindowsPreviewLaunchScripts({
+    execPath: 'C:\\Program Files\\nodejs\\node.exe',
+    execArgv: ['--no-warnings'],
+    entry: 'C:\\Maker\\dist\\maker.js',
+    project: 'F:\\MiniGame\\mcp\\test-2',
+    cwd: 'C:\\Maker\\Runtime',
+    logFile: 'C:\\Maker\\preview\\supervisor.log',
+    env: {
+      PATH: 'C:\\Windows\\System32',
+      TAPTAP_MAKER_HOME: 'C:\\Users\\Maker\\.taptap-maker',
+      TAPTAP_MCP_MAC_TOKEN: 'must-not-leak',
+    },
+  });
+
+  expect(scripts.broker).toContain('Invoke-CimMethod');
+  expect(scripts.process).toContain('__maker-preview-supervisor');
+  expect(scripts.process).toContain('F:\\MiniGame\\mcp\\test-2');
+  expect(scripts.process).toContain('supervisor.log');
+  expect(scripts.process).not.toContain('must-not-leak');
 });
 
 afterEach(async () => {
@@ -538,6 +594,81 @@ test('unreachable failure without retirement evidence remains unverified', async
     state: 'failed',
   });
   expect(await previewStatus(project)).toMatchObject({ process_alive: null, ok: false });
+});
+
+test('recovers an unreachable Windows-style session after both recorded processes are absent', async () => {
+  await boot();
+  await requestPreview(record, 'stop');
+  await waitUntil(isClosed);
+  record.state = 'running';
+  record.supervisor_pid = 2147483646;
+  record.runtime_pid = 2147483647;
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  writePrivateJson(path.join(previewRoundDirectory(record), 'result.json'), {
+    ...record,
+    state: 'running',
+    process_alive: true,
+    runtime_pid: record.runtime_pid,
+  });
+
+  expect(await previewStatus(project)).toMatchObject({
+    state: 'failed',
+    process_alive: false,
+    supervisor_retired: true,
+    stale_session_recovered: true,
+  });
+  // Status is read-only so concurrent observers cannot overwrite a new session.
+  expect(readPreviewRecord(project)).toMatchObject({ state: 'running' });
+  expect(await previewStatus(project)).not.toHaveProperty('token');
+  expect(await callCli('stop')).toMatchObject({ ok: true, process_alive: false });
+  expect(await callCli('check')).toMatchObject({ result: 'FAIL', process_alive: false });
+
+  runtime.mode = 'running';
+  expect(await callCli('start')).toMatchObject({ ok: true, state: 'running' });
+});
+
+test.each(['stop', 'check'])(
+  'direct %s recovers a legacy session without a prior status call',
+  async (action) => {
+    record = pendingRecord();
+    record.state = 'running';
+    record.supervisor_pid = 2147483646;
+    writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+    writePrivateJson(path.join(previewRoundDirectory(record), 'result.json'), {
+      ...record,
+      runtime_pid: 2147483647,
+      process_alive: true,
+    });
+    expect(await callCli(action)).toMatchObject({
+      process_alive: false,
+      supervisor_retired: true,
+      ...(action === 'stop' ? { ok: true } : { result: 'FAIL' }),
+    });
+  }
+);
+
+test.each(['alive', 'unknown', 'reloading'])('does not recover %s ownership', async (mode) => {
+  record = pendingRecord();
+  record.state = mode === 'reloading' ? 'reloading' : 'running';
+  record.supervisor_pid = 2147483646;
+  record.runtime_pid = mode === 'alive' ? process.pid : 2147483647;
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  writePrivateJson(path.join(previewRoundDirectory(record), 'result.json'), {
+    ...record,
+    process_alive: true,
+  });
+  const kill =
+    mode === 'unknown'
+      ? jest.spyOn(process, 'kill').mockImplementation(() => {
+          throw Object.assign(new Error('denied'), { code: 'EPERM' });
+        })
+      : undefined;
+  try {
+    expect(await callCli('start')).toMatchObject({ ok: false });
+    expect(spawn).not.toHaveBeenCalled();
+  } finally {
+    kill?.mockRestore();
+  }
 });
 
 test.each([

@@ -25,6 +25,7 @@ export type PreviewRecord = PreviewIdentity & {
   token: string;
   supervisor_id: string;
   supervisor_pid: number;
+  runtime_pid?: number;
   started_at: string;
   port: number;
   executable: string;
@@ -64,6 +65,8 @@ export function readPreviewRecord(project: string): PreviewRecord | undefined {
     record.port > 65535 ||
     !Number.isInteger(record.supervisor_pid) ||
     record.supervisor_pid < 0 ||
+    (record.runtime_pid !== undefined &&
+      (!Number.isInteger(record.runtime_pid) || record.runtime_pid < 0)) ||
     !/^[0-9a-f-]{36}$/.test(record.session_id) ||
     !record.supervisor_id ||
     !Number.isSafeInteger(record.reload_id) ||
@@ -74,6 +77,10 @@ export function readPreviewRecord(project: string): PreviewRecord | undefined {
     throw new Error('Invalid preview session record; refusing to manage an unverified process.');
   }
   return record;
+}
+
+export function previewSupervisorLogPath(project: string): string {
+  return path.join(previewDirectory(project), 'supervisor.log');
 }
 
 export function previewRoundDirectory(record: PreviewIdentity): string {

@@ -9,6 +9,13 @@ Runtime 按本机安装并由所有 Maker 项目共用，安装记录和新下�
 升级前已经安装在项目哈希目录中的有效 Runtime 会自动登记为本机 Runtime，不重复下载，
 也不会移动或删除可能仍在使用的旧文件。
 
+安装完成和每次启动已登记 Runtime 前，Maker 会补齐 `Data/LuaScripts`、`Data/Fonts`、
+`CoreData`，并在缺少 `Data/Fonts/MiSans-Regular.ttf` 时从 macOS 或 Windows 系统字体中复制
+一个中文兜底字体。已有同名字体不会被覆盖；找不到可用系统字体时预览仍可启动，但会返回警告。
+这是本机 Runtime 的通用兜底，不会把任一项目的字体复制进共享 Runtime。各项目自己的字体仍放在
+项目 `assets/Fonts`，通过项目独立的受管理预览副本加载。显式 `--runtime` 指向的外部 Runtime
+不会被自动修改。
+
 ## 使用
 
 `<PROJECT>` 为已绑定 Maker 游戏的绝对目录。插件用户使用当前插件内 CLI。
@@ -36,6 +43,9 @@ prepare 需要标准 `.project/project.json`，不支持 JSONC/旧根目录配�
 
 - macOS 通过会话内本机只读资源服务，将本轮 client manifest 交给 Runtime 的 `game_url`；
   Windows 使用本地 manifest 入口，仍需 Windows 实机验收。
+- Windows 预览 supervisor 与控制台复用 PowerShell/CIM 后台启动器，避免依赖 AI IDE
+  短命令的进程生命周期；macOS/Linux 保留 detached 启动。状态中的 `supervisor_log_path`
+  指向项目预览目录下的 supervisor 错误日志。
 - 失败先查看 status、logs 和返回的 `log_path`；Runtime 原始日志位于安装目录
   `logs/game`、`logs/lua`，需按本轮时间判断。进程启动不能代替资源、画面或云能力验收。
 - 安装取消、超时或 CLI 断连后，守卫停止并等待下载辅助进程。无法确认退出时保留带
@@ -43,6 +53,9 @@ prepare 需要标准 `.project/project.json`，不支持 JSONC/旧根目录配�
   单个目录，不清空 Maker 数据目录。已有可用 Runtime 仍可复用。
 - 失败且 Runtime 已退出时，supervisor 保存原因后退出；显式 start 可重新创建会话。
   报错但仍存活的 Runtime 不自动关闭；身份未知时不按历史 PID 强制终止。
+- supervisor 意外退出后，只有会话证据身份匹配且记录的 supervisor、Runtime PID 均确认不存在，
+  才将状态判定为已失败且可重新启动。status 保持只读，显式 start 在项目操作锁内替换旧会话；
+  stop/check 不要求预先执行 status。任一进程仍存活、权限不足或证据缺失时不自动重启。
 
 ## 维护约束
 

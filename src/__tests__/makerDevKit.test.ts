@@ -19,7 +19,17 @@ import {
   resolveDefaultAiDevKitUrl,
   writeAiDevKitVersionMetadata,
 } from '../maker/cli/devKit';
-import { MAKER_PROJECT_POLICY_ROUTING_INDEX } from '../maker/capabilityRouting';
+import {
+  MAKER_CAPABILITY_ROUTING_INDEX,
+  MAKER_PROJECT_POLICY_ROUTING_INDEX,
+} from '../maker/capabilityRouting';
+
+test('routes the official Maker console trigger through MCP and project policy', () => {
+  expect(MAKER_CAPABILITY_ROUTING_INDEX).toContain('打开make mcp控制台');
+  expect(MAKER_PROJECT_POLICY_ROUTING_INDEX).toContain('打开make mcp控制台');
+  expect(MAKER_CAPABILITY_ROUTING_INDEX).toContain('taptap-maker-local');
+  expect(MAKER_CAPABILITY_ROUTING_INDEX).toContain('console open');
+});
 
 describe('Maker AI dev kit install', () => {
   let tempDir: string;
