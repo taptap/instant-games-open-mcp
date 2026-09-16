@@ -22,8 +22,16 @@
 **NPM**: [@taptap/instant-games-open-mcp](https://www.npmjs.com/package/@taptap/instant-games-open-mcp)
 **Maker NPM**: [@taptap/maker](https://www.npmjs.com/package/@taptap/maker)
 
-Maker 支持[本地控制台](docs/MAKER_CONSOLE.md)管理项目、构建和 Git 历史，
-以及无需远端构建的[本地窗口预览](docs/MAKER_LOCAL_PREVIEW.md)。
+Maker 支持[本地控制台](docs/MAKER_CONSOLE.md)管理项目、构建和 Git 历史；项目页可查看所有项目
+共用的本机 Runtime 与独立 Lua LSP 安装状态，构建页可单独检查 Lua，构建前默认可选检查。构建失败信息
+默认展开。构建与本地预览快捷操作会自动切换到对应工作页。构建页按当前阶段显示真实进度，
+构建详情与 Runtime 日志使用整行宽度；
+[本地窗口预览](docs/MAKER_LOCAL_PREVIEW.md)无需远端构建。
+FrameCrate 控制台集成已改为通用插件注册与持久内嵌标签页（2026-09-16，本地验证及独立复核完成），
+不再以独立浏览器标签作为控制台入口。显式设置 `FRAMECRATE_STUDIO_DIR` 指向已安装的
+framepacker Studio，按已登记项目嵌入完整本地编辑器与 AI 工作流；切换项目或标签应保留编辑现场。
+控制台不安装或下载 Studio，不提供 ZIP 安装或插件市场。协议与验收边界见
+[本地控制台文档](docs/MAKER_CONSOLE.md)。
 
 ## TapTap Maker 客户端插件
 

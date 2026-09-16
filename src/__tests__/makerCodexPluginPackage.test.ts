@@ -258,6 +258,10 @@ describe('TapTap Maker Codex plugin package', () => {
       const bundle = fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
       expect(bundle).toContain('Automatically disable an active legacy Codex Maker MCP');
       expect(bundle).toContain('Require explicit confirmation before disabling or restoring it');
+      expect(bundle).toContain('Legacy Runtime is usable, but its machine-wide registration');
+      expect(bundle).toContain('Another Runtime installation is in progress.');
+      expect(bundle).toContain('installation.lock');
+      expect(bundle).not.toContain('Another preview start/install is in progress.');
     }
   });
 

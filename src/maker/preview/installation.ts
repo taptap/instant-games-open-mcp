@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { checkMakerPythonEnvironment } from '../system/python.js';
 import {
   previewDirectory,
-  readPreviewRecord,
+  runtimeDirectory,
   writePrivateJson,
   type RuntimeInfo,
 } from './protocol.js';
@@ -22,25 +22,92 @@ export type PreviewInstallation = {
   warnings?: string[];
 };
 
-export function previewInstallation(project: string): PreviewInstallation {
-  const filename = path.join(previewDirectory(project), 'installation.json');
-  if (!fs.existsSync(filename)) return { install_state: 'missing' };
-  const value = JSON.parse(fs.readFileSync(filename, 'utf8')) as PreviewInstallation;
-  if (!value.executable || !path.isAbsolute(value.executable) || !fs.existsSync(value.executable))
-    return { install_state: 'missing' };
-  return value;
+function readInstallation(filename: string): PreviewInstallation | undefined {
+  if (!fs.existsSync(filename)) return undefined;
+  try {
+    const value = JSON.parse(fs.readFileSync(filename, 'utf8')) as PreviewInstallation;
+    if (
+      value.install_state !== 'ready' ||
+      !value.executable ||
+      !path.isAbsolute(value.executable) ||
+      !fs.statSync(value.executable).isFile()
+    ) {
+      return undefined;
+    }
+    return value;
+  } catch {
+    return undefined;
+  }
 }
 
-export async function withPreviewLock<T>(project: string, action: () => Promise<T>): Promise<T> {
-  const directory = previewDirectory(project);
+function isInside(directory: string, filename: string): boolean {
+  const relative = path.relative(directory, filename);
+  return relative !== '' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+}
+
+function legacyPreviewInstallation(project: string): PreviewInstallation | undefined {
+  const root = path.dirname(previewDirectory(project));
+  if (!fs.existsSync(root)) return undefined;
+  const entries = fs
+    .readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^[a-f0-9]{64}$/.test(entry.name));
+  const candidates: Array<{ installation: PreviewInstallation; modified: number }> = [];
+  for (const entry of entries) {
+    const directory = path.join(root, entry.name);
+    const filename = path.join(directory, 'installation.json');
+    const installation = readInstallation(filename);
+    if (!installation?.executable) continue;
+    try {
+      const executable = fs.realpathSync(installation.executable);
+      const managedDirectory = fs.realpathSync(directory);
+      if (!isInside(managedDirectory, executable)) continue;
+      candidates.push({
+        installation: { ...installation, executable },
+        modified: Date.parse(installation.installed_at || '') || fs.statSync(filename).mtimeMs,
+      });
+    } catch {
+      // Ignore invalid legacy records and continue looking for a usable installation.
+    }
+  }
+  candidates.sort((left, right) => right.modified - left.modified);
+  return candidates[0]?.installation;
+}
+
+export function previewInstallation(project: string): PreviewInstallation {
+  const filename = path.join(runtimeDirectory(), 'installation.json');
+  const current = readInstallation(filename);
+  if (current) return current;
+  const legacy = legacyPreviewInstallation(project);
+  if (!legacy) return { install_state: 'missing' };
+  try {
+    writePrivateJson(filename, legacy);
+    return legacy;
+  } catch {
+    return {
+      ...legacy,
+      warnings: [
+        ...(legacy.warnings || []),
+        'Legacy Runtime is usable, but its machine-wide registration could not be saved.',
+      ],
+    };
+  }
+}
+
+async function withFileLock<T>(
+  directory: string,
+  name: string,
+  busyMessage: string,
+  action: () => Promise<T>
+): Promise<T> {
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const filename = path.join(directory, 'operation.lock');
+  const filename = path.join(directory, name);
   let descriptor: number;
   try {
     descriptor = fs.openSync(filename, 'wx', 0o600);
   } catch {
     throw new Error(
-      'Another preview start/install is in progress. If an interrupted command left a lock, verify that command has exited before removing ' +
+      busyMessage +
+        ' If an interrupted command left a lock, verify it exited before removing ' +
         filename
     );
   }
@@ -54,6 +121,47 @@ export async function withPreviewLock<T>(project: string, action: () => Promise<
     fs.closeSync(descriptor);
     fs.unlinkSync(filename);
   }
+}
+
+export async function withPreviewLock<T>(project: string, action: () => Promise<T>): Promise<T> {
+  return withFileLock(
+    previewDirectory(project),
+    'operation.lock',
+    'Another preview operation is in progress.',
+    action
+  );
+}
+
+export async function withRuntimeInstallLock<T>(action: () => Promise<T>): Promise<T> {
+  return withFileLock(
+    runtimeDirectory(),
+    'installation.lock',
+    'Another Runtime installation is in progress.',
+    action
+  );
+}
+
+function activePreviewRuntimeDirectories(project: string): string[] {
+  const root = path.dirname(previewDirectory(project));
+  if (!fs.existsSync(root)) return [];
+  const protectedDirectories: string[] = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !/^[a-f0-9]{64}$/.test(entry.name)) continue;
+    const filename = path.join(root, entry.name, 'session.json');
+    if (!fs.existsSync(filename)) continue;
+    try {
+      const record = JSON.parse(fs.readFileSync(filename, 'utf8')) as {
+        state?: string;
+        executable?: string;
+      };
+      if (record.state !== 'stopped' && record.executable && path.isAbsolute(record.executable)) {
+        protectedDirectories.push(path.dirname(record.executable));
+      }
+    } catch {
+      // Invalid session records cannot authorize deletion or process management.
+    }
+  }
+  return protectedDirectories;
 }
 
 export async function installPreviewRuntime(
@@ -72,7 +180,7 @@ export async function installPreviewRuntime(
     if (signal?.aborted) throw new Error('CANCELLED');
     if (compatible && !update) return previous;
   }
-  const directory = previewDirectory(project);
+  const directory = runtimeDirectory();
   const unresolved =
     fs.existsSync(directory) &&
     fs
@@ -125,11 +233,8 @@ export async function installPreviewRuntime(
       archive_sha256: hash.digest('hex'),
       installed_at: new Date().toISOString(),
     };
-    const record = readPreviewRecord(project);
-    const protectedDirectories = [staging];
+    const protectedDirectories = [staging, ...activePreviewRuntimeDirectories(project)];
     if (previous.executable) protectedDirectories.push(path.dirname(previous.executable));
-    if (record && record.state !== 'stopped')
-      protectedDirectories.push(path.dirname(record.executable));
     writePrivateJson(path.join(directory, 'installation.json'), installation);
     installation.warnings = trimPreviewCache(directory, 'runtime-', 2, protectedDirectories);
     return installation;

@@ -6,9 +6,17 @@ function script(): string {
   return html.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? '';
 }
 
-function harness(hash = '#token=secret', search = '?project=alpha') {
+function harness(hash = '#token=secret', search = '?project=alpha', storageAvailable = true) {
   const storage = new Map<string, string>();
   const replaceState = jest.fn();
+  const intervals = new Map<number, () => void>();
+  let nextInterval = 1;
+  const setInterval = jest.fn((callback: () => void) => {
+    const id = nextInterval++;
+    intervals.set(id, callback);
+    return id;
+  });
+  const clearInterval = jest.fn((id: number) => intervals.delete(id));
   const fetch = jest.fn<Promise<unknown>, [string, { method: string; body?: string }]>(
     async () => ({
       ok: true,
@@ -22,6 +30,8 @@ function harness(hash = '#token=secret', search = '?project=alpha') {
     AbortController,
     setTimeout,
     clearTimeout,
+    setInterval,
+    clearInterval,
     console,
     location: { hash, search, href: 'http://localhost:1234/' + search + hash },
     history: { replaceState },
@@ -30,19 +40,57 @@ function harness(hash = '#token=secret', search = '?project=alpha') {
       getItem: (key: string) => storage.get(key) ?? null,
     },
     document: {
+      documentElement: { dataset: { theme: 'dark' } },
       addEventListener: jest.fn(),
-      getElementById: jest.fn(() => ({ textContent: '', className: '', hidden: true })),
+      createElement: (tag: string) => ({
+        tagName: tag,
+        className: '',
+        hidden: false,
+        dataset: {},
+        style: {},
+        append: jest.fn(),
+        prepend: jest.fn(),
+        replaceChildren: jest.fn(),
+        setAttribute: jest.fn(),
+        addEventListener: jest.fn(),
+        querySelectorAll: () => [],
+      }),
+      createElementNS: (_ns: string, tag: string) => ({
+        tagName: tag,
+        setAttribute: jest.fn(),
+        append: jest.fn(),
+      }),
+      createTextNode: (value: string) => ({ textContent: value }),
+      getElementById: jest.fn(() => ({
+        textContent: '',
+        className: '',
+        hidden: true,
+        dataset: {},
+        replaceChildren: jest.fn(),
+        querySelectorAll: () => [],
+        append: jest.fn(),
+      })),
     },
     fetch,
   };
+  if (!storageAvailable) context.sessionStorage = undefined as never;
   const exposed = script().replace(
     /\}\)\(\);\s*$/,
-    `return {api, previewActions, graphLayout, runAction, loadProject, safePreviewUrl, taskPreviewUrl, healthLabel,
-      poll, pollState, sendActivity, dispose, rememberTask, buildPresentation, buildFailureMessage,
+    `return {api, previewActions, graphLayout, runAction, runProjectAction, loadProject, safePreviewUrl, taskPreviewUrl, healthLabel,
+      poll, pollState, sendActivity, startActivityLease, dispose, rememberTask, buildPresentation, buildFailureMessage,
+      buildFailureDetails, luaLspPresentation, luaCheckBlocksBuild, runtimePresentation,
+      previewPresentation: typeof previewPresentation === 'function' ? previewPresentation : undefined,
+      previewStateLabel: typeof previewStateLabel === 'function' ? previewStateLabel : undefined,
+      taskOutputText: typeof taskOutputText === 'function' ? taskOutputText : undefined,
+      taskStartsOpen: typeof taskStartsOpen === 'function' ? taskStartsOpen : undefined,
+      luaCheckSummary: typeof luaCheckSummary === 'function' ? luaCheckSummary : undefined,
+      pluginDescriptors, pluginUrl, pluginMessageMatches,
+      pruneFailedPluginSessions, pluginSessions, sendPluginTheme,
       loadedState: () => loaded,
       acceptedCount: () => acceptedTasks.size,
       offline: () => offline,
       current: () => selected, detail: () => detail,
+      setProjectQuery,
       changeSelection: (key) => { selected = key; selectionEpoch++; },
       setup: (projects, hooks) => {
         state = {projects, tasks: []};
@@ -53,14 +101,106 @@ function harness(hash = '#token=secret', search = '?project=alpha') {
         confirmAction = hooks.confirm;
         notify = hooks.notify;
         announce = hooks.announce;
+        if (hooks.navigate) navigate = hooks.navigate;
+        if (hooks.runAction) runAction = hooks.runAction;
       }
     };})();`
   );
   const api = runInNewContext(exposed, context);
-  return { api, fetch, storage, replaceState };
+  return { api, fetch, storage, replaceState, intervals, setInterval, clearInterval, context };
 }
 
 describe('Maker console standalone UI', () => {
+  it('reclaims failed plugin placeholders without destroying loaded or starting workspaces', () => {
+    const { api } = harness();
+    const remove = jest.fn();
+    for (let i = 0; i < 8; i++)
+      api.pluginSessions.set(String(i), { loading: false, iframe: null, element: { remove } });
+    api.pluginSessions.set('editing', { loading: false, iframe: {}, element: { remove } });
+    api.pluginSessions.set('starting', { loading: true, iframe: null, element: { remove } });
+    api.pruneFailedPluginSessions();
+    expect([...api.pluginSessions.keys()]).toEqual(['editing', 'starting']);
+    expect(remove).toHaveBeenCalledTimes(8);
+  });
+  it('provides a persistent plugin host, not an external FrameCrate launcher', () => {
+    expect(getConsoleHtml()).toContain('id="plugin-views"');
+    expect(getConsoleHtml()).toContain('id="plugin-tabs"');
+    expect(script()).not.toContain("window.open('about:blank'");
+    expect(script()).not.toContain('/framecrate/open');
+    expect(script()).toContain('pluginStatus(session,session.projectName,true)');
+    expect(script()).toContain('if (offline || disposed || session.loading) return;');
+  });
+
+  it('accepts only unique supported plugin descriptors and safe project-bound URLs', () => {
+    const { api } = harness();
+    const plugin = {
+      id: 'framecrate',
+      title: 'FrameCrate',
+      order: 100,
+      protocolVersion: 1,
+      requiresProject: true,
+    };
+    expect(
+      api.pluginDescriptors([
+        plugin,
+        plugin,
+        { ...plugin, id: '../bad' },
+        { ...plugin, id: 'other', protocolVersion: 2 },
+      ])
+    ).toEqual([plugin]);
+    const ready = { projectPath: '/tmp/game', url: 'http://127.0.0.1:8123/#studio_token=secret' };
+    expect(api.pluginUrl(ready, '/tmp/game')).toBe(ready.url);
+    for (const url of [
+      'https://example.com/',
+      'http://127.0.0.1.evil:123/',
+      'http://u:p@127.0.0.1:123/',
+      'http://127.0.0.1:123/api/state',
+      'http://127.0.0.1:123/?token=secret',
+    ]) {
+      expect(() => api.pluginUrl({ ...ready, url }, '/tmp/game')).toThrow();
+    }
+    expect(() => api.pluginUrl(ready, '/tmp/other')).toThrow();
+  });
+
+  it('accepts host messages only from the exact embedded window and origin', () => {
+    const { api } = harness();
+    const source = {};
+    const session = { origin: 'http://127.0.0.1:8123', iframe: { contentWindow: source } };
+    const event = {
+      source,
+      origin: session.origin,
+      data: { type: 'maker-console:plugin-ready', protocolVersion: 1 },
+    };
+    expect(api.pluginMessageMatches(event, session)).toBe(true);
+    expect(api.pluginMessageMatches({ ...event, source: {} }, session)).toBe(false);
+    expect(api.pluginMessageMatches({ ...event, origin: 'http://127.0.0.1:8124' }, session)).toBe(
+      false
+    );
+    expect(
+      api.pluginMessageMatches({ ...event, data: { ...event.data, protocolVersion: 2 } }, session)
+    ).toBe(false);
+  });
+
+  it('sends the current console theme to connected plugin frames', () => {
+    const { api, context } = harness();
+    const postMessage = jest.fn();
+    const session = {
+      origin: 'http://127.0.0.1:8123',
+      iframe: { contentWindow: { postMessage } },
+    };
+    api.sendPluginTheme(session, 'maker-console:connect');
+    expect(postMessage).toHaveBeenLastCalledWith(
+      { type: 'maker-console:connect', protocolVersion: 1, theme: 'dark' },
+      session.origin
+    );
+    context.document.documentElement.dataset.theme = 'light';
+    api.sendPluginTheme(session);
+    expect(postMessage).toHaveBeenLastCalledWith(
+      { type: 'maker-console:theme', protocolVersion: 1, theme: 'light' },
+      session.origin
+    );
+  });
+
   it('shows activity without inventing a total build percentage', () => {
     const { api } = harness();
     expect(api.buildPresentation(null, true, false)).toMatchObject({
@@ -76,7 +216,28 @@ describe('Maker console standalone UI', () => {
         false,
         false
       )
-    ).toMatchObject({ label: '构建中', active: true, stage: '验证项目访问权限' });
+    ).toMatchObject({ label: '构建中', active: true, stage: '验证项目访问权限', percent: 10 });
+    expect(
+      api.buildPresentation(
+        { status: 'running', progress: { phase: 'push', progress: 150, total: 100 } },
+        false,
+        false
+      )
+    ).toMatchObject({ stage: '推送项目', percent: 100 });
+    expect(
+      api.buildPresentation(
+        { status: 'running', progress: { phase: 'build', progress: 10, total: 0 } },
+        false,
+        false
+      ).percent
+    ).toBeUndefined();
+    expect(
+      api.buildPresentation(
+        { status: 'running', progress: { phase: 'build', progress: null, total: 100 } },
+        false,
+        false
+      ).percent
+    ).toBeUndefined();
     expect(api.buildPresentation({ status: 'succeeded' }, false, false)).toMatchObject({
       label: '构建成功',
       active: false,
@@ -99,10 +260,50 @@ describe('Maker console standalone UI', () => {
         result: { result: { submitResult: { failure: { classification: 'auth' } } } },
       })
     ).toContain('项目访问权限');
+    expect(
+      api.buildFailureDetails({
+        error: '✗ Maker project submit failed',
+        result: {
+          result: {
+            mode: 'submit_failed_before_build',
+            submitResult: {
+              status: 'failed',
+              failure: {
+                classification: 'remote_rejected',
+                command: 'git push',
+                stderr: 'remote: protected branch',
+                nextAction: 'fix the remote rejection then retry',
+              },
+            },
+          },
+        },
+      })
+    ).toContain('remote: protected branch');
     expect(api.buildPresentation({ status: 'unknown' }, false, false)).toMatchObject({
       label: '结果待核对',
       active: false,
     });
+  });
+
+  it('presents independent Lua LSP install status on the project page', () => {
+    const { api } = harness();
+    expect(
+      api.luaLspPresentation({ ready: true, version: '0.22.2', nextAction: 'ready' })
+    ).toMatchObject({
+      label: '已安装',
+      detail: '0.22.2',
+      tone: 'good',
+    });
+    expect(api.luaLspPresentation({ ready: false, status: 'missing' })).toMatchObject({
+      label: '未安装',
+      tone: 'pending',
+    });
+    expect(script()).toContain("luaMetric.append(node('div','Lua LSP','muted')");
+    expect(script()).toContain("button(checking ? '检查中' : 'Lua 检查'");
+    expect(script()).toContain('构建前检查 Lua');
+    expect(api.luaCheckBlocksBuild({ status: 'failed', result: { errorCount: 1 } })).toBe(true);
+    expect(api.luaCheckBlocksBuild({ status: 'failed', result: { ready: false } })).toBe(false);
+    expect(api.luaCheckBlocksBuild({ status: 'succeeded' })).toBe(false);
   });
 
   it('announces completion when the state poll sees the finished task first', async () => {
@@ -159,12 +360,31 @@ describe('Maker console standalone UI', () => {
     expect(html).toContain('The MIT License (MIT)');
   });
 
-  it('stores fragment token before removing it and binds the explicit project', () => {
+  it('stores the fragment token without removing the reload credential', () => {
     const { api, storage, replaceState, fetch } = harness();
     expect(storage.get('maker-console-token')).toBe('secret');
-    expect(replaceState).toHaveBeenCalledWith(null, '', '/?project=alpha');
+    expect(replaceState).not.toHaveBeenCalled();
     expect(api.current()).toBe('alpha');
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps the fragment token usable when session storage is unavailable', async () => {
+    const { api, replaceState, fetch } = harness('#token=secret', '?project=alpha', false);
+    await api.api('/api/state');
+    expect(replaceState).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/state',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer secret' }),
+      })
+    );
+  });
+
+  it('preserves the fragment token while changing the selected project URL', () => {
+    const { api, replaceState } = harness();
+    api.changeSelection('beta');
+    api.setProjectQuery();
+    expect(replaceState).toHaveBeenLastCalledWith(null, '', '/?project=beta#token=secret');
   });
 
   it('never chooses the first project when the URL has no project', () => {
@@ -241,13 +461,32 @@ describe('Maker console standalone UI', () => {
     expect(api.loadedState()).toBe(false);
   });
 
-  it('reports explicit activity with throttling, never a periodic heartbeat', async () => {
+  it('reports explicit activity with throttling', async () => {
     const { api, fetch } = harness();
     await api.sendActivity();
     await api.sendActivity();
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch.mock.calls[0][0]).toBe('/api/activity');
     expect(fetch.mock.calls[0][1].method).toBe('POST');
+  });
+
+  it('keeps an open console leased until page teardown, including while hidden', async () => {
+    const { api, fetch, intervals, setInterval, clearInterval, context } = harness();
+    api.startActivityLease();
+    expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 60000);
+    expect(intervals.size).toBe(1);
+
+    context.document.hidden = true;
+    intervals.values().next().value();
+    await Promise.resolve();
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/activity',
+      expect.objectContaining({ method: 'POST' })
+    );
+
+    api.dispose();
+    expect(clearInterval).toHaveBeenCalled();
+    expect(intervals.size).toBe(0);
   });
 
   it('page teardown aborts outstanding reads and prevents further polling', async () => {
@@ -290,6 +529,139 @@ describe('Maker console standalone UI', () => {
     expect(api.previewActions({ process_alive: null, install_state: 'ready' })).toEqual([]);
     expect(api.previewActions({ install_state: 'ready' })).toEqual([]);
     expect(api.previewActions({ process_alive: false, supported: false })).toEqual([]);
+  });
+
+  it('keeps a running preview active while surfacing Runtime log errors', () => {
+    const { api } = harness();
+    expect(
+      api.previewPresentation({
+        state: 'running',
+        process_alive: true,
+        errors: ['ERROR: Could not find resource Cube/Day/DaySpecularHDR_QualityLow.dds', ''],
+      })
+    ).toEqual({
+      label: '运行中 · 有日志错误',
+      stateLabel: '运行中',
+      tone: 'pending',
+      error: '',
+      errors: ['ERROR: Could not find resource Cube/Day/DaySpecularHDR_QualityLow.dds'],
+      errorCount: 1,
+    });
+  });
+
+  it('localizes preview states and keeps session ids in diagnostic details', () => {
+    const { api } = harness();
+    expect(api.previewStateLabel('starting')).toBe('启动中');
+    expect(api.previewStateLabel('running')).toBe('运行中');
+    expect(api.previewStateLabel('reloading')).toBe('刷新中');
+    expect(api.previewStateLabel('stopped')).toBe('已停止');
+    expect(api.previewStateLabel('failed')).toBe('启动失败');
+    expect(script()).not.toContain("['会话 ID',preview?.session_id]");
+    expect(script()).toContain("node('summary','诊断信息')");
+  });
+
+  it('does not auto-expand or repeat structured Lua check failures in task history', () => {
+    const { api } = harness();
+    const task = {
+      action: 'lua-lsp.check',
+      status: 'failed',
+      error: '发现 3 个 Lua 问题',
+      output: '发现 3 个 Lua 问题\nscripts/main.lua:1: undefined-global sdk',
+      result: {
+        summary: '发现 3 个 Lua 问题',
+        error: '发现 3 个 Lua 问题',
+        issues: ['scripts/main.lua:1: undefined-global sdk'],
+      },
+    };
+    expect(api.taskStartsOpen(task, false)).toBe(false);
+    expect(api.taskStartsOpen({ ...task, action: 'build' }, false)).toBe(true);
+    expect(api.taskOutputText(task)).toBe('');
+    expect(script()).not.toContain("taskBlock(latest, latest.status === 'failed')");
+    expect(api.taskOutputText({ ...task, action: 'build', result: undefined })).toContain(
+      'scripts/main.lua:1'
+    );
+  });
+
+  it('uses the structured Lua summary without repeating issue lines in the check panel', () => {
+    const { api } = harness();
+    expect(
+      api.luaCheckSummary(
+        {
+          status: 'failed',
+          error: 'Lua 检查未通过：1 个错误\nERROR | scripts/main.lua:1: undefined-global sdk',
+          result: {
+            summary: 'Lua 检查未通过：1 个错误',
+            error: 'Lua 检查未通过：1 个错误\nERROR | scripts/main.lua:1: undefined-global sdk',
+            issues: ['ERROR | scripts/main.lua:1: undefined-global sdk'],
+          },
+        },
+        false
+      )
+    ).toBe('Lua 检查未通过：1 个错误');
+  });
+
+  it('renders the build-before-Lua-check option only beside the top-level build button', () => {
+    const source = script();
+    expect(source).toContain('const result = [local,build,luaCheckOption()]');
+    expect(source).not.toContain('checkActions.append(luaCheckOption())');
+  });
+
+  it('presents Runtime installation status with version, date fallback, and install action', () => {
+    const { api } = harness();
+    expect(api.runtimePresentation({ install_state: 'ready', runtime_version: '1.2.3' })).toEqual({
+      label: '已安装',
+      detail: '1.2.3',
+      tone: 'good',
+    });
+    expect(
+      api.runtimePresentation({
+        install_state: 'ready',
+        runtime_version: 'external-session',
+        runtime: { runtime_version: 'managed-installation' },
+      })
+    ).toEqual({ label: '已安装', detail: 'managed-installation', tone: 'good' });
+    expect(
+      api.runtimePresentation({
+        install_state: 'ready',
+        runtime_version: 'unknown',
+        installed_at: '2026-09-16T02:00:00.000Z',
+      })
+    ).toMatchObject({ label: '已安装', detail: expect.stringContaining('2026') });
+    expect(api.runtimePresentation({ install_state: 'missing' })).toEqual({
+      label: '未安装',
+      detail: '',
+      tone: 'pending',
+      action: 'preview.install',
+    });
+  });
+
+  it('switches to build and test before running a project shortcut', async () => {
+    const { api } = harness();
+    const calls: string[] = [];
+    api.setup([{ key: 'alpha', name: 'A', path: '/tmp/a', valid: true }], {
+      render: jest.fn(),
+      refresh: jest.fn(),
+      confirm: jest.fn(),
+      notify: jest.fn(),
+      announce: jest.fn(),
+      navigate: jest.fn(() => calls.push('navigate')),
+      runAction: jest.fn(async (action: string) => calls.push(action)),
+    });
+    await api.runProjectAction('build');
+    expect(calls).toEqual(['navigate', 'build']);
+  });
+
+  it('keeps build details and preview logs outside the two-column status layout', () => {
+    const source = script();
+    const styles = getConsoleHtml().match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+    expect(source).toContain("const buildDetail = node('section',undefined,'build-detail')");
+    expect(source).toContain("const previewLogs = node('section',undefined,'preview-log-detail')");
+    expect(source).toContain("replace($('view'),[title,columns,buildDetail,previewLogs,history])");
+    expect(source).toContain("bar.setAttribute('aria-valuenow',String(info.percent))");
+    expect(styles.indexOf('.build-progress.indeterminate span{width:35%}')).toBeGreaterThan(-1);
+    expect(styles.indexOf('.build-progress.indeterminate span{width:35%}')).toBeLessThan(
+      styles.indexOf('@media(prefers-reduced-motion:no-preference)')
+    );
   });
 
   it('lays out actual parent edges including merge lanes rather than a decorative line', () => {
@@ -368,10 +740,12 @@ describe('Maker console standalone UI', () => {
     expect(ui.confirm).not.toHaveBeenCalled();
     expect(JSON.parse(fetch.mock.calls[0][1].body!)).toEqual({
       projectKey: 'alpha',
-      action: 'build',
+      action: 'lua-lsp.check',
     });
     api.changeSelection('beta');
-    resolve(response({ id: 'task', projectKey: 'alpha', action: 'build', status: 'running' }));
+    resolve(
+      response({ id: 'task', projectKey: 'alpha', action: 'lua-lsp.check', status: 'running' })
+    );
     await running;
     expect(ui.announce).not.toHaveBeenCalled();
   });

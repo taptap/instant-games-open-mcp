@@ -249,8 +249,16 @@ describe('Maker console project isolation', () => {
       expect((await fetch(server.origin + '/api/state')).status).toBe(401);
       const state = await fetch(server.origin + '/api/state', { headers: auth });
       expect(state.status).toBe(200);
-      expect(((await state.json()) as { projects: { key: string }[] }).projects[0].key).toBe(
-        item.key
+      const payload = (await state.json()) as {
+        projects: { key: string }[];
+        luaLsp?: { ready?: boolean; status?: string };
+      };
+      expect(payload.projects[0].key).toBe(item.key);
+      expect(payload.luaLsp).toEqual(
+        expect.objectContaining({
+          ready: expect.any(Boolean),
+          status: expect.any(String),
+        })
       );
       expect(
         (

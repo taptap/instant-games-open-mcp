@@ -8,6 +8,7 @@ export interface ConsoleProject {
 
 export const CONSOLE_ACTIONS = [
   'build',
+  'lua-lsp.check',
   'preview.start',
   'preview.refresh',
   'preview.stop',

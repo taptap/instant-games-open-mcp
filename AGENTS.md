@@ -388,7 +388,36 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 - 控制台复用 CLI 业务，不新增 MCP tool；操作必须显式绑定已校验的项目 realpath，
   不依赖全局当前项目或 cwd。项目登记共用 `src/maker/projectRegistry.ts`，
   登记失败不得改变 init/clone 的成功结果。
-- 本地服务仅监听 loopback；保留访问校验、空闲退出和有界资源管理，不增加常驻唤醒进程。
+- Runtime 安装和记录位于 Maker user home 的 `runtime/`，所有项目共用；旧项目哈希目录中的有效
+  安装会自动登记，不重复下载。项目哈希目录只保留项目会话、准备产物、日志和运行缓存。
+  项目页复用预览状态展示 Runtime 安装版本或时间，未安装时进入现有 `preview.install` 流程；
+  顶部同时展示独立 maker-lua-lsp 安装状态和版本。构建页提供独立 Lua 检查；构建前默认勾选
+  检查，发现 Lua 错误则停止，可取消勾选后直接构建。构建和本地预览快捷操作先切换到
+  “构建与测试”。构建进度只使用当前阶段的真实比例，无有效比例时显示不定进度，不合成跨阶段
+  总百分比；Git/服务端失败信息默认展开，任务详情和 Runtime 日志保持整行宽度。
+- 控制台插件集成纠正（2026-09-16，本地验证及独立复核完成）：使用
+  `src/maker/console/plugins.ts` 的类型化可信注册表，FrameCrate 启动适配位于
+  `src/maker/console/integrations/framecrate.ts`。`GET /api/state` 只公开插件元数据，
+  `POST /api/projects/:key/plugins/:id/open` 校验已注册插件、项目 realpath 与绑定；
+  不提供任意命令、路径或 URL 启动接口，不新增 MCP tool。
+- FrameCrate 必须在控制台持久标签页中嵌入完整编辑器与 AI 工作流，不以新浏览器标签替代。
+  iframe 按项目与插件保存，最多 8 个；切换标签或项目仅切换可见性，保留 DOM，
+  达上限明确拒绝新增，禁止静默淘汰未保存编辑。sandbox 仅允许
+  `allow-scripts allow-same-origin allow-downloads allow-modals`，不允许弹窗或顶层导航。
+- 仅从显式 `FRAMECRATE_STUDIO_DIR` 启动已安装的 Studio；固定 Node/tsx 入口携带
+  `--project <realpath> --host-origin <控制台精确 loopback origin>`，不实施 ZIP 安装或市场。
+  Studio token 与控制台凭证隔离，嵌入 CSP 仅放行该宿主；通用消息使用
+  `protocolVersion: 1` 及 `maker-console:connect`、`maker-console:plugin-ready`、
+  `maker-console:plugin-activity`、`maker-console:theme`，双方校验 origin 与窗口来源，
+  主题仅接受 `light`/`dark` 并由插件跟随控制台，不传 PAT 或业务执行命令。
+  用户显式关闭控制台只回收自己启动的 Studio，不修改 MCP 配置。
+  ready 子进程正常关闭等待 drain、不设强制超时；永久挂起时关闭持续等待，优先避免截断写入。
+  生命周期与真实 AI、计价、付费、Windows 未验收边界见 `docs/MAKER_CONSOLE.md`。
+- 本地服务仅监听 loopback；控制台页面存活时使用每分钟页面租约续期，焦点或可见性恢复时立即续期；
+  普通状态轮询和健康检查不续期。页面租约停止且无任务约 30 分钟后退出，不增加常驻唤醒进程。
+  控制台 Bearer 保留在 URL fragment 中，支持浏览器恢复和新标签重建；fragment 不随 HTTP 请求或
+  Referrer 发送，页面仍保持 no-store、无远程依赖及 Host、Origin、Bearer 校验。
+  保留访问校验、空闲退出和有界资源管理。
   预览与控制台独立管理；只清理已确认所有权的进程和缓存，不把未知结果当作失败自动重试。
 - 本地预览只构建受管理副本，执行 Builder 前校验标准配置和版本路径，禁止配置回退绕过校验。
   Builder 快照须逐字节匹配固定 Git 提交；不修改引擎、公共资源或游戏原目录来掩盖预览错误。

@@ -14,6 +14,7 @@ import {
 import {
   installPreviewRuntime,
   previewInstallation,
+  withRuntimeInstallLock,
   withPreviewLock,
 } from '../preview/installation.js';
 import { probeRuntime } from '../preview/runtime.js';
@@ -80,17 +81,19 @@ export async function runPreviewCli(
       );
     else if (action === 'status') result = await previewStatus(project);
     else if (action === 'install') {
-      result = await withPreviewLock(project, async () => {
-        const state = await previewStatus(project);
-        if (state.process_alive !== false)
-          throw new Error('Stop the verified preview before installing Runtime.');
-        return {
-          ok: true,
-          protocol_version: 1,
-          project_realpath: project,
-          ...(await installPreviewRuntime(project, controller.signal, options.update === true)),
-        };
-      });
+      result = await withPreviewLock(project, () =>
+        withRuntimeInstallLock(async () => {
+          const state = await previewStatus(project);
+          if (state.process_alive !== false)
+            throw new Error('Stop the verified preview before installing Runtime.');
+          return {
+            ok: true,
+            protocol_version: 1,
+            project_realpath: project,
+            ...(await installPreviewRuntime(project, controller.signal, options.update === true)),
+          };
+        })
+      );
     } else if (action === 'start') {
       result = await withPreviewLock(project, () =>
         startPreview(project, options, controller.signal)

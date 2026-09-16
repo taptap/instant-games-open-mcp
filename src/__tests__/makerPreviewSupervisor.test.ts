@@ -8,6 +8,7 @@ import {
   previewDirectory,
   previewRoundDirectory,
   readPreviewRecord,
+  runtimeDirectory,
   writePrivateJson,
   type PreviewRecord,
 } from '../maker/preview/protocol.js';
@@ -332,12 +333,73 @@ test('CLI explicit start skips the closed failed endpoint', async () => {
   expect(spawn).toHaveBeenCalledTimes(1);
 });
 
+test('active managed Runtime status keeps its installation date for console display', async () => {
+  const installedAt = '2026-09-14T02:50:25.979Z';
+  writePrivateJson(path.join(runtimeDirectory(), 'installation.json'), {
+    install_state: 'ready',
+    executable: path.join(root, 'runtime'),
+    installed_at: installedAt,
+  });
+  runtime.mode = 'running';
+  await boot();
+  await requestPreview(record, 'start');
+  expect(await previewStatus(project)).toMatchObject({
+    state: 'running',
+    process_alive: true,
+    executable: path.join(root, 'runtime'),
+    installed_at: installedAt,
+  });
+});
+
+test('an active external Runtime does not imply a managed Runtime is installed', async () => {
+  runtime.mode = 'running';
+  await boot();
+  await requestPreview(record, 'start');
+
+  expect(await previewStatus(project)).toMatchObject({
+    state: 'running',
+    process_alive: true,
+    executable: path.join(root, 'runtime'),
+    install_state: 'missing',
+  });
+});
+
+test('active external Runtime keeps session identity while reporting the managed installation', async () => {
+  const installedExecutable = path.join(root, 'installed-runtime');
+  fs.writeFileSync(installedExecutable, '');
+  writePrivateJson(path.join(runtimeDirectory(), 'installation.json'), {
+    install_state: 'ready',
+    executable: installedExecutable,
+    runtime: {
+      protocol_version: 0,
+      runtime_version: 'managed-version',
+      platform: process.platform,
+      arch: 'fixture',
+      capabilities: [],
+    },
+    installed_at: '2026-09-16T03:00:00.000Z',
+  });
+  runtime.mode = 'running';
+  await boot();
+  await requestPreview(record, 'start');
+
+  expect(await previewStatus(project)).toMatchObject({
+    state: 'running',
+    process_alive: true,
+    executable: path.join(root, 'runtime'),
+    runtime_version: 'fixture',
+    install_state: 'ready',
+    runtime: { runtime_version: 'managed-version' },
+    installed_at: '2026-09-16T03:00:00.000Z',
+  });
+});
+
 test('a retired manual Runtime keeps its identity when another Runtime is installed', async () => {
   await boot();
   const manualExecutable = record.executable;
   const installedExecutable = path.join(root, 'installed-runtime');
   fs.writeFileSync(installedExecutable, '');
-  writePrivateJson(path.join(previewDirectory(project), 'installation.json'), {
+  writePrivateJson(path.join(runtimeDirectory(), 'installation.json'), {
     install_state: 'ready',
     executable: installedExecutable,
   });

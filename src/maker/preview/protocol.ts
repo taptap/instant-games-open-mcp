@@ -47,6 +47,10 @@ export function previewDirectory(project: string): string {
   return path.join(getMakerHome(), 'preview', createHash('sha256').update(project).digest('hex'));
 }
 
+export function runtimeDirectory(): string {
+  return path.join(getMakerHome(), 'runtime');
+}
+
 export function readPreviewRecord(project: string): PreviewRecord | undefined {
   const filename = path.join(previewDirectory(project), 'session.json');
   if (!fs.existsSync(filename)) return undefined;

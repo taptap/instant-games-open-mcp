@@ -449,8 +449,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path44, errorMaps, issueData } = params;
-      const fullPath = [...path44, ...issueData.path || []];
+      const { data, path: path45, errorMaps, issueData } = params;
+      const fullPath = [...path45, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -730,11 +730,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path44, key) {
+      constructor(parent, value, path45, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path44;
+        this._path = path45;
         this._key = key;
       }
       get path() {
@@ -4243,10 +4243,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path44) {
-  if (!path44)
+function getElementAtPath(obj, path45) {
+  if (!path45)
     return obj;
-  return path44.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
+  return path45.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -4559,11 +4559,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path44, issues) {
+function prefixIssues(path45, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path44);
+    iss.path.unshift(path45);
     return iss;
   });
 }
@@ -17726,8 +17726,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path44) {
-      let input2 = path44;
+    function removeDotSegments(path45) {
+      let input2 = path45;
       const output2 = [];
       let nextSlash = -1;
       let len = 0;
@@ -17926,8 +17926,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path44, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path44 && path44 !== "/" ? path44 : void 0;
+        const [path45, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path45 && path45 !== "/" ? path45 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -26984,12 +26984,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs42, exportName) {
+    function addFormats(ajv, list, fs43, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs42[f]);
+        ajv.addFormat(f, fs43[f]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -28546,8 +28546,8 @@ var require_windows = __commonJS({
   "node_modules/isexe/windows.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs42 = __require("fs");
-    function checkPathExt(path44, options2) {
+    var fs43 = __require("fs");
+    function checkPathExt(path45, options2) {
       var pathext = options2.pathExt !== void 0 ? options2.pathExt : process.env.PATHEXT;
       if (!pathext) {
         return true;
@@ -28558,25 +28558,25 @@ var require_windows = __commonJS({
       }
       for (var i = 0; i < pathext.length; i++) {
         var p = pathext[i].toLowerCase();
-        if (p && path44.substr(-p.length).toLowerCase() === p) {
+        if (p && path45.substr(-p.length).toLowerCase() === p) {
           return true;
         }
       }
       return false;
     }
-    function checkStat(stat, path44, options2) {
+    function checkStat(stat, path45, options2) {
       if (!stat.isSymbolicLink() && !stat.isFile()) {
         return false;
       }
-      return checkPathExt(path44, options2);
+      return checkPathExt(path45, options2);
     }
-    function isexe(path44, options2, cb) {
-      fs42.stat(path44, function(er, stat) {
-        cb(er, er ? false : checkStat(stat, path44, options2));
+    function isexe(path45, options2, cb) {
+      fs43.stat(path45, function(er, stat) {
+        cb(er, er ? false : checkStat(stat, path45, options2));
       });
     }
-    function sync(path44, options2) {
-      return checkStat(fs42.statSync(path44), path44, options2);
+    function sync(path45, options2) {
+      return checkStat(fs43.statSync(path45), path45, options2);
     }
   }
 });
@@ -28586,14 +28586,14 @@ var require_mode = __commonJS({
   "node_modules/isexe/mode.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs42 = __require("fs");
-    function isexe(path44, options2, cb) {
-      fs42.stat(path44, function(er, stat) {
+    var fs43 = __require("fs");
+    function isexe(path45, options2, cb) {
+      fs43.stat(path45, function(er, stat) {
         cb(er, er ? false : checkStat(stat, options2));
       });
     }
-    function sync(path44, options2) {
-      return checkStat(fs42.statSync(path44), options2);
+    function sync(path45, options2) {
+      return checkStat(fs43.statSync(path45), options2);
     }
     function checkStat(stat, options2) {
       return stat.isFile() && checkMode(stat, options2);
@@ -28617,7 +28617,7 @@ var require_mode = __commonJS({
 // node_modules/isexe/index.js
 var require_isexe = __commonJS({
   "node_modules/isexe/index.js"(exports, module) {
-    var fs42 = __require("fs");
+    var fs43 = __require("fs");
     var core;
     if (process.platform === "win32" || global.TESTING_WINDOWS) {
       core = require_windows();
@@ -28626,7 +28626,7 @@ var require_isexe = __commonJS({
     }
     module.exports = isexe;
     isexe.sync = sync;
-    function isexe(path44, options2, cb) {
+    function isexe(path45, options2, cb) {
       if (typeof options2 === "function") {
         cb = options2;
         options2 = {};
@@ -28636,7 +28636,7 @@ var require_isexe = __commonJS({
           throw new TypeError("callback not provided");
         }
         return new Promise(function(resolve, reject) {
-          isexe(path44, options2 || {}, function(er, is) {
+          isexe(path45, options2 || {}, function(er, is) {
             if (er) {
               reject(er);
             } else {
@@ -28645,7 +28645,7 @@ var require_isexe = __commonJS({
           });
         });
       }
-      core(path44, options2 || {}, function(er, is) {
+      core(path45, options2 || {}, function(er, is) {
         if (er) {
           if (er.code === "EACCES" || options2 && options2.ignoreErrors) {
             er = null;
@@ -28655,9 +28655,9 @@ var require_isexe = __commonJS({
         cb(er, is);
       });
     }
-    function sync(path44, options2) {
+    function sync(path45, options2) {
       try {
-        return core.sync(path44, options2 || {});
+        return core.sync(path45, options2 || {});
       } catch (er) {
         if (options2 && options2.ignoreErrors || er.code === "EACCES") {
           return false;
@@ -28673,7 +28673,7 @@ var require_isexe = __commonJS({
 var require_which = __commonJS({
   "node_modules/which/which.js"(exports, module) {
     var isWindows = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys";
-    var path44 = __require("path");
+    var path45 = __require("path");
     var COLON = isWindows ? ";" : ":";
     var isexe = require_isexe();
     var getNotFoundError = (cmd) => Object.assign(new Error(`not found: ${cmd}`), { code: "ENOENT" });
@@ -28711,7 +28711,7 @@ var require_which = __commonJS({
           return opt.all && found.length ? resolve(found) : reject(getNotFoundError(cmd));
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path44.join(pathPart, cmd);
+        const pCmd = path45.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         resolve(subStep(p, i, 0));
       });
@@ -28738,7 +28738,7 @@ var require_which = __commonJS({
       for (let i = 0; i < pathEnv.length; i++) {
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path44.join(pathPart, cmd);
+        const pCmd = path45.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         for (let j = 0; j < pathExt.length; j++) {
           const cur = p + pathExt[j];
@@ -28786,7 +28786,7 @@ var require_path_key = __commonJS({
 var require_resolveCommand = __commonJS({
   "node_modules/cross-spawn/lib/util/resolveCommand.js"(exports, module) {
     "use strict";
-    var path44 = __require("path");
+    var path45 = __require("path");
     var which = require_which();
     var getPathKey = require_path_key();
     function resolveCommandAttempt(parsed, withoutPathExt) {
@@ -28804,7 +28804,7 @@ var require_resolveCommand = __commonJS({
       try {
         resolved = which.sync(parsed.command, {
           path: env[getPathKey({ env })],
-          pathExt: withoutPathExt ? path44.delimiter : void 0
+          pathExt: withoutPathExt ? path45.delimiter : void 0
         });
       } catch (e) {
       } finally {
@@ -28813,7 +28813,7 @@ var require_resolveCommand = __commonJS({
         }
       }
       if (resolved) {
-        resolved = path44.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
+        resolved = path45.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
       }
       return resolved;
     }
@@ -28867,8 +28867,8 @@ var require_shebang_command = __commonJS({
       if (!match) {
         return null;
       }
-      const [path44, argument] = match[0].replace(/#! ?/, "").split(" ");
-      const binary = path44.split("/").pop();
+      const [path45, argument] = match[0].replace(/#! ?/, "").split(" ");
+      const binary = path45.split("/").pop();
       if (binary === "env") {
         return argument;
       }
@@ -28881,16 +28881,16 @@ var require_shebang_command = __commonJS({
 var require_readShebang = __commonJS({
   "node_modules/cross-spawn/lib/util/readShebang.js"(exports, module) {
     "use strict";
-    var fs42 = __require("fs");
+    var fs43 = __require("fs");
     var shebangCommand = require_shebang_command();
     function readShebang(command) {
       const size = 150;
       const buffer = Buffer.alloc(size);
       let fd;
       try {
-        fd = fs42.openSync(command, "r");
-        fs42.readSync(fd, buffer, 0, size, 0);
-        fs42.closeSync(fd);
+        fd = fs43.openSync(command, "r");
+        fs43.readSync(fd, buffer, 0, size, 0);
+        fs43.closeSync(fd);
       } catch (e) {
       }
       return shebangCommand(buffer.toString());
@@ -28903,7 +28903,7 @@ var require_readShebang = __commonJS({
 var require_parse = __commonJS({
   "node_modules/cross-spawn/lib/parse.js"(exports, module) {
     "use strict";
-    var path44 = __require("path");
+    var path45 = __require("path");
     var resolveCommand = require_resolveCommand();
     var escape2 = require_escape();
     var readShebang = require_readShebang();
@@ -28928,7 +28928,7 @@ var require_parse = __commonJS({
       const needsShell = !isExecutableRegExp.test(commandFile);
       if (parsed.options.forceShell || needsShell) {
         const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
-        parsed.command = path44.normalize(parsed.command);
+        parsed.command = path45.normalize(parsed.command);
         parsed.command = escape2.command(parsed.command);
         parsed.args = parsed.args.map((arg) => escape2.argument(arg, needsDoubleEscapeMetaChars));
         const shellCommand = [parsed.command].concat(parsed.args).join(" ");
@@ -29018,7 +29018,7 @@ var require_cross_spawn = __commonJS({
     var cp = __require("child_process");
     var parse3 = require_parse();
     var enoent = require_enoent();
-    function spawn10(command, args, options2) {
+    function spawn12(command, args, options2) {
       const parsed = parse3(command, args, options2);
       const spawned = cp.spawn(parsed.command, parsed.args, parsed.options);
       enoent.hookChildProcess(spawned, parsed);
@@ -29030,8 +29030,8 @@ var require_cross_spawn = __commonJS({
       result.error = result.error || enoent.verifyENOENTSync(result.status, parsed);
       return result;
     }
-    module.exports = spawn10;
-    module.exports.spawn = spawn10;
+    module.exports = spawn12;
+    module.exports.spawn = spawn12;
     module.exports.sync = spawnSync9;
     module.exports._parse = parse3;
     module.exports._enoent = enoent;
@@ -33722,8 +33722,9 @@ var init_python = __esm({
 });
 
 // src/maker/system/luaLsp.ts
-import { spawnSync as spawnSync5 } from "node:child_process";
+import { spawn as spawn4, spawnSync as spawnSync5 } from "node:child_process";
 import fs11 from "node:fs";
+import os4 from "node:os";
 import path12 from "node:path";
 function getMakerLuaLspConfigPath() {
   return path12.join(getMakerHome(), "lua-lsp.json");
@@ -33889,6 +33890,148 @@ function setupMakerLuaLspEnvironment(options2 = {}) {
   saveLuaLspRuntimeConfig(environment);
   return { changed: true, environment, python };
 }
+async function checkMakerLuaLspProject(project, options2 = {}) {
+  const environment = checkMakerLuaLspEnvironment(options2);
+  if (!environment.ready || !environment.command) {
+    return {
+      ok: false,
+      ready: false,
+      status: "unavailable",
+      version: environment.version,
+      errorCount: 0,
+      summary: environment.error || "未安装 maker-lua-lsp",
+      issues: [],
+      error: environment.error,
+      nextAction: environment.nextAction
+    };
+  }
+  let scripts;
+  try {
+    const root = fs11.realpathSync(project);
+    scripts = fs11.realpathSync(path12.join(root, "scripts"));
+    const relative = path12.relative(root, scripts);
+    if (relative.startsWith("..") || path12.isAbsolute(relative) || !fs11.statSync(scripts).isDirectory()) {
+      throw new Error("invalid scripts");
+    }
+  } catch {
+    return {
+      ok: false,
+      ready: true,
+      status: "unavailable",
+      version: environment.version,
+      errorCount: 0,
+      summary: "项目 scripts 目录不存在，无法检查 Lua。",
+      issues: [],
+      error: "项目 scripts 目录不存在，无法检查 Lua。",
+      nextAction: "确认项目内存在 scripts 目录后再检查。"
+    };
+  }
+  const outputDir = fs11.mkdtempSync(path12.join(os4.tmpdir(), "maker-lua-lsp-check-"));
+  const args = ["--mode", "check", "--path", scripts, "--output-dir", outputDir, "--quiet"];
+  try {
+    const result = options2.spawn ? options2.spawn(environment.command, args, {
+      encoding: "utf8",
+      timeout: LUA_LSP_CHECK_TIMEOUT_MS
+    }) : await spawnLuaCheck(environment.command, args);
+    return interpretLuaCheckResult(environment.version, result, outputDir);
+  } finally {
+    fs11.rmSync(outputDir, { recursive: true, force: true });
+  }
+}
+function spawnLuaCheck(command, args) {
+  return new Promise((resolve) => {
+    var _a3, _b, _c, _d;
+    const child = spawn4(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => child.kill("SIGTERM"), LUA_LSP_CHECK_TIMEOUT_MS);
+    (_a3 = child.stdout) == null ? void 0 : _a3.setEncoding("utf8");
+    (_b = child.stderr) == null ? void 0 : _b.setEncoding("utf8");
+    (_c = child.stdout) == null ? void 0 : _c.on("data", (chunk) => {
+      stdout = (stdout + chunk).slice(0, 64 * 1024);
+    });
+    (_d = child.stderr) == null ? void 0 : _d.on("data", (chunk) => {
+      stderr = (stderr + chunk).slice(0, 64 * 1024);
+    });
+    child.on("error", (error2) => {
+      clearTimeout(timer);
+      resolve({
+        pid: 0,
+        output: [null, stdout, stderr],
+        stdout,
+        stderr,
+        status: null,
+        signal: null,
+        error: error2
+      });
+    });
+    child.on("close", (status, signal) => {
+      clearTimeout(timer);
+      resolve({
+        pid: child.pid || 0,
+        output: [null, stdout, stderr],
+        stdout,
+        stderr,
+        status,
+        signal
+      });
+    });
+  });
+}
+function interpretLuaCheckResult(version2, result, outputDir) {
+  var _a3, _b, _c, _d, _e;
+  const log = readLuaCheckLog(path12.join(outputDir, "lua_errors.log"));
+  const issues = log.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^ERROR\s*\|/i.test(line)).slice(0, 50);
+  const timedOut = Boolean(((_b = (_a3 = result.error) == null ? void 0 : _a3.message) == null ? void 0 : _b.includes("ETIMEDOUT")) || result.signal === "SIGTERM");
+  if (timedOut) {
+    return {
+      ok: false,
+      ready: true,
+      status: "unavailable",
+      version: version2,
+      errorCount: 0,
+      summary: "Lua 检查超时。",
+      issues: [],
+      error: "Lua 检查超时。",
+      nextAction: "稍后重试 Lua 检查，或取消“构建前检查 Lua”后再构建。"
+    };
+  }
+  if (result.status !== 0 && issues.length === 0) {
+    const detail = [(_c = result.error) == null ? void 0 : _c.message, (_d = result.stderr) == null ? void 0 : _d.trim(), (_e = result.stdout) == null ? void 0 : _e.trim()].filter(Boolean).join("\n").slice(0, 1024);
+    return {
+      ok: false,
+      ready: true,
+      status: "unavailable",
+      version: version2,
+      errorCount: 0,
+      summary: detail || "maker-lua-lsp 未能完成检查。",
+      issues: [],
+      error: detail || "maker-lua-lsp 未能完成检查。",
+      nextAction: "查看错误后重试 Lua 检查。"
+    };
+  }
+  const failed = issues.length > 0;
+  return {
+    ok: !failed,
+    ready: true,
+    status: failed ? "failed" : "passed",
+    version: version2,
+    errorCount: issues.length,
+    summary: failed ? `Lua 检查未通过：${issues.length} 个错误` : "Lua 检查通过",
+    issues,
+    ...failed ? { error: [`Lua 检查未通过：${issues.length} 个错误`, ...issues.slice(0, 8)].join("\n") } : {},
+    nextAction: failed ? "修复 Lua 错误后再构建，或取消“构建前检查 Lua”。" : "本地 Lua 诊断通过。"
+  };
+}
+function readLuaCheckLog(filename) {
+  try {
+    const stat = fs11.statSync(filename);
+    if (!stat.isFile() || stat.size <= 0) return "";
+    return fs11.readFileSync(filename, { encoding: "utf8" }).slice(0, 64 * 1024);
+  } catch {
+    return "";
+  }
+}
 function formatMakerLuaLspEnvironmentStatus(environment) {
   return [
     "Lua LSP environment",
@@ -34051,7 +34194,7 @@ function saveLuaLspRuntimeConfig(environment) {
   fs11.mkdirSync(path12.dirname(getMakerLuaLspConfigPath()), { recursive: true });
   fs11.writeFileSync(getMakerLuaLspConfigPath(), JSON.stringify(config2, null, 2), "utf8");
 }
-var LUA_LSP_PACKAGE, LUA_LSP_IDES, LUA_LSP_SETUP_TIMEOUT_MS, LUA_LSP_PROBE_TIMEOUT_MS, PYTHON_SCRIPTS_DIR_SCRIPT;
+var LUA_LSP_PACKAGE, LUA_LSP_IDES, LUA_LSP_SETUP_TIMEOUT_MS, LUA_LSP_PROBE_TIMEOUT_MS, LUA_LSP_CHECK_TIMEOUT_MS, PYTHON_SCRIPTS_DIR_SCRIPT;
 var init_luaLsp = __esm({
   "src/maker/system/luaLsp.ts"() {
     "use strict";
@@ -34061,6 +34204,7 @@ var init_luaLsp = __esm({
     LUA_LSP_IDES = "codex,cursor,claude";
     LUA_LSP_SETUP_TIMEOUT_MS = 12e4;
     LUA_LSP_PROBE_TIMEOUT_MS = 5e3;
+    LUA_LSP_CHECK_TIMEOUT_MS = 12e4;
     PYTHON_SCRIPTS_DIR_SCRIPT = [
       "import sysconfig",
       'print(sysconfig.get_path("scripts") or "")'
@@ -39182,7 +39326,7 @@ __export(mcp_exports, {
   stopExistingRuntimeLogWatcher: () => stopExistingRuntimeLogWatcher,
   tools: () => tools
 });
-import { execFileSync, spawn as spawn4 } from "node:child_process";
+import { execFileSync, spawn as spawn5 } from "node:child_process";
 import fs19 from "node:fs";
 import path20 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
@@ -41086,7 +41230,7 @@ async function startRuntimeLogWatch(buildResult) {
     };
   }
   try {
-    const child = spawn4(command.command, command.args, {
+    const child = spawn5(command.command, command.args, {
       cwd: buildResult.projectRoot,
       detached: true,
       env: mergeStringEnv2(process.env, { TAPTAP_MCP_ENV: buildResult.env }),
@@ -42392,6 +42536,7 @@ __export(protocol_exports, {
   previewRoundDirectory: () => previewRoundDirectory,
   projectEntry: () => projectEntry,
   readPreviewRecord: () => readPreviewRecord,
+  runtimeDirectory: () => runtimeDirectory,
   samePreviewIdentity: () => samePreviewIdentity,
   writePrivateJson: () => writePrivateJson
 });
@@ -42410,6 +42555,9 @@ function previewProject(targetDir) {
 }
 function previewDirectory(project) {
   return path21.join(getMakerHome(), "preview", createHash3("sha256").update(project).digest("hex"));
+}
+function runtimeDirectory() {
+  return path21.join(getMakerHome(), "runtime");
 }
 function readPreviewRecord(project) {
   const filename = path21.join(previewDirectory(project), "session.json");
@@ -42553,16 +42701,15 @@ var init_webScript = __esm({
 const iconNodes = ${JSON.stringify(consoleIcons)};
 let token = '';
 let authError = '';
+const fragment = location.hash.slice(1);
+const incoming = fragment.includes('=') ? new URLSearchParams(fragment).get('token') : fragment;
+token = incoming || '';
 try {
-  const fragment = location.hash.slice(1);
-  const incoming = fragment.includes('=') ? new URLSearchParams(fragment).get('token') : fragment;
   if (incoming) sessionStorage.setItem('maker-console-token', incoming);
-  token = incoming || sessionStorage.getItem('maker-console-token') || '';
-} catch (_) { authError = '无法访问会话存储。请允许会话存储后重新打开控制台。'; }
-if (location.hash) {
-  const clean = new URL(location.href);
-  clean.hash = '';
-  history.replaceState(null, '', clean.pathname + clean.search);
+  const stored = sessionStorage.getItem('maker-console-token') || '';
+  token = incoming || stored;
+} catch (_) {
+  if (!token) authError = '无法访问会话存储。请从 Maker CLI 重新打开控制台。';
 }
 let selected = new URLSearchParams(location.search).get('project') || '';
 let page = selected ? 'overview' : 'projects';
@@ -42578,6 +42725,7 @@ let gitError = '';
 let gitLoading = false;
 let commitRequest = 0;
 let pollTimer;
+let activityTimer;
 let polling = false;
 let offline = false;
 let disposed = false;
@@ -42585,8 +42733,11 @@ let lastActivitySent = -Infinity;
 const requests = new Set();
 const offlineMessage = '控制台已离线或会话已过期，请通过 Maker 重新打开控制台。未确认的任务结果需要核对，不要重复提交。';
 let lastStateError = '';
+let buildChecksLua = true;
+try { buildChecksLua = localStorage.getItem('maker-console-build-lua-check') !== 'off'; } catch (_) {}
 const pending = new Set();
 const pendingActions = new Map();
+const pluginSessions = new Map();
 const acceptedTasks = new Map();
 function rememberTask(task) {
   acceptedTasks.set(task.id,task);
@@ -42597,8 +42748,8 @@ function rememberTask(task) {
   }
 }
 const actionLabels = {
-  build: '构建', 'preview.start': '启动预览', 'preview.refresh': '刷新预览',
-  'preview.stop': '停止预览', 'preview.install': '安装 Runtime'
+  build: '构建', 'lua-lsp.check': 'Lua 检查', 'preview.start': '启动预览',
+  'preview.refresh': '刷新预览', 'preview.stop': '停止预览', 'preview.install': '安装 Runtime'
 };
 const statusLabels = {running: '运行中', succeeded: '已完成', failed: '失败', unknown: '结果未知'};
 const $ = (id) => document.getElementById(id);
@@ -42656,7 +42807,7 @@ async function api(path, options = {}) {
   if (authError || !token) throw new Error(authError || '缺少访问令牌。请从 Maker CLI 重新打开控制台。');
   const controller = new AbortController();
   requests.add(controller);
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 20000);
   let received = false;
   try {
     const response = await fetch(path, {
@@ -42684,22 +42835,31 @@ async function api(path, options = {}) {
 function disconnect() {
   offline = true;
   clearTimeout(pollTimer);
+  clearInterval(activityTimer);
+  activityTimer = undefined;
   $('connection').textContent = '已离线';
   $('connection').className = 'bad';
   notify(offlineMessage);
   if (loaded && currentProject()?.valid) { updateChrome(); updateBuild(); }
 }
-async function sendActivity() {
-  if (offline || disposed || document.hidden || Date.now() - lastActivitySent < 30000) return;
+async function sendActivity(allowHidden = false) {
+  if (offline || disposed || (!allowHidden && document.hidden) || Date.now() - lastActivitySent < 30000) return;
   lastActivitySent = Date.now();
   try { await api('/api/activity', {method:'POST', body:{}}); }
   catch (error) { if (!disposed) notify(error.message); }
 }
+function startActivityLease() {
+  if (activityTimer || offline || disposed) return;
+  activityTimer = setInterval(() => void sendActivity(true),60000);
+}
 function dispose() {
   disposed = true;
   clearTimeout(pollTimer);
+  clearInterval(activityTimer);
+  activityTimer = undefined;
   requests.forEach(controller => controller.abort());
   requests.clear();
+  pluginSessions.forEach(session => clearTimeout(session.timer));
 }
 function projectPath(key, suffix = '') { return '/api/projects/' + encodeURIComponent(key) + suffix; }
 function currentProject() { return state.projects.find(p => p.key === selected); }
@@ -42722,8 +42882,7 @@ function setProjectQuery() {
   const url = new URL(location.href);
   if (selected) url.searchParams.set('project', selected);
   else url.searchParams.delete('project');
-  url.hash = '';
-  history.replaceState(null, '', url.pathname + url.search);
+  history.replaceState(null, '', url.pathname + url.search + url.hash);
 }
 function chooseProject(key, updateUrl = true) {
   if (busy()) { updateChrome(); return; }
@@ -42742,6 +42901,7 @@ function chooseProject(key, updateUrl = true) {
   if (project?.valid) void loadProject();
 }
 function updateChrome() {
+  updatePluginTabs();
   const picker = $('project-picker');
   const signature = JSON.stringify(state.projects.map(p => [p.key,p.name,p.valid])) + selected;
   if (picker.dataset.signature !== signature) {
@@ -42774,29 +42934,207 @@ function headingActionButtons() {
   const actions = previewActions(preview);
   const local = button('本地预览',() => {
     const action = previewActions(preview)[0];
-    if (action) void runAction(action);
+    if (action) void runProjectAction(action);
   },{icon:'monitor',disabled:offline || busy() || !actions.length,focus:'heading-preview'});
   local.title = actions.length ? '本地预览 · ' + actionLabels[actions[0]] :
     '本地预览 · ' + (previewError || text(preview?.error,previewLabel()));
+  const checking = pendingActions.get(selected) === 'lua-lsp.check' ||
+    tasksFor(selected).some(item => item.action === 'lua-lsp.check' && item.status === 'running');
   const task = tasksFor(selected).find(t => t.action === 'build');
   const presentation = buildPresentation(task,pendingActions.get(selected) === 'build',offline);
-  const build = button(presentation.active ? presentation.label : '构建',() => void runAction('build'),
-    {className:'primary build-button' + (presentation.active ? ' is-building' : ''),
-      icon:presentation.active ? 'refresh' : 'hammer',disabled:offline || busy(),focus:'heading-build'});
-  build.setAttribute('aria-busy',String(presentation.active));
-  const result = [local,build];
+  const build = button(checking ? 'Lua 检查中' : presentation.active ? presentation.label : '构建',
+    () => void runProjectAction('build'),
+    {className:'primary build-button' + (presentation.active || checking ? ' is-building' : ''),
+      icon:presentation.active || checking ? 'refresh' : 'hammer',disabled:offline || busy(),focus:'heading-build'});
+  build.setAttribute('aria-busy',String(presentation.active || checking));
+  const result = [local,build,luaCheckOption()];
   if (!presentation.active && task) result.push(node('span',presentation.label,'build-badge ' + presentation.tone));
   return result;
 }
+function luaCheckOption() {
+  const label = node('label',undefined,'lua-check-option');
+  const input = node('input');
+  input.type = 'checkbox';
+  input.checked = buildChecksLua;
+  input.disabled = offline || busy();
+  input.dataset.focus = 'build-lua-check';
+  input.setAttribute('aria-label','构建前检查 Lua');
+  input.addEventListener('change',() => {
+    buildChecksLua = input.checked;
+    try { localStorage.setItem('maker-console-build-lua-check', buildChecksLua ? 'on' : 'off'); }
+    catch (_) { notify('无法保存 Lua 检查设置'); }
+  });
+  label.append(input, document.createTextNode('构建前检查 Lua'));
+  return label;
+}
 
-function buildFailureMessage(task) {
+function pluginDescriptors(value = state.plugins) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  return value.filter(plugin => {
+    if (!plugin || typeof plugin.id !== 'string' || !/^[a-z][a-z0-9-]{0,47}$/.test(plugin.id) ||
+        seen.has(plugin.id) || typeof plugin.title !== 'string' || !plugin.title.trim() ||
+        plugin.title.length > 80 || plugin.protocolVersion !== 1 || plugin.requiresProject !== true) return false;
+    seen.add(plugin.id);
+    return true;
+  }).slice(0,32).sort((a,b) => (a.order || 0) - (b.order || 0));
+}
+function pluginUrl(ready, project) {
+  const url = new URL(ready.url);
+  if (ready.projectPath !== project || url.protocol !== 'http:' || url.hostname !== '127.0.0.1' ||
+      !url.port || url.username || url.password || url.pathname !== '/' || url.search || !url.hash)
+    throw new Error('插件返回了无效的项目地址。');
+  return url.href;
+}
+function pluginMessageMatches(event, session) {
+  return Boolean(session.iframe && event.source === session.iframe.contentWindow &&
+    event.origin === session.origin && event.data && event.data.protocolVersion === 1 &&
+    ['maker-console:plugin-ready','maker-console:plugin-activity'].includes(event.data.type));
+}
+function sendPluginTheme(session, type = 'maker-console:theme') {
+  if (!session.iframe || !session.origin) return;
+  const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  session.iframe.contentWindow.postMessage({type,protocolVersion:1,theme},session.origin);
+}
+function updatePluginTabs() {
+  const tabs = $('plugin-tabs');
+  const plugins = pluginDescriptors();
+  const signature = JSON.stringify(plugins);
+  if (tabs.dataset.signature === signature) return;
+  tabs.dataset.signature = signature;
+  tabs.replaceChildren(...plugins.map(plugin => {
+    const tab = button(plugin.title,() => navigate('plugin:' + plugin.id));
+    tab.dataset.page = 'plugin:' + plugin.id;
+    return tab;
+  }));
+}
+function pluginStatus(session, message, retry = false) {
+  session.status.hidden = !message;
+  session.status.replaceChildren(node('p',message,'muted'));
+  if (retry) session.status.append(button('重新连接',() => {
+    if (offline || disposed || session.loading) return;
+    if (session.iframe && !window.confirm('重新连接将清空此插件尚未保存的页面编辑，不会取消已提交的远端任务。确认继续？')) return;
+    if (offline || disposed || session.loading) return;
+    clearTimeout(session.timer);
+    session.iframe?.remove();
+    session.iframe = null;
+    void startPlugin(session);
+  },{icon:'refresh',disabled:offline || disposed || session.loading}));
+}
+async function startPlugin(session) {
+  if (session.loading || offline || disposed) return;
+  session.loading = true;
+  pluginStatus(session,'正在加载 ' + session.plugin.title + '…');
+  try {
+    const ready = await api(projectPath(session.key,'/plugins/' + session.plugin.id + '/open'),
+      {method:'POST',body:{},timeoutMs:80000});
+    if (disposed) return;
+    const url = pluginUrl(ready,session.projectPath);
+    session.origin = new URL(url).origin;
+    const frame = node('iframe',undefined,'plugin-frame');
+    frame.title = session.plugin.title + ' · ' + session.projectName;
+    frame.referrerPolicy = 'origin';
+    frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-downloads allow-modals');
+    session.iframe = frame;
+    frame.addEventListener('load',() => {
+      if (session.iframe !== frame) return;
+      sendPluginTheme(session,'maker-console:connect');
+    });
+    session.timer = setTimeout(() => {
+      pluginStatus(session,'插件未完成连接。可重新连接；已有页面编辑不会被自动清除。',true);
+    },20000);
+    frame.src = url;
+    session.element.append(frame);
+  } catch (error) {
+    session.loading = false;
+    pluginStatus(session,error.message,true);
+  } finally { session.loading = false; }
+}
+function pruneFailedPluginSessions() {
+  for (const [id, session] of pluginSessions) {
+    if (session.loading || session.iframe) continue;
+    clearTimeout(session.timer);
+    session.element.remove();
+    pluginSessions.delete(id);
+  }
+}
+function renderPlugin(plugin) {
+  const id = selected + ':' + plugin.id;
+  let session = pluginSessions.get(id);
+  if (!session) {
+    if (pluginSessions.size >= 8) pruneFailedPluginSessions();
+    if (pluginSessions.size >= 8) {
+      $('view').hidden = false;
+      $('plugin-views').hidden = true;
+      replace($('view'),[heading('已达到插件工作区上限'),
+        node('p','最多保留 8 个工作区。请保存已有编辑并重新打开控制台。','muted')]);
+      return;
+    }
+    const project = currentProject();
+    const element = node('div',undefined,'plugin-workspace');
+    const status = node('div',undefined,'plugin-status');
+    status.setAttribute('role','status');
+    element.append(status);
+    session = {plugin,key:selected,projectPath:project.path,projectName:project.name,element,status,iframe:null};
+    pluginSessions.set(id,session);
+    $('plugin-views').append(element);
+    void startPlugin(session);
+  }
+  session.element.hidden = false;
+}
+
+function nestedResult(task) {
+  return task?.result?.result && typeof task.result.result === 'object' ? task.result.result : task?.result;
+}
+function buildFailureTitle(task) {
   const error = text(task?.error,'');
   if (/BLACKLISTED|Account restricted|账号受到限制/i.test(error))
     return 'Maker 账号受到限制。请联系管理员核实账号状态，解除限制后再构建。';
-  const failure = task?.result?.result?.submitResult?.failure;
+  const result = nestedResult(task);
+  const failure = result?.submitResult?.failure;
   if (failure?.classification === 'auth' || /returned error: (401|403)/i.test(error))
     return '项目同步被拒绝，远端构建未启动。请核对当前 Maker 账号、项目访问权限和登录凭证。';
-  return error.split('\n').find(line => line.trim()) || '构建失败，请展开任务详情查看原因。';
+  if (result?.mode === 'submit_failed_before_build') return '代码提交失败，远端构建未启动。';
+  if (result?.mode === 'remote_build_failed' || result?.mode === 'build_failed_after_submit')
+    return '远端构建失败。';
+  if (result?.mode === 'settings_invalid_before_build' || result?.mode === 'project_invalid_before_build')
+    return '项目检查未通过，构建未启动。';
+  return error.split('\n').find(line => line.trim()) || '构建失败。';
+}
+function buildFailureMessage(task) {
+  return buildFailureTitle(task);
+}
+function valueText(value, fallback = '') {
+  if (value === undefined || value === null || value === '') return fallback;
+  return typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+}
+function buildFailureDetails(task) {
+  const result = nestedResult(task);
+  const lines = [];
+  const error = text(task?.error,'');
+  if (error) lines.push(error);
+  const submit = result?.submitResult;
+  const gitFailure = submit?.failure;
+  const buildFailure = result?.buildFailure;
+  const extras = [];
+  if (result?.mode) extras.push(['失败阶段', result.mode]);
+  extras.push(
+    ['Git 状态', submit?.status],
+    ['Git 分类', gitFailure?.classification],
+    ['Git 命令', gitFailure?.command],
+    ['Git 退出码', gitFailure?.exitCode],
+    ['下一步', gitFailure?.nextAction || buildFailure?.nextAction],
+    ['Git 错误', gitFailure?.message],
+    ['Git stderr', gitFailure?.stderr],
+    ['Git stdout', gitFailure?.stdout],
+    ['服务端错误', buildFailure?.message || result?.resultText],
+    ['构建错误名', buildFailure?.name]
+  );
+  extras.forEach(([label, value]) => {
+    const textValue = valueText(value);
+    if (textValue && !error.includes(textValue)) lines.push(label + '：' + textValue);
+  });
+  return lines.join('\n').trim();
 }
 function buildPresentation(task, submitting = false, disconnected = false) {
   if (disconnected) return {label:'连接已断开',stage:'任务结果待核对，请勿重复提交',active:false,tone:'pending'};
@@ -42806,12 +43144,23 @@ function buildPresentation(task, submitting = false, disconnected = false) {
     const stages = {sync:'同步项目',prepare:'准备项目',auth:'验证项目访问权限',
       remote_sync:'检查远端版本',commit:'提交本地变更',push:'推送项目',build:'远端构建',
       remote_build:'远端构建',preview:'准备预览'};
+    const current = task.progress?.progress;
+    const total = task.progress?.total;
+    const percent = typeof current === 'number' && Number.isFinite(current) &&
+      typeof total === 'number' && Number.isFinite(total) && total > 0 ?
+      Math.max(0,Math.min(100,Math.round(current / total * 100))) : undefined;
     return {label:'构建中',stage:stages[task.progress?.phase] || task.progress?.message || '等待构建进度',
-      active:true,tone:'pending'};
+      active:true,tone:'pending',percent};
   }
   if (task.status === 'succeeded') return {label:'构建成功',stage:'',active:false,tone:'good'};
-  if (task.status === 'failed') return {label:'构建失败',stage:buildFailureMessage(task),active:false,tone:'bad'};
+  if (task.status === 'failed') return {label:'构建失败',stage:buildFailureTitle(task),active:false,tone:'bad'};
   return {label:'结果待核对',stage:'请先核对远端结果，不要重复提交',active:false,tone:'pending'};
+}
+function failureBanner(title, detail, tone = 'bad') {
+  const banner = node('div',undefined,'failure-banner ' + tone);
+  banner.append(node('strong',title));
+  if (detail) banner.append(node('pre',detail,'failure-detail'));
+  return banner;
 }
 function buildStatusBlock(task, submitting = false) {
   const info = buildPresentation(task,submitting,offline);
@@ -42820,13 +43169,26 @@ function buildStatusBlock(task, submitting = false) {
   if (info.active) { const spinner = icon('refresh'); spinner.classList.add('build-spinner'); title.append(spinner); }
   title.append(node('strong',info.label));
   block.append(title);
-  if (info.stage) block.append(node('p',info.stage,'build-stage'));
+  if (task?.status === 'failed') {
+    block.append(failureBanner(info.stage || '构建失败', buildFailureDetails(task)));
+  } else if (info.stage) block.append(node('p',info.stage,'build-stage'));
   if (info.active) {
     const bar = node('div',undefined,'build-progress');
     bar.setAttribute('role','progressbar');
     bar.setAttribute('aria-label','构建进行中');
-    bar.append(node('span'));
+    bar.setAttribute('aria-valuemin','0');
+    bar.setAttribute('aria-valuemax','100');
+    const fill = node('span');
+    if (info.percent === undefined) bar.classList.add('indeterminate');
+    else {
+      bar.classList.add('determinate');
+      bar.setAttribute('aria-valuenow',String(info.percent));
+      fill.style.width = info.percent + '%';
+    }
+    bar.append(fill);
     block.append(bar);
+    if (info.percent !== undefined)
+      block.append(node('p','当前阶段 ' + info.percent + '%','build-progress-label muted'));
   }
   return block;
 }
@@ -42919,6 +43281,19 @@ function renderOverview() {
     const metric = node('div',undefined,'metric');
     metric.append(node('div',name,'muted'),node('div',text(value),'value')); metrics.append(metric);
   });
+  const runtime = runtimePresentation(preview,previewError);
+  const runtimeMetric = node('div',undefined,'metric runtime-metric');
+  runtimeMetric.append(node('div','本地 Runtime','muted'),node('div',runtime.label,'value ' + runtime.tone));
+  if (runtime.detail) runtimeMetric.append(node('div',runtime.detail,'runtime-detail muted'));
+  if (runtime.action) runtimeMetric.append(button('安装 Runtime',() => void runProjectAction(runtime.action),{
+    disabled:offline || busy(),focus:'overview-runtime-install'
+  }));
+  metrics.append(runtimeMetric);
+  const lua = luaLspPresentation(state.luaLsp);
+  const luaMetric = node('div',undefined,'metric runtime-metric');
+  luaMetric.append(node('div','Lua LSP','muted'),node('div',lua.label,'value ' + lua.tone));
+  if (lua.detail) luaMetric.append(node('div',lua.detail,'runtime-detail muted'));
+  metrics.append(luaMetric);
   const columns = node('div',undefined,'columns');
   const configSection = node('section'); configSection.append(node('h2','项目配置'),fields([
     ['入口脚本',config.entry],['引擎通道',config.engineTag],
@@ -42946,6 +43321,10 @@ function renderOverview() {
     raw.append(node('summary','完整检查结果'),node('pre',text(healthStatus))); health.append(raw);
   }
   if (previewError) health.append(node('p',previewError,'bad'));
+  const latestBuild = tasksFor(selected).find(t => t.action === 'build');
+  if (latestBuild?.status === 'failed') {
+    health.append(failureBanner('最近构建失败', buildFailureDetails(latestBuild) || buildFailureTitle(latestBuild)));
+  }
   const links = node('div',undefined,'actions preview-controls');
   links.append(button('构建与测试',() => navigate('build')),button('查看 Git',() => navigate('git')));
   health.append(links);
@@ -42954,6 +43333,30 @@ function renderOverview() {
   const latest = tasksFor(selected)[0];
   recent.append(node('h2','最近任务'),latest ? taskBlock(latest) : node('p','暂无控制台任务','muted'));
   replace($('view'),[title,metrics,columns,recent]);
+}
+function luaLspPresentation(status) {
+  if (!status) return {label:'待检测',status:'未提供',detail:'打开控制台后读取本机安装状态',tone:'muted'};
+  if (status.ready) return {
+    label: '已安装',
+    status: '已安装',
+    detail: status.version ? text(status.version) : '版本未提供',
+    nextAction: text(status.nextAction,'本地 Lua 诊断可用。'),
+    tone: 'good'
+  };
+  const labels = {missing:'未安装',python_missing:'需要 Python',setup_failed:'安装失败'};
+  return {
+    label: labels[status.status] || '不可用',
+    status: labels[status.status] || text(status.status,'不可用'),
+    detail: text(status.error, status.status === 'python_missing' ? '需要先准备 Python' : '未检测到 maker-lua-lsp'),
+    nextAction: text(status.nextAction,'请运行 taptap-maker lua-lsp setup。'),
+    tone: status.status === 'setup_failed' ? 'bad' : 'pending'
+  };
+}
+function luaCheckSummary(task, checking = false) {
+  const result = nestedResult(task);
+  if (task?.status === 'running' || checking) return '正在检查当前项目 Lua 脚本';
+  if (task?.status === 'succeeded') return text(result?.summary,'Lua 检查通过');
+  return text(result?.summary || result?.error || task?.error,'Lua 检查未通过');
 }
 function healthLabel(health) {
   const labels = {ready:'检查通过',warning:'有待处理的问题',error:'检查未通过',
@@ -42985,30 +43388,71 @@ function previewActions(status) {
   if (status.install_state === 'ready') return ['preview.start'];
   return [];
 }
+function previewStateLabel(value) {
+  const labels = {starting:'启动中',running:'运行中',reloading:'刷新中',stopped:'已停止',failed:'启动失败'};
+  return labels[value] || '';
+}
+function previewPresentation(status, requestError = '') {
+  if (requestError) return {label:'检测失败',stateLabel:'待检测',tone:'bad',error:requestError,errors:[],errorCount:0};
+  if (!status) return {label:'待检测',stateLabel:'待检测',tone:'muted',error:'',errors:[],errorCount:0};
+  const errors = Array.isArray(status.errors) ? status.errors
+    .filter(value => typeof value === 'string' && value.trim()).map(value => value.trim()) : [];
+  const stateLabel = previewStateLabel(status.state) || (status.process_alive === true ? '运行中' :
+    status.process_alive === false ? '已停止' : '进程身份未知');
+  const error = text(status.error,'');
+  const label = status.process_alive === true && errors.length ? stateLabel + ' · 有日志错误' : stateLabel;
+  const tone = error || status.state === 'failed' ? 'bad' : errors.length ||
+    status.state === 'starting' || status.state === 'reloading' ? 'pending' :
+    status.process_alive === true ? 'good' : 'muted';
+  return {label,stateLabel,tone,error,errors,errorCount:errors.length};
+}
 function previewLabel() {
-  if (!preview) return previewError ? '检测失败' : '待检测';
-  if (preview.process_alive === true) return '运行中';
-  if (preview.process_alive === false) return '已停止';
-  return '进程身份未知';
+  return previewPresentation(preview,previewError).label;
+}
+function runtimePresentation(status, error = '') {
+  if (error) return {label:'检测失败',detail:error,tone:'bad'};
+  if (!status) return {label:'待检测',detail:'',tone:'muted'};
+  if (status.install_state === 'missing')
+    return {label:'未安装',detail:'',tone:'pending',action:'preview.install'};
+  if (status.install_state === 'ready') {
+    const version = status.runtime?.runtime_version || status.runtime_version;
+    const detail = version && version !== 'unknown' ? text(version) :
+      status.installed_at ? date(status.installed_at) : '版本信息未提供';
+    return {label:'已安装',detail,tone:'good'};
+  }
+  return {label:'待检测',detail:'',tone:'muted'};
+}
+function taskStartsOpen(task, open = false) {
+  return Boolean(open || (task?.status === 'failed' && task?.action !== 'lua-lsp.check'));
+}
+function taskOutputText(task) {
+  const output = text(task?.output,'').trim();
+  if (!output || task?.action !== 'lua-lsp.check') return output;
+  const result = nestedResult(task);
+  const structured = [task.error,result?.error,result?.summary,
+    ...(Array.isArray(result?.issues) ? result.issues : [])]
+    .filter(value => typeof value === 'string')
+    .flatMap(value => value.split('\n').map(line => line.trim()).filter(Boolean));
+  const known = new Set(structured);
+  const outputLines = output.split('\n').map(line => line.trim()).filter(Boolean);
+  return outputLines.length && outputLines.every(line => known.has(line)) ? '' : output;
 }
 function taskBlock(task, open = false) {
-  const d = node('details',undefined,'task'); d.dataset.key = task.id; d.open = open;
+  const failed = task.status === 'failed';
+  const d = node('details',undefined,'task' + (failed ? ' is-failed' : '')); d.dataset.key = task.id;
+  d.open = taskStartsOpen(task,open);
   const summary = node('summary');
   summary.dataset.focus = 'task-' + task.id;
   summary.append(node('strong', actionLabels[task.action] || task.action),
     node('span', statusLabels[task.status] || '结果未知',
-      task.status === 'failed' ? 'bad' : task.status === 'succeeded' ? 'good' : 'pending'),
+      failed ? 'bad' : task.status === 'succeeded' ? 'good' : 'pending'),
     node('time',date(task.startedAt)));
   const meta = node('p','项目：' + text(task.projectName) + ' · 任务：' + text(task.id),'task-meta muted');
   d.append(summary,meta);
   if (task.finishedAt) d.append(node('p','结束：' + date(task.finishedAt),'task-meta muted'));
-  if (task.error) {
-    d.append(node('p',task.action === 'build' ? buildFailureMessage(task) : text(task.error),'bad'));
-    if (task.action === 'build') {
-      const diagnostic = node('details'); diagnostic.dataset.key = 'error-' + task.id;
-      diagnostic.append(node('summary','错误详情'),node('pre',text(task.error)));
-      d.append(diagnostic);
-    }
+  if (failed) {
+    if (task.action === 'build') d.append(failureBanner(buildFailureTitle(task), buildFailureDetails(task)));
+    else if (task.action !== 'lua-lsp.check') d.append(failureBanner(text(task.error,'操作失败'), ''));
   }
   const previewUrl = taskPreviewUrl(task);
   if (previewUrl) {
@@ -43017,7 +43461,9 @@ function taskBlock(task, open = false) {
     link.referrerPolicy = 'no-referrer';
     d.append(link);
   }
-  d.append(node('pre', text(task.output, task.status === 'running' ? '等待任务输出' : '无任务输出')));
+  const output = taskOutputText(task);
+  if (output || task.status === 'running')
+    d.append(node('pre', output || '等待任务输出'));
   if (task.result !== undefined) {
     const result = node('details'); result.dataset.key = 'result-' + task.id;
     result.append(node('summary','完整结果'),node('pre',text(task.result))); d.append(result);
@@ -43030,23 +43476,54 @@ function renderBuild() {
   const build = node('section'); build.id = 'build-panel';
   const local = node('section'); local.id = 'preview-panel';
   columns.append(build,local);
+  const buildDetail = node('section',undefined,'build-detail'); buildDetail.id = 'build-detail-panel';
+  const previewLogs = node('section',undefined,'preview-log-detail'); previewLogs.id = 'preview-logs';
+  previewLogs.hidden = true;
   const history = node('section',undefined,'task-history'); history.id = 'task-history';
-  replace($('view'),[title,columns,history]);
+  replace($('view'),[title,columns,buildDetail,previewLogs,history]);
   updateBuild();
 }
 function updateBuild() {
   if (page !== 'build' || !$('build-panel')) return;
   const tasks = tasksFor(selected);
   const buildTasks = tasks.filter(t => t.action === 'build');
+  const checking = pendingActions.get(selected) === 'lua-lsp.check';
   const buildStatus = buildStatusBlock(buildTasks[0],pendingActions.get(selected) === 'build');
-  const buildChildren = [node('h2','远端构建'),buildStatus];
-  if (buildTasks[0]) buildChildren.push(taskBlock(buildTasks[0],true));
+  const checkTask = tasks.find(t => t.action === 'lua-lsp.check');
+  const lua = luaLspPresentation(state.luaLsp);
+  const checkBlock = node('div',undefined,'lua-check-panel');
+  checkBlock.append(node('p','Lua LSP · ' + lua.label + (lua.detail ? ' · ' + lua.detail : ''), lua.tone));
+  if (checkTask) {
+    const result = nestedResult(checkTask);
+    const summary = luaCheckSummary(checkTask,checking);
+    checkBlock.append(node('p',summary, checkTask.status === 'failed' ? 'bad' : checkTask.status === 'succeeded' ? 'good' : 'pending'));
+    if (Array.isArray(result?.issues) && result.issues.length)
+      checkBlock.append(node('pre',result.issues.slice(0,20).join('\n'),'failure-detail'));
+  } else checkBlock.append(node('p','尚未检查当前项目','muted'));
+  const checkActions = node('div',undefined,'actions preview-controls');
+  checkActions.append(button(checking ? '检查中' : 'Lua 检查',() => void runAction('lua-lsp.check'),{
+    disabled:offline || busy(),focus:'lua-lsp.check'
+  }));
+  checkBlock.append(checkActions);
+  const buildChildren = [node('h2','远端构建'),buildStatus,checkBlock];
   replace($('build-panel'),buildChildren);
-  const localChildren = [node('h2','本地预览'),node('p',previewLabel(),'status-line')];
+  const buildDetail = $('build-detail-panel');
+  buildDetail.hidden = !buildTasks[0];
+  if (buildTasks[0]) replace(buildDetail,[node('h2','最近构建任务'),taskBlock(buildTasks[0], buildTasks[0].status === 'failed')]);
+  const previewInfo = previewPresentation(preview,previewError);
+  const localChildren = [node('h2','本地预览'),node('p',previewInfo.label,'status-line ' + previewInfo.tone)];
   localChildren.push(fields([['Runtime',preview?.install_state === 'ready' ? '已安装' :
-    preview?.install_state === 'missing' ? '未安装' : '待检测'],['会话状态',preview?.state],
-    ['会话 ID',preview?.session_id]]));
-  if (previewError || preview?.error) localChildren.push(node('p',previewError || text(preview.error),'bad'));
+    preview?.install_state === 'missing' ? '未安装' : '待检测'],['会话状态',previewInfo.stateLabel]]));
+  if (previewInfo.error) localChildren.push(node('p',previewInfo.error,'bad'));
+  if (previewInfo.errorCount) localChildren.push(node('p',
+    'Runtime 日志中有 ' + previewInfo.errorCount + ' 条错误 · ' + previewInfo.errors[0],
+    'pending preview-warning'));
+  if (preview?.session_id) {
+    const diagnostics = node('details'); diagnostics.dataset.key = 'preview-diagnostics';
+    diagnostics.append(node('summary','诊断信息'),fields([['会话 ID',preview.session_id],
+      ['Runtime PID',preview.runtime_pid],['刷新编号',preview.reload_id]]));
+    localChildren.push(diagnostics);
+  }
   if (preview?.supported === false) localChildren.push(node('p','当前平台不支持本地预览','bad'));
   const actions = node('div',undefined,'actions preview-controls');
   previewActions(preview).forEach(action => actions.append(button(actionLabels[action],() => void runAction(action),{
@@ -43054,11 +43531,8 @@ function updateBuild() {
   })));
   actions.append(button('检测预览状态',() => void refreshPreview(),{icon:'refresh',iconOnly:true,
     className:'icon-button',focus:'preview-status'}));
-  actions.append(button('运行日志',() => void loadLogs(),{focus:'preview-logs'}));
+  actions.append(button('查看运行日志',() => void loadLogs(),{focus:'preview-logs'}));
   localChildren.push(actions);
-  const logs = $('preview-logs');
-  const logSection = logs || node('div'); logSection.id = 'preview-logs';
-  localChildren.push(logSection);
   replace($('preview-panel'),localChildren);
   const history = [node('h2','任务历史')];
   if (!tasks.length) history.push(node('p','暂无控制台任务','muted'));
@@ -43086,13 +43560,15 @@ async function loadLogs() {
   const key = selected, epoch = selectionEpoch, view = viewEpoch;
   const target = $('preview-logs');
   if (!target) return;
-  replace(target,[node('p','正在读取日志','muted')]);
+  target.hidden = false;
+  replace(target,[node('h2','Runtime 日志'),node('p','正在读取日志','muted')]);
   try {
     const logs = await api(projectPath(key,'/preview/logs'));
     if (!selectionMatches(key,epoch) || view !== viewEpoch) return;
-    replace($('preview-logs'),[node('pre',text(logs))]);
+    replace($('preview-logs'),[node('h2','Runtime 日志'),node('pre',text(logs))]);
   } catch (error) {
-    if (selectionMatches(key,epoch) && view === viewEpoch) replace($('preview-logs'),[node('p',error.message,'bad')]);
+    if (selectionMatches(key,epoch) && view === viewEpoch)
+      replace($('preview-logs'),[node('h2','Runtime 日志'),node('p',error.message,'bad')]);
   }
 }
 function confirmAction(action, name) {
@@ -43108,13 +43584,29 @@ function confirmAction(action, name) {
     dialog.showModal();
   });
 }
+async function startTask(action, key, epoch, project) {
+  const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action}});
+  if (task.projectKey !== key) throw new Error('任务项目与请求不一致，已停止更新。请检查任务状态。');
+  rememberTask(task);
+  if (!selectionMatches(key,epoch)) return task;
+  announce(actionLabels[action] + ' · ' + project.name + ' · ' + (statusLabels[task.status] || '结果未知'));
+  if (task.status === 'running') return await waitForTask(task.id,key,epoch) || task;
+  return tasksFor(key).find(item => item.id === task.id) || task;
+}
+function luaCheckBlocksBuild(task) {
+  if (!task || task.status === 'running' || task.status === 'unknown') return true;
+  if (task.status === 'succeeded') return false;
+  const result = nestedResult(task);
+  if (result?.ready === false) return false;
+  return task.status === 'failed' || (result?.errorCount || 0) > 0;
+}
 async function runAction(action) {
   const key = selected, epoch = selectionEpoch;
   const project = currentProject();
   if (!project?.valid || busy(key) || !Object.hasOwn(actionLabels,action)) return;
   pending.add(key); pendingActions.set(key,action); updateChrome(); updateBuild();
   try {
-    if (action !== 'build') {
+    if (action !== 'build' && action !== 'lua-lsp.check') {
       const status = await api(projectPath(key,'/preview'));
       if (!selectionMatches(key,epoch)) return;
       preview = status;
@@ -43124,12 +43616,28 @@ async function runAction(action) {
         if (!selectionMatches(key,epoch)) return;
       }
     }
-    const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action}});
-    if (task.projectKey !== key) throw new Error('任务项目与请求不一致，已停止更新。请检查任务状态。');
-    rememberTask(task);
-    if (!selectionMatches(key,epoch)) return;
-    announce(actionLabels[action] + ' · ' + project.name + ' · ' + (statusLabels[task.status] || '结果未知'));
-    void pollTask(task.id,key,epoch);
+    if (action === 'build' && buildChecksLua) {
+      pendingActions.set(key,'lua-lsp.check');
+      updateChrome(); updateBuild();
+      const check = await startTask('lua-lsp.check',key,epoch,project);
+      if (!selectionMatches(key,epoch)) return;
+      if (luaCheckBlocksBuild(check)) {
+        notify(text(nestedResult(check)?.error || check?.error,'Lua 检查未通过，已停止构建。'));
+        return;
+      }
+      if (check?.status === 'failed') notify(text(check.error,'Lua 检查不可用，仍继续构建。'));
+      pendingActions.set(key,'build');
+      updateChrome(); updateBuild();
+    }
+    if (action === 'lua-lsp.check') await startTask(action,key,epoch,project);
+    else {
+      const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action}});
+      if (task.projectKey !== key) throw new Error('任务项目与请求不一致，已停止更新。请检查任务状态。');
+      rememberTask(task);
+      if (!selectionMatches(key,epoch)) return;
+      announce(actionLabels[action] + ' · ' + project.name + ' · ' + (statusLabels[task.status] || '结果未知'));
+      void pollTask(task.id,key,epoch);
+    }
   } catch (error) {
     if (selectionMatches(key,epoch)) notify(error.message);
   } finally {
@@ -43138,21 +43646,33 @@ async function runAction(action) {
     if (selectionMatches(key,epoch)) { updateChrome(); updateBuild(); }
   }
 }
+function runProjectAction(action) {
+  navigate('build');
+  return runAction(action);
+}
 async function pollTask(id,key,epoch) {
   try {
+    const prior = tasksFor(key).find(t => t.id === id);
     const task = await api('/api/tasks/' + encodeURIComponent(id));
     if (task.projectKey !== key || task.id !== id) throw new Error('任务身份不一致');
-    const prior = tasksFor(key).find(t => t.id === id);
     rememberTask(task);
     const index = state.tasks.findIndex(t => t.id === id);
     if (index >= 0) state.tasks[index] = task; else state.tasks.push(task);
-    if (!selectionMatches(key,epoch)) return;
+    if (!selectionMatches(key,epoch)) return task;
     updateChrome(); updateBuild();
     if (task.status !== 'running' && prior?.status === 'running') {
       announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
       await refreshPreview();
     }
+    return task;
   } catch (error) { if (selectionMatches(key,epoch)) notify(error.message); }
+}
+async function waitForTask(id,key,epoch) {
+  while (selectionMatches(key,epoch) && !offline && !disposed) {
+    const task = await pollTask(id,key,epoch);
+    if (!task || task.status !== 'running') return task;
+    await new Promise(resolve => setTimeout(resolve,1000));
+  }
 }
 function graphLayout(commits) {
   const lanes = [];
@@ -43270,6 +43790,11 @@ function navigate(next) {
 function render() {
   updateChrome();
   $('view').setAttribute('aria-busy','false');
+  const plugin = currentProject()?.valid && pluginDescriptors().find(item => page === 'plugin:' + item.id);
+  $('view').hidden = Boolean(plugin);
+  $('plugin-views').hidden = !plugin;
+  pluginSessions.forEach(session => { session.element.hidden = true; });
+  if (plugin) { renderPlugin(plugin); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
   else if (page === 'build') renderBuild();
   else if (page === 'git') renderGit();
@@ -43302,6 +43827,7 @@ async function pollState() {
   const previousTasks = new Map(tasksFor(selected).map(task => [task.id,task.status]));
   const priorTasks = JSON.stringify(tasksFor(selected));
   const priorProjects = JSON.stringify(state.projects);
+  const priorLua = JSON.stringify(state.luaLsp);
   state = result; loaded = true;
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
@@ -43324,6 +43850,7 @@ async function pollState() {
     updateChrome();
     if (page === 'projects' && (first || priorProjects !== JSON.stringify(state.projects))) renderProjects();
     if (page === 'build' && priorTasks !== JSON.stringify(tasksFor(selected))) updateBuild();
+    if (page === 'overview' && detail && priorLua !== JSON.stringify(state.luaLsp)) renderOverview();
   }
 }
 async function poll() {
@@ -43346,10 +43873,21 @@ async function poll() {
   }
 }
 document.addEventListener('DOMContentLoaded',async () => {
+  window.addEventListener('message',event => {
+    for (const session of pluginSessions.values()) {
+      if (!pluginMessageMatches(event,session)) continue;
+      if (event.data.type === 'maker-console:plugin-ready') {
+        clearTimeout(session.timer);
+        pluginStatus(session,session.projectName,true);
+      } else if (!session.element.hidden && !document.hidden) void sendActivity();
+      break;
+    }
+  });
   const activity = event => { if (event.isTrusted) void sendActivity(); };
   document.addEventListener('pointerdown',activity,{passive:true});
   document.addEventListener('keydown',activity,{passive:true});
   document.addEventListener('wheel',activity,{passive:true});
+  window.addEventListener('focus',() => { void sendActivity(); void poll(); });
   window.addEventListener('pagehide',dispose,{once:true});
   const theme = $('theme');
   try { theme.checked = localStorage.getItem('maker-console-theme') !== 'light'; } catch (_) {}
@@ -43357,6 +43895,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   theme.addEventListener('change',() => {
     const value = theme.checked ? 'dark' : 'light';
     document.documentElement.dataset.theme = value;
+    pluginSessions.forEach(session => sendPluginTheme(session));
     try { localStorage.setItem('maker-console-theme',value); } catch (_) { notify('无法保存主题设置'); }
   });
   $('projects-button').append(icon('folder'));
@@ -43370,9 +43909,10 @@ document.addEventListener('DOMContentLoaded',async () => {
   });
   document.addEventListener('visibilitychange',() => {
     clearTimeout(pollTimer);
-    if (!document.hidden) void poll();
+    if (!document.hidden) { void sendActivity(); void poll(); }
   });
   render();
+  startActivityLease();
   await sendActivity();
   await poll();
   if (selected && !currentProject()) notify('所选项目未登记，请从本地项目列表选择。');
@@ -43403,13 +43943,16 @@ button.is-building:disabled{opacity:1;cursor:wait}
 .build-status{padding:14px 0;margin-bottom:14px;border-block:1px solid var(--border);min-height:60px}
 .build-status-title{display:flex;align-items:center;gap:8px}
 .build-stage{font-size:13px;overflow-wrap:anywhere}
-.build-progress{height:4px;width:100%;overflow:hidden;background:var(--border);margin-top:12px}
-.build-progress span{display:block;width:35%;height:100%;background:var(--accent)}
+.build-progress{height:6px;width:100%;overflow:hidden;background:var(--border);margin-top:12px}
+.build-progress span{display:block;height:100%;background:var(--accent)}
+.build-progress.indeterminate span{width:35%}
+.build-progress-label{font-size:12px;margin-top:6px;text-align:right}
 @keyframes build-spin{to{transform:rotate(360deg)}}
 @keyframes build-travel{from{transform:translateX(-100%)}to{transform:translateX(386%)}}
 @media(prefers-reduced-motion:no-preference){
 .is-building .icon,.build-spinner{animation:build-spin 1.2s linear infinite}
-.build-progress span{animation:build-travel 1.8s ease-in-out infinite}
+.build-progress.indeterminate span{animation:build-travel 1.8s ease-in-out infinite}
+.build-progress.determinate span{transition:width .25s ease}
 }
 button.danger{color:var(--red)}
 button.icon-button{width:36px;flex-shrink:0;padding:8px}
@@ -43443,10 +43986,17 @@ p{margin:8px 0}
 .preview-link{display:inline-block;color:var(--accent);margin:8px 0;overflow-wrap:anywhere;text-underline-offset:3px}
 .health-issue{padding:8px 0;border-bottom:1px solid var(--border)}
 .health-issue p{margin:0}
-.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-block:1px solid var(--border);margin-bottom:26px}
+.failure-banner{margin:12px 0;padding:12px 14px;border:1px solid var(--red);border-left:4px solid var(--red);background:var(--soft);overflow-wrap:anywhere}
+.failure-banner strong{display:block}
+.failure-detail{margin:8px 0 0;max-height:280px}
+.metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-block:1px solid var(--border);margin-bottom:26px}
+.lua-check-option{display:inline-flex;align-items:center;gap:8px;color:var(--muted);white-space:nowrap}
+.lua-check-panel{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
 .metric{padding:14px 12px 14px 0;min-width:0}
 .metric .value{font-size:19px;font-weight:500;overflow-wrap:anywhere;margin-top:3px}
 .metric .muted{font-size:12px}
+.runtime-detail{margin-top:3px;overflow-wrap:anywhere}
+.runtime-metric button{margin-top:8px}
 .columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px}
 section{min-width:0}
 dl{margin:0}
@@ -43464,6 +44014,7 @@ pre{white-space:pre-wrap;tab-size:2;margin:10px 0 0;background:var(--code);paddi
 .entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;max-width:780px;padding-top:24px}
 .entry label{grid-column:1/-1}
 .task-history{margin-top:28px;border-top:1px solid var(--border);padding-top:20px}
+.build-detail,.preview-log-detail{margin-top:28px;border-top:1px solid var(--border);padding-top:20px;width:100%}
 .task{padding:12px 0;border-bottom:1px solid var(--border)}
 summary{cursor:pointer;overflow-wrap:anywhere}
 .task summary{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
@@ -43487,6 +44038,12 @@ dialog{background:var(--bg);color:var(--text);border:1px solid var(--border);bor
 dialog::backdrop{background:#0009}
 dialog h2{font-size:18px}dialog .actions{justify-content:flex-end;margin-top:22px}
 dialog p{white-space:pre-wrap;overflow-wrap:anywhere}
+.plugin-tabs{display:contents}
+nav{overflow-x:auto;white-space:nowrap}
+.plugin-workspace{min-width:0}
+.plugin-status{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:12px 28px;border-bottom:1px solid var(--border)}
+.plugin-status p{margin:0;overflow-wrap:anywhere}
+.plugin-frame{display:block;width:100%;height:calc(100dvh - 205px);min-height:520px;border:0;background:var(--bg)}
 [hidden]{display:none!important}
 @media(max-width:720px){
 .top,main{padding:18px 16px}nav{padding-inline:16px;gap:24px}.context,footer{padding-inline:16px}
@@ -43496,6 +44053,7 @@ dialog p{white-space:pre-wrap;overflow-wrap:anywhere}
 .project-row{gap:10px}.project-row .actions{justify-content:flex-end}.entry{grid-template-columns:1fr}.entry input{font-size:16px}
 .git-row{grid-template-columns:64px minmax(0,1fr);gap:8px;padding-block:8px}.git-row time{grid-column:2;text-align:left;font-size:11px}
 .task summary time{margin-left:0;width:100%}h1{font-size:22px}
+.plugin-status{padding:10px 16px}.plugin-frame{height:calc(100dvh - 235px);min-height:480px}
 }
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}}
 `;
@@ -43526,10 +44084,12 @@ function getConsoleHtml() {
   <button data-page="overview">项目</button>
   <button data-page="build">构建与测试</button>
   <button data-page="git">Git</button>
+  <span id="plugin-tabs" class="plugin-tabs"></span>
 </nav>
 <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
 <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
 <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
+<section id="plugin-views" aria-label="插件工作区" hidden></section>
 <div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
 <footer><span id="version">Maker 本地服务</span><span id="footer-path"></span></footer>
 <dialog id="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-message">
@@ -43629,17 +44189,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path44) {
-      const ctrl = callVisitor(key, node, visitor, path44);
+    function visit_(key, node, visitor, path45) {
+      const ctrl = callVisitor(key, node, visitor, path45);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path44, ctrl);
-        return visit_(key, ctrl, visitor, path44);
+        replaceNode(key, path45, ctrl);
+        return visit_(key, ctrl, visitor, path45);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path44 = Object.freeze(path44.concat(node));
+          path45 = Object.freeze(path45.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path44);
+            const ci = visit_(i, node.items[i], visitor, path45);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -43650,13 +44210,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path44 = Object.freeze(path44.concat(node));
-          const ck = visit_("key", node.key, visitor, path44);
+          path45 = Object.freeze(path45.concat(node));
+          const ck = visit_("key", node.key, visitor, path45);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path44);
+          const cv = visit_("value", node.value, visitor, path45);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -43677,17 +44237,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path44) {
-      const ctrl = await callVisitor(key, node, visitor, path44);
+    async function visitAsync_(key, node, visitor, path45) {
+      const ctrl = await callVisitor(key, node, visitor, path45);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path44, ctrl);
-        return visitAsync_(key, ctrl, visitor, path44);
+        replaceNode(key, path45, ctrl);
+        return visitAsync_(key, ctrl, visitor, path45);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path44 = Object.freeze(path44.concat(node));
+          path45 = Object.freeze(path45.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path44);
+            const ci = await visitAsync_(i, node.items[i], visitor, path45);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -43698,13 +44258,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path44 = Object.freeze(path44.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path44);
+          path45 = Object.freeze(path45.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path45);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path44);
+          const cv = await visitAsync_("value", node.value, visitor, path45);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -43731,24 +44291,24 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path44) {
+    function callVisitor(key, node, visitor, path45) {
       var _a3, _b, _c, _d, _e;
       if (typeof visitor === "function")
-        return visitor(key, node, path44);
+        return visitor(key, node, path45);
       if (identity.isMap(node))
-        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path44);
+        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path45);
       if (identity.isSeq(node))
-        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path44);
+        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path45);
       if (identity.isPair(node))
-        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path44);
+        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path45);
       if (identity.isScalar(node))
-        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path44);
+        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path45);
       if (identity.isAlias(node))
-        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path44);
+        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path45);
       return void 0;
     }
-    function replaceNode(key, path44, node) {
-      const parent = path44[path44.length - 1];
+    function replaceNode(key, path45, node) {
+      const parent = path45[path45.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -44360,10 +44920,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path44, value) {
+    function collectionFromPath(schema, path45, value) {
       let v = value;
-      for (let i = path44.length - 1; i >= 0; --i) {
-        const k = path44[i];
+      for (let i = path45.length - 1; i >= 0; --i) {
+        const k = path45[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -44382,7 +44942,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path44) => path44 == null || typeof path44 === "object" && !!path44[Symbol.iterator]().next().done;
+    var isEmptyPath = (path45) => path45 == null || typeof path45 === "object" && !!path45[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -44412,11 +44972,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path44, value) {
-        if (isEmptyPath(path44))
+      addIn(path45, value) {
+        if (isEmptyPath(path45))
           this.add(value);
         else {
-          const [key, ...rest] = path44;
+          const [key, ...rest] = path45;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -44430,8 +44990,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path44) {
-        const [key, ...rest] = path44;
+      deleteIn(path45) {
+        const [key, ...rest] = path45;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -44445,8 +45005,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path44, keepScalar) {
-        const [key, ...rest] = path44;
+      getIn(path45, keepScalar) {
+        const [key, ...rest] = path45;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -44464,8 +45024,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path44) {
-        const [key, ...rest] = path44;
+      hasIn(path45) {
+        const [key, ...rest] = path45;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -44475,8 +45035,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path44, value) {
-        const [key, ...rest] = path44;
+      setIn(path45, value) {
+        const [key, ...rest] = path45;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -46990,9 +47550,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path44, value) {
+      addIn(path45, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path44, value);
+          this.contents.addIn(path45, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -47067,14 +47627,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path44) {
-        if (Collection.isEmptyPath(path44)) {
+      deleteIn(path45) {
+        if (Collection.isEmptyPath(path45)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path44) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path45) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -47089,10 +47649,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path44, keepScalar) {
-        if (Collection.isEmptyPath(path44))
+      getIn(path45, keepScalar) {
+        if (Collection.isEmptyPath(path45))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path44, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path45, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -47103,10 +47663,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path44) {
-        if (Collection.isEmptyPath(path44))
+      hasIn(path45) {
+        if (Collection.isEmptyPath(path45))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path44) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path45) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -47123,13 +47683,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path44, value) {
-        if (Collection.isEmptyPath(path44)) {
+      setIn(path45, value) {
+        if (Collection.isEmptyPath(path45)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path44), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path45), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path44, value);
+          this.contents.setIn(path45, value);
         }
       }
       /**
@@ -49092,9 +49652,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path44) => {
+    visit.itemAtPath = (cst, path45) => {
       let item = cst;
-      for (const [field, index] of path44) {
+      for (const [field, index] of path45) {
         const tok = item == null ? void 0 : item[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -49103,23 +49663,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path44) => {
-      const parent = visit.itemAtPath(cst, path44.slice(0, -1));
-      const field = path44[path44.length - 1][0];
+    visit.parentCollection = (cst, path45) => {
+      const parent = visit.itemAtPath(cst, path45.slice(0, -1));
+      const field = path45[path45.length - 1][0];
       const coll = parent == null ? void 0 : parent[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path44, item, visitor) {
-      let ctrl = visitor(item, path44);
+    function _visit(path45, item, visitor) {
+      let ctrl = visitor(item, path45);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path44.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path45.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -49130,10 +49690,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path44);
+            ctrl = ctrl(item, path45);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path44) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path45) : ctrl;
     }
     exports.visit = visit;
   }
@@ -50420,14 +50980,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs42 = this.flowScalar(this.type);
+              const fs43 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map2.items.push({ start, key: fs42, sep: [] });
+                map2.items.push({ start, key: fs43, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs42);
+                this.stack.push(fs43);
               } else {
-                Object.assign(it, { key: fs42, sep: [] });
+                Object.assign(it, { key: fs43, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -50556,13 +51116,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs42 = this.flowScalar(this.type);
+              const fs43 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs42, sep: [] });
+                fc.items.push({ start: [], key: fs43, sep: [] });
               else if (it.sep)
-                this.stack.push(fs42);
+                this.stack.push(fs43);
               else
-                Object.assign(it, { key: fs42, sep: [] });
+                Object.assign(it, { key: fs43, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -50928,7 +51488,7 @@ var require_pend = __commonJS({
 // node_modules/yauzl/fd-slicer.js
 var require_fd_slicer = __commonJS({
   "node_modules/yauzl/fd-slicer.js"(exports) {
-    var fs42 = __require("fs");
+    var fs43 = __require("fs");
     var util2 = __require("util");
     var stream = __require("stream");
     var Readable2 = stream.Readable;
@@ -50948,7 +51508,7 @@ var require_fd_slicer = __commonJS({
     FdSlicer.prototype.read = function(buffer, offset, length, position, callback) {
       var self = this;
       self.pend.go(function(cb) {
-        fs42.read(self.fd, buffer, offset, length, position, function(err, bytesRead, buffer2) {
+        fs43.read(self.fd, buffer, offset, length, position, function(err, bytesRead, buffer2) {
           cb();
           callback(err, bytesRead, buffer2);
         });
@@ -50965,7 +51525,7 @@ var require_fd_slicer = __commonJS({
       self.refCount -= 1;
       if (self.refCount < 0) throw new Error("invalid unref");
       if (self.refCount > 0) return;
-      fs42.close(self.fd, onCloseDone);
+      fs43.close(self.fd, onCloseDone);
       function onCloseDone(err) {
         if (err) {
           self.emit("error", err);
@@ -50997,7 +51557,7 @@ var require_fd_slicer = __commonJS({
       }
       self.context.pend.go(function(cb) {
         var buffer = Buffer.allocUnsafe(toRead);
-        fs42.read(self.context.fd, buffer, 0, toRead, self.pos, function(err, bytesRead) {
+        fs43.read(self.context.fd, buffer, 0, toRead, self.pos, function(err, bytesRead) {
           if (err) {
             self.destroy(err);
           } else if (bytesRead === 0) {
@@ -51357,7 +51917,7 @@ var require_crc32 = __commonJS({
 // node_modules/yauzl/index.js
 var require_yauzl = __commonJS({
   "node_modules/yauzl/index.js"(exports) {
-    var fs42 = __require("fs");
+    var fs43 = __require("fs");
     var zlib = __require("zlib");
     var fd_slicer = require_fd_slicer();
     var util2 = __require("util");
@@ -51382,9 +51942,9 @@ var require_yauzl = __commonJS({
     exports.Entry = Entry;
     exports.LocalFileHeader = LocalFileHeader;
     exports.RandomAccessReader = RandomAccessReader;
-    function openPromise(path44, options2) {
+    function openPromise(path45, options2) {
       return new Promise((resolve, reject) => {
-        open(path44, { ...options2, lazyEntries: true }, function(err, zipfile) {
+        open(path45, { ...options2, lazyEntries: true }, function(err, zipfile) {
           if (err) return reject(err);
           resolve(zipfile);
         });
@@ -51414,7 +51974,7 @@ var require_yauzl = __commonJS({
         });
       });
     }
-    function open(path44, options2, callback) {
+    function open(path45, options2, callback) {
       if (typeof options2 === "function") {
         callback = options2;
         options2 = null;
@@ -51426,10 +51986,10 @@ var require_yauzl = __commonJS({
       if (options2.validateEntrySizes == null) options2.validateEntrySizes = true;
       if (options2.strictFileNames == null) options2.strictFileNames = false;
       if (callback == null) callback = defaultCallback;
-      fs42.open(path44, "r", function(err, fd) {
+      fs43.open(path45, "r", function(err, fd) {
         if (err) return callback(err);
         fromFd(fd, options2, function(err2, zipfile) {
-          if (err2) fs42.close(fd, defaultCallback);
+          if (err2) fs43.close(fd, defaultCallback);
           callback(err2, zipfile);
         });
       });
@@ -51446,7 +52006,7 @@ var require_yauzl = __commonJS({
       if (options2.validateEntrySizes == null) options2.validateEntrySizes = true;
       if (options2.strictFileNames == null) options2.strictFileNames = false;
       if (callback == null) callback = defaultCallback;
-      fs42.fstat(fd, function(err, stats) {
+      fs43.fstat(fd, function(err, stats) {
         if (err) return callback(err);
         var reader = new fd_slicer.FdSlicer(fd);
         fromRandomAccessReader(reader, stats.size, options2, callback);
@@ -52220,12 +52780,12 @@ init_mcp();
 init_config();
 import { spawnSync as spawnSync8 } from "node:child_process";
 import crypto5 from "node:crypto";
-import fs40 from "node:fs";
-import os9 from "node:os";
-import path41 from "node:path";
+import fs41 from "node:fs";
+import os10 from "node:os";
+import path42 from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { pathToFileURL } from "node:url";
+import { pathToFileURL as pathToFileURL2 } from "node:url";
 
 // src/maker/auth/cliLogin.ts
 init_config();
@@ -52384,7 +52944,7 @@ init_runtimeLogs();
 init_protocol2();
 import fs28 from "node:fs";
 import path29 from "node:path";
-import { spawn as spawn7 } from "node:child_process";
+import { spawn as spawn8 } from "node:child_process";
 import { randomBytes as randomBytes3, randomUUID as randomUUID6 } from "node:crypto";
 
 // src/maker/preview/installation.ts
@@ -52398,7 +52958,7 @@ import { createHash as createHash4, randomUUID as randomUUID5 } from "node:crypt
 init_protocol2();
 import fs25 from "node:fs";
 import path26 from "node:path";
-import { spawn as spawn5 } from "node:child_process";
+import { spawn as spawn6 } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 
 // src/maker/preview/evidence.ts
@@ -52972,7 +53532,7 @@ var PreviewRuntime = class {
     }
     let child;
     try {
-      child = spawn5(
+      child = spawn6(
         this.executable,
         [
           ...this.assets ? ["-game_url=" + this.assets.url] : [entry, "-tapcode_dir=" + source],
@@ -53126,7 +53686,7 @@ var PreviewRuntime = class {
 var PREVIEW_INSTALLER_SOURCE = '#!/usr/bin/env python3\n"""Install or update UrhoXRuntime into a local CLI directory.\n\nCross-platform installer.  Downloads a single zip from CDN, extracts it, and\ncreates a unified entry command so callers can always invoke\n``<dest>/UrhoXRuntime`` regardless of OS.\n\nDesign principles:\n  - Idempotent: safe to call repeatedly.\n  - Atomic: downloads to ``.download.tmp``, extracts to staging dir, then\n    swaps in.  A crash mid-download never corrupts an existing installation.\n  - Incremental: uses If-Modified-Since on the zip; skips download if 304.\n"""\nfrom __future__ import annotations\n\nimport os\nimport shutil\nimport stat\nimport subprocess\nimport sys\nimport zipfile\nfrom pathlib import Path\nfrom typing import Dict, Optional\n\n# ---------------------------------------------------------------------------\n# CDN source\n# ---------------------------------------------------------------------------\n\nCDN_ROOT = "https://urhox-demo-platform.spark.xd.com"\n\nPLATFORMS: Dict[str, dict] = {\n    "linux": {\n        "zip_url": f"{CDN_ROOT}/runtime/linux/latest/UrhoXRuntime.zip",\n        "executable": "UrhoXRuntime",\n    },\n    "win32": {\n        "zip_url": f"{CDN_ROOT}/runtime/windows/latest/UrhoXRuntime.zip",\n        "executable": "UrhoXRuntime.exe",\n    },\n    "darwin": {\n        "zip_url": f"{CDN_ROOT}/runtime/macos/latest/UrhoXRuntime.zip",\n        "executable": "UrhoXRuntime",\n    },\n}\n\n# ---------------------------------------------------------------------------\n# Helpers\n# ---------------------------------------------------------------------------\n\n\ndef log(msg: str) -> None:\n    print(msg, flush=True)\n\n\ndef _curl() -> Optional[str]:\n    return shutil.which("curl")\n\n\ndef _download_file(\n    url: str,\n    dest: Path,\n    *,\n    conditional: bool = False,\n    timeout: int = 60,\n) -> bool:\n    """Download *url* to *dest* atomically.\n\n    When *conditional* is True and *dest* already exists, sends an\n    ``If-Modified-Since`` header.  Returns True if the file was\n    (re-)downloaded, False if the server replied 304 (not modified).\n    """\n    curl = _curl()\n    if not curl:\n        raise RuntimeError("curl is required but not found on PATH")\n\n    tmp = dest.with_name(dest.name + ".download.tmp")\n    tmp.unlink(missing_ok=True)\n\n    cmd = [\n        curl,\n        "-sS",\n        "-L",\n        "--retry", "2",\n        "--retry-delay", "1",\n        "--connect-timeout", str(timeout),\n        "--speed-time", str(timeout),\n        "--speed-limit", "1",\n    ]\n\n    if conditional and dest.exists():\n        cmd.extend(["-z", str(dest)])\n\n    cmd.extend(["-o", str(tmp), "-w", "%{http_code}", url])\n\n    proc = subprocess.run(cmd, text=True, capture_output=True)\n    status = (proc.stdout or "").strip()[-3:]\n\n    if proc.returncode != 0:\n        tmp.unlink(missing_ok=True)\n        detail = (proc.stderr or proc.stdout or "").strip()\n        raise RuntimeError(f"curl failed for {url}: {detail or f\'exit {proc.returncode}\'}")\n\n    if not status.isdigit():\n        tmp.unlink(missing_ok=True)\n        raise RuntimeError(f"Unexpected HTTP status for {url}: {status!r}")\n\n    code = int(status)\n\n    if 200 <= code < 300 and tmp.exists() and tmp.stat().st_size > 0:\n        os.replace(tmp, dest)\n        return True\n\n    if code == 304:\n        tmp.unlink(missing_ok=True)\n        return False\n\n    tmp.unlink(missing_ok=True)\n    if conditional and dest.exists():\n        log(f"  warning: unexpected HTTP {code} for {url}, keeping local copy")\n        return False\n    raise RuntimeError(f"Download failed: HTTP {code} for {url}")\n\n\ndef _chmod_executable(path: Path) -> None:\n    """Add executable bits (no-op on Windows)."""\n    if sys.platform == "win32":\n        return\n    mode = path.stat().st_mode\n    path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)\n\n\ndef _remove_quarantine(path: Path) -> None:\n    """Remove macOS Gatekeeper quarantine attribute."""\n    if sys.platform != "darwin":\n        return\n    xattr = shutil.which("xattr")\n    if xattr:\n        subprocess.run(\n            [xattr, "-dr", "com.apple.quarantine", str(path)],\n            capture_output=True,\n        )\n\n\ndef _create_command(dest: Path, executable: Path) -> Path:\n    """Create a unified ``UrhoXRuntime`` entry-point command."""\n    if sys.platform == "win32":\n        cmd_path = dest / "UrhoXRuntime.cmd"\n        cmd_path.write_text(\n            f\'@"%~dp0{executable.name}" %*\\r\\n\',\n            encoding="utf-8",\n        )\n        return cmd_path\n\n    return executable\n\n\n# ---------------------------------------------------------------------------\n# Main logic\n# ---------------------------------------------------------------------------\n\n\ndef install(plat: str, dest: Path, timeout: int = 60) -> None:\n    cfg = PLATFORMS[plat]\n    zip_url: str = cfg["zip_url"]\n    exe_name: str = cfg["executable"]\n\n    dest.mkdir(parents=True, exist_ok=True)\n\n    log(f"Installing UrhoXRuntime ({plat}) into {dest}")\n\n    # Download zip (with If-Modified-Since if local copy exists)\n    zip_path = dest / "UrhoXRuntime.zip"\n    already_exists = zip_path.exists()\n    updated = _download_file(zip_url, zip_path, conditional=already_exists, timeout=timeout)\n\n    if not updated and already_exists:\n        log("  Up-to-date (304 not modified).")\n        # Still ensure entry command exists\n        exe_path = dest / exe_name\n        if exe_path.exists():\n            _create_command(dest, exe_path)\n            log("Done.")\n            return\n\n    # Extract zip atomically: extract to staging dir, then move contents\n    log("  Extracting...")\n    staging = dest / ".staging"\n    if staging.exists():\n        shutil.rmtree(staging)\n    staging.mkdir()\n\n    with zipfile.ZipFile(zip_path) as zf:\n        # Guard against Zip Slip (path traversal via ../ in entry names)\n        for info in zf.infolist():\n            target = (staging / info.filename).resolve()\n            if not str(target).startswith(str(staging.resolve()) + os.sep):\n                raise RuntimeError(f"Unsafe zip entry (path traversal): {info.filename}")\n        zf.extractall(staging)\n\n    # Move extracted files to dest (overwrite existing)\n    for item in staging.iterdir():\n        target = dest / item.name\n        if target.exists():\n            if target.is_dir():\n                shutil.rmtree(target)\n            else:\n                target.unlink()\n        shutil.move(str(item), str(target))\n\n    shutil.rmtree(staging)\n\n    exe_path = dest / exe_name\n\n    # Platform post-processing\n    _chmod_executable(exe_path)\n    _remove_quarantine(exe_path)\n\n    # Create unified entry command\n    command = _create_command(dest, exe_path)\n    log(f"  Entry command: {command}")\n    log("Done.")\n\n\ndef _default_dest() -> str:\n    """Default install directory: <project_root>/.cli (all platforms)."""\n    # Two levels up from this script → project root\n    return os.path.join(os.path.dirname(__file__), "..", "..", ".cli")\n\n\ndef main() -> int:\n    import argparse\n\n    parser = argparse.ArgumentParser(\n        description="Install or update UrhoXRuntime (cross-platform)",\n    )\n    parser.add_argument(\n        "--dest",\n        default=_default_dest(),\n        help="Installation directory (default: project .cli/)",\n    )\n    parser.add_argument(\n        "--platform",\n        choices=list(PLATFORMS.keys()),\n        default=sys.platform if sys.platform in PLATFORMS else None,\n        help="Target platform (default: auto-detect)",\n    )\n    parser.add_argument(\n        "--timeout",\n        type=int,\n        default=60,\n        help="Network timeout in seconds (default: 60)",\n    )\n\n    args = parser.parse_args()\n\n    if not args.platform:\n        print(\n            f"error: unsupported platform {sys.platform!r}. "\n            f"Use --platform to override.",\n            file=sys.stderr,\n        )\n        return 1\n\n    dest = Path(args.dest).expanduser().resolve()\n\n    try:\n        install(args.platform, dest, timeout=args.timeout)\n    except RuntimeError as exc:\n        print(f"error: {exc}", file=sys.stderr)\n        return 1\n    except KeyboardInterrupt:\n        print("interrupted", file=sys.stderr)\n        return 130\n\n    return 0\n\n\nif __name__ == "__main__":\n    raise SystemExit(main())\n';
 
 // src/maker/preview/installerProcess.ts
-import { spawn as spawn6 } from "node:child_process";
+import { spawn as spawn7 } from "node:child_process";
 import { randomBytes as randomBytes2 } from "node:crypto";
 var INSTALLER_GUARD = String.raw`
 import os, runpy, subprocess, sys, threading
@@ -53184,7 +53744,7 @@ async function runPreviewInstaller(python, args, options2) {
     const grouped = process.platform !== "win32";
     const token = randomBytes2(16).toString("hex");
     const marker = "\0maker-installer-cleaned:" + token + "\0";
-    const child = spawn6(
+    const child = spawn7(
       python,
       ["-c", INSTALLER_GUARD.replace("__CLEANUP_TOKEN__", token), ...args],
       {
@@ -53307,24 +53867,75 @@ async function runPreviewInstaller(python, args, options2) {
 }
 
 // src/maker/preview/installation.ts
-function previewInstallation(project) {
-  const filename = path27.join(previewDirectory(project), "installation.json");
-  if (!fs26.existsSync(filename)) return { install_state: "missing" };
-  const value = JSON.parse(fs26.readFileSync(filename, "utf8"));
-  if (!value.executable || !path27.isAbsolute(value.executable) || !fs26.existsSync(value.executable))
-    return { install_state: "missing" };
-  return value;
+function readInstallation(filename) {
+  if (!fs26.existsSync(filename)) return void 0;
+  try {
+    const value = JSON.parse(fs26.readFileSync(filename, "utf8"));
+    if (value.install_state !== "ready" || !value.executable || !path27.isAbsolute(value.executable) || !fs26.statSync(value.executable).isFile()) {
+      return void 0;
+    }
+    return value;
+  } catch {
+    return void 0;
+  }
 }
-async function withPreviewLock(project, action) {
-  const directory = previewDirectory(project);
+function isInside(directory, filename) {
+  const relative = path27.relative(directory, filename);
+  return relative !== "" && !relative.startsWith(".." + path27.sep) && !path27.isAbsolute(relative);
+}
+function legacyPreviewInstallation(project) {
+  var _a3;
+  const root = path27.dirname(previewDirectory(project));
+  if (!fs26.existsSync(root)) return void 0;
+  const entries = fs26.readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^[a-f0-9]{64}$/.test(entry.name));
+  const candidates = [];
+  for (const entry of entries) {
+    const directory = path27.join(root, entry.name);
+    const filename = path27.join(directory, "installation.json");
+    const installation = readInstallation(filename);
+    if (!(installation == null ? void 0 : installation.executable)) continue;
+    try {
+      const executable = fs26.realpathSync(installation.executable);
+      const managedDirectory = fs26.realpathSync(directory);
+      if (!isInside(managedDirectory, executable)) continue;
+      candidates.push({
+        installation: { ...installation, executable },
+        modified: Date.parse(installation.installed_at || "") || fs26.statSync(filename).mtimeMs
+      });
+    } catch {
+    }
+  }
+  candidates.sort((left, right) => right.modified - left.modified);
+  return (_a3 = candidates[0]) == null ? void 0 : _a3.installation;
+}
+function previewInstallation(project) {
+  const filename = path27.join(runtimeDirectory(), "installation.json");
+  const current = readInstallation(filename);
+  if (current) return current;
+  const legacy = legacyPreviewInstallation(project);
+  if (!legacy) return { install_state: "missing" };
+  try {
+    writePrivateJson(filename, legacy);
+    return legacy;
+  } catch {
+    return {
+      ...legacy,
+      warnings: [
+        ...legacy.warnings || [],
+        "Legacy Runtime is usable, but its machine-wide registration could not be saved."
+      ]
+    };
+  }
+}
+async function withFileLock(directory, name, busyMessage, action) {
   fs26.mkdirSync(directory, { recursive: true, mode: 448 });
-  const filename = path27.join(directory, "operation.lock");
+  const filename = path27.join(directory, name);
   let descriptor;
   try {
     descriptor = fs26.openSync(filename, "wx", 384);
   } catch {
     throw new Error(
-      "Another preview start/install is in progress. If an interrupted command left a lock, verify that command has exited before removing " + filename
+      busyMessage + " If an interrupted command left a lock, verify it exited before removing " + filename
     );
   }
   try {
@@ -53338,6 +53949,40 @@ async function withPreviewLock(project, action) {
     fs26.unlinkSync(filename);
   }
 }
+async function withPreviewLock(project, action) {
+  return withFileLock(
+    previewDirectory(project),
+    "operation.lock",
+    "Another preview operation is in progress.",
+    action
+  );
+}
+async function withRuntimeInstallLock(action) {
+  return withFileLock(
+    runtimeDirectory(),
+    "installation.lock",
+    "Another Runtime installation is in progress.",
+    action
+  );
+}
+function activePreviewRuntimeDirectories(project) {
+  const root = path27.dirname(previewDirectory(project));
+  if (!fs26.existsSync(root)) return [];
+  const protectedDirectories = [];
+  for (const entry of fs26.readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !/^[a-f0-9]{64}$/.test(entry.name)) continue;
+    const filename = path27.join(root, entry.name, "session.json");
+    if (!fs26.existsSync(filename)) continue;
+    try {
+      const record2 = JSON.parse(fs26.readFileSync(filename, "utf8"));
+      if (record2.state !== "stopped" && record2.executable && path27.isAbsolute(record2.executable)) {
+        protectedDirectories.push(path27.dirname(record2.executable));
+      }
+    } catch {
+    }
+  }
+  return protectedDirectories;
+}
 async function installPreviewRuntime(project, signal, update = false) {
   if (!["darwin", "win32"].includes(process.platform))
     throw new Error("Local preview installation supports macOS and Windows only.");
@@ -53350,7 +53995,7 @@ async function installPreviewRuntime(project, signal, update = false) {
     if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED");
     if (compatible && !update) return previous;
   }
-  const directory = previewDirectory(project);
+  const directory = runtimeDirectory();
   const unresolved = fs26.existsSync(directory) && fs26.readdirSync(directory, { withFileTypes: true }).find(
     (entry) => entry.isDirectory() && entry.name.startsWith("runtime-") && fs26.existsSync(path27.join(directory, entry.name, UNVERIFIED_CLEANUP_MARKER))
   );
@@ -53395,11 +54040,8 @@ async function installPreviewRuntime(project, signal, update = false) {
       archive_sha256: hash2.digest("hex"),
       installed_at: (/* @__PURE__ */ new Date()).toISOString()
     };
-    const record2 = readPreviewRecord(project);
-    const protectedDirectories = [staging];
+    const protectedDirectories = [staging, ...activePreviewRuntimeDirectories(project)];
     if (previous.executable) protectedDirectories.push(path27.dirname(previous.executable));
-    if (record2 && record2.state !== "stopped")
-      protectedDirectories.push(path27.dirname(record2.executable));
     writePrivateJson(path27.join(directory, "installation.json"), installation);
     installation.warnings = trimPreviewCache(directory, "runtime-", 2, protectedDirectories);
     return installation;
@@ -53828,7 +54470,14 @@ async function previewStatus(project) {
       ok: true
     };
   try {
-    return await requestPreview(record2, "status", {}, 1500);
+    const status = await requestPreview(record2, "status", {}, 1500);
+    return {
+      ...status,
+      ...installation,
+      // The control handshake describes the active session; installation describes the shared Runtime.
+      executable: status.executable,
+      runtime_version: status.runtime_version
+    };
   } catch {
     const stopped = record2.state === "stopped";
     const filename = path28.join(previewRoundDirectory(record2), "result.json");
@@ -53899,17 +54548,20 @@ async function runPreviewCli(action, options2) {
       );
     else if (action === "status") result = await previewStatus(project);
     else if (action === "install") {
-      result = await withPreviewLock(project, async () => {
-        const state = await previewStatus(project);
-        if (state.process_alive !== false)
-          throw new Error("Stop the verified preview before installing Runtime.");
-        return {
-          ok: true,
-          protocol_version: 1,
-          project_realpath: project,
-          ...await installPreviewRuntime(project, controller.signal, options2.update === true)
-        };
-      });
+      result = await withPreviewLock(
+        project,
+        () => withRuntimeInstallLock(async () => {
+          const state = await previewStatus(project);
+          if (state.process_alive !== false)
+            throw new Error("Stop the verified preview before installing Runtime.");
+          return {
+            ok: true,
+            protocol_version: 1,
+            project_realpath: project,
+            ...await installPreviewRuntime(project, controller.signal, options2.update === true)
+          };
+        })
+      );
     } else if (action === "start") {
       result = await withPreviewLock(
         project,
@@ -54050,7 +54702,7 @@ async function startPreview(project, options2, signal) {
     runtime
   };
   writePrivateJson(path29.join(previewDirectory(project), "session.json"), record2);
-  const child = spawn7(
+  const child = spawn8(
     process.execPath,
     [...process.execArgv, process.argv[1], "__maker-preview-supervisor", project],
     {
@@ -54100,9 +54752,9 @@ async function startPreview(project, options2, signal) {
 init_storage();
 init_projectRegistry();
 init_privateJson();
-import fs31 from "node:fs";
-import path32 from "node:path";
-import { spawn as spawn9 } from "node:child_process";
+import fs32 from "node:fs";
+import path33 from "node:path";
+import { spawn as spawn11 } from "node:child_process";
 import { createHash as createHash6, randomUUID as randomUUID8 } from "node:crypto";
 
 // src/maker/console/projects.ts
@@ -54117,6 +54769,7 @@ import { promisify as promisify2 } from "node:util";
 // src/maker/console/types.ts
 var CONSOLE_ACTIONS = [
   "build",
+  "lua-lsp.check",
   "preview.start",
   "preview.refresh",
   "preview.stop",
@@ -54337,13 +54990,23 @@ var ConsoleProjects = class {
 };
 
 // src/maker/console/executor.ts
-import { spawn as spawn8 } from "node:child_process";
+import { spawn as spawn9 } from "node:child_process";
 init_diagnosticRedaction();
+init_luaLsp();
 function createConsoleExecutor(options2) {
   return async ({ project, action, onOutput, onProgress, signal }) => {
     if (![...CONSOLE_ACTIONS, "preview.status", "preview.logs"].includes(action))
       throw new Error("Unsupported console CLI action.");
     if (signal == null ? void 0 : signal.aborted) return { ok: false, error: "Console query cancelled before launch." };
+    if (action === "lua-lsp.check") {
+      const result = await checkMakerLuaLspProject(project);
+      onOutput(result.summary);
+      if (result.issues.length) onOutput("\n" + result.issues.join("\n"));
+      return sanitizeDiagnosticValue({
+        ...result,
+        ...!result.ok ? { error: result.error || result.summary } : {}
+      });
+    }
     const command = action === "build" ? ["build"] : ["preview", action.slice("preview.".length)];
     const ownsProcessGroup = process.platform !== "win32";
     const execArgv = [...options2.execArgv ?? process.execArgv];
@@ -54373,7 +55036,7 @@ function createConsoleExecutor(options2) {
       "--json"
     ];
     return new Promise((resolve) => {
-      const child = spawn8(process.execPath, args, {
+      const child = spawn9(process.execPath, args, {
         cwd: project,
         detached: ownsProcessGroup,
         windowsHide: true,
@@ -54654,6 +55317,274 @@ var ConsoleTasks = class {
 
 // src/maker/console/server.ts
 init_diagnosticRedaction();
+init_luaLsp();
+
+// src/maker/console/integrations/framecrate.ts
+import fs31 from "node:fs";
+import path32 from "node:path";
+import { pathToFileURL } from "node:url";
+import { spawn as spawn10 } from "node:child_process";
+var FramecrateLauncher = class {
+  constructor(options2 = {}) {
+    this.options = options2;
+    this.metadata = {
+      id: "framecrate",
+      title: "FrameCrate",
+      icon: "film",
+      order: 100,
+      requiresProject: true,
+      protocolVersion: 1
+    };
+    this.sessions = /* @__PURE__ */ new Map();
+    this.owned = /* @__PURE__ */ new Set();
+  }
+  /** At most eight owned children; Studio enforces its own activity/idle lifetime. */
+  hasActiveSessions() {
+    return this.owned.size > 0;
+  }
+  /** Generic console-plugin lifecycle activity. */
+  get active() {
+    return this.hasActiveSessions();
+  }
+  /** The caller must resolve and validate the explicit registered project on every request. */
+  async open(projectPath, hostOrigin) {
+    var _a3;
+    if (this.closing) throw new ConsoleError("FrameCrate launcher is closed.", 409);
+    if (hostOrigin !== void 0) {
+      try {
+        const host = new URL(hostOrigin);
+        if (host.origin !== hostOrigin || host.protocol !== "http:" || host.hostname !== "127.0.0.1" || !host.port)
+          throw new Error();
+      } catch {
+        throw new ConsoleError("FrameCrate requires the exact console host origin.");
+      }
+    }
+    if (!path32.isAbsolute(projectPath) || fs31.realpathSync(projectPath) !== projectPath)
+      throw new ConsoleError("FrameCrate requires a validated project realpath.");
+    const existing = this.sessions.get(projectPath);
+    if (existing) {
+      if (existing.hostOrigin !== hostOrigin)
+        throw new ConsoleError(
+          "FrameCrate session belongs to a different console host origin.",
+          409
+        );
+      return existing.ready;
+    }
+    if (this.owned.size >= 8)
+      throw new ConsoleError(
+        "FrameCrate session limit reached. Stop the console to close studios.",
+        429
+      );
+    const env = this.options.env ?? process.env;
+    const configured = (_a3 = env.FRAMECRATE_STUDIO_DIR) == null ? void 0 : _a3.trim();
+    if (!configured || !path32.isAbsolute(configured))
+      throw new ConsoleError(
+        "FrameCrate unavailable: set FRAMECRATE_STUDIO_DIR to the absolute path of an installed studio, then reopen the console.",
+        409
+      );
+    let root;
+    let entry;
+    let loader;
+    try {
+      root = fs31.realpathSync(configured);
+      entry = path32.join(root, "server/main.ts");
+      loader = path32.join(root, "node_modules/tsx/dist/loader.mjs");
+      if (!fs31.statSync(entry).isFile() || !fs31.statSync(loader).isFile()) throw new Error();
+    } catch {
+      throw new ConsoleError(
+        "FrameCrate unavailable: FRAMECRATE_STUDIO_DIR must contain server/main.ts and node_modules/tsx/dist/loader.mjs. No installer is provided.",
+        409
+      );
+    }
+    const child = spawn10(
+      process.execPath,
+      [
+        "--import",
+        pathToFileURL(loader).href,
+        entry,
+        "--project",
+        projectPath,
+        ...hostOrigin === void 0 ? [] : ["--host-origin", hostOrigin]
+      ],
+      {
+        cwd: root,
+        env,
+        shell: false,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true
+      }
+    );
+    let resolveReady;
+    let rejectReady;
+    const ready = new Promise((resolve, reject) => {
+      resolveReady = resolve;
+      rejectReady = reject;
+    });
+    let stopped = false;
+    let received = false;
+    let stopping;
+    let output2 = "";
+    let bytes = 0;
+    let finishExit;
+    const exited = new Promise((resolve) => {
+      finishExit = resolve;
+    });
+    const stop = () => {
+      if (stopping) return stopping;
+      clearTimeout(timer);
+      if (this.sessions.get(projectPath) === session) this.sessions.delete(projectPath);
+      stopping = (async () => {
+        if (!stopped) {
+          child.kill("SIGTERM");
+          const force = !received ? setTimeout(() => {
+            if (!stopped) child.kill("SIGKILL");
+          }, this.options.stopTimeoutMs ?? 1e3) : void 0;
+          try {
+            await exited;
+          } finally {
+            if (force) clearTimeout(force);
+          }
+        }
+      })();
+      return stopping;
+    };
+    const fail = (message) => {
+      void stop().then(() => rejectReady(new ConsoleError(message, 409)));
+    };
+    const session = {
+      ready,
+      hostOrigin,
+      stop: async () => {
+        await stop();
+        rejectReady(new ConsoleError("FrameCrate launcher is closed.", 409));
+      }
+    };
+    this.sessions.set(projectPath, session);
+    this.owned.add(session);
+    const timer = setTimeout(
+      () => fail("FrameCrate startup timed out. Check the standalone Studio installation."),
+      this.options.startTimeoutMs ?? 75e3
+    );
+    child.once(
+      "error",
+      () => fail("FrameCrate could not start. Check the standalone Studio installation.")
+    );
+    child.once("close", () => {
+      stopped = true;
+      clearTimeout(timer);
+      if (this.sessions.get(projectPath) === session) this.sessions.delete(projectPath);
+      this.owned.delete(session);
+      finishExit();
+      if (!received && !stopping)
+        rejectReady(
+          new ConsoleError(
+            "FrameCrate exited before readiness. Check the standalone Studio installation.",
+            409
+          )
+        );
+    });
+    child.stderr.resume();
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      if (stopping) return;
+      if (received) {
+        if (chunk.trim()) fail("FrameCrate sent extra readiness output.");
+        return;
+      }
+      bytes += Buffer.byteLength(chunk);
+      if (bytes > 16384) {
+        fail("FrameCrate readiness output exceeded the limit.");
+        return;
+      }
+      output2 += chunk;
+      const newline = output2.indexOf("\n");
+      if (newline < 0) return;
+      try {
+        const value = JSON.parse(output2.slice(0, newline));
+        if (output2.slice(newline + 1).trim() || value.projectPath !== projectPath || typeof value.url !== "string")
+          throw new Error();
+        const url2 = new URL(value.url);
+        if (url2.protocol !== "http:" || url2.hostname !== "127.0.0.1" || !url2.port || url2.username || url2.password || !new URLSearchParams(url2.hash.slice(1)).get("studio_token"))
+          throw new Error();
+        received = true;
+        output2 = "";
+        clearTimeout(timer);
+        resolveReady({ url: url2.href, projectPath });
+      } catch {
+        fail("FrameCrate returned invalid readiness data for the selected project.");
+      }
+    });
+    return ready;
+  }
+  /** Drain ready children gracefully; only incomplete startup may be forcibly terminated. */
+  close() {
+    if (!this.closing)
+      this.closing = Promise.all([...this.owned].map((session) => session.stop())).then(() => {
+      });
+    return this.closing;
+  }
+};
+
+// src/maker/console/plugins.ts
+function configuredConsolePlugins(env = process.env) {
+  var _a3;
+  return ((_a3 = env.FRAMECRATE_STUDIO_DIR) == null ? void 0 : _a3.trim()) ? [new FramecrateLauncher({ env })] : [];
+}
+var ConsolePlugins = class {
+  constructor(projects, plugins = configuredConsolePlugins()) {
+    this.projects = projects;
+    this.entries = /* @__PURE__ */ new Map();
+    for (const plugin of plugins) {
+      const { id, title, icon, order, requiresProject, protocolVersion } = plugin.metadata;
+      if (typeof id !== "string" || !/^[a-z][a-z0-9-]{0,47}$/.test(id) || this.entries.has(id))
+        throw new ConsoleError("Invalid or duplicate trusted console plugin id.");
+      if (typeof title !== "string" || !title.trim() || title.length > 80 || protocolVersion !== 1 || requiresProject !== true || !Number.isFinite(order))
+        throw new ConsoleError("Invalid trusted console plugin metadata.");
+      this.entries.set(id, {
+        plugin,
+        metadata: { id, title, icon, order, requiresProject, protocolVersion }
+      });
+    }
+  }
+  /** Return metadata only: no session URLs, credentials or executable configuration. */
+  list() {
+    return [...this.entries.values()].map(({ metadata }) => ({ ...metadata })).sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+  }
+  /** Starting and live plugin sessions keep the console alive. */
+  get active() {
+    return [...this.entries.values()].some(({ plugin }) => plugin.active);
+  }
+  /** Only exact loopback iframe URLs for the still-valid requested project reach the client. */
+  async open(id, projectKey, hostOrigin) {
+    if (this.closing) throw new ConsoleError("Console plugins are shutting down.", 503);
+    const entry = this.entries.get(id);
+    if (!entry) throw new ConsoleError("Unknown console plugin.", 404);
+    const project = this.projects.resolve(projectKey);
+    const ready = await entry.plugin.open(project.path, hostOrigin);
+    if (this.closing) throw new ConsoleError("Console plugins are shutting down.", 503);
+    this.projects.resolve(projectKey);
+    try {
+      const url2 = new URL(ready.url);
+      if (ready.projectPath !== project.path || url2.protocol !== "http:" || url2.hostname !== "127.0.0.1" || !url2.port || url2.username || url2.password || url2.pathname !== "/" || url2.search || !url2.hash) {
+        throw new Error();
+      }
+      return { url: url2.href, projectPath: project.path };
+    } catch {
+      throw new ConsoleError("Console plugin returned an invalid project iframe URL.", 409);
+    }
+  }
+  /** Close all owned integrations, including sessions still starting, once per server lifetime. */
+  close() {
+    if (!this.closing)
+      this.closing = Promise.all(
+        [...this.entries.values()].map(async ({ plugin }) => plugin.close())
+      ).then(() => {
+      });
+    return this.closing;
+  }
+};
+
+// src/maker/console/server.ts
 async function startConsoleServer(options2) {
   const now = options2.now || Date.now;
   const idleMs = options2.idleMs ?? 30 * 60 * 1e3;
@@ -54663,6 +55594,21 @@ async function startConsoleServer(options2) {
   };
   const token = options2.token || randomBytes4(32).toString("hex");
   const tasks = new ConsoleTasks(options2.registry, options2.execute, options2.historyFile, touch);
+  const plugins = new ConsolePlugins(options2.registry, options2.plugins);
+  let luaLspCache;
+  const luaLspStatus = () => {
+    if (luaLspCache && now() - luaLspCache.at < 3e4) return luaLspCache.value;
+    const environment = checkMakerLuaLspEnvironment();
+    const value = {
+      ready: environment.ready,
+      status: environment.status,
+      version: environment.version || null,
+      nextAction: environment.nextAction,
+      error: environment.error ? environment.error.slice(0, 512) : null
+    };
+    luaLspCache = { at: now(), value };
+    return value;
+  };
   let origin = "";
   let draining = false;
   let closePromise;
@@ -54709,6 +55655,7 @@ async function startConsoleServer(options2) {
         "style-src 'unsafe-inline'",
         "img-src 'self' data:",
         "connect-src 'self'",
+        "frame-src http://127.0.0.1:*",
         "base-uri 'none'",
         "form-action 'none'",
         "frame-ancestors 'none'"
@@ -54754,7 +55701,9 @@ async function startConsoleServer(options2) {
           platform: process.platform,
           instanceId: options2.instanceId,
           projects: options2.registry.list(),
-          tasks: tasks.list()
+          tasks: tasks.list(),
+          plugins: plugins.list(),
+          luaLsp: luaLspStatus()
         });
         return;
       }
@@ -54791,12 +55740,19 @@ async function startConsoleServer(options2) {
       const project = url2.pathname.match(/^\/api\/projects\/([a-f0-9]{64})(?:\/(.*))?$/);
       if (!project) throw new ConsoleError("Not found.", 404);
       const [, key, suffix] = project;
+      const plugin = suffix == null ? void 0 : suffix.match(/^plugins\/([a-z][a-z0-9-]{0,47})\/open$/);
       if (request2.method === "DELETE" && !suffix) {
         await bodyForMutation();
         if (tasks.busy(key)) throw new ConsoleError("Project has an active task.", 409);
         options2.registry.remove(key);
         touch();
         json2(200, { ok: true });
+      } else if (request2.method === "POST" && plugin) {
+        await bodyForMutation();
+        touch();
+        const ready = await read(() => plugins.open(plugin[1], key, origin));
+        touch();
+        json2(200, ready);
       } else if (request2.method === "GET" && !suffix) {
         json2(200, await read(() => options2.registry.detail(key, readAbort.signal)));
       } else if (request2.method === "GET" && suffix === "git") {
@@ -54855,7 +55811,7 @@ async function startConsoleServer(options2) {
   origin = `http://127.0.0.1:${address.port}`;
   const idleTimer = setInterval(
     () => {
-      if (now() - lastActivity >= idleMs && !tasks.list().some((task) => task.status === "running"))
+      if (now() - lastActivity >= idleMs && !tasks.list().some((task) => task.status === "running") && !plugins.active)
         void close();
     },
     Math.min(3e4, idleMs)
@@ -54872,6 +55828,7 @@ async function startConsoleServer(options2) {
     } catch {
     }
     closePromise = (async () => {
+      await plugins.close();
       await tasks.settled();
       await new Promise((resolve) => {
         const timer = setTimeout(() => {
@@ -54916,24 +55873,24 @@ async function readBody(request2) {
 // src/maker/console/cli.ts
 var VERSION2 = false ? "dev" : "0.0.33";
 function home() {
-  return path32.join(getMakerHome(), "console");
+  return path33.join(getMakerHome(), "console");
 }
 function sessionPath() {
-  return path32.join(home(), "session.json");
+  return path33.join(home(), "session.json");
 }
 function launcherIdentity() {
   return createHash6("sha256").update(
     JSON.stringify({
-      entry: fs31.realpathSync(process.argv[1]),
-      stat: fs31.statSync(process.argv[1]).mtimeMs,
+      entry: fs32.realpathSync(process.argv[1]),
+      stat: fs32.statSync(process.argv[1]).mtimeMs,
       version: VERSION2,
       distribution: process.env.TAPTAP_MAKER_DISTRIBUTION || ""
     })
   ).digest("hex");
 }
 function readSession() {
-  if (!fs31.existsSync(sessionPath())) return void 0;
-  const session = JSON.parse(fs31.readFileSync(sessionPath(), "utf8"));
+  if (!fs32.existsSync(sessionPath())) return void 0;
+  const session = JSON.parse(fs32.readFileSync(sessionPath(), "utf8"));
   if (session.schema !== 1 || !/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(session.origin) || Number(new URL(session.origin).port) > 65535 || !/^[a-f0-9]{64}$/.test(session.token) || !/^[a-f0-9-]{36}$/.test(session.instanceId) || !Number.isInteger(session.pid) || session.pid <= 0 || typeof session.launcher !== "string" || session.draining !== void 0 && typeof session.draining !== "boolean")
     throw new ConsoleError(
       "Invalid local console session. Refusing to contact an unknown service."
@@ -55007,7 +55964,7 @@ async function runConsoleSupervisor() {
       html: getConsoleHtml2(),
       version: VERSION2,
       distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
-      historyFile: path32.join(home(), "tasks.json"),
+      historyFile: path33.join(home(), "tasks.json"),
       instanceId,
       execute: createConsoleExecutor({ entry: process.argv[1] }),
       onDraining: () => {
@@ -55033,7 +55990,7 @@ async function runConsoleSupervisor() {
     const cleanup = () => {
       var _a3;
       try {
-        if (((_a3 = readSession()) == null ? void 0 : _a3.instanceId) === instanceId) fs31.unlinkSync(sessionPath());
+        if (((_a3 = readSession()) == null ? void 0 : _a3.instanceId) === instanceId) fs32.unlinkSync(sessionPath());
       } catch {
       }
       release();
@@ -55056,18 +56013,18 @@ async function runConsoleSupervisor() {
   }
 }
 function claimConsoleServerLock(directory) {
-  fs31.mkdirSync(directory, { recursive: true, mode: 448 });
-  return claimOwnedLock(path32.join(directory, "server.lock"));
+  fs32.mkdirSync(directory, { recursive: true, mode: 448 });
+  return claimOwnedLock(path33.join(directory, "server.lock"));
 }
 function openConsoleLog(filename) {
-  const oversized = fs31.existsSync(filename) && fs31.statSync(filename).size > 1024 * 1024;
-  return fs31.openSync(filename, oversized ? "w" : "a", 384);
+  const oversized = fs32.existsSync(filename) && fs32.statSync(filename).size > 1024 * 1024;
+  return fs32.openSync(filename, oversized ? "w" : "a", 384);
 }
 function claimOwnedLock(filename) {
   const identity = `${process.pid}:${randomUUID8()}`;
   let recovery;
   try {
-    recovery = fs31.openSync(filename + ".recovery", "wx", 384);
+    recovery = fs32.openSync(filename + ".recovery", "wx", 384);
   } catch (cause) {
     if (cause.code === "EEXIST")
       throw new ConsoleError("Console ownership recovery is already in progress.", 409);
@@ -55076,10 +56033,10 @@ function claimOwnedLock(filename) {
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        fs31.writeFileSync(filename, identity, { flag: "wx", mode: 384 });
+        fs32.writeFileSync(filename, identity, { flag: "wx", mode: 384 });
         return () => {
           try {
-            if (fs31.readFileSync(filename, "utf8") === identity) fs31.unlinkSync(filename);
+            if (fs32.readFileSync(filename, "utf8") === identity) fs32.unlinkSync(filename);
           } catch {
           }
         };
@@ -55087,7 +56044,7 @@ function claimOwnedLock(filename) {
         if (error2.code !== "EEXIST") throw error2;
         let previous;
         try {
-          previous = fs31.readFileSync(filename, "utf8");
+          previous = fs32.readFileSync(filename, "utf8");
         } catch (cause) {
           if (cause.code === "ENOENT") continue;
           throw cause;
@@ -55102,7 +56059,7 @@ function claimOwnedLock(filename) {
         } catch (cause) {
           if (cause.code === "ESRCH") {
             try {
-              if (fs31.readFileSync(filename, "utf8") === previous) fs31.unlinkSync(filename);
+              if (fs32.readFileSync(filename, "utf8") === previous) fs32.unlinkSync(filename);
             } catch (error3) {
               if (error3.code !== "ENOENT") throw error3;
             }
@@ -55114,13 +56071,13 @@ function claimOwnedLock(filename) {
     }
     throw new ConsoleError("Console ownership changed during startup. Try again.");
   } finally {
-    fs31.closeSync(recovery);
-    fs31.unlinkSync(filename + ".recovery");
+    fs32.closeSync(recovery);
+    fs32.unlinkSync(filename + ".recovery");
   }
 }
 async function ensureSession() {
   var _a3;
-  fs31.mkdirSync(home(), { recursive: true, mode: 448 });
+  fs32.mkdirSync(home(), { recursive: true, mode: 448 });
   const existing = await availableSession();
   if (existing) {
     if (existing.launcher !== launcherIdentity())
@@ -55129,7 +56086,7 @@ async function ensureSession() {
       );
     return existing;
   }
-  const lock = path32.join(home(), "launch.lock");
+  const lock = path33.join(home(), "launch.lock");
   let releaseLaunch;
   for (let attempt = 0; attempt < 60; attempt++) {
     try {
@@ -55155,10 +56112,10 @@ async function ensureSession() {
         throw new ConsoleError("Another Maker version opened the console.");
       return launched;
     }
-    const stderr = openConsoleLog(path32.join(home(), "server.log"));
+    const stderr = openConsoleLog(path33.join(home(), "server.log"));
     let child;
     try {
-      child = spawn9(
+      child = spawn11(
         process.execPath,
         [...process.execArgv, process.argv[1], "__maker-console-server"],
         {
@@ -55170,7 +56127,7 @@ async function ensureSession() {
         }
       );
     } finally {
-      fs31.closeSync(stderr);
+      fs32.closeSync(stderr);
     }
     let failure;
     child.on("error", (error2) => {
@@ -55197,7 +56154,7 @@ async function ensureSession() {
 }
 function openBrowser2(url2) {
   const [command, args] = process.platform === "win32" ? ["rundll32.exe", ["url.dll,FileProtocolHandler", url2]] : process.platform === "darwin" ? ["open", [url2]] : ["xdg-open", [url2]];
-  const child = spawn9(command, [...args], {
+  const child = spawn11(command, [...args], {
     stdio: "ignore",
     detached: true,
     windowsHide: true,
@@ -55235,7 +56192,7 @@ async function runConsoleCli(action, options2) {
   if (action !== "open") throw new ConsoleError("Use console open|status|stop.");
   const target = typeof options2.target_dir === "string" ? options2.target_dir : void 0;
   if (target) {
-    if (!path32.isAbsolute(target))
+    if (!path33.isAbsolute(target))
       throw new ConsoleError("--target-dir must be an absolute project path.");
     const { previewProject: previewProject2 } = await Promise.resolve().then(() => (init_protocol2(), protocol_exports));
     previewProject2(target);
@@ -55329,8 +56286,8 @@ init_projectSettings();
 // src/maker/cli/mcpLauncher.ts
 init_client2();
 init_stdio3();
-import fs32 from "node:fs";
-import path33 from "node:path";
+import fs33 from "node:fs";
+import path34 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 var DEFAULT_VERIFY_TIMEOUT_MS = 9e4;
 var VERIFY_CLIENT_VERSION = "1.0.0";
@@ -55356,33 +56313,33 @@ function materializeMakerSelfLauncher(options2) {
     throw new Error(`Invalid Maker runtime version: ${options2.version}`);
   }
   const execPath = options2.execPath ?? process.execPath;
-  if (!path33.isAbsolute(execPath) || !fs32.existsSync(execPath)) {
+  if (!path34.isAbsolute(execPath) || !fs33.existsSync(execPath)) {
     throw new Error("Maker self launcher requires an existing absolute Node executable.");
   }
   const sourceBundle = fileURLToPath3(options2.bundleUrl);
-  const sourceRoot = path33.dirname(path33.dirname(sourceBundle));
-  const runtimeRoot = path33.join(path33.resolve(options2.makerHome), "mcp-runtime", options2.version);
+  const sourceRoot = path34.dirname(path34.dirname(sourceBundle));
+  const runtimeRoot = path34.join(path34.resolve(options2.makerHome), "mcp-runtime", options2.version);
   for (const relativePath of [...SELF_RUNTIME_FILES, ...SELF_RUNTIME_DIRECTORIES]) {
-    const sourcePath = path33.join(sourceRoot, relativePath);
-    if (!fs32.existsSync(sourcePath)) {
+    const sourcePath = path34.join(sourceRoot, relativePath);
+    if (!fs33.existsSync(sourcePath)) {
       throw new Error(`Maker self runtime source is incomplete: ${sourcePath}`);
     }
   }
-  if (path33.resolve(sourceRoot) !== path33.resolve(runtimeRoot)) {
+  if (path34.resolve(sourceRoot) !== path34.resolve(runtimeRoot)) {
     for (const relativePath of SELF_RUNTIME_FILES) {
-      const sourcePath = path33.join(sourceRoot, relativePath);
-      const targetPath = path33.join(runtimeRoot, relativePath);
-      fs32.mkdirSync(path33.dirname(targetPath), { recursive: true });
-      fs32.copyFileSync(sourcePath, targetPath);
+      const sourcePath = path34.join(sourceRoot, relativePath);
+      const targetPath = path34.join(runtimeRoot, relativePath);
+      fs33.mkdirSync(path34.dirname(targetPath), { recursive: true });
+      fs33.copyFileSync(sourcePath, targetPath);
     }
     for (const relativePath of SELF_RUNTIME_DIRECTORIES) {
       copySelfRuntimeDirectory(
-        path33.join(sourceRoot, relativePath),
-        path33.join(runtimeRoot, relativePath)
+        path34.join(sourceRoot, relativePath),
+        path34.join(runtimeRoot, relativePath)
       );
     }
   }
-  const stableBundle = path33.join(runtimeRoot, "dist", "maker.js");
+  const stableBundle = path34.join(runtimeRoot, "dist", "maker.js");
   return {
     kind: "self_runtime",
     command: execPath,
@@ -55392,7 +56349,7 @@ function materializeMakerSelfLauncher(options2) {
 }
 function copySelfRuntimeDirectory(sourcePath, targetPath) {
   try {
-    fs32.cpSync(sourcePath, targetPath, { recursive: true });
+    fs33.cpSync(sourcePath, targetPath, { recursive: true });
   } catch (error2) {
     const code = typeof error2 === "object" && error2 !== null && "code" in error2 ? String(error2.code) : void 0;
     if (!code || !SELF_RUNTIME_COPY_FALLBACK_CODES.has(code)) {
@@ -55402,14 +56359,14 @@ function copySelfRuntimeDirectory(sourcePath, targetPath) {
   }
 }
 function copyDirectoryEntries(sourcePath, targetPath) {
-  fs32.mkdirSync(targetPath, { recursive: true });
-  for (const entry of fs32.readdirSync(sourcePath, { withFileTypes: true })) {
-    const sourceEntry = path33.join(sourcePath, entry.name);
-    const targetEntry = path33.join(targetPath, entry.name);
+  fs33.mkdirSync(targetPath, { recursive: true });
+  for (const entry of fs33.readdirSync(sourcePath, { withFileTypes: true })) {
+    const sourceEntry = path34.join(sourcePath, entry.name);
+    const targetEntry = path34.join(targetPath, entry.name);
     if (entry.isDirectory()) {
       copyDirectoryEntries(sourceEntry, targetEntry);
     } else {
-      fs32.copyFileSync(sourceEntry, targetEntry);
+      fs33.copyFileSync(sourceEntry, targetEntry);
     }
   }
 }
@@ -55424,10 +56381,10 @@ function resolveMakerMcpLauncher(options2) {
       commandAndArgs: ["npx", ...args]
     };
   }
-  const existsSync2 = options2.existsSync ?? fs32.existsSync;
+  const existsSync2 = options2.existsSync ?? fs33.existsSync;
   const execPath = options2.execPath ?? process.execPath;
   const npmExecPath = options2.npmExecPath ?? process.env.npm_execpath;
-  const windowsPath = path33.win32;
+  const windowsPath = path34.win32;
   const npmCliCandidates = uniqueStrings([
     npmExecPath,
     windowsPath.join(windowsPath.dirname(execPath), "node_modules", "npm", "bin", "npm-cli.js")
@@ -55578,16 +56535,16 @@ init_diagnosticRedaction();
 init_identify();
 init_pluginDistribution();
 import { spawnSync as spawnSync7 } from "node:child_process";
-import fs34 from "node:fs";
-import os5 from "node:os";
-import path35 from "node:path";
+import fs35 from "node:fs";
+import os6 from "node:os";
+import path36 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // src/maker/cli/dshMcpConfig.ts
 var import_yaml = __toESM(require_dist2());
-import fs33 from "node:fs";
-import os4 from "node:os";
-import path34 from "node:path";
+import fs34 from "node:fs";
+import os5 from "node:os";
+import path35 from "node:path";
 var DSH_MCP_PLUGIN_NAME = "@deepseek-ai/dsh-mcp-client";
 var DSH_MAKER_PLUGIN_ID = "mcp-taptap-maker";
 var DSH_MAKER_TOOL_CALL_TIMEOUT_MS = 60 * 60 * 1e3;
@@ -55595,10 +56552,10 @@ function getDshHome(options2 = {}) {
   var _a3;
   const configured = (_a3 = (options2.environment || process.env).DSH_HOME) == null ? void 0 : _a3.trim();
   if (configured) {
-    const expanded = configured === "~" ? options2.homeDir || os4.homedir() : configured.startsWith("~/") || configured.startsWith("~\\") ? path34.join(options2.homeDir || os4.homedir(), configured.slice(2)) : configured;
-    return path34.resolve(expanded);
+    const expanded = configured === "~" ? options2.homeDir || os5.homedir() : configured.startsWith("~/") || configured.startsWith("~\\") ? path35.join(options2.homeDir || os5.homedir(), configured.slice(2)) : configured;
+    return path35.resolve(expanded);
   }
-  return path34.join(options2.homeDir || os4.homedir(), ".dsh");
+  return path35.join(options2.homeDir || os5.homedir(), ".dsh");
 }
 function createDshMakerPluginConfig(options2) {
   return {
@@ -55616,8 +56573,8 @@ function createDshMakerPluginConfig(options2) {
   };
 }
 function mergeDshMakerMcpConfig(configPath, desired) {
-  const existed = fs33.existsSync(configPath);
-  const previousContent = existed ? fs33.readFileSync(configPath, "utf8") : "[]\n";
+  const existed = fs34.existsSync(configPath);
+  const previousContent = existed ? fs34.readFileSync(configPath, "utf8") : "[]\n";
   const document = parseDshDocument(previousContent, configPath);
   const sequence = ensurePluginSequence(document, configPath);
   const candidates = findDshMakerPluginCandidates(
@@ -55676,7 +56633,7 @@ function findDshMakerPluginEntry(content, mcpName, source = "DSH config") {
 }
 function getDshMcpInstallPaths(options2) {
   const dshHome = getDshHome(options2);
-  const homePatchPath = path34.join(dshHome, "cordis.patch.yml");
+  const homePatchPath = path35.join(dshHome, "cordis.patch.yml");
   const homeHasMaker = dshConfigFileHasMaker(homePatchPath, options2.mcpName);
   const profilePatchPaths = listDshProfilePatchPathsForInstall(dshHome).filter(
     (configPath) => dshConfigFileHasMaker(configPath, options2.mcpName)
@@ -55692,22 +56649,22 @@ function getDshMcpInstallPaths(options2) {
   return profilePatchPaths.length > 0 ? profilePatchPaths : [homePatchPath];
 }
 function listDshProfilePatchPathsForInstall(dshHome) {
-  const profilesDir = path34.join(dshHome, "profiles");
+  const profilesDir = path35.join(dshHome, "profiles");
   let entries;
   try {
-    entries = fs33.readdirSync(profilesDir, { withFileTypes: true });
+    entries = fs34.readdirSync(profilesDir, { withFileTypes: true });
   } catch (error2) {
     if (isMissingPathError(error2)) {
       return [];
     }
     throw error2;
   }
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().map((profileName) => path34.join(profilesDir, profileName, "cordis.patch.yml"));
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().map((profileName) => path35.join(profilesDir, profileName, "cordis.patch.yml"));
 }
 function dshConfigFileHasMaker(configPath, mcpName) {
   let content;
   try {
-    content = fs33.readFileSync(configPath, "utf8");
+    content = fs34.readFileSync(configPath, "utf8");
   } catch (error2) {
     if (isMissingPathError(error2)) {
       return false;
@@ -55720,21 +56677,21 @@ function isMissingPathError(error2) {
   return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === "ENOENT";
 }
 function listDshMcpConfigPaths(options2) {
-  const dshHome = options2.dshHome || path34.join(options2.homeDir, ".dsh");
-  const paths = [path34.join(dshHome, "cordis.patch.yml")];
-  const profilesDir = path34.join(dshHome, "profiles");
-  if (!fs33.existsSync(profilesDir)) {
+  const dshHome = options2.dshHome || path35.join(options2.homeDir, ".dsh");
+  const paths = [path35.join(dshHome, "cordis.patch.yml")];
+  const profilesDir = path35.join(dshHome, "profiles");
+  if (!fs34.existsSync(profilesDir)) {
     return paths;
   }
   let profileNames = [];
   try {
-    profileNames = fs33.readdirSync(profilesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().slice(0, 50);
+    profileNames = fs34.readdirSync(profilesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().slice(0, 50);
   } catch {
     return paths;
   }
   for (const profileName of profileNames) {
-    const profileDir = path34.join(profilesDir, profileName);
-    paths.push(path34.join(profileDir, "cordis.patch.yml"), path34.join(profileDir, "cordis.yml"));
+    const profileDir = path35.join(profilesDir, profileName);
+    paths.push(path35.join(profileDir, "cordis.patch.yml"), path35.join(profileDir, "cordis.yml"));
   }
   return paths;
 }
@@ -55786,14 +56743,14 @@ function findDshMakerPluginCandidates(patches, mcpName) {
 }
 function writeDshConfigWithBackup(configPath, previousContent, existed, nextContent, desired) {
   const backupPath = existed ? `${configPath}.taptap-maker.bak.latest` : void 0;
-  fs33.mkdirSync(path34.dirname(configPath), { recursive: true });
+  fs34.mkdirSync(path35.dirname(configPath), { recursive: true });
   if (backupPath) {
-    fs33.writeFileSync(backupPath, previousContent, "utf8");
+    fs34.writeFileSync(backupPath, previousContent, "utf8");
   }
   try {
-    fs33.writeFileSync(configPath, nextContent, "utf8");
+    fs34.writeFileSync(configPath, nextContent, "utf8");
     const written = findDshMakerPluginEntry(
-      fs33.readFileSync(configPath, "utf8"),
+      fs34.readFileSync(configPath, "utf8"),
       desired.config.serverName,
       configPath
     );
@@ -55805,9 +56762,9 @@ function writeDshConfigWithBackup(configPath, previousContent, existed, nextCont
     return { changed: true, backupPath };
   } catch (error2) {
     if (existed) {
-      fs33.writeFileSync(configPath, previousContent, "utf8");
+      fs34.writeFileSync(configPath, previousContent, "utf8");
     } else {
-      fs33.rmSync(configPath, { force: true });
+      fs34.rmSync(configPath, { force: true });
     }
     throw error2;
   }
@@ -55886,7 +56843,7 @@ function inspectMakerMcpClientConfig(options2) {
   if (!configPaths) {
     return { ide, status: "unsupported", entries: [] };
   }
-  const entries = configPaths.filter((configPath) => fs34.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, options2.mcpName || MAKER_MCP_NAME));
+  const entries = configPaths.filter((configPath) => fs35.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, options2.mcpName || MAKER_MCP_NAME));
   const status = entries.some((entry) => entry.status === "found") ? "found" : entries.some((entry) => entry.status === "unreadable") ? "unreadable" : entries.length > 0 ? "missing_entry" : "not_found";
   return { ide, status, entries };
 }
@@ -55900,15 +56857,15 @@ function resolveMakerMcpReportRuntime(options2) {
       `${pluginDistribution.displayName} plugin diagnostics require the active Maker bundle URL.`
     );
   }
-  const bundlePath = path35.resolve(fileURLToPath4(options2.bundleUrl));
-  const pluginRoot = path35.dirname(path35.dirname(bundlePath));
+  const bundlePath = path36.resolve(fileURLToPath4(options2.bundleUrl));
+  const pluginRoot = path36.dirname(path36.dirname(bundlePath));
   const execPath = options2.execPath ?? process.execPath;
   return {
     distribution: pluginDistribution.id,
     client: pluginDistribution.client,
     config_source: {
       format: "json",
-      paths: [path35.join(pluginRoot, ".mcp.json")],
+      paths: [path36.join(pluginRoot, ".mcp.json")],
       mcp_name: "taptap-maker-plugin"
     },
     launcher: {
@@ -55958,9 +56915,9 @@ function buildMakerMcpIssue(options2) {
 async function collectMakerMcpIssueDiagnostics(options2) {
   var _a3, _b;
   const platform = options2.platform || process.platform;
-  const homeDir = options2.homeDir || os5.homedir();
-  const processCwd = path35.resolve(options2.processCwd || process.cwd());
-  const targetDir = path35.resolve(options2.targetDir);
+  const homeDir = options2.homeDir || os6.homedir();
+  const processCwd = path36.resolve(options2.processCwd || process.cwd());
+  const targetDir = path36.resolve(options2.targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
   const projectContext = identify.projectRoot ? {
     status: "bound",
@@ -56040,29 +56997,29 @@ function submitMakerMcpIssue(issue3, options2 = {}) {
 function getMcpConfigPaths(options2) {
   const { ide, homeDir, platform } = options2;
   if (ide === "codex") {
-    return [path35.join(homeDir, ".codex", "config.toml")];
+    return [path36.join(homeDir, ".codex", "config.toml")];
   }
   if (ide === "cursor") {
-    return [path35.join(homeDir, ".cursor", "mcp.json")];
+    return [path36.join(homeDir, ".cursor", "mcp.json")];
   }
   if (ide === "claude") {
-    return [path35.join(homeDir, ".claude.json")];
+    return [path36.join(homeDir, ".claude.json")];
   }
   if (ide === "opencode") {
-    return [path35.join(homeDir, ".config", "opencode", "opencode.jsonc")];
+    return [path36.join(homeDir, ".config", "opencode", "opencode.jsonc")];
   }
   if (ide === "workbuddy") {
-    const primary = path35.join(homeDir, ".workbuddy", "mcp.json");
-    if (fs34.existsSync(primary)) {
+    const primary = path36.join(homeDir, ".workbuddy", "mcp.json");
+    if (fs35.existsSync(primary)) {
       return [primary];
     }
-    const legacy = path35.join(homeDir, ".workbuddy", ".mcp.json");
-    return fs34.existsSync(legacy) ? [legacy] : [primary];
+    const legacy = path36.join(homeDir, ".workbuddy", ".mcp.json");
+    return fs35.existsSync(legacy) ? [legacy] : [primary];
   }
   if (ide === "trae") {
-    const root = platform === "win32" ? options2.appData || path35.join(homeDir, "AppData", "Roaming") : path35.join(homeDir, "Library", "Application Support");
+    const root = platform === "win32" ? options2.appData || path36.join(homeDir, "AppData", "Roaming") : path36.join(homeDir, "Library", "Application Support");
     return ["TRAE SOLO", "TRAE SOLO CN", "Trae", "TRAE", "Trae CN"].map(
-      (name) => path35.join(root, name, "User", "mcp.json")
+      (name) => path36.join(root, name, "User", "mcp.json")
     );
   }
   if (ide === "dsh") {
@@ -56073,7 +57030,7 @@ function getMcpConfigPaths(options2) {
 function inspectMcpConfigFile(configPath, ide, mcpName, format) {
   try {
     const resolvedFormat = format ?? (ide === "codex" ? "codex_toml" : ide === "dsh" ? "dsh" : ide === "opencode" ? "jsonc" : "json");
-    const content = fs34.readFileSync(configPath, "utf8");
+    const content = fs35.readFileSync(configPath, "utf8");
     const server = resolvedFormat === "codex_toml" ? extractCodexMcpServerConfig(content, mcpName) : resolvedFormat === "dsh" ? extractDshMcpServerConfig(content, mcpName, configPath) : extractMakerMcpServerConfig(
       parseJsonConfig(content, resolvedFormat === "jsonc"),
       mcpName
@@ -56084,7 +57041,7 @@ function inspectMcpConfigFile(configPath, ide, mcpName, format) {
   }
 }
 function inspectMakerMcpConfigSource(ide, source) {
-  const entries = source.paths.filter((configPath) => fs34.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, source.mcp_name, source.format));
+  const entries = source.paths.filter((configPath) => fs35.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, source.mcp_name, source.format));
   const status = entries.some((entry) => entry.status === "found") ? "found" : entries.some((entry) => entry.status === "unreadable") ? "unreadable" : entries.length > 0 ? "missing_entry" : "not_found";
   return { ide, status, entries };
 }
@@ -56301,13 +57258,13 @@ function inspectWorkBuddyTrust(homeDir, mcpName) {
     pending_accounts: 0,
     unreadable_accounts: 0
   };
-  const connectorsDir = path35.join(homeDir, ".workbuddy", "connectors");
-  if (!fs34.existsSync(connectorsDir)) {
+  const connectorsDir = path36.join(homeDir, ".workbuddy", "connectors");
+  if (!fs35.existsSync(connectorsDir)) {
     return { status: "not_found", ...emptyCounts };
   }
   let entries;
   try {
-    entries = fs34.readdirSync(connectorsDir, { withFileTypes: true });
+    entries = fs35.readdirSync(connectorsDir, { withFileTypes: true });
   } catch {
     return { status: "unreadable", ...emptyCounts };
   }
@@ -56316,12 +57273,12 @@ function inspectWorkBuddyTrust(homeDir, mcpName) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const statePath = path35.join(connectorsDir, entry.name, "connector-states.json");
-    if (!fs34.existsSync(statePath)) {
+    const statePath = path36.join(connectorsDir, entry.name, "connector-states.json");
+    if (!fs35.existsSync(statePath)) {
       continue;
     }
     try {
-      const state = JSON.parse(fs34.readFileSync(statePath, "utf8"));
+      const state = JSON.parse(fs35.readFileSync(statePath, "utf8"));
       if (!isRecord4(state)) {
         counts.accounts_checked += 1;
         counts.unreadable_accounts += 1;
@@ -56516,9 +57473,9 @@ function stripControlCharacters(value) {
 
 // src/maker/cli/pluginMigration.ts
 init_storage();
-import fs36 from "node:fs";
-import os6 from "node:os";
-import path37 from "node:path";
+import fs37 from "node:fs";
+import os7 from "node:os";
+import path38 from "node:path";
 import crypto3 from "node:crypto";
 
 // src/maker/cli/codexMcpConfig.ts
@@ -56725,28 +57682,28 @@ function escapeRegExp3(value) {
 }
 
 // src/maker/cli/configWrite.ts
-import fs35 from "node:fs";
-import path36 from "node:path";
+import fs36 from "node:fs";
+import path37 from "node:path";
 function writeConfigWithTapTapBackupIfChanged(filePath, nextContent, validate) {
-  const existed = fs35.existsSync(filePath);
-  const previousContent = existed ? fs35.readFileSync(filePath, "utf8") : void 0;
+  const existed = fs36.existsSync(filePath);
+  const previousContent = existed ? fs36.readFileSync(filePath, "utf8") : void 0;
   if (previousContent === nextContent) {
     return { changed: false };
   }
   const backupPath = existed ? `${filePath}.taptap-maker.bak.latest` : void 0;
-  fs35.mkdirSync(path36.dirname(filePath), { recursive: true });
+  fs36.mkdirSync(path37.dirname(filePath), { recursive: true });
   if (previousContent !== void 0 && backupPath) {
-    fs35.writeFileSync(backupPath, previousContent, "utf8");
+    fs36.writeFileSync(backupPath, previousContent, "utf8");
   }
   try {
-    fs35.writeFileSync(filePath, nextContent, "utf8");
-    validate == null ? void 0 : validate(fs35.readFileSync(filePath, "utf8"));
+    fs36.writeFileSync(filePath, nextContent, "utf8");
+    validate == null ? void 0 : validate(fs36.readFileSync(filePath, "utf8"));
     return { changed: true, backupPath };
   } catch (error2) {
     if (previousContent !== void 0) {
-      fs35.writeFileSync(filePath, previousContent, "utf8");
+      fs36.writeFileSync(filePath, previousContent, "utf8");
     } else {
-      fs35.rmSync(filePath, { force: true });
+      fs36.rmSync(filePath, { force: true });
     }
     throw error2;
   }
@@ -56754,11 +57711,11 @@ function writeConfigWithTapTapBackupIfChanged(filePath, nextContent, validate) {
 
 // src/maker/cli/pluginMigration.ts
 function inspectCodexLegacyMakerMcp(options2 = {}) {
-  const configPath = options2.configPath ?? path37.join(os6.homedir(), ".codex", "config.toml");
-  if (!fs36.existsSync(configPath)) {
+  const configPath = options2.configPath ?? path38.join(os7.homedir(), ".codex", "config.toml");
+  if (!fs37.existsSync(configPath)) {
     return createInspection(configPath, "not_found", 0);
   }
-  const content = fs36.readFileSync(configPath, "utf8");
+  const content = fs37.readFileSync(configPath, "utf8");
   const registrations = findCodexMakerMainTables(content);
   if (registrations.length === 0) {
     return createInspection(configPath, "not_found", 0);
@@ -56773,7 +57730,7 @@ function inspectCodexLegacyMakerMcp(options2 = {}) {
   };
 }
 function migrateCodexLegacyMakerMcp(options2 = {}) {
-  const configPath = options2.configPath ?? path37.join(os6.homedir(), ".codex", "config.toml");
+  const configPath = options2.configPath ?? path38.join(os7.homedir(), ".codex", "config.toml");
   const makerHome = options2.makerHome ?? getMakerHome();
   const statePath = getCodexPluginMigrationStatePath(makerHome);
   const inspection = inspectCodexLegacyMakerMcp({ configPath });
@@ -56787,7 +57744,7 @@ function migrateCodexLegacyMakerMcp(options2 = {}) {
   }
   if (inspection.status === "disabled") {
     const state2 = readMigrationState(statePath);
-    const content = fs36.readFileSync(configPath, "utf8");
+    const content = fs37.readFileSync(configPath, "utf8");
     const registration2 = findCodexMakerMainTables(content)[0];
     const owned = (state2 == null ? void 0 : state2.config_path) === configPath && sha256(readCodexMakerRegistration(content, registration2)) === state2.migrated_registration_sha256;
     return {
@@ -56800,7 +57757,7 @@ function migrateCodexLegacyMakerMcp(options2 = {}) {
   if (!options2.confirm) {
     throw new Error("Disabling the legacy Codex Maker MCP requires explicit confirmation.");
   }
-  const previousContent = fs36.readFileSync(configPath, "utf8");
+  const previousContent = fs37.readFileSync(configPath, "utf8");
   const registration = findCodexMakerMainTables(previousContent)[0];
   const nextContent = disableCodexMakerRegistration(previousContent, registration);
   const state = {
@@ -56814,13 +57771,13 @@ function migrateCodexLegacyMakerMcp(options2 = {}) {
     ),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs36.mkdirSync(path37.dirname(statePath), { recursive: true });
+  fs37.mkdirSync(path38.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(configPath, nextContent, () => {
     const migratedInspection = inspectCodexLegacyMakerMcp({ configPath });
     if (migratedInspection.status !== "disabled") {
       throw new Error("Codex Maker MCP migration validation did not find a disabled registration.");
     }
-    fs36.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs37.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   return {
@@ -56832,7 +57789,7 @@ function migrateCodexLegacyMakerMcp(options2 = {}) {
   };
 }
 function restoreCodexLegacyMakerMcp(options2 = {}) {
-  const configPath = options2.configPath ?? path37.join(os6.homedir(), ".codex", "config.toml");
+  const configPath = options2.configPath ?? path38.join(os7.homedir(), ".codex", "config.toml");
   const makerHome = options2.makerHome ?? getMakerHome();
   const statePath = getCodexPluginMigrationStatePath(makerHome);
   const inspection = inspectCodexLegacyMakerMcp({ configPath });
@@ -56853,14 +57810,14 @@ function restoreCodexLegacyMakerMcp(options2 = {}) {
       "The migrated Codex Maker MCP registration no longer exists and cannot be restored."
     );
   }
-  const previousContent = fs36.readFileSync(configPath, "utf8");
+  const previousContent = fs37.readFileSync(configPath, "utf8");
   const registration = findCodexMakerMainTables(previousContent)[0];
   const registrationSha256 = sha256(readCodexMakerRegistration(previousContent, registration));
   if (inspection.status === "active") {
     if (registrationSha256 !== state.original_registration_sha256) {
       return { ...inspection, action: "not_owned", changed: false };
     }
-    fs36.unlinkSync(statePath);
+    fs37.unlinkSync(statePath);
     return { ...inspection, action: "already_restored", changed: false };
   }
   if (registrationSha256 !== state.migrated_registration_sha256) {
@@ -56874,12 +57831,12 @@ function restoreCodexLegacyMakerMcp(options2 = {}) {
         "Codex Maker MCP restoration validation did not find an active registration."
       );
     }
-    const restoredContent = fs36.readFileSync(configPath, "utf8");
+    const restoredContent = fs37.readFileSync(configPath, "utf8");
     const restoredRegistration = findCodexMakerMainTables(restoredContent)[0];
     if (sha256(readCodexMakerRegistration(restoredContent, restoredRegistration)) !== state.original_registration_sha256) {
       throw new Error("Codex Maker MCP restoration changed the migrated registration identity.");
     }
-    fs36.unlinkSync(statePath);
+    fs37.unlinkSync(statePath);
   });
   return {
     ...inspectCodexLegacyMakerMcp({ configPath }),
@@ -56942,14 +57899,14 @@ function readCodexMakerRegistration(content, registration) {
   return content.slice(registration.headerStart, registration.bodyEnd).trimEnd();
 }
 function getCodexPluginMigrationStatePath(makerHome) {
-  return path37.join(makerHome, "plugin-migrations", "codex.json");
+  return path38.join(makerHome, "plugin-migrations", "codex.json");
 }
 function readMigrationState(statePath) {
-  if (!fs36.existsSync(statePath)) {
+  if (!fs37.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs36.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs37.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 2 && state.client === "codex" ? state : void 0;
   } catch {
     return void 0;
@@ -57039,7 +57996,7 @@ function migrateWorkBuddyLegacyMakerMcp(options2 = {}) {
     migrated_registration_sha256: hashWorkBuddyRegistration(migratedRegistration),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs36.mkdirSync(path37.dirname(statePath), { recursive: true });
+  fs37.mkdirSync(path38.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(current.configPath, nextContent, () => {
     const migrated = findWorkBuddyMakerRegistrations(configPaths).find(
       (entry) => entry.configPath === current.configPath
@@ -57049,7 +58006,7 @@ function migrateWorkBuddyLegacyMakerMcp(options2 = {}) {
         "WorkBuddy Maker MCP migration validation did not find the disabled registration."
       );
     }
-    fs36.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs37.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   const migratedInspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
@@ -57103,7 +58060,7 @@ function restoreWorkBuddyLegacyMakerMcp(options2 = {}) {
         changed: false
       };
     }
-    fs36.unlinkSync(statePath);
+    fs37.unlinkSync(statePath);
     return {
       ...inspection,
       config_path: current.configPath,
@@ -57136,7 +58093,7 @@ function restoreWorkBuddyLegacyMakerMcp(options2 = {}) {
     if (!restored || hashWorkBuddyRegistration(restored.registration) !== state.original_registration_sha256) {
       throw new Error("WorkBuddy Maker MCP restoration changed the registration identity.");
     }
-    fs36.unlinkSync(statePath);
+    fs37.unlinkSync(statePath);
   });
   return {
     ...inspectWorkBuddyLegacyMakerMcp({ configPaths }),
@@ -57149,19 +58106,19 @@ function restoreWorkBuddyLegacyMakerMcp(options2 = {}) {
 }
 function getWorkBuddyConfigPaths(configPaths) {
   return configPaths ?? [
-    path37.join(os6.homedir(), ".workbuddy", "mcp.json"),
-    path37.join(os6.homedir(), ".workbuddy", ".mcp.json")
+    path38.join(os7.homedir(), ".workbuddy", "mcp.json"),
+    path38.join(os7.homedir(), ".workbuddy", ".mcp.json")
   ];
 }
 function findWorkBuddyMakerRegistrations(configPaths) {
   const registrations = [];
   for (const configPath of configPaths) {
-    if (!fs36.existsSync(configPath)) {
+    if (!fs37.existsSync(configPath)) {
       continue;
     }
     let config2;
     try {
-      config2 = JSON.parse(fs36.readFileSync(configPath, "utf8"));
+      config2 = JSON.parse(fs37.readFileSync(configPath, "utf8"));
     } catch (error2) {
       throw new Error(
         `Cannot parse WorkBuddy MCP config ${configPath}: ${error2 instanceof Error ? error2.message : String(error2)}`
@@ -57196,14 +58153,14 @@ function setWorkBuddyMakerRegistration(config2, registration) {
   servers["taptap-maker"] = registration;
 }
 function getWorkBuddyPluginMigrationStatePath(makerHome) {
-  return path37.join(makerHome, "plugin-migrations", "workbuddy.json");
+  return path38.join(makerHome, "plugin-migrations", "workbuddy.json");
 }
 function readWorkBuddyMigrationState(statePath) {
-  if (!fs36.existsSync(statePath)) {
+  if (!fs37.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs36.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs37.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 1 && state.client === "workbuddy" ? state : void 0;
   } catch {
     return void 0;
@@ -57228,9 +58185,9 @@ function isRecord5(value) {
 // src/maker/cli/dshPluginMigration.ts
 var import_yaml2 = __toESM(require_dist2());
 init_storage();
-import fs37 from "node:fs";
-import os7 from "node:os";
-import path38 from "node:path";
+import fs38 from "node:fs";
+import os8 from "node:os";
+import path39 from "node:path";
 import crypto4 from "node:crypto";
 var DSH_MAKER_MCP_NAME = "taptap-maker";
 function inspectDshLegacyMakerMcp(options2 = {}) {
@@ -57263,7 +58220,7 @@ function migrateDshLegacyMakerMcp(options2 = {}) {
     );
   }
   const registration = registrations[0];
-  const previousContent = fs37.readFileSync(registration.configPath, "utf8");
+  const previousContent = fs38.readFileSync(registration.configPath, "utf8");
   const document = (0, import_yaml2.parseDocument)(previousContent, { prettyErrors: true });
   if (document.errors.length > 0) {
     throw new Error(`Invalid YAML in ${registration.configPath}: ${document.errors[0].message}`);
@@ -57278,13 +58235,13 @@ function migrateDshLegacyMakerMcp(options2 = {}) {
     removed_registration_sha256: sha2562(JSON.stringify(registration.registration)),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs37.mkdirSync(path38.dirname(statePath), { recursive: true });
+  fs38.mkdirSync(path39.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(registration.configPath, nextContent, () => {
     const after = findDshMakerRegistrations(options2.dshHome);
     if (after.some((entry) => entry.configPath === registration.configPath)) {
       throw new Error("DSH Maker MCP migration validation still found a registration.");
     }
-    fs37.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs38.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   return {
@@ -57317,13 +58274,13 @@ function restoreDshLegacyMakerMcp(options2 = {}) {
     const current = findDshMakerRegistrations(options2.dshHome)[0];
     const currentSha = sha2562(JSON.stringify(current.registration));
     if (currentSha === state.removed_registration_sha256) {
-      fs37.rmSync(statePath, { force: true });
+      fs38.rmSync(statePath, { force: true });
       return { ...inspection, action: "already_restored", changed: false, state_path: statePath };
     }
     return { ...inspection, action: "not_owned", changed: false };
   }
   const configPath = state.config_path;
-  const previousContent = fs37.readFileSync(configPath, "utf8");
+  const previousContent = fs38.readFileSync(configPath, "utf8");
   const document = (0, import_yaml2.parseDocument)(previousContent, { prettyErrors: true });
   if (document.errors.length > 0) {
     throw new Error(`Invalid YAML in ${configPath}: ${document.errors[0].message}`);
@@ -57336,7 +58293,7 @@ function restoreDshLegacyMakerMcp(options2 = {}) {
     if (!match || sha2562(JSON.stringify(match.registration)) !== state.removed_registration_sha256) {
       throw new Error("DSH Maker MCP restoration changed the registration identity.");
     }
-    fs37.rmSync(statePath, { force: true });
+    fs38.rmSync(statePath, { force: true });
   });
   return {
     ...inspectDshLegacyMakerMcp(options2),
@@ -57348,13 +58305,13 @@ function restoreDshLegacyMakerMcp(options2 = {}) {
 }
 function findDshMakerRegistrations(dshHome) {
   const resolvedDshHome = dshHome || getDshHome();
-  const configPaths = listDshMcpConfigPaths({ homeDir: os7.homedir(), dshHome: resolvedDshHome });
+  const configPaths = listDshMcpConfigPaths({ homeDir: os8.homedir(), dshHome: resolvedDshHome });
   const registrations = [];
   for (const configPath of configPaths) {
-    if (!fs37.existsSync(configPath)) {
+    if (!fs38.existsSync(configPath)) {
       continue;
     }
-    const content = fs37.readFileSync(configPath, "utf8");
+    const content = fs38.readFileSync(configPath, "utf8");
     const document = (0, import_yaml2.parseDocument)(content, { prettyErrors: true });
     if (document.errors.length > 0) {
       throw new Error(`Invalid YAML in ${configPath}: ${document.errors[0].message}`);
@@ -57439,14 +58396,14 @@ function isDshMakerPluginCandidate(value) {
   return value.name === DSH_MCP_PLUGIN_NAME && (config2 == null ? void 0 : config2.serverName) === DSH_MAKER_MCP_NAME;
 }
 function getDshPluginMigrationStatePath(makerHome) {
-  return path38.join(makerHome, "plugin-migrations", "dsh.json");
+  return path39.join(makerHome, "plugin-migrations", "dsh.json");
 }
 function readDshMigrationState(statePath) {
-  if (!fs37.existsSync(statePath)) {
+  if (!fs38.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs37.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs38.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 1 && state.client === "dsh" ? state : void 0;
   } catch {
     return void 0;
@@ -57472,13 +58429,13 @@ function unique(values) {
 }
 
 // src/maker/cli/workBuddyProjectSkills.ts
-import fs38 from "node:fs";
-import path39 from "node:path";
+import fs39 from "node:fs";
+import path40 from "node:path";
 function syncWorkBuddyProjectSkills(targetDir, options2 = {}) {
   const platform = options2.platform ?? process.platform;
-  const projectDir = path39.resolve(targetDir);
-  const sourceDir = path39.join(projectDir, ".installer", "skills");
-  const workBuddySkillsDir = path39.join(projectDir, ".workbuddy", "skills");
+  const projectDir = path40.resolve(targetDir);
+  const sourceDir = path40.join(projectDir, ".installer", "skills");
+  const workBuddySkillsDir = path40.join(projectDir, ".workbuddy", "skills");
   const result = {
     status: "skipped",
     sourceDir,
@@ -57490,18 +58447,18 @@ function syncWorkBuddyProjectSkills(targetDir, options2 = {}) {
     result.reason = "source_not_found";
     return result;
   }
-  const sourceSkills = fs38.readdirSync(sourceDir, { withFileTypes: true }).filter(
-    (entry) => entry.isDirectory() && fs38.existsSync(path39.join(sourceDir, entry.name, "SKILL.md"))
+  const sourceSkills = fs39.readdirSync(sourceDir, { withFileTypes: true }).filter(
+    (entry) => entry.isDirectory() && fs39.existsSync(path40.join(sourceDir, entry.name, "SKILL.md"))
   ).map((entry) => entry.name).sort();
   for (const sourceSkillName of sourceSkills) {
     const workBuddySkillName = `taptap-maker-${sourceSkillName}`;
-    const workBuddySkillDir = path39.join(workBuddySkillsDir, workBuddySkillName);
+    const workBuddySkillDir = path40.join(workBuddySkillsDir, workBuddySkillName);
     if (pathEntryExists(workBuddySkillDir)) {
       result.skippedSkills.push(workBuddySkillName);
       continue;
     }
-    fs38.mkdirSync(workBuddySkillsDir, { recursive: true });
-    installSkillContents(path39.join(sourceDir, sourceSkillName), workBuddySkillDir, platform);
+    fs39.mkdirSync(workBuddySkillsDir, { recursive: true });
+    installSkillContents(path40.join(sourceDir, sourceSkillName), workBuddySkillDir, platform);
     result.installedSkills.push(workBuddySkillName);
   }
   if (result.installedSkills.length > 0) {
@@ -57510,29 +58467,29 @@ function syncWorkBuddyProjectSkills(targetDir, options2 = {}) {
   return result;
 }
 function installSkillContents(sourceDir, targetDir, platform) {
-  fs38.mkdirSync(targetDir);
+  fs39.mkdirSync(targetDir);
   try {
-    for (const entry of fs38.readdirSync(sourceDir)) {
-      linkOrCopyEntry(path39.join(sourceDir, entry), path39.join(targetDir, entry), platform);
+    for (const entry of fs39.readdirSync(sourceDir)) {
+      linkOrCopyEntry(path40.join(sourceDir, entry), path40.join(targetDir, entry), platform);
     }
   } catch (error2) {
-    fs38.rmSync(targetDir, { recursive: true, force: true });
+    fs39.rmSync(targetDir, { recursive: true, force: true });
     throw error2;
   }
 }
 function linkOrCopyEntry(source, target, platform) {
-  const stat = fs38.statSync(source);
+  const stat = fs39.statSync(source);
   if (platform === "win32" && stat.isFile()) {
-    fs38.copyFileSync(source, target);
+    fs39.copyFileSync(source, target);
     return;
   }
   try {
-    const linkTarget = platform === "win32" ? source : path39.relative(path39.dirname(target), source);
+    const linkTarget = platform === "win32" ? source : path40.relative(path40.dirname(target), source);
     const linkType = stat.isDirectory() ? platform === "win32" ? "junction" : "dir" : "file";
-    fs38.symlinkSync(linkTarget, target, linkType);
+    fs39.symlinkSync(linkTarget, target, linkType);
   } catch (error2) {
     try {
-      fs38.cpSync(source, target, { recursive: stat.isDirectory() });
+      fs39.cpSync(source, target, { recursive: stat.isDirectory() });
     } catch (copyError) {
       throw new Error(
         `Failed to install WorkBuddy project skill entry ${source}: ${formatError3(error2)}; copy fallback: ${formatError3(copyError)}`
@@ -57542,14 +58499,14 @@ function linkOrCopyEntry(source, target, platform) {
 }
 function isDirectory(value) {
   try {
-    return fs38.statSync(value).isDirectory();
+    return fs39.statSync(value).isDirectory();
   } catch {
     return false;
   }
 }
 function pathEntryExists(value) {
   try {
-    fs38.lstatSync(value);
+    fs39.lstatSync(value);
     return true;
   } catch {
     return false;
@@ -57565,9 +58522,9 @@ init_config();
 init_fetchTimeout();
 init_identify();
 init_storage();
-import fs39 from "node:fs";
-import os8 from "node:os";
-import path40 from "node:path";
+import fs40 from "node:fs";
+import os9 from "node:os";
+import path41 from "node:path";
 import { randomUUID as randomUUID9 } from "node:crypto";
 import { Readable, Transform } from "node:stream";
 import { pipeline as pipeline2 } from "node:stream/promises";
@@ -57577,7 +58534,7 @@ var MAX_ARCHIVE_ENTRIES = 1e3;
 var MAX_ARCHIVE_EXTRACTED_BYTES = 128 * 1024 * 1024;
 async function pullMakerUserSkills(options2 = {}) {
   var _a3, _b;
-  const requestedDir = path40.resolve(options2.targetDir || process.cwd());
+  const requestedDir = path41.resolve(options2.targetDir || process.cwd());
   const project = identifyMakerProject({ cwd: requestedDir });
   if (!project.projectRoot) {
     throw new Error(
@@ -57589,10 +58546,10 @@ async function pullMakerUserSkills(options2 = {}) {
   if (!token) {
     throw new Error("Maker authentication not found. Run `taptap-maker login` and try again.");
   }
-  const sourceDir = path40.join(project.projectRoot, ".installer", "skills");
-  const tempDir = fs39.mkdtempSync(path40.join(os8.tmpdir(), "taptap-maker-user-skills-"));
-  const archivePath = path40.join(tempDir, "user-skills.zip");
-  const stagingDir = path40.join(tempDir, "skills");
+  const sourceDir = path41.join(project.projectRoot, ".installer", "skills");
+  const tempDir = fs40.mkdtempSync(path41.join(os9.tmpdir(), "taptap-maker-user-skills-"));
+  const archivePath = path41.join(tempDir, "user-skills.zip");
+  const stagingDir = path41.join(tempDir, "skills");
   try {
     const response = await fetchWithTimeout(
       options2.fetchImpl || fetch,
@@ -57624,7 +58581,7 @@ async function pullMakerUserSkills(options2 = {}) {
       preservedSkills
     };
   } finally {
-    fs39.rmSync(tempDir, { recursive: true, force: true });
+    fs40.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 async function writeArchiveResponse(response, archivePath) {
@@ -57649,7 +58606,7 @@ async function writeArchiveResponse(response, archivePath) {
   await pipeline2(
     Readable.fromWeb(response.body),
     limit,
-    fs39.createWriteStream(archivePath, { flags: "wx" })
+    fs40.createWriteStream(archivePath, { flags: "wx" })
   );
 }
 function validateUserSkillArchivePath(entryPath) {
@@ -57664,7 +58621,7 @@ function validateUserSkillArchivePath(entryPath) {
   return segments;
 }
 async function extractUserSkillsArchive(archivePath, stagingDir) {
-  fs39.mkdirSync(stagingDir, { recursive: true });
+  fs40.mkdirSync(stagingDir, { recursive: true });
   const zipFile = await import_yauzl.default.openPromise(archivePath, {
     lazyEntries: true,
     decodeStrings: true,
@@ -57684,7 +58641,7 @@ async function extractUserSkillsArchive(archivePath, stagingDir) {
         );
       }
       const segments = validateUserSkillArchivePath(entry.fileName);
-      if (segments.some((segment) => path40.basename(segment).startsWith(".nfs"))) {
+      if (segments.some((segment) => path41.basename(segment).startsWith(".nfs"))) {
         continue;
       }
       const isDirectory2 = isZipDirectory(entry);
@@ -57706,24 +58663,24 @@ async function extractUserSkillsArchive(archivePath, stagingDir) {
       }
       seenPaths.add(collisionKey);
       skillNames.add(segments[0]);
-      const destination = path40.join(stagingDir, ...segments);
+      const destination = path41.join(stagingDir, ...segments);
       if (isDirectory2) {
-        fs39.mkdirSync(destination, { recursive: true });
+        fs40.mkdirSync(destination, { recursive: true });
         continue;
       }
-      fs39.mkdirSync(path40.dirname(destination), { recursive: true });
+      fs40.mkdirSync(path41.dirname(destination), { recursive: true });
       const input2 = await zipFile.openReadStreamPromise(entry);
-      await pipeline2(input2, fs39.createWriteStream(destination, { flags: "wx" }));
+      await pipeline2(input2, fs40.createWriteStream(destination, { flags: "wx" }));
     }
   } finally {
     zipFile.close();
   }
   const installedSkills = [...skillNames].sort();
   for (const skillName of installedSkills) {
-    const definitionPath = path40.join(stagingDir, skillName, "SKILL.md");
+    const definitionPath = path41.join(stagingDir, skillName, "SKILL.md");
     let definition;
     try {
-      definition = fs39.lstatSync(definitionPath);
+      definition = fs40.lstatSync(definitionPath);
     } catch {
       throw new Error(`Maker user Skill "${skillName}" is missing SKILL.md.`);
     }
@@ -57757,31 +58714,31 @@ function installUserSkills(projectRoot, stagingDir, skillNames) {
   if (skillNames.length === 0) {
     return;
   }
-  const installerDir = path40.join(projectRoot, ".installer");
-  const sourceDir = path40.join(installerDir, "skills");
-  const transactionDir = path40.join(installerDir, `.user-skills-${randomUUID9()}`);
-  const preparedDir = path40.join(transactionDir, "prepared");
-  const backupDir = path40.join(transactionDir, "backup");
+  const installerDir = path41.join(projectRoot, ".installer");
+  const sourceDir = path41.join(installerDir, "skills");
+  const transactionDir = path41.join(installerDir, `.user-skills-${randomUUID9()}`);
+  const preparedDir = path41.join(transactionDir, "prepared");
+  const backupDir = path41.join(transactionDir, "backup");
   const completed = [];
   let preserveTransaction = false;
-  fs39.mkdirSync(preparedDir, { recursive: true });
-  fs39.mkdirSync(sourceDir, { recursive: true });
+  fs40.mkdirSync(preparedDir, { recursive: true });
+  fs40.mkdirSync(sourceDir, { recursive: true });
   try {
     for (const skillName of skillNames) {
-      fs39.cpSync(path40.join(stagingDir, skillName), path40.join(preparedDir, skillName), {
+      fs40.cpSync(path41.join(stagingDir, skillName), path41.join(preparedDir, skillName), {
         recursive: true
       });
     }
     for (const skillName of skillNames) {
-      const target = path40.join(sourceDir, skillName);
-      const backup = path40.join(backupDir, skillName);
+      const target = path41.join(sourceDir, skillName);
+      const backup = path41.join(backupDir, skillName);
       const hadExisting = pathExists(target);
       if (hadExisting) {
-        fs39.mkdirSync(path40.dirname(backup), { recursive: true });
-        fs39.renameSync(target, backup);
+        fs40.mkdirSync(path41.dirname(backup), { recursive: true });
+        fs40.renameSync(target, backup);
       }
       completed.push({ target, backup, hadExisting });
-      fs39.renameSync(path40.join(preparedDir, skillName), target);
+      fs40.renameSync(path41.join(preparedDir, skillName), target);
     }
     installUserSkillsForClients(projectRoot, skillNames);
   } catch (error2) {
@@ -57795,7 +58752,7 @@ function installUserSkills(projectRoot, stagingDir, skillNames) {
     throw new Error(`Failed to install Maker user Skills: ${formatError4(error2)}`);
   } finally {
     if (!preserveTransaction) {
-      fs39.rmSync(transactionDir, { recursive: true, force: true });
+      fs40.rmSync(transactionDir, { recursive: true, force: true });
     }
   }
 }
@@ -57803,27 +58760,27 @@ function installUserSkillsForClients(projectRoot, skillNames) {
   if (skillNames.length === 0) {
     return;
   }
-  const sourceRoot = path40.join(projectRoot, ".installer", "skills");
-  const transactionDir = path40.join(
+  const sourceRoot = path41.join(projectRoot, ".installer", "skills");
+  const transactionDir = path41.join(
     projectRoot,
     ".installer",
     `.user-skill-clients-${randomUUID9()}`
   );
-  const backupRoot = path40.join(transactionDir, "backup");
+  const backupRoot = path41.join(transactionDir, "backup");
   const changed = [];
   let preserveTransaction = false;
   try {
     for (const clientDir of USER_SKILL_CLIENT_DIRS) {
-      const targetRoot = path40.join(projectRoot, clientDir, "skills");
-      fs39.mkdirSync(targetRoot, { recursive: true });
+      const targetRoot = path41.join(projectRoot, clientDir, "skills");
+      fs40.mkdirSync(targetRoot, { recursive: true });
       for (const skillName of skillNames) {
-        const source = path40.join(sourceRoot, skillName);
-        const target = path40.join(targetRoot, skillName);
-        const backup = path40.join(backupRoot, clientDir, skillName);
+        const source = path41.join(sourceRoot, skillName);
+        const target = path41.join(targetRoot, skillName);
+        const backup = path41.join(backupRoot, clientDir, skillName);
         const hadExisting = pathExists(target);
         if (hadExisting) {
-          fs39.mkdirSync(path40.dirname(backup), { recursive: true });
-          fs39.renameSync(target, backup);
+          fs40.mkdirSync(path41.dirname(backup), { recursive: true });
+          fs40.renameSync(target, backup);
         }
         changed.push({ target, backup, hadExisting });
         linkOrCopySkill(source, target);
@@ -57840,7 +58797,7 @@ function installUserSkillsForClients(projectRoot, skillNames) {
     throw new Error(`Failed to install Maker user Skills for AI clients: ${formatError4(error2)}`);
   } finally {
     if (!preserveTransaction) {
-      fs39.rmSync(transactionDir, { recursive: true, force: true });
+      fs40.rmSync(transactionDir, { recursive: true, force: true });
     }
   }
 }
@@ -57851,7 +58808,7 @@ function rollbackSkillChanges(changes) {
     try {
       removePathEntry(item.target);
       if (item.hadExisting && pathExists(item.backup)) {
-        fs39.renameSync(item.backup, item.target);
+        fs40.renameSync(item.backup, item.target);
       }
     } catch (error2) {
       errors.push(`${item.target}: ${formatError4(error2)}`);
@@ -57861,12 +58818,12 @@ function rollbackSkillChanges(changes) {
 }
 function linkOrCopySkill(source, target) {
   try {
-    const linkTarget = process.platform === "win32" ? source : path40.relative(path40.dirname(target), source);
-    fs39.symlinkSync(linkTarget, target, process.platform === "win32" ? "junction" : "dir");
+    const linkTarget = process.platform === "win32" ? source : path41.relative(path41.dirname(target), source);
+    fs40.symlinkSync(linkTarget, target, process.platform === "win32" ? "junction" : "dir");
   } catch (linkError) {
     removePathEntry(target);
     try {
-      fs39.cpSync(source, target, { recursive: true });
+      fs40.cpSync(source, target, { recursive: true });
     } catch (copyError) {
       throw new Error(
         `Failed to link ${source}: ${formatError4(linkError)}; copy fallback: ${formatError4(copyError)}`
@@ -57876,12 +58833,12 @@ function linkOrCopySkill(source, target) {
 }
 function removePathEntry(value) {
   try {
-    const stat = fs39.lstatSync(value);
+    const stat = fs40.lstatSync(value);
     if (stat.isSymbolicLink()) {
-      fs39.unlinkSync(value);
+      fs40.unlinkSync(value);
       return;
     }
-    fs39.rmSync(value, { recursive: true, force: true });
+    fs40.rmSync(value, { recursive: true, force: true });
   } catch (error2) {
     if (error2.code !== "ENOENT") {
       throw error2;
@@ -57890,7 +58847,7 @@ function removePathEntry(value) {
 }
 function listLocalSkills(sourceDir) {
   try {
-    return fs39.readdirSync(sourceDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    return fs40.readdirSync(sourceDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
   } catch {
     return [];
   }
@@ -57906,7 +58863,7 @@ function createDownloadError(status) {
 }
 function pathExists(value) {
   try {
-    fs39.lstatSync(value);
+    fs40.lstatSync(value);
     return true;
   } catch {
     return false;
@@ -58149,7 +59106,7 @@ function toOptionKey(value) {
 }
 async function runInit(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path41.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path42.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const skipConfirm = booleanOption(parsed, "skip_confirm");
   const skipMcpInstall = booleanOption(parsed, "skip_mcp_install");
@@ -58266,7 +59223,7 @@ async function runInit(parsed, ctx) {
 }
 async function runDoctor(parsed, ctx) {
   var _a3, _b;
-  const targetDir = path41.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path42.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const git2 = checkGitEnvironment();
   const python = checkMakerPythonEnvironment();
@@ -58357,8 +59314,8 @@ async function runDoctor(parsed, ctx) {
   );
 }
 function inspectMakerDoctorExecutionContext(options2) {
-  const doctorCwd = path41.resolve(process.cwd());
-  const makerProjectDir = options2.makerProjectDir ? path41.resolve(options2.makerProjectDir) : void 0;
+  const doctorCwd = path42.resolve(process.cwd());
+  const makerProjectDir = options2.makerProjectDir ? path42.resolve(options2.makerProjectDir) : void 0;
   if (!makerProjectDir) {
     return {
       active_client_session: "not_checked",
@@ -58393,9 +59350,9 @@ function samePath2(left, right) {
   return normalizePathForCompare3(left) === normalizePathForCompare3(right);
 }
 function normalizePathForCompare3(value) {
-  const resolved = path41.resolve(value);
+  const resolved = path42.resolve(value);
   try {
-    return fs40.realpathSync.native(resolved);
+    return fs41.realpathSync.native(resolved);
   } catch {
     return resolved;
   }
@@ -58713,7 +59670,7 @@ async function runPatSet(parsed, ctx) {
 }
 async function resolvePatSet(parsed, ctx) {
   if (booleanOption(parsed, "pat_stdin") || booleanOption(parsed, "pat_from_stdin")) {
-    const pat = fs40.readFileSync(0, "utf8").trim();
+    const pat = fs41.readFileSync(0, "utf8").trim();
     if (!pat) {
       throw new Error("No PAT found on stdin.");
     }
@@ -58768,17 +59725,17 @@ async function prepareMcpLauncher(options2) {
     if (options2.mode === "self") {
       launcher = materializeMakerSelfLauncher({
         version: VERSION3,
-        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL(path41.resolve(process.cwd(), "dist", "maker.js")).href,
+        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL2(path42.resolve(process.cwd(), "dist", "maker.js")).href,
         makerHome: getMakerHome()
       });
     } else {
       const packageSpec = resolveMakerPackageSpec(MAKER_NPM_PACKAGE, VERSION3);
       launcher = resolveMakerMcpLauncher({ packageName: packageSpec });
       const configuredCache = process.env.npm_config_cache || process.env.NPM_CONFIG_CACHE;
-      const npmCacheDir = path41.resolve(
-        configuredCache || path41.join(getMakerHome(), "cache", "npm")
+      const npmCacheDir = path42.resolve(
+        configuredCache || path42.join(getMakerHome(), "cache", "npm")
       );
-      fs40.mkdirSync(npmCacheDir, { recursive: true });
+      fs41.mkdirSync(npmCacheDir, { recursive: true });
       launcherEnv = { npm_config_cache: npmCacheDir };
     }
   } catch (error2) {
@@ -58911,7 +59868,7 @@ ${indent3(payload.stderr)}` : "",
 }
 async function runMcpReport(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path41.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path42.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const contextInput = booleanOption(parsed, "context_stdin") ? await readStdinText() : "";
   const context = parseMakerMcpReportContext(contextInput);
   const contextValidation = validateMakerMcpReportContext(context);
@@ -58985,7 +59942,7 @@ async function runMcpReport(parsed, ctx) {
   const issue3 = buildMakerMcpIssue({
     context,
     diagnostics,
-    homeDir: os9.homedir()
+    homeDir: os10.homedir()
   });
   const submission = booleanOption(parsed, "consent") ? submitMakerMcpIssue(issue3) : {
     status: "consent_required",
@@ -59012,7 +59969,7 @@ async function runMcpReport(parsed, ctx) {
   );
 }
 async function runAgentsUpdate(parsed, ctx) {
-  const targetDir = path41.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path42.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = updateMakerAgentsPolicy(targetDir);
   if (ctx.json) {
     writeJson(result);
@@ -59031,7 +59988,7 @@ async function runAgentsUpdate(parsed, ctx) {
 async function runUpgrade(parsed, ctx) {
   rejectPackageOption(parsed);
   const explicitTargetDir = stringOption(parsed, "target_dir");
-  const targetDir = path41.resolve(explicitTargetDir || process.cwd());
+  const targetDir = path42.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, "ide") || stringOption(parsed, "ides") || "");
   const pluginDistribution = resolveMakerPluginDistribution();
@@ -59120,7 +60077,7 @@ function getMcpVerifyNextSteps(mode, commandText) {
   ];
 }
 async function runDevKitUpdate(parsed, ctx) {
-  const targetDir = path41.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path42.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = await installAiDevKit({
     targetDir,
     preserveExisting: false,
@@ -59134,7 +60091,7 @@ async function runDevKitUpdate(parsed, ctx) {
 }
 async function runUserSkillsPull(parsed, ctx) {
   const result = await pullMakerUserSkills({
-    targetDir: path41.resolve(stringOption(parsed, "target_dir") || process.cwd()),
+    targetDir: path42.resolve(stringOption(parsed, "target_dir") || process.cwd()),
     environment: makerEnvOption(parsed)
   });
   if (ctx.json) {
@@ -59153,7 +60110,7 @@ async function runUserSkillsPull(parsed, ctx) {
   );
 }
 async function runLogsWatch(parsed, ctx) {
-  const targetDir = path41.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path42.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const intervalMs = parseDurationMs(stringOption(parsed, "interval") || "5s");
   const timeoutMs = numberOption(parsed, "timeout_ms") ?? MAKER_TOOL_CALL_TIMEOUT_MS;
   const maxPolls = numberOption(parsed, "max_polls");
@@ -59163,9 +60120,9 @@ async function runLogsWatch(parsed, ctx) {
     serverUrl: stringOption(parsed, "server_url"),
     env: makerEnvOption(parsed)
   });
-  const runtimeDir = path41.join(proxy.projectRoot, ".maker", "logs", "runtime");
-  const runtimeLog = path41.join(runtimeDir, "runtime.log");
-  const pidFile = path41.join(runtimeDir, "watcher.pid");
+  const runtimeDir = path42.join(proxy.projectRoot, ".maker", "logs", "runtime");
+  const runtimeLog = path42.join(runtimeDir, "runtime.log");
+  const pidFile = path42.join(runtimeDir, "watcher.pid");
   const replacedWatcher = registerRuntimeLogWatcherProcess(pidFile);
   const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
   emit(ctx, "logs_watch_start", "Maker runtime log watcher started", {
@@ -59210,10 +60167,10 @@ async function runLogsWatch(parsed, ctx) {
   }
 }
 function registerRuntimeLogWatcherProcess(pidFile) {
-  fs40.mkdirSync(path41.dirname(pidFile), { recursive: true });
+  fs41.mkdirSync(path42.dirname(pidFile), { recursive: true });
   const existingPid = readPidFile(pidFile);
   const previous = existingPid && existingPid !== process.pid ? stopExistingRuntimeLogWatcher(pidFile) : {};
-  fs40.writeFileSync(
+  fs41.writeFileSync(
     pidFile,
     `${JSON.stringify(
       {
@@ -59231,10 +60188,10 @@ function registerRuntimeLogWatcherProcess(pidFile) {
   return previous;
 }
 function readPidFile(pidFile) {
-  if (!fs40.existsSync(pidFile)) {
+  if (!fs41.existsSync(pidFile)) {
     return void 0;
   }
-  const raw = fs40.readFileSync(pidFile, "utf8").trim();
+  const raw = fs41.readFileSync(pidFile, "utf8").trim();
   let pid = Number(raw);
   if (!Number.isInteger(pid) || pid <= 0) {
     try {
@@ -59254,7 +60211,7 @@ function installRuntimeLogWatcherPidCleanup(pidFile) {
     }
     cleaned = true;
     if (readPidFile(pidFile) === process.pid) {
-      fs40.rmSync(pidFile, { force: true });
+      fs41.rmSync(pidFile, { force: true });
     }
   };
   process.once("exit", cleanup);
@@ -59405,7 +60362,7 @@ async function prepareDevKit(targetDir, ctx, options2 = {}) {
         onStart: (event) => emitSkillInstallerStart(ctx, event)
       });
       writeDevKitStagedGitignore(
-        path41.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path42.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
       syncWorkBuddyDevKitSkills(targetDir, ctx);
@@ -59423,7 +60380,7 @@ async function prepareDevKit(targetDir, ctx, options2 = {}) {
       );
     } catch (error2) {
       writeDevKitStagedGitignore(
-        path41.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path42.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
       if (options2.finalizeGitignore) {
@@ -59470,10 +60427,10 @@ function syncWorkBuddyDevKitSkills(targetDir, ctx) {
   try {
     const result = syncWorkBuddyProjectSkills(targetDir);
     const managedSkillPaths = [...result.installedSkills, ...result.skippedSkills].map(
-      (skillName) => path41.join(".workbuddy", "skills", skillName)
+      (skillName) => path42.join(".workbuddy", "skills", skillName)
     );
     if (managedSkillPaths.length > 0) {
-      writeDevKitStagedGitignore(path41.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
+      writeDevKitStagedGitignore(path42.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
         ...listPresentDevKitManagedEntries(targetDir),
         ...managedSkillPaths
       ]);
@@ -59550,12 +60507,12 @@ function installMcpConfig(ide, options2) {
 }
 function installMcpConfigUnsafe(ide, options2) {
   if (ide === "codex") {
-    const configPath = path41.join(os9.homedir(), ".codex", "config.toml");
+    const configPath = path42.join(os10.homedir(), ".codex", "config.toml");
     const write = mergeCodexMcpConfig(configPath, withClientIde(options2, "codex"));
     return [createMcpInstallResult(ide, "Codex", configPath, write)];
   }
   if (ide === "cursor") {
-    const configPath = path41.join(os9.homedir(), ".cursor", "mcp.json");
+    const configPath = path42.join(os10.homedir(), ".cursor", "mcp.json");
     const write = mergeJsonMcpConfig(configPath, withClientIde(options2, "cursor"));
     return [createMcpInstallResult(ide, "Cursor", configPath, write)];
   }
@@ -59572,7 +60529,7 @@ function installMcpConfigUnsafe(ide, options2) {
         }
       ];
     }
-    const configPath = path41.join(os9.homedir(), ".claude.json");
+    const configPath = path42.join(os10.homedir(), ".claude.json");
     const write = mergeJsonMcpConfig(configPath, claudeOptions);
     return [createMcpInstallResult(ide, "Claude fallback", configPath, write)];
   }
@@ -59586,7 +60543,7 @@ function installMcpConfigUnsafe(ide, options2) {
   }
   if (ide === "opencode") {
     const configPath = getOpenCodeMcpConfigPath();
-    if (!fs40.existsSync(configPath)) {
+    if (!fs41.existsSync(configPath)) {
       return [{ ide, ok: false, message: "Skipped OpenCode: no supported config file found" }];
     }
     const write = mergeOpenCodeMcpConfig(configPath, withClientIde(options2, "opencode"));
@@ -59669,13 +60626,13 @@ function getDefaultMcpInstallIdes() {
   if (getTraeMcpInstallPaths().length > 0) {
     ides.push("trae");
   }
-  if (fs40.existsSync(getOpenCodeMcpConfigPath())) {
+  if (fs41.existsSync(getOpenCodeMcpConfigPath())) {
     ides.push("opencode");
   }
   if (getWorkBuddyMcpInstallPaths().length > 0) {
     ides.push("workbuddy");
   }
-  if (fs40.existsSync(getDshHome())) {
+  if (fs41.existsSync(getDshHome())) {
     ides.push("dsh");
   }
   return ides;
@@ -59689,7 +60646,7 @@ function getExistingTraeUserConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs40.existsSync(path41.dirname(configPath))) {
+    if (seen.has(key) || !fs41.existsSync(path42.dirname(configPath))) {
       return false;
     }
     seen.add(key);
@@ -59700,7 +60657,7 @@ function getExistingConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs40.existsSync(configPath)) {
+    if (seen.has(key) || !fs41.existsSync(configPath)) {
       return false;
     }
     seen.add(key);
@@ -59708,62 +60665,62 @@ function getExistingConfigPaths(paths) {
   });
 }
 function normalizeConfigPathKey(configPath) {
-  const resolved = path41.resolve(configPath);
+  const resolved = path42.resolve(configPath);
   return process.platform === "win32" || process.platform === "darwin" ? resolved.toLowerCase() : resolved;
 }
 function getTraeSoloMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path41.join(os9.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path42.join(os10.homedir(), "AppData", "Roaming");
     return [
-      path41.join(roaming, "TRAE SOLO", "User", "mcp.json"),
-      path41.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
+      path42.join(roaming, "TRAE SOLO", "User", "mcp.json"),
+      path42.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path41.join(os9.homedir(), "Library", "Application Support");
+  const appSupport = path42.join(os10.homedir(), "Library", "Application Support");
   return [
-    path41.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
-    path41.join(appSupport, "TRAE SOLO", "User", "mcp.json")
+    path42.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
+    path42.join(appSupport, "TRAE SOLO", "User", "mcp.json")
   ];
 }
 function getTraeUnverifiedMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path41.join(os9.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path42.join(os10.homedir(), "AppData", "Roaming");
     return [
-      path41.join(roaming, "Trae", "User", "mcp.json"),
-      path41.join(roaming, "TRAE", "User", "mcp.json"),
-      path41.join(roaming, "Trae CN", "User", "mcp.json")
+      path42.join(roaming, "Trae", "User", "mcp.json"),
+      path42.join(roaming, "TRAE", "User", "mcp.json"),
+      path42.join(roaming, "Trae CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path41.join(os9.homedir(), "Library", "Application Support");
+  const appSupport = path42.join(os10.homedir(), "Library", "Application Support");
   return [
-    path41.join(appSupport, "Trae", "User", "mcp.json"),
-    path41.join(appSupport, "TRAE", "User", "mcp.json"),
-    path41.join(appSupport, "Trae CN", "User", "mcp.json")
+    path42.join(appSupport, "Trae", "User", "mcp.json"),
+    path42.join(appSupport, "TRAE", "User", "mcp.json"),
+    path42.join(appSupport, "Trae CN", "User", "mcp.json")
   ];
 }
 function getOpenCodeMcpConfigPath() {
-  return path41.join(os9.homedir(), ".config", "opencode", "opencode.jsonc");
+  return path42.join(os10.homedir(), ".config", "opencode", "opencode.jsonc");
 }
 function getWorkBuddyHome() {
-  return path41.join(os9.homedir(), ".workbuddy");
+  return path42.join(os10.homedir(), ".workbuddy");
 }
 function getWorkBuddyMcpInstallPaths(options2 = {}) {
-  const primary = path41.join(getWorkBuddyHome(), "mcp.json");
-  if (fs40.existsSync(primary) || options2.createPrimary) {
+  const primary = path42.join(getWorkBuddyHome(), "mcp.json");
+  if (fs41.existsSync(primary) || options2.createPrimary) {
     return [primary];
   }
-  const legacy = path41.join(getWorkBuddyHome(), ".mcp.json");
-  if (fs40.existsSync(legacy)) {
+  const legacy = path42.join(getWorkBuddyHome(), ".mcp.json");
+  if (fs41.existsSync(legacy)) {
     return [legacy];
   }
   return [];
 }
 function inspectWorkBuddyTrustState(mcpName) {
   const workbuddyHome = getWorkBuddyHome();
-  const connectorsDir = path41.join(workbuddyHome, "connectors");
+  const connectorsDir = path42.join(workbuddyHome, "connectors");
   const accounts = [];
   const stateFiles = [];
-  if (!fs40.existsSync(connectorsDir)) {
+  if (!fs41.existsSync(connectorsDir)) {
     return {
       status: "not_found",
       mcp_name: mcpName,
@@ -59773,12 +60730,12 @@ function inspectWorkBuddyTrustState(mcpName) {
       accounts
     };
   }
-  for (const entry of fs40.readdirSync(connectorsDir, { withFileTypes: true })) {
+  for (const entry of fs41.readdirSync(connectorsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const statePath = path41.join(connectorsDir, entry.name, "connector-states.json");
-    if (!fs40.existsSync(statePath)) {
+    const statePath = path42.join(connectorsDir, entry.name, "connector-states.json");
+    if (!fs41.existsSync(statePath)) {
       continue;
     }
     stateFiles.push(statePath);
@@ -59857,7 +60814,7 @@ function mergeJsonMcpConfig(configPath, options2) {
   );
 }
 function mergeOpenCodeMcpConfig(configPath, options2) {
-  const rawContent = fs40.readFileSync(configPath, "utf8");
+  const rawContent = fs41.readFileSync(configPath, "utf8");
   const rewroteJsonc = normalizeJsonConfigContent(rawContent, { jsonc: true }) !== rawContent;
   const existing = readJsonObject(configPath, { jsonc: true });
   const mcp = asObject(existing.mcp);
@@ -59889,7 +60846,7 @@ function mergeOpenCodeMcpConfig(configPath, options2) {
   return { ...write, rewroteJsonc: write.changed && rewroteJsonc };
 }
 function mergeCodexMcpConfig(configPath, options2) {
-  const existing = fs40.existsSync(configPath) ? fs40.readFileSync(configPath, "utf8") : "";
+  const existing = fs41.existsSync(configPath) ? fs41.readFileSync(configPath, "utf8") : "";
   const withoutOld = removeCodexMcpTables(existing, options2.mcpName).trimEnd();
   const launch = options2.launcher;
   const envValues = createMcpEnvironmentValues(options2.env, options2.clientIde, options2.launcherEnv);
@@ -59923,7 +60880,7 @@ function mergeCodexMcpConfig(configPath, options2) {
   );
 }
 function tryClaudeMcpAdd(options2) {
-  const configPath = path41.join(os9.homedir(), ".claude.json");
+  const configPath = path42.join(os10.homedir(), ".claude.json");
   try {
     const existing = readJsonObject(configPath);
     const server = asObject(asObject(existing.mcpServers)[options2.mcpName]);
@@ -60016,10 +60973,10 @@ function rejectPackageOption(parsed) {
   }
 }
 function readJsonObject(filePath, options2 = {}) {
-  if (!fs40.existsSync(filePath)) {
+  if (!fs41.existsSync(filePath)) {
     return {};
   }
-  const raw = fs40.readFileSync(filePath, "utf8");
+  const raw = fs41.readFileSync(filePath, "utf8");
   try {
     const normalized = normalizeJsonConfigContent(raw, options2);
     const parsed = JSON.parse(normalized);
@@ -60191,10 +61148,10 @@ function formatMcpInstallMessage(label, configPath, write) {
   ].filter(Boolean).join("\n");
 }
 function saveInitState(targetDir, state) {
-  fs40.mkdirSync(getMakerHome(), { recursive: true });
-  const key = crypto5.createHash("sha256").update(path41.resolve(targetDir)).digest("hex").slice(0, 16);
-  fs40.writeFileSync(
-    path41.join(getMakerHome(), `init-state-${key}.json`),
+  fs41.mkdirSync(getMakerHome(), { recursive: true });
+  const key = crypto5.createHash("sha256").update(path42.resolve(targetDir)).digest("hex").slice(0, 16);
+  fs41.writeFileSync(
+    path42.join(getMakerHome(), `init-state-${key}.json`),
     `${JSON.stringify({ ...state, updated_at: (/* @__PURE__ */ new Date()).toISOString() }, null, 2)}
 `,
     "utf8"
@@ -60342,7 +61299,7 @@ function makerEnvOption(parsed) {
     return env;
   }
   const targetDir = stringOption(parsed, "target_dir");
-  return getMakerEnvironment(void 0, targetDir ? path41.resolve(targetDir) : process.cwd());
+  return getMakerEnvironment(void 0, targetDir ? path42.resolve(targetDir) : process.cwd());
 }
 function makerMcpConfigEnvOption(parsed) {
   return stringOption(parsed, "env") === "rnd" ? "rnd" : "production";
@@ -62044,7 +63001,7 @@ var StreamableHTTPClientTransport = class {
 
 // src/mcp-proxy/proxy.ts
 init_types2();
-import * as path43 from "node:path";
+import * as path44 from "node:path";
 import * as crypto8 from "node:crypto";
 
 // src/mcp-proxy/cookieJar.ts
@@ -62240,8 +63197,8 @@ function isStandaloneSseRequest(input2, init) {
 }
 
 // src/core/utils/logWriter.ts
-import * as fs41 from "node:fs";
-import * as path42 from "node:path";
+import * as fs42 from "node:fs";
+import * as path43 from "node:path";
 import * as crypto7 from "node:crypto";
 
 // src/core/types/log.ts
@@ -62282,7 +63239,7 @@ var LogWriter = class {
       return;
     }
     try {
-      await fs41.promises.mkdir(this.config.logDir, { recursive: true });
+      await fs42.promises.mkdir(this.config.logDir, { recursive: true });
       await this.cleanupOldLogs();
       this.initialized = true;
     } catch (error2) {
@@ -62305,7 +63262,7 @@ var LogWriter = class {
    */
   getLogFilePath(date5) {
     const d = date5 || this.getCurrentDate();
-    return path42.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
+    return path43.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
   }
   /**
    * 获取或创建写入流
@@ -62320,7 +63277,7 @@ var LogWriter = class {
       }
       this.currentDate = date5;
       try {
-        this.writeStream = fs41.createWriteStream(this.getLogFilePath(date5), {
+        this.writeStream = fs42.createWriteStream(this.getLogFilePath(date5), {
           flags: "a",
           encoding: "utf8"
         });
@@ -62372,11 +63329,11 @@ var LogWriter = class {
     if (this.shouldWriteToFile(level) && this.initialized && this.config.enabled) {
       try {
         const filePath = this.getLogFilePath();
-        const dir = path42.dirname(filePath);
-        if (!fs41.existsSync(dir)) {
-          fs41.mkdirSync(dir, { recursive: true });
+        const dir = path43.dirname(filePath);
+        if (!fs42.existsSync(dir)) {
+          fs42.mkdirSync(dir, { recursive: true });
         }
-        fs41.appendFileSync(filePath, message, "utf8");
+        fs42.appendFileSync(filePath, message, "utf8");
       } catch {
       }
     }
@@ -62387,7 +63344,7 @@ var LogWriter = class {
   async cleanupOldLogs() {
     if (this.config.maxDays <= 0) return;
     try {
-      const files = await fs41.promises.readdir(this.config.logDir);
+      const files = await fs42.promises.readdir(this.config.logDir);
       const cutoffDate = /* @__PURE__ */ new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.config.maxDays);
       const prefix = this.config.prefix;
@@ -62402,7 +63359,7 @@ var LogWriter = class {
           if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
             const fileDate = new Date(year, month - 1, day);
             if (fileDate < cutoffDate) {
-              await fs41.promises.unlink(path42.join(this.config.logDir, file2));
+              await fs42.promises.unlink(path43.join(this.config.logDir, file2));
               process.stderr.write(`[LogWriter] Deleted old log: ${file2}
 `);
             }
@@ -62536,10 +63493,10 @@ var TapTapMCPProxy = class {
     const { user_id, project_id } = this.config.tenant;
     let logDir;
     if (user_id && project_id) {
-      logDir = path43.join(logRoot, "proxy", user_id, project_id);
+      logDir = path44.join(logRoot, "proxy", user_id, project_id);
     } else {
       const kidHash = crypto8.createHash("sha256").update(this.config.auth.kid).digest("hex").substring(0, 8);
-      logDir = path43.join(logRoot, "proxy", kidHash);
+      logDir = path44.join(logRoot, "proxy", kidHash);
     }
     return new LogWriter({
       logDir,

@@ -5,6 +5,8 @@ import { ConsoleProjects } from './projects.js';
 import { ConsoleTasks } from './tasks.js';
 import { ConsoleError, type ConsoleAction, type ConsoleExecutor } from './types.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
+import { checkMakerLuaLspEnvironment } from '../system/luaLsp.js';
+import { ConsolePlugins, type ConsolePlugin } from './plugins.js';
 
 export async function startConsoleServer(options: {
   registry: ConsoleProjects;
@@ -19,6 +21,7 @@ export async function startConsoleServer(options: {
   now?: () => number;
   drainMs?: number;
   onDraining?: () => void;
+  plugins?: readonly ConsolePlugin[];
 }) {
   const now = options.now || Date.now;
   const idleMs = options.idleMs ?? 30 * 60 * 1000;
@@ -28,6 +31,21 @@ export async function startConsoleServer(options: {
   };
   const token = options.token || randomBytes(32).toString('hex');
   const tasks = new ConsoleTasks(options.registry, options.execute, options.historyFile, touch);
+  const plugins = new ConsolePlugins(options.registry, options.plugins);
+  let luaLspCache: { at: number; value: Record<string, unknown> } | undefined;
+  const luaLspStatus = (): Record<string, unknown> => {
+    if (luaLspCache && now() - luaLspCache.at < 30_000) return luaLspCache.value;
+    const environment = checkMakerLuaLspEnvironment();
+    const value = {
+      ready: environment.ready,
+      status: environment.status,
+      version: environment.version || null,
+      nextAction: environment.nextAction,
+      error: environment.error ? environment.error.slice(0, 512) : null,
+    };
+    luaLspCache = { at: now(), value };
+    return value;
+  };
   let origin = '';
   let draining = false;
   let closePromise: Promise<void> | undefined;
@@ -74,6 +92,7 @@ export async function startConsoleServer(options: {
         "style-src 'unsafe-inline'",
         "img-src 'self' data:",
         "connect-src 'self'",
+        'frame-src http://127.0.0.1:*',
         "base-uri 'none'",
         "form-action 'none'",
         "frame-ancestors 'none'",
@@ -124,6 +143,8 @@ export async function startConsoleServer(options: {
           instanceId: options.instanceId,
           projects: options.registry.list(),
           tasks: tasks.list(),
+          plugins: plugins.list(),
+          luaLsp: luaLspStatus(),
         });
         return;
       }
@@ -160,12 +181,19 @@ export async function startConsoleServer(options: {
       const project = url.pathname.match(/^\/api\/projects\/([a-f0-9]{64})(?:\/(.*))?$/);
       if (!project) throw new ConsoleError('Not found.', 404);
       const [, key, suffix] = project;
+      const plugin = suffix?.match(/^plugins\/([a-z][a-z0-9-]{0,47})\/open$/);
       if (request.method === 'DELETE' && !suffix) {
         await bodyForMutation();
         if (tasks.busy(key)) throw new ConsoleError('Project has an active task.', 409);
         options.registry.remove(key);
         touch();
         json(200, { ok: true });
+      } else if (request.method === 'POST' && plugin) {
+        await bodyForMutation();
+        touch();
+        const ready = await read(() => plugins.open(plugin[1], key, origin));
+        touch();
+        json(200, ready);
       } else if (request.method === 'GET' && !suffix) {
         json(200, await read(() => options.registry.detail(key, readAbort.signal)));
       } else if (request.method === 'GET' && suffix === 'git') {
@@ -223,7 +251,11 @@ export async function startConsoleServer(options: {
   origin = `http://127.0.0.1:${address.port}`;
   const idleTimer = setInterval(
     () => {
-      if (now() - lastActivity >= idleMs && !tasks.list().some((task) => task.status === 'running'))
+      if (
+        now() - lastActivity >= idleMs &&
+        !tasks.list().some((task) => task.status === 'running') &&
+        !plugins.active
+      )
         void close();
     },
     Math.min(30000, idleMs)
@@ -240,6 +272,7 @@ export async function startConsoleServer(options: {
       /* A full/read-only disk must not prevent an otherwise clean shutdown. */
     }
     closePromise = (async () => {
+      await plugins.close();
       await tasks.settled();
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
