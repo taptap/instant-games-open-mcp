@@ -14,13 +14,16 @@ button.is-building:disabled{opacity:1;cursor:wait}
 .build-status{padding:14px 0;margin-bottom:14px;border-block:1px solid var(--border);min-height:60px}
 .build-status-title{display:flex;align-items:center;gap:8px}
 .build-stage{font-size:13px;overflow-wrap:anywhere}
-.build-progress{height:4px;width:100%;overflow:hidden;background:var(--border);margin-top:12px}
-.build-progress span{display:block;width:35%;height:100%;background:var(--accent)}
+.build-progress{height:6px;width:100%;overflow:hidden;background:var(--border);margin-top:12px}
+.build-progress span{display:block;height:100%;background:var(--accent)}
+.build-progress.indeterminate span{width:35%}
+.build-progress-label{font-size:12px;margin-top:6px;text-align:right}
 @keyframes build-spin{to{transform:rotate(360deg)}}
 @keyframes build-travel{from{transform:translateX(-100%)}to{transform:translateX(386%)}}
 @media(prefers-reduced-motion:no-preference){
 .is-building .icon,.build-spinner{animation:build-spin 1.2s linear infinite}
-.build-progress span{animation:build-travel 1.8s ease-in-out infinite}
+.build-progress.indeterminate span{animation:build-travel 1.8s ease-in-out infinite}
+.build-progress.determinate span{transition:width .25s ease}
 }
 button.danger{color:var(--red)}
 button.icon-button{width:36px;flex-shrink:0;padding:8px}
@@ -54,10 +57,17 @@ p{margin:8px 0}
 .preview-link{display:inline-block;color:var(--accent);margin:8px 0;overflow-wrap:anywhere;text-underline-offset:3px}
 .health-issue{padding:8px 0;border-bottom:1px solid var(--border)}
 .health-issue p{margin:0}
-.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-block:1px solid var(--border);margin-bottom:26px}
+.failure-banner{margin:12px 0;padding:12px 14px;border:1px solid var(--red);border-left:4px solid var(--red);background:var(--soft);overflow-wrap:anywhere}
+.failure-banner strong{display:block}
+.failure-detail{margin:8px 0 0;max-height:280px}
+.metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-block:1px solid var(--border);margin-bottom:26px}
+.lua-check-option{display:inline-flex;align-items:center;gap:8px;color:var(--muted);white-space:nowrap}
+.lua-check-panel{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
 .metric{padding:14px 12px 14px 0;min-width:0}
 .metric .value{font-size:19px;font-weight:500;overflow-wrap:anywhere;margin-top:3px}
 .metric .muted{font-size:12px}
+.runtime-detail{margin-top:3px;overflow-wrap:anywhere}
+.runtime-metric button{margin-top:8px}
 .columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px}
 section{min-width:0}
 dl{margin:0}
@@ -75,6 +85,7 @@ pre{white-space:pre-wrap;tab-size:2;margin:10px 0 0;background:var(--code);paddi
 .entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;max-width:780px;padding-top:24px}
 .entry label{grid-column:1/-1}
 .task-history{margin-top:28px;border-top:1px solid var(--border);padding-top:20px}
+.build-detail,.preview-log-detail{margin-top:28px;border-top:1px solid var(--border);padding-top:20px;width:100%}
 .task{padding:12px 0;border-bottom:1px solid var(--border)}
 summary{cursor:pointer;overflow-wrap:anywhere}
 .task summary{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
@@ -98,6 +109,12 @@ dialog{background:var(--bg);color:var(--text);border:1px solid var(--border);bor
 dialog::backdrop{background:#0009}
 dialog h2{font-size:18px}dialog .actions{justify-content:flex-end;margin-top:22px}
 dialog p{white-space:pre-wrap;overflow-wrap:anywhere}
+.plugin-tabs{display:contents}
+nav{overflow-x:auto;white-space:nowrap}
+.plugin-workspace{min-width:0}
+.plugin-status{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:12px 28px;border-bottom:1px solid var(--border)}
+.plugin-status p{margin:0;overflow-wrap:anywhere}
+.plugin-frame{display:block;width:100%;height:calc(100dvh - 205px);min-height:520px;border:0;background:var(--bg)}
 [hidden]{display:none!important}
 @media(max-width:720px){
 .top,main{padding:18px 16px}nav{padding-inline:16px;gap:24px}.context,footer{padding-inline:16px}
@@ -107,6 +124,7 @@ dialog p{white-space:pre-wrap;overflow-wrap:anywhere}
 .project-row{gap:10px}.project-row .actions{justify-content:flex-end}.entry{grid-template-columns:1fr}.entry input{font-size:16px}
 .git-row{grid-template-columns:64px minmax(0,1fr);gap:8px;padding-block:8px}.git-row time{grid-column:2;text-align:left;font-size:11px}
 .task summary time{margin-left:0;width:100%}h1{font-size:22px}
+.plugin-status{padding:10px 16px}.plugin-frame{height:calc(100dvh - 235px);min-height:480px}
 }
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}}
 `;

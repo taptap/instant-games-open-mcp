@@ -21,10 +21,12 @@ export function getConsoleHtml(): string {
   <button data-page="overview">项目</button>
   <button data-page="build">构建与测试</button>
   <button data-page="git">Git</button>
+  <span id="plugin-tabs" class="plugin-tabs"></span>
 </nav>
 <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
 <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
 <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
+<section id="plugin-views" aria-label="插件工作区" hidden></section>
 <div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
 <footer><span id="version">Maker 本地服务</span><span id="footer-path"></span></footer>
 <dialog id="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-message">

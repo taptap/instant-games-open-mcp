@@ -18,15 +18,107 @@ taptap-maker console stop --json
 
 - 项目列表登记已绑定的本地目录，不扫描磁盘。init/clone 成功后自动登记，
   已有项目可手动添加；移除记录不删除游戏。
-- 项目页展示配置、Maker 版本和 Git 状态，支持深浅色切换。
-- 构建调用现有 CLI，可能提交并推送代码。页面显示进行中动画、真实阶段和结果，
-  无阶段信息时显示等待状态，不伪造总进度；结果未知时先核实，不自动重试。
+- 项目页顶部展示本机 Runtime 和独立 maker-lua-lsp 安装状态（是否安装、版本）。Runtime
+  在 `~/.taptap-maker/runtime/` 登记并由所有项目共用，切换项目不会要求重复安装；旧项目级安装
+  会自动登记为本机安装。Lua LSP 未安装不影响控制台连接。已安装 Runtime 时优先显示版本，
+  没有版本时显示安装时间，未安装时可进入现有 Runtime 安装流程。
+- 构建页提供独立“Lua 检查”按钮，检查当前项目 scripts。构建按钮旁默认勾选“构建前检查 Lua”，
+  勾选后先检查，发现 Lua 错误则停止提交和远端构建；取消勾选可直接构建。LSP 未安装时提示
+  环境问题，不把安装缺失当成代码错误。勾选状态保存在本机浏览器。
+- 项目页的构建和本地预览快捷操作会先切换到“构建与测试”。构建调用现有 CLI，可能提交并推送
+  代码；页面显示真实阶段及该阶段的进度，没有有效比例时显示不定进度，不拼接虚假的总进度。
+  Git 提交失败和服务端返回的错误默认展开，包含分类、命令、stderr 和下一步，不要求先打开
+  任务详情。最近构建详情和 Runtime 日志使用整行宽度，结果未知时先核实，不自动重试。
 - 本地预览的安装、启动和刷新见[预览指南](MAKER_LOCAL_PREVIEW.md)。
+  预览状态使用中文展示；Runtime 进程仍存活但日志出现资源等错误时，页面保持“运行中”并单独
+  标记日志错误数量，用户可直接查看运行日志。会话 ID、Runtime PID 等技术字段收纳在折叠的
+  诊断信息中，不占用主要状态区域。
+- Lua 检查结果以构建页的检查摘要和问题列表为主；对应失败任务不自动展开，也不重复展示与
+  结构化结果相同的原始输出。完整原始结果仍保留在折叠详情中供排查。
 - Git 页只读展示提交关系、日期和差异；浅克隆的历史不完整，不提供分支或回退操作。
+
+## 控制台插件与 FrameCrate
+
+### 2026-09-16 集成纠正
+
+用户已否定另开浏览器标签的启动器方案。本轮目标是**通用插件注册表 + 持久内嵌完整
+FrameCrate 标签页**；本轮本地验证与独立复核已完成，5 项集成 findings 全部关闭。
+Maker 7 套件 139 项、FrameCrate 46 套件 665 项、两仓库构建及实际内嵌浏览器 9 步通过。
+控制台 Web 32 项、Russell Maker 83 项及 FrameCrate 61 项通过，无剩余高置信度阻塞问题。
+Maker 全仓 tsc 仍有 287 项基线错误，控制台范围无诊断；FrameCrate 保留既有大 chunk 警告。
+真实 AI、计价、付费生成和 Windows 仍未验收，不以本地通过替代这些边界。
+
+- `src/maker/console/plugins.ts` 维护类型化的可信插件注册表；
+  `integrations/framecrate.ts` 只实现 FrameCrate 启动与进程适配，不承载编辑或 AI 业务。
+- `GET /api/state` 的 `plugins` 提供公开插件元数据，不含 Studio token、启动命令或私有环境。
+  页面按元数据展示插件标签，而非硬编码 FrameCrate 专属启动按钮。
+- `POST /api/projects/:key/plugins/:id/open` 只打开注册表中的可信插件，复用 Host、Origin、
+  Bearer 校验，并在每次打开或复用前检查登记项目的 realpath 和 Maker 绑定。
+  浏览器不能提交启动命令、安装路径或任意目标 URL；不增加 MCP tool。
+
+### 配置与会话
+
+在启动控制台的进程环境中显式设置 `FRAMECRATE_STUDIO_DIR`，指向已安装依赖并构建前端的
+framepacker Studio 根目录绝对路径。控制台按项目打开内嵌标签，不弹出新窗口。
+未配置或目录不完整时显示不可用原因；本轮不做安装器、ZIP 下载、插件市场或自动更新。
+
+FrameCrate 子进程启动契约为：
+
+```text
+<process.execPath> --import <FRAMECRATE_STUDIO_DIR>/node_modules/tsx/dist/loader.mjs
+  <FRAMECRATE_STUDIO_DIR>/server/main.ts --project <已校验的项目 realpath>
+  --host-origin <控制台精确 loopback origin>
+```
+
+这是同一条命令，使用明确 Node、`shell: false` 和 Studio 根目录作为 `cwd`；
+继承受信启动环境，不从游戏目录解析 Studio 模块，不触发生成、构建、提交或发布。
+`--host-origin` 必须是当前控制台的精确本机 HTTP origin（含端口，无路径），
+不能替换成通配符、另一端口或仅因同属 loopback 就信任的地址。
+
+Studio 就绪 JSON 交付本机 URL 和匹配的 `projectPath`，URL fragment 使用 Studio 自有 token。
+控制台仅将经校验地址交给对应 iframe，不共享控制台 Bearer 或 PAT；不将 token/URL 写入
+任务历史、`/api/state` 或 MCP 配置。stderr 仅消费，不转发凭证。Studio 仍独立运行本地服务；
+内嵌模式的 CSP `frame-ancestors` 仅允许 `--host-origin` 指定宿主，独立启动不开放被嵌入权限。
+
+### 内嵌协议与生命周期
+
+- 消息固定使用 `protocolVersion: 1`：宿主发送 `maker-console:connect`，
+  主题变化发送 `maker-console:theme`，子页面回应 `maker-console:plugin-ready`，
+  真实用户活动通知为 `maker-console:plugin-activity`。连接和主题消息携带 `light`/`dark`，
+  插件跟随控制台主题且不维护独立主题状态。
+  双方校验精确 `origin`、窗口 `source`、消息类型与版本，发送时指定目标 origin；
+  消息不传 token，也不是生成、保存、任意命令或自动重试通道。
+- iframe 使用 `sandbox="allow-scripts allow-same-origin allow-downloads allow-modals"`，
+  不允许 popup 或 top navigation；保留本地导入、编辑、导出、工程保存恢复及完整 AI 工作流。
+- 页面按项目与插件标识保留 iframe map，最多 8 个工作区。切换项目或标签只隐藏页面，
+  不删除 DOM、不重写 `src`，不静默淘汰旧工作区。达到上限应拒绝新增并提示先保存。
+  需要重连时由用户明确操作并提示可能丢失未保存编辑，不因超时自动重建 iframe。
+- 同项目复用本控制台拥有的存活子进程；启动中或存活时不得被控制台自动空闲退出误杀。
+  真实插件活动参与有界续期；插件轮询、握手和定时消息不能伪造用户活动。
+  控制台宿主页自身通过有界页面租约保活，不能由 iframe 绕过宿主生命周期。
+  最后一个子进程退出后恢复空闲计时；显式停止仅回收本实例启动的进程，不影响独立 Studio、
+  IDE MCP 或 Runtime，也不等于取消已提交的远端视频。
+- ready 子进程正常关闭等待 graceful drain，无强制超时；若它永久挂起，关闭会持续等待，
+  这是避免截断写入的安全取舍，不承诺限时退出。未完成启动的回收仍可强制终止。
+
+### 本轮本地验收（已完成）
+
+- 注册表元数据及通用打开路由覆盖合法、未知插件和失效项目；拒绝任意命令/路径。
+- 精确宿主 CSP、独立 token、消息 origin/source/版本校验及 sandbox 权限均有负向测试。
+- 桌面与窄屏真实浏览器中验证完整编辑及 AI 页面；跨标签、跨项目保留未保存编辑、
+  8 个会话容量与超限行为，无弹窗、静默淘汰或自动重新生成。
+- 启动失败、断连、显式重连、空闲及关闭的归属清理已完成本轮回归与独立复核。
+  付费生成仍需单独预算确认；测试桩不得冒充真实 AI 验收。
+
+实际内嵌浏览器证据持久保存在
+`/Users/liangdong/Documents/MakerTools/framecrate-review-evidence/console-plugin-20260916/report.json`，
+报告 9 步全部通过，包含自刷新 200、重连、项目隔离、PNG/工程输出及窄屏验证；
+外部请求、生成请求和付费调用均为 0。独立工作台追加 smoke 的 1 次 fixture 提交不是付费生成。
 
 ## 生命周期与恢复
 
-服务自动分配空闲端口，无用户操作且无任务时约 30 分钟退出；后台轮询不续期，
+服务自动分配空闲端口。控制台页面存活时每分钟续期，重新获得焦点或恢复可见时立即续期；
+普通状态轮询和健康检查不续期。页面关闭、浏览器退出或租约停止后，无任务时约 30 分钟退出，
 任务结束后重新计时。关闭浏览器不会终止任务，`stop` 在任务执行中拒绝退出。
 停止控制台不停止独立 Runtime。
 
@@ -41,6 +133,9 @@ Git 401/403 应检查凭证和项目权限，BLACKLISTED 需管理员解除账�
   与 Maker 绑定，不使用全局当前项目。不同 checkout 分别登记；目录迁移或重绑后需重新添加。
 - 服务仅监听 `127.0.0.1`，校验 Host、Origin 和 Bearer；PAT 不进入网页，
   会话凭证不写入项目。只开放固定 CLI 操作，不提供任意 shell 或文件浏览。
+- 控制台 Bearer 保留在 URL fragment 中，避免浏览器恢复或新标签重建时因
+  `sessionStorage` 隔离而丢失会话。fragment 不会随 HTTP 请求或 Referrer 发送；页面保持
+  `no-store`、无远程依赖，并继续执行 Host、Origin 与 Bearer 校验。
 - 项目登记统一使用 Maker user home 的 `projects.json`；写事务加跨进程锁并原子替换。
   旧控制台列表只迁移一次，登记失败不改变 init/clone 结果。
   遗留登记锁不能按时间抢占，确认写入进程已停止后才处理提示的 `.lock` 目录。

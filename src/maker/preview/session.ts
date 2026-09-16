@@ -482,7 +482,14 @@ export async function previewStatus(project: string): Promise<Record<string, unk
       ok: true,
     };
   try {
-    return await requestPreview(record, 'status', {}, 1500);
+    const status = await requestPreview(record, 'status', {}, 1500);
+    return {
+      ...status,
+      ...installation,
+      // The control handshake describes the active session; installation describes the shared Runtime.
+      executable: status.executable,
+      runtime_version: status.runtime_version,
+    };
   } catch {
     const stopped = record.state === 'stopped';
     const filename = path.join(previewRoundDirectory(record), 'result.json');

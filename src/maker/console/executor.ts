@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { CONSOLE_ACTIONS, type ConsoleExecutor } from './types.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
+import { checkMakerLuaLspProject } from '../system/luaLsp.js';
 
 export function createConsoleExecutor(options: {
   entry: string;
@@ -11,6 +12,15 @@ export function createConsoleExecutor(options: {
     if (![...CONSOLE_ACTIONS, 'preview.status', 'preview.logs'].includes(action))
       throw new Error('Unsupported console CLI action.');
     if (signal?.aborted) return { ok: false, error: 'Console query cancelled before launch.' };
+    if (action === 'lua-lsp.check') {
+      const result = await checkMakerLuaLspProject(project);
+      onOutput(result.summary);
+      if (result.issues.length) onOutput('\n' + result.issues.join('\n'));
+      return sanitizeDiagnosticValue({
+        ...result,
+        ...(!result.ok ? { error: result.error || result.summary } : {}),
+      }) as Awaited<ReturnType<ConsoleExecutor>>;
+    }
     const command = action === 'build' ? ['build'] : ['preview', action.slice('preview.'.length)];
     const ownsProcessGroup = process.platform !== 'win32';
     const execArgv = [...(options.execArgv ?? process.execArgv)];

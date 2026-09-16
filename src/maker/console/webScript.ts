@@ -6,16 +6,15 @@ export const consoleScript = String.raw`
 const iconNodes = ${JSON.stringify(consoleIcons)};
 let token = '';
 let authError = '';
+const fragment = location.hash.slice(1);
+const incoming = fragment.includes('=') ? new URLSearchParams(fragment).get('token') : fragment;
+token = incoming || '';
 try {
-  const fragment = location.hash.slice(1);
-  const incoming = fragment.includes('=') ? new URLSearchParams(fragment).get('token') : fragment;
   if (incoming) sessionStorage.setItem('maker-console-token', incoming);
-  token = incoming || sessionStorage.getItem('maker-console-token') || '';
-} catch (_) { authError = '无法访问会话存储。请允许会话存储后重新打开控制台。'; }
-if (location.hash) {
-  const clean = new URL(location.href);
-  clean.hash = '';
-  history.replaceState(null, '', clean.pathname + clean.search);
+  const stored = sessionStorage.getItem('maker-console-token') || '';
+  token = incoming || stored;
+} catch (_) {
+  if (!token) authError = '无法访问会话存储。请从 Maker CLI 重新打开控制台。';
 }
 let selected = new URLSearchParams(location.search).get('project') || '';
 let page = selected ? 'overview' : 'projects';
@@ -31,6 +30,7 @@ let gitError = '';
 let gitLoading = false;
 let commitRequest = 0;
 let pollTimer;
+let activityTimer;
 let polling = false;
 let offline = false;
 let disposed = false;
@@ -38,8 +38,11 @@ let lastActivitySent = -Infinity;
 const requests = new Set();
 const offlineMessage = '控制台已离线或会话已过期，请通过 Maker 重新打开控制台。未确认的任务结果需要核对，不要重复提交。';
 let lastStateError = '';
+let buildChecksLua = true;
+try { buildChecksLua = localStorage.getItem('maker-console-build-lua-check') !== 'off'; } catch (_) {}
 const pending = new Set();
 const pendingActions = new Map();
+const pluginSessions = new Map();
 const acceptedTasks = new Map();
 function rememberTask(task) {
   acceptedTasks.set(task.id,task);
@@ -50,8 +53,8 @@ function rememberTask(task) {
   }
 }
 const actionLabels = {
-  build: '构建', 'preview.start': '启动预览', 'preview.refresh': '刷新预览',
-  'preview.stop': '停止预览', 'preview.install': '安装 Runtime'
+  build: '构建', 'lua-lsp.check': 'Lua 检查', 'preview.start': '启动预览',
+  'preview.refresh': '刷新预览', 'preview.stop': '停止预览', 'preview.install': '安装 Runtime'
 };
 const statusLabels = {running: '运行中', succeeded: '已完成', failed: '失败', unknown: '结果未知'};
 const $ = (id) => document.getElementById(id);
@@ -109,7 +112,7 @@ async function api(path, options = {}) {
   if (authError || !token) throw new Error(authError || '缺少访问令牌。请从 Maker CLI 重新打开控制台。');
   const controller = new AbortController();
   requests.add(controller);
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 20000);
   let received = false;
   try {
     const response = await fetch(path, {
@@ -137,22 +140,31 @@ async function api(path, options = {}) {
 function disconnect() {
   offline = true;
   clearTimeout(pollTimer);
+  clearInterval(activityTimer);
+  activityTimer = undefined;
   $('connection').textContent = '已离线';
   $('connection').className = 'bad';
   notify(offlineMessage);
   if (loaded && currentProject()?.valid) { updateChrome(); updateBuild(); }
 }
-async function sendActivity() {
-  if (offline || disposed || document.hidden || Date.now() - lastActivitySent < 30000) return;
+async function sendActivity(allowHidden = false) {
+  if (offline || disposed || (!allowHidden && document.hidden) || Date.now() - lastActivitySent < 30000) return;
   lastActivitySent = Date.now();
   try { await api('/api/activity', {method:'POST', body:{}}); }
   catch (error) { if (!disposed) notify(error.message); }
 }
+function startActivityLease() {
+  if (activityTimer || offline || disposed) return;
+  activityTimer = setInterval(() => void sendActivity(true),60000);
+}
 function dispose() {
   disposed = true;
   clearTimeout(pollTimer);
+  clearInterval(activityTimer);
+  activityTimer = undefined;
   requests.forEach(controller => controller.abort());
   requests.clear();
+  pluginSessions.forEach(session => clearTimeout(session.timer));
 }
 function projectPath(key, suffix = '') { return '/api/projects/' + encodeURIComponent(key) + suffix; }
 function currentProject() { return state.projects.find(p => p.key === selected); }
@@ -175,8 +187,7 @@ function setProjectQuery() {
   const url = new URL(location.href);
   if (selected) url.searchParams.set('project', selected);
   else url.searchParams.delete('project');
-  url.hash = '';
-  history.replaceState(null, '', url.pathname + url.search);
+  history.replaceState(null, '', url.pathname + url.search + url.hash);
 }
 function chooseProject(key, updateUrl = true) {
   if (busy()) { updateChrome(); return; }
@@ -195,6 +206,7 @@ function chooseProject(key, updateUrl = true) {
   if (project?.valid) void loadProject();
 }
 function updateChrome() {
+  updatePluginTabs();
   const picker = $('project-picker');
   const signature = JSON.stringify(state.projects.map(p => [p.key,p.name,p.valid])) + selected;
   if (picker.dataset.signature !== signature) {
@@ -227,29 +239,207 @@ function headingActionButtons() {
   const actions = previewActions(preview);
   const local = button('本地预览',() => {
     const action = previewActions(preview)[0];
-    if (action) void runAction(action);
+    if (action) void runProjectAction(action);
   },{icon:'monitor',disabled:offline || busy() || !actions.length,focus:'heading-preview'});
   local.title = actions.length ? '本地预览 · ' + actionLabels[actions[0]] :
     '本地预览 · ' + (previewError || text(preview?.error,previewLabel()));
+  const checking = pendingActions.get(selected) === 'lua-lsp.check' ||
+    tasksFor(selected).some(item => item.action === 'lua-lsp.check' && item.status === 'running');
   const task = tasksFor(selected).find(t => t.action === 'build');
   const presentation = buildPresentation(task,pendingActions.get(selected) === 'build',offline);
-  const build = button(presentation.active ? presentation.label : '构建',() => void runAction('build'),
-    {className:'primary build-button' + (presentation.active ? ' is-building' : ''),
-      icon:presentation.active ? 'refresh' : 'hammer',disabled:offline || busy(),focus:'heading-build'});
-  build.setAttribute('aria-busy',String(presentation.active));
-  const result = [local,build];
+  const build = button(checking ? 'Lua 检查中' : presentation.active ? presentation.label : '构建',
+    () => void runProjectAction('build'),
+    {className:'primary build-button' + (presentation.active || checking ? ' is-building' : ''),
+      icon:presentation.active || checking ? 'refresh' : 'hammer',disabled:offline || busy(),focus:'heading-build'});
+  build.setAttribute('aria-busy',String(presentation.active || checking));
+  const result = [local,build,luaCheckOption()];
   if (!presentation.active && task) result.push(node('span',presentation.label,'build-badge ' + presentation.tone));
   return result;
 }
+function luaCheckOption() {
+  const label = node('label',undefined,'lua-check-option');
+  const input = node('input');
+  input.type = 'checkbox';
+  input.checked = buildChecksLua;
+  input.disabled = offline || busy();
+  input.dataset.focus = 'build-lua-check';
+  input.setAttribute('aria-label','构建前检查 Lua');
+  input.addEventListener('change',() => {
+    buildChecksLua = input.checked;
+    try { localStorage.setItem('maker-console-build-lua-check', buildChecksLua ? 'on' : 'off'); }
+    catch (_) { notify('无法保存 Lua 检查设置'); }
+  });
+  label.append(input, document.createTextNode('构建前检查 Lua'));
+  return label;
+}
 
-function buildFailureMessage(task) {
+function pluginDescriptors(value = state.plugins) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  return value.filter(plugin => {
+    if (!plugin || typeof plugin.id !== 'string' || !/^[a-z][a-z0-9-]{0,47}$/.test(plugin.id) ||
+        seen.has(plugin.id) || typeof plugin.title !== 'string' || !plugin.title.trim() ||
+        plugin.title.length > 80 || plugin.protocolVersion !== 1 || plugin.requiresProject !== true) return false;
+    seen.add(plugin.id);
+    return true;
+  }).slice(0,32).sort((a,b) => (a.order || 0) - (b.order || 0));
+}
+function pluginUrl(ready, project) {
+  const url = new URL(ready.url);
+  if (ready.projectPath !== project || url.protocol !== 'http:' || url.hostname !== '127.0.0.1' ||
+      !url.port || url.username || url.password || url.pathname !== '/' || url.search || !url.hash)
+    throw new Error('插件返回了无效的项目地址。');
+  return url.href;
+}
+function pluginMessageMatches(event, session) {
+  return Boolean(session.iframe && event.source === session.iframe.contentWindow &&
+    event.origin === session.origin && event.data && event.data.protocolVersion === 1 &&
+    ['maker-console:plugin-ready','maker-console:plugin-activity'].includes(event.data.type));
+}
+function sendPluginTheme(session, type = 'maker-console:theme') {
+  if (!session.iframe || !session.origin) return;
+  const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+  session.iframe.contentWindow.postMessage({type,protocolVersion:1,theme},session.origin);
+}
+function updatePluginTabs() {
+  const tabs = $('plugin-tabs');
+  const plugins = pluginDescriptors();
+  const signature = JSON.stringify(plugins);
+  if (tabs.dataset.signature === signature) return;
+  tabs.dataset.signature = signature;
+  tabs.replaceChildren(...plugins.map(plugin => {
+    const tab = button(plugin.title,() => navigate('plugin:' + plugin.id));
+    tab.dataset.page = 'plugin:' + plugin.id;
+    return tab;
+  }));
+}
+function pluginStatus(session, message, retry = false) {
+  session.status.hidden = !message;
+  session.status.replaceChildren(node('p',message,'muted'));
+  if (retry) session.status.append(button('重新连接',() => {
+    if (offline || disposed || session.loading) return;
+    if (session.iframe && !window.confirm('重新连接将清空此插件尚未保存的页面编辑，不会取消已提交的远端任务。确认继续？')) return;
+    if (offline || disposed || session.loading) return;
+    clearTimeout(session.timer);
+    session.iframe?.remove();
+    session.iframe = null;
+    void startPlugin(session);
+  },{icon:'refresh',disabled:offline || disposed || session.loading}));
+}
+async function startPlugin(session) {
+  if (session.loading || offline || disposed) return;
+  session.loading = true;
+  pluginStatus(session,'正在加载 ' + session.plugin.title + '…');
+  try {
+    const ready = await api(projectPath(session.key,'/plugins/' + session.plugin.id + '/open'),
+      {method:'POST',body:{},timeoutMs:80000});
+    if (disposed) return;
+    const url = pluginUrl(ready,session.projectPath);
+    session.origin = new URL(url).origin;
+    const frame = node('iframe',undefined,'plugin-frame');
+    frame.title = session.plugin.title + ' · ' + session.projectName;
+    frame.referrerPolicy = 'origin';
+    frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-downloads allow-modals');
+    session.iframe = frame;
+    frame.addEventListener('load',() => {
+      if (session.iframe !== frame) return;
+      sendPluginTheme(session,'maker-console:connect');
+    });
+    session.timer = setTimeout(() => {
+      pluginStatus(session,'插件未完成连接。可重新连接；已有页面编辑不会被自动清除。',true);
+    },20000);
+    frame.src = url;
+    session.element.append(frame);
+  } catch (error) {
+    session.loading = false;
+    pluginStatus(session,error.message,true);
+  } finally { session.loading = false; }
+}
+function pruneFailedPluginSessions() {
+  for (const [id, session] of pluginSessions) {
+    if (session.loading || session.iframe) continue;
+    clearTimeout(session.timer);
+    session.element.remove();
+    pluginSessions.delete(id);
+  }
+}
+function renderPlugin(plugin) {
+  const id = selected + ':' + plugin.id;
+  let session = pluginSessions.get(id);
+  if (!session) {
+    if (pluginSessions.size >= 8) pruneFailedPluginSessions();
+    if (pluginSessions.size >= 8) {
+      $('view').hidden = false;
+      $('plugin-views').hidden = true;
+      replace($('view'),[heading('已达到插件工作区上限'),
+        node('p','最多保留 8 个工作区。请保存已有编辑并重新打开控制台。','muted')]);
+      return;
+    }
+    const project = currentProject();
+    const element = node('div',undefined,'plugin-workspace');
+    const status = node('div',undefined,'plugin-status');
+    status.setAttribute('role','status');
+    element.append(status);
+    session = {plugin,key:selected,projectPath:project.path,projectName:project.name,element,status,iframe:null};
+    pluginSessions.set(id,session);
+    $('plugin-views').append(element);
+    void startPlugin(session);
+  }
+  session.element.hidden = false;
+}
+
+function nestedResult(task) {
+  return task?.result?.result && typeof task.result.result === 'object' ? task.result.result : task?.result;
+}
+function buildFailureTitle(task) {
   const error = text(task?.error,'');
   if (/BLACKLISTED|Account restricted|账号受到限制/i.test(error))
     return 'Maker 账号受到限制。请联系管理员核实账号状态，解除限制后再构建。';
-  const failure = task?.result?.result?.submitResult?.failure;
+  const result = nestedResult(task);
+  const failure = result?.submitResult?.failure;
   if (failure?.classification === 'auth' || /returned error: (401|403)/i.test(error))
     return '项目同步被拒绝，远端构建未启动。请核对当前 Maker 账号、项目访问权限和登录凭证。';
-  return error.split('\n').find(line => line.trim()) || '构建失败，请展开任务详情查看原因。';
+  if (result?.mode === 'submit_failed_before_build') return '代码提交失败，远端构建未启动。';
+  if (result?.mode === 'remote_build_failed' || result?.mode === 'build_failed_after_submit')
+    return '远端构建失败。';
+  if (result?.mode === 'settings_invalid_before_build' || result?.mode === 'project_invalid_before_build')
+    return '项目检查未通过，构建未启动。';
+  return error.split('\n').find(line => line.trim()) || '构建失败。';
+}
+function buildFailureMessage(task) {
+  return buildFailureTitle(task);
+}
+function valueText(value, fallback = '') {
+  if (value === undefined || value === null || value === '') return fallback;
+  return typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+}
+function buildFailureDetails(task) {
+  const result = nestedResult(task);
+  const lines = [];
+  const error = text(task?.error,'');
+  if (error) lines.push(error);
+  const submit = result?.submitResult;
+  const gitFailure = submit?.failure;
+  const buildFailure = result?.buildFailure;
+  const extras = [];
+  if (result?.mode) extras.push(['失败阶段', result.mode]);
+  extras.push(
+    ['Git 状态', submit?.status],
+    ['Git 分类', gitFailure?.classification],
+    ['Git 命令', gitFailure?.command],
+    ['Git 退出码', gitFailure?.exitCode],
+    ['下一步', gitFailure?.nextAction || buildFailure?.nextAction],
+    ['Git 错误', gitFailure?.message],
+    ['Git stderr', gitFailure?.stderr],
+    ['Git stdout', gitFailure?.stdout],
+    ['服务端错误', buildFailure?.message || result?.resultText],
+    ['构建错误名', buildFailure?.name]
+  );
+  extras.forEach(([label, value]) => {
+    const textValue = valueText(value);
+    if (textValue && !error.includes(textValue)) lines.push(label + '：' + textValue);
+  });
+  return lines.join('\n').trim();
 }
 function buildPresentation(task, submitting = false, disconnected = false) {
   if (disconnected) return {label:'连接已断开',stage:'任务结果待核对，请勿重复提交',active:false,tone:'pending'};
@@ -259,12 +449,23 @@ function buildPresentation(task, submitting = false, disconnected = false) {
     const stages = {sync:'同步项目',prepare:'准备项目',auth:'验证项目访问权限',
       remote_sync:'检查远端版本',commit:'提交本地变更',push:'推送项目',build:'远端构建',
       remote_build:'远端构建',preview:'准备预览'};
+    const current = task.progress?.progress;
+    const total = task.progress?.total;
+    const percent = typeof current === 'number' && Number.isFinite(current) &&
+      typeof total === 'number' && Number.isFinite(total) && total > 0 ?
+      Math.max(0,Math.min(100,Math.round(current / total * 100))) : undefined;
     return {label:'构建中',stage:stages[task.progress?.phase] || task.progress?.message || '等待构建进度',
-      active:true,tone:'pending'};
+      active:true,tone:'pending',percent};
   }
   if (task.status === 'succeeded') return {label:'构建成功',stage:'',active:false,tone:'good'};
-  if (task.status === 'failed') return {label:'构建失败',stage:buildFailureMessage(task),active:false,tone:'bad'};
+  if (task.status === 'failed') return {label:'构建失败',stage:buildFailureTitle(task),active:false,tone:'bad'};
   return {label:'结果待核对',stage:'请先核对远端结果，不要重复提交',active:false,tone:'pending'};
+}
+function failureBanner(title, detail, tone = 'bad') {
+  const banner = node('div',undefined,'failure-banner ' + tone);
+  banner.append(node('strong',title));
+  if (detail) banner.append(node('pre',detail,'failure-detail'));
+  return banner;
 }
 function buildStatusBlock(task, submitting = false) {
   const info = buildPresentation(task,submitting,offline);
@@ -273,13 +474,26 @@ function buildStatusBlock(task, submitting = false) {
   if (info.active) { const spinner = icon('refresh'); spinner.classList.add('build-spinner'); title.append(spinner); }
   title.append(node('strong',info.label));
   block.append(title);
-  if (info.stage) block.append(node('p',info.stage,'build-stage'));
+  if (task?.status === 'failed') {
+    block.append(failureBanner(info.stage || '构建失败', buildFailureDetails(task)));
+  } else if (info.stage) block.append(node('p',info.stage,'build-stage'));
   if (info.active) {
     const bar = node('div',undefined,'build-progress');
     bar.setAttribute('role','progressbar');
     bar.setAttribute('aria-label','构建进行中');
-    bar.append(node('span'));
+    bar.setAttribute('aria-valuemin','0');
+    bar.setAttribute('aria-valuemax','100');
+    const fill = node('span');
+    if (info.percent === undefined) bar.classList.add('indeterminate');
+    else {
+      bar.classList.add('determinate');
+      bar.setAttribute('aria-valuenow',String(info.percent));
+      fill.style.width = info.percent + '%';
+    }
+    bar.append(fill);
     block.append(bar);
+    if (info.percent !== undefined)
+      block.append(node('p','当前阶段 ' + info.percent + '%','build-progress-label muted'));
   }
   return block;
 }
@@ -372,6 +586,19 @@ function renderOverview() {
     const metric = node('div',undefined,'metric');
     metric.append(node('div',name,'muted'),node('div',text(value),'value')); metrics.append(metric);
   });
+  const runtime = runtimePresentation(preview,previewError);
+  const runtimeMetric = node('div',undefined,'metric runtime-metric');
+  runtimeMetric.append(node('div','本地 Runtime','muted'),node('div',runtime.label,'value ' + runtime.tone));
+  if (runtime.detail) runtimeMetric.append(node('div',runtime.detail,'runtime-detail muted'));
+  if (runtime.action) runtimeMetric.append(button('安装 Runtime',() => void runProjectAction(runtime.action),{
+    disabled:offline || busy(),focus:'overview-runtime-install'
+  }));
+  metrics.append(runtimeMetric);
+  const lua = luaLspPresentation(state.luaLsp);
+  const luaMetric = node('div',undefined,'metric runtime-metric');
+  luaMetric.append(node('div','Lua LSP','muted'),node('div',lua.label,'value ' + lua.tone));
+  if (lua.detail) luaMetric.append(node('div',lua.detail,'runtime-detail muted'));
+  metrics.append(luaMetric);
   const columns = node('div',undefined,'columns');
   const configSection = node('section'); configSection.append(node('h2','项目配置'),fields([
     ['入口脚本',config.entry],['引擎通道',config.engineTag],
@@ -399,6 +626,10 @@ function renderOverview() {
     raw.append(node('summary','完整检查结果'),node('pre',text(healthStatus))); health.append(raw);
   }
   if (previewError) health.append(node('p',previewError,'bad'));
+  const latestBuild = tasksFor(selected).find(t => t.action === 'build');
+  if (latestBuild?.status === 'failed') {
+    health.append(failureBanner('最近构建失败', buildFailureDetails(latestBuild) || buildFailureTitle(latestBuild)));
+  }
   const links = node('div',undefined,'actions preview-controls');
   links.append(button('构建与测试',() => navigate('build')),button('查看 Git',() => navigate('git')));
   health.append(links);
@@ -407,6 +638,30 @@ function renderOverview() {
   const latest = tasksFor(selected)[0];
   recent.append(node('h2','最近任务'),latest ? taskBlock(latest) : node('p','暂无控制台任务','muted'));
   replace($('view'),[title,metrics,columns,recent]);
+}
+function luaLspPresentation(status) {
+  if (!status) return {label:'待检测',status:'未提供',detail:'打开控制台后读取本机安装状态',tone:'muted'};
+  if (status.ready) return {
+    label: '已安装',
+    status: '已安装',
+    detail: status.version ? text(status.version) : '版本未提供',
+    nextAction: text(status.nextAction,'本地 Lua 诊断可用。'),
+    tone: 'good'
+  };
+  const labels = {missing:'未安装',python_missing:'需要 Python',setup_failed:'安装失败'};
+  return {
+    label: labels[status.status] || '不可用',
+    status: labels[status.status] || text(status.status,'不可用'),
+    detail: text(status.error, status.status === 'python_missing' ? '需要先准备 Python' : '未检测到 maker-lua-lsp'),
+    nextAction: text(status.nextAction,'请运行 taptap-maker lua-lsp setup。'),
+    tone: status.status === 'setup_failed' ? 'bad' : 'pending'
+  };
+}
+function luaCheckSummary(task, checking = false) {
+  const result = nestedResult(task);
+  if (task?.status === 'running' || checking) return '正在检查当前项目 Lua 脚本';
+  if (task?.status === 'succeeded') return text(result?.summary,'Lua 检查通过');
+  return text(result?.summary || result?.error || task?.error,'Lua 检查未通过');
 }
 function healthLabel(health) {
   const labels = {ready:'检查通过',warning:'有待处理的问题',error:'检查未通过',
@@ -438,30 +693,71 @@ function previewActions(status) {
   if (status.install_state === 'ready') return ['preview.start'];
   return [];
 }
+function previewStateLabel(value) {
+  const labels = {starting:'启动中',running:'运行中',reloading:'刷新中',stopped:'已停止',failed:'启动失败'};
+  return labels[value] || '';
+}
+function previewPresentation(status, requestError = '') {
+  if (requestError) return {label:'检测失败',stateLabel:'待检测',tone:'bad',error:requestError,errors:[],errorCount:0};
+  if (!status) return {label:'待检测',stateLabel:'待检测',tone:'muted',error:'',errors:[],errorCount:0};
+  const errors = Array.isArray(status.errors) ? status.errors
+    .filter(value => typeof value === 'string' && value.trim()).map(value => value.trim()) : [];
+  const stateLabel = previewStateLabel(status.state) || (status.process_alive === true ? '运行中' :
+    status.process_alive === false ? '已停止' : '进程身份未知');
+  const error = text(status.error,'');
+  const label = status.process_alive === true && errors.length ? stateLabel + ' · 有日志错误' : stateLabel;
+  const tone = error || status.state === 'failed' ? 'bad' : errors.length ||
+    status.state === 'starting' || status.state === 'reloading' ? 'pending' :
+    status.process_alive === true ? 'good' : 'muted';
+  return {label,stateLabel,tone,error,errors,errorCount:errors.length};
+}
 function previewLabel() {
-  if (!preview) return previewError ? '检测失败' : '待检测';
-  if (preview.process_alive === true) return '运行中';
-  if (preview.process_alive === false) return '已停止';
-  return '进程身份未知';
+  return previewPresentation(preview,previewError).label;
+}
+function runtimePresentation(status, error = '') {
+  if (error) return {label:'检测失败',detail:error,tone:'bad'};
+  if (!status) return {label:'待检测',detail:'',tone:'muted'};
+  if (status.install_state === 'missing')
+    return {label:'未安装',detail:'',tone:'pending',action:'preview.install'};
+  if (status.install_state === 'ready') {
+    const version = status.runtime?.runtime_version || status.runtime_version;
+    const detail = version && version !== 'unknown' ? text(version) :
+      status.installed_at ? date(status.installed_at) : '版本信息未提供';
+    return {label:'已安装',detail,tone:'good'};
+  }
+  return {label:'待检测',detail:'',tone:'muted'};
+}
+function taskStartsOpen(task, open = false) {
+  return Boolean(open || (task?.status === 'failed' && task?.action !== 'lua-lsp.check'));
+}
+function taskOutputText(task) {
+  const output = text(task?.output,'').trim();
+  if (!output || task?.action !== 'lua-lsp.check') return output;
+  const result = nestedResult(task);
+  const structured = [task.error,result?.error,result?.summary,
+    ...(Array.isArray(result?.issues) ? result.issues : [])]
+    .filter(value => typeof value === 'string')
+    .flatMap(value => value.split('\n').map(line => line.trim()).filter(Boolean));
+  const known = new Set(structured);
+  const outputLines = output.split('\n').map(line => line.trim()).filter(Boolean);
+  return outputLines.length && outputLines.every(line => known.has(line)) ? '' : output;
 }
 function taskBlock(task, open = false) {
-  const d = node('details',undefined,'task'); d.dataset.key = task.id; d.open = open;
+  const failed = task.status === 'failed';
+  const d = node('details',undefined,'task' + (failed ? ' is-failed' : '')); d.dataset.key = task.id;
+  d.open = taskStartsOpen(task,open);
   const summary = node('summary');
   summary.dataset.focus = 'task-' + task.id;
   summary.append(node('strong', actionLabels[task.action] || task.action),
     node('span', statusLabels[task.status] || '结果未知',
-      task.status === 'failed' ? 'bad' : task.status === 'succeeded' ? 'good' : 'pending'),
+      failed ? 'bad' : task.status === 'succeeded' ? 'good' : 'pending'),
     node('time',date(task.startedAt)));
   const meta = node('p','项目：' + text(task.projectName) + ' · 任务：' + text(task.id),'task-meta muted');
   d.append(summary,meta);
   if (task.finishedAt) d.append(node('p','结束：' + date(task.finishedAt),'task-meta muted'));
-  if (task.error) {
-    d.append(node('p',task.action === 'build' ? buildFailureMessage(task) : text(task.error),'bad'));
-    if (task.action === 'build') {
-      const diagnostic = node('details'); diagnostic.dataset.key = 'error-' + task.id;
-      diagnostic.append(node('summary','错误详情'),node('pre',text(task.error)));
-      d.append(diagnostic);
-    }
+  if (failed) {
+    if (task.action === 'build') d.append(failureBanner(buildFailureTitle(task), buildFailureDetails(task)));
+    else if (task.action !== 'lua-lsp.check') d.append(failureBanner(text(task.error,'操作失败'), ''));
   }
   const previewUrl = taskPreviewUrl(task);
   if (previewUrl) {
@@ -470,7 +766,9 @@ function taskBlock(task, open = false) {
     link.referrerPolicy = 'no-referrer';
     d.append(link);
   }
-  d.append(node('pre', text(task.output, task.status === 'running' ? '等待任务输出' : '无任务输出')));
+  const output = taskOutputText(task);
+  if (output || task.status === 'running')
+    d.append(node('pre', output || '等待任务输出'));
   if (task.result !== undefined) {
     const result = node('details'); result.dataset.key = 'result-' + task.id;
     result.append(node('summary','完整结果'),node('pre',text(task.result))); d.append(result);
@@ -483,23 +781,54 @@ function renderBuild() {
   const build = node('section'); build.id = 'build-panel';
   const local = node('section'); local.id = 'preview-panel';
   columns.append(build,local);
+  const buildDetail = node('section',undefined,'build-detail'); buildDetail.id = 'build-detail-panel';
+  const previewLogs = node('section',undefined,'preview-log-detail'); previewLogs.id = 'preview-logs';
+  previewLogs.hidden = true;
   const history = node('section',undefined,'task-history'); history.id = 'task-history';
-  replace($('view'),[title,columns,history]);
+  replace($('view'),[title,columns,buildDetail,previewLogs,history]);
   updateBuild();
 }
 function updateBuild() {
   if (page !== 'build' || !$('build-panel')) return;
   const tasks = tasksFor(selected);
   const buildTasks = tasks.filter(t => t.action === 'build');
+  const checking = pendingActions.get(selected) === 'lua-lsp.check';
   const buildStatus = buildStatusBlock(buildTasks[0],pendingActions.get(selected) === 'build');
-  const buildChildren = [node('h2','远端构建'),buildStatus];
-  if (buildTasks[0]) buildChildren.push(taskBlock(buildTasks[0],true));
+  const checkTask = tasks.find(t => t.action === 'lua-lsp.check');
+  const lua = luaLspPresentation(state.luaLsp);
+  const checkBlock = node('div',undefined,'lua-check-panel');
+  checkBlock.append(node('p','Lua LSP · ' + lua.label + (lua.detail ? ' · ' + lua.detail : ''), lua.tone));
+  if (checkTask) {
+    const result = nestedResult(checkTask);
+    const summary = luaCheckSummary(checkTask,checking);
+    checkBlock.append(node('p',summary, checkTask.status === 'failed' ? 'bad' : checkTask.status === 'succeeded' ? 'good' : 'pending'));
+    if (Array.isArray(result?.issues) && result.issues.length)
+      checkBlock.append(node('pre',result.issues.slice(0,20).join('\n'),'failure-detail'));
+  } else checkBlock.append(node('p','尚未检查当前项目','muted'));
+  const checkActions = node('div',undefined,'actions preview-controls');
+  checkActions.append(button(checking ? '检查中' : 'Lua 检查',() => void runAction('lua-lsp.check'),{
+    disabled:offline || busy(),focus:'lua-lsp.check'
+  }));
+  checkBlock.append(checkActions);
+  const buildChildren = [node('h2','远端构建'),buildStatus,checkBlock];
   replace($('build-panel'),buildChildren);
-  const localChildren = [node('h2','本地预览'),node('p',previewLabel(),'status-line')];
+  const buildDetail = $('build-detail-panel');
+  buildDetail.hidden = !buildTasks[0];
+  if (buildTasks[0]) replace(buildDetail,[node('h2','最近构建任务'),taskBlock(buildTasks[0], buildTasks[0].status === 'failed')]);
+  const previewInfo = previewPresentation(preview,previewError);
+  const localChildren = [node('h2','本地预览'),node('p',previewInfo.label,'status-line ' + previewInfo.tone)];
   localChildren.push(fields([['Runtime',preview?.install_state === 'ready' ? '已安装' :
-    preview?.install_state === 'missing' ? '未安装' : '待检测'],['会话状态',preview?.state],
-    ['会话 ID',preview?.session_id]]));
-  if (previewError || preview?.error) localChildren.push(node('p',previewError || text(preview.error),'bad'));
+    preview?.install_state === 'missing' ? '未安装' : '待检测'],['会话状态',previewInfo.stateLabel]]));
+  if (previewInfo.error) localChildren.push(node('p',previewInfo.error,'bad'));
+  if (previewInfo.errorCount) localChildren.push(node('p',
+    'Runtime 日志中有 ' + previewInfo.errorCount + ' 条错误 · ' + previewInfo.errors[0],
+    'pending preview-warning'));
+  if (preview?.session_id) {
+    const diagnostics = node('details'); diagnostics.dataset.key = 'preview-diagnostics';
+    diagnostics.append(node('summary','诊断信息'),fields([['会话 ID',preview.session_id],
+      ['Runtime PID',preview.runtime_pid],['刷新编号',preview.reload_id]]));
+    localChildren.push(diagnostics);
+  }
   if (preview?.supported === false) localChildren.push(node('p','当前平台不支持本地预览','bad'));
   const actions = node('div',undefined,'actions preview-controls');
   previewActions(preview).forEach(action => actions.append(button(actionLabels[action],() => void runAction(action),{
@@ -507,11 +836,8 @@ function updateBuild() {
   })));
   actions.append(button('检测预览状态',() => void refreshPreview(),{icon:'refresh',iconOnly:true,
     className:'icon-button',focus:'preview-status'}));
-  actions.append(button('运行日志',() => void loadLogs(),{focus:'preview-logs'}));
+  actions.append(button('查看运行日志',() => void loadLogs(),{focus:'preview-logs'}));
   localChildren.push(actions);
-  const logs = $('preview-logs');
-  const logSection = logs || node('div'); logSection.id = 'preview-logs';
-  localChildren.push(logSection);
   replace($('preview-panel'),localChildren);
   const history = [node('h2','任务历史')];
   if (!tasks.length) history.push(node('p','暂无控制台任务','muted'));
@@ -539,13 +865,15 @@ async function loadLogs() {
   const key = selected, epoch = selectionEpoch, view = viewEpoch;
   const target = $('preview-logs');
   if (!target) return;
-  replace(target,[node('p','正在读取日志','muted')]);
+  target.hidden = false;
+  replace(target,[node('h2','Runtime 日志'),node('p','正在读取日志','muted')]);
   try {
     const logs = await api(projectPath(key,'/preview/logs'));
     if (!selectionMatches(key,epoch) || view !== viewEpoch) return;
-    replace($('preview-logs'),[node('pre',text(logs))]);
+    replace($('preview-logs'),[node('h2','Runtime 日志'),node('pre',text(logs))]);
   } catch (error) {
-    if (selectionMatches(key,epoch) && view === viewEpoch) replace($('preview-logs'),[node('p',error.message,'bad')]);
+    if (selectionMatches(key,epoch) && view === viewEpoch)
+      replace($('preview-logs'),[node('h2','Runtime 日志'),node('p',error.message,'bad')]);
   }
 }
 function confirmAction(action, name) {
@@ -561,13 +889,29 @@ function confirmAction(action, name) {
     dialog.showModal();
   });
 }
+async function startTask(action, key, epoch, project) {
+  const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action}});
+  if (task.projectKey !== key) throw new Error('任务项目与请求不一致，已停止更新。请检查任务状态。');
+  rememberTask(task);
+  if (!selectionMatches(key,epoch)) return task;
+  announce(actionLabels[action] + ' · ' + project.name + ' · ' + (statusLabels[task.status] || '结果未知'));
+  if (task.status === 'running') return await waitForTask(task.id,key,epoch) || task;
+  return tasksFor(key).find(item => item.id === task.id) || task;
+}
+function luaCheckBlocksBuild(task) {
+  if (!task || task.status === 'running' || task.status === 'unknown') return true;
+  if (task.status === 'succeeded') return false;
+  const result = nestedResult(task);
+  if (result?.ready === false) return false;
+  return task.status === 'failed' || (result?.errorCount || 0) > 0;
+}
 async function runAction(action) {
   const key = selected, epoch = selectionEpoch;
   const project = currentProject();
   if (!project?.valid || busy(key) || !Object.hasOwn(actionLabels,action)) return;
   pending.add(key); pendingActions.set(key,action); updateChrome(); updateBuild();
   try {
-    if (action !== 'build') {
+    if (action !== 'build' && action !== 'lua-lsp.check') {
       const status = await api(projectPath(key,'/preview'));
       if (!selectionMatches(key,epoch)) return;
       preview = status;
@@ -577,12 +921,28 @@ async function runAction(action) {
         if (!selectionMatches(key,epoch)) return;
       }
     }
-    const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action}});
-    if (task.projectKey !== key) throw new Error('任务项目与请求不一致，已停止更新。请检查任务状态。');
-    rememberTask(task);
-    if (!selectionMatches(key,epoch)) return;
-    announce(actionLabels[action] + ' · ' + project.name + ' · ' + (statusLabels[task.status] || '结果未知'));
-    void pollTask(task.id,key,epoch);
+    if (action === 'build' && buildChecksLua) {
+      pendingActions.set(key,'lua-lsp.check');
+      updateChrome(); updateBuild();
+      const check = await startTask('lua-lsp.check',key,epoch,project);
+      if (!selectionMatches(key,epoch)) return;
+      if (luaCheckBlocksBuild(check)) {
+        notify(text(nestedResult(check)?.error || check?.error,'Lua 检查未通过，已停止构建。'));
+        return;
+      }
+      if (check?.status === 'failed') notify(text(check.error,'Lua 检查不可用，仍继续构建。'));
+      pendingActions.set(key,'build');
+      updateChrome(); updateBuild();
+    }
+    if (action === 'lua-lsp.check') await startTask(action,key,epoch,project);
+    else {
+      const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action}});
+      if (task.projectKey !== key) throw new Error('任务项目与请求不一致，已停止更新。请检查任务状态。');
+      rememberTask(task);
+      if (!selectionMatches(key,epoch)) return;
+      announce(actionLabels[action] + ' · ' + project.name + ' · ' + (statusLabels[task.status] || '结果未知'));
+      void pollTask(task.id,key,epoch);
+    }
   } catch (error) {
     if (selectionMatches(key,epoch)) notify(error.message);
   } finally {
@@ -591,21 +951,33 @@ async function runAction(action) {
     if (selectionMatches(key,epoch)) { updateChrome(); updateBuild(); }
   }
 }
+function runProjectAction(action) {
+  navigate('build');
+  return runAction(action);
+}
 async function pollTask(id,key,epoch) {
   try {
+    const prior = tasksFor(key).find(t => t.id === id);
     const task = await api('/api/tasks/' + encodeURIComponent(id));
     if (task.projectKey !== key || task.id !== id) throw new Error('任务身份不一致');
-    const prior = tasksFor(key).find(t => t.id === id);
     rememberTask(task);
     const index = state.tasks.findIndex(t => t.id === id);
     if (index >= 0) state.tasks[index] = task; else state.tasks.push(task);
-    if (!selectionMatches(key,epoch)) return;
+    if (!selectionMatches(key,epoch)) return task;
     updateChrome(); updateBuild();
     if (task.status !== 'running' && prior?.status === 'running') {
       announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
       await refreshPreview();
     }
+    return task;
   } catch (error) { if (selectionMatches(key,epoch)) notify(error.message); }
+}
+async function waitForTask(id,key,epoch) {
+  while (selectionMatches(key,epoch) && !offline && !disposed) {
+    const task = await pollTask(id,key,epoch);
+    if (!task || task.status !== 'running') return task;
+    await new Promise(resolve => setTimeout(resolve,1000));
+  }
 }
 function graphLayout(commits) {
   const lanes = [];
@@ -723,6 +1095,11 @@ function navigate(next) {
 function render() {
   updateChrome();
   $('view').setAttribute('aria-busy','false');
+  const plugin = currentProject()?.valid && pluginDescriptors().find(item => page === 'plugin:' + item.id);
+  $('view').hidden = Boolean(plugin);
+  $('plugin-views').hidden = !plugin;
+  pluginSessions.forEach(session => { session.element.hidden = true; });
+  if (plugin) { renderPlugin(plugin); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
   else if (page === 'build') renderBuild();
   else if (page === 'git') renderGit();
@@ -755,6 +1132,7 @@ async function pollState() {
   const previousTasks = new Map(tasksFor(selected).map(task => [task.id,task.status]));
   const priorTasks = JSON.stringify(tasksFor(selected));
   const priorProjects = JSON.stringify(state.projects);
+  const priorLua = JSON.stringify(state.luaLsp);
   state = result; loaded = true;
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
@@ -777,6 +1155,7 @@ async function pollState() {
     updateChrome();
     if (page === 'projects' && (first || priorProjects !== JSON.stringify(state.projects))) renderProjects();
     if (page === 'build' && priorTasks !== JSON.stringify(tasksFor(selected))) updateBuild();
+    if (page === 'overview' && detail && priorLua !== JSON.stringify(state.luaLsp)) renderOverview();
   }
 }
 async function poll() {
@@ -799,10 +1178,21 @@ async function poll() {
   }
 }
 document.addEventListener('DOMContentLoaded',async () => {
+  window.addEventListener('message',event => {
+    for (const session of pluginSessions.values()) {
+      if (!pluginMessageMatches(event,session)) continue;
+      if (event.data.type === 'maker-console:plugin-ready') {
+        clearTimeout(session.timer);
+        pluginStatus(session,session.projectName,true);
+      } else if (!session.element.hidden && !document.hidden) void sendActivity();
+      break;
+    }
+  });
   const activity = event => { if (event.isTrusted) void sendActivity(); };
   document.addEventListener('pointerdown',activity,{passive:true});
   document.addEventListener('keydown',activity,{passive:true});
   document.addEventListener('wheel',activity,{passive:true});
+  window.addEventListener('focus',() => { void sendActivity(); void poll(); });
   window.addEventListener('pagehide',dispose,{once:true});
   const theme = $('theme');
   try { theme.checked = localStorage.getItem('maker-console-theme') !== 'light'; } catch (_) {}
@@ -810,6 +1200,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   theme.addEventListener('change',() => {
     const value = theme.checked ? 'dark' : 'light';
     document.documentElement.dataset.theme = value;
+    pluginSessions.forEach(session => sendPluginTheme(session));
     try { localStorage.setItem('maker-console-theme',value); } catch (_) { notify('无法保存主题设置'); }
   });
   $('projects-button').append(icon('folder'));
@@ -823,9 +1214,10 @@ document.addEventListener('DOMContentLoaded',async () => {
   });
   document.addEventListener('visibilitychange',() => {
     clearTimeout(pollTimer);
-    if (!document.hidden) void poll();
+    if (!document.hidden) { void sendActivity(); void poll(); }
   });
   render();
+  startActivityLease();
   await sendActivity();
   await poll();
   if (selected && !currentProject()) notify('所选项目未登记，请从本地项目列表选择。');
