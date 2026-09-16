@@ -18,6 +18,8 @@ import {
   installAiDevKit,
   installAiDevKitSkills,
 } from '../maker/cli/devKit';
+import { syncWorkBuddyProjectSkills } from '../maker/cli/workBuddyProjectSkills';
+import { pullMakerUserSkills } from '../maker/cli/userSkills';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../maker/versionCheck';
 import { runMakerCli } from '../maker/cli/commands';
 import {
@@ -147,6 +149,26 @@ jest.mock('../maker/cli/devKit', () => ({
   writeDevKitStagedGitignore: jest.fn(),
 }));
 
+jest.mock('../maker/cli/workBuddyProjectSkills', () => ({
+  syncWorkBuddyProjectSkills: jest.fn(() => ({
+    status: 'installed',
+    sourceDir: '/project/.installer/skills',
+    targetDir: '/project/.workbuddy/skills',
+    installedSkills: ['taptap-maker-materials'],
+    skippedSkills: [],
+  })),
+}));
+
+jest.mock('../maker/cli/userSkills', () => ({
+  pullMakerUserSkills: jest.fn(async (options) => ({
+    targetDir: path.resolve(options.targetDir),
+    sourceDir: path.join(path.resolve(options.targetDir), '.installer', 'skills'),
+    environment: options.environment || 'production',
+    installedSkills: ['materials'],
+    preservedSkills: ['local-only'],
+  })),
+}));
+
 jest.mock('../maker/versionCheck', () => ({
   formatMakerPackageUpdateStatus: jest.fn(() =>
     [
@@ -197,6 +219,7 @@ describe('Maker CLI commands', () => {
   const originalPythonBin = process.env.TAPTAP_MAKER_PYTHON_BIN;
   const originalNpmCache = process.env.npm_config_cache;
   const originalDshHome = process.env.DSH_HOME;
+  const originalMakerDistribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
   const originalStdinIsTty = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
   let homedirSpy: jest.SpyInstance;
   let stdoutSpy: jest.SpyInstance;
@@ -239,6 +262,7 @@ describe('Maker CLI commands', () => {
     delete process.env.TAPTAP_MAKER_PYTHON_BIN;
     delete process.env.npm_config_cache;
     delete process.env.DSH_HOME;
+    delete process.env.TAPTAP_MAKER_DISTRIBUTION;
     setMakerEnvironmentOverride(undefined);
     homedirSpy = jest.spyOn(os, 'homedir').mockReturnValue(tempDir);
     stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
@@ -289,6 +313,11 @@ describe('Maker CLI commands', () => {
     } else {
       process.env.DSH_HOME = originalDshHome;
     }
+    if (originalMakerDistribution === undefined) {
+      delete process.env.TAPTAP_MAKER_DISTRIBUTION;
+    } else {
+      process.env.TAPTAP_MAKER_DISTRIBUTION = originalMakerDistribution;
+    }
     setMakerEnvironmentOverride(undefined);
     if (originalStdinIsTty) {
       Object.defineProperty(process.stdin, 'isTTY', originalStdinIsTty);
@@ -297,6 +326,119 @@ describe('Maker CLI commands', () => {
     }
     process.exitCode = undefined;
     fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test('plugin inspect reports the legacy Codex Maker MCP registration without changing it', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    const original = [
+      '[mcp_servers.taptap-maker]',
+      'command = "node"',
+      'args = ["/tmp/maker.js"]',
+      '',
+    ].join('\n');
+    fs.writeFileSync(configPath, original, 'utf8');
+
+    await runMakerCli(['plugin', 'inspect', '--client', 'codex', '--json']);
+
+    expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual({
+      client: 'codex',
+      status: 'active',
+      config_path: configPath,
+      registration_count: 1,
+      enabled: true,
+    });
+    expect(fs.readFileSync(configPath, 'utf8')).toBe(original);
+  });
+
+  test('plugin migrate requires confirmation and is idempotent after disabling Codex MCP', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      ['[mcp_servers.taptap-maker]', 'command = "node"', 'args = ["/tmp/maker.js"]', ''].join('\n'),
+      'utf8'
+    );
+
+    await expect(runMakerCli(['plugin', 'migrate', '--client', 'codex', '--json'])).rejects.toThrow(
+      'requires explicit confirmation'
+    );
+
+    await runMakerCli(['plugin', 'migrate', '--client', 'codex', '--confirm', '--json']);
+    const first = JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]));
+    expect(first).toEqual(
+      expect.objectContaining({ client: 'codex', action: 'disabled', changed: true })
+    );
+    expect(fs.readFileSync(configPath, 'utf8')).toContain('enabled = false');
+
+    await runMakerCli(['plugin', 'migrate', '--client', 'codex', '--confirm', '--json']);
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toEqual(
+      expect.objectContaining({ action: 'already_migrated', changed: false })
+    );
+  });
+
+  test('plugin restore re-enables only the plugin-owned legacy Codex MCP registration', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      ['[mcp_servers.taptap-maker]', 'command = "node"', 'args = ["/tmp/maker.js"]', ''].join('\n'),
+      'utf8'
+    );
+    await runMakerCli(['plugin', 'migrate', '--client', 'codex', '--confirm', '--json']);
+
+    await runMakerCli(['plugin', 'restore', '--client', 'codex', '--confirm', '--json']);
+
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toEqual(
+      expect.objectContaining({ client: 'codex', action: 'restored', changed: true })
+    );
+    expect(fs.readFileSync(configPath, 'utf8')).not.toContain('enabled = false');
+  });
+
+  test('plugin lifecycle commands route WorkBuddy inspection, migration, and restoration', async () => {
+    const configPath = path.join(tempDir, '.workbuddy', '.mcp.json');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      `${JSON.stringify(
+        {
+          mcpServers: {
+            'connector-proxy': { type: 'http', url: 'http://127.0.0.1:1/mcp' },
+            'taptap-maker': { command: 'npx', args: ['-y', '@taptap/maker'] },
+          },
+        },
+        null,
+        2
+      )}\n`,
+      'utf8'
+    );
+
+    await runMakerCli(['plugin', 'inspect', '--client', 'workbuddy', '--json']);
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toMatchObject({
+      client: 'workbuddy',
+      status: 'active',
+      config_path: configPath,
+    });
+
+    await runMakerCli(['plugin', 'migrate', '--client', 'workbuddy', '--confirm', '--json']);
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toMatchObject({
+      client: 'workbuddy',
+      action: 'disabled',
+      changed: true,
+    });
+    expect(
+      JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers['taptap-maker'].disabled
+    ).toBe(true);
+
+    await runMakerCli(['plugin', 'restore', '--client', 'workbuddy', '--confirm', '--json']);
+    expect(JSON.parse(String(stdoutSpy.mock.calls.at(-1)?.[0]))).toMatchObject({
+      client: 'workbuddy',
+      action: 'restored',
+      changed: true,
+    });
+    expect(
+      JSON.parse(fs.readFileSync(configPath, 'utf8')).mcpServers['taptap-maker']
+    ).not.toHaveProperty('disabled');
   });
 
   test('codex mcp install replaces existing server table and env subtable', async () => {
@@ -1583,6 +1725,39 @@ describe('Maker CLI commands', () => {
     expect(text).toContain('[mcp_servers."other"]');
   });
 
+  test('codex mcp install preserves table-like text inside TOML multiline strings', async () => {
+    const configPath = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    const instructions = [
+      'instructions = """',
+      '[mcp_servers.taptap-maker]',
+      'command = "documentation-example"',
+      '"""',
+    ].join('\n');
+    fs.writeFileSync(
+      configPath,
+      [
+        'model = "gpt-5"',
+        instructions,
+        '',
+        '[mcp_servers.taptap-maker]',
+        'command = "old-node"',
+        '',
+        '[mcp_servers."other"]',
+        'command = "other"',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+
+    await runMakerCli(['mcp', 'install', '--ide', 'codex', '--env', 'rnd']);
+
+    const text = fs.readFileSync(configPath, 'utf8');
+    expect(text).toContain(instructions);
+    expect(text.match(/^\[mcp_servers\."taptap-maker"\]$/gm)).toHaveLength(1);
+    expect(text).toContain('[mcp_servers."other"]\ncommand = "other"');
+  });
+
   test('codex mcp install is idempotent when repeated', async () => {
     const configPath = path.join(tempDir, '.codex', 'config.toml');
 
@@ -1840,6 +2015,25 @@ describe('Maker CLI commands', () => {
     expect(payload.restart_required).toBe(false);
     expect(payload.apply_mode).toBe('next_mcp_start');
     expect(payload.current_session).toBe('preserved');
+  });
+
+  test('plugin-distributed upgrade updates project policy without installing standalone MCP', async () => {
+    process.env.TAPTAP_MAKER_DISTRIBUTION = 'dsh_plugin';
+    saveProjectConfig(tempDir, {
+      project_id: 'app-1',
+      user_id: 'user-1',
+    });
+
+    await runMakerCli(['upgrade', '--target-dir', tempDir, '--json']);
+
+    const payload = JSON.parse(stdoutSpy.mock.calls.join(''));
+    expect(payload.mcp_install).toEqual([]);
+    expect(payload.plugin_distribution).toBe('dsh_plugin');
+    expect(fs.existsSync(path.join(tempDir, '.dsh', 'cordis.patch.yml'))).toBe(false);
+    expect(fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf8')).toContain(
+      'TapTap Maker managed AGENTS policy'
+    );
+    expect(materializeMakerSelfLauncherMock).not.toHaveBeenCalled();
   });
 
   test('upgrade without explicit target dir does not pin cwd into user-level MCP config', async () => {
@@ -2566,6 +2760,70 @@ describe('Maker CLI commands', () => {
     expect(output).toContain('AI skills install result: claude=13, codex=13, cursor=13, gemini=13');
   });
 
+  test('WorkBuddy plugin init syncs missing project skills after dev-kit preparation', async () => {
+    process.env.TAPTAP_MAKER_DISTRIBUTION = 'workbuddy_plugin';
+    jest.mocked(inspectAiDevKit).mockReturnValueOnce({
+      targetDir: tempDir,
+      requiredEntries: ['CLAUDE.md'],
+      presentEntries: [],
+      missingEntries: ['CLAUDE.md'],
+      ready: false,
+    });
+    jest.mocked(installAiDevKit).mockResolvedValueOnce({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, 'source'),
+      installedEntries: ['.installer', 'CLAUDE.md', 'tools'],
+      skippedEntries: [],
+      gitignorePath: path.join(tempDir, '.gitignore'),
+      stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    expect(syncWorkBuddyProjectSkills).toHaveBeenCalledWith(tempDir);
+    expect(stdoutSpy.mock.calls.join('')).toContain('WorkBuddy project skills installed: 1');
+  });
+
+  test('standalone Maker init does not create WorkBuddy project skills', async () => {
+    jest.mocked(inspectAiDevKit).mockReturnValueOnce({
+      targetDir: tempDir,
+      requiredEntries: ['CLAUDE.md'],
+      presentEntries: [],
+      missingEntries: ['CLAUDE.md'],
+      ready: false,
+    });
+    jest.mocked(installAiDevKit).mockResolvedValueOnce({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, 'source'),
+      installedEntries: ['.installer', 'CLAUDE.md', 'tools'],
+      skippedEntries: [],
+      gitignorePath: path.join(tempDir, '.gitignore'),
+      stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+    });
+
+    await runMakerCli([
+      'init',
+      '--skip-confirm',
+      'app-1',
+      '--target-dir',
+      tempDir,
+      '--skip-mcp-install',
+      '--pat',
+      'secret-maker-token',
+    ]);
+
+    expect(syncWorkBuddyProjectSkills).not.toHaveBeenCalled();
+  });
+
   test('init clones before installing dev kit and allows dev kit to overwrite checkout files', async () => {
     jest.mocked(inspectAiDevKit).mockReturnValueOnce({
       targetDir: tempDir,
@@ -2735,6 +2993,46 @@ describe('Maker CLI commands', () => {
         replaceManagedEntries: true,
         environment: 'rnd',
       })
+    );
+  });
+
+  test('WorkBuddy plugin dev-kit update restores missing project skills', async () => {
+    process.env.TAPTAP_MAKER_DISTRIBUTION = 'workbuddy_plugin';
+    jest.mocked(installAiDevKit).mockResolvedValueOnce({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, 'source'),
+      installedEntries: ['.installer', 'CLAUDE.md', 'tools'],
+      skippedEntries: [],
+      gitignorePath: path.join(tempDir, '.gitignore'),
+      stagedGitignorePath: path.join(tempDir, '.gitignore.dev-kit-before-clone'),
+    });
+
+    await runMakerCli(['dev-kit', 'update', '--target-dir', tempDir]);
+
+    expect(syncWorkBuddyProjectSkills).toHaveBeenCalledWith(tempDir);
+  });
+
+  test('user-skills pull routes to the lightweight downloader and prints one JSON result', async () => {
+    await runMakerCli(['user-skills', 'pull', '--target-dir', tempDir, '--env', 'rnd', '--json']);
+
+    expect(pullMakerUserSkills).toHaveBeenCalledWith({
+      targetDir: tempDir,
+      environment: 'rnd',
+    });
+    expect(JSON.parse(stdoutSpy.mock.calls.join(''))).toEqual({
+      targetDir: tempDir,
+      sourceDir: path.join(tempDir, '.installer', 'skills'),
+      environment: 'rnd',
+      installedSkills: ['materials'],
+      preservedSkills: ['local-only'],
+    });
+  });
+
+  test('help documents the optional user Skill pull command', async () => {
+    await runMakerCli(['help']);
+
+    expect(stdoutSpy.mock.calls.join('')).toContain(
+      'taptap-maker user-skills pull [--target-dir DIR] [--json]'
     );
   });
 
@@ -3241,23 +3539,36 @@ describe('Maker CLI commands', () => {
   });
 
   test('mcp report returns a non-fatal manual fallback when GitHub submission is unavailable', async () => {
-    await runMakerCli([
-      'mcp',
-      'report',
-      '--ide',
-      'workbuddy',
-      '--target-dir',
-      tempDir,
-      '--consent',
-      '--json',
-    ]);
+    const stdinIterator = jest.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(() =>
+      (async function* () {
+        yield JSON.stringify({
+          summary: 'MCP launcher unavailable',
+          error_message: 'tools/list failed with connection closed',
+        });
+      })()
+    );
+    try {
+      await runMakerCli([
+        'mcp',
+        'report',
+        '--ide',
+        'workbuddy',
+        '--target-dir',
+        tempDir,
+        '--context-stdin',
+        '--consent',
+        '--json',
+      ]);
+    } finally {
+      stdinIterator.mockRestore();
+    }
 
     const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
     expect(payload).toEqual(
       expect.objectContaining({
         status: 'manual_required',
         issue_url: 'https://github.com/taptap/instant-games-open-mcp/issues/new',
-        title: '[Maker MCP] Maker MCP problem report',
+        title: '[Maker MCP] MCP launcher unavailable',
         body: expect.stringContaining('Maker MCP 本地诊断'),
       })
     );
@@ -3275,8 +3586,49 @@ describe('Maker CLI commands', () => {
     );
   });
 
+  test('mcp report rejects empty context before collecting diagnostics or submitting', async () => {
+    await runMakerCli([
+      'mcp',
+      'report',
+      '--ide',
+      'workbuddy',
+      '--target-dir',
+      tempDir,
+      '--consent',
+      '--json',
+    ]);
+
+    const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(payload).toEqual(
+      expect.objectContaining({
+        status: 'invalid_context',
+        reason: expect.stringContaining('error_code'),
+      })
+    );
+    expect(verifyMakerMcpLauncherMock).not.toHaveBeenCalled();
+    expect(spawnSyncMock).not.toHaveBeenCalledWith('gh', expect.any(Array), expect.any(Object));
+  });
+
   test('mcp report never starts GitHub submission without explicit consent', async () => {
-    await runMakerCli(['mcp', 'report', '--ide', 'workbuddy', '--target-dir', tempDir, '--json']);
+    const stdinIterator = jest.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(() =>
+      (async function* () {
+        yield JSON.stringify({ summary: 'Consent check', error_code: 401 });
+      })()
+    );
+    try {
+      await runMakerCli([
+        'mcp',
+        'report',
+        '--ide',
+        'workbuddy',
+        '--target-dir',
+        tempDir,
+        '--context-stdin',
+        '--json',
+      ]);
+    } finally {
+      stdinIterator.mockRestore();
+    }
 
     const payload = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
     expect(payload.status).toBe('consent_required');

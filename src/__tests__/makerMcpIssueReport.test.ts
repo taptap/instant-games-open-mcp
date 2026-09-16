@@ -5,13 +5,17 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { sanitizeDiagnosticValue } from '../maker/server/diagnosticRedaction';
 import {
   buildMakerMcpIssue,
   collectMakerMcpIssueDiagnostics,
   extractMakerMcpServerConfig,
   inspectMakerMcpClientConfig,
   parseMakerMcpReportContext,
+  resolveMakerMcpReportRuntime,
   submitMakerMcpIssue,
+  validateMakerMcpReportContext,
 } from '../maker/cli/mcpIssueReport';
 
 describe('Maker MCP issue report', () => {
@@ -44,6 +48,62 @@ describe('Maker MCP issue report', () => {
       summary: 'Maker MCP problem report',
       error_message: 'MCP error -32000: Connection closed',
     });
+  });
+
+  test('rejects empty, default-only, and exact build-prerequisite report contexts', () => {
+    expect(validateMakerMcpReportContext(parseMakerMcpReportContext(''))).toEqual(
+      expect.objectContaining({ ok: false })
+    );
+    expect(validateMakerMcpReportContext({ summary: 'Maker MCP problem report' })).toEqual(
+      expect.objectContaining({ ok: false })
+    );
+    expect(
+      validateMakerMcpReportContext({
+        summary: 'Build prerequisite',
+        error_message: 'Need to call maker_build_current_directory',
+        failed_operation: 'maker_build_current_directory',
+      })
+    ).toEqual(
+      expect.objectContaining({
+        ok: false,
+        reason: expect.stringContaining('build prerequisite'),
+      })
+    );
+  });
+
+  test('accepts short error messages and numeric error codes', () => {
+    expect(
+      validateMakerMcpReportContext({
+        summary: 'Filesystem error',
+        error_message: 'EIO',
+      })
+    ).toEqual({ ok: true });
+    expect(
+      validateMakerMcpReportContext({
+        summary: 'Authentication error',
+        error_code: 401,
+      })
+    ).toEqual({ ok: true });
+  });
+
+  test('does not suppress errors that only mention the build tool in a larger message', () => {
+    expect(
+      validateMakerMcpReportContext({
+        summary: 'Connection failure',
+        error_message:
+          'Connection closed after Need to call maker_build_current_directory was returned',
+      })
+    ).toEqual({ ok: true });
+  });
+
+  test('does not suppress an exact build prerequisite when a real error code is present', () => {
+    expect(
+      validateMakerMcpReportContext({
+        summary: 'Authentication failure',
+        error_message: 'Need to call maker_build_current_directory',
+        error_code: 401,
+      })
+    ).toEqual({ ok: true });
   });
 
   test('drops unknown AI context fields instead of trusting the caller privacy boundary', () => {
@@ -113,6 +173,8 @@ describe('Maker MCP issue report', () => {
               '--database-password',
               'database-password-value',
               '--session-cookie=session-cookie-value',
+              '--request-signature',
+              'request-signature-value',
             ],
           },
         },
@@ -127,7 +189,12 @@ describe('Maker MCP issue report', () => {
           'github_pat_abcdefghijklmnopqrstuvwxyz123456',
           '--pat spaced-pat-value',
           '--database-password "spaced-database-password-value"',
+          '--token comma-token-value,continued-token-value',
+          "--token apostrophe-token-value'continued-apostrophe-value",
           'password=plain-password-value',
+          'token=ampersand-token-value&continued-token-value',
+          'token=quote-token-value"continued-quote-value',
+          'token=compound-token-value&X-Amz-Signature=compound-signature-value&error=timeout',
           'access_token=query-token-value&error=timeout',
           'TAPTAP_MCP_PAT=environment-pat-value',
         ].join(' '),
@@ -135,6 +202,7 @@ describe('Maker MCP issue report', () => {
           database_password: 'structured-database-password',
           'proxy-password': 'structured-proxy-password',
           session_cookie: 'structured-session-cookie',
+          request_signature: 'structured-request-signature',
         },
       },
       diagnostics: {
@@ -159,6 +227,8 @@ describe('Maker MCP issue report', () => {
       '--database-password',
       '<redacted>',
       '--session-cookie=<redacted>',
+      '--request-signature',
+      '<redacted>',
     ]);
     expect(issue.body).not.toContain('legacy-pat-value');
     expect(issue.body).not.toContain('inline-token-value');
@@ -166,13 +236,63 @@ describe('Maker MCP issue report', () => {
     expect(issue.body).not.toContain('github_pat_abcdefghijklmnopqrstuvwxyz123456');
     expect(issue.body).not.toContain('spaced-pat-value');
     expect(issue.body).not.toContain('spaced-database-password-value');
+    expect(issue.body).not.toContain('comma-token-value');
+    expect(issue.body).not.toContain('continued-token-value');
+    expect(issue.body).not.toContain('apostrophe-token-value');
+    expect(issue.body).not.toContain('continued-apostrophe-value');
     expect(issue.body).not.toContain('plain-password-value');
+    expect(issue.body).not.toContain('ampersand-token-value');
+    expect(issue.body).not.toContain('quote-token-value');
+    expect(issue.body).not.toContain('continued-quote-value');
+    expect(issue.body).not.toContain('compound-token-value');
+    expect(issue.body).not.toContain('compound-signature-value');
     expect(issue.body).not.toContain('query-token-value');
     expect(issue.body).toContain('error=timeout');
     expect(issue.body).not.toContain('environment-pat-value');
     expect(issue.body).not.toContain('structured-database-password');
     expect(issue.body).not.toContain('structured-proxy-password');
     expect(issue.body).not.toContain('structured-session-cookie');
+    expect(issue.body).not.toContain('structured-request-signature');
+  });
+
+  test('redacts URL userinfo while preserving query and fragment email addresses', () => {
+    const message = [
+      'Failed https://alice:password@example.com/private',
+      'Git failed ssh://git:secret@example.com/repository',
+      'query https://maker.example.test?email=user@example.com',
+      'fragment https://maker.example.test#owner=user@example.com',
+    ].join(' ');
+
+    expect(sanitizeDiagnosticValue(message)).toBe(
+      [
+        'Failed https://<redacted>@example.com/private',
+        'Git failed ssh://<redacted>@example.com/repository',
+        'query https://maker.example.test?email=user@example.com',
+        'fragment https://maker.example.test#owner=user@example.com',
+      ].join(' ')
+    );
+
+    const issue = buildMakerMcpIssue({
+      context: { summary: 'URL diagnostics', error_message: message },
+      diagnostics: {
+        occurred_at: '2026-08-24T12:00:00+08:00',
+        os_arch: 'win32 x64',
+        node_version: 'v26.4.0',
+        maker_package_version: '0.0.31',
+        process_cwd: tempDir,
+        target_dir: tempDir,
+        project_context: { status: 'not_bound' },
+        client_config: { status: 'not_found' },
+        mcp_verify: { ok: false },
+      },
+      homeDir: tempDir,
+    });
+
+    expect(issue.body).toContain('https://<redacted>@example.com/private');
+    expect(issue.body).toContain('ssh://<redacted>@example.com/repository');
+    expect(issue.body).toContain('https://maker.example.test?email=user@example.com');
+    expect(issue.body).toContain('https://maker.example.test#owner=user@example.com');
+    expect(issue.body).not.toContain('alice:password');
   });
 
   test('builds a public-safe issue body with normalized home paths and redacted credentials', () => {
@@ -503,6 +623,169 @@ describe('Maker MCP issue report', () => {
     expect(diagnostics.client_config).toMatchObject({
       status: 'found',
       entries: [expect.objectContaining({ path: configPath, status: 'found' })],
+    });
+  });
+
+  test('resolves Codex plugin reports to the active plugin config and bundle', () => {
+    const pluginRoot = path.join(tempDir, 'taptap-maker');
+    const bundlePath = path.join(pluginRoot, 'dist', 'maker.js');
+    const configPath = path.join(pluginRoot, '.mcp.json');
+
+    const runtime = resolveMakerMcpReportRuntime({
+      distribution: 'codex_plugin',
+      bundleUrl: pathToFileURL(bundlePath).href,
+      execPath: process.execPath,
+    });
+
+    expect(runtime).toEqual({
+      distribution: 'codex_plugin',
+      client: 'codex',
+      config_source: {
+        format: 'json',
+        paths: [configPath],
+        mcp_name: 'taptap-maker-plugin',
+      },
+      launcher: {
+        kind: 'self_runtime',
+        command: process.execPath,
+        args: [bundlePath],
+        commandAndArgs: [process.execPath, bundlePath],
+      },
+      cwd: pluginRoot,
+      env: {
+        TAPTAP_MAKER_DISTRIBUTION: 'codex_plugin',
+        TAPTAP_MCP_CLIENT_IDE: 'codex',
+      },
+    });
+    expect(resolveMakerMcpReportRuntime({ distribution: undefined })).toBeUndefined();
+  });
+
+  test('resolves WorkBuddy plugin reports to the bundled runtime', () => {
+    const pluginRoot = path.join(tempDir, 'workbuddy-taptap-maker');
+    const bundlePath = path.join(pluginRoot, 'dist', 'maker.js');
+    const configPath = path.join(pluginRoot, '.mcp.json');
+
+    const runtime = resolveMakerMcpReportRuntime({
+      distribution: 'workbuddy_plugin',
+      bundleUrl: pathToFileURL(bundlePath).href,
+      execPath: process.execPath,
+    });
+
+    expect(runtime).toEqual({
+      distribution: 'workbuddy_plugin',
+      client: 'workbuddy',
+      config_source: {
+        format: 'json',
+        paths: [configPath],
+        mcp_name: 'taptap-maker-plugin',
+      },
+      launcher: {
+        kind: 'self_runtime',
+        command: process.execPath,
+        args: [bundlePath],
+        commandAndArgs: [process.execPath, bundlePath],
+      },
+      cwd: pluginRoot,
+      env: {
+        TAPTAP_MAKER_DISTRIBUTION: 'workbuddy_plugin',
+        TAPTAP_MCP_CLIENT_IDE: 'workbuddy',
+      },
+    });
+  });
+
+  test('collects the plugin MCP entry instead of the disabled standalone Codex registration', async () => {
+    const standaloneConfig = path.join(tempDir, '.codex', 'config.toml');
+    fs.mkdirSync(path.dirname(standaloneConfig), { recursive: true });
+    fs.writeFileSync(
+      standaloneConfig,
+      ['[mcp_servers.taptap-maker]', 'command = "old-node"', 'enabled = false', ''].join('\n'),
+      'utf8'
+    );
+    const pluginConfig = path.join(tempDir, 'plugin', '.mcp.json');
+    fs.mkdirSync(path.dirname(pluginConfig), { recursive: true });
+    fs.writeFileSync(
+      pluginConfig,
+      JSON.stringify({
+        mcpServers: {
+          'taptap-maker-plugin': {
+            command: 'node',
+            args: ['./dist/maker.js'],
+            cwd: '.',
+          },
+        },
+      }),
+      'utf8'
+    );
+
+    const diagnostics = await collectMakerMcpIssueDiagnostics({
+      ide: 'codex',
+      homeDir: tempDir,
+      targetDir: tempDir,
+      makerVersion: 'dev',
+      configSource: {
+        format: 'json',
+        paths: [pluginConfig],
+        mcp_name: 'taptap-maker-plugin',
+      },
+      verify: async () => ({ ok: true, stage: 'tools_list' }),
+    });
+
+    expect(diagnostics.client_config).toMatchObject({
+      status: 'found',
+      entries: [
+        {
+          path: pluginConfig,
+          status: 'found',
+          server: {
+            command: 'node',
+            args: ['./dist/maker.js'],
+            cwd: '.',
+          },
+        },
+      ],
+    });
+    expect(JSON.stringify(diagnostics.client_config)).not.toContain('old-node');
+  });
+
+  test('collects WorkBuddy trust for the active plugin MCP instead of the standalone MCP', async () => {
+    const trustPath = path.join(
+      tempDir,
+      '.workbuddy',
+      'connectors',
+      'private-account-id',
+      'connector-states.json'
+    );
+    fs.mkdirSync(path.dirname(trustPath), { recursive: true });
+    fs.writeFileSync(
+      trustPath,
+      JSON.stringify({
+        enabled: ['taptap-maker'],
+        everConnected: ['taptap-maker', 'taptap-maker-plugin'],
+        userDisabled: ['taptap-maker-plugin'],
+      }),
+      'utf8'
+    );
+
+    const diagnostics = await collectMakerMcpIssueDiagnostics({
+      ide: 'workbuddy',
+      homeDir: tempDir,
+      targetDir: tempDir,
+      makerVersion: 'dev',
+      configSource: {
+        format: 'json',
+        paths: [path.join(tempDir, 'plugin', '.mcp.json')],
+        mcp_name: 'taptap-maker-plugin',
+      },
+      verify: async () => ({ ok: true, stage: 'tools_list' }),
+    });
+
+    expect(diagnostics.workbuddy_trust).toEqual({
+      status: 'disabled',
+      accounts_checked: 1,
+      trusted_accounts: 0,
+      disabled_accounts: 1,
+      pending_accounts: 0,
+      unreadable_accounts: 0,
     });
   });
 

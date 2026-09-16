@@ -16,6 +16,7 @@ const FIRST_BETA_VERSION = '0.0.1-beta.1';
 const NPM_VIEW_TIMEOUT_MS = 30 * 1000;
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const RELEASE_BRANCHES = new Set(['main', 'beta']);
+const PRERELEASE_BRANCHES = new Set(['main', 'beta', 'develop']);
 // Keep this set in sync with the prerelease tag choices in publish-maker.yml.
 const PRERELEASE_TAGS = new Set(['alpha', 'beta', 'next']);
 
@@ -176,10 +177,14 @@ function assertReleaseBranch(branch) {
   }
 }
 
-function assertAutoReleaseBranch(branch) {
-  if (!RELEASE_BRANCHES.has(branch)) {
+function assertAutoReleaseBranch(branch, tag) {
+  if (branch === 'develop' && !PRERELEASE_TAGS.has(tag)) {
+    throw new Error(`develop can only publish prerelease tags; got: ${tag}`);
+  }
+  const allowedBranches = PRERELEASE_TAGS.has(tag) ? PRERELEASE_BRANCHES : RELEASE_BRANCHES;
+  if (!allowedBranches.has(branch)) {
     throw new Error(
-      `auto-last-number mode is only allowed from main or beta; current branch: ${branch || '(unknown)'}`
+      `auto-last-number mode is only allowed from ${[...allowedBranches].join(', ')}; current branch: ${branch || '(unknown)'}`
     );
   }
 }
@@ -242,7 +247,7 @@ function maxPrereleaseNumberForBase(baseVersion, tag, publishedVersions) {
 
 function resolveStableAutoVersion(tag, hasPublishedVersions, publishedVersions, currentVersion) {
   const branch = readEnv('GITHUB_REF_NAME');
-  assertAutoReleaseBranch(branch);
+  assertAutoReleaseBranch(branch, tag);
 
   if (!hasPublishedVersions) {
     throw new Error(
@@ -274,7 +279,7 @@ function resolvePrereleaseAutoVersion(
   currentVersion
 ) {
   const branch = readEnv('GITHUB_REF_NAME');
-  assertAutoReleaseBranch(branch);
+  assertAutoReleaseBranch(branch, tag);
 
   if (!hasPublishedVersions) {
     throw new Error(

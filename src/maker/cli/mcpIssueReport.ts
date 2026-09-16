@@ -9,13 +9,19 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { identifyMakerProject } from '../server/identify.js';
+import {
+  resolveMakerPluginDistribution,
+  type MakerPluginDistributionId,
+} from '../pluginDistribution.js';
 import { findDshMakerPluginEntry, getDshHome, listDshMcpConfigPaths } from './dshMcpConfig.js';
 import {
   resolveMakerPackageSpec,
   resolveMakerMcpLauncher,
   verifyMakerMcpLauncher,
+  type MakerMcpLauncher,
 } from './mcpLauncher.js';
 
 const MAKER_MCP_NAME = 'taptap-maker';
@@ -50,6 +56,22 @@ export type MakerMcpIssueDiagnostics = {
   mcp_verify: unknown;
   network_proxy?: unknown;
   workbuddy_trust?: unknown;
+  distribution?: string;
+};
+
+export type MakerMcpConfigSource = {
+  format: 'codex_toml' | 'json' | 'jsonc' | 'dsh';
+  paths: string[];
+  mcp_name: string;
+};
+
+export type MakerMcpReportRuntime = {
+  distribution: MakerPluginDistributionId;
+  client: 'codex' | 'workbuddy' | 'dsh';
+  config_source: MakerMcpConfigSource;
+  launcher: MakerMcpLauncher;
+  cwd: string;
+  env: Record<string, string>;
 };
 
 export type MakerMcpIssue = {
@@ -77,6 +99,8 @@ type MakerMcpIssueSubmission =
   | { status: 'created'; issue_url: string }
   | (MakerMcpIssue & { status: 'manual_required'; issue_url: string });
 
+export type MakerMcpReportContextValidation = { ok: true } | { ok: false; reason: string };
+
 export function parseMakerMcpReportContext(input: string): MakerMcpReportContext {
   const trimmed = input.trim();
   if (!trimmed) {
@@ -95,6 +119,33 @@ export function parseMakerMcpReportContext(input: string): MakerMcpReportContext
   return {
     summary: 'Maker MCP problem report',
     error_message: trimmed,
+  };
+}
+
+export function validateMakerMcpReportContext(
+  context: MakerMcpReportContext
+): MakerMcpReportContextValidation {
+  const errorMessage = context.error_message?.trim() || '';
+  const hasErrorCode =
+    typeof context.error_code === 'number' ||
+    (typeof context.error_code === 'string' && context.error_code.trim().length > 0);
+  const hasFailedOperation = Boolean(context.failed_operation?.trim());
+  if (errorMessage === 'Need to call maker_build_current_directory' && !hasErrorCode) {
+    return {
+      ok: false,
+      reason:
+        'This is an expected Maker project build prerequisite, not an MCP connectivity failure.',
+    };
+  }
+
+  if (hasErrorCode || hasFailedOperation || errorMessage) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    reason:
+      'Report context must include at least one of error_code, failed_operation, or error_message.',
   };
 }
 
@@ -164,6 +215,46 @@ export function inspectMakerMcpClientConfig(options: {
   return { ide, status, entries };
 }
 
+export function resolveMakerMcpReportRuntime(options: {
+  distribution?: string;
+  bundleUrl?: string;
+  execPath?: string;
+}): MakerMcpReportRuntime | undefined {
+  const pluginDistribution = resolveMakerPluginDistribution(options.distribution);
+  if (!pluginDistribution) {
+    return undefined;
+  }
+  if (!options.bundleUrl) {
+    throw new Error(
+      `${pluginDistribution.displayName} plugin diagnostics require the active Maker bundle URL.`
+    );
+  }
+
+  const bundlePath = path.resolve(fileURLToPath(options.bundleUrl));
+  const pluginRoot = path.dirname(path.dirname(bundlePath));
+  const execPath = options.execPath ?? process.execPath;
+  return {
+    distribution: pluginDistribution.id,
+    client: pluginDistribution.client,
+    config_source: {
+      format: 'json',
+      paths: [path.join(pluginRoot, '.mcp.json')],
+      mcp_name: 'taptap-maker-plugin',
+    },
+    launcher: {
+      kind: 'self_runtime',
+      command: execPath,
+      args: [bundlePath],
+      commandAndArgs: [execPath, bundlePath],
+    },
+    cwd: pluginRoot,
+    env: {
+      TAPTAP_MAKER_DISTRIBUTION: pluginDistribution.id,
+      TAPTAP_MCP_CLIENT_IDE: pluginDistribution.client,
+    },
+  };
+}
+
 export function buildMakerMcpIssue(options: {
   context: MakerMcpReportContext;
   diagnostics: MakerMcpIssueDiagnostics;
@@ -216,6 +307,8 @@ export async function collectMakerMcpIssueDiagnostics(options: {
   environment?: NodeJS.ProcessEnv;
   now?: () => Date;
   verify?: () => Promise<unknown>;
+  configSource?: MakerMcpConfigSource;
+  distribution?: string;
 }): Promise<MakerMcpIssueDiagnostics> {
   const platform = options.platform || process.platform;
   const homeDir = options.homeDir || os.homedir();
@@ -236,13 +329,15 @@ export async function collectMakerMcpIssueDiagnostics(options: {
   const client = options.ide?.trim().toLowerCase();
   const environment = options.environment || process.env;
   const clientConfig = client
-    ? inspectMakerMcpClientConfig({
-        ide: client,
-        homeDir,
-        platform,
-        appData: options.appData || environment.APPDATA,
-        dshHome: client === 'dsh' ? getDshHome({ homeDir, environment }) : undefined,
-      })
+    ? options.configSource
+      ? inspectMakerMcpConfigSource(client, options.configSource)
+      : inspectMakerMcpClientConfig({
+          ide: client,
+          homeDir,
+          platform,
+          appData: options.appData || environment.APPDATA,
+          dshHome: client === 'dsh' ? getDshHome({ homeDir, environment }) : undefined,
+        })
     : { status: 'not_checked', reason: 'active_client_not_provided' };
 
   let mcpVerify: unknown;
@@ -274,9 +369,13 @@ export async function collectMakerMcpIssueDiagnostics(options: {
       https_proxy_configured: hasEnvironmentValue(environment, 'HTTPS_PROXY'),
       no_proxy_configured: hasEnvironmentValue(environment, 'NO_PROXY'),
     },
+    ...(options.distribution ? { distribution: options.distribution } : {}),
   };
   if (client === 'workbuddy') {
-    diagnostics.workbuddy_trust = inspectWorkBuddyTrust(homeDir);
+    diagnostics.workbuddy_trust = inspectWorkBuddyTrust(
+      homeDir,
+      options.configSource?.mcp_name || MAKER_MCP_NAME
+    );
   }
   return diagnostics;
 }
@@ -359,16 +458,27 @@ function getMcpConfigPaths(options: {
 function inspectMcpConfigFile(
   configPath: string,
   ide: string,
-  mcpName: string
+  mcpName: string,
+  format?: MakerMcpConfigSource['format']
 ): MakerMcpConfigInspection['entries'][number] {
   try {
-    const server =
-      ide === 'codex'
-        ? extractCodexMcpServerConfig(fs.readFileSync(configPath, 'utf8'), mcpName)
+    const resolvedFormat =
+      format ??
+      (ide === 'codex'
+        ? 'codex_toml'
         : ide === 'dsh'
-          ? extractDshMcpServerConfig(fs.readFileSync(configPath, 'utf8'), mcpName, configPath)
+          ? 'dsh'
+          : ide === 'opencode'
+            ? 'jsonc'
+            : 'json');
+    const content = fs.readFileSync(configPath, 'utf8');
+    const server =
+      resolvedFormat === 'codex_toml'
+        ? extractCodexMcpServerConfig(content, mcpName)
+        : resolvedFormat === 'dsh'
+          ? extractDshMcpServerConfig(content, mcpName, configPath)
           : extractMakerMcpServerConfig(
-              parseJsonConfig(fs.readFileSync(configPath, 'utf8'), ide === 'opencode'),
+              parseJsonConfig(content, resolvedFormat === 'jsonc'),
               mcpName
             );
     return server
@@ -377,6 +487,23 @@ function inspectMcpConfigFile(
   } catch {
     return { path: configPath, status: 'unreadable' };
   }
+}
+
+function inspectMakerMcpConfigSource(
+  ide: string,
+  source: MakerMcpConfigSource
+): MakerMcpConfigInspection {
+  const entries = source.paths
+    .filter((configPath) => fs.existsSync(configPath))
+    .map((configPath) => inspectMcpConfigFile(configPath, ide, source.mcp_name, source.format));
+  const status = entries.some((entry) => entry.status === 'found')
+    ? 'found'
+    : entries.some((entry) => entry.status === 'unreadable')
+      ? 'unreadable'
+      : entries.length > 0
+        ? 'missing_entry'
+        : 'not_found';
+  return { ide, status, entries };
 }
 
 function extractDshMcpServerConfig(
@@ -599,7 +726,10 @@ function runGitHubIssueCreate(args: string[], input: string): GitHubCommandResul
   };
 }
 
-function inspectWorkBuddyTrust(homeDir: string): {
+function inspectWorkBuddyTrust(
+  homeDir: string,
+  mcpName: string
+): {
   status: 'trusted' | 'disabled' | 'pending' | 'mixed' | 'not_found' | 'unreadable';
   accounts_checked: number;
   trusted_accounts: number;
@@ -642,9 +772,9 @@ function inspectWorkBuddyTrust(homeDir: string): {
         counts.unreadable_accounts += 1;
         continue;
       }
-      const enabled = asStringArray(state.enabled).includes(MAKER_MCP_NAME);
-      const userDisabled = asStringArray(state.userDisabled).includes(MAKER_MCP_NAME);
-      const everConnected = asStringArray(state.everConnected).includes(MAKER_MCP_NAME);
+      const enabled = asStringArray(state.enabled).includes(mcpName);
+      const userDisabled = asStringArray(state.userDisabled).includes(mcpName);
+      const everConnected = asStringArray(state.everConnected).includes(mcpName);
       if (!enabled && !userDisabled && !everConnected) {
         continue;
       }
@@ -845,7 +975,7 @@ function sanitizeCommandArguments(args: unknown[]): unknown[] {
 }
 
 function isSensitiveCliFlag(value: string): boolean {
-  return /^--(?:[a-z0-9]+[-_])*(?:pat|token|secret|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key)$/iu.test(
+  return /^--(?:[a-z0-9]+[-_])*(?:pat|token|secret|signature|sig|credential|credentials|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key)$/iu.test(
     value
   );
 }
@@ -853,14 +983,14 @@ function isSensitiveCliFlag(value: string): boolean {
 function redactReportText(value: string): string {
   return value
     .replace(
-      /(^|[\s,;])(--(?:[a-z0-9]+[-_])*(?:pat|token|secret|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key))\s+(?:"[^"]*"|'[^']*'|[^\s,;]+)/gimu,
+      /(^|[\s,;])(--(?:[a-z0-9]+[-_])*(?:pat|token|secret|signature|sig|credential|credentials|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key))\s+(?:"[^"]*"|'[^']*'|(?:(?![&,;][A-Za-z][A-Za-z0-9_.-]*\s*[:=])[^\s])+)/gimu,
       '$1$2 <redacted>'
     )
     .replace(
-      /(--(?:[a-z0-9]+[-_])*(?:pat|token|secret|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key)=)([^\s]+)/giu,
+      /(--(?:[a-z0-9]+[-_])*(?:pat|token|secret|signature|sig|credential|credentials|authorization|cookie|password|passwd|passphrase|mac[-_]?key|api[-_]?key|auth[-_]?key|private[-_]?key)=)([^\s]+)/giu,
       '$1<redacted>'
     )
-    .replace(/\b([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^@\s/]+)@/gu, '$1<redacted>@')
+    .replace(/\b([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^@\s/?#]+)@/gu, '$1<redacted>@')
     .replace(/\bgithub_pat_[A-Za-z0-9_]{20,}\b/gu, '<redacted>')
     .replace(/\bgh[pousr]_[A-Za-z0-9]{20,}\b/gu, '<redacted>');
 }

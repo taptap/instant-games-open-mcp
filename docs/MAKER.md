@@ -19,6 +19,10 @@
   `text_to_dialogue`、`audition_voices_for_character`、`confirm_character_voice`、
   `create_3d_asset`、`generate_test_qrcode`、`get_ad_config` 和 `get_debug_feedbacks`，用于试用
   图片/视频/音乐/音效/配音/3D 模型生成、测试二维码生成、广告配置同步和远端玩家反馈查询链路。
+- Maker MCP 启动时复用 PAT 换取 TapTap MAC 凭据的现有接口执行一次账号访问检查。只有接口明确返回
+  `BLACKLISTED` 时，`tools/list` 才只保留 `maker_status_lite`，所有 tool call 和
+  `maker://status` 直接返回限制提示，不执行项目状态、构建或远端 proxy 逻辑。PAT 缺失、过期、
+  网络或其它未知错误保持 fail-open；进程启动后的账号状态变化在下次重连或重启时生效。
 - `maker_build_current_directory` 是用户感知里的提交/推送/远端构建入口；push 失败时会停止在构建前，让本地 Agent 处理冲突或合并。
 - 运行时日志不作为本地公开 MCP tool 暴露；构建成功后由 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs` 并落盘，持续轮询、清理和问题分析由 CLI 与 skill 编排。
@@ -27,6 +31,108 @@
   该组合时安装失败，不持久化 `.cmd` shell 命令或依赖客户端 PATH；Git 引导优先指向 Git for Windows。
 - 仓库同时提供 `taptap-maker-local`、`taptap-maker-dev-kit-guide` 和 `update-taptap-mcp` skills，用于把本地 Git 工作流、AI dev kit 内容说明和 MCP 更新缓存流程交给本地 AI/Agent 按业务规则执行。
 
+## 客户端插件版本与发布
+
+Codex 和 WorkBuddy 插件共用独立版本，首版为 `0.0.1`，唯一来源是
+`config/maker-plugin-version.json`。内置 Maker MCP 版本继续由
+`config/maker-version-policy.json` 管理；插件版本只写入 manifest、marketplace、ZIP 名称和 GitHub
+Release，Maker MCP 版本继续用于 runtime、埋点、诊断和 npm 升级判断。
+
+发布时在 GitHub Actions 手动运行 `Prepare Maker Plugin Release`。workflow 根据最新
+`maker-plugin-v*` tag 自动将 patch 加一，更新版本源、生成两套插件、运行验证并创建版本 PR。PR
+合并后 `Publish Maker Plugin` 创建同版本 tag 和 GitHub Release，上传 Codex marketplace ZIP、
+WorkBuddy 官方市场根级 ZIP、`INSTALL.md`、`SHA256SUMS` 与 `maker-plugin-release.json`。这两条
+workflow 不调用 npm
+发布，也不修改原 Maker MCP 或主 MCP 的发布流程。同一提交上的发布任务可以安全重跑：已有
+Release 会更新说明并覆盖上传附件；如果同名 tag 已指向其它提交，任务会拒绝发布。
+
+对外安装时，Codex 使用对应 main/develop 渠道的 GitHub Release 页面和同页 `INSTALL.md` 下载、
+校验并安装 Codex ZIP；WorkBuddy 用户直接从官方插件市场安装。仓库 marketplace 方式只用于维护者
+从源码验证；执行安装前必须先生成插件，并用生成目录中的 CLI 完成旧 MCP 检查和迁移。
+
+## Codex Plugin
+
+Codex 插件位于 `plugins/taptap-maker`，由
+`npm run maker:codex-plugin:prepare` 确定性生成，包含 `dist/maker.js`、`bin/taptap-maker`、
+Maker Skills 和连接排障文档。`.mcp.json` 以插件根目录为 `cwd`，使用宿主 Node.js 直接启动
+`./dist/maker.js`，运行时不依赖外部 npm/npx。
+manifest 默认版本来自 `config/maker-plugin-version.json`，内置 bundle 版本来自
+`config/maker-version-policy.json`。打包测试使用临时输出目录，不重写仓库内的正式插件或 bundle。
+
+插件沿用现有 Maker CLI/MCP 的鉴权、项目绑定、clone、状态、构建和 proxy tool 实现，不复制
+业务逻辑。插件专属生命周期由 `taptap-maker-plugin-lifecycle` 管理：
+
+- 安装前和安装后都检查 Codex 中旧的独立 Maker MCP；安装请求即授权兼容迁移，不再单独询问。
+- 活动的旧注册自动设为 `enabled = false`，不删除配置，并保留 `.taptap-maker.bak.latest` 和
+  可恢复状态。检查返回 `ambiguous` 时必须在安装前停止；安装后只有状态为 `disabled` 或
+  `not_found` 才能报告插件可用。
+- 只有本次安装实际禁用旧注册后又安装或验证失败时，才自动 restore 作为事务回滚。原本已禁用、
+  未找到或不是本次迁移的注册不恢复。回滚前先移除本次已安装的插件并确认不再启用；插件移除失败时
+  保持旧 MCP 禁用，不能重新形成双激活。正常移除插件时恢复旧 MCP 仍须用户明确确认。
+- 重复迁移与恢复保持幂等；迁移状态记录原注册和禁用后注册的结构指纹。同名注册被替换或修改后
+  restore 返回 `not_owned`，不会误启用新注册。用户自己禁用的旧注册也不归插件所有。
+- 新项目初始化运行插件内 CLI，并传 `--skip-mcp-install`，避免产生第二份 MCP 注册。
+- 插件内 `update-taptap-mcp` 是 Codex 专用版本，升级只走 Codex marketplace，不运行 npm/npx
+  或独立 `taptap-maker upgrade`；卸载前如需恢复旧 MCP，仍须先取得明确确认再执行 restore。
+- 插件模式下 `mcp report` 读取插件自己的 `.mcp.json` 并直接验证当前 `dist/maker.js`；独立 MCP
+  继续读取用户级客户端配置并验证稳定 self runtime，两种诊断来源不会混用。
+
+相关命令：
+
+```text
+taptap-maker plugin inspect --client codex --json
+taptap-maker plugin migrate --client codex --confirm --json
+taptap-maker init --skip-mcp-install
+taptap-maker plugin restore --client codex --confirm --json
+```
+
+## WorkBuddy Plugin
+
+WorkBuddy 插件位于 `plugins/workbuddy/taptap-maker`，通过
+`npm run maker:workbuddy-plugin:prepare` 生成。它使用共享的 CodeBuddy 插件规范：manifest 位于
+`.codebuddy-plugin/plugin.json`，MCP 位于 `.mcp.json`，Skills 和 commands 位于插件根目录。
+
+正式 WorkBuddy 发布 ZIP 从该插件根目录内部打包，不包含额外外层目录或仓库级
+`.codebuddy-plugin/marketplace.json`。ZIP 根包含 `.codebuddy-plugin/plugin.json`、`.mcp.json`、
+`README.md` 和 `SKILL.md`；所有文件的父目录深度最多为两层，以满足 WorkBuddy 官方市场限制。
+打包阶段同时拒绝 `plugins/` marketplace 外壳、`__MACOSX` 和 `.DS_Store`。
+
+插件以自身 `bin/run-node` 启动 `${CODEBUDDY_PLUGIN_ROOT}/dist/maker.js`。启动器优先读取
+`WORKBUDDY_EXTRA_PATHS` 和 WorkBuddy managed Node 目录，必要时才回退系统 PATH；Windows 同时
+兼容版本目录根和 `bin` 子目录中的 `node.exe`。插件不使用 npm/npx，也不设置固定项目 `cwd`。
+`/taptap-maker:create-project` 和 `/taptap-maker:sync-project` 都要求 WorkBuddy 当前 workspace
+为空目录，并通过插件内 CLI 执行 `init --skip-mcp-install`。
+
+首次使用前，生命周期 Skill 同时检查 `~/.workbuddy/mcp.json` 和旧的
+`~/.workbuddy/.mcp.json`。只有用户确认后才把唯一活动的旧 `taptap-maker` 注册设为
+`disabled: true`；如果两份配置都含 Maker 注册则返回 `ambiguous`，不自动选择。迁移保留备份和
+注册指纹，恢复只处理插件拥有且未被用户修改的注册。WorkBuddy connector trust 不由插件修改。
+
+本地源码验证使用仓库 `.codebuddy-plugin/marketplace.json`。普通用户从 WorkBuddy 官方插件市场
+安装和更新，并通过 `/reload-plugins` 重新加载；不执行独立 Maker 包升级。
+
+## DSH Plugin
+
+DeepSeek Harness（DSH）的 Maker 集成分两层：L1 是 `taptap-maker install --ide dsh` 写入的
+裸 `mcp-client` 行（见下文“环境变量”与 DSH 配置小节）；L2 是 bundle 插件 `@taptap/dsh-maker`，
+位于 `packages/dsh-maker/`，通过 1024Store 对应的公开 npm 包分发，把 **Maker MCP + 技能**
+打包成可一键安装、可 HMR 的 DSH bundle；GitHub Release tarball 保留为预览版和离线备用入口。
+
+插件由一个 bundle patch 行（`id: taptap-maker`）在激活时挂两个子插件并注册一个 shell 环境变量：
+宿主平面 `skill-filesystem` 实例（`providerName: maker` + `bundledSkillDir: skills/`，只读挂本包
+技能）、`dsh-mcp-client`（`require.resolve('@taptap/maker')` 解析出 `dist/maker.js`，以绝对 Node
+启动，不用 npx），以及 `DSH_TAPTAP_MAKER_BIN`（随包 CLI 绝对路径，供一次性 `init`/
+`agents update`/`mcp report` 用）。技能包含核心工作流 `taptap-maker-dsh` 与广告/云存档/排行榜
+三个功能指南，均
+内置“以工程内 `engine-docs` 为准、禁止网上搜错文档”的防错引导。
+
+与 Codex/WorkBuddy 的 ZIP marketplace 分发不同，DSH 使用标准 bundle npm 包：`dsh plugin add`
+由 pnpm 从 npm registry 安装 `@taptap/dsh-maker`，也支持本地 tarball。它不经过
+`scripts/package-maker-client-plugins.js`，也不属于 `config/maker-plugin-version.json` 的插件
+版本线；它精确锁定包含所需 DSH 生命周期能力的 `@taptap/maker` 版本，develop 可先使用 Maker
+beta 验证且只发 GitHub prerelease，main 只能使用稳定 Maker 并发布 npm `latest`。发布工作流会先
+确认 Maker 依赖版本已发布到 npm。完整设计、安装与配置见 [DSH_PLUGIN.md](DSH_PLUGIN.md)。
+
 ## 本地测试
 
 不要拉线上 npm 包。修改后在仓库内执行：
@@ -34,7 +140,9 @@
 ```bash
 npm test
 npm run build
+node scripts/package-maker-client-plugins.js --output-dir artifacts/maker-plugins
 node dist/maker.js
+npm run maker:workbuddy-plugin:prepare
 ```
 
 MCP server 模式：
@@ -58,8 +166,8 @@ Maker CLI 独立发布为 `@taptap/maker`，不走主包
 Maker-only paths 跳过这类 push；如需发布 Maker CLI，使用 GitHub Actions 中的
 `Publish Maker Package` workflow。
 
-Maker 包版本号使用三段式 semver，例如 `0.0.1`。Maker 包只能从长期发布分支 `beta` 或
-`main` 发布，`fix/*` 分支只用于提交 PR，不作为发版来源。workflow 默认使用
+Maker 包版本号使用三段式 semver，例如 `0.0.1`。稳定包只能从长期发布分支 `main` 发布；
+prerelease 可从 `beta` 或 `develop` 发布，`fix/*` 分支只用于提交 PR，不作为发版来源。workflow 默认使用
 `auto-last-number`。`tag=latest` 会递增稳定 patch；`tag=beta`、`tag=alpha` 和 `tag=next`
 会基于当前 major/minor 下最高稳定版本生成 prerelease，例如已发布最高稳定版本为 `0.0.16`
 时，下一次 beta 自动发布 `0.0.17-beta.1`，后续同一条线递增为 `0.0.17-beta.2`。
@@ -67,6 +175,18 @@ Maker 包版本号使用三段式 semver，例如 `0.0.1`。Maker 包只能从�
 手动发布如果修改 major 或 minor，CI 会先在 Actions Summary 展示当前线上 dist-tag 版本和
 目标版本，人工核对后点击 protected environment 审批按钮继续发布。发布 job 在
 `npm publish` 前会再次查询目标版本是否仍未发布，避免审批等待期间同版本被抢先发布。
+
+## Maker 客户端插件发布边界
+
+Codex 和 WorkBuddy 插件使用 `config/maker-plugin-version.json` 中的独立版本，不跟随
+`@taptap/maker` npm 版本。稳定版从 `0.0.1` 开始，只递增 patch。
+
+- 从 `main` 手动运行 `Prepare Maker Plugin Release`，生成版本 PR；PR 合入后自动创建
+  `maker-plugin-v<version>` GitHub Release，并上传两个客户端 ZIP 和 SHA-256 校验文件。
+- 从 `develop` 手动运行 `Publish Maker Plugin` 可发布 `-dev.<run_number>` 测试版；它不会因
+  `develop` push 自动触发，也不会占用稳定版本号。
+- 插件运行时不依赖 npm/npx；发布流程不执行 `npm publish`，不会发布或更新
+  `@taptap/maker`，也不会影响原 Maker MCP 的安装流程。
 
 ### 主包迁移说明
 
@@ -247,6 +367,12 @@ Python 运行时策略：
   不由 MCP 自己执行；MCP 只做版本检查并输出 `required_upgrade`、`update_available`、
   `current`、`unavailable` 或 `skipped`。
 - `taptap-maker dev-kit update`：检查当前环境可用的最新 AI dev kit，恢复或更新当前目录。
+- `taptap-maker user-skills pull`：可选地下载当前用户的 Skill ZIP，校验后只覆盖
+  `.installer/skills/` 中 ZIP 包含的同名 Skill，并以原始名称安装到项目内 `.codex/skills/`、
+  `.cursor/skills/` 和 `.workbuddy/skills/`，保留其它本地 Skill。安装优先链接到统一源目录，
+  链接不可用时回退复制；任一客户端安装失败时恢复本次替换的客户端目录。归档下载限制为
+  64 MiB，最多 1000 个条目、解压后最多 128 MiB。ZIP 使用随 Maker bundle 打包的 `yauzl`
+  解压，不依赖系统 `unzip`、PowerShell 或 Python。该命令不接入正常开发流程，也不提供 MCP tool。
 
 MCP 运行期能力：
 
@@ -306,16 +432,27 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   准备完整本地 Lua 诊断环境。Python 或 LSP 缺失只影响本地 Lua 诊断，不阻塞 MCP 连接或远端
   构建主流程。Dev-kit、版本和 AGENTS policy 检查属于维护信息，不能单独证明客户端连接失败。
 - `maker_build_current_directory`：统一执行本地同步和远端构建。提交前会检查 Maker 远端同步状态；
-  本地落后远端、分叉、当前不在 `main` 或无法确认远端同步时，会在创建 commit 前停止。普通构建会先
-  push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit
-  时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务。用户明确说“不提交，直接构建云端版本”时才传
+  本地仅落后远端时会先自动 fast-forward，再继续现有提交和构建流程；如果 fast-forward 会覆盖本地
+  未提交修改，则在创建 commit 前停止并保留本地文件。分叉、当前不在 `main` 或无法确认远端同步时仍
+  会停止。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，
+  本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务。
+  用户明确说“不提交，直接构建云端版本”时才传
   `confirm_remote_build_without_submit=true`；此时工具只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
 - 远端 Lua/LSP 编译失败属于业务失败，不属于 MCP 连接故障。代理会将带有 `remote_result` 的上游
   `McpError(-32603)` 转换为 `CallToolResult.isError`，并保留原始 `content` 诊断；只有连接断开或会话
-  失效才进入重连路径。Maker 本地重试器会优先识别 `error.data.remote_result` 和 MCP 业务错误码，
-  只重试明确的 proxy unavailable、连接关闭、请求超时和 HTTP 5xx 等传输故障。重连后重放请求若
-  再次断线，当前请求和剩余队列会保留到下一轮退避重连；排查构建问题时先读取工具结果中的
-  `remote_result`，不要用 generic unavailable 覆盖原始编译错误，也不要重复发起同一次构建。
+  失效才进入重连路径。只有 `build` 可以自动重试：Maker 本地重试器会优先识别
+  `error.data.remote_result` 和 MCP 业务错误码，只对明确的 proxy unavailable、连接关闭、请求超时和
+  HTTP 5xx 等传输故障最多尝试 5 次。重连后重放 build 若再次断线，当前请求会保留到下一轮退避重连。
+  排查构建问题时先读取工具结果中的 `remote_result`，不要用 generic unavailable 覆盖原始编译错误，
+  也不要重复发起同一次构建。
+- 其它 Maker Proxy tools（包括图片、视频、音频、3D、二维码和配置操作）固定为单次调用，不进入
+  本地重试器，也不会在 Proxy 重连后自动重放。派发前失败返回 `execution_state: not_executed`；请求
+  已派发但响应中断时返回 `execution_state: unknown`；两种情况都返回 `automatic_retry: false`。
+  对 `unknown` 结果必须先核对远端产物、任务、状态和用量，再决定是否由用户显式重试。
+- Maker 内嵌代理会对 MCP Streamable HTTP 的可选 standalone SSE GET 返回规范允许的 `405`，
+  远端 `tools/list`、tool call、响应和 progress 均继续使用 POST SSE。Node.js 26.4.0 对照测试中，
+  standalone GET 会阻塞后续 `tools/list` 并在 60 秒后超时；关闭该可选流后，Node.js 24.19.0 与
+  26.4.0 均可在约 10 秒内完成同一远端构建。该行为只用于 Maker 内嵌代理，普通 Proxy 默认不变。
 - 运行时日志：不作为本地公开 MCP tool 暴露。构建成功后 `taptap-maker logs watch`
   内部调用远端 `query_runtime_logs`，默认只拉 `engine`、`user_script`（客户端 Lua 脚本）和
   `server_user_script`（服务端 Lua 脚本）。本地只追加写入一份
@@ -337,11 +474,12 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   远端日志 MCP 连接，不会每 5 秒重新启动一个 proxy 进程。
   后续分析游戏运行结果或 Lua 报错时，Agent 应读取 `runtime_logs.local_file`；判断 watcher
   是否正常时读取 `runtime_logs.state_file`。
-- 如果提交前发现远端有新提交、分叉、非 main 分支、认证失败或 push 被拒绝，
-  `maker_build_current_directory` 会在 build 前停止并返回失败阶段。远端同步类失败会尽量发生在创建
-  commit 前。Agent 应解释失败原因，并根据 `classification` 选择恢复路径：`remote_rejected` 才协助
-  pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden
-  pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
+- 如果提交前发现本地仅落后于远端，`maker_build_current_directory` 会自动执行
+  `git merge --ff-only origin/main`；无法 fast-forward 时会在创建 commit 前停止并保留本地文件。
+  分叉、非 main 分支、认证失败或 push 被拒绝仍会在 build 前返回失败阶段。Agent 应解释失败原因，
+  并根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed`
+  切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止
+  路径，`auth` 才刷新 PAT。
 - 构建前本地改动检查会忽略 `.maker-mcp/` 的本地配置变化；`.gitignore` 是 Maker 项目必要文件，
   首次 init 后如果出现或变化，应随游戏代码一起提交。即使 AI 传了 `files` 白名单，Maker MCP 也会把
   已变化的根 `.gitignore` 纳入提交。
@@ -367,7 +505,9 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 - 解释 PAT、Git、项目绑定，以及首次安装或工具版本变化后的编辑器重连边界。
 - 提交、推送本地改动。
 - pull 远端改动前检查本地 dirty 状态。
-- 新开对话或继续开发前先读 `maker://status`；如果 `Maker remote sync` 显示 `needs_pull`、`diverged` 或 `branch_not_allowed`，先处理同步/分支问题，再让用户继续开发。
+- 新开对话或继续开发前先读 `maker://status`。显式提交或构建时，`needs_pull` 可直接交给
+  `maker_build_current_directory` 自动 fast-forward；`diverged` 或 `branch_not_allowed` 仍需先处理
+  同步或分支问题，再让用户继续开发。
 - 提交、推送、构建时必须使用 `maker_build_current_directory`；不要为 Maker 项目新建功能分支、
   任务分支、PR/MR，或绕过 MCP 执行通用 `git commit` / `git push`。
 - Maker 项目内 Git 操作的入口是 `taptap-maker-local > Maker Git Workflow Policy`。如果本机 AI
@@ -376,6 +516,9 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 - Maker 项目内游戏素材能力记录在 `taptap-maker-local > Maker Creative Asset Tool Policy`。
   Maker MCP 提供生图、批量生图、修改图片、生成视频、音乐、音效、配音和 3D 素材 tools；
   使用其中某个 tool 时按其 schema 传入支持的参数和素材格式。
+  `create_video_task` 只在用户明确要求生成视频时调用，不得在实现玩法、补齐素材或自我优化时主动调用。
+  当明确指定 `duration > 10` 秒或使用 `model="2.5"` 时，必须先展示粗估积分及“实际按上游 token
+  结算”的说明，得到用户明确确认后再以相同参数并带 `user_confirmed=true` 重试。
 - 发生冲突时解释为什么冲突、冲突文件在哪里、冲突内容是什么，并让 Agent 给出解决建议。
 - 冲突解决前必须让用户确认，不隐藏 unresolved conflict。
 
@@ -483,7 +626,7 @@ Maker app 列表关键字段：
 - 首次拉取默认使用浅拉取。`taptap-maker init` 在记录已选 app 后，通常执行
   `git init` + `git fetch --depth=1 origin`，再 checkout 远端默认分支，避免大项目在慢网环境下载完整历史。
 - 首次 clone/fetch 前会明确提示用户：Maker server 可能正在准备仓库，首次拉代码 20 秒以上是正常现象，请保持当前命令运行。
-- `taptap-maker init` 会根据 Git stderr 判断是否自动重试：HTTP 5xx、503、超时、连接重置、HTTP2/RPC 中断、early EOF 等远端临时错误会在 fetch 阶段重试；认证失败、权限不足、仓库不存在、远端拒绝、非空目录冲突、本地权限错误不会重试。
+- `taptap-maker init` 会根据 Git stderr 判断是否自动重试：HTTP 5xx、503、超时、连接重置、HTTP2/RPC 中断、early EOF 等远端临时错误会在 fetch 阶段重试；遇到明确的 HTTP/2 传输错误时，后续 fetch/push 会使用命令级 `http.version=HTTP/1.1` 降级，不修改用户的全局或仓库 Git 配置；认证失败、权限不足、仓库不存在、远端拒绝、非空目录冲突、本地权限错误不会重试。
 - 首次 clone/fetch 默认最多自动重试 5 次，基础等待间隔为 5 秒；连续重试后仍失败时，错误会保留 `retryable`、`retry_reason` 和已重试次数，方便 Agent 判断是让用户稍后直接重试，还是先处理 PAT、权限或本地目录问题。
 - `maker_build_current_directory` 会在本地 commit、push 和远端 build 阶段输出状态，并解析 Git push stderr 中的百分比进度。
 - `maker_build_current_directory` 的 push 阶段也会对远端临时错误自动重试；push 最终失败时不会继续远端 build。
@@ -632,13 +775,33 @@ maker_build_current_directory()
 - 普通构建必须先 push 到 Maker 远端再 build；如果本地没有改动且没有 ahead commit，会创建
   `chore: wake maker build server` 空提交并 push，用于唤醒可能已挂起或销毁的远端服务。
 - 如果本地有改动或已经有本地 commit 未 push，默认先 commit/push，再远端 build。
+- 如果本地仅落后于 Maker 远端，工具会在 commit 前自动 fast-forward；远端更新会覆盖本地未提交
+  修改时，工具会停止并保持工作区不变。分叉、非 `main`、鉴权或网络错误不会自动处理。
 - 当前目录是已绑定 Maker 项目时，用户说“提交 / push / 构建 / 查看结果 / 预览 / 跑一下 /
   看看效果 / 验证游戏效果”时，都使用同一个工具。普通“验证代码 / 跑测试 / lint /
   检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。
 - 用户明确说“不提交 / 直接构建 / 构建云端版本”时，才允许传 `confirm_remote_build_without_submit=true`，
   这会只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
-- push 被远端拒绝、认证失败、远端有新提交或发生冲突时，工具返回 `mode: submit_failed_before_build`，不会继续远端 build。Agent 应解释 push 失败原因，按 `classification` 使用对应恢复策略，再重试同一个构建工具。
-- 如果 push 成功但远端 build 失败，工具返回 `mode: build_failed_after_submit`，同时保留成功的提交/推送结果和构建错误。
+- push 被远端拒绝、认证失败、分叉或自动 fast-forward 失败时，工具返回
+  `mode: submit_failed_before_build`，不会继续远端 build。Agent 应解释 push 失败原因，按
+  `classification` 使用对应恢复策略，再重试同一个构建工具。
+- 所有失败输出都包含 `failure_stage`、`code_submit_status` 和 `remote_build_status`。如果 push 成功但
+  远端 build 失败，工具返回 `mode: build_failed_after_submit`，同时保留成功的提交/推送结果和构建
+  错误。Agent 应先检查 `build_failure` / `remote_result` 中的代码或资源诊断，不会自动修改项目文件。
+- `code_submit` 或无法分类的构建执行失败会附带 `local_execution_check`，提醒检查 Windows PowerShell、
+  CLI、Git 或 MCP 命令是否被 AI 客户端沙盒拦截。只有明确的本地 PowerShell/进程拦截证据才会标记
+  `restriction_signal: detected`；远端 Git 返回的 `sandbox` 文本不会被当成本地信号。远端构建失败
+  优先检查代码和资源诊断，只有本地命令也被拦截时才检查沙盒；已知项目配置、鉴权/上下文或结构错误
+  不提示 Full Access。Maker MCP 无法读取客户端访问模式，因此该检查不是根因结论。
+- 本地 Tap auth 或 `user_id` 上下文准备失败返回 `mode: build_context_failed_before_remote`、
+  `failure_stage: local_build_context` 和 `remote_build_status: not_started`，直接保留 login/init 恢复动作。
+- `MCP error -32001: Request timed out` 只表示 MCP 请求超时，根因保持为 `unconfirmed`，不能据此判断
+  Maker server 故障。Maker MCP 捕获到该错误时会返回只读的本地进程、Node 和 cwd/project 对齐摘要；
+  Agent 应通过活动客户端相同的 Maker launcher 对该项目运行 doctor（独立 CLI 等价命令为
+  `taptap-maker doctor --target-dir <PROJECT_DIR>`），再检查活动客户端实际 command、args、cwd/Roots、
+  会话/tool 注册和 request timeout。doctor 无法读取活动客户端配置；没有 HTTP 5xx、服务端日志或服务
+  状态证据时，不得宣称服务端宕机，也不要盲目重复构建。详细步骤见
+  `docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md`。
 - 如果 build 成功，工具会启动本地 CLI watcher 并在返回里带出
   `runtime_logs.watch_started/watch_pid/watch_command/local_file/state_file`；MCP tool 不会长时间阻塞等待轮询。
   后续运行时诊断应优先读取 `runtime_logs.local_file`，watcher 健康状态读取
@@ -837,24 +1000,11 @@ push
 
 ## 环境变量
 
-| 变量                                 | 说明                                              |
-| ------------------------------------ | ------------------------------------------------- |
-| `TAPTAP_MAKER_HOME`                  | 覆盖用户级 Maker 存储目录，默认 `~/.taptap-maker` |
-| `MAKER_PROJECT_ID`                   | MCP server 项目识别的环境变量覆盖                 |
-| `TAPTAP_MAKER_API_BASE`              | 可选：覆盖当前环境的 Maker 项目列表接口 base URL  |
-| `TAPTAP_MAKER_PAT_URL`               | 可选：覆盖当前环境的 Maker PAT 换取接口           |
-| `TAPTAP_MAKER_TAP_TOKEN_URL`         | 可选：覆盖当前环境的 PAT 获取 TapTap token 接口   |
-| `TAPTAP_MAKER_GIT_BASE`              | 可选：覆盖当前环境的 Maker git base URL           |
-| `TAPTAP_MAKER_REMOTE_MCP_SERVER_URL` | 可选：覆盖当前环境的远端 Maker MCP server URL     |
-| `TAPTAP_MAKER_WEB_URL`               | 可选：覆盖当前环境的 Maker 网页地址               |
-| `TAPTAP_MAKER_GIT_BIN`               | 可选：覆盖 Git 可执行文件路径                     |
-| `TAPTAP_MAKER_GIT_RETRY_DELAY_MS`    | 可选：覆盖 Git 临时错误重试基础延迟，默认 5000ms  |
-| `SCE_MCP_URL`                        | 云端 SCE MCP endpoint 默认值                      |
+完整清单、默认值、设置方、兼容变量、插件接入约束和新增规则统一维护在
+[Maker MCP 环境变量参考](MAKER_ENVIRONMENT_VARIABLES.md)。不要在其它文档复制环境变量表。
 
-Maker 后端默认地址集中在 `src/maker/config.ts`。兼容旧变量名：`MAKER_API_BASE`、
-`MAKER_PAT_URL`、`MAKER_TAP_TOKEN_URL`、`MAKER_GIT_BASE`、
-`TAPTAP_REMOTE_MCP_SERVER_URL`、`MAKER_WEB_URL`。新配置优先使用 `TAPTAP_MAKER_*`
-前缀。`TAPTAP_MAKER_REMOTE_MCP_SERVER_URL` 可覆盖当前环境的远端 Maker MCP server URL。
+关键边界：独立 Maker MCP 不设置 `TAPTAP_MAKER_DISTRIBUTION`；插件 runtime 必须设置非空分发
+标识。任意非空值都表示版本由插件渠道管理，Maker 不执行或提示 npm 包更新。
 
 ## CLI 登录联调
 

@@ -14,6 +14,7 @@ type RemoteProxyToolResultWithStructuredContent = RemoteProxyToolResult & {
   structuredContent?: unknown;
 };
 type RemoteProxyFetch = typeof fetch;
+export type RemoteProxyExecutionState = 'not_executed' | 'unknown';
 const IMAGE_ASSET_DIRS = ['assets/image'];
 const VIDEO_ASSET_DIRS = ['assets/video'];
 const AUDIO_ASSET_DIRS = ['assets/audio'];
@@ -82,6 +83,25 @@ export class RemoteProxyToolResultError extends Error {
   }
 }
 
+export class RemoteProxyToolCallError extends Error {
+  readonly toolName: string;
+  readonly executionState: RemoteProxyExecutionState;
+  readonly automaticRetry = false;
+  readonly originalError: unknown;
+
+  constructor(toolName: string, executionState: RemoteProxyExecutionState, error: unknown) {
+    const originalMessage = error instanceof Error ? error.message : String(error);
+    super(
+      `Remote proxy tool ${toolName} failed with execution_state=${executionState}; ` +
+        `automatic retry is disabled. ${originalMessage}`
+    );
+    this.name = 'RemoteProxyToolCallError';
+    this.toolName = toolName;
+    this.executionState = executionState;
+    this.originalError = error;
+  }
+}
+
 export function prepareRemoteProxyToolArgs(options: {
   toolName: string;
   targetDir: string;
@@ -132,7 +152,10 @@ export async function materializeRemoteProxyToolAssets(options: {
   fetchImpl?: RemoteProxyFetch;
 }): Promise<RemoteProxyToolResult> {
   if (isRemoteProxyToolErrorResult(options.result)) {
-    throw new RemoteProxyToolResultError(options.toolName, options.result);
+    throw new RemoteProxyToolResultError(
+      options.toolName,
+      addRemoteProxyErrorExecutionState(options.result)
+    );
   }
 
   if (!shouldMaterializeRemoteProxyTool(options.toolName)) {
@@ -192,6 +215,33 @@ export async function materializeRemoteProxyToolAssets(options: {
   return changed
     ? ({ ...options.result, content: nextContent } as RemoteProxyToolResult)
     : options.result;
+}
+
+function addRemoteProxyErrorExecutionState(result: RemoteProxyToolResult): RemoteProxyToolResult {
+  const resultWithStructuredContent = result as RemoteProxyToolResultWithStructuredContent;
+  const existingStructuredContent = resultWithStructuredContent.structuredContent;
+  const existingRecord = isRecord(existingStructuredContent)
+    ? existingStructuredContent
+    : undefined;
+  const topLevelState = (result as unknown as { execution_state?: unknown }).execution_state;
+  const explicitState =
+    normalizeRemoteProxyExecutionState(existingRecord?.execution_state) ??
+    normalizeRemoteProxyExecutionState(topLevelState);
+  return {
+    ...result,
+    structuredContent: {
+      ...(existingRecord ||
+        (existingStructuredContent === undefined
+          ? {}
+          : { remote_structured_content: existingStructuredContent })),
+      execution_state: explicitState ?? 'unknown',
+      automatic_retry: false,
+    },
+  } as RemoteProxyToolResultWithStructuredContent;
+}
+
+function normalizeRemoteProxyExecutionState(value: unknown): RemoteProxyExecutionState | undefined {
+  return value === 'not_executed' || value === 'unknown' ? value : undefined;
 }
 
 function shouldMaterializeRemoteProxyTool(toolName: string): boolean {

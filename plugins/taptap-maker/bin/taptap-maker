@@ -1,0 +1,27 @@
+#!/usr/bin/env node
+
+/**
+ * TapTap Maker MCP
+ * Entry point for CLI subcommands and MCP server mode.
+ */
+
+import { join, dirname } from 'node:path';
+import { existsSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageRoot = join(__dirname, '..');
+const distPath = join(packageRoot, 'dist', 'maker.js');
+const distUrl = pathToFileURL(distPath).href;
+
+if (existsSync(distPath)) {
+  import(distUrl).catch((error) => {
+    console.error('❌ Failed to start TapTap Maker MCP:', error);
+    process.exit(1);
+  });
+} else {
+  console.error('❌ Maker MCP bundle not found. Please build the project first:');
+  console.error('   npm run build');
+  process.exit(1);
+}

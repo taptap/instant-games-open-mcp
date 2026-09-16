@@ -1,5 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { parse } from 'yaml';
 
 function readWorkflow(name: string) {
   return readFileSync(join(process.cwd(), '.github', 'workflows', name), 'utf8');
@@ -12,7 +15,108 @@ function getStepBody(workflow: string, stepName: string) {
   return nextStepIndex === -1 ? step : step.slice(0, nextStepIndex);
 }
 
+function getMatrixTargetBody(workflow: string, target: string) {
+  const targetMarker = `target: ${target}`;
+  const targetIndex = workflow.indexOf(targetMarker);
+  const targetBody = workflow.slice(targetIndex);
+  const nextTargetIndex = targetBody.indexOf('\n          - host:', targetMarker.length);
+
+  return nextTargetIndex === -1 ? targetBody : targetBody.slice(0, nextTargetIndex);
+}
+
 describe('release PR required workflow guards', () => {
+  it('requires proxy checks on the selected release source before npm publish', () => {
+    const workflow = readWorkflow('release.yml');
+    const step = getStepBody(workflow, 'Verify standalone proxy release');
+    expect(step).toContain('git diff --exit-code "${{ github.sha }}" HEAD --');
+    expect(step).toContain('src/ scripts/ bin/ config/ native/');
+    expect(step).toContain('npm test -- --runInBand');
+    for (const suite of [
+      'mcpProxyCompatibility',
+      'mcpProxyLifecycle',
+      'mcpProxyTag',
+      'mcpProxyCookieFetch',
+    ]) {
+      expect(step).toContain(`src/__tests__/${suite}.test.ts`);
+    }
+    expect(step).toContain('node scripts/bundle-proxy.js');
+    expect(step).not.toContain('continue-on-error');
+    expect(workflow.indexOf('- name: Verify standalone proxy release')).toBeGreaterThan(
+      workflow.indexOf('- name: Set release package version')
+    );
+    expect(workflow.indexOf('- name: Verify standalone proxy release')).toBeLessThan(
+      workflow.indexOf('- name: Verify or publish npm package')
+    );
+  });
+
+  it('checks the published proxy before promoting an existing npm version', () => {
+    const step = getStepBody(readWorkflow('release.yml'), 'Verify or publish npm package');
+    expect(step).toContain('set -euo pipefail');
+    expect(step).toContain('npm pack "@taptap/instant-games-open-mcp@${VERSION}"');
+    expect(step).toContain('cmp dist/proxy.js "$EXISTING_DIR/package/dist/proxy.js"');
+    expect(step).toContain('cmp bin/taptap-mcp-proxy "$EXISTING_DIR/package/bin/taptap-mcp-proxy"');
+    expect(step.indexOf('cmp dist/proxy.js')).toBeLessThan(step.indexOf('npm dist-tag add'));
+  });
+
+  (process.platform === 'win32' ? it.skip : it).each(['matching', 'old-bundle', 'old-launcher'])(
+    'executes the existing npm artifact guard without registry writes: %s',
+    (scenario) => {
+      const directory = mkdtempSync(join(tmpdir(), 'proxy-release-guard-'));
+      try {
+        for (const prefix of ['', 'fixture/package/']) {
+          mkdirSync(join(directory, prefix, 'dist'), { recursive: true });
+          mkdirSync(join(directory, prefix, 'bin'), { recursive: true });
+          writeFileSync(join(directory, prefix, 'dist/proxy.js'), 'fixed proxy');
+          writeFileSync(join(directory, prefix, 'bin/taptap-mcp-proxy'), 'fixed launcher');
+        }
+        if (scenario !== 'matching') {
+          const file = scenario === 'old-bundle' ? 'dist/proxy.js' : 'bin/taptap-mcp-proxy';
+          writeFileSync(join(directory, 'fixture/package', file), 'old content');
+        }
+        const archive = join(directory, 'fixture.tgz');
+        execFileSync('tar', ['-czf', archive, '-C', join(directory, 'fixture'), 'package']);
+        const workflow = parse(readWorkflow('release.yml'));
+        const run = workflow.jobs.release.steps
+          .find((step: { name?: string }) => step.name === 'Verify or publish npm package')
+          .run.replace('${{ steps.release_version.outputs.version }}', '1.0.0');
+        const result = spawnSync(
+          'bash',
+          [
+            '-c',
+            `
+            npm() {
+              case "$1" in
+                view) return 0 ;;
+                pack) cp "$FIXTURE_ARCHIVE" "\${@: -1}/fixture.tgz" ;;
+                dist-tag) echo PROMOTED ;;
+                *) echo UNEXPECTED_NPM_COMMAND; return 1 ;;
+              esac
+            }
+            ${run}
+            `,
+          ],
+          {
+            cwd: directory,
+            encoding: 'utf8',
+            env: { ...process.env, FIXTURE_ARCHIVE: archive },
+            timeout: 10000,
+          }
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.stdout).not.toContain('UNEXPECTED_NPM_COMMAND');
+        if (scenario === 'matching') {
+          expect(result.status).toBe(0);
+          expect(result.stdout).toContain('PROMOTED');
+        } else {
+          expect(result.status).not.toBe(0);
+          expect(result.stdout).not.toContain('PROMOTED');
+        }
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    }
+  );
+
   it('runs CodeQL for release PRs targeting main', () => {
     const workflow = readWorkflow('codeql.yml');
 
@@ -47,6 +151,60 @@ describe('release PR required workflow guards', () => {
     expect(workflow).not.toContain('[skip ci]');
     expect(workflow).not.toContain('[ci skip]');
     expect(workflow).not.toContain('[skip actions]');
+  });
+
+  it('reuses native binaries only from the current main package release', () => {
+    const workflow = readWorkflow('release.yml');
+    const nativeCheckStep = getStepBody(workflow, 'Check native changes');
+    const releaseCheckStep = getStepBody(workflow, 'Check existing release assets');
+    const downloadStep = getStepBody(
+      workflow,
+      'Download native binaries from main package release'
+    );
+
+    expect(nativeCheckStep).toContain(
+      'MAIN_RELEASE_TAG="v${{ steps.version.outputs.current_version }}"'
+    );
+    expect(nativeCheckStep).not.toContain('git describe --tags');
+
+    expect(releaseCheckStep).toContain(
+      'MAIN_RELEASE_TAG="v${{ steps.version.outputs.current_version }}"'
+    );
+    expect(releaseCheckStep).not.toContain('gh release list');
+    for (const asset of [
+      'taptap-signer.darwin-x64.node',
+      'taptap-signer.darwin-arm64.node',
+      'taptap-signer.linux-x64-gnu.node',
+      'taptap-signer.linux-x64-musl.node',
+      'taptap-signer.linux-arm64-musl.node',
+      'taptap-signer.win32-x64-msvc.node',
+    ]) {
+      expect(releaseCheckStep).toContain(asset);
+    }
+
+    expect(downloadStep).toContain(
+      'MAIN_RELEASE_TAG="v${{ needs.analyze.outputs.current_version }}"'
+    );
+    expect(downloadStep).not.toContain('gh release list');
+  });
+
+  it('builds native targets with reproducible cross-compilation guards', () => {
+    for (const workflowName of ['release.yml', 'build-native.yml']) {
+      const workflow = readWorkflow(workflowName);
+      const macX64Target = getMatrixTargetBody(workflow, 'x86_64-apple-darwin');
+      const linuxArm64MuslTarget = getMatrixTargetBody(workflow, 'aarch64-unknown-linux-musl');
+
+      expect(macX64Target).toContain('npm run build -- --target x86_64-apple-darwin');
+
+      expect(linuxArm64MuslTarget).toContain('set -euo pipefail');
+      expect(linuxArm64MuslTarget).toContain(
+        'rustup toolchain install 1.97.0 --profile minimal --target aarch64-unknown-linux-musl'
+      );
+      expect(linuxArm64MuslTarget).toContain('export RUSTUP_TOOLCHAIN=1.97.0');
+      expect(linuxArm64MuslTarget).toContain('rustc --version');
+      expect(linuxArm64MuslTarget).toContain('zig version');
+      expect(linuxArm64MuslTarget).not.toContain('rustup update stable');
+    }
   });
 
   it('creates generated release PRs with the release GitHub App token', () => {
@@ -107,9 +265,41 @@ describe('release PR required workflow guards', () => {
     expect(releaseStep).toMatch(
       /git config user\.name "github-actions\[bot\]"[\s\S]*git tag -a "v\$\{VERSION\}"/
     );
-    expect(releaseStep).toContain('MERGE_COMMIT=${{ steps.wait_for_merge.outputs.merge_commit }}');
-    expect(releaseStep).toContain('git checkout -B main "$MERGE_COMMIT"');
-    expect(releaseStep).not.toContain('git checkout -B main origin/main');
+    expect(releaseStep).toContain(
+      'RELEASE_COMMIT=${{ steps.wait_for_merge.outputs.release_commit }}'
+    );
+    expect(releaseStep).toContain(
+      'git tag -a "v${VERSION}" "$RELEASE_COMMIT" -m "Release v${VERSION}"'
+    );
+    expect(releaseStep).toContain('git diff --quiet "$WORKFLOW_COMMIT" "$SOURCE_COMMIT" --');
+    expect(releaseStep).not.toContain('git checkout -B main');
+  });
+
+  it('tags the source commit whose native tree produced the release assets', () => {
+    const workflow = readWorkflow('release.yml');
+    const notesStep = getStepBody(workflow, 'Generate filtered main package release notes');
+    const waitStep = getStepBody(workflow, 'Wait for release PR merge');
+    const releaseStep = getStepBody(workflow, 'Create GitHub Release');
+
+    expect(notesStep).toContain('LAST_RELEASE_TAG: v${{ needs.analyze.outputs.current_version }}');
+    expect(waitStep).toContain('--json mergeCommit,headRefOid');
+    expect(waitStep).toContain('INITIAL_PR_STATE="${{ steps.release_pr.outputs.state }}"');
+    expect(waitStep).toContain('RELEASE_COMMIT="$PR_HEAD_COMMIT"');
+    expect(waitStep).toContain('RELEASE_COMMIT="$MERGE_COMMIT"');
+    expect(waitStep).toContain('release_commit=${RELEASE_COMMIT}');
+    expect(waitStep).toContain('pr_head_commit=${PR_HEAD_COMMIT}');
+    expect(waitStep).toContain('pr_number=${PR_NUMBER}');
+
+    expect(releaseStep).toContain('PR_NUMBER=${{ steps.wait_for_merge.outputs.pr_number }}');
+    expect(releaseStep).toContain('git fetch origin "refs/pull/${PR_NUMBER}/head"');
+    expect(releaseStep).toContain('SOURCE_COMMIT="$RELEASE_COMMIT"');
+    expect(releaseStep).toContain('SOURCE_COMMIT="$TAG_TARGET"');
+    expect(releaseStep).toContain(
+      '[ "$TAG_TARGET" != "$PR_HEAD_COMMIT" ] && [ "$TAG_TARGET" != "$MERGE_COMMIT" ]'
+    );
+    expect(releaseStep).toContain('git diff --name-only "$WORKFLOW_COMMIT" "$SOURCE_COMMIT" --');
+    expect(releaseStep).toContain('Native source changed after workflow dispatch');
+    expect(releaseStep).toContain('points to unexpected commit ${TAG_TARGET}');
   });
 
   it('creates a reviewable Maker version policy PR after Maker package publish', () => {

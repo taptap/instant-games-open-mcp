@@ -57,15 +57,19 @@ export const STATUS_DESCRIPTIONS = {
  * 接口：GET /ad/v1/config
  * 需要认证：是
  *
- * @param ctx - ResolvedContext（自动从缓存获取 developer_id 和 app_id）
+ * @param ctx - ResolvedContext（用于请求认证，并在未指定应用时从缓存解析应用）
+ * @param selectedApp - 单次广告状态查询已锁定的应用身份
  * @returns 广告配置信息
  * @throws Error 当 developer_id 或 app_id 不存在时
  */
-export async function getAdConfig(ctx?: ResolvedContext): Promise<AdConfigResponse> {
+export async function getAdConfig(
+  ctx?: ResolvedContext,
+  selectedApp?: { developerId: number; appId: number }
+): Promise<AdConfigResponse> {
   const client = new HttpClient(ctx);
 
-  // 从 context 缓存解析应用信息
-  const app = ctx?.resolveApp();
+  // 单次查询优先使用已锁定身份，避免共享缓存切换导致请求目标漂移
+  const app = selectedApp ?? ctx?.resolveApp();
   const developerId = app?.developerId;
   const appId = app?.appId;
 

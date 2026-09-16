@@ -9,6 +9,7 @@ import { formatCliError, runMakerCli } from './cli/commands.js';
 import { appendMakerCrashLog } from './crashLog.js';
 import { loadConfig } from '../mcp-proxy/config.js';
 import { TapTapMCPProxy } from '../mcp-proxy/proxy.js';
+import { MAKER_PROXY_RUNTIME_OPTIONS } from './proxyPolicy.js';
 import {
   installParentDeathWatchdog,
   installProxyStdinExitHandler,
@@ -42,7 +43,7 @@ async function main(): Promise<void> {
 
 async function startEmbeddedProxy(): Promise<void> {
   const config = await loadConfig();
-  const proxy = new TapTapMCPProxy(config);
+  const proxy = new TapTapMCPProxy(config, MAKER_PROXY_RUNTIME_OPTIONS);
   await proxy.start();
 
   const cleanup = (source = 'proxy-signal'): void => {
@@ -92,8 +93,12 @@ function printHelp(): void {
       '                            [--context-stdin] [--consent] [--json]',
       '                            # Run only after the user agrees to submit',
       '  taptap-maker agents update [--target-dir DIR] [--json]',
+      '  taptap-maker plugin inspect --client codex|workbuddy [--json]',
+      '  taptap-maker plugin migrate --client codex|workbuddy --confirm [--json]',
+      '  taptap-maker plugin restore --client codex|workbuddy --confirm [--json]',
       '  taptap-maker upgrade [--launcher self|npx] [--target-dir DIR] [--json]',
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
+      '  taptap-maker user-skills pull [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
       '',
       'MCP install and verify default to a stable self runtime under the Maker home directory.',

@@ -46,6 +46,17 @@ describe('Maker tool description override coverage', () => {
     expect(missingDescriptions).toEqual([]);
   });
 
+  test('actual tools list disables automatic retry for every remote proxy tool', async () => {
+    const result = await listMakerTools();
+
+    for (const toolName of MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES) {
+      const description = result.tools.find((tool) => tool.name === toolName)?.description || '';
+      expect(description).toMatch(/not retried automatically/iu);
+      expect(description).toMatch(/execution state may be unknown/iu);
+      expect(description).toMatch(/verify.{0,100}before deciding whether to retry/iu);
+    }
+  });
+
   test('captures the current remote image, 3D, and video schema contract', () => {
     const toolSchema = (name: string) =>
       proxySnapshot.tools.find((tool) => tool.name === name)?.inputSchema;

@@ -48,6 +48,11 @@ describe('Maker bundled workflow skill documents', () => {
       /prefer Maker(?:-managed)?(?: MCP)? proxy tools|over native AI|client-native/iu
     );
     expect(status).toContain('Use create_video_task and query_video_task for game video assets');
+    expect(status).toContain(
+      'Only call create_video_task after the user explicitly requests video generation'
+    );
+    expect(status).toContain('duration exceeds 10 seconds or model="2.5"');
+    expect(status).toContain('user_confirmed=true');
     expect(status).toContain('Use text_to_music for game music');
     expect(status).toContain('Use text_to_sound_effect for one sound effect');
     expect(status).toContain('Use batch_sound_effects for multiple sound effects');
@@ -147,6 +152,11 @@ describe('Maker bundled workflow skill documents', () => {
     expect(skillText).toContain('Use `batch_generate_images` for multiple images');
     expect(skillText).toContain('Use `edit_image` for modifying project images');
     expect(skillText).toContain('Use `create_video_task` for game videos');
+    expect(skillText).toContain(
+      'Only call `create_video_task` after the user explicitly requests video generation'
+    );
+    expect(skillText).toContain('duration exceeds 10 seconds or `model="2.5"`');
+    expect(skillText).toContain('`user_confirmed=true`');
     expect(skillText).toContain('Use `query_video_task` to refresh video task status');
     expect(skillText).toContain('Use `text_to_music` for game music');
     expect(skillText).toContain('Use `text_to_sound_effect` for one sound effect');

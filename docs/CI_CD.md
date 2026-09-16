@@ -61,6 +61,7 @@
 
 ```
 main          # 稳定版本（1.2.3）- 受保护
+├── develop   # Maker 客户端插件公开测试分支，可通过 PR 合入 main
 ├── beta      # Beta 测试版（1.3.0-beta.1）
 ├── alpha     # Alpha 早期版（1.3.0-alpha.1）
 ├── next      # 下一个主版本（2.0.0-next.1）
@@ -71,6 +72,7 @@ main          # 稳定版本（1.2.3）- 受保护
 
 - **`main` 分支受组织级 Ruleset (trunk-guard) 保护**
 - 所有更改必须通过 PR 合并
+- `develop` 作为长期测试分支也必须通过 PR Check，验证后可以通过 PR 合入 `main`
 - PR 必须通过所有 CI 检查
 - Commit 消息必须符合 Conventional Commits 规范
 
@@ -136,9 +138,9 @@ Maker Beta 用于内部预览测试，走 `@taptap/maker@beta` dist-tag，不会
 不能包含 RND 凭证、内部账号 Token 或未公开的敏感配置。
 
 ```bash
-# 1. Maker 修复通过 PR 合并到 beta 或 main
+# 1. Maker 修复通过 PR 合并到 beta、develop 或 main
 # 2. 人工运行 Publish Maker Package workflow
-#    - Use workflow from: beta
+#    - Use workflow from: beta 或 develop
 #    - Version mode: auto-last-number
 #    - tag: beta
 #    - version 留空
@@ -314,11 +316,16 @@ npx commitlint --from HEAD~1 --to HEAD
 
 1. **解析版本** - 从 npm `latest` 读取当前线上版本，默认只递增 patch。
 2. **预检 Summary** - 展示当前线上版本、目标版本、是否修改 major/minor。
-3. **质量检查** - 运行 lint、format check、build、test。
-4. **生成发布产物** - 更新 `package.json`，生成主包 CHANGELOG / Release notes。
-5. **发布到 npm** - 发布 `@taptap/instant-games-open-mcp@latest`。
-6. **创建 release PR** - 写回 `package.json` / `package-lock.json` / `CHANGELOG.md`。
-7. **创建 GitHub Release** - release PR 合并后创建 tag 和 GitHub Release。
+3. **解析 Native 来源** - 仅使用当前线上主包版本对应的 `v<version>` tag 和 Release；
+   Maker、DSH 和客户端插件的独立 tag / Release 不参与主包 Native 变更比较或产物复用。
+   复用前必须确认 6 个受支持平台的 Native 资产全部存在，缺少任一平台都重新构建。
+   新 tag 指向实际发布源码提交；创建 tag 前再次校验该提交与 workflow 启动提交的 Native
+   源码完全一致，防止发布期间并发合并造成 tag 与二进制错位。
+4. **质量检查** - 运行 lint、format check、build、test。
+5. **生成发布产物** - 更新 `package.json`，生成主包 CHANGELOG / Release notes。
+6. **发布到 npm** - 发布 `@taptap/instant-games-open-mcp@latest`。
+7. **创建 release PR** - 写回 `package.json` / `package-lock.json` / `CHANGELOG.md`。
+8. **创建 GitHub Release** - release PR 合并后创建 tag 和 GitHub Release。
 
 **npm 发布策略**：
 
@@ -364,9 +371,9 @@ npx commitlint --from HEAD~1 --to HEAD
 - 旧包 semantic-release 分析、CHANGELOG 和 GitHub Release notes 会过滤 Maker-only commits。
 - workflow 默认使用 `auto-last-number`，通常只需要选择分支和 dist-tag 后直接运行。
 - 手动版本号只在需要指定版本时填写。
-- Maker 包只能从长期发布分支 `beta` 或 `main` 发布；`fix/*` 分支只用于提交 PR，
-  不作为发版来源。
-- 自动版本号只允许在 `beta` 或 `main` 分支上运行。
+- Maker 包沿用 `beta` 或 `main` 发布；`develop` 只允许发布 prerelease；`fix/*` 分支只用于
+  提交 PR，不作为发版来源。
+- 自动版本号允许在 `beta` 或 `main` 运行；`develop` 只允许使用 `beta`、`alpha` 或 `next` tag。
 - `tag=latest` 自动递增稳定 patch，例如 `0.0.16` → `0.0.17`。
 - `tag=beta`、`tag=alpha` 和 `tag=next` 自动发布 prerelease，例如最高稳定版本为
   `0.0.16` 时发布 `0.0.17-beta.1`，后续同一条线发布 `0.0.17-beta.2`。
@@ -387,18 +394,42 @@ npx commitlint --from HEAD~1 --to HEAD
   `fix(maker): repair local build`，便于审查和日报周报追踪。
 - PR 可以同时整理 root `README.md` 中的 Maker 对外使用说明；这不会自动触发主包发布。
 - 发布边界由手动 workflow 控制：主包只能从 `main` 运行
-  `.github/workflows/release.yml`，Maker 包只能从 `main` 或 `beta` 运行
-  `.github/workflows/publish-maker.yml`。
+  `.github/workflows/release.yml`；Maker 包可从 `main` 或 `beta` 发布，从 `develop` 运行
+  `.github/workflows/publish-maker.yml` 时只允许发布 prerelease。
 - `package.json`、`.releaserc.cjs` 和 release workflow 等共享发布配置仍建议单独 PR，
   但该限制作为团队流程要求，不再由 PR Check 自动拦截。
 
-Maker 包版本号使用 semver。CI 自动递增默认在 `beta` 或 `main` 分支使用
-`auto-last-number`：`tag=latest` 发布稳定三段版本；`tag=beta`、`tag=alpha` 和
+Maker 包版本号使用 semver。CI 自动递增沿用 `main` 和 `beta` 的发布策略，`develop` 只能使用
+prerelease tag。`auto-last-number` 的 `tag=latest` 发布稳定三段版本；`tag=beta`、`tag=alpha` 和
 `tag=next` 发布 prerelease 版本。如果最高稳定版本为 `0.0.16`，下一次 beta 自动发布
 `0.0.17-beta.1`，后续同一条线递增为 `0.0.17-beta.2`；正式发布再使用稳定三段版本
 `0.0.17` 和 `tag=latest`。手动发布如果要改变 major 或 minor，CI 会在预检 job 的
 Actions Summary 展示当前线上 dist-tag 版本和目标版本，人工核对后点击 protected
 environment 审批按钮继续发布。
+
+### 5.6 Maker 客户端插件发布工作流
+
+Codex 和 WorkBuddy 插件共用独立插件版本，不复用 `@taptap/maker` npm 版本。版本真源是
+`config/maker-plugin-version.json`，稳定版本从 `0.0.1` 开始，只递增 patch。
+
+稳定版发布分成两个明确阶段：
+
+1. 从 `main` 手动运行 `Prepare Maker Plugin Release`。它计算下一个可用 patch，更新版本真源，
+   重新生成两个客户端插件并创建版本 PR。
+2. 版本 PR 通过普通 PR Check 并合入 `main` 后，`Publish Maker Plugin` 自动校验生成物，打包
+   Codex 与 WorkBuddy ZIP、校验和及机器可读元数据，并创建 `maker-plugin-v<version>` Release。
+
+Codex ZIP 保持离线 marketplace 结构。WorkBuddy ZIP 直接以插件根目录内容为压缩包根，不包含
+`taptap-maker/`、`plugins/workbuddy/taptap-maker/` 或仓库级 marketplace 外壳；根目录必须包含
+`.codebuddy-plugin/plugin.json`、`.mcp.json`、`README.md` 和 `SKILL.md`，所有文件的父目录深度
+最多为两层。打包脚本会拒绝超深目录、`__MACOSX` 和 `.DS_Store`，避免官方市场上传失败。
+
+公开测试版只能从 `develop` 手动运行 `Publish Maker Plugin`，版本格式为下一个稳定 patch 加
+`-dev.<run_number>`，并标记为 GitHub Prerelease。`develop` push 不自动发版。测试通过后，代码通过
+PR 合入 `main`，再走稳定版准备流程。
+
+插件发布只创建 GitHub Release，不执行 `npm publish`，也不修改 Maker MCP 或主包的 npm 发布规则。
+重复运行同一提交时允许更新同一 Release 的附件；同名 tag 指向其它提交时必须失败。
 
 ---
 

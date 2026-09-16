@@ -60,6 +60,7 @@ import {
   type MakerEnvironment,
 } from '../config.js';
 import { getUserIdFromMakerJwt } from '../auth/jwt.js';
+import { requestTapAuthWithPat } from '../auth/patTap.js';
 import {
   MakerGitNotFoundError,
   checkGitEnvironment,
@@ -74,6 +75,10 @@ import {
   formatMakerLuaLspEnvironmentStatus,
 } from '../system/luaLsp.js';
 import { formatMakerSkillStatus } from '../cli/skill.js';
+import {
+  formatMakerPluginUpdateAction,
+  resolveMakerPluginDistribution,
+} from '../pluginDistribution.js';
 import { formatMakerAgentsPolicyStatus } from '../cli/agentsPolicy.js';
 import {
   DEV_KIT_GITIGNORE_STAGING_FILE,
@@ -110,6 +115,7 @@ import {
 import { inspectMakerQrcodePreflight } from '../qrcodePreflight.js';
 import {
   CREATE_3D_ASSET_PROXY_TOOL_NAME,
+  RemoteProxyToolCallError,
   RemoteProxyToolResultError,
   formatRemoteProxyToolResult,
   materializeRemoteProxyToolAssets,
@@ -122,7 +128,7 @@ import {
   MAKER_STATUS_LITE_PUBLIC_DESCRIPTION,
 } from './toolDescriptions.js';
 import proxyToolSnapshot from './remoteProxyToolSnapshot.json';
-import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from '../../mcp-proxy/config.js';
+import { MAKER_TOOL_CALL_TIMEOUT_MS } from '../proxyPolicy.js';
 import {
   isMakerBuildActivitySuccessful,
   reportMakerMcpActivity,
@@ -154,6 +160,17 @@ const PREVIEW_REFRESH_TIMEOUT_MS = 15 * 1000;
 const WATCHER_STOP_TIMEOUT_MS = 1500;
 const WATCHER_PROCESS_PATTERN = /(?:\btaptap-maker\b|\bmaker\.js\b).*\blogs\b.*\bwatch\b/;
 const LONG_OPERATION_HEARTBEAT_MS = 3 * 60 * 1000;
+const MAKER_MCP_BLACKLISTED_MESSAGE = [
+  'Maker MCP access blocked',
+  '',
+  '- code: BLACKLISTED',
+  '- message: 当前 Maker 账号已被限制，无法使用 Maker MCP 工具。',
+].join('\n');
+
+type MakerMcpAccessState =
+  | { blocked: false }
+  | { blocked: true; code: 'BLACKLISTED'; message: string };
+
 export const MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES = [
   'generate_image',
   'batch_generate_images',
@@ -460,11 +477,23 @@ export async function callRemoteProxyTool(options: {
   const callTool = options.manager
     ? async () => {
         proxy = createProxy();
-        return await options.manager!.callTool(
-          proxy,
-          { name: options.name, arguments: finalArgs },
-          requestOptions
-        );
+        let dispatched = false;
+        try {
+          return await options.manager!.callTool(
+            proxy,
+            { name: options.name, arguments: finalArgs },
+            requestOptions,
+            () => {
+              dispatched = true;
+            }
+          );
+        } catch (error) {
+          throw new RemoteProxyToolCallError(
+            options.name,
+            dispatched ? 'unknown' : 'not_executed',
+            error
+          );
+        }
       }
     : async () => {
         const transport = trackMakerChildTransport(
@@ -486,6 +515,11 @@ export async function callRemoteProxyTool(options: {
         );
         try {
           await client.connect(transport);
+        } catch (error) {
+          await client.close().catch(() => {});
+          throw new RemoteProxyToolCallError(options.name, 'not_executed', error);
+        }
+        try {
           return await client.callTool(
             {
               name: options.name,
@@ -496,27 +530,13 @@ export async function callRemoteProxyTool(options: {
               ...requestOptions,
             }
           );
+        } catch (error) {
+          throw new RemoteProxyToolCallError(options.name, 'unknown', error);
         } finally {
           await client.close().catch(() => {});
         }
       };
-  const result = await retryMakerProxyOperation(callTool, {
-    onRetry: options.progressToken
-      ? (event) => {
-          options.extra
-            .sendNotification({
-              method: 'notifications/progress',
-              params: {
-                progressToken: options.progressToken,
-                progress: event.attempt,
-                total: event.attempts,
-                message: event.message,
-              },
-            })
-            .catch(() => {});
-        }
-      : undefined,
-  });
+  const result = await callTool();
   return await materializeRemoteProxyToolAssets({
     toolName: options.name,
     targetDir: proxy.projectRoot,
@@ -600,7 +620,7 @@ export function createRemoteProxyCallToolOptions(
   onprogress: (progress: { progress: number; total?: number; message?: string }) => void;
 } {
   return {
-    timeout: DEFAULT_TOOL_CALL_TIMEOUT_MS,
+    timeout: MAKER_TOOL_CALL_TIMEOUT_MS,
     resetTimeoutOnProgress: true,
     onprogress: createRemoteProxyProgressHandler(progressToken, extra),
   };
@@ -608,6 +628,7 @@ export function createRemoteProxyCallToolOptions(
 
 export async function startMakerMcpServer(): Promise<void> {
   startMakerPackageUpdateCheck({ currentVersion: VERSION });
+  const accessStatePromise = resolveMakerMcpAccessState(getMakerEnvironment());
 
   const server = new Server(
     {
@@ -627,6 +648,10 @@ export async function startMakerMcpServer(): Promise<void> {
   const remoteProxyManager: MakerRemoteProxyManager = createMakerRemoteProxyManager();
   const startupReportedProjects = new Set<string>();
   server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const accessState = await accessStatePromise;
+    if (accessState.blocked) {
+      return { tools: [tools[0]] };
+    }
     const contextPromise = resolveMakerMcpTrackingContext({ listClientRoots });
     void reportMakerMcpStartupFromPromise(contextPromise, startupReportedProjects);
     return listMakerTools();
@@ -640,6 +665,19 @@ export async function startMakerMcpServer(): Promise<void> {
     const uri = request.params.uri;
     if (uri !== 'maker://status' && uri !== MAKER_ADS_INTEGRATION_GUIDE_URI) {
       throw new McpError(ErrorCode.InvalidParams, `Unknown Maker resource: ${uri}`);
+    }
+
+    const accessState = await accessStatePromise;
+    if (uri === 'maker://status' && accessState.blocked) {
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: 'text/plain',
+            text: accessState.message,
+          },
+        ],
+      };
     }
 
     const startedAt = Date.now();
@@ -679,6 +717,14 @@ export async function startMakerMcpServer(): Promise<void> {
   });
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const name = request.params.name;
+    const accessState = await accessStatePromise;
+    if (accessState.blocked) {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: accessState.message }],
+      };
+    }
+
     const startedAt = Date.now();
     const rawArgs = (request.params.arguments || {}) as Record<string, unknown>;
     const hasInvalidTargetDir =
@@ -897,6 +943,28 @@ export async function startMakerMcpServer(): Promise<void> {
   installMakerServerExitHandlers(remoteProxyManager);
 }
 
+async function resolveMakerMcpAccessState(
+  environment: MakerEnvironment
+): Promise<MakerMcpAccessState> {
+  try {
+    await requestTapAuthWithPat(undefined, environment);
+    return { blocked: false };
+  } catch (error) {
+    const responseCode =
+      error && typeof error === 'object'
+        ? (error as { responseCode?: unknown }).responseCode
+        : undefined;
+    if (responseCode === 'BLACKLISTED') {
+      return {
+        blocked: true,
+        code: 'BLACKLISTED',
+        message: MAKER_MCP_BLACKLISTED_MESSAGE,
+      };
+    }
+    return { blocked: false };
+  }
+}
+
 async function resolveMakerMcpTrackingContext(options: {
   targetDir?: string;
   listClientRoots?: MakerClientRootsProvider;
@@ -1009,6 +1077,8 @@ export async function formatStatus(
   } = {}
 ): Promise<string> {
   const detail = options.detail === true;
+  const distribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
+  const pluginDistribution = resolveMakerPluginDistribution(distribution);
   const projectContext = await resolveMakerProjectContext({
     targetDir: options.targetDir,
     listClientRoots: options.listClientRoots,
@@ -1042,7 +1112,9 @@ export async function formatStatus(
     allowRemoteFetch: false,
     ...(detail ? {} : { backgroundRefresh: false }),
   });
-  const packageUpdateText = detail ? formatMakerPackageUpdateStatus(packageUpdateStatus) : '';
+  const packageUpdateText = detail
+    ? formatMakerPackageUpdateStatusForDistribution(packageUpdateStatus, distribution)
+    : '';
   const projectInitialization = identify.projectRoot
     ? inspectMakerProjectInitialization(identify.projectRoot)
     : undefined;
@@ -1085,10 +1157,15 @@ export async function formatStatus(
     `- lua_lsp: ${luaLsp.status}`,
     'Maker MCP package update',
     `- status: ${packageUpdateStatus.status}`,
+    pluginDistribution ? `- distribution: ${pluginDistribution.id}` : '',
     packageUpdateStatus.target_version
       ? `- target_version: ${packageUpdateStatus.target_version}`
       : '',
-    packageUpdateStatus.next_action ? `- next_action: ${packageUpdateStatus.next_action}` : '',
+    pluginDistribution && packageUpdateStatus.status !== 'managed_by_plugin'
+      ? `- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}`
+      : packageUpdateStatus.next_action
+        ? `- next_action: ${packageUpdateStatus.next_action}`
+        : '',
     projectInitialization ? `- project_initialization: ${projectInitialization.status}` : '',
     projectHealth ? `- project_health: ${projectHealth.status}` : '',
     formatMakerClientRootsSummary(projectContext.roots),
@@ -1117,6 +1194,7 @@ export async function formatStatus(
       'TapTap Maker MCP status',
       '',
       `- version: ${VERSION}`,
+      pluginDistribution ? `- distribution: ${pluginDistribution.id}` : '',
       `- env: ${env}`,
       `- project_context_source: ${projectContext.source}`,
       summaryText,
@@ -1127,6 +1205,7 @@ export async function formatStatus(
     'TapTap Maker MCP status',
     '',
     `- version: ${VERSION}`,
+    pluginDistribution ? `- distribution: ${pluginDistribution.id}` : '',
     `- env: ${env}`,
     `- tap_auth: ${tapAuth ? 'found' : 'missing'} (${getTapAuthPath()})`,
     `- pat: ${pat ? 'found' : 'missing'} (${getPatPath()})`,
@@ -1194,6 +1273,25 @@ export async function formatStatus(
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+function formatMakerPackageUpdateStatusForDistribution(
+  status: Awaited<ReturnType<typeof getMakerPackageUpdateStatus>>,
+  distribution: string | undefined
+): string {
+  const formatted = formatMakerPackageUpdateStatus(status);
+  const pluginDistribution = resolveMakerPluginDistribution(distribution);
+  if (!pluginDistribution) {
+    return formatted;
+  }
+  const lines = [
+    ...formatted.split('\n').filter((line) => !line.startsWith('- next_action:')),
+    `- distribution: ${pluginDistribution.id}`,
+  ];
+  if (status.status !== 'managed_by_plugin') {
+    lines.push(`- next_action: ${formatMakerPluginUpdateAction(pluginDistribution)}`);
+  }
+  return lines.join('\n');
 }
 
 function formatAuthNextStep(options: {
@@ -1440,7 +1538,8 @@ export async function formatMakerProxyToolsStatusSafely(options: {
       `- missing_tools: ${MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.join(', ')}`,
       '- build_available: no',
       `- failure_message: ${error instanceof Error ? error.message : String(error)}`,
-      '- retry_policy: explicit proxy tool/build calls retry 5 total attempts, 30s apart',
+      '- build_retry_policy: up to 5 total attempts, 30s apart',
+      '- proxy_tool_retry_policy: single attempt; never replayed automatically',
       '- next_action: Maker proxy 连接失败；远端 proxy tools 和 build 构建都不可用。请检查网络、PAT/TapTap token、Maker MCP 环境和远端服务后重试。',
     ].join('\n');
   }
@@ -2146,7 +2245,7 @@ export function createRemoteProxyContext(options: {
 } {
   const identify = identifyMakerProject({ cwd: options.targetDir });
   if (!identify.projectRoot || !identify.projectId) {
-    throw new Error(
+    throw new MakerBuildContextError(
       `${options.targetDir} is not bound to a Maker project. Run taptap-maker init first.`
     );
   }
@@ -2156,7 +2255,7 @@ export function createRemoteProxyContext(options: {
   const env = getMakerEnvironment(options.env, identify.projectRoot);
   const tapAuth = loadTapAuth();
   if (!tapAuth) {
-    throw new Error('Tap auth not found. Run `taptap-maker login` first.');
+    throw new MakerBuildContextError('Tap auth not found. Run `taptap-maker login` first.');
   }
 
   let userId = projectConfig?.user_id;
@@ -2165,7 +2264,7 @@ export function createRemoteProxyContext(options: {
     userId = jwt ? getUserIdFromMakerJwt(jwt) : undefined;
   }
   if (!userId) {
-    throw new Error(
+    throw new MakerBuildContextError(
       'Cannot resolve user_id. Re-run taptap-maker init with PAT so the project config can cache user_id.'
     );
   }
@@ -2189,9 +2288,12 @@ export function createRemoteProxyContext(options: {
     },
     options: {
       verbose: true,
+      tool_call_timeout: MAKER_TOOL_CALL_TIMEOUT_MS,
       reset_timeout_on_progress: true,
       force_inject_progress_token: true,
+      disable_standalone_sse: true,
       exposed_tools: options.exposedTools,
+      replayable_tools: ['build'],
     },
   };
 
@@ -2467,6 +2569,14 @@ type BuildCurrentDirectoryResult =
       projectId: string;
       submitResult: PushMakerProjectResult;
       buildFailure: MakerBuildFailure;
+    }
+  | {
+      mode: 'build_context_failed_before_remote';
+      projectRoot: string;
+      projectId: string;
+      codeSubmitStatus: 'succeeded' | 'skipped_by_user';
+      submitResult?: PushMakerProjectResult;
+      buildFailure: MakerBuildFailure;
     };
 
 class RemoteBuildFailedError extends Error {
@@ -2476,6 +2586,13 @@ class RemoteBuildFailedError extends Error {
     super(buildResult.resultText);
     this.name = 'RemoteBuildFailedError';
     this.buildResult = buildResult;
+  }
+}
+
+class MakerBuildContextError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MakerBuildContextError';
   }
 }
 
@@ -2555,12 +2672,23 @@ export async function buildCurrentDirectory(options: {
     try {
       buildResult = await runRemoteBuildCurrentDirectory(options, localChanges.projectRoot);
     } catch (error) {
+      const buildFailure = toMakerBuildFailure(error);
+      if (error instanceof MakerBuildContextError) {
+        return {
+          mode: 'build_context_failed_before_remote',
+          projectRoot: localChanges.projectRoot,
+          projectId: config?.project_id || 'unknown',
+          codeSubmitStatus: 'succeeded',
+          submitResult,
+          buildFailure,
+        };
+      }
       return {
         mode: 'build_failed_after_submit',
         projectRoot: localChanges.projectRoot,
         projectId: config?.project_id || 'unknown',
         submitResult,
-        buildFailure: toMakerBuildFailure(error),
+        buildFailure,
       };
     }
     return {
@@ -2580,6 +2708,17 @@ export async function buildCurrentDirectory(options: {
         projectId: error.buildResult.projectId,
         buildResult: error.buildResult,
         buildFailure: toMakerBuildFailure(error),
+      };
+    }
+    const buildFailure = toMakerBuildFailure(error);
+    if (error instanceof MakerBuildContextError) {
+      const identify = identifyMakerProject({ cwd: options.targetDir });
+      return {
+        mode: 'build_context_failed_before_remote',
+        projectRoot: identify.projectRoot || path.resolve(options.targetDir),
+        projectId: identify.projectId || 'unknown',
+        codeSubmitStatus: 'skipped_by_user',
+        buildFailure,
       };
     }
     throw error;
@@ -3143,7 +3282,7 @@ export async function refreshMakerPreview(
 export async function callRemoteRuntimeLogs(
   proxy: RemoteProxyContext,
   args: RuntimeLogQueryArgs,
-  timeoutMs = DEFAULT_TOOL_CALL_TIMEOUT_MS
+  timeoutMs = MAKER_TOOL_CALL_TIMEOUT_MS
 ): Promise<RuntimeLogQueryResult> {
   const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
 
@@ -3156,7 +3295,7 @@ export async function callRemoteRuntimeLogs(
 
 export function createRemoteRuntimeLogClient(
   proxy: RemoteProxyContext,
-  timeoutMs = DEFAULT_TOOL_CALL_TIMEOUT_MS,
+  timeoutMs = MAKER_TOOL_CALL_TIMEOUT_MS,
   options: {
     createTransport?: () => Transport;
     createClient?: () => RuntimeLogMcpClient;
@@ -3396,6 +3535,7 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines('remote_build', 'skipped_by_user', 'failed'),
       `- maker_url: ${
         result.buildResult.makerUrl ||
         formatMakerAppWebUrl(result.buildResult.projectId, result.buildResult.env)
@@ -3406,6 +3546,10 @@ export function formatBuildResult(
       ...formatProgressSummary(progressSummary),
       '',
       ...formatMakerBuildFailureLines(result.buildFailure),
+      '',
+      ...formatRemoteBuildDiagnosisLines(result.buildFailure, result.projectRoot),
+      '',
+      ...formatBuildLocalExecutionCheckLines({ context: 'remote_build' }),
       '',
       'remote_result:',
       indent(String(sanitizeRemoteDiagnosticValue(result.buildResult.resultText))),
@@ -3426,6 +3570,7 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines('code_submit', 'failed', 'not_started'),
       `- branch: ${result.submitResult.branch}`,
       `- status: ${result.submitResult.status}`,
       `- committed: ${result.submitResult.committed ? 'yes' : 'no'}`,
@@ -3444,8 +3589,10 @@ export function formatBuildResult(
             ...formatPushRecoveryLines(result.submitResult),
             '',
             ...formatMakerFailureLines(result.submitResult.failure),
+            '',
+            ...formatBuildLocalExecutionCheckLines({ failure: result.submitResult.failure }),
           ]
-        : []),
+        : ['', ...formatBuildLocalExecutionCheckLines()]),
     ]
       .filter(Boolean)
       .join('\n');
@@ -3457,6 +3604,7 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines('project_validation', 'not_started', 'not_started'),
       ...formatProgressSummary(progressSummary),
       '',
       formatMakerProjectSettingsStatus(result.settingsStatus),
@@ -3471,9 +3619,37 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines('project_validation', 'not_started', 'not_started'),
       ...formatProgressSummary(progressSummary),
       '',
       formatMakerProjectHealthStatus(result.projectHealth),
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (result.mode === 'build_context_failed_before_remote') {
+    return [
+      result.codeSubmitStatus === 'succeeded'
+        ? '✗ Maker project submitted, but local build context preparation failed; remote build was not started'
+        : '✗ Local build context preparation failed; remote build was not started',
+      '',
+      `- project_root: ${result.projectRoot}`,
+      `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines(
+        'local_build_context',
+        result.codeSubmitStatus,
+        'not_started'
+      ),
+      result.submitResult ? `- branch: ${result.submitResult.branch}` : '',
+      result.submitResult ? `- status: ${result.submitResult.status}` : '',
+      result.submitResult ? `- committed: ${result.submitResult.committed ? 'yes' : 'no'}` : '',
+      result.submitResult?.commitHash ? `- commit_hash: ${result.submitResult.commitHash}` : '',
+      ...formatProgressSummary(progressSummary),
+      '',
+      ...formatMakerBuildFailureLines(result.buildFailure),
+      '',
+      ...formatLocalBuildContextDiagnosisLines(result.buildFailure),
     ]
       .filter(Boolean)
       .join('\n');
@@ -3485,6 +3661,7 @@ export function formatBuildResult(
       '',
       `- project_root: ${result.projectRoot}`,
       `- project_id: ${result.projectId}`,
+      ...formatBuildFailureStageLines('remote_build', 'succeeded', 'failed'),
       `- branch: ${result.submitResult.branch}`,
       `- status: ${result.submitResult.status}`,
       `- committed: ${result.submitResult.committed ? 'yes' : 'no'}`,
@@ -3497,6 +3674,10 @@ export function formatBuildResult(
       ...formatProgressSummary(progressSummary),
       '',
       ...formatMakerBuildFailureLines(result.buildFailure),
+      '',
+      ...formatRemoteBuildDiagnosisLines(result.buildFailure, result.projectRoot),
+      '',
+      ...formatBuildLocalExecutionCheckLines({ context: 'remote_build' }),
     ]
       .filter(Boolean)
       .join('\n');
@@ -3739,6 +3920,149 @@ function formatMakerBuildFailureLines(failure: MakerBuildFailure): string[] {
   ].filter(Boolean);
 }
 
+function formatBuildFailureStageLines(
+  failureStage: 'project_validation' | 'code_submit' | 'local_build_context' | 'remote_build',
+  codeSubmitStatus: 'not_started' | 'failed' | 'succeeded' | 'skipped_by_user',
+  remoteBuildStatus: 'not_started' | 'failed'
+): string[] {
+  return [
+    `- failure_stage: ${failureStage}`,
+    `- code_submit_status: ${codeSubmitStatus}`,
+    `- remote_build_status: ${remoteBuildStatus}`,
+  ];
+}
+
+function formatBuildLocalExecutionCheckLines(
+  options: {
+    context?: 'local_or_unknown' | 'remote_build';
+    failure?: MakerGitFailure;
+  } = {}
+): string[] {
+  if (options.context === 'remote_build') {
+    return [
+      'local_execution_check:',
+      '- restriction_signal: not_detected',
+      '- diagnostic_priority: remote_build_error_first',
+      '- sandbox_check_condition: only_if_local_commands_are_also_blocked',
+      '- fallback_check: If Windows PowerShell, CLI, Git, or MCP commands are also blocked locally, ask the user to check the AI client sandbox/access setting and enable Full Access mode ("完全访问模式") only for a trusted project.',
+      '- evidence_rule: A remote build failure is not evidence of a local sandbox restriction.',
+    ];
+  }
+
+  const restrictionSignal = options.failure
+    ? hasLocalExecutionRestrictionSignal(options.failure)
+    : false;
+  if (options.failure && !restrictionSignal && isRemoteGitFailure(options.failure)) {
+    return [
+      'local_execution_check:',
+      '- restriction_signal: not_detected',
+      '- diagnostic_priority: remote_git_error_first',
+      '- sandbox_check_condition: only_if_local_commands_are_also_blocked',
+      '- fallback_check: If Windows PowerShell, CLI, Git, or MCP commands are also blocked locally, ask the user to check the AI client sandbox/access setting and enable Full Access mode ("完全访问模式") only for a trusted project.',
+      '- evidence_rule: A remote Git failure is not evidence of a local sandbox restriction.',
+    ];
+  }
+
+  return [
+    'local_execution_check:',
+    `- restriction_signal: ${restrictionSignal ? 'detected' : 'not_detected'}`,
+    restrictionSignal
+      ? '- assessment: The current error reports a sandbox or local access restriction; code execution may be blocked before Maker can complete the build workflow.'
+      : '- assessment: Maker cannot inspect the AI client access-mode setting, so the current build failure does not confirm whether local execution is restricted.',
+    '- windows_check: Check whether the AI client is running Windows PowerShell, CLI, Git, or MCP commands in a sandbox or restricted mode.',
+    restrictionSignal
+      ? '- next_action: For a trusted project, enable Full Access mode ("完全访问模式") in the AI client, reconnect MCP, and retry only after confirming local commands can execute.'
+      : '- next_action: Check the AI client sandbox/access setting. For a trusted project, enable Full Access mode ("完全访问模式"), reconnect MCP, and retry after confirming local commands can execute.',
+    '- evidence_rule: This is a diagnostic check, not proof that sandbox restrictions caused this failure.',
+  ];
+}
+
+function hasLocalExecutionRestrictionSignal(failure: MakerGitFailure): boolean {
+  const localText = gitFailureSearchText(failure)
+    .split(/\r?\n/u)
+    .filter((line) => !/^\s*remote:/iu.test(line))
+    .join('\n');
+  const hasLocalProcessMarker =
+    /\bPowerShell(?:\.exe)?\b|\bspawn\s+(?:(?:[^\r\n]{0,160})[\\/])?(?:git(?:\.exe)?|PowerShell(?:\.exe)?)\b/iu.test(
+      localText
+    );
+  const hasRestrictionMarker = /sandbox|沙盒|blocked|disabled|not permitted|EPERM|EACCES/iu.test(
+    localText
+  );
+  return hasLocalProcessMarker && hasRestrictionMarker;
+}
+
+function isRemoteGitFailure(failure: MakerGitFailure): boolean {
+  return (
+    [
+      'remote_transient',
+      'remote_rejected',
+      'auth',
+      'branch_not_allowed',
+      'forbidden_path',
+    ].includes(failure.classification) || /(?:^|\n)\s*remote:/iu.test(gitFailureSearchText(failure))
+  );
+}
+
+function gitFailureSearchText(failure: MakerGitFailure): string {
+  return [failure.message, failure.stderr, failure.stdout].filter(Boolean).join('\n');
+}
+
+function formatRemoteBuildDiagnosisLines(
+  failure: MakerBuildFailure,
+  projectRoot: string
+): string[] {
+  const isRequestTimeout = isMcpRequestTimeoutFailure(failure);
+  return [
+    'remote_build_diagnosis:',
+    isRequestTimeout ? '- failure_signal: mcp_request_timeout' : '',
+    '- root_cause: unconfirmed',
+    isRequestTimeout ? '- maker_server_fault_confirmed: no' : '',
+    '- inspect_first: returned build_failure and any remote_result for code or resource diagnostics',
+    '- diagnostic_action_modified_local_project_files: no',
+    ...(isRequestTimeout ? ['', ...formatMcpTimeoutLocalDiagnosticLines(projectRoot)] : []),
+  ].filter(Boolean);
+}
+
+function formatLocalBuildContextDiagnosisLines(failure: MakerBuildFailure): string[] {
+  return [
+    'local_build_context_diagnosis:',
+    '- root_cause: known_local_context',
+    '- remote_request_status: not_started',
+    `- next_action: ${failure.message}`,
+  ];
+}
+
+function isMcpRequestTimeoutFailure(failure: MakerBuildFailure): boolean {
+  return /MCP error\s+-32001:\s*Request timed out/iu.test(failure.message);
+}
+
+function formatMcpTimeoutLocalDiagnosticLines(projectRoot: string): string[] {
+  const processCwd = process.cwd();
+  const cwdAlignment =
+    normalizePathForCompare(processCwd) === normalizePathForCompare(projectRoot)
+      ? 'same_project'
+      : 'different_from_project';
+
+  return [
+    'mcp_timeout_local_diagnostics:',
+    '- mode: read_only',
+    `- project_root: ${projectRoot}`,
+    `- mcp_process_cwd: ${processCwd}`,
+    `- cwd_alignment: ${cwdAlignment}`,
+    `- node_version: ${process.version}`,
+    `- platform: ${process.platform}/${process.arch}`,
+    `- node_exec_path: ${process.execPath}`,
+    '- active_client_config: not_checked',
+    '- active_client_session: not_checked',
+    "- limitation: Maker MCP cannot inspect the active AI client's command, args, workspace Roots, session, or request timeout.",
+    '- next_action_1: Run Maker doctor for project_root through the active client launcher; standalone CLI equivalent: `taptap-maker doctor --target-dir <PROJECT_DIR>`.',
+    '- next_action_2: Inspect the actual active client MCP command, args, cwd/Roots, session and tool registration, request timeout, and Node runtime.',
+    '- evidence_rule: Do not claim a Maker server outage without HTTP 5xx, server logs, or service status evidence.',
+    '- retry_rule: Do not retry the build blindly; diagnose the failed boundary first.',
+  ];
+}
+
 function buildFailureDiagnosticFields(failure: MakerBuildFailure): Record<string, unknown> {
   const details: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(failure)) {
@@ -3769,6 +4093,10 @@ function formatMakerFailureLines(failure: MakerGitFailure): string[] {
 export function formatToolException(toolName: string, error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : undefined;
+  const buildLocalExecutionCheckLines =
+    toolName === 'maker_build_current_directory' && !isKnownBuildContextError(error)
+      ? ['', ...formatBuildLocalExecutionCheckLines()]
+      : [];
   if (error instanceof MakerGitNotFoundError) {
     return [
       '✗ Maker MCP tool stopped',
@@ -3779,6 +4107,7 @@ export function formatToolException(toolName: string, error: unknown): string {
       message,
       '',
       'next_action: 请只引导用户安装 Git；在 `git --version` 可用之前，不要继续调用 clone、fetch、commit 或 push。',
+      ...buildLocalExecutionCheckLines,
     ].join('\n');
   }
 
@@ -3853,7 +4182,22 @@ export function formatToolException(toolName: string, error: unknown): string {
     stack ? indent(stack) : indent(message),
     '',
     'next_action: 请把上面的完整错误反馈给开发者；如果本地已有 commit 但 push 未完成，不要重复 commit，直接重试 maker_build_current_directory。',
+    ...buildLocalExecutionCheckLines,
   ].join('\n');
+}
+
+function isKnownBuildContextError(error: unknown): boolean {
+  if (
+    error instanceof MakerBuildContextError ||
+    error instanceof MakerProjectContextAmbiguousError
+  ) {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return /target_dir must be a string when provided|is not bound to a Maker project|must be an independent Git repository before build or submit|is bound to a Maker project but is not a Git repository/iu.test(
+    message
+  );
 }
 
 function stripNestedMcpErrorPrefixes(message: string): string {

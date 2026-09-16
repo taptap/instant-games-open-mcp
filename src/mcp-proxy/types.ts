@@ -53,6 +53,16 @@ export interface LogConfig {
   max_days?: number;
 }
 
+/** 入口专属行为，不根据上游 URL 或 JSON 配置推断。 */
+export interface ProxyRuntimeOptions {
+  /** 仅代表本地调用的嵌入入口应显式启用。 */
+  sourceTag?: 'local';
+  /** 默认保留协议错误，嵌入入口需要工具级诊断时才转换。 */
+  remoteErrorMode?: 'passthrough' | 'tool-result';
+  /** 更广的重试范围和指数退避必须由嵌入入口显式启用。 */
+  recoveryMode?: 'compatible' | 'resilient';
+}
+
 /**
  * Proxy 配置（通过 JSON 传递）
  */
@@ -92,7 +102,7 @@ export interface ProxyConfig {
     reconnect_interval?: number;
     /** 请求队列超时（毫秒，默认 30000） */
     request_timeout?: number;
-    /** Tool 调用超时（毫秒，默认 3600000 即 1 小时） */
+    /** Tool 调用超时（毫秒，默认 300000 即 5 分钟） */
     tool_call_timeout?: number;
     /** 收到 progress 通知时重置超时计时器（默认 true） */
     reset_timeout_on_progress?: boolean;
@@ -105,14 +115,21 @@ export interface ProxyConfig {
      */
     enable_cookie_sticky?: boolean;
     /**
+     * 禁用可选的 standalone SSE GET（默认 false）
+     *
+     * 开启后，Proxy 对该 GET 返回 MCP 规范允许的 405，并继续通过 POST SSE
+     * 接收请求响应和 progress。用于规避部分 Node.js 运行时中长连接占用后续请求的问题。
+     */
+    disable_standalone_sse?: boolean;
+    /**
      * 每次工具调用时也注入私有参数（默认 true）
      *
      * 私有参数（_mac_token, _user_id, _project_id, _project_path, _custom_fields）会在两个时机传递：
      * 1. 初始化连接时：始终通过 HTTP Headers 传递（不受此配置影响）
      * 2. 每次工具调用时：通过工具参数注入（由此配置控制）
      *
-     * Proxy 会在初始化连接时通过 X-TapTap-Tag: local 标记本地调用来源，
-     * 并在每次工具调用中继续注入 _tag: "local" 私有参数用于兼容。
+     * 通用 Proxy 默认不注入来源标记。只有嵌入入口显式设置 sourceTag 时才发送
+     * X-TapTap-Tag，并在启用本选项时注入 _tag；本选项不影响 Header。
      *
      * 为兼容不同的 MCP Server 实现，默认每次调用都注入。
      * 如果目标 Server 支持从 Session 获取这些参数，可设置为 false 以减少数据传输量。
@@ -143,6 +160,13 @@ export interface ProxyConfig {
      * forwarding to the upstream server.
      */
     exposed_tools?: string[];
+    /**
+     * Tools that may wait for reconnection or be replayed after a transport failure.
+     *
+     * When omitted, the proxy preserves its historical behavior and may replay any tool.
+     * An empty array disables replay for every tool.
+     */
+    replayable_tools?: string[];
     /** 日志配置 */
     log?: LogConfig;
   };
@@ -157,6 +181,8 @@ export interface PendingRequest {
   resolve: (result: any) => void;
   reject: (error: Error) => void;
   timestamp: number;
+  /** 请求进入队列时已知的上游派发状态。 */
+  executionState?: 'not_executed' | 'unknown';
   /** Progress 回调（可选，用于重连后重放时转发 progress 通知） */
   onprogress?: (progress: { progress: number; total?: number; message?: string }) => void;
 }

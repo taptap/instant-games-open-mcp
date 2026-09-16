@@ -57,6 +57,7 @@ const SELF_RUNTIME_DIRECTORIES = [
   'skills/update-taptap-mcp',
 ];
 const SELF_RUNTIME_FILES = ['dist/maker.js', 'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'];
+const SELF_RUNTIME_COPY_FALLBACK_CODES = new Set(['EIO', 'EACCES', 'EPERM']);
 
 export function resolveMakerPackageSpec(packageName: string, currentVersion: string): string {
   return PUBLISHED_VERSION_PATTERN.test(currentVersion)
@@ -97,9 +98,10 @@ export function materializeMakerSelfLauncher(options: {
       fs.copyFileSync(sourcePath, targetPath);
     }
     for (const relativePath of SELF_RUNTIME_DIRECTORIES) {
-      fs.cpSync(path.join(sourceRoot, relativePath), path.join(runtimeRoot, relativePath), {
-        recursive: true,
-      });
+      copySelfRuntimeDirectory(
+        path.join(sourceRoot, relativePath),
+        path.join(runtimeRoot, relativePath)
+      );
     }
   }
 
@@ -110,6 +112,34 @@ export function materializeMakerSelfLauncher(options: {
     args: [stableBundle],
     commandAndArgs: [execPath, stableBundle],
   };
+}
+
+function copySelfRuntimeDirectory(sourcePath: string, targetPath: string): void {
+  try {
+    fs.cpSync(sourcePath, targetPath, { recursive: true });
+  } catch (error) {
+    const code =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? String(error.code)
+        : undefined;
+    if (!code || !SELF_RUNTIME_COPY_FALLBACK_CODES.has(code)) {
+      throw error;
+    }
+    copyDirectoryEntries(sourcePath, targetPath);
+  }
+}
+
+function copyDirectoryEntries(sourcePath: string, targetPath: string): void {
+  fs.mkdirSync(targetPath, { recursive: true });
+  for (const entry of fs.readdirSync(sourcePath, { withFileTypes: true })) {
+    const sourceEntry = path.join(sourcePath, entry.name);
+    const targetEntry = path.join(targetPath, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectoryEntries(sourceEntry, targetEntry);
+    } else {
+      fs.copyFileSync(sourceEntry, targetEntry);
+    }
+  }
 }
 
 /**

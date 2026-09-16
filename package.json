@@ -1,6 +1,6 @@
 {
   "name": "@taptap/instant-games-open-mcp",
-  "version": "1.24.11",
+  "version": "1.24.14",
   "type": "module",
   "description": "TapTap Open API MCP Server - Documentation and Management APIs for TapTap Minigame and H5 Games (Leaderboard, and more features coming)",
   "main": "dist/server.js",
@@ -14,7 +14,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "./scripts/build.sh --skip-native",
+    "build": "node scripts/build-cross-platform.js",
     "build:all": "./scripts/build.sh",
     "build:native": "./scripts/build.sh --native-only",
     "start": "node bin/instant-games-open-mcp",
@@ -22,6 +22,10 @@
     "serve": "TAPTAP_MCP_TRANSPORT=sse node dist/server.js",
     "openclaw:pack": "./scripts/release-openclaw-plugin.sh pack",
     "openclaw:publish": "./scripts/release-openclaw-plugin.sh publish",
+    "maker:codex-plugin:prepare": "node scripts/prepare-maker-codex-plugin.js",
+    "maker:workbuddy-plugin:prepare": "node scripts/prepare-maker-workbuddy-plugin.js",
+    "maker:plugins:package": "node scripts/package-maker-client-plugins.js",
+    "maker:dsh-plugin:package": "node scripts/package-maker-dsh-plugin.js",
     "maker:proxy-schema:check": "tsx scripts/sync-maker-proxy-tool-snapshot.ts",
     "maker:proxy-schema:update": "tsx scripts/sync-maker-proxy-tool-snapshot.ts --write",
     "docker:npm": "cd docker/npm && docker-compose -p taptap-mcp up -d",
@@ -29,7 +33,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" --end-of-line auto",
     "prepare": "husky",
     "prepublishOnly": "npm run build"
   },
@@ -60,7 +64,8 @@
     "crypto-js": "^4.2.0",
     "dotenv": "17.2.3",
     "qrcode": "1.5.4",
-    "yaml": "2.8.2"
+    "yaml": "2.8.2",
+    "yauzl": "3.4.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^18.4.3",
@@ -76,6 +81,7 @@
     "@types/jest": "^29.0.0",
     "@types/node": "^20.0.0",
     "@types/qrcode": "1.5.6",
+    "@types/yauzl": "3.4.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "conventional-changelog-cli": "5.0.0",

@@ -5,12 +5,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  formatMakerPluginUpdateAction,
+  resolveMakerPluginDistribution,
+} from '../pluginDistribution.js';
 
 declare const __MAKER_BUNDLE_URL__: string | undefined;
 
 export const MAKER_LOCAL_SKILL_NAME = 'taptap-maker-local';
 export const MAKER_DEV_KIT_GUIDE_SKILL_NAME = 'taptap-maker-dev-kit-guide';
 export const UPDATE_TAPTAP_MCP_SKILL_NAME = 'update-taptap-mcp';
+export const MAKER_PLUGIN_LIFECYCLE_SKILL_NAME = 'taptap-maker-plugin-lifecycle';
 
 const BUNDLED_SKILLS = [
   {
@@ -29,7 +34,13 @@ export function formatMakerSkillStatus(
     projectRoot?: string;
   } = {}
 ): string {
-  const skillDocuments = BUNDLED_SKILLS.map((skill) => ({
+  const pluginDistribution = resolveMakerPluginDistribution();
+  const clientPluginDistribution =
+    pluginDistribution && pluginDistribution.client !== 'dsh' ? pluginDistribution : undefined;
+  const bundledSkills = clientPluginDistribution
+    ? [...BUNDLED_SKILLS, { name: MAKER_PLUGIN_LIFECYCLE_SKILL_NAME }]
+    : BUNDLED_SKILLS;
+  const skillDocuments = bundledSkills.map((skill) => ({
     name: skill.name,
     path: path.join(resolveMakerSkillSourceDir(skill.name), 'SKILL.md'),
   }));
@@ -39,6 +50,33 @@ export function formatMakerSkillStatus(
     ...skillDocuments.map((skill) => `- ${skill.name}: ${skill.path}`),
     '',
     'Use these documents as reading references for Maker local workflows.',
+    ...(clientPluginDistribution
+      ? [
+          '',
+          `Maker ${clientPluginDistribution.displayName} plugin lifecycle`,
+          `- entry: ${MAKER_PLUGIN_LIFECYCLE_SKILL_NAME}`,
+          `- Inspect a legacy ${clientPluginDistribution.displayName} Maker MCP registration before first use.`,
+          ...(clientPluginDistribution.client === 'codex'
+            ? [
+                '- Automatically disable an active legacy Codex Maker MCP; the plugin installation request is the authorization.',
+                '- Verify the legacy registration is disabled or absent before reporting the plugin ready.',
+                '- Require explicit confirmation only when restoring the old MCP during plugin removal.',
+              ]
+            : ['- Require explicit confirmation before disabling or restoring it.']),
+          '- Initialize with `taptap-maker init --skip-mcp-install`; the plugin already provides MCP.',
+          `- ${formatMakerPluginUpdateAction(clientPluginDistribution)}`,
+        ]
+      : []),
+    ...(pluginDistribution?.client === 'dsh'
+      ? [
+          '',
+          'Maker DSH plugin lifecycle',
+          '- Inspect a legacy DSH L1 MCP registration with `taptap-maker plugin inspect --client dsh` before first use.',
+          '- Migrate/disable it with `taptap-maker plugin migrate --client dsh --confirm`; restore with `taptap-maker plugin restore --client dsh --confirm`.',
+          '- Initialize with `taptap-maker init --skip-mcp-install`; the DSH plugin already provides MCP.',
+          `- ${formatMakerPluginUpdateAction(pluginDistribution)}`,
+        ]
+      : []),
     '',
     'Maker Git workflow policy',
     `- entry: ${MAKER_LOCAL_SKILL_NAME} > Maker Git Workflow Policy`,
@@ -52,6 +90,8 @@ export function formatMakerSkillStatus(
     '- Follow the selected tool schema when one of these tools is used.',
     '- Use generate_image, batch_generate_images, edit_image for game image assets.',
     '- Use create_video_task and query_video_task for game video assets.',
+    '- Only call create_video_task after the user explicitly requests video generation; do not generate video proactively while implementing or filling asset gaps.',
+    '- When duration exceeds 10 seconds or model="2.5", show the rough credit estimate and upstream-token billing disclaimer, wait for explicit confirmation, then repeat the same request with user_confirmed=true.',
     '- Use text_to_music for game music.',
     '- Use text_to_sound_effect for one sound effect.',
     '- Use batch_sound_effects for multiple sound effects.',
@@ -84,7 +124,9 @@ export function formatMakerSkillStatus(
     '  mcp report --ide <client> --target-dir <project> --context-stdin --consent --json',
     '- Never use an unversioned npm package; preserve the configured version and Windows absolute launcher.',
     '- A manual_required result never blocks troubleshooting or the original Maker task.',
-    'Maker initialization next_step: execute `taptap-maker init`.',
+    pluginDistribution
+      ? 'Maker initialization next_step: execute `taptap-maker init --skip-mcp-install` through the bundled plugin CLI.'
+      : 'Maker initialization next_step: execute `taptap-maker init`.',
     'Load these documents when the current AI client supports reading local guide files.',
   ].join('\n');
 }

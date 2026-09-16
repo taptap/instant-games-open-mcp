@@ -272,10 +272,11 @@ export async function getCurrentAppInfo(
   try {
     const { getCachePath } = await import('../../core/utils/cache.js');
     const { ensureAppInfo } = await import('./api.js');
+    const cacheKey = ctx.getCacheIsolationKey();
 
     // ensureAppInfo handles TTL check and refresh
     // Returns null if no app selected, or cached/refreshed data
-    const cache = await ensureAppInfo(ctx.projectPath, ctx, ignoreCache);
+    const cache = await ensureAppInfo(cacheKey, ctx, ignoreCache);
 
     // No app selected - guide user to select one
     if (!cache) {
@@ -291,7 +292,7 @@ export async function getCurrentAppInfo(
 `;
     }
 
-    const cachePath = getCachePath(ctx.projectPath);
+    const cachePath = getCachePath(cacheKey);
     const updatedAt = cache.updated_at ? new Date(cache.updated_at).toLocaleString() : '未知';
     const isStale = !!cache.is_stale;
 
@@ -381,8 +382,9 @@ export async function getCurrentAppInfoRaw(
 ): Promise<string> {
   const { getCachePath } = await import('../../core/utils/cache.js');
   const { ensureAppInfo } = await import('./api.js');
+  const cacheKey = ctx.getCacheIsolationKey();
 
-  const cache = await ensureAppInfo(ctx.projectPath, ctx, ignoreCache);
+  const cache = await ensureAppInfo(cacheKey, ctx, ignoreCache);
 
   if (!cache) {
     return formatRawJson({
@@ -395,7 +397,7 @@ export async function getCurrentAppInfoRaw(
   return formatRawJson({
     selected: true,
     ignore_cache: ignoreCache,
-    cache_path: getCachePath(ctx.projectPath),
+    cache_path: getCachePath(cacheKey),
     cache,
   });
 }
@@ -618,7 +620,7 @@ export async function clearAuthData(
   // Clear app cache
   if (clearCacheFlag) {
     try {
-      clearAppCache(ctx.projectPath);
+      clearAppCache(ctx.getCacheIsolationKey());
       clearedItems.push('✅ 应用选择缓存已清除');
     } catch (error) {
       clearedItems.push(
@@ -654,7 +656,7 @@ export async function clearAuthDataRaw(
   }
 
   if (clearCacheFlag) {
-    clearAppCache(ctx.projectPath);
+    clearAppCache(ctx.getCacheIsolationKey());
     cleared.push('cache');
   }
 
