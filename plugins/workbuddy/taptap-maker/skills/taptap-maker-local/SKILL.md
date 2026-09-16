@@ -1,6 +1,6 @@
 ---
 name: taptap-maker-local
-description: 指导 TapTap Maker 本地开发流程，包括初始化、同步项目、状态检查、提交构建和故障诊断。
+description: 指导 TapTap Maker 本地开发流程，支持“打开make mcp控制台”、初始化、同步项目、状态检查、提交构建和故障诊断。
 ---
 
 # TapTap Maker Local Workflow
@@ -82,7 +82,7 @@ active plugin's marketplace instead of installing or upgrading a standalone Make
 
 | User intent                                               | Required workflow                                                                                                                                                                                                     |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| open console / 打开控制台                                 | Run the active distribution's CLI `console open --target-dir <CURRENT_GAME_ABSOLUTE_PATH> --json`. Without a known game directory, omit target-dir to show the project list; never guess or choose the first project. |
+| open console / 打开控制台 / 打开make mcp控制台            | Run the active distribution's CLI `console open --target-dir <CURRENT_GAME_ABSOLUTE_PATH> --json`. Without a known game directory, omit target-dir to show the project list; never guess or choose the first project. |
 | initialize / configure / continue Maker local development | Run the Maker CLI initialization workflow.                                                                                                                                                                            |
 | clone / download Maker project locally                    | Follow "Initialization Workflow"; do not ask for app_id directly.                                                                                                                                                     |
 | status / is Maker ready                                   | Read `maker://status`, call `maker_status_lite` if resources are unavailable, then follow `AGENTS.md` and `Maker remote sync` hints if present.                                                                       |

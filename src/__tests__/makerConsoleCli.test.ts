@@ -1,15 +1,52 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { createServer } from 'node:net';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { createConsoleExecutor } from '../maker/console/executor';
 import { executeBuildCommand } from '../maker/cli/build';
-import { claimConsoleServerLock, openConsoleLog, runConsoleCli } from '../maker/console/cli';
+import {
+  claimConsoleServerLock,
+  createConsoleLauncherIdentity,
+  ensureCompatibleConsoleLauncher,
+  openConsoleLog,
+  runConsoleCli,
+} from '../maker/console/cli';
+import {
+  buildWindowsConsoleLaunchScripts,
+  selectWindowsConsoleEnvironment,
+} from '../maker/console/processLauncher';
 import { createMakerRemoteBuildError } from '../maker/server/mcp';
+
+function mutexPort(directory: string): number {
+  const filename = path.join(fs.realpathSync(directory), 'server.lock');
+  return 49152 + (createHash('sha256').update(filename).digest().readUInt16BE(0) % 16384);
+}
 
 describe('Maker console CLI adapters', () => {
   let directory: string;
-  beforeEach(() => {
-    directory = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-console-cli-'));
+  beforeEach(async () => {
+    // The mutex deliberately fails closed on unrelated high-port listeners.
+    // Select a free fixture port without contacting or modifying those peers.
+    for (let attempt = 0; ; attempt++) {
+      directory = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-console-cli-'));
+      const probe = createServer();
+      try {
+        await new Promise<void>((resolve, reject) => {
+          probe.once('error', reject);
+          probe.listen({ host: '127.0.0.1', port: mutexPort(directory), exclusive: true }, resolve);
+        });
+        await new Promise<void>((resolve, reject) =>
+          probe.close((error) => (error ? reject(error) : resolve()))
+        );
+        break;
+      } catch (error) {
+        fs.rmSync(directory, { recursive: true, force: true });
+        if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE' || attempt >= 19) throw error;
+      }
+    }
     fs.mkdirSync(path.join(directory, '.maker-mcp'));
     fs.writeFileSync(
       path.join(directory, '.maker-mcp/config.json'),
@@ -176,12 +213,77 @@ describe('Maker console CLI adapters', () => {
     expect(build).not.toHaveBeenCalled();
   });
 
-  test('enforces supervisor ownership even for a direct server entry', () => {
-    const release = claimConsoleServerLock(directory);
-    expect(() => claimConsoleServerLock(directory)).toThrow();
+  test('enforces supervisor ownership even for a direct server entry', async () => {
+    const release = await claimConsoleServerLock(directory);
+    await expect(claimConsoleServerLock(directory)).rejects.toThrow();
     release();
-    const releaseAgain = claimConsoleServerLock(directory);
+    const releaseAgain = await claimConsoleServerLock(directory);
     releaseAgain();
+  });
+
+  test('shares a console identity across AI clients for the same Maker version', () => {
+    expect(
+      createConsoleLauncherIdentity('0.0.34', {
+        entry: 'C:\\Codex\\plugins\\maker.js',
+        mtimeMs: 1,
+      })
+    ).toBe(
+      createConsoleLauncherIdentity('0.0.34', {
+        entry: 'D:\\WorkBuddy\\plugins\\maker.js',
+        mtimeMs: 2,
+      })
+    );
+    expect(createConsoleLauncherIdentity('0.0.34')).not.toBe(
+      createConsoleLauncherIdentity('0.0.35')
+    );
+    expect(createConsoleLauncherIdentity('dev', { entry: '/tmp/a/maker.js', mtimeMs: 1 })).not.toBe(
+      createConsoleLauncherIdentity('dev', { entry: '/tmp/b/maker.js', mtimeMs: 1 })
+    );
+    expect(() => ensureCompatibleConsoleLauncher('same', 'same')).not.toThrow();
+    expect(() => ensureCompatibleConsoleLauncher('old-version', 'new-version')).toThrow(
+      'Another Maker version'
+    );
+  });
+
+  test('builds a Windows system-broker launch without forwarding credential variables', () => {
+    const scripts = buildWindowsConsoleLaunchScripts({
+      execPath: 'C:\\Program Files\\nodejs\\node.exe',
+      execArgv: ['--no-warnings'],
+      entry: 'C:\\Users\\Maker User\\dist\\maker.js',
+      cwd: 'C:\\Users\\Maker User\\.taptap-maker\\console',
+      logFile: 'C:\\Users\\Maker User\\.taptap-maker\\console\\server.log',
+      env: {
+        PATH: 'C:\\Windows\\System32',
+        TAPTAP_MAKER_HOME: 'C:\\Users\\Maker User\\.taptap-maker',
+        TAPTAP_MAKER_PAT_URL: 'https://maker.example/pat',
+        TAPTAP_MAKER_TAP_TOKEN_URL: 'https://maker.example/tap-token',
+        FRAMECRATE_STUDIO_DIR: "D:\\Maker's Studio",
+        TAPTAP_MCP_MAC_TOKEN: 'must-not-leak',
+        TAPTAP_MCP_CLIENT_SECRET: 'must-not-leak-either',
+      },
+    });
+
+    expect(scripts.broker).toContain('Invoke-CimMethod');
+    expect(scripts.server).toContain("Maker''s Studio");
+    expect(scripts.server).toContain('https://maker.example/pat');
+    expect(scripts.server).toContain('https://maker.example/tap-token');
+    expect(scripts.server).toContain('__maker-console-server');
+    expect(scripts.server).not.toContain('must-not-leak');
+    expect(scripts.server).not.toContain('TAPTAP_MCP_MAC_TOKEN');
+    expect(scripts.server).not.toContain('TAPTAP_MCP_CLIENT_SECRET');
+
+    const forwarded = selectWindowsConsoleEnvironment({
+      PATH: 'C:\\Windows\\System32',
+      TAPTAP_MAKER_PAT_URL: 'https://maker.example/pat',
+      TAPTAP_MCP_MAC_TOKEN: 'must-not-leak',
+      TAPTAP_MCP_CLIENT_SECRET: 'must-not-leak-either',
+    });
+    expect(forwarded).toMatchObject({
+      PATH: 'C:\\Windows\\System32',
+      TAPTAP_MAKER_PAT_URL: 'https://maker.example/pat',
+    });
+    expect(forwarded).not.toHaveProperty('TAPTAP_MCP_MAC_TOKEN');
+    expect(forwarded).not.toHaveProperty('TAPTAP_MCP_CLIENT_SECRET');
   });
 
   test('bounds retained supervisor logs across restarts', () => {
@@ -210,17 +312,208 @@ describe('Maker console CLI adapters', () => {
     expect(result.unknown).toBe(true);
   });
 
-  test('does not reclaim a stale ownership file while another recovery holds its guard', () => {
+  test('does not reclaim a stale ownership file while another recovery holds its guard', async () => {
     fs.writeFileSync(path.join(directory, 'server.lock'), '2147483647:stale');
     fs.writeFileSync(path.join(directory, 'server.lock.recovery'), 'another-recovery');
-    expect(() => claimConsoleServerLock(directory)).toThrow();
+    await expect(claimConsoleServerLock(directory)).rejects.toThrow();
     expect(fs.readFileSync(path.join(directory, 'server.lock'), 'utf8')).toBe('2147483647:stale');
   });
 
-  test('new owners cannot bypass an in-progress recovery after the old lock disappears', () => {
+  test('new owners cannot bypass an in-progress recovery after the old lock disappears', async () => {
     fs.writeFileSync(path.join(directory, 'server.lock.recovery'), 'recovery');
-    expect(() => claimConsoleServerLock(directory)).toThrow();
+    await expect(claimConsoleServerLock(directory)).rejects.toThrow();
     expect(fs.existsSync(path.join(directory, 'server.lock'))).toBe(false);
+  });
+
+  test('reclaims an abandoned empty recovery guard after its grace period', async () => {
+    const recovery = path.join(directory, 'server.lock.recovery');
+    fs.writeFileSync(recovery, '');
+    const stale = new Date(Date.now() - 10_000);
+    fs.utimesSync(recovery, stale, stale);
+
+    const release = await claimConsoleServerLock(directory);
+    expect(fs.existsSync(path.join(directory, 'server.lock'))).toBe(true);
+    expect(fs.existsSync(recovery)).toBe(false);
+    release();
+  });
+
+  test('reclaims a recovery guard whose recorded owner is absent', async () => {
+    fs.writeFileSync(path.join(directory, 'server.lock.recovery'), '2147483647:abandoned');
+
+    const release = await claimConsoleServerLock(directory);
+    expect(fs.existsSync(path.join(directory, 'server.lock.recovery'))).toBe(false);
+    release();
+  });
+
+  test.each(['2147483647:abandoned', ''])(
+    'allows only one concurrent owner when reclaiming guard %j',
+    async (content) => {
+      const recovery = path.join(directory, 'server.lock.recovery');
+      fs.writeFileSync(recovery, content);
+      const stale = new Date(Date.now() - 10_000);
+      fs.utimesSync(recovery, stale, stale);
+      fs.writeFileSync(path.join(directory, 'server.lock'), '2147483647:stale');
+      const results = await Promise.allSettled(
+        Array.from({ length: 16 }, () => claimConsoleServerLock(directory))
+      );
+      try {
+        expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+        for (const result of results) {
+          if (result.status === 'rejected') expect(result.reason.status).toBe(409);
+        }
+        const owner = fs.readFileSync(path.join(directory, 'server.lock'), 'utf8');
+        await expect(claimConsoleServerLock(directory)).rejects.toThrow('already running');
+        expect(fs.readFileSync(path.join(directory, 'server.lock'), 'utf8')).toBe(owner);
+        expect(fs.existsSync(recovery)).toBe(false);
+      } finally {
+        for (const result of results) {
+          if (result.status === 'fulfilled') result.value();
+        }
+      }
+    }
+  );
+
+  test('does not reclaim an aged guard while its live owner is writing its identity', async () => {
+    const recovery = path.join(directory, 'server.lock.recovery');
+    const write = fs.writeFileSync.bind(fs);
+    let competed = false;
+    let competing: Promise<unknown> | undefined;
+    let competingRelease: (() => void) | undefined;
+    const spy = jest.spyOn(fs, 'writeFileSync').mockImplementation((filename, data, options) => {
+      if (typeof filename === 'number' && !competed) {
+        competed = true;
+        const stale = new Date(Date.now() - 10_000);
+        fs.utimesSync(recovery, stale, stale);
+        competing = claimConsoleServerLock(directory).then(
+          (release) => {
+            competingRelease = release;
+            throw new Error('A competing owner acquired the lock');
+          },
+          (error) => expect(error.status).toBe(409)
+        );
+      }
+      write(filename, data, options);
+    });
+    let release: (() => void) | undefined;
+    try {
+      release = await claimConsoleServerLock(directory);
+      await competing;
+      expect(competed).toBe(true);
+      await expect(claimConsoleServerLock(directory)).rejects.toThrow('already running');
+    } finally {
+      spy.mockRestore();
+      release?.();
+      competingRelease?.();
+    }
+  });
+
+  test.each([`${process.pid}:live`, 'invalid-owner'])(
+    'preserves an aged recovery guard with live or unknown ownership: %s',
+    async (content) => {
+      const recovery = path.join(directory, 'server.lock.recovery');
+      fs.writeFileSync(recovery, content);
+      const stale = new Date(Date.now() - 10_000);
+      fs.utimesSync(recovery, stale, stale);
+      await expect(claimConsoleServerLock(directory)).rejects.toThrow('recovery');
+      expect(fs.readFileSync(recovery, 'utf8')).toBe(content);
+    }
+  );
+
+  test('ignores an obsolete disk reclamation gate', async () => {
+    const recovery = path.join(directory, 'server.lock.recovery');
+    const gate = recovery + '.claim';
+    fs.writeFileSync(recovery, '2147483647:abandoned');
+    fs.mkdirSync(gate);
+    const stale = new Date(Date.now() - 10_000);
+    fs.utimesSync(gate, stale, stale);
+    const release = await claimConsoleServerLock(directory);
+    expect(fs.existsSync(recovery)).toBe(false);
+    expect(fs.existsSync(path.join(directory, 'server.lock'))).toBe(true);
+    expect(fs.statSync(gate).isDirectory()).toBe(true);
+    release();
+  });
+
+  test('closes the descriptor and releases the socket when guard publication fails', async () => {
+    const recovery = path.join(directory, 'server.lock.recovery');
+    const write = fs.writeFileSync.bind(fs);
+    let descriptor: number | undefined;
+    const spy = jest.spyOn(fs, 'writeFileSync').mockImplementation((filename, data, options) => {
+      if (typeof filename === 'number') {
+        descriptor = filename;
+        throw Object.assign(new Error('guard write failed'), { code: 'EIO' });
+      }
+      write(filename, data, options);
+    });
+    try {
+      await expect(claimConsoleServerLock(directory)).rejects.toThrow('guard write failed');
+      expect(descriptor).toBeDefined();
+      expect(() => fs.fstatSync(descriptor!)).toThrow();
+      expect(fs.existsSync(recovery)).toBe(false);
+      expect(fs.existsSync(recovery + '.claim')).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
+    const release = await claimConsoleServerLock(directory);
+    release();
+  });
+
+  test('leaves an unrelated listener and lock files untouched when the mutex port is busy', async () => {
+    const filename = path.join(fs.realpathSync(directory), 'server.lock');
+    const port = mutexPort(directory);
+    const peer = createServer((socket) => socket.destroy());
+    const connection = jest.fn();
+    peer.on('connection', connection);
+    await new Promise<void>((resolve, reject) => {
+      peer.once('error', reject);
+      peer.listen({ host: '127.0.0.1', port, exclusive: true }, resolve);
+    });
+    fs.writeFileSync(filename, '2147483647:stale');
+    fs.writeFileSync(filename + '.recovery', '2147483647:abandoned');
+    try {
+      await expect(claimConsoleServerLock(directory)).rejects.toMatchObject({ status: 409 });
+      expect(peer.listening).toBe(true);
+      expect(connection).not.toHaveBeenCalled();
+      expect(fs.readFileSync(filename, 'utf8')).toBe('2147483647:stale');
+      expect(fs.readFileSync(filename + '.recovery', 'utf8')).toBe('2147483647:abandoned');
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        peer.close((error) => (error ? reject(error) : resolve()))
+      );
+    }
+    const release = await claimConsoleServerLock(directory);
+    release();
+  });
+
+  test('recovers after a process is killed while publishing its guard under the socket mutex', async () => {
+    const fixture = path.join(directory, 'crash.mts');
+    const entry = pathToFileURL(path.resolve(__dirname, '../maker/console/cli.ts')).href;
+    fs.writeFileSync(
+      fixture,
+      [
+        "import fs from 'node:fs';",
+        `import * as cli from ${JSON.stringify(entry)};`,
+        'const { claimConsoleServerLock } = cli.default ?? cli;',
+        'const write = fs.writeFileSync.bind(fs);',
+        'fs.writeFileSync = (file, ...args) => {',
+        '  write(file, ...args);',
+        "  if (typeof file === 'number') process.kill(process.pid, 'SIGKILL');",
+        '};',
+        `await claimConsoleServerLock(${JSON.stringify(directory)});`,
+      ].join('\n')
+    );
+    const child = spawnSync(process.execPath, ['--import', 'tsx', fixture], {
+      encoding: 'utf8',
+      timeout: 15000,
+    });
+    expect(child.error).toBeUndefined();
+    expect(child.stderr).toBe('');
+    expect(child.signal).toBe('SIGKILL');
+    const recovery = path.join(directory, 'server.lock.recovery');
+    expect(fs.readFileSync(recovery, 'utf8')).toMatch(new RegExp(`^${child.pid}:`));
+    const release = await claimConsoleServerLock(directory);
+    expect(fs.existsSync(recovery)).toBe(false);
+    expect(fs.existsSync(recovery + '.claim')).toBe(false);
+    release();
   });
 
   test.each([

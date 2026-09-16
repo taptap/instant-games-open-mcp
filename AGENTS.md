@@ -390,6 +390,10 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   登记失败不得改变 init/clone 的成功结果。
 - Runtime 安装和记录位于 Maker user home 的 `runtime/`，所有项目共用；旧项目哈希目录中的有效
   安装会自动登记，不重复下载。项目哈希目录只保留项目会话、准备产物、日志和运行缓存。
+  新安装和已登记 Runtime 启动前必须补齐 `Data/LuaScripts`、`Data/Fonts`、`CoreData`；缺少
+  `Data/Fonts/MiSans-Regular.ttf` 时从当前 macOS/Windows 系统字体复制通用中文兜底，但不覆盖
+  已有文件。项目字体只保留在各项目 `assets/Fonts` 和受管理项目副本中，不得汇总到共享 Runtime；
+  显式 `--runtime` 指向的外部 Runtime 不得自动修改。
   项目页复用预览状态展示 Runtime 安装版本或时间，未安装时进入现有 `preview.install` 流程；
   顶部同时展示独立 maker-lua-lsp 安装状态和版本。构建页提供独立 Lua 检查；构建前默认勾选
   检查，发现 Lua 错误则停止，可取消勾选后直接构建。构建和本地预览快捷操作先切换到
@@ -415,11 +419,16 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   生命周期与真实 AI、计价、付费、Windows 未验收边界见 `docs/MAKER_CONSOLE.md`。
 - 本地服务仅监听 loopback；控制台页面存活时使用每分钟页面租约续期，焦点或可见性恢复时立即续期；
   普通状态轮询和健康检查不续期。页面租约停止且无任务约 30 分钟后退出，不增加常驻唤醒进程。
+  同一 Maker 版本跨 Codex、WorkBuddy 和独立 CLI 复用用户级控制台，实例身份不得绑定插件路径或
+  distribution。Windows 通过 PowerShell/CIM 系统代理启动服务，不能只依赖 Node detached/unref
+  脱离 AI IDE 的受管进程树；启动命令不得转发 PAT、MAC token 或 client secret。
   控制台 Bearer 保留在 URL fragment 中，支持浏览器恢复和新标签重建；fragment 不随 HTTP 请求或
   Referrer 发送，页面仍保持 no-store、无远程依赖及 Host、Origin、Bearer 校验。
   保留访问校验、空闲退出和有界资源管理。
   预览与控制台独立管理；只清理已确认所有权的进程和缓存，不把未知结果当作失败自动重试。
 - 本地预览只构建受管理副本，执行 Builder 前校验标准配置和版本路径，禁止配置回退绕过校验。
+  Windows 控制台与预览 supervisor 共用 `src/maker/system/backgroundProcess.ts` 的 CIM 启动器。
+  预览离线恢复必须确认会话证据匹配且两个进程都不存在；状态查询不写回会话，避免覆盖并发启动。
   Builder 快照须逐字节匹配固定 Git 提交；不修改引擎、公共资源或游戏原目录来掩盖预览错误。
 
 Maker 本地开发的默认路径是 CLI-first + PAT-first：

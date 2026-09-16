@@ -38,7 +38,7 @@ const WORKBUDDY_DISPLAY_DESCRIPTIONS = {
   'commands/create-project.md': '在当前空工作区中创建新的 TapTap Maker 项目',
   'commands/sync-project.md': '将已有的 TapTap Maker 游戏同步到当前空工作区继续开发',
   'skills/taptap-maker-local/SKILL.md':
-    '指导 TapTap Maker 本地开发流程，包括初始化、同步项目、状态检查、提交构建和故障诊断。',
+    '指导 TapTap Maker 本地开发流程，支持“打开make mcp控制台”、初始化、同步项目、状态检查、提交构建和故障诊断。',
   'skills/taptap-maker-dev-kit-guide/SKILL.md':
     '介绍 Maker 项目随附的 AI 开发套件，包括开发指南、示例、模板和引擎参考资料。',
   'skills/taptap-maker-plugin-lifecycle/SKILL.md':

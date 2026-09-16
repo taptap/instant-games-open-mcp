@@ -5,6 +5,7 @@ import { timingSafeEqual } from 'node:crypto';
 import {
   previewDirectory,
   previewRoundDirectory,
+  previewSupervisorLogPath,
   readPreviewRecord,
   writePrivateJson,
   samePreviewIdentity,
@@ -15,6 +16,7 @@ import { preflightPreview, PreviewRuntime } from './runtime.js';
 import { previewInstallation } from './installation.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { trimPreviewEvidence } from './evidence.js';
+import { processPresence } from '../system/processPresence.js';
 
 export class PreviewSession {
   private runtime?: PreviewRuntime;
@@ -42,6 +44,7 @@ export class PreviewSession {
 
   private setState(state: PreviewState): void {
     this.record.state = state;
+    this.record.runtime_pid = this.runtime?.processAlive ? this.runtime.pid : 0;
     if (this.save) {
       const current = readPreviewRecord(this.record.project_realpath);
       if (
@@ -65,9 +68,10 @@ export class PreviewSession {
       reload_id: this.record.reload_id,
       state: this.record.state,
       process_alive: this.runtime?.processAlive ?? false,
-      runtime_pid: this.runtime?.pid,
+      runtime_pid: this.runtime?.pid ?? (this.record.runtime_pid || undefined),
       supervisor_id: this.record.supervisor_id,
       supervisor_pid: process.pid,
+      supervisor_log_path: previewSupervisorLogPath(this.record.project_realpath),
       started_at: this.record.started_at,
       executable: this.record.executable,
       runtime_version: this.record.runtime.runtime_version,
@@ -457,6 +461,7 @@ export async function runPreviewSupervisor(project: string): Promise<void> {
   if (!address || typeof address === 'string') throw new Error('Preview control channel failed.');
   record.port = address.port;
   record.supervisor_pid = process.pid;
+  record.runtime_pid = 0;
   writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
   const idleTimer = setInterval(() => {
     if (record.state === 'stopped') void shutdown();
@@ -496,7 +501,10 @@ export async function previewStatus(project: string): Promise<Record<string, unk
     let evidence: Record<string, unknown> = {};
     if (fs.existsSync(filename)) {
       const saved = JSON.parse(fs.readFileSync(filename, 'utf8')) as Record<string, unknown>;
-      if (samePreviewIdentity(saved, record)) evidence = saved;
+      if (samePreviewIdentity(saved, record)) {
+        evidence = { ...saved };
+        delete evidence.token;
+      }
     }
     const retiredFailure =
       record.state === 'failed' &&
@@ -507,6 +515,26 @@ export async function previewStatus(project: string): Promise<Record<string, unk
       evidence.supervisor_pid === record.supervisor_pid &&
       evidence.started_at === record.started_at &&
       evidence.executable === record.executable;
+    const runtimePid = Number(record.runtime_pid || evidence.runtime_pid || 0);
+    const staleSessionRecovered =
+      !retiredFailure &&
+      (record.state === 'running' || record.state === 'failed') &&
+      sameSupervisorEvidence(evidence, record) &&
+      processPresence(record.supervisor_pid) === 'missing' &&
+      runtimePid > 0 &&
+      processPresence(runtimePid) === 'missing';
+    if (staleSessionRecovered) {
+      evidence = {
+        ...evidence,
+        state: 'failed',
+        process_alive: false,
+        runtime_pid: 0,
+        supervisor_retired: true,
+        stale_session_recovered: true,
+        error:
+          'Previous preview processes are no longer running. The stale session was retired safely.',
+      };
+    }
     return {
       protocol_version: 1,
       project_realpath: project,
@@ -517,13 +545,25 @@ export async function previewStatus(project: string): Promise<Record<string, unk
       // Installation metadata may describe a different binary than this session's --runtime.
       executable: record.executable,
       state: stopped ? 'stopped' : 'failed',
-      process_alive: stopped || retiredFailure ? false : null,
-      supervisor_retired: retiredFailure,
+      process_alive: stopped || retiredFailure || staleSessionRecovered ? false : null,
+      supervisor_retired: retiredFailure || staleSessionRecovered,
+      stale_session_recovered: staleSessionRecovered,
+      supervisor_log_path: previewSupervisorLogPath(project),
       ok: stopped,
       error:
-        stopped || retiredFailure
+        stopped || retiredFailure || staleSessionRecovered
           ? evidence.error
           : 'Preview supervisor is unreachable. Process ownership is unverified; no PID was killed and no session was restarted.',
     };
   }
+}
+
+function sameSupervisorEvidence(evidence: Record<string, unknown>, record: PreviewRecord): boolean {
+  return (
+    samePreviewIdentity(evidence, record) &&
+    evidence.supervisor_id === record.supervisor_id &&
+    evidence.supervisor_pid === record.supervisor_pid &&
+    evidence.started_at === record.started_at &&
+    evidence.executable === record.executable
+  );
 }

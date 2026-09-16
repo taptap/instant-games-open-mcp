@@ -13,7 +13,8 @@ taptap-maker console stop --json
 ```
 
 `open` 自动打开浏览器；加 `--no-open --json` 只返回地址。不指定项目时展示项目列表，
-不自动选择。重复打开复用同版本服务；切换版本前先停止旧控制台。
+不自动选择。相同 Maker 版本从 Codex、WorkBuddy 或独立 CLI 重复打开时复用同一个用户级服务；
+切换版本前先停止旧控制台。
 仅支持本机访问，不支持局域网或 SSH 转发。会话地址含访问凭证，不要分享。
 
 - 项目列表登记已绑定的本地目录，不扫描磁盘。init/clone 成功后自动登记，
@@ -122,6 +123,15 @@ Studio 就绪 JSON 交付本机 URL 和匹配的 `projectPath`，URL fragment �
 任务结束后重新计时。关闭浏览器不会终止任务，`stop` 在任务执行中拒绝退出。
 停止控制台不停止独立 Runtime。
 
+Windows 上 `console open` 通过本机 PowerShell/CIM 系统代理创建服务进程，不依赖短命令的
+Node 子进程在 AI IDE 任务树中继续存活。系统代理只传递控制台需要的非敏感环境变量；PAT、
+MAC token、client secret 等凭证不进入启动命令。macOS/Linux 保持 detached Node 启动。
+
+启动锁恢复使用短期 loopback socket 互斥，进程退出后由操作系统释放，不增加额外磁盘互斥锁。
+已有 `.recovery` 文件仅在持有互斥且确认所属进程不存在时回收；空文件需超过 2 秒。
+存活、权限不明或内容损坏的非空锁保持拒绝接管。互斥端口被占用时不会干预占用者。
+升级测试前应结束旧版启动命令；旧版不参与 socket 互斥，无法保证与新版同时恢复空锁的安全性。
+
 断连后重新运行 `console open` 获取新会话地址，旧端口和凭证可能失效。
 网页不能自行启动已退出的 Node 服务，不设常驻唤醒进程。
 任务历史和输出有上限，不作永久归档；异常退出时未完成的任务标为“结果待确认”。
@@ -143,5 +153,6 @@ Git 401/403 应检查凭证和项目权限，BLACKLISTED 需管理员解除账�
   只清理已确认所有权的进程，不按名称终止。生命周期和存储实现分别见
   `src/maker/console/`、`src/maker/projectRegistry.ts`。
 - macOS/Linux 的 CLI 进程组守卫是 best-effort；同步阻塞可能延迟父进程退出后的回收。
-  Windows 控制台目前仅确认直接 CLI 子进程终止，辅助进程清理仍需实机验证。
+  Windows 控制台服务使用系统代理脱离 AI IDE 任务树；该启动链路仍需 Windows 实机验收。
+  控制台执行的直接 CLI 子进程已覆盖终止测试，辅助进程清理仍需实机验证。
   固定 Runtime 安装器另有清理确认机制，不能据此推断所有 CLI 子进程均已回收。
