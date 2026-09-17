@@ -9,6 +9,17 @@ import { checkMakerLuaLspEnvironment } from '../system/luaLsp.js';
 import { ConsolePlugins, type ConsolePlugin } from './plugins.js';
 import { readPreviewWindowSettings, savePreviewWindowSettings } from '../preview/windowSettings.js';
 import { ConsoleUpdates } from './updates.js';
+import { ConsoleDocuments } from './documents.js';
+import { chooseProjectDirectory } from './folderPicker.js';
+import { discoverConsoleProjects } from './projectDiscovery.js';
+import {
+  FORTUNE_EMBED_PREFIX,
+  FORTUNE_UPSTREAM_ORIGIN,
+  fortuneEmbedCsp,
+  fortuneResponseTooLarge,
+  fortuneUpstreamUrl,
+  rewriteFortuneHtml,
+} from './fortuneEmbed.js';
 
 export async function startConsoleServer(options: {
   registry: ConsoleProjects;
@@ -16,6 +27,7 @@ export async function startConsoleServer(options: {
   html: string;
   version: string;
   distribution?: string;
+  packageRoot?: string;
   historyFile?: string;
   token?: string;
   instanceId?: string;
@@ -35,6 +47,7 @@ export async function startConsoleServer(options: {
   const tasks = new ConsoleTasks(options.registry, options.execute, options.historyFile, touch);
   const plugins = new ConsolePlugins(options.registry, options.plugins);
   const updates = new ConsoleUpdates(options.version, options.distribution);
+  const documents = new ConsoleDocuments(options.packageRoot || '');
   let luaLspCache: { at: number; value: Record<string, unknown> } | undefined;
   const luaLspStatus = (): Record<string, unknown> => {
     if (luaLspCache && now() - luaLspCache.at < 30_000) return luaLspCache.value;
@@ -51,6 +64,7 @@ export async function startConsoleServer(options: {
   };
   let origin = '';
   let draining = false;
+  let selectingFolder = false;
   let closePromise: Promise<void> | undefined;
   let resolveClosed!: () => void;
   const closed = new Promise<void>((resolve) => {
@@ -95,7 +109,7 @@ export async function startConsoleServer(options: {
         "style-src 'unsafe-inline'",
         "img-src 'self' data:",
         "connect-src 'self'",
-        'frame-src http://127.0.0.1:*',
+        "frame-src 'self' http://127.0.0.1:*",
         "base-uri 'none'",
         "form-action 'none'",
         "frame-ancestors 'none'",
@@ -120,6 +134,10 @@ export async function startConsoleServer(options: {
       if (request.method === 'GET' && url.pathname === '/') {
         response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         response.end(options.html);
+        return;
+      }
+      if (request.method === 'GET' && url.pathname.startsWith(FORTUNE_EMBED_PREFIX)) {
+        await proxyFortuneEmbed(url, response);
         return;
       }
       const expected = Buffer.from(`Bearer ${token}`);
@@ -156,10 +174,36 @@ export async function startConsoleServer(options: {
         json(200, await updates.list());
         return;
       }
+      if (request.method === 'GET' && url.pathname === '/api/documents') {
+        const key = url.searchParams.get('project');
+        const directory = key ? options.registry.resolve(key).path : undefined;
+        const id = url.searchParams.get('id');
+        json(200, id ? documents.read(id, directory) : documents.list(directory));
+        return;
+      }
       if (request.method === 'POST' && url.pathname === '/api/update') {
         const body = await bodyForMutation();
         json(202, await updates.start(body.version));
         touch();
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/api/projects/select-folder') {
+        await bodyForMutation();
+        if (selectingFolder) throw new ConsoleError('文件夹选择或扫描正在进行，请稍候。', 409);
+        selectingFolder = true;
+        touch();
+        try {
+          const directory = await chooseProjectDirectory();
+          json(
+            200,
+            directory
+              ? await discoverConsoleProjects(directory, options.registry)
+              : { cancelled: true }
+          );
+        } finally {
+          selectingFolder = false;
+          touch();
+        }
         return;
       }
       if (request.method === 'POST' && url.pathname === '/api/projects') {
@@ -182,6 +226,7 @@ export async function startConsoleServer(options: {
       if (request.method === 'POST' && url.pathname === '/api/shutdown') {
         await bodyForMutation();
         if (
+          selectingFolder ||
           updates.job.status === 'running' ||
           tasks.list().some((task) => task.status === 'running')
         )
@@ -289,6 +334,7 @@ export async function startConsoleServer(options: {
     () => {
       if (
         now() - lastActivity >= idleMs &&
+        !selectingFolder &&
         updates.job.status !== 'running' &&
         !tasks.list().some((task) => task.status === 'running') &&
         !plugins.active
@@ -328,6 +374,39 @@ export async function startConsoleServer(options: {
     return closePromise;
   }
   return { origin, token, tasks, close, closed };
+}
+
+async function proxyFortuneEmbed(url: URL, response: http.ServerResponse): Promise<void> {
+  let upstream: URL;
+  try {
+    upstream = fortuneUpstreamUrl(url.pathname, url.search);
+  } catch {
+    throw new ConsoleError('Invalid fortune embed path.', 400);
+  }
+  const remote = await fetch(upstream, {
+    redirect: 'follow',
+    headers: { Accept: 'text/html,text/css,application/javascript,*/*;q=0.8' },
+    signal: AbortSignal.timeout(8000),
+  });
+  const finalUrl = new URL(remote.url);
+  if (
+    !remote.ok ||
+    finalUrl.origin !== FORTUNE_UPSTREAM_ORIGIN ||
+    !finalUrl.pathname.startsWith(FORTUNE_EMBED_PREFIX)
+  ) {
+    throw new ConsoleError('Fortune embed is unavailable.', 502);
+  }
+  const type = remote.headers.get('content-type') || 'application/octet-stream';
+  const buffer = Buffer.from(await remote.arrayBuffer());
+  if (fortuneResponseTooLarge(buffer.length))
+    throw new ConsoleError('Fortune embed exceeded size limit.', 502);
+  const html = type.includes('text/html');
+  response.writeHead(200, {
+    'Content-Type': html ? 'text/html; charset=utf-8' : type,
+    'Cache-Control': 'no-store',
+    'Content-Security-Policy': fortuneEmbedCsp(),
+  });
+  response.end(html ? rewriteFortuneHtml(buffer.toString('utf8')) : buffer);
 }
 
 async function readBody(request: http.IncomingMessage): Promise<Record<string, unknown>> {

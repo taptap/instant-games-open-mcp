@@ -391,6 +391,10 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 - 控制台版本更新为用户级操作，固定查询 `@taptap/maker` 最近发布版本，只接受目录中精确版本，
   复用所选包的 `upgrade --launcher self --json`，不另写安装器。任何插件渠道禁止独立包更新；
   当前运行版本与已安装版本分开显示，不自动重启会话；更新期间防止重复执行及空闲退出。
+- 控制台资料目录由 `console/documents.ts` 收录固定范围 Markdown，使用不透明 ID 读取；
+  项目由登记 realpath 校验，拒绝项目外符号链接，限制扫描深度、数量和文件大小。
+  Markdown 解析为 tokens 后以 DOM 安全渲染，禁止原始 HTML、脚本、远程图片及任意文件读取；
+  文档与 Skill 分页签，仅阅读不执行，不新增 MCP tool。
 - Runtime 安装和记录位于 Maker user home 的 `runtime/`，所有项目共用；旧项目哈希目录中的有效
   安装会自动登记，不重复下载。项目哈希目录只保留项目会话、准备产物、日志和运行缓存。
   新安装和已登记 Runtime 启动前必须补齐 `Data/LuaScripts`、`Data/Fonts`、`CoreData`；缺少

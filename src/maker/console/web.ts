@@ -23,6 +23,7 @@ export function getConsoleHtml(): string {
   <button data-page="overview">项目</button>
   <button data-page="build">构建与测试</button>
   <button data-page="git">Git</button>
+  <button data-page="documents" disabled>文档 / Skill</button>
   <span id="plugin-tabs" class="plugin-tabs"></span>
 </nav>
 <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
@@ -30,7 +31,14 @@ export function getConsoleHtml(): string {
 <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
 <section id="plugin-views" aria-label="插件工作区" hidden></section>
 <div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
-<footer><span id="version">Maker 本地服务</span><span id="footer-path"></span></footer>
+<footer><div class="footer-start"><span id="version">Maker 本地服务</span>
+<section id="fortune-corner" hidden aria-label="开发者日签">
+  <button id="fortune-toggle" type="button" aria-expanded="false" aria-controls="fortune-panel">独立游戏开发日签</button>
+</section>
+</div><span id="footer-path"></span></footer>
+<div id="fortune-panel" class="fortune-preload" hidden>
+  <iframe id="fortune-frame" title="gDEV日签 · 独立游戏开发者老黄历" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer" scrolling="no"></iframe>
+</div>
 <dialog id="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-message">
   <form method="dialog">
     <h2 id="confirm-title"></h2><p id="confirm-message"></p>

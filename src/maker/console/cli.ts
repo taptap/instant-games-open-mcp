@@ -161,6 +161,7 @@ export async function runConsoleSupervisor(): Promise<void> {
       registry,
       html: getConsoleHtml(),
       version: VERSION,
+      packageRoot: path.dirname(path.dirname(path.resolve(process.argv[1]))),
       distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
       historyFile: path.join(home(), 'tasks.json'),
       instanceId,

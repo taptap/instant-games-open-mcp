@@ -63,6 +63,7 @@
     "archiver": "7.0.1",
     "crypto-js": "^4.2.0",
     "dotenv": "17.2.3",
+    "marked": "9.1.6",
     "qrcode": "1.5.4",
     "yaml": "2.8.2",
     "yauzl": "3.4.0"

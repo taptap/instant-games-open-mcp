@@ -131,6 +131,34 @@ describe('Maker console standalone UI', () => {
     expect(script()).toContain('if (offline || disposed || session.loading) return;');
   });
 
+  it('places a pale-yellow game fortune trigger beside the footer version label', () => {
+    const html = getConsoleHtml();
+    const styles = html.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
+    const footer = html.match(/<footer>[\s\S]*?<\/footer>/)?.[0] ?? '';
+    expect(footer.indexOf('id="version"')).toBeGreaterThan(-1);
+    expect(footer.indexOf('id="version"')).toBeLessThan(footer.indexOf('id="fortune-toggle"'));
+    expect(footer.indexOf('id="fortune-toggle"')).toBeLessThan(footer.indexOf('id="footer-path"'));
+    expect(footer).toContain('id="fortune-corner" hidden');
+    expect(footer).toContain('>独立游戏开发日签<');
+    expect(styles).toContain('button#fortune-toggle{border:0;background:none;color:#f5e6a3;');
+    expect(html).toContain('id="fortune-panel"');
+    expect(html).toContain('id="fortune-frame"');
+    expect(html).not.toContain('gDEV 日签');
+    expect(html).not.toContain('id="fortune-close"');
+    expect(script()).toContain("theme=dungeon&mode=' + fortuneMode()");
+    expect(script()).toContain('/gdev-fortune/?embed=1&theme=dungeon&mode=');
+    expect(script()).toContain('gdev-fortune:size');
+    expect(script()).toContain('function revealFortune()');
+    expect(script()).toContain("panel.classList.add('fortune-preload')");
+    expect(script()).toContain('function fortuneIsOpen()');
+    expect(script()).toContain('if (!fortuneReady) return;');
+    expect(script()).toContain("transformOrigin = 'left bottom'");
+    expect(script()).toContain('scheduleCloseFortune');
+    expect(script()).toContain(
+      'if (panel.parentElement !== document.body) document.body.append(panel);'
+    );
+  });
+
   it('accepts only unique supported plugin descriptors and safe project-bound URLs', () => {
     const { api } = harness();
     const plugin = {
