@@ -449,8 +449,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path49, errorMaps, issueData } = params;
-      const fullPath = [...path49, ...issueData.path || []];
+      const { data, path: path52, errorMaps, issueData } = params;
+      const fullPath = [...path52, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -730,11 +730,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path49, key) {
+      constructor(parent, value, path52, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path49;
+        this._path = path52;
         this._key = key;
       }
       get path() {
@@ -1416,48 +1416,48 @@ var init_types = __esm({
           ...errorUtil.errToObj(message)
         });
       }
-      jwt(options2) {
-        return this._addCheck({ kind: "jwt", ...errorUtil.errToObj(options2) });
+      jwt(options3) {
+        return this._addCheck({ kind: "jwt", ...errorUtil.errToObj(options3) });
       }
-      ip(options2) {
-        return this._addCheck({ kind: "ip", ...errorUtil.errToObj(options2) });
+      ip(options3) {
+        return this._addCheck({ kind: "ip", ...errorUtil.errToObj(options3) });
       }
-      cidr(options2) {
-        return this._addCheck({ kind: "cidr", ...errorUtil.errToObj(options2) });
+      cidr(options3) {
+        return this._addCheck({ kind: "cidr", ...errorUtil.errToObj(options3) });
       }
-      datetime(options2) {
-        if (typeof options2 === "string") {
+      datetime(options3) {
+        if (typeof options3 === "string") {
           return this._addCheck({
             kind: "datetime",
             precision: null,
             offset: false,
             local: false,
-            message: options2
+            message: options3
           });
         }
         return this._addCheck({
           kind: "datetime",
-          precision: typeof (options2 == null ? void 0 : options2.precision) === "undefined" ? null : options2 == null ? void 0 : options2.precision,
-          offset: (options2 == null ? void 0 : options2.offset) ?? false,
-          local: (options2 == null ? void 0 : options2.local) ?? false,
-          ...errorUtil.errToObj(options2 == null ? void 0 : options2.message)
+          precision: typeof (options3 == null ? void 0 : options3.precision) === "undefined" ? null : options3 == null ? void 0 : options3.precision,
+          offset: (options3 == null ? void 0 : options3.offset) ?? false,
+          local: (options3 == null ? void 0 : options3.local) ?? false,
+          ...errorUtil.errToObj(options3 == null ? void 0 : options3.message)
         });
       }
       date(message) {
         return this._addCheck({ kind: "date", message });
       }
-      time(options2) {
-        if (typeof options2 === "string") {
+      time(options3) {
+        if (typeof options3 === "string") {
           return this._addCheck({
             kind: "time",
             precision: null,
-            message: options2
+            message: options3
           });
         }
         return this._addCheck({
           kind: "time",
-          precision: typeof (options2 == null ? void 0 : options2.precision) === "undefined" ? null : options2 == null ? void 0 : options2.precision,
-          ...errorUtil.errToObj(options2 == null ? void 0 : options2.message)
+          precision: typeof (options3 == null ? void 0 : options3.precision) === "undefined" ? null : options3 == null ? void 0 : options3.precision,
+          ...errorUtil.errToObj(options3 == null ? void 0 : options3.message)
         });
       }
       duration(message) {
@@ -1470,12 +1470,12 @@ var init_types = __esm({
           ...errorUtil.errToObj(message)
         });
       }
-      includes(value, options2) {
+      includes(value, options3) {
         return this._addCheck({
           kind: "includes",
           value,
-          position: options2 == null ? void 0 : options2.position,
-          ...errorUtil.errToObj(options2 == null ? void 0 : options2.message)
+          position: options3 == null ? void 0 : options3.position,
+          ...errorUtil.errToObj(options3 == null ? void 0 : options3.message)
         });
       }
       startsWith(value, message) {
@@ -2726,7 +2726,7 @@ var init_types = __esm({
     ZodUnion = class extends ZodType {
       _parse(input2) {
         const { ctx } = this._processInputParams(input2);
-        const options2 = this._def.options;
+        const options3 = this._def.options;
         function handleResults(results) {
           for (const result of results) {
             if (result.result.status === "valid") {
@@ -2747,7 +2747,7 @@ var init_types = __esm({
           return INVALID;
         }
         if (ctx.common.async) {
-          return Promise.all(options2.map(async (option) => {
+          return Promise.all(options3.map(async (option) => {
             const childCtx = {
               ...ctx,
               common: {
@@ -2768,7 +2768,7 @@ var init_types = __esm({
         } else {
           let dirty = void 0;
           const issues = [];
-          for (const option of options2) {
+          for (const option of options3) {
             const childCtx = {
               ...ctx,
               common: {
@@ -2898,9 +2898,9 @@ var init_types = __esm({
        * @param types an array of object schemas
        * @param params
        */
-      static create(discriminator, options2, params) {
+      static create(discriminator, options3, params) {
         const optionsMap = /* @__PURE__ */ new Map();
-        for (const type of options2) {
+        for (const type of options3) {
           const discriminatorValues = getDiscriminator(type.shape[discriminator]);
           if (!discriminatorValues.length) {
             throw new Error(`A discriminator value for key \`${discriminator}\` could not be extracted from all schema options`);
@@ -2915,7 +2915,7 @@ var init_types = __esm({
         return new _ZodDiscriminatedUnion({
           typeName: ZodFirstPartyTypeKind.ZodDiscriminatedUnion,
           discriminator,
-          options: options2,
+          options: options3,
           optionsMap,
           ...processCreateParams(params)
         });
@@ -4243,10 +4243,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path49) {
-  if (!path49)
+function getElementAtPath(obj, path52) {
+  if (!path52)
     return obj;
-  return path49.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
+  return path52.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -4559,11 +4559,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path49, issues) {
+function prefixIssues(path52, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path49);
+    iss.path.unshift(path52);
     return iss;
   });
 }
@@ -9777,14 +9777,14 @@ var init_json_schema_processors = __esm({
     unionProcessor = (schema, ctx, json2, params) => {
       const def = schema._zod.def;
       const isExclusive = def.inclusive === false;
-      const options2 = def.options.map((x, i) => process2(x, ctx, {
+      const options3 = def.options.map((x, i) => process2(x, ctx, {
         ...params,
         path: [...params.path, isExclusive ? "oneOf" : "anyOf", i]
       }));
       if (isExclusive) {
-        json2.oneOf = options2;
+        json2.oneOf = options3;
       } else {
-        json2.anyOf = options2;
+        json2.anyOf = options3;
       }
     };
     intersectionProcessor = (schema, ctx, json2, params) => {
@@ -10637,25 +10637,25 @@ function looseObject(shape, params) {
     ...util_exports.normalizeParams(params)
   });
 }
-function union(options2, params) {
+function union(options3, params) {
   return new ZodUnion2({
     type: "union",
-    options: options2,
+    options: options3,
     ...util_exports.normalizeParams(params)
   });
 }
-function xor(options2, params) {
+function xor(options3, params) {
   return new ZodXor({
     type: "union",
-    options: options2,
+    options: options3,
     inclusive: false,
     ...util_exports.normalizeParams(params)
   });
 }
-function discriminatedUnion(discriminator, options2, params) {
+function discriminatedUnion(discriminator, options3, params) {
   return new ZodDiscriminatedUnion2({
     type: "union",
-    options: options2,
+    options: options3,
     discriminator,
     ...util_exports.normalizeParams(params)
   });
@@ -13865,12 +13865,12 @@ var init_protocol = __esm({
             }
             await this.notification(notification, notificationOptions);
           },
-          sendRequest: async (r, resultSchema, options2) => {
+          sendRequest: async (r, resultSchema, options3) => {
             var _a4;
             if (abortController.signal.aborted) {
               throw new McpError(ErrorCode.ConnectionClosed, "Request was cancelled");
             }
-            const requestOptions = { ...options2, relatedRequestId: request2.id };
+            const requestOptions = { ...options3, relatedRequestId: request2.id };
             if (relatedTaskId && !requestOptions.relatedTask) {
               requestOptions.relatedTask = { taskId: relatedTaskId };
             }
@@ -14038,12 +14038,12 @@ var init_protocol = __esm({
        *
        * @experimental Use `client.experimental.tasks.requestStream()` to access this method.
        */
-      async *requestStream(request2, resultSchema, options2) {
+      async *requestStream(request2, resultSchema, options3) {
         var _a3, _b;
-        const { task } = options2 ?? {};
+        const { task } = options3 ?? {};
         if (!task) {
           try {
-            const result = await this.request(request2, resultSchema, options2);
+            const result = await this.request(request2, resultSchema, options3);
             yield { type: "result", result };
           } catch (error2) {
             yield {
@@ -14055,7 +14055,7 @@ var init_protocol = __esm({
         }
         let taskId;
         try {
-          const createResult = await this.request(request2, CreateTaskResultSchema, options2);
+          const createResult = await this.request(request2, CreateTaskResultSchema, options3);
           if (createResult.task) {
             taskId = createResult.task.taskId;
             yield { type: "taskCreated", task: createResult.task };
@@ -14063,11 +14063,11 @@ var init_protocol = __esm({
             throw new McpError(ErrorCode.InternalError, "Task creation did not return a task");
           }
           while (true) {
-            const task2 = await this.getTask({ taskId }, options2);
+            const task2 = await this.getTask({ taskId }, options3);
             yield { type: "taskStatus", task: task2 };
             if (isTerminal(task2.status)) {
               if (task2.status === "completed") {
-                const result = await this.getTaskResult({ taskId }, resultSchema, options2);
+                const result = await this.getTaskResult({ taskId }, resultSchema, options3);
                 yield { type: "result", result };
               } else if (task2.status === "failed") {
                 yield {
@@ -14083,13 +14083,13 @@ var init_protocol = __esm({
               return;
             }
             if (task2.status === "input_required") {
-              const result = await this.getTaskResult({ taskId }, resultSchema, options2);
+              const result = await this.getTaskResult({ taskId }, resultSchema, options3);
               yield { type: "result", result };
               return;
             }
             const pollInterval = task2.pollInterval ?? ((_a3 = this._options) == null ? void 0 : _a3.defaultTaskPollInterval) ?? 1e3;
             await new Promise((resolve) => setTimeout(resolve, pollInterval));
-            (_b = options2 == null ? void 0 : options2.signal) == null ? void 0 : _b.throwIfAborted();
+            (_b = options3 == null ? void 0 : options3.signal) == null ? void 0 : _b.throwIfAborted();
           }
         } catch (error2) {
           yield {
@@ -14103,8 +14103,8 @@ var init_protocol = __esm({
        *
        * Do not use this method to emit notifications! Use notification() instead.
        */
-      request(request2, resultSchema, options2) {
-        const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options2 ?? {};
+      request(request2, resultSchema, options3) {
+        const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options3 ?? {};
         return new Promise((resolve, reject) => {
           var _a3, _b, _c, _d, _e;
           const earlyReject = (error2) => {
@@ -14125,15 +14125,15 @@ var init_protocol = __esm({
               return;
             }
           }
-          (_b = options2 == null ? void 0 : options2.signal) == null ? void 0 : _b.throwIfAborted();
+          (_b = options3 == null ? void 0 : options3.signal) == null ? void 0 : _b.throwIfAborted();
           const messageId = this._requestMessageId++;
           const jsonrpcRequest = {
             ...request2,
             jsonrpc: "2.0",
             id: messageId
           };
-          if (options2 == null ? void 0 : options2.onprogress) {
-            this._progressHandlers.set(messageId, options2.onprogress);
+          if (options3 == null ? void 0 : options3.onprogress) {
+            this._progressHandlers.set(messageId, options3.onprogress);
             jsonrpcRequest.params = {
               ...request2.params,
               _meta: {
@@ -14175,7 +14175,7 @@ var init_protocol = __esm({
           };
           this._responseHandlers.set(messageId, (response) => {
             var _a4;
-            if ((_a4 = options2 == null ? void 0 : options2.signal) == null ? void 0 : _a4.aborted) {
+            if ((_a4 = options3 == null ? void 0 : options3.signal) == null ? void 0 : _a4.aborted) {
               return;
             }
             if (response instanceof Error) {
@@ -14192,13 +14192,13 @@ var init_protocol = __esm({
               reject(error2);
             }
           });
-          (_e = options2 == null ? void 0 : options2.signal) == null ? void 0 : _e.addEventListener("abort", () => {
+          (_e = options3 == null ? void 0 : options3.signal) == null ? void 0 : _e.addEventListener("abort", () => {
             var _a4;
-            cancel((_a4 = options2 == null ? void 0 : options2.signal) == null ? void 0 : _a4.reason);
+            cancel((_a4 = options3 == null ? void 0 : options3.signal) == null ? void 0 : _a4.reason);
           });
-          const timeout = (options2 == null ? void 0 : options2.timeout) ?? DEFAULT_REQUEST_TIMEOUT_MSEC;
+          const timeout = (options3 == null ? void 0 : options3.timeout) ?? DEFAULT_REQUEST_TIMEOUT_MSEC;
           const timeoutHandler = () => cancel(McpError.fromError(ErrorCode.RequestTimeout, "Request timed out", { timeout }));
-          this._setupTimeout(messageId, timeout, options2 == null ? void 0 : options2.maxTotalTimeout, timeoutHandler, (options2 == null ? void 0 : options2.resetTimeoutOnProgress) ?? false);
+          this._setupTimeout(messageId, timeout, options3 == null ? void 0 : options3.maxTotalTimeout, timeoutHandler, (options3 == null ? void 0 : options3.resetTimeoutOnProgress) ?? false);
           const relatedTaskId = relatedTask == null ? void 0 : relatedTask.taskId;
           if (relatedTaskId) {
             const responseResolver = (response) => {
@@ -14231,43 +14231,43 @@ var init_protocol = __esm({
        *
        * @experimental Use `client.experimental.tasks.getTask()` to access this method.
        */
-      async getTask(params, options2) {
-        return this.request({ method: "tasks/get", params }, GetTaskResultSchema, options2);
+      async getTask(params, options3) {
+        return this.request({ method: "tasks/get", params }, GetTaskResultSchema, options3);
       }
       /**
        * Retrieves the result of a completed task.
        *
        * @experimental Use `client.experimental.tasks.getTaskResult()` to access this method.
        */
-      async getTaskResult(params, resultSchema, options2) {
-        return this.request({ method: "tasks/result", params }, resultSchema, options2);
+      async getTaskResult(params, resultSchema, options3) {
+        return this.request({ method: "tasks/result", params }, resultSchema, options3);
       }
       /**
        * Lists tasks, optionally starting from a pagination cursor.
        *
        * @experimental Use `client.experimental.tasks.listTasks()` to access this method.
        */
-      async listTasks(params, options2) {
-        return this.request({ method: "tasks/list", params }, ListTasksResultSchema, options2);
+      async listTasks(params, options3) {
+        return this.request({ method: "tasks/list", params }, ListTasksResultSchema, options3);
       }
       /**
        * Cancels a specific task.
        *
        * @experimental Use `client.experimental.tasks.cancelTask()` to access this method.
        */
-      async cancelTask(params, options2) {
-        return this.request({ method: "tasks/cancel", params }, CancelTaskResultSchema, options2);
+      async cancelTask(params, options3) {
+        return this.request({ method: "tasks/cancel", params }, CancelTaskResultSchema, options3);
       }
       /**
        * Emits a notification, which is a one-way message that does not expect a response.
        */
-      async notification(notification, options2) {
+      async notification(notification, options3) {
         var _a3, _b, _c, _d;
         if (!this._transport) {
           throw new Error("Not connected");
         }
         this.assertNotificationCapability(notification.method);
-        const relatedTaskId = (_a3 = options2 == null ? void 0 : options2.relatedTask) == null ? void 0 : _a3.taskId;
+        const relatedTaskId = (_a3 = options3 == null ? void 0 : options3.relatedTask) == null ? void 0 : _a3.taskId;
         if (relatedTaskId) {
           const jsonrpcNotification2 = {
             ...notification,
@@ -14276,7 +14276,7 @@ var init_protocol = __esm({
               ...notification.params,
               _meta: {
                 ...((_b = notification.params) == null ? void 0 : _b._meta) || {},
-                [RELATED_TASK_META_KEY]: options2.relatedTask
+                [RELATED_TASK_META_KEY]: options3.relatedTask
               }
             }
           };
@@ -14288,7 +14288,7 @@ var init_protocol = __esm({
           return;
         }
         const debouncedMethods = ((_c = this._options) == null ? void 0 : _c.debouncedNotificationMethods) ?? [];
-        const canDebounce = debouncedMethods.includes(notification.method) && !notification.params && !(options2 == null ? void 0 : options2.relatedRequestId) && !(options2 == null ? void 0 : options2.relatedTask);
+        const canDebounce = debouncedMethods.includes(notification.method) && !notification.params && !(options3 == null ? void 0 : options3.relatedRequestId) && !(options3 == null ? void 0 : options3.relatedTask);
         if (canDebounce) {
           if (this._pendingDebouncedNotifications.has(notification.method)) {
             return;
@@ -14304,19 +14304,19 @@ var init_protocol = __esm({
               ...notification,
               jsonrpc: "2.0"
             };
-            if (options2 == null ? void 0 : options2.relatedTask) {
+            if (options3 == null ? void 0 : options3.relatedTask) {
               jsonrpcNotification2 = {
                 ...jsonrpcNotification2,
                 params: {
                   ...jsonrpcNotification2.params,
                   _meta: {
                     ...((_a4 = jsonrpcNotification2.params) == null ? void 0 : _a4._meta) || {},
-                    [RELATED_TASK_META_KEY]: options2.relatedTask
+                    [RELATED_TASK_META_KEY]: options3.relatedTask
                   }
                 }
               };
             }
-            (_b2 = this._transport) == null ? void 0 : _b2.send(jsonrpcNotification2, options2).catch((error2) => this._onerror(error2));
+            (_b2 = this._transport) == null ? void 0 : _b2.send(jsonrpcNotification2, options3).catch((error2) => this._onerror(error2));
           });
           return;
         }
@@ -14324,19 +14324,19 @@ var init_protocol = __esm({
           ...notification,
           jsonrpc: "2.0"
         };
-        if (options2 == null ? void 0 : options2.relatedTask) {
+        if (options3 == null ? void 0 : options3.relatedTask) {
           jsonrpcNotification = {
             ...jsonrpcNotification,
             params: {
               ...jsonrpcNotification.params,
               _meta: {
                 ...((_d = jsonrpcNotification.params) == null ? void 0 : _d._meta) || {},
-                [RELATED_TASK_META_KEY]: options2.relatedTask
+                [RELATED_TASK_META_KEY]: options3.relatedTask
               }
             }
           };
         }
-        await this._transport.send(jsonrpcNotification, options2);
+        await this._transport.send(jsonrpcNotification, options3);
       }
       /**
        * Registers a handler to invoke when this protocol object receives a request with the given method.
@@ -17726,8 +17726,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path49) {
-      let input2 = path49;
+    function removeDotSegments(path52) {
+      let input2 = path52;
       const output2 = [];
       let nextSlash = -1;
       let len = 0;
@@ -17926,57 +17926,57 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path49, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path49 && path49 !== "/" ? path49 : void 0;
+        const [path52, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path52 && path52 !== "/" ? path52 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
       wsComponent.fragment = void 0;
       return wsComponent;
     }
-    function urnParse(urnComponent, options2) {
+    function urnParse(urnComponent, options3) {
       if (!urnComponent.path) {
         urnComponent.error = "URN can not be parsed";
         return urnComponent;
       }
       const matches = urnComponent.path.match(URN_REG);
       if (matches) {
-        const scheme = options2.scheme || urnComponent.scheme || "urn";
+        const scheme = options3.scheme || urnComponent.scheme || "urn";
         urnComponent.nid = matches[1].toLowerCase();
         urnComponent.nss = matches[2];
-        const urnScheme = `${scheme}:${options2.nid || urnComponent.nid}`;
+        const urnScheme = `${scheme}:${options3.nid || urnComponent.nid}`;
         const schemeHandler = getSchemeHandler(urnScheme);
         urnComponent.path = void 0;
         if (schemeHandler) {
-          urnComponent = schemeHandler.parse(urnComponent, options2);
+          urnComponent = schemeHandler.parse(urnComponent, options3);
         }
       } else {
         urnComponent.error = urnComponent.error || "URN can not be parsed.";
       }
       return urnComponent;
     }
-    function urnSerialize(urnComponent, options2) {
+    function urnSerialize(urnComponent, options3) {
       if (urnComponent.nid === void 0) {
         throw new Error("URN without nid cannot be serialized");
       }
-      const scheme = options2.scheme || urnComponent.scheme || "urn";
+      const scheme = options3.scheme || urnComponent.scheme || "urn";
       const nid = urnComponent.nid.toLowerCase();
-      const urnScheme = `${scheme}:${options2.nid || nid}`;
+      const urnScheme = `${scheme}:${options3.nid || nid}`;
       const schemeHandler = getSchemeHandler(urnScheme);
       if (schemeHandler) {
-        urnComponent = schemeHandler.serialize(urnComponent, options2);
+        urnComponent = schemeHandler.serialize(urnComponent, options3);
       }
       const uriComponent = urnComponent;
       const nss = urnComponent.nss;
-      uriComponent.path = `${nid || options2.nid}:${nss}`;
-      options2.skipEscape = true;
+      uriComponent.path = `${nid || options3.nid}:${nss}`;
+      options3.skipEscape = true;
       return uriComponent;
     }
-    function urnuuidParse(urnComponent, options2) {
+    function urnuuidParse(urnComponent, options3) {
       const uuidComponent = urnComponent;
       uuidComponent.uuid = uuidComponent.nss;
       uuidComponent.nss = void 0;
-      if (!options2.tolerant && (!uuidComponent.uuid || !isUUID(uuidComponent.uuid))) {
+      if (!options3.tolerant && (!uuidComponent.uuid || !isUUID(uuidComponent.uuid))) {
         uuidComponent.error = uuidComponent.error || "UUID is not valid.";
       }
       return uuidComponent;
@@ -18076,30 +18076,30 @@ var require_fast_uri = __commonJS({
     "use strict";
     var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizeComponentEncoding, isIPv4, nonSimpleDomain } = require_utils();
     var { SCHEMES, getSchemeHandler } = require_schemes();
-    function normalize(uri, options2) {
+    function normalize(uri, options3) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
-        serialize(parse3(uri, options2), options2);
+        serialize(parse3(uri, options3), options3);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse3(serialize(uri, options2), options2);
+        parse3(serialize(uri, options3), options3);
       }
       return uri;
     }
-    function resolve(baseURI, relativeURI, options2) {
-      const schemelessOptions = options2 ? Object.assign({ scheme: "null" }, options2) : { scheme: "null" };
+    function resolve(baseURI, relativeURI, options3) {
+      const schemelessOptions = options3 ? Object.assign({ scheme: "null" }, options3) : { scheme: "null" };
       const resolved = resolveComponent(parse3(baseURI, schemelessOptions), parse3(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative, options2, skipNormalization) {
+    function resolveComponent(base, relative, options3, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse3(serialize(base, options2), options2);
-        relative = parse3(serialize(relative, options2), options2);
+        base = parse3(serialize(base, options3), options3);
+        relative = parse3(serialize(relative, options3), options3);
       }
-      options2 = options2 || {};
-      if (!options2.tolerant && relative.scheme) {
+      options3 = options3 || {};
+      if (!options3.tolerant && relative.scheme) {
         target.scheme = relative.scheme;
         target.userinfo = relative.userinfo;
         target.host = relative.host;
@@ -18145,18 +18145,18 @@ var require_fast_uri = __commonJS({
       target.fragment = relative.fragment;
       return target;
     }
-    function equal(uriA, uriB, options2) {
+    function equal(uriA, uriB, options3) {
       if (typeof uriA === "string") {
         uriA = unescape(uriA);
-        uriA = serialize(normalizeComponentEncoding(parse3(uriA, options2), true), { ...options2, skipEscape: true });
+        uriA = serialize(normalizeComponentEncoding(parse3(uriA, options3), true), { ...options3, skipEscape: true });
       } else if (typeof uriA === "object") {
-        uriA = serialize(normalizeComponentEncoding(uriA, true), { ...options2, skipEscape: true });
+        uriA = serialize(normalizeComponentEncoding(uriA, true), { ...options3, skipEscape: true });
       }
       if (typeof uriB === "string") {
         uriB = unescape(uriB);
-        uriB = serialize(normalizeComponentEncoding(parse3(uriB, options2), true), { ...options2, skipEscape: true });
+        uriB = serialize(normalizeComponentEncoding(parse3(uriB, options3), true), { ...options3, skipEscape: true });
       } else if (typeof uriB === "object") {
-        uriB = serialize(normalizeComponentEncoding(uriB, true), { ...options2, skipEscape: true });
+        uriB = serialize(normalizeComponentEncoding(uriB, true), { ...options3, skipEscape: true });
       }
       return uriA.toLowerCase() === uriB.toLowerCase();
     }
@@ -18177,12 +18177,12 @@ var require_fast_uri = __commonJS({
         secure: cmpts.secure,
         error: ""
       };
-      const options2 = Object.assign({}, opts);
+      const options3 = Object.assign({}, opts);
       const uriTokens = [];
-      const schemeHandler = getSchemeHandler(options2.scheme || component.scheme);
-      if (schemeHandler && schemeHandler.serialize) schemeHandler.serialize(component, options2);
+      const schemeHandler = getSchemeHandler(options3.scheme || component.scheme);
+      if (schemeHandler && schemeHandler.serialize) schemeHandler.serialize(component, options3);
       if (component.path !== void 0) {
-        if (!options2.skipEscape) {
+        if (!options3.skipEscape) {
           component.path = escape(component.path);
           if (component.scheme !== void 0) {
             component.path = component.path.split("%3A").join(":");
@@ -18191,12 +18191,12 @@ var require_fast_uri = __commonJS({
           component.path = unescape(component.path);
         }
       }
-      if (options2.reference !== "suffix" && component.scheme) {
+      if (options3.reference !== "suffix" && component.scheme) {
         uriTokens.push(component.scheme, ":");
       }
       const authority = recomposeAuthority(component);
       if (authority !== void 0) {
-        if (options2.reference !== "suffix") {
+        if (options3.reference !== "suffix") {
           uriTokens.push("//");
         }
         uriTokens.push(authority);
@@ -18206,7 +18206,7 @@ var require_fast_uri = __commonJS({
       }
       if (component.path !== void 0) {
         let s = component.path;
-        if (!options2.absolutePath && (!schemeHandler || !schemeHandler.absolutePath)) {
+        if (!options3.absolutePath && (!schemeHandler || !schemeHandler.absolutePath)) {
           s = removeDotSegments(s);
         }
         if (authority === void 0 && s[0] === "/" && s[1] === "/") {
@@ -18224,7 +18224,7 @@ var require_fast_uri = __commonJS({
     }
     var URI_PARSE = /^(?:([^#/:?]+):)?(?:\/\/((?:([^#/?@]*)@)?(\[[^#/?\]]+\]|[^#/:?]*)(?::(\d*))?))?([^#?]*)(?:\?([^#]*))?(?:#((?:.|[\n\r])*))?/u;
     function parse3(uri, opts) {
-      const options2 = Object.assign({}, opts);
+      const options3 = Object.assign({}, opts);
       const parsed = {
         scheme: void 0,
         userinfo: void 0,
@@ -18235,9 +18235,9 @@ var require_fast_uri = __commonJS({
         fragment: void 0
       };
       let isIP = false;
-      if (options2.reference === "suffix") {
-        if (options2.scheme) {
-          uri = options2.scheme + ":" + uri;
+      if (options3.reference === "suffix") {
+        if (options3.scheme) {
+          uri = options3.scheme + ":" + uri;
         } else {
           uri = "//" + uri;
         }
@@ -18273,12 +18273,12 @@ var require_fast_uri = __commonJS({
         } else {
           parsed.reference = "uri";
         }
-        if (options2.reference && options2.reference !== "suffix" && options2.reference !== parsed.reference) {
-          parsed.error = parsed.error || "URI is not a " + options2.reference + " reference.";
+        if (options3.reference && options3.reference !== "suffix" && options3.reference !== parsed.reference) {
+          parsed.error = parsed.error || "URI is not a " + options3.reference + " reference.";
         }
-        const schemeHandler = getSchemeHandler(options2.scheme || parsed.scheme);
-        if (!options2.unicodeSupport && (!schemeHandler || !schemeHandler.unicodeSupport)) {
-          if (parsed.host && (options2.domainHost || schemeHandler && schemeHandler.domainHost) && isIP === false && nonSimpleDomain(parsed.host)) {
+        const schemeHandler = getSchemeHandler(options3.scheme || parsed.scheme);
+        if (!options3.unicodeSupport && (!schemeHandler || !schemeHandler.unicodeSupport)) {
+          if (parsed.host && (options3.domainHost || schemeHandler && schemeHandler.domainHost) && isIP === false && nonSimpleDomain(parsed.host)) {
             try {
               parsed.host = URL.domainToASCII(parsed.host.toLowerCase());
             } catch (e) {
@@ -18303,7 +18303,7 @@ var require_fast_uri = __commonJS({
           }
         }
         if (schemeHandler && schemeHandler.parse) {
-          schemeHandler.parse(parsed, options2);
+          schemeHandler.parse(parsed, options3);
         }
       } else {
         parsed.error = parsed.error || "URI can not be parsed.";
@@ -18817,10 +18817,10 @@ var require_core = __commonJS({
     Ajv2.ValidationError = validation_error_1.default;
     Ajv2.MissingRefError = ref_error_1.default;
     exports.default = Ajv2;
-    function checkOptions(checkOpts, options2, msg, log = "error") {
+    function checkOptions(checkOpts, options3, msg, log = "error") {
       for (const key in checkOpts) {
         const opt = key;
-        if (opt in options2)
+        if (opt in options3)
           this.logger[log](`${msg}: option ${key}. ${checkOpts[opt]}`);
       }
     }
@@ -19821,7 +19821,7 @@ var require_contains = __commonJS({
           const count = gen.let("count", 0);
           validateItems(schValid, () => gen.if(schValid, () => checkLimits(count)));
         }
-        function validateItems(_valid, block) {
+        function validateItems(_valid, block2) {
           gen.forRange("i", 0, len, (i) => {
             cxt.subschema({
               keyword: "contains",
@@ -19829,7 +19829,7 @@ var require_contains = __commonJS({
               dataPropType: util_1.Type.Num,
               compositeRule: true
             }, _valid);
-            block();
+            block2();
           });
         }
         function checkLimits(count) {
@@ -24715,10 +24715,10 @@ var require_core3 = __commonJS({
     Ajv2.ValidationError = validation_error_1.default;
     Ajv2.MissingRefError = ref_error_1.default;
     exports.default = Ajv2;
-    function checkOptions(checkOpts, options2, msg, log = "error") {
+    function checkOptions(checkOpts, options3, msg, log = "error") {
       for (const key in checkOpts) {
         const opt = key;
-        if (opt in options2)
+        if (opt in options3)
           this.logger[log](`${msg}: option ${key}. ${checkOpts[opt]}`);
       }
     }
@@ -25719,7 +25719,7 @@ var require_contains2 = __commonJS({
           const count = gen.let("count", 0);
           validateItems(schValid, () => gen.if(schValid, () => checkLimits(count)));
         }
-        function validateItems(_valid, block) {
+        function validateItems(_valid, block2) {
           gen.forRange("i", 0, len, (i) => {
             cxt.subschema({
               keyword: "contains",
@@ -25727,7 +25727,7 @@ var require_contains2 = __commonJS({
               dataPropType: util_1.Type.Num,
               compositeRule: true
             }, _valid);
-            block();
+            block2();
           });
         }
         function checkLimits(count) {
@@ -26984,12 +26984,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs47, exportName) {
+    function addFormats(ajv, list, fs49, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs47[f]);
+        ajv.addFormat(f, fs49[f]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -27093,8 +27093,8 @@ var init_server = __esm({
        *
        * @experimental
        */
-      requestStream(request2, resultSchema, options2) {
-        return this._server.requestStream(request2, resultSchema, options2);
+      requestStream(request2, resultSchema, options3) {
+        return this._server.requestStream(request2, resultSchema, options3);
       }
       /**
        * Sends a sampling request and returns an AsyncGenerator that yields response messages.
@@ -27139,7 +27139,7 @@ var init_server = __esm({
        *
        * @experimental
        */
-      createMessageStream(params, options2) {
+      createMessageStream(params, options3) {
         var _a3;
         const clientCapabilities = this._server.getClientCapabilities();
         if ((params.tools || params.toolChoice) && !((_a3 = clientCapabilities == null ? void 0 : clientCapabilities.sampling) == null ? void 0 : _a3.tools)) {
@@ -27171,7 +27171,7 @@ var init_server = __esm({
         return this.requestStream({
           method: "sampling/createMessage",
           params
-        }, CreateMessageResultSchema, options2);
+        }, CreateMessageResultSchema, options3);
       }
       /**
        * Sends an elicitation request and returns an AsyncGenerator that yields response messages.
@@ -27215,7 +27215,7 @@ var init_server = __esm({
        *
        * @experimental
        */
-      elicitInputStream(params, options2) {
+      elicitInputStream(params, options3) {
         var _a3, _b;
         const clientCapabilities = this._server.getClientCapabilities();
         const mode = params.mode ?? "form";
@@ -27237,7 +27237,7 @@ var init_server = __esm({
         return this.requestStream({
           method: "elicitation/create",
           params: normalizedParams
-        }, ElicitResultSchema, options2);
+        }, ElicitResultSchema, options3);
       }
       /**
        * Gets the current status of a task.
@@ -27248,8 +27248,8 @@ var init_server = __esm({
        *
        * @experimental
        */
-      async getTask(taskId, options2) {
-        return this._server.getTask({ taskId }, options2);
+      async getTask(taskId, options3) {
+        return this._server.getTask({ taskId }, options3);
       }
       /**
        * Retrieves the result of a completed task.
@@ -27261,8 +27261,8 @@ var init_server = __esm({
        *
        * @experimental
        */
-      async getTaskResult(taskId, resultSchema, options2) {
-        return this._server.getTaskResult({ taskId }, resultSchema, options2);
+      async getTaskResult(taskId, resultSchema, options3) {
+        return this._server.getTaskResult({ taskId }, resultSchema, options3);
       }
       /**
        * Lists tasks with optional pagination.
@@ -27273,8 +27273,8 @@ var init_server = __esm({
        *
        * @experimental
        */
-      async listTasks(cursor, options2) {
-        return this._server.listTasks(cursor ? { cursor } : void 0, options2);
+      async listTasks(cursor, options3) {
+        return this._server.listTasks(cursor ? { cursor } : void 0, options3);
       }
       /**
        * Cancels a running task.
@@ -27284,8 +27284,8 @@ var init_server = __esm({
        *
        * @experimental
        */
-      async cancelTask(taskId, options2) {
-        return this._server.cancelTask({ taskId }, options2);
+      async cancelTask(taskId, options3) {
+        return this._server.cancelTask({ taskId }, options3);
       }
     };
   }
@@ -27346,8 +27346,8 @@ var init_server2 = __esm({
       /**
        * Initializes this server with the given name and version information.
        */
-      constructor(_serverInfo, options2) {
-        super(options2);
+      constructor(_serverInfo, options3) {
+        super(options3);
         this._serverInfo = _serverInfo;
         this._loggingLevels = /* @__PURE__ */ new Map();
         this.LOG_LEVEL_SEVERITY = new Map(LoggingLevelSchema.options.map((level, index) => [level, index]));
@@ -27355,9 +27355,9 @@ var init_server2 = __esm({
           const currentLevel = this._loggingLevels.get(sessionId);
           return currentLevel ? this.LOG_LEVEL_SEVERITY.get(level) < this.LOG_LEVEL_SEVERITY.get(currentLevel) : false;
         };
-        this._capabilities = (options2 == null ? void 0 : options2.capabilities) ?? {};
-        this._instructions = options2 == null ? void 0 : options2.instructions;
-        this._jsonSchemaValidator = (options2 == null ? void 0 : options2.jsonSchemaValidator) ?? new AjvJsonSchemaValidator();
+        this._capabilities = (options3 == null ? void 0 : options3.capabilities) ?? {};
+        this._instructions = options3 == null ? void 0 : options3.instructions;
+        this._jsonSchemaValidator = (options3 == null ? void 0 : options3.jsonSchemaValidator) ?? new AjvJsonSchemaValidator();
         this.setRequestHandler(InitializeRequestSchema, (request2) => this._oninitialize(request2));
         this.setNotificationHandler(InitializedNotificationSchema, () => {
           var _a3;
@@ -27600,7 +27600,7 @@ var init_server2 = __esm({
         return this.request({ method: "ping" }, EmptyResultSchema);
       }
       // Implementation
-      async createMessage(params, options2) {
+      async createMessage(params, options3) {
         var _a3, _b;
         if (params.tools || params.toolChoice) {
           if (!((_b = (_a3 = this._clientCapabilities) == null ? void 0 : _a3.sampling) == null ? void 0 : _b.tools)) {
@@ -27631,9 +27631,9 @@ var init_server2 = __esm({
           }
         }
         if (params.tools) {
-          return this.request({ method: "sampling/createMessage", params }, CreateMessageResultWithToolsSchema, options2);
+          return this.request({ method: "sampling/createMessage", params }, CreateMessageResultWithToolsSchema, options3);
         }
-        return this.request({ method: "sampling/createMessage", params }, CreateMessageResultSchema, options2);
+        return this.request({ method: "sampling/createMessage", params }, CreateMessageResultSchema, options3);
       }
       /**
        * Creates an elicitation request for the given parameters.
@@ -27642,7 +27642,7 @@ var init_server2 = __esm({
        * @param options Optional request options.
        * @returns The result of the elicitation request.
        */
-      async elicitInput(params, options2) {
+      async elicitInput(params, options3) {
         var _a3, _b, _c, _d;
         const mode = params.mode ?? "form";
         switch (mode) {
@@ -27651,14 +27651,14 @@ var init_server2 = __esm({
               throw new Error("Client does not support url elicitation.");
             }
             const urlParams = params;
-            return this.request({ method: "elicitation/create", params: urlParams }, ElicitResultSchema, options2);
+            return this.request({ method: "elicitation/create", params: urlParams }, ElicitResultSchema, options3);
           }
           case "form": {
             if (!((_d = (_c = this._clientCapabilities) == null ? void 0 : _c.elicitation) == null ? void 0 : _d.form)) {
               throw new Error("Client does not support form elicitation.");
             }
             const formParams = params.mode === "form" ? params : { ...params, mode: "form" };
-            const result = await this.request({ method: "elicitation/create", params: formParams }, ElicitResultSchema, options2);
+            const result = await this.request({ method: "elicitation/create", params: formParams }, ElicitResultSchema, options3);
             if (result.action === "accept" && result.content && formParams.requestedSchema) {
               try {
                 const validator = this._jsonSchemaValidator.getValidator(formParams.requestedSchema);
@@ -27685,7 +27685,7 @@ var init_server2 = __esm({
        * @param options Optional notification options. Useful when the completion notification should be related to a prior request.
        * @returns A function that emits the completion notification when awaited.
        */
-      createElicitationCompletionNotifier(elicitationId, options2) {
+      createElicitationCompletionNotifier(elicitationId, options3) {
         var _a3, _b;
         if (!((_b = (_a3 = this._clientCapabilities) == null ? void 0 : _a3.elicitation) == null ? void 0 : _b.url)) {
           throw new Error("Client does not support URL elicitation (required for notifications/elicitation/complete)");
@@ -27695,10 +27695,10 @@ var init_server2 = __esm({
           params: {
             elicitationId
           }
-        }, options2);
+        }, options3);
       }
-      async listRoots(params, options2) {
-        return this.request({ method: "roots/list", params }, ListRootsResultSchema, options2);
+      async listRoots(params, options3) {
+        return this.request({ method: "roots/list", params }, ListRootsResultSchema, options3);
       }
       /**
        * Sends a logging message to the client, if connected.
@@ -27885,13 +27885,13 @@ var init_client = __esm({
        *
        * @experimental
        */
-      async *callToolStream(params, resultSchema = CallToolResultSchema, options2) {
+      async *callToolStream(params, resultSchema = CallToolResultSchema, options3) {
         const clientInternal = this._client;
         const optionsWithTask = {
-          ...options2,
+          ...options3,
           // We check if the tool is known to be a task during auto-configuration, but assume
           // the caller knows what they're doing if they pass this explicitly
-          task: (options2 == null ? void 0 : options2.task) ?? (clientInternal.isToolTask(params.name) ? {} : void 0)
+          task: (options3 == null ? void 0 : options3.task) ?? (clientInternal.isToolTask(params.name) ? {} : void 0)
         };
         const stream = clientInternal.requestStream({ method: "tools/call", params }, resultSchema, optionsWithTask);
         const validator = clientInternal.getToolOutputValidator(params.name);
@@ -27940,8 +27940,8 @@ var init_client = __esm({
        *
        * @experimental
        */
-      async getTask(taskId, options2) {
-        return this._client.getTask({ taskId }, options2);
+      async getTask(taskId, options3) {
+        return this._client.getTask({ taskId }, options3);
       }
       /**
        * Retrieves the result of a completed task.
@@ -27953,8 +27953,8 @@ var init_client = __esm({
        *
        * @experimental
        */
-      async getTaskResult(taskId, resultSchema, options2) {
-        return this._client.getTaskResult({ taskId }, resultSchema, options2);
+      async getTaskResult(taskId, resultSchema, options3) {
+        return this._client.getTaskResult({ taskId }, resultSchema, options3);
       }
       /**
        * Lists tasks with optional pagination.
@@ -27965,8 +27965,8 @@ var init_client = __esm({
        *
        * @experimental
        */
-      async listTasks(cursor, options2) {
-        return this._client.listTasks(cursor ? { cursor } : void 0, options2);
+      async listTasks(cursor, options3) {
+        return this._client.listTasks(cursor ? { cursor } : void 0, options3);
       }
       /**
        * Cancels a running task.
@@ -27976,8 +27976,8 @@ var init_client = __esm({
        *
        * @experimental
        */
-      async cancelTask(taskId, options2) {
-        return this._client.cancelTask({ taskId }, options2);
+      async cancelTask(taskId, options3) {
+        return this._client.cancelTask({ taskId }, options3);
       }
       /**
        * Sends a request and returns an AsyncGenerator that yields response messages.
@@ -27993,8 +27993,8 @@ var init_client = __esm({
        *
        * @experimental
        */
-      requestStream(request2, resultSchema, options2) {
-        return this._client.requestStream(request2, resultSchema, options2);
+      requestStream(request2, resultSchema, options3) {
+        return this._client.requestStream(request2, resultSchema, options3);
       }
     };
   }
@@ -28055,17 +28055,17 @@ var init_client2 = __esm({
       /**
        * Initializes this client with the given name and version information.
        */
-      constructor(_clientInfo, options2) {
-        super(options2);
+      constructor(_clientInfo, options3) {
+        super(options3);
         this._clientInfo = _clientInfo;
         this._cachedToolOutputValidators = /* @__PURE__ */ new Map();
         this._cachedKnownTaskTools = /* @__PURE__ */ new Set();
         this._cachedRequiredTaskTools = /* @__PURE__ */ new Set();
         this._listChangedDebounceTimers = /* @__PURE__ */ new Map();
-        this._capabilities = (options2 == null ? void 0 : options2.capabilities) ?? {};
-        this._jsonSchemaValidator = (options2 == null ? void 0 : options2.jsonSchemaValidator) ?? new AjvJsonSchemaValidator();
-        if (options2 == null ? void 0 : options2.listChanged) {
-          this._pendingListChangedConfig = options2.listChanged;
+        this._capabilities = (options3 == null ? void 0 : options3.capabilities) ?? {};
+        this._jsonSchemaValidator = (options3 == null ? void 0 : options3.jsonSchemaValidator) ?? new AjvJsonSchemaValidator();
+        if (options3 == null ? void 0 : options3.listChanged) {
+          this._pendingListChangedConfig = options3.listChanged;
         }
       }
       /**
@@ -28226,7 +28226,7 @@ var init_client2 = __esm({
           throw new Error(`Server does not support ${capability} (required for ${method})`);
         }
       }
-      async connect(transport, options2) {
+      async connect(transport, options3) {
         await super.connect(transport);
         if (transport.sessionId !== void 0) {
           return;
@@ -28239,7 +28239,7 @@ var init_client2 = __esm({
               capabilities: this._capabilities,
               clientInfo: this._clientInfo
             }
-          }, InitializeResultSchema, options2);
+          }, InitializeResultSchema, options3);
           if (result === void 0) {
             throw new Error(`Server sent invalid initialize result: ${result}`);
           }
@@ -28384,46 +28384,46 @@ var init_client2 = __esm({
         }
         assertClientRequestTaskCapability((_a3 = this._capabilities.tasks) == null ? void 0 : _a3.requests, method, "Client");
       }
-      async ping(options2) {
-        return this.request({ method: "ping" }, EmptyResultSchema, options2);
+      async ping(options3) {
+        return this.request({ method: "ping" }, EmptyResultSchema, options3);
       }
-      async complete(params, options2) {
-        return this.request({ method: "completion/complete", params }, CompleteResultSchema, options2);
+      async complete(params, options3) {
+        return this.request({ method: "completion/complete", params }, CompleteResultSchema, options3);
       }
-      async setLoggingLevel(level, options2) {
-        return this.request({ method: "logging/setLevel", params: { level } }, EmptyResultSchema, options2);
+      async setLoggingLevel(level, options3) {
+        return this.request({ method: "logging/setLevel", params: { level } }, EmptyResultSchema, options3);
       }
-      async getPrompt(params, options2) {
-        return this.request({ method: "prompts/get", params }, GetPromptResultSchema, options2);
+      async getPrompt(params, options3) {
+        return this.request({ method: "prompts/get", params }, GetPromptResultSchema, options3);
       }
-      async listPrompts(params, options2) {
-        return this.request({ method: "prompts/list", params }, ListPromptsResultSchema, options2);
+      async listPrompts(params, options3) {
+        return this.request({ method: "prompts/list", params }, ListPromptsResultSchema, options3);
       }
-      async listResources(params, options2) {
-        return this.request({ method: "resources/list", params }, ListResourcesResultSchema, options2);
+      async listResources(params, options3) {
+        return this.request({ method: "resources/list", params }, ListResourcesResultSchema, options3);
       }
-      async listResourceTemplates(params, options2) {
-        return this.request({ method: "resources/templates/list", params }, ListResourceTemplatesResultSchema, options2);
+      async listResourceTemplates(params, options3) {
+        return this.request({ method: "resources/templates/list", params }, ListResourceTemplatesResultSchema, options3);
       }
-      async readResource(params, options2) {
-        return this.request({ method: "resources/read", params }, ReadResourceResultSchema, options2);
+      async readResource(params, options3) {
+        return this.request({ method: "resources/read", params }, ReadResourceResultSchema, options3);
       }
-      async subscribeResource(params, options2) {
-        return this.request({ method: "resources/subscribe", params }, EmptyResultSchema, options2);
+      async subscribeResource(params, options3) {
+        return this.request({ method: "resources/subscribe", params }, EmptyResultSchema, options3);
       }
-      async unsubscribeResource(params, options2) {
-        return this.request({ method: "resources/unsubscribe", params }, EmptyResultSchema, options2);
+      async unsubscribeResource(params, options3) {
+        return this.request({ method: "resources/unsubscribe", params }, EmptyResultSchema, options3);
       }
       /**
        * Calls a tool and waits for the result. Automatically validates structured output if the tool has an outputSchema.
        *
        * For task-based execution with streaming behavior, use client.experimental.tasks.callToolStream() instead.
        */
-      async callTool(params, resultSchema = CallToolResultSchema, options2) {
+      async callTool(params, resultSchema = CallToolResultSchema, options3) {
         if (this.isToolTaskRequired(params.name)) {
           throw new McpError(ErrorCode.InvalidRequest, `Tool "${params.name}" requires task-based execution. Use client.experimental.tasks.callToolStream() instead.`);
         }
-        const result = await this.request({ method: "tools/call", params }, resultSchema, options2);
+        const result = await this.request({ method: "tools/call", params }, resultSchema, options3);
         const validator = this.getToolOutputValidator(params.name);
         if (validator) {
           if (!result.structuredContent && !result.isError) {
@@ -28488,8 +28488,8 @@ var init_client2 = __esm({
       getToolOutputValidator(toolName) {
         return this._cachedToolOutputValidators.get(toolName);
       }
-      async listTools(params, options2) {
-        const result = await this.request({ method: "tools/list", params }, ListToolsResultSchema, options2);
+      async listTools(params, options3) {
+        const result = await this.request({ method: "tools/list", params }, ListToolsResultSchema, options3);
         this.cacheToolMetadata(result.tools);
         return result;
       }
@@ -28497,16 +28497,16 @@ var init_client2 = __esm({
        * Set up a single list changed handler.
        * @internal
        */
-      _setupListChangedHandler(listType, notificationSchema, options2, fetcher) {
-        const parseResult = ListChangedOptionsBaseSchema.safeParse(options2);
+      _setupListChangedHandler(listType, notificationSchema, options3, fetcher) {
+        const parseResult = ListChangedOptionsBaseSchema.safeParse(options3);
         if (!parseResult.success) {
           throw new Error(`Invalid ${listType} listChanged options: ${parseResult.error.message}`);
         }
-        if (typeof options2.onChanged !== "function") {
+        if (typeof options3.onChanged !== "function") {
           throw new Error(`Invalid ${listType} listChanged options: onChanged must be a function`);
         }
         const { autoRefresh, debounceMs } = parseResult.data;
-        const { onChanged } = options2;
+        const { onChanged } = options3;
         const refresh = async () => {
           if (!autoRefresh) {
             onChanged(null, null);
@@ -28546,9 +28546,9 @@ var require_windows = __commonJS({
   "node_modules/isexe/windows.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs47 = __require("fs");
-    function checkPathExt(path49, options2) {
-      var pathext = options2.pathExt !== void 0 ? options2.pathExt : process.env.PATHEXT;
+    var fs49 = __require("fs");
+    function checkPathExt(path52, options3) {
+      var pathext = options3.pathExt !== void 0 ? options3.pathExt : process.env.PATHEXT;
       if (!pathext) {
         return true;
       }
@@ -28558,25 +28558,25 @@ var require_windows = __commonJS({
       }
       for (var i = 0; i < pathext.length; i++) {
         var p = pathext[i].toLowerCase();
-        if (p && path49.substr(-p.length).toLowerCase() === p) {
+        if (p && path52.substr(-p.length).toLowerCase() === p) {
           return true;
         }
       }
       return false;
     }
-    function checkStat(stat, path49, options2) {
+    function checkStat(stat, path52, options3) {
       if (!stat.isSymbolicLink() && !stat.isFile()) {
         return false;
       }
-      return checkPathExt(path49, options2);
+      return checkPathExt(path52, options3);
     }
-    function isexe(path49, options2, cb) {
-      fs47.stat(path49, function(er, stat) {
-        cb(er, er ? false : checkStat(stat, path49, options2));
+    function isexe(path52, options3, cb) {
+      fs49.stat(path52, function(er, stat) {
+        cb(er, er ? false : checkStat(stat, path52, options3));
       });
     }
-    function sync(path49, options2) {
-      return checkStat(fs47.statSync(path49), path49, options2);
+    function sync(path52, options3) {
+      return checkStat(fs49.statSync(path52), path52, options3);
     }
   }
 });
@@ -28586,24 +28586,24 @@ var require_mode = __commonJS({
   "node_modules/isexe/mode.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs47 = __require("fs");
-    function isexe(path49, options2, cb) {
-      fs47.stat(path49, function(er, stat) {
-        cb(er, er ? false : checkStat(stat, options2));
+    var fs49 = __require("fs");
+    function isexe(path52, options3, cb) {
+      fs49.stat(path52, function(er, stat) {
+        cb(er, er ? false : checkStat(stat, options3));
       });
     }
-    function sync(path49, options2) {
-      return checkStat(fs47.statSync(path49), options2);
+    function sync(path52, options3) {
+      return checkStat(fs49.statSync(path52), options3);
     }
-    function checkStat(stat, options2) {
-      return stat.isFile() && checkMode(stat, options2);
+    function checkStat(stat, options3) {
+      return stat.isFile() && checkMode(stat, options3);
     }
-    function checkMode(stat, options2) {
+    function checkMode(stat, options3) {
       var mod = stat.mode;
       var uid = stat.uid;
       var gid = stat.gid;
-      var myUid = options2.uid !== void 0 ? options2.uid : process.getuid && process.getuid();
-      var myGid = options2.gid !== void 0 ? options2.gid : process.getgid && process.getgid();
+      var myUid = options3.uid !== void 0 ? options3.uid : process.getuid && process.getuid();
+      var myGid = options3.gid !== void 0 ? options3.gid : process.getgid && process.getgid();
       var u = parseInt("100", 8);
       var g = parseInt("010", 8);
       var o = parseInt("001", 8);
@@ -28617,7 +28617,7 @@ var require_mode = __commonJS({
 // node_modules/isexe/index.js
 var require_isexe = __commonJS({
   "node_modules/isexe/index.js"(exports, module) {
-    var fs47 = __require("fs");
+    var fs49 = __require("fs");
     var core;
     if (process.platform === "win32" || global.TESTING_WINDOWS) {
       core = require_windows();
@@ -28626,17 +28626,17 @@ var require_isexe = __commonJS({
     }
     module.exports = isexe;
     isexe.sync = sync;
-    function isexe(path49, options2, cb) {
-      if (typeof options2 === "function") {
-        cb = options2;
-        options2 = {};
+    function isexe(path52, options3, cb) {
+      if (typeof options3 === "function") {
+        cb = options3;
+        options3 = {};
       }
       if (!cb) {
         if (typeof Promise !== "function") {
           throw new TypeError("callback not provided");
         }
         return new Promise(function(resolve, reject) {
-          isexe(path49, options2 || {}, function(er, is) {
+          isexe(path52, options3 || {}, function(er, is) {
             if (er) {
               reject(er);
             } else {
@@ -28645,9 +28645,9 @@ var require_isexe = __commonJS({
           });
         });
       }
-      core(path49, options2 || {}, function(er, is) {
+      core(path52, options3 || {}, function(er, is) {
         if (er) {
-          if (er.code === "EACCES" || options2 && options2.ignoreErrors) {
+          if (er.code === "EACCES" || options3 && options3.ignoreErrors) {
             er = null;
             is = false;
           }
@@ -28655,11 +28655,11 @@ var require_isexe = __commonJS({
         cb(er, is);
       });
     }
-    function sync(path49, options2) {
+    function sync(path52, options3) {
       try {
-        return core.sync(path49, options2 || {});
+        return core.sync(path52, options3 || {});
       } catch (er) {
-        if (options2 && options2.ignoreErrors || er.code === "EACCES") {
+        if (options3 && options3.ignoreErrors || er.code === "EACCES") {
           return false;
         } else {
           throw er;
@@ -28673,7 +28673,7 @@ var require_isexe = __commonJS({
 var require_which = __commonJS({
   "node_modules/which/which.js"(exports, module) {
     var isWindows = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys";
-    var path49 = __require("path");
+    var path52 = __require("path");
     var COLON = isWindows ? ";" : ":";
     var isexe = require_isexe();
     var getNotFoundError = (cmd) => Object.assign(new Error(`not found: ${cmd}`), { code: "ENOENT" });
@@ -28711,7 +28711,7 @@ var require_which = __commonJS({
           return opt.all && found.length ? resolve(found) : reject(getNotFoundError(cmd));
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path49.join(pathPart, cmd);
+        const pCmd = path52.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         resolve(subStep(p, i, 0));
       });
@@ -28738,7 +28738,7 @@ var require_which = __commonJS({
       for (let i = 0; i < pathEnv.length; i++) {
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path49.join(pathPart, cmd);
+        const pCmd = path52.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         for (let j = 0; j < pathExt.length; j++) {
           const cur = p + pathExt[j];
@@ -28769,9 +28769,9 @@ var require_which = __commonJS({
 var require_path_key = __commonJS({
   "node_modules/path-key/index.js"(exports, module) {
     "use strict";
-    var pathKey = (options2 = {}) => {
-      const environment = options2.env || process.env;
-      const platform = options2.platform || process.platform;
+    var pathKey = (options3 = {}) => {
+      const environment = options3.env || process.env;
+      const platform = options3.platform || process.platform;
       if (platform !== "win32") {
         return "PATH";
       }
@@ -28786,7 +28786,7 @@ var require_path_key = __commonJS({
 var require_resolveCommand = __commonJS({
   "node_modules/cross-spawn/lib/util/resolveCommand.js"(exports, module) {
     "use strict";
-    var path49 = __require("path");
+    var path52 = __require("path");
     var which = require_which();
     var getPathKey = require_path_key();
     function resolveCommandAttempt(parsed, withoutPathExt) {
@@ -28804,7 +28804,7 @@ var require_resolveCommand = __commonJS({
       try {
         resolved = which.sync(parsed.command, {
           path: env[getPathKey({ env })],
-          pathExt: withoutPathExt ? path49.delimiter : void 0
+          pathExt: withoutPathExt ? path52.delimiter : void 0
         });
       } catch (e) {
       } finally {
@@ -28813,7 +28813,7 @@ var require_resolveCommand = __commonJS({
         }
       }
       if (resolved) {
-        resolved = path49.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
+        resolved = path52.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
       }
       return resolved;
     }
@@ -28867,8 +28867,8 @@ var require_shebang_command = __commonJS({
       if (!match) {
         return null;
       }
-      const [path49, argument] = match[0].replace(/#! ?/, "").split(" ");
-      const binary = path49.split("/").pop();
+      const [path52, argument] = match[0].replace(/#! ?/, "").split(" ");
+      const binary = path52.split("/").pop();
       if (binary === "env") {
         return argument;
       }
@@ -28881,16 +28881,16 @@ var require_shebang_command = __commonJS({
 var require_readShebang = __commonJS({
   "node_modules/cross-spawn/lib/util/readShebang.js"(exports, module) {
     "use strict";
-    var fs47 = __require("fs");
+    var fs49 = __require("fs");
     var shebangCommand = require_shebang_command();
     function readShebang(command) {
       const size = 150;
       const buffer = Buffer.alloc(size);
       let fd;
       try {
-        fd = fs47.openSync(command, "r");
-        fs47.readSync(fd, buffer, 0, size, 0);
-        fs47.closeSync(fd);
+        fd = fs49.openSync(command, "r");
+        fs49.readSync(fd, buffer, 0, size, 0);
+        fs49.closeSync(fd);
       } catch (e) {
       }
       return shebangCommand(buffer.toString());
@@ -28903,9 +28903,9 @@ var require_readShebang = __commonJS({
 var require_parse = __commonJS({
   "node_modules/cross-spawn/lib/parse.js"(exports, module) {
     "use strict";
-    var path49 = __require("path");
+    var path52 = __require("path");
     var resolveCommand = require_resolveCommand();
-    var escape2 = require_escape();
+    var escape3 = require_escape();
     var readShebang = require_readShebang();
     var isWin = process.platform === "win32";
     var isExecutableRegExp = /\.(?:com|exe)$/i;
@@ -28928,9 +28928,9 @@ var require_parse = __commonJS({
       const needsShell = !isExecutableRegExp.test(commandFile);
       if (parsed.options.forceShell || needsShell) {
         const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
-        parsed.command = path49.normalize(parsed.command);
-        parsed.command = escape2.command(parsed.command);
-        parsed.args = parsed.args.map((arg) => escape2.argument(arg, needsDoubleEscapeMetaChars));
+        parsed.command = path52.normalize(parsed.command);
+        parsed.command = escape3.command(parsed.command);
+        parsed.args = parsed.args.map((arg) => escape3.argument(arg, needsDoubleEscapeMetaChars));
         const shellCommand = [parsed.command].concat(parsed.args).join(" ");
         parsed.args = ["/d", "/s", "/c", `"${shellCommand}"`];
         parsed.command = process.env.comspec || "cmd.exe";
@@ -28938,24 +28938,24 @@ var require_parse = __commonJS({
       }
       return parsed;
     }
-    function parse3(command, args, options2) {
+    function parse3(command, args, options3) {
       if (args && !Array.isArray(args)) {
-        options2 = args;
+        options3 = args;
         args = null;
       }
       args = args ? args.slice(0) : [];
-      options2 = Object.assign({}, options2);
+      options3 = Object.assign({}, options3);
       const parsed = {
         command,
         args,
-        options: options2,
+        options: options3,
         file: void 0,
         original: {
           command,
           args
         }
       };
-      return options2.shell ? parsed : parseNonShell(parsed);
+      return options3.shell ? parsed : parseNonShell(parsed);
     }
     module.exports = parse3;
   }
@@ -29018,14 +29018,14 @@ var require_cross_spawn = __commonJS({
     var cp = __require("child_process");
     var parse3 = require_parse();
     var enoent = require_enoent();
-    function spawn12(command, args, options2) {
-      const parsed = parse3(command, args, options2);
+    function spawn12(command, args, options3) {
+      const parsed = parse3(command, args, options3);
       const spawned = cp.spawn(parsed.command, parsed.args, parsed.options);
       enoent.hookChildProcess(spawned, parsed);
       return spawned;
     }
-    function spawnSync9(command, args, options2) {
-      const parsed = parse3(command, args, options2);
+    function spawnSync9(command, args, options3) {
+      const parsed = parse3(command, args, options3);
       const result = cp.spawnSync(parsed.command, parsed.args, parsed.options);
       result.error = result.error || enoent.verifyENOENTSync(result.status, parsed);
       return result;
@@ -29365,10 +29365,10 @@ function findProjectConfig(startDir = process.cwd()) {
   }
   return { source: "none" };
 }
-function identifyMakerProject(options2) {
-  if (options2 == null ? void 0 : options2.projectId) {
+function identifyMakerProject(options3) {
+  if (options3 == null ? void 0 : options3.projectId) {
     return {
-      projectId: options2.projectId,
+      projectId: options3.projectId,
       source: "argv"
     };
   }
@@ -29378,7 +29378,7 @@ function identifyMakerProject(options2) {
       source: "env"
     };
   }
-  return findProjectConfig((options2 == null ? void 0 : options2.cwd) || process.cwd());
+  return findProjectConfig((options3 == null ? void 0 : options3.cwd) || process.cwd());
 }
 function formatIdentifyHint() {
   return [
@@ -29533,12 +29533,12 @@ var init_childTransports = __esm({
 // src/maker/crashLog.ts
 import fs3 from "node:fs";
 import path3 from "node:path";
-function appendMakerCrashLog(source, error2, options2 = {}) {
+function appendMakerCrashLog(source, error2, options3 = {}) {
   const makerHome = getMakerHome();
   fs3.mkdirSync(makerHome, { recursive: true });
   const logPath = path3.join(makerHome, "mcp-crash.log");
-  const maxBytes = positiveInteger(options2.maxBytes) || resolveEnvBytes("TAPTAP_MAKER_CRASH_LOG_MAX_BYTES", DEFAULT_MAX_BYTES);
-  const maxEntryBytes = positiveInteger(options2.maxEntryBytes) || resolveEnvBytes("TAPTAP_MAKER_CRASH_LOG_MAX_ENTRY_BYTES", DEFAULT_MAX_ENTRY_BYTES);
+  const maxBytes = positiveInteger(options3.maxBytes) || resolveEnvBytes("TAPTAP_MAKER_CRASH_LOG_MAX_BYTES", DEFAULT_MAX_BYTES);
+  const maxEntryBytes = positiveInteger(options3.maxEntryBytes) || resolveEnvBytes("TAPTAP_MAKER_CRASH_LOG_MAX_ENTRY_BYTES", DEFAULT_MAX_ENTRY_BYTES);
   const message = error2 instanceof Error ? error2.stack || error2.message : String(error2);
   const entry = truncateUtf8(
     [`[${(/* @__PURE__ */ new Date()).toISOString()}] ${source}`, message, ""].join("\n"),
@@ -29612,22 +29612,22 @@ function isDisconnectedStdioError(error2) {
   const message = error2 instanceof Error ? error2.message.toLowerCase() : "";
   return message.includes("epipe") || message.includes("stream destroyed");
 }
-function shouldExitForParentDeath(options2) {
-  if ((options2.platform === "darwin" || options2.platform === "linux") && options2.initialPpid > 1 && options2.currentPpid === 1) {
+function shouldExitForParentDeath(options3) {
+  if ((options3.platform === "darwin" || options3.platform === "linux") && options3.initialPpid > 1 && options3.currentPpid === 1) {
     return true;
   }
   try {
-    options2.probeParent();
+    options3.probeParent();
     return false;
   } catch (error2) {
     return Boolean(
-      error2 && typeof error2 === "object" && error2.code === "ESRCH" && options2.initialPpid > 1
+      error2 && typeof error2 === "object" && error2.code === "ESRCH" && options3.initialPpid > 1
     );
   }
 }
-function installStdinExitHandler(options2) {
-  const stdin = options2.stdin ?? process.stdin;
-  const exit = options2.exit ?? ((code) => process.exit(code));
+function installStdinExitHandler(options3) {
+  const stdin = options3.stdin ?? process.stdin;
+  const exit = options3.exit ?? ((code) => process.exit(code));
   let exiting = false;
   const exitOnStdinClosed = () => {
     var _a3;
@@ -29635,24 +29635,24 @@ function installStdinExitHandler(options2) {
       return;
     }
     exiting = true;
-    if (options2.onClosed) {
-      options2.onClosed(options2.source, options2.message);
+    if (options3.onClosed) {
+      options3.onClosed(options3.source, options3.message);
       return;
     }
-    (_a3 = options2.log) == null ? void 0 : _a3.call(options2, options2.source, options2.message);
-    options2.cleanup();
+    (_a3 = options3.log) == null ? void 0 : _a3.call(options3, options3.source, options3.message);
+    options3.cleanup();
     exit(0);
   };
   stdin.once("end", exitOnStdinClosed);
   stdin.once("close", exitOnStdinClosed);
 }
-function installParentDeathWatchdog(options2) {
+function installParentDeathWatchdog(options3) {
   var _a3;
-  const initialPpid = options2.initialPpid ?? process.ppid;
-  const getCurrentPpid = options2.getCurrentPpid ?? (() => process.ppid);
-  const platform = options2.platform ?? process.platform;
-  const probeParent = options2.probeParent ?? (() => process.kill(initialPpid, 0));
-  const exit = options2.exit ?? ((code) => process.exit(code));
+  const initialPpid = options3.initialPpid ?? process.ppid;
+  const getCurrentPpid = options3.getCurrentPpid ?? (() => process.ppid);
+  const platform = options3.platform ?? process.platform;
+  const probeParent = options3.probeParent ?? (() => process.kill(initialPpid, 0));
+  const exit = options3.exit ?? ((code) => process.exit(code));
   let exiting = false;
   const timer = setInterval(() => {
     var _a4;
@@ -29669,10 +29669,10 @@ function installParentDeathWatchdog(options2) {
       return;
     }
     exiting = true;
-    (_a4 = options2.log) == null ? void 0 : _a4.call(options2, options2.source, options2.message);
-    options2.cleanup();
+    (_a4 = options3.log) == null ? void 0 : _a4.call(options3, options3.source, options3.message);
+    options3.cleanup();
     exit(0);
-  }, options2.intervalMs ?? 15e3);
+  }, options3.intervalMs ?? 15e3);
   (_a3 = timer.unref) == null ? void 0 : _a3.call(timer);
   return timer;
 }
@@ -29701,16 +29701,16 @@ function installProxyStdinExitHandler(proxy, stdin = process.stdin, exit = (code
     message: "Embedded Maker proxy stdin closed; exiting."
   });
 }
-function installParentDeathWatchdog2(proxy, options2 = {}) {
+function installParentDeathWatchdog2(proxy, options3 = {}) {
   return installParentDeathWatchdog({
     cleanup: () => proxy.cleanup(),
-    exit: options2.exit,
+    exit: options3.exit,
     log: logLifecycleEvent,
     source: "proxy-parent-dead",
     message: "Embedded Maker proxy parent process is gone; exiting.",
-    intervalMs: options2.intervalMs,
-    initialPpid: options2.initialPpid,
-    getCurrentPpid: options2.getCurrentPpid
+    intervalMs: options3.intervalMs,
+    initialPpid: options3.initialPpid,
+    getCurrentPpid: options3.getCurrentPpid
   });
 }
 function logLifecycleEvent(source, message) {
@@ -30217,15 +30217,15 @@ function getMakerPatUrl() {
   const patUrl = getConfiguredMakerPatUrl();
   return requireMakerEndpoint("patUrl", patUrl);
 }
-async function requestMakerPat(options2) {
-  const manualPat = getManualMakerPat(options2 == null ? void 0 : options2.pat);
+async function requestMakerPat(options3) {
+  const manualPat = getManualMakerPat(options3 == null ? void 0 : options3.pat);
   if (manualPat) {
-    if (options2 == null ? void 0 : options2.pat) {
+    if (options3 == null ? void 0 : options3.pat) {
       savePat(manualPat);
     }
     return manualPat;
   }
-  if (!(options2 == null ? void 0 : options2.force)) {
+  if (!(options3 == null ? void 0 : options3.force)) {
     const cachedPat = loadPat();
     if (cachedPat) {
       return cachedPat;
@@ -30234,7 +30234,7 @@ async function requestMakerPat(options2) {
   const patUrl = getMakerPatUrl();
   let jwt2;
   try {
-    jwt2 = requireMakerJwt(options2 == null ? void 0 : options2.jwt);
+    jwt2 = requireMakerJwt(options3 == null ? void 0 : options3.jwt);
   } catch {
     throw new Error(
       [
@@ -30251,7 +30251,7 @@ async function requestMakerPat(options2) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      name: (options2 == null ? void 0 : options2.name) || "first-pat"
+      name: (options3 == null ? void 0 : options3.name) || "first-pat"
     })
   });
   const json2 = await response.json();
@@ -30403,7 +30403,7 @@ var init_fetchTimeout = __esm({
 });
 
 // src/maker/capabilityRouting.ts
-function formatMakerCapabilityRoutingIndex(options2) {
+function formatMakerCapabilityRoutingIndex(options3) {
   return [
     "TapTap Maker routing index:",
     "- Start/resume/status: maker://status; fallback maker_status_lite.",
@@ -30413,10 +30413,10 @@ function formatMakerCapabilityRoutingIndex(options2) {
     "- 打开make mcp控制台: active distribution CLI `console open --target-dir <project> --json`; no web search.",
     "  Console/preview steps: taptap-maker-local.",
     "- Ads: read maker://ads-integration-guide before any ad-related work.",
-    options2.includeFeedback ? "- Tap flows: test QR -> generate_test_qrcode; current Maker game's online player feedback" : "",
-    options2.includeFeedback ? "  (bugs, real-device game logs, screenshots), or" : "- Tap flows: test QR -> generate_test_qrcode.",
-    options2.includeFeedback ? "  server/Lua logs for a specified game session -> get_debug_feedbacks only when" : "",
-    options2.includeFeedback ? "  exposed by the current Maker tool list." : "",
+    options3.includeFeedback ? "- Tap flows: test QR -> generate_test_qrcode; current Maker game's online player feedback" : "",
+    options3.includeFeedback ? "  (bugs, real-device game logs, screenshots), or" : "- Tap flows: test QR -> generate_test_qrcode.",
+    options3.includeFeedback ? "  server/Lua logs for a specified game session -> get_debug_feedbacks only when" : "",
+    options3.includeFeedback ? "  exposed by the current Maker tool list." : "",
     "- Assets: image, video, music, sound-effect, voice, 3D tools when exposed.",
     "- MCP/proxy infrastructure failure: diagnose, ask once for user consent, then use the",
     "  active client's exact Maker command/args with `mcp report`; never use an unversioned npm package. Do not report expected project or business errors.",
@@ -30765,10 +30765,10 @@ function writeAiDevKitVersionMetadata(targetDir, metadata) {
   fs6.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}
 `, "utf8");
 }
-async function fetchAiDevKitVersions(options2 = {}) {
-  const env = getMakerEnvironment(options2.environment);
+async function fetchAiDevKitVersions(options3 = {}) {
+  const env = getMakerEnvironment(options3.environment);
   const versionsUrl = getAiDevKitVersionsUrl(env);
-  const fetchFn = options2.fetchImpl || fetch;
+  const fetchFn = options3.fetchImpl || fetch;
   const response = await fetchWithTimeout(
     fetchFn,
     versionsUrl,
@@ -30777,7 +30777,7 @@ async function fetchAiDevKitVersions(options2 = {}) {
         Accept: "application/json"
       }
     },
-    options2.timeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS,
+    options3.timeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS,
     "AI dev kit version check"
   );
   if (!response.ok) {
@@ -30791,14 +30791,14 @@ async function fetchAiDevKitVersions(options2 = {}) {
   }
   return payload;
 }
-async function resolveAiDevKitDownload(options2 = {}) {
-  const env = getMakerEnvironment(options2.environment);
+async function resolveAiDevKitDownload(options3 = {}) {
+  const env = getMakerEnvironment(options3.environment);
   const versionsUrl = getAiDevKitVersionsUrl(env);
   try {
     const version2 = await fetchAiDevKitVersions({
       environment: env,
-      fetchImpl: options2.fetchImpl,
-      timeoutMs: options2.versionCheckTimeoutMs
+      fetchImpl: options3.fetchImpl,
+      timeoutMs: options3.versionCheckTimeoutMs
     });
     return {
       environment: env,
@@ -30815,14 +30815,14 @@ async function resolveAiDevKitDownload(options2 = {}) {
     };
   }
 }
-async function checkAiDevKitUpdate(targetDir, options2 = {}) {
+async function checkAiDevKitUpdate(targetDir, options3 = {}) {
   var _a3;
   const resolvedTargetDir = path7.resolve(targetDir);
   const installed = readAiDevKitVersionMetadata(resolvedTargetDir);
   const download = await resolveAiDevKitDownload({
-    environment: options2.environment,
-    fetchImpl: options2.fetchImpl,
-    versionCheckTimeoutMs: options2.versionCheckTimeoutMs
+    environment: options3.environment,
+    fetchImpl: options3.fetchImpl,
+    versionCheckTimeoutMs: options3.versionCheckTimeoutMs
   });
   const latest = (_a3 = download.version) == null ? void 0 : _a3.current;
   return {
@@ -30840,22 +30840,22 @@ function listPresentDevKitManagedEntries(targetDir) {
     (entry) => fs6.existsSync(path7.join(resolvedTargetDir, entry))
   );
 }
-async function installAiDevKit(options2 = {}) {
+async function installAiDevKit(options3 = {}) {
   var _a3;
-  const targetDir = path7.resolve(options2.targetDir || ".");
+  const targetDir = path7.resolve(options3.targetDir || ".");
   fs6.mkdirSync(targetDir, { recursive: true });
-  const download = options2.sourceDir ? void 0 : options2.url ? void 0 : await resolveAiDevKitDownload({
-    environment: options2.environment,
-    fetchImpl: options2.fetchImpl,
-    versionCheckTimeoutMs: options2.versionCheckTimeoutMs
+  const download = options3.sourceDir ? void 0 : options3.url ? void 0 : await resolveAiDevKitDownload({
+    environment: options3.environment,
+    fetchImpl: options3.fetchImpl,
+    versionCheckTimeoutMs: options3.versionCheckTimeoutMs
   });
-  const downloadUrl = options2.url || (download == null ? void 0 : download.url) || resolveDefaultAiDevKitUrl(options2.environment);
-  const preparedSource = options2.sourceDir ? path7.resolve(options2.sourceDir) : await downloadAndExtractDevKit(downloadUrl, options2.fetchImpl, options2.downloadTimeoutMs);
+  const downloadUrl = options3.url || (download == null ? void 0 : download.url) || resolveDefaultAiDevKitUrl(options3.environment);
+  const preparedSource = options3.sourceDir ? path7.resolve(options3.sourceDir) : await downloadAndExtractDevKit(downloadUrl, options3.fetchImpl, options3.downloadTimeoutMs);
   const sourceDir = resolveDevKitRoot(preparedSource);
   const entries = fs6.readdirSync(sourceDir, { withFileTypes: true });
   const installedEntries = [];
   const skippedEntries = [];
-  if (options2.replaceManagedEntries) {
+  if (options3.replaceManagedEntries) {
     replaceDevKitManagedEntries(
       targetDir,
       entries.map((entry) => entry.name)
@@ -30867,12 +30867,12 @@ async function installAiDevKit(options2 = {}) {
       continue;
     }
     copyEntry(path7.join(sourceDir, entry.name), path7.join(targetDir, entry.name), {
-      preserveExisting: options2.preserveExisting
+      preserveExisting: options3.preserveExisting
     });
     installedEntries.push(entry.name);
   }
   const skillInstaller = runDevKitSkillInstallerForInstall(targetDir, {
-    onStart: options2.onSkillInstallerStart
+    onStart: options3.onSkillInstallerStart
   });
   const instructionFiles = ensureMakerAssetPolicyInstructionFiles(targetDir);
   for (const entry of instructionFiles) {
@@ -30938,7 +30938,7 @@ function ensureMakerAssetPolicyInstructionFiles(targetDir) {
   updateMakerAgentsPolicy(targetDir);
   return [MAKER_AGENTS_FILE];
 }
-function mergeDevKitGitignoreBlock(gitignorePath, block) {
+function mergeDevKitGitignoreBlock(gitignorePath, block2) {
   const existing = fs6.existsSync(gitignorePath) ? fs6.readFileSync(gitignorePath, "utf8") : "";
   const withoutOldBlock = existing.replace(
     new RegExp(
@@ -30947,7 +30947,7 @@ function mergeDevKitGitignoreBlock(gitignorePath, block) {
     ),
     ""
   ).trimEnd();
-  const next = [withoutOldBlock, block, ""].filter((part) => part.length > 0).join("\n\n");
+  const next = [withoutOldBlock, block2, ""].filter((part) => part.length > 0).join("\n\n");
   fs6.writeFileSync(gitignorePath, next, "utf8");
 }
 function finalizeStagedDevKitGitignore(targetDir) {
@@ -30955,14 +30955,14 @@ function finalizeStagedDevKitGitignore(targetDir) {
   if (!fs6.existsSync(stagedGitignorePath)) {
     return false;
   }
-  const block = fs6.readFileSync(stagedGitignorePath, "utf8").trim();
-  if (block.length > 0) {
-    mergeDevKitGitignoreBlock(path7.join(targetDir, ".gitignore"), block);
+  const block2 = fs6.readFileSync(stagedGitignorePath, "utf8").trim();
+  if (block2.length > 0) {
+    mergeDevKitGitignoreBlock(path7.join(targetDir, ".gitignore"), block2);
   }
   fs6.rmSync(stagedGitignorePath, { force: true });
   return true;
 }
-function copyEntry(source, target, options2 = {}) {
+function copyEntry(source, target, options3 = {}) {
   const stat = fs6.statSync(source);
   if (stat.isDirectory()) {
     fs6.mkdirSync(target, { recursive: true });
@@ -30970,12 +30970,12 @@ function copyEntry(source, target, options2 = {}) {
       if (child === ".DS_Store") {
         continue;
       }
-      copyEntry(path7.join(source, child), path7.join(target, child), options2);
+      copyEntry(path7.join(source, child), path7.join(target, child), options3);
     }
     return;
   }
   if (stat.isFile()) {
-    if (options2.preserveExisting && fs6.existsSync(target)) {
+    if (options3.preserveExisting && fs6.existsSync(target)) {
       return;
     }
     fs6.mkdirSync(path7.dirname(target), { recursive: true });
@@ -31018,8 +31018,8 @@ function readManagedGitignoreEntries(gitignorePath) {
   );
   const entries = [];
   for (const match of content.matchAll(blockPattern)) {
-    const block = match[1] || "";
-    for (const line of block.split(/\r?\n/)) {
+    const block2 = match[1] || "";
+    for (const line of block2.split(/\r?\n/)) {
       const entry = line.trim().replace(/\/$/, "");
       if (entry && !entry.startsWith("#")) {
         entries.push(entry);
@@ -31028,7 +31028,7 @@ function readManagedGitignoreEntries(gitignorePath) {
   }
   return entries;
 }
-function installAiDevKitSkills(targetDir, options2 = {}) {
+function installAiDevKitSkills(targetDir, options3 = {}) {
   var _a3;
   const toolsDir = path7.join(targetDir, "tools");
   if (!fs6.existsSync(toolsDir) || !fs6.statSync(toolsDir).isDirectory()) {
@@ -31056,7 +31056,7 @@ function installAiDevKitSkills(targetDir, options2 = {}) {
     };
   }
   const command = isWindows ? ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "all"] : ["bash", scriptPath, "all"];
-  (_a3 = options2.onStart) == null ? void 0 : _a3.call(options2, {
+  (_a3 = options3.onStart) == null ? void 0 : _a3.call(options3, {
     platform: process.platform,
     script: scriptPath,
     cwd: toolsDir,
@@ -31085,9 +31085,9 @@ function installAiDevKitSkills(targetDir, options2 = {}) {
     summary: summarizeSkillInstallerOutput(stdout)
   };
 }
-function runDevKitSkillInstallerForInstall(targetDir, options2 = {}) {
+function runDevKitSkillInstallerForInstall(targetDir, options3 = {}) {
   try {
-    return installAiDevKitSkills(targetDir, options2);
+    return installAiDevKitSkills(targetDir, options3);
   } catch (error2) {
     if (error2 instanceof AiDevKitSkillInstallerError) {
       return error2.result;
@@ -31198,32 +31198,32 @@ function formatSpawnFailure(result) {
   var _a3;
   return ((_a3 = result.error) == null ? void 0 : _a3.message) || String(result.stderr || "").trim() || String(result.stdout || "").trim() || `exit status ${result.status ?? "unknown"}`;
 }
-function formatDevKitSkillInstallerFailure(options2) {
+function formatDevKitSkillInstallerFailure(options3) {
   return [
     "Failed to install AI dev kit skills",
-    `platform: ${options2.platform}`,
-    `script: ${options2.scriptPath}`,
-    `cwd: ${options2.toolsDir}`,
-    `command: ${options2.command.map(shellQuote).join(" ")}`,
-    `exit_status: ${options2.result.status ?? "unknown"}`,
-    options2.result.signal ? `signal: ${options2.result.signal}` : "",
-    options2.result.error ? `spawn_error: ${options2.result.error.message}` : "",
+    `platform: ${options3.platform}`,
+    `script: ${options3.scriptPath}`,
+    `cwd: ${options3.toolsDir}`,
+    `command: ${options3.command.map(shellQuote).join(" ")}`,
+    `exit_status: ${options3.result.status ?? "unknown"}`,
+    options3.result.signal ? `signal: ${options3.result.signal}` : "",
+    options3.result.error ? `spawn_error: ${options3.result.error.message}` : "",
     "stdout:",
-    formatSpawnOutput(options2.result.stdout),
+    formatSpawnOutput(options3.result.stdout),
     "stderr:",
-    formatSpawnOutput(options2.result.stderr)
+    formatSpawnOutput(options3.result.stderr)
   ].filter((line) => line.length > 0).join("\n");
 }
-function formatFailedSkillInstallerResult(options2) {
+function formatFailedSkillInstallerResult(options3) {
   return {
     ok: false,
     status: "failed",
-    script: options2.scriptPath,
-    stdout: String(options2.result.stdout || ""),
-    stderr: String(options2.result.stderr || ""),
-    summary: summarizeSkillInstallerFailure(options2.result),
+    script: options3.scriptPath,
+    stdout: String(options3.result.stdout || ""),
+    stderr: String(options3.result.stderr || ""),
+    summary: summarizeSkillInstallerFailure(options3.result),
     reason: "installer_failed",
-    error: formatDevKitSkillInstallerFailure(options2)
+    error: formatDevKitSkillInstallerFailure(options3)
   };
 }
 function summarizeSkillInstallerFailure(result) {
@@ -31483,9 +31483,9 @@ var init_projectRegistry = __esm({
       }
     };
     MakerProjectRegistry = class {
-      constructor(filename2 = getMakerProjectRegistryPath(), options2 = {}) {
+      constructor(filename2 = getMakerProjectRegistryPath(), options3 = {}) {
         this.filename = filename2;
-        this.legacyFilename = options2.legacyFilename ?? (filename2 === getMakerProjectRegistryPath() ? getLegacyMakerProjectRegistryPath() : void 0);
+        this.legacyFilename = options3.legacyFilename ?? (filename2 === getMakerProjectRegistryPath() ? getLegacyMakerProjectRegistryPath() : void 0);
         if (!path9.isAbsolute(filename2) || this.legacyFilename && !path9.isAbsolute(this.legacyFilename))
           throw new MakerProjectRegistryError("Registry paths must be absolute.");
         if (this.legacyFilename && path9.resolve(this.legacyFilename) === path9.resolve(filename2))
@@ -31652,14 +31652,14 @@ function normalizeProjectsResponse(data) {
     };
   }).filter((project) => project.id.length > 0);
 }
-async function listMakerProjects(options2) {
-  const pat = (options2 == null ? void 0 : options2.pat) ? saveManualMakerPat(options2.pat) : getManualMakerPat() || loadPat();
+async function listMakerProjects(options3) {
+  const pat = (options3 == null ? void 0 : options3.pat) ? saveManualMakerPat(options3.pat) : getManualMakerPat() || loadPat();
   const url2 = new URL(`${getMakerApiBase()}/apps`);
   let authToken = pat == null ? void 0 : pat.token;
   if (!authToken) {
-    const jwt2 = requireMakerJwt(options2 == null ? void 0 : options2.jwt);
+    const jwt2 = requireMakerJwt(options3 == null ? void 0 : options3.jwt);
     const userId = getUserIdFromMakerJwt(jwt2);
-    authToken = (options2 == null ? void 0 : options2.jwt) || jwt2.token;
+    authToken = (options3 == null ? void 0 : options3.jwt) || jwt2.token;
     if (userId) {
       url2.searchParams.set("userId", userId);
     }
@@ -31676,21 +31676,21 @@ async function listMakerProjects(options2) {
   }
   return normalizeProjectsResponse(json2);
 }
-async function createMakerProject(options2) {
-  const name = options2.name.trim();
+async function createMakerProject(options3) {
+  const name = options3.name.trim();
   if (!name) {
     throw new Error("Maker project name is required.");
   }
   const response = await fetch(`${getMakerApiBase()}/apps`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${options2.pat}`,
+      Authorization: `Bearer ${options3.pat}`,
       Accept: "application/json",
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
       name,
-      gameType: options2.gameType || "sce"
+      gameType: options3.gameType || "sce"
     })
   });
   const json2 = await response.json();
@@ -31710,43 +31710,43 @@ function ensureMakerProjectBaseDirectories(targetDir) {
     fs9.mkdirSync(path10.join(targetDir, relativeDir), { recursive: true });
   }
 }
-async function cloneMakerProject(options2) {
+async function cloneMakerProject(options3) {
   var _a3, _b, _c, _d, _e, _f, _g, _h;
-  const target = path10.resolve(options2.targetDir);
-  ensureTargetCanBindApp(target, options2.appId);
+  const target = path10.resolve(options3.targetDir);
+  ensureTargetCanBindApp(target, options3.appId);
   const warnings = createPreCloneWarnings(target);
-  (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
+  (_a3 = options3.onProgress) == null ? void 0 : _a3.call(options3, {
     progress: 0,
     total: 100,
     phase: "pre_clone_check",
-    message: formatPreCloneProgressMessage(options2.appId, warnings)
+    message: formatPreCloneProgressMessage(options3.appId, warnings)
   });
   ensureGitAvailable();
-  (_b = options2.onProgress) == null ? void 0 : _b.call(options2, {
+  (_b = options3.onProgress) == null ? void 0 : _b.call(options3, {
     progress: 1,
     total: 100,
     phase: "prepare",
-    message: `Preparing Maker project ${options2.appId}`
+    message: `Preparing Maker project ${options3.appId}`
   });
   let pat = await requestMakerPat({
-    jwt: options2.jwt,
-    pat: options2.pat,
-    name: options2.patName || "first-pat",
-    force: options2.forcePat
+    jwt: options3.jwt,
+    pat: options3.pat,
+    name: options3.patName || "first-pat",
+    force: options3.forcePat
   });
-  (_c = options2.onProgress) == null ? void 0 : _c.call(options2, {
+  (_c = options3.onProgress) == null ? void 0 : _c.call(options3, {
     progress: 5,
     total: 100,
     phase: "auth",
     message: "Maker PAT ready for git authentication"
   });
   const gitBase = getMakerGitBase();
-  const gitUrl = `${gitBase}/${options2.appId}.git`;
+  const gitUrl = `${gitBase}/${options3.appId}.git`;
   let authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
   let retriedWithNewPat = false;
   let transientRetries = 0;
   if (isOwnGitRoot(target) && hasGitHead(target)) {
-    (_d = options2.onProgress) == null ? void 0 : _d.call(options2, {
+    (_d = options3.onProgress) == null ? void 0 : _d.call(options3, {
       progress: 10,
       total: 100,
       phase: "fetch",
@@ -31756,44 +31756,44 @@ async function cloneMakerProject(options2) {
     try {
       transientRetries += await runGitWithTransientRetry(["fetch", "--progress", "origin"], {
         cwd: target,
-        onProgress: options2.onProgress
+        onProgress: options3.onProgress
       });
     } catch (error2) {
-      if (options2.forcePat || !isAuthGitError(error2)) {
+      if (options3.forcePat || !isAuthGitError(error2)) {
         throw withPreCloneWarnings(error2, warnings);
       }
       pat = await refreshPatAfterAuthFailure(error2, {
-        jwt: options2.jwt,
-        pat: options2.pat,
-        name: options2.patName || "first-pat"
+        jwt: options3.jwt,
+        pat: options3.pat,
+        name: options3.patName || "first-pat"
       });
       authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
       retriedWithNewPat = true;
       await setOrigin(target, authUrl);
       transientRetries += await runGitWithTransientRetry(["fetch", "--progress", "origin"], {
         cwd: target,
-        onProgress: options2.onProgress
+        onProgress: options3.onProgress
       }).catch((retryError) => {
         throw withPreCloneWarnings(retryError, warnings);
       });
     }
     saveProjectConfig(target, {
-      project_id: options2.appId,
-      user_id: options2.userId || await resolveMakerProjectUserId(options2),
-      sce_endpoint: options2.sceEndpoint
+      project_id: options3.appId,
+      user_id: options3.userId || await resolveMakerProjectUserId(options3),
+      sce_endpoint: options3.sceEndpoint
     });
     ensureMakerProjectBaseDirectories(target);
     finalizeStagedDevKitGitignore(target);
     const registryWarning2 = registerMakerProject(target);
     if (registryWarning2) warnings.push(registryWarning2);
-    (_e = options2.onProgress) == null ? void 0 : _e.call(options2, {
+    (_e = options3.onProgress) == null ? void 0 : _e.call(options3, {
       progress: 100,
       total: 100,
       phase: "done",
       message: "Maker project fetch completed"
     });
     return {
-      appId: options2.appId,
+      appId: options3.appId,
       targetDir: target,
       status: "fetched",
       retriedWithNewPat,
@@ -31807,40 +31807,40 @@ async function cloneMakerProject(options2) {
     );
   }
   try {
-    (_f = options2.onProgress) == null ? void 0 : _f.call(options2, {
+    (_f = options3.onProgress) == null ? void 0 : _f.call(options3, {
       progress: 10,
       total: 100,
       phase: "clone",
-      message: `Checking out Maker project ${options2.appId}`
+      message: `Checking out Maker project ${options3.appId}`
     });
     transientRetries += await fetchAndCheckoutTarget(
       target,
       authUrl,
       pat.token,
-      options2.onProgress
+      options3.onProgress
     );
   } catch (error2) {
-    if (options2.forcePat || !isAuthGitError(error2)) {
+    if (options3.forcePat || !isAuthGitError(error2)) {
       throw withPreCloneWarnings(error2, warnings);
     }
     pat = await refreshPatAfterAuthFailure(error2, {
-      jwt: options2.jwt,
-      pat: options2.pat,
-      name: options2.patName || "first-pat"
+      jwt: options3.jwt,
+      pat: options3.pat,
+      name: options3.patName || "first-pat"
     });
     authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
     retriedWithNewPat = true;
-    (_g = options2.onProgress) == null ? void 0 : _g.call(options2, {
+    (_g = options3.onProgress) == null ? void 0 : _g.call(options3, {
       progress: 10,
       total: 100,
       phase: "clone",
-      message: `Retrying Maker project checkout ${options2.appId} with refreshed PAT`
+      message: `Retrying Maker project checkout ${options3.appId} with refreshed PAT`
     });
     transientRetries += await fetchAndCheckoutTarget(
       target,
       authUrl,
       pat.token,
-      options2.onProgress
+      options3.onProgress
     ).catch((retryError) => {
       throw withPreCloneWarnings(retryError, warnings);
     });
@@ -31853,21 +31853,21 @@ async function cloneMakerProject(options2) {
   }
   finalizeStagedDevKitGitignore(target);
   saveProjectConfig(target, {
-    project_id: options2.appId,
-    user_id: options2.userId || await resolveMakerProjectUserId(options2),
-    sce_endpoint: options2.sceEndpoint
+    project_id: options3.appId,
+    user_id: options3.userId || await resolveMakerProjectUserId(options3),
+    sce_endpoint: options3.sceEndpoint
   });
   ensureMakerProjectBaseDirectories(target);
   const registryWarning = registerMakerProject(target);
   if (registryWarning) warnings.push(registryWarning);
-  (_h = options2.onProgress) == null ? void 0 : _h.call(options2, {
+  (_h = options3.onProgress) == null ? void 0 : _h.call(options3, {
     progress: 100,
     total: 100,
     phase: "done",
     message: "Maker project checkout completed"
   });
   return {
-    appId: options2.appId,
+    appId: options3.appId,
     targetDir: target,
     status: "cloned",
     retriedWithNewPat,
@@ -31875,16 +31875,16 @@ async function cloneMakerProject(options2) {
     warnings
   };
 }
-async function pushMakerProject(options2) {
+async function pushMakerProject(options3) {
   var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   ensureGitAvailable();
-  (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
+  (_a3 = options3.onProgress) == null ? void 0 : _a3.call(options3, {
     progress: 0,
     total: 100,
     phase: "prepare",
     message: "Preparing Maker project push"
   });
-  const requestedCwd = path10.resolve(options2.cwd);
+  const requestedCwd = path10.resolve(options3.cwd);
   const workspace = resolveUsableMakerGitWorkspace(requestedCwd);
   const cwd = workspace.projectRoot;
   const project = loadProjectConfig(cwd);
@@ -31894,12 +31894,12 @@ async function pushMakerProject(options2) {
   await ensureAuthenticatedOrigin({
     cwd,
     appId: project.project_id,
-    jwt: options2.jwt,
-    pat: options2.pat,
-    forcePat: options2.forcePat,
-    onProgress: options2.onProgress
+    jwt: options3.jwt,
+    pat: options3.pat,
+    forcePat: options3.forcePat,
+    onProgress: options3.onProgress
   });
-  (_b = options2.onProgress) == null ? void 0 : _b.call(options2, {
+  (_b = options3.onProgress) == null ? void 0 : _b.call(options3, {
     progress: 10,
     total: 100,
     phase: "auth",
@@ -31907,7 +31907,7 @@ async function pushMakerProject(options2) {
   });
   const remoteSyncStatus = await inspectMakerRemoteSyncStatus(cwd);
   if (remoteSyncStatus.status === "needs_pull") {
-    (_c = options2.onProgress) == null ? void 0 : _c.call(options2, {
+    (_c = options3.onProgress) == null ? void 0 : _c.call(options3, {
       progress: 15,
       total: 100,
       phase: "pull",
@@ -31951,10 +31951,10 @@ ${failure.stderr || ""}`
     };
   }
   const statusBefore = await readGit(["status", "--porcelain"], cwd);
-  const branch = await currentBranch(cwd, options2.branch);
+  const branch = await currentBranch(cwd, options3.branch);
   const unpushed = await readUnpushedCommitState(cwd, branch);
-  if (!statusBefore.trim() && !options2.allowEmpty && !unpushed.hasUnpushedCommits) {
-    (_d = options2.onProgress) == null ? void 0 : _d.call(options2, {
+  if (!statusBefore.trim() && !options3.allowEmpty && !unpushed.hasUnpushedCommits) {
+    (_d = options3.onProgress) == null ? void 0 : _d.call(options3, {
       progress: 100,
       total: 100,
       phase: "done",
@@ -31972,20 +31972,20 @@ ${failure.stderr || ""}`
   let commitHash;
   let message;
   let transientRetries = 0;
-  if (!statusBefore.trim() && !options2.allowEmpty && unpushed.hasUnpushedCommits) {
+  if (!statusBefore.trim() && !options3.allowEmpty && unpushed.hasUnpushedCommits) {
     commitHash = (await readGit(["rev-parse", "--short", "HEAD"], cwd)).trim();
-  } else if ((_e = options2.files) == null ? void 0 : _e.length) {
-    (_f = options2.onProgress) == null ? void 0 : _f.call(options2, {
+  } else if ((_e = options3.files) == null ? void 0 : _e.length) {
+    (_f = options3.onProgress) == null ? void 0 : _f.call(options3, {
       progress: 20,
       total: 100,
       phase: "stage",
       message: "Staging selected files"
     });
-    await runGit(["add", ...includeMandatoryMakerSubmitFiles(cwd, options2.files)], { cwd });
+    await runGit(["add", ...includeMandatoryMakerSubmitFiles(cwd, options3.files)], { cwd });
     const staged = await readGit(["diff", "--cached", "--name-only"], cwd);
-    message = options2.message || generateCommitMessage(statusBefore);
-    if (staged.trim() || options2.allowEmpty) {
-      (_g = options2.onProgress) == null ? void 0 : _g.call(options2, {
+    message = options3.message || generateCommitMessage(statusBefore);
+    if (staged.trim() || options3.allowEmpty) {
+      (_g = options3.onProgress) == null ? void 0 : _g.call(options3, {
         progress: 45,
         total: 100,
         phase: "commit",
@@ -31998,7 +31998,7 @@ ${failure.stderr || ""}`
           "-c",
           "user.name=taptap-maker",
           "commit",
-          ...options2.allowEmpty ? ["--allow-empty"] : [],
+          ...options3.allowEmpty ? ["--allow-empty"] : [],
           "-m",
           message
         ],
@@ -32008,7 +32008,7 @@ ${failure.stderr || ""}`
       commitHash = (await readGit(["rev-parse", "--short", "HEAD"], cwd)).trim();
     }
   } else {
-    (_h = options2.onProgress) == null ? void 0 : _h.call(options2, {
+    (_h = options3.onProgress) == null ? void 0 : _h.call(options3, {
       progress: 20,
       total: 100,
       phase: "stage",
@@ -32016,9 +32016,9 @@ ${failure.stderr || ""}`
     });
     await runGit(["add", "-A"], { cwd });
     const staged = await readGit(["diff", "--cached", "--name-only"], cwd);
-    message = options2.message || generateCommitMessage(statusBefore);
-    if (staged.trim() || options2.allowEmpty) {
-      (_i = options2.onProgress) == null ? void 0 : _i.call(options2, {
+    message = options3.message || generateCommitMessage(statusBefore);
+    if (staged.trim() || options3.allowEmpty) {
+      (_i = options3.onProgress) == null ? void 0 : _i.call(options3, {
         progress: 45,
         total: 100,
         phase: "commit",
@@ -32031,7 +32031,7 @@ ${failure.stderr || ""}`
           "-c",
           "user.name=taptap-maker",
           "commit",
-          ...options2.allowEmpty ? ["--allow-empty"] : [],
+          ...options3.allowEmpty ? ["--allow-empty"] : [],
           "-m",
           message
         ],
@@ -32042,7 +32042,7 @@ ${failure.stderr || ""}`
     }
   }
   try {
-    (_j = options2.onProgress) == null ? void 0 : _j.call(options2, {
+    (_j = options3.onProgress) == null ? void 0 : _j.call(options3, {
       progress: 65,
       total: 100,
       phase: "push",
@@ -32051,7 +32051,7 @@ ${failure.stderr || ""}`
     transientRetries += await pushGitWithTransientRetry(
       ["push", "origin", `HEAD:${branch}`],
       cwd,
-      options2.onProgress
+      options3.onProgress
     );
   } catch (error2) {
     const failure = toMakerGitFailure(error2, "push");
@@ -32067,7 +32067,7 @@ ${failure.stderr || ""}`
       transientRetries
     };
   }
-  (_k = options2.onProgress) == null ? void 0 : _k.call(options2, {
+  (_k = options3.onProgress) == null ? void 0 : _k.call(options3, {
     progress: 100,
     total: 100,
     phase: "done",
@@ -32525,31 +32525,31 @@ function pushGitWithTransientRetry(args, cwd, onProgress) {
     }
   );
 }
-async function resolveMakerProjectUserId(options2) {
+async function resolveMakerProjectUserId(options3) {
   var _a3;
   try {
     const projects = await listMakerProjects({
-      jwt: options2.jwt,
-      pat: options2.pat
+      jwt: options3.jwt,
+      pat: options3.pat
     });
-    return (_a3 = projects.find((project) => project.id === options2.appId)) == null ? void 0 : _a3.user_id;
+    return (_a3 = projects.find((project) => project.id === options3.appId)) == null ? void 0 : _a3.user_id;
   } catch {
     return void 0;
   }
 }
-async function ensureAuthenticatedOrigin(options2) {
+async function ensureAuthenticatedOrigin(options3) {
   var _a3;
   const pat = await requestMakerPat({
-    jwt: options2.jwt,
-    pat: options2.pat,
+    jwt: options3.jwt,
+    pat: options3.pat,
     name: "first-pat",
-    force: options2.forcePat
+    force: options3.forcePat
   });
   const gitBase = getMakerGitBase();
-  const gitUrl = `${gitBase}/${options2.appId}.git`;
+  const gitUrl = `${gitBase}/${options3.appId}.git`;
   const authUrl = makeAuthenticatedGitUrl(gitUrl, pat.token);
-  await setOrigin(options2.cwd, authUrl);
-  (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
+  await setOrigin(options3.cwd, authUrl);
+  (_a3 = options3.onProgress) == null ? void 0 : _a3.call(options3, {
     progress: 8,
     total: 100,
     phase: "auth",
@@ -32673,12 +32673,12 @@ function isIgnorablePreCloneEntry(entryName) {
 function isAuthGitError(error2) {
   return toMakerGitFailure(error2, "clone").classification === "auth";
 }
-async function refreshPatAfterAuthFailure(originalError, options2) {
+async function refreshPatAfterAuthFailure(originalError, options3) {
   try {
     return await requestMakerPat({
-      jwt: options2.jwt,
-      pat: options2.pat,
-      name: options2.name || "first-pat",
+      jwt: options3.jwt,
+      pat: options3.pat,
+      name: options3.name || "first-pat",
       force: true
     });
   } catch (refreshError) {
@@ -32972,24 +32972,24 @@ function readGit(args, cwd) {
     child.on("error", reject);
   });
 }
-async function runGitWithTransientRetry(args, options2) {
+async function runGitWithTransientRetry(args, options3) {
   const stage = args[0] || "git";
   return runMakerGitNetworkOperationWithTransientRetry(
     args,
-    (effectiveArgs) => runGit(effectiveArgs, { ...options2, stage }),
+    (effectiveArgs) => runGit(effectiveArgs, { ...options3, stage }),
     {
       stage,
-      onProgress: options2.onProgress
+      onProgress: options3.onProgress
     }
   );
 }
-async function runGitCaptureWithTransientRetry(args, options2 = {}) {
-  return runWithTransientRetry(() => runGitCapture(args, options2), {
+async function runGitCaptureWithTransientRetry(args, options3 = {}) {
+  return runWithTransientRetry(() => runGitCapture(args, options3), {
     stage: args[0] || "git",
-    onProgress: options2.onProgress
+    onProgress: options3.onProgress
   });
 }
-async function runWithTransientRetry(operation, options2) {
+async function runWithTransientRetry(operation, options3) {
   var _a3, _b;
   let retries = 0;
   const maxRetries = 5;
@@ -33006,23 +33006,23 @@ async function runWithTransientRetry(operation, options2) {
         throw appendRetryExhausted(error2, retries, decision);
       }
       retries += 1;
-      (_a3 = options2.onRetry) == null ? void 0 : _a3.call(options2, decision);
-      (_b = options2.onProgress) == null ? void 0 : _b.call(options2, {
-        phase: options2.stage,
-        message: formatGitRetryProgressMessage(options2.stage, decision, retries, maxRetries)
+      (_a3 = options3.onRetry) == null ? void 0 : _a3.call(options3, decision);
+      (_b = options3.onProgress) == null ? void 0 : _b.call(options3, {
+        phase: options3.stage,
+        message: formatGitRetryProgressMessage(options3.stage, decision, retries, maxRetries)
       });
       await sleep(getMakerGitRetryDelayMs() * retries);
     }
   }
 }
-async function runMakerGitNetworkOperationWithTransientRetry(args, operation, options2) {
+async function runMakerGitNetworkOperationWithTransientRetry(args, operation, options3) {
   let fallbackHttpVersion;
   return runWithTransientRetry(
     () => operation(
       fallbackHttpVersion ? ["-c", `http.version=${fallbackHttpVersion}`, ...args] : [...args]
     ),
     {
-      ...options2,
+      ...options3,
       onRetry: (decision) => {
         fallbackHttpVersion = decision.fallbackHttpVersion || fallbackHttpVersion;
       }
@@ -33078,11 +33078,11 @@ function getMakerGitRetryDelayMs() {
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-function runGitCapture(args, options2 = {}) {
+function runGitCapture(args, options3 = {}) {
   return new Promise((resolve, reject) => {
     const gitCommand = getGitCommand();
     const child = spawn3(gitCommand, args, {
-      cwd: options2.cwd,
+      cwd: options3.cwd,
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -33092,17 +33092,17 @@ function runGitCapture(args, options2 = {}) {
     });
     child.stderr.on("data", (chunk) => {
       stderr += String(chunk);
-      emitGitProgress(chunk, options2.onProgress, options2.sanitize);
+      emitGitProgress(chunk, options3.onProgress, options3.sanitize);
     });
     child.on("exit", (code) => {
       if (code === 0) {
         resolve();
         return;
       }
-      const pretty = `${gitCommand} ${args.map((arg) => sanitize(arg, options2.sanitize)).join(" ")}`;
+      const pretty = `${gitCommand} ${args.map((arg) => sanitize(arg, options3.sanitize)).join(" ")}`;
       const detail = sanitize(
         [stdout.trim(), stderr.trim()].filter(Boolean).join("\n"),
-        options2.sanitize
+        options3.sanitize
       );
       reject(
         new Error([`${pretty} failed with exit code ${code}`, detail].filter(Boolean).join("\n"))
@@ -33111,11 +33111,11 @@ function runGitCapture(args, options2 = {}) {
     child.on("error", reject);
   });
 }
-function runGit(args, options2) {
+function runGit(args, options3) {
   return new Promise((resolve, reject) => {
     const gitCommand = getGitCommand();
     const child = spawn3(gitCommand, args, {
-      cwd: options2.cwd,
+      cwd: options3.cwd,
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -33125,7 +33125,7 @@ function runGit(args, options2) {
     });
     child.stderr.on("data", (chunk) => {
       stderr += String(chunk);
-      emitGitProgress(chunk, options2.onProgress);
+      emitGitProgress(chunk, options3.onProgress);
     });
     child.on("exit", (code) => {
       if (code === 0) {
@@ -33134,11 +33134,11 @@ function runGit(args, options2) {
         reject(
           new MakerGitError(
             createGitFailure({
-              stage: options2.stage || args[0] || "git",
+              stage: options3.stage || args[0] || "git",
               command: `${gitCommand} ${args.join(" ")}`,
               exitCode: code,
-              stdout: options2.quiet ? "" : stdout,
-              stderr: options2.quiet ? "" : stderr
+              stdout: options3.quiet ? "" : stdout,
+              stderr: options3.quiet ? "" : stderr
             })
           )
         );
@@ -33148,10 +33148,10 @@ function runGit(args, options2) {
       reject(
         new MakerGitError(
           createGitFailure({
-            stage: options2.stage || args[0] || "git",
+            stage: options3.stage || args[0] || "git",
             command: `${gitCommand} ${args.join(" ")}`,
             exitCode: null,
-            stdout: options2.quiet ? "" : stdout,
+            stdout: options3.quiet ? "" : stdout,
             stderr: error2.message
           })
         )
@@ -33260,10 +33260,10 @@ function getMakerTapTokenUrl(environment) {
   const tapTokenUrl = getMakerEndpoints(environment).tapTokenUrl;
   return requireMakerEndpoint("tapTokenUrl", tapTokenUrl, environment);
 }
-async function requestTapAuthWithPat(manualPat, environment, options2 = {}) {
+async function requestTapAuthWithPat(manualPat, environment, options3 = {}) {
   const pat = requireMakerPat(manualPat);
   const response = await fetchWithTimeout(
-    options2.fetchImpl || fetch,
+    options3.fetchImpl || fetch,
     getMakerTapTokenUrl(environment),
     {
       headers: {
@@ -33271,7 +33271,7 @@ async function requestTapAuthWithPat(manualPat, environment, options2 = {}) {
         Accept: "application/json"
       }
     },
-    options2.timeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS,
+    options3.timeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS,
     "TapTap token request"
   );
   const text2 = await response.text();
@@ -33326,10 +33326,10 @@ function getMakerUvPath(platform = process.platform) {
 function getMakerUvPythonInstallDir() {
   return path11.join(getMakerHome(), "python", "uv");
 }
-function checkMakerPythonEnvironment(options2 = {}) {
-  const platform = options2.platform || process.platform;
-  const runner = options2.spawn || spawnSync4;
-  const env = options2.env || process.env;
+function checkMakerPythonEnvironment(options3 = {}) {
+  const platform = options3.platform || process.platform;
+  const runner = options3.spawn || spawnSync4;
+  const env = options3.env || process.env;
   const uvPath = getMakerUvPath(platform);
   const setupCommand = "taptap-maker python setup";
   const pathCommand = "taptap-maker python path";
@@ -33408,14 +33408,14 @@ function checkMakerPythonEnvironment(options2 = {}) {
     nextAction: status === "store_alias_only" ? "检测到 Windows Store Python alias，但这不是真实 Python。请运行 `taptap-maker python setup` 准备 Python 环境。" : "未检测到可用 Python。请运行 `taptap-maker python setup` 准备 Python 环境。"
   };
 }
-function setupMakerPythonEnvironment(options2 = {}) {
-  const before = checkMakerPythonEnvironment(options2);
+function setupMakerPythonEnvironment(options3 = {}) {
+  const before = checkMakerPythonEnvironment(options3);
   if (before.ready) {
     savePythonRuntimeConfig(before);
     return { changed: false, environment: before, uvInstalled: before.uv.installed };
   }
-  const platform = options2.platform || process.platform;
-  const runner = options2.spawn || spawnSync4;
+  const platform = options3.platform || process.platform;
+  const runner = options3.spawn || spawnSync4;
   try {
     const uvPath = ensureUvInstalled(platform, runner);
     const uvEnv = createUvPythonEnv();
@@ -33733,10 +33733,10 @@ function getMakerLuaLspConfigPath() {
 function getMakerLuaLspVenvDir() {
   return path12.join(getMakerHome(), "lua-lsp-venv");
 }
-function checkMakerLuaLspEnvironment(options2 = {}) {
-  const runner = options2.spawn || spawnSync5;
-  const python = options2.pythonEnvironment || checkMakerPythonEnvironment(options2);
-  const platform = options2.platform || python.platform || process.platform;
+function checkMakerLuaLspEnvironment(options3 = {}) {
+  const runner = options3.spawn || spawnSync5;
+  const python = options3.pythonEnvironment || checkMakerPythonEnvironment(options3);
+  const platform = options3.platform || python.platform || process.platform;
   const base = createLuaLspBase(platform);
   if (!python.ready || !python.python) {
     return {
@@ -33805,10 +33805,10 @@ function checkMakerLuaLspEnvironment(options2 = {}) {
     nextAction: "未检测到 maker-lua-lsp。请运行 `taptap-maker lua-lsp setup`，或运行 `taptap-maker python setup` 自动准备完整本地 Lua 诊断环境。"
   };
 }
-function setupMakerLuaLspEnvironment(options2 = {}) {
-  const runner = options2.spawn || spawnSync5;
-  const python = options2.pythonEnvironment || ensurePythonForLuaLsp(options2);
-  const platform = options2.platform || python.platform || process.platform;
+function setupMakerLuaLspEnvironment(options3 = {}) {
+  const runner = options3.spawn || spawnSync5;
+  const python = options3.pythonEnvironment || ensurePythonForLuaLsp(options3);
+  const platform = options3.platform || python.platform || process.platform;
   if (!python.ready || !python.python) {
     const environment2 = {
       ...createLuaLspBase(platform),
@@ -33891,8 +33891,8 @@ function setupMakerLuaLspEnvironment(options2 = {}) {
   saveLuaLspRuntimeConfig(environment);
   return { changed: true, environment, python };
 }
-async function checkMakerLuaLspProject(project, options2 = {}) {
-  const environment = checkMakerLuaLspEnvironment(options2);
+async function checkMakerLuaLspProject(project, options3 = {}) {
+  const environment = checkMakerLuaLspEnvironment(options3);
   if (!environment.ready || !environment.command) {
     return {
       ok: false,
@@ -33930,7 +33930,7 @@ async function checkMakerLuaLspProject(project, options2 = {}) {
   const outputDir = fs11.mkdtempSync(path12.join(os4.tmpdir(), "maker-lua-lsp-check-"));
   const args = ["--mode", "check", "--path", scripts, "--output-dir", outputDir, "--quiet"];
   try {
-    const result = options2.spawn ? options2.spawn(environment.command, args, {
+    const result = options3.spawn ? options3.spawn(environment.command, args, {
       encoding: "utf8",
       timeout: LUA_LSP_CHECK_TIMEOUT_MS
     }) : await spawnLuaCheck(environment.command, args);
@@ -34054,13 +34054,13 @@ function formatMakerLuaLspEnvironmentStatus(environment) {
     `- next_action: ${environment.nextAction}`
   ].filter(Boolean).join("\n");
 }
-function ensurePythonForLuaLsp(options2) {
-  const current = checkMakerPythonEnvironment(options2);
+function ensurePythonForLuaLsp(options3) {
+  const current = checkMakerPythonEnvironment(options3);
   if (current.ready) {
     return current;
   }
   try {
-    return setupMakerPythonEnvironment(options2).environment;
+    return setupMakerPythonEnvironment(options3).environment;
   } catch (error2) {
     return {
       ...current,
@@ -34385,16 +34385,16 @@ var init_skill = __esm({
 // src/maker/server/runtimeLogs.ts
 import fs13 from "node:fs";
 import path14 from "node:path";
-async function watchRuntimeLogs(options2) {
+async function watchRuntimeLogs(options3) {
   var _a3, _b;
-  if (options2.reset) {
-    resetRuntimeLogs(options2.projectRoot);
+  if (options3.reset) {
+    resetRuntimeLogs(options3.projectRoot);
   }
-  const intervalMs = options2.intervalMs ?? 5e3;
-  const idleTimeoutMs = options2.idleTimeoutMs ?? DEFAULT_RUNTIME_LOG_IDLE_TIMEOUT_MS;
-  const maxConsecutiveFailures = options2.maxConsecutiveFailures;
-  const sleep2 = options2.sleep || defaultSleep;
-  const nowMs = options2.nowMs || Date.now;
+  const intervalMs = options3.intervalMs ?? 5e3;
+  const idleTimeoutMs = options3.idleTimeoutMs ?? DEFAULT_RUNTIME_LOG_IDLE_TIMEOUT_MS;
+  const maxConsecutiveFailures = options3.maxConsecutiveFailures;
+  const sleep2 = options3.sleep || defaultSleep;
+  const nowMs = options3.nowMs || Date.now;
   let polls = 0;
   let writtenLogs = 0;
   let lastResult;
@@ -34404,32 +34404,32 @@ async function watchRuntimeLogs(options2) {
     try {
       const previousCursor = lastResult == null ? void 0 : lastResult.nextStartTime;
       const result = await pullRuntimeLogs({
-        projectRoot: options2.projectRoot,
-        projectId: options2.projectId,
-        sinceSeconds: options2.sinceSeconds,
-        limit: options2.limit,
-        nowMs: options2.nowMs,
-        callRemoteRuntimeLogs: options2.callRemoteRuntimeLogs
+        projectRoot: options3.projectRoot,
+        projectId: options3.projectId,
+        sinceSeconds: options3.sinceSeconds,
+        limit: options3.limit,
+        nowMs: options3.nowMs,
+        callRemoteRuntimeLogs: options3.callRemoteRuntimeLogs
       });
       polls += 1;
       writtenLogs += result.writtenLogs;
       lastResult = result;
       consecutiveFailures = 0;
-      await ((_a3 = options2.onPoll) == null ? void 0 : _a3.call(options2, result));
+      await ((_a3 = options3.onPoll) == null ? void 0 : _a3.call(options3, result));
       if (result.writtenLogs > 0) {
         idleStartedAt = nowMs();
       } else if (nowMs() - idleStartedAt >= idleTimeoutMs) {
         return {
-          projectRoot: options2.projectRoot,
+          projectRoot: options3.projectRoot,
           polls,
           writtenLogs,
           lastResult,
           stopReason: "idle_timeout"
         };
       }
-      if (options2.maxPolls !== void 0 && polls >= options2.maxPolls) {
+      if (options3.maxPolls !== void 0 && polls >= options3.maxPolls) {
         return {
-          projectRoot: options2.projectRoot,
+          projectRoot: options3.projectRoot,
           polls,
           writtenLogs,
           lastResult,
@@ -34442,12 +34442,12 @@ async function watchRuntimeLogs(options2) {
       }
     } catch (error2) {
       consecutiveFailures += 1;
-      writeRuntimeLogFailureState(options2.projectRoot, {
+      writeRuntimeLogFailureState(options3.projectRoot, {
         nowMs,
         consecutiveFailures,
         error: error2
       });
-      await ((_b = options2.onError) == null ? void 0 : _b.call(options2, error2, consecutiveFailures));
+      await ((_b = options3.onError) == null ? void 0 : _b.call(options3, error2, consecutiveFailures));
       if (isNonRetryableRuntimeLogError(error2)) {
         throw new Error(
           `runtime log watch stopped after non-retryable failure: ${error2 instanceof Error ? error2.message : String(error2)}`
@@ -34462,32 +34462,32 @@ async function watchRuntimeLogs(options2) {
     }
   }
 }
-async function pullRuntimeLogs(options2) {
-  const nowMs = options2.nowMs || Date.now;
-  const state = readRuntimeLogState(options2.projectRoot);
+async function pullRuntimeLogs(options3) {
+  const nowMs = options3.nowMs || Date.now;
+  const state = readRuntimeLogState(options3.projectRoot);
   const nowSeconds = nowMs() / 1e3;
   const stateFresh = (state == null ? void 0 : state.nextStartTime) !== void 0 && isFreshRuntimeLogCursor(state.nextStartTime, nowSeconds);
   const queryArgs = {};
   let cursorExpired = false;
-  if (options2.startTime !== void 0) {
-    queryArgs.startTime = options2.startTime;
+  if (options3.startTime !== void 0) {
+    queryArgs.startTime = options3.startTime;
   } else if (stateFresh && state) {
     queryArgs.startTime = state.nextStartTime;
   } else {
     cursorExpired = Boolean(state == null ? void 0 : state.nextStartTime);
-    queryArgs.sinceSeconds = options2.sinceSeconds ?? DEFAULT_RUNTIME_LOG_SINCE_SECONDS;
+    queryArgs.sinceSeconds = options3.sinceSeconds ?? DEFAULT_RUNTIME_LOG_SINCE_SECONDS;
   }
-  queryArgs.topics = options2.topics && options2.topics.length > 0 ? options2.topics : DEFAULT_RUNTIME_LOG_TOPICS;
-  if (options2.limit !== void 0) {
-    queryArgs.limit = options2.limit;
+  queryArgs.topics = options3.topics && options3.topics.length > 0 ? options3.topics : DEFAULT_RUNTIME_LOG_TOPICS;
+  if (options3.limit !== void 0) {
+    queryArgs.limit = options3.limit;
   }
-  const result = await options2.callRemoteRuntimeLogs(queryArgs);
-  const appendResult = appendRuntimeLogs(options2.projectRoot, result.logs);
+  const result = await options3.callRemoteRuntimeLogs(queryArgs);
+  const appendResult = appendRuntimeLogs(options3.projectRoot, result.logs);
   const nextStartTime = resolveNextRuntimeLogCursor(result);
   const nowIso = new Date(nowMs()).toISOString();
   const nextState = {
     ...state || {},
-    ...options2.projectId ? { appId: options2.projectId, projectId: options2.projectId } : {},
+    ...options3.projectId ? { appId: options3.projectId, projectId: options3.projectId } : {},
     nextStartTime,
     updatedAt: nowIso,
     lastPollAt: nowIso,
@@ -34496,13 +34496,13 @@ async function pullRuntimeLogs(options2) {
     consecutiveFailures: 0,
     lastError: null
   };
-  writeRuntimeLogState(options2.projectRoot, nextState);
+  writeRuntimeLogState(options3.projectRoot, nextState);
   return {
-    projectRoot: options2.projectRoot,
+    projectRoot: options3.projectRoot,
     queryArgs,
     writtenLogs: appendResult.written,
     files: appendResult.files,
-    statePath: getRuntimeLogStatePath(options2.projectRoot),
+    statePath: getRuntimeLogStatePath(options3.projectRoot),
     nextStartTime,
     serverTime: result.serverTime,
     hasMore: result.hasMore,
@@ -34584,14 +34584,14 @@ function writeRuntimeLogState(projectRoot, state) {
 `, "utf8");
   fs13.renameSync(tempPath, statePath);
 }
-function writeRuntimeLogFailureState(projectRoot, options2) {
-  const nowIso = new Date(options2.nowMs()).toISOString();
+function writeRuntimeLogFailureState(projectRoot, options3) {
+  const nowIso = new Date(options3.nowMs()).toISOString();
   writeRuntimeLogState(projectRoot, {
     ...readRuntimeLogState(projectRoot) || {},
     updatedAt: nowIso,
     lastPollAt: nowIso,
-    consecutiveFailures: options2.consecutiveFailures,
-    lastError: options2.error instanceof Error ? options2.error.message : String(options2.error)
+    consecutiveFailures: options3.consecutiveFailures,
+    lastError: options3.error instanceof Error ? options3.error.message : String(options3.error)
   });
 }
 function isRuntimeLogState(state) {
@@ -34827,9 +34827,9 @@ function decideMakerPackageUpdate(currentVersion, policy) {
     next_action: "Continue normal work; no package upgrade is required."
   });
 }
-async function checkMakerPackageUpdate(options2) {
-  const now = options2.now ?? /* @__PURE__ */ new Date();
-  const currentVersion = options2.currentVersion;
+async function checkMakerPackageUpdate(options3) {
+  const now = options3.now ?? /* @__PURE__ */ new Date();
+  const currentVersion = options3.currentVersion;
   if (hasMakerPluginDistribution()) {
     return buildPluginManagedStatus(currentVersion);
   }
@@ -34843,12 +34843,12 @@ async function checkMakerPackageUpdate(options2) {
       restart_required: false
     };
   }
-  const policyUrl = resolvePolicyUrl(options2.policyUrl);
+  const policyUrl = resolvePolicyUrl(options3.policyUrl);
   try {
     const policy = await fetchMakerPackageVersionPolicy({
-      fetchImpl: options2.fetchImpl,
+      fetchImpl: options3.fetchImpl,
       policyUrl,
-      timeoutMs: options2.timeoutMs
+      timeoutMs: options3.timeoutMs
     });
     const decision = decideMakerPackageUpdate(currentVersion, policy);
     const status = {
@@ -34888,9 +34888,9 @@ async function checkMakerPackageUpdate(options2) {
     return unavailableStatus;
   }
 }
-async function getMakerPackageUpdateStatus(options2) {
+async function getMakerPackageUpdateStatus(options3) {
   var _a3, _b;
-  const currentVersion = options2.currentVersion;
+  const currentVersion = options3.currentVersion;
   if (hasMakerPluginDistribution()) {
     return buildPluginManagedStatus(currentVersion);
   }
@@ -34899,14 +34899,14 @@ async function getMakerPackageUpdateStatus(options2) {
       status: "skipped",
       current_version: currentVersion,
       reason: "dev_version",
-      checked_at: (options2.now ?? /* @__PURE__ */ new Date()).toISOString(),
+      checked_at: (options3.now ?? /* @__PURE__ */ new Date()).toISOString(),
       next_action: "Continue normal work; dev builds do not use remote version policy.",
       restart_required: false
     };
   }
   const cache = readCache();
-  const now = options2.now ?? /* @__PURE__ */ new Date();
-  const policyUrl = resolvePolicyUrl(options2.policyUrl);
+  const now = options3.now ?? /* @__PURE__ */ new Date();
+  const policyUrl = resolvePolicyUrl(options3.policyUrl);
   const lastSuccessCheckedAt = getLastSuccessCheckedAt(cache);
   const lastErrorCheckedAt = getLastErrorCheckedAt(cache);
   const hasCurrentVersionDecision = ((_a3 = cache == null ? void 0 : cache.decision) == null ? void 0 : _a3.current_version) === currentVersion;
@@ -34918,9 +34918,9 @@ async function getMakerPackageUpdateStatus(options2) {
       error: cache.error
     } : cache.decision;
   }
-  if (hasFreshErrorOnlyCache && options2.allowRemoteFetch === false) {
-    if (options2.backgroundRefresh !== false) {
-      startMakerPackageUpdateCheck(options2);
+  if (hasFreshErrorOnlyCache && options3.allowRemoteFetch === false) {
+    if (options3.backgroundRefresh !== false) {
+      startMakerPackageUpdateCheck(options3);
     }
     return buildUnavailableStatus({
       cache,
@@ -34928,10 +34928,10 @@ async function getMakerPackageUpdateStatus(options2) {
       error: (cache == null ? void 0 : cache.error) || "Maker package version check is temporarily unavailable."
     });
   }
-  if (options2.allowRemoteFetch === false) {
-    const shouldStartBackgroundRefresh = options2.backgroundRefresh !== false;
+  if (options3.allowRemoteFetch === false) {
+    const shouldStartBackgroundRefresh = options3.backgroundRefresh !== false;
     if (shouldStartBackgroundRefresh) {
-      startMakerPackageUpdateCheck(options2);
+      startMakerPackageUpdateCheck(options3);
     }
     return buildUnavailableStatus({
       cache,
@@ -34941,18 +34941,18 @@ async function getMakerPackageUpdateStatus(options2) {
       policyUrl
     });
   }
-  return checkMakerPackageUpdate(options2);
+  return checkMakerPackageUpdate(options3);
 }
-function startMakerPackageUpdateCheck(options2) {
+function startMakerPackageUpdateCheck(options3) {
   if (hasMakerPluginDistribution()) {
     return;
   }
-  const key = `${options2.currentVersion}
-${resolvePolicyUrl(options2.policyUrl)}`;
+  const key = `${options3.currentVersion}
+${resolvePolicyUrl(options3.policyUrl)}`;
   if ((backgroundCheck == null ? void 0 : backgroundCheck.key) === key) {
     return;
   }
-  const promise2 = checkMakerPackageUpdate(options2).then(() => void 0).catch(() => void 0).finally(() => {
+  const promise2 = checkMakerPackageUpdate(options3).then(() => void 0).catch(() => void 0).finally(() => {
     if ((backgroundCheck == null ? void 0 : backgroundCheck.promise) === promise2) {
       backgroundCheck = void 0;
     }
@@ -35022,17 +35022,17 @@ function formatUnavailableNonBlockingError(previousError, backgroundRefresh) {
   }
   return previousError || "Maker package version check is temporarily unavailable.";
 }
-async function fetchMakerPackageVersionPolicy(options2) {
-  const fetchImpl = options2.fetchImpl || fetch;
+async function fetchMakerPackageVersionPolicy(options3) {
+  const fetchImpl = options3.fetchImpl || fetch;
   const response = await fetchWithTimeout(
     fetchImpl,
-    options2.policyUrl,
+    options3.policyUrl,
     {
       headers: {
         Accept: "application/json"
       }
     },
-    options2.timeoutMs ?? DEFAULT_PACKAGE_VERSION_CHECK_TIMEOUT_MS,
+    options3.timeoutMs ?? DEFAULT_PACKAGE_VERSION_CHECK_TIMEOUT_MS,
     "Maker package version check"
   );
   if (!response.ok) {
@@ -35098,27 +35098,27 @@ function buildDecision(status, currentVersion, policy, overrides) {
     ...overrides
   };
 }
-function buildUnavailableStatus(options2) {
+function buildUnavailableStatus(options3) {
   var _a3, _b, _c, _d;
-  const previousDecision = (_a3 = options2.cache) == null ? void 0 : _a3.decision;
-  const hasCurrentVersionDecision = (previousDecision == null ? void 0 : previousDecision.current_version) === options2.currentVersion;
-  const hasCurrentPolicyUrl = !options2.policyUrl || ((_b = options2.cache) == null ? void 0 : _b.policy_url) === options2.policyUrl || (previousDecision == null ? void 0 : previousDecision.policy_url) === options2.policyUrl;
+  const previousDecision = (_a3 = options3.cache) == null ? void 0 : _a3.decision;
+  const hasCurrentVersionDecision = (previousDecision == null ? void 0 : previousDecision.current_version) === options3.currentVersion;
+  const hasCurrentPolicyUrl = !options3.policyUrl || ((_b = options3.cache) == null ? void 0 : _b.policy_url) === options3.policyUrl || (previousDecision == null ? void 0 : previousDecision.policy_url) === options3.policyUrl;
   const canUsePreviousDecision = hasCurrentVersionDecision && hasCurrentPolicyUrl;
-  const lastSuccessCheckedAt = canUsePreviousDecision ? getLastSuccessCheckedAt(options2.cache) : void 0;
-  const previousPolicy = hasCurrentPolicyUrl ? (_c = options2.cache) == null ? void 0 : _c.policy : void 0;
+  const lastSuccessCheckedAt = canUsePreviousDecision ? getLastSuccessCheckedAt(options3.cache) : void 0;
+  const previousPolicy = hasCurrentPolicyUrl ? (_c = options3.cache) == null ? void 0 : _c.policy : void 0;
   return compactStatus({
     status: "unavailable",
-    current_version: options2.currentVersion,
+    current_version: options3.currentVersion,
     target_version: canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.target_version : void 0,
     reason: canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.reason : void 0,
     minimum_supported: (canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.minimum_supported : void 0) ?? (previousPolicy == null ? void 0 : previousPolicy.minimum_supported),
     latest: (canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.latest : void 0) ?? (previousPolicy == null ? void 0 : previousPolicy.latest),
     latest_beta: (canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.latest_beta : void 0) ?? (previousPolicy == null ? void 0 : previousPolicy.latest_beta),
     blacklist_match: canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.blacklist_match : void 0,
-    checked_at: options2.checkedAt,
-    policy_url: options2.policyUrl ?? ((_d = options2.cache) == null ? void 0 : _d.policy_url),
+    checked_at: options3.checkedAt,
+    policy_url: options3.policyUrl ?? ((_d = options3.cache) == null ? void 0 : _d.policy_url),
     message: (canUsePreviousDecision ? previousDecision == null ? void 0 : previousDecision.message : void 0) ?? (previousPolicy == null ? void 0 : previousPolicy.message),
-    error: options2.error,
+    error: options3.error,
     last_success_checked_at: lastSuccessCheckedAt,
     previous_status: canUsePreviousDecision && (previousDecision == null ? void 0 : previousDecision.status) && previousDecision.status !== "unavailable" ? previousDecision.status : void 0,
     next_action: "Continue normal work; retry status later.",
@@ -36075,29 +36075,29 @@ var init_diagnosticRedaction = __esm({
 import fs18 from "node:fs";
 import path19 from "node:path";
 import { randomUUID as randomUUID3 } from "node:crypto";
-function prepareRemoteProxyToolArgs(options2) {
-  if (options2.toolName === "audition_voices_for_character") {
-    return validateVoiceAuditionArgs(options2.args);
+function prepareRemoteProxyToolArgs(options3) {
+  if (options3.toolName === "audition_voices_for_character") {
+    return validateVoiceAuditionArgs(options3.args);
   }
-  if (options2.toolName === "edit_image") {
-    return rewriteEditImageAssetArgs(options2.targetDir, options2.args);
+  if (options3.toolName === "edit_image") {
+    return rewriteEditImageAssetArgs(options3.targetDir, options3.args);
   }
-  if (options2.toolName === "generate_image") {
-    return normalizeImageReferenceAssetArgs(options2.targetDir, options2.args);
+  if (options3.toolName === "generate_image") {
+    return normalizeImageReferenceAssetArgs(options3.targetDir, options3.args);
   }
-  if (options2.toolName === "batch_generate_images") {
-    return normalizeBatchImageReferenceAssetArgs(options2.targetDir, options2.args);
+  if (options3.toolName === "batch_generate_images") {
+    return normalizeBatchImageReferenceAssetArgs(options3.targetDir, options3.args);
   }
-  if (options2.toolName === "create_video_task") {
-    return rewriteVideoReferenceAssetArgs(options2.targetDir, options2.args);
+  if (options3.toolName === "create_video_task") {
+    return rewriteVideoReferenceAssetArgs(options3.targetDir, options3.args);
   }
-  if (options2.toolName === CREATE_3D_ASSET_PROXY_TOOL_NAME) {
-    return rewriteCreate3dAssetArgs(options2.targetDir, options2.args);
+  if (options3.toolName === CREATE_3D_ASSET_PROXY_TOOL_NAME) {
+    return rewriteCreate3dAssetArgs(options3.targetDir, options3.args);
   }
-  if (options2.toolName === "text_to_dialogue") {
-    return rewriteTextToDialogueArgs(options2.targetDir, options2.args);
+  if (options3.toolName === "text_to_dialogue") {
+    return rewriteTextToDialogueArgs(options3.targetDir, options3.args);
   }
-  return options2.args;
+  return options3.args;
 }
 function validateVoiceAuditionArgs(args) {
   const voiceProfile = args.voice_profile;
@@ -36110,19 +36110,19 @@ function validateVoiceAuditionArgs(args) {
   }
   return args;
 }
-async function materializeRemoteProxyToolAssets(options2) {
-  if (isRemoteProxyToolErrorResult(options2.result)) {
+async function materializeRemoteProxyToolAssets(options3) {
+  if (isRemoteProxyToolErrorResult(options3.result)) {
     throw new RemoteProxyToolResultError(
-      options2.toolName,
-      addRemoteProxyErrorExecutionState(options2.result)
+      options3.toolName,
+      addRemoteProxyErrorExecutionState(options3.result)
     );
   }
-  if (!shouldMaterializeRemoteProxyTool(options2.toolName)) {
-    return options2.result;
+  if (!shouldMaterializeRemoteProxyTool(options3.toolName)) {
+    return options3.result;
   }
-  const content = options2.result.content;
+  const content = options3.result.content;
   if (!Array.isArray(content)) {
-    return options2.result;
+    return options3.result;
   }
   let changed = false;
   const nextContent = [];
@@ -36138,11 +36138,11 @@ async function materializeRemoteProxyToolAssets(options2) {
       continue;
     }
     const nextParsed = await materializeParsedProxyResult({
-      toolName: options2.toolName,
-      targetDir: options2.targetDir,
+      toolName: options3.toolName,
+      targetDir: options3.targetDir,
       payload: parsed,
-      now: options2.now ?? /* @__PURE__ */ new Date(),
-      fetchImpl: options2.fetchImpl ?? fetch
+      now: options3.now ?? /* @__PURE__ */ new Date(),
+      fetchImpl: options3.fetchImpl ?? fetch
     });
     structuredPayloads.push(nextParsed);
     if (nextParsed === parsed) {
@@ -36158,12 +36158,12 @@ async function materializeRemoteProxyToolAssets(options2) {
   const structuredContent = structuredPayloads.length === 1 ? structuredPayloads[0] : { results: structuredPayloads };
   if (structuredPayloads.length > 0) {
     return {
-      ...options2.result,
+      ...options3.result,
       ...changed ? { content: nextContent } : {},
       structuredContent
     };
   }
-  return changed ? { ...options2.result, content: nextContent } : options2.result;
+  return changed ? { ...options3.result, content: nextContent } : options3.result;
 }
 function addRemoteProxyErrorExecutionState(result) {
   const resultWithStructuredContent = result;
@@ -36233,53 +36233,53 @@ function parseJsonObject(text2) {
     return void 0;
   }
 }
-async function materializeParsedProxyResult(options2) {
-  if (options2.toolName === "generate_image") {
-    return await materializeSingleImageResult(options2, "generate_image");
+async function materializeParsedProxyResult(options3) {
+  if (options3.toolName === "generate_image") {
+    return await materializeSingleImageResult(options3, "generate_image");
   }
-  if (options2.toolName === "batch_generate_images") {
-    return await materializeBatchImageResult(options2);
+  if (options3.toolName === "batch_generate_images") {
+    return await materializeBatchImageResult(options3);
   }
-  if (options2.toolName === "edit_image") {
-    return await materializeSingleImageResult(options2, "edit_image");
+  if (options3.toolName === "edit_image") {
+    return await materializeSingleImageResult(options3, "edit_image");
   }
-  if (options2.toolName === "create_video_task" || options2.toolName === "query_video_task") {
-    return await materializeVideoResult(options2, options2.toolName);
+  if (options3.toolName === "create_video_task" || options3.toolName === "query_video_task") {
+    return await materializeVideoResult(options3, options3.toolName);
   }
-  if (options2.toolName === "text_to_music") {
-    return await materializeMusicResult(options2);
+  if (options3.toolName === "text_to_music") {
+    return await materializeMusicResult(options3);
   }
-  if (options2.toolName === "text_to_sound_effect" || options2.toolName === "batch_sound_effects" || options2.toolName === "text_to_dialogue") {
-    return await materializeAudioFilesResult(options2, options2.toolName);
+  if (options3.toolName === "text_to_sound_effect" || options3.toolName === "batch_sound_effects" || options3.toolName === "text_to_dialogue") {
+    return await materializeAudioFilesResult(options3, options3.toolName);
   }
-  if (options2.toolName === "confirm_character_voice") {
-    return await materializeVoiceConfirmationResult(options2);
+  if (options3.toolName === "confirm_character_voice") {
+    return await materializeVoiceConfirmationResult(options3);
   }
-  if (options2.toolName === CREATE_3D_ASSET_PROXY_TOOL_NAME) {
-    return await materializeCreate3dAssetResult(options2);
+  if (options3.toolName === CREATE_3D_ASSET_PROXY_TOOL_NAME) {
+    return await materializeCreate3dAssetResult(options3);
   }
-  if (options2.toolName === "get_debug_feedbacks") {
-    return await materializeDebugFeedbackResult(options2);
+  if (options3.toolName === "get_debug_feedbacks") {
+    return await materializeDebugFeedbackResult(options3);
   }
-  return options2.payload;
+  return options3.payload;
 }
-async function materializeDebugFeedbackResult(options2) {
-  if (options2.payload.success !== true) {
-    return options2.payload;
+async function materializeDebugFeedbackResult(options3) {
+  if (options3.payload.success !== true) {
+    return options3.payload;
   }
-  const feedbacks = getDebugFeedbackItems(options2.payload);
-  const remoteSaveDir = getDebugFeedbackSaveDir(options2.payload);
+  const feedbacks = getDebugFeedbackItems(options3.payload);
+  const remoteSaveDir = getDebugFeedbackSaveDir(options3.payload);
   if (feedbacks.length === 0 && !remoteSaveDir) {
-    return options2.payload;
+    return options3.payload;
   }
   const nextFeedbacks = [];
   for (const feedback of feedbacks) {
     const remoteDir = stringField2(feedback.dir);
-    const localCandidateDir = remoteDir ? resolveDebugFeedbackCandidatePath(options2.targetDir, remoteDir) : void 0;
+    const localCandidateDir = remoteDir ? resolveDebugFeedbackCandidatePath(options3.targetDir, remoteDir) : void 0;
     const materialized = await materializeDebugFeedbackArtifacts({
-      targetDir: options2.targetDir,
+      targetDir: options3.targetDir,
       feedback,
-      fetchImpl: options2.fetchImpl
+      fetchImpl: options3.fetchImpl
     });
     nextFeedbacks.push({
       ...feedback,
@@ -36287,35 +36287,35 @@ async function materializeDebugFeedbackResult(options2) {
       ...materialized
     });
   }
-  const localCandidateSaveDir = remoteSaveDir ? resolveDebugFeedbackCandidatePath(options2.targetDir, remoteSaveDir) : feedbacks.some(hasDebugFeedbackArtifactUrls) ? path19.join(options2.targetDir, "logs", "feed_back") : void 0;
+  const localCandidateSaveDir = remoteSaveDir ? resolveDebugFeedbackCandidatePath(options3.targetDir, remoteSaveDir) : feedbacks.some(hasDebugFeedbackArtifactUrls) ? path19.join(options3.targetDir, "logs", "feed_back") : void 0;
   const filesVerifiedLocally = nextFeedbacks.some(
     (feedback) => numberField2(feedback.artifacts_downloaded) > 0
   );
   return {
-    ...replaceDebugFeedbackItems(options2.payload, nextFeedbacks),
+    ...replaceDebugFeedbackItems(options3.payload, nextFeedbacks),
     local_path_hint: {
       remote_save_dir: remoteSaveDir,
       local_candidate_save_dir: localCandidateSaveDir,
-      local_project_dir: options2.targetDir,
+      local_project_dir: options3.targetDir,
       files_verified_locally: filesVerifiedLocally,
       note: DEBUG_FEEDBACK_PATH_HINT
     }
   };
 }
-async function materializeDebugFeedbackArtifacts(options2) {
-  const feedbackId = stringField2(options2.feedback.feedback_id) ?? (options2.feedback.feedback_id != null ? String(options2.feedback.feedback_id) : "");
+async function materializeDebugFeedbackArtifacts(options3) {
+  const feedbackId = stringField2(options3.feedback.feedback_id) ?? (options3.feedback.feedback_id != null ? String(options3.feedback.feedback_id) : "");
   if (!feedbackId) {
     return {};
   }
-  const logUrls = stringArrayField(options2.feedback.log_file_urls);
-  const screenshotUrls = stringArrayField(options2.feedback.screenshots);
-  const extraUrls = stringArrayField(options2.feedback.download_urls).filter(
+  const logUrls = stringArrayField(options3.feedback.log_file_urls);
+  const screenshotUrls = stringArrayField(options3.feedback.screenshots);
+  const extraUrls = stringArrayField(options3.feedback.download_urls).filter(
     (url2) => !logUrls.includes(url2) && !screenshotUrls.includes(url2)
   );
   if (logUrls.length === 0 && screenshotUrls.length === 0 && extraUrls.length === 0) {
     return {};
   }
-  const localDir = path19.join(options2.targetDir, "logs", "feed_back", `feedback_${feedbackId}`);
+  const localDir = path19.join(options3.targetDir, "logs", "feed_back", `feedback_${feedbackId}`);
   const localLogPaths = [];
   const localScreenshotPaths = [];
   const localDownloadPaths = [];
@@ -36325,7 +36325,7 @@ async function materializeDebugFeedbackArtifacts(options2) {
       url: url2,
       directory: path19.join(localDir, "logs"),
       fallbackName: `log_${index + 1}.log`,
-      fetchImpl: options2.fetchImpl
+      fetchImpl: options3.fetchImpl
     });
     if (result.success) {
       localLogPaths.push(result.path);
@@ -36338,7 +36338,7 @@ async function materializeDebugFeedbackArtifacts(options2) {
       url: url2,
       directory: path19.join(localDir, "screenshots"),
       fallbackName: `screenshot_${index + 1}.png`,
-      fetchImpl: options2.fetchImpl
+      fetchImpl: options3.fetchImpl
     });
     if (result.success) {
       localScreenshotPaths.push(result.path);
@@ -36351,7 +36351,7 @@ async function materializeDebugFeedbackArtifacts(options2) {
       url: url2,
       directory: path19.join(localDir, "downloads"),
       fallbackName: `artifact_${index + 1}`,
-      fetchImpl: options2.fetchImpl
+      fetchImpl: options3.fetchImpl
     });
     if (result.success) {
       localDownloadPaths.push(result.path);
@@ -36368,20 +36368,20 @@ async function materializeDebugFeedbackArtifacts(options2) {
     artifact_download_errors: errors
   };
 }
-async function downloadDebugFeedbackArtifact(options2) {
+async function downloadDebugFeedbackArtifact(options3) {
   try {
-    const response = await options2.fetchImpl(options2.url);
+    const response = await options3.fetchImpl(options3.url);
     if (!response.ok) {
       return {
         success: false,
-        error: `${options2.url}: HTTP ${response.status}`
+        error: `${options3.url}: HTTP ${response.status}`
       };
     }
-    fs18.mkdirSync(options2.directory, { recursive: true });
+    fs18.mkdirSync(options3.directory, { recursive: true });
     const filePath = allocateDebugFeedbackArtifactPath(
-      options2.directory,
-      options2.url,
-      options2.fallbackName
+      options3.directory,
+      options3.url,
+      options3.fallbackName
     );
     const bytes = Buffer.from(await response.arrayBuffer());
     fs18.writeFileSync(filePath, bytes);
@@ -36389,7 +36389,7 @@ async function downloadDebugFeedbackArtifact(options2) {
   } catch (error2) {
     return {
       success: false,
-      error: `${options2.url}: ${error2 instanceof Error ? error2.message : String(error2)}`
+      error: `${options3.url}: ${error2 instanceof Error ? error2.message : String(error2)}`
     };
   }
 }
@@ -36469,107 +36469,107 @@ function getDebugFeedbackItems(payload) {
   }
   return [];
 }
-async function materializeSingleImageResult(options2, toolName) {
-  if (options2.payload.success !== true) {
-    return options2.payload;
+async function materializeSingleImageResult(options3, toolName) {
+  if (options3.payload.success !== true) {
+    return options3.payload;
   }
   const materialized = await materializeAsset({
-    targetDir: options2.targetDir,
-    url: stringField2(options2.payload.previewUrl),
-    baseName: stringField2(options2.payload.name),
+    targetDir: options3.targetDir,
+    url: stringField2(options3.payload.previewUrl),
+    baseName: stringField2(options3.payload.name),
     relativeDir: "assets/image",
     extension: "png",
-    now: options2.now,
-    fetchImpl: options2.fetchImpl
+    now: options3.now,
+    fetchImpl: options3.fetchImpl
   });
   return materialized ? persistMaterializedAsset({
-    targetDir: options2.targetDir,
+    targetDir: options3.targetDir,
     toolName,
-    payload: options2.payload,
+    payload: options3.payload,
     materialized,
-    cdnUrl: stringField2(options2.payload.previewUrl),
-    now: options2.now
-  }) : options2.payload;
+    cdnUrl: stringField2(options3.payload.previewUrl),
+    now: options3.now
+  }) : options3.payload;
 }
-async function materializeBatchImageResult(options2) {
-  if (!Array.isArray(options2.payload.results)) {
-    return options2.payload;
+async function materializeBatchImageResult(options3) {
+  if (!Array.isArray(options3.payload.results)) {
+    return options3.payload;
   }
   const results = [];
-  for (const item of options2.payload.results) {
+  for (const item of options3.payload.results) {
     if (!isRecord2(item) || item.success !== true) {
       results.push(item);
       continue;
     }
     const materialized = await materializeAsset({
-      targetDir: options2.targetDir,
+      targetDir: options3.targetDir,
       url: stringField2(item.previewUrl),
       baseName: stringField2(item.name),
       relativeDir: "assets/image",
       extension: "png",
-      now: options2.now,
-      fetchImpl: options2.fetchImpl
+      now: options3.now,
+      fetchImpl: options3.fetchImpl
     });
     results.push(
       materialized ? persistMaterializedAsset({
-        targetDir: options2.targetDir,
+        targetDir: options3.targetDir,
         toolName: "batch_generate_images",
         payload: item,
         materialized,
         cdnUrl: stringField2(item.previewUrl),
-        now: options2.now
+        now: options3.now
       }) : item
     );
   }
-  return { ...options2.payload, results };
+  return { ...options3.payload, results };
 }
-async function materializeVideoResult(options2, toolName) {
-  if (options2.payload.status !== "succeeded") {
-    return options2.payload;
+async function materializeVideoResult(options3, toolName) {
+  if (options3.payload.status !== "succeeded") {
+    return options3.payload;
   }
-  const taskId = stringField2(options2.payload.task_id);
-  const cdnUrl = stringField2(options2.payload.cdn_url);
-  const existing = findExistingMaterializedVideo(options2.targetDir, {
+  const taskId = stringField2(options3.payload.task_id);
+  const cdnUrl = stringField2(options3.payload.cdn_url);
+  const existing = findExistingMaterializedVideo(options3.targetDir, {
     taskId,
     cdnUrl
   });
   if (existing) {
     return {
-      ...options2.payload,
+      ...options3.payload,
       ...existing,
       download: { success: true }
     };
   }
   const materialized = await materializeAsset({
-    targetDir: options2.targetDir,
+    targetDir: options3.targetDir,
     url: cdnUrl,
     baseName: taskId,
     relativeDir: "assets/video",
     extension: "mp4",
-    now: options2.now,
-    fetchImpl: options2.fetchImpl
+    now: options3.now,
+    fetchImpl: options3.fetchImpl
   });
   return materialized ? persistMaterializedAsset({
-    targetDir: options2.targetDir,
+    targetDir: options3.targetDir,
     toolName,
-    payload: options2.payload,
+    payload: options3.payload,
     materialized,
-    cdnUrl: stringField2(options2.payload.cdn_url),
-    now: options2.now,
+    cdnUrl: stringField2(options3.payload.cdn_url),
+    now: options3.now,
     extraRegistryFields: {
       taskId
     }
-  }) : options2.payload;
+  }) : options3.payload;
 }
-function findExistingMaterializedVideo(targetDir, options2) {
-  if (!options2.taskId || !options2.cdnUrl) {
+function findExistingMaterializedVideo(targetDir, options3) {
+  if (!options3.taskId || !options3.cdnUrl) {
     return void 0;
   }
   const registry2 = readGeneratedAssetRegistry(targetDir);
   for (const record2 of Object.values(registry2)) {
     const localPath = stringField2(record2.localPath);
     const recordCdnUrl = stringField2(record2.cdnUrl) || stringField2(record2.previewUrl);
-    if (stringField2(record2.taskId) !== options2.taskId || recordCdnUrl !== options2.cdnUrl || !localPath.startsWith("assets/video/")) {
+    if (stringField2(record2.taskId) !== options3.taskId || recordCdnUrl !== options3.cdnUrl || !localPath.startsWith("assets/video/")) {
       continue;
     }
     const absolutePath = resolveExistingMaterializedAssetPath(targetDir, record2, localPath);
@@ -36596,42 +36596,42 @@ function resolveExistingMaterializedAssetPath(targetDir, record2, localPath) {
   }
   return void 0;
 }
-async function materializeMusicResult(options2) {
-  if (options2.payload.success !== true) {
-    return options2.payload;
+async function materializeMusicResult(options3) {
+  if (options3.payload.success !== true) {
+    return options3.payload;
   }
-  if (!isRecord2(options2.payload.music)) {
-    return options2.payload;
+  if (!isRecord2(options3.payload.music)) {
+    return options3.payload;
   }
-  const music = options2.payload.music;
+  const music = options3.payload.music;
   const materialized = await materializeAsset({
-    targetDir: options2.targetDir,
+    targetDir: options3.targetDir,
     url: stringField2(music.audioUrl),
-    baseName: stringField2(music.title) || stringField2(options2.payload.taskId),
+    baseName: stringField2(music.title) || stringField2(options3.payload.taskId),
     relativeDir: "assets/audio",
     extension: extensionFromUrl(stringField2(music.audioUrl)) || "mp3",
-    now: options2.now,
-    fetchImpl: options2.fetchImpl
+    now: options3.now,
+    fetchImpl: options3.fetchImpl
   });
   return materialized ? {
-    ...options2.payload,
+    ...options3.payload,
     music: persistMaterializedAsset({
-      targetDir: options2.targetDir,
+      targetDir: options3.targetDir,
       toolName: "text_to_music",
       payload: music,
       materialized,
       cdnUrl: stringField2(music.audioUrl),
-      now: options2.now,
+      now: options3.now,
       extraRegistryFields: {
-        taskId: stringField2(options2.payload.taskId)
+        taskId: stringField2(options3.payload.taskId)
       }
     })
-  } : options2.payload;
+  } : options3.payload;
 }
-async function materializeAudioFilesResult(options2, toolName) {
-  if (!Array.isArray(options2.payload.audio_files)) return options2.payload;
+async function materializeAudioFilesResult(options3, toolName) {
+  if (!Array.isArray(options3.payload.audio_files)) return options3.payload;
   const audioFiles = [];
-  for (const rawItem of options2.payload.audio_files) {
+  for (const rawItem of options3.payload.audio_files) {
     if (!isRecord2(rawItem)) {
       audioFiles.push(rawItem);
       continue;
@@ -36663,48 +36663,48 @@ async function materializeAudioFilesResult(options2, toolName) {
     }
     const extension = audioExtensionForItem(item, suggestedFileName);
     const materialized = await materializeAudioAsset({
-      targetDir: options2.targetDir,
+      targetDir: options3.targetDir,
       targetDirectory: expectedDirectory,
       fileName: suggestedFileName,
       url: audioUrl,
       extension,
-      now: options2.now,
-      fetchImpl: options2.fetchImpl
+      now: options3.now,
+      fetchImpl: options3.fetchImpl
     });
     audioFiles.push(
       materialized ? persistMaterializedAsset({
-        targetDir: options2.targetDir,
+        targetDir: options3.targetDir,
         toolName,
         payload: item,
         materialized,
         cdnUrl: audioUrl,
-        now: options2.now,
+        now: options3.now,
         extraRegistryFields: { assetKind: "audio", kind }
       }) : item
     );
   }
-  return { ...options2.payload, audio_files: audioFiles };
+  return { ...options3.payload, audio_files: audioFiles };
 }
-function validateAudioAssetContract(options2) {
+function validateAudioAssetContract(options3) {
   var _a3, _b;
-  if (!options2.audioUrl || !/^https?:\/\//i.test(options2.audioUrl)) {
+  if (!options3.audioUrl || !/^https?:\/\//i.test(options3.audioUrl)) {
     return "audioUrl must be an HTTP(S) URL.";
   }
-  if (options2.kind !== options2.expectedKind) {
-    return `audio_files item kind must be ${options2.expectedKind} for this tool.`;
+  if (options3.kind !== options3.expectedKind) {
+    return `audio_files item kind must be ${options3.expectedKind} for this tool.`;
   }
-  if (options2.targetDirectory !== options2.expectedDirectory) {
-    return `targetDirectory must be ${options2.expectedDirectory}.`;
+  if (options3.targetDirectory !== options3.expectedDirectory) {
+    return `targetDirectory must be ${options3.expectedDirectory}.`;
   }
-  const fileName = options2.suggestedFileName;
+  const fileName = options3.suggestedFileName;
   if (!fileName || fileName === "." || fileName === ".." || fileName.includes("/") || fileName.includes("\\") || fileName.includes("\0")) {
     return "suggestedFileName must be a safe basename.";
   }
   if (path19.basename(fileName) !== fileName || fileName.endsWith(".") || fileName.endsWith(" ")) {
     return "suggestedFileName must be a safe basename.";
   }
-  const format = (_a3 = options2.format) == null ? void 0 : _a3.toLowerCase();
-  const mimeType = (_b = options2.mimeType) == null ? void 0 : _b.toLowerCase();
+  const format = (_a3 = options3.format) == null ? void 0 : _a3.toLowerCase();
+  const mimeType = (_b = options3.mimeType) == null ? void 0 : _b.toLowerCase();
   const extension = path19.extname(fileName).toLowerCase();
   const contract = {
     mp3: { mimeType: "audio/mpeg", extension: ".mp3" },
@@ -36734,12 +36734,12 @@ function audioExtensionForItem(item, fileName) {
   };
   return byFormat[format || ""] || path19.extname(fileName).slice(1).toLowerCase() || "mp3";
 }
-async function materializeAudioAsset(options2) {
-  const relativeDir = options2.targetDirectory;
-  const directory = path19.join(options2.targetDir, ...relativeDir.split("/"));
+async function materializeAudioAsset(options3) {
+  const relativeDir = options3.targetDirectory;
+  const directory = path19.join(options3.targetDir, ...relativeDir.split("/"));
   try {
     fs18.mkdirSync(directory, { recursive: true });
-    assertProjectDirectory(options2.targetDir, directory);
+    assertProjectDirectory(options3.targetDir, directory);
   } catch (error2) {
     return {
       download: {
@@ -36748,12 +36748,12 @@ async function materializeAudioAsset(options2) {
       }
     };
   }
-  const baseName = path19.basename(options2.fileName, path19.extname(options2.fileName));
+  const baseName = path19.basename(options3.fileName, path19.extname(options3.fileName));
   let absolutePath;
   let relativePath;
   for (let index = 1; index <= 9999; index += 1) {
     const suffix = index === 1 ? "" : `_${index}`;
-    const candidateName = `${baseName}${suffix}.${options2.extension}`;
+    const candidateName = `${baseName}${suffix}.${options3.extension}`;
     const candidate = path19.join(directory, candidateName);
     if (!fs18.existsSync(candidate)) {
       absolutePath = candidate;
@@ -36765,7 +36765,7 @@ async function materializeAudioAsset(options2) {
     return { download: { success: false, error: "Unable to allocate a unique audio asset path." } };
   }
   try {
-    const response = await options2.fetchImpl(options2.url);
+    const response = await options3.fetchImpl(options3.url);
     if (!response.ok) {
       return {
         download: { success: false, error: `Asset download failed: HTTP ${response.status}` }
@@ -36786,12 +36786,12 @@ async function materializeAudioAsset(options2) {
     };
   }
 }
-async function materializeVoiceConfirmationResult(options2) {
-  if (options2.payload.success !== true || !isRecord2(options2.payload.mapping)) {
-    return withoutVoiceConfirmationNextStepHint(options2.payload);
+async function materializeVoiceConfirmationResult(options3) {
+  if (options3.payload.success !== true || !isRecord2(options3.payload.mapping)) {
+    return withoutVoiceConfirmationNextStepHint(options3.payload);
   }
-  const payload = withoutVoiceConfirmationNextStepHint(options2.payload);
-  const successfulPayload = withVoiceConfirmationNextStepHint(options2.payload);
+  const payload = withoutVoiceConfirmationNextStepHint(options3.payload);
+  const successfulPayload = withVoiceConfirmationNextStepHint(options3.payload);
   const mapping = payload.mapping;
   const provider = stringField2(mapping.provider);
   const characterName = stringField2(mapping.characterName) || stringField2(payload.characterName);
@@ -36799,11 +36799,11 @@ async function materializeVoiceConfirmationResult(options2) {
     if (provider !== "elevenlabs" || !characterName) return payload;
     try {
       mergeVoiceMappingFile({
-        targetDir: options2.targetDir,
+        targetDir: options3.targetDir,
         provider: "elevenlabs",
         characterName,
         mapping,
-        now: options2.now
+        now: options3.now
       });
       return successfulPayload;
     } catch (error2) {
@@ -36833,7 +36833,7 @@ async function materializeVoiceConfirmationResult(options2) {
   }
   let bytes;
   try {
-    const response = await options2.fetchImpl(audioUrl);
+    const response = await options3.fetchImpl(audioUrl);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     bytes = Buffer.from(await response.arrayBuffer());
   } catch (error2) {
@@ -36862,11 +36862,11 @@ async function materializeVoiceConfirmationResult(options2) {
   }
   try {
     mergeVoiceMappingFile({
-      targetDir: options2.targetDir,
+      targetDir: options3.targetDir,
       provider: "doubao",
       characterName,
       mapping,
-      now: options2.now,
+      now: options3.now,
       referenceAudio: { targetPath, bytes }
     });
     return {
@@ -36874,7 +36874,7 @@ async function materializeVoiceConfirmationResult(options2) {
       referenceAudio: {
         ...referenceAudio,
         localPath: targetPath,
-        absolutePath: path19.join(options2.targetDir, ...targetPath.split("/")),
+        absolutePath: path19.join(options3.targetDir, ...targetPath.split("/")),
         download: { success: true }
       }
     };
@@ -36949,48 +36949,48 @@ function parseMp3Frame(bytes, offset) {
   const length = Math.floor((version2 === 1 ? 144 : 72) * bitrate * 1e3 / sampleRate) + padding;
   return length > 4 && offset + length <= bytes.length ? { length, version: version2, sampleRate } : void 0;
 }
-function mergeVoiceMappingFile(options2) {
+function mergeVoiceMappingFile(options3) {
   const configPath = path19.join(
-    options2.targetDir,
+    options3.targetDir,
     ".project",
-    options2.provider === "doubao" ? "audio-voice-mapping.json" : "elevenlabs-voice-mapping.json"
+    options3.provider === "doubao" ? "audio-voice-mapping.json" : "elevenlabs-voice-mapping.json"
   );
-  const referencePath = options2.referenceAudio ? path19.join(options2.targetDir, ...options2.referenceAudio.targetPath.split("/")) : void 0;
+  const referencePath = options3.referenceAudio ? path19.join(options3.targetDir, ...options3.referenceAudio.targetPath.split("/")) : void 0;
   const configDirectory = path19.dirname(configPath);
   const referenceDirectory = referencePath ? path19.dirname(referencePath) : void 0;
   fs18.mkdirSync(configDirectory, { recursive: true });
-  assertProjectDirectory(options2.targetDir, configDirectory);
+  assertProjectDirectory(options3.targetDir, configDirectory);
   assertFileIsNotSymlink(configPath);
   if (referenceDirectory) {
     fs18.mkdirSync(referenceDirectory, { recursive: true });
-    assertProjectDirectory(options2.targetDir, referenceDirectory);
+    assertProjectDirectory(options3.targetDir, referenceDirectory);
     assertFileIsNotSymlink(referencePath);
   }
   const oldConfig = snapshotFile(configPath);
   const oldReference = referencePath ? snapshotFile(referencePath) : void 0;
   const existing = readJsonFile2(configPath);
   const characters = isRecord2(existing == null ? void 0 : existing.characters) ? { ...existing.characters } : {};
-  const oldCharacter = isRecord2(characters[options2.characterName]) ? characters[options2.characterName] : {};
-  const createdAt = stringField2(oldCharacter.created_at) || options2.now.toISOString();
+  const oldCharacter = isRecord2(characters[options3.characterName]) ? characters[options3.characterName] : {};
+  const createdAt = stringField2(oldCharacter.created_at) || options3.now.toISOString();
   const character = {
     ...oldCharacter,
     ...Object.fromEntries(
-      Object.entries(options2.mapping).filter(([key]) => key !== "characterName")
+      Object.entries(options3.mapping).filter(([key]) => key !== "characterName")
     ),
-    provider: options2.provider,
-    language: stringField2(options2.mapping.language) || stringField2(oldCharacter.language) || stringField2(existing == null ? void 0 : existing.default_language) || "cmn",
-    stability: typeof options2.mapping.stability === "number" ? options2.mapping.stability : typeof oldCharacter.stability === "number" ? oldCharacter.stability : typeof (existing == null ? void 0 : existing.default_stability) === "number" ? existing.default_stability : 0.5,
+    provider: options3.provider,
+    language: stringField2(options3.mapping.language) || stringField2(oldCharacter.language) || stringField2(existing == null ? void 0 : existing.default_language) || "cmn",
+    stability: typeof options3.mapping.stability === "number" ? options3.mapping.stability : typeof oldCharacter.stability === "number" ? oldCharacter.stability : typeof (existing == null ? void 0 : existing.default_stability) === "number" ? existing.default_stability : 0.5,
     created_at: createdAt,
-    last_used: options2.now.toISOString()
+    last_used: options3.now.toISOString()
   };
-  characters[options2.characterName] = character;
+  characters[options3.characterName] = character;
   const nextConfig = {
     ...existing,
-    version: options2.provider === "doubao" ? 4 : "1.0",
-    provider: options2.provider,
+    version: options3.provider === "doubao" ? 4 : "1.0",
+    provider: options3.provider,
     characters
   };
-  if (options2.provider === "doubao") {
+  if (options3.provider === "doubao") {
     nextConfig.default_language = stringField2(existing == null ? void 0 : existing.default_language) || "cmn";
     nextConfig.default_stability = typeof (existing == null ? void 0 : existing.default_stability) === "number" ? existing.default_stability : 0.5;
     nextConfig.special_voices = isRecord2(existing == null ? void 0 : existing.special_voices) ? existing.special_voices : {};
@@ -37005,8 +37005,8 @@ function mergeVoiceMappingFile(options2) {
   const configTemp = `${configPath}.${transactionId}.tmp`;
   const referenceTemp = referencePath ? `${referencePath}.${transactionId}.tmp` : void 0;
   try {
-    if (referenceTemp && options2.referenceAudio) {
-      fs18.writeFileSync(referenceTemp, options2.referenceAudio.bytes, { flag: "wx" });
+    if (referenceTemp && options3.referenceAudio) {
+      fs18.writeFileSync(referenceTemp, options3.referenceAudio.bytes, { flag: "wx" });
       fs18.renameSync(referenceTemp, referencePath);
     }
     fs18.writeFileSync(configTemp, configBytes, { flag: "wx" });
@@ -37051,9 +37051,9 @@ function readJsonFile2(filePath) {
     return void 0;
   }
 }
-async function materializeCreate3dAssetResult(options2) {
+async function materializeCreate3dAssetResult(options3) {
   var _a3;
-  const payload = isRecord2(options2.payload.preview) ? await materializeCreate3dAssetPreviewResult(options2) : options2.payload;
+  const payload = isRecord2(options3.payload.preview) ? await materializeCreate3dAssetPreviewResult(options3) : options3.payload;
   const modelFile = Array.isArray(payload.model_files) ? payload.model_files.find(isRecord2) : void 0;
   if (!modelFile) {
     return payload;
@@ -37075,7 +37075,7 @@ async function materializeCreate3dAssetResult(options2) {
     };
   }
   const existing = findExistingCreate3dAssetDelivery({
-    targetDir: options2.targetDir,
+    targetDir: options3.targetDir,
     assetId,
     remoteUrl
   });
@@ -37093,7 +37093,7 @@ async function materializeCreate3dAssetResult(options2) {
     };
   }
   const materialized = await materializeCreate3dAssetModelFile({
-    ...options2,
+    ...options3,
     assetId,
     modelFile,
     remoteUrl,
@@ -37101,7 +37101,7 @@ async function materializeCreate3dAssetResult(options2) {
     materialization
   });
   if ("localPath" in materialized) {
-    upsertGeneratedAssetRecord(options2.targetDir, materialized.localPath, {
+    upsertGeneratedAssetRecord(options3.targetDir, materialized.localPath, {
       tool: CREATE_3D_ASSET_PROXY_TOOL_NAME,
       name: assetId,
       assetKind: "model",
@@ -37111,7 +37111,7 @@ async function materializeCreate3dAssetResult(options2) {
       previewUrl: remoteUrl,
       localPath: materialized.localPath,
       absolutePath: materialized.absolutePath,
-      createdAt: options2.now.toISOString(),
+      createdAt: options3.now.toISOString(),
       modelCdnUrl: remoteUrl
     });
   }
@@ -37127,25 +37127,25 @@ async function materializeCreate3dAssetResult(options2) {
     })
   };
 }
-async function materializeCreate3dAssetPreviewResult(options2) {
-  const preview = options2.payload.preview;
-  const assetId = stringField2(options2.payload.asset_id) || "3d_asset";
+async function materializeCreate3dAssetPreviewResult(options3) {
+  const preview = options3.payload.preview;
+  const assetId = stringField2(options3.payload.asset_id) || "3d_asset";
   const previewAssets = {};
   for (const view of THREE_D_MODEL_VIEWS) {
     const url2 = stringField2(preview[view]);
     const materialized = await materializeAsset({
-      targetDir: options2.targetDir,
+      targetDir: options3.targetDir,
       url: url2,
       baseName: `${assetId}_${view}`,
       relativeDir: IMAGE_ASSET_DIRS[0],
       extension: extensionFromUrl(url2) || "png",
-      now: options2.now,
-      fetchImpl: options2.fetchImpl
+      now: options3.now,
+      fetchImpl: options3.fetchImpl
     });
     if (!materialized) continue;
     previewAssets[view] = { ...materialized, cdnUrl: url2 };
     if ("localPath" in materialized && url2) {
-      upsertGeneratedAssetRecord(options2.targetDir, materialized.localPath, {
+      upsertGeneratedAssetRecord(options3.targetDir, materialized.localPath, {
         tool: CREATE_3D_ASSET_PROXY_TOOL_NAME,
         name: `${assetId}_${view}`,
         assetId,
@@ -37153,48 +37153,48 @@ async function materializeCreate3dAssetPreviewResult(options2) {
         previewUrl: url2,
         localPath: materialized.localPath,
         absolutePath: materialized.absolutePath,
-        createdAt: options2.now.toISOString(),
+        createdAt: options3.now.toISOString(),
         view
       });
     }
   }
-  return Object.keys(previewAssets).length > 0 ? { ...options2.payload, preview_assets: previewAssets } : options2.payload;
+  return Object.keys(previewAssets).length > 0 ? { ...options3.payload, preview_assets: previewAssets } : options3.payload;
 }
-async function materializeCreate3dAssetModelFile(options2) {
+async function materializeCreate3dAssetModelFile(options3) {
   var _a3;
-  const targetDirectory = stringField2(options2.modelFile.targetDirectory);
-  const suggestedFileName = stringField2(options2.modelFile.suggestedFileName);
-  const targetAbsolutePath = targetDirectory ? resolveProjectRelativePath(options2.targetDir, targetDirectory) : void 0;
-  const modelAssetRoot = path19.resolve(options2.targetDir, MODEL_ASSET_DIRS[0]);
+  const targetDirectory = stringField2(options3.modelFile.targetDirectory);
+  const suggestedFileName = stringField2(options3.modelFile.suggestedFileName);
+  const targetAbsolutePath = targetDirectory ? resolveProjectRelativePath(options3.targetDir, targetDirectory) : void 0;
+  const modelAssetRoot = path19.resolve(options3.targetDir, MODEL_ASSET_DIRS[0]);
   if (!targetDirectory || !targetAbsolutePath || !isKnownAssetPath(targetDirectory, MODEL_ASSET_DIRS) || !isPathWithinDirectory(modelAssetRoot, targetAbsolutePath) || !suggestedFileName || path19.posix.basename(suggestedFileName) !== suggestedFileName || suggestedFileName.includes("\\")) {
     return {
       download: { success: false, error: "Invalid create_3d_asset local target path." }
     };
   }
-  if (options2.materialization === "copy") {
+  if (options3.materialization === "copy") {
     return await materializeAssetAtPath({
-      url: options2.remoteUrl,
+      url: options3.remoteUrl,
       relativePath: path19.posix.join(targetDirectory, suggestedFileName),
-      targetDir: options2.targetDir,
-      fetchImpl: options2.fetchImpl
+      targetDir: options3.targetDir,
+      fetchImpl: options3.fetchImpl
     });
   }
-  if (options2.materialization !== "extract") {
+  if (options3.materialization !== "extract") {
     return {
       download: {
         success: false,
-        error: `Unsupported create_3d_asset materialization: ${options2.materialization}`
+        error: `Unsupported create_3d_asset materialization: ${options3.materialization}`
       }
     };
   }
   const archive = await materializeAsset({
-    targetDir: options2.targetDir,
-    url: options2.remoteUrl,
-    baseName: options2.assetId,
+    targetDir: options3.targetDir,
+    url: options3.remoteUrl,
+    baseName: options3.assetId,
     relativeDir: ".maker/assets/downloads",
     extension: path19.extname(suggestedFileName).replace(/^\./, "") || "zip",
-    now: options2.now,
-    fetchImpl: options2.fetchImpl
+    now: options3.now,
+    fetchImpl: options3.fetchImpl
   });
   if (!archive || !("localPath" in archive)) {
     return archive ?? {
@@ -37204,12 +37204,12 @@ async function materializeCreate3dAssetModelFile(options2) {
   try {
     fs18.mkdirSync(targetAbsolutePath, { recursive: true });
     extractZip(archive.absolutePath, targetAbsolutePath, "3D model asset");
-    const entrypointExtension = ((_a3 = stringField2(options2.modelFile.entrypointExtension)) == null ? void 0 : _a3.toLowerCase()) || ".mdl";
+    const entrypointExtension = ((_a3 = stringField2(options3.modelFile.entrypointExtension)) == null ? void 0 : _a3.toLowerCase()) || ".mdl";
     const entrypoint = findFileByExtension(targetAbsolutePath, entrypointExtension);
     if (!entrypoint) {
       throw new Error(`3D model archive contains no ${entrypointExtension} entrypoint.`);
     }
-    const localPath = path19.relative(options2.targetDir, entrypoint).split(path19.sep).join("/");
+    const localPath = path19.relative(options3.targetDir, entrypoint).split(path19.sep).join("/");
     return {
       localPath,
       absolutePath: entrypoint,
@@ -37226,13 +37226,13 @@ async function materializeCreate3dAssetModelFile(options2) {
     fs18.rmSync(archive.absolutePath, { force: true });
   }
 }
-async function materializeAssetAtPath(options2) {
-  const absolutePath = resolveProjectRelativePath(options2.targetDir, options2.relativePath);
+async function materializeAssetAtPath(options3) {
+  const absolutePath = resolveProjectRelativePath(options3.targetDir, options3.relativePath);
   if (!absolutePath) {
     return { download: { success: false, error: "Asset target path escapes the project." } };
   }
   try {
-    const response = await options2.fetchImpl(options2.url);
+    const response = await options3.fetchImpl(options3.url);
     if (!response.ok) {
       return {
         download: { success: false, error: `Asset download failed: HTTP ${response.status}` }
@@ -37240,7 +37240,7 @@ async function materializeAssetAtPath(options2) {
     }
     fs18.mkdirSync(path19.dirname(absolutePath), { recursive: true });
     fs18.writeFileSync(absolutePath, Buffer.from(await response.arrayBuffer()));
-    return { localPath: options2.relativePath, absolutePath, download: { success: true } };
+    return { localPath: options3.relativePath, absolutePath, download: { success: true } };
   } catch (error2) {
     return {
       download: {
@@ -37263,10 +37263,10 @@ function findFileByExtension(directory, extension) {
   }
   return void 0;
 }
-function findExistingCreate3dAssetDelivery(options2) {
-  const registry2 = readGeneratedAssetRegistry(options2.targetDir);
+function findExistingCreate3dAssetDelivery(options3) {
+  const registry2 = readGeneratedAssetRegistry(options3.targetDir);
   const match = Object.entries(registry2).find(([, record3]) => {
-    return record3.tool === CREATE_3D_ASSET_PROXY_TOOL_NAME && record3.assetId === options2.assetId && record3.cdnUrl === options2.remoteUrl && typeof record3.absolutePath === "string" && fs18.existsSync(record3.absolutePath);
+    return record3.tool === CREATE_3D_ASSET_PROXY_TOOL_NAME && record3.assetId === options3.assetId && record3.cdnUrl === options3.remoteUrl && typeof record3.absolutePath === "string" && fs18.existsSync(record3.absolutePath);
   });
   if (!match) {
     return void 0;
@@ -37278,30 +37278,30 @@ function findExistingCreate3dAssetDelivery(options2) {
     download: { success: true }
   };
 }
-function create3dAssetLocalDelivery(options2) {
-  if (!("localPath" in options2.materialized)) {
+function create3dAssetLocalDelivery(options3) {
+  if (!("localPath" in options3.materialized)) {
     return {
       status: "failed",
-      asset_id: options2.assetId,
+      asset_id: options3.assetId,
       model: {
-        remote_url: options2.remoteUrl,
-        format: options2.format,
-        materialization: options2.materialization,
-        download: options2.materialized.download
+        remote_url: options3.remoteUrl,
+        format: options3.format,
+        materialization: options3.materialization,
+        download: options3.materialized.download
       }
     };
   }
   return {
     status: "success",
-    asset_id: options2.assetId,
+    asset_id: options3.assetId,
     model: {
-      remote_url: options2.remoteUrl,
-      local_path: options2.materialized.localPath,
-      absolute_path: options2.materialized.absolutePath,
-      format: options2.format,
-      materialization: options2.materialization,
-      reused: options2.reused,
-      download: options2.materialized.download
+      remote_url: options3.remoteUrl,
+      local_path: options3.materialized.localPath,
+      absolute_path: options3.materialized.absolutePath,
+      format: options3.format,
+      materialization: options3.materialization,
+      reused: options3.reused,
+      download: options3.materialized.download
     }
   };
 }
@@ -37317,22 +37317,22 @@ function create3dAssetDeliveryFailure(assetId, remoteUrl, format, materializatio
     }
   };
 }
-function persistMaterializedAsset(options2) {
-  const nextPayload = { ...options2.payload, ...options2.materialized };
-  if (!("localPath" in options2.materialized) || !options2.cdnUrl) {
+function persistMaterializedAsset(options3) {
+  const nextPayload = { ...options3.payload, ...options3.materialized };
+  if (!("localPath" in options3.materialized) || !options3.cdnUrl) {
     return nextPayload;
   }
   try {
-    upsertGeneratedAssetRecord(options2.targetDir, options2.materialized.localPath, {
-      tool: options2.toolName,
-      name: stringField2(options2.payload.name) || stringField2(options2.payload.title),
-      prompt: stringField2(options2.payload.prompt),
-      cdnUrl: options2.cdnUrl,
-      previewUrl: options2.cdnUrl,
-      localPath: options2.materialized.localPath,
-      absolutePath: options2.materialized.absolutePath,
-      createdAt: options2.now.toISOString(),
-      ...options2.extraRegistryFields
+    upsertGeneratedAssetRecord(options3.targetDir, options3.materialized.localPath, {
+      tool: options3.toolName,
+      name: stringField2(options3.payload.name) || stringField2(options3.payload.title),
+      prompt: stringField2(options3.payload.prompt),
+      cdnUrl: options3.cdnUrl,
+      previewUrl: options3.cdnUrl,
+      localPath: options3.materialized.localPath,
+      absolutePath: options3.materialized.absolutePath,
+      createdAt: options3.now.toISOString(),
+      ...options3.extraRegistryFields
     });
   } catch (error2) {
     return {
@@ -37343,19 +37343,19 @@ function persistMaterializedAsset(options2) {
   }
   return nextPayload;
 }
-async function materializeAsset(options2) {
-  if (!options2.url || !options2.baseName) {
+async function materializeAsset(options3) {
+  if (!options3.url || !options3.baseName) {
     return void 0;
   }
   const { absolutePath, relativePath } = createUniqueAssetPath({
-    targetDir: options2.targetDir,
-    relativeDir: options2.relativeDir,
-    baseName: options2.baseName,
-    extension: options2.extension,
-    now: options2.now
+    targetDir: options3.targetDir,
+    relativeDir: options3.relativeDir,
+    baseName: options3.baseName,
+    extension: options3.extension,
+    now: options3.now
   });
   try {
-    const response = await options2.fetchImpl(options2.url);
+    const response = await options3.fetchImpl(options3.url);
     if (!response.ok) {
       return {
         download: {
@@ -37377,19 +37377,19 @@ async function materializeAsset(options2) {
     };
   }
 }
-function createUniqueAssetPath(options2) {
-  const stem = `${sanitizeAssetBaseName(options2.baseName)}_${formatAssetTimestamp(options2.now)}`;
+function createUniqueAssetPath(options3) {
+  const stem = `${sanitizeAssetBaseName(options3.baseName)}_${formatAssetTimestamp(options3.now)}`;
   for (let index = 1; index <= 9999; index += 1) {
     const relativePath = path19.posix.join(
-      options2.relativeDir,
-      `${stem}${index === 1 ? "" : `_${index}`}.${options2.extension}`
+      options3.relativeDir,
+      `${stem}${index === 1 ? "" : `_${index}`}.${options3.extension}`
     );
-    const absolutePath = path19.join(options2.targetDir, ...relativePath.split("/"));
+    const absolutePath = path19.join(options3.targetDir, ...relativePath.split("/"));
     if (!fs18.existsSync(absolutePath)) {
       return { relativePath, absolutePath };
     }
   }
-  throw new Error(`Unable to allocate unique asset path for ${stem}.${options2.extension}`);
+  throw new Error(`Unable to allocate unique asset path for ${stem}.${options3.extension}`);
 }
 function rewriteEditImageAssetArgs(targetDir, args) {
   const registry2 = readGeneratedAssetRegistry(targetDir);
@@ -37541,8 +37541,8 @@ function rewriteTextToDialogueArgs(targetDir, args) {
     })
   };
 }
-async function prepareRemoteProxyToolArgsAsync(options2) {
-  return prepareRemoteProxyToolArgs(options2);
+async function prepareRemoteProxyToolArgsAsync(options3) {
+  return prepareRemoteProxyToolArgs(options3);
 }
 function readLocalElevenLabsVoiceMapping(targetDir) {
   const mappingPath = path19.join(targetDir, ".project", "elevenlabs-voice-mapping.json");
@@ -37586,12 +37586,12 @@ function normalizeDialogueReference(targetDir, value, registry2, index) {
     localPath: projectReference
   });
 }
-function localDialogueAudioReferenceToDataUrl(options2) {
-  const absolutePath = resolveLocalAssetAbsolutePath(options2.targetDir, options2);
+function localDialogueAudioReferenceToDataUrl(options3) {
+  const absolutePath = resolveLocalAssetAbsolutePath(options3.targetDir, options3);
   if (!absolutePath) {
-    throw new Error(`local reference audio file was not found: ${options2.value}`);
+    throw new Error(`local reference audio file was not found: ${options3.value}`);
   }
-  const projectRoot = fs18.realpathSync(path19.resolve(options2.targetDir));
+  const projectRoot = fs18.realpathSync(path19.resolve(options3.targetDir));
   const realFile = fs18.realpathSync(absolutePath);
   const relative = path19.relative(projectRoot, realFile);
   if (relative === ".." || relative.startsWith(`..${path19.sep}`) || path19.isAbsolute(relative)) {
@@ -37599,7 +37599,7 @@ function localDialogueAudioReferenceToDataUrl(options2) {
   }
   const stat = fs18.statSync(realFile);
   if (!stat.isFile()) {
-    throw new Error(`local reference audio path is not a file: ${options2.value}`);
+    throw new Error(`local reference audio path is not a file: ${options3.value}`);
   }
   if (stat.size > AUDIO_DIALOGUE_REFERENCE_MAX_BYTES) {
     throw new Error("local reference audio file must be no larger than 20 MiB.");
@@ -37652,18 +37652,18 @@ function validateAudioDataUrl(value) {
     throw new Error("reference_audio data URL must be no larger than 20 MiB.");
   }
 }
-function rewriteUrlObjectArray(targetDir, value, registry2, options2) {
+function rewriteUrlObjectArray(targetDir, value, registry2, options3) {
   if (!Array.isArray(value)) {
     return value;
   }
   return value.map(
     (item) => isRecord2(item) ? {
       ...item,
-      url: rewriteGeneratedAssetReference(targetDir, item.url, registry2, options2)
+      url: rewriteGeneratedAssetReference(targetDir, item.url, registry2, options3)
     } : item
   );
 }
-function rewriteGeneratedAssetReference(targetDir, value, registry2, options2) {
+function rewriteGeneratedAssetReference(targetDir, value, registry2, options3) {
   var _a3, _b;
   if (typeof value !== "string") {
     return value;
@@ -37671,7 +37671,7 @@ function rewriteGeneratedAssetReference(targetDir, value, registry2, options2) {
   if (/^https?:\/\//i.test(value) || value.startsWith("data:")) {
     return value;
   }
-  const localPath = resolveLocalAssetReference(targetDir, value, registry2, options2.assetDirs);
+  const localPath = resolveLocalAssetReference(targetDir, value, registry2, options3.assetDirs);
   const cdnUrl = localPath ? ((_a3 = registry2[localPath]) == null ? void 0 : _a3.cdnUrl) || ((_b = registry2[localPath]) == null ? void 0 : _b.previewUrl) : void 0;
   if (cdnUrl) {
     return cdnUrl;
@@ -37680,8 +37680,8 @@ function rewriteGeneratedAssetReference(targetDir, value, registry2, options2) {
     targetDir,
     value,
     localPath,
-    mediaKind: options2.mediaKind,
-    maxBytes: options2.maxBytes
+    mediaKind: options3.mediaKind,
+    maxBytes: options3.maxBytes
   });
   return dataUrl || value;
 }
@@ -37759,15 +37759,15 @@ function isKnownAssetPath(relativePath, assetDirs) {
 function isBareAssetName(value) {
   return !value.includes("/") && !value.includes("\\");
 }
-function localAssetReferenceToDataUrl(options2) {
-  const absolutePath = resolveLocalAssetAbsolutePath(options2.targetDir, {
-    value: options2.value,
-    localPath: options2.localPath
+function localAssetReferenceToDataUrl(options3) {
+  const absolutePath = resolveLocalAssetAbsolutePath(options3.targetDir, {
+    value: options3.value,
+    localPath: options3.localPath
   });
   if (!absolutePath) {
     return void 0;
   }
-  const mime = dataUrlMimeForPath(absolutePath, options2.mediaKind);
+  const mime = dataUrlMimeForPath(absolutePath, options3.mediaKind);
   if (!mime) {
     return void 0;
   }
@@ -37777,24 +37777,24 @@ function localAssetReferenceToDataUrl(options2) {
   } catch {
     return void 0;
   }
-  if (!stat.isFile() || stat.size > options2.maxBytes) {
+  if (!stat.isFile() || stat.size > options3.maxBytes) {
     return void 0;
   }
   const bytes = fs18.readFileSync(absolutePath);
   return `data:${mime};base64,${bytes.toString("base64")}`;
 }
-function resolveLocalAssetAbsolutePath(targetDir, options2) {
+function resolveLocalAssetAbsolutePath(targetDir, options3) {
   const candidates = [];
-  if (options2.localPath) {
-    const localPath = resolveProjectRelativePath(targetDir, options2.localPath);
+  if (options3.localPath) {
+    const localPath = resolveProjectRelativePath(targetDir, options3.localPath);
     if (localPath) {
       candidates.push(localPath);
     }
   }
-  if (path19.isAbsolute(options2.value)) {
-    candidates.push(options2.value);
+  if (path19.isAbsolute(options3.value)) {
+    candidates.push(options3.value);
   } else {
-    const localPath = resolveProjectRelativePath(targetDir, options2.value);
+    const localPath = resolveProjectRelativePath(targetDir, options3.value);
     if (localPath) {
       candidates.push(localPath);
     }
@@ -39121,12 +39121,12 @@ function createDefaultClient(_context, handlers) {
     }
   );
 }
-function createMakerRemoteProxyManager(options2 = {}) {
+function createMakerRemoteProxyManager(options3 = {}) {
   const connections = /* @__PURE__ */ new Map();
   const retiredEntries = /* @__PURE__ */ new Set();
   const cachedTools = /* @__PURE__ */ new Map();
-  const createClient = options2.createClient || createDefaultClient;
-  const createTransport = options2.createTransport || createDefaultTransport;
+  const createClient = options3.createClient || createDefaultClient;
+  const createTransport = options3.createTransport || createDefaultTransport;
   let closed = false;
   let closePromise;
   const closeEntry = (entry) => {
@@ -39196,7 +39196,7 @@ function createMakerRemoteProxyManager(options2 = {}) {
         const definitions = tools2;
         cachedTools.set(key, definitions);
         try {
-          await ((_b = options2.onToolsChanged) == null ? void 0 : _b.call(options2, context, definitions));
+          await ((_b = options3.onToolsChanged) == null ? void 0 : _b.call(options3, context, definitions));
         } catch {
         }
       }
@@ -39362,11 +39362,11 @@ function isPlainRecord(value) {
 function isExposedRemoteProxyTool(name) {
   return MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES.includes(name);
 }
-async function listRemoteProxyTools(options2) {
+async function listRemoteProxyTools(options3) {
   const proxy = createRemoteProxyContext({
-    targetDir: options2.targetDir,
-    serverUrl: options2.serverUrl,
-    env: options2.env,
+    targetDir: options3.targetDir,
+    serverUrl: options3.serverUrl,
+    env: options3.env,
     exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES
   });
   const transport = trackMakerChildTransport(
@@ -39395,25 +39395,25 @@ async function listRemoteProxyTools(options2) {
     });
   }
 }
-async function callRemoteProxyTool(options2) {
+async function callRemoteProxyTool(options3) {
   const createProxy = () => createRemoteProxyContext({
-    targetDir: options2.targetDir,
+    targetDir: options3.targetDir,
     exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES
   });
   let proxy = createProxy();
   const finalArgs = await prepareRemoteProxyToolArgsAsync({
-    toolName: options2.name,
+    toolName: options3.name,
     targetDir: proxy.projectRoot,
-    args: options2.args
+    args: options3.args
   });
-  const requestOptions = createRemoteProxyCallToolOptions(options2.progressToken, options2.extra);
-  const callTool = options2.manager ? async () => {
+  const requestOptions = createRemoteProxyCallToolOptions(options3.progressToken, options3.extra);
+  const callTool = options3.manager ? async () => {
     proxy = createProxy();
     let dispatched = false;
     try {
-      return await options2.manager.callTool(
+      return await options3.manager.callTool(
         proxy,
-        { name: options2.name, arguments: finalArgs },
+        { name: options3.name, arguments: finalArgs },
         requestOptions,
         () => {
           dispatched = true;
@@ -39421,7 +39421,7 @@ async function callRemoteProxyTool(options2) {
       );
     } catch (error2) {
       throw new RemoteProxyToolCallError(
-        options2.name,
+        options3.name,
         dispatched ? "unknown" : "not_executed",
         error2
       );
@@ -39449,12 +39449,12 @@ async function callRemoteProxyTool(options2) {
     } catch (error2) {
       await client.close().catch(() => {
       });
-      throw new RemoteProxyToolCallError(options2.name, "not_executed", error2);
+      throw new RemoteProxyToolCallError(options3.name, "not_executed", error2);
     }
     try {
       return await client.callTool(
         {
-          name: options2.name,
+          name: options3.name,
           arguments: finalArgs
         },
         void 0,
@@ -39463,7 +39463,7 @@ async function callRemoteProxyTool(options2) {
         }
       );
     } catch (error2) {
-      throw new RemoteProxyToolCallError(options2.name, "unknown", error2);
+      throw new RemoteProxyToolCallError(options3.name, "unknown", error2);
     } finally {
       await client.close().catch(() => {
       });
@@ -39471,7 +39471,7 @@ async function callRemoteProxyTool(options2) {
   };
   const result = await callTool();
   return await materializeRemoteProxyToolAssets({
-    toolName: options2.name,
+    toolName: options3.name,
     targetDir: proxy.projectRoot,
     result
   });
@@ -39806,12 +39806,12 @@ async function resolveMakerMcpAccessState(environment) {
     return { blocked: false };
   }
 }
-async function resolveMakerMcpTrackingContext(options2) {
+async function resolveMakerMcpTrackingContext(options3) {
   var _a3, _b;
   try {
     const context = await resolveMakerProjectContext({
-      targetDir: options2.targetDir,
-      listClientRoots: options2.listClientRoots,
+      targetDir: options3.targetDir,
+      listClientRoots: options3.listClientRoots,
       allowFallbackOnAmbiguousRoots: false
     });
     const identify = identifyMakerProject({ cwd: context.targetDir });
@@ -39890,14 +39890,14 @@ function installMakerServerExitHandlers(remoteProxyManager) {
     void shutdown("maker-server-sigterm");
   });
 }
-async function formatStatus(options2 = {}) {
+async function formatStatus(options3 = {}) {
   var _a3;
-  const detail = options2.detail === true;
+  const detail = options3.detail === true;
   const distribution = process.env.TAPTAP_MAKER_DISTRIBUTION;
   const pluginDistribution = resolveMakerPluginDistribution(distribution);
   const projectContext = await resolveMakerProjectContext({
-    targetDir: options2.targetDir,
-    listClientRoots: options2.listClientRoots,
+    targetDir: options3.targetDir,
+    listClientRoots: options3.listClientRoots,
     allowFallbackOnAmbiguousRoots: true
   });
   const targetDir = projectContext.targetDir;
@@ -39906,7 +39906,7 @@ async function formatStatus(options2 = {}) {
   const mcpCwd = process.cwd();
   const mcpCwdIdentify = path20.resolve(mcpCwd) === path20.resolve(targetDir) ? identify : identifyMakerProject({ cwd: mcpCwd });
   const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
-  const remoteSyncText = detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo && !options2.skipRemoteSync ? await formatMakerRemoteSyncStatusSafely(identify.projectRoot) : detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo ? formatMakerRemoteSyncSkipped() : "";
+  const remoteSyncText = detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo && !options3.skipRemoteSync ? await formatMakerRemoteSyncStatusSafely(identify.projectRoot) : detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo ? formatMakerRemoteSyncSkipped() : "";
   const pat = loadPat();
   const tapAuth = loadTapAuth();
   const git2 = checkGitEnvironment();
@@ -40028,7 +40028,7 @@ async function formatStatus(options2 = {}) {
     "",
     identify.projectRoot ? await formatMakerProxyToolsStatusSafely({
       targetDir: identify.projectRoot,
-      remoteProxyManager: options2.remoteProxyManager
+      remoteProxyManager: options3.remoteProxyManager
     }) : "",
     "",
     formatAuthNextStep({
@@ -40044,7 +40044,7 @@ async function formatStatus(options2 = {}) {
     "",
     identify.projectRoot ? await formatAiDevKitStatus(identify.projectRoot, {
       environment: env,
-      skipVersionCheck: options2.skipRemoteSync
+      skipVersionCheck: options3.skipRemoteSync
     }) : "",
     "",
     formatMakerSkillStatus({ projectRoot: identify.projectRoot || targetDir }),
@@ -40067,16 +40067,16 @@ function formatMakerPackageUpdateStatusForDistribution(status, distribution) {
   }
   return lines.join("\n");
 }
-function formatAuthNextStep(options2) {
-  if (!options2.hasTapAuth) {
-    if (options2.hasPat) {
+function formatAuthNextStep(options3) {
+  if (!options3.hasTapAuth) {
+    if (options3.hasPat) {
       return [
         "Auth next step",
         "",
         "TapTap auth 缺失。请运行 `taptap-maker login` 刷新登录授权。"
       ].join("\n");
     }
-    if (options2.isProjectBound) {
+    if (options3.isProjectBound) {
       return [
         "Auth next step",
         "",
@@ -40084,17 +40084,17 @@ function formatAuthNextStep(options2) {
       ].join("\n");
     }
   }
-  if (options2.hasPat) {
+  if (options3.hasPat) {
     return "";
   }
-  if (options2.isProjectBound) {
+  if (options3.isProjectBound) {
     return [
       "Auth next step",
       "",
       "Maker PAT 缺失。请运行 `taptap-maker login` 刷新登录授权。"
     ].join("\n");
   }
-  if (options2.rootsAmbiguous) {
+  if (options3.rootsAmbiguous) {
     return "";
   }
   return [
@@ -40136,23 +40136,23 @@ function formatMakerClientRootsSummary(roots) {
   }
   return lines.join("\n");
 }
-function formatMakerSummaryNextAction(options2) {
+function formatMakerSummaryNextAction(options3) {
   var _a3, _b, _c, _d, _e;
-  if (options2.rootsAmbiguous) {
+  if (options3.rootsAmbiguous) {
     return "";
   }
-  if (!options2.git.installed) {
+  if (!options3.git.installed) {
     return "- next_action: Git 未安装。请先安装 Git，并执行 `git --version` 验证。";
   }
-  if (!options2.gitDirectoryStatus.isUsableMakerGitRepo) {
-    const nextAction = options2.gitDirectoryStatus.issue === "inside_parent_git_repo" ? "当前目录位于外层 Git 仓库中；请使用独立 Maker 项目目录重新 clone。" : "当前目录没有可用的独立 Maker Git 仓库；请运行 `taptap-maker init` 重新初始化。";
+  if (!options3.gitDirectoryStatus.isUsableMakerGitRepo) {
+    const nextAction = options3.gitDirectoryStatus.issue === "inside_parent_git_repo" ? "当前目录位于外层 Git 仓库中；请使用独立 Maker 项目目录重新 clone。" : "当前目录没有可用的独立 Maker Git 仓库；请运行 `taptap-maker init` 重新初始化。";
     return `- next_action: ${nextAction}`;
   }
-  if (((_a3 = options2.projectHealth) == null ? void 0 : _a3.status) === "misplaced_config") {
+  if (((_a3 = options3.projectHealth) == null ? void 0 : _a3.status) === "misplaced_config") {
     return "- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。";
   }
-  if (((_b = options2.projectHealth) == null ? void 0 : _b.status) === "error" && !options2.projectHealth.issues.some((issue3) => issue3.code === "invalid_project_json")) {
-    const settingsIssue = options2.projectHealth.issues.find(
+  if (((_b = options3.projectHealth) == null ? void 0 : _b.status) === "error" && !options3.projectHealth.issues.some((issue3) => issue3.code === "invalid_project_json")) {
+    const settingsIssue = options3.projectHealth.issues.find(
       (issue3) => issue3.code === "invalid_settings_json" || issue3.code === "invalid_project_settings"
     );
     if (settingsIssue) {
@@ -40160,8 +40160,8 @@ function formatMakerSummaryNextAction(options2) {
     }
     return "- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。";
   }
-  if (options2.projectInitialization) {
-    switch (options2.projectInitialization.status) {
+  if (options3.projectInitialization) {
+    switch (options3.projectInitialization.status) {
       case "missing_taptap_identity":
         return "- next_action: 先调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。";
       case "invalid_project_json":
@@ -40172,8 +40172,8 @@ function formatMakerSummaryNextAction(options2) {
         break;
     }
   }
-  if (((_c = options2.projectHealth) == null ? void 0 : _c.status) === "error") {
-    const settingsIssue = options2.projectHealth.issues.find(
+  if (((_c = options3.projectHealth) == null ? void 0 : _c.status) === "error") {
+    const settingsIssue = options3.projectHealth.issues.find(
       (issue3) => issue3.code === "invalid_settings_json" || issue3.code === "invalid_project_settings"
     );
     if (settingsIssue) {
@@ -40181,10 +40181,10 @@ function formatMakerSummaryNextAction(options2) {
     }
     return "- next_action: 修复 Maker 项目结构或配置问题后再构建；检查器不会自动移动或覆盖文件。";
   }
-  if (((_d = options2.projectHealth) == null ? void 0 : _d.status) === "warning") {
+  if (((_d = options3.projectHealth) == null ? void 0 : _d.status) === "warning") {
     return "- next_action: 调用 `maker_status_lite` 并设置 `detail=true` 查看项目结构告警后再继续。";
   }
-  if (((_e = options2.projectHealth) == null ? void 0 : _e.status) === "not_initialized") {
+  if (((_e = options3.projectHealth) == null ? void 0 : _e.status) === "not_initialized") {
     return "- next_action: 仅当用户明确要求构建、提交或远端 Web 预览时调用 `maker_build_current_directory`；本地预览使用 CLI preview。";
   }
   return "";
@@ -40208,14 +40208,14 @@ async function formatMakerRemoteSyncStatusSafely(projectRoot) {
     return formatMakerRemoteSyncUnavailable(error2);
   }
 }
-function formatMakerToolRegistrationCwdStatus(options2) {
-  if (!options2.projectRoot) {
+function formatMakerToolRegistrationCwdStatus(options3) {
+  if (!options3.projectRoot) {
     return "";
   }
-  const mcpCwd = path20.resolve(options2.mcpCwd);
-  const targetDir = path20.resolve(options2.targetDir);
-  const projectRoot = path20.resolve(options2.projectRoot);
-  const mcpProjectRoot = options2.mcpProjectRoot ? path20.resolve(options2.mcpProjectRoot) : void 0;
+  const mcpCwd = path20.resolve(options3.mcpCwd);
+  const targetDir = path20.resolve(options3.targetDir);
+  const projectRoot = path20.resolve(options3.projectRoot);
+  const mcpProjectRoot = options3.mcpProjectRoot ? path20.resolve(options3.mcpProjectRoot) : void 0;
   if (mcpProjectRoot === projectRoot) {
     return "";
   }
@@ -40231,15 +40231,15 @@ function formatMakerToolRegistrationCwdStatus(options2) {
     "- next_action: Open the Maker project as the active workspace, or pass the Maker project directory as target_dir. Do not rewrite a shared user-level MCP cwd."
   ].join("\n");
 }
-async function formatMakerProxyToolsStatusSafely(options2) {
+async function formatMakerProxyToolsStatusSafely(options3) {
   try {
-    const listedRemoteTools = options2.listRemoteTools ?? (options2.remoteProxyManager ? async () => options2.remoteProxyManager.listTools(
+    const listedRemoteTools = options3.listRemoteTools ?? (options3.remoteProxyManager ? async () => options3.remoteProxyManager.listTools(
       createRemoteProxyContext({
-        targetDir: options2.targetDir,
+        targetDir: options3.targetDir,
         exposedTools: MAKER_REMOTE_PROXY_EXPOSED_TOOL_NAMES
       })
     ) : () => listRemoteProxyTools({
-      targetDir: options2.targetDir
+      targetDir: options3.targetDir
     }));
     const availableTools = filterExposedRemoteProxyTools(await listedRemoteTools()).map(
       (tool) => tool.name
@@ -40272,12 +40272,12 @@ async function formatMakerProxyToolsStatusSafely(options2) {
     ].join("\n");
   }
 }
-async function retryMakerProxyOperation(operation, options2 = {}) {
+async function retryMakerProxyOperation(operation, options3 = {}) {
   var _a3;
-  const attempts = Math.max(1, options2.attempts || DEFAULT_PROXY_RETRY_ATTEMPTS);
-  const delayMs = Math.max(0, options2.delayMs ?? DEFAULT_PROXY_RETRY_DELAY_MS);
-  const sleep2 = options2.sleep || sleepMs;
-  const shouldRetry = options2.shouldRetry || isRetryableMakerProxyError;
+  const attempts = Math.max(1, options3.attempts || DEFAULT_PROXY_RETRY_ATTEMPTS);
+  const delayMs = Math.max(0, options3.delayMs ?? DEFAULT_PROXY_RETRY_DELAY_MS);
+  const sleep2 = options3.sleep || sleepMs;
+  const shouldRetry = options3.shouldRetry || isRetryableMakerProxyError;
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -40290,7 +40290,7 @@ async function retryMakerProxyOperation(operation, options2 = {}) {
       const message = `Maker proxy connection failed on attempt ${attempt}/${attempts}; retrying in ${Math.round(
         delayMs / 1e3
       )}s. ${error2 instanceof Error ? error2.message : String(error2)}`;
-      (_a3 = options2.onRetry) == null ? void 0 : _a3.call(options2, { attempt, attempts, delayMs, message });
+      (_a3 = options3.onRetry) == null ? void 0 : _a3.call(options3, { attempt, attempts, delayMs, message });
       await sleep2(delayMs);
     }
   }
@@ -40463,15 +40463,15 @@ function createServerClientRootsProvider(server) {
     return result.roots;
   };
 }
-async function resolveMakerProjectContext(options2 = {}) {
-  if (options2.targetDir) {
+async function resolveMakerProjectContext(options3 = {}) {
+  if (options3.targetDir) {
     return {
-      targetDir: path20.resolve(options2.targetDir),
+      targetDir: path20.resolve(options3.targetDir),
       source: "explicit_target_dir",
       roots: { status: "not_requested", roots: [] }
     };
   }
-  const roots = await resolveMakerClientRoots(options2.listClientRoots);
+  const roots = await resolveMakerClientRoots(options3.listClientRoots);
   if (roots.status === "selected") {
     return {
       targetDir: roots.selectedProjectRoot || roots.selectedRoot,
@@ -40479,7 +40479,7 @@ async function resolveMakerProjectContext(options2 = {}) {
       roots
     };
   }
-  if (roots.status === "ambiguous" && !options2.allowFallbackOnAmbiguousRoots) {
+  if (roots.status === "ambiguous" && !options3.allowFallbackOnAmbiguousRoots) {
     throw new MakerProjectContextAmbiguousError(
       [
         "Multiple Maker project roots are attached to this MCP session.",
@@ -40630,9 +40630,9 @@ function splitRemoteProxyToolPrivateArgs(args, toolName) {
   }
   return { targetDir, remoteArgs };
 }
-async function formatAiDevKitStatus(projectRoot, options2 = {}) {
+async function formatAiDevKitStatus(projectRoot, options3 = {}) {
   const devKitStatus = inspectAiDevKit(projectRoot);
-  const updateStatus = options2.skipVersionCheck ? void 0 : await checkAiDevKitUpdate(projectRoot, { environment: options2.environment });
+  const updateStatus = options3.skipVersionCheck ? void 0 : await checkAiDevKitUpdate(projectRoot, { environment: options3.environment });
   if (devKitStatus.ready) {
     return formatAiDevKitStatusLines("ready", devKitStatus, updateStatus).join("\n");
   }
@@ -40758,16 +40758,16 @@ function formatClonePartialStateLines(targetDir) {
     safeToRetry ? "- next_step: 可以直接重试 taptap-maker init；如果连续失败，建议换一个全新的独立目录重新 clone。" : "- next_step: 当前目录已经有 Maker 绑定信息；先运行 taptap-maker doctor 或读取 maker://status 确认状态。"
   ].filter(Boolean);
 }
-function createRemoteProxyContext(options2) {
-  const identify = identifyMakerProject({ cwd: options2.targetDir });
+function createRemoteProxyContext(options3) {
+  const identify = identifyMakerProject({ cwd: options3.targetDir });
   if (!identify.projectRoot || !identify.projectId) {
     throw new MakerBuildContextError(
-      `${options2.targetDir} is not bound to a Maker project. Run taptap-maker init first.`
+      `${options3.targetDir} is not bound to a Maker project. Run taptap-maker init first.`
     );
   }
   const projectConfig = loadProjectConfig(identify.projectRoot);
   const projectId = (projectConfig == null ? void 0 : projectConfig.project_id) || identify.projectId;
-  const env = getMakerEnvironment(options2.env, identify.projectRoot);
+  const env = getMakerEnvironment(options3.env, identify.projectRoot);
   const tapAuth = loadTapAuth();
   if (!tapAuth) {
     throw new MakerBuildContextError("Tap auth not found. Run `taptap-maker login` first.");
@@ -40782,7 +40782,7 @@ function createRemoteProxyContext(options2) {
       "Cannot resolve user_id. Re-run taptap-maker init with PAT so the project config can cache user_id."
     );
   }
-  const serverUrl = options2.serverUrl || requireMakerEndpoint("remoteMcpServerUrl", getMakerEndpoints(env).remoteMcpServerUrl, env);
+  const serverUrl = options3.serverUrl || requireMakerEndpoint("remoteMcpServerUrl", getMakerEndpoints(env).remoteMcpServerUrl, env);
   const projectPath = `${projectId}/workspace`;
   const proxyCfg = {
     server: { url: serverUrl, env },
@@ -40803,7 +40803,7 @@ function createRemoteProxyContext(options2) {
       reset_timeout_on_progress: true,
       force_inject_progress_token: true,
       disable_standalone_sse: true,
-      exposed_tools: options2.exposedTools,
+      exposed_tools: options3.exposedTools,
       replayable_tools: ["build"]
     }
   };
@@ -40824,9 +40824,9 @@ function createRemoteProxyContext(options2) {
     }
   };
 }
-function resolveEmbeddedProxyCommand(options2) {
+function resolveEmbeddedProxyCommand(options3) {
   const currentEntry = process.argv[1];
-  const makerEntry = (options2 == null ? void 0 : options2.makerEntry) || (isUsableEmbeddedMakerEntry(currentEntry) ? currentEntry : void 0) || resolveBundledMakerEntry();
+  const makerEntry = (options3 == null ? void 0 : options3.makerEntry) || (isUsableEmbeddedMakerEntry(currentEntry) ? currentEntry : void 0) || resolveBundledMakerEntry();
   if (!makerEntry) {
     throw new Error("Cannot resolve current taptap-maker entry for embedded MCP proxy.");
   }
@@ -40930,10 +40930,10 @@ function formatMakerAppWebUrl(projectId, env) {
   url2.searchParams.set("localDev", "1");
   return url2.toString();
 }
-async function buildCurrentDirectory(options2) {
+async function buildCurrentDirectory(options3) {
   var _a3;
-  const localChanges = await readMakerProjectLocalChanges(options2.targetDir);
-  if (!options2.confirmRemoteBuildWithoutSubmit) {
+  const localChanges = await readMakerProjectLocalChanges(options3.targetDir);
+  if (!options3.confirmRemoteBuildWithoutSubmit) {
     const config2 = loadProjectConfig(localChanges.projectRoot);
     const projectHealth = inspectMakerProjectHealth(localChanges.projectRoot, "build");
     if (!projectHealth.canBuild) {
@@ -40956,18 +40956,18 @@ async function buildCurrentDirectory(options2) {
         projectHealth
       };
     }
-    (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
+    (_a3 = options3.onProgress) == null ? void 0 : _a3.call(options3, {
       progress: 0,
       total: 100,
       phase: "sync",
       message: localChanges.hasChanges ? "Syncing local Maker changes before remote build" : "Waking Maker build server before remote build"
     });
-    const submitResult = await (options2.submitLocalChanges || pushMakerProject)({
+    const submitResult = await (options3.submitLocalChanges || pushMakerProject)({
       cwd: localChanges.projectRoot,
-      message: options2.message || (!localChanges.hasChanges ? "chore: wake maker build server" : void 0),
-      files: options2.files,
+      message: options3.message || (!localChanges.hasChanges ? "chore: wake maker build server" : void 0),
+      files: options3.files,
       allowEmpty: !localChanges.hasChanges,
-      onProgress: options2.onProgress
+      onProgress: options3.onProgress
     });
     if (submitResult.failure || !submitResult.pushed && submitResult.status !== "clean") {
       return {
@@ -40979,7 +40979,7 @@ async function buildCurrentDirectory(options2) {
     }
     let buildResult;
     try {
-      buildResult = await runRemoteBuildCurrentDirectory(options2, localChanges.projectRoot);
+      buildResult = await runRemoteBuildCurrentDirectory(options3, localChanges.projectRoot);
     } catch (error2) {
       const buildFailure = toMakerBuildFailure(error2);
       if (error2 instanceof MakerBuildContextError) {
@@ -41006,7 +41006,7 @@ async function buildCurrentDirectory(options2) {
     };
   }
   try {
-    const buildResult = await runRemoteBuildCurrentDirectory(options2, options2.targetDir);
+    const buildResult = await runRemoteBuildCurrentDirectory(options3, options3.targetDir);
     return buildResult;
   } catch (error2) {
     if (error2 instanceof RemoteBuildFailedError) {
@@ -41020,10 +41020,10 @@ async function buildCurrentDirectory(options2) {
     }
     const buildFailure = toMakerBuildFailure(error2);
     if (error2 instanceof MakerBuildContextError) {
-      const identify = identifyMakerProject({ cwd: options2.targetDir });
+      const identify = identifyMakerProject({ cwd: options3.targetDir });
       return {
         mode: "build_context_failed_before_remote",
-        projectRoot: identify.projectRoot || path20.resolve(options2.targetDir),
+        projectRoot: identify.projectRoot || path20.resolve(options3.targetDir),
         projectId: identify.projectId || "unknown",
         codeSubmitStatus: "skipped_by_user",
         buildFailure
@@ -41032,28 +41032,28 @@ async function buildCurrentDirectory(options2) {
     throw error2;
   }
 }
-async function runRemoteBuildCurrentDirectory(options2, targetDir) {
-  if (options2.callRemoteBuild) {
-    const injectedResult = await options2.callRemoteBuild(targetDir);
+async function runRemoteBuildCurrentDirectory(options3, targetDir) {
+  if (options3.callRemoteBuild) {
+    const injectedResult = await options3.callRemoteBuild(targetDir);
     return attachBuildSuccessSideEffects(injectedResult, {
-      refreshPreview: options2.refreshPreview || skipPreviewRefresh,
-      startRuntimeLogWatch: options2.startRuntimeLogWatch
+      refreshPreview: options3.refreshPreview || skipPreviewRefresh,
+      startRuntimeLogWatch: options3.startRuntimeLogWatch
     });
   }
   const createProxy = () => createRemoteProxyContext({
     targetDir,
-    serverUrl: options2.serverUrl,
-    env: options2.env
+    serverUrl: options3.serverUrl,
+    env: options3.env
   });
   let proxy = createProxy();
-  const buildArgs = createBuildArgs(proxy.projectRoot, options2);
-  const timeoutMs = options2.timeoutMs || DEFAULT_BUILD_TIMEOUT_MS;
+  const buildArgs = createBuildArgs(proxy.projectRoot, options3);
+  const timeoutMs = options3.timeoutMs || DEFAULT_BUILD_TIMEOUT_MS;
   const requestOptions = {
     timeout: timeoutMs,
     resetTimeoutOnProgress: true,
     onprogress: (progress) => {
       var _a3;
-      (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
+      (_a3 = options3.onProgress) == null ? void 0 : _a3.call(options3, {
         progress: progress.progress,
         total: progress.total,
         phase: "remote_build",
@@ -41061,9 +41061,9 @@ async function runRemoteBuildCurrentDirectory(options2, targetDir) {
       });
     }
   };
-  const callBuild = options2.remoteProxyManager ? async () => {
+  const callBuild = options3.remoteProxyManager ? async () => {
     proxy = createProxy();
-    return await options2.remoteProxyManager.callTool(
+    return await options3.remoteProxyManager.callTool(
       proxy,
       { name: "build", arguments: buildArgs },
       requestOptions
@@ -41106,7 +41106,7 @@ async function runRemoteBuildCurrentDirectory(options2, targetDir) {
   const result = await retryMakerProxyOperation(callBuild, {
     onRetry: (event) => {
       var _a3;
-      (_a3 = options2.onProgress) == null ? void 0 : _a3.call(options2, {
+      (_a3 = options3.onProgress) == null ? void 0 : _a3.call(options3, {
         progress: event.attempt,
         total: event.attempts,
         phase: "remote_build",
@@ -41129,8 +41129,8 @@ async function runRemoteBuildCurrentDirectory(options2, targetDir) {
     resultText
   });
   return attachBuildSuccessSideEffects(buildCallResult, {
-    refreshPreview: options2.refreshPreview,
-    startRuntimeLogWatch: options2.startRuntimeLogWatch || startRuntimeLogWatch
+    refreshPreview: options3.refreshPreview,
+    startRuntimeLogWatch: options3.startRuntimeLogWatch || startRuntimeLogWatch
   });
 }
 function createMakerRemoteBuildError(result) {
@@ -41138,29 +41138,29 @@ function createMakerRemoteBuildError(result) {
     remote_result: sanitizeRemoteDiagnosticValue(result)
   });
 }
-function createRemoteBuildCallResult(options2) {
+function createRemoteBuildCallResult(options3) {
   return {
     mode: "remote_build",
-    projectRoot: options2.projectRoot,
-    projectId: options2.projectId,
-    projectPath: options2.projectPath,
-    serverUrl: options2.serverUrl,
-    env: options2.env,
-    makerUrl: formatMakerAppWebUrl(options2.projectId, options2.env),
-    timeoutMs: options2.timeoutMs,
-    buildArgs: options2.buildArgs,
-    resultText: options2.resultText
+    projectRoot: options3.projectRoot,
+    projectId: options3.projectId,
+    projectPath: options3.projectPath,
+    serverUrl: options3.serverUrl,
+    env: options3.env,
+    makerUrl: formatMakerAppWebUrl(options3.projectId, options3.env),
+    timeoutMs: options3.timeoutMs,
+    buildArgs: options3.buildArgs,
+    resultText: options3.resultText
   };
 }
-async function attachBuildSuccessSideEffects(buildResult, options2) {
+async function attachBuildSuccessSideEffects(buildResult, options3) {
   if (isRemoteBuildFailureResult(buildResult)) {
     throw new RemoteBuildFailedError(buildResult);
   }
-  const withPreview = await attachPreviewRefresh(buildResult, options2.refreshPreview);
-  if (!options2.startRuntimeLogWatch) {
+  const withPreview = await attachPreviewRefresh(buildResult, options3.refreshPreview);
+  if (!options3.startRuntimeLogWatch) {
     return withPreview;
   }
-  return attachRuntimeLogWatch(withPreview, options2.startRuntimeLogWatch);
+  return attachRuntimeLogWatch(withPreview, options3.startRuntimeLogWatch);
 }
 function isRemoteToolError(result) {
   return Boolean(result && typeof result === "object" && result.isError);
@@ -41291,7 +41291,7 @@ async function startRuntimeLogWatch(buildResult) {
     fs19.closeSync(errFd);
   }
 }
-function stopExistingRuntimeLogWatcher(pidFile, options2 = {}) {
+function stopExistingRuntimeLogWatcher(pidFile, options3 = {}) {
   if (!fs19.existsSync(pidFile)) {
     return {};
   }
@@ -41303,7 +41303,7 @@ function stopExistingRuntimeLogWatcher(pidFile, options2 = {}) {
   }
   try {
     process.kill(pid, 0);
-    const processCommand = (options2.getProcessCommand || getProcessCommand)(pid);
+    const processCommand = (options3.getProcessCommand || getProcessCommand)(pid);
     const verifiedCommand = getVerifiedRuntimeLogWatcherCommand(processCommand, pidState);
     if (!verifiedCommand) {
       fs19.rmSync(pidFile, { force: true });
@@ -41314,7 +41314,7 @@ function stopExistingRuntimeLogWatcher(pidFile, options2 = {}) {
       };
     }
     process.kill(pid, "SIGTERM");
-    const stopped = (options2.waitForExit || waitForProcessExit)(pid, WATCHER_STOP_TIMEOUT_MS);
+    const stopped = (options3.waitForExit || waitForProcessExit)(pid, WATCHER_STOP_TIMEOUT_MS);
     if (stopped) {
       fs19.rmSync(pidFile, { force: true });
       return { previousPid: pid, previousStopped: true };
@@ -41500,9 +41500,9 @@ async function callRemoteRuntimeLogs(proxy, args, timeoutMs = MAKER_TOOL_CALL_TI
     await runtimeLogClient.close();
   }
 }
-function createRemoteRuntimeLogClient(proxy, timeoutMs = MAKER_TOOL_CALL_TIMEOUT_MS, options2 = {}) {
+function createRemoteRuntimeLogClient(proxy, timeoutMs = MAKER_TOOL_CALL_TIMEOUT_MS, options3 = {}) {
   let client;
-  const createTransport = options2.createTransport || (() => trackMakerChildTransport(
+  const createTransport = options3.createTransport || (() => trackMakerChildTransport(
     new HiddenStdioClientTransport({
       command: proxy.command,
       args: proxy.args,
@@ -41510,7 +41510,7 @@ function createRemoteRuntimeLogClient(proxy, timeoutMs = MAKER_TOOL_CALL_TIMEOUT
       stderr: "pipe"
     })
   ));
-  const createClient = options2.createClient || (() => new Client(
+  const createClient = options3.createClient || (() => new Client(
     {
       name: "taptap-maker-runtime-log-forwarder",
       version: VERSION
@@ -41569,16 +41569,16 @@ function createRemoteRuntimeLogClient(proxy, timeoutMs = MAKER_TOOL_CALL_TIMEOUT
     close
   };
 }
-async function pushThenBuildCurrentDirectory(options2) {
-  const submitResult = await (options2.pushLocalChanges || pushMakerProject)({
-    cwd: options2.targetDir,
-    message: options2.message,
-    files: options2.files,
-    onProgress: options2.onProgress
+async function pushThenBuildCurrentDirectory(options3) {
+  const submitResult = await (options3.pushLocalChanges || pushMakerProject)({
+    cwd: options3.targetDir,
+    message: options3.message,
+    files: options3.files,
+    onProgress: options3.onProgress
   });
   if (!submitResult.pushed) {
     return {
-      targetDir: options2.targetDir,
+      targetDir: options3.targetDir,
       submitResult
     };
   }
@@ -41586,21 +41586,21 @@ async function pushThenBuildCurrentDirectory(options2) {
   try {
     buildResult = await runRemoteBuildCurrentDirectory(
       {
-        targetDir: options2.targetDir,
-        callRemoteBuild: options2.callRemoteBuild,
-        onProgress: options2.onProgress
+        targetDir: options3.targetDir,
+        callRemoteBuild: options3.callRemoteBuild,
+        onProgress: options3.onProgress
       },
-      options2.targetDir
+      options3.targetDir
     );
   } catch (error2) {
     return {
-      targetDir: options2.targetDir,
+      targetDir: options3.targetDir,
       submitResult,
       buildFailure: toMakerBuildFailure(error2)
     };
   }
   return {
-    targetDir: options2.targetDir,
+    targetDir: options3.targetDir,
     submitResult,
     buildResult
   };
@@ -41613,26 +41613,26 @@ function toMakerBuildFailure(error2) {
     ...error2 instanceof Error ? errorOwnDiagnosticFields(error2) : {}
   };
 }
-function createBuildArgs(projectRoot, options2) {
+function createBuildArgs(projectRoot, options3) {
   const buildArgs = {};
-  if (options2.entry) {
-    buildArgs.entry = options2.entry;
+  if (options3.entry) {
+    buildArgs.entry = options3.entry;
   }
-  if (options2.scriptsPath) {
-    buildArgs.scriptsPath = options2.scriptsPath;
+  if (options3.scriptsPath) {
+    buildArgs.scriptsPath = options3.scriptsPath;
   }
-  if (!options2.entry && !options2.scriptsPath && !options2.entryClient && !options2.entryServer && !options2.multiplayer && fs19.existsSync(path20.join(projectRoot, "scripts", "main.lua"))) {
+  if (!options3.entry && !options3.scriptsPath && !options3.entryClient && !options3.entryServer && !options3.multiplayer && fs19.existsSync(path20.join(projectRoot, "scripts", "main.lua"))) {
     buildArgs.entry = "main.lua";
     buildArgs.scriptsPath = "scripts";
   }
-  if (options2.entryClient) {
-    buildArgs.entry_client = options2.entryClient;
+  if (options3.entryClient) {
+    buildArgs.entry_client = options3.entryClient;
   }
-  if (options2.entryServer) {
-    buildArgs.entry_server = options2.entryServer;
+  if (options3.entryServer) {
+    buildArgs.entry_server = options3.entryServer;
   }
-  if (options2.multiplayer) {
-    buildArgs.multiplayer = options2.multiplayer;
+  if (options3.multiplayer) {
+    buildArgs.multiplayer = options3.multiplayer;
   }
   return buildArgs;
 }
@@ -41970,8 +41970,8 @@ function formatBuildFailureStageLines(failureStage, codeSubmitStatus, remoteBuil
     `- remote_build_status: ${remoteBuildStatus}`
   ];
 }
-function formatBuildLocalExecutionCheckLines(options2 = {}) {
-  if (options2.context === "remote_build") {
+function formatBuildLocalExecutionCheckLines(options3 = {}) {
+  if (options3.context === "remote_build") {
     return [
       "local_execution_check:",
       "- restriction_signal: not_detected",
@@ -41981,8 +41981,8 @@ function formatBuildLocalExecutionCheckLines(options2 = {}) {
       "- evidence_rule: A remote build failure is not evidence of a local sandbox restriction."
     ];
   }
-  const restrictionSignal = options2.failure ? hasLocalExecutionRestrictionSignal(options2.failure) : false;
-  if (options2.failure && !restrictionSignal && isRemoteGitFailure(options2.failure)) {
+  const restrictionSignal = options3.failure ? hasLocalExecutionRestrictionSignal(options3.failure) : false;
+  if (options3.failure && !restrictionSignal && isRemoteGitFailure(options3.failure)) {
     return [
       "local_execution_check:",
       "- restriction_signal: not_detected",
@@ -42728,6 +42728,260 @@ let selectionEpoch = 0;
 let viewEpoch = 0;
 let state = {projects: [], tasks: []};
 let loaded = false;
+let fortuneTimer;
+let fortuneContentHeight = 0;
+let fortuneReady = false;
+function fortuneMode() {
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+}
+function fortuneUrl() {
+  return '/gdev-fortune/?embed=1&theme=dungeon&mode=' + fortuneMode();
+}
+function revealFortune() {
+  if (fortuneReady) return;
+  fortuneReady = true;
+  const corner = $('fortune-corner');
+  if (corner) corner.hidden = false;
+}
+function fortuneIsOpen() {
+  return $('fortune-toggle')?.getAttribute('aria-expanded') === 'true';
+}
+function applyFortuneSize(height) {
+  if (!Number.isFinite(height) || height < 120 || height > 1600) return;
+  fortuneContentHeight = Math.round(height);
+  revealFortune();
+  if (fortuneIsOpen()) positionFortune();
+  else {
+    const panel = $('fortune-panel');
+    if (panel) {
+      panel.classList.add('fortune-preload');
+      panel.hidden = true;
+    }
+  }
+}
+function positionFortune() {
+  const toggle = $('fortune-toggle');
+  const panel = $('fortune-panel');
+  if (!toggle || !panel || !fortuneIsOpen()) return;
+  panel.classList.remove('fortune-preload');
+  const anchor = toggle.getBoundingClientRect();
+  const width = 320;
+  const height = fortuneContentHeight || 620;
+  const scale = Math.min(0.78, (window.innerWidth - 24) / width, (anchor.top - 12) / height, 1);
+  panel.style.width = width + 'px';
+  panel.style.height = height + 'px';
+  panel.style.transform = 'scale(' + scale + ')';
+  panel.style.transformOrigin = 'left bottom';
+  const visualWidth = width * scale;
+  panel.style.left = Math.max(12, Math.min(anchor.left, window.innerWidth - visualWidth - 12)) + 'px';
+  panel.style.bottom = Math.max(8, window.innerHeight - anchor.top - 4) + 'px';
+}
+function closeFortune() {
+  clearTimeout(fortuneTimer);
+  const panel = $('fortune-panel');
+  if (panel) {
+    panel.hidden = true;
+    panel.classList.add('fortune-preload');
+  }
+  $('fortune-toggle')?.setAttribute('aria-expanded','false');
+}
+function scheduleCloseFortune() {
+  clearTimeout(fortuneTimer);
+  fortuneTimer = setTimeout(closeFortune, 400);
+}
+function loadFortuneFrame(reload) {
+  const frame = $('fortune-frame');
+  const panel = $('fortune-panel');
+  if (!frame || !panel) return;
+  if (!reload && frame.dataset.mode === fortuneMode() && frame.getAttribute('src')) return;
+  if (panel.parentElement !== document.body) document.body.append(panel);
+  if (!fortuneReady) {
+    panel.hidden = false;
+    panel.classList.add('fortune-preload');
+  }
+  fortuneContentHeight = 0;
+  frame.dataset.mode = fortuneMode();
+  frame.src = fortuneUrl();
+}
+function openFortune() {
+  if (!fortuneReady) return;
+  clearTimeout(fortuneTimer);
+  const panel = $('fortune-panel');
+  if (!panel) return;
+  if (panel.parentElement !== document.body) document.body.append(panel);
+  panel.hidden = false;
+  $('fortune-toggle').setAttribute('aria-expanded','true');
+  positionFortune();
+}
+function bindFortuneHover(element) {
+  element.addEventListener('mouseenter',() => { clearTimeout(fortuneTimer); openFortune(); });
+  element.addEventListener('mouseleave',scheduleCloseFortune);
+}
+let documentTab = 'docs', documentSearch = '', documentItems = [], documentSelected = '';
+let documentRequest = 0, documentDirectoryRequest = 0;
+function markdownNodes(tokens) {
+  const fragment = document.createDocumentFragment();
+  for (const token of tokens || []) {
+    let element;
+    const children = () => markdownNodes(token.tokens || []);
+    if (token.type === 'space' || token.type === 'def') continue;
+    if (token.type === 'heading') { element = node('h' + Math.min(6,Math.max(1,token.depth))); element.append(children()); }
+    else if (token.type === 'paragraph' || token.type === 'text') {
+      element = node(token.type === 'paragraph' ? 'p' : 'span');
+      if (token.tokens) element.append(children()); else element.textContent = token.text || '';
+    } else if (['strong','em','del'].includes(token.type)) { element = node(token.type); element.append(children()); }
+    else if (token.type === 'code') { element = node('pre'); element.append(node('code',token.text)); }
+    else if (token.type === 'codespan') element = node('code',token.text);
+    else if (token.type === 'blockquote') { element = node('blockquote'); element.append(children()); }
+    else if (token.type === 'br' || token.type === 'hr') element = node(token.type);
+    else if (token.type === 'list') {
+      element = node(token.ordered ? 'ol' : 'ul');
+      if (token.ordered && Number.isInteger(token.start)) element.start = token.start;
+      for (const item of token.items || []) {
+        const li = node('li'); if (item.task) li.append(node('span',item.checked ? '[x] ' : '[ ] '));
+        li.append(markdownNodes(item.tokens)); element.append(li);
+      }
+    } else if (token.type === 'table') {
+      element = node('div',undefined,'doc-table');
+      const table = node('table'), head = node('thead'), body = node('tbody'), row = node('tr');
+      (token.header || []).forEach(cell => { const th = node('th'); th.append(markdownNodes(cell.tokens)); row.append(th); });
+      head.append(row); table.append(head,body);
+      (token.rows || []).forEach(cells => { const tr = node('tr'); cells.forEach(cell => {
+        const td = node('td'); td.append(markdownNodes(cell.tokens)); tr.append(td);
+      }); body.append(tr); }); element.append(table);
+    } else if (token.type === 'link') {
+      element = node('a'); element.append(children());
+      const href = token.href || '';
+      if (/^https?:\/\//i.test(href)) {
+        element.href = href; element.target = '_blank'; element.rel = 'noopener noreferrer'; element.referrerPolicy = 'no-referrer';
+      } else {
+        element.href = '#';
+        element.addEventListener('click',event => {
+          event.preventDefault();
+          const current = documentItems.find(item => item.id === documentSelected);
+          if (!current) return;
+          let relative;
+          try { relative = decodeURIComponent(new URL(href,'https://local.invalid/' + current.relativePath).pathname.slice(1)); }
+          catch (_) { return; }
+          const next = documentItems.find(item => item.source === current.source && item.relativePath === relative);
+          if (next) { documentTab = next.kind; documentSearch = ''; renderDocumentDirectory(); void openDocument(next); }
+          else announce('该链接不在当前文档目录中');
+        });
+      }
+    } else if (token.type === 'image') element = node('span','[图片：' + (token.text || token.href || '') + ']','muted');
+    else element = node('span',token.text || token.raw || '');
+    fragment.append(element);
+  }
+  return fragment;
+}
+function documentApi(id) {
+  const query = new URLSearchParams();
+  if (currentProject()?.valid) query.set('project',selected);
+  if (id) query.set('id',id);
+  return '/api/documents?' + query;
+}
+async function openDocument(item) {
+  const request = ++documentRequest, epoch = viewEpoch;
+  documentSelected = item.id; renderDocumentDirectory();
+  const reader = $('document-reader');
+  if (!reader) return;
+  replace(reader,[node('p','正在读取文档…','muted')]);
+  try {
+    const result = await api(documentApi(item.id));
+    if (request !== documentRequest || epoch !== viewEpoch || page !== 'documents') return;
+    const header = node('div',undefined,'document-reader-header');
+    header.append(node('h2',item.title),button('复制文档链接',async () => {
+      try {
+        await navigator.clipboard.writeText(result.link);
+        announce('文档链接已复制');
+      } catch (_) {
+        const fallback = node('input'); fallback.readOnly = true; fallback.value = result.link;
+        fallback.setAttribute('aria-label','文档链接');
+        header.append(fallback); fallback.focus(); fallback.select();
+        notify('无法访问剪贴板，请复制已选中的文档链接');
+      }
+    }));
+    replace(reader,[header,node('p',item.source + ' · ' + item.relativePath,'muted')]);
+    if (item.purpose) {
+      const intro = node('section',undefined,'document-intro');
+      intro.append(node('p',item.purpose),node('p','适用范围：' + item.scope,'muted'));
+      const related = documentItems.filter(entry => item.related?.includes(entry.id));
+      if (related.length) {
+        const links = node('div',undefined,'actions');
+        links.append(node('span','相关资料','muted'));
+        related.forEach(entry => links.append(button(entry.title,() => {
+          documentTab = entry.kind; documentSearch = '';
+          const search = $('document-search'); if (search) search.value = '';
+          renderDocumentDirectory(); void openDocument(entry);
+        },{className:'link'})));
+        intro.append(links);
+      }
+      reader.append(intro);
+    }
+    const tokens = result.tokens || [];
+    const content = node('div',undefined,'markdown-content');
+    content.append(markdownNodes(tokens[0]?.type === 'heading' && tokens[0]?.depth === 1 ? tokens.slice(1) : tokens)); reader.append(content);
+    reader.scrollTop = 0;
+  } catch (error) {
+    if (request === documentRequest && epoch === viewEpoch) replace(reader,[node('p',error.message,'bad')]);
+  }
+}
+function renderDocumentDirectory() {
+  const target = $('document-directory');
+  if (!target) return;
+  const items = documentItems.filter(item => item.kind === documentTab &&
+    (item.title + ' ' + item.relativePath + ' ' + item.category + ' ' + (item.purpose || '')).toLowerCase().includes(documentSearch.toLowerCase()));
+  replace(target,[]);
+  const groups = [...new Set(items.map(item => item.category))];
+  for (const category of groups) {
+    target.append(node('h3',category));
+    for (const item of items.filter(item => item.category === category)) {
+      const entry = button(item.title,() => void openDocument(item),{className:'link document-entry' + (item.featured ? ' document-featured' : '')});
+      if (item.id === documentSelected) entry.setAttribute('aria-current','true');
+      entry.title = item.source + ' · ' + item.relativePath; target.append(entry);
+    }
+  }
+  if (!items.length) target.append(node('p',documentSearch ? '没有匹配的内容' : '暂无此类资料','muted'));
+  document.querySelectorAll('[data-document-kind]').forEach(tab => {
+    tab.setAttribute('aria-selected',String(tab.dataset.documentKind === documentTab));
+  });
+}
+async function renderDocuments() {
+  const epoch = viewEpoch;
+  const request = ++documentDirectoryRequest;
+  const toolbar = node('div',undefined,'document-toolbar');
+  const tabs = node('div',undefined,'actions'); tabs.setAttribute('role','tablist');
+  [['docs','开发文档'],['project','项目文档'],['skills','Skill']].forEach(([kind,label]) => {
+    const tab = button(label,() => {
+      documentTab = kind; renderDocumentDirectory();
+      const first = documentItems.find(item => item.kind === kind);
+      if (first) void openDocument(first);
+      else { documentRequest++; documentSelected = ''; replace($('document-reader'),[node('p','暂无此类资料','muted')]); }
+    });
+    tab.dataset.documentKind = kind; tab.setAttribute('role','tab'); tabs.append(tab);
+  });
+  const search = node('input'); search.id = 'document-search'; search.type = 'search'; search.placeholder = '搜索标题、用途或目录';
+  search.setAttribute('aria-label','搜索文档与 Skill'); search.value = documentSearch;
+  search.addEventListener('input',() => { documentSearch = search.value; renderDocumentDirectory(); });
+  toolbar.append(tabs,search,button('刷新目录',() => void renderDocuments()));
+  const layout = node('div',undefined,'document-layout');
+  const directory = node('aside'); directory.id = 'document-directory'; directory.setAttribute('aria-label','文档目录');
+  const reader = node('article'); reader.id = 'document-reader';
+  layout.append(directory,reader);
+  replace($('view'),[toolbar,layout]);
+  directory.append(node('p','正在读取目录…','muted'));
+  documentItems = []; documentRequest++;
+  try {
+    const items = await api(documentApi());
+    if (epoch !== viewEpoch || page !== 'documents' || request !== documentDirectoryRequest) return;
+    documentItems = items; renderDocumentDirectory();
+    const first = items.find(item => item.id === documentSelected && item.kind === documentTab) || items.find(item => item.kind === documentTab);
+    if (first) void openDocument(first);
+    else reader.append(node('p','暂无此类资料','muted'));
+  } catch (error) {
+    if (epoch === viewEpoch && page === 'documents' && request === documentDirectoryRequest) replace(directory,[node('p',error.message,'bad')]);
+  }
+}
 let versionCatalog = null;
 let versionQuery = false;
 let versionError = false;
@@ -43038,7 +43292,7 @@ function updateChrome() {
   $('context').textContent = currentProject() ? currentProject().name + ' / ' + text(detail?.git?.branch, '分支未提供') : '本地项目';
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
-    b.disabled = !currentProject()?.valid;
+    b.disabled = !loaded || (b.dataset.page !== 'documents' && !currentProject()?.valid);
     if (b.dataset.page === page) b.setAttribute('aria-current','page');
     else b.removeAttribute('aria-current');
   });
@@ -43054,7 +43308,7 @@ function headingActionButtons() {
   const local = button('本地预览',() => {
     const action = previewActions(preview)[0];
     if (action) void runProjectAction(action);
-  },{icon:'monitor',disabled:offline || busy() || !actions.length,focus:'heading-preview'});
+  },{className:'preview-button',icon:'monitor',disabled:offline || busy() || !actions.length,focus:'heading-preview'});
   local.title = actions.length ? '本地预览 · ' + actionLabels[actions[0]] :
     '本地预览 · ' + (previewError || text(preview?.error,previewLabel()));
   const checking = pendingActions.get(selected) === 'lua-lsp.check' ||
@@ -43333,6 +43587,7 @@ function fields(entries) {
   entries.forEach(([label,value]) => list.append(row(label, text(value))));
   return list;
 }
+let selectingProjectFolder = false;
 function renderProjects() {
   const view = $('view');
   const title = heading('本地项目', loaded ? state.projects.length + ' 个已登记项目' : '正在读取项目');
@@ -43352,26 +43607,29 @@ function renderProjects() {
     r.append(label,actions); list.append(r);
   });
   if (loaded && !state.projects.length) list.append(node('p','尚未登记本地项目','empty'));
-  const form = node('form', undefined, 'entry');
-  const label = node('label','项目绝对路径'); label.htmlFor = 'project-path';
-  const input = node('input'); input.id = 'project-path'; input.name = 'path'; input.type = 'text';
-  input.required = true; input.autocomplete = 'off'; input.spellcheck = false;
-  const submit = button('检查并添加', () => {}, {disabled:busy() || !loaded});
-  submit.type = 'submit';
-  form.append(label,input,submit);
-  form.addEventListener('submit', async event => {
-    event.preventDefault();
-    const path = input.value.trim();
-    if (!path || submit.disabled) return;
-    submit.disabled = true;
+  const controls = node('div', undefined, 'actions');
+  const select = button(selectingProjectFolder ? '选择或扫描中…' : '打开本地文件夹', async () => {
+    if (selectingProjectFolder) return;
+    selectingProjectFolder = true;
+    renderProjects();
     try {
-      const project = await api('/api/projects', {method:'POST',body:{path}});
+      const result = await api('/api/projects/select-folder', {method:'POST',body:{},timeoutMs:140000});
+      if (result.cancelled) return;
       await pollState();
-      if (project?.key) announce('已登记项目：' + text(project.name));
+      let message = result.added || result.existing
+        ? '新增 ' + result.added + ' 个项目，' + result.existing + ' 个已在列表中'
+        : '未找到可添加的 Maker 项目';
+      if (result.skipped) message += '；' + result.skipped + ' 个目录读取或项目校验失败';
+      if (result.limited) message += '；未扫描全部目录，请选择更具体的文件夹继续添加';
+      notify(message, result.skipped || result.limited ? 'warning' : undefined);
+    } catch (error) { notify(error.message); }
+    finally {
+      selectingProjectFolder = false;
       if (page === 'projects') renderProjects();
-    } catch (error) { notify(error.message); submit.disabled = false; }
-  });
-  replace(view,[title,list,form]);
+    }
+  }, {icon:'folder',disabled:offline || busy() || !loaded || selectingProjectFolder});
+  controls.append(select);
+  replace(view,[title,list,controls]);
 }
 async function removeProject(key) {
   if (busy() || busy(key)) return;
@@ -43984,7 +44242,7 @@ async function loadCommit(hash) {
   }
 }
 function navigate(next) {
-  if (!currentProject()?.valid && next !== 'projects') return;
+  if (!currentProject()?.valid && next !== 'projects' && next !== 'documents') return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
   render();
   if (next === 'git' && !git) void loadGit(false);
@@ -43998,6 +44256,7 @@ function render() {
   $('plugin-views').hidden = !plugin;
   pluginSessions.forEach(session => { session.element.hidden = true; });
   if (plugin) { renderPlugin(plugin); return; }
+  if (page === 'documents') { void renderDocuments(); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
   else if (page === 'build') renderBuild();
   else if (page === 'git') renderGit();
@@ -44100,9 +44359,24 @@ document.addEventListener('DOMContentLoaded',async () => {
     const value = theme.checked ? 'dark' : 'light';
     document.documentElement.dataset.theme = value;
     pluginSessions.forEach(session => sendPluginTheme(session));
+    if (fortuneReady) loadFortuneFrame(true);
     try { localStorage.setItem('maker-console-theme',value); } catch (_) { notify('无法保存主题设置'); }
   });
   $('projects-button').append(icon('folder'));
+  loadFortuneFrame();
+  bindFortuneHover($('fortune-toggle'));
+  bindFortuneHover($('fortune-panel'));
+  $('fortune-toggle').addEventListener('click',event => {
+    event.stopPropagation();
+    openFortune();
+  });
+  window.addEventListener('resize',() => { if (!$('fortune-panel').hidden) positionFortune(); });
+  document.addEventListener('keydown',event => { if (event.key === 'Escape') closeFortune(); });
+  window.addEventListener('message',event => {
+    if (event.origin !== location.origin || !event.data) return;
+    if (event.data.type === 'gdev-fortune:escape') closeFortune();
+    if (event.data.type === 'gdev-fortune:size') applyFortuneSize(Number(event.data.height));
+  });
   $('projects-button').addEventListener('click',() => navigate('projects'));
   $('project-picker').addEventListener('change',event => chooseProject(event.target.value));
   $('maker-version-picker').addEventListener('change',selectMakerVersion);
@@ -44143,6 +44417,7 @@ button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min
 button:hover:not(:disabled){border-color:var(--muted);background:var(--soft)}
 button:disabled{opacity:.5;cursor:not-allowed}
 button.primary{background:var(--yellow);border-color:var(--yellow);color:#252820;font-weight:600}
+button.preview-button{color:var(--yellow);font-weight:700}
 .build-button{min-width:116px}
 button.is-building:disabled{opacity:1;cursor:wait}
 .build-badge{font-size:12px;white-space:nowrap}
@@ -44163,6 +44438,41 @@ button.is-building:disabled{opacity:1;cursor:wait}
 button.danger{color:var(--red)}
 #maker-version-picker{font-size:12px;font-weight:400;max-width:240px;min-width:100px;padding:5px 8px}
 .brand{flex-wrap:wrap}
+.footer-start{display:flex;align-items:center;gap:12px;flex-wrap:nowrap;min-width:0}
+#fortune-corner{position:relative;flex:none}
+button#fortune-toggle{border:0;background:none;color:#f5e6a3;font-size:12px;font-weight:600;padding:0;min-height:0;line-height:1.4;white-space:nowrap}
+:root[data-theme="light"] button#fortune-toggle{color:#c4a017}
+button#fortune-toggle:hover,button#fortune-toggle[aria-expanded="true"]{color:var(--yellow);background:none;border-color:transparent}
+#fortune-panel{position:fixed;z-index:30;overflow:hidden;border:0;border-radius:6px;background:transparent;box-shadow:0 8px 28px #0005}
+#fortune-panel[hidden]{display:none!important}
+#fortune-panel.fortune-preload{left:-10000px;bottom:0;width:320px;height:auto;transform:none;visibility:hidden;pointer-events:none}
+#fortune-panel iframe{display:block;width:100%;height:100%;border:0;pointer-events:none;overflow:hidden}
+.document-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+.document-toolbar input{flex:1;min-width:160px;max-width:360px}
+.document-toolbar [aria-selected="true"]{color:var(--accent);border-bottom:2px solid var(--accent)}
+.document-layout{display:grid;grid-template-columns:260px minmax(0,1fr);border-top:1px solid var(--border);min-height:480px}
+#document-directory{padding:12px 18px 20px 0;border-right:1px solid var(--border);max-height:75vh;overflow:auto}
+#document-directory h3{font-size:12px;color:var(--muted);margin:18px 0 8px}
+button.document-entry{display:block;width:100%;padding:7px 10px;overflow-wrap:anywhere;border-radius:0;font-size:13px}
+button.document-entry[aria-current]{color:var(--accent);background:var(--soft);border-left:2px solid var(--accent)}
+button.document-entry.document-featured{color:var(--accent);font-weight:700}
+.document-intro{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:20px}
+.document-intro p{margin:6px 0}.document-intro .actions{margin-top:12px}
+.document-intro button.link{color:var(--green);text-decoration:underline}
+.document-reader-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.document-reader-header h2{font-size:22px;margin:0;min-width:0;flex:1}
+.document-reader-header button{flex-shrink:0}
+.document-reader-header input{width:100%}
+#document-reader{min-width:0;padding:22px 28px;max-height:75vh;overflow:auto;overflow-wrap:anywhere}
+#document-reader>h2{font-size:22px;margin-top:0}
+.markdown-content{line-height:1.85;max-width:920px}
+.markdown-content h1{font-size:24px}.markdown-content h2{font-size:20px}.markdown-content h3{font-size:17px}
+.markdown-content pre{white-space:pre;overflow:auto;max-width:100%;max-height:none}
+.markdown-content blockquote{border-left:3px solid var(--border);margin-left:0;padding-left:16px;color:var(--muted)}
+.markdown-content a{color:var(--green);text-decoration:underline}
+.doc-table{overflow:auto}.doc-table table{border-collapse:collapse;width:100%}
+.doc-table th,.doc-table td{border:1px solid var(--border);padding:8px;text-align:left}
+@media(max-width:700px){.document-layout{grid-template-columns:minmax(0,1fr)}#document-directory{max-height:220px;border-right:0;border-bottom:1px solid var(--border);padding-right:0}#document-reader{padding:18px 0;max-height:none}}
 button.icon-button{width:36px;flex-shrink:0;padding:8px}
 button.link{background:none;border:0;padding:0;justify-content:flex-start;color:var(--text);text-align:left;min-width:0}
 :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
@@ -44258,7 +44568,7 @@ summary{cursor:pointer;overflow-wrap:anywhere}
 .git-meta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px}
 .git-detail{margin-top:24px;border-top:1px solid var(--border);padding-top:20px}
 .file-list{padding-left:22px;overflow-wrap:anywhere}
-footer{border-top:1px solid var(--border);font-size:11px}
+footer{border-top:1px solid var(--border);font-size:11px;align-items:center}
 dialog{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:24px;width:440px;max-width:calc(100% - 32px)}
 dialog::backdrop{background:#0009}
 dialog h2{font-size:18px}dialog .actions{justify-content:flex-end;margin-top:22px}
@@ -44311,6 +44621,7 @@ function getConsoleHtml() {
   <button data-page="overview">项目</button>
   <button data-page="build">构建与测试</button>
   <button data-page="git">Git</button>
+  <button data-page="documents" disabled>文档 / Skill</button>
   <span id="plugin-tabs" class="plugin-tabs"></span>
 </nav>
 <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
@@ -44318,7 +44629,14 @@ function getConsoleHtml() {
 <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
 <section id="plugin-views" aria-label="插件工作区" hidden></section>
 <div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
-<footer><span id="version">Maker 本地服务</span><span id="footer-path"></span></footer>
+<footer><div class="footer-start"><span id="version">Maker 本地服务</span>
+<section id="fortune-corner" hidden aria-label="开发者日签">
+  <button id="fortune-toggle" type="button" aria-expanded="false" aria-controls="fortune-panel">独立游戏开发日签</button>
+</section>
+</div><span id="footer-path"></span></footer>
+<div id="fortune-panel" class="fortune-preload" hidden>
+  <iframe id="fortune-frame" title="gDEV日签 · 独立游戏开发者老黄历" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer" scrolling="no"></iframe>
+</div>
 <dialog id="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-message">
   <form method="dialog">
     <h2 id="confirm-title"></h2><p id="confirm-message"></p>
@@ -44416,17 +44734,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path49) {
-      const ctrl = callVisitor(key, node, visitor, path49);
+    function visit_(key, node, visitor, path52) {
+      const ctrl = callVisitor(key, node, visitor, path52);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path49, ctrl);
-        return visit_(key, ctrl, visitor, path49);
+        replaceNode(key, path52, ctrl);
+        return visit_(key, ctrl, visitor, path52);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path49 = Object.freeze(path49.concat(node));
+          path52 = Object.freeze(path52.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path49);
+            const ci = visit_(i, node.items[i], visitor, path52);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -44437,13 +44755,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path49 = Object.freeze(path49.concat(node));
-          const ck = visit_("key", node.key, visitor, path49);
+          path52 = Object.freeze(path52.concat(node));
+          const ck = visit_("key", node.key, visitor, path52);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path49);
+          const cv = visit_("value", node.value, visitor, path52);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -44464,17 +44782,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path49) {
-      const ctrl = await callVisitor(key, node, visitor, path49);
+    async function visitAsync_(key, node, visitor, path52) {
+      const ctrl = await callVisitor(key, node, visitor, path52);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path49, ctrl);
-        return visitAsync_(key, ctrl, visitor, path49);
+        replaceNode(key, path52, ctrl);
+        return visitAsync_(key, ctrl, visitor, path52);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path49 = Object.freeze(path49.concat(node));
+          path52 = Object.freeze(path52.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path49);
+            const ci = await visitAsync_(i, node.items[i], visitor, path52);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -44485,13 +44803,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path49 = Object.freeze(path49.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path49);
+          path52 = Object.freeze(path52.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path52);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path49);
+          const cv = await visitAsync_("value", node.value, visitor, path52);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -44518,24 +44836,24 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path49) {
+    function callVisitor(key, node, visitor, path52) {
       var _a3, _b, _c, _d, _e;
       if (typeof visitor === "function")
-        return visitor(key, node, path49);
+        return visitor(key, node, path52);
       if (identity.isMap(node))
-        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path49);
+        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path52);
       if (identity.isSeq(node))
-        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path49);
+        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path52);
       if (identity.isPair(node))
-        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path49);
+        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path52);
       if (identity.isScalar(node))
-        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path49);
+        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path52);
       if (identity.isAlias(node))
-        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path49);
+        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path52);
       return void 0;
     }
-    function replaceNode(key, path49, node) {
-      const parent = path49[path49.length - 1];
+    function replaceNode(key, path52, node) {
+      const parent = path52[path52.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -45147,10 +45465,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path49, value) {
+    function collectionFromPath(schema, path52, value) {
       let v = value;
-      for (let i = path49.length - 1; i >= 0; --i) {
-        const k = path49[i];
+      for (let i = path52.length - 1; i >= 0; --i) {
+        const k = path52[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -45169,7 +45487,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path49) => path49 == null || typeof path49 === "object" && !!path49[Symbol.iterator]().next().done;
+    var isEmptyPath = (path52) => path52 == null || typeof path52 === "object" && !!path52[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -45199,11 +45517,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path49, value) {
-        if (isEmptyPath(path49))
+      addIn(path52, value) {
+        if (isEmptyPath(path52))
           this.add(value);
         else {
-          const [key, ...rest] = path49;
+          const [key, ...rest] = path52;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -45217,8 +45535,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path49) {
-        const [key, ...rest] = path49;
+      deleteIn(path52) {
+        const [key, ...rest] = path52;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -45232,8 +45550,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path49, keepScalar) {
-        const [key, ...rest] = path49;
+      getIn(path52, keepScalar) {
+        const [key, ...rest] = path52;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -45251,8 +45569,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path49) {
-        const [key, ...rest] = path49;
+      hasIn(path52) {
+        const [key, ...rest] = path52;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -45262,8 +45580,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path49, value) {
-        const [key, ...rest] = path49;
+      setIn(path52, value) {
+        const [key, ...rest] = path52;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -45730,7 +46048,7 @@ var require_stringify = __commonJS({
     var identity = require_identity();
     var stringifyComment = require_stringifyComment();
     var stringifyString = require_stringifyString();
-    function createStringifyContext(doc, options2) {
+    function createStringifyContext(doc, options3) {
       const opt = Object.assign({
         blockQuote: true,
         commentString: stringifyComment.stringifyComment,
@@ -45749,7 +46067,7 @@ var require_stringify = __commonJS({
         singleQuote: null,
         trueStr: "true",
         verifyAliasOrder: true
-      }, doc.schema.toStringOptions, options2);
+      }, doc.schema.toStringOptions, options3);
       let inFlow;
       switch (opt.collectionStyle) {
         case "block":
@@ -46173,10 +46491,10 @@ var require_stringifyCollection = __commonJS({
     var identity = require_identity();
     var stringify = require_stringify();
     var stringifyComment = require_stringifyComment();
-    function stringifyCollection(collection, ctx, options2) {
+    function stringifyCollection(collection, ctx, options3) {
       const flow = ctx.inFlow ?? collection.flow;
       const stringify2 = flow ? stringifyFlowCollection : stringifyBlockCollection;
-      return stringify2(collection, ctx, options2);
+      return stringify2(collection, ctx, options3);
     }
     function stringifyBlockCollection({ comment, items }, ctx, { blockItemPrefix, flowChars, itemIndent, onChompKeep, onComment }) {
       const { indent: indent4, options: { commentString } } = ctx;
@@ -47625,11 +47943,11 @@ var require_stringifyDocument = __commonJS({
     var identity = require_identity();
     var stringify = require_stringify();
     var stringifyComment = require_stringifyComment();
-    function stringifyDocument(doc, options2) {
+    function stringifyDocument(doc, options3) {
       var _a3;
       const lines = [];
-      let hasDirectives = options2.directives === true;
-      if (options2.directives !== false && doc.directives) {
+      let hasDirectives = options3.directives === true;
+      if (options3.directives !== false && doc.directives) {
         const dir = doc.directives.toString(doc);
         if (dir) {
           lines.push(dir);
@@ -47639,7 +47957,7 @@ var require_stringifyDocument = __commonJS({
       }
       if (hasDirectives)
         lines.push("---");
-      const ctx = stringify.createStringifyContext(doc, options2);
+      const ctx = stringify.createStringifyContext(doc, options3);
       const { commentString } = ctx.options;
       if (doc.commentBefore) {
         if (lines.length !== 1)
@@ -47715,7 +48033,7 @@ var require_Document = __commonJS({
     var createNode = require_createNode();
     var directives = require_directives();
     var Document = class _Document {
-      constructor(value, replacer, options2) {
+      constructor(value, replacer, options3) {
         this.commentBefore = null;
         this.comment = null;
         this.errors = [];
@@ -47724,8 +48042,8 @@ var require_Document = __commonJS({
         let _replacer = null;
         if (typeof replacer === "function" || Array.isArray(replacer)) {
           _replacer = replacer;
-        } else if (options2 === void 0 && replacer) {
-          options2 = replacer;
+        } else if (options3 === void 0 && replacer) {
+          options3 = replacer;
           replacer = void 0;
         }
         const opt = Object.assign({
@@ -47737,17 +48055,17 @@ var require_Document = __commonJS({
           stringKeys: false,
           uniqueKeys: true,
           version: "1.2"
-        }, options2);
+        }, options3);
         this.options = opt;
         let { version: version2 } = opt;
-        if (options2 == null ? void 0 : options2._directives) {
-          this.directives = options2._directives.atDocument();
+        if (options3 == null ? void 0 : options3._directives) {
+          this.directives = options3._directives.atDocument();
           if (this.directives.yaml.explicit)
             version2 = this.directives.yaml.version;
         } else
           this.directives = new directives.Directives({ version: version2 });
-        this.setSchema(version2, options2);
-        this.contents = value === void 0 ? null : this.createNode(value, _replacer, options2);
+        this.setSchema(version2, options3);
+        this.contents = value === void 0 ? null : this.createNode(value, _replacer, options3);
       }
       /**
        * Create a deep copy of this Document and its contents.
@@ -47777,9 +48095,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path49, value) {
+      addIn(path52, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path49, value);
+          this.contents.addIn(path52, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -47798,7 +48116,7 @@ var require_Document = __commonJS({
         }
         return new Alias.Alias(node.anchor);
       }
-      createNode(value, replacer, options2) {
+      createNode(value, replacer, options3) {
         let _replacer = void 0;
         if (typeof replacer === "function") {
           value = replacer.call({ "": value }, "", value);
@@ -47809,11 +48127,11 @@ var require_Document = __commonJS({
           if (asStr.length > 0)
             replacer = replacer.concat(asStr);
           _replacer = replacer;
-        } else if (options2 === void 0 && replacer) {
-          options2 = replacer;
+        } else if (options3 === void 0 && replacer) {
+          options3 = replacer;
           replacer = void 0;
         }
-        const { aliasDuplicateObjects, anchorPrefix, flow, keepUndefined, onTagObj, tag } = options2 ?? {};
+        const { aliasDuplicateObjects, anchorPrefix, flow, keepUndefined, onTagObj, tag } = options3 ?? {};
         const { onAnchor, setAnchors, sourceObjects } = anchors.createNodeAnchors(
           this,
           // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
@@ -47838,9 +48156,9 @@ var require_Document = __commonJS({
        * Convert a key and a value into a `Pair` using the current schema,
        * recursively wrapping all values as `Scalar` or `Collection` nodes.
        */
-      createPair(key, value, options2 = {}) {
-        const k = this.createNode(key, null, options2);
-        const v = this.createNode(value, null, options2);
+      createPair(key, value, options3 = {}) {
+        const k = this.createNode(key, null, options3);
+        const v = this.createNode(value, null, options3);
         return new Pair.Pair(k, v);
       }
       /**
@@ -47854,14 +48172,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path49) {
-        if (Collection.isEmptyPath(path49)) {
+      deleteIn(path52) {
+        if (Collection.isEmptyPath(path52)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path49) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path52) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -47876,10 +48194,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path49, keepScalar) {
-        if (Collection.isEmptyPath(path49))
+      getIn(path52, keepScalar) {
+        if (Collection.isEmptyPath(path52))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path49, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path52, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -47890,10 +48208,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path49) {
-        if (Collection.isEmptyPath(path49))
+      hasIn(path52) {
+        if (Collection.isEmptyPath(path52))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path49) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path52) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -47910,13 +48228,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path49, value) {
-        if (Collection.isEmptyPath(path49)) {
+      setIn(path52, value) {
+        if (Collection.isEmptyPath(path52)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path49), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path52), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path49, value);
+          this.contents.setIn(path52, value);
         }
       }
       /**
@@ -47926,7 +48244,7 @@ var require_Document = __commonJS({
        *
        * Overrides all previously set schema options.
        */
-      setSchema(version2, options2 = {}) {
+      setSchema(version2, options3 = {}) {
         if (typeof version2 === "number")
           version2 = String(version2);
         let opt;
@@ -47956,10 +48274,10 @@ var require_Document = __commonJS({
             throw new Error(`Expected '1.1', '1.2' or null as first argument, but found: ${sv}`);
           }
         }
-        if (options2.schema instanceof Object)
-          this.schema = options2.schema;
+        if (options3.schema instanceof Object)
+          this.schema = options3.schema;
         else if (opt)
-          this.schema = new Schema.Schema(Object.assign(opt, options2));
+          this.schema = new Schema.Schema(Object.assign(opt, options3));
         else
           throw new Error(`With a null YAML version, the { schema: Schema } option is required`);
       }
@@ -47989,14 +48307,14 @@ var require_Document = __commonJS({
         return this.toJS({ json: true, jsonArg, mapAsMap: false, onAnchor });
       }
       /** A YAML representation of the document. */
-      toString(options2 = {}) {
+      toString(options3 = {}) {
         if (this.errors.length > 0)
           throw new Error("Document with errors cannot be stringified");
-        if ("indent" in options2 && (!Number.isInteger(options2.indent) || Number(options2.indent) <= 0)) {
-          const s = JSON.stringify(options2.indent);
+        if ("indent" in options3 && (!Number.isInteger(options3.indent) || Number(options3.indent) <= 0)) {
+          const s = JSON.stringify(options3.indent);
           throw new Error(`"indent" option must be a positive integer, not ${s}`);
         }
-        return stringifyDocument.stringifyDocument(this, options2);
+        return stringifyDocument.stringifyDocument(this, options3);
       }
     };
     function assertCollection(contents) {
@@ -49350,14 +49668,14 @@ var require_compose_node = __commonJS({
       }
       return node;
     }
-    function composeAlias({ options: options2 }, { offset, source, end }, onError) {
+    function composeAlias({ options: options3 }, { offset, source, end }, onError) {
       const alias = new Alias.Alias(source.substring(1));
       if (alias.source === "")
         onError(offset, "BAD_ALIAS", "Alias cannot be an empty string");
       if (alias.source.endsWith(":"))
         onError(offset + source.length - 1, "BAD_ALIAS", "Alias ending in : is ambiguous", true);
       const valueEnd = offset + source.length;
-      const re = resolveEnd.resolveEnd(end, valueEnd, options2.strict, onError);
+      const re = resolveEnd.resolveEnd(end, valueEnd, options3.strict, onError);
       alias.range = [offset, valueEnd, re.offset];
       if (re.comment)
         alias.comment = re.comment;
@@ -49376,8 +49694,8 @@ var require_compose_doc = __commonJS({
     var composeNode = require_compose_node();
     var resolveEnd = require_resolve_end();
     var resolveProps = require_resolve_props();
-    function composeDoc(options2, directives, { offset, start, value, end }, onError) {
-      const opts = Object.assign({ _directives: directives }, options2);
+    function composeDoc(options3, directives, { offset, start, value, end }, onError) {
+      const opts = Object.assign({ _directives: directives }, options3);
       const doc = new Document.Document(void 0, opts);
       const ctx = {
         atKey: false,
@@ -49457,7 +49775,7 @@ var require_composer = __commonJS({
       return { comment, afterEmptyLine };
     }
     var Composer = class {
-      constructor(options2 = {}) {
+      constructor(options3 = {}) {
         this.doc = null;
         this.atDirectives = false;
         this.prelude = [];
@@ -49470,8 +49788,8 @@ var require_composer = __commonJS({
           else
             this.errors.push(new errors.YAMLParseError(pos, code, message));
         };
-        this.directives = new directives.Directives({ version: options2.version || "1.2" });
-        this.options = options2;
+        this.directives = new directives.Directives({ version: options3.version || "1.2" });
+        this.options = options3;
       }
       decorate(doc, afterDoc) {
         const { comment, afterEmptyLine } = parsePrelude(this.prelude);
@@ -49879,9 +50197,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path49) => {
+    visit.itemAtPath = (cst, path52) => {
       let item = cst;
-      for (const [field, index] of path49) {
+      for (const [field, index] of path52) {
         const tok = item == null ? void 0 : item[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -49890,23 +50208,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path49) => {
-      const parent = visit.itemAtPath(cst, path49.slice(0, -1));
-      const field = path49[path49.length - 1][0];
+    visit.parentCollection = (cst, path52) => {
+      const parent = visit.itemAtPath(cst, path52.slice(0, -1));
+      const field = path52[path52.length - 1][0];
       const coll = parent == null ? void 0 : parent[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path49, item, visitor) {
-      let ctrl = visitor(item, path49);
+    function _visit(path52, item, visitor) {
+      let ctrl = visitor(item, path52);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path49.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path52.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -49917,10 +50235,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path49);
+            ctrl = ctrl(item, path52);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path49) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path52) : ctrl;
     }
     exports.visit = visit;
   }
@@ -50644,7 +50962,7 @@ var require_parser = __commonJS({
     "use strict";
     var node_process = __require("process");
     var cst = require_cst();
-    var lexer = require_lexer();
+    var lexer2 = require_lexer();
     function includesToken(list, type) {
       for (let i = 0; i < list.length; ++i)
         if (list[i].type === type)
@@ -50743,7 +51061,7 @@ var require_parser = __commonJS({
         this.stack = [];
         this.source = "";
         this.type = "";
-        this.lexer = new lexer.Lexer();
+        this.lexer = new lexer2.Lexer();
         this.onNewLine = onNewLine;
       }
       /**
@@ -51207,14 +51525,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs47 = this.flowScalar(this.type);
+              const fs49 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map2.items.push({ start, key: fs47, sep: [] });
+                map2.items.push({ start, key: fs49, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs47);
+                this.stack.push(fs49);
               } else {
-                Object.assign(it, { key: fs47, sep: [] });
+                Object.assign(it, { key: fs49, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -51343,13 +51661,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs47 = this.flowScalar(this.type);
+              const fs49 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs47, sep: [] });
+                fc.items.push({ start: [], key: fs49, sep: [] });
               else if (it.sep)
-                this.stack.push(fs47);
+                this.stack.push(fs49);
               else
-                Object.assign(it, { key: fs47, sep: [] });
+                Object.assign(it, { key: fs49, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -51518,16 +51836,16 @@ var require_public_api = __commonJS({
     var log = require_log();
     var identity = require_identity();
     var lineCounter = require_line_counter();
-    var parser = require_parser();
-    function parseOptions(options2) {
-      const prettyErrors = options2.prettyErrors !== false;
-      const lineCounter$1 = options2.lineCounter || prettyErrors && new lineCounter.LineCounter() || null;
+    var parser2 = require_parser();
+    function parseOptions(options3) {
+      const prettyErrors = options3.prettyErrors !== false;
+      const lineCounter$1 = options3.lineCounter || prettyErrors && new lineCounter.LineCounter() || null;
       return { lineCounter: lineCounter$1, prettyErrors };
     }
-    function parseAllDocuments(source, options2 = {}) {
-      const { lineCounter: lineCounter2, prettyErrors } = parseOptions(options2);
-      const parser$1 = new parser.Parser(lineCounter2 == null ? void 0 : lineCounter2.addNewLine);
-      const composer$1 = new composer.Composer(options2);
+    function parseAllDocuments(source, options3 = {}) {
+      const { lineCounter: lineCounter2, prettyErrors } = parseOptions(options3);
+      const parser$1 = new parser2.Parser(lineCounter2 == null ? void 0 : lineCounter2.addNewLine);
+      const composer$1 = new composer.Composer(options3);
       const docs = Array.from(composer$1.compose(parser$1.parse(source)));
       if (prettyErrors && lineCounter2)
         for (const doc of docs) {
@@ -51538,10 +51856,10 @@ var require_public_api = __commonJS({
         return docs;
       return Object.assign([], { empty: true }, composer$1.streamInfo());
     }
-    function parseDocument3(source, options2 = {}) {
-      const { lineCounter: lineCounter2, prettyErrors } = parseOptions(options2);
-      const parser$1 = new parser.Parser(lineCounter2 == null ? void 0 : lineCounter2.addNewLine);
-      const composer$1 = new composer.Composer(options2);
+    function parseDocument3(source, options3 = {}) {
+      const { lineCounter: lineCounter2, prettyErrors } = parseOptions(options3);
+      const parser$1 = new parser2.Parser(lineCounter2 == null ? void 0 : lineCounter2.addNewLine);
+      const composer$1 = new composer.Composer(options3);
       let doc = null;
       for (const _doc of composer$1.compose(parser$1.parse(source), true, source.length)) {
         if (!doc)
@@ -51557,14 +51875,14 @@ var require_public_api = __commonJS({
       }
       return doc;
     }
-    function parse3(src, reviver, options2) {
+    function parse3(src, reviver, options3) {
       let _reviver = void 0;
       if (typeof reviver === "function") {
         _reviver = reviver;
-      } else if (options2 === void 0 && reviver && typeof reviver === "object") {
-        options2 = reviver;
+      } else if (options3 === void 0 && reviver && typeof reviver === "object") {
+        options3 = reviver;
       }
-      const doc = parseDocument3(src, options2);
+      const doc = parseDocument3(src, options3);
       if (!doc)
         return null;
       doc.warnings.forEach((warning) => log.warn(doc.options.logLevel, warning));
@@ -51574,29 +51892,29 @@ var require_public_api = __commonJS({
         else
           doc.errors = [];
       }
-      return doc.toJS(Object.assign({ reviver: _reviver }, options2));
+      return doc.toJS(Object.assign({ reviver: _reviver }, options3));
     }
-    function stringify(value, replacer, options2) {
+    function stringify(value, replacer, options3) {
       let _replacer = null;
       if (typeof replacer === "function" || Array.isArray(replacer)) {
         _replacer = replacer;
-      } else if (options2 === void 0 && replacer) {
-        options2 = replacer;
+      } else if (options3 === void 0 && replacer) {
+        options3 = replacer;
       }
-      if (typeof options2 === "string")
-        options2 = options2.length;
-      if (typeof options2 === "number") {
-        const indent4 = Math.round(options2);
-        options2 = indent4 < 1 ? void 0 : indent4 > 8 ? { indent: 8 } : { indent: indent4 };
+      if (typeof options3 === "string")
+        options3 = options3.length;
+      if (typeof options3 === "number") {
+        const indent4 = Math.round(options3);
+        options3 = indent4 < 1 ? void 0 : indent4 > 8 ? { indent: 8 } : { indent: indent4 };
       }
       if (value === void 0) {
-        const { keepUndefined } = options2 ?? replacer ?? {};
+        const { keepUndefined } = options3 ?? replacer ?? {};
         if (!keepUndefined)
           return void 0;
       }
       if (identity.isDocument(value) && !_replacer)
-        return value.toString(options2);
-      return new Document.Document(value, _replacer, options2).toString(options2);
+        return value.toString(options3);
+      return new Document.Document(value, _replacer, options3).toString(options3);
     }
     exports.parse = parse3;
     exports.parseAllDocuments = parseAllDocuments;
@@ -51620,9 +51938,9 @@ var require_dist2 = __commonJS({
     var YAMLMap = require_YAMLMap();
     var YAMLSeq = require_YAMLSeq();
     var cst = require_cst();
-    var lexer = require_lexer();
+    var lexer2 = require_lexer();
     var lineCounter = require_line_counter();
-    var parser = require_parser();
+    var parser2 = require_parser();
     var publicApi = require_public_api();
     var visit = require_visit();
     exports.Composer = composer.Composer;
@@ -51645,9 +51963,9 @@ var require_dist2 = __commonJS({
     exports.YAMLMap = YAMLMap.YAMLMap;
     exports.YAMLSeq = YAMLSeq.YAMLSeq;
     exports.CST = cst;
-    exports.Lexer = lexer.Lexer;
+    exports.Lexer = lexer2.Lexer;
     exports.LineCounter = lineCounter.LineCounter;
-    exports.Parser = parser.Parser;
+    exports.Parser = parser2.Parser;
     exports.parse = publicApi.parse;
     exports.parseAllDocuments = publicApi.parseAllDocuments;
     exports.parseDocument = publicApi.parseDocument;
@@ -51715,7 +52033,7 @@ var require_pend = __commonJS({
 // node_modules/yauzl/fd-slicer.js
 var require_fd_slicer = __commonJS({
   "node_modules/yauzl/fd-slicer.js"(exports) {
-    var fs47 = __require("fs");
+    var fs49 = __require("fs");
     var util2 = __require("util");
     var stream = __require("stream");
     var Readable2 = stream.Readable;
@@ -51735,14 +52053,14 @@ var require_fd_slicer = __commonJS({
     FdSlicer.prototype.read = function(buffer, offset, length, position, callback) {
       var self = this;
       self.pend.go(function(cb) {
-        fs47.read(self.fd, buffer, offset, length, position, function(err, bytesRead, buffer2) {
+        fs49.read(self.fd, buffer, offset, length, position, function(err, bytesRead, buffer2) {
           cb();
           callback(err, bytesRead, buffer2);
         });
       });
     };
-    FdSlicer.prototype.createReadStream = function(options2) {
-      return new ReadStream(this, options2);
+    FdSlicer.prototype.createReadStream = function(options3) {
+      return new ReadStream(this, options3);
     };
     FdSlicer.prototype.ref = function() {
       this.refCount += 1;
@@ -51752,7 +52070,7 @@ var require_fd_slicer = __commonJS({
       self.refCount -= 1;
       if (self.refCount < 0) throw new Error("invalid unref");
       if (self.refCount > 0) return;
-      fs47.close(self.fd, onCloseDone);
+      fs49.close(self.fd, onCloseDone);
       function onCloseDone(err) {
         if (err) {
           self.emit("error", err);
@@ -51762,13 +52080,13 @@ var require_fd_slicer = __commonJS({
       }
     };
     util2.inherits(ReadStream, Readable2);
-    function ReadStream(context, options2) {
-      options2 = options2 || {};
-      Readable2.call(this, options2);
+    function ReadStream(context, options3) {
+      options3 = options3 || {};
+      Readable2.call(this, options3);
       this.context = context;
       this.context.ref();
-      this.start = options2.start || 0;
-      this.endOffset = options2.end;
+      this.start = options3.start || 0;
+      this.endOffset = options3.end;
       this.pos = this.start;
     }
     ReadStream.prototype._read = function(n) {
@@ -51784,7 +52102,7 @@ var require_fd_slicer = __commonJS({
       }
       self.context.pend.go(function(cb) {
         var buffer = Buffer.allocUnsafe(toRead);
-        fs47.read(self.context.fd, buffer, 0, toRead, self.pos, function(err, bytesRead) {
+        fs49.read(self.context.fd, buffer, 0, toRead, self.pos, function(err, bytesRead) {
           if (err) {
             self.destroy(err);
           } else if (bytesRead === 0) {
@@ -51834,11 +52152,11 @@ var require_fd_slicer = __commonJS({
         callback(null, length);
       });
     };
-    BufferSlicer.prototype.createReadStream = function(options2) {
-      options2 = options2 || {};
-      var readStream = new PassThrough3(options2);
-      readStream.start = options2.start || 0;
-      readStream.endOffset = options2.end;
+    BufferSlicer.prototype.createReadStream = function(options3) {
+      options3 = options3 || {};
+      var readStream = new PassThrough3(options3);
+      readStream.start = options3.start || 0;
+      readStream.endOffset = options3.end;
       readStream.pos = readStream.endOffset || this.buffer.length;
       var entireSlice = this.buffer.slice(readStream.start, readStream.pos);
       var maxChunkSize = 65536;
@@ -52144,7 +52462,7 @@ var require_crc32 = __commonJS({
 // node_modules/yauzl/index.js
 var require_yauzl = __commonJS({
   "node_modules/yauzl/index.js"(exports) {
-    var fs47 = __require("fs");
+    var fs49 = __require("fs");
     var zlib = __require("zlib");
     var fd_slicer = require_fd_slicer();
     var util2 = __require("util");
@@ -52169,102 +52487,102 @@ var require_yauzl = __commonJS({
     exports.Entry = Entry;
     exports.LocalFileHeader = LocalFileHeader;
     exports.RandomAccessReader = RandomAccessReader;
-    function openPromise(path49, options2) {
+    function openPromise(path52, options3) {
       return new Promise((resolve, reject) => {
-        open(path49, { ...options2, lazyEntries: true }, function(err, zipfile) {
+        open(path52, { ...options3, lazyEntries: true }, function(err, zipfile) {
           if (err) return reject(err);
           resolve(zipfile);
         });
       });
     }
-    function fromFdPromise(fd, options2) {
+    function fromFdPromise(fd, options3) {
       return new Promise((resolve, reject) => {
-        fromFd(fd, { ...options2, lazyEntries: true }, function(err, zipfile) {
+        fromFd(fd, { ...options3, lazyEntries: true }, function(err, zipfile) {
           if (err) return reject(err);
           resolve(zipfile);
         });
       });
     }
-    function fromBufferPromise(buffer, options2) {
+    function fromBufferPromise(buffer, options3) {
       return new Promise((resolve, reject) => {
-        fromBuffer(buffer, { ...options2, lazyEntries: true }, function(err, zipfile) {
+        fromBuffer(buffer, { ...options3, lazyEntries: true }, function(err, zipfile) {
           if (err) return reject(err);
           resolve(zipfile);
         });
       });
     }
-    function fromRandomAccessReaderPromise(reader, totalSize, options2) {
+    function fromRandomAccessReaderPromise(reader, totalSize, options3) {
       return new Promise((resolve, reject) => {
-        fromRandomAccessReader(reader, totalSize, { ...options2, lazyEntries: true }, function(err, zipfile) {
+        fromRandomAccessReader(reader, totalSize, { ...options3, lazyEntries: true }, function(err, zipfile) {
           if (err) return reject(err);
           resolve(zipfile);
         });
       });
     }
-    function open(path49, options2, callback) {
-      if (typeof options2 === "function") {
-        callback = options2;
-        options2 = null;
+    function open(path52, options3, callback) {
+      if (typeof options3 === "function") {
+        callback = options3;
+        options3 = null;
       }
-      if (options2 == null) options2 = {};
-      if (options2.autoClose == null) options2.autoClose = true;
-      if (options2.lazyEntries == null) options2.lazyEntries = false;
-      if (options2.decodeStrings == null) options2.decodeStrings = true;
-      if (options2.validateEntrySizes == null) options2.validateEntrySizes = true;
-      if (options2.strictFileNames == null) options2.strictFileNames = false;
+      if (options3 == null) options3 = {};
+      if (options3.autoClose == null) options3.autoClose = true;
+      if (options3.lazyEntries == null) options3.lazyEntries = false;
+      if (options3.decodeStrings == null) options3.decodeStrings = true;
+      if (options3.validateEntrySizes == null) options3.validateEntrySizes = true;
+      if (options3.strictFileNames == null) options3.strictFileNames = false;
       if (callback == null) callback = defaultCallback;
-      fs47.open(path49, "r", function(err, fd) {
+      fs49.open(path52, "r", function(err, fd) {
         if (err) return callback(err);
-        fromFd(fd, options2, function(err2, zipfile) {
-          if (err2) fs47.close(fd, defaultCallback);
+        fromFd(fd, options3, function(err2, zipfile) {
+          if (err2) fs49.close(fd, defaultCallback);
           callback(err2, zipfile);
         });
       });
     }
-    function fromFd(fd, options2, callback) {
-      if (typeof options2 === "function") {
-        callback = options2;
-        options2 = null;
+    function fromFd(fd, options3, callback) {
+      if (typeof options3 === "function") {
+        callback = options3;
+        options3 = null;
       }
-      if (options2 == null) options2 = {};
-      if (options2.autoClose == null) options2.autoClose = false;
-      if (options2.lazyEntries == null) options2.lazyEntries = false;
-      if (options2.decodeStrings == null) options2.decodeStrings = true;
-      if (options2.validateEntrySizes == null) options2.validateEntrySizes = true;
-      if (options2.strictFileNames == null) options2.strictFileNames = false;
+      if (options3 == null) options3 = {};
+      if (options3.autoClose == null) options3.autoClose = false;
+      if (options3.lazyEntries == null) options3.lazyEntries = false;
+      if (options3.decodeStrings == null) options3.decodeStrings = true;
+      if (options3.validateEntrySizes == null) options3.validateEntrySizes = true;
+      if (options3.strictFileNames == null) options3.strictFileNames = false;
       if (callback == null) callback = defaultCallback;
-      fs47.fstat(fd, function(err, stats) {
+      fs49.fstat(fd, function(err, stats) {
         if (err) return callback(err);
         var reader = new fd_slicer.FdSlicer(fd);
-        fromRandomAccessReader(reader, stats.size, options2, callback);
+        fromRandomAccessReader(reader, stats.size, options3, callback);
       });
     }
-    function fromBuffer(buffer, options2, callback) {
-      if (typeof options2 === "function") {
-        callback = options2;
-        options2 = null;
+    function fromBuffer(buffer, options3, callback) {
+      if (typeof options3 === "function") {
+        callback = options3;
+        options3 = null;
       }
-      if (options2 == null) options2 = {};
-      options2.autoClose = false;
-      if (options2.lazyEntries == null) options2.lazyEntries = false;
-      if (options2.decodeStrings == null) options2.decodeStrings = true;
-      if (options2.validateEntrySizes == null) options2.validateEntrySizes = true;
-      if (options2.strictFileNames == null) options2.strictFileNames = false;
+      if (options3 == null) options3 = {};
+      options3.autoClose = false;
+      if (options3.lazyEntries == null) options3.lazyEntries = false;
+      if (options3.decodeStrings == null) options3.decodeStrings = true;
+      if (options3.validateEntrySizes == null) options3.validateEntrySizes = true;
+      if (options3.strictFileNames == null) options3.strictFileNames = false;
       var reader = new fd_slicer.BufferSlicer(buffer);
-      fromRandomAccessReader(reader, buffer.length, options2, callback);
+      fromRandomAccessReader(reader, buffer.length, options3, callback);
     }
-    function fromRandomAccessReader(reader, totalSize, options2, callback) {
-      if (typeof options2 === "function") {
-        callback = options2;
-        options2 = null;
+    function fromRandomAccessReader(reader, totalSize, options3, callback) {
+      if (typeof options3 === "function") {
+        callback = options3;
+        options3 = null;
       }
-      if (options2 == null) options2 = {};
-      if (options2.autoClose == null) options2.autoClose = true;
-      if (options2.lazyEntries == null) options2.lazyEntries = false;
-      if (options2.decodeStrings == null) options2.decodeStrings = true;
-      var decodeStrings = !!options2.decodeStrings;
-      if (options2.validateEntrySizes == null) options2.validateEntrySizes = true;
-      if (options2.strictFileNames == null) options2.strictFileNames = false;
+      if (options3 == null) options3 = {};
+      if (options3.autoClose == null) options3.autoClose = true;
+      if (options3.lazyEntries == null) options3.lazyEntries = false;
+      if (options3.decodeStrings == null) options3.decodeStrings = true;
+      var decodeStrings = !!options3.decodeStrings;
+      if (options3.validateEntrySizes == null) options3.validateEntrySizes = true;
+      if (options3.strictFileNames == null) options3.strictFileNames = false;
       if (callback == null) callback = defaultCallback;
       if (typeof totalSize !== "number") throw new Error("expected totalSize parameter to be a number");
       if (totalSize > Number.MAX_SAFE_INTEGER) {
@@ -52306,13 +52624,13 @@ var require_yauzl = __commonJS({
               }
               entryCount = readUInt64LE(zip64EocdrBuffer, 32);
               centralDirectoryOffset = readUInt64LE(zip64EocdrBuffer, 48);
-              return callback(null, new ZipFile(reader, centralDirectoryOffset, totalSize, entryCount, comment, options2.autoClose, options2.lazyEntries, decodeStrings, options2.validateEntrySizes, options2.strictFileNames));
+              return callback(null, new ZipFile(reader, centralDirectoryOffset, totalSize, entryCount, comment, options3.autoClose, options3.lazyEntries, decodeStrings, options3.validateEntrySizes, options3.strictFileNames));
             });
           }
           if (diskNumber !== 0) {
             return callback(new Error("multi-disk zip files are not supported: found disk number: " + diskNumber));
           }
-          return callback(null, new ZipFile(reader, centralDirectoryOffset, totalSize, entryCount, comment, options2.autoClose, options2.lazyEntries, decodeStrings, options2.validateEntrySizes, options2.strictFileNames));
+          return callback(null, new ZipFile(reader, centralDirectoryOffset, totalSize, entryCount, comment, options3.autoClose, options3.lazyEntries, decodeStrings, options3.validateEntrySizes, options3.strictFileNames));
         }
         callback(new Error("End of central directory record signature not found. Either not a zip file, or file is truncated."));
       });
@@ -52519,72 +52837,72 @@ var require_yauzl = __commonJS({
         }
       };
     };
-    ZipFile.prototype.openReadStream = function(entry, options2, callback) {
+    ZipFile.prototype.openReadStream = function(entry, options3, callback) {
       var self = this;
       var relativeStart = 0;
       var relativeEnd = entry.compressedSize;
       if (callback == null) {
-        callback = options2;
-        options2 = null;
+        callback = options3;
+        options3 = null;
       }
-      if (options2 == null) {
-        options2 = {};
+      if (options3 == null) {
+        options3 = {};
       } else {
-        if (options2.decodeFileData === false) {
-          if (options2.decrypt != null) {
+        if (options3.decodeFileData === false) {
+          if (options3.decrypt != null) {
             throw new Error("cannot use options.decrypt when options.decodeFileData === false");
           }
-          if (options2.decompress != null) {
+          if (options3.decompress != null) {
             throw new Error("cannot use options.decompress when options.decodeFileData === false");
           }
         } else {
-          if (options2.decrypt != null) {
+          if (options3.decrypt != null) {
             if (!entry.isEncrypted()) {
               throw new Error("options.decrypt can only be specified for encrypted entries. See also option decodeFileData.");
             }
-            if (options2.decrypt !== false) throw new Error("invalid options.decrypt value: " + options2.decrypt);
+            if (options3.decrypt !== false) throw new Error("invalid options.decrypt value: " + options3.decrypt);
             if (entry.isCompressed()) {
-              if (options2.decompress !== false) throw new Error("entry is encrypted and compressed, and options.decompress !== false. See also option decodeFileData.");
+              if (options3.decompress !== false) throw new Error("entry is encrypted and compressed, and options.decompress !== false. See also option decodeFileData.");
             }
           }
-          if (options2.decompress != null) {
+          if (options3.decompress != null) {
             if (!entry.isCompressed()) {
               throw new Error("options.decompress can only be specified for compressed entries. See also option decodeFileData.");
             }
-            if (!(options2.decompress === false || options2.decompress === true)) {
-              throw new Error("invalid options.decompress value: " + options2.decompress);
+            if (!(options3.decompress === false || options3.decompress === true)) {
+              throw new Error("invalid options.decompress value: " + options3.decompress);
             }
-            decompress = options2.decompress;
+            decompress = options3.decompress;
           }
         }
-        if (options2.start != null) {
-          relativeStart = options2.start;
+        if (options3.start != null) {
+          relativeStart = options3.start;
           if (relativeStart < 0) throw new Error("options.start < 0");
           if (relativeStart > entry.compressedSize) throw new Error("options.start > entry.compressedSize");
         }
-        if (options2.end != null) {
-          relativeEnd = options2.end;
+        if (options3.end != null) {
+          relativeEnd = options3.end;
           if (relativeEnd < 0) throw new Error("options.end < 0");
           if (relativeEnd > entry.compressedSize) throw new Error("options.end > entry.compressedSize");
           if (relativeEnd < relativeStart) throw new Error("options.end < options.start");
         }
       }
-      var rawMode = options2.decodeFileData === false || // Explicitly requested raw.
+      var rawMode = options3.decodeFileData === false || // Explicitly requested raw.
       (entry.compressionMethod === 0 || // Naturally without compression.
-      entry.compressionMethod === 8 && options2.decompress === false) && (!entry.isEncrypted() || // Naturally without encryption.
-      options2.decrypt === false);
-      if (options2.start != null || options2.end != null) {
+      entry.compressionMethod === 8 && options3.decompress === false) && (!entry.isEncrypted() || // Naturally without encryption.
+      options3.decrypt === false);
+      if (options3.start != null || options3.end != null) {
         if (!rawMode) throw new Error("start/end range require options.decodeFileData === false for non-trivial encoded entries.");
       }
       if (!self.isOpen) return callback(new Error("closed"));
       if (entry.isEncrypted() && !rawMode) {
-        if (options2.decrypt !== false) return callback(new Error("entry is encrypted, and options.decodeFileData !== false"));
+        if (options3.decrypt !== false) return callback(new Error("entry is encrypted, and options.decodeFileData !== false"));
       }
       var decompress;
       if (rawMode) {
         decompress = false;
       } else if (entry.compressionMethod === 8) {
-        decompress = options2.decodeFileData !== true;
+        decompress = options3.decodeFileData !== true;
       } else {
         return callback(new Error("unsupported compression method: " + entry.compressionMethod));
       }
@@ -52638,13 +52956,13 @@ var require_yauzl = __commonJS({
       }
       callback(null, endpointStream);
     };
-    ZipFile.prototype.readLocalFileHeader = function(entry, options2, callback) {
+    ZipFile.prototype.readLocalFileHeader = function(entry, options3, callback) {
       var self = this;
       if (callback == null) {
-        callback = options2;
-        options2 = null;
+        callback = options3;
+        options3 = null;
       }
-      if (options2 == null) options2 = {};
+      if (options3 == null) options3 = {};
       self.reader.ref();
       var buffer = newBuffer(30);
       readAndAssertNoEof(self.reader, buffer, 0, buffer.length, entry.relativeOffsetOfLocalHeader, function(err) {
@@ -52660,7 +52978,7 @@ var require_yauzl = __commonJS({
           if (fileDataStart + entry.compressedSize > self.fileSize) {
             return callback(new Error("file data overflows file bounds: " + fileDataStart + " + " + entry.compressedSize + " > " + self.fileSize));
           }
-          if (options2.minimal) {
+          if (options3.minimal) {
             return callback(null, { fileDataStart });
           }
           var localFileHeader = new LocalFileHeader();
@@ -52692,9 +53010,9 @@ var require_yauzl = __commonJS({
         }
       });
     };
-    ZipFile.prototype.openReadStreamPromise = function(entry, options2) {
+    ZipFile.prototype.openReadStreamPromise = function(entry, options3) {
       return new Promise((resolve, reject) => {
-        this.openReadStream(entry, options2, function(err, readStream) {
+        this.openReadStream(entry, options3, function(err, readStream) {
           if (err) return reject(err);
           resolve(readStream);
         });
@@ -52708,9 +53026,9 @@ var require_yauzl = __commonJS({
         });
       });
     };
-    ZipFile.prototype.readLocalFileHeaderPromise = function(entry, options2) {
+    ZipFile.prototype.readLocalFileHeaderPromise = function(entry, options3) {
       return new Promise((resolve, reject) => {
-        this.readLocalFileHeader(entry, options2, function(err, localFileHeader) {
+        this.readLocalFileHeader(entry, options3, function(err, localFileHeader) {
           if (err) return reject(err);
           resolve(localFileHeader);
         });
@@ -52718,9 +53036,9 @@ var require_yauzl = __commonJS({
     };
     function Entry() {
     }
-    Entry.prototype.getLastModDate = function(options2) {
-      if (options2 == null) options2 = {};
-      if (!options2.forceDosFormat) {
+    Entry.prototype.getLastModDate = function(options3) {
+      if (options3 == null) options3 = {};
+      if (!options3.forceDosFormat) {
         for (var i = 0; i < this.extraFields.length; i++) {
           var extraField = this.extraFields[i];
           if (extraField.id === 21589) {
@@ -52742,7 +53060,7 @@ var require_yauzl = __commonJS({
           }
         }
       }
-      return dosDateTimeToDate(this.lastModFileDate, this.lastModFileTime, options2.timezone);
+      return dosDateTimeToDate(this.lastModFileDate, this.lastModFileTime, options3.timezone);
     };
     Entry.prototype.canDecodeFileData = function() {
       return !this.isEncrypted() && (this.compressionMethod === 0 || this.compressionMethod === 8);
@@ -52883,10 +53201,10 @@ var require_yauzl = __commonJS({
         self.emit("close");
       }
     };
-    RandomAccessReader.prototype.createReadStream = function(options2) {
-      if (options2 == null) options2 = {};
-      var start = options2.start;
-      var end = options2.end;
+    RandomAccessReader.prototype.createReadStream = function(options3) {
+      if (options3 == null) options3 = {};
+      var start = options3.start;
+      var end = options3.end;
       if (start === end) {
         var emptyStream = new PassThrough3();
         setImmediate(function() {
@@ -53007,9 +53325,9 @@ init_mcp();
 init_config();
 import { spawnSync as spawnSync8 } from "node:child_process";
 import crypto5 from "node:crypto";
-import fs45 from "node:fs";
+import fs47 from "node:fs";
 import os10 from "node:os";
-import path46 from "node:path";
+import path49 from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { pathToFileURL as pathToFileURL2 } from "node:url";
@@ -53034,21 +53352,21 @@ function getMakerCliLoginResultUrl(code, env) {
   url2.searchParams.set("code", code);
   return url2.toString();
 }
-async function loginWithCliAuthCode(options2 = {}) {
+async function loginWithCliAuthCode(options3 = {}) {
   var _a3;
-  const env = options2.env || getMakerEnvironment();
+  const env = options3.env || getMakerEnvironment();
   const code = createCliLoginCode();
   const authUrl = getMakerCliLoginUrl(code, env);
-  (_a3 = options2.onStatus) == null ? void 0 : _a3.call(
-    options2,
+  (_a3 = options3.onStatus) == null ? void 0 : _a3.call(
+    options3,
     `Opening Maker PAT page: ${authUrl}
 请在页面登录并点击“创建 token”，CLI 会继续等待授权结果。`
   );
-  if (options2.openBrowser !== false) {
+  if (options3.openBrowser !== false) {
     openBrowser(authUrl);
   }
   const pat = await pollCliLoginResult(code, {
-    ...options2,
+    ...options3,
     env
   });
   return {
@@ -53057,13 +53375,13 @@ async function loginWithCliAuthCode(options2 = {}) {
     auth_url: authUrl
   };
 }
-async function pollCliLoginResult(code, options2) {
-  const fetchImpl = options2.fetchImpl || fetch;
-  const timeoutMs = options2.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const pollIntervalMs = options2.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-  const requestTimeoutMs = options2.requestTimeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS;
+async function pollCliLoginResult(code, options3) {
+  const fetchImpl = options3.fetchImpl || fetch;
+  const timeoutMs = options3.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const pollIntervalMs = options3.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  const requestTimeoutMs = options3.requestTimeoutMs ?? DEFAULT_SHORT_FETCH_TIMEOUT_MS;
   const deadline = Date.now() + timeoutMs;
-  const resultUrl = getMakerCliLoginResultUrl(code, options2.env);
+  const resultUrl = getMakerCliLoginResultUrl(code, options3.env);
   let lastPollError;
   for (; ; ) {
     if (Date.now() >= deadline) {
@@ -53990,7 +54308,7 @@ function existingFile(filename2) {
     return false;
   }
 }
-function ensurePreviewRuntimeResources(executable, options2 = {}) {
+function ensurePreviewRuntimeResources(executable, options3 = {}) {
   const runtimeRoot = path28.dirname(fs27.realpathSync(executable));
   const fonts = path28.join(runtimeRoot, "Data", "Fonts");
   for (const directory of [
@@ -54002,8 +54320,8 @@ function ensurePreviewRuntimeResources(executable, options2 = {}) {
   }
   const target = path28.join(fonts, FALLBACK_FONT);
   if (fs27.existsSync(target)) return { fallbackFont: "existing", warnings: [] };
-  const platform = options2.platform || process.platform;
-  const candidates = options2.fontCandidates || defaultFontCandidates(platform);
+  const platform = options3.platform || process.platform;
+  const candidates = options3.fontCandidates || defaultFontCandidates(platform);
   const copyErrors = [];
   for (const candidate of candidates) {
     if (!existingFile(candidate)) continue;
@@ -54079,9 +54397,9 @@ finally:
     except BaseException:
         os._exit(131)
 `;
-async function runPreviewInstaller(python, args, options2) {
+async function runPreviewInstaller(python, args, options3) {
   var _a3;
-  if ((_a3 = options2.signal) == null ? void 0 : _a3.aborted) throw new Error("CANCELLED: Runtime installation.");
+  if ((_a3 = options3.signal) == null ? void 0 : _a3.aborted) throw new Error("CANCELLED: Runtime installation.");
   return new Promise((resolve, reject) => {
     var _a4, _b;
     const grouped = process.platform !== "win32";
@@ -54091,7 +54409,7 @@ async function runPreviewInstaller(python, args, options2) {
       python,
       ["-c", INSTALLER_GUARD.replace("__CLEANUP_TOKEN__", token), ...args],
       {
-        cwd: options2.cwd,
+        cwd: options3.cwd,
         detached: grouped,
         windowsHide: true,
         stdio: ["pipe", "pipe", "pipe"],
@@ -54117,7 +54435,7 @@ async function runPreviewInstaller(python, args, options2) {
       clearTimeout(timer);
       clearTimeout(force);
       clearTimeout(deadline);
-      (_a5 = options2.signal) == null ? void 0 : _a5.removeEventListener("abort", abort);
+      (_a5 = options3.signal) == null ? void 0 : _a5.removeEventListener("abort", abort);
       child.stdin.destroy();
       if (code === 0 && !failure && !error2 && cleanupAcknowledged) resolve({ stdout, stderr });
       else
@@ -54160,14 +54478,14 @@ async function runPreviewInstaller(python, args, options2) {
     const abort = () => cancel("CANCELLED: Runtime installation.");
     const timer = setTimeout(
       () => cancel("TIMEOUT: Runtime installation."),
-      options2.timeoutMs ?? 3e5
+      options3.timeoutMs ?? 3e5
     );
     child.stdin.on("error", () => {
     });
     const append = (value, output2) => {
       if (finished || failure) return;
       bytes += Buffer.byteLength(value);
-      if (bytes > (options2.maxBuffer ?? 1024 * 1024)) {
+      if (bytes > (options3.maxBuffer ?? 1024 * 1024)) {
         cancel("Installer output limit exceeded.");
         return;
       }
@@ -54204,8 +54522,8 @@ async function runPreviewInstaller(python, args, options2) {
       } else if (signal) cleanupVerified = false;
     });
     child.once("close", (code) => finish(code));
-    (_a4 = options2.signal) == null ? void 0 : _a4.addEventListener("abort", abort, { once: true });
-    if ((_b = options2.signal) == null ? void 0 : _b.aborted) abort();
+    (_a4 = options3.signal) == null ? void 0 : _a4.addEventListener("abort", abort, { once: true });
+    if ((_b = options3.signal) == null ? void 0 : _b.aborted) abort();
   });
 }
 
@@ -54615,20 +54933,20 @@ var PreviewSession = class {
     this.setState("stopped");
     return { ...this.status(), ok: true };
   }
-  async handle(action, options2 = {}, signal) {
+  async handle(action, options3 = {}, signal) {
     var _a3, _b, _c, _d;
     if (action === "status") return this.status();
     if (action === "start") return this.start();
     if (action === "refresh") return this.refresh();
     if (action === "stop" || action === "cancel") return this.stop();
     if (action === "logs") {
-      if (options2.reload_id !== void 0 && options2.reload_id !== this.record.reload_id)
+      if (options3.reload_id !== void 0 && options3.reload_id !== this.record.reload_id)
         throw new Error(
           "Log cursor belongs to another reload. Query current status and restart the cursor."
         );
       return {
         ...this.status(),
-        ...(_a3 = this.runtime) == null ? void 0 : _a3.logs.read(Number(options2.cursor ?? 0), Number(options2.limit ?? 100))
+        ...(_a3 = this.runtime) == null ? void 0 : _a3.logs.read(Number(options3.cursor ?? 0), Number(options3.limit ?? 100))
       };
     }
     if (action === "screenshot") {
@@ -54655,7 +54973,7 @@ var PreviewSession = class {
         scope: "readiness_and_evidence_only",
         ready: ((_c = this.runtime) == null ? void 0 : _c.isReady) ?? false,
         evidence_available: Boolean((_d = this.runtime) == null ? void 0 : _d.artifacts.length),
-        expectation: options2.expectation ?? null,
+        expectation: options3.expectation ?? null,
         assertions: [],
         reason: result === "FAIL" ? "Runtime reported a failure." : "Logs and PNG availability do not establish gameplay or visual correctness. Read current evidence and compare with the explicit expectation.",
         scripts_supported: false
@@ -54664,7 +54982,7 @@ var PreviewSession = class {
     throw new Error("Unknown preview action.");
   }
 };
-async function requestPreview(record2, action, options2 = {}, timeout = 9e4, signal) {
+async function requestPreview(record2, action, options3 = {}, timeout = 9e4, signal) {
   if (!record2.port || !record2.supervisor_pid) {
     throw new Error("Preview supervisor has not published a verified control endpoint.");
   }
@@ -54708,7 +55026,7 @@ async function requestPreview(record2, action, options2 = {}, timeout = 9e4, sig
     request2.end(
       JSON.stringify({
         action,
-        options: options2,
+        options: options3,
         session_id: record2.session_id,
         supervisor_id: record2.supervisor_id,
         protocol_version: record2.protocol_version,
@@ -54950,16 +55268,16 @@ function selectWindowsBackgroundEnvironment(env) {
     )
   );
 }
-function buildWindowsBackgroundLaunchScripts(options2) {
-  const environment = Object.entries(selectWindowsBackgroundEnvironment(options2.env)).map(
+function buildWindowsBackgroundLaunchScripts(options3) {
+  const environment = Object.entries(selectWindowsBackgroundEnvironment(options3.env)).map(
     ([key, value]) => `$env:${key} = ${powershellLiteral(value)}`
   );
-  const command = [options2.command, ...options2.args].map(powershellLiteral).join(" ");
+  const command = [options3.command, ...options3.args].map(powershellLiteral).join(" ");
   const processScript = [
     "$ErrorActionPreference = 'Stop'",
     ...environment,
-    `Set-Location -LiteralPath ${powershellLiteral(options2.cwd)}`,
-    `& ${command} 1> $null 2>> ${powershellLiteral(options2.logFile)}`,
+    `Set-Location -LiteralPath ${powershellLiteral(options3.cwd)}`,
+    `& ${command} 1> $null 2>> ${powershellLiteral(options3.logFile)}`,
     "exit $LASTEXITCODE"
   ].join("\r\n");
   const encodedProcess = Buffer.from(processScript, "utf16le").toString("base64");
@@ -54968,28 +55286,28 @@ function buildWindowsBackgroundLaunchScripts(options2) {
     `$commandLine = 'powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand ${encodedProcess}'`,
     "$result = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{",
     "  CommandLine = $commandLine",
-    `  CurrentDirectory = ${powershellLiteral(options2.cwd)}`,
+    `  CurrentDirectory = ${powershellLiteral(options3.cwd)}`,
     "}",
     "if ([int]$result.ReturnValue -ne 0) { throw ('Win32_Process.Create failed: ' + $result.ReturnValue) }",
     "[Console]::Out.Write([string]$result.ProcessId)"
   ].join("\r\n");
   return { broker, process: processScript };
 }
-async function launchBackgroundProcess(options2) {
+async function launchBackgroundProcess(options3) {
   var _a3, _b, _c;
-  if ((_a3 = options2.signal) == null ? void 0 : _a3.aborted) throw new Error("CANCELLED: background launch.");
-  if ((options2.platform ?? process.platform) !== "win32") return directLaunch(options2);
-  fs30.closeSync(openBackgroundProcessLog(options2.logFile));
-  const scripts = buildWindowsBackgroundLaunchScripts(options2);
+  if ((_a3 = options3.signal) == null ? void 0 : _a3.aborted) throw new Error("CANCELLED: background launch.");
+  if ((options3.platform ?? process.platform) !== "win32") return directLaunch(options3);
+  fs30.closeSync(openBackgroundProcessLog(options3.logFile));
+  const scripts = buildWindowsBackgroundLaunchScripts(options3);
   const broker = spawn8(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", scripts.broker],
     {
-      cwd: options2.cwd,
+      cwd: options3.cwd,
       windowsHide: true,
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
-      env: selectWindowsBackgroundEnvironment(options2.env)
+      env: selectWindowsBackgroundEnvironment(options3.env)
     }
   );
   let stdout = "";
@@ -55005,7 +55323,7 @@ async function launchBackgroundProcess(options2) {
     const cleanup = () => {
       var _a5;
       clearTimeout(timer);
-      (_a5 = options2.signal) == null ? void 0 : _a5.removeEventListener("abort", cancel);
+      (_a5 = options3.signal) == null ? void 0 : _a5.removeEventListener("abort", cancel);
     };
     const fail = (error2) => {
       cleanup();
@@ -55019,14 +55337,14 @@ async function launchBackgroundProcess(options2) {
       broker.kill();
       fail(new Error("TIMEOUT: Windows broker launch outcome is unverified."));
     }, 15e3);
-    (_a4 = options2.signal) == null ? void 0 : _a4.addEventListener("abort", cancel, { once: true });
+    (_a4 = options3.signal) == null ? void 0 : _a4.addEventListener("abort", cancel, { once: true });
     broker.once("error", fail);
     broker.once("close", (code) => {
       cleanup();
       if (code === 0) resolve();
       else reject(new Error(stderr.trim() || `Windows process broker exited with code ${code}.`));
     });
-    if ((_b2 = options2.signal) == null ? void 0 : _b2.aborted) cancel();
+    if ((_b2 = options3.signal) == null ? void 0 : _b2.aborted) cancel();
   });
   const brokerPid = Number(stdout.trim());
   if (!Number.isInteger(brokerPid) || brokerPid <= 0) {
@@ -55040,16 +55358,16 @@ async function launchBackgroundProcess(options2) {
     stopUnpublished: () => false
   };
 }
-function directLaunch(options2) {
-  const stderr = openBackgroundProcessLog(options2.logFile);
+function directLaunch(options3) {
+  const stderr = openBackgroundProcessLog(options3.logFile);
   let child;
   try {
-    child = spawn8(options2.command, options2.args, {
-      cwd: options2.cwd,
+    child = spawn8(options3.command, options3.args, {
+      cwd: options3.cwd,
       detached: true,
       windowsHide: true,
       stdio: ["ignore", "ignore", stderr],
-      env: options2.env
+      env: options3.env
     });
   } finally {
     fs30.closeSync(stderr);
@@ -55075,15 +55393,15 @@ function powershellLiteral(value) {
 }
 
 // src/maker/preview/processLauncher.ts
-function launchPreviewSupervisorProcess(options2) {
+function launchPreviewSupervisorProcess(options3) {
   return launchBackgroundProcess({
-    command: options2.execPath,
-    args: [...options2.execArgv, options2.entry, "__maker-preview-supervisor", options2.project],
-    cwd: options2.cwd,
-    logFile: options2.logFile,
-    env: options2.env,
-    platform: options2.platform,
-    signal: options2.signal
+    command: options3.execPath,
+    args: [...options3.execArgv, options3.entry, "__maker-preview-supervisor", options3.project],
+    cwd: options3.cwd,
+    logFile: options3.logFile,
+    env: options3.env,
+    platform: options3.platform,
+    signal: options3.signal
   });
 }
 
@@ -55104,7 +55422,7 @@ function isRetiredFailure(status, record2) {
     status && record2 && status.state === "failed" && status.process_alive === false && status.supervisor_retired === true && samePreviewIdentity(status, record2) && status.supervisor_id === record2.supervisor_id && status.supervisor_pid === record2.supervisor_pid && status.started_at === record2.started_at && status.executable === record2.executable
   );
 }
-async function runPreviewCli(action, options2) {
+async function runPreviewCli(action, options3) {
   const controller = new AbortController();
   const abort = () => controller.abort();
   process.once("SIGINT", abort);
@@ -55115,12 +55433,12 @@ async function runPreviewCli(action, options2) {
       throw new Error(
         "Use preview install|prepare|start|status|refresh|stop|logs|screenshot|check."
       );
-    if (options2.script)
+    if (options3.script)
       throw new Error(
         "Preview short scripts are not supported in this version; no script was executed."
       );
     const project = previewProject(
-      typeof options2.target_dir === "string" ? options2.target_dir : ""
+      typeof options3.target_dir === "string" ? options3.target_dir : ""
     );
     if (action === "prepare")
       result = await withPreviewLock(
@@ -55139,14 +55457,14 @@ async function runPreviewCli(action, options2) {
             ok: true,
             protocol_version: 1,
             project_realpath: project,
-            ...await installPreviewRuntime(project, controller.signal, options2.update === true)
+            ...await installPreviewRuntime(project, controller.signal, options3.update === true)
           };
         })
       );
     } else if (action === "start") {
       result = await withPreviewLock(
         project,
-        () => startPreview(project, options2, controller.signal)
+        () => startPreview(project, options3, controller.signal)
       );
     } else {
       if (action === "stop") {
@@ -55155,10 +55473,10 @@ async function runPreviewCli(action, options2) {
         });
       }
       const record2 = readPreviewRecord(project);
-      const cursor = options2.cursor === void 0 ? 0 : Number(options2.cursor);
-      if (options2.session_id && options2.session_id !== (record2 == null ? void 0 : record2.session_id))
+      const cursor = options3.cursor === void 0 ? 0 : Number(options3.cursor);
+      if (options3.session_id && options3.session_id !== (record2 == null ? void 0 : record2.session_id))
         throw new Error("Preview session changed. Read status again.");
-      if (action === "logs" && cursor > 0 && (!options2.session_id || options2.reload_id === void 0)) {
+      if (action === "logs" && cursor > 0 && (!options3.session_id || options3.reload_id === void 0)) {
         throw new Error(
           "Incremental logs require --session-id and --reload-id from the previous response."
         );
@@ -55166,7 +55484,7 @@ async function runPreviewCli(action, options2) {
       const failedStatus = record2 ? await previewStatus(project) : void 0;
       const retired = isRetiredFailure(failedStatus, record2);
       if (action === "logs" && record2) {
-        const reload = options2.reload_id === void 0 ? record2.reload_id : Number(options2.reload_id);
+        const reload = options3.reload_id === void 0 ? record2.reload_id : Number(options3.reload_id);
         if (!Number.isSafeInteger(reload) || reload < 0 || reload > record2.reload_id)
           throw new Error("Invalid preview reload.");
         result = {
@@ -55176,7 +55494,7 @@ async function runPreviewCli(action, options2) {
           ...readStoredPreviewLogs(
             previewRoundDirectory({ ...record2, reload_id: reload }),
             cursor,
-            options2.limit === void 0 ? 100 : Number(options2.limit)
+            options3.limit === void 0 ? 100 : Number(options3.limit)
           )
         };
       } else if (action === "check" && (!record2 || record2.state === "stopped" || retired)) {
@@ -55185,7 +55503,7 @@ async function runPreviewCli(action, options2) {
           ...status,
           result: status.state === "failed" || status.error || Array.isArray(status.errors) && status.errors.length ? "FAIL" : "UNDETERMINED",
           ready: false,
-          expectation: options2.expectation ?? null,
+          expectation: options3.expectation ?? null,
           assertions: [],
           scripts_supported: false,
           reason: "Preview is stopped; retained evidence is historical and cannot prove current source correctness."
@@ -55202,9 +55520,9 @@ async function runPreviewCli(action, options2) {
           action,
           {
             cursor,
-            limit: options2.limit === void 0 ? 100 : Number(options2.limit),
-            reload_id: options2.reload_id === void 0 ? void 0 : Number(options2.reload_id),
-            expectation: typeof options2.expectation === "string" ? options2.expectation : void 0
+            limit: options3.limit === void 0 ? 100 : Number(options3.limit),
+            reload_id: options3.reload_id === void 0 ? void 0 : Number(options3.reload_id),
+            expectation: typeof options3.expectation === "string" ? options3.expectation : void 0
           },
           action === "refresh" ? 36e4 : 9e4,
           controller.signal
@@ -55224,11 +55542,11 @@ async function runPreviewCli(action, options2) {
     process.removeListener("SIGINT", abort);
     process.removeListener("SIGTERM", abort);
   }
-  process.stdout.write(JSON.stringify(result, null, options2.json ? void 0 : 2) + "\n");
+  process.stdout.write(JSON.stringify(result, null, options3.json ? void 0 : 2) + "\n");
   if (!result.ok || result.result === "FAIL" || result.result === "TIMEOUT" || result.result === "CANCELLED")
     process.exitCode = 1;
 }
-async function startPreview(project, options2, signal) {
+async function startPreview(project, options3, signal) {
   const stopFile = path32.join(previewDirectory(project), "stop.json");
   const readStop = () => fs31.existsSync(stopFile) ? fs31.readFileSync(stopFile, "utf8") : "";
   const stopGeneration = readStop();
@@ -55253,8 +55571,8 @@ async function startPreview(project, options2, signal) {
     }
   }
   const installation = previewInstallation(project);
-  const externalRuntime = typeof options2.runtime === "string";
-  const configured = externalRuntime ? options2.runtime : installation.executable;
+  const externalRuntime = typeof options3.runtime === "string";
+  const configured = externalRuntime ? options3.runtime : installation.executable;
   if (!configured)
     return {
       ok: false,
@@ -55346,10 +55664,10 @@ async function startPreview(project, options2, signal) {
 init_storage();
 init_projectRegistry();
 init_privateJson();
-import fs37 from "node:fs";
-import path38 from "node:path";
+import fs39 from "node:fs";
+import path41 from "node:path";
 import { spawn as spawn11 } from "node:child_process";
-import { createHash as createHash6, randomUUID as randomUUID8 } from "node:crypto";
+import { createHash as createHash7, randomUUID as randomUUID8 } from "node:crypto";
 import { createServer } from "node:net";
 
 // src/maker/console/projects.ts
@@ -55416,9 +55734,9 @@ async function git(root, args, signal, timeout = 15e3) {
   return result.stdout;
 }
 var ConsoleProjects = class {
-  constructor(filename2, options2 = {}) {
+  constructor(filename2, options3 = {}) {
     this.filename = filename2;
-    this.registry = new MakerProjectRegistry(filename2, options2);
+    this.registry = new MakerProjectRegistry(filename2, options3);
   }
   registryOperation(operation) {
     try {
@@ -55638,7 +55956,7 @@ var ConsoleProjects = class {
 import { spawn as spawn9 } from "node:child_process";
 init_diagnosticRedaction();
 init_luaLsp();
-function createConsoleExecutor(options2) {
+function createConsoleExecutor(options3) {
   return async ({ project, action, onOutput, onProgress, signal }) => {
     if (![...CONSOLE_ACTIONS, "preview.status", "preview.logs"].includes(action))
       throw new Error("Unsupported console CLI action.");
@@ -55654,7 +55972,7 @@ function createConsoleExecutor(options2) {
     }
     const command = action === "build" ? ["build"] : ["preview", action.slice("preview.".length)];
     const ownsProcessGroup = process.platform !== "win32";
-    const execArgv = [...options2.execArgv ?? process.execArgv];
+    const execArgv = [...options3.execArgv ?? process.execArgv];
     const bootstrap = `
       const parentGone = () => {
         if (${ownsProcessGroup}) {
@@ -55674,7 +55992,7 @@ function createConsoleExecutor(options2) {
       "--input-type=module",
       "-e",
       bootstrap,
-      options2.entry,
+      options3.entry,
       ...command,
       "--target-dir",
       project,
@@ -55720,7 +56038,7 @@ function createConsoleExecutor(options2) {
           killOwnedProcesses("SIGKILL");
           childStdout.destroy();
           childStderr.destroy();
-        }, options2.killGraceMs ?? 5e3);
+        }, options3.killGraceMs ?? 5e3);
         killTimer.unref();
       };
       const timer = setTimeout(
@@ -55825,20 +56143,20 @@ function createConsoleExecutor(options2) {
 }
 
 // src/maker/console/processLauncher.ts
-function launchConsoleServerProcess(options2) {
+function launchConsoleServerProcess(options3) {
   return launchBackgroundProcess({
-    command: options2.execPath,
-    args: [...options2.execArgv, options2.entry, "__maker-console-server"],
-    cwd: options2.cwd,
-    logFile: options2.logFile,
-    env: options2.env,
-    platform: options2.platform
+    command: options3.execPath,
+    args: [...options3.execArgv, options3.entry, "__maker-console-server"],
+    cwd: options3.cwd,
+    logFile: options3.logFile,
+    env: options3.env,
+    platform: options3.platform
   });
 }
 
 // src/maker/console/server.ts
 import http3 from "node:http";
-import { createHash as createHash5, randomBytes as randomBytes4, timingSafeEqual as timingSafeEqual2 } from "node:crypto";
+import { createHash as createHash6, randomBytes as randomBytes4, timingSafeEqual as timingSafeEqual2 } from "node:crypto";
 
 // src/maker/console/tasks.ts
 init_privateJson();
@@ -55982,8 +56300,8 @@ import path35 from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawn as spawn10 } from "node:child_process";
 var FramecrateLauncher = class {
-  constructor(options2 = {}) {
-    this.options = options2;
+  constructor(options3 = {}) {
+    this.options = options3;
     this.metadata = {
       id: "framecrate",
       title: "FrameCrate",
@@ -56271,17 +56589,17 @@ var SELF_RUNTIME_COPY_FALLBACK_CODES = /* @__PURE__ */ new Set(["EIO", "EACCES",
 function resolveMakerPackageSpec(packageName, currentVersion) {
   return PUBLISHED_VERSION_PATTERN.test(currentVersion) ? `${packageName}@${currentVersion}` : packageName;
 }
-function materializeMakerSelfLauncher(options2) {
-  if (!PUBLISHED_VERSION_PATTERN.test(options2.version) && options2.version !== "dev") {
-    throw new Error(`Invalid Maker runtime version: ${options2.version}`);
+function materializeMakerSelfLauncher(options3) {
+  if (!PUBLISHED_VERSION_PATTERN.test(options3.version) && options3.version !== "dev") {
+    throw new Error(`Invalid Maker runtime version: ${options3.version}`);
   }
-  const execPath = options2.execPath ?? process.execPath;
+  const execPath = options3.execPath ?? process.execPath;
   if (!path36.isAbsolute(execPath) || !fs35.existsSync(execPath)) {
     throw new Error("Maker self launcher requires an existing absolute Node executable.");
   }
-  const sourceBundle = fileURLToPath3(options2.bundleUrl);
+  const sourceBundle = fileURLToPath3(options3.bundleUrl);
   const sourceRoot = path36.dirname(path36.dirname(sourceBundle));
-  const runtimeRoot = path36.join(path36.resolve(options2.makerHome), "mcp-runtime", options2.version);
+  const runtimeRoot = path36.join(path36.resolve(options3.makerHome), "mcp-runtime", options3.version);
   for (const relativePath of [...SELF_RUNTIME_FILES, ...SELF_RUNTIME_DIRECTORIES]) {
     const sourcePath = path36.join(sourceRoot, relativePath);
     if (!fs35.existsSync(sourcePath)) {
@@ -56333,10 +56651,10 @@ function copyDirectoryEntries(sourcePath, targetPath) {
     }
   }
 }
-function resolveMakerMcpLauncher(options2) {
-  const platform = options2.platform ?? process.platform;
+function resolveMakerMcpLauncher(options3) {
+  const platform = options3.platform ?? process.platform;
   if (platform !== "win32") {
-    const args = ["-y", "-p", options2.packageName, "taptap-maker"];
+    const args = ["-y", "-p", options3.packageName, "taptap-maker"];
     return {
       kind: "path_npx",
       command: "npx",
@@ -56344,9 +56662,9 @@ function resolveMakerMcpLauncher(options2) {
       commandAndArgs: ["npx", ...args]
     };
   }
-  const existsSync2 = options2.existsSync ?? fs35.existsSync;
-  const execPath = options2.execPath ?? process.execPath;
-  const npmExecPath = options2.npmExecPath ?? process.env.npm_execpath;
+  const existsSync2 = options3.existsSync ?? fs35.existsSync;
+  const execPath = options3.execPath ?? process.execPath;
+  const npmExecPath = options3.npmExecPath ?? process.env.npm_execpath;
   const windowsPath = path36.win32;
   const npmCliCandidates = uniqueStrings([
     npmExecPath,
@@ -56360,7 +56678,7 @@ function resolveMakerMcpLauncher(options2) {
       "exec",
       "--yes",
       "--package",
-      options2.packageName,
+      options3.packageName,
       "--",
       "taptap-maker"
     ];
@@ -56375,14 +56693,14 @@ function resolveMakerMcpLauncher(options2) {
     "No runnable absolute Node/npm launcher was found. Install Node.js with npm, then rerun taptap-maker mcp install."
   );
 }
-async function verifyMakerMcpLauncher(launcher, options2 = {}) {
+async function verifyMakerMcpLauncher(launcher, options3 = {}) {
   var _a3, _b;
-  const timeoutMs = options2.timeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS;
+  const timeoutMs = options3.timeoutMs ?? DEFAULT_VERIFY_TIMEOUT_MS;
   const transport = new StdioClientTransport({
     command: launcher.command,
     args: launcher.args,
-    cwd: options2.cwd,
-    env: options2.env,
+    cwd: options3.cwd,
+    env: options3.env,
     stderr: "pipe"
   });
   const client = new Client(
@@ -56518,22 +56836,30 @@ function runConsoleUpgrade(version2) {
   const cache = path37.join(home2, "cache", "npm");
   fs36.mkdirSync(cache, { recursive: true });
   return new Promise((resolve, reject) => {
-    execFile3(launcher.command, [...launcher.args, "upgrade", "--launcher", "self", "--json"], {
-      cwd: home2,
-      env: { ...process.env, npm_config_cache: cache },
-      windowsHide: true,
-      maxBuffer: 1024 * 1024,
-      timeout: 10 * 6e4
-    }, (error2, stdout) => {
-      if (error2) return reject(new Error("更新未完成，请检查网络及 Node/npm 环境后重试；部分客户端配置可能已更新。"));
-      try {
-        const result = JSON.parse(stdout);
-        if (result.ok !== true) throw new Error();
-        resolve();
-      } catch {
-        reject(new Error("无法确认更新结果，请检查客户端 MCP 配置后再重试。"));
+    execFile3(
+      launcher.command,
+      [...launcher.args, "upgrade", "--launcher", "self", "--json"],
+      {
+        cwd: home2,
+        env: { ...process.env, npm_config_cache: cache },
+        windowsHide: true,
+        maxBuffer: 1024 * 1024,
+        timeout: 10 * 6e4
+      },
+      (error2, stdout) => {
+        if (error2)
+          return reject(
+            new Error("更新未完成，请检查网络及 Node/npm 环境后重试；部分客户端配置可能已更新。")
+          );
+        try {
+          const result = JSON.parse(stdout);
+          if (result.ok !== true) throw new Error();
+          resolve();
+        } catch {
+          reject(new Error("无法确认更新结果，请检查客户端 MCP 配置后再重试。"));
+        }
       }
-    });
+    );
   });
 }
 var ConsoleUpdates = class {
@@ -56549,7 +56875,8 @@ var ConsoleUpdates = class {
     return Boolean(this.distribution && this.distribution !== "standalone");
   }
   async list() {
-    if (this.managed) return { versions: [], managed: true, updateAvailable: false, downgrades: [] };
+    if (this.managed)
+      return { versions: [], managed: true, updateAvailable: false, downgrades: [] };
     if (!this.catalog || Date.now() - this.checkedAt > 5 * 6e4) {
       this.query ||= this.fetchVersions().then((value) => {
         this.catalog = value;
@@ -56575,11 +56902,16 @@ var ConsoleUpdates = class {
     if (typeof version2 !== "string" || !VERSION2.test(version2) || version2 === this.current)
       throw new ConsoleError("请选择有效的其他版本。");
     const catalog = await this.list();
-    if (!catalog.versions.includes(version2)) throw new ConsoleError("版本列表已变化，请刷新后重新选择。");
+    if (!catalog.versions.includes(version2))
+      throw new ConsoleError("版本列表已变化，请刷新后重新选择。");
     if (this.job.status === "running") throw new ConsoleError("正在更新，请勿重复操作。", 409);
     this.job = { status: "running", version: version2 };
     void Promise.resolve().then(() => this.upgrade(version2)).then(() => {
-      this.job = { status: "succeeded", version: version2, message: `已安装 ${version2}，请重新连接 AI 客户端的 MCP 后生效。当前控制台仍运行 ${this.current}。` };
+      this.job = {
+        status: "succeeded",
+        version: version2,
+        message: `已安装 ${version2}，请重新连接 AI 客户端的 MCP 后生效。当前控制台仍运行 ${this.current}。`
+      };
     }).catch((error2) => {
       this.job = { status: "failed", version: version2, message: error2.message };
     });
@@ -56587,18 +56919,2436 @@ var ConsoleUpdates = class {
   }
 };
 
+// src/maker/console/documents.ts
+import fs37 from "node:fs";
+import path38 from "node:path";
+import { createHash as createHash5 } from "node:crypto";
+
+// node_modules/marked/lib/marked.esm.js
+function _getDefaults() {
+  return {
+    async: false,
+    breaks: false,
+    extensions: null,
+    gfm: true,
+    hooks: null,
+    pedantic: false,
+    renderer: null,
+    silent: false,
+    tokenizer: null,
+    walkTokens: null
+  };
+}
+var _defaults = _getDefaults();
+function changeDefaults(newDefaults) {
+  _defaults = newDefaults;
+}
+var escapeTest = /[&<>"']/;
+var escapeReplace = new RegExp(escapeTest.source, "g");
+var escapeTestNoEncode = /[<>"']|&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/;
+var escapeReplaceNoEncode = new RegExp(escapeTestNoEncode.source, "g");
+var escapeReplacements = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;"
+};
+var getEscapeReplacement = (ch) => escapeReplacements[ch];
+function escape2(html, encode3) {
+  if (encode3) {
+    if (escapeTest.test(html)) {
+      return html.replace(escapeReplace, getEscapeReplacement);
+    }
+  } else {
+    if (escapeTestNoEncode.test(html)) {
+      return html.replace(escapeReplaceNoEncode, getEscapeReplacement);
+    }
+  }
+  return html;
+}
+var unescapeTest = /&(#(?:\d+)|(?:#x[0-9A-Fa-f]+)|(?:\w+));?/ig;
+function unescape2(html) {
+  return html.replace(unescapeTest, (_, n) => {
+    n = n.toLowerCase();
+    if (n === "colon")
+      return ":";
+    if (n.charAt(0) === "#") {
+      return n.charAt(1) === "x" ? String.fromCharCode(parseInt(n.substring(2), 16)) : String.fromCharCode(+n.substring(1));
+    }
+    return "";
+  });
+}
+var caret = /(^|[^\[])\^/g;
+function edit(regex, opt) {
+  regex = typeof regex === "string" ? regex : regex.source;
+  opt = opt || "";
+  const obj = {
+    replace: (name, val) => {
+      val = typeof val === "object" && "source" in val ? val.source : val;
+      val = val.replace(caret, "$1");
+      regex = regex.replace(name, val);
+      return obj;
+    },
+    getRegex: () => {
+      return new RegExp(regex, opt);
+    }
+  };
+  return obj;
+}
+function cleanUrl(href) {
+  try {
+    href = encodeURI(href).replace(/%25/g, "%");
+  } catch (e) {
+    return null;
+  }
+  return href;
+}
+var noopTest = { exec: () => null };
+function splitCells(tableRow, count) {
+  const row = tableRow.replace(/\|/g, (match, offset, str) => {
+    let escaped = false;
+    let curr = offset;
+    while (--curr >= 0 && str[curr] === "\\")
+      escaped = !escaped;
+    if (escaped) {
+      return "|";
+    } else {
+      return " |";
+    }
+  }), cells = row.split(/ \|/);
+  let i = 0;
+  if (!cells[0].trim()) {
+    cells.shift();
+  }
+  if (cells.length > 0 && !cells[cells.length - 1].trim()) {
+    cells.pop();
+  }
+  if (count) {
+    if (cells.length > count) {
+      cells.splice(count);
+    } else {
+      while (cells.length < count)
+        cells.push("");
+    }
+  }
+  for (; i < cells.length; i++) {
+    cells[i] = cells[i].trim().replace(/\\\|/g, "|");
+  }
+  return cells;
+}
+function rtrim(str, c, invert) {
+  const l = str.length;
+  if (l === 0) {
+    return "";
+  }
+  let suffLen = 0;
+  while (suffLen < l) {
+    const currChar = str.charAt(l - suffLen - 1);
+    if (currChar === c && !invert) {
+      suffLen++;
+    } else if (currChar !== c && invert) {
+      suffLen++;
+    } else {
+      break;
+    }
+  }
+  return str.slice(0, l - suffLen);
+}
+function findClosingBracket(str, b) {
+  if (str.indexOf(b[1]) === -1) {
+    return -1;
+  }
+  let level = 0;
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === "\\") {
+      i++;
+    } else if (str[i] === b[0]) {
+      level++;
+    } else if (str[i] === b[1]) {
+      level--;
+      if (level < 0) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+function outputLink(cap, link, raw, lexer2) {
+  const href = link.href;
+  const title = link.title ? escape2(link.title) : null;
+  const text2 = cap[1].replace(/\\([\[\]])/g, "$1");
+  if (cap[0].charAt(0) !== "!") {
+    lexer2.state.inLink = true;
+    const token = {
+      type: "link",
+      raw,
+      href,
+      title,
+      text: text2,
+      tokens: lexer2.inlineTokens(text2)
+    };
+    lexer2.state.inLink = false;
+    return token;
+  }
+  return {
+    type: "image",
+    raw,
+    href,
+    title,
+    text: escape2(text2)
+  };
+}
+function indentCodeCompensation(raw, text2) {
+  const matchIndentToCode = raw.match(/^(\s+)(?:```)/);
+  if (matchIndentToCode === null) {
+    return text2;
+  }
+  const indentToCode = matchIndentToCode[1];
+  return text2.split("\n").map((node) => {
+    const matchIndentInNode = node.match(/^\s+/);
+    if (matchIndentInNode === null) {
+      return node;
+    }
+    const [indentInNode] = matchIndentInNode;
+    if (indentInNode.length >= indentToCode.length) {
+      return node.slice(indentToCode.length);
+    }
+    return node;
+  }).join("\n");
+}
+var _Tokenizer = class {
+  options;
+  // TODO: Fix this rules type
+  rules;
+  lexer;
+  constructor(options3) {
+    this.options = options3 || _defaults;
+  }
+  space(src) {
+    const cap = this.rules.block.newline.exec(src);
+    if (cap && cap[0].length > 0) {
+      return {
+        type: "space",
+        raw: cap[0]
+      };
+    }
+  }
+  code(src) {
+    const cap = this.rules.block.code.exec(src);
+    if (cap) {
+      const text2 = cap[0].replace(/^ {1,4}/gm, "");
+      return {
+        type: "code",
+        raw: cap[0],
+        codeBlockStyle: "indented",
+        text: !this.options.pedantic ? rtrim(text2, "\n") : text2
+      };
+    }
+  }
+  fences(src) {
+    const cap = this.rules.block.fences.exec(src);
+    if (cap) {
+      const raw = cap[0];
+      const text2 = indentCodeCompensation(raw, cap[3] || "");
+      return {
+        type: "code",
+        raw,
+        lang: cap[2] ? cap[2].trim().replace(this.rules.inline._escapes, "$1") : cap[2],
+        text: text2
+      };
+    }
+  }
+  heading(src) {
+    const cap = this.rules.block.heading.exec(src);
+    if (cap) {
+      let text2 = cap[2].trim();
+      if (/#$/.test(text2)) {
+        const trimmed = rtrim(text2, "#");
+        if (this.options.pedantic) {
+          text2 = trimmed.trim();
+        } else if (!trimmed || / $/.test(trimmed)) {
+          text2 = trimmed.trim();
+        }
+      }
+      return {
+        type: "heading",
+        raw: cap[0],
+        depth: cap[1].length,
+        text: text2,
+        tokens: this.lexer.inline(text2)
+      };
+    }
+  }
+  hr(src) {
+    const cap = this.rules.block.hr.exec(src);
+    if (cap) {
+      return {
+        type: "hr",
+        raw: cap[0]
+      };
+    }
+  }
+  blockquote(src) {
+    const cap = this.rules.block.blockquote.exec(src);
+    if (cap) {
+      const text2 = rtrim(cap[0].replace(/^ *>[ \t]?/gm, ""), "\n");
+      const top = this.lexer.state.top;
+      this.lexer.state.top = true;
+      const tokens = this.lexer.blockTokens(text2);
+      this.lexer.state.top = top;
+      return {
+        type: "blockquote",
+        raw: cap[0],
+        tokens,
+        text: text2
+      };
+    }
+  }
+  list(src) {
+    let cap = this.rules.block.list.exec(src);
+    if (cap) {
+      let bull = cap[1].trim();
+      const isordered = bull.length > 1;
+      const list = {
+        type: "list",
+        raw: "",
+        ordered: isordered,
+        start: isordered ? +bull.slice(0, -1) : "",
+        loose: false,
+        items: []
+      };
+      bull = isordered ? `\\d{1,9}\\${bull.slice(-1)}` : `\\${bull}`;
+      if (this.options.pedantic) {
+        bull = isordered ? bull : "[*+-]";
+      }
+      const itemRegex = new RegExp(`^( {0,3}${bull})((?:[	 ][^\\n]*)?(?:\\n|$))`);
+      let raw = "";
+      let itemContents = "";
+      let endsWithBlankLine = false;
+      while (src) {
+        let endEarly = false;
+        if (!(cap = itemRegex.exec(src))) {
+          break;
+        }
+        if (this.rules.block.hr.test(src)) {
+          break;
+        }
+        raw = cap[0];
+        src = src.substring(raw.length);
+        let line = cap[2].split("\n", 1)[0].replace(/^\t+/, (t) => " ".repeat(3 * t.length));
+        let nextLine = src.split("\n", 1)[0];
+        let indent4 = 0;
+        if (this.options.pedantic) {
+          indent4 = 2;
+          itemContents = line.trimStart();
+        } else {
+          indent4 = cap[2].search(/[^ ]/);
+          indent4 = indent4 > 4 ? 1 : indent4;
+          itemContents = line.slice(indent4);
+          indent4 += cap[1].length;
+        }
+        let blankLine = false;
+        if (!line && /^ *$/.test(nextLine)) {
+          raw += nextLine + "\n";
+          src = src.substring(nextLine.length + 1);
+          endEarly = true;
+        }
+        if (!endEarly) {
+          const nextBulletRegex = new RegExp(`^ {0,${Math.min(3, indent4 - 1)}}(?:[*+-]|\\d{1,9}[.)])((?:[ 	][^\\n]*)?(?:\\n|$))`);
+          const hrRegex = new RegExp(`^ {0,${Math.min(3, indent4 - 1)}}((?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})(?:\\n+|$)`);
+          const fencesBeginRegex = new RegExp(`^ {0,${Math.min(3, indent4 - 1)}}(?:\`\`\`|~~~)`);
+          const headingBeginRegex = new RegExp(`^ {0,${Math.min(3, indent4 - 1)}}#`);
+          while (src) {
+            const rawLine = src.split("\n", 1)[0];
+            nextLine = rawLine;
+            if (this.options.pedantic) {
+              nextLine = nextLine.replace(/^ {1,4}(?=( {4})*[^ ])/g, "  ");
+            }
+            if (fencesBeginRegex.test(nextLine)) {
+              break;
+            }
+            if (headingBeginRegex.test(nextLine)) {
+              break;
+            }
+            if (nextBulletRegex.test(nextLine)) {
+              break;
+            }
+            if (hrRegex.test(src)) {
+              break;
+            }
+            if (nextLine.search(/[^ ]/) >= indent4 || !nextLine.trim()) {
+              itemContents += "\n" + nextLine.slice(indent4);
+            } else {
+              if (blankLine) {
+                break;
+              }
+              if (line.search(/[^ ]/) >= 4) {
+                break;
+              }
+              if (fencesBeginRegex.test(line)) {
+                break;
+              }
+              if (headingBeginRegex.test(line)) {
+                break;
+              }
+              if (hrRegex.test(line)) {
+                break;
+              }
+              itemContents += "\n" + nextLine;
+            }
+            if (!blankLine && !nextLine.trim()) {
+              blankLine = true;
+            }
+            raw += rawLine + "\n";
+            src = src.substring(rawLine.length + 1);
+            line = nextLine.slice(indent4);
+          }
+        }
+        if (!list.loose) {
+          if (endsWithBlankLine) {
+            list.loose = true;
+          } else if (/\n *\n *$/.test(raw)) {
+            endsWithBlankLine = true;
+          }
+        }
+        let istask = null;
+        let ischecked;
+        if (this.options.gfm) {
+          istask = /^\[[ xX]\] /.exec(itemContents);
+          if (istask) {
+            ischecked = istask[0] !== "[ ] ";
+            itemContents = itemContents.replace(/^\[[ xX]\] +/, "");
+          }
+        }
+        list.items.push({
+          type: "list_item",
+          raw,
+          task: !!istask,
+          checked: ischecked,
+          loose: false,
+          text: itemContents,
+          tokens: []
+        });
+        list.raw += raw;
+      }
+      list.items[list.items.length - 1].raw = raw.trimEnd();
+      list.items[list.items.length - 1].text = itemContents.trimEnd();
+      list.raw = list.raw.trimEnd();
+      for (let i = 0; i < list.items.length; i++) {
+        this.lexer.state.top = false;
+        list.items[i].tokens = this.lexer.blockTokens(list.items[i].text, []);
+        if (!list.loose) {
+          const spacers = list.items[i].tokens.filter((t) => t.type === "space");
+          const hasMultipleLineBreaks = spacers.length > 0 && spacers.some((t) => /\n.*\n/.test(t.raw));
+          list.loose = hasMultipleLineBreaks;
+        }
+      }
+      if (list.loose) {
+        for (let i = 0; i < list.items.length; i++) {
+          list.items[i].loose = true;
+        }
+      }
+      return list;
+    }
+  }
+  html(src) {
+    const cap = this.rules.block.html.exec(src);
+    if (cap) {
+      const token = {
+        type: "html",
+        block: true,
+        raw: cap[0],
+        pre: cap[1] === "pre" || cap[1] === "script" || cap[1] === "style",
+        text: cap[0]
+      };
+      return token;
+    }
+  }
+  def(src) {
+    const cap = this.rules.block.def.exec(src);
+    if (cap) {
+      const tag = cap[1].toLowerCase().replace(/\s+/g, " ");
+      const href = cap[2] ? cap[2].replace(/^<(.*)>$/, "$1").replace(this.rules.inline._escapes, "$1") : "";
+      const title = cap[3] ? cap[3].substring(1, cap[3].length - 1).replace(this.rules.inline._escapes, "$1") : cap[3];
+      return {
+        type: "def",
+        tag,
+        raw: cap[0],
+        href,
+        title
+      };
+    }
+  }
+  table(src) {
+    const cap = this.rules.block.table.exec(src);
+    if (cap) {
+      if (!/[:|]/.test(cap[2])) {
+        return;
+      }
+      const item = {
+        type: "table",
+        raw: cap[0],
+        header: splitCells(cap[1]).map((c) => {
+          return { text: c, tokens: [] };
+        }),
+        align: cap[2].replace(/^\||\| *$/g, "").split("|"),
+        rows: cap[3] && cap[3].trim() ? cap[3].replace(/\n[ \t]*$/, "").split("\n") : []
+      };
+      if (item.header.length === item.align.length) {
+        let l = item.align.length;
+        let i, j, k, row;
+        for (i = 0; i < l; i++) {
+          const align = item.align[i];
+          if (align) {
+            if (/^ *-+: *$/.test(align)) {
+              item.align[i] = "right";
+            } else if (/^ *:-+: *$/.test(align)) {
+              item.align[i] = "center";
+            } else if (/^ *:-+ *$/.test(align)) {
+              item.align[i] = "left";
+            } else {
+              item.align[i] = null;
+            }
+          }
+        }
+        l = item.rows.length;
+        for (i = 0; i < l; i++) {
+          item.rows[i] = splitCells(item.rows[i], item.header.length).map((c) => {
+            return { text: c, tokens: [] };
+          });
+        }
+        l = item.header.length;
+        for (j = 0; j < l; j++) {
+          item.header[j].tokens = this.lexer.inline(item.header[j].text);
+        }
+        l = item.rows.length;
+        for (j = 0; j < l; j++) {
+          row = item.rows[j];
+          for (k = 0; k < row.length; k++) {
+            row[k].tokens = this.lexer.inline(row[k].text);
+          }
+        }
+        return item;
+      }
+    }
+  }
+  lheading(src) {
+    const cap = this.rules.block.lheading.exec(src);
+    if (cap) {
+      return {
+        type: "heading",
+        raw: cap[0],
+        depth: cap[2].charAt(0) === "=" ? 1 : 2,
+        text: cap[1],
+        tokens: this.lexer.inline(cap[1])
+      };
+    }
+  }
+  paragraph(src) {
+    const cap = this.rules.block.paragraph.exec(src);
+    if (cap) {
+      const text2 = cap[1].charAt(cap[1].length - 1) === "\n" ? cap[1].slice(0, -1) : cap[1];
+      return {
+        type: "paragraph",
+        raw: cap[0],
+        text: text2,
+        tokens: this.lexer.inline(text2)
+      };
+    }
+  }
+  text(src) {
+    const cap = this.rules.block.text.exec(src);
+    if (cap) {
+      return {
+        type: "text",
+        raw: cap[0],
+        text: cap[0],
+        tokens: this.lexer.inline(cap[0])
+      };
+    }
+  }
+  escape(src) {
+    const cap = this.rules.inline.escape.exec(src);
+    if (cap) {
+      return {
+        type: "escape",
+        raw: cap[0],
+        text: escape2(cap[1])
+      };
+    }
+  }
+  tag(src) {
+    const cap = this.rules.inline.tag.exec(src);
+    if (cap) {
+      if (!this.lexer.state.inLink && /^<a /i.test(cap[0])) {
+        this.lexer.state.inLink = true;
+      } else if (this.lexer.state.inLink && /^<\/a>/i.test(cap[0])) {
+        this.lexer.state.inLink = false;
+      }
+      if (!this.lexer.state.inRawBlock && /^<(pre|code|kbd|script)(\s|>)/i.test(cap[0])) {
+        this.lexer.state.inRawBlock = true;
+      } else if (this.lexer.state.inRawBlock && /^<\/(pre|code|kbd|script)(\s|>)/i.test(cap[0])) {
+        this.lexer.state.inRawBlock = false;
+      }
+      return {
+        type: "html",
+        raw: cap[0],
+        inLink: this.lexer.state.inLink,
+        inRawBlock: this.lexer.state.inRawBlock,
+        block: false,
+        text: cap[0]
+      };
+    }
+  }
+  link(src) {
+    const cap = this.rules.inline.link.exec(src);
+    if (cap) {
+      const trimmedUrl = cap[2].trim();
+      if (!this.options.pedantic && /^</.test(trimmedUrl)) {
+        if (!/>$/.test(trimmedUrl)) {
+          return;
+        }
+        const rtrimSlash = rtrim(trimmedUrl.slice(0, -1), "\\");
+        if ((trimmedUrl.length - rtrimSlash.length) % 2 === 0) {
+          return;
+        }
+      } else {
+        const lastParenIndex = findClosingBracket(cap[2], "()");
+        if (lastParenIndex > -1) {
+          const start = cap[0].indexOf("!") === 0 ? 5 : 4;
+          const linkLen = start + cap[1].length + lastParenIndex;
+          cap[2] = cap[2].substring(0, lastParenIndex);
+          cap[0] = cap[0].substring(0, linkLen).trim();
+          cap[3] = "";
+        }
+      }
+      let href = cap[2];
+      let title = "";
+      if (this.options.pedantic) {
+        const link = /^([^'"]*[^\s])\s+(['"])(.*)\2/.exec(href);
+        if (link) {
+          href = link[1];
+          title = link[3];
+        }
+      } else {
+        title = cap[3] ? cap[3].slice(1, -1) : "";
+      }
+      href = href.trim();
+      if (/^</.test(href)) {
+        if (this.options.pedantic && !/>$/.test(trimmedUrl)) {
+          href = href.slice(1);
+        } else {
+          href = href.slice(1, -1);
+        }
+      }
+      return outputLink(cap, {
+        href: href ? href.replace(this.rules.inline._escapes, "$1") : href,
+        title: title ? title.replace(this.rules.inline._escapes, "$1") : title
+      }, cap[0], this.lexer);
+    }
+  }
+  reflink(src, links) {
+    let cap;
+    if ((cap = this.rules.inline.reflink.exec(src)) || (cap = this.rules.inline.nolink.exec(src))) {
+      let link = (cap[2] || cap[1]).replace(/\s+/g, " ");
+      link = links[link.toLowerCase()];
+      if (!link) {
+        const text2 = cap[0].charAt(0);
+        return {
+          type: "text",
+          raw: text2,
+          text: text2
+        };
+      }
+      return outputLink(cap, link, cap[0], this.lexer);
+    }
+  }
+  emStrong(src, maskedSrc, prevChar = "") {
+    let match = this.rules.inline.emStrong.lDelim.exec(src);
+    if (!match)
+      return;
+    if (match[3] && prevChar.match(/[\p{L}\p{N}]/u))
+      return;
+    const nextChar = match[1] || match[2] || "";
+    if (!nextChar || !prevChar || this.rules.inline.punctuation.exec(prevChar)) {
+      const lLength = [...match[0]].length - 1;
+      let rDelim, rLength, delimTotal = lLength, midDelimTotal = 0;
+      const endReg = match[0][0] === "*" ? this.rules.inline.emStrong.rDelimAst : this.rules.inline.emStrong.rDelimUnd;
+      endReg.lastIndex = 0;
+      maskedSrc = maskedSrc.slice(-1 * src.length + lLength);
+      while ((match = endReg.exec(maskedSrc)) != null) {
+        rDelim = match[1] || match[2] || match[3] || match[4] || match[5] || match[6];
+        if (!rDelim)
+          continue;
+        rLength = [...rDelim].length;
+        if (match[3] || match[4]) {
+          delimTotal += rLength;
+          continue;
+        } else if (match[5] || match[6]) {
+          if (lLength % 3 && !((lLength + rLength) % 3)) {
+            midDelimTotal += rLength;
+            continue;
+          }
+        }
+        delimTotal -= rLength;
+        if (delimTotal > 0)
+          continue;
+        rLength = Math.min(rLength, rLength + delimTotal + midDelimTotal);
+        const lastCharLength = [...match[0]][0].length;
+        const raw = src.slice(0, lLength + match.index + lastCharLength + rLength);
+        if (Math.min(lLength, rLength) % 2) {
+          const text3 = raw.slice(1, -1);
+          return {
+            type: "em",
+            raw,
+            text: text3,
+            tokens: this.lexer.inlineTokens(text3)
+          };
+        }
+        const text2 = raw.slice(2, -2);
+        return {
+          type: "strong",
+          raw,
+          text: text2,
+          tokens: this.lexer.inlineTokens(text2)
+        };
+      }
+    }
+  }
+  codespan(src) {
+    const cap = this.rules.inline.code.exec(src);
+    if (cap) {
+      let text2 = cap[2].replace(/\n/g, " ");
+      const hasNonSpaceChars = /[^ ]/.test(text2);
+      const hasSpaceCharsOnBothEnds = /^ /.test(text2) && / $/.test(text2);
+      if (hasNonSpaceChars && hasSpaceCharsOnBothEnds) {
+        text2 = text2.substring(1, text2.length - 1);
+      }
+      text2 = escape2(text2, true);
+      return {
+        type: "codespan",
+        raw: cap[0],
+        text: text2
+      };
+    }
+  }
+  br(src) {
+    const cap = this.rules.inline.br.exec(src);
+    if (cap) {
+      return {
+        type: "br",
+        raw: cap[0]
+      };
+    }
+  }
+  del(src) {
+    const cap = this.rules.inline.del.exec(src);
+    if (cap) {
+      return {
+        type: "del",
+        raw: cap[0],
+        text: cap[2],
+        tokens: this.lexer.inlineTokens(cap[2])
+      };
+    }
+  }
+  autolink(src) {
+    const cap = this.rules.inline.autolink.exec(src);
+    if (cap) {
+      let text2, href;
+      if (cap[2] === "@") {
+        text2 = escape2(cap[1]);
+        href = "mailto:" + text2;
+      } else {
+        text2 = escape2(cap[1]);
+        href = text2;
+      }
+      return {
+        type: "link",
+        raw: cap[0],
+        text: text2,
+        href,
+        tokens: [
+          {
+            type: "text",
+            raw: text2,
+            text: text2
+          }
+        ]
+      };
+    }
+  }
+  url(src) {
+    let cap;
+    if (cap = this.rules.inline.url.exec(src)) {
+      let text2, href;
+      if (cap[2] === "@") {
+        text2 = escape2(cap[0]);
+        href = "mailto:" + text2;
+      } else {
+        let prevCapZero;
+        do {
+          prevCapZero = cap[0];
+          cap[0] = this.rules.inline._backpedal.exec(cap[0])[0];
+        } while (prevCapZero !== cap[0]);
+        text2 = escape2(cap[0]);
+        if (cap[1] === "www.") {
+          href = "http://" + cap[0];
+        } else {
+          href = cap[0];
+        }
+      }
+      return {
+        type: "link",
+        raw: cap[0],
+        text: text2,
+        href,
+        tokens: [
+          {
+            type: "text",
+            raw: text2,
+            text: text2
+          }
+        ]
+      };
+    }
+  }
+  inlineText(src) {
+    const cap = this.rules.inline.text.exec(src);
+    if (cap) {
+      let text2;
+      if (this.lexer.state.inRawBlock) {
+        text2 = cap[0];
+      } else {
+        text2 = escape2(cap[0]);
+      }
+      return {
+        type: "text",
+        raw: cap[0],
+        text: text2
+      };
+    }
+  }
+};
+var block = {
+  newline: /^(?: *(?:\n|$))+/,
+  code: /^( {4}[^\n]+(?:\n(?: *(?:\n|$))*)?)+/,
+  fences: /^ {0,3}(`{3,}(?=[^`\n]*(?:\n|$))|~{3,})([^\n]*)(?:\n|$)(?:|([\s\S]*?)(?:\n|$))(?: {0,3}\1[~`]* *(?=\n|$)|$)/,
+  hr: /^ {0,3}((?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/,
+  heading: /^ {0,3}(#{1,6})(?=\s|$)(.*)(?:\n+|$)/,
+  blockquote: /^( {0,3}> ?(paragraph|[^\n]*)(?:\n|$))+/,
+  list: /^( {0,3}bull)([ \t][^\n]+?)?(?:\n|$)/,
+  html: "^ {0,3}(?:<(script|pre|style|textarea)[\\s>][\\s\\S]*?(?:</\\1>[^\\n]*\\n+|$)|comment[^\\n]*(\\n+|$)|<\\?[\\s\\S]*?(?:\\?>\\n*|$)|<![A-Z][\\s\\S]*?(?:>\\n*|$)|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>\\n*|$)|</?(tag)(?: +|\\n|/?>)[\\s\\S]*?(?:(?:\\n *)+\\n|$)|<(?!script|pre|style|textarea)([a-z][\\w-]*)(?:attribute)*? */?>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n *)+\\n|$)|</(?!script|pre|style|textarea)[a-z][\\w-]*\\s*>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n *)+\\n|$))",
+  def: /^ {0,3}\[(label)\]: *(?:\n *)?([^<\s][^\s]*|<.*?>)(?:(?: +(?:\n *)?| *\n *)(title))? *(?:\n+|$)/,
+  table: noopTest,
+  lheading: /^(?!bull )((?:.|\n(?!\s*?\n|bull ))+?)\n {0,3}(=+|-+) *(?:\n+|$)/,
+  // regex template, placeholders will be replaced according to different paragraph
+  // interruption rules of commonmark and the original markdown spec:
+  _paragraph: /^([^\n]+(?:\n(?!hr|heading|lheading|blockquote|fences|list|html|table| +\n)[^\n]+)*)/,
+  text: /^[^\n]+/
+};
+block._label = /(?!\s*\])(?:\\.|[^\[\]\\])+/;
+block._title = /(?:"(?:\\"?|[^"\\])*"|'[^'\n]*(?:\n[^'\n]+)*\n?'|\([^()]*\))/;
+block.def = edit(block.def).replace("label", block._label).replace("title", block._title).getRegex();
+block.bullet = /(?:[*+-]|\d{1,9}[.)])/;
+block.listItemStart = edit(/^( *)(bull) */).replace("bull", block.bullet).getRegex();
+block.list = edit(block.list).replace(/bull/g, block.bullet).replace("hr", "\\n+(?=\\1?(?:(?:- *){3,}|(?:_ *){3,}|(?:\\* *){3,})(?:\\n+|$))").replace("def", "\\n+(?=" + block.def.source + ")").getRegex();
+block._tag = "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|meta|nav|noframes|ol|optgroup|option|p|param|section|source|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul";
+block._comment = /<!--(?!-?>)[\s\S]*?(?:-->|$)/;
+block.html = edit(block.html, "i").replace("comment", block._comment).replace("tag", block._tag).replace("attribute", / +[a-zA-Z:_][\w.:-]*(?: *= *"[^"\n]*"| *= *'[^'\n]*'| *= *[^\s"'=<>`]+)?/).getRegex();
+block.lheading = edit(block.lheading).replace(/bull/g, block.bullet).getRegex();
+block.paragraph = edit(block._paragraph).replace("hr", block.hr).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("|lheading", "").replace("|table", "").replace("blockquote", " {0,3}>").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list", " {0,3}(?:[*+-]|1[.)]) ").replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", block._tag).getRegex();
+block.blockquote = edit(block.blockquote).replace("paragraph", block.paragraph).getRegex();
+block.normal = { ...block };
+block.gfm = {
+  ...block.normal,
+  table: "^ *([^\\n ].*)\\n {0,3}((?:\\| *)?:?-+:? *(?:\\| *:?-+:? *)*(?:\\| *)?)(?:\\n((?:(?! *\\n|hr|heading|blockquote|code|fences|list|html).*(?:\\n|$))*)\\n*|$)"
+  // Cells
+};
+block.gfm.table = edit(block.gfm.table).replace("hr", block.hr).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("blockquote", " {0,3}>").replace("code", " {4}[^\\n]").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list", " {0,3}(?:[*+-]|1[.)]) ").replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", block._tag).getRegex();
+block.gfm.paragraph = edit(block._paragraph).replace("hr", block.hr).replace("heading", " {0,3}#{1,6}(?:\\s|$)").replace("|lheading", "").replace("table", block.gfm.table).replace("blockquote", " {0,3}>").replace("fences", " {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n").replace("list", " {0,3}(?:[*+-]|1[.)]) ").replace("html", "</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)").replace("tag", block._tag).getRegex();
+block.pedantic = {
+  ...block.normal,
+  html: edit(`^ *(?:comment *(?:\\n|\\s*$)|<(tag)[\\s\\S]+?</\\1> *(?:\\n{2,}|\\s*$)|<tag(?:"[^"]*"|'[^']*'|\\s[^'"/>\\s]*)*?/?> *(?:\\n{2,}|\\s*$))`).replace("comment", block._comment).replace(/tag/g, "(?!(?:a|em|strong|small|s|cite|q|dfn|abbr|data|time|code|var|samp|kbd|sub|sup|i|b|u|mark|ruby|rt|rp|bdi|bdo|span|br|wbr|ins|del|img)\\b)\\w+(?!:|[^\\w\\s@]*@)\\b").getRegex(),
+  def: /^ *\[([^\]]+)\]: *<?([^\s>]+)>?(?: +(["(][^\n]+[")]))? *(?:\n+|$)/,
+  heading: /^(#{1,6})(.*)(?:\n+|$)/,
+  fences: noopTest,
+  lheading: /^(.+?)\n {0,3}(=+|-+) *(?:\n+|$)/,
+  paragraph: edit(block.normal._paragraph).replace("hr", block.hr).replace("heading", " *#{1,6} *[^\n]").replace("lheading", block.lheading).replace("blockquote", " {0,3}>").replace("|fences", "").replace("|list", "").replace("|html", "").getRegex()
+};
+var inline = {
+  escape: /^\\([!"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])/,
+  autolink: /^<(scheme:[^\s\x00-\x1f<>]*|email)>/,
+  url: noopTest,
+  tag: "^comment|^</[a-zA-Z][\\w:-]*\\s*>|^<[a-zA-Z][\\w-]*(?:attribute)*?\\s*/?>|^<\\?[\\s\\S]*?\\?>|^<![a-zA-Z]+\\s[\\s\\S]*?>|^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>",
+  link: /^!?\[(label)\]\(\s*(href)(?:\s+(title))?\s*\)/,
+  reflink: /^!?\[(label)\]\[(ref)\]/,
+  nolink: /^!?\[(ref)\](?:\[\])?/,
+  reflinkSearch: "reflink|nolink(?!\\()",
+  emStrong: {
+    lDelim: /^(?:\*+(?:((?!\*)[punct])|[^\s*]))|^_+(?:((?!_)[punct])|([^\s_]))/,
+    //         (1) and (2) can only be a Right Delimiter. (3) and (4) can only be Left.  (5) and (6) can be either Left or Right.
+    //         | Skip orphan inside strong      | Consume to delim | (1) #***              | (2) a***#, a***                    | (3) #***a, ***a                  | (4) ***#                 | (5) #***#                         | (6) a***a
+    rDelimAst: /^[^_*]*?__[^_*]*?\*[^_*]*?(?=__)|[^*]+(?=[^*])|(?!\*)[punct](\*+)(?=[\s]|$)|[^punct\s](\*+)(?!\*)(?=[punct\s]|$)|(?!\*)[punct\s](\*+)(?=[^punct\s])|[\s](\*+)(?!\*)(?=[punct])|(?!\*)[punct](\*+)(?!\*)(?=[punct])|[^punct\s](\*+)(?=[^punct\s])/,
+    rDelimUnd: /^[^_*]*?\*\*[^_*]*?_[^_*]*?(?=\*\*)|[^_]+(?=[^_])|(?!_)[punct](_+)(?=[\s]|$)|[^punct\s](_+)(?!_)(?=[punct\s]|$)|(?!_)[punct\s](_+)(?=[^punct\s])|[\s](_+)(?!_)(?=[punct])|(?!_)[punct](_+)(?!_)(?=[punct])/
+    // ^- Not allowed for _
+  },
+  code: /^(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/,
+  br: /^( {2,}|\\)\n(?!\s*$)/,
+  del: noopTest,
+  text: /^(`+|[^`])(?:(?= {2,}\n)|[\s\S]*?(?:(?=[\\<!\[`*_]|\b_|$)|[^ ](?= {2,}\n)))/,
+  punctuation: /^((?![*_])[\spunctuation])/
+};
+inline._punctuation = "\\p{P}$+<=>`^|~";
+inline.punctuation = edit(inline.punctuation, "u").replace(/punctuation/g, inline._punctuation).getRegex();
+inline.blockSkip = /\[[^[\]]*?\]\([^\(\)]*?\)|`[^`]*?`|<[^<>]*?>/g;
+inline.anyPunctuation = /\\[punct]/g;
+inline._escapes = /\\([punct])/g;
+inline._comment = edit(block._comment).replace("(?:-->|$)", "-->").getRegex();
+inline.emStrong.lDelim = edit(inline.emStrong.lDelim, "u").replace(/punct/g, inline._punctuation).getRegex();
+inline.emStrong.rDelimAst = edit(inline.emStrong.rDelimAst, "gu").replace(/punct/g, inline._punctuation).getRegex();
+inline.emStrong.rDelimUnd = edit(inline.emStrong.rDelimUnd, "gu").replace(/punct/g, inline._punctuation).getRegex();
+inline.anyPunctuation = edit(inline.anyPunctuation, "gu").replace(/punct/g, inline._punctuation).getRegex();
+inline._escapes = edit(inline._escapes, "gu").replace(/punct/g, inline._punctuation).getRegex();
+inline._scheme = /[a-zA-Z][a-zA-Z0-9+.-]{1,31}/;
+inline._email = /[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+(@)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+(?![-_])/;
+inline.autolink = edit(inline.autolink).replace("scheme", inline._scheme).replace("email", inline._email).getRegex();
+inline._attribute = /\s+[a-zA-Z:_][\w.:-]*(?:\s*=\s*"[^"]*"|\s*=\s*'[^']*'|\s*=\s*[^\s"'=<>`]+)?/;
+inline.tag = edit(inline.tag).replace("comment", inline._comment).replace("attribute", inline._attribute).getRegex();
+inline._label = /(?:\[(?:\\.|[^\[\]\\])*\]|\\.|`[^`]*`|[^\[\]\\`])*?/;
+inline._href = /<(?:\\.|[^\n<>\\])+>|[^\s\x00-\x1f]*/;
+inline._title = /"(?:\\"?|[^"\\])*"|'(?:\\'?|[^'\\])*'|\((?:\\\)?|[^)\\])*\)/;
+inline.link = edit(inline.link).replace("label", inline._label).replace("href", inline._href).replace("title", inline._title).getRegex();
+inline.reflink = edit(inline.reflink).replace("label", inline._label).replace("ref", block._label).getRegex();
+inline.nolink = edit(inline.nolink).replace("ref", block._label).getRegex();
+inline.reflinkSearch = edit(inline.reflinkSearch, "g").replace("reflink", inline.reflink).replace("nolink", inline.nolink).getRegex();
+inline.normal = { ...inline };
+inline.pedantic = {
+  ...inline.normal,
+  strong: {
+    start: /^__|\*\*/,
+    middle: /^__(?=\S)([\s\S]*?\S)__(?!_)|^\*\*(?=\S)([\s\S]*?\S)\*\*(?!\*)/,
+    endAst: /\*\*(?!\*)/g,
+    endUnd: /__(?!_)/g
+  },
+  em: {
+    start: /^_|\*/,
+    middle: /^()\*(?=\S)([\s\S]*?\S)\*(?!\*)|^_(?=\S)([\s\S]*?\S)_(?!_)/,
+    endAst: /\*(?!\*)/g,
+    endUnd: /_(?!_)/g
+  },
+  link: edit(/^!?\[(label)\]\((.*?)\)/).replace("label", inline._label).getRegex(),
+  reflink: edit(/^!?\[(label)\]\s*\[([^\]]*)\]/).replace("label", inline._label).getRegex()
+};
+inline.gfm = {
+  ...inline.normal,
+  escape: edit(inline.escape).replace("])", "~|])").getRegex(),
+  _extended_email: /[A-Za-z0-9._+-]+(@)[a-zA-Z0-9-_]+(?:\.[a-zA-Z0-9-_]*[a-zA-Z0-9])+(?![-_])/,
+  url: /^((?:ftp|https?):\/\/|www\.)(?:[a-zA-Z0-9\-]+\.?)+[^\s<]*|^email/,
+  _backpedal: /(?:[^?!.,:;*_'"~()&]+|\([^)]*\)|&(?![a-zA-Z0-9]+;$)|[?!.,:;*_'"~)]+(?!$))+/,
+  del: /^(~~?)(?=[^\s~])([\s\S]*?[^\s~])\1(?=[^~]|$)/,
+  text: /^([`~]+|[^`~])(?:(?= {2,}\n)|(?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)|[\s\S]*?(?:(?=[\\<!\[`*~_]|\b_|https?:\/\/|ftp:\/\/|www\.|$)|[^ ](?= {2,}\n)|[^a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-](?=[a-zA-Z0-9.!#$%&'*+\/=?_`{\|}~-]+@)))/
+};
+inline.gfm.url = edit(inline.gfm.url, "i").replace("email", inline.gfm._extended_email).getRegex();
+inline.breaks = {
+  ...inline.gfm,
+  br: edit(inline.br).replace("{2,}", "*").getRegex(),
+  text: edit(inline.gfm.text).replace("\\b_", "\\b_| {2,}\\n").replace(/\{2,\}/g, "*").getRegex()
+};
+var _Lexer = class __Lexer {
+  tokens;
+  options;
+  state;
+  tokenizer;
+  inlineQueue;
+  constructor(options3) {
+    this.tokens = [];
+    this.tokens.links = /* @__PURE__ */ Object.create(null);
+    this.options = options3 || _defaults;
+    this.options.tokenizer = this.options.tokenizer || new _Tokenizer();
+    this.tokenizer = this.options.tokenizer;
+    this.tokenizer.options = this.options;
+    this.tokenizer.lexer = this;
+    this.inlineQueue = [];
+    this.state = {
+      inLink: false,
+      inRawBlock: false,
+      top: true
+    };
+    const rules = {
+      block: block.normal,
+      inline: inline.normal
+    };
+    if (this.options.pedantic) {
+      rules.block = block.pedantic;
+      rules.inline = inline.pedantic;
+    } else if (this.options.gfm) {
+      rules.block = block.gfm;
+      if (this.options.breaks) {
+        rules.inline = inline.breaks;
+      } else {
+        rules.inline = inline.gfm;
+      }
+    }
+    this.tokenizer.rules = rules;
+  }
+  /**
+   * Expose Rules
+   */
+  static get rules() {
+    return {
+      block,
+      inline
+    };
+  }
+  /**
+   * Static Lex Method
+   */
+  static lex(src, options3) {
+    const lexer2 = new __Lexer(options3);
+    return lexer2.lex(src);
+  }
+  /**
+   * Static Lex Inline Method
+   */
+  static lexInline(src, options3) {
+    const lexer2 = new __Lexer(options3);
+    return lexer2.inlineTokens(src);
+  }
+  /**
+   * Preprocessing
+   */
+  lex(src) {
+    src = src.replace(/\r\n|\r/g, "\n");
+    this.blockTokens(src, this.tokens);
+    let next;
+    while (next = this.inlineQueue.shift()) {
+      this.inlineTokens(next.src, next.tokens);
+    }
+    return this.tokens;
+  }
+  blockTokens(src, tokens = []) {
+    if (this.options.pedantic) {
+      src = src.replace(/\t/g, "    ").replace(/^ +$/gm, "");
+    } else {
+      src = src.replace(/^( *)(\t+)/gm, (_, leading, tabs) => {
+        return leading + "    ".repeat(tabs.length);
+      });
+    }
+    let token;
+    let lastToken;
+    let cutSrc;
+    let lastParagraphClipped;
+    while (src) {
+      if (this.options.extensions && this.options.extensions.block && this.options.extensions.block.some((extTokenizer) => {
+        if (token = extTokenizer.call({ lexer: this }, src, tokens)) {
+          src = src.substring(token.raw.length);
+          tokens.push(token);
+          return true;
+        }
+        return false;
+      })) {
+        continue;
+      }
+      if (token = this.tokenizer.space(src)) {
+        src = src.substring(token.raw.length);
+        if (token.raw.length === 1 && tokens.length > 0) {
+          tokens[tokens.length - 1].raw += "\n";
+        } else {
+          tokens.push(token);
+        }
+        continue;
+      }
+      if (token = this.tokenizer.code(src)) {
+        src = src.substring(token.raw.length);
+        lastToken = tokens[tokens.length - 1];
+        if (lastToken && (lastToken.type === "paragraph" || lastToken.type === "text")) {
+          lastToken.raw += "\n" + token.raw;
+          lastToken.text += "\n" + token.text;
+          this.inlineQueue[this.inlineQueue.length - 1].src = lastToken.text;
+        } else {
+          tokens.push(token);
+        }
+        continue;
+      }
+      if (token = this.tokenizer.fences(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.heading(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.hr(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.blockquote(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.list(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.html(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.def(src)) {
+        src = src.substring(token.raw.length);
+        lastToken = tokens[tokens.length - 1];
+        if (lastToken && (lastToken.type === "paragraph" || lastToken.type === "text")) {
+          lastToken.raw += "\n" + token.raw;
+          lastToken.text += "\n" + token.raw;
+          this.inlineQueue[this.inlineQueue.length - 1].src = lastToken.text;
+        } else if (!this.tokens.links[token.tag]) {
+          this.tokens.links[token.tag] = {
+            href: token.href,
+            title: token.title
+          };
+        }
+        continue;
+      }
+      if (token = this.tokenizer.table(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.lheading(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      cutSrc = src;
+      if (this.options.extensions && this.options.extensions.startBlock) {
+        let startIndex = Infinity;
+        const tempSrc = src.slice(1);
+        let tempStart;
+        this.options.extensions.startBlock.forEach((getStartIndex) => {
+          tempStart = getStartIndex.call({ lexer: this }, tempSrc);
+          if (typeof tempStart === "number" && tempStart >= 0) {
+            startIndex = Math.min(startIndex, tempStart);
+          }
+        });
+        if (startIndex < Infinity && startIndex >= 0) {
+          cutSrc = src.substring(0, startIndex + 1);
+        }
+      }
+      if (this.state.top && (token = this.tokenizer.paragraph(cutSrc))) {
+        lastToken = tokens[tokens.length - 1];
+        if (lastParagraphClipped && lastToken.type === "paragraph") {
+          lastToken.raw += "\n" + token.raw;
+          lastToken.text += "\n" + token.text;
+          this.inlineQueue.pop();
+          this.inlineQueue[this.inlineQueue.length - 1].src = lastToken.text;
+        } else {
+          tokens.push(token);
+        }
+        lastParagraphClipped = cutSrc.length !== src.length;
+        src = src.substring(token.raw.length);
+        continue;
+      }
+      if (token = this.tokenizer.text(src)) {
+        src = src.substring(token.raw.length);
+        lastToken = tokens[tokens.length - 1];
+        if (lastToken && lastToken.type === "text") {
+          lastToken.raw += "\n" + token.raw;
+          lastToken.text += "\n" + token.text;
+          this.inlineQueue.pop();
+          this.inlineQueue[this.inlineQueue.length - 1].src = lastToken.text;
+        } else {
+          tokens.push(token);
+        }
+        continue;
+      }
+      if (src) {
+        const errMsg = "Infinite loop on byte: " + src.charCodeAt(0);
+        if (this.options.silent) {
+          console.error(errMsg);
+          break;
+        } else {
+          throw new Error(errMsg);
+        }
+      }
+    }
+    this.state.top = true;
+    return tokens;
+  }
+  inline(src, tokens = []) {
+    this.inlineQueue.push({ src, tokens });
+    return tokens;
+  }
+  /**
+   * Lexing/Compiling
+   */
+  inlineTokens(src, tokens = []) {
+    let token, lastToken, cutSrc;
+    let maskedSrc = src;
+    let match;
+    let keepPrevChar, prevChar;
+    if (this.tokens.links) {
+      const links = Object.keys(this.tokens.links);
+      if (links.length > 0) {
+        while ((match = this.tokenizer.rules.inline.reflinkSearch.exec(maskedSrc)) != null) {
+          if (links.includes(match[0].slice(match[0].lastIndexOf("[") + 1, -1))) {
+            maskedSrc = maskedSrc.slice(0, match.index) + "[" + "a".repeat(match[0].length - 2) + "]" + maskedSrc.slice(this.tokenizer.rules.inline.reflinkSearch.lastIndex);
+          }
+        }
+      }
+    }
+    while ((match = this.tokenizer.rules.inline.blockSkip.exec(maskedSrc)) != null) {
+      maskedSrc = maskedSrc.slice(0, match.index) + "[" + "a".repeat(match[0].length - 2) + "]" + maskedSrc.slice(this.tokenizer.rules.inline.blockSkip.lastIndex);
+    }
+    while ((match = this.tokenizer.rules.inline.anyPunctuation.exec(maskedSrc)) != null) {
+      maskedSrc = maskedSrc.slice(0, match.index) + "++" + maskedSrc.slice(this.tokenizer.rules.inline.anyPunctuation.lastIndex);
+    }
+    while (src) {
+      if (!keepPrevChar) {
+        prevChar = "";
+      }
+      keepPrevChar = false;
+      if (this.options.extensions && this.options.extensions.inline && this.options.extensions.inline.some((extTokenizer) => {
+        if (token = extTokenizer.call({ lexer: this }, src, tokens)) {
+          src = src.substring(token.raw.length);
+          tokens.push(token);
+          return true;
+        }
+        return false;
+      })) {
+        continue;
+      }
+      if (token = this.tokenizer.escape(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.tag(src)) {
+        src = src.substring(token.raw.length);
+        lastToken = tokens[tokens.length - 1];
+        if (lastToken && token.type === "text" && lastToken.type === "text") {
+          lastToken.raw += token.raw;
+          lastToken.text += token.text;
+        } else {
+          tokens.push(token);
+        }
+        continue;
+      }
+      if (token = this.tokenizer.link(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.reflink(src, this.tokens.links)) {
+        src = src.substring(token.raw.length);
+        lastToken = tokens[tokens.length - 1];
+        if (lastToken && token.type === "text" && lastToken.type === "text") {
+          lastToken.raw += token.raw;
+          lastToken.text += token.text;
+        } else {
+          tokens.push(token);
+        }
+        continue;
+      }
+      if (token = this.tokenizer.emStrong(src, maskedSrc, prevChar)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.codespan(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.br(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.del(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (token = this.tokenizer.autolink(src)) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      if (!this.state.inLink && (token = this.tokenizer.url(src))) {
+        src = src.substring(token.raw.length);
+        tokens.push(token);
+        continue;
+      }
+      cutSrc = src;
+      if (this.options.extensions && this.options.extensions.startInline) {
+        let startIndex = Infinity;
+        const tempSrc = src.slice(1);
+        let tempStart;
+        this.options.extensions.startInline.forEach((getStartIndex) => {
+          tempStart = getStartIndex.call({ lexer: this }, tempSrc);
+          if (typeof tempStart === "number" && tempStart >= 0) {
+            startIndex = Math.min(startIndex, tempStart);
+          }
+        });
+        if (startIndex < Infinity && startIndex >= 0) {
+          cutSrc = src.substring(0, startIndex + 1);
+        }
+      }
+      if (token = this.tokenizer.inlineText(cutSrc)) {
+        src = src.substring(token.raw.length);
+        if (token.raw.slice(-1) !== "_") {
+          prevChar = token.raw.slice(-1);
+        }
+        keepPrevChar = true;
+        lastToken = tokens[tokens.length - 1];
+        if (lastToken && lastToken.type === "text") {
+          lastToken.raw += token.raw;
+          lastToken.text += token.text;
+        } else {
+          tokens.push(token);
+        }
+        continue;
+      }
+      if (src) {
+        const errMsg = "Infinite loop on byte: " + src.charCodeAt(0);
+        if (this.options.silent) {
+          console.error(errMsg);
+          break;
+        } else {
+          throw new Error(errMsg);
+        }
+      }
+    }
+    return tokens;
+  }
+};
+var _Renderer = class {
+  options;
+  constructor(options3) {
+    this.options = options3 || _defaults;
+  }
+  code(code, infostring, escaped) {
+    var _a3;
+    const lang = (_a3 = (infostring || "").match(/^\S*/)) == null ? void 0 : _a3[0];
+    code = code.replace(/\n$/, "") + "\n";
+    if (!lang) {
+      return "<pre><code>" + (escaped ? code : escape2(code, true)) + "</code></pre>\n";
+    }
+    return '<pre><code class="language-' + escape2(lang) + '">' + (escaped ? code : escape2(code, true)) + "</code></pre>\n";
+  }
+  blockquote(quote) {
+    return `<blockquote>
+${quote}</blockquote>
+`;
+  }
+  html(html, block2) {
+    return html;
+  }
+  heading(text2, level, raw) {
+    return `<h${level}>${text2}</h${level}>
+`;
+  }
+  hr() {
+    return "<hr>\n";
+  }
+  list(body, ordered, start) {
+    const type = ordered ? "ol" : "ul";
+    const startatt = ordered && start !== 1 ? ' start="' + start + '"' : "";
+    return "<" + type + startatt + ">\n" + body + "</" + type + ">\n";
+  }
+  listitem(text2, task, checked) {
+    return `<li>${text2}</li>
+`;
+  }
+  checkbox(checked) {
+    return "<input " + (checked ? 'checked="" ' : "") + 'disabled="" type="checkbox">';
+  }
+  paragraph(text2) {
+    return `<p>${text2}</p>
+`;
+  }
+  table(header, body) {
+    if (body)
+      body = `<tbody>${body}</tbody>`;
+    return "<table>\n<thead>\n" + header + "</thead>\n" + body + "</table>\n";
+  }
+  tablerow(content) {
+    return `<tr>
+${content}</tr>
+`;
+  }
+  tablecell(content, flags) {
+    const type = flags.header ? "th" : "td";
+    const tag = flags.align ? `<${type} align="${flags.align}">` : `<${type}>`;
+    return tag + content + `</${type}>
+`;
+  }
+  /**
+   * span level renderer
+   */
+  strong(text2) {
+    return `<strong>${text2}</strong>`;
+  }
+  em(text2) {
+    return `<em>${text2}</em>`;
+  }
+  codespan(text2) {
+    return `<code>${text2}</code>`;
+  }
+  br() {
+    return "<br>";
+  }
+  del(text2) {
+    return `<del>${text2}</del>`;
+  }
+  link(href, title, text2) {
+    const cleanHref = cleanUrl(href);
+    if (cleanHref === null) {
+      return text2;
+    }
+    href = cleanHref;
+    let out = '<a href="' + href + '"';
+    if (title) {
+      out += ' title="' + title + '"';
+    }
+    out += ">" + text2 + "</a>";
+    return out;
+  }
+  image(href, title, text2) {
+    const cleanHref = cleanUrl(href);
+    if (cleanHref === null) {
+      return text2;
+    }
+    href = cleanHref;
+    let out = `<img src="${href}" alt="${text2}"`;
+    if (title) {
+      out += ` title="${title}"`;
+    }
+    out += ">";
+    return out;
+  }
+  text(text2) {
+    return text2;
+  }
+};
+var _TextRenderer = class {
+  // no need for block level renderers
+  strong(text2) {
+    return text2;
+  }
+  em(text2) {
+    return text2;
+  }
+  codespan(text2) {
+    return text2;
+  }
+  del(text2) {
+    return text2;
+  }
+  html(text2) {
+    return text2;
+  }
+  text(text2) {
+    return text2;
+  }
+  link(href, title, text2) {
+    return "" + text2;
+  }
+  image(href, title, text2) {
+    return "" + text2;
+  }
+  br() {
+    return "";
+  }
+};
+var _Parser = class __Parser {
+  options;
+  renderer;
+  textRenderer;
+  constructor(options3) {
+    this.options = options3 || _defaults;
+    this.options.renderer = this.options.renderer || new _Renderer();
+    this.renderer = this.options.renderer;
+    this.renderer.options = this.options;
+    this.textRenderer = new _TextRenderer();
+  }
+  /**
+   * Static Parse Method
+   */
+  static parse(tokens, options3) {
+    const parser2 = new __Parser(options3);
+    return parser2.parse(tokens);
+  }
+  /**
+   * Static Parse Inline Method
+   */
+  static parseInline(tokens, options3) {
+    const parser2 = new __Parser(options3);
+    return parser2.parseInline(tokens);
+  }
+  /**
+   * Parse Loop
+   */
+  parse(tokens, top = true) {
+    let out = "";
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      if (this.options.extensions && this.options.extensions.renderers && this.options.extensions.renderers[token.type]) {
+        const genericToken = token;
+        const ret = this.options.extensions.renderers[genericToken.type].call({ parser: this }, genericToken);
+        if (ret !== false || !["space", "hr", "heading", "code", "table", "blockquote", "list", "html", "paragraph", "text"].includes(genericToken.type)) {
+          out += ret || "";
+          continue;
+        }
+      }
+      switch (token.type) {
+        case "space": {
+          continue;
+        }
+        case "hr": {
+          out += this.renderer.hr();
+          continue;
+        }
+        case "heading": {
+          const headingToken = token;
+          out += this.renderer.heading(this.parseInline(headingToken.tokens), headingToken.depth, unescape2(this.parseInline(headingToken.tokens, this.textRenderer)));
+          continue;
+        }
+        case "code": {
+          const codeToken = token;
+          out += this.renderer.code(codeToken.text, codeToken.lang, !!codeToken.escaped);
+          continue;
+        }
+        case "table": {
+          const tableToken = token;
+          let header = "";
+          let cell = "";
+          for (let j = 0; j < tableToken.header.length; j++) {
+            cell += this.renderer.tablecell(this.parseInline(tableToken.header[j].tokens), { header: true, align: tableToken.align[j] });
+          }
+          header += this.renderer.tablerow(cell);
+          let body = "";
+          for (let j = 0; j < tableToken.rows.length; j++) {
+            const row = tableToken.rows[j];
+            cell = "";
+            for (let k = 0; k < row.length; k++) {
+              cell += this.renderer.tablecell(this.parseInline(row[k].tokens), { header: false, align: tableToken.align[k] });
+            }
+            body += this.renderer.tablerow(cell);
+          }
+          out += this.renderer.table(header, body);
+          continue;
+        }
+        case "blockquote": {
+          const blockquoteToken = token;
+          const body = this.parse(blockquoteToken.tokens);
+          out += this.renderer.blockquote(body);
+          continue;
+        }
+        case "list": {
+          const listToken = token;
+          const ordered = listToken.ordered;
+          const start = listToken.start;
+          const loose = listToken.loose;
+          let body = "";
+          for (let j = 0; j < listToken.items.length; j++) {
+            const item = listToken.items[j];
+            const checked = item.checked;
+            const task = item.task;
+            let itemBody = "";
+            if (item.task) {
+              const checkbox = this.renderer.checkbox(!!checked);
+              if (loose) {
+                if (item.tokens.length > 0 && item.tokens[0].type === "paragraph") {
+                  item.tokens[0].text = checkbox + " " + item.tokens[0].text;
+                  if (item.tokens[0].tokens && item.tokens[0].tokens.length > 0 && item.tokens[0].tokens[0].type === "text") {
+                    item.tokens[0].tokens[0].text = checkbox + " " + item.tokens[0].tokens[0].text;
+                  }
+                } else {
+                  item.tokens.unshift({
+                    type: "text",
+                    text: checkbox + " "
+                  });
+                }
+              } else {
+                itemBody += checkbox + " ";
+              }
+            }
+            itemBody += this.parse(item.tokens, loose);
+            body += this.renderer.listitem(itemBody, task, !!checked);
+          }
+          out += this.renderer.list(body, ordered, start);
+          continue;
+        }
+        case "html": {
+          const htmlToken = token;
+          out += this.renderer.html(htmlToken.text, htmlToken.block);
+          continue;
+        }
+        case "paragraph": {
+          const paragraphToken = token;
+          out += this.renderer.paragraph(this.parseInline(paragraphToken.tokens));
+          continue;
+        }
+        case "text": {
+          let textToken = token;
+          let body = textToken.tokens ? this.parseInline(textToken.tokens) : textToken.text;
+          while (i + 1 < tokens.length && tokens[i + 1].type === "text") {
+            textToken = tokens[++i];
+            body += "\n" + (textToken.tokens ? this.parseInline(textToken.tokens) : textToken.text);
+          }
+          out += top ? this.renderer.paragraph(body) : body;
+          continue;
+        }
+        default: {
+          const errMsg = 'Token with "' + token.type + '" type was not found.';
+          if (this.options.silent) {
+            console.error(errMsg);
+            return "";
+          } else {
+            throw new Error(errMsg);
+          }
+        }
+      }
+    }
+    return out;
+  }
+  /**
+   * Parse Inline Tokens
+   */
+  parseInline(tokens, renderer) {
+    renderer = renderer || this.renderer;
+    let out = "";
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      if (this.options.extensions && this.options.extensions.renderers && this.options.extensions.renderers[token.type]) {
+        const ret = this.options.extensions.renderers[token.type].call({ parser: this }, token);
+        if (ret !== false || !["escape", "html", "link", "image", "strong", "em", "codespan", "br", "del", "text"].includes(token.type)) {
+          out += ret || "";
+          continue;
+        }
+      }
+      switch (token.type) {
+        case "escape": {
+          const escapeToken = token;
+          out += renderer.text(escapeToken.text);
+          break;
+        }
+        case "html": {
+          const tagToken = token;
+          out += renderer.html(tagToken.text);
+          break;
+        }
+        case "link": {
+          const linkToken = token;
+          out += renderer.link(linkToken.href, linkToken.title, this.parseInline(linkToken.tokens, renderer));
+          break;
+        }
+        case "image": {
+          const imageToken = token;
+          out += renderer.image(imageToken.href, imageToken.title, imageToken.text);
+          break;
+        }
+        case "strong": {
+          const strongToken = token;
+          out += renderer.strong(this.parseInline(strongToken.tokens, renderer));
+          break;
+        }
+        case "em": {
+          const emToken = token;
+          out += renderer.em(this.parseInline(emToken.tokens, renderer));
+          break;
+        }
+        case "codespan": {
+          const codespanToken = token;
+          out += renderer.codespan(codespanToken.text);
+          break;
+        }
+        case "br": {
+          out += renderer.br();
+          break;
+        }
+        case "del": {
+          const delToken = token;
+          out += renderer.del(this.parseInline(delToken.tokens, renderer));
+          break;
+        }
+        case "text": {
+          const textToken = token;
+          out += renderer.text(textToken.text);
+          break;
+        }
+        default: {
+          const errMsg = 'Token with "' + token.type + '" type was not found.';
+          if (this.options.silent) {
+            console.error(errMsg);
+            return "";
+          } else {
+            throw new Error(errMsg);
+          }
+        }
+      }
+    }
+    return out;
+  }
+};
+var _Hooks = class {
+  options;
+  constructor(options3) {
+    this.options = options3 || _defaults;
+  }
+  static passThroughHooks = /* @__PURE__ */ new Set([
+    "preprocess",
+    "postprocess"
+  ]);
+  /**
+   * Process markdown before marked
+   */
+  preprocess(markdown) {
+    return markdown;
+  }
+  /**
+   * Process HTML after marked is finished
+   */
+  postprocess(html) {
+    return html;
+  }
+};
+var Marked = class {
+  defaults = _getDefaults();
+  options = this.setOptions;
+  parse = this.#parseMarkdown(_Lexer.lex, _Parser.parse);
+  parseInline = this.#parseMarkdown(_Lexer.lexInline, _Parser.parseInline);
+  Parser = _Parser;
+  Renderer = _Renderer;
+  TextRenderer = _TextRenderer;
+  Lexer = _Lexer;
+  Tokenizer = _Tokenizer;
+  Hooks = _Hooks;
+  constructor(...args) {
+    this.use(...args);
+  }
+  /**
+   * Run callback for every token
+   */
+  walkTokens(tokens, callback) {
+    var _a3, _b;
+    let values = [];
+    for (const token of tokens) {
+      values = values.concat(callback.call(this, token));
+      switch (token.type) {
+        case "table": {
+          const tableToken = token;
+          for (const cell of tableToken.header) {
+            values = values.concat(this.walkTokens(cell.tokens, callback));
+          }
+          for (const row of tableToken.rows) {
+            for (const cell of row) {
+              values = values.concat(this.walkTokens(cell.tokens, callback));
+            }
+          }
+          break;
+        }
+        case "list": {
+          const listToken = token;
+          values = values.concat(this.walkTokens(listToken.items, callback));
+          break;
+        }
+        default: {
+          const genericToken = token;
+          if ((_b = (_a3 = this.defaults.extensions) == null ? void 0 : _a3.childTokens) == null ? void 0 : _b[genericToken.type]) {
+            this.defaults.extensions.childTokens[genericToken.type].forEach((childTokens) => {
+              values = values.concat(this.walkTokens(genericToken[childTokens], callback));
+            });
+          } else if (genericToken.tokens) {
+            values = values.concat(this.walkTokens(genericToken.tokens, callback));
+          }
+        }
+      }
+    }
+    return values;
+  }
+  use(...args) {
+    const extensions = this.defaults.extensions || { renderers: {}, childTokens: {} };
+    args.forEach((pack) => {
+      const opts = { ...pack };
+      opts.async = this.defaults.async || opts.async || false;
+      if (pack.extensions) {
+        pack.extensions.forEach((ext) => {
+          if (!ext.name) {
+            throw new Error("extension name required");
+          }
+          if ("renderer" in ext) {
+            const prevRenderer = extensions.renderers[ext.name];
+            if (prevRenderer) {
+              extensions.renderers[ext.name] = function(...args2) {
+                let ret = ext.renderer.apply(this, args2);
+                if (ret === false) {
+                  ret = prevRenderer.apply(this, args2);
+                }
+                return ret;
+              };
+            } else {
+              extensions.renderers[ext.name] = ext.renderer;
+            }
+          }
+          if ("tokenizer" in ext) {
+            if (!ext.level || ext.level !== "block" && ext.level !== "inline") {
+              throw new Error("extension level must be 'block' or 'inline'");
+            }
+            const extLevel = extensions[ext.level];
+            if (extLevel) {
+              extLevel.unshift(ext.tokenizer);
+            } else {
+              extensions[ext.level] = [ext.tokenizer];
+            }
+            if (ext.start) {
+              if (ext.level === "block") {
+                if (extensions.startBlock) {
+                  extensions.startBlock.push(ext.start);
+                } else {
+                  extensions.startBlock = [ext.start];
+                }
+              } else if (ext.level === "inline") {
+                if (extensions.startInline) {
+                  extensions.startInline.push(ext.start);
+                } else {
+                  extensions.startInline = [ext.start];
+                }
+              }
+            }
+          }
+          if ("childTokens" in ext && ext.childTokens) {
+            extensions.childTokens[ext.name] = ext.childTokens;
+          }
+        });
+        opts.extensions = extensions;
+      }
+      if (pack.renderer) {
+        const renderer = this.defaults.renderer || new _Renderer(this.defaults);
+        for (const prop in pack.renderer) {
+          const rendererFunc = pack.renderer[prop];
+          const rendererKey = prop;
+          const prevRenderer = renderer[rendererKey];
+          renderer[rendererKey] = (...args2) => {
+            let ret = rendererFunc.apply(renderer, args2);
+            if (ret === false) {
+              ret = prevRenderer.apply(renderer, args2);
+            }
+            return ret || "";
+          };
+        }
+        opts.renderer = renderer;
+      }
+      if (pack.tokenizer) {
+        const tokenizer = this.defaults.tokenizer || new _Tokenizer(this.defaults);
+        for (const prop in pack.tokenizer) {
+          const tokenizerFunc = pack.tokenizer[prop];
+          const tokenizerKey = prop;
+          const prevTokenizer = tokenizer[tokenizerKey];
+          tokenizer[tokenizerKey] = (...args2) => {
+            let ret = tokenizerFunc.apply(tokenizer, args2);
+            if (ret === false) {
+              ret = prevTokenizer.apply(tokenizer, args2);
+            }
+            return ret;
+          };
+        }
+        opts.tokenizer = tokenizer;
+      }
+      if (pack.hooks) {
+        const hooks = this.defaults.hooks || new _Hooks();
+        for (const prop in pack.hooks) {
+          const hooksFunc = pack.hooks[prop];
+          const hooksKey = prop;
+          const prevHook = hooks[hooksKey];
+          if (_Hooks.passThroughHooks.has(prop)) {
+            hooks[hooksKey] = (arg) => {
+              if (this.defaults.async) {
+                return Promise.resolve(hooksFunc.call(hooks, arg)).then((ret2) => {
+                  return prevHook.call(hooks, ret2);
+                });
+              }
+              const ret = hooksFunc.call(hooks, arg);
+              return prevHook.call(hooks, ret);
+            };
+          } else {
+            hooks[hooksKey] = (...args2) => {
+              let ret = hooksFunc.apply(hooks, args2);
+              if (ret === false) {
+                ret = prevHook.apply(hooks, args2);
+              }
+              return ret;
+            };
+          }
+        }
+        opts.hooks = hooks;
+      }
+      if (pack.walkTokens) {
+        const walkTokens2 = this.defaults.walkTokens;
+        const packWalktokens = pack.walkTokens;
+        opts.walkTokens = function(token) {
+          let values = [];
+          values.push(packWalktokens.call(this, token));
+          if (walkTokens2) {
+            values = values.concat(walkTokens2.call(this, token));
+          }
+          return values;
+        };
+      }
+      this.defaults = { ...this.defaults, ...opts };
+    });
+    return this;
+  }
+  setOptions(opt) {
+    this.defaults = { ...this.defaults, ...opt };
+    return this;
+  }
+  lexer(src, options3) {
+    return _Lexer.lex(src, options3 ?? this.defaults);
+  }
+  parser(tokens, options3) {
+    return _Parser.parse(tokens, options3 ?? this.defaults);
+  }
+  #parseMarkdown(lexer2, parser2) {
+    return (src, options3) => {
+      const origOpt = { ...options3 };
+      const opt = { ...this.defaults, ...origOpt };
+      if (this.defaults.async === true && origOpt.async === false) {
+        if (!opt.silent) {
+          console.warn("marked(): The async option was set to true by an extension. The async: false option sent to parse will be ignored.");
+        }
+        opt.async = true;
+      }
+      const throwError = this.#onError(!!opt.silent, !!opt.async);
+      if (typeof src === "undefined" || src === null) {
+        return throwError(new Error("marked(): input parameter is undefined or null"));
+      }
+      if (typeof src !== "string") {
+        return throwError(new Error("marked(): input parameter is of type " + Object.prototype.toString.call(src) + ", string expected"));
+      }
+      if (opt.hooks) {
+        opt.hooks.options = opt;
+      }
+      if (opt.async) {
+        return Promise.resolve(opt.hooks ? opt.hooks.preprocess(src) : src).then((src2) => lexer2(src2, opt)).then((tokens) => opt.walkTokens ? Promise.all(this.walkTokens(tokens, opt.walkTokens)).then(() => tokens) : tokens).then((tokens) => parser2(tokens, opt)).then((html) => opt.hooks ? opt.hooks.postprocess(html) : html).catch(throwError);
+      }
+      try {
+        if (opt.hooks) {
+          src = opt.hooks.preprocess(src);
+        }
+        const tokens = lexer2(src, opt);
+        if (opt.walkTokens) {
+          this.walkTokens(tokens, opt.walkTokens);
+        }
+        let html = parser2(tokens, opt);
+        if (opt.hooks) {
+          html = opt.hooks.postprocess(html);
+        }
+        return html;
+      } catch (e) {
+        return throwError(e);
+      }
+    };
+  }
+  #onError(silent, async) {
+    return (e) => {
+      e.message += "\nPlease report this to https://github.com/markedjs/marked.";
+      if (silent) {
+        const msg = "<p>An error occurred:</p><pre>" + escape2(e.message + "", true) + "</pre>";
+        if (async) {
+          return Promise.resolve(msg);
+        }
+        return msg;
+      }
+      if (async) {
+        return Promise.reject(e);
+      }
+      throw e;
+    };
+  }
+};
+var markedInstance = new Marked();
+function marked(src, opt) {
+  return markedInstance.parse(src, opt);
+}
+marked.options = marked.setOptions = function(options3) {
+  markedInstance.setOptions(options3);
+  marked.defaults = markedInstance.defaults;
+  changeDefaults(marked.defaults);
+  return marked;
+};
+marked.getDefaults = _getDefaults;
+marked.defaults = _defaults;
+marked.use = function(...args) {
+  markedInstance.use(...args);
+  marked.defaults = markedInstance.defaults;
+  changeDefaults(marked.defaults);
+  return marked;
+};
+marked.walkTokens = function(tokens, callback) {
+  return markedInstance.walkTokens(tokens, callback);
+};
+marked.parseInline = markedInstance.parseInline;
+marked.Parser = _Parser;
+marked.parser = _Parser.parse;
+marked.Renderer = _Renderer;
+marked.TextRenderer = _TextRenderer;
+marked.Lexer = _Lexer;
+marked.lexer = _Lexer.lex;
+marked.Tokenizer = _Tokenizer;
+marked.Hooks = _Hooks;
+marked.parse = marked;
+var options2 = marked.options;
+var setOptions = marked.setOptions;
+var use = marked.use;
+var walkTokens = marked.walkTokens;
+var parseInline = marked.parseInline;
+var parser = _Parser.parse;
+var lexer = _Lexer.lex;
+
+// src/maker/console/documents.ts
+init_adIntegrationGuide();
+var GUIDES = {
+  [MAKER_ADS_INTEGRATION_GUIDE_URI]: {
+    title: "广告接入与激励奖励",
+    featured: true,
+    purpose: "先让 AI 检查并同步广告配置，再接入看广告复活、双倍奖励等玩法。",
+    scope: "Maker 广告流程；播放与奖励需在支持广告的环境验证",
+    related: ["engine-docs/recipes/sdk.md", "skill:setup-ads"]
+  },
+  "engine-docs/recipes/client-cloud-score.md": {
+    title: "云存档与排行榜",
+    featured: true,
+    purpose: "保存玩家进度、金币与最高分，并展示排行榜。",
+    scope: "客户端 clientCloud；不是本地文件存档",
+    related: ["engine-docs/recipes/file-storage.md", "engine-docs/recipes/server-cloud-score.md"]
+  },
+  "engine-docs/recipes/network-game-guide.md": {
+    title: "多人联机",
+    featured: true,
+    purpose: "了解客户端与服务端分工、场景同步和玩家交互。",
+    scope: "联网游戏；本地窗口预览不能替代联机验证",
+    related: ["engine-docs/api/network.md", "engine-docs/recipes/server-cloud-score.md"]
+  },
+  "engine-docs/recipes/server-cloud-score.md": {
+    title: "服务端数据与云存储",
+    purpose: "在联网游戏服务端管理玩家数据及云端操作。",
+    scope: "仅限 UrhoXServer 服务端脚本",
+    related: ["engine-docs/recipes/client-cloud-score.md"]
+  },
+  "engine-docs/recipes/ui.md": {
+    title: "UI 开发与布局",
+    purpose: "构建游戏界面、布局和交互，查阅 UI 组件用法。",
+    scope: "项目内 UrhoX UI；适配流程见相关 Skill",
+    related: ["skill:maker-resolution-adaptation", "skill:nvg-resolution-mode"]
+  },
+  "engine-docs/recipes/preload-and-build-refs.md": {
+    title: "资源加载与缺失排查",
+    purpose: "检查资源构建引用、预下载和资源未打包问题。",
+    scope: "资源构建与加载",
+    related: ["engine-docs/recipes/download-while-playing.md"]
+  },
+  "docs/MAKER_LOCAL_PREVIEW.md": {
+    title: "本地预览",
+    purpose: "安装 Runtime、启动预览并调整预览窗口。",
+    scope: "本机 Runtime",
+    related: ["docs/MAKER_CONSOLE.md", "docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md"]
+  },
+  "docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md": {
+    title: "MCP 连接排障",
+    purpose: "排查 AI 客户端连接 Maker MCP 的问题。",
+    scope: "MCP 安装与连接"
+  },
+  "skill:setup-ads": {
+    title: "广告接入 Skill",
+    featured: true,
+    purpose: "指导 AI 同步广告配置并实现激励广告及奖励逻辑。",
+    scope: "供 AI 执行的指导；此页面只阅读，不自动运行",
+    related: [MAKER_ADS_INTEGRATION_GUIDE_URI, "engine-docs/recipes/sdk.md"]
+  },
+  "skill:maker-resolution-adaptation": {
+    title: "多分辨率适配 Skill",
+    purpose: "指导 AI 检查不同屏幕比例下的界面适配。",
+    scope: "以当前项目 Skill 说明为准",
+    related: ["engine-docs/recipes/ui.md"]
+  }
+};
+function guideKey(entry) {
+  if (entry.kind === "skills" && entry.relativePath.endsWith("/SKILL.md"))
+    return "skill:" + entry.relativePath.split("/").slice(-2, -1)[0];
+  return entry.relativePath;
+}
+function enrich(entries) {
+  for (const entry of entries) {
+    if (entry.kind === "project") continue;
+    const guide = GUIDES[guideKey(entry)];
+    if (!guide) continue;
+    const { related, ...metadata } = guide;
+    Object.assign(entry, metadata);
+    entry.category = entry.kind === "skills" ? "常用 Skill" : "常用功能";
+    entry.related = (related || []).flatMap(
+      (key) => entries.filter((candidate) => guideKey(candidate) === key && candidate.kind !== "project").map((candidate) => candidate.id)
+    );
+  }
+  const order = Object.keys(GUIDES);
+  return entries.sort((a, b) => {
+    const rank = (entry) => {
+      const index = entry.kind === "project" ? -1 : order.indexOf(guideKey(entry));
+      return index < 0 ? 1e3 : index;
+    };
+    return rank(a) - rank(b);
+  });
+}
+var MAX_FILE = 1024 * 1024;
+var MAX_ENTRIES = 600;
+var SKILL_DIRS = [
+  ".installer/skills",
+  "skills",
+  ".agents/skills",
+  ".claude/skills",
+  ".codex/skills",
+  ".cursor/skills",
+  ".workbuddy/skills"
+];
+var GROUPS = [
+  ["docs", "项目文档"],
+  ["engine-docs", "引擎与 API"],
+  ["urhox-libs", "引擎与 API"],
+  ["examples", "示例与模板"],
+  ["templates", "示例与模板"]
+];
+function inside2(root, file2) {
+  const relative = path38.relative(root, file2);
+  return relative !== ".." && !relative.startsWith(`..${path38.sep}`) && !path38.isAbsolute(relative);
+}
+var ConsoleDocuments = class {
+  constructor(packageRoot) {
+    this.packageRoot = packageRoot;
+  }
+  entries(project) {
+    const entries = [];
+    const seen = /* @__PURE__ */ new Set();
+    let visited = 0;
+    const collect = (base, source, relative, kind, category) => {
+      if (!fs37.existsSync(base)) return;
+      const root = fs37.realpathSync(base);
+      const walk = (filename2, depth) => {
+        var _a3, _b;
+        if (depth > 7 || visited++ > 6e3 || entries.length >= MAX_ENTRIES) return;
+        try {
+          const real = fs37.realpathSync(filename2);
+          if (!inside2(root, real)) return;
+          const stat = fs37.statSync(real);
+          if (stat.isDirectory()) {
+            if (fs37.lstatSync(filename2).isSymbolicLink()) return;
+            for (const name of fs37.readdirSync(filename2).sort()) {
+              if (name === "node_modules" || name === ".git") continue;
+              walk(path38.join(filename2, name), depth + 1);
+            }
+          } else if (stat.isFile() && /\.md$/i.test(filename2) && stat.size <= MAX_FILE && !seen.has(real)) {
+            seen.add(real);
+            const relativePath = path38.relative(root, filename2).split(path38.sep).join("/");
+            const descriptor = fs37.openSync(real, "r");
+            const buffer = Buffer.alloc(Math.min(8192, stat.size));
+            let content;
+            try {
+              content = buffer.subarray(0, fs37.readSync(descriptor, buffer, 0, buffer.length, 0)).toString("utf8");
+            } finally {
+              fs37.closeSync(descriptor);
+            }
+            const heading = (_b = (_a3 = content.match(/^#\s+(.+)$/m)) == null ? void 0 : _a3[1]) == null ? void 0 : _b.trim();
+            const fallback = path38.basename(filename2).toLowerCase() === "skill.md" ? path38.basename(path38.dirname(filename2)) : path38.basename(filename2, path38.extname(filename2));
+            entries.push({
+              id: createHash5("sha256").update(source + ":" + relativePath).digest("hex"),
+              title: (heading || fallback).slice(0, 160),
+              kind,
+              category,
+              source,
+              relativePath,
+              filename: real,
+              root
+            });
+          }
+        } catch {
+        }
+      };
+      walk(path38.join(root, relative), 0);
+    };
+    for (const filename2 of [
+      "MAKER_CONSOLE.md",
+      "MAKER_LOCAL_PREVIEW.md",
+      "MAKER_MCP_CONNECTION_TROUBLESHOOTING.md"
+    ])
+      collect(
+        this.packageRoot,
+        "Maker 内置",
+        `docs/${filename2}`,
+        "docs",
+        filename2.includes("TROUBLESHOOTING") ? "安装与排障" : "开发与预览"
+      );
+    collect(this.packageRoot, "Maker 内置", "skills", "skills", "Maker 官方 Skill");
+    if (project) {
+      for (const name of ["README.md", "AGENTS.md", "CLAUDE.md"])
+        collect(project, "当前项目", name, "project", "项目入门");
+      for (const [directory, category] of GROUPS)
+        collect(
+          project,
+          "当前项目",
+          directory,
+          directory === "docs" ? "project" : "docs",
+          category
+        );
+      for (const directory of SKILL_DIRS)
+        collect(project, "当前项目", directory, "skills", "项目 Skill");
+    }
+    entries.unshift({
+      id: "maker-ads-integration-guide",
+      title: "广告接入与激励奖励",
+      kind: "docs",
+      category: "常用功能",
+      source: "Maker MCP",
+      relativePath: MAKER_ADS_INTEGRATION_GUIDE_URI,
+      filename: "",
+      root: "",
+      content: formatMakerAdsIntegrationGuide()
+    });
+    return enrich(entries);
+  }
+  list(project) {
+    return this.entries(project).map(
+      ({ filename: _filename, root: _root, content: _content, ...entry }) => entry
+    );
+  }
+  read(id, project) {
+    const entry = this.entries(project).find((item) => item.id === id);
+    if (!entry) throw new ConsoleError("文档不存在或已移除，请刷新目录。", 404);
+    let content = entry.content;
+    if (content === void 0) {
+      const real = fs37.realpathSync(entry.filename);
+      if (!inside2(entry.root, real) || fs37.statSync(real).size > MAX_FILE)
+        throw new ConsoleError("文档无法安全读取。", 403);
+      content = fs37.readFileSync(real, "utf8");
+    }
+    return {
+      id,
+      content,
+      link: entry.content === void 0 ? entry.filename : entry.relativePath,
+      tokens: marked.lexer(content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, ""))
+    };
+  }
+};
+
+// src/maker/console/folderPicker.ts
+import { execFile as execFile4 } from "node:child_process";
+import path39 from "node:path";
+async function chooseProjectDirectory(platform = process.platform) {
+  let command;
+  let args;
+  if (platform === "darwin") {
+    command = "/usr/bin/osascript";
+    args = [
+      "-e",
+      [
+        "try",
+        "activate",
+        'return POSIX path of (choose folder with prompt "选择 Maker 项目或包含项目的文件夹")',
+        "on error number -128",
+        'return ""',
+        "end try"
+      ].join("\n")
+    ];
+  } else if (platform === "win32") {
+    command = path39.win32.join(
+      process.env.SystemRoot || "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe"
+    );
+    const script = [
+      '$ErrorActionPreference = "Stop"',
+      "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)",
+      "Add-Type -AssemblyName System.Windows.Forms",
+      "[System.Windows.Forms.Application]::EnableVisualStyles()",
+      "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
+      '$dialog.Description = "选择 Maker 项目或包含项目的文件夹"',
+      "$dialog.ShowNewFolderButton = $false",
+      "$owner = New-Object System.Windows.Forms.Form",
+      "$owner.TopMost = $true",
+      "try {",
+      "  if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {",
+      "    [Console]::WriteLine($dialog.SelectedPath)",
+      "  }",
+      "} finally { $dialog.Dispose(); $owner.Dispose() }"
+    ].join("\n");
+    args = [
+      "-NoProfile",
+      "-NonInteractive",
+      "-STA",
+      "-EncodedCommand",
+      Buffer.from(script, "utf16le").toString("base64")
+    ];
+  } else {
+    throw new ConsoleError("选择本地文件夹目前支持 macOS 和 Windows。");
+  }
+  return new Promise((resolve, reject) => {
+    execFile4(
+      command,
+      args,
+      {
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: 12e4,
+        maxBuffer: 64 * 1024
+      },
+      (error2, stdout) => {
+        if (error2) {
+          reject(new ConsoleError("无法打开文件夹选择窗口，或选择已超时，请重试。", 503));
+          return;
+        }
+        resolve(stdout.replace(/[\r\n]+$/, "") || null);
+      }
+    );
+  });
+}
+
+// src/maker/console/projectDiscovery.ts
+import fs38 from "node:fs";
+import path40 from "node:path";
+var EXCLUDED = /* @__PURE__ */ new Set([
+  ".git",
+  "node_modules",
+  ".installer",
+  ".maker-mcp",
+  ".project",
+  ".venv",
+  "venv",
+  "__pycache__",
+  "Library",
+  "$RECYCLE.BIN",
+  "System Volume Information"
+]);
+async function discoverConsoleProjects(directory, registry2) {
+  const root = await fs38.promises.realpath(directory);
+  const known = new Set(registry2.list().map((project) => project.path));
+  const result = { added: 0, existing: 0, skipped: 0, limited: false };
+  const deadline = Date.now() + 1e4;
+  let visited = 0;
+  const queue = [{ directory: root, depth: 0 }];
+  while (queue.length) {
+    if (visited >= 5e3 || Date.now() >= deadline || result.added + result.existing >= 200) {
+      result.limited = true;
+      break;
+    }
+    const current = queue.shift();
+    visited++;
+    const marker = path40.join(current.directory, ".maker-mcp/config.json");
+    if (fs38.existsSync(marker) || fs38.existsSync(path40.join(current.directory, ".project/project.json"))) {
+      try {
+        const project = registry2.add(current.directory);
+        if (known.has(project.path)) result.existing++;
+        else {
+          known.add(project.path);
+          result.added++;
+        }
+        continue;
+      } catch {
+        result.skipped++;
+      }
+    }
+    try {
+      const entries = await fs38.promises.opendir(current.directory);
+      for await (const entry of entries) {
+        if (++visited >= 5e3 || Date.now() >= deadline) {
+          result.limited = true;
+          break;
+        }
+        if (!entry.isDirectory() || entry.isSymbolicLink() || EXCLUDED.has(entry.name)) continue;
+        if (current.depth >= 8) {
+          result.limited = true;
+          continue;
+        }
+        queue.push({
+          directory: path40.join(current.directory, entry.name),
+          depth: current.depth + 1
+        });
+      }
+    } catch {
+      result.skipped++;
+    }
+  }
+  return result;
+}
+
+// src/maker/console/fortuneEmbed.ts
+var FORTUNE_EMBED_PREFIX = "/gdev-fortune/";
+var FORTUNE_UPSTREAM_ORIGIN = "https://liangdong-ttm.github.io";
+var FORTUNE_MAX_BYTES = 512 * 1024;
+var FORTUNE_SIZE_SCRIPT = `(function(){
+function measure(){
+  var root=document.querySelector('main.container')||document.body;
+  return Math.max(root.scrollHeight||0,root.offsetHeight||0,document.documentElement.scrollHeight||0);
+}
+function report(){
+  var height=Math.ceil(measure());
+  if(height>0&&parent!==window) parent.postMessage({type:'gdev-fortune:size',height:height},location.origin);
+}
+window.addEventListener('load',report);
+document.addEventListener('DOMContentLoaded',report);
+if(typeof ResizeObserver==='function') new ResizeObserver(report).observe(document.querySelector('main.container')||document.body);
+})();`;
+function fortuneEmbedCsp() {
+  return [
+    "default-src 'none'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "frame-ancestors 'self'",
+    "base-uri 'none'",
+    "form-action 'none'"
+  ].join("; ");
+}
+function fortuneUpstreamUrl(pathname, search = "") {
+  if (!pathname.startsWith(FORTUNE_EMBED_PREFIX) || pathname.includes("..") || pathname.includes("\\")) {
+    throw new Error("Invalid fortune embed path.");
+  }
+  const target = new URL(pathname + search, FORTUNE_UPSTREAM_ORIGIN);
+  if (target.origin !== FORTUNE_UPSTREAM_ORIGIN || !target.pathname.startsWith(FORTUNE_EMBED_PREFIX)) {
+    throw new Error("Fortune embed path escaped the upstream site.");
+  }
+  return target;
+}
+function rewriteFortuneHtml(html) {
+  const script = `<script>${FORTUNE_SIZE_SCRIPT}</script>`;
+  return html.includes("</body>") ? html.replace("</body>", `${script}</body>`) : html + script;
+}
+function fortuneResponseTooLarge(bytes) {
+  return bytes > FORTUNE_MAX_BYTES;
+}
+
 // src/maker/console/server.ts
-async function startConsoleServer(options2) {
-  const now = options2.now || Date.now;
-  const idleMs = options2.idleMs ?? 30 * 60 * 1e3;
+async function startConsoleServer(options3) {
+  const now = options3.now || Date.now;
+  const idleMs = options3.idleMs ?? 30 * 60 * 1e3;
   let lastActivity = now();
   const touch = () => {
     lastActivity = now();
   };
-  const token = options2.token || randomBytes4(32).toString("hex");
-  const tasks = new ConsoleTasks(options2.registry, options2.execute, options2.historyFile, touch);
-  const plugins = new ConsolePlugins(options2.registry, options2.plugins);
-  const updates = new ConsoleUpdates(options2.version, options2.distribution);
+  const token = options3.token || randomBytes4(32).toString("hex");
+  const tasks = new ConsoleTasks(options3.registry, options3.execute, options3.historyFile, touch);
+  const plugins = new ConsolePlugins(options3.registry, options3.plugins);
+  const updates = new ConsoleUpdates(options3.version, options3.distribution);
+  const documents = new ConsoleDocuments(options3.packageRoot || "");
   let luaLspCache;
   const luaLspStatus = () => {
     if (luaLspCache && now() - luaLspCache.at < 3e4) return luaLspCache.value;
@@ -56615,6 +59365,7 @@ async function startConsoleServer(options2) {
   };
   let origin = "";
   let draining = false;
+  let selectingFolder = false;
   let closePromise;
   let resolveClosed;
   const closed = new Promise((resolve) => {
@@ -56634,8 +59385,8 @@ async function startConsoleServer(options2) {
       readers.delete(pending);
     }
   }
-  const scriptHashes = [...options2.html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
-    (match) => `'sha256-${createHash5("sha256").update(match[1]).digest("base64")}'`
+  const scriptHashes = [...options3.html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
+    (match) => `'sha256-${createHash6("sha256").update(match[1]).digest("base64")}'`
   );
   const server = http3.createServer(async (request2, response) => {
     const json2 = (status, value) => {
@@ -56659,7 +59410,7 @@ async function startConsoleServer(options2) {
         "style-src 'unsafe-inline'",
         "img-src 'self' data:",
         "connect-src 'self'",
-        "frame-src http://127.0.0.1:*",
+        "frame-src 'self' http://127.0.0.1:*",
         "base-uri 'none'",
         "form-action 'none'",
         "frame-ancestors 'none'"
@@ -56679,7 +59430,11 @@ async function startConsoleServer(options2) {
       }
       if (request2.method === "GET" && url2.pathname === "/") {
         response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        response.end(options2.html);
+        response.end(options3.html);
+        return;
+      }
+      if (request2.method === "GET" && url2.pathname.startsWith(FORTUNE_EMBED_PREFIX)) {
+        await proxyFortuneEmbed(url2, response);
         return;
       }
       const expected = Buffer.from(`Bearer ${token}`);
@@ -56689,7 +59444,7 @@ async function startConsoleServer(options2) {
       if (request2.method !== "GET" && request2.headers.origin !== origin)
         throw new ConsoleError("Same-origin writes are required.", 403);
       if (request2.method === "GET" && url2.pathname === "/api/health") {
-        json2(200, { instanceId: options2.instanceId, draining });
+        json2(200, { instanceId: options3.instanceId, draining });
         return;
       }
       if (request2.method === "POST" && url2.pathname === "/api/activity") {
@@ -56700,11 +59455,11 @@ async function startConsoleServer(options2) {
       }
       if (request2.method === "GET" && url2.pathname === "/api/state") {
         json2(200, {
-          version: options2.version,
-          distribution: options2.distribution || "standalone",
+          version: options3.version,
+          distribution: options3.distribution || "standalone",
           platform: process.platform,
-          instanceId: options2.instanceId,
-          projects: options2.registry.list(),
+          instanceId: options3.instanceId,
+          projects: options3.registry.list(),
           tasks: tasks.list(),
           plugins: plugins.list(),
           luaLsp: luaLspStatus(),
@@ -56716,16 +59471,37 @@ async function startConsoleServer(options2) {
         json2(200, await updates.list());
         return;
       }
+      if (request2.method === "GET" && url2.pathname === "/api/documents") {
+        const key2 = url2.searchParams.get("project");
+        const directory = key2 ? options3.registry.resolve(key2).path : void 0;
+        const id = url2.searchParams.get("id");
+        json2(200, id ? documents.read(id, directory) : documents.list(directory));
+        return;
+      }
       if (request2.method === "POST" && url2.pathname === "/api/update") {
         const body = await bodyForMutation();
         json2(202, await updates.start(body.version));
         touch();
         return;
       }
+      if (request2.method === "POST" && url2.pathname === "/api/projects/select-folder") {
+        await bodyForMutation();
+        if (selectingFolder) throw new ConsoleError("文件夹选择或扫描正在进行，请稍候。", 409);
+        selectingFolder = true;
+        touch();
+        try {
+          const directory = await chooseProjectDirectory();
+          json2(200, directory ? await discoverConsoleProjects(directory, options3.registry) : { cancelled: true });
+        } finally {
+          selectingFolder = false;
+          touch();
+        }
+        return;
+      }
       if (request2.method === "POST" && url2.pathname === "/api/projects") {
         const body = await bodyForMutation();
         if (typeof body.path !== "string") throw new ConsoleError("Project path is required.");
-        const project2 = options2.registry.add(body.path);
+        const project2 = options3.registry.add(body.path);
         touch();
         json2(200, project2);
         return;
@@ -56741,7 +59517,7 @@ async function startConsoleServer(options2) {
       }
       if (request2.method === "POST" && url2.pathname === "/api/shutdown") {
         await bodyForMutation();
-        if (updates.job.status === "running" || tasks.list().some((task2) => task2.status === "running"))
+        if (selectingFolder || updates.job.status === "running" || tasks.list().some((task2) => task2.status === "running"))
           throw new ConsoleError("Wait for active tasks before stopping the console.", 409);
         json2(200, { ok: true });
         setImmediate(() => void close());
@@ -56759,7 +59535,7 @@ async function startConsoleServer(options2) {
       if (request2.method === "DELETE" && !suffix) {
         await bodyForMutation();
         if (tasks.busy(key)) throw new ConsoleError("Project has an active task.", 409);
-        options2.registry.remove(key);
+        options3.registry.remove(key);
         touch();
         json2(200, { ok: true });
       } else if (request2.method === "POST" && plugin) {
@@ -56769,33 +59545,33 @@ async function startConsoleServer(options2) {
         touch();
         json2(200, ready);
       } else if (request2.method === "GET" && !suffix) {
-        json2(200, await read(() => options2.registry.detail(key, readAbort.signal)));
+        json2(200, await read(() => options3.registry.detail(key, readAbort.signal)));
       } else if (request2.method === "GET" && suffix === "git") {
         json2(
           200,
           await read(
-            () => options2.registry.git(key, Number(url2.searchParams.get("skip") || "0"), readAbort.signal)
+            () => options3.registry.git(key, Number(url2.searchParams.get("skip") || "0"), readAbort.signal)
           )
         );
       } else if (request2.method === "GET" && (suffix == null ? void 0 : suffix.startsWith("git/"))) {
         json2(
           200,
-          await read(() => options2.registry.commit(key, suffix.slice(4), readAbort.signal))
+          await read(() => options3.registry.commit(key, suffix.slice(4), readAbort.signal))
         );
       } else if (request2.method === "POST" && suffix === "preview/window") {
         const body = await bodyForMutation();
-        const directory = options2.registry.resolve(key).path;
+        const directory = options3.registry.resolve(key).path;
         if (tasks.busy(key))
           throw new ConsoleError("项目任务执行中，请结束后再保存预览尺寸。", 409);
         json2(200, savePreviewWindowSettings(directory, body));
         touch();
       } else if (request2.method === "GET" && (suffix === "preview" || suffix === "preview/logs")) {
-        const directory = options2.registry.resolve(key).path;
+        const directory = options3.registry.resolve(key).path;
         const checkServerChanges = suffix === "preview" && url2.searchParams.get("check_server_changes") === "1";
         json2(
           200,
           await read(async () => {
-            const status = await options2.execute({
+            const status = await options3.execute({
               project: directory,
               action: suffix === "preview" ? "preview.status" : "preview.logs",
               onOutput: () => {
@@ -56804,7 +59580,7 @@ async function startConsoleServer(options2) {
             });
             const result = suffix === "preview" ? { ...status, window_settings: readPreviewWindowSettings(directory) } : status;
             if (!checkServerChanges) return result;
-            const server_changes = await options2.registry.previewServerChanges(
+            const server_changes = await options3.registry.previewServerChanges(
               key,
               readAbort.signal
             );
@@ -56841,7 +59617,7 @@ async function startConsoleServer(options2) {
   origin = `http://127.0.0.1:${address.port}`;
   const idleTimer = setInterval(
     () => {
-      if (now() - lastActivity >= idleMs && updates.job.status !== "running" && !tasks.list().some((task) => task.status === "running") && !plugins.active)
+      if (now() - lastActivity >= idleMs && !selectingFolder && updates.job.status !== "running" && !tasks.list().some((task) => task.status === "running") && !plugins.active)
         void close();
     },
     Math.min(3e4, idleMs)
@@ -56854,7 +59630,7 @@ async function startConsoleServer(options2) {
     clearInterval(idleTimer);
     readAbort.abort();
     try {
-      (_a3 = options2.onDraining) == null ? void 0 : _a3.call(options2);
+      (_a3 = options3.onDraining) == null ? void 0 : _a3.call(options3);
     } catch {
     }
     closePromise = (async () => {
@@ -56863,7 +59639,7 @@ async function startConsoleServer(options2) {
       await new Promise((resolve) => {
         const timer = setTimeout(() => {
           for (const socket of sockets) socket.destroy();
-        }, options2.drainMs ?? 1e3);
+        }, options3.drainMs ?? 1e3);
         timer.unref();
         server.close(() => {
           clearTimeout(timer);
@@ -56877,6 +59653,34 @@ async function startConsoleServer(options2) {
     return closePromise;
   }
   return { origin, token, tasks, close, closed };
+}
+async function proxyFortuneEmbed(url2, response) {
+  let upstream;
+  try {
+    upstream = fortuneUpstreamUrl(url2.pathname, url2.search);
+  } catch {
+    throw new ConsoleError("Invalid fortune embed path.", 400);
+  }
+  const remote = await fetch(upstream, {
+    redirect: "follow",
+    headers: { Accept: "text/html,text/css,application/javascript,*/*;q=0.8" },
+    signal: AbortSignal.timeout(8e3)
+  });
+  const finalUrl = new URL(remote.url);
+  if (!remote.ok || finalUrl.origin !== FORTUNE_UPSTREAM_ORIGIN || !finalUrl.pathname.startsWith(FORTUNE_EMBED_PREFIX)) {
+    throw new ConsoleError("Fortune embed is unavailable.", 502);
+  }
+  const type = remote.headers.get("content-type") || "application/octet-stream";
+  const buffer = Buffer.from(await remote.arrayBuffer());
+  if (fortuneResponseTooLarge(buffer.length))
+    throw new ConsoleError("Fortune embed exceeded size limit.", 502);
+  const html = type.includes("text/html");
+  response.writeHead(200, {
+    "Content-Type": html ? "text/html; charset=utf-8" : type,
+    "Cache-Control": "no-store",
+    "Content-Security-Policy": fortuneEmbedCsp()
+  });
+  response.end(html ? rewriteFortuneHtml(buffer.toString("utf8")) : buffer);
 }
 async function readBody(request2) {
   var _a3;
@@ -56904,13 +59708,13 @@ async function readBody(request2) {
 var VERSION3 = false ? "dev" : "0.0.33";
 var CONSOLE_PROTOCOL_VERSION = 1;
 function home() {
-  return path38.join(getMakerHome(), "console");
+  return path41.join(getMakerHome(), "console");
 }
 function sessionPath() {
-  return path38.join(home(), "session.json");
+  return path41.join(home(), "session.json");
 }
 function createConsoleLauncherIdentity(version2, developmentSource) {
-  return createHash6("sha256").update(
+  return createHash7("sha256").update(
     JSON.stringify({
       protocol: CONSOLE_PROTOCOL_VERSION,
       version: version2,
@@ -56926,15 +59730,15 @@ function ensureCompatibleConsoleLauncher(actual, expected) {
   }
 }
 function launcherIdentity() {
-  const entry = fs37.realpathSync(process.argv[1]);
+  const entry = fs39.realpathSync(process.argv[1]);
   return createConsoleLauncherIdentity(VERSION3, {
     entry,
-    mtimeMs: fs37.statSync(entry).mtimeMs
+    mtimeMs: fs39.statSync(entry).mtimeMs
   });
 }
 function readSession() {
-  if (!fs37.existsSync(sessionPath())) return void 0;
-  const session = JSON.parse(fs37.readFileSync(sessionPath(), "utf8"));
+  if (!fs39.existsSync(sessionPath())) return void 0;
+  const session = JSON.parse(fs39.readFileSync(sessionPath(), "utf8"));
   if (session.schema !== 1 || !/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(session.origin) || Number(new URL(session.origin).port) > 65535 || !/^[a-f0-9]{64}$/.test(session.token) || !/^[a-f0-9-]{36}$/.test(session.instanceId) || !Number.isInteger(session.pid) || session.pid <= 0 || typeof session.launcher !== "string" || session.draining !== void 0 && typeof session.draining !== "boolean")
     throw new ConsoleError(
       "Invalid local console session. Refusing to contact an unknown service."
@@ -57007,8 +59811,9 @@ async function runConsoleSupervisor() {
       registry: registry2,
       html: getConsoleHtml2(),
       version: VERSION3,
+      packageRoot: path41.dirname(path41.dirname(path41.resolve(process.argv[1]))),
       distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
-      historyFile: path38.join(home(), "tasks.json"),
+      historyFile: path41.join(home(), "tasks.json"),
       instanceId,
       execute: createConsoleExecutor({ entry: process.argv[1] }),
       onDraining: () => {
@@ -57034,7 +59839,7 @@ async function runConsoleSupervisor() {
     const cleanup = () => {
       var _a3;
       try {
-        if (((_a3 = readSession()) == null ? void 0 : _a3.instanceId) === instanceId) fs37.unlinkSync(sessionPath());
+        if (((_a3 = readSession()) == null ? void 0 : _a3.instanceId) === instanceId) fs39.unlinkSync(sessionPath());
       } catch {
       }
       release();
@@ -57057,11 +59862,11 @@ async function runConsoleSupervisor() {
   }
 }
 async function claimConsoleServerLock(directory) {
-  fs37.mkdirSync(directory, { recursive: true, mode: 448 });
-  return claimOwnedLock(path38.join(directory, "server.lock"));
+  fs39.mkdirSync(directory, { recursive: true, mode: 448 });
+  return claimOwnedLock(path41.join(directory, "server.lock"));
 }
 async function claimOwnedLock(filename2) {
-  filename2 = path38.join(fs37.realpathSync(path38.dirname(filename2)), path38.basename(filename2));
+  filename2 = path41.join(fs39.realpathSync(path41.dirname(filename2)), path41.basename(filename2));
   const identity = `${process.pid}:${randomUUID8()}`;
   const recoveryFilename = filename2 + ".recovery";
   const releaseMutex = await claimRecoveryMutex(filename2);
@@ -57069,10 +59874,10 @@ async function claimOwnedLock(filename2) {
     claimRecoveryGuard(recoveryFilename, identity);
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        fs37.writeFileSync(filename2, identity, { flag: "wx", mode: 384 });
+        fs39.writeFileSync(filename2, identity, { flag: "wx", mode: 384 });
         return () => {
           try {
-            if (fs37.readFileSync(filename2, "utf8") === identity) fs37.unlinkSync(filename2);
+            if (fs39.readFileSync(filename2, "utf8") === identity) fs39.unlinkSync(filename2);
           } catch {
           }
         };
@@ -57080,7 +59885,7 @@ async function claimOwnedLock(filename2) {
         if (error2.code !== "EEXIST") throw error2;
         let previous;
         try {
-          previous = fs37.readFileSync(filename2, "utf8");
+          previous = fs39.readFileSync(filename2, "utf8");
         } catch (cause) {
           if (cause.code === "ENOENT") continue;
           throw cause;
@@ -57095,7 +59900,7 @@ async function claimOwnedLock(filename2) {
         } catch (cause) {
           if (cause.code === "ESRCH") {
             try {
-              if (fs37.readFileSync(filename2, "utf8") === previous) fs37.unlinkSync(filename2);
+              if (fs39.readFileSync(filename2, "utf8") === previous) fs39.unlinkSync(filename2);
             } catch (error3) {
               if (error3.code !== "ENOENT") throw error3;
             }
@@ -57115,7 +59920,7 @@ async function claimOwnedLock(filename2) {
   }
 }
 function claimRecoveryMutex(filename2) {
-  const port = 49152 + createHash6("sha256").update(filename2).digest().readUInt16BE(0) % 16384;
+  const port = 49152 + createHash7("sha256").update(filename2).digest().readUInt16BE(0) % 16384;
   const server = createServer((socket) => socket.destroy());
   return new Promise((resolve, reject) => {
     server.once("error", (error2) => {
@@ -57139,19 +59944,19 @@ function claimRecoveryGuard(filename2, identity) {
   for (let attempt = 0; attempt < 3; attempt++) {
     let descriptor;
     try {
-      descriptor = fs37.openSync(filename2, "wx", 384);
+      descriptor = fs39.openSync(filename2, "wx", 384);
     } catch (error2) {
       if (error2.code !== "EEXIST") throw error2;
       if (reclaimStaleRecoveryGuard(filename2)) continue;
       throw new ConsoleError("Console ownership recovery is already in progress.", 409);
     }
     try {
-      fs37.writeFileSync(descriptor, identity, "utf8");
+      fs39.writeFileSync(descriptor, identity, "utf8");
     } catch (error2) {
-      fs37.unlinkSync(filename2);
+      fs39.unlinkSync(filename2);
       throw error2;
     } finally {
-      fs37.closeSync(descriptor);
+      fs39.closeSync(descriptor);
     }
     return;
   }
@@ -57161,8 +59966,8 @@ function reclaimStaleRecoveryGuard(filename2) {
   let content;
   let modified;
   try {
-    content = fs37.readFileSync(filename2, "utf8");
-    modified = fs37.statSync(filename2).mtimeMs;
+    content = fs39.readFileSync(filename2, "utf8");
+    modified = fs39.statSync(filename2).mtimeMs;
   } catch (error2) {
     return error2.code === "ENOENT";
   }
@@ -57170,8 +59975,8 @@ function reclaimStaleRecoveryGuard(filename2) {
   const stale = Number.isInteger(pid) && pid > 0 ? processPresence(pid) === "missing" : content === "" && Date.now() - modified >= 2e3;
   if (!stale) return false;
   try {
-    if (fs37.readFileSync(filename2, "utf8") === content && fs37.statSync(filename2).mtimeMs === modified) {
-      fs37.unlinkSync(filename2);
+    if (fs39.readFileSync(filename2, "utf8") === content && fs39.statSync(filename2).mtimeMs === modified) {
+      fs39.unlinkSync(filename2);
       return true;
     }
   } catch (error2) {
@@ -57181,19 +59986,19 @@ function reclaimStaleRecoveryGuard(filename2) {
 }
 function removeOwnedFile(filename2, identity) {
   try {
-    if (fs37.readFileSync(filename2, "utf8") === identity) fs37.unlinkSync(filename2);
+    if (fs39.readFileSync(filename2, "utf8") === identity) fs39.unlinkSync(filename2);
   } catch {
   }
 }
 async function ensureSession() {
   var _a3;
-  fs37.mkdirSync(home(), { recursive: true, mode: 448 });
+  fs39.mkdirSync(home(), { recursive: true, mode: 448 });
   const existing = await availableSession();
   if (existing) {
     ensureCompatibleConsoleLauncher(existing.launcher, launcherIdentity());
     return existing;
   }
-  const lock = path38.join(home(), "launch.lock");
+  const lock = path41.join(home(), "launch.lock");
   let releaseLaunch;
   for (let attempt = 0; attempt < 60; attempt++) {
     try {
@@ -57222,7 +60027,7 @@ async function ensureSession() {
       execArgv: process.execArgv,
       entry: process.argv[1],
       cwd: home(),
-      logFile: path38.join(home(), "server.log"),
+      logFile: path41.join(home(), "server.log"),
       env: process.env
     });
     for (let attempt = 0; attempt < 80; attempt++) {
@@ -57260,7 +60065,7 @@ function openBrowser2(url2) {
   });
   child.unref();
 }
-async function runConsoleCli(action, options2) {
+async function runConsoleCli(action, options3) {
   if (action === "serve") {
     await runConsoleSupervisor();
     return;
@@ -57283,9 +60088,9 @@ async function runConsoleCli(action, options2) {
     return;
   }
   if (action !== "open") throw new ConsoleError("Use console open|status|stop.");
-  const target = typeof options2.target_dir === "string" ? options2.target_dir : void 0;
+  const target = typeof options3.target_dir === "string" ? options3.target_dir : void 0;
   if (target) {
-    if (!path38.isAbsolute(target))
+    if (!path41.isAbsolute(target))
       throw new ConsoleError("--target-dir must be an absolute project path.");
     const { previewProject: previewProject2 } = await Promise.resolve().then(() => (init_protocol2(), protocol_exports));
     previewProject2(target);
@@ -57294,12 +60099,12 @@ async function runConsoleCli(action, options2) {
   const project = target ? await request(session, "/api/projects", { path: target }) : void 0;
   await request(session, "/api/activity", {});
   const url2 = `${session.origin}/${project ? "?project=" + project.key : ""}#token=${session.token}`;
-  if (options2.no_open !== true) openBrowser2(url2);
+  if (options3.no_open !== true) openBrowser2(url2);
   process.stdout.write(
     JSON.stringify(
       { ok: true, url: url2, projectKey: project == null ? void 0 : project.key },
       null,
-      options2.json ? void 0 : 2
+      options3.json ? void 0 : 2
     ) + "\n"
   );
 }
@@ -57347,11 +60152,11 @@ async function defaultDependencies() {
     access: () => mcp.resolveMakerMcpAccessState(getMakerEnvironment())
   };
 }
-async function runBuildCli(options2) {
+async function runBuildCli(options3) {
   let result;
   try {
     result = await executeBuildCommand(
-      typeof options2.target_dir === "string" ? options2.target_dir : ""
+      typeof options3.target_dir === "string" ? options3.target_dir : ""
     );
   } catch (error2) {
     result = {
@@ -57359,7 +60164,7 @@ async function runBuildCli(options2) {
       error: sanitizeDiagnosticValue(error2 instanceof Error ? error2.message : String(error2))
     };
   }
-  process.stdout.write(JSON.stringify(result, null, options2.json ? void 0 : 2) + "\n");
+  process.stdout.write(JSON.stringify(result, null, options3.json ? void 0 : 2) + "\n");
   if (!result.ok) process.exitCode = 1;
 }
 
@@ -57381,46 +60186,46 @@ init_diagnosticRedaction();
 init_identify();
 init_pluginDistribution();
 import { spawnSync as spawnSync7 } from "node:child_process";
-import fs39 from "node:fs";
+import fs41 from "node:fs";
 import os6 from "node:os";
-import path40 from "node:path";
+import path43 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // src/maker/cli/dshMcpConfig.ts
 var import_yaml = __toESM(require_dist2());
-import fs38 from "node:fs";
+import fs40 from "node:fs";
 import os5 from "node:os";
-import path39 from "node:path";
+import path42 from "node:path";
 var DSH_MCP_PLUGIN_NAME = "@deepseek-ai/dsh-mcp-client";
 var DSH_MAKER_PLUGIN_ID = "mcp-taptap-maker";
 var DSH_MAKER_TOOL_CALL_TIMEOUT_MS = 60 * 60 * 1e3;
-function getDshHome(options2 = {}) {
+function getDshHome(options3 = {}) {
   var _a3;
-  const configured = (_a3 = (options2.environment || process.env).DSH_HOME) == null ? void 0 : _a3.trim();
+  const configured = (_a3 = (options3.environment || process.env).DSH_HOME) == null ? void 0 : _a3.trim();
   if (configured) {
-    const expanded = configured === "~" ? options2.homeDir || os5.homedir() : configured.startsWith("~/") || configured.startsWith("~\\") ? path39.join(options2.homeDir || os5.homedir(), configured.slice(2)) : configured;
-    return path39.resolve(expanded);
+    const expanded = configured === "~" ? options3.homeDir || os5.homedir() : configured.startsWith("~/") || configured.startsWith("~\\") ? path42.join(options3.homeDir || os5.homedir(), configured.slice(2)) : configured;
+    return path42.resolve(expanded);
   }
-  return path39.join(options2.homeDir || os5.homedir(), ".dsh");
+  return path42.join(options3.homeDir || os5.homedir(), ".dsh");
 }
-function createDshMakerPluginConfig(options2) {
+function createDshMakerPluginConfig(options3) {
   return {
     id: DSH_MAKER_PLUGIN_ID,
     name: DSH_MCP_PLUGIN_NAME,
     config: {
-      serverName: options2.mcpName,
+      serverName: options3.mcpName,
       transport: "stdio",
-      command: options2.command,
-      args: [...options2.args],
-      ...options2.env && Object.keys(options2.env).length > 0 ? { env: { ...options2.env } } : {},
+      command: options3.command,
+      args: [...options3.args],
+      ...options3.env && Object.keys(options3.env).length > 0 ? { env: { ...options3.env } } : {},
       toolCallTimeoutMs: DSH_MAKER_TOOL_CALL_TIMEOUT_MS,
       failOnStartupError: true
     }
   };
 }
 function mergeDshMakerMcpConfig(configPath, desired) {
-  const existed = fs38.existsSync(configPath);
-  const previousContent = existed ? fs38.readFileSync(configPath, "utf8") : "[]\n";
+  const existed = fs40.existsSync(configPath);
+  const previousContent = existed ? fs40.readFileSync(configPath, "utf8") : "[]\n";
   const document = parseDshDocument(previousContent, configPath);
   const sequence = ensurePluginSequence(document, configPath);
   const candidates = findDshMakerPluginCandidates(
@@ -57477,12 +60282,12 @@ function findDshMakerPluginEntry(content, mcpName, source = "DSH config") {
   }
   return isRecord3((_a3 = matches[0]) == null ? void 0 : _a3.value) ? matches[0].value : void 0;
 }
-function getDshMcpInstallPaths(options2) {
-  const dshHome = getDshHome(options2);
-  const homePatchPath = path39.join(dshHome, "cordis.patch.yml");
-  const homeHasMaker = dshConfigFileHasMaker(homePatchPath, options2.mcpName);
+function getDshMcpInstallPaths(options3) {
+  const dshHome = getDshHome(options3);
+  const homePatchPath = path42.join(dshHome, "cordis.patch.yml");
+  const homeHasMaker = dshConfigFileHasMaker(homePatchPath, options3.mcpName);
   const profilePatchPaths = listDshProfilePatchPathsForInstall(dshHome).filter(
-    (configPath) => dshConfigFileHasMaker(configPath, options2.mcpName)
+    (configPath) => dshConfigFileHasMaker(configPath, options3.mcpName)
   );
   if (homeHasMaker && profilePatchPaths.length > 0) {
     throw new Error(
@@ -57495,22 +60300,22 @@ function getDshMcpInstallPaths(options2) {
   return profilePatchPaths.length > 0 ? profilePatchPaths : [homePatchPath];
 }
 function listDshProfilePatchPathsForInstall(dshHome) {
-  const profilesDir = path39.join(dshHome, "profiles");
+  const profilesDir = path42.join(dshHome, "profiles");
   let entries;
   try {
-    entries = fs38.readdirSync(profilesDir, { withFileTypes: true });
+    entries = fs40.readdirSync(profilesDir, { withFileTypes: true });
   } catch (error2) {
     if (isMissingPathError(error2)) {
       return [];
     }
     throw error2;
   }
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().map((profileName) => path39.join(profilesDir, profileName, "cordis.patch.yml"));
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().map((profileName) => path42.join(profilesDir, profileName, "cordis.patch.yml"));
 }
 function dshConfigFileHasMaker(configPath, mcpName) {
   let content;
   try {
-    content = fs38.readFileSync(configPath, "utf8");
+    content = fs40.readFileSync(configPath, "utf8");
   } catch (error2) {
     if (isMissingPathError(error2)) {
       return false;
@@ -57522,22 +60327,22 @@ function dshConfigFileHasMaker(configPath, mcpName) {
 function isMissingPathError(error2) {
   return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === "ENOENT";
 }
-function listDshMcpConfigPaths(options2) {
-  const dshHome = options2.dshHome || path39.join(options2.homeDir, ".dsh");
-  const paths = [path39.join(dshHome, "cordis.patch.yml")];
-  const profilesDir = path39.join(dshHome, "profiles");
-  if (!fs38.existsSync(profilesDir)) {
+function listDshMcpConfigPaths(options3) {
+  const dshHome = options3.dshHome || path42.join(options3.homeDir, ".dsh");
+  const paths = [path42.join(dshHome, "cordis.patch.yml")];
+  const profilesDir = path42.join(dshHome, "profiles");
+  if (!fs40.existsSync(profilesDir)) {
     return paths;
   }
   let profileNames = [];
   try {
-    profileNames = fs38.readdirSync(profilesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().slice(0, 50);
+    profileNames = fs40.readdirSync(profilesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().slice(0, 50);
   } catch {
     return paths;
   }
   for (const profileName of profileNames) {
-    const profileDir = path39.join(profilesDir, profileName);
-    paths.push(path39.join(profileDir, "cordis.patch.yml"), path39.join(profileDir, "cordis.yml"));
+    const profileDir = path42.join(profilesDir, profileName);
+    paths.push(path42.join(profileDir, "cordis.patch.yml"), path42.join(profileDir, "cordis.yml"));
   }
   return paths;
 }
@@ -57589,14 +60394,14 @@ function findDshMakerPluginCandidates(patches, mcpName) {
 }
 function writeDshConfigWithBackup(configPath, previousContent, existed, nextContent, desired) {
   const backupPath = existed ? `${configPath}.taptap-maker.bak.latest` : void 0;
-  fs38.mkdirSync(path39.dirname(configPath), { recursive: true });
+  fs40.mkdirSync(path42.dirname(configPath), { recursive: true });
   if (backupPath) {
-    fs38.writeFileSync(backupPath, previousContent, "utf8");
+    fs40.writeFileSync(backupPath, previousContent, "utf8");
   }
   try {
-    fs38.writeFileSync(configPath, nextContent, "utf8");
+    fs40.writeFileSync(configPath, nextContent, "utf8");
     const written = findDshMakerPluginEntry(
-      fs38.readFileSync(configPath, "utf8"),
+      fs40.readFileSync(configPath, "utf8"),
       desired.config.serverName,
       configPath
     );
@@ -57608,9 +60413,9 @@ function writeDshConfigWithBackup(configPath, previousContent, existed, nextCont
     return { changed: true, backupPath };
   } catch (error2) {
     if (existed) {
-      fs38.writeFileSync(configPath, previousContent, "utf8");
+      fs40.writeFileSync(configPath, previousContent, "utf8");
     } else {
-      fs38.rmSync(configPath, { force: true });
+      fs40.rmSync(configPath, { force: true });
     }
     throw error2;
   }
@@ -57683,35 +60488,35 @@ function extractMakerMcpServerConfig(config2, mcpName) {
   }
   return result;
 }
-function inspectMakerMcpClientConfig(options2) {
-  const ide = options2.ide.trim().toLowerCase();
-  const configPaths = getMcpConfigPaths({ ...options2, ide });
+function inspectMakerMcpClientConfig(options3) {
+  const ide = options3.ide.trim().toLowerCase();
+  const configPaths = getMcpConfigPaths({ ...options3, ide });
   if (!configPaths) {
     return { ide, status: "unsupported", entries: [] };
   }
-  const entries = configPaths.filter((configPath) => fs39.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, options2.mcpName || MAKER_MCP_NAME));
+  const entries = configPaths.filter((configPath) => fs41.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, options3.mcpName || MAKER_MCP_NAME));
   const status = entries.some((entry) => entry.status === "found") ? "found" : entries.some((entry) => entry.status === "unreadable") ? "unreadable" : entries.length > 0 ? "missing_entry" : "not_found";
   return { ide, status, entries };
 }
-function resolveMakerMcpReportRuntime(options2) {
-  const pluginDistribution = resolveMakerPluginDistribution(options2.distribution);
+function resolveMakerMcpReportRuntime(options3) {
+  const pluginDistribution = resolveMakerPluginDistribution(options3.distribution);
   if (!pluginDistribution) {
     return void 0;
   }
-  if (!options2.bundleUrl) {
+  if (!options3.bundleUrl) {
     throw new Error(
       `${pluginDistribution.displayName} plugin diagnostics require the active Maker bundle URL.`
     );
   }
-  const bundlePath = path40.resolve(fileURLToPath4(options2.bundleUrl));
-  const pluginRoot = path40.dirname(path40.dirname(bundlePath));
-  const execPath = options2.execPath ?? process.execPath;
+  const bundlePath = path43.resolve(fileURLToPath4(options3.bundleUrl));
+  const pluginRoot = path43.dirname(path43.dirname(bundlePath));
+  const execPath = options3.execPath ?? process.execPath;
   return {
     distribution: pluginDistribution.id,
     client: pluginDistribution.client,
     config_source: {
       format: "json",
-      paths: [path40.join(pluginRoot, ".mcp.json")],
+      paths: [path43.join(pluginRoot, ".mcp.json")],
       mcp_name: "taptap-maker-plugin"
     },
     launcher: {
@@ -57727,13 +60532,13 @@ function resolveMakerMcpReportRuntime(options2) {
     }
   };
 }
-function buildMakerMcpIssue(options2) {
-  const context = sanitizePublicValue(options2.context, options2.homeDir);
+function buildMakerMcpIssue(options3) {
+  const context = sanitizePublicValue(options3.context, options3.homeDir);
   const diagnostics = sanitizePublicValue(
-    options2.diagnostics,
-    options2.homeDir
+    options3.diagnostics,
+    options3.homeDir
   );
-  const summary = stripControlCharacters(sanitizePublicText(context.summary, options2.homeDir)).replace(/\s+/gu, " ").trim() || "Maker MCP problem report";
+  const summary = stripControlCharacters(sanitizePublicText(context.summary, options3.homeDir)).replace(/\s+/gu, " ").trim() || "Maker MCP problem report";
   const title = `[Maker MCP] ${summary}`.slice(0, 120);
   const body = [
     "<!-- maker-mcp-auto-report -->",
@@ -57758,12 +60563,12 @@ function buildMakerMcpIssue(options2) {
   ].join("\n");
   return { title, body };
 }
-async function collectMakerMcpIssueDiagnostics(options2) {
+async function collectMakerMcpIssueDiagnostics(options3) {
   var _a3, _b;
-  const platform = options2.platform || process.platform;
-  const homeDir = options2.homeDir || os6.homedir();
-  const processCwd = path40.resolve(options2.processCwd || process.cwd());
-  const targetDir = path40.resolve(options2.targetDir);
+  const platform = options3.platform || process.platform;
+  const homeDir = options3.homeDir || os6.homedir();
+  const processCwd = path43.resolve(options3.processCwd || process.cwd());
+  const targetDir = path43.resolve(options3.targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
   const projectContext = identify.projectRoot ? {
     status: "bound",
@@ -57774,18 +60579,18 @@ async function collectMakerMcpIssueDiagnostics(options2) {
     status: "not_bound",
     source: identify.source
   };
-  const client = (_a3 = options2.ide) == null ? void 0 : _a3.trim().toLowerCase();
-  const environment = options2.environment || process.env;
-  const clientConfig = client ? options2.configSource ? inspectMakerMcpConfigSource(client, options2.configSource) : inspectMakerMcpClientConfig({
+  const client = (_a3 = options3.ide) == null ? void 0 : _a3.trim().toLowerCase();
+  const environment = options3.environment || process.env;
+  const clientConfig = client ? options3.configSource ? inspectMakerMcpConfigSource(client, options3.configSource) : inspectMakerMcpClientConfig({
     ide: client,
     homeDir,
     platform,
-    appData: options2.appData || environment.APPDATA,
+    appData: options3.appData || environment.APPDATA,
     dshHome: client === "dsh" ? getDshHome({ homeDir, environment }) : void 0
   }) : { status: "not_checked", reason: "active_client_not_provided" };
   let mcpVerify;
   try {
-    mcpVerify = options2.verify ? await options2.verify() : await collectMcpVerifyEvidence(options2.makerVersion);
+    mcpVerify = options3.verify ? await options3.verify() : await collectMcpVerifyEvidence(options3.makerVersion);
   } catch {
     mcpVerify = {
       ok: false,
@@ -57794,11 +60599,11 @@ async function collectMakerMcpIssueDiagnostics(options2) {
     };
   }
   const diagnostics = {
-    occurred_at: (options2.now || (() => /* @__PURE__ */ new Date()))().toISOString(),
+    occurred_at: (options3.now || (() => /* @__PURE__ */ new Date()))().toISOString(),
     client,
-    os_arch: `${platform} ${options2.arch || process.arch}`,
+    os_arch: `${platform} ${options3.arch || process.arch}`,
     node_version: process.version,
-    maker_package_version: options2.makerVersion,
+    maker_package_version: options3.makerVersion,
     process_cwd: processCwd,
     target_dir: targetDir,
     project_context: projectContext,
@@ -57809,19 +60614,19 @@ async function collectMakerMcpIssueDiagnostics(options2) {
       https_proxy_configured: hasEnvironmentValue(environment, "HTTPS_PROXY"),
       no_proxy_configured: hasEnvironmentValue(environment, "NO_PROXY")
     },
-    ...options2.distribution ? { distribution: options2.distribution } : {}
+    ...options3.distribution ? { distribution: options3.distribution } : {}
   };
   if (client === "workbuddy") {
     diagnostics.workbuddy_trust = inspectWorkBuddyTrust(
       homeDir,
-      ((_b = options2.configSource) == null ? void 0 : _b.mcp_name) || MAKER_MCP_NAME
+      ((_b = options3.configSource) == null ? void 0 : _b.mcp_name) || MAKER_MCP_NAME
     );
   }
   return diagnostics;
 }
-function submitMakerMcpIssue(issue3, options2 = {}) {
+function submitMakerMcpIssue(issue3, options3 = {}) {
   try {
-    const run = options2.run || runGitHubIssueCreate;
+    const run = options3.run || runGitHubIssueCreate;
     const result = run(
       ["issue", "create", "--repo", GITHUB_REPOSITORY, "--title", issue3.title, "--body-file", "-"],
       issue3.body
@@ -57840,43 +60645,43 @@ function submitMakerMcpIssue(issue3, options2 = {}) {
     ...issue3
   };
 }
-function getMcpConfigPaths(options2) {
-  const { ide, homeDir, platform } = options2;
+function getMcpConfigPaths(options3) {
+  const { ide, homeDir, platform } = options3;
   if (ide === "codex") {
-    return [path40.join(homeDir, ".codex", "config.toml")];
+    return [path43.join(homeDir, ".codex", "config.toml")];
   }
   if (ide === "cursor") {
-    return [path40.join(homeDir, ".cursor", "mcp.json")];
+    return [path43.join(homeDir, ".cursor", "mcp.json")];
   }
   if (ide === "claude") {
-    return [path40.join(homeDir, ".claude.json")];
+    return [path43.join(homeDir, ".claude.json")];
   }
   if (ide === "opencode") {
-    return [path40.join(homeDir, ".config", "opencode", "opencode.jsonc")];
+    return [path43.join(homeDir, ".config", "opencode", "opencode.jsonc")];
   }
   if (ide === "workbuddy") {
-    const primary = path40.join(homeDir, ".workbuddy", "mcp.json");
-    if (fs39.existsSync(primary)) {
+    const primary = path43.join(homeDir, ".workbuddy", "mcp.json");
+    if (fs41.existsSync(primary)) {
       return [primary];
     }
-    const legacy = path40.join(homeDir, ".workbuddy", ".mcp.json");
-    return fs39.existsSync(legacy) ? [legacy] : [primary];
+    const legacy = path43.join(homeDir, ".workbuddy", ".mcp.json");
+    return fs41.existsSync(legacy) ? [legacy] : [primary];
   }
   if (ide === "trae") {
-    const root = platform === "win32" ? options2.appData || path40.join(homeDir, "AppData", "Roaming") : path40.join(homeDir, "Library", "Application Support");
+    const root = platform === "win32" ? options3.appData || path43.join(homeDir, "AppData", "Roaming") : path43.join(homeDir, "Library", "Application Support");
     return ["TRAE SOLO", "TRAE SOLO CN", "Trae", "TRAE", "Trae CN"].map(
-      (name) => path40.join(root, name, "User", "mcp.json")
+      (name) => path43.join(root, name, "User", "mcp.json")
     );
   }
   if (ide === "dsh") {
-    return listDshMcpConfigPaths({ homeDir, dshHome: options2.dshHome });
+    return listDshMcpConfigPaths({ homeDir, dshHome: options3.dshHome });
   }
   return void 0;
 }
 function inspectMcpConfigFile(configPath, ide, mcpName, format) {
   try {
     const resolvedFormat = format ?? (ide === "codex" ? "codex_toml" : ide === "dsh" ? "dsh" : ide === "opencode" ? "jsonc" : "json");
-    const content = fs39.readFileSync(configPath, "utf8");
+    const content = fs41.readFileSync(configPath, "utf8");
     const server = resolvedFormat === "codex_toml" ? extractCodexMcpServerConfig(content, mcpName) : resolvedFormat === "dsh" ? extractDshMcpServerConfig(content, mcpName, configPath) : extractMakerMcpServerConfig(
       parseJsonConfig(content, resolvedFormat === "jsonc"),
       mcpName
@@ -57887,7 +60692,7 @@ function inspectMcpConfigFile(configPath, ide, mcpName, format) {
   }
 }
 function inspectMakerMcpConfigSource(ide, source) {
-  const entries = source.paths.filter((configPath) => fs39.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, source.mcp_name, source.format));
+  const entries = source.paths.filter((configPath) => fs41.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, source.mcp_name, source.format));
   const status = entries.some((entry) => entry.status === "found") ? "found" : entries.some((entry) => entry.status === "unreadable") ? "unreadable" : entries.length > 0 ? "missing_entry" : "not_found";
   return { ide, status, entries };
 }
@@ -58104,13 +60909,13 @@ function inspectWorkBuddyTrust(homeDir, mcpName) {
     pending_accounts: 0,
     unreadable_accounts: 0
   };
-  const connectorsDir = path40.join(homeDir, ".workbuddy", "connectors");
-  if (!fs39.existsSync(connectorsDir)) {
+  const connectorsDir = path43.join(homeDir, ".workbuddy", "connectors");
+  if (!fs41.existsSync(connectorsDir)) {
     return { status: "not_found", ...emptyCounts };
   }
   let entries;
   try {
-    entries = fs39.readdirSync(connectorsDir, { withFileTypes: true });
+    entries = fs41.readdirSync(connectorsDir, { withFileTypes: true });
   } catch {
     return { status: "unreadable", ...emptyCounts };
   }
@@ -58119,12 +60924,12 @@ function inspectWorkBuddyTrust(homeDir, mcpName) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const statePath = path40.join(connectorsDir, entry.name, "connector-states.json");
-    if (!fs39.existsSync(statePath)) {
+    const statePath = path43.join(connectorsDir, entry.name, "connector-states.json");
+    if (!fs41.existsSync(statePath)) {
       continue;
     }
     try {
-      const state = JSON.parse(fs39.readFileSync(statePath, "utf8"));
+      const state = JSON.parse(fs41.readFileSync(statePath, "utf8"));
       if (!isRecord4(state)) {
         counts.accounts_checked += 1;
         counts.unreadable_accounts += 1;
@@ -58319,9 +61124,9 @@ function stripControlCharacters(value) {
 
 // src/maker/cli/pluginMigration.ts
 init_storage();
-import fs41 from "node:fs";
+import fs43 from "node:fs";
 import os7 from "node:os";
-import path42 from "node:path";
+import path45 from "node:path";
 import crypto3 from "node:crypto";
 
 // src/maker/cli/codexMcpConfig.ts
@@ -58528,40 +61333,40 @@ function escapeRegExp3(value) {
 }
 
 // src/maker/cli/configWrite.ts
-import fs40 from "node:fs";
-import path41 from "node:path";
+import fs42 from "node:fs";
+import path44 from "node:path";
 function writeConfigWithTapTapBackupIfChanged(filePath, nextContent, validate2) {
-  const existed = fs40.existsSync(filePath);
-  const previousContent = existed ? fs40.readFileSync(filePath, "utf8") : void 0;
+  const existed = fs42.existsSync(filePath);
+  const previousContent = existed ? fs42.readFileSync(filePath, "utf8") : void 0;
   if (previousContent === nextContent) {
     return { changed: false };
   }
   const backupPath = existed ? `${filePath}.taptap-maker.bak.latest` : void 0;
-  fs40.mkdirSync(path41.dirname(filePath), { recursive: true });
+  fs42.mkdirSync(path44.dirname(filePath), { recursive: true });
   if (previousContent !== void 0 && backupPath) {
-    fs40.writeFileSync(backupPath, previousContent, "utf8");
+    fs42.writeFileSync(backupPath, previousContent, "utf8");
   }
   try {
-    fs40.writeFileSync(filePath, nextContent, "utf8");
-    validate2 == null ? void 0 : validate2(fs40.readFileSync(filePath, "utf8"));
+    fs42.writeFileSync(filePath, nextContent, "utf8");
+    validate2 == null ? void 0 : validate2(fs42.readFileSync(filePath, "utf8"));
     return { changed: true, backupPath };
   } catch (error2) {
     if (previousContent !== void 0) {
-      fs40.writeFileSync(filePath, previousContent, "utf8");
+      fs42.writeFileSync(filePath, previousContent, "utf8");
     } else {
-      fs40.rmSync(filePath, { force: true });
+      fs42.rmSync(filePath, { force: true });
     }
     throw error2;
   }
 }
 
 // src/maker/cli/pluginMigration.ts
-function inspectCodexLegacyMakerMcp(options2 = {}) {
-  const configPath = options2.configPath ?? path42.join(os7.homedir(), ".codex", "config.toml");
-  if (!fs41.existsSync(configPath)) {
+function inspectCodexLegacyMakerMcp(options3 = {}) {
+  const configPath = options3.configPath ?? path45.join(os7.homedir(), ".codex", "config.toml");
+  if (!fs43.existsSync(configPath)) {
     return createInspection(configPath, "not_found", 0);
   }
-  const content = fs41.readFileSync(configPath, "utf8");
+  const content = fs43.readFileSync(configPath, "utf8");
   const registrations = findCodexMakerMainTables(content);
   if (registrations.length === 0) {
     return createInspection(configPath, "not_found", 0);
@@ -58575,9 +61380,9 @@ function inspectCodexLegacyMakerMcp(options2 = {}) {
     enabled
   };
 }
-function migrateCodexLegacyMakerMcp(options2 = {}) {
-  const configPath = options2.configPath ?? path42.join(os7.homedir(), ".codex", "config.toml");
-  const makerHome = options2.makerHome ?? getMakerHome();
+function migrateCodexLegacyMakerMcp(options3 = {}) {
+  const configPath = options3.configPath ?? path45.join(os7.homedir(), ".codex", "config.toml");
+  const makerHome = options3.makerHome ?? getMakerHome();
   const statePath = getCodexPluginMigrationStatePath(makerHome);
   const inspection = inspectCodexLegacyMakerMcp({ configPath });
   if (inspection.status === "not_found") {
@@ -58590,7 +61395,7 @@ function migrateCodexLegacyMakerMcp(options2 = {}) {
   }
   if (inspection.status === "disabled") {
     const state2 = readMigrationState(statePath);
-    const content = fs41.readFileSync(configPath, "utf8");
+    const content = fs43.readFileSync(configPath, "utf8");
     const registration2 = findCodexMakerMainTables(content)[0];
     const owned = (state2 == null ? void 0 : state2.config_path) === configPath && sha256(readCodexMakerRegistration(content, registration2)) === state2.migrated_registration_sha256;
     return {
@@ -58600,10 +61405,10 @@ function migrateCodexLegacyMakerMcp(options2 = {}) {
       ...owned ? { state_path: statePath } : {}
     };
   }
-  if (!options2.confirm) {
+  if (!options3.confirm) {
     throw new Error("Disabling the legacy Codex Maker MCP requires explicit confirmation.");
   }
-  const previousContent = fs41.readFileSync(configPath, "utf8");
+  const previousContent = fs43.readFileSync(configPath, "utf8");
   const registration = findCodexMakerMainTables(previousContent)[0];
   const nextContent = disableCodexMakerRegistration(previousContent, registration);
   const state = {
@@ -58617,13 +61422,13 @@ function migrateCodexLegacyMakerMcp(options2 = {}) {
     ),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs41.mkdirSync(path42.dirname(statePath), { recursive: true });
+  fs43.mkdirSync(path45.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(configPath, nextContent, () => {
     const migratedInspection = inspectCodexLegacyMakerMcp({ configPath });
     if (migratedInspection.status !== "disabled") {
       throw new Error("Codex Maker MCP migration validation did not find a disabled registration.");
     }
-    fs41.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs43.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   return {
@@ -58634,16 +61439,16 @@ function migrateCodexLegacyMakerMcp(options2 = {}) {
     state_path: statePath
   };
 }
-function restoreCodexLegacyMakerMcp(options2 = {}) {
-  const configPath = options2.configPath ?? path42.join(os7.homedir(), ".codex", "config.toml");
-  const makerHome = options2.makerHome ?? getMakerHome();
+function restoreCodexLegacyMakerMcp(options3 = {}) {
+  const configPath = options3.configPath ?? path45.join(os7.homedir(), ".codex", "config.toml");
+  const makerHome = options3.makerHome ?? getMakerHome();
   const statePath = getCodexPluginMigrationStatePath(makerHome);
   const inspection = inspectCodexLegacyMakerMcp({ configPath });
   const state = readMigrationState(statePath);
   if (!state || state.config_path !== configPath) {
     return { ...inspection, action: "not_owned", changed: false };
   }
-  if (!options2.confirm) {
+  if (!options3.confirm) {
     throw new Error("Restoring the legacy Codex Maker MCP requires explicit confirmation.");
   }
   if (inspection.status === "ambiguous") {
@@ -58656,14 +61461,14 @@ function restoreCodexLegacyMakerMcp(options2 = {}) {
       "The migrated Codex Maker MCP registration no longer exists and cannot be restored."
     );
   }
-  const previousContent = fs41.readFileSync(configPath, "utf8");
+  const previousContent = fs43.readFileSync(configPath, "utf8");
   const registration = findCodexMakerMainTables(previousContent)[0];
   const registrationSha256 = sha256(readCodexMakerRegistration(previousContent, registration));
   if (inspection.status === "active") {
     if (registrationSha256 !== state.original_registration_sha256) {
       return { ...inspection, action: "not_owned", changed: false };
     }
-    fs41.unlinkSync(statePath);
+    fs43.unlinkSync(statePath);
     return { ...inspection, action: "already_restored", changed: false };
   }
   if (registrationSha256 !== state.migrated_registration_sha256) {
@@ -58677,12 +61482,12 @@ function restoreCodexLegacyMakerMcp(options2 = {}) {
         "Codex Maker MCP restoration validation did not find an active registration."
       );
     }
-    const restoredContent = fs41.readFileSync(configPath, "utf8");
+    const restoredContent = fs43.readFileSync(configPath, "utf8");
     const restoredRegistration = findCodexMakerMainTables(restoredContent)[0];
     if (sha256(readCodexMakerRegistration(restoredContent, restoredRegistration)) !== state.original_registration_sha256) {
       throw new Error("Codex Maker MCP restoration changed the migrated registration identity.");
     }
-    fs41.unlinkSync(statePath);
+    fs43.unlinkSync(statePath);
   });
   return {
     ...inspectCodexLegacyMakerMcp({ configPath }),
@@ -58745,14 +61550,14 @@ function readCodexMakerRegistration(content, registration) {
   return content.slice(registration.headerStart, registration.bodyEnd).trimEnd();
 }
 function getCodexPluginMigrationStatePath(makerHome) {
-  return path42.join(makerHome, "plugin-migrations", "codex.json");
+  return path45.join(makerHome, "plugin-migrations", "codex.json");
 }
 function readMigrationState(statePath) {
-  if (!fs41.existsSync(statePath)) {
+  if (!fs43.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs41.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs43.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 2 && state.client === "codex" ? state : void 0;
   } catch {
     return void 0;
@@ -58769,8 +61574,8 @@ function createInspection(configPath, status, registrationCount) {
     registration_count: registrationCount
   };
 }
-function inspectWorkBuddyLegacyMakerMcp(options2 = {}) {
-  const configPaths = getWorkBuddyConfigPaths(options2.configPaths);
+function inspectWorkBuddyLegacyMakerMcp(options3 = {}) {
+  const configPaths = getWorkBuddyConfigPaths(options3.configPaths);
   const registrations = findWorkBuddyMakerRegistrations(configPaths);
   const registrationPaths = registrations.map((entry) => entry.configPath);
   if (registrations.length === 0) {
@@ -58792,9 +61597,9 @@ function inspectWorkBuddyLegacyMakerMcp(options2 = {}) {
     enabled: true
   };
 }
-function migrateWorkBuddyLegacyMakerMcp(options2 = {}) {
-  const configPaths = getWorkBuddyConfigPaths(options2.configPaths);
-  const makerHome = options2.makerHome ?? getMakerHome();
+function migrateWorkBuddyLegacyMakerMcp(options3 = {}) {
+  const configPaths = getWorkBuddyConfigPaths(options3.configPaths);
+  const makerHome = options3.makerHome ?? getMakerHome();
   const statePath = getWorkBuddyPluginMigrationStatePath(makerHome);
   const inspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
   if (inspection.status === "not_found") {
@@ -58820,7 +61625,7 @@ function migrateWorkBuddyLegacyMakerMcp(options2 = {}) {
       ...owned ? { state_path: statePath } : {}
     };
   }
-  if (!options2.confirm) {
+  if (!options3.confirm) {
     throw new Error("Disabling the legacy WorkBuddy Maker MCP requires explicit confirmation.");
   }
   const current = registrations.find((entry) => entry.configPath === inspection.config_path);
@@ -58842,7 +61647,7 @@ function migrateWorkBuddyLegacyMakerMcp(options2 = {}) {
     migrated_registration_sha256: hashWorkBuddyRegistration(migratedRegistration),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs41.mkdirSync(path42.dirname(statePath), { recursive: true });
+  fs43.mkdirSync(path45.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(current.configPath, nextContent, () => {
     const migrated = findWorkBuddyMakerRegistrations(configPaths).find(
       (entry) => entry.configPath === current.configPath
@@ -58852,7 +61657,7 @@ function migrateWorkBuddyLegacyMakerMcp(options2 = {}) {
         "WorkBuddy Maker MCP migration validation did not find the disabled registration."
       );
     }
-    fs41.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs43.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   const migratedInspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
@@ -58865,16 +61670,16 @@ function migrateWorkBuddyLegacyMakerMcp(options2 = {}) {
     state_path: statePath
   };
 }
-function restoreWorkBuddyLegacyMakerMcp(options2 = {}) {
-  const configPaths = getWorkBuddyConfigPaths(options2.configPaths);
-  const makerHome = options2.makerHome ?? getMakerHome();
+function restoreWorkBuddyLegacyMakerMcp(options3 = {}) {
+  const configPaths = getWorkBuddyConfigPaths(options3.configPaths);
+  const makerHome = options3.makerHome ?? getMakerHome();
   const statePath = getWorkBuddyPluginMigrationStatePath(makerHome);
   const inspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
   const state = readWorkBuddyMigrationState(statePath);
   if (!state) {
     return { ...inspection, action: "not_owned", changed: false };
   }
-  if (!options2.confirm) {
+  if (!options3.confirm) {
     throw new Error("Restoring the legacy WorkBuddy Maker MCP requires explicit confirmation.");
   }
   if (inspection.status === "ambiguous") {
@@ -58906,7 +61711,7 @@ function restoreWorkBuddyLegacyMakerMcp(options2 = {}) {
         changed: false
       };
     }
-    fs41.unlinkSync(statePath);
+    fs43.unlinkSync(statePath);
     return {
       ...inspection,
       config_path: current.configPath,
@@ -58939,7 +61744,7 @@ function restoreWorkBuddyLegacyMakerMcp(options2 = {}) {
     if (!restored || hashWorkBuddyRegistration(restored.registration) !== state.original_registration_sha256) {
       throw new Error("WorkBuddy Maker MCP restoration changed the registration identity.");
     }
-    fs41.unlinkSync(statePath);
+    fs43.unlinkSync(statePath);
   });
   return {
     ...inspectWorkBuddyLegacyMakerMcp({ configPaths }),
@@ -58952,19 +61757,19 @@ function restoreWorkBuddyLegacyMakerMcp(options2 = {}) {
 }
 function getWorkBuddyConfigPaths(configPaths) {
   return configPaths ?? [
-    path42.join(os7.homedir(), ".workbuddy", "mcp.json"),
-    path42.join(os7.homedir(), ".workbuddy", ".mcp.json")
+    path45.join(os7.homedir(), ".workbuddy", "mcp.json"),
+    path45.join(os7.homedir(), ".workbuddy", ".mcp.json")
   ];
 }
 function findWorkBuddyMakerRegistrations(configPaths) {
   const registrations = [];
   for (const configPath of configPaths) {
-    if (!fs41.existsSync(configPath)) {
+    if (!fs43.existsSync(configPath)) {
       continue;
     }
     let config2;
     try {
-      config2 = JSON.parse(fs41.readFileSync(configPath, "utf8"));
+      config2 = JSON.parse(fs43.readFileSync(configPath, "utf8"));
     } catch (error2) {
       throw new Error(
         `Cannot parse WorkBuddy MCP config ${configPath}: ${error2 instanceof Error ? error2.message : String(error2)}`
@@ -58999,14 +61804,14 @@ function setWorkBuddyMakerRegistration(config2, registration) {
   servers["taptap-maker"] = registration;
 }
 function getWorkBuddyPluginMigrationStatePath(makerHome) {
-  return path42.join(makerHome, "plugin-migrations", "workbuddy.json");
+  return path45.join(makerHome, "plugin-migrations", "workbuddy.json");
 }
 function readWorkBuddyMigrationState(statePath) {
-  if (!fs41.existsSync(statePath)) {
+  if (!fs43.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs41.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs43.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 1 && state.client === "workbuddy" ? state : void 0;
   } catch {
     return void 0;
@@ -59031,13 +61836,13 @@ function isRecord5(value) {
 // src/maker/cli/dshPluginMigration.ts
 var import_yaml2 = __toESM(require_dist2());
 init_storage();
-import fs42 from "node:fs";
+import fs44 from "node:fs";
 import os8 from "node:os";
-import path43 from "node:path";
+import path46 from "node:path";
 import crypto4 from "node:crypto";
 var DSH_MAKER_MCP_NAME = "taptap-maker";
-function inspectDshLegacyMakerMcp(options2 = {}) {
-  const registrations = findDshMakerRegistrations(options2.dshHome);
+function inspectDshLegacyMakerMcp(options3 = {}) {
+  const registrations = findDshMakerRegistrations(options3.dshHome);
   const configPaths = unique(registrations.map((entry) => entry.configPath));
   if (registrations.length === 0) {
     return createDshInspection("not_found", [], configPaths);
@@ -59047,11 +61852,11 @@ function inspectDshLegacyMakerMcp(options2 = {}) {
   }
   return createDshInspection("active", [registrations[0].configPath], configPaths);
 }
-function migrateDshLegacyMakerMcp(options2 = {}) {
+function migrateDshLegacyMakerMcp(options3 = {}) {
   const makerHome = getMakerHome();
   const statePath = getDshPluginMigrationStatePath(makerHome);
-  const registrations = findDshMakerRegistrations(options2.dshHome);
-  const inspection = inspectDshLegacyMakerMcp(options2);
+  const registrations = findDshMakerRegistrations(options3.dshHome);
+  const inspection = inspectDshLegacyMakerMcp(options3);
   if (inspection.status === "not_found") {
     return { ...inspection, action: "not_found", changed: false };
   }
@@ -59060,13 +61865,13 @@ function migrateDshLegacyMakerMcp(options2 = {}) {
       `DSH Maker MCP migration found ${inspection.registration_count} registrations in ${inspection.config_paths.join(", ")}; resolve the duplicates before migrating.`
     );
   }
-  if (!options2.confirm) {
+  if (!options3.confirm) {
     throw new Error(
       "Removing the legacy DSH Maker MCP registration requires explicit confirmation."
     );
   }
   const registration = registrations[0];
-  const previousContent = fs42.readFileSync(registration.configPath, "utf8");
+  const previousContent = fs44.readFileSync(registration.configPath, "utf8");
   const document = (0, import_yaml2.parseDocument)(previousContent, { prettyErrors: true });
   if (document.errors.length > 0) {
     throw new Error(`Invalid YAML in ${registration.configPath}: ${document.errors[0].message}`);
@@ -59081,32 +61886,32 @@ function migrateDshLegacyMakerMcp(options2 = {}) {
     removed_registration_sha256: sha2562(JSON.stringify(registration.registration)),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs42.mkdirSync(path43.dirname(statePath), { recursive: true });
+  fs44.mkdirSync(path46.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(registration.configPath, nextContent, () => {
-    const after = findDshMakerRegistrations(options2.dshHome);
+    const after = findDshMakerRegistrations(options3.dshHome);
     if (after.some((entry) => entry.configPath === registration.configPath)) {
       throw new Error("DSH Maker MCP migration validation still found a registration.");
     }
-    fs42.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs44.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   return {
-    ...inspectDshLegacyMakerMcp(options2),
+    ...inspectDshLegacyMakerMcp(options3),
     action: "removed",
     changed: write.changed,
     ...write.backupPath ? { backup_path: write.backupPath } : {},
     state_path: statePath
   };
 }
-function restoreDshLegacyMakerMcp(options2 = {}) {
+function restoreDshLegacyMakerMcp(options3 = {}) {
   const makerHome = getMakerHome();
   const statePath = getDshPluginMigrationStatePath(makerHome);
-  const inspection = inspectDshLegacyMakerMcp(options2);
+  const inspection = inspectDshLegacyMakerMcp(options3);
   const state = readDshMigrationState(statePath);
   if (!state) {
     return { ...inspection, action: "not_owned", changed: false };
   }
-  if (!options2.confirm) {
+  if (!options3.confirm) {
     throw new Error(
       "Restoring the legacy DSH Maker MCP registration requires explicit confirmation."
     );
@@ -59117,16 +61922,16 @@ function restoreDshLegacyMakerMcp(options2 = {}) {
     );
   }
   if (inspection.status === "active") {
-    const current = findDshMakerRegistrations(options2.dshHome)[0];
+    const current = findDshMakerRegistrations(options3.dshHome)[0];
     const currentSha = sha2562(JSON.stringify(current.registration));
     if (currentSha === state.removed_registration_sha256) {
-      fs42.rmSync(statePath, { force: true });
+      fs44.rmSync(statePath, { force: true });
       return { ...inspection, action: "already_restored", changed: false, state_path: statePath };
     }
     return { ...inspection, action: "not_owned", changed: false };
   }
   const configPath = state.config_path;
-  const previousContent = fs42.readFileSync(configPath, "utf8");
+  const previousContent = fs44.readFileSync(configPath, "utf8");
   const document = (0, import_yaml2.parseDocument)(previousContent, { prettyErrors: true });
   if (document.errors.length > 0) {
     throw new Error(`Invalid YAML in ${configPath}: ${document.errors[0].message}`);
@@ -59134,15 +61939,15 @@ function restoreDshLegacyMakerMcp(options2 = {}) {
   reinsertDshMakerRegistration(document, state.removed_registration);
   const nextContent = document.toString({ lineWidth: 0 });
   const write = writeConfigWithTapTapBackupIfChanged(configPath, nextContent, () => {
-    const restored = findDshMakerRegistrations(options2.dshHome);
+    const restored = findDshMakerRegistrations(options3.dshHome);
     const match = restored.find((entry) => entry.configPath === configPath);
     if (!match || sha2562(JSON.stringify(match.registration)) !== state.removed_registration_sha256) {
       throw new Error("DSH Maker MCP restoration changed the registration identity.");
     }
-    fs42.rmSync(statePath, { force: true });
+    fs44.rmSync(statePath, { force: true });
   });
   return {
-    ...inspectDshLegacyMakerMcp(options2),
+    ...inspectDshLegacyMakerMcp(options3),
     action: "restored",
     changed: write.changed,
     ...write.backupPath ? { backup_path: write.backupPath } : {},
@@ -59154,10 +61959,10 @@ function findDshMakerRegistrations(dshHome) {
   const configPaths = listDshMcpConfigPaths({ homeDir: os8.homedir(), dshHome: resolvedDshHome });
   const registrations = [];
   for (const configPath of configPaths) {
-    if (!fs42.existsSync(configPath)) {
+    if (!fs44.existsSync(configPath)) {
       continue;
     }
-    const content = fs42.readFileSync(configPath, "utf8");
+    const content = fs44.readFileSync(configPath, "utf8");
     const document = (0, import_yaml2.parseDocument)(content, { prettyErrors: true });
     if (document.errors.length > 0) {
       throw new Error(`Invalid YAML in ${configPath}: ${document.errors[0].message}`);
@@ -59242,14 +62047,14 @@ function isDshMakerPluginCandidate(value) {
   return value.name === DSH_MCP_PLUGIN_NAME && (config2 == null ? void 0 : config2.serverName) === DSH_MAKER_MCP_NAME;
 }
 function getDshPluginMigrationStatePath(makerHome) {
-  return path43.join(makerHome, "plugin-migrations", "dsh.json");
+  return path46.join(makerHome, "plugin-migrations", "dsh.json");
 }
 function readDshMigrationState(statePath) {
-  if (!fs42.existsSync(statePath)) {
+  if (!fs44.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs42.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs44.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 1 && state.client === "dsh" ? state : void 0;
   } catch {
     return void 0;
@@ -59275,13 +62080,13 @@ function unique(values) {
 }
 
 // src/maker/cli/workBuddyProjectSkills.ts
-import fs43 from "node:fs";
-import path44 from "node:path";
-function syncWorkBuddyProjectSkills(targetDir, options2 = {}) {
-  const platform = options2.platform ?? process.platform;
-  const projectDir = path44.resolve(targetDir);
-  const sourceDir = path44.join(projectDir, ".installer", "skills");
-  const workBuddySkillsDir = path44.join(projectDir, ".workbuddy", "skills");
+import fs45 from "node:fs";
+import path47 from "node:path";
+function syncWorkBuddyProjectSkills(targetDir, options3 = {}) {
+  const platform = options3.platform ?? process.platform;
+  const projectDir = path47.resolve(targetDir);
+  const sourceDir = path47.join(projectDir, ".installer", "skills");
+  const workBuddySkillsDir = path47.join(projectDir, ".workbuddy", "skills");
   const result = {
     status: "skipped",
     sourceDir,
@@ -59293,18 +62098,18 @@ function syncWorkBuddyProjectSkills(targetDir, options2 = {}) {
     result.reason = "source_not_found";
     return result;
   }
-  const sourceSkills = fs43.readdirSync(sourceDir, { withFileTypes: true }).filter(
-    (entry) => entry.isDirectory() && fs43.existsSync(path44.join(sourceDir, entry.name, "SKILL.md"))
+  const sourceSkills = fs45.readdirSync(sourceDir, { withFileTypes: true }).filter(
+    (entry) => entry.isDirectory() && fs45.existsSync(path47.join(sourceDir, entry.name, "SKILL.md"))
   ).map((entry) => entry.name).sort();
   for (const sourceSkillName of sourceSkills) {
     const workBuddySkillName = `taptap-maker-${sourceSkillName}`;
-    const workBuddySkillDir = path44.join(workBuddySkillsDir, workBuddySkillName);
+    const workBuddySkillDir = path47.join(workBuddySkillsDir, workBuddySkillName);
     if (pathEntryExists(workBuddySkillDir)) {
       result.skippedSkills.push(workBuddySkillName);
       continue;
     }
-    fs43.mkdirSync(workBuddySkillsDir, { recursive: true });
-    installSkillContents(path44.join(sourceDir, sourceSkillName), workBuddySkillDir, platform);
+    fs45.mkdirSync(workBuddySkillsDir, { recursive: true });
+    installSkillContents(path47.join(sourceDir, sourceSkillName), workBuddySkillDir, platform);
     result.installedSkills.push(workBuddySkillName);
   }
   if (result.installedSkills.length > 0) {
@@ -59313,29 +62118,29 @@ function syncWorkBuddyProjectSkills(targetDir, options2 = {}) {
   return result;
 }
 function installSkillContents(sourceDir, targetDir, platform) {
-  fs43.mkdirSync(targetDir);
+  fs45.mkdirSync(targetDir);
   try {
-    for (const entry of fs43.readdirSync(sourceDir)) {
-      linkOrCopyEntry(path44.join(sourceDir, entry), path44.join(targetDir, entry), platform);
+    for (const entry of fs45.readdirSync(sourceDir)) {
+      linkOrCopyEntry(path47.join(sourceDir, entry), path47.join(targetDir, entry), platform);
     }
   } catch (error2) {
-    fs43.rmSync(targetDir, { recursive: true, force: true });
+    fs45.rmSync(targetDir, { recursive: true, force: true });
     throw error2;
   }
 }
 function linkOrCopyEntry(source, target, platform) {
-  const stat = fs43.statSync(source);
+  const stat = fs45.statSync(source);
   if (platform === "win32" && stat.isFile()) {
-    fs43.copyFileSync(source, target);
+    fs45.copyFileSync(source, target);
     return;
   }
   try {
-    const linkTarget = platform === "win32" ? source : path44.relative(path44.dirname(target), source);
+    const linkTarget = platform === "win32" ? source : path47.relative(path47.dirname(target), source);
     const linkType = stat.isDirectory() ? platform === "win32" ? "junction" : "dir" : "file";
-    fs43.symlinkSync(linkTarget, target, linkType);
+    fs45.symlinkSync(linkTarget, target, linkType);
   } catch (error2) {
     try {
-      fs43.cpSync(source, target, { recursive: stat.isDirectory() });
+      fs45.cpSync(source, target, { recursive: stat.isDirectory() });
     } catch (copyError) {
       throw new Error(
         `Failed to install WorkBuddy project skill entry ${source}: ${formatError3(error2)}; copy fallback: ${formatError3(copyError)}`
@@ -59345,14 +62150,14 @@ function linkOrCopyEntry(source, target, platform) {
 }
 function isDirectory(value) {
   try {
-    return fs43.statSync(value).isDirectory();
+    return fs45.statSync(value).isDirectory();
   } catch {
     return false;
   }
 }
 function pathEntryExists(value) {
   try {
-    fs43.lstatSync(value);
+    fs45.lstatSync(value);
     return true;
   } catch {
     return false;
@@ -59368,9 +62173,9 @@ init_config();
 init_fetchTimeout();
 init_identify();
 init_storage();
-import fs44 from "node:fs";
+import fs46 from "node:fs";
 import os9 from "node:os";
-import path45 from "node:path";
+import path48 from "node:path";
 import { randomUUID as randomUUID9 } from "node:crypto";
 import { Readable, Transform } from "node:stream";
 import { pipeline as pipeline2 } from "node:stream/promises";
@@ -59378,27 +62183,27 @@ var USER_SKILL_CLIENT_DIRS = [".codex", ".cursor", ".workbuddy"];
 var MAX_ARCHIVE_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 var MAX_ARCHIVE_ENTRIES = 1e3;
 var MAX_ARCHIVE_EXTRACTED_BYTES = 128 * 1024 * 1024;
-async function pullMakerUserSkills(options2 = {}) {
+async function pullMakerUserSkills(options3 = {}) {
   var _a3, _b;
-  const requestedDir = path45.resolve(options2.targetDir || process.cwd());
+  const requestedDir = path48.resolve(options3.targetDir || process.cwd());
   const project = identifyMakerProject({ cwd: requestedDir });
   if (!project.projectRoot) {
     throw new Error(
       "Maker project not found. Run this command inside a bound Maker project or pass --target-dir."
     );
   }
-  const environment = getMakerEnvironment(options2.environment, project.projectRoot);
+  const environment = getMakerEnvironment(options3.environment, project.projectRoot);
   const token = ((_a3 = loadPat()) == null ? void 0 : _a3.token) || ((_b = loadJwt()) == null ? void 0 : _b.token);
   if (!token) {
     throw new Error("Maker authentication not found. Run `taptap-maker login` and try again.");
   }
-  const sourceDir = path45.join(project.projectRoot, ".installer", "skills");
-  const tempDir = fs44.mkdtempSync(path45.join(os9.tmpdir(), "taptap-maker-user-skills-"));
-  const archivePath = path45.join(tempDir, "user-skills.zip");
-  const stagingDir = path45.join(tempDir, "skills");
+  const sourceDir = path48.join(project.projectRoot, ".installer", "skills");
+  const tempDir = fs46.mkdtempSync(path48.join(os9.tmpdir(), "taptap-maker-user-skills-"));
+  const archivePath = path48.join(tempDir, "user-skills.zip");
+  const stagingDir = path48.join(tempDir, "skills");
   try {
     const response = await fetchWithTimeout(
-      options2.fetchImpl || fetch,
+      options3.fetchImpl || fetch,
       `${getMakerApiBaseUrl(environment)}/user/skills/archive`,
       {
         method: "GET",
@@ -59407,7 +62212,7 @@ async function pullMakerUserSkills(options2 = {}) {
           Authorization: `Bearer ${token}`
         }
       },
-      options2.timeoutMs ?? DEFAULT_DOWNLOAD_FETCH_TIMEOUT_MS,
+      options3.timeoutMs ?? DEFAULT_DOWNLOAD_FETCH_TIMEOUT_MS,
       "Maker user Skill download"
     );
     if (!response.ok) {
@@ -59427,7 +62232,7 @@ async function pullMakerUserSkills(options2 = {}) {
       preservedSkills
     };
   } finally {
-    fs44.rmSync(tempDir, { recursive: true, force: true });
+    fs46.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 async function writeArchiveResponse(response, archivePath) {
@@ -59452,7 +62257,7 @@ async function writeArchiveResponse(response, archivePath) {
   await pipeline2(
     Readable.fromWeb(response.body),
     limit,
-    fs44.createWriteStream(archivePath, { flags: "wx" })
+    fs46.createWriteStream(archivePath, { flags: "wx" })
   );
 }
 function validateUserSkillArchivePath(entryPath) {
@@ -59467,7 +62272,7 @@ function validateUserSkillArchivePath(entryPath) {
   return segments;
 }
 async function extractUserSkillsArchive(archivePath, stagingDir) {
-  fs44.mkdirSync(stagingDir, { recursive: true });
+  fs46.mkdirSync(stagingDir, { recursive: true });
   const zipFile = await import_yauzl.default.openPromise(archivePath, {
     lazyEntries: true,
     decodeStrings: true,
@@ -59487,7 +62292,7 @@ async function extractUserSkillsArchive(archivePath, stagingDir) {
         );
       }
       const segments = validateUserSkillArchivePath(entry.fileName);
-      if (segments.some((segment) => path45.basename(segment).startsWith(".nfs"))) {
+      if (segments.some((segment) => path48.basename(segment).startsWith(".nfs"))) {
         continue;
       }
       const isDirectory2 = isZipDirectory(entry);
@@ -59509,24 +62314,24 @@ async function extractUserSkillsArchive(archivePath, stagingDir) {
       }
       seenPaths.add(collisionKey);
       skillNames.add(segments[0]);
-      const destination = path45.join(stagingDir, ...segments);
+      const destination = path48.join(stagingDir, ...segments);
       if (isDirectory2) {
-        fs44.mkdirSync(destination, { recursive: true });
+        fs46.mkdirSync(destination, { recursive: true });
         continue;
       }
-      fs44.mkdirSync(path45.dirname(destination), { recursive: true });
+      fs46.mkdirSync(path48.dirname(destination), { recursive: true });
       const input2 = await zipFile.openReadStreamPromise(entry);
-      await pipeline2(input2, fs44.createWriteStream(destination, { flags: "wx" }));
+      await pipeline2(input2, fs46.createWriteStream(destination, { flags: "wx" }));
     }
   } finally {
     zipFile.close();
   }
   const installedSkills = [...skillNames].sort();
   for (const skillName of installedSkills) {
-    const definitionPath = path45.join(stagingDir, skillName, "SKILL.md");
+    const definitionPath = path48.join(stagingDir, skillName, "SKILL.md");
     let definition;
     try {
-      definition = fs44.lstatSync(definitionPath);
+      definition = fs46.lstatSync(definitionPath);
     } catch {
       throw new Error(`Maker user Skill "${skillName}" is missing SKILL.md.`);
     }
@@ -59560,31 +62365,31 @@ function installUserSkills(projectRoot, stagingDir, skillNames) {
   if (skillNames.length === 0) {
     return;
   }
-  const installerDir = path45.join(projectRoot, ".installer");
-  const sourceDir = path45.join(installerDir, "skills");
-  const transactionDir = path45.join(installerDir, `.user-skills-${randomUUID9()}`);
-  const preparedDir = path45.join(transactionDir, "prepared");
-  const backupDir = path45.join(transactionDir, "backup");
+  const installerDir = path48.join(projectRoot, ".installer");
+  const sourceDir = path48.join(installerDir, "skills");
+  const transactionDir = path48.join(installerDir, `.user-skills-${randomUUID9()}`);
+  const preparedDir = path48.join(transactionDir, "prepared");
+  const backupDir = path48.join(transactionDir, "backup");
   const completed = [];
   let preserveTransaction = false;
-  fs44.mkdirSync(preparedDir, { recursive: true });
-  fs44.mkdirSync(sourceDir, { recursive: true });
+  fs46.mkdirSync(preparedDir, { recursive: true });
+  fs46.mkdirSync(sourceDir, { recursive: true });
   try {
     for (const skillName of skillNames) {
-      fs44.cpSync(path45.join(stagingDir, skillName), path45.join(preparedDir, skillName), {
+      fs46.cpSync(path48.join(stagingDir, skillName), path48.join(preparedDir, skillName), {
         recursive: true
       });
     }
     for (const skillName of skillNames) {
-      const target = path45.join(sourceDir, skillName);
-      const backup = path45.join(backupDir, skillName);
+      const target = path48.join(sourceDir, skillName);
+      const backup = path48.join(backupDir, skillName);
       const hadExisting = pathExists(target);
       if (hadExisting) {
-        fs44.mkdirSync(path45.dirname(backup), { recursive: true });
-        fs44.renameSync(target, backup);
+        fs46.mkdirSync(path48.dirname(backup), { recursive: true });
+        fs46.renameSync(target, backup);
       }
       completed.push({ target, backup, hadExisting });
-      fs44.renameSync(path45.join(preparedDir, skillName), target);
+      fs46.renameSync(path48.join(preparedDir, skillName), target);
     }
     installUserSkillsForClients(projectRoot, skillNames);
   } catch (error2) {
@@ -59598,7 +62403,7 @@ function installUserSkills(projectRoot, stagingDir, skillNames) {
     throw new Error(`Failed to install Maker user Skills: ${formatError4(error2)}`);
   } finally {
     if (!preserveTransaction) {
-      fs44.rmSync(transactionDir, { recursive: true, force: true });
+      fs46.rmSync(transactionDir, { recursive: true, force: true });
     }
   }
 }
@@ -59606,27 +62411,27 @@ function installUserSkillsForClients(projectRoot, skillNames) {
   if (skillNames.length === 0) {
     return;
   }
-  const sourceRoot = path45.join(projectRoot, ".installer", "skills");
-  const transactionDir = path45.join(
+  const sourceRoot = path48.join(projectRoot, ".installer", "skills");
+  const transactionDir = path48.join(
     projectRoot,
     ".installer",
     `.user-skill-clients-${randomUUID9()}`
   );
-  const backupRoot = path45.join(transactionDir, "backup");
+  const backupRoot = path48.join(transactionDir, "backup");
   const changed = [];
   let preserveTransaction = false;
   try {
     for (const clientDir of USER_SKILL_CLIENT_DIRS) {
-      const targetRoot = path45.join(projectRoot, clientDir, "skills");
-      fs44.mkdirSync(targetRoot, { recursive: true });
+      const targetRoot = path48.join(projectRoot, clientDir, "skills");
+      fs46.mkdirSync(targetRoot, { recursive: true });
       for (const skillName of skillNames) {
-        const source = path45.join(sourceRoot, skillName);
-        const target = path45.join(targetRoot, skillName);
-        const backup = path45.join(backupRoot, clientDir, skillName);
+        const source = path48.join(sourceRoot, skillName);
+        const target = path48.join(targetRoot, skillName);
+        const backup = path48.join(backupRoot, clientDir, skillName);
         const hadExisting = pathExists(target);
         if (hadExisting) {
-          fs44.mkdirSync(path45.dirname(backup), { recursive: true });
-          fs44.renameSync(target, backup);
+          fs46.mkdirSync(path48.dirname(backup), { recursive: true });
+          fs46.renameSync(target, backup);
         }
         changed.push({ target, backup, hadExisting });
         linkOrCopySkill(source, target);
@@ -59643,7 +62448,7 @@ function installUserSkillsForClients(projectRoot, skillNames) {
     throw new Error(`Failed to install Maker user Skills for AI clients: ${formatError4(error2)}`);
   } finally {
     if (!preserveTransaction) {
-      fs44.rmSync(transactionDir, { recursive: true, force: true });
+      fs46.rmSync(transactionDir, { recursive: true, force: true });
     }
   }
 }
@@ -59654,7 +62459,7 @@ function rollbackSkillChanges(changes) {
     try {
       removePathEntry(item.target);
       if (item.hadExisting && pathExists(item.backup)) {
-        fs44.renameSync(item.backup, item.target);
+        fs46.renameSync(item.backup, item.target);
       }
     } catch (error2) {
       errors.push(`${item.target}: ${formatError4(error2)}`);
@@ -59664,12 +62469,12 @@ function rollbackSkillChanges(changes) {
 }
 function linkOrCopySkill(source, target) {
   try {
-    const linkTarget = process.platform === "win32" ? source : path45.relative(path45.dirname(target), source);
-    fs44.symlinkSync(linkTarget, target, process.platform === "win32" ? "junction" : "dir");
+    const linkTarget = process.platform === "win32" ? source : path48.relative(path48.dirname(target), source);
+    fs46.symlinkSync(linkTarget, target, process.platform === "win32" ? "junction" : "dir");
   } catch (linkError) {
     removePathEntry(target);
     try {
-      fs44.cpSync(source, target, { recursive: true });
+      fs46.cpSync(source, target, { recursive: true });
     } catch (copyError) {
       throw new Error(
         `Failed to link ${source}: ${formatError4(linkError)}; copy fallback: ${formatError4(copyError)}`
@@ -59679,12 +62484,12 @@ function linkOrCopySkill(source, target) {
 }
 function removePathEntry(value) {
   try {
-    const stat = fs44.lstatSync(value);
+    const stat = fs46.lstatSync(value);
     if (stat.isSymbolicLink()) {
-      fs44.unlinkSync(value);
+      fs46.unlinkSync(value);
       return;
     }
-    fs44.rmSync(value, { recursive: true, force: true });
+    fs46.rmSync(value, { recursive: true, force: true });
   } catch (error2) {
     if (error2.code !== "ENOENT") {
       throw error2;
@@ -59693,7 +62498,7 @@ function removePathEntry(value) {
 }
 function listLocalSkills(sourceDir) {
   try {
-    return fs44.readdirSync(sourceDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    return fs46.readdirSync(sourceDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
   } catch {
     return [];
   }
@@ -59709,7 +62514,7 @@ function createDownloadError(status) {
 }
 function pathExists(value) {
   try {
-    fs44.lstatSync(value);
+    fs46.lstatSync(value);
     return true;
   } catch {
     return false;
@@ -59908,31 +62713,31 @@ function writePluginLifecycleResult(ctx, result) {
 function parseArgs(argv) {
   const command = [];
   const positionals = [];
-  const options2 = {};
+  const options3 = {};
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg.startsWith("--")) {
       const equalIndex = arg.indexOf("=");
       if (equalIndex > 0) {
-        options2[toOptionKey(arg.slice(2, equalIndex))] = arg.slice(equalIndex + 1);
+        options3[toOptionKey(arg.slice(2, equalIndex))] = arg.slice(equalIndex + 1);
         continue;
       }
       const key = toOptionKey(arg.slice(2));
       if (BOOLEAN_OPTIONS.has(key)) {
-        options2[key] = true;
+        options3[key] = true;
         continue;
       }
       const next = argv[index + 1];
       if (next && !next.startsWith("-")) {
-        options2[key] = next;
+        options3[key] = next;
         index += 1;
       } else {
-        options2[key] = true;
+        options3[key] = true;
       }
       continue;
     }
     if (arg.startsWith("-") && arg.length > 1) {
-      options2[arg.slice(1)] = true;
+      options3[arg.slice(1)] = true;
       continue;
     }
     if (command.length === 0) {
@@ -59945,14 +62750,14 @@ function parseArgs(argv) {
       positionals.push(arg);
     }
   }
-  return { command, options: options2, positionals };
+  return { command, options: options3, positionals };
 }
 function toOptionKey(value) {
   return value.replace(/-/g, "_");
 }
 async function runInit(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path46.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const skipConfirm = booleanOption(parsed, "skip_confirm");
   const skipMcpInstall = booleanOption(parsed, "skip_mcp_install");
@@ -60069,7 +62874,7 @@ async function runInit(parsed, ctx) {
 }
 async function runDoctor(parsed, ctx) {
   var _a3, _b;
-  const targetDir = path46.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const git2 = checkGitEnvironment();
   const python = checkMakerPythonEnvironment();
@@ -60159,9 +62964,9 @@ async function runDoctor(parsed, ctx) {
     ].filter(Boolean).join("\n")
   );
 }
-function inspectMakerDoctorExecutionContext(options2) {
-  const doctorCwd = path46.resolve(process.cwd());
-  const makerProjectDir = options2.makerProjectDir ? path46.resolve(options2.makerProjectDir) : void 0;
+function inspectMakerDoctorExecutionContext(options3) {
+  const doctorCwd = path49.resolve(process.cwd());
+  const makerProjectDir = options3.makerProjectDir ? path49.resolve(options3.makerProjectDir) : void 0;
   if (!makerProjectDir) {
     return {
       active_client_session: "not_checked",
@@ -60196,9 +63001,9 @@ function samePath2(left, right) {
   return normalizePathForCompare3(left) === normalizePathForCompare3(right);
 }
 function normalizePathForCompare3(value) {
-  const resolved = path46.resolve(value);
+  const resolved = path49.resolve(value);
   try {
-    return fs45.realpathSync.native(resolved);
+    return fs47.realpathSync.native(resolved);
   } catch {
     return resolved;
   }
@@ -60516,7 +63321,7 @@ async function runPatSet(parsed, ctx) {
 }
 async function resolvePatSet(parsed, ctx) {
   if (booleanOption(parsed, "pat_stdin") || booleanOption(parsed, "pat_from_stdin")) {
-    const pat = fs45.readFileSync(0, "utf8").trim();
+    const pat = fs47.readFileSync(0, "utf8").trim();
     if (!pat) {
       throw new Error("No PAT found on stdin.");
     }
@@ -60564,24 +63369,24 @@ async function runMcpInstall(parsed, ctx) {
   process.stdout.write(`${results.map((result) => result.message).join("\n")}
 `);
 }
-async function prepareMcpLauncher(options2) {
+async function prepareMcpLauncher(options3) {
   let launcher;
   let launcherEnv;
   try {
-    if (options2.mode === "self") {
+    if (options3.mode === "self") {
       launcher = materializeMakerSelfLauncher({
         version: VERSION4,
-        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL2(path46.resolve(process.cwd(), "dist", "maker.js")).href,
+        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL2(path49.resolve(process.cwd(), "dist", "maker.js")).href,
         makerHome: getMakerHome()
       });
     } else {
       const packageSpec = resolveMakerPackageSpec(MAKER_NPM_PACKAGE, VERSION4);
       launcher = resolveMakerMcpLauncher({ packageName: packageSpec });
       const configuredCache = process.env.npm_config_cache || process.env.NPM_CONFIG_CACHE;
-      const npmCacheDir = path46.resolve(
-        configuredCache || path46.join(getMakerHome(), "cache", "npm")
+      const npmCacheDir = path49.resolve(
+        configuredCache || path49.join(getMakerHome(), "cache", "npm")
       );
-      fs45.mkdirSync(npmCacheDir, { recursive: true });
+      fs47.mkdirSync(npmCacheDir, { recursive: true });
       launcherEnv = { npm_config_cache: npmCacheDir };
     }
   } catch (error2) {
@@ -60589,7 +63394,7 @@ async function prepareMcpLauncher(options2) {
   }
   const verification = await verifyMakerMcpLauncher(launcher, {
     env: {
-      ...options2.env === "production" ? {} : { TAPTAP_MCP_ENV: options2.env },
+      ...options3.env === "production" ? {} : { TAPTAP_MCP_ENV: options3.env },
       ...launcherEnv
     }
   });
@@ -60714,7 +63519,7 @@ ${indent3(payload.stderr)}` : "",
 }
 async function runMcpReport(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path46.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const contextInput = booleanOption(parsed, "context_stdin") ? await readStdinText() : "";
   const context = parseMakerMcpReportContext(contextInput);
   const contextValidation = validateMakerMcpReportContext(context);
@@ -60815,7 +63620,7 @@ async function runMcpReport(parsed, ctx) {
   );
 }
 async function runAgentsUpdate(parsed, ctx) {
-  const targetDir = path46.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = updateMakerAgentsPolicy(targetDir);
   if (ctx.json) {
     writeJson(result);
@@ -60834,7 +63639,7 @@ async function runAgentsUpdate(parsed, ctx) {
 async function runUpgrade(parsed, ctx) {
   rejectPackageOption(parsed);
   const explicitTargetDir = stringOption(parsed, "target_dir");
-  const targetDir = path46.resolve(explicitTargetDir || process.cwd());
+  const targetDir = path49.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, "ide") || stringOption(parsed, "ides") || "");
   const pluginDistribution = resolveMakerPluginDistribution();
@@ -60923,7 +63728,7 @@ function getMcpVerifyNextSteps(mode, commandText) {
   ];
 }
 async function runDevKitUpdate(parsed, ctx) {
-  const targetDir = path46.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = await installAiDevKit({
     targetDir,
     preserveExisting: false,
@@ -60937,7 +63742,7 @@ async function runDevKitUpdate(parsed, ctx) {
 }
 async function runUserSkillsPull(parsed, ctx) {
   const result = await pullMakerUserSkills({
-    targetDir: path46.resolve(stringOption(parsed, "target_dir") || process.cwd()),
+    targetDir: path49.resolve(stringOption(parsed, "target_dir") || process.cwd()),
     environment: makerEnvOption(parsed)
   });
   if (ctx.json) {
@@ -60956,7 +63761,7 @@ async function runUserSkillsPull(parsed, ctx) {
   );
 }
 async function runLogsWatch(parsed, ctx) {
-  const targetDir = path46.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const intervalMs = parseDurationMs(stringOption(parsed, "interval") || "5s");
   const timeoutMs = numberOption(parsed, "timeout_ms") ?? MAKER_TOOL_CALL_TIMEOUT_MS;
   const maxPolls = numberOption(parsed, "max_polls");
@@ -60966,9 +63771,9 @@ async function runLogsWatch(parsed, ctx) {
     serverUrl: stringOption(parsed, "server_url"),
     env: makerEnvOption(parsed)
   });
-  const runtimeDir = path46.join(proxy.projectRoot, ".maker", "logs", "runtime");
-  const runtimeLog = path46.join(runtimeDir, "runtime.log");
-  const pidFile = path46.join(runtimeDir, "watcher.pid");
+  const runtimeDir = path49.join(proxy.projectRoot, ".maker", "logs", "runtime");
+  const runtimeLog = path49.join(runtimeDir, "runtime.log");
+  const pidFile = path49.join(runtimeDir, "watcher.pid");
   const replacedWatcher = registerRuntimeLogWatcherProcess(pidFile);
   const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
   emit(ctx, "logs_watch_start", "Maker runtime log watcher started", {
@@ -61013,10 +63818,10 @@ async function runLogsWatch(parsed, ctx) {
   }
 }
 function registerRuntimeLogWatcherProcess(pidFile) {
-  fs45.mkdirSync(path46.dirname(pidFile), { recursive: true });
+  fs47.mkdirSync(path49.dirname(pidFile), { recursive: true });
   const existingPid = readPidFile(pidFile);
   const previous = existingPid && existingPid !== process.pid ? stopExistingRuntimeLogWatcher(pidFile) : {};
-  fs45.writeFileSync(
+  fs47.writeFileSync(
     pidFile,
     `${JSON.stringify(
       {
@@ -61034,10 +63839,10 @@ function registerRuntimeLogWatcherProcess(pidFile) {
   return previous;
 }
 function readPidFile(pidFile) {
-  if (!fs45.existsSync(pidFile)) {
+  if (!fs47.existsSync(pidFile)) {
     return void 0;
   }
-  const raw = fs45.readFileSync(pidFile, "utf8").trim();
+  const raw = fs47.readFileSync(pidFile, "utf8").trim();
   let pid = Number(raw);
   if (!Number.isInteger(pid) || pid <= 0) {
     try {
@@ -61057,7 +63862,7 @@ function installRuntimeLogWatcherPidCleanup(pidFile) {
     }
     cleaned = true;
     if (readPidFile(pidFile) === process.pid) {
-      fs45.rmSync(pidFile, { force: true });
+      fs47.rmSync(pidFile, { force: true });
     }
   };
   process.once("exit", cleanup);
@@ -61098,7 +63903,7 @@ async function resolvePat(parsed, ctx) {
   saveManualMakerPat(pat);
   return pat;
 }
-async function resolveProjectSelection(parsed, projects, options2) {
+async function resolveProjectSelection(parsed, projects, options3) {
   var _a3;
   const appId = stringOption(parsed, "app_id") || parsed.positionals[0];
   const createNewProject = booleanOption(parsed, "create");
@@ -61106,28 +63911,28 @@ async function resolveProjectSelection(parsed, projects, options2) {
     throw new Error("Cannot use --create together with --app-id or a positional app id.");
   }
   if (createNewProject) {
-    return createProjectFromInit(parsed, options2);
+    return createProjectFromInit(parsed, options3);
   }
   if (appId) {
     return projects.find((project) => project.id === appId) || { id: appId };
   }
-  if ((_a3 = options2.existingProjectConfig) == null ? void 0 : _a3.project_id) {
-    const projectId = options2.existingProjectConfig.project_id;
+  if ((_a3 = options3.existingProjectConfig) == null ? void 0 : _a3.project_id) {
+    const projectId = options3.existingProjectConfig.project_id;
     return projects.find((project) => project.id === projectId) || {
       id: projectId,
-      user_id: options2.existingProjectConfig.user_id,
-      sce_endpoint: options2.existingProjectConfig.sce_endpoint
+      user_id: options3.existingProjectConfig.user_id,
+      sce_endpoint: options3.existingProjectConfig.sce_endpoint
     };
   }
   if (projects.length === 0) {
-    if (options2.skipConfirm) {
+    if (options3.skipConfirm) {
       throw new Error("No Maker apps found for this PAT. Use --create --name to create one.");
     }
     process.stdout.write(`${formatMakerProjectList(projects)}
 `);
-    return createProjectFromInit(parsed, options2);
+    return createProjectFromInit(parsed, options3);
   }
-  if (options2.skipConfirm) {
+  if (options3.skipConfirm) {
     throw new Error("Missing --app-id in non-interactive init mode.");
   }
   const orderedProjects = sortProjectsByRecentActivity(projects);
@@ -61148,7 +63953,7 @@ async function resolveProjectSelection(parsed, projects, options2) {
       continue;
     }
     if (["0", "n", "new", "create"].includes(normalized)) {
-      return createProjectFromInit(parsed, options2);
+      return createProjectFromInit(parsed, options3);
     }
     const visibleCount = showAll ? orderedProjects.length : Math.min(MAKER_PROJECT_DEFAULT_TEXT_LIMIT, orderedProjects.length);
     const byIndex = Number(answer);
@@ -61162,9 +63967,9 @@ async function resolveProjectSelection(parsed, projects, options2) {
     return selected;
   }
 }
-async function createProjectFromInit(parsed, options2) {
+async function createProjectFromInit(parsed, options3) {
   var _a3;
-  const existingProjectId = (_a3 = options2.existingProjectConfig) == null ? void 0 : _a3.project_id;
+  const existingProjectId = (_a3 = options3.existingProjectConfig) == null ? void 0 : _a3.project_id;
   if (existingProjectId) {
     throw new Error(
       [
@@ -61175,14 +63980,14 @@ async function createProjectFromInit(parsed, options2) {
     );
   }
   const name = stringOption(parsed, "name") || stringOption(parsed, "project_name");
-  if (!name && options2.skipConfirm) {
+  if (!name && options3.skipConfirm) {
     throw new Error("Missing --name in non-interactive create mode.");
   }
   const projectName = name || await promptRequired("Enter new Maker project name");
   return createMakerProject({
     name: projectName,
     gameType: "sce",
-    pat: options2.pat
+    pat: options3.pat
   }).catch((error2) => {
     throw appendPatRecoveryUrl(error2, parsed);
   });
@@ -61200,19 +64005,19 @@ function ensureInitTargetCanRecordProject(targetDir, existingProjectId, selected
     ].join("\n")
   );
 }
-async function prepareDevKit(targetDir, ctx, options2 = {}) {
+async function prepareDevKit(targetDir, ctx, options3 = {}) {
   const before = inspectAiDevKit(targetDir);
-  if (before.ready && !options2.forceInstall) {
+  if (before.ready && !options3.forceInstall) {
     try {
       const skillInstaller = installAiDevKitSkills(targetDir, {
         onStart: (event) => emitSkillInstallerStart(ctx, event)
       });
       writeDevKitStagedGitignore(
-        path46.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path49.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
       syncWorkBuddyDevKitSkills(targetDir, ctx);
-      if (options2.finalizeGitignore) {
+      if (options3.finalizeGitignore) {
         finalizeStagedDevKitGitignore(targetDir);
       }
       emit(
@@ -61226,10 +64031,10 @@ async function prepareDevKit(targetDir, ctx, options2 = {}) {
       );
     } catch (error2) {
       writeDevKitStagedGitignore(
-        path46.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path49.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
-      if (options2.finalizeGitignore) {
+      if (options3.finalizeGitignore) {
         finalizeStagedDevKitGitignore(targetDir);
       }
       const detail = error2 instanceof Error ? error2.message : String(error2);
@@ -61243,12 +64048,12 @@ ${detail}`, {
   try {
     const result = await installAiDevKit({
       targetDir,
-      preserveExisting: options2.preserveExisting,
-      environment: options2.environment,
+      preserveExisting: options3.preserveExisting,
+      environment: options3.environment,
       onSkillInstallerStart: (event) => emitSkillInstallerStart(ctx, event)
     });
     syncWorkBuddyDevKitSkills(targetDir, ctx);
-    if (options2.finalizeGitignore) {
+    if (options3.finalizeGitignore) {
       finalizeStagedDevKitGitignore(targetDir);
     }
     emit(ctx, "dev_kit", formatDevKitInstallMessage("AI dev kit prepared", result), result);
@@ -61273,10 +64078,10 @@ function syncWorkBuddyDevKitSkills(targetDir, ctx) {
   try {
     const result = syncWorkBuddyProjectSkills(targetDir);
     const managedSkillPaths = [...result.installedSkills, ...result.skippedSkills].map(
-      (skillName) => path46.join(".workbuddy", "skills", skillName)
+      (skillName) => path49.join(".workbuddy", "skills", skillName)
     );
     if (managedSkillPaths.length > 0) {
-      writeDevKitStagedGitignore(path46.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
+      writeDevKitStagedGitignore(path49.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
         ...listPresentDevKitManagedEntries(targetDir),
         ...managedSkillPaths
       ]);
@@ -61331,16 +64136,16 @@ function isPatValidationFailure(message) {
     message
   ) || /(?:过期|失效)/.test(message);
 }
-function installMcpConfigs(options2) {
-  return uniqueStrings2(options2.ides).flatMap((ide) => installMcpConfig(ide, options2)).map((result) => ({
+function installMcpConfigs(options3) {
+  return uniqueStrings2(options3.ides).flatMap((ide) => installMcpConfig(ide, options3)).map((result) => ({
     ...result,
-    launcher_kind: options2.launcher.kind,
+    launcher_kind: options3.launcher.kind,
     verified: true
   }));
 }
-function installMcpConfig(ide, options2) {
+function installMcpConfig(ide, options3) {
   try {
-    return installMcpConfigUnsafe(ide, options2);
+    return installMcpConfigUnsafe(ide, options3);
   } catch (error2) {
     return [
       {
@@ -61351,19 +64156,19 @@ function installMcpConfig(ide, options2) {
     ];
   }
 }
-function installMcpConfigUnsafe(ide, options2) {
+function installMcpConfigUnsafe(ide, options3) {
   if (ide === "codex") {
-    const configPath = path46.join(os10.homedir(), ".codex", "config.toml");
-    const write = mergeCodexMcpConfig(configPath, withClientIde(options2, "codex"));
+    const configPath = path49.join(os10.homedir(), ".codex", "config.toml");
+    const write = mergeCodexMcpConfig(configPath, withClientIde(options3, "codex"));
     return [createMcpInstallResult(ide, "Codex", configPath, write)];
   }
   if (ide === "cursor") {
-    const configPath = path46.join(os10.homedir(), ".cursor", "mcp.json");
-    const write = mergeJsonMcpConfig(configPath, withClientIde(options2, "cursor"));
+    const configPath = path49.join(os10.homedir(), ".cursor", "mcp.json");
+    const write = mergeJsonMcpConfig(configPath, withClientIde(options3, "cursor"));
     return [createMcpInstallResult(ide, "Cursor", configPath, write)];
   }
   if (ide === "claude") {
-    const claudeOptions = withClientIde(options2, "claude");
+    const claudeOptions = withClientIde(options3, "claude");
     const claudeResult = tryClaudeMcpAdd(claudeOptions);
     if (claudeResult.ok) {
       return [
@@ -61375,7 +64180,7 @@ function installMcpConfigUnsafe(ide, options2) {
         }
       ];
     }
-    const configPath = path46.join(os10.homedir(), ".claude.json");
+    const configPath = path49.join(os10.homedir(), ".claude.json");
     const write = mergeJsonMcpConfig(configPath, claudeOptions);
     return [createMcpInstallResult(ide, "Claude fallback", configPath, write)];
   }
@@ -61384,15 +64189,15 @@ function installMcpConfigUnsafe(ide, options2) {
       ide,
       getTraeMcpInstallPaths(),
       "Trae",
-      withClientIde(options2, "trae")
+      withClientIde(options3, "trae")
     );
   }
   if (ide === "opencode") {
     const configPath = getOpenCodeMcpConfigPath();
-    if (!fs45.existsSync(configPath)) {
+    if (!fs47.existsSync(configPath)) {
       return [{ ide, ok: false, message: "Skipped OpenCode: no supported config file found" }];
     }
-    const write = mergeOpenCodeMcpConfig(configPath, withClientIde(options2, "opencode"));
+    const write = mergeOpenCodeMcpConfig(configPath, withClientIde(options3, "opencode"));
     const result = createMcpInstallResult(ide, "OpenCode", configPath, write);
     if (write.rewroteJsonc) {
       result.message += "\n  Note: OpenCode config was rewritten as standard JSON.";
@@ -61405,12 +64210,12 @@ function installMcpConfigUnsafe(ide, options2) {
       getWorkBuddyMcpInstallPaths({ createPrimary: true }),
       "WorkBuddy",
       {
-        ...options2,
+        ...options3,
         clientIde: "workbuddy",
         disabled: false
       }
     );
-    const trust = inspectWorkBuddyTrustState(options2.mcpName);
+    const trust = inspectWorkBuddyTrustState(options3.mcpName);
     return results.map(
       (result) => result.ok ? {
         ...result,
@@ -61420,7 +64225,7 @@ ${formatWorkBuddyTrustInspection(trust)}`
     );
   }
   if (ide === "dsh") {
-    const dshOptions = withClientIde(options2, "dsh");
+    const dshOptions = withClientIde(options3, "dsh");
     const desired = createDshMakerPluginConfig({
       mcpName: dshOptions.mcpName,
       command: dshOptions.launcher.command,
@@ -61436,16 +64241,16 @@ ${formatWorkBuddyTrustInspection(trust)}`
   }
   return [{ ide, ok: false, message: `Skipped unknown IDE: ${ide}` }];
 }
-function withClientIde(options2, clientIde) {
-  return { ...options2, clientIde };
+function withClientIde(options3, clientIde) {
+  return { ...options3, clientIde };
 }
-function installJsonMcpConfigTargets(ide, configPaths, label, options2) {
+function installJsonMcpConfigTargets(ide, configPaths, label, options3) {
   if (configPaths.length === 0) {
     return [{ ide, ok: false, message: `Skipped ${label}: no supported config file found` }];
   }
   return configPaths.map((configPath) => {
     try {
-      const write = mergeJsonMcpConfig(configPath, options2);
+      const write = mergeJsonMcpConfig(configPath, options3);
       return createMcpInstallResult(ide, label, configPath, write);
     } catch (error2) {
       return {
@@ -61472,13 +64277,13 @@ function getDefaultMcpInstallIdes() {
   if (getTraeMcpInstallPaths().length > 0) {
     ides.push("trae");
   }
-  if (fs45.existsSync(getOpenCodeMcpConfigPath())) {
+  if (fs47.existsSync(getOpenCodeMcpConfigPath())) {
     ides.push("opencode");
   }
   if (getWorkBuddyMcpInstallPaths().length > 0) {
     ides.push("workbuddy");
   }
-  if (fs45.existsSync(getDshHome())) {
+  if (fs47.existsSync(getDshHome())) {
     ides.push("dsh");
   }
   return ides;
@@ -61492,7 +64297,7 @@ function getExistingTraeUserConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs45.existsSync(path46.dirname(configPath))) {
+    if (seen.has(key) || !fs47.existsSync(path49.dirname(configPath))) {
       return false;
     }
     seen.add(key);
@@ -61503,7 +64308,7 @@ function getExistingConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs45.existsSync(configPath)) {
+    if (seen.has(key) || !fs47.existsSync(configPath)) {
       return false;
     }
     seen.add(key);
@@ -61511,62 +64316,62 @@ function getExistingConfigPaths(paths) {
   });
 }
 function normalizeConfigPathKey(configPath) {
-  const resolved = path46.resolve(configPath);
+  const resolved = path49.resolve(configPath);
   return process.platform === "win32" || process.platform === "darwin" ? resolved.toLowerCase() : resolved;
 }
 function getTraeSoloMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path46.join(os10.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path49.join(os10.homedir(), "AppData", "Roaming");
     return [
-      path46.join(roaming, "TRAE SOLO", "User", "mcp.json"),
-      path46.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
+      path49.join(roaming, "TRAE SOLO", "User", "mcp.json"),
+      path49.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path46.join(os10.homedir(), "Library", "Application Support");
+  const appSupport = path49.join(os10.homedir(), "Library", "Application Support");
   return [
-    path46.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
-    path46.join(appSupport, "TRAE SOLO", "User", "mcp.json")
+    path49.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
+    path49.join(appSupport, "TRAE SOLO", "User", "mcp.json")
   ];
 }
 function getTraeUnverifiedMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path46.join(os10.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path49.join(os10.homedir(), "AppData", "Roaming");
     return [
-      path46.join(roaming, "Trae", "User", "mcp.json"),
-      path46.join(roaming, "TRAE", "User", "mcp.json"),
-      path46.join(roaming, "Trae CN", "User", "mcp.json")
+      path49.join(roaming, "Trae", "User", "mcp.json"),
+      path49.join(roaming, "TRAE", "User", "mcp.json"),
+      path49.join(roaming, "Trae CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path46.join(os10.homedir(), "Library", "Application Support");
+  const appSupport = path49.join(os10.homedir(), "Library", "Application Support");
   return [
-    path46.join(appSupport, "Trae", "User", "mcp.json"),
-    path46.join(appSupport, "TRAE", "User", "mcp.json"),
-    path46.join(appSupport, "Trae CN", "User", "mcp.json")
+    path49.join(appSupport, "Trae", "User", "mcp.json"),
+    path49.join(appSupport, "TRAE", "User", "mcp.json"),
+    path49.join(appSupport, "Trae CN", "User", "mcp.json")
   ];
 }
 function getOpenCodeMcpConfigPath() {
-  return path46.join(os10.homedir(), ".config", "opencode", "opencode.jsonc");
+  return path49.join(os10.homedir(), ".config", "opencode", "opencode.jsonc");
 }
 function getWorkBuddyHome() {
-  return path46.join(os10.homedir(), ".workbuddy");
+  return path49.join(os10.homedir(), ".workbuddy");
 }
-function getWorkBuddyMcpInstallPaths(options2 = {}) {
-  const primary = path46.join(getWorkBuddyHome(), "mcp.json");
-  if (fs45.existsSync(primary) || options2.createPrimary) {
+function getWorkBuddyMcpInstallPaths(options3 = {}) {
+  const primary = path49.join(getWorkBuddyHome(), "mcp.json");
+  if (fs47.existsSync(primary) || options3.createPrimary) {
     return [primary];
   }
-  const legacy = path46.join(getWorkBuddyHome(), ".mcp.json");
-  if (fs45.existsSync(legacy)) {
+  const legacy = path49.join(getWorkBuddyHome(), ".mcp.json");
+  if (fs47.existsSync(legacy)) {
     return [legacy];
   }
   return [];
 }
 function inspectWorkBuddyTrustState(mcpName) {
   const workbuddyHome = getWorkBuddyHome();
-  const connectorsDir = path46.join(workbuddyHome, "connectors");
+  const connectorsDir = path49.join(workbuddyHome, "connectors");
   const accounts = [];
   const stateFiles = [];
-  if (!fs45.existsSync(connectorsDir)) {
+  if (!fs47.existsSync(connectorsDir)) {
     return {
       status: "not_found",
       mcp_name: mcpName,
@@ -61576,12 +64381,12 @@ function inspectWorkBuddyTrustState(mcpName) {
       accounts
     };
   }
-  for (const entry of fs45.readdirSync(connectorsDir, { withFileTypes: true })) {
+  for (const entry of fs47.readdirSync(connectorsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const statePath = path46.join(connectorsDir, entry.name, "connector-states.json");
-    if (!fs45.existsSync(statePath)) {
+    const statePath = path49.join(connectorsDir, entry.name, "connector-states.json");
+    if (!fs47.existsSync(statePath)) {
       continue;
     }
     stateFiles.push(statePath);
@@ -61643,37 +64448,37 @@ function formatWorkBuddyTrustInspection(inspection) {
 function getReadableWorkBuddyTrustPath() {
   return process.platform === "win32" ? "%USERPROFILE%\\.workbuddy\\connectors\\<account-id>\\connector-states.json" : "~/.workbuddy/connectors/<account-id>/connector-states.json";
 }
-function mergeJsonMcpConfig(configPath, options2) {
+function mergeJsonMcpConfig(configPath, options3) {
   const existing = readJsonObject(configPath);
   const mcpServers = asObject(existing.mcpServers);
-  const desired = createJsonMcpServerConfig(options2);
-  if (deepJsonEqual(mcpServers[options2.mcpName], desired)) {
+  const desired = createJsonMcpServerConfig(options3);
+  if (deepJsonEqual(mcpServers[options3.mcpName], desired)) {
     return { changed: false };
   }
-  mcpServers[options2.mcpName] = desired;
+  mcpServers[options3.mcpName] = desired;
   existing.mcpServers = mcpServers;
   return writeConfigWithTapTapBackupIfChanged(
     configPath,
     `${JSON.stringify(existing, null, 2)}
 `,
-    (updated) => validateJsonMcpServersConfig(updated, options2)
+    (updated) => validateJsonMcpServersConfig(updated, options3)
   );
 }
-function mergeOpenCodeMcpConfig(configPath, options2) {
-  const rawContent = fs45.readFileSync(configPath, "utf8");
+function mergeOpenCodeMcpConfig(configPath, options3) {
+  const rawContent = fs47.readFileSync(configPath, "utf8");
   const rewroteJsonc = normalizeJsonConfigContent(rawContent, { jsonc: true }) !== rawContent;
   const existing = readJsonObject(configPath, { jsonc: true });
   const mcp = asObject(existing.mcp);
-  const desired = createOpenCodeMcpServerConfig(options2);
+  const desired = createOpenCodeMcpServerConfig(options3);
   const legacyMcpServers = asObject(existing.mcpServers);
-  if (deepJsonEqual(mcp[options2.mcpName], desired) && !Object.prototype.hasOwnProperty.call(legacyMcpServers, options2.mcpName) && existing.$schema === "https://opencode.ai/config.json") {
+  if (deepJsonEqual(mcp[options3.mcpName], desired) && !Object.prototype.hasOwnProperty.call(legacyMcpServers, options3.mcpName) && existing.$schema === "https://opencode.ai/config.json") {
     return { changed: false, rewroteJsonc: false };
   }
-  mcp[options2.mcpName] = desired;
+  mcp[options3.mcpName] = desired;
   existing.mcp = mcp;
   const mcpServers = legacyMcpServers;
-  if (Object.prototype.hasOwnProperty.call(mcpServers, options2.mcpName)) {
-    delete mcpServers[options2.mcpName];
+  if (Object.prototype.hasOwnProperty.call(mcpServers, options3.mcpName)) {
+    delete mcpServers[options3.mcpName];
     if (Object.keys(mcpServers).length === 0) {
       delete existing.mcpServers;
     } else {
@@ -61687,24 +64492,24 @@ function mergeOpenCodeMcpConfig(configPath, options2) {
     configPath,
     `${JSON.stringify(existing, null, 2)}
 `,
-    (updated) => validateOpenCodeMcpConfig(updated, options2)
+    (updated) => validateOpenCodeMcpConfig(updated, options3)
   );
   return { ...write, rewroteJsonc: write.changed && rewroteJsonc };
 }
-function mergeCodexMcpConfig(configPath, options2) {
-  const existing = fs45.existsSync(configPath) ? fs45.readFileSync(configPath, "utf8") : "";
-  const withoutOld = removeCodexMcpTables(existing, options2.mcpName).trimEnd();
-  const launch = options2.launcher;
-  const envValues = createMcpEnvironmentValues(options2.env, options2.clientIde, options2.launcherEnv);
+function mergeCodexMcpConfig(configPath, options3) {
+  const existing = fs47.existsSync(configPath) ? fs47.readFileSync(configPath, "utf8") : "";
+  const withoutOld = removeCodexMcpTables(existing, options3.mcpName).trimEnd();
+  const launch = options3.launcher;
+  const envValues = createMcpEnvironmentValues(options3.env, options3.clientIde, options3.launcherEnv);
   const envSection = Object.keys(envValues).length === 0 ? [] : [
     "",
-    `[mcp_servers."${options2.mcpName}".env]`,
+    `[mcp_servers."${options3.mcpName}".env]`,
     ...Object.entries(envValues).map(
       ([key, value]) => `${key} = "${escapeTomlString(value)}"`
     )
   ];
   const section = [
-    `[mcp_servers."${options2.mcpName}"]`,
+    `[mcp_servers."${options3.mcpName}"]`,
     `command = "${escapeTomlString(launch.command)}"`,
     `args = [${launch.args.map((arg) => `"${escapeTomlString(arg)}"`).join(", ")}]`,
     ...envSection,
@@ -61714,7 +64519,7 @@ function mergeCodexMcpConfig(configPath, options2) {
     configPath,
     [withoutOld, section].filter(Boolean).join("\n\n"),
     (updated) => {
-      const duplicates = findCodexMcpTableDuplicates(updated, options2.mcpName);
+      const duplicates = findCodexMcpTableDuplicates(updated, options3.mcpName);
       if (duplicates.length > 0) {
         throw new Error(
           `Codex MCP config update would create duplicate table(s): ${duplicates.join(
@@ -61725,17 +64530,17 @@ function mergeCodexMcpConfig(configPath, options2) {
     }
   );
 }
-function tryClaudeMcpAdd(options2) {
-  const configPath = path46.join(os10.homedir(), ".claude.json");
+function tryClaudeMcpAdd(options3) {
+  const configPath = path49.join(os10.homedir(), ".claude.json");
   try {
     const existing = readJsonObject(configPath);
-    const server = asObject(asObject(existing.mcpServers)[options2.mcpName]);
-    if (deepJsonEqual(server, createJsonMcpServerConfig(options2))) {
+    const server = asObject(asObject(existing.mcpServers)[options3.mcpName]);
+    if (deepJsonEqual(server, createJsonMcpServerConfig(options3))) {
       return { ok: true, changed: false };
     }
   } catch {
   }
-  const npxLaunch = options2.launcher;
+  const npxLaunch = options3.launcher;
   const claudeArgs = [
     "mcp",
     "add",
@@ -61744,9 +64549,9 @@ function tryClaudeMcpAdd(options2) {
     "--transport",
     "stdio",
     ...Object.entries(
-      createMcpEnvironmentValues(options2.env, options2.clientIde, options2.launcherEnv)
+      createMcpEnvironmentValues(options3.env, options3.clientIde, options3.launcherEnv)
     ).flatMap(([key, value]) => ["--env", `${key}=${value}`]),
-    options2.mcpName,
+    options3.mcpName,
     "--",
     ...npxLaunch.commandAndArgs
   ];
@@ -61761,30 +64566,30 @@ function tryClaudeMcpAdd(options2) {
   }
   try {
     const updated = readJsonObject(configPath);
-    const server = asObject(asObject(updated.mcpServers)[options2.mcpName]);
-    return deepJsonEqual(server, createJsonMcpServerConfig(options2)) ? { ok: true, changed: true } : { ok: false, changed: false };
+    const server = asObject(asObject(updated.mcpServers)[options3.mcpName]);
+    return deepJsonEqual(server, createJsonMcpServerConfig(options3)) ? { ok: true, changed: true } : { ok: false, changed: false };
   } catch {
     return { ok: false, changed: false };
   }
 }
-function createJsonMcpServerConfig(options2) {
-  const launch = options2.launcher;
+function createJsonMcpServerConfig(options3) {
+  const launch = options3.launcher;
   return {
     command: launch.command,
     args: launch.args,
-    ...createOptionalMcpEnvironment(options2.env, "env", options2.clientIde, options2.launcherEnv),
-    ...options2.disabled !== void 0 ? { disabled: options2.disabled } : {}
+    ...createOptionalMcpEnvironment(options3.env, "env", options3.clientIde, options3.launcherEnv),
+    ...options3.disabled !== void 0 ? { disabled: options3.disabled } : {}
   };
 }
-function createOpenCodeMcpServerConfig(options2) {
+function createOpenCodeMcpServerConfig(options3) {
   return {
     type: "local",
-    command: options2.launcher.commandAndArgs,
+    command: options3.launcher.commandAndArgs,
     ...createOptionalMcpEnvironment(
-      options2.env,
+      options3.env,
       "environment",
-      options2.clientIde,
-      options2.launcherEnv
+      options3.clientIde,
+      options3.launcherEnv
     ),
     enabled: true
   };
@@ -61818,13 +64623,13 @@ function rejectPackageOption(parsed) {
     );
   }
 }
-function readJsonObject(filePath, options2 = {}) {
-  if (!fs45.existsSync(filePath)) {
+function readJsonObject(filePath, options3 = {}) {
+  if (!fs47.existsSync(filePath)) {
     return {};
   }
-  const raw = fs45.readFileSync(filePath, "utf8");
+  const raw = fs47.readFileSync(filePath, "utf8");
   try {
-    const normalized = normalizeJsonConfigContent(raw, options2);
+    const normalized = normalizeJsonConfigContent(raw, options3);
     const parsed = JSON.parse(normalized);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       throw new Error("top-level value must be an object");
@@ -61841,25 +64646,25 @@ function asObject(value) {
   }
   return {};
 }
-function validateJsonMcpServersConfig(content, options2) {
+function validateJsonMcpServersConfig(content, options3) {
   const parsed = parseGeneratedJsonObject(content);
-  const server = asObject(asObject(parsed.mcpServers)[options2.mcpName]);
-  const expected = createJsonMcpServerConfig(options2);
+  const server = asObject(asObject(parsed.mcpServers)[options3.mcpName]);
+  const expected = createJsonMcpServerConfig(options3);
   if (!deepJsonEqual(server, expected)) {
-    throw new Error(`Generated MCP config for ${options2.mcpName} failed validation.`);
+    throw new Error(`Generated MCP config for ${options3.mcpName} failed validation.`);
   }
 }
-function validateOpenCodeMcpConfig(content, options2) {
+function validateOpenCodeMcpConfig(content, options3) {
   const parsed = parseGeneratedJsonObject(content);
-  const server = asObject(asObject(parsed.mcp)[options2.mcpName]);
-  const expected = createOpenCodeMcpServerConfig(options2);
+  const server = asObject(asObject(parsed.mcp)[options3.mcpName]);
+  const expected = createOpenCodeMcpServerConfig(options3);
   if (!deepJsonEqual(server, expected)) {
-    throw new Error(`Generated OpenCode MCP config for ${options2.mcpName} failed validation.`);
+    throw new Error(`Generated OpenCode MCP config for ${options3.mcpName} failed validation.`);
   }
-  const legacyServer = asObject(parsed.mcpServers)[options2.mcpName];
+  const legacyServer = asObject(parsed.mcpServers)[options3.mcpName];
   if (legacyServer !== void 0) {
     throw new Error(
-      `Generated OpenCode config still contains legacy mcpServers.${options2.mcpName}.`
+      `Generated OpenCode config still contains legacy mcpServers.${options3.mcpName}.`
     );
   }
 }
@@ -61884,9 +64689,9 @@ function sortJsonObjectKeys(value) {
     Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, sortJsonObjectKeys(item)])
   );
 }
-function normalizeJsonConfigContent(content, options2 = {}) {
+function normalizeJsonConfigContent(content, options3 = {}) {
   const withoutBom = stripLeadingBom(content);
-  return options2.jsonc ? normalizeJsonc(withoutBom) : withoutBom;
+  return options3.jsonc ? normalizeJsonc(withoutBom) : withoutBom;
 }
 function stripLeadingBom(content) {
   return content.charCodeAt(0) === 65279 ? content.slice(1) : content;
@@ -61994,10 +64799,10 @@ function formatMcpInstallMessage(label, configPath, write) {
   ].filter(Boolean).join("\n");
 }
 function saveInitState(targetDir, state) {
-  fs45.mkdirSync(getMakerHome(), { recursive: true });
-  const key = crypto5.createHash("sha256").update(path46.resolve(targetDir)).digest("hex").slice(0, 16);
-  fs45.writeFileSync(
-    path46.join(getMakerHome(), `init-state-${key}.json`),
+  fs47.mkdirSync(getMakerHome(), { recursive: true });
+  const key = crypto5.createHash("sha256").update(path49.resolve(targetDir)).digest("hex").slice(0, 16);
+  fs47.writeFileSync(
+    path49.join(getMakerHome(), `init-state-${key}.json`),
     `${JSON.stringify({ ...state, updated_at: (/* @__PURE__ */ new Date()).toISOString() }, null, 2)}
 `,
     "utf8"
@@ -62034,12 +64839,12 @@ function rejectRemovedAppsPaginationOptions(parsed) {
     )}. Use --all for the full human-readable list, or --json for the machine-readable output.`
   );
 }
-function formatMakerProjectList(projects, options2 = {}) {
+function formatMakerProjectList(projects, options3 = {}) {
   if (projects.length === 0) {
     return ["No Maker apps found.", "", "0，创建新项目 / 0. Create a new Maker project"].join("\n");
   }
   const sortedProjects = sortProjectsByRecentActivity(projects);
-  const showAll = options2.showAll === true;
+  const showAll = options3.showAll === true;
   const visibleProjects = showAll ? sortedProjects : sortedProjects.slice(0, MAKER_PROJECT_DEFAULT_TEXT_LIMIT);
   const hiddenCount = sortedProjects.length - visibleProjects.length;
   return [
@@ -62145,7 +64950,7 @@ function makerEnvOption(parsed) {
     return env;
   }
   const targetDir = stringOption(parsed, "target_dir");
-  return getMakerEnvironment(void 0, targetDir ? path46.resolve(targetDir) : process.cwd());
+  return getMakerEnvironment(void 0, targetDir ? path49.resolve(targetDir) : process.cwd());
 }
 function makerMcpConfigEnvOption(parsed) {
   return stringOption(parsed, "env") === "rnd" ? "rnd" : "production";
@@ -62842,17 +65647,17 @@ async function parseErrorResponse(input2) {
     return new ServerError(errorMessage);
   }
 }
-async function auth(provider, options2) {
+async function auth(provider, options3) {
   var _a3, _b;
   try {
-    return await authInternal(provider, options2);
+    return await authInternal(provider, options3);
   } catch (error2) {
     if (error2 instanceof InvalidClientError || error2 instanceof UnauthorizedClientError) {
       await ((_a3 = provider.invalidateCredentials) == null ? void 0 : _a3.call(provider, "all"));
-      return await authInternal(provider, options2);
+      return await authInternal(provider, options3);
     } else if (error2 instanceof InvalidGrantError) {
       await ((_b = provider.invalidateCredentials) == null ? void 0 : _b.call(provider, "tokens"));
-      return await authInternal(provider, options2);
+      return await authInternal(provider, options3);
     }
     throw error2;
   }
@@ -63061,11 +65866,11 @@ async function fetchWithCorsRetry(url2, headers, fetchFn = fetch) {
     throw error2;
   }
 }
-function buildWellKnownPath(wellKnownPrefix, pathname = "", options2 = {}) {
+function buildWellKnownPath(wellKnownPrefix, pathname = "", options3 = {}) {
   if (pathname.endsWith("/")) {
     pathname = pathname.slice(0, -1);
   }
-  return options2.prependPathname ? `${pathname}/.well-known/${wellKnownPrefix}` : `/.well-known/${wellKnownPrefix}${pathname}`;
+  return options3.prependPathname ? `${pathname}/.well-known/${wellKnownPrefix}` : `/.well-known/${wellKnownPrefix}${pathname}`;
 }
 async function tryMetadataDiscovery(url2, protocolVersion, fetchFn = fetch) {
   const headers = {
@@ -63309,8 +66114,8 @@ async function registerClient(authorizationServerUrl, { metadata, clientMetadata
 
 // node_modules/eventsource-parser/dist/index.js
 var ParseError = class extends Error {
-  constructor(message, options2) {
-    super(message), this.name = "ParseError", this.type = options2.type, this.field = options2.field, this.value = options2.value, this.line = options2.line;
+  constructor(message, options3) {
+    super(message), this.name = "ParseError", this.type = options3.type, this.field = options3.field, this.value = options3.value, this.line = options3.line;
   }
 };
 function noop(_arg) {
@@ -63386,8 +66191,8 @@ function createParser(callbacks) {
 `) ? data.slice(0, -1) : data
     }), id = void 0, data = "", eventType = "";
   }
-  function reset(options2 = {}) {
-    incompleteLine && options2.consume && parseLine(incompleteLine), isFirstChunk = true, id = void 0, data = "", eventType = "", incompleteLine = "";
+  function reset(options3 = {}) {
+    incompleteLine && options3.consume && parseLine(incompleteLine), isFirstChunk = true, id = void 0, data = "", eventType = "", incompleteLine = "";
   }
   return { feed, reset };
 }
@@ -63413,10 +66218,10 @@ function splitLines(chunk) {
 // node_modules/eventsource-parser/dist/stream.js
 var EventSourceParserStream = class extends TransformStream {
   constructor({ onError, onRetry, onComment } = {}) {
-    let parser;
+    let parser2;
     super({
       start(controller) {
-        parser = createParser({
+        parser2 = createParser({
           onEvent: (event) => {
             controller.enqueue(event);
           },
@@ -63428,7 +66233,7 @@ var EventSourceParserStream = class extends TransformStream {
         });
       },
       transform(chunk) {
-        parser.feed(chunk);
+        parser2.feed(chunk);
       }
     });
   }
@@ -63503,9 +66308,9 @@ var StreamableHTTPClientTransport = class {
       ...extraHeaders
     });
   }
-  async _startOrAuthSse(options2) {
+  async _startOrAuthSse(options3) {
     var _a3, _b, _c;
-    const { resumptionToken } = options2;
+    const { resumptionToken } = options3;
     try {
       const headers = await this._commonHeaders();
       headers.set("Accept", "text/event-stream");
@@ -63527,7 +66332,7 @@ var StreamableHTTPClientTransport = class {
         }
         throw new StreamableHTTPError(response.status, `Failed to open SSE stream: ${response.statusText}`);
       }
-      this._handleSseStream(response.body, options2, true);
+      this._handleSseStream(response.body, options3, true);
     } catch (error2) {
       (_c = this.onerror) == null ? void 0 : _c.call(this, error2);
       throw error2;
@@ -63554,7 +66359,7 @@ var StreamableHTTPClientTransport = class {
    * @param lastEventId The ID of the last received event for resumability
    * @param attemptCount Current reconnection attempt count for this specific stream
    */
-  _scheduleReconnection(options2, attemptCount = 0) {
+  _scheduleReconnection(options3, attemptCount = 0) {
     var _a3;
     const maxRetries = this._reconnectionOptions.maxRetries;
     if (attemptCount >= maxRetries) {
@@ -63563,18 +66368,18 @@ var StreamableHTTPClientTransport = class {
     }
     const delay2 = this._getNextReconnectionDelay(attemptCount);
     this._reconnectionTimeout = setTimeout(() => {
-      this._startOrAuthSse(options2).catch((error2) => {
+      this._startOrAuthSse(options3).catch((error2) => {
         var _a4;
         (_a4 = this.onerror) == null ? void 0 : _a4.call(this, new Error(`Failed to reconnect SSE stream: ${error2 instanceof Error ? error2.message : String(error2)}`));
-        this._scheduleReconnection(options2, attemptCount + 1);
+        this._scheduleReconnection(options3, attemptCount + 1);
       });
     }, delay2);
   }
-  _handleSseStream(stream, options2, isReconnectable) {
+  _handleSseStream(stream, options3, isReconnectable) {
     if (!stream) {
       return;
     }
-    const { onresumptiontoken, replayMessageId } = options2;
+    const { onresumptiontoken, replayMessageId } = options3;
     let lastEventId;
     let hasPrimingEvent = false;
     let receivedResponse = false;
@@ -63675,10 +66480,10 @@ var StreamableHTTPClientTransport = class {
     (_a3 = this._abortController) == null ? void 0 : _a3.abort();
     (_b = this.onclose) == null ? void 0 : _b.call(this);
   }
-  async send(message, options2) {
+  async send(message, options3) {
     var _a3, _b, _c, _d, _e, _f;
     try {
-      const { resumptionToken, onresumptiontoken } = options2 || {};
+      const { resumptionToken, onresumptiontoken } = options3 || {};
       if (resumptionToken) {
         this._startOrAuthSse({ resumptionToken, replayMessageId: isJSONRPCRequest(message) ? message.id : void 0 }).catch((err) => {
           var _a4;
@@ -63837,17 +66642,17 @@ var StreamableHTTPClientTransport = class {
    * @param lastEventId The event ID to resume from
    * @param options Optional callback to receive new resumption tokens
    */
-  async resumeStream(lastEventId, options2) {
+  async resumeStream(lastEventId, options3) {
     await this._startOrAuthSse({
       resumptionToken: lastEventId,
-      onresumptiontoken: options2 == null ? void 0 : options2.onresumptiontoken
+      onresumptiontoken: options3 == null ? void 0 : options3.onresumptiontoken
     });
   }
 };
 
 // src/mcp-proxy/proxy.ts
 init_types2();
-import * as path48 from "node:path";
+import * as path51 from "node:path";
 import * as crypto8 from "node:crypto";
 
 // src/mcp-proxy/cookieJar.ts
@@ -64013,13 +66818,13 @@ var CookieJar = class {
     return this.cookies.size > 0;
   }
 };
-function createCookieFetch(cookieJar, options2 = {}) {
+function createCookieFetch(cookieJar, options3 = {}) {
   return async (input2, init) => {
-    if (options2.rejectStandaloneSse && isStandaloneSseRequest(input2, init)) {
+    if (options3.rejectStandaloneSse && isStandaloneSseRequest(input2, init)) {
       return new Response(null, { status: 405, statusText: "Method Not Allowed" });
     }
     const modifiedInit = { ...init };
-    const cookieHeader = options2.enableCookies === false ? void 0 : cookieJar.getCookieHeader();
+    const cookieHeader = options3.enableCookies === false ? void 0 : cookieJar.getCookieHeader();
     if (cookieHeader) {
       const headers = new Headers(modifiedInit.headers);
       headers.set("Cookie", cookieHeader);
@@ -64043,8 +66848,8 @@ function isStandaloneSseRequest(input2, init) {
 }
 
 // src/core/utils/logWriter.ts
-import * as fs46 from "node:fs";
-import * as path47 from "node:path";
+import * as fs48 from "node:fs";
+import * as path50 from "node:path";
 import * as crypto7 from "node:crypto";
 
 // src/core/types/log.ts
@@ -64085,7 +66890,7 @@ var LogWriter = class {
       return;
     }
     try {
-      await fs46.promises.mkdir(this.config.logDir, { recursive: true });
+      await fs48.promises.mkdir(this.config.logDir, { recursive: true });
       await this.cleanupOldLogs();
       this.initialized = true;
     } catch (error2) {
@@ -64108,7 +66913,7 @@ var LogWriter = class {
    */
   getLogFilePath(date5) {
     const d = date5 || this.getCurrentDate();
-    return path47.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
+    return path50.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
   }
   /**
    * 获取或创建写入流
@@ -64123,7 +66928,7 @@ var LogWriter = class {
       }
       this.currentDate = date5;
       try {
-        this.writeStream = fs46.createWriteStream(this.getLogFilePath(date5), {
+        this.writeStream = fs48.createWriteStream(this.getLogFilePath(date5), {
           flags: "a",
           encoding: "utf8"
         });
@@ -64175,11 +66980,11 @@ var LogWriter = class {
     if (this.shouldWriteToFile(level) && this.initialized && this.config.enabled) {
       try {
         const filePath = this.getLogFilePath();
-        const dir = path47.dirname(filePath);
-        if (!fs46.existsSync(dir)) {
-          fs46.mkdirSync(dir, { recursive: true });
+        const dir = path50.dirname(filePath);
+        if (!fs48.existsSync(dir)) {
+          fs48.mkdirSync(dir, { recursive: true });
         }
-        fs46.appendFileSync(filePath, message, "utf8");
+        fs48.appendFileSync(filePath, message, "utf8");
       } catch {
       }
     }
@@ -64190,7 +66995,7 @@ var LogWriter = class {
   async cleanupOldLogs() {
     if (this.config.maxDays <= 0) return;
     try {
-      const files = await fs46.promises.readdir(this.config.logDir);
+      const files = await fs48.promises.readdir(this.config.logDir);
       const cutoffDate = /* @__PURE__ */ new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.config.maxDays);
       const prefix = this.config.prefix;
@@ -64205,7 +67010,7 @@ var LogWriter = class {
           if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
             const fileDate = new Date(year, month - 1, day);
             if (fileDate < cutoffDate) {
-              await fs46.promises.unlink(path47.join(this.config.logDir, file2));
+              await fs48.promises.unlink(path50.join(this.config.logDir, file2));
               process.stderr.write(`[LogWriter] Deleted old log: ${file2}
 `);
             }
@@ -64339,10 +67144,10 @@ var TapTapMCPProxy = class {
     const { user_id, project_id } = this.config.tenant;
     let logDir;
     if (user_id && project_id) {
-      logDir = path48.join(logRoot, "proxy", user_id, project_id);
+      logDir = path51.join(logRoot, "proxy", user_id, project_id);
     } else {
       const kidHash = crypto8.createHash("sha256").update(this.config.auth.kid).digest("hex").substring(0, 8);
-      logDir = path48.join(logRoot, "proxy", kidHash);
+      logDir = path51.join(logRoot, "proxy", kidHash);
     }
     return new LogWriter({
       logDir,

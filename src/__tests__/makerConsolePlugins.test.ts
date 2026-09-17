@@ -84,7 +84,7 @@ describe('Maker console trusted backend plugins', () => {
     expect((await state()).plugins).toEqual([metadata]);
     const page = await fetch(server.origin);
     const csp = page.headers.get('content-security-policy')!;
-    expect(csp.split('; ')).toContain('frame-src http://127.0.0.1:*');
+    expect(csp.split('; ')).toContain("frame-src 'self' http://127.0.0.1:*");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("connect-src 'self'");
   });

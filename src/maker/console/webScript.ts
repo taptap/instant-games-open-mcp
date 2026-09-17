@@ -22,6 +22,260 @@ let selectionEpoch = 0;
 let viewEpoch = 0;
 let state = {projects: [], tasks: []};
 let loaded = false;
+let fortuneTimer;
+let fortuneContentHeight = 0;
+let fortuneReady = false;
+function fortuneMode() {
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+}
+function fortuneUrl() {
+  return '/gdev-fortune/?embed=1&theme=dungeon&mode=' + fortuneMode();
+}
+function revealFortune() {
+  if (fortuneReady) return;
+  fortuneReady = true;
+  const corner = $('fortune-corner');
+  if (corner) corner.hidden = false;
+}
+function fortuneIsOpen() {
+  return $('fortune-toggle')?.getAttribute('aria-expanded') === 'true';
+}
+function applyFortuneSize(height) {
+  if (!Number.isFinite(height) || height < 120 || height > 1600) return;
+  fortuneContentHeight = Math.round(height);
+  revealFortune();
+  if (fortuneIsOpen()) positionFortune();
+  else {
+    const panel = $('fortune-panel');
+    if (panel) {
+      panel.classList.add('fortune-preload');
+      panel.hidden = true;
+    }
+  }
+}
+function positionFortune() {
+  const toggle = $('fortune-toggle');
+  const panel = $('fortune-panel');
+  if (!toggle || !panel || !fortuneIsOpen()) return;
+  panel.classList.remove('fortune-preload');
+  const anchor = toggle.getBoundingClientRect();
+  const width = 320;
+  const height = fortuneContentHeight || 620;
+  const scale = Math.min(0.78, (window.innerWidth - 24) / width, (anchor.top - 12) / height, 1);
+  panel.style.width = width + 'px';
+  panel.style.height = height + 'px';
+  panel.style.transform = 'scale(' + scale + ')';
+  panel.style.transformOrigin = 'left bottom';
+  const visualWidth = width * scale;
+  panel.style.left = Math.max(12, Math.min(anchor.left, window.innerWidth - visualWidth - 12)) + 'px';
+  panel.style.bottom = Math.max(8, window.innerHeight - anchor.top - 4) + 'px';
+}
+function closeFortune() {
+  clearTimeout(fortuneTimer);
+  const panel = $('fortune-panel');
+  if (panel) {
+    panel.hidden = true;
+    panel.classList.add('fortune-preload');
+  }
+  $('fortune-toggle')?.setAttribute('aria-expanded','false');
+}
+function scheduleCloseFortune() {
+  clearTimeout(fortuneTimer);
+  fortuneTimer = setTimeout(closeFortune, 400);
+}
+function loadFortuneFrame(reload) {
+  const frame = $('fortune-frame');
+  const panel = $('fortune-panel');
+  if (!frame || !panel) return;
+  if (!reload && frame.dataset.mode === fortuneMode() && frame.getAttribute('src')) return;
+  if (panel.parentElement !== document.body) document.body.append(panel);
+  if (!fortuneReady) {
+    panel.hidden = false;
+    panel.classList.add('fortune-preload');
+  }
+  fortuneContentHeight = 0;
+  frame.dataset.mode = fortuneMode();
+  frame.src = fortuneUrl();
+}
+function openFortune() {
+  if (!fortuneReady) return;
+  clearTimeout(fortuneTimer);
+  const panel = $('fortune-panel');
+  if (!panel) return;
+  if (panel.parentElement !== document.body) document.body.append(panel);
+  panel.hidden = false;
+  $('fortune-toggle').setAttribute('aria-expanded','true');
+  positionFortune();
+}
+function bindFortuneHover(element) {
+  element.addEventListener('mouseenter',() => { clearTimeout(fortuneTimer); openFortune(); });
+  element.addEventListener('mouseleave',scheduleCloseFortune);
+}
+let documentTab = 'docs', documentSearch = '', documentItems = [], documentSelected = '';
+let documentRequest = 0, documentDirectoryRequest = 0;
+function markdownNodes(tokens) {
+  const fragment = document.createDocumentFragment();
+  for (const token of tokens || []) {
+    let element;
+    const children = () => markdownNodes(token.tokens || []);
+    if (token.type === 'space' || token.type === 'def') continue;
+    if (token.type === 'heading') { element = node('h' + Math.min(6,Math.max(1,token.depth))); element.append(children()); }
+    else if (token.type === 'paragraph' || token.type === 'text') {
+      element = node(token.type === 'paragraph' ? 'p' : 'span');
+      if (token.tokens) element.append(children()); else element.textContent = token.text || '';
+    } else if (['strong','em','del'].includes(token.type)) { element = node(token.type); element.append(children()); }
+    else if (token.type === 'code') { element = node('pre'); element.append(node('code',token.text)); }
+    else if (token.type === 'codespan') element = node('code',token.text);
+    else if (token.type === 'blockquote') { element = node('blockquote'); element.append(children()); }
+    else if (token.type === 'br' || token.type === 'hr') element = node(token.type);
+    else if (token.type === 'list') {
+      element = node(token.ordered ? 'ol' : 'ul');
+      if (token.ordered && Number.isInteger(token.start)) element.start = token.start;
+      for (const item of token.items || []) {
+        const li = node('li'); if (item.task) li.append(node('span',item.checked ? '[x] ' : '[ ] '));
+        li.append(markdownNodes(item.tokens)); element.append(li);
+      }
+    } else if (token.type === 'table') {
+      element = node('div',undefined,'doc-table');
+      const table = node('table'), head = node('thead'), body = node('tbody'), row = node('tr');
+      (token.header || []).forEach(cell => { const th = node('th'); th.append(markdownNodes(cell.tokens)); row.append(th); });
+      head.append(row); table.append(head,body);
+      (token.rows || []).forEach(cells => { const tr = node('tr'); cells.forEach(cell => {
+        const td = node('td'); td.append(markdownNodes(cell.tokens)); tr.append(td);
+      }); body.append(tr); }); element.append(table);
+    } else if (token.type === 'link') {
+      element = node('a'); element.append(children());
+      const href = token.href || '';
+      if (/^https?:\/\//i.test(href)) {
+        element.href = href; element.target = '_blank'; element.rel = 'noopener noreferrer'; element.referrerPolicy = 'no-referrer';
+      } else {
+        element.href = '#';
+        element.addEventListener('click',event => {
+          event.preventDefault();
+          const current = documentItems.find(item => item.id === documentSelected);
+          if (!current) return;
+          let relative;
+          try { relative = decodeURIComponent(new URL(href,'https://local.invalid/' + current.relativePath).pathname.slice(1)); }
+          catch (_) { return; }
+          const next = documentItems.find(item => item.source === current.source && item.relativePath === relative);
+          if (next) { documentTab = next.kind; documentSearch = ''; renderDocumentDirectory(); void openDocument(next); }
+          else announce('该链接不在当前文档目录中');
+        });
+      }
+    } else if (token.type === 'image') element = node('span','[图片：' + (token.text || token.href || '') + ']','muted');
+    else element = node('span',token.text || token.raw || '');
+    fragment.append(element);
+  }
+  return fragment;
+}
+function documentApi(id) {
+  const query = new URLSearchParams();
+  if (currentProject()?.valid) query.set('project',selected);
+  if (id) query.set('id',id);
+  return '/api/documents?' + query;
+}
+async function openDocument(item) {
+  const request = ++documentRequest, epoch = viewEpoch;
+  documentSelected = item.id; renderDocumentDirectory();
+  const reader = $('document-reader');
+  if (!reader) return;
+  replace(reader,[node('p','正在读取文档…','muted')]);
+  try {
+    const result = await api(documentApi(item.id));
+    if (request !== documentRequest || epoch !== viewEpoch || page !== 'documents') return;
+    const header = node('div',undefined,'document-reader-header');
+    header.append(node('h2',item.title),button('复制文档链接',async () => {
+      try {
+        await navigator.clipboard.writeText(result.link);
+        announce('文档链接已复制');
+      } catch (_) {
+        const fallback = node('input'); fallback.readOnly = true; fallback.value = result.link;
+        fallback.setAttribute('aria-label','文档链接');
+        header.append(fallback); fallback.focus(); fallback.select();
+        notify('无法访问剪贴板，请复制已选中的文档链接');
+      }
+    }));
+    replace(reader,[header,node('p',item.source + ' · ' + item.relativePath,'muted')]);
+    if (item.purpose) {
+      const intro = node('section',undefined,'document-intro');
+      intro.append(node('p',item.purpose),node('p','适用范围：' + item.scope,'muted'));
+      const related = documentItems.filter(entry => item.related?.includes(entry.id));
+      if (related.length) {
+        const links = node('div',undefined,'actions');
+        links.append(node('span','相关资料','muted'));
+        related.forEach(entry => links.append(button(entry.title,() => {
+          documentTab = entry.kind; documentSearch = '';
+          const search = $('document-search'); if (search) search.value = '';
+          renderDocumentDirectory(); void openDocument(entry);
+        },{className:'link'})));
+        intro.append(links);
+      }
+      reader.append(intro);
+    }
+    const tokens = result.tokens || [];
+    const content = node('div',undefined,'markdown-content');
+    content.append(markdownNodes(tokens[0]?.type === 'heading' && tokens[0]?.depth === 1 ? tokens.slice(1) : tokens)); reader.append(content);
+    reader.scrollTop = 0;
+  } catch (error) {
+    if (request === documentRequest && epoch === viewEpoch) replace(reader,[node('p',error.message,'bad')]);
+  }
+}
+function renderDocumentDirectory() {
+  const target = $('document-directory');
+  if (!target) return;
+  const items = documentItems.filter(item => item.kind === documentTab &&
+    (item.title + ' ' + item.relativePath + ' ' + item.category + ' ' + (item.purpose || '')).toLowerCase().includes(documentSearch.toLowerCase()));
+  replace(target,[]);
+  const groups = [...new Set(items.map(item => item.category))];
+  for (const category of groups) {
+    target.append(node('h3',category));
+    for (const item of items.filter(item => item.category === category)) {
+      const entry = button(item.title,() => void openDocument(item),{className:'link document-entry' + (item.featured ? ' document-featured' : '')});
+      if (item.id === documentSelected) entry.setAttribute('aria-current','true');
+      entry.title = item.source + ' · ' + item.relativePath; target.append(entry);
+    }
+  }
+  if (!items.length) target.append(node('p',documentSearch ? '没有匹配的内容' : '暂无此类资料','muted'));
+  document.querySelectorAll('[data-document-kind]').forEach(tab => {
+    tab.setAttribute('aria-selected',String(tab.dataset.documentKind === documentTab));
+  });
+}
+async function renderDocuments() {
+  const epoch = viewEpoch;
+  const request = ++documentDirectoryRequest;
+  const toolbar = node('div',undefined,'document-toolbar');
+  const tabs = node('div',undefined,'actions'); tabs.setAttribute('role','tablist');
+  [['docs','开发文档'],['project','项目文档'],['skills','Skill']].forEach(([kind,label]) => {
+    const tab = button(label,() => {
+      documentTab = kind; renderDocumentDirectory();
+      const first = documentItems.find(item => item.kind === kind);
+      if (first) void openDocument(first);
+      else { documentRequest++; documentSelected = ''; replace($('document-reader'),[node('p','暂无此类资料','muted')]); }
+    });
+    tab.dataset.documentKind = kind; tab.setAttribute('role','tab'); tabs.append(tab);
+  });
+  const search = node('input'); search.id = 'document-search'; search.type = 'search'; search.placeholder = '搜索标题、用途或目录';
+  search.setAttribute('aria-label','搜索文档与 Skill'); search.value = documentSearch;
+  search.addEventListener('input',() => { documentSearch = search.value; renderDocumentDirectory(); });
+  toolbar.append(tabs,search,button('刷新目录',() => void renderDocuments()));
+  const layout = node('div',undefined,'document-layout');
+  const directory = node('aside'); directory.id = 'document-directory'; directory.setAttribute('aria-label','文档目录');
+  const reader = node('article'); reader.id = 'document-reader';
+  layout.append(directory,reader);
+  replace($('view'),[toolbar,layout]);
+  directory.append(node('p','正在读取目录…','muted'));
+  documentItems = []; documentRequest++;
+  try {
+    const items = await api(documentApi());
+    if (epoch !== viewEpoch || page !== 'documents' || request !== documentDirectoryRequest) return;
+    documentItems = items; renderDocumentDirectory();
+    const first = items.find(item => item.id === documentSelected && item.kind === documentTab) || items.find(item => item.kind === documentTab);
+    if (first) void openDocument(first);
+    else reader.append(node('p','暂无此类资料','muted'));
+  } catch (error) {
+    if (epoch === viewEpoch && page === 'documents' && request === documentDirectoryRequest) replace(directory,[node('p',error.message,'bad')]);
+  }
+}
 let versionCatalog = null;
 let versionQuery = false;
 let versionError = false;
@@ -332,7 +586,7 @@ function updateChrome() {
   $('context').textContent = currentProject() ? currentProject().name + ' / ' + text(detail?.git?.branch, '分支未提供') : '本地项目';
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
-    b.disabled = !currentProject()?.valid;
+    b.disabled = !loaded || (b.dataset.page !== 'documents' && !currentProject()?.valid);
     if (b.dataset.page === page) b.setAttribute('aria-current','page');
     else b.removeAttribute('aria-current');
   });
@@ -348,7 +602,7 @@ function headingActionButtons() {
   const local = button('本地预览',() => {
     const action = previewActions(preview)[0];
     if (action) void runProjectAction(action);
-  },{icon:'monitor',disabled:offline || busy() || !actions.length,focus:'heading-preview'});
+  },{className:'preview-button',icon:'monitor',disabled:offline || busy() || !actions.length,focus:'heading-preview'});
   local.title = actions.length ? '本地预览 · ' + actionLabels[actions[0]] :
     '本地预览 · ' + (previewError || text(preview?.error,previewLabel()));
   const checking = pendingActions.get(selected) === 'lua-lsp.check' ||
@@ -627,6 +881,7 @@ function fields(entries) {
   entries.forEach(([label,value]) => list.append(row(label, text(value))));
   return list;
 }
+let selectingProjectFolder = false;
 function renderProjects() {
   const view = $('view');
   const title = heading('本地项目', loaded ? state.projects.length + ' 个已登记项目' : '正在读取项目');
@@ -646,26 +901,29 @@ function renderProjects() {
     r.append(label,actions); list.append(r);
   });
   if (loaded && !state.projects.length) list.append(node('p','尚未登记本地项目','empty'));
-  const form = node('form', undefined, 'entry');
-  const label = node('label','项目绝对路径'); label.htmlFor = 'project-path';
-  const input = node('input'); input.id = 'project-path'; input.name = 'path'; input.type = 'text';
-  input.required = true; input.autocomplete = 'off'; input.spellcheck = false;
-  const submit = button('检查并添加', () => {}, {disabled:busy() || !loaded});
-  submit.type = 'submit';
-  form.append(label,input,submit);
-  form.addEventListener('submit', async event => {
-    event.preventDefault();
-    const path = input.value.trim();
-    if (!path || submit.disabled) return;
-    submit.disabled = true;
+  const controls = node('div', undefined, 'actions');
+  const select = button(selectingProjectFolder ? '选择或扫描中…' : '打开本地文件夹', async () => {
+    if (selectingProjectFolder) return;
+    selectingProjectFolder = true;
+    renderProjects();
     try {
-      const project = await api('/api/projects', {method:'POST',body:{path}});
+      const result = await api('/api/projects/select-folder', {method:'POST',body:{},timeoutMs:140000});
+      if (result.cancelled) return;
       await pollState();
-      if (project?.key) announce('已登记项目：' + text(project.name));
+      let message = result.added || result.existing
+        ? '新增 ' + result.added + ' 个项目，' + result.existing + ' 个已在列表中'
+        : '未找到可添加的 Maker 项目';
+      if (result.skipped) message += '；' + result.skipped + ' 个目录读取或项目校验失败';
+      if (result.limited) message += '；未扫描全部目录，请选择更具体的文件夹继续添加';
+      notify(message, result.skipped || result.limited ? 'warning' : undefined);
+    } catch (error) { notify(error.message); }
+    finally {
+      selectingProjectFolder = false;
       if (page === 'projects') renderProjects();
-    } catch (error) { notify(error.message); submit.disabled = false; }
-  });
-  replace(view,[title,list,form]);
+    }
+  }, {icon:'folder',disabled:offline || busy() || !loaded || selectingProjectFolder});
+  controls.append(select);
+  replace(view,[title,list,controls]);
 }
 async function removeProject(key) {
   if (busy() || busy(key)) return;
@@ -1278,7 +1536,7 @@ async function loadCommit(hash) {
   }
 }
 function navigate(next) {
-  if (!currentProject()?.valid && next !== 'projects') return;
+  if (!currentProject()?.valid && next !== 'projects' && next !== 'documents') return;
   viewEpoch++; commitRequest++; gitLoading = false; page = next;
   render();
   if (next === 'git' && !git) void loadGit(false);
@@ -1292,6 +1550,7 @@ function render() {
   $('plugin-views').hidden = !plugin;
   pluginSessions.forEach(session => { session.element.hidden = true; });
   if (plugin) { renderPlugin(plugin); return; }
+  if (page === 'documents') { void renderDocuments(); return; }
   if (page === 'projects' || !currentProject()?.valid) renderProjects();
   else if (page === 'build') renderBuild();
   else if (page === 'git') renderGit();
@@ -1394,9 +1653,24 @@ document.addEventListener('DOMContentLoaded',async () => {
     const value = theme.checked ? 'dark' : 'light';
     document.documentElement.dataset.theme = value;
     pluginSessions.forEach(session => sendPluginTheme(session));
+    if (fortuneReady) loadFortuneFrame(true);
     try { localStorage.setItem('maker-console-theme',value); } catch (_) { notify('无法保存主题设置'); }
   });
   $('projects-button').append(icon('folder'));
+  loadFortuneFrame();
+  bindFortuneHover($('fortune-toggle'));
+  bindFortuneHover($('fortune-panel'));
+  $('fortune-toggle').addEventListener('click',event => {
+    event.stopPropagation();
+    openFortune();
+  });
+  window.addEventListener('resize',() => { if (!$('fortune-panel').hidden) positionFortune(); });
+  document.addEventListener('keydown',event => { if (event.key === 'Escape') closeFortune(); });
+  window.addEventListener('message',event => {
+    if (event.origin !== location.origin || !event.data) return;
+    if (event.data.type === 'gdev-fortune:escape') closeFortune();
+    if (event.data.type === 'gdev-fortune:size') applyFortuneSize(Number(event.data.height));
+  });
   $('projects-button').addEventListener('click',() => navigate('projects'));
   $('project-picker').addEventListener('change',event => chooseProject(event.target.value));
   $('maker-version-picker').addEventListener('change',selectMakerVersion);

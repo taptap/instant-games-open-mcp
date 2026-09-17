@@ -7,6 +7,7 @@ import { ConsoleProjects } from '../maker/console/projects';
 import { ConsoleTasks } from '../maker/console/tasks';
 import { startConsoleServer } from '../maker/console/server';
 import type { ConsoleExecutor } from '../maker/console/types';
+import * as folderPicker from '../maker/console/folderPicker';
 
 describe('Maker console project isolation', () => {
   let directory: string;
@@ -30,6 +31,60 @@ describe('Maker console project isolation', () => {
     registry = new ConsoleProjects(path.join(directory, 'registry.json'));
   });
   afterEach(() => fs.rmSync(directory, { recursive: true, force: true }));
+
+  test('folder selection requires authentication and handles cancellation, validation and concurrency', async () => {
+    const picker = jest.spyOn(folderPicker, 'chooseProjectDirectory');
+    const server = await startConsoleServer({
+      registry,
+      html: '',
+      version: 'test',
+      execute: async () => ({ ok: true }),
+    });
+    const select = (authenticated = true) =>
+      fetch(server.origin + '/api/projects/select-folder', {
+        method: 'POST',
+        headers: {
+          Origin: server.origin,
+          'Content-Type': 'application/json',
+          ...(authenticated ? { Authorization: `Bearer ${server.token}` } : {}),
+        },
+        body: '{}',
+      });
+    try {
+      expect((await select(false)).status).toBe(401);
+      expect(picker).not.toHaveBeenCalled();
+      picker.mockResolvedValueOnce(null);
+      expect(await (await select()).json()).toEqual({ cancelled: true });
+      expect(registry.list()).toHaveLength(0);
+      picker.mockResolvedValueOnce(directory);
+      expect((await (await select()).json()).added).toBe(0);
+      expect(registry.list()).toHaveLength(0);
+      const root = project('selected-folder');
+      let finish!: (value: string | null) => void;
+      let opened!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        opened = resolve;
+      });
+      picker.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+            opened();
+          })
+      );
+      const pending = select();
+      await ready;
+      expect((await select()).status).toBe(409);
+      finish(root);
+      const response = await pending;
+      expect(response.status).toBe(200);
+      expect((await response.json()).added).toBe(1);
+      expect(registry.list()).toHaveLength(1);
+    } finally {
+      picker.mockRestore();
+      await server.close();
+    }
+  });
 
   test('detects server changes without flagging client-only files or modifying the project', async () => {
     const root = project('server-warning');
