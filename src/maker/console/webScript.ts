@@ -22,9 +22,115 @@ let selectionEpoch = 0;
 let viewEpoch = 0;
 let state = {projects: [], tasks: []};
 let loaded = false;
+let versionCatalog = null;
+let versionQuery = false;
+let versionError = false;
+let updateSubmitting = false;
+let updateNotice = '';
+function renderVersionPicker() {
+  const picker = $('maker-version-picker');
+  if (!picker || !state.version) return;
+  const current = state.version;
+  const managed = state.distribution && state.distribution !== 'standalone';
+  const updating = updateSubmitting || state.update?.status === 'running';
+  const newer = versionCatalog?.updateAvailable === true;
+  const label = updating ? '更新中…' : current + (managed ? '（插件管理）' : newer ? '（有新版本）' : '');
+  replace(picker,[]);
+  const active = node('option',label); active.value = ''; picker.append(active);
+  if (!managed) {
+    (versionCatalog?.versions || []).filter(v => v !== current).forEach(v => {
+      const option = node('option',v + (v.includes('-') ? ' · Beta' : ' · 正式版'));
+      option.value = v; picker.append(option);
+    });
+    const retry = node('option',versionError ? '获取版本失败，重试' : '检查更新');
+    retry.value = 'check'; picker.append(retry);
+  }
+  picker.disabled = offline || updating || versionQuery || Boolean(managed);
+  picker.className = newer ? 'pending' : 'muted';
+  picker.title = managed ? '请通过对应客户端插件市场更新' : '选择 Maker MCP 版本';
+  const job = state.update;
+  const notice = job && job.status + ':' + job.version;
+  if (job?.message && notice !== updateNotice) {
+    updateNotice = notice;
+    notify(job.message,job.status === 'succeeded' ? 'success' : 'error');
+  }
+}
+async function loadVersions() {
+  versionQuery = true; renderVersionPicker();
+  try { versionCatalog = await api('/api/versions'); versionError = false; }
+  catch (_) { versionError = true; }
+  finally { versionQuery = false; renderVersionPicker(); }
+}
+async function selectMakerVersion(event) {
+  const version = event.target.value;
+  event.target.value = '';
+  if (version === 'check') return loadVersions();
+  if (!version || updateSubmitting || state.update?.status === 'running') return;
+  const downgrade = versionCatalog?.downgrades?.includes(version);
+  const dialog = $('confirm');
+  if (dialog.open) return;
+  $('confirm-title').textContent = downgrade ? '降级 Maker MCP？' : '更新 Maker MCP？';
+  $('confirm-message').textContent = state.version + ' → ' + version +
+    (version.includes('-') ? '\n这是测试版本。' : '') +
+    '\n将更新本机已支持的 AI 客户端 MCP 配置。完成后需重新连接 MCP；当前会话不会自动中断。';
+  $('confirm-accept').textContent = downgrade ? '确认降级' : '确认更新';
+  dialog.returnValue = 'cancel';
+  const accepted = new Promise(resolve => dialog.addEventListener('close',() => resolve(dialog.returnValue === 'accept'),{once:true}));
+  dialog.showModal();
+  if (!await accepted) return;
+  updateSubmitting = true; renderVersionPicker();
+  try { state.update = await api('/api/update',{method:'POST',body:{version}}); }
+  catch (error) { notify(error.message); }
+  finally { updateSubmitting = false; renderVersionPicker(); }
+}
 let detail = null;
 let preview = null;
 let previewError = '';
+const logViews = new Map();
+function logView() {
+  if (!logViews.has(selected)) logViews.set(selected,{tab:'build',runtime:'',loading:false,wrap:false});
+  return logViews.get(selected);
+}
+function selectLog(tab) {
+  logView().tab = tab;
+  renderConsoleLogs();
+  $('console-logs')?.scrollIntoView({block:'nearest'});
+}
+function consoleLogText() {
+  const view = logView();
+  if (view.tab === 'runtime') return view.loading ? '正在读取运行时日志…' : view.runtime || '点击刷新读取运行时日志';
+  const task = tasksFor(selected).find(t => t.action === (view.tab === 'lua' ? 'lua-lsp.check' : 'build'));
+  if (!task) return '暂无日志';
+  const result = nestedResult(task);
+  return [task.output, Array.isArray(result?.issues) ? result.issues.join('\n') : '',
+    task.error, task.result ? text(task.result) : ''].filter(Boolean).join('\n\n') || '等待任务输出';
+}
+function renderConsoleLogs() {
+  const host = $('console-logs');
+  if (!host) return;
+  const view = logView();
+  const toolbar = node('div',undefined,'console-log-toolbar');
+  const tabs = node('div',undefined,'actions');
+  tabs.setAttribute('role','tablist');
+  [['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志']].forEach(([id,label]) => {
+    const tab = button(label,() => { view.tab = id; renderConsoleLogs(); if (id === 'runtime' && !view.runtime && !view.loading) void loadLogs(); });
+    tab.setAttribute('role','tab'); tab.setAttribute('aria-selected',String(view.tab === id));
+    tab.setAttribute('aria-controls','console-log-output'); tabs.append(tab);
+  });
+  const actions = node('div',undefined,'actions');
+  const wrap = node('label','自动换行','theme');
+  const checkbox = node('input'); checkbox.type = 'checkbox'; checkbox.checked = view.wrap;
+  checkbox.addEventListener('change',() => { view.wrap = checkbox.checked; renderConsoleLogs(); }); wrap.append(checkbox);
+  actions.append(wrap,button('刷新',() => { if(view.tab === 'runtime') void loadLogs(); else void pollState().then(renderConsoleLogs).catch(e=>notify(e.message)); },{disabled:offline || view.loading}),
+    button('复制',async () => { try { await navigator.clipboard.writeText(consoleLogText()); announce('日志已复制'); } catch (_) { notify('复制失败，请手动选择日志复制'); } }));
+  toolbar.append(tabs,actions);
+  const output = node('pre',consoleLogText(),'console-log-output' + (view.wrap ? ' wrap' : ''));
+  output.id = 'console-log-output'; output.setAttribute('role','tabpanel'); output.tabIndex = 0;
+  const previous = $('console-log-output');
+  const top = previous?.scrollTop || 0, left = previous?.scrollLeft || 0;
+  replace(host,[node('h2','日志'),toolbar,output]);
+  output.scrollTop = top; output.scrollLeft = left;
+}
 let git = null;
 let gitError = '';
 let gitLoading = false;
@@ -44,6 +150,7 @@ const pending = new Set();
 const pendingActions = new Map();
 const pluginSessions = new Map();
 const acceptedTasks = new Map();
+const windowDrafts = new Map();
 function rememberTask(task) {
   acceptedTasks.set(task.id,task);
   while (acceptedTasks.size > 100) {
@@ -175,8 +282,9 @@ function tasksFor(key) {
 }
 function busy(key = selected) { return pending.has(key) || tasksFor(key).some(t => t.status === 'running'); }
 function selectionMatches(key, epoch) { return key === selected && epoch === selectionEpoch; }
-function notify(message) {
+function notify(message, tone = 'error') {
   $('feedback-text').textContent = text(message);
+  $('feedback').dataset.tone = tone;
   $('feedback').hidden = false;
 }
 function announce(message) {
@@ -706,7 +814,7 @@ function previewPresentation(status, requestError = '') {
     status.process_alive === false ? '已停止' : '进程身份未知');
   const error = text(status.error,'');
   const label = status.process_alive === true && errors.length ? stateLabel + ' · 有日志错误' : stateLabel;
-  const tone = error || status.state === 'failed' ? 'bad' : errors.length ||
+  const tone = error || status.state === 'failed' ? 'bad' :
     status.state === 'starting' || status.state === 'reloading' ? 'pending' :
     status.process_alive === true ? 'good' : 'muted';
   return {label,stateLabel,tone,error,errors,errorCount:errors.length};
@@ -775,17 +883,95 @@ function taskBlock(task, open = false) {
   }
   return d;
 }
+function windowDimensions(settings, info) {
+  const orientation = settings.orientation === 'project' ? info.projectOrientation || 'landscape' : settings.orientation;
+  const size = settings.preset === 'custom' ? settings.custom : info.presets[settings.preset];
+  return orientation === 'portrait' ? {width:size.shortEdge,height:size.longEdge} : {width:size.longEdge,height:size.shortEdge};
+}
+function renderWindowSettings() {
+  const info = preview?.window_settings;
+  if (!info) return node('span');
+  const key = selected;
+  let draft = windowDrafts.get(key);
+  if (!draft || (!draft.dirty && !draft.saving)) {
+    draft = {settings:JSON.parse(JSON.stringify(info.settings)),dirty:false,saving:false};
+    windowDrafts.set(key,draft);
+  }
+  const form = node('form',undefined,'preview-window-settings');
+  form.append(node('h3','预览窗口设置','preview-window-title'));
+  const disabled = offline || busy(key) || draft.saving;
+  const selectField = (label, name, options, value, change) => {
+    const wrap = node('label',label);
+    const select = node('select'); select.setAttribute('aria-label',label);
+    select.dataset.focus = 'preview-window-' + name;
+    options.forEach(([value,label]) => { const option = node('option',label); option.value = value; select.append(option); });
+    select.value = value; select.disabled = disabled;
+    select.addEventListener('change',() => { change(select.value); draft.dirty = true; updateBuild(); });
+    wrap.append(select); form.append(wrap);
+  };
+  selectField('方向','orientation',[
+    ['project','跟随项目（' + (info.projectOrientation === 'portrait' ? '竖屏' : info.projectOrientation === 'landscape' ? '横屏' : '未配置，默认横屏') + '）'],
+    ['landscape','横屏'],['portrait','竖屏']
+  ],draft.settings.orientation,value => { draft.settings.orientation = value; });
+  const presetNames = {'16:9':'标准','21:9':'超宽屏','4:3':'平板'};
+  selectField('比例','preset',[
+    ...Object.keys(info.presets).map(preset => {
+      const size = windowDimensions({...draft.settings,preset},info);
+      return [preset,preset + ' · ' + presetNames[preset] + ' · ' + size.width + ' × ' + size.height];
+    }),['custom','自定义']
+  ],draft.settings.preset,value => { draft.settings.preset = value; });
+  const size = windowDimensions(draft.settings,info);
+  const inputs = {};
+  if (draft.settings.preset === 'custom') {
+    ['width','height'].forEach(name => {
+      const label = name === 'width' ? '宽度' : '高度';
+      const wrap = node('label',label);
+      const input = node('input'); input.type = 'number'; input.min = '100'; input.max = '4096'; input.step = '1';
+      input.required = true; input.value = String(size[name]); input.disabled = disabled;
+      input.setAttribute('aria-label',label); input.dataset.focus = 'preview-window-' + name;
+      inputs[name] = input; wrap.append(input); form.append(wrap);
+      input.addEventListener('input',() => {
+        const width = Number(inputs.width.value), height = Number(inputs.height.value);
+        draft.settings.custom = {longEdge:Math.max(width,height),shortEdge:Math.min(width,height)};
+        draft.dirty = true; save.disabled = disabled;
+      });
+    });
+  }
+  const footer = node('div',undefined,'preview-window-footer');
+  const active = preview?.process_alive === true ? preview?.preflight?.window : null;
+  footer.append(node('span',active ? '运行中：' + active.width + ' × ' + active.height :
+    size.width + ' × ' + size.height,'muted'));
+  const save = button(draft.saving ? '保存中' : '保存设置',() => {},{disabled:disabled || !draft.dirty});
+  save.type = 'submit'; footer.append(save); form.append(footer);
+  if (draft.dirty) form.append(node('p','未保存','pending'));
+  else if (active && (active.width !== info.effective.width || active.height !== info.effective.height))
+    form.append(node('p','已保存，刷新预览后生效（当前游戏状态将重置）','pending'));
+  form.addEventListener('submit',async event => {
+    event.preventDefault();
+    if (disabled || !draft.dirty || draft.saving) return;
+    const epoch = selectionEpoch;
+    draft.saving = true; updateBuild();
+    try {
+      const saved = await api(projectPath(key,'/preview/window'),{method:'POST',body:draft.settings});
+      draft.settings = saved.settings; draft.dirty = false;
+      if (selectionMatches(key,epoch)) {
+        if (preview) preview.window_settings = saved;
+        announce('预览尺寸已保存：' + saved.effective.width + ' × ' + saved.effective.height);
+      }
+    } catch (error) { if (selectionMatches(key,epoch)) notify(error.message); }
+    finally { draft.saving = false; if (selectionMatches(key,epoch)) updateBuild(); }
+  });
+  return form;
+}
 function renderBuild() {
   const title = heading('构建与测试',currentProject().path,true);
   const columns = node('div',undefined,'columns');
   const build = node('section'); build.id = 'build-panel';
   const local = node('section'); local.id = 'preview-panel';
   columns.append(build,local);
-  const buildDetail = node('section',undefined,'build-detail'); buildDetail.id = 'build-detail-panel';
-  const previewLogs = node('section',undefined,'preview-log-detail'); previewLogs.id = 'preview-logs';
-  previewLogs.hidden = true;
+  const logs = node('section',undefined,'console-logs'); logs.id = 'console-logs';
   const history = node('section',undefined,'task-history'); history.id = 'task-history';
-  replace($('view'),[title,columns,buildDetail,previewLogs,history]);
+  replace($('view'),[title,columns,logs,history]);
   updateBuild();
 }
 function updateBuild() {
@@ -799,11 +985,8 @@ function updateBuild() {
   const checkBlock = node('div',undefined,'lua-check-panel');
   checkBlock.append(node('p','Lua LSP · ' + lua.label + (lua.detail ? ' · ' + lua.detail : ''), lua.tone));
   if (checkTask) {
-    const result = nestedResult(checkTask);
     const summary = luaCheckSummary(checkTask,checking);
-    checkBlock.append(node('p',summary, checkTask.status === 'failed' ? 'bad' : checkTask.status === 'succeeded' ? 'good' : 'pending'));
-    if (Array.isArray(result?.issues) && result.issues.length)
-      checkBlock.append(node('pre',result.issues.slice(0,20).join('\n'),'failure-detail'));
+    checkBlock.append(button(summary,() => selectLog('lua'),{className:'link ' + (checkTask.status === 'failed' ? 'bad' : checkTask.status === 'succeeded' ? 'good' : 'pending')}));
   } else checkBlock.append(node('p','尚未检查当前项目','muted'));
   const checkActions = node('div',undefined,'actions preview-controls');
   checkActions.append(button(checking ? '检查中' : 'Lua 检查',() => void runAction('lua-lsp.check'),{
@@ -812,17 +995,19 @@ function updateBuild() {
   checkBlock.append(checkActions);
   const buildChildren = [node('h2','远端构建'),buildStatus,checkBlock];
   replace($('build-panel'),buildChildren);
-  const buildDetail = $('build-detail-panel');
-  buildDetail.hidden = !buildTasks[0];
-  if (buildTasks[0]) replace(buildDetail,[node('h2','最近构建任务'),taskBlock(buildTasks[0], buildTasks[0].status === 'failed')]);
   const previewInfo = previewPresentation(preview,previewError);
-  const localChildren = [node('h2','本地预览'),node('p',previewInfo.label,'status-line ' + previewInfo.tone)];
-  localChildren.push(fields([['Runtime',preview?.install_state === 'ready' ? '已安装' :
-    preview?.install_state === 'missing' ? '未安装' : '待检测'],['会话状态',previewInfo.stateLabel]]));
+  const summary = node('div',undefined,'preview-status-summary');
+  summary.append(node('span','Runtime · ' + (preview?.install_state === 'ready' ? '已安装' :
+    preview?.install_state === 'missing' ? '未安装' : '待检测'),
+    preview?.install_state === 'ready' ? 'good' : preview?.install_state === 'missing' ? 'pending' : 'muted'));
+  summary.append(node('span',previewError ? '检测失败' : previewInfo.stateLabel,previewInfo.tone));
+  if (previewInfo.errorCount) summary.append(node('span',previewInfo.errorCount + ' 条日志错误','bad'));
+  const localChildren = [node('h2','本地预览'),summary];
+  localChildren.push(renderWindowSettings());
   if (previewInfo.error) localChildren.push(node('p',previewInfo.error,'bad'));
-  if (previewInfo.errorCount) localChildren.push(node('p',
-    'Runtime 日志中有 ' + previewInfo.errorCount + ' 条错误 · ' + previewInfo.errors[0],
-    'pending preview-warning'));
+  if (previewInfo.errorCount) localChildren.push(button(
+    'Runtime 日志中有 ' + previewInfo.errorCount + ' 条错误 · 查看日志',
+    () => void loadLogs(),{className:'link bad'}));
   if (preview?.session_id) {
     const diagnostics = node('details'); diagnostics.dataset.key = 'preview-diagnostics';
     diagnostics.append(node('summary','诊断信息'),fields([['会话 ID',preview.session_id],
@@ -839,6 +1024,7 @@ function updateBuild() {
   actions.append(button('查看运行日志',() => void loadLogs(),{focus:'preview-logs'}));
   localChildren.push(actions);
   replace($('preview-panel'),localChildren);
+  renderConsoleLogs();
   const history = [node('h2','任务历史')];
   if (!tasks.length) history.push(node('p','暂无控制台任务','muted'));
   tasks.forEach(task => history.push(taskBlock(task)));
@@ -863,17 +1049,17 @@ async function refreshPreview() {
 }
 async function loadLogs() {
   const key = selected, epoch = selectionEpoch, view = viewEpoch;
-  const target = $('preview-logs');
-  if (!target) return;
-  target.hidden = false;
-  replace(target,[node('h2','Runtime 日志'),node('p','正在读取日志','muted')]);
+  const entry = logView();
+  if (entry.loading) return;
+  entry.tab = 'runtime'; entry.loading = true; selectLog('runtime');
   try {
     const logs = await api(projectPath(key,'/preview/logs'));
-    if (!selectionMatches(key,epoch) || view !== viewEpoch) return;
-    replace($('preview-logs'),[node('h2','Runtime 日志'),node('pre',text(logs))]);
+    entry.runtime = text(logs);
   } catch (error) {
-    if (selectionMatches(key,epoch) && view === viewEpoch)
-      replace($('preview-logs'),[node('h2','Runtime 日志'),node('p',error.message,'bad')]);
+    entry.runtime = '日志读取失败：' + error.message;
+  } finally {
+    entry.loading = false;
+    if (selectionMatches(key,epoch) && view === viewEpoch) renderConsoleLogs();
   }
 }
 function confirmAction(action, name) {
@@ -909,16 +1095,21 @@ async function runAction(action) {
   const key = selected, epoch = selectionEpoch;
   const project = currentProject();
   if (!project?.valid || busy(key) || !Object.hasOwn(actionLabels,action)) return;
+  if (action === 'build' || action === 'lua-lsp.check') logView().tab = action === 'build' ? 'build' : 'lua';
   pending.add(key); pendingActions.set(key,action); updateChrome(); updateBuild();
   try {
     if (action !== 'build' && action !== 'lua-lsp.check') {
-      const status = await api(projectPath(key,'/preview'));
+      const checkServerChanges = action === 'preview.start' || action === 'preview.refresh';
+      const status = await api(projectPath(key,checkServerChanges ? '/preview?check_server_changes=1' : '/preview'));
       if (!selectionMatches(key,epoch)) return;
       preview = status;
       if (!previewActions(status).includes(action)) throw new Error(text(status.error,'预览状态已改变，请重新检测后操作。'));
       if (action === 'preview.install' || action === 'preview.refresh') {
         if (!await confirmAction(action,project.name)) return;
         if (!selectionMatches(key,epoch)) return;
+      }
+      if (checkServerChanges && status.server_changes?.changed) {
+        notify('检测到本地有服务端代码修改，建议提交构建后再预览。本次本地预览仍会继续，但不会运行这些服务端改动。','warning');
       }
     }
     if (action === 'build' && buildChecksLua) {
@@ -927,6 +1118,7 @@ async function runAction(action) {
       const check = await startTask('lua-lsp.check',key,epoch,project);
       if (!selectionMatches(key,epoch)) return;
       if (luaCheckBlocksBuild(check)) {
+        selectLog('lua');
         notify(text(nestedResult(check)?.error || check?.error,'Lua 检查未通过，已停止构建。'));
         return;
       }
@@ -1144,6 +1336,7 @@ async function pollState() {
     }
   });
   $('version').textContent = 'Maker ' + text(state.version) + ' · ' + text(state.distribution,'独立发行') + ' · ' + text(state.platform);
+  renderVersionPicker();
   $('connection').textContent = '已连接 · ' + new Date().toLocaleTimeString('zh-CN');
   $('connection').className = 'good';
   lastStateError = '';
@@ -1206,6 +1399,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   $('projects-button').append(icon('folder'));
   $('projects-button').addEventListener('click',() => navigate('projects'));
   $('project-picker').addEventListener('change',event => chooseProject(event.target.value));
+  $('maker-version-picker').addEventListener('change',selectMakerVersion);
   $('dismiss').addEventListener('click',() => { $('feedback').hidden = true; });
   document.querySelectorAll('nav [data-page]').forEach(b => b.addEventListener('click',() => navigate(b.dataset.page)));
   window.addEventListener('popstate',() => {
@@ -1220,6 +1414,7 @@ document.addEventListener('DOMContentLoaded',async () => {
   startActivityLease();
   await sendActivity();
   await poll();
+  void loadVersions();
   if (selected && !currentProject()) notify('所选项目未登记，请从本地项目列表选择。');
 });
 })();

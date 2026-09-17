@@ -7,23 +7,10 @@ import { PreviewLogs } from './evidence.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { preparePreviewProject, requireManifestPreviewPlatform } from './prepare.js';
 import { startPreviewAssetServer, type PreviewAssetServer } from './assets.js';
+import { previewWindow, type PreviewWindow } from './windowSettings.js';
+export { previewWindow } from './windowSettings.js';
 
 export const PREVIEW_TIMEOUT_MS = 30000;
-
-export function previewWindow(project: string): {
-  orientation: 'portrait' | 'landscape';
-  width: number;
-  height: number;
-  defaulted: boolean;
-} {
-  const config = JSON.parse(
-    fs.readFileSync(path.join(project, '.project', 'project.json'), 'utf8')
-  );
-  const orientation = config.taptap_publish?.screen_orientation;
-  return orientation === 'portrait'
-    ? { orientation, width: 450, height: 800, defaulted: false }
-    : { orientation: 'landscape', width: 960, height: 540, defaulted: orientation !== 'landscape' };
-}
 
 export async function probeRuntime(executable: string, signal?: AbortSignal): Promise<RuntimeInfo> {
   if (signal?.aborted) throw new Error('CANCELLED');
@@ -94,7 +81,11 @@ export class PreviewRuntime {
     return process.platform === 'darwin' ? 'loopback_manifest' : 'local_manifest';
   }
 
-  async start(entry: string, storage: string): Promise<void> {
+  async start(
+    entry: string,
+    storage: string,
+    window: PreviewWindow = previewWindow(this.identity.project_realpath)
+  ): Promise<void> {
     requireManifestPreviewPlatform();
     this.preparation = await preparePreviewProject(
       this.identity.project_realpath,
@@ -104,7 +95,6 @@ export class PreviewRuntime {
     if (this.stopping) throw new Error('CANCELLED');
     const source = String(this.preparation.source_directory);
     entry = String(this.preparation.entry);
-    const window = previewWindow(source);
     let cacheRoot: string | undefined;
     if (this.launchMode === 'loopback_manifest') {
       this.assets = await startPreviewAssetServer(source, this.abort.signal);

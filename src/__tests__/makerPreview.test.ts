@@ -11,6 +11,10 @@ import {
 import { probeRuntime, preflightPreview, previewWindow } from '../maker/preview/runtime.js';
 import { PreviewSession, previewStatus } from '../maker/preview/session.js';
 import { PreviewLogs } from '../maker/preview/evidence.js';
+import {
+  readPreviewWindowSettings,
+  savePreviewWindowSettings,
+} from '../maker/preview/windowSettings.js';
 
 jest.mock('../maker/preview/prepare.js', () => ({
   requireManifestPreviewPlatform: jest.fn(),
@@ -142,7 +146,7 @@ test('preflight only checks local source and does not pretend dependencies are p
 });
 
 test.each([
-  ['portrait', 450, 800, false],
+  ['portrait', 540, 960, false],
   ['landscape', 960, 540, false],
   [undefined, 960, 540, true],
   ['invalid', 960, 540, true],
@@ -163,13 +167,35 @@ fixtureTest('refresh rereads orientation and passes explicit window dimensions',
     JSON.stringify({ entry: 'main.lua', taptap_publish: { screen_orientation: 'portrait' } })
   );
   expect(await session.refresh()).toMatchObject({
-    preflight: { window: { width: 450, height: 800 } },
+    preflight: { window: { width: 540, height: 960 } },
   });
   const logs = await waitForLogs(session, 'ROUND_ONE');
-  expect(logs).toContain('-width=450');
-  expect(logs).toContain('-height=800');
+  expect(logs).toContain('-width=540');
+  expect(logs).toContain('-height=960');
 });
 
+fixtureTest('saved custom window reaches Runtime argv and changes only after refresh', async () => {
+  savePreviewWindowSettings(project, {
+    ...readPreviewWindowSettings(project).settings,
+    preset: 'custom',
+    orientation: 'portrait',
+    custom: { longEdge: 1366, shortEdge: 1024 },
+  });
+  const session = await createSession();
+  expect(await session.start()).toMatchObject({
+    preflight: { window: { width: 1024, height: 1366 } },
+  });
+  expect(await waitForLogs(session, 'ROUND_ONE')).toContain('-height=1366');
+  savePreviewWindowSettings(project, {
+    ...readPreviewWindowSettings(project).settings,
+    orientation: 'landscape',
+  });
+  expect(session.status()).toMatchObject({ preflight: { window: { width: 1024, height: 1366 } } });
+  expect(await session.refresh()).toMatchObject({
+    preflight: { window: { width: 1366, height: 1024 } },
+  });
+  expect(await waitForLogs(session, 'ROUND_ONE')).toContain('-width=1366');
+});
 test('status without a session is read-only', async () => {
   expect(await previewStatus(project)).toMatchObject({ state: 'stopped', process_alive: false });
   expect(fs.existsSync(previewDirectory(project))).toBe(false);

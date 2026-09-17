@@ -10,7 +10,9 @@ export function getConsoleHtml(): string {
 <title>Maker 本地控制台</title><style>${consoleStyles}</style></head>
 <body>
 <header class="top">
-  <div class="brand"><span class="mark" aria-hidden="true">M</span>Maker 控制台</div>
+  <div class="brand"><span class="mark" aria-hidden="true">M</span>Maker 控制台
+    <select id="maker-version-picker" aria-label="Maker MCP 版本" disabled><option>版本加载中</option></select>
+  </div>
   <div class="toolbar">
     <select id="project-picker" aria-label="当前项目" disabled><option value="">选择本地项目</option></select>
     <button id="projects-button" class="icon-button" aria-label="本地项目列表" title="本地项目列表"></button>

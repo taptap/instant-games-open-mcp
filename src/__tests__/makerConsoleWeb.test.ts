@@ -542,7 +542,7 @@ describe('Maker console standalone UI', () => {
     ).toEqual({
       label: '运行中 · 有日志错误',
       stateLabel: '运行中',
-      tone: 'pending',
+      tone: 'good',
       error: '',
       errors: ['ERROR: Could not find resource Cube/Day/DaySpecularHDR_QualityLow.dds'],
       errorCount: 1,
@@ -654,9 +654,9 @@ describe('Maker console standalone UI', () => {
   it('keeps build details and preview logs outside the two-column status layout', () => {
     const source = script();
     const styles = getConsoleHtml().match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? '';
-    expect(source).toContain("const buildDetail = node('section',undefined,'build-detail')");
-    expect(source).toContain("const previewLogs = node('section',undefined,'preview-log-detail')");
-    expect(source).toContain("replace($('view'),[title,columns,buildDetail,previewLogs,history])");
+    expect(source).toContain("const logs = node('section',undefined,'console-logs')");
+    expect(source).toContain("['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志']");
+    expect(source).toContain("replace($('view'),[title,columns,logs,history])");
     expect(source).toContain("bar.setAttribute('aria-valuenow',String(info.percent))");
     expect(styles.indexOf('.build-progress.indeterminate span{width:35%}')).toBeGreaterThan(-1);
     expect(styles.indexOf('.build-progress.indeterminate span{width:35%}')).toBeLessThan(
@@ -776,6 +776,44 @@ describe('Maker console standalone UI', () => {
     expect(ui.confirm).not.toHaveBeenCalled();
     expect(ui.notify).toHaveBeenCalledWith('ownership unknown');
   });
+
+  it.each(['preview.start', 'preview.refresh'])(
+    'warns about server edits without blocking %s',
+    async (action) => {
+      const { api, fetch } = harness();
+      const ui = hooks();
+      ui.confirm.mockResolvedValue(true);
+      api.setup([project], ui);
+      fetch.mockResolvedValueOnce(
+        response({
+          process_alive: action === 'preview.refresh',
+          install_state: 'ready',
+          server_changes: { checked: true, changed: true },
+        }) as never
+      );
+      fetch.mockResolvedValueOnce(
+        response({
+          id: 'task',
+          projectKey: 'alpha',
+          action,
+          status: 'succeeded',
+        }) as never
+      );
+      await api.runAction(action);
+      expect(fetch.mock.calls[0][0]).toContain('/preview?check_server_changes=1');
+      expect(ui.notify).toHaveBeenCalledWith(
+        expect.stringContaining('检测到本地有服务端代码修改'),
+        'warning'
+      );
+      expect(
+        fetch.mock.calls.some(
+          ([url, options]) =>
+            url === '/api/tasks' && JSON.parse(options.body || '{}').action === action
+        )
+      ).toBe(true);
+      expect(ui.confirm).toHaveBeenCalledTimes(action === 'preview.refresh' ? 1 : 0);
+    }
+  );
 
   it('accepts only explicit HTTP(S) preview URLs without embedded credentials', () => {
     const { api } = harness();
