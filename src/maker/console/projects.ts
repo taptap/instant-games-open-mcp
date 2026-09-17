@@ -31,7 +31,12 @@ function optionalConfig(root: string, file: string): Record<string, any> {
 function text(value: unknown): string | null {
   return typeof value === 'string' || typeof value === 'number' ? String(value) : null;
 }
-async function git(root: string, args: string[], signal?: AbortSignal): Promise<string> {
+async function git(
+  root: string,
+  args: string[],
+  signal?: AbortSignal,
+  timeout = 15000
+): Promise<string> {
   signal?.throwIfAborted();
   const result = await exec(
     getGitCommand(),
@@ -39,7 +44,7 @@ async function git(root: string, args: string[], signal?: AbortSignal): Promise<
     {
       cwd: root,
       encoding: 'utf8',
-      timeout: 15000,
+      timeout,
       maxBuffer: 1024 * 1024,
       signal,
       killSignal: 'SIGKILL',
@@ -95,6 +100,70 @@ export class ConsoleProjects {
   }
   remove(key: string): void {
     this.registryOperation(() => this.registry.remove(key));
+  }
+
+  async previewServerChanges(key: string, signal?: AbortSignal) {
+    const project = this.resolve(key);
+    try {
+      const deadline = Date.now() + 2000;
+      const inspectGit = (args: string[]) => {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) throw new Error('Preview advisory check timed out.');
+        return git(project.path, args, signal, remaining);
+      };
+      const config = optionalConfig(project.path, 'project.json');
+      const resources = optionalConfig(project.path, 'resources.json');
+      const entry = config['entry@server'] || resources['entry@server'];
+      const normalized =
+        typeof entry === 'string' ? entry.replace(/\\/g, '/').replace(/^\.\//, '') : '';
+      const entries = normalized
+        ? [normalized, 'scripts/' + normalized, 'assets/' + normalized]
+        : [];
+      const directories = entries
+        .map((file) => path.posix.dirname(file))
+        .filter((dir) => !['.', 'scripts', 'assets'].includes(dir));
+      const raw = (
+        await inspectGit(['status', '--porcelain=v1', '-z', '--untracked-files=all'])
+      ).split('\0');
+      const files = new Set<string>();
+      for (let i = 0; i < raw.length && raw[i]; i++) {
+        files.add(raw[i].slice(3));
+        if (/[RC]/.test(raw[i].slice(0, 2)) && raw[i + 1]) files.add(raw[++i]);
+      }
+      for (const file of files) {
+        if (Date.now() >= deadline || signal?.aborted) return { checked: false, changed: false };
+        const source = file.replace(/\.meta$/, '');
+        if (!/\.(lua|luc)$/i.test(source)) continue;
+        if (
+          entries.includes(source) ||
+          directories.some((dir) => source.startsWith(dir + '/')) ||
+          /(^|\/)server(?:\/|\.lua$|\.luc$)/i.test(source)
+        ) {
+          return { checked: true, changed: true };
+        }
+        const meta = source + '.meta';
+        const current = (() => {
+          try {
+            return objectFile(path.join(project.path, meta));
+          } catch {
+            return {};
+          }
+        })();
+        if (current.c_or_s === 's' || current.c_or_s === 'cs')
+          return { checked: true, changed: true };
+        // Deleted files or a changed side marker must still use their prior classification.
+        try {
+          const previous = JSON.parse(await inspectGit(['show', 'HEAD:' + meta]));
+          if (previous.c_or_s === 's' || previous.c_or_s === 'cs')
+            return { checked: true, changed: true };
+        } catch {
+          /* Untracked files have no previous metadata. */
+        }
+      }
+      return { checked: true, changed: false };
+    } catch {
+      return { checked: false, changed: false };
+    }
   }
 
   async detail(key: string, signal?: AbortSignal) {

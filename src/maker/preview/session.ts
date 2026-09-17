@@ -17,6 +17,7 @@ import { previewInstallation } from './installation.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { trimPreviewEvidence } from './evidence.js';
 import { processPresence } from '../system/processPresence.js';
+import type { PreviewWindow } from './windowSettings.js';
 
 export class PreviewSession {
   private runtime?: PreviewRuntime;
@@ -170,7 +171,8 @@ export class PreviewSession {
       this.runtime = runtime;
       await runtime.start(
         String(this.preflight.entry),
-        path.join(previewDirectory(this.record.project_realpath), 'storage')
+        path.join(previewDirectory(this.record.project_realpath), 'storage'),
+        this.preflight.window as PreviewWindow
       );
       if (this.stopping) throw new Error('CANCELLED');
       return {

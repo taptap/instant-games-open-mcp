@@ -7,6 +7,8 @@ import { ConsoleError, type ConsoleAction, type ConsoleExecutor } from './types.
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { checkMakerLuaLspEnvironment } from '../system/luaLsp.js';
 import { ConsolePlugins, type ConsolePlugin } from './plugins.js';
+import { readPreviewWindowSettings, savePreviewWindowSettings } from '../preview/windowSettings.js';
+import { ConsoleUpdates } from './updates.js';
 
 export async function startConsoleServer(options: {
   registry: ConsoleProjects;
@@ -32,6 +34,7 @@ export async function startConsoleServer(options: {
   const token = options.token || randomBytes(32).toString('hex');
   const tasks = new ConsoleTasks(options.registry, options.execute, options.historyFile, touch);
   const plugins = new ConsolePlugins(options.registry, options.plugins);
+  const updates = new ConsoleUpdates(options.version, options.distribution);
   let luaLspCache: { at: number; value: Record<string, unknown> } | undefined;
   const luaLspStatus = (): Record<string, unknown> => {
     if (luaLspCache && now() - luaLspCache.at < 30_000) return luaLspCache.value;
@@ -145,7 +148,18 @@ export async function startConsoleServer(options: {
           tasks: tasks.list(),
           plugins: plugins.list(),
           luaLsp: luaLspStatus(),
+          update: updates.job,
         });
+        return;
+      }
+      if (request.method === 'GET' && url.pathname === '/api/versions') {
+        json(200, await updates.list());
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/api/update') {
+        const body = await bodyForMutation();
+        json(202, await updates.start(body.version));
+        touch();
         return;
       }
       if (request.method === 'POST' && url.pathname === '/api/projects') {
@@ -167,7 +181,10 @@ export async function startConsoleServer(options: {
       }
       if (request.method === 'POST' && url.pathname === '/api/shutdown') {
         await bodyForMutation();
-        if (tasks.list().some((task) => task.status === 'running'))
+        if (
+          updates.job.status === 'running' ||
+          tasks.list().some((task) => task.status === 'running')
+        )
           throw new ConsoleError('Wait for active tasks before stopping the console.', 409);
         json(200, { ok: true });
         setImmediate(() => void close());
@@ -208,18 +225,37 @@ export async function startConsoleServer(options: {
           200,
           await read(() => options.registry.commit(key, suffix.slice(4), readAbort.signal))
         );
+      } else if (request.method === 'POST' && suffix === 'preview/window') {
+        const body = await bodyForMutation();
+        const directory = options.registry.resolve(key).path;
+        if (tasks.busy(key))
+          throw new ConsoleError('项目任务执行中，请结束后再保存预览尺寸。', 409);
+        json(200, savePreviewWindowSettings(directory, body));
+        touch();
       } else if (request.method === 'GET' && (suffix === 'preview' || suffix === 'preview/logs')) {
         const directory = options.registry.resolve(key).path;
+        const checkServerChanges =
+          suffix === 'preview' && url.searchParams.get('check_server_changes') === '1';
         json(
           200,
-          await read(() =>
-            options.execute({
+          await read(async () => {
+            const status = await options.execute({
               project: directory,
               action: suffix === 'preview' ? 'preview.status' : 'preview.logs',
               onOutput: () => {},
               signal: readAbort.signal,
-            })
-          )
+            });
+            const result =
+              suffix === 'preview'
+                ? { ...status, window_settings: readPreviewWindowSettings(directory) }
+                : status;
+            if (!checkServerChanges) return result;
+            const server_changes = await options.registry.previewServerChanges(
+              key,
+              readAbort.signal
+            );
+            return { ...result, server_changes };
+          })
         );
       } else {
         throw new ConsoleError('Not found.', 404);
@@ -253,6 +289,7 @@ export async function startConsoleServer(options: {
     () => {
       if (
         now() - lastActivity >= idleMs &&
+        updates.job.status !== 'running' &&
         !tasks.list().some((task) => task.status === 'running') &&
         !plugins.active
       )

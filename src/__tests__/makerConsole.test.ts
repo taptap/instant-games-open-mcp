@@ -31,6 +31,143 @@ describe('Maker console project isolation', () => {
   });
   afterEach(() => fs.rmSync(directory, { recursive: true, force: true }));
 
+  test('detects server changes without flagging client-only files or modifying the project', async () => {
+    const root = project('server-warning');
+    const runGit = (...args: string[]) =>
+      execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', ...args], {
+        cwd: root,
+        encoding: 'utf8',
+      });
+    fs.mkdirSync(path.join(root, 'scripts/backend'), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, '.project/project.json'),
+      JSON.stringify({
+        'entry@server': 'backend/main.lua',
+      })
+    );
+    for (const file of ['backend/main.lua', 'backend/rules.lua', 'client.lua', 'shared.lua']) {
+      fs.writeFileSync(path.join(root, 'scripts', file), '-- initial\n');
+    }
+    fs.writeFileSync(path.join(root, 'scripts/shared.lua.meta'), '{"c_or_s":"cs"}');
+    runGit('init');
+    runGit('add', '.');
+    runGit('commit', '-m', 'fixture');
+    const item = registry.add(root);
+    expect(await registry.previewServerChanges(item.key)).toEqual({
+      checked: true,
+      changed: false,
+    });
+    fs.appendFileSync(path.join(root, 'scripts/client.lua'), '-- client\n');
+    expect(await registry.previewServerChanges(item.key)).toEqual({
+      checked: true,
+      changed: false,
+    });
+    fs.appendFileSync(path.join(root, 'scripts/backend/rules.lua'), '-- server\n');
+    expect((await registry.previewServerChanges(item.key)).changed).toBe(true);
+    runGit('add', '.');
+    runGit('commit', '-m', 'changes');
+    runGit('mv', 'scripts/backend/rules.lua', 'scripts/client-rules.lua');
+    expect((await registry.previewServerChanges(item.key)).changed).toBe(true);
+    runGit('commit', '-am', 'rename');
+    fs.unlinkSync(path.join(root, 'scripts/shared.lua'));
+    fs.unlinkSync(path.join(root, 'scripts/shared.lua.meta'));
+    expect((await registry.previewServerChanges(item.key)).changed).toBe(true);
+    runGit('add', '.');
+    runGit('commit', '-m', 'delete');
+    fs.mkdirSync(path.join(root, 'scripts/server'));
+    fs.writeFileSync(path.join(root, 'scripts/server/new.lua'), '-- new\n');
+    const before = runGit('status', '--porcelain');
+    expect((await registry.previewServerChanges(item.key)).changed).toBe(true);
+    expect(runGit('status', '--porcelain')).toBe(before);
+  });
+
+  test('server-change check is non-blocking for a project without Git', async () => {
+    const item = registry.add(project('no-git'));
+    expect(await registry.previewServerChanges(item.key)).toEqual({
+      checked: false,
+      changed: false,
+    });
+  });
+
+  test('only checks server changes when explicitly requested by the preview UI', async () => {
+    const item = registry.add(project('preview-advisory'));
+    const check = jest
+      .spyOn(registry, 'previewServerChanges')
+      .mockResolvedValue({ checked: true, changed: true });
+    const server = await startConsoleServer({
+      registry,
+      html: '',
+      version: 'test',
+      execute: async () => ({ ok: true, install_state: 'ready', process_alive: false }),
+    });
+    try {
+      const headers = { Authorization: `Bearer ${server.token}` };
+      const url = server.origin + '/api/projects/' + item.key + '/preview';
+      await fetch(url, { headers });
+      expect(check).not.toHaveBeenCalled();
+      const result = await (await fetch(url + '?check_server_changes=1', { headers })).json();
+      expect(result.server_changes).toEqual({ checked: true, changed: true });
+      expect(result.install_state).toBe('ready');
+    } finally {
+      await server.close();
+    }
+  });
+
+  test('saves preview window preferences with mutation auth and leaves publishing config unchanged', async () => {
+    const oldHome = process.env.TAPTAP_MAKER_HOME;
+    process.env.TAPTAP_MAKER_HOME = path.join(directory, 'home');
+    const item = registry.add(project('window'));
+    const config = fs.readFileSync(path.join(item.path, '.project/project.json'), 'utf8');
+    const server = await startConsoleServer({
+      registry,
+      html: '',
+      version: 'test',
+      execute: async () => ({ ok: true, install_state: 'missing', process_alive: false }),
+    });
+    try {
+      const headers = {
+        Authorization: `Bearer ${server.token}`,
+        Origin: server.origin,
+        'Content-Type': 'application/json',
+      };
+      const url = server.origin + '/api/projects/' + item.key + '/preview';
+      const settings = {
+        orientation: 'landscape',
+        preset: 'custom',
+        custom: { longEdge: 1440, shortEdge: 900 },
+      };
+      expect(
+        (await fetch(url + '/window', { method: 'POST', body: JSON.stringify(settings) })).status
+      ).toBe(401);
+      expect(
+        (
+          await fetch(url + '/window', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ ...settings, custom: { longEdge: -1, shortEdge: 0 } }),
+          })
+        ).status
+      ).toBe(400);
+      expect(
+        (
+          await fetch(url + '/window', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(settings),
+          })
+        ).status
+      ).toBe(200);
+      const state = await (await fetch(url, { headers })).json();
+      expect(state.window_settings.effective).toMatchObject({ width: 1440, height: 900 });
+      expect(state.install_state).toBe('missing');
+      expect(fs.readFileSync(path.join(item.path, '.project/project.json'), 'utf8')).toBe(config);
+    } finally {
+      await server.close();
+      if (oldHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
+      else process.env.TAPTAP_MAKER_HOME = oldHome;
+    }
+  });
+
   test('exposes bounded progress while the build is running and persists the final outcome', async () => {
     const item = registry.add(project('progress'));
     let finish!: () => void;

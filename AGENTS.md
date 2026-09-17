@@ -388,6 +388,9 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 - 控制台复用 CLI 业务，不新增 MCP tool；操作必须显式绑定已校验的项目 realpath，
   不依赖全局当前项目或 cwd。项目登记共用 `src/maker/projectRegistry.ts`，
   登记失败不得改变 init/clone 的成功结果。
+- 控制台版本更新为用户级操作，固定查询 `@taptap/maker` 最近发布版本，只接受目录中精确版本，
+  复用所选包的 `upgrade --launcher self --json`，不另写安装器。任何插件渠道禁止独立包更新；
+  当前运行版本与已安装版本分开显示，不自动重启会话；更新期间防止重复执行及空闲退出。
 - Runtime 安装和记录位于 Maker user home 的 `runtime/`，所有项目共用；旧项目哈希目录中的有效
   安装会自动登记，不重复下载。项目哈希目录只保留项目会话、准备产物、日志和运行缓存。
   新安装和已登记 Runtime 启动前必须补齐 `Data/LuaScripts`、`Data/Fonts`、`CoreData`；缺少
@@ -427,6 +430,9 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   保留访问校验、空闲退出和有界资源管理。
   预览与控制台独立管理；只清理已确认所有权的进程和缓存，不把未知结果当作失败自动重试。
 - 本地预览只构建受管理副本，执行 Builder 前校验标准配置和版本路径，禁止配置回退绕过校验。
+  预览窗口设置由 `src/maker/preview/windowSettings.ts` 统一解析，按项目保存在用户预览缓存中；
+  横竖屏默认跟随发布配置，缺失时横屏，允许手动覆盖；保存不自动重启，启动或刷新时应用，
+  不得写回项目发布配置。控制台与 CLI 共用窗口设置，运行中尺寸以启动时的 preflight 为准。
   Windows 控制台与预览 supervisor 共用 `src/maker/system/backgroundProcess.ts` 的 CIM 启动器。
   预览离线恢复必须确认会话证据匹配且两个进程都不存在；状态查询不写回会话，避免覆盖并发启动。
   Builder 快照须逐字节匹配固定 Git 提交；不修改引擎、公共资源或游戏原目录来掩盖预览错误。
