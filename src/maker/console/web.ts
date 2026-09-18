@@ -39,6 +39,7 @@ export function getConsoleHtml(): string {
     <label class="theme">深色<input id="theme" type="checkbox" role="switch" checked aria-label="深色模式"></label>
   </div>
 </header>
+<div class="navigation">
 <nav aria-label="主导航">
   <button data-page="overview">项目</button>
   <button data-page="build">构建与测试</button>
@@ -47,18 +48,18 @@ export function getConsoleHtml(): string {
   <span id="plugin-tabs" class="plugin-tabs"></span>
 </nav>
 <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
+</div>
 <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
 <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
 <section id="plugin-views" aria-label="插件工作区" hidden></section>
 <div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
 <footer><div class="footer-start"><span id="version">Maker 本地服务</span>
-<section id="fortune-corner" aria-label="开发者日签">
+<section id="fortune-corner" aria-label="开发者日签" hidden>
   <button id="fortune-toggle" type="button" aria-expanded="false" aria-controls="fortune-panel">独立游戏开发日签</button>
 </section>
 </div><span id="footer-path"></span></footer>
 <div id="fortune-panel" hidden>
-  <button id="fortune-retry" type="button" title="重新加载日签" aria-label="重新加载日签"></button>
-  <iframe id="fortune-frame" title="gDEV日签 · 独立游戏开发者老黄历" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer"></iframe>
+  <iframe id="fortune-frame" title="gDEV日签 · 独立游戏开发者老黄历" sandbox="allow-scripts allow-same-origin" loading="eager" referrerpolicy="no-referrer"></iframe>
 </div>
 <dialog id="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-message">
   <form method="dialog">

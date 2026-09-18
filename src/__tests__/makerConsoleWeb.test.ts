@@ -79,7 +79,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
     `return {api, selectDialog, confirmQrcode, previewActions, graphLayout, runAction, runProjectAction, loadProject, safePreviewUrl, taskPreviewUrl, healthLabel,
       qrcodeImageSource: typeof qrcodeImageSource === 'function' ? qrcodeImageSource : undefined,
       clearConsoleLogs: typeof clearConsoleLogs === 'function' ? clearConsoleLogs : undefined,
-      consoleLogText, logView, tasksFor,
+      consoleLogText, logView, tasksFor, loadFortuneFrame,
       showQrcode: typeof showQrcode === 'function' ? showQrcode : undefined,
       handleQrcodeCompletion: typeof handleQrcodeCompletion === 'function' ? handleQrcodeCompletion : undefined,
       poll, pollState, sendActivity, startActivityLease, dispose, shutdownConsole, rememberTask, buildPresentation, buildFailureMessage,
@@ -335,20 +335,31 @@ describe('Maker console standalone UI', () => {
     expect(footer.indexOf('id="version"')).toBeGreaterThan(-1);
     expect(footer.indexOf('id="version"')).toBeLessThan(footer.indexOf('id="fortune-toggle"'));
     expect(footer.indexOf('id="fortune-toggle"')).toBeLessThan(footer.indexOf('id="footer-path"'));
-    expect(footer).not.toContain('id="fortune-corner" hidden');
+    expect(footer).toContain('id="fortune-corner" aria-label="开发者日签" hidden');
     expect(footer).toContain('>独立游戏开发日签<');
-    expect(styles).toContain('button#fortune-toggle{border:0;background:none;color:#f5e6a3;');
+    expect(styles).toContain('button#fortune-toggle{border:0;background:none;color:#b5aa78;');
     expect(html).toContain('id="fortune-panel"');
     expect(html).toContain('id="fortune-frame"');
+    expect(html).toContain('loading="eager"');
     expect(html).not.toContain('gDEV 日签');
     expect(html).not.toContain('id="fortune-close"');
     expect(script()).toContain("theme=dungeon&mode=' + fortuneMode()");
     expect(script()).toContain('/gdev-fortune/?embed=1&theme=dungeon&mode=');
     expect(script()).toContain('https://liangdong-ttm.github.io/gdev-fortune/');
     expect(script()).not.toContain('gdev-fortune:size');
-    expect(html).toContain('id="fortune-retry"');
+    expect(html).not.toContain('id="fortune-retry"');
+    expect(html).not.toContain('id="fortune-status"');
+    expect(styles).not.toContain('#fortune-retry');
+    expect(styles).not.toContain('#fortune-status');
     expect(script()).toContain('function fortuneIsOpen()');
-    expect(script()).not.toContain('if (!fortuneReady) return;');
+    expect(script()).toContain('if (!fortuneReady) return;');
+    expect(script()).not.toContain('finishFortuneLoad');
+    expect(script()).not.toContain('fortuneLoadTimer');
+    expect(script()).not.toContain('fortune-retry');
+    expect(script()).not.toContain('fortune-status');
+    expect(script()).toContain("fortuneFrame.addEventListener('load'");
+    expect(script()).toContain("fortunePanel.classList.add('fortune-preload')");
+    expect(script()).toContain('if (!fortuneReady) return;');
     expect(script()).toContain("transformOrigin = 'left bottom'");
     expect(script()).toContain('scheduleCloseFortune');
     expect(script()).toContain(
@@ -866,11 +877,33 @@ describe('Maker console standalone UI', () => {
   it('separates primary preview/build/QR actions from Lua checks and build status', () => {
     const source = script();
     expect(source).toContain("primary.append(local,build,button('测试二维码'");
-    expect(source).toContain('secondary.append(luaCheckOption())');
-    expect(source).toContain('return [primary,secondary]');
-    expect(source).not.toContain('checkActions.append(luaCheckOption())');
+    expect(source).toContain('return [primary]');
+    expect(source).toContain('checkActions.append(luaCheckOption())');
+    expect(source).not.toContain("className:'primary build-button'");
     expect(getConsoleHtml()).toContain('<option value="puzzle">益智</option>');
     expect(getConsoleHtml()).toContain('<option value="casual">休闲</option>');
+  });
+
+  it('keeps successful QR output collapsed without hiding actionable failures', () => {
+    const { api } = harness();
+    expect(api.taskStartsOpen({ action: 'qrcode', status: 'succeeded' })).toBe(false);
+    expect(api.taskStartsOpen({ action: 'qrcode', status: 'failed' })).toBe(true);
+    expect(api.taskStartsOpen({ action: 'build', status: 'running' })).toBe(true);
+    expect(api.taskStartsOpen({ action: 'build', status: 'unknown' })).toBe(true);
+    expect(api.taskStartsOpen({ action: 'qrcode', status: 'failed' }, false, false)).toBe(false);
+    expect(api.taskStartsOpen({ action: 'build', status: 'unknown' }, false, false)).toBe(false);
+    expect(api.taskStartsOpen({ action: 'build', status: 'running' }, false, false)).toBe(true);
+    expect(api.taskStartsOpen({ action: 'build', status: 'failed' }, true, false)).toBe(true);
+    expect(script()).toContain("shortcuts.append(button('查看二维码'");
+    expect(script()).toContain("shortcuts.append(button('选择开发者并继续'");
+  });
+
+  it('collapses window settings and scopes disclosure state to the current checkout', () => {
+    const source = script();
+    expect(source).toContain("disclosure.dataset.key = 'preview-window-' + key");
+    expect(source).toContain("node('summary',undefined,'preview-window-summary')");
+    expect(source).toContain('disclosure.append(summary,form)');
+    expect(source).toContain("const columns = node('div',undefined,'columns build-columns')");
   });
 
   it.each([null, { confirmedOrientation: 'portrait' }])(
