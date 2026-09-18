@@ -9,6 +9,7 @@ import { preparePreviewProject, requireManifestPreviewPlatform } from './prepare
 import { startPreviewAssetServer, type PreviewAssetServer } from './assets.js';
 import { previewWindow, type PreviewWindow } from './windowSettings.js';
 import { preparePreviewServer, previewNetworkArgs } from './network.js';
+import { createPreviewSourceAlias } from './sourceAlias.js';
 export { previewWindow } from './windowSettings.js';
 
 export const PREVIEW_TIMEOUT_MS = 30000;
@@ -51,6 +52,7 @@ export class PreviewRuntime {
   private closed: Promise<void> = Promise.resolve();
   private assets?: PreviewAssetServer;
   private assetCache?: string;
+  private sourceAlias?: ReturnType<typeof createPreviewSourceAlias>;
   readonly errors: string[] = [];
   readonly logs: PreviewLogs;
   readonly artifacts: Record<string, unknown>[] = [];
@@ -125,10 +127,14 @@ export class PreviewRuntime {
     }
     let child: ChildProcessWithoutNullStreams;
     try {
+      this.sourceAlias = createPreviewSourceAlias(source);
+      const runtimeSource = this.sourceAlias.source;
       child = spawn(
         this.executable,
         [
-          ...(this.assets ? ['-game_url=' + this.assets.url] : [entry, '-tapcode_dir=' + source]),
+          ...(this.assets
+            ? ['-game_url=' + this.assets.url]
+            : [entry, '-tapcode_dir=' + runtimeSource]),
           ...(cacheRoot ? ['-game_path=' + cacheRoot] : []),
           '-skip_login',
           ...(server ? previewNetworkArgs(server) : []),
@@ -137,10 +143,11 @@ export class PreviewRuntime {
           '-width=' + window.width,
           '-height=' + window.height,
         ],
-        { cwd: source, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: false }
+        { cwd: runtimeSource, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: false }
       );
     } catch (error) {
       await this.assets?.close();
+      this.clearSourceAlias();
       throw error;
     }
     this.child = child;
@@ -149,6 +156,7 @@ export class PreviewRuntime {
         void (async () => {
           await this.assets?.close();
           this.clearAssetCache();
+          this.clearSourceAlias();
           this.changed(this.stopping || child.exitCode === 0 ? 'stopped' : 'failed');
           resolve();
         })();
@@ -211,6 +219,15 @@ export class PreviewRuntime {
       }
     } catch {
       this.recordError('Could not remove this round of local preview download cache.');
+    }
+  }
+
+  private clearSourceAlias(): void {
+    try {
+      this.sourceAlias?.close();
+      this.sourceAlias = undefined;
+    } catch (error) {
+      this.recordError(String(error));
     }
   }
 

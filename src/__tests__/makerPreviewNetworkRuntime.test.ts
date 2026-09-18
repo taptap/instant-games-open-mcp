@@ -94,9 +94,13 @@ test.each(['darwin', 'win32'])(
         expect(args).toContain('-skip_login');
         expect(args).toContain('-server=entrance-new-pd.spark.xd.com');
         expect(args.some((arg) => arg.startsWith('-directConnectParams='))).toBe(true);
-        expect(args).toContain(
-          value === 'win32' ? '-tapcode_dir=' + root : '-game_url=http://127.0.0.1:12345/assets/'
-        );
+        if (value === 'win32') {
+          const alias = args.find((arg) => arg.startsWith('-tapcode_dir='))!.slice(13);
+          expect(fs.realpathSync(alias)).toBe(fs.realpathSync(root));
+          expect(jest.mocked(spawn).mock.calls.at(-1)![2]).toMatchObject({ cwd: alias });
+        } else {
+          expect(args).toContain('-game_url=http://127.0.0.1:12345/assets/');
+        }
       } finally {
         await instance.stop();
       }
@@ -117,4 +121,29 @@ test('allocation failure does not launch a misleading offline window or leave an
   ).rejects.toThrow('allocation failed');
   expect(spawn).not.toHaveBeenCalled();
   expect(startPreviewAssetServer).not.toHaveBeenCalled();
+});
+
+test('Windows stop removes only the owned alias after the child closes', async () => {
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  fs.writeFileSync(path.join(root, 'sentinel'), 'preserved');
+  const instance = runtime();
+  await instance.start('main.lua', root);
+  const args = jest.mocked(spawn).mock.calls.at(-1)![1] as string[];
+  const alias = args.find((arg) => arg.startsWith('-tapcode_dir='))!.slice(13);
+  await instance.stop();
+  expect(fs.existsSync(alias)).toBe(false);
+  expect(fs.readFileSync(path.join(root, 'sentinel'), 'utf8')).toBe('preserved');
+});
+
+test('Windows synchronous spawn failure releases the alias and preserves source', async () => {
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  let alias = '';
+  jest.mocked(spawn).mockImplementationOnce((_command, args) => {
+    alias = (args as string[]).find((arg) => arg.startsWith('-tapcode_dir='))!.slice(13);
+    throw new Error('injected spawn failure');
+  });
+  await expect(runtime().start('main.lua', root)).rejects.toThrow('injected spawn failure');
+  expect(alias).not.toBe('');
+  expect(fs.existsSync(alias)).toBe(false);
+  expect(fs.existsSync(root)).toBe(true);
 });

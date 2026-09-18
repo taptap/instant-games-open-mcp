@@ -382,6 +382,9 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- Windows 预览使用每轮独占的短路径 junction 访问受管理副本；Runtime 退出后仅移除经校验的
+  映射，不递归删除链接目标。不允许为绕过路径限制改写游戏原目录。
+
 - 修改控制台前读 `docs/MAKER_CONSOLE.md`；修改 Runtime 安装或预览前读
   `docs/MAKER_LOCAL_PREVIEW.md`。操作指引统一维护在 `skills/taptap-maker-local/SKILL.md`，
   插件副本通过生成脚本同步，不手工维护。
