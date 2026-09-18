@@ -14,7 +14,6 @@ let state = {projects: [], tasks: []};
 let loaded = false;
 let fortuneTimer;
 let fortuneReady = false;
-let fortunePreloadTimer;
 function fortuneMode() {
   return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 }
@@ -62,11 +61,17 @@ function loadFortuneFrame(reload) {
   frame.src = fortuneUrl();
 }
 function revealFortune() {
-  clearTimeout(fortunePreloadTimer);
   fortuneReady = true;
   $('fortune-panel').hidden = true;
   $('fortune-panel').classList.remove('fortune-preload');
   $('fortune-corner').hidden = false;
+}
+function beginFortuneLoad(reload) {
+  fortuneReady = false;
+  $('fortune-corner').hidden = true;
+  $('fortune-panel').hidden = true;
+  $('fortune-panel').classList.add('fortune-preload');
+  loadFortuneFrame(reload);
 }
 function openFortune() {
   clearTimeout(fortuneTimer);
@@ -2095,12 +2100,7 @@ document.addEventListener('DOMContentLoaded',async () => {
     document.documentElement.dataset.theme = value;
     pluginSessions.forEach(session => sendPluginTheme(session));
     if ($('fortune-frame').getAttribute('src')) {
-      fortuneReady = false;
-      $('fortune-corner').hidden = true;
-      $('fortune-panel').hidden = false;
-      $('fortune-panel').classList.add('fortune-preload');
-      loadFortuneFrame(true);
-      fortunePreloadTimer = setTimeout(revealFortune,3000);
+      beginFortuneLoad(true);
     }
     try { localStorage.setItem('maker-console-theme',value); } catch (_) { notify('无法保存主题设置'); }
   });
@@ -2108,15 +2108,14 @@ document.addEventListener('DOMContentLoaded',async () => {
   const fortunePanel = $('fortune-panel');
   const fortuneFrame = $('fortune-frame');
   fortunePanel.classList.add('fortune-preload');
-  fortunePanel.hidden = false;
+  fortunePanel.hidden = true;
   fortuneFrame.addEventListener('load',revealFortune);
   fortuneFrame.addEventListener('error',() => {
-    clearTimeout(fortunePreloadTimer);
     fortuneReady = false;
     $('fortune-corner').hidden = true;
+    fortunePanel.hidden = true;
   });
-  loadFortuneFrame();
-  fortunePreloadTimer = setTimeout(revealFortune,3000);
+  beginFortuneLoad();
   bindFortuneHover($('fortune-toggle'));
   bindFortuneHover($('fortune-panel'));
   $('fortune-toggle').addEventListener('click',event => {

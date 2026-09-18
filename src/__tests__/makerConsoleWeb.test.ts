@@ -437,6 +437,9 @@ describe('Maker console standalone UI', () => {
     expect(script()).toContain("fortuneFrame.addEventListener('load'");
     expect(script()).toContain("fortunePanel.classList.add('fortune-preload')");
     expect(script()).toContain('if (!fortuneReady) return;');
+    expect(script()).toContain('function beginFortuneLoad(reload)');
+    expect(script()).not.toContain('setTimeout(revealFortune,3000)');
+    expect(script()).not.toContain('fortunePreloadTimer = setTimeout');
     expect(script()).toContain("transformOrigin = 'left bottom'");
     expect(script()).toContain('scheduleCloseFortune');
     expect(script()).toContain(
