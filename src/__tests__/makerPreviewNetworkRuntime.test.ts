@@ -147,3 +147,107 @@ test('Windows synchronous spawn failure releases the alias and preserves source'
   expect(fs.existsSync(alias)).toBe(false);
   expect(fs.existsSync(root)).toBe(true);
 });
+
+test('persists a launch intent before spawning and reports PID before startup settles', async () => {
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  const launching = jest.fn();
+  const instance = new PreviewRuntime(
+    '/runtime',
+    { protocol_version: 1, project_realpath: root, session_id: 'test', reload_id: 0 },
+    root,
+    jest.fn(),
+    undefined,
+    launching
+  );
+  try {
+    await instance.start('main.lua', root);
+    expect(launching.mock.calls).toEqual([[], [1234]]);
+    expect(launching.mock.invocationCallOrder[0]).toBeLessThan(
+      jest.mocked(spawn).mock.invocationCallOrder[0]
+    );
+  } finally {
+    await instance.stop();
+  }
+});
+
+test.each([false, true])(
+  'PID persistence failure stops Runtime even if cleanup persistence fails: %s',
+  async (cleanupFails) => {
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    fs.writeFileSync(path.join(root, 'sentinel'), 'preserved');
+    const instance = new PreviewRuntime(
+      '/runtime',
+      { protocol_version: 1, project_realpath: root, session_id: 'test', reload_id: 0 },
+      root,
+      () => {
+        if (cleanupFails) throw new Error('cleanup persistence denied');
+      },
+      undefined,
+      (pid) => {
+        if (pid !== undefined) throw new Error('PID persistence denied');
+      }
+    );
+    await expect(instance.start('main.lua', root)).rejects.toThrow('PID persistence denied');
+    expect(instance.processAlive).toBe(false);
+    const args = jest.mocked(spawn).mock.calls.at(-1)![1] as string[];
+    const alias = args.find((arg) => arg.startsWith('-tapcode_dir='))!.slice(13);
+    expect(fs.existsSync(alias)).toBe(false);
+    expect(fs.readFileSync(path.join(root, 'sentinel'), 'utf8')).toBe('preserved');
+    if (cleanupFails) expect(instance.errors.join(' ')).toContain('cleanup persistence denied');
+  }
+);
+
+test('running state persistence failure stops the owned Runtime', async () => {
+  const instance = new PreviewRuntime(
+    '/runtime',
+    { protocol_version: 1, project_realpath: root, session_id: 'test', reload_id: 0 },
+    root,
+    (state) => {
+      if (state === 'running') throw new Error('running persistence denied');
+    }
+  );
+  await expect(instance.start('main.lua', root)).rejects.toThrow('running persistence denied');
+  expect(instance.processAlive).toBe(false);
+});
+
+test('unconfirmed stop preserves alias and reports both persistence and cleanup failure', async () => {
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  jest.useFakeTimers();
+  const original = jest.mocked(spawn).getMockImplementation()!;
+  let child: any;
+  jest.mocked(spawn).mockImplementationOnce((...args: any[]) => {
+    child = (original as any)(...args);
+    child.kill = jest.fn(() => false);
+    return child;
+  });
+  const instance = new PreviewRuntime(
+    '/runtime',
+    { protocol_version: 1, project_realpath: root, session_id: 'test', reload_id: 0 },
+    root,
+    jest.fn(),
+    undefined,
+    (pid) => {
+      if (pid !== undefined) throw new Error('PID persistence denied');
+    }
+  );
+  try {
+    const rejected = expect(instance.start('main.lua', root)).rejects.toThrow(
+      'Runtime cleanup is unverified'
+    );
+    await jest.advanceTimersByTimeAsync(7100);
+    await rejected;
+    expect(instance.processAlive).toBe(true);
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+    const args = jest.mocked(spawn).mock.calls.at(-1)![1] as string[];
+    const alias = args.find((arg) => arg.startsWith('-tapcode_dir='))!.slice(13);
+    expect(fs.existsSync(alias)).toBe(true);
+  } finally {
+    if (child) {
+      child.exitCode = 0;
+      child.emit('close', 0);
+    }
+    await jest.advanceTimersByTimeAsync(0);
+    jest.useRealTimers();
+  }
+});
