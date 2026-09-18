@@ -54,25 +54,45 @@ describe('Maker console project isolation', () => {
     }
   });
 
-  test('does not stringify unknown thrown objects into HTTP responses', async () => {
-    const stringify = jest.fn(() => 'secret internal stack');
-    const server = await startConsoleServer({
-      registry,
-      execute: async () => ({ ok: true }),
-      html: '',
-      version: 'test',
-    });
-    const spy = jest.spyOn(registry, 'list').mockImplementation(() => {
-      throw { toString: stringify, stack: 'secret internal stack' };
-    });
-    try {
-      const response = await fetch(server.origin + '/api/state');
-      expect(await response.json()).toEqual({ error: 'Unexpected console error.' });
-      expect(stringify).not.toHaveBeenCalled();
-    } finally {
-      spy.mockRestore();
-      await server.close();
+  test.each(['object', 'string', 'error'])(
+    'does not expose raw exceptions or stack traces over HTTP (%s)',
+    async (kind) => {
+      const stringify = jest.fn(() => 'secret internal stack');
+      const server = await startConsoleServer({
+        registry,
+        execute: async () => ({ ok: true }),
+        html: '',
+        version: 'test',
+      });
+      const spy = jest.spyOn(registry, 'list').mockImplementation(() => {
+        if (kind === 'string') throw 'Error: raw stack\n    at privateFunction (/private/file:1:1)';
+        if (kind === 'error') throw new Error('Safe diagnostic');
+        throw { toString: stringify, stack: 'secret internal stack' };
+      });
+      try {
+        const response = await fetch(server.origin + '/api/state');
+        expect(await response.json()).toEqual({
+          error: kind === 'error' ? 'Safe diagnostic' : 'Unexpected console error.',
+        });
+        expect(stringify).not.toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+        await server.close();
+      }
     }
+  );
+
+  test('task failures do not expose raw thrown strings', async () => {
+    const current = registry.add(project('Raw task failure'));
+    const tasks = new ConsoleTasks(registry, async () => {
+      throw 'Error: raw stack\n    at privateFunction (/private/file:1:1)';
+    });
+    const task = tasks.start(current.key, 'preview.start');
+    await tasks.settled();
+    expect(tasks.get(task.id)).toMatchObject({
+      status: 'failed',
+      error: 'Unexpected console task error.',
+    });
   });
 
   test('report requires consent, uses the original project and submits only once', async () => {

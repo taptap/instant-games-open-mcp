@@ -301,11 +301,7 @@ export class ConsoleTasks {
         task.status = 'failed';
         task.error = String(
           sanitizeDiagnosticValue(
-            error instanceof Error
-              ? error.message
-              : typeof error === 'string'
-                ? error
-                : 'Unexpected console task error.'
+            error instanceof Error ? error.message : 'Unexpected console task error.'
           )
         ).slice(0, 8192);
       } finally {
