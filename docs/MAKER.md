@@ -52,8 +52,9 @@ runtime。插件升级后重新连接对应客户端即可；只切换项目不�
 Codex 和 WorkBuddy 插件共用独立版本，唯一来源是 `config/maker-plugin-version.json`。
 内置 Maker MCP 版本继续由 `config/maker-version-policy.json` 管理，两条版本线互不覆盖。
 DSH 使用自己的 `packages/dsh-maker/package.json` 版本线，并精确锁定随包的
-`@taptap/maker`；本次功能同步时只需把 DSH 依赖更新到对应已发布的 Maker 版本，不修改
-三端的运行时协议。
+`@taptap/maker`。稳定版当前锁定已发布的 `@taptap/maker@0.0.32`；只有在核对实际稳定
+artifact 已包含对应能力后，才能同步更新 DSH 依赖和文档，不得仅依据 npm 版本存在性或预先
+承诺未来能力。三端的运行时协议仍互不覆盖。
 
 发布时在 GitHub Actions 手动运行 `Prepare Maker Plugin Release`。workflow 根据最新
 `maker-plugin-v*` tag 自动将 patch 加一，更新版本源、生成两套插件、运行验证并创建版本 PR。PR
@@ -146,9 +147,10 @@ DeepSeek Harness（DSH）的 Maker 集成分两层：L1 是 `taptap-maker instal
 与 Codex/WorkBuddy 的 ZIP marketplace 分发不同，DSH 使用标准 bundle npm 包：`dsh plugin add`
 由 pnpm 从 npm registry 安装 `@taptap/dsh-maker`，也支持本地 tarball。它不经过
 `scripts/package-maker-client-plugins.js`，也不属于 `config/maker-plugin-version.json` 的插件
-版本线；它精确锁定包含所需 DSH 生命周期能力的 `@taptap/maker` 版本，develop 可先使用 Maker
-beta 验证且只发 GitHub prerelease，main 只能使用稳定 Maker 并发布 npm `latest`。发布工作流会先
-确认 Maker 依赖版本已发布到 npm。完整设计、安装与配置见 [DSH_PLUGIN.md](DSH_PLUGIN.md)。
+版本线；它精确锁定随包实际提供能力的 `@taptap/maker` 版本。稳定 DSH 包当前使用
+`@taptap/maker@0.0.32`；develop 可先用明确标记的 Maker beta 验证，main 只能使用已核对的
+稳定 Maker artifact 并发布 npm `latest`。发布工作流会先确认 Maker 依赖版本已发布到 npm，
+但版本存在不等于新能力已进入稳定包。完整设计、安装与配置见 [DSH_PLUGIN.md](DSH_PLUGIN.md)。
 
 ## 本地测试
 

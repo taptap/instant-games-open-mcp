@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { ConsoleProjects } from '../maker/console/projects';
 import { ConsoleTasks } from '../maker/console/tasks';
@@ -34,6 +35,45 @@ describe('Maker console project isolation', () => {
   afterEach(() =>
     fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   );
+
+  test('hashes inline scripts regardless of HTML tag case', async () => {
+    const source = 'window.test = true;';
+    const server = await startConsoleServer({
+      registry,
+      execute: async () => ({ ok: true }),
+      html: `<SCRIPT>${source}</SCRIPT>`,
+      version: 'test',
+    });
+    try {
+      const response = await fetch(server.origin);
+      expect(response.headers.get('content-security-policy')).toContain(
+        `'sha256-${createHash('sha256').update(source).digest('base64')}'`
+      );
+    } finally {
+      await server.close();
+    }
+  });
+
+  test('does not stringify unknown thrown objects into HTTP responses', async () => {
+    const stringify = jest.fn(() => 'secret internal stack');
+    const server = await startConsoleServer({
+      registry,
+      execute: async () => ({ ok: true }),
+      html: '',
+      version: 'test',
+    });
+    const spy = jest.spyOn(registry, 'list').mockImplementation(() => {
+      throw { toString: stringify, stack: 'secret internal stack' };
+    });
+    try {
+      const response = await fetch(server.origin + '/api/state');
+      expect(await response.json()).toEqual({ error: 'Unexpected console error.' });
+      expect(stringify).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+      await server.close();
+    }
+  });
 
   test('report requires consent, uses the original project and submits only once', async () => {
     const a = registry.add(project('Report A'));

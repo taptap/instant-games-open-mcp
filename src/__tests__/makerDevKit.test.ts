@@ -353,6 +353,59 @@ describe('Maker AI dev kit install', () => {
     );
   });
 
+  test('preserves installer diagnostics when .agents synchronization also fails', () => {
+    const sourceSkill = path.join(targetDir, '.installer', 'skills', 'materials');
+    fs.mkdirSync(sourceSkill, { recursive: true });
+    fs.writeFileSync(path.join(sourceSkill, 'SKILL.md'), '# materials\n', 'utf8');
+    fs.mkdirSync(path.join(targetDir, 'tools'), { recursive: true });
+    const isWindows = process.platform === 'win32';
+    const scriptName = isWindows ? 'install-skills.ps1' : 'install-skills.sh';
+    fs.writeFileSync(
+      path.join(targetDir, 'tools', scriptName),
+      isWindows
+        ? [
+            'Write-Output "installer stdout detail"',
+            '[Console]::Error.WriteLine("installer stderr detail")',
+            'exit 42',
+            '',
+          ].join('\n')
+        : [
+            '#!/bin/sh',
+            'echo "installer stdout detail"',
+            'echo "installer stderr detail" >&2',
+            'exit 42',
+            '',
+          ].join('\n'),
+      'utf8'
+    );
+    if (!isWindows) {
+      fs.chmodSync(path.join(targetDir, 'tools', scriptName), 0o755);
+    }
+
+    const symlinkSpy = jest.spyOn(fs, 'symlinkSync').mockImplementation(() => {
+      throw new Error('links unavailable');
+    });
+    const copySpy = jest.spyOn(fs, 'cpSync').mockImplementation(() => {
+      throw new Error('copies unavailable');
+    });
+
+    try {
+      expect(() => installAiDevKitSkills(targetDir)).toThrow(
+        expect.objectContaining({
+          name: 'AiDevKitSkillInstallerError',
+          message: expect.stringMatching(/exit_status: 42[\s\S]*links unavailable/),
+          result: expect.objectContaining({
+            stdout: expect.stringContaining('installer stdout detail'),
+            stderr: expect.stringContaining('installer stderr detail'),
+          }),
+        })
+      );
+    } finally {
+      symlinkSpy.mockRestore();
+      copySpy.mockRestore();
+    }
+  });
+
   test('stages skill installer output directories as local-only entries', async () => {
     await installAiDevKit({
       sourceDir,

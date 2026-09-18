@@ -444,7 +444,7 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   `allow-scripts allow-same-origin allow-downloads allow-modals`，不允许弹窗或顶层导航。
 - 仅从显式 `FRAMECRATE_STUDIO_DIR` 启动已安装的 Studio；固定 Node/tsx 入口携带
   `--project <realpath> --host-origin <控制台精确 loopback origin>`，不实施 ZIP 安装或市场。
-  Studio 保留独立 token，控制台自身不使用访问 token，嵌入 CSP 仅放行该宿主；通用消息使用
+  Studio 可保留其自身内部 token，但控制台自身不使用访问 token，嵌入 CSP 仅放行该宿主；通用消息使用
   `protocolVersion: 1` 及 `maker-console:connect`、`maker-console:plugin-ready`、
   `maker-console:plugin-activity`、`maker-console:theme`，双方校验 origin 与窗口来源，
   主题仅接受 `light`/`dark` 并由插件跟随控制台，不传 PAT 或业务执行命令。
@@ -458,7 +458,8 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   脱离 AI IDE 的受管进程树；启动命令不得转发 PAT、MAC token 或 client secret。
   self runtime 必须复制 `package.json`，保留 ESM 声明；PowerShell 准备步骤保持 fail-fast，
   仅 native 调用阶段允许 stderr 错误流继续写日志，使用真实退出码，不以警告判定失败。
-  控制台不生成、保存或校验访问 token，页面和 CLI 请求不携带 Bearer；
+  控制台不生成、保存或校验访问 token，页面和 CLI 请求不携带 Bearer；loopback 地址只用于本机
+  访问，不应被描述为带凭证的远程会话链接；
   链接包含本机 origin 和可选 projectid（真实项目 ID），多副本时用 checkout 区分目录；
   内部操作仍使用目录级登记标识。裸地址、刷新和新标签无需授权。
   保留 no-store、Host/Origin 校验、跨站拒绝及写操作精确同源要求，不改 Maker PAT 或插件凭证。
@@ -512,8 +513,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `plugins/taptap-maker/README.md`；Codex 对外安装使用对应渠道的 GitHub Release 页面和 ZIP，
   WorkBuddy 对外安装使用官方插件市场。直接从仓库添加 marketplace 只用于源码或 develop 预览版
   验证，并且必须在添加前用生成目录中的 CLI 完成旧 MCP 检查。
-- DSH bundle 插件 `@taptap/dsh-maker` 位于 `packages/dsh-maker/`，使用独立版本并精确依赖
-  `@taptap/maker`。`Publish DSH Maker Plugin` 从 `develop` 只发布 GitHub prerelease，从 `main`
+- DSH bundle 插件 `@taptap/dsh-maker` 位于 `packages/dsh-maker/`，使用独立版本并精确依赖已核对
+  artifact 的 `@taptap/maker`。稳定包当前锁定 `@taptap/maker@0.0.32`；`Publish DSH Maker Plugin`
+  从 `develop` 只发布 GitHub prerelease，从 `main`
   同时发布 npm `latest` 和 GitHub Release；1024Store 使用 npm 包名作为市场入口。DSH 发布不得
   复用 Codex/WorkBuddy 插件版本、ZIP workflow 或 Maker 主包发布 workflow。DSH npm job 必须独占
   仅允许 `main` 的 `dsh_npm_publish` environment；不得复用需要支持 Maker develop beta 的
@@ -662,7 +664,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），先阅读 `maker://ads-integration-guide`，再按其中流程检查 Maker 项目状态、调用 `get_ad_config` 并阅读项目内 `engine-docs/recipes/sdk.md`。主配置未初始化时，本地 preflight 会保持广告能力不可用且不调用远端 `get_ad_config`；仅在用户明确要求构建时调用 `maker_build_current_directory`。构建后本地配置仍缺失时直接说明当前已知限制，不要自动重复构建。配置就绪后再调用 `get_ad_config` 获取广告开通状态和配置；若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。不要先查 `.maker-mcp/config.json` 或用运行回调推断广告是否开通，也不要为这个恢复流程调用发布类工具。
 - 当前目录是已绑定 Maker 项目时，只有用户明确询问当前 Maker 游戏的线上玩家反馈（包括玩家提交的游戏故障、真机游戏日志或截图），或指定游戏会话的服务端/Lua 日志时，才调用 Maker MCP tool `get_debug_feedbacks`；Cindy 等 AI 客户端、插件、通用开发工具或其它产品的问题反馈/问题上报不属于该工具。本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代线上玩家提交的反馈。
 - `get_debug_feedbacks` 会拉取线上玩家反馈，并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`；调用后优先使用返回的 `local_dir`、`local_log_paths`、`local_screenshot_paths` 读取日志和查看截图。附件路径以 tool 返回的 `local_*` 字段为准；没有 `local_*` 字段时，不要把附件当成本地文件读取。
-- 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 查看结果 / 看看效果 / 验证游戏效果”时，都调用 `maker_build_current_directory`。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务；push 成功后才远端 build。
+- 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 远端预览 / 远端跑一下 / 查看远端结果 / 看看远端效果 / 验证远端游戏效果”时，都调用 `maker_build_current_directory`。本地控制台或本地预览走对应 CLI，不提交、不推送、不启动远端构建。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求远端构建、运行或预览。普通远端构建会先 push 再 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒远端服务；push 成功后才远端 build。
 - 提交前发现本地仅落后于 Maker 远端时，`maker_build_current_directory` 会自动执行 `git merge --ff-only origin/main` 后继续；如果远端更新会覆盖本地未提交修改，则必须在创建 commit 前停止并保留本地文件。分叉、非 main、认证或网络失败不自动处理。
 - push 被拒绝、分叉、自动 fast-forward 失败、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。

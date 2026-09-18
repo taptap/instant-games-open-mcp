@@ -38,6 +38,30 @@ describe('@taptap/dsh-maker manifest', () => {
     expect(readme).not.toContain("'github:taptap/instant-games-open-mcp#path:packages/dsh-maker'");
   });
 
+  it('keeps DSH local and remote intent explicit in the skill', () => {
+    const skill = readFileSync(
+      join(REPO_ROOT, 'packages', 'dsh-maker', 'skills', 'taptap-maker-dsh', 'SKILL.md'),
+      'utf8'
+    );
+    const table = skill.split('## 意图 → 工作流\n')[1].split('\n## ')[0].trim();
+    const rows = table.split('\n').filter((line) => line.startsWith('|'));
+    expect(rows.length).toBeGreaterThan(2);
+    expect(rows.every((line) => line.split('|').length === 4)).toBe(true);
+    expect(skill).toContain('显式传当前工程的 `target_dir`');
+    expect(skill).toContain('不提交、不推送、不启动远端构建');
+    expect(skill).not.toContain('preview <status');
+    expect(skill).not.toContain('提交/推送/构建/预览一律走 `maker_build_current_directory`');
+  });
+
+  it('does not describe the console as a tokenized remote session', () => {
+    const consoleDocs = readFileSync(join(REPO_ROOT, 'docs', 'MAKER_CONSOLE.md'), 'utf8');
+    const agents = readFileSync(join(REPO_ROOT, 'AGENTS.md'), 'utf8');
+    expect(consoleDocs).toContain('控制台不使用访问 token');
+    expect(consoleDocs).not.toContain('会话地址含访问凭证');
+    expect(agents).toContain('loopback 地址只用于本机');
+    expect(agents).toContain('页面和 CLI 请求不携带 Bearer');
+  });
+
   it('declares the DSH rc.6 peer surface', () => {
     const manifest = readJson('packages/dsh-maker/package.json');
     expect(manifest.peerDependencies['@deepseek-ai/cordis']).toBe('^4.0.1');

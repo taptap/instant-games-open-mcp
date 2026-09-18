@@ -39,17 +39,34 @@ export function syncProjectSkills(
     .map((entry) => entry.name)
     .sort();
 
-  for (const sourceSkillName of sourceSkills) {
-    const skillName = `${options.prefix || ''}${sourceSkillName}`;
-    const skillDir = path.join(skillsDir, skillName);
-    if (pathEntryExists(skillDir)) {
-      result.skippedSkills.push(skillName);
-      continue;
-    }
+  const installedSkillDirs: string[] = [];
+  try {
+    for (const sourceSkillName of sourceSkills) {
+      const skillName = `${options.prefix || ''}${sourceSkillName}`;
+      const skillDir = path.join(skillsDir, skillName);
+      if (pathEntryExists(skillDir)) {
+        result.skippedSkills.push(skillName);
+        continue;
+      }
 
-    fs.mkdirSync(skillsDir, { recursive: true });
-    installSkillContents(path.join(sourceDir, sourceSkillName), skillDir, platform);
-    result.installedSkills.push(skillName);
+      fs.mkdirSync(skillsDir, { recursive: true });
+      installSkillContents(path.join(sourceDir, sourceSkillName), skillDir, platform);
+      installedSkillDirs.push(skillDir);
+      result.installedSkills.push(skillName);
+    }
+  } catch (error) {
+    const cleanupErrors: unknown[] = [];
+    for (const skillDir of installedSkillDirs.reverse()) {
+      try {
+        fs.rmSync(skillDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        cleanupErrors.push(cleanupError);
+      }
+    }
+    if (cleanupErrors.length > 0) {
+      throwWithCleanupFailures(error, cleanupErrors);
+    }
+    throw error;
   }
 
   if (result.installedSkills.length > 0) {
@@ -69,7 +86,11 @@ function installSkillContents(
       linkOrCopyEntry(path.join(sourceDir, entry), path.join(targetDir, entry), platform);
     }
   } catch (error) {
-    fs.rmSync(targetDir, { recursive: true, force: true });
+    try {
+      fs.rmSync(targetDir, { recursive: true, force: true });
+    } catch (cleanupError) {
+      throwWithCleanupFailures(error, [cleanupError]);
+    }
     throw error;
   }
 }
@@ -115,4 +136,13 @@ function pathEntryExists(value: string): boolean {
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function throwWithCleanupFailures(primaryError: unknown, cleanupErrors: unknown[]): never {
+  const details = cleanupErrors.map(formatError).join('; ');
+  if (primaryError instanceof Error) {
+    primaryError.message = `${primaryError.message}; cleanup failures: ${details}`;
+    throw primaryError;
+  }
+  throw new Error(`Primary failure: ${formatError(primaryError)}; cleanup failures: ${details}`);
 }

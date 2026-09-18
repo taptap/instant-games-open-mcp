@@ -449,8 +449,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path55, errorMaps, issueData } = params;
-      const fullPath = [...path55, ...issueData.path || []];
+      const { data, path: path57, errorMaps, issueData } = params;
+      const fullPath = [...path57, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -730,11 +730,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path55, key) {
+      constructor(parent, value, path57, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path55;
+        this._path = path57;
         this._key = key;
       }
       get path() {
@@ -4243,10 +4243,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path55) {
-  if (!path55)
+function getElementAtPath(obj, path57) {
+  if (!path57)
     return obj;
-  return path55.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
+  return path57.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -4559,11 +4559,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path55, issues) {
+function prefixIssues(path57, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path55);
+    iss.path.unshift(path57);
     return iss;
   });
 }
@@ -17726,8 +17726,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path55) {
-      let input2 = path55;
+    function removeDotSegments(path57) {
+      let input2 = path57;
       const output2 = [];
       let nextSlash = -1;
       let len = 0;
@@ -17926,8 +17926,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path55, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path55 && path55 !== "/" ? path55 : void 0;
+        const [path57, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path57 && path57 !== "/" ? path57 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -26984,12 +26984,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs52, exportName) {
+    function addFormats(ajv, list, fs54, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs52[f]);
+        ajv.addFormat(f, fs54[f]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -28546,8 +28546,8 @@ var require_windows = __commonJS({
   "node_modules/isexe/windows.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs52 = __require("fs");
-    function checkPathExt(path55, options3) {
+    var fs54 = __require("fs");
+    function checkPathExt(path57, options3) {
       var pathext = options3.pathExt !== void 0 ? options3.pathExt : process.env.PATHEXT;
       if (!pathext) {
         return true;
@@ -28558,25 +28558,25 @@ var require_windows = __commonJS({
       }
       for (var i = 0; i < pathext.length; i++) {
         var p = pathext[i].toLowerCase();
-        if (p && path55.substr(-p.length).toLowerCase() === p) {
+        if (p && path57.substr(-p.length).toLowerCase() === p) {
           return true;
         }
       }
       return false;
     }
-    function checkStat(stat, path55, options3) {
+    function checkStat(stat, path57, options3) {
       if (!stat.isSymbolicLink() && !stat.isFile()) {
         return false;
       }
-      return checkPathExt(path55, options3);
+      return checkPathExt(path57, options3);
     }
-    function isexe(path55, options3, cb) {
-      fs52.stat(path55, function(er, stat) {
-        cb(er, er ? false : checkStat(stat, path55, options3));
+    function isexe(path57, options3, cb) {
+      fs54.stat(path57, function(er, stat) {
+        cb(er, er ? false : checkStat(stat, path57, options3));
       });
     }
-    function sync(path55, options3) {
-      return checkStat(fs52.statSync(path55), path55, options3);
+    function sync(path57, options3) {
+      return checkStat(fs54.statSync(path57), path57, options3);
     }
   }
 });
@@ -28586,14 +28586,14 @@ var require_mode = __commonJS({
   "node_modules/isexe/mode.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs52 = __require("fs");
-    function isexe(path55, options3, cb) {
-      fs52.stat(path55, function(er, stat) {
+    var fs54 = __require("fs");
+    function isexe(path57, options3, cb) {
+      fs54.stat(path57, function(er, stat) {
         cb(er, er ? false : checkStat(stat, options3));
       });
     }
-    function sync(path55, options3) {
-      return checkStat(fs52.statSync(path55), options3);
+    function sync(path57, options3) {
+      return checkStat(fs54.statSync(path57), options3);
     }
     function checkStat(stat, options3) {
       return stat.isFile() && checkMode(stat, options3);
@@ -28617,7 +28617,7 @@ var require_mode = __commonJS({
 // node_modules/isexe/index.js
 var require_isexe = __commonJS({
   "node_modules/isexe/index.js"(exports, module) {
-    var fs52 = __require("fs");
+    var fs54 = __require("fs");
     var core;
     if (process.platform === "win32" || global.TESTING_WINDOWS) {
       core = require_windows();
@@ -28626,7 +28626,7 @@ var require_isexe = __commonJS({
     }
     module.exports = isexe;
     isexe.sync = sync;
-    function isexe(path55, options3, cb) {
+    function isexe(path57, options3, cb) {
       if (typeof options3 === "function") {
         cb = options3;
         options3 = {};
@@ -28636,7 +28636,7 @@ var require_isexe = __commonJS({
           throw new TypeError("callback not provided");
         }
         return new Promise(function(resolve, reject) {
-          isexe(path55, options3 || {}, function(er, is) {
+          isexe(path57, options3 || {}, function(er, is) {
             if (er) {
               reject(er);
             } else {
@@ -28645,7 +28645,7 @@ var require_isexe = __commonJS({
           });
         });
       }
-      core(path55, options3 || {}, function(er, is) {
+      core(path57, options3 || {}, function(er, is) {
         if (er) {
           if (er.code === "EACCES" || options3 && options3.ignoreErrors) {
             er = null;
@@ -28655,9 +28655,9 @@ var require_isexe = __commonJS({
         cb(er, is);
       });
     }
-    function sync(path55, options3) {
+    function sync(path57, options3) {
       try {
-        return core.sync(path55, options3 || {});
+        return core.sync(path57, options3 || {});
       } catch (er) {
         if (options3 && options3.ignoreErrors || er.code === "EACCES") {
           return false;
@@ -28673,7 +28673,7 @@ var require_isexe = __commonJS({
 var require_which = __commonJS({
   "node_modules/which/which.js"(exports, module) {
     var isWindows = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys";
-    var path55 = __require("path");
+    var path57 = __require("path");
     var COLON = isWindows ? ";" : ":";
     var isexe = require_isexe();
     var getNotFoundError = (cmd) => Object.assign(new Error(`not found: ${cmd}`), { code: "ENOENT" });
@@ -28711,7 +28711,7 @@ var require_which = __commonJS({
           return opt.all && found.length ? resolve(found) : reject(getNotFoundError(cmd));
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path55.join(pathPart, cmd);
+        const pCmd = path57.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         resolve(subStep(p, i, 0));
       });
@@ -28738,7 +28738,7 @@ var require_which = __commonJS({
       for (let i = 0; i < pathEnv.length; i++) {
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path55.join(pathPart, cmd);
+        const pCmd = path57.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         for (let j = 0; j < pathExt.length; j++) {
           const cur = p + pathExt[j];
@@ -28786,7 +28786,7 @@ var require_path_key = __commonJS({
 var require_resolveCommand = __commonJS({
   "node_modules/cross-spawn/lib/util/resolveCommand.js"(exports, module) {
     "use strict";
-    var path55 = __require("path");
+    var path57 = __require("path");
     var which = require_which();
     var getPathKey = require_path_key();
     function resolveCommandAttempt(parsed, withoutPathExt) {
@@ -28804,7 +28804,7 @@ var require_resolveCommand = __commonJS({
       try {
         resolved = which.sync(parsed.command, {
           path: env[getPathKey({ env })],
-          pathExt: withoutPathExt ? path55.delimiter : void 0
+          pathExt: withoutPathExt ? path57.delimiter : void 0
         });
       } catch (e) {
       } finally {
@@ -28813,7 +28813,7 @@ var require_resolveCommand = __commonJS({
         }
       }
       if (resolved) {
-        resolved = path55.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
+        resolved = path57.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
       }
       return resolved;
     }
@@ -28867,8 +28867,8 @@ var require_shebang_command = __commonJS({
       if (!match) {
         return null;
       }
-      const [path55, argument] = match[0].replace(/#! ?/, "").split(" ");
-      const binary = path55.split("/").pop();
+      const [path57, argument] = match[0].replace(/#! ?/, "").split(" ");
+      const binary = path57.split("/").pop();
       if (binary === "env") {
         return argument;
       }
@@ -28881,16 +28881,16 @@ var require_shebang_command = __commonJS({
 var require_readShebang = __commonJS({
   "node_modules/cross-spawn/lib/util/readShebang.js"(exports, module) {
     "use strict";
-    var fs52 = __require("fs");
+    var fs54 = __require("fs");
     var shebangCommand = require_shebang_command();
     function readShebang(command) {
       const size = 150;
       const buffer = Buffer.alloc(size);
       let fd;
       try {
-        fd = fs52.openSync(command, "r");
-        fs52.readSync(fd, buffer, 0, size, 0);
-        fs52.closeSync(fd);
+        fd = fs54.openSync(command, "r");
+        fs54.readSync(fd, buffer, 0, size, 0);
+        fs54.closeSync(fd);
       } catch (e) {
       }
       return shebangCommand(buffer.toString());
@@ -28903,7 +28903,7 @@ var require_readShebang = __commonJS({
 var require_parse = __commonJS({
   "node_modules/cross-spawn/lib/parse.js"(exports, module) {
     "use strict";
-    var path55 = __require("path");
+    var path57 = __require("path");
     var resolveCommand = require_resolveCommand();
     var escape3 = require_escape();
     var readShebang = require_readShebang();
@@ -28928,7 +28928,7 @@ var require_parse = __commonJS({
       const needsShell = !isExecutableRegExp.test(commandFile);
       if (parsed.options.forceShell || needsShell) {
         const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
-        parsed.command = path55.normalize(parsed.command);
+        parsed.command = path57.normalize(parsed.command);
         parsed.command = escape3.command(parsed.command);
         parsed.args = parsed.args.map((arg) => escape3.argument(arg, needsDoubleEscapeMetaChars));
         const shellCommand = [parsed.command].concat(parsed.args).join(" ");
@@ -30738,16 +30738,33 @@ function syncProjectSkills(targetDir, options3) {
   const sourceSkills = fs6.readdirSync(sourceDir, { withFileTypes: true }).filter(
     (entry) => entry.isDirectory() && fs6.existsSync(path7.join(sourceDir, entry.name, "SKILL.md"))
   ).map((entry) => entry.name).sort();
-  for (const sourceSkillName of sourceSkills) {
-    const skillName = `${options3.prefix || ""}${sourceSkillName}`;
-    const skillDir = path7.join(skillsDir, skillName);
-    if (pathEntryExists(skillDir)) {
-      result.skippedSkills.push(skillName);
-      continue;
+  const installedSkillDirs = [];
+  try {
+    for (const sourceSkillName of sourceSkills) {
+      const skillName = `${options3.prefix || ""}${sourceSkillName}`;
+      const skillDir = path7.join(skillsDir, skillName);
+      if (pathEntryExists(skillDir)) {
+        result.skippedSkills.push(skillName);
+        continue;
+      }
+      fs6.mkdirSync(skillsDir, { recursive: true });
+      installSkillContents(path7.join(sourceDir, sourceSkillName), skillDir, platform);
+      installedSkillDirs.push(skillDir);
+      result.installedSkills.push(skillName);
     }
-    fs6.mkdirSync(skillsDir, { recursive: true });
-    installSkillContents(path7.join(sourceDir, sourceSkillName), skillDir, platform);
-    result.installedSkills.push(skillName);
+  } catch (error2) {
+    const cleanupErrors = [];
+    for (const skillDir of installedSkillDirs.reverse()) {
+      try {
+        fs6.rmSync(skillDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        cleanupErrors.push(cleanupError);
+      }
+    }
+    if (cleanupErrors.length > 0) {
+      throwWithCleanupFailures(error2, cleanupErrors);
+    }
+    throw error2;
   }
   if (result.installedSkills.length > 0) {
     result.status = "installed";
@@ -30761,7 +30778,11 @@ function installSkillContents(sourceDir, targetDir, platform) {
       linkOrCopyEntry(path7.join(sourceDir, entry), path7.join(targetDir, entry), platform);
     }
   } catch (error2) {
-    fs6.rmSync(targetDir, { recursive: true, force: true });
+    try {
+      fs6.rmSync(targetDir, { recursive: true, force: true });
+    } catch (cleanupError) {
+      throwWithCleanupFailures(error2, [cleanupError]);
+    }
     throw error2;
   }
 }
@@ -30802,6 +30823,14 @@ function pathEntryExists(value) {
 }
 function formatError2(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
+}
+function throwWithCleanupFailures(primaryError, cleanupErrors) {
+  const details = cleanupErrors.map(formatError2).join("; ");
+  if (primaryError instanceof Error) {
+    primaryError.message = `${primaryError.message}; cleanup failures: ${details}`;
+    throw primaryError;
+  }
+  throw new Error(`Primary failure: ${formatError2(primaryError)}; cleanup failures: ${details}`);
 }
 var init_projectSkills = __esm({
   "src/maker/cli/projectSkills.ts"() {
@@ -31129,11 +31158,25 @@ function readManagedGitignoreEntries(gitignorePath) {
   return entries;
 }
 function installAiDevKitSkills(targetDir, options3 = {}) {
+  let result;
   try {
-    return runAiDevKitSkillScript(targetDir, options3);
-  } finally {
-    syncProjectSkills(targetDir, { client: ".agents" });
+    result = runAiDevKitSkillScript(targetDir, options3);
+  } catch (error2) {
+    try {
+      syncProjectSkills(targetDir, { client: ".agents" });
+    } catch (syncError) {
+      if (error2 instanceof Error) {
+        error2.message = `${error2.message}; .agents synchronization failed: ${formatError3(syncError)}`;
+        throw error2;
+      }
+      throw new Error(
+        `AI dev kit skill installer failed: ${formatError3(error2)}; .agents synchronization failed: ${formatError3(syncError)}`
+      );
+    }
+    throw error2;
   }
+  syncProjectSkills(targetDir, { client: ".agents" });
+  return result;
 }
 function runAiDevKitSkillScript(targetDir, options3) {
   var _a3;
@@ -31311,6 +31354,9 @@ function extractZip(zipPath, targetDir, label = "AI dev kit") {
 function formatSpawnFailure(result) {
   var _a3;
   return ((_a3 = result.error) == null ? void 0 : _a3.message) || String(result.stderr || "").trim() || String(result.stdout || "").trim() || `exit status ${result.status ?? "unknown"}`;
+}
+function formatError3(error2) {
+  return error2 instanceof Error ? error2.message : String(error2);
 }
 function formatDevKitSkillInstallerFailure(options3) {
   return [
@@ -32461,12 +32507,14 @@ async function withQrcodeFastForward(cwd, remoteRef, fastForward) {
   const remote = git2(["rev-parse", remoteRef]).trim();
   let baseEntry, remoteEntry, localText;
   try {
-    const baseTree = git2(["ls-tree", head, "--", file2]);
-    const remoteTree = git2(["ls-tree", remote, "--", file2]);
-    if (!/^100644 blob [a-f0-9]+\t/.test(baseTree) || !/^100644 blob [a-f0-9]+\t/.test(remoteTree))
-      return await fastForward(remote);
-    baseEntry = baseTree.replace(" blob ", " ").replace("	", " 0	");
-    remoteEntry = remoteTree.replace(" blob ", " ").replace("	", " 0	");
+    const treeEntry = /^100644 blob ([a-f0-9]+)\t\.project\/project\.json\n$/;
+    const baseTree = treeEntry.exec(git2(["ls-tree", head, "--", file2]));
+    const remoteTree = treeEntry.exec(git2(["ls-tree", remote, "--", file2]));
+    if (!baseTree || !remoteTree) return await fastForward(remote);
+    baseEntry = `100644 ${baseTree[1]} 0	${file2}
+`;
+    remoteEntry = `100644 ${remoteTree[1]} 0	${file2}
+`;
     if (baseEntry === remoteEntry || git2(["ls-files", "--stage", "--", file2]) !== baseEntry)
       return await fastForward(remote);
     const filename2 = path13.join(cwd, file2);
@@ -42954,7 +43002,7 @@ function readPreviewRecord(project) {
   const filename2 = path24.join(previewDirectory(project), "session.json");
   if (!fs23.existsSync(filename2)) return void 0;
   const record2 = JSON.parse(fs23.readFileSync(filename2, "utf8"));
-  if (record2.project_realpath !== project || record2.protocol_version !== PREVIEW_PROTOCOL_VERSION || !/^[a-f0-9]{64}$/.test(record2.token) || !Number.isInteger(record2.port) || record2.port < 0 || record2.port > 65535 || !Number.isInteger(record2.supervisor_pid) || record2.supervisor_pid < 0 || record2.runtime_pid !== void 0 && (!Number.isInteger(record2.runtime_pid) || record2.runtime_pid < 0) || !/^[0-9a-f-]{36}$/.test(record2.session_id) || !record2.supervisor_id || !Number.isSafeInteger(record2.reload_id) || record2.reload_id < 0 || !record2.started_at || record2.launch_deadline !== void 0 && (!Number.isSafeInteger(record2.launch_deadline) || record2.launch_deadline <= 0) || !path24.isAbsolute(record2.executable)) {
+  if (record2.project_realpath !== project || record2.protocol_version !== PREVIEW_PROTOCOL_VERSION || !/^[a-f0-9]{64}$/.test(record2.token) || !Number.isInteger(record2.port) || record2.port < 0 || record2.port > 65535 || !Number.isInteger(record2.supervisor_pid) || record2.supervisor_pid < 0 || record2.runtime_pid !== void 0 && (!Number.isInteger(record2.runtime_pid) || record2.runtime_pid < 0) || record2.runtime_launch_pending !== void 0 && typeof record2.runtime_launch_pending !== "boolean" || !/^[0-9a-f-]{36}$/.test(record2.session_id) || !record2.supervisor_id || !Number.isSafeInteger(record2.reload_id) || record2.reload_id < 0 || !record2.started_at || record2.launch_deadline !== void 0 && (!Number.isSafeInteger(record2.launch_deadline) || record2.launch_deadline <= 0) || !path24.isAbsolute(record2.executable)) {
     throw new Error("Invalid preview session record; refusing to manage an unverified process.");
   }
   return record2;
@@ -45245,7 +45293,7 @@ var require_websocket = __commonJS({
     var http4 = __require("http");
     var net = __require("net");
     var tls = __require("tls");
-    var { randomBytes: randomBytes4, createHash: createHash11 } = __require("crypto");
+    var { randomBytes: randomBytes4, createHash: createHash12 } = __require("crypto");
     var { Duplex, Readable: Readable2 } = __require("stream");
     var { URL: URL2 } = __require("url");
     var PerMessageDeflate2 = require_permessage_deflate();
@@ -45913,7 +45961,7 @@ var require_websocket = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash11("sha1").update(key + GUID).digest("base64");
+        const digest = createHash12("sha1").update(key + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -46282,7 +46330,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter = __require("events");
     var http4 = __require("http");
     var { Duplex } = __require("stream");
-    var { createHash: createHash11 } = __require("crypto");
+    var { createHash: createHash12 } = __require("crypto");
     var extension2 = require_extension();
     var PerMessageDeflate2 = require_permessage_deflate();
     var subprotocol2 = require_subprotocol();
@@ -46589,7 +46637,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash11("sha1").update(key + GUID).digest("base64");
+        const digest = createHash12("sha1").update(key + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -49755,17 +49803,17 @@ var require_codegen3 = __commonJS({
 var require_fs = __commonJS({
   "node_modules/protobufjs/src/util/fs.js"(exports, module) {
     "use strict";
-    var fs52 = null;
+    var fs54 = null;
     try {
-      fs52 = __require(
+      fs54 = __require(
         /* webpackIgnore: true */
         "fs"
       );
-      if (!fs52 || !fs52.readFile || !fs52.readFileSync)
-        fs52 = null;
+      if (!fs54 || !fs54.readFile || !fs54.readFileSync)
+        fs54 = null;
     } catch (e) {
     }
-    module.exports = fs52;
+    module.exports = fs54;
   }
 });
 
@@ -49775,7 +49823,7 @@ var require_fetch = __commonJS({
     "use strict";
     module.exports = fetch2;
     var asPromise = require_aspromise();
-    var fs52 = require_fs();
+    var fs54 = require_fs();
     function fetch2(filename2, options3, callback) {
       if (typeof options3 === "function") {
         callback = options3;
@@ -49784,8 +49832,8 @@ var require_fetch = __commonJS({
         options3 = {};
       if (!callback)
         return asPromise(fetch2, this, filename2, options3);
-      if (!options3.xhr && fs52 && fs52.readFile)
-        return fs52.readFile(filename2, function fetchReadFileCallback(err, contents) {
+      if (!options3.xhr && fs54 && fs54.readFile)
+        return fs54.readFile(filename2, function fetchReadFileCallback(err, contents) {
           return err && typeof XMLHttpRequest !== "undefined" ? fetch2.xhr(filename2, options3, callback) : err ? callback(err) : callback(null, options3.binary ? contents : contents.toString("utf8"));
         });
       return fetch2.xhr(filename2, options3, callback);
@@ -49823,13 +49871,13 @@ var require_fetch = __commonJS({
 var require_path = __commonJS({
   "node_modules/protobufjs/src/util/path.js"(exports) {
     "use strict";
-    var path55 = exports;
+    var path57 = exports;
     var urlRe = /^[a-zA-Z][a-zA-Z0-9+.-]+:\/\//;
-    function normalizeUrl(path56) {
-      if (typeof URL === "undefined" || !urlRe.test(path56))
+    function normalizeUrl(path58) {
+      if (typeof URL === "undefined" || !urlRe.test(path58))
         return null;
       try {
-        return new URL(path56).href;
+        return new URL(path58).href;
       } catch (e) {
         return null;
       }
@@ -49849,8 +49897,8 @@ var require_path = __commonJS({
        * @param {string} path Path to test
        * @returns {boolean} `true` if path is absolute
        */
-      path55.isAbsolute = function isAbsolute2(path56) {
-        return /^(?:\/|\w+:|\\\\\w+)/.test(path56);
+      path57.isAbsolute = function isAbsolute2(path58) {
+        return /^(?:\/|\w+:|\\\\\w+)/.test(path58);
       }
     );
     var normalize = (
@@ -49859,18 +49907,18 @@ var require_path = __commonJS({
        * @param {string} path Path to normalize
        * @returns {string} Normalized path
        */
-      path55.normalize = function normalize2(path56) {
-        var normalizedUrl = normalizeUrl(path56);
+      path57.normalize = function normalize2(path58) {
+        var normalizedUrl = normalizeUrl(path58);
         if (normalizedUrl)
           return normalizedUrl;
-        var firstTwoCharacters = path56.substring(0, 2);
+        var firstTwoCharacters = path58.substring(0, 2);
         var uncPrefix = "";
         if (firstTwoCharacters === "\\\\") {
           uncPrefix = firstTwoCharacters;
-          path56 = path56.substring(2);
+          path58 = path58.substring(2);
         }
-        path56 = path56.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
-        var parts = path56.split("/"), absolute = isAbsolute(path56), prefix = "";
+        path58 = path58.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+        var parts = path58.split("/"), absolute = isAbsolute(path58), prefix = "";
         if (absolute)
           prefix = parts.shift() + "/";
         for (var i = 0; i < parts.length; ) {
@@ -49889,7 +49937,7 @@ var require_path = __commonJS({
         return uncPrefix + prefix + parts.join("/");
       }
     );
-    path55.resolve = function resolve(originPath, includePath, alreadyNormalized) {
+    path57.resolve = function resolve(originPath, includePath, alreadyNormalized) {
       var resolvedUrl = resolveUrl(originPath, includePath);
       if (resolvedUrl)
         return resolvedUrl;
@@ -50062,18 +50110,18 @@ var require_namespace = __commonJS({
       object3.onRemove(this);
       return clearCache(this);
     };
-    Namespace.prototype.define = function define2(path55, json2) {
-      if (util2.isString(path55))
-        path55 = path55.split(".");
-      else if (!Array.isArray(path55))
+    Namespace.prototype.define = function define2(path57, json2) {
+      if (util2.isString(path57))
+        path57 = path57.split(".");
+      else if (!Array.isArray(path57))
         throw TypeError("illegal path");
-      if (path55 && path55.length && path55[0] === "")
+      if (path57 && path57.length && path57[0] === "")
         throw Error("path must be relative");
-      if (path55.length > util2.recursionLimit)
+      if (path57.length > util2.recursionLimit)
         throw Error("max depth exceeded");
       var ptr = this;
-      while (path55.length > 0) {
-        var part = path55.shift();
+      while (path57.length > 0) {
+        var part = path57.shift();
         if (ptr.nested && ptr.nested[part]) {
           ptr = ptr.nested[part];
           if (!(ptr instanceof Namespace))
@@ -50109,22 +50157,22 @@ var require_namespace = __commonJS({
       });
       return this;
     };
-    Namespace.prototype.lookup = function lookup(path55, filterTypes, parentAlreadyChecked) {
+    Namespace.prototype.lookup = function lookup(path57, filterTypes, parentAlreadyChecked) {
       if (typeof filterTypes === "boolean") {
         parentAlreadyChecked = filterTypes;
         filterTypes = void 0;
       } else if (filterTypes && !Array.isArray(filterTypes))
         filterTypes = [filterTypes];
-      if (util2.isString(path55) && path55.length) {
-        if (path55 === ".")
+      if (util2.isString(path57) && path57.length) {
+        if (path57 === ".")
           return this.root;
-        path55 = path55.split(".");
-      } else if (!path55.length)
+        path57 = path57.split(".");
+      } else if (!path57.length)
         return this;
-      var flatPath = path55.join(".");
-      if (path55[0] === "")
-        return this.root.lookup(path55.slice(1), filterTypes);
-      var found = this._lookupImpl(path55, flatPath);
+      var flatPath = path57.join(".");
+      if (path57[0] === "")
+        return this.root.lookup(path57.slice(1), filterTypes);
+      var found = this._lookupImpl(path57, flatPath);
       if (found && (!filterTypes || filterTypes.indexOf(found.constructor) > -1)) {
         return found;
       }
@@ -50136,7 +50184,7 @@ var require_namespace = __commonJS({
         return null;
       var current = this;
       while (current.parent) {
-        found = current.parent._lookupImpl(path55, flatPath);
+        found = current.parent._lookupImpl(path57, flatPath);
         if (found && (!filterTypes || filterTypes.indexOf(found.constructor) > -1)) {
           return found;
         }
@@ -50144,22 +50192,22 @@ var require_namespace = __commonJS({
       }
       return null;
     };
-    Namespace.prototype._lookupImpl = function lookup(path55, flatPath) {
+    Namespace.prototype._lookupImpl = function lookup(path57, flatPath) {
       if (Object.prototype.hasOwnProperty.call(this._lookupCache, flatPath)) {
         return this._lookupCache[flatPath];
       }
-      var found = this.get(path55[0]);
+      var found = this.get(path57[0]);
       var exact = null;
       if (found) {
-        if (path55.length === 1) {
+        if (path57.length === 1) {
           exact = found;
         } else if (found instanceof Namespace) {
-          path55 = path55.slice(1);
-          exact = found._lookupImpl(path55, path55.join("."));
+          path57 = path57.slice(1);
+          exact = found._lookupImpl(path57, path57.join("."));
         }
       } else {
         for (var i = 0; i < this.nestedArray.length; ++i)
-          if (this._nestedArray[i] instanceof Namespace && (found = this._nestedArray[i]._lookupImpl(path55, flatPath))) {
+          if (this._nestedArray[i] instanceof Namespace && (found = this._nestedArray[i]._lookupImpl(path57, flatPath))) {
             exact = found;
             break;
           }
@@ -50167,28 +50215,28 @@ var require_namespace = __commonJS({
       this._lookupCache[flatPath] = exact;
       return exact;
     };
-    Namespace.prototype.lookupType = function lookupType(path55) {
-      var found = this.lookup(path55, [Type]);
+    Namespace.prototype.lookupType = function lookupType(path57) {
+      var found = this.lookup(path57, [Type]);
       if (!found)
-        throw Error("no such type: " + path55);
+        throw Error("no such type: " + path57);
       return found;
     };
-    Namespace.prototype.lookupEnum = function lookupEnum(path55) {
-      var found = this.lookup(path55, [Enum]);
+    Namespace.prototype.lookupEnum = function lookupEnum(path57) {
+      var found = this.lookup(path57, [Enum]);
       if (!found)
-        throw Error("no such Enum '" + path55 + "' in " + this);
+        throw Error("no such Enum '" + path57 + "' in " + this);
       return found;
     };
-    Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path55) {
-      var found = this.lookup(path55, [Type, Enum]);
+    Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path57) {
+      var found = this.lookup(path57, [Type, Enum]);
       if (!found)
-        throw Error("no such Type or Enum '" + path55 + "' in " + this);
+        throw Error("no such Type or Enum '" + path57 + "' in " + this);
       return found;
     };
-    Namespace.prototype.lookupService = function lookupService(path55) {
-      var found = this.lookup(path55, [Service]);
+    Namespace.prototype.lookupService = function lookupService(path57) {
+      var found = this.lookup(path57, [Service]);
       if (!found)
-        throw Error("no such Service '" + path55 + "' in " + this);
+        throw Error("no such Service '" + path57 + "' in " + this);
       return found;
     };
     Namespace._configure = function(Type_, Service_, Enum_) {
@@ -51805,13 +51853,13 @@ var require_util3 = __commonJS({
       Object.defineProperty(object3, "$type", { value: enm, enumerable: false });
       return enm;
     };
-    util2.setProperty = function setProperty(dst, path55, value, ifNotSet) {
-      function setProp(dst2, path56, value2) {
-        var part = path56.shift();
+    util2.setProperty = function setProperty(dst, path57, value, ifNotSet) {
+      function setProp(dst2, path58, value2) {
+        var part = path58.shift();
         if (util2.isUnsafeProperty(part))
           return dst2;
-        if (path56.length > 0) {
-          dst2[part] = setProp(dst2[part] || {}, path56, value2);
+        if (path58.length > 0) {
+          dst2[part] = setProp(dst2[part] || {}, path58, value2);
         } else {
           var prevValue = dst2[part];
           if (prevValue && ifNotSet)
@@ -51824,12 +51872,12 @@ var require_util3 = __commonJS({
       }
       if (typeof dst !== "object")
         throw TypeError("dst must be an object");
-      if (!path55)
+      if (!path57)
         throw TypeError("path must be specified");
-      path55 = path55.split(".");
-      if (path55.length > util2.recursionLimit)
+      path57 = path57.split(".");
+      if (path57.length > util2.recursionLimit)
         throw Error("max depth exceeded");
-      return setProp(dst, path55, value);
+      return setProp(dst, path57, value);
     };
     Object.defineProperty(util2, "decorateRoot", {
       get: function() {
@@ -52409,12 +52457,12 @@ var require_object = __commonJS({
        */
       fullName: {
         get: function() {
-          var path55 = [this.name], ptr = this.parent;
+          var path57 = [this.name], ptr = this.parent;
           while (ptr) {
-            path55.unshift(ptr.name);
+            path57.unshift(ptr.name);
             ptr = ptr.parent;
           }
-          return path55.join(".");
+          return path57.join(".");
         }
       }
     });
@@ -54273,7 +54321,7 @@ var consoleIconLicense, consoleIcons;
 var init_webIcons = __esm({
   "src/maker/console/webIcons.ts"() {
     "use strict";
-    consoleIconLicense = `Lucide icon-node snapshot: lucide-vue-next v1.0.0
+    consoleIconLicense = `Lucide icon-node snapshot: lucide-vue-next v1.0.0; copy/link: lucide v0.468.0
 ISC License
 Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2026 as part
 of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2026.
@@ -54306,6 +54354,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.`;
     consoleIcons = {
+      copy: [
+        ["rect", { width: "14", height: "14", x: "8", y: "8", rx: "2", ry: "2" }],
+        ["path", { d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" }]
+      ],
+      link: [
+        ["path", { d: "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" }],
+        ["path", { d: "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" }]
+      ],
       qrcode: [
         ["rect", { width: "5", height: "5", x: "3", y: "3", rx: "1" }],
         ["rect", { width: "5", height: "5", x: "16", y: "3", rx: "1" }],
@@ -54385,6 +54441,7 @@ let viewEpoch = 0;
 let state = {projects: [], tasks: []};
 let loaded = false;
 let fortuneTimer;
+let fortuneReady = false;
 function fortuneMode() {
   return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 }
@@ -54431,8 +54488,22 @@ function loadFortuneFrame(reload) {
   frame.dataset.mode = fortuneMode();
   frame.src = fortuneUrl();
 }
+function revealFortune() {
+  fortuneReady = true;
+  $('fortune-panel').hidden = true;
+  $('fortune-panel').classList.remove('fortune-preload');
+  $('fortune-corner').hidden = false;
+}
+function beginFortuneLoad(reload) {
+  fortuneReady = false;
+  $('fortune-corner').hidden = true;
+  $('fortune-panel').hidden = true;
+  $('fortune-panel').classList.add('fortune-preload');
+  loadFortuneFrame(reload);
+}
 function openFortune() {
   clearTimeout(fortuneTimer);
+  if (!fortuneReady) return;
   const panel = $('fortune-panel');
   if (!panel) return;
   if (panel.parentElement !== document.body) document.body.append(panel);
@@ -54447,6 +54518,12 @@ function bindFortuneHover(element) {
 }
 let documentTab = 'docs', documentSearch = '', documentItems = [], documentSelected = '';
 let documentRequest = 0, documentDirectoryRequest = 0;
+function markdownText(value) {
+  // Decode only entity-shaped fragments; all resulting content still uses textContent.
+  return String(value || '').replace(/&(?:#[0-9]+|#x[0-9a-f]+|[a-z][a-z0-9]+);/gi, entity => {
+    return new DOMParser().parseFromString('<body>' + entity + '</body>','text/html').body.textContent;
+  });
+}
 function markdownNodes(tokens) {
   const fragment = document.createDocumentFragment();
   for (const token of tokens || []) {
@@ -54456,10 +54533,10 @@ function markdownNodes(tokens) {
     if (token.type === 'heading') { element = node('h' + Math.min(6,Math.max(1,token.depth))); element.append(children()); }
     else if (token.type === 'paragraph' || token.type === 'text') {
       element = node(token.type === 'paragraph' ? 'p' : 'span');
-      if (token.tokens) element.append(children()); else element.textContent = token.text || '';
+      if (token.tokens) element.append(children()); else element.textContent = markdownText(token.text);
     } else if (['strong','em','del'].includes(token.type)) { element = node(token.type); element.append(children()); }
     else if (token.type === 'code') { element = node('pre'); element.append(node('code',token.text)); }
-    else if (token.type === 'codespan') element = node('code',token.text);
+    else if (token.type === 'codespan') element = node('code',markdownText(token.text));
     else if (token.type === 'blockquote') { element = node('blockquote'); element.append(children()); }
     else if (token.type === 'br' || token.type === 'hr') element = node(token.type);
     else if (token.type === 'list') {
@@ -54496,8 +54573,8 @@ function markdownNodes(tokens) {
           else announce('该链接不在当前文档目录中');
         });
       }
-    } else if (token.type === 'image') element = node('span','[图片：' + (token.text || token.href || '') + ']','muted');
-    else element = node('span',token.text || token.raw || '');
+    } else if (token.type === 'image') element = node('span','[图片：' + markdownText(token.text || token.href) + ']','muted');
+    else element = node('span',token.type === 'escape' ? markdownText(token.text) : token.text || token.raw || '');
     fragment.append(element);
   }
   return fragment;
@@ -54528,7 +54605,7 @@ async function openDocument(item) {
         header.append(fallback); fallback.focus(); fallback.select();
         notify('无法访问剪贴板，请复制已选中的文档链接');
       }
-    }));
+    },{icon:'link'}));
     replace(reader,[header,node('p',item.source + ' · ' + item.relativePath,'muted')]);
     if (item.purpose) {
       const intro = node('section',undefined,'document-intro');
@@ -54578,7 +54655,7 @@ async function renderDocuments() {
   const epoch = viewEpoch;
   const request = ++documentDirectoryRequest;
   const toolbar = node('div',undefined,'document-toolbar');
-  const tabs = node('div',undefined,'actions'); tabs.setAttribute('role','tablist');
+  const tabs = node('div',undefined,'actions document-tabs'); tabs.setAttribute('role','tablist');
   [['docs','开发文档'],['project','项目文档'],['skills','Skill']].forEach(([kind,label]) => {
     const tab = button(label,() => {
       documentTab = kind; renderDocumentDirectory();
@@ -54591,7 +54668,7 @@ async function renderDocuments() {
   const search = node('input'); search.id = 'document-search'; search.type = 'search'; search.placeholder = '搜索标题、用途或目录';
   search.setAttribute('aria-label','搜索文档与 Skill'); search.value = documentSearch;
   search.addEventListener('input',() => { documentSearch = search.value; renderDocumentDirectory(); });
-  toolbar.append(tabs,search,button('刷新目录',() => void renderDocuments()));
+  toolbar.append(tabs,search,button('刷新目录',() => void renderDocuments(),{icon:'refresh',iconOnly:true,className:'icon-button'}));
   const layout = node('div',undefined,'document-layout');
   const directory = node('aside'); directory.id = 'document-directory'; directory.setAttribute('aria-label','文档目录');
   const reader = node('article'); reader.id = 'document-reader';
@@ -54622,7 +54699,8 @@ function renderVersionPicker() {
   const managed = state.distribution && state.distribution !== 'standalone';
   const updating = updateSubmitting || state.update?.status === 'running';
   const newer = versionCatalog?.updateAvailable === true;
-  const label = updating ? '更新中…' : current + (managed ? '（插件管理）' : newer ? '（有新版本）' : '');
+  const label = updating ? '更新中…' : versionQuery ? '检查版本中…' :
+    current + (managed ? '（插件管理）' : newer ? '（有新版本）' : '');
   replace(picker,[]);
   const active = node('option',label); active.value = ''; picker.append(active);
   if (!managed) {
@@ -54674,6 +54752,7 @@ async function selectMakerVersion(event) {
 let detail = null;
 let preview = null;
 let previewError = '';
+let previewLoading = false;
 const logViews = new Map();
 function logView() {
   if (!logViews.has(selected)) logViews.set(selected,{tab:'build',runtime:'',loading:false,wrap:false,cleared:{}});
@@ -54710,12 +54789,26 @@ function consoleLogText() {
   return [output,details].filter(Boolean).join('\n\n') ||
     (view.tab === 'runtime' ? '点击刷新读取运行时日志' : snapshot.id ? '等待任务输出' : '暂无日志');
 }
+function logLineClass(line) {
+  if (/(?:^|\b)(?:error|fatal|失败|错误|异常)(?:\b|$)/i.test(line)) return 'log-line log-error';
+  if (/(?:^|\b)(?:warn(?:ing)?|警告|注意)(?:\b|$)/i.test(line)) return 'log-line log-warning';
+  return 'log-line';
+}
+function renderLogLines(output) {
+  const fragment = document.createDocumentFragment();
+  const lines = String(output || '').split('\n');
+  lines.forEach((line,index) => {
+    fragment.append(node('span',line,logLineClass(line)));
+    if (index < lines.length - 1) fragment.append(document.createTextNode('\n'));
+  });
+  return fragment;
+}
 function renderConsoleLogs() {
   const host = $('console-logs');
   if (!host) return;
   const view = logView();
   const toolbar = node('div',undefined,'console-log-toolbar');
-  const tabs = node('div',undefined,'actions');
+  const tabs = node('div',undefined,'console-log-tabs');
   tabs.setAttribute('role','tablist');
   [['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志'],['qrcode','二维码']].forEach(([id,label]) => {
     const tab = button(label,() => { view.tab = id; renderConsoleLogs(); if (id === 'runtime' && !view.runtime && !view.loading) void loadLogs(); });
@@ -54726,15 +54819,16 @@ function renderConsoleLogs() {
   const wrap = node('label','自动换行','theme');
   const checkbox = node('input'); checkbox.type = 'checkbox'; checkbox.checked = view.wrap;
   checkbox.addEventListener('change',() => { view.wrap = checkbox.checked; renderConsoleLogs(); }); wrap.append(checkbox);
-  actions.append(wrap,button('刷新',() => { if(view.tab === 'runtime') void loadLogs(); else void pollState().then(renderConsoleLogs).catch(e=>notify(e.message)); },{disabled:offline || view.loading}),
-    button('清理日志',clearConsoleLogs,{icon:'trash',disabled:view.loading}),
-    button('复制',async () => { try { await navigator.clipboard.writeText(consoleLogText()); announce('日志已复制'); } catch (_) { notify('复制失败，请手动选择日志复制'); } }));
-  toolbar.append(tabs,actions);
-  const output = node('pre',consoleLogText(),'console-log-output' + (view.wrap ? ' wrap' : ''));
+  actions.append(wrap,button(view.loading ? '读取中' : '刷新',() => { if(view.tab === 'runtime') void loadLogs(); else void pollState().then(renderConsoleLogs).catch(e=>notify(e.message)); },{icon:'refresh',iconOnly:true,className:'icon-button',loading:view.loading,disabled:offline || view.loading}),
+    button('清理日志',clearConsoleLogs,{icon:'trash',iconOnly:true,className:'icon-button',disabled:view.loading}),
+    button('复制',async () => { try { await navigator.clipboard.writeText(consoleLogText()); announce('日志已复制'); } catch (_) { notify('复制失败，请手动选择日志复制'); } },{icon:'copy',iconOnly:true,className:'icon-button'}));
+  toolbar.append(node('h2','日志'),actions);
+  const output = node('pre',undefined,'console-log-output' + (view.wrap ? ' wrap' : ''));
+  output.append(renderLogLines(consoleLogText()));
   output.id = 'console-log-output'; output.setAttribute('role','tabpanel'); output.tabIndex = 0;
   const previous = $('console-log-output');
   const top = previous?.scrollTop || 0, left = previous?.scrollLeft || 0;
-  replace(host,[node('h2','日志'),toolbar,output]);
+  replace(host,[toolbar,tabs,output]);
   output.scrollTop = top; output.scrollLeft = left;
 }
 let git = null;
@@ -54757,10 +54851,48 @@ const pending = new Set();
 const pendingActions = new Map();
 const pluginSessions = new Map();
 const acceptedTasks = new Map();
+const pendingReports = new Map();
+const offeredReports = new Set();
+function offerIssueReport(task) {
+  if (!task.reportOffer || task.report || offeredReports.has(task.reportOffer.fingerprint)) return;
+  pendingReports.set(task.id,task);
+  if (pendingReports.size > 100) pendingReports.delete(pendingReports.keys().next().value);
+}
+function showPendingIssueReport() {
+  if (offline || disposed || consoleDialogOpen()) return;
+  const task = Array.from(pendingReports.values()).find(item => item.projectKey === selected);
+  if (!task) return;
+  pendingReports.delete(task.id);
+  if (offeredReports.has(task.reportOffer.fingerprint)) return;
+  offeredReports.add(task.reportOffer.fingerprint);
+  const dialog = $('confirm');
+  $('confirm-title').textContent = '提交问题反馈？';
+  $('confirm-message').textContent = (task.action.startsWith('preview.') ? '本地预览遇到异常。' : '操作遇到异常。') +
+    '是否提交问题反馈，帮助我们定位修复？将附带脱敏后的错误、日志和环境信息。';
+  $('confirm-accept').textContent = '确认提交';
+  dialog.returnValue = 'cancel';
+  dialog.addEventListener('close',async () => {
+    if (dialog.returnValue !== 'accept') return;
+    try {
+      const updated = await api('/api/tasks/' + encodeURIComponent(task.id) + '/report',{
+        method:'POST',body:{consent:true}
+      });
+      rememberTask(updated);
+      const index = state.tasks.findIndex(item => item.id === updated.id);
+      if (index >= 0) state.tasks[index] = updated;
+      if (updated.projectKey === selected) { updateChrome(); updateBuild(); notify('正在提交问题反馈…','info'); }
+    } catch (error) { notify('问题反馈未提交：' + error.message); }
+  },{once:true});
+  dialog.showModal();
+}
 const windowDrafts = new Map();
 function rememberTask(task) {
   const previous = acceptedTasks.get(task.id);
   acceptedTasks.set(task.id,task);
+  if (previous?.report?.status === 'running' && task.report?.status !== 'running' && task.projectKey === selected)
+    notify(task.report?.status === 'created' ? '问题反馈已提交，谢谢。' :
+      task.report?.status === 'unknown' ? '反馈提交结果未知，请勿重复提交。' :
+      '反馈未能自动提交，请检查 GitHub CLI 登录状态及网络。',task.report?.status === 'created' ? 'success' : 'error');
   const projectTasks = Array.from(acceptedTasks.values()).reverse()
     .filter(item => item.projectKey === task.projectKey)
     .sort((a,b) => String(b.startedAt).localeCompare(String(a.startedAt)));
@@ -54808,13 +54940,16 @@ function icon(name) {
   return svg;
 }
 function button(label, handler, options = {}) {
-  const b = node('button', options.iconOnly ? undefined : label, options.className);
+  const b = node('button', options.iconOnly ? undefined : label,
+    [options.className, options.loading ? 'is-loading' : ''].filter(Boolean).join(' '));
   b.type = 'button';
-  b.disabled = Boolean(options.disabled);
+  b.disabled = Boolean(options.disabled || options.loading);
   b.title = label;
   b.setAttribute('aria-label', label);
-  if (options.icon) b.prepend(icon(options.icon));
+  if (options.loading) b.prepend(node('span',undefined,'loading-spinner'));
+  else if (options.icon) b.prepend(icon(options.icon));
   if (options.focus) b.dataset.focus = options.focus;
+  if (options.loading) b.setAttribute('aria-busy','true');
   b.addEventListener('click', handler);
   return b;
 }
@@ -54883,7 +55018,11 @@ function tasksFor(key) {
   acceptedTasks.forEach(t => { if (t.projectKey === key && !tasks.has(t.id)) tasks.set(t.id, t); });
   return Array.from(tasks.values()).sort((a,b) => String(b.startedAt).localeCompare(String(a.startedAt))).slice(0,10);
 }
-function busy(key = selected) { return pending.has(key) || tasksFor(key).some(t => t.status === 'running'); }
+function busy(key = selected) { return pending.has(key) || tasksFor(key).some(t => t.status === 'running' || t.report?.status === 'running'); }
+function actionBusy(action, key = selected) {
+  return pendingActions.get(key) === action ||
+    tasksFor(key).some(task => task.action === action && task.status === 'running');
+}
 function selectionMatches(key, epoch) { return key === selected && epoch === selectionEpoch; }
 function notify(message, tone = 'error') {
   $('feedback-text').textContent = text(message);
@@ -54946,7 +55085,8 @@ function updateChrome() {
   }
   picker.value = currentProject() ? selected : '';
   picker.disabled = !loaded || offline;
-  $('context').textContent = currentProject() ? currentProject().name + ' / ' + text(detail?.git?.branch, '分支未提供') : '本地项目';
+  $('context').textContent = currentProject() ? text(detail?.git?.branch, '分支未提供') : '本地项目';
+  $('context').title = currentProject()?.name || '本地项目';
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
     b.disabled = !loaded || (b.dataset.page !== 'documents' && !currentProject()?.valid);
@@ -54955,17 +55095,19 @@ function updateChrome() {
   });
   if ($('heading-actions')) replace($('heading-actions'),headingActionButtons());
   if ($('overview-task')) {
-    const latest = tasksFor(selected)[0];
-    replace($('overview-task'),[node('h2','最近任务'),
-      latest ? taskBlock(latest) : node('p','暂无控制台任务','muted')]);
+    replace($('overview-task'),overviewTasks());
   }
 }
 function headingActionButtons() {
   const actions = previewActions(preview);
+  const previewBusy = actionBusy('preview.start') || actionBusy('preview.refresh') ||
+    actionBusy('preview.install') || actionBusy('preview.stop');
+  const qrcodeBusy = actionBusy('qrcode');
   const local = button('本地预览',() => {
     const action = previewActions(preview)[0];
     if (action) void runProjectAction(action);
-  },{className:'preview-button',icon:'monitor',disabled:offline || busy() || !actions.length,focus:'heading-preview'});
+  },{className:'preview-button',icon:'monitor',loading:previewBusy,
+    disabled:offline || busy() || !actions.length,focus:'heading-preview'});
   local.title = actions.length ? '本地预览 · ' + actionLabels[actions[0]] :
     '本地预览 · ' + (previewError || text(preview?.error,previewLabel()));
   const checking = pendingActions.get(selected) === 'lua-lsp.check' ||
@@ -54974,17 +55116,14 @@ function headingActionButtons() {
   const presentation = buildPresentation(task,pendingActions.get(selected) === 'build',offline);
   const build = button(checking ? 'Lua 检查中' : presentation.active ? presentation.label : '构建',
     () => void runProjectAction('build'),
-    {className:'primary build-button' + (presentation.active || checking ? ' is-building' : ''),
+    {className:'build-button' + (presentation.active || checking ? ' is-building' : ''),
       icon:presentation.active || checking ? 'refresh' : 'hammer',disabled:offline || busy(),focus:'heading-build'});
   build.setAttribute('aria-busy',String(presentation.active || checking));
   const primary = node('div',undefined,'actions heading-primary');
   primary.append(local,build,button('测试二维码',() => void runProjectAction('qrcode'),{
-    icon:'qrcode',disabled:offline || busy(),focus:'heading-qrcode'
+    icon:'qrcode',loading:qrcodeBusy,disabled:offline || busy(),focus:'heading-qrcode'
   }));
-  const secondary = node('div',undefined,'actions heading-secondary');
-  secondary.append(luaCheckOption());
-  if (!presentation.active && task) secondary.append(node('span',presentation.label,'build-badge ' + presentation.tone));
-  return [primary,secondary];
+  return [primary];
 }
 function luaCheckOption() {
   const label = node('label',undefined,'lua-check-option');
@@ -55307,6 +55446,12 @@ async function removeProject(key) {
   } catch (error) { notify(error.message); }
   finally { pending.delete(key); updateChrome(); if (page === 'projects') renderProjects(); }
 }
+function overviewTasks() {
+  const tasks = tasksFor(selected);
+  const title = node('div',undefined,'section-heading');
+  title.append(node('h2','最近任务'),node('span','保留最近 10 次','muted'));
+  return [title,...(tasks.length ? tasks.map(task => taskBlock(task)) : [node('p','暂无控制台任务','muted')])];
+}
 function renderOverview() {
   const p = currentProject();
   const title = heading(p.name,p.path,true);
@@ -55318,7 +55463,8 @@ function renderOverview() {
   [['项目版本',config.version],['屏幕方向',orientation],['Git HEAD',detail.git?.head?.slice(0,10)],
     ['本地预览',previewLabel()]].forEach(([name,value]) => {
     const metric = node('div',undefined,'metric');
-    metric.append(node('div',name,'muted'),node('div',text(value),'value')); metrics.append(metric);
+    metric.append(node('div',name,'muted'),node('div',text(value),'value' +
+      (name === '本地预览' ? ' ' + previewPresentation(preview,previewError).tone : ''))); metrics.append(metric);
   });
   const runtime = runtimePresentation(preview,previewError);
   const runtimeMetric = node('div',undefined,'metric runtime-metric');
@@ -55364,13 +55510,9 @@ function renderOverview() {
   if (latestBuild?.status === 'failed') {
     health.append(failureBanner('最近构建失败', buildFailureDetails(latestBuild) || buildFailureTitle(latestBuild)));
   }
-  const links = node('div',undefined,'actions preview-controls');
-  links.append(button('构建与测试',() => navigate('build')),button('查看 Git',() => navigate('git')));
-  health.append(links);
   columns.append(configSection,health);
   const recent = node('section',undefined,'task-history'); recent.id = 'overview-task';
-  const latest = tasksFor(selected)[0];
-  recent.append(node('h2','最近任务'),latest ? taskBlock(latest) : node('p','暂无控制台任务','muted'));
+  recent.append(...overviewTasks());
   const serviceActions = node('div',undefined,'console-service-actions');
   serviceActions.append(button('关闭Maker控制台',() => void shutdownConsole(),{
     className:'console-shutdown',disabled:offline || shutdownPending,focus:'console-shutdown'
@@ -55472,8 +55614,9 @@ function explainQrcode(title, message) {
 }
 function showQrcode(task) {
   const source = qrcodeImageSource(task);
-  if (!source || task.projectKey !== selected || consoleDialogOpen()) return;
-  const dialog = $('qrcode-result'), image = $('qrcode-result-image'), status = $('qrcode-result-status');
+  const dialog = $('qrcode-result');
+  if (!source || task.projectKey !== selected || (consoleDialogOpen() && !dialog?.open)) return;
+  const image = $('qrcode-result-image'), status = $('qrcode-result-status');
   const retry = $('qrcode-result-reload'), original = $('qrcode-result-original');
   $('qrcode-result-project').textContent = '项目：' + task.projectName;
   original.hidden = source.startsWith('data:');
@@ -55490,7 +55633,21 @@ function showQrcode(task) {
     image.src = source;
   };
   retry.onclick = loadImage;
+  if (dialog.removeAttribute) dialog.removeAttribute('aria-busy');
   loadImage();
+  if (!dialog.open) dialog.showModal();
+}
+function showQrcodeLoading(project) {
+  const dialog = $('qrcode-result');
+  if (!dialog || consoleDialogOpen()) return;
+  $('qrcode-result-project').textContent = '项目：' + text(project?.name, '当前项目');
+  $('qrcode-result-status').hidden = false;
+  $('qrcode-result-status').textContent = '正在生成测试二维码，请稍候…';
+  $('qrcode-result-status').className = 'pending';
+  $('qrcode-result-image').hidden = true;
+  $('qrcode-result-reload').hidden = true;
+  $('qrcode-result-original').hidden = true;
+  dialog.setAttribute('aria-busy','true');
   dialog.showModal();
 }
 const handledQrcodeTasks = new Set();
@@ -55499,10 +55656,21 @@ function handleQrcodeCompletion(task) {
       handledQrcodeTasks.has(task.id)) return;
   handledQrcodeTasks.add(task.id);
   while (handledQrcodeTasks.size > 100) handledQrcodeTasks.delete(handledQrcodeTasks.values().next().value);
-  if (consoleDialogOpen()) return;
+  if (consoleDialogOpen() && !$('qrcode-result')?.open) return;
   if (task.status === 'succeeded') {
     if (qrcodeImageSource(task)) showQrcode(task);
-    else notify('二维码工具已返回，请在任务结果中查看链接。','warning');
+    else {
+      if ($('qrcode-result')?.open) {
+        if ($('qrcode-result').removeAttribute) $('qrcode-result').removeAttribute('aria-busy');
+        $('qrcode-result-status').hidden = false;
+        $('qrcode-result-status').textContent = '二维码任务已完成，但未返回可显示的二维码图片，请查看任务结果。';
+        $('qrcode-result-status').className = 'pending';
+      }
+      notify('二维码工具已返回，请在任务结果中查看链接。','warning');
+    }
+  } else if ($('qrcode-result')?.open) {
+    $('qrcode-result').close();
+    if ($('qrcode-result').removeAttribute) $('qrcode-result').removeAttribute('aria-busy');
   } else if (task.interaction?.kind === 'select_developer' && !busy(task.projectKey)) {
     void runAction('qrcode',{sourceTaskId:task.id});
   }
@@ -55559,8 +55727,9 @@ function runtimePresentation(status, error = '') {
   }
   return {label:'待检测',detail:'',tone:'muted'};
 }
-function taskStartsOpen(task, open = false) {
-  return Boolean(open || task?.action === 'qrcode' || (task?.status === 'failed' && task?.action !== 'lua-lsp.check'));
+function taskStartsOpen(task, open = false, latest = true) {
+  return Boolean(open || task?.status === 'running' || (latest &&
+    (task?.status === 'unknown' || (task?.status === 'failed' && task?.action !== 'lua-lsp.check'))));
 }
 function taskOutputText(task) {
   const output = text(task?.output,'').trim();
@@ -55576,8 +55745,10 @@ function taskOutputText(task) {
 }
 function taskBlock(task, open = false) {
   const failed = task.status === 'failed';
+  const item = node('article',undefined,'task-item');
+  const shortcuts = node('div',undefined,'actions task-shortcuts');
   const d = node('details',undefined,'task' + (failed ? ' is-failed' : '')); d.dataset.key = task.id;
-  d.open = taskStartsOpen(task,open);
+  d.open = taskStartsOpen(task,open,tasksFor(task.projectKey)[0]?.id === task.id);
   const summary = node('summary');
   summary.dataset.focus = 'task-' + task.id;
   summary.append(node('strong', actionLabels[task.action] || task.action),
@@ -55586,9 +55757,19 @@ function taskBlock(task, open = false) {
     node('time',date(task.startedAt)));
   const meta = node('p','项目：' + text(task.projectName) + ' · 任务：' + text(task.id),'task-meta muted');
   d.append(summary,meta);
+  if (task.report) {
+    const labels = {running:'正在提交问题反馈…',created:'问题反馈已提交',unavailable:'反馈未能自动提交，请检查 GitHub CLI 登录状态及网络。',unknown:'反馈提交结果未知，请勿重复提交。'};
+    shortcuts.append(node('span',labels[task.report.status] || '反馈状态未知','muted'));
+    if (task.report.status === 'running') shortcuts.append(node('span',undefined,'loading-spinner'));
+    if (task.report.status === 'created' && /^https:\/\/github\.com\/taptap\/instant-games-open-mcp\/issues\/\d+$/.test(task.report.issue_url || '')) {
+      const link = node('a','查看反馈','preview-link');
+      link.href = task.report.issue_url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      shortcuts.append(link);
+    }
+  }
   if (task.interaction?.kind === 'select_developer' && task.projectKey === selected &&
       tasksFor(task.projectKey).find(item => item.action === 'qrcode')?.id === task.id) {
-    d.append(button('选择开发者并继续',() => void runAction('qrcode',{sourceTaskId:task.id}),{
+    shortcuts.append(button('选择开发者并继续',() => void runAction('qrcode',{sourceTaskId:task.id}),{
       disabled:offline || busy(task.projectKey)
     }));
   }
@@ -55606,11 +55787,11 @@ function taskBlock(task, open = false) {
     const link = node('a','打开 Web 预览','preview-link');
     link.href = previewUrl; link.target = '_blank'; link.rel = 'noopener noreferrer';
     link.referrerPolicy = 'no-referrer';
-    d.append(link);
+    shortcuts.append(link);
   }
   if (task.action === 'qrcode' && task.status === 'succeeded') {
     const source = qrcodeImageSource(task);
-    if (source) d.append(button('查看二维码',() => showQrcode(task),{icon:'qrcode',disabled:task.projectKey !== selected}));
+    if (source) shortcuts.append(button('查看二维码',() => showQrcode(task),{icon:'qrcode',disabled:task.projectKey !== selected}));
     const content = task.result?.result?.content;
     for (const item of Array.isArray(content) ? content : []) {
       if (item.type === 'image' && ['image/png','image/jpeg','image/webp'].includes(item.mimeType) &&
@@ -55638,7 +55819,8 @@ function taskBlock(task, open = false) {
     const result = node('details'); result.dataset.key = 'result-' + task.id;
     result.append(node('summary','完整结果'),node('pre',text(task.result))); d.append(result);
   }
-  return d;
+  item.append(d,shortcuts);
+  return item;
 }
 function windowDimensions(settings, info) {
   const orientation = settings.orientation === 'project' ? info.projectOrientation || 'landscape' : settings.orientation;
@@ -55654,8 +55836,16 @@ function renderWindowSettings() {
     draft = {settings:JSON.parse(JSON.stringify(info.settings)),dirty:false,saving:false};
     windowDrafts.set(key,draft);
   }
+  const disclosure = node('details',undefined,'preview-window-disclosure');
+  disclosure.dataset.key = 'preview-window-' + key;
+  const summary = node('summary',undefined,'preview-window-summary');
+  const effective = preview?.process_alive === true && preview?.preflight?.window || info.effective;
+  summary.append(node('span',(effective.height > effective.width ? '竖屏' : '横屏') + ' · ' +
+    effective.width + ' × ' + effective.height,'muted'),node('span','窗口设置'));
+  if (draft.dirty) summary.append(node('span','未保存','pending'));
+  else if (effective.width !== info.effective.width || effective.height !== info.effective.height)
+    summary.append(node('span','已保存，刷新后生效','pending'));
   const form = node('form',undefined,'preview-window-settings');
-  form.append(node('h3','预览窗口设置','preview-window-title'));
   const disabled = offline || busy(key) || draft.saving;
   const selectField = (label, name, options, value, change) => {
     const wrap = node('label',label);
@@ -55718,11 +55908,12 @@ function renderWindowSettings() {
     } catch (error) { if (selectionMatches(key,epoch)) notify(error.message); }
     finally { draft.saving = false; if (selectionMatches(key,epoch)) updateBuild(); }
   });
-  return form;
+  disclosure.append(summary,form);
+  return disclosure;
 }
 function renderBuild() {
-  const title = heading('构建与测试',currentProject().path,true);
-  const columns = node('div',undefined,'columns');
+  const title = heading('构建与测试',currentProject().name,true);
+  const columns = node('div',undefined,'columns build-columns');
   const build = node('section'); build.id = 'build-panel';
   const local = node('section'); local.id = 'preview-panel';
   columns.append(build,local);
@@ -55740,16 +55931,20 @@ function updateBuild() {
   const checkTask = tasks.find(t => t.action === 'lua-lsp.check');
   const lua = luaLspPresentation(state.luaLsp);
   const checkBlock = node('div',undefined,'lua-check-panel');
-  checkBlock.append(node('p','Lua LSP · ' + lua.label + (lua.detail ? ' · ' + lua.detail : ''), lua.tone));
+  const checkActions = node('div',undefined,'actions lua-check-actions');
+  checkActions.append(luaCheckOption());
   if (checkTask) {
     const summary = luaCheckSummary(checkTask,checking);
-    checkBlock.append(button(summary,() => selectLog('lua'),{className:'link ' + (checkTask.status === 'failed' ? 'bad' : checkTask.status === 'succeeded' ? 'good' : 'pending')}));
-  } else checkBlock.append(node('p','尚未检查当前项目','muted'));
-  const checkActions = node('div',undefined,'actions preview-controls');
+    checkActions.append(button(summary,() => selectLog('lua'),{className:'link ' + (checkTask.status === 'failed' ? 'bad' : checkTask.status === 'succeeded' ? 'good' : 'pending')}));
+  }
   checkActions.append(button(checking ? '检查中' : 'Lua 检查',() => void runAction('lua-lsp.check'),{
-    disabled:offline || busy(),focus:'lua-lsp.check'
+    className:'link',icon:'refresh',disabled:offline || busy(),focus:'lua-lsp.check'
   }));
   checkBlock.append(checkActions);
+  const lspStatus = node('div',undefined,'lsp-status');
+  lspStatus.append(node('span','Lua LSP · ' + lua.label + (lua.detail ? ' · ' + lua.detail : ''), lua.tone),
+    button('检查日志',() => selectLog('lua'),{className:'link'}));
+  checkBlock.append(lspStatus);
   const buildChildren = [node('h2','远端构建'),buildStatus,checkBlock];
   replace($('build-panel'),buildChildren);
   const previewInfo = previewPresentation(preview,previewError);
@@ -55757,14 +55952,12 @@ function updateBuild() {
   summary.append(node('span','Runtime · ' + (preview?.install_state === 'ready' ? '已安装' :
     preview?.install_state === 'missing' ? '未安装' : '待检测'),
     preview?.install_state === 'ready' ? 'good' : preview?.install_state === 'missing' ? 'pending' : 'muted'));
-  summary.append(node('span',previewError ? '检测失败' : previewInfo.stateLabel,previewInfo.tone));
-  if (previewInfo.errorCount) summary.append(node('span',previewInfo.errorCount + ' 条日志错误','bad'));
-  const localChildren = [node('h2','本地预览'),summary];
-  localChildren.push(renderWindowSettings());
-  if (previewInfo.error) localChildren.push(node('p',previewInfo.error,'bad'));
-  if (previewInfo.errorCount) localChildren.push(button(
-    'Runtime 日志中有 ' + previewInfo.errorCount + ' 条错误 · 查看日志',
+  summary.append(node('span',previewLoading ? '检测中…' : previewError ? '检测失败' : previewInfo.stateLabel,
+    previewLoading ? 'pending' : previewInfo.tone));
+  if (previewInfo.errorCount) summary.append(button(previewInfo.errorCount + ' 条日志错误',
     () => void loadLogs(),{className:'link bad'}));
+  const localChildren = [node('h2','本地预览'),summary];
+  if (previewInfo.error) localChildren.push(node('p',previewInfo.error,'bad'));
   if (preview?.session_id) {
     const diagnostics = node('details'); diagnostics.dataset.key = 'preview-diagnostics';
     diagnostics.append(node('summary','诊断信息'),fields([['会话 ID',preview.session_id],
@@ -55773,13 +55966,18 @@ function updateBuild() {
   }
   if (preview?.supported === false) localChildren.push(node('p','当前平台不支持本地预览','bad'));
   const actions = node('div',undefined,'actions preview-controls');
-  previewActions(preview).forEach(action => actions.append(button(actionLabels[action],() => void runAction(action),{
-    disabled:busy(),focus:action, ...(action === 'preview.refresh' ? {icon:'refresh'} : {})
+  if (!previewActions(preview).includes('preview.stop'))
+    actions.append(button('停止预览',() => {},{disabled:true}));
+  previewActions(preview).filter(action => action !== 'preview.start').reverse().forEach(action => actions.append(button(
+    actionBusy(action) ? actionLabels[action] + '中' : actionLabels[action],() => void runAction(action),{
+    loading:actionBusy(action),disabled:offline || busy(),focus:action,
+    ...(action === 'preview.refresh' ? {icon:'refresh',iconOnly:true,className:'icon-button'} : {})
   })));
-  actions.append(button('检测预览状态',() => void refreshPreview(),{icon:'refresh',iconOnly:true,
-    className:'icon-button',focus:'preview-status'}));
-  actions.append(button('查看运行日志',() => void loadLogs(),{focus:'preview-logs'}));
+  actions.append(button(previewLoading ? '检测中' : '检测预览状态',() => void refreshPreview(),{
+    className:'link',loading:previewLoading,focus:'preview-status'}));
+  actions.append(button('查看运行日志',() => void loadLogs(),{className:'link',focus:'preview-logs'}));
   localChildren.push(actions);
+  localChildren.push(renderWindowSettings());
   replace($('preview-panel'),localChildren);
   renderConsoleLogs();
   const history = [node('h2','任务历史')];
@@ -55790,6 +55988,8 @@ function updateBuild() {
 async function refreshPreview() {
   const key = selected, epoch = selectionEpoch;
   if (!key || !currentProject()?.valid) return;
+  previewLoading = true;
+  if (page === 'build') updateBuild();
   try {
     const result = await api(projectPath(key,'/preview'));
     if (!selectionMatches(key,epoch)) return;
@@ -55802,6 +56002,11 @@ async function refreshPreview() {
     preview = null; previewError = error.message;
     if (page === 'build') updateBuild();
     if (page === 'overview') renderOverview();
+  } finally {
+    if (selectionMatches(key,epoch)) {
+      previewLoading = false;
+      if (page === 'build') updateBuild();
+    }
   }
 }
 async function loadLogs() {
@@ -55920,6 +56125,7 @@ function luaCheckBlocksBuild(task) {
 async function runAction(action, options = {}) {
   const key = selected, epoch = selectionEpoch;
   const project = currentProject();
+  let preflight = false;
   if (!project?.valid || busy(key) || !Object.hasOwn(actionLabels,action)) return;
   if (action === 'build' || action === 'lua-lsp.check') logView().tab = action === 'build' ? 'build' : 'lua';
   pending.add(key); pendingActions.set(key,action); updateChrome(); updateBuild();
@@ -55961,11 +56167,16 @@ async function runAction(action, options = {}) {
       const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action,...choice}});
       if (task.projectKey !== key) throw new Error('任务项目与请求不一致，请检查任务状态。');
       rememberTask(task);
+      if (selectionMatches(key,epoch)) {
+        if (task.status === 'running') showQrcodeLoading(project);
+        else if (task.status === 'succeeded') handleQrcodeCompletion(task);
+      }
       void pollTask(task.id,key,epoch);
       return;
     }
     if (action !== 'build' && action !== 'lua-lsp.check') {
       const checkServerChanges = action === 'preview.start' || action === 'preview.refresh';
+      preflight = ['preview.start','preview.refresh','preview.install'].includes(action);
       const status = await api(projectPath(key,checkServerChanges ? '/preview?check_server_changes=1' : '/preview'));
       if (selectionMatches(key,epoch)) preview = status;
       if (!previewActions(status).includes(action)) throw new Error(text(status.error,'预览状态已改变，请重新检测后操作。'));
@@ -55983,11 +56194,14 @@ async function runAction(action, options = {}) {
       if (luaCheckBlocksBuild(check)) {
         if (selectionMatches(key,epoch)) {
           selectLog('lua');
-          notify(text(nestedResult(check)?.error || check?.error,'Lua 检查未通过，已停止构建。'));
+          announce('Lua 检查未通过，已停止构建，请查看下方 Lua 检查日志。');
         }
         return;
       }
-      if (selectionMatches(key,epoch) && check?.status === 'failed') notify(text(check.error,'Lua 检查不可用，仍继续构建。'));
+      if (selectionMatches(key,epoch) && check?.status === 'failed') {
+        selectLog('lua');
+        announce('Lua 检查不可用，已继续构建，请查看下方 Lua 检查日志。');
+      }
       pendingActions.set(key,'build');
       updateChrome(); updateBuild();
     }
@@ -56015,6 +56229,21 @@ async function runAction(action, options = {}) {
     }
   } catch (error) {
     if (selectionMatches(key,epoch)) notify(error.message);
+    const reportablePreflight = /timeout|timed out|HTTP 5\d\d|internal.*error|unverifiable|unexpected|connection closed/i
+      .test(String(error?.message || error));
+    if (preflight && reportablePreflight && selectionMatches(key,epoch)) {
+      try {
+        const failed = await api('/api/tasks/failure',{
+          method:'POST',
+          body:{projectKey:key,action,error:String(error?.message || error)}
+        });
+        rememberTask(failed);
+        offerIssueReport(failed);
+        showPendingIssueReport();
+      } catch {
+        // The original preflight error remains visible when the local task record cannot be saved.
+      }
+    }
   } finally {
     pending.delete(key);
     pendingActions.delete(key);
@@ -56031,6 +56260,7 @@ async function pollTask(id,key,epoch) {
     const task = await api('/api/tasks/' + encodeURIComponent(id));
     if (task.projectKey !== key || task.id !== id) throw new Error('任务身份不一致');
     rememberTask(task);
+    if (prior?.status === 'running' && task.status !== 'running') offerIssueReport(task);
     const index = state.tasks.findIndex(t => t.id === id);
     if (index >= 0) state.tasks[index] = task; else state.tasks.push(task);
     if (!selectionMatches(key,epoch)) return task;
@@ -56040,6 +56270,7 @@ async function pollTask(id,key,epoch) {
       await refreshPreview();
       if (selectionMatches(key,epoch)) handleQrcodeCompletion(task);
     }
+    showPendingIssueReport();
     return task;
   } catch (error) { if (selectionMatches(key,epoch)) notify(error.message); }
 }
@@ -56217,13 +56448,16 @@ async function pollState() {
       Object.assign(task,prior);
     } else if (prior) rememberTask(task);
     if (task.projectKey === selected && previousTasks.get(task.id) === 'running' && task.status !== 'running') {
+      offerIssueReport(task);
       announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
       handleQrcodeCompletion(task);
     }
   });
+  showPendingIssueReport();
   $('version').textContent = 'Maker ' + text(state.version) + ' · ' + text(state.distribution,'独立发行') + ' · ' + text(state.platform);
   renderVersionPicker();
-  $('connection').textContent = '已连接 · ' + new Date().toLocaleTimeString('zh-CN');
+  $('connection').textContent = '已连接';
+  $('connection').title = '最近连接：' + new Date().toLocaleTimeString('zh-CN');
   $('connection').className = 'good';
   lastStateError = '';
   if (selected && !currentProject()?.valid && (page !== 'projects' || first || priorProjects !== JSON.stringify(state.projects))) {
@@ -56257,6 +56491,19 @@ async function poll() {
   }
 }
 document.addEventListener('DOMContentLoaded',async () => {
+  let makerMarkClicks = 0;
+  let makerMarkTimer;
+  $('maker-mark').addEventListener('click',() => {
+    makerMarkClicks += 1;
+    clearTimeout(makerMarkTimer);
+    if (makerMarkClicks >= 3) {
+      $('maker-mark').classList.add('maker-easter-egg');
+      $('maker-mark').setAttribute('aria-label','Maker 控制台彩蛋已触发');
+      makerMarkClicks = 0;
+      return;
+    }
+    makerMarkTimer = setTimeout(() => { makerMarkClicks = 0; },1000);
+  });
   window.addEventListener('message',event => {
     for (const session of pluginSessions.values()) {
       if (!pluginMessageMatches(event,session)) continue;
@@ -56280,12 +56527,23 @@ document.addEventListener('DOMContentLoaded',async () => {
     const value = theme.checked ? 'dark' : 'light';
     document.documentElement.dataset.theme = value;
     pluginSessions.forEach(session => sendPluginTheme(session));
-    if ($('fortune-frame').getAttribute('src')) loadFortuneFrame(true);
+    if ($('fortune-frame').getAttribute('src')) {
+      beginFortuneLoad(true);
+    }
     try { localStorage.setItem('maker-console-theme',value); } catch (_) { notify('无法保存主题设置'); }
   });
   $('projects-button').append(icon('folder'));
-  $('fortune-retry').append(icon('refresh'));
-  $('fortune-retry').addEventListener('click',() => loadFortuneFrame(true));
+  const fortunePanel = $('fortune-panel');
+  const fortuneFrame = $('fortune-frame');
+  fortunePanel.classList.add('fortune-preload');
+  fortunePanel.hidden = true;
+  fortuneFrame.addEventListener('load',revealFortune);
+  fortuneFrame.addEventListener('error',() => {
+    fortuneReady = false;
+    $('fortune-corner').hidden = true;
+    fortunePanel.hidden = true;
+  });
+  beginFortuneLoad();
   bindFortuneHover($('fortune-toggle'));
   bindFortuneHover($('fortune-panel'));
   $('fortune-toggle').addEventListener('click',event => {
@@ -56324,7 +56582,7 @@ var init_webStyles = __esm({
   "src/maker/console/webStyles.ts"() {
     "use strict";
     consoleStyles = String.raw`
-:root{color-scheme:dark;--bg:#202224;--top:#282b2d;--border:#414647;--text:#f2f4ef;--muted:#acb4af;--yellow:#f5d747;--accent:#f5d747;--green:#70d9b4;--red:#ff9c94;--soft:#303b36;--code:#191c1d}
+:root{color-scheme:dark;--bg:#1b1e1f;--top:#232728;--border:#363b3c;--text:#ecefee;--muted:#9ca6a4;--yellow:#f5dc56;--accent:#f5dc56;--green:#78d4ad;--red:#f08b85;--soft:#303b36;--code:#16191a}
 :root[data-theme="light"]{color-scheme:light;--bg:#fff;--top:#f3f5f4;--border:#dce2de;--text:#252e29;--muted:#64716a;--accent:#76600b;--green:#176c50;--red:#b3352c;--soft:#edf4ef;--code:#f5f7f6}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 "PingFang SC","Microsoft YaHei",sans-serif;letter-spacing:0}
@@ -56333,11 +56591,12 @@ button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min
 button:hover:not(:disabled){border-color:var(--muted);background:var(--soft)}
 button:disabled{opacity:.5;cursor:not-allowed}
 button.primary{background:var(--yellow);border-color:var(--yellow);color:#252820;font-weight:600}
-button.preview-button{color:var(--yellow);font-weight:700}
-.build-button{min-width:116px}
+button.preview-button{color:var(--accent);font-weight:700;border-color:#756b38;background:#302e22}
+:root[data-theme="light"] button.preview-button{background:#fcf6d7;border-color:#bcab57}
+.build-button{min-width:88px}
 button.is-building:disabled{opacity:1;cursor:wait}
 .build-badge{font-size:12px;white-space:nowrap}
-.build-status{padding:14px 0;margin-bottom:14px;border-block:1px solid var(--border);min-height:60px}
+.build-status{padding:0;margin-bottom:16px;min-height:32px}
 .build-status-title{display:flex;align-items:center;gap:8px}
 .build-stage{font-size:13px;overflow-wrap:anywhere}
 .build-progress{height:6px;width:100%;overflow:hidden;background:var(--border);margin-top:12px}
@@ -56346,33 +56605,37 @@ button.is-building:disabled{opacity:1;cursor:wait}
 .build-progress-label{font-size:12px;margin-top:6px;text-align:right}
 @keyframes build-spin{to{transform:rotate(360deg)}}
 @keyframes build-travel{from{transform:translateX(-100%)}to{transform:translateX(386%)}}
+.loading-spinner{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;flex:none}
+.is-loading{cursor:wait!important}
 @media(prefers-reduced-motion:no-preference){
-.is-building .icon,.build-spinner{animation:build-spin 1.2s linear infinite}
+.is-building .icon,.build-spinner,.loading-spinner{animation:build-spin 1.2s linear infinite}
 .build-progress.indeterminate span{animation:build-travel 1.8s ease-in-out infinite}
 .build-progress.determinate span{transition:width .25s ease}
 }
 button.danger{color:var(--red)}
-.console-service-actions{display:flex;justify-content:flex-end;margin-top:24px;padding-top:16px;border-top:1px solid var(--border)}
-button.console-shutdown{background:#702c32;color:#fff;border-color:#702c32}
+.console-service-actions{display:flex;justify-content:flex-end;margin-top:24px;padding-top:16px}
+button.console-shutdown{background:#332525;color:#d3908e;border-color:#65413f;font-size:12px}
 button.console-shutdown:hover:not(:disabled){background:#87353d;border-color:#87353d}
 #maker-version-picker{font-size:12px;font-weight:400;max-width:240px;min-width:100px;padding:5px 8px}
 .brand{flex-wrap:wrap}
-.footer-start{display:flex;align-items:center;gap:12px;flex-wrap:nowrap;min-width:0}
+.footer-start{display:flex;align-items:center;gap:18px;flex-wrap:wrap;min-width:0}
 #fortune-corner{position:relative;flex:none}
-button#fortune-toggle{border:0;background:none;color:#f5e6a3;font-size:12px;font-weight:600;padding:0;min-height:0;line-height:1.4;white-space:nowrap}
+button#fortune-toggle{border:0;background:none;color:#b5aa78;font-size:11px;font-weight:400;padding:0;min-height:0;line-height:1.4;white-space:nowrap}
 :root[data-theme="light"] button#fortune-toggle{color:#c4a017}
 button#fortune-toggle:hover,button#fortune-toggle[aria-expanded="true"]{color:var(--yellow);background:none;border-color:transparent}
 #fortune-panel{position:fixed;z-index:30;overflow:hidden;border:0;border-radius:6px;background:transparent;box-shadow:0 8px 28px #0005}
 #fortune-panel[hidden]{display:none!important}
+#fortune-panel.fortune-preload{opacity:0;pointer-events:none;left:0;top:0;width:1px;height:1px}
 #fortune-panel iframe{display:block;width:100%;height:100%;border:0}
-#fortune-retry{position:absolute;right:4px;top:4px;z-index:1;width:32px;height:32px;padding:4px}
 .document-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px}
 .document-toolbar input{flex:1;min-width:160px;max-width:360px}
-.document-toolbar [aria-selected="true"]{color:var(--accent);border-bottom:2px solid var(--accent)}
-.document-layout{display:grid;grid-template-columns:260px minmax(0,1fr);border-top:1px solid var(--border);min-height:480px}
-#document-directory{padding:12px 18px 20px 0;border-right:1px solid var(--border);max-height:75vh;overflow:auto}
+.document-tabs{border:1px solid var(--border);border-radius:5px;padding:3px;gap:3px}
+.document-tabs button{border:0;background:transparent;color:var(--muted);font-size:13px;min-height:30px;padding:4px 12px}
+.document-toolbar [aria-selected="true"]{color:var(--accent);background:var(--soft)}
+.document-layout{display:grid;grid-template-columns:235px minmax(0,1fr);border-top:1px solid var(--border);height:calc(100dvh - 260px);min-height:460px}
+#document-directory{padding:12px 18px 20px 0;border-right:1px solid var(--border);overflow:auto}
 #document-directory h3{font-size:12px;color:var(--muted);margin:18px 0 8px}
-button.document-entry{display:block;width:100%;padding:7px 10px;overflow-wrap:anywhere;border-radius:0;font-size:13px}
+button.document-entry{display:block;width:100%;padding:7px 10px;overflow-wrap:anywhere;border-radius:4px;font-size:13px}
 button.document-entry[aria-current]{color:var(--accent);background:var(--soft);border-left:2px solid var(--accent)}
 button.document-entry.document-featured{color:var(--accent);font-weight:700}
 .document-intro{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:20px}
@@ -56382,7 +56645,7 @@ button.document-entry.document-featured{color:var(--accent);font-weight:700}
 .document-reader-header h2{font-size:22px;margin:0;min-width:0;flex:1}
 .document-reader-header button{flex-shrink:0}
 .document-reader-header input{width:100%}
-#document-reader{min-width:0;padding:22px 28px;max-height:75vh;overflow:auto;overflow-wrap:anywhere}
+#document-reader{min-width:0;padding:22px 32px;overflow:auto;overflow-wrap:anywhere}
 #document-reader>h2{font-size:22px;margin-top:0}
 .markdown-content{line-height:1.85;max-width:920px}
 .markdown-content h1{font-size:24px}.markdown-content h2{font-size:20px}.markdown-content h3{font-size:17px}
@@ -56391,27 +56654,33 @@ button.document-entry.document-featured{color:var(--accent);font-weight:700}
 .markdown-content a{color:var(--green);text-decoration:underline}
 .doc-table{overflow:auto}.doc-table table{border-collapse:collapse;width:100%}
 .doc-table th,.doc-table td{border:1px solid var(--border);padding:8px;text-align:left}
-@media(max-width:700px){.document-layout{grid-template-columns:minmax(0,1fr)}#document-directory{max-height:220px;border-right:0;border-bottom:1px solid var(--border);padding-right:0}#document-reader{padding:18px 0;max-height:none}}
+@media(max-width:700px){.document-layout{grid-template-columns:minmax(0,1fr);height:auto}#document-directory{max-height:220px;border-right:0;border-bottom:1px solid var(--border);padding-right:0}#document-reader{padding:18px 0;max-height:none}}
 button.icon-button{width:36px;flex-shrink:0;padding:8px}
 button.link{background:none;border:0;padding:0;justify-content:flex-start;color:var(--text);text-align:left;min-width:0}
 :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .icon{width:16px;height:16px;flex:none}
 input,select{border:1px solid var(--border);border-radius:4px;padding:7px 10px;background:var(--bg);color:var(--text)}
-input[type="checkbox"]{accent-color:var(--yellow);width:18px;height:18px}
-.top{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:18px 28px;background:var(--top);flex-wrap:wrap}
+input[type="checkbox"]{accent-color:var(--yellow);width:14px;height:14px}
+.top{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:18px 32px;background:var(--top);flex-wrap:wrap}
 .brand{font-size:18px;font-weight:600;display:flex;gap:10px;align-items:center}
-.mark{width:28px;height:28px;display:grid;place-items:center;color:#252820;background:var(--yellow);border-radius:4px}
+.mark{width:28px;height:28px;display:grid;place-items:center;color:#252820;background:var(--yellow);border:0;border-radius:4px;padding:0;font:inherit;font-weight:800;cursor:pointer;transition:transform .2s ease,background .2s ease}
+.mark:active{transform:scale(.94)}
+.mark.maker-easter-egg{color:var(--yellow);background:transparent;border-radius:0;position:relative;overflow:visible;font-family:"Arial Rounded MT Bold","Trebuchet MS",sans-serif;font-size:25px;font-weight:900;letter-spacing:0;line-height:1;animation:maker-mark-reveal 1.5s ease both}
+@keyframes maker-mark-reveal{0%{transform:scale(.9);opacity:.35}55%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+@media(prefers-reduced-motion:reduce){.mark,.mark.maker-easter-egg{animation:none;transition:none}}
 .toolbar,.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.toolbar select{max-width:380px;width:300px}
+.toolbar select{max-width:380px;width:235px}
 .theme{display:flex;gap:7px;align-items:center;font-size:12px;color:var(--muted);white-space:nowrap}
-nav{padding:0 28px;display:flex;gap:26px;border-bottom:1px solid var(--border);background:var(--top)}
+.navigation{display:flex;align-items:center;gap:24px;padding:0 32px;border-bottom:1px solid var(--border);background:var(--top)}
+nav{display:flex;gap:26px;min-width:0;flex:1;background:var(--top)}
 nav button{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;padding:10px 0;color:var(--muted)}
 nav button[aria-current="page"]{color:var(--accent);border-bottom-color:var(--yellow)}
-.context,footer{padding:10px 28px;display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap;font-size:12px;color:var(--muted)}
-.context{border-bottom:1px solid var(--border)}
+.context,footer{padding:10px 32px;display:flex;gap:18px;justify-content:space-between;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.navigation .context{padding:0;justify-content:flex-end;font-size:12px;flex-shrink:0;max-width:40%}
+#connection.good:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:7px}
 .context span{overflow-wrap:anywhere;min-width:0}
-main{padding:26px 28px;max-width:1600px;margin:0 auto;min-height:65vh}
-h1{font-size:24px;font-weight:500;margin:0;overflow-wrap:anywhere}
+main{padding:28px 32px;max-width:1480px;margin:0 auto;min-height:calc(100dvh - 180px)}
+h1{font-size:23px;font-weight:600;margin:0;overflow-wrap:anywhere}
 h2{font-size:16px;font-weight:600;margin:0 0 14px}
 h3{font-size:14px;font-weight:600;margin:0 0 6px}
 p{margin:8px 0}
@@ -56419,7 +56688,6 @@ p{margin:8px 0}
 .heading p{margin:2px 0 0}
 #heading-actions{display:flex;flex-direction:column;align-items:flex-end;gap:10px;max-width:100%}
 .heading-primary,.heading-secondary{justify-content:flex-end;max-width:100%}
-.heading-secondary{font-size:12px;gap:14px}
 .qrcode-image{display:block;width:240px;max-width:100%;height:auto;margin:14px 0}
 #qrcode-result{width:496px;max-height:calc(100dvh - 32px);overflow:auto}
 .qrcode-scan-area{width:min(400px,100%,55dvh);aspect-ratio:1;margin:16px auto;background:#fff;display:grid;place-items:center;padding:12px}
@@ -56441,13 +56709,19 @@ p{margin:8px 0}
 .failure-detail{margin:8px 0 0;max-height:280px}
 .metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-block:1px solid var(--border);margin-bottom:26px}
 .lua-check-option{display:inline-flex;align-items:center;gap:8px;color:var(--muted);white-space:nowrap}
-.lua-check-panel{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
-.metric{padding:14px 12px 14px 0;min-width:0}
-.metric .value{font-size:19px;font-weight:500;overflow-wrap:anywhere;margin-top:3px}
+.lua-check-panel{font-size:12px}
+.lua-check-actions{gap:12px;min-height:36px}
+.lua-check-actions>button:last-child{margin-left:auto;color:var(--muted)}
+.lsp-status{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;min-height:36px}
+.lsp-status>button{color:var(--muted)}
+.metric{padding:20px 12px 20px 0;min-width:0}
+.metric .value{font-size:18px;font-weight:600;overflow-wrap:anywhere;margin-top:6px}
 .metric .muted{font-size:12px}
 .runtime-detail{margin-top:3px;overflow-wrap:anywhere}
 .runtime-metric button{margin-top:8px}
 .columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px}
+.build-columns{padding:22px 0;border-block:1px solid var(--border)}
+.build-columns>section+section{padding-left:36px;border-left:1px solid var(--border)}
 section{min-width:0}
 dl{margin:0}
 .row{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--border);overflow-wrap:anywhere}
@@ -56458,16 +56732,27 @@ pre{white-space:pre-wrap;tab-size:2;margin:10px 0 0;background:var(--code);paddi
 .feedback p{margin:0;white-space:pre-wrap}
 .feedback[data-tone="warning"]{border-left-color:var(--yellow)}
 .feedback[data-tone="success"]{border-left-color:var(--green)}
-.console-logs{width:100%;min-width:0;margin-top:24px;border-top:1px solid var(--border);padding-top:16px}
+.console-logs{width:100%;min-width:0;margin-top:24px}
 .console-log-toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:10px}
-.console-log-toolbar [aria-selected="true"]{color:var(--accent);border-bottom:2px solid var(--accent)}
-.console-logs .console-log-output{height:360px;max-height:60vh;width:100%;max-width:100%;overflow:auto;white-space:pre;overflow-wrap:normal;word-break:normal;margin:0}
+.console-log-toolbar h2{margin:0}
+.console-log-tabs{display:flex;gap:22px;padding:0 16px;background:var(--top);border:1px solid var(--border);border-radius:4px 4px 0 0;overflow:auto}
+.console-log-tabs button{border:0;border-bottom:2px solid transparent;background:none;border-radius:0;font-size:12px;color:var(--muted);padding:10px 0;flex-shrink:0}
+.console-log-tabs [aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.console-logs .console-log-output{height:360px;max-height:60vh;width:100%;max-width:100%;overflow:auto;white-space:pre;overflow-wrap:normal;word-break:normal;margin:0;border-top:0;border-radius:0 0 4px 4px;line-height:1.9}
 .console-logs .console-log-output.wrap{white-space:pre-wrap;overflow-wrap:anywhere}
+.console-log-output .log-line{color:var(--text)}
+.console-log-output .log-error{color:var(--red)}
+.console-log-output .log-warning{color:var(--yellow)}
 button.link.bad{color:var(--red)}button.link.good{color:var(--green)}button.link.pending{color:var(--accent)}
-.preview-status-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
-.preview-status-summary span{font-weight:600}
-.preview-window-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:20px 0;padding:0 0 20px;border-bottom:1px solid var(--border)}
-.preview-window-title{grid-column:1/-1;margin:0 0 4px;font-size:17px;padding-left:10px;border-left:3px solid var(--accent)}
+.preview-status-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;min-height:32px;font-size:13px}
+.preview-status-summary button{margin-left:auto}
+.preview-window-disclosure{margin-top:12px;font-size:12px}
+.preview-window-summary{display:flex;align-items:center;gap:10px;min-height:36px;flex-wrap:wrap;list-style:none}
+.preview-window-summary::-webkit-details-marker{display:none}
+.preview-window-summary>span:nth-child(2){margin-left:auto}
+.preview-window-summary:after{content:"⌄";color:var(--muted)}
+.preview-window-disclosure[open]>.preview-window-summary:after{content:"⌃"}
+.preview-window-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0 0;padding:14px 0 0;border-top:1px solid var(--border)}
 .preview-window-settings label{display:flex;flex-direction:column;gap:6px;min-width:0}
 .preview-window-settings input,.preview-window-settings select{width:100%;min-width:0;box-sizing:border-box}
 .preview-window-footer{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
@@ -56482,13 +56767,23 @@ button.link.bad{color:var(--red)}button.link.good{color:var(--green)}button.link
 .entry label{grid-column:1/-1}
 .task-history{margin-top:28px;border-top:1px solid var(--border);padding-top:20px}
 .build-detail,.preview-log-detail{margin-top:28px;border-top:1px solid var(--border);padding-top:20px;width:100%}
-.task{padding:12px 0;border-bottom:1px solid var(--border)}
+.task-item{display:flex;align-items:flex-start;gap:16px;border-bottom:1px solid var(--border);padding:13px 0}
+.task{flex:1;min-width:0}
+.task-shortcuts{flex-shrink:0;max-width:40%;justify-content:flex-end}
+.task-shortcuts:empty{display:none}
+.section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.section-heading h2{margin:0}.section-heading span{font-size:12px}
 summary{cursor:pointer;overflow-wrap:anywhere}
-.task summary{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.task summary{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;min-height:36px;padding:6px 0;font-size:13px}
+.task summary:before{content:"›";color:var(--muted)}
+.task[open]>summary:before{content:"⌄"}
 .task summary time{margin-left:auto;font-size:12px}
 .task .task-meta{font-size:12px;margin-top:8px}
 .status-line{min-height:48px;margin:0 0 15px;padding:12px 0;border-block:1px solid var(--border);overflow-wrap:anywhere}
 .preview-controls{margin-top:14px}
+#preview-panel>.preview-controls{margin-top:12px;min-height:36px}
+#preview-panel>.preview-controls>.link:last-child{margin-left:auto;color:var(--muted);font-size:12px}
+#preview-panel>details:not(.preview-window-disclosure){margin-top:8px;font-size:12px;color:var(--muted)}
 .git-scroll{overflow:auto}
 .git-history{position:relative;min-width:420px}
 .git-graph{position:absolute;inset:0 auto auto 0;pointer-events:none}
@@ -56500,7 +56795,8 @@ summary{cursor:pointer;overflow-wrap:anywhere}
 .git-meta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px}
 .git-detail{margin-top:24px;border-top:1px solid var(--border);padding-top:20px}
 .file-list{padding-left:22px;overflow-wrap:anywhere}
-footer{border-top:1px solid var(--border);font-size:11px;align-items:center}
+footer{border-top:1px solid var(--border);font-size:11px;align-items:center;gap:12px}
+#footer-path{overflow-wrap:anywhere;min-width:0}
 dialog{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:24px;width:440px;max-width:calc(100% - 32px)}
 dialog::backdrop{background:#0009}
 dialog h2{font-size:18px}dialog .actions{justify-content:flex-end;margin-top:22px}
@@ -56513,13 +56809,18 @@ nav{overflow-x:auto;white-space:nowrap}
 .plugin-frame{display:block;width:100%;height:calc(100dvh - 205px);min-height:520px;border:0;background:var(--bg)}
 [hidden]{display:none!important}
 @media(max-width:720px){
-.top,main{padding:18px 16px}nav{padding-inline:16px;gap:24px}.context,footer{padding-inline:16px}
+.top,main{padding:18px 16px}.navigation{padding-inline:16px;gap:0;flex-wrap:wrap}nav{gap:24px;width:100%;flex:auto}.context,footer{padding-inline:16px}
+.navigation .context{max-width:none;width:100%;padding:8px 0;justify-content:space-between}
 .toolbar{width:100%}.toolbar select{flex:1;min-width:0;width:auto}.theme{margin-left:auto}
 .columns{grid-template-columns:1fr;gap:28px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+.build-columns>section+section{padding-left:0;border-left:0;padding-top:20px;border-top:1px solid var(--border)}
 .feedback{margin-inline:16px}button{min-height:42px}button.icon-button{width:42px}
 .project-row{gap:10px}.project-row .actions{justify-content:flex-end}.entry{grid-template-columns:1fr}.entry input{font-size:16px}
 .git-row{grid-template-columns:64px minmax(0,1fr);gap:8px;padding-block:8px}.git-row time{grid-column:2;text-align:left;font-size:11px}
 .task summary time{margin-left:0;width:100%}h1{font-size:22px}
+.task-item{flex-wrap:wrap;gap:6px}.task-shortcuts{max-width:100%}
+.console-log-tabs{gap:18px;padding-inline:12px}
+.document-tabs button{min-height:36px}
 .plugin-status{padding:10px 16px}.plugin-frame{height:calc(100dvh - 235px);min-height:480px}
 }
 @media(prefers-reduced-motion:no-preference){button{transition:background .12s,border-color .12s}}
@@ -56540,7 +56841,7 @@ function getConsoleHtml() {
 <title>Maker 本地控制台</title><style>${consoleStyles}</style></head>
 <body>
 <header class="top">
-  <div class="brand"><span class="mark" aria-hidden="true">M</span>Maker 控制台
+  <div class="brand"><button class="mark" id="maker-mark" type="button" aria-label="Maker 控制台品牌标记">M</button>Maker 控制台
     <select id="maker-version-picker" aria-label="Maker MCP 版本" disabled><option>版本加载中</option></select>
   </div>
   <div class="toolbar">
@@ -56549,6 +56850,7 @@ function getConsoleHtml() {
     <label class="theme">深色<input id="theme" type="checkbox" role="switch" checked aria-label="深色模式"></label>
   </div>
 </header>
+<div class="navigation">
 <nav aria-label="主导航">
   <button data-page="overview">项目</button>
   <button data-page="build">构建与测试</button>
@@ -56557,18 +56859,18 @@ function getConsoleHtml() {
   <span id="plugin-tabs" class="plugin-tabs"></span>
 </nav>
 <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
+</div>
 <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
 <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
 <section id="plugin-views" aria-label="插件工作区" hidden></section>
 <div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
 <footer><div class="footer-start"><span id="version">Maker 本地服务</span>
-<section id="fortune-corner" aria-label="开发者日签">
+<section id="fortune-corner" aria-label="开发者日签" hidden>
   <button id="fortune-toggle" type="button" aria-expanded="false" aria-controls="fortune-panel">独立游戏开发日签</button>
 </section>
 </div><span id="footer-path"></span></footer>
 <div id="fortune-panel" hidden>
-  <button id="fortune-retry" type="button" title="重新加载日签" aria-label="重新加载日签"></button>
-  <iframe id="fortune-frame" title="gDEV日签 · 独立游戏开发者老黄历" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer"></iframe>
+  <iframe id="fortune-frame" title="gDEV日签 · 独立游戏开发者老黄历" sandbox="allow-scripts allow-same-origin" loading="eager" referrerpolicy="no-referrer"></iframe>
 </div>
 <dialog id="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-message">
   <form method="dialog">
@@ -56727,17 +57029,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path55) {
-      const ctrl = callVisitor(key, node, visitor, path55);
+    function visit_(key, node, visitor, path57) {
+      const ctrl = callVisitor(key, node, visitor, path57);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path55, ctrl);
-        return visit_(key, ctrl, visitor, path55);
+        replaceNode(key, path57, ctrl);
+        return visit_(key, ctrl, visitor, path57);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path55 = Object.freeze(path55.concat(node));
+          path57 = Object.freeze(path57.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path55);
+            const ci = visit_(i, node.items[i], visitor, path57);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -56748,13 +57050,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path55 = Object.freeze(path55.concat(node));
-          const ck = visit_("key", node.key, visitor, path55);
+          path57 = Object.freeze(path57.concat(node));
+          const ck = visit_("key", node.key, visitor, path57);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path55);
+          const cv = visit_("value", node.value, visitor, path57);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -56775,17 +57077,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path55) {
-      const ctrl = await callVisitor(key, node, visitor, path55);
+    async function visitAsync_(key, node, visitor, path57) {
+      const ctrl = await callVisitor(key, node, visitor, path57);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path55, ctrl);
-        return visitAsync_(key, ctrl, visitor, path55);
+        replaceNode(key, path57, ctrl);
+        return visitAsync_(key, ctrl, visitor, path57);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path55 = Object.freeze(path55.concat(node));
+          path57 = Object.freeze(path57.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path55);
+            const ci = await visitAsync_(i, node.items[i], visitor, path57);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -56796,13 +57098,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path55 = Object.freeze(path55.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path55);
+          path57 = Object.freeze(path57.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path57);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path55);
+          const cv = await visitAsync_("value", node.value, visitor, path57);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -56829,24 +57131,24 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path55) {
+    function callVisitor(key, node, visitor, path57) {
       var _a3, _b, _c, _d, _e;
       if (typeof visitor === "function")
-        return visitor(key, node, path55);
+        return visitor(key, node, path57);
       if (identity.isMap(node))
-        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path55);
+        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path57);
       if (identity.isSeq(node))
-        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path55);
+        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path57);
       if (identity.isPair(node))
-        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path55);
+        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path57);
       if (identity.isScalar(node))
-        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path55);
+        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path57);
       if (identity.isAlias(node))
-        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path55);
+        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path57);
       return void 0;
     }
-    function replaceNode(key, path55, node) {
-      const parent = path55[path55.length - 1];
+    function replaceNode(key, path57, node) {
+      const parent = path57[path57.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -57458,10 +57760,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path55, value) {
+    function collectionFromPath(schema, path57, value) {
       let v = value;
-      for (let i = path55.length - 1; i >= 0; --i) {
-        const k = path55[i];
+      for (let i = path57.length - 1; i >= 0; --i) {
+        const k = path57[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -57480,7 +57782,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path55) => path55 == null || typeof path55 === "object" && !!path55[Symbol.iterator]().next().done;
+    var isEmptyPath = (path57) => path57 == null || typeof path57 === "object" && !!path57[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -57510,11 +57812,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path55, value) {
-        if (isEmptyPath(path55))
+      addIn(path57, value) {
+        if (isEmptyPath(path57))
           this.add(value);
         else {
-          const [key, ...rest] = path55;
+          const [key, ...rest] = path57;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -57528,8 +57830,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path55) {
-        const [key, ...rest] = path55;
+      deleteIn(path57) {
+        const [key, ...rest] = path57;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -57543,8 +57845,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path55, keepScalar) {
-        const [key, ...rest] = path55;
+      getIn(path57, keepScalar) {
+        const [key, ...rest] = path57;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -57562,8 +57864,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path55) {
-        const [key, ...rest] = path55;
+      hasIn(path57) {
+        const [key, ...rest] = path57;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -57573,8 +57875,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path55, value) {
-        const [key, ...rest] = path55;
+      setIn(path57, value) {
+        const [key, ...rest] = path57;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -60088,9 +60390,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path55, value) {
+      addIn(path57, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path55, value);
+          this.contents.addIn(path57, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -60165,14 +60467,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path55) {
-        if (Collection.isEmptyPath(path55)) {
+      deleteIn(path57) {
+        if (Collection.isEmptyPath(path57)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path55) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path57) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -60187,10 +60489,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path55, keepScalar) {
-        if (Collection.isEmptyPath(path55))
+      getIn(path57, keepScalar) {
+        if (Collection.isEmptyPath(path57))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path55, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path57, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -60201,10 +60503,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path55) {
-        if (Collection.isEmptyPath(path55))
+      hasIn(path57) {
+        if (Collection.isEmptyPath(path57))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path55) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path57) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -60221,13 +60523,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path55, value) {
-        if (Collection.isEmptyPath(path55)) {
+      setIn(path57, value) {
+        if (Collection.isEmptyPath(path57)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path55), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path57), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path55, value);
+          this.contents.setIn(path57, value);
         }
       }
       /**
@@ -62190,9 +62492,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path55) => {
+    visit.itemAtPath = (cst, path57) => {
       let item = cst;
-      for (const [field, index] of path55) {
+      for (const [field, index] of path57) {
         const tok = item == null ? void 0 : item[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -62201,23 +62503,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path55) => {
-      const parent = visit.itemAtPath(cst, path55.slice(0, -1));
-      const field = path55[path55.length - 1][0];
+    visit.parentCollection = (cst, path57) => {
+      const parent = visit.itemAtPath(cst, path57.slice(0, -1));
+      const field = path57[path57.length - 1][0];
       const coll = parent == null ? void 0 : parent[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path55, item, visitor) {
-      let ctrl = visitor(item, path55);
+    function _visit(path57, item, visitor) {
+      let ctrl = visitor(item, path57);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path55.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path57.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -62228,10 +62530,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path55);
+            ctrl = ctrl(item, path57);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path55) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path57) : ctrl;
     }
     exports.visit = visit;
   }
@@ -63518,14 +63820,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs52 = this.flowScalar(this.type);
+              const fs54 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map2.items.push({ start, key: fs52, sep: [] });
+                map2.items.push({ start, key: fs54, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs52);
+                this.stack.push(fs54);
               } else {
-                Object.assign(it, { key: fs52, sep: [] });
+                Object.assign(it, { key: fs54, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -63654,13 +63956,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs52 = this.flowScalar(this.type);
+              const fs54 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs52, sep: [] });
+                fc.items.push({ start: [], key: fs54, sep: [] });
               else if (it.sep)
-                this.stack.push(fs52);
+                this.stack.push(fs54);
               else
-                Object.assign(it, { key: fs52, sep: [] });
+                Object.assign(it, { key: fs54, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -64026,7 +64328,7 @@ var require_pend = __commonJS({
 // node_modules/yauzl/fd-slicer.js
 var require_fd_slicer = __commonJS({
   "node_modules/yauzl/fd-slicer.js"(exports) {
-    var fs52 = __require("fs");
+    var fs54 = __require("fs");
     var util2 = __require("util");
     var stream = __require("stream");
     var Readable2 = stream.Readable;
@@ -64046,7 +64348,7 @@ var require_fd_slicer = __commonJS({
     FdSlicer.prototype.read = function(buffer, offset, length, position, callback) {
       var self2 = this;
       self2.pend.go(function(cb) {
-        fs52.read(self2.fd, buffer, offset, length, position, function(err, bytesRead, buffer2) {
+        fs54.read(self2.fd, buffer, offset, length, position, function(err, bytesRead, buffer2) {
           cb();
           callback(err, bytesRead, buffer2);
         });
@@ -64063,7 +64365,7 @@ var require_fd_slicer = __commonJS({
       self2.refCount -= 1;
       if (self2.refCount < 0) throw new Error("invalid unref");
       if (self2.refCount > 0) return;
-      fs52.close(self2.fd, onCloseDone);
+      fs54.close(self2.fd, onCloseDone);
       function onCloseDone(err) {
         if (err) {
           self2.emit("error", err);
@@ -64095,7 +64397,7 @@ var require_fd_slicer = __commonJS({
       }
       self2.context.pend.go(function(cb) {
         var buffer = Buffer.allocUnsafe(toRead);
-        fs52.read(self2.context.fd, buffer, 0, toRead, self2.pos, function(err, bytesRead) {
+        fs54.read(self2.context.fd, buffer, 0, toRead, self2.pos, function(err, bytesRead) {
           if (err) {
             self2.destroy(err);
           } else if (bytesRead === 0) {
@@ -64455,7 +64757,7 @@ var require_crc32 = __commonJS({
 // node_modules/yauzl/index.js
 var require_yauzl = __commonJS({
   "node_modules/yauzl/index.js"(exports) {
-    var fs52 = __require("fs");
+    var fs54 = __require("fs");
     var zlib = __require("zlib");
     var fd_slicer = require_fd_slicer();
     var util2 = __require("util");
@@ -64480,9 +64782,9 @@ var require_yauzl = __commonJS({
     exports.Entry = Entry;
     exports.LocalFileHeader = LocalFileHeader;
     exports.RandomAccessReader = RandomAccessReader;
-    function openPromise(path55, options3) {
+    function openPromise(path57, options3) {
       return new Promise((resolve, reject) => {
-        open(path55, { ...options3, lazyEntries: true }, function(err, zipfile) {
+        open(path57, { ...options3, lazyEntries: true }, function(err, zipfile) {
           if (err) return reject(err);
           resolve(zipfile);
         });
@@ -64512,7 +64814,7 @@ var require_yauzl = __commonJS({
         });
       });
     }
-    function open(path55, options3, callback) {
+    function open(path57, options3, callback) {
       if (typeof options3 === "function") {
         callback = options3;
         options3 = null;
@@ -64524,10 +64826,10 @@ var require_yauzl = __commonJS({
       if (options3.validateEntrySizes == null) options3.validateEntrySizes = true;
       if (options3.strictFileNames == null) options3.strictFileNames = false;
       if (callback == null) callback = defaultCallback;
-      fs52.open(path55, "r", function(err, fd) {
+      fs54.open(path57, "r", function(err, fd) {
         if (err) return callback(err);
         fromFd(fd, options3, function(err2, zipfile) {
-          if (err2) fs52.close(fd, defaultCallback);
+          if (err2) fs54.close(fd, defaultCallback);
           callback(err2, zipfile);
         });
       });
@@ -64544,7 +64846,7 @@ var require_yauzl = __commonJS({
       if (options3.validateEntrySizes == null) options3.validateEntrySizes = true;
       if (options3.strictFileNames == null) options3.strictFileNames = false;
       if (callback == null) callback = defaultCallback;
-      fs52.fstat(fd, function(err, stats) {
+      fs54.fstat(fd, function(err, stats) {
         if (err) return callback(err);
         var reader = new fd_slicer.FdSlicer(fd);
         fromRandomAccessReader(reader, stats.size, options3, callback);
@@ -65318,9 +65620,9 @@ init_mcp();
 init_config();
 import { spawnSync as spawnSync8 } from "node:child_process";
 import crypto5 from "node:crypto";
-import fs50 from "node:fs";
-import os11 from "node:os";
-import path52 from "node:path";
+import fs52 from "node:fs";
+import os13 from "node:os";
+import path54 from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { pathToFileURL as pathToFileURL2 } from "node:url";
@@ -65378,7 +65680,7 @@ async function pollCliLoginResult(code, options3) {
   let lastPollError;
   for (; ; ) {
     if (Date.now() >= deadline) {
-      const suffix = lastPollError ? ` Last polling error: ${formatError3(lastPollError)}` : "";
+      const suffix = lastPollError ? ` Last polling error: ${formatError4(lastPollError)}` : "";
       throw new Error(
         `Maker CLI login timed out. Run \`taptap-maker login\` and try again.${suffix}`
       );
@@ -65464,7 +65766,7 @@ function delay(ms) {
     setTimeout(resolve, ms);
   });
 }
-function formatError3(error2) {
+function formatError4(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
 }
 
@@ -65480,21 +65782,21 @@ init_runtimeLogs();
 
 // src/maker/cli/preview.ts
 init_protocol2();
-import fs35 from "node:fs";
-import path36 from "node:path";
+import fs36 from "node:fs";
+import path37 from "node:path";
 import { randomBytes as randomBytes3, randomUUID as randomUUID6 } from "node:crypto";
 
 // src/maker/preview/installation.ts
 init_python();
 init_protocol2();
-import fs32 from "node:fs";
-import path33 from "node:path";
+import fs33 from "node:fs";
+import path34 from "node:path";
 import { createHash as createHash5, randomUUID as randomUUID5 } from "node:crypto";
 
 // src/maker/preview/runtime.ts
 init_protocol2();
-import fs30 from "node:fs";
-import path31 from "node:path";
+import fs31 from "node:fs";
+import path32 from "node:path";
 import { spawn as spawn6 } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 
@@ -66276,13 +66578,46 @@ function requestPreviewServer(project, auth2, signal, options3 = {}) {
   });
 }
 
+// src/maker/preview/sourceAlias.ts
+import fs30 from "node:fs";
+import os5 from "node:os";
+import path31 from "node:path";
+function createPreviewSourceAlias(source, platform = process.platform, temporaryDirectory = os5.tmpdir()) {
+  if (platform !== "win32") return { source, close: () => {
+  } };
+  const target = fs30.realpathSync(source);
+  const directory = fs30.mkdtempSync(path31.join(temporaryDirectory, "maker-preview-"));
+  const alias = path31.join(directory, "source");
+  try {
+    if (alias.length > 180)
+      throw new Error("Windows preview needs a shorter TEMP directory (Runtime path limit).");
+    fs30.symlinkSync(target, alias, "junction");
+  } catch (error2) {
+    fs30.rmdirSync(directory);
+    throw error2;
+  }
+  let closed = false;
+  return {
+    source: alias,
+    close: () => {
+      if (closed) return;
+      if (!fs30.lstatSync(alias).isSymbolicLink() || fs30.realpathSync(alias) !== target)
+        throw new Error("Preview source alias changed; refusing cleanup.");
+      fs30.unlinkSync(alias);
+      fs30.rmdirSync(directory);
+      closed = true;
+    }
+  };
+}
+
 // src/maker/preview/runtime.ts
 var PREVIEW_TIMEOUT_MS = 3e4;
+var RUNTIME_STARTUP_SETTLE_MS = 3e3;
 async function probeRuntime(executable, signal) {
   if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED");
-  if (!path31.isAbsolute(executable) || !fs30.statSync(executable).isFile())
+  if (!path32.isAbsolute(executable) || !fs31.statSync(executable).isFile())
     throw new Error("Runtime must be an absolute executable file.");
-  fs30.accessSync(executable, process.platform === "win32" ? fs30.constants.R_OK : fs30.constants.X_OK);
+  fs31.accessSync(executable, process.platform === "win32" ? fs31.constants.R_OK : fs31.constants.X_OK);
   return {
     protocol_version: 0,
     runtime_version: "unknown",
@@ -66303,12 +66638,14 @@ async function preflightPreview(_executable, project, signal) {
   };
 }
 var PreviewRuntime = class {
-  constructor(executable, identity, directory, changed, timeout = PREVIEW_TIMEOUT_MS) {
+  constructor(executable, identity, directory, changed, timeout = PREVIEW_TIMEOUT_MS, launching = () => {
+  }) {
     this.executable = executable;
     this.identity = identity;
     this.directory = directory;
     this.changed = changed;
     this.timeout = timeout;
+    this.launching = launching;
     this.stopping = false;
     this.abort = new AbortController();
     this.closed = Promise.resolve();
@@ -66353,11 +66690,11 @@ var PreviewRuntime = class {
     let cacheRoot;
     if (this.launchMode === "loopback_manifest") {
       this.assets = await startPreviewAssetServer(source, this.abort.signal);
-      cacheRoot = path31.join(storage, "runtime-cache");
+      cacheRoot = path32.join(storage, "runtime-cache");
       try {
-        fs30.mkdirSync(cacheRoot, { recursive: true, mode: 448 });
-        this.assetCache = path31.join(
-          fs30.realpathSync(cacheRoot),
+        fs31.mkdirSync(cacheRoot, { recursive: true, mode: 448 });
+        this.assetCache = path32.join(
+          fs31.realpathSync(cacheRoot),
           this.assets.url.slice("http://".length).replace(":", "_")
         );
       } catch (error2) {
@@ -66371,10 +66708,13 @@ var PreviewRuntime = class {
     }
     let child;
     try {
+      this.sourceAlias = createPreviewSourceAlias(source);
+      const runtimeSource = this.sourceAlias.source;
+      this.launching();
       child = spawn6(
         this.executable,
         [
-          ...this.assets ? ["-game_url=" + this.assets.url] : [entry, "-tapcode_dir=" + source],
+          ...this.assets ? ["-game_url=" + this.assets.url] : [entry, "-tapcode_dir=" + runtimeSource],
           ...cacheRoot ? ["-game_path=" + cacheRoot] : [],
           "-skip_login",
           ...server ? previewNetworkArgs(server) : [],
@@ -66383,10 +66723,11 @@ var PreviewRuntime = class {
           "-width=" + window2.width,
           "-height=" + window2.height
         ],
-        { cwd: source, stdio: ["pipe", "pipe", "pipe"], windowsHide: false }
+        { cwd: runtimeSource, stdio: ["pipe", "pipe", "pipe"], windowsHide: false }
       );
     } catch (error2) {
       await ((_b = this.assets) == null ? void 0 : _b.close());
+      this.clearSourceAlias();
       throw error2;
     }
     this.child = child;
@@ -66394,52 +66735,78 @@ var PreviewRuntime = class {
       (resolve) => child.once("close", () => {
         void (async () => {
           var _a4;
-          await ((_a4 = this.assets) == null ? void 0 : _a4.close());
+          try {
+            await ((_a4 = this.assets) == null ? void 0 : _a4.close());
+          } catch (error2) {
+            this.recordError(String(error2));
+          }
           this.clearAssetCache();
-          this.changed(this.stopping || child.exitCode === 0 ? "stopped" : "failed");
-          resolve();
+          this.clearSourceAlias();
+          try {
+            this.changed(this.stopping || child.exitCode === 0 ? "stopped" : "failed");
+          } catch (error2) {
+            this.recordError(String(error2));
+          } finally {
+            resolve();
+          }
         })();
       })
     );
     child.on("error", (error2) => {
       this.recordError(error2.message);
-      this.changed("failed");
+      try {
+        this.changed("failed");
+      } catch (persistenceError) {
+        this.recordError(String(persistenceError));
+      }
     });
     this.consume(child.stdout);
     this.consume(child.stderr);
-    await new Promise((resolve, reject) => {
-      let settle;
-      const cleanup = () => {
-        clearTimeout(deadline);
-        clearTimeout(settle);
-        child.removeListener("error", failed);
-        child.removeListener("close", exited);
-      };
-      const failed = (error2) => {
-        cleanup();
-        reject(error2);
-      };
-      const exited = () => failed(new Error("Runtime exited during startup. Read preview logs."));
-      const deadline = setTimeout(
-        () => failed(new Error("TIMEOUT: Runtime process did not start.")),
-        this.timeout
-      );
-      child.once("error", failed);
-      child.once("close", exited);
-      child.once("spawn", () => {
-        settle = setTimeout(() => {
+    try {
+      if (child.pid) this.launching(child.pid);
+      await new Promise((resolve, reject) => {
+        let settle;
+        const cleanup = () => {
+          clearTimeout(deadline);
+          clearTimeout(settle);
+          child.removeListener("error", failed);
+          child.removeListener("close", exited);
+        };
+        const failed = (error2) => {
           cleanup();
-          if (this.stopping || !this.processAlive) reject(new Error("CANCELLED: preview stopped."));
-          else {
-            this.changed("running");
-            resolve();
-          }
-        }, 300);
+          reject(error2);
+        };
+        const exited = () => failed(new Error("Runtime exited during startup. Read preview logs."));
+        const deadline = setTimeout(
+          () => failed(new Error("TIMEOUT: Runtime process did not start.")),
+          this.timeout
+        );
+        child.once("error", failed);
+        child.once("close", exited);
+        child.once("spawn", () => {
+          settle = setTimeout(() => {
+            cleanup();
+            if (this.stopping || !this.processAlive)
+              reject(new Error("CANCELLED: preview stopped."));
+            else {
+              try {
+                this.changed("running");
+                resolve();
+              } catch (error2) {
+                failed(error2);
+              }
+            }
+          }, RUNTIME_STARTUP_SETTLE_MS);
+        });
       });
-    }).catch(async (error2) => {
-      await this.stop();
+    } catch (error2) {
+      try {
+        await this.stop();
+      } catch (cleanupError) {
+        throw new Error(String(error2) + "; Runtime cleanup is unverified: " + String(cleanupError));
+      }
       throw error2;
-    });
+    }
   }
   recordError(message) {
     this.errors.push(String(sanitizeDiagnosticValue(message)).slice(0, 16384));
@@ -66448,13 +66815,22 @@ var PreviewRuntime = class {
   clearAssetCache() {
     if (!this.assetCache) return;
     try {
-      const parent = path31.dirname(this.assetCache);
-      if (fs30.existsSync(parent) && fs30.realpathSync(parent) === parent) {
-        fs30.rmSync(this.assetCache, { recursive: true, force: true });
-        if (!fs30.readdirSync(parent).length) fs30.rmdirSync(parent);
+      const parent = path32.dirname(this.assetCache);
+      if (fs31.existsSync(parent) && fs31.realpathSync(parent) === parent) {
+        fs31.rmSync(this.assetCache, { recursive: true, force: true });
+        if (!fs31.readdirSync(parent).length) fs31.rmdirSync(parent);
       }
     } catch {
       this.recordError("Could not remove this round of local preview download cache.");
+    }
+  }
+  clearSourceAlias() {
+    var _a3;
+    try {
+      (_a3 = this.sourceAlias) == null ? void 0 : _a3.close();
+      this.sourceAlias = void 0;
+    } catch (error2) {
+      this.recordError(String(error2));
     }
   }
   consume(stream) {
@@ -66523,8 +66899,8 @@ var PreviewRuntime = class {
 };
 
 // src/maker/preview/runtimeResources.ts
-import fs31 from "node:fs";
-import path32 from "node:path";
+import fs32 from "node:fs";
+import path33 from "node:path";
 var FALLBACK_FONT = "MiSans-Regular.ttf";
 function defaultFontCandidates(platform) {
   if (platform === "darwin") {
@@ -66536,44 +66912,44 @@ function defaultFontCandidates(platform) {
   if (platform === "win32") {
     const windows = process.env.WINDIR || process.env.SystemRoot || "C:\\Windows";
     return [
-      path32.join(windows, "Fonts", "Deng.ttf"),
-      path32.join(windows, "Fonts", "Dengb.ttf"),
-      path32.join(windows, "Fonts", "msyh.ttc")
+      path33.join(windows, "Fonts", "Deng.ttf"),
+      path33.join(windows, "Fonts", "Dengb.ttf"),
+      path33.join(windows, "Fonts", "msyh.ttc")
     ];
   }
   return [];
 }
 function existingFile(filename2) {
   try {
-    return fs31.statSync(filename2).isFile();
+    return fs32.statSync(filename2).isFile();
   } catch {
     return false;
   }
 }
 function ensurePreviewRuntimeResources(executable, options3 = {}) {
-  const runtimeRoot = path32.dirname(fs31.realpathSync(executable));
-  const fonts = path32.join(runtimeRoot, "Res", "Fonts");
-  const legacyFonts = path32.join(runtimeRoot, "Data", "Fonts");
+  const runtimeRoot = path33.dirname(fs32.realpathSync(executable));
+  const fonts = path33.join(runtimeRoot, "Res", "Fonts");
+  const legacyFonts = path33.join(runtimeRoot, "Data", "Fonts");
   for (const directory of [
-    path32.join(runtimeRoot, "Data", "LuaScripts"),
+    path33.join(runtimeRoot, "Data", "LuaScripts"),
     legacyFonts,
     fonts,
-    path32.join(runtimeRoot, "CoreData")
+    path33.join(runtimeRoot, "CoreData")
   ]) {
-    fs31.mkdirSync(directory, { recursive: true });
+    fs32.mkdirSync(directory, { recursive: true });
   }
-  const target = path32.join(fonts, FALLBACK_FONT);
-  if (fs31.existsSync(target)) return { fallbackFont: "existing", warnings: [] };
+  const target = path33.join(fonts, FALLBACK_FONT);
+  if (fs32.existsSync(target)) return { fallbackFont: "existing", warnings: [] };
   const platform = options3.platform || process.platform;
   const candidates = [
-    path32.join(legacyFonts, FALLBACK_FONT),
+    path33.join(legacyFonts, FALLBACK_FONT),
     ...options3.fontCandidates || defaultFontCandidates(platform)
   ];
   const copyErrors = [];
   for (const candidate of candidates) {
     if (!existingFile(candidate)) continue;
     try {
-      fs31.copyFileSync(candidate, target, fs31.constants.COPYFILE_EXCL);
+      fs32.copyFileSync(candidate, target, fs32.constants.COPYFILE_EXCL);
       return { fallbackFont: "copied", fallbackFontSource: candidate, warnings: [] };
     } catch (error2) {
       if (error2.code === "EEXIST") {
@@ -66807,10 +67183,10 @@ function processPresence(pid) {
 
 // src/maker/preview/installation.ts
 function readInstallation(filename2) {
-  if (!fs32.existsSync(filename2)) return void 0;
+  if (!fs33.existsSync(filename2)) return void 0;
   try {
-    const value = JSON.parse(fs32.readFileSync(filename2, "utf8"));
-    if (value.install_state !== "ready" || !value.executable || !path33.isAbsolute(value.executable) || !fs32.statSync(value.executable).isFile()) {
+    const value = JSON.parse(fs33.readFileSync(filename2, "utf8"));
+    if (value.install_state !== "ready" || !value.executable || !path34.isAbsolute(value.executable) || !fs33.statSync(value.executable).isFile()) {
       return void 0;
     }
     return value;
@@ -66819,27 +67195,27 @@ function readInstallation(filename2) {
   }
 }
 function isInside(directory, filename2) {
-  const relative = path33.relative(directory, filename2);
-  return relative !== "" && !relative.startsWith(".." + path33.sep) && !path33.isAbsolute(relative);
+  const relative = path34.relative(directory, filename2);
+  return relative !== "" && !relative.startsWith(".." + path34.sep) && !path34.isAbsolute(relative);
 }
 function legacyPreviewInstallation(project) {
   var _a3;
-  const root2 = path33.dirname(previewDirectory(project));
-  if (!fs32.existsSync(root2)) return void 0;
-  const entries = fs32.readdirSync(root2, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^[a-f0-9]{64}$/.test(entry.name));
+  const root2 = path34.dirname(previewDirectory(project));
+  if (!fs33.existsSync(root2)) return void 0;
+  const entries = fs33.readdirSync(root2, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^[a-f0-9]{64}$/.test(entry.name));
   const candidates = [];
   for (const entry of entries) {
-    const directory = path33.join(root2, entry.name);
-    const filename2 = path33.join(directory, "installation.json");
+    const directory = path34.join(root2, entry.name);
+    const filename2 = path34.join(directory, "installation.json");
     const installation = readInstallation(filename2);
     if (!(installation == null ? void 0 : installation.executable)) continue;
     try {
-      const executable = fs32.realpathSync(installation.executable);
-      const managedDirectory = fs32.realpathSync(directory);
+      const executable = fs33.realpathSync(installation.executable);
+      const managedDirectory = fs33.realpathSync(directory);
       if (!isInside(managedDirectory, executable)) continue;
       candidates.push({
         installation: { ...installation, executable },
-        modified: Date.parse(installation.installed_at || "") || fs32.statSync(filename2).mtimeMs
+        modified: Date.parse(installation.installed_at || "") || fs33.statSync(filename2).mtimeMs
       });
     } catch {
     }
@@ -66848,7 +67224,7 @@ function legacyPreviewInstallation(project) {
   return (_a3 = candidates[0]) == null ? void 0 : _a3.installation;
 }
 function previewInstallation(project) {
-  const filename2 = path33.join(runtimeDirectory(), "installation.json");
+  const filename2 = path34.join(runtimeDirectory(), "installation.json");
   const current = readInstallation(filename2);
   if (current) return current;
   const legacy = legacyPreviewInstallation(project);
@@ -66867,31 +67243,31 @@ function previewInstallation(project) {
   }
 }
 async function withFileLock(directory, name, busyMessage, action) {
-  fs32.mkdirSync(directory, { recursive: true, mode: 448 });
-  const filename2 = path33.join(directory, name);
+  fs33.mkdirSync(directory, { recursive: true, mode: 448 });
+  const filename2 = path34.join(directory, name);
   let descriptor;
   try {
-    descriptor = fs32.openSync(filename2, "wx", 384);
+    descriptor = fs33.openSync(filename2, "wx", 384);
   } catch {
     throw new Error(
       busyMessage + " If an interrupted command left a lock, verify it exited before removing " + filename2
     );
   }
   try {
-    fs32.writeFileSync(
+    fs33.writeFileSync(
       descriptor,
       JSON.stringify({ pid: process.pid, created_at: (/* @__PURE__ */ new Date()).toISOString() })
     );
     return await action();
   } finally {
-    fs32.closeSync(descriptor);
-    fs32.unlinkSync(filename2);
+    fs33.closeSync(descriptor);
+    fs33.unlinkSync(filename2);
   }
 }
 async function withPreviewLock(project, action) {
   const directory = previewDirectory(project);
-  fs32.mkdirSync(directory, { recursive: true, mode: 448 });
-  const filename2 = path33.join(fs32.realpathSync(directory), "operation.lock");
+  fs33.mkdirSync(directory, { recursive: true, mode: 448 });
+  const filename2 = path34.join(fs33.realpathSync(directory), "operation.lock");
   const busy = () => new Error("Another preview operation is in progress. Please retry after it finishes.");
   const release = await claimRecoveryMutex(filename2, busy);
   const identity = JSON.stringify({
@@ -66901,8 +67277,8 @@ async function withPreviewLock(project, action) {
   });
   let owned = false;
   try {
-    if (fs32.existsSync(filename2)) {
-      const previous = fs32.readFileSync(filename2, "utf8");
+    if (fs33.existsSync(filename2)) {
+      const previous = fs33.readFileSync(filename2, "utf8");
       let pid;
       try {
         pid = JSON.parse(previous).pid;
@@ -66912,9 +67288,9 @@ async function withPreviewLock(project, action) {
         throw new Error(
           "Preview operation ownership is still active or unverified. Confirm the previous command has exited before removing only: " + filename2
         );
-      fs32.unlinkSync(filename2);
+      fs33.unlinkSync(filename2);
     }
-    fs32.writeFileSync(filename2, identity, { flag: "wx", mode: 384 });
+    fs33.writeFileSync(filename2, identity, { flag: "wx", mode: 384 });
     owned = true;
     return await action();
   } finally {
@@ -66927,7 +67303,7 @@ async function withPreviewLock(project, action) {
 }
 function removeOwnedPreviewLock(filename2, identity) {
   try {
-    if (fs32.readFileSync(filename2, "utf8") === identity) fs32.unlinkSync(filename2);
+    if (fs33.readFileSync(filename2, "utf8") === identity) fs33.unlinkSync(filename2);
   } catch (error2) {
     if (error2.code !== "ENOENT") throw error2;
   }
@@ -66941,17 +67317,17 @@ async function withRuntimeInstallLock(action) {
   );
 }
 function activePreviewRuntimeDirectories(project) {
-  const root2 = path33.dirname(previewDirectory(project));
-  if (!fs32.existsSync(root2)) return [];
+  const root2 = path34.dirname(previewDirectory(project));
+  if (!fs33.existsSync(root2)) return [];
   const protectedDirectories = [];
-  for (const entry of fs32.readdirSync(root2, { withFileTypes: true })) {
+  for (const entry of fs33.readdirSync(root2, { withFileTypes: true })) {
     if (!entry.isDirectory() || !/^[a-f0-9]{64}$/.test(entry.name)) continue;
-    const filename2 = path33.join(root2, entry.name, "session.json");
-    if (!fs32.existsSync(filename2)) continue;
+    const filename2 = path34.join(root2, entry.name, "session.json");
+    if (!fs33.existsSync(filename2)) continue;
     try {
-      const record2 = JSON.parse(fs32.readFileSync(filename2, "utf8"));
-      if (record2.state !== "stopped" && record2.executable && path33.isAbsolute(record2.executable)) {
-        protectedDirectories.push(path33.dirname(record2.executable));
+      const record2 = JSON.parse(fs33.readFileSync(filename2, "utf8"));
+      if (record2.state !== "stopped" && record2.executable && path34.isAbsolute(record2.executable)) {
+        protectedDirectories.push(path34.dirname(record2.executable));
       }
     } catch {
     }
@@ -66977,12 +67353,12 @@ async function installPreviewRuntime(project, signal, update = false) {
     }
   }
   const directory = runtimeDirectory();
-  const unresolved = fs32.existsSync(directory) && fs32.readdirSync(directory, { withFileTypes: true }).find(
-    (entry) => entry.isDirectory() && entry.name.startsWith("runtime-") && fs32.existsSync(path33.join(directory, entry.name, UNVERIFIED_CLEANUP_MARKER))
+  const unresolved = fs33.existsSync(directory) && fs33.readdirSync(directory, { withFileTypes: true }).find(
+    (entry) => entry.isDirectory() && entry.name.startsWith("runtime-") && fs33.existsSync(path34.join(directory, entry.name, UNVERIFIED_CLEANUP_MARKER))
   );
   if (unresolved) {
     throw new Error(
-      "The previous installer cleanup is unverified. Confirm its processes have exited before removing only the marked directory: " + path33.join(directory, unresolved.name)
+      "The previous installer cleanup is unverified. Confirm its processes have exited before removing only the marked directory: " + path34.join(directory, unresolved.name)
     );
   }
   const python = checkMakerPythonEnvironment();
@@ -66991,10 +67367,10 @@ async function installPreviewRuntime(project, signal, update = false) {
       "Runtime installation needs Python and curl. Run taptap-maker python setup with host approval, then retry."
     );
   }
-  const staging = path33.join(directory, "runtime-" + randomUUID5());
-  fs32.mkdirSync(staging, { recursive: true, mode: 448 });
-  const installer = path33.join(staging, "install-urhox-runtime.py");
-  fs32.writeFileSync(installer, PREVIEW_INSTALLER_SOURCE, { mode: 384 });
+  const staging = path34.join(directory, "runtime-" + randomUUID5());
+  fs33.mkdirSync(staging, { recursive: true, mode: 448 });
+  const installer = path34.join(staging, "install-urhox-runtime.py");
+  fs33.writeFileSync(installer, PREVIEW_INSTALLER_SOURCE, { mode: 384 });
   const platform = process.platform === "win32" ? "win32" : "darwin";
   try {
     await runPreviewInstaller(
@@ -67007,14 +67383,14 @@ async function installPreviewRuntime(project, signal, update = false) {
         signal
       }
     );
-    const executable = fs32.realpathSync(
-      path33.join(staging, platform === "win32" ? "UrhoXRuntime.exe" : "UrhoXRuntime")
+    const executable = fs33.realpathSync(
+      path34.join(staging, platform === "win32" ? "UrhoXRuntime.exe" : "UrhoXRuntime")
     );
     const resources2 = ensurePreviewRuntimeResources(executable);
     const runtime = await probeRuntime(executable, signal);
-    const archive = path33.join(staging, "UrhoXRuntime.zip");
+    const archive = path34.join(staging, "UrhoXRuntime.zip");
     const hash2 = createHash5("sha256");
-    for await (const chunk of fs32.createReadStream(archive)) hash2.update(chunk);
+    for await (const chunk of fs33.createReadStream(archive)) hash2.update(chunk);
     const installation = {
       install_state: "ready",
       executable,
@@ -67024,19 +67400,19 @@ async function installPreviewRuntime(project, signal, update = false) {
       warnings: resources2.warnings
     };
     const protectedDirectories = [staging, ...activePreviewRuntimeDirectories(project)];
-    if (previous.executable) protectedDirectories.push(path33.dirname(previous.executable));
+    if (previous.executable) protectedDirectories.push(path34.dirname(previous.executable));
     installation.warnings = [
       ...installation.warnings || [],
       ...trimPreviewCache(directory, "runtime-", 2, protectedDirectories)
     ];
-    writePrivateJson(path33.join(directory, "installation.json"), installation);
+    writePrivateJson(path34.join(directory, "installation.json"), installation);
     return installation;
   } catch (error2) {
     const cleanupUnverified = error2.cleanupVerified === false;
-    if (!cleanupUnverified) fs32.rmSync(staging, { recursive: true, force: true });
+    if (!cleanupUnverified) fs33.rmSync(staging, { recursive: true, force: true });
     else
-      fs32.writeFileSync(
-        path33.join(staging, UNVERIFIED_CLEANUP_MARKER),
+      fs33.writeFileSync(
+        path34.join(staging, UNVERIFIED_CLEANUP_MARKER),
         "Installer process ownership must be verified before cleanup.\n",
         { mode: 384 }
       );
@@ -67048,12 +67424,16 @@ async function installPreviewRuntime(project, signal, update = false) {
 
 // src/maker/preview/session.ts
 init_protocol2();
-import fs33 from "node:fs";
-import path34 from "node:path";
+import fs34 from "node:fs";
+import path35 from "node:path";
 import http2 from "node:http";
-import os5 from "node:os";
+import os6 from "node:os";
 import { timingSafeEqual } from "node:crypto";
 init_diagnosticRedaction();
+function previewErrorMessage(error2) {
+  const message = error2 instanceof Error ? error2.message : typeof error2 === "string" ? error2 : "Unexpected preview error.";
+  return String(sanitizeDiagnosticValue(message));
+}
 var PreviewSession = class {
   constructor(record2, save = true) {
     this.record = record2;
@@ -67076,10 +67456,22 @@ var PreviewSession = class {
       if ((current == null ? void 0 : current.session_id) !== this.record.session_id || current.supervisor_id !== this.record.supervisor_id)
         return;
       writePrivateJson(
-        path34.join(previewDirectory(this.record.project_realpath), "session.json"),
+        path35.join(previewDirectory(this.record.project_realpath), "session.json"),
         this.record
       );
-      writePrivateJson(path34.join(previewRoundDirectory(this.record), "result.json"), this.status());
+      writePrivateJson(path35.join(previewRoundDirectory(this.record), "result.json"), this.status());
+    }
+  }
+  setTerminalState(state) {
+    var _a3;
+    try {
+      this.setState(state);
+      return true;
+    } catch (error2) {
+      const message = previewErrorMessage(error2);
+      if (!((_a3 = this.failure) == null ? void 0 : _a3.includes(message)))
+        this.failure = [this.failure, "Preview state persistence failed: " + message].filter(Boolean).join("; ");
+      return false;
     }
   }
   status() {
@@ -67156,8 +67548,8 @@ var PreviewSession = class {
   async launch(reload) {
     var _a3;
     this.failure = void 0;
-    this.setState(reload ? "reloading" : "starting");
     try {
+      this.setState(reload ? "reloading" : "starting");
       if (reload) {
         await ((_a3 = this.runtime) == null ? void 0 : _a3.stop());
         this.runtime = void 0;
@@ -67183,13 +67575,19 @@ var PreviewSession = class {
         (state) => {
           if (this.runtime !== runtime || this.stopping) return;
           if (state === "stopped" && this.record.state === "reloading") return;
-          this.setState(state);
+          if (state === "running") this.setState(state);
+          else this.setTerminalState(state);
+        },
+        void 0,
+        (pid) => {
+          this.record.runtime_launch_pending = pid === void 0;
+          this.setState(this.record.state);
         }
       );
       this.runtime = runtime;
       await runtime.start(
         String(this.preflight.entry),
-        path34.join(previewDirectory(this.record.project_realpath), "storage"),
+        path35.join(previewDirectory(this.record.project_realpath), "storage"),
         this.preflight.window
       );
       if (this.stopping) throw new Error("CANCELLED");
@@ -67198,8 +67596,8 @@ var PreviewSession = class {
         ...reload ? { warning: "Preview restarted; in-memory game state was lost." } : {}
       };
     } catch (error2) {
-      this.failure = String(sanitizeDiagnosticValue(String(error2)));
-      this.setState(this.stopping ? "stopped" : "failed");
+      this.failure = previewErrorMessage(error2);
+      this.setTerminalState(this.stopping ? "stopped" : "failed");
       return {
         ...this.status(),
         ok: false,
@@ -67208,7 +67606,7 @@ var PreviewSession = class {
     } finally {
       try {
         trimPreviewEvidence(
-          path34.join(previewDirectory(this.record.project_realpath), "sessions"),
+          path35.join(previewDirectory(this.record.project_realpath), "sessions"),
           this.record.session_id,
           this.record.reload_id
         );
@@ -67226,14 +67624,14 @@ var PreviewSession = class {
       await ((_a3 = this.runtime) == null ? void 0 : _a3.stop());
       await this.operation;
     } catch (error2) {
-      this.failure = String(sanitizeDiagnosticValue(String(error2)));
-      this.setState("failed");
+      this.failure = previewErrorMessage(error2);
+      this.setTerminalState("failed");
       return { ...this.status(), ok: false, result: "TIMEOUT" };
     } finally {
       this.pendingStops--;
     }
-    this.setState("stopped");
-    return { ...this.status(), ok: true };
+    const persisted = this.setTerminalState("stopped");
+    return { ...this.status(), ok: persisted };
   }
   async handle(action, options3 = {}, signal) {
     var _a3, _b, _c, _d;
@@ -67357,32 +67755,33 @@ async function runPreviewSupervisor(project, sessionId) {
   const shutdown = async (retireFailure = false) => {
     if (shuttingDown || retireFailure && !session.canRetireFailure) return;
     shuttingDown = true;
-    if (!retireFailure) {
-      const result = await session.stop();
-      if (!result.ok) {
-        shuttingDown = false;
-        return;
+    try {
+      if (!retireFailure) {
+        const result = await session.stop();
+        if (!result.ok && (result.state !== "stopped" || result.process_alive !== false)) return;
       }
-    }
-    clearInterval(idleTimer);
-    clearTimeout(closeTimer);
-    await new Promise((resolve) => {
-      server.close(() => resolve());
-      server.closeIdleConnections();
-    });
-    process.removeListener("SIGINT", onSignal);
-    process.removeListener("SIGTERM", onSignal);
-    if (retireFailure && session.canRetireFailure) {
-      try {
-        const current = readPreviewRecord(project);
-        if ((current == null ? void 0 : current.session_id) === record2.session_id && current.supervisor_id === record2.supervisor_id && current.reload_id === record2.reload_id) {
-          writePrivateJson(path34.join(previewRoundDirectory(record2), "result.json"), {
-            ...session.status(),
-            supervisor_retired: true
-          });
+      clearInterval(idleTimer);
+      clearTimeout(closeTimer);
+      await new Promise((resolve) => {
+        server.close(() => resolve());
+        server.closeIdleConnections();
+      });
+      process.removeListener("SIGINT", onSignal);
+      process.removeListener("SIGTERM", onSignal);
+      if (retireFailure && session.canRetireFailure) {
+        try {
+          const current = readPreviewRecord(project);
+          if ((current == null ? void 0 : current.session_id) === record2.session_id && current.supervisor_id === record2.supervisor_id && current.reload_id === record2.reload_id) {
+            writePrivateJson(path35.join(previewRoundDirectory(record2), "result.json"), {
+              ...session.status(),
+              supervisor_retired: true
+            });
+          }
+        } catch {
         }
-      } catch {
       }
+    } finally {
+      shuttingDown = false;
     }
   };
   const onSignal = () => {
@@ -67429,7 +67828,7 @@ async function runPreviewSupervisor(project, sessionId) {
           JSON.stringify({
             ...session.status(),
             ok: false,
-            error: String(sanitizeDiagnosticValue(String(error2)))
+            error: previewErrorMessage(error2)
           })
         );
       }
@@ -67452,7 +67851,8 @@ async function runPreviewSupervisor(project, sessionId) {
   record2.port = address.port;
   record2.supervisor_pid = process.pid;
   record2.runtime_pid = 0;
-  writePrivateJson(path34.join(previewDirectory(project), "session.json"), record2);
+  record2.runtime_launch_pending = false;
+  writePrivateJson(path35.join(previewDirectory(project), "session.json"), record2);
   const idleTimer = setInterval(() => {
     if (record2.state === "stopped") void shutdown();
     else if (session.canRetireFailure) void shutdown(true);
@@ -67486,10 +67886,10 @@ async function previewStatus(project) {
     };
   } catch {
     const stopped = record2.state === "stopped";
-    const filename2 = path34.join(previewRoundDirectory(record2), "result.json");
+    const filename2 = path35.join(previewRoundDirectory(record2), "result.json");
     let evidence = {};
-    if (fs33.existsSync(filename2)) {
-      const saved = JSON.parse(fs33.readFileSync(filename2, "utf8"));
+    if (fs34.existsSync(filename2)) {
+      const saved = JSON.parse(fs34.readFileSync(filename2, "utf8"));
       if (samePreviewIdentity(saved, record2)) {
         evidence = { ...saved };
         delete evidence.token;
@@ -67499,8 +67899,9 @@ async function previewStatus(project) {
     const runtimePid = Number(record2.runtime_pid || evidence.runtime_pid || 0);
     const unpublished = record2.state === "starting" && !record2.port && !record2.supervisor_pid && !record2.runtime_pid;
     const expiredLaunch = unpublished && record2.launch_deadline !== void 0 && Date.now() >= record2.launch_deadline;
-    const beforeBoot = unpublished && Date.parse(record2.started_at) < Date.now() - os5.uptime() * 1e3 - 6e4;
-    const staleSessionRecovered = expiredLaunch || beforeBoot || !retiredFailure && (record2.state === "running" || record2.state === "failed") && sameSupervisorEvidence(evidence, record2) && processPresence(record2.supervisor_pid) === "missing" && runtimePid > 0 && processPresence(runtimePid) === "missing";
+    const beforeBoot = record2.state === "starting" && Date.parse(record2.started_at) < Date.now() - os6.uptime() * 1e3 - 6e4 && (record2.supervisor_pid === 0 || processPresence(record2.supervisor_pid) === "missing") && (runtimePid === 0 || processPresence(runtimePid) === "missing");
+    const interruptedStartup = record2.state === "starting" && record2.port > 0 && record2.supervisor_pid > 0 && record2.runtime_launch_pending === false && processPresence(record2.supervisor_pid) === "missing" && (runtimePid === 0 || processPresence(runtimePid) === "missing");
+    const staleSessionRecovered = expiredLaunch || beforeBoot || interruptedStartup || !retiredFailure && (record2.state === "running" || record2.state === "failed") && sameSupervisorEvidence(evidence, record2) && processPresence(record2.supervisor_pid) === "missing" && runtimePid > 0 && processPresence(runtimePid) === "missing";
     if (staleSessionRecovered) {
       evidence = {
         ...evidence,
@@ -67512,7 +67913,7 @@ async function previewStatus(project) {
         runtime_pid: 0,
         supervisor_retired: true,
         stale_session_recovered: true,
-        error: expiredLaunch ? "本地预览启动超时，未启动游戏。可以重新点击“本地预览”。" : "Previous preview processes are no longer running. The stale session was retired safely."
+        error: expiredLaunch ? "本地预览启动超时，未启动游戏。可以重新点击“本地预览”。" : interruptedStartup ? "本地预览启动已中断，已确认相关进程不存在。可以重新点击“本地预览”。" : "Previous preview processes are no longer running. The stale session was retired safely."
       };
     }
     return {
@@ -67543,8 +67944,8 @@ init_diagnosticRedaction();
 
 // src/maker/system/backgroundProcess.ts
 import { spawn as spawn8 } from "node:child_process";
-import fs34 from "node:fs";
-import path35 from "node:path";
+import fs35 from "node:fs";
+import path36 from "node:path";
 var WINDOWS_ENV_KEYS = /* @__PURE__ */ new Set([
   "APPDATA",
   "COMSPEC",
@@ -67579,9 +67980,9 @@ var WINDOWS_ENV_KEYS = /* @__PURE__ */ new Set([
   "WINDIR"
 ]);
 function openBackgroundProcessLog(filename2) {
-  fs34.mkdirSync(path35.dirname(filename2), { recursive: true, mode: 448 });
-  const oversized = fs34.existsSync(filename2) && fs34.statSync(filename2).size > 1024 * 1024;
-  return fs34.openSync(filename2, oversized ? "w" : "a", 384);
+  fs35.mkdirSync(path36.dirname(filename2), { recursive: true, mode: 448 });
+  const oversized = fs35.existsSync(filename2) && fs35.statSync(filename2).size > 1024 * 1024;
+  return fs35.openSync(filename2, oversized ? "w" : "a", 384);
 }
 function selectWindowsBackgroundEnvironment(env) {
   return Object.fromEntries(
@@ -67623,7 +68024,7 @@ async function launchBackgroundProcess(options3) {
   var _a3, _b, _c;
   if ((_a3 = options3.signal) == null ? void 0 : _a3.aborted) throw new Error("CANCELLED: background launch.");
   if ((options3.platform ?? process.platform) !== "win32") return directLaunch(options3);
-  fs34.closeSync(openBackgroundProcessLog(options3.logFile));
+  fs35.closeSync(openBackgroundProcessLog(options3.logFile));
   const scripts = buildWindowsBackgroundLaunchScripts(options3);
   const broker = spawn8(
     "powershell.exe",
@@ -67696,7 +68097,7 @@ function directLaunch(options3) {
       env: options3.env
     });
   } finally {
-    fs34.closeSync(stderr);
+    fs35.closeSync(stderr);
   }
   let launchFailure;
   child.once("error", (error2) => {
@@ -67800,7 +68201,7 @@ async function runPreviewCli(action, options3) {
       );
     } else {
       if (action === "stop") {
-        writePrivateJson(path36.join(previewDirectory(project), "stop.json"), {
+        writePrivateJson(path37.join(previewDirectory(project), "stop.json"), {
           request_id: randomUUID6()
         });
       }
@@ -67879,8 +68280,8 @@ async function runPreviewCli(action, options3) {
     process.exitCode = 1;
 }
 async function startPreview(project, options3, signal) {
-  const stopFile = path36.join(previewDirectory(project), "stop.json");
-  const readStop = () => fs35.existsSync(stopFile) ? fs35.readFileSync(stopFile, "utf8") : "";
+  const stopFile = path37.join(previewDirectory(project), "stop.json");
+  const readStop = () => fs36.existsSync(stopFile) ? fs36.readFileSync(stopFile, "utf8") : "";
   const stopGeneration = readStop();
   const checkCancelled = () => {
     if (signal.aborted || readStop() !== stopGeneration)
@@ -67914,9 +68315,9 @@ async function startPreview(project, options3, signal) {
       install_state: "missing",
       error: "Runtime is missing. With host approval, run taptap-maker preview install --target-dir <PROJECT_ABSOLUTE_PATH>, then retry start."
     };
-  if (!path36.isAbsolute(configured))
+  if (!path37.isAbsolute(configured))
     throw new Error("--runtime must be an absolute executable path.");
-  const executable = fs35.realpathSync(configured);
+  const executable = fs36.realpathSync(configured);
   const resourceWarnings = externalRuntime ? [] : ensurePreviewRuntimeResources(executable).warnings;
   const runtime = await probeRuntime(executable, signal);
   checkCancelled();
@@ -67936,14 +68337,14 @@ async function startPreview(project, options3, signal) {
     state: "starting",
     runtime
   };
-  writePrivateJson(path36.join(previewDirectory(project), "session.json"), record2);
+  writePrivateJson(path37.join(previewDirectory(project), "session.json"), record2);
   const launch = await launchPreviewSupervisorProcess({
     execPath: process.execPath,
     execArgv: process.execArgv,
     entry: process.argv[1],
     project,
     sessionId: record2.session_id,
-    cwd: path36.dirname(executable),
+    cwd: path37.dirname(executable),
     logFile: previewSupervisorLogPath(project),
     env: process.env,
     signal
@@ -67988,7 +68389,7 @@ async function startPreview(project, options3, signal) {
     } else {
       if (launch.stopUnpublished()) {
         record2.state = "stopped";
-        writePrivateJson(path36.join(previewDirectory(project), "session.json"), record2);
+        writePrivateJson(path37.join(previewDirectory(project), "session.json"), record2);
       } else {
         throw new Error(
           String(error2) + "; supervisor exit is unverified. Inspect " + previewSupervisorLogPath(project)
@@ -68000,10 +68401,10 @@ async function startPreview(project, options3, signal) {
 }
 
 // src/maker/console/cli.ts
-import fs43 from "node:fs";
-import path45 from "node:path";
+import fs45 from "node:fs";
+import path47 from "node:path";
 import { spawn as spawn11 } from "node:child_process";
-import { createHash as createHash8, randomUUID as randomUUID8 } from "node:crypto";
+import { createHash as createHash9, randomUUID as randomUUID8 } from "node:crypto";
 init_storage();
 init_projectRegistry();
 init_privateJson();
@@ -68014,8 +68415,8 @@ init_projectSettings();
 init_qrcodePreflight();
 init_qrcodeInteraction();
 init_git();
-import fs36 from "node:fs";
-import path37 from "node:path";
+import fs37 from "node:fs";
+import path38 from "node:path";
 import { execFile as execFile2 } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
 
@@ -68039,17 +68440,17 @@ var ConsoleError = class extends Error {
 // src/maker/console/projects.ts
 var exec = promisify2(execFile2);
 function objectFile2(filename2) {
-  const stat = fs36.statSync(filename2);
+  const stat = fs37.statSync(filename2);
   if (!stat.isFile() || stat.size > 2 * 1024 * 1024)
     throw new ConsoleError("Project configuration exceeds the supported size.");
-  const data = JSON.parse(fs36.readFileSync(filename2, "utf8"));
+  const data = JSON.parse(fs37.readFileSync(filename2, "utf8"));
   if (!data || typeof data !== "object" || Array.isArray(data))
     throw new ConsoleError("Invalid project configuration.");
   return data;
 }
 function optionalConfig(root2, file3) {
   try {
-    return objectFile2(path37.join(root2, ".project", file3));
+    return objectFile2(path38.join(root2, ".project", file3));
   } catch {
     return {};
   }
@@ -68092,7 +68493,7 @@ var ConsoleProjects = class {
     const error2 = entry.error;
     const config2 = error2 ? {} : optionalConfig(entry.path, "project.json");
     const title = (_b = text((_a3 = config2.taptap_publish) == null ? void 0 : _a3.title)) == null ? void 0 : _b.trim();
-    const name = title && title !== "<game title, required>" ? title : path37.basename(entry.path) + (error2 ? "" : "（未发布）");
+    const name = title && title !== "<game title, required>" ? title : path38.basename(entry.path) + (error2 ? "" : "（未发布）");
     return {
       key: entry.key,
       projectid: entry.binding,
@@ -68128,7 +68529,7 @@ var ConsoleProjects = class {
       const entry = config2["entry@server"] || resources2["entry@server"];
       const normalized = typeof entry === "string" ? entry.replace(/\\/g, "/").replace(/^\.\//, "") : "";
       const entries = normalized ? [normalized, "scripts/" + normalized, "assets/" + normalized] : [];
-      const directories = entries.map((file3) => path37.posix.dirname(file3)).filter((dir) => ![".", "scripts", "assets"].includes(dir));
+      const directories = entries.map((file3) => path38.posix.dirname(file3)).filter((dir) => ![".", "scripts", "assets"].includes(dir));
       const raw = (await inspectGit(["status", "--porcelain=v1", "-z", "--untracked-files=all"])).split("\0");
       const files = /* @__PURE__ */ new Set();
       for (let i = 0; i < raw.length && raw[i]; i++) {
@@ -68145,7 +68546,7 @@ var ConsoleProjects = class {
         const meta3 = source + ".meta";
         const current = (() => {
           try {
-            return objectFile2(path37.join(project.path, meta3));
+            return objectFile2(path38.join(project.path, meta3));
           } catch {
             return {};
           }
@@ -68315,10 +68716,12 @@ function createConsoleExecutor(options3) {
     signal,
     confirmedOrientation,
     publication,
-    confirmedBuild
+    confirmedBuild,
+    reportContext
   }) => {
-    if (![...CONSOLE_ACTIONS, "preview.status", "preview.logs"].includes(action))
+    if (![...CONSOLE_ACTIONS, "preview.status", "preview.logs", "issue.report"].includes(action))
       throw new Error("Unsupported console CLI action.");
+    if (action === "issue.report" && !reportContext) throw new Error("Report context is required.");
     if (signal == null ? void 0 : signal.aborted) return { ok: false, error: "Console query cancelled before launch." };
     if (action === "lua-lsp.check") {
       const result = await checkMakerLuaLspProject(project);
@@ -68329,7 +68732,7 @@ function createConsoleExecutor(options3) {
         ...!result.ok ? { error: result.error || result.summary } : {}
       });
     }
-    const command = action === "build" || action === "qrcode" ? [action] : ["preview", action.slice("preview.".length)];
+    const command = action === "issue.report" ? ["mcp", "report", "--context-stdin", "--consent"] : action === "build" || action === "qrcode" ? [action] : ["preview", action.slice("preview.".length)];
     if (action === "qrcode" && confirmedOrientation)
       command.push("--confirmed-screen-orientation", confirmedOrientation);
     if (action === "qrcode") {
@@ -68373,9 +68776,14 @@ function createConsoleExecutor(options3) {
         detached: ownsProcessGroup,
         windowsHide: true,
         shell: false,
-        stdio: ["ignore", "pipe", "pipe", "ipc"],
+        stdio: [action === "issue.report" ? "pipe" : "ignore", "pipe", "pipe", "ipc"],
         env: { ...process.env, GIT_TERMINAL_PROMPT: "0" }
       });
+      if (action === "issue.report") {
+        child.stdin.on("error", () => {
+        });
+        child.stdin.end(JSON.stringify(reportContext));
+      }
       const childStdout = child.stdout;
       const childStderr = child.stderr;
       let stdout = "";
@@ -68415,7 +68823,7 @@ function createConsoleExecutor(options3) {
           timedOut = true;
           terminate();
         },
-        action === "build" || action === "qrcode" ? 65 * 60 * 1e3 : action === "preview.status" || action === "preview.logs" ? 3e4 : 7 * 60 * 1e3
+        action === "build" || action === "qrcode" ? 65 * 60 * 1e3 : action === "preview.status" || action === "preview.logs" || action === "issue.report" ? 3e4 : 7 * 60 * 1e3
       );
       const cleanup = () => {
         finished = true;
@@ -68490,6 +68898,17 @@ function createConsoleExecutor(options3) {
         }
         try {
           const result = JSON.parse(stdout);
+          if (action === "issue.report") {
+            const created = code === 0 && (result == null ? void 0 : result.status) === "created" && typeof result.issue_url === "string" && /^https:\/\/github\.com\/taptap\/instant-games-open-mcp\/issues\/\d+$/.test(
+              result.issue_url
+            );
+            resolve({
+              ok: created,
+              status: created ? "created" : "unavailable",
+              ...created ? { issue_url: result.issue_url } : {}
+            });
+            return;
+          }
           if (!result || typeof result !== "object" || typeof result.ok !== "boolean")
             throw new Error("Missing CLI result status.");
           resolve(
@@ -68525,16 +68944,117 @@ function launchConsoleServerProcess(options3) {
 
 // src/maker/console/server.ts
 import http3 from "node:http";
-import { createHash as createHash7 } from "node:crypto";
+import { createHash as createHash8 } from "node:crypto";
 
 // src/maker/console/tasks.ts
 init_privateJson();
 init_diagnosticRedaction();
 init_qrcodePreflight();
 init_qrcodeInteraction();
-import fs37 from "node:fs";
-import path38 from "node:path";
+import fs39 from "node:fs";
+import path40 from "node:path";
 import { randomUUID as randomUUID7 } from "node:crypto";
+
+// src/maker/console/issueReport.ts
+init_protocol2();
+init_diagnosticRedaction();
+import fs38 from "node:fs";
+import os7 from "node:os";
+import path39 from "node:path";
+import { createHash as createHash6 } from "node:crypto";
+function consoleReportOffer(task) {
+  if (!["failed", "unknown"].includes(task.status)) return;
+  if (task.action === "lua-lsp.check" || task.interaction || task.recovery) return;
+  const error2 = task.error || "";
+  if (/找不到本地预览入口|Runtime is missing|taptap-maker login|PAT.*(?:expired|invalid)|HTTP 40[13]|cancelled|canceled|用户取消|Please commit your changes|CONFLICT|Need to call maker_build_current_directory|Invalid.*config|配置.*(?:损坏|缺失)|requires a bound Maker project/i.test(
+    error2
+  ))
+    return;
+  const preview = ["preview.start", "preview.refresh", "preview.install"].includes(task.action);
+  if (!preview && !/timeout|timed out|HTTP 5\d\d|internal.*error|unverifiable|verifiable JSON|unexpected|connection closed/i.test(
+    error2
+  ))
+    return;
+  const category = preview ? "runtime" : task.action === "build" || task.action === "qrcode" ? "build" : "console";
+  const stable = error2.replace(/[a-f0-9]{8}-[a-f0-9-]{27,}/gi, "<id>").replace(/[a-f0-9]{64}/gi, "<hash>").replace(/\b\d+\b/g, "<n>");
+  return {
+    category,
+    fingerprint: createHash6("sha256").update(task.projectKey + ":" + task.action + ":" + stable).digest("hex")
+  };
+}
+function logTail(root2, relative) {
+  let fd;
+  try {
+    if (fs38.lstatSync(root2).isSymbolicLink()) return "[日志不可用]";
+    const file3 = path39.join(fs38.realpathSync(root2), relative);
+    if (fs38.realpathSync(file3) !== file3 || !fs38.lstatSync(file3).isFile()) return "[日志不可用]";
+    fd = fs38.openSync(file3, fs38.constants.O_RDONLY | (fs38.constants.O_NOFOLLOW || 0));
+    const stat = fs38.fstatSync(fd);
+    if (!stat.isFile()) return "[日志不可用]";
+    const offset = Math.max(0, stat.size - 6e3);
+    const buffer = Buffer.alloc(Math.min(stat.size, 6e3));
+    fs38.readSync(fd, buffer, 0, buffer.length, offset);
+    let text2 = buffer.toString("utf8");
+    if (offset) text2 = text2.includes("\n") ? text2.slice(text2.indexOf("\n") + 1) : "";
+    return (offset ? "[日志仅含尾部]\n" : "") + String(sanitizeDiagnosticValue(text2));
+  } catch {
+    return "[日志不存在或无法读取]";
+  } finally {
+    if (fd !== void 0) fs38.closeSync(fd);
+  }
+}
+function consoleReportContext(task, project) {
+  var _a3;
+  const offer = consoleReportOffer(task);
+  const directory = previewDirectory(project);
+  let preview = { status: "unavailable" };
+  const logs = {};
+  if (task.action.startsWith("preview.")) {
+    try {
+      const record2 = readPreviewRecord(project);
+      const result = task.result;
+      const sameSession = (result == null ? void 0 : result.session_id) ? result.session_id === (record2 == null ? void 0 : record2.session_id) && (result.reload_id === void 0 || result.reload_id === (record2 == null ? void 0 : record2.reload_id)) : record2 && Date.parse(record2.started_at) >= Date.parse(task.startedAt) && Date.parse(record2.started_at) <= Date.parse(task.finishedAt || (/* @__PURE__ */ new Date()).toISOString());
+      if (record2 && sameSession) {
+        logs.supervisor = logTail(directory, "supervisor.log");
+        preview = {
+          state: record2.state,
+          session_id: record2.session_id,
+          reload_id: record2.reload_id,
+          supervisor_pid: record2.supervisor_pid,
+          runtime_pid: record2.runtime_pid,
+          runtime_launch_pending: record2.runtime_launch_pending,
+          runtime: record2.runtime,
+          executable: record2.executable
+        };
+        const round = path39.join("sessions", record2.session_id, String(record2.reload_id));
+        logs.prepare = logTail(directory, path39.join(round, "prepare.log"));
+        logs.runtime = logTail(directory, path39.join(round, "runtime.log"));
+      }
+      if (!record2) logs.supervisor = logTail(directory, "supervisor.log");
+    } catch {
+    }
+  }
+  return {
+    source: "console",
+    category: (offer == null ? void 0 : offer.category) || "console",
+    summary: `${process.platform} ${task.action} 失败：${(task.error || "执行结果未知").split("\n")[0].slice(0, 160)}`,
+    failed_operation: task.action,
+    error_message: (_a3 = task.error) == null ? void 0 : _a3.slice(0, 3e3),
+    reproduction_steps: ["在 Maker 控制台选择项目", `执行 ${task.action}`, "出现异常或结果未知"],
+    error_data: {
+      task_id: task.id,
+      started_at: task.startedAt,
+      finished_at: task.finishedAt,
+      status: task.status,
+      os_release: os7.release(),
+      preview,
+      logs,
+      output: task.output.slice(-2e3)
+    }
+  };
+}
+
+// src/maker/console/tasks.ts
 var ConsoleTasks = class {
   constructor(projects, execute, historyFile, onSettled = () => {
   }) {
@@ -68544,14 +69064,16 @@ var ConsoleTasks = class {
     this.onSettled = onSettled;
     this.tasks = /* @__PURE__ */ new Map();
     this.running = /* @__PURE__ */ new Set();
-    if (historyFile && fs37.existsSync(historyFile)) {
-      if (fs37.statSync(historyFile).size > 40 * 1024 * 1024)
+    var _a3;
+    if (historyFile && fs39.existsSync(historyFile)) {
+      if (fs39.statSync(historyFile).size > 40 * 1024 * 1024)
         throw new ConsoleError("Console task history exceeds the supported size.");
-      const data = JSON.parse(fs37.readFileSync(historyFile, "utf8"));
+      const data = JSON.parse(fs39.readFileSync(historyFile, "utf8"));
       if (!Array.isArray(data) || data.length > 100)
         throw new ConsoleError("Invalid console task history.");
       for (const task of data) {
         if (!task.id || !CONSOLE_ACTIONS.includes(task.action)) continue;
+        if (((_a3 = task.report) == null ? void 0 : _a3.status) === "running") task.report = { status: "unknown" };
         if (task.status === "running") {
           task.status = "unknown";
           task.error = "Console restarted before the operation result was recorded. Check the result before retrying.";
@@ -68564,14 +69086,21 @@ var ConsoleTasks = class {
     }
   }
   pruneHistory() {
+    var _a3;
     const counts = /* @__PURE__ */ new Map();
     for (const task of Array.from(this.tasks.values()).reverse()) {
       const count = (counts.get(task.projectKey) || 0) + 1;
       counts.set(task.projectKey, count);
-      if (count > 10 && task.status !== "running") this.tasks.delete(task.id);
+      if (count > 10 && task.status !== "running" && ((_a3 = task.report) == null ? void 0 : _a3.status) !== "running")
+        this.tasks.delete(task.id);
     }
     while (this.tasks.size > 100) {
-      const old = Array.from(this.tasks.values()).find((task) => task.status !== "running");
+      const old = Array.from(this.tasks.values()).find(
+        (task) => {
+          var _a4;
+          return task.status !== "running" && ((_a4 = task.report) == null ? void 0 : _a4.status) !== "running";
+        }
+      );
       if (!old) break;
       this.tasks.delete(old.id);
     }
@@ -68583,12 +69112,13 @@ var ConsoleTasks = class {
     const result = task.result;
     const interaction = task.action === "qrcode" && ["failed", "unknown"].includes(task.status) ? parseQrcodeInteraction(result == null ? void 0 : result.error) || parseQrcodeInteraction(task.error) : void 0;
     const recovery = task.action === "qrcode" && ["failed", "unknown"].includes(task.status) ? parseQrcodeRecovery(result == null ? void 0 : result.error) || parseQrcodeRecovery(task.error) : void 0;
-    return {
+    const described = {
       ...task,
       interaction,
       recovery,
       ...interaction || recovery ? { status: "unknown" } : {}
     };
+    return { ...described, reportOffer: consoleReportOffer(described) };
   }
   get(id) {
     const task = this.tasks.get(id);
@@ -68596,7 +69126,86 @@ var ConsoleTasks = class {
     return this.describe(task);
   }
   busy(key) {
-    return this.list().some((task) => task.projectKey === key && task.status === "running");
+    return this.list().some(
+      (task) => {
+        var _a3;
+        return task.projectKey === key && (task.status === "running" || ((_a3 = task.report) == null ? void 0 : _a3.status) === "running");
+      }
+    );
+  }
+  get active() {
+    return this.running.size > 0;
+  }
+  report(id, consent) {
+    if (consent !== true) throw new ConsoleError("Explicit report consent is required.");
+    const described = this.get(id);
+    if (!described.reportOffer)
+      throw new ConsoleError("This task is not eligible for issue reporting.");
+    const task = this.tasks.get(id);
+    if (task.report) return this.describe(task);
+    const project = this.projects.resolve(task.projectKey);
+    if (task.projectPath !== project.path || task.projectid !== project.projectid)
+      throw new ConsoleError("Project binding changed since this operation.");
+    if (this.running.size >= 4) throw new ConsoleError("Too many active operations.", 409);
+    task.report = { status: "running" };
+    try {
+      this.persist();
+    } catch (error2) {
+      delete task.report;
+      throw error2;
+    }
+    const operation = Promise.resolve().then(async () => {
+      try {
+        const result = await this.execute({
+          action: "issue.report",
+          project: project.path,
+          reportContext: consoleReportContext(described, project.path),
+          onOutput: () => {
+          }
+        });
+        const created = result.ok && result.status === "created" && typeof result.issue_url === "string" && /^https:\/\/github\.com\/taptap\/instant-games-open-mcp\/issues\/\d+$/.test(
+          result.issue_url
+        );
+        task.report = created ? { status: "created", issue_url: result.issue_url } : { status: result.unknown ? "unknown" : "unavailable" };
+      } catch {
+        task.report = { status: "unknown" };
+      } finally {
+        this.onSettled();
+        try {
+          this.persist();
+        } catch {
+        }
+      }
+    });
+    this.running.add(operation);
+    void operation.finally(() => this.running.delete(operation)).catch(() => {
+    });
+    return this.describe(task);
+  }
+  recordFailure(key, action, error2) {
+    if (!CONSOLE_ACTIONS.includes(action)) throw new ConsoleError("Unsupported console action.");
+    const project = this.projects.resolve(key);
+    const task = {
+      id: randomUUID7(),
+      projectKey: key,
+      projectName: project.name,
+      projectPath: project.path,
+      projectid: project.projectid,
+      action,
+      status: "failed",
+      startedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      finishedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      output: "",
+      error: String(sanitizeDiagnosticValue(error2)).slice(0, 8192)
+    };
+    this.tasks.set(task.id, task);
+    try {
+      this.persist();
+    } catch (error3) {
+      this.tasks.delete(task.id);
+      throw error3;
+    }
+    return this.describe(task);
   }
   start(key, action, confirmedOrientation, publication, confirmedBuild, sourceTaskId) {
     var _a3;
@@ -68686,7 +69295,9 @@ var ConsoleTasks = class {
       } catch (error2) {
         task.status = "failed";
         task.error = String(
-          sanitizeDiagnosticValue(error2 instanceof Error ? error2.message : String(error2))
+          sanitizeDiagnosticValue(
+            error2 instanceof Error ? error2.message : typeof error2 === "string" ? error2 : "Unexpected console task error."
+          )
         ).slice(0, 8192);
       } finally {
         task.finishedAt = (/* @__PURE__ */ new Date()).toISOString();
@@ -68709,9 +69320,12 @@ var ConsoleTasks = class {
   persist() {
     this.pruneHistory();
     if (this.historyFile) {
-      fs37.mkdirSync(path38.dirname(this.historyFile), { recursive: true, mode: 448 });
+      fs39.mkdirSync(path40.dirname(this.historyFile), { recursive: true, mode: 448 });
       while (Buffer.byteLength(JSON.stringify(Array.from(this.tasks.values()))) > 40 * 1024 * 1024) {
-        const oldest = this.list().reverse().find((task) => task.status !== "running");
+        const oldest = this.list().reverse().find((task) => {
+          var _a3;
+          return task.status !== "running" && ((_a3 = task.report) == null ? void 0 : _a3.status) !== "running";
+        });
         if (!oldest) throw new ConsoleError("Active console history exceeds the supported size.");
         this.tasks.delete(oldest.id);
       }
@@ -68725,8 +69339,8 @@ init_diagnosticRedaction();
 init_luaLsp();
 
 // src/maker/console/integrations/framecrate.ts
-import fs38 from "node:fs";
-import path39 from "node:path";
+import fs40 from "node:fs";
+import path41 from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawn as spawn10 } from "node:child_process";
 var FramecrateLauncher = class {
@@ -68764,7 +69378,7 @@ var FramecrateLauncher = class {
         throw new ConsoleError("FrameCrate requires the exact console host origin.");
       }
     }
-    if (!path39.isAbsolute(projectPath) || fs38.realpathSync(projectPath) !== projectPath)
+    if (!path41.isAbsolute(projectPath) || fs40.realpathSync(projectPath) !== projectPath)
       throw new ConsoleError("FrameCrate requires a validated project realpath.");
     const existing = this.sessions.get(projectPath);
     if (existing) {
@@ -68782,7 +69396,7 @@ var FramecrateLauncher = class {
       );
     const env = this.options.env ?? process.env;
     const configured = (_a3 = env.FRAMECRATE_STUDIO_DIR) == null ? void 0 : _a3.trim();
-    if (!configured || !path39.isAbsolute(configured))
+    if (!configured || !path41.isAbsolute(configured))
       throw new ConsoleError(
         "FrameCrate unavailable: set FRAMECRATE_STUDIO_DIR to the absolute path of an installed studio, then reopen the console.",
         409
@@ -68791,10 +69405,10 @@ var FramecrateLauncher = class {
     let entry;
     let loader;
     try {
-      root2 = fs38.realpathSync(configured);
-      entry = path39.join(root2, "server/main.ts");
-      loader = path39.join(root2, "node_modules/tsx/dist/loader.mjs");
-      if (!fs38.statSync(entry).isFile() || !fs38.statSync(loader).isFile()) throw new Error();
+      root2 = fs40.realpathSync(configured);
+      entry = path41.join(root2, "server/main.ts");
+      loader = path41.join(root2, "node_modules/tsx/dist/loader.mjs");
+      if (!fs40.statSync(entry).isFile() || !fs40.statSync(loader).isFile()) throw new Error();
     } catch {
       throw new ConsoleError(
         "FrameCrate unavailable: FRAMECRATE_STUDIO_DIR must contain server/main.ts and node_modules/tsx/dist/loader.mjs. No installer is provided.",
@@ -68991,14 +69605,14 @@ var ConsolePlugins = class {
 
 // src/maker/console/updates.ts
 import { execFile as execFile3 } from "node:child_process";
-import fs40 from "node:fs";
-import path41 from "node:path";
+import fs42 from "node:fs";
+import path43 from "node:path";
 
 // src/maker/cli/mcpLauncher.ts
 init_client2();
 init_stdio3();
-import fs39 from "node:fs";
-import path40 from "node:path";
+import fs41 from "node:fs";
+import path42 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 var DEFAULT_VERIFY_TIMEOUT_MS = 9e4;
 var VERIFY_CLIENT_VERSION = "1.0.0";
@@ -69025,33 +69639,33 @@ function materializeMakerSelfLauncher(options3) {
     throw new Error(`Invalid Maker runtime version: ${options3.version}`);
   }
   const execPath = options3.execPath ?? process.execPath;
-  if (!path40.isAbsolute(execPath) || !fs39.existsSync(execPath)) {
+  if (!path42.isAbsolute(execPath) || !fs41.existsSync(execPath)) {
     throw new Error("Maker self launcher requires an existing absolute Node executable.");
   }
   const sourceBundle = fileURLToPath3(options3.bundleUrl);
-  const sourceRoot = path40.dirname(path40.dirname(sourceBundle));
-  const runtimeRoot = path40.join(path40.resolve(options3.makerHome), "mcp-runtime", options3.version);
+  const sourceRoot = path42.dirname(path42.dirname(sourceBundle));
+  const runtimeRoot = path42.join(path42.resolve(options3.makerHome), "mcp-runtime", options3.version);
   for (const relativePath of [...SELF_RUNTIME_FILES, ...SELF_RUNTIME_DIRECTORIES]) {
-    const sourcePath = path40.join(sourceRoot, relativePath);
-    if (!fs39.existsSync(sourcePath)) {
+    const sourcePath = path42.join(sourceRoot, relativePath);
+    if (!fs41.existsSync(sourcePath)) {
       throw new Error(`Maker self runtime source is incomplete: ${sourcePath}`);
     }
   }
-  if (path40.resolve(sourceRoot) !== path40.resolve(runtimeRoot)) {
+  if (path42.resolve(sourceRoot) !== path42.resolve(runtimeRoot)) {
     for (const relativePath of SELF_RUNTIME_FILES) {
-      const sourcePath = path40.join(sourceRoot, relativePath);
-      const targetPath = path40.join(runtimeRoot, relativePath);
-      fs39.mkdirSync(path40.dirname(targetPath), { recursive: true });
-      fs39.copyFileSync(sourcePath, targetPath);
+      const sourcePath = path42.join(sourceRoot, relativePath);
+      const targetPath = path42.join(runtimeRoot, relativePath);
+      fs41.mkdirSync(path42.dirname(targetPath), { recursive: true });
+      fs41.copyFileSync(sourcePath, targetPath);
     }
     for (const relativePath of SELF_RUNTIME_DIRECTORIES) {
       copySelfRuntimeDirectory(
-        path40.join(sourceRoot, relativePath),
-        path40.join(runtimeRoot, relativePath)
+        path42.join(sourceRoot, relativePath),
+        path42.join(runtimeRoot, relativePath)
       );
     }
   }
-  const stableBundle = path40.join(runtimeRoot, "dist", "maker.js");
+  const stableBundle = path42.join(runtimeRoot, "dist", "maker.js");
   return {
     kind: "self_runtime",
     command: execPath,
@@ -69061,7 +69675,7 @@ function materializeMakerSelfLauncher(options3) {
 }
 function copySelfRuntimeDirectory(sourcePath, targetPath) {
   try {
-    fs39.cpSync(sourcePath, targetPath, { recursive: true });
+    fs41.cpSync(sourcePath, targetPath, { recursive: true });
   } catch (error2) {
     const code = typeof error2 === "object" && error2 !== null && "code" in error2 ? String(error2.code) : void 0;
     if (!code || !SELF_RUNTIME_COPY_FALLBACK_CODES.has(code)) {
@@ -69071,14 +69685,14 @@ function copySelfRuntimeDirectory(sourcePath, targetPath) {
   }
 }
 function copyDirectoryEntries(sourcePath, targetPath) {
-  fs39.mkdirSync(targetPath, { recursive: true });
-  for (const entry of fs39.readdirSync(sourcePath, { withFileTypes: true })) {
-    const sourceEntry = path40.join(sourcePath, entry.name);
-    const targetEntry = path40.join(targetPath, entry.name);
+  fs41.mkdirSync(targetPath, { recursive: true });
+  for (const entry of fs41.readdirSync(sourcePath, { withFileTypes: true })) {
+    const sourceEntry = path42.join(sourcePath, entry.name);
+    const targetEntry = path42.join(targetPath, entry.name);
     if (entry.isDirectory()) {
       copyDirectoryEntries(sourceEntry, targetEntry);
     } else {
-      fs39.copyFileSync(sourceEntry, targetEntry);
+      fs41.copyFileSync(sourceEntry, targetEntry);
     }
   }
 }
@@ -69093,10 +69707,10 @@ function resolveMakerMcpLauncher(options3) {
       commandAndArgs: ["npx", ...args]
     };
   }
-  const existsSync2 = options3.existsSync ?? fs39.existsSync;
+  const existsSync2 = options3.existsSync ?? fs41.existsSync;
   const execPath = options3.execPath ?? process.execPath;
   const npmExecPath = options3.npmExecPath ?? process.env.npm_execpath;
-  const windowsPath = path40.win32;
+  const windowsPath = path42.win32;
   const npmCliCandidates = uniqueStrings([
     npmExecPath,
     windowsPath.join(windowsPath.dirname(execPath), "node_modules", "npm", "bin", "npm-cli.js")
@@ -69264,8 +69878,8 @@ function runConsoleUpgrade(version2) {
   if (!VERSION2.test(version2)) throw new Error("无效版本号");
   const launcher = resolveMakerMcpLauncher({ packageName: `@taptap/maker@${version2}` });
   const home2 = getMakerHome();
-  const cache = path41.join(home2, "cache", "npm");
-  fs40.mkdirSync(cache, { recursive: true });
+  const cache = path43.join(home2, "cache", "npm");
+  fs42.mkdirSync(cache, { recursive: true });
   return new Promise((resolve, reject) => {
     execFile3(
       launcher.command,
@@ -69351,9 +69965,9 @@ var ConsoleUpdates = class {
 };
 
 // src/maker/console/documents.ts
-import fs41 from "node:fs";
-import path42 from "node:path";
-import { createHash as createHash6 } from "node:crypto";
+import fs43 from "node:fs";
+import path44 from "node:path";
+import { createHash as createHash7 } from "node:crypto";
 
 // node_modules/marked/lib/marked.esm.js
 function _getDefaults() {
@@ -71458,8 +72072,8 @@ var GROUPS = [
   ["templates", "示例与模板"]
 ];
 function inside2(root2, file3) {
-  const relative = path42.relative(root2, file3);
-  return relative !== ".." && !relative.startsWith(`..${path42.sep}`) && !path42.isAbsolute(relative);
+  const relative = path44.relative(root2, file3);
+  return relative !== ".." && !relative.startsWith(`..${path44.sep}`) && !path44.isAbsolute(relative);
 }
 var ConsoleDocuments = class {
   constructor(packageRoot) {
@@ -71470,36 +72084,36 @@ var ConsoleDocuments = class {
     const seen = /* @__PURE__ */ new Set();
     let visited = 0;
     const collect = (base, source, relative, kind, category) => {
-      if (!fs41.existsSync(base)) return;
-      const root2 = fs41.realpathSync(base);
+      if (!fs43.existsSync(base)) return;
+      const root2 = fs43.realpathSync(base);
       const walk = (filename2, depth) => {
         var _a3, _b;
         if (depth > 7 || visited++ > 6e3 || entries.length >= MAX_ENTRIES) return;
         try {
-          const real = fs41.realpathSync(filename2);
+          const real = fs43.realpathSync(filename2);
           if (!inside2(root2, real)) return;
-          const stat = fs41.statSync(real);
+          const stat = fs43.statSync(real);
           if (stat.isDirectory()) {
-            if (fs41.lstatSync(filename2).isSymbolicLink()) return;
-            for (const name of fs41.readdirSync(filename2).sort()) {
+            if (fs43.lstatSync(filename2).isSymbolicLink()) return;
+            for (const name of fs43.readdirSync(filename2).sort()) {
               if (name === "node_modules" || name === ".git") continue;
-              walk(path42.join(filename2, name), depth + 1);
+              walk(path44.join(filename2, name), depth + 1);
             }
           } else if (stat.isFile() && /\.md$/i.test(filename2) && stat.size <= MAX_FILE && !seen.has(real)) {
             seen.add(real);
-            const relativePath = path42.relative(root2, filename2).split(path42.sep).join("/");
-            const descriptor = fs41.openSync(real, "r");
+            const relativePath = path44.relative(root2, filename2).split(path44.sep).join("/");
+            const descriptor = fs43.openSync(real, "r");
             const buffer = Buffer.alloc(Math.min(8192, stat.size));
             let content;
             try {
-              content = buffer.subarray(0, fs41.readSync(descriptor, buffer, 0, buffer.length, 0)).toString("utf8");
+              content = buffer.subarray(0, fs43.readSync(descriptor, buffer, 0, buffer.length, 0)).toString("utf8");
             } finally {
-              fs41.closeSync(descriptor);
+              fs43.closeSync(descriptor);
             }
             const heading = (_b = (_a3 = content.match(/^#\s+(.+)$/m)) == null ? void 0 : _a3[1]) == null ? void 0 : _b.trim();
-            const fallback = path42.basename(filename2).toLowerCase() === "skill.md" ? path42.basename(path42.dirname(filename2)) : path42.basename(filename2, path42.extname(filename2));
+            const fallback = path44.basename(filename2).toLowerCase() === "skill.md" ? path44.basename(path44.dirname(filename2)) : path44.basename(filename2, path44.extname(filename2));
             entries.push({
-              id: createHash6("sha256").update(source + ":" + relativePath).digest("hex"),
+              id: createHash7("sha256").update(source + ":" + relativePath).digest("hex"),
               title: (heading || fallback).slice(0, 160),
               kind,
               category,
@@ -71512,7 +72126,7 @@ var ConsoleDocuments = class {
         } catch {
         }
       };
-      walk(path42.join(root2, relative), 0);
+      walk(path44.join(root2, relative), 0);
     };
     for (const filename2 of [
       "MAKER_CONSOLE.md",
@@ -71564,10 +72178,10 @@ var ConsoleDocuments = class {
     if (!entry) throw new ConsoleError("文档不存在或已移除，请刷新目录。", 404);
     let content = entry.content;
     if (content === void 0) {
-      const real = fs41.realpathSync(entry.filename);
-      if (!inside2(entry.root, real) || fs41.statSync(real).size > MAX_FILE)
+      const real = fs43.realpathSync(entry.filename);
+      if (!inside2(entry.root, real) || fs43.statSync(real).size > MAX_FILE)
         throw new ConsoleError("文档无法安全读取。", 403);
-      content = fs41.readFileSync(real, "utf8");
+      content = fs43.readFileSync(real, "utf8");
     }
     return {
       id,
@@ -71580,7 +72194,7 @@ var ConsoleDocuments = class {
 
 // src/maker/console/folderPicker.ts
 import { execFile as execFile4 } from "node:child_process";
-import path43 from "node:path";
+import path45 from "node:path";
 async function chooseProjectDirectory(platform = process.platform, signal) {
   let command;
   let args;
@@ -71598,7 +72212,7 @@ async function chooseProjectDirectory(platform = process.platform, signal) {
       ].join("\n")
     ];
   } else if (platform === "win32") {
-    command = path43.win32.join(
+    command = path45.win32.join(
       process.env.SystemRoot || "C:\\Windows",
       "System32",
       "WindowsPowerShell",
@@ -71663,8 +72277,8 @@ async function chooseProjectDirectory(platform = process.platform, signal) {
 }
 
 // src/maker/console/projectDiscovery.ts
-import fs42 from "node:fs";
-import path44 from "node:path";
+import fs44 from "node:fs";
+import path46 from "node:path";
 var EXCLUDED = /* @__PURE__ */ new Set([
   ".git",
   "node_modules",
@@ -71679,7 +72293,7 @@ var EXCLUDED = /* @__PURE__ */ new Set([
   "System Volume Information"
 ]);
 async function discoverConsoleProjects(directory, registry2) {
-  const root2 = await fs42.promises.realpath(directory);
+  const root2 = await fs44.promises.realpath(directory);
   const known = new Set(registry2.list().map((project) => project.path));
   const result = { added: 0, existing: 0, skipped: 0, limited: false };
   const deadline = Date.now() + 1e4;
@@ -71692,8 +72306,8 @@ async function discoverConsoleProjects(directory, registry2) {
     }
     const current = queue.shift();
     visited++;
-    const marker = path44.join(current.directory, ".maker-mcp/config.json");
-    if (fs42.existsSync(marker) || fs42.existsSync(path44.join(current.directory, ".project/project.json"))) {
+    const marker = path46.join(current.directory, ".maker-mcp/config.json");
+    if (fs44.existsSync(marker) || fs44.existsSync(path46.join(current.directory, ".project/project.json"))) {
       try {
         const project = registry2.add(current.directory);
         if (known.has(project.path)) result.existing++;
@@ -71707,7 +72321,7 @@ async function discoverConsoleProjects(directory, registry2) {
       }
     }
     try {
-      const entries = await fs42.promises.opendir(current.directory);
+      const entries = await fs44.promises.opendir(current.directory);
       for await (const entry of entries) {
         if (++visited >= 5e3 || Date.now() >= deadline) {
           result.limited = true;
@@ -71719,7 +72333,7 @@ async function discoverConsoleProjects(directory, registry2) {
           continue;
         }
         queue.push({
-          directory: path44.join(current.directory, entry.name),
+          directory: path46.join(current.directory, entry.name),
           depth: current.depth + 1
         });
       }
@@ -71778,8 +72392,8 @@ async function startConsoleServer(options3) {
       readers.delete(pending);
     }
   }
-  const scriptHashes = [...options3.html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
-    (match) => `'sha256-${createHash7("sha256").update(match[1]).digest("base64")}'`
+  const scriptHashes = [...options3.html.matchAll(/<script>([\s\S]*?)<\/script>/gi)].map(
+    (match) => `'sha256-${createHash8("sha256").update(match[1]).digest("base64")}'`
   );
   const server = http3.createServer(async (request2, response) => {
     const json2 = (status, value) => {
@@ -71915,12 +72529,28 @@ async function startConsoleServer(options3) {
         json2(202, task2);
         return;
       }
+      if (request2.method === "POST" && url2.pathname === "/api/tasks/failure") {
+        const body = await bodyForMutation();
+        if (typeof body.projectKey !== "string" || typeof body.action !== "string" || typeof body.error !== "string")
+          throw new ConsoleError("Project, action, and error are required.");
+        const task2 = tasks.recordFailure(body.projectKey, body.action, body.error);
+        touch();
+        json2(202, task2);
+        return;
+      }
       if (request2.method === "POST" && url2.pathname === "/api/shutdown") {
         await bodyForMutation();
-        if (selectingFolder || updates.job.status === "running" || tasks.list().some((task2) => task2.status === "running"))
+        if (selectingFolder || updates.job.status === "running" || tasks.active)
           throw new ConsoleError("Wait for active tasks before stopping the console.", 409);
         json2(200, { ok: true });
         setImmediate(() => void close());
+        return;
+      }
+      const report = url2.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)\/report$/);
+      if (request2.method === "POST" && report) {
+        const body = await bodyForMutation();
+        json2(202, tasks.report(report[1], body.consent));
+        touch();
         return;
       }
       const task = url2.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)$/);
@@ -71993,7 +72623,9 @@ async function startConsoleServer(options3) {
     } catch (error2) {
       if (!response.headersSent)
         json2(error2 instanceof ConsoleError ? error2.status : 400, {
-          error: sanitizeDiagnosticValue(error2 instanceof Error ? error2.message : String(error2))
+          error: sanitizeDiagnosticValue(
+            error2 instanceof Error ? error2.message : typeof error2 === "string" ? error2 : "Unexpected console error."
+          )
         });
     }
   });
@@ -72017,7 +72649,7 @@ async function startConsoleServer(options3) {
   origin = `http://127.0.0.1:${address.port}`;
   const idleTimer = setInterval(
     () => {
-      if (now() - lastActivity >= idleMs && !selectingFolder && updates.job.status !== "running" && !tasks.list().some((task) => task.status === "running") && !plugins.active)
+      if (now() - lastActivity >= idleMs && !selectingFolder && updates.job.status !== "running" && !tasks.active && !plugins.active)
         void close();
     },
     Math.min(3e4, idleMs)
@@ -72080,13 +72712,13 @@ async function readBody(request2) {
 var VERSION3 = false ? "dev" : "0.0.33";
 var CONSOLE_PROTOCOL_VERSION = 2;
 function home() {
-  return path45.join(getMakerHome(), "console");
+  return path47.join(getMakerHome(), "console");
 }
 function sessionPath() {
-  return path45.join(home(), "session.json");
+  return path47.join(home(), "session.json");
 }
 function createConsoleLauncherIdentity(version2, developmentSource) {
-  return createHash8("sha256").update(
+  return createHash9("sha256").update(
     JSON.stringify({
       protocol: CONSOLE_PROTOCOL_VERSION,
       version: version2,
@@ -72102,15 +72734,15 @@ function ensureCompatibleConsoleLauncher(actual, expected) {
   }
 }
 function launcherIdentity() {
-  const entry = fs43.realpathSync(process.argv[1]);
+  const entry = fs45.realpathSync(process.argv[1]);
   return createConsoleLauncherIdentity(VERSION3, {
     entry,
-    mtimeMs: fs43.statSync(entry).mtimeMs
+    mtimeMs: fs45.statSync(entry).mtimeMs
   });
 }
 function readSession() {
-  if (!fs43.existsSync(sessionPath())) return void 0;
-  const session = JSON.parse(fs43.readFileSync(sessionPath(), "utf8"));
+  if (!fs45.existsSync(sessionPath())) return void 0;
+  const session = JSON.parse(fs45.readFileSync(sessionPath(), "utf8"));
   if (session.schema !== 1 || !/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(session.origin) || Number(new URL(session.origin).port) > 65535 || !/^[a-f0-9-]{36}$/.test(session.instanceId) || !Number.isInteger(session.pid) || session.pid <= 0 || typeof session.launcher !== "string" || session.draining !== void 0 && typeof session.draining !== "boolean")
     throw new ConsoleError(
       "Invalid local console session. Refusing to contact an unknown service."
@@ -72187,9 +72819,9 @@ async function runConsoleSupervisor() {
       registry: registry2,
       html: getConsoleHtml2(),
       version: VERSION3,
-      packageRoot: path45.dirname(path45.dirname(path45.resolve(process.argv[1]))),
+      packageRoot: path47.dirname(path47.dirname(path47.resolve(process.argv[1]))),
       distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
-      historyFile: path45.join(home(), "tasks.json"),
+      historyFile: path47.join(home(), "tasks.json"),
       instanceId,
       execute: createConsoleExecutor({ entry: process.argv[1] }),
       onDraining: () => {
@@ -72214,7 +72846,7 @@ async function runConsoleSupervisor() {
     const cleanup = () => {
       var _a3;
       try {
-        if (((_a3 = readSession()) == null ? void 0 : _a3.instanceId) === instanceId) fs43.unlinkSync(sessionPath());
+        if (((_a3 = readSession()) == null ? void 0 : _a3.instanceId) === instanceId) fs45.unlinkSync(sessionPath());
       } catch {
       }
       release();
@@ -72237,11 +72869,11 @@ async function runConsoleSupervisor() {
   }
 }
 async function claimConsoleServerLock(directory) {
-  fs43.mkdirSync(directory, { recursive: true, mode: 448 });
-  return claimOwnedLock(path45.join(directory, "server.lock"));
+  fs45.mkdirSync(directory, { recursive: true, mode: 448 });
+  return claimOwnedLock(path47.join(directory, "server.lock"));
 }
 async function claimOwnedLock(filename2) {
-  filename2 = path45.join(fs43.realpathSync(path45.dirname(filename2)), path45.basename(filename2));
+  filename2 = path47.join(fs45.realpathSync(path47.dirname(filename2)), path47.basename(filename2));
   const identity = `${process.pid}:${randomUUID8()}`;
   const recoveryFilename = filename2 + ".recovery";
   const releaseMutex = await claimRecoveryMutex2(filename2);
@@ -72249,10 +72881,10 @@ async function claimOwnedLock(filename2) {
     claimRecoveryGuard(recoveryFilename, identity);
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        fs43.writeFileSync(filename2, identity, { flag: "wx", mode: 384 });
+        fs45.writeFileSync(filename2, identity, { flag: "wx", mode: 384 });
         return () => {
           try {
-            if (fs43.readFileSync(filename2, "utf8") === identity) fs43.unlinkSync(filename2);
+            if (fs45.readFileSync(filename2, "utf8") === identity) fs45.unlinkSync(filename2);
           } catch {
           }
         };
@@ -72260,7 +72892,7 @@ async function claimOwnedLock(filename2) {
         if (error2.code !== "EEXIST") throw error2;
         let previous;
         try {
-          previous = fs43.readFileSync(filename2, "utf8");
+          previous = fs45.readFileSync(filename2, "utf8");
         } catch (cause) {
           if (cause.code === "ENOENT") continue;
           throw cause;
@@ -72275,7 +72907,7 @@ async function claimOwnedLock(filename2) {
         } catch (cause) {
           if (cause.code === "ESRCH") {
             try {
-              if (fs43.readFileSync(filename2, "utf8") === previous) fs43.unlinkSync(filename2);
+              if (fs45.readFileSync(filename2, "utf8") === previous) fs45.unlinkSync(filename2);
             } catch (error3) {
               if (error3.code !== "ENOENT") throw error3;
             }
@@ -72307,19 +72939,19 @@ function claimRecoveryGuard(filename2, identity) {
   for (let attempt = 0; attempt < 3; attempt++) {
     let descriptor;
     try {
-      descriptor = fs43.openSync(filename2, "wx", 384);
+      descriptor = fs45.openSync(filename2, "wx", 384);
     } catch (error2) {
       if (error2.code !== "EEXIST") throw error2;
       if (reclaimStaleRecoveryGuard(filename2)) continue;
       throw new ConsoleError("Console ownership recovery is already in progress.", 409);
     }
     try {
-      fs43.writeFileSync(descriptor, identity, "utf8");
+      fs45.writeFileSync(descriptor, identity, "utf8");
     } catch (error2) {
-      fs43.unlinkSync(filename2);
+      fs45.unlinkSync(filename2);
       throw error2;
     } finally {
-      fs43.closeSync(descriptor);
+      fs45.closeSync(descriptor);
     }
     return;
   }
@@ -72329,8 +72961,8 @@ function reclaimStaleRecoveryGuard(filename2) {
   let content;
   let modified;
   try {
-    content = fs43.readFileSync(filename2, "utf8");
-    modified = fs43.statSync(filename2).mtimeMs;
+    content = fs45.readFileSync(filename2, "utf8");
+    modified = fs45.statSync(filename2).mtimeMs;
   } catch (error2) {
     return error2.code === "ENOENT";
   }
@@ -72338,8 +72970,8 @@ function reclaimStaleRecoveryGuard(filename2) {
   const stale = Number.isInteger(pid) && pid > 0 ? processPresence(pid) === "missing" : content === "" && Date.now() - modified >= 2e3;
   if (!stale) return false;
   try {
-    if (fs43.readFileSync(filename2, "utf8") === content && fs43.statSync(filename2).mtimeMs === modified) {
-      fs43.unlinkSync(filename2);
+    if (fs45.readFileSync(filename2, "utf8") === content && fs45.statSync(filename2).mtimeMs === modified) {
+      fs45.unlinkSync(filename2);
       return true;
     }
   } catch (error2) {
@@ -72349,19 +72981,19 @@ function reclaimStaleRecoveryGuard(filename2) {
 }
 function removeOwnedFile(filename2, identity) {
   try {
-    if (fs43.readFileSync(filename2, "utf8") === identity) fs43.unlinkSync(filename2);
+    if (fs45.readFileSync(filename2, "utf8") === identity) fs45.unlinkSync(filename2);
   } catch {
   }
 }
 async function ensureSession() {
   var _a3;
-  fs43.mkdirSync(home(), { recursive: true, mode: 448 });
+  fs45.mkdirSync(home(), { recursive: true, mode: 448 });
   const existing = await availableSession();
   if (existing) {
     ensureCompatibleConsoleLauncher(existing.launcher, launcherIdentity());
     return existing;
   }
-  const lock = path45.join(home(), "launch.lock");
+  const lock = path47.join(home(), "launch.lock");
   let releaseLaunch;
   for (let attempt = 0; attempt < 60; attempt++) {
     try {
@@ -72390,7 +73022,7 @@ async function ensureSession() {
       execArgv: process.execArgv,
       entry: process.argv[1],
       cwd: home(),
-      logFile: path45.join(home(), "server.log"),
+      logFile: path47.join(home(), "server.log"),
       env: process.env
     });
     for (let attempt = 0; attempt < 80; attempt++) {
@@ -72453,7 +73085,7 @@ async function runConsoleCli(action, options3) {
   if (action !== "open") throw new ConsoleError("Use console open|status|stop.");
   const target = typeof options3.target_dir === "string" ? options3.target_dir : void 0;
   if (target) {
-    if (!path45.isAbsolute(target))
+    if (!path47.isAbsolute(target))
       throw new ConsoleError("--target-dir must be an absolute project path.");
     const { previewProject: previewProject2 } = await Promise.resolve().then(() => (init_protocol2(), protocol_exports));
     previewProject2(target);
@@ -72684,16 +73316,16 @@ init_diagnosticRedaction();
 init_identify();
 init_pluginDistribution();
 import { spawnSync as spawnSync7 } from "node:child_process";
-import fs45 from "node:fs";
-import os7 from "node:os";
-import path47 from "node:path";
+import fs47 from "node:fs";
+import os9 from "node:os";
+import path49 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // src/maker/cli/dshMcpConfig.ts
 var import_yaml = __toESM(require_dist2());
-import fs44 from "node:fs";
-import os6 from "node:os";
-import path46 from "node:path";
+import fs46 from "node:fs";
+import os8 from "node:os";
+import path48 from "node:path";
 var DSH_MCP_PLUGIN_NAME = "@deepseek-ai/dsh-mcp-client";
 var DSH_MAKER_PLUGIN_ID = "mcp-taptap-maker";
 var DSH_MAKER_TOOL_CALL_TIMEOUT_MS = 60 * 60 * 1e3;
@@ -72701,10 +73333,10 @@ function getDshHome(options3 = {}) {
   var _a3;
   const configured = (_a3 = (options3.environment || process.env).DSH_HOME) == null ? void 0 : _a3.trim();
   if (configured) {
-    const expanded = configured === "~" ? options3.homeDir || os6.homedir() : configured.startsWith("~/") || configured.startsWith("~\\") ? path46.join(options3.homeDir || os6.homedir(), configured.slice(2)) : configured;
-    return path46.resolve(expanded);
+    const expanded = configured === "~" ? options3.homeDir || os8.homedir() : configured.startsWith("~/") || configured.startsWith("~\\") ? path48.join(options3.homeDir || os8.homedir(), configured.slice(2)) : configured;
+    return path48.resolve(expanded);
   }
-  return path46.join(options3.homeDir || os6.homedir(), ".dsh");
+  return path48.join(options3.homeDir || os8.homedir(), ".dsh");
 }
 function createDshMakerPluginConfig(options3) {
   return {
@@ -72722,8 +73354,8 @@ function createDshMakerPluginConfig(options3) {
   };
 }
 function mergeDshMakerMcpConfig(configPath, desired) {
-  const existed = fs44.existsSync(configPath);
-  const previousContent = existed ? fs44.readFileSync(configPath, "utf8") : "[]\n";
+  const existed = fs46.existsSync(configPath);
+  const previousContent = existed ? fs46.readFileSync(configPath, "utf8") : "[]\n";
   const document = parseDshDocument(previousContent, configPath);
   const sequence = ensurePluginSequence(document, configPath);
   const candidates = findDshMakerPluginCandidates(
@@ -72782,7 +73414,7 @@ function findDshMakerPluginEntry(content, mcpName, source = "DSH config") {
 }
 function getDshMcpInstallPaths(options3) {
   const dshHome = getDshHome(options3);
-  const homePatchPath = path46.join(dshHome, "cordis.patch.yml");
+  const homePatchPath = path48.join(dshHome, "cordis.patch.yml");
   const homeHasMaker = dshConfigFileHasMaker(homePatchPath, options3.mcpName);
   const profilePatchPaths = listDshProfilePatchPathsForInstall(dshHome).filter(
     (configPath) => dshConfigFileHasMaker(configPath, options3.mcpName)
@@ -72798,22 +73430,22 @@ function getDshMcpInstallPaths(options3) {
   return profilePatchPaths.length > 0 ? profilePatchPaths : [homePatchPath];
 }
 function listDshProfilePatchPathsForInstall(dshHome) {
-  const profilesDir = path46.join(dshHome, "profiles");
+  const profilesDir = path48.join(dshHome, "profiles");
   let entries;
   try {
-    entries = fs44.readdirSync(profilesDir, { withFileTypes: true });
+    entries = fs46.readdirSync(profilesDir, { withFileTypes: true });
   } catch (error2) {
     if (isMissingPathError(error2)) {
       return [];
     }
     throw error2;
   }
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().map((profileName) => path46.join(profilesDir, profileName, "cordis.patch.yml"));
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().map((profileName) => path48.join(profilesDir, profileName, "cordis.patch.yml"));
 }
 function dshConfigFileHasMaker(configPath, mcpName) {
   let content;
   try {
-    content = fs44.readFileSync(configPath, "utf8");
+    content = fs46.readFileSync(configPath, "utf8");
   } catch (error2) {
     if (isMissingPathError(error2)) {
       return false;
@@ -72826,21 +73458,21 @@ function isMissingPathError(error2) {
   return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === "ENOENT";
 }
 function listDshMcpConfigPaths(options3) {
-  const dshHome = options3.dshHome || path46.join(options3.homeDir, ".dsh");
-  const paths = [path46.join(dshHome, "cordis.patch.yml")];
-  const profilesDir = path46.join(dshHome, "profiles");
-  if (!fs44.existsSync(profilesDir)) {
+  const dshHome = options3.dshHome || path48.join(options3.homeDir, ".dsh");
+  const paths = [path48.join(dshHome, "cordis.patch.yml")];
+  const profilesDir = path48.join(dshHome, "profiles");
+  if (!fs46.existsSync(profilesDir)) {
     return paths;
   }
   let profileNames = [];
   try {
-    profileNames = fs44.readdirSync(profilesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().slice(0, 50);
+    profileNames = fs46.readdirSync(profilesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().slice(0, 50);
   } catch {
     return paths;
   }
   for (const profileName of profileNames) {
-    const profileDir = path46.join(profilesDir, profileName);
-    paths.push(path46.join(profileDir, "cordis.patch.yml"), path46.join(profileDir, "cordis.yml"));
+    const profileDir = path48.join(profilesDir, profileName);
+    paths.push(path48.join(profileDir, "cordis.patch.yml"), path48.join(profileDir, "cordis.yml"));
   }
   return paths;
 }
@@ -72892,14 +73524,14 @@ function findDshMakerPluginCandidates(patches, mcpName) {
 }
 function writeDshConfigWithBackup(configPath, previousContent, existed, nextContent, desired) {
   const backupPath = existed ? `${configPath}.taptap-maker.bak.latest` : void 0;
-  fs44.mkdirSync(path46.dirname(configPath), { recursive: true });
+  fs46.mkdirSync(path48.dirname(configPath), { recursive: true });
   if (backupPath) {
-    fs44.writeFileSync(backupPath, previousContent, "utf8");
+    fs46.writeFileSync(backupPath, previousContent, "utf8");
   }
   try {
-    fs44.writeFileSync(configPath, nextContent, "utf8");
+    fs46.writeFileSync(configPath, nextContent, "utf8");
     const written = findDshMakerPluginEntry(
-      fs44.readFileSync(configPath, "utf8"),
+      fs46.readFileSync(configPath, "utf8"),
       desired.config.serverName,
       configPath
     );
@@ -72911,9 +73543,9 @@ function writeDshConfigWithBackup(configPath, previousContent, existed, nextCont
     return { changed: true, backupPath };
   } catch (error2) {
     if (existed) {
-      fs44.writeFileSync(configPath, previousContent, "utf8");
+      fs46.writeFileSync(configPath, previousContent, "utf8");
     } else {
-      fs44.rmSync(configPath, { force: true });
+      fs46.rmSync(configPath, { force: true });
     }
     throw error2;
   }
@@ -72929,6 +73561,12 @@ function deepEqual(left, right) {
 var MAKER_MCP_NAME = "taptap-maker";
 var GITHUB_REPOSITORY = "taptap/instant-games-open-mcp";
 var GITHUB_NEW_ISSUE_URL = `https://github.com/${GITHUB_REPOSITORY}/issues/new`;
+var MAKER_ISSUE_CATEGORIES = {
+  mcp: "Maker MCP",
+  console: "控制台",
+  runtime: "UrhoX Runtime",
+  build: "构建"
+};
 function parseMakerMcpReportContext(input2) {
   const trimmed = input2.trim();
   if (!trimmed) {
@@ -72992,7 +73630,7 @@ function inspectMakerMcpClientConfig(options3) {
   if (!configPaths) {
     return { ide, status: "unsupported", entries: [] };
   }
-  const entries = configPaths.filter((configPath) => fs45.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, options3.mcpName || MAKER_MCP_NAME));
+  const entries = configPaths.filter((configPath) => fs47.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, options3.mcpName || MAKER_MCP_NAME));
   const status = entries.some((entry) => entry.status === "found") ? "found" : entries.some((entry) => entry.status === "unreadable") ? "unreadable" : entries.length > 0 ? "missing_entry" : "not_found";
   return { ide, status, entries };
 }
@@ -73006,15 +73644,15 @@ function resolveMakerMcpReportRuntime(options3) {
       `${pluginDistribution.displayName} plugin diagnostics require the active Maker bundle URL.`
     );
   }
-  const bundlePath = path47.resolve(fileURLToPath4(options3.bundleUrl));
-  const pluginRoot = path47.dirname(path47.dirname(bundlePath));
+  const bundlePath = path49.resolve(fileURLToPath4(options3.bundleUrl));
+  const pluginRoot = path49.dirname(path49.dirname(bundlePath));
   const execPath = options3.execPath ?? process.execPath;
   return {
     distribution: pluginDistribution.id,
     client: pluginDistribution.client,
     config_source: {
       format: "json",
-      paths: [path47.join(pluginRoot, ".mcp.json")],
+      paths: [path49.join(pluginRoot, ".mcp.json")],
       mcp_name: "taptap-maker-plugin"
     },
     launcher: {
@@ -73037,16 +73675,17 @@ function buildMakerMcpIssue(options3) {
     options3.homeDir
   );
   const summary = stripControlCharacters(sanitizePublicText(context.summary, options3.homeDir)).replace(/\s+/gu, " ").trim() || "Maker MCP problem report";
-  const title = `[Maker MCP] ${summary}`.slice(0, 120);
+  const category = context.category && Object.prototype.hasOwnProperty.call(MAKER_ISSUE_CATEGORIES, context.category) ? MAKER_ISSUE_CATEGORIES[context.category] : MAKER_ISSUE_CATEGORIES.mcp;
+  const title = `[${category}] ${summary}`.slice(0, 120);
   const body = [
     "<!-- maker-mcp-auto-report -->",
-    "> 由 TapTap Maker AI 故障上报流程自动生成；凭证和用户主目录已经脱敏。",
+    context.source === "console" ? "> 由 TapTap Maker 控制台故障上报流程自动生成；凭证和用户主目录已经脱敏。" : "> 由 TapTap Maker AI 故障上报流程自动生成；凭证和用户主目录已经脱敏。",
     "",
     "## 问题摘要",
     "",
     summary,
     "",
-    "## AI 会话与错误上下文",
+    context.source === "console" ? "## 控制台操作与错误上下文" : "## AI 会话与错误上下文",
     "",
     fencedJson(context, 24e3),
     "",
@@ -73064,9 +73703,9 @@ function buildMakerMcpIssue(options3) {
 async function collectMakerMcpIssueDiagnostics(options3) {
   var _a3, _b;
   const platform = options3.platform || process.platform;
-  const homeDir = options3.homeDir || os7.homedir();
-  const processCwd = path47.resolve(options3.processCwd || process.cwd());
-  const targetDir = path47.resolve(options3.targetDir);
+  const homeDir = options3.homeDir || os9.homedir();
+  const processCwd = path49.resolve(options3.processCwd || process.cwd());
+  const targetDir = path49.resolve(options3.targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
   const projectContext = identify.projectRoot ? {
     status: "bound",
@@ -73146,29 +73785,29 @@ function submitMakerMcpIssue(issue3, options3 = {}) {
 function getMcpConfigPaths(options3) {
   const { ide, homeDir, platform } = options3;
   if (ide === "codex") {
-    return [path47.join(homeDir, ".codex", "config.toml")];
+    return [path49.join(homeDir, ".codex", "config.toml")];
   }
   if (ide === "cursor") {
-    return [path47.join(homeDir, ".cursor", "mcp.json")];
+    return [path49.join(homeDir, ".cursor", "mcp.json")];
   }
   if (ide === "claude") {
-    return [path47.join(homeDir, ".claude.json")];
+    return [path49.join(homeDir, ".claude.json")];
   }
   if (ide === "opencode") {
-    return [path47.join(homeDir, ".config", "opencode", "opencode.jsonc")];
+    return [path49.join(homeDir, ".config", "opencode", "opencode.jsonc")];
   }
   if (ide === "workbuddy") {
-    const primary = path47.join(homeDir, ".workbuddy", "mcp.json");
-    if (fs45.existsSync(primary)) {
+    const primary = path49.join(homeDir, ".workbuddy", "mcp.json");
+    if (fs47.existsSync(primary)) {
       return [primary];
     }
-    const legacy = path47.join(homeDir, ".workbuddy", ".mcp.json");
-    return fs45.existsSync(legacy) ? [legacy] : [primary];
+    const legacy = path49.join(homeDir, ".workbuddy", ".mcp.json");
+    return fs47.existsSync(legacy) ? [legacy] : [primary];
   }
   if (ide === "trae") {
-    const root2 = platform === "win32" ? options3.appData || path47.join(homeDir, "AppData", "Roaming") : path47.join(homeDir, "Library", "Application Support");
+    const root2 = platform === "win32" ? options3.appData || path49.join(homeDir, "AppData", "Roaming") : path49.join(homeDir, "Library", "Application Support");
     return ["TRAE SOLO", "TRAE SOLO CN", "Trae", "TRAE", "Trae CN"].map(
-      (name) => path47.join(root2, name, "User", "mcp.json")
+      (name) => path49.join(root2, name, "User", "mcp.json")
     );
   }
   if (ide === "dsh") {
@@ -73179,7 +73818,7 @@ function getMcpConfigPaths(options3) {
 function inspectMcpConfigFile(configPath, ide, mcpName, format) {
   try {
     const resolvedFormat = format ?? (ide === "codex" ? "codex_toml" : ide === "dsh" ? "dsh" : ide === "opencode" ? "jsonc" : "json");
-    const content = fs45.readFileSync(configPath, "utf8");
+    const content = fs47.readFileSync(configPath, "utf8");
     const server = resolvedFormat === "codex_toml" ? extractCodexMcpServerConfig(content, mcpName) : resolvedFormat === "dsh" ? extractDshMcpServerConfig(content, mcpName, configPath) : extractMakerMcpServerConfig(
       parseJsonConfig(content, resolvedFormat === "jsonc"),
       mcpName
@@ -73190,7 +73829,7 @@ function inspectMcpConfigFile(configPath, ide, mcpName, format) {
   }
 }
 function inspectMakerMcpConfigSource(ide, source) {
-  const entries = source.paths.filter((configPath) => fs45.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, source.mcp_name, source.format));
+  const entries = source.paths.filter((configPath) => fs47.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, source.mcp_name, source.format));
   const status = entries.some((entry) => entry.status === "found") ? "found" : entries.some((entry) => entry.status === "unreadable") ? "unreadable" : entries.length > 0 ? "missing_entry" : "not_found";
   return { ide, status, entries };
 }
@@ -73407,13 +74046,13 @@ function inspectWorkBuddyTrust(homeDir, mcpName) {
     pending_accounts: 0,
     unreadable_accounts: 0
   };
-  const connectorsDir = path47.join(homeDir, ".workbuddy", "connectors");
-  if (!fs45.existsSync(connectorsDir)) {
+  const connectorsDir = path49.join(homeDir, ".workbuddy", "connectors");
+  if (!fs47.existsSync(connectorsDir)) {
     return { status: "not_found", ...emptyCounts };
   }
   let entries;
   try {
-    entries = fs45.readdirSync(connectorsDir, { withFileTypes: true });
+    entries = fs47.readdirSync(connectorsDir, { withFileTypes: true });
   } catch {
     return { status: "unreadable", ...emptyCounts };
   }
@@ -73422,12 +74061,12 @@ function inspectWorkBuddyTrust(homeDir, mcpName) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const statePath = path47.join(connectorsDir, entry.name, "connector-states.json");
-    if (!fs45.existsSync(statePath)) {
+    const statePath = path49.join(connectorsDir, entry.name, "connector-states.json");
+    if (!fs47.existsSync(statePath)) {
       continue;
     }
     try {
-      const state = JSON.parse(fs45.readFileSync(statePath, "utf8"));
+      const state = JSON.parse(fs47.readFileSync(statePath, "utf8"));
       if (!isRecord4(state)) {
         counts.accounts_checked += 1;
         counts.unreadable_accounts += 1;
@@ -73557,6 +74196,9 @@ function pickMakerMcpReportContext(parsed) {
   const context = {
     summary: typeof parsed.summary === "string" && parsed.summary.trim() ? parsed.summary.trim() : "Maker MCP problem report"
   };
+  if (typeof parsed.category === "string" && Object.prototype.hasOwnProperty.call(MAKER_ISSUE_CATEGORIES, parsed.category))
+    context.category = parsed.category;
+  if (parsed.source === "console") context.source = "console";
   for (const key of [
     "error_message",
     "failed_operation",
@@ -73622,9 +74264,9 @@ function stripControlCharacters(value) {
 
 // src/maker/cli/pluginMigration.ts
 init_storage();
-import fs47 from "node:fs";
-import os8 from "node:os";
-import path49 from "node:path";
+import fs49 from "node:fs";
+import os10 from "node:os";
+import path51 from "node:path";
 import crypto3 from "node:crypto";
 
 // src/maker/cli/codexMcpConfig.ts
@@ -73831,28 +74473,28 @@ function escapeRegExp3(value) {
 }
 
 // src/maker/cli/configWrite.ts
-import fs46 from "node:fs";
-import path48 from "node:path";
+import fs48 from "node:fs";
+import path50 from "node:path";
 function writeConfigWithTapTapBackupIfChanged(filePath, nextContent, validate2) {
-  const existed = fs46.existsSync(filePath);
-  const previousContent = existed ? fs46.readFileSync(filePath, "utf8") : void 0;
+  const existed = fs48.existsSync(filePath);
+  const previousContent = existed ? fs48.readFileSync(filePath, "utf8") : void 0;
   if (previousContent === nextContent) {
     return { changed: false };
   }
   const backupPath = existed ? `${filePath}.taptap-maker.bak.latest` : void 0;
-  fs46.mkdirSync(path48.dirname(filePath), { recursive: true });
+  fs48.mkdirSync(path50.dirname(filePath), { recursive: true });
   if (previousContent !== void 0 && backupPath) {
-    fs46.writeFileSync(backupPath, previousContent, "utf8");
+    fs48.writeFileSync(backupPath, previousContent, "utf8");
   }
   try {
-    fs46.writeFileSync(filePath, nextContent, "utf8");
-    validate2 == null ? void 0 : validate2(fs46.readFileSync(filePath, "utf8"));
+    fs48.writeFileSync(filePath, nextContent, "utf8");
+    validate2 == null ? void 0 : validate2(fs48.readFileSync(filePath, "utf8"));
     return { changed: true, backupPath };
   } catch (error2) {
     if (previousContent !== void 0) {
-      fs46.writeFileSync(filePath, previousContent, "utf8");
+      fs48.writeFileSync(filePath, previousContent, "utf8");
     } else {
-      fs46.rmSync(filePath, { force: true });
+      fs48.rmSync(filePath, { force: true });
     }
     throw error2;
   }
@@ -73860,11 +74502,11 @@ function writeConfigWithTapTapBackupIfChanged(filePath, nextContent, validate2) 
 
 // src/maker/cli/pluginMigration.ts
 function inspectCodexLegacyMakerMcp(options3 = {}) {
-  const configPath = options3.configPath ?? path49.join(os8.homedir(), ".codex", "config.toml");
-  if (!fs47.existsSync(configPath)) {
+  const configPath = options3.configPath ?? path51.join(os10.homedir(), ".codex", "config.toml");
+  if (!fs49.existsSync(configPath)) {
     return createInspection(configPath, "not_found", 0);
   }
-  const content = fs47.readFileSync(configPath, "utf8");
+  const content = fs49.readFileSync(configPath, "utf8");
   const registrations = findCodexMakerMainTables(content);
   if (registrations.length === 0) {
     return createInspection(configPath, "not_found", 0);
@@ -73879,7 +74521,7 @@ function inspectCodexLegacyMakerMcp(options3 = {}) {
   };
 }
 function migrateCodexLegacyMakerMcp(options3 = {}) {
-  const configPath = options3.configPath ?? path49.join(os8.homedir(), ".codex", "config.toml");
+  const configPath = options3.configPath ?? path51.join(os10.homedir(), ".codex", "config.toml");
   const makerHome = options3.makerHome ?? getMakerHome();
   const statePath = getCodexPluginMigrationStatePath(makerHome);
   const inspection = inspectCodexLegacyMakerMcp({ configPath });
@@ -73893,7 +74535,7 @@ function migrateCodexLegacyMakerMcp(options3 = {}) {
   }
   if (inspection.status === "disabled") {
     const state2 = readMigrationState(statePath);
-    const content = fs47.readFileSync(configPath, "utf8");
+    const content = fs49.readFileSync(configPath, "utf8");
     const registration2 = findCodexMakerMainTables(content)[0];
     const owned = (state2 == null ? void 0 : state2.config_path) === configPath && sha256(readCodexMakerRegistration(content, registration2)) === state2.migrated_registration_sha256;
     return {
@@ -73906,7 +74548,7 @@ function migrateCodexLegacyMakerMcp(options3 = {}) {
   if (!options3.confirm) {
     throw new Error("Disabling the legacy Codex Maker MCP requires explicit confirmation.");
   }
-  const previousContent = fs47.readFileSync(configPath, "utf8");
+  const previousContent = fs49.readFileSync(configPath, "utf8");
   const registration = findCodexMakerMainTables(previousContent)[0];
   const nextContent = disableCodexMakerRegistration(previousContent, registration);
   const state = {
@@ -73920,13 +74562,13 @@ function migrateCodexLegacyMakerMcp(options3 = {}) {
     ),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs47.mkdirSync(path49.dirname(statePath), { recursive: true });
+  fs49.mkdirSync(path51.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(configPath, nextContent, () => {
     const migratedInspection = inspectCodexLegacyMakerMcp({ configPath });
     if (migratedInspection.status !== "disabled") {
       throw new Error("Codex Maker MCP migration validation did not find a disabled registration.");
     }
-    fs47.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs49.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   return {
@@ -73938,7 +74580,7 @@ function migrateCodexLegacyMakerMcp(options3 = {}) {
   };
 }
 function restoreCodexLegacyMakerMcp(options3 = {}) {
-  const configPath = options3.configPath ?? path49.join(os8.homedir(), ".codex", "config.toml");
+  const configPath = options3.configPath ?? path51.join(os10.homedir(), ".codex", "config.toml");
   const makerHome = options3.makerHome ?? getMakerHome();
   const statePath = getCodexPluginMigrationStatePath(makerHome);
   const inspection = inspectCodexLegacyMakerMcp({ configPath });
@@ -73959,14 +74601,14 @@ function restoreCodexLegacyMakerMcp(options3 = {}) {
       "The migrated Codex Maker MCP registration no longer exists and cannot be restored."
     );
   }
-  const previousContent = fs47.readFileSync(configPath, "utf8");
+  const previousContent = fs49.readFileSync(configPath, "utf8");
   const registration = findCodexMakerMainTables(previousContent)[0];
   const registrationSha256 = sha256(readCodexMakerRegistration(previousContent, registration));
   if (inspection.status === "active") {
     if (registrationSha256 !== state.original_registration_sha256) {
       return { ...inspection, action: "not_owned", changed: false };
     }
-    fs47.unlinkSync(statePath);
+    fs49.unlinkSync(statePath);
     return { ...inspection, action: "already_restored", changed: false };
   }
   if (registrationSha256 !== state.migrated_registration_sha256) {
@@ -73980,12 +74622,12 @@ function restoreCodexLegacyMakerMcp(options3 = {}) {
         "Codex Maker MCP restoration validation did not find an active registration."
       );
     }
-    const restoredContent = fs47.readFileSync(configPath, "utf8");
+    const restoredContent = fs49.readFileSync(configPath, "utf8");
     const restoredRegistration = findCodexMakerMainTables(restoredContent)[0];
     if (sha256(readCodexMakerRegistration(restoredContent, restoredRegistration)) !== state.original_registration_sha256) {
       throw new Error("Codex Maker MCP restoration changed the migrated registration identity.");
     }
-    fs47.unlinkSync(statePath);
+    fs49.unlinkSync(statePath);
   });
   return {
     ...inspectCodexLegacyMakerMcp({ configPath }),
@@ -74048,14 +74690,14 @@ function readCodexMakerRegistration(content, registration) {
   return content.slice(registration.headerStart, registration.bodyEnd).trimEnd();
 }
 function getCodexPluginMigrationStatePath(makerHome) {
-  return path49.join(makerHome, "plugin-migrations", "codex.json");
+  return path51.join(makerHome, "plugin-migrations", "codex.json");
 }
 function readMigrationState(statePath) {
-  if (!fs47.existsSync(statePath)) {
+  if (!fs49.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs47.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs49.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 2 && state.client === "codex" ? state : void 0;
   } catch {
     return void 0;
@@ -74145,7 +74787,7 @@ function migrateWorkBuddyLegacyMakerMcp(options3 = {}) {
     migrated_registration_sha256: hashWorkBuddyRegistration(migratedRegistration),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs47.mkdirSync(path49.dirname(statePath), { recursive: true });
+  fs49.mkdirSync(path51.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(current.configPath, nextContent, () => {
     const migrated = findWorkBuddyMakerRegistrations(configPaths).find(
       (entry) => entry.configPath === current.configPath
@@ -74155,7 +74797,7 @@ function migrateWorkBuddyLegacyMakerMcp(options3 = {}) {
         "WorkBuddy Maker MCP migration validation did not find the disabled registration."
       );
     }
-    fs47.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs49.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   const migratedInspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
@@ -74209,7 +74851,7 @@ function restoreWorkBuddyLegacyMakerMcp(options3 = {}) {
         changed: false
       };
     }
-    fs47.unlinkSync(statePath);
+    fs49.unlinkSync(statePath);
     return {
       ...inspection,
       config_path: current.configPath,
@@ -74242,7 +74884,7 @@ function restoreWorkBuddyLegacyMakerMcp(options3 = {}) {
     if (!restored || hashWorkBuddyRegistration(restored.registration) !== state.original_registration_sha256) {
       throw new Error("WorkBuddy Maker MCP restoration changed the registration identity.");
     }
-    fs47.unlinkSync(statePath);
+    fs49.unlinkSync(statePath);
   });
   return {
     ...inspectWorkBuddyLegacyMakerMcp({ configPaths }),
@@ -74255,19 +74897,19 @@ function restoreWorkBuddyLegacyMakerMcp(options3 = {}) {
 }
 function getWorkBuddyConfigPaths(configPaths) {
   return configPaths ?? [
-    path49.join(os8.homedir(), ".workbuddy", "mcp.json"),
-    path49.join(os8.homedir(), ".workbuddy", ".mcp.json")
+    path51.join(os10.homedir(), ".workbuddy", "mcp.json"),
+    path51.join(os10.homedir(), ".workbuddy", ".mcp.json")
   ];
 }
 function findWorkBuddyMakerRegistrations(configPaths) {
   const registrations = [];
   for (const configPath of configPaths) {
-    if (!fs47.existsSync(configPath)) {
+    if (!fs49.existsSync(configPath)) {
       continue;
     }
     let config2;
     try {
-      config2 = JSON.parse(fs47.readFileSync(configPath, "utf8"));
+      config2 = JSON.parse(fs49.readFileSync(configPath, "utf8"));
     } catch (error2) {
       throw new Error(
         `Cannot parse WorkBuddy MCP config ${configPath}: ${error2 instanceof Error ? error2.message : String(error2)}`
@@ -74302,14 +74944,14 @@ function setWorkBuddyMakerRegistration(config2, registration) {
   servers["taptap-maker"] = registration;
 }
 function getWorkBuddyPluginMigrationStatePath(makerHome) {
-  return path49.join(makerHome, "plugin-migrations", "workbuddy.json");
+  return path51.join(makerHome, "plugin-migrations", "workbuddy.json");
 }
 function readWorkBuddyMigrationState(statePath) {
-  if (!fs47.existsSync(statePath)) {
+  if (!fs49.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs47.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs49.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 1 && state.client === "workbuddy" ? state : void 0;
   } catch {
     return void 0;
@@ -74334,9 +74976,9 @@ function isRecord5(value) {
 // src/maker/cli/dshPluginMigration.ts
 var import_yaml2 = __toESM(require_dist2());
 init_storage();
-import fs48 from "node:fs";
-import os9 from "node:os";
-import path50 from "node:path";
+import fs50 from "node:fs";
+import os11 from "node:os";
+import path52 from "node:path";
 import crypto4 from "node:crypto";
 var DSH_MAKER_MCP_NAME = "taptap-maker";
 function inspectDshLegacyMakerMcp(options3 = {}) {
@@ -74369,7 +75011,7 @@ function migrateDshLegacyMakerMcp(options3 = {}) {
     );
   }
   const registration = registrations[0];
-  const previousContent = fs48.readFileSync(registration.configPath, "utf8");
+  const previousContent = fs50.readFileSync(registration.configPath, "utf8");
   const document = (0, import_yaml2.parseDocument)(previousContent, { prettyErrors: true });
   if (document.errors.length > 0) {
     throw new Error(`Invalid YAML in ${registration.configPath}: ${document.errors[0].message}`);
@@ -74384,13 +75026,13 @@ function migrateDshLegacyMakerMcp(options3 = {}) {
     removed_registration_sha256: sha2562(JSON.stringify(registration.registration)),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs48.mkdirSync(path50.dirname(statePath), { recursive: true });
+  fs50.mkdirSync(path52.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(registration.configPath, nextContent, () => {
     const after = findDshMakerRegistrations(options3.dshHome);
     if (after.some((entry) => entry.configPath === registration.configPath)) {
       throw new Error("DSH Maker MCP migration validation still found a registration.");
     }
-    fs48.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs50.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   return {
@@ -74423,13 +75065,13 @@ function restoreDshLegacyMakerMcp(options3 = {}) {
     const current = findDshMakerRegistrations(options3.dshHome)[0];
     const currentSha = sha2562(JSON.stringify(current.registration));
     if (currentSha === state.removed_registration_sha256) {
-      fs48.rmSync(statePath, { force: true });
+      fs50.rmSync(statePath, { force: true });
       return { ...inspection, action: "already_restored", changed: false, state_path: statePath };
     }
     return { ...inspection, action: "not_owned", changed: false };
   }
   const configPath = state.config_path;
-  const previousContent = fs48.readFileSync(configPath, "utf8");
+  const previousContent = fs50.readFileSync(configPath, "utf8");
   const document = (0, import_yaml2.parseDocument)(previousContent, { prettyErrors: true });
   if (document.errors.length > 0) {
     throw new Error(`Invalid YAML in ${configPath}: ${document.errors[0].message}`);
@@ -74442,7 +75084,7 @@ function restoreDshLegacyMakerMcp(options3 = {}) {
     if (!match || sha2562(JSON.stringify(match.registration)) !== state.removed_registration_sha256) {
       throw new Error("DSH Maker MCP restoration changed the registration identity.");
     }
-    fs48.rmSync(statePath, { force: true });
+    fs50.rmSync(statePath, { force: true });
   });
   return {
     ...inspectDshLegacyMakerMcp(options3),
@@ -74454,13 +75096,13 @@ function restoreDshLegacyMakerMcp(options3 = {}) {
 }
 function findDshMakerRegistrations(dshHome) {
   const resolvedDshHome = dshHome || getDshHome();
-  const configPaths = listDshMcpConfigPaths({ homeDir: os9.homedir(), dshHome: resolvedDshHome });
+  const configPaths = listDshMcpConfigPaths({ homeDir: os11.homedir(), dshHome: resolvedDshHome });
   const registrations = [];
   for (const configPath of configPaths) {
-    if (!fs48.existsSync(configPath)) {
+    if (!fs50.existsSync(configPath)) {
       continue;
     }
-    const content = fs48.readFileSync(configPath, "utf8");
+    const content = fs50.readFileSync(configPath, "utf8");
     const document = (0, import_yaml2.parseDocument)(content, { prettyErrors: true });
     if (document.errors.length > 0) {
       throw new Error(`Invalid YAML in ${configPath}: ${document.errors[0].message}`);
@@ -74545,14 +75187,14 @@ function isDshMakerPluginCandidate(value) {
   return value.name === DSH_MCP_PLUGIN_NAME && (config2 == null ? void 0 : config2.serverName) === DSH_MAKER_MCP_NAME;
 }
 function getDshPluginMigrationStatePath(makerHome) {
-  return path50.join(makerHome, "plugin-migrations", "dsh.json");
+  return path52.join(makerHome, "plugin-migrations", "dsh.json");
 }
 function readDshMigrationState(statePath) {
-  if (!fs48.existsSync(statePath)) {
+  if (!fs50.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs48.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs50.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 1 && state.client === "dsh" ? state : void 0;
   } catch {
     return void 0;
@@ -74593,9 +75235,9 @@ init_config();
 init_fetchTimeout();
 init_identify();
 init_storage();
-import fs49 from "node:fs";
-import os10 from "node:os";
-import path51 from "node:path";
+import fs51 from "node:fs";
+import os12 from "node:os";
+import path53 from "node:path";
 import { randomUUID as randomUUID9 } from "node:crypto";
 import { Readable, Transform } from "node:stream";
 import { pipeline as pipeline2 } from "node:stream/promises";
@@ -74605,7 +75247,7 @@ var MAX_ARCHIVE_ENTRIES = 1e3;
 var MAX_ARCHIVE_EXTRACTED_BYTES = 128 * 1024 * 1024;
 async function pullMakerUserSkills(options3 = {}) {
   var _a3, _b;
-  const requestedDir = path51.resolve(options3.targetDir || process.cwd());
+  const requestedDir = path53.resolve(options3.targetDir || process.cwd());
   const project = identifyMakerProject({ cwd: requestedDir });
   if (!project.projectRoot) {
     throw new Error(
@@ -74617,10 +75259,10 @@ async function pullMakerUserSkills(options3 = {}) {
   if (!token) {
     throw new Error("Maker authentication not found. Run `taptap-maker login` and try again.");
   }
-  const sourceDir = path51.join(project.projectRoot, ".installer", "skills");
-  const tempDir = fs49.mkdtempSync(path51.join(os10.tmpdir(), "taptap-maker-user-skills-"));
-  const archivePath = path51.join(tempDir, "user-skills.zip");
-  const stagingDir = path51.join(tempDir, "skills");
+  const sourceDir = path53.join(project.projectRoot, ".installer", "skills");
+  const tempDir = fs51.mkdtempSync(path53.join(os12.tmpdir(), "taptap-maker-user-skills-"));
+  const archivePath = path53.join(tempDir, "user-skills.zip");
+  const stagingDir = path53.join(tempDir, "skills");
   try {
     const response = await fetchWithTimeout(
       options3.fetchImpl || fetch,
@@ -74652,7 +75294,7 @@ async function pullMakerUserSkills(options3 = {}) {
       preservedSkills
     };
   } finally {
-    fs49.rmSync(tempDir, { recursive: true, force: true });
+    fs51.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 async function writeArchiveResponse(response, archivePath) {
@@ -74677,7 +75319,7 @@ async function writeArchiveResponse(response, archivePath) {
   await pipeline2(
     Readable.fromWeb(response.body),
     limit,
-    fs49.createWriteStream(archivePath, { flags: "wx" })
+    fs51.createWriteStream(archivePath, { flags: "wx" })
   );
 }
 function validateUserSkillArchivePath(entryPath) {
@@ -74692,7 +75334,7 @@ function validateUserSkillArchivePath(entryPath) {
   return segments;
 }
 async function extractUserSkillsArchive(archivePath, stagingDir) {
-  fs49.mkdirSync(stagingDir, { recursive: true });
+  fs51.mkdirSync(stagingDir, { recursive: true });
   const zipFile = await import_yauzl.default.openPromise(archivePath, {
     lazyEntries: true,
     decodeStrings: true,
@@ -74712,7 +75354,7 @@ async function extractUserSkillsArchive(archivePath, stagingDir) {
         );
       }
       const segments = validateUserSkillArchivePath(entry.fileName);
-      if (segments.some((segment) => path51.basename(segment).startsWith(".nfs"))) {
+      if (segments.some((segment) => path53.basename(segment).startsWith(".nfs"))) {
         continue;
       }
       const isDirectory2 = isZipDirectory(entry);
@@ -74734,24 +75376,24 @@ async function extractUserSkillsArchive(archivePath, stagingDir) {
       }
       seenPaths.add(collisionKey);
       skillNames.add(segments[0]);
-      const destination = path51.join(stagingDir, ...segments);
+      const destination = path53.join(stagingDir, ...segments);
       if (isDirectory2) {
-        fs49.mkdirSync(destination, { recursive: true });
+        fs51.mkdirSync(destination, { recursive: true });
         continue;
       }
-      fs49.mkdirSync(path51.dirname(destination), { recursive: true });
+      fs51.mkdirSync(path53.dirname(destination), { recursive: true });
       const input2 = await zipFile.openReadStreamPromise(entry);
-      await pipeline2(input2, fs49.createWriteStream(destination, { flags: "wx" }));
+      await pipeline2(input2, fs51.createWriteStream(destination, { flags: "wx" }));
     }
   } finally {
     zipFile.close();
   }
   const installedSkills = [...skillNames].sort();
   for (const skillName of installedSkills) {
-    const definitionPath = path51.join(stagingDir, skillName, "SKILL.md");
+    const definitionPath = path53.join(stagingDir, skillName, "SKILL.md");
     let definition;
     try {
-      definition = fs49.lstatSync(definitionPath);
+      definition = fs51.lstatSync(definitionPath);
     } catch {
       throw new Error(`Maker user Skill "${skillName}" is missing SKILL.md.`);
     }
@@ -74785,31 +75427,31 @@ function installUserSkills(projectRoot, stagingDir, skillNames) {
   if (skillNames.length === 0) {
     return;
   }
-  const installerDir = path51.join(projectRoot, ".installer");
-  const sourceDir = path51.join(installerDir, "skills");
-  const transactionDir = path51.join(installerDir, `.user-skills-${randomUUID9()}`);
-  const preparedDir = path51.join(transactionDir, "prepared");
-  const backupDir = path51.join(transactionDir, "backup");
+  const installerDir = path53.join(projectRoot, ".installer");
+  const sourceDir = path53.join(installerDir, "skills");
+  const transactionDir = path53.join(installerDir, `.user-skills-${randomUUID9()}`);
+  const preparedDir = path53.join(transactionDir, "prepared");
+  const backupDir = path53.join(transactionDir, "backup");
   const completed = [];
   let preserveTransaction = false;
-  fs49.mkdirSync(preparedDir, { recursive: true });
-  fs49.mkdirSync(sourceDir, { recursive: true });
+  fs51.mkdirSync(preparedDir, { recursive: true });
+  fs51.mkdirSync(sourceDir, { recursive: true });
   try {
     for (const skillName of skillNames) {
-      fs49.cpSync(path51.join(stagingDir, skillName), path51.join(preparedDir, skillName), {
+      fs51.cpSync(path53.join(stagingDir, skillName), path53.join(preparedDir, skillName), {
         recursive: true
       });
     }
     for (const skillName of skillNames) {
-      const target = path51.join(sourceDir, skillName);
-      const backup = path51.join(backupDir, skillName);
+      const target = path53.join(sourceDir, skillName);
+      const backup = path53.join(backupDir, skillName);
       const hadExisting = pathExists(target);
       if (hadExisting) {
-        fs49.mkdirSync(path51.dirname(backup), { recursive: true });
-        fs49.renameSync(target, backup);
+        fs51.mkdirSync(path53.dirname(backup), { recursive: true });
+        fs51.renameSync(target, backup);
       }
       completed.push({ target, backup, hadExisting });
-      fs49.renameSync(path51.join(preparedDir, skillName), target);
+      fs51.renameSync(path53.join(preparedDir, skillName), target);
     }
     installUserSkillsForClients(projectRoot, skillNames);
   } catch (error2) {
@@ -74817,13 +75459,13 @@ function installUserSkills(projectRoot, stagingDir, skillNames) {
     if (rollbackErrors.length > 0) {
       preserveTransaction = true;
       throw new Error(
-        `Failed to install Maker user Skills: ${formatError4(error2)}; rollback incomplete, backups were preserved at ${transactionDir}: ${rollbackErrors.join("; ")}`
+        `Failed to install Maker user Skills: ${formatError5(error2)}; rollback incomplete, backups were preserved at ${transactionDir}: ${rollbackErrors.join("; ")}`
       );
     }
-    throw new Error(`Failed to install Maker user Skills: ${formatError4(error2)}`);
+    throw new Error(`Failed to install Maker user Skills: ${formatError5(error2)}`);
   } finally {
     if (!preserveTransaction) {
-      fs49.rmSync(transactionDir, { recursive: true, force: true });
+      fs51.rmSync(transactionDir, { recursive: true, force: true });
     }
   }
 }
@@ -74831,27 +75473,27 @@ function installUserSkillsForClients(projectRoot, skillNames) {
   if (skillNames.length === 0) {
     return;
   }
-  const sourceRoot = path51.join(projectRoot, ".installer", "skills");
-  const transactionDir = path51.join(
+  const sourceRoot = path53.join(projectRoot, ".installer", "skills");
+  const transactionDir = path53.join(
     projectRoot,
     ".installer",
     `.user-skill-clients-${randomUUID9()}`
   );
-  const backupRoot = path51.join(transactionDir, "backup");
+  const backupRoot = path53.join(transactionDir, "backup");
   const changed = [];
   let preserveTransaction = false;
   try {
     for (const clientDir of USER_SKILL_CLIENT_DIRS) {
-      const targetRoot = path51.join(projectRoot, clientDir, "skills");
-      fs49.mkdirSync(targetRoot, { recursive: true });
+      const targetRoot = path53.join(projectRoot, clientDir, "skills");
+      fs51.mkdirSync(targetRoot, { recursive: true });
       for (const skillName of skillNames) {
-        const source = path51.join(sourceRoot, skillName);
-        const target = path51.join(targetRoot, skillName);
-        const backup = path51.join(backupRoot, clientDir, skillName);
+        const source = path53.join(sourceRoot, skillName);
+        const target = path53.join(targetRoot, skillName);
+        const backup = path53.join(backupRoot, clientDir, skillName);
         const hadExisting = pathExists(target);
         if (hadExisting) {
-          fs49.mkdirSync(path51.dirname(backup), { recursive: true });
-          fs49.renameSync(target, backup);
+          fs51.mkdirSync(path53.dirname(backup), { recursive: true });
+          fs51.renameSync(target, backup);
         }
         changed.push({ target, backup, hadExisting });
         linkOrCopySkill(source, target);
@@ -74862,13 +75504,13 @@ function installUserSkillsForClients(projectRoot, skillNames) {
     if (rollbackErrors.length > 0) {
       preserveTransaction = true;
       throw new Error(
-        `Failed to install Maker user Skills for AI clients: ${formatError4(error2)}; rollback incomplete, backups were preserved at ${transactionDir}: ` + rollbackErrors.join("; ")
+        `Failed to install Maker user Skills for AI clients: ${formatError5(error2)}; rollback incomplete, backups were preserved at ${transactionDir}: ` + rollbackErrors.join("; ")
       );
     }
-    throw new Error(`Failed to install Maker user Skills for AI clients: ${formatError4(error2)}`);
+    throw new Error(`Failed to install Maker user Skills for AI clients: ${formatError5(error2)}`);
   } finally {
     if (!preserveTransaction) {
-      fs49.rmSync(transactionDir, { recursive: true, force: true });
+      fs51.rmSync(transactionDir, { recursive: true, force: true });
     }
   }
 }
@@ -74879,37 +75521,37 @@ function rollbackSkillChanges(changes) {
     try {
       removePathEntry(item.target);
       if (item.hadExisting && pathExists(item.backup)) {
-        fs49.renameSync(item.backup, item.target);
+        fs51.renameSync(item.backup, item.target);
       }
     } catch (error2) {
-      errors.push(`${item.target}: ${formatError4(error2)}`);
+      errors.push(`${item.target}: ${formatError5(error2)}`);
     }
   }
   return errors;
 }
 function linkOrCopySkill(source, target) {
   try {
-    const linkTarget = process.platform === "win32" ? source : path51.relative(path51.dirname(target), source);
-    fs49.symlinkSync(linkTarget, target, process.platform === "win32" ? "junction" : "dir");
+    const linkTarget = process.platform === "win32" ? source : path53.relative(path53.dirname(target), source);
+    fs51.symlinkSync(linkTarget, target, process.platform === "win32" ? "junction" : "dir");
   } catch (linkError) {
     removePathEntry(target);
     try {
-      fs49.cpSync(source, target, { recursive: true });
+      fs51.cpSync(source, target, { recursive: true });
     } catch (copyError) {
       throw new Error(
-        `Failed to link ${source}: ${formatError4(linkError)}; copy fallback: ${formatError4(copyError)}`
+        `Failed to link ${source}: ${formatError5(linkError)}; copy fallback: ${formatError5(copyError)}`
       );
     }
   }
 }
 function removePathEntry(value) {
   try {
-    const stat = fs49.lstatSync(value);
+    const stat = fs51.lstatSync(value);
     if (stat.isSymbolicLink()) {
-      fs49.unlinkSync(value);
+      fs51.unlinkSync(value);
       return;
     }
-    fs49.rmSync(value, { recursive: true, force: true });
+    fs51.rmSync(value, { recursive: true, force: true });
   } catch (error2) {
     if (error2.code !== "ENOENT") {
       throw error2;
@@ -74918,7 +75560,7 @@ function removePathEntry(value) {
 }
 function listLocalSkills(sourceDir) {
   try {
-    return fs49.readdirSync(sourceDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    return fs51.readdirSync(sourceDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
   } catch {
     return [];
   }
@@ -74934,13 +75576,13 @@ function createDownloadError(status) {
 }
 function pathExists(value) {
   try {
-    fs49.lstatSync(value);
+    fs51.lstatSync(value);
     return true;
   } catch {
     return false;
   }
 }
-function formatError4(error2) {
+function formatError5(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
 }
 function hasControlCharacter(value) {
@@ -75182,7 +75824,7 @@ function toOptionKey(value) {
 }
 async function runInit(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path54.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const skipConfirm = booleanOption(parsed, "skip_confirm");
   const skipMcpInstall = booleanOption(parsed, "skip_mcp_install");
@@ -75299,7 +75941,7 @@ async function runInit(parsed, ctx) {
 }
 async function runDoctor(parsed, ctx) {
   var _a3, _b;
-  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path54.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const git2 = checkGitEnvironment();
   const python = checkMakerPythonEnvironment();
@@ -75390,8 +76032,8 @@ async function runDoctor(parsed, ctx) {
   );
 }
 function inspectMakerDoctorExecutionContext(options3) {
-  const doctorCwd = path52.resolve(process.cwd());
-  const makerProjectDir = options3.makerProjectDir ? path52.resolve(options3.makerProjectDir) : void 0;
+  const doctorCwd = path54.resolve(process.cwd());
+  const makerProjectDir = options3.makerProjectDir ? path54.resolve(options3.makerProjectDir) : void 0;
   if (!makerProjectDir) {
     return {
       active_client_session: "not_checked",
@@ -75426,9 +76068,9 @@ function samePath2(left, right) {
   return normalizePathForCompare3(left) === normalizePathForCompare3(right);
 }
 function normalizePathForCompare3(value) {
-  const resolved = path52.resolve(value);
+  const resolved = path54.resolve(value);
   try {
-    return fs50.realpathSync.native(resolved);
+    return fs52.realpathSync.native(resolved);
   } catch {
     return resolved;
   }
@@ -75746,7 +76388,7 @@ async function runPatSet(parsed, ctx) {
 }
 async function resolvePatSet(parsed, ctx) {
   if (booleanOption(parsed, "pat_stdin") || booleanOption(parsed, "pat_from_stdin")) {
-    const pat = fs50.readFileSync(0, "utf8").trim();
+    const pat = fs52.readFileSync(0, "utf8").trim();
     if (!pat) {
       throw new Error("No PAT found on stdin.");
     }
@@ -75801,17 +76443,17 @@ async function prepareMcpLauncher(options3) {
     if (options3.mode === "self") {
       launcher = materializeMakerSelfLauncher({
         version: VERSION4,
-        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL2(path52.resolve(process.cwd(), "dist", "maker.js")).href,
+        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL2(path54.resolve(process.cwd(), "dist", "maker.js")).href,
         makerHome: getMakerHome()
       });
     } else {
       const packageSpec = resolveMakerPackageSpec(MAKER_NPM_PACKAGE, VERSION4);
       launcher = resolveMakerMcpLauncher({ packageName: packageSpec });
       const configuredCache = process.env.npm_config_cache || process.env.NPM_CONFIG_CACHE;
-      const npmCacheDir = path52.resolve(
-        configuredCache || path52.join(getMakerHome(), "cache", "npm")
+      const npmCacheDir = path54.resolve(
+        configuredCache || path54.join(getMakerHome(), "cache", "npm")
       );
-      fs50.mkdirSync(npmCacheDir, { recursive: true });
+      fs52.mkdirSync(npmCacheDir, { recursive: true });
       launcherEnv = { npm_config_cache: npmCacheDir };
     }
   } catch (error2) {
@@ -75944,7 +76586,7 @@ ${indent3(payload.stderr)}` : "",
 }
 async function runMcpReport(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path54.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const contextInput = booleanOption(parsed, "context_stdin") ? await readStdinText() : "";
   const context = parseMakerMcpReportContext(contextInput);
   const contextValidation = validateMakerMcpReportContext(context);
@@ -75968,17 +76610,18 @@ async function runMcpReport(parsed, ctx) {
     );
     return;
   }
-  const reportRuntime = resolveMakerMcpReportRuntime({
+  const reportRuntime = context.source === "console" ? void 0 : resolveMakerMcpReportRuntime({
     distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
     bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : void 0
   });
   const diagnostics = await collectMakerMcpIssueDiagnostics({
-    ide: stringOption(parsed, "ide") || (reportRuntime == null ? void 0 : reportRuntime.client),
+    ide: context.source === "console" ? void 0 : stringOption(parsed, "ide") || (reportRuntime == null ? void 0 : reportRuntime.client),
     targetDir,
     makerVersion: VERSION4,
     configSource: reportRuntime == null ? void 0 : reportRuntime.config_source,
-    distribution: reportRuntime == null ? void 0 : reportRuntime.distribution,
+    distribution: process.env.TAPTAP_MAKER_DISTRIBUTION || (reportRuntime == null ? void 0 : reportRuntime.distribution),
     verify: async () => {
+      if (context.source === "console") return { status: "not_applicable" };
       if (reportRuntime) {
         const verification = await verifyMakerMcpLauncher(reportRuntime.launcher, {
           cwd: reportRuntime.cwd,
@@ -76018,7 +76661,7 @@ async function runMcpReport(parsed, ctx) {
   const issue3 = buildMakerMcpIssue({
     context,
     diagnostics,
-    homeDir: os11.homedir()
+    homeDir: os13.homedir()
   });
   const submission = booleanOption(parsed, "consent") ? submitMakerMcpIssue(issue3) : {
     status: "consent_required",
@@ -76045,7 +76688,7 @@ async function runMcpReport(parsed, ctx) {
   );
 }
 async function runAgentsUpdate(parsed, ctx) {
-  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path54.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = updateMakerAgentsPolicy(targetDir);
   if (ctx.json) {
     writeJson(result);
@@ -76064,7 +76707,7 @@ async function runAgentsUpdate(parsed, ctx) {
 async function runUpgrade(parsed, ctx) {
   rejectPackageOption(parsed);
   const explicitTargetDir = stringOption(parsed, "target_dir");
-  const targetDir = path52.resolve(explicitTargetDir || process.cwd());
+  const targetDir = path54.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, "ide") || stringOption(parsed, "ides") || "");
   const pluginDistribution = resolveMakerPluginDistribution();
@@ -76153,7 +76796,7 @@ function getMcpVerifyNextSteps(mode, commandText) {
   ];
 }
 async function runDevKitUpdate(parsed, ctx) {
-  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path54.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = await installAiDevKit({
     targetDir,
     preserveExisting: false,
@@ -76167,7 +76810,7 @@ async function runDevKitUpdate(parsed, ctx) {
 }
 async function runUserSkillsPull(parsed, ctx) {
   const result = await pullMakerUserSkills({
-    targetDir: path52.resolve(stringOption(parsed, "target_dir") || process.cwd()),
+    targetDir: path54.resolve(stringOption(parsed, "target_dir") || process.cwd()),
     environment: makerEnvOption(parsed)
   });
   if (ctx.json) {
@@ -76186,7 +76829,7 @@ async function runUserSkillsPull(parsed, ctx) {
   );
 }
 async function runLogsWatch(parsed, ctx) {
-  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path54.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const intervalMs = parseDurationMs(stringOption(parsed, "interval") || "5s");
   const timeoutMs = numberOption(parsed, "timeout_ms") ?? MAKER_TOOL_CALL_TIMEOUT_MS;
   const maxPolls = numberOption(parsed, "max_polls");
@@ -76196,9 +76839,9 @@ async function runLogsWatch(parsed, ctx) {
     serverUrl: stringOption(parsed, "server_url"),
     env: makerEnvOption(parsed)
   });
-  const runtimeDir = path52.join(proxy.projectRoot, ".maker", "logs", "runtime");
-  const runtimeLog = path52.join(runtimeDir, "runtime.log");
-  const pidFile = path52.join(runtimeDir, "watcher.pid");
+  const runtimeDir = path54.join(proxy.projectRoot, ".maker", "logs", "runtime");
+  const runtimeLog = path54.join(runtimeDir, "runtime.log");
+  const pidFile = path54.join(runtimeDir, "watcher.pid");
   const replacedWatcher = registerRuntimeLogWatcherProcess(pidFile);
   const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
   emit(ctx, "logs_watch_start", "Maker runtime log watcher started", {
@@ -76243,10 +76886,10 @@ async function runLogsWatch(parsed, ctx) {
   }
 }
 function registerRuntimeLogWatcherProcess(pidFile) {
-  fs50.mkdirSync(path52.dirname(pidFile), { recursive: true });
+  fs52.mkdirSync(path54.dirname(pidFile), { recursive: true });
   const existingPid = readPidFile(pidFile);
   const previous = existingPid && existingPid !== process.pid ? stopExistingRuntimeLogWatcher(pidFile) : {};
-  fs50.writeFileSync(
+  fs52.writeFileSync(
     pidFile,
     `${JSON.stringify(
       {
@@ -76264,10 +76907,10 @@ function registerRuntimeLogWatcherProcess(pidFile) {
   return previous;
 }
 function readPidFile(pidFile) {
-  if (!fs50.existsSync(pidFile)) {
+  if (!fs52.existsSync(pidFile)) {
     return void 0;
   }
-  const raw = fs50.readFileSync(pidFile, "utf8").trim();
+  const raw = fs52.readFileSync(pidFile, "utf8").trim();
   let pid = Number(raw);
   if (!Number.isInteger(pid) || pid <= 0) {
     try {
@@ -76287,7 +76930,7 @@ function installRuntimeLogWatcherPidCleanup(pidFile) {
     }
     cleaned = true;
     if (readPidFile(pidFile) === process.pid) {
-      fs50.rmSync(pidFile, { force: true });
+      fs52.rmSync(pidFile, { force: true });
     }
   };
   process.once("exit", cleanup);
@@ -76438,7 +77081,7 @@ async function prepareDevKit(targetDir, ctx, options3 = {}) {
         onStart: (event) => emitSkillInstallerStart(ctx, event)
       });
       writeDevKitStagedGitignore(
-        path52.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path54.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
       syncWorkBuddyDevKitSkills(targetDir, ctx);
@@ -76456,7 +77099,7 @@ async function prepareDevKit(targetDir, ctx, options3 = {}) {
       );
     } catch (error2) {
       writeDevKitStagedGitignore(
-        path52.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path54.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
       if (options3.finalizeGitignore) {
@@ -76503,10 +77146,10 @@ function syncWorkBuddyDevKitSkills(targetDir, ctx) {
   try {
     const result = syncWorkBuddyProjectSkills(targetDir);
     const managedSkillPaths = [...result.installedSkills, ...result.skippedSkills].map(
-      (skillName) => path52.join(".workbuddy", "skills", skillName)
+      (skillName) => path54.join(".workbuddy", "skills", skillName)
     );
     if (managedSkillPaths.length > 0) {
-      writeDevKitStagedGitignore(path52.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
+      writeDevKitStagedGitignore(path54.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
         ...listPresentDevKitManagedEntries(targetDir),
         ...managedSkillPaths
       ]);
@@ -76583,12 +77226,12 @@ function installMcpConfig(ide, options3) {
 }
 function installMcpConfigUnsafe(ide, options3) {
   if (ide === "codex") {
-    const configPath = path52.join(os11.homedir(), ".codex", "config.toml");
+    const configPath = path54.join(os13.homedir(), ".codex", "config.toml");
     const write = mergeCodexMcpConfig(configPath, withClientIde(options3, "codex"));
     return [createMcpInstallResult(ide, "Codex", configPath, write)];
   }
   if (ide === "cursor") {
-    const configPath = path52.join(os11.homedir(), ".cursor", "mcp.json");
+    const configPath = path54.join(os13.homedir(), ".cursor", "mcp.json");
     const write = mergeJsonMcpConfig(configPath, withClientIde(options3, "cursor"));
     return [createMcpInstallResult(ide, "Cursor", configPath, write)];
   }
@@ -76605,7 +77248,7 @@ function installMcpConfigUnsafe(ide, options3) {
         }
       ];
     }
-    const configPath = path52.join(os11.homedir(), ".claude.json");
+    const configPath = path54.join(os13.homedir(), ".claude.json");
     const write = mergeJsonMcpConfig(configPath, claudeOptions);
     return [createMcpInstallResult(ide, "Claude fallback", configPath, write)];
   }
@@ -76619,7 +77262,7 @@ function installMcpConfigUnsafe(ide, options3) {
   }
   if (ide === "opencode") {
     const configPath = getOpenCodeMcpConfigPath();
-    if (!fs50.existsSync(configPath)) {
+    if (!fs52.existsSync(configPath)) {
       return [{ ide, ok: false, message: "Skipped OpenCode: no supported config file found" }];
     }
     const write = mergeOpenCodeMcpConfig(configPath, withClientIde(options3, "opencode"));
@@ -76702,13 +77345,13 @@ function getDefaultMcpInstallIdes() {
   if (getTraeMcpInstallPaths().length > 0) {
     ides.push("trae");
   }
-  if (fs50.existsSync(getOpenCodeMcpConfigPath())) {
+  if (fs52.existsSync(getOpenCodeMcpConfigPath())) {
     ides.push("opencode");
   }
   if (getWorkBuddyMcpInstallPaths().length > 0) {
     ides.push("workbuddy");
   }
-  if (fs50.existsSync(getDshHome())) {
+  if (fs52.existsSync(getDshHome())) {
     ides.push("dsh");
   }
   return ides;
@@ -76722,7 +77365,7 @@ function getExistingTraeUserConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs50.existsSync(path52.dirname(configPath))) {
+    if (seen.has(key) || !fs52.existsSync(path54.dirname(configPath))) {
       return false;
     }
     seen.add(key);
@@ -76733,7 +77376,7 @@ function getExistingConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs50.existsSync(configPath)) {
+    if (seen.has(key) || !fs52.existsSync(configPath)) {
       return false;
     }
     seen.add(key);
@@ -76741,62 +77384,62 @@ function getExistingConfigPaths(paths) {
   });
 }
 function normalizeConfigPathKey(configPath) {
-  const resolved = path52.resolve(configPath);
+  const resolved = path54.resolve(configPath);
   return process.platform === "win32" || process.platform === "darwin" ? resolved.toLowerCase() : resolved;
 }
 function getTraeSoloMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path52.join(os11.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path54.join(os13.homedir(), "AppData", "Roaming");
     return [
-      path52.join(roaming, "TRAE SOLO", "User", "mcp.json"),
-      path52.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
+      path54.join(roaming, "TRAE SOLO", "User", "mcp.json"),
+      path54.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path52.join(os11.homedir(), "Library", "Application Support");
+  const appSupport = path54.join(os13.homedir(), "Library", "Application Support");
   return [
-    path52.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
-    path52.join(appSupport, "TRAE SOLO", "User", "mcp.json")
+    path54.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
+    path54.join(appSupport, "TRAE SOLO", "User", "mcp.json")
   ];
 }
 function getTraeUnverifiedMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path52.join(os11.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path54.join(os13.homedir(), "AppData", "Roaming");
     return [
-      path52.join(roaming, "Trae", "User", "mcp.json"),
-      path52.join(roaming, "TRAE", "User", "mcp.json"),
-      path52.join(roaming, "Trae CN", "User", "mcp.json")
+      path54.join(roaming, "Trae", "User", "mcp.json"),
+      path54.join(roaming, "TRAE", "User", "mcp.json"),
+      path54.join(roaming, "Trae CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path52.join(os11.homedir(), "Library", "Application Support");
+  const appSupport = path54.join(os13.homedir(), "Library", "Application Support");
   return [
-    path52.join(appSupport, "Trae", "User", "mcp.json"),
-    path52.join(appSupport, "TRAE", "User", "mcp.json"),
-    path52.join(appSupport, "Trae CN", "User", "mcp.json")
+    path54.join(appSupport, "Trae", "User", "mcp.json"),
+    path54.join(appSupport, "TRAE", "User", "mcp.json"),
+    path54.join(appSupport, "Trae CN", "User", "mcp.json")
   ];
 }
 function getOpenCodeMcpConfigPath() {
-  return path52.join(os11.homedir(), ".config", "opencode", "opencode.jsonc");
+  return path54.join(os13.homedir(), ".config", "opencode", "opencode.jsonc");
 }
 function getWorkBuddyHome() {
-  return path52.join(os11.homedir(), ".workbuddy");
+  return path54.join(os13.homedir(), ".workbuddy");
 }
 function getWorkBuddyMcpInstallPaths(options3 = {}) {
-  const primary = path52.join(getWorkBuddyHome(), "mcp.json");
-  if (fs50.existsSync(primary) || options3.createPrimary) {
+  const primary = path54.join(getWorkBuddyHome(), "mcp.json");
+  if (fs52.existsSync(primary) || options3.createPrimary) {
     return [primary];
   }
-  const legacy = path52.join(getWorkBuddyHome(), ".mcp.json");
-  if (fs50.existsSync(legacy)) {
+  const legacy = path54.join(getWorkBuddyHome(), ".mcp.json");
+  if (fs52.existsSync(legacy)) {
     return [legacy];
   }
   return [];
 }
 function inspectWorkBuddyTrustState(mcpName) {
   const workbuddyHome = getWorkBuddyHome();
-  const connectorsDir = path52.join(workbuddyHome, "connectors");
+  const connectorsDir = path54.join(workbuddyHome, "connectors");
   const accounts = [];
   const stateFiles = [];
-  if (!fs50.existsSync(connectorsDir)) {
+  if (!fs52.existsSync(connectorsDir)) {
     return {
       status: "not_found",
       mcp_name: mcpName,
@@ -76806,12 +77449,12 @@ function inspectWorkBuddyTrustState(mcpName) {
       accounts
     };
   }
-  for (const entry of fs50.readdirSync(connectorsDir, { withFileTypes: true })) {
+  for (const entry of fs52.readdirSync(connectorsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const statePath = path52.join(connectorsDir, entry.name, "connector-states.json");
-    if (!fs50.existsSync(statePath)) {
+    const statePath = path54.join(connectorsDir, entry.name, "connector-states.json");
+    if (!fs52.existsSync(statePath)) {
       continue;
     }
     stateFiles.push(statePath);
@@ -76890,7 +77533,7 @@ function mergeJsonMcpConfig(configPath, options3) {
   );
 }
 function mergeOpenCodeMcpConfig(configPath, options3) {
-  const rawContent = fs50.readFileSync(configPath, "utf8");
+  const rawContent = fs52.readFileSync(configPath, "utf8");
   const rewroteJsonc = normalizeJsonConfigContent(rawContent, { jsonc: true }) !== rawContent;
   const existing = readJsonObject(configPath, { jsonc: true });
   const mcp = asObject(existing.mcp);
@@ -76922,7 +77565,7 @@ function mergeOpenCodeMcpConfig(configPath, options3) {
   return { ...write, rewroteJsonc: write.changed && rewroteJsonc };
 }
 function mergeCodexMcpConfig(configPath, options3) {
-  const existing = fs50.existsSync(configPath) ? fs50.readFileSync(configPath, "utf8") : "";
+  const existing = fs52.existsSync(configPath) ? fs52.readFileSync(configPath, "utf8") : "";
   const withoutOld = removeCodexMcpTables(existing, options3.mcpName).trimEnd();
   const launch = options3.launcher;
   const envValues = createMcpEnvironmentValues(options3.env, options3.clientIde, options3.launcherEnv);
@@ -76956,7 +77599,7 @@ function mergeCodexMcpConfig(configPath, options3) {
   );
 }
 function tryClaudeMcpAdd(options3) {
-  const configPath = path52.join(os11.homedir(), ".claude.json");
+  const configPath = path54.join(os13.homedir(), ".claude.json");
   try {
     const existing = readJsonObject(configPath);
     const server = asObject(asObject(existing.mcpServers)[options3.mcpName]);
@@ -77049,10 +77692,10 @@ function rejectPackageOption(parsed) {
   }
 }
 function readJsonObject(filePath, options3 = {}) {
-  if (!fs50.existsSync(filePath)) {
+  if (!fs52.existsSync(filePath)) {
     return {};
   }
-  const raw = fs50.readFileSync(filePath, "utf8");
+  const raw = fs52.readFileSync(filePath, "utf8");
   try {
     const normalized = normalizeJsonConfigContent(raw, options3);
     const parsed = JSON.parse(normalized);
@@ -77224,10 +77867,10 @@ function formatMcpInstallMessage(label, configPath, write) {
   ].filter(Boolean).join("\n");
 }
 function saveInitState(targetDir, state) {
-  fs50.mkdirSync(getMakerHome(), { recursive: true });
-  const key = crypto5.createHash("sha256").update(path52.resolve(targetDir)).digest("hex").slice(0, 16);
-  fs50.writeFileSync(
-    path52.join(getMakerHome(), `init-state-${key}.json`),
+  fs52.mkdirSync(getMakerHome(), { recursive: true });
+  const key = crypto5.createHash("sha256").update(path54.resolve(targetDir)).digest("hex").slice(0, 16);
+  fs52.writeFileSync(
+    path54.join(getMakerHome(), `init-state-${key}.json`),
     `${JSON.stringify({ ...state, updated_at: (/* @__PURE__ */ new Date()).toISOString() }, null, 2)}
 `,
     "utf8"
@@ -77375,7 +78018,7 @@ function makerEnvOption(parsed) {
     return env;
   }
   const targetDir = stringOption(parsed, "target_dir");
-  return getMakerEnvironment(void 0, targetDir ? path52.resolve(targetDir) : process.cwd());
+  return getMakerEnvironment(void 0, targetDir ? path54.resolve(targetDir) : process.cwd());
 }
 function makerMcpConfigEnvOption(parsed) {
   return stringOption(parsed, "env") === "rnd" ? "rnd" : "production";
@@ -79078,7 +79721,7 @@ var StreamableHTTPClientTransport = class {
 
 // src/mcp-proxy/proxy.ts
 init_types2();
-import * as path54 from "node:path";
+import * as path56 from "node:path";
 import * as crypto8 from "node:crypto";
 
 // src/mcp-proxy/cookieJar.ts
@@ -79274,8 +79917,8 @@ function isStandaloneSseRequest(input2, init) {
 }
 
 // src/core/utils/logWriter.ts
-import * as fs51 from "node:fs";
-import * as path53 from "node:path";
+import * as fs53 from "node:fs";
+import * as path55 from "node:path";
 import * as crypto7 from "node:crypto";
 
 // src/core/types/log.ts
@@ -79316,7 +79959,7 @@ var LogWriter = class {
       return;
     }
     try {
-      await fs51.promises.mkdir(this.config.logDir, { recursive: true });
+      await fs53.promises.mkdir(this.config.logDir, { recursive: true });
       await this.cleanupOldLogs();
       this.initialized = true;
     } catch (error2) {
@@ -79339,7 +79982,7 @@ var LogWriter = class {
    */
   getLogFilePath(date5) {
     const d = date5 || this.getCurrentDate();
-    return path53.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
+    return path55.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
   }
   /**
    * 获取或创建写入流
@@ -79354,7 +79997,7 @@ var LogWriter = class {
       }
       this.currentDate = date5;
       try {
-        this.writeStream = fs51.createWriteStream(this.getLogFilePath(date5), {
+        this.writeStream = fs53.createWriteStream(this.getLogFilePath(date5), {
           flags: "a",
           encoding: "utf8"
         });
@@ -79406,11 +80049,11 @@ var LogWriter = class {
     if (this.shouldWriteToFile(level) && this.initialized && this.config.enabled) {
       try {
         const filePath = this.getLogFilePath();
-        const dir = path53.dirname(filePath);
-        if (!fs51.existsSync(dir)) {
-          fs51.mkdirSync(dir, { recursive: true });
+        const dir = path55.dirname(filePath);
+        if (!fs53.existsSync(dir)) {
+          fs53.mkdirSync(dir, { recursive: true });
         }
-        fs51.appendFileSync(filePath, message, "utf8");
+        fs53.appendFileSync(filePath, message, "utf8");
       } catch {
       }
     }
@@ -79421,7 +80064,7 @@ var LogWriter = class {
   async cleanupOldLogs() {
     if (this.config.maxDays <= 0) return;
     try {
-      const files = await fs51.promises.readdir(this.config.logDir);
+      const files = await fs53.promises.readdir(this.config.logDir);
       const cutoffDate = /* @__PURE__ */ new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.config.maxDays);
       const prefix = this.config.prefix;
@@ -79436,7 +80079,7 @@ var LogWriter = class {
           if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
             const fileDate = new Date(year, month - 1, day);
             if (fileDate < cutoffDate) {
-              await fs51.promises.unlink(path53.join(this.config.logDir, file3));
+              await fs53.promises.unlink(path55.join(this.config.logDir, file3));
               process.stderr.write(`[LogWriter] Deleted old log: ${file3}
 `);
             }
@@ -79570,10 +80213,10 @@ var TapTapMCPProxy = class {
     const { user_id, project_id } = this.config.tenant;
     let logDir;
     if (user_id && project_id) {
-      logDir = path54.join(logRoot, "proxy", user_id, project_id);
+      logDir = path56.join(logRoot, "proxy", user_id, project_id);
     } else {
       const kidHash = crypto8.createHash("sha256").update(this.config.auth.kid).digest("hex").substring(0, 8);
-      logDir = path54.join(logRoot, "proxy", kidHash);
+      logDir = path56.join(logRoot, "proxy", kidHash);
     }
     return new LogWriter({
       logDir,

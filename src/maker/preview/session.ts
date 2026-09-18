@@ -20,6 +20,16 @@ import { trimPreviewEvidence } from './evidence.js';
 import { processPresence } from '../system/processPresence.js';
 import type { PreviewWindow } from './windowSettings.js';
 
+function previewErrorMessage(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : 'Unexpected preview error.';
+  return String(sanitizeDiagnosticValue(message));
+}
+
 export class PreviewSession {
   private runtime?: PreviewRuntime;
   private operation?: Promise<Record<string, unknown>>;
@@ -59,6 +69,21 @@ export class PreviewSession {
         this.record
       );
       writePrivateJson(path.join(previewRoundDirectory(this.record), 'result.json'), this.status());
+    }
+  }
+
+  private setTerminalState(state: 'stopped' | 'failed'): boolean {
+    try {
+      this.setState(state);
+      return true;
+    } catch (error) {
+      // Disk failures must not interrupt owned-process cleanup or failure retirement.
+      const message = previewErrorMessage(error);
+      if (!this.failure?.includes(message))
+        this.failure = [this.failure, 'Preview state persistence failed: ' + message]
+          .filter(Boolean)
+          .join('; ');
+      return false;
     }
   }
 
@@ -139,8 +164,8 @@ export class PreviewSession {
 
   private async launch(reload: boolean): Promise<Record<string, unknown>> {
     this.failure = undefined;
-    this.setState(reload ? 'reloading' : 'starting');
     try {
+      this.setState(reload ? 'reloading' : 'starting');
       if (reload) {
         await this.runtime?.stop();
         this.runtime = undefined;
@@ -166,7 +191,8 @@ export class PreviewSession {
         (state) => {
           if (this.runtime !== runtime || this.stopping) return;
           if (state === 'stopped' && this.record.state === 'reloading') return;
-          this.setState(state);
+          if (state === 'running') this.setState(state);
+          else this.setTerminalState(state);
         },
         undefined,
         (pid) => {
@@ -186,8 +212,8 @@ export class PreviewSession {
         ...(reload ? { warning: 'Preview restarted; in-memory game state was lost.' } : {}),
       };
     } catch (error) {
-      this.failure = String(sanitizeDiagnosticValue(String(error)));
-      this.setState(this.stopping ? 'stopped' : 'failed');
+      this.failure = previewErrorMessage(error);
+      this.setTerminalState(this.stopping ? 'stopped' : 'failed');
       return {
         ...this.status(),
         ok: false,
@@ -215,14 +241,14 @@ export class PreviewSession {
       await this.runtime?.stop();
       await this.operation;
     } catch (error) {
-      this.failure = String(sanitizeDiagnosticValue(String(error)));
-      this.setState('failed');
+      this.failure = previewErrorMessage(error);
+      this.setTerminalState('failed');
       return { ...this.status(), ok: false, result: 'TIMEOUT' };
     } finally {
       this.pendingStops--;
     }
-    this.setState('stopped');
-    return { ...this.status(), ok: true };
+    const persisted = this.setTerminalState('stopped');
+    return { ...this.status(), ok: persisted };
   }
 
   async handle(
@@ -379,37 +405,40 @@ export async function runPreviewSupervisor(project: string, sessionId?: string):
   const shutdown = async (retireFailure = false): Promise<void> => {
     if (shuttingDown || (retireFailure && !session.canRetireFailure)) return;
     shuttingDown = true;
-    if (!retireFailure) {
-      const result = await session.stop();
-      if (!result.ok) {
-        shuttingDown = false;
-        return;
+    try {
+      if (!retireFailure) {
+        const result = await session.stop();
+        // Persistence can fail after a confirmed stop. An unconfirmed stop must
+        // retain the control channel so the owned Runtime can still be managed.
+        if (!result.ok && (result.state !== 'stopped' || result.process_alive !== false)) return;
       }
-    }
-    clearInterval(idleTimer);
-    clearTimeout(closeTimer);
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-      server.closeIdleConnections();
-    });
-    process.removeListener('SIGINT', onSignal);
-    process.removeListener('SIGTERM', onSignal);
-    if (retireFailure && session.canRetireFailure) {
-      try {
-        const current = readPreviewRecord(project);
-        if (
-          current?.session_id === record.session_id &&
-          current.supervisor_id === record.supervisor_id &&
-          current.reload_id === record.reload_id
-        ) {
-          writePrivateJson(path.join(previewRoundDirectory(record), 'result.json'), {
-            ...session.status(),
-            supervisor_retired: true,
-          });
+      clearInterval(idleTimer);
+      clearTimeout(closeTimer);
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeIdleConnections();
+      });
+      process.removeListener('SIGINT', onSignal);
+      process.removeListener('SIGTERM', onSignal);
+      if (retireFailure && session.canRetireFailure) {
+        try {
+          const current = readPreviewRecord(project);
+          if (
+            current?.session_id === record.session_id &&
+            current.supervisor_id === record.supervisor_id &&
+            current.reload_id === record.reload_id
+          ) {
+            writePrivateJson(path.join(previewRoundDirectory(record), 'result.json'), {
+              ...session.status(),
+              supervisor_retired: true,
+            });
+          }
+        } catch {
+          // Without durable retirement evidence, offline status must remain unverified.
         }
-      } catch {
-        // Without durable retirement evidence, offline status must remain unverified.
       }
+    } finally {
+      shuttingDown = false;
     }
   };
   const onSignal = (): void => {
@@ -470,7 +499,7 @@ export async function runPreviewSupervisor(project: string, sessionId?: string):
           JSON.stringify({
             ...session.status(),
             ok: false,
-            error: String(sanitizeDiagnosticValue(String(error))),
+            error: previewErrorMessage(error),
           })
         );
       }

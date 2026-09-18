@@ -131,6 +131,9 @@ export function createInstallMd(version, makerVersion) {
 - 前置条件：本机需已安装 \`dsh\` 命令与 [pnpm](https://pnpm.io/)；缺失时先引导安装或直接安装。
 - ${installPreparation}
 - 完成安装并验证插件已启用后再向用户报告结果；失败时直接报告具体失败步骤和错误。
+- 能力以本页「内置 Maker MCP 版本」随包提供的实际 artifact 为准；不要仅因 npm 上存在更高
+  版本就宣称该版本包含当前分支的新能力。若本地控制台或预览命令不在随包 runtime 中，
+  不要自动改走远端提交或构建，先报告限制并等待用户明确选择。
 
 ## 安装源
 

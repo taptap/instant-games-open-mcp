@@ -26,12 +26,12 @@ export async function withQrcodeFastForward(
   const remote = git(['rev-parse', remoteRef]).trim();
   let baseEntry: string, remoteEntry: string, localText: string;
   try {
-    const baseTree = git(['ls-tree', head, '--', file]);
-    const remoteTree = git(['ls-tree', remote, '--', file]);
-    if (!/^100644 blob [a-f0-9]+\t/.test(baseTree) || !/^100644 blob [a-f0-9]+\t/.test(remoteTree))
-      return await fastForward(remote);
-    baseEntry = baseTree.replace(' blob ', ' ').replace('\t', ' 0\t');
-    remoteEntry = remoteTree.replace(' blob ', ' ').replace('\t', ' 0\t');
+    const treeEntry = /^100644 blob ([a-f0-9]+)\t\.project\/project\.json\n$/;
+    const baseTree = treeEntry.exec(git(['ls-tree', head, '--', file]));
+    const remoteTree = treeEntry.exec(git(['ls-tree', remote, '--', file]));
+    if (!baseTree || !remoteTree) return await fastForward(remote);
+    baseEntry = `100644 ${baseTree[1]} 0\t${file}\n`;
+    remoteEntry = `100644 ${remoteTree[1]} 0\t${file}\n`;
     if (baseEntry === remoteEntry || git(['ls-files', '--stage', '--', file]) !== baseEntry)
       return await fastForward(remote);
     const filename = path.join(cwd, file);
