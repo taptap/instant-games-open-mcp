@@ -9,6 +9,7 @@ import { preparePreviewProject, requireManifestPreviewPlatform } from './prepare
 import { startPreviewAssetServer, type PreviewAssetServer } from './assets.js';
 import { previewWindow, type PreviewWindow } from './windowSettings.js';
 import { preparePreviewServer, previewNetworkArgs } from './network.js';
+import { createPreviewSourceAlias } from './sourceAlias.js';
 export { previewWindow } from './windowSettings.js';
 
 export const PREVIEW_TIMEOUT_MS = 30000;
@@ -51,6 +52,7 @@ export class PreviewRuntime {
   private closed: Promise<void> = Promise.resolve();
   private assets?: PreviewAssetServer;
   private assetCache?: string;
+  private sourceAlias?: ReturnType<typeof createPreviewSourceAlias>;
   readonly errors: string[] = [];
   readonly logs: PreviewLogs;
   readonly artifacts: Record<string, unknown>[] = [];
@@ -61,7 +63,8 @@ export class PreviewRuntime {
     readonly identity: PreviewIdentity,
     readonly directory: string,
     private readonly changed: (state: 'running' | 'failed' | 'stopped') => void,
-    private readonly timeout = PREVIEW_TIMEOUT_MS
+    private readonly timeout = PREVIEW_TIMEOUT_MS,
+    private readonly launching: (pid?: number) => void = () => {}
   ) {
     this.logs = new PreviewLogs(directory);
   }
@@ -125,10 +128,15 @@ export class PreviewRuntime {
     }
     let child: ChildProcessWithoutNullStreams;
     try {
+      this.sourceAlias = createPreviewSourceAlias(source);
+      const runtimeSource = this.sourceAlias.source;
+      this.launching();
       child = spawn(
         this.executable,
         [
-          ...(this.assets ? ['-game_url=' + this.assets.url] : [entry, '-tapcode_dir=' + source]),
+          ...(this.assets
+            ? ['-game_url=' + this.assets.url]
+            : [entry, '-tapcode_dir=' + runtimeSource]),
           ...(cacheRoot ? ['-game_path=' + cacheRoot] : []),
           '-skip_login',
           ...(server ? previewNetworkArgs(server) : []),
@@ -137,63 +145,90 @@ export class PreviewRuntime {
           '-width=' + window.width,
           '-height=' + window.height,
         ],
-        { cwd: source, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: false }
+        { cwd: runtimeSource, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: false }
       );
     } catch (error) {
       await this.assets?.close();
+      this.clearSourceAlias();
       throw error;
     }
     this.child = child;
     this.closed = new Promise((resolve) =>
       child.once('close', () => {
         void (async () => {
-          await this.assets?.close();
+          try {
+            await this.assets?.close();
+          } catch (error) {
+            this.recordError(String(error));
+          }
           this.clearAssetCache();
-          this.changed(this.stopping || child.exitCode === 0 ? 'stopped' : 'failed');
-          resolve();
+          this.clearSourceAlias();
+          try {
+            this.changed(this.stopping || child.exitCode === 0 ? 'stopped' : 'failed');
+          } catch (error) {
+            this.recordError(String(error));
+          } finally {
+            resolve();
+          }
         })();
       })
     );
     child.on('error', (error) => {
       this.recordError(error.message);
-      this.changed('failed');
+      try {
+        this.changed('failed');
+      } catch (persistenceError) {
+        this.recordError(String(persistenceError));
+      }
     });
     this.consume(child.stdout);
     this.consume(child.stderr);
-    await new Promise<void>((resolve, reject) => {
-      let settle: NodeJS.Timeout | undefined;
-      const cleanup = (): void => {
-        clearTimeout(deadline);
-        clearTimeout(settle);
-        child.removeListener('error', failed);
-        child.removeListener('close', exited);
-      };
-      const failed = (error: Error): void => {
-        cleanup();
-        reject(error);
-      };
-      const exited = (): void =>
-        failed(new Error('Runtime exited during startup. Read preview logs.'));
-      const deadline = setTimeout(
-        () => failed(new Error('TIMEOUT: Runtime process did not start.')),
-        this.timeout
-      );
-      child.once('error', failed);
-      child.once('close', exited);
-      child.once('spawn', () => {
-        settle = setTimeout(() => {
+    try {
+      if (child.pid) this.launching(child.pid);
+      await new Promise<void>((resolve, reject) => {
+        let settle: NodeJS.Timeout | undefined;
+        const cleanup = (): void => {
+          clearTimeout(deadline);
+          clearTimeout(settle);
+          child.removeListener('error', failed);
+          child.removeListener('close', exited);
+        };
+        const failed = (error: Error): void => {
           cleanup();
-          if (this.stopping || !this.processAlive) reject(new Error('CANCELLED: preview stopped.'));
-          else {
-            this.changed('running');
-            resolve();
-          }
-        }, 300);
+          reject(error);
+        };
+        const exited = (): void =>
+          failed(new Error('Runtime exited during startup. Read preview logs.'));
+        const deadline = setTimeout(
+          () => failed(new Error('TIMEOUT: Runtime process did not start.')),
+          this.timeout
+        );
+        child.once('error', failed);
+        child.once('close', exited);
+        child.once('spawn', () => {
+          settle = setTimeout(() => {
+            cleanup();
+            if (this.stopping || !this.processAlive)
+              reject(new Error('CANCELLED: preview stopped.'));
+            else {
+              try {
+                this.changed('running');
+                resolve();
+              } catch (error) {
+                failed(error as Error);
+              }
+            }
+          }, 300);
+        });
       });
-    }).catch(async (error) => {
-      await this.stop();
+    } catch (error) {
+      try {
+        await this.stop();
+      } catch (cleanupError) {
+        throw new Error(String(error) + '; Runtime cleanup is unverified: ' + String(cleanupError));
+      }
       throw error;
-    });
+    }
   }
 
   private recordError(message: string): void {
@@ -211,6 +246,15 @@ export class PreviewRuntime {
       }
     } catch {
       this.recordError('Could not remove this round of local preview download cache.');
+    }
+  }
+
+  private clearSourceAlias(): void {
+    try {
+      this.sourceAlias?.close();
+      this.sourceAlias = undefined;
+    } catch (error) {
+      this.recordError(String(error));
     }
   }
 

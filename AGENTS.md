@@ -382,6 +382,15 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- 预览创建 Runtime 前必须持久化 runtime_launch_pending，取得 PID 后立即登记。
+  已发布端点的 starting 会话只有在 supervisor 确认不存在且 Runtime 创建结果明确时才能恢复；
+  缺少阶段标记的旧记录、创建结果未知和权限未知均不得凭零 PID 自动回收。
+  系统重启后，启动记录早于当前开机至少一分钟且所有已记录 PID 均确认不存在，才可恢复
+  遗留 starting 会话。创建后的登记失败必须收尾本轮子进程；状态写失败不得中断退出等待。
+
+- Windows 预览使用每轮独占的短路径 junction 访问受管理副本；Runtime 退出后仅移除经校验的
+  映射，不递归删除链接目标。不允许为绕过路径限制改写游戏原目录。
+
 - 修改控制台前读 `docs/MAKER_CONSOLE.md`；修改 Runtime 安装或预览前读
   `docs/MAKER_LOCAL_PREVIEW.md`。操作指引统一维护在 `skills/taptap-maker-local/SKILL.md`，
   插件副本通过生成脚本同步，不手工维护。

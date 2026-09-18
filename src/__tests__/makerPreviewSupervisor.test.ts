@@ -23,6 +23,25 @@ jest.mock('node:child_process', () => ({
   spawn: jest.fn(),
 }));
 
+jest.mock('../maker/preview/processLauncher.js', () => ({
+  ...jest.requireActual('../maker/preview/processLauncher.js'),
+  launchPreviewSupervisorProcess: async () => {
+    const child = spawn('node', ['fixture-supervisor']);
+    let failure: Error | undefined;
+    child.on('error', (error) => {
+      failure = error;
+    });
+    return {
+      failure: () => failure,
+      exited: () => child.exitCode !== null,
+      stopUnpublished: () => {
+        child.kill();
+        return true;
+      },
+    };
+  },
+}));
+
 // Keep the real supervisor HTTP channel, session state machine and persistence.
 // Only the native Runtime boundary is simulated, including a failed-but-alive process.
 jest.mock('../maker/preview/runtime.js', () => {
@@ -613,6 +632,66 @@ test('an expired fenced launch without published PIDs can be retried without del
   expect(await callCli('start')).toMatchObject({ ok: true, state: 'running' });
 });
 
+test.each([0, 2147483647])(
+  'recovers interrupted published startup with runtime PID %i',
+  async (pid) => {
+    record = Object.assign(pendingRecord(), {
+      port: 1,
+      supervisor_pid: 2147483646,
+      runtime_pid: pid,
+      runtime_launch_pending: false,
+    });
+    writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+    const originalSession = record.session_id;
+    expect(await previewStatus(project)).toMatchObject({
+      state: 'failed',
+      process_alive: false,
+      supervisor_retired: true,
+      stale_session_recovered: true,
+    });
+    expect(readPreviewRecord(project)?.state).toBe('starting');
+    expect(await callCli('stop')).toMatchObject({ ok: true });
+    runtime.mode = 'running';
+    expect(await callCli('start')).toMatchObject({ ok: true, state: 'running' });
+    expect(record.session_id).not.toBe(originalSession);
+  }
+);
+
+test.each(['supervisor-alive', 'runtime-alive', 'pending', 'legacy', 'permission'])(
+  'protects interrupted startup with %s ownership',
+  async (mode) => {
+    record = Object.assign(pendingRecord(), {
+      port: 1,
+      supervisor_pid: 2147483646,
+      runtime_pid: 0,
+      runtime_launch_pending: false,
+    });
+    if (mode === 'supervisor-alive') record.supervisor_pid = process.pid;
+    if (mode === 'runtime-alive') record.runtime_pid = process.pid;
+    if (mode === 'pending') record.runtime_launch_pending = true;
+    if (mode === 'legacy') delete record.runtime_launch_pending;
+    writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+    const presence =
+      mode === 'permission'
+        ? jest.spyOn(process, 'kill').mockImplementation(() => {
+            throw Object.assign(new Error('access denied'), { code: 'EPERM' });
+          })
+        : undefined;
+    try {
+      expect(await previewStatus(project)).toMatchObject({
+        process_alive: null,
+        supervisor_retired: false,
+      });
+    } finally {
+      presence?.mockRestore();
+    }
+    if (mode !== 'permission') {
+      expect(await callCli('start')).toMatchObject({ ok: false });
+      expect(spawn).not.toHaveBeenCalled();
+    }
+  }
+);
+
 test.each(['pending', 'legacy', 'published'])(
   'does not retire an unverified %s startup',
   async (mode) => {
@@ -639,6 +718,68 @@ test('a legacy pending launch is recoverable after an OS restart', async () => {
     uptime.mockRestore();
   }
 });
+
+test.each([true, undefined])(
+  'published uncertain startup can recover after reboot, marker=%s',
+  async (pending) => {
+    record = Object.assign(pendingRecord(), {
+      port: 1,
+      supervisor_pid: 2147483646,
+      runtime_pid: 0,
+      runtime_launch_pending: pending,
+      started_at: new Date(Date.now() - 3600000).toISOString(),
+    });
+    writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+    const previousSession = record.session_id;
+    const uptime = jest.spyOn(os, 'uptime').mockReturnValue(60);
+    try {
+      expect(await previewStatus(project)).toMatchObject({
+        process_alive: false,
+        supervisor_retired: true,
+      });
+      expect(readPreviewRecord(project)?.session_id).toBe(previousSession);
+      runtime.mode = 'running';
+      expect(await callCli('start')).toMatchObject({ ok: true, state: 'running' });
+      expect(record.session_id).not.toBe(previousSession);
+    } finally {
+      uptime.mockRestore();
+    }
+  }
+);
+
+test.each(['supervisor-alive', 'runtime-alive', 'unknown', 'recent'])(
+  'reboot recovery refuses %s ownership',
+  async (mode) => {
+    record = Object.assign(pendingRecord(), {
+      port: 1,
+      supervisor_pid: 2147483646,
+      runtime_pid: 0,
+      runtime_launch_pending: true,
+      started_at: new Date(Date.now() - 3600000).toISOString(),
+    });
+    if (mode === 'supervisor-alive') record.supervisor_pid = process.pid;
+    if (mode === 'runtime-alive') record.runtime_pid = process.pid;
+    if (mode === 'recent') record.started_at = new Date().toISOString();
+    writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+    const uptime = jest.spyOn(os, 'uptime').mockReturnValue(60);
+    const presence =
+      mode === 'unknown'
+        ? jest.spyOn(process, 'kill').mockImplementation(() => {
+            throw Object.assign(new Error('denied'), { code: 'EPERM' });
+          })
+        : undefined;
+    try {
+      expect(await previewStatus(project)).toMatchObject({
+        process_alive: null,
+        supervisor_retired: false,
+      });
+    } finally {
+      presence?.mockRestore();
+      uptime.mockRestore();
+    }
+    expect(spawn).not.toHaveBeenCalled();
+  }
+);
 
 test('expired fenced supervisors cannot publish a control endpoint', async () => {
   record = Object.assign(pendingRecord(), { launch_deadline: Date.now() - 1000 });
