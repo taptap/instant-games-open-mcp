@@ -21,12 +21,7 @@ import { processPresence } from '../system/processPresence.js';
 import type { PreviewWindow } from './windowSettings.js';
 
 function previewErrorMessage(error: unknown): string {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : 'Unexpected preview error.';
+  const message = error instanceof Error ? error.message : 'Unexpected preview error.';
   return String(sanitizeDiagnosticValue(message));
 }
 

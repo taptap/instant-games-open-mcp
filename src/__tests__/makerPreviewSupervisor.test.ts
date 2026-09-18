@@ -487,7 +487,7 @@ test('unconfirmed stop with persistence failure retains control and allows a lat
 
 test.each([
   [new Error('Expected preview control failure.'), 'Expected preview control failure.'],
-  ['Expected string failure.', 'Expected string failure.'],
+  ['Error: raw stack\n    at privateFunction (/private/file:1:1)', 'Unexpected preview error.'],
   [{ toString: (): string => 'private object diagnostics' }, 'Unexpected preview error.'],
 ])('control endpoint only serializes safe error messages (case %#)', async (error, message) => {
   await boot();

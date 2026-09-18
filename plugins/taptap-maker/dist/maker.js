@@ -67431,7 +67431,7 @@ import os6 from "node:os";
 import { timingSafeEqual } from "node:crypto";
 init_diagnosticRedaction();
 function previewErrorMessage(error2) {
-  const message = error2 instanceof Error ? error2.message : typeof error2 === "string" ? error2 : "Unexpected preview error.";
+  const message = error2 instanceof Error ? error2.message : "Unexpected preview error.";
   return String(sanitizeDiagnosticValue(message));
 }
 var PreviewSession = class {
@@ -69296,7 +69296,7 @@ var ConsoleTasks = class {
         task.status = "failed";
         task.error = String(
           sanitizeDiagnosticValue(
-            error2 instanceof Error ? error2.message : typeof error2 === "string" ? error2 : "Unexpected console task error."
+            error2 instanceof Error ? error2.message : "Unexpected console task error."
           )
         ).slice(0, 8192);
       } finally {
@@ -72624,7 +72624,7 @@ async function startConsoleServer(options3) {
       if (!response.headersSent)
         json2(error2 instanceof ConsoleError ? error2.status : 400, {
           error: sanitizeDiagnosticValue(
-            error2 instanceof Error ? error2.message : typeof error2 === "string" ? error2 : "Unexpected console error."
+            error2 instanceof Error ? error2.message : "Unexpected console error."
           )
         });
     }

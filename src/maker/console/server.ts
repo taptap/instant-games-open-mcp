@@ -320,11 +320,7 @@ export async function startConsoleServer(options: {
       if (!response.headersSent)
         json(error instanceof ConsoleError ? error.status : 400, {
           error: sanitizeDiagnosticValue(
-            error instanceof Error
-              ? error.message
-              : typeof error === 'string'
-                ? error
-                : 'Unexpected console error.'
+            error instanceof Error ? error.message : 'Unexpected console error.'
           ),
         });
     }
