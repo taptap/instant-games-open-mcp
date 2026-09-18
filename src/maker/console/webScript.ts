@@ -90,6 +90,12 @@ function bindFortuneHover(element) {
 }
 let documentTab = 'docs', documentSearch = '', documentItems = [], documentSelected = '';
 let documentRequest = 0, documentDirectoryRequest = 0;
+function markdownText(value) {
+  // Decode only entity-shaped fragments; all resulting content still uses textContent.
+  return String(value || '').replace(/&(?:#[0-9]+|#x[0-9a-f]+|[a-z][a-z0-9]+);/gi, entity => {
+    return new DOMParser().parseFromString('<body>' + entity + '</body>','text/html').body.textContent;
+  });
+}
 function markdownNodes(tokens) {
   const fragment = document.createDocumentFragment();
   for (const token of tokens || []) {
@@ -99,10 +105,10 @@ function markdownNodes(tokens) {
     if (token.type === 'heading') { element = node('h' + Math.min(6,Math.max(1,token.depth))); element.append(children()); }
     else if (token.type === 'paragraph' || token.type === 'text') {
       element = node(token.type === 'paragraph' ? 'p' : 'span');
-      if (token.tokens) element.append(children()); else element.textContent = token.text || '';
+      if (token.tokens) element.append(children()); else element.textContent = markdownText(token.text);
     } else if (['strong','em','del'].includes(token.type)) { element = node(token.type); element.append(children()); }
     else if (token.type === 'code') { element = node('pre'); element.append(node('code',token.text)); }
-    else if (token.type === 'codespan') element = node('code',token.text);
+    else if (token.type === 'codespan') element = node('code',markdownText(token.text));
     else if (token.type === 'blockquote') { element = node('blockquote'); element.append(children()); }
     else if (token.type === 'br' || token.type === 'hr') element = node(token.type);
     else if (token.type === 'list') {
@@ -139,8 +145,8 @@ function markdownNodes(tokens) {
           else announce('该链接不在当前文档目录中');
         });
       }
-    } else if (token.type === 'image') element = node('span','[图片：' + (token.text || token.href || '') + ']','muted');
-    else element = node('span',token.text || token.raw || '');
+    } else if (token.type === 'image') element = node('span','[图片：' + markdownText(token.text || token.href) + ']','muted');
+    else element = node('span',token.type === 'escape' ? markdownText(token.text) : token.text || token.raw || '');
     fragment.append(element);
   }
   return fragment;
@@ -171,7 +177,7 @@ async function openDocument(item) {
         header.append(fallback); fallback.focus(); fallback.select();
         notify('无法访问剪贴板，请复制已选中的文档链接');
       }
-    }));
+    },{icon:'link'}));
     replace(reader,[header,node('p',item.source + ' · ' + item.relativePath,'muted')]);
     if (item.purpose) {
       const intro = node('section',undefined,'document-intro');
@@ -221,7 +227,7 @@ async function renderDocuments() {
   const epoch = viewEpoch;
   const request = ++documentDirectoryRequest;
   const toolbar = node('div',undefined,'document-toolbar');
-  const tabs = node('div',undefined,'actions'); tabs.setAttribute('role','tablist');
+  const tabs = node('div',undefined,'actions document-tabs'); tabs.setAttribute('role','tablist');
   [['docs','开发文档'],['project','项目文档'],['skills','Skill']].forEach(([kind,label]) => {
     const tab = button(label,() => {
       documentTab = kind; renderDocumentDirectory();
@@ -234,7 +240,7 @@ async function renderDocuments() {
   const search = node('input'); search.id = 'document-search'; search.type = 'search'; search.placeholder = '搜索标题、用途或目录';
   search.setAttribute('aria-label','搜索文档与 Skill'); search.value = documentSearch;
   search.addEventListener('input',() => { documentSearch = search.value; renderDocumentDirectory(); });
-  toolbar.append(tabs,search,button('刷新目录',() => void renderDocuments()));
+  toolbar.append(tabs,search,button('刷新目录',() => void renderDocuments(),{icon:'refresh',iconOnly:true,className:'icon-button'}));
   const layout = node('div',undefined,'document-layout');
   const directory = node('aside'); directory.id = 'document-directory'; directory.setAttribute('aria-label','文档目录');
   const reader = node('article'); reader.id = 'document-reader';
@@ -374,7 +380,7 @@ function renderConsoleLogs() {
   if (!host) return;
   const view = logView();
   const toolbar = node('div',undefined,'console-log-toolbar');
-  const tabs = node('div',undefined,'actions');
+  const tabs = node('div',undefined,'console-log-tabs');
   tabs.setAttribute('role','tablist');
   [['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志'],['qrcode','二维码']].forEach(([id,label]) => {
     const tab = button(label,() => { view.tab = id; renderConsoleLogs(); if (id === 'runtime' && !view.runtime && !view.loading) void loadLogs(); });
@@ -394,7 +400,7 @@ function renderConsoleLogs() {
   output.id = 'console-log-output'; output.setAttribute('role','tabpanel'); output.tabIndex = 0;
   const previous = $('console-log-output');
   const top = previous?.scrollTop || 0, left = previous?.scrollLeft || 0;
-  replace(host,[node('h2','日志'),toolbar,output]);
+  replace(host,[toolbar,tabs,output]);
   output.scrollTop = top; output.scrollLeft = left;
 }
 let git = null;
@@ -613,7 +619,8 @@ function updateChrome() {
   }
   picker.value = currentProject() ? selected : '';
   picker.disabled = !loaded || offline;
-  $('context').textContent = currentProject() ? currentProject().name + ' / ' + text(detail?.git?.branch, '分支未提供') : '本地项目';
+  $('context').textContent = currentProject() ? text(detail?.git?.branch, '分支未提供') : '本地项目';
+  $('context').title = currentProject()?.name || '本地项目';
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
     b.disabled = !loaded || (b.dataset.page !== 'documents' && !currentProject()?.valid);
@@ -622,9 +629,7 @@ function updateChrome() {
   });
   if ($('heading-actions')) replace($('heading-actions'),headingActionButtons());
   if ($('overview-task')) {
-    const latest = tasksFor(selected)[0];
-    replace($('overview-task'),[node('h2','最近任务'),
-      latest ? taskBlock(latest) : node('p','暂无控制台任务','muted')]);
+    replace($('overview-task'),overviewTasks());
   }
 }
 function headingActionButtons() {
@@ -645,17 +650,14 @@ function headingActionButtons() {
   const presentation = buildPresentation(task,pendingActions.get(selected) === 'build',offline);
   const build = button(checking ? 'Lua 检查中' : presentation.active ? presentation.label : '构建',
     () => void runProjectAction('build'),
-    {className:'primary build-button' + (presentation.active || checking ? ' is-building' : ''),
+    {className:'build-button' + (presentation.active || checking ? ' is-building' : ''),
       icon:presentation.active || checking ? 'refresh' : 'hammer',disabled:offline || busy(),focus:'heading-build'});
   build.setAttribute('aria-busy',String(presentation.active || checking));
   const primary = node('div',undefined,'actions heading-primary');
   primary.append(local,build,button('测试二维码',() => void runProjectAction('qrcode'),{
     icon:'qrcode',loading:qrcodeBusy,disabled:offline || busy(),focus:'heading-qrcode'
   }));
-  const secondary = node('div',undefined,'actions heading-secondary');
-  secondary.append(luaCheckOption());
-  if (!presentation.active && task) secondary.append(node('span',presentation.label,'build-badge ' + presentation.tone));
-  return [primary,secondary];
+  return [primary];
 }
 function luaCheckOption() {
   const label = node('label',undefined,'lua-check-option');
@@ -978,6 +980,12 @@ async function removeProject(key) {
   } catch (error) { notify(error.message); }
   finally { pending.delete(key); updateChrome(); if (page === 'projects') renderProjects(); }
 }
+function overviewTasks() {
+  const tasks = tasksFor(selected);
+  const title = node('div',undefined,'section-heading');
+  title.append(node('h2','最近任务'),node('span','保留最近 10 次','muted'));
+  return [title,...(tasks.length ? tasks.map(task => taskBlock(task)) : [node('p','暂无控制台任务','muted')])];
+}
 function renderOverview() {
   const p = currentProject();
   const title = heading(p.name,p.path,true);
@@ -989,7 +997,8 @@ function renderOverview() {
   [['项目版本',config.version],['屏幕方向',orientation],['Git HEAD',detail.git?.head?.slice(0,10)],
     ['本地预览',previewLabel()]].forEach(([name,value]) => {
     const metric = node('div',undefined,'metric');
-    metric.append(node('div',name,'muted'),node('div',text(value),'value')); metrics.append(metric);
+    metric.append(node('div',name,'muted'),node('div',text(value),'value' +
+      (name === '本地预览' ? ' ' + previewPresentation(preview,previewError).tone : ''))); metrics.append(metric);
   });
   const runtime = runtimePresentation(preview,previewError);
   const runtimeMetric = node('div',undefined,'metric runtime-metric');
@@ -1035,13 +1044,9 @@ function renderOverview() {
   if (latestBuild?.status === 'failed') {
     health.append(failureBanner('最近构建失败', buildFailureDetails(latestBuild) || buildFailureTitle(latestBuild)));
   }
-  const links = node('div',undefined,'actions preview-controls');
-  links.append(button('构建与测试',() => navigate('build')),button('查看 Git',() => navigate('git')));
-  health.append(links);
   columns.append(configSection,health);
   const recent = node('section',undefined,'task-history'); recent.id = 'overview-task';
-  const latest = tasksFor(selected)[0];
-  recent.append(node('h2','最近任务'),latest ? taskBlock(latest) : node('p','暂无控制台任务','muted'));
+  recent.append(...overviewTasks());
   const serviceActions = node('div',undefined,'console-service-actions');
   serviceActions.append(button('关闭Maker控制台',() => void shutdownConsole(),{
     className:'console-shutdown',disabled:offline || shutdownPending,focus:'console-shutdown'
@@ -1256,8 +1261,9 @@ function runtimePresentation(status, error = '') {
   }
   return {label:'待检测',detail:'',tone:'muted'};
 }
-function taskStartsOpen(task, open = false) {
-  return Boolean(open || task?.action === 'qrcode' || (task?.status === 'failed' && task?.action !== 'lua-lsp.check'));
+function taskStartsOpen(task, open = false, latest = true) {
+  return Boolean(open || task?.status === 'running' || (latest &&
+    (task?.status === 'unknown' || (task?.status === 'failed' && task?.action !== 'lua-lsp.check'))));
 }
 function taskOutputText(task) {
   const output = text(task?.output,'').trim();
@@ -1273,8 +1279,10 @@ function taskOutputText(task) {
 }
 function taskBlock(task, open = false) {
   const failed = task.status === 'failed';
+  const item = node('article',undefined,'task-item');
+  const shortcuts = node('div',undefined,'actions task-shortcuts');
   const d = node('details',undefined,'task' + (failed ? ' is-failed' : '')); d.dataset.key = task.id;
-  d.open = taskStartsOpen(task,open);
+  d.open = taskStartsOpen(task,open,tasksFor(task.projectKey)[0]?.id === task.id);
   const summary = node('summary');
   summary.dataset.focus = 'task-' + task.id;
   summary.append(node('strong', actionLabels[task.action] || task.action),
@@ -1285,7 +1293,7 @@ function taskBlock(task, open = false) {
   d.append(summary,meta);
   if (task.interaction?.kind === 'select_developer' && task.projectKey === selected &&
       tasksFor(task.projectKey).find(item => item.action === 'qrcode')?.id === task.id) {
-    d.append(button('选择开发者并继续',() => void runAction('qrcode',{sourceTaskId:task.id}),{
+    shortcuts.append(button('选择开发者并继续',() => void runAction('qrcode',{sourceTaskId:task.id}),{
       disabled:offline || busy(task.projectKey)
     }));
   }
@@ -1303,11 +1311,11 @@ function taskBlock(task, open = false) {
     const link = node('a','打开 Web 预览','preview-link');
     link.href = previewUrl; link.target = '_blank'; link.rel = 'noopener noreferrer';
     link.referrerPolicy = 'no-referrer';
-    d.append(link);
+    shortcuts.append(link);
   }
   if (task.action === 'qrcode' && task.status === 'succeeded') {
     const source = qrcodeImageSource(task);
-    if (source) d.append(button('查看二维码',() => showQrcode(task),{icon:'qrcode',disabled:task.projectKey !== selected}));
+    if (source) shortcuts.append(button('查看二维码',() => showQrcode(task),{icon:'qrcode',disabled:task.projectKey !== selected}));
     const content = task.result?.result?.content;
     for (const item of Array.isArray(content) ? content : []) {
       if (item.type === 'image' && ['image/png','image/jpeg','image/webp'].includes(item.mimeType) &&
@@ -1335,7 +1343,8 @@ function taskBlock(task, open = false) {
     const result = node('details'); result.dataset.key = 'result-' + task.id;
     result.append(node('summary','完整结果'),node('pre',text(task.result))); d.append(result);
   }
-  return d;
+  item.append(d,shortcuts);
+  return item;
 }
 function windowDimensions(settings, info) {
   const orientation = settings.orientation === 'project' ? info.projectOrientation || 'landscape' : settings.orientation;
@@ -1351,8 +1360,16 @@ function renderWindowSettings() {
     draft = {settings:JSON.parse(JSON.stringify(info.settings)),dirty:false,saving:false};
     windowDrafts.set(key,draft);
   }
+  const disclosure = node('details',undefined,'preview-window-disclosure');
+  disclosure.dataset.key = 'preview-window-' + key;
+  const summary = node('summary',undefined,'preview-window-summary');
+  const effective = preview?.process_alive === true && preview?.preflight?.window || info.effective;
+  summary.append(node('span',(effective.height > effective.width ? '竖屏' : '横屏') + ' · ' +
+    effective.width + ' × ' + effective.height,'muted'),node('span','窗口设置'));
+  if (draft.dirty) summary.append(node('span','未保存','pending'));
+  else if (effective.width !== info.effective.width || effective.height !== info.effective.height)
+    summary.append(node('span','已保存，刷新后生效','pending'));
   const form = node('form',undefined,'preview-window-settings');
-  form.append(node('h3','预览窗口设置','preview-window-title'));
   const disabled = offline || busy(key) || draft.saving;
   const selectField = (label, name, options, value, change) => {
     const wrap = node('label',label);
@@ -1415,11 +1432,12 @@ function renderWindowSettings() {
     } catch (error) { if (selectionMatches(key,epoch)) notify(error.message); }
     finally { draft.saving = false; if (selectionMatches(key,epoch)) updateBuild(); }
   });
-  return form;
+  disclosure.append(summary,form);
+  return disclosure;
 }
 function renderBuild() {
-  const title = heading('构建与测试',currentProject().path,true);
-  const columns = node('div',undefined,'columns');
+  const title = heading('构建与测试',currentProject().name,true);
+  const columns = node('div',undefined,'columns build-columns');
   const build = node('section'); build.id = 'build-panel';
   const local = node('section'); local.id = 'preview-panel';
   columns.append(build,local);
@@ -1437,16 +1455,20 @@ function updateBuild() {
   const checkTask = tasks.find(t => t.action === 'lua-lsp.check');
   const lua = luaLspPresentation(state.luaLsp);
   const checkBlock = node('div',undefined,'lua-check-panel');
-  checkBlock.append(node('p','Lua LSP · ' + lua.label + (lua.detail ? ' · ' + lua.detail : ''), lua.tone));
+  const checkActions = node('div',undefined,'actions lua-check-actions');
+  checkActions.append(luaCheckOption());
   if (checkTask) {
     const summary = luaCheckSummary(checkTask,checking);
-    checkBlock.append(button(summary,() => selectLog('lua'),{className:'link ' + (checkTask.status === 'failed' ? 'bad' : checkTask.status === 'succeeded' ? 'good' : 'pending')}));
-  } else checkBlock.append(node('p','尚未检查当前项目','muted'));
-  const checkActions = node('div',undefined,'actions preview-controls');
+    checkActions.append(button(summary,() => selectLog('lua'),{className:'link ' + (checkTask.status === 'failed' ? 'bad' : checkTask.status === 'succeeded' ? 'good' : 'pending')}));
+  }
   checkActions.append(button(checking ? '检查中' : 'Lua 检查',() => void runAction('lua-lsp.check'),{
-    disabled:offline || busy(),focus:'lua-lsp.check'
+    className:'link',icon:'refresh',disabled:offline || busy(),focus:'lua-lsp.check'
   }));
   checkBlock.append(checkActions);
+  const lspStatus = node('div',undefined,'lsp-status');
+  lspStatus.append(node('span','Lua LSP · ' + lua.label + (lua.detail ? ' · ' + lua.detail : ''), lua.tone),
+    button('检查日志',() => selectLog('lua'),{className:'link'}));
+  checkBlock.append(lspStatus);
   const buildChildren = [node('h2','远端构建'),buildStatus,checkBlock];
   replace($('build-panel'),buildChildren);
   const previewInfo = previewPresentation(preview,previewError);
@@ -1456,13 +1478,10 @@ function updateBuild() {
     preview?.install_state === 'ready' ? 'good' : preview?.install_state === 'missing' ? 'pending' : 'muted'));
   summary.append(node('span',previewLoading ? '检测中…' : previewError ? '检测失败' : previewInfo.stateLabel,
     previewLoading ? 'pending' : previewInfo.tone));
-  if (previewInfo.errorCount) summary.append(node('span',previewInfo.errorCount + ' 条日志错误','bad'));
-  const localChildren = [node('h2','本地预览'),summary];
-  localChildren.push(renderWindowSettings());
-  if (previewInfo.error) localChildren.push(node('p',previewInfo.error,'bad'));
-  if (previewInfo.errorCount) localChildren.push(button(
-    'Runtime 日志中有 ' + previewInfo.errorCount + ' 条错误 · 查看日志',
+  if (previewInfo.errorCount) summary.append(button(previewInfo.errorCount + ' 条日志错误',
     () => void loadLogs(),{className:'link bad'}));
+  const localChildren = [node('h2','本地预览'),summary];
+  if (previewInfo.error) localChildren.push(node('p',previewInfo.error,'bad'));
   if (preview?.session_id) {
     const diagnostics = node('details'); diagnostics.dataset.key = 'preview-diagnostics';
     diagnostics.append(node('summary','诊断信息'),fields([['会话 ID',preview.session_id],
@@ -1471,7 +1490,9 @@ function updateBuild() {
   }
   if (preview?.supported === false) localChildren.push(node('p','当前平台不支持本地预览','bad'));
   const actions = node('div',undefined,'actions preview-controls');
-  previewActions(preview).forEach(action => actions.append(button(
+  if (!previewActions(preview).includes('preview.stop'))
+    actions.append(button('停止预览',() => {},{disabled:true}));
+  previewActions(preview).filter(action => action !== 'preview.start').reverse().forEach(action => actions.append(button(
     actionBusy(action) ? actionLabels[action] + '中' : actionLabels[action],
     () => void runAction(action),{
       loading:actionBusy(action),disabled:offline || busy(),focus:action,
@@ -1481,6 +1502,7 @@ function updateBuild() {
     icon:'refresh',iconOnly:true,className:'icon-button',loading:previewLoading,focus:'preview-status'}));
   actions.append(button('查看运行日志',() => void loadLogs(),{focus:'preview-logs'}));
   localChildren.push(actions);
+  localChildren.push(renderWindowSettings());
   replace($('preview-panel'),localChildren);
   renderConsoleLogs();
   const history = [node('h2','任务历史')];
@@ -1938,7 +1960,8 @@ async function pollState() {
   });
   $('version').textContent = 'Maker ' + text(state.version) + ' · ' + text(state.distribution,'独立发行') + ' · ' + text(state.platform);
   renderVersionPicker();
-  $('connection').textContent = '已连接 · ' + new Date().toLocaleTimeString('zh-CN');
+  $('connection').textContent = '已连接';
+  $('connection').title = '最近连接：' + new Date().toLocaleTimeString('zh-CN');
   $('connection').className = 'good';
   lastStateError = '';
   if (selected && !currentProject()?.valid && (page !== 'projects' || first || priorProjects !== JSON.stringify(state.projects))) {

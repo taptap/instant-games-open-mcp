@@ -39,6 +39,7 @@ export function getConsoleHtml(): string {
     <label class="theme">深色<input id="theme" type="checkbox" role="switch" checked aria-label="深色模式"></label>
   </div>
 </header>
+<div class="navigation">
 <nav aria-label="主导航">
   <button data-page="overview">项目</button>
   <button data-page="build">构建与测试</button>
@@ -47,6 +48,7 @@ export function getConsoleHtml(): string {
   <span id="plugin-tabs" class="plugin-tabs"></span>
 </nav>
 <div class="context"><span id="context">正在连接本地服务</span><span id="connection" role="status">连接中</span></div>
+</div>
 <div id="feedback" class="feedback" role="alert" hidden><p id="feedback-text"></p><button id="dismiss">关闭</button></div>
 <main id="view" aria-busy="true"><p class="empty">正在读取本地项目</p></main>
 <section id="plugin-views" aria-label="插件工作区" hidden></section>

@@ -337,9 +337,10 @@ describe('Maker console standalone UI', () => {
     expect(footer.indexOf('id="fortune-toggle"')).toBeLessThan(footer.indexOf('id="footer-path"'));
     expect(footer).toContain('id="fortune-corner" aria-label="开发者日签" hidden');
     expect(footer).toContain('>独立游戏开发日签<');
-    expect(styles).toContain('button#fortune-toggle{border:0;background:none;color:#f5e6a3;');
+    expect(styles).toContain('button#fortune-toggle{border:0;background:none;color:#b5aa78;');
     expect(html).toContain('id="fortune-panel"');
     expect(html).toContain('id="fortune-frame"');
+    expect(html).toContain('loading="eager"');
     expect(html).not.toContain('gDEV 日签');
     expect(html).not.toContain('id="fortune-close"');
     expect(script()).toContain("theme=dungeon&mode=' + fortuneMode()");
@@ -347,6 +348,9 @@ describe('Maker console standalone UI', () => {
     expect(script()).toContain('https://liangdong-ttm.github.io/gdev-fortune/');
     expect(script()).not.toContain('gdev-fortune:size');
     expect(html).not.toContain('id="fortune-retry"');
+    expect(html).not.toContain('id="fortune-status"');
+    expect(styles).not.toContain('#fortune-retry');
+    expect(styles).not.toContain('#fortune-status');
     expect(script()).toContain('function fortuneIsOpen()');
     expect(script()).toContain('if (!fortuneReady) return;');
     expect(script()).not.toContain('finishFortuneLoad');
@@ -876,8 +880,9 @@ describe('Maker console standalone UI', () => {
   it('separates primary preview/build/QR actions from Lua checks and build status', () => {
     const source = script();
     expect(source).toContain("primary.append(local,build,button('测试二维码'");
-    expect(source).toContain('secondary.append(luaCheckOption())');
-    expect(source).toContain('return [primary,secondary]');
+    expect(source).toContain('return [primary]');
+    expect(source).toContain('checkActions.append(luaCheckOption())');
+    expect(source).not.toContain("className:'primary build-button'");
     expect(source).toContain("checkActions.append(button(checking ? '检查中' : 'Lua 检查'");
     expect(source).toContain('Lua 检查未通过，已停止构建，请查看下方 Lua 检查日志。');
     expect(source).toContain('Lua 检查不可用，已继续构建，请查看下方 Lua 检查日志。');
@@ -897,16 +902,24 @@ describe('Maker console standalone UI', () => {
 
   it('keeps successful QR output collapsed without hiding actionable failures', () => {
     const { api } = harness();
-    expect(api.taskStartsOpen({ action: 'qrcode', status: 'succeeded' })).toBe(true);
+    expect(api.taskStartsOpen({ action: 'qrcode', status: 'succeeded' })).toBe(false);
     expect(api.taskStartsOpen({ action: 'qrcode', status: 'failed' })).toBe(true);
-    expect(api.taskStartsOpen({ action: 'build', status: 'running' })).toBe(false);
-    expect(api.taskStartsOpen({ action: 'build', status: 'unknown' })).toBe(false);
-    expect(api.taskStartsOpen({ action: 'qrcode', status: 'failed' }, false, false)).toBe(true);
+    expect(api.taskStartsOpen({ action: 'build', status: 'running' })).toBe(true);
+    expect(api.taskStartsOpen({ action: 'build', status: 'unknown' })).toBe(true);
+    expect(api.taskStartsOpen({ action: 'qrcode', status: 'failed' }, false, false)).toBe(false);
     expect(api.taskStartsOpen({ action: 'build', status: 'unknown' }, false, false)).toBe(false);
-    expect(api.taskStartsOpen({ action: 'build', status: 'running' }, false, false)).toBe(false);
+    expect(api.taskStartsOpen({ action: 'build', status: 'running' }, false, false)).toBe(true);
     expect(api.taskStartsOpen({ action: 'build', status: 'failed' }, true, false)).toBe(true);
-    expect(script()).toContain("d.append(button('查看二维码'");
-    expect(script()).toContain("d.append(button('选择开发者并继续'");
+    expect(script()).toContain("shortcuts.append(button('查看二维码'");
+    expect(script()).toContain("shortcuts.append(button('选择开发者并继续'");
+  });
+
+  it('collapses window settings and scopes disclosure state to the current checkout', () => {
+    const source = script();
+    expect(source).toContain("disclosure.dataset.key = 'preview-window-' + key");
+    expect(source).toContain("node('summary',undefined,'preview-window-summary')");
+    expect(source).toContain('disclosure.append(summary,form)');
+    expect(source).toContain("const columns = node('div',undefined,'columns build-columns')");
   });
 
   it.each([null, { confirmedOrientation: 'portrait' }])(

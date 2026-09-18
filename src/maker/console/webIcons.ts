@@ -1,5 +1,6 @@
 /**
- * Selected icon-node definitions from lucide-vue-next v1.0.0.
+ * Selected icon-node definitions from lucide-vue-next v1.0.0,
+ * with copy/link from lucide v0.468.0.
  * ISC License
  *
  * Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2026
@@ -39,7 +40,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-export const consoleIconLicense = `Lucide icon-node snapshot: lucide-vue-next v1.0.0
+export const consoleIconLicense = `Lucide icon-node snapshot: lucide-vue-next v1.0.0; copy/link: lucide v0.468.0
 ISC License
 Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2026 as part
 of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2026.
@@ -73,6 +74,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.`;
 
 export const consoleIcons = {
+  copy: [
+    ['rect', { width: '14', height: '14', x: '8', y: '8', rx: '2', ry: '2' }],
+    ['path', { d: 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2' }],
+  ],
+  link: [
+    ['path', { d: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71' }],
+    ['path', { d: 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' }],
+  ],
   qrcode: [
     ['rect', { width: '5', height: '5', x: '3', y: '3', rx: '1' }],
     ['rect', { width: '5', height: '5', x: '16', y: '3', rx: '1' }],
