@@ -1427,17 +1427,24 @@ async function runMcpReport(parsed: ParsedArgs, ctx: CliContext): Promise<void> 
     );
     return;
   }
-  const reportRuntime = resolveMakerMcpReportRuntime({
-    distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
-    bundleUrl: typeof __MAKER_BUNDLE_URL__ !== 'undefined' ? __MAKER_BUNDLE_URL__ : undefined,
-  });
+  const reportRuntime =
+    context.source === 'console'
+      ? undefined
+      : resolveMakerMcpReportRuntime({
+          distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
+          bundleUrl: typeof __MAKER_BUNDLE_URL__ !== 'undefined' ? __MAKER_BUNDLE_URL__ : undefined,
+        });
   const diagnostics = await collectMakerMcpIssueDiagnostics({
-    ide: stringOption(parsed, 'ide') || reportRuntime?.client,
+    ide:
+      context.source === 'console'
+        ? undefined
+        : stringOption(parsed, 'ide') || reportRuntime?.client,
     targetDir,
     makerVersion: VERSION,
     configSource: reportRuntime?.config_source,
-    distribution: reportRuntime?.distribution,
+    distribution: process.env.TAPTAP_MAKER_DISTRIBUTION || reportRuntime?.distribution,
     verify: async () => {
+      if (context.source === 'console') return { status: 'not_applicable' };
       if (reportRuntime) {
         const verification = await verifyMakerMcpLauncher(reportRuntime.launcher, {
           cwd: reportRuntime.cwd,

@@ -6,6 +6,7 @@ import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { ConsoleProjects } from './projects.js';
 import { validQrcodePublication, type MakerQrcodePublication } from '../qrcodePreflight.js';
 import { parseQrcodeInteraction, parseQrcodeRecovery } from '../qrcodeInteraction.js';
+import { consoleReportContext, consoleReportOffer } from './issueReport.js';
 import {
   CONSOLE_ACTIONS,
   ConsoleError,
@@ -31,6 +32,7 @@ export class ConsoleTasks {
         throw new ConsoleError('Invalid console task history.');
       for (const task of data) {
         if (!task.id || !CONSOLE_ACTIONS.includes(task.action)) continue;
+        if (task.report?.status === 'running') task.report = { status: 'unknown' };
         if (task.status === 'running') {
           task.status = 'unknown';
           task.error =
@@ -48,10 +50,13 @@ export class ConsoleTasks {
     for (const task of Array.from(this.tasks.values()).reverse()) {
       const count = (counts.get(task.projectKey) || 0) + 1;
       counts.set(task.projectKey, count);
-      if (count > 10 && task.status !== 'running') this.tasks.delete(task.id);
+      if (count > 10 && task.status !== 'running' && task.report?.status !== 'running')
+        this.tasks.delete(task.id);
     }
     while (this.tasks.size > 100) {
-      const old = Array.from(this.tasks.values()).find((task) => task.status !== 'running');
+      const old = Array.from(this.tasks.values()).find(
+        (task) => task.status !== 'running' && task.report?.status !== 'running'
+      );
       if (!old) break;
       this.tasks.delete(old.id);
     }
@@ -71,12 +76,13 @@ export class ConsoleTasks {
       task.action === 'qrcode' && ['failed', 'unknown'].includes(task.status)
         ? parseQrcodeRecovery(result?.error) || parseQrcodeRecovery(task.error)
         : undefined;
-    return {
+    const described = {
       ...task,
       interaction,
       recovery,
       ...(interaction || recovery ? { status: 'unknown' as const } : {}),
     };
+    return { ...described, reportOffer: consoleReportOffer(described) };
   }
   get(id: string): ConsoleTask {
     const task = this.tasks.get(id);
@@ -84,7 +90,89 @@ export class ConsoleTasks {
     return this.describe(task);
   }
   busy(key: string): boolean {
-    return this.list().some((task) => task.projectKey === key && task.status === 'running');
+    return this.list().some(
+      (task) =>
+        task.projectKey === key && (task.status === 'running' || task.report?.status === 'running')
+    );
+  }
+  get active(): boolean {
+    return this.running.size > 0;
+  }
+  report(id: string, consent: unknown): ConsoleTask {
+    if (consent !== true) throw new ConsoleError('Explicit report consent is required.');
+    const described = this.get(id);
+    if (!described.reportOffer)
+      throw new ConsoleError('This task is not eligible for issue reporting.');
+    const task = this.tasks.get(id)!;
+    if (task.report) return this.describe(task);
+    const project = this.projects.resolve(task.projectKey);
+    if (task.projectPath !== project.path || task.projectid !== project.projectid)
+      throw new ConsoleError('Project binding changed since this operation.');
+    if (this.running.size >= 4) throw new ConsoleError('Too many active operations.', 409);
+    task.report = { status: 'running' };
+    try {
+      this.persist();
+    } catch (error) {
+      delete task.report;
+      throw error;
+    }
+    const operation = Promise.resolve().then(async () => {
+      try {
+        const result = await this.execute({
+          action: 'issue.report',
+          project: project.path,
+          reportContext: consoleReportContext(described, project.path),
+          onOutput: () => {},
+        });
+        const created =
+          result.ok &&
+          result.status === 'created' &&
+          typeof result.issue_url === 'string' &&
+          /^https:\/\/github\.com\/taptap\/instant-games-open-mcp\/issues\/\d+$/.test(
+            result.issue_url
+          );
+        task.report = created
+          ? { status: 'created', issue_url: result.issue_url as string }
+          : { status: result.unknown ? 'unknown' : 'unavailable' };
+      } catch {
+        task.report = { status: 'unknown' };
+      } finally {
+        this.onSettled();
+        try {
+          this.persist();
+        } catch {
+          /* The persisted running marker prevents a duplicate submission. */
+        }
+      }
+    });
+    this.running.add(operation);
+    void operation.finally(() => this.running.delete(operation)).catch(() => {});
+    return this.describe(task);
+  }
+  recordFailure(key: string, action: ConsoleAction, error: string): ConsoleTask {
+    if (!CONSOLE_ACTIONS.includes(action)) throw new ConsoleError('Unsupported console action.');
+    const project = this.projects.resolve(key);
+    const task: ConsoleTask = {
+      id: randomUUID(),
+      projectKey: key,
+      projectName: project.name,
+      projectPath: project.path,
+      projectid: project.projectid,
+      action,
+      status: 'failed',
+      startedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString(),
+      output: '',
+      error: String(sanitizeDiagnosticValue(error)).slice(0, 8192),
+    };
+    this.tasks.set(task.id, task);
+    try {
+      this.persist();
+    } catch (error) {
+      this.tasks.delete(task.id);
+      throw error;
+    }
+    return this.describe(task);
   }
   start(
     key: string,
@@ -241,7 +329,7 @@ export class ConsoleTasks {
       ) {
         const oldest = this.list()
           .reverse()
-          .find((task) => task.status !== 'running');
+          .find((task) => task.status !== 'running' && task.report?.status !== 'running');
         if (!oldest) throw new ConsoleError('Active console history exceeds the supported size.');
         this.tasks.delete(oldest.id);
       }

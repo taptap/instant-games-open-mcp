@@ -28,8 +28,18 @@ const MAKER_MCP_NAME = 'taptap-maker';
 const GITHUB_REPOSITORY = 'taptap/instant-games-open-mcp';
 const GITHUB_NEW_ISSUE_URL = `https://github.com/${GITHUB_REPOSITORY}/issues/new`;
 
+export const MAKER_ISSUE_CATEGORIES = {
+  mcp: 'Maker MCP',
+  console: '控制台',
+  runtime: 'UrhoX Runtime',
+  build: '构建',
+} as const;
+export type MakerIssueCategory = keyof typeof MAKER_ISSUE_CATEGORIES;
+
 export type MakerMcpReportContext = {
   summary: string;
+  category?: MakerIssueCategory;
+  source?: 'console';
   error_message?: string;
   failed_operation?: string;
   error_code?: string | number;
@@ -269,16 +279,23 @@ export function buildMakerMcpIssue(options: {
     stripControlCharacters(sanitizePublicText(context.summary, options.homeDir))
       .replace(/\s+/gu, ' ')
       .trim() || 'Maker MCP problem report';
-  const title = `[Maker MCP] ${summary}`.slice(0, 120);
+  const category =
+    context.category &&
+    Object.prototype.hasOwnProperty.call(MAKER_ISSUE_CATEGORIES, context.category)
+      ? MAKER_ISSUE_CATEGORIES[context.category]
+      : MAKER_ISSUE_CATEGORIES.mcp;
+  const title = `[${category}] ${summary}`.slice(0, 120);
   const body = [
     '<!-- maker-mcp-auto-report -->',
-    '> 由 TapTap Maker AI 故障上报流程自动生成；凭证和用户主目录已经脱敏。',
+    context.source === 'console'
+      ? '> 由 TapTap Maker 控制台故障上报流程自动生成；凭证和用户主目录已经脱敏。'
+      : '> 由 TapTap Maker AI 故障上报流程自动生成；凭证和用户主目录已经脱敏。',
     '',
     '## 问题摘要',
     '',
     summary,
     '',
-    '## AI 会话与错误上下文',
+    context.source === 'console' ? '## 控制台操作与错误上下文' : '## AI 会话与错误上下文',
     '',
     fencedJson(context, 24_000),
     '',
@@ -928,6 +945,12 @@ function pickMakerMcpReportContext(parsed: Record<string, unknown>): MakerMcpRep
         ? parsed.summary.trim()
         : 'Maker MCP problem report',
   };
+  if (
+    typeof parsed.category === 'string' &&
+    Object.prototype.hasOwnProperty.call(MAKER_ISSUE_CATEGORIES, parsed.category)
+  )
+    context.category = parsed.category as MakerIssueCategory;
+  if (parsed.source === 'console') context.source = 'console';
   for (const key of [
     'error_message',
     'failed_operation',

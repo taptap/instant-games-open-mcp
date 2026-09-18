@@ -17,9 +17,11 @@ export function createConsoleExecutor(options: {
     confirmedOrientation,
     publication,
     confirmedBuild,
+    reportContext,
   }) => {
-    if (![...CONSOLE_ACTIONS, 'preview.status', 'preview.logs'].includes(action))
+    if (![...CONSOLE_ACTIONS, 'preview.status', 'preview.logs', 'issue.report'].includes(action))
       throw new Error('Unsupported console CLI action.');
+    if (action === 'issue.report' && !reportContext) throw new Error('Report context is required.');
     if (signal?.aborted) return { ok: false, error: 'Console query cancelled before launch.' };
     if (action === 'lua-lsp.check') {
       const result = await checkMakerLuaLspProject(project);
@@ -31,9 +33,11 @@ export function createConsoleExecutor(options: {
       }) as Awaited<ReturnType<ConsoleExecutor>>;
     }
     const command =
-      action === 'build' || action === 'qrcode'
-        ? [action]
-        : ['preview', action.slice('preview.'.length)];
+      action === 'issue.report'
+        ? ['mcp', 'report', '--context-stdin', '--consent']
+        : action === 'build' || action === 'qrcode'
+          ? [action]
+          : ['preview', action.slice('preview.'.length)];
     if (action === 'qrcode' && confirmedOrientation)
       command.push('--confirmed-screen-orientation', confirmedOrientation);
     if (action === 'qrcode') {
@@ -78,9 +82,15 @@ export function createConsoleExecutor(options: {
         detached: ownsProcessGroup,
         windowsHide: true,
         shell: false,
-        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+        stdio: [action === 'issue.report' ? 'pipe' : 'ignore', 'pipe', 'pipe', 'ipc'],
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
       });
+      if (action === 'issue.report') {
+        child.stdin!.on('error', () => {
+          /* Early child exit is handled by close/error. */
+        });
+        child.stdin!.end(JSON.stringify(reportContext));
+      }
       const childStdout = child.stdout!;
       const childStderr = child.stderr!;
       let stdout = '';
@@ -126,7 +136,7 @@ export function createConsoleExecutor(options: {
         },
         action === 'build' || action === 'qrcode'
           ? 65 * 60 * 1000
-          : action === 'preview.status' || action === 'preview.logs'
+          : action === 'preview.status' || action === 'preview.logs' || action === 'issue.report'
             ? 30000
             : 7 * 60 * 1000
       );
@@ -220,6 +230,21 @@ export function createConsoleExecutor(options: {
         }
         try {
           const result = JSON.parse(stdout);
+          if (action === 'issue.report') {
+            const created =
+              code === 0 &&
+              result?.status === 'created' &&
+              typeof result.issue_url === 'string' &&
+              /^https:\/\/github\.com\/taptap\/instant-games-open-mcp\/issues\/\d+$/.test(
+                result.issue_url
+              );
+            resolve({
+              ok: created,
+              status: created ? 'created' : 'unavailable',
+              ...(created ? { issue_url: result.issue_url } : {}),
+            });
+            return;
+          }
           if (!result || typeof result !== 'object' || typeof result.ok !== 'boolean')
             throw new Error('Missing CLI result status.');
           resolve(

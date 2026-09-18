@@ -55,6 +55,42 @@ describe('Maker console CLI adapters', () => {
   });
   afterEach(() => fs.rmSync(directory, { recursive: true, force: true }));
 
+  test.each(['created', 'manual_required'])(
+    'report sends context through stdin and handles %s without false success',
+    async (status) => {
+      const fixture = path.join(directory, 'fixture.cjs');
+      fs.writeFileSync(
+        fixture,
+        `
+      let input = '';
+      process.stdin.on('data', data => input += data);
+      process.stdin.on('end', () => {
+        const context = JSON.parse(input);
+        const args = process.argv.slice(2);
+        if (context.source !== 'console' || context.error_message !== 'supervisor timeout' ||
+          args.includes('supervisor timeout') || args.slice(0,4).join(' ') !== 'mcp report --context-stdin --consent')
+          process.exit(1);
+        console.log(JSON.stringify({status:${JSON.stringify(status)},issue_url:'https://github.com/taptap/instant-games-open-mcp/issues/123'}));
+      });
+    `
+      );
+      const result = await createConsoleExecutor({ entry: fixture, execArgv: [] })({
+        project: directory,
+        action: 'issue.report',
+        onOutput: () => {},
+        reportContext: {
+          source: 'console',
+          category: 'runtime',
+          summary: 'Preview',
+          error_message: 'supervisor timeout',
+        },
+      });
+      expect(result.ok).toBe(status === 'created');
+      expect(result.status).toBe(status === 'created' ? 'created' : 'unavailable');
+      if (status !== 'created') expect(result.issue_url).toBeUndefined();
+    }
+  );
+
   test('executes only the exact CLI action with an explicit target directory', async () => {
     const fixture = path.join(directory, 'fixture.cjs');
     fs.writeFileSync(fixture, 'console.log(JSON.stringify({ok:true,args:process.argv.slice(2)}))');

@@ -397,6 +397,9 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 - 控制台复用 CLI 业务，不新增 MCP tool；操作必须显式绑定已校验的项目 realpath，
   不依赖全局当前项目或 cwd。项目登记共用 `src/maker/projectRegistry.ts`，
   登记失败不得改变 init/clone 的成功结果。
+- 控制台异常反馈仅在明确确认后，通过当前 CLI 子进程的 stdin 复用 `mcp report`；
+  使用 `MAKER_ISSUE_CATEGORIES` 分类，日志只读受管理固定文件并脱敏、有界截取。
+  不阻塞服务、不另造 GitHub 提交/登录流程；原任务结果不变，未知提交不自动重发。
   测试二维码复用 `qrcode` CLI 和现有远端工具及配置检查，不自动重试；
   首次发布方向需用户确认，不能使用本地预览窗口默认值代替。控制台允许补齐名称和分类，
   本地配置补齐须明确确认提交、推送全部本地改动，复用 push 同步远端工作区，不能仅写本地文件。

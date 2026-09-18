@@ -35,6 +35,114 @@ describe('Maker console project isolation', () => {
     fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   );
 
+  test('report requires consent, uses the original project and submits only once', async () => {
+    const a = registry.add(project('Report A'));
+    let finish!: (value: { ok: boolean; status: string; issue_url: string }) => void;
+    const execute = jest.fn<ReturnType<ConsoleExecutor>, Parameters<ConsoleExecutor>>(
+      async ({ action }) =>
+        action === 'issue.report'
+          ? new Promise((resolve) => {
+              finish = resolve;
+            })
+          : { ok: false, error: 'TIMEOUT: preview supervisor did not open its control channel' }
+    );
+    const tasks = new ConsoleTasks(registry, execute);
+    const task = tasks.start(a.key, 'preview.start');
+    await tasks.settled();
+    expect(tasks.get(task.id).reportOffer?.category).toBe('runtime');
+    expect(() => tasks.report(task.id, false)).toThrow('consent');
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(tasks.report(task.id, true).report?.status).toBe('running');
+    expect(tasks.active).toBe(true);
+    expect(tasks.busy(a.key)).toBe(true);
+    tasks.report(task.id, true);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute.mock.calls[1][0]).toMatchObject({
+      project: a.path,
+      action: 'issue.report',
+      reportContext: { source: 'console', category: 'runtime', failed_operation: 'preview.start' },
+    });
+    finish({
+      ok: true,
+      status: 'created',
+      issue_url: 'https://github.com/taptap/instant-games-open-mcp/issues/123',
+    });
+    await tasks.settled();
+    expect(tasks.get(task.id).report?.status).toBe('created');
+    tasks.report(task.id, true);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
+
+  test('restores an interrupted report as unknown and never automatically resubmits', async () => {
+    const a = registry.add(project('Report restart'));
+    const history = path.join(directory, 'reports.json');
+    const execute = jest.fn(async () => ({ ok: false, error: 'preview supervisor timeout' }));
+    const tasks = new ConsoleTasks(registry, execute, history);
+    const task = tasks.start(a.key, 'preview.start');
+    await tasks.settled();
+    const saved = JSON.parse(fs.readFileSync(history, 'utf8'));
+    saved[0].report = { status: 'running' };
+    fs.writeFileSync(history, JSON.stringify(saved));
+    const restored = new ConsoleTasks(registry, execute, history);
+    expect(restored.get(task.id).report?.status).toBe('unknown');
+    expect(restored.report(task.id, true).report?.status).toBe('unknown');
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  test('rejects feedback after a project binding changes', async () => {
+    const root = project('Report changed');
+    const a = registry.add(root);
+    const execute = jest.fn(async () => ({ ok: false, error: 'preview supervisor timeout' }));
+    const tasks = new ConsoleTasks(registry, execute);
+    const task = tasks.start(a.key, 'preview.start');
+    await tasks.settled();
+    fs.writeFileSync(path.join(root, '.maker-mcp/config.json'), '{"project_id":"different"}');
+    expect(() => tasks.report(task.id, true)).toThrow();
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  test('report HTTP route requires consent and keeps the service alive during submission', async () => {
+    const a = registry.add(project('HTTP report'));
+    let finish!: (result: { ok: boolean; status: string }) => void;
+    const execute = jest.fn<ReturnType<ConsoleExecutor>, Parameters<ConsoleExecutor>>(
+      async ({ action }) =>
+        action === 'issue.report'
+          ? new Promise((resolve) => {
+              finish = resolve;
+            })
+          : { ok: false, error: 'preview supervisor timeout' }
+    );
+    const server = await startConsoleServer({ registry, execute, html: '', version: 'test' });
+    try {
+      const task = server.tasks.start(a.key, 'preview.start');
+      await server.tasks.settled();
+      const post = (route: string, body: unknown) =>
+        fetch(server.origin + route, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: server.origin },
+          body: JSON.stringify(body),
+        });
+      const route = '/api/tasks/' + task.id + '/report';
+      expect((await post(route, {})).status).toBe(400);
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect((await post(route, { consent: true })).status).toBe(202);
+      expect((await post(route, { consent: true })).status).toBe(202);
+      expect(execute).toHaveBeenCalledTimes(2);
+      expect((await post('/api/shutdown', {})).status).toBe(409);
+      finish({ ok: false, status: 'unavailable' });
+      await server.tasks.settled();
+      expect(server.tasks.get(task.id)).toMatchObject({
+        status: 'failed',
+        error: 'preview supervisor timeout',
+        report: { status: 'unavailable' },
+      });
+    } finally {
+      finish?.({ ok: false, status: 'unavailable' });
+      await server.close();
+    }
+  });
+
   test('keeps and persists only the latest ten tasks per project including the active task', async () => {
     const a = registry.add(project('History A'));
     const b = registry.add(project('History B'));
