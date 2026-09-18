@@ -21,8 +21,10 @@ button.is-building:disabled{opacity:1;cursor:wait}
 .build-progress-label{font-size:12px;margin-top:6px;text-align:right}
 @keyframes build-spin{to{transform:rotate(360deg)}}
 @keyframes build-travel{from{transform:translateX(-100%)}to{transform:translateX(386%)}}
+.loading-spinner{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;flex:none}
+.is-loading{cursor:wait!important}
 @media(prefers-reduced-motion:no-preference){
-.is-building .icon,.build-spinner{animation:build-spin 1.2s linear infinite}
+.is-building .icon,.build-spinner,.loading-spinner{animation:build-spin 1.2s linear infinite}
 .build-progress.indeterminate span{animation:build-travel 1.8s ease-in-out infinite}
 .build-progress.determinate span{transition:width .25s ease}
 }
@@ -138,6 +140,9 @@ pre{white-space:pre-wrap;tab-size:2;margin:10px 0 0;background:var(--code);paddi
 .console-log-toolbar [aria-selected="true"]{color:var(--accent);border-bottom:2px solid var(--accent)}
 .console-logs .console-log-output{height:360px;max-height:60vh;width:100%;max-width:100%;overflow:auto;white-space:pre;overflow-wrap:normal;word-break:normal;margin:0}
 .console-logs .console-log-output.wrap{white-space:pre-wrap;overflow-wrap:anywhere}
+.console-log-output .log-line{color:var(--text)}
+.console-log-output .log-error{color:var(--red)}
+.console-log-output .log-warning{color:var(--yellow)}
 button.link.bad{color:var(--red)}button.link.good{color:var(--green)}button.link.pending{color:var(--accent)}
 .preview-status-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 .preview-status-summary span{font-weight:600}

@@ -79,7 +79,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
     `return {api, selectDialog, confirmQrcode, previewActions, graphLayout, runAction, runProjectAction, loadProject, safePreviewUrl, taskPreviewUrl, healthLabel,
       qrcodeImageSource: typeof qrcodeImageSource === 'function' ? qrcodeImageSource : undefined,
       clearConsoleLogs: typeof clearConsoleLogs === 'function' ? clearConsoleLogs : undefined,
-      consoleLogText, logView, tasksFor,
+      consoleLogText, logView, tasksFor, loadFortuneFrame, logLineClass,
       showQrcode: typeof showQrcode === 'function' ? showQrcode : undefined,
       handleQrcodeCompletion: typeof handleQrcodeCompletion === 'function' ? handleQrcodeCompletion : undefined,
       poll, pollState, sendActivity, startActivityLease, dispose, shutdownConsole, rememberTask, buildPresentation, buildFailureMessage,
@@ -868,9 +868,44 @@ describe('Maker console standalone UI', () => {
     expect(source).toContain("primary.append(local,build,button('测试二维码'");
     expect(source).toContain('secondary.append(luaCheckOption())');
     expect(source).toContain('return [primary,secondary]');
-    expect(source).not.toContain('checkActions.append(luaCheckOption())');
+    expect(source).toContain('checkActions.append(luaCheckOption())');
+    expect(source).not.toContain("className:'primary build-button'");
+    expect(source).toContain('Lua 检查未通过，已停止构建，请查看下方 Lua 检查日志。');
+    expect(source).toContain('Lua 检查不可用，已继续构建，请查看下方 Lua 检查日志。');
+    expect(source).not.toContain('notify(text(nestedResult(check)?.error || check?.error');
+    expect(source).not.toContain('notify(text(check.error');
     expect(getConsoleHtml()).toContain('<option value="puzzle">益智</option>');
     expect(getConsoleHtml()).toContain('<option value="casual">休闲</option>');
+  });
+
+  it('colors shared console log lines by severity without changing their text', () => {
+    const { api } = harness();
+    expect(api.logLineClass('ERROR | main.lua:1 | bad field')).toBe('log-line log-error');
+    expect(api.logLineClass('warning: retrying request')).toBe('log-line log-warning');
+    expect(api.logLineClass('普通构建日志')).toBe('log-line');
+    expect(api.logLineClass('finished with no errors')).toBe('log-line');
+  });
+
+  it('keeps successful QR output collapsed without hiding actionable failures', () => {
+    const { api } = harness();
+    expect(api.taskStartsOpen({ action: 'qrcode', status: 'succeeded' })).toBe(false);
+    expect(api.taskStartsOpen({ action: 'qrcode', status: 'failed' })).toBe(true);
+    expect(api.taskStartsOpen({ action: 'build', status: 'running' })).toBe(true);
+    expect(api.taskStartsOpen({ action: 'build', status: 'unknown' })).toBe(true);
+    expect(api.taskStartsOpen({ action: 'qrcode', status: 'failed' }, false, false)).toBe(false);
+    expect(api.taskStartsOpen({ action: 'build', status: 'unknown' }, false, false)).toBe(false);
+    expect(api.taskStartsOpen({ action: 'build', status: 'running' }, false, false)).toBe(true);
+    expect(api.taskStartsOpen({ action: 'build', status: 'failed' }, true, false)).toBe(true);
+    expect(script()).toContain("shortcuts.append(button('查看二维码'");
+    expect(script()).toContain("shortcuts.append(button('选择开发者并继续'");
+  });
+
+  it('collapses window settings and scopes disclosure state to the current checkout', () => {
+    const source = script();
+    expect(source).toContain("disclosure.dataset.key = 'preview-window-' + key");
+    expect(source).toContain("node('summary',undefined,'preview-window-summary')");
+    expect(source).toContain('disclosure.append(summary,form)');
+    expect(source).toContain("const columns = node('div',undefined,'columns build-columns')");
   });
 
   it.each([null, { confirmedOrientation: 'portrait' }])(
