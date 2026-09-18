@@ -74,7 +74,8 @@ export async function startConsoleServer(options: {
       readers.delete(pending);
     }
   }
-  const scriptHashes = [...options.html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
+  // Hash trusted, generated inline scripts; this is not an HTML sanitizer.
+  const scriptHashes = [...options.html.matchAll(/<script>([\s\S]*?)<\/script>/gi)].map(
     (match) => `'sha256-${createHash('sha256').update(match[1]).digest('base64')}'`
   );
   const server = http.createServer(async (request, response) => {
@@ -318,7 +319,13 @@ export async function startConsoleServer(options: {
     } catch (error) {
       if (!response.headersSent)
         json(error instanceof ConsoleError ? error.status : 400, {
-          error: sanitizeDiagnosticValue(error instanceof Error ? error.message : String(error)),
+          error: sanitizeDiagnosticValue(
+            error instanceof Error
+              ? error.message
+              : typeof error === 'string'
+                ? error
+                : 'Unexpected console error.'
+          ),
         });
     }
   });

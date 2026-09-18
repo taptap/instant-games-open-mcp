@@ -1,9 +1,10 @@
 import { Script, runInNewContext } from 'node:vm';
+import { marked } from 'marked';
 import { getConsoleHtml } from '../maker/console/web.js';
 
 function script(): string {
   const html = getConsoleHtml();
-  return html.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? '';
+  return html.match(/<script>([\s\S]*?)<\/script>/i)?.[1] ?? '';
 }
 
 function harness(hash = '', search = '?project=alpha', storageAvailable = true) {
@@ -61,6 +62,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
         append: jest.fn(),
       }),
       createTextNode: (value: string) => ({ textContent: value }),
+      createDocumentFragment: () => ({ append: jest.fn() }),
       getElementById: jest.fn(() => ({
         textContent: '',
         className: '',
@@ -79,7 +81,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
     `return {api, selectDialog, confirmQrcode, previewActions, graphLayout, runAction, runProjectAction, loadProject, safePreviewUrl, taskPreviewUrl, healthLabel,
       qrcodeImageSource: typeof qrcodeImageSource === 'function' ? qrcodeImageSource : undefined,
       clearConsoleLogs: typeof clearConsoleLogs === 'function' ? clearConsoleLogs : undefined,
-      consoleLogText, logView, tasksFor, loadFortuneFrame, logLineClass,
+      consoleLogText, logView, tasksFor, loadFortuneFrame, logLineClass, markdownNodes,
       showQrcode: typeof showQrcode === 'function' ? showQrcode : undefined,
       handleQrcodeCompletion: typeof handleQrcodeCompletion === 'function' ? handleQrcodeCompletion : undefined,
       offerIssueReport, showPendingIssueReport,
@@ -674,6 +676,26 @@ describe('Maker console standalone UI', () => {
     expect(script()).not.toMatch(/\.innerHTML|insertAdjacentHTML|document\.write|eval\(/);
     expect(html).toContain('Lucide Contributors 2026');
     expect(html).toContain('The MIT License (MIT)');
+  });
+
+  it.each([
+    '<SCRIPT>alert(1)</SCRIPT>',
+    '<script>alert(1)</script>',
+    '<!-- comment --!><img src=x onerror=alert(1)>',
+    '<a href="javascript:alert(1)">link</a>',
+  ])('renders untrusted Markdown HTML as text: %s', (content) => {
+    const { api } = harness();
+    const fragment = api.markdownNodes(marked.lexer(content));
+    const elements: any[] = [];
+    const collect = (node: any) => {
+      if (node.tagName) elements.push(node);
+      for (const args of node.append?.mock.calls || []) args.forEach(collect);
+    };
+    collect(fragment);
+    expect(elements.length).toBeGreaterThan(0);
+    expect(elements.every((node) => ['span', 'p'].includes(node.tagName))).toBe(true);
+    expect(elements.some((node) => String(node.textContent || '').includes('<'))).toBe(true);
+    expect(elements.every((node) => node.innerHTML === undefined)).toBe(true);
   });
 
   it('does not store credentials from legacy fragment URLs', () => {

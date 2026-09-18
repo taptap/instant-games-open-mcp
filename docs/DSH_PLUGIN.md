@@ -143,9 +143,10 @@ DSH 插件有两条互补的分发入口：
 
 ## 版本与发布
 
-- `@taptap/maker` 使用精确版本；手动从 develop 发布预览版时可通过 `maker_version` 输入指定精确
-  beta runtime，main 稳定版只读取清单中的稳定 runtime。工作流会先通过 npm 校验该版本确实已
-  发布，避免安装时依赖不存在。
+- `@taptap/maker` 使用精确版本；当前稳定 DSH 包锁定已发布的 `0.0.32`。手动从 develop 发布
+  预览版时可通过 `maker_version` 输入指定精确 beta runtime，main 稳定版只能使用已核对实际
+  artifact 的稳定 runtime。工作流会先通过 npm 校验该版本已发布，但不能把“已发布”当作“包含
+  当前分支新能力”的证据。
 - `packages/dsh-maker/` 与 `docs/DSH_PLUGIN.md` 已纳入 `scripts/release-scope.cjs` 的 maker
   归属，只改本插件的提交不会误触发主包发布。
 - 稳定版发布公开 npm 包 `@taptap/dsh-maker`；develop 预览版不写入 npm registry。

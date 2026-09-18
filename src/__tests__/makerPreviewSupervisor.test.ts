@@ -15,7 +15,12 @@ import {
 import { preflightPreview, PreviewRuntime } from '../maker/preview/runtime.js';
 import { ensurePreviewRuntimeResources } from '../maker/preview/runtimeResources.js';
 import { buildWindowsPreviewLaunchScripts } from '../maker/preview/processLauncher.js';
-import { previewStatus, requestPreview, runPreviewSupervisor } from '../maker/preview/session.js';
+import {
+  PreviewSession,
+  previewStatus,
+  requestPreview,
+  runPreviewSupervisor,
+} from '../maker/preview/session.js';
 import { runPreviewCli } from '../maker/cli/preview.js';
 
 jest.mock('node:child_process', () => ({
@@ -174,6 +179,14 @@ async function isClosed(): Promise<boolean> {
   );
 }
 
+function denyPersistence(filename: string): jest.SpyInstance {
+  const rename = fs.renameSync;
+  return jest.spyOn(fs, 'renameSync').mockImplementation((source, destination) => {
+    if (String(destination) === filename) throw new Error('ENOSPC: fixture disk full');
+    rename(source, destination);
+  });
+}
+
 async function callCli(
   action: string,
   runtimePath: string | null = path.join(root, 'runtime')
@@ -305,6 +318,188 @@ test('failed startup retires the real HTTP supervisor and retains verified failu
   ).toMatchObject({ state: 'failed', process_alive: false, supervisor_retired: true });
   expect(process.listeners('SIGTERM')).toEqual(signalListeners.get('SIGTERM'));
   expect(process.listeners('SIGINT')).toEqual(signalListeners.get('SIGINT'));
+});
+
+test.each(['session.json', 'result.json'])(
+  'stop reports %s persistence failure without rejecting or losing confirmed exit',
+  async (filename) => {
+    record = pendingRecord();
+    writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+    const session = new PreviewSession(record);
+    runtime.mode = 'running';
+    await session.start();
+    const denied = denyPersistence(
+      filename === 'session.json'
+        ? path.join(previewDirectory(project), filename)
+        : path.join(previewRoundDirectory(record), filename)
+    );
+    try {
+      await expect(session.stop()).resolves.toMatchObject({
+        state: 'stopped',
+        process_alive: false,
+        ok: false,
+        error: expect.stringContaining('ENOSPC'),
+      });
+    } finally {
+      denied.mockRestore();
+      await session.stop();
+    }
+  }
+);
+
+test('initial state persistence failure returns a retireable failure without creating Runtime', async () => {
+  record = pendingRecord();
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  const session = new PreviewSession(record);
+  const denied = denyPersistence(path.join(previewDirectory(project), 'session.json'));
+  try {
+    await expect(session.start()).resolves.toMatchObject({
+      state: 'failed',
+      ok: false,
+      error: expect.stringContaining('ENOSPC'),
+    });
+    expect(runtime.instances).toHaveLength(0);
+    expect(session.canRetireFailure).toBe(true);
+  } finally {
+    denied.mockRestore();
+  }
+});
+
+test.each(['fail', 'failed-alive'])(
+  'failure reporting preserves the launch error and live ownership when persistence fails (%s)',
+  async (mode) => {
+    record = pendingRecord();
+    writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+    const session = new PreviewSession(record);
+    runtime.mode = mode;
+    const rename = fs.renameSync;
+    const denied = jest.spyOn(fs, 'renameSync').mockImplementation((source, destination) => {
+      if (runtime.instances.length && String(destination).endsWith('.json'))
+        throw new Error('ENOSPC: fixture disk full');
+      rename(source, destination);
+    });
+    try {
+      const result = await session.start();
+      expect(result).toMatchObject({ state: 'failed', ok: false });
+      expect(result.error).toEqual(expect.stringContaining('fixture preparation failure'));
+      expect(result.error).toEqual(expect.stringContaining('ENOSPC'));
+      expect(session.canRetireFailure).toBe(mode === 'fail');
+      expect(runtime.instances[0].stops).toBe(0);
+    } finally {
+      denied.mockRestore();
+      await session.stop();
+    }
+  }
+);
+
+test.each(['stop', 'SIGTERM'])(
+  'confirmed %s closes the HTTP supervisor while session persistence remains unavailable',
+  async (action) => {
+    runtime.mode = 'running';
+    await boot();
+    await requestPreview(record, 'start');
+    const denied = denyPersistence(path.join(previewDirectory(project), 'session.json'));
+    try {
+      if (action === 'stop') {
+        expect(await requestPreview(record, 'stop')).toMatchObject({
+          state: 'stopped',
+          process_alive: false,
+          ok: false,
+          error: expect.stringContaining('ENOSPC'),
+        });
+      } else {
+        const listener = process
+          .listeners('SIGTERM')
+          .find((candidate) => !signalListeners.get('SIGTERM')!.includes(candidate));
+        expect(listener).toBeDefined();
+        listener!('SIGTERM');
+      }
+      await waitUntil(isClosed);
+      expect(process.listeners('SIGTERM')).toEqual(signalListeners.get('SIGTERM'));
+      expect(process.listeners('SIGINT')).toEqual(signalListeners.get('SIGINT'));
+      expect(await previewStatus(project)).toMatchObject({
+        process_alive: null,
+        supervisor_retired: false,
+      });
+    } finally {
+      denied.mockRestore();
+    }
+  }
+);
+
+test('crash callback persistence failure does not prevent failure retirement', async () => {
+  runtime.mode = 'running';
+  await boot();
+  await requestPreview(record, 'start');
+  const denied = denyPersistence(path.join(previewRoundDirectory(record), 'result.json'));
+  try {
+    expect(() => runtime.instances[0].crash()).not.toThrow();
+    expect(await requestPreview(record, 'status')).toMatchObject({
+      state: 'failed',
+      process_alive: false,
+      errors: ['fixture native crash'],
+      error: expect.stringContaining('ENOSPC'),
+    });
+    await waitUntil(isClosed);
+    expect(runtime.instances[0].stops).toBe(0);
+    expect(await previewStatus(project)).toMatchObject({
+      process_alive: null,
+      supervisor_retired: false,
+    });
+  } finally {
+    denied.mockRestore();
+  }
+});
+
+test('unconfirmed stop with persistence failure retains control and allows a later stop', async () => {
+  runtime.mode = 'running';
+  await boot();
+  await requestPreview(record, 'start');
+  const stop = jest
+    .spyOn(PreviewRuntime.prototype, 'stop')
+    .mockRejectedValue(new Error('TIMEOUT: owned Runtime did not exit.'));
+  const denied = denyPersistence(path.join(previewDirectory(project), 'session.json'));
+  try {
+    expect(await requestPreview(record, 'stop')).toMatchObject({
+      state: 'failed',
+      process_alive: true,
+      ok: false,
+      result: 'TIMEOUT',
+      error: expect.stringContaining('TIMEOUT'),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(await requestPreview(record, 'status')).toMatchObject({
+      state: 'failed',
+      process_alive: true,
+      error: expect.stringContaining('ENOSPC'),
+    });
+  } finally {
+    denied.mockRestore();
+    stop.mockRestore();
+  }
+  expect(await requestPreview(record, 'stop')).toMatchObject({
+    state: 'stopped',
+    process_alive: false,
+    ok: true,
+  });
+  await waitUntil(isClosed);
+});
+
+test.each([
+  [new Error('Expected preview control failure.'), 'Expected preview control failure.'],
+  ['Expected string failure.', 'Expected string failure.'],
+  [{ toString: (): string => 'private object diagnostics' }, 'Unexpected preview error.'],
+])('control endpoint only serializes safe error messages (case %#)', async (error, message) => {
+  await boot();
+  const handle = jest.spyOn(PreviewSession.prototype, 'handle').mockRejectedValueOnce(error);
+  try {
+    expect(await requestPreview(record, 'status')).toMatchObject({
+      ok: false,
+      error: message,
+    });
+  } finally {
+    handle.mockRestore();
+  }
 });
 
 test('a later native crash retires the supervisor without losing runtime error evidence', async () => {

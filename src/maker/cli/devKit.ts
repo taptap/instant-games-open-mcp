@@ -586,12 +586,28 @@ export function installAiDevKitSkills(
   targetDir: string,
   options: { onStart?: (event: AiDevKitSkillInstallerStart) => void } = {}
 ): AiDevKitSkillInstallerResult {
+  let result: AiDevKitSkillInstallerResult;
   try {
-    return runAiDevKitSkillScript(targetDir, options);
-  } finally {
-    // Older dev kits do not know about .agents; also fill it when their script is absent.
-    syncProjectSkills(targetDir, { client: '.agents' });
+    result = runAiDevKitSkillScript(targetDir, options);
+  } catch (error) {
+    try {
+      syncProjectSkills(targetDir, { client: '.agents' });
+    } catch (syncError) {
+      if (error instanceof Error) {
+        error.message = `${error.message}; .agents synchronization failed: ${formatError(syncError)}`;
+        throw error;
+      }
+      throw new Error(
+        `AI dev kit skill installer failed: ${formatError(error)}; ` +
+          `.agents synchronization failed: ${formatError(syncError)}`
+      );
+    }
+    throw error;
   }
+
+  // Older dev kits do not know about .agents; also fill it when their script is absent.
+  syncProjectSkills(targetDir, { client: '.agents' });
+  return result;
 }
 
 function runAiDevKitSkillScript(
@@ -827,6 +843,10 @@ function formatSpawnFailure(result: ReturnType<typeof spawnSync>): string {
     String(result.stdout || '').trim() ||
     `exit status ${result.status ?? 'unknown'}`
   );
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function formatDevKitSkillInstallerFailure(options: {

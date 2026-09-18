@@ -300,7 +300,13 @@ export class ConsoleTasks {
       } catch (error) {
         task.status = 'failed';
         task.error = String(
-          sanitizeDiagnosticValue(error instanceof Error ? error.message : String(error))
+          sanitizeDiagnosticValue(
+            error instanceof Error
+              ? error.message
+              : typeof error === 'string'
+                ? error
+                : 'Unexpected console task error.'
+          )
         ).slice(0, 8192);
       } finally {
         task.finishedAt = new Date().toISOString();

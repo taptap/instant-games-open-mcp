@@ -210,8 +210,9 @@ describe('Maker console lifecycle', () => {
         [
           `#!${process.execPath}`,
           `const fs=require('fs');`,
-          `fs.appendFileSync(${JSON.stringify(calls)},JSON.stringify(process.argv.slice(2))+'\\n');`,
-          `const timer=setInterval(()=>{ if(!fs.existsSync(${JSON.stringify(release)}))return; clearInterval(timer); const args=process.argv; process.stdout.write(args.includes('--show-current')?'main':args.includes('--verify')?'abc':args.includes('--is-shallow-repository')?'false':''); },20);`,
+          `const path=require('path');`,
+          `fs.appendFileSync(path.join(__dirname,'git-calls'),JSON.stringify(process.argv.slice(2))+'\\n');`,
+          `const timer=setInterval(()=>{ if(!fs.existsSync(path.join(__dirname,'release-git')))return; clearInterval(timer); const args=process.argv; process.stdout.write(args.includes('--show-current')?'main':args.includes('--verify')?'abc':args.includes('--is-shallow-repository')?'false':''); },20);`,
         ].join('\n'),
         { mode: 0o755 }
       );
