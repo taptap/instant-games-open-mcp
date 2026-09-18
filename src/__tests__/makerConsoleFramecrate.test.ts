@@ -45,7 +45,7 @@ setInterval(() => {}, 1000);
   function launcher(env: NodeJS.ProcessEnv = { ...process.env, FRAMECRATE_STUDIO_DIR: root }) {
     const instance = new FramecrateLauncher({
       env: { ...env, FIXTURE_VALUE: 'inherited' },
-      startTimeoutMs: 1000,
+      startTimeoutMs: 5000,
       stopTimeoutMs: 50,
     });
     launchers.push(instance);

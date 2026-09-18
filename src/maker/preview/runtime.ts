@@ -13,6 +13,7 @@ import { createPreviewSourceAlias } from './sourceAlias.js';
 export { previewWindow } from './windowSettings.js';
 
 export const PREVIEW_TIMEOUT_MS = 30000;
+const RUNTIME_STARTUP_SETTLE_MS = 3000;
 
 export async function probeRuntime(executable: string, signal?: AbortSignal): Promise<RuntimeInfo> {
   if (signal?.aborted) throw new Error('CANCELLED');
@@ -218,7 +219,7 @@ export class PreviewRuntime {
                 failed(error as Error);
               }
             }
-          }, 300);
+          }, RUNTIME_STARTUP_SETTLE_MS);
         });
       });
     } catch (error) {
