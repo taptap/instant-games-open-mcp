@@ -81,7 +81,11 @@ input,select{border:1px solid var(--border);border-radius:4px;padding:7px 10px;b
 input[type="checkbox"]{accent-color:var(--yellow);width:14px;height:14px}
 .top{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:18px 32px;background:var(--top);flex-wrap:wrap}
 .brand{font-size:18px;font-weight:600;display:flex;gap:10px;align-items:center}
-.mark{width:28px;height:28px;display:grid;place-items:center;color:#252820;background:var(--yellow);border-radius:4px}
+.mark{width:28px;height:28px;display:grid;place-items:center;color:#252820;background:var(--yellow);border:0;border-radius:4px;padding:0;font:inherit;font-weight:800;cursor:pointer;transition:transform .2s ease,background .2s ease}
+.mark:active{transform:scale(.94)}
+.mark.maker-easter-egg{color:var(--yellow);background:transparent;border-radius:0;position:relative;overflow:visible;font-family:"Arial Rounded MT Bold","Trebuchet MS",sans-serif;font-size:25px;font-weight:900;letter-spacing:0;line-height:1;animation:maker-mark-reveal 1.5s ease both}
+@keyframes maker-mark-reveal{0%{transform:scale(.9);opacity:.35}55%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+@media(prefers-reduced-motion:reduce){.mark,.mark.maker-easter-egg{animation:none;transition:none}}
 .toolbar,.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .toolbar select{max-width:380px;width:235px}
 .theme{display:flex;gap:7px;align-items:center;font-size:12px;color:var(--muted);white-space:nowrap}

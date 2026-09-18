@@ -82,6 +82,7 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
       consoleLogText, logView, tasksFor, loadFortuneFrame, logLineClass,
       showQrcode: typeof showQrcode === 'function' ? showQrcode : undefined,
       handleQrcodeCompletion: typeof handleQrcodeCompletion === 'function' ? handleQrcodeCompletion : undefined,
+      offerIssueReport, showPendingIssueReport,
       poll, pollState, sendActivity, startActivityLease, dispose, shutdownConsole, rememberTask, buildPresentation, buildFailureMessage,
       buildFailureDetails, luaLspPresentation, luaCheckBlocksBuild, runtimePresentation,
       previewPresentation: typeof previewPresentation === 'function' ? previewPresentation : undefined,
@@ -121,6 +122,82 @@ function harness(hash = '', search = '?project=alpha', storageAvailable = true) 
 }
 
 describe('Maker console standalone UI', () => {
+  it.each([false, true])(
+    'issue feedback submits only after confirmation=%s and prompts once',
+    async (confirmed) => {
+      const { api, fetch, context } = harness();
+      api.changeSelection('alpha');
+      api.setup([], { render: jest.fn(), notify: jest.fn() });
+      const elements = new Map<string, any>();
+      context.document.getElementById.mockImplementation(((id: string) => {
+        if (!elements.has(id)) {
+          const element: any = { open: false, textContent: '', returnValue: '' };
+          element.showModal = jest.fn(() => {
+            element.open = true;
+          });
+          element.addEventListener = (_event: string, callback: () => Promise<void>) => {
+            element.close = async () => {
+              element.open = false;
+              await callback();
+            };
+          };
+          elements.set(id, element);
+        }
+        return elements.get(id);
+      }) as never);
+      const task = {
+        id: 'failed-preview',
+        projectKey: 'alpha',
+        action: 'preview.start',
+        status: 'failed',
+        reportOffer: { category: 'runtime', fingerprint: 'fingerprint-a' },
+      };
+      api.offerIssueReport({ ...task, projectKey: 'beta', id: 'other-project' });
+      api.showPendingIssueReport();
+      expect(elements.get('confirm').open).toBe(false);
+      api.offerIssueReport(task);
+      elements.get('confirm').open = true;
+      api.showPendingIssueReport();
+      expect(elements.get('confirm').showModal).not.toHaveBeenCalled();
+      elements.get('confirm').open = false;
+      api.showPendingIssueReport();
+      expect(elements.get('confirm').showModal).toHaveBeenCalledTimes(1);
+      expect(fetch).not.toHaveBeenCalled();
+      expect(elements.get('confirm-message').textContent).toContain('脱敏');
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        json: async () => ({ ...task, report: { status: 'running' } }),
+      });
+      elements.get('confirm').returnValue = confirmed ? 'accept' : 'cancel';
+      await elements.get('confirm').close();
+      expect(fetch).toHaveBeenCalledTimes(confirmed ? 1 : 0);
+      if (confirmed) {
+        expect(fetch.mock.calls[0][0]).toBe('/api/tasks/failed-preview/report');
+        expect(JSON.parse(fetch.mock.calls[0][1].body!)).toEqual({ consent: true });
+        expect(api.busy('alpha')).toBe(true);
+      }
+      api.offerIssueReport({ ...task, id: 'same-error-again' });
+      api.showPendingIssueReport();
+      expect(elements.get('confirm').showModal).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('records a preview preflight failure so it can use the normal feedback flow', async () => {
+    const { api, fetch } = harness();
+    api.setup([{ key: 'alpha', valid: true, name: 'Alpha', path: '/tmp/alpha' }], {
+      render: jest.fn(),
+      notify: jest.fn(),
+      announce: jest.fn(),
+    });
+    api.changeSelection('alpha');
+    fetch.mockRejectedValueOnce(new Error('preview status timeout'));
+    await api.runAction('preview.start');
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/projects/alpha/preview?check_server_changes=1',
+      expect.anything()
+    );
+  });
   it('clears the selected log without stopping the task and shows subsequent output', () => {
     const { api, fetch } = harness();
     api.setup([], { render: jest.fn(), notify: jest.fn(), announce: jest.fn() });

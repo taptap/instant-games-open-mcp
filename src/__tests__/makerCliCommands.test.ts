@@ -3652,6 +3652,35 @@ describe('Maker CLI commands', () => {
     expect(spawnSyncMock).not.toHaveBeenCalledWith('gh', expect.any(Array), expect.any(Object));
   });
 
+  test('console reports reuse submission without launching another MCP verification', async () => {
+    const iterator = jest.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(() =>
+      (async function* () {
+        yield JSON.stringify({
+          source: 'console',
+          category: 'runtime',
+          summary: 'Preview timeout',
+          error_message: 'TIMEOUT: supervisor',
+        });
+      })()
+    );
+    try {
+      await runMakerCli([
+        'mcp',
+        'report',
+        '--target-dir',
+        tempDir,
+        '--context-stdin',
+        '--consent',
+        '--json',
+      ]);
+    } finally {
+      iterator.mockRestore();
+    }
+    const result = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(result.title).toBe('[UrhoX Runtime] Preview timeout');
+    expect(verifyMakerMcpLauncherMock).not.toHaveBeenCalled();
+    expect(result.body).toContain('not_applicable');
+  });
   test('mcp report never starts GitHub submission without explicit consent', async () => {
     const stdinIterator = jest.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(() =>
       (async function* () {

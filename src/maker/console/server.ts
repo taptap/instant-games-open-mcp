@@ -217,16 +217,32 @@ export async function startConsoleServer(options: {
         json(202, task);
         return;
       }
+      if (request.method === 'POST' && url.pathname === '/api/tasks/failure') {
+        const body = await bodyForMutation();
+        if (
+          typeof body.projectKey !== 'string' ||
+          typeof body.action !== 'string' ||
+          typeof body.error !== 'string'
+        )
+          throw new ConsoleError('Project, action, and error are required.');
+        const task = tasks.recordFailure(body.projectKey, body.action as ConsoleAction, body.error);
+        touch();
+        json(202, task);
+        return;
+      }
       if (request.method === 'POST' && url.pathname === '/api/shutdown') {
         await bodyForMutation();
-        if (
-          selectingFolder ||
-          updates.job.status === 'running' ||
-          tasks.list().some((task) => task.status === 'running')
-        )
+        if (selectingFolder || updates.job.status === 'running' || tasks.active)
           throw new ConsoleError('Wait for active tasks before stopping the console.', 409);
         json(200, { ok: true });
         setImmediate(() => void close());
+        return;
+      }
+      const report = url.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)\/report$/);
+      if (request.method === 'POST' && report) {
+        const body = await bodyForMutation();
+        json(202, tasks.report(report[1], body.consent));
+        touch();
         return;
       }
       const task = url.pathname.match(/^\/api\/tasks\/([a-f0-9-]+)$/);
@@ -330,7 +346,7 @@ export async function startConsoleServer(options: {
         now() - lastActivity >= idleMs &&
         !selectingFolder &&
         updates.job.status !== 'running' &&
-        !tasks.list().some((task) => task.status === 'running') &&
+        !tasks.active &&
         !plugins.active
       )
         void close();

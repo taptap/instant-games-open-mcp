@@ -1,5 +1,6 @@
 import type { MakerQrcodePublication } from '../qrcodePreflight.js';
 import type { MakerQrcodeInteraction, MakerQrcodeRecovery } from '../qrcodeInteraction.js';
+import type { MakerIssueCategory, MakerMcpReportContext } from '../cli/mcpIssueReport.js';
 
 export interface ConsoleProject {
   key: string;
@@ -27,6 +28,8 @@ export interface ConsoleProgress {
   total?: number;
 }
 export interface ConsoleTask {
+  reportOffer?: { category: MakerIssueCategory; fingerprint: string };
+  report?: { status: 'running' | 'created' | 'unavailable' | 'unknown'; issue_url?: string };
   id: string;
   projectKey: string;
   projectName: string;
@@ -46,7 +49,8 @@ export interface ConsoleTask {
 }
 export type ConsoleExecutor = (options: {
   project: string;
-  action: ConsoleAction | 'preview.status' | 'preview.logs';
+  action: ConsoleAction | 'preview.status' | 'preview.logs' | 'issue.report';
+  reportContext?: MakerMcpReportContext;
   onOutput: (text: string) => void;
   onProgress?: (progress: ConsoleProgress) => void;
   signal?: AbortSignal;

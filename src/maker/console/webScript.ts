@@ -423,10 +423,48 @@ const pending = new Set();
 const pendingActions = new Map();
 const pluginSessions = new Map();
 const acceptedTasks = new Map();
+const pendingReports = new Map();
+const offeredReports = new Set();
+function offerIssueReport(task) {
+  if (!task.reportOffer || task.report || offeredReports.has(task.reportOffer.fingerprint)) return;
+  pendingReports.set(task.id,task);
+  if (pendingReports.size > 100) pendingReports.delete(pendingReports.keys().next().value);
+}
+function showPendingIssueReport() {
+  if (offline || disposed || consoleDialogOpen()) return;
+  const task = Array.from(pendingReports.values()).find(item => item.projectKey === selected);
+  if (!task) return;
+  pendingReports.delete(task.id);
+  if (offeredReports.has(task.reportOffer.fingerprint)) return;
+  offeredReports.add(task.reportOffer.fingerprint);
+  const dialog = $('confirm');
+  $('confirm-title').textContent = '提交问题反馈？';
+  $('confirm-message').textContent = (task.action.startsWith('preview.') ? '本地预览遇到异常。' : '操作遇到异常。') +
+    '是否提交问题反馈，帮助我们定位修复？将附带脱敏后的错误、日志和环境信息。';
+  $('confirm-accept').textContent = '确认提交';
+  dialog.returnValue = 'cancel';
+  dialog.addEventListener('close',async () => {
+    if (dialog.returnValue !== 'accept') return;
+    try {
+      const updated = await api('/api/tasks/' + encodeURIComponent(task.id) + '/report',{
+        method:'POST',body:{consent:true}
+      });
+      rememberTask(updated);
+      const index = state.tasks.findIndex(item => item.id === updated.id);
+      if (index >= 0) state.tasks[index] = updated;
+      if (updated.projectKey === selected) { updateChrome(); updateBuild(); notify('正在提交问题反馈…','info'); }
+    } catch (error) { notify('问题反馈未提交：' + error.message); }
+  },{once:true});
+  dialog.showModal();
+}
 const windowDrafts = new Map();
 function rememberTask(task) {
   const previous = acceptedTasks.get(task.id);
   acceptedTasks.set(task.id,task);
+  if (previous?.report?.status === 'running' && task.report?.status !== 'running' && task.projectKey === selected)
+    notify(task.report?.status === 'created' ? '问题反馈已提交，谢谢。' :
+      task.report?.status === 'unknown' ? '反馈提交结果未知，请勿重复提交。' :
+      '反馈未能自动提交，请检查 GitHub CLI 登录状态及网络。',task.report?.status === 'created' ? 'success' : 'error');
   const projectTasks = Array.from(acceptedTasks.values()).reverse()
     .filter(item => item.projectKey === task.projectKey)
     .sort((a,b) => String(b.startedAt).localeCompare(String(a.startedAt)));
@@ -552,7 +590,7 @@ function tasksFor(key) {
   acceptedTasks.forEach(t => { if (t.projectKey === key && !tasks.has(t.id)) tasks.set(t.id, t); });
   return Array.from(tasks.values()).sort((a,b) => String(b.startedAt).localeCompare(String(a.startedAt))).slice(0,10);
 }
-function busy(key = selected) { return pending.has(key) || tasksFor(key).some(t => t.status === 'running'); }
+function busy(key = selected) { return pending.has(key) || tasksFor(key).some(t => t.status === 'running' || t.report?.status === 'running'); }
 function actionBusy(action, key = selected) {
   return pendingActions.get(key) === action ||
     tasksFor(key).some(task => task.action === action && task.status === 'running');
@@ -1291,6 +1329,16 @@ function taskBlock(task, open = false) {
     node('time',date(task.startedAt)));
   const meta = node('p','项目：' + text(task.projectName) + ' · 任务：' + text(task.id),'task-meta muted');
   d.append(summary,meta);
+  if (task.report) {
+    const labels = {running:'正在提交问题反馈…',created:'问题反馈已提交',unavailable:'反馈未能自动提交，请检查 GitHub CLI 登录状态及网络。',unknown:'反馈提交结果未知，请勿重复提交。'};
+    shortcuts.append(node('span',labels[task.report.status] || '反馈状态未知','muted'));
+    if (task.report.status === 'running') shortcuts.append(node('span',undefined,'loading-spinner'));
+    if (task.report.status === 'created' && /^https:\/\/github\.com\/taptap\/instant-games-open-mcp\/issues\/\d+$/.test(task.report.issue_url || '')) {
+      const link = node('a','查看反馈','preview-link');
+      link.href = task.report.issue_url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      shortcuts.append(link);
+    }
+  }
   if (task.interaction?.kind === 'select_developer' && task.projectKey === selected &&
       tasksFor(task.projectKey).find(item => item.action === 'qrcode')?.id === task.id) {
     shortcuts.append(button('选择开发者并继续',() => void runAction('qrcode',{sourceTaskId:task.id}),{
@@ -1650,6 +1698,7 @@ function luaCheckBlocksBuild(task) {
 async function runAction(action, options = {}) {
   const key = selected, epoch = selectionEpoch;
   const project = currentProject();
+  let preflight = false;
   if (!project?.valid || busy(key) || !Object.hasOwn(actionLabels,action)) return;
   if (action === 'build' || action === 'lua-lsp.check') logView().tab = action === 'build' ? 'build' : 'lua';
   pending.add(key); pendingActions.set(key,action); updateChrome(); updateBuild();
@@ -1700,6 +1749,7 @@ async function runAction(action, options = {}) {
     }
     if (action !== 'build' && action !== 'lua-lsp.check') {
       const checkServerChanges = action === 'preview.start' || action === 'preview.refresh';
+      preflight = ['preview.start','preview.refresh','preview.install'].includes(action);
       const status = await api(projectPath(key,checkServerChanges ? '/preview?check_server_changes=1' : '/preview'));
       if (selectionMatches(key,epoch)) preview = status;
       if (!previewActions(status).includes(action)) throw new Error(text(status.error,'预览状态已改变，请重新检测后操作。'));
@@ -1752,6 +1802,21 @@ async function runAction(action, options = {}) {
     }
   } catch (error) {
     if (selectionMatches(key,epoch)) notify(error.message);
+    const reportablePreflight = /timeout|timed out|HTTP 5\d\d|internal.*error|unverifiable|unexpected|connection closed/i
+      .test(String(error?.message || error));
+    if (preflight && reportablePreflight && selectionMatches(key,epoch)) {
+      try {
+        const failed = await api('/api/tasks/failure',{
+          method:'POST',
+          body:{projectKey:key,action,error:String(error?.message || error)}
+        });
+        rememberTask(failed);
+        offerIssueReport(failed);
+        showPendingIssueReport();
+      } catch {
+        // The original preflight error remains visible when the local task record cannot be saved.
+      }
+    }
   } finally {
     pending.delete(key);
     pendingActions.delete(key);
@@ -1768,6 +1833,7 @@ async function pollTask(id,key,epoch) {
     const task = await api('/api/tasks/' + encodeURIComponent(id));
     if (task.projectKey !== key || task.id !== id) throw new Error('任务身份不一致');
     rememberTask(task);
+    if (prior?.status === 'running' && task.status !== 'running') offerIssueReport(task);
     const index = state.tasks.findIndex(t => t.id === id);
     if (index >= 0) state.tasks[index] = task; else state.tasks.push(task);
     if (!selectionMatches(key,epoch)) return task;
@@ -1777,6 +1843,7 @@ async function pollTask(id,key,epoch) {
       await refreshPreview();
       if (selectionMatches(key,epoch)) handleQrcodeCompletion(task);
     }
+    showPendingIssueReport();
     return task;
   } catch (error) { if (selectionMatches(key,epoch)) notify(error.message); }
 }
@@ -1954,10 +2021,12 @@ async function pollState() {
       Object.assign(task,prior);
     } else if (prior) rememberTask(task);
     if (task.projectKey === selected && previousTasks.get(task.id) === 'running' && task.status !== 'running') {
+      offerIssueReport(task);
       announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
       handleQrcodeCompletion(task);
     }
   });
+  showPendingIssueReport();
   $('version').textContent = 'Maker ' + text(state.version) + ' · ' + text(state.distribution,'独立发行') + ' · ' + text(state.platform);
   renderVersionPicker();
   $('connection').textContent = '已连接';
@@ -1995,6 +2064,19 @@ async function poll() {
   }
 }
 document.addEventListener('DOMContentLoaded',async () => {
+  let makerMarkClicks = 0;
+  let makerMarkTimer;
+  $('maker-mark').addEventListener('click',() => {
+    makerMarkClicks += 1;
+    clearTimeout(makerMarkTimer);
+    if (makerMarkClicks >= 3) {
+      $('maker-mark').classList.add('maker-easter-egg');
+      $('maker-mark').setAttribute('aria-label','Maker 控制台彩蛋已触发');
+      makerMarkClicks = 0;
+      return;
+    }
+    makerMarkTimer = setTimeout(() => { makerMarkClicks = 0; },1000);
+  });
   window.addEventListener('message',event => {
     for (const session of pluginSessions.values()) {
       if (!pluginMessageMatches(event,session)) continue;
