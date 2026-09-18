@@ -79,6 +79,10 @@ Runtime 参数仅携带用户标识和测试服路由。停止只关闭本地 Ru
 
 ## 平台与排障
 
+- Windows Runtime 通过本轮独占的 TEMP 短路径 junction 访问受管理副本，避免较长的 Maker home
+  使 `scripts/main.lua` 超过 Runtime 的路径限制。停止并确认 Runtime 退出后只移除映射，
+  原项目、准备产物和日志保留；无法建立映射或 TEMP 本身过长时明确报错，不启动失效预览。
+
 - macOS 通过会话内本机只读资源服务，将本轮 client manifest 交给 Runtime 的 `game_url`；
   Windows 使用本地 manifest 入口，仍需 Windows 实机验收。
 - Windows 预览 supervisor 与控制台复用 PowerShell/CIM 后台启动器，避免依赖 AI IDE
