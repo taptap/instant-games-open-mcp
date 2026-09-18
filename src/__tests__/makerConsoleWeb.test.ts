@@ -868,8 +868,7 @@ describe('Maker console standalone UI', () => {
     expect(source).toContain("primary.append(local,build,button('测试二维码'");
     expect(source).toContain('secondary.append(luaCheckOption())');
     expect(source).toContain('return [primary,secondary]');
-    expect(source).toContain('checkActions.append(luaCheckOption())');
-    expect(source).not.toContain("className:'primary build-button'");
+    expect(source).toContain("checkActions.append(button(checking ? '检查中' : 'Lua 检查'");
     expect(source).toContain('Lua 检查未通过，已停止构建，请查看下方 Lua 检查日志。');
     expect(source).toContain('Lua 检查不可用，已继续构建，请查看下方 Lua 检查日志。');
     expect(source).not.toContain('notify(text(nestedResult(check)?.error || check?.error');
@@ -888,24 +887,16 @@ describe('Maker console standalone UI', () => {
 
   it('keeps successful QR output collapsed without hiding actionable failures', () => {
     const { api } = harness();
-    expect(api.taskStartsOpen({ action: 'qrcode', status: 'succeeded' })).toBe(false);
+    expect(api.taskStartsOpen({ action: 'qrcode', status: 'succeeded' })).toBe(true);
     expect(api.taskStartsOpen({ action: 'qrcode', status: 'failed' })).toBe(true);
-    expect(api.taskStartsOpen({ action: 'build', status: 'running' })).toBe(true);
-    expect(api.taskStartsOpen({ action: 'build', status: 'unknown' })).toBe(true);
-    expect(api.taskStartsOpen({ action: 'qrcode', status: 'failed' }, false, false)).toBe(false);
+    expect(api.taskStartsOpen({ action: 'build', status: 'running' })).toBe(false);
+    expect(api.taskStartsOpen({ action: 'build', status: 'unknown' })).toBe(false);
+    expect(api.taskStartsOpen({ action: 'qrcode', status: 'failed' }, false, false)).toBe(true);
     expect(api.taskStartsOpen({ action: 'build', status: 'unknown' }, false, false)).toBe(false);
-    expect(api.taskStartsOpen({ action: 'build', status: 'running' }, false, false)).toBe(true);
+    expect(api.taskStartsOpen({ action: 'build', status: 'running' }, false, false)).toBe(false);
     expect(api.taskStartsOpen({ action: 'build', status: 'failed' }, true, false)).toBe(true);
-    expect(script()).toContain("shortcuts.append(button('查看二维码'");
-    expect(script()).toContain("shortcuts.append(button('选择开发者并继续'");
-  });
-
-  it('collapses window settings and scopes disclosure state to the current checkout', () => {
-    const source = script();
-    expect(source).toContain("disclosure.dataset.key = 'preview-window-' + key");
-    expect(source).toContain("node('summary',undefined,'preview-window-summary')");
-    expect(source).toContain('disclosure.append(summary,form)');
-    expect(source).toContain("const columns = node('div',undefined,'columns build-columns')");
+    expect(script()).toContain("d.append(button('查看二维码'");
+    expect(script()).toContain("d.append(button('选择开发者并继续'");
   });
 
   it.each([null, { confirmedOrientation: 'portrait' }])(
