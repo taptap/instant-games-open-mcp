@@ -36,23 +36,26 @@ node "$DSH_TAPTAP_MAKER_BIN" <subcommand>
 `npx -y --package @taptap/maker@<版本> taptap-maker <cmd>`（版本取本插件 `package.json` 里
 `@taptap/maker` 的依赖版本）。
 
-高频开发循环（状态 / 构建 / 提交 / 预览 / 素材）一律用 MCP 工具，不要为这些操作找 CLI。
+高频远端开发循环（状态 / 构建 / 提交 / 推送 / 远端预览 / 素材）一律用 MCP 工具；
+本地控制台和本地窗口预览使用插件提供的 CLI。
 
 ## 意图 → 工作流
 
-| 用户意图                             | 工作流                                                                                        |
-| ------------------------------------ | --------------------------------------------------------------------------------------------- |
-| 初始化 / 配置 / 继续 Maker 本地开发  | 运行 `node "$DSH_TAPTAP_MAKER_BIN" init --skip-mcp-install`（插件已提供 MCP，不重复安装）     |
-| clone / 下载 Maker 项目              | 走"初始化流程"（`init --skip-mcp-install`），不要直接索要 app_id                              |
-| 状态 / 是否就绪                      | 调 `maker_status_lite`（传 `target_dir`），再按 `AGENTS.md` 与 remote sync 提示处理           |
-| 升级 Maker 插件                      | 走 DSH 插件渠道：`dsh plugin --profile <profile> update @taptap/dsh-maker`，不跑独立 MCP 安装 |
-| 升级旧项目策略 / 工程 AGENTS 块      | 跑 `node "$DSH_TAPTAP_MAKER_BIN" agents update --target-dir <当前游戏工程目录>`               |
-| 提交 / 推送 / 构建                   | 先检查本地 Git 状态与改动摘要，再调 `maker_build_current_directory`                           |
-| 拉取 / 更新                          | 先看本地改动；工作区有未提交内容时，先说明选项再拉取                                          |
-| 冲突 / 合并失败                      | 解释冲突原因、列出冲突文件、查看冲突 hunk、给出方案并询问后再改                               |
-| 构建 / 预览 / 跑一下 / 看效果        | 用 `maker_build_current_directory`（成功后自动拉起本地运行时日志 watcher）                    |
-| 验证代码 / 跑测试 / lint             | 不触发 Maker 远程构建，除非用户明确要求构建/运行/预览                                         |
-| MCP 不可用 / proxy 超时 / 服务端错误 | 先证据诊断；疑似 MCP/proxy/客户端/服务缺陷时，询问用户一次后脱敏上报                          |
+| 用户意图                             | 工作流                                                                                                           |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ----- | ------- | -------------------------------------------------- |
+| 初始化 / 配置 / 继续 Maker 本地开发  | 运行 `node "$DSH_TAPTAP_MAKER_BIN" init --skip-mcp-install`（插件已提供 MCP，不重复安装）                        |
+| clone / 下载 Maker 项目              | 走"初始化流程"（`init --skip-mcp-install`），不要直接索要 app_id                                                 |
+| 状态 / 是否就绪                      | 调 `maker_status_lite`（传 `target_dir`），再按 `AGENTS.md` 与 remote sync 提示处理                              |
+| 升级 Maker 插件                      | 走 DSH 插件渠道：`dsh plugin --profile <profile> update @taptap/dsh-maker`，不跑独立 MCP 安装                    |
+| 升级旧项目策略 / 工程 AGENTS 块      | 跑 `node "$DSH_TAPTAP_MAKER_BIN" agents update --target-dir <当前游戏工程目录>`                                  |
+| 打开本地控制台                       | 运行 `node "$DSH_TAPTAP_MAKER_BIN" console open --target-dir <PROJECT> --json`；只打开本机入口，不触发构建或预览 |
+| 本地预览 / 刷新 / 停止               | 用 `node "$DSH_TAPTAP_MAKER_BIN" preview <status                                                                 | start | refresh | stop> --target-dir <PROJECT> --json`，不走远端构建 |
+| 提交 / 推送 / 构建                   | 先检查本地 Git 状态与改动摘要，再调 `maker_build_current_directory`                                              |
+| 拉取 / 更新                          | 先看本地改动；工作区有未提交内容时，先说明选项再拉取                                                             |
+| 冲突 / 合并失败                      | 解释冲突原因、列出冲突文件、查看冲突 hunk、给出方案并询问后再改                                                  |
+| 构建 / 预览 / 跑一下 / 看效果        | 用 `maker_build_current_directory`（成功后自动拉起本地运行时日志 watcher）                                       |
+| 验证代码 / 跑测试 / lint             | 不触发 Maker 远程构建，除非用户明确要求构建/运行/预览                                                            |
+| MCP 不可用 / proxy 超时 / 服务端错误 | 先证据诊断；疑似 MCP/proxy/客户端/服务缺陷时，询问用户一次后脱敏上报                                             |
 
 ## 新建项目
 
@@ -64,6 +67,9 @@ node "$DSH_TAPTAP_MAKER_BIN" <subcommand>
 ## 构建 / 提交策略（覆盖通用 Git 流程）
 
 - 绑定 Maker 项目（存在 `.maker-mcp/config.json`）时，提交/推送/构建/预览一律走 `maker_build_current_directory`。
+- 打开本地控制台和窗口预览是本地 CLI 能力，不提交、不推送、不启动远端构建。
+- 本地窗口预览不要求 Git clean；联网项目只复用已有 Maker 登录和远端测试版本，不自动上传
+  Server 代码。Server 改动必须显式执行远端构建后才生效。
 - 不要为 Maker 提交/构建建 feature 分支、task 分支或 PR/MR，不要用通用 git commit/push 作为替代。
 - `maker_build_current_directory` 拥有安全门：提交前校验 remote sync，本地落后/分叉/不在 main/无法验证时会阻止。
 - 根 `.gitignore` 是必需文件；绑定后若有变化，随游戏改动一起提交并在摘要中说明。

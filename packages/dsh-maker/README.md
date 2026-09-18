@@ -81,7 +81,15 @@ dsh --profile web --dump-config | grep -A 20 'mcp-taptap-maker\|taptap-maker'
 - 一次性初始化（登录 / 选 app / clone）走 `node "$DSH_TAPTAP_MAKER_BIN" init`（该变量由本插件
   注入；若运行在未装本插件的客户端才退回
   `npx -y --package @taptap/maker@<版本> taptap-maker init`）。
-  高频开发循环（状态 / 构建 / 提交 / 预览）用 MCP 工具，不要重造 CLI/API。
+  高频远端开发循环（状态 / 构建 / 提交 / 推送 / 远端预览）用 MCP 工具，不要重造 CLI/API。
+  本地控制台和本地窗口预览使用插件提供的 CLI：
+
+  ```bash
+  node "$DSH_TAPTAP_MAKER_BIN" console open --target-dir <PROJECT> --json
+  node "$DSH_TAPTAP_MAKER_BIN" preview start --target-dir <PROJECT> --json
+  ```
+
+  本地预览不会提交、推送或自动启动远端构建；联网项目只复用已有登录和测试版本。
 
 ## 配置（可选覆盖）
 
@@ -120,7 +128,10 @@ dsh plugin --profile web remove @taptap/dsh-maker
   `dsh-skill-filesystem` / `dsh-shell-env`（`^0.1.0-rc.6`，peer 锁定，随 DSH rc 版本同步升级）。
 - Maker MCP 由随包依赖的 `@taptap/maker` 提供；精确版本以本包 `package.json` 的依赖值为准，并与
   仓库 `config/maker-version-policy.json` 的对应渠道一致。升级 Maker 时同步 bump 本包依赖并随
-  插件发版。
+  插件发版；不要让 DSH 运行时自行解析 npm `latest`。
+- Codex 和 WorkBuddy 不读取本包版本，也不共享本包的安装方式；它们通过各自插件市场更新。
+- 只更新 Skill 不需要更换 Maker MCP；涉及控制台、Runtime、二维码或 CLI 行为时，必须使用包含
+  对应 `@taptap/maker` 版本的 DSH 插件包。
 
 ## 发布与市场
 
