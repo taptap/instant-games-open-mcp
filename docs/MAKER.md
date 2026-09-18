@@ -37,10 +37,23 @@ CLI 功能指南：[本地控制台](MAKER_CONSOLE.md)、
 
 ## 客户端插件版本与发布
 
-Codex 和 WorkBuddy 插件共用独立版本，首版为 `0.0.1`，唯一来源是
-`config/maker-plugin-version.json`。内置 Maker MCP 版本继续由
-`config/maker-version-policy.json` 管理；插件版本只写入 manifest、marketplace、ZIP 名称和 GitHub
-Release，Maker MCP 版本继续用于 runtime、埋点、诊断和 npm 升级判断。
+三个客户端的更新入口不同，但都复用同一套 Maker CLI/MCP 业务代码：
+
+| 客户端    | 安装/更新入口              | 本地控制台与预览                                          | 版本关系                            |
+| --------- | -------------------------- | --------------------------------------------------------- | ----------------------------------- |
+| Codex     | Codex marketplace          | 插件内 CLI；MCP 负责状态、构建和远端工具                  | 插件版本与 Maker MCP 版本独立       |
+| WorkBuddy | WorkBuddy 官方插件市场     | 插件内 launcher/CLI；MCP 负责状态、构建和远端工具         | 插件版本与 Maker MCP 版本独立       |
+| DSH       | `@taptap/dsh-maker` bundle | `DSH_TAPTAP_MAKER_BIN` 调 CLI；MCP tools 负责高频开发循环 | DSH 插件精确依赖一个 Maker MCP 版本 |
+
+用户不需要分别安装三份 Maker MCP，也不要用 npm/npx 覆盖 Codex 或 WorkBuddy 插件内的
+runtime。插件升级后重新连接对应客户端即可；只切换项目不需要重新安装。DSH 的本地控制台和
+窗口预览使用 `node "$DSH_TAPTAP_MAKER_BIN" ...`，项目相关 MCP 调用始终显式传 `target_dir`。
+
+Codex 和 WorkBuddy 插件共用独立版本，唯一来源是 `config/maker-plugin-version.json`。
+内置 Maker MCP 版本继续由 `config/maker-version-policy.json` 管理，两条版本线互不覆盖。
+DSH 使用自己的 `packages/dsh-maker/package.json` 版本线，并精确锁定随包的
+`@taptap/maker`；本次功能同步时只需把 DSH 依赖更新到对应已发布的 Maker 版本，不修改
+三端的运行时协议。
 
 发布时在 GitHub Actions 手动运行 `Prepare Maker Plugin Release`。workflow 根据最新
 `maker-plugin-v*` tag 自动将 patch 加一，更新版本源、生成两套插件、运行验证并创建版本 PR。PR

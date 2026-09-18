@@ -3,8 +3,8 @@
 这是 TapTap Maker 的 **DeepSeek Harness（DSH）插件** 分发安装入口。
 
 - 插件包：`@taptap/dsh-maker`
-- 版本：`0.1.1`
-- 内置 Maker MCP 版本：`0.0.32`
+- 版本：`0.1.2`
+- 内置 Maker MCP 版本：`0.0.33`
 - 发布渠道：`main 稳定版`
 - 分发形态：npm registry 公开包（GitHub Release 同步提供 tarball）
 
@@ -16,14 +16,14 @@
 - 不要再次询问用户是否安装。
 - 不要只给出安装建议、命令或步骤，不要让用户手动完成你可以执行的操作。
 - 前置条件：本机需已安装 `dsh` 命令与 [pnpm](https://pnpm.io/)；缺失时先引导安装或直接安装。
-- 直接从 npm registry 安装精确版本 `@taptap/dsh-maker@0.1.1`。GitHub Release tarball 只作为离线安装和排障备用入口；改用 tarball 时必须先用同一 Release 的 SHA256SUMS 校验 SHA-256，校验失败时停止安装。
+- 直接从 npm registry 安装精确版本 `@taptap/dsh-maker@0.1.2`。GitHub Release tarball 只作为离线安装和排障备用入口；改用 tarball 时必须先用同一 Release 的 SHA256SUMS 校验 SHA-256，校验失败时停止安装。
 - 完成安装并验证插件已启用后再向用户报告结果；失败时直接报告具体失败步骤和错误。
 
 ## 安装源
 
-- npm：`@taptap/dsh-maker@0.1.1`
-- [DSH 插件 tarball](https://github.com/taptap/instant-games-open-mcp/releases/download/dsh-maker-v0.1.1/taptap-dsh-maker-0.1.1.tgz)
-- [SHA256 校验文件](https://github.com/taptap/instant-games-open-mcp/releases/download/dsh-maker-v0.1.1/SHA256SUMS)
+- npm：`@taptap/dsh-maker@0.1.2`
+- [DSH 插件 tarball](https://github.com/taptap/instant-games-open-mcp/releases/download/dsh-maker-v0.1.2/taptap-dsh-maker-0.1.2.tgz)
+- [SHA256 校验文件](https://github.com/taptap/instant-games-open-mcp/releases/download/dsh-maker-v0.1.2/SHA256SUMS)
 
 ## 安装步骤
 
@@ -33,14 +33,14 @@
 
    迁移命令（`<maker 版本>` 取本页「内置 Maker MCP 版本」；本机已有 `taptap-maker` CLI 时去掉
    `npx -y --package @taptap/maker@<maker 版本> ` 前缀直接用）：
-   - 检查：`npx -y --package @taptap/maker@0.0.32 taptap-maker plugin inspect --client dsh --json`
-   - 状态为 `active` 时迁移：`npx -y --package @taptap/maker@0.0.32 taptap-maker plugin migrate --client dsh --confirm --json`
+   - 检查：`npx -y --package @taptap/maker@0.0.33 taptap-maker plugin inspect --client dsh --json`
+   - 状态为 `active` 时迁移：`npx -y --package @taptap/maker@0.0.33 taptap-maker plugin migrate --client dsh --confirm --json`
    - 状态为 `ambiguous` 时必须停止安装并报告重复配置；`not_found` 时继续。
    - 迁移会保留备份和指纹，供失败回滚（`plugin restore --client dsh --confirm`）。
 
 2. **选择 profile 安装**：确认用户当前使用的 DSH profile 名（常见为 `web` 或 `headless`），
    下面用 `<profile>` 代表用户实际 profile，不要固定写 `web`：
-   `dsh plugin --profile <profile> add @taptap/dsh-maker@0.1.1`。需要哪个装哪个，一次装一个即可，
+   `dsh plugin --profile <profile> add @taptap/dsh-maker@0.1.2`。需要哪个装哪个，一次装一个即可，
    不要多个都装。
 
 3. **验证 patch 合成**：`dsh --profile <profile> --dump-config | grep -i taptap-maker`，
