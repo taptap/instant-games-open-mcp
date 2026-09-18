@@ -11,7 +11,7 @@ import { DEFAULT_DOWNLOAD_FETCH_TIMEOUT_MS, fetchWithTimeout } from '../fetchTim
 import { identifyMakerProject } from '../server/identify.js';
 import { loadJwt, loadPat } from '../storage.js';
 
-const USER_SKILL_CLIENT_DIRS = ['.codex', '.cursor', '.workbuddy'] as const;
+const USER_SKILL_CLIENT_DIRS = ['.codex', '.cursor', '.workbuddy', '.agents'] as const;
 const MAX_ARCHIVE_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES = 1000;
 const MAX_ARCHIVE_EXTRACTED_BYTES = 128 * 1024 * 1024;

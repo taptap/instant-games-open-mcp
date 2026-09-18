@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { getMakerHome } from '../storage.js';
+import { getMakerHome, loadProjectConfig } from '../storage.js';
+import { previewEntryName, readPreviewConfiguration } from './configuration.js';
 import { checkMakerPythonEnvironment, setupMakerPythonEnvironment } from '../system/python.js';
 import { previewDirectory } from './protocol.js';
 import {
@@ -152,6 +153,9 @@ async function prepareProjectCopy(
   signal?: AbortSignal
 ): Promise<Record<string, unknown>> {
   if (signal?.aborted) throw new Error('CANCELLED');
+  const projectConfig = readPreviewConfiguration(project, 'project');
+  const resourcesConfig = readPreviewConfiguration(project, 'resources');
+  const settingsConfig = readPreviewConfiguration(project, 'settings');
   const source = path.join(directory, 'source');
   if (fs.existsSync(source)) throw new Error('Refusing to reuse an old prepared source directory.');
   fs.mkdirSync(source, { recursive: true, mode: 0o700 });
@@ -160,11 +164,31 @@ async function prepareProjectCopy(
     if (fs.existsSync(original))
       fs.cpSync(original, path.join(source, name), { recursive: true, dereference: true });
   }
+  const configDirectory = path.join(source, '.project');
+  fs.mkdirSync(configDirectory, { recursive: true });
+  const projectDefaults = projectConfig || {
+    project_id: loadProjectConfig(project)?.project_id || 'local-preview',
+    author: { id: 'local-preview' },
+    version: '1.0.0',
+  };
+  // Defaults exist only in this preparation; publishing files and existing resource IDs stay untouched.
+  if (projectDefaults['entry@client'] === undefined && projectDefaults.entry === undefined)
+    projectDefaults.entry = previewEntryName(projectConfig, resourcesConfig);
+  fs.writeFileSync(path.join(configDirectory, 'project.json'), JSON.stringify(projectDefaults));
+  if (!resourcesConfig)
+    fs.writeFileSync(
+      path.join(configDirectory, 'resources.json'),
+      JSON.stringify({ groups: { default: ['**'] }, preload_groups: [] })
+    );
   validateProjectVersion(source);
-  const settingsFile = path.join(source, '.project', 'settings.json');
-  const configuration = fs.existsSync(settingsFile)
-    ? JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
-    : {};
+  const configuration = settingsConfig || {
+    sources: {
+      engine: { tag: 'stable' },
+      'engine-res': { tag: 'stable' },
+      'official-res': { tag: 'stable' },
+    },
+    build: { asset_dirs: ['../assets', '../scripts'], generate_fs_path: true },
+  };
   const directories = configuration.build?.asset_dirs;
   if (
     directories &&

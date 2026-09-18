@@ -449,8 +449,8 @@ var init_parseUtil = __esm({
     init_errors();
     init_en();
     makeIssue = (params) => {
-      const { data, path: path52, errorMaps, issueData } = params;
-      const fullPath = [...path52, ...issueData.path || []];
+      const { data, path: path55, errorMaps, issueData } = params;
+      const fullPath = [...path55, ...issueData.path || []];
       const fullIssue = {
         ...issueData,
         path: fullPath
@@ -730,11 +730,11 @@ var init_types = __esm({
     init_parseUtil();
     init_util();
     ParseInputLazyPath = class {
-      constructor(parent, value, path52, key) {
+      constructor(parent, value, path55, key) {
         this._cachedPath = [];
         this.parent = parent;
         this.data = value;
-        this._path = path52;
+        this._path = path55;
         this._key = key;
       }
       get path() {
@@ -4243,10 +4243,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path52) {
-  if (!path52)
+function getElementAtPath(obj, path55) {
+  if (!path55)
     return obj;
-  return path52.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
+  return path55.reduce((acc, key) => acc == null ? void 0 : acc[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -4559,11 +4559,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path52, issues) {
+function prefixIssues(path55, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path52);
+    iss.path.unshift(path55);
     return iss;
   });
 }
@@ -9195,8 +9195,8 @@ function process2(schema, ctx, _params = { path: [], schemaPath: [] }) {
 }
 function extractDefs(ctx, schema) {
   var _a3, _b, _c, _d;
-  const root = ctx.seen.get(schema);
-  if (!root)
+  const root2 = ctx.seen.get(schema);
+  if (!root2)
     throw new Error("Unprocessed schema. This is a bug in Zod.");
   const idToSchema = /* @__PURE__ */ new Map();
   for (const entry of ctx.seen.entries()) {
@@ -9222,7 +9222,7 @@ function extractDefs(ctx, schema) {
       entry[1].defId = id;
       return { defId: id, ref: `${uriGenerator("__shared")}#/${defsSegment}/${id}` };
     }
-    if (entry[1] === root) {
+    if (entry[1] === root2) {
       return { ref: "#" };
     }
     const uriPrefix = `#`;
@@ -9287,8 +9287,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
 }
 function finalize(ctx, schema) {
   var _a3, _b, _c;
-  const root = ctx.seen.get(schema);
-  if (!root)
+  const root2 = ctx.seen.get(schema);
+  if (!root2)
     throw new Error("Unprocessed schema. This is a bug in Zod.");
   const flattenRef = (zodSchema) => {
     const seen = ctx.seen.get(zodSchema);
@@ -9371,7 +9371,7 @@ function finalize(ctx, schema) {
       throw new Error("Schema is missing an `id` property");
     result.$id = ctx.external.uri(id);
   }
-  Object.assign(result, root.def ?? root.schema);
+  Object.assign(result, root2.def ?? root2.schema);
   const defs = ((_c = ctx.external) == null ? void 0 : _c.defs) ?? {};
   for (const entry of ctx.seen.entries()) {
     const seen = entry[1];
@@ -9676,26 +9676,26 @@ var init_json_schema_processors = __esm({
     };
     fileProcessor = (schema, _ctx, json2, _params) => {
       const _json = json2;
-      const file2 = {
+      const file3 = {
         type: "string",
         format: "binary",
         contentEncoding: "binary"
       };
       const { minimum, maximum, mime } = schema._zod.bag;
       if (minimum !== void 0)
-        file2.minLength = minimum;
+        file3.minLength = minimum;
       if (maximum !== void 0)
-        file2.maxLength = maximum;
+        file3.maxLength = maximum;
       if (mime) {
         if (mime.length === 1) {
-          file2.contentMediaType = mime[0];
-          Object.assign(_json, file2);
+          file3.contentMediaType = mime[0];
+          Object.assign(_json, file3);
         } else {
-          Object.assign(_json, file2);
+          Object.assign(_json, file3);
           _json.anyOf = mime.map((m) => ({ contentMediaType: m }));
         }
       } else {
-        Object.assign(_json, file2);
+        Object.assign(_json, file3);
       }
     };
     successProcessor = (_schema, _ctx, json2, _params) => {
@@ -15577,12 +15577,12 @@ var require_util = __commonJS({
     }
     exports.alwaysValidSchema = alwaysValidSchema;
     function checkUnknownRules(it, schema = it.schema) {
-      const { opts, self } = it;
+      const { opts, self: self2 } = it;
       if (!opts.strictSchema)
         return;
       if (typeof schema === "boolean")
         return;
-      const rules = self.RULES.keywords;
+      const rules = self2.RULES.keywords;
       for (const key in schema) {
         if (!rules[key])
           checkStrictMode(it, `unknown keyword: "${key}"`);
@@ -15968,8 +15968,8 @@ var require_applicability = __commonJS({
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.shouldUseRule = exports.shouldUseGroup = exports.schemaHasRulesForType = void 0;
-    function schemaHasRulesForType({ schema, self }, type) {
-      const group = self.RULES.types[type];
+    function schemaHasRulesForType({ schema, self: self2 }, type) {
+      const group = self2.RULES.types[type];
       return group && group !== true && shouldUseGroup(schema, group);
     }
     exports.schemaHasRulesForType = schemaHasRulesForType;
@@ -16434,7 +16434,7 @@ var require_keyword = __commonJS({
       return !schemaType.length || schemaType.some((st) => st === "array" ? Array.isArray(schema) : st === "object" ? schema && typeof schema == "object" && !Array.isArray(schema) : typeof schema == st || allowUndefined && typeof schema == "undefined");
     }
     exports.validSchemaType = validSchemaType;
-    function validateKeywordUsage({ schema, opts, self, errSchemaPath }, def, keyword) {
+    function validateKeywordUsage({ schema, opts, self: self2, errSchemaPath }, def, keyword) {
       if (Array.isArray(def.keyword) ? !def.keyword.includes(keyword) : def.keyword !== keyword) {
         throw new Error("ajv implementation error");
       }
@@ -16445,9 +16445,9 @@ var require_keyword = __commonJS({
       if (def.validateSchema) {
         const valid = def.validateSchema(schema[keyword]);
         if (!valid) {
-          const msg = `keyword "${keyword}" value is invalid at path "${errSchemaPath}": ` + self.errorsText(def.validateSchema.errors);
+          const msg = `keyword "${keyword}" value is invalid at path "${errSchemaPath}": ` + self2.errorsText(def.validateSchema.errors);
           if (opts.validateSchema === "log")
-            self.logger.error(msg);
+            self2.logger.error(msg);
           else
             throw new Error(msg);
         }
@@ -16914,11 +16914,11 @@ var require_validate = __commonJS({
       }
       (0, boolSchema_1.boolOrEmptySchema)(it, valid);
     }
-    function schemaCxtHasRules({ schema, self }) {
+    function schemaCxtHasRules({ schema, self: self2 }) {
       if (typeof schema == "boolean")
         return !schema;
       for (const key in schema)
-        if (self.RULES.all[key])
+        if (self2.RULES.all[key])
           return true;
       return false;
     }
@@ -16947,9 +16947,9 @@ var require_validate = __commonJS({
       schemaKeywords(it, types, !checkedTypes, errsCount);
     }
     function checkRefsAndKeywords(it) {
-      const { schema, errSchemaPath, opts, self } = it;
-      if (schema.$ref && opts.ignoreKeywordsWithRef && (0, util_1.schemaHasRulesButRef)(schema, self.RULES)) {
-        self.logger.warn(`$ref: keywords ignored in schema at path "${errSchemaPath}"`);
+      const { schema, errSchemaPath, opts, self: self2 } = it;
+      if (schema.$ref && opts.ignoreKeywordsWithRef && (0, util_1.schemaHasRulesButRef)(schema, self2.RULES)) {
+        self2.logger.warn(`$ref: keywords ignored in schema at path "${errSchemaPath}"`);
       }
     }
     function checkNoDefault(it) {
@@ -16995,8 +16995,8 @@ var require_validate = __commonJS({
         gen.assign((0, codegen_1._)`${evaluated}.items`, items);
     }
     function schemaKeywords(it, types, typeErrors, errsCount) {
-      const { gen, schema, data, allErrors, opts, self } = it;
-      const { RULES } = self;
+      const { gen, schema, data, allErrors, opts, self: self2 } = it;
+      const { RULES } = self2;
       if (schema.$ref && (opts.ignoreKeywordsWithRef || !(0, util_1.schemaHasRulesButRef)(schema, RULES))) {
         gen.block(() => keywordCode(it, "$ref", RULES.all.$ref.definition));
         return;
@@ -17478,22 +17478,22 @@ var require_compile = __commonJS({
       }
     }
     exports.compileSchema = compileSchema;
-    function resolveRef(root, baseId, ref) {
+    function resolveRef(root2, baseId, ref) {
       var _a3;
       ref = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, ref);
-      const schOrFunc = root.refs[ref];
+      const schOrFunc = root2.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve.call(this, root, ref);
+      let _sch = resolve.call(this, root2, ref);
       if (_sch === void 0) {
-        const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref];
+        const schema = (_a3 = root2.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref];
         const { schemaId } = this.opts;
         if (schema)
-          _sch = new SchemaEnv({ schema, schemaId, root, baseId });
+          _sch = new SchemaEnv({ schema, schemaId, root: root2, baseId });
       }
       if (_sch === void 0)
         return;
-      return root.refs[ref] = inlineOrCompile.call(this, _sch);
+      return root2.refs[ref] = inlineOrCompile.call(this, _sch);
     }
     exports.resolveRef = resolveRef;
     function inlineOrCompile(sch) {
@@ -17511,23 +17511,23 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve(root, ref) {
+    function resolve(root2, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
-      return sch || this.schemas[ref] || resolveSchema.call(this, root, ref);
+      return sch || this.schemas[ref] || resolveSchema.call(this, root2, ref);
     }
-    function resolveSchema(root, ref) {
+    function resolveSchema(root2, ref) {
       const p = this.opts.uriResolver.parse(ref);
       const refPath = (0, resolve_1._getFullPath)(this.opts.uriResolver, p);
-      let baseId = (0, resolve_1.getFullPath)(this.opts.uriResolver, root.baseId, void 0);
-      if (Object.keys(root.schema).length > 0 && refPath === baseId) {
-        return getJsonPointer.call(this, p, root);
+      let baseId = (0, resolve_1.getFullPath)(this.opts.uriResolver, root2.baseId, void 0);
+      if (Object.keys(root2.schema).length > 0 && refPath === baseId) {
+        return getJsonPointer.call(this, p, root2);
       }
       const id = (0, resolve_1.normalizeId)(refPath);
       const schOrRef = this.refs[id] || this.schemas[id];
       if (typeof schOrRef == "string") {
-        const sch = resolveSchema.call(this, root, schOrRef);
+        const sch = resolveSchema.call(this, root2, schOrRef);
         if (typeof (sch === null || sch === void 0 ? void 0 : sch.schema) !== "object")
           return;
         return getJsonPointer.call(this, p, sch);
@@ -17542,7 +17542,7 @@ var require_compile = __commonJS({
         const schId = schema[schemaId];
         if (schId)
           baseId = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, schId);
-        return new SchemaEnv({ schema, schemaId, root, baseId });
+        return new SchemaEnv({ schema, schemaId, root: root2, baseId });
       }
       return getJsonPointer.call(this, p, schOrRef);
     }
@@ -17554,7 +17554,7 @@ var require_compile = __commonJS({
       "dependencies",
       "definitions"
     ]);
-    function getJsonPointer(parsedRef, { baseId, schema, root }) {
+    function getJsonPointer(parsedRef, { baseId, schema, root: root2 }) {
       var _a3;
       if (((_a3 = parsedRef.fragment) === null || _a3 === void 0 ? void 0 : _a3[0]) !== "/")
         return;
@@ -17573,10 +17573,10 @@ var require_compile = __commonJS({
       let env;
       if (typeof schema != "boolean" && schema.$ref && !(0, util_1.schemaHasRulesButRef)(schema, this.RULES)) {
         const $ref = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, schema.$ref);
-        env = resolveSchema.call(this, root, $ref);
+        env = resolveSchema.call(this, root2, $ref);
       }
       const { schemaId } = this.opts;
-      env = env || new SchemaEnv({ schema, schemaId, root, baseId });
+      env = env || new SchemaEnv({ schema, schemaId, root: root2, baseId });
       if (env.schema !== env.root.schema)
         return env;
       return void 0;
@@ -17726,8 +17726,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path52) {
-      let input2 = path52;
+    function removeDotSegments(path55) {
+      let input2 = path55;
       const output2 = [];
       let nextSlash = -1;
       let len = 0;
@@ -17926,8 +17926,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path52, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path52 && path52 !== "/" ? path52 : void 0;
+        const [path55, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path55 && path55 !== "/" ? path55 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -18079,24 +18079,24 @@ var require_fast_uri = __commonJS({
     function normalize(uri, options3) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
-        serialize(parse3(uri, options3), options3);
+        serialize(parse4(uri, options3), options3);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse3(serialize(uri, options3), options3);
+        parse4(serialize(uri, options3), options3);
       }
       return uri;
     }
     function resolve(baseURI, relativeURI, options3) {
       const schemelessOptions = options3 ? Object.assign({ scheme: "null" }, options3) : { scheme: "null" };
-      const resolved = resolveComponent(parse3(baseURI, schemelessOptions), parse3(relativeURI, schemelessOptions), schemelessOptions, true);
+      const resolved = resolveComponent(parse4(baseURI, schemelessOptions), parse4(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
     function resolveComponent(base, relative, options3, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse3(serialize(base, options3), options3);
-        relative = parse3(serialize(relative, options3), options3);
+        base = parse4(serialize(base, options3), options3);
+        relative = parse4(serialize(relative, options3), options3);
       }
       options3 = options3 || {};
       if (!options3.tolerant && relative.scheme) {
@@ -18148,13 +18148,13 @@ var require_fast_uri = __commonJS({
     function equal(uriA, uriB, options3) {
       if (typeof uriA === "string") {
         uriA = unescape(uriA);
-        uriA = serialize(normalizeComponentEncoding(parse3(uriA, options3), true), { ...options3, skipEscape: true });
+        uriA = serialize(normalizeComponentEncoding(parse4(uriA, options3), true), { ...options3, skipEscape: true });
       } else if (typeof uriA === "object") {
         uriA = serialize(normalizeComponentEncoding(uriA, true), { ...options3, skipEscape: true });
       }
       if (typeof uriB === "string") {
         uriB = unescape(uriB);
-        uriB = serialize(normalizeComponentEncoding(parse3(uriB, options3), true), { ...options3, skipEscape: true });
+        uriB = serialize(normalizeComponentEncoding(parse4(uriB, options3), true), { ...options3, skipEscape: true });
       } else if (typeof uriB === "object") {
         uriB = serialize(normalizeComponentEncoding(uriB, true), { ...options3, skipEscape: true });
       }
@@ -18223,7 +18223,7 @@ var require_fast_uri = __commonJS({
       return uriTokens.join("");
     }
     var URI_PARSE = /^(?:([^#/:?]+):)?(?:\/\/((?:([^#/?@]*)@)?(\[[^#/?\]]+\]|[^#/:?]*)(?::(\d*))?))?([^#?]*)(?:\?([^#]*))?(?:#((?:.|[\n\r])*))?/u;
-    function parse3(uri, opts) {
+    function parse4(uri, opts) {
       const options3 = Object.assign({}, opts);
       const parsed = {
         scheme: void 0,
@@ -18317,7 +18317,7 @@ var require_fast_uri = __commonJS({
       resolveComponent,
       equal,
       serialize,
-      parse: parse3
+      parse: parse4
     };
     module.exports = fastUri;
     module.exports.default = fastUri;
@@ -18618,8 +18618,8 @@ var require_core = __commonJS({
           keyRef = sch;
         if (sch === void 0) {
           const { schemaId } = this.opts;
-          const root = new compile_1.SchemaEnv({ schema: {}, schemaId });
-          sch = compile_1.resolveSchema.call(this, root, keyRef);
+          const root2 = new compile_1.SchemaEnv({ schema: {}, schemaId });
+          sch = compile_1.resolveSchema.call(this, root2, keyRef);
           if (!sch)
             return;
           this.refs[keyRef] = sch;
@@ -18979,21 +18979,21 @@ var require_ref = __commonJS({
       schemaType: "string",
       code(cxt) {
         const { gen, schema: $ref, it } = cxt;
-        const { baseId, schemaEnv: env, validateName, opts, self } = it;
-        const { root } = env;
-        if (($ref === "#" || $ref === "#/") && baseId === root.baseId)
+        const { baseId, schemaEnv: env, validateName, opts, self: self2 } = it;
+        const { root: root2 } = env;
+        if (($ref === "#" || $ref === "#/") && baseId === root2.baseId)
           return callRootRef();
-        const schOrEnv = compile_1.resolveRef.call(self, root, baseId, $ref);
+        const schOrEnv = compile_1.resolveRef.call(self2, root2, baseId, $ref);
         if (schOrEnv === void 0)
           throw new ref_error_1.default(it.opts.uriResolver, baseId, $ref);
         if (schOrEnv instanceof compile_1.SchemaEnv)
           return callValidate(schOrEnv);
         return inlineRefSchema(schOrEnv);
         function callRootRef() {
-          if (env === root)
+          if (env === root2)
             return callRef(cxt, validateName, env, env.$async);
-          const rootName = gen.scopeValue("root", { ref: root });
-          return callRef(cxt, (0, codegen_1._)`${rootName}.validate`, root, root.$async);
+          const rootName = gen.scopeValue("root", { ref: root2 });
+          return callRef(cxt, (0, codegen_1._)`${rootName}.validate`, root2, root2.$async);
         }
         function callValidate(sch) {
           const v = getValidate(cxt, sch);
@@ -20511,7 +20511,7 @@ var require_format = __commonJS({
       error: error2,
       code(cxt, ruleType) {
         const { gen, data, $data, schema, schemaCode, it } = cxt;
-        const { opts, errSchemaPath, schemaEnv, self } = it;
+        const { opts, errSchemaPath, schemaEnv, self: self2 } = it;
         if (!opts.validateFormats)
           return;
         if ($data)
@@ -20520,7 +20520,7 @@ var require_format = __commonJS({
           validateFormat();
         function validate$DataFormat() {
           const fmts = gen.scopeValue("formats", {
-            ref: self.formats,
+            ref: self2.formats,
             code: opts.code.formats
           });
           const fDef = gen.const("fDef", (0, codegen_1._)`${fmts}[${schemaCode}]`);
@@ -20540,7 +20540,7 @@ var require_format = __commonJS({
           }
         }
         function validateFormat() {
-          const formatDef = self.formats[schema];
+          const formatDef = self2.formats[schema];
           if (!formatDef) {
             unknownFormat();
             return;
@@ -20552,7 +20552,7 @@ var require_format = __commonJS({
             cxt.pass(validCondition());
           function unknownFormat() {
             if (opts.strictSchema === false) {
-              self.logger.warn(unknownMsg());
+              self2.logger.warn(unknownMsg());
               return;
             }
             throw new Error(unknownMsg());
@@ -22232,12 +22232,12 @@ var require_util2 = __commonJS({
     }
     exports.alwaysValidSchema = alwaysValidSchema;
     function checkUnknownRules(it, schema = it.schema) {
-      const { opts, self } = it;
+      const { opts, self: self2 } = it;
       if (!opts.strictSchema)
         return;
       if (typeof schema === "boolean")
         return;
-      const rules = self.RULES.keywords;
+      const rules = self2.RULES.keywords;
       for (const key in schema) {
         if (!rules[key])
           checkStrictMode(it, `unknown keyword: "${key}"`);
@@ -22623,8 +22623,8 @@ var require_applicability2 = __commonJS({
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.shouldUseRule = exports.shouldUseGroup = exports.schemaHasRulesForType = void 0;
-    function schemaHasRulesForType({ schema, self }, type) {
-      const group = self.RULES.types[type];
+    function schemaHasRulesForType({ schema, self: self2 }, type) {
+      const group = self2.RULES.types[type];
       return group && group !== true && shouldUseGroup(schema, group);
     }
     exports.schemaHasRulesForType = schemaHasRulesForType;
@@ -23089,7 +23089,7 @@ var require_keyword2 = __commonJS({
       return !schemaType.length || schemaType.some((st) => st === "array" ? Array.isArray(schema) : st === "object" ? schema && typeof schema == "object" && !Array.isArray(schema) : typeof schema == st || allowUndefined && typeof schema == "undefined");
     }
     exports.validSchemaType = validSchemaType;
-    function validateKeywordUsage({ schema, opts, self, errSchemaPath }, def, keyword) {
+    function validateKeywordUsage({ schema, opts, self: self2, errSchemaPath }, def, keyword) {
       if (Array.isArray(def.keyword) ? !def.keyword.includes(keyword) : def.keyword !== keyword) {
         throw new Error("ajv implementation error");
       }
@@ -23100,9 +23100,9 @@ var require_keyword2 = __commonJS({
       if (def.validateSchema) {
         const valid = def.validateSchema(schema[keyword]);
         if (!valid) {
-          const msg = `keyword "${keyword}" value is invalid at path "${errSchemaPath}": ` + self.errorsText(def.validateSchema.errors);
+          const msg = `keyword "${keyword}" value is invalid at path "${errSchemaPath}": ` + self2.errorsText(def.validateSchema.errors);
           if (opts.validateSchema === "log")
-            self.logger.error(msg);
+            self2.logger.error(msg);
           else
             throw new Error(msg);
         }
@@ -23534,11 +23534,11 @@ var require_validate2 = __commonJS({
       }
       (0, boolSchema_1.boolOrEmptySchema)(it, valid);
     }
-    function schemaCxtHasRules({ schema, self }) {
+    function schemaCxtHasRules({ schema, self: self2 }) {
       if (typeof schema == "boolean")
         return !schema;
       for (const key in schema)
-        if (self.RULES.all[key])
+        if (self2.RULES.all[key])
           return true;
       return false;
     }
@@ -23567,9 +23567,9 @@ var require_validate2 = __commonJS({
       schemaKeywords(it, types, !checkedTypes, errsCount);
     }
     function checkRefsAndKeywords(it) {
-      const { schema, errSchemaPath, opts, self } = it;
-      if (schema.$ref && opts.ignoreKeywordsWithRef && (0, util_1.schemaHasRulesButRef)(schema, self.RULES)) {
-        self.logger.warn(`$ref: keywords ignored in schema at path "${errSchemaPath}"`);
+      const { schema, errSchemaPath, opts, self: self2 } = it;
+      if (schema.$ref && opts.ignoreKeywordsWithRef && (0, util_1.schemaHasRulesButRef)(schema, self2.RULES)) {
+        self2.logger.warn(`$ref: keywords ignored in schema at path "${errSchemaPath}"`);
       }
     }
     function checkNoDefault(it) {
@@ -23615,8 +23615,8 @@ var require_validate2 = __commonJS({
         gen.assign((0, codegen_1._)`${evaluated}.items`, items);
     }
     function schemaKeywords(it, types, typeErrors, errsCount) {
-      const { gen, schema, data, allErrors, opts, self } = it;
-      const { RULES } = self;
+      const { gen, schema, data, allErrors, opts, self: self2 } = it;
+      const { RULES } = self2;
       if (schema.$ref && (opts.ignoreKeywordsWithRef || !(0, util_1.schemaHasRulesButRef)(schema, RULES))) {
         gen.block(() => keywordCode(it, "$ref", RULES.all.$ref.definition));
         return;
@@ -24098,22 +24098,22 @@ var require_compile2 = __commonJS({
       }
     }
     exports.compileSchema = compileSchema;
-    function resolveRef(root, baseId, ref) {
+    function resolveRef(root2, baseId, ref) {
       var _a3;
       ref = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, ref);
-      const schOrFunc = root.refs[ref];
+      const schOrFunc = root2.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve.call(this, root, ref);
+      let _sch = resolve.call(this, root2, ref);
       if (_sch === void 0) {
-        const schema = (_a3 = root.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref];
+        const schema = (_a3 = root2.localRefs) === null || _a3 === void 0 ? void 0 : _a3[ref];
         const { schemaId } = this.opts;
         if (schema)
-          _sch = new SchemaEnv({ schema, schemaId, root, baseId });
+          _sch = new SchemaEnv({ schema, schemaId, root: root2, baseId });
       }
       if (_sch === void 0)
         return;
-      return root.refs[ref] = inlineOrCompile.call(this, _sch);
+      return root2.refs[ref] = inlineOrCompile.call(this, _sch);
     }
     exports.resolveRef = resolveRef;
     function inlineOrCompile(sch) {
@@ -24131,23 +24131,23 @@ var require_compile2 = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve(root, ref) {
+    function resolve(root2, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
-      return sch || this.schemas[ref] || resolveSchema.call(this, root, ref);
+      return sch || this.schemas[ref] || resolveSchema.call(this, root2, ref);
     }
-    function resolveSchema(root, ref) {
+    function resolveSchema(root2, ref) {
       const p = this.opts.uriResolver.parse(ref);
       const refPath = (0, resolve_1._getFullPath)(this.opts.uriResolver, p);
-      let baseId = (0, resolve_1.getFullPath)(this.opts.uriResolver, root.baseId, void 0);
-      if (Object.keys(root.schema).length > 0 && refPath === baseId) {
-        return getJsonPointer.call(this, p, root);
+      let baseId = (0, resolve_1.getFullPath)(this.opts.uriResolver, root2.baseId, void 0);
+      if (Object.keys(root2.schema).length > 0 && refPath === baseId) {
+        return getJsonPointer.call(this, p, root2);
       }
       const id = (0, resolve_1.normalizeId)(refPath);
       const schOrRef = this.refs[id] || this.schemas[id];
       if (typeof schOrRef == "string") {
-        const sch = resolveSchema.call(this, root, schOrRef);
+        const sch = resolveSchema.call(this, root2, schOrRef);
         if (typeof (sch === null || sch === void 0 ? void 0 : sch.schema) !== "object")
           return;
         return getJsonPointer.call(this, p, sch);
@@ -24162,7 +24162,7 @@ var require_compile2 = __commonJS({
         const schId = schema[schemaId];
         if (schId)
           baseId = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, schId);
-        return new SchemaEnv({ schema, schemaId, root, baseId });
+        return new SchemaEnv({ schema, schemaId, root: root2, baseId });
       }
       return getJsonPointer.call(this, p, schOrRef);
     }
@@ -24174,7 +24174,7 @@ var require_compile2 = __commonJS({
       "dependencies",
       "definitions"
     ]);
-    function getJsonPointer(parsedRef, { baseId, schema, root }) {
+    function getJsonPointer(parsedRef, { baseId, schema, root: root2 }) {
       var _a3;
       if (((_a3 = parsedRef.fragment) === null || _a3 === void 0 ? void 0 : _a3[0]) !== "/")
         return;
@@ -24193,10 +24193,10 @@ var require_compile2 = __commonJS({
       let env;
       if (typeof schema != "boolean" && schema.$ref && !(0, util_1.schemaHasRulesButRef)(schema, this.RULES)) {
         const $ref = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, schema.$ref);
-        env = resolveSchema.call(this, root, $ref);
+        env = resolveSchema.call(this, root2, $ref);
       }
       const { schemaId } = this.opts;
-      env = env || new SchemaEnv({ schema, schemaId, root, baseId });
+      env = env || new SchemaEnv({ schema, schemaId, root: root2, baseId });
       if (env.schema !== env.root.schema)
         return env;
       return void 0;
@@ -24516,8 +24516,8 @@ var require_core3 = __commonJS({
           keyRef = sch;
         if (sch === void 0) {
           const { schemaId } = this.opts;
-          const root = new compile_1.SchemaEnv({ schema: {}, schemaId });
-          sch = compile_1.resolveSchema.call(this, root, keyRef);
+          const root2 = new compile_1.SchemaEnv({ schema: {}, schemaId });
+          sch = compile_1.resolveSchema.call(this, root2, keyRef);
           if (!sch)
             return;
           this.refs[keyRef] = sch;
@@ -24877,21 +24877,21 @@ var require_ref2 = __commonJS({
       schemaType: "string",
       code(cxt) {
         const { gen, schema: $ref, it } = cxt;
-        const { baseId, schemaEnv: env, validateName, opts, self } = it;
-        const { root } = env;
-        if (($ref === "#" || $ref === "#/") && baseId === root.baseId)
+        const { baseId, schemaEnv: env, validateName, opts, self: self2 } = it;
+        const { root: root2 } = env;
+        if (($ref === "#" || $ref === "#/") && baseId === root2.baseId)
           return callRootRef();
-        const schOrEnv = compile_1.resolveRef.call(self, root, baseId, $ref);
+        const schOrEnv = compile_1.resolveRef.call(self2, root2, baseId, $ref);
         if (schOrEnv === void 0)
           throw new ref_error_1.default(it.opts.uriResolver, baseId, $ref);
         if (schOrEnv instanceof compile_1.SchemaEnv)
           return callValidate(schOrEnv);
         return inlineRefSchema(schOrEnv);
         function callRootRef() {
-          if (env === root)
+          if (env === root2)
             return callRef(cxt, validateName, env, env.$async);
-          const rootName = gen.scopeValue("root", { ref: root });
-          return callRef(cxt, (0, codegen_1._)`${rootName}.validate`, root, root.$async);
+          const rootName = gen.scopeValue("root", { ref: root2 });
+          return callRef(cxt, (0, codegen_1._)`${rootName}.validate`, root2, root2.$async);
         }
         function callValidate(sch) {
           const v = getValidate(cxt, sch);
@@ -26409,7 +26409,7 @@ var require_format3 = __commonJS({
       error: error2,
       code(cxt, ruleType) {
         const { gen, data, $data, schema, schemaCode, it } = cxt;
-        const { opts, errSchemaPath, schemaEnv, self } = it;
+        const { opts, errSchemaPath, schemaEnv, self: self2 } = it;
         if (!opts.validateFormats)
           return;
         if ($data)
@@ -26418,7 +26418,7 @@ var require_format3 = __commonJS({
           validateFormat();
         function validate$DataFormat() {
           const fmts = gen.scopeValue("formats", {
-            ref: self.formats,
+            ref: self2.formats,
             code: opts.code.formats
           });
           const fDef = gen.const("fDef", (0, codegen_1._)`${fmts}[${schemaCode}]`);
@@ -26438,7 +26438,7 @@ var require_format3 = __commonJS({
           }
         }
         function validateFormat() {
-          const formatDef = self.formats[schema];
+          const formatDef = self2.formats[schema];
           if (!formatDef) {
             unknownFormat();
             return;
@@ -26450,7 +26450,7 @@ var require_format3 = __commonJS({
             cxt.pass(validCondition());
           function unknownFormat() {
             if (opts.strictSchema === false) {
-              self.logger.warn(unknownMsg());
+              self2.logger.warn(unknownMsg());
               return;
             }
             throw new Error(unknownMsg());
@@ -26910,17 +26910,17 @@ var require_limit = __commonJS({
       error: error2,
       code(cxt) {
         const { gen, data, schemaCode, keyword, it } = cxt;
-        const { opts, self } = it;
+        const { opts, self: self2 } = it;
         if (!opts.validateFormats)
           return;
-        const fCxt = new ajv_1.KeywordCxt(it, self.RULES.all.format.definition, "format");
+        const fCxt = new ajv_1.KeywordCxt(it, self2.RULES.all.format.definition, "format");
         if (fCxt.$data)
           validate$DataFormat();
         else
           validateFormat();
         function validate$DataFormat() {
           const fmts = gen.scopeValue("formats", {
-            ref: self.formats,
+            ref: self2.formats,
             code: opts.code.formats
           });
           const fmt = gen.const("fmt", (0, codegen_1._)`${fmts}[${fCxt.schemaCode}]`);
@@ -26928,7 +26928,7 @@ var require_limit = __commonJS({
         }
         function validateFormat() {
           const format = fCxt.schema;
-          const fmtDef = self.formats[format];
+          const fmtDef = self2.formats[format];
           if (!fmtDef || fmtDef === true)
             return;
           if (typeof fmtDef != "object" || fmtDef instanceof RegExp || typeof fmtDef.compare != "function") {
@@ -26984,12 +26984,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs49, exportName) {
+    function addFormats(ajv, list, fs52, exportName) {
       var _a3;
       var _b;
       (_a3 = (_b = ajv.opts.code).formats) !== null && _a3 !== void 0 ? _a3 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs49[f]);
+        ajv.addFormat(f, fs52[f]);
     }
     module.exports = exports = formatsPlugin;
     Object.defineProperty(exports, "__esModule", { value: true });
@@ -28546,8 +28546,8 @@ var require_windows = __commonJS({
   "node_modules/isexe/windows.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs49 = __require("fs");
-    function checkPathExt(path52, options3) {
+    var fs52 = __require("fs");
+    function checkPathExt(path55, options3) {
       var pathext = options3.pathExt !== void 0 ? options3.pathExt : process.env.PATHEXT;
       if (!pathext) {
         return true;
@@ -28558,25 +28558,25 @@ var require_windows = __commonJS({
       }
       for (var i = 0; i < pathext.length; i++) {
         var p = pathext[i].toLowerCase();
-        if (p && path52.substr(-p.length).toLowerCase() === p) {
+        if (p && path55.substr(-p.length).toLowerCase() === p) {
           return true;
         }
       }
       return false;
     }
-    function checkStat(stat, path52, options3) {
+    function checkStat(stat, path55, options3) {
       if (!stat.isSymbolicLink() && !stat.isFile()) {
         return false;
       }
-      return checkPathExt(path52, options3);
+      return checkPathExt(path55, options3);
     }
-    function isexe(path52, options3, cb) {
-      fs49.stat(path52, function(er, stat) {
-        cb(er, er ? false : checkStat(stat, path52, options3));
+    function isexe(path55, options3, cb) {
+      fs52.stat(path55, function(er, stat) {
+        cb(er, er ? false : checkStat(stat, path55, options3));
       });
     }
-    function sync(path52, options3) {
-      return checkStat(fs49.statSync(path52), path52, options3);
+    function sync(path55, options3) {
+      return checkStat(fs52.statSync(path55), path55, options3);
     }
   }
 });
@@ -28586,14 +28586,14 @@ var require_mode = __commonJS({
   "node_modules/isexe/mode.js"(exports, module) {
     module.exports = isexe;
     isexe.sync = sync;
-    var fs49 = __require("fs");
-    function isexe(path52, options3, cb) {
-      fs49.stat(path52, function(er, stat) {
+    var fs52 = __require("fs");
+    function isexe(path55, options3, cb) {
+      fs52.stat(path55, function(er, stat) {
         cb(er, er ? false : checkStat(stat, options3));
       });
     }
-    function sync(path52, options3) {
-      return checkStat(fs49.statSync(path52), options3);
+    function sync(path55, options3) {
+      return checkStat(fs52.statSync(path55), options3);
     }
     function checkStat(stat, options3) {
       return stat.isFile() && checkMode(stat, options3);
@@ -28617,7 +28617,7 @@ var require_mode = __commonJS({
 // node_modules/isexe/index.js
 var require_isexe = __commonJS({
   "node_modules/isexe/index.js"(exports, module) {
-    var fs49 = __require("fs");
+    var fs52 = __require("fs");
     var core;
     if (process.platform === "win32" || global.TESTING_WINDOWS) {
       core = require_windows();
@@ -28626,7 +28626,7 @@ var require_isexe = __commonJS({
     }
     module.exports = isexe;
     isexe.sync = sync;
-    function isexe(path52, options3, cb) {
+    function isexe(path55, options3, cb) {
       if (typeof options3 === "function") {
         cb = options3;
         options3 = {};
@@ -28636,7 +28636,7 @@ var require_isexe = __commonJS({
           throw new TypeError("callback not provided");
         }
         return new Promise(function(resolve, reject) {
-          isexe(path52, options3 || {}, function(er, is) {
+          isexe(path55, options3 || {}, function(er, is) {
             if (er) {
               reject(er);
             } else {
@@ -28645,7 +28645,7 @@ var require_isexe = __commonJS({
           });
         });
       }
-      core(path52, options3 || {}, function(er, is) {
+      core(path55, options3 || {}, function(er, is) {
         if (er) {
           if (er.code === "EACCES" || options3 && options3.ignoreErrors) {
             er = null;
@@ -28655,9 +28655,9 @@ var require_isexe = __commonJS({
         cb(er, is);
       });
     }
-    function sync(path52, options3) {
+    function sync(path55, options3) {
       try {
-        return core.sync(path52, options3 || {});
+        return core.sync(path55, options3 || {});
       } catch (er) {
         if (options3 && options3.ignoreErrors || er.code === "EACCES") {
           return false;
@@ -28673,7 +28673,7 @@ var require_isexe = __commonJS({
 var require_which = __commonJS({
   "node_modules/which/which.js"(exports, module) {
     var isWindows = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys";
-    var path52 = __require("path");
+    var path55 = __require("path");
     var COLON = isWindows ? ";" : ":";
     var isexe = require_isexe();
     var getNotFoundError = (cmd) => Object.assign(new Error(`not found: ${cmd}`), { code: "ENOENT" });
@@ -28711,7 +28711,7 @@ var require_which = __commonJS({
           return opt.all && found.length ? resolve(found) : reject(getNotFoundError(cmd));
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path52.join(pathPart, cmd);
+        const pCmd = path55.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         resolve(subStep(p, i, 0));
       });
@@ -28738,7 +28738,7 @@ var require_which = __commonJS({
       for (let i = 0; i < pathEnv.length; i++) {
         const ppRaw = pathEnv[i];
         const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-        const pCmd = path52.join(pathPart, cmd);
+        const pCmd = path55.join(pathPart, cmd);
         const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
         for (let j = 0; j < pathExt.length; j++) {
           const cur = p + pathExt[j];
@@ -28786,7 +28786,7 @@ var require_path_key = __commonJS({
 var require_resolveCommand = __commonJS({
   "node_modules/cross-spawn/lib/util/resolveCommand.js"(exports, module) {
     "use strict";
-    var path52 = __require("path");
+    var path55 = __require("path");
     var which = require_which();
     var getPathKey = require_path_key();
     function resolveCommandAttempt(parsed, withoutPathExt) {
@@ -28804,7 +28804,7 @@ var require_resolveCommand = __commonJS({
       try {
         resolved = which.sync(parsed.command, {
           path: env[getPathKey({ env })],
-          pathExt: withoutPathExt ? path52.delimiter : void 0
+          pathExt: withoutPathExt ? path55.delimiter : void 0
         });
       } catch (e) {
       } finally {
@@ -28813,7 +28813,7 @@ var require_resolveCommand = __commonJS({
         }
       }
       if (resolved) {
-        resolved = path52.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
+        resolved = path55.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
       }
       return resolved;
     }
@@ -28867,8 +28867,8 @@ var require_shebang_command = __commonJS({
       if (!match) {
         return null;
       }
-      const [path52, argument] = match[0].replace(/#! ?/, "").split(" ");
-      const binary = path52.split("/").pop();
+      const [path55, argument] = match[0].replace(/#! ?/, "").split(" ");
+      const binary = path55.split("/").pop();
       if (binary === "env") {
         return argument;
       }
@@ -28881,16 +28881,16 @@ var require_shebang_command = __commonJS({
 var require_readShebang = __commonJS({
   "node_modules/cross-spawn/lib/util/readShebang.js"(exports, module) {
     "use strict";
-    var fs49 = __require("fs");
+    var fs52 = __require("fs");
     var shebangCommand = require_shebang_command();
     function readShebang(command) {
       const size = 150;
       const buffer = Buffer.alloc(size);
       let fd;
       try {
-        fd = fs49.openSync(command, "r");
-        fs49.readSync(fd, buffer, 0, size, 0);
-        fs49.closeSync(fd);
+        fd = fs52.openSync(command, "r");
+        fs52.readSync(fd, buffer, 0, size, 0);
+        fs52.closeSync(fd);
       } catch (e) {
       }
       return shebangCommand(buffer.toString());
@@ -28903,7 +28903,7 @@ var require_readShebang = __commonJS({
 var require_parse = __commonJS({
   "node_modules/cross-spawn/lib/parse.js"(exports, module) {
     "use strict";
-    var path52 = __require("path");
+    var path55 = __require("path");
     var resolveCommand = require_resolveCommand();
     var escape3 = require_escape();
     var readShebang = require_readShebang();
@@ -28928,7 +28928,7 @@ var require_parse = __commonJS({
       const needsShell = !isExecutableRegExp.test(commandFile);
       if (parsed.options.forceShell || needsShell) {
         const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
-        parsed.command = path52.normalize(parsed.command);
+        parsed.command = path55.normalize(parsed.command);
         parsed.command = escape3.command(parsed.command);
         parsed.args = parsed.args.map((arg) => escape3.argument(arg, needsDoubleEscapeMetaChars));
         const shellCommand = [parsed.command].concat(parsed.args).join(" ");
@@ -28938,7 +28938,7 @@ var require_parse = __commonJS({
       }
       return parsed;
     }
-    function parse3(command, args, options3) {
+    function parse4(command, args, options3) {
       if (args && !Array.isArray(args)) {
         options3 = args;
         args = null;
@@ -28957,7 +28957,7 @@ var require_parse = __commonJS({
       };
       return options3.shell ? parsed : parseNonShell(parsed);
     }
-    module.exports = parse3;
+    module.exports = parse4;
   }
 });
 
@@ -29016,16 +29016,16 @@ var require_cross_spawn = __commonJS({
   "node_modules/cross-spawn/index.js"(exports, module) {
     "use strict";
     var cp = __require("child_process");
-    var parse3 = require_parse();
+    var parse4 = require_parse();
     var enoent = require_enoent();
     function spawn12(command, args, options3) {
-      const parsed = parse3(command, args, options3);
+      const parsed = parse4(command, args, options3);
       const spawned = cp.spawn(parsed.command, parsed.args, parsed.options);
       enoent.hookChildProcess(spawned, parsed);
       return spawned;
     }
     function spawnSync9(command, args, options3) {
-      const parsed = parse3(command, args, options3);
+      const parsed = parse4(command, args, options3);
       const result = cp.spawnSync(parsed.command, parsed.args, parsed.options);
       result.error = result.error || enoent.verifyENOENTSync(result.status, parsed);
       return result;
@@ -29033,7 +29033,7 @@ var require_cross_spawn = __commonJS({
     module.exports = spawn12;
     module.exports.spawn = spawn12;
     module.exports.sync = spawnSync9;
-    module.exports._parse = parse3;
+    module.exports._parse = parse4;
     module.exports._enoent = enoent;
   }
 });
@@ -30638,12 +30638,14 @@ function createMakerAgentsPolicyBody() {
     "",
     "- For any ad-related request or code touching ads, first read",
     "  `maker://ads-integration-guide`, then follow it to inspect Maker project status, call",
-    "  `get_ad_config`, and read the project engine document before editing ad code or testing",
-    "  ad behavior. Triggers include 广告, 激励视频,",
+    "  `get_ad_config`, verify remote/local configuration, and read the project engine document before",
+    "  editing or testing ads. Triggers include 广告, 激励视频,",
     "  播放广告, ad ID, ad placement, ad status, ad config, and `ShowRewardVideoAd`.",
     "- Treat `get_ad_config` as the source of truth for current project ad activation status and",
     "  ad config. Do not infer ad readiness from local SDK docs, `.maker-mcp/config.json`, or",
     "  runtime callbacks.",
+    "- Keep the same explicit `target_dir` throughout. Remote success does not update local settings;",
+    "  follow the guide before proceeding if local `@runtime.ad` is missing or differs.",
     "- If primary local project configs are missing, keep ad config unavailable and do not call the",
     "  remote tool. Build only for an explicit user build/submit/remote Web preview request. If a successful",
     "  build still leaves local configs missing, explain the known limitation and do not rebuild",
@@ -30714,18 +30716,111 @@ var init_agentsPolicy = __esm({
   }
 });
 
+// src/maker/cli/projectSkills.ts
+import fs6 from "node:fs";
+import path7 from "node:path";
+function syncProjectSkills(targetDir, options3) {
+  const platform = options3.platform ?? process.platform;
+  const projectDir = path7.resolve(targetDir);
+  const sourceDir = path7.join(projectDir, ".installer", "skills");
+  const skillsDir = path7.join(projectDir, options3.client, "skills");
+  const result = {
+    status: "skipped",
+    sourceDir,
+    targetDir: skillsDir,
+    installedSkills: [],
+    skippedSkills: []
+  };
+  if (!isDirectory(sourceDir)) {
+    result.reason = "source_not_found";
+    return result;
+  }
+  const sourceSkills = fs6.readdirSync(sourceDir, { withFileTypes: true }).filter(
+    (entry) => entry.isDirectory() && fs6.existsSync(path7.join(sourceDir, entry.name, "SKILL.md"))
+  ).map((entry) => entry.name).sort();
+  for (const sourceSkillName of sourceSkills) {
+    const skillName = `${options3.prefix || ""}${sourceSkillName}`;
+    const skillDir = path7.join(skillsDir, skillName);
+    if (pathEntryExists(skillDir)) {
+      result.skippedSkills.push(skillName);
+      continue;
+    }
+    fs6.mkdirSync(skillsDir, { recursive: true });
+    installSkillContents(path7.join(sourceDir, sourceSkillName), skillDir, platform);
+    result.installedSkills.push(skillName);
+  }
+  if (result.installedSkills.length > 0) {
+    result.status = "installed";
+  }
+  return result;
+}
+function installSkillContents(sourceDir, targetDir, platform) {
+  fs6.mkdirSync(targetDir);
+  try {
+    for (const entry of fs6.readdirSync(sourceDir)) {
+      linkOrCopyEntry(path7.join(sourceDir, entry), path7.join(targetDir, entry), platform);
+    }
+  } catch (error2) {
+    fs6.rmSync(targetDir, { recursive: true, force: true });
+    throw error2;
+  }
+}
+function linkOrCopyEntry(source, target, platform) {
+  const stat = fs6.statSync(source);
+  if (platform === "win32" && stat.isFile()) {
+    fs6.copyFileSync(source, target);
+    return;
+  }
+  try {
+    const linkTarget = platform === "win32" ? source : path7.relative(path7.dirname(target), source);
+    const linkType = stat.isDirectory() ? platform === "win32" ? "junction" : "dir" : "file";
+    fs6.symlinkSync(linkTarget, target, linkType);
+  } catch (error2) {
+    try {
+      fs6.cpSync(source, target, { recursive: stat.isDirectory() });
+    } catch (copyError) {
+      throw new Error(
+        `Failed to install project skill entry ${source}: ${formatError2(error2)}; copy fallback: ${formatError2(copyError)}`
+      );
+    }
+  }
+}
+function isDirectory(value) {
+  try {
+    return fs6.statSync(value).isDirectory();
+  } catch {
+    return false;
+  }
+}
+function pathEntryExists(value) {
+  try {
+    fs6.lstatSync(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function formatError2(error2) {
+  return error2 instanceof Error ? error2.message : String(error2);
+}
+var init_projectSkills = __esm({
+  "src/maker/cli/projectSkills.ts"() {
+    "use strict";
+  }
+});
+
 // src/maker/cli/devKit.ts
 import { spawnSync as spawnSync2 } from "node:child_process";
-import fs6 from "node:fs";
+import fs7 from "node:fs";
 import os3 from "node:os";
-import path7 from "node:path";
+import path8 from "node:path";
 function resolveDefaultAiDevKitUrl(environment = EnvConfig.environment) {
   return AI_DEV_KIT_URLS[environment] || AI_DEV_KIT_URLS.production;
 }
 function inspectAiDevKit(targetDir) {
-  const resolvedTargetDir = path7.resolve(targetDir);
+  const resolvedTargetDir = path8.resolve(targetDir);
   const presentEntries = DEV_KIT_REQUIRED_ENTRIES.filter(
-    (entry) => fs6.existsSync(path7.join(resolvedTargetDir, entry))
+    (entry) => fs7.existsSync(path8.join(resolvedTargetDir, entry))
   );
   const missingEntries = DEV_KIT_REQUIRED_ENTRIES.filter(
     (entry) => !presentEntries.includes(entry)
@@ -30740,16 +30835,16 @@ function inspectAiDevKit(targetDir) {
   };
 }
 function getAiDevKitVersionMetadataPath(targetDir) {
-  return path7.join(path7.resolve(targetDir), AI_DEV_KIT_VERSION_METADATA_FILE);
+  return path8.join(path8.resolve(targetDir), AI_DEV_KIT_VERSION_METADATA_FILE);
 }
 function readAiDevKitVersionMetadata(targetDir) {
   const metadataPath = getAiDevKitVersionMetadataPath(targetDir);
-  if (!fs6.existsSync(metadataPath)) {
+  if (!fs7.existsSync(metadataPath)) {
     return void 0;
   }
   try {
     const data = JSON.parse(
-      fs6.readFileSync(metadataPath, "utf8")
+      fs7.readFileSync(metadataPath, "utf8")
     );
     if (data.env !== "production" && data.env !== "rnd" || !isValidDevKitVersion(data.version) || typeof data.source_url !== "string" || typeof data.installed_at !== "string") {
       return void 0;
@@ -30761,8 +30856,8 @@ function readAiDevKitVersionMetadata(targetDir) {
 }
 function writeAiDevKitVersionMetadata(targetDir, metadata) {
   const metadataPath = getAiDevKitVersionMetadataPath(targetDir);
-  fs6.mkdirSync(path7.dirname(metadataPath), { recursive: true });
-  fs6.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}
+  fs7.mkdirSync(path8.dirname(metadataPath), { recursive: true });
+  fs7.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}
 `, "utf8");
 }
 async function fetchAiDevKitVersions(options3 = {}) {
@@ -30817,7 +30912,7 @@ async function resolveAiDevKitDownload(options3 = {}) {
 }
 async function checkAiDevKitUpdate(targetDir, options3 = {}) {
   var _a3;
-  const resolvedTargetDir = path7.resolve(targetDir);
+  const resolvedTargetDir = path8.resolve(targetDir);
   const installed = readAiDevKitVersionMetadata(resolvedTargetDir);
   const download = await resolveAiDevKitDownload({
     environment: options3.environment,
@@ -30835,24 +30930,29 @@ async function checkAiDevKitUpdate(targetDir, options3 = {}) {
   };
 }
 function listPresentDevKitManagedEntries(targetDir) {
-  const resolvedTargetDir = path7.resolve(targetDir);
-  return DEV_KIT_MANAGED_ENTRY_CANDIDATES.filter(
-    (entry) => fs6.existsSync(path7.join(resolvedTargetDir, entry))
+  const resolvedTargetDir = path8.resolve(targetDir);
+  return Array.from(
+    /* @__PURE__ */ new Set([
+      ...DEV_KIT_MANAGED_ENTRY_CANDIDATES.filter(
+        (entry) => fs7.existsSync(path8.join(resolvedTargetDir, entry))
+      ),
+      ...listPresentSkillInstallerOutputEntries(resolvedTargetDir)
+    ])
   );
 }
 async function installAiDevKit(options3 = {}) {
   var _a3;
-  const targetDir = path7.resolve(options3.targetDir || ".");
-  fs6.mkdirSync(targetDir, { recursive: true });
+  const targetDir = path8.resolve(options3.targetDir || ".");
+  fs7.mkdirSync(targetDir, { recursive: true });
   const download = options3.sourceDir ? void 0 : options3.url ? void 0 : await resolveAiDevKitDownload({
     environment: options3.environment,
     fetchImpl: options3.fetchImpl,
     versionCheckTimeoutMs: options3.versionCheckTimeoutMs
   });
   const downloadUrl = options3.url || (download == null ? void 0 : download.url) || resolveDefaultAiDevKitUrl(options3.environment);
-  const preparedSource = options3.sourceDir ? path7.resolve(options3.sourceDir) : await downloadAndExtractDevKit(downloadUrl, options3.fetchImpl, options3.downloadTimeoutMs);
+  const preparedSource = options3.sourceDir ? path8.resolve(options3.sourceDir) : await downloadAndExtractDevKit(downloadUrl, options3.fetchImpl, options3.downloadTimeoutMs);
   const sourceDir = resolveDevKitRoot(preparedSource);
-  const entries = fs6.readdirSync(sourceDir, { withFileTypes: true });
+  const entries = fs7.readdirSync(sourceDir, { withFileTypes: true });
   const installedEntries = [];
   const skippedEntries = [];
   if (options3.replaceManagedEntries) {
@@ -30866,7 +30966,7 @@ async function installAiDevKit(options3 = {}) {
       skippedEntries.push(entry.name);
       continue;
     }
-    copyEntry(path7.join(sourceDir, entry.name), path7.join(targetDir, entry.name), {
+    copyEntry(path8.join(sourceDir, entry.name), path8.join(targetDir, entry.name), {
       preserveExisting: options3.preserveExisting
     });
     installedEntries.push(entry.name);
@@ -30880,7 +30980,7 @@ async function installAiDevKit(options3 = {}) {
       installedEntries.push(entry);
     }
   }
-  const stagedGitignorePath = path7.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE);
+  const stagedGitignorePath = path8.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE);
   writeDevKitStagedGitignore(stagedGitignorePath, [
     ...installedEntries,
     ...listPresentSkillInstallerOutputEntries(targetDir)
@@ -30896,7 +30996,7 @@ async function installAiDevKit(options3 = {}) {
     sourceDir,
     installedEntries: installedEntries.sort(),
     skippedEntries: skippedEntries.sort(),
-    gitignorePath: path7.join(targetDir, ".gitignore"),
+    gitignorePath: path8.join(targetDir, ".gitignore"),
     stagedGitignorePath,
     skillInstaller,
     download,
@@ -30904,11 +31004,11 @@ async function installAiDevKit(options3 = {}) {
   };
 }
 function inspectAiDevKitSkillInstallStatus(targetDir) {
-  const resolvedTargetDir = path7.resolve(targetDir);
+  const resolvedTargetDir = path8.resolve(targetDir);
   const targets = SKILL_INSTALLER_OUTPUT_ENTRIES.map((entry) => {
-    const skillsDir = path7.join(resolvedTargetDir, entry, "skills");
-    const present = fs6.existsSync(skillsDir) && fs6.statSync(skillsDir).isDirectory();
-    const skillCount = present ? fs6.readdirSync(skillsDir, { withFileTypes: true }).filter((item) => item.isDirectory() || item.isSymbolicLink()).length : 0;
+    const skillsDir = path8.join(resolvedTargetDir, entry, "skills");
+    const present = fs7.existsSync(skillsDir) && fs7.statSync(skillsDir).isDirectory();
+    const skillCount = present ? fs7.readdirSync(skillsDir, { withFileTypes: true }).filter((item) => item.isDirectory() || item.isSymbolicLink()).length : 0;
     return {
       name: entry.replace(/^\./, ""),
       path: skillsDir,
@@ -30931,7 +31031,7 @@ function createDevKitGitignoreBlock(entries) {
   return [DEV_KIT_IGNORE_BEGIN, ...ignoreEntries, DEV_KIT_IGNORE_END].join("\n");
 }
 function writeDevKitStagedGitignore(stagedGitignorePath, entries) {
-  fs6.writeFileSync(stagedGitignorePath, `${createDevKitGitignoreBlock(entries)}
+  fs7.writeFileSync(stagedGitignorePath, `${createDevKitGitignoreBlock(entries)}
 `, "utf8");
 }
 function ensureMakerAssetPolicyInstructionFiles(targetDir) {
@@ -30939,7 +31039,7 @@ function ensureMakerAssetPolicyInstructionFiles(targetDir) {
   return [MAKER_AGENTS_FILE];
 }
 function mergeDevKitGitignoreBlock(gitignorePath, block2) {
-  const existing = fs6.existsSync(gitignorePath) ? fs6.readFileSync(gitignorePath, "utf8") : "";
+  const existing = fs7.existsSync(gitignorePath) ? fs7.readFileSync(gitignorePath, "utf8") : "";
   const withoutOldBlock = existing.replace(
     new RegExp(
       `${escapeRegExp(DEV_KIT_IGNORE_BEGIN)}[\\s\\S]*?${escapeRegExp(DEV_KIT_IGNORE_END)}\\n?`,
@@ -30948,38 +31048,38 @@ function mergeDevKitGitignoreBlock(gitignorePath, block2) {
     ""
   ).trimEnd();
   const next = [withoutOldBlock, block2, ""].filter((part) => part.length > 0).join("\n\n");
-  fs6.writeFileSync(gitignorePath, next, "utf8");
+  fs7.writeFileSync(gitignorePath, next, "utf8");
 }
 function finalizeStagedDevKitGitignore(targetDir) {
-  const stagedGitignorePath = path7.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE);
-  if (!fs6.existsSync(stagedGitignorePath)) {
+  const stagedGitignorePath = path8.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE);
+  if (!fs7.existsSync(stagedGitignorePath)) {
     return false;
   }
-  const block2 = fs6.readFileSync(stagedGitignorePath, "utf8").trim();
+  const block2 = fs7.readFileSync(stagedGitignorePath, "utf8").trim();
   if (block2.length > 0) {
-    mergeDevKitGitignoreBlock(path7.join(targetDir, ".gitignore"), block2);
+    mergeDevKitGitignoreBlock(path8.join(targetDir, ".gitignore"), block2);
   }
-  fs6.rmSync(stagedGitignorePath, { force: true });
+  fs7.rmSync(stagedGitignorePath, { force: true });
   return true;
 }
 function copyEntry(source, target, options3 = {}) {
-  const stat = fs6.statSync(source);
+  const stat = fs7.statSync(source);
   if (stat.isDirectory()) {
-    fs6.mkdirSync(target, { recursive: true });
-    for (const child of fs6.readdirSync(source)) {
+    fs7.mkdirSync(target, { recursive: true });
+    for (const child of fs7.readdirSync(source)) {
       if (child === ".DS_Store") {
         continue;
       }
-      copyEntry(path7.join(source, child), path7.join(target, child), options3);
+      copyEntry(path8.join(source, child), path8.join(target, child), options3);
     }
     return;
   }
   if (stat.isFile()) {
-    if (options3.preserveExisting && fs6.existsSync(target)) {
+    if (options3.preserveExisting && fs7.existsSync(target)) {
       return;
     }
-    fs6.mkdirSync(path7.dirname(target), { recursive: true });
-    fs6.copyFileSync(source, target);
+    fs7.mkdirSync(path8.dirname(target), { recursive: true });
+    fs7.copyFileSync(source, target);
   }
 }
 function replaceDevKitManagedEntries(targetDir, sourceEntryNames) {
@@ -30989,11 +31089,11 @@ function replaceDevKitManagedEntries(targetDir, sourceEntryNames) {
       candidates.add(entry);
     }
   }
-  for (const entry of readManagedGitignoreEntries(path7.join(targetDir, ".gitignore"))) {
+  for (const entry of readManagedGitignoreEntries(path8.join(targetDir, ".gitignore"))) {
     candidates.add(entry);
   }
   for (const entry of readManagedGitignoreEntries(
-    path7.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE)
+    path8.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE)
   )) {
     candidates.add(entry);
   }
@@ -31004,14 +31104,14 @@ function replaceDevKitManagedEntries(targetDir, sourceEntryNames) {
     if (!DEV_KIT_MANAGED_ENTRY_CANDIDATES.includes(entry)) {
       continue;
     }
-    fs6.rmSync(path7.join(targetDir, entry), { recursive: true, force: true });
+    fs7.rmSync(path8.join(targetDir, entry), { recursive: true, force: true });
   }
 }
 function readManagedGitignoreEntries(gitignorePath) {
-  if (!fs6.existsSync(gitignorePath)) {
+  if (!fs7.existsSync(gitignorePath)) {
     return [];
   }
-  const content = fs6.readFileSync(gitignorePath, "utf8");
+  const content = fs7.readFileSync(gitignorePath, "utf8");
   const blockPattern = new RegExp(
     `${escapeRegExp(DEV_KIT_IGNORE_BEGIN)}\\n([\\s\\S]*?)\\n${escapeRegExp(DEV_KIT_IGNORE_END)}`,
     "g"
@@ -31029,9 +31129,16 @@ function readManagedGitignoreEntries(gitignorePath) {
   return entries;
 }
 function installAiDevKitSkills(targetDir, options3 = {}) {
+  try {
+    return runAiDevKitSkillScript(targetDir, options3);
+  } finally {
+    syncProjectSkills(targetDir, { client: ".agents" });
+  }
+}
+function runAiDevKitSkillScript(targetDir, options3) {
   var _a3;
-  const toolsDir = path7.join(targetDir, "tools");
-  if (!fs6.existsSync(toolsDir) || !fs6.statSync(toolsDir).isDirectory()) {
+  const toolsDir = path8.join(targetDir, "tools");
+  if (!fs7.existsSync(toolsDir) || !fs7.statSync(toolsDir).isDirectory()) {
     return {
       ok: false,
       status: "skipped",
@@ -31043,8 +31150,8 @@ function installAiDevKitSkills(targetDir, options3 = {}) {
   }
   const isWindows = process.platform === "win32";
   const scriptName = isWindows ? "install-skills.ps1" : "install-skills.sh";
-  const scriptPath = path7.join(toolsDir, scriptName);
-  if (!fs6.existsSync(scriptPath)) {
+  const scriptPath = path8.join(toolsDir, scriptName);
+  if (!fs7.existsSync(scriptPath)) {
     return {
       ok: false,
       status: "skipped",
@@ -31106,8 +31213,15 @@ function runDevKitSkillInstallerForInstall(targetDir, options3 = {}) {
 }
 function listPresentSkillInstallerOutputEntries(targetDir) {
   return SKILL_INSTALLER_OUTPUT_ENTRIES.filter(
-    (entry) => fs6.existsSync(path7.join(targetDir, entry))
-  );
+    (entry) => fs7.existsSync(path8.join(targetDir, entry))
+  ).flatMap((entry) => {
+    if (entry !== ".agents") return [entry];
+    const source = path8.join(targetDir, ".installer", "skills");
+    if (!fs7.existsSync(source)) return [];
+    return fs7.readdirSync(source, { withFileTypes: true }).filter(
+      (item) => item.isDirectory() && fs7.existsSync(path8.join(source, item.name, "SKILL.md"))
+    ).map((item) => path8.join(".agents", "skills", item.name));
+  });
 }
 function getAiDevKitVersionsUrl(environment) {
   const endpoints = getMakerEndpoints(environment);
@@ -31138,16 +31252,16 @@ function writeResolvedDevKitVersionMetadata(targetDir, environment, sourceUrl, c
   return metadata;
 }
 async function downloadAndExtractDevKit(url2, fetchImpl = fetch, timeoutMs = DEFAULT_DOWNLOAD_FETCH_TIMEOUT_MS) {
-  const tempDir = fs6.mkdtempSync(path7.join(os3.tmpdir(), "taptap-maker-ai-dev-kit-"));
-  const zipPath = path7.join(tempDir, "ai-dev-kit.zip");
+  const tempDir = fs7.mkdtempSync(path8.join(os3.tmpdir(), "taptap-maker-ai-dev-kit-"));
+  const zipPath = path8.join(tempDir, "ai-dev-kit.zip");
   const response = await fetchWithTimeout(fetchImpl, url2, {}, timeoutMs, "AI dev kit download");
   if (!response.ok) {
     throw new Error(`AI dev kit download failed: HTTP ${response.status} ${response.statusText}`);
   }
   const payload = Buffer.from(await response.arrayBuffer());
-  fs6.writeFileSync(zipPath, payload);
+  fs7.writeFileSync(zipPath, payload);
   extractZip(zipPath, tempDir);
-  fs6.rmSync(zipPath, { force: true });
+  fs7.rmSync(zipPath, { force: true });
   return tempDir;
 }
 function extractZip(zipPath, targetDir, label = "AI dev kit") {
@@ -31253,11 +31367,11 @@ function shellQuote(value) {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 function resolveDevKitRoot(sourceDir) {
-  const directEntries = fs6.existsSync(sourceDir) ? fs6.readdirSync(sourceDir) : [];
+  const directEntries = fs7.existsSync(sourceDir) ? fs7.readdirSync(sourceDir) : [];
   if (looksLikeDevKitRoot(sourceDir)) {
     return sourceDir;
   }
-  const childDirs = directEntries.map((entry) => path7.join(sourceDir, entry)).filter((entryPath) => fs6.existsSync(entryPath) && fs6.statSync(entryPath).isDirectory());
+  const childDirs = directEntries.map((entry) => path8.join(sourceDir, entry)).filter((entryPath) => fs7.existsSync(entryPath) && fs7.statSync(entryPath).isDirectory());
   for (const childDir of childDirs) {
     if (looksLikeDevKitRoot(childDir)) {
       return childDir;
@@ -31266,7 +31380,7 @@ function resolveDevKitRoot(sourceDir) {
   throw new Error(`AI dev kit root not found under ${sourceDir}`);
 }
 function looksLikeDevKitRoot(dir) {
-  return fs6.existsSync(path7.join(dir, "engine-docs")) || fs6.existsSync(path7.join(dir, ".emmylua")) || fs6.existsSync(path7.join(dir, "urhox-libs"));
+  return fs7.existsSync(path8.join(dir, "engine-docs")) || fs7.existsSync(path8.join(dir, ".emmylua")) || fs7.existsSync(path8.join(dir, "urhox-libs"));
 }
 function formatIgnoreEntry(entry) {
   if (entry === ".DS_Store") {
@@ -31288,12 +31402,13 @@ var init_devKit = __esm({
     init_config();
     init_fetchTimeout();
     init_agentsPolicy();
+    init_projectSkills();
     AI_DEV_KIT_URLS = {
       production: "https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip",
       rnd: "https://urhox-demo-platform.spark.xd.com/ai-dev-kit/rnd/latest/ai-dev-kit.zip"
     };
     DEFAULT_AI_DEV_KIT_URL = AI_DEV_KIT_URLS.production;
-    AI_DEV_KIT_VERSION_METADATA_FILE = path7.join(".maker", "ai-dev-kit-version.json");
+    AI_DEV_KIT_VERSION_METADATA_FILE = path8.join(".maker", "ai-dev-kit-version.json");
     AI_DEV_KIT_DOWNLOAD_ENV = {
       production: "pd",
       rnd: "rnd"
@@ -31323,7 +31438,7 @@ var init_devKit = __esm({
       "urhox-libs"
     ];
     SKIPPED_TOP_LEVEL_ENTRIES = /* @__PURE__ */ new Set(["scripts", ".DS_Store", "ai-dev-kit.zip"]);
-    SKILL_INSTALLER_OUTPUT_ENTRIES = [".claude", ".codex", ".cursor", ".gemini"];
+    SKILL_INSTALLER_OUTPUT_ENTRIES = [".claude", ".codex", ".cursor", ".gemini", ".agents"];
     PYTHON_ZIP_EXTRACT_SCRIPT = String.raw`
 import os
 import sys
@@ -31350,32 +31465,32 @@ with zipfile.ZipFile(zip_path) as archive:
 });
 
 // src/maker/system/privateJson.ts
-import fs7 from "node:fs";
-import path8 from "node:path";
+import fs8 from "node:fs";
+import path9 from "node:path";
 import { randomUUID } from "node:crypto";
 function writePrivateJson(filename2, value) {
-  fs7.mkdirSync(path8.dirname(filename2), { recursive: true, mode: 448 });
+  fs8.mkdirSync(path9.dirname(filename2), { recursive: true, mode: 448 });
   const temporary = filename2 + "." + randomUUID() + ".tmp";
   const contents = JSON.stringify(value, null, 2);
   let descriptor;
   let owned = false;
   try {
-    descriptor = fs7.openSync(temporary, "wx", 384);
+    descriptor = fs8.openSync(temporary, "wx", 384);
     owned = true;
-    fs7.writeFileSync(descriptor, contents);
-    fs7.closeSync(descriptor);
+    fs8.writeFileSync(descriptor, contents);
+    fs8.closeSync(descriptor);
     descriptor = void 0;
-    fs7.renameSync(temporary, filename2);
+    fs8.renameSync(temporary, filename2);
   } finally {
     if (descriptor !== void 0) {
       try {
-        fs7.closeSync(descriptor);
+        fs8.closeSync(descriptor);
       } catch {
       }
     }
     if (owned) {
       try {
-        fs7.unlinkSync(temporary);
+        fs8.unlinkSync(temporary);
       } catch {
       }
     }
@@ -31388,26 +31503,26 @@ var init_privateJson = __esm({
 });
 
 // src/maker/projectRegistry.ts
-import fs8 from "node:fs";
-import path9 from "node:path";
+import fs9 from "node:fs";
+import path10 from "node:path";
 import { createHash } from "node:crypto";
 import { performance as performance2 } from "node:perf_hooks";
 function getMakerProjectRegistryPath() {
-  return path9.join(getMakerHome(), "projects.json");
+  return path10.join(getMakerHome(), "projects.json");
 }
 function getLegacyMakerProjectRegistryPath() {
-  return path9.join(getMakerHome(), "console", "projects.json");
+  return path10.join(getMakerHome(), "console", "projects.json");
 }
-function keyFor(root) {
-  return createHash("sha256").update(root).digest("hex");
+function keyFor(root2) {
+  return createHash("sha256").update(root2).digest("hex");
 }
 function objectFile(filename2) {
-  const stat = fs8.lstatSync(filename2);
+  const stat = fs9.lstatSync(filename2);
   if (!stat.isFile() || stat.size > MAX_BYTES)
     throw new MakerProjectRegistryError(
       "Invalid or oversized Maker project registry/configuration."
     );
-  const data = JSON.parse(fs8.readFileSync(filename2, "utf8"));
+  const data = JSON.parse(fs9.readFileSync(filename2, "utf8"));
   if (!data || typeof data !== "object" || Array.isArray(data))
     throw new MakerProjectRegistryError("Invalid Maker project registry/configuration.");
   return data;
@@ -31426,23 +31541,23 @@ function readRegistry(filename2) {
     );
   const keys = /* @__PURE__ */ new Set();
   for (const entry of data.projects) {
-    if (!entry || typeof entry.path !== "string" || !path9.isAbsolute(entry.path) || path9.normalize(entry.path) !== entry.path || entry.key !== keyFor(entry.path) || typeof entry.binding !== "string" || !entry.binding.trim() || keys.has(entry.key))
+    if (!entry || typeof entry.path !== "string" || !path10.isAbsolute(entry.path) || path10.normalize(entry.path) !== entry.path || entry.key !== keyFor(entry.path) || typeof entry.binding !== "string" || !entry.binding.trim() || keys.has(entry.key))
       throw new MakerProjectRegistryError("Invalid Maker project registry entry.");
     keys.add(entry.key);
   }
   return data;
 }
-function binding(root) {
-  if (!fs8.statSync(root).isDirectory())
+function binding(root2) {
+  if (!fs9.statSync(root2).isDirectory())
     throw new MakerProjectRegistryError("Project path must be a directory.");
-  const id = objectFile(path9.join(root, ".maker-mcp", "config.json")).project_id;
+  const id = objectFile(path10.join(root2, ".maker-mcp", "config.json")).project_id;
   if (typeof id !== "string" || !id.trim())
     throw new MakerProjectRegistryError("A bound Maker project is required.");
   return id;
 }
 function describe3(entry) {
   try {
-    if (fs8.realpathSync(entry.path) !== entry.path || binding(entry.path) !== entry.binding)
+    if (fs9.realpathSync(entry.path) !== entry.path || binding(entry.path) !== entry.binding)
       throw new Error("Project binding or directory identity changed; remove and add it again.");
     return { ...entry, valid: true };
   } catch (error2) {
@@ -31486,19 +31601,19 @@ var init_projectRegistry = __esm({
       constructor(filename2 = getMakerProjectRegistryPath(), options3 = {}) {
         this.filename = filename2;
         this.legacyFilename = options3.legacyFilename ?? (filename2 === getMakerProjectRegistryPath() ? getLegacyMakerProjectRegistryPath() : void 0);
-        if (!path9.isAbsolute(filename2) || this.legacyFilename && !path9.isAbsolute(this.legacyFilename))
+        if (!path10.isAbsolute(filename2) || this.legacyFilename && !path10.isAbsolute(this.legacyFilename))
           throw new MakerProjectRegistryError("Registry paths must be absolute.");
-        if (this.legacyFilename && path9.resolve(this.legacyFilename) === path9.resolve(filename2))
+        if (this.legacyFilename && path10.resolve(this.legacyFilename) === path10.resolve(filename2))
           throw new MakerProjectRegistryError("Legacy and shared registry paths must differ.");
       }
       transaction(operation) {
-        fs8.mkdirSync(path9.dirname(this.filename), { recursive: true, mode: 448 });
+        fs9.mkdirSync(path10.dirname(this.filename), { recursive: true, mode: 448 });
         const lock = this.filename + ".lock";
         const deadline = performance2.now() + 2e3;
         const sleeper = new Int32Array(new SharedArrayBuffer(4));
         for (; ; ) {
           try {
-            fs8.mkdirSync(lock, { mode: 448 });
+            fs9.mkdirSync(lock, { mode: 448 });
             break;
           } catch (error2) {
             if (error2.code !== "EEXIST") throw error2;
@@ -31530,23 +31645,23 @@ var init_projectRegistry = __esm({
           }
           return result;
         } finally {
-          fs8.rmdirSync(lock);
+          fs9.rmdirSync(lock);
         }
       }
       add(directory) {
-        if (!directory || !path9.isAbsolute(directory))
+        if (!directory || !path10.isAbsolute(directory))
           throw new MakerProjectRegistryError(
             "Please provide the absolute path to a local Maker project."
           );
         return this.transaction((data) => {
-          const root = fs8.realpathSync(directory);
-          const id = binding(root);
-          const key = keyFor(root);
+          const root2 = fs9.realpathSync(directory);
+          const id = binding(root2);
+          const key = keyFor(root2);
           const existing = data.projects.find((entry2) => entry2.key === key);
           if (existing) return { result: requireValid(existing) };
           if (data.projects.length >= MAX_PROJECTS)
             throw new MakerProjectRegistryError("The local project list is limited to 200 entries.");
-          const entry = { key, path: root, binding: id };
+          const entry = { key, path: root2, binding: id };
           const result = requireValid(entry);
           data.projects.unshift(entry);
           return { result, changed: true };
@@ -31581,10 +31696,853 @@ var init_projectRegistry = __esm({
   }
 });
 
+// src/maker/projectSettings.ts
+import fs10 from "node:fs";
+import path11 from "node:path";
+function inspectMakerProjectHealth(projectRoot, mode = "status") {
+  const resolvedProjectRoot = path11.resolve(projectRoot);
+  const paths = {
+    projectDir: path11.join(resolvedProjectRoot, ".project"),
+    projectJson: path11.join(resolvedProjectRoot, ".project", "project.json"),
+    resourcesJson: path11.join(resolvedProjectRoot, ".project", "resources.json"),
+    settingsJson: path11.join(resolvedProjectRoot, ".project", "settings.json")
+  };
+  const issues = [];
+  const projectDirState = inspectPath(paths.projectDir, "directory");
+  if (projectDirState === "wrong_type") {
+    issues.push(issue2("invalid_path_type", "error", ".project", ".project 必须是目录"));
+  }
+  const rootCandidates = [
+    ["project.json", paths.projectJson],
+    ["resources.json", paths.resourcesJson],
+    ["settings.json", paths.settingsJson],
+    ["assets/project.json", paths.projectJson]
+  ];
+  for (const [name, canonicalPath] of rootCandidates) {
+    const rootPath = path11.join(resolvedProjectRoot, name);
+    const rootState = inspectPath(rootPath, "file");
+    if (rootState === "file" && inspectPath(canonicalPath, "file") !== "file") {
+      if (name === "assets/project.json" && !hasTapTapPublish(path11.join(resolvedProjectRoot, name))) {
+        continue;
+      }
+      if (name !== "assets/project.json" && !hasMakerRootConfigSignature(rootPath, name)) {
+        continue;
+      }
+      issues.push({
+        code: "misplaced_config",
+        severity: "error",
+        path: name,
+        expectedPath: path11.relative(resolvedProjectRoot, canonicalPath),
+        message: `${name} 位于项目根目录，规范位置应为 ${path11.relative(resolvedProjectRoot, canonicalPath)}`
+      });
+    }
+  }
+  const projectDirExists = projectDirState === "directory";
+  const projectJsonState = projectDirExists ? inspectPath(paths.projectJson, "file") : "missing";
+  const resourcesJsonState = projectDirExists ? inspectPath(paths.resourcesJson, "file") : "missing";
+  const settingsJsonState = projectDirExists ? inspectPath(paths.settingsJson, "file") : "missing";
+  const projectJsonExists = projectJsonState === "file";
+  const resourcesJsonExists = resourcesJsonState === "file";
+  const settingsJsonExists = settingsJsonState === "file";
+  const hasMisplacedConfig = issues.some((item) => item.code === "misplaced_config");
+  const hasNoPrimaryConfig = projectJsonState === "missing" && settingsJsonState === "missing";
+  if (hasNoPrimaryConfig && !hasMisplacedConfig && issues.length === 0) {
+    return createHealthResult(
+      resolvedProjectRoot,
+      mode,
+      "not_initialized",
+      paths,
+      issues,
+      true,
+      false
+    );
+  }
+  addCanonicalFileIssue(projectJsonState, ".project/project.json", issues, mode === "qrcode");
+  addCanonicalFileIssue(resourcesJsonState, ".project/resources.json", issues, mode === "qrcode");
+  addCanonicalFileIssue(settingsJsonState, ".project/settings.json", issues, false);
+  if (projectJsonExists && settingsJsonState === "missing") {
+    issues.push(
+      issue2(
+        "missing_settings_json",
+        "warning",
+        ".project/settings.json",
+        ".project/settings.json 缺失，首次构建可能由 server 创建"
+      )
+    );
+  }
+  const project = projectJsonExists ? readHealthJson(paths.projectJson, "project.json", issues) : void 0;
+  const resources2 = resourcesJsonExists ? readHealthJson(paths.resourcesJson, "resources.json", issues) : void 0;
+  const settings = settingsJsonExists ? readHealthJson(paths.settingsJson, "settings.json", issues) : void 0;
+  if (project !== void 0 && !isPlainObject3(project)) {
+    issues.push(
+      issue2(
+        "invalid_project_json",
+        "error",
+        ".project/project.json",
+        "project.json 必须是 JSON object"
+      )
+    );
+  } else if (project && isPlainObject3(project)) {
+    validateProjectFields(project, resources2, issues, mode);
+  }
+  if (resources2 !== void 0 && !isPlainObject3(resources2)) {
+    issues.push(
+      issue2(
+        "invalid_resources_json",
+        "error",
+        ".project/resources.json",
+        "resources.json 必须是 JSON object"
+      )
+    );
+  }
+  if (settings !== void 0) {
+    if (!isPlainObject3(settings)) {
+      issues.push(
+        issue2(
+          "invalid_settings_json",
+          "error",
+          ".project/settings.json",
+          "settings.json 必须是 JSON object"
+        )
+      );
+    } else {
+      const settingsIssues = validateMakerProjectSettings(settings);
+      if (settingsIssues.length > 0) {
+        issues.push(
+          issue2(
+            "invalid_project_settings",
+            "error",
+            ".project/settings.json",
+            settingsIssues.join("; ")
+          )
+        );
+      }
+    }
+  }
+  const hasFatalIssues = issues.some((item) => item.severity === "error");
+  const hasCompletePrimaryConfig = projectJsonExists && settingsJsonExists;
+  const status = hasMisplacedConfig ? "misplaced_config" : hasFatalIssues ? "error" : !hasCompletePrimaryConfig ? "not_initialized" : issues.length > 0 ? "warning" : "ready";
+  const canBuild = !issues.some((item) => item.severity === "error" && isBuildBlockingIssue(item));
+  const canGenerateTestQrcode = canGenerateQrcode(project, resources2, settingsJsonExists, issues);
+  return createHealthResult(
+    resolvedProjectRoot,
+    mode,
+    status,
+    paths,
+    issues,
+    canBuild,
+    canGenerateTestQrcode
+  );
+}
+function formatMakerProjectHealthStatus(health) {
+  if (health.status === "ready" && health.issues.length === 0 && health.canGenerateTestQrcode) {
+    return "";
+  }
+  const lines = [
+    "Maker project structure",
+    "",
+    `- status: ${health.status}`,
+    `- evaluated_target_dir: ${health.projectRoot}`,
+    `- can_build: ${health.canBuild ? "yes" : "no"}`,
+    `- can_generate_test_qrcode: ${health.canGenerateTestQrcode ? "yes" : "no"}`
+  ];
+  if (health.issues.length > 0) {
+    lines.push("- issues:");
+    lines.push(
+      ...health.issues.map(
+        (item) => `  - [${item.severity}] ${item.code}: ${item.path} - ${item.message}${item.expectedPath ? ` (expected: ${item.expectedPath})` : ""}`
+      )
+    );
+  }
+  const settingsSection = formatHealthSettingsStatus(health);
+  if (settingsSection) {
+    lines.push("", settingsSection);
+  }
+  const isMissingSettings = health.issues.some((item) => item.code === "missing_settings_json");
+  lines.push(
+    health.canBuild && !health.canGenerateTestQrcode ? isMissingSettings ? "- next_action: 可以继续构建；生成测试二维码前需要 .project/settings.json。" : "- next_action: 可以继续构建；生成测试二维码前请完善 .project/project.json 发布配置。" : health.canBuild ? "- next_action: 可以继续构建；检查器不会自动移动或覆盖文件。" : "- next_action: 修复上面的规范路径或配置问题后再构建；检查器不会自动移动或覆盖文件。"
+  );
+  return lines.join("\n");
+}
+function formatHealthSettingsStatus(health) {
+  const settingsIssue = health.issues.find(
+    (item) => item.code === "invalid_settings_json" || item.code === "invalid_project_settings"
+  );
+  if (!settingsIssue) {
+    return "";
+  }
+  return [
+    "Maker project settings",
+    "",
+    `- status: ${settingsIssue.code}`,
+    `- config: ${health.paths.settingsJson}`,
+    "- impact: 构建可能失败或游戏黑屏；坏配置不应提交到 Maker 远端。",
+    "- issues:",
+    `  - ${settingsIssue.message}`,
+    "- next_action: 恢复 .project/settings.json 的构建关键字段后再构建；保留合法的 @runtime 配置。"
+  ].join("\n");
+}
+function inspectMakerProjectSettings(projectRoot) {
+  const resolvedProjectRoot = path11.resolve(projectRoot);
+  const settingsJsonPath = path11.join(resolvedProjectRoot, ".project", "settings.json");
+  const baseStatus = {
+    projectRoot: resolvedProjectRoot,
+    settingsJsonPath
+  };
+  if (!fs10.existsSync(settingsJsonPath)) {
+    return {
+      ...baseStatus,
+      status: "missing_settings_json"
+    };
+  }
+  let settings;
+  try {
+    settings = JSON.parse(fs10.readFileSync(settingsJsonPath, "utf8"));
+  } catch (error2) {
+    return {
+      ...baseStatus,
+      status: "invalid_settings_json",
+      error: error2 instanceof Error ? error2.message : String(error2)
+    };
+  }
+  const issues = validateMakerProjectSettings(settings);
+  if (issues.length > 0) {
+    return {
+      ...baseStatus,
+      status: "invalid_project_settings",
+      issues
+    };
+  }
+  return {
+    ...baseStatus,
+    status: "ready"
+  };
+}
+function createHealthResult(projectRoot, mode, status, paths, issues, canBuild, canGenerateTestQrcode) {
+  return {
+    projectRoot,
+    mode,
+    status,
+    canBuild,
+    canGenerateTestQrcode,
+    paths,
+    issues
+  };
+}
+function inspectPath(filePath, expectedType) {
+  try {
+    const stats = fs10.lstatSync(filePath);
+    if (stats.isSymbolicLink()) {
+      return "wrong_type";
+    }
+    if (expectedType === "directory") {
+      return stats.isDirectory() ? "directory" : "wrong_type";
+    }
+    return stats.isFile() ? "file" : "directory";
+  } catch (error2) {
+    if (error2.code === "ENOENT") {
+      return "missing";
+    }
+    return "wrong_type";
+  }
+}
+function addCanonicalFileIssue(state, issuePath, issues, required2) {
+  if (state === "directory" || state === "wrong_type") {
+    issues.push(issue2("invalid_path_type", "error", issuePath, `${issuePath} 必须是普通文件`));
+  } else if (state === "missing" && required2) {
+    issues.push(issue2("missing_required_file", "error", issuePath, `${issuePath} 缺失`));
+  }
+}
+function readHealthJson(filePath, label, issues) {
+  try {
+    return JSON.parse(fs10.readFileSync(filePath, "utf8"));
+  } catch (error2) {
+    const code = label === "project.json" ? "invalid_project_json" : label === "settings.json" ? "invalid_settings_json" : "invalid_resources_json";
+    issues.push(
+      issue2(
+        code,
+        "error",
+        label === "project.json" ? ".project/project.json" : label === "settings.json" ? ".project/settings.json" : ".project/resources.json",
+        `${label} 无法解析为 JSON: ${error2 instanceof Error ? error2.message : String(error2)}`
+      )
+    );
+    return void 0;
+  }
+}
+function hasTapTapPublish(filePath) {
+  try {
+    const value = JSON.parse(fs10.readFileSync(filePath, "utf8"));
+    return isPlainObject3(value) && isPlainObject3(value.taptap_publish);
+  } catch {
+    return false;
+  }
+}
+function hasMakerRootConfigSignature(filePath, name) {
+  try {
+    const value = JSON.parse(fs10.readFileSync(filePath, "utf8"));
+    if (!isPlainObject3(value)) {
+      return false;
+    }
+    const schema = value.$schema;
+    if (isNonEmptyString(schema) && schema.endsWith(name.replace(".json", ".schema.json"))) {
+      return true;
+    }
+    if (name === "project.json") {
+      return isPlainObject3(value.taptap_publish) && isNonEmptyString(value.project_id) && isNonEmptyString(value.version) && (isNonEmptyString(value.entry) || isNonEmptyString(value["entry@client"]) && isNonEmptyString(value["entry@server"]));
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+function isBuildBlockingIssue(item) {
+  return item.code !== "invalid_project_field" && item.code !== "invalid_publish_field";
+}
+function validateProjectFields(project, resources2, issues, mode) {
+  const projectFieldSeverity = mode === "qrcode" ? "error" : "warning";
+  const projectId = project.project_id;
+  if (!isConfiguredString(projectId)) {
+    issues.push(
+      issue2(
+        "invalid_project_field",
+        projectFieldSeverity,
+        ".project/project.json:project_id",
+        mode === "qrcode" ? "project_id 不能为空或使用模板占位符" : "project_id 必须存在且不能为空"
+      )
+    );
+  }
+  const version2 = project.version;
+  if (!isConfiguredString(version2)) {
+    issues.push(
+      issue2(
+        "invalid_project_field",
+        projectFieldSeverity,
+        ".project/project.json:version",
+        mode === "qrcode" ? "version 不能为空或使用模板占位符" : "version 必须存在且不能为空"
+      )
+    );
+  }
+  if (!hasProjectEntry(project, resources2, "qrcode")) {
+    issues.push(
+      issue2(
+        "invalid_project_field",
+        projectFieldSeverity,
+        ".project/project.json:entry",
+        "必须在 project.json 或 resources.json 提供 entry，或完整的客户端/服务端入口"
+      )
+    );
+  }
+  const publish = project.taptap_publish;
+  if (publish === void 0) {
+    issues.push(
+      issue2(
+        "invalid_publish_field",
+        projectFieldSeverity,
+        "taptap_publish",
+        "生成测试二维码前必须存在 taptap_publish 配置"
+      )
+    );
+    return;
+  }
+  if (!isPlainObject3(publish)) {
+    issues.push(
+      issue2(
+        "invalid_publish_field",
+        mode === "qrcode" ? "error" : "warning",
+        "taptap_publish",
+        "taptap_publish 必须是 JSON object"
+      )
+    );
+    return;
+  }
+  const publishFieldSeverity = mode === "qrcode" ? "error" : "warning";
+  const title = publish.title;
+  if (!hasPublishedApp(publish) && !isConfiguredTitle(title)) {
+    issues.push(
+      issue2(
+        "invalid_publish_field",
+        publishFieldSeverity,
+        "taptap_publish.title",
+        "title 不能为空或使用模板占位符"
+      )
+    );
+  }
+  const category = publish.category;
+  if (!hasPublishedApp(publish) && !isConfiguredString(category)) {
+    issues.push(
+      issue2(
+        "invalid_publish_field",
+        publishFieldSeverity,
+        "taptap_publish.category",
+        "category 不能为空或使用模板占位符"
+      )
+    );
+  }
+  const orientation = publish.screen_orientation;
+  if (orientation !== "landscape" && orientation !== "portrait") {
+    issues.push(
+      issue2(
+        "invalid_publish_field",
+        publishFieldSeverity,
+        "taptap_publish.screen_orientation",
+        "screen_orientation 必须是 landscape 或 portrait"
+      )
+    );
+  }
+}
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+function isConfiguredString(value) {
+  return isNonEmptyString(value) && !value.trim().startsWith("<") && !/[{}]/u.test(value);
+}
+function isConfiguredTitle(value) {
+  if (!isNonEmptyString(value)) {
+    return false;
+  }
+  const title = value.trim();
+  return !(title.startsWith("<") && title.endsWith(">") || title.startsWith("{") && title.endsWith("}"));
+}
+function hasPublishedApp(publish) {
+  return isConfiguredString(publish.app_id) || typeof publish.app_id === "number" && Number.isSafeInteger(publish.app_id) && publish.app_id > 0;
+}
+function canGenerateQrcode(project, resources2, settingsExists, issues) {
+  if (!isPlainObject3(project) || !isPlainObject3(resources2) || !settingsExists || !isConfiguredString(project.project_id) || !isConfiguredString(project.version) || !hasProjectEntry(project, resources2, "qrcode") || !isPlainObject3(project.taptap_publish)) {
+    return false;
+  }
+  const publish = project.taptap_publish;
+  if (!hasPublishedApp(publish) && (!isConfiguredTitle(publish.title) || !isConfiguredString(publish.category))) {
+    return false;
+  }
+  const orientation = publish.screen_orientation;
+  if (orientation !== void 0 && orientation !== "landscape" && orientation !== "portrait") {
+    return false;
+  }
+  return !issues.some((item) => {
+    if (item.severity !== "error") {
+      return false;
+    }
+    if (orientation === void 0 && item.code === "invalid_publish_field" && item.path === "taptap_publish.screen_orientation") {
+      return false;
+    }
+    if (item.path === "taptap_publish" || item.path.startsWith("taptap_publish.")) {
+      return true;
+    }
+    return item.path === ".project" || item.path === ".project/project.json" || item.path.startsWith(".project/project.json:") || item.path === ".project/resources.json" || item.code === "misplaced_config" && item.path === "project.json";
+  });
+}
+function hasProjectEntry(project, resources2, mode = "status") {
+  const resourceConfig = isPlainObject3(resources2) ? resources2 : void 0;
+  const entry = project.entry || (resourceConfig == null ? void 0 : resourceConfig.entry);
+  const isValidEntry = mode === "qrcode" ? isConfiguredString : isNonEmptyString;
+  if (isValidEntry(entry)) {
+    return true;
+  }
+  return isValidEntry(project["entry@client"] || (resourceConfig == null ? void 0 : resourceConfig["entry@client"])) && isValidEntry(project["entry@server"] || (resourceConfig == null ? void 0 : resourceConfig["entry@server"]));
+}
+function issue2(code, severity, issuePath, message) {
+  return { code, severity, path: issuePath, message };
+}
+function formatMakerProjectSettingsStatus(status) {
+  var _a3;
+  if (status.status === "ready" || status.status === "missing_settings_json") {
+    return "";
+  }
+  const lines = [
+    "Maker project settings",
+    "",
+    `- status: ${status.status}`,
+    `- config: ${status.settingsJsonPath}`,
+    "- impact: 构建可能失败或游戏黑屏；坏配置不应提交到 Maker 远端。"
+  ];
+  if (status.error) {
+    lines.push(`- error: ${status.error}`);
+  }
+  if ((_a3 = status.issues) == null ? void 0 : _a3.length) {
+    lines.push("- issues:");
+    lines.push(...status.issues.map((issue3) => `  - ${issue3}`));
+  }
+  lines.push(
+    "- next_action: 恢复 .project/settings.json 的构建关键字段后再构建；保留合法的 @runtime 配置。"
+  );
+  return lines.join("\n");
+}
+function isMakerProjectSettingsBlocking(status) {
+  return status.status === "invalid_settings_json" || status.status === "invalid_project_settings";
+}
+function validateMakerProjectSettings(settings) {
+  const issues = [];
+  if (!isPlainObject3(settings)) {
+    return ["settings.json must be a JSON object"];
+  }
+  expectValue(settings, "$schema", "../schemas/settings.schema.json", issues);
+  const sources = readPath(settings, "sources");
+  if (!isPlainObject3(sources)) {
+    issues.push("sources must be an object");
+  } else {
+    expectOneOf(settings, "sources.engine.tag", REQUIRED_SOURCE_TAGS, issues);
+    expectOneOf(settings, "sources.engine-res.tag", REQUIRED_SOURCE_TAGS, issues);
+    expectOneOf(settings, "sources.official-res.tag", REQUIRED_SOURCE_TAGS, issues);
+  }
+  const build = readPath(settings, "build");
+  if (!isPlainObject3(build)) {
+    issues.push("build must be an object");
+    return issues;
+  }
+  expectValue(settings, "build.generate_fs_path", true, issues);
+  expectValue(settings, "build.output_dir", "../dist", issues);
+  const assetDirs = readPath(build, "asset_dirs");
+  if (!isStringArray(assetDirs) || !sameStringSet(assetDirs, ["../assets", "../scripts"])) {
+    issues.push('build.asset_dirs must contain only "../assets" and "../scripts"');
+  }
+  if (readPath(build, "asset_ignores") === void 0) {
+    issues.push("build.asset_ignores must exist");
+  }
+  return issues;
+}
+function expectValue(settings, fieldPath, expected, issues) {
+  if (readPath(settings, fieldPath) !== expected) {
+    issues.push(`${fieldPath} must be ${JSON.stringify(expected)}`);
+  }
+}
+function expectOneOf(settings, fieldPath, expectedValues, issues) {
+  if (!expectedValues.includes(String(readPath(settings, fieldPath)))) {
+    issues.push(
+      `${fieldPath} must be ${expectedValues.map((value) => JSON.stringify(value)).join(" or ")}`
+    );
+  }
+}
+function readPath(value, fieldPath) {
+  let current = value;
+  for (const segment of fieldPath.split(".")) {
+    if (!isPlainObject3(current)) {
+      return void 0;
+    }
+    current = current[segment];
+  }
+  return current;
+}
+function isPlainObject3(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isStringArray(value) {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+function sameStringSet(left, right) {
+  return left.length === right.length && right.every((item) => left.includes(item));
+}
+var REQUIRED_SOURCE_TAGS;
+var init_projectSettings = __esm({
+  "src/maker/projectSettings.ts"() {
+    "use strict";
+    REQUIRED_SOURCE_TAGS = ["stable"];
+  }
+});
+
+// src/maker/qrcodeInteraction.ts
+function parseQrcodeRecovery(error2) {
+  if (typeof error2 !== "string" || error2.length > 65536) return;
+  const match = /配置的开发者 ID ([1-9]\d*) 不可用。\n\n请重新运行发布命令，系统会列出当前可用的开发者。/.exec(
+    error2
+  );
+  if (!match || !isDeveloperId(Number(match[1]))) return;
+  return {
+    kind: "developer_unavailable",
+    developerId: Number(match[1]),
+    message: "当前开发者身份不可用，原 developer_id 已保留。当前本地渠道没有可安全读取的身份列表；请先核实 Maker 登录账号及开发者权限，并通过可信渠道取得可用身份列表后再确认替换。不会清空 ID、自动创建身份或调用发布工具；上次二维码请求可能已上传测试版本。"
+  };
+}
+function isDeveloperId(value) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+function parseQrcodeInteraction(error2) {
+  if (typeof error2 !== "string" || error2.length > 65536) return;
+  const header = "检测到多个可用的开发者身份，需要用户选择：\n\n";
+  const start = error2.indexOf(header);
+  if (start < 0) return;
+  const list = error2.slice(start + header.length).split("\n\n")[0];
+  const lines = list.split("\n");
+  if (!lines.length || lines.length > 100) return;
+  const options3 = [];
+  for (const [index, line] of lines.entries()) {
+    const match = /^ {2}([1-9]\d*)\. (\[(?:个人|公司)\] \[(?:已认证|未认证)\] .+) \(ID: ([1-9]\d*)\)(?: ⭐ 推荐)?$/.exec(
+      line
+    );
+    if (!match || Number(match[1]) !== index + 1) return;
+    const value = Number(match[3]);
+    if (!isDeveloperId(value) || options3.some((option) => option.value === value)) return;
+    options3.push({ value, label: `${match[2]} (ID: ${value})` });
+  }
+  return { kind: "select_developer", title: "选择开发者身份", options: options3 };
+}
+var init_qrcodeInteraction = __esm({
+  "src/maker/qrcodeInteraction.ts"() {
+    "use strict";
+  }
+});
+
+// src/maker/qrcodePreflight.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+import fs11 from "node:fs";
+import path12 from "node:path";
+function inspectMakerQrcodePreparation(projectRoot) {
+  const health = inspectMakerProjectHealth(projectRoot, "qrcode");
+  const fillable = /* @__PURE__ */ new Set([
+    "taptap_publish.title",
+    "taptap_publish.category",
+    "taptap_publish.screen_orientation"
+  ]);
+  const blocking = health.issues.filter(
+    (item) => item.severity === "error" && item.code !== "missing_required_file" && !fillable.has(item.path)
+  );
+  if (blocking.length)
+    return {
+      status: "blocked",
+      message: "请先修复项目配置：" + blocking.map((item) => item.message).join("；")
+    };
+  if (health.status === "not_initialized" || health.issues.some(
+    (item) => item.code === "missing_required_file" || item.code === "missing_settings_json"
+  ))
+    return {
+      status: "needs_initialization",
+      action: "build",
+      message: "项目配置尚未初始化。请先明确确认并执行一次构建，再重新打开测试二维码；若构建后仍缺配置，请修复配置，不要重复构建。"
+    };
+  return { status: "ready" };
+}
+function validQrcodePublication(value) {
+  return isRecord(value) && Object.keys(value).every((key) => ["title", "category", "developer_id"].includes(key)) && (value.developer_id === void 0 || isDeveloperId(value.developer_id)) && (value.title === void 0 || isConfiguredTitle(value.title) && value.title.length <= 200) && (value.category === void 0 || MAKER_QR_CATEGORIES.includes(value.category));
+}
+function inspectMakerQrcodePreflight(projectRoot, confirmedOrientation, publication) {
+  if (publication !== void 0 && !validQrcodePublication(publication))
+    return { ok: false, message: "Invalid confirmed QR title or game category." };
+  const projectJsonPath = path12.join(path12.resolve(projectRoot), ".project", "project.json");
+  let projectJsonText;
+  let project;
+  try {
+    projectJsonText = fs11.readFileSync(projectJsonPath, "utf8");
+    project = JSON.parse(projectJsonText);
+  } catch (error2) {
+    return {
+      ok: false,
+      message: [
+        "Maker QR project configuration is not ready.",
+        `- config: ${projectJsonPath}`,
+        `- error: ${error2 instanceof Error ? error2.message : String(error2)}`,
+        "- next_action: Restore or initialize .project/project.json, then retry."
+      ].join("\n")
+    };
+  }
+  const configuredOrientation = readConfiguredOrientation(project);
+  if (configuredOrientation && publication === void 0) {
+    return { ok: true, orientation: configuredOrientation };
+  }
+  if (!configuredOrientation && !isScreenOrientation(confirmedOrientation)) {
+    return {
+      ok: false,
+      message: [
+        "Maker QR orientation is not configured yet.",
+        "- field: taptap_publish.screen_orientation",
+        "- next_action: Ask the user in a separate conversation turn to choose landscape or portrait, then retry with confirmed_screen_orientation.",
+        "- do_not: Do not infer or default the game orientation."
+      ].join("\n")
+    };
+  }
+  if (!isRecord(project) || !isRecord(project.taptap_publish)) {
+    return {
+      ok: false,
+      message: [
+        "Maker QR project publishing configuration is not ready.",
+        "- missing: taptap_publish",
+        "- next_action: Restore or initialize the taptap_publish configuration, then retry."
+      ].join("\n")
+    };
+  }
+  const orientation = configuredOrientation || confirmedOrientation;
+  if ((publication == null ? void 0 : publication.developer_id) !== void 0) {
+    const existing = project.taptap_publish.developer_id;
+    if (existing !== void 0 && existing !== null && existing !== publication.developer_id)
+      return {
+        ok: false,
+        message: "Developer configuration has changed; check the existing developer_id before continuing."
+      };
+    project.taptap_publish.developer_id = publication.developer_id;
+  }
+  if ((publication == null ? void 0 : publication.title) !== void 0 && !isConfiguredTitle(project.taptap_publish.title))
+    project.taptap_publish.title = publication.title.trim();
+  if ((publication == null ? void 0 : publication.category) !== void 0 && !MAKER_QR_CATEGORIES.includes(project.taptap_publish.category))
+    project.taptap_publish.category = publication.category;
+  project.taptap_publish.screen_orientation = orientation;
+  if (JSON.stringify(project) === JSON.stringify(JSON.parse(projectJsonText)))
+    return { ok: true, orientation };
+  const tempPath = `${projectJsonPath}.${randomUUID2()}.tmp`;
+  try {
+    fs11.writeFileSync(tempPath, `${JSON.stringify(project, null, 2)}
+`, {
+      encoding: "utf8",
+      flag: "wx"
+    });
+    if (fs11.readFileSync(projectJsonPath, "utf8") !== projectJsonText) {
+      throw new Error("Maker QR project configuration changed while saving; retry the operation.");
+    }
+    fs11.renameSync(tempPath, projectJsonPath);
+  } catch (error2) {
+    try {
+      fs11.rmSync(tempPath, { force: true });
+    } catch {
+    }
+    return {
+      ok: false,
+      message: [
+        "Maker QR project publishing configuration could not be saved.",
+        `- config: ${projectJsonPath}`,
+        `- error: ${error2 instanceof Error ? error2.message : String(error2)}`,
+        "- next_action: Fix the project configuration write error, then retry."
+      ].join("\n")
+    };
+  }
+  return { ok: true, orientation };
+}
+function readConfiguredOrientation(project) {
+  if (!isRecord(project) || !isRecord(project.taptap_publish)) {
+    return void 0;
+  }
+  const orientation = project.taptap_publish.screen_orientation;
+  return isScreenOrientation(orientation) ? orientation : void 0;
+}
+function isScreenOrientation(value) {
+  return value === "landscape" || value === "portrait";
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var MAKER_QR_CATEGORIES;
+var init_qrcodePreflight = __esm({
+  "src/maker/qrcodePreflight.ts"() {
+    "use strict";
+    init_projectSettings();
+    init_qrcodeInteraction();
+    MAKER_QR_CATEGORIES = [
+      "rpg",
+      "casual",
+      "action",
+      "strategy",
+      "simulation",
+      "trivia",
+      "arcade",
+      "adventure",
+      "card",
+      "sports",
+      "racing",
+      "puzzle",
+      "educational",
+      "music",
+      "word",
+      "board"
+    ];
+  }
+});
+
+// src/maker/cli/qrcodeSync.ts
+import { execFileSync } from "node:child_process";
+import fs12 from "node:fs";
+import path13 from "node:path";
+import { isDeepStrictEqual } from "node:util";
+async function withQrcodeFastForward(cwd, remoteRef, fastForward) {
+  const git2 = (args, index2) => execFileSync(getGitCommand(), args, {
+    cwd,
+    encoding: "utf8",
+    timeout: 15e3,
+    maxBuffer: 2 * 1024 * 1024,
+    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...index2 ? { GIT_INDEX_FILE: index2 } : {} },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  const head = git2(["rev-parse", "HEAD"]).trim();
+  const remote = git2(["rev-parse", remoteRef]).trim();
+  let baseEntry, remoteEntry, localText;
+  try {
+    const baseTree = git2(["ls-tree", head, "--", file2]);
+    const remoteTree = git2(["ls-tree", remote, "--", file2]);
+    if (!/^100644 blob [a-f0-9]+\t/.test(baseTree) || !/^100644 blob [a-f0-9]+\t/.test(remoteTree))
+      return await fastForward(remote);
+    baseEntry = baseTree.replace(" blob ", " ").replace("	", " 0	");
+    remoteEntry = remoteTree.replace(" blob ", " ").replace("	", " 0	");
+    if (baseEntry === remoteEntry || git2(["ls-files", "--stage", "--", file2]) !== baseEntry)
+      return await fastForward(remote);
+    const filename2 = path13.join(cwd, file2);
+    if (fs12.realpathSync(filename2) !== path13.join(fs12.realpathSync(cwd), file2) || !fs12.lstatSync(filename2).isFile())
+      return await fastForward(remote);
+    localText = fs12.readFileSync(filename2, "utf8");
+    const base = JSON.parse(git2(["show", `${head}:${file2}`]));
+    const upstream = JSON.parse(git2(["show", `${remote}:${file2}`]));
+    const local = JSON.parse(localText);
+    if (!isDeepStrictEqual(base, upstream) || !(base == null ? void 0 : base.taptap_publish) || !(local == null ? void 0 : local.taptap_publish))
+      return await fastForward(remote);
+    const choices = {};
+    for (const key of ["title", "category", "developer_id", "screen_orientation"]) {
+      if (isDeepStrictEqual(base.taptap_publish[key], local.taptap_publish[key])) continue;
+      const value = local.taptap_publish[key];
+      if (key === "screen_orientation") {
+        if (value !== "landscape" && value !== "portrait") return await fastForward(remote);
+      } else {
+        choices[key] = value;
+        if (value === void 0 || !validQrcodePublication(choices))
+          return await fastForward(remote);
+      }
+      if (Object.hasOwn(base.taptap_publish, key))
+        local.taptap_publish[key] = base.taptap_publish[key];
+      else delete local.taptap_publish[key];
+    }
+    if (!isDeepStrictEqual(base, local)) return await fastForward(remote);
+  } catch (error2) {
+    if (error2 instanceof SyntaxError || error2.code === "ENOENT")
+      return await fastForward(remote);
+    throw error2;
+  }
+  const index = path13.resolve(cwd, git2(["rev-parse", "--git-path", "index"]).trim());
+  const lock = index + ".lock";
+  const replaceEntry = (expected, replacement, checkLocal) => {
+    const fd = fs12.openSync(lock, "wx", 384);
+    let installed = false;
+    try {
+      fs12.closeSync(fd);
+      if (git2(["rev-parse", "HEAD"]).trim() !== head || git2(["ls-files", "--stage", "--", file2]) !== expected || checkLocal && fs12.readFileSync(path13.join(cwd, file2), "utf8") !== localText)
+        return false;
+      fs12.copyFileSync(index, lock);
+      const [mode, oid] = replacement.split(" ");
+      git2(["update-index", "--cacheinfo", mode, oid, file2], lock);
+      fs12.renameSync(lock, index);
+      installed = true;
+      return true;
+    } finally {
+      if (!installed) fs12.rmSync(lock, { force: true });
+    }
+  };
+  if (!replaceEntry(baseEntry, remoteEntry, true))
+    throw new Error(
+      "QR configuration or Git index changed during synchronization; retry after checking the project."
+    );
+  try {
+    await fastForward(remote);
+  } catch (error2) {
+    replaceEntry(remoteEntry, baseEntry, false);
+    throw error2;
+  }
+}
+var file2;
+var init_qrcodeSync = __esm({
+  "src/maker/cli/qrcodeSync.ts"() {
+    "use strict";
+    init_git();
+    init_qrcodePreflight();
+    file2 = ".project/project.json";
+  }
+});
+
 // src/maker/cli/projects.ts
 import { spawn as spawn3, spawnSync as spawnSync3 } from "node:child_process";
-import fs9 from "node:fs";
-import path10 from "node:path";
+import fs13 from "node:fs";
+import path14 from "node:path";
 function getConfiguredMakerApiBase() {
   return getMakerEndpoints().apiBase;
 }
@@ -31707,12 +32665,12 @@ async function createMakerProject(options3) {
 }
 function ensureMakerProjectBaseDirectories(targetDir) {
   for (const relativeDir of MAKER_PROJECT_BASE_DIRECTORIES) {
-    fs9.mkdirSync(path10.join(targetDir, relativeDir), { recursive: true });
+    fs13.mkdirSync(path14.join(targetDir, relativeDir), { recursive: true });
   }
 }
 async function cloneMakerProject(options3) {
   var _a3, _b, _c, _d, _e, _f, _g, _h;
-  const target = path10.resolve(options3.targetDir);
+  const target = path14.resolve(options3.targetDir);
   ensureTargetCanBindApp(target, options3.appId);
   const warnings = createPreCloneWarnings(target);
   (_a3 = options3.onProgress) == null ? void 0 : _a3.call(options3, {
@@ -31884,7 +32842,7 @@ async function pushMakerProject(options3) {
     phase: "prepare",
     message: "Preparing Maker project push"
   });
-  const requestedCwd = path10.resolve(options3.cwd);
+  const requestedCwd = path14.resolve(options3.cwd);
   const workspace = resolveUsableMakerGitWorkspace(requestedCwd);
   const cwd = workspace.projectRoot;
   const project = loadProjectConfig(cwd);
@@ -31914,10 +32872,10 @@ async function pushMakerProject(options3) {
       message: `Fast-forwarding Maker project from ${remoteSyncStatus.remoteRef}`
     });
     try {
-      await runGit(["merge", "--ff-only", remoteSyncStatus.remoteRef], {
-        cwd,
-        stage: "pull"
-      });
+      const fastForward = (revision) => runGit(["merge", "--ff-only", revision], { cwd, stage: "pull" });
+      if (options3.preserveQrcodeChoices)
+        await withQrcodeFastForward(cwd, remoteSyncStatus.remoteRef, fastForward);
+      else await fastForward(remoteSyncStatus.remoteRef);
     } catch (error2) {
       const failure = toMakerGitFailure(error2, "pull");
       const failedBecauseLocalChangesWouldBeOverwritten = /would be overwritten|conflicting local files/iu.test(
@@ -32131,7 +33089,7 @@ async function readMakerProjectLocalChanges(cwd) {
   ensureGitAvailable();
   const { projectRoot } = resolveUsableMakerGitWorkspace(cwd);
   const rawStatus = await readGit(["status", "--porcelain", "-z"], projectRoot);
-  const files = parseGitStatusFiles(rawStatus).filter((file2) => !isIgnoredBuildGuardChange(file2));
+  const files = parseGitStatusFiles(rawStatus).filter((file3) => !isIgnoredBuildGuardChange(file3));
   const branch = await currentBranch(projectRoot);
   const unpushed = await readUnpushedCommitState(projectRoot, branch);
   return {
@@ -32150,7 +33108,7 @@ async function inspectMakerRemoteSyncStatus(cwd) {
   const remoteRef = `origin/${branch}`;
   const rawStatus = await readGit(["status", "--porcelain", "-z"], projectRoot);
   const localChanges = parseGitStatusFiles(rawStatus).filter(
-    (file2) => !isIgnoredBuildGuardChange(file2)
+    (file3) => !isIgnoredBuildGuardChange(file3)
   );
   const hasLocalChanges = localChanges.length > 0;
   if (branch !== "main") {
@@ -32226,8 +33184,8 @@ function getMakerRemoteSyncFailureNextAction(failure) {
   }
   return "暂时无法检查 Maker 远端是否有新提交。请把 failure 信息反馈给用户；如果只是 503、5xx、超时或网络中断，可稍后重新读取 maker://status。";
 }
-function isIgnoredBuildGuardChange(file2) {
-  return file2 === ".maker-mcp" || file2.startsWith(".maker-mcp/");
+function isIgnoredBuildGuardChange(file3) {
+  return file3 === ".maker-mcp" || file3.startsWith(".maker-mcp/");
 }
 async function readRemoteAheadBehindCounts(cwd, remoteRef) {
   try {
@@ -32288,11 +33246,11 @@ function generateCommitMessage(status) {
   if (files.length === 0) {
     return "chore: update maker project";
   }
-  if (files.every((file2) => file2.endsWith(".md") || file2.startsWith("docs/"))) {
+  if (files.every((file3) => file3.endsWith(".md") || file3.startsWith("docs/"))) {
     return "docs: update maker project documents";
   }
   const hasDependencyFile = files.some(
-    (file2) => /(^|\/)(package-lock\.json|package\.json|pnpm-lock\.yaml|yarn\.lock)$/.test(file2)
+    (file3) => /(^|\/)(package-lock\.json|package\.json|pnpm-lock\.yaml|yarn\.lock)$/.test(file3)
   );
   if (hasDependencyFile) {
     return "chore: update maker project dependencies";
@@ -32305,9 +33263,9 @@ function parseGitStatusFiles(status) {
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];
     const statusCode = entry.slice(0, 2);
-    const file2 = entry.slice(3);
-    if (file2) {
-      files.push(file2);
+    const file3 = entry.slice(3);
+    if (file3) {
+      files.push(file3);
     }
     if (statusCode.includes("R") || statusCode.includes("C")) {
       index += 1;
@@ -32560,7 +33518,7 @@ function makeAuthenticatedGitUrl(gitUrl, pat) {
   return gitUrl.replace(/^https:\/\//, `https://git:${encodeURIComponent(pat)}@`);
 }
 async function fetchAndCheckoutTarget(target, authUrl, pat, onProgress) {
-  if (fs9.existsSync(target) && hasDirectoryEntries(target)) {
+  if (fs13.existsSync(target) && hasDirectoryEntries(target)) {
     onProgress == null ? void 0 : onProgress({
       progress: 10,
       total: 100,
@@ -32607,23 +33565,23 @@ function emitFirstCloneWaitNotice(onProgress, phase) {
   });
 }
 function hasDirectoryEntries(target) {
-  if (!fs9.existsSync(target)) {
+  if (!fs13.existsSync(target)) {
     return false;
   }
-  return fs9.readdirSync(target).length > 0;
+  return fs13.readdirSync(target).length > 0;
 }
-function listLocalFiles(root) {
-  if (!fs9.existsSync(root)) {
+function listLocalFiles(root2) {
+  if (!fs13.existsSync(root2)) {
     return [];
   }
   const files = [];
   const visit = (dir, relativeDir) => {
-    for (const entry of fs9.readdirSync(dir, { withFileTypes: true })) {
+    for (const entry of fs13.readdirSync(dir, { withFileTypes: true })) {
       const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
       if (entry.name === ".git" || relativePath === ".maker-mcp" || relativePath.startsWith(".maker-mcp/") || entry.name === ".DS_Store") {
         continue;
       }
-      const fullPath = path10.join(dir, entry.name);
+      const fullPath = path14.join(dir, entry.name);
       if (entry.isDirectory()) {
         visit(fullPath, relativePath);
         continue;
@@ -32633,14 +33591,14 @@ function listLocalFiles(root) {
       }
     }
   };
-  visit(root, "");
+  visit(root2, "");
   return files;
 }
-function listPreCloneNoticeFiles(root) {
-  if (!fs9.existsSync(root)) {
+function listPreCloneNoticeFiles(root2) {
+  if (!fs13.existsSync(root2)) {
     return [];
   }
-  return fs9.readdirSync(root, { withFileTypes: true }).filter((entry) => !isIgnorablePreCloneEntry(entry.name)).map((entry) => entry.name).sort();
+  return fs13.readdirSync(root2, { withFileTypes: true }).filter((entry) => !isIgnorablePreCloneEntry(entry.name)).map((entry) => entry.name).sort();
 }
 function createPreCloneWarnings(target) {
   const preCloneLocalFiles = listPreCloneNoticeFiles(target);
@@ -32653,7 +33611,7 @@ function createPreCloneWarnings(target) {
       "Pre-clone notice: target directory already contains local files. Maker MCP will keep them and continue unless they conflict with Maker project files.",
       `local_file_count: ${preCloneLocalFiles.length}`,
       "local_files:",
-      ...preview.map((file2) => `  - ${file2}`),
+      ...preview.map((file3) => `  - ${file3}`),
       preCloneLocalFiles.length > preview.length ? `  - ... ${preCloneLocalFiles.length - preview.length} more` : ""
     ].filter(Boolean).join("\n")
   ];
@@ -32725,7 +33683,7 @@ async function assertNoCheckoutFileConflicts(cwd, branch) {
   if (remoteFiles.size === 0) {
     return;
   }
-  const conflicts = listLocalFiles(cwd).filter((file2) => remoteFiles.has(file2)).sort();
+  const conflicts = listLocalFiles(cwd).filter((file3) => remoteFiles.has(file3)).sort();
   if (conflicts.length === 0) {
     return;
   }
@@ -32735,7 +33693,7 @@ async function assertNoCheckoutFileConflicts(cwd, branch) {
       `target_dir: ${cwd}`,
       "",
       "Conflicting local files:",
-      ...conflicts.map((file2) => `- ${file2}`),
+      ...conflicts.map((file3) => `- ${file3}`),
       "",
       "Please move, rename, or delete these local files, then retry taptap-maker init."
     ].join("\n")
@@ -32763,7 +33721,7 @@ function ensureOwnGitRoot(repoDir) {
   );
 }
 function inspectMakerDirectoryGitStatus(cwd) {
-  const targetDir = path10.resolve(cwd);
+  const targetDir = path14.resolve(cwd);
   const gitRoot = resolveGitRoot(targetDir);
   const gitDir = resolveGitDir(targetDir);
   const makerBinding = findMakerProjectBinding(targetDir);
@@ -32836,16 +33794,16 @@ function formatMakerGitRootMismatch(status) {
 }
 function findMakerProjectBinding(startDir) {
   var _a3;
-  let current = path10.resolve(startDir);
+  let current = path14.resolve(startDir);
   while (current.length > 0) {
     const configPath = getProjectConfigPath(current);
-    if (fs9.existsSync(configPath) && ((_a3 = loadProjectConfig(current)) == null ? void 0 : _a3.project_id)) {
+    if (fs13.existsSync(configPath) && ((_a3 = loadProjectConfig(current)) == null ? void 0 : _a3.project_id)) {
       return {
         projectRoot: current,
         configPath
       };
     }
-    const parent = path10.dirname(current);
+    const parent = path14.dirname(current);
     if (parent === current) {
       return null;
     }
@@ -32855,7 +33813,7 @@ function findMakerProjectBinding(startDir) {
 }
 function resolveGitRoot(cwd) {
   try {
-    return path10.resolve(readGitSync(["-C", cwd, "rev-parse", "--show-toplevel"]).trim());
+    return path14.resolve(readGitSync(["-C", cwd, "rev-parse", "--show-toplevel"]).trim());
   } catch {
     return void 0;
   }
@@ -32863,7 +33821,7 @@ function resolveGitRoot(cwd) {
 function resolveGitDir(cwd) {
   try {
     const gitDir = readGitSync(["-C", cwd, "rev-parse", "--git-dir"]).trim();
-    return path10.isAbsolute(gitDir) ? path10.resolve(gitDir) : path10.resolve(cwd, gitDir);
+    return path14.isAbsolute(gitDir) ? path14.resolve(gitDir) : path14.resolve(cwd, gitDir);
   } catch {
     return void 0;
   }
@@ -32872,9 +33830,9 @@ function samePath(left, right) {
   return normalizePathForCompare(left) === normalizePathForCompare(right);
 }
 function normalizePathForCompare(value) {
-  const resolved = path10.resolve(value);
+  const resolved = path14.resolve(value);
   try {
-    return fs9.realpathSync.native(resolved);
+    return fs13.realpathSync.native(resolved);
   } catch {
     return resolved;
   }
@@ -33212,6 +34170,7 @@ var init_projects = __esm({
     init_git();
     init_devKit();
     init_projectRegistry();
+    init_qrcodeSync();
     MAKER_PROJECT_BASE_DIRECTORIES = [
       "assets",
       "assets/image",
@@ -33312,19 +34271,19 @@ var init_patTap = __esm({
 
 // src/maker/system/python.ts
 import { spawnSync as spawnSync4 } from "node:child_process";
-import fs10 from "node:fs";
-import path11 from "node:path";
+import fs14 from "node:fs";
+import path15 from "node:path";
 function getMakerPythonConfigPath() {
-  return path11.join(getMakerHome(), "python.json");
+  return path15.join(getMakerHome(), "python.json");
 }
 function getMakerUvInstallRoot() {
-  return path11.join(getMakerHome(), "bin");
+  return path15.join(getMakerHome(), "bin");
 }
 function getMakerUvPath(platform = process.platform) {
-  return path11.join(getMakerUvInstallRoot(), platform === "win32" ? "uv.exe" : "uv");
+  return path15.join(getMakerUvInstallRoot(), platform === "win32" ? "uv.exe" : "uv");
 }
 function getMakerUvPythonInstallDir() {
-  return path11.join(getMakerHome(), "python", "uv");
+  return path15.join(getMakerHome(), "python", "uv");
 }
 function checkMakerPythonEnvironment(options3 = {}) {
   const platform = options3.platform || process.platform;
@@ -33340,7 +34299,7 @@ function checkMakerPythonEnvironment(options3 = {}) {
     pathCommand,
     uv: {
       path: uvPath,
-      installed: fs10.existsSync(uvPath),
+      installed: fs14.existsSync(uvPath),
       version: readUvVersion(uvPath, runner)
     }
   };
@@ -33562,10 +34521,10 @@ function resultToEnvironment(result, base) {
 }
 function ensureUvInstalled(platform, runner) {
   const uvPath = getMakerUvPath(platform);
-  if (fs10.existsSync(uvPath)) {
+  if (fs14.existsSync(uvPath)) {
     return uvPath;
   }
-  fs10.mkdirSync(getMakerUvInstallRoot(), { recursive: true });
+  fs14.mkdirSync(getMakerUvInstallRoot(), { recursive: true });
   const env = {
     ...process.env,
     INSTALLER_NO_MODIFY_PATH: "1",
@@ -33588,13 +34547,13 @@ function ensureUvInstalled(platform, runner) {
   if (install.status !== 0) {
     throw new Error(formatSetupFailure("uv installer failed", install));
   }
-  if (!fs10.existsSync(uvPath)) {
-    const nestedUvPath = path11.join(
+  if (!fs14.existsSync(uvPath)) {
+    const nestedUvPath = path15.join(
       getMakerUvInstallRoot(),
       "bin",
       platform === "win32" ? "uv.exe" : "uv"
     );
-    if (fs10.existsSync(nestedUvPath)) {
+    if (fs14.existsSync(nestedUvPath)) {
       return nestedUvPath;
     }
     throw new Error(`uv installer finished, but ${uvPath} was not created.`);
@@ -33605,11 +34564,11 @@ function createUvPythonEnv() {
   return {
     ...process.env,
     UV_PYTHON_INSTALL_DIR: getMakerUvPythonInstallDir(),
-    UV_CACHE_DIR: path11.join(getMakerHome(), "cache", "uv")
+    UV_CACHE_DIR: path15.join(getMakerHome(), "cache", "uv")
   };
 }
 function readUvVersion(uvPath, runner) {
-  if (!fs10.existsSync(uvPath)) {
+  if (!fs14.existsSync(uvPath)) {
     return void 0;
   }
   const result = runner(uvPath, ["--version"], { encoding: "utf8" });
@@ -33662,11 +34621,11 @@ function parseVersionTuple(version2) {
 }
 function loadPythonRuntimeConfig() {
   const configPath = getMakerPythonConfigPath();
-  if (!fs10.existsSync(configPath)) {
+  if (!fs14.existsSync(configPath)) {
     return void 0;
   }
   try {
-    const data = JSON.parse(fs10.readFileSync(configPath, "utf8"));
+    const data = JSON.parse(fs14.readFileSync(configPath, "utf8"));
     if (typeof data.python === "string" || data.status === "setup_failed") {
       return data;
     }
@@ -33685,8 +34644,8 @@ function savePythonRuntimeConfig(environment) {
     version: environment.version,
     saved_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs10.mkdirSync(path11.dirname(getMakerPythonConfigPath()), { recursive: true });
-  fs10.writeFileSync(getMakerPythonConfigPath(), JSON.stringify(config2, null, 2), "utf8");
+  fs14.mkdirSync(path15.dirname(getMakerPythonConfigPath()), { recursive: true });
+  fs14.writeFileSync(getMakerPythonConfigPath(), JSON.stringify(config2, null, 2), "utf8");
 }
 function savePythonSetupFailure(error2) {
   const config2 = {
@@ -33694,8 +34653,8 @@ function savePythonSetupFailure(error2) {
     error: error2 instanceof Error ? error2.message : String(error2),
     saved_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs10.mkdirSync(path11.dirname(getMakerPythonConfigPath()), { recursive: true });
-  fs10.writeFileSync(getMakerPythonConfigPath(), JSON.stringify(config2, null, 2), "utf8");
+  fs14.mkdirSync(path15.dirname(getMakerPythonConfigPath()), { recursive: true });
+  fs14.writeFileSync(getMakerPythonConfigPath(), JSON.stringify(config2, null, 2), "utf8");
 }
 function formatSetupFailure(message, result) {
   var _a3, _b, _c;
@@ -33724,14 +34683,14 @@ var init_python = __esm({
 
 // src/maker/system/luaLsp.ts
 import { spawn as spawn4, spawnSync as spawnSync5 } from "node:child_process";
-import fs11 from "node:fs";
+import fs15 from "node:fs";
 import os4 from "node:os";
-import path12 from "node:path";
+import path16 from "node:path";
 function getMakerLuaLspConfigPath() {
-  return path12.join(getMakerHome(), "lua-lsp.json");
+  return path16.join(getMakerHome(), "lua-lsp.json");
 }
 function getMakerLuaLspVenvDir() {
-  return path12.join(getMakerHome(), "lua-lsp-venv");
+  return path16.join(getMakerHome(), "lua-lsp-venv");
 }
 function checkMakerLuaLspEnvironment(options3 = {}) {
   const runner = options3.spawn || spawnSync5;
@@ -33759,7 +34718,7 @@ function checkMakerLuaLspEnvironment(options3 = {}) {
         command: saved.command,
         version: version3,
         python: saved.python || python.python,
-        scriptsDir: path12.dirname(saved.command),
+        scriptsDir: path16.dirname(saved.command),
         missing: [],
         nextAction: "maker-lua-lsp 已安装；本地 Lua 诊断可用。"
       };
@@ -33908,10 +34867,10 @@ async function checkMakerLuaLspProject(project, options3 = {}) {
   }
   let scripts;
   try {
-    const root = fs11.realpathSync(project);
-    scripts = fs11.realpathSync(path12.join(root, "scripts"));
-    const relative = path12.relative(root, scripts);
-    if (relative.startsWith("..") || path12.isAbsolute(relative) || !fs11.statSync(scripts).isDirectory()) {
+    const root2 = fs15.realpathSync(project);
+    scripts = fs15.realpathSync(path16.join(root2, "scripts"));
+    const relative = path16.relative(root2, scripts);
+    if (relative.startsWith("..") || path16.isAbsolute(relative) || !fs15.statSync(scripts).isDirectory()) {
       throw new Error("invalid scripts");
     }
   } catch {
@@ -33927,7 +34886,7 @@ async function checkMakerLuaLspProject(project, options3 = {}) {
       nextAction: "确认项目内存在 scripts 目录后再检查。"
     };
   }
-  const outputDir = fs11.mkdtempSync(path12.join(os4.tmpdir(), "maker-lua-lsp-check-"));
+  const outputDir = fs15.mkdtempSync(path16.join(os4.tmpdir(), "maker-lua-lsp-check-"));
   const args = ["--mode", "check", "--path", scripts, "--output-dir", outputDir, "--quiet"];
   try {
     const result = options3.spawn ? options3.spawn(environment.command, args, {
@@ -33936,7 +34895,7 @@ async function checkMakerLuaLspProject(project, options3 = {}) {
     }) : await spawnLuaCheck(environment.command, args);
     return interpretLuaCheckResult(environment.version, result, outputDir);
   } finally {
-    fs11.rmSync(outputDir, { recursive: true, force: true });
+    fs15.rmSync(outputDir, { recursive: true, force: true });
   }
 }
 function spawnLuaCheck(command, args) {
@@ -33981,7 +34940,7 @@ function spawnLuaCheck(command, args) {
 }
 function interpretLuaCheckResult(version2, result, outputDir) {
   var _a3, _b, _c, _d, _e;
-  const log = readLuaCheckLog(path12.join(outputDir, "lua_errors.log"));
+  const log = readLuaCheckLog(path16.join(outputDir, "lua_errors.log"));
   const issues = log.split(/\r?\n/).map((line) => line.trim()).filter((line) => /^ERROR\s*\|/i.test(line)).slice(0, 50);
   const timedOut = Boolean(
     ((_b = (_a3 = result.error) == null ? void 0 : _a3.message) == null ? void 0 : _b.includes("ETIMEDOUT")) || result.signal === "SIGTERM"
@@ -34028,9 +34987,9 @@ function interpretLuaCheckResult(version2, result, outputDir) {
 }
 function readLuaCheckLog(filename2) {
   try {
-    const stat = fs11.statSync(filename2);
+    const stat = fs15.statSync(filename2);
     if (!stat.isFile() || stat.size <= 0) return "";
-    return fs11.readFileSync(filename2, { encoding: "utf8" }).slice(0, 64 * 1024);
+    return fs15.readFileSync(filename2, { encoding: "utf8" }).slice(0, 64 * 1024);
   } catch {
     return "";
   }
@@ -34080,16 +35039,16 @@ function createLuaLspBase(platform) {
 }
 function resolveLuaLspCommand(python, platform, runner) {
   const venvCommand = getLuaLspVenvCommand(platform);
-  if (fs11.existsSync(venvCommand)) {
-    return { command: venvCommand, scriptsDir: path12.dirname(venvCommand) };
+  if (fs15.existsSync(venvCommand)) {
+    return { command: venvCommand, scriptsDir: path16.dirname(venvCommand) };
   }
   const scriptsDir = readPythonScriptsDir(python.python, runner);
   if (scriptsDir) {
-    const command = path12.join(
+    const command = path16.join(
       scriptsDir,
       platform === "win32" ? "maker-lua-lsp.exe" : "maker-lua-lsp"
     );
-    if (fs11.existsSync(command)) {
+    if (fs15.existsSync(command)) {
       return { command, scriptsDir };
     }
     return { scriptsDir };
@@ -34113,23 +35072,23 @@ function ensureLuaLspVenv(python, platform, runner) {
   return { python: venvPython, scriptsDir, command };
 }
 function isLuaLspVenvComplete(platform) {
-  return fs11.existsSync(getLuaLspVenvPython(platform)) && fs11.existsSync(getLuaLspVenvConfigPath());
+  return fs15.existsSync(getLuaLspVenvPython(platform)) && fs15.existsSync(getLuaLspVenvConfigPath());
 }
 function getLuaLspVenvConfigPath() {
-  return path12.join(getMakerLuaLspVenvDir(), "pyvenv.cfg");
+  return path16.join(getMakerLuaLspVenvDir(), "pyvenv.cfg");
 }
 function getLuaLspVenvPython(platform) {
-  return path12.join(
+  return path16.join(
     getMakerLuaLspVenvDir(),
     platform === "win32" ? "Scripts" : "bin",
     platform === "win32" ? "python.exe" : "python"
   );
 }
 function getLuaLspVenvScriptsDir(platform) {
-  return path12.join(getMakerLuaLspVenvDir(), platform === "win32" ? "Scripts" : "bin");
+  return path16.join(getMakerLuaLspVenvDir(), platform === "win32" ? "Scripts" : "bin");
 }
 function getLuaLspVenvCommand(platform) {
-  return path12.join(
+  return path16.join(
     getLuaLspVenvScriptsDir(platform),
     platform === "win32" ? "maker-lua-lsp.exe" : "maker-lua-lsp"
   );
@@ -34177,11 +35136,11 @@ function formatLuaLspSetupFailure(platform, python, message, result, command, sc
 }
 function loadLuaLspRuntimeConfig() {
   const configPath = getMakerLuaLspConfigPath();
-  if (!fs11.existsSync(configPath)) {
+  if (!fs15.existsSync(configPath)) {
     return void 0;
   }
   try {
-    return JSON.parse(fs11.readFileSync(configPath, "utf8"));
+    return JSON.parse(fs15.readFileSync(configPath, "utf8"));
   } catch {
     return void 0;
   }
@@ -34194,8 +35153,8 @@ function saveLuaLspRuntimeConfig(environment) {
     error: environment.error,
     saved_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs11.mkdirSync(path12.dirname(getMakerLuaLspConfigPath()), { recursive: true });
-  fs11.writeFileSync(getMakerLuaLspConfigPath(), JSON.stringify(config2, null, 2), "utf8");
+  fs15.mkdirSync(path16.dirname(getMakerLuaLspConfigPath()), { recursive: true });
+  fs15.writeFileSync(getMakerLuaLspConfigPath(), JSON.stringify(config2, null, 2), "utf8");
 }
 var LUA_LSP_PACKAGE, LUA_LSP_IDES, LUA_LSP_SETUP_TIMEOUT_MS, LUA_LSP_PROBE_TIMEOUT_MS, LUA_LSP_CHECK_TIMEOUT_MS, PYTHON_SCRIPTS_DIR_SCRIPT;
 var init_luaLsp = __esm({
@@ -34244,8 +35203,8 @@ var init_pluginDistribution = __esm({
 });
 
 // src/maker/cli/skill.ts
-import fs12 from "node:fs";
-import path13 from "node:path";
+import fs16 from "node:fs";
+import path17 from "node:path";
 import { fileURLToPath } from "node:url";
 function formatMakerSkillStatus(_options = {}) {
   const pluginDistribution = resolveMakerPluginDistribution();
@@ -34253,7 +35212,7 @@ function formatMakerSkillStatus(_options = {}) {
   const bundledSkills = clientPluginDistribution ? [...BUNDLED_SKILLS, { name: MAKER_PLUGIN_LIFECYCLE_SKILL_NAME }] : BUNDLED_SKILLS;
   const skillDocuments = bundledSkills.map((skill) => ({
     name: skill.name,
-    path: path13.join(resolveMakerSkillSourceDir(skill.name), "SKILL.md")
+    path: path17.join(resolveMakerSkillSourceDir(skill.name), "SKILL.md")
   }));
   return [
     "TapTap Maker workflow guide documents",
@@ -34312,7 +35271,8 @@ function formatMakerSkillStatus(_options = {}) {
     "- Voice audition previews are not saved to the project.",
     "- Local MCP does not transcode generated audio to OGG.",
     "- Use create_3d_asset with start/query/continue/post_process for game 3D model assets.",
-    "- For any ad-related request, first read `maker://ads-integration-guide`, then follow it to inspect Maker project status, call get_ad_config, and read the project engine document.",
+    "- For any ad-related request, first read `maker://ads-integration-guide`, then follow it: confirm project -> get_ad_config -> verify remote/local configuration -> project SDK docs -> implementation -> real-device validation.",
+    "- Keep the same explicit target_dir throughout. Remote success does not update local settings; if local @runtime.ad is missing or differs, follow the guide before proceeding.",
     "- Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks.",
     "- If primary local project configs are missing, keep ad config unavailable. Build only for an explicit user build/submit/remote Web preview request, and do not automatically rebuild when local configs remain missing after success.",
     "- Local window preview uses CLI and does not authorize commit or push.",
@@ -34339,11 +35299,11 @@ function formatMakerSkillStatus(_options = {}) {
 }
 function resolveMakerSkillSourceDir(skillName = MAKER_LOCAL_SKILL_NAME) {
   const candidates = [
-    path13.join(process.cwd(), "skills", skillName),
+    path17.join(process.cwd(), "skills", skillName),
     getBundledSkillSourceDir(skillName)
   ].filter(Boolean);
   for (const candidate of candidates) {
-    if (fs12.existsSync(path13.join(candidate, "SKILL.md"))) {
+    if (fs16.existsSync(path17.join(candidate, "SKILL.md"))) {
       return candidate;
     }
   }
@@ -34356,8 +35316,8 @@ function getBundledSkillSourceDir(skillName) {
     return null;
   }
   const bundlePath = fileURLToPath(__MAKER_BUNDLE_URL__);
-  const packageRoot = path13.dirname(path13.dirname(bundlePath));
-  return path13.join(packageRoot, "skills", skillName);
+  const packageRoot = path17.dirname(path17.dirname(bundlePath));
+  return path17.join(packageRoot, "skills", skillName);
 }
 var MAKER_LOCAL_SKILL_NAME, MAKER_DEV_KIT_GUIDE_SKILL_NAME, UPDATE_TAPTAP_MCP_SKILL_NAME, MAKER_PLUGIN_LIFECYCLE_SKILL_NAME, BUNDLED_SKILLS;
 var init_skill = __esm({
@@ -34383,8 +35343,8 @@ var init_skill = __esm({
 });
 
 // src/maker/server/runtimeLogs.ts
-import fs13 from "node:fs";
-import path14 from "node:path";
+import fs17 from "node:fs";
+import path18 from "node:path";
 async function watchRuntimeLogs(options3) {
   var _a3, _b;
   if (options3.reset) {
@@ -34511,19 +35471,19 @@ async function pullRuntimeLogs(options3) {
 }
 function resetRuntimeLogs(projectRoot) {
   const runtimeDir = getRuntimeLogDir(projectRoot);
-  fs13.mkdirSync(runtimeDir, { recursive: true });
-  for (const file2 of RUNTIME_LOG_FILES_TO_RESET) {
-    fs13.rmSync(path14.join(runtimeDir, file2), { force: true });
+  fs17.mkdirSync(runtimeDir, { recursive: true });
+  for (const file3 of RUNTIME_LOG_FILES_TO_RESET) {
+    fs17.rmSync(path18.join(runtimeDir, file3), { force: true });
   }
   return runtimeDir;
 }
 function readRuntimeLogState(projectRoot) {
   const statePath = getRuntimeLogStatePath(projectRoot);
-  if (!fs13.existsSync(statePath)) {
+  if (!fs17.existsSync(statePath)) {
     return null;
   }
   try {
-    const state = JSON.parse(fs13.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs17.readFileSync(statePath, "utf8"));
     return isRuntimeLogState(state) ? state : null;
   } catch {
     return null;
@@ -34551,9 +35511,9 @@ function normalizeRuntimeLogQueryResult(result) {
   };
 }
 function writeRuntimeLogRawResponse(projectRoot, raw) {
-  const rawPath = path14.join(getRuntimeLogDir(projectRoot), "last-query-runtime-logs-result.json");
-  fs13.mkdirSync(path14.dirname(rawPath), { recursive: true });
-  fs13.writeFileSync(
+  const rawPath = path18.join(getRuntimeLogDir(projectRoot), "last-query-runtime-logs-result.json");
+  fs17.mkdirSync(path18.dirname(rawPath), { recursive: true });
+  fs17.writeFileSync(
     rawPath,
     `${JSON.stringify({ capturedAt: (/* @__PURE__ */ new Date()).toISOString(), raw }, null, 2)}
 `,
@@ -34562,7 +35522,7 @@ function writeRuntimeLogRawResponse(projectRoot, raw) {
   return rawPath;
 }
 function appendRuntimeLogs(projectRoot, logs) {
-  fs13.mkdirSync(getRuntimeLogDir(projectRoot), { recursive: true });
+  fs17.mkdirSync(getRuntimeLogDir(projectRoot), { recursive: true });
   if (logs.length === 0) {
     return { files: [], written: 0 };
   }
@@ -34570,7 +35530,7 @@ function appendRuntimeLogs(projectRoot, logs) {
   let written = 0;
   for (const log of logs) {
     const line = JSON.stringify(compactRuntimeLogEntry(log));
-    fs13.appendFileSync(filePath, `${line}
+    fs17.appendFileSync(filePath, `${line}
 `, "utf8");
     written += 1;
   }
@@ -34578,11 +35538,11 @@ function appendRuntimeLogs(projectRoot, logs) {
 }
 function writeRuntimeLogState(projectRoot, state) {
   const statePath = getRuntimeLogStatePath(projectRoot);
-  fs13.mkdirSync(path14.dirname(statePath), { recursive: true });
+  fs17.mkdirSync(path18.dirname(statePath), { recursive: true });
   const tempPath = `${statePath}.${process.pid}.${Date.now()}.tmp`;
-  fs13.writeFileSync(tempPath, `${JSON.stringify(state, null, 2)}
+  fs17.writeFileSync(tempPath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
-  fs13.renameSync(tempPath, statePath);
+  fs17.renameSync(tempPath, statePath);
 }
 function writeRuntimeLogFailureState(projectRoot, options3) {
   const nowIso = new Date(options3.nowMs()).toISOString();
@@ -34614,13 +35574,13 @@ function isNonRetryableRuntimeLogError(error2) {
   );
 }
 function getRuntimeLogDir(projectRoot) {
-  return path14.join(projectRoot, ".maker", "logs", "runtime");
+  return path18.join(projectRoot, ".maker", "logs", "runtime");
 }
 function getRuntimeLogStatePath(projectRoot) {
-  return path14.join(getRuntimeLogDir(projectRoot), "state.json");
+  return path18.join(getRuntimeLogDir(projectRoot), "state.json");
 }
 function getRuntimeLogPath(projectRoot) {
-  return path14.join(getRuntimeLogDir(projectRoot), MERGED_RUNTIME_LOG_FILE);
+  return path18.join(getRuntimeLogDir(projectRoot), MERGED_RUNTIME_LOG_FILE);
 }
 function resolveNextRuntimeLogCursor(result) {
   const maxLogTime = result.logs.reduce((max, log) => {
@@ -34765,8 +35725,8 @@ var init_runtimeLogs = __esm({
 });
 
 // src/maker/versionCheck.ts
-import fs14 from "node:fs";
-import path15 from "node:path";
+import fs18 from "node:fs";
+import path19 from "node:path";
 function decideMakerPackageUpdate(currentVersion, policy) {
   if (currentVersion === "dev") {
     return {
@@ -35132,23 +36092,23 @@ function compactStatus(status) {
 }
 function readCache() {
   const cachePath = getMakerPackageVersionCheckCachePath();
-  if (!fs14.existsSync(cachePath)) {
+  if (!fs18.existsSync(cachePath)) {
     return void 0;
   }
   try {
-    return JSON.parse(fs14.readFileSync(cachePath, "utf8"));
+    return JSON.parse(fs18.readFileSync(cachePath, "utf8"));
   } catch {
     return void 0;
   }
 }
 function writeCache(cache) {
   const cachePath = getMakerPackageVersionCheckCachePath();
-  fs14.mkdirSync(path15.dirname(cachePath), { recursive: true });
-  fs14.writeFileSync(cachePath, `${JSON.stringify(cache, null, 2)}
+  fs18.mkdirSync(path19.dirname(cachePath), { recursive: true });
+  fs18.writeFileSync(cachePath, `${JSON.stringify(cache, null, 2)}
 `, "utf8");
 }
 function getMakerPackageVersionCheckCachePath() {
-  return path15.join(getMakerHome(), PACKAGE_VERSION_CHECK_CACHE_FILE);
+  return path19.join(getMakerHome(), PACKAGE_VERSION_CHECK_CACHE_FILE);
 }
 function getLastSuccessCheckedAt(cache) {
   var _a3;
@@ -35268,16 +36228,16 @@ var init_versionCheck = __esm({
 });
 
 // src/maker/projectInitialization.ts
-import fs15 from "node:fs";
-import path16 from "node:path";
+import fs19 from "node:fs";
+import path20 from "node:path";
 function inspectMakerProjectInitialization(projectRoot) {
-  const resolvedProjectRoot = path16.resolve(projectRoot);
-  const projectJsonPath = path16.join(resolvedProjectRoot, ".project", "project.json");
+  const resolvedProjectRoot = path20.resolve(projectRoot);
+  const projectJsonPath = path20.join(resolvedProjectRoot, ".project", "project.json");
   const baseStatus = {
     projectRoot: resolvedProjectRoot,
     projectJsonPath
   };
-  if (!fs15.existsSync(projectJsonPath)) {
+  if (!fs19.existsSync(projectJsonPath)) {
     return {
       ...baseStatus,
       status: "missing_project_json"
@@ -35285,7 +36245,7 @@ function inspectMakerProjectInitialization(projectRoot) {
   }
   let projectJson;
   try {
-    projectJson = JSON.parse(fs15.readFileSync(projectJsonPath, "utf8"));
+    projectJson = JSON.parse(fs19.readFileSync(projectJsonPath, "utf8"));
   } catch (error2) {
     return {
       ...baseStatus,
@@ -35350,7 +36310,7 @@ function formatMakerProjectInitializationStatus(status) {
 }
 function inspectProjectDirectory(projectRoot) {
   try {
-    return fs15.lstatSync(path16.join(projectRoot, ".project")).isDirectory() ? "directory" : "invalid";
+    return fs19.lstatSync(path20.join(projectRoot, ".project")).isDirectory() ? "directory" : "invalid";
   } catch (error2) {
     return error2.code === "ENOENT" ? "missing" : "invalid";
   }
@@ -35374,641 +36334,6 @@ function isNonEmptyStringLike(value) {
 }
 var init_projectInitialization = __esm({
   "src/maker/projectInitialization.ts"() {
-    "use strict";
-  }
-});
-
-// src/maker/projectSettings.ts
-import fs16 from "node:fs";
-import path17 from "node:path";
-function inspectMakerProjectHealth(projectRoot, mode = "status") {
-  const resolvedProjectRoot = path17.resolve(projectRoot);
-  const paths = {
-    projectDir: path17.join(resolvedProjectRoot, ".project"),
-    projectJson: path17.join(resolvedProjectRoot, ".project", "project.json"),
-    resourcesJson: path17.join(resolvedProjectRoot, ".project", "resources.json"),
-    settingsJson: path17.join(resolvedProjectRoot, ".project", "settings.json")
-  };
-  const issues = [];
-  const projectDirState = inspectPath(paths.projectDir, "directory");
-  if (projectDirState === "wrong_type") {
-    issues.push(issue2("invalid_path_type", "error", ".project", ".project 必须是目录"));
-  }
-  const rootCandidates = [
-    ["project.json", paths.projectJson],
-    ["resources.json", paths.resourcesJson],
-    ["settings.json", paths.settingsJson],
-    ["assets/project.json", paths.projectJson]
-  ];
-  for (const [name, canonicalPath] of rootCandidates) {
-    const rootPath = path17.join(resolvedProjectRoot, name);
-    const rootState = inspectPath(rootPath, "file");
-    if (rootState === "file" && inspectPath(canonicalPath, "file") !== "file") {
-      if (name === "assets/project.json" && !hasTapTapPublish(path17.join(resolvedProjectRoot, name))) {
-        continue;
-      }
-      if (name !== "assets/project.json" && !hasMakerRootConfigSignature(rootPath, name)) {
-        continue;
-      }
-      issues.push({
-        code: "misplaced_config",
-        severity: "error",
-        path: name,
-        expectedPath: path17.relative(resolvedProjectRoot, canonicalPath),
-        message: `${name} 位于项目根目录，规范位置应为 ${path17.relative(resolvedProjectRoot, canonicalPath)}`
-      });
-    }
-  }
-  const projectDirExists = projectDirState === "directory";
-  const projectJsonState = projectDirExists ? inspectPath(paths.projectJson, "file") : "missing";
-  const resourcesJsonState = projectDirExists ? inspectPath(paths.resourcesJson, "file") : "missing";
-  const settingsJsonState = projectDirExists ? inspectPath(paths.settingsJson, "file") : "missing";
-  const projectJsonExists = projectJsonState === "file";
-  const resourcesJsonExists = resourcesJsonState === "file";
-  const settingsJsonExists = settingsJsonState === "file";
-  const hasMisplacedConfig = issues.some((item) => item.code === "misplaced_config");
-  const hasNoPrimaryConfig = projectJsonState === "missing" && settingsJsonState === "missing";
-  if (hasNoPrimaryConfig && !hasMisplacedConfig && issues.length === 0) {
-    return createHealthResult(
-      resolvedProjectRoot,
-      mode,
-      "not_initialized",
-      paths,
-      issues,
-      true,
-      false
-    );
-  }
-  addCanonicalFileIssue(projectJsonState, ".project/project.json", issues, mode === "qrcode");
-  addCanonicalFileIssue(resourcesJsonState, ".project/resources.json", issues, mode === "qrcode");
-  addCanonicalFileIssue(settingsJsonState, ".project/settings.json", issues, false);
-  if (projectJsonExists && settingsJsonState === "missing") {
-    issues.push(
-      issue2(
-        "missing_settings_json",
-        "warning",
-        ".project/settings.json",
-        ".project/settings.json 缺失，首次构建可能由 server 创建"
-      )
-    );
-  }
-  const project = projectJsonExists ? readHealthJson(paths.projectJson, "project.json", issues) : void 0;
-  const resources2 = resourcesJsonExists ? readHealthJson(paths.resourcesJson, "resources.json", issues) : void 0;
-  const settings = settingsJsonExists ? readHealthJson(paths.settingsJson, "settings.json", issues) : void 0;
-  if (project !== void 0 && !isPlainObject3(project)) {
-    issues.push(
-      issue2(
-        "invalid_project_json",
-        "error",
-        ".project/project.json",
-        "project.json 必须是 JSON object"
-      )
-    );
-  } else if (project && isPlainObject3(project)) {
-    validateProjectFields(project, resources2, issues, mode);
-  }
-  if (resources2 !== void 0 && !isPlainObject3(resources2)) {
-    issues.push(
-      issue2(
-        "invalid_resources_json",
-        "error",
-        ".project/resources.json",
-        "resources.json 必须是 JSON object"
-      )
-    );
-  }
-  if (settings !== void 0) {
-    if (!isPlainObject3(settings)) {
-      issues.push(
-        issue2(
-          "invalid_settings_json",
-          "error",
-          ".project/settings.json",
-          "settings.json 必须是 JSON object"
-        )
-      );
-    } else {
-      const settingsIssues = validateMakerProjectSettings(settings);
-      if (settingsIssues.length > 0) {
-        issues.push(
-          issue2(
-            "invalid_project_settings",
-            "error",
-            ".project/settings.json",
-            settingsIssues.join("; ")
-          )
-        );
-      }
-    }
-  }
-  const hasFatalIssues = issues.some((item) => item.severity === "error");
-  const hasCompletePrimaryConfig = projectJsonExists && settingsJsonExists;
-  const status = hasMisplacedConfig ? "misplaced_config" : hasFatalIssues ? "error" : !hasCompletePrimaryConfig ? "not_initialized" : issues.length > 0 ? "warning" : "ready";
-  const canBuild = !issues.some((item) => item.severity === "error" && isBuildBlockingIssue(item));
-  const canGenerateTestQrcode = canGenerateQrcode(project, resources2, settingsJsonExists, issues);
-  return createHealthResult(
-    resolvedProjectRoot,
-    mode,
-    status,
-    paths,
-    issues,
-    canBuild,
-    canGenerateTestQrcode
-  );
-}
-function formatMakerProjectHealthStatus(health) {
-  if (health.status === "ready" && health.issues.length === 0 && health.canGenerateTestQrcode) {
-    return "";
-  }
-  const lines = [
-    "Maker project structure",
-    "",
-    `- status: ${health.status}`,
-    `- evaluated_target_dir: ${health.projectRoot}`,
-    `- can_build: ${health.canBuild ? "yes" : "no"}`,
-    `- can_generate_test_qrcode: ${health.canGenerateTestQrcode ? "yes" : "no"}`
-  ];
-  if (health.issues.length > 0) {
-    lines.push("- issues:");
-    lines.push(
-      ...health.issues.map(
-        (item) => `  - [${item.severity}] ${item.code}: ${item.path} - ${item.message}${item.expectedPath ? ` (expected: ${item.expectedPath})` : ""}`
-      )
-    );
-  }
-  const settingsSection = formatHealthSettingsStatus(health);
-  if (settingsSection) {
-    lines.push("", settingsSection);
-  }
-  const isMissingSettings = health.issues.some((item) => item.code === "missing_settings_json");
-  lines.push(
-    health.canBuild && !health.canGenerateTestQrcode ? isMissingSettings ? "- next_action: 可以继续构建；生成测试二维码前需要 .project/settings.json。" : "- next_action: 可以继续构建；生成测试二维码前请完善 .project/project.json 发布配置。" : health.canBuild ? "- next_action: 可以继续构建；检查器不会自动移动或覆盖文件。" : "- next_action: 修复上面的规范路径或配置问题后再构建；检查器不会自动移动或覆盖文件。"
-  );
-  return lines.join("\n");
-}
-function formatHealthSettingsStatus(health) {
-  const settingsIssue = health.issues.find(
-    (item) => item.code === "invalid_settings_json" || item.code === "invalid_project_settings"
-  );
-  if (!settingsIssue) {
-    return "";
-  }
-  return [
-    "Maker project settings",
-    "",
-    `- status: ${settingsIssue.code}`,
-    `- config: ${health.paths.settingsJson}`,
-    "- impact: 构建可能失败或游戏黑屏；坏配置不应提交到 Maker 远端。",
-    "- issues:",
-    `  - ${settingsIssue.message}`,
-    "- next_action: 恢复 .project/settings.json 的构建关键字段后再构建；保留合法的 @runtime 配置。"
-  ].join("\n");
-}
-function inspectMakerProjectSettings(projectRoot) {
-  const resolvedProjectRoot = path17.resolve(projectRoot);
-  const settingsJsonPath = path17.join(resolvedProjectRoot, ".project", "settings.json");
-  const baseStatus = {
-    projectRoot: resolvedProjectRoot,
-    settingsJsonPath
-  };
-  if (!fs16.existsSync(settingsJsonPath)) {
-    return {
-      ...baseStatus,
-      status: "missing_settings_json"
-    };
-  }
-  let settings;
-  try {
-    settings = JSON.parse(fs16.readFileSync(settingsJsonPath, "utf8"));
-  } catch (error2) {
-    return {
-      ...baseStatus,
-      status: "invalid_settings_json",
-      error: error2 instanceof Error ? error2.message : String(error2)
-    };
-  }
-  const issues = validateMakerProjectSettings(settings);
-  if (issues.length > 0) {
-    return {
-      ...baseStatus,
-      status: "invalid_project_settings",
-      issues
-    };
-  }
-  return {
-    ...baseStatus,
-    status: "ready"
-  };
-}
-function createHealthResult(projectRoot, mode, status, paths, issues, canBuild, canGenerateTestQrcode) {
-  return {
-    projectRoot,
-    mode,
-    status,
-    canBuild,
-    canGenerateTestQrcode,
-    paths,
-    issues
-  };
-}
-function inspectPath(filePath, expectedType) {
-  try {
-    const stats = fs16.lstatSync(filePath);
-    if (stats.isSymbolicLink()) {
-      return "wrong_type";
-    }
-    if (expectedType === "directory") {
-      return stats.isDirectory() ? "directory" : "wrong_type";
-    }
-    return stats.isFile() ? "file" : "directory";
-  } catch (error2) {
-    if (error2.code === "ENOENT") {
-      return "missing";
-    }
-    return "wrong_type";
-  }
-}
-function addCanonicalFileIssue(state, issuePath, issues, required2) {
-  if (state === "directory" || state === "wrong_type") {
-    issues.push(issue2("invalid_path_type", "error", issuePath, `${issuePath} 必须是普通文件`));
-  } else if (state === "missing" && required2) {
-    issues.push(issue2("missing_required_file", "error", issuePath, `${issuePath} 缺失`));
-  }
-}
-function readHealthJson(filePath, label, issues) {
-  try {
-    return JSON.parse(fs16.readFileSync(filePath, "utf8"));
-  } catch (error2) {
-    const code = label === "project.json" ? "invalid_project_json" : label === "settings.json" ? "invalid_settings_json" : "invalid_resources_json";
-    issues.push(
-      issue2(
-        code,
-        "error",
-        label === "project.json" ? ".project/project.json" : label === "settings.json" ? ".project/settings.json" : ".project/resources.json",
-        `${label} 无法解析为 JSON: ${error2 instanceof Error ? error2.message : String(error2)}`
-      )
-    );
-    return void 0;
-  }
-}
-function hasTapTapPublish(filePath) {
-  try {
-    const value = JSON.parse(fs16.readFileSync(filePath, "utf8"));
-    return isPlainObject3(value) && isPlainObject3(value.taptap_publish);
-  } catch {
-    return false;
-  }
-}
-function hasMakerRootConfigSignature(filePath, name) {
-  try {
-    const value = JSON.parse(fs16.readFileSync(filePath, "utf8"));
-    if (!isPlainObject3(value)) {
-      return false;
-    }
-    const schema = value.$schema;
-    if (isNonEmptyString(schema) && schema.endsWith(name.replace(".json", ".schema.json"))) {
-      return true;
-    }
-    if (name === "project.json") {
-      return isPlainObject3(value.taptap_publish) && isNonEmptyString(value.project_id) && isNonEmptyString(value.version) && (isNonEmptyString(value.entry) || isNonEmptyString(value["entry@client"]) && isNonEmptyString(value["entry@server"]));
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-function isBuildBlockingIssue(item) {
-  return item.code !== "invalid_project_field" && item.code !== "invalid_publish_field";
-}
-function validateProjectFields(project, resources2, issues, mode) {
-  const projectFieldSeverity = mode === "qrcode" ? "error" : "warning";
-  const projectId = project.project_id;
-  if (!isConfiguredString(projectId)) {
-    issues.push(
-      issue2(
-        "invalid_project_field",
-        projectFieldSeverity,
-        ".project/project.json:project_id",
-        mode === "qrcode" ? "project_id 不能为空或使用模板占位符" : "project_id 必须存在且不能为空"
-      )
-    );
-  }
-  const version2 = project.version;
-  if (!isConfiguredString(version2)) {
-    issues.push(
-      issue2(
-        "invalid_project_field",
-        projectFieldSeverity,
-        ".project/project.json:version",
-        mode === "qrcode" ? "version 不能为空或使用模板占位符" : "version 必须存在且不能为空"
-      )
-    );
-  }
-  if (!hasProjectEntry(project, resources2, "qrcode")) {
-    issues.push(
-      issue2(
-        "invalid_project_field",
-        projectFieldSeverity,
-        ".project/project.json:entry",
-        "必须在 project.json 或 resources.json 提供 entry，或完整的客户端/服务端入口"
-      )
-    );
-  }
-  const publish = project.taptap_publish;
-  if (publish === void 0) {
-    issues.push(
-      issue2(
-        "invalid_publish_field",
-        projectFieldSeverity,
-        "taptap_publish",
-        "生成测试二维码前必须存在 taptap_publish 配置"
-      )
-    );
-    return;
-  }
-  if (!isPlainObject3(publish)) {
-    issues.push(
-      issue2(
-        "invalid_publish_field",
-        mode === "qrcode" ? "error" : "warning",
-        "taptap_publish",
-        "taptap_publish 必须是 JSON object"
-      )
-    );
-    return;
-  }
-  const publishFieldSeverity = mode === "qrcode" ? "error" : "warning";
-  const title = publish.title;
-  if (!isConfiguredTitle(title)) {
-    issues.push(
-      issue2(
-        "invalid_publish_field",
-        publishFieldSeverity,
-        "taptap_publish.title",
-        "title 不能为空或使用模板占位符"
-      )
-    );
-  }
-  const category = publish.category;
-  if (!isConfiguredString(category)) {
-    issues.push(
-      issue2(
-        "invalid_publish_field",
-        publishFieldSeverity,
-        "taptap_publish.category",
-        "category 不能为空或使用模板占位符"
-      )
-    );
-  }
-  const orientation = publish.screen_orientation;
-  if (orientation !== "landscape" && orientation !== "portrait") {
-    issues.push(
-      issue2(
-        "invalid_publish_field",
-        publishFieldSeverity,
-        "taptap_publish.screen_orientation",
-        "screen_orientation 必须是 landscape 或 portrait"
-      )
-    );
-  }
-}
-function isNonEmptyString(value) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-function isConfiguredString(value) {
-  return isNonEmptyString(value) && !value.trim().startsWith("<") && !/[{}]/u.test(value);
-}
-function isConfiguredTitle(value) {
-  if (!isNonEmptyString(value)) {
-    return false;
-  }
-  const title = value.trim();
-  return !(title.startsWith("<") && title.endsWith(">") || title.startsWith("{") && title.endsWith("}"));
-}
-function canGenerateQrcode(project, resources2, settingsExists, issues) {
-  if (!isPlainObject3(project) || !isPlainObject3(resources2) || !settingsExists || !isConfiguredString(project.project_id) || !isConfiguredString(project.version) || !hasProjectEntry(project, resources2, "qrcode") || !isPlainObject3(project.taptap_publish)) {
-    return false;
-  }
-  const publish = project.taptap_publish;
-  if (!isConfiguredTitle(publish.title) || !isConfiguredString(publish.category)) {
-    return false;
-  }
-  const orientation = publish.screen_orientation;
-  if (orientation !== void 0 && orientation !== "landscape" && orientation !== "portrait") {
-    return false;
-  }
-  return !issues.some((item) => {
-    if (item.severity !== "error") {
-      return false;
-    }
-    if (orientation === void 0 && item.code === "invalid_publish_field" && item.path === "taptap_publish.screen_orientation") {
-      return false;
-    }
-    if (item.path === "taptap_publish" || item.path.startsWith("taptap_publish.")) {
-      return true;
-    }
-    return item.path === ".project" || item.path === ".project/project.json" || item.path.startsWith(".project/project.json:") || item.path === ".project/resources.json" || item.code === "misplaced_config" && item.path === "project.json";
-  });
-}
-function hasProjectEntry(project, resources2, mode = "status") {
-  const resourceConfig = isPlainObject3(resources2) ? resources2 : void 0;
-  const entry = project.entry || (resourceConfig == null ? void 0 : resourceConfig.entry);
-  const isValidEntry = mode === "qrcode" ? isConfiguredString : isNonEmptyString;
-  if (isValidEntry(entry)) {
-    return true;
-  }
-  return isValidEntry(project["entry@client"] || (resourceConfig == null ? void 0 : resourceConfig["entry@client"])) && isValidEntry(project["entry@server"] || (resourceConfig == null ? void 0 : resourceConfig["entry@server"]));
-}
-function issue2(code, severity, issuePath, message) {
-  return { code, severity, path: issuePath, message };
-}
-function formatMakerProjectSettingsStatus(status) {
-  var _a3;
-  if (status.status === "ready" || status.status === "missing_settings_json") {
-    return "";
-  }
-  const lines = [
-    "Maker project settings",
-    "",
-    `- status: ${status.status}`,
-    `- config: ${status.settingsJsonPath}`,
-    "- impact: 构建可能失败或游戏黑屏；坏配置不应提交到 Maker 远端。"
-  ];
-  if (status.error) {
-    lines.push(`- error: ${status.error}`);
-  }
-  if ((_a3 = status.issues) == null ? void 0 : _a3.length) {
-    lines.push("- issues:");
-    lines.push(...status.issues.map((issue3) => `  - ${issue3}`));
-  }
-  lines.push(
-    "- next_action: 恢复 .project/settings.json 的构建关键字段后再构建；保留合法的 @runtime 配置。"
-  );
-  return lines.join("\n");
-}
-function isMakerProjectSettingsBlocking(status) {
-  return status.status === "invalid_settings_json" || status.status === "invalid_project_settings";
-}
-function validateMakerProjectSettings(settings) {
-  const issues = [];
-  if (!isPlainObject3(settings)) {
-    return ["settings.json must be a JSON object"];
-  }
-  expectValue(settings, "$schema", "../schemas/settings.schema.json", issues);
-  const sources = readPath(settings, "sources");
-  if (!isPlainObject3(sources)) {
-    issues.push("sources must be an object");
-  } else {
-    expectOneOf(settings, "sources.engine.tag", REQUIRED_SOURCE_TAGS, issues);
-    expectOneOf(settings, "sources.engine-res.tag", REQUIRED_SOURCE_TAGS, issues);
-    expectOneOf(settings, "sources.official-res.tag", REQUIRED_SOURCE_TAGS, issues);
-  }
-  const build = readPath(settings, "build");
-  if (!isPlainObject3(build)) {
-    issues.push("build must be an object");
-    return issues;
-  }
-  expectValue(settings, "build.generate_fs_path", true, issues);
-  expectValue(settings, "build.output_dir", "../dist", issues);
-  const assetDirs = readPath(build, "asset_dirs");
-  if (!isStringArray(assetDirs) || !sameStringSet(assetDirs, ["../assets", "../scripts"])) {
-    issues.push('build.asset_dirs must contain only "../assets" and "../scripts"');
-  }
-  if (readPath(build, "asset_ignores") === void 0) {
-    issues.push("build.asset_ignores must exist");
-  }
-  return issues;
-}
-function expectValue(settings, fieldPath, expected, issues) {
-  if (readPath(settings, fieldPath) !== expected) {
-    issues.push(`${fieldPath} must be ${JSON.stringify(expected)}`);
-  }
-}
-function expectOneOf(settings, fieldPath, expectedValues, issues) {
-  if (!expectedValues.includes(String(readPath(settings, fieldPath)))) {
-    issues.push(
-      `${fieldPath} must be ${expectedValues.map((value) => JSON.stringify(value)).join(" or ")}`
-    );
-  }
-}
-function readPath(value, fieldPath) {
-  let current = value;
-  for (const segment of fieldPath.split(".")) {
-    if (!isPlainObject3(current)) {
-      return void 0;
-    }
-    current = current[segment];
-  }
-  return current;
-}
-function isPlainObject3(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function isStringArray(value) {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
-}
-function sameStringSet(left, right) {
-  return left.length === right.length && right.every((item) => left.includes(item));
-}
-var REQUIRED_SOURCE_TAGS;
-var init_projectSettings = __esm({
-  "src/maker/projectSettings.ts"() {
-    "use strict";
-    REQUIRED_SOURCE_TAGS = ["stable"];
-  }
-});
-
-// src/maker/qrcodePreflight.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
-import fs17 from "node:fs";
-import path18 from "node:path";
-function inspectMakerQrcodePreflight(projectRoot, confirmedOrientation) {
-  const projectJsonPath = path18.join(path18.resolve(projectRoot), ".project", "project.json");
-  let projectJsonText;
-  let project;
-  try {
-    projectJsonText = fs17.readFileSync(projectJsonPath, "utf8");
-    project = JSON.parse(projectJsonText);
-  } catch (error2) {
-    return {
-      ok: false,
-      message: [
-        "Maker QR project configuration is not ready.",
-        `- config: ${projectJsonPath}`,
-        `- error: ${error2 instanceof Error ? error2.message : String(error2)}`,
-        "- next_action: Restore or initialize .project/project.json, then retry."
-      ].join("\n")
-    };
-  }
-  const configuredOrientation = readConfiguredOrientation(project);
-  if (configuredOrientation) {
-    return { ok: true, orientation: configuredOrientation };
-  }
-  if (!isScreenOrientation(confirmedOrientation)) {
-    return {
-      ok: false,
-      message: [
-        "Maker QR orientation is not configured yet.",
-        "- field: taptap_publish.screen_orientation",
-        "- next_action: Ask the user in a separate conversation turn to choose landscape or portrait, then retry with confirmed_screen_orientation.",
-        "- do_not: Do not infer or default the game orientation."
-      ].join("\n")
-    };
-  }
-  if (!isRecord(project) || !isRecord(project.taptap_publish)) {
-    return {
-      ok: false,
-      message: [
-        "Maker QR project publishing configuration is not ready.",
-        "- missing: taptap_publish",
-        "- next_action: Restore or initialize the taptap_publish configuration, then retry."
-      ].join("\n")
-    };
-  }
-  project.taptap_publish.screen_orientation = confirmedOrientation;
-  const tempPath = `${projectJsonPath}.${randomUUID2()}.tmp`;
-  try {
-    fs17.writeFileSync(tempPath, `${JSON.stringify(project, null, 2)}
-`, {
-      encoding: "utf8",
-      flag: "wx"
-    });
-    if (fs17.readFileSync(projectJsonPath, "utf8") !== projectJsonText) {
-      throw new Error("Maker QR project configuration changed while saving; retry the operation.");
-    }
-    fs17.renameSync(tempPath, projectJsonPath);
-  } catch (error2) {
-    try {
-      fs17.rmSync(tempPath, { force: true });
-    } catch {
-    }
-    return {
-      ok: false,
-      message: [
-        "Maker QR project orientation could not be saved.",
-        `- config: ${projectJsonPath}`,
-        `- error: ${error2 instanceof Error ? error2.message : String(error2)}`,
-        "- next_action: Fix the project configuration write error, then retry."
-      ].join("\n")
-    };
-  }
-  return { ok: true, orientation: confirmedOrientation };
-}
-function readConfiguredOrientation(project) {
-  if (!isRecord(project) || !isRecord(project.taptap_publish)) {
-    return void 0;
-  }
-  const orientation = project.taptap_publish.screen_orientation;
-  return isScreenOrientation(orientation) ? orientation : void 0;
-}
-function isScreenOrientation(value) {
-  return value === "landscape" || value === "portrait";
-}
-function isRecord(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-var init_qrcodePreflight = __esm({
-  "src/maker/qrcodePreflight.ts"() {
     "use strict";
   }
 });
@@ -36072,8 +36397,8 @@ var init_diagnosticRedaction = __esm({
 });
 
 // src/maker/server/proxyAssets.ts
-import fs18 from "node:fs";
-import path19 from "node:path";
+import fs20 from "node:fs";
+import path21 from "node:path";
 import { randomUUID as randomUUID3 } from "node:crypto";
 function prepareRemoteProxyToolArgs(options3) {
   if (options3.toolName === "audition_voices_for_character") {
@@ -36287,7 +36612,7 @@ async function materializeDebugFeedbackResult(options3) {
       ...materialized
     });
   }
-  const localCandidateSaveDir = remoteSaveDir ? resolveDebugFeedbackCandidatePath(options3.targetDir, remoteSaveDir) : feedbacks.some(hasDebugFeedbackArtifactUrls) ? path19.join(options3.targetDir, "logs", "feed_back") : void 0;
+  const localCandidateSaveDir = remoteSaveDir ? resolveDebugFeedbackCandidatePath(options3.targetDir, remoteSaveDir) : feedbacks.some(hasDebugFeedbackArtifactUrls) ? path21.join(options3.targetDir, "logs", "feed_back") : void 0;
   const filesVerifiedLocally = nextFeedbacks.some(
     (feedback) => numberField2(feedback.artifacts_downloaded) > 0
   );
@@ -36315,7 +36640,7 @@ async function materializeDebugFeedbackArtifacts(options3) {
   if (logUrls.length === 0 && screenshotUrls.length === 0 && extraUrls.length === 0) {
     return {};
   }
-  const localDir = path19.join(options3.targetDir, "logs", "feed_back", `feedback_${feedbackId}`);
+  const localDir = path21.join(options3.targetDir, "logs", "feed_back", `feedback_${feedbackId}`);
   const localLogPaths = [];
   const localScreenshotPaths = [];
   const localDownloadPaths = [];
@@ -36323,7 +36648,7 @@ async function materializeDebugFeedbackArtifacts(options3) {
   for (const [index, url2] of logUrls.entries()) {
     const result = await downloadDebugFeedbackArtifact({
       url: url2,
-      directory: path19.join(localDir, "logs"),
+      directory: path21.join(localDir, "logs"),
       fallbackName: `log_${index + 1}.log`,
       fetchImpl: options3.fetchImpl
     });
@@ -36336,7 +36661,7 @@ async function materializeDebugFeedbackArtifacts(options3) {
   for (const [index, url2] of screenshotUrls.entries()) {
     const result = await downloadDebugFeedbackArtifact({
       url: url2,
-      directory: path19.join(localDir, "screenshots"),
+      directory: path21.join(localDir, "screenshots"),
       fallbackName: `screenshot_${index + 1}.png`,
       fetchImpl: options3.fetchImpl
     });
@@ -36349,7 +36674,7 @@ async function materializeDebugFeedbackArtifacts(options3) {
   for (const [index, url2] of extraUrls.entries()) {
     const result = await downloadDebugFeedbackArtifact({
       url: url2,
-      directory: path19.join(localDir, "downloads"),
+      directory: path21.join(localDir, "downloads"),
       fallbackName: `artifact_${index + 1}`,
       fetchImpl: options3.fetchImpl
     });
@@ -36377,14 +36702,14 @@ async function downloadDebugFeedbackArtifact(options3) {
         error: `${options3.url}: HTTP ${response.status}`
       };
     }
-    fs18.mkdirSync(options3.directory, { recursive: true });
+    fs20.mkdirSync(options3.directory, { recursive: true });
     const filePath = allocateDebugFeedbackArtifactPath(
       options3.directory,
       options3.url,
       options3.fallbackName
     );
     const bytes = Buffer.from(await response.arrayBuffer());
-    fs18.writeFileSync(filePath, bytes);
+    fs20.writeFileSync(filePath, bytes);
     return { success: true, path: filePath };
   } catch (error2) {
     return {
@@ -36395,14 +36720,14 @@ async function downloadDebugFeedbackArtifact(options3) {
 }
 function allocateDebugFeedbackArtifactPath(directory, url2, fallbackName) {
   const rawName = fileNameFromUrl(url2) || fallbackName;
-  const rawExtension = path19.extname(rawName);
+  const rawExtension = path21.extname(rawName);
   const finalExtension = rawExtension && rawExtension !== "." ? rawExtension.replace(/[^A-Za-z0-9.]/g, "_") : "";
   const rawStem = finalExtension ? rawName.slice(0, -rawExtension.length) : rawName;
   const stem = sanitizeAssetBaseName(rawStem);
   for (let index = 1; index <= 9999; index += 1) {
     const suffix = index === 1 ? "" : `_${index}`;
-    const candidate = path19.join(directory, `${stem}${suffix}${finalExtension}`);
-    if (!fs18.existsSync(candidate)) {
+    const candidate = path21.join(directory, `${stem}${suffix}${finalExtension}`);
+    if (!fs20.existsSync(candidate)) {
       return candidate;
     }
   }
@@ -36411,7 +36736,7 @@ function allocateDebugFeedbackArtifactPath(directory, url2, fallbackName) {
 function fileNameFromUrl(url2) {
   try {
     const pathname = new URL(url2).pathname;
-    const name = decodeURIComponent(path19.basename(pathname));
+    const name = decodeURIComponent(path21.basename(pathname));
     return name && name !== "/" ? name : void 0;
   } catch {
     return void 0;
@@ -36425,11 +36750,11 @@ function getDebugFeedbackSaveDir(payload) {
   return stringField2(payload.save_dir) || (isRecord2(summary) ? stringField2(summary.save_dir) : void 0);
 }
 function resolveDebugFeedbackCandidatePath(targetDir, remotePath) {
-  if (path19.isAbsolute(remotePath)) {
+  if (path21.isAbsolute(remotePath)) {
     return void 0;
   }
   const trimmedRemotePath = remotePath.replace(/[\\/]+$/, "");
-  return path19.normalize(path19.join(targetDir, trimmedRemotePath || "."));
+  return path21.normalize(path21.join(targetDir, trimmedRemotePath || "."));
 }
 function replaceDebugFeedbackItems(payload, nextFeedbacks) {
   const summary = payload.summary;
@@ -36582,13 +36907,13 @@ function findExistingMaterializedVideo(targetDir, options3) {
 function resolveExistingMaterializedAssetPath(targetDir, record2, localPath) {
   const candidates = [];
   const absolutePath = stringField2(record2.absolutePath);
-  if (absolutePath && path19.isAbsolute(absolutePath)) {
+  if (absolutePath && path21.isAbsolute(absolutePath)) {
     candidates.push(absolutePath);
   }
-  candidates.push(path19.join(targetDir, ...localPath.split("/")));
+  candidates.push(path21.join(targetDir, ...localPath.split("/")));
   for (const candidate of candidates) {
     try {
-      if (fs18.statSync(candidate).isFile()) {
+      if (fs20.statSync(candidate).isFile()) {
         return candidate;
       }
     } catch {
@@ -36661,13 +36986,13 @@ async function materializeAudioFilesResult(options3, toolName) {
       });
       continue;
     }
-    const extension = audioExtensionForItem(item, suggestedFileName);
+    const extension2 = audioExtensionForItem(item, suggestedFileName);
     const materialized = await materializeAudioAsset({
       targetDir: options3.targetDir,
       targetDirectory: expectedDirectory,
       fileName: suggestedFileName,
       url: audioUrl,
-      extension,
+      extension: extension2,
       now: options3.now,
       fetchImpl: options3.fetchImpl
     });
@@ -36700,12 +37025,12 @@ function validateAudioAssetContract(options3) {
   if (!fileName || fileName === "." || fileName === ".." || fileName.includes("/") || fileName.includes("\\") || fileName.includes("\0")) {
     return "suggestedFileName must be a safe basename.";
   }
-  if (path19.basename(fileName) !== fileName || fileName.endsWith(".") || fileName.endsWith(" ")) {
+  if (path21.basename(fileName) !== fileName || fileName.endsWith(".") || fileName.endsWith(" ")) {
     return "suggestedFileName must be a safe basename.";
   }
   const format = (_a3 = options3.format) == null ? void 0 : _a3.toLowerCase();
   const mimeType = (_b = options3.mimeType) == null ? void 0 : _b.toLowerCase();
-  const extension = path19.extname(fileName).toLowerCase();
+  const extension2 = path21.extname(fileName).toLowerCase();
   const contract = {
     mp3: { mimeType: "audio/mpeg", extension: ".mp3" },
     wav: { mimeType: "audio/wav", extension: ".wav" },
@@ -36715,7 +37040,7 @@ function validateAudioAssetContract(options3) {
   if (!contract) {
     return "audio output format is unsupported; format must be one of mp3, wav, pcm, or ogg_opus.";
   }
-  if (mimeType !== contract.mimeType || extension !== contract.extension) {
+  if (mimeType !== contract.mimeType || extension2 !== contract.extension) {
     return `audio output contract mismatch: format ${format} requires mime ${contract.mimeType} and extension ${contract.extension}.`;
   }
   return void 0;
@@ -36732,13 +37057,13 @@ function audioExtensionForItem(item, fileName) {
     m4a: "m4a",
     aac: "aac"
   };
-  return byFormat[format || ""] || path19.extname(fileName).slice(1).toLowerCase() || "mp3";
+  return byFormat[format || ""] || path21.extname(fileName).slice(1).toLowerCase() || "mp3";
 }
 async function materializeAudioAsset(options3) {
   const relativeDir = options3.targetDirectory;
-  const directory = path19.join(options3.targetDir, ...relativeDir.split("/"));
+  const directory = path21.join(options3.targetDir, ...relativeDir.split("/"));
   try {
-    fs18.mkdirSync(directory, { recursive: true });
+    fs20.mkdirSync(directory, { recursive: true });
     assertProjectDirectory(options3.targetDir, directory);
   } catch (error2) {
     return {
@@ -36748,16 +37073,16 @@ async function materializeAudioAsset(options3) {
       }
     };
   }
-  const baseName = path19.basename(options3.fileName, path19.extname(options3.fileName));
+  const baseName = path21.basename(options3.fileName, path21.extname(options3.fileName));
   let absolutePath;
   let relativePath;
   for (let index = 1; index <= 9999; index += 1) {
     const suffix = index === 1 ? "" : `_${index}`;
     const candidateName = `${baseName}${suffix}.${options3.extension}`;
-    const candidate = path19.join(directory, candidateName);
-    if (!fs18.existsSync(candidate)) {
+    const candidate = path21.join(directory, candidateName);
+    if (!fs20.existsSync(candidate)) {
       absolutePath = candidate;
-      relativePath = path19.posix.join(relativeDir, candidateName);
+      relativePath = path21.posix.join(relativeDir, candidateName);
       break;
     }
   }
@@ -36775,7 +37100,7 @@ async function materializeAudioAsset(options3) {
     if (bytes.length === 0) {
       return { download: { success: false, error: "Asset download failed: empty response." } };
     }
-    fs18.writeFileSync(absolutePath, bytes, { flag: "wx" });
+    fs20.writeFileSync(absolutePath, bytes, { flag: "wx" });
     return { localPath: relativePath, absolutePath, download: { success: true } };
   } catch (error2) {
     return {
@@ -36874,7 +37199,7 @@ async function materializeVoiceConfirmationResult(options3) {
       referenceAudio: {
         ...referenceAudio,
         localPath: targetPath,
-        absolutePath: path19.join(options3.targetDir, ...targetPath.split("/")),
+        absolutePath: path21.join(options3.targetDir, ...targetPath.split("/")),
         download: { success: true }
       }
     };
@@ -36905,7 +37230,7 @@ function validateDoubaoReferenceTarget(targetPath) {
   if (!/^assets\/audio\/voice-reference\/[^/]+\.mp3$/.test(targetPath)) {
     return "referenceAudio.targetPath must be assets/audio/voice-reference/<basename>.mp3.";
   }
-  const base = path19.posix.basename(targetPath, ".mp3");
+  const base = path21.posix.basename(targetPath, ".mp3");
   if (!base || base === "." || base === ".." || base.includes("\\") || base.includes("\0")) {
     return "referenceAudio.targetPath contains an unsafe basename.";
   }
@@ -36950,19 +37275,19 @@ function parseMp3Frame(bytes, offset) {
   return length > 4 && offset + length <= bytes.length ? { length, version: version2, sampleRate } : void 0;
 }
 function mergeVoiceMappingFile(options3) {
-  const configPath = path19.join(
+  const configPath = path21.join(
     options3.targetDir,
     ".project",
     options3.provider === "doubao" ? "audio-voice-mapping.json" : "elevenlabs-voice-mapping.json"
   );
-  const referencePath = options3.referenceAudio ? path19.join(options3.targetDir, ...options3.referenceAudio.targetPath.split("/")) : void 0;
-  const configDirectory = path19.dirname(configPath);
-  const referenceDirectory = referencePath ? path19.dirname(referencePath) : void 0;
-  fs18.mkdirSync(configDirectory, { recursive: true });
+  const referencePath = options3.referenceAudio ? path21.join(options3.targetDir, ...options3.referenceAudio.targetPath.split("/")) : void 0;
+  const configDirectory = path21.dirname(configPath);
+  const referenceDirectory = referencePath ? path21.dirname(referencePath) : void 0;
+  fs20.mkdirSync(configDirectory, { recursive: true });
   assertProjectDirectory(options3.targetDir, configDirectory);
   assertFileIsNotSymlink(configPath);
   if (referenceDirectory) {
-    fs18.mkdirSync(referenceDirectory, { recursive: true });
+    fs20.mkdirSync(referenceDirectory, { recursive: true });
     assertProjectDirectory(options3.targetDir, referenceDirectory);
     assertFileIsNotSymlink(referencePath);
   }
@@ -37006,15 +37331,15 @@ function mergeVoiceMappingFile(options3) {
   const referenceTemp = referencePath ? `${referencePath}.${transactionId}.tmp` : void 0;
   try {
     if (referenceTemp && options3.referenceAudio) {
-      fs18.writeFileSync(referenceTemp, options3.referenceAudio.bytes, { flag: "wx" });
-      fs18.renameSync(referenceTemp, referencePath);
+      fs20.writeFileSync(referenceTemp, options3.referenceAudio.bytes, { flag: "wx" });
+      fs20.renameSync(referenceTemp, referencePath);
     }
-    fs18.writeFileSync(configTemp, configBytes, { flag: "wx" });
-    fs18.renameSync(configTemp, configPath);
+    fs20.writeFileSync(configTemp, configBytes, { flag: "wx" });
+    fs20.renameSync(configTemp, configPath);
   } catch (error2) {
     try {
-      if (fs18.existsSync(configTemp)) fs18.rmSync(configTemp, { force: true });
-      if (referenceTemp && fs18.existsSync(referenceTemp)) fs18.rmSync(referenceTemp, { force: true });
+      if (fs20.existsSync(configTemp)) fs20.rmSync(configTemp, { force: true });
+      if (referenceTemp && fs20.existsSync(referenceTemp)) fs20.rmSync(referenceTemp, { force: true });
       restoreFile(configPath, oldConfig);
       if (referencePath) restoreFile(referencePath, oldReference);
     } catch {
@@ -37025,7 +37350,7 @@ function mergeVoiceMappingFile(options3) {
 function snapshotFile(filePath) {
   try {
     assertFileIsNotSymlink(filePath);
-    return { exists: true, bytes: fs18.readFileSync(filePath) };
+    return { exists: true, bytes: fs20.readFileSync(filePath) };
   } catch {
     if (isSymlink(filePath)) {
       throw new Error(`refusing to read symlinked file: ${filePath}`);
@@ -37036,16 +37361,16 @@ function snapshotFile(filePath) {
 function restoreFile(filePath, snapshot) {
   assertFileIsNotSymlink(filePath);
   if (snapshot.exists && snapshot.bytes) {
-    fs18.mkdirSync(path19.dirname(filePath), { recursive: true });
-    fs18.writeFileSync(filePath, snapshot.bytes);
+    fs20.mkdirSync(path21.dirname(filePath), { recursive: true });
+    fs20.writeFileSync(filePath, snapshot.bytes);
   } else {
-    fs18.rmSync(filePath, { force: true });
+    fs20.rmSync(filePath, { force: true });
   }
 }
 function readJsonFile2(filePath) {
   assertFileIsNotSymlink(filePath);
   try {
-    const parsed = JSON.parse(fs18.readFileSync(filePath, "utf8"));
+    const parsed = JSON.parse(fs20.readFileSync(filePath, "utf8"));
     return isRecord2(parsed) ? parsed : void 0;
   } catch {
     return void 0;
@@ -37165,8 +37490,8 @@ async function materializeCreate3dAssetModelFile(options3) {
   const targetDirectory = stringField2(options3.modelFile.targetDirectory);
   const suggestedFileName = stringField2(options3.modelFile.suggestedFileName);
   const targetAbsolutePath = targetDirectory ? resolveProjectRelativePath(options3.targetDir, targetDirectory) : void 0;
-  const modelAssetRoot = path19.resolve(options3.targetDir, MODEL_ASSET_DIRS[0]);
-  if (!targetDirectory || !targetAbsolutePath || !isKnownAssetPath(targetDirectory, MODEL_ASSET_DIRS) || !isPathWithinDirectory(modelAssetRoot, targetAbsolutePath) || !suggestedFileName || path19.posix.basename(suggestedFileName) !== suggestedFileName || suggestedFileName.includes("\\")) {
+  const modelAssetRoot = path21.resolve(options3.targetDir, MODEL_ASSET_DIRS[0]);
+  if (!targetDirectory || !targetAbsolutePath || !isKnownAssetPath(targetDirectory, MODEL_ASSET_DIRS) || !isPathWithinDirectory(modelAssetRoot, targetAbsolutePath) || !suggestedFileName || path21.posix.basename(suggestedFileName) !== suggestedFileName || suggestedFileName.includes("\\")) {
     return {
       download: { success: false, error: "Invalid create_3d_asset local target path." }
     };
@@ -37174,7 +37499,7 @@ async function materializeCreate3dAssetModelFile(options3) {
   if (options3.materialization === "copy") {
     return await materializeAssetAtPath({
       url: options3.remoteUrl,
-      relativePath: path19.posix.join(targetDirectory, suggestedFileName),
+      relativePath: path21.posix.join(targetDirectory, suggestedFileName),
       targetDir: options3.targetDir,
       fetchImpl: options3.fetchImpl
     });
@@ -37192,7 +37517,7 @@ async function materializeCreate3dAssetModelFile(options3) {
     url: options3.remoteUrl,
     baseName: options3.assetId,
     relativeDir: ".maker/assets/downloads",
-    extension: path19.extname(suggestedFileName).replace(/^\./, "") || "zip",
+    extension: path21.extname(suggestedFileName).replace(/^\./, "") || "zip",
     now: options3.now,
     fetchImpl: options3.fetchImpl
   });
@@ -37202,14 +37527,14 @@ async function materializeCreate3dAssetModelFile(options3) {
     };
   }
   try {
-    fs18.mkdirSync(targetAbsolutePath, { recursive: true });
+    fs20.mkdirSync(targetAbsolutePath, { recursive: true });
     extractZip(archive.absolutePath, targetAbsolutePath, "3D model asset");
     const entrypointExtension = ((_a3 = stringField2(options3.modelFile.entrypointExtension)) == null ? void 0 : _a3.toLowerCase()) || ".mdl";
     const entrypoint = findFileByExtension(targetAbsolutePath, entrypointExtension);
     if (!entrypoint) {
       throw new Error(`3D model archive contains no ${entrypointExtension} entrypoint.`);
     }
-    const localPath = path19.relative(options3.targetDir, entrypoint).split(path19.sep).join("/");
+    const localPath = path21.relative(options3.targetDir, entrypoint).split(path21.sep).join("/");
     return {
       localPath,
       absolutePath: entrypoint,
@@ -37223,7 +37548,7 @@ async function materializeCreate3dAssetModelFile(options3) {
       }
     };
   } finally {
-    fs18.rmSync(archive.absolutePath, { force: true });
+    fs20.rmSync(archive.absolutePath, { force: true });
   }
 }
 async function materializeAssetAtPath(options3) {
@@ -37238,8 +37563,8 @@ async function materializeAssetAtPath(options3) {
         download: { success: false, error: `Asset download failed: HTTP ${response.status}` }
       };
     }
-    fs18.mkdirSync(path19.dirname(absolutePath), { recursive: true });
-    fs18.writeFileSync(absolutePath, Buffer.from(await response.arrayBuffer()));
+    fs20.mkdirSync(path21.dirname(absolutePath), { recursive: true });
+    fs20.writeFileSync(absolutePath, Buffer.from(await response.arrayBuffer()));
     return { localPath: options3.relativePath, absolutePath, download: { success: true } };
   } catch (error2) {
     return {
@@ -37250,14 +37575,14 @@ async function materializeAssetAtPath(options3) {
     };
   }
 }
-function findFileByExtension(directory, extension) {
-  const entries = fs18.readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
+function findFileByExtension(directory, extension2) {
+  const entries = fs20.readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
   for (const entry of entries) {
-    const absolutePath = path19.join(directory, entry.name);
+    const absolutePath = path21.join(directory, entry.name);
     if (entry.isDirectory()) {
-      const nested = findFileByExtension(absolutePath, extension);
+      const nested = findFileByExtension(absolutePath, extension2);
       if (nested) return nested;
-    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(extension)) {
+    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(extension2)) {
       return absolutePath;
     }
   }
@@ -37266,7 +37591,7 @@ function findFileByExtension(directory, extension) {
 function findExistingCreate3dAssetDelivery(options3) {
   const registry2 = readGeneratedAssetRegistry(options3.targetDir);
   const match = Object.entries(registry2).find(([, record3]) => {
-    return record3.tool === CREATE_3D_ASSET_PROXY_TOOL_NAME && record3.assetId === options3.assetId && record3.cdnUrl === options3.remoteUrl && typeof record3.absolutePath === "string" && fs18.existsSync(record3.absolutePath);
+    return record3.tool === CREATE_3D_ASSET_PROXY_TOOL_NAME && record3.assetId === options3.assetId && record3.cdnUrl === options3.remoteUrl && typeof record3.absolutePath === "string" && fs20.existsSync(record3.absolutePath);
   });
   if (!match) {
     return void 0;
@@ -37365,8 +37690,8 @@ async function materializeAsset(options3) {
       };
     }
     const bytes = Buffer.from(await response.arrayBuffer());
-    fs18.mkdirSync(path19.dirname(absolutePath), { recursive: true });
-    fs18.writeFileSync(absolutePath, bytes);
+    fs20.mkdirSync(path21.dirname(absolutePath), { recursive: true });
+    fs20.writeFileSync(absolutePath, bytes);
     return { localPath: relativePath, absolutePath, download: { success: true } };
   } catch (error2) {
     return {
@@ -37380,12 +37705,12 @@ async function materializeAsset(options3) {
 function createUniqueAssetPath(options3) {
   const stem = `${sanitizeAssetBaseName(options3.baseName)}_${formatAssetTimestamp(options3.now)}`;
   for (let index = 1; index <= 9999; index += 1) {
-    const relativePath = path19.posix.join(
+    const relativePath = path21.posix.join(
       options3.relativeDir,
       `${stem}${index === 1 ? "" : `_${index}`}.${options3.extension}`
     );
-    const absolutePath = path19.join(options3.targetDir, ...relativePath.split("/"));
-    if (!fs18.existsSync(absolutePath)) {
+    const absolutePath = path21.join(options3.targetDir, ...relativePath.split("/"));
+    if (!fs20.existsSync(absolutePath)) {
       return { relativePath, absolutePath };
     }
   }
@@ -37545,9 +37870,9 @@ async function prepareRemoteProxyToolArgsAsync(options3) {
   return prepareRemoteProxyToolArgs(options3);
 }
 function readLocalElevenLabsVoiceMapping(targetDir) {
-  const mappingPath = path19.join(targetDir, ".project", "elevenlabs-voice-mapping.json");
-  if (!fs18.existsSync(mappingPath)) return void 0;
-  assertProjectDirectory(targetDir, path19.dirname(mappingPath));
+  const mappingPath = path21.join(targetDir, ".project", "elevenlabs-voice-mapping.json");
+  if (!fs20.existsSync(mappingPath)) return void 0;
+  assertProjectDirectory(targetDir, path21.dirname(mappingPath));
   const mapping = readJsonFile2(mappingPath);
   return (mapping == null ? void 0 : mapping.provider) === "elevenlabs" ? mapping : void 0;
 }
@@ -37591,13 +37916,13 @@ function localDialogueAudioReferenceToDataUrl(options3) {
   if (!absolutePath) {
     throw new Error(`local reference audio file was not found: ${options3.value}`);
   }
-  const projectRoot = fs18.realpathSync(path19.resolve(options3.targetDir));
-  const realFile = fs18.realpathSync(absolutePath);
-  const relative = path19.relative(projectRoot, realFile);
-  if (relative === ".." || relative.startsWith(`..${path19.sep}`) || path19.isAbsolute(relative)) {
+  const projectRoot = fs20.realpathSync(path21.resolve(options3.targetDir));
+  const realFile = fs20.realpathSync(absolutePath);
+  const relative = path21.relative(projectRoot, realFile);
+  if (relative === ".." || relative.startsWith(`..${path21.sep}`) || path21.isAbsolute(relative)) {
     throw new Error("local dialogue reference resolves outside the project target directory");
   }
-  const stat = fs18.statSync(realFile);
+  const stat = fs20.statSync(realFile);
   if (!stat.isFile()) {
     throw new Error(`local reference audio path is not a file: ${options3.value}`);
   }
@@ -37608,27 +37933,27 @@ function localDialogueAudioReferenceToDataUrl(options3) {
   if (!mime) {
     throw new Error("local reference audio format is unsupported.");
   }
-  return `data:${mime};base64,${fs18.readFileSync(realFile).toString("base64")}`;
+  return `data:${mime};base64,${fs20.readFileSync(realFile).toString("base64")}`;
 }
 function normalizeDialogueProjectReference(targetDir, value, registry2, index) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(`inputs[${index}].reference_audio must be a non-empty project audio path.`);
   }
   let normalized = value.trim().replace(/^workspace\//, "");
-  if (path19.isAbsolute(normalized)) {
-    const relative = path19.relative(path19.resolve(targetDir), path19.resolve(normalized));
-    if (relative === ".." || relative.startsWith(`..${path19.sep}`) || path19.isAbsolute(relative)) {
+  if (path21.isAbsolute(normalized)) {
+    const relative = path21.relative(path21.resolve(targetDir), path21.resolve(normalized));
+    if (relative === ".." || relative.startsWith(`..${path21.sep}`) || path21.isAbsolute(relative)) {
       throw new Error(`inputs[${index}].reference_audio must stay inside project assets/audio.`);
     }
-    normalized = relative.split(path19.sep).join("/");
+    normalized = relative.split(path21.sep).join("/");
   }
   const localPath = resolveLocalAssetReference(targetDir, normalized, registry2, AUDIO_ASSET_DIRS);
   if (localPath) {
     normalized = localPath;
   }
   const segments = normalized.split("/");
-  const extension = path19.extname(normalized).toLowerCase();
-  if (segments.some((segment) => segment === "" || segment === "." || segment === "..") || !isKnownAssetPath(normalized, AUDIO_ASSET_DIRS) || !AUDIO_MIME_BY_EXTENSION[extension]) {
+  const extension2 = path21.extname(normalized).toLowerCase();
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..") || !isKnownAssetPath(normalized, AUDIO_ASSET_DIRS) || !AUDIO_MIME_BY_EXTENSION[extension2]) {
     throw new Error(`inputs[${index}].reference_audio must be an audio path under assets/audio.`);
   }
   return normalized;
@@ -37707,7 +38032,7 @@ function findRegistryAssetByName(value, registry2, assetDirs) {
     if (!isKnownAssetPath(localPath, assetDirs)) {
       return false;
     }
-    const basename = path19.posix.basename(localPath);
+    const basename = path21.posix.basename(localPath);
     const stem = basename.replace(/\.[^.]+$/, "");
     return basename === value || stem === value || record2.name === value || record2.taskId === value;
   });
@@ -37720,13 +38045,13 @@ function findRegistryAssetByName(value, registry2, assetDirs) {
 }
 function findLocalAssetByName(targetDir, value, assetDirs) {
   var _a3;
-  const hasExtension = Boolean(path19.extname(value));
+  const hasExtension = Boolean(path21.extname(value));
   const candidates = [];
   for (const assetDir of assetDirs) {
-    const absoluteDir = path19.join(targetDir, ...assetDir.split("/"));
+    const absoluteDir = path21.join(targetDir, ...assetDir.split("/"));
     let entries;
     try {
-      entries = fs18.readdirSync(absoluteDir);
+      entries = fs20.readdirSync(absoluteDir);
     } catch {
       continue;
     }
@@ -37735,11 +38060,11 @@ function findLocalAssetByName(targetDir, value, assetDirs) {
       if (hasExtension ? entry !== value : stem !== value && !stem.startsWith(`${value}_`)) {
         continue;
       }
-      const absolutePath = path19.join(absoluteDir, entry);
+      const absolutePath = path21.join(absoluteDir, entry);
       try {
         candidates.push({
-          localPath: path19.posix.join(assetDir, entry),
-          mtimeMs: fs18.statSync(absolutePath).mtimeMs
+          localPath: path21.posix.join(assetDir, entry),
+          mtimeMs: fs20.statSync(absolutePath).mtimeMs
         });
       } catch {
       }
@@ -37749,7 +38074,7 @@ function findLocalAssetByName(targetDir, value, assetDirs) {
   return (_a3 = candidates[0]) == null ? void 0 : _a3.localPath;
 }
 function isKnownAssetPath(relativePath, assetDirs) {
-  if (relativePath.startsWith("../") || path19.isAbsolute(relativePath)) {
+  if (relativePath.startsWith("../") || path21.isAbsolute(relativePath)) {
     return false;
   }
   return assetDirs.some(
@@ -37773,14 +38098,14 @@ function localAssetReferenceToDataUrl(options3) {
   }
   let stat;
   try {
-    stat = fs18.statSync(absolutePath);
+    stat = fs20.statSync(absolutePath);
   } catch {
     return void 0;
   }
   if (!stat.isFile() || stat.size > options3.maxBytes) {
     return void 0;
   }
-  const bytes = fs18.readFileSync(absolutePath);
+  const bytes = fs20.readFileSync(absolutePath);
   return `data:${mime};base64,${bytes.toString("base64")}`;
 }
 function resolveLocalAssetAbsolutePath(targetDir, options3) {
@@ -37791,7 +38116,7 @@ function resolveLocalAssetAbsolutePath(targetDir, options3) {
       candidates.push(localPath);
     }
   }
-  if (path19.isAbsolute(options3.value)) {
+  if (path21.isAbsolute(options3.value)) {
     candidates.push(options3.value);
   } else {
     const localPath = resolveProjectRelativePath(targetDir, options3.value);
@@ -37800,67 +38125,67 @@ function resolveLocalAssetAbsolutePath(targetDir, options3) {
     }
   }
   for (const candidate of candidates) {
-    if (fs18.existsSync(candidate)) {
+    if (fs20.existsSync(candidate)) {
       return candidate;
     }
   }
   return void 0;
 }
 function resolveProjectRelativePath(targetDir, value) {
-  const root = path19.resolve(targetDir);
-  const absolutePath = path19.resolve(root, value);
-  const relativePath = path19.relative(root, absolutePath);
-  const escapesRoot = relativePath === ".." || relativePath.startsWith(`..${path19.sep}`) || path19.isAbsolute(relativePath);
+  const root2 = path21.resolve(targetDir);
+  const absolutePath = path21.resolve(root2, value);
+  const relativePath = path21.relative(root2, absolutePath);
+  const escapesRoot = relativePath === ".." || relativePath.startsWith(`..${path21.sep}`) || path21.isAbsolute(relativePath);
   if (!escapesRoot) {
     return absolutePath;
   }
   return void 0;
 }
 function assertProjectDirectory(targetDir, directory) {
-  const projectRoot = fs18.realpathSync(path19.resolve(targetDir));
-  const realDirectory = fs18.realpathSync(directory);
-  const relative = path19.relative(projectRoot, realDirectory);
-  if (relative === ".." || relative.startsWith(`..${path19.sep}`) || path19.isAbsolute(relative)) {
+  const projectRoot = fs20.realpathSync(path21.resolve(targetDir));
+  const realDirectory = fs20.realpathSync(directory);
+  const relative = path21.relative(projectRoot, realDirectory);
+  if (relative === ".." || relative.startsWith(`..${path21.sep}`) || path21.isAbsolute(relative)) {
     throw new Error("resolved directory escapes the project target directory");
   }
 }
 function isPathWithinDirectory(rootDir, candidatePath) {
-  const relativePath = path19.relative(path19.resolve(rootDir), path19.resolve(candidatePath));
-  return relativePath === "" || relativePath !== ".." && !relativePath.startsWith(`..${path19.sep}`) && !path19.isAbsolute(relativePath);
+  const relativePath = path21.relative(path21.resolve(rootDir), path21.resolve(candidatePath));
+  return relativePath === "" || relativePath !== ".." && !relativePath.startsWith(`..${path21.sep}`) && !path21.isAbsolute(relativePath);
 }
 function dataUrlMimeForPath(filePath, mediaKind) {
-  return DATA_URL_MIME_BY_EXTENSION[mediaKind][path19.extname(filePath).toLowerCase()];
+  return DATA_URL_MIME_BY_EXTENSION[mediaKind][path21.extname(filePath).toLowerCase()];
 }
 function upsertGeneratedAssetRecord(targetDir, localPath, record2) {
   const registryPath = getGeneratedAssetRegistryPath(targetDir);
-  const registryDirectory = path19.dirname(registryPath);
-  fs18.mkdirSync(registryDirectory, { recursive: true });
+  const registryDirectory = path21.dirname(registryPath);
+  fs20.mkdirSync(registryDirectory, { recursive: true });
   assertProjectDirectory(targetDir, registryDirectory);
   assertFileIsNotSymlink(registryPath);
   const registry2 = readGeneratedAssetRegistry(targetDir);
   registry2[localPath] = record2;
-  fs18.writeFileSync(registryPath, `${JSON.stringify(registry2, null, 2)}
+  fs20.writeFileSync(registryPath, `${JSON.stringify(registry2, null, 2)}
 `, "utf8");
 }
 function readGeneratedAssetRegistry(targetDir) {
   const registryPath = getGeneratedAssetRegistryPath(targetDir);
   assertFileIsNotSymlink(registryPath);
-  if (!fs18.existsSync(registryPath)) {
+  if (!fs20.existsSync(registryPath)) {
     return {};
   }
   try {
-    const parsed = JSON.parse(fs18.readFileSync(registryPath, "utf8"));
+    const parsed = JSON.parse(fs20.readFileSync(registryPath, "utf8"));
     return isRecord2(parsed) ? parsed : {};
   } catch {
     return {};
   }
 }
 function getGeneratedAssetRegistryPath(targetDir) {
-  return path19.join(targetDir, ".maker", "assets", "generated-assets.json");
+  return path21.join(targetDir, ".maker", "assets", "generated-assets.json");
 }
 function isSymlink(filePath) {
   try {
-    return fs18.lstatSync(filePath).isSymbolicLink();
+    return fs20.lstatSync(filePath).isSymbolicLink();
   } catch {
     return false;
   }
@@ -37874,8 +38199,8 @@ function normalizeAssetRegistryKey(targetDir, value) {
   if (/^https?:\/\//i.test(value) || value.startsWith("data:")) {
     return void 0;
   }
-  const relative = path19.isAbsolute(value) ? path19.relative(targetDir, value) : value;
-  return relative.split(path19.sep).join("/");
+  const relative = path21.isAbsolute(value) ? path21.relative(targetDir, value) : value;
+  return relative.split(path21.sep).join("/");
 }
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -37914,8 +38239,8 @@ function extensionFromUrl(url2) {
   }
   try {
     const pathname = new URL(url2).pathname;
-    const extension = path19.extname(pathname).replace(/^\./, "").toLowerCase();
-    return extension || void 0;
+    const extension2 = path21.extname(pathname).replace(/^\./, "").toLowerCase();
+    return extension2 || void 0;
   } catch {
     return void 0;
   }
@@ -38119,7 +38444,8 @@ var init_toolDescriptions = __esm({
       ].join(" "),
       get_ad_config: [
         "For any ad-related request, read maker://ads-integration-guide first. After Maker project status confirms the primary local project configs are initialized, use this as the first remote step.",
-        "It is the source of truth for current ad activation and configuration, and synchronizes the result into .project/settings.json at @runtime.ad.",
+        "It is the source of truth for current ad activation and configuration; reported sync concerns the remote workspace .project/settings.json at @runtime.ad. The local proxy does not write local settings.",
+        "Use the same explicit target_dir as the verified project status. Request success and ad.status=1 do not prove local synchronization or playback; verify local configuration as directed by the guide before implementation.",
         "The local preflight does not call the remote tool while project.json or settings.json is missing. Missing local configs do not authorize an automatic build.",
         "Use maker_build_current_directory only for an explicit user build, submit, or remote Web preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically.",
         "Local window preview uses CLI and does not authorize commit or push.",
@@ -38873,7 +39199,7 @@ var init_remoteProxyToolSnapshot = __esm({
         },
         {
           name: "get_ad_config",
-          description: "For any ad-related request, read maker://ads-integration-guide first. After Maker project status confirms the primary local project configs are initialized, use this as the first remote step. It is the source of truth for current ad activation and configuration, and synchronizes the result into .project/settings.json at @runtime.ad. The local preflight does not call the remote tool while project.json or settings.json is missing. Missing local configs do not authorize an automatic build. Use maker_build_current_directory only for an explicit user build, submit, or remote Web preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically. Local window preview uses CLI and does not authorize commit or push. Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks, and only implement or test ad behavior after the returned configuration is usable. If app_id or developer_id is missing, call generate_test_qrcode once and then retry this tool. If ad.status != 1, report warning and ad.url, follow the returned next_action, and retry only after the user completes that step. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
+          description: "For any ad-related request, read maker://ads-integration-guide first. After Maker project status confirms the primary local project configs are initialized, use this as the first remote step. It is the source of truth for current ad activation and configuration; reported sync concerns the remote workspace .project/settings.json at @runtime.ad. The local proxy does not write local settings. Use the same explicit target_dir as the verified project status. Request success and ad.status=1 do not prove local synchronization or playback; verify local configuration as directed by the guide before implementation. The local preflight does not call the remote tool while project.json or settings.json is missing. Missing local configs do not authorize an automatic build. Use maker_build_current_directory only for an explicit user build, submit, or remote Web preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically. Local window preview uses CLI and does not authorize commit or push. Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks, and only implement or test ad behavior after the returned configuration is usable. If app_id or developer_id is missing, call generate_test_qrcode once and then retry this tool. If ad.status != 1, report warning and ad.url, follow the returned next_action, and retry only after the user completes that step. This tool is not retried automatically by the local Maker runtime. If its response is interrupted after dispatch, its execution state may be unknown. For generation, usage, or state-changing operations, verify remote output, state, and usage before deciding whether to retry explicitly.",
           inputSchema: {
             type: "object",
             properties: {
@@ -39038,25 +39364,34 @@ var init_tracking = __esm({
 function formatMakerAdsIntegrationGuide() {
   return `TapTap Maker ads integration guide
 
-Use the MCP tool and the project engine document as consecutive steps in one workflow. They are
-not competing ad integrations.
+Workflow: confirm project -> get ad configuration -> verify remote/local configuration ->
+read project SDK docs -> implement ads and rewards -> real-device validation.
+These are consecutive steps for Maker/UrhoX, not the separate Minigame/H5 ad workflow.
 
-1. Read maker://status, or call maker_status_lite when resources are unavailable, and confirm the
-   primary Maker project configs are initialized.
-2. Call get_ad_config before reading ad readiness from any local file or writing ad code. This tool
-   checks activation and synchronizes the current ad configuration into
-   .project/settings.json at @runtime.ad.
-3. If get_ad_config reports that app_id or developer_id is missing, call generate_test_qrcode once
-   and then retry get_ad_config. If ad.status is not 1, report warning and ad.url and wait for the
-   user to complete the returned action before retrying.
-4. After get_ad_config returns a usable configuration, read the project-local engine document
-   engine-docs/recipes/sdk.md. Treat that document as the source of truth for Maker ad code and do
-   not search the web for an alternative integration.
-5. Implement rewarded video ads with sdk:ShowRewardVideoAd as documented there. Grant the reward
-   only when result.success is true.
+1. Confirm the intended project directory, binding and primary configs via maker://status.
+   If unavailable or pointing elsewhere, call maker_status_lite with explicit target_dir.
+   Status does not bind or switch projects; pass the same target_dir to subsequent tools.
+2. Call get_ad_config for current activation and configuration; local files are not activation proof.
+   Missing app_id/developer_id: call generate_test_qrcode once, then retry get_ad_config.
+   If ad.status is not 1, show warning, ad.url and next_action; wait for user action before retrying.
+3. Check configuration location: synchronization reported by the remote tool concerns its workspace
+   .project/settings.json at @runtime.ad. The local proxy does not write this result to local files.
+   settings_path may be remote (e.g. /userspaces/...); never treat it as a local path.
+   Request success or synced_at is not local synchronization proof; ad.status=1 is activation only.
+   Read the intended local project's .project/settings.json and compare @runtime.ad with the
+   returned configuration. If absent, different or unverifiable, pause ad implementation/testing
+   and report "remote configuration obtained; local synchronization not verified" with the missing
+   evidence. No automatic local sync is provided by this call. Do not copy another project's
+   configuration, guess fields, overwrite settings, or pull/build to resolve this automatically.
+4. Once configuration is verified, read the advertising section of project-local
+   engine-docs/recipes/sdk.md; it is the implementation source of truth, not another game's code
+   or a web search. Use sdk:ShowRewardVideoAd; grant rewards only when result.success is true.
+5. Verify playback and rewards on a supported real-device environment. Local preview or activation
+   success alone does not prove ads work.
 
-Do not build automatically just because local project configs are missing. Use
-maker_build_current_directory only when the user explicitly requests build, submit, or preview.`;
+Missing primary local configs: stop and report the gap; do not build automatically.
+Use maker_build_current_directory only for an explicit build, submit or remote Web preview request.
+Local window preview uses CLI and does not authorize commit or push.`;
 }
 var MAKER_ADS_INTEGRATION_GUIDE_URI;
 var init_adIntegrationGuide = __esm({
@@ -39333,9 +39668,9 @@ __export(mcp_exports, {
   stopExistingRuntimeLogWatcher: () => stopExistingRuntimeLogWatcher,
   tools: () => tools
 });
-import { execFileSync, spawn as spawn5 } from "node:child_process";
-import fs19 from "node:fs";
-import path20 from "node:path";
+import { execFileSync as execFileSync2, spawn as spawn5 } from "node:child_process";
+import fs21 from "node:fs";
+import path22 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 async function listMakerTools(_options = {}) {
   return {
@@ -39406,7 +39741,12 @@ async function callRemoteProxyTool(options3) {
     targetDir: proxy.projectRoot,
     args: options3.args
   });
-  const requestOptions = createRemoteProxyCallToolOptions(options3.progressToken, options3.extra);
+  const requestOptions = options3.extra ? createRemoteProxyCallToolOptions(options3.progressToken, options3.extra) : {
+    timeout: MAKER_TOOL_CALL_TIMEOUT_MS,
+    resetTimeoutOnProgress: true,
+    onprogress: options3.onProgress || (() => {
+    })
+  };
   const callTool = options3.manager ? async () => {
     proxy = createProxy();
     let dispatched = false;
@@ -39495,7 +39835,7 @@ function inspectMakerProxyToolPreflight(toolName, targetDir) {
   }
   const identify = identifyMakerProject({ cwd: targetDir });
   return inspectMakerProjectHealth(
-    identify.projectRoot || path20.resolve(targetDir),
+    identify.projectRoot || path22.resolve(targetDir),
     toolName === "generate_test_qrcode" ? "qrcode" : "status"
   );
 }
@@ -39904,7 +40244,7 @@ async function formatStatus(options3 = {}) {
   const env = getMakerEnvironment(void 0, targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
   const mcpCwd = process.cwd();
-  const mcpCwdIdentify = path20.resolve(mcpCwd) === path20.resolve(targetDir) ? identify : identifyMakerProject({ cwd: mcpCwd });
+  const mcpCwdIdentify = path22.resolve(mcpCwd) === path22.resolve(targetDir) ? identify : identifyMakerProject({ cwd: mcpCwd });
   const gitDirectoryStatus = inspectMakerDirectoryGitStatus(targetDir);
   const remoteSyncText = detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo && !options3.skipRemoteSync ? await formatMakerRemoteSyncStatusSafely(identify.projectRoot) : detail && identify.projectRoot && gitDirectoryStatus.isUsableMakerGitRepo ? formatMakerRemoteSyncSkipped() : "";
   const pat = loadPat();
@@ -40212,10 +40552,10 @@ function formatMakerToolRegistrationCwdStatus(options3) {
   if (!options3.projectRoot) {
     return "";
   }
-  const mcpCwd = path20.resolve(options3.mcpCwd);
-  const targetDir = path20.resolve(options3.targetDir);
-  const projectRoot = path20.resolve(options3.projectRoot);
-  const mcpProjectRoot = options3.mcpProjectRoot ? path20.resolve(options3.mcpProjectRoot) : void 0;
+  const mcpCwd = path22.resolve(options3.mcpCwd);
+  const targetDir = path22.resolve(options3.targetDir);
+  const projectRoot = path22.resolve(options3.projectRoot);
+  const mcpProjectRoot = options3.mcpProjectRoot ? path22.resolve(options3.mcpProjectRoot) : void 0;
   if (mcpProjectRoot === projectRoot) {
     return "";
   }
@@ -40390,7 +40730,7 @@ function formatMakerRemoteSyncStatusLines(status) {
     `- behind: ${status.behindCount}`,
     `- local_changes: ${status.hasLocalChanges ? "yes" : "no"}`,
     status.hasLocalChanges ? `- local_change_count: ${status.localChangeCount}` : "",
-    ...localPreview.map((file2) => `  - ${file2}`),
+    ...localPreview.map((file3) => `  - ${file3}`),
     status.localChanges.length > localPreview.length ? `  - ... ${status.localChanges.length - localPreview.length} more` : "",
     status.failure ? `- failure_classification: ${status.failure.classification}` : "",
     ((_a3 = status.failure) == null ? void 0 : _a3.retryable) !== void 0 ? `- failure_retryable: ${status.failure.retryable ? "yes" : "no"}` : "",
@@ -40436,7 +40776,7 @@ function formatAiDialogueDirectoryHint(targetDir) {
   ].join("\n");
 }
 function inspectMakerProxyProjectContext(context, toolName) {
-  const evaluatedTargetDir = path20.resolve(context.targetDir);
+  const evaluatedTargetDir = path22.resolve(context.targetDir);
   const identify = identifyMakerProject({ cwd: evaluatedTargetDir });
   if (identify.projectRoot) {
     return { ok: true, targetDir: identify.projectRoot };
@@ -40448,7 +40788,7 @@ function inspectMakerProxyProjectContext(context, toolName) {
       `- tool: ${toolName}`,
       `- evaluated_target_dir: ${evaluatedTargetDir}`,
       `- project_context_source: ${context.source}`,
-      `- required_config: ${path20.join(evaluatedTargetDir, ".maker-mcp", "config.json")}`,
+      `- required_config: ${path22.join(evaluatedTargetDir, ".maker-mcp", "config.json")}`,
       "- next_action: Open the Maker project as the active workspace, or pass target_dir explicitly. Do not write a project cwd into user-level MCP config."
     ].join("\n")
   };
@@ -40466,7 +40806,7 @@ function createServerClientRootsProvider(server) {
 async function resolveMakerProjectContext(options3 = {}) {
   if (options3.targetDir) {
     return {
-      targetDir: path20.resolve(options3.targetDir),
+      targetDir: path22.resolve(options3.targetDir),
       source: "explicit_target_dir",
       roots: { status: "not_requested", roots: [] }
     };
@@ -40546,13 +40886,13 @@ async function resolveMakerClientRoots(listClientRoots) {
     message: makerProjectRoots.length > 1 ? "Multiple attached roots are bound Maker projects." : "Multiple attached roots are present and none is a bound Maker project."
   };
 }
-function rootToLocalPath(root) {
+function rootToLocalPath(root2) {
   try {
-    const url2 = new URL(root.uri);
+    const url2 = new URL(root2.uri);
     if (url2.protocol !== "file:") {
       return void 0;
     }
-    return path20.resolve(fileURLToPath2(url2));
+    return path22.resolve(fileURLToPath2(url2));
   } catch {
     return void 0;
   }
@@ -40566,14 +40906,14 @@ function uniquePaths(values) {
       continue;
     }
     seen.add(normalized);
-    result.push(path20.resolve(value));
+    result.push(path22.resolve(value));
   }
   return result;
 }
 function normalizePathForCompare2(value) {
-  const resolved = path20.resolve(value);
+  const resolved = path22.resolve(value);
   try {
-    return fs19.realpathSync.native(resolved);
+    return fs21.realpathSync.native(resolved);
   } catch {
     return resolved;
   }
@@ -40732,14 +41072,14 @@ function formatStatusProjectList(projects) {
   ].filter((line) => line !== void 0).join("\n");
 }
 function formatClonePartialStateLines(targetDir) {
-  const resolvedTargetDir = path20.resolve(targetDir);
+  const resolvedTargetDir = path22.resolve(targetDir);
   const identify = identifyMakerProject({ cwd: resolvedTargetDir });
   const gitStatus = inspectMakerDirectoryGitStatus(resolvedTargetDir);
   const devKitStatus = inspectAiDevKit(resolvedTargetDir);
-  const stagedDevKitGitignorePath = path20.join(resolvedTargetDir, DEV_KIT_GITIGNORE_STAGING_FILE);
+  const stagedDevKitGitignorePath = path22.join(resolvedTargetDir, DEV_KIT_GITIGNORE_STAGING_FILE);
   const projectBound = Boolean(identify.projectId);
   const gitInitialized = Boolean(
-    gitStatus.isOwnGitRoot || fs19.existsSync(path20.join(resolvedTargetDir, ".git"))
+    gitStatus.isOwnGitRoot || fs21.existsSync(path22.join(resolvedTargetDir, ".git"))
   );
   const safeToRetry = !projectBound;
   return [
@@ -40753,7 +41093,7 @@ function formatClonePartialStateLines(targetDir) {
     identify.configPath ? `- config: ${identify.configPath}` : "",
     `- ai_dev_kit_present: ${devKitStatus.ready ? "yes" : "no"}`,
     `- ai_dev_kit_missing_entries: ${devKitStatus.missingEntries.join(", ") || "(none)"}`,
-    `- staged_dev_kit_gitignore: ${fs19.existsSync(stagedDevKitGitignorePath) ? "yes" : "no"}`,
+    `- staged_dev_kit_gitignore: ${fs21.existsSync(stagedDevKitGitignorePath) ? "yes" : "no"}`,
     `- safe_to_retry: ${safeToRetry ? "yes" : "no"}`,
     safeToRetry ? "- next_step: 可以直接重试 taptap-maker init；如果连续失败，建议换一个全新的独立目录重新 clone。" : "- next_step: 当前目录已经有 Maker 绑定信息；先运行 taptap-maker doctor 或读取 maker://status 确认状态。"
   ].filter(Boolean);
@@ -40832,12 +41172,12 @@ function resolveEmbeddedProxyCommand(options3) {
   }
   return {
     command: process.execPath,
-    args: [path20.resolve(makerEntry), "__maker-proxy"]
+    args: [path22.resolve(makerEntry), "__maker-proxy"]
   };
 }
 function resolveBundledMakerEntry() {
-  const bundledEntry = path20.resolve(__dirname, "../../../bin/taptap-maker");
-  return fs19.existsSync(bundledEntry) ? bundledEntry : void 0;
+  const bundledEntry = path22.resolve(__dirname, "../../../bin/taptap-maker");
+  return fs21.existsSync(bundledEntry) ? bundledEntry : void 0;
 }
 function isUsableEmbeddedMakerEntry(entry) {
   if (!entry) {
@@ -41023,7 +41363,7 @@ async function buildCurrentDirectory(options3) {
       const identify = identifyMakerProject({ cwd: options3.targetDir });
       return {
         mode: "build_context_failed_before_remote",
-        projectRoot: identify.projectRoot || path20.resolve(options3.targetDir),
+        projectRoot: identify.projectRoot || path22.resolve(options3.targetDir),
         projectId: identify.projectId || "unknown",
         codeSubmitStatus: "skipped_by_user",
         buildFailure
@@ -41213,18 +41553,18 @@ async function attachRuntimeLogWatch(buildResult, startWatch) {
   }
 }
 async function startRuntimeLogWatch(buildResult) {
-  const runtimeDir = path20.join(buildResult.projectRoot, ".maker", "logs", "runtime");
-  fs19.mkdirSync(runtimeDir, { recursive: true });
-  const stdoutLog = path20.join(runtimeDir, "watcher.out.log");
-  const stderrLog = path20.join(runtimeDir, "watcher.err.log");
-  const pidFile = path20.join(runtimeDir, "watcher.pid");
+  const runtimeDir = path22.join(buildResult.projectRoot, ".maker", "logs", "runtime");
+  fs21.mkdirSync(runtimeDir, { recursive: true });
+  const stdoutLog = path22.join(runtimeDir, "watcher.out.log");
+  const stderrLog = path22.join(runtimeDir, "watcher.err.log");
+  const pidFile = path22.join(runtimeDir, "watcher.pid");
   const previous = stopExistingRuntimeLogWatcher(pidFile);
-  const outFd = fs19.openSync(stdoutLog, "a");
-  const errFd = fs19.openSync(stderrLog, "a");
+  const outFd = fs21.openSync(stdoutLog, "a");
+  const errFd = fs21.openSync(stderrLog, "a");
   const command = formatRuntimeLogWatchCommand(buildResult);
   if (previous.previousStopError) {
-    fs19.closeSync(outFd);
-    fs19.closeSync(errFd);
+    fs21.closeSync(outFd);
+    fs21.closeSync(errFd);
     return {
       started: false,
       command: command.text,
@@ -41287,18 +41627,18 @@ async function startRuntimeLogWatch(buildResult) {
       ...previous
     };
   } finally {
-    fs19.closeSync(outFd);
-    fs19.closeSync(errFd);
+    fs21.closeSync(outFd);
+    fs21.closeSync(errFd);
   }
 }
 function stopExistingRuntimeLogWatcher(pidFile, options3 = {}) {
-  if (!fs19.existsSync(pidFile)) {
+  if (!fs21.existsSync(pidFile)) {
     return {};
   }
   const pidState = readRuntimeLogWatcherPidState(pidFile);
   const pid = pidState == null ? void 0 : pidState.pid;
   if (!Number.isInteger(pid) || pid <= 0) {
-    fs19.rmSync(pidFile, { force: true });
+    fs21.rmSync(pidFile, { force: true });
     return {};
   }
   try {
@@ -41306,7 +41646,7 @@ function stopExistingRuntimeLogWatcher(pidFile, options3 = {}) {
     const processCommand = (options3.getProcessCommand || getProcessCommand)(pid);
     const verifiedCommand = getVerifiedRuntimeLogWatcherCommand(processCommand, pidState);
     if (!verifiedCommand) {
-      fs19.rmSync(pidFile, { force: true });
+      fs21.rmSync(pidFile, { force: true });
       return {
         previousPid: pid,
         previousStopped: false,
@@ -41316,7 +41656,7 @@ function stopExistingRuntimeLogWatcher(pidFile, options3 = {}) {
     process.kill(pid, "SIGTERM");
     const stopped = (options3.waitForExit || waitForProcessExit)(pid, WATCHER_STOP_TIMEOUT_MS);
     if (stopped) {
-      fs19.rmSync(pidFile, { force: true });
+      fs21.rmSync(pidFile, { force: true });
       return { previousPid: pid, previousStopped: true };
     }
     return {
@@ -41325,7 +41665,7 @@ function stopExistingRuntimeLogWatcher(pidFile, options3 = {}) {
       previousStopError: `process ${pid} did not exit after SIGTERM within ${WATCHER_STOP_TIMEOUT_MS}ms`
     };
   } catch (error2) {
-    fs19.rmSync(pidFile, { force: true });
+    fs21.rmSync(pidFile, { force: true });
     const code = error2 && typeof error2 === "object" && "code" in error2 ? String(error2.code) : "";
     if (code === "ESRCH") {
       return { previousPid: pid, previousStopped: false };
@@ -41338,7 +41678,7 @@ function stopExistingRuntimeLogWatcher(pidFile, options3 = {}) {
   }
 }
 function readRuntimeLogWatcherPidState(pidFile) {
-  const raw = fs19.readFileSync(pidFile, "utf8").trim();
+  const raw = fs21.readFileSync(pidFile, "utf8").trim();
   if (!raw) {
     return null;
   }
@@ -41354,7 +41694,7 @@ function readRuntimeLogWatcherPidState(pidFile) {
   }
 }
 function writeRuntimeLogWatcherPidFile(pidFile, state) {
-  fs19.writeFileSync(pidFile, `${JSON.stringify(state, null, 2)}
+  fs21.writeFileSync(pidFile, `${JSON.stringify(state, null, 2)}
 `, "utf8");
 }
 function getProcessCommand(pid) {
@@ -41362,7 +41702,7 @@ function getProcessCommand(pid) {
     return void 0;
   }
   try {
-    return execFileSync("ps", ["-p", String(pid), "-o", "command="], {
+    return execFileSync2("ps", ["-p", String(pid), "-o", "command="], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"]
     }).trim();
@@ -41440,10 +41780,10 @@ function formatRuntimeLogWatchCommand(buildResult) {
   };
 }
 function resolveMakerCliEntry() {
-  return process.argv[1] || path20.resolve(process.cwd(), "dist", "maker.js");
+  return process.argv[1] || path22.resolve(process.cwd(), "dist", "maker.js");
 }
 function getRuntimeLogFilePath(projectRoot) {
-  return path20.join(projectRoot, ".maker", "logs", "runtime", "runtime.log");
+  return path22.join(projectRoot, ".maker", "logs", "runtime", "runtime.log");
 }
 async function refreshMakerPreview(buildResult) {
   const makerEnv = buildResult.env === "rnd" || buildResult.env === "production" ? buildResult.env : void 0;
@@ -41621,7 +41961,7 @@ function createBuildArgs(projectRoot, options3) {
   if (options3.scriptsPath) {
     buildArgs.scriptsPath = options3.scriptsPath;
   }
-  if (!options3.entry && !options3.scriptsPath && !options3.entryClient && !options3.entryServer && !options3.multiplayer && fs19.existsSync(path20.join(projectRoot, "scripts", "main.lua"))) {
+  if (!options3.entry && !options3.scriptsPath && !options3.entryClient && !options3.entryServer && !options3.multiplayer && fs21.existsSync(path22.join(projectRoot, "scripts", "main.lua"))) {
     buildArgs.entry = "main.lua";
     buildArgs.scriptsPath = "scripts";
   }
@@ -41909,11 +42249,11 @@ function formatRuntimeLogWatchNextActionLines(result) {
     ((_a3 = result.runtimeLogWatch) == null ? void 0 : _a3.pid) ? `- watch_pid: ${result.runtimeLogWatch.pid}` : "",
     `- watch_command: ${command}`,
     ((_b = result.runtimeLogWatch) == null ? void 0 : _b.command) ? `- actual_watch_command: ${result.runtimeLogWatch.command}` : "",
-    `- local_file: ${path20.join(result.projectRoot, ".maker", "logs", "runtime", "runtime.log")}`,
+    `- local_file: ${path22.join(result.projectRoot, ".maker", "logs", "runtime", "runtime.log")}`,
     ((_c = result.runtimeLogWatch) == null ? void 0 : _c.stdoutLog) ? `- watcher_stdout: ${result.runtimeLogWatch.stdoutLog}` : "",
     ((_d = result.runtimeLogWatch) == null ? void 0 : _d.stderrLog) ? `- watcher_stderr: ${result.runtimeLogWatch.stderrLog}` : "",
     ((_e = result.runtimeLogWatch) == null ? void 0 : _e.pidFile) ? `- watcher_pid_file: ${result.runtimeLogWatch.pidFile}` : "",
-    `- state_file: ${path20.join(result.projectRoot, ".maker", "logs", "runtime", "state.json")}`,
+    `- state_file: ${path22.join(result.projectRoot, ".maker", "logs", "runtime", "state.json")}`,
     ((_f = result.runtimeLogWatch) == null ? void 0 : _f.previousPid) ? `- previous_watch_pid: ${result.runtimeLogWatch.previousPid}` : "",
     ((_g = result.runtimeLogWatch) == null ? void 0 : _g.previousStopped) !== void 0 ? `- previous_watch_stopped: ${result.runtimeLogWatch.previousStopped ? "yes" : "no"}` : "",
     ((_h = result.runtimeLogWatch) == null ? void 0 : _h.previousStopError) ? `- previous_watch_stop_error: ${result.runtimeLogWatch.previousStopError}` : "",
@@ -42534,6 +42874,49 @@ var init_mcp = __esm({
   }
 });
 
+// src/maker/preview/configuration.ts
+import fs22 from "node:fs";
+import path23 from "node:path";
+function readPreviewConfiguration(project, name) {
+  const filename2 = path23.join(project, ".project", name + ".json");
+  if (!fs22.existsSync(filename2)) {
+    if ([
+      path23.join(project, ".project", name + ".jsonc"),
+      path23.join(project, name + ".json"),
+      path23.join(project, name + ".jsonc")
+    ].some((file3) => fs22.existsSync(file3)))
+      throw new Error(
+        `Local preview requires .project/${name}.json for existing configuration; JSONC-only and legacy root layouts are not supported.`
+      );
+    return void 0;
+  }
+  let value;
+  try {
+    value = JSON.parse(fs22.readFileSync(filename2, "utf8"));
+  } catch {
+    throw new Error(`无法读取预览配置 .project/${name}.json，请检查文件权限和 JSON 格式。`);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`预览配置 .project/${name}.json 必须是 JSON 对象。`);
+  return value;
+}
+function previewEntryName(project = {}, resources2 = {}) {
+  for (const value of [
+    project["entry@client"],
+    project.entry,
+    resources2["entry@client"],
+    resources2.entry
+  ]) {
+    if (value !== void 0) return value;
+  }
+  return "main.lua";
+}
+var init_configuration = __esm({
+  "src/maker/preview/configuration.ts"() {
+    "use strict";
+  }
+});
+
 // src/maker/preview/protocol.ts
 var protocol_exports = {};
 __export(protocol_exports, {
@@ -42548,39 +42931,39 @@ __export(protocol_exports, {
   samePreviewIdentity: () => samePreviewIdentity,
   writePrivateJson: () => writePrivateJson
 });
-import fs20 from "node:fs";
-import path21 from "node:path";
+import fs23 from "node:fs";
+import path24 from "node:path";
 import { createHash as createHash3 } from "node:crypto";
 function previewProject(targetDir) {
-  if (!targetDir || !path21.isAbsolute(targetDir)) {
+  if (!targetDir || !path24.isAbsolute(targetDir)) {
     throw new Error("Preview requires --target-dir with the real Maker project absolute path.");
   }
-  const project = fs20.realpathSync(targetDir);
-  if (!fs20.statSync(project).isDirectory() || !loadProjectConfig(project)) {
+  const project = fs23.realpathSync(targetDir);
+  if (!fs23.statSync(project).isDirectory() || !loadProjectConfig(project)) {
     throw new Error("Preview requires a bound Maker project with .maker-mcp/config.json.");
   }
   return project;
 }
 function previewDirectory(project) {
-  return path21.join(getMakerHome(), "preview", createHash3("sha256").update(project).digest("hex"));
+  return path24.join(getMakerHome(), "preview", createHash3("sha256").update(project).digest("hex"));
 }
 function runtimeDirectory() {
-  return path21.join(getMakerHome(), "runtime");
+  return path24.join(getMakerHome(), "runtime");
 }
 function readPreviewRecord(project) {
-  const filename2 = path21.join(previewDirectory(project), "session.json");
-  if (!fs20.existsSync(filename2)) return void 0;
-  const record2 = JSON.parse(fs20.readFileSync(filename2, "utf8"));
-  if (record2.project_realpath !== project || record2.protocol_version !== PREVIEW_PROTOCOL_VERSION || !/^[a-f0-9]{64}$/.test(record2.token) || !Number.isInteger(record2.port) || record2.port < 0 || record2.port > 65535 || !Number.isInteger(record2.supervisor_pid) || record2.supervisor_pid < 0 || record2.runtime_pid !== void 0 && (!Number.isInteger(record2.runtime_pid) || record2.runtime_pid < 0) || !/^[0-9a-f-]{36}$/.test(record2.session_id) || !record2.supervisor_id || !Number.isSafeInteger(record2.reload_id) || record2.reload_id < 0 || !record2.started_at || !path21.isAbsolute(record2.executable)) {
+  const filename2 = path24.join(previewDirectory(project), "session.json");
+  if (!fs23.existsSync(filename2)) return void 0;
+  const record2 = JSON.parse(fs23.readFileSync(filename2, "utf8"));
+  if (record2.project_realpath !== project || record2.protocol_version !== PREVIEW_PROTOCOL_VERSION || !/^[a-f0-9]{64}$/.test(record2.token) || !Number.isInteger(record2.port) || record2.port < 0 || record2.port > 65535 || !Number.isInteger(record2.supervisor_pid) || record2.supervisor_pid < 0 || record2.runtime_pid !== void 0 && (!Number.isInteger(record2.runtime_pid) || record2.runtime_pid < 0) || !/^[0-9a-f-]{36}$/.test(record2.session_id) || !record2.supervisor_id || !Number.isSafeInteger(record2.reload_id) || record2.reload_id < 0 || !record2.started_at || record2.launch_deadline !== void 0 && (!Number.isSafeInteger(record2.launch_deadline) || record2.launch_deadline <= 0) || !path24.isAbsolute(record2.executable)) {
     throw new Error("Invalid preview session record; refusing to manage an unverified process.");
   }
   return record2;
 }
 function previewSupervisorLogPath(project) {
-  return path21.join(previewDirectory(project), "supervisor.log");
+  return path24.join(previewDirectory(project), "supervisor.log");
 }
 function previewRoundDirectory(record2) {
-  return path21.join(
+  return path24.join(
     previewDirectory(record2.project_realpath),
     "sessions",
     record2.session_id,
@@ -42591,17 +42974,23 @@ function samePreviewIdentity(value, expected) {
   return value.protocol_version === expected.protocol_version && value.project_realpath === expected.project_realpath && value.session_id === expected.session_id && value.reload_id === expected.reload_id;
 }
 function projectEntry(project) {
-  const read = (name) => JSON.parse(fs20.readFileSync(path21.join(project, ".project", name), "utf8"));
-  const settings = read("project.json");
-  const resources2 = read("resources.json");
-  const entry = settings["entry@client"] || settings.entry || resources2["entry@client"] || resources2.entry;
-  if (typeof entry !== "string" || !entry.endsWith(".lua") || path21.isAbsolute(entry)) {
+  const entry = previewEntryName(
+    readPreviewConfiguration(project, "project"),
+    readPreviewConfiguration(project, "resources")
+  );
+  if (typeof entry !== "string" || !entry.endsWith(".lua") || path24.isAbsolute(entry)) {
     throw new Error("Local preview needs a Lua entry in .project/project.json or resources.json.");
   }
-  const scripts = fs20.realpathSync(path21.join(project, "scripts"));
-  const resolved = fs20.realpathSync(path21.join(scripts, entry));
-  const relative = path21.relative(scripts, resolved);
-  if (relative.startsWith("..") || path21.isAbsolute(relative) || !fs20.statSync(resolved).isFile()) {
+  let scripts;
+  let resolved;
+  try {
+    scripts = fs23.realpathSync(path24.join(project, "scripts"));
+    resolved = fs23.realpathSync(path24.join(scripts, entry));
+  } catch {
+    throw new Error(`找不到本地预览入口 scripts/${entry}，请先创建入口脚本或检查项目配置。`);
+  }
+  const relative = path24.relative(scripts, resolved);
+  if (relative.startsWith("..") || path24.isAbsolute(relative) || !fs23.statSync(resolved).isFile()) {
     throw new Error("Preview entry must be a file inside the project scripts directory.");
   }
   return entry;
@@ -42611,8 +43000,11271 @@ var init_protocol2 = __esm({
   "src/maker/preview/protocol.ts"() {
     "use strict";
     init_storage();
+    init_configuration();
     init_privateJson();
     PREVIEW_PROTOCOL_VERSION = 1;
+  }
+});
+
+// node_modules/ws/lib/constants.js
+var require_constants = __commonJS({
+  "node_modules/ws/lib/constants.js"(exports, module) {
+    "use strict";
+    var BINARY_TYPES = ["nodebuffer", "arraybuffer", "fragments"];
+    var hasBlob = typeof Blob !== "undefined";
+    if (hasBlob) BINARY_TYPES.push("blob");
+    module.exports = {
+      BINARY_TYPES,
+      CLOSE_TIMEOUT: 3e4,
+      EMPTY_BUFFER: Buffer.alloc(0),
+      GUID: "258EAFA5-E914-47DA-95CA-C5AB0DC85B11",
+      hasBlob,
+      kForOnEventAttribute: Symbol("kIsForOnEventAttribute"),
+      kListener: Symbol("kListener"),
+      kStatusCode: Symbol("status-code"),
+      kWebSocket: Symbol("websocket"),
+      NOOP: () => {
+      }
+    };
+  }
+});
+
+// node_modules/ws/lib/buffer-util.js
+var require_buffer_util = __commonJS({
+  "node_modules/ws/lib/buffer-util.js"(exports, module) {
+    "use strict";
+    var { EMPTY_BUFFER } = require_constants();
+    var FastBuffer = Buffer[Symbol.species];
+    function concat(list, totalLength) {
+      if (list.length === 0) return EMPTY_BUFFER;
+      if (list.length === 1) return list[0];
+      const target = Buffer.allocUnsafe(totalLength);
+      let offset = 0;
+      for (let i = 0; i < list.length; i++) {
+        const buf = list[i];
+        target.set(buf, offset);
+        offset += buf.length;
+      }
+      if (offset < totalLength) {
+        return new FastBuffer(target.buffer, target.byteOffset, offset);
+      }
+      return target;
+    }
+    function _mask(source, mask2, output2, offset, length) {
+      for (let i = 0; i < length; i++) {
+        output2[offset + i] = source[i] ^ mask2[i & 3];
+      }
+    }
+    function _unmask(buffer, mask2) {
+      for (let i = 0; i < buffer.length; i++) {
+        buffer[i] ^= mask2[i & 3];
+      }
+    }
+    function toArrayBuffer(buf) {
+      if (buf.length === buf.buffer.byteLength) {
+        return buf.buffer;
+      }
+      return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length);
+    }
+    function toBuffer(data) {
+      toBuffer.readOnly = true;
+      if (Buffer.isBuffer(data)) return data;
+      let buf;
+      if (data instanceof ArrayBuffer) {
+        buf = new FastBuffer(data);
+      } else if (ArrayBuffer.isView(data)) {
+        buf = new FastBuffer(data.buffer, data.byteOffset, data.byteLength);
+      } else {
+        buf = Buffer.from(data);
+        toBuffer.readOnly = false;
+      }
+      return buf;
+    }
+    module.exports = {
+      concat,
+      mask: _mask,
+      toArrayBuffer,
+      toBuffer,
+      unmask: _unmask
+    };
+    if (!process.env.WS_NO_BUFFER_UTIL) {
+      try {
+        const bufferUtil = __require("bufferutil");
+        module.exports.mask = function(source, mask2, output2, offset, length) {
+          if (length < 48) _mask(source, mask2, output2, offset, length);
+          else bufferUtil.mask(source, mask2, output2, offset, length);
+        };
+        module.exports.unmask = function(buffer, mask2) {
+          if (buffer.length < 32) _unmask(buffer, mask2);
+          else bufferUtil.unmask(buffer, mask2);
+        };
+      } catch (e) {
+      }
+    }
+  }
+});
+
+// node_modules/ws/lib/limiter.js
+var require_limiter = __commonJS({
+  "node_modules/ws/lib/limiter.js"(exports, module) {
+    "use strict";
+    var kDone = Symbol("kDone");
+    var kRun = Symbol("kRun");
+    var Limiter = class {
+      /**
+       * Creates a new `Limiter`.
+       *
+       * @param {Number} [concurrency=Infinity] The maximum number of jobs allowed
+       *     to run concurrently
+       */
+      constructor(concurrency) {
+        this[kDone] = () => {
+          this.pending--;
+          this[kRun]();
+        };
+        this.concurrency = concurrency || Infinity;
+        this.jobs = [];
+        this.pending = 0;
+      }
+      /**
+       * Adds a job to the queue.
+       *
+       * @param {Function} job The job to run
+       * @public
+       */
+      add(job) {
+        this.jobs.push(job);
+        this[kRun]();
+      }
+      /**
+       * Removes a job from the queue and runs it if possible.
+       *
+       * @private
+       */
+      [kRun]() {
+        if (this.pending === this.concurrency) return;
+        if (this.jobs.length) {
+          const job = this.jobs.shift();
+          this.pending++;
+          job(this[kDone]);
+        }
+      }
+    };
+    module.exports = Limiter;
+  }
+});
+
+// node_modules/ws/lib/permessage-deflate.js
+var require_permessage_deflate = __commonJS({
+  "node_modules/ws/lib/permessage-deflate.js"(exports, module) {
+    "use strict";
+    var zlib = __require("zlib");
+    var bufferUtil = require_buffer_util();
+    var Limiter = require_limiter();
+    var { kStatusCode } = require_constants();
+    var FastBuffer = Buffer[Symbol.species];
+    var TRAILER = Buffer.from([0, 0, 255, 255]);
+    var kPerMessageDeflate = Symbol("permessage-deflate");
+    var kTotalLength = Symbol("total-length");
+    var kCallback = Symbol("callback");
+    var kBuffers = Symbol("buffers");
+    var kError = Symbol("error");
+    var zlibLimiter;
+    var PerMessageDeflate2 = class {
+      /**
+       * Creates a PerMessageDeflate instance.
+       *
+       * @param {Object} [options] Configuration options
+       * @param {(Boolean|Number)} [options.clientMaxWindowBits] Advertise support
+       *     for, or request, a custom client window size
+       * @param {Boolean} [options.clientNoContextTakeover=false] Advertise/
+       *     acknowledge disabling of client context takeover
+       * @param {Number} [options.concurrencyLimit=10] The number of concurrent
+       *     calls to zlib
+       * @param {Boolean} [options.isServer=false] Create the instance in either
+       *     server or client mode
+       * @param {Number} [options.maxPayload=0] The maximum allowed message length
+       * @param {(Boolean|Number)} [options.serverMaxWindowBits] Request/confirm the
+       *     use of a custom server window size
+       * @param {Boolean} [options.serverNoContextTakeover=false] Request/accept
+       *     disabling of server context takeover
+       * @param {Number} [options.threshold=1024] Size (in bytes) below which
+       *     messages should not be compressed if context takeover is disabled
+       * @param {Object} [options.zlibDeflateOptions] Options to pass to zlib on
+       *     deflate
+       * @param {Object} [options.zlibInflateOptions] Options to pass to zlib on
+       *     inflate
+       */
+      constructor(options3) {
+        this._options = options3 || {};
+        this._threshold = this._options.threshold !== void 0 ? this._options.threshold : 1024;
+        this._maxPayload = this._options.maxPayload | 0;
+        this._isServer = !!this._options.isServer;
+        this._deflate = null;
+        this._inflate = null;
+        this.params = null;
+        if (!zlibLimiter) {
+          const concurrency = this._options.concurrencyLimit !== void 0 ? this._options.concurrencyLimit : 10;
+          zlibLimiter = new Limiter(concurrency);
+        }
+      }
+      /**
+       * @type {String}
+       */
+      static get extensionName() {
+        return "permessage-deflate";
+      }
+      /**
+       * Create an extension negotiation offer.
+       *
+       * @return {Object} Extension parameters
+       * @public
+       */
+      offer() {
+        const params = {};
+        if (this._options.serverNoContextTakeover) {
+          params.server_no_context_takeover = true;
+        }
+        if (this._options.clientNoContextTakeover) {
+          params.client_no_context_takeover = true;
+        }
+        if (this._options.serverMaxWindowBits) {
+          params.server_max_window_bits = this._options.serverMaxWindowBits;
+        }
+        if (this._options.clientMaxWindowBits) {
+          params.client_max_window_bits = this._options.clientMaxWindowBits;
+        } else if (this._options.clientMaxWindowBits == null) {
+          params.client_max_window_bits = true;
+        }
+        return params;
+      }
+      /**
+       * Accept an extension negotiation offer/response.
+       *
+       * @param {Array} configurations The extension negotiation offers/reponse
+       * @return {Object} Accepted configuration
+       * @public
+       */
+      accept(configurations) {
+        configurations = this.normalizeParams(configurations);
+        this.params = this._isServer ? this.acceptAsServer(configurations) : this.acceptAsClient(configurations);
+        return this.params;
+      }
+      /**
+       * Releases all resources used by the extension.
+       *
+       * @public
+       */
+      cleanup() {
+        if (this._inflate) {
+          this._inflate.close();
+          this._inflate = null;
+        }
+        if (this._deflate) {
+          const callback = this._deflate[kCallback];
+          this._deflate.close();
+          this._deflate = null;
+          if (callback) {
+            callback(
+              new Error(
+                "The deflate stream was closed while data was being processed"
+              )
+            );
+          }
+        }
+      }
+      /**
+       *  Accept an extension negotiation offer.
+       *
+       * @param {Array} offers The extension negotiation offers
+       * @return {Object} Accepted configuration
+       * @private
+       */
+      acceptAsServer(offers) {
+        const opts = this._options;
+        const accepted = offers.find((params) => {
+          if (opts.serverNoContextTakeover === false && params.server_no_context_takeover || params.server_max_window_bits && (opts.serverMaxWindowBits === false || typeof opts.serverMaxWindowBits === "number" && opts.serverMaxWindowBits > params.server_max_window_bits) || typeof opts.clientMaxWindowBits === "number" && (typeof params.client_max_window_bits === "number" ? opts.clientMaxWindowBits > params.client_max_window_bits : !params.client_max_window_bits)) {
+            return false;
+          }
+          return true;
+        });
+        if (!accepted) {
+          throw new Error("None of the extension offers can be accepted");
+        }
+        if (opts.serverNoContextTakeover) {
+          accepted.server_no_context_takeover = true;
+        }
+        if (opts.clientNoContextTakeover) {
+          accepted.client_no_context_takeover = true;
+        }
+        if (typeof opts.serverMaxWindowBits === "number") {
+          accepted.server_max_window_bits = opts.serverMaxWindowBits;
+        }
+        if (typeof opts.clientMaxWindowBits === "number") {
+          accepted.client_max_window_bits = opts.clientMaxWindowBits;
+        } else if (accepted.client_max_window_bits === true || opts.clientMaxWindowBits === false) {
+          delete accepted.client_max_window_bits;
+        }
+        return accepted;
+      }
+      /**
+       * Accept the extension negotiation response.
+       *
+       * @param {Array} response The extension negotiation response
+       * @return {Object} Accepted configuration
+       * @private
+       */
+      acceptAsClient(response) {
+        const params = response[0];
+        if (this._options.clientNoContextTakeover === false && params.client_no_context_takeover) {
+          throw new Error('Unexpected parameter "client_no_context_takeover"');
+        }
+        if (!params.client_max_window_bits) {
+          if (typeof this._options.clientMaxWindowBits === "number") {
+            params.client_max_window_bits = this._options.clientMaxWindowBits;
+          }
+        } else if (this._options.clientMaxWindowBits === false || typeof this._options.clientMaxWindowBits === "number" && params.client_max_window_bits > this._options.clientMaxWindowBits) {
+          throw new Error(
+            'Unexpected or invalid parameter "client_max_window_bits"'
+          );
+        }
+        return params;
+      }
+      /**
+       * Normalize parameters.
+       *
+       * @param {Array} configurations The extension negotiation offers/reponse
+       * @return {Array} The offers/response with normalized parameters
+       * @private
+       */
+      normalizeParams(configurations) {
+        configurations.forEach((params) => {
+          Object.keys(params).forEach((key) => {
+            let value = params[key];
+            if (value.length > 1) {
+              throw new Error(`Parameter "${key}" must have only a single value`);
+            }
+            value = value[0];
+            if (key === "client_max_window_bits") {
+              if (value !== true) {
+                const num = +value;
+                if (!Number.isInteger(num) || num < 8 || num > 15) {
+                  throw new TypeError(
+                    `Invalid value for parameter "${key}": ${value}`
+                  );
+                }
+                value = num;
+              } else if (!this._isServer) {
+                throw new TypeError(
+                  `Invalid value for parameter "${key}": ${value}`
+                );
+              }
+            } else if (key === "server_max_window_bits") {
+              const num = +value;
+              if (!Number.isInteger(num) || num < 8 || num > 15) {
+                throw new TypeError(
+                  `Invalid value for parameter "${key}": ${value}`
+                );
+              }
+              value = num;
+            } else if (key === "client_no_context_takeover" || key === "server_no_context_takeover") {
+              if (value !== true) {
+                throw new TypeError(
+                  `Invalid value for parameter "${key}": ${value}`
+                );
+              }
+            } else {
+              throw new Error(`Unknown parameter "${key}"`);
+            }
+            params[key] = value;
+          });
+        });
+        return configurations;
+      }
+      /**
+       * Decompress data. Concurrency limited.
+       *
+       * @param {Buffer} data Compressed data
+       * @param {Boolean} fin Specifies whether or not this is the last fragment
+       * @param {Function} callback Callback
+       * @public
+       */
+      decompress(data, fin, callback) {
+        zlibLimiter.add((done) => {
+          this._decompress(data, fin, (err, result) => {
+            done();
+            callback(err, result);
+          });
+        });
+      }
+      /**
+       * Compress data. Concurrency limited.
+       *
+       * @param {(Buffer|String)} data Data to compress
+       * @param {Boolean} fin Specifies whether or not this is the last fragment
+       * @param {Function} callback Callback
+       * @public
+       */
+      compress(data, fin, callback) {
+        zlibLimiter.add((done) => {
+          this._compress(data, fin, (err, result) => {
+            done();
+            callback(err, result);
+          });
+        });
+      }
+      /**
+       * Decompress data.
+       *
+       * @param {Buffer} data Compressed data
+       * @param {Boolean} fin Specifies whether or not this is the last fragment
+       * @param {Function} callback Callback
+       * @private
+       */
+      _decompress(data, fin, callback) {
+        const endpoint = this._isServer ? "client" : "server";
+        if (!this._inflate) {
+          const key = `${endpoint}_max_window_bits`;
+          const windowBits = typeof this.params[key] !== "number" ? zlib.Z_DEFAULT_WINDOWBITS : this.params[key];
+          this._inflate = zlib.createInflateRaw({
+            ...this._options.zlibInflateOptions,
+            windowBits
+          });
+          this._inflate[kPerMessageDeflate] = this;
+          this._inflate[kTotalLength] = 0;
+          this._inflate[kBuffers] = [];
+          this._inflate.on("error", inflateOnError);
+          this._inflate.on("data", inflateOnData);
+        }
+        this._inflate[kCallback] = callback;
+        this._inflate.write(data);
+        if (fin) this._inflate.write(TRAILER);
+        this._inflate.flush(() => {
+          const err = this._inflate[kError];
+          if (err) {
+            this._inflate.close();
+            this._inflate = null;
+            callback(err);
+            return;
+          }
+          const data2 = bufferUtil.concat(
+            this._inflate[kBuffers],
+            this._inflate[kTotalLength]
+          );
+          if (this._inflate._readableState.endEmitted) {
+            this._inflate.close();
+            this._inflate = null;
+          } else {
+            this._inflate[kTotalLength] = 0;
+            this._inflate[kBuffers] = [];
+            if (fin && this.params[`${endpoint}_no_context_takeover`]) {
+              this._inflate.reset();
+            }
+          }
+          callback(null, data2);
+        });
+      }
+      /**
+       * Compress data.
+       *
+       * @param {(Buffer|String)} data Data to compress
+       * @param {Boolean} fin Specifies whether or not this is the last fragment
+       * @param {Function} callback Callback
+       * @private
+       */
+      _compress(data, fin, callback) {
+        const endpoint = this._isServer ? "server" : "client";
+        if (!this._deflate) {
+          const key = `${endpoint}_max_window_bits`;
+          const windowBits = typeof this.params[key] !== "number" ? zlib.Z_DEFAULT_WINDOWBITS : this.params[key];
+          this._deflate = zlib.createDeflateRaw({
+            ...this._options.zlibDeflateOptions,
+            windowBits
+          });
+          this._deflate[kTotalLength] = 0;
+          this._deflate[kBuffers] = [];
+          this._deflate.on("data", deflateOnData);
+        }
+        this._deflate[kCallback] = callback;
+        this._deflate.write(data);
+        this._deflate.flush(zlib.Z_SYNC_FLUSH, () => {
+          if (!this._deflate) {
+            return;
+          }
+          let data2 = bufferUtil.concat(
+            this._deflate[kBuffers],
+            this._deflate[kTotalLength]
+          );
+          if (fin) {
+            data2 = new FastBuffer(data2.buffer, data2.byteOffset, data2.length - 4);
+          }
+          this._deflate[kCallback] = null;
+          this._deflate[kTotalLength] = 0;
+          this._deflate[kBuffers] = [];
+          if (fin && this.params[`${endpoint}_no_context_takeover`]) {
+            this._deflate.reset();
+          }
+          callback(null, data2);
+        });
+      }
+    };
+    module.exports = PerMessageDeflate2;
+    function deflateOnData(chunk) {
+      this[kBuffers].push(chunk);
+      this[kTotalLength] += chunk.length;
+    }
+    function inflateOnData(chunk) {
+      this[kTotalLength] += chunk.length;
+      if (this[kPerMessageDeflate]._maxPayload < 1 || this[kTotalLength] <= this[kPerMessageDeflate]._maxPayload) {
+        this[kBuffers].push(chunk);
+        return;
+      }
+      this[kError] = new RangeError("Max payload size exceeded");
+      this[kError].code = "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH";
+      this[kError][kStatusCode] = 1009;
+      this.removeListener("data", inflateOnData);
+      this.reset();
+    }
+    function inflateOnError(err) {
+      this[kPerMessageDeflate]._inflate = null;
+      if (this[kError]) {
+        this[kCallback](this[kError]);
+        return;
+      }
+      err[kStatusCode] = 1007;
+      this[kCallback](err);
+    }
+  }
+});
+
+// node_modules/ws/lib/validation.js
+var require_validation3 = __commonJS({
+  "node_modules/ws/lib/validation.js"(exports, module) {
+    "use strict";
+    var { isUtf8 } = __require("buffer");
+    var { hasBlob } = require_constants();
+    var tokenChars = [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      // 0 - 15
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      // 16 - 31
+      0,
+      1,
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      1,
+      0,
+      // 32 - 47
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      // 48 - 63
+      0,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      // 64 - 79
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      1,
+      1,
+      // 80 - 95
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      // 96 - 111
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      1,
+      0,
+      1,
+      0
+      // 112 - 127
+    ];
+    function isValidStatusCode(code) {
+      return code >= 1e3 && code <= 1014 && code !== 1004 && code !== 1005 && code !== 1006 || code >= 3e3 && code <= 4999;
+    }
+    function _isValidUTF8(buf) {
+      const len = buf.length;
+      let i = 0;
+      while (i < len) {
+        if ((buf[i] & 128) === 0) {
+          i++;
+        } else if ((buf[i] & 224) === 192) {
+          if (i + 1 === len || (buf[i + 1] & 192) !== 128 || (buf[i] & 254) === 192) {
+            return false;
+          }
+          i += 2;
+        } else if ((buf[i] & 240) === 224) {
+          if (i + 2 >= len || (buf[i + 1] & 192) !== 128 || (buf[i + 2] & 192) !== 128 || buf[i] === 224 && (buf[i + 1] & 224) === 128 || // Overlong
+          buf[i] === 237 && (buf[i + 1] & 224) === 160) {
+            return false;
+          }
+          i += 3;
+        } else if ((buf[i] & 248) === 240) {
+          if (i + 3 >= len || (buf[i + 1] & 192) !== 128 || (buf[i + 2] & 192) !== 128 || (buf[i + 3] & 192) !== 128 || buf[i] === 240 && (buf[i + 1] & 240) === 128 || // Overlong
+          buf[i] === 244 && buf[i + 1] > 143 || buf[i] > 244) {
+            return false;
+          }
+          i += 4;
+        } else {
+          return false;
+        }
+      }
+      return true;
+    }
+    function isBlob(value) {
+      return hasBlob && typeof value === "object" && typeof value.arrayBuffer === "function" && typeof value.type === "string" && typeof value.stream === "function" && (value[Symbol.toStringTag] === "Blob" || value[Symbol.toStringTag] === "File");
+    }
+    module.exports = {
+      isBlob,
+      isValidStatusCode,
+      isValidUTF8: _isValidUTF8,
+      tokenChars
+    };
+    if (isUtf8) {
+      module.exports.isValidUTF8 = function(buf) {
+        return buf.length < 24 ? _isValidUTF8(buf) : isUtf8(buf);
+      };
+    } else if (!process.env.WS_NO_UTF_8_VALIDATE) {
+      try {
+        const isValidUTF8 = __require("utf-8-validate");
+        module.exports.isValidUTF8 = function(buf) {
+          return buf.length < 32 ? _isValidUTF8(buf) : isValidUTF8(buf);
+        };
+      } catch (e) {
+      }
+    }
+  }
+});
+
+// node_modules/ws/lib/receiver.js
+var require_receiver = __commonJS({
+  "node_modules/ws/lib/receiver.js"(exports, module) {
+    "use strict";
+    var { Writable } = __require("stream");
+    var PerMessageDeflate2 = require_permessage_deflate();
+    var {
+      BINARY_TYPES,
+      EMPTY_BUFFER,
+      kStatusCode,
+      kWebSocket
+    } = require_constants();
+    var { concat, toArrayBuffer, unmask } = require_buffer_util();
+    var { isValidStatusCode, isValidUTF8 } = require_validation3();
+    var FastBuffer = Buffer[Symbol.species];
+    var GET_INFO = 0;
+    var GET_PAYLOAD_LENGTH_16 = 1;
+    var GET_PAYLOAD_LENGTH_64 = 2;
+    var GET_MASK = 3;
+    var GET_DATA = 4;
+    var INFLATING = 5;
+    var DEFER_EVENT = 6;
+    var Receiver2 = class extends Writable {
+      /**
+       * Creates a Receiver instance.
+       *
+       * @param {Object} [options] Options object
+       * @param {Boolean} [options.allowSynchronousEvents=true] Specifies whether
+       *     any of the `'message'`, `'ping'`, and `'pong'` events can be emitted
+       *     multiple times in the same tick
+       * @param {String} [options.binaryType=nodebuffer] The type for binary data
+       * @param {Object} [options.extensions] An object containing the negotiated
+       *     extensions
+       * @param {Boolean} [options.isServer=false] Specifies whether to operate in
+       *     client or server mode
+       * @param {Number} [options.maxBufferedChunks=0] The maximum number of
+       *     buffered data chunks
+       * @param {Number} [options.maxFragments=0] The maximum number of message
+       *     fragments
+       * @param {Number} [options.maxPayload=0] The maximum allowed message length
+       * @param {Boolean} [options.skipUTF8Validation=false] Specifies whether or
+       *     not to skip UTF-8 validation for text and close messages
+       */
+      constructor(options3 = {}) {
+        super();
+        this._allowSynchronousEvents = options3.allowSynchronousEvents !== void 0 ? options3.allowSynchronousEvents : true;
+        this._binaryType = options3.binaryType || BINARY_TYPES[0];
+        this._extensions = options3.extensions || {};
+        this._isServer = !!options3.isServer;
+        this._maxBufferedChunks = options3.maxBufferedChunks | 0;
+        this._maxFragments = options3.maxFragments | 0;
+        this._maxPayload = options3.maxPayload | 0;
+        this._skipUTF8Validation = !!options3.skipUTF8Validation;
+        this[kWebSocket] = void 0;
+        this._bufferedBytes = 0;
+        this._buffers = [];
+        this._compressed = false;
+        this._payloadLength = 0;
+        this._mask = void 0;
+        this._fragmented = 0;
+        this._masked = false;
+        this._fin = false;
+        this._opcode = 0;
+        this._totalPayloadLength = 0;
+        this._messageLength = 0;
+        this._numFragments = 0;
+        this._fragments = [];
+        this._errored = false;
+        this._loop = false;
+        this._state = GET_INFO;
+      }
+      /**
+       * Implements `Writable.prototype._write()`.
+       *
+       * @param {Buffer} chunk The chunk of data to write
+       * @param {String} encoding The character encoding of `chunk`
+       * @param {Function} cb Callback
+       * @private
+       */
+      _write(chunk, encoding, cb) {
+        if (this._opcode === 8 && this._state == GET_INFO) return cb();
+        if (this._maxBufferedChunks > 0 && this._buffers.length >= this._maxBufferedChunks) {
+          cb(
+            this.createError(
+              RangeError,
+              "Too many buffered chunks",
+              false,
+              1008,
+              "WS_ERR_TOO_MANY_BUFFERED_PARTS"
+            )
+          );
+          return;
+        }
+        this._bufferedBytes += chunk.length;
+        this._buffers.push(chunk);
+        this.startLoop(cb);
+      }
+      /**
+       * Consumes `n` bytes from the buffered data.
+       *
+       * @param {Number} n The number of bytes to consume
+       * @return {Buffer} The consumed bytes
+       * @private
+       */
+      consume(n) {
+        this._bufferedBytes -= n;
+        if (n === this._buffers[0].length) return this._buffers.shift();
+        if (n < this._buffers[0].length) {
+          const buf = this._buffers[0];
+          this._buffers[0] = new FastBuffer(
+            buf.buffer,
+            buf.byteOffset + n,
+            buf.length - n
+          );
+          return new FastBuffer(buf.buffer, buf.byteOffset, n);
+        }
+        const dst = Buffer.allocUnsafe(n);
+        do {
+          const buf = this._buffers[0];
+          const offset = dst.length - n;
+          if (n >= buf.length) {
+            dst.set(this._buffers.shift(), offset);
+          } else {
+            dst.set(new Uint8Array(buf.buffer, buf.byteOffset, n), offset);
+            this._buffers[0] = new FastBuffer(
+              buf.buffer,
+              buf.byteOffset + n,
+              buf.length - n
+            );
+          }
+          n -= buf.length;
+        } while (n > 0);
+        return dst;
+      }
+      /**
+       * Starts the parsing loop.
+       *
+       * @param {Function} cb Callback
+       * @private
+       */
+      startLoop(cb) {
+        this._loop = true;
+        do {
+          switch (this._state) {
+            case GET_INFO:
+              this.getInfo(cb);
+              break;
+            case GET_PAYLOAD_LENGTH_16:
+              this.getPayloadLength16(cb);
+              break;
+            case GET_PAYLOAD_LENGTH_64:
+              this.getPayloadLength64(cb);
+              break;
+            case GET_MASK:
+              this.getMask();
+              break;
+            case GET_DATA:
+              this.getData(cb);
+              break;
+            case INFLATING:
+            case DEFER_EVENT:
+              this._loop = false;
+              return;
+          }
+        } while (this._loop);
+        if (!this._errored) cb();
+      }
+      /**
+       * Reads the first two bytes of a frame.
+       *
+       * @param {Function} cb Callback
+       * @private
+       */
+      getInfo(cb) {
+        if (this._bufferedBytes < 2) {
+          this._loop = false;
+          return;
+        }
+        const buf = this.consume(2);
+        if ((buf[0] & 48) !== 0) {
+          const error2 = this.createError(
+            RangeError,
+            "RSV2 and RSV3 must be clear",
+            true,
+            1002,
+            "WS_ERR_UNEXPECTED_RSV_2_3"
+          );
+          cb(error2);
+          return;
+        }
+        const compressed = (buf[0] & 64) === 64;
+        if (compressed && !this._extensions[PerMessageDeflate2.extensionName]) {
+          const error2 = this.createError(
+            RangeError,
+            "RSV1 must be clear",
+            true,
+            1002,
+            "WS_ERR_UNEXPECTED_RSV_1"
+          );
+          cb(error2);
+          return;
+        }
+        this._fin = (buf[0] & 128) === 128;
+        this._opcode = buf[0] & 15;
+        this._payloadLength = buf[1] & 127;
+        if (this._opcode === 0) {
+          if (compressed) {
+            const error2 = this.createError(
+              RangeError,
+              "RSV1 must be clear",
+              true,
+              1002,
+              "WS_ERR_UNEXPECTED_RSV_1"
+            );
+            cb(error2);
+            return;
+          }
+          if (!this._fragmented) {
+            const error2 = this.createError(
+              RangeError,
+              "invalid opcode 0",
+              true,
+              1002,
+              "WS_ERR_INVALID_OPCODE"
+            );
+            cb(error2);
+            return;
+          }
+          this._opcode = this._fragmented;
+        } else if (this._opcode === 1 || this._opcode === 2) {
+          if (this._fragmented) {
+            const error2 = this.createError(
+              RangeError,
+              `invalid opcode ${this._opcode}`,
+              true,
+              1002,
+              "WS_ERR_INVALID_OPCODE"
+            );
+            cb(error2);
+            return;
+          }
+          this._compressed = compressed;
+        } else if (this._opcode > 7 && this._opcode < 11) {
+          if (!this._fin) {
+            const error2 = this.createError(
+              RangeError,
+              "FIN must be set",
+              true,
+              1002,
+              "WS_ERR_EXPECTED_FIN"
+            );
+            cb(error2);
+            return;
+          }
+          if (compressed) {
+            const error2 = this.createError(
+              RangeError,
+              "RSV1 must be clear",
+              true,
+              1002,
+              "WS_ERR_UNEXPECTED_RSV_1"
+            );
+            cb(error2);
+            return;
+          }
+          if (this._payloadLength > 125 || this._opcode === 8 && this._payloadLength === 1) {
+            const error2 = this.createError(
+              RangeError,
+              `invalid payload length ${this._payloadLength}`,
+              true,
+              1002,
+              "WS_ERR_INVALID_CONTROL_PAYLOAD_LENGTH"
+            );
+            cb(error2);
+            return;
+          }
+        } else {
+          const error2 = this.createError(
+            RangeError,
+            `invalid opcode ${this._opcode}`,
+            true,
+            1002,
+            "WS_ERR_INVALID_OPCODE"
+          );
+          cb(error2);
+          return;
+        }
+        if (!this._fin && !this._fragmented) this._fragmented = this._opcode;
+        this._masked = (buf[1] & 128) === 128;
+        if (this._isServer) {
+          if (!this._masked) {
+            const error2 = this.createError(
+              RangeError,
+              "MASK must be set",
+              true,
+              1002,
+              "WS_ERR_EXPECTED_MASK"
+            );
+            cb(error2);
+            return;
+          }
+        } else if (this._masked) {
+          const error2 = this.createError(
+            RangeError,
+            "MASK must be clear",
+            true,
+            1002,
+            "WS_ERR_UNEXPECTED_MASK"
+          );
+          cb(error2);
+          return;
+        }
+        if (this._payloadLength === 126) this._state = GET_PAYLOAD_LENGTH_16;
+        else if (this._payloadLength === 127) this._state = GET_PAYLOAD_LENGTH_64;
+        else this.haveLength(cb);
+      }
+      /**
+       * Gets extended payload length (7+16).
+       *
+       * @param {Function} cb Callback
+       * @private
+       */
+      getPayloadLength16(cb) {
+        if (this._bufferedBytes < 2) {
+          this._loop = false;
+          return;
+        }
+        this._payloadLength = this.consume(2).readUInt16BE(0);
+        this.haveLength(cb);
+      }
+      /**
+       * Gets extended payload length (7+64).
+       *
+       * @param {Function} cb Callback
+       * @private
+       */
+      getPayloadLength64(cb) {
+        if (this._bufferedBytes < 8) {
+          this._loop = false;
+          return;
+        }
+        const buf = this.consume(8);
+        const num = buf.readUInt32BE(0);
+        if (num > Math.pow(2, 53 - 32) - 1) {
+          const error2 = this.createError(
+            RangeError,
+            "Unsupported WebSocket frame: payload length > 2^53 - 1",
+            false,
+            1009,
+            "WS_ERR_UNSUPPORTED_DATA_PAYLOAD_LENGTH"
+          );
+          cb(error2);
+          return;
+        }
+        this._payloadLength = num * Math.pow(2, 32) + buf.readUInt32BE(4);
+        this.haveLength(cb);
+      }
+      /**
+       * Payload length has been read.
+       *
+       * @param {Function} cb Callback
+       * @private
+       */
+      haveLength(cb) {
+        if (this._payloadLength && this._opcode < 8) {
+          this._totalPayloadLength += this._payloadLength;
+          if (this._totalPayloadLength > this._maxPayload && this._maxPayload > 0) {
+            const error2 = this.createError(
+              RangeError,
+              "Max payload size exceeded",
+              false,
+              1009,
+              "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH"
+            );
+            cb(error2);
+            return;
+          }
+        }
+        if (this._masked) this._state = GET_MASK;
+        else this._state = GET_DATA;
+      }
+      /**
+       * Reads mask bytes.
+       *
+       * @private
+       */
+      getMask() {
+        if (this._bufferedBytes < 4) {
+          this._loop = false;
+          return;
+        }
+        this._mask = this.consume(4);
+        this._state = GET_DATA;
+      }
+      /**
+       * Reads data bytes.
+       *
+       * @param {Function} cb Callback
+       * @private
+       */
+      getData(cb) {
+        let data = EMPTY_BUFFER;
+        if (this._payloadLength) {
+          if (this._bufferedBytes < this._payloadLength) {
+            this._loop = false;
+            return;
+          }
+          data = this.consume(this._payloadLength);
+          if (this._masked && (this._mask[0] | this._mask[1] | this._mask[2] | this._mask[3]) !== 0) {
+            unmask(data, this._mask);
+          }
+        }
+        if (this._opcode > 7) {
+          this.controlMessage(data, cb);
+          return;
+        }
+        if (this._maxFragments > 0 && ++this._numFragments > this._maxFragments) {
+          const error2 = this.createError(
+            RangeError,
+            "Too many message fragments",
+            false,
+            1008,
+            "WS_ERR_TOO_MANY_BUFFERED_PARTS"
+          );
+          cb(error2);
+          return;
+        }
+        if (this._compressed) {
+          this._state = INFLATING;
+          this.decompress(data, cb);
+          return;
+        }
+        if (data.length) {
+          this._messageLength = this._totalPayloadLength;
+          this._fragments.push(data);
+        }
+        this.dataMessage(cb);
+      }
+      /**
+       * Decompresses data.
+       *
+       * @param {Buffer} data Compressed data
+       * @param {Function} cb Callback
+       * @private
+       */
+      decompress(data, cb) {
+        const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
+        perMessageDeflate.decompress(data, this._fin, (err, buf) => {
+          if (err) return cb(err);
+          if (buf.length) {
+            this._messageLength += buf.length;
+            if (this._messageLength > this._maxPayload && this._maxPayload > 0) {
+              const error2 = this.createError(
+                RangeError,
+                "Max payload size exceeded",
+                false,
+                1009,
+                "WS_ERR_UNSUPPORTED_MESSAGE_LENGTH"
+              );
+              cb(error2);
+              return;
+            }
+            this._fragments.push(buf);
+          }
+          this.dataMessage(cb);
+          if (this._state === GET_INFO) this.startLoop(cb);
+        });
+      }
+      /**
+       * Handles a data message.
+       *
+       * @param {Function} cb Callback
+       * @private
+       */
+      dataMessage(cb) {
+        if (!this._fin) {
+          this._state = GET_INFO;
+          return;
+        }
+        const messageLength = this._messageLength;
+        const fragments = this._fragments;
+        this._totalPayloadLength = 0;
+        this._messageLength = 0;
+        this._fragmented = 0;
+        this._numFragments = 0;
+        this._fragments = [];
+        if (this._opcode === 2) {
+          let data;
+          if (this._binaryType === "nodebuffer") {
+            data = concat(fragments, messageLength);
+          } else if (this._binaryType === "arraybuffer") {
+            data = toArrayBuffer(concat(fragments, messageLength));
+          } else if (this._binaryType === "blob") {
+            data = new Blob(fragments);
+          } else {
+            data = fragments;
+          }
+          if (this._allowSynchronousEvents) {
+            this.emit("message", data, true);
+            this._state = GET_INFO;
+          } else {
+            this._state = DEFER_EVENT;
+            setImmediate(() => {
+              this.emit("message", data, true);
+              this._state = GET_INFO;
+              this.startLoop(cb);
+            });
+          }
+        } else {
+          const buf = concat(fragments, messageLength);
+          if (!this._skipUTF8Validation && !isValidUTF8(buf)) {
+            const error2 = this.createError(
+              Error,
+              "invalid UTF-8 sequence",
+              true,
+              1007,
+              "WS_ERR_INVALID_UTF8"
+            );
+            cb(error2);
+            return;
+          }
+          if (this._state === INFLATING || this._allowSynchronousEvents) {
+            this.emit("message", buf, false);
+            this._state = GET_INFO;
+          } else {
+            this._state = DEFER_EVENT;
+            setImmediate(() => {
+              this.emit("message", buf, false);
+              this._state = GET_INFO;
+              this.startLoop(cb);
+            });
+          }
+        }
+      }
+      /**
+       * Handles a control message.
+       *
+       * @param {Buffer} data Data to handle
+       * @return {(Error|RangeError|undefined)} A possible error
+       * @private
+       */
+      controlMessage(data, cb) {
+        if (this._opcode === 8) {
+          if (data.length === 0) {
+            this._loop = false;
+            this.emit("conclude", 1005, EMPTY_BUFFER);
+            this.end();
+          } else {
+            const code = data.readUInt16BE(0);
+            if (!isValidStatusCode(code)) {
+              const error2 = this.createError(
+                RangeError,
+                `invalid status code ${code}`,
+                true,
+                1002,
+                "WS_ERR_INVALID_CLOSE_CODE"
+              );
+              cb(error2);
+              return;
+            }
+            const buf = new FastBuffer(
+              data.buffer,
+              data.byteOffset + 2,
+              data.length - 2
+            );
+            if (!this._skipUTF8Validation && !isValidUTF8(buf)) {
+              const error2 = this.createError(
+                Error,
+                "invalid UTF-8 sequence",
+                true,
+                1007,
+                "WS_ERR_INVALID_UTF8"
+              );
+              cb(error2);
+              return;
+            }
+            this._loop = false;
+            this.emit("conclude", code, buf);
+            this.end();
+          }
+          this._state = GET_INFO;
+          return;
+        }
+        if (this._allowSynchronousEvents) {
+          this.emit(this._opcode === 9 ? "ping" : "pong", data);
+          this._state = GET_INFO;
+        } else {
+          this._state = DEFER_EVENT;
+          setImmediate(() => {
+            this.emit(this._opcode === 9 ? "ping" : "pong", data);
+            this._state = GET_INFO;
+            this.startLoop(cb);
+          });
+        }
+      }
+      /**
+       * Builds an error object.
+       *
+       * @param {function(new:Error|RangeError)} ErrorCtor The error constructor
+       * @param {String} message The error message
+       * @param {Boolean} prefix Specifies whether or not to add a default prefix to
+       *     `message`
+       * @param {Number} statusCode The status code
+       * @param {String} errorCode The exposed error code
+       * @return {(Error|RangeError)} The error
+       * @private
+       */
+      createError(ErrorCtor, message, prefix, statusCode, errorCode) {
+        this._loop = false;
+        this._errored = true;
+        const err = new ErrorCtor(
+          prefix ? `Invalid WebSocket frame: ${message}` : message
+        );
+        Error.captureStackTrace(err, this.createError);
+        err.code = errorCode;
+        err[kStatusCode] = statusCode;
+        return err;
+      }
+    };
+    module.exports = Receiver2;
+  }
+});
+
+// node_modules/ws/lib/sender.js
+var require_sender = __commonJS({
+  "node_modules/ws/lib/sender.js"(exports, module) {
+    "use strict";
+    var { Duplex } = __require("stream");
+    var { randomFillSync } = __require("crypto");
+    var {
+      types: { isUint8Array }
+    } = __require("util");
+    var PerMessageDeflate2 = require_permessage_deflate();
+    var { EMPTY_BUFFER, kWebSocket, NOOP } = require_constants();
+    var { isBlob, isValidStatusCode } = require_validation3();
+    var { mask: applyMask, toBuffer } = require_buffer_util();
+    var kByteLength = Symbol("kByteLength");
+    var maskBuffer = Buffer.alloc(4);
+    var RANDOM_POOL_SIZE = 8 * 1024;
+    var randomPool;
+    var randomPoolPointer = RANDOM_POOL_SIZE;
+    var DEFAULT = 0;
+    var DEFLATING = 1;
+    var GET_BLOB_DATA = 2;
+    var Sender2 = class _Sender {
+      /**
+       * Creates a Sender instance.
+       *
+       * @param {Duplex} socket The connection socket
+       * @param {Object} [extensions] An object containing the negotiated extensions
+       * @param {Function} [generateMask] The function used to generate the masking
+       *     key
+       */
+      constructor(socket, extensions, generateMask) {
+        this._extensions = extensions || {};
+        if (generateMask) {
+          this._generateMask = generateMask;
+          this._maskBuffer = Buffer.alloc(4);
+        }
+        this._socket = socket;
+        this._firstFragment = true;
+        this._compress = false;
+        this._bufferedBytes = 0;
+        this._queue = [];
+        this._state = DEFAULT;
+        this.onerror = NOOP;
+        this[kWebSocket] = void 0;
+      }
+      /**
+       * Frames a piece of data according to the HyBi WebSocket protocol.
+       *
+       * @param {(Buffer|String)} data The data to frame
+       * @param {Object} options Options object
+       * @param {Boolean} [options.fin=false] Specifies whether or not to set the
+       *     FIN bit
+       * @param {Function} [options.generateMask] The function used to generate the
+       *     masking key
+       * @param {Boolean} [options.mask=false] Specifies whether or not to mask
+       *     `data`
+       * @param {Buffer} [options.maskBuffer] The buffer used to store the masking
+       *     key
+       * @param {Number} options.opcode The opcode
+       * @param {Boolean} [options.readOnly=false] Specifies whether `data` can be
+       *     modified
+       * @param {Boolean} [options.rsv1=false] Specifies whether or not to set the
+       *     RSV1 bit
+       * @return {(Buffer|String)[]} The framed data
+       * @public
+       */
+      static frame(data, options3) {
+        let mask2;
+        let merge2 = false;
+        let offset = 2;
+        let skipMasking = false;
+        if (options3.mask) {
+          mask2 = options3.maskBuffer || maskBuffer;
+          if (options3.generateMask) {
+            options3.generateMask(mask2);
+          } else {
+            if (randomPoolPointer === RANDOM_POOL_SIZE) {
+              if (randomPool === void 0) {
+                randomPool = Buffer.alloc(RANDOM_POOL_SIZE);
+              }
+              randomFillSync(randomPool, 0, RANDOM_POOL_SIZE);
+              randomPoolPointer = 0;
+            }
+            mask2[0] = randomPool[randomPoolPointer++];
+            mask2[1] = randomPool[randomPoolPointer++];
+            mask2[2] = randomPool[randomPoolPointer++];
+            mask2[3] = randomPool[randomPoolPointer++];
+          }
+          skipMasking = (mask2[0] | mask2[1] | mask2[2] | mask2[3]) === 0;
+          offset = 6;
+        }
+        let dataLength;
+        if (typeof data === "string") {
+          if ((!options3.mask || skipMasking) && options3[kByteLength] !== void 0) {
+            dataLength = options3[kByteLength];
+          } else {
+            data = Buffer.from(data);
+            dataLength = data.length;
+          }
+        } else {
+          dataLength = data.length;
+          merge2 = options3.mask && options3.readOnly && !skipMasking;
+        }
+        let payloadLength = dataLength;
+        if (dataLength >= 65536) {
+          offset += 8;
+          payloadLength = 127;
+        } else if (dataLength > 125) {
+          offset += 2;
+          payloadLength = 126;
+        }
+        const target = Buffer.allocUnsafe(merge2 ? dataLength + offset : offset);
+        target[0] = options3.fin ? options3.opcode | 128 : options3.opcode;
+        if (options3.rsv1) target[0] |= 64;
+        target[1] = payloadLength;
+        if (payloadLength === 126) {
+          target.writeUInt16BE(dataLength, 2);
+        } else if (payloadLength === 127) {
+          target[2] = target[3] = 0;
+          target.writeUIntBE(dataLength, 4, 6);
+        }
+        if (!options3.mask) return [target, data];
+        target[1] |= 128;
+        target[offset - 4] = mask2[0];
+        target[offset - 3] = mask2[1];
+        target[offset - 2] = mask2[2];
+        target[offset - 1] = mask2[3];
+        if (skipMasking) return [target, data];
+        if (merge2) {
+          applyMask(data, mask2, target, offset, dataLength);
+          return [target];
+        }
+        applyMask(data, mask2, data, 0, dataLength);
+        return [target, data];
+      }
+      /**
+       * Sends a close message to the other peer.
+       *
+       * @param {Number} [code] The status code component of the body
+       * @param {(String|Buffer)} [data] The message component of the body
+       * @param {Boolean} [mask=false] Specifies whether or not to mask the message
+       * @param {Function} [cb] Callback
+       * @public
+       */
+      close(code, data, mask2, cb) {
+        let buf;
+        if (code === void 0) {
+          buf = EMPTY_BUFFER;
+        } else if (typeof code !== "number" || !isValidStatusCode(code)) {
+          throw new TypeError("First argument must be a valid error code number");
+        } else if (data === void 0 || !data.length) {
+          buf = Buffer.allocUnsafe(2);
+          buf.writeUInt16BE(code, 0);
+        } else {
+          const length = Buffer.byteLength(data);
+          if (length > 123) {
+            throw new RangeError("The message must not be greater than 123 bytes");
+          }
+          buf = Buffer.allocUnsafe(2 + length);
+          buf.writeUInt16BE(code, 0);
+          if (typeof data === "string") {
+            buf.write(data, 2);
+          } else if (isUint8Array(data)) {
+            buf.set(data, 2);
+          } else {
+            throw new TypeError("Second argument must be a string or a Uint8Array");
+          }
+        }
+        const options3 = {
+          [kByteLength]: buf.length,
+          fin: true,
+          generateMask: this._generateMask,
+          mask: mask2,
+          maskBuffer: this._maskBuffer,
+          opcode: 8,
+          readOnly: false,
+          rsv1: false
+        };
+        if (this._state !== DEFAULT) {
+          this.enqueue([this.dispatch, buf, false, options3, cb]);
+        } else {
+          this.sendFrame(_Sender.frame(buf, options3), cb);
+        }
+      }
+      /**
+       * Sends a ping message to the other peer.
+       *
+       * @param {*} data The message to send
+       * @param {Boolean} [mask=false] Specifies whether or not to mask `data`
+       * @param {Function} [cb] Callback
+       * @public
+       */
+      ping(data, mask2, cb) {
+        let byteLength;
+        let readOnly;
+        if (typeof data === "string") {
+          byteLength = Buffer.byteLength(data);
+          readOnly = false;
+        } else if (isBlob(data)) {
+          byteLength = data.size;
+          readOnly = false;
+        } else {
+          data = toBuffer(data);
+          byteLength = data.length;
+          readOnly = toBuffer.readOnly;
+        }
+        if (byteLength > 125) {
+          throw new RangeError("The data size must not be greater than 125 bytes");
+        }
+        const options3 = {
+          [kByteLength]: byteLength,
+          fin: true,
+          generateMask: this._generateMask,
+          mask: mask2,
+          maskBuffer: this._maskBuffer,
+          opcode: 9,
+          readOnly,
+          rsv1: false
+        };
+        if (isBlob(data)) {
+          if (this._state !== DEFAULT) {
+            this.enqueue([this.getBlobData, data, false, options3, cb]);
+          } else {
+            this.getBlobData(data, false, options3, cb);
+          }
+        } else if (this._state !== DEFAULT) {
+          this.enqueue([this.dispatch, data, false, options3, cb]);
+        } else {
+          this.sendFrame(_Sender.frame(data, options3), cb);
+        }
+      }
+      /**
+       * Sends a pong message to the other peer.
+       *
+       * @param {*} data The message to send
+       * @param {Boolean} [mask=false] Specifies whether or not to mask `data`
+       * @param {Function} [cb] Callback
+       * @public
+       */
+      pong(data, mask2, cb) {
+        let byteLength;
+        let readOnly;
+        if (typeof data === "string") {
+          byteLength = Buffer.byteLength(data);
+          readOnly = false;
+        } else if (isBlob(data)) {
+          byteLength = data.size;
+          readOnly = false;
+        } else {
+          data = toBuffer(data);
+          byteLength = data.length;
+          readOnly = toBuffer.readOnly;
+        }
+        if (byteLength > 125) {
+          throw new RangeError("The data size must not be greater than 125 bytes");
+        }
+        const options3 = {
+          [kByteLength]: byteLength,
+          fin: true,
+          generateMask: this._generateMask,
+          mask: mask2,
+          maskBuffer: this._maskBuffer,
+          opcode: 10,
+          readOnly,
+          rsv1: false
+        };
+        if (isBlob(data)) {
+          if (this._state !== DEFAULT) {
+            this.enqueue([this.getBlobData, data, false, options3, cb]);
+          } else {
+            this.getBlobData(data, false, options3, cb);
+          }
+        } else if (this._state !== DEFAULT) {
+          this.enqueue([this.dispatch, data, false, options3, cb]);
+        } else {
+          this.sendFrame(_Sender.frame(data, options3), cb);
+        }
+      }
+      /**
+       * Sends a data message to the other peer.
+       *
+       * @param {*} data The message to send
+       * @param {Object} options Options object
+       * @param {Boolean} [options.binary=false] Specifies whether `data` is binary
+       *     or text
+       * @param {Boolean} [options.compress=false] Specifies whether or not to
+       *     compress `data`
+       * @param {Boolean} [options.fin=false] Specifies whether the fragment is the
+       *     last one
+       * @param {Boolean} [options.mask=false] Specifies whether or not to mask
+       *     `data`
+       * @param {Function} [cb] Callback
+       * @public
+       */
+      send(data, options3, cb) {
+        const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
+        let opcode = options3.binary ? 2 : 1;
+        let rsv1 = options3.compress;
+        let byteLength;
+        let readOnly;
+        if (typeof data === "string") {
+          byteLength = Buffer.byteLength(data);
+          readOnly = false;
+        } else if (isBlob(data)) {
+          byteLength = data.size;
+          readOnly = false;
+        } else {
+          data = toBuffer(data);
+          byteLength = data.length;
+          readOnly = toBuffer.readOnly;
+        }
+        if (this._firstFragment) {
+          this._firstFragment = false;
+          if (rsv1 && perMessageDeflate && perMessageDeflate.params[perMessageDeflate._isServer ? "server_no_context_takeover" : "client_no_context_takeover"]) {
+            rsv1 = byteLength >= perMessageDeflate._threshold;
+          }
+          this._compress = rsv1;
+        } else {
+          rsv1 = false;
+          opcode = 0;
+        }
+        if (options3.fin) this._firstFragment = true;
+        const opts = {
+          [kByteLength]: byteLength,
+          fin: options3.fin,
+          generateMask: this._generateMask,
+          mask: options3.mask,
+          maskBuffer: this._maskBuffer,
+          opcode,
+          readOnly,
+          rsv1
+        };
+        if (isBlob(data)) {
+          if (this._state !== DEFAULT) {
+            this.enqueue([this.getBlobData, data, this._compress, opts, cb]);
+          } else {
+            this.getBlobData(data, this._compress, opts, cb);
+          }
+        } else if (this._state !== DEFAULT) {
+          this.enqueue([this.dispatch, data, this._compress, opts, cb]);
+        } else {
+          this.dispatch(data, this._compress, opts, cb);
+        }
+      }
+      /**
+       * Gets the contents of a blob as binary data.
+       *
+       * @param {Blob} blob The blob
+       * @param {Boolean} [compress=false] Specifies whether or not to compress
+       *     the data
+       * @param {Object} options Options object
+       * @param {Boolean} [options.fin=false] Specifies whether or not to set the
+       *     FIN bit
+       * @param {Function} [options.generateMask] The function used to generate the
+       *     masking key
+       * @param {Boolean} [options.mask=false] Specifies whether or not to mask
+       *     `data`
+       * @param {Buffer} [options.maskBuffer] The buffer used to store the masking
+       *     key
+       * @param {Number} options.opcode The opcode
+       * @param {Boolean} [options.readOnly=false] Specifies whether `data` can be
+       *     modified
+       * @param {Boolean} [options.rsv1=false] Specifies whether or not to set the
+       *     RSV1 bit
+       * @param {Function} [cb] Callback
+       * @private
+       */
+      getBlobData(blob, compress, options3, cb) {
+        this._bufferedBytes += options3[kByteLength];
+        this._state = GET_BLOB_DATA;
+        blob.arrayBuffer().then((arrayBuffer) => {
+          if (this._socket.destroyed) {
+            const err = new Error(
+              "The socket was closed while the blob was being read"
+            );
+            process.nextTick(callCallbacks, this, err, cb);
+            return;
+          }
+          this._bufferedBytes -= options3[kByteLength];
+          const data = toBuffer(arrayBuffer);
+          if (!compress) {
+            this._state = DEFAULT;
+            this.sendFrame(_Sender.frame(data, options3), cb);
+            this.dequeue();
+          } else {
+            this.dispatch(data, compress, options3, cb);
+          }
+        }).catch((err) => {
+          process.nextTick(onError, this, err, cb);
+        });
+      }
+      /**
+       * Dispatches a message.
+       *
+       * @param {(Buffer|String)} data The message to send
+       * @param {Boolean} [compress=false] Specifies whether or not to compress
+       *     `data`
+       * @param {Object} options Options object
+       * @param {Boolean} [options.fin=false] Specifies whether or not to set the
+       *     FIN bit
+       * @param {Function} [options.generateMask] The function used to generate the
+       *     masking key
+       * @param {Boolean} [options.mask=false] Specifies whether or not to mask
+       *     `data`
+       * @param {Buffer} [options.maskBuffer] The buffer used to store the masking
+       *     key
+       * @param {Number} options.opcode The opcode
+       * @param {Boolean} [options.readOnly=false] Specifies whether `data` can be
+       *     modified
+       * @param {Boolean} [options.rsv1=false] Specifies whether or not to set the
+       *     RSV1 bit
+       * @param {Function} [cb] Callback
+       * @private
+       */
+      dispatch(data, compress, options3, cb) {
+        if (!compress) {
+          this.sendFrame(_Sender.frame(data, options3), cb);
+          return;
+        }
+        const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
+        this._bufferedBytes += options3[kByteLength];
+        this._state = DEFLATING;
+        perMessageDeflate.compress(data, options3.fin, (_, buf) => {
+          if (this._socket.destroyed) {
+            const err = new Error(
+              "The socket was closed while data was being compressed"
+            );
+            callCallbacks(this, err, cb);
+            return;
+          }
+          this._bufferedBytes -= options3[kByteLength];
+          this._state = DEFAULT;
+          options3.readOnly = false;
+          this.sendFrame(_Sender.frame(buf, options3), cb);
+          this.dequeue();
+        });
+      }
+      /**
+       * Executes queued send operations.
+       *
+       * @private
+       */
+      dequeue() {
+        while (this._state === DEFAULT && this._queue.length) {
+          const params = this._queue.shift();
+          this._bufferedBytes -= params[3][kByteLength];
+          Reflect.apply(params[0], this, params.slice(1));
+        }
+      }
+      /**
+       * Enqueues a send operation.
+       *
+       * @param {Array} params Send operation parameters.
+       * @private
+       */
+      enqueue(params) {
+        this._bufferedBytes += params[3][kByteLength];
+        this._queue.push(params);
+      }
+      /**
+       * Sends a frame.
+       *
+       * @param {(Buffer | String)[]} list The frame to send
+       * @param {Function} [cb] Callback
+       * @private
+       */
+      sendFrame(list, cb) {
+        if (list.length === 2) {
+          this._socket.cork();
+          this._socket.write(list[0]);
+          this._socket.write(list[1], cb);
+          this._socket.uncork();
+        } else {
+          this._socket.write(list[0], cb);
+        }
+      }
+    };
+    module.exports = Sender2;
+    function callCallbacks(sender, err, cb) {
+      if (typeof cb === "function") cb(err);
+      for (let i = 0; i < sender._queue.length; i++) {
+        const params = sender._queue[i];
+        const callback = params[params.length - 1];
+        if (typeof callback === "function") callback(err);
+      }
+    }
+    function onError(sender, err, cb) {
+      callCallbacks(sender, err, cb);
+      sender.onerror(err);
+    }
+  }
+});
+
+// node_modules/ws/lib/event-target.js
+var require_event_target = __commonJS({
+  "node_modules/ws/lib/event-target.js"(exports, module) {
+    "use strict";
+    var { kForOnEventAttribute, kListener } = require_constants();
+    var kCode = Symbol("kCode");
+    var kData = Symbol("kData");
+    var kError = Symbol("kError");
+    var kMessage = Symbol("kMessage");
+    var kReason = Symbol("kReason");
+    var kTarget = Symbol("kTarget");
+    var kType = Symbol("kType");
+    var kWasClean = Symbol("kWasClean");
+    var Event = class {
+      /**
+       * Create a new `Event`.
+       *
+       * @param {String} type The name of the event
+       * @throws {TypeError} If the `type` argument is not specified
+       */
+      constructor(type) {
+        this[kTarget] = null;
+        this[kType] = type;
+      }
+      /**
+       * @type {*}
+       */
+      get target() {
+        return this[kTarget];
+      }
+      /**
+       * @type {String}
+       */
+      get type() {
+        return this[kType];
+      }
+    };
+    Object.defineProperty(Event.prototype, "target", { enumerable: true });
+    Object.defineProperty(Event.prototype, "type", { enumerable: true });
+    var CloseEvent = class extends Event {
+      /**
+       * Create a new `CloseEvent`.
+       *
+       * @param {String} type The name of the event
+       * @param {Object} [options] A dictionary object that allows for setting
+       *     attributes via object members of the same name
+       * @param {Number} [options.code=0] The status code explaining why the
+       *     connection was closed
+       * @param {String} [options.reason=''] A human-readable string explaining why
+       *     the connection was closed
+       * @param {Boolean} [options.wasClean=false] Indicates whether or not the
+       *     connection was cleanly closed
+       */
+      constructor(type, options3 = {}) {
+        super(type);
+        this[kCode] = options3.code === void 0 ? 0 : options3.code;
+        this[kReason] = options3.reason === void 0 ? "" : options3.reason;
+        this[kWasClean] = options3.wasClean === void 0 ? false : options3.wasClean;
+      }
+      /**
+       * @type {Number}
+       */
+      get code() {
+        return this[kCode];
+      }
+      /**
+       * @type {String}
+       */
+      get reason() {
+        return this[kReason];
+      }
+      /**
+       * @type {Boolean}
+       */
+      get wasClean() {
+        return this[kWasClean];
+      }
+    };
+    Object.defineProperty(CloseEvent.prototype, "code", { enumerable: true });
+    Object.defineProperty(CloseEvent.prototype, "reason", { enumerable: true });
+    Object.defineProperty(CloseEvent.prototype, "wasClean", { enumerable: true });
+    var ErrorEvent = class extends Event {
+      /**
+       * Create a new `ErrorEvent`.
+       *
+       * @param {String} type The name of the event
+       * @param {Object} [options] A dictionary object that allows for setting
+       *     attributes via object members of the same name
+       * @param {*} [options.error=null] The error that generated this event
+       * @param {String} [options.message=''] The error message
+       */
+      constructor(type, options3 = {}) {
+        super(type);
+        this[kError] = options3.error === void 0 ? null : options3.error;
+        this[kMessage] = options3.message === void 0 ? "" : options3.message;
+      }
+      /**
+       * @type {*}
+       */
+      get error() {
+        return this[kError];
+      }
+      /**
+       * @type {String}
+       */
+      get message() {
+        return this[kMessage];
+      }
+    };
+    Object.defineProperty(ErrorEvent.prototype, "error", { enumerable: true });
+    Object.defineProperty(ErrorEvent.prototype, "message", { enumerable: true });
+    var MessageEvent = class extends Event {
+      /**
+       * Create a new `MessageEvent`.
+       *
+       * @param {String} type The name of the event
+       * @param {Object} [options] A dictionary object that allows for setting
+       *     attributes via object members of the same name
+       * @param {*} [options.data=null] The message content
+       */
+      constructor(type, options3 = {}) {
+        super(type);
+        this[kData] = options3.data === void 0 ? null : options3.data;
+      }
+      /**
+       * @type {*}
+       */
+      get data() {
+        return this[kData];
+      }
+    };
+    Object.defineProperty(MessageEvent.prototype, "data", { enumerable: true });
+    var EventTarget = {
+      /**
+       * Register an event listener.
+       *
+       * @param {String} type A string representing the event type to listen for
+       * @param {(Function|Object)} handler The listener to add
+       * @param {Object} [options] An options object specifies characteristics about
+       *     the event listener
+       * @param {Boolean} [options.once=false] A `Boolean` indicating that the
+       *     listener should be invoked at most once after being added. If `true`,
+       *     the listener would be automatically removed when invoked.
+       * @public
+       */
+      addEventListener(type, handler, options3 = {}) {
+        for (const listener of this.listeners(type)) {
+          if (!options3[kForOnEventAttribute] && listener[kListener] === handler && !listener[kForOnEventAttribute]) {
+            return;
+          }
+        }
+        let wrapper;
+        if (type === "message") {
+          wrapper = function onMessage(data, isBinary) {
+            const event = new MessageEvent("message", {
+              data: isBinary ? data : data.toString()
+            });
+            event[kTarget] = this;
+            callListener(handler, this, event);
+          };
+        } else if (type === "close") {
+          wrapper = function onClose(code, message) {
+            const event = new CloseEvent("close", {
+              code,
+              reason: message.toString(),
+              wasClean: this._closeFrameReceived && this._closeFrameSent
+            });
+            event[kTarget] = this;
+            callListener(handler, this, event);
+          };
+        } else if (type === "error") {
+          wrapper = function onError(error2) {
+            const event = new ErrorEvent("error", {
+              error: error2,
+              message: error2.message
+            });
+            event[kTarget] = this;
+            callListener(handler, this, event);
+          };
+        } else if (type === "open") {
+          wrapper = function onOpen() {
+            const event = new Event("open");
+            event[kTarget] = this;
+            callListener(handler, this, event);
+          };
+        } else {
+          return;
+        }
+        wrapper[kForOnEventAttribute] = !!options3[kForOnEventAttribute];
+        wrapper[kListener] = handler;
+        if (options3.once) {
+          this.once(type, wrapper);
+        } else {
+          this.on(type, wrapper);
+        }
+      },
+      /**
+       * Remove an event listener.
+       *
+       * @param {String} type A string representing the event type to remove
+       * @param {(Function|Object)} handler The listener to remove
+       * @public
+       */
+      removeEventListener(type, handler) {
+        for (const listener of this.listeners(type)) {
+          if (listener[kListener] === handler && !listener[kForOnEventAttribute]) {
+            this.removeListener(type, listener);
+            break;
+          }
+        }
+      }
+    };
+    module.exports = {
+      CloseEvent,
+      ErrorEvent,
+      Event,
+      EventTarget,
+      MessageEvent
+    };
+    function callListener(listener, thisArg, event) {
+      if (typeof listener === "object" && listener.handleEvent) {
+        listener.handleEvent.call(listener, event);
+      } else {
+        listener.call(thisArg, event);
+      }
+    }
+  }
+});
+
+// node_modules/ws/lib/extension.js
+var require_extension = __commonJS({
+  "node_modules/ws/lib/extension.js"(exports, module) {
+    "use strict";
+    var { tokenChars } = require_validation3();
+    function push(dest, name, elem) {
+      if (dest[name] === void 0) dest[name] = [elem];
+      else dest[name].push(elem);
+    }
+    function parse4(header) {
+      const offers = /* @__PURE__ */ Object.create(null);
+      let params = /* @__PURE__ */ Object.create(null);
+      let mustUnescape = false;
+      let isEscaping = false;
+      let inQuotes = false;
+      let extensionName;
+      let paramName;
+      let start = -1;
+      let code = -1;
+      let end = -1;
+      let i = 0;
+      for (; i < header.length; i++) {
+        code = header.charCodeAt(i);
+        if (extensionName === void 0) {
+          if (end === -1 && tokenChars[code] === 1) {
+            if (start === -1) start = i;
+          } else if (i !== 0 && (code === 32 || code === 9)) {
+            if (end === -1 && start !== -1) end = i;
+          } else if (code === 59 || code === 44) {
+            if (start === -1) {
+              throw new SyntaxError(`Unexpected character at index ${i}`);
+            }
+            if (end === -1) end = i;
+            const name = header.slice(start, end);
+            if (code === 44) {
+              push(offers, name, params);
+              params = /* @__PURE__ */ Object.create(null);
+            } else {
+              extensionName = name;
+            }
+            start = end = -1;
+          } else {
+            throw new SyntaxError(`Unexpected character at index ${i}`);
+          }
+        } else if (paramName === void 0) {
+          if (end === -1 && tokenChars[code] === 1) {
+            if (start === -1) start = i;
+          } else if (code === 32 || code === 9) {
+            if (end === -1 && start !== -1) end = i;
+          } else if (code === 59 || code === 44) {
+            if (start === -1) {
+              throw new SyntaxError(`Unexpected character at index ${i}`);
+            }
+            if (end === -1) end = i;
+            push(params, header.slice(start, end), true);
+            if (code === 44) {
+              push(offers, extensionName, params);
+              params = /* @__PURE__ */ Object.create(null);
+              extensionName = void 0;
+            }
+            start = end = -1;
+          } else if (code === 61 && start !== -1 && end === -1) {
+            paramName = header.slice(start, i);
+            start = end = -1;
+          } else {
+            throw new SyntaxError(`Unexpected character at index ${i}`);
+          }
+        } else {
+          if (isEscaping) {
+            if (tokenChars[code] !== 1) {
+              throw new SyntaxError(`Unexpected character at index ${i}`);
+            }
+            if (start === -1) start = i;
+            else if (!mustUnescape) mustUnescape = true;
+            isEscaping = false;
+          } else if (inQuotes) {
+            if (tokenChars[code] === 1) {
+              if (start === -1) start = i;
+            } else if (code === 34 && start !== -1) {
+              inQuotes = false;
+              end = i;
+            } else if (code === 92) {
+              isEscaping = true;
+            } else {
+              throw new SyntaxError(`Unexpected character at index ${i}`);
+            }
+          } else if (code === 34 && header.charCodeAt(i - 1) === 61) {
+            inQuotes = true;
+          } else if (end === -1 && tokenChars[code] === 1) {
+            if (start === -1) start = i;
+          } else if (start !== -1 && (code === 32 || code === 9)) {
+            if (end === -1) end = i;
+          } else if (code === 59 || code === 44) {
+            if (start === -1) {
+              throw new SyntaxError(`Unexpected character at index ${i}`);
+            }
+            if (end === -1) end = i;
+            let value = header.slice(start, end);
+            if (mustUnescape) {
+              value = value.replace(/\\/g, "");
+              mustUnescape = false;
+            }
+            push(params, paramName, value);
+            if (code === 44) {
+              push(offers, extensionName, params);
+              params = /* @__PURE__ */ Object.create(null);
+              extensionName = void 0;
+            }
+            paramName = void 0;
+            start = end = -1;
+          } else {
+            throw new SyntaxError(`Unexpected character at index ${i}`);
+          }
+        }
+      }
+      if (start === -1 || inQuotes || code === 32 || code === 9) {
+        throw new SyntaxError("Unexpected end of input");
+      }
+      if (end === -1) end = i;
+      const token = header.slice(start, end);
+      if (extensionName === void 0) {
+        push(offers, token, params);
+      } else {
+        if (paramName === void 0) {
+          push(params, token, true);
+        } else if (mustUnescape) {
+          push(params, paramName, token.replace(/\\/g, ""));
+        } else {
+          push(params, paramName, token);
+        }
+        push(offers, extensionName, params);
+      }
+      return offers;
+    }
+    function format(extensions) {
+      return Object.keys(extensions).map((extension2) => {
+        let configurations = extensions[extension2];
+        if (!Array.isArray(configurations)) configurations = [configurations];
+        return configurations.map((params) => {
+          return [extension2].concat(
+            Object.keys(params).map((k) => {
+              let values = params[k];
+              if (!Array.isArray(values)) values = [values];
+              return values.map((v) => v === true ? k : `${k}=${v}`).join("; ");
+            })
+          ).join("; ");
+        }).join(", ");
+      }).join(", ");
+    }
+    module.exports = { format, parse: parse4 };
+  }
+});
+
+// node_modules/ws/lib/websocket.js
+var require_websocket = __commonJS({
+  "node_modules/ws/lib/websocket.js"(exports, module) {
+    "use strict";
+    var EventEmitter = __require("events");
+    var https = __require("https");
+    var http4 = __require("http");
+    var net = __require("net");
+    var tls = __require("tls");
+    var { randomBytes: randomBytes4, createHash: createHash11 } = __require("crypto");
+    var { Duplex, Readable: Readable2 } = __require("stream");
+    var { URL: URL2 } = __require("url");
+    var PerMessageDeflate2 = require_permessage_deflate();
+    var Receiver2 = require_receiver();
+    var Sender2 = require_sender();
+    var { isBlob } = require_validation3();
+    var {
+      BINARY_TYPES,
+      CLOSE_TIMEOUT,
+      EMPTY_BUFFER,
+      GUID,
+      kForOnEventAttribute,
+      kListener,
+      kStatusCode,
+      kWebSocket,
+      NOOP
+    } = require_constants();
+    var {
+      EventTarget: { addEventListener, removeEventListener }
+    } = require_event_target();
+    var { format, parse: parse4 } = require_extension();
+    var { toBuffer } = require_buffer_util();
+    var kAborted = Symbol("kAborted");
+    var protocolVersions = [8, 13];
+    var readyStates = ["CONNECTING", "OPEN", "CLOSING", "CLOSED"];
+    var subprotocolRegex = /^[!#$%&'*+\-.0-9A-Z^_`|a-z~]+$/;
+    var WebSocket2 = class _WebSocket extends EventEmitter {
+      /**
+       * Create a new `WebSocket`.
+       *
+       * @param {(String|URL)} address The URL to which to connect
+       * @param {(String|String[])} [protocols] The subprotocols
+       * @param {Object} [options] Connection options
+       */
+      constructor(address, protocols, options3) {
+        super();
+        this._binaryType = BINARY_TYPES[0];
+        this._closeCode = 1006;
+        this._closeFrameReceived = false;
+        this._closeFrameSent = false;
+        this._closeMessage = EMPTY_BUFFER;
+        this._closeTimer = null;
+        this._errorEmitted = false;
+        this._extensions = {};
+        this._paused = false;
+        this._protocol = "";
+        this._readyState = _WebSocket.CONNECTING;
+        this._receiver = null;
+        this._sender = null;
+        this._socket = null;
+        if (address !== null) {
+          this._bufferedAmount = 0;
+          this._isServer = false;
+          this._redirects = 0;
+          if (protocols === void 0) {
+            protocols = [];
+          } else if (!Array.isArray(protocols)) {
+            if (typeof protocols === "object" && protocols !== null) {
+              options3 = protocols;
+              protocols = [];
+            } else {
+              protocols = [protocols];
+            }
+          }
+          initAsClient(this, address, protocols, options3);
+        } else {
+          this._autoPong = options3.autoPong;
+          this._closeTimeout = options3.closeTimeout;
+          this._isServer = true;
+        }
+      }
+      /**
+       * For historical reasons, the custom "nodebuffer" type is used by the default
+       * instead of "blob".
+       *
+       * @type {String}
+       */
+      get binaryType() {
+        return this._binaryType;
+      }
+      set binaryType(type) {
+        if (!BINARY_TYPES.includes(type)) return;
+        this._binaryType = type;
+        if (this._receiver) this._receiver._binaryType = type;
+      }
+      /**
+       * @type {Number}
+       */
+      get bufferedAmount() {
+        if (!this._socket) return this._bufferedAmount;
+        return this._socket._writableState.length + this._sender._bufferedBytes;
+      }
+      /**
+       * @type {String}
+       */
+      get extensions() {
+        return Object.keys(this._extensions).join();
+      }
+      /**
+       * @type {Boolean}
+       */
+      get isPaused() {
+        return this._paused;
+      }
+      /**
+       * @type {Function}
+       */
+      /* istanbul ignore next */
+      get onclose() {
+        return null;
+      }
+      /**
+       * @type {Function}
+       */
+      /* istanbul ignore next */
+      get onerror() {
+        return null;
+      }
+      /**
+       * @type {Function}
+       */
+      /* istanbul ignore next */
+      get onopen() {
+        return null;
+      }
+      /**
+       * @type {Function}
+       */
+      /* istanbul ignore next */
+      get onmessage() {
+        return null;
+      }
+      /**
+       * @type {String}
+       */
+      get protocol() {
+        return this._protocol;
+      }
+      /**
+       * @type {Number}
+       */
+      get readyState() {
+        return this._readyState;
+      }
+      /**
+       * @type {String}
+       */
+      get url() {
+        return this._url;
+      }
+      /**
+       * Set up the socket and the internal resources.
+       *
+       * @param {Duplex} socket The network socket between the server and client
+       * @param {Buffer} head The first packet of the upgraded stream
+       * @param {Object} options Options object
+       * @param {Boolean} [options.allowSynchronousEvents=false] Specifies whether
+       *     any of the `'message'`, `'ping'`, and `'pong'` events can be emitted
+       *     multiple times in the same tick
+       * @param {Function} [options.generateMask] The function used to generate the
+       *     masking key
+       * @param {Number} [options.maxBufferedChunks=0] The maximum number of
+       *     buffered data chunks
+       * @param {Number} [options.maxFragments=0] The maximum number of message
+       *     fragments
+       * @param {Number} [options.maxPayload=0] The maximum allowed message size
+       * @param {Boolean} [options.skipUTF8Validation=false] Specifies whether or
+       *     not to skip UTF-8 validation for text and close messages
+       * @private
+       */
+      setSocket(socket, head, options3) {
+        const receiver = new Receiver2({
+          allowSynchronousEvents: options3.allowSynchronousEvents,
+          binaryType: this.binaryType,
+          extensions: this._extensions,
+          isServer: this._isServer,
+          maxBufferedChunks: options3.maxBufferedChunks,
+          maxFragments: options3.maxFragments,
+          maxPayload: options3.maxPayload,
+          skipUTF8Validation: options3.skipUTF8Validation
+        });
+        const sender = new Sender2(socket, this._extensions, options3.generateMask);
+        this._receiver = receiver;
+        this._sender = sender;
+        this._socket = socket;
+        receiver[kWebSocket] = this;
+        sender[kWebSocket] = this;
+        socket[kWebSocket] = this;
+        receiver.on("conclude", receiverOnConclude);
+        receiver.on("drain", receiverOnDrain);
+        receiver.on("error", receiverOnError);
+        receiver.on("message", receiverOnMessage);
+        receiver.on("ping", receiverOnPing);
+        receiver.on("pong", receiverOnPong);
+        sender.onerror = senderOnError;
+        if (socket.setTimeout) socket.setTimeout(0);
+        if (socket.setNoDelay) socket.setNoDelay();
+        if (head.length > 0) socket.unshift(head);
+        socket.on("close", socketOnClose);
+        socket.on("data", socketOnData);
+        socket.on("end", socketOnEnd);
+        socket.on("error", socketOnError);
+        this._readyState = _WebSocket.OPEN;
+        this.emit("open");
+      }
+      /**
+       * Emit the `'close'` event.
+       *
+       * @private
+       */
+      emitClose() {
+        if (!this._socket) {
+          this._readyState = _WebSocket.CLOSED;
+          this.emit("close", this._closeCode, this._closeMessage);
+          return;
+        }
+        if (this._extensions[PerMessageDeflate2.extensionName]) {
+          this._extensions[PerMessageDeflate2.extensionName].cleanup();
+        }
+        this._receiver.removeAllListeners();
+        this._readyState = _WebSocket.CLOSED;
+        this.emit("close", this._closeCode, this._closeMessage);
+      }
+      /**
+       * Start a closing handshake.
+       *
+       *          +----------+   +-----------+   +----------+
+       *     - - -|ws.close()|-->|close frame|-->|ws.close()|- - -
+       *    |     +----------+   +-----------+   +----------+     |
+       *          +----------+   +-----------+         |
+       * CLOSING  |ws.close()|<--|close frame|<--+-----+       CLOSING
+       *          +----------+   +-----------+   |
+       *    |           |                        |   +---+        |
+       *                +------------------------+-->|fin| - - - -
+       *    |         +---+                      |   +---+
+       *     - - - - -|fin|<---------------------+
+       *              +---+
+       *
+       * @param {Number} [code] Status code explaining why the connection is closing
+       * @param {(String|Buffer)} [data] The reason why the connection is
+       *     closing
+       * @public
+       */
+      close(code, data) {
+        if (this.readyState === _WebSocket.CLOSED) return;
+        if (this.readyState === _WebSocket.CONNECTING) {
+          const msg = "WebSocket was closed before the connection was established";
+          abortHandshake(this, this._req, msg);
+          return;
+        }
+        if (this.readyState === _WebSocket.CLOSING) {
+          if (this._closeFrameSent && (this._closeFrameReceived || this._receiver._writableState.errorEmitted)) {
+            this._socket.end();
+          }
+          return;
+        }
+        this._readyState = _WebSocket.CLOSING;
+        this._sender.close(code, data, !this._isServer, (err) => {
+          if (err) return;
+          this._closeFrameSent = true;
+          if (this._closeFrameReceived || this._receiver._writableState.errorEmitted) {
+            this._socket.end();
+          }
+        });
+        setCloseTimer(this);
+      }
+      /**
+       * Pause the socket.
+       *
+       * @public
+       */
+      pause() {
+        if (this.readyState === _WebSocket.CONNECTING || this.readyState === _WebSocket.CLOSED) {
+          return;
+        }
+        this._paused = true;
+        this._socket.pause();
+      }
+      /**
+       * Send a ping.
+       *
+       * @param {*} [data] The data to send
+       * @param {Boolean} [mask] Indicates whether or not to mask `data`
+       * @param {Function} [cb] Callback which is executed when the ping is sent
+       * @public
+       */
+      ping(data, mask2, cb) {
+        if (this.readyState === _WebSocket.CONNECTING) {
+          throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
+        }
+        if (typeof data === "function") {
+          cb = data;
+          data = mask2 = void 0;
+        } else if (typeof mask2 === "function") {
+          cb = mask2;
+          mask2 = void 0;
+        }
+        if (typeof data === "number") data = data.toString();
+        if (this.readyState !== _WebSocket.OPEN) {
+          sendAfterClose(this, data, cb);
+          return;
+        }
+        if (mask2 === void 0) mask2 = !this._isServer;
+        this._sender.ping(data || EMPTY_BUFFER, mask2, cb);
+      }
+      /**
+       * Send a pong.
+       *
+       * @param {*} [data] The data to send
+       * @param {Boolean} [mask] Indicates whether or not to mask `data`
+       * @param {Function} [cb] Callback which is executed when the pong is sent
+       * @public
+       */
+      pong(data, mask2, cb) {
+        if (this.readyState === _WebSocket.CONNECTING) {
+          throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
+        }
+        if (typeof data === "function") {
+          cb = data;
+          data = mask2 = void 0;
+        } else if (typeof mask2 === "function") {
+          cb = mask2;
+          mask2 = void 0;
+        }
+        if (typeof data === "number") data = data.toString();
+        if (this.readyState !== _WebSocket.OPEN) {
+          sendAfterClose(this, data, cb);
+          return;
+        }
+        if (mask2 === void 0) mask2 = !this._isServer;
+        this._sender.pong(data || EMPTY_BUFFER, mask2, cb);
+      }
+      /**
+       * Resume the socket.
+       *
+       * @public
+       */
+      resume() {
+        if (this.readyState === _WebSocket.CONNECTING || this.readyState === _WebSocket.CLOSED) {
+          return;
+        }
+        this._paused = false;
+        if (!this._receiver._writableState.needDrain) this._socket.resume();
+      }
+      /**
+       * Send a data message.
+       *
+       * @param {*} data The message to send
+       * @param {Object} [options] Options object
+       * @param {Boolean} [options.binary] Specifies whether `data` is binary or
+       *     text
+       * @param {Boolean} [options.compress] Specifies whether or not to compress
+       *     `data`
+       * @param {Boolean} [options.fin=true] Specifies whether the fragment is the
+       *     last one
+       * @param {Boolean} [options.mask] Specifies whether or not to mask `data`
+       * @param {Function} [cb] Callback which is executed when data is written out
+       * @public
+       */
+      send(data, options3, cb) {
+        if (this.readyState === _WebSocket.CONNECTING) {
+          throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
+        }
+        if (typeof options3 === "function") {
+          cb = options3;
+          options3 = {};
+        }
+        if (typeof data === "number") data = data.toString();
+        if (this.readyState !== _WebSocket.OPEN) {
+          sendAfterClose(this, data, cb);
+          return;
+        }
+        const opts = {
+          binary: typeof data !== "string",
+          mask: !this._isServer,
+          compress: true,
+          fin: true,
+          ...options3
+        };
+        if (!this._extensions[PerMessageDeflate2.extensionName]) {
+          opts.compress = false;
+        }
+        this._sender.send(data || EMPTY_BUFFER, opts, cb);
+      }
+      /**
+       * Forcibly close the connection.
+       *
+       * @public
+       */
+      terminate() {
+        if (this.readyState === _WebSocket.CLOSED) return;
+        if (this.readyState === _WebSocket.CONNECTING) {
+          const msg = "WebSocket was closed before the connection was established";
+          abortHandshake(this, this._req, msg);
+          return;
+        }
+        if (this._socket) {
+          this._readyState = _WebSocket.CLOSING;
+          this._socket.destroy();
+        }
+      }
+    };
+    Object.defineProperty(WebSocket2, "CONNECTING", {
+      enumerable: true,
+      value: readyStates.indexOf("CONNECTING")
+    });
+    Object.defineProperty(WebSocket2.prototype, "CONNECTING", {
+      enumerable: true,
+      value: readyStates.indexOf("CONNECTING")
+    });
+    Object.defineProperty(WebSocket2, "OPEN", {
+      enumerable: true,
+      value: readyStates.indexOf("OPEN")
+    });
+    Object.defineProperty(WebSocket2.prototype, "OPEN", {
+      enumerable: true,
+      value: readyStates.indexOf("OPEN")
+    });
+    Object.defineProperty(WebSocket2, "CLOSING", {
+      enumerable: true,
+      value: readyStates.indexOf("CLOSING")
+    });
+    Object.defineProperty(WebSocket2.prototype, "CLOSING", {
+      enumerable: true,
+      value: readyStates.indexOf("CLOSING")
+    });
+    Object.defineProperty(WebSocket2, "CLOSED", {
+      enumerable: true,
+      value: readyStates.indexOf("CLOSED")
+    });
+    Object.defineProperty(WebSocket2.prototype, "CLOSED", {
+      enumerable: true,
+      value: readyStates.indexOf("CLOSED")
+    });
+    [
+      "binaryType",
+      "bufferedAmount",
+      "extensions",
+      "isPaused",
+      "protocol",
+      "readyState",
+      "url"
+    ].forEach((property) => {
+      Object.defineProperty(WebSocket2.prototype, property, { enumerable: true });
+    });
+    ["open", "error", "close", "message"].forEach((method) => {
+      Object.defineProperty(WebSocket2.prototype, `on${method}`, {
+        enumerable: true,
+        get() {
+          for (const listener of this.listeners(method)) {
+            if (listener[kForOnEventAttribute]) return listener[kListener];
+          }
+          return null;
+        },
+        set(handler) {
+          for (const listener of this.listeners(method)) {
+            if (listener[kForOnEventAttribute]) {
+              this.removeListener(method, listener);
+              break;
+            }
+          }
+          if (typeof handler !== "function") return;
+          this.addEventListener(method, handler, {
+            [kForOnEventAttribute]: true
+          });
+        }
+      });
+    });
+    WebSocket2.prototype.addEventListener = addEventListener;
+    WebSocket2.prototype.removeEventListener = removeEventListener;
+    module.exports = WebSocket2;
+    function initAsClient(websocket, address, protocols, options3) {
+      const opts = {
+        allowSynchronousEvents: true,
+        autoPong: true,
+        closeTimeout: CLOSE_TIMEOUT,
+        protocolVersion: protocolVersions[1],
+        maxBufferedChunks: 256 * 1024,
+        maxFragments: 16 * 1024,
+        maxPayload: 100 * 1024 * 1024,
+        skipUTF8Validation: false,
+        perMessageDeflate: true,
+        followRedirects: false,
+        maxRedirects: 10,
+        ...options3,
+        socketPath: void 0,
+        hostname: void 0,
+        protocol: void 0,
+        timeout: void 0,
+        method: "GET",
+        host: void 0,
+        path: void 0,
+        port: void 0
+      };
+      websocket._autoPong = opts.autoPong;
+      websocket._closeTimeout = opts.closeTimeout;
+      if (!protocolVersions.includes(opts.protocolVersion)) {
+        throw new RangeError(
+          `Unsupported protocol version: ${opts.protocolVersion} (supported versions: ${protocolVersions.join(", ")})`
+        );
+      }
+      let parsedUrl;
+      if (address instanceof URL2) {
+        parsedUrl = address;
+      } else {
+        try {
+          parsedUrl = new URL2(address);
+        } catch {
+          throw new SyntaxError(`Invalid URL: ${address}`);
+        }
+      }
+      if (parsedUrl.protocol === "http:") {
+        parsedUrl.protocol = "ws:";
+      } else if (parsedUrl.protocol === "https:") {
+        parsedUrl.protocol = "wss:";
+      }
+      websocket._url = parsedUrl.href;
+      const isSecure = parsedUrl.protocol === "wss:";
+      const isIpcUrl = parsedUrl.protocol === "ws+unix:";
+      let invalidUrlMessage;
+      if (parsedUrl.protocol !== "ws:" && !isSecure && !isIpcUrl) {
+        invalidUrlMessage = `The URL's protocol must be one of "ws:", "wss:", "http:", "https:", or "ws+unix:"`;
+      } else if (isIpcUrl && !parsedUrl.pathname) {
+        invalidUrlMessage = "The URL's pathname is empty";
+      } else if (parsedUrl.hash) {
+        invalidUrlMessage = "The URL contains a fragment identifier";
+      }
+      if (invalidUrlMessage) {
+        const err = new SyntaxError(invalidUrlMessage);
+        if (websocket._redirects === 0) {
+          throw err;
+        } else {
+          emitErrorAndClose(websocket, err);
+          return;
+        }
+      }
+      const defaultPort = isSecure ? 443 : 80;
+      const key = randomBytes4(16).toString("base64");
+      const request2 = isSecure ? https.request : http4.request;
+      const protocolSet = /* @__PURE__ */ new Set();
+      let perMessageDeflate;
+      opts.createConnection = opts.createConnection || (isSecure ? tlsConnect : netConnect);
+      opts.defaultPort = opts.defaultPort || defaultPort;
+      opts.port = parsedUrl.port || defaultPort;
+      opts.host = parsedUrl.hostname.startsWith("[") ? parsedUrl.hostname.slice(1, -1) : parsedUrl.hostname;
+      opts.headers = {
+        ...opts.headers,
+        "Sec-WebSocket-Version": opts.protocolVersion,
+        "Sec-WebSocket-Key": key,
+        Connection: "Upgrade",
+        Upgrade: "websocket"
+      };
+      opts.path = parsedUrl.pathname + parsedUrl.search;
+      opts.timeout = opts.handshakeTimeout;
+      if (opts.perMessageDeflate) {
+        perMessageDeflate = new PerMessageDeflate2({
+          ...opts.perMessageDeflate,
+          isServer: false,
+          maxPayload: opts.maxPayload
+        });
+        opts.headers["Sec-WebSocket-Extensions"] = format({
+          [PerMessageDeflate2.extensionName]: perMessageDeflate.offer()
+        });
+      }
+      if (protocols.length) {
+        for (const protocol of protocols) {
+          if (typeof protocol !== "string" || !subprotocolRegex.test(protocol) || protocolSet.has(protocol)) {
+            throw new SyntaxError(
+              "An invalid or duplicated subprotocol was specified"
+            );
+          }
+          protocolSet.add(protocol);
+        }
+        opts.headers["Sec-WebSocket-Protocol"] = protocols.join(",");
+      }
+      if (opts.origin) {
+        if (opts.protocolVersion < 13) {
+          opts.headers["Sec-WebSocket-Origin"] = opts.origin;
+        } else {
+          opts.headers.Origin = opts.origin;
+        }
+      }
+      if (parsedUrl.username || parsedUrl.password) {
+        opts.auth = `${parsedUrl.username}:${parsedUrl.password}`;
+      }
+      if (isIpcUrl) {
+        const parts = opts.path.split(":");
+        opts.socketPath = parts[0];
+        opts.path = parts[1];
+      }
+      let req;
+      if (opts.followRedirects) {
+        if (websocket._redirects === 0) {
+          websocket._originalIpc = isIpcUrl;
+          websocket._originalSecure = isSecure;
+          websocket._originalHostOrSocketPath = isIpcUrl ? opts.socketPath : parsedUrl.host;
+          const headers = options3 && options3.headers;
+          options3 = { ...options3, headers: {} };
+          if (headers) {
+            for (const [key2, value] of Object.entries(headers)) {
+              options3.headers[key2.toLowerCase()] = value;
+            }
+          }
+        } else if (websocket.listenerCount("redirect") === 0) {
+          const isSameHost = isIpcUrl ? websocket._originalIpc ? opts.socketPath === websocket._originalHostOrSocketPath : false : websocket._originalIpc ? false : parsedUrl.host === websocket._originalHostOrSocketPath;
+          if (!isSameHost || websocket._originalSecure && !isSecure) {
+            delete opts.headers.authorization;
+            delete opts.headers.cookie;
+            if (!isSameHost) delete opts.headers.host;
+            opts.auth = void 0;
+          }
+        }
+        if (opts.auth && !options3.headers.authorization) {
+          options3.headers.authorization = "Basic " + Buffer.from(opts.auth).toString("base64");
+        }
+        req = websocket._req = request2(opts);
+        if (websocket._redirects) {
+          websocket.emit("redirect", websocket.url, req);
+        }
+      } else {
+        req = websocket._req = request2(opts);
+      }
+      if (opts.timeout) {
+        req.on("timeout", () => {
+          abortHandshake(websocket, req, "Opening handshake has timed out");
+        });
+      }
+      req.on("error", (err) => {
+        if (req === null || req[kAborted]) return;
+        req = websocket._req = null;
+        emitErrorAndClose(websocket, err);
+      });
+      req.on("response", (res) => {
+        const location = res.headers.location;
+        const statusCode = res.statusCode;
+        if (location && opts.followRedirects && statusCode >= 300 && statusCode < 400) {
+          if (++websocket._redirects > opts.maxRedirects) {
+            abortHandshake(websocket, req, "Maximum redirects exceeded");
+            return;
+          }
+          req.abort();
+          let addr;
+          try {
+            addr = new URL2(location, address);
+          } catch (e) {
+            const err = new SyntaxError(`Invalid URL: ${location}`);
+            emitErrorAndClose(websocket, err);
+            return;
+          }
+          initAsClient(websocket, addr, protocols, options3);
+        } else if (!websocket.emit("unexpected-response", req, res)) {
+          abortHandshake(
+            websocket,
+            req,
+            `Unexpected server response: ${res.statusCode}`
+          );
+        }
+      });
+      req.on("upgrade", (res, socket, head) => {
+        websocket.emit("upgrade", res);
+        if (websocket.readyState !== WebSocket2.CONNECTING) return;
+        req = websocket._req = null;
+        const upgrade = res.headers.upgrade;
+        if (upgrade === void 0 || upgrade.toLowerCase() !== "websocket") {
+          abortHandshake(websocket, socket, "Invalid Upgrade header");
+          return;
+        }
+        const digest = createHash11("sha1").update(key + GUID).digest("base64");
+        if (res.headers["sec-websocket-accept"] !== digest) {
+          abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
+          return;
+        }
+        const serverProt = res.headers["sec-websocket-protocol"];
+        let protError;
+        if (serverProt !== void 0) {
+          if (!protocolSet.size) {
+            protError = "Server sent a subprotocol but none was requested";
+          } else if (!protocolSet.has(serverProt)) {
+            protError = "Server sent an invalid subprotocol";
+          }
+        } else if (protocolSet.size) {
+          protError = "Server sent no subprotocol";
+        }
+        if (protError) {
+          abortHandshake(websocket, socket, protError);
+          return;
+        }
+        if (serverProt) websocket._protocol = serverProt;
+        const secWebSocketExtensions = res.headers["sec-websocket-extensions"];
+        if (secWebSocketExtensions !== void 0) {
+          if (!perMessageDeflate) {
+            const message = "Server sent a Sec-WebSocket-Extensions header but no extension was requested";
+            abortHandshake(websocket, socket, message);
+            return;
+          }
+          let extensions;
+          try {
+            extensions = parse4(secWebSocketExtensions);
+          } catch (err) {
+            const message = "Invalid Sec-WebSocket-Extensions header";
+            abortHandshake(websocket, socket, message);
+            return;
+          }
+          const extensionNames = Object.keys(extensions);
+          if (extensionNames.length !== 1 || extensionNames[0] !== PerMessageDeflate2.extensionName) {
+            const message = "Server indicated an extension that was not requested";
+            abortHandshake(websocket, socket, message);
+            return;
+          }
+          try {
+            perMessageDeflate.accept(extensions[PerMessageDeflate2.extensionName]);
+          } catch (err) {
+            const message = "Invalid Sec-WebSocket-Extensions header";
+            abortHandshake(websocket, socket, message);
+            return;
+          }
+          websocket._extensions[PerMessageDeflate2.extensionName] = perMessageDeflate;
+        }
+        websocket.setSocket(socket, head, {
+          allowSynchronousEvents: opts.allowSynchronousEvents,
+          generateMask: opts.generateMask,
+          maxBufferedChunks: opts.maxBufferedChunks,
+          maxFragments: opts.maxFragments,
+          maxPayload: opts.maxPayload,
+          skipUTF8Validation: opts.skipUTF8Validation
+        });
+      });
+      if (opts.finishRequest) {
+        opts.finishRequest(req, websocket);
+      } else {
+        req.end();
+      }
+    }
+    function emitErrorAndClose(websocket, err) {
+      websocket._readyState = WebSocket2.CLOSING;
+      websocket._errorEmitted = true;
+      websocket.emit("error", err);
+      websocket.emitClose();
+    }
+    function netConnect(options3) {
+      options3.path = options3.socketPath;
+      return net.connect(options3);
+    }
+    function tlsConnect(options3) {
+      options3.path = void 0;
+      if (!options3.servername && options3.servername !== "") {
+        options3.servername = net.isIP(options3.host) ? "" : options3.host;
+      }
+      return tls.connect(options3);
+    }
+    function abortHandshake(websocket, stream, message) {
+      websocket._readyState = WebSocket2.CLOSING;
+      const err = new Error(message);
+      Error.captureStackTrace(err, abortHandshake);
+      if (stream.setHeader) {
+        stream[kAborted] = true;
+        stream.abort();
+        if (stream.socket && !stream.socket.destroyed) {
+          stream.socket.destroy();
+        }
+        process.nextTick(emitErrorAndClose, websocket, err);
+      } else {
+        stream.destroy(err);
+        stream.once("error", websocket.emit.bind(websocket, "error"));
+        stream.once("close", websocket.emitClose.bind(websocket));
+      }
+    }
+    function sendAfterClose(websocket, data, cb) {
+      if (data) {
+        const length = isBlob(data) ? data.size : toBuffer(data).length;
+        if (websocket._socket) websocket._sender._bufferedBytes += length;
+        else websocket._bufferedAmount += length;
+      }
+      if (cb) {
+        const err = new Error(
+          `WebSocket is not open: readyState ${websocket.readyState} (${readyStates[websocket.readyState]})`
+        );
+        process.nextTick(cb, err);
+      }
+    }
+    function receiverOnConclude(code, reason) {
+      const websocket = this[kWebSocket];
+      websocket._closeFrameReceived = true;
+      websocket._closeMessage = reason;
+      websocket._closeCode = code;
+      if (websocket._socket[kWebSocket] === void 0) return;
+      websocket._socket.removeListener("data", socketOnData);
+      process.nextTick(resume, websocket._socket);
+      if (code === 1005) websocket.close();
+      else websocket.close(code, reason);
+    }
+    function receiverOnDrain() {
+      const websocket = this[kWebSocket];
+      if (!websocket.isPaused) websocket._socket.resume();
+    }
+    function receiverOnError(err) {
+      const websocket = this[kWebSocket];
+      if (websocket._socket[kWebSocket] !== void 0) {
+        websocket._socket.removeListener("data", socketOnData);
+        process.nextTick(resume, websocket._socket);
+        websocket.close(err[kStatusCode]);
+      }
+      if (!websocket._errorEmitted) {
+        websocket._errorEmitted = true;
+        websocket.emit("error", err);
+      }
+    }
+    function receiverOnFinish() {
+      this[kWebSocket].emitClose();
+    }
+    function receiverOnMessage(data, isBinary) {
+      this[kWebSocket].emit("message", data, isBinary);
+    }
+    function receiverOnPing(data) {
+      const websocket = this[kWebSocket];
+      if (websocket._autoPong) websocket.pong(data, !this._isServer, NOOP);
+      websocket.emit("ping", data);
+    }
+    function receiverOnPong(data) {
+      this[kWebSocket].emit("pong", data);
+    }
+    function resume(stream) {
+      stream.resume();
+    }
+    function senderOnError(err) {
+      const websocket = this[kWebSocket];
+      if (websocket.readyState === WebSocket2.CLOSED) return;
+      if (websocket.readyState === WebSocket2.OPEN) {
+        websocket._readyState = WebSocket2.CLOSING;
+        setCloseTimer(websocket);
+      }
+      this._socket.end();
+      if (!websocket._errorEmitted) {
+        websocket._errorEmitted = true;
+        websocket.emit("error", err);
+      }
+    }
+    function setCloseTimer(websocket) {
+      websocket._closeTimer = setTimeout(
+        websocket._socket.destroy.bind(websocket._socket),
+        websocket._closeTimeout
+      );
+    }
+    function socketOnClose() {
+      const websocket = this[kWebSocket];
+      this.removeListener("close", socketOnClose);
+      this.removeListener("data", socketOnData);
+      this.removeListener("end", socketOnEnd);
+      websocket._readyState = WebSocket2.CLOSING;
+      if (!this._readableState.endEmitted && !websocket._closeFrameReceived && !websocket._receiver._writableState.errorEmitted && this._readableState.length !== 0) {
+        const chunk = this.read(this._readableState.length);
+        websocket._receiver.write(chunk);
+      }
+      websocket._receiver.end();
+      this[kWebSocket] = void 0;
+      clearTimeout(websocket._closeTimer);
+      if (websocket._receiver._writableState.finished || websocket._receiver._writableState.errorEmitted) {
+        websocket.emitClose();
+      } else {
+        websocket._receiver.on("error", receiverOnFinish);
+        websocket._receiver.on("finish", receiverOnFinish);
+      }
+    }
+    function socketOnData(chunk) {
+      if (!this[kWebSocket]._receiver.write(chunk)) {
+        this.pause();
+      }
+    }
+    function socketOnEnd() {
+      const websocket = this[kWebSocket];
+      websocket._readyState = WebSocket2.CLOSING;
+      websocket._receiver.end();
+      this.end();
+    }
+    function socketOnError() {
+      const websocket = this[kWebSocket];
+      this.removeListener("error", socketOnError);
+      this.on("error", NOOP);
+      if (websocket) {
+        websocket._readyState = WebSocket2.CLOSING;
+        this.destroy();
+      }
+    }
+  }
+});
+
+// node_modules/ws/lib/stream.js
+var require_stream = __commonJS({
+  "node_modules/ws/lib/stream.js"(exports, module) {
+    "use strict";
+    var WebSocket2 = require_websocket();
+    var { Duplex } = __require("stream");
+    function emitClose(stream) {
+      stream.emit("close");
+    }
+    function duplexOnEnd() {
+      if (!this.destroyed && this._writableState.finished) {
+        this.destroy();
+      }
+    }
+    function duplexOnError(err) {
+      this.removeListener("error", duplexOnError);
+      this.destroy();
+      if (this.listenerCount("error") === 0) {
+        this.emit("error", err);
+      }
+    }
+    function createWebSocketStream2(ws, options3) {
+      let terminateOnDestroy = true;
+      const duplex = new Duplex({
+        ...options3,
+        autoDestroy: false,
+        emitClose: false,
+        objectMode: false,
+        writableObjectMode: false
+      });
+      ws.on("message", function message(msg, isBinary) {
+        const data = !isBinary && duplex._readableState.objectMode ? msg.toString() : msg;
+        if (!duplex.push(data)) ws.pause();
+      });
+      ws.once("error", function error2(err) {
+        if (duplex.destroyed) return;
+        terminateOnDestroy = false;
+        duplex.destroy(err);
+      });
+      ws.once("close", function close() {
+        if (duplex.destroyed) return;
+        duplex.push(null);
+      });
+      duplex._destroy = function(err, callback) {
+        if (ws.readyState === ws.CLOSED) {
+          callback(err);
+          process.nextTick(emitClose, duplex);
+          return;
+        }
+        let called = false;
+        ws.once("error", function error2(err2) {
+          called = true;
+          callback(err2);
+        });
+        ws.once("close", function close() {
+          if (!called) callback(err);
+          process.nextTick(emitClose, duplex);
+        });
+        if (terminateOnDestroy) ws.terminate();
+      };
+      duplex._final = function(callback) {
+        if (ws.readyState === ws.CONNECTING) {
+          ws.once("open", function open() {
+            duplex._final(callback);
+          });
+          return;
+        }
+        if (ws._socket === null) return;
+        if (ws._socket._writableState.finished) {
+          callback();
+          if (duplex._readableState.endEmitted) duplex.destroy();
+        } else {
+          ws._socket.once("finish", function finish() {
+            callback();
+          });
+          ws.close();
+        }
+      };
+      duplex._read = function() {
+        if (ws.isPaused) ws.resume();
+      };
+      duplex._write = function(chunk, encoding, callback) {
+        if (ws.readyState === ws.CONNECTING) {
+          ws.once("open", function open() {
+            duplex._write(chunk, encoding, callback);
+          });
+          return;
+        }
+        ws.send(chunk, callback);
+      };
+      duplex.on("end", duplexOnEnd);
+      duplex.on("error", duplexOnError);
+      return duplex;
+    }
+    module.exports = createWebSocketStream2;
+  }
+});
+
+// node_modules/ws/lib/subprotocol.js
+var require_subprotocol = __commonJS({
+  "node_modules/ws/lib/subprotocol.js"(exports, module) {
+    "use strict";
+    var { tokenChars } = require_validation3();
+    function parse4(header) {
+      const protocols = /* @__PURE__ */ new Set();
+      let start = -1;
+      let end = -1;
+      let i = 0;
+      for (i; i < header.length; i++) {
+        const code = header.charCodeAt(i);
+        if (end === -1 && tokenChars[code] === 1) {
+          if (start === -1) start = i;
+        } else if (i !== 0 && (code === 32 || code === 9)) {
+          if (end === -1 && start !== -1) end = i;
+        } else if (code === 44) {
+          if (start === -1) {
+            throw new SyntaxError(`Unexpected character at index ${i}`);
+          }
+          if (end === -1) end = i;
+          const protocol2 = header.slice(start, end);
+          if (protocols.has(protocol2)) {
+            throw new SyntaxError(`The "${protocol2}" subprotocol is duplicated`);
+          }
+          protocols.add(protocol2);
+          start = end = -1;
+        } else {
+          throw new SyntaxError(`Unexpected character at index ${i}`);
+        }
+      }
+      if (start === -1 || end !== -1) {
+        throw new SyntaxError("Unexpected end of input");
+      }
+      const protocol = header.slice(start, i);
+      if (protocols.has(protocol)) {
+        throw new SyntaxError(`The "${protocol}" subprotocol is duplicated`);
+      }
+      protocols.add(protocol);
+      return protocols;
+    }
+    module.exports = { parse: parse4 };
+  }
+});
+
+// node_modules/ws/lib/websocket-server.js
+var require_websocket_server = __commonJS({
+  "node_modules/ws/lib/websocket-server.js"(exports, module) {
+    "use strict";
+    var EventEmitter = __require("events");
+    var http4 = __require("http");
+    var { Duplex } = __require("stream");
+    var { createHash: createHash11 } = __require("crypto");
+    var extension2 = require_extension();
+    var PerMessageDeflate2 = require_permessage_deflate();
+    var subprotocol2 = require_subprotocol();
+    var WebSocket2 = require_websocket();
+    var { CLOSE_TIMEOUT, GUID, kWebSocket } = require_constants();
+    var keyRegex = /^[+/0-9A-Za-z]{22}==$/;
+    var RUNNING = 0;
+    var CLOSING = 1;
+    var CLOSED = 2;
+    var WebSocketServer2 = class extends EventEmitter {
+      /**
+       * Create a `WebSocketServer` instance.
+       *
+       * @param {Object} options Configuration options
+       * @param {Boolean} [options.allowSynchronousEvents=true] Specifies whether
+       *     any of the `'message'`, `'ping'`, and `'pong'` events can be emitted
+       *     multiple times in the same tick
+       * @param {Boolean} [options.autoPong=true] Specifies whether or not to
+       *     automatically send a pong in response to a ping
+       * @param {Number} [options.backlog=511] The maximum length of the queue of
+       *     pending connections
+       * @param {Boolean} [options.clientTracking=true] Specifies whether or not to
+       *     track clients
+       * @param {Number} [options.closeTimeout=30000] Duration in milliseconds to
+       *     wait for the closing handshake to finish after `websocket.close()` is
+       *     called
+       * @param {Function} [options.handleProtocols] A hook to handle protocols
+       * @param {String} [options.host] The hostname where to bind the server
+       * @param {Number} [options.maxBufferedChunks=262144] The maximum number of
+       *     buffered data chunks
+       * @param {Number} [options.maxFragments=16384] The maximum number of message
+       *     fragments
+       * @param {Number} [options.maxPayload=104857600] The maximum allowed message
+       *     size
+       * @param {Boolean} [options.noServer=false] Enable no server mode
+       * @param {String} [options.path] Accept only connections matching this path
+       * @param {(Boolean|Object)} [options.perMessageDeflate=false] Enable/disable
+       *     permessage-deflate
+       * @param {Number} [options.port] The port where to bind the server
+       * @param {(http.Server|https.Server)} [options.server] A pre-created HTTP/S
+       *     server to use
+       * @param {Boolean} [options.skipUTF8Validation=false] Specifies whether or
+       *     not to skip UTF-8 validation for text and close messages
+       * @param {Function} [options.verifyClient] A hook to reject connections
+       * @param {Function} [options.WebSocket=WebSocket] Specifies the `WebSocket`
+       *     class to use. It must be the `WebSocket` class or class that extends it
+       * @param {Function} [callback] A listener for the `listening` event
+       */
+      constructor(options3, callback) {
+        super();
+        options3 = {
+          allowSynchronousEvents: true,
+          autoPong: true,
+          maxBufferedChunks: 256 * 1024,
+          maxFragments: 16 * 1024,
+          maxPayload: 100 * 1024 * 1024,
+          skipUTF8Validation: false,
+          perMessageDeflate: false,
+          handleProtocols: null,
+          clientTracking: true,
+          closeTimeout: CLOSE_TIMEOUT,
+          verifyClient: null,
+          noServer: false,
+          backlog: null,
+          // use default (511 as implemented in net.js)
+          server: null,
+          host: null,
+          path: null,
+          port: null,
+          WebSocket: WebSocket2,
+          ...options3
+        };
+        if (options3.port == null && !options3.server && !options3.noServer || options3.port != null && (options3.server || options3.noServer) || options3.server && options3.noServer) {
+          throw new TypeError(
+            'One and only one of the "port", "server", or "noServer" options must be specified'
+          );
+        }
+        if (options3.port != null) {
+          this._server = http4.createServer((req, res) => {
+            const body = http4.STATUS_CODES[426];
+            res.writeHead(426, {
+              "Content-Length": body.length,
+              "Content-Type": "text/plain"
+            });
+            res.end(body);
+          });
+          this._server.listen(
+            options3.port,
+            options3.host,
+            options3.backlog,
+            callback
+          );
+        } else if (options3.server) {
+          this._server = options3.server;
+        }
+        if (this._server) {
+          const emitConnection = this.emit.bind(this, "connection");
+          this._removeListeners = addListeners(this._server, {
+            listening: this.emit.bind(this, "listening"),
+            error: this.emit.bind(this, "error"),
+            upgrade: (req, socket, head) => {
+              this.handleUpgrade(req, socket, head, emitConnection);
+            }
+          });
+        }
+        if (options3.perMessageDeflate === true) options3.perMessageDeflate = {};
+        if (options3.clientTracking) {
+          this.clients = /* @__PURE__ */ new Set();
+          this._shouldEmitClose = false;
+        }
+        this.options = options3;
+        this._state = RUNNING;
+      }
+      /**
+       * Returns the bound address, the address family name, and port of the server
+       * as reported by the operating system if listening on an IP socket.
+       * If the server is listening on a pipe or UNIX domain socket, the name is
+       * returned as a string.
+       *
+       * @return {(Object|String|null)} The address of the server
+       * @public
+       */
+      address() {
+        if (this.options.noServer) {
+          throw new Error('The server is operating in "noServer" mode');
+        }
+        if (!this._server) return null;
+        return this._server.address();
+      }
+      /**
+       * Stop the server from accepting new connections and emit the `'close'` event
+       * when all existing connections are closed.
+       *
+       * @param {Function} [cb] A one-time listener for the `'close'` event
+       * @public
+       */
+      close(cb) {
+        if (this._state === CLOSED) {
+          if (cb) {
+            this.once("close", () => {
+              cb(new Error("The server is not running"));
+            });
+          }
+          process.nextTick(emitClose, this);
+          return;
+        }
+        if (cb) this.once("close", cb);
+        if (this._state === CLOSING) return;
+        this._state = CLOSING;
+        if (this.options.noServer || this.options.server) {
+          if (this._server) {
+            this._removeListeners();
+            this._removeListeners = this._server = null;
+          }
+          if (this.clients) {
+            if (!this.clients.size) {
+              process.nextTick(emitClose, this);
+            } else {
+              this._shouldEmitClose = true;
+            }
+          } else {
+            process.nextTick(emitClose, this);
+          }
+        } else {
+          const server = this._server;
+          this._removeListeners();
+          this._removeListeners = this._server = null;
+          server.close(() => {
+            emitClose(this);
+          });
+        }
+      }
+      /**
+       * See if a given request should be handled by this server instance.
+       *
+       * @param {http.IncomingMessage} req Request object to inspect
+       * @return {Boolean} `true` if the request is valid, else `false`
+       * @public
+       */
+      shouldHandle(req) {
+        if (this.options.path) {
+          const index = req.url.indexOf("?");
+          const pathname = index !== -1 ? req.url.slice(0, index) : req.url;
+          if (pathname !== this.options.path) return false;
+        }
+        return true;
+      }
+      /**
+       * Handle a HTTP Upgrade request.
+       *
+       * @param {http.IncomingMessage} req The request object
+       * @param {Duplex} socket The network socket between the server and client
+       * @param {Buffer} head The first packet of the upgraded stream
+       * @param {Function} cb Callback
+       * @public
+       */
+      handleUpgrade(req, socket, head, cb) {
+        socket.on("error", socketOnError);
+        const key = req.headers["sec-websocket-key"];
+        const upgrade = req.headers.upgrade;
+        const version2 = +req.headers["sec-websocket-version"];
+        if (req.method !== "GET") {
+          const message = "Invalid HTTP method";
+          abortHandshakeOrEmitwsClientError(this, req, socket, 405, message);
+          return;
+        }
+        if (upgrade === void 0 || upgrade.toLowerCase() !== "websocket") {
+          const message = "Invalid Upgrade header";
+          abortHandshakeOrEmitwsClientError(this, req, socket, 400, message);
+          return;
+        }
+        if (key === void 0 || !keyRegex.test(key)) {
+          const message = "Missing or invalid Sec-WebSocket-Key header";
+          abortHandshakeOrEmitwsClientError(this, req, socket, 400, message);
+          return;
+        }
+        if (version2 !== 13 && version2 !== 8) {
+          const message = "Missing or invalid Sec-WebSocket-Version header";
+          abortHandshakeOrEmitwsClientError(this, req, socket, 400, message, {
+            "Sec-WebSocket-Version": "13, 8"
+          });
+          return;
+        }
+        if (!this.shouldHandle(req)) {
+          abortHandshake(socket, 400);
+          return;
+        }
+        const secWebSocketProtocol = req.headers["sec-websocket-protocol"];
+        let protocols = /* @__PURE__ */ new Set();
+        if (secWebSocketProtocol !== void 0) {
+          try {
+            protocols = subprotocol2.parse(secWebSocketProtocol);
+          } catch (err) {
+            const message = "Invalid Sec-WebSocket-Protocol header";
+            abortHandshakeOrEmitwsClientError(this, req, socket, 400, message);
+            return;
+          }
+        }
+        const secWebSocketExtensions = req.headers["sec-websocket-extensions"];
+        const extensions = {};
+        if (this.options.perMessageDeflate && secWebSocketExtensions !== void 0) {
+          const perMessageDeflate = new PerMessageDeflate2({
+            ...this.options.perMessageDeflate,
+            isServer: true,
+            maxPayload: this.options.maxPayload
+          });
+          try {
+            const offers = extension2.parse(secWebSocketExtensions);
+            if (offers[PerMessageDeflate2.extensionName]) {
+              perMessageDeflate.accept(offers[PerMessageDeflate2.extensionName]);
+              extensions[PerMessageDeflate2.extensionName] = perMessageDeflate;
+            }
+          } catch (err) {
+            const message = "Invalid or unacceptable Sec-WebSocket-Extensions header";
+            abortHandshakeOrEmitwsClientError(this, req, socket, 400, message);
+            return;
+          }
+        }
+        if (this.options.verifyClient) {
+          const info = {
+            origin: req.headers[`${version2 === 8 ? "sec-websocket-origin" : "origin"}`],
+            secure: !!(req.socket.authorized || req.socket.encrypted),
+            req
+          };
+          if (this.options.verifyClient.length === 2) {
+            this.options.verifyClient(info, (verified, code, message, headers) => {
+              if (!verified) {
+                return abortHandshake(socket, code || 401, message, headers);
+              }
+              this.completeUpgrade(
+                extensions,
+                key,
+                protocols,
+                req,
+                socket,
+                head,
+                cb
+              );
+            });
+            return;
+          }
+          if (!this.options.verifyClient(info)) return abortHandshake(socket, 401);
+        }
+        this.completeUpgrade(extensions, key, protocols, req, socket, head, cb);
+      }
+      /**
+       * Upgrade the connection to WebSocket.
+       *
+       * @param {Object} extensions The accepted extensions
+       * @param {String} key The value of the `Sec-WebSocket-Key` header
+       * @param {Set} protocols The subprotocols
+       * @param {http.IncomingMessage} req The request object
+       * @param {Duplex} socket The network socket between the server and client
+       * @param {Buffer} head The first packet of the upgraded stream
+       * @param {Function} cb Callback
+       * @throws {Error} If called more than once with the same socket
+       * @private
+       */
+      completeUpgrade(extensions, key, protocols, req, socket, head, cb) {
+        if (!socket.readable || !socket.writable) return socket.destroy();
+        if (socket[kWebSocket]) {
+          throw new Error(
+            "server.handleUpgrade() was called more than once with the same socket, possibly due to a misconfiguration"
+          );
+        }
+        if (this._state > RUNNING) return abortHandshake(socket, 503);
+        const digest = createHash11("sha1").update(key + GUID).digest("base64");
+        const headers = [
+          "HTTP/1.1 101 Switching Protocols",
+          "Upgrade: websocket",
+          "Connection: Upgrade",
+          `Sec-WebSocket-Accept: ${digest}`
+        ];
+        const ws = new this.options.WebSocket(null, void 0, this.options);
+        if (protocols.size) {
+          const protocol = this.options.handleProtocols ? this.options.handleProtocols(protocols, req) : protocols.values().next().value;
+          if (protocol) {
+            headers.push(`Sec-WebSocket-Protocol: ${protocol}`);
+            ws._protocol = protocol;
+          }
+        }
+        if (extensions[PerMessageDeflate2.extensionName]) {
+          const params = extensions[PerMessageDeflate2.extensionName].params;
+          const value = extension2.format({
+            [PerMessageDeflate2.extensionName]: [params]
+          });
+          headers.push(`Sec-WebSocket-Extensions: ${value}`);
+          ws._extensions = extensions;
+        }
+        this.emit("headers", headers, req);
+        socket.write(headers.concat("\r\n").join("\r\n"));
+        socket.removeListener("error", socketOnError);
+        ws.setSocket(socket, head, {
+          allowSynchronousEvents: this.options.allowSynchronousEvents,
+          maxBufferedChunks: this.options.maxBufferedChunks,
+          maxFragments: this.options.maxFragments,
+          maxPayload: this.options.maxPayload,
+          skipUTF8Validation: this.options.skipUTF8Validation
+        });
+        if (this.clients) {
+          this.clients.add(ws);
+          ws.on("close", () => {
+            this.clients.delete(ws);
+            if (this._shouldEmitClose && !this.clients.size) {
+              process.nextTick(emitClose, this);
+            }
+          });
+        }
+        cb(ws, req);
+      }
+    };
+    module.exports = WebSocketServer2;
+    function addListeners(server, map2) {
+      for (const event of Object.keys(map2)) server.on(event, map2[event]);
+      return function removeListeners() {
+        for (const event of Object.keys(map2)) {
+          server.removeListener(event, map2[event]);
+        }
+      };
+    }
+    function emitClose(server) {
+      server._state = CLOSED;
+      server.emit("close");
+    }
+    function socketOnError() {
+      this.destroy();
+    }
+    function abortHandshake(socket, code, message, headers) {
+      message = message || http4.STATUS_CODES[code];
+      headers = {
+        Connection: "close",
+        "Content-Type": "text/html",
+        "Content-Length": Buffer.byteLength(message),
+        ...headers
+      };
+      socket.once("finish", socket.destroy);
+      socket.end(
+        `HTTP/1.1 ${code} ${http4.STATUS_CODES[code]}\r
+` + Object.keys(headers).map((h) => `${h}: ${headers[h]}`).join("\r\n") + "\r\n\r\n" + message
+      );
+    }
+    function abortHandshakeOrEmitwsClientError(server, req, socket, code, message, headers) {
+      if (server.listenerCount("wsClientError")) {
+        const err = new Error(message);
+        Error.captureStackTrace(err, abortHandshakeOrEmitwsClientError);
+        server.emit("wsClientError", err, socket, req);
+      } else {
+        abortHandshake(socket, code, message, headers);
+      }
+    }
+  }
+});
+
+// node_modules/protobufjs/src/util/aspromise.js
+var require_aspromise = __commonJS({
+  "node_modules/protobufjs/src/util/aspromise.js"(exports, module) {
+    "use strict";
+    module.exports = asPromise;
+    function asPromise(fn, ctx) {
+      var params = new Array(arguments.length - 1), offset = 0, index = 2, pending = true;
+      while (index < arguments.length)
+        params[offset++] = arguments[index++];
+      return new Promise(function executor(resolve, reject) {
+        params[offset] = function callback(err) {
+          if (pending) {
+            pending = false;
+            if (err)
+              reject(err);
+            else {
+              var params2 = new Array(arguments.length - 1), offset2 = 0;
+              while (offset2 < params2.length)
+                params2[offset2++] = arguments[offset2];
+              resolve.apply(null, params2);
+            }
+          }
+        };
+        try {
+          fn.apply(ctx || null, params);
+        } catch (err) {
+          if (pending) {
+            pending = false;
+            reject(err);
+          }
+        }
+      });
+    }
+  }
+});
+
+// node_modules/protobufjs/src/util/base64.js
+var require_base64 = __commonJS({
+  "node_modules/protobufjs/src/util/base64.js"(exports) {
+    "use strict";
+    var base643 = exports;
+    base643.length = function length(string4) {
+      var p = string4.length;
+      if (!p)
+        return 0;
+      while (p > 0 && string4.charAt(p - 1) === "=")
+        --p;
+      return Math.floor(p * 3 / 4);
+    };
+    var b64 = new Array(64);
+    var s64 = new Array(123);
+    for (i = 0; i < 64; )
+      s64[b64[i] = i < 26 ? i + 65 : i < 52 ? i + 71 : i < 62 ? i - 4 : i - 59 | 43] = i++;
+    var i;
+    s64[45] = 62;
+    s64[95] = 63;
+    base643.encode = function encode3(buffer, start, end) {
+      var parts = null, chunk = [];
+      var i2 = 0, j = 0, t;
+      while (start < end) {
+        var b = buffer[start++];
+        switch (j) {
+          case 0:
+            chunk[i2++] = b64[b >> 2];
+            t = (b & 3) << 4;
+            j = 1;
+            break;
+          case 1:
+            chunk[i2++] = b64[t | b >> 4];
+            t = (b & 15) << 2;
+            j = 2;
+            break;
+          case 2:
+            chunk[i2++] = b64[t | b >> 6];
+            chunk[i2++] = b64[b & 63];
+            j = 0;
+            break;
+        }
+        if (i2 > 8191) {
+          (parts || (parts = [])).push(String.fromCharCode.apply(String, chunk));
+          i2 = 0;
+        }
+      }
+      if (j) {
+        chunk[i2++] = b64[t];
+        chunk[i2++] = 61;
+        if (j === 1)
+          chunk[i2++] = 61;
+      }
+      if (parts) {
+        if (i2)
+          parts.push(String.fromCharCode.apply(String, chunk.slice(0, i2)));
+        return parts.join("");
+      }
+      return String.fromCharCode.apply(String, chunk.slice(0, i2));
+    };
+    var invalidEncoding = "invalid encoding";
+    base643.decode = function decode3(string4, buffer, offset) {
+      var start = offset;
+      var j = 0, t;
+      for (var i2 = 0; i2 < string4.length; ) {
+        var c = string4.charCodeAt(i2++);
+        if (c === 61 && j > 1)
+          break;
+        if ((c = s64[c]) === void 0)
+          throw Error(invalidEncoding);
+        switch (j) {
+          case 0:
+            t = c;
+            j = 1;
+            break;
+          case 1:
+            buffer[offset++] = t << 2 | (c & 48) >> 4;
+            t = c;
+            j = 2;
+            break;
+          case 2:
+            buffer[offset++] = (t & 15) << 4 | (c & 60) >> 2;
+            t = c;
+            j = 3;
+            break;
+          case 3:
+            buffer[offset++] = (t & 3) << 6 | c;
+            j = 0;
+            break;
+        }
+      }
+      if (j === 1)
+        throw Error(invalidEncoding);
+      return offset - start;
+    };
+    var base64Re = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+    var base64UrlRe = /[-_]/;
+    var base64UrlNoPaddingRe = /^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-]{2}(?:==)?|[A-Za-z0-9_-]{3}=?)?$/;
+    base643.test = function test(string4) {
+      return base64Re.test(string4) || base64UrlRe.test(string4) && base64UrlNoPaddingRe.test(string4);
+    };
+  }
+});
+
+// node_modules/protobufjs/src/util/eventemitter.js
+var require_eventemitter = __commonJS({
+  "node_modules/protobufjs/src/util/eventemitter.js"(exports, module) {
+    "use strict";
+    module.exports = EventEmitter;
+    function EventEmitter() {
+      this._listeners = /* @__PURE__ */ Object.create(null);
+    }
+    EventEmitter.prototype.on = function on(evt, fn, ctx) {
+      (this._listeners[evt] || (this._listeners[evt] = [])).push({
+        fn,
+        ctx: ctx || this
+      });
+      return this;
+    };
+    EventEmitter.prototype.off = function off(evt, fn) {
+      if (evt === void 0)
+        this._listeners = /* @__PURE__ */ Object.create(null);
+      else {
+        if (fn === void 0)
+          this._listeners[evt] = [];
+        else {
+          var listeners = this._listeners[evt];
+          if (!listeners)
+            return this;
+          for (var i = 0; i < listeners.length; )
+            if (listeners[i].fn === fn)
+              listeners.splice(i, 1);
+            else
+              ++i;
+        }
+      }
+      return this;
+    };
+    EventEmitter.prototype.emit = function emit2(evt) {
+      var listeners = this._listeners[evt];
+      if (listeners) {
+        var args = [], i = 1;
+        for (; i < arguments.length; )
+          args.push(arguments[i++]);
+        for (i = 0; i < listeners.length; )
+          listeners[i].fn.apply(listeners[i++].ctx, args);
+      }
+      return this;
+    };
+  }
+});
+
+// node_modules/protobufjs/src/util/float.js
+var require_float = __commonJS({
+  "node_modules/protobufjs/src/util/float.js"(exports, module) {
+    "use strict";
+    module.exports = factory(factory);
+    function factory(exports2) {
+      if (typeof Float32Array !== "undefined") (function() {
+        var f32 = new Float32Array([-0]), f8b = new Uint8Array(f32.buffer), le = f8b[3] === 128;
+        function writeFloat_f32_cpy(val, buf, pos) {
+          f32[0] = val;
+          buf[pos] = f8b[0];
+          buf[pos + 1] = f8b[1];
+          buf[pos + 2] = f8b[2];
+          buf[pos + 3] = f8b[3];
+        }
+        function writeFloat_f32_rev(val, buf, pos) {
+          f32[0] = val;
+          buf[pos] = f8b[3];
+          buf[pos + 1] = f8b[2];
+          buf[pos + 2] = f8b[1];
+          buf[pos + 3] = f8b[0];
+        }
+        exports2.writeFloatLE = le ? writeFloat_f32_cpy : writeFloat_f32_rev;
+        exports2.writeFloatBE = le ? writeFloat_f32_rev : writeFloat_f32_cpy;
+        function readFloat_f32_cpy(buf, pos) {
+          f8b[0] = buf[pos];
+          f8b[1] = buf[pos + 1];
+          f8b[2] = buf[pos + 2];
+          f8b[3] = buf[pos + 3];
+          return f32[0];
+        }
+        function readFloat_f32_rev(buf, pos) {
+          f8b[3] = buf[pos];
+          f8b[2] = buf[pos + 1];
+          f8b[1] = buf[pos + 2];
+          f8b[0] = buf[pos + 3];
+          return f32[0];
+        }
+        exports2.readFloatLE = le ? readFloat_f32_cpy : readFloat_f32_rev;
+        exports2.readFloatBE = le ? readFloat_f32_rev : readFloat_f32_cpy;
+      })();
+      else (function() {
+        function writeFloat_ieee754(writeUint, val, buf, pos) {
+          var sign = val < 0 ? 1 : 0;
+          if (sign)
+            val = -val;
+          if (val === 0)
+            writeUint(1 / val > 0 ? (
+              /* positive */
+              0
+            ) : (
+              /* negative 0 */
+              2147483648
+            ), buf, pos);
+          else if (isNaN(val))
+            writeUint(2143289344, buf, pos);
+          else if (val > 34028234663852886e22)
+            writeUint((sign << 31 | 2139095040) >>> 0, buf, pos);
+          else if (val < 11754943508222875e-54)
+            writeUint((sign << 31 | Math.round(val / 1401298464324817e-60)) >>> 0, buf, pos);
+          else {
+            var exponent = Math.floor(Math.log(val) / Math.LN2), mantissa = Math.round(val * Math.pow(2, -exponent) * 8388608) & 8388607;
+            writeUint((sign << 31 | exponent + 127 << 23 | mantissa) >>> 0, buf, pos);
+          }
+        }
+        exports2.writeFloatLE = writeFloat_ieee754.bind(null, writeUintLE);
+        exports2.writeFloatBE = writeFloat_ieee754.bind(null, writeUintBE);
+        function readFloat_ieee754(readUint, buf, pos) {
+          var uint = readUint(buf, pos), sign = (uint >> 31) * 2 + 1, exponent = uint >>> 23 & 255, mantissa = uint & 8388607;
+          return exponent === 255 ? mantissa ? NaN : sign * Infinity : exponent === 0 ? sign * 1401298464324817e-60 * mantissa : sign * Math.pow(2, exponent - 150) * (mantissa + 8388608);
+        }
+        exports2.readFloatLE = readFloat_ieee754.bind(null, readUintLE);
+        exports2.readFloatBE = readFloat_ieee754.bind(null, readUintBE);
+      })();
+      if (typeof Float64Array !== "undefined") (function() {
+        var f64 = new Float64Array([-0]), f8b = new Uint8Array(f64.buffer), le = f8b[7] === 128;
+        function writeDouble_f64_cpy(val, buf, pos) {
+          f64[0] = val;
+          buf[pos] = f8b[0];
+          buf[pos + 1] = f8b[1];
+          buf[pos + 2] = f8b[2];
+          buf[pos + 3] = f8b[3];
+          buf[pos + 4] = f8b[4];
+          buf[pos + 5] = f8b[5];
+          buf[pos + 6] = f8b[6];
+          buf[pos + 7] = f8b[7];
+        }
+        function writeDouble_f64_rev(val, buf, pos) {
+          f64[0] = val;
+          buf[pos] = f8b[7];
+          buf[pos + 1] = f8b[6];
+          buf[pos + 2] = f8b[5];
+          buf[pos + 3] = f8b[4];
+          buf[pos + 4] = f8b[3];
+          buf[pos + 5] = f8b[2];
+          buf[pos + 6] = f8b[1];
+          buf[pos + 7] = f8b[0];
+        }
+        exports2.writeDoubleLE = le ? writeDouble_f64_cpy : writeDouble_f64_rev;
+        exports2.writeDoubleBE = le ? writeDouble_f64_rev : writeDouble_f64_cpy;
+        function readDouble_f64_cpy(buf, pos) {
+          f8b[0] = buf[pos];
+          f8b[1] = buf[pos + 1];
+          f8b[2] = buf[pos + 2];
+          f8b[3] = buf[pos + 3];
+          f8b[4] = buf[pos + 4];
+          f8b[5] = buf[pos + 5];
+          f8b[6] = buf[pos + 6];
+          f8b[7] = buf[pos + 7];
+          return f64[0];
+        }
+        function readDouble_f64_rev(buf, pos) {
+          f8b[7] = buf[pos];
+          f8b[6] = buf[pos + 1];
+          f8b[5] = buf[pos + 2];
+          f8b[4] = buf[pos + 3];
+          f8b[3] = buf[pos + 4];
+          f8b[2] = buf[pos + 5];
+          f8b[1] = buf[pos + 6];
+          f8b[0] = buf[pos + 7];
+          return f64[0];
+        }
+        exports2.readDoubleLE = le ? readDouble_f64_cpy : readDouble_f64_rev;
+        exports2.readDoubleBE = le ? readDouble_f64_rev : readDouble_f64_cpy;
+      })();
+      else (function() {
+        function writeDouble_ieee754(writeUint, off0, off1, val, buf, pos) {
+          var sign = val < 0 ? 1 : 0;
+          if (sign)
+            val = -val;
+          if (val === 0) {
+            writeUint(0, buf, pos + off0);
+            writeUint(1 / val > 0 ? (
+              /* positive */
+              0
+            ) : (
+              /* negative 0 */
+              2147483648
+            ), buf, pos + off1);
+          } else if (isNaN(val)) {
+            writeUint(0, buf, pos + off0);
+            writeUint(2146959360, buf, pos + off1);
+          } else if (val > 17976931348623157e292) {
+            writeUint(0, buf, pos + off0);
+            writeUint((sign << 31 | 2146435072) >>> 0, buf, pos + off1);
+          } else {
+            var mantissa;
+            if (val < 22250738585072014e-324) {
+              mantissa = val / 5e-324;
+              writeUint(mantissa >>> 0, buf, pos + off0);
+              writeUint((sign << 31 | mantissa / 4294967296) >>> 0, buf, pos + off1);
+            } else {
+              var exponent = Math.floor(Math.log(val) / Math.LN2);
+              if (exponent === 1024)
+                exponent = 1023;
+              mantissa = val * Math.pow(2, -exponent);
+              writeUint(mantissa * 4503599627370496 >>> 0, buf, pos + off0);
+              writeUint((sign << 31 | exponent + 1023 << 20 | mantissa * 1048576 & 1048575) >>> 0, buf, pos + off1);
+            }
+          }
+        }
+        exports2.writeDoubleLE = writeDouble_ieee754.bind(null, writeUintLE, 0, 4);
+        exports2.writeDoubleBE = writeDouble_ieee754.bind(null, writeUintBE, 4, 0);
+        function readDouble_ieee754(readUint, off0, off1, buf, pos) {
+          var lo = readUint(buf, pos + off0), hi = readUint(buf, pos + off1);
+          var sign = (hi >> 31) * 2 + 1, exponent = hi >>> 20 & 2047, mantissa = 4294967296 * (hi & 1048575) + lo;
+          return exponent === 2047 ? mantissa ? NaN : sign * Infinity : exponent === 0 ? sign * 5e-324 * mantissa : sign * Math.pow(2, exponent - 1075) * (mantissa + 4503599627370496);
+        }
+        exports2.readDoubleLE = readDouble_ieee754.bind(null, readUintLE, 0, 4);
+        exports2.readDoubleBE = readDouble_ieee754.bind(null, readUintBE, 4, 0);
+      })();
+      return exports2;
+    }
+    function writeUintLE(val, buf, pos) {
+      buf[pos] = val & 255;
+      buf[pos + 1] = val >>> 8 & 255;
+      buf[pos + 2] = val >>> 16 & 255;
+      buf[pos + 3] = val >>> 24;
+    }
+    function writeUintBE(val, buf, pos) {
+      buf[pos] = val >>> 24;
+      buf[pos + 1] = val >>> 16 & 255;
+      buf[pos + 2] = val >>> 8 & 255;
+      buf[pos + 3] = val & 255;
+    }
+    function readUintLE(buf, pos) {
+      return (buf[pos] | buf[pos + 1] << 8 | buf[pos + 2] << 16 | buf[pos + 3] << 24) >>> 0;
+    }
+    function readUintBE(buf, pos) {
+      return (buf[pos] << 24 | buf[pos + 1] << 16 | buf[pos + 2] << 8 | buf[pos + 3]) >>> 0;
+    }
+  }
+});
+
+// node_modules/protobufjs/src/util/utf8.js
+var require_utf8 = __commonJS({
+  "node_modules/protobufjs/src/util/utf8.js"(exports) {
+    "use strict";
+    var utf8 = exports;
+    var looseDecoder = new TextDecoder("utf-8", { ignoreBOM: true });
+    var strictDecoder;
+    var TEXT_DECODER_MIN_LENGTH = 64;
+    try {
+      strictDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+    } catch (err) {
+      strictDecoder = looseDecoder;
+    }
+    utf8.length = function utf8_length(string4) {
+      var len = 0, c = 0;
+      for (var i = 0; i < string4.length; ++i) {
+        c = string4.charCodeAt(i);
+        if (c < 128)
+          len += 1;
+        else if (c < 2048)
+          len += 2;
+        else if ((c & 64512) === 55296 && (string4.charCodeAt(i + 1) & 64512) === 56320) {
+          ++i;
+          len += 4;
+        } else
+          len += 3;
+      }
+      return len;
+    };
+    function utf8_read_decoder(decoder, buffer, start, end) {
+      var source = start === 0 && end === buffer.length ? buffer : buffer.subarray(start, end);
+      return decoder.decode(source);
+    }
+    utf8.read = function utf8_read_loose(buffer, start, end) {
+      if (end - start < 1)
+        return "";
+      if (end - start >= TEXT_DECODER_MIN_LENGTH)
+        return utf8_read_decoder(looseDecoder, buffer, start, end);
+      var str = "", i = start, c1, c2, c3, c4, c5, c6, c7, c8;
+      for (; i + 7 < end; i += 8) {
+        c1 = buffer[i];
+        c2 = buffer[i + 1];
+        c3 = buffer[i + 2];
+        c4 = buffer[i + 3];
+        c5 = buffer[i + 4];
+        c6 = buffer[i + 5];
+        c7 = buffer[i + 6];
+        c8 = buffer[i + 7];
+        if ((c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8) & 128)
+          return str + utf8_read_decoder(looseDecoder, buffer, i, end);
+        str += String.fromCharCode(c1, c2, c3, c4, c5, c6, c7, c8);
+      }
+      for (; i < end; ++i) {
+        c1 = buffer[i];
+        if (c1 & 128)
+          return str + utf8_read_decoder(looseDecoder, buffer, i, end);
+        str += String.fromCharCode(c1);
+      }
+      return str;
+    };
+    utf8.readStrict = function utf8_read_strict(buffer, start, end) {
+      if (end - start < 1)
+        return "";
+      if (end - start >= TEXT_DECODER_MIN_LENGTH)
+        return utf8_read_decoder(strictDecoder, buffer, start, end);
+      var str = "", i = start, c1, c2, c3, c4, c5, c6, c7, c8;
+      for (; i + 7 < end; i += 8) {
+        c1 = buffer[i];
+        c2 = buffer[i + 1];
+        c3 = buffer[i + 2];
+        c4 = buffer[i + 3];
+        c5 = buffer[i + 4];
+        c6 = buffer[i + 5];
+        c7 = buffer[i + 6];
+        c8 = buffer[i + 7];
+        if ((c1 | c2 | c3 | c4 | c5 | c6 | c7 | c8) & 128)
+          return str + utf8_read_decoder(strictDecoder, buffer, i, end);
+        str += String.fromCharCode(c1, c2, c3, c4, c5, c6, c7, c8);
+      }
+      for (; i < end; ++i) {
+        c1 = buffer[i];
+        if (c1 & 128)
+          return str + utf8_read_decoder(strictDecoder, buffer, i, end);
+        str += String.fromCharCode(c1);
+      }
+      return str;
+    };
+    utf8.write = function utf8_write(string4, buffer, offset) {
+      var start = offset, c1, c2;
+      for (var i = 0; i < string4.length; ++i) {
+        c1 = string4.charCodeAt(i);
+        if (c1 < 128) {
+          buffer[offset++] = c1;
+        } else if (c1 < 2048) {
+          buffer[offset++] = c1 >> 6 | 192;
+          buffer[offset++] = c1 & 63 | 128;
+        } else if ((c1 & 64512) === 55296 && ((c2 = string4.charCodeAt(i + 1)) & 64512) === 56320) {
+          c1 = 65536 + ((c1 & 1023) << 10) + (c2 & 1023);
+          ++i;
+          buffer[offset++] = c1 >> 18 | 240;
+          buffer[offset++] = c1 >> 12 & 63 | 128;
+          buffer[offset++] = c1 >> 6 & 63 | 128;
+          buffer[offset++] = c1 & 63 | 128;
+        } else {
+          buffer[offset++] = c1 >> 12 | 224;
+          buffer[offset++] = c1 >> 6 & 63 | 128;
+          buffer[offset++] = c1 & 63 | 128;
+        }
+      }
+      return offset - start;
+    };
+  }
+});
+
+// node_modules/protobufjs/src/util/pool.js
+var require_pool = __commonJS({
+  "node_modules/protobufjs/src/util/pool.js"(exports, module) {
+    "use strict";
+    module.exports = pool;
+    function pool(alloc, slice, size) {
+      var SIZE = size || 8192;
+      var MAX = SIZE >>> 1;
+      var slab = null;
+      var offset = SIZE;
+      return function pool_alloc(size2) {
+        if (size2 < 1 || size2 > MAX)
+          return alloc(size2);
+        if (offset + size2 > SIZE) {
+          slab = alloc(SIZE);
+          offset = 0;
+        }
+        var buf = slice.call(slab, offset, offset += size2);
+        if (offset & 7)
+          offset = (offset | 7) + 1;
+        return buf;
+      };
+    }
+  }
+});
+
+// node_modules/protobufjs/src/util/longbits.js
+var require_longbits = __commonJS({
+  "node_modules/protobufjs/src/util/longbits.js"(exports, module) {
+    "use strict";
+    module.exports = LongBits;
+    var Long;
+    function LongBits(lo, hi) {
+      this.lo = lo >>> 0;
+      this.hi = hi >>> 0;
+    }
+    var zero = LongBits.zero = new LongBits(0, 0);
+    zero.toNumber = function() {
+      return 0;
+    };
+    zero.zzEncode = zero.zzDecode = function() {
+      return this;
+    };
+    zero.length = function() {
+      return 1;
+    };
+    var zeroHash = LongBits.zeroHash = "\0\0\0\0\0\0\0\0";
+    LongBits.fromNumber = function fromNumber(value) {
+      if (value === 0)
+        return zero;
+      var sign = value < 0;
+      if (sign)
+        value = -value;
+      var lo = value >>> 0, hi = (value - lo) / 4294967296 >>> 0;
+      if (sign) {
+        hi = ~hi >>> 0;
+        lo = ~lo >>> 0;
+        if (++lo > 4294967295) {
+          lo = 0;
+          if (++hi > 4294967295)
+            hi = 0;
+        }
+      }
+      return new LongBits(lo, hi);
+    };
+    LongBits.from = function from(value) {
+      if (typeof value === "number")
+        return LongBits.fromNumber(value);
+      if (typeof value === "string" || value instanceof String) {
+        if (Long)
+          value = Long.fromString(value);
+        else
+          return LongBits.fromNumber(parseInt(value, 10));
+      }
+      return value.low || value.high ? new LongBits(value.low >>> 0, value.high >>> 0) : zero;
+    };
+    LongBits.prototype.toNumber = function toNumber(unsigned) {
+      if (!unsigned && this.hi >>> 31) {
+        var lo = ~this.lo + 1 >>> 0, hi = ~this.hi >>> 0;
+        if (!lo)
+          hi = hi + 1 >>> 0;
+        return -(lo + hi * 4294967296);
+      }
+      return this.lo + this.hi * 4294967296;
+    };
+    LongBits.prototype.toLong = function toLong(unsigned) {
+      return Long ? new Long(this.lo | 0, this.hi | 0, Boolean(unsigned)) : { low: this.lo | 0, high: this.hi | 0, unsigned: Boolean(unsigned) };
+    };
+    var charCodeAt = String.prototype.charCodeAt;
+    LongBits.fromHash = function fromHash(hash2) {
+      if (hash2 === zeroHash)
+        return zero;
+      return new LongBits(
+        (charCodeAt.call(hash2, 0) | charCodeAt.call(hash2, 1) << 8 | charCodeAt.call(hash2, 2) << 16 | charCodeAt.call(hash2, 3) << 24) >>> 0,
+        (charCodeAt.call(hash2, 4) | charCodeAt.call(hash2, 5) << 8 | charCodeAt.call(hash2, 6) << 16 | charCodeAt.call(hash2, 7) << 24) >>> 0
+      );
+    };
+    LongBits.prototype.toHash = function toHash() {
+      return String.fromCharCode(
+        this.lo & 255,
+        this.lo >>> 8 & 255,
+        this.lo >>> 16 & 255,
+        this.lo >>> 24,
+        this.hi & 255,
+        this.hi >>> 8 & 255,
+        this.hi >>> 16 & 255,
+        this.hi >>> 24
+      );
+    };
+    LongBits.prototype.zzEncode = function zzEncode() {
+      var mask2 = this.hi >> 31;
+      this.hi = ((this.hi << 1 | this.lo >>> 31) ^ mask2) >>> 0;
+      this.lo = (this.lo << 1 ^ mask2) >>> 0;
+      return this;
+    };
+    LongBits.prototype.zzDecode = function zzDecode() {
+      var mask2 = -(this.lo & 1);
+      this.lo = ((this.lo >>> 1 | this.hi << 31) ^ mask2) >>> 0;
+      this.hi = (this.hi >>> 1 ^ mask2) >>> 0;
+      return this;
+    };
+    LongBits.prototype.length = function length() {
+      var part0 = this.lo, part1 = (this.lo >>> 28 | this.hi << 4) >>> 0, part2 = this.hi >>> 24;
+      return part2 === 0 ? part1 === 0 ? part0 < 16384 ? part0 < 128 ? 1 : 2 : part0 < 2097152 ? 3 : 4 : part1 < 16384 ? part1 < 128 ? 5 : 6 : part1 < 2097152 ? 7 : 8 : part2 < 128 ? 9 : 10;
+    };
+    LongBits._configure = function(Long_) {
+      Long = Long_;
+    };
+  }
+});
+
+// node_modules/long/umd/index.js
+var require_umd = __commonJS({
+  "node_modules/long/umd/index.js"(exports, module) {
+    (function(global2, factory) {
+      function preferDefault(exports2) {
+        return exports2.default || exports2;
+      }
+      if (typeof define === "function" && define.amd) {
+        define([], function() {
+          var exports2 = {};
+          factory(exports2);
+          return preferDefault(exports2);
+        });
+      } else if (typeof exports === "object") {
+        factory(exports);
+        if (typeof module === "object") module.exports = preferDefault(exports);
+      } else {
+        (function() {
+          var exports2 = {};
+          factory(exports2);
+          global2.Long = preferDefault(exports2);
+        })();
+      }
+    })(
+      typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : exports,
+      function(_exports) {
+        "use strict";
+        Object.defineProperty(_exports, "__esModule", {
+          value: true
+        });
+        _exports.default = void 0;
+        var wasm = null;
+        try {
+          wasm = new WebAssembly.Instance(
+            new WebAssembly.Module(
+              new Uint8Array([
+                // \0asm
+                0,
+                97,
+                115,
+                109,
+                // version 1
+                1,
+                0,
+                0,
+                0,
+                // section "type"
+                1,
+                13,
+                2,
+                // 0, () => i32
+                96,
+                0,
+                1,
+                127,
+                // 1, (i32, i32, i32, i32) => i32
+                96,
+                4,
+                127,
+                127,
+                127,
+                127,
+                1,
+                127,
+                // section "function"
+                3,
+                7,
+                6,
+                // 0, type 0
+                0,
+                // 1, type 1
+                1,
+                // 2, type 1
+                1,
+                // 3, type 1
+                1,
+                // 4, type 1
+                1,
+                // 5, type 1
+                1,
+                // section "global"
+                6,
+                6,
+                1,
+                // 0, "high", mutable i32
+                127,
+                1,
+                65,
+                0,
+                11,
+                // section "export"
+                7,
+                50,
+                6,
+                // 0, "mul"
+                3,
+                109,
+                117,
+                108,
+                0,
+                1,
+                // 1, "div_s"
+                5,
+                100,
+                105,
+                118,
+                95,
+                115,
+                0,
+                2,
+                // 2, "div_u"
+                5,
+                100,
+                105,
+                118,
+                95,
+                117,
+                0,
+                3,
+                // 3, "rem_s"
+                5,
+                114,
+                101,
+                109,
+                95,
+                115,
+                0,
+                4,
+                // 4, "rem_u"
+                5,
+                114,
+                101,
+                109,
+                95,
+                117,
+                0,
+                5,
+                // 5, "get_high"
+                8,
+                103,
+                101,
+                116,
+                95,
+                104,
+                105,
+                103,
+                104,
+                0,
+                0,
+                // section "code"
+                10,
+                191,
+                1,
+                6,
+                // 0, "get_high"
+                4,
+                0,
+                35,
+                0,
+                11,
+                // 1, "mul"
+                36,
+                1,
+                1,
+                126,
+                32,
+                0,
+                173,
+                32,
+                1,
+                173,
+                66,
+                32,
+                134,
+                132,
+                32,
+                2,
+                173,
+                32,
+                3,
+                173,
+                66,
+                32,
+                134,
+                132,
+                126,
+                34,
+                4,
+                66,
+                32,
+                135,
+                167,
+                36,
+                0,
+                32,
+                4,
+                167,
+                11,
+                // 2, "div_s"
+                36,
+                1,
+                1,
+                126,
+                32,
+                0,
+                173,
+                32,
+                1,
+                173,
+                66,
+                32,
+                134,
+                132,
+                32,
+                2,
+                173,
+                32,
+                3,
+                173,
+                66,
+                32,
+                134,
+                132,
+                127,
+                34,
+                4,
+                66,
+                32,
+                135,
+                167,
+                36,
+                0,
+                32,
+                4,
+                167,
+                11,
+                // 3, "div_u"
+                36,
+                1,
+                1,
+                126,
+                32,
+                0,
+                173,
+                32,
+                1,
+                173,
+                66,
+                32,
+                134,
+                132,
+                32,
+                2,
+                173,
+                32,
+                3,
+                173,
+                66,
+                32,
+                134,
+                132,
+                128,
+                34,
+                4,
+                66,
+                32,
+                135,
+                167,
+                36,
+                0,
+                32,
+                4,
+                167,
+                11,
+                // 4, "rem_s"
+                36,
+                1,
+                1,
+                126,
+                32,
+                0,
+                173,
+                32,
+                1,
+                173,
+                66,
+                32,
+                134,
+                132,
+                32,
+                2,
+                173,
+                32,
+                3,
+                173,
+                66,
+                32,
+                134,
+                132,
+                129,
+                34,
+                4,
+                66,
+                32,
+                135,
+                167,
+                36,
+                0,
+                32,
+                4,
+                167,
+                11,
+                // 5, "rem_u"
+                36,
+                1,
+                1,
+                126,
+                32,
+                0,
+                173,
+                32,
+                1,
+                173,
+                66,
+                32,
+                134,
+                132,
+                32,
+                2,
+                173,
+                32,
+                3,
+                173,
+                66,
+                32,
+                134,
+                132,
+                130,
+                34,
+                4,
+                66,
+                32,
+                135,
+                167,
+                36,
+                0,
+                32,
+                4,
+                167,
+                11
+              ])
+            ),
+            {}
+          ).exports;
+        } catch {
+        }
+        function Long(low, high, unsigned) {
+          this.low = low | 0;
+          this.high = high | 0;
+          this.unsigned = !!unsigned;
+        }
+        Long.prototype.__isLong__;
+        Object.defineProperty(Long.prototype, "__isLong__", {
+          value: true
+        });
+        function isLong(obj) {
+          return (obj && obj["__isLong__"]) === true;
+        }
+        function ctz32(value) {
+          var c = Math.clz32(value & -value);
+          return value ? 31 - c : c;
+        }
+        Long.isLong = isLong;
+        var INT_CACHE = {};
+        var UINT_CACHE = {};
+        function fromInt(value, unsigned) {
+          var obj, cachedObj, cache;
+          if (unsigned) {
+            value >>>= 0;
+            if (cache = 0 <= value && value < 256) {
+              cachedObj = UINT_CACHE[value];
+              if (cachedObj) return cachedObj;
+            }
+            obj = fromBits(value, 0, true);
+            if (cache) UINT_CACHE[value] = obj;
+            return obj;
+          } else {
+            value |= 0;
+            if (cache = -128 <= value && value < 128) {
+              cachedObj = INT_CACHE[value];
+              if (cachedObj) return cachedObj;
+            }
+            obj = fromBits(value, value < 0 ? -1 : 0, false);
+            if (cache) INT_CACHE[value] = obj;
+            return obj;
+          }
+        }
+        Long.fromInt = fromInt;
+        function fromNumber(value, unsigned) {
+          if (isNaN(value)) return unsigned ? UZERO : ZERO;
+          if (unsigned) {
+            if (value < 0) return UZERO;
+            if (value >= TWO_PWR_64_DBL) return MAX_UNSIGNED_VALUE;
+          } else {
+            if (value <= -TWO_PWR_63_DBL) return MIN_VALUE;
+            if (value + 1 >= TWO_PWR_63_DBL) return MAX_VALUE;
+          }
+          if (value < 0) return fromNumber(-value, unsigned).neg();
+          return fromBits(
+            value % TWO_PWR_32_DBL | 0,
+            value / TWO_PWR_32_DBL | 0,
+            unsigned
+          );
+        }
+        Long.fromNumber = fromNumber;
+        function fromBits(lowBits, highBits, unsigned) {
+          return new Long(lowBits, highBits, unsigned);
+        }
+        Long.fromBits = fromBits;
+        var pow_dbl = Math.pow;
+        function fromString(str, unsigned, radix) {
+          if (str.length === 0) throw Error("empty string");
+          if (typeof unsigned === "number") {
+            radix = unsigned;
+            unsigned = false;
+          } else {
+            unsigned = !!unsigned;
+          }
+          if (str === "NaN" || str === "Infinity" || str === "+Infinity" || str === "-Infinity")
+            return unsigned ? UZERO : ZERO;
+          radix = radix || 10;
+          if (radix < 2 || 36 < radix) throw RangeError("radix");
+          var p;
+          if ((p = str.indexOf("-")) > 0) throw Error("interior hyphen");
+          else if (p === 0) {
+            return fromString(str.substring(1), unsigned, radix).neg();
+          }
+          var radixToPower = fromNumber(pow_dbl(radix, 8));
+          var result = ZERO;
+          for (var i = 0; i < str.length; i += 8) {
+            var size = Math.min(8, str.length - i), value = parseInt(str.substring(i, i + size), radix);
+            if (size < 8) {
+              var power = fromNumber(pow_dbl(radix, size));
+              result = result.mul(power).add(fromNumber(value));
+            } else {
+              result = result.mul(radixToPower);
+              result = result.add(fromNumber(value));
+            }
+          }
+          result.unsigned = unsigned;
+          return result;
+        }
+        Long.fromString = fromString;
+        function fromValue(val, unsigned) {
+          if (typeof val === "number") return fromNumber(val, unsigned);
+          if (typeof val === "string") return fromString(val, unsigned);
+          return fromBits(
+            val.low,
+            val.high,
+            typeof unsigned === "boolean" ? unsigned : val.unsigned
+          );
+        }
+        Long.fromValue = fromValue;
+        var TWO_PWR_16_DBL = 1 << 16;
+        var TWO_PWR_24_DBL = 1 << 24;
+        var TWO_PWR_32_DBL = TWO_PWR_16_DBL * TWO_PWR_16_DBL;
+        var TWO_PWR_64_DBL = TWO_PWR_32_DBL * TWO_PWR_32_DBL;
+        var TWO_PWR_63_DBL = TWO_PWR_64_DBL / 2;
+        var TWO_PWR_24 = fromInt(TWO_PWR_24_DBL);
+        var ZERO = fromInt(0);
+        Long.ZERO = ZERO;
+        var UZERO = fromInt(0, true);
+        Long.UZERO = UZERO;
+        var ONE = fromInt(1);
+        Long.ONE = ONE;
+        var UONE = fromInt(1, true);
+        Long.UONE = UONE;
+        var NEG_ONE = fromInt(-1);
+        Long.NEG_ONE = NEG_ONE;
+        var MAX_VALUE = fromBits(4294967295 | 0, 2147483647 | 0, false);
+        Long.MAX_VALUE = MAX_VALUE;
+        var MAX_UNSIGNED_VALUE = fromBits(4294967295 | 0, 4294967295 | 0, true);
+        Long.MAX_UNSIGNED_VALUE = MAX_UNSIGNED_VALUE;
+        var MIN_VALUE = fromBits(0, 2147483648 | 0, false);
+        Long.MIN_VALUE = MIN_VALUE;
+        var LongPrototype = Long.prototype;
+        LongPrototype.toInt = function toInt() {
+          return this.unsigned ? this.low >>> 0 : this.low;
+        };
+        LongPrototype.toNumber = function toNumber() {
+          if (this.unsigned)
+            return (this.high >>> 0) * TWO_PWR_32_DBL + (this.low >>> 0);
+          return this.high * TWO_PWR_32_DBL + (this.low >>> 0);
+        };
+        LongPrototype.toString = function toString(radix) {
+          radix = radix || 10;
+          if (radix < 2 || 36 < radix) throw RangeError("radix");
+          if (this.isZero()) return "0";
+          if (this.isNegative()) {
+            if (this.eq(MIN_VALUE)) {
+              var radixLong = fromNumber(radix), div = this.div(radixLong), rem1 = div.mul(radixLong).sub(this);
+              return div.toString(radix) + rem1.toInt().toString(radix);
+            } else return "-" + this.neg().toString(radix);
+          }
+          var radixToPower = fromNumber(pow_dbl(radix, 6), this.unsigned), rem = this;
+          var result = "";
+          while (true) {
+            var remDiv = rem.div(radixToPower), intval = rem.sub(remDiv.mul(radixToPower)).toInt() >>> 0, digits = intval.toString(radix);
+            rem = remDiv;
+            if (rem.isZero()) return digits + result;
+            else {
+              while (digits.length < 6) digits = "0" + digits;
+              result = "" + digits + result;
+            }
+          }
+        };
+        LongPrototype.getHighBits = function getHighBits() {
+          return this.high;
+        };
+        LongPrototype.getHighBitsUnsigned = function getHighBitsUnsigned() {
+          return this.high >>> 0;
+        };
+        LongPrototype.getLowBits = function getLowBits() {
+          return this.low;
+        };
+        LongPrototype.getLowBitsUnsigned = function getLowBitsUnsigned() {
+          return this.low >>> 0;
+        };
+        LongPrototype.getNumBitsAbs = function getNumBitsAbs() {
+          if (this.isNegative())
+            return this.eq(MIN_VALUE) ? 64 : this.neg().getNumBitsAbs();
+          var val = this.high != 0 ? this.high : this.low;
+          for (var bit = 31; bit > 0; bit--) if ((val & 1 << bit) != 0) break;
+          return this.high != 0 ? bit + 33 : bit + 1;
+        };
+        LongPrototype.isSafeInteger = function isSafeInteger() {
+          var top11Bits = this.high >> 21;
+          if (!top11Bits) return true;
+          if (this.unsigned) return false;
+          return top11Bits === -1 && !(this.low === 0 && this.high === -2097152);
+        };
+        LongPrototype.isZero = function isZero() {
+          return this.high === 0 && this.low === 0;
+        };
+        LongPrototype.eqz = LongPrototype.isZero;
+        LongPrototype.isNegative = function isNegative() {
+          return !this.unsigned && this.high < 0;
+        };
+        LongPrototype.isPositive = function isPositive() {
+          return this.unsigned || this.high >= 0;
+        };
+        LongPrototype.isOdd = function isOdd() {
+          return (this.low & 1) === 1;
+        };
+        LongPrototype.isEven = function isEven() {
+          return (this.low & 1) === 0;
+        };
+        LongPrototype.equals = function equals(other) {
+          if (!isLong(other)) other = fromValue(other);
+          if (this.unsigned !== other.unsigned && this.high >>> 31 === 1 && other.high >>> 31 === 1)
+            return false;
+          return this.high === other.high && this.low === other.low;
+        };
+        LongPrototype.eq = LongPrototype.equals;
+        LongPrototype.notEquals = function notEquals(other) {
+          return !this.eq(
+            /* validates */
+            other
+          );
+        };
+        LongPrototype.neq = LongPrototype.notEquals;
+        LongPrototype.ne = LongPrototype.notEquals;
+        LongPrototype.lessThan = function lessThan(other) {
+          return this.comp(
+            /* validates */
+            other
+          ) < 0;
+        };
+        LongPrototype.lt = LongPrototype.lessThan;
+        LongPrototype.lessThanOrEqual = function lessThanOrEqual(other) {
+          return this.comp(
+            /* validates */
+            other
+          ) <= 0;
+        };
+        LongPrototype.lte = LongPrototype.lessThanOrEqual;
+        LongPrototype.le = LongPrototype.lessThanOrEqual;
+        LongPrototype.greaterThan = function greaterThan(other) {
+          return this.comp(
+            /* validates */
+            other
+          ) > 0;
+        };
+        LongPrototype.gt = LongPrototype.greaterThan;
+        LongPrototype.greaterThanOrEqual = function greaterThanOrEqual(other) {
+          return this.comp(
+            /* validates */
+            other
+          ) >= 0;
+        };
+        LongPrototype.gte = LongPrototype.greaterThanOrEqual;
+        LongPrototype.ge = LongPrototype.greaterThanOrEqual;
+        LongPrototype.compare = function compare(other) {
+          if (!isLong(other)) other = fromValue(other);
+          if (this.eq(other)) return 0;
+          var thisNeg = this.isNegative(), otherNeg = other.isNegative();
+          if (thisNeg && !otherNeg) return -1;
+          if (!thisNeg && otherNeg) return 1;
+          if (!this.unsigned) return this.sub(other).isNegative() ? -1 : 1;
+          return other.high >>> 0 > this.high >>> 0 || other.high === this.high && other.low >>> 0 > this.low >>> 0 ? -1 : 1;
+        };
+        LongPrototype.comp = LongPrototype.compare;
+        LongPrototype.negate = function negate() {
+          if (!this.unsigned && this.eq(MIN_VALUE)) return MIN_VALUE;
+          return this.not().add(ONE);
+        };
+        LongPrototype.neg = LongPrototype.negate;
+        LongPrototype.add = function add(addend) {
+          if (!isLong(addend)) addend = fromValue(addend);
+          var a48 = this.high >>> 16;
+          var a32 = this.high & 65535;
+          var a16 = this.low >>> 16;
+          var a00 = this.low & 65535;
+          var b48 = addend.high >>> 16;
+          var b32 = addend.high & 65535;
+          var b16 = addend.low >>> 16;
+          var b00 = addend.low & 65535;
+          var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
+          c00 += a00 + b00;
+          c16 += c00 >>> 16;
+          c00 &= 65535;
+          c16 += a16 + b16;
+          c32 += c16 >>> 16;
+          c16 &= 65535;
+          c32 += a32 + b32;
+          c48 += c32 >>> 16;
+          c32 &= 65535;
+          c48 += a48 + b48;
+          c48 &= 65535;
+          return fromBits(c16 << 16 | c00, c48 << 16 | c32, this.unsigned);
+        };
+        LongPrototype.subtract = function subtract(subtrahend) {
+          if (!isLong(subtrahend)) subtrahend = fromValue(subtrahend);
+          return this.add(subtrahend.neg());
+        };
+        LongPrototype.sub = LongPrototype.subtract;
+        LongPrototype.multiply = function multiply(multiplier) {
+          if (this.isZero()) return this;
+          if (!isLong(multiplier)) multiplier = fromValue(multiplier);
+          if (wasm) {
+            var low = wasm["mul"](
+              this.low,
+              this.high,
+              multiplier.low,
+              multiplier.high
+            );
+            return fromBits(low, wasm["get_high"](), this.unsigned);
+          }
+          if (multiplier.isZero()) return this.unsigned ? UZERO : ZERO;
+          if (this.eq(MIN_VALUE)) return multiplier.isOdd() ? MIN_VALUE : ZERO;
+          if (multiplier.eq(MIN_VALUE)) return this.isOdd() ? MIN_VALUE : ZERO;
+          if (this.isNegative()) {
+            if (multiplier.isNegative()) return this.neg().mul(multiplier.neg());
+            else return this.neg().mul(multiplier).neg();
+          } else if (multiplier.isNegative())
+            return this.mul(multiplier.neg()).neg();
+          if (this.lt(TWO_PWR_24) && multiplier.lt(TWO_PWR_24))
+            return fromNumber(
+              this.toNumber() * multiplier.toNumber(),
+              this.unsigned
+            );
+          var a48 = this.high >>> 16;
+          var a32 = this.high & 65535;
+          var a16 = this.low >>> 16;
+          var a00 = this.low & 65535;
+          var b48 = multiplier.high >>> 16;
+          var b32 = multiplier.high & 65535;
+          var b16 = multiplier.low >>> 16;
+          var b00 = multiplier.low & 65535;
+          var c48 = 0, c32 = 0, c16 = 0, c00 = 0;
+          c00 += a00 * b00;
+          c16 += c00 >>> 16;
+          c00 &= 65535;
+          c16 += a16 * b00;
+          c32 += c16 >>> 16;
+          c16 &= 65535;
+          c16 += a00 * b16;
+          c32 += c16 >>> 16;
+          c16 &= 65535;
+          c32 += a32 * b00;
+          c48 += c32 >>> 16;
+          c32 &= 65535;
+          c32 += a16 * b16;
+          c48 += c32 >>> 16;
+          c32 &= 65535;
+          c32 += a00 * b32;
+          c48 += c32 >>> 16;
+          c32 &= 65535;
+          c48 += a48 * b00 + a32 * b16 + a16 * b32 + a00 * b48;
+          c48 &= 65535;
+          return fromBits(c16 << 16 | c00, c48 << 16 | c32, this.unsigned);
+        };
+        LongPrototype.mul = LongPrototype.multiply;
+        LongPrototype.divide = function divide(divisor) {
+          if (!isLong(divisor)) divisor = fromValue(divisor);
+          if (divisor.isZero()) throw Error("division by zero");
+          if (wasm) {
+            if (!this.unsigned && this.high === -2147483648 && divisor.low === -1 && divisor.high === -1) {
+              return this;
+            }
+            var low = (this.unsigned ? wasm["div_u"] : wasm["div_s"])(
+              this.low,
+              this.high,
+              divisor.low,
+              divisor.high
+            );
+            return fromBits(low, wasm["get_high"](), this.unsigned);
+          }
+          if (this.isZero()) return this.unsigned ? UZERO : ZERO;
+          var approx, rem, res;
+          if (!this.unsigned) {
+            if (this.eq(MIN_VALUE)) {
+              if (divisor.eq(ONE) || divisor.eq(NEG_ONE))
+                return MIN_VALUE;
+              else if (divisor.eq(MIN_VALUE)) return ONE;
+              else {
+                var halfThis = this.shr(1);
+                approx = halfThis.div(divisor).shl(1);
+                if (approx.eq(ZERO)) {
+                  return divisor.isNegative() ? ONE : NEG_ONE;
+                } else {
+                  rem = this.sub(divisor.mul(approx));
+                  res = approx.add(rem.div(divisor));
+                  return res;
+                }
+              }
+            } else if (divisor.eq(MIN_VALUE)) return this.unsigned ? UZERO : ZERO;
+            if (this.isNegative()) {
+              if (divisor.isNegative()) return this.neg().div(divisor.neg());
+              return this.neg().div(divisor).neg();
+            } else if (divisor.isNegative()) return this.div(divisor.neg()).neg();
+            res = ZERO;
+          } else {
+            if (!divisor.unsigned) divisor = divisor.toUnsigned();
+            if (divisor.gt(this)) return UZERO;
+            if (divisor.gt(this.shru(1)))
+              return UONE;
+            res = UZERO;
+          }
+          rem = this;
+          while (rem.gte(divisor)) {
+            approx = Math.max(1, Math.floor(rem.toNumber() / divisor.toNumber()));
+            var log2 = Math.ceil(Math.log(approx) / Math.LN2), delta = log2 <= 48 ? 1 : pow_dbl(2, log2 - 48), approxRes = fromNumber(approx), approxRem = approxRes.mul(divisor);
+            while (approxRem.isNegative() || approxRem.gt(rem)) {
+              approx -= delta;
+              approxRes = fromNumber(approx, this.unsigned);
+              approxRem = approxRes.mul(divisor);
+            }
+            if (approxRes.isZero()) approxRes = ONE;
+            res = res.add(approxRes);
+            rem = rem.sub(approxRem);
+          }
+          return res;
+        };
+        LongPrototype.div = LongPrototype.divide;
+        LongPrototype.modulo = function modulo(divisor) {
+          if (!isLong(divisor)) divisor = fromValue(divisor);
+          if (wasm) {
+            var low = (this.unsigned ? wasm["rem_u"] : wasm["rem_s"])(
+              this.low,
+              this.high,
+              divisor.low,
+              divisor.high
+            );
+            return fromBits(low, wasm["get_high"](), this.unsigned);
+          }
+          return this.sub(this.div(divisor).mul(divisor));
+        };
+        LongPrototype.mod = LongPrototype.modulo;
+        LongPrototype.rem = LongPrototype.modulo;
+        LongPrototype.not = function not() {
+          return fromBits(~this.low, ~this.high, this.unsigned);
+        };
+        LongPrototype.countLeadingZeros = function countLeadingZeros() {
+          return this.high ? Math.clz32(this.high) : Math.clz32(this.low) + 32;
+        };
+        LongPrototype.clz = LongPrototype.countLeadingZeros;
+        LongPrototype.countTrailingZeros = function countTrailingZeros() {
+          return this.low ? ctz32(this.low) : ctz32(this.high) + 32;
+        };
+        LongPrototype.ctz = LongPrototype.countTrailingZeros;
+        LongPrototype.and = function and(other) {
+          if (!isLong(other)) other = fromValue(other);
+          return fromBits(
+            this.low & other.low,
+            this.high & other.high,
+            this.unsigned
+          );
+        };
+        LongPrototype.or = function or(other) {
+          if (!isLong(other)) other = fromValue(other);
+          return fromBits(
+            this.low | other.low,
+            this.high | other.high,
+            this.unsigned
+          );
+        };
+        LongPrototype.xor = function xor2(other) {
+          if (!isLong(other)) other = fromValue(other);
+          return fromBits(
+            this.low ^ other.low,
+            this.high ^ other.high,
+            this.unsigned
+          );
+        };
+        LongPrototype.shiftLeft = function shiftLeft(numBits) {
+          if (isLong(numBits)) numBits = numBits.toInt();
+          if ((numBits &= 63) === 0) return this;
+          else if (numBits < 32)
+            return fromBits(
+              this.low << numBits,
+              this.high << numBits | this.low >>> 32 - numBits,
+              this.unsigned
+            );
+          else return fromBits(0, this.low << numBits - 32, this.unsigned);
+        };
+        LongPrototype.shl = LongPrototype.shiftLeft;
+        LongPrototype.shiftRight = function shiftRight(numBits) {
+          if (isLong(numBits)) numBits = numBits.toInt();
+          if ((numBits &= 63) === 0) return this;
+          else if (numBits < 32)
+            return fromBits(
+              this.low >>> numBits | this.high << 32 - numBits,
+              this.high >> numBits,
+              this.unsigned
+            );
+          else
+            return fromBits(
+              this.high >> numBits - 32,
+              this.high >= 0 ? 0 : -1,
+              this.unsigned
+            );
+        };
+        LongPrototype.shr = LongPrototype.shiftRight;
+        LongPrototype.shiftRightUnsigned = function shiftRightUnsigned(numBits) {
+          if (isLong(numBits)) numBits = numBits.toInt();
+          if ((numBits &= 63) === 0) return this;
+          if (numBits < 32)
+            return fromBits(
+              this.low >>> numBits | this.high << 32 - numBits,
+              this.high >>> numBits,
+              this.unsigned
+            );
+          if (numBits === 32) return fromBits(this.high, 0, this.unsigned);
+          return fromBits(this.high >>> numBits - 32, 0, this.unsigned);
+        };
+        LongPrototype.shru = LongPrototype.shiftRightUnsigned;
+        LongPrototype.shr_u = LongPrototype.shiftRightUnsigned;
+        LongPrototype.rotateLeft = function rotateLeft(numBits) {
+          var b;
+          if (isLong(numBits)) numBits = numBits.toInt();
+          if ((numBits &= 63) === 0) return this;
+          if (numBits === 32) return fromBits(this.high, this.low, this.unsigned);
+          if (numBits < 32) {
+            b = 32 - numBits;
+            return fromBits(
+              this.low << numBits | this.high >>> b,
+              this.high << numBits | this.low >>> b,
+              this.unsigned
+            );
+          }
+          numBits -= 32;
+          b = 32 - numBits;
+          return fromBits(
+            this.high << numBits | this.low >>> b,
+            this.low << numBits | this.high >>> b,
+            this.unsigned
+          );
+        };
+        LongPrototype.rotl = LongPrototype.rotateLeft;
+        LongPrototype.rotateRight = function rotateRight(numBits) {
+          var b;
+          if (isLong(numBits)) numBits = numBits.toInt();
+          if ((numBits &= 63) === 0) return this;
+          if (numBits === 32) return fromBits(this.high, this.low, this.unsigned);
+          if (numBits < 32) {
+            b = 32 - numBits;
+            return fromBits(
+              this.high << b | this.low >>> numBits,
+              this.low << b | this.high >>> numBits,
+              this.unsigned
+            );
+          }
+          numBits -= 32;
+          b = 32 - numBits;
+          return fromBits(
+            this.low << b | this.high >>> numBits,
+            this.high << b | this.low >>> numBits,
+            this.unsigned
+          );
+        };
+        LongPrototype.rotr = LongPrototype.rotateRight;
+        LongPrototype.toSigned = function toSigned() {
+          if (!this.unsigned) return this;
+          return fromBits(this.low, this.high, false);
+        };
+        LongPrototype.toUnsigned = function toUnsigned() {
+          if (this.unsigned) return this;
+          return fromBits(this.low, this.high, true);
+        };
+        LongPrototype.toBytes = function toBytes(le) {
+          return le ? this.toBytesLE() : this.toBytesBE();
+        };
+        LongPrototype.toBytesLE = function toBytesLE() {
+          var hi = this.high, lo = this.low;
+          return [
+            lo & 255,
+            lo >>> 8 & 255,
+            lo >>> 16 & 255,
+            lo >>> 24,
+            hi & 255,
+            hi >>> 8 & 255,
+            hi >>> 16 & 255,
+            hi >>> 24
+          ];
+        };
+        LongPrototype.toBytesBE = function toBytesBE() {
+          var hi = this.high, lo = this.low;
+          return [
+            hi >>> 24,
+            hi >>> 16 & 255,
+            hi >>> 8 & 255,
+            hi & 255,
+            lo >>> 24,
+            lo >>> 16 & 255,
+            lo >>> 8 & 255,
+            lo & 255
+          ];
+        };
+        Long.fromBytes = function fromBytes(bytes, unsigned, le) {
+          return le ? Long.fromBytesLE(bytes, unsigned) : Long.fromBytesBE(bytes, unsigned);
+        };
+        Long.fromBytesLE = function fromBytesLE(bytes, unsigned) {
+          return new Long(
+            bytes[0] | bytes[1] << 8 | bytes[2] << 16 | bytes[3] << 24,
+            bytes[4] | bytes[5] << 8 | bytes[6] << 16 | bytes[7] << 24,
+            unsigned
+          );
+        };
+        Long.fromBytesBE = function fromBytesBE(bytes, unsigned) {
+          return new Long(
+            bytes[4] << 24 | bytes[5] << 16 | bytes[6] << 8 | bytes[7],
+            bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3],
+            unsigned
+          );
+        };
+        if (typeof BigInt === "function") {
+          Long.fromBigInt = function fromBigInt(value, unsigned) {
+            var lowBits = Number(BigInt.asIntN(32, value));
+            var highBits = Number(BigInt.asIntN(32, value >> BigInt(32)));
+            return fromBits(lowBits, highBits, unsigned);
+          };
+          Long.fromValue = function fromValueWithBigInt(value, unsigned) {
+            if (typeof value === "bigint") return Long.fromBigInt(value, unsigned);
+            return fromValue(value, unsigned);
+          };
+          LongPrototype.toBigInt = function toBigInt() {
+            var lowBigInt = BigInt(this.low >>> 0);
+            var highBigInt = BigInt(this.unsigned ? this.high >>> 0 : this.high);
+            return highBigInt << BigInt(32) | lowBigInt;
+          };
+        }
+        var _default2 = _exports.default = Long;
+      }
+    );
+  }
+});
+
+// node_modules/protobufjs/src/util/minimal.js
+var require_minimal = __commonJS({
+  "node_modules/protobufjs/src/util/minimal.js"(exports) {
+    "use strict";
+    var util2 = exports;
+    util2.asPromise = require_aspromise();
+    util2.base64 = require_base64();
+    util2.EventEmitter = require_eventemitter();
+    util2.float = require_float();
+    util2.utf8 = require_utf8();
+    util2.pool = require_pool();
+    util2.LongBits = require_longbits();
+    function isUnsafeProperty(key) {
+      return key === "__proto__" || key === "prototype" || key === "constructor";
+    }
+    util2.isUnsafeProperty = isUnsafeProperty;
+    util2.isNode = Boolean(typeof global !== "undefined" && global && global.process && global.process.versions && global.process.versions.node);
+    util2.global = util2.isNode && global || typeof window !== "undefined" && window || typeof self !== "undefined" && self || typeof globalThis !== "undefined" && globalThis || exports;
+    util2.emptyArray = Object.freeze ? Object.freeze([]) : (
+      /* istanbul ignore next */
+      []
+    );
+    util2.emptyObject = Object.freeze ? Object.freeze({}) : (
+      /* istanbul ignore next */
+      {}
+    );
+    util2.isInteger = Number.isInteger || /* istanbul ignore next */
+    function isInteger(value) {
+      return typeof value === "number" && isFinite(value) && Math.floor(value) === value;
+    };
+    util2.isString = function isString(value) {
+      return typeof value === "string" || value instanceof String;
+    };
+    util2.isObject = function isObject2(value) {
+      return value && typeof value === "object";
+    };
+    util2.isset = /**
+     * Checks if a property on a message is considered to be present.
+     * @param {Object} obj Plain object or message instance
+     * @param {string} prop Property name
+     * @returns {boolean} `true` if considered to be present, otherwise `false`
+     */
+    util2.isSet = function isSet(obj, prop) {
+      var value = obj[prop];
+      if (value != null && Object.hasOwnProperty.call(obj, prop))
+        return typeof value !== "object" || (Array.isArray(value) ? value.length : Object.keys(value).length) > 0;
+      return false;
+    };
+    util2.Buffer = (function() {
+      try {
+        var Buffer2 = util2.global.Buffer;
+        return Buffer2.prototype.utf8Write || util2.isNode ? Buffer2 : (
+          /* istanbul ignore next */
+          null
+        );
+      } catch (e) {
+        return null;
+      }
+    })();
+    util2.newBuffer = function newBuffer(sizeOrArray) {
+      var Buffer2 = util2.Buffer;
+      return typeof sizeOrArray === "number" ? Buffer2 ? Buffer2.allocUnsafe(sizeOrArray) : new Uint8Array(sizeOrArray) : Buffer2 ? Buffer2.from(sizeOrArray) : new Uint8Array(sizeOrArray);
+    };
+    util2.rawField = function rawField(id, wireType, data) {
+      var out = [], tag = id << 3 | wireType;
+      tag >>>= 0;
+      while (tag > 127) {
+        out.push(tag & 127 | 128);
+        tag >>>= 7;
+      }
+      out.push(tag);
+      for (var i = 0; i < data.length; ++i)
+        out.push(data[i]);
+      return util2.newBuffer(out);
+    };
+    util2.Array = Uint8Array;
+    util2.Long = /* istanbul ignore next */
+    util2.global.dcodeIO && /* istanbul ignore next */
+    util2.global.dcodeIO.Long || /* istanbul ignore next */
+    util2.global.Long || (function() {
+      try {
+        var Long = require_umd();
+        return Long && Long.isLong ? Long : null;
+      } catch (e) {
+        return null;
+      }
+    })();
+    util2.key2Re = /^(?:true|false|0|1)$/;
+    util2.key32Re = /^-?(?:0|[1-9][0-9]*)$/;
+    util2.key64Re = /^(?:[\x00-\xff]{8}|-?(?:0|[1-9][0-9]*))$/;
+    util2.longToHash = function longToHash(value) {
+      return value ? util2.LongBits.from(value).toHash() : util2.LongBits.zeroHash;
+    };
+    util2.longFromHash = function longFromHash(hash2, unsigned) {
+      var bits = util2.LongBits.fromHash(hash2);
+      if (util2.Long)
+        return util2.Long.fromBits(bits.lo, bits.hi, unsigned);
+      return bits.toNumber(Boolean(unsigned));
+    };
+    util2.longFromKey = function longFromKey(key, unsigned) {
+      return util2.key64Re.test(key) && !util2.key32Re.test(key) ? util2.longFromHash(key, unsigned) : key;
+    };
+    util2.boolFromKey = function boolFromKey(key) {
+      return key === "true" || key === "1";
+    };
+    function merge2(dst) {
+      var ifNotSet = typeof arguments[arguments.length - 1] === "boolean", limit = ifNotSet ? arguments.length - 1 : arguments.length;
+      ifNotSet = ifNotSet && arguments[arguments.length - 1];
+      for (var a = 1; a < limit; ++a) {
+        var src = arguments[a];
+        if (!src)
+          continue;
+        for (var keys = Object.keys(src), i = 0; i < keys.length; ++i)
+          if (!isUnsafeProperty(keys[i]) && (!ifNotSet || !Object.prototype.hasOwnProperty.call(dst, keys[i]) || dst[keys[i]] === void 0))
+            dst[keys[i]] = src[keys[i]];
+      }
+      return dst;
+    }
+    util2.merge = merge2;
+    util2.nestingLimit = 32;
+    util2.recursionLimit = 100;
+    util2.makeProp = function makeProp(obj, key, enumerable) {
+      if (Object.prototype.hasOwnProperty.call(obj, key))
+        return;
+      Object.defineProperty(obj, key, {
+        enumerable: enumerable === void 0 ? true : enumerable,
+        configurable: true,
+        writable: true
+      });
+    };
+    util2.lcFirst = function lcFirst(str) {
+      return str.charAt(0).toLowerCase() + str.substring(1);
+    };
+    function newError(name) {
+      function CustomError(message, properties) {
+        if (!(this instanceof CustomError))
+          return new CustomError(message, properties);
+        Object.defineProperty(this, "message", { get: function() {
+          return message;
+        } });
+        if (Error.captureStackTrace)
+          Error.captureStackTrace(this, CustomError);
+        else
+          Object.defineProperty(this, "stack", { value: new Error().stack || "" });
+        if (properties)
+          merge2(this, properties);
+      }
+      CustomError.prototype = Object.create(Error.prototype, {
+        constructor: {
+          value: CustomError,
+          writable: true,
+          enumerable: false,
+          configurable: true
+        },
+        name: {
+          get: function get() {
+            return name;
+          },
+          set: void 0,
+          enumerable: false,
+          // configurable: false would accurately preserve the behavior of
+          // the original, but I'm guessing that was not intentional.
+          // For an actual error subclass, this property would
+          // be configurable.
+          configurable: true
+        },
+        toString: {
+          value: function value() {
+            return this.name + ": " + this.message;
+          },
+          writable: true,
+          enumerable: false,
+          configurable: true
+        }
+      });
+      return CustomError;
+    }
+    util2.newError = newError;
+    util2.ProtocolError = newError("ProtocolError");
+    util2.oneOfGetter = function getOneOf(fieldNames) {
+      var fieldMap = {};
+      for (var i = 0; i < fieldNames.length; ++i)
+        fieldMap[fieldNames[i]] = 1;
+      return function() {
+        for (var keys = Object.keys(this), i2 = keys.length - 1; i2 > -1; --i2)
+          if (fieldMap[keys[i2]] === 1 && this[keys[i2]] !== void 0 && this[keys[i2]] !== null)
+            return keys[i2];
+      };
+    };
+    util2.oneOfSetter = function setOneOf(fieldNames) {
+      return function(name) {
+        for (var i = 0; i < fieldNames.length; ++i)
+          if (fieldNames[i] !== name)
+            delete this[fieldNames[i]];
+      };
+    };
+    util2.toJSONOptions = {
+      longs: String,
+      enums: String,
+      bytes: String,
+      json: true
+    };
+  }
+});
+
+// node_modules/protobufjs/src/writer.js
+var require_writer = __commonJS({
+  "node_modules/protobufjs/src/writer.js"(exports, module) {
+    "use strict";
+    module.exports = Writer;
+    var util2 = require_minimal();
+    var BufferWriter;
+    var LongBits = util2.LongBits;
+    var base643 = util2.base64;
+    var utf8 = util2.utf8;
+    function Writer() {
+      this.pos = 0;
+      this.buf = this.constructor.alloc(Writer.initialBufferSize);
+      this.view = null;
+      this.states = null;
+    }
+    Writer.initialBufferSize = 128;
+    Object.defineProperty(Writer.prototype, "len", {
+      configurable: true,
+      enumerable: true,
+      get: function get_len() {
+        return this.pos;
+      }
+    });
+    var create = function create2() {
+      return util2.Buffer ? function create_buffer_setup() {
+        return (Writer.create = function create_buffer() {
+          return new BufferWriter();
+        })();
+      } : function create_array() {
+        return new Writer();
+      };
+    };
+    Writer.create = create();
+    Writer.alloc = function alloc(size) {
+      return new Uint8Array(size);
+    };
+    Writer.alloc = util2.pool(Writer.alloc, Uint8Array.prototype.subarray);
+    function sizeVarint32(value) {
+      return value < 128 ? 1 : value < 16384 ? 2 : value < 2097152 ? 3 : value < 268435456 ? 4 : 5;
+    }
+    Writer.prototype._reserve = function _reserve(n) {
+      var need = this.pos + n;
+      if (need > this.buf.length) {
+        var size = this.buf.length << 1;
+        if (size < need)
+          size = need;
+        var buf = this.constructor.alloc(size);
+        buf.set(this.buf.subarray(0, this.pos), 0);
+        this.buf = buf;
+        this.view = null;
+      }
+    };
+    function writeStringAscii(val, buf, pos) {
+      for (var i = 0; i < val.length; )
+        buf[pos++] = val.charCodeAt(i++);
+    }
+    function writeVarint32(val, buf, pos) {
+      while (val > 127) {
+        buf[pos++] = val & 127 | 128;
+        val >>>= 7;
+      }
+      buf[pos] = val;
+      return pos + 1;
+    }
+    Writer.prototype.uint32 = function write_uint32(value) {
+      value = value >>> 0;
+      this._reserve(5);
+      var pos = this.pos;
+      this.pos = writeVarint32(value, this.buf, pos);
+      return this;
+    };
+    Writer.prototype.int32 = function write_int32(value) {
+      if ((value |= 0) < 0) {
+        this._reserve(10);
+        writeVarint64(LongBits.fromNumber(value), this.buf, this.pos);
+        this.pos += 10;
+        return this;
+      }
+      return this.uint32(value);
+    };
+    Writer.prototype.sint32 = function write_sint32(value) {
+      return this.uint32((value << 1 ^ value >> 31) >>> 0);
+    };
+    function writeVarint64(val, buf, pos) {
+      var lo = val.lo, hi = val.hi;
+      while (hi) {
+        buf[pos++] = lo & 127 | 128;
+        lo = (lo >>> 7 | hi << 25) >>> 0;
+        hi >>>= 7;
+      }
+      while (lo > 127) {
+        buf[pos++] = lo & 127 | 128;
+        lo = lo >>> 7;
+      }
+      buf[pos] = lo;
+      return pos + 1;
+    }
+    Writer.prototype.uint64 = function write_uint64(value) {
+      var bits = LongBits.from(value);
+      this._reserve(10);
+      var pos = this.pos;
+      this.pos = writeVarint64(bits, this.buf, pos);
+      return this;
+    };
+    Writer.prototype.int64 = Writer.prototype.uint64;
+    Writer.prototype.sint64 = function write_sint64(value) {
+      var bits = LongBits.from(value).zzEncode();
+      this._reserve(10);
+      var pos = this.pos;
+      this.pos = writeVarint64(bits, this.buf, pos);
+      return this;
+    };
+    Writer.prototype.bool = function write_bool(value) {
+      this._reserve(1);
+      this.buf[this.pos++] = value ? 1 : 0;
+      return this;
+    };
+    function writeFixed32(val, buf, pos) {
+      buf[pos] = val & 255;
+      buf[pos + 1] = val >>> 8 & 255;
+      buf[pos + 2] = val >>> 16 & 255;
+      buf[pos + 3] = val >>> 24;
+    }
+    Writer.prototype.fixed32 = function write_fixed32(value) {
+      this._reserve(4);
+      writeFixed32(value >>> 0, this.buf, this.pos);
+      this.pos += 4;
+      return this;
+    };
+    Writer.prototype.sfixed32 = Writer.prototype.fixed32;
+    Writer.prototype.fixed64 = function write_fixed64(value) {
+      var bits = LongBits.from(value);
+      this._reserve(8);
+      writeFixed32(bits.lo, this.buf, this.pos);
+      writeFixed32(bits.hi, this.buf, this.pos + 4);
+      this.pos += 8;
+      return this;
+    };
+    Writer.prototype.sfixed64 = Writer.prototype.fixed64;
+    Writer.prototype.float = function write_float(value) {
+      this._reserve(4);
+      util2.float.writeFloatLE(value, this.buf, this.pos);
+      this.pos += 4;
+      return this;
+    };
+    Writer.prototype.double = function write_double(value) {
+      this._reserve(8);
+      util2.float.writeDoubleLE(value, this.buf, this.pos);
+      this.pos += 8;
+      return this;
+    };
+    Writer.prototype.bytes = function write_bytes(value) {
+      var len = value.length >>> 0;
+      if (!len) {
+        this._reserve(1);
+        this.buf[this.pos++] = 0;
+        return this;
+      }
+      if (util2.isString(value)) {
+        var buf = Writer.alloc(len = base643.length(value));
+        base643.decode(value, buf, 0);
+        value = buf;
+      }
+      this.uint32(len);
+      this._reserve(len);
+      this.buf.set(value, this.pos);
+      this.pos += len;
+      return this;
+    };
+    Writer.prototype.raw = function write_raw(value) {
+      var len = value.length >>> 0;
+      if (!len)
+        return this;
+      this._reserve(len);
+      this.buf.set(value, this.pos);
+      this.pos += len;
+      return this;
+    };
+    Writer.prototype._delim = function _delim(pos, len) {
+      var n = sizeVarint32(len);
+      if (n > 1)
+        this.buf.copyWithin(pos + n, pos + 1, pos + 1 + len);
+      writeVarint32(len, this.buf, pos);
+      this.pos = pos + n + len;
+      return this;
+    };
+    Writer.prototype.string = function write_string(value) {
+      var n = value.length;
+      if (!n) {
+        this._reserve(1);
+        this.buf[this.pos++] = 0;
+        return this;
+      }
+      if (n < 128) {
+        this._reserve(n * 3 + 5);
+        var lenPos = this.pos;
+        return this._delim(lenPos, utf8.write(value, this.buf, lenPos + 1));
+      }
+      var len = utf8.length(value);
+      this.uint32(len);
+      this._reserve(len);
+      if (len === value.length)
+        writeStringAscii(value, this.buf, this.pos);
+      else
+        utf8.write(value, this.buf, this.pos);
+      this.pos += len;
+      return this;
+    };
+    Writer.prototype.uint32s = function write_uint32s(value) {
+      var n = value.length;
+      this._reserve(n * 5 + 5);
+      var buf = this.buf, lenPos = this.pos, p = lenPos + 1;
+      for (var i = 0; i < n; ++i)
+        p = writeVarint32(value[i] >>> 0, buf, p);
+      return this._delim(lenPos, p - lenPos - 1);
+    };
+    Writer.prototype.int32s = function write_int32s(value) {
+      var n = value.length;
+      this._reserve(n * 10 + 5);
+      var buf = this.buf, lenPos = this.pos, pos = lenPos + 1, val;
+      for (var i = 0; i < n; ++i) {
+        if ((val = value[i] | 0) < 0) {
+          pos = writeVarint64(LongBits.fromNumber(val), buf, pos);
+        } else {
+          pos = writeVarint32(val, buf, pos);
+        }
+      }
+      return this._delim(lenPos, pos - lenPos - 1);
+    };
+    Writer.prototype.sint32s = function write_sint32s(value) {
+      var n = value.length;
+      this._reserve(n * 5 + 5);
+      var buf = this.buf, lenPos = this.pos, pos = lenPos + 1;
+      for (var i = 0; i < n; ++i)
+        pos = writeVarint32((value[i] << 1 ^ value[i] >> 31) >>> 0, buf, pos);
+      return this._delim(lenPos, pos - lenPos - 1);
+    };
+    Writer.prototype.uint64s = function write_uint64s(value) {
+      var n = value.length;
+      this._reserve(n * 10 + 5);
+      var buf = this.buf, lenPos = this.pos, pos = lenPos + 1;
+      for (var i = 0; i < n; ++i) {
+        pos = writeVarint64(LongBits.from(value[i]), buf, pos);
+      }
+      return this._delim(lenPos, pos - lenPos - 1);
+    };
+    Writer.prototype.int64s = Writer.prototype.uint64s;
+    Writer.prototype.sint64s = function write_sint64s(value) {
+      var n = value.length;
+      this._reserve(n * 10 + 5);
+      var buf = this.buf, lenPos = this.pos, pos = lenPos + 1;
+      for (var i = 0; i < n; ++i) {
+        pos = writeVarint64(LongBits.from(value[i]).zzEncode(), buf, pos);
+      }
+      return this._delim(lenPos, pos - lenPos - 1);
+    };
+    Writer.prototype.bools = function write_bools(value) {
+      var n = value.length;
+      this.uint32(n);
+      this._reserve(n);
+      var buf = this.buf, p = this.pos;
+      for (var i = 0; i < n; ++i)
+        buf[p++] = value[i] ? 1 : 0;
+      this.pos += n;
+      return this;
+    };
+    var VIEW_THRESHOLD_FLOAT = 16;
+    var VIEW_THRESHOLD_INT = 128;
+    function getLazyView(writer, count, threshold) {
+      var view = writer.view;
+      if (view || count < threshold)
+        return view;
+      var buf = writer.buf;
+      return writer.view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    }
+    Writer.prototype.fixed32s = function write_fixed32s(value) {
+      var n = value.length, bytes = n * 4;
+      this.uint32(bytes);
+      this._reserve(bytes);
+      var p = this.pos, i, dv = getLazyView(this, n, VIEW_THRESHOLD_INT);
+      if (dv)
+        for (i = 0; i < n; ++i) {
+          dv.setUint32(p, value[i] >>> 0, true);
+          p += 4;
+        }
+      else {
+        var buf = this.buf;
+        for (i = 0; i < n; ++i) {
+          writeFixed32(value[i] >>> 0, buf, p);
+          p += 4;
+        }
+      }
+      this.pos += bytes;
+      return this;
+    };
+    Writer.prototype.sfixed32s = Writer.prototype.fixed32s;
+    Writer.prototype.fixed64s = function write_fixed64s(value) {
+      var n = value.length, bytes = n * 8;
+      this.uint32(bytes);
+      this._reserve(bytes);
+      var p = this.pos, i, bits, dv = getLazyView(this, n, VIEW_THRESHOLD_INT);
+      if (dv)
+        for (i = 0; i < n; ++i) {
+          bits = LongBits.from(value[i]);
+          dv.setUint32(p, bits.lo, true);
+          dv.setUint32(p + 4, bits.hi, true);
+          p += 8;
+        }
+      else {
+        var buf = this.buf;
+        for (i = 0; i < n; ++i) {
+          bits = LongBits.from(value[i]);
+          writeFixed32(bits.lo, buf, p);
+          writeFixed32(bits.hi, buf, p + 4);
+          p += 8;
+        }
+      }
+      this.pos += bytes;
+      return this;
+    };
+    Writer.prototype.sfixed64s = Writer.prototype.fixed64s;
+    Writer.prototype.floats = function write_floats(value) {
+      var n = value.length, bytes = n * 4;
+      this.uint32(bytes);
+      this._reserve(bytes);
+      var p = this.pos, i, dv = getLazyView(this, n, VIEW_THRESHOLD_FLOAT);
+      if (dv)
+        for (i = 0; i < n; ++i) {
+          dv.setFloat32(p, value[i], true);
+          p += 4;
+        }
+      else {
+        var buf = this.buf;
+        for (i = 0; i < n; ++i) {
+          util2.float.writeFloatLE(value[i], buf, p);
+          p += 4;
+        }
+      }
+      this.pos += bytes;
+      return this;
+    };
+    Writer.prototype.doubles = function write_doubles(value) {
+      var n = value.length, bytes = n * 8;
+      this.uint32(bytes);
+      this._reserve(bytes);
+      var p = this.pos, i, dv = getLazyView(this, n, VIEW_THRESHOLD_FLOAT);
+      if (dv)
+        for (i = 0; i < n; ++i) {
+          dv.setFloat64(p, value[i], true);
+          p += 8;
+        }
+      else {
+        var buf = this.buf;
+        for (i = 0; i < n; ++i) {
+          util2.float.writeDoubleLE(value[i], buf, p);
+          p += 8;
+        }
+      }
+      this.pos += bytes;
+      return this;
+    };
+    Writer.prototype.fork = function fork() {
+      this._reserve(1);
+      (this.states || (this.states = [])).push(this.pos);
+      this.pos += 1;
+      return this;
+    };
+    Writer.prototype.reset = function reset() {
+      var states = this.states;
+      if (states && states.length) {
+        this.pos = states.pop();
+      } else {
+        this.pos = 0;
+      }
+      return this;
+    };
+    Writer.prototype.ldelim = function ldelim() {
+      var states = this.states, len, vlen;
+      if (states && states.length) {
+        var lenPos = states.pop();
+        len = this.pos - lenPos - 1;
+        vlen = sizeVarint32(len);
+        if (vlen > 1) {
+          this._reserve(vlen - 1);
+          this.buf.copyWithin(lenPos + vlen, lenPos + 1, lenPos + 1 + len);
+          this.pos += vlen - 1;
+          writeVarint32(len, this.buf, lenPos);
+        } else {
+          this.buf[lenPos] = len;
+        }
+      } else {
+        len = this.pos;
+        vlen = sizeVarint32(len);
+        this._reserve(vlen);
+        this.buf.copyWithin(vlen, 0, len);
+        writeVarint32(len, this.buf, 0);
+        this.pos += vlen;
+      }
+      return this;
+    };
+    Writer.prototype.finish = function finish(shared) {
+      if (shared)
+        return this.buf.subarray(0, this.pos);
+      var buf = this.constructor.alloc(this.pos);
+      buf.set(this.buf.subarray(0, this.pos), 0);
+      return buf;
+    };
+    Writer.prototype.finishInto = function finishInto(buf, offset) {
+      if (offset === void 0)
+        offset = 0;
+      buf.set(this.buf.subarray(0, this.pos), offset);
+      return buf;
+    };
+    Writer._configure = function(BufferWriter_) {
+      BufferWriter = BufferWriter_;
+      Writer.create = create();
+      BufferWriter._configure();
+    };
+  }
+});
+
+// node_modules/protobufjs/src/writer_buffer.js
+var require_writer_buffer = __commonJS({
+  "node_modules/protobufjs/src/writer_buffer.js"(exports, module) {
+    "use strict";
+    module.exports = BufferWriter;
+    var Writer = require_writer();
+    BufferWriter.prototype = Object.create(Writer.prototype, {
+      constructor: {
+        value: BufferWriter,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    var util2 = require_minimal();
+    function BufferWriter() {
+      Writer.call(this);
+    }
+    var writeStringBuffer;
+    BufferWriter._configure = function() {
+      BufferWriter.alloc = util2.Buffer && util2.Buffer.allocUnsafe;
+      writeStringBuffer = util2.Buffer && util2.Buffer.prototype.utf8Write ? function writeStringBuffer_utf8Write(val, buf, pos) {
+        return buf.utf8Write(val, pos);
+      } : function writeStringBuffer_write(val, buf, pos) {
+        return buf.write(val, pos);
+      };
+    };
+    BufferWriter.prototype.bytes = function write_bytes_buffer(value) {
+      if (util2.isString(value))
+        value = util2.Buffer.from(value, "base64");
+      var len = value.length >>> 0;
+      this.uint32(len);
+      if (len) {
+        this._reserve(len);
+        this.buf.set(value, this.pos);
+        this.pos += len;
+      }
+      return this;
+    };
+    BufferWriter.prototype.string = function write_string_buffer(value) {
+      var n = value.length;
+      if (!n) {
+        this._reserve(1);
+        this.buf[this.pos++] = 0;
+        return this;
+      }
+      if (n < 128) {
+        this._reserve(n * 3 + 5);
+        var pos = this.pos, buf = this.buf;
+        return this._delim(
+          pos,
+          n < 40 ? util2.utf8.write(value, buf, pos + 1) : writeStringBuffer(value, buf, pos + 1)
+        );
+      }
+      var len = util2.Buffer.byteLength(value);
+      this.uint32(len);
+      this._reserve(len);
+      writeStringBuffer(value, this.buf, this.pos);
+      this.pos += len;
+      return this;
+    };
+    BufferWriter._configure();
+  }
+});
+
+// node_modules/protobufjs/src/reader.js
+var require_reader = __commonJS({
+  "node_modules/protobufjs/src/reader.js"(exports, module) {
+    "use strict";
+    module.exports = Reader;
+    var util2 = require_minimal();
+    var BufferReader;
+    var LongBits = util2.LongBits;
+    var utf8 = util2.utf8;
+    function indexOutOfRange(reader, writeLength) {
+      return RangeError("index out of range: " + reader.pos + " + " + (writeLength || 1) + " > " + reader.len);
+    }
+    function Reader(buffer) {
+      this.buf = buffer;
+      this.pos = 0;
+      this.len = buffer.length;
+      this.view = null;
+      this.discardUnknown = Reader.discardUnknown;
+    }
+    function create_array(buffer) {
+      if (Array.isArray(buffer))
+        buffer = new Uint8Array(buffer);
+      if (buffer instanceof Uint8Array)
+        return new Reader(buffer);
+      throw Error("illegal buffer");
+    }
+    var create = function create2() {
+      return util2.Buffer ? function create_buffer_setup(buffer) {
+        return (Reader.create = function create_buffer(buffer2) {
+          return util2.Buffer.isBuffer(buffer2) ? new BufferReader(buffer2) : create_array(buffer2);
+        })(buffer);
+      } : create_array;
+    };
+    Reader.create = create();
+    Reader.prototype.raw = function read_raw(start, end) {
+      return this.buf.subarray(start, end);
+    };
+    function readVarint32NearEnd(reader) {
+      var value = 0;
+      for (var i = 0; i < 4; ++i) {
+        if (reader.pos >= reader.len)
+          throw indexOutOfRange(reader);
+        var b = reader.buf[reader.pos++];
+        value = (value | (b & 127) << i * 7) >>> 0;
+        if (b < 128)
+          return value;
+      }
+      throw indexOutOfRange(reader);
+    }
+    Reader.prototype.uint32 = function read_uint32() {
+      if (this.len - this.pos < 5) {
+        if (this.pos >= this.len)
+          throw indexOutOfRange(this);
+        if (this.buf[this.pos] >= 128)
+          return readVarint32NearEnd(this);
+      }
+      var buf = this.buf, pos = this.pos, value = (buf[pos] & 127) >>> 0;
+      if (buf[pos++] < 128) {
+        this.pos = pos;
+        return value;
+      }
+      value = (value | (buf[pos] & 127) << 7) >>> 0;
+      if (buf[pos++] < 128) {
+        this.pos = pos;
+        return value;
+      }
+      value = (value | (buf[pos] & 127) << 14) >>> 0;
+      if (buf[pos++] < 128) {
+        this.pos = pos;
+        return value;
+      }
+      value = (value | (buf[pos] & 127) << 21) >>> 0;
+      if (buf[pos++] < 128) {
+        this.pos = pos;
+        return value;
+      }
+      value = (value | (buf[pos] & 15) << 28) >>> 0;
+      if (buf[pos++] < 128) {
+        this.pos = pos;
+        return value;
+      }
+      for (var i = 0; i < 5; ++i) {
+        if (pos >= this.len) {
+          this.pos = pos;
+          throw indexOutOfRange(this);
+        }
+        if (buf[pos++] < 128) {
+          this.pos = pos;
+          return value;
+        }
+      }
+      this.pos = pos;
+      throw Error("invalid varint encoding");
+    };
+    Reader.prototype.tag = function read_tag() {
+      if (this.len - this.pos < 5) {
+        if (this.pos >= this.len)
+          throw indexOutOfRange(this);
+        if (this.buf[this.pos] >= 128)
+          return readVarint32NearEnd(this);
+      }
+      var buf = this.buf, pos = this.pos, value = (buf[pos] & 127) >>> 0;
+      if (buf[pos++] < 128) {
+        this.pos = pos;
+        return value;
+      }
+      value = (value | (buf[pos] & 127) << 7) >>> 0;
+      if (buf[pos++] < 128) {
+        this.pos = pos;
+        return value;
+      }
+      value = (value | (buf[pos] & 127) << 14) >>> 0;
+      if (buf[pos++] < 128) {
+        this.pos = pos;
+        return value;
+      }
+      value = (value | (buf[pos] & 127) << 21) >>> 0;
+      if (buf[pos++] < 128) {
+        this.pos = pos;
+        return value;
+      }
+      value = (value | (buf[pos] & 15) << 28) >>> 0;
+      if (buf[pos] < 128 && (buf[pos] & 112) === 0) {
+        this.pos = pos + 1;
+        return value;
+      }
+      this.pos = pos + 1;
+      throw Error("invalid tag encoding");
+    };
+    Reader.prototype.int32 = function read_int32() {
+      return this.uint32() | 0;
+    };
+    Reader.prototype.sint32 = function read_sint32() {
+      var value = this.uint32();
+      return value >>> 1 ^ -(value & 1) | 0;
+    };
+    function readLongVarint() {
+      var bits = new LongBits(0, 0);
+      var i = 0;
+      if (this.len - this.pos > 4) {
+        for (; i < 4; ++i) {
+          bits.lo = (bits.lo | (this.buf[this.pos] & 127) << i * 7) >>> 0;
+          if (this.buf[this.pos++] < 128)
+            return bits;
+        }
+        bits.lo = (bits.lo | (this.buf[this.pos] & 127) << 28) >>> 0;
+        bits.hi = (bits.hi | (this.buf[this.pos] & 127) >> 4) >>> 0;
+        if (this.buf[this.pos++] < 128)
+          return bits;
+        i = 0;
+      } else {
+        for (; i < 4; ++i) {
+          if (this.pos >= this.len)
+            throw indexOutOfRange(this);
+          bits.lo = (bits.lo | (this.buf[this.pos] & 127) << i * 7) >>> 0;
+          if (this.buf[this.pos++] < 128)
+            return bits;
+        }
+        throw indexOutOfRange(this);
+      }
+      if (this.len - this.pos > 4) {
+        for (; i < 5; ++i) {
+          bits.hi = (bits.hi | (this.buf[this.pos] & 127) << i * 7 + 3) >>> 0;
+          if (this.buf[this.pos++] < 128)
+            return bits;
+        }
+      } else {
+        for (; i < 5; ++i) {
+          if (this.pos >= this.len)
+            throw indexOutOfRange(this);
+          bits.hi = (bits.hi | (this.buf[this.pos] & 127) << i * 7 + 3) >>> 0;
+          if (this.buf[this.pos++] < 128)
+            return bits;
+        }
+      }
+      throw Error("invalid varint encoding");
+    }
+    Reader.prototype.bool = function read_bool() {
+      var value = false, b;
+      for (var i = 0; i < 10; ++i) {
+        if (this.pos >= this.len)
+          throw indexOutOfRange(this);
+        b = this.buf[this.pos++];
+        if (b & 127)
+          value = true;
+        if (b < 128)
+          return value;
+      }
+      throw Error("invalid varint encoding");
+    };
+    function readFixed32_end(buf, end) {
+      return (buf[end - 4] | buf[end - 3] << 8 | buf[end - 2] << 16 | buf[end - 1] << 24) >>> 0;
+    }
+    Reader.prototype.fixed32 = function read_fixed32() {
+      if (this.pos + 4 > this.len)
+        throw indexOutOfRange(this, 4);
+      return readFixed32_end(this.buf, this.pos += 4);
+    };
+    Reader.prototype.sfixed32 = function read_sfixed32() {
+      if (this.pos + 4 > this.len)
+        throw indexOutOfRange(this, 4);
+      return readFixed32_end(this.buf, this.pos += 4) | 0;
+    };
+    function readFixed64() {
+      if (this.pos + 8 > this.len)
+        throw indexOutOfRange(this, 8);
+      return new LongBits(readFixed32_end(this.buf, this.pos += 4), readFixed32_end(this.buf, this.pos += 4));
+    }
+    Reader.prototype.float = function read_float() {
+      if (this.pos + 4 > this.len)
+        throw indexOutOfRange(this, 4);
+      var value = util2.float.readFloatLE(this.buf, this.pos);
+      this.pos += 4;
+      return value;
+    };
+    Reader.prototype.double = function read_double() {
+      if (this.pos + 8 > this.len)
+        throw indexOutOfRange(this, 4);
+      var value = util2.float.readDoubleLE(this.buf, this.pos);
+      this.pos += 8;
+      return value;
+    };
+    Reader.prototype.uint32s = function read_uint32s(array2) {
+      if (array2 === void 0) array2 = [];
+      var end = this.uint32() + this.pos, len = this.len, buf = this.buf, pos = this.pos, value;
+      if (end > len) throw indexOutOfRange(this, end - this.pos);
+      this.len = end;
+      while (pos < end) {
+        value = buf[pos++];
+        if (value < 128)
+          array2.push(value);
+        else {
+          this.pos = pos - 1;
+          array2.push(this.uint32());
+          pos = this.pos;
+        }
+      }
+      this.pos = pos;
+      if (pos !== end) throw RangeError("index out of range");
+      this.len = len;
+      return array2;
+    };
+    Reader.prototype.int32s = function read_int32s(array2) {
+      if (array2 === void 0) array2 = [];
+      var end = this.uint32() + this.pos, len = this.len, buf = this.buf, pos = this.pos, value;
+      if (end > len) throw indexOutOfRange(this, end - this.pos);
+      this.len = end;
+      while (pos < end) {
+        value = buf[pos++];
+        if (value < 128)
+          array2.push(value);
+        else {
+          this.pos = pos - 1;
+          array2.push(this.int32());
+          pos = this.pos;
+        }
+      }
+      this.pos = pos;
+      if (pos !== end) throw RangeError("index out of range");
+      this.len = len;
+      return array2;
+    };
+    Reader.prototype.sint32s = function read_sint32s(array2) {
+      if (array2 === void 0) array2 = [];
+      var end = this.uint32() + this.pos, len = this.len;
+      if (end > len) throw indexOutOfRange(this, end - this.pos);
+      this.len = end;
+      while (this.pos < end)
+        array2.push(this.sint32());
+      if (this.pos !== end) throw RangeError("index out of range");
+      this.len = len;
+      return array2;
+    };
+    Reader.prototype.bools = function read_bools(array2) {
+      if (array2 === void 0) array2 = [];
+      var end = this.uint32() + this.pos, len = this.len, buf = this.buf, pos = this.pos, value;
+      if (end > len) throw indexOutOfRange(this, end - this.pos);
+      this.len = end;
+      while (pos < end) {
+        value = buf[pos++];
+        if (value < 128)
+          array2.push(value !== 0);
+        else {
+          this.pos = pos - 1;
+          array2.push(this.bool());
+          pos = this.pos;
+        }
+      }
+      this.pos = pos;
+      if (pos !== end) throw RangeError("index out of range");
+      this.len = len;
+      return array2;
+    };
+    var VIEW_THRESHOLD_FLOAT = 8;
+    var VIEW_THRESHOLD_INT = 128;
+    function getLazyView(reader, count, threshold) {
+      var view = reader.view;
+      if (view || count < threshold)
+        return view;
+      var buf = reader.buf;
+      return reader.view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    }
+    Reader.prototype.fixed32s = function read_fixed32s(array2) {
+      if (array2 === void 0) array2 = [];
+      var len = this.uint32(), end = this.pos + len;
+      if (end > this.len) throw indexOutOfRange(this, len);
+      var count = len >>> 2, i = array2.length, pos = this.pos;
+      array2.length = i + count;
+      var dv = getLazyView(this, count, VIEW_THRESHOLD_INT);
+      if (dv)
+        for (var k = 0; k < count; ++k, pos += 4) array2[i++] = dv.getUint32(pos, true);
+      else {
+        var buf = this.buf;
+        for (var j = 0; j < count; ++j, pos += 4) array2[i++] = readFixed32_end(buf, pos + 4);
+      }
+      this.pos = pos;
+      if (pos !== end) throw indexOutOfRange(this, 4);
+      return array2;
+    };
+    Reader.prototype.sfixed32s = function read_sfixed32s(array2) {
+      if (array2 === void 0) array2 = [];
+      var len = this.uint32(), end = this.pos + len;
+      if (end > this.len) throw indexOutOfRange(this, len);
+      var count = len >>> 2, i = array2.length, pos = this.pos;
+      array2.length = i + count;
+      var dv = getLazyView(this, count, VIEW_THRESHOLD_INT);
+      if (dv)
+        for (var k = 0; k < count; ++k, pos += 4) array2[i++] = dv.getInt32(pos, true);
+      else {
+        var buf = this.buf;
+        for (var j = 0; j < count; ++j, pos += 4) array2[i++] = readFixed32_end(buf, pos + 4) | 0;
+      }
+      this.pos = pos;
+      if (pos !== end) throw indexOutOfRange(this, 4);
+      return array2;
+    };
+    Reader.prototype.floats = function read_floats(array2) {
+      if (array2 === void 0) array2 = [];
+      var len = this.uint32(), end = this.pos + len;
+      if (end > this.len) throw indexOutOfRange(this, len);
+      var count = len >>> 2, i = array2.length, pos = this.pos;
+      array2.length = i + count;
+      var dv = getLazyView(this, count, VIEW_THRESHOLD_FLOAT);
+      if (dv)
+        for (var k = 0; k < count; ++k, pos += 4) array2[i++] = dv.getFloat32(pos, true);
+      else {
+        var buf = this.buf;
+        for (var j = 0; j < count; ++j, pos += 4) array2[i++] = util2.float.readFloatLE(buf, pos);
+      }
+      this.pos = pos;
+      if (pos !== end) throw indexOutOfRange(this, 4);
+      return array2;
+    };
+    Reader.prototype.doubles = function read_doubles(array2) {
+      if (array2 === void 0) array2 = [];
+      var len = this.uint32(), end = this.pos + len;
+      if (end > this.len) throw indexOutOfRange(this, len);
+      var count = len >>> 3, i = array2.length, pos = this.pos;
+      array2.length = i + count;
+      var dv = getLazyView(this, count, VIEW_THRESHOLD_FLOAT);
+      if (dv)
+        for (var k = 0; k < count; ++k, pos += 8) array2[i++] = dv.getFloat64(pos, true);
+      else {
+        var buf = this.buf;
+        for (var j = 0; j < count; ++j, pos += 8) array2[i++] = util2.float.readDoubleLE(buf, pos);
+      }
+      this.pos = pos;
+      if (pos !== end) throw indexOutOfRange(this, 8);
+      return array2;
+    };
+    Reader.prototype.uint64s = function read_uint64s(array2) {
+      if (array2 === void 0) array2 = [];
+      var end = this.uint32() + this.pos, len = this.len;
+      if (end > len) throw indexOutOfRange(this, end - this.pos);
+      this.len = end;
+      while (this.pos < end)
+        array2.push(this.uint64());
+      if (this.pos !== end) throw RangeError("index out of range");
+      this.len = len;
+      return array2;
+    };
+    Reader.prototype.int64s = function read_int64s(array2) {
+      if (array2 === void 0) array2 = [];
+      var end = this.uint32() + this.pos, len = this.len;
+      if (end > len) throw indexOutOfRange(this, end - this.pos);
+      this.len = end;
+      while (this.pos < end)
+        array2.push(this.int64());
+      if (this.pos !== end) throw RangeError("index out of range");
+      this.len = len;
+      return array2;
+    };
+    Reader.prototype.sint64s = function read_sint64s(array2) {
+      if (array2 === void 0) array2 = [];
+      var end = this.uint32() + this.pos, len = this.len;
+      if (end > len) throw indexOutOfRange(this, end - this.pos);
+      this.len = end;
+      while (this.pos < end)
+        array2.push(this.sint64());
+      if (this.pos !== end) throw RangeError("index out of range");
+      this.len = len;
+      return array2;
+    };
+    Reader.prototype.fixed64s = function read_fixed64s(array2) {
+      if (array2 === void 0) array2 = [];
+      var len = this.uint32(), end = this.pos + len, i = array2.length;
+      if (end > this.len) throw indexOutOfRange(this, len);
+      var count = len >>> 3;
+      array2.length = i + count;
+      for (var j = 0; j < count; ++j)
+        array2[i++] = this.fixed64();
+      if (this.pos !== end) throw indexOutOfRange(this, 8);
+      return array2;
+    };
+    Reader.prototype.sfixed64s = function read_sfixed64s(array2) {
+      if (array2 === void 0) array2 = [];
+      var len = this.uint32(), end = this.pos + len, i = array2.length;
+      if (end > this.len) throw indexOutOfRange(this, len);
+      var count = len >>> 3;
+      array2.length = i + count;
+      for (var j = 0; j < count; ++j)
+        array2[i++] = this.sfixed64();
+      if (this.pos !== end) throw indexOutOfRange(this, 8);
+      return array2;
+    };
+    Reader.prototype.bytes = function read_bytes() {
+      var length = this.uint32(), start = this.pos, end = this.pos + length;
+      if (end > this.len)
+        throw indexOutOfRange(this, length);
+      this.pos = end;
+      return this.raw(start, end);
+    };
+    Reader.prototype.string = function read_string() {
+      var length = this.uint32(), start = this.pos, end = this.pos + length;
+      if (end > this.len)
+        throw indexOutOfRange(this, length);
+      this.pos = end;
+      return utf8.read(this.buf, start, end);
+    };
+    Reader.prototype.stringVerify = function read_string_verify() {
+      var length = this.uint32(), start = this.pos, end = this.pos + length;
+      if (end > this.len)
+        throw indexOutOfRange(this, length);
+      this.pos = end;
+      return utf8.readStrict(this.buf, start, end);
+    };
+    Reader.prototype.skip = function skip(length) {
+      if (typeof length === "number") {
+        if (this.pos + length > this.len)
+          throw indexOutOfRange(this, length);
+        this.pos += length;
+      } else {
+        do {
+          if (this.pos >= this.len)
+            throw indexOutOfRange(this);
+        } while (this.buf[this.pos++] & 128);
+      }
+      return this;
+    };
+    Reader.recursionLimit = util2.recursionLimit;
+    Reader.discardUnknown = true;
+    Reader.prototype.skipType = function(wireType, depth, fieldNumber) {
+      if (depth === void 0) depth = 0;
+      if (depth > Reader.recursionLimit)
+        throw Error("max depth exceeded");
+      if (fieldNumber === 0)
+        throw Error("illegal tag: field number 0");
+      switch (wireType) {
+        case 0:
+          this.skip();
+          break;
+        case 1:
+          this.skip(8);
+          break;
+        case 2:
+          this.skip(this.uint32());
+          break;
+        case 3:
+          while (true) {
+            var tag = this.tag();
+            var nestedField = tag >>> 3;
+            wireType = tag & 7;
+            if (!nestedField)
+              throw Error("illegal tag: field number 0");
+            if (wireType === 4) {
+              if (fieldNumber !== void 0 && nestedField !== fieldNumber)
+                throw Error("invalid end group tag");
+              break;
+            }
+            this.skipType(wireType, depth + 1, nestedField);
+          }
+          break;
+        case 5:
+          this.skip(4);
+          break;
+        /* istanbul ignore next */
+        default:
+          throw Error("invalid wire type " + wireType + " at offset " + this.pos);
+      }
+      return this;
+    };
+    Reader._configure = function(BufferReader_) {
+      BufferReader = BufferReader_;
+      Reader.create = create();
+      BufferReader._configure();
+      var fn = util2.Long ? "toLong" : (
+        /* istanbul ignore next */
+        "toNumber"
+      );
+      util2.merge(Reader.prototype, {
+        int64: function read_int64() {
+          return readLongVarint.call(this)[fn](false);
+        },
+        uint64: function read_uint64() {
+          return readLongVarint.call(this)[fn](true);
+        },
+        sint64: function read_sint64() {
+          return readLongVarint.call(this).zzDecode()[fn](false);
+        },
+        fixed64: function read_fixed64() {
+          return readFixed64.call(this)[fn](true);
+        },
+        sfixed64: function read_sfixed64() {
+          return readFixed64.call(this)[fn](false);
+        }
+      });
+    };
+  }
+});
+
+// node_modules/protobufjs/src/reader_buffer.js
+var require_reader_buffer = __commonJS({
+  "node_modules/protobufjs/src/reader_buffer.js"(exports, module) {
+    "use strict";
+    module.exports = BufferReader;
+    var Reader = require_reader();
+    BufferReader.prototype = Object.create(Reader.prototype, {
+      constructor: {
+        value: BufferReader,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    var util2 = require_minimal();
+    function BufferReader(buffer) {
+      Reader.call(this, buffer);
+    }
+    BufferReader._configure = function() {
+      if (util2.Buffer)
+        BufferReader.prototype._slice = util2.Buffer.prototype.slice;
+    };
+    BufferReader.prototype.raw = function read_raw_buffer(start, end) {
+      return this._slice.call(this.buf, start, end);
+    };
+    BufferReader.prototype.string = function read_string_buffer() {
+      var len = this.uint32(), start = this.pos, end = this.pos + len;
+      if (end > this.len)
+        throw RangeError("index out of range: " + this.pos + " + " + len + " > " + this.len);
+      this.pos = end;
+      return this.buf.utf8Slice ? this.buf.utf8Slice(start, end) : this.buf.toString("utf-8", start, end);
+    };
+    BufferReader._configure();
+  }
+});
+
+// node_modules/protobufjs/src/rpc/service.js
+var require_service = __commonJS({
+  "node_modules/protobufjs/src/rpc/service.js"(exports, module) {
+    "use strict";
+    module.exports = Service;
+    var util2 = require_minimal();
+    Service.prototype = Object.create(util2.EventEmitter.prototype, {
+      constructor: {
+        value: Service,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    function Service(rpcImpl, requestDelimited, responseDelimited) {
+      if (typeof rpcImpl !== "function")
+        throw TypeError("rpcImpl must be a function");
+      util2.EventEmitter.call(this);
+      this.rpcImpl = rpcImpl;
+      this.requestDelimited = Boolean(requestDelimited);
+      this.responseDelimited = Boolean(responseDelimited);
+    }
+    Service.prototype.rpcCall = function rpcCall(method, requestCtor, responseCtor, request2, callback) {
+      if (!request2)
+        throw TypeError("request must be specified");
+      var self2 = this;
+      if (!callback)
+        return util2.asPromise(rpcCall, self2, method, requestCtor, responseCtor, request2);
+      if (!self2.rpcImpl) {
+        setTimeout(function() {
+          callback(Error("already ended"));
+        }, 0);
+        return void 0;
+      }
+      try {
+        return self2.rpcImpl(
+          method,
+          requestCtor[self2.requestDelimited ? "encodeDelimited" : "encode"](request2).finish(),
+          function rpcCallback(err, response) {
+            if (err) {
+              self2.emit("error", err, method);
+              return callback(err);
+            }
+            if (response === null) {
+              self2.end(
+                /* endedByRPC */
+                true
+              );
+              return void 0;
+            }
+            if (!(response instanceof responseCtor)) {
+              try {
+                response = responseCtor[self2.responseDelimited ? "decodeDelimited" : "decode"](response);
+              } catch (err2) {
+                self2.emit("error", err2, method);
+                return callback(err2);
+              }
+            }
+            self2.emit("data", response, method);
+            return callback(null, response);
+          }
+        );
+      } catch (err) {
+        self2.emit("error", err, method);
+        setTimeout(function() {
+          callback(err);
+        }, 0);
+        return void 0;
+      }
+    };
+    Service.prototype.end = function end(endedByRPC) {
+      if (this.rpcImpl) {
+        if (!endedByRPC)
+          this.rpcImpl(null, null, null);
+        this.rpcImpl = null;
+        this.emit("end").off();
+      }
+      return this;
+    };
+  }
+});
+
+// node_modules/protobufjs/src/rpc.js
+var require_rpc = __commonJS({
+  "node_modules/protobufjs/src/rpc.js"(exports) {
+    "use strict";
+    var rpc = exports;
+    rpc.Service = require_service();
+  }
+});
+
+// node_modules/protobufjs/src/roots.js
+var require_roots = __commonJS({
+  "node_modules/protobufjs/src/roots.js"(exports, module) {
+    "use strict";
+    module.exports = /* @__PURE__ */ Object.create(null);
+  }
+});
+
+// node_modules/protobufjs/src/index-minimal.js
+var require_index_minimal = __commonJS({
+  "node_modules/protobufjs/src/index-minimal.js"(exports) {
+    "use strict";
+    exports.build = "minimal";
+    exports.Writer = require_writer();
+    exports.BufferWriter = require_writer_buffer();
+    exports.Reader = require_reader();
+    exports.BufferReader = require_reader_buffer();
+    exports.util = require_minimal();
+    exports.rpc = require_rpc();
+    exports.roots = require_roots();
+    exports.configure = configure;
+    function configure() {
+      exports.util.LongBits._configure(exports.util.Long);
+      exports.Writer._configure(exports.BufferWriter);
+      exports.Reader._configure(exports.BufferReader);
+    }
+    configure();
+  }
+});
+
+// node_modules/protobufjs/src/util/patterns.js
+var require_patterns = __commonJS({
+  "node_modules/protobufjs/src/util/patterns.js"(exports) {
+    "use strict";
+    var patterns = exports;
+    patterns.numberRe = /^(?![eE])[0-9]*(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?$/;
+    patterns.typeRefRe = /^(?:\.?[a-zA-Z_][a-zA-Z_0-9]*)(?:\.[a-zA-Z_][a-zA-Z_0-9]*)*$/;
+    patterns.reservedRe = /^(?:do|if|in|for|let|new|try|var|case|else|enum|eval|false|null|this|true|void|with|break|catch|class|const|super|throw|while|yield|delete|export|import|public|return|static|switch|typeof|default|extends|finally|package|private|continue|debugger|function|arguments|interface|protected|implements|instanceof)$/;
+  }
+});
+
+// node_modules/protobufjs/src/util/codegen.js
+var require_codegen3 = __commonJS({
+  "node_modules/protobufjs/src/util/codegen.js"(exports, module) {
+    "use strict";
+    module.exports = codegen;
+    var patterns = require_patterns();
+    var reservedRe = patterns.reservedRe;
+    function codegen(functionParams, functionName) {
+      if (typeof functionParams === "string") {
+        functionName = functionParams;
+        functionParams = void 0;
+      }
+      var body = [];
+      function Codegen(formatStringOrScope) {
+        if (typeof formatStringOrScope !== "string") {
+          var source = toString();
+          if (codegen.verbose)
+            console.log("codegen: " + source);
+          source = "return " + source;
+          if (formatStringOrScope) {
+            var scopeKeys = Object.keys(formatStringOrScope), scopeParams = new Array(scopeKeys.length + 1), scopeValues = new Array(scopeKeys.length), scopeOffset = 0;
+            while (scopeOffset < scopeKeys.length) {
+              scopeParams[scopeOffset] = scopeKeys[scopeOffset];
+              scopeValues[scopeOffset] = formatStringOrScope[scopeKeys[scopeOffset++]];
+            }
+            scopeParams[scopeOffset] = source;
+            return Function.apply(null, scopeParams).apply(null, scopeValues);
+          }
+          return Function(source)();
+        }
+        var formatParams = new Array(arguments.length - 1), formatOffset = 0;
+        while (formatOffset < formatParams.length)
+          formatParams[formatOffset] = arguments[++formatOffset];
+        formatOffset = 0;
+        formatStringOrScope = formatStringOrScope.replace(/%([%dfijs])/g, function replace($0, $1) {
+          var value = formatParams[formatOffset++];
+          switch ($1) {
+            case "d":
+            case "f":
+              value = Number(value);
+              return Object.is(value, -0) ? "-0" : String(value);
+            case "i":
+              return String(Math.floor(value));
+            case "j":
+              return JSON.stringify(value);
+            case "s":
+              return String(value);
+          }
+          return "%";
+        });
+        if (formatOffset !== formatParams.length)
+          throw Error("parameter count mismatch");
+        body.push(formatStringOrScope);
+        return Codegen;
+      }
+      function toString(functionNameOverride) {
+        return "function " + safeFunctionName(functionNameOverride || functionName) + "(" + (functionParams && functionParams.join(",") || "") + "){\n  " + body.join("\n  ") + "\n}";
+      }
+      Object.defineProperty(Codegen, "toString", {
+        value: toString,
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+      return Codegen;
+    }
+    codegen.verbose = false;
+    function safeFunctionName(name) {
+      if (!name)
+        return "";
+      name = String(name).replace(/[^\w$]/g, "");
+      if (!name)
+        return "";
+      if (/^\d/.test(name))
+        name = "_" + name;
+      return reservedRe.test(name) ? name + "_" : name;
+    }
+  }
+});
+
+// node_modules/protobufjs/src/util/fs.js
+var require_fs = __commonJS({
+  "node_modules/protobufjs/src/util/fs.js"(exports, module) {
+    "use strict";
+    var fs52 = null;
+    try {
+      fs52 = __require(
+        /* webpackIgnore: true */
+        "fs"
+      );
+      if (!fs52 || !fs52.readFile || !fs52.readFileSync)
+        fs52 = null;
+    } catch (e) {
+    }
+    module.exports = fs52;
+  }
+});
+
+// node_modules/protobufjs/src/util/fetch.js
+var require_fetch = __commonJS({
+  "node_modules/protobufjs/src/util/fetch.js"(exports, module) {
+    "use strict";
+    module.exports = fetch2;
+    var asPromise = require_aspromise();
+    var fs52 = require_fs();
+    function fetch2(filename2, options3, callback) {
+      if (typeof options3 === "function") {
+        callback = options3;
+        options3 = {};
+      } else if (!options3)
+        options3 = {};
+      if (!callback)
+        return asPromise(fetch2, this, filename2, options3);
+      if (!options3.xhr && fs52 && fs52.readFile)
+        return fs52.readFile(filename2, function fetchReadFileCallback(err, contents) {
+          return err && typeof XMLHttpRequest !== "undefined" ? fetch2.xhr(filename2, options3, callback) : err ? callback(err) : callback(null, options3.binary ? contents : contents.toString("utf8"));
+        });
+      return fetch2.xhr(filename2, options3, callback);
+    }
+    fetch2.xhr = function fetch_xhr(filename2, options3, callback) {
+      var xhr = new XMLHttpRequest();
+      xhr.onreadystatechange = function fetchOnReadyStateChange() {
+        if (xhr.readyState !== 4)
+          return void 0;
+        if (xhr.status !== 0 && xhr.status !== 200)
+          return callback(Error("status " + xhr.status));
+        if (options3.binary) {
+          var buffer = xhr.response;
+          if (!buffer) {
+            buffer = [];
+            for (var i = 0; i < xhr.responseText.length; ++i)
+              buffer.push(xhr.responseText.charCodeAt(i) & 255);
+          }
+          return callback(null, typeof Uint8Array !== "undefined" ? new Uint8Array(buffer) : buffer);
+        }
+        return callback(null, xhr.responseText);
+      };
+      if (options3.binary) {
+        if ("overrideMimeType" in xhr)
+          xhr.overrideMimeType("text/plain; charset=x-user-defined");
+        xhr.responseType = "arraybuffer";
+      }
+      xhr.open("GET", filename2);
+      xhr.send();
+    };
+  }
+});
+
+// node_modules/protobufjs/src/util/path.js
+var require_path = __commonJS({
+  "node_modules/protobufjs/src/util/path.js"(exports) {
+    "use strict";
+    var path55 = exports;
+    var urlRe = /^[a-zA-Z][a-zA-Z0-9+.-]+:\/\//;
+    function normalizeUrl(path56) {
+      if (typeof URL === "undefined" || !urlRe.test(path56))
+        return null;
+      try {
+        return new URL(path56).href;
+      } catch (e) {
+        return null;
+      }
+    }
+    function resolveUrl(originPath, includePath) {
+      if (typeof URL === "undefined" || !urlRe.test(originPath) || urlRe.test(includePath))
+        return null;
+      try {
+        return new URL(includePath, originPath).href;
+      } catch (e) {
+        return null;
+      }
+    }
+    var isAbsolute = (
+      /**
+       * Tests if the specified path is absolute.
+       * @param {string} path Path to test
+       * @returns {boolean} `true` if path is absolute
+       */
+      path55.isAbsolute = function isAbsolute2(path56) {
+        return /^(?:\/|\w+:|\\\\\w+)/.test(path56);
+      }
+    );
+    var normalize = (
+      /**
+       * Normalizes the specified path.
+       * @param {string} path Path to normalize
+       * @returns {string} Normalized path
+       */
+      path55.normalize = function normalize2(path56) {
+        var normalizedUrl = normalizeUrl(path56);
+        if (normalizedUrl)
+          return normalizedUrl;
+        var firstTwoCharacters = path56.substring(0, 2);
+        var uncPrefix = "";
+        if (firstTwoCharacters === "\\\\") {
+          uncPrefix = firstTwoCharacters;
+          path56 = path56.substring(2);
+        }
+        path56 = path56.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+        var parts = path56.split("/"), absolute = isAbsolute(path56), prefix = "";
+        if (absolute)
+          prefix = parts.shift() + "/";
+        for (var i = 0; i < parts.length; ) {
+          if (parts[i] === "..") {
+            if (i > 0 && parts[i - 1] !== "..")
+              parts.splice(--i, 2);
+            else if (absolute)
+              parts.splice(i, 1);
+            else
+              ++i;
+          } else if (parts[i] === ".")
+            parts.splice(i, 1);
+          else
+            ++i;
+        }
+        return uncPrefix + prefix + parts.join("/");
+      }
+    );
+    path55.resolve = function resolve(originPath, includePath, alreadyNormalized) {
+      var resolvedUrl = resolveUrl(originPath, includePath);
+      if (resolvedUrl)
+        return resolvedUrl;
+      if (!alreadyNormalized)
+        includePath = normalize(includePath);
+      if (isAbsolute(includePath))
+        return includePath;
+      if (!alreadyNormalized)
+        originPath = normalize(originPath);
+      return (originPath = originPath.replace(/(?:\/|^)[^/]+$/, "")).length ? normalize(originPath + "/" + includePath) : includePath;
+    };
+  }
+});
+
+// node_modules/protobufjs/src/namespace.js
+var require_namespace = __commonJS({
+  "node_modules/protobufjs/src/namespace.js"(exports, module) {
+    "use strict";
+    module.exports = Namespace;
+    var ReflectionObject = require_object();
+    Namespace.prototype = Object.create(ReflectionObject.prototype, {
+      constructor: {
+        value: Namespace,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    Namespace.className = "Namespace";
+    var Field = require_field();
+    var util2 = require_util3();
+    var OneOf = require_oneof();
+    var Type;
+    var Service;
+    var Enum;
+    Namespace.fromJSON = function fromJSON(name, json2, depth) {
+      if (depth === void 0)
+        depth = 0;
+      if (depth > util2.recursionLimit)
+        throw Error("max depth exceeded");
+      return new Namespace(name, json2.options).addJSON(json2.nested, depth);
+    };
+    function arrayToJSON(array2, toJSONOptions) {
+      if (!(array2 && array2.length))
+        return void 0;
+      var obj = {};
+      for (var i = 0; i < array2.length; ++i)
+        obj[array2[i].name] = array2[i].toJSON(toJSONOptions);
+      return obj;
+    }
+    Namespace.arrayToJSON = arrayToJSON;
+    Namespace.isReservedId = function isReservedId(reserved, id) {
+      if (reserved) {
+        for (var i = 0; i < reserved.length; ++i)
+          if (typeof reserved[i] !== "string" && reserved[i][0] <= id && reserved[i][1] >= id)
+            return true;
+      }
+      return false;
+    };
+    Namespace.isReservedName = function isReservedName(reserved, name) {
+      if (reserved) {
+        for (var i = 0; i < reserved.length; ++i)
+          if (reserved[i] === name)
+            return true;
+      }
+      return false;
+    };
+    function Namespace(name, options3) {
+      ReflectionObject.call(this, name, options3);
+      this.nested = void 0;
+      this._nestedArray = null;
+      this._lookupCache = /* @__PURE__ */ Object.create(null);
+      this._needsRecursiveFeatureResolution = true;
+      this._needsRecursiveResolve = true;
+    }
+    function clearCache(namespace) {
+      namespace._nestedArray = null;
+      namespace._lookupCache = /* @__PURE__ */ Object.create(null);
+      var parent = namespace;
+      while (parent = parent.parent) {
+        parent._lookupCache = /* @__PURE__ */ Object.create(null);
+      }
+      return namespace;
+    }
+    Object.defineProperty(Namespace.prototype, "nestedArray", {
+      get: function() {
+        return this._nestedArray || (this._nestedArray = util2.toArray(this.nested));
+      }
+    });
+    Namespace.prototype.toJSON = function toJSON(toJSONOptions) {
+      return util2.toObject([
+        "options",
+        this.options,
+        "nested",
+        arrayToJSON(this.nestedArray, toJSONOptions)
+      ]);
+    };
+    Namespace.prototype.addJSON = function addJSON(nestedJson, depth) {
+      if (depth === void 0)
+        depth = 0;
+      if (depth > util2.recursionLimit)
+        throw Error("max depth exceeded");
+      var ns = this;
+      if (nestedJson) {
+        for (var names = Object.keys(nestedJson), i = 0, nested; i < names.length; ++i) {
+          nested = nestedJson[names[i]];
+          ns.add(
+            // most to least likely
+            (nested.fields !== void 0 ? Type.fromJSON : nested.values !== void 0 ? Enum.fromJSON : nested.methods !== void 0 ? Service.fromJSON : nested.id !== void 0 ? Field.fromJSON : Namespace.fromJSON)(names[i], nested, depth + 1)
+          );
+        }
+      }
+      return this;
+    };
+    Namespace.prototype.get = function get(name) {
+      return this.nested && Object.prototype.hasOwnProperty.call(this.nested, name) ? this.nested[name] : null;
+    };
+    Namespace.prototype.getEnum = function getEnum(name) {
+      if (this.nested && Object.prototype.hasOwnProperty.call(this.nested, name) && this.nested[name] instanceof Enum)
+        return this.nested[name].values;
+      throw Error("no such enum: " + name);
+    };
+    Namespace.prototype.add = function add(object3) {
+      if (!(object3 instanceof Field && object3.extend !== void 0 || object3 instanceof Type || object3 instanceof OneOf || object3 instanceof Enum || object3 instanceof Service || object3 instanceof Namespace))
+        throw TypeError("object must be a valid nested object");
+      if (object3.name === "__proto__")
+        return this;
+      if (!this.nested)
+        this.nested = {};
+      else {
+        var prev = this.get(object3.name);
+        if (prev) {
+          if (prev instanceof Namespace && object3 instanceof Namespace && !(prev instanceof Type || prev instanceof Service)) {
+            var nested = prev.nestedArray;
+            for (var i = 0; i < nested.length; ++i)
+              object3.add(nested[i]);
+            this.remove(prev);
+            if (!this.nested)
+              this.nested = {};
+            object3.setOptions(prev.options, true);
+          } else
+            throw Error("duplicate name '" + object3.name + "' in " + this);
+        }
+      }
+      this.nested[object3.name] = object3;
+      if (!(this instanceof Type || this instanceof Service || this instanceof Enum || this instanceof Field)) {
+        if (!object3._edition) {
+          object3._edition = object3._defaultEdition;
+        }
+      }
+      this._needsRecursiveFeatureResolution = true;
+      this._needsRecursiveResolve = true;
+      var parent = this;
+      while (parent = parent.parent) {
+        parent._needsRecursiveFeatureResolution = true;
+        parent._needsRecursiveResolve = true;
+      }
+      object3.onAdd(this);
+      return clearCache(this);
+    };
+    Namespace.prototype.remove = function remove(object3) {
+      if (!(object3 instanceof ReflectionObject))
+        throw TypeError("object must be a ReflectionObject");
+      if (object3.parent !== this)
+        throw Error(object3 + " is not a member of " + this);
+      if (!util2.remove(this.nested, object3, object3.name))
+        throw Error(object3 + " is not a member of " + this);
+      if (!Object.keys(this.nested).length)
+        this.nested = void 0;
+      object3.onRemove(this);
+      return clearCache(this);
+    };
+    Namespace.prototype.define = function define2(path55, json2) {
+      if (util2.isString(path55))
+        path55 = path55.split(".");
+      else if (!Array.isArray(path55))
+        throw TypeError("illegal path");
+      if (path55 && path55.length && path55[0] === "")
+        throw Error("path must be relative");
+      if (path55.length > util2.recursionLimit)
+        throw Error("max depth exceeded");
+      var ptr = this;
+      while (path55.length > 0) {
+        var part = path55.shift();
+        if (ptr.nested && ptr.nested[part]) {
+          ptr = ptr.nested[part];
+          if (!(ptr instanceof Namespace))
+            throw Error("path conflicts with non-namespace objects");
+        } else
+          ptr.add(ptr = new Namespace(part));
+      }
+      if (json2)
+        ptr.addJSON(json2);
+      return ptr;
+    };
+    Namespace.prototype.resolveAll = function resolveAll() {
+      if (!this._needsRecursiveResolve) return this;
+      if (this._needsRecursiveFeatureResolution)
+        this._resolveFeaturesRecursive(this._edition);
+      var nested = this.nestedArray, i = 0;
+      this.resolve();
+      while (i < nested.length)
+        if (nested[i] instanceof Namespace)
+          nested[i++].resolveAll();
+        else
+          nested[i++].resolve();
+      this._needsRecursiveResolve = false;
+      return this;
+    };
+    Namespace.prototype._resolveFeaturesRecursive = function _resolveFeaturesRecursive(edition) {
+      if (!this._needsRecursiveFeatureResolution) return this;
+      this._needsRecursiveFeatureResolution = false;
+      edition = this._edition || edition;
+      ReflectionObject.prototype._resolveFeaturesRecursive.call(this, edition);
+      this.nestedArray.forEach((nested) => {
+        nested._resolveFeaturesRecursive(edition);
+      });
+      return this;
+    };
+    Namespace.prototype.lookup = function lookup(path55, filterTypes, parentAlreadyChecked) {
+      if (typeof filterTypes === "boolean") {
+        parentAlreadyChecked = filterTypes;
+        filterTypes = void 0;
+      } else if (filterTypes && !Array.isArray(filterTypes))
+        filterTypes = [filterTypes];
+      if (util2.isString(path55) && path55.length) {
+        if (path55 === ".")
+          return this.root;
+        path55 = path55.split(".");
+      } else if (!path55.length)
+        return this;
+      var flatPath = path55.join(".");
+      if (path55[0] === "")
+        return this.root.lookup(path55.slice(1), filterTypes);
+      var found = this._lookupImpl(path55, flatPath);
+      if (found && (!filterTypes || filterTypes.indexOf(found.constructor) > -1)) {
+        return found;
+      }
+      found = this.root._fullyQualifiedObjects && this.root._fullyQualifiedObjects["." + flatPath];
+      if (found && (!filterTypes || filterTypes.indexOf(found.constructor) > -1)) {
+        return found;
+      }
+      if (parentAlreadyChecked)
+        return null;
+      var current = this;
+      while (current.parent) {
+        found = current.parent._lookupImpl(path55, flatPath);
+        if (found && (!filterTypes || filterTypes.indexOf(found.constructor) > -1)) {
+          return found;
+        }
+        current = current.parent;
+      }
+      return null;
+    };
+    Namespace.prototype._lookupImpl = function lookup(path55, flatPath) {
+      if (Object.prototype.hasOwnProperty.call(this._lookupCache, flatPath)) {
+        return this._lookupCache[flatPath];
+      }
+      var found = this.get(path55[0]);
+      var exact = null;
+      if (found) {
+        if (path55.length === 1) {
+          exact = found;
+        } else if (found instanceof Namespace) {
+          path55 = path55.slice(1);
+          exact = found._lookupImpl(path55, path55.join("."));
+        }
+      } else {
+        for (var i = 0; i < this.nestedArray.length; ++i)
+          if (this._nestedArray[i] instanceof Namespace && (found = this._nestedArray[i]._lookupImpl(path55, flatPath))) {
+            exact = found;
+            break;
+          }
+      }
+      this._lookupCache[flatPath] = exact;
+      return exact;
+    };
+    Namespace.prototype.lookupType = function lookupType(path55) {
+      var found = this.lookup(path55, [Type]);
+      if (!found)
+        throw Error("no such type: " + path55);
+      return found;
+    };
+    Namespace.prototype.lookupEnum = function lookupEnum(path55) {
+      var found = this.lookup(path55, [Enum]);
+      if (!found)
+        throw Error("no such Enum '" + path55 + "' in " + this);
+      return found;
+    };
+    Namespace.prototype.lookupTypeOrEnum = function lookupTypeOrEnum(path55) {
+      var found = this.lookup(path55, [Type, Enum]);
+      if (!found)
+        throw Error("no such Type or Enum '" + path55 + "' in " + this);
+      return found;
+    };
+    Namespace.prototype.lookupService = function lookupService(path55) {
+      var found = this.lookup(path55, [Service]);
+      if (!found)
+        throw Error("no such Service '" + path55 + "' in " + this);
+      return found;
+    };
+    Namespace._configure = function(Type_, Service_, Enum_) {
+      Type = Type_;
+      Service = Service_;
+      Enum = Enum_;
+    };
+  }
+});
+
+// node_modules/protobufjs/src/mapfield.js
+var require_mapfield = __commonJS({
+  "node_modules/protobufjs/src/mapfield.js"(exports, module) {
+    "use strict";
+    module.exports = MapField;
+    var Field = require_field();
+    MapField.prototype = Object.create(Field.prototype, {
+      constructor: {
+        value: MapField,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    MapField.className = "MapField";
+    var types = require_types3();
+    var util2 = require_util3();
+    function MapField(name, id, keyType, type, options3, comment) {
+      Field.call(this, name, id, type, void 0, void 0, options3, comment);
+      if (!util2.isString(keyType))
+        throw TypeError("keyType must be a string");
+      this.keyType = keyType;
+      this.resolvedKeyType = null;
+      this.map = true;
+    }
+    MapField.fromJSON = function fromJSON(name, json2) {
+      var field = new MapField(name, json2.id, json2.keyType, json2.type, json2.options, json2.comment);
+      if (json2.protoName)
+        field.protoName = json2.protoName;
+      if (json2.jsonName !== void 0)
+        field.jsonName = json2.jsonName;
+      else if (json2.options && json2.options.json_name !== void 0)
+        field.jsonName = json2.options.json_name;
+      return field;
+    };
+    MapField.prototype.toJSON = function toJSON(toJSONOptions) {
+      var keepComments = toJSONOptions ? Boolean(toJSONOptions.keepComments) : false;
+      return util2.toObject([
+        "keyType",
+        this.keyType,
+        "type",
+        this.type,
+        "id",
+        this.id,
+        "extend",
+        this.extend,
+        "protoName",
+        this.protoName !== this.name ? this.protoName : void 0,
+        "jsonName",
+        this.jsonName !== util2.jsonName(this.protoName || this.name) ? this.jsonName : void 0,
+        "options",
+        this.options,
+        "comment",
+        keepComments ? this.comment : void 0
+      ]);
+    };
+    MapField.prototype.resolve = function resolve() {
+      if (this.resolved)
+        return this;
+      if (types.mapKey[this.keyType] === void 0)
+        throw Error("invalid key type: " + this.keyType);
+      return Field.prototype.resolve.call(this);
+    };
+    MapField.d = function decorateMapField(fieldId, fieldKeyType, fieldValueType) {
+      if (typeof fieldValueType === "function")
+        fieldValueType = util2.decorateType(fieldValueType).name;
+      else if (fieldValueType && typeof fieldValueType === "object")
+        fieldValueType = util2.decorateEnum(fieldValueType).name;
+      return function mapFieldDecorator(prototype, fieldName) {
+        util2.decorateType(prototype.constructor).add(new MapField(fieldName, fieldId, fieldKeyType, fieldValueType));
+      };
+    };
+  }
+});
+
+// node_modules/protobufjs/src/method.js
+var require_method = __commonJS({
+  "node_modules/protobufjs/src/method.js"(exports, module) {
+    "use strict";
+    module.exports = Method;
+    var ReflectionObject = require_object();
+    Method.prototype = Object.create(ReflectionObject.prototype, {
+      constructor: {
+        value: Method,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    Method.className = "Method";
+    var util2 = require_util3();
+    function Method(name, type, requestType, responseType, requestStream, responseStream, options3, comment, parsedOptions) {
+      if (util2.isObject(requestStream)) {
+        options3 = requestStream;
+        requestStream = responseStream = void 0;
+      } else if (util2.isObject(responseStream)) {
+        options3 = responseStream;
+        responseStream = void 0;
+      }
+      if (!(type === void 0 || util2.isString(type)))
+        throw TypeError("type must be a string");
+      if (!util2.isString(requestType))
+        throw TypeError("requestType must be a string");
+      if (!util2.isString(responseType))
+        throw TypeError("responseType must be a string");
+      ReflectionObject.call(this, name, options3);
+      this.type = type || "rpc";
+      this.requestType = requestType;
+      this.requestStream = requestStream ? true : void 0;
+      this.responseType = responseType;
+      this.responseStream = responseStream ? true : void 0;
+      this.path = "/" + this.name;
+      this.resolvedRequestType = null;
+      this.resolvedResponseType = null;
+      this.comment = comment;
+      this.parsedOptions = parsedOptions;
+    }
+    Method.fromJSON = function fromJSON(name, json2) {
+      return new Method(name, json2.type, json2.requestType, json2.responseType, json2.requestStream, json2.responseStream, json2.options, json2.comment, json2.parsedOptions);
+    };
+    Method.prototype.toJSON = function toJSON(toJSONOptions) {
+      var keepComments = toJSONOptions ? Boolean(toJSONOptions.keepComments) : false;
+      return util2.toObject([
+        "type",
+        this.type !== "rpc" && /* istanbul ignore next */
+        this.type || void 0,
+        "requestType",
+        this.requestType,
+        "requestStream",
+        this.requestStream,
+        "responseType",
+        this.responseType,
+        "responseStream",
+        this.responseStream,
+        "options",
+        this.options,
+        "comment",
+        keepComments ? this.comment : void 0,
+        "parsedOptions",
+        this.parsedOptions
+      ]);
+    };
+    Method.prototype.resolve = function resolve() {
+      if (this.resolved)
+        return this;
+      if (this.parent) {
+        var serviceName = this.parent.fullName;
+        if (serviceName.charAt(0) === ".")
+          serviceName = serviceName.substring(1);
+        this.path = "/" + serviceName + "/" + this.name;
+      } else
+        this.path = "/" + this.name;
+      this.resolvedRequestType = this.parent.lookupType(this.requestType);
+      this.resolvedResponseType = this.parent.lookupType(this.responseType);
+      return ReflectionObject.prototype.resolve.call(this);
+    };
+  }
+});
+
+// node_modules/protobufjs/src/service.js
+var require_service2 = __commonJS({
+  "node_modules/protobufjs/src/service.js"(exports, module) {
+    "use strict";
+    module.exports = Service;
+    var Namespace = require_namespace();
+    Service.prototype = Object.create(Namespace.prototype, {
+      constructor: {
+        value: Service,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    Service.className = "Service";
+    var Method = require_method();
+    var util2 = require_util3();
+    var rpc = require_rpc();
+    function Service(name, options3) {
+      Namespace.call(this, name, options3);
+      this.methods = {};
+      this._methodsArray = null;
+    }
+    Service.fromJSON = function fromJSON(name, json2, depth) {
+      if (depth === void 0)
+        depth = 0;
+      if (depth > util2.recursionLimit)
+        throw Error("max depth exceeded");
+      var service = new Service(name, json2.options);
+      if (json2.methods)
+        for (var names = Object.keys(json2.methods), i = 0; i < names.length; ++i)
+          service.add(Method.fromJSON(names[i], json2.methods[names[i]]));
+      if (json2.nested)
+        service.addJSON(json2.nested, depth);
+      if (json2.edition)
+        service._edition = json2.edition;
+      service.comment = json2.comment;
+      service._defaultEdition = "proto3";
+      return service;
+    };
+    Service.prototype.toJSON = function toJSON(toJSONOptions) {
+      var inherited = Namespace.prototype.toJSON.call(this, toJSONOptions);
+      var keepComments = toJSONOptions ? Boolean(toJSONOptions.keepComments) : false;
+      return util2.toObject([
+        "edition",
+        this._editionToJSON(),
+        "options",
+        inherited && inherited.options || void 0,
+        "methods",
+        Namespace.arrayToJSON(this.methodsArray, toJSONOptions) || /* istanbul ignore next */
+        {},
+        "nested",
+        inherited && inherited.nested || void 0,
+        "comment",
+        keepComments ? this.comment : void 0
+      ]);
+    };
+    Object.defineProperty(Service.prototype, "methodsArray", {
+      get: function() {
+        return this._methodsArray || (this._methodsArray = util2.toArray(this.methods));
+      }
+    });
+    function clearCache(service) {
+      service._methodsArray = null;
+      return service;
+    }
+    Service.prototype.get = function get(name) {
+      return Object.prototype.hasOwnProperty.call(this.methods, name) ? this.methods[name] : Namespace.prototype.get.call(this, name);
+    };
+    Service.prototype.resolveAll = function resolveAll() {
+      if (!this._needsRecursiveResolve) return this;
+      Namespace.prototype.resolve.call(this);
+      var methods = this.methodsArray;
+      for (var i = 0; i < methods.length; ++i)
+        methods[i].resolve();
+      return this;
+    };
+    Service.prototype._resolveFeaturesRecursive = function _resolveFeaturesRecursive(edition) {
+      if (!this._needsRecursiveFeatureResolution) return this;
+      edition = this._edition || edition;
+      Namespace.prototype._resolveFeaturesRecursive.call(this, edition);
+      this.methodsArray.forEach((method) => {
+        method._resolveFeaturesRecursive(edition);
+      });
+      return this;
+    };
+    Service.prototype.add = function add(object3) {
+      if (this.get(object3.name))
+        throw Error("duplicate name '" + object3.name + "' in " + this);
+      if (object3 instanceof Method) {
+        if (object3.name === "__proto__")
+          return this;
+        this.methods[object3.name] = object3;
+        object3.parent = this;
+        return clearCache(this);
+      }
+      return Namespace.prototype.add.call(this, object3);
+    };
+    Service.prototype.remove = function remove(object3) {
+      if (object3 instanceof Method) {
+        if (this.methods[object3.name] !== object3)
+          throw Error(object3 + " is not a member of " + this);
+        delete this.methods[object3.name];
+        object3.parent = null;
+        return clearCache(this);
+      }
+      return Namespace.prototype.remove.call(this, object3);
+    };
+    Service.prototype.create = function create(rpcImpl, requestDelimited, responseDelimited) {
+      var rpcService = new rpc.Service(rpcImpl, requestDelimited, responseDelimited);
+      for (var i = 0, method; i < /* initializes */
+      this.methodsArray.length; ++i) {
+        var methodName = util2.lcFirst((method = this._methodsArray[i]).resolve().name).replace(/[^$\w_]/g, "");
+        rpcService[methodName] = /* @__PURE__ */ (function(method2, requestType, responseType) {
+          return function rpcMethod(request2, callback) {
+            return rpc.Service.prototype.rpcCall.call(this, method2, requestType, responseType, request2, callback);
+          };
+        })(method, method.resolvedRequestType.ctor, method.resolvedResponseType.ctor);
+      }
+      return rpcService;
+    };
+  }
+});
+
+// node_modules/protobufjs/src/message.js
+var require_message = __commonJS({
+  "node_modules/protobufjs/src/message.js"(exports, module) {
+    "use strict";
+    module.exports = Message;
+    var util2 = require_minimal();
+    function Message(properties) {
+      if (properties) {
+        for (var keys = Object.keys(properties), i = 0; i < keys.length; ++i)
+          if (properties[keys[i]] != null && keys[i] !== "__proto__")
+            this[keys[i]] = properties[keys[i]];
+      }
+    }
+    Message.create = function create(properties) {
+      return this.$type.create(properties);
+    };
+    Message.encode = function encode3(message, writer) {
+      return this.$type.encode(message, writer);
+    };
+    Message.encodeDelimited = function encodeDelimited(message, writer) {
+      return this.$type.encodeDelimited(message, writer);
+    };
+    Message.decode = function decode3(reader) {
+      return this.$type.decode(reader);
+    };
+    Message.decodeDelimited = function decodeDelimited(reader) {
+      return this.$type.decodeDelimited(reader);
+    };
+    Message.verify = function verify(message) {
+      return this.$type.verify(message);
+    };
+    Message.fromObject = function fromObject(object3) {
+      return this.$type.fromObject(object3);
+    };
+    Message.toObject = function toObject(message, options3) {
+      return this.$type.toObject(message, options3);
+    };
+    Message.prototype.toJSON = function toJSON() {
+      return this.$type.toObject(this, util2.toJSONOptions);
+    };
+  }
+});
+
+// node_modules/protobufjs/src/decoder.js
+var require_decoder = __commonJS({
+  "node_modules/protobufjs/src/decoder.js"(exports, module) {
+    "use strict";
+    module.exports = decoder;
+    var Enum = require_enum3();
+    var types = require_types3();
+    var util2 = require_util3();
+    function missing(field) {
+      return "missing required '" + field.name + "'";
+    }
+    function stringMethod(field) {
+      return field._features.utf8_validation === "VERIFY" ? "stringVerify" : "string";
+    }
+    function genPreserveUnknown(gen, ref) {
+      return gen("if(!r.discardUnknown){")('util.makeProp(m,"$unknowns",false);')("(m.$unknowns||(m.$unknowns=[])).push(%s)", ref)("}");
+    }
+    function decoder(mtype) {
+      var hasMapField = false, needsValueVar = false, i = 0;
+      for (; i < mtype.fieldsArray.length; ++i) {
+        var pfield = mtype._fieldsArray[i];
+        if (pfield.map)
+          hasMapField = true;
+        if (pfield.resolvedType instanceof Enum || !pfield.repeated && !pfield.map && !pfield.hasPresence)
+          needsValueVar = true;
+      }
+      var gen = util2.codegen(["r", "l", "z", "q", "g"])("if(!(r instanceof Reader))")("r=Reader.create(r)")("if(q===undefined)q=0")("if(q>Reader.recursionLimit)")('throw Error("max depth exceeded")')("var c,m" + (hasMapField ? ",k,v" : needsValueVar ? ",v" : ""))("if(l===undefined)")("c=r.len")("else{")("c=r.pos+l")("if(c>r.len)")('throw RangeError("index out of range")')("l=r.len")("r.len=c")("}")("m=g||new C")("while(r.pos<c){")("var s=r.pos")("var t=r.tag()")("if(t===z){")("z=undefined")("break")("}");
+      if (mtype.fieldsArray.length) gen("var u=t&7")("switch(t>>>=3){");
+      for (i = 0; i < /* initializes */
+      mtype.fieldsArray.length; ++i) {
+        var field = mtype._fieldsArray[i].resolve(), type = field.resolvedType instanceof Enum ? "int32" : field.type, ref = "m" + util2.safeProp(field.name), closed = field.resolvedType instanceof Enum && field.resolvedType._features.enum_type === "CLOSED";
+        if (field.map) {
+          gen("case %i:{", field.id)("if(u!==2)")("break");
+          if (!closed) gen("if(%s===util.emptyObject)", ref)("%s={}", ref);
+          gen("var c2=r.uint32()+r.pos")("if(c2>r.len)")('throw RangeError("index out of range")')("r.len=c2");
+          if (types.defaults[field.keyType] !== void 0) gen("k=%j", types.defaults[field.keyType]);
+          else gen("k=null");
+          if (types.long[type] !== void 0) gen("v=util.Long?util.Long.fromNumber(0,%j):0", type === "uint64" || type === "fixed64");
+          else if (types.defaults[type] !== void 0) gen("v=%j", types.defaults[type]);
+          else gen("v=null");
+          gen("while(r.pos<c2){")("var t2=r.tag()")("u=t2&7")("switch(t2>>>=3){")("case 1:")("if(u!==%i)", types.mapKey[field.keyType])("break")("k=r.%s()", field.keyType === "string" ? stringMethod(field) : field.keyType)("continue")("case 2:")("if(u!==%i)", types.basic[type] === void 0 ? 2 : types.basic[type])("break");
+          if (types.basic[type] === void 0) gen("v=types[%i].decode(r,r.uint32(),undefined,q+1,v)", i);
+          else gen("v=r.%s()", type === "string" ? stringMethod(field) : type);
+          gen("continue")("}")("r.skipType(u,q,t2)")("}");
+          gen("if(r.pos!==c2)")('throw RangeError("index out of range")')("r.len=c");
+          if (closed) {
+            gen("if(types[%i].valuesById[v]===undefined){", i);
+            genPreserveUnknown(gen, "r.raw(s,r.pos)")("continue")("}")("if(%s===util.emptyObject)", ref)("%s={}", ref);
+          }
+          var val = types.basic[type] === void 0 ? "v||new types[" + i + "].ctor" : "v";
+          if (types.long[field.keyType] !== void 0) gen('%s[typeof k==="object"?util.longToHash(k):k]=%s', ref, val);
+          else {
+            if (field.keyType === "string") gen('if(k==="__proto__")')("util.makeProp(%s,k)", ref);
+            gen("%s[k]=%s", ref, val);
+          }
+        } else if (field.repeated) {
+          gen("case %i:", field.id)("{");
+          if (types.packed[type] !== void 0) {
+            gen("if(u===2){");
+            if (closed) {
+              gen("var c2=r.uint32()+r.pos")("if(c2>r.len)")('throw RangeError("index out of range")')("r.len=c2")("while(r.pos<c2){")("s=r.pos")("v=r.%s()", type)("if(types[%i].valuesById[v]!==undefined){", i)("if(!(%s&&%s.length))", ref, ref)("%s=[]", ref)("%s.push(v)", ref)("}else");
+              genPreserveUnknown(gen, "util.rawField(" + field.id + ",0,r.raw(s,r.pos))")("}");
+              gen("if(r.pos!==c2)")('throw RangeError("index out of range")')("r.len=c");
+            } else gen("if(!(%s&&%s.length))", ref, ref)("%s=[]", ref)("r.%ss(%s)", type, ref);
+            gen("continue")("}");
+          }
+          gen("if(u!==%i)", types.basic[type] === void 0 ? field.delimited ? 3 : 2 : types.basic[type])("break");
+          if (!closed) gen("if(!(%s&&%s.length))", ref, ref)("%s=[]", ref);
+          if (types.basic[type] === void 0) {
+            if (field.delimited) gen("%s.push(types[%i].decode(r,undefined,%i,q+1))", ref, i, field.id * 8 + 4);
+            else gen("%s.push(types[%i].decode(r,r.uint32(),undefined,q+1))", ref, i);
+          } else if (closed) {
+            gen("v=r.%s()", type)("if(types[%i].valuesById[v]!==undefined){", i)("if(!(%s&&%s.length))", ref, ref)("%s=[]", ref)("%s.push(v)", ref)("}else");
+            genPreserveUnknown(gen, "r.raw(s,r.pos)");
+          } else gen("%s.push(r.%s())", ref, type === "string" ? stringMethod(field) : type);
+        } else if (types.basic[type] === void 0) {
+          gen("case %i:{", field.id)("if(u!==%i)", field.delimited ? 3 : 2)("break");
+          if (field.delimited) gen("%s=types[%i].decode(r,undefined,%i,q+1,%s)", ref, i, field.id * 8 + 4, ref);
+          else gen("%s=types[%i].decode(r,r.uint32(),undefined,q+1,%s)", ref, i, ref);
+        } else if (field.hasPresence) {
+          gen("case %i:{", field.id)("if(u!==%i)", types.basic[type])("break");
+          if (closed) {
+            gen("v=r.%s()", type)("if(types[%i].valuesById[v]!==undefined){", i)("%s=v", ref);
+            if (field.partOf) gen("m%s=%j", util2.safeProp(field.partOf.name), field.name);
+            gen("}else");
+            genPreserveUnknown(gen, "r.raw(s,r.pos)");
+          } else gen("%s=r.%s()", ref, type === "string" ? stringMethod(field) : type);
+        } else {
+          gen("case %i:{", field.id)("if(u!==%i)", types.basic[type])("break");
+          if (closed) {
+            gen("v=r.%s()", type)("if(types[%i].valuesById[v]!==undefined){", i)("if(v!==%j)", field.typeDefault)("%s=v", ref)("else")("delete %s", ref)("}else{");
+            genPreserveUnknown(gen, "r.raw(s,r.pos)")("}");
+          } else {
+            if (field.resolvedType instanceof Enum && field.typeDefault !== 0) gen("if((v=r.%s())!==%j)", type, field.typeDefault);
+            else if (type === "string") gen("if((v=r.%s()).length)", stringMethod(field));
+            else if (type === "bytes") gen("if((v=r.%s()).length)", type);
+            else if (types.long[type] !== void 0) gen('if(typeof(v=r.%s())==="object"?v.low||v.high:v!==0)', type);
+            else if (type === "double" || type === "float") gen("if(!Object.is(v=r.%s(),0))", type);
+            else gen("if(v=r.%s())", type);
+            gen("%s=v", ref)("else")("delete %s", ref);
+          }
+        }
+        if (field.partOf && !closed) gen("m%s=%j", util2.safeProp(field.partOf.name), field.name);
+        gen("continue")("}");
+      }
+      if (i) gen("}");
+      gen("r.skipType(%s,q,t)", i ? "u" : "t&7");
+      genPreserveUnknown(gen, "r.raw(s,r.pos)")("}")("if(l!==undefined){")("if(r.pos!==c)")('throw RangeError("index out of range")')("r.len=l")("}")("if(z!==undefined)")('throw Error("missing end group")');
+      for (i = 0; i < mtype._fieldsArray.length; ++i) {
+        var rfield = mtype._fieldsArray[i];
+        if (rfield.required) gen("if(!Object.hasOwnProperty.call(m,%j))", rfield.name)("throw util.ProtocolError(%j,{instance:m})", missing(rfield));
+      }
+      return gen("return m");
+    }
+  }
+});
+
+// node_modules/protobufjs/src/verifier.js
+var require_verifier = __commonJS({
+  "node_modules/protobufjs/src/verifier.js"(exports, module) {
+    "use strict";
+    module.exports = verifier;
+    var Enum = require_enum3();
+    var util2 = require_util3();
+    function invalid(field, expected) {
+      return field.name + ": " + expected + (field.repeated && expected !== "array" ? "[]" : field.map && expected !== "object" ? "{k:" + field.keyType + "}" : "") + " expected";
+    }
+    function genVerifyValue(gen, field, fieldIndex, ref) {
+      var resolvedType = field.resolvedType;
+      if (resolvedType) {
+        if (resolvedType instanceof Enum) {
+          if (resolvedType._features.enum_type === "CLOSED") {
+            gen("switch(%s){", ref)("default:")("return%j", invalid(field, "enum value"));
+            for (var keys = Object.keys(resolvedType.values), j = 0; j < keys.length; ++j) gen("case %i:", resolvedType.values[keys[j]]);
+            gen("break")("}");
+          } else gen('if(typeof %s!=="number"||(%s|0)!==%s)', ref, ref, ref)("return%j", invalid(field, "enum value"));
+        } else {
+          gen("{")("var e=types[%i].verify(%s,q+1);", fieldIndex, ref)("if(e)")("return%j+e", field.name + ".")("}");
+        }
+      } else {
+        switch (field.type) {
+          case "int32":
+          case "uint32":
+          case "sint32":
+          case "fixed32":
+          case "sfixed32":
+            gen("if(!util.isInteger(%s))", ref)("return%j", invalid(field, "integer"));
+            break;
+          case "int64":
+          case "uint64":
+          case "sint64":
+          case "fixed64":
+          case "sfixed64":
+            gen("if(!util.isInteger(%s)&&!(%s&&util.isInteger(%s.low)&&util.isInteger(%s.high)))", ref, ref, ref, ref)("return%j", invalid(field, "integer|Long"));
+            break;
+          case "float":
+          case "double":
+            gen('if(typeof %s!=="number")', ref)("return%j", invalid(field, "number"));
+            break;
+          case "bool":
+            gen('if(typeof %s!=="boolean")', ref)("return%j", invalid(field, "boolean"));
+            break;
+          case "string":
+            gen("if(!util.isString(%s))", ref)("return%j", invalid(field, "string"));
+            break;
+          case "bytes":
+            gen('if(!(%s&&typeof %s.length==="number"||util.isString(%s)))', ref, ref, ref)("return%j", invalid(field, "buffer"));
+            break;
+        }
+      }
+      return gen;
+    }
+    function genVerifyKey(gen, field, ref) {
+      switch (field.keyType) {
+        case "int32":
+        case "uint32":
+        case "sint32":
+        case "fixed32":
+        case "sfixed32":
+          gen("if(!util.key32Re.test(%s))", ref)("return%j", invalid(field, "integer key"));
+          break;
+        case "int64":
+        case "uint64":
+        case "sint64":
+        case "fixed64":
+        case "sfixed64":
+          gen("if(!util.key64Re.test(%s))", ref)("return%j", invalid(field, "integer|Long key"));
+          break;
+        case "bool":
+          gen("if(!util.key2Re.test(%s))", ref)("return%j", invalid(field, "boolean key"));
+          break;
+      }
+      return gen;
+    }
+    function verifier(mtype) {
+      var gen = util2.codegen(["m", "q"])('if(typeof m!=="object"||m===null)')("return%j", "object expected")("if(q===undefined)q=0")("if(q>util.recursionLimit)")("return%j", "max depth exceeded");
+      var oneofs = mtype.oneofsArray, seenFirstField = {};
+      if (oneofs.length) gen("var p={}");
+      for (var i = 0; i < /* initializes */
+      mtype.fieldsArray.length; ++i) {
+        var field = mtype._fieldsArray[i].resolve(), ref = "m" + util2.safeProp(field.name);
+        if (field.optional) gen("if(%s!=null&&Object.hasOwnProperty.call(m,%j)){", ref, field.name);
+        if (field.map) {
+          gen("if(!util.isObject(%s))", ref)("return%j", invalid(field, "object"))("var k=Object.keys(%s)", ref)("for(var i=0;i<k.length;++i){");
+          genVerifyKey(gen, field, "k[i]");
+          genVerifyValue(gen, field, i, ref + "[k[i]]")("}");
+        } else if (field.repeated) {
+          gen("if(!Array.isArray(%s))", ref)("return%j", invalid(field, "array"))("for(var i=0;i<%s.length;++i){", ref);
+          genVerifyValue(gen, field, i, ref + "[i]")("}");
+        } else {
+          if (field.partOf) {
+            var oneofProp = util2.safeProp(field.partOf.name);
+            if (seenFirstField[field.partOf.name] === 1) gen("if(p%s===1)", oneofProp)("return%j", field.partOf.name + ": multiple values");
+            seenFirstField[field.partOf.name] = 1;
+            gen("p%s=1", oneofProp);
+          }
+          genVerifyValue(gen, field, i, ref);
+        }
+        if (field.optional) gen("}");
+      }
+      return gen("return null");
+    }
+  }
+});
+
+// node_modules/protobufjs/src/converter.js
+var require_converter = __commonJS({
+  "node_modules/protobufjs/src/converter.js"(exports) {
+    "use strict";
+    var converter = exports;
+    var Enum = require_enum3();
+    var types = require_types3();
+    var util2 = require_util3();
+    function genValuePartial_fromObject(gen, field, fieldIndex, prop, dstProp) {
+      if (field.resolvedType) {
+        if (field.resolvedType instanceof Enum) {
+          var dst = dstProp ? "m" + dstProp + "[m" + dstProp + ".length]" : "m" + prop;
+          gen("switch(d%s){", prop);
+          for (var values = field.resolvedType.values, keys = Object.keys(values), i = 0; i < keys.length; ++i) {
+            gen("case%j:", keys[i])("case %i:", values[keys[i]])("%s=%j", dst, values[keys[i]])("break");
+          }
+          gen("default:");
+          if (field.resolvedType._features.enum_type !== "CLOSED") {
+            gen('if(typeof d%s==="number"&&(d%s|0)===d%s)', prop, prop, prop)("%s=d%s", dst, prop);
+          }
+          gen("}");
+        } else gen("if(!util.isObject(d%s))", prop)("throw TypeError(%j)", field.fullName + ": object expected")("m%s=types[%i].fromObject(d%s,q+1)", prop, fieldIndex, prop);
+      } else {
+        var isUnsigned = false;
+        switch (field.type) {
+          case "double":
+          case "float":
+            gen("m%s=Number(d%s)", prop, prop);
+            break;
+          case "uint32":
+          case "fixed32":
+            gen("m%s=d%s>>>0", prop, prop);
+            break;
+          case "int32":
+          case "sint32":
+          case "sfixed32":
+            gen("m%s=d%s|0", prop, prop);
+            break;
+          case "uint64":
+          case "fixed64":
+            isUnsigned = true;
+          // eslint-disable-next-line no-fallthrough
+          case "int64":
+          case "sint64":
+          case "sfixed64":
+            gen("if(util.Long)")("m%s=util.Long.fromValue(d%s,%j)", prop, prop, isUnsigned)('else if(typeof d%s==="string")', prop)("m%s=parseInt(d%s,10)", prop, prop)('else if(typeof d%s==="number")', prop)("m%s=d%s", prop, prop)('else if(typeof d%s==="object")', prop)("m%s=new util.LongBits(d%s.low>>>0,d%s.high>>>0).toNumber(%s)", prop, prop, prop, isUnsigned ? "true" : "");
+            break;
+          case "bytes":
+            gen('if(typeof d%s==="string")', prop)("util.base64.decode(d%s,m%s=util.newBuffer(util.base64.length(d%s)),0)", prop, prop, prop)("else if(d%s.length>=0)", prop)("m%s=d%s", prop, prop);
+            break;
+          case "string":
+            gen("m%s=String(d%s)", prop, prop);
+            break;
+          case "bool":
+            gen("m%s=Boolean(d%s)", prop, prop);
+            break;
+        }
+      }
+      return gen;
+    }
+    converter.fromObject = function fromObject(mtype) {
+      var fields = mtype.fieldsArray;
+      var gen = util2.codegen(["d", "q"])("if(d instanceof C)")("return d")("if(!util.isObject(d))")("throw TypeError(%j)", mtype.fullName + ": object expected")("if(q===undefined)q=0")("if(q>util.recursionLimit)")('throw Error("max depth exceeded")');
+      if (!fields.length) return gen("return new C");
+      gen("var m=new C");
+      for (var i = 0; i < fields.length; ++i) {
+        var field = fields[i].resolve(), prop = util2.safeProp(field.name), implicitPresence = !field.hasPresence && !field.repeated && !field.map && (field.resolvedType instanceof Enum || types.basic[field.type] !== void 0);
+        if (field.map) {
+          gen("if(d%s){", prop)("if(!util.isObject(d%s))", prop)("throw TypeError(%j)", field.fullName + ": object expected")("m%s={}", prop)("for(var ks=Object.keys(d%s),i=0;i<ks.length;++i){", prop);
+          gen('if(ks[i]==="__proto__")')("util.makeProp(m%s,ks[i])", prop);
+          genValuePartial_fromObject(
+            gen,
+            field,
+            /* not sorted */
+            i,
+            prop + "[ks[i]]"
+          )("}")("}");
+        } else if (field.repeated) {
+          gen("if(d%s){", prop)("if(!Array.isArray(d%s))", prop)("throw TypeError(%j)", field.fullName + ": array expected");
+          if (field.resolvedType instanceof Enum) gen("m%s=[]", prop);
+          else gen("m%s=Array(d%s.length)", prop, prop);
+          gen("for(var i=0;i<d%s.length;++i){", prop);
+          genValuePartial_fromObject(
+            gen,
+            field,
+            /* not sorted */
+            i,
+            prop + "[i]",
+            field.resolvedType instanceof Enum ? prop : void 0
+          )("}")("}");
+        } else {
+          if (!(field.resolvedType instanceof Enum)) gen("if(d%s!=null){", prop);
+          if (implicitPresence) {
+            if (field.resolvedType instanceof Enum) gen('if(d%s!==%j&&(typeof d%s!=="string"||types[%i].values[d%s]!==%j)){', prop, field.typeDefault, prop, i, prop, field.typeDefault);
+            else if (field.type === "string") gen('if(typeof d%s!=="string"||d%s.length){', prop, prop);
+            else if (field.type === "bytes") gen("if(d%s.length){", prop);
+            else if (field.type === "bool") gen("if(d%s){", prop);
+            else if (field.type === "double" || field.type === "float") gen("if(!Object.is(Number(d%s),0)){", prop);
+            else if (types.long[field.type] !== void 0) gen('if(typeof d%s==="object"?d%s.low||d%s.high:Number(d%s)!==0){', prop, prop, prop, prop);
+            else gen("if(Number(d%s)!==0){", prop);
+          }
+          genValuePartial_fromObject(
+            gen,
+            field,
+            /* not sorted */
+            i,
+            prop
+          );
+          if (implicitPresence) gen("}");
+          if (!(field.resolvedType instanceof Enum)) gen("}");
+        }
+      }
+      return gen("return m");
+    };
+    function genValuePartial_toObject(gen, field, fieldIndex, dstProp, srcProp) {
+      if (!srcProp)
+        srcProp = dstProp;
+      if (field.resolvedType) {
+        if (field.resolvedType instanceof Enum) gen("d%s=o.enums===String?(types[%i].values[m%s]===undefined?m%s:types[%i].values[m%s]):m%s", dstProp, fieldIndex, srcProp, srcProp, fieldIndex, srcProp, srcProp);
+        else gen("d%s=types[%i].toObject(m%s,o,q+1)", dstProp, fieldIndex, srcProp);
+      } else {
+        var isUnsigned = false;
+        switch (field.type) {
+          case "double":
+          case "float":
+            gen("d%s=o.json&&!isFinite(m%s)?String(m%s):m%s", dstProp, srcProp, srcProp, srcProp);
+            break;
+          case "uint64":
+          case "fixed64":
+            isUnsigned = true;
+          // eslint-disable-next-line no-fallthrough
+          case "int64":
+          case "sint64":
+          case "sfixed64":
+            gen('if(typeof BigInt!=="undefined"&&o.longs===BigInt)')('d%s=typeof m%s==="number"?BigInt(m%s):util.Long.fromBits(m%s.low>>>0,m%s.high>>>0,%j).toBigInt()', dstProp, srcProp, srcProp, srcProp, srcProp, isUnsigned)('else if(typeof m%s==="number")', srcProp)("d%s=o.longs===String?String(m%s):m%s", dstProp, srcProp, srcProp)("else")("d%s=o.longs===String?util.Long.prototype.toString.call(m%s):o.longs===Number?new util.LongBits(m%s.low>>>0,m%s.high>>>0).toNumber(%s):m%s", dstProp, srcProp, srcProp, srcProp, isUnsigned ? "true" : "", srcProp);
+            break;
+          case "bytes":
+            gen("d%s=o.bytes===String?util.base64.encode(m%s,0,m%s.length):o.bytes===Array?Array.prototype.slice.call(m%s):m%s", dstProp, srcProp, srcProp, srcProp, srcProp);
+            break;
+          default:
+            gen("d%s=m%s", dstProp, srcProp);
+            break;
+        }
+      }
+      return gen;
+    }
+    converter.toObject = function toObject(mtype) {
+      var fields = mtype.fieldsArray.slice().sort(util2.compareFieldsById);
+      if (!fields.length)
+        return util2.codegen()("return {}");
+      var gen = util2.codegen(["m", "o", "q"])("if(!o)")("o={}")("if(q===undefined)q=0")("if(q>util.recursionLimit)")('throw Error("max depth exceeded")')("var d={}");
+      var repeatedFields = [], mapFields = [], normalFields = [], i = 0;
+      for (; i < fields.length; ++i)
+        if (!fields[i].partOf)
+          (fields[i].resolve().repeated ? repeatedFields : fields[i].map ? mapFields : normalFields).push(fields[i]);
+      if (repeatedFields.length) {
+        gen("if(o.arrays||o.defaults){");
+        for (i = 0; i < repeatedFields.length; ++i) gen("d%s=[]", util2.safeProp(repeatedFields[i].name));
+        gen("}");
+      }
+      if (mapFields.length) {
+        gen("if(o.objects||o.defaults){");
+        for (i = 0; i < mapFields.length; ++i) gen("d%s={}", util2.safeProp(mapFields[i].name));
+        gen("}");
+      }
+      if (normalFields.length) {
+        gen("if(o.defaults){");
+        for (i = 0; i < normalFields.length; ++i) {
+          var field = normalFields[i], prop = util2.safeProp(field.name);
+          if (field.resolvedType instanceof Enum) gen("d%s=o.enums===String?%j:%j", prop, field.resolvedType.valuesById[field.typeDefault], field.typeDefault);
+          else if (field.long) gen("if(util.Long){")("var n=new util.Long(%i,%i,%j)", field.typeDefault.low, field.typeDefault.high, field.typeDefault.unsigned)('d%s=o.longs===String?n.toString():o.longs===Number?n.toNumber():typeof BigInt!=="undefined"&&o.longs===BigInt?n.toBigInt():n', prop)("}else")('d%s=o.longs===String?%j:typeof BigInt!=="undefined"&&o.longs===BigInt?BigInt(%j):%i', prop, field.typeDefault.toString(), field.typeDefault.toString(), field.typeDefault.toNumber());
+          else if (field.bytes) {
+            var arrayDefault = Array.prototype.slice.call(field.typeDefault);
+            gen("if(o.bytes===String)d%s=%j", prop, util2.base64.encode(field.typeDefault, 0, field.typeDefault.length))("else{")("d%s=%j", prop, arrayDefault)("if(o.bytes!==Array)d%s=util.newBuffer(d%s)", prop, prop)("}");
+          } else if ((field.type === "double" || field.type === "float") && typeof field.typeDefault === "number" && (!isFinite(field.typeDefault) || Object.is(field.typeDefault, -0))) gen("d%s=%f", prop, field.typeDefault)("if(o.json&&!isFinite(d%s))d%s=String(d%s)", prop, prop, prop);
+          else gen("d%s=%j", prop, field.typeDefault);
+        }
+        gen("}");
+      }
+      var hasKs2 = false;
+      for (i = 0; i < fields.length; ++i) {
+        var field = fields[i], index = mtype._fieldsArray.indexOf(field), prop = util2.safeProp(field.name);
+        if (field.map) {
+          if (!hasKs2) {
+            hasKs2 = true;
+            gen("var ks2");
+          }
+          gen("if(m%s&&(ks2=Object.keys(m%s)).length){", prop, prop)("d%s={}", prop);
+          var longKey = types.long[field.keyType] !== void 0, srcProp = prop + "[ks2[j]]";
+          gen("for(var j=0;j<ks2.length;++j){");
+          if (longKey) gen("var k2=util.longFromKey(ks2[j],%j).toString()", field.keyType === "uint64" || field.keyType === "fixed64");
+          gen('if(ks2[j]==="__proto__")')("util.makeProp(d%s,ks2[j])", prop);
+          genValuePartial_toObject(
+            gen,
+            field,
+            /* sorted */
+            index,
+            longKey ? prop + "[k2]" : srcProp,
+            srcProp
+          )("}");
+        } else if (field.repeated) {
+          gen("if(m%s&&m%s.length){", prop, prop)("d%s=Array(m%s.length)", prop, prop)("for(var j=0;j<m%s.length;++j){", prop);
+          genValuePartial_toObject(
+            gen,
+            field,
+            /* sorted */
+            index,
+            prop + "[j]"
+          )("}");
+        } else {
+          gen("if(m%s!=null&&Object.hasOwnProperty.call(m,%j)){", prop, field.name);
+          genValuePartial_toObject(
+            gen,
+            field,
+            /* sorted */
+            index,
+            prop
+          );
+          if (field.partOf && !field.partOf.isProto3Optional) gen("if(o.oneofs)")("d%s=%j", util2.safeProp(field.partOf.name), field.name);
+        }
+        gen("}");
+      }
+      return gen("return d");
+    };
+  }
+});
+
+// node_modules/protobufjs/src/wrappers.js
+var require_wrappers = __commonJS({
+  "node_modules/protobufjs/src/wrappers.js"(exports) {
+    "use strict";
+    var wrappers = exports;
+    var Message = require_message();
+    var util2 = require_minimal();
+    wrappers[".google.protobuf.Any"] = {
+      fromObject: function(object3, depth) {
+        if (depth === void 0)
+          depth = 0;
+        if (depth > util2.recursionLimit)
+          throw Error("max depth exceeded");
+        if (object3 && object3["@type"]) {
+          var name = object3["@type"].substring(object3["@type"].lastIndexOf("/") + 1);
+          var type = this.lookup(name, [this.constructor]);
+          if (type) {
+            var type_url = object3["@type"].charAt(0) === "." ? object3["@type"].slice(1) : object3["@type"];
+            if (type_url.indexOf("/") === -1) {
+              type_url = "/" + type_url;
+            }
+            return this.create({
+              type_url,
+              value: type.encode(type.fromObject(object3, depth + 1)).finish()
+            });
+          }
+        }
+        return this.fromObject(object3, depth);
+      },
+      toObject: function(message, options3, depth) {
+        if (depth === void 0)
+          depth = 0;
+        if (depth > util2.recursionLimit)
+          throw Error("max depth exceeded");
+        var googleApi = "type.googleapis.com/";
+        var prefix = "";
+        var name = "";
+        if (options3 && options3.json && message.type_url && message.value) {
+          name = message.type_url.substring(message.type_url.lastIndexOf("/") + 1);
+          prefix = message.type_url.substring(0, message.type_url.lastIndexOf("/") + 1);
+          var type = this.lookup(name, [this.constructor]);
+          if (type)
+            message = type.decode(message.value, void 0, void 0, depth + 1);
+        }
+        if (!(message instanceof this.ctor) && message instanceof Message) {
+          var object3 = message.$type.toObject(message, options3, depth + 1);
+          var messageName = message.$type.fullName[0] === "." ? message.$type.fullName.slice(1) : message.$type.fullName;
+          if (prefix === "") {
+            prefix = googleApi;
+          }
+          name = prefix + messageName;
+          object3["@type"] = name;
+          return object3;
+        }
+        return this.toObject(message, options3, depth);
+      }
+    };
+  }
+});
+
+// node_modules/protobufjs/src/type.js
+var require_type = __commonJS({
+  "node_modules/protobufjs/src/type.js"(exports, module) {
+    "use strict";
+    module.exports = Type;
+    var Namespace = require_namespace();
+    Type.prototype = Object.create(Namespace.prototype, {
+      constructor: {
+        value: Type,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    Type.className = "Type";
+    var Enum = require_enum3();
+    var OneOf = require_oneof();
+    var Field = require_field();
+    var MapField = require_mapfield();
+    var Service = require_service2();
+    var Message = require_message();
+    var Reader = require_reader();
+    var Writer = require_writer();
+    var util2 = require_util3();
+    var encoder = require_encoder();
+    var decoder = require_decoder();
+    var verifier = require_verifier();
+    var converter = require_converter();
+    var wrappers = require_wrappers();
+    function Type(name, options3) {
+      name = name.replace(/\W/g, "");
+      Namespace.call(this, name, options3);
+      this.fields = {};
+      this.oneofs = void 0;
+      this.extensions = void 0;
+      this.reserved = void 0;
+      this.group = void 0;
+      this.visibility = void 0;
+      this._fieldsById = null;
+      this._fieldsArray = null;
+      this._oneofsArray = null;
+      this._ctor = null;
+      this._fieldsByJsonName = null;
+    }
+    Object.defineProperties(Type.prototype, {
+      /**
+       * Message fields by id.
+       * @name Type#fieldsById
+       * @type {Object.<number,Field>}
+       * @readonly
+       */
+      fieldsById: {
+        get: function() {
+          if (this._fieldsById)
+            return this._fieldsById;
+          this._fieldsById = {};
+          for (var names = Object.keys(this.fields), i = 0; i < names.length; ++i) {
+            var field = this.fields[names[i]], id = field.id;
+            if (this._fieldsById[id])
+              throw Error("duplicate id " + id + " in " + this);
+            this._fieldsById[id] = field;
+          }
+          return this._fieldsById;
+        }
+      },
+      /**
+       * Fields of this message as an array for iteration.
+       * @name Type#fieldsArray
+       * @type {Field[]}
+       * @readonly
+       */
+      fieldsArray: {
+        get: function() {
+          return this._fieldsArray || (this._fieldsArray = util2.toArray(this.fields));
+        }
+      },
+      /**
+       * Oneofs of this message as an array for iteration.
+       * @name Type#oneofsArray
+       * @type {OneOf[]}
+       * @readonly
+       */
+      oneofsArray: {
+        get: function() {
+          return this._oneofsArray || (this._oneofsArray = util2.toArray(this.oneofs));
+        }
+      },
+      /**
+       * The registered constructor, if any registered, otherwise a generic constructor.
+       * Assigning a function replaces the internal constructor. If the function does not extend {@link Message} yet, its prototype will be setup accordingly and static methods will be populated. If it already extends {@link Message}, it will just replace the internal constructor.
+       * When assigning manually, add the type to its parent namespace/root first if fields reference other reflected types, because constructor setup resolves field defaults.
+       * @name Type#ctor
+       * @type {Constructor<{}>}
+       */
+      ctor: {
+        get: function() {
+          return this._ctor || (this.ctor = Type.generateConstructor(this)());
+        },
+        set: function(ctor) {
+          var prototype = ctor.prototype;
+          if (!(prototype instanceof Message)) {
+            ctor.prototype = new Message();
+            Object.defineProperty(ctor.prototype, "constructor", {
+              value: ctor,
+              writable: true,
+              enumerable: false,
+              configurable: true
+            });
+            util2.merge(ctor.prototype, prototype);
+          }
+          ctor.$type = ctor.prototype.$type = this;
+          util2.merge(ctor, Message, true);
+          this._ctor = ctor;
+          delete this.decode;
+          delete this.fromObject;
+          var i = 0;
+          for (var field; i < /* initializes */
+          this.fieldsArray.length; ++i) {
+            field = this._fieldsArray[i].resolve();
+            ctor.prototype[field.name] = field.defaultValue;
+          }
+          var ctorProperties = {};
+          for (i = 0; i < /* initializes */
+          this.oneofsArray.length; ++i)
+            ctorProperties[this._oneofsArray[i].resolve().name] = {
+              get: util2.oneOfGetter(this._oneofsArray[i].oneof),
+              set: util2.oneOfSetter(this._oneofsArray[i].oneof)
+            };
+          if (i)
+            Object.defineProperties(ctor.prototype, ctorProperties);
+        }
+      }
+    });
+    Type.generateConstructor = function generateConstructor(mtype) {
+      var gen = util2.codegen(["p"]);
+      for (var i = 0, field; i < mtype.fieldsArray.length; ++i)
+        if ((field = mtype._fieldsArray[i]).map) gen("this%s={}", util2.safeProp(field.name));
+        else if (field.repeated) gen("this%s=[]", util2.safeProp(field.name));
+      return gen('if(p)for(var ks=Object.keys(p),i=0;i<ks.length;++i)if(p[ks[i]]!=null&&ks[i]!=="__proto__")')("this[ks[i]]=p[ks[i]]");
+    };
+    function clearCache(type) {
+      type._fieldsById = type._fieldsArray = type._oneofsArray = type._fieldsByJsonName = null;
+      delete type.encode;
+      delete type.decode;
+      delete type.verify;
+      return type;
+    }
+    Type.fromJSON = function fromJSON(name, json2, depth) {
+      if (depth === void 0)
+        depth = 0;
+      if (depth > util2.nestingLimit)
+        throw Error("max depth exceeded");
+      var type = new Type(name, json2.options);
+      type.extensions = json2.extensions;
+      type.reserved = json2.reserved;
+      var names = Object.keys(json2.fields), i = 0;
+      for (; i < names.length; ++i)
+        type.add(
+          (typeof json2.fields[names[i]].keyType !== "undefined" ? MapField.fromJSON : Field.fromJSON)(names[i], json2.fields[names[i]])
+        );
+      if (json2.oneofs)
+        for (names = Object.keys(json2.oneofs), i = 0; i < names.length; ++i)
+          type.add(OneOf.fromJSON(names[i], json2.oneofs[names[i]]));
+      if (json2.nested)
+        for (names = Object.keys(json2.nested), i = 0; i < names.length; ++i) {
+          var nested = json2.nested[names[i]];
+          type.add(
+            // most to least likely
+            (nested.id !== void 0 ? Field.fromJSON : nested.fields !== void 0 ? Type.fromJSON : nested.values !== void 0 ? Enum.fromJSON : nested.methods !== void 0 ? Service.fromJSON : Namespace.fromJSON)(names[i], nested, depth + 1)
+          );
+        }
+      if (json2.extensions && json2.extensions.length)
+        type.extensions = json2.extensions;
+      if (json2.reserved && json2.reserved.length)
+        type.reserved = json2.reserved;
+      if (json2.group)
+        type.group = true;
+      if (json2.visibility)
+        type.visibility = json2.visibility;
+      if (json2.comment)
+        type.comment = json2.comment;
+      if (json2.edition)
+        type._edition = json2.edition;
+      type._defaultEdition = "proto3";
+      return type;
+    };
+    Type.prototype.toJSON = function toJSON(toJSONOptions) {
+      var inherited = Namespace.prototype.toJSON.call(this, toJSONOptions);
+      var keepComments = toJSONOptions ? Boolean(toJSONOptions.keepComments) : false;
+      return util2.toObject([
+        "edition",
+        this._editionToJSON(),
+        "options",
+        inherited && inherited.options || void 0,
+        "oneofs",
+        Namespace.arrayToJSON(this.oneofsArray, toJSONOptions),
+        "fields",
+        Namespace.arrayToJSON(this.fieldsArray.filter(function(obj) {
+          return !obj.declaringField;
+        }), toJSONOptions) || {},
+        "extensions",
+        this.extensions && this.extensions.length ? this.extensions : void 0,
+        "reserved",
+        this.reserved && this.reserved.length ? this.reserved : void 0,
+        "group",
+        this.group || void 0,
+        "visibility",
+        this.visibility,
+        "nested",
+        inherited && inherited.nested || void 0,
+        "comment",
+        keepComments ? this.comment : void 0
+      ]);
+    };
+    Type.prototype.resolveAll = function resolveAll() {
+      if (!this._needsRecursiveResolve) return this;
+      Namespace.prototype.resolveAll.call(this);
+      var oneofs = this.oneofsArray;
+      i = 0;
+      while (i < oneofs.length)
+        oneofs[i++].resolve();
+      var fields = this.fieldsArray, i = 0;
+      while (i < fields.length)
+        fields[i++].resolve();
+      return this;
+    };
+    Type.prototype._resolveFeaturesRecursive = function _resolveFeaturesRecursive(edition) {
+      if (!this._needsRecursiveFeatureResolution) return this;
+      edition = this._edition || edition;
+      Namespace.prototype._resolveFeaturesRecursive.call(this, edition);
+      this.oneofsArray.forEach((oneof) => {
+        oneof._resolveFeatures(edition);
+      });
+      this.fieldsArray.forEach((field) => {
+        field._resolveFeatures(edition);
+      });
+      return this;
+    };
+    Type.prototype.get = function get(name) {
+      if (Object.prototype.hasOwnProperty.call(this.fields, name))
+        return this.fields[name];
+      if (this.oneofs && Object.prototype.hasOwnProperty.call(this.oneofs, name))
+        return this.oneofs[name];
+      if (this.nested && Object.prototype.hasOwnProperty.call(this.nested, name))
+        return this.nested[name];
+      return null;
+    };
+    Type.prototype.add = function add(object3) {
+      if (this.get(object3.name))
+        throw Error("duplicate name '" + object3.name + "' in " + this);
+      if (object3 instanceof Field && object3.extend === void 0) {
+        if (this._fieldsById ? (
+          /* istanbul ignore next */
+          this._fieldsById[object3.id]
+        ) : this.fieldsById[object3.id])
+          throw Error("duplicate id " + object3.id + " in " + this);
+        if (this.isReservedId(object3.id))
+          throw Error("id " + object3.id + " is reserved in " + this);
+        if (this.isReservedName(object3.name) || object3.name.charAt(0) === "$")
+          throw Error("name '" + object3.name + "' is reserved in " + this);
+        if (object3.name === "__proto__")
+          return this;
+        if (object3.parent)
+          object3.parent.remove(object3);
+        this.fields[object3.name] = object3;
+        object3.message = this;
+        object3.onAdd(this);
+        return clearCache(this);
+      }
+      if (object3 instanceof OneOf) {
+        if (object3.name.charAt(0) === "$")
+          throw Error("name '" + object3.name + "' is reserved in " + this);
+        if (object3.name === "__proto__")
+          return this;
+        if (!this.oneofs)
+          this.oneofs = {};
+        this.oneofs[object3.name] = object3;
+        object3.onAdd(this);
+        return clearCache(this);
+      }
+      return Namespace.prototype.add.call(this, object3);
+    };
+    Type.prototype.remove = function remove(object3) {
+      if (object3 instanceof Field && object3.extend === void 0) {
+        if (!util2.remove(this.fields, object3, object3.name))
+          throw Error(object3 + " is not a member of " + this);
+        object3.parent = null;
+        object3.onRemove(this);
+        return clearCache(this);
+      }
+      if (object3 instanceof OneOf) {
+        if (!util2.remove(this.oneofs, object3, object3.name))
+          throw Error(object3 + " is not a member of " + this);
+        object3.parent = null;
+        object3.onRemove(this);
+        return clearCache(this);
+      }
+      return Namespace.prototype.remove.call(this, object3);
+    };
+    Type.prototype.isReservedId = function isReservedId(id) {
+      return Namespace.isReservedId(this.reserved, id);
+    };
+    Type.prototype.isReservedName = function isReservedName(name) {
+      return Namespace.isReservedName(this.reserved, name);
+    };
+    Type.prototype.create = function create(properties) {
+      return new this.ctor(properties);
+    };
+    Type.prototype.setup = function setup() {
+      var root2 = this.root;
+      if (root2 && root2._needsRecursiveFeatureResolution) {
+        var edition = root2._edition || this._edition;
+        if (edition)
+          root2._resolveFeaturesRecursive(edition);
+      }
+      var fullName = this.fullName, types = [];
+      for (var i = 0; i < /* initializes */
+      this.fieldsArray.length; ++i)
+        types.push(this._fieldsArray[i].resolve().resolvedType);
+      this.encode = encoder(this)({
+        Writer,
+        types,
+        util: util2
+      });
+      this.decode = decoder(this)({
+        Reader,
+        types,
+        util: util2,
+        C: this.ctor
+      });
+      this.verify = verifier(this)({
+        types,
+        util: util2
+      });
+      this.fromObject = converter.fromObject(this)({
+        types,
+        util: util2,
+        C: this.ctor
+      });
+      this.toObject = converter.toObject(this)({
+        types,
+        util: util2
+      });
+      var wrapper = wrappers[fullName];
+      if (wrapper) {
+        var wrapperThis = Object.create(this);
+        wrapperThis._ctor = this.ctor;
+        wrapperThis.fromObject = this.fromObject;
+        this.fromObject = wrapper.fromObject.bind(wrapperThis);
+        wrapperThis.toObject = this.toObject;
+        this.toObject = wrapper.toObject.bind(wrapperThis);
+      }
+      return this;
+    };
+    Type.prototype.encode = function encode_setup(message, writer) {
+      return this.setup().encode.apply(this, arguments);
+    };
+    Type.prototype.encodeDelimited = function encodeDelimited(message, writer) {
+      return this.encode(message, (writer || Writer.create()).fork()).ldelim();
+    };
+    Type.prototype.decode = function decode_setup(reader, length) {
+      return this.setup().decode.apply(this, arguments);
+    };
+    Type.prototype.decodeDelimited = function decodeDelimited(reader) {
+      if (!(reader instanceof Reader))
+        reader = Reader.create(reader);
+      return this.decode(reader, reader.uint32());
+    };
+    Type.prototype.verify = function verify_setup(message) {
+      return this.setup().verify.apply(this, arguments);
+    };
+    Type.prototype.fromObject = function fromObject(object3) {
+      return this.setup().fromObject.apply(this, arguments);
+    };
+    Type.prototype.toObject = function toObject(message, options3) {
+      return this.setup().toObject.apply(this, arguments);
+    };
+    Type.prototype.getTypeUrl = function getTypeUrl(prefix) {
+      if (prefix === void 0)
+        prefix = "type.googleapis.com";
+      var fullName = this.fullName;
+      return prefix + "/" + (fullName.charAt(0) === "." ? fullName.substring(1) : fullName);
+    };
+    Type.d = function decorateType(typeName) {
+      return function typeDecorator(target) {
+        util2.decorateType(target, typeName);
+      };
+    };
+  }
+});
+
+// node_modules/protobufjs/src/root.js
+var require_root = __commonJS({
+  "node_modules/protobufjs/src/root.js"(exports, module) {
+    "use strict";
+    module.exports = Root;
+    var Namespace = require_namespace();
+    Root.prototype = Object.create(Namespace.prototype, {
+      constructor: {
+        value: Root,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    Root.className = "Root";
+    var Field = require_field();
+    var Enum = require_enum3();
+    var OneOf = require_oneof();
+    var util2 = require_util3();
+    var Type;
+    var parse4;
+    var common;
+    function Root(options3) {
+      Namespace.call(this, "", options3);
+      this.deferred = [];
+      this.files = [];
+      this._edition = "proto2";
+      this._fullyQualifiedObjects = {};
+    }
+    Root.fromJSON = function fromJSON(json2, root2, depth) {
+      if (depth === void 0)
+        depth = 0;
+      if (depth > util2.recursionLimit)
+        throw Error("max depth exceeded");
+      if (!root2)
+        root2 = new Root();
+      if (json2.options)
+        root2.setOptions(json2.options);
+      return root2.addJSON(json2.nested, depth).resolveAll();
+    };
+    Root.prototype.resolvePath = util2.path.resolve;
+    Root.prototype.fetch = util2.fetch;
+    function SYNC() {
+    }
+    Root.prototype.load = function load(filename2, options3, callback) {
+      if (typeof options3 === "function") {
+        callback = options3;
+        options3 = void 0;
+      }
+      var self2 = this;
+      if (!callback) {
+        return util2.asPromise(load, self2, filename2, options3);
+      }
+      var sync = callback === SYNC;
+      function finish(err, root2) {
+        if (!callback) {
+          return;
+        }
+        if (sync) {
+          throw err;
+        }
+        if (root2) {
+          root2.resolveAll();
+        }
+        var cb = callback;
+        callback = null;
+        cb(err, root2);
+      }
+      function getBundledFileName(filename3) {
+        var idx = filename3.lastIndexOf("google/protobuf/");
+        if (idx > -1) {
+          var altname = filename3.substring(idx);
+          if (Object.prototype.hasOwnProperty.call(common, altname)) return altname;
+        }
+        if (Object.prototype.hasOwnProperty.call(common, filename3)) return filename3;
+        return null;
+      }
+      function process6(filename3, source, depth) {
+        if (depth === void 0)
+          depth = 0;
+        try {
+          if (depth > util2.recursionLimit)
+            throw Error("max depth exceeded");
+          if (util2.isString(source) && source.charAt(0) === "{")
+            source = JSON.parse(source);
+          if (!util2.isString(source))
+            self2.setOptions(source.options).addJSON(source.nested);
+          else {
+            parse4.filename = filename3;
+            var parsed = parse4(source, self2, options3), resolved2, i2 = 0;
+            if (parsed.imports) {
+              for (; i2 < parsed.imports.length; ++i2)
+                if (resolved2 = getBundledFileName(parsed.imports[i2]) || self2.resolvePath(filename3, parsed.imports[i2]))
+                  fetch2(resolved2, false, depth + 1);
+            }
+            if (parsed.weakImports) {
+              for (i2 = 0; i2 < parsed.weakImports.length; ++i2)
+                if (resolved2 = getBundledFileName(parsed.weakImports[i2]) || self2.resolvePath(filename3, parsed.weakImports[i2]))
+                  fetch2(resolved2, true, depth + 1);
+            }
+          }
+        } catch (err) {
+          finish(err);
+        }
+        if (!sync && !queued) {
+          finish(null, self2);
+        }
+      }
+      function fetch2(filename3, weak, depth) {
+        if (depth === void 0)
+          depth = 0;
+        filename3 = getBundledFileName(filename3) || filename3;
+        if (self2.files.indexOf(filename3) > -1) {
+          return;
+        }
+        self2.files.push(filename3);
+        if (Object.prototype.hasOwnProperty.call(common, filename3)) {
+          if (sync) {
+            process6(filename3, common[filename3], depth);
+          } else {
+            ++queued;
+            setTimeout(function() {
+              --queued;
+              process6(filename3, common[filename3], depth);
+            });
+          }
+          return;
+        }
+        if (sync) {
+          var source;
+          try {
+            source = util2.fs.readFileSync(filename3).toString("utf8");
+          } catch (err) {
+            if (!weak)
+              finish(err);
+            return;
+          }
+          process6(filename3, source, depth);
+        } else {
+          ++queued;
+          self2.fetch(filename3, function(err, source2) {
+            --queued;
+            if (!callback) {
+              return;
+            }
+            if (err) {
+              if (!weak)
+                finish(err);
+              else if (!queued)
+                finish(null, self2);
+              return;
+            }
+            process6(filename3, source2, depth);
+          });
+        }
+      }
+      var queued = 0;
+      if (util2.isString(filename2)) {
+        filename2 = [filename2];
+      }
+      for (var i = 0, resolved; i < filename2.length; ++i)
+        if (resolved = self2.resolvePath("", filename2[i]))
+          fetch2(resolved);
+      if (sync) {
+        self2.resolveAll();
+        return self2;
+      }
+      if (!queued) {
+        finish(null, self2);
+      }
+      return self2;
+    };
+    Root.prototype.loadSync = function loadSync(filename2, options3) {
+      if (!util2.isNode)
+        throw Error("not supported");
+      return this.load(filename2, options3, SYNC);
+    };
+    Root.prototype.resolveAll = function resolveAll() {
+      if (!this._needsRecursiveResolve) return this;
+      if (this.deferred.length)
+        throw Error("unresolvable extensions: " + this.deferred.map(function(field) {
+          return "'extend " + field.extend + "' in " + field.parent.fullName;
+        }).join(", "));
+      return Namespace.prototype.resolveAll.call(this);
+    };
+    var exposeRe = /^[A-Z]/;
+    function tryHandleExtension(root2, field) {
+      var extendedType = field.parent.lookup(field.extend);
+      if (extendedType) {
+        var sisterField = new Field(field.fullName, field.id, field.type, field.rule, void 0, field.options);
+        if (extendedType.get(sisterField.name)) {
+          return true;
+        }
+        sisterField.declaringField = field;
+        field.extensionField = sisterField;
+        extendedType.add(sisterField);
+        return true;
+      }
+      return false;
+    }
+    Root.prototype._handleAdd = function _handleAdd(object3) {
+      if (object3 instanceof Field) {
+        if (
+          /* an extension field (implies not part of a oneof) */
+          object3.extend !== void 0 && /* not already handled */
+          !object3.extensionField
+        ) {
+          if (!tryHandleExtension(this, object3))
+            this.deferred.push(object3);
+        }
+      } else if (object3 instanceof Enum) {
+        if (exposeRe.test(object3.name))
+          object3.parent[object3.name] = object3.values;
+      } else if (!(object3 instanceof OneOf)) {
+        if (object3 instanceof Type)
+          for (var i = 0; i < this.deferred.length; )
+            if (tryHandleExtension(this, this.deferred[i]))
+              this.deferred.splice(i, 1);
+            else
+              ++i;
+        for (var j = 0; j < /* initializes */
+        object3.nestedArray.length; ++j)
+          this._handleAdd(object3._nestedArray[j]);
+        if (exposeRe.test(object3.name))
+          object3.parent[object3.name] = object3;
+      }
+      if (object3 instanceof Type || object3 instanceof Enum || object3 instanceof Field) {
+        this._fullyQualifiedObjects[object3.fullName] = object3;
+      }
+    };
+    Root.prototype._handleRemove = function _handleRemove(object3) {
+      if (object3 instanceof Field) {
+        if (
+          /* an extension field */
+          object3.extend !== void 0
+        ) {
+          if (
+            /* already handled */
+            object3.extensionField
+          ) {
+            object3.extensionField.parent.remove(object3.extensionField);
+            object3.extensionField = null;
+          } else {
+            var index = this.deferred.indexOf(object3);
+            if (index > -1)
+              this.deferred.splice(index, 1);
+          }
+        }
+      } else if (object3 instanceof Enum) {
+        if (exposeRe.test(object3.name))
+          delete object3.parent[object3.name];
+      } else if (object3 instanceof Namespace) {
+        for (var i = 0; i < /* initializes */
+        object3.nestedArray.length; ++i)
+          this._handleRemove(object3._nestedArray[i]);
+        if (exposeRe.test(object3.name))
+          delete object3.parent[object3.name];
+      }
+      delete this._fullyQualifiedObjects[object3.fullName];
+    };
+    Root._configure = function(Type_, parse_, common_) {
+      Type = Type_;
+      parse4 = parse_;
+      common = common_;
+    };
+  }
+});
+
+// node_modules/protobufjs/src/util.js
+var require_util3 = __commonJS({
+  "node_modules/protobufjs/src/util.js"(exports, module) {
+    "use strict";
+    var util2 = module.exports = require_minimal();
+    var roots = require_roots();
+    var Type;
+    var Enum;
+    util2.codegen = require_codegen3();
+    util2.fetch = require_fetch();
+    util2.path = require_path();
+    util2.patterns = require_patterns();
+    var reservedRe = util2.patterns.reservedRe;
+    util2.fs = require_fs();
+    util2.toArray = function toArray(object3) {
+      if (object3) {
+        var keys = Object.keys(object3), array2 = new Array(keys.length), index = 0;
+        while (index < keys.length)
+          array2[index] = object3[keys[index++]];
+        return array2;
+      }
+      return [];
+    };
+    util2.toObject = function toObject(array2) {
+      var object3 = {}, index = 0;
+      while (index < array2.length) {
+        var key = array2[index++], val = array2[index++];
+        if (val !== void 0)
+          object3[key] = val;
+      }
+      return object3;
+    };
+    util2.remove = function remove(object3, value, key) {
+      if (!object3)
+        return false;
+      if (key !== void 0 && Object.prototype.hasOwnProperty.call(object3, key) && object3[key] === value) {
+        delete object3[key];
+        return true;
+      }
+      for (var names = Object.keys(object3), i = 0; i < names.length; ++i)
+        if (object3[names[i]] === value) {
+          delete object3[names[i]];
+          return true;
+        }
+      return false;
+    };
+    util2.isReserved = function isReserved(name) {
+      return reservedRe.test(name);
+    };
+    util2.safeProp = function safeProp(prop) {
+      if (!/^[$\w_]+$/.test(prop) || reservedRe.test(prop))
+        return "[" + JSON.stringify(prop) + "]";
+      return "." + prop;
+    };
+    util2.ucFirst = function ucFirst(str) {
+      return str.charAt(0).toUpperCase() + str.substring(1);
+    };
+    var camelCaseRe = /_([a-z])/g;
+    util2.camelCase = function camelCase(str) {
+      return str.substring(0, 1) + str.substring(1).replace(camelCaseRe, function($0, $1) {
+        return $1.toUpperCase();
+      });
+    };
+    util2.jsonName = function jsonName(str) {
+      var result = "", upperNext = false, i = 0;
+      for (; i < str.length; ++i) {
+        var ch = str.charAt(i);
+        if (ch === "_")
+          upperNext = true;
+        else if (upperNext) {
+          result += ch.toUpperCase();
+          upperNext = false;
+        } else
+          result += ch;
+      }
+      return result;
+    };
+    util2.compareFieldsById = function compareFieldsById(a, b) {
+      return a.id - b.id;
+    };
+    util2.decorateType = function decorateType(ctor, typeName) {
+      if (ctor.$type) {
+        if (typeName && ctor.$type.name !== typeName) {
+          util2.decorateRoot.remove(ctor.$type);
+          ctor.$type.name = typeName;
+          util2.decorateRoot.add(ctor.$type);
+        }
+        return ctor.$type;
+      }
+      if (!Type)
+        Type = require_type();
+      var type = new Type(typeName || ctor.name);
+      util2.decorateRoot.add(type);
+      type.ctor = ctor;
+      Object.defineProperty(ctor, "$type", { value: type, enumerable: false });
+      Object.defineProperty(ctor.prototype, "$type", { value: type, enumerable: false });
+      return type;
+    };
+    var decorateEnumIndex = 0;
+    util2.decorateEnum = function decorateEnum(object3) {
+      if (object3.$type)
+        return object3.$type;
+      if (!Enum)
+        Enum = require_enum3();
+      var enm = new Enum("Enum" + decorateEnumIndex++, object3);
+      util2.decorateRoot.add(enm);
+      Object.defineProperty(object3, "$type", { value: enm, enumerable: false });
+      return enm;
+    };
+    util2.setProperty = function setProperty(dst, path55, value, ifNotSet) {
+      function setProp(dst2, path56, value2) {
+        var part = path56.shift();
+        if (util2.isUnsafeProperty(part))
+          return dst2;
+        if (path56.length > 0) {
+          dst2[part] = setProp(dst2[part] || {}, path56, value2);
+        } else {
+          var prevValue = dst2[part];
+          if (prevValue && ifNotSet)
+            return dst2;
+          if (prevValue)
+            value2 = [].concat(prevValue).concat(value2);
+          dst2[part] = value2;
+        }
+        return dst2;
+      }
+      if (typeof dst !== "object")
+        throw TypeError("dst must be an object");
+      if (!path55)
+        throw TypeError("path must be specified");
+      path55 = path55.split(".");
+      if (path55.length > util2.recursionLimit)
+        throw Error("max depth exceeded");
+      return setProp(dst, path55, value);
+    };
+    Object.defineProperty(util2, "decorateRoot", {
+      get: function() {
+        return roots["decorated"] || (roots["decorated"] = new (require_root())());
+      }
+    });
+  }
+});
+
+// node_modules/protobufjs/src/types.js
+var require_types3 = __commonJS({
+  "node_modules/protobufjs/src/types.js"(exports) {
+    "use strict";
+    var types = exports;
+    var util2 = require_util3();
+    var s = [
+      "double",
+      // 0
+      "float",
+      // 1
+      "int32",
+      // 2
+      "uint32",
+      // 3
+      "sint32",
+      // 4
+      "fixed32",
+      // 5
+      "sfixed32",
+      // 6
+      "int64",
+      // 7
+      "uint64",
+      // 8
+      "sint64",
+      // 9
+      "fixed64",
+      // 10
+      "sfixed64",
+      // 11
+      "bool",
+      // 12
+      "string",
+      // 13
+      "bytes"
+      // 14
+    ];
+    function bake(values, offset) {
+      var i = 0, o = /* @__PURE__ */ Object.create(null);
+      offset |= 0;
+      while (i < values.length) o[s[i + offset]] = values[i++];
+      return o;
+    }
+    types.basic = bake([
+      /* double   */
+      1,
+      /* float    */
+      5,
+      /* int32    */
+      0,
+      /* uint32   */
+      0,
+      /* sint32   */
+      0,
+      /* fixed32  */
+      5,
+      /* sfixed32 */
+      5,
+      /* int64    */
+      0,
+      /* uint64   */
+      0,
+      /* sint64   */
+      0,
+      /* fixed64  */
+      1,
+      /* sfixed64 */
+      1,
+      /* bool     */
+      0,
+      /* string   */
+      2,
+      /* bytes    */
+      2
+    ]);
+    types.defaults = bake([
+      /* double   */
+      0,
+      /* float    */
+      0,
+      /* int32    */
+      0,
+      /* uint32   */
+      0,
+      /* sint32   */
+      0,
+      /* fixed32  */
+      0,
+      /* sfixed32 */
+      0,
+      /* int64    */
+      0,
+      /* uint64   */
+      0,
+      /* sint64   */
+      0,
+      /* fixed64  */
+      0,
+      /* sfixed64 */
+      0,
+      /* bool     */
+      false,
+      /* string   */
+      "",
+      /* bytes    */
+      util2.emptyArray,
+      /* message  */
+      null
+    ]);
+    types.long = bake([
+      /* int64    */
+      0,
+      /* uint64   */
+      0,
+      /* sint64   */
+      0,
+      /* fixed64  */
+      1,
+      /* sfixed64 */
+      1
+    ], 7);
+    types.mapKey = bake([
+      /* int32    */
+      0,
+      /* uint32   */
+      0,
+      /* sint32   */
+      0,
+      /* fixed32  */
+      5,
+      /* sfixed32 */
+      5,
+      /* int64    */
+      0,
+      /* uint64   */
+      0,
+      /* sint64   */
+      0,
+      /* fixed64  */
+      1,
+      /* sfixed64 */
+      1,
+      /* bool     */
+      0,
+      /* string   */
+      2
+    ], 2);
+    types.packed = bake([
+      /* double   */
+      1,
+      /* float    */
+      5,
+      /* int32    */
+      0,
+      /* uint32   */
+      0,
+      /* sint32   */
+      0,
+      /* fixed32  */
+      5,
+      /* sfixed32 */
+      5,
+      /* int64    */
+      0,
+      /* uint64   */
+      0,
+      /* sint64   */
+      0,
+      /* fixed64  */
+      1,
+      /* sfixed64 */
+      1,
+      /* bool     */
+      0
+    ]);
+  }
+});
+
+// node_modules/protobufjs/src/field.js
+var require_field = __commonJS({
+  "node_modules/protobufjs/src/field.js"(exports, module) {
+    "use strict";
+    module.exports = Field;
+    var ReflectionObject = require_object();
+    Field.prototype = Object.create(ReflectionObject.prototype, {
+      constructor: {
+        value: Field,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    Field.className = "Field";
+    var Enum = require_enum3();
+    var types = require_types3();
+    var util2 = require_util3();
+    var Type;
+    var ruleRe = /^(?:required|optional|repeated)$/;
+    Field.fromJSON = function fromJSON(name, json2) {
+      var field = new Field(name, json2.id, json2.type, json2.rule, json2.extend, json2.options, json2.comment);
+      if (json2.edition)
+        field._edition = json2.edition;
+      if (json2.protoName)
+        field.protoName = json2.protoName;
+      if (json2.jsonName !== void 0)
+        field.jsonName = json2.jsonName;
+      else if (json2.options && json2.options.json_name !== void 0)
+        field.jsonName = json2.options.json_name;
+      field._defaultEdition = "proto3";
+      return field;
+    };
+    function Field(name, id, type, rule, extend2, options3, comment) {
+      if (util2.isObject(rule)) {
+        comment = extend2;
+        options3 = rule;
+        rule = extend2 = void 0;
+      } else if (util2.isObject(extend2)) {
+        comment = options3;
+        options3 = extend2;
+        extend2 = void 0;
+      }
+      ReflectionObject.call(this, name, options3);
+      if (!util2.isInteger(id) || id < 0)
+        throw TypeError("id must be a non-negative integer");
+      if (!util2.isString(type))
+        throw TypeError("type must be a string");
+      if (rule !== void 0 && !ruleRe.test(rule = rule.toString().toLowerCase()))
+        throw TypeError("rule must be a string rule");
+      if (extend2 !== void 0 && !util2.isString(extend2))
+        throw TypeError("extend must be a string");
+      this.rule = rule && rule !== "optional" ? rule : void 0;
+      this.type = type;
+      this.id = id;
+      this.extend = extend2 || void 0;
+      this.repeated = rule === "repeated";
+      this.map = false;
+      this.message = null;
+      this.partOf = null;
+      this.typeDefault = null;
+      this.defaultValue = null;
+      this.long = util2.Long ? types.long[type] !== void 0 : (
+        /* istanbul ignore next */
+        false
+      );
+      this.bytes = type === "bytes";
+      this.resolvedType = null;
+      this.extensionField = null;
+      this.declaringField = null;
+      this.comment = comment;
+      this.protoName = void 0;
+      this.jsonName = void 0;
+    }
+    Object.defineProperty(Field.prototype, "required", {
+      get: function() {
+        return this._features.field_presence === "LEGACY_REQUIRED";
+      }
+    });
+    Object.defineProperty(Field.prototype, "optional", {
+      get: function() {
+        return !this.required;
+      }
+    });
+    Object.defineProperty(Field.prototype, "delimited", {
+      get: function() {
+        return this.resolvedType instanceof Type && this._features.message_encoding === "DELIMITED";
+      }
+    });
+    Object.defineProperty(Field.prototype, "packed", {
+      get: function() {
+        return this._features.repeated_field_encoding === "PACKED";
+      }
+    });
+    Object.defineProperty(Field.prototype, "hasPresence", {
+      get: function() {
+        if (this.repeated || this.map) {
+          return false;
+        }
+        return this.partOf || // oneofs
+        this.declaringField || this.extensionField || // extensions
+        this._features.field_presence !== "IMPLICIT";
+      }
+    });
+    Field.prototype.setOption = function setOption(name, value, ifNotSet) {
+      return ReflectionObject.prototype.setOption.call(this, name, value, ifNotSet);
+    };
+    Field.prototype.toJSON = function toJSON(toJSONOptions) {
+      var keepComments = toJSONOptions ? Boolean(toJSONOptions.keepComments) : false;
+      return util2.toObject([
+        "edition",
+        this._editionToJSON(),
+        "rule",
+        this.rule !== "optional" && this.rule || void 0,
+        "type",
+        this.type,
+        "id",
+        this.id,
+        "extend",
+        this.extend,
+        "protoName",
+        this.protoName !== this.name ? this.protoName : void 0,
+        "jsonName",
+        this.jsonName !== util2.jsonName(this.protoName || this.name) ? this.jsonName : void 0,
+        "options",
+        this.options,
+        "comment",
+        keepComments ? this.comment : void 0
+      ]);
+    };
+    Field.prototype.resolve = function resolve() {
+      if (this.resolved)
+        return this;
+      if ((this.typeDefault = types.defaults[this.type]) === void 0) {
+        this.resolvedType = (this.declaringField ? this.declaringField.parent : this.parent).lookupTypeOrEnum(this.type);
+        if (this.resolvedType instanceof Type)
+          this.typeDefault = null;
+        else
+          this.typeDefault = this.resolvedType.values[Object.keys(this.resolvedType.values)[0]];
+      } else if (this.options && this.options.proto3_optional) {
+        this.typeDefault = null;
+      }
+      if (this.options && this.options["default"] != null) {
+        this.typeDefault = this.options["default"];
+        if (this.resolvedType instanceof Enum && typeof this.typeDefault === "string")
+          this.typeDefault = this.resolvedType.values[this.typeDefault];
+      }
+      if (this.options) {
+        if (this.options.packed !== void 0 && this.resolvedType && !(this.resolvedType instanceof Enum))
+          delete this.options.packed;
+        if (!Object.keys(this.options).length)
+          this.options = void 0;
+      }
+      if (this.long) {
+        var unsigned = this.type === "uint64" || this.type === "fixed64";
+        this.typeDefault = typeof this.typeDefault === "string" ? util2.Long.fromString(this.typeDefault, unsigned) : util2.Long.fromNumber(this.typeDefault, unsigned);
+        if (Object.freeze)
+          Object.freeze(this.typeDefault);
+      } else if (types.long[this.type] !== void 0 && typeof this.typeDefault === "string") {
+        this.typeDefault = parseInt(this.typeDefault, 10);
+      } else if (this.bytes && typeof this.typeDefault === "string") {
+        var buf;
+        if (util2.base64.test(this.typeDefault))
+          util2.base64.decode(this.typeDefault, buf = util2.newBuffer(util2.base64.length(this.typeDefault)), 0);
+        else
+          util2.utf8.write(this.typeDefault, buf = util2.newBuffer(util2.utf8.length(this.typeDefault)), 0);
+        this.typeDefault = buf;
+      }
+      if (this.map)
+        this.defaultValue = util2.emptyObject;
+      else if (this.repeated)
+        this.defaultValue = util2.emptyArray;
+      else
+        this.defaultValue = this.typeDefault;
+      if (this.parent instanceof Type && this.parent._ctor)
+        this.parent._ctor.prototype[this.name] = this.defaultValue;
+      if (this.protoName === void 0)
+        this.protoName = this.name;
+      if (this.jsonName === void 0)
+        this.jsonName = util2.jsonName(this.protoName);
+      return ReflectionObject.prototype.resolve.call(this);
+    };
+    Field.prototype._inferLegacyProtoFeatures = function _inferLegacyProtoFeatures(edition) {
+      if (edition !== "proto2" && edition !== "proto3") {
+        return {};
+      }
+      var features = {};
+      if (this.rule === "required") {
+        features.field_presence = "LEGACY_REQUIRED";
+      }
+      if (this.parent && types.defaults[this.type] === void 0) {
+        var type = this.parent.get(this.type.split(".").pop());
+        if (type && type instanceof Type && type.group) {
+          features.message_encoding = "DELIMITED";
+        }
+      }
+      if (this.getOption("packed") === true) {
+        features.repeated_field_encoding = "PACKED";
+      } else if (this.getOption("packed") === false) {
+        features.repeated_field_encoding = "EXPANDED";
+      }
+      return features;
+    };
+    Field.prototype._resolveFeatures = function _resolveFeatures(edition) {
+      return ReflectionObject.prototype._resolveFeatures.call(this, this._edition || edition);
+    };
+    Field.d = function decorateField(fieldId, fieldType, fieldRule, defaultValue) {
+      if (typeof fieldType === "function")
+        fieldType = util2.decorateType(fieldType).name;
+      else if (fieldType && typeof fieldType === "object")
+        fieldType = util2.decorateEnum(fieldType).name;
+      return function fieldDecorator(prototype, fieldName) {
+        util2.decorateType(prototype.constructor).add(new Field(fieldName, fieldId, fieldType, fieldRule, { "default": defaultValue }));
+      };
+    };
+    Field._configure = function configure(Type_) {
+      Type = Type_;
+    };
+  }
+});
+
+// node_modules/protobufjs/src/oneof.js
+var require_oneof = __commonJS({
+  "node_modules/protobufjs/src/oneof.js"(exports, module) {
+    "use strict";
+    module.exports = OneOf;
+    var ReflectionObject = require_object();
+    OneOf.prototype = Object.create(ReflectionObject.prototype, {
+      constructor: {
+        value: OneOf,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    OneOf.className = "OneOf";
+    var Field = require_field();
+    var util2 = require_util3();
+    function OneOf(name, fieldNames, options3, comment) {
+      if (!Array.isArray(fieldNames)) {
+        options3 = fieldNames;
+        fieldNames = void 0;
+      }
+      ReflectionObject.call(this, name, options3);
+      if (!(fieldNames === void 0 || Array.isArray(fieldNames)))
+        throw TypeError("fieldNames must be an Array");
+      this.oneof = fieldNames || [];
+      this.fieldsArray = [];
+      this.comment = comment;
+    }
+    OneOf.fromJSON = function fromJSON(name, json2) {
+      return new OneOf(name, json2.oneof, json2.options, json2.comment);
+    };
+    OneOf.prototype.toJSON = function toJSON(toJSONOptions) {
+      var keepComments = toJSONOptions ? Boolean(toJSONOptions.keepComments) : false;
+      return util2.toObject([
+        "options",
+        this.options,
+        "oneof",
+        this.oneof,
+        "comment",
+        keepComments ? this.comment : void 0
+      ]);
+    };
+    function addFieldsToParent(oneof) {
+      if (oneof.parent) {
+        for (var i = 0; i < oneof.fieldsArray.length; ++i)
+          if (!oneof.fieldsArray[i].parent)
+            oneof.parent.add(oneof.fieldsArray[i]);
+      }
+    }
+    OneOf.prototype.add = function add(field) {
+      if (!(field instanceof Field))
+        throw TypeError("field must be a Field");
+      if (field.parent && field.parent !== this.parent)
+        field.parent.remove(field);
+      this.oneof.push(field.name);
+      this.fieldsArray.push(field);
+      field.partOf = this;
+      addFieldsToParent(this);
+      return this;
+    };
+    OneOf.prototype.remove = function remove(field) {
+      if (!(field instanceof Field))
+        throw TypeError("field must be a Field");
+      var index = this.fieldsArray.indexOf(field);
+      if (index < 0)
+        throw Error(field + " is not a member of " + this);
+      this.fieldsArray.splice(index, 1);
+      index = this.oneof.indexOf(field.name);
+      if (index > -1)
+        this.oneof.splice(index, 1);
+      field.partOf = null;
+      return this;
+    };
+    OneOf.prototype.onAdd = function onAdd(parent) {
+      ReflectionObject.prototype.onAdd.call(this, parent);
+      var self2 = this;
+      for (var i = 0; i < this.oneof.length; ++i) {
+        var field = parent.get(this.oneof[i]);
+        if (field && !field.partOf) {
+          field.partOf = self2;
+          self2.fieldsArray.push(field);
+        }
+      }
+      addFieldsToParent(this);
+    };
+    OneOf.prototype.onRemove = function onRemove(parent) {
+      for (var i = 0, field; i < this.fieldsArray.length; ++i)
+        if ((field = this.fieldsArray[i]).parent)
+          field.parent.remove(field);
+      ReflectionObject.prototype.onRemove.call(this, parent);
+    };
+    Object.defineProperty(OneOf.prototype, "isProto3Optional", {
+      get: function() {
+        if (this.fieldsArray == null || this.fieldsArray.length !== 1) {
+          return false;
+        }
+        var field = this.fieldsArray[0];
+        return field.options != null && field.options["proto3_optional"] === true;
+      }
+    });
+    OneOf.d = function decorateOneOf() {
+      var fieldNames = new Array(arguments.length), index = 0;
+      while (index < arguments.length)
+        fieldNames[index] = arguments[index++];
+      return function oneOfDecorator(prototype, oneofName) {
+        util2.decorateType(prototype.constructor).add(new OneOf(oneofName, fieldNames));
+        Object.defineProperty(prototype, oneofName, {
+          get: util2.oneOfGetter(fieldNames),
+          set: util2.oneOfSetter(fieldNames)
+        });
+      };
+    };
+  }
+});
+
+// node_modules/protobufjs/src/object.js
+var require_object = __commonJS({
+  "node_modules/protobufjs/src/object.js"(exports, module) {
+    "use strict";
+    module.exports = ReflectionObject;
+    ReflectionObject.className = "ReflectionObject";
+    var OneOf = require_oneof();
+    var util2 = require_util3();
+    var Root;
+    var proto2Defaults = { enum_type: "CLOSED", field_presence: "EXPLICIT", json_format: "LEGACY_BEST_EFFORT", message_encoding: "LENGTH_PREFIXED", repeated_field_encoding: "EXPANDED", utf8_validation: "NONE", enforce_naming_style: "STYLE_LEGACY", default_symbol_visibility: "EXPORT_ALL" };
+    var proto3Defaults = { enum_type: "OPEN", field_presence: "IMPLICIT", json_format: "ALLOW", message_encoding: "LENGTH_PREFIXED", repeated_field_encoding: "PACKED", utf8_validation: "VERIFY", enforce_naming_style: "STYLE_LEGACY", default_symbol_visibility: "EXPORT_ALL" };
+    var editions2023Defaults = { enum_type: "OPEN", field_presence: "EXPLICIT", json_format: "ALLOW", message_encoding: "LENGTH_PREFIXED", repeated_field_encoding: "PACKED", utf8_validation: "VERIFY", enforce_naming_style: "STYLE_LEGACY", default_symbol_visibility: "EXPORT_ALL" };
+    var editions2024Defaults = { enum_type: "OPEN", field_presence: "EXPLICIT", json_format: "ALLOW", message_encoding: "LENGTH_PREFIXED", repeated_field_encoding: "PACKED", utf8_validation: "VERIFY", enforce_naming_style: "STYLE2024", default_symbol_visibility: "EXPORT_TOP_LEVEL" };
+    var editions2026Defaults = { enum_type: "OPEN", field_presence: "EXPLICIT", json_format: "ALLOW", message_encoding: "LENGTH_PREFIXED", repeated_field_encoding: "PACKED", utf8_validation: "VERIFY", enforce_naming_style: "STYLE2026", default_symbol_visibility: "STRICT", enforce_proto_limits: "PROTO_LIMITS2026" };
+    function ReflectionObject(name, options3) {
+      if (!util2.isString(name))
+        throw TypeError("name must be a string");
+      if (options3 && !util2.isObject(options3))
+        throw TypeError("options must be an object");
+      this.options = options3;
+      this.parsedOptions = null;
+      this.name = name;
+      this._edition = null;
+      this._defaultEdition = "proto2";
+      this._features = {};
+      this._featuresResolved = false;
+      this.parent = null;
+      this.resolved = false;
+      this.comment = null;
+      this.filename = null;
+    }
+    Object.defineProperties(ReflectionObject.prototype, {
+      /**
+       * Reference to the root namespace.
+       * @name ReflectionObject#root
+       * @type {Root}
+       * @readonly
+       */
+      root: {
+        get: function() {
+          var ptr = this;
+          while (ptr.parent !== null)
+            ptr = ptr.parent;
+          return ptr;
+        }
+      },
+      /**
+       * Full name including leading dot.
+       * @name ReflectionObject#fullName
+       * @type {string}
+       * @readonly
+       */
+      fullName: {
+        get: function() {
+          var path55 = [this.name], ptr = this.parent;
+          while (ptr) {
+            path55.unshift(ptr.name);
+            ptr = ptr.parent;
+          }
+          return path55.join(".");
+        }
+      }
+    });
+    ReflectionObject.prototype.toJSON = /* istanbul ignore next */
+    function toJSON() {
+      throw Error();
+    };
+    ReflectionObject.prototype.onAdd = function onAdd(parent) {
+      if (this.parent && this.parent !== parent)
+        this.parent.remove(this);
+      this.parent = parent;
+      this.resolved = false;
+      var root2 = parent.root;
+      if (root2 instanceof Root)
+        root2._handleAdd(this);
+    };
+    ReflectionObject.prototype.onRemove = function onRemove(parent) {
+      var root2 = parent.root;
+      if (root2 instanceof Root)
+        root2._handleRemove(this);
+      this.parent = null;
+      this.resolved = false;
+    };
+    ReflectionObject.prototype.resolve = function resolve() {
+      if (this.resolved)
+        return this;
+      if (this.root instanceof Root)
+        this.resolved = true;
+      return this;
+    };
+    ReflectionObject.prototype._resolveFeaturesRecursive = function _resolveFeaturesRecursive(edition) {
+      return this._resolveFeatures(this._edition || edition);
+    };
+    ReflectionObject.prototype._resolveFeatures = function _resolveFeatures(edition) {
+      if (this._featuresResolved) {
+        return;
+      }
+      var defaults2 = {};
+      if (!edition) {
+        throw new Error("Unknown edition for " + this.fullName);
+      }
+      var protoFeatures = util2.merge(
+        {},
+        this.options && this.options.features,
+        this._inferLegacyProtoFeatures(edition)
+      );
+      if (this._edition) {
+        if (edition === "proto2") {
+          defaults2 = Object.assign({}, proto2Defaults);
+        } else if (edition === "proto3") {
+          defaults2 = Object.assign({}, proto3Defaults);
+        } else if (edition === "2023") {
+          defaults2 = Object.assign({}, editions2023Defaults);
+        } else if (edition === "2024") {
+          defaults2 = Object.assign({}, editions2024Defaults);
+        } else if (edition === "2026") {
+          defaults2 = Object.assign({}, editions2026Defaults);
+        } else {
+          throw new Error("Unknown edition: " + edition);
+        }
+        this._features = util2.merge(defaults2, protoFeatures);
+      } else {
+        if (this.partOf instanceof OneOf) {
+          var lexicalParentFeaturesCopy = util2.merge({}, this.partOf._features);
+          this._features = util2.merge(lexicalParentFeaturesCopy, protoFeatures);
+        } else if (this.declaringField) {
+        } else if (this.parent) {
+          var parentFeaturesCopy = util2.merge({}, this.parent._features);
+          this._features = util2.merge(parentFeaturesCopy, protoFeatures);
+        } else {
+          throw new Error("Unable to find a parent for " + this.fullName);
+        }
+      }
+      if (this.extensionField) {
+        this.extensionField._features = this._features;
+      }
+      this._featuresResolved = true;
+    };
+    ReflectionObject.prototype._inferLegacyProtoFeatures = function _inferLegacyProtoFeatures() {
+      return {};
+    };
+    ReflectionObject.prototype.getOption = function getOption(name) {
+      if (this.options && Object.prototype.hasOwnProperty.call(this.options, name))
+        return this.options[name];
+      return void 0;
+    };
+    ReflectionObject.prototype.setOption = function setOption(name, value, ifNotSet) {
+      if (name === "__proto__")
+        return this;
+      if (!this.options)
+        this.options = {};
+      if (/^features\./.test(name)) {
+        util2.setProperty(this.options, name, value, ifNotSet);
+      } else {
+        var prev = this.getOption(name);
+        if (!ifNotSet || prev === void 0) {
+          if (prev !== value) this.resolved = false;
+          this.options[name] = value;
+        }
+      }
+      return this;
+    };
+    ReflectionObject.prototype.setParsedOption = function setParsedOption(name, value, propName) {
+      if (name === "__proto__")
+        return this;
+      if (!this.parsedOptions) {
+        this.parsedOptions = [];
+      }
+      var parsedOptions = this.parsedOptions;
+      if (propName) {
+        var opt = parsedOptions.find(function(opt2) {
+          return Object.prototype.hasOwnProperty.call(opt2, name);
+        });
+        if (opt) {
+          var newValue = opt[name];
+          util2.setProperty(newValue, propName, value);
+        } else {
+          opt = {};
+          opt[name] = util2.setProperty({}, propName, value);
+          parsedOptions.push(opt);
+        }
+      } else {
+        var newOpt = {};
+        newOpt[name] = value;
+        parsedOptions.push(newOpt);
+      }
+      return this;
+    };
+    ReflectionObject.prototype.setOptions = function setOptions2(options3, ifNotSet) {
+      if (options3)
+        for (var keys = Object.keys(options3), i = 0; i < keys.length; ++i)
+          this.setOption(keys[i], options3[keys[i]], ifNotSet);
+      return this;
+    };
+    Object.defineProperty(ReflectionObject.prototype, "toString", {
+      value: function toString() {
+        var className = this.constructor.className, fullName = this.fullName;
+        if (fullName.length)
+          return className + " " + fullName;
+        return className;
+      },
+      writable: true,
+      enumerable: false,
+      configurable: true
+    });
+    ReflectionObject.prototype._editionToJSON = function _editionToJSON() {
+      if (!this._edition || this._edition === "proto3") {
+        return void 0;
+      }
+      return this._edition;
+    };
+    ReflectionObject._configure = function(Root_) {
+      Root = Root_;
+    };
+  }
+});
+
+// node_modules/protobufjs/src/enum.js
+var require_enum3 = __commonJS({
+  "node_modules/protobufjs/src/enum.js"(exports, module) {
+    "use strict";
+    module.exports = Enum;
+    var ReflectionObject = require_object();
+    Enum.prototype = Object.create(ReflectionObject.prototype, {
+      constructor: {
+        value: Enum,
+        writable: true,
+        enumerable: false,
+        configurable: true
+      }
+    });
+    Enum.className = "Enum";
+    var Namespace = require_namespace();
+    var util2 = require_util3();
+    function Enum(name, values, options3, comment, comments, valuesOptions) {
+      ReflectionObject.call(this, name, options3);
+      if (values && typeof values !== "object")
+        throw TypeError("values must be an object");
+      this.valuesById = /* @__PURE__ */ Object.create(null);
+      this.values = Object.create(this.valuesById);
+      this.comment = comment;
+      this.comments = comments || {};
+      this.valuesOptions = valuesOptions;
+      this._valuesFeatures = {};
+      this.reserved = void 0;
+      this.visibility = void 0;
+      if (values) {
+        for (var keys = Object.keys(values), i = 0; i < keys.length; ++i)
+          if (keys[i] !== "__proto__" && typeof values[keys[i]] === "number") {
+            this.values[keys[i]] = values[keys[i]];
+            if (this.valuesById[values[keys[i]]] === void 0)
+              this.valuesById[values[keys[i]]] = keys[i];
+          }
+      }
+    }
+    Enum.prototype._resolveFeatures = function _resolveFeatures(edition) {
+      edition = this._edition || edition;
+      ReflectionObject.prototype._resolveFeatures.call(this, edition);
+      Object.keys(this.values).forEach((key) => {
+        var parentFeaturesCopy = util2.merge({}, this._features);
+        this._valuesFeatures[key] = util2.merge(parentFeaturesCopy, this.valuesOptions && this.valuesOptions[key] && this.valuesOptions[key].features || {});
+      });
+      return this;
+    };
+    Enum.fromJSON = function fromJSON(name, json2) {
+      var enm = new Enum(name, json2.values, json2.options, json2.comment, json2.comments, json2.valuesOptions);
+      enm.reserved = json2.reserved;
+      if (json2.visibility)
+        enm.visibility = json2.visibility;
+      if (json2.edition)
+        enm._edition = json2.edition;
+      enm._defaultEdition = "proto3";
+      return enm;
+    };
+    Enum.prototype.toJSON = function toJSON(toJSONOptions) {
+      var keepComments = toJSONOptions ? Boolean(toJSONOptions.keepComments) : false;
+      return util2.toObject([
+        "edition",
+        this._editionToJSON(),
+        "options",
+        this.options,
+        "valuesOptions",
+        this.valuesOptions,
+        "values",
+        this.values,
+        "reserved",
+        this.reserved && this.reserved.length ? this.reserved : void 0,
+        "visibility",
+        this.visibility,
+        "comment",
+        keepComments ? this.comment : void 0,
+        "comments",
+        keepComments ? this.comments : void 0
+      ]);
+    };
+    Enum.prototype.add = function add(name, id, comment, options3) {
+      if (!util2.isString(name))
+        throw TypeError("name must be a string");
+      if (!util2.isInteger(id))
+        throw TypeError("id must be an integer");
+      if (name === "__proto__")
+        return this;
+      if (this.values[name] !== void 0)
+        throw Error("duplicate name '" + name + "' in " + this);
+      if (this.isReservedId(id))
+        throw Error("id " + id + " is reserved in " + this);
+      if (this.isReservedName(name))
+        throw Error("name '" + name + "' is reserved in " + this);
+      if (this.valuesById[id] !== void 0) {
+        if (!(this.options && this.options.allow_alias))
+          throw Error("duplicate id " + id + " in " + this);
+        this.values[name] = id;
+      } else
+        this.valuesById[this.values[name] = id] = name;
+      if (options3) {
+        if (this.valuesOptions === void 0)
+          this.valuesOptions = {};
+        this.valuesOptions[name] = options3 || null;
+      }
+      this.comments[name] = comment || null;
+      return this;
+    };
+    Enum.prototype.remove = function remove(name) {
+      if (!util2.isString(name))
+        throw TypeError("name must be a string");
+      var val = this.values[name];
+      if (val == null)
+        throw Error("name '" + name + "' does not exist in " + this);
+      delete this.valuesById[val];
+      delete this.values[name];
+      delete this.comments[name];
+      if (this.valuesOptions)
+        delete this.valuesOptions[name];
+      return this;
+    };
+    Enum.prototype.isReservedId = function isReservedId(id) {
+      return Namespace.isReservedId(this.reserved, id);
+    };
+    Enum.prototype.isReservedName = function isReservedName(name) {
+      return Namespace.isReservedName(this.reserved, name);
+    };
+  }
+});
+
+// node_modules/protobufjs/src/encoder.js
+var require_encoder = __commonJS({
+  "node_modules/protobufjs/src/encoder.js"(exports, module) {
+    "use strict";
+    module.exports = encoder;
+    var Enum = require_enum3();
+    var types = require_types3();
+    var util2 = require_util3();
+    function genTypePartial(gen, field, fieldIndex, ref) {
+      return field.delimited ? gen("types[%i].encode(%s,w.uint32(%i),q+1).uint32(%i)", fieldIndex, ref, (field.id << 3 | 3) >>> 0, (field.id << 3 | 4) >>> 0) : gen("types[%i].encode(%s,w.uint32(%i).fork(),q+1).ldelim()", fieldIndex, ref, (field.id << 3 | 2) >>> 0);
+    }
+    function encoder(mtype) {
+      var gen = util2.codegen(["m", "w", "q"])("if(!w)")("w=Writer.create()")("if(q===undefined)q=0")("if(q>util.recursionLimit)")('throw Error("max depth exceeded")');
+      var i, ref;
+      var fields = (
+        /* initializes */
+        mtype.fieldsArray.slice().sort(util2.compareFieldsById)
+      );
+      for (var i = 0; i < fields.length; ++i) {
+        var field = fields[i].resolve(), index = mtype._fieldsArray.indexOf(field), type = field.resolvedType instanceof Enum ? "int32" : field.type, wireType = types.basic[type];
+        ref = "m" + util2.safeProp(field.name);
+        if (field.map) {
+          gen("if(%s!=null&&Object.hasOwnProperty.call(m,%j)){", ref, field.name)("for(var ks=Object.keys(%s),i=0;i<ks.length;++i){", ref);
+          if (field.keyType === "bool") gen("w.uint32(%i).fork().uint32(%i).bool(util.boolFromKey(ks[i]))", (field.id << 3 | 2) >>> 0, 8 | types.mapKey[field.keyType]);
+          else if (types.long[field.keyType] !== void 0) gen("w.uint32(%i).fork().uint32(%i).%s(util.longFromKey(ks[i],%j))", (field.id << 3 | 2) >>> 0, 8 | types.mapKey[field.keyType], field.keyType, field.keyType === "uint64" || field.keyType === "fixed64");
+          else gen("w.uint32(%i).fork().uint32(%i).%s(ks[i])", (field.id << 3 | 2) >>> 0, 8 | types.mapKey[field.keyType], field.keyType);
+          if (wireType === void 0) gen("types[%i].encode(%s[ks[i]],w.uint32(18).fork(),q+1).ldelim().ldelim()", index, ref);
+          else gen(".uint32(%i).%s(%s[ks[i]]).ldelim()", 16 | wireType, type, ref);
+          gen("}")("}");
+        } else if (field.repeated) {
+          gen("if(%s!=null&&%s.length){", ref, ref);
+          if (field.packed && types.packed[type] !== void 0) {
+            gen("w.uint32(%i).%ss(%s)", (field.id << 3 | 2) >>> 0, type, ref);
+          } else {
+            gen("for(var i=0;i<%s.length;++i)", ref);
+            if (wireType === void 0)
+              genTypePartial(gen, field, index, ref + "[i]");
+            else gen("w.uint32(%i).%s(%s[i])", (field.id << 3 | wireType) >>> 0, type, ref);
+          }
+          gen("}");
+        } else {
+          if (!field.required)
+            if (field.hasPresence || !(field.resolvedType instanceof Enum || types.basic[type] !== void 0)) gen("if(%s!=null&&Object.hasOwnProperty.call(m,%j))", ref, field.name);
+            else if (field.resolvedType instanceof Enum) gen("if(%s!=null&&Object.hasOwnProperty.call(m,%j)&&%s!==%j)", ref, field.name, ref, field.typeDefault);
+            else if (type === "bool") gen("if(%s!=null&&Object.hasOwnProperty.call(m,%j)&&%s!==false)", ref, field.name, ref);
+            else if (type === "string") gen('if(%s!=null&&Object.hasOwnProperty.call(m,%j)&&%s!=="")', ref, field.name, ref);
+            else if (type === "bytes") gen("if(%s!=null&&Object.hasOwnProperty.call(m,%j)&&%s.length)", ref, field.name, ref);
+            else if (type === "double" || type === "float") gen("if(%s!=null&&Object.hasOwnProperty.call(m,%j)&&!Object.is(%s,0))", ref, field.name, ref);
+            else if (types.long[type] !== void 0) gen('if(%s!=null&&Object.hasOwnProperty.call(m,%j)&&(typeof %s==="object"?%s.low||%s.high:%s!==0))', ref, field.name, ref, ref, ref, ref);
+            else gen("if(%s!=null&&Object.hasOwnProperty.call(m,%j)&&%s!==0)", ref, field.name, ref);
+          if (wireType === void 0)
+            genTypePartial(gen, field, index, ref);
+          else gen("w.uint32(%i).%s(%s)", (field.id << 3 | wireType) >>> 0, type, ref);
+        }
+      }
+      return gen('if(m.$unknowns!=null&&Object.hasOwnProperty.call(m,"$unknowns"))')("for(var i=0;i<m.$unknowns.length;++i)")("w.raw(m.$unknowns[i])")("return w");
+    }
+  }
+});
+
+// node_modules/protobufjs/src/index-light.js
+var require_index_light = __commonJS({
+  "node_modules/protobufjs/src/index-light.js"(exports, module) {
+    "use strict";
+    exports = module.exports = require_index_minimal();
+    exports.build = "light";
+    function load(filename2, root2, callback) {
+      if (typeof root2 === "function") {
+        callback = root2;
+        root2 = new exports.Root();
+      } else if (!root2)
+        root2 = new exports.Root();
+      return root2.load(filename2, callback);
+    }
+    exports.load = load;
+    function loadSync(filename2, root2) {
+      if (!root2)
+        root2 = new exports.Root();
+      return root2.loadSync(filename2);
+    }
+    exports.loadSync = loadSync;
+    exports.encoder = require_encoder();
+    exports.decoder = require_decoder();
+    exports.verifier = require_verifier();
+    exports.converter = require_converter();
+    exports.ReflectionObject = require_object();
+    exports.Namespace = require_namespace();
+    exports.Root = require_root();
+    exports.Enum = require_enum3();
+    exports.Type = require_type();
+    exports.Field = require_field();
+    exports.OneOf = require_oneof();
+    exports.MapField = require_mapfield();
+    exports.Service = require_service2();
+    exports.Method = require_method();
+    exports.Message = require_message();
+    exports.wrappers = require_wrappers();
+    exports.types = require_types3();
+    exports.util = require_util3();
+    exports.ReflectionObject._configure(exports.Root);
+    exports.Namespace._configure(exports.Type, exports.Service, exports.Enum);
+    exports.Root._configure(exports.Type, void 0, {});
+    exports.Field._configure(exports.Type);
+  }
+});
+
+// node_modules/protobufjs/src/tokenize.js
+var require_tokenize = __commonJS({
+  "node_modules/protobufjs/src/tokenize.js"(exports, module) {
+    "use strict";
+    module.exports = tokenize;
+    var delimRe = /[\s{}=;:[\],'"()<>]/g;
+    var stringDoubleRe = /(?:"([^"\\]*(?:\\.[^"\\]*)*)")/g;
+    var stringSingleRe = /(?:'([^'\\]*(?:\\.[^'\\]*)*)')/g;
+    var setCommentRe = /^ *[*/]+ */;
+    var setCommentAltRe = /^\s*\*?\/*/;
+    var setCommentSplitRe = /\n/g;
+    var whitespaceRe = /\s/;
+    var unescapeRe = /\\(.?)/g;
+    var unescapeMap = {
+      "0": "\0",
+      "r": "\r",
+      "n": "\n",
+      "t": "	"
+    };
+    function unescape3(str) {
+      return str.replace(unescapeRe, function($0, $1) {
+        switch ($1) {
+          case "\\":
+          case "":
+            return $1;
+          default:
+            return unescapeMap[$1] || "";
+        }
+      });
+    }
+    tokenize.unescape = unescape3;
+    function tokenize(source, alternateCommentMode) {
+      source = source.toString();
+      var offset = 0, length = source.length, line = 1, lastCommentLine = 0, comments = {};
+      var stack = [];
+      var stringDelim = null;
+      function illegal(subject) {
+        return Error("illegal " + subject + " (line " + line + ")");
+      }
+      function readString() {
+        var re = stringDelim === "'" ? stringSingleRe : stringDoubleRe;
+        re.lastIndex = offset - 1;
+        var match = re.exec(source);
+        if (!match)
+          throw illegal("string");
+        offset = re.lastIndex;
+        push(stringDelim);
+        stringDelim = null;
+        return unescape3(match[1]);
+      }
+      function charAt(pos) {
+        return source.charAt(pos);
+      }
+      function setComment(start, end, isLeading) {
+        var comment = {
+          type: source.charAt(start++),
+          lineEmpty: false,
+          leading: isLeading
+        };
+        var lookback;
+        if (alternateCommentMode) {
+          lookback = 2;
+        } else {
+          lookback = 3;
+        }
+        var commentOffset = start - lookback, c;
+        do {
+          if (--commentOffset < 0 || (c = source.charAt(commentOffset)) === "\n") {
+            comment.lineEmpty = true;
+            break;
+          }
+        } while (c === " " || c === "	");
+        var lines = source.substring(start, end).split(setCommentSplitRe);
+        for (var i = 0; i < lines.length; ++i)
+          lines[i] = lines[i].replace(alternateCommentMode ? setCommentAltRe : setCommentRe, "").trim();
+        comment.text = lines.join("\n").trim();
+        comments[line] = comment;
+        lastCommentLine = line;
+      }
+      function isDoubleSlashCommentLine(startOffset) {
+        var endOffset = findEndOfLine(startOffset);
+        var lineText = source.substring(startOffset, endOffset);
+        var isComment = /^\s*\/\//.test(lineText);
+        return isComment;
+      }
+      function findEndOfLine(cursor) {
+        var endOffset = cursor;
+        while (endOffset < length && charAt(endOffset) !== "\n") {
+          endOffset++;
+        }
+        return endOffset;
+      }
+      function next() {
+        if (stack.length > 0)
+          return stack.shift();
+        if (stringDelim)
+          return readString();
+        var repeat, prev, curr, start, isDoc, nextLineIsComment, isLeadingComment = offset === 0;
+        do {
+          if (offset === length)
+            return null;
+          repeat = false;
+          while (whitespaceRe.test(curr = charAt(offset))) {
+            if (curr === "\n") {
+              isLeadingComment = true;
+              ++line;
+            }
+            if (++offset === length)
+              return null;
+          }
+          if (charAt(offset) === "/") {
+            if (++offset === length) {
+              throw illegal("comment");
+            }
+            if (charAt(offset) === "/") {
+              if (!alternateCommentMode) {
+                isDoc = charAt(start = offset + 1) === "/";
+                while (charAt(++offset) !== "\n") {
+                  if (offset === length) {
+                    return null;
+                  }
+                }
+                ++offset;
+                if (isDoc) {
+                  setComment(start, offset - 1, isLeadingComment);
+                  isLeadingComment = true;
+                }
+                ++line;
+                repeat = true;
+              } else {
+                start = offset;
+                isDoc = false;
+                if (isDoubleSlashCommentLine(offset - 1)) {
+                  isDoc = true;
+                  do {
+                    offset = findEndOfLine(offset);
+                    if (offset === length) {
+                      break;
+                    }
+                    offset++;
+                    if (!isLeadingComment) {
+                      break;
+                    }
+                    nextLineIsComment = isDoubleSlashCommentLine(offset);
+                    if (nextLineIsComment) {
+                      line++;
+                    }
+                  } while (nextLineIsComment);
+                } else {
+                  offset = Math.min(length, findEndOfLine(offset) + 1);
+                }
+                if (isDoc) {
+                  setComment(start, offset, isLeadingComment);
+                  isLeadingComment = true;
+                }
+                line++;
+                repeat = true;
+              }
+            } else if ((curr = charAt(offset)) === "*") {
+              start = offset + 1;
+              isDoc = alternateCommentMode || charAt(start) === "*";
+              do {
+                if (curr === "\n") {
+                  ++line;
+                }
+                if (++offset === length) {
+                  throw illegal("comment");
+                }
+                prev = curr;
+                curr = charAt(offset);
+              } while (prev !== "*" || curr !== "/");
+              ++offset;
+              if (isDoc) {
+                setComment(start, offset - 2, isLeadingComment);
+                isLeadingComment = true;
+              }
+              repeat = true;
+            } else {
+              return "/";
+            }
+          }
+        } while (repeat);
+        var end = offset;
+        delimRe.lastIndex = 0;
+        var delim = delimRe.test(charAt(end++));
+        if (!delim)
+          while (end < length && !delimRe.test(charAt(end)))
+            ++end;
+        var token = source.substring(offset, offset = end);
+        if (token === '"' || token === "'")
+          stringDelim = token;
+        return token;
+      }
+      function push(token) {
+        stack.push(token);
+      }
+      function peek() {
+        if (!stack.length) {
+          var token = next();
+          if (token === null)
+            return null;
+          push(token);
+        }
+        return stack[0];
+      }
+      function skip(expected, optional2) {
+        var actual = peek(), equals = actual === expected;
+        if (equals) {
+          next();
+          return true;
+        }
+        if (!optional2)
+          throw illegal("token '" + actual + "', '" + expected + "' expected");
+        return false;
+      }
+      function cmnt(trailingLine) {
+        var ret = null;
+        var comment;
+        if (trailingLine === void 0) {
+          comment = comments[line - 1];
+          delete comments[line - 1];
+          if (comment && (alternateCommentMode || comment.type === "*" || comment.lineEmpty)) {
+            ret = comment.leading ? comment.text : null;
+          }
+        } else {
+          if (lastCommentLine < trailingLine) {
+            peek();
+          }
+          comment = comments[trailingLine];
+          delete comments[trailingLine];
+          if (comment && !comment.lineEmpty && (alternateCommentMode || comment.type === "/")) {
+            ret = comment.leading ? null : comment.text;
+          }
+        }
+        return ret;
+      }
+      return Object.defineProperty({
+        next,
+        peek,
+        push,
+        skip,
+        cmnt
+      }, "line", {
+        get: function() {
+          return line;
+        }
+      });
+    }
+  }
+});
+
+// node_modules/protobufjs/src/parse.js
+var require_parse2 = __commonJS({
+  "node_modules/protobufjs/src/parse.js"(exports, module) {
+    "use strict";
+    module.exports = parse4;
+    parse4.filename = null;
+    parse4.defaults = { keepCase: false };
+    var tokenize = require_tokenize();
+    var Root = require_root();
+    var Type = require_type();
+    var Field = require_field();
+    var MapField = require_mapfield();
+    var OneOf = require_oneof();
+    var Enum = require_enum3();
+    var Service = require_service2();
+    var Method = require_method();
+    var ReflectionObject = require_object();
+    var types = require_types3();
+    var util2 = require_util3();
+    var base10Re = /^[1-9][0-9]*$/;
+    var base10NegRe = /^-?[1-9][0-9]*$/;
+    var base16Re = /^0[x][0-9a-fA-F]+$/;
+    var base16NegRe = /^-?0[x][0-9a-fA-F]+$/;
+    var base8Re = /^0[0-7]+$/;
+    var base8NegRe = /^-?0[0-7]+$/;
+    var integerTypeRe = /^(?:u?int|sint|s?fixed)(?:32|64)$/;
+    var unsignedTypeRe = /^(?:uint|fixed)(?:32|64)$/;
+    var numberRe = util2.patterns.numberRe;
+    var nameRe = /^[a-zA-Z_][a-zA-Z_0-9]*$/;
+    var typeRefRe = util2.patterns.typeRefRe;
+    var maxFieldId = 536870911;
+    var maxEnumId = 2147483647;
+    function parse4(source, root2, options3) {
+      if (!(root2 instanceof Root)) {
+        options3 = root2;
+        root2 = new Root();
+      }
+      if (!options3)
+        options3 = parse4.defaults;
+      var preferTrailingComment = options3.preferTrailingComment || false;
+      var tn = tokenize(source, options3.alternateCommentMode || false), next = tn.next, push = tn.push, peek = tn.peek, skip = tn.skip, cmnt = tn.cmnt;
+      var head = true, pkg, imports, weakImports, edition = "proto2";
+      var ptr = root2;
+      var topLevelObjects = [];
+      var topLevelOptions = {};
+      var applyCase = options3.keepCase ? function(name) {
+        return name;
+      } : util2.camelCase;
+      function resolveFileFeatures() {
+        topLevelObjects.forEach((obj) => {
+          obj._edition = edition;
+          Object.keys(topLevelOptions).forEach((opt) => {
+            if (obj.getOption(opt) !== void 0) return;
+            obj.setOption(opt, topLevelOptions[opt], true);
+          });
+        });
+      }
+      function illegal(token2, name, insideTryCatch) {
+        var filename2 = parse4.filename;
+        if (!insideTryCatch)
+          parse4.filename = null;
+        return Error("illegal " + (name || "token") + " '" + token2 + "' (" + (filename2 ? filename2 + ", " : "") + "line " + tn.line + ")");
+      }
+      function readString() {
+        var values = [], token2;
+        do {
+          if ((token2 = next()) !== '"' && token2 !== "'")
+            throw illegal(token2);
+          values.push(next());
+          skip(token2);
+          token2 = peek();
+        } while (token2 === '"' || token2 === "'");
+        return values.join("");
+      }
+      function readValue(acceptTypeRef) {
+        var token2 = next();
+        switch (token2) {
+          case "'":
+          case '"':
+            push(token2);
+            return readString();
+          case "true":
+          case "TRUE":
+            return true;
+          case "false":
+          case "FALSE":
+            return false;
+        }
+        try {
+          return parseNumber(
+            token2,
+            /* insideTryCatch */
+            true
+          );
+        } catch (e) {
+          if (acceptTypeRef && typeRefRe.test(token2))
+            return token2;
+          throw illegal(token2, "value");
+        }
+      }
+      function readRanges(target, acceptStrings, max, acceptNegative) {
+        var token2, start;
+        do {
+          if (acceptStrings && ((token2 = peek()) === '"' || token2 === "'")) {
+            var str = readString();
+            target.push(str);
+            if (edition >= 2023) {
+              throw illegal(str, "id");
+            }
+          } else {
+            try {
+              target.push([start = parseId(next(), acceptNegative, max), skip("to", true) ? parseId(next(), acceptNegative, max) : start]);
+            } catch (err) {
+              if (acceptStrings && typeRefRe.test(token2) && edition >= 2023) {
+                target.push(token2);
+              } else {
+                throw err;
+              }
+            }
+          }
+        } while (skip(",", true));
+        var dummy = { options: void 0 };
+        dummy.setOption = function(name, value) {
+          if (this.options === void 0) this.options = {};
+          this.options[name] = value;
+        };
+        ifBlock(
+          dummy,
+          function parseRange_block(token3) {
+            if (token3 === "option") {
+              parseOption(dummy, token3);
+              skip(";");
+            } else
+              throw illegal(token3);
+          },
+          function parseRange_line() {
+            parseInlineOptions(dummy);
+          }
+        );
+      }
+      function parseNumber(token2, insideTryCatch) {
+        var sign = 1;
+        if (token2.charAt(0) === "-") {
+          sign = -1;
+          token2 = token2.substring(1);
+        }
+        switch (token2) {
+          case "inf":
+          case "INF":
+          case "Inf":
+            return sign * Infinity;
+          case "nan":
+          case "NAN":
+          case "Nan":
+          case "NaN":
+            return NaN;
+          case "0":
+            return sign * 0;
+        }
+        if (base10Re.test(token2))
+          return sign * parseInt(token2, 10);
+        if (base16Re.test(token2))
+          return sign * parseInt(token2, 16);
+        if (base8Re.test(token2))
+          return sign * parseInt(token2, 8);
+        if (numberRe.test(token2))
+          return sign * parseFloat(token2);
+        throw illegal(token2, "number", insideTryCatch);
+      }
+      function parseInteger(token2, acceptNegative, name) {
+        if (token2 === null)
+          throw illegal(token2, "end of input");
+        if (!acceptNegative && token2.charAt(0) === "-")
+          throw illegal(token2, name || "integer");
+        if (token2 === "0" || token2 === "-0")
+          return 0;
+        var value;
+        if (base10NegRe.test(token2))
+          value = parseInt(token2, 10);
+        else if (base16NegRe.test(token2))
+          value = parseInt(token2, 16);
+        else if (base8NegRe.test(token2))
+          value = parseInt(token2, 8);
+        else
+          throw illegal(token2, name || "integer");
+        return value || 0;
+      }
+      function parseId(token2, acceptNegative, max) {
+        switch (token2) {
+          case "max":
+          case "MAX":
+          case "Max":
+            return max || maxFieldId;
+        }
+        return parseInteger(token2, acceptNegative, "id");
+      }
+      function parsePackage() {
+        if (pkg !== void 0)
+          throw illegal("package");
+        pkg = next();
+        if (pkg === null || !typeRefRe.test(pkg))
+          throw illegal(pkg, "name");
+        ptr = ptr.define(pkg);
+        skip(";");
+      }
+      function parseImport() {
+        var token2 = peek();
+        var whichImports;
+        switch (token2) {
+          case "option":
+            if (edition < "2024") {
+              throw illegal("option");
+            }
+            next();
+            readString();
+            skip(";");
+            return;
+          case "weak":
+            whichImports = weakImports || (weakImports = []);
+            next();
+            break;
+          case "public":
+            next();
+          // eslint-disable-next-line no-fallthrough
+          default:
+            whichImports = imports || (imports = []);
+            break;
+        }
+        token2 = readString();
+        skip(";");
+        whichImports.push(token2);
+      }
+      function parseSyntax() {
+        skip("=");
+        edition = readString();
+        if (edition < 2023)
+          throw illegal(edition, "syntax");
+        skip(";");
+      }
+      function parseEdition() {
+        skip("=");
+        edition = readString();
+        const supportedEditions = ["2023", "2024", "2026"];
+        if (!supportedEditions.includes(edition))
+          throw illegal(edition, "edition");
+        skip(";");
+      }
+      function parseCommon(parent, token2, depth) {
+        if (depth === void 0)
+          depth = 0;
+        switch (token2) {
+          case "option":
+            parseOption(parent, token2);
+            skip(";");
+            return true;
+          case "message":
+            parseType(parent, token2, depth + 1);
+            return true;
+          case "enum":
+            parseEnum(parent, token2);
+            return true;
+          case "export":
+          case "local":
+            if (edition < "2024") {
+              return false;
+            }
+            var visibility = token2;
+            token2 = next();
+            if (token2 === "export" || token2 === "local") {
+              return false;
+            }
+            if (token2 !== "message" && token2 !== "enum") {
+              return false;
+            }
+            (token2 === "message" ? parseType(parent, token2, depth + 1) : parseEnum(parent, token2)).visibility = visibility;
+            return true;
+          case "service":
+            parseService(parent, token2, depth + 1);
+            return true;
+          case "extend":
+            parseExtension(parent, token2, depth);
+            return true;
+        }
+        return false;
+      }
+      function ifBlock(obj, fnIf, fnElse) {
+        var trailingLine = tn.line;
+        if (obj) {
+          if (typeof obj.comment !== "string") {
+            obj.comment = cmnt();
+          }
+          obj.filename = parse4.filename;
+        }
+        if (skip("{", true)) {
+          var token2;
+          while ((token2 = next()) !== "}")
+            fnIf(token2);
+          skip(";", true);
+        } else {
+          if (fnElse)
+            fnElse();
+          skip(";");
+          if (obj && (typeof obj.comment !== "string" || preferTrailingComment))
+            obj.comment = cmnt(trailingLine) || obj.comment;
+        }
+      }
+      function parseType(parent, token2, depth) {
+        if (depth === void 0)
+          depth = 0;
+        if (depth > util2.nestingLimit)
+          throw Error("max depth exceeded");
+        if ((token2 = next()) === null || !nameRe.test(token2))
+          throw illegal(token2, "type name");
+        var type = new Type(token2);
+        ifBlock(type, function parseType_block(token3) {
+          if (parseCommon(type, token3, depth))
+            return;
+          switch (token3) {
+            case ";":
+              break;
+            case "map":
+              parseMapField(type, token3);
+              break;
+            case "required":
+              if (edition !== "proto2")
+                throw illegal(token3);
+            /* eslint-disable no-fallthrough */
+            case "repeated":
+              parseField(type, token3, void 0, depth + 1);
+              break;
+            case "optional":
+              if (edition === "proto3") {
+                parseField(type, "proto3_optional", void 0, depth + 1);
+              } else if (edition !== "proto2") {
+                throw illegal(token3);
+              } else {
+                parseField(type, "optional", void 0, depth + 1);
+              }
+              break;
+            case "oneof":
+              parseOneOf(type, token3, depth + 1);
+              break;
+            case "extensions":
+              readRanges(type.extensions || (type.extensions = []));
+              break;
+            case "reserved":
+              readRanges(type.reserved || (type.reserved = []), true);
+              break;
+            default:
+              if (edition === "proto2" || !typeRefRe.test(token3)) {
+                throw illegal(token3);
+              }
+              push(token3);
+              parseField(type, "optional", void 0, depth + 1);
+              break;
+          }
+        });
+        parent.add(type);
+        if (parent === ptr) {
+          topLevelObjects.push(type);
+        }
+        return type;
+      }
+      function parseField(parent, rule, extend2, depth) {
+        var type = next();
+        if (type === null) {
+          throw illegal(type, "end of input");
+        }
+        if (type === "group") {
+          parseGroup(parent, rule, extend2, depth);
+          return;
+        }
+        while (type.endsWith(".") || (peek() || "").startsWith(".")) {
+          var part = next();
+          if (part === null) {
+            throw illegal(part, "end of input");
+          }
+          type += part;
+        }
+        if (!typeRefRe.test(type))
+          throw illegal(type, "type");
+        var name = next();
+        if (name === null) {
+          throw illegal(name, "end of input");
+        }
+        if (!nameRe.test(name))
+          throw illegal(name, "name");
+        var protoName = name;
+        name = applyCase(name);
+        skip("=");
+        var field = new Field(name, parseId(next()), type, rule === "proto3_optional" ? "optional" : rule, extend2);
+        if (protoName !== name)
+          field.protoName = protoName;
+        ifBlock(field, function parseField_block(token2) {
+          if (token2 === "option") {
+            parseOption(field, token2);
+            skip(";");
+          } else
+            throw illegal(token2);
+        }, function parseField_line() {
+          parseInlineOptions(field);
+        });
+        if (rule === "proto3_optional") {
+          var oneof = new OneOf("_" + name);
+          field.setOption("proto3_optional", true);
+          oneof.add(field);
+          parent.add(oneof);
+        } else {
+          parent.add(field);
+        }
+        if (parent === ptr) {
+          topLevelObjects.push(field);
+        }
+      }
+      function parseGroup(parent, rule, extend2, depth) {
+        if (depth === void 0)
+          depth = 0;
+        if (depth > util2.nestingLimit)
+          throw Error("max depth exceeded");
+        if (edition >= 2023) {
+          throw illegal("group");
+        }
+        var name = next();
+        if (name === null || !nameRe.test(name))
+          throw illegal(name, "name");
+        var fieldName = util2.lcFirst(name);
+        if (name === fieldName)
+          name = util2.ucFirst(name);
+        skip("=");
+        var id = parseId(next());
+        var type = new Type(name);
+        type.group = true;
+        var field = new Field(fieldName, id, name, rule, extend2);
+        field.filename = parse4.filename;
+        ifBlock(type, function parseGroup_block(token2) {
+          switch (token2) {
+            case ";":
+              break;
+            case "map":
+              parseMapField(type);
+              break;
+            case "option":
+              parseOption(type, token2);
+              skip(";");
+              break;
+            case "required":
+            case "repeated":
+              parseField(type, token2, void 0, depth + 1);
+              break;
+            case "optional":
+              if (edition === "proto3") {
+                parseField(type, "proto3_optional", void 0, depth + 1);
+              } else {
+                parseField(type, "optional", void 0, depth + 1);
+              }
+              break;
+            case "message":
+              parseType(type, token2, depth + 1);
+              break;
+            case "enum":
+              parseEnum(type, token2);
+              break;
+            case "reserved":
+              readRanges(type.reserved || (type.reserved = []), true);
+              break;
+            case "export":
+            case "local":
+              if (edition < "2024") {
+                throw illegal(token2);
+              }
+              token2 = next();
+              switch (token2) {
+                case "message":
+                  parseType(type, token2, depth + 1);
+                  break;
+                case "enum":
+                  parseType(type, token2, depth + 1);
+                  break;
+                default:
+                  throw illegal(token2);
+              }
+              break;
+            /* istanbul ignore next */
+            default:
+              throw illegal(token2);
+          }
+        });
+        parent.add(type).add(field);
+        if (parent === ptr) {
+          topLevelObjects.push(type);
+          topLevelObjects.push(field);
+        }
+      }
+      function parseMapField(parent) {
+        skip("<");
+        var keyType = next();
+        if (types.mapKey[keyType] === void 0)
+          throw illegal(keyType, "type");
+        skip(",");
+        var valueType = next();
+        if (!typeRefRe.test(valueType))
+          throw illegal(valueType, "type");
+        skip(">");
+        var name = next();
+        if (name === null || !nameRe.test(name))
+          throw illegal(name, "name");
+        skip("=");
+        var protoName = name;
+        name = applyCase(name);
+        var field = new MapField(name, parseId(next()), keyType, valueType);
+        if (protoName !== name)
+          field.protoName = protoName;
+        ifBlock(field, function parseMapField_block(token2) {
+          if (token2 === "option") {
+            parseOption(field, token2);
+            skip(";");
+          } else
+            throw illegal(token2);
+        }, function parseMapField_line() {
+          parseInlineOptions(field);
+        });
+        parent.add(field);
+      }
+      function parseOneOf(parent, token2, depth) {
+        if ((token2 = next()) === null || !nameRe.test(token2))
+          throw illegal(token2, "name");
+        var oneof = new OneOf(applyCase(token2));
+        ifBlock(oneof, function parseOneOf_block(token3) {
+          if (token3 === "option") {
+            parseOption(oneof, token3);
+            skip(";");
+          } else {
+            push(token3);
+            parseField(oneof, "optional", void 0, depth);
+          }
+        });
+        parent.add(oneof);
+      }
+      function parseEnum(parent, token2) {
+        if ((token2 = next()) === null || !nameRe.test(token2))
+          throw illegal(token2, "name");
+        var enm = new Enum(token2), values = [];
+        ifBlock(enm, function parseEnum_block(token3) {
+          switch (token3) {
+            case ";":
+              break;
+            case "option":
+              parseOption(enm, token3);
+              skip(";");
+              break;
+            case "reserved":
+              readRanges(enm.reserved || (enm.reserved = []), true, maxEnumId, true);
+              if (enm.reserved === void 0) enm.reserved = [];
+              break;
+            default:
+              values.push(parseEnumValue(token3));
+          }
+        });
+        for (var i = 0; i < values.length; ++i)
+          enm.add(values[i].name, values[i].id, values[i].comment, values[i].options);
+        parent.add(enm);
+        if (parent === ptr) {
+          topLevelObjects.push(enm);
+        }
+        return enm;
+      }
+      function parseEnumValue(token2) {
+        if (!nameRe.test(token2))
+          throw illegal(token2, "name");
+        skip("=");
+        var value = parseId(next(), true), dummy = {
+          options: void 0
+        };
+        dummy.getOption = function(name) {
+          return this.options[name];
+        };
+        dummy.setOption = function(name, value2) {
+          ReflectionObject.prototype.setOption.call(dummy, name, value2);
+        };
+        dummy.setParsedOption = function() {
+          return void 0;
+        };
+        ifBlock(dummy, function parseEnumValue_block(token3) {
+          if (token3 === "option") {
+            parseOption(dummy, token3);
+            skip(";");
+          } else
+            throw illegal(token3);
+        }, function parseEnumValue_line() {
+          parseInlineOptions(dummy);
+        });
+        return {
+          name: token2,
+          id: value,
+          comment: dummy.comment,
+          options: dummy.parsedOptions || dummy.options
+        };
+      }
+      function parseOption(parent, token2) {
+        var option;
+        var propName;
+        var isOption = true;
+        if (token2 === "option") {
+          token2 = next();
+        }
+        while (token2 !== "=") {
+          if (token2 === null) {
+            throw illegal(token2, "end of input");
+          }
+          if (token2 === "(") {
+            var parensValue = next();
+            skip(")");
+            token2 = "(" + parensValue + ")";
+          }
+          if (isOption) {
+            isOption = false;
+            if (token2.includes(".") && !token2.includes("(")) {
+              var tokens = token2.split(".");
+              option = tokens[0] + ".";
+              token2 = tokens[1];
+              continue;
+            }
+            option = token2;
+          } else {
+            propName = propName ? propName += token2 : token2;
+          }
+          token2 = next();
+        }
+        var name = propName ? option.concat(propName) : option;
+        var optionValue = parseOptionValue(parent, name);
+        propName = propName && propName[0] === "." ? propName.slice(1) : propName;
+        option = option && option[option.length - 1] === "." ? option.slice(0, -1) : option;
+        setParsedOption(parent, option, optionValue, propName);
+      }
+      function parseOptionValue(parent, name, depth) {
+        if (depth === void 0)
+          depth = 0;
+        if (depth > util2.recursionLimit)
+          throw Error("max depth exceeded");
+        if (skip("{", true)) {
+          var objectResult = {};
+          while (!skip("}", true)) {
+            token = next();
+            var propName;
+            if (token === null)
+              throw illegal(token, "end of input");
+            if (token === "[") {
+              token = next();
+              var slash = token === null ? -1 : token.lastIndexOf("/");
+              if (token === null || !typeRefRe.test(slash < 0 ? token : token.slice(slash + 1)))
+                throw illegal(token, "name");
+              propName = "[" + token + "]";
+              skip("]");
+            } else {
+              if (!nameRe.test(token)) {
+                throw illegal(token, "name");
+              }
+              propName = token;
+            }
+            var value;
+            skip(":", true);
+            if (peek() === "{") {
+              value = parseOptionValue(parent, name + "." + propName, depth + 1);
+            } else if (peek() === "[") {
+              value = [];
+              var lastValue, lastValueIsAggregate;
+              if (skip("[", true)) {
+                if (!skip("]", true)) {
+                  do {
+                    lastValueIsAggregate = peek() === "{";
+                    lastValue = lastValueIsAggregate ? parseOptionValue(parent, name + "." + propName, depth + 1) : readValue(true);
+                    value.push(lastValue);
+                  } while (skip(",", true));
+                  skip("]");
+                  if (typeof lastValue !== "undefined") {
+                    if (!lastValueIsAggregate)
+                      setOption(parent, name + "." + propName, lastValue);
+                  }
+                }
+              }
+            } else {
+              value = readValue(true);
+              setOption(parent, name + "." + propName, value);
+            }
+            var prevValue = Object.prototype.hasOwnProperty.call(objectResult, propName) ? objectResult[propName] : void 0;
+            if (prevValue)
+              value = [].concat(prevValue).concat(value);
+            if (propName !== "__proto__")
+              objectResult[propName] = value;
+            skip(",", true);
+            skip(";", true);
+          }
+          return objectResult;
+        }
+        var simpleValue = name === "default" && parent instanceof Field && integerTypeRe.test(parent.type) ? parseInteger(next(), !unsignedTypeRe.test(parent.type)) : readValue(true);
+        setOption(parent, name, simpleValue);
+        return simpleValue;
+      }
+      function setOption(parent, name, value) {
+        if (ptr === parent && /^features\./.test(name)) {
+          topLevelOptions[name] = value;
+          return;
+        }
+        if (name === "json_name" && parent instanceof Field) {
+          parent.jsonName = value;
+        }
+        if (parent.setOption)
+          parent.setOption(name, value);
+      }
+      function setParsedOption(parent, name, value, propName) {
+        if (parent.setParsedOption)
+          parent.setParsedOption(name, value, propName);
+      }
+      function parseInlineOptions(parent) {
+        if (skip("[", true)) {
+          do {
+            parseOption(parent, "option");
+          } while (skip(",", true));
+          skip("]");
+        }
+        return parent;
+      }
+      function parseService(parent, token2, depth) {
+        if (depth === void 0)
+          depth = 0;
+        if (depth > util2.recursionLimit)
+          throw Error("max depth exceeded");
+        if ((token2 = next()) === null || !nameRe.test(token2))
+          throw illegal(token2, "service name");
+        var service = new Service(token2);
+        ifBlock(service, function parseService_block(token3) {
+          if (parseCommon(service, token3, depth)) {
+            return;
+          }
+          if (token3 === ";")
+            return;
+          if (token3 === "rpc")
+            parseMethod(service, token3);
+          else
+            throw illegal(token3);
+        });
+        parent.add(service);
+        if (parent === ptr) {
+          topLevelObjects.push(service);
+        }
+      }
+      function parseMethod(parent, token2) {
+        var commentText = cmnt();
+        var type = token2;
+        if (!nameRe.test(token2 = next()))
+          throw illegal(token2, "name");
+        var name = token2, requestType, requestStream, responseType, responseStream;
+        skip("(");
+        if (skip("stream", true))
+          requestStream = true;
+        if (!typeRefRe.test(token2 = next()))
+          throw illegal(token2);
+        requestType = token2;
+        skip(")");
+        skip("returns");
+        skip("(");
+        if (skip("stream", true))
+          responseStream = true;
+        if (!typeRefRe.test(token2 = next()))
+          throw illegal(token2);
+        responseType = token2;
+        skip(")");
+        var method = new Method(name, type, requestType, responseType, requestStream, responseStream);
+        method.comment = commentText;
+        ifBlock(method, function parseMethod_block(token3) {
+          if (token3 === ";")
+            return;
+          if (token3 === "option") {
+            parseOption(method, token3);
+            skip(";");
+          } else
+            throw illegal(token3);
+        });
+        parent.add(method);
+      }
+      function parseExtension(parent, token2, depth) {
+        if ((token2 = next()) === null || !typeRefRe.test(token2))
+          throw illegal(token2, "reference");
+        var reference = token2;
+        ifBlock(null, function parseExtension_block(token3) {
+          switch (token3) {
+            case "required":
+            case "repeated":
+              parseField(parent, token3, reference, depth + 1);
+              break;
+            case "optional":
+              if (edition === "proto3") {
+                parseField(parent, "proto3_optional", reference, depth + 1);
+              } else {
+                parseField(parent, "optional", reference, depth + 1);
+              }
+              break;
+            default:
+              if (edition === "proto2" || !typeRefRe.test(token3))
+                throw illegal(token3);
+              push(token3);
+              parseField(parent, "optional", reference, depth + 1);
+              break;
+          }
+        });
+      }
+      var token;
+      while ((token = next()) !== null) {
+        switch (token) {
+          case ";":
+            break;
+          case "package":
+            if (!head)
+              throw illegal(token);
+            parsePackage();
+            break;
+          case "import":
+            parseImport();
+            break;
+          case "syntax":
+            if (!head)
+              throw illegal(token);
+            parseSyntax();
+            break;
+          case "edition":
+            if (!head)
+              throw illegal(token);
+            parseEdition();
+            break;
+          case "option":
+            parseOption(ptr, token);
+            skip(";", true);
+            break;
+          default:
+            if (parseCommon(ptr, token, 0)) {
+              head = false;
+              continue;
+            }
+            throw illegal(token);
+        }
+      }
+      resolveFileFeatures();
+      parse4.filename = null;
+      return {
+        "package": pkg,
+        "imports": imports,
+        weakImports,
+        root: root2
+      };
+    }
+  }
+});
+
+// node_modules/protobufjs/src/common.js
+var require_common = __commonJS({
+  "node_modules/protobufjs/src/common.js"(exports, module) {
+    "use strict";
+    module.exports = common;
+    var commonRe = /\/|\./;
+    function common(name, json2) {
+      if (!commonRe.test(name)) {
+        name = "google/protobuf/" + name + ".proto";
+        json2 = { nested: { google: { nested: { protobuf: { nested: json2 } } } } };
+      }
+      common[name] = json2;
+    }
+    common("any", {
+      /**
+       * Properties of a google.protobuf.Any message.
+       * @interface IAny
+       * @type {Object}
+       * @property {string} [typeUrl]
+       * @property {Uint8Array} [bytes]
+       * @memberof common
+       */
+      Any: {
+        fields: {
+          type_url: {
+            type: "string",
+            id: 1
+          },
+          value: {
+            type: "bytes",
+            id: 2
+          }
+        }
+      }
+    });
+    var timeType;
+    common("duration", {
+      /**
+       * Properties of a google.protobuf.Duration message.
+       * @interface IDuration
+       * @type {Object}
+       * @property {number|Long} [seconds]
+       * @property {number} [nanos]
+       * @memberof common
+       */
+      Duration: timeType = {
+        fields: {
+          seconds: {
+            type: "int64",
+            id: 1
+          },
+          nanos: {
+            type: "int32",
+            id: 2
+          }
+        }
+      }
+    });
+    common("timestamp", {
+      /**
+       * Properties of a google.protobuf.Timestamp message.
+       * @interface ITimestamp
+       * @type {Object}
+       * @property {number|Long} [seconds]
+       * @property {number} [nanos]
+       * @memberof common
+       */
+      Timestamp: timeType
+    });
+    common("empty", {
+      /**
+       * Properties of a google.protobuf.Empty message.
+       * @interface IEmpty
+       * @memberof common
+       */
+      Empty: {
+        fields: {}
+      }
+    });
+    common("struct", {
+      /**
+       * Properties of a google.protobuf.Struct message.
+       * @interface IStruct
+       * @type {Object}
+       * @property {Object.<string,IValue>} [fields]
+       * @memberof common
+       */
+      Struct: {
+        fields: {
+          fields: {
+            keyType: "string",
+            type: "Value",
+            id: 1
+          }
+        }
+      },
+      /**
+       * Properties of a google.protobuf.Value message.
+       * @interface IValue
+       * @type {Object}
+       * @property {string} [kind]
+       * @property {0} [nullValue]
+       * @property {number} [numberValue]
+       * @property {string} [stringValue]
+       * @property {boolean} [boolValue]
+       * @property {IStruct} [structValue]
+       * @property {IListValue} [listValue]
+       * @memberof common
+       */
+      Value: {
+        oneofs: {
+          kind: {
+            oneof: [
+              "nullValue",
+              "numberValue",
+              "stringValue",
+              "boolValue",
+              "structValue",
+              "listValue"
+            ]
+          }
+        },
+        fields: {
+          nullValue: {
+            type: "NullValue",
+            id: 1,
+            protoName: "null_value"
+          },
+          numberValue: {
+            type: "double",
+            id: 2,
+            protoName: "number_value"
+          },
+          stringValue: {
+            type: "string",
+            id: 3,
+            protoName: "string_value"
+          },
+          boolValue: {
+            type: "bool",
+            id: 4,
+            protoName: "bool_value"
+          },
+          structValue: {
+            type: "Struct",
+            id: 5,
+            protoName: "struct_value"
+          },
+          listValue: {
+            type: "ListValue",
+            id: 6,
+            protoName: "list_value"
+          }
+        }
+      },
+      NullValue: {
+        values: {
+          NULL_VALUE: 0
+        }
+      },
+      /**
+       * Properties of a google.protobuf.ListValue message.
+       * @interface IListValue
+       * @type {Object}
+       * @property {Array.<IValue>} [values]
+       * @memberof common
+       */
+      ListValue: {
+        fields: {
+          values: {
+            rule: "repeated",
+            type: "Value",
+            id: 1
+          }
+        }
+      }
+    });
+    common("wrappers", {
+      /**
+       * Properties of a google.protobuf.DoubleValue message.
+       * @interface IDoubleValue
+       * @type {Object}
+       * @property {number} [value]
+       * @memberof common
+       */
+      DoubleValue: {
+        fields: {
+          value: {
+            type: "double",
+            id: 1
+          }
+        }
+      },
+      /**
+       * Properties of a google.protobuf.FloatValue message.
+       * @interface IFloatValue
+       * @type {Object}
+       * @property {number} [value]
+       * @memberof common
+       */
+      FloatValue: {
+        fields: {
+          value: {
+            type: "float",
+            id: 1
+          }
+        }
+      },
+      /**
+       * Properties of a google.protobuf.Int64Value message.
+       * @interface IInt64Value
+       * @type {Object}
+       * @property {number|Long} [value]
+       * @memberof common
+       */
+      Int64Value: {
+        fields: {
+          value: {
+            type: "int64",
+            id: 1
+          }
+        }
+      },
+      /**
+       * Properties of a google.protobuf.UInt64Value message.
+       * @interface IUInt64Value
+       * @type {Object}
+       * @property {number|Long} [value]
+       * @memberof common
+       */
+      UInt64Value: {
+        fields: {
+          value: {
+            type: "uint64",
+            id: 1
+          }
+        }
+      },
+      /**
+       * Properties of a google.protobuf.Int32Value message.
+       * @interface IInt32Value
+       * @type {Object}
+       * @property {number} [value]
+       * @memberof common
+       */
+      Int32Value: {
+        fields: {
+          value: {
+            type: "int32",
+            id: 1
+          }
+        }
+      },
+      /**
+       * Properties of a google.protobuf.UInt32Value message.
+       * @interface IUInt32Value
+       * @type {Object}
+       * @property {number} [value]
+       * @memberof common
+       */
+      UInt32Value: {
+        fields: {
+          value: {
+            type: "uint32",
+            id: 1
+          }
+        }
+      },
+      /**
+       * Properties of a google.protobuf.BoolValue message.
+       * @interface IBoolValue
+       * @type {Object}
+       * @property {boolean} [value]
+       * @memberof common
+       */
+      BoolValue: {
+        fields: {
+          value: {
+            type: "bool",
+            id: 1
+          }
+        }
+      },
+      /**
+       * Properties of a google.protobuf.StringValue message.
+       * @interface IStringValue
+       * @type {Object}
+       * @property {string} [value]
+       * @memberof common
+       */
+      StringValue: {
+        fields: {
+          value: {
+            type: "string",
+            id: 1
+          }
+        }
+      },
+      /**
+       * Properties of a google.protobuf.BytesValue message.
+       * @interface IBytesValue
+       * @type {Object}
+       * @property {Uint8Array} [value]
+       * @memberof common
+       */
+      BytesValue: {
+        fields: {
+          value: {
+            type: "bytes",
+            id: 1
+          }
+        }
+      }
+    });
+    common("field_mask", {
+      /**
+       * Properties of a google.protobuf.FieldMask message.
+       * @interface IFieldMask
+       * @type {Object}
+       * @property {string[]} [paths]
+       * @memberof common
+       */
+      FieldMask: {
+        fields: {
+          paths: {
+            rule: "repeated",
+            type: "string",
+            id: 1
+          }
+        }
+      }
+    });
+    common.get = function get(file3) {
+      return common[file3] || null;
+    };
+  }
+});
+
+// node_modules/protobufjs/src/index.js
+var require_src = __commonJS({
+  "node_modules/protobufjs/src/index.js"(exports, module) {
+    "use strict";
+    exports = module.exports = require_index_light();
+    exports.build = "full";
+    exports.tokenize = require_tokenize();
+    exports.parse = require_parse2();
+    exports.common = require_common();
+    exports.Root._configure(exports.Type, exports.parse, exports.common);
+  }
+});
+
+// node_modules/protobufjs/index.js
+var require_protobufjs = __commonJS({
+  "node_modules/protobufjs/index.js"(exports, module) {
+    "use strict";
+    module.exports = require_src();
   }
 });
 
@@ -42654,6 +54306,20 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.`;
     consoleIcons = {
+      qrcode: [
+        ["rect", { width: "5", height: "5", x: "3", y: "3", rx: "1" }],
+        ["rect", { width: "5", height: "5", x: "16", y: "3", rx: "1" }],
+        ["rect", { width: "5", height: "5", x: "3", y: "16", rx: "1" }],
+        ["path", { d: "M21 16h-3a2 2 0 0 0-2 2v3" }],
+        ["path", { d: "M21 21v.01" }],
+        ["path", { d: "M12 7v3a2 2 0 0 1-2 2H7" }],
+        ["path", { d: "M3 12h.01" }],
+        ["path", { d: "M12 3h.01" }],
+        ["path", { d: "M12 16v.01" }],
+        ["path", { d: "M16 12h1" }],
+        ["path", { d: "M21 12v.01" }],
+        ["path", { d: "M12 21v-1" }]
+      ],
       monitor: [
         [
           "path",
@@ -42710,64 +54376,32 @@ var init_webScript = __esm({
 (function(){
 'use strict';
 const iconNodes = ${JSON.stringify(consoleIcons)};
-let token = '';
-let authError = '';
-const fragment = location.hash.slice(1);
-const incoming = fragment.includes('=') ? new URLSearchParams(fragment).get('token') : fragment;
-token = incoming || '';
-try {
-  if (incoming) sessionStorage.setItem('maker-console-token', incoming);
-  const stored = sessionStorage.getItem('maker-console-token') || '';
-  token = incoming || stored;
-} catch (_) {
-  if (!token) authError = '无法访问会话存储。请从 Maker CLI 重新打开控制台。';
-}
-let selected = new URLSearchParams(location.search).get('project') || '';
+const initialQuery = new URLSearchParams(location.search);
+let projectid = initialQuery.get('projectid') || '';
+let selected = projectid ? '' : initialQuery.get('project') || '';
 let page = selected ? 'overview' : 'projects';
 let selectionEpoch = 0;
 let viewEpoch = 0;
 let state = {projects: [], tasks: []};
 let loaded = false;
 let fortuneTimer;
-let fortuneContentHeight = 0;
-let fortuneReady = false;
 function fortuneMode() {
   return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 }
 function fortuneUrl() {
-  return '/gdev-fortune/?embed=1&theme=dungeon&mode=' + fortuneMode();
-}
-function revealFortune() {
-  if (fortuneReady) return;
-  fortuneReady = true;
-  const corner = $('fortune-corner');
-  if (corner) corner.hidden = false;
+  return 'https://liangdong-ttm.github.io/gdev-fortune/?embed=1&theme=dungeon&mode=' + fortuneMode();
 }
 function fortuneIsOpen() {
   return $('fortune-toggle')?.getAttribute('aria-expanded') === 'true';
-}
-function applyFortuneSize(height) {
-  if (!Number.isFinite(height) || height < 120 || height > 1600) return;
-  fortuneContentHeight = Math.round(height);
-  revealFortune();
-  if (fortuneIsOpen()) positionFortune();
-  else {
-    const panel = $('fortune-panel');
-    if (panel) {
-      panel.classList.add('fortune-preload');
-      panel.hidden = true;
-    }
-  }
 }
 function positionFortune() {
   const toggle = $('fortune-toggle');
   const panel = $('fortune-panel');
   if (!toggle || !panel || !fortuneIsOpen()) return;
-  panel.classList.remove('fortune-preload');
   const anchor = toggle.getBoundingClientRect();
   const width = 320;
-  const height = fortuneContentHeight || 620;
-  const scale = Math.min(0.78, (window.innerWidth - 24) / width, (anchor.top - 12) / height, 1);
+  const height = 820;
+  const scale = Math.max(0.1, Math.min(0.78, (window.innerWidth - 24) / width, (anchor.top - 12) / height, 1));
   panel.style.width = width + 'px';
   panel.style.height = height + 'px';
   panel.style.transform = 'scale(' + scale + ')';
@@ -42781,7 +54415,6 @@ function closeFortune() {
   const panel = $('fortune-panel');
   if (panel) {
     panel.hidden = true;
-    panel.classList.add('fortune-preload');
   }
   $('fortune-toggle')?.setAttribute('aria-expanded','false');
 }
@@ -42795,21 +54428,16 @@ function loadFortuneFrame(reload) {
   if (!frame || !panel) return;
   if (!reload && frame.dataset.mode === fortuneMode() && frame.getAttribute('src')) return;
   if (panel.parentElement !== document.body) document.body.append(panel);
-  if (!fortuneReady) {
-    panel.hidden = false;
-    panel.classList.add('fortune-preload');
-  }
-  fortuneContentHeight = 0;
   frame.dataset.mode = fortuneMode();
   frame.src = fortuneUrl();
 }
 function openFortune() {
-  if (!fortuneReady) return;
   clearTimeout(fortuneTimer);
   const panel = $('fortune-panel');
   if (!panel) return;
   if (panel.parentElement !== document.body) document.body.append(panel);
   panel.hidden = false;
+  loadFortuneFrame();
   $('fortune-toggle').setAttribute('aria-expanded','true');
   positionFortune();
 }
@@ -43048,7 +54676,7 @@ let preview = null;
 let previewError = '';
 const logViews = new Map();
 function logView() {
-  if (!logViews.has(selected)) logViews.set(selected,{tab:'build',runtime:'',loading:false,wrap:false});
+  if (!logViews.has(selected)) logViews.set(selected,{tab:'build',runtime:'',loading:false,wrap:false,cleared:{}});
   return logViews.get(selected);
 }
 function selectLog(tab) {
@@ -43056,14 +54684,31 @@ function selectLog(tab) {
   renderConsoleLogs();
   $('console-logs')?.scrollIntoView({block:'nearest'});
 }
-function consoleLogText() {
+function consoleLogSnapshot() {
   const view = logView();
-  if (view.tab === 'runtime') return view.loading ? '正在读取运行时日志…' : view.runtime || '点击刷新读取运行时日志';
-  const task = tasksFor(selected).find(t => t.action === (view.tab === 'lua' ? 'lua-lsp.check' : 'build'));
-  if (!task) return '暂无日志';
+  if (view.tab === 'runtime') return {id:view.runtimeId || 'runtime',output:view.runtime,details:''};
+  const task = tasksFor(selected).find(t => t.action === (view.tab === 'lua' ? 'lua-lsp.check' : view.tab === 'qrcode' ? 'qrcode' : 'build'));
+  if (!task) return {id:'',output:'',details:''};
   const result = nestedResult(task);
-  return [task.output, Array.isArray(result?.issues) ? result.issues.join('\n') : '',
-    task.error, task.result ? text(task.result) : ''].filter(Boolean).join('\n\n') || '等待任务输出';
+  return {id:task.id,output:task.output || '',details:[Array.isArray(result?.issues) ? result.issues.join('\n') : '',
+    task.error, task.result ? text(task.result) : ''].filter(Boolean).join('\n\n')};
+}
+function clearConsoleLogs() {
+  const view = logView();
+  view.cleared[view.tab] = consoleLogSnapshot();
+  renderConsoleLogs();
+}
+function consoleLogText() {
+  const view = logView(), snapshot = consoleLogSnapshot(), cleared = view.cleared[view.tab];
+  if (view.tab === 'runtime' && view.loading) return '正在读取运行时日志…';
+  let {output,details} = snapshot;
+  if (cleared && cleared.id === snapshot.id) {
+    if (output.startsWith(cleared.output)) output = output.slice(cleared.output.length);
+    if (details === cleared.details) details = '';
+    return [output,details].filter(Boolean).join('\n\n') || '日志已清理';
+  }
+  return [output,details].filter(Boolean).join('\n\n') ||
+    (view.tab === 'runtime' ? '点击刷新读取运行时日志' : snapshot.id ? '等待任务输出' : '暂无日志');
 }
 function renderConsoleLogs() {
   const host = $('console-logs');
@@ -43072,7 +54717,7 @@ function renderConsoleLogs() {
   const toolbar = node('div',undefined,'console-log-toolbar');
   const tabs = node('div',undefined,'actions');
   tabs.setAttribute('role','tablist');
-  [['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志']].forEach(([id,label]) => {
+  [['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志'],['qrcode','二维码']].forEach(([id,label]) => {
     const tab = button(label,() => { view.tab = id; renderConsoleLogs(); if (id === 'runtime' && !view.runtime && !view.loading) void loadLogs(); });
     tab.setAttribute('role','tab'); tab.setAttribute('aria-selected',String(view.tab === id));
     tab.setAttribute('aria-controls','console-log-output'); tabs.append(tab);
@@ -43082,6 +54727,7 @@ function renderConsoleLogs() {
   const checkbox = node('input'); checkbox.type = 'checkbox'; checkbox.checked = view.wrap;
   checkbox.addEventListener('change',() => { view.wrap = checkbox.checked; renderConsoleLogs(); }); wrap.append(checkbox);
   actions.append(wrap,button('刷新',() => { if(view.tab === 'runtime') void loadLogs(); else void pollState().then(renderConsoleLogs).catch(e=>notify(e.message)); },{disabled:offline || view.loading}),
+    button('清理日志',clearConsoleLogs,{icon:'trash',disabled:view.loading}),
     button('复制',async () => { try { await navigator.clipboard.writeText(consoleLogText()); announce('日志已复制'); } catch (_) { notify('复制失败，请手动选择日志复制'); } }));
   toolbar.append(tabs,actions);
   const output = node('pre',consoleLogText(),'console-log-output' + (view.wrap ? ' wrap' : ''));
@@ -43099,10 +54745,11 @@ let pollTimer;
 let activityTimer;
 let polling = false;
 let offline = false;
+let shutdownPending = false;
 let disposed = false;
 let lastActivitySent = -Infinity;
 const requests = new Set();
-const offlineMessage = '控制台已离线或会话已过期，请通过 Maker 重新打开控制台。未确认的任务结果需要核对，不要重复提交。';
+const offlineMessage = '控制台已关闭，请通过 Maker 重新打开控制台。未确认的任务结果需要核对，不要重复提交。';
 let lastStateError = '';
 let buildChecksLua = true;
 try { buildChecksLua = localStorage.getItem('maker-console-build-lua-check') !== 'off'; } catch (_) {}
@@ -43112,7 +54759,15 @@ const pluginSessions = new Map();
 const acceptedTasks = new Map();
 const windowDrafts = new Map();
 function rememberTask(task) {
+  const previous = acceptedTasks.get(task.id);
   acceptedTasks.set(task.id,task);
+  const projectTasks = Array.from(acceptedTasks.values()).reverse()
+    .filter(item => item.projectKey === task.projectKey)
+    .sort((a,b) => String(b.startedAt).localeCompare(String(a.startedAt)));
+  projectTasks.slice(10).forEach(item => { if (item.status !== 'running') acceptedTasks.delete(item.id); });
+  if (task.projectKey === selected && task.status === 'failed' && previous?.status !== 'failed' &&
+      (task.action === 'preview.start' || task.action === 'preview.refresh'))
+    notify(text(nestedResult(task)?.error || task.error,'本地预览启动失败，请查看运行日志。'));
   while (acceptedTasks.size > 100) {
     const oldest = Array.from(acceptedTasks.values()).find(item => item.status !== 'running');
     if (!oldest) break;
@@ -43120,7 +54775,7 @@ function rememberTask(task) {
   }
 }
 const actionLabels = {
-  build: '构建', 'lua-lsp.check': 'Lua 检查', 'preview.start': '启动预览',
+  build: '构建', qrcode: '生成测试二维码', 'lua-lsp.check': 'Lua 检查', 'preview.start': '启动预览',
   'preview.refresh': '刷新预览', 'preview.stop': '停止预览', 'preview.install': '安装 Runtime'
 };
 const statusLabels = {running: '运行中', succeeded: '已完成', failed: '失败', unknown: '结果未知'};
@@ -43176,7 +54831,6 @@ function replace(target, children) {
 async function api(path, options = {}) {
   if (!path.startsWith('/api/') || path.includes('\\') || path.includes('#')) throw new Error('请求地址不受信任');
   if (offline || disposed) throw new Error(offlineMessage);
-  if (authError || !token) throw new Error(authError || '缺少访问令牌。请从 Maker CLI 重新打开控制台。');
   const controller = new AbortController();
   requests.add(controller);
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 20000);
@@ -43184,35 +54838,23 @@ async function api(path, options = {}) {
   try {
     const response = await fetch(path, {
       method: options.method || 'GET',
-      headers: {Authorization: 'Bearer ' + token, 'Content-Type':'application/json'},
+      headers: {'Content-Type':'application/json'},
       ...(options.body === undefined ? {} : {body:JSON.stringify(options.body)}),
       credentials:'omit', cache:'no-store', redirect:'error', signal:controller.signal
     });
-    if (response.status === 401 || response.status === 503) {
-      disconnect();
-      throw new Error(offlineMessage);
-    }
     const data = await response.json();
     received = true;
     if (!response.ok) throw new Error(text(data.error, '请求失败（HTTP ' + response.status + '）'));
     return data;
   } catch (error) {
     if (!received && !disposed) {
-      disconnect();
-      throw new Error(offlineMessage);
+      if (offline) throw new Error(offlineMessage);
+      throw new Error(options.method === 'POST'
+        ? '操作结果尚未确认，请查看任务状态后再决定是否重试。'
+        : '请求失败，请重试；控制台会继续检查连接。');
     }
     throw error;
   } finally { clearTimeout(timeout); requests.delete(controller); }
-}
-function disconnect() {
-  offline = true;
-  clearTimeout(pollTimer);
-  clearInterval(activityTimer);
-  activityTimer = undefined;
-  $('connection').textContent = '已离线';
-  $('connection').className = 'bad';
-  notify(offlineMessage);
-  if (loaded && currentProject()?.valid) { updateChrome(); updateBuild(); }
 }
 async function sendActivity(allowHidden = false) {
   if (offline || disposed || (!allowHidden && document.hidden) || Date.now() - lastActivitySent < 30000) return;
@@ -43225,6 +54867,7 @@ function startActivityLease() {
   activityTimer = setInterval(() => void sendActivity(true),60000);
 }
 function dispose() {
+  offline = true;
   disposed = true;
   clearTimeout(pollTimer);
   clearInterval(activityTimer);
@@ -43238,7 +54881,7 @@ function currentProject() { return state.projects.find(p => p.key === selected);
 function tasksFor(key) {
   const tasks = new Map(state.tasks.filter(t => t.projectKey === key).map(t => [t.id, t]));
   acceptedTasks.forEach(t => { if (t.projectKey === key && !tasks.has(t.id)) tasks.set(t.id, t); });
-  return Array.from(tasks.values()).sort((a,b) => String(b.startedAt).localeCompare(String(a.startedAt)));
+  return Array.from(tasks.values()).sort((a,b) => String(b.startedAt).localeCompare(String(a.startedAt))).slice(0,10);
 }
 function busy(key = selected) { return pending.has(key) || tasksFor(key).some(t => t.status === 'running'); }
 function selectionMatches(key, epoch) { return key === selected && epoch === selectionEpoch; }
@@ -43253,12 +54896,26 @@ function announce(message) {
 }
 function setProjectQuery() {
   const url = new URL(location.href);
-  if (selected) url.searchParams.set('project', selected);
-  else url.searchParams.delete('project');
+  url.searchParams.delete('project');
+  url.searchParams.delete('checkout');
+  projectid = currentProject()?.projectid || '';
+  if (projectid) {
+    url.searchParams.set('projectid',projectid);
+    if (state.projects.filter(p => p.projectid === projectid).length > 1)
+      url.searchParams.set('checkout',selected);
+  } else url.searchParams.delete('projectid');
   history.replaceState(null, '', url.pathname + url.search + url.hash);
 }
+function projectKeyFromQuery(query) {
+  const projectid = query.get('projectid');
+  if (!projectid) return query.get('project') || '';
+  const matches = state.projects.filter(p => p.projectid === projectid);
+  const checkout = query.get('checkout');
+  if (checkout) return matches.find(p => p.key === checkout)?.key || '';
+  return matches.length === 1 ? matches[0].key : '';
+}
 function chooseProject(key, updateUrl = true) {
-  if (busy()) { updateChrome(); return; }
+  if ($('qrcode-result')?.open) $('qrcode-result').close();
   const project = state.projects.find(p => p.key === key);
   selected = key;
   selectionEpoch++;
@@ -43288,7 +54945,7 @@ function updateChrome() {
     picker.dataset.signature = signature;
   }
   picker.value = currentProject() ? selected : '';
-  picker.disabled = !loaded || busy();
+  picker.disabled = !loaded || offline;
   $('context').textContent = currentProject() ? currentProject().name + ' / ' + text(detail?.git?.branch, '分支未提供') : '本地项目';
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
@@ -43320,9 +54977,14 @@ function headingActionButtons() {
     {className:'primary build-button' + (presentation.active || checking ? ' is-building' : ''),
       icon:presentation.active || checking ? 'refresh' : 'hammer',disabled:offline || busy(),focus:'heading-build'});
   build.setAttribute('aria-busy',String(presentation.active || checking));
-  const result = [local,build,luaCheckOption()];
-  if (!presentation.active && task) result.push(node('span',presentation.label,'build-badge ' + presentation.tone));
-  return result;
+  const primary = node('div',undefined,'actions heading-primary');
+  primary.append(local,build,button('测试二维码',() => void runProjectAction('qrcode'),{
+    icon:'qrcode',disabled:offline || busy(),focus:'heading-qrcode'
+  }));
+  const secondary = node('div',undefined,'actions heading-secondary');
+  secondary.append(luaCheckOption());
+  if (!presentation.active && task) secondary.append(node('span',presentation.label,'build-badge ' + presentation.tone));
+  return [primary,secondary];
 }
 function luaCheckOption() {
   const label = node('label',undefined,'lua-check-option');
@@ -43599,7 +55261,7 @@ function renderProjects() {
     if (p.key === selected) label.append(node('span','当前项目','tag'));
     if (!p.valid) label.append(node('p', text(p.error,'项目不可用'), 'bad'));
     const actions = node('div', undefined, 'actions');
-    actions.append(button('打开', () => chooseProject(p.key), {disabled:busy() || !p.valid}));
+    actions.append(button('打开', () => chooseProject(p.key), {disabled:!p.valid}));
     actions.append(button('移除登记（保留项目文件）', () => void removeProject(p.key), {
       icon:'trash',iconOnly:true,className:'icon-button danger',disabled:busy() || busy(p.key),
       focus:'remove-' + p.key
@@ -43709,7 +55371,39 @@ function renderOverview() {
   const recent = node('section',undefined,'task-history'); recent.id = 'overview-task';
   const latest = tasksFor(selected)[0];
   recent.append(node('h2','最近任务'),latest ? taskBlock(latest) : node('p','暂无控制台任务','muted'));
-  replace($('view'),[title,metrics,columns,recent]);
+  const serviceActions = node('div',undefined,'console-service-actions');
+  serviceActions.append(button('关闭Maker控制台',() => void shutdownConsole(),{
+    className:'console-shutdown',disabled:offline || shutdownPending,focus:'console-shutdown'
+  }));
+  replace($('view'),[title,metrics,columns,recent,serviceActions]);
+}
+async function shutdownConsole() {
+  if (shutdownPending || offline || disposed) return;
+  shutdownPending = true;
+  try {
+    if (!await confirmAction('console.shutdown')) return;
+    if (pending.size || state.tasks.some(task => task.status === 'running')) {
+      notify('仍有任务正在执行，请等待完成后再关闭控制台。','warning');
+      return;
+    }
+    await api('/api/shutdown',{method:'POST',body:{}});
+    dispose();
+    updateChrome();
+    $('connection').textContent = '正在关闭';
+    $('connection').className = 'muted';
+    $('plugin-views').hidden = true;
+    $('view').replaceChildren(
+      node('h1','Maker 控制台正在关闭'),
+      node('p','可以关闭此页面。再次使用时，请通过 Maker 重新打开控制台。','muted')
+    );
+  } catch (error) {
+    notify(error.message === 'Wait for active tasks before stopping the console.'
+      ? '仍有任务、更新或文件夹选择正在进行，请完成后再关闭控制台。'
+      : error.message);
+  } finally {
+    shutdownPending = false;
+    if (!disposed) render();
+  }
 }
 function luaLspPresentation(status) {
   if (!status) return {label:'待检测',status:'未提供',detail:'打开控制台后读取本机安装状态',tone:'muted'};
@@ -43746,6 +55440,72 @@ function safePreviewUrl(value) {
     const url = new URL(value);
     return ['http:','https:'].includes(url.protocol) && !url.username && !url.password ? url.href : null;
   } catch (_) { return null; }
+}
+function qrcodeImageSource(task) {
+  if (task?.action !== 'qrcode' || task.status !== 'succeeded' || task.result?.ok === false) return null;
+  const content = task.result?.result?.content;
+  for (const item of Array.isArray(content) ? content : []) {
+    if (item.type === 'image' && ['image/png','image/jpeg','image/webp'].includes(item.mimeType) &&
+        typeof item.data === 'string' && item.data.length < 2 * 1024 * 1024 && /^[A-Za-z0-9+/=\r\n]+$/.test(item.data))
+      return 'data:' + item.mimeType + ';base64,' + item.data;
+    if (item.type !== 'text' || typeof item.text !== 'string') continue;
+    // The QR tool returns a Markdown image, not an MCP image content block.
+    for (const match of item.text.matchAll(/!\[[^\]]*\]\(\s*(https:\/\/[^\s<>"')]+)(?:\s+"[^"]*")?\s*\)/g)) {
+      const safe = safePreviewUrl(match[1]);
+      if (!safe) continue;
+      const url = new URL(safe);
+      if (url.origin === 'https://tapcode-sce.spark.xd.com' && /^\/qrcode\/[^/]+\.(?:png|jpe?g|webp)$/i.test(url.pathname))
+        return url.href;
+    }
+  }
+  return null;
+}
+function consoleDialogOpen() {
+  return ['confirm','qrcode-confirm','selection-dialog','qrcode-result'].some(id => $(id)?.open);
+}
+function explainQrcode(title, message) {
+  if (consoleDialogOpen()) return;
+  $('confirm-title').textContent = title;
+  $('confirm-message').textContent = message;
+  $('confirm-accept').textContent = '知道了';
+  $('confirm').showModal();
+}
+function showQrcode(task) {
+  const source = qrcodeImageSource(task);
+  if (!source || task.projectKey !== selected || consoleDialogOpen()) return;
+  const dialog = $('qrcode-result'), image = $('qrcode-result-image'), status = $('qrcode-result-status');
+  const retry = $('qrcode-result-reload'), original = $('qrcode-result-original');
+  $('qrcode-result-project').textContent = '项目：' + task.projectName;
+  original.hidden = source.startsWith('data:');
+  if (!original.hidden) original.href = source;
+  else original.removeAttribute('href');
+  const loadImage = () => {
+    status.hidden = false; status.textContent = '正在加载二维码…'; status.className = 'muted';
+    retry.hidden = true; image.hidden = true;
+    image.onload = () => { image.hidden = false; status.hidden = true; };
+    image.onerror = () => {
+      status.hidden = false; status.textContent = '二维码图片加载失败，可重载图片或打开原图。';
+      status.className = 'pending'; retry.hidden = false;
+    };
+    image.src = source;
+  };
+  retry.onclick = loadImage;
+  loadImage();
+  dialog.showModal();
+}
+const handledQrcodeTasks = new Set();
+function handleQrcodeCompletion(task) {
+  if (task.action !== 'qrcode' || task.status === 'running' || task.projectKey !== selected ||
+      handledQrcodeTasks.has(task.id)) return;
+  handledQrcodeTasks.add(task.id);
+  while (handledQrcodeTasks.size > 100) handledQrcodeTasks.delete(handledQrcodeTasks.values().next().value);
+  if (consoleDialogOpen()) return;
+  if (task.status === 'succeeded') {
+    if (qrcodeImageSource(task)) showQrcode(task);
+    else notify('二维码工具已返回，请在任务结果中查看链接。','warning');
+  } else if (task.interaction?.kind === 'select_developer' && !busy(task.projectKey)) {
+    void runAction('qrcode',{sourceTaskId:task.id});
+  }
 }
 function taskPreviewUrl(task) {
   if (task.status !== 'succeeded' || task.result?.ok === false) return null;
@@ -43800,7 +55560,7 @@ function runtimePresentation(status, error = '') {
   return {label:'待检测',detail:'',tone:'muted'};
 }
 function taskStartsOpen(task, open = false) {
-  return Boolean(open || (task?.status === 'failed' && task?.action !== 'lua-lsp.check'));
+  return Boolean(open || task?.action === 'qrcode' || (task?.status === 'failed' && task?.action !== 'lua-lsp.check'));
 }
 function taskOutputText(task) {
   const output = text(task?.output,'').trim();
@@ -43821,12 +55581,22 @@ function taskBlock(task, open = false) {
   const summary = node('summary');
   summary.dataset.focus = 'task-' + task.id;
   summary.append(node('strong', actionLabels[task.action] || task.action),
-    node('span', statusLabels[task.status] || '结果未知',
+    node('span', task.interaction?.kind === 'select_developer' ? '待选择开发者' : statusLabels[task.status] || '结果未知',
       failed ? 'bad' : task.status === 'succeeded' ? 'good' : 'pending'),
     node('time',date(task.startedAt)));
   const meta = node('p','项目：' + text(task.projectName) + ' · 任务：' + text(task.id),'task-meta muted');
   d.append(summary,meta);
+  if (task.interaction?.kind === 'select_developer' && task.projectKey === selected &&
+      tasksFor(task.projectKey).find(item => item.action === 'qrcode')?.id === task.id) {
+    d.append(button('选择开发者并继续',() => void runAction('qrcode',{sourceTaskId:task.id}),{
+      disabled:offline || busy(task.projectKey)
+    }));
+  }
   if (task.finishedAt) d.append(node('p','结束：' + date(task.finishedAt),'task-meta muted'));
+  if (task.action === 'qrcode' && task.recovery?.kind === 'developer_unavailable')
+    d.append(node('p',task.recovery.message,'pending'));
+  if (task.action === 'qrcode' && task.status === 'unknown' && !task.interaction)
+    d.append(node('p','远端可能已完成上传。请先核实结果；再次生成可能上传新版本。','pending'));
   if (failed) {
     if (task.action === 'build') d.append(failureBanner(buildFailureTitle(task), buildFailureDetails(task)));
     else if (task.action !== 'lua-lsp.check') d.append(failureBanner(text(task.error,'操作失败'), ''));
@@ -43837,6 +55607,29 @@ function taskBlock(task, open = false) {
     link.href = previewUrl; link.target = '_blank'; link.rel = 'noopener noreferrer';
     link.referrerPolicy = 'no-referrer';
     d.append(link);
+  }
+  if (task.action === 'qrcode' && task.status === 'succeeded') {
+    const source = qrcodeImageSource(task);
+    if (source) d.append(button('查看二维码',() => showQrcode(task),{icon:'qrcode',disabled:task.projectKey !== selected}));
+    const content = task.result?.result?.content;
+    for (const item of Array.isArray(content) ? content : []) {
+      if (item.type === 'image' && ['image/png','image/jpeg','image/webp'].includes(item.mimeType) &&
+          typeof item.data === 'string' && /^[A-Za-z0-9+/=\r\n]+$/.test(item.data)) {
+        const image = node('img',undefined,'qrcode-image');
+        image.src = 'data:' + item.mimeType + ';base64,' + item.data;
+        image.alt = '手机测试二维码'; d.append(image);
+      } else if (item.type === 'text' && typeof item.text === 'string') {
+        d.append(node('pre',item.text,'qrcode-text'));
+        const urls = [...new Set(item.text.match(/https?:\/\/[^\s<>"')\]]+/g) || [])].slice(0,8);
+        for (const value of urls) {
+          const url = safePreviewUrl(value);
+          if (!url) continue;
+          const link = node('a','打开二维码结果链接','preview-link');
+          link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.referrerPolicy = 'no-referrer';
+          d.append(link);
+        }
+      }
+    }
   }
   const output = taskOutputText(task);
   if (output || task.status === 'running')
@@ -44018,7 +55811,8 @@ async function loadLogs() {
   entry.tab = 'runtime'; entry.loading = true; selectLog('runtime');
   try {
     const logs = await api(projectPath(key,'/preview/logs'));
-    entry.runtime = text(logs);
+    entry.runtimeId = String(logs.session_id || '') + ':' + String(logs.reload_id || 0);
+    entry.runtime = Array.isArray(logs.logs) ? logs.logs.map(row => text(row.text,'')).join('\n') : text(logs);
   } catch (error) {
     entry.runtime = '日志读取失败：' + error.message;
   } finally {
@@ -44026,16 +55820,84 @@ async function loadLogs() {
     if (selectionMatches(key,epoch) && view === viewEpoch) renderConsoleLogs();
   }
 }
-function confirmAction(action, name) {
+function confirmAction(action, name, startAfterInstall = false) {
   return new Promise(resolve => {
     const dialog = $('confirm');
     $('confirm-title').textContent = action === 'preview.install' ? '安装本地 Runtime？' : '刷新预览？';
     $('confirm-message').textContent = action === 'preview.install' ?
-      '项目：' + name + '\n将下载并安装 Runtime。完成后不会自动启动预览。' :
+      '项目：' + name + '\n将下载并安装 Runtime。' + (startAfterInstall ? '完成后继续启动此项目预览。' : '完成后不会自动启动预览。') :
       '项目：' + name + '\n刷新会重启预览并丢失当前内存状态。';
     $('confirm-accept').textContent = actionLabels[action];
+    if (action === 'console.shutdown') {
+      $('confirm-title').textContent = '关闭Maker控制台？';
+      $('confirm-message').textContent = '将关闭本机 Maker 控制台服务，所有已打开的控制台页面都会断开连接。不会删除项目文件；已启动的独立本地预览不受影响。';
+      $('confirm-accept').textContent = '确认关闭';
+    }
     dialog.returnValue = 'cancel';
     dialog.addEventListener('close',() => resolve(dialog.returnValue === 'accept'),{once:true});
+    dialog.showModal();
+  });
+}
+function selectDialog(title, message, options) {
+  return new Promise(resolve => {
+    const dialog = $('selection-dialog'), picker = $('selection-options'), accept = $('selection-accept');
+    if (dialog.open) { resolve(null); return; }
+    $('selection-title').textContent = title;
+    $('selection-message').textContent = message;
+    const placeholder = node('option','请选择'); placeholder.value = '';
+    picker.replaceChildren(placeholder);
+    for (const option of options) {
+      const element = node('option',option.label);
+      element.value = String(option.value); picker.append(element);
+    }
+    picker.value = ''; accept.disabled = true;
+    const choice = () => options.find(option => String(option.value) === picker.value);
+    picker.onchange = () => { accept.disabled = !choice(); };
+    dialog.returnValue = 'cancel';
+    dialog.addEventListener('close',() => {
+      resolve(dialog.returnValue === 'accept' ? choice()?.value ?? null : null);
+    },{once:true});
+    dialog.showModal();
+  });
+}
+function confirmQrcode(project, config = {}) {
+  return new Promise(resolve => {
+    const dialog = $('qrcode-confirm'), picker = $('qrcode-orientation');
+    const orientation = config.orientation;
+    const title = $('qrcode-name'), category = $('qrcode-category');
+    const needsTitle = config.qrcodeNeedsTitle === true, needsCategory = config.qrcodeNeedsCategory === true;
+    $('qrcode-name-field').hidden = !needsTitle;
+    $('qrcode-category-field').hidden = !needsCategory;
+    title.value = ''; category.value = '';
+    const configured = ['landscape','portrait'].includes(orientation);
+    const needsSync = needsTitle || needsCategory || !configured || config.qrcodeNeedsSync === true;
+    $('qrcode-effects').textContent = needsSync ?
+      '将保存配置，并提交、推送当前项目的所有本地改动。二维码工具随后构建并上传测试版本，必要时创建 TapTap 应用。' :
+      '将使用服务端项目生成二维码。远端会构建并上传测试版本，必要时创建 TapTap 应用；不会提交或推送当前本地改动。';
+    if (config.qrcodeResultUnknown)
+      $('qrcode-effects').textContent = '上次执行结果未知，可能已上传测试版本。请先核实；继续操作可能再次上传。\n\n' + $('qrcode-effects').textContent;
+    if (config.qrcodeRecovery)
+      $('qrcode-effects').textContent = config.qrcodeRecovery.message + '\n请确认已处理账号或权限问题后再试。\n\n' + $('qrcode-effects').textContent;
+    $('qrcode-accept').textContent = needsSync ? '保存并同步后生成' : '生成二维码';
+    $('qrcode-project').textContent = '项目：' + project.name;
+    $('qrcode-developer').hidden = !config.developerLabel;
+    $('qrcode-developer').textContent = config.developerLabel ? '开发者：' + config.developerLabel : '';
+    $('qrcode-orientation-field').hidden = configured;
+    $('qrcode-fixed-orientation').textContent = configured ?
+      '游戏方向：' + (orientation === 'portrait' ? '竖屏' : '横屏') : '此设置用于手机测试，与本地预览窗口方向无关。';
+    picker.value = '';
+    const validate = () => { $('qrcode-accept').disabled =
+      (!configured && !['landscape','portrait'].includes(picker.value)) ||
+      (needsTitle && (!title.value.trim() || /^[<{].*[>}]$/.test(title.value.trim()))) ||
+      (needsCategory && !category.value); };
+    picker.onchange = validate; title.oninput = validate; category.onchange = validate;
+    validate();
+    dialog.returnValue = 'cancel';
+    dialog.addEventListener('close',() => resolve(dialog.returnValue === 'accept' ?
+      {confirmedOrientation:configured ? undefined : picker.value, confirmedBuild:needsSync,
+        ...(needsTitle || needsCategory ? {publication:{
+          ...(needsTitle ? {title:title.value.trim()} : {}),
+          ...(needsCategory ? {category:category.value} : {})}} : {})} : null),{once:true});
     dialog.showModal();
   });
 }
@@ -44043,8 +55905,8 @@ async function startTask(action, key, epoch, project) {
   const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action}});
   if (task.projectKey !== key) throw new Error('任务项目与请求不一致，已停止更新。请检查任务状态。');
   rememberTask(task);
-  if (!selectionMatches(key,epoch)) return task;
-  announce(actionLabels[action] + ' · ' + project.name + ' · ' + (statusLabels[task.status] || '结果未知'));
+  if (selectionMatches(key,epoch))
+    announce(actionLabels[action] + ' · ' + project.name + ' · ' + (statusLabels[task.status] || '结果未知'));
   if (task.status === 'running') return await waitForTask(task.id,key,epoch) || task;
   return tasksFor(key).find(item => item.id === task.id) || task;
 }
@@ -44055,24 +55917,62 @@ function luaCheckBlocksBuild(task) {
   if (result?.ready === false) return false;
   return task.status === 'failed' || (result?.errorCount || 0) > 0;
 }
-async function runAction(action) {
+async function runAction(action, options = {}) {
   const key = selected, epoch = selectionEpoch;
   const project = currentProject();
   if (!project?.valid || busy(key) || !Object.hasOwn(actionLabels,action)) return;
   if (action === 'build' || action === 'lua-lsp.check') logView().tab = action === 'build' ? 'build' : 'lua';
   pending.add(key); pendingActions.set(key,action); updateChrome(); updateBuild();
   try {
+    if (action === 'qrcode') {
+      const info = await api(projectPath(key,''));
+      if (!selectionMatches(key,epoch)) return;
+      if (info.config?.qrcodePreparation && info.config.qrcodePreparation.status !== 'ready') {
+        explainQrcode(info.config.qrcodeNeedsInitialization ? '请先构建初始化' : '项目配置需要处理',
+          info.config.qrcodePreparation.message);
+        return;
+      }
+      const previous = tasksFor(key).find(task => task.action === 'qrcode');
+      if (options.sourceTaskId && previous?.id !== options.sourceTaskId) return;
+      const interaction = previous?.interaction;
+      let developerId;
+      if (interaction?.kind === 'select_developer') {
+        developerId = await selectDialog(interaction.title,
+          '项目：' + project.name + ' · 任务：' + previous.id +
+          '\n上次远端执行结果待确认，可能已上传测试版本。确认将保存所选开发者，并提交、推送此项目的所有当前本地改动。二维码工具随后构建并上传测试版本，必要时创建 TapTap 应用。',
+          interaction.options);
+        if (developerId === null || !selectionMatches(key,epoch)) return;
+      }
+      const needsFields = info.config?.qrcodeNeedsTitle === true || info.config?.qrcodeNeedsCategory === true ||
+        !['landscape','portrait'].includes(info.config?.orientation);
+      const choice = developerId !== undefined && !needsFields ? {confirmedBuild:true} : await confirmQrcode(project,{
+        ...info.config, qrcodeNeedsSync:developerId !== undefined || previous?.result?.requiresSync === true,
+        qrcodeResultUnknown:previous?.status === 'unknown' && !interaction,
+        qrcodeRecovery:previous?.recovery,
+        developerLabel:interaction?.options.find(option => option.value === developerId)?.label
+      });
+      if (!choice || !selectionMatches(key,epoch)) return;
+      if (developerId !== undefined) {
+        choice.publication = {...choice.publication,developer_id:developerId};
+        choice.confirmedBuild = true;
+        choice.sourceTaskId = previous.id;
+      }
+      if (selectionMatches(key,epoch)) logView().tab = 'qrcode';
+      const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action,...choice}});
+      if (task.projectKey !== key) throw new Error('任务项目与请求不一致，请检查任务状态。');
+      rememberTask(task);
+      void pollTask(task.id,key,epoch);
+      return;
+    }
     if (action !== 'build' && action !== 'lua-lsp.check') {
       const checkServerChanges = action === 'preview.start' || action === 'preview.refresh';
       const status = await api(projectPath(key,checkServerChanges ? '/preview?check_server_changes=1' : '/preview'));
-      if (!selectionMatches(key,epoch)) return;
-      preview = status;
+      if (selectionMatches(key,epoch)) preview = status;
       if (!previewActions(status).includes(action)) throw new Error(text(status.error,'预览状态已改变，请重新检测后操作。'));
       if (action === 'preview.install' || action === 'preview.refresh') {
-        if (!await confirmAction(action,project.name)) return;
-        if (!selectionMatches(key,epoch)) return;
+        if (!await confirmAction(action,project.name,options.startAfterInstall === true)) return;
       }
-      if (checkServerChanges && status.server_changes?.changed) {
+      if (selectionMatches(key,epoch) && checkServerChanges && status.server_changes?.changed) {
         notify('检测到本地有服务端代码修改，建议提交构建后再预览。本次本地预览仍会继续，但不会运行这些服务端改动。','warning');
       }
     }
@@ -44080,17 +55980,31 @@ async function runAction(action) {
       pendingActions.set(key,'lua-lsp.check');
       updateChrome(); updateBuild();
       const check = await startTask('lua-lsp.check',key,epoch,project);
-      if (!selectionMatches(key,epoch)) return;
       if (luaCheckBlocksBuild(check)) {
-        selectLog('lua');
-        notify(text(nestedResult(check)?.error || check?.error,'Lua 检查未通过，已停止构建。'));
+        if (selectionMatches(key,epoch)) {
+          selectLog('lua');
+          notify(text(nestedResult(check)?.error || check?.error,'Lua 检查未通过，已停止构建。'));
+        }
         return;
       }
-      if (check?.status === 'failed') notify(text(check.error,'Lua 检查不可用，仍继续构建。'));
+      if (selectionMatches(key,epoch) && check?.status === 'failed') notify(text(check.error,'Lua 检查不可用，仍继续构建。'));
       pendingActions.set(key,'build');
       updateChrome(); updateBuild();
     }
-    if (action === 'lua-lsp.check') await startTask(action,key,epoch,project);
+    if (action === 'preview.install' && options.startAfterInstall) {
+      const installed = await startTask(action,key,epoch,project);
+      if (installed?.status !== 'succeeded') return;
+      const status = await api(projectPath(key,'/preview?check_server_changes=1'));
+      if (selectionMatches(key,epoch)) preview = status;
+      if (!previewActions(status).includes('preview.start')) {
+        if (selectionMatches(key,epoch)) notify('Runtime 安装完成，请检查预览状态后启动。');
+        return;
+      }
+      if (selectionMatches(key,epoch) && status.server_changes?.changed)
+        notify('检测到本地有服务端代码修改，建议提交构建后再预览。','warning');
+      pendingActions.set(key,'preview.start');
+      await startTask('preview.start',key,epoch,project);
+    } else if (action === 'lua-lsp.check') await startTask(action,key,epoch,project);
     else {
       const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action}});
       if (task.projectKey !== key) throw new Error('任务项目与请求不一致，已停止更新。请检查任务状态。');
@@ -44109,7 +56023,7 @@ async function runAction(action) {
 }
 function runProjectAction(action) {
   navigate('build');
-  return runAction(action);
+  return runAction(action, {startAfterInstall:action === 'preview.install'});
 }
 async function pollTask(id,key,epoch) {
   try {
@@ -44124,12 +56038,13 @@ async function pollTask(id,key,epoch) {
     if (task.status !== 'running' && prior?.status === 'running') {
       announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
       await refreshPreview();
+      if (selectionMatches(key,epoch)) handleQrcodeCompletion(task);
     }
     return task;
   } catch (error) { if (selectionMatches(key,epoch)) notify(error.message); }
 }
 async function waitForTask(id,key,epoch) {
-  while (selectionMatches(key,epoch) && !offline && !disposed) {
+  while (!offline && !disposed) {
     const task = await pollTask(id,key,epoch);
     if (!task || task.status !== 'running') return task;
     await new Promise(resolve => setTimeout(resolve,1000));
@@ -44291,6 +56206,11 @@ async function pollState() {
   const priorProjects = JSON.stringify(state.projects);
   const priorLua = JSON.stringify(state.luaLsp);
   state = result; loaded = true;
+  if (first && projectid) {
+    selected = projectKeyFromQuery(initialQuery);
+    page = currentProject()?.valid ? 'overview' : 'projects';
+    if (!selected) notify('请从项目列表选择对应的本地目录：项目未登记或有多个本地副本。','warning');
+  }
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
     if (prior?.status !== 'running' && task.status === 'running' && prior?.finishedAt) {
@@ -44298,6 +56218,7 @@ async function pollState() {
     } else if (prior) rememberTask(task);
     if (task.projectKey === selected && previousTasks.get(task.id) === 'running' && task.status !== 'running') {
       announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
+      handleQrcodeCompletion(task);
     }
   });
   $('version').textContent = 'Maker ' + text(state.version) + ' · ' + text(state.distribution,'独立发行') + ' · ' + text(state.platform);
@@ -44359,11 +56280,12 @@ document.addEventListener('DOMContentLoaded',async () => {
     const value = theme.checked ? 'dark' : 'light';
     document.documentElement.dataset.theme = value;
     pluginSessions.forEach(session => sendPluginTheme(session));
-    if (fortuneReady) loadFortuneFrame(true);
+    if ($('fortune-frame').getAttribute('src')) loadFortuneFrame(true);
     try { localStorage.setItem('maker-console-theme',value); } catch (_) { notify('无法保存主题设置'); }
   });
   $('projects-button').append(icon('folder'));
-  loadFortuneFrame();
+  $('fortune-retry').append(icon('refresh'));
+  $('fortune-retry').addEventListener('click',() => loadFortuneFrame(true));
   bindFortuneHover($('fortune-toggle'));
   bindFortuneHover($('fortune-panel'));
   $('fortune-toggle').addEventListener('click',event => {
@@ -44372,19 +56294,13 @@ document.addEventListener('DOMContentLoaded',async () => {
   });
   window.addEventListener('resize',() => { if (!$('fortune-panel').hidden) positionFortune(); });
   document.addEventListener('keydown',event => { if (event.key === 'Escape') closeFortune(); });
-  window.addEventListener('message',event => {
-    if (event.origin !== location.origin || !event.data) return;
-    if (event.data.type === 'gdev-fortune:escape') closeFortune();
-    if (event.data.type === 'gdev-fortune:size') applyFortuneSize(Number(event.data.height));
-  });
   $('projects-button').addEventListener('click',() => navigate('projects'));
   $('project-picker').addEventListener('change',event => chooseProject(event.target.value));
   $('maker-version-picker').addEventListener('change',selectMakerVersion);
   $('dismiss').addEventListener('click',() => { $('feedback').hidden = true; });
   document.querySelectorAll('nav [data-page]').forEach(b => b.addEventListener('click',() => navigate(b.dataset.page)));
   window.addEventListener('popstate',() => {
-    if (busy()) { setProjectQuery(); return; }
-    chooseProject(new URLSearchParams(location.search).get('project') || '',false);
+    chooseProject(projectKeyFromQuery(new URLSearchParams(location.search)),false);
   });
   document.addEventListener('visibilitychange',() => {
     clearTimeout(pollTimer);
@@ -44436,6 +56352,9 @@ button.is-building:disabled{opacity:1;cursor:wait}
 .build-progress.determinate span{transition:width .25s ease}
 }
 button.danger{color:var(--red)}
+.console-service-actions{display:flex;justify-content:flex-end;margin-top:24px;padding-top:16px;border-top:1px solid var(--border)}
+button.console-shutdown{background:#702c32;color:#fff;border-color:#702c32}
+button.console-shutdown:hover:not(:disabled){background:#87353d;border-color:#87353d}
 #maker-version-picker{font-size:12px;font-weight:400;max-width:240px;min-width:100px;padding:5px 8px}
 .brand{flex-wrap:wrap}
 .footer-start{display:flex;align-items:center;gap:12px;flex-wrap:nowrap;min-width:0}
@@ -44445,8 +56364,8 @@ button#fortune-toggle{border:0;background:none;color:#f5e6a3;font-size:12px;font
 button#fortune-toggle:hover,button#fortune-toggle[aria-expanded="true"]{color:var(--yellow);background:none;border-color:transparent}
 #fortune-panel{position:fixed;z-index:30;overflow:hidden;border:0;border-radius:6px;background:transparent;box-shadow:0 8px 28px #0005}
 #fortune-panel[hidden]{display:none!important}
-#fortune-panel.fortune-preload{left:-10000px;bottom:0;width:320px;height:auto;transform:none;visibility:hidden;pointer-events:none}
-#fortune-panel iframe{display:block;width:100%;height:100%;border:0;pointer-events:none;overflow:hidden}
+#fortune-panel iframe{display:block;width:100%;height:100%;border:0}
+#fortune-retry{position:absolute;right:4px;top:4px;z-index:1;width:32px;height:32px;padding:4px}
 .document-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px}
 .document-toolbar input{flex:1;min-width:160px;max-width:360px}
 .document-toolbar [aria-selected="true"]{color:var(--accent);border-bottom:2px solid var(--accent)}
@@ -44498,6 +56417,19 @@ h3{font-size:14px;font-weight:600;margin:0 0 6px}
 p{margin:8px 0}
 .heading{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:24px}
 .heading p{margin:2px 0 0}
+#heading-actions{display:flex;flex-direction:column;align-items:flex-end;gap:10px;max-width:100%}
+.heading-primary,.heading-secondary{justify-content:flex-end;max-width:100%}
+.heading-secondary{font-size:12px;gap:14px}
+.qrcode-image{display:block;width:240px;max-width:100%;height:auto;margin:14px 0}
+#qrcode-result{width:496px;max-height:calc(100dvh - 32px);overflow:auto}
+.qrcode-scan-area{width:min(400px,100%,55dvh);aspect-ratio:1;margin:16px auto;background:#fff;display:grid;place-items:center;padding:12px}
+#qrcode-result-image{display:block;width:100%;height:100%;object-fit:contain}
+#qrcode-result .actions{flex-wrap:wrap}
+.qrcode-text{white-space:pre-wrap;overflow-wrap:anywhere}
+#selection-options{width:100%;min-width:0;margin:12px 0}
+#qrcode-confirm label{display:flex;flex-direction:column;gap:8px;margin:16px 0}
+#qrcode-confirm label[hidden]{display:none}
+#qrcode-confirm input,#qrcode-confirm select{width:100%;min-width:0}
 .muted,.path,time,dt{color:var(--muted)}
 .path{font-size:12px;overflow-wrap:anywhere}
 .good{color:var(--green)}.bad{color:var(--red)}.pending{color:var(--accent)}
@@ -44630,12 +56562,13 @@ function getConsoleHtml() {
 <section id="plugin-views" aria-label="插件工作区" hidden></section>
 <div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
 <footer><div class="footer-start"><span id="version">Maker 本地服务</span>
-<section id="fortune-corner" hidden aria-label="开发者日签">
+<section id="fortune-corner" aria-label="开发者日签">
   <button id="fortune-toggle" type="button" aria-expanded="false" aria-controls="fortune-panel">独立游戏开发日签</button>
 </section>
 </div><span id="footer-path"></span></footer>
-<div id="fortune-panel" class="fortune-preload" hidden>
-  <iframe id="fortune-frame" title="gDEV日签 · 独立游戏开发者老黄历" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer" scrolling="no"></iframe>
+<div id="fortune-panel" hidden>
+  <button id="fortune-retry" type="button" title="重新加载日签" aria-label="重新加载日签"></button>
+  <iframe id="fortune-frame" title="gDEV日签 · 独立游戏开发者老黄历" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer"></iframe>
 </div>
 <dialog id="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-message">
   <form method="dialog">
@@ -44643,17 +56576,77 @@ function getConsoleHtml() {
     <div class="actions"><button value="cancel" autofocus>取消</button><button id="confirm-accept" class="primary" value="accept">确认</button></div>
   </form>
 </dialog>
+<dialog id="selection-dialog" aria-labelledby="selection-title" aria-describedby="selection-message">
+  <form method="dialog">
+    <h2 id="selection-title"></h2><p id="selection-message"></p>
+    <select id="selection-options" aria-labelledby="selection-title"></select>
+    <div class="actions"><button value="cancel" autofocus>取消</button><button id="selection-accept" class="primary" value="accept" disabled>确认并继续</button></div>
+  </form>
+</dialog>
+<dialog id="qrcode-confirm" aria-labelledby="qrcode-title">
+  <form method="dialog">
+    <h2 id="qrcode-title">生成测试二维码？</h2>
+    <p id="qrcode-project"></p>
+    <p id="qrcode-developer" hidden></p>
+    <p id="qrcode-effects"></p>
+    <label id="qrcode-name-field">游戏名称<input id="qrcode-name" aria-label="游戏名称" maxlength="200"></label>
+    <label id="qrcode-category-field">游戏分类<select id="qrcode-category" aria-label="游戏分类">
+      <option value="">请选择分类</option>
+      ${MAKER_QR_CATEGORIES.map((category) => `<option value="${category}">${categoryLabels[category]}</option>`).join("")}
+    </select></label>
+    <label id="qrcode-orientation-field">游戏方向（首次设置后不可更改）
+      <select id="qrcode-orientation" aria-label="游戏发布方向">
+        <option value="">请选择横屏或竖屏</option>
+        <option value="landscape">横屏</option><option value="portrait">竖屏</option>
+      </select>
+    </label>
+    <p id="qrcode-fixed-orientation" class="muted"></p>
+    <div class="actions"><button value="cancel" autofocus>取消</button><button id="qrcode-accept" class="primary" value="accept">生成二维码</button></div>
+  </form>
+</dialog>
+<dialog id="qrcode-result" aria-labelledby="qrcode-result-title">
+  <h2 id="qrcode-result-title">扫码测试</h2>
+  <p id="qrcode-result-project"></p>
+  <div class="qrcode-scan-area"><img id="qrcode-result-image" alt="手机测试二维码" referrerpolicy="no-referrer"></div>
+  <p id="qrcode-result-status" role="status"></p>
+  <p class="muted">使用 TapTap App 扫码。二维码失效后需重新生成。</p>
+  <div class="actions">
+    <button id="qrcode-result-reload" type="button" hidden>重新加载图片</button>
+    <a id="qrcode-result-original" class="preview-link" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">打开原图</a>
+    <form method="dialog"><button value="close" autofocus>关闭</button></form>
+  </div>
+</dialog>
 <noscript>此控制台需要启用 JavaScript。</noscript>
 <!-- ${consoleIconLicense} -->
 <script>${consoleScript}</script>
 </body></html>`;
 }
+var categoryLabels;
 var init_web = __esm({
   "src/maker/console/web.ts"() {
     "use strict";
     init_webScript();
     init_webStyles();
     init_webIcons();
+    init_qrcodePreflight();
+    categoryLabels = {
+      rpg: "角色扮演",
+      casual: "休闲",
+      action: "动作",
+      strategy: "策略",
+      simulation: "模拟",
+      trivia: "问答",
+      arcade: "街机",
+      adventure: "冒险",
+      card: "卡牌",
+      sports: "体育",
+      racing: "竞速",
+      puzzle: "益智",
+      educational: "教育",
+      music: "音乐",
+      word: "文字",
+      board: "桌游"
+    };
   }
 });
 
@@ -44734,17 +56727,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path52) {
-      const ctrl = callVisitor(key, node, visitor, path52);
+    function visit_(key, node, visitor, path55) {
+      const ctrl = callVisitor(key, node, visitor, path55);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path52, ctrl);
-        return visit_(key, ctrl, visitor, path52);
+        replaceNode(key, path55, ctrl);
+        return visit_(key, ctrl, visitor, path55);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path52 = Object.freeze(path52.concat(node));
+          path55 = Object.freeze(path55.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path52);
+            const ci = visit_(i, node.items[i], visitor, path55);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -44755,13 +56748,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path52 = Object.freeze(path52.concat(node));
-          const ck = visit_("key", node.key, visitor, path52);
+          path55 = Object.freeze(path55.concat(node));
+          const ck = visit_("key", node.key, visitor, path55);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path52);
+          const cv = visit_("value", node.value, visitor, path55);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -44782,17 +56775,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path52) {
-      const ctrl = await callVisitor(key, node, visitor, path52);
+    async function visitAsync_(key, node, visitor, path55) {
+      const ctrl = await callVisitor(key, node, visitor, path55);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path52, ctrl);
-        return visitAsync_(key, ctrl, visitor, path52);
+        replaceNode(key, path55, ctrl);
+        return visitAsync_(key, ctrl, visitor, path55);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path52 = Object.freeze(path52.concat(node));
+          path55 = Object.freeze(path55.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path52);
+            const ci = await visitAsync_(i, node.items[i], visitor, path55);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -44803,13 +56796,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path52 = Object.freeze(path52.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path52);
+          path55 = Object.freeze(path55.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path55);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path52);
+          const cv = await visitAsync_("value", node.value, visitor, path55);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -44836,24 +56829,24 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path52) {
+    function callVisitor(key, node, visitor, path55) {
       var _a3, _b, _c, _d, _e;
       if (typeof visitor === "function")
-        return visitor(key, node, path52);
+        return visitor(key, node, path55);
       if (identity.isMap(node))
-        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path52);
+        return (_a3 = visitor.Map) == null ? void 0 : _a3.call(visitor, key, node, path55);
       if (identity.isSeq(node))
-        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path52);
+        return (_b = visitor.Seq) == null ? void 0 : _b.call(visitor, key, node, path55);
       if (identity.isPair(node))
-        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path52);
+        return (_c = visitor.Pair) == null ? void 0 : _c.call(visitor, key, node, path55);
       if (identity.isScalar(node))
-        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path52);
+        return (_d = visitor.Scalar) == null ? void 0 : _d.call(visitor, key, node, path55);
       if (identity.isAlias(node))
-        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path52);
+        return (_e = visitor.Alias) == null ? void 0 : _e.call(visitor, key, node, path55);
       return void 0;
     }
-    function replaceNode(key, path52, node) {
-      const parent = path52[path52.length - 1];
+    function replaceNode(key, path55, node) {
+      const parent = path55[path55.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -45058,9 +57051,9 @@ var require_anchors = __commonJS({
       }
       return true;
     }
-    function anchorNames(root) {
+    function anchorNames(root2) {
       const anchors = /* @__PURE__ */ new Set();
-      visit.visit(root, {
+      visit.visit(root2, {
         Value(_key, node) {
           if (node.anchor)
             anchors.add(node.anchor);
@@ -45465,10 +57458,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path52, value) {
+    function collectionFromPath(schema, path55, value) {
       let v = value;
-      for (let i = path52.length - 1; i >= 0; --i) {
-        const k = path52[i];
+      for (let i = path55.length - 1; i >= 0; --i) {
+        const k = path55[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -45487,7 +57480,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path52) => path52 == null || typeof path52 === "object" && !!path52[Symbol.iterator]().next().done;
+    var isEmptyPath = (path55) => path55 == null || typeof path55 === "object" && !!path55[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -45517,11 +57510,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path52, value) {
-        if (isEmptyPath(path52))
+      addIn(path55, value) {
+        if (isEmptyPath(path55))
           this.add(value);
         else {
-          const [key, ...rest] = path52;
+          const [key, ...rest] = path55;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -45535,8 +57528,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path52) {
-        const [key, ...rest] = path52;
+      deleteIn(path55) {
+        const [key, ...rest] = path55;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -45550,8 +57543,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path52, keepScalar) {
-        const [key, ...rest] = path52;
+      getIn(path55, keepScalar) {
+        const [key, ...rest] = path55;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -45569,8 +57562,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path52) {
-        const [key, ...rest] = path52;
+      hasIn(path55) {
+        const [key, ...rest] = path55;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -45580,8 +57573,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path52, value) {
-        const [key, ...rest] = path52;
+      setIn(path55, value) {
+        const [key, ...rest] = path55;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -47022,7 +59015,7 @@ var require_stringifyNumber = __commonJS({
 });
 
 // node_modules/yaml/dist/schema/core/float.js
-var require_float = __commonJS({
+var require_float2 = __commonJS({
   "node_modules/yaml/dist/schema/core/float.js"(exports) {
     "use strict";
     var Scalar = require_Scalar();
@@ -47121,7 +59114,7 @@ var require_schema = __commonJS({
     var seq = require_seq();
     var string4 = require_string();
     var bool = require_bool();
-    var float = require_float();
+    var float = require_float2();
     var int2 = require_int();
     var schema = [
       map2.map,
@@ -47462,7 +59455,7 @@ var require_bool2 = __commonJS({
 });
 
 // node_modules/yaml/dist/schema/yaml-1.1/float.js
-var require_float2 = __commonJS({
+var require_float3 = __commonJS({
   "node_modules/yaml/dist/schema/yaml-1.1/float.js"(exports) {
     "use strict";
     var Scalar = require_Scalar();
@@ -47776,7 +59769,7 @@ var require_schema3 = __commonJS({
     var string4 = require_string();
     var binary = require_binary();
     var bool = require_bool2();
-    var float = require_float2();
+    var float = require_float3();
     var int2 = require_int2();
     var merge2 = require_merge();
     var omap = require_omap();
@@ -47819,7 +59812,7 @@ var require_tags = __commonJS({
     var seq = require_seq();
     var string4 = require_string();
     var bool = require_bool();
-    var float = require_float();
+    var float = require_float2();
     var int2 = require_int();
     var schema = require_schema();
     var schema$1 = require_schema2();
@@ -48095,9 +60088,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path52, value) {
+      addIn(path55, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path52, value);
+          this.contents.addIn(path55, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -48172,14 +60165,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path52) {
-        if (Collection.isEmptyPath(path52)) {
+      deleteIn(path55) {
+        if (Collection.isEmptyPath(path55)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path52) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path55) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -48194,10 +60187,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path52, keepScalar) {
-        if (Collection.isEmptyPath(path52))
+      getIn(path55, keepScalar) {
+        if (Collection.isEmptyPath(path55))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path52, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path55, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -48208,10 +60201,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path52) {
-        if (Collection.isEmptyPath(path52))
+      hasIn(path55) {
+        if (Collection.isEmptyPath(path55))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path52) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path55) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -48228,13 +60221,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path52, value) {
-        if (Collection.isEmptyPath(path52)) {
+      setIn(path55, value) {
+        if (Collection.isEmptyPath(path55)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path52), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path55), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path52, value);
+          this.contents.setIn(path55, value);
         }
       }
       /**
@@ -50197,9 +62190,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path52) => {
+    visit.itemAtPath = (cst, path55) => {
       let item = cst;
-      for (const [field, index] of path52) {
+      for (const [field, index] of path55) {
         const tok = item == null ? void 0 : item[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -50208,23 +62201,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path52) => {
-      const parent = visit.itemAtPath(cst, path52.slice(0, -1));
-      const field = path52[path52.length - 1][0];
+    visit.parentCollection = (cst, path55) => {
+      const parent = visit.itemAtPath(cst, path55.slice(0, -1));
+      const field = path55[path55.length - 1][0];
       const coll = parent == null ? void 0 : parent[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path52, item, visitor) {
-      let ctrl = visitor(item, path52);
+    function _visit(path55, item, visitor) {
+      let ctrl = visitor(item, path55);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path52.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path55.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -50235,10 +62228,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path52);
+            ctrl = ctrl(item, path55);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path52) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path55) : ctrl;
     }
     exports.visit = visit;
   }
@@ -51525,14 +63518,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs49 = this.flowScalar(this.type);
+              const fs52 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map2.items.push({ start, key: fs49, sep: [] });
+                map2.items.push({ start, key: fs52, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs49);
+                this.stack.push(fs52);
               } else {
-                Object.assign(it, { key: fs49, sep: [] });
+                Object.assign(it, { key: fs52, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -51661,13 +63654,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs49 = this.flowScalar(this.type);
+              const fs52 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs49, sep: [] });
+                fc.items.push({ start: [], key: fs52, sep: [] });
               else if (it.sep)
-                this.stack.push(fs49);
+                this.stack.push(fs52);
               else
-                Object.assign(it, { key: fs49, sep: [] });
+                Object.assign(it, { key: fs52, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -51875,7 +63868,7 @@ var require_public_api = __commonJS({
       }
       return doc;
     }
-    function parse3(src, reviver, options3) {
+    function parse4(src, reviver, options3) {
       let _reviver = void 0;
       if (typeof reviver === "function") {
         _reviver = reviver;
@@ -51916,7 +63909,7 @@ var require_public_api = __commonJS({
         return value.toString(options3);
       return new Document.Document(value, _replacer, options3).toString(options3);
     }
-    exports.parse = parse3;
+    exports.parse = parse4;
     exports.parseAllDocuments = parseAllDocuments;
     exports.parseDocument = parseDocument3;
     exports.stringify = stringify;
@@ -52003,29 +63996,29 @@ var require_pend = __commonJS({
     Pend.prototype.hold = function() {
       return pendHold(this);
     };
-    function pendHold(self) {
-      self.pending += 1;
+    function pendHold(self2) {
+      self2.pending += 1;
       var called = false;
       return onCb;
       function onCb(err) {
         if (called) throw new Error("callback called twice");
         called = true;
-        self.error = self.error || err;
-        self.pending -= 1;
-        if (self.waiting.length > 0 && self.pending < self.max) {
-          pendGo(self, self.waiting.shift());
-        } else if (self.pending === 0) {
-          var listeners = self.listeners;
-          self.listeners = [];
+        self2.error = self2.error || err;
+        self2.pending -= 1;
+        if (self2.waiting.length > 0 && self2.pending < self2.max) {
+          pendGo(self2, self2.waiting.shift());
+        } else if (self2.pending === 0) {
+          var listeners = self2.listeners;
+          self2.listeners = [];
           listeners.forEach(cbListener);
         }
       }
       function cbListener(listener) {
-        listener(self.error);
+        listener(self2.error);
       }
     }
-    function pendGo(self, fn) {
-      fn(pendHold(self));
+    function pendGo(self2, fn) {
+      fn(pendHold(self2));
     }
   }
 });
@@ -52033,7 +64026,7 @@ var require_pend = __commonJS({
 // node_modules/yauzl/fd-slicer.js
 var require_fd_slicer = __commonJS({
   "node_modules/yauzl/fd-slicer.js"(exports) {
-    var fs49 = __require("fs");
+    var fs52 = __require("fs");
     var util2 = __require("util");
     var stream = __require("stream");
     var Readable2 = stream.Readable;
@@ -52051,9 +64044,9 @@ var require_fd_slicer = __commonJS({
       this.refCount = 0;
     }
     FdSlicer.prototype.read = function(buffer, offset, length, position, callback) {
-      var self = this;
-      self.pend.go(function(cb) {
-        fs49.read(self.fd, buffer, offset, length, position, function(err, bytesRead, buffer2) {
+      var self2 = this;
+      self2.pend.go(function(cb) {
+        fs52.read(self2.fd, buffer, offset, length, position, function(err, bytesRead, buffer2) {
           cb();
           callback(err, bytesRead, buffer2);
         });
@@ -52066,16 +64059,16 @@ var require_fd_slicer = __commonJS({
       this.refCount += 1;
     };
     FdSlicer.prototype.unref = function() {
-      var self = this;
-      self.refCount -= 1;
-      if (self.refCount < 0) throw new Error("invalid unref");
-      if (self.refCount > 0) return;
-      fs49.close(self.fd, onCloseDone);
+      var self2 = this;
+      self2.refCount -= 1;
+      if (self2.refCount < 0) throw new Error("invalid unref");
+      if (self2.refCount > 0) return;
+      fs52.close(self2.fd, onCloseDone);
       function onCloseDone(err) {
         if (err) {
-          self.emit("error", err);
+          self2.emit("error", err);
         } else {
-          self.emit("close");
+          self2.emit("close");
         }
       }
     };
@@ -52090,27 +64083,27 @@ var require_fd_slicer = __commonJS({
       this.pos = this.start;
     }
     ReadStream.prototype._read = function(n) {
-      var self = this;
-      var toRead = Math.min(self._readableState.highWaterMark, n);
-      if (self.endOffset != null) {
-        toRead = Math.min(toRead, self.endOffset - self.pos);
+      var self2 = this;
+      var toRead = Math.min(self2._readableState.highWaterMark, n);
+      if (self2.endOffset != null) {
+        toRead = Math.min(toRead, self2.endOffset - self2.pos);
       }
       if (toRead <= 0) {
-        self.push(null);
+        self2.push(null);
         this._cleanup();
         return;
       }
-      self.context.pend.go(function(cb) {
+      self2.context.pend.go(function(cb) {
         var buffer = Buffer.allocUnsafe(toRead);
-        fs49.read(self.context.fd, buffer, 0, toRead, self.pos, function(err, bytesRead) {
+        fs52.read(self2.context.fd, buffer, 0, toRead, self2.pos, function(err, bytesRead) {
           if (err) {
-            self.destroy(err);
+            self2.destroy(err);
           } else if (bytesRead === 0) {
-            self.push(null);
-            self._cleanup();
+            self2.push(null);
+            self2._cleanup();
           } else {
-            self.pos += bytesRead;
-            self.push(buffer.slice(0, bytesRead));
+            self2.pos += bytesRead;
+            self2.push(buffer.slice(0, bytesRead));
           }
           cb();
         });
@@ -52462,7 +64455,7 @@ var require_crc32 = __commonJS({
 // node_modules/yauzl/index.js
 var require_yauzl = __commonJS({
   "node_modules/yauzl/index.js"(exports) {
-    var fs49 = __require("fs");
+    var fs52 = __require("fs");
     var zlib = __require("zlib");
     var fd_slicer = require_fd_slicer();
     var util2 = __require("util");
@@ -52487,9 +64480,9 @@ var require_yauzl = __commonJS({
     exports.Entry = Entry;
     exports.LocalFileHeader = LocalFileHeader;
     exports.RandomAccessReader = RandomAccessReader;
-    function openPromise(path52, options3) {
+    function openPromise(path55, options3) {
       return new Promise((resolve, reject) => {
-        open(path52, { ...options3, lazyEntries: true }, function(err, zipfile) {
+        open(path55, { ...options3, lazyEntries: true }, function(err, zipfile) {
           if (err) return reject(err);
           resolve(zipfile);
         });
@@ -52519,7 +64512,7 @@ var require_yauzl = __commonJS({
         });
       });
     }
-    function open(path52, options3, callback) {
+    function open(path55, options3, callback) {
       if (typeof options3 === "function") {
         callback = options3;
         options3 = null;
@@ -52531,10 +64524,10 @@ var require_yauzl = __commonJS({
       if (options3.validateEntrySizes == null) options3.validateEntrySizes = true;
       if (options3.strictFileNames == null) options3.strictFileNames = false;
       if (callback == null) callback = defaultCallback;
-      fs49.open(path52, "r", function(err, fd) {
+      fs52.open(path55, "r", function(err, fd) {
         if (err) return callback(err);
         fromFd(fd, options3, function(err2, zipfile) {
-          if (err2) fs49.close(fd, defaultCallback);
+          if (err2) fs52.close(fd, defaultCallback);
           callback(err2, zipfile);
         });
       });
@@ -52551,7 +64544,7 @@ var require_yauzl = __commonJS({
       if (options3.validateEntrySizes == null) options3.validateEntrySizes = true;
       if (options3.strictFileNames == null) options3.strictFileNames = false;
       if (callback == null) callback = defaultCallback;
-      fs49.fstat(fd, function(err, stats) {
+      fs52.fstat(fd, function(err, stats) {
         if (err) return callback(err);
         var reader = new fd_slicer.FdSlicer(fd);
         fromRandomAccessReader(reader, stats.size, options3, callback);
@@ -52637,66 +64630,66 @@ var require_yauzl = __commonJS({
     }
     util2.inherits(ZipFile, EventEmitter);
     function ZipFile(reader, centralDirectoryOffset, fileSize, entryCount, comment, autoClose, lazyEntries, decodeStrings, validateEntrySizes, strictFileNames) {
-      var self = this;
-      EventEmitter.call(self);
-      self.reader = reader;
-      self.reader.on("error", function(err) {
-        emitError(self, err);
+      var self2 = this;
+      EventEmitter.call(self2);
+      self2.reader = reader;
+      self2.reader.on("error", function(err) {
+        emitError(self2, err);
       });
-      self.reader.once("close", function() {
-        self.emit("close");
+      self2.reader.once("close", function() {
+        self2.emit("close");
       });
-      self.readEntryCursor = centralDirectoryOffset;
-      self.fileSize = fileSize;
-      self.entryCount = entryCount;
-      self.comment = comment;
-      self.entriesRead = 0;
-      self.autoClose = !!autoClose;
-      self.lazyEntries = !!lazyEntries;
-      self.decodeStrings = !!decodeStrings;
-      self.validateEntrySizes = !!validateEntrySizes;
-      self.strictFileNames = !!strictFileNames;
-      self.isOpen = true;
-      self.emittedError = false;
-      self.hasEachEntryBeenCalled = false;
-      if (!self.lazyEntries) self._readEntry();
+      self2.readEntryCursor = centralDirectoryOffset;
+      self2.fileSize = fileSize;
+      self2.entryCount = entryCount;
+      self2.comment = comment;
+      self2.entriesRead = 0;
+      self2.autoClose = !!autoClose;
+      self2.lazyEntries = !!lazyEntries;
+      self2.decodeStrings = !!decodeStrings;
+      self2.validateEntrySizes = !!validateEntrySizes;
+      self2.strictFileNames = !!strictFileNames;
+      self2.isOpen = true;
+      self2.emittedError = false;
+      self2.hasEachEntryBeenCalled = false;
+      if (!self2.lazyEntries) self2._readEntry();
     }
     ZipFile.prototype.close = function() {
       if (!this.isOpen) return;
       this.isOpen = false;
       this.reader.unref();
     };
-    function emitErrorAndAutoClose(self, err) {
-      if (self.autoClose) self.close();
-      emitError(self, err);
+    function emitErrorAndAutoClose(self2, err) {
+      if (self2.autoClose) self2.close();
+      emitError(self2, err);
     }
-    function emitError(self, err) {
-      if (self.emittedError) return;
-      self.emittedError = true;
-      self.emit("error", err);
+    function emitError(self2, err) {
+      if (self2.emittedError) return;
+      self2.emittedError = true;
+      self2.emit("error", err);
     }
     ZipFile.prototype.readEntry = function() {
       if (!this.lazyEntries) throw new Error("readEntry() called without lazyEntries:true");
       this._readEntry();
     };
     ZipFile.prototype._readEntry = function() {
-      var self = this;
-      if (self.entryCount === self.entriesRead) {
+      var self2 = this;
+      if (self2.entryCount === self2.entriesRead) {
         setImmediate(function() {
-          if (self.autoClose) self.close();
-          if (self.emittedError) return;
-          self.emit("end");
+          if (self2.autoClose) self2.close();
+          if (self2.emittedError) return;
+          self2.emit("end");
         });
         return;
       }
-      if (self.emittedError) return;
+      if (self2.emittedError) return;
       var buffer = newBuffer(46);
-      readAndAssertNoEof(self.reader, buffer, 0, buffer.length, self.readEntryCursor, function(err) {
-        if (err) return emitErrorAndAutoClose(self, err);
-        if (self.emittedError) return;
+      readAndAssertNoEof(self2.reader, buffer, 0, buffer.length, self2.readEntryCursor, function(err) {
+        if (err) return emitErrorAndAutoClose(self2, err);
+        if (self2.emittedError) return;
         var entry = new Entry();
         var signature = buffer.readUInt32LE(0);
-        if (signature !== 33639248) return emitErrorAndAutoClose(self, new Error("invalid central directory file header signature: 0x" + signature.toString(16)));
+        if (signature !== 33639248) return emitErrorAndAutoClose(self2, new Error("invalid central directory file header signature: 0x" + signature.toString(16)));
         entry.versionMadeBy = buffer.readUInt16LE(4);
         entry.versionNeededToExtract = buffer.readUInt16LE(6);
         entry.generalPurposeBitFlag = buffer.readUInt16LE(8);
@@ -52712,12 +64705,12 @@ var require_yauzl = __commonJS({
         entry.internalFileAttributes = buffer.readUInt16LE(36);
         entry.externalFileAttributes = buffer.readUInt32LE(38);
         entry.relativeOffsetOfLocalHeader = buffer.readUInt32LE(42);
-        if (entry.generalPurposeBitFlag & 64) return emitErrorAndAutoClose(self, new Error("strong encryption is not supported"));
-        self.readEntryCursor += 46;
+        if (entry.generalPurposeBitFlag & 64) return emitErrorAndAutoClose(self2, new Error("strong encryption is not supported"));
+        self2.readEntryCursor += 46;
         buffer = newBuffer(entry.fileNameLength + entry.extraFieldLength + entry.fileCommentLength);
-        readAndAssertNoEof(self.reader, buffer, 0, buffer.length, self.readEntryCursor, function(err2) {
-          if (err2) return emitErrorAndAutoClose(self, err2);
-          if (self.emittedError) return;
+        readAndAssertNoEof(self2.reader, buffer, 0, buffer.length, self2.readEntryCursor, function(err2) {
+          if (err2) return emitErrorAndAutoClose(self2, err2);
+          if (self2.emittedError) return;
           entry.fileNameRaw = buffer.subarray(0, entry.fileNameLength);
           var fileCommentStart = entry.fileNameLength + entry.extraFieldLength;
           entry.extraFieldRaw = buffer.subarray(entry.fileNameLength, fileCommentStart);
@@ -52725,21 +64718,21 @@ var require_yauzl = __commonJS({
           try {
             entry.extraFields = parseExtraFields(entry.extraFieldRaw);
           } catch (err3) {
-            return emitErrorAndAutoClose(self, err3);
+            return emitErrorAndAutoClose(self2, err3);
           }
-          if (self.decodeStrings) {
+          if (self2.decodeStrings) {
             var isUtf8 = (entry.generalPurposeBitFlag & 2048) !== 0;
             entry.fileComment = decodeBuffer(entry.fileCommentRaw, isUtf8);
-            entry.fileName = getFileNameLowLevel(entry.generalPurposeBitFlag, entry.fileNameRaw, entry.extraFields, self.strictFileNames);
+            entry.fileName = getFileNameLowLevel(entry.generalPurposeBitFlag, entry.fileNameRaw, entry.extraFields, self2.strictFileNames);
             var errorMessage = validateFileName(entry.fileName);
-            if (errorMessage != null) return emitErrorAndAutoClose(self, new Error(errorMessage));
+            if (errorMessage != null) return emitErrorAndAutoClose(self2, new Error(errorMessage));
           } else {
             entry.fileComment = entry.fileCommentRaw;
             entry.fileName = entry.fileNameRaw;
           }
           entry.comment = entry.fileComment;
-          self.readEntryCursor += buffer.length;
-          self.entriesRead += 1;
+          self2.readEntryCursor += buffer.length;
+          self2.entriesRead += 1;
           for (var i = 0; i < entry.extraFields.length; i++) {
             var extraField = entry.extraFields[i];
             if (extraField.id !== 1) continue;
@@ -52747,56 +64740,56 @@ var require_yauzl = __commonJS({
             var index = 0;
             if (entry.uncompressedSize === 4294967295) {
               if (index + 8 > zip64EiefBuffer.length) {
-                return emitErrorAndAutoClose(self, new Error("zip64 extended information extra field does not include uncompressed size"));
+                return emitErrorAndAutoClose(self2, new Error("zip64 extended information extra field does not include uncompressed size"));
               }
               entry.uncompressedSize = readUInt64LE(zip64EiefBuffer, index);
               index += 8;
             }
             if (entry.compressedSize === 4294967295) {
               if (index + 8 > zip64EiefBuffer.length) {
-                return emitErrorAndAutoClose(self, new Error("zip64 extended information extra field does not include compressed size"));
+                return emitErrorAndAutoClose(self2, new Error("zip64 extended information extra field does not include compressed size"));
               }
               entry.compressedSize = readUInt64LE(zip64EiefBuffer, index);
               index += 8;
             }
             if (entry.relativeOffsetOfLocalHeader === 4294967295) {
               if (index + 8 > zip64EiefBuffer.length) {
-                return emitErrorAndAutoClose(self, new Error("zip64 extended information extra field does not include relative header offset"));
+                return emitErrorAndAutoClose(self2, new Error("zip64 extended information extra field does not include relative header offset"));
               }
               entry.relativeOffsetOfLocalHeader = readUInt64LE(zip64EiefBuffer, index);
               index += 8;
             }
             break;
           }
-          if (self.validateEntrySizes && entry.compressionMethod === 0) {
+          if (self2.validateEntrySizes && entry.compressionMethod === 0) {
             var expectedCompressedSize = entry.uncompressedSize;
             if (entry.isEncrypted()) {
               expectedCompressedSize += 12;
             }
             if (entry.compressedSize !== expectedCompressedSize) {
               var msg = "compressed/uncompressed size mismatch for stored file: " + entry.compressedSize + " != " + entry.uncompressedSize;
-              return emitErrorAndAutoClose(self, new Error(msg));
+              return emitErrorAndAutoClose(self2, new Error(msg));
             }
           }
-          self.emit("entry", entry);
-          if (!self.lazyEntries) self._readEntry();
+          self2.emit("entry", entry);
+          if (!self2.lazyEntries) self2._readEntry();
         });
       });
     };
     ZipFile.prototype.eachEntry = function() {
-      const self = this;
-      if (!self.lazyEntries) throw new Error("eachEntry() requires lazyEntries: true");
-      if (self.hasEachEntryBeenCalled) throw new Error("eachEntry() must only be called once per ZipFile");
-      self.hasEachEntryBeenCalled = true;
+      const self2 = this;
+      if (!self2.lazyEntries) throw new Error("eachEntry() requires lazyEntries: true");
+      if (self2.hasEachEntryBeenCalled) throw new Error("eachEntry() must only be called once per ZipFile");
+      self2.hasEachEntryBeenCalled = true;
       let pendingResolveReject = null;
-      self.on("entry", onEntry);
-      self.on("end", onEnd);
-      self.on("error", onError);
+      self2.on("entry", onEntry);
+      self2.on("end", onEnd);
+      self2.on("error", onError);
       function cleanup() {
-        self.removeListener("entry", onEntry);
-        self.removeListener("end", onEnd);
-        self.removeListener("error", onError);
-        if (self.autoClose) self.close();
+        self2.removeListener("entry", onEntry);
+        self2.removeListener("end", onEnd);
+        self2.removeListener("error", onError);
+        if (self2.autoClose) self2.close();
       }
       function onEntry(entry) {
         let { resolve } = pendingResolveReject;
@@ -52824,7 +64817,7 @@ var require_yauzl = __commonJS({
             if (pendingResolveReject != null) throw new Error("next() called before previous Promise was resolved.");
             pendingResolveReject = { resolve, reject };
           });
-          self.readEntry();
+          self2.readEntry();
           return promise2;
         },
         return(value) {
@@ -52838,7 +64831,7 @@ var require_yauzl = __commonJS({
       };
     };
     ZipFile.prototype.openReadStream = function(entry, options3, callback) {
-      var self = this;
+      var self2 = this;
       var relativeStart = 0;
       var relativeEnd = entry.compressedSize;
       if (callback == null) {
@@ -52894,7 +64887,7 @@ var require_yauzl = __commonJS({
       if (options3.start != null || options3.end != null) {
         if (!rawMode) throw new Error("start/end range require options.decodeFileData === false for non-trivial encoded entries.");
       }
-      if (!self.isOpen) return callback(new Error("closed"));
+      if (!self2.isOpen) return callback(new Error("closed"));
       if (entry.isEncrypted() && !rawMode) {
         if (options3.decrypt !== false) return callback(new Error("entry is encrypted, and options.decodeFileData !== false"));
       }
@@ -52906,9 +64899,9 @@ var require_yauzl = __commonJS({
       } else {
         return callback(new Error("unsupported compression method: " + entry.compressionMethod));
       }
-      self.readLocalFileHeader(entry, { minimal: true }, function(err, localFileHeader) {
+      self2.readLocalFileHeader(entry, { minimal: true }, function(err, localFileHeader) {
         if (err) return callback(err);
-        self.openReadStreamLowLevel(
+        self2.openReadStreamLowLevel(
           localFileHeader.fileDataStart,
           entry.compressedSize,
           relativeStart,
@@ -52920,9 +64913,9 @@ var require_yauzl = __commonJS({
       });
     };
     ZipFile.prototype.openReadStreamLowLevel = function(fileDataStart, compressedSize, relativeStart, relativeEnd, decompress, uncompressedSize, callback) {
-      var self = this;
+      var self2 = this;
       var fileDataEnd = fileDataStart + compressedSize;
-      var readStream = self.reader.createReadStream({
+      var readStream = self2.reader.createReadStream({
         start: fileDataStart + relativeStart,
         end: fileDataStart + relativeEnd
       });
@@ -52936,7 +64929,7 @@ var require_yauzl = __commonJS({
           });
         });
         readStream.pipe(inflateFilter);
-        if (self.validateEntrySizes) {
+        if (self2.validateEntrySizes) {
           endpointStream = new AssertByteCountStream(uncompressedSize);
           inflateFilter.on("error", function(err) {
             setImmediate(function() {
@@ -52957,15 +64950,15 @@ var require_yauzl = __commonJS({
       callback(null, endpointStream);
     };
     ZipFile.prototype.readLocalFileHeader = function(entry, options3, callback) {
-      var self = this;
+      var self2 = this;
       if (callback == null) {
         callback = options3;
         options3 = null;
       }
       if (options3 == null) options3 = {};
-      self.reader.ref();
+      self2.reader.ref();
       var buffer = newBuffer(30);
-      readAndAssertNoEof(self.reader, buffer, 0, buffer.length, entry.relativeOffsetOfLocalHeader, function(err) {
+      readAndAssertNoEof(self2.reader, buffer, 0, buffer.length, entry.relativeOffsetOfLocalHeader, function(err) {
         try {
           if (err) return callback(err);
           var signature = buffer.readUInt32LE(0);
@@ -52975,8 +64968,8 @@ var require_yauzl = __commonJS({
           var fileNameLength = buffer.readUInt16LE(26);
           var extraFieldLength = buffer.readUInt16LE(28);
           var fileDataStart = entry.relativeOffsetOfLocalHeader + 30 + fileNameLength + extraFieldLength;
-          if (fileDataStart + entry.compressedSize > self.fileSize) {
-            return callback(new Error("file data overflows file bounds: " + fileDataStart + " + " + entry.compressedSize + " > " + self.fileSize));
+          if (fileDataStart + entry.compressedSize > self2.fileSize) {
+            return callback(new Error("file data overflows file bounds: " + fileDataStart + " + " + entry.compressedSize + " > " + self2.fileSize));
           }
           if (options3.minimal) {
             return callback(null, { fileDataStart });
@@ -52994,19 +64987,19 @@ var require_yauzl = __commonJS({
           localFileHeader.fileNameLength = fileNameLength;
           localFileHeader.extraFieldLength = extraFieldLength;
           buffer = newBuffer(fileNameLength + extraFieldLength);
-          self.reader.ref();
-          readAndAssertNoEof(self.reader, buffer, 0, buffer.length, entry.relativeOffsetOfLocalHeader + 30, function(err2) {
+          self2.reader.ref();
+          readAndAssertNoEof(self2.reader, buffer, 0, buffer.length, entry.relativeOffsetOfLocalHeader + 30, function(err2) {
             try {
               if (err2) return callback(err2);
               localFileHeader.fileName = buffer.subarray(0, fileNameLength);
               localFileHeader.extraField = buffer.subarray(fileNameLength);
               return callback(null, localFileHeader);
             } finally {
-              self.reader.unref();
+              self2.reader.unref();
             }
           });
         } finally {
-          self.reader.unref();
+          self2.reader.unref();
         }
       });
     };
@@ -53191,14 +65184,14 @@ var require_yauzl = __commonJS({
       this.refCount += 1;
     };
     RandomAccessReader.prototype.unref = function() {
-      var self = this;
-      self.refCount -= 1;
-      if (self.refCount > 0) return;
-      if (self.refCount < 0) throw new Error("invalid unref");
-      self.close(onCloseDone);
+      var self2 = this;
+      self2.refCount -= 1;
+      if (self2.refCount > 0) return;
+      if (self2.refCount < 0) throw new Error("invalid unref");
+      self2.close(onCloseDone);
       function onCloseDone(err) {
-        if (err) return self.emit("error", err);
-        self.emit("close");
+        if (err) return self2.emit("error", err);
+        self2.emit("close");
       }
     };
     RandomAccessReader.prototype.createReadStream = function(options3) {
@@ -53325,9 +65318,9 @@ init_mcp();
 init_config();
 import { spawnSync as spawnSync8 } from "node:child_process";
 import crypto5 from "node:crypto";
-import fs47 from "node:fs";
-import os10 from "node:os";
-import path49 from "node:path";
+import fs50 from "node:fs";
+import os11 from "node:os";
+import path52 from "node:path";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { pathToFileURL as pathToFileURL2 } from "node:url";
@@ -53385,7 +65378,7 @@ async function pollCliLoginResult(code, options3) {
   let lastPollError;
   for (; ; ) {
     if (Date.now() >= deadline) {
-      const suffix = lastPollError ? ` Last polling error: ${formatError2(lastPollError)}` : "";
+      const suffix = lastPollError ? ` Last polling error: ${formatError3(lastPollError)}` : "";
       throw new Error(
         `Maker CLI login timed out. Run \`taptap-maker login\` and try again.${suffix}`
       );
@@ -53471,7 +65464,7 @@ function delay(ms) {
     setTimeout(resolve, ms);
   });
 }
-function formatError2(error2) {
+function formatError3(error2) {
   return error2 instanceof Error ? error2.message : String(error2);
 }
 
@@ -53487,54 +65480,54 @@ init_runtimeLogs();
 
 // src/maker/cli/preview.ts
 init_protocol2();
-import fs31 from "node:fs";
-import path32 from "node:path";
+import fs35 from "node:fs";
+import path36 from "node:path";
 import { randomBytes as randomBytes3, randomUUID as randomUUID6 } from "node:crypto";
 
 // src/maker/preview/installation.ts
 init_python();
 init_protocol2();
-import fs28 from "node:fs";
-import path29 from "node:path";
-import { createHash as createHash4, randomUUID as randomUUID5 } from "node:crypto";
+import fs32 from "node:fs";
+import path33 from "node:path";
+import { createHash as createHash5, randomUUID as randomUUID5 } from "node:crypto";
 
 // src/maker/preview/runtime.ts
 init_protocol2();
-import fs26 from "node:fs";
-import path27 from "node:path";
+import fs30 from "node:fs";
+import path31 from "node:path";
 import { spawn as spawn6 } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 
 // src/maker/preview/evidence.ts
 init_diagnosticRedaction();
-import fs21 from "node:fs";
-import path22 from "node:path";
+import fs24 from "node:fs";
+import path25 from "node:path";
 var MAX_LOG_BYTES = 1024 * 1024;
 function trimPreviewEvidence(directory, currentSession, currentReload) {
-  if (!fs21.existsSync(directory)) return;
-  const sessions = fs21.readdirSync(directory, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^[0-9a-f-]{36}$/.test(entry.name)).sort(
-    (left, right) => fs21.statSync(path22.join(directory, right.name)).mtimeMs - fs21.statSync(path22.join(directory, left.name)).mtimeMs
+  if (!fs24.existsSync(directory)) return;
+  const sessions = fs24.readdirSync(directory, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^[0-9a-f-]{36}$/.test(entry.name)).sort(
+    (left, right) => fs24.statSync(path25.join(directory, right.name)).mtimeMs - fs24.statSync(path25.join(directory, left.name)).mtimeMs
   );
   const retained = /* @__PURE__ */ new Set([
     currentSession,
     ...sessions.filter((entry) => entry.name !== currentSession).slice(0, 2).map((entry) => entry.name)
   ]);
   for (const session of sessions) {
-    const sessionDir = path22.join(directory, session.name);
-    const rounds = fs21.readdirSync(sessionDir, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name)).sort((left, right) => Number(right.name) - Number(left.name));
+    const sessionDir = path25.join(directory, session.name);
+    const rounds = fs24.readdirSync(sessionDir, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^\d+$/.test(entry.name)).sort((left, right) => Number(right.name) - Number(left.name));
     for (const [index, round] of rounds.entries()) {
       if (retained.has(session.name) && (index < 5 || session.name === currentSession && Number(round.name) === currentReload))
         continue;
-      const roundDir = path22.join(sessionDir, round.name);
-      fs21.rmSync(path22.join(roundDir, "source"), { recursive: true, force: true });
-      for (const file2 of fs21.readdirSync(roundDir, { withFileTypes: true })) {
-        if (file2.isFile() && (/^[0-9a-f-]{36}\.png$/.test(file2.name) || ["runtime.log", "runtime.log.1", "prepare.log", "result.json"].includes(file2.name))) {
-          fs21.unlinkSync(path22.join(roundDir, file2.name));
+      const roundDir = path25.join(sessionDir, round.name);
+      fs24.rmSync(path25.join(roundDir, "source"), { recursive: true, force: true });
+      for (const file3 of fs24.readdirSync(roundDir, { withFileTypes: true })) {
+        if (file3.isFile() && (/^[0-9a-f-]{36}\.png$/.test(file3.name) || ["runtime.log", "runtime.log.1", "prepare.log", "result.json"].includes(file3.name))) {
+          fs24.unlinkSync(path25.join(roundDir, file3.name));
         }
       }
-      if (!fs21.readdirSync(roundDir).length) fs21.rmdirSync(roundDir);
+      if (!fs24.readdirSync(roundDir).length) fs24.rmdirSync(roundDir);
     }
-    if (!fs21.readdirSync(sessionDir).length) fs21.rmdirSync(sessionDir);
+    if (!fs24.readdirSync(sessionDir).length) fs24.rmdirSync(sessionDir);
   }
 }
 function readStoredPreviewLogs(directory, cursor = 0, limit = 100) {
@@ -53544,12 +65537,12 @@ function readStoredPreviewLogs(directory, cursor = 0, limit = 100) {
   }
   const rows = [];
   for (const name of ["runtime.log.1", "runtime.log"]) {
-    const filename2 = path22.join(directory, name);
-    if (!fs21.existsSync(filename2)) continue;
-    const stat = fs21.lstatSync(filename2);
+    const filename2 = path25.join(directory, name);
+    if (!fs24.existsSync(filename2)) continue;
+    const stat = fs24.lstatSync(filename2);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_LOG_BYTES + 65536)
       throw new Error("Invalid preview log file.");
-    for (const line of fs21.readFileSync(filename2, "utf8").split("\n").filter(Boolean)) {
+    for (const line of fs24.readFileSync(filename2, "utf8").split("\n").filter(Boolean)) {
       const row = JSON.parse(line);
       if (!Number.isSafeInteger(row.cursor) || typeof row.text !== "string")
         throw new Error("Invalid preview log row.");
@@ -53567,10 +65560,10 @@ function readStoredPreviewLogs(directory, cursor = 0, limit = 100) {
   }
   const next = ((_a3 = selected[selected.length - 1]) == null ? void 0 : _a3.cursor) ?? cursor;
   return {
-    available: fs21.existsSync(directory),
+    available: fs24.existsSync(directory),
     logs: selected,
     next_cursor: next,
-    truncated: !fs21.existsSync(directory) || cursor < (((_b = rows[0]) == null ? void 0 : _b.cursor) ?? 1) - 1 || next < (((_c = rows[rows.length - 1]) == null ? void 0 : _c.cursor) ?? 0)
+    truncated: !fs24.existsSync(directory) || cursor < (((_b = rows[0]) == null ? void 0 : _b.cursor) ?? 1) - 1 || next < (((_c = rows[rows.length - 1]) == null ? void 0 : _c.cursor) ?? 0)
   };
 }
 var PreviewLogs = class {
@@ -53579,7 +65572,7 @@ var PreviewLogs = class {
     this.sequence = 0;
     this.rows = [];
     this.bytes = 0;
-    fs21.mkdirSync(directory, { recursive: true, mode: 448 });
+    fs24.mkdirSync(directory, { recursive: true, mode: 448 });
   }
   append(text2) {
     const sanitized = String(sanitizeDiagnosticValue(text2.slice(0, 16384)));
@@ -53590,11 +65583,11 @@ var PreviewLogs = class {
     this.bytes += row.bytes;
     while ((this.bytes > MAX_LOG_BYTES || this.rows.length > 5e3) && this.rows.length > 1)
       this.bytes -= this.rows.shift().bytes;
-    const filename2 = path22.join(this.directory, "runtime.log");
-    if (fs21.existsSync(filename2) && fs21.statSync(filename2).size + row.bytes > MAX_LOG_BYTES) {
-      fs21.renameSync(filename2, filename2 + ".1");
+    const filename2 = path25.join(this.directory, "runtime.log");
+    if (fs24.existsSync(filename2) && fs24.statSync(filename2).size + row.bytes > MAX_LOG_BYTES) {
+      fs24.renameSync(filename2, filename2 + ".1");
     }
-    fs21.appendFileSync(filename2, encoded, { mode: 384 });
+    fs24.appendFileSync(filename2, encoded, { mode: 384 });
   }
   read(cursor = 0, limit = 100) {
     var _a3, _b;
@@ -53623,10 +65616,11 @@ init_diagnosticRedaction();
 
 // src/maker/preview/prepare.ts
 init_storage();
+init_configuration();
 init_python();
 init_protocol2();
-import fs23 from "node:fs";
-import path24 from "node:path";
+import fs26 from "node:fs";
+import path27 from "node:path";
 import { randomUUID as randomUUID4 } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { execFile } from "node:child_process";
@@ -53641,27 +65635,27 @@ var PREVIEW_BUILDER_SOURCE = "H4sIAAAAAAAAE+S9aXdbx7Uo+FdOpF5N0KZAyb7Jvc0Os+LIjq
 init_diagnosticRedaction();
 
 // src/maker/preview/cache.ts
-import fs22 from "node:fs";
-import path23 from "node:path";
+import fs25 from "node:fs";
+import path26 from "node:path";
 var UNVERIFIED_CLEANUP_MARKER = ".cleanup-unverified";
 var UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 function trimPreviewCache(directory, prefix, limit, protectedDirectories) {
-  if (!fs22.existsSync(directory)) return [];
+  if (!fs25.existsSync(directory)) return [];
   try {
-    if (!fs22.lstatSync(directory).isDirectory())
+    if (!fs25.lstatSync(directory).isDirectory())
       throw new Error("Cache root is not a regular directory.");
     const pattern = new RegExp("^" + prefix + UUID + "$", "i");
-    const entries = fs22.readdirSync(directory, { withFileTypes: true }).filter((entry) => entry.isDirectory() && pattern.test(entry.name)).map((entry) => path23.join(directory, entry.name)).sort((a, b) => fs22.statSync(b).mtimeMs - fs22.statSync(a).mtimeMs);
-    const protectedPaths = new Set(protectedDirectories.map((filename2) => path23.resolve(filename2)));
+    const entries = fs25.readdirSync(directory, { withFileTypes: true }).filter((entry) => entry.isDirectory() && pattern.test(entry.name)).map((entry) => path26.join(directory, entry.name)).sort((a, b) => fs25.statSync(b).mtimeMs - fs25.statSync(a).mtimeMs);
+    const protectedPaths = new Set(protectedDirectories.map((filename2) => path26.resolve(filename2)));
     const retained = new Set(
       entries.filter(
-        (filename2) => protectedPaths.has(path23.resolve(filename2)) || fs22.existsSync(path23.join(filename2, UNVERIFIED_CLEANUP_MARKER))
+        (filename2) => protectedPaths.has(path26.resolve(filename2)) || fs25.existsSync(path26.join(filename2, UNVERIFIED_CLEANUP_MARKER))
       )
     );
     for (const filename2 of entries) {
       if (retained.has(filename2)) continue;
       if (retained.size < limit) retained.add(filename2);
-      else fs22.rmSync(filename2, { recursive: true, force: true });
+      else fs25.rmSync(filename2, { recursive: true, force: true });
     }
     return [];
   } catch {
@@ -53677,31 +65671,31 @@ function requireManifestPreviewPlatform(platform = process.platform) {
     );
 }
 function materializePreviewBuilder() {
-  const directory = path24.join(getMakerHome(), "preview-tools", PREVIEW_BUILDER_DIGEST);
+  const directory = path27.join(getMakerHome(), "preview-tools", PREVIEW_BUILDER_DIGEST);
   const files = JSON.parse(
     gunzipSync(Buffer.from(PREVIEW_BUILDER_SOURCE, "base64")).toString("utf8")
   );
   for (const [name, content] of Object.entries(files)) {
-    const filename2 = path24.join(directory, name);
-    fs23.mkdirSync(path24.dirname(filename2), { recursive: true, mode: 448 });
-    if (!fs23.existsSync(filename2) || fs23.readFileSync(filename2, "utf8") !== content)
-      fs23.writeFileSync(filename2, content, { mode: 384 });
+    const filename2 = path27.join(directory, name);
+    fs26.mkdirSync(path27.dirname(filename2), { recursive: true, mode: 448 });
+    if (!fs26.existsSync(filename2) || fs26.readFileSync(filename2, "utf8") !== content)
+      fs26.writeFileSync(filename2, content, { mode: 384 });
   }
-  return path24.join(directory, "project_builder.py");
+  return path27.join(directory, "project_builder.py");
 }
-function inside(root, relative) {
-  const filename2 = path24.resolve(root, relative);
-  if (path24.relative(root, filename2).startsWith("..") || path24.isAbsolute(relative))
+function inside(root2, relative) {
+  const filename2 = path27.resolve(root2, relative);
+  if (path27.relative(root2, filename2).startsWith("..") || path27.isAbsolute(relative))
     throw new Error("Prepared manifest path escapes its output directory.");
   return filename2;
 }
 function validateProjectVersion(source) {
-  const filename2 = path24.join(source, ".project", "project.json");
-  if (!fs23.existsSync(filename2))
+  const filename2 = path27.join(source, ".project", "project.json");
+  if (!fs26.existsSync(filename2))
     throw new Error(
       "Local prepare requires .project/project.json; JSONC-only and legacy root layouts are not supported."
     );
-  const config2 = JSON.parse(fs23.readFileSync(filename2, "utf8"));
+  const config2 = JSON.parse(fs26.readFileSync(filename2, "utf8"));
   const version2 = Object.prototype.hasOwnProperty.call(config2, "version") ? config2.version : "1.0.0";
   const component = typeof version2 === "string" ? version2.replace(/\{x\}/g, "0") : "";
   if (!/^[a-z0-9][a-z0-9._+-]{0,127}$/i.test(component) || component.endsWith(".") || /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(component)) {
@@ -53709,15 +65703,15 @@ function validateProjectVersion(source) {
       "Unsafe project version: expected one portable directory component, optionally containing {x}."
     );
   }
-  inside(path24.join(source, "dist"), component);
+  inside(path27.join(source, "dist"), component);
 }
 function validatePreparedPreview(source) {
-  const directory = path24.join(source, "dist");
-  const latest = JSON.parse(fs23.readFileSync(path24.join(directory, "latest.json"), "utf8"));
+  const directory = path27.join(source, "dist");
+  const latest = JSON.parse(fs26.readFileSync(path27.join(directory, "latest.json"), "utf8"));
   if (typeof latest.version !== "string" || !latest.version || typeof latest.client !== "string" || !/^[a-f0-9]+$/i.test(latest.client))
     throw new Error("Prepared latest.json is invalid.");
   const manifestPath = inside(directory, latest.version + "/manifest-" + latest.client + ".json");
-  const manifest = JSON.parse(fs23.readFileSync(manifestPath, "utf8"));
+  const manifest = JSON.parse(fs26.readFileSync(manifestPath, "utf8"));
   if (manifest.target !== "client" || !Array.isArray(manifest.files) || typeof manifest.entry !== "string" || !manifest.entry)
     throw new Error("Prepared client manifest is invalid.");
   const sources = manifest.sources || {};
@@ -53727,19 +65721,19 @@ function validatePreparedPreview(source) {
     const urls = Array.isArray(config2.base_url) ? config2.base_url : [config2.base_url];
     if (!urls.length || urls.some((url2) => typeof url2 !== "string" || !url2.startsWith("https://")))
       throw new Error("Public source has no HTTPS CDN address: " + name);
-    const cache = path24.join(source, ".build", "manifest_cache");
-    if (!fs23.existsSync(cache) || !fs23.readdirSync(cache).some((file2) => file2.startsWith(name + "-") && file2.endsWith(".json")))
+    const cache = path27.join(source, ".build", "manifest_cache");
+    if (!fs26.existsSync(cache) || !fs26.readdirSync(cache).some((file3) => file3.startsWith(name + "-") && file3.endsWith(".json")))
       throw new Error("Public source index was not downloaded: " + name);
   }
   let projectFiles = 0;
-  for (const file2 of manifest.files) {
-    if (file2.source && file2.source !== "project") continue;
-    if (typeof file2.uuid !== "string" || typeof file2.hash !== "string" || typeof file2.ext !== "string")
+  for (const file3 of manifest.files) {
+    if (file3.source && file3.source !== "project") continue;
+    if (typeof file3.uuid !== "string" || typeof file3.hash !== "string" || typeof file3.ext !== "string")
       throw new Error("Prepared project asset metadata is invalid.");
-    const asset = inside(path24.join(directory, "assets"), file2.uuid + "-" + file2.hash + file2.ext);
-    if (!fs23.statSync(asset).isFile())
+    const asset = inside(path27.join(directory, "assets"), file3.uuid + "-" + file3.hash + file3.ext);
+    if (!fs26.statSync(asset).isFile())
       throw new Error("Prepared project asset is missing: " + asset);
-    if (typeof file2.size === "number" && fs23.statSync(asset).size !== file2.size)
+    if (typeof file3.size === "number" && fs26.statSync(asset).size !== file3.size)
       throw new Error("Prepared project asset size mismatch: " + asset);
     projectFiles++;
   }
@@ -53757,8 +65751,8 @@ async function preparePreviewProject(project, directory, signal) {
     result = await prepareProjectCopy(project, directory, signal);
     return result;
   } finally {
-    const preparations = path24.join(previewDirectory(project), "preparations");
-    if (path24.dirname(directory) === preparations) {
+    const preparations = path27.join(previewDirectory(project), "preparations");
+    if (path27.dirname(directory) === preparations) {
       const warnings = trimPreviewCache(preparations, "", 3, [directory]);
       if (result)
         result.warnings = [...Array.isArray(result.warnings) ? result.warnings : [], ...warnings];
@@ -53767,20 +65761,44 @@ async function preparePreviewProject(project, directory, signal) {
   }
 }
 async function prepareProjectCopy(project, directory, signal) {
-  var _a3;
+  var _a3, _b;
   if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED");
-  const source = path24.join(directory, "source");
-  if (fs23.existsSync(source)) throw new Error("Refusing to reuse an old prepared source directory.");
-  fs23.mkdirSync(source, { recursive: true, mode: 448 });
+  const projectConfig = readPreviewConfiguration(project, "project");
+  const resourcesConfig = readPreviewConfiguration(project, "resources");
+  const settingsConfig = readPreviewConfiguration(project, "settings");
+  const source = path27.join(directory, "source");
+  if (fs26.existsSync(source)) throw new Error("Refusing to reuse an old prepared source directory.");
+  fs26.mkdirSync(source, { recursive: true, mode: 448 });
   for (const name of ["scripts", "assets", ".project"]) {
-    const original = path24.join(project, name);
-    if (fs23.existsSync(original))
-      fs23.cpSync(original, path24.join(source, name), { recursive: true, dereference: true });
+    const original = path27.join(project, name);
+    if (fs26.existsSync(original))
+      fs26.cpSync(original, path27.join(source, name), { recursive: true, dereference: true });
   }
+  const configDirectory = path27.join(source, ".project");
+  fs26.mkdirSync(configDirectory, { recursive: true });
+  const projectDefaults = projectConfig || {
+    project_id: ((_a3 = loadProjectConfig(project)) == null ? void 0 : _a3.project_id) || "local-preview",
+    author: { id: "local-preview" },
+    version: "1.0.0"
+  };
+  if (projectDefaults["entry@client"] === void 0 && projectDefaults.entry === void 0)
+    projectDefaults.entry = previewEntryName(projectConfig, resourcesConfig);
+  fs26.writeFileSync(path27.join(configDirectory, "project.json"), JSON.stringify(projectDefaults));
+  if (!resourcesConfig)
+    fs26.writeFileSync(
+      path27.join(configDirectory, "resources.json"),
+      JSON.stringify({ groups: { default: ["**"] }, preload_groups: [] })
+    );
   validateProjectVersion(source);
-  const settingsFile = path24.join(source, ".project", "settings.json");
-  const configuration = fs23.existsSync(settingsFile) ? JSON.parse(fs23.readFileSync(settingsFile, "utf8")) : {};
-  const directories = (_a3 = configuration.build) == null ? void 0 : _a3.asset_dirs;
+  const configuration = settingsConfig || {
+    sources: {
+      engine: { tag: "stable" },
+      "engine-res": { tag: "stable" },
+      "official-res": { tag: "stable" }
+    },
+    build: { asset_dirs: ["../assets", "../scripts"], generate_fs_path: true }
+  };
+  const directories = (_b = configuration.build) == null ? void 0 : _b.asset_dirs;
   if (directories && (!Array.isArray(directories) || directories.some(
     (value) => typeof value !== "string" || !["../assets", "../scripts", "../assets/", "../scripts/"].includes(value)
   )))
@@ -53788,34 +65806,34 @@ async function prepareProjectCopy(project, directory, signal) {
       "Local prepare currently supports project-local scripts/assets only; custom asset_dirs need explicit support."
     );
   configuration.build = { ...configuration.build, output_dir: "../dist" };
-  fs23.writeFileSync(path24.join(source, ".project", "settings.json"), JSON.stringify(configuration));
+  fs26.writeFileSync(path27.join(source, ".project", "settings.json"), JSON.stringify(configuration));
   let python = checkMakerPythonEnvironment();
   if (!python.ready) python = setupMakerPythonEnvironment().environment;
   if (!python.ready || !python.python)
     throw new Error("Could not prepare the managed Python environment.");
   const builder = materializePreviewBuilder();
   const args = [builder, "--project", source, "--force-enhanced-refs", "--no-7z", "--no-compress"];
-  const cache = path24.join(previewDirectory(project), "public-index-cache");
-  const roundCache = path24.join(source, ".build", "manifest_cache");
-  if (fs23.existsSync(cache)) fs23.cpSync(cache, roundCache, { recursive: true });
-  const log = path24.join(directory, "prepare.log");
+  const cache = path27.join(previewDirectory(project), "public-index-cache");
+  const roundCache = path27.join(source, ".build", "manifest_cache");
+  if (fs26.existsSync(cache)) fs26.cpSync(cache, roundCache, { recursive: true });
+  const log = path27.join(directory, "prepare.log");
   try {
     const output2 = await promisify(execFile)(python.python, args, {
-      cwd: path24.dirname(builder),
+      cwd: path27.dirname(builder),
       windowsHide: true,
       signal,
       timeout: 3e5,
       maxBuffer: 4 * 1024 * 1024,
       env: { ...process.env, PYTHONIOENCODING: "utf-8", PYTHONNOUSERSITE: "1" }
     });
-    fs23.writeFileSync(log, String(sanitizeDiagnosticValue(output2.stdout + output2.stderr)), {
+    fs26.writeFileSync(log, String(sanitizeDiagnosticValue(output2.stdout + output2.stderr)), {
       mode: 384
     });
     if (/加载远端来源.*失败|无法获取 version.json|无法下载 manifest/.test(output2.stdout))
       throw new Error("Public source index download failed.");
     if (output2.stdout.includes("[ERROR]")) throw new Error("ProjectBuilder reported an error.");
     const result = validatePreparedPreview(source);
-    if (fs23.existsSync(roundCache)) fs23.cpSync(roundCache, cache, { recursive: true });
+    if (fs26.existsSync(roundCache)) fs26.cpSync(roundCache, cache, { recursive: true });
     return {
       ok: true,
       source_directory: source,
@@ -53825,8 +65843,8 @@ async function prepareProjectCopy(project, directory, signal) {
     };
   } catch (error2) {
     const failure = error2;
-    if (failure.stdout || failure.stderr || !fs23.existsSync(log))
-      fs23.writeFileSync(
+    if (failure.stdout || failure.stderr || !fs26.existsSync(log))
+      fs26.writeFileSync(
         log,
         String(
           sanitizeDiagnosticValue((failure.stdout || "") + (failure.stderr || "") || String(error2))
@@ -53839,42 +65857,42 @@ async function prepareProjectCopy(project, directory, signal) {
   }
 }
 function previewPreparationDirectory(project) {
-  return path24.join(previewDirectory(project), "preparations", randomUUID4());
+  return path27.join(previewDirectory(project), "preparations", randomUUID4());
 }
 
 // src/maker/preview/assets.ts
-import fs24 from "node:fs";
-import path25 from "node:path";
+import fs27 from "node:fs";
+import path28 from "node:path";
 import http from "node:http";
 import { randomBytes } from "node:crypto";
 import { pipeline } from "node:stream";
 async function startPreviewAssetServer(source, signal) {
   if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED");
-  const root = fs24.realpathSync(path25.join(source, "dist"));
+  const root2 = fs27.realpathSync(path28.join(source, "dist"));
   const files = /* @__PURE__ */ new Map();
   const allow = (relative) => {
-    const filename2 = path25.resolve(root, relative);
-    if (!filename2.startsWith(root + path25.sep) || fs24.realpathSync(filename2) !== filename2 || !fs24.statSync(filename2).isFile())
+    const filename2 = path28.resolve(root2, relative);
+    if (!filename2.startsWith(root2 + path28.sep) || fs27.realpathSync(filename2) !== filename2 || !fs27.statSync(filename2).isFile())
       throw new Error("Invalid local preview asset.");
-    files.set(relative.split(path25.sep).join("/"), filename2);
+    files.set(relative.split(path28.sep).join("/"), filename2);
   };
   allow("latest.json");
-  const latest = JSON.parse(fs24.readFileSync(files.get("latest.json"), "utf8"));
+  const latest = JSON.parse(fs27.readFileSync(files.get("latest.json"), "utf8"));
   if (typeof latest.version !== "string" || !/^[^/\\]+$/.test(latest.version) || typeof latest.client !== "string" || !/^[a-f0-9]+$/i.test(latest.client))
     throw new Error("Invalid preview version.");
   const manifestName = latest.version + "/manifest-" + latest.client + ".json";
   allow(manifestName);
-  const manifest = JSON.parse(fs24.readFileSync(files.get(manifestName), "utf8"));
+  const manifest = JSON.parse(fs27.readFileSync(files.get(manifestName), "utf8"));
   if (manifest.target !== "client" || !Array.isArray(manifest.files) || manifest.files.length > 1e5)
     throw new Error("Invalid preview client manifest.");
-  for (const file2 of manifest.files) {
-    if (file2.source && file2.source !== "project") continue;
-    const name = file2.uuid + "-" + file2.hash + file2.ext;
-    if (typeof file2.uuid !== "string" || typeof file2.hash !== "string" || typeof file2.ext !== "string" || /[/\\]/.test(name))
+  for (const file3 of manifest.files) {
+    if (file3.source && file3.source !== "project") continue;
+    const name = file3.uuid + "-" + file3.hash + file3.ext;
+    if (typeof file3.uuid !== "string" || typeof file3.hash !== "string" || typeof file3.ext !== "string" || /[/\\]/.test(name))
       throw new Error("Invalid preview asset name.");
     allow("assets/" + name);
   }
-  if (fs24.existsSync(path25.join(root, "project.json"))) allow("project.json");
+  if (fs27.existsSync(path28.join(root2, "project.json"))) allow("project.json");
   const prefix = "/" + randomBytes(32).toString("hex") + "/";
   let host = "";
   let closing;
@@ -53897,9 +65915,9 @@ async function startPreviewAssetServer(source, signal) {
     }
     let descriptor;
     try {
-      if (fs24.realpathSync(filename2) !== filename2) throw new Error("Asset changed.");
-      descriptor = fs24.openSync(filename2, fs24.constants.O_RDONLY | (fs24.constants.O_NOFOLLOW || 0));
-      const stat = fs24.fstatSync(descriptor);
+      if (fs27.realpathSync(filename2) !== filename2) throw new Error("Asset changed.");
+      descriptor = fs27.openSync(filename2, fs27.constants.O_RDONLY | (fs27.constants.O_NOFOLLOW || 0));
+      const stat = fs27.fstatSync(descriptor);
       if (!stat.isFile()) throw new Error("Asset is not a file.");
       let start = 0;
       let end = stat.size - 1;
@@ -53908,7 +65926,7 @@ async function startPreviewAssetServer(source, signal) {
         start = match ? Number(match[1]) : NaN;
         end = (match == null ? void 0 : match[2]) ? Math.min(Number(match[2]), end) : end;
         if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start < 0) {
-          fs24.closeSync(descriptor);
+          fs27.closeSync(descriptor);
           descriptor = void 0;
           response.writeHead(416, { "Content-Range": "bytes */" + stat.size }).end();
           return;
@@ -53923,11 +65941,11 @@ async function startPreviewAssetServer(source, signal) {
         filename2.endsWith(".json") ? "application/json" : "application/octet-stream"
       );
       if (request2.method === "HEAD" || stat.size === 0) {
-        fs24.closeSync(descriptor);
+        fs27.closeSync(descriptor);
         descriptor = void 0;
         response.end();
       } else {
-        const stream = fs24.createReadStream(filename2, {
+        const stream = fs27.createReadStream(filename2, {
           fd: descriptor,
           autoClose: true,
           start,
@@ -53938,7 +65956,7 @@ async function startPreviewAssetServer(source, signal) {
         });
       }
     } catch {
-      if (descriptor !== void 0) fs24.closeSync(descriptor);
+      if (descriptor !== void 0) fs27.closeSync(descriptor);
       if (!response.headersSent) response.writeHead(404).end();
       else response.destroy();
     }
@@ -53981,15 +65999,15 @@ async function startPreviewAssetServer(source, signal) {
 
 // src/maker/preview/windowSettings.ts
 init_protocol2();
-import fs25 from "node:fs";
-import path26 from "node:path";
+import fs28 from "node:fs";
+import path29 from "node:path";
 var PREVIEW_WINDOW_PRESETS = {
   "16:9": { longEdge: 960, shortEdge: 540 },
   "21:9": { longEdge: 1260, shortEdge: 540 },
   "4:3": { longEdge: 1024, shortEdge: 768 }
 };
 function defaults() {
-  return { orientation: "project", preset: "16:9", custom: { longEdge: 960, shortEdge: 540 } };
+  return { orientation: "project", preset: "custom", custom: { longEdge: 1920, shortEdge: 1080 } };
 }
 function validate(value) {
   var _a3, _b;
@@ -54006,20 +66024,20 @@ function validate(value) {
   };
 }
 function filename(project) {
-  return path26.join(previewDirectory(project), "window.json");
+  return path29.join(previewDirectory(project), "window.json");
 }
 function readPreviewWindowSettings(project) {
   var _a3;
   let settings = defaults();
   try {
-    const file2 = filename(project);
-    if (fs25.statSync(file2).size <= 4096)
-      settings = validate(JSON.parse(fs25.readFileSync(file2, "utf8")));
+    const file3 = filename(project);
+    if (fs28.statSync(file3).size <= 4096)
+      settings = validate(JSON.parse(fs28.readFileSync(file3, "utf8")));
   } catch {
   }
   let projectOrientation = null;
   try {
-    const config2 = JSON.parse(fs25.readFileSync(path26.join(project, ".project/project.json"), "utf8"));
+    const config2 = JSON.parse(fs28.readFileSync(path29.join(project, ".project/project.json"), "utf8"));
     const value = (_a3 = config2.taptap_publish) == null ? void 0 : _a3.screen_orientation;
     if (value === "portrait" || value === "landscape") projectOrientation = value;
   } catch {
@@ -54042,13 +66060,229 @@ function previewWindow(project) {
   return readPreviewWindowSettings(project).effective;
 }
 
+// src/maker/preview/network.ts
+import fs29 from "node:fs";
+import path30 from "node:path";
+
+// node_modules/ws/wrapper.mjs
+var import_stream = __toESM(require_stream(), 1);
+var import_extension = __toESM(require_extension(), 1);
+var import_permessage_deflate = __toESM(require_permessage_deflate(), 1);
+var import_receiver = __toESM(require_receiver(), 1);
+var import_sender = __toESM(require_sender(), 1);
+var import_subprotocol = __toESM(require_subprotocol(), 1);
+var import_websocket = __toESM(require_websocket(), 1);
+var import_websocket_server = __toESM(require_websocket_server(), 1);
+var wrapper_default = import_websocket.default;
+
+// src/maker/preview/network.ts
+init_patTap();
+init_config();
+init_configuration();
+
+// src/maker/preview/networkProtocol.ts
+var import_protobufjs = __toESM(require_protobufjs());
+var root = (0, import_protobufjs.parse)(`
+syntax = "proto2";
+message Header {
+  required int32 message_type = 1;
+  required bytes message_body = 2;
+  optional int64 user_id = 3;
+  optional int64 login_id = 10;
+}
+message Login {
+  required bytes user_name = 1;
+  required bytes user_passwd = 2;
+  optional int32 device_type = 4;
+  optional int32 login_way = 6;
+  optional string token = 7;
+  optional string clientid = 14;
+  optional string tag = 17;
+  optional bool is_rnd = 18;
+  optional bool is_silence = 19;
+}
+message LoginResult { required int32 result_code = 1; }
+message Lobby {
+  required int32 request_id = 1;
+  optional bytes message_body = 2;
+}
+message Create {
+  required string map_name = 1;
+  required int32 player_count = 2;
+  optional bytes mode_args = 3;
+  optional string tag = 7;
+}
+message ConnectInfo {
+  optional int32 ws_port = 10;
+  optional string pod_ip = 11;
+}
+message Created {
+  required int32 error_code = 1;
+  optional ConnectInfo connect_info = 2;
+}
+`).root;
+var previewWire = {
+  header: root.lookupType("Header"),
+  login: root.lookupType("Login"),
+  loginResult: root.lookupType("LoginResult"),
+  lobby: root.lookupType("Lobby"),
+  create: root.lookupType("Create"),
+  created: root.lookupType("Created")
+};
+
+// src/maker/preview/network.ts
+function previewNetworkProject(source) {
+  var _a3;
+  const settings = readPreviewConfiguration(source, "settings");
+  const runtime = settings == null ? void 0 : settings["@runtime"];
+  const multiplayer = runtime == null ? void 0 : runtime.multiplayer;
+  const enabled = multiplayer ? multiplayer.enabled ?? multiplayer.max_players > 0 : (runtime == null ? void 0 : runtime.max_players) > 0;
+  if (!enabled) return void 0;
+  const project = readPreviewConfiguration(source, "project");
+  const latestPath = path30.join(source, "dist", "latest.json");
+  const latest = fs29.existsSync(latestPath) ? JSON.parse(fs29.readFileSync(latestPath, "utf8")) : void 0;
+  if (typeof (project == null ? void 0 : project.project_id) !== "string" || !project.project_id.trim() || ((_a3 = project.author) == null ? void 0 : _a3.id) === "local-preview" || typeof (latest == null ? void 0 : latest.version) !== "string" || !latest.version)
+    throw new Error("联网预览缺少游戏配置，请先提交构建并生成一次测试二维码，再启动本地预览。");
+  return { projectId: project.project_id, version: latest.version };
+}
+function previewNetworkArgs(server) {
+  return [
+    "-production",
+    "-server=entrance-new-pd.spark.xd.com",
+    "-tag=debug",
+    "-directConnectParams=" + Buffer.from(JSON.stringify(server)).toString("base64")
+  ];
+}
+async function preparePreviewServer(source, projectPath, signal) {
+  const project = previewNetworkProject(source);
+  if (!project) return void 0;
+  if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED");
+  if (getMakerEnvironment(void 0, projectPath) !== "production")
+    throw new Error("当前环境暂不支持联网本地预览；请使用网页预览。");
+  let auth2;
+  try {
+    auth2 = await requestTapAuthWithPat(void 0, "production");
+  } catch {
+    throw new Error("联网预览鉴权失败，请运行 taptap-maker login 后重试。");
+  }
+  if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED");
+  return requestPreviewServer(project, auth2, signal);
+}
+function requestPreviewServer(project, auth2, signal, options3 = {}) {
+  if (signal == null ? void 0 : signal.aborted) return Promise.reject(new Error("CANCELLED"));
+  return new Promise((resolve, reject) => {
+    const socket = new wrapper_default(options3.url ?? "wss://entrance-new-pd.spark.xd.com", {
+      handshakeTimeout: 1e4,
+      maxPayload: 1024 * 1024,
+      perMessageDeflate: false,
+      followRedirects: false
+    });
+    let settled = false;
+    let allocated = false;
+    let userId = 0;
+    const finish = (error2, server) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal == null ? void 0 : signal.removeEventListener("abort", cancel);
+      socket.terminate();
+      if (error2) reject(error2);
+      else resolve(server);
+    };
+    const cancel = () => finish(new Error("CANCELLED"));
+    const timer = setTimeout(
+      () => finish(new Error("获取测试服连接超时，请稍后重试；未自动重复创建游戏。")),
+      options3.timeoutMs ?? 45e3
+    );
+    signal == null ? void 0 : signal.addEventListener("abort", cancel, { once: true });
+    const send = (messageType, messageBody) => {
+      socket.send(previewWire.header.encode({ messageType, messageBody, userId: 0, loginId: 0 }).finish());
+    };
+    socket.on("open", () => {
+      if (settled) return;
+      send(
+        1,
+        previewWire.login.encode({
+          userName: Buffer.from("default"),
+          userPasswd: Buffer.alloc(0),
+          loginWay: 11,
+          token: `${auth2.mac_key}$${auth2.kid}`,
+          clientid: "zgkpe37bjjs9gehbsz",
+          deviceType: 33554440,
+          tag: "debug",
+          isRnd: false,
+          isSilence: true
+        }).finish()
+      );
+    });
+    socket.on("message", (data, binary) => {
+      var _a3, _b, _c;
+      if (settled) return;
+      try {
+        if (!binary) throw new Error("Unexpected text frame");
+        const h = previewWire.header.decode(data);
+        if (h.messageType === 2 && !allocated) {
+          const result = previewWire.loginResult.decode(h.messageBody);
+          if (result.resultCode !== 0) {
+            finish(
+              new Error(`测试服登录失败（${result.resultCode}），请重新运行 taptap-maker login。`)
+            );
+            return;
+          }
+          userId = Number((_a3 = h.userId) == null ? void 0 : _a3.toString());
+          if (!Number.isSafeInteger(userId) || userId <= 0)
+            throw new Error("Invalid user identity");
+          allocated = true;
+          send(
+            12549,
+            previewWire.lobby.encode({
+              requestId: 1,
+              messageBody: previewWire.create.encode({
+                mapName: project.projectId,
+                playerCount: 1,
+                // Match the engine's CreateMultiDebugGame contract: test, never formal.
+                tag: "test",
+                modeArgs: Buffer.from(JSON.stringify({ project_version: project.version }))
+              }).finish()
+            }).finish()
+          );
+        } else if (h.messageType === 12549 && allocated) {
+          const envelope = previewWire.lobby.decode(h.messageBody);
+          if (envelope.requestId !== 1) return;
+          const result = previewWire.created.decode(envelope.messageBody);
+          if (result.errorCode !== 0) {
+            finish(
+              new Error(
+                `测试服创建失败（${result.errorCode}），请确认项目已成功提交构建，再重试预览。`
+              )
+            );
+            return;
+          }
+          const pod = (_b = result.connectInfo) == null ? void 0 : _b.podIp;
+          const port = (_c = result.connectInfo) == null ? void 0 : _c.wsPort;
+          if (typeof pod !== "string" || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(pod) || pod.length > 253 || !Number.isInteger(port) || port < 1 || port > 65535)
+            throw new Error("Invalid connection info");
+          finish(void 0, {
+            userId,
+            connectInfo: { pod_ip: pod, server_port: 0, ws_port: port }
+          });
+        }
+      } catch {
+        finish(new Error("测试服返回的连接信息无效，未启动本地窗口。"));
+      }
+    });
+    socket.on("error", () => finish(new Error("无法连接线上测试服入口，请检查网络后重试。")));
+    socket.on("close", () => finish(new Error("测试服连接在准备完成前断开，请稍后重试。")));
+  });
+}
+
 // src/maker/preview/runtime.ts
 var PREVIEW_TIMEOUT_MS = 3e4;
 async function probeRuntime(executable, signal) {
   if (signal == null ? void 0 : signal.aborted) throw new Error("CANCELLED");
-  if (!path27.isAbsolute(executable) || !fs26.statSync(executable).isFile())
+  if (!path31.isAbsolute(executable) || !fs30.statSync(executable).isFile())
     throw new Error("Runtime must be an absolute executable file.");
-  fs26.accessSync(executable, process.platform === "win32" ? fs26.constants.R_OK : fs26.constants.X_OK);
+  fs30.accessSync(executable, process.platform === "win32" ? fs30.constants.R_OK : fs30.constants.X_OK);
   return {
     protocol_version: 0,
     runtime_version: "unknown",
@@ -54098,7 +66332,7 @@ var PreviewRuntime = class {
   get launchMode() {
     return process.platform === "darwin" ? "loopback_manifest" : "local_manifest";
   }
-  async start(entry, storage, window = previewWindow(this.identity.project_realpath)) {
+  async start(entry, storage, window2 = previewWindow(this.identity.project_realpath)) {
     var _a3, _b;
     requireManifestPreviewPlatform();
     this.preparation = await preparePreviewProject(
@@ -54109,14 +66343,21 @@ var PreviewRuntime = class {
     if (this.stopping) throw new Error("CANCELLED");
     const source = String(this.preparation.source_directory);
     entry = String(this.preparation.entry);
+    const server = await preparePreviewServer(
+      source,
+      this.identity.project_realpath,
+      this.abort.signal
+    );
+    if (server) this.logs.append("已获取线上测试服连接信息，本地客户端将通过 WebSocket 直连。");
+    if (this.stopping) throw new Error("CANCELLED");
     let cacheRoot;
     if (this.launchMode === "loopback_manifest") {
       this.assets = await startPreviewAssetServer(source, this.abort.signal);
-      cacheRoot = path27.join(storage, "runtime-cache");
+      cacheRoot = path31.join(storage, "runtime-cache");
       try {
-        fs26.mkdirSync(cacheRoot, { recursive: true, mode: 448 });
-        this.assetCache = path27.join(
-          fs26.realpathSync(cacheRoot),
+        fs30.mkdirSync(cacheRoot, { recursive: true, mode: 448 });
+        this.assetCache = path31.join(
+          fs30.realpathSync(cacheRoot),
           this.assets.url.slice("http://".length).replace(":", "_")
         );
       } catch (error2) {
@@ -54136,10 +66377,11 @@ var PreviewRuntime = class {
           ...this.assets ? ["-game_url=" + this.assets.url] : [entry, "-tapcode_dir=" + source],
           ...cacheRoot ? ["-game_path=" + cacheRoot] : [],
           "-skip_login",
+          ...server ? previewNetworkArgs(server) : [],
           "-p=Res",
           "-w",
-          "-width=" + window.width,
-          "-height=" + window.height
+          "-width=" + window2.width,
+          "-height=" + window2.height
         ],
         { cwd: source, stdio: ["pipe", "pipe", "pipe"], windowsHide: false }
       );
@@ -54206,10 +66448,10 @@ var PreviewRuntime = class {
   clearAssetCache() {
     if (!this.assetCache) return;
     try {
-      const parent = path27.dirname(this.assetCache);
-      if (fs26.existsSync(parent) && fs26.realpathSync(parent) === parent) {
-        fs26.rmSync(this.assetCache, { recursive: true, force: true });
-        if (!fs26.readdirSync(parent).length) fs26.rmdirSync(parent);
+      const parent = path31.dirname(this.assetCache);
+      if (fs30.existsSync(parent) && fs30.realpathSync(parent) === parent) {
+        fs30.rmSync(this.assetCache, { recursive: true, force: true });
+        if (!fs30.readdirSync(parent).length) fs30.rmdirSync(parent);
       }
     } catch {
       this.recordError("Could not remove this round of local preview download cache.");
@@ -54281,8 +66523,8 @@ var PreviewRuntime = class {
 };
 
 // src/maker/preview/runtimeResources.ts
-import fs27 from "node:fs";
-import path28 from "node:path";
+import fs31 from "node:fs";
+import path32 from "node:path";
 var FALLBACK_FONT = "MiSans-Regular.ttf";
 function defaultFontCandidates(platform) {
   if (platform === "darwin") {
@@ -54294,39 +66536,44 @@ function defaultFontCandidates(platform) {
   if (platform === "win32") {
     const windows = process.env.WINDIR || process.env.SystemRoot || "C:\\Windows";
     return [
-      path28.join(windows, "Fonts", "Deng.ttf"),
-      path28.join(windows, "Fonts", "Dengb.ttf"),
-      path28.join(windows, "Fonts", "msyh.ttc")
+      path32.join(windows, "Fonts", "Deng.ttf"),
+      path32.join(windows, "Fonts", "Dengb.ttf"),
+      path32.join(windows, "Fonts", "msyh.ttc")
     ];
   }
   return [];
 }
 function existingFile(filename2) {
   try {
-    return fs27.statSync(filename2).isFile();
+    return fs31.statSync(filename2).isFile();
   } catch {
     return false;
   }
 }
 function ensurePreviewRuntimeResources(executable, options3 = {}) {
-  const runtimeRoot = path28.dirname(fs27.realpathSync(executable));
-  const fonts = path28.join(runtimeRoot, "Data", "Fonts");
+  const runtimeRoot = path32.dirname(fs31.realpathSync(executable));
+  const fonts = path32.join(runtimeRoot, "Res", "Fonts");
+  const legacyFonts = path32.join(runtimeRoot, "Data", "Fonts");
   for (const directory of [
-    path28.join(runtimeRoot, "Data", "LuaScripts"),
+    path32.join(runtimeRoot, "Data", "LuaScripts"),
+    legacyFonts,
     fonts,
-    path28.join(runtimeRoot, "CoreData")
+    path32.join(runtimeRoot, "CoreData")
   ]) {
-    fs27.mkdirSync(directory, { recursive: true });
+    fs31.mkdirSync(directory, { recursive: true });
   }
-  const target = path28.join(fonts, FALLBACK_FONT);
-  if (fs27.existsSync(target)) return { fallbackFont: "existing", warnings: [] };
+  const target = path32.join(fonts, FALLBACK_FONT);
+  if (fs31.existsSync(target)) return { fallbackFont: "existing", warnings: [] };
   const platform = options3.platform || process.platform;
-  const candidates = options3.fontCandidates || defaultFontCandidates(platform);
+  const candidates = [
+    path32.join(legacyFonts, FALLBACK_FONT),
+    ...options3.fontCandidates || defaultFontCandidates(platform)
+  ];
   const copyErrors = [];
   for (const candidate of candidates) {
     if (!existingFile(candidate)) continue;
     try {
-      fs27.copyFileSync(candidate, target, fs27.constants.COPYFILE_EXCL);
+      fs31.copyFileSync(candidate, target, fs31.constants.COPYFILE_EXCL);
       return { fallbackFont: "copied", fallbackFontSource: candidate, warnings: [] };
     } catch (error2) {
       if (error2.code === "EEXIST") {
@@ -54527,12 +66774,43 @@ async function runPreviewInstaller(python, args, options3) {
   });
 }
 
+// src/maker/system/recoveryMutex.ts
+import { createHash as createHash4 } from "node:crypto";
+import { createServer } from "node:net";
+function claimRecoveryMutex(filename2, busyError) {
+  const port = 49152 + createHash4("sha256").update(filename2).digest().readUInt16BE(0) % 16384;
+  const server = createServer((socket) => socket.destroy());
+  return new Promise((resolve, reject) => {
+    server.once("error", (error2) => {
+      reject(error2.code === "EADDRINUSE" ? busyError(port) : error2);
+    });
+    server.listen({ host: "127.0.0.1", port, exclusive: true }, () => {
+      resolve(
+        () => new Promise((done, fail) => {
+          server.close((error2) => error2 ? fail(error2) : done());
+        })
+      );
+    });
+  });
+}
+
+// src/maker/system/processPresence.ts
+function processPresence(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return "unknown";
+  try {
+    process.kill(pid, 0);
+    return "alive";
+  } catch (error2) {
+    return error2.code === "ESRCH" ? "missing" : "unknown";
+  }
+}
+
 // src/maker/preview/installation.ts
 function readInstallation(filename2) {
-  if (!fs28.existsSync(filename2)) return void 0;
+  if (!fs32.existsSync(filename2)) return void 0;
   try {
-    const value = JSON.parse(fs28.readFileSync(filename2, "utf8"));
-    if (value.install_state !== "ready" || !value.executable || !path29.isAbsolute(value.executable) || !fs28.statSync(value.executable).isFile()) {
+    const value = JSON.parse(fs32.readFileSync(filename2, "utf8"));
+    if (value.install_state !== "ready" || !value.executable || !path33.isAbsolute(value.executable) || !fs32.statSync(value.executable).isFile()) {
       return void 0;
     }
     return value;
@@ -54541,27 +66819,27 @@ function readInstallation(filename2) {
   }
 }
 function isInside(directory, filename2) {
-  const relative = path29.relative(directory, filename2);
-  return relative !== "" && !relative.startsWith(".." + path29.sep) && !path29.isAbsolute(relative);
+  const relative = path33.relative(directory, filename2);
+  return relative !== "" && !relative.startsWith(".." + path33.sep) && !path33.isAbsolute(relative);
 }
 function legacyPreviewInstallation(project) {
   var _a3;
-  const root = path29.dirname(previewDirectory(project));
-  if (!fs28.existsSync(root)) return void 0;
-  const entries = fs28.readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^[a-f0-9]{64}$/.test(entry.name));
+  const root2 = path33.dirname(previewDirectory(project));
+  if (!fs32.existsSync(root2)) return void 0;
+  const entries = fs32.readdirSync(root2, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^[a-f0-9]{64}$/.test(entry.name));
   const candidates = [];
   for (const entry of entries) {
-    const directory = path29.join(root, entry.name);
-    const filename2 = path29.join(directory, "installation.json");
+    const directory = path33.join(root2, entry.name);
+    const filename2 = path33.join(directory, "installation.json");
     const installation = readInstallation(filename2);
     if (!(installation == null ? void 0 : installation.executable)) continue;
     try {
-      const executable = fs28.realpathSync(installation.executable);
-      const managedDirectory = fs28.realpathSync(directory);
+      const executable = fs32.realpathSync(installation.executable);
+      const managedDirectory = fs32.realpathSync(directory);
       if (!isInside(managedDirectory, executable)) continue;
       candidates.push({
         installation: { ...installation, executable },
-        modified: Date.parse(installation.installed_at || "") || fs28.statSync(filename2).mtimeMs
+        modified: Date.parse(installation.installed_at || "") || fs32.statSync(filename2).mtimeMs
       });
     } catch {
     }
@@ -54570,7 +66848,7 @@ function legacyPreviewInstallation(project) {
   return (_a3 = candidates[0]) == null ? void 0 : _a3.installation;
 }
 function previewInstallation(project) {
-  const filename2 = path29.join(runtimeDirectory(), "installation.json");
+  const filename2 = path33.join(runtimeDirectory(), "installation.json");
   const current = readInstallation(filename2);
   if (current) return current;
   const legacy = legacyPreviewInstallation(project);
@@ -54589,34 +66867,70 @@ function previewInstallation(project) {
   }
 }
 async function withFileLock(directory, name, busyMessage, action) {
-  fs28.mkdirSync(directory, { recursive: true, mode: 448 });
-  const filename2 = path29.join(directory, name);
+  fs32.mkdirSync(directory, { recursive: true, mode: 448 });
+  const filename2 = path33.join(directory, name);
   let descriptor;
   try {
-    descriptor = fs28.openSync(filename2, "wx", 384);
+    descriptor = fs32.openSync(filename2, "wx", 384);
   } catch {
     throw new Error(
       busyMessage + " If an interrupted command left a lock, verify it exited before removing " + filename2
     );
   }
   try {
-    fs28.writeFileSync(
+    fs32.writeFileSync(
       descriptor,
       JSON.stringify({ pid: process.pid, created_at: (/* @__PURE__ */ new Date()).toISOString() })
     );
     return await action();
   } finally {
-    fs28.closeSync(descriptor);
-    fs28.unlinkSync(filename2);
+    fs32.closeSync(descriptor);
+    fs32.unlinkSync(filename2);
   }
 }
 async function withPreviewLock(project, action) {
-  return withFileLock(
-    previewDirectory(project),
-    "operation.lock",
-    "Another preview operation is in progress.",
-    action
-  );
+  const directory = previewDirectory(project);
+  fs32.mkdirSync(directory, { recursive: true, mode: 448 });
+  const filename2 = path33.join(fs32.realpathSync(directory), "operation.lock");
+  const busy = () => new Error("Another preview operation is in progress. Please retry after it finishes.");
+  const release = await claimRecoveryMutex(filename2, busy);
+  const identity = JSON.stringify({
+    pid: process.pid,
+    created_at: (/* @__PURE__ */ new Date()).toISOString(),
+    id: randomUUID5()
+  });
+  let owned = false;
+  try {
+    if (fs32.existsSync(filename2)) {
+      const previous = fs32.readFileSync(filename2, "utf8");
+      let pid;
+      try {
+        pid = JSON.parse(previous).pid;
+      } catch {
+      }
+      if (typeof pid !== "number" || processPresence(pid) !== "missing")
+        throw new Error(
+          "Preview operation ownership is still active or unverified. Confirm the previous command has exited before removing only: " + filename2
+        );
+      fs32.unlinkSync(filename2);
+    }
+    fs32.writeFileSync(filename2, identity, { flag: "wx", mode: 384 });
+    owned = true;
+    return await action();
+  } finally {
+    try {
+      if (owned) removeOwnedPreviewLock(filename2, identity);
+    } finally {
+      await release();
+    }
+  }
+}
+function removeOwnedPreviewLock(filename2, identity) {
+  try {
+    if (fs32.readFileSync(filename2, "utf8") === identity) fs32.unlinkSync(filename2);
+  } catch (error2) {
+    if (error2.code !== "ENOENT") throw error2;
+  }
 }
 async function withRuntimeInstallLock(action) {
   return withFileLock(
@@ -54627,17 +66941,17 @@ async function withRuntimeInstallLock(action) {
   );
 }
 function activePreviewRuntimeDirectories(project) {
-  const root = path29.dirname(previewDirectory(project));
-  if (!fs28.existsSync(root)) return [];
+  const root2 = path33.dirname(previewDirectory(project));
+  if (!fs32.existsSync(root2)) return [];
   const protectedDirectories = [];
-  for (const entry of fs28.readdirSync(root, { withFileTypes: true })) {
+  for (const entry of fs32.readdirSync(root2, { withFileTypes: true })) {
     if (!entry.isDirectory() || !/^[a-f0-9]{64}$/.test(entry.name)) continue;
-    const filename2 = path29.join(root, entry.name, "session.json");
-    if (!fs28.existsSync(filename2)) continue;
+    const filename2 = path33.join(root2, entry.name, "session.json");
+    if (!fs32.existsSync(filename2)) continue;
     try {
-      const record2 = JSON.parse(fs28.readFileSync(filename2, "utf8"));
-      if (record2.state !== "stopped" && record2.executable && path29.isAbsolute(record2.executable)) {
-        protectedDirectories.push(path29.dirname(record2.executable));
+      const record2 = JSON.parse(fs32.readFileSync(filename2, "utf8"));
+      if (record2.state !== "stopped" && record2.executable && path33.isAbsolute(record2.executable)) {
+        protectedDirectories.push(path33.dirname(record2.executable));
       }
     } catch {
     }
@@ -54663,12 +66977,12 @@ async function installPreviewRuntime(project, signal, update = false) {
     }
   }
   const directory = runtimeDirectory();
-  const unresolved = fs28.existsSync(directory) && fs28.readdirSync(directory, { withFileTypes: true }).find(
-    (entry) => entry.isDirectory() && entry.name.startsWith("runtime-") && fs28.existsSync(path29.join(directory, entry.name, UNVERIFIED_CLEANUP_MARKER))
+  const unresolved = fs32.existsSync(directory) && fs32.readdirSync(directory, { withFileTypes: true }).find(
+    (entry) => entry.isDirectory() && entry.name.startsWith("runtime-") && fs32.existsSync(path33.join(directory, entry.name, UNVERIFIED_CLEANUP_MARKER))
   );
   if (unresolved) {
     throw new Error(
-      "The previous installer cleanup is unverified. Confirm its processes have exited before removing only the marked directory: " + path29.join(directory, unresolved.name)
+      "The previous installer cleanup is unverified. Confirm its processes have exited before removing only the marked directory: " + path33.join(directory, unresolved.name)
     );
   }
   const python = checkMakerPythonEnvironment();
@@ -54677,10 +66991,10 @@ async function installPreviewRuntime(project, signal, update = false) {
       "Runtime installation needs Python and curl. Run taptap-maker python setup with host approval, then retry."
     );
   }
-  const staging = path29.join(directory, "runtime-" + randomUUID5());
-  fs28.mkdirSync(staging, { recursive: true, mode: 448 });
-  const installer = path29.join(staging, "install-urhox-runtime.py");
-  fs28.writeFileSync(installer, PREVIEW_INSTALLER_SOURCE, { mode: 384 });
+  const staging = path33.join(directory, "runtime-" + randomUUID5());
+  fs32.mkdirSync(staging, { recursive: true, mode: 448 });
+  const installer = path33.join(staging, "install-urhox-runtime.py");
+  fs32.writeFileSync(installer, PREVIEW_INSTALLER_SOURCE, { mode: 384 });
   const platform = process.platform === "win32" ? "win32" : "darwin";
   try {
     await runPreviewInstaller(
@@ -54693,14 +67007,14 @@ async function installPreviewRuntime(project, signal, update = false) {
         signal
       }
     );
-    const executable = fs28.realpathSync(
-      path29.join(staging, platform === "win32" ? "UrhoXRuntime.exe" : "UrhoXRuntime")
+    const executable = fs32.realpathSync(
+      path33.join(staging, platform === "win32" ? "UrhoXRuntime.exe" : "UrhoXRuntime")
     );
     const resources2 = ensurePreviewRuntimeResources(executable);
     const runtime = await probeRuntime(executable, signal);
-    const archive = path29.join(staging, "UrhoXRuntime.zip");
-    const hash2 = createHash4("sha256");
-    for await (const chunk of fs28.createReadStream(archive)) hash2.update(chunk);
+    const archive = path33.join(staging, "UrhoXRuntime.zip");
+    const hash2 = createHash5("sha256");
+    for await (const chunk of fs32.createReadStream(archive)) hash2.update(chunk);
     const installation = {
       install_state: "ready",
       executable,
@@ -54710,19 +67024,19 @@ async function installPreviewRuntime(project, signal, update = false) {
       warnings: resources2.warnings
     };
     const protectedDirectories = [staging, ...activePreviewRuntimeDirectories(project)];
-    if (previous.executable) protectedDirectories.push(path29.dirname(previous.executable));
+    if (previous.executable) protectedDirectories.push(path33.dirname(previous.executable));
     installation.warnings = [
       ...installation.warnings || [],
       ...trimPreviewCache(directory, "runtime-", 2, protectedDirectories)
     ];
-    writePrivateJson(path29.join(directory, "installation.json"), installation);
+    writePrivateJson(path33.join(directory, "installation.json"), installation);
     return installation;
   } catch (error2) {
     const cleanupUnverified = error2.cleanupVerified === false;
-    if (!cleanupUnverified) fs28.rmSync(staging, { recursive: true, force: true });
+    if (!cleanupUnverified) fs32.rmSync(staging, { recursive: true, force: true });
     else
-      fs28.writeFileSync(
-        path29.join(staging, UNVERIFIED_CLEANUP_MARKER),
+      fs32.writeFileSync(
+        path33.join(staging, UNVERIFIED_CLEANUP_MARKER),
         "Installer process ownership must be verified before cleanup.\n",
         { mode: 384 }
       );
@@ -54734,24 +67048,12 @@ async function installPreviewRuntime(project, signal, update = false) {
 
 // src/maker/preview/session.ts
 init_protocol2();
-import fs29 from "node:fs";
-import path30 from "node:path";
+import fs33 from "node:fs";
+import path34 from "node:path";
 import http2 from "node:http";
+import os5 from "node:os";
 import { timingSafeEqual } from "node:crypto";
 init_diagnosticRedaction();
-
-// src/maker/system/processPresence.ts
-function processPresence(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return "unknown";
-  try {
-    process.kill(pid, 0);
-    return "alive";
-  } catch (error2) {
-    return error2.code === "ESRCH" ? "missing" : "unknown";
-  }
-}
-
-// src/maker/preview/session.ts
 var PreviewSession = class {
   constructor(record2, save = true) {
     this.record = record2;
@@ -54774,10 +67076,10 @@ var PreviewSession = class {
       if ((current == null ? void 0 : current.session_id) !== this.record.session_id || current.supervisor_id !== this.record.supervisor_id)
         return;
       writePrivateJson(
-        path30.join(previewDirectory(this.record.project_realpath), "session.json"),
+        path34.join(previewDirectory(this.record.project_realpath), "session.json"),
         this.record
       );
-      writePrivateJson(path30.join(previewRoundDirectory(this.record), "result.json"), this.status());
+      writePrivateJson(path34.join(previewRoundDirectory(this.record), "result.json"), this.status());
     }
   }
   status() {
@@ -54887,7 +67189,7 @@ var PreviewSession = class {
       this.runtime = runtime;
       await runtime.start(
         String(this.preflight.entry),
-        path30.join(previewDirectory(this.record.project_realpath), "storage"),
+        path34.join(previewDirectory(this.record.project_realpath), "storage"),
         this.preflight.window
       );
       if (this.stopping) throw new Error("CANCELLED");
@@ -54906,7 +67208,7 @@ var PreviewSession = class {
     } finally {
       try {
         trimPreviewEvidence(
-          path30.join(previewDirectory(this.record.project_realpath), "sessions"),
+          path34.join(previewDirectory(this.record.project_realpath), "sessions"),
           this.record.session_id,
           this.record.reload_id
         );
@@ -55038,10 +67340,18 @@ async function requestPreview(record2, action, options3 = {}, timeout = 9e4, sig
     );
   });
 }
-async function runPreviewSupervisor(project) {
+async function runPreviewSupervisor(project, sessionId) {
   const record2 = readPreviewRecord(project);
   if (!record2 || record2.port || record2.supervisor_pid)
     throw new Error("No pending preview supervisor launch.");
+  const validateLaunch = () => {
+    const current = readPreviewRecord(project);
+    if (!current || current.session_id !== record2.session_id || current.supervisor_id !== record2.supervisor_id || current.state !== "starting" || current.port || current.supervisor_pid || sessionId !== void 0 && sessionId !== record2.session_id || record2.launch_deadline !== void 0 && sessionId !== record2.session_id)
+      throw new Error("Preview launch session was replaced or is no longer pending.");
+    if (record2.launch_deadline !== void 0 && Date.now() >= record2.launch_deadline)
+      throw new Error("Preview supervisor launch expired; retry local preview.");
+  };
+  validateLaunch();
   const session = new PreviewSession(record2);
   let shuttingDown = false;
   const shutdown = async (retireFailure = false) => {
@@ -55066,7 +67376,7 @@ async function runPreviewSupervisor(project) {
       try {
         const current = readPreviewRecord(project);
         if ((current == null ? void 0 : current.session_id) === record2.session_id && current.supervisor_id === record2.supervisor_id && current.reload_id === record2.reload_id) {
-          writePrivateJson(path30.join(previewRoundDirectory(record2), "result.json"), {
+          writePrivateJson(path34.join(previewRoundDirectory(record2), "result.json"), {
             ...session.status(),
             supervisor_retired: true
           });
@@ -55133,10 +67443,16 @@ async function runPreviewSupervisor(project) {
   });
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Preview control channel failed.");
+  try {
+    validateLaunch();
+  } catch (error2) {
+    await new Promise((resolve) => server.close(() => resolve()));
+    throw error2;
+  }
   record2.port = address.port;
   record2.supervisor_pid = process.pid;
   record2.runtime_pid = 0;
-  writePrivateJson(path30.join(previewDirectory(project), "session.json"), record2);
+  writePrivateJson(path34.join(previewDirectory(project), "session.json"), record2);
   const idleTimer = setInterval(() => {
     if (record2.state === "stopped") void shutdown();
     else if (session.canRetireFailure) void shutdown(true);
@@ -55170,10 +67486,10 @@ async function previewStatus(project) {
     };
   } catch {
     const stopped = record2.state === "stopped";
-    const filename2 = path30.join(previewRoundDirectory(record2), "result.json");
+    const filename2 = path34.join(previewRoundDirectory(record2), "result.json");
     let evidence = {};
-    if (fs29.existsSync(filename2)) {
-      const saved = JSON.parse(fs29.readFileSync(filename2, "utf8"));
+    if (fs33.existsSync(filename2)) {
+      const saved = JSON.parse(fs33.readFileSync(filename2, "utf8"));
       if (samePreviewIdentity(saved, record2)) {
         evidence = { ...saved };
         delete evidence.token;
@@ -55181,16 +67497,22 @@ async function previewStatus(project) {
     }
     const retiredFailure = record2.state === "failed" && evidence.state === "failed" && evidence.supervisor_retired === true && evidence.process_alive === false && evidence.supervisor_id === record2.supervisor_id && evidence.supervisor_pid === record2.supervisor_pid && evidence.started_at === record2.started_at && evidence.executable === record2.executable;
     const runtimePid = Number(record2.runtime_pid || evidence.runtime_pid || 0);
-    const staleSessionRecovered = !retiredFailure && (record2.state === "running" || record2.state === "failed") && sameSupervisorEvidence(evidence, record2) && processPresence(record2.supervisor_pid) === "missing" && runtimePid > 0 && processPresence(runtimePid) === "missing";
+    const unpublished = record2.state === "starting" && !record2.port && !record2.supervisor_pid && !record2.runtime_pid;
+    const expiredLaunch = unpublished && record2.launch_deadline !== void 0 && Date.now() >= record2.launch_deadline;
+    const beforeBoot = unpublished && Date.parse(record2.started_at) < Date.now() - os5.uptime() * 1e3 - 6e4;
+    const staleSessionRecovered = expiredLaunch || beforeBoot || !retiredFailure && (record2.state === "running" || record2.state === "failed") && sameSupervisorEvidence(evidence, record2) && processPresence(record2.supervisor_pid) === "missing" && runtimePid > 0 && processPresence(runtimePid) === "missing";
     if (staleSessionRecovered) {
       evidence = {
         ...evidence,
+        supervisor_id: record2.supervisor_id,
+        supervisor_pid: record2.supervisor_pid,
+        started_at: record2.started_at,
         state: "failed",
         process_alive: false,
         runtime_pid: 0,
         supervisor_retired: true,
         stale_session_recovered: true,
-        error: "Previous preview processes are no longer running. The stale session was retired safely."
+        error: expiredLaunch ? "本地预览启动超时，未启动游戏。可以重新点击“本地预览”。" : "Previous preview processes are no longer running. The stale session was retired safely."
       };
     }
     return {
@@ -55208,7 +67530,7 @@ async function previewStatus(project) {
       stale_session_recovered: staleSessionRecovered,
       supervisor_log_path: previewSupervisorLogPath(project),
       ok: stopped,
-      error: stopped || retiredFailure || staleSessionRecovered ? evidence.error : "Preview supervisor is unreachable. Process ownership is unverified; no PID was killed and no session was restarted."
+      error: stopped || retiredFailure || staleSessionRecovered ? evidence.error : "Preview supervisor is unreachable. Process ownership is unverified; no PID was killed and no session was restarted." + (unpublished ? record2.launch_deadline !== void 0 ? " 启动仍在确认中，请稍后重新检测预览状态。" : " 这是旧版本遗留的启动记录；请重启电脑后重新打开控制台，系统将恢复启动入口，无需删除项目或重装 Runtime。" : "")
     };
   }
 }
@@ -55221,8 +67543,8 @@ init_diagnosticRedaction();
 
 // src/maker/system/backgroundProcess.ts
 import { spawn as spawn8 } from "node:child_process";
-import fs30 from "node:fs";
-import path31 from "node:path";
+import fs34 from "node:fs";
+import path35 from "node:path";
 var WINDOWS_ENV_KEYS = /* @__PURE__ */ new Set([
   "APPDATA",
   "COMSPEC",
@@ -55257,9 +67579,9 @@ var WINDOWS_ENV_KEYS = /* @__PURE__ */ new Set([
   "WINDIR"
 ]);
 function openBackgroundProcessLog(filename2) {
-  fs30.mkdirSync(path31.dirname(filename2), { recursive: true, mode: 448 });
-  const oversized = fs30.existsSync(filename2) && fs30.statSync(filename2).size > 1024 * 1024;
-  return fs30.openSync(filename2, oversized ? "w" : "a", 384);
+  fs34.mkdirSync(path35.dirname(filename2), { recursive: true, mode: 448 });
+  const oversized = fs34.existsSync(filename2) && fs34.statSync(filename2).size > 1024 * 1024;
+  return fs34.openSync(filename2, oversized ? "w" : "a", 384);
 }
 function selectWindowsBackgroundEnvironment(env) {
   return Object.fromEntries(
@@ -55277,7 +67599,11 @@ function buildWindowsBackgroundLaunchScripts(options3) {
     "$ErrorActionPreference = 'Stop'",
     ...environment,
     `Set-Location -LiteralPath ${powershellLiteral(options3.cwd)}`,
+    // PS5 treats redirected native stderr as errors; keep setup fail-fast above.
+    "$LASTEXITCODE = 1",
+    "$ErrorActionPreference = 'Continue'",
     `& ${command} 1> $null 2>> ${powershellLiteral(options3.logFile)}`,
+    "$ErrorActionPreference = 'Stop'",
     "exit $LASTEXITCODE"
   ].join("\r\n");
   const encodedProcess = Buffer.from(processScript, "utf16le").toString("base64");
@@ -55297,7 +67623,7 @@ async function launchBackgroundProcess(options3) {
   var _a3, _b, _c;
   if ((_a3 = options3.signal) == null ? void 0 : _a3.aborted) throw new Error("CANCELLED: background launch.");
   if ((options3.platform ?? process.platform) !== "win32") return directLaunch(options3);
-  fs30.closeSync(openBackgroundProcessLog(options3.logFile));
+  fs34.closeSync(openBackgroundProcessLog(options3.logFile));
   const scripts = buildWindowsBackgroundLaunchScripts(options3);
   const broker = spawn8(
     "powershell.exe",
@@ -55370,7 +67696,7 @@ function directLaunch(options3) {
       env: options3.env
     });
   } finally {
-    fs30.closeSync(stderr);
+    fs34.closeSync(stderr);
   }
   let launchFailure;
   child.once("error", (error2) => {
@@ -55396,7 +67722,13 @@ function powershellLiteral(value) {
 function launchPreviewSupervisorProcess(options3) {
   return launchBackgroundProcess({
     command: options3.execPath,
-    args: [...options3.execArgv, options3.entry, "__maker-preview-supervisor", options3.project],
+    args: [
+      ...options3.execArgv,
+      options3.entry,
+      "__maker-preview-supervisor",
+      options3.project,
+      ...options3.sessionId ? [options3.sessionId] : []
+    ],
     cwd: options3.cwd,
     logFile: options3.logFile,
     env: options3.env,
@@ -55468,7 +67800,7 @@ async function runPreviewCli(action, options3) {
       );
     } else {
       if (action === "stop") {
-        writePrivateJson(path32.join(previewDirectory(project), "stop.json"), {
+        writePrivateJson(path36.join(previewDirectory(project), "stop.json"), {
           request_id: randomUUID6()
         });
       }
@@ -55547,8 +67879,8 @@ async function runPreviewCli(action, options3) {
     process.exitCode = 1;
 }
 async function startPreview(project, options3, signal) {
-  const stopFile = path32.join(previewDirectory(project), "stop.json");
-  const readStop = () => fs31.existsSync(stopFile) ? fs31.readFileSync(stopFile, "utf8") : "";
+  const stopFile = path36.join(previewDirectory(project), "stop.json");
+  const readStop = () => fs35.existsSync(stopFile) ? fs35.readFileSync(stopFile, "utf8") : "";
   const stopGeneration = readStop();
   const checkCancelled = () => {
     if (signal.aborted || readStop() !== stopGeneration)
@@ -55582,9 +67914,9 @@ async function startPreview(project, options3, signal) {
       install_state: "missing",
       error: "Runtime is missing. With host approval, run taptap-maker preview install --target-dir <PROJECT_ABSOLUTE_PATH>, then retry start."
     };
-  if (!path32.isAbsolute(configured))
+  if (!path36.isAbsolute(configured))
     throw new Error("--runtime must be an absolute executable path.");
-  const executable = fs31.realpathSync(configured);
+  const executable = fs35.realpathSync(configured);
   const resourceWarnings = externalRuntime ? [] : ensurePreviewRuntimeResources(executable).warnings;
   const runtime = await probeRuntime(executable, signal);
   checkCancelled();
@@ -55597,24 +67929,26 @@ async function startPreview(project, options3, signal) {
     supervisor_pid: 0,
     runtime_pid: 0,
     started_at: (/* @__PURE__ */ new Date()).toISOString(),
+    launch_deadline: Date.now() + 3e4,
     token: randomBytes3(32).toString("hex"),
     port: 0,
     executable,
     state: "starting",
     runtime
   };
-  writePrivateJson(path32.join(previewDirectory(project), "session.json"), record2);
+  writePrivateJson(path36.join(previewDirectory(project), "session.json"), record2);
   const launch = await launchPreviewSupervisorProcess({
     execPath: process.execPath,
     execArgv: process.execArgv,
     entry: process.argv[1],
     project,
-    cwd: path32.dirname(executable),
+    sessionId: record2.session_id,
+    cwd: path36.dirname(executable),
     logFile: previewSupervisorLogPath(project),
     env: process.env,
     signal
   });
-  const deadline = Date.now() + 15e3;
+  const deadline = record2.launch_deadline;
   let active;
   try {
     while (Date.now() < deadline) {
@@ -55632,10 +67966,15 @@ async function startPreview(project, options3, signal) {
           ]
         } : started;
       }
-      if (launch.exited()) break;
+      if (launch.exited())
+        throw new Error(
+          "Preview supervisor exited before opening its control channel. Inspect " + previewSupervisorLogPath(project)
+        );
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    throw new Error("TIMEOUT: preview supervisor did not open its control channel.");
+    throw new Error(
+      "TIMEOUT: preview supervisor did not open its control channel. Inspect " + previewSupervisorLogPath(project)
+    );
   } catch (error2) {
     active = readPreviewRecord(project);
     if (active == null ? void 0 : active.port) {
@@ -55649,7 +67988,7 @@ async function startPreview(project, options3, signal) {
     } else {
       if (launch.stopUnpublished()) {
         record2.state = "stopped";
-        writePrivateJson(path32.join(previewDirectory(project), "session.json"), record2);
+        writePrivateJson(path36.join(previewDirectory(project), "session.json"), record2);
       } else {
         throw new Error(
           String(error2) + "; supervisor exit is unverified. Inspect " + previewSupervisorLogPath(project)
@@ -55661,27 +68000,29 @@ async function startPreview(project, options3, signal) {
 }
 
 // src/maker/console/cli.ts
+import fs43 from "node:fs";
+import path45 from "node:path";
+import { spawn as spawn11 } from "node:child_process";
+import { createHash as createHash8, randomUUID as randomUUID8 } from "node:crypto";
 init_storage();
 init_projectRegistry();
 init_privateJson();
-import fs39 from "node:fs";
-import path41 from "node:path";
-import { spawn as spawn11 } from "node:child_process";
-import { createHash as createHash7, randomUUID as randomUUID8 } from "node:crypto";
-import { createServer } from "node:net";
 
 // src/maker/console/projects.ts
 init_projectRegistry();
 init_projectSettings();
+init_qrcodePreflight();
+init_qrcodeInteraction();
 init_git();
-import fs32 from "node:fs";
-import path33 from "node:path";
+import fs36 from "node:fs";
+import path37 from "node:path";
 import { execFile as execFile2 } from "node:child_process";
 import { promisify as promisify2 } from "node:util";
 
 // src/maker/console/types.ts
 var CONSOLE_ACTIONS = [
   "build",
+  "qrcode",
   "lua-lsp.check",
   "preview.start",
   "preview.refresh",
@@ -55698,17 +68039,17 @@ var ConsoleError = class extends Error {
 // src/maker/console/projects.ts
 var exec = promisify2(execFile2);
 function objectFile2(filename2) {
-  const stat = fs32.statSync(filename2);
+  const stat = fs36.statSync(filename2);
   if (!stat.isFile() || stat.size > 2 * 1024 * 1024)
     throw new ConsoleError("Project configuration exceeds the supported size.");
-  const data = JSON.parse(fs32.readFileSync(filename2, "utf8"));
+  const data = JSON.parse(fs36.readFileSync(filename2, "utf8"));
   if (!data || typeof data !== "object" || Array.isArray(data))
     throw new ConsoleError("Invalid project configuration.");
   return data;
 }
-function optionalConfig(root, file2) {
+function optionalConfig(root2, file3) {
   try {
-    return objectFile2(path33.join(root, ".project", file2));
+    return objectFile2(path37.join(root2, ".project", file3));
   } catch {
     return {};
   }
@@ -55716,13 +68057,13 @@ function optionalConfig(root, file2) {
 function text(value) {
   return typeof value === "string" || typeof value === "number" ? String(value) : null;
 }
-async function git(root, args, signal, timeout = 15e3) {
+async function git(root2, args, signal, timeout = 15e3) {
   signal == null ? void 0 : signal.throwIfAborted();
   const result = await exec(
     getGitCommand(),
     ["-c", "core.fsmonitor=false", "-c", "core.quotePath=false", "--no-pager", ...args],
     {
-      cwd: root,
+      cwd: root2,
       encoding: "utf8",
       timeout,
       maxBuffer: 1024 * 1024,
@@ -55747,13 +68088,16 @@ var ConsoleProjects = class {
     }
   }
   describe(entry) {
-    var _a3;
+    var _a3, _b;
     const error2 = entry.error;
     const config2 = error2 ? {} : optionalConfig(entry.path, "project.json");
+    const title = (_b = text((_a3 = config2.taptap_publish) == null ? void 0 : _a3.title)) == null ? void 0 : _b.trim();
+    const name = title && title !== "<game title, required>" ? title : path37.basename(entry.path) + (error2 ? "" : "（未发布）");
     return {
       key: entry.key,
+      projectid: entry.binding,
       path: entry.path,
-      name: text((_a3 = config2.taptap_publish) == null ? void 0 : _a3.title) || path33.basename(entry.path),
+      name,
       valid: !error2,
       ...error2 ? { error: error2 } : {}
     };
@@ -55784,16 +68128,16 @@ var ConsoleProjects = class {
       const entry = config2["entry@server"] || resources2["entry@server"];
       const normalized = typeof entry === "string" ? entry.replace(/\\/g, "/").replace(/^\.\//, "") : "";
       const entries = normalized ? [normalized, "scripts/" + normalized, "assets/" + normalized] : [];
-      const directories = entries.map((file2) => path33.posix.dirname(file2)).filter((dir) => ![".", "scripts", "assets"].includes(dir));
+      const directories = entries.map((file3) => path37.posix.dirname(file3)).filter((dir) => ![".", "scripts", "assets"].includes(dir));
       const raw = (await inspectGit(["status", "--porcelain=v1", "-z", "--untracked-files=all"])).split("\0");
       const files = /* @__PURE__ */ new Set();
       for (let i = 0; i < raw.length && raw[i]; i++) {
         files.add(raw[i].slice(3));
         if (/[RC]/.test(raw[i].slice(0, 2)) && raw[i + 1]) files.add(raw[++i]);
       }
-      for (const file2 of files) {
+      for (const file3 of files) {
         if (Date.now() >= deadline || (signal == null ? void 0 : signal.aborted)) return { checked: false, changed: false };
-        const source = file2.replace(/\.meta$/, "");
+        const source = file3.replace(/\.meta$/, "");
         if (!/\.(lua|luc)$/i.test(source)) continue;
         if (entries.includes(source) || directories.some((dir) => source.startsWith(dir + "/")) || /(^|\/)server(?:\/|\.lua$|\.luc$)/i.test(source)) {
           return { checked: true, changed: true };
@@ -55801,7 +68145,7 @@ var ConsoleProjects = class {
         const meta3 = source + ".meta";
         const current = (() => {
           try {
-            return objectFile2(path33.join(project.path, meta3));
+            return objectFile2(path37.join(project.path, meta3));
           } catch {
             return {};
           }
@@ -55821,7 +68165,7 @@ var ConsoleProjects = class {
     }
   }
   async detail(key, signal) {
-    var _a3, _b, _c, _d, _e, _f;
+    var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
     signal == null ? void 0 : signal.throwIfAborted();
     const project = this.resolve(key);
     const config2 = optionalConfig(project.path, "project.json");
@@ -55846,22 +68190,28 @@ var ConsoleProjects = class {
     }
     signal == null ? void 0 : signal.throwIfAborted();
     this.resolve(key);
+    const qrcodePreparation = inspectMakerQrcodePreparation(project.path);
     return {
       project,
       config: {
+        qrcodePreparation,
+        qrcodeNeedsInitialization: qrcodePreparation.status === "needs_initialization",
         version: text(config2.version),
         orientation: text((_a3 = config2.taptap_publish) == null ? void 0 : _a3.screen_orientation),
         entry: text(config2["entry@client"] || config2.entry),
         engineTag: text((_c = (_b = settings.sources) == null ? void 0 : _b.engine) == null ? void 0 : _c.tag),
         multiplayer: typeof ((_e = (_d = settings["@runtime"]) == null ? void 0 : _d.multiplayer) == null ? void 0 : _e.enabled) === "boolean" ? settings["@runtime"].multiplayer.enabled : null,
-        appId: text((_f = config2.taptap_publish) == null ? void 0 : _f.app_id)
+        appId: text((_f = config2.taptap_publish) == null ? void 0 : _f.app_id),
+        developerId: isDeveloperId((_g = config2.taptap_publish) == null ? void 0 : _g.developer_id) ? config2.taptap_publish.developer_id : null,
+        qrcodeNeedsTitle: !hasPublishedApp(config2.taptap_publish || {}) && !isConfiguredTitle((_h = config2.taptap_publish) == null ? void 0 : _h.title),
+        qrcodeNeedsCategory: !hasPublishedApp(config2.taptap_publish || {}) && !MAKER_QR_CATEGORIES.includes((_i = config2.taptap_publish) == null ? void 0 : _i.category)
       },
       git: gitState,
       health: inspectMakerProjectHealth(project.path)
     };
   }
-  async changes(root, signal) {
-    const raw = (await git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=normal"], signal)).split("\0");
+  async changes(root2, signal) {
+    const raw = (await git(root2, ["status", "--porcelain=v1", "-z", "--untracked-files=normal"], signal)).split("\0");
     const result = [];
     for (let i = 0; i < raw.length && raw[i]; i++) {
       result.push({ status: raw[i].slice(0, 2), path: raw[i].slice(3) });
@@ -55957,7 +68307,16 @@ import { spawn as spawn9 } from "node:child_process";
 init_diagnosticRedaction();
 init_luaLsp();
 function createConsoleExecutor(options3) {
-  return async ({ project, action, onOutput, onProgress, signal }) => {
+  return async ({
+    project,
+    action,
+    onOutput,
+    onProgress,
+    signal,
+    confirmedOrientation,
+    publication,
+    confirmedBuild
+  }) => {
     if (![...CONSOLE_ACTIONS, "preview.status", "preview.logs"].includes(action))
       throw new Error("Unsupported console CLI action.");
     if (signal == null ? void 0 : signal.aborted) return { ok: false, error: "Console query cancelled before launch." };
@@ -55970,7 +68329,17 @@ function createConsoleExecutor(options3) {
         ...!result.ok ? { error: result.error || result.summary } : {}
       });
     }
-    const command = action === "build" ? ["build"] : ["preview", action.slice("preview.".length)];
+    const command = action === "build" || action === "qrcode" ? [action] : ["preview", action.slice("preview.".length)];
+    if (action === "qrcode" && confirmedOrientation)
+      command.push("--confirmed-screen-orientation", confirmedOrientation);
+    if (action === "qrcode") {
+      if ((publication == null ? void 0 : publication.developer_id) !== void 0)
+        command.push("--confirmed-developer-id", String(publication.developer_id));
+      if ((publication == null ? void 0 : publication.title) !== void 0) command.push("--confirmed-title=" + publication.title);
+      if ((publication == null ? void 0 : publication.category) !== void 0)
+        command.push("--confirmed-category", publication.category);
+      if (confirmedBuild) command.push("--confirmed-build");
+    }
     const ownsProcessGroup = process.platform !== "win32";
     const execArgv = [...options3.execArgv ?? process.execArgv];
     const bootstrap = `
@@ -56046,7 +68415,7 @@ function createConsoleExecutor(options3) {
           timedOut = true;
           terminate();
         },
-        action === "build" ? 65 * 60 * 1e3 : action === "preview.status" || action === "preview.logs" ? 3e4 : 7 * 60 * 1e3
+        action === "build" || action === "qrcode" ? 65 * 60 * 1e3 : action === "preview.status" || action === "preview.logs" ? 3e4 : 7 * 60 * 1e3
       );
       const cleanup = () => {
         finished = true;
@@ -56077,7 +68446,7 @@ function createConsoleExecutor(options3) {
         }
         const end = stderr.lastIndexOf("\n");
         if (end >= 0) {
-          if (action === "build" && onProgress) {
+          if ((action === "build" || action === "qrcode") && onProgress) {
             for (const line of stderr.slice(0, end).split("\n")) {
               try {
                 const value = JSON.parse(line);
@@ -56156,13 +68525,15 @@ function launchConsoleServerProcess(options3) {
 
 // src/maker/console/server.ts
 import http3 from "node:http";
-import { createHash as createHash6, randomBytes as randomBytes4, timingSafeEqual as timingSafeEqual2 } from "node:crypto";
+import { createHash as createHash7 } from "node:crypto";
 
 // src/maker/console/tasks.ts
 init_privateJson();
 init_diagnosticRedaction();
-import fs33 from "node:fs";
-import path34 from "node:path";
+init_qrcodePreflight();
+init_qrcodeInteraction();
+import fs37 from "node:fs";
+import path38 from "node:path";
 import { randomUUID as randomUUID7 } from "node:crypto";
 var ConsoleTasks = class {
   constructor(projects, execute, historyFile, onSettled = () => {
@@ -56173,10 +68544,10 @@ var ConsoleTasks = class {
     this.onSettled = onSettled;
     this.tasks = /* @__PURE__ */ new Map();
     this.running = /* @__PURE__ */ new Set();
-    if (historyFile && fs33.existsSync(historyFile)) {
-      if (fs33.statSync(historyFile).size > 40 * 1024 * 1024)
+    if (historyFile && fs37.existsSync(historyFile)) {
+      if (fs37.statSync(historyFile).size > 40 * 1024 * 1024)
         throw new ConsoleError("Console task history exceeds the supported size.");
-      const data = JSON.parse(fs33.readFileSync(historyFile, "utf8"));
+      const data = JSON.parse(fs37.readFileSync(historyFile, "utf8"));
       if (!Array.isArray(data) || data.length > 100)
         throw new ConsoleError("Invalid console task history.");
       for (const task of data) {
@@ -56187,22 +68558,67 @@ var ConsoleTasks = class {
         }
         this.tasks.set(task.id, task);
       }
+      const before = this.tasks.size;
+      this.pruneHistory();
+      if (this.tasks.size !== before) this.persist();
+    }
+  }
+  pruneHistory() {
+    const counts = /* @__PURE__ */ new Map();
+    for (const task of Array.from(this.tasks.values()).reverse()) {
+      const count = (counts.get(task.projectKey) || 0) + 1;
+      counts.set(task.projectKey, count);
+      if (count > 10 && task.status !== "running") this.tasks.delete(task.id);
+    }
+    while (this.tasks.size > 100) {
+      const old = Array.from(this.tasks.values()).find((task) => task.status !== "running");
+      if (!old) break;
+      this.tasks.delete(old.id);
     }
   }
   list() {
-    return Array.from(this.tasks.values()).reverse();
+    return Array.from(this.tasks.values()).reverse().map((task) => this.describe(task));
+  }
+  describe(task) {
+    const result = task.result;
+    const interaction = task.action === "qrcode" && ["failed", "unknown"].includes(task.status) ? parseQrcodeInteraction(result == null ? void 0 : result.error) || parseQrcodeInteraction(task.error) : void 0;
+    const recovery = task.action === "qrcode" && ["failed", "unknown"].includes(task.status) ? parseQrcodeRecovery(result == null ? void 0 : result.error) || parseQrcodeRecovery(task.error) : void 0;
+    return {
+      ...task,
+      interaction,
+      recovery,
+      ...interaction || recovery ? { status: "unknown" } : {}
+    };
   }
   get(id) {
     const task = this.tasks.get(id);
     if (!task) throw new ConsoleError("Task not found.", 404);
-    return task;
+    return this.describe(task);
   }
   busy(key) {
     return this.list().some((task) => task.projectKey === key && task.status === "running");
   }
-  start(key, action) {
+  start(key, action, confirmedOrientation, publication, confirmedBuild, sourceTaskId) {
+    var _a3;
     if (!CONSOLE_ACTIONS.includes(action)) throw new ConsoleError("Unsupported console action.");
+    if (confirmedOrientation !== void 0 && (action !== "qrcode" || typeof confirmedOrientation !== "string" || !["landscape", "portrait"].includes(confirmedOrientation)))
+      throw new ConsoleError("Invalid confirmed screen orientation.");
+    if (publication !== void 0 && (action !== "qrcode" || !validQrcodePublication(publication)))
+      throw new ConsoleError("Invalid confirmed QR publishing fields.");
+    if (confirmedBuild !== void 0 && (action !== "qrcode" || typeof confirmedBuild !== "boolean"))
+      throw new ConsoleError("Invalid QR build confirmation.");
     const project = this.projects.resolve(key);
+    if (sourceTaskId !== void 0 || (publication == null ? void 0 : publication.developer_id) !== void 0) {
+      const source = typeof sourceTaskId === "string" ? this.get(sourceTaskId) : void 0;
+      const latest = this.list().find(
+        (item) => item.projectKey === key && item.action === "qrcode"
+      );
+      const developerId = publication == null ? void 0 : publication.developer_id;
+      if (action !== "qrcode" || confirmedBuild !== true || !source || source.projectKey !== key || source.action !== "qrcode" || !["failed", "unknown"].includes(source.status) || (latest == null ? void 0 : latest.id) !== source.id || source.projectPath !== void 0 && source.projectPath !== project.path || source.projectid !== void 0 && source.projectid !== project.projectid || !((_a3 = source.interaction) == null ? void 0 : _a3.options.some((option) => option.value === developerId)))
+        throw new ConsoleError(
+          "Invalid or stale developer selection. Reopen the original QR task."
+        );
+    }
     if (this.busy(key))
       throw new ConsoleError("This project already has an operation in progress.", 409);
     if (this.running.size >= 4)
@@ -56211,17 +68627,16 @@ var ConsoleTasks = class {
       id: randomUUID7(),
       projectKey: key,
       projectName: project.name,
+      projectPath: project.path,
+      projectid: project.projectid,
+      ...typeof sourceTaskId === "string" ? { sourceTaskId } : {},
       action,
       status: "running",
       startedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      output: ""
+      output: "",
+      ...action === "qrcode" && confirmedBuild === true ? { result: { requiresSync: true } } : {}
     };
     this.tasks.set(task.id, task);
-    while (this.tasks.size > 100) {
-      const old = Array.from(this.tasks.values()).find((item) => item.status !== "running");
-      if (!old) break;
-      this.tasks.delete(old.id);
-    }
     try {
       this.persist();
     } catch (error2) {
@@ -56230,10 +68645,15 @@ var ConsoleTasks = class {
     }
     const operation = Promise.resolve().then(async () => {
       try {
-        this.projects.resolve(key);
+        const current = this.projects.resolve(key);
+        if (current.path !== project.path || current.projectid !== project.projectid)
+          throw new ConsoleError("Project binding changed before task execution.");
         const result = await this.execute({
           project: project.path,
           action,
+          confirmedOrientation,
+          publication,
+          confirmedBuild,
           onOutput: (text2) => {
             task.output = (task.output + String(sanitizeDiagnosticValue(text2))).slice(-65536);
           },
@@ -56246,8 +68666,17 @@ var ConsoleTasks = class {
             };
           }
         });
-        const sanitized = sanitizeDiagnosticValue(result);
-        task.result = Buffer.byteLength(JSON.stringify(sanitized)) <= 256 * 1024 ? sanitized : { ok: result.ok, unknown: result.unknown, result_truncated: true };
+        const requiresSync = action === "qrcode" && confirmedBuild === true && (!result.ok || result.unknown) && !Object.hasOwn(result, "requiresSync");
+        const sanitized = sanitizeDiagnosticValue({
+          ...result,
+          ...requiresSync ? { requiresSync: true } : {}
+        });
+        task.result = Buffer.byteLength(JSON.stringify(sanitized)) <= 256 * 1024 ? sanitized : {
+          ok: result.ok,
+          unknown: result.unknown,
+          result_truncated: true,
+          ...sanitized.requiresSync === true ? { requiresSync: true } : {}
+        };
         if (task.result.result_truncated)
           task.output = (task.output + "\nLarge CLI result omitted from console history.").slice(
             -65536
@@ -56278,8 +68707,9 @@ var ConsoleTasks = class {
     await Promise.all(this.running);
   }
   persist() {
+    this.pruneHistory();
     if (this.historyFile) {
-      fs33.mkdirSync(path34.dirname(this.historyFile), { recursive: true, mode: 448 });
+      fs37.mkdirSync(path38.dirname(this.historyFile), { recursive: true, mode: 448 });
       while (Buffer.byteLength(JSON.stringify(Array.from(this.tasks.values()))) > 40 * 1024 * 1024) {
         const oldest = this.list().reverse().find((task) => task.status !== "running");
         if (!oldest) throw new ConsoleError("Active console history exceeds the supported size.");
@@ -56295,8 +68725,8 @@ init_diagnosticRedaction();
 init_luaLsp();
 
 // src/maker/console/integrations/framecrate.ts
-import fs34 from "node:fs";
-import path35 from "node:path";
+import fs38 from "node:fs";
+import path39 from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawn as spawn10 } from "node:child_process";
 var FramecrateLauncher = class {
@@ -56334,7 +68764,7 @@ var FramecrateLauncher = class {
         throw new ConsoleError("FrameCrate requires the exact console host origin.");
       }
     }
-    if (!path35.isAbsolute(projectPath) || fs34.realpathSync(projectPath) !== projectPath)
+    if (!path39.isAbsolute(projectPath) || fs38.realpathSync(projectPath) !== projectPath)
       throw new ConsoleError("FrameCrate requires a validated project realpath.");
     const existing = this.sessions.get(projectPath);
     if (existing) {
@@ -56352,19 +68782,19 @@ var FramecrateLauncher = class {
       );
     const env = this.options.env ?? process.env;
     const configured = (_a3 = env.FRAMECRATE_STUDIO_DIR) == null ? void 0 : _a3.trim();
-    if (!configured || !path35.isAbsolute(configured))
+    if (!configured || !path39.isAbsolute(configured))
       throw new ConsoleError(
         "FrameCrate unavailable: set FRAMECRATE_STUDIO_DIR to the absolute path of an installed studio, then reopen the console.",
         409
       );
-    let root;
+    let root2;
     let entry;
     let loader;
     try {
-      root = fs34.realpathSync(configured);
-      entry = path35.join(root, "server/main.ts");
-      loader = path35.join(root, "node_modules/tsx/dist/loader.mjs");
-      if (!fs34.statSync(entry).isFile() || !fs34.statSync(loader).isFile()) throw new Error();
+      root2 = fs38.realpathSync(configured);
+      entry = path39.join(root2, "server/main.ts");
+      loader = path39.join(root2, "node_modules/tsx/dist/loader.mjs");
+      if (!fs38.statSync(entry).isFile() || !fs38.statSync(loader).isFile()) throw new Error();
     } catch {
       throw new ConsoleError(
         "FrameCrate unavailable: FRAMECRATE_STUDIO_DIR must contain server/main.ts and node_modules/tsx/dist/loader.mjs. No installer is provided.",
@@ -56382,7 +68812,7 @@ var FramecrateLauncher = class {
         ...hostOrigin === void 0 ? [] : ["--host-origin", hostOrigin]
       ],
       {
-        cwd: root,
+        cwd: root2,
         env,
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
@@ -56561,14 +68991,14 @@ var ConsolePlugins = class {
 
 // src/maker/console/updates.ts
 import { execFile as execFile3 } from "node:child_process";
-import fs36 from "node:fs";
-import path37 from "node:path";
+import fs40 from "node:fs";
+import path41 from "node:path";
 
 // src/maker/cli/mcpLauncher.ts
 init_client2();
 init_stdio3();
-import fs35 from "node:fs";
-import path36 from "node:path";
+import fs39 from "node:fs";
+import path40 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 var DEFAULT_VERIFY_TIMEOUT_MS = 9e4;
 var VERIFY_CLIENT_VERSION = "1.0.0";
@@ -56580,6 +69010,7 @@ var SELF_RUNTIME_DIRECTORIES = [
   "skills/update-taptap-mcp"
 ];
 var SELF_RUNTIME_FILES = [
+  "package.json",
   "dist/maker.js",
   "docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md",
   "docs/MAKER_LOCAL_PREVIEW.md",
@@ -56594,33 +69025,33 @@ function materializeMakerSelfLauncher(options3) {
     throw new Error(`Invalid Maker runtime version: ${options3.version}`);
   }
   const execPath = options3.execPath ?? process.execPath;
-  if (!path36.isAbsolute(execPath) || !fs35.existsSync(execPath)) {
+  if (!path40.isAbsolute(execPath) || !fs39.existsSync(execPath)) {
     throw new Error("Maker self launcher requires an existing absolute Node executable.");
   }
   const sourceBundle = fileURLToPath3(options3.bundleUrl);
-  const sourceRoot = path36.dirname(path36.dirname(sourceBundle));
-  const runtimeRoot = path36.join(path36.resolve(options3.makerHome), "mcp-runtime", options3.version);
+  const sourceRoot = path40.dirname(path40.dirname(sourceBundle));
+  const runtimeRoot = path40.join(path40.resolve(options3.makerHome), "mcp-runtime", options3.version);
   for (const relativePath of [...SELF_RUNTIME_FILES, ...SELF_RUNTIME_DIRECTORIES]) {
-    const sourcePath = path36.join(sourceRoot, relativePath);
-    if (!fs35.existsSync(sourcePath)) {
+    const sourcePath = path40.join(sourceRoot, relativePath);
+    if (!fs39.existsSync(sourcePath)) {
       throw new Error(`Maker self runtime source is incomplete: ${sourcePath}`);
     }
   }
-  if (path36.resolve(sourceRoot) !== path36.resolve(runtimeRoot)) {
+  if (path40.resolve(sourceRoot) !== path40.resolve(runtimeRoot)) {
     for (const relativePath of SELF_RUNTIME_FILES) {
-      const sourcePath = path36.join(sourceRoot, relativePath);
-      const targetPath = path36.join(runtimeRoot, relativePath);
-      fs35.mkdirSync(path36.dirname(targetPath), { recursive: true });
-      fs35.copyFileSync(sourcePath, targetPath);
+      const sourcePath = path40.join(sourceRoot, relativePath);
+      const targetPath = path40.join(runtimeRoot, relativePath);
+      fs39.mkdirSync(path40.dirname(targetPath), { recursive: true });
+      fs39.copyFileSync(sourcePath, targetPath);
     }
     for (const relativePath of SELF_RUNTIME_DIRECTORIES) {
       copySelfRuntimeDirectory(
-        path36.join(sourceRoot, relativePath),
-        path36.join(runtimeRoot, relativePath)
+        path40.join(sourceRoot, relativePath),
+        path40.join(runtimeRoot, relativePath)
       );
     }
   }
-  const stableBundle = path36.join(runtimeRoot, "dist", "maker.js");
+  const stableBundle = path40.join(runtimeRoot, "dist", "maker.js");
   return {
     kind: "self_runtime",
     command: execPath,
@@ -56630,7 +69061,7 @@ function materializeMakerSelfLauncher(options3) {
 }
 function copySelfRuntimeDirectory(sourcePath, targetPath) {
   try {
-    fs35.cpSync(sourcePath, targetPath, { recursive: true });
+    fs39.cpSync(sourcePath, targetPath, { recursive: true });
   } catch (error2) {
     const code = typeof error2 === "object" && error2 !== null && "code" in error2 ? String(error2.code) : void 0;
     if (!code || !SELF_RUNTIME_COPY_FALLBACK_CODES.has(code)) {
@@ -56640,14 +69071,14 @@ function copySelfRuntimeDirectory(sourcePath, targetPath) {
   }
 }
 function copyDirectoryEntries(sourcePath, targetPath) {
-  fs35.mkdirSync(targetPath, { recursive: true });
-  for (const entry of fs35.readdirSync(sourcePath, { withFileTypes: true })) {
-    const sourceEntry = path36.join(sourcePath, entry.name);
-    const targetEntry = path36.join(targetPath, entry.name);
+  fs39.mkdirSync(targetPath, { recursive: true });
+  for (const entry of fs39.readdirSync(sourcePath, { withFileTypes: true })) {
+    const sourceEntry = path40.join(sourcePath, entry.name);
+    const targetEntry = path40.join(targetPath, entry.name);
     if (entry.isDirectory()) {
       copyDirectoryEntries(sourceEntry, targetEntry);
     } else {
-      fs35.copyFileSync(sourceEntry, targetEntry);
+      fs39.copyFileSync(sourceEntry, targetEntry);
     }
   }
 }
@@ -56662,10 +69093,10 @@ function resolveMakerMcpLauncher(options3) {
       commandAndArgs: ["npx", ...args]
     };
   }
-  const existsSync2 = options3.existsSync ?? fs35.existsSync;
+  const existsSync2 = options3.existsSync ?? fs39.existsSync;
   const execPath = options3.execPath ?? process.execPath;
   const npmExecPath = options3.npmExecPath ?? process.env.npm_execpath;
-  const windowsPath = path36.win32;
+  const windowsPath = path40.win32;
   const npmCliCandidates = uniqueStrings([
     npmExecPath,
     windowsPath.join(windowsPath.dirname(execPath), "node_modules", "npm", "bin", "npm-cli.js")
@@ -56833,8 +69264,8 @@ function runConsoleUpgrade(version2) {
   if (!VERSION2.test(version2)) throw new Error("无效版本号");
   const launcher = resolveMakerMcpLauncher({ packageName: `@taptap/maker@${version2}` });
   const home2 = getMakerHome();
-  const cache = path37.join(home2, "cache", "npm");
-  fs36.mkdirSync(cache, { recursive: true });
+  const cache = path41.join(home2, "cache", "npm");
+  fs40.mkdirSync(cache, { recursive: true });
   return new Promise((resolve, reject) => {
     execFile3(
       launcher.command,
@@ -56920,9 +69351,9 @@ var ConsoleUpdates = class {
 };
 
 // src/maker/console/documents.ts
-import fs37 from "node:fs";
-import path38 from "node:path";
-import { createHash as createHash5 } from "node:crypto";
+import fs41 from "node:fs";
+import path42 from "node:path";
+import { createHash as createHash6 } from "node:crypto";
 
 // node_modules/marked/lib/marked.esm.js
 function _getDefaults() {
@@ -59026,9 +71457,9 @@ var GROUPS = [
   ["examples", "示例与模板"],
   ["templates", "示例与模板"]
 ];
-function inside2(root, file2) {
-  const relative = path38.relative(root, file2);
-  return relative !== ".." && !relative.startsWith(`..${path38.sep}`) && !path38.isAbsolute(relative);
+function inside2(root2, file3) {
+  const relative = path42.relative(root2, file3);
+  return relative !== ".." && !relative.startsWith(`..${path42.sep}`) && !path42.isAbsolute(relative);
 }
 var ConsoleDocuments = class {
   constructor(packageRoot) {
@@ -59039,49 +71470,49 @@ var ConsoleDocuments = class {
     const seen = /* @__PURE__ */ new Set();
     let visited = 0;
     const collect = (base, source, relative, kind, category) => {
-      if (!fs37.existsSync(base)) return;
-      const root = fs37.realpathSync(base);
+      if (!fs41.existsSync(base)) return;
+      const root2 = fs41.realpathSync(base);
       const walk = (filename2, depth) => {
         var _a3, _b;
         if (depth > 7 || visited++ > 6e3 || entries.length >= MAX_ENTRIES) return;
         try {
-          const real = fs37.realpathSync(filename2);
-          if (!inside2(root, real)) return;
-          const stat = fs37.statSync(real);
+          const real = fs41.realpathSync(filename2);
+          if (!inside2(root2, real)) return;
+          const stat = fs41.statSync(real);
           if (stat.isDirectory()) {
-            if (fs37.lstatSync(filename2).isSymbolicLink()) return;
-            for (const name of fs37.readdirSync(filename2).sort()) {
+            if (fs41.lstatSync(filename2).isSymbolicLink()) return;
+            for (const name of fs41.readdirSync(filename2).sort()) {
               if (name === "node_modules" || name === ".git") continue;
-              walk(path38.join(filename2, name), depth + 1);
+              walk(path42.join(filename2, name), depth + 1);
             }
           } else if (stat.isFile() && /\.md$/i.test(filename2) && stat.size <= MAX_FILE && !seen.has(real)) {
             seen.add(real);
-            const relativePath = path38.relative(root, filename2).split(path38.sep).join("/");
-            const descriptor = fs37.openSync(real, "r");
+            const relativePath = path42.relative(root2, filename2).split(path42.sep).join("/");
+            const descriptor = fs41.openSync(real, "r");
             const buffer = Buffer.alloc(Math.min(8192, stat.size));
             let content;
             try {
-              content = buffer.subarray(0, fs37.readSync(descriptor, buffer, 0, buffer.length, 0)).toString("utf8");
+              content = buffer.subarray(0, fs41.readSync(descriptor, buffer, 0, buffer.length, 0)).toString("utf8");
             } finally {
-              fs37.closeSync(descriptor);
+              fs41.closeSync(descriptor);
             }
             const heading = (_b = (_a3 = content.match(/^#\s+(.+)$/m)) == null ? void 0 : _a3[1]) == null ? void 0 : _b.trim();
-            const fallback = path38.basename(filename2).toLowerCase() === "skill.md" ? path38.basename(path38.dirname(filename2)) : path38.basename(filename2, path38.extname(filename2));
+            const fallback = path42.basename(filename2).toLowerCase() === "skill.md" ? path42.basename(path42.dirname(filename2)) : path42.basename(filename2, path42.extname(filename2));
             entries.push({
-              id: createHash5("sha256").update(source + ":" + relativePath).digest("hex"),
+              id: createHash6("sha256").update(source + ":" + relativePath).digest("hex"),
               title: (heading || fallback).slice(0, 160),
               kind,
               category,
               source,
               relativePath,
               filename: real,
-              root
+              root: root2
             });
           }
         } catch {
         }
       };
-      walk(path38.join(root, relative), 0);
+      walk(path42.join(root2, relative), 0);
     };
     for (const filename2 of [
       "MAKER_CONSOLE.md",
@@ -59133,10 +71564,10 @@ var ConsoleDocuments = class {
     if (!entry) throw new ConsoleError("文档不存在或已移除，请刷新目录。", 404);
     let content = entry.content;
     if (content === void 0) {
-      const real = fs37.realpathSync(entry.filename);
-      if (!inside2(entry.root, real) || fs37.statSync(real).size > MAX_FILE)
+      const real = fs41.realpathSync(entry.filename);
+      if (!inside2(entry.root, real) || fs41.statSync(real).size > MAX_FILE)
         throw new ConsoleError("文档无法安全读取。", 403);
-      content = fs37.readFileSync(real, "utf8");
+      content = fs41.readFileSync(real, "utf8");
     }
     return {
       id,
@@ -59149,8 +71580,8 @@ var ConsoleDocuments = class {
 
 // src/maker/console/folderPicker.ts
 import { execFile as execFile4 } from "node:child_process";
-import path39 from "node:path";
-async function chooseProjectDirectory(platform = process.platform) {
+import path43 from "node:path";
+async function chooseProjectDirectory(platform = process.platform, signal) {
   let command;
   let args;
   if (platform === "darwin") {
@@ -59167,7 +71598,7 @@ async function chooseProjectDirectory(platform = process.platform) {
       ].join("\n")
     ];
   } else if (platform === "win32") {
-    command = path39.win32.join(
+    command = path43.win32.join(
       process.env.SystemRoot || "C:\\Windows",
       "System32",
       "WindowsPowerShell",
@@ -59176,6 +71607,7 @@ async function chooseProjectDirectory(platform = process.platform) {
     );
     const script = [
       '$ErrorActionPreference = "Stop"',
+      'if (-not [Environment]::UserInteractive) { throw "MAKER_NO_INTERACTIVE_DESKTOP" }',
       "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)",
       "Add-Type -AssemblyName System.Windows.Forms",
       "[System.Windows.Forms.Application]::EnableVisualStyles()",
@@ -59184,7 +71616,12 @@ async function chooseProjectDirectory(platform = process.platform) {
       "$dialog.ShowNewFolderButton = $false",
       "$owner = New-Object System.Windows.Forms.Form",
       "$owner.TopMost = $true",
+      '$owner.Text = "Maker - 选择项目文件夹"',
+      "$owner.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen",
+      "$owner.Size = New-Object System.Drawing.Size(360, 100)",
       "try {",
+      "  $owner.Show()",
+      "  $owner.Activate()",
       "  if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {",
       "    [Console]::WriteLine($dialog.SelectedPath)",
       "  }",
@@ -59201,29 +71638,33 @@ async function chooseProjectDirectory(platform = process.platform) {
     throw new ConsoleError("选择本地文件夹目前支持 macOS 和 Windows。");
   }
   return new Promise((resolve, reject) => {
-    execFile4(
+    var _a3;
+    const child = execFile4(
       command,
       args,
       {
         encoding: "utf8",
         windowsHide: true,
         timeout: 12e4,
-        maxBuffer: 64 * 1024
+        maxBuffer: 64 * 1024,
+        signal
       },
-      (error2, stdout) => {
+      (error2, stdout, stderr) => {
         if (error2) {
-          reject(new ConsoleError("无法打开文件夹选择窗口，或选择已超时，请重试。", 503));
+          const message = (stderr == null ? void 0 : stderr.includes("MAKER_NO_INTERACTIVE_DESKTOP")) ? "控制台进程无法访问 Windows 桌面，请从本机交互式终端启动控制台后重试。" : (signal == null ? void 0 : signal.aborted) ? "文件夹选择已取消。" : "无法打开文件夹选择窗口，或选择已超时，请重试。";
+          reject(new ConsoleError(message, 422));
           return;
         }
         resolve(stdout.replace(/[\r\n]+$/, "") || null);
       }
     );
+    (_a3 = child == null ? void 0 : child.stdin) == null ? void 0 : _a3.end();
   });
 }
 
 // src/maker/console/projectDiscovery.ts
-import fs38 from "node:fs";
-import path40 from "node:path";
+import fs42 from "node:fs";
+import path44 from "node:path";
 var EXCLUDED = /* @__PURE__ */ new Set([
   ".git",
   "node_modules",
@@ -59238,12 +71679,12 @@ var EXCLUDED = /* @__PURE__ */ new Set([
   "System Volume Information"
 ]);
 async function discoverConsoleProjects(directory, registry2) {
-  const root = await fs38.promises.realpath(directory);
+  const root2 = await fs42.promises.realpath(directory);
   const known = new Set(registry2.list().map((project) => project.path));
   const result = { added: 0, existing: 0, skipped: 0, limited: false };
   const deadline = Date.now() + 1e4;
   let visited = 0;
-  const queue = [{ directory: root, depth: 0 }];
+  const queue = [{ directory: root2, depth: 0 }];
   while (queue.length) {
     if (visited >= 5e3 || Date.now() >= deadline || result.added + result.existing >= 200) {
       result.limited = true;
@@ -59251,8 +71692,8 @@ async function discoverConsoleProjects(directory, registry2) {
     }
     const current = queue.shift();
     visited++;
-    const marker = path40.join(current.directory, ".maker-mcp/config.json");
-    if (fs38.existsSync(marker) || fs38.existsSync(path40.join(current.directory, ".project/project.json"))) {
+    const marker = path44.join(current.directory, ".maker-mcp/config.json");
+    if (fs42.existsSync(marker) || fs42.existsSync(path44.join(current.directory, ".project/project.json"))) {
       try {
         const project = registry2.add(current.directory);
         if (known.has(project.path)) result.existing++;
@@ -59266,7 +71707,7 @@ async function discoverConsoleProjects(directory, registry2) {
       }
     }
     try {
-      const entries = await fs38.promises.opendir(current.directory);
+      const entries = await fs42.promises.opendir(current.directory);
       for await (const entry of entries) {
         if (++visited >= 5e3 || Date.now() >= deadline) {
           result.limited = true;
@@ -59278,7 +71719,7 @@ async function discoverConsoleProjects(directory, registry2) {
           continue;
         }
         queue.push({
-          directory: path40.join(current.directory, entry.name),
+          directory: path44.join(current.directory, entry.name),
           depth: current.depth + 1
         });
       }
@@ -59289,53 +71730,6 @@ async function discoverConsoleProjects(directory, registry2) {
   return result;
 }
 
-// src/maker/console/fortuneEmbed.ts
-var FORTUNE_EMBED_PREFIX = "/gdev-fortune/";
-var FORTUNE_UPSTREAM_ORIGIN = "https://liangdong-ttm.github.io";
-var FORTUNE_MAX_BYTES = 512 * 1024;
-var FORTUNE_SIZE_SCRIPT = `(function(){
-function measure(){
-  var root=document.querySelector('main.container')||document.body;
-  return Math.max(root.scrollHeight||0,root.offsetHeight||0,document.documentElement.scrollHeight||0);
-}
-function report(){
-  var height=Math.ceil(measure());
-  if(height>0&&parent!==window) parent.postMessage({type:'gdev-fortune:size',height:height},location.origin);
-}
-window.addEventListener('load',report);
-document.addEventListener('DOMContentLoaded',report);
-if(typeof ResizeObserver==='function') new ResizeObserver(report).observe(document.querySelector('main.container')||document.body);
-})();`;
-function fortuneEmbedCsp() {
-  return [
-    "default-src 'none'",
-    "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
-    "connect-src 'self'",
-    "frame-ancestors 'self'",
-    "base-uri 'none'",
-    "form-action 'none'"
-  ].join("; ");
-}
-function fortuneUpstreamUrl(pathname, search = "") {
-  if (!pathname.startsWith(FORTUNE_EMBED_PREFIX) || pathname.includes("..") || pathname.includes("\\")) {
-    throw new Error("Invalid fortune embed path.");
-  }
-  const target = new URL(pathname + search, FORTUNE_UPSTREAM_ORIGIN);
-  if (target.origin !== FORTUNE_UPSTREAM_ORIGIN || !target.pathname.startsWith(FORTUNE_EMBED_PREFIX)) {
-    throw new Error("Fortune embed path escaped the upstream site.");
-  }
-  return target;
-}
-function rewriteFortuneHtml(html) {
-  const script = `<script>${FORTUNE_SIZE_SCRIPT}</script>`;
-  return html.includes("</body>") ? html.replace("</body>", `${script}</body>`) : html + script;
-}
-function fortuneResponseTooLarge(bytes) {
-  return bytes > FORTUNE_MAX_BYTES;
-}
-
 // src/maker/console/server.ts
 async function startConsoleServer(options3) {
   const now = options3.now || Date.now;
@@ -59344,7 +71738,6 @@ async function startConsoleServer(options3) {
   const touch = () => {
     lastActivity = now();
   };
-  const token = options3.token || randomBytes4(32).toString("hex");
   const tasks = new ConsoleTasks(options3.registry, options3.execute, options3.historyFile, touch);
   const plugins = new ConsolePlugins(options3.registry, options3.plugins);
   const updates = new ConsoleUpdates(options3.version, options3.distribution);
@@ -59386,7 +71779,7 @@ async function startConsoleServer(options3) {
     }
   }
   const scriptHashes = [...options3.html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
-    (match) => `'sha256-${createHash6("sha256").update(match[1]).digest("base64")}'`
+    (match) => `'sha256-${createHash7("sha256").update(match[1]).digest("base64")}'`
   );
   const server = http3.createServer(async (request2, response) => {
     const json2 = (status, value) => {
@@ -59408,9 +71801,9 @@ async function startConsoleServer(options3) {
         "default-src 'none'",
         `script-src ${scriptHashes.join(" ") || "'none'"}`,
         "style-src 'unsafe-inline'",
-        "img-src 'self' data:",
+        "img-src 'self' data: https://tapcode-sce.spark.xd.com",
         "connect-src 'self'",
-        "frame-src 'self' http://127.0.0.1:*",
+        "frame-src http://127.0.0.1:* https://liangdong-ttm.github.io",
         "base-uri 'none'",
         "form-action 'none'",
         "frame-ancestors 'none'"
@@ -59433,14 +71826,6 @@ async function startConsoleServer(options3) {
         response.end(options3.html);
         return;
       }
-      if (request2.method === "GET" && url2.pathname.startsWith(FORTUNE_EMBED_PREFIX)) {
-        await proxyFortuneEmbed(url2, response);
-        return;
-      }
-      const expected = Buffer.from(`Bearer ${token}`);
-      const actual = Buffer.from(request2.headers.authorization || "");
-      if (expected.length !== actual.length || !timingSafeEqual2(expected, actual))
-        throw new ConsoleError("Console session expired. Open the console again from Maker.", 401);
       if (request2.method !== "GET" && request2.headers.origin !== origin)
         throw new ConsoleError("Same-origin writes are required.", 403);
       if (request2.method === "GET" && url2.pathname === "/api/health") {
@@ -59489,10 +71874,18 @@ async function startConsoleServer(options3) {
         if (selectingFolder) throw new ConsoleError("文件夹选择或扫描正在进行，请稍候。", 409);
         selectingFolder = true;
         touch();
+        const selection = new AbortController();
+        const cancelSelection = () => selection.abort();
+        response.once("close", cancelSelection);
         try {
-          const directory = await chooseProjectDirectory();
-          json2(200, directory ? await discoverConsoleProjects(directory, options3.registry) : { cancelled: true });
+          const directory = await chooseProjectDirectory(process.platform, selection.signal);
+          selection.signal.throwIfAborted();
+          json2(
+            200,
+            directory ? await discoverConsoleProjects(directory, options3.registry) : { cancelled: true }
+          );
         } finally {
+          response.removeListener("close", cancelSelection);
           selectingFolder = false;
           touch();
         }
@@ -59510,7 +71903,14 @@ async function startConsoleServer(options3) {
         const body = await bodyForMutation();
         if (typeof body.projectKey !== "string" || typeof body.action !== "string")
           throw new ConsoleError("Explicit projectKey and action are required.");
-        const task2 = tasks.start(body.projectKey, body.action);
+        const task2 = tasks.start(
+          body.projectKey,
+          body.action,
+          body.confirmedOrientation,
+          body.publication,
+          body.confirmedBuild,
+          body.sourceTaskId
+        );
         touch();
         json2(202, task2);
         return;
@@ -59652,35 +72052,7 @@ async function startConsoleServer(options3) {
     })();
     return closePromise;
   }
-  return { origin, token, tasks, close, closed };
-}
-async function proxyFortuneEmbed(url2, response) {
-  let upstream;
-  try {
-    upstream = fortuneUpstreamUrl(url2.pathname, url2.search);
-  } catch {
-    throw new ConsoleError("Invalid fortune embed path.", 400);
-  }
-  const remote = await fetch(upstream, {
-    redirect: "follow",
-    headers: { Accept: "text/html,text/css,application/javascript,*/*;q=0.8" },
-    signal: AbortSignal.timeout(8e3)
-  });
-  const finalUrl = new URL(remote.url);
-  if (!remote.ok || finalUrl.origin !== FORTUNE_UPSTREAM_ORIGIN || !finalUrl.pathname.startsWith(FORTUNE_EMBED_PREFIX)) {
-    throw new ConsoleError("Fortune embed is unavailable.", 502);
-  }
-  const type = remote.headers.get("content-type") || "application/octet-stream";
-  const buffer = Buffer.from(await remote.arrayBuffer());
-  if (fortuneResponseTooLarge(buffer.length))
-    throw new ConsoleError("Fortune embed exceeded size limit.", 502);
-  const html = type.includes("text/html");
-  response.writeHead(200, {
-    "Content-Type": html ? "text/html; charset=utf-8" : type,
-    "Cache-Control": "no-store",
-    "Content-Security-Policy": fortuneEmbedCsp()
-  });
-  response.end(html ? rewriteFortuneHtml(buffer.toString("utf8")) : buffer);
+  return { origin, tasks, close, closed };
 }
 async function readBody(request2) {
   var _a3;
@@ -59706,15 +72078,15 @@ async function readBody(request2) {
 
 // src/maker/console/cli.ts
 var VERSION3 = false ? "dev" : "0.0.33";
-var CONSOLE_PROTOCOL_VERSION = 1;
+var CONSOLE_PROTOCOL_VERSION = 2;
 function home() {
-  return path41.join(getMakerHome(), "console");
+  return path45.join(getMakerHome(), "console");
 }
 function sessionPath() {
-  return path41.join(home(), "session.json");
+  return path45.join(home(), "session.json");
 }
 function createConsoleLauncherIdentity(version2, developmentSource) {
-  return createHash7("sha256").update(
+  return createHash8("sha256").update(
     JSON.stringify({
       protocol: CONSOLE_PROTOCOL_VERSION,
       version: version2,
@@ -59730,16 +72102,16 @@ function ensureCompatibleConsoleLauncher(actual, expected) {
   }
 }
 function launcherIdentity() {
-  const entry = fs39.realpathSync(process.argv[1]);
+  const entry = fs43.realpathSync(process.argv[1]);
   return createConsoleLauncherIdentity(VERSION3, {
     entry,
-    mtimeMs: fs39.statSync(entry).mtimeMs
+    mtimeMs: fs43.statSync(entry).mtimeMs
   });
 }
 function readSession() {
-  if (!fs39.existsSync(sessionPath())) return void 0;
-  const session = JSON.parse(fs39.readFileSync(sessionPath(), "utf8"));
-  if (session.schema !== 1 || !/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(session.origin) || Number(new URL(session.origin).port) > 65535 || !/^[a-f0-9]{64}$/.test(session.token) || !/^[a-f0-9-]{36}$/.test(session.instanceId) || !Number.isInteger(session.pid) || session.pid <= 0 || typeof session.launcher !== "string" || session.draining !== void 0 && typeof session.draining !== "boolean")
+  if (!fs43.existsSync(sessionPath())) return void 0;
+  const session = JSON.parse(fs43.readFileSync(sessionPath(), "utf8"));
+  if (session.schema !== 1 || !/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(session.origin) || Number(new URL(session.origin).port) > 65535 || !/^[a-f0-9-]{36}$/.test(session.instanceId) || !Number.isInteger(session.pid) || session.pid <= 0 || typeof session.launcher !== "string" || session.draining !== void 0 && typeof session.draining !== "boolean")
     throw new ConsoleError(
       "Invalid local console session. Refusing to contact an unknown service."
     );
@@ -59749,7 +72121,6 @@ async function request(session, route, body, timeoutMs = 1e4) {
   const response = await fetch(session.origin + route, {
     method: body === void 0 ? "GET" : "POST",
     headers: {
-      Authorization: `Bearer ${session.token}`,
       Origin: session.origin,
       "Content-Type": "application/json"
     },
@@ -59758,6 +72129,11 @@ async function request(session, route, body, timeoutMs = 1e4) {
     redirect: "error"
   });
   const value = await response.json();
+  if (response.status === 401)
+    throw new ConsoleError(
+      "An older console requiring a token is still running. Close it from its console page or run console stop with the previous Maker version, then reopen this version.",
+      409
+    );
   if (!response.ok)
     throw new ConsoleError(value.error || `Console HTTP ${response.status}`, response.status);
   return value;
@@ -59776,7 +72152,7 @@ async function activeSession(timeoutMs = 1e4) {
       if (cause.code === "ESRCH") return void 0;
     }
     const latest = readSession();
-    if ((latest == null ? void 0 : latest.draining) && latest.instanceId === session.instanceId && latest.pid === session.pid && latest.origin === session.origin && latest.token === session.token && latest.launcher === session.launcher)
+    if ((latest == null ? void 0 : latest.draining) && latest.instanceId === session.instanceId && latest.pid === session.pid && latest.origin === session.origin && latest.launcher === session.launcher)
       return { ...latest, draining: true };
     throw error2;
   }
@@ -59811,9 +72187,9 @@ async function runConsoleSupervisor() {
       registry: registry2,
       html: getConsoleHtml2(),
       version: VERSION3,
-      packageRoot: path41.dirname(path41.dirname(path41.resolve(process.argv[1]))),
+      packageRoot: path45.dirname(path45.dirname(path45.resolve(process.argv[1]))),
       distribution: process.env.TAPTAP_MAKER_DISTRIBUTION,
-      historyFile: path41.join(home(), "tasks.json"),
+      historyFile: path45.join(home(), "tasks.json"),
       instanceId,
       execute: createConsoleExecutor({ entry: process.argv[1] }),
       onDraining: () => {
@@ -59825,7 +72201,6 @@ async function runConsoleSupervisor() {
     const record2 = {
       schema: 1,
       origin: server.origin,
-      token: server.token,
       instanceId,
       pid: process.pid,
       launcher: launcherIdentity()
@@ -59839,7 +72214,7 @@ async function runConsoleSupervisor() {
     const cleanup = () => {
       var _a3;
       try {
-        if (((_a3 = readSession()) == null ? void 0 : _a3.instanceId) === instanceId) fs39.unlinkSync(sessionPath());
+        if (((_a3 = readSession()) == null ? void 0 : _a3.instanceId) === instanceId) fs43.unlinkSync(sessionPath());
       } catch {
       }
       release();
@@ -59862,22 +72237,22 @@ async function runConsoleSupervisor() {
   }
 }
 async function claimConsoleServerLock(directory) {
-  fs39.mkdirSync(directory, { recursive: true, mode: 448 });
-  return claimOwnedLock(path41.join(directory, "server.lock"));
+  fs43.mkdirSync(directory, { recursive: true, mode: 448 });
+  return claimOwnedLock(path45.join(directory, "server.lock"));
 }
 async function claimOwnedLock(filename2) {
-  filename2 = path41.join(fs39.realpathSync(path41.dirname(filename2)), path41.basename(filename2));
+  filename2 = path45.join(fs43.realpathSync(path45.dirname(filename2)), path45.basename(filename2));
   const identity = `${process.pid}:${randomUUID8()}`;
   const recoveryFilename = filename2 + ".recovery";
-  const releaseMutex = await claimRecoveryMutex(filename2);
+  const releaseMutex = await claimRecoveryMutex2(filename2);
   try {
     claimRecoveryGuard(recoveryFilename, identity);
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        fs39.writeFileSync(filename2, identity, { flag: "wx", mode: 384 });
+        fs43.writeFileSync(filename2, identity, { flag: "wx", mode: 384 });
         return () => {
           try {
-            if (fs39.readFileSync(filename2, "utf8") === identity) fs39.unlinkSync(filename2);
+            if (fs43.readFileSync(filename2, "utf8") === identity) fs43.unlinkSync(filename2);
           } catch {
           }
         };
@@ -59885,7 +72260,7 @@ async function claimOwnedLock(filename2) {
         if (error2.code !== "EEXIST") throw error2;
         let previous;
         try {
-          previous = fs39.readFileSync(filename2, "utf8");
+          previous = fs43.readFileSync(filename2, "utf8");
         } catch (cause) {
           if (cause.code === "ENOENT") continue;
           throw cause;
@@ -59900,7 +72275,7 @@ async function claimOwnedLock(filename2) {
         } catch (cause) {
           if (cause.code === "ESRCH") {
             try {
-              if (fs39.readFileSync(filename2, "utf8") === previous) fs39.unlinkSync(filename2);
+              if (fs43.readFileSync(filename2, "utf8") === previous) fs43.unlinkSync(filename2);
             } catch (error3) {
               if (error3.code !== "ENOENT") throw error3;
             }
@@ -59919,44 +72294,32 @@ async function claimOwnedLock(filename2) {
     }
   }
 }
-function claimRecoveryMutex(filename2) {
-  const port = 49152 + createHash7("sha256").update(filename2).digest().readUInt16BE(0) % 16384;
-  const server = createServer((socket) => socket.destroy());
-  return new Promise((resolve, reject) => {
-    server.once("error", (error2) => {
-      reject(
-        error2.code === "EADDRINUSE" ? new ConsoleError(
-          `Console ownership recovery is busy (loopback port ${port} is in use). Try again.`,
-          409
-        ) : error2
-      );
-    });
-    server.listen({ host: "127.0.0.1", port, exclusive: true }, () => {
-      resolve(
-        () => new Promise((done, fail) => {
-          server.close((error2) => error2 ? fail(error2) : done());
-        })
-      );
-    });
-  });
+function claimRecoveryMutex2(filename2) {
+  return claimRecoveryMutex(
+    filename2,
+    (port) => new ConsoleError(
+      `Console ownership recovery is busy (loopback port ${port} is in use). Try again.`,
+      409
+    )
+  );
 }
 function claimRecoveryGuard(filename2, identity) {
   for (let attempt = 0; attempt < 3; attempt++) {
     let descriptor;
     try {
-      descriptor = fs39.openSync(filename2, "wx", 384);
+      descriptor = fs43.openSync(filename2, "wx", 384);
     } catch (error2) {
       if (error2.code !== "EEXIST") throw error2;
       if (reclaimStaleRecoveryGuard(filename2)) continue;
       throw new ConsoleError("Console ownership recovery is already in progress.", 409);
     }
     try {
-      fs39.writeFileSync(descriptor, identity, "utf8");
+      fs43.writeFileSync(descriptor, identity, "utf8");
     } catch (error2) {
-      fs39.unlinkSync(filename2);
+      fs43.unlinkSync(filename2);
       throw error2;
     } finally {
-      fs39.closeSync(descriptor);
+      fs43.closeSync(descriptor);
     }
     return;
   }
@@ -59966,8 +72329,8 @@ function reclaimStaleRecoveryGuard(filename2) {
   let content;
   let modified;
   try {
-    content = fs39.readFileSync(filename2, "utf8");
-    modified = fs39.statSync(filename2).mtimeMs;
+    content = fs43.readFileSync(filename2, "utf8");
+    modified = fs43.statSync(filename2).mtimeMs;
   } catch (error2) {
     return error2.code === "ENOENT";
   }
@@ -59975,8 +72338,8 @@ function reclaimStaleRecoveryGuard(filename2) {
   const stale = Number.isInteger(pid) && pid > 0 ? processPresence(pid) === "missing" : content === "" && Date.now() - modified >= 2e3;
   if (!stale) return false;
   try {
-    if (fs39.readFileSync(filename2, "utf8") === content && fs39.statSync(filename2).mtimeMs === modified) {
-      fs39.unlinkSync(filename2);
+    if (fs43.readFileSync(filename2, "utf8") === content && fs43.statSync(filename2).mtimeMs === modified) {
+      fs43.unlinkSync(filename2);
       return true;
     }
   } catch (error2) {
@@ -59986,19 +72349,19 @@ function reclaimStaleRecoveryGuard(filename2) {
 }
 function removeOwnedFile(filename2, identity) {
   try {
-    if (fs39.readFileSync(filename2, "utf8") === identity) fs39.unlinkSync(filename2);
+    if (fs43.readFileSync(filename2, "utf8") === identity) fs43.unlinkSync(filename2);
   } catch {
   }
 }
 async function ensureSession() {
   var _a3;
-  fs39.mkdirSync(home(), { recursive: true, mode: 448 });
+  fs43.mkdirSync(home(), { recursive: true, mode: 448 });
   const existing = await availableSession();
   if (existing) {
     ensureCompatibleConsoleLauncher(existing.launcher, launcherIdentity());
     return existing;
   }
-  const lock = path41.join(home(), "launch.lock");
+  const lock = path45.join(home(), "launch.lock");
   let releaseLaunch;
   for (let attempt = 0; attempt < 60; attempt++) {
     try {
@@ -60027,7 +72390,7 @@ async function ensureSession() {
       execArgv: process.execArgv,
       entry: process.argv[1],
       cwd: home(),
-      logFile: path41.join(home(), "server.log"),
+      logFile: path45.join(home(), "server.log"),
       env: process.env
     });
     for (let attempt = 0; attempt < 80; attempt++) {
@@ -60090,7 +72453,7 @@ async function runConsoleCli(action, options3) {
   if (action !== "open") throw new ConsoleError("Use console open|status|stop.");
   const target = typeof options3.target_dir === "string" ? options3.target_dir : void 0;
   if (target) {
-    if (!path41.isAbsolute(target))
+    if (!path45.isAbsolute(target))
       throw new ConsoleError("--target-dir must be an absolute project path.");
     const { previewProject: previewProject2 } = await Promise.resolve().then(() => (init_protocol2(), protocol_exports));
     previewProject2(target);
@@ -60098,7 +72461,14 @@ async function runConsoleCli(action, options3) {
   const session = await ensureSession();
   const project = target ? await request(session, "/api/projects", { path: target }) : void 0;
   await request(session, "/api/activity", {});
-  const url2 = `${session.origin}/${project ? "?project=" + project.key : ""}#token=${session.token}`;
+  const query = new URLSearchParams();
+  if (project) {
+    query.set("projectid", project.projectid);
+    const state = await request(session, "/api/state");
+    if (state.projects.filter((item) => item.projectid === project.projectid).length > 1)
+      query.set("checkout", project.key);
+  }
+  const url2 = `${session.origin}/${project ? "?" + query : ""}`;
   if (options3.no_open !== true) openBrowser2(url2);
   process.stdout.write(
     JSON.stringify(
@@ -60168,6 +72538,134 @@ async function runBuildCli(options3) {
   if (!result.ok) process.exitCode = 1;
 }
 
+// src/maker/cli/qrcode.ts
+init_protocol2();
+init_config();
+init_diagnosticRedaction();
+init_qrcodePreflight();
+init_qrcodeInteraction();
+init_projects();
+async function executeQrcodeCommand(directory, orientation, injected, options3 = {}) {
+  var _a3, _b;
+  let requiresSync = options3.confirmedBuild === true;
+  try {
+    const project = previewProject(directory);
+    if (orientation !== void 0 && !["landscape", "portrait"].includes(orientation))
+      throw new Error("Invalid confirmed screen orientation.");
+    if ((orientation !== void 0 || options3.publication !== void 0) && !options3.confirmedBuild)
+      throw new Error(
+        "Publishing choices require --confirmed-build to commit and push before generating the QR code."
+      );
+    const deps = injected || await defaultDependencies2();
+    const access = await deps.access();
+    if (access.blocked)
+      return { ok: false, requiresSync, error: access.message || "Maker access restricted." };
+    const preparation = deps.readiness(project);
+    if (preparation.status !== "ready")
+      return { ok: false, requiresSync, preparation, error: preparation.message };
+    if (options3.confirmedBuild) {
+      const prepared = deps.prepare(project, orientation, options3.publication);
+      if (!prepared.ok) return { ok: false, requiresSync, error: prepared.message };
+    }
+    const preflight = deps.preflight(project, orientation);
+    if (!preflight.ok) return { ok: false, requiresSync, error: preflight.message };
+    if (options3.confirmedBuild) {
+      const submission = await deps.submit({
+        cwd: project,
+        preserveQrcodeChoices: true,
+        onProgress: (progress) => process.stderr.write(JSON.stringify(sanitizeDiagnosticValue(progress)) + "\n")
+      });
+      if (submission.failure || !submission.pushed && submission.status !== "clean")
+        return {
+          ok: false,
+          requiresSync: true,
+          result: sanitizeDiagnosticValue(submission),
+          error: String(
+            sanitizeDiagnosticValue(
+              [
+                ((_a3 = submission.failure) == null ? void 0 : _a3.message) || "二维码配置提交失败。",
+                (_b = submission.failure) == null ? void 0 : _b.nextAction
+              ].filter(Boolean).join("\n")
+            )
+          )
+        };
+    }
+    requiresSync = false;
+    const result = await deps.call({
+      targetDir: project,
+      name: "generate_test_qrcode",
+      args: {},
+      onProgress: (progress) => process.stderr.write(
+        JSON.stringify(
+          sanitizeDiagnosticValue({
+            ...progress,
+            phase: "qrcode",
+            message: progress.message || "正在生成测试二维码"
+          })
+        ) + "\n"
+      )
+    });
+    const content = Array.isArray(result.content) ? result.content : [];
+    const summary = content.filter((item) => item.type === "text").map((item) => String(item.text)).join("\n");
+    const interaction = result.isError ? parseQrcodeInteraction(summary) : void 0;
+    const recovery = result.isError ? parseQrcodeRecovery(summary) : void 0;
+    return sanitizeDiagnosticValue({
+      ok: !result.isError,
+      result,
+      ...result.isError ? { error: summary || "测试二维码生成失败，请查看完整结果。" } : {},
+      ...interaction ? { interaction, unknown: true } : {},
+      ...recovery ? { recovery, unknown: true } : {},
+      requiresSync: false
+    });
+  } catch (error2) {
+    const message = String(
+      sanitizeDiagnosticValue(error2 instanceof Error ? error2.message : String(error2))
+    );
+    const interaction = parseQrcodeInteraction(message);
+    const recovery = parseQrcodeRecovery(message);
+    return {
+      ok: false,
+      requiresSync,
+      unknown: Boolean(interaction || recovery) || (error2 == null ? void 0 : error2.executionState) === "unknown",
+      ...interaction ? { interaction } : {},
+      ...recovery ? { recovery } : {},
+      error: message
+    };
+  }
+}
+async function defaultDependencies2() {
+  const mcp = await Promise.resolve().then(() => (init_mcp(), mcp_exports));
+  return {
+    access: () => mcp.resolveMakerMcpAccessState(getMakerEnvironment()),
+    preflight: mcp.inspectMakerQrcodeToolPreflight,
+    call: mcp.callRemoteProxyTool,
+    prepare: inspectMakerQrcodePreflight,
+    readiness: inspectMakerQrcodePreparation,
+    submit: pushMakerProject
+  };
+}
+async function runQrcodeCli(options3) {
+  const result = await executeQrcodeCommand(
+    typeof options3.target_dir === "string" ? options3.target_dir : "",
+    typeof options3.confirmed_screen_orientation === "string" ? options3.confirmed_screen_orientation : void 0,
+    void 0,
+    {
+      confirmedBuild: options3.confirmed_build === true,
+      ...options3.confirmed_title !== void 0 || options3.confirmed_category !== void 0 || options3.confirmed_developer_id !== void 0 ? {
+        publication: {
+          ...options3.confirmed_developer_id !== void 0 ? {
+            developer_id: typeof options3.confirmed_developer_id === "string" && /^[1-9]\d*$/.test(options3.confirmed_developer_id) ? Number(options3.confirmed_developer_id) : NaN
+          } : {},
+          ...typeof options3.confirmed_title === "string" ? { title: options3.confirmed_title } : {},
+          ...typeof options3.confirmed_category === "string" ? { category: options3.confirmed_category } : {}
+        }
+      } : {}
+    }
+  );
+  process.stdout.write(JSON.stringify(result, null, options3.json ? void 0 : 2) + "\n");
+  if (!result.ok) process.exitCode = 1;
+}
+
 // src/maker/cli/commands.ts
 init_projects();
 init_devKit();
@@ -60186,16 +72684,16 @@ init_diagnosticRedaction();
 init_identify();
 init_pluginDistribution();
 import { spawnSync as spawnSync7 } from "node:child_process";
-import fs41 from "node:fs";
-import os6 from "node:os";
-import path43 from "node:path";
+import fs45 from "node:fs";
+import os7 from "node:os";
+import path47 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // src/maker/cli/dshMcpConfig.ts
 var import_yaml = __toESM(require_dist2());
-import fs40 from "node:fs";
-import os5 from "node:os";
-import path42 from "node:path";
+import fs44 from "node:fs";
+import os6 from "node:os";
+import path46 from "node:path";
 var DSH_MCP_PLUGIN_NAME = "@deepseek-ai/dsh-mcp-client";
 var DSH_MAKER_PLUGIN_ID = "mcp-taptap-maker";
 var DSH_MAKER_TOOL_CALL_TIMEOUT_MS = 60 * 60 * 1e3;
@@ -60203,10 +72701,10 @@ function getDshHome(options3 = {}) {
   var _a3;
   const configured = (_a3 = (options3.environment || process.env).DSH_HOME) == null ? void 0 : _a3.trim();
   if (configured) {
-    const expanded = configured === "~" ? options3.homeDir || os5.homedir() : configured.startsWith("~/") || configured.startsWith("~\\") ? path42.join(options3.homeDir || os5.homedir(), configured.slice(2)) : configured;
-    return path42.resolve(expanded);
+    const expanded = configured === "~" ? options3.homeDir || os6.homedir() : configured.startsWith("~/") || configured.startsWith("~\\") ? path46.join(options3.homeDir || os6.homedir(), configured.slice(2)) : configured;
+    return path46.resolve(expanded);
   }
-  return path42.join(options3.homeDir || os5.homedir(), ".dsh");
+  return path46.join(options3.homeDir || os6.homedir(), ".dsh");
 }
 function createDshMakerPluginConfig(options3) {
   return {
@@ -60224,8 +72722,8 @@ function createDshMakerPluginConfig(options3) {
   };
 }
 function mergeDshMakerMcpConfig(configPath, desired) {
-  const existed = fs40.existsSync(configPath);
-  const previousContent = existed ? fs40.readFileSync(configPath, "utf8") : "[]\n";
+  const existed = fs44.existsSync(configPath);
+  const previousContent = existed ? fs44.readFileSync(configPath, "utf8") : "[]\n";
   const document = parseDshDocument(previousContent, configPath);
   const sequence = ensurePluginSequence(document, configPath);
   const candidates = findDshMakerPluginCandidates(
@@ -60284,7 +72782,7 @@ function findDshMakerPluginEntry(content, mcpName, source = "DSH config") {
 }
 function getDshMcpInstallPaths(options3) {
   const dshHome = getDshHome(options3);
-  const homePatchPath = path42.join(dshHome, "cordis.patch.yml");
+  const homePatchPath = path46.join(dshHome, "cordis.patch.yml");
   const homeHasMaker = dshConfigFileHasMaker(homePatchPath, options3.mcpName);
   const profilePatchPaths = listDshProfilePatchPathsForInstall(dshHome).filter(
     (configPath) => dshConfigFileHasMaker(configPath, options3.mcpName)
@@ -60300,22 +72798,22 @@ function getDshMcpInstallPaths(options3) {
   return profilePatchPaths.length > 0 ? profilePatchPaths : [homePatchPath];
 }
 function listDshProfilePatchPathsForInstall(dshHome) {
-  const profilesDir = path42.join(dshHome, "profiles");
+  const profilesDir = path46.join(dshHome, "profiles");
   let entries;
   try {
-    entries = fs40.readdirSync(profilesDir, { withFileTypes: true });
+    entries = fs44.readdirSync(profilesDir, { withFileTypes: true });
   } catch (error2) {
     if (isMissingPathError(error2)) {
       return [];
     }
     throw error2;
   }
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().map((profileName) => path42.join(profilesDir, profileName, "cordis.patch.yml"));
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().map((profileName) => path46.join(profilesDir, profileName, "cordis.patch.yml"));
 }
 function dshConfigFileHasMaker(configPath, mcpName) {
   let content;
   try {
-    content = fs40.readFileSync(configPath, "utf8");
+    content = fs44.readFileSync(configPath, "utf8");
   } catch (error2) {
     if (isMissingPathError(error2)) {
       return false;
@@ -60328,21 +72826,21 @@ function isMissingPathError(error2) {
   return typeof error2 === "object" && error2 !== null && "code" in error2 && error2.code === "ENOENT";
 }
 function listDshMcpConfigPaths(options3) {
-  const dshHome = options3.dshHome || path42.join(options3.homeDir, ".dsh");
-  const paths = [path42.join(dshHome, "cordis.patch.yml")];
-  const profilesDir = path42.join(dshHome, "profiles");
-  if (!fs40.existsSync(profilesDir)) {
+  const dshHome = options3.dshHome || path46.join(options3.homeDir, ".dsh");
+  const paths = [path46.join(dshHome, "cordis.patch.yml")];
+  const profilesDir = path46.join(dshHome, "profiles");
+  if (!fs44.existsSync(profilesDir)) {
     return paths;
   }
   let profileNames = [];
   try {
-    profileNames = fs40.readdirSync(profilesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().slice(0, 50);
+    profileNames = fs44.readdirSync(profilesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().slice(0, 50);
   } catch {
     return paths;
   }
   for (const profileName of profileNames) {
-    const profileDir = path42.join(profilesDir, profileName);
-    paths.push(path42.join(profileDir, "cordis.patch.yml"), path42.join(profileDir, "cordis.yml"));
+    const profileDir = path46.join(profilesDir, profileName);
+    paths.push(path46.join(profileDir, "cordis.patch.yml"), path46.join(profileDir, "cordis.yml"));
   }
   return paths;
 }
@@ -60394,14 +72892,14 @@ function findDshMakerPluginCandidates(patches, mcpName) {
 }
 function writeDshConfigWithBackup(configPath, previousContent, existed, nextContent, desired) {
   const backupPath = existed ? `${configPath}.taptap-maker.bak.latest` : void 0;
-  fs40.mkdirSync(path42.dirname(configPath), { recursive: true });
+  fs44.mkdirSync(path46.dirname(configPath), { recursive: true });
   if (backupPath) {
-    fs40.writeFileSync(backupPath, previousContent, "utf8");
+    fs44.writeFileSync(backupPath, previousContent, "utf8");
   }
   try {
-    fs40.writeFileSync(configPath, nextContent, "utf8");
+    fs44.writeFileSync(configPath, nextContent, "utf8");
     const written = findDshMakerPluginEntry(
-      fs40.readFileSync(configPath, "utf8"),
+      fs44.readFileSync(configPath, "utf8"),
       desired.config.serverName,
       configPath
     );
@@ -60413,9 +72911,9 @@ function writeDshConfigWithBackup(configPath, previousContent, existed, nextCont
     return { changed: true, backupPath };
   } catch (error2) {
     if (existed) {
-      fs40.writeFileSync(configPath, previousContent, "utf8");
+      fs44.writeFileSync(configPath, previousContent, "utf8");
     } else {
-      fs40.rmSync(configPath, { force: true });
+      fs44.rmSync(configPath, { force: true });
     }
     throw error2;
   }
@@ -60494,7 +72992,7 @@ function inspectMakerMcpClientConfig(options3) {
   if (!configPaths) {
     return { ide, status: "unsupported", entries: [] };
   }
-  const entries = configPaths.filter((configPath) => fs41.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, options3.mcpName || MAKER_MCP_NAME));
+  const entries = configPaths.filter((configPath) => fs45.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, options3.mcpName || MAKER_MCP_NAME));
   const status = entries.some((entry) => entry.status === "found") ? "found" : entries.some((entry) => entry.status === "unreadable") ? "unreadable" : entries.length > 0 ? "missing_entry" : "not_found";
   return { ide, status, entries };
 }
@@ -60508,15 +73006,15 @@ function resolveMakerMcpReportRuntime(options3) {
       `${pluginDistribution.displayName} plugin diagnostics require the active Maker bundle URL.`
     );
   }
-  const bundlePath = path43.resolve(fileURLToPath4(options3.bundleUrl));
-  const pluginRoot = path43.dirname(path43.dirname(bundlePath));
+  const bundlePath = path47.resolve(fileURLToPath4(options3.bundleUrl));
+  const pluginRoot = path47.dirname(path47.dirname(bundlePath));
   const execPath = options3.execPath ?? process.execPath;
   return {
     distribution: pluginDistribution.id,
     client: pluginDistribution.client,
     config_source: {
       format: "json",
-      paths: [path43.join(pluginRoot, ".mcp.json")],
+      paths: [path47.join(pluginRoot, ".mcp.json")],
       mcp_name: "taptap-maker-plugin"
     },
     launcher: {
@@ -60566,9 +73064,9 @@ function buildMakerMcpIssue(options3) {
 async function collectMakerMcpIssueDiagnostics(options3) {
   var _a3, _b;
   const platform = options3.platform || process.platform;
-  const homeDir = options3.homeDir || os6.homedir();
-  const processCwd = path43.resolve(options3.processCwd || process.cwd());
-  const targetDir = path43.resolve(options3.targetDir);
+  const homeDir = options3.homeDir || os7.homedir();
+  const processCwd = path47.resolve(options3.processCwd || process.cwd());
+  const targetDir = path47.resolve(options3.targetDir);
   const identify = identifyMakerProject({ cwd: targetDir });
   const projectContext = identify.projectRoot ? {
     status: "bound",
@@ -60648,29 +73146,29 @@ function submitMakerMcpIssue(issue3, options3 = {}) {
 function getMcpConfigPaths(options3) {
   const { ide, homeDir, platform } = options3;
   if (ide === "codex") {
-    return [path43.join(homeDir, ".codex", "config.toml")];
+    return [path47.join(homeDir, ".codex", "config.toml")];
   }
   if (ide === "cursor") {
-    return [path43.join(homeDir, ".cursor", "mcp.json")];
+    return [path47.join(homeDir, ".cursor", "mcp.json")];
   }
   if (ide === "claude") {
-    return [path43.join(homeDir, ".claude.json")];
+    return [path47.join(homeDir, ".claude.json")];
   }
   if (ide === "opencode") {
-    return [path43.join(homeDir, ".config", "opencode", "opencode.jsonc")];
+    return [path47.join(homeDir, ".config", "opencode", "opencode.jsonc")];
   }
   if (ide === "workbuddy") {
-    const primary = path43.join(homeDir, ".workbuddy", "mcp.json");
-    if (fs41.existsSync(primary)) {
+    const primary = path47.join(homeDir, ".workbuddy", "mcp.json");
+    if (fs45.existsSync(primary)) {
       return [primary];
     }
-    const legacy = path43.join(homeDir, ".workbuddy", ".mcp.json");
-    return fs41.existsSync(legacy) ? [legacy] : [primary];
+    const legacy = path47.join(homeDir, ".workbuddy", ".mcp.json");
+    return fs45.existsSync(legacy) ? [legacy] : [primary];
   }
   if (ide === "trae") {
-    const root = platform === "win32" ? options3.appData || path43.join(homeDir, "AppData", "Roaming") : path43.join(homeDir, "Library", "Application Support");
+    const root2 = platform === "win32" ? options3.appData || path47.join(homeDir, "AppData", "Roaming") : path47.join(homeDir, "Library", "Application Support");
     return ["TRAE SOLO", "TRAE SOLO CN", "Trae", "TRAE", "Trae CN"].map(
-      (name) => path43.join(root, name, "User", "mcp.json")
+      (name) => path47.join(root2, name, "User", "mcp.json")
     );
   }
   if (ide === "dsh") {
@@ -60681,7 +73179,7 @@ function getMcpConfigPaths(options3) {
 function inspectMcpConfigFile(configPath, ide, mcpName, format) {
   try {
     const resolvedFormat = format ?? (ide === "codex" ? "codex_toml" : ide === "dsh" ? "dsh" : ide === "opencode" ? "jsonc" : "json");
-    const content = fs41.readFileSync(configPath, "utf8");
+    const content = fs45.readFileSync(configPath, "utf8");
     const server = resolvedFormat === "codex_toml" ? extractCodexMcpServerConfig(content, mcpName) : resolvedFormat === "dsh" ? extractDshMcpServerConfig(content, mcpName, configPath) : extractMakerMcpServerConfig(
       parseJsonConfig(content, resolvedFormat === "jsonc"),
       mcpName
@@ -60692,7 +73190,7 @@ function inspectMcpConfigFile(configPath, ide, mcpName, format) {
   }
 }
 function inspectMakerMcpConfigSource(ide, source) {
-  const entries = source.paths.filter((configPath) => fs41.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, source.mcp_name, source.format));
+  const entries = source.paths.filter((configPath) => fs45.existsSync(configPath)).map((configPath) => inspectMcpConfigFile(configPath, ide, source.mcp_name, source.format));
   const status = entries.some((entry) => entry.status === "found") ? "found" : entries.some((entry) => entry.status === "unreadable") ? "unreadable" : entries.length > 0 ? "missing_entry" : "not_found";
   return { ide, status, entries };
 }
@@ -60909,13 +73407,13 @@ function inspectWorkBuddyTrust(homeDir, mcpName) {
     pending_accounts: 0,
     unreadable_accounts: 0
   };
-  const connectorsDir = path43.join(homeDir, ".workbuddy", "connectors");
-  if (!fs41.existsSync(connectorsDir)) {
+  const connectorsDir = path47.join(homeDir, ".workbuddy", "connectors");
+  if (!fs45.existsSync(connectorsDir)) {
     return { status: "not_found", ...emptyCounts };
   }
   let entries;
   try {
-    entries = fs41.readdirSync(connectorsDir, { withFileTypes: true });
+    entries = fs45.readdirSync(connectorsDir, { withFileTypes: true });
   } catch {
     return { status: "unreadable", ...emptyCounts };
   }
@@ -60924,12 +73422,12 @@ function inspectWorkBuddyTrust(homeDir, mcpName) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const statePath = path43.join(connectorsDir, entry.name, "connector-states.json");
-    if (!fs41.existsSync(statePath)) {
+    const statePath = path47.join(connectorsDir, entry.name, "connector-states.json");
+    if (!fs45.existsSync(statePath)) {
       continue;
     }
     try {
-      const state = JSON.parse(fs41.readFileSync(statePath, "utf8"));
+      const state = JSON.parse(fs45.readFileSync(statePath, "utf8"));
       if (!isRecord4(state)) {
         counts.accounts_checked += 1;
         counts.unreadable_accounts += 1;
@@ -61124,9 +73622,9 @@ function stripControlCharacters(value) {
 
 // src/maker/cli/pluginMigration.ts
 init_storage();
-import fs43 from "node:fs";
-import os7 from "node:os";
-import path45 from "node:path";
+import fs47 from "node:fs";
+import os8 from "node:os";
+import path49 from "node:path";
 import crypto3 from "node:crypto";
 
 // src/maker/cli/codexMcpConfig.ts
@@ -61333,28 +73831,28 @@ function escapeRegExp3(value) {
 }
 
 // src/maker/cli/configWrite.ts
-import fs42 from "node:fs";
-import path44 from "node:path";
+import fs46 from "node:fs";
+import path48 from "node:path";
 function writeConfigWithTapTapBackupIfChanged(filePath, nextContent, validate2) {
-  const existed = fs42.existsSync(filePath);
-  const previousContent = existed ? fs42.readFileSync(filePath, "utf8") : void 0;
+  const existed = fs46.existsSync(filePath);
+  const previousContent = existed ? fs46.readFileSync(filePath, "utf8") : void 0;
   if (previousContent === nextContent) {
     return { changed: false };
   }
   const backupPath = existed ? `${filePath}.taptap-maker.bak.latest` : void 0;
-  fs42.mkdirSync(path44.dirname(filePath), { recursive: true });
+  fs46.mkdirSync(path48.dirname(filePath), { recursive: true });
   if (previousContent !== void 0 && backupPath) {
-    fs42.writeFileSync(backupPath, previousContent, "utf8");
+    fs46.writeFileSync(backupPath, previousContent, "utf8");
   }
   try {
-    fs42.writeFileSync(filePath, nextContent, "utf8");
-    validate2 == null ? void 0 : validate2(fs42.readFileSync(filePath, "utf8"));
+    fs46.writeFileSync(filePath, nextContent, "utf8");
+    validate2 == null ? void 0 : validate2(fs46.readFileSync(filePath, "utf8"));
     return { changed: true, backupPath };
   } catch (error2) {
     if (previousContent !== void 0) {
-      fs42.writeFileSync(filePath, previousContent, "utf8");
+      fs46.writeFileSync(filePath, previousContent, "utf8");
     } else {
-      fs42.rmSync(filePath, { force: true });
+      fs46.rmSync(filePath, { force: true });
     }
     throw error2;
   }
@@ -61362,11 +73860,11 @@ function writeConfigWithTapTapBackupIfChanged(filePath, nextContent, validate2) 
 
 // src/maker/cli/pluginMigration.ts
 function inspectCodexLegacyMakerMcp(options3 = {}) {
-  const configPath = options3.configPath ?? path45.join(os7.homedir(), ".codex", "config.toml");
-  if (!fs43.existsSync(configPath)) {
+  const configPath = options3.configPath ?? path49.join(os8.homedir(), ".codex", "config.toml");
+  if (!fs47.existsSync(configPath)) {
     return createInspection(configPath, "not_found", 0);
   }
-  const content = fs43.readFileSync(configPath, "utf8");
+  const content = fs47.readFileSync(configPath, "utf8");
   const registrations = findCodexMakerMainTables(content);
   if (registrations.length === 0) {
     return createInspection(configPath, "not_found", 0);
@@ -61381,7 +73879,7 @@ function inspectCodexLegacyMakerMcp(options3 = {}) {
   };
 }
 function migrateCodexLegacyMakerMcp(options3 = {}) {
-  const configPath = options3.configPath ?? path45.join(os7.homedir(), ".codex", "config.toml");
+  const configPath = options3.configPath ?? path49.join(os8.homedir(), ".codex", "config.toml");
   const makerHome = options3.makerHome ?? getMakerHome();
   const statePath = getCodexPluginMigrationStatePath(makerHome);
   const inspection = inspectCodexLegacyMakerMcp({ configPath });
@@ -61395,7 +73893,7 @@ function migrateCodexLegacyMakerMcp(options3 = {}) {
   }
   if (inspection.status === "disabled") {
     const state2 = readMigrationState(statePath);
-    const content = fs43.readFileSync(configPath, "utf8");
+    const content = fs47.readFileSync(configPath, "utf8");
     const registration2 = findCodexMakerMainTables(content)[0];
     const owned = (state2 == null ? void 0 : state2.config_path) === configPath && sha256(readCodexMakerRegistration(content, registration2)) === state2.migrated_registration_sha256;
     return {
@@ -61408,7 +73906,7 @@ function migrateCodexLegacyMakerMcp(options3 = {}) {
   if (!options3.confirm) {
     throw new Error("Disabling the legacy Codex Maker MCP requires explicit confirmation.");
   }
-  const previousContent = fs43.readFileSync(configPath, "utf8");
+  const previousContent = fs47.readFileSync(configPath, "utf8");
   const registration = findCodexMakerMainTables(previousContent)[0];
   const nextContent = disableCodexMakerRegistration(previousContent, registration);
   const state = {
@@ -61422,13 +73920,13 @@ function migrateCodexLegacyMakerMcp(options3 = {}) {
     ),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs43.mkdirSync(path45.dirname(statePath), { recursive: true });
+  fs47.mkdirSync(path49.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(configPath, nextContent, () => {
     const migratedInspection = inspectCodexLegacyMakerMcp({ configPath });
     if (migratedInspection.status !== "disabled") {
       throw new Error("Codex Maker MCP migration validation did not find a disabled registration.");
     }
-    fs43.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs47.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   return {
@@ -61440,7 +73938,7 @@ function migrateCodexLegacyMakerMcp(options3 = {}) {
   };
 }
 function restoreCodexLegacyMakerMcp(options3 = {}) {
-  const configPath = options3.configPath ?? path45.join(os7.homedir(), ".codex", "config.toml");
+  const configPath = options3.configPath ?? path49.join(os8.homedir(), ".codex", "config.toml");
   const makerHome = options3.makerHome ?? getMakerHome();
   const statePath = getCodexPluginMigrationStatePath(makerHome);
   const inspection = inspectCodexLegacyMakerMcp({ configPath });
@@ -61461,14 +73959,14 @@ function restoreCodexLegacyMakerMcp(options3 = {}) {
       "The migrated Codex Maker MCP registration no longer exists and cannot be restored."
     );
   }
-  const previousContent = fs43.readFileSync(configPath, "utf8");
+  const previousContent = fs47.readFileSync(configPath, "utf8");
   const registration = findCodexMakerMainTables(previousContent)[0];
   const registrationSha256 = sha256(readCodexMakerRegistration(previousContent, registration));
   if (inspection.status === "active") {
     if (registrationSha256 !== state.original_registration_sha256) {
       return { ...inspection, action: "not_owned", changed: false };
     }
-    fs43.unlinkSync(statePath);
+    fs47.unlinkSync(statePath);
     return { ...inspection, action: "already_restored", changed: false };
   }
   if (registrationSha256 !== state.migrated_registration_sha256) {
@@ -61482,12 +73980,12 @@ function restoreCodexLegacyMakerMcp(options3 = {}) {
         "Codex Maker MCP restoration validation did not find an active registration."
       );
     }
-    const restoredContent = fs43.readFileSync(configPath, "utf8");
+    const restoredContent = fs47.readFileSync(configPath, "utf8");
     const restoredRegistration = findCodexMakerMainTables(restoredContent)[0];
     if (sha256(readCodexMakerRegistration(restoredContent, restoredRegistration)) !== state.original_registration_sha256) {
       throw new Error("Codex Maker MCP restoration changed the migrated registration identity.");
     }
-    fs43.unlinkSync(statePath);
+    fs47.unlinkSync(statePath);
   });
   return {
     ...inspectCodexLegacyMakerMcp({ configPath }),
@@ -61550,14 +74048,14 @@ function readCodexMakerRegistration(content, registration) {
   return content.slice(registration.headerStart, registration.bodyEnd).trimEnd();
 }
 function getCodexPluginMigrationStatePath(makerHome) {
-  return path45.join(makerHome, "plugin-migrations", "codex.json");
+  return path49.join(makerHome, "plugin-migrations", "codex.json");
 }
 function readMigrationState(statePath) {
-  if (!fs43.existsSync(statePath)) {
+  if (!fs47.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs43.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs47.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 2 && state.client === "codex" ? state : void 0;
   } catch {
     return void 0;
@@ -61647,7 +74145,7 @@ function migrateWorkBuddyLegacyMakerMcp(options3 = {}) {
     migrated_registration_sha256: hashWorkBuddyRegistration(migratedRegistration),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs43.mkdirSync(path45.dirname(statePath), { recursive: true });
+  fs47.mkdirSync(path49.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(current.configPath, nextContent, () => {
     const migrated = findWorkBuddyMakerRegistrations(configPaths).find(
       (entry) => entry.configPath === current.configPath
@@ -61657,7 +74155,7 @@ function migrateWorkBuddyLegacyMakerMcp(options3 = {}) {
         "WorkBuddy Maker MCP migration validation did not find the disabled registration."
       );
     }
-    fs43.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs47.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   const migratedInspection = inspectWorkBuddyLegacyMakerMcp({ configPaths });
@@ -61711,7 +74209,7 @@ function restoreWorkBuddyLegacyMakerMcp(options3 = {}) {
         changed: false
       };
     }
-    fs43.unlinkSync(statePath);
+    fs47.unlinkSync(statePath);
     return {
       ...inspection,
       config_path: current.configPath,
@@ -61744,7 +74242,7 @@ function restoreWorkBuddyLegacyMakerMcp(options3 = {}) {
     if (!restored || hashWorkBuddyRegistration(restored.registration) !== state.original_registration_sha256) {
       throw new Error("WorkBuddy Maker MCP restoration changed the registration identity.");
     }
-    fs43.unlinkSync(statePath);
+    fs47.unlinkSync(statePath);
   });
   return {
     ...inspectWorkBuddyLegacyMakerMcp({ configPaths }),
@@ -61757,19 +74255,19 @@ function restoreWorkBuddyLegacyMakerMcp(options3 = {}) {
 }
 function getWorkBuddyConfigPaths(configPaths) {
   return configPaths ?? [
-    path45.join(os7.homedir(), ".workbuddy", "mcp.json"),
-    path45.join(os7.homedir(), ".workbuddy", ".mcp.json")
+    path49.join(os8.homedir(), ".workbuddy", "mcp.json"),
+    path49.join(os8.homedir(), ".workbuddy", ".mcp.json")
   ];
 }
 function findWorkBuddyMakerRegistrations(configPaths) {
   const registrations = [];
   for (const configPath of configPaths) {
-    if (!fs43.existsSync(configPath)) {
+    if (!fs47.existsSync(configPath)) {
       continue;
     }
     let config2;
     try {
-      config2 = JSON.parse(fs43.readFileSync(configPath, "utf8"));
+      config2 = JSON.parse(fs47.readFileSync(configPath, "utf8"));
     } catch (error2) {
       throw new Error(
         `Cannot parse WorkBuddy MCP config ${configPath}: ${error2 instanceof Error ? error2.message : String(error2)}`
@@ -61804,14 +74302,14 @@ function setWorkBuddyMakerRegistration(config2, registration) {
   servers["taptap-maker"] = registration;
 }
 function getWorkBuddyPluginMigrationStatePath(makerHome) {
-  return path45.join(makerHome, "plugin-migrations", "workbuddy.json");
+  return path49.join(makerHome, "plugin-migrations", "workbuddy.json");
 }
 function readWorkBuddyMigrationState(statePath) {
-  if (!fs43.existsSync(statePath)) {
+  if (!fs47.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs43.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs47.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 1 && state.client === "workbuddy" ? state : void 0;
   } catch {
     return void 0;
@@ -61836,9 +74334,9 @@ function isRecord5(value) {
 // src/maker/cli/dshPluginMigration.ts
 var import_yaml2 = __toESM(require_dist2());
 init_storage();
-import fs44 from "node:fs";
-import os8 from "node:os";
-import path46 from "node:path";
+import fs48 from "node:fs";
+import os9 from "node:os";
+import path50 from "node:path";
 import crypto4 from "node:crypto";
 var DSH_MAKER_MCP_NAME = "taptap-maker";
 function inspectDshLegacyMakerMcp(options3 = {}) {
@@ -61871,7 +74369,7 @@ function migrateDshLegacyMakerMcp(options3 = {}) {
     );
   }
   const registration = registrations[0];
-  const previousContent = fs44.readFileSync(registration.configPath, "utf8");
+  const previousContent = fs48.readFileSync(registration.configPath, "utf8");
   const document = (0, import_yaml2.parseDocument)(previousContent, { prettyErrors: true });
   if (document.errors.length > 0) {
     throw new Error(`Invalid YAML in ${registration.configPath}: ${document.errors[0].message}`);
@@ -61886,13 +74384,13 @@ function migrateDshLegacyMakerMcp(options3 = {}) {
     removed_registration_sha256: sha2562(JSON.stringify(registration.registration)),
     migrated_at: (/* @__PURE__ */ new Date()).toISOString()
   };
-  fs44.mkdirSync(path46.dirname(statePath), { recursive: true });
+  fs48.mkdirSync(path50.dirname(statePath), { recursive: true });
   const write = writeConfigWithTapTapBackupIfChanged(registration.configPath, nextContent, () => {
     const after = findDshMakerRegistrations(options3.dshHome);
     if (after.some((entry) => entry.configPath === registration.configPath)) {
       throw new Error("DSH Maker MCP migration validation still found a registration.");
     }
-    fs44.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
+    fs48.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}
 `, "utf8");
   });
   return {
@@ -61925,13 +74423,13 @@ function restoreDshLegacyMakerMcp(options3 = {}) {
     const current = findDshMakerRegistrations(options3.dshHome)[0];
     const currentSha = sha2562(JSON.stringify(current.registration));
     if (currentSha === state.removed_registration_sha256) {
-      fs44.rmSync(statePath, { force: true });
+      fs48.rmSync(statePath, { force: true });
       return { ...inspection, action: "already_restored", changed: false, state_path: statePath };
     }
     return { ...inspection, action: "not_owned", changed: false };
   }
   const configPath = state.config_path;
-  const previousContent = fs44.readFileSync(configPath, "utf8");
+  const previousContent = fs48.readFileSync(configPath, "utf8");
   const document = (0, import_yaml2.parseDocument)(previousContent, { prettyErrors: true });
   if (document.errors.length > 0) {
     throw new Error(`Invalid YAML in ${configPath}: ${document.errors[0].message}`);
@@ -61944,7 +74442,7 @@ function restoreDshLegacyMakerMcp(options3 = {}) {
     if (!match || sha2562(JSON.stringify(match.registration)) !== state.removed_registration_sha256) {
       throw new Error("DSH Maker MCP restoration changed the registration identity.");
     }
-    fs44.rmSync(statePath, { force: true });
+    fs48.rmSync(statePath, { force: true });
   });
   return {
     ...inspectDshLegacyMakerMcp(options3),
@@ -61956,13 +74454,13 @@ function restoreDshLegacyMakerMcp(options3 = {}) {
 }
 function findDshMakerRegistrations(dshHome) {
   const resolvedDshHome = dshHome || getDshHome();
-  const configPaths = listDshMcpConfigPaths({ homeDir: os8.homedir(), dshHome: resolvedDshHome });
+  const configPaths = listDshMcpConfigPaths({ homeDir: os9.homedir(), dshHome: resolvedDshHome });
   const registrations = [];
   for (const configPath of configPaths) {
-    if (!fs44.existsSync(configPath)) {
+    if (!fs48.existsSync(configPath)) {
       continue;
     }
-    const content = fs44.readFileSync(configPath, "utf8");
+    const content = fs48.readFileSync(configPath, "utf8");
     const document = (0, import_yaml2.parseDocument)(content, { prettyErrors: true });
     if (document.errors.length > 0) {
       throw new Error(`Invalid YAML in ${configPath}: ${document.errors[0].message}`);
@@ -62047,14 +74545,14 @@ function isDshMakerPluginCandidate(value) {
   return value.name === DSH_MCP_PLUGIN_NAME && (config2 == null ? void 0 : config2.serverName) === DSH_MAKER_MCP_NAME;
 }
 function getDshPluginMigrationStatePath(makerHome) {
-  return path46.join(makerHome, "plugin-migrations", "dsh.json");
+  return path50.join(makerHome, "plugin-migrations", "dsh.json");
 }
 function readDshMigrationState(statePath) {
-  if (!fs44.existsSync(statePath)) {
+  if (!fs48.existsSync(statePath)) {
     return void 0;
   }
   try {
-    const state = JSON.parse(fs44.readFileSync(statePath, "utf8"));
+    const state = JSON.parse(fs48.readFileSync(statePath, "utf8"));
     return (state == null ? void 0 : state.schema_version) === 1 && state.client === "dsh" ? state : void 0;
   } catch {
     return void 0;
@@ -62080,91 +74578,13 @@ function unique(values) {
 }
 
 // src/maker/cli/workBuddyProjectSkills.ts
-import fs45 from "node:fs";
-import path47 from "node:path";
+init_projectSkills();
 function syncWorkBuddyProjectSkills(targetDir, options3 = {}) {
-  const platform = options3.platform ?? process.platform;
-  const projectDir = path47.resolve(targetDir);
-  const sourceDir = path47.join(projectDir, ".installer", "skills");
-  const workBuddySkillsDir = path47.join(projectDir, ".workbuddy", "skills");
-  const result = {
-    status: "skipped",
-    sourceDir,
-    targetDir: workBuddySkillsDir,
-    installedSkills: [],
-    skippedSkills: []
-  };
-  if (!isDirectory(sourceDir)) {
-    result.reason = "source_not_found";
-    return result;
-  }
-  const sourceSkills = fs45.readdirSync(sourceDir, { withFileTypes: true }).filter(
-    (entry) => entry.isDirectory() && fs45.existsSync(path47.join(sourceDir, entry.name, "SKILL.md"))
-  ).map((entry) => entry.name).sort();
-  for (const sourceSkillName of sourceSkills) {
-    const workBuddySkillName = `taptap-maker-${sourceSkillName}`;
-    const workBuddySkillDir = path47.join(workBuddySkillsDir, workBuddySkillName);
-    if (pathEntryExists(workBuddySkillDir)) {
-      result.skippedSkills.push(workBuddySkillName);
-      continue;
-    }
-    fs45.mkdirSync(workBuddySkillsDir, { recursive: true });
-    installSkillContents(path47.join(sourceDir, sourceSkillName), workBuddySkillDir, platform);
-    result.installedSkills.push(workBuddySkillName);
-  }
-  if (result.installedSkills.length > 0) {
-    result.status = "installed";
-  }
-  return result;
-}
-function installSkillContents(sourceDir, targetDir, platform) {
-  fs45.mkdirSync(targetDir);
-  try {
-    for (const entry of fs45.readdirSync(sourceDir)) {
-      linkOrCopyEntry(path47.join(sourceDir, entry), path47.join(targetDir, entry), platform);
-    }
-  } catch (error2) {
-    fs45.rmSync(targetDir, { recursive: true, force: true });
-    throw error2;
-  }
-}
-function linkOrCopyEntry(source, target, platform) {
-  const stat = fs45.statSync(source);
-  if (platform === "win32" && stat.isFile()) {
-    fs45.copyFileSync(source, target);
-    return;
-  }
-  try {
-    const linkTarget = platform === "win32" ? source : path47.relative(path47.dirname(target), source);
-    const linkType = stat.isDirectory() ? platform === "win32" ? "junction" : "dir" : "file";
-    fs45.symlinkSync(linkTarget, target, linkType);
-  } catch (error2) {
-    try {
-      fs45.cpSync(source, target, { recursive: stat.isDirectory() });
-    } catch (copyError) {
-      throw new Error(
-        `Failed to install WorkBuddy project skill entry ${source}: ${formatError3(error2)}; copy fallback: ${formatError3(copyError)}`
-      );
-    }
-  }
-}
-function isDirectory(value) {
-  try {
-    return fs45.statSync(value).isDirectory();
-  } catch {
-    return false;
-  }
-}
-function pathEntryExists(value) {
-  try {
-    fs45.lstatSync(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-function formatError3(error2) {
-  return error2 instanceof Error ? error2.message : String(error2);
+  return syncProjectSkills(targetDir, {
+    ...options3,
+    client: ".workbuddy",
+    prefix: "taptap-maker-"
+  });
 }
 
 // src/maker/cli/userSkills.ts
@@ -62173,19 +74593,19 @@ init_config();
 init_fetchTimeout();
 init_identify();
 init_storage();
-import fs46 from "node:fs";
-import os9 from "node:os";
-import path48 from "node:path";
+import fs49 from "node:fs";
+import os10 from "node:os";
+import path51 from "node:path";
 import { randomUUID as randomUUID9 } from "node:crypto";
 import { Readable, Transform } from "node:stream";
 import { pipeline as pipeline2 } from "node:stream/promises";
-var USER_SKILL_CLIENT_DIRS = [".codex", ".cursor", ".workbuddy"];
+var USER_SKILL_CLIENT_DIRS = [".codex", ".cursor", ".workbuddy", ".agents"];
 var MAX_ARCHIVE_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 var MAX_ARCHIVE_ENTRIES = 1e3;
 var MAX_ARCHIVE_EXTRACTED_BYTES = 128 * 1024 * 1024;
 async function pullMakerUserSkills(options3 = {}) {
   var _a3, _b;
-  const requestedDir = path48.resolve(options3.targetDir || process.cwd());
+  const requestedDir = path51.resolve(options3.targetDir || process.cwd());
   const project = identifyMakerProject({ cwd: requestedDir });
   if (!project.projectRoot) {
     throw new Error(
@@ -62197,10 +74617,10 @@ async function pullMakerUserSkills(options3 = {}) {
   if (!token) {
     throw new Error("Maker authentication not found. Run `taptap-maker login` and try again.");
   }
-  const sourceDir = path48.join(project.projectRoot, ".installer", "skills");
-  const tempDir = fs46.mkdtempSync(path48.join(os9.tmpdir(), "taptap-maker-user-skills-"));
-  const archivePath = path48.join(tempDir, "user-skills.zip");
-  const stagingDir = path48.join(tempDir, "skills");
+  const sourceDir = path51.join(project.projectRoot, ".installer", "skills");
+  const tempDir = fs49.mkdtempSync(path51.join(os10.tmpdir(), "taptap-maker-user-skills-"));
+  const archivePath = path51.join(tempDir, "user-skills.zip");
+  const stagingDir = path51.join(tempDir, "skills");
   try {
     const response = await fetchWithTimeout(
       options3.fetchImpl || fetch,
@@ -62232,7 +74652,7 @@ async function pullMakerUserSkills(options3 = {}) {
       preservedSkills
     };
   } finally {
-    fs46.rmSync(tempDir, { recursive: true, force: true });
+    fs49.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 async function writeArchiveResponse(response, archivePath) {
@@ -62257,7 +74677,7 @@ async function writeArchiveResponse(response, archivePath) {
   await pipeline2(
     Readable.fromWeb(response.body),
     limit,
-    fs46.createWriteStream(archivePath, { flags: "wx" })
+    fs49.createWriteStream(archivePath, { flags: "wx" })
   );
 }
 function validateUserSkillArchivePath(entryPath) {
@@ -62272,7 +74692,7 @@ function validateUserSkillArchivePath(entryPath) {
   return segments;
 }
 async function extractUserSkillsArchive(archivePath, stagingDir) {
-  fs46.mkdirSync(stagingDir, { recursive: true });
+  fs49.mkdirSync(stagingDir, { recursive: true });
   const zipFile = await import_yauzl.default.openPromise(archivePath, {
     lazyEntries: true,
     decodeStrings: true,
@@ -62292,7 +74712,7 @@ async function extractUserSkillsArchive(archivePath, stagingDir) {
         );
       }
       const segments = validateUserSkillArchivePath(entry.fileName);
-      if (segments.some((segment) => path48.basename(segment).startsWith(".nfs"))) {
+      if (segments.some((segment) => path51.basename(segment).startsWith(".nfs"))) {
         continue;
       }
       const isDirectory2 = isZipDirectory(entry);
@@ -62314,24 +74734,24 @@ async function extractUserSkillsArchive(archivePath, stagingDir) {
       }
       seenPaths.add(collisionKey);
       skillNames.add(segments[0]);
-      const destination = path48.join(stagingDir, ...segments);
+      const destination = path51.join(stagingDir, ...segments);
       if (isDirectory2) {
-        fs46.mkdirSync(destination, { recursive: true });
+        fs49.mkdirSync(destination, { recursive: true });
         continue;
       }
-      fs46.mkdirSync(path48.dirname(destination), { recursive: true });
+      fs49.mkdirSync(path51.dirname(destination), { recursive: true });
       const input2 = await zipFile.openReadStreamPromise(entry);
-      await pipeline2(input2, fs46.createWriteStream(destination, { flags: "wx" }));
+      await pipeline2(input2, fs49.createWriteStream(destination, { flags: "wx" }));
     }
   } finally {
     zipFile.close();
   }
   const installedSkills = [...skillNames].sort();
   for (const skillName of installedSkills) {
-    const definitionPath = path48.join(stagingDir, skillName, "SKILL.md");
+    const definitionPath = path51.join(stagingDir, skillName, "SKILL.md");
     let definition;
     try {
-      definition = fs46.lstatSync(definitionPath);
+      definition = fs49.lstatSync(definitionPath);
     } catch {
       throw new Error(`Maker user Skill "${skillName}" is missing SKILL.md.`);
     }
@@ -62365,31 +74785,31 @@ function installUserSkills(projectRoot, stagingDir, skillNames) {
   if (skillNames.length === 0) {
     return;
   }
-  const installerDir = path48.join(projectRoot, ".installer");
-  const sourceDir = path48.join(installerDir, "skills");
-  const transactionDir = path48.join(installerDir, `.user-skills-${randomUUID9()}`);
-  const preparedDir = path48.join(transactionDir, "prepared");
-  const backupDir = path48.join(transactionDir, "backup");
+  const installerDir = path51.join(projectRoot, ".installer");
+  const sourceDir = path51.join(installerDir, "skills");
+  const transactionDir = path51.join(installerDir, `.user-skills-${randomUUID9()}`);
+  const preparedDir = path51.join(transactionDir, "prepared");
+  const backupDir = path51.join(transactionDir, "backup");
   const completed = [];
   let preserveTransaction = false;
-  fs46.mkdirSync(preparedDir, { recursive: true });
-  fs46.mkdirSync(sourceDir, { recursive: true });
+  fs49.mkdirSync(preparedDir, { recursive: true });
+  fs49.mkdirSync(sourceDir, { recursive: true });
   try {
     for (const skillName of skillNames) {
-      fs46.cpSync(path48.join(stagingDir, skillName), path48.join(preparedDir, skillName), {
+      fs49.cpSync(path51.join(stagingDir, skillName), path51.join(preparedDir, skillName), {
         recursive: true
       });
     }
     for (const skillName of skillNames) {
-      const target = path48.join(sourceDir, skillName);
-      const backup = path48.join(backupDir, skillName);
+      const target = path51.join(sourceDir, skillName);
+      const backup = path51.join(backupDir, skillName);
       const hadExisting = pathExists(target);
       if (hadExisting) {
-        fs46.mkdirSync(path48.dirname(backup), { recursive: true });
-        fs46.renameSync(target, backup);
+        fs49.mkdirSync(path51.dirname(backup), { recursive: true });
+        fs49.renameSync(target, backup);
       }
       completed.push({ target, backup, hadExisting });
-      fs46.renameSync(path48.join(preparedDir, skillName), target);
+      fs49.renameSync(path51.join(preparedDir, skillName), target);
     }
     installUserSkillsForClients(projectRoot, skillNames);
   } catch (error2) {
@@ -62403,7 +74823,7 @@ function installUserSkills(projectRoot, stagingDir, skillNames) {
     throw new Error(`Failed to install Maker user Skills: ${formatError4(error2)}`);
   } finally {
     if (!preserveTransaction) {
-      fs46.rmSync(transactionDir, { recursive: true, force: true });
+      fs49.rmSync(transactionDir, { recursive: true, force: true });
     }
   }
 }
@@ -62411,27 +74831,27 @@ function installUserSkillsForClients(projectRoot, skillNames) {
   if (skillNames.length === 0) {
     return;
   }
-  const sourceRoot = path48.join(projectRoot, ".installer", "skills");
-  const transactionDir = path48.join(
+  const sourceRoot = path51.join(projectRoot, ".installer", "skills");
+  const transactionDir = path51.join(
     projectRoot,
     ".installer",
     `.user-skill-clients-${randomUUID9()}`
   );
-  const backupRoot = path48.join(transactionDir, "backup");
+  const backupRoot = path51.join(transactionDir, "backup");
   const changed = [];
   let preserveTransaction = false;
   try {
     for (const clientDir of USER_SKILL_CLIENT_DIRS) {
-      const targetRoot = path48.join(projectRoot, clientDir, "skills");
-      fs46.mkdirSync(targetRoot, { recursive: true });
+      const targetRoot = path51.join(projectRoot, clientDir, "skills");
+      fs49.mkdirSync(targetRoot, { recursive: true });
       for (const skillName of skillNames) {
-        const source = path48.join(sourceRoot, skillName);
-        const target = path48.join(targetRoot, skillName);
-        const backup = path48.join(backupRoot, clientDir, skillName);
+        const source = path51.join(sourceRoot, skillName);
+        const target = path51.join(targetRoot, skillName);
+        const backup = path51.join(backupRoot, clientDir, skillName);
         const hadExisting = pathExists(target);
         if (hadExisting) {
-          fs46.mkdirSync(path48.dirname(backup), { recursive: true });
-          fs46.renameSync(target, backup);
+          fs49.mkdirSync(path51.dirname(backup), { recursive: true });
+          fs49.renameSync(target, backup);
         }
         changed.push({ target, backup, hadExisting });
         linkOrCopySkill(source, target);
@@ -62448,7 +74868,7 @@ function installUserSkillsForClients(projectRoot, skillNames) {
     throw new Error(`Failed to install Maker user Skills for AI clients: ${formatError4(error2)}`);
   } finally {
     if (!preserveTransaction) {
-      fs46.rmSync(transactionDir, { recursive: true, force: true });
+      fs49.rmSync(transactionDir, { recursive: true, force: true });
     }
   }
 }
@@ -62459,7 +74879,7 @@ function rollbackSkillChanges(changes) {
     try {
       removePathEntry(item.target);
       if (item.hadExisting && pathExists(item.backup)) {
-        fs46.renameSync(item.backup, item.target);
+        fs49.renameSync(item.backup, item.target);
       }
     } catch (error2) {
       errors.push(`${item.target}: ${formatError4(error2)}`);
@@ -62469,12 +74889,12 @@ function rollbackSkillChanges(changes) {
 }
 function linkOrCopySkill(source, target) {
   try {
-    const linkTarget = process.platform === "win32" ? source : path48.relative(path48.dirname(target), source);
-    fs46.symlinkSync(linkTarget, target, process.platform === "win32" ? "junction" : "dir");
+    const linkTarget = process.platform === "win32" ? source : path51.relative(path51.dirname(target), source);
+    fs49.symlinkSync(linkTarget, target, process.platform === "win32" ? "junction" : "dir");
   } catch (linkError) {
     removePathEntry(target);
     try {
-      fs46.cpSync(source, target, { recursive: true });
+      fs49.cpSync(source, target, { recursive: true });
     } catch (copyError) {
       throw new Error(
         `Failed to link ${source}: ${formatError4(linkError)}; copy fallback: ${formatError4(copyError)}`
@@ -62484,12 +74904,12 @@ function linkOrCopySkill(source, target) {
 }
 function removePathEntry(value) {
   try {
-    const stat = fs46.lstatSync(value);
+    const stat = fs49.lstatSync(value);
     if (stat.isSymbolicLink()) {
-      fs46.unlinkSync(value);
+      fs49.unlinkSync(value);
       return;
     }
-    fs46.rmSync(value, { recursive: true, force: true });
+    fs49.rmSync(value, { recursive: true, force: true });
   } catch (error2) {
     if (error2.code !== "ENOENT") {
       throw error2;
@@ -62498,7 +74918,7 @@ function removePathEntry(value) {
 }
 function listLocalSkills(sourceDir) {
   try {
-    return fs46.readdirSync(sourceDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    return fs49.readdirSync(sourceDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
   } catch {
     return [];
   }
@@ -62514,7 +74934,7 @@ function createDownloadError(status) {
 }
 function pathExists(value) {
   try {
-    fs46.lstatSync(value);
+    fs49.lstatSync(value);
     return true;
   } catch {
     return false;
@@ -62559,6 +74979,7 @@ var BOOLEAN_OPTIONS = /* @__PURE__ */ new Set([
   "create",
   "consent",
   "confirm",
+  "confirmed_build",
   "context_stdin",
   "h",
   "help"
@@ -62591,6 +75012,10 @@ async function runMakerCli(argv) {
   }
   if (command === "build") {
     await runBuildCli(parsed.options);
+    return;
+  }
+  if (command === "qrcode") {
+    await runQrcodeCli(parsed.options);
     return;
   }
   if (command === "doctor") {
@@ -62757,7 +75182,7 @@ function toOptionKey(value) {
 }
 async function runInit(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const skipConfirm = booleanOption(parsed, "skip_confirm");
   const skipMcpInstall = booleanOption(parsed, "skip_mcp_install");
@@ -62874,7 +75299,7 @@ async function runInit(parsed, ctx) {
 }
 async function runDoctor(parsed, ctx) {
   var _a3, _b;
-  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const env = makerEnvOption(parsed);
   const git2 = checkGitEnvironment();
   const python = checkMakerPythonEnvironment();
@@ -62965,8 +75390,8 @@ async function runDoctor(parsed, ctx) {
   );
 }
 function inspectMakerDoctorExecutionContext(options3) {
-  const doctorCwd = path49.resolve(process.cwd());
-  const makerProjectDir = options3.makerProjectDir ? path49.resolve(options3.makerProjectDir) : void 0;
+  const doctorCwd = path52.resolve(process.cwd());
+  const makerProjectDir = options3.makerProjectDir ? path52.resolve(options3.makerProjectDir) : void 0;
   if (!makerProjectDir) {
     return {
       active_client_session: "not_checked",
@@ -63001,9 +75426,9 @@ function samePath2(left, right) {
   return normalizePathForCompare3(left) === normalizePathForCompare3(right);
 }
 function normalizePathForCompare3(value) {
-  const resolved = path49.resolve(value);
+  const resolved = path52.resolve(value);
   try {
-    return fs47.realpathSync.native(resolved);
+    return fs50.realpathSync.native(resolved);
   } catch {
     return resolved;
   }
@@ -63321,7 +75746,7 @@ async function runPatSet(parsed, ctx) {
 }
 async function resolvePatSet(parsed, ctx) {
   if (booleanOption(parsed, "pat_stdin") || booleanOption(parsed, "pat_from_stdin")) {
-    const pat = fs47.readFileSync(0, "utf8").trim();
+    const pat = fs50.readFileSync(0, "utf8").trim();
     if (!pat) {
       throw new Error("No PAT found on stdin.");
     }
@@ -63376,17 +75801,17 @@ async function prepareMcpLauncher(options3) {
     if (options3.mode === "self") {
       launcher = materializeMakerSelfLauncher({
         version: VERSION4,
-        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL2(path49.resolve(process.cwd(), "dist", "maker.js")).href,
+        bundleUrl: typeof __MAKER_BUNDLE_URL__ !== "undefined" ? __MAKER_BUNDLE_URL__ : pathToFileURL2(path52.resolve(process.cwd(), "dist", "maker.js")).href,
         makerHome: getMakerHome()
       });
     } else {
       const packageSpec = resolveMakerPackageSpec(MAKER_NPM_PACKAGE, VERSION4);
       launcher = resolveMakerMcpLauncher({ packageName: packageSpec });
       const configuredCache = process.env.npm_config_cache || process.env.NPM_CONFIG_CACHE;
-      const npmCacheDir = path49.resolve(
-        configuredCache || path49.join(getMakerHome(), "cache", "npm")
+      const npmCacheDir = path52.resolve(
+        configuredCache || path52.join(getMakerHome(), "cache", "npm")
       );
-      fs47.mkdirSync(npmCacheDir, { recursive: true });
+      fs50.mkdirSync(npmCacheDir, { recursive: true });
       launcherEnv = { npm_config_cache: npmCacheDir };
     }
   } catch (error2) {
@@ -63519,7 +75944,7 @@ ${indent3(payload.stderr)}` : "",
 }
 async function runMcpReport(parsed, ctx) {
   rejectPackageOption(parsed);
-  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const contextInput = booleanOption(parsed, "context_stdin") ? await readStdinText() : "";
   const context = parseMakerMcpReportContext(contextInput);
   const contextValidation = validateMakerMcpReportContext(context);
@@ -63593,7 +76018,7 @@ async function runMcpReport(parsed, ctx) {
   const issue3 = buildMakerMcpIssue({
     context,
     diagnostics,
-    homeDir: os10.homedir()
+    homeDir: os11.homedir()
   });
   const submission = booleanOption(parsed, "consent") ? submitMakerMcpIssue(issue3) : {
     status: "consent_required",
@@ -63620,7 +76045,7 @@ async function runMcpReport(parsed, ctx) {
   );
 }
 async function runAgentsUpdate(parsed, ctx) {
-  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = updateMakerAgentsPolicy(targetDir);
   if (ctx.json) {
     writeJson(result);
@@ -63639,7 +76064,7 @@ async function runAgentsUpdate(parsed, ctx) {
 async function runUpgrade(parsed, ctx) {
   rejectPackageOption(parsed);
   const explicitTargetDir = stringOption(parsed, "target_dir");
-  const targetDir = path49.resolve(explicitTargetDir || process.cwd());
+  const targetDir = path52.resolve(explicitTargetDir || process.cwd());
   const env = makerEnvOption(parsed);
   const ides = parseIdeList(stringOption(parsed, "ide") || stringOption(parsed, "ides") || "");
   const pluginDistribution = resolveMakerPluginDistribution();
@@ -63728,7 +76153,7 @@ function getMcpVerifyNextSteps(mode, commandText) {
   ];
 }
 async function runDevKitUpdate(parsed, ctx) {
-  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const result = await installAiDevKit({
     targetDir,
     preserveExisting: false,
@@ -63742,7 +76167,7 @@ async function runDevKitUpdate(parsed, ctx) {
 }
 async function runUserSkillsPull(parsed, ctx) {
   const result = await pullMakerUserSkills({
-    targetDir: path49.resolve(stringOption(parsed, "target_dir") || process.cwd()),
+    targetDir: path52.resolve(stringOption(parsed, "target_dir") || process.cwd()),
     environment: makerEnvOption(parsed)
   });
   if (ctx.json) {
@@ -63761,7 +76186,7 @@ async function runUserSkillsPull(parsed, ctx) {
   );
 }
 async function runLogsWatch(parsed, ctx) {
-  const targetDir = path49.resolve(stringOption(parsed, "target_dir") || process.cwd());
+  const targetDir = path52.resolve(stringOption(parsed, "target_dir") || process.cwd());
   const intervalMs = parseDurationMs(stringOption(parsed, "interval") || "5s");
   const timeoutMs = numberOption(parsed, "timeout_ms") ?? MAKER_TOOL_CALL_TIMEOUT_MS;
   const maxPolls = numberOption(parsed, "max_polls");
@@ -63771,9 +76196,9 @@ async function runLogsWatch(parsed, ctx) {
     serverUrl: stringOption(parsed, "server_url"),
     env: makerEnvOption(parsed)
   });
-  const runtimeDir = path49.join(proxy.projectRoot, ".maker", "logs", "runtime");
-  const runtimeLog = path49.join(runtimeDir, "runtime.log");
-  const pidFile = path49.join(runtimeDir, "watcher.pid");
+  const runtimeDir = path52.join(proxy.projectRoot, ".maker", "logs", "runtime");
+  const runtimeLog = path52.join(runtimeDir, "runtime.log");
+  const pidFile = path52.join(runtimeDir, "watcher.pid");
   const replacedWatcher = registerRuntimeLogWatcherProcess(pidFile);
   const runtimeLogClient = createRemoteRuntimeLogClient(proxy, timeoutMs);
   emit(ctx, "logs_watch_start", "Maker runtime log watcher started", {
@@ -63818,10 +76243,10 @@ async function runLogsWatch(parsed, ctx) {
   }
 }
 function registerRuntimeLogWatcherProcess(pidFile) {
-  fs47.mkdirSync(path49.dirname(pidFile), { recursive: true });
+  fs50.mkdirSync(path52.dirname(pidFile), { recursive: true });
   const existingPid = readPidFile(pidFile);
   const previous = existingPid && existingPid !== process.pid ? stopExistingRuntimeLogWatcher(pidFile) : {};
-  fs47.writeFileSync(
+  fs50.writeFileSync(
     pidFile,
     `${JSON.stringify(
       {
@@ -63839,10 +76264,10 @@ function registerRuntimeLogWatcherProcess(pidFile) {
   return previous;
 }
 function readPidFile(pidFile) {
-  if (!fs47.existsSync(pidFile)) {
+  if (!fs50.existsSync(pidFile)) {
     return void 0;
   }
-  const raw = fs47.readFileSync(pidFile, "utf8").trim();
+  const raw = fs50.readFileSync(pidFile, "utf8").trim();
   let pid = Number(raw);
   if (!Number.isInteger(pid) || pid <= 0) {
     try {
@@ -63862,7 +76287,7 @@ function installRuntimeLogWatcherPidCleanup(pidFile) {
     }
     cleaned = true;
     if (readPidFile(pidFile) === process.pid) {
-      fs47.rmSync(pidFile, { force: true });
+      fs50.rmSync(pidFile, { force: true });
     }
   };
   process.once("exit", cleanup);
@@ -64013,7 +76438,7 @@ async function prepareDevKit(targetDir, ctx, options3 = {}) {
         onStart: (event) => emitSkillInstallerStart(ctx, event)
       });
       writeDevKitStagedGitignore(
-        path49.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path52.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
       syncWorkBuddyDevKitSkills(targetDir, ctx);
@@ -64031,7 +76456,7 @@ async function prepareDevKit(targetDir, ctx, options3 = {}) {
       );
     } catch (error2) {
       writeDevKitStagedGitignore(
-        path49.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
+        path52.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE),
         listPresentDevKitManagedEntries(targetDir)
       );
       if (options3.finalizeGitignore) {
@@ -64078,10 +76503,10 @@ function syncWorkBuddyDevKitSkills(targetDir, ctx) {
   try {
     const result = syncWorkBuddyProjectSkills(targetDir);
     const managedSkillPaths = [...result.installedSkills, ...result.skippedSkills].map(
-      (skillName) => path49.join(".workbuddy", "skills", skillName)
+      (skillName) => path52.join(".workbuddy", "skills", skillName)
     );
     if (managedSkillPaths.length > 0) {
-      writeDevKitStagedGitignore(path49.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
+      writeDevKitStagedGitignore(path52.join(targetDir, DEV_KIT_GITIGNORE_STAGING_FILE), [
         ...listPresentDevKitManagedEntries(targetDir),
         ...managedSkillPaths
       ]);
@@ -64158,12 +76583,12 @@ function installMcpConfig(ide, options3) {
 }
 function installMcpConfigUnsafe(ide, options3) {
   if (ide === "codex") {
-    const configPath = path49.join(os10.homedir(), ".codex", "config.toml");
+    const configPath = path52.join(os11.homedir(), ".codex", "config.toml");
     const write = mergeCodexMcpConfig(configPath, withClientIde(options3, "codex"));
     return [createMcpInstallResult(ide, "Codex", configPath, write)];
   }
   if (ide === "cursor") {
-    const configPath = path49.join(os10.homedir(), ".cursor", "mcp.json");
+    const configPath = path52.join(os11.homedir(), ".cursor", "mcp.json");
     const write = mergeJsonMcpConfig(configPath, withClientIde(options3, "cursor"));
     return [createMcpInstallResult(ide, "Cursor", configPath, write)];
   }
@@ -64180,7 +76605,7 @@ function installMcpConfigUnsafe(ide, options3) {
         }
       ];
     }
-    const configPath = path49.join(os10.homedir(), ".claude.json");
+    const configPath = path52.join(os11.homedir(), ".claude.json");
     const write = mergeJsonMcpConfig(configPath, claudeOptions);
     return [createMcpInstallResult(ide, "Claude fallback", configPath, write)];
   }
@@ -64194,7 +76619,7 @@ function installMcpConfigUnsafe(ide, options3) {
   }
   if (ide === "opencode") {
     const configPath = getOpenCodeMcpConfigPath();
-    if (!fs47.existsSync(configPath)) {
+    if (!fs50.existsSync(configPath)) {
       return [{ ide, ok: false, message: "Skipped OpenCode: no supported config file found" }];
     }
     const write = mergeOpenCodeMcpConfig(configPath, withClientIde(options3, "opencode"));
@@ -64277,13 +76702,13 @@ function getDefaultMcpInstallIdes() {
   if (getTraeMcpInstallPaths().length > 0) {
     ides.push("trae");
   }
-  if (fs47.existsSync(getOpenCodeMcpConfigPath())) {
+  if (fs50.existsSync(getOpenCodeMcpConfigPath())) {
     ides.push("opencode");
   }
   if (getWorkBuddyMcpInstallPaths().length > 0) {
     ides.push("workbuddy");
   }
-  if (fs47.existsSync(getDshHome())) {
+  if (fs50.existsSync(getDshHome())) {
     ides.push("dsh");
   }
   return ides;
@@ -64297,7 +76722,7 @@ function getExistingTraeUserConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs47.existsSync(path49.dirname(configPath))) {
+    if (seen.has(key) || !fs50.existsSync(path52.dirname(configPath))) {
       return false;
     }
     seen.add(key);
@@ -64308,7 +76733,7 @@ function getExistingConfigPaths(paths) {
   const seen = /* @__PURE__ */ new Set();
   return paths.filter((configPath) => {
     const key = normalizeConfigPathKey(configPath);
-    if (seen.has(key) || !fs47.existsSync(configPath)) {
+    if (seen.has(key) || !fs50.existsSync(configPath)) {
       return false;
     }
     seen.add(key);
@@ -64316,62 +76741,62 @@ function getExistingConfigPaths(paths) {
   });
 }
 function normalizeConfigPathKey(configPath) {
-  const resolved = path49.resolve(configPath);
+  const resolved = path52.resolve(configPath);
   return process.platform === "win32" || process.platform === "darwin" ? resolved.toLowerCase() : resolved;
 }
 function getTraeSoloMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path49.join(os10.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path52.join(os11.homedir(), "AppData", "Roaming");
     return [
-      path49.join(roaming, "TRAE SOLO", "User", "mcp.json"),
-      path49.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
+      path52.join(roaming, "TRAE SOLO", "User", "mcp.json"),
+      path52.join(roaming, "TRAE SOLO CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path49.join(os10.homedir(), "Library", "Application Support");
+  const appSupport = path52.join(os11.homedir(), "Library", "Application Support");
   return [
-    path49.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
-    path49.join(appSupport, "TRAE SOLO", "User", "mcp.json")
+    path52.join(appSupport, "TRAE SOLO CN", "User", "mcp.json"),
+    path52.join(appSupport, "TRAE SOLO", "User", "mcp.json")
   ];
 }
 function getTraeUnverifiedMcpConfigPaths() {
   if (process.platform === "win32") {
-    const roaming = process.env.APPDATA || path49.join(os10.homedir(), "AppData", "Roaming");
+    const roaming = process.env.APPDATA || path52.join(os11.homedir(), "AppData", "Roaming");
     return [
-      path49.join(roaming, "Trae", "User", "mcp.json"),
-      path49.join(roaming, "TRAE", "User", "mcp.json"),
-      path49.join(roaming, "Trae CN", "User", "mcp.json")
+      path52.join(roaming, "Trae", "User", "mcp.json"),
+      path52.join(roaming, "TRAE", "User", "mcp.json"),
+      path52.join(roaming, "Trae CN", "User", "mcp.json")
     ];
   }
-  const appSupport = path49.join(os10.homedir(), "Library", "Application Support");
+  const appSupport = path52.join(os11.homedir(), "Library", "Application Support");
   return [
-    path49.join(appSupport, "Trae", "User", "mcp.json"),
-    path49.join(appSupport, "TRAE", "User", "mcp.json"),
-    path49.join(appSupport, "Trae CN", "User", "mcp.json")
+    path52.join(appSupport, "Trae", "User", "mcp.json"),
+    path52.join(appSupport, "TRAE", "User", "mcp.json"),
+    path52.join(appSupport, "Trae CN", "User", "mcp.json")
   ];
 }
 function getOpenCodeMcpConfigPath() {
-  return path49.join(os10.homedir(), ".config", "opencode", "opencode.jsonc");
+  return path52.join(os11.homedir(), ".config", "opencode", "opencode.jsonc");
 }
 function getWorkBuddyHome() {
-  return path49.join(os10.homedir(), ".workbuddy");
+  return path52.join(os11.homedir(), ".workbuddy");
 }
 function getWorkBuddyMcpInstallPaths(options3 = {}) {
-  const primary = path49.join(getWorkBuddyHome(), "mcp.json");
-  if (fs47.existsSync(primary) || options3.createPrimary) {
+  const primary = path52.join(getWorkBuddyHome(), "mcp.json");
+  if (fs50.existsSync(primary) || options3.createPrimary) {
     return [primary];
   }
-  const legacy = path49.join(getWorkBuddyHome(), ".mcp.json");
-  if (fs47.existsSync(legacy)) {
+  const legacy = path52.join(getWorkBuddyHome(), ".mcp.json");
+  if (fs50.existsSync(legacy)) {
     return [legacy];
   }
   return [];
 }
 function inspectWorkBuddyTrustState(mcpName) {
   const workbuddyHome = getWorkBuddyHome();
-  const connectorsDir = path49.join(workbuddyHome, "connectors");
+  const connectorsDir = path52.join(workbuddyHome, "connectors");
   const accounts = [];
   const stateFiles = [];
-  if (!fs47.existsSync(connectorsDir)) {
+  if (!fs50.existsSync(connectorsDir)) {
     return {
       status: "not_found",
       mcp_name: mcpName,
@@ -64381,12 +76806,12 @@ function inspectWorkBuddyTrustState(mcpName) {
       accounts
     };
   }
-  for (const entry of fs47.readdirSync(connectorsDir, { withFileTypes: true })) {
+  for (const entry of fs50.readdirSync(connectorsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const statePath = path49.join(connectorsDir, entry.name, "connector-states.json");
-    if (!fs47.existsSync(statePath)) {
+    const statePath = path52.join(connectorsDir, entry.name, "connector-states.json");
+    if (!fs50.existsSync(statePath)) {
       continue;
     }
     stateFiles.push(statePath);
@@ -64465,7 +76890,7 @@ function mergeJsonMcpConfig(configPath, options3) {
   );
 }
 function mergeOpenCodeMcpConfig(configPath, options3) {
-  const rawContent = fs47.readFileSync(configPath, "utf8");
+  const rawContent = fs50.readFileSync(configPath, "utf8");
   const rewroteJsonc = normalizeJsonConfigContent(rawContent, { jsonc: true }) !== rawContent;
   const existing = readJsonObject(configPath, { jsonc: true });
   const mcp = asObject(existing.mcp);
@@ -64497,7 +76922,7 @@ function mergeOpenCodeMcpConfig(configPath, options3) {
   return { ...write, rewroteJsonc: write.changed && rewroteJsonc };
 }
 function mergeCodexMcpConfig(configPath, options3) {
-  const existing = fs47.existsSync(configPath) ? fs47.readFileSync(configPath, "utf8") : "";
+  const existing = fs50.existsSync(configPath) ? fs50.readFileSync(configPath, "utf8") : "";
   const withoutOld = removeCodexMcpTables(existing, options3.mcpName).trimEnd();
   const launch = options3.launcher;
   const envValues = createMcpEnvironmentValues(options3.env, options3.clientIde, options3.launcherEnv);
@@ -64531,7 +76956,7 @@ function mergeCodexMcpConfig(configPath, options3) {
   );
 }
 function tryClaudeMcpAdd(options3) {
-  const configPath = path49.join(os10.homedir(), ".claude.json");
+  const configPath = path52.join(os11.homedir(), ".claude.json");
   try {
     const existing = readJsonObject(configPath);
     const server = asObject(asObject(existing.mcpServers)[options3.mcpName]);
@@ -64624,10 +77049,10 @@ function rejectPackageOption(parsed) {
   }
 }
 function readJsonObject(filePath, options3 = {}) {
-  if (!fs47.existsSync(filePath)) {
+  if (!fs50.existsSync(filePath)) {
     return {};
   }
-  const raw = fs47.readFileSync(filePath, "utf8");
+  const raw = fs50.readFileSync(filePath, "utf8");
   try {
     const normalized = normalizeJsonConfigContent(raw, options3);
     const parsed = JSON.parse(normalized);
@@ -64799,10 +77224,10 @@ function formatMcpInstallMessage(label, configPath, write) {
   ].filter(Boolean).join("\n");
 }
 function saveInitState(targetDir, state) {
-  fs47.mkdirSync(getMakerHome(), { recursive: true });
-  const key = crypto5.createHash("sha256").update(path49.resolve(targetDir)).digest("hex").slice(0, 16);
-  fs47.writeFileSync(
-    path49.join(getMakerHome(), `init-state-${key}.json`),
+  fs50.mkdirSync(getMakerHome(), { recursive: true });
+  const key = crypto5.createHash("sha256").update(path52.resolve(targetDir)).digest("hex").slice(0, 16);
+  fs50.writeFileSync(
+    path52.join(getMakerHome(), `init-state-${key}.json`),
     `${JSON.stringify({ ...state, updated_at: (/* @__PURE__ */ new Date()).toISOString() }, null, 2)}
 `,
     "utf8"
@@ -64950,7 +77375,7 @@ function makerEnvOption(parsed) {
     return env;
   }
   const targetDir = stringOption(parsed, "target_dir");
-  return getMakerEnvironment(void 0, targetDir ? path49.resolve(targetDir) : process.cwd());
+  return getMakerEnvironment(void 0, targetDir ? path52.resolve(targetDir) : process.cwd());
 }
 function makerMcpConfigEnvOption(parsed) {
   return stringOption(parsed, "env") === "rnd" ? "rnd" : "production";
@@ -64994,6 +77419,7 @@ function printHelp() {
       "  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]",
       "  taptap-maker console status|stop [--json]",
       "  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]",
+      "  taptap-maker qrcode --target-dir PROJECT_ABSOLUTE_PATH [--confirmed-screen-orientation landscape|portrait] [--json]",
       "  taptap-maker preview install|prepare|start|status|refresh|stop|logs|screenshot|check",
       "                       --target-dir PROJECT_ABSOLUTE_PATH [--json]",
       "                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]",
@@ -66652,7 +79078,7 @@ var StreamableHTTPClientTransport = class {
 
 // src/mcp-proxy/proxy.ts
 init_types2();
-import * as path51 from "node:path";
+import * as path54 from "node:path";
 import * as crypto8 from "node:crypto";
 
 // src/mcp-proxy/cookieJar.ts
@@ -66848,8 +79274,8 @@ function isStandaloneSseRequest(input2, init) {
 }
 
 // src/core/utils/logWriter.ts
-import * as fs48 from "node:fs";
-import * as path50 from "node:path";
+import * as fs51 from "node:fs";
+import * as path53 from "node:path";
 import * as crypto7 from "node:crypto";
 
 // src/core/types/log.ts
@@ -66890,7 +79316,7 @@ var LogWriter = class {
       return;
     }
     try {
-      await fs48.promises.mkdir(this.config.logDir, { recursive: true });
+      await fs51.promises.mkdir(this.config.logDir, { recursive: true });
       await this.cleanupOldLogs();
       this.initialized = true;
     } catch (error2) {
@@ -66913,7 +79339,7 @@ var LogWriter = class {
    */
   getLogFilePath(date5) {
     const d = date5 || this.getCurrentDate();
-    return path50.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
+    return path53.join(this.config.logDir, `${this.config.prefix}-${d}.log`);
   }
   /**
    * 获取或创建写入流
@@ -66928,7 +79354,7 @@ var LogWriter = class {
       }
       this.currentDate = date5;
       try {
-        this.writeStream = fs48.createWriteStream(this.getLogFilePath(date5), {
+        this.writeStream = fs51.createWriteStream(this.getLogFilePath(date5), {
           flags: "a",
           encoding: "utf8"
         });
@@ -66980,11 +79406,11 @@ var LogWriter = class {
     if (this.shouldWriteToFile(level) && this.initialized && this.config.enabled) {
       try {
         const filePath = this.getLogFilePath();
-        const dir = path50.dirname(filePath);
-        if (!fs48.existsSync(dir)) {
-          fs48.mkdirSync(dir, { recursive: true });
+        const dir = path53.dirname(filePath);
+        if (!fs51.existsSync(dir)) {
+          fs51.mkdirSync(dir, { recursive: true });
         }
-        fs48.appendFileSync(filePath, message, "utf8");
+        fs51.appendFileSync(filePath, message, "utf8");
       } catch {
       }
     }
@@ -66995,13 +79421,13 @@ var LogWriter = class {
   async cleanupOldLogs() {
     if (this.config.maxDays <= 0) return;
     try {
-      const files = await fs48.promises.readdir(this.config.logDir);
+      const files = await fs51.promises.readdir(this.config.logDir);
       const cutoffDate = /* @__PURE__ */ new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.config.maxDays);
       const prefix = this.config.prefix;
       const pattern = new RegExp(`^${prefix}-(\\d{4}-\\d{2}-\\d{2})\\.log$`);
-      for (const file2 of files) {
-        const match = file2.match(pattern);
+      for (const file3 of files) {
+        const match = file3.match(pattern);
         if (match) {
           const [yearStr, monthStr, dayStr] = match[1].split("-");
           const year = Number(yearStr);
@@ -67010,8 +79436,8 @@ var LogWriter = class {
           if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
             const fileDate = new Date(year, month - 1, day);
             if (fileDate < cutoffDate) {
-              await fs48.promises.unlink(path50.join(this.config.logDir, file2));
-              process.stderr.write(`[LogWriter] Deleted old log: ${file2}
+              await fs51.promises.unlink(path53.join(this.config.logDir, file3));
+              process.stderr.write(`[LogWriter] Deleted old log: ${file3}
 `);
             }
           }
@@ -67144,10 +79570,10 @@ var TapTapMCPProxy = class {
     const { user_id, project_id } = this.config.tenant;
     let logDir;
     if (user_id && project_id) {
-      logDir = path51.join(logRoot, "proxy", user_id, project_id);
+      logDir = path54.join(logRoot, "proxy", user_id, project_id);
     } else {
       const kidHash = crypto8.createHash("sha256").update(this.config.auth.kid).digest("hex").substring(0, 8);
-      logDir = path51.join(logRoot, "proxy", kidHash);
+      logDir = path54.join(logRoot, "proxy", kidHash);
     }
     return new LogWriter({
       logDir,
@@ -67875,7 +80301,7 @@ async function main() {
     return;
   }
   if (command === "__maker-preview-supervisor") {
-    await runPreviewSupervisor(previewProject(process.argv[3] || ""));
+    await runPreviewSupervisor(previewProject(process.argv[3] || ""), process.argv[4]);
     return;
   }
   if (!command) {
@@ -67928,6 +80354,7 @@ function printHelp2() {
       "  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]",
       "  taptap-maker console status|stop [--json]",
       "  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]",
+      "  taptap-maker qrcode --target-dir PROJECT_ABSOLUTE_PATH [--confirmed-screen-orientation landscape|portrait] [--json]",
       "  taptap-maker python doctor [--json]",
       "  taptap-maker python setup [--json]",
       "  taptap-maker python path [--json]",
@@ -68050,3 +80477,26 @@ function logCrash(source, error2) {
   } catch {
   }
 }
+/*! Bundled license information:
+
+long/umd/index.js:
+  (**
+   * @license
+   * Copyright 2009 The Closure Library Authors
+   * Copyright 2020 Daniel Wirtz / The long.js Authors.
+   *
+   * Licensed under the Apache License, Version 2.0 (the "License");
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an "AS IS" BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   *
+   * SPDX-License-Identifier: Apache-2.0
+   *)
+*/

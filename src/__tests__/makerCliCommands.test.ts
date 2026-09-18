@@ -22,6 +22,7 @@ import { syncWorkBuddyProjectSkills } from '../maker/cli/workBuddyProjectSkills'
 import { pullMakerUserSkills } from '../maker/cli/userSkills';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../maker/versionCheck';
 import { runMakerCli } from '../maker/cli/commands';
+import { runQrcodeCli } from '../maker/cli/qrcode';
 import {
   materializeMakerSelfLauncher,
   resolveMakerMcpLauncher,
@@ -56,6 +57,8 @@ function mockReadyPython(spawnSyncMock: jest.MockedFunction<typeof spawnSync>): 
     return { status: 0, stdout: 'help output', stderr: '' } as ReturnType<typeof spawnSync>;
   });
 }
+
+jest.mock('../maker/cli/qrcode', () => ({ runQrcodeCli: jest.fn() }));
 
 jest.mock('node:child_process', () => ({
   ...jest.requireActual('node:child_process'),
@@ -212,6 +215,29 @@ jest.mock('../maker/system/git', () => {
 });
 
 describe('Maker CLI commands', () => {
+  test('parses QR build consent as a boolean without consuming the following positional', async () => {
+    await runMakerCli([
+      'qrcode',
+      '--confirmed-build',
+      'unused',
+      '--target-dir',
+      '/project/a',
+      '--confirmed-title=--拼豆',
+      '--confirmed-category',
+      'puzzle',
+      '--confirmed-screen-orientation',
+      'portrait',
+      '--json',
+    ]);
+    expect(runQrcodeCli).toHaveBeenCalledWith({
+      confirmed_build: true,
+      target_dir: '/project/a',
+      confirmed_title: '--拼豆',
+      confirmed_category: 'puzzle',
+      confirmed_screen_orientation: 'portrait',
+      json: true,
+    });
+  });
   let tempDir: string;
   const originalHome = process.env.HOME;
   const originalMakerHome = process.env.TAPTAP_MAKER_HOME;

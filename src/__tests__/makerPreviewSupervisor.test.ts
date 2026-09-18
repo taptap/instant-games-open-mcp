@@ -196,7 +196,9 @@ beforeEach(() => {
       unref: jest.fn(),
       kill: jest.fn(),
     });
-    void runPreviewSupervisor(project).catch((error) => child.emit('error', error));
+    void runPreviewSupervisor(project, readPreviewRecord(project)?.session_id).catch((error) =>
+      child.emit('error', error)
+    );
     return child as unknown as ReturnType<typeof spawn>;
   });
   signalListeners = new Map(
@@ -233,6 +235,7 @@ test('builds a Windows system-broker launch for the preview supervisor', () => {
     execArgv: ['--no-warnings'],
     entry: 'C:\\Maker\\dist\\maker.js',
     project: 'F:\\MiniGame\\mcp\\test-2',
+    sessionId: 'fixture-launch-session',
     cwd: 'C:\\Maker\\Runtime',
     logFile: 'C:\\Maker\\preview\\supervisor.log',
     env: {
@@ -245,6 +248,7 @@ test('builds a Windows system-broker launch for the preview supervisor', () => {
   expect(scripts.broker).toContain('Invoke-CimMethod');
   expect(scripts.process).toContain('__maker-preview-supervisor');
   expect(scripts.process).toContain('F:\\MiniGame\\mcp\\test-2');
+  expect(scripts.process).toContain("'fixture-launch-session'");
   expect(scripts.process).toContain('supervisor.log');
   expect(scripts.process).not.toContain('must-not-leak');
 });
@@ -594,6 +598,115 @@ test('unreachable failure without retirement evidence remains unverified', async
     state: 'failed',
   });
   expect(await previewStatus(project)).toMatchObject({ process_alive: null, ok: false });
+});
+
+test('an expired fenced launch without published PIDs can be retried without deleting its record', async () => {
+  record = Object.assign(pendingRecord(), { launch_deadline: Date.now() - 1000 });
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  expect(await previewStatus(project)).toMatchObject({
+    process_alive: false,
+    supervisor_retired: true,
+    stale_session_recovered: true,
+  });
+  expect(readPreviewRecord(project)?.state).toBe('starting');
+  runtime.mode = 'running';
+  expect(await callCli('start')).toMatchObject({ ok: true, state: 'running' });
+});
+
+test.each(['pending', 'legacy', 'published'])(
+  'does not retire an unverified %s startup',
+  async (mode) => {
+    record = pendingRecord();
+    if (mode !== 'legacy')
+      Object.assign(record, { launch_deadline: Date.now() + (mode === 'pending' ? 30000 : -1000) });
+    if (mode === 'published') record.supervisor_pid = process.pid;
+    writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+    expect(await previewStatus(project)).toMatchObject({ process_alive: null });
+  }
+);
+
+test('a legacy pending launch is recoverable after an OS restart', async () => {
+  record = pendingRecord();
+  record.started_at = new Date(Date.now() - 3600000).toISOString();
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  const uptime = jest.spyOn(os, 'uptime').mockReturnValue(60);
+  try {
+    expect(await previewStatus(project)).toMatchObject({
+      process_alive: false,
+      supervisor_retired: true,
+    });
+  } finally {
+    uptime.mockRestore();
+  }
+});
+
+test('expired fenced supervisors cannot publish a control endpoint', async () => {
+  record = Object.assign(pendingRecord(), { launch_deadline: Date.now() - 1000 });
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  await expect(runPreviewSupervisor(project, record.session_id)).rejects.toThrow('expired');
+  expect(readPreviewRecord(project)?.port).toBe(0);
+});
+
+test('a delayed supervisor cannot adopt a replacement session', async () => {
+  record = Object.assign(pendingRecord(), { launch_deadline: Date.now() + 30000 });
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  await expect(runPreviewSupervisor(project, randomUUID())).rejects.toThrow('session');
+  expect(readPreviewRecord(project)?.port).toBe(0);
+});
+
+test('a fenced launch rejects supervisors without the launch session argument', async () => {
+  record = Object.assign(pendingRecord(), { launch_deadline: Date.now() + 30000 });
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  await expect(runPreviewSupervisor(project)).rejects.toThrow('session');
+  expect(readPreviewRecord(project)?.port).toBe(0);
+});
+
+test('a supervisor rechecks its session after opening the socket', async () => {
+  record = Object.assign(pendingRecord(), { launch_deadline: Date.now() + 30000 });
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
+  const opening = runPreviewSupervisor(project, record.session_id);
+  const replacement = Object.assign(pendingRecord(), { launch_deadline: Date.now() + 30000 });
+  writePrivateJson(path.join(previewDirectory(project), 'session.json'), replacement);
+  await expect(opening).rejects.toThrow('replaced');
+  expect(readPreviewRecord(project)).toEqual(replacement);
+  expect(runtime.instances).toHaveLength(0);
+});
+
+test('launch exceptions leave a fenced record that becomes safely retryable', async () => {
+  jest.mocked(spawn).mockImplementationOnce(() => {
+    throw new Error('fixture launch failure');
+  });
+  expect(await callCli('start')).toMatchObject({
+    ok: false,
+    error: expect.stringContaining('fixture launch failure'),
+  });
+  expect(record.launch_deadline).toEqual(expect.any(Number));
+  const clock = jest.spyOn(Date, 'now').mockReturnValue(record.launch_deadline! + 1);
+  try {
+    expect(await previewStatus(project)).toMatchObject({ process_alive: false });
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test('an early supervisor exit is not reported as a timeout', async () => {
+  jest.mocked(spawn).mockImplementationOnce(
+    () =>
+      Object.assign(new EventEmitter(), {
+        pid: 12345,
+        exitCode: 1,
+        unref: jest.fn(),
+        kill: jest.fn(),
+      }) as unknown as ReturnType<typeof spawn>
+  );
+  const result = await callCli('start');
+  expect(result).toMatchObject({
+    ok: false,
+    error: expect.stringContaining('exited before opening'),
+  });
+  expect(String(result.error)).not.toContain('TIMEOUT');
+  expect(String(result.error)).toContain('supervisor.log');
+  expect(readPreviewRecord(project)?.state).toBe('stopped');
 });
 
 test('recovers an unreachable Windows-style session after both recorded processes are absent', async () => {

@@ -29,10 +29,27 @@ describe('console native folder picker', () => {
     );
     expect(script).toContain('FolderBrowserDialog');
     expect(script).toContain('UTF8Encoding');
+    expect(script).toContain('$owner.Show()');
+    expect(script).toContain('$owner.Activate()');
+    expect(script).toContain('[Environment]::UserInteractive');
   });
   it('reports dialog failures rather than pretending the user cancelled', async () => {
     result(new Error('failed'));
     await expect(chooseProjectDirectory('darwin')).rejects.toThrow('文件夹选择窗口');
+  });
+  it('does not report a failed dialog as a console service outage', async () => {
+    result(new Error('failed'));
+    await expect(chooseProjectDirectory('win32')).rejects.toMatchObject({ status: 422 });
+  });
+  it('closes child stdin and forwards cancellation to the owned dialog process', async () => {
+    const end = jest.fn();
+    run.mockReturnValue({ stdin: { end } });
+    const controller = new AbortController();
+    const pending = chooseProjectDirectory('win32', controller.signal);
+    expect(end).toHaveBeenCalledTimes(1);
+    expect(run.mock.calls[0][2].signal).toBe(controller.signal);
+    run.mock.calls[0][3](null, '', '');
+    await expect(pending).resolves.toBeNull();
   });
   it('does not launch a process on unsupported platforms', async () => {
     await expect(chooseProjectDirectory('linux')).rejects.toThrow('macOS');

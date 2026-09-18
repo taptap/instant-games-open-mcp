@@ -8,7 +8,16 @@ export function createConsoleExecutor(options: {
   execArgv?: string[];
   killGraceMs?: number;
 }): ConsoleExecutor {
-  return async ({ project, action, onOutput, onProgress, signal }) => {
+  return async ({
+    project,
+    action,
+    onOutput,
+    onProgress,
+    signal,
+    confirmedOrientation,
+    publication,
+    confirmedBuild,
+  }) => {
     if (![...CONSOLE_ACTIONS, 'preview.status', 'preview.logs'].includes(action))
       throw new Error('Unsupported console CLI action.');
     if (signal?.aborted) return { ok: false, error: 'Console query cancelled before launch.' };
@@ -21,7 +30,20 @@ export function createConsoleExecutor(options: {
         ...(!result.ok ? { error: result.error || result.summary } : {}),
       }) as Awaited<ReturnType<ConsoleExecutor>>;
     }
-    const command = action === 'build' ? ['build'] : ['preview', action.slice('preview.'.length)];
+    const command =
+      action === 'build' || action === 'qrcode'
+        ? [action]
+        : ['preview', action.slice('preview.'.length)];
+    if (action === 'qrcode' && confirmedOrientation)
+      command.push('--confirmed-screen-orientation', confirmedOrientation);
+    if (action === 'qrcode') {
+      if (publication?.developer_id !== undefined)
+        command.push('--confirmed-developer-id', String(publication.developer_id));
+      if (publication?.title !== undefined) command.push('--confirmed-title=' + publication.title);
+      if (publication?.category !== undefined)
+        command.push('--confirmed-category', publication.category);
+      if (confirmedBuild) command.push('--confirmed-build');
+    }
     const ownsProcessGroup = process.platform !== 'win32';
     const execArgv = [...(options.execArgv ?? process.execArgv)];
     // Restore execArgv before entry import so detached preview reentry cannot inherit this guard.
@@ -102,7 +124,7 @@ export function createConsoleExecutor(options: {
           timedOut = true;
           terminate();
         },
-        action === 'build'
+        action === 'build' || action === 'qrcode'
           ? 65 * 60 * 1000
           : action === 'preview.status' || action === 'preview.logs'
             ? 30000
@@ -138,7 +160,7 @@ export function createConsoleExecutor(options: {
         }
         const end = stderr.lastIndexOf('\n');
         if (end >= 0) {
-          if (action === 'build' && onProgress) {
+          if ((action === 'build' || action === 'qrcode') && onProgress) {
             for (const line of stderr.slice(0, end).split('\n')) {
               try {
                 const value = JSON.parse(line);

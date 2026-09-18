@@ -31,7 +31,7 @@ async function main(): Promise<void> {
   }
 
   if (command === '__maker-preview-supervisor') {
-    await runPreviewSupervisor(previewProject(process.argv[3] || ''));
+    await runPreviewSupervisor(previewProject(process.argv[3] || ''), process.argv[4]);
     return;
   }
 
@@ -92,6 +92,7 @@ function printHelp(): void {
       '  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]',
       '  taptap-maker console status|stop [--json]',
       '  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]',
+      '  taptap-maker qrcode --target-dir PROJECT_ABSOLUTE_PATH [--confirmed-screen-orientation landscape|portrait] [--json]',
       '  taptap-maker python doctor [--json]',
       '  taptap-maker python setup [--json]',
       '  taptap-maker python path [--json]',

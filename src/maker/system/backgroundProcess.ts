@@ -79,7 +79,11 @@ export function buildWindowsBackgroundLaunchScripts(options: BackgroundProcessLa
     "$ErrorActionPreference = 'Stop'",
     ...environment,
     `Set-Location -LiteralPath ${powershellLiteral(options.cwd)}`,
+    // PS5 treats redirected native stderr as errors; keep setup fail-fast above.
+    '$LASTEXITCODE = 1',
+    "$ErrorActionPreference = 'Continue'",
     `& ${command} 1> $null 2>> ${powershellLiteral(options.logFile)}`,
+    "$ErrorActionPreference = 'Stop'",
     'exit $LASTEXITCODE',
   ].join('\r\n');
   const encodedProcess = Buffer.from(processScript, 'utf16le').toString('base64');

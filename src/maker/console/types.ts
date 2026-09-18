@@ -1,5 +1,9 @@
+import type { MakerQrcodePublication } from '../qrcodePreflight.js';
+import type { MakerQrcodeInteraction, MakerQrcodeRecovery } from '../qrcodeInteraction.js';
+
 export interface ConsoleProject {
   key: string;
+  projectid: string;
   name: string;
   path: string;
   valid: boolean;
@@ -8,6 +12,7 @@ export interface ConsoleProject {
 
 export const CONSOLE_ACTIONS = [
   'build',
+  'qrcode',
   'lua-lsp.check',
   'preview.start',
   'preview.refresh',
@@ -25,6 +30,11 @@ export interface ConsoleTask {
   id: string;
   projectKey: string;
   projectName: string;
+  projectPath?: string;
+  projectid?: string;
+  sourceTaskId?: string;
+  interaction?: MakerQrcodeInteraction;
+  recovery?: MakerQrcodeRecovery;
   action: ConsoleAction;
   status: 'running' | 'succeeded' | 'failed' | 'unknown';
   startedAt: string;
@@ -40,6 +50,9 @@ export type ConsoleExecutor = (options: {
   onOutput: (text: string) => void;
   onProgress?: (progress: ConsoleProgress) => void;
   signal?: AbortSignal;
+  confirmedOrientation?: 'landscape' | 'portrait';
+  publication?: MakerQrcodePublication;
+  confirmedBuild?: boolean;
 }) => Promise<{ ok: boolean; unknown?: boolean; error?: string; [key: string]: unknown }>;
 
 export class ConsoleError extends Error {

@@ -266,6 +266,7 @@ async function startPreview(
     supervisor_pid: 0,
     runtime_pid: 0,
     started_at: new Date().toISOString(),
+    launch_deadline: Date.now() + 30000,
     token: randomBytes(32).toString('hex'),
     port: 0,
     executable,
@@ -279,12 +280,13 @@ async function startPreview(
     execArgv: process.execArgv,
     entry: process.argv[1],
     project,
+    sessionId: record.session_id,
     cwd: path.dirname(executable),
     logFile: previewSupervisorLogPath(project),
     env: process.env,
     signal,
   });
-  const deadline = Date.now() + 15000;
+  const deadline = record.launch_deadline!;
   let active: PreviewRecord | undefined;
   try {
     while (Date.now() < deadline) {
@@ -304,10 +306,17 @@ async function startPreview(
             }
           : started;
       }
-      if (launch.exited()) break;
+      if (launch.exited())
+        throw new Error(
+          'Preview supervisor exited before opening its control channel. Inspect ' +
+            previewSupervisorLogPath(project)
+        );
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    throw new Error('TIMEOUT: preview supervisor did not open its control channel.');
+    throw new Error(
+      'TIMEOUT: preview supervisor did not open its control channel. Inspect ' +
+        previewSupervisorLogPath(project)
+    );
   } catch (error) {
     active = readPreviewRecord(project);
     if (active?.port) {

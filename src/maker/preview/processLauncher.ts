@@ -9,6 +9,7 @@ export type PreviewProcessLaunchOptions = {
   execArgv: string[];
   entry: string;
   project: string;
+  sessionId?: string;
   cwd: string;
   logFile: string;
   env: NodeJS.ProcessEnv;
@@ -22,7 +23,13 @@ export function buildWindowsPreviewLaunchScripts(options: PreviewProcessLaunchOp
 } {
   return buildWindowsBackgroundLaunchScripts({
     command: options.execPath,
-    args: [...options.execArgv, options.entry, '__maker-preview-supervisor', options.project],
+    args: [
+      ...options.execArgv,
+      options.entry,
+      '__maker-preview-supervisor',
+      options.project,
+      ...(options.sessionId ? [options.sessionId] : []),
+    ],
     cwd: options.cwd,
     logFile: options.logFile,
     env: options.env,
@@ -36,7 +43,13 @@ export function launchPreviewSupervisorProcess(
 ): Promise<BackgroundProcessLaunch> {
   return launchBackgroundProcess({
     command: options.execPath,
-    args: [...options.execArgv, options.entry, '__maker-preview-supervisor', options.project],
+    args: [
+      ...options.execArgv,
+      options.entry,
+      '__maker-preview-supervisor',
+      options.project,
+      ...(options.sessionId ? [options.sessionId] : []),
+    ],
     cwd: options.cwd,
     logFile: options.logFile,
     env: options.env,

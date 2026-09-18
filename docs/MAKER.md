@@ -373,7 +373,7 @@ Python 运行时策略：
 - `taptap-maker dev-kit update`：检查当前环境可用的最新 AI dev kit，恢复或更新当前目录。
 - `taptap-maker user-skills pull`：可选地下载当前用户的 Skill ZIP，校验后只覆盖
   `.installer/skills/` 中 ZIP 包含的同名 Skill，并以原始名称安装到项目内 `.codex/skills/`、
-  `.cursor/skills/` 和 `.workbuddy/skills/`，保留其它本地 Skill。安装优先链接到统一源目录，
+  `.cursor/skills/`、`.workbuddy/skills/` 和 `.agents/skills/`，保留其它本地 Skill。安装优先链接到统一源目录，
   链接不可用时回退复制；任一客户端安装失败时恢复本次替换的客户端目录。归档下载限制为
   64 MiB，最多 1000 个条目、解压后最多 128 MiB。ZIP 使用随 Maker bundle 打包的 `yauzl`
   解压，不依赖系统 `unzip`、PowerShell 或 Python。该命令不接入正常开发流程，也不提供 MCP tool。
@@ -549,6 +549,11 @@ Maker 内置三个业务流程 skill，目标是让本地 AI/Agent 参与本地�
 注意：MCP tool surface 已经收敛。初始化、PAT、app 列表和 clone 不再作为公开 MCP tools 暴露，避免 Agent 在长对话里把一次性初始化流程拆散。
 
 ### AI dev kit 准备
+
+初始化和 dev-kit 更新会从 `.installer/skills` 补齐通用 `.agents/skills`，沿用原始 Skill 名称。
+无论当前客户端或插件渠道，均执行补全；旧 dev-kit 安装脚本缺失或失败时也会尝试补齐。
+已有同名目录不覆盖，链接不可用时复制；不把整个 `.agents` 纳入更新删除范围，
+Git 忽略仅记录对应 Skill 路径，保留用户的其它 Agent 配置和 Skill。
 
 PAT 验证通过、用户选择 app 后，`taptap-maker init` 会先把已选 app 写入
 `.maker-mcp/config.json`，再执行 Maker Git checkout。即使 clone/fetch 失败，后续重新执行
@@ -860,6 +865,10 @@ ElevenLabs，对话使用 Eleven v3 的 `stability` 与表演标签，角色试�
 可用的本地模型路径。重复查询会复用已经登记且仍存在的本地文件。审核阶段的四视图会下载到
 `assets/image/`；必须展示预览并等待用户明确确认，再调用 `action=continue`，本地代理不会自动确认。
 `generate_test_qrcode`、`add_test_whitelist` 和 `get_ad_config` 不进入本地素材落地流程，远端结果原样返回。
+广告流程总览：确认目标项目 → 获取配置 → 核对远端与本地配置 → 阅读项目 SDK → 实现 → 真机验证。
+完整步骤统一见 `maker://ads-integration-guide`。`get_ad_config` 返回的同步路径可能属于远端工作区，
+本地代理不写入本机 `@runtime.ad`；请求成功、同步时间或广告开通不代表本机配置已更新或广告可播放。
+本地配置缺失、不一致或无法核验时，暂停广告实现/测试并说明同步缺口，不猜配置、不自动拉取或覆盖文件。
 调用 `generate_test_qrcode` 时，Agent 应先不传方向参数直接调用。本地 MCP 会读取
 `.project/project.json`：如果 `taptap_publish.screen_orientation` 已是 `landscape` 或 `portrait`，
 直接沿用该值，不再询问用户，也不允许后续输入覆盖。只有该字段从未设置时，才要求 Agent 在单独的
@@ -874,7 +883,7 @@ ElevenLabs，对话使用 Eleven v3 的 `stability` 与表演标签，角色试�
 工作盘符或固定目录。只有返回 `local_*` 路径时，才把附件视为已经下载到本机。
 主 MCP 的 H5 `get_debug_feedbacks` 仍由 H5 本地 handler 处理，两者不要混用应用选择状态。
 新建 Maker 项目主配置缺失时，`get_ad_config` 的本地 preflight 会保持广告能力不可用且不调用远端。
-仅在用户明确要求构建、提交或预览时调用 `maker_build_current_directory`；构建成功后本地配置仍可能
+仅在用户明确要求构建、提交或远端 Web 预览时调用 `maker_build_current_directory`；构建成功后本地配置仍可能
 缺失，此时直接说明已知限制，不要自动重复构建或重试 `get_ad_config`。
 如果 `get_ad_config` 返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode`
 一次生成测试二维码元数据，再重试 `get_ad_config`；不要为这个恢复流程调用发布类 tools。
@@ -948,7 +957,8 @@ tool 时按本地版本携带的 schema 传入支持的参数和素材格式。
 线上用户项目的 `sources.*.tag` 必须是 `stable`，`build.asset_ignores` 只要求字段存在，
 并允许合法的 `@runtime` 配置。远端首次初始化可能使用任意非空版本字符串或
 `project_id` / 发布字段占位符；build/status 模式会提示 warning 并允许远端初始化，
-二维码模式仍会严格拒绝这些占位配置。`generate_test_qrcode` 额外要求规范位置的
+二维码模式仍会拒绝项目身份占位配置；已有有效 App ID 时，不再以新建应用所需的
+名称、分类缺失阻断二维码。未创建 App 的项目仍需补齐真实名称与分类。`generate_test_qrcode` 额外要求规范位置的
 `.project/project.json`、`.project/settings.json`、`project_id`、入口和有效的 `taptap_publish`；
 settings 文件存在但内容错误本身不会阻断二维码生成，缺少 settings 或缺少/损坏 `resources.json`
 会阻断二维码流程。`canBuild` 只表示实际存在配置的结构和 JSON 是否可构建，二维码专属的身份或发布字段错误不会把它改为 `no`。修复配置时只恢复构建关键字段，不要为了功能开发裸改 `sources`、

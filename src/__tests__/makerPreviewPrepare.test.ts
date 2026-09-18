@@ -119,6 +119,43 @@ test('cancelled preparation stops before Python or project writes', async () => 
   expect(fs.existsSync(path.join(root, 'output'))).toBe(false);
 });
 
+test('prepares missing config only in the managed copy with official source defaults', async () => {
+  const project = path.join(root, 'new-game');
+  fs.mkdirSync(path.join(project, 'scripts'), { recursive: true });
+  fs.mkdirSync(path.join(project, '.maker-mcp'));
+  fs.writeFileSync(path.join(project, 'scripts/main.lua'), 'print("hello")');
+  fs.writeFileSync(path.join(project, '.maker-mcp/config.json'), '{"project_id":"bound-game"}');
+  jest.mocked(checkMakerPythonEnvironment).mockReturnValue({
+    ready: true,
+    python: '/python',
+  } as ReturnType<typeof checkMakerPythonEnvironment>);
+  jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
+    (args[args.length - 1] as (error: Error) => void)(new Error('fixture builder reached'));
+    return {} as ReturnType<typeof execFile>;
+  });
+  await expect(preparePreviewProject(project, path.join(root, 'output'))).rejects.toThrow(
+    'fixture builder reached'
+  );
+  const copy = path.join(root, 'output/source/.project');
+  const read = (name: string) =>
+    JSON.parse(fs.readFileSync(path.join(copy, name + '.json'), 'utf8'));
+  expect(read('project')).toMatchObject({
+    project_id: 'bound-game',
+    entry: 'main.lua',
+    version: '1.0.0',
+  });
+  expect(read('resources')).toMatchObject({ groups: { default: ['**'] } });
+  expect(read('settings')).toMatchObject({
+    sources: {
+      engine: { tag: 'stable' },
+      'engine-res': { tag: 'stable' },
+      'official-res': { tag: 'stable' },
+    },
+    build: { asset_dirs: ['../assets', '../scripts'] },
+  });
+  expect(fs.existsSync(path.join(project, '.project'))).toBe(false);
+});
+
 test.each([
   '/tmp/outside',
   '../../outside',

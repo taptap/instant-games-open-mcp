@@ -7,7 +7,13 @@ import {
   MakerProjectRegistryError,
   type MakerRegisteredProject,
 } from '../projectRegistry.js';
-import { inspectMakerProjectHealth } from '../projectSettings.js';
+import {
+  inspectMakerProjectHealth,
+  isConfiguredTitle,
+  hasPublishedApp,
+} from '../projectSettings.js';
+import { MAKER_QR_CATEGORIES, inspectMakerQrcodePreparation } from '../qrcodePreflight.js';
+import { isDeveloperId } from '../qrcodeInteraction.js';
 import { getGitCommand } from '../system/git.js';
 import { ConsoleError, type ConsoleProject } from './types.js';
 
@@ -79,10 +85,16 @@ export class ConsoleProjects {
   private describe(entry: MakerRegisteredProject): ConsoleProject {
     const error = entry.error;
     const config = error ? {} : optionalConfig(entry.path, 'project.json');
+    const title = text(config.taptap_publish?.title)?.trim();
+    const name =
+      title && title !== '<game title, required>'
+        ? title
+        : path.basename(entry.path) + (error ? '' : '（未发布）');
     return {
       key: entry.key,
+      projectid: entry.binding,
       path: entry.path,
-      name: text(config.taptap_publish?.title) || path.basename(entry.path),
+      name,
       valid: !error,
       ...(error ? { error } : {}),
     };
@@ -192,9 +204,12 @@ export class ConsoleProjects {
     }
     signal?.throwIfAborted();
     this.resolve(key);
+    const qrcodePreparation = inspectMakerQrcodePreparation(project.path);
     return {
       project,
       config: {
+        qrcodePreparation,
+        qrcodeNeedsInitialization: qrcodePreparation.status === 'needs_initialization',
         version: text(config.version),
         orientation: text(config.taptap_publish?.screen_orientation),
         entry: text(config['entry@client'] || config.entry),
@@ -204,6 +219,15 @@ export class ConsoleProjects {
             ? settings['@runtime'].multiplayer.enabled
             : null,
         appId: text(config.taptap_publish?.app_id),
+        developerId: isDeveloperId(config.taptap_publish?.developer_id)
+          ? config.taptap_publish.developer_id
+          : null,
+        qrcodeNeedsTitle:
+          !hasPublishedApp(config.taptap_publish || {}) &&
+          !isConfiguredTitle(config.taptap_publish?.title),
+        qrcodeNeedsCategory:
+          !hasPublishedApp(config.taptap_publish || {}) &&
+          !MAKER_QR_CATEGORIES.includes(config.taptap_publish?.category),
       },
       git: gitState,
       health: inspectMakerProjectHealth(project.path),

@@ -116,7 +116,9 @@ not an automatic retry.
 
 Use the active distribution's Maker CLI and the current real Maker project absolute path as
 `--target-dir`; never guess a business project from the dialogue directory. Every command supports
-`--json`. Local preview does not require Git clean, commit, push, PAT, or remote build.
+`--json`. Local preview does not require Git clean, commit or push. Single-player preview needs
+no PAT or remote build. Multiplayer preview uses the existing Maker login and a previously built
+remote test version; it never builds or uploads server code automatically.
 
 1. For an explicit local-preview request, run `taptap-maker preview status --target-dir <PROJECT> --json`.
    If Runtime is missing, follow host approval for downloading/installing with
@@ -150,10 +152,12 @@ Only an AI authorized to modify the game may fix it. Bound automatic fixes to tw
 agreed time budget, permit cancellation, refresh after each attempt, and return remaining failures
 and evidence. Without modification authorization only report.
 
-Runtime preflight must prove that the client can run independently from project configuration,
-entry and dependencies. Server-required or unknown dependencies block local preview. There is no
-local Server, cloud mock, or supported local-client/remote-server bridge. Preserve
-remote build for the full Server experience. Do not classify shared scripts by filename suffix,
+Multiplayer settings automatically select a remote test server using PAT authentication on the
+Maker side and skip_login/WebSocket direct connect in Runtime. A refresh creates a new test game,
+not a restored room. Local server changes require an explicit remote build before taking effect.
+Missing game configuration requires a successful build and test QR generation; authentication or
+allocation failures must not silently fall back to single-player. No local Server/cloud mock or
+game-save isolation is provided. Do not classify shared scripts by filename suffix,
 inject stubs, delete old dist/manifest files, copy whole resource libraries, or silently fetch
 official-res/uuid assets. Explain missing references/cache state and seek approval for retrieval.
 
@@ -261,8 +265,10 @@ supports it. Follow the selected tool schema when one of these tools is used.
   instructions returned by the local runtime; report `delivery_failures` when no model can be delivered.
 - For any ad-related request such as 广告, rewarded videos, play ads, ad ID, ad placement,
   ad status, ad config, or `ShowRewardVideoAd`, first read `maker://ads-integration-guide`, then
-  follow it to inspect Maker project status, call `get_ad_config`, and read the project engine
-  document before editing ad code or testing ad behavior.
+  follow it: confirm project -> `get_ad_config` -> verify remote/local configuration ->
+  project SDK docs -> implementation -> real-device validation.
+- Keep the same explicit `target_dir` throughout. Remote success does not update local settings;
+  if local `@runtime.ad` is missing or differs, follow the guide before proceeding.
 - Do not infer ad readiness from local SDK docs, `.maker-mcp/config.json`, or runtime callbacks.
   If the primary local project configs are missing, keep ad config unavailable and do not call the
   remote tool. Build only for an explicit user build/submit/remote Web preview request. If a successful build

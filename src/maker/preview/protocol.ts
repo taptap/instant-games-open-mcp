@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { getMakerHome, loadProjectConfig } from '../storage.js';
+import { previewEntryName, readPreviewConfiguration } from './configuration.js';
 export { writePrivateJson } from '../system/privateJson.js';
 
 export const PREVIEW_PROTOCOL_VERSION = 1;
@@ -27,6 +28,7 @@ export type PreviewRecord = PreviewIdentity & {
   supervisor_pid: number;
   runtime_pid?: number;
   started_at: string;
+  launch_deadline?: number;
   port: number;
   executable: string;
   state: PreviewState;
@@ -72,6 +74,8 @@ export function readPreviewRecord(project: string): PreviewRecord | undefined {
     !Number.isSafeInteger(record.reload_id) ||
     record.reload_id < 0 ||
     !record.started_at ||
+    (record.launch_deadline !== undefined &&
+      (!Number.isSafeInteger(record.launch_deadline) || record.launch_deadline <= 0)) ||
     !path.isAbsolute(record.executable)
   ) {
     throw new Error('Invalid preview session record; refusing to manage an unverified process.');
@@ -105,17 +109,21 @@ export function samePreviewIdentity(
 }
 
 export function projectEntry(project: string): string {
-  const read = (name: string): Record<string, unknown> =>
-    JSON.parse(fs.readFileSync(path.join(project, '.project', name), 'utf8'));
-  const settings = read('project.json');
-  const resources = read('resources.json');
-  const entry =
-    settings['entry@client'] || settings.entry || resources['entry@client'] || resources.entry;
+  const entry = previewEntryName(
+    readPreviewConfiguration(project, 'project'),
+    readPreviewConfiguration(project, 'resources')
+  );
   if (typeof entry !== 'string' || !entry.endsWith('.lua') || path.isAbsolute(entry)) {
     throw new Error('Local preview needs a Lua entry in .project/project.json or resources.json.');
   }
-  const scripts = fs.realpathSync(path.join(project, 'scripts'));
-  const resolved = fs.realpathSync(path.join(scripts, entry));
+  let scripts: string;
+  let resolved: string;
+  try {
+    scripts = fs.realpathSync(path.join(project, 'scripts'));
+    resolved = fs.realpathSync(path.join(scripts, entry));
+  } catch {
+    throw new Error(`找不到本地预览入口 scripts/${entry}，请先创建入口脚本或检查项目配置。`);
+  }
   const relative = path.relative(scripts, resolved);
   if (relative.startsWith('..') || path.isAbsolute(relative) || !fs.statSync(resolved).isFile()) {
     throw new Error('Preview entry must be a file inside the project scripts directory.');

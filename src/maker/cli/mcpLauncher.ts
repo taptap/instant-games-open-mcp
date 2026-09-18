@@ -57,6 +57,7 @@ const SELF_RUNTIME_DIRECTORIES = [
   'skills/update-taptap-mcp',
 ];
 const SELF_RUNTIME_FILES = [
+  'package.json',
   'dist/maker.js',
   'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md',
   'docs/MAKER_LOCAL_PREVIEW.md',

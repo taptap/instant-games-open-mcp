@@ -1,6 +1,6 @@
 import http from 'node:http';
 import type { Socket } from 'node:net';
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { ConsoleProjects } from './projects.js';
 import { ConsoleTasks } from './tasks.js';
 import { ConsoleError, type ConsoleAction, type ConsoleExecutor } from './types.js';
@@ -12,14 +12,6 @@ import { ConsoleUpdates } from './updates.js';
 import { ConsoleDocuments } from './documents.js';
 import { chooseProjectDirectory } from './folderPicker.js';
 import { discoverConsoleProjects } from './projectDiscovery.js';
-import {
-  FORTUNE_EMBED_PREFIX,
-  FORTUNE_UPSTREAM_ORIGIN,
-  fortuneEmbedCsp,
-  fortuneResponseTooLarge,
-  fortuneUpstreamUrl,
-  rewriteFortuneHtml,
-} from './fortuneEmbed.js';
 
 export async function startConsoleServer(options: {
   registry: ConsoleProjects;
@@ -29,7 +21,6 @@ export async function startConsoleServer(options: {
   distribution?: string;
   packageRoot?: string;
   historyFile?: string;
-  token?: string;
   instanceId?: string;
   idleMs?: number;
   now?: () => number;
@@ -43,7 +34,6 @@ export async function startConsoleServer(options: {
   const touch = (): void => {
     lastActivity = now();
   };
-  const token = options.token || randomBytes(32).toString('hex');
   const tasks = new ConsoleTasks(options.registry, options.execute, options.historyFile, touch);
   const plugins = new ConsolePlugins(options.registry, options.plugins);
   const updates = new ConsoleUpdates(options.version, options.distribution);
@@ -107,9 +97,9 @@ export async function startConsoleServer(options: {
         "default-src 'none'",
         `script-src ${scriptHashes.join(' ') || "'none'"}`,
         "style-src 'unsafe-inline'",
-        "img-src 'self' data:",
+        "img-src 'self' data: https://tapcode-sce.spark.xd.com",
         "connect-src 'self'",
-        "frame-src 'self' http://127.0.0.1:*",
+        'frame-src http://127.0.0.1:* https://liangdong-ttm.github.io',
         "base-uri 'none'",
         "form-action 'none'",
         "frame-ancestors 'none'",
@@ -136,14 +126,6 @@ export async function startConsoleServer(options: {
         response.end(options.html);
         return;
       }
-      if (request.method === 'GET' && url.pathname.startsWith(FORTUNE_EMBED_PREFIX)) {
-        await proxyFortuneEmbed(url, response);
-        return;
-      }
-      const expected = Buffer.from(`Bearer ${token}`);
-      const actual = Buffer.from(request.headers.authorization || '');
-      if (expected.length !== actual.length || !timingSafeEqual(expected, actual))
-        throw new ConsoleError('Console session expired. Open the console again from Maker.', 401);
       if (request.method !== 'GET' && request.headers.origin !== origin)
         throw new ConsoleError('Same-origin writes are required.', 403);
       if (request.method === 'GET' && url.pathname === '/api/health') {
@@ -192,8 +174,12 @@ export async function startConsoleServer(options: {
         if (selectingFolder) throw new ConsoleError('文件夹选择或扫描正在进行，请稍候。', 409);
         selectingFolder = true;
         touch();
+        const selection = new AbortController();
+        const cancelSelection = () => selection.abort();
+        response.once('close', cancelSelection);
         try {
-          const directory = await chooseProjectDirectory();
+          const directory = await chooseProjectDirectory(process.platform, selection.signal);
+          selection.signal.throwIfAborted();
           json(
             200,
             directory
@@ -201,6 +187,7 @@ export async function startConsoleServer(options: {
               : { cancelled: true }
           );
         } finally {
+          response.removeListener('close', cancelSelection);
           selectingFolder = false;
           touch();
         }
@@ -218,7 +205,14 @@ export async function startConsoleServer(options: {
         const body = await bodyForMutation();
         if (typeof body.projectKey !== 'string' || typeof body.action !== 'string')
           throw new ConsoleError('Explicit projectKey and action are required.');
-        const task = tasks.start(body.projectKey, body.action as ConsoleAction);
+        const task = tasks.start(
+          body.projectKey,
+          body.action as ConsoleAction,
+          body.confirmedOrientation,
+          body.publication,
+          body.confirmedBuild,
+          body.sourceTaskId
+        );
         touch();
         json(202, task);
         return;
@@ -373,40 +367,7 @@ export async function startConsoleServer(options: {
     })();
     return closePromise;
   }
-  return { origin, token, tasks, close, closed };
-}
-
-async function proxyFortuneEmbed(url: URL, response: http.ServerResponse): Promise<void> {
-  let upstream: URL;
-  try {
-    upstream = fortuneUpstreamUrl(url.pathname, url.search);
-  } catch {
-    throw new ConsoleError('Invalid fortune embed path.', 400);
-  }
-  const remote = await fetch(upstream, {
-    redirect: 'follow',
-    headers: { Accept: 'text/html,text/css,application/javascript,*/*;q=0.8' },
-    signal: AbortSignal.timeout(8000),
-  });
-  const finalUrl = new URL(remote.url);
-  if (
-    !remote.ok ||
-    finalUrl.origin !== FORTUNE_UPSTREAM_ORIGIN ||
-    !finalUrl.pathname.startsWith(FORTUNE_EMBED_PREFIX)
-  ) {
-    throw new ConsoleError('Fortune embed is unavailable.', 502);
-  }
-  const type = remote.headers.get('content-type') || 'application/octet-stream';
-  const buffer = Buffer.from(await remote.arrayBuffer());
-  if (fortuneResponseTooLarge(buffer.length))
-    throw new ConsoleError('Fortune embed exceeded size limit.', 502);
-  const html = type.includes('text/html');
-  response.writeHead(200, {
-    'Content-Type': html ? 'text/html; charset=utf-8' : type,
-    'Cache-Control': 'no-store',
-    'Content-Security-Policy': fortuneEmbedCsp(),
-  });
-  response.end(html ? rewriteFortuneHtml(buffer.toString('utf8')) : buffer);
+  return { origin, tasks, close, closed };
 }
 
 async function readBody(request: http.IncomingMessage): Promise<Record<string, unknown>> {

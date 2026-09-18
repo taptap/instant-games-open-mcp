@@ -39,6 +39,7 @@ import { DEFAULT_RUNTIME_LOG_TOPICS, watchRuntimeLogs } from '../server/runtimeL
 import { runPreviewCli } from './preview.js';
 import { runConsoleCli } from '../console/cli.js';
 import { runBuildCli } from './build.js';
+import { runQrcodeCli } from './qrcode.js';
 import {
   cloneMakerProject,
   createMakerProject,
@@ -170,6 +171,7 @@ const BOOLEAN_OPTIONS = new Set([
   'create',
   'consent',
   'confirm',
+  'confirmed_build',
   'context_stdin',
   'h',
   'help',
@@ -309,6 +311,11 @@ export async function runMakerCli(argv: string[]): Promise<void> {
 
   if (command === 'build') {
     await runBuildCli(parsed.options);
+    return;
+  }
+
+  if (command === 'qrcode') {
+    await runQrcodeCli(parsed.options);
     return;
   }
 
@@ -3215,6 +3222,7 @@ function printHelp(): void {
       '  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]',
       '  taptap-maker console status|stop [--json]',
       '  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]',
+      '  taptap-maker qrcode --target-dir PROJECT_ABSOLUTE_PATH [--confirmed-screen-orientation landscape|portrait] [--json]',
       '  taptap-maker preview install|prepare|start|status|refresh|stop|logs|screenshot|check',
       '                       --target-dir PROJECT_ABSOLUTE_PATH [--json]',
       '                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]',

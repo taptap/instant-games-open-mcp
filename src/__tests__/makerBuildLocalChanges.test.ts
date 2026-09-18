@@ -61,6 +61,8 @@ import {
   inspectMakerProjectSettings,
 } from '../maker/projectSettings';
 import type { MakerRemoteProxyManager } from '../maker/server/remoteProxyManager';
+import { inspectMakerQrcodePreflight } from '../maker/qrcodePreflight';
+import { executeQrcodeCommand } from '../maker/cli/qrcode';
 
 describe('maker build local-change guard', () => {
   let tempDir: string;
@@ -423,6 +425,116 @@ describe('maker build local-change guard', () => {
     expect(result.failure?.message).toContain('would be overwritten by merge');
     expect(fs.readFileSync(path.join(tempDir, 'scripts', 'main.lua'), 'utf8')).toBe('-- local\n');
     expect(readGit(['rev-parse', '--short', 'HEAD']).trim()).toBe(headBefore);
+  });
+
+  test.each([false, true, 'non-qr'])(
+    'QR submit keeps confirmed developer across remote newline removal (saved retry=%s)',
+    async (retry) => {
+      fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+      const file = path.join(tempDir, '.project/project.json');
+      const config = {
+        taptap_publish: { title: 'Game', category: 'puzzle', screen_orientation: 'portrait' },
+      };
+      fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+      runGit(['add', '.project/project.json']);
+      runGit(['commit', '-m', 'chore: configure QR']);
+      prepareMakerRemote();
+      const remote = cloneRemoteWorktree();
+      fs.writeFileSync(path.join(remote, '.project/project.json'), JSON.stringify(config, null, 2));
+      runGit(['add', '.project/project.json'], remote);
+      runGit(['commit', '-m', 'chore: QR normalization'], remote);
+      runGit(['push', 'origin', 'main'], remote);
+      expect(inspectMakerQrcodePreflight(tempDir, undefined, { developer_id: 290607 }).ok).toBe(
+        true
+      );
+      if (retry) expect(inspectMakerQrcodePreflight(tempDir, undefined).ok).toBe(true);
+      fs.writeFileSync(path.join(tempDir, 'scripts/main.lua'), '-- user changes\n');
+      const headBefore = readGit(['rev-parse', 'HEAD']);
+      const result = await pushMakerProject({
+        cwd: tempDir,
+        preserveQrcodeChoices: retry !== 'non-qr',
+      });
+      if (retry === 'non-qr') {
+        expect(result.failure?.stage).toBe('pull');
+        expect(result.pushed).toBe(false);
+        expect(readGit(['rev-parse', 'HEAD'])).toBe(headBefore);
+        expect(JSON.parse(fs.readFileSync(file, 'utf8')).taptap_publish.developer_id).toBe(290607);
+        return;
+      }
+      expect(result.failure).toBeUndefined();
+      expect(result.pushed).toBe(true);
+      expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({
+        ...config,
+        taptap_publish: { ...config.taptap_publish, developer_id: 290607 },
+      });
+      expect(fs.readFileSync(path.join(tempDir, 'scripts/main.lua'), 'utf8')).toBe(
+        '-- user changes\n'
+      );
+      expect(readGit(['status', '--porcelain']).trim()).toBe('');
+      expect(readGit(['stash', 'list']).trim()).toBe('');
+      expect(readGit(['rev-parse', 'HEAD'])).toBe(readGit(['rev-parse', 'origin/main']));
+    }
+  );
+
+  test('QR CLI push completes post-receive checkout before QR reads new configuration, without an extra build', async () => {
+    fs.mkdirSync(path.join(tempDir, '.project'), { recursive: true });
+    const config = {
+      project_id: 'app-1',
+      version: '1.0.0',
+      entry: 'scripts/main.lua',
+      taptap_publish: { title: 'Game', category: 'puzzle', screen_orientation: 'portrait' },
+    };
+    fs.writeFileSync(
+      path.join(tempDir, '.project/project.json'),
+      JSON.stringify(config, null, 2) + '\n'
+    );
+    runGit(['add', '.project/project.json']);
+    runGit(['commit', '-m', 'test: QR config baseline']);
+    prepareMakerRemote();
+    const remoteDir = path.join(process.env.TAPTAP_MAKER_GIT_BASE!, 'app-1.git');
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'qr-post-receive-workspace-'));
+    const hook = path.join(remoteDir, 'hooks/post-receive');
+    fs.writeFileSync(
+      hook,
+      `#!/bin/sh\nset -e\nexec git --git-dir="${remoteDir}" --work-tree="${workspace}" checkout -f main\n`,
+      { mode: 0o755 }
+    );
+    const build = jest.fn();
+    const submit = jest.fn(pushMakerProject);
+    const call = jest.fn(async () => {
+      expect(
+        JSON.parse(fs.readFileSync(path.join(workspace, '.project/project.json'), 'utf8'))
+          .taptap_publish.developer_id
+      ).toBe(290607);
+      expect(readGit(['rev-parse', 'HEAD']).trim()).toBe(
+        readGit(['rev-parse', 'main'], remoteDir).trim()
+      );
+      return { content: [{ type: 'text' as const, text: 'fixture QR response, no network' }] };
+    });
+    try {
+      const deps = {
+        access: async () => ({ blocked: false }),
+        readiness: () => ({ status: 'ready' as const }),
+        prepare: inspectMakerQrcodePreflight,
+        preflight: inspectMakerQrcodePreflight,
+        submit,
+        call,
+        build,
+      };
+      expect(
+        await executeQrcodeCommand(tempDir, undefined, deps, {
+          confirmedBuild: true,
+          publication: { developer_id: 290607 },
+        })
+      ).toMatchObject({ ok: true, requiresSync: false });
+      expect(submit).toHaveBeenCalledTimes(1);
+      expect(call).toHaveBeenCalledTimes(1);
+      expect(build).not.toHaveBeenCalled();
+      expect(readGit(['status', '--porcelain']).trim()).toBe('');
+    } finally {
+      fs.rmSync(workspace, { recursive: true, force: true });
+      fs.rmSync(path.dirname(remoteDir), { recursive: true, force: true });
+    }
   });
 
   test('push preserves the original recovery advice for non-conflict fast-forward failures', async () => {

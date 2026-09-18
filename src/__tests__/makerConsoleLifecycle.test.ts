@@ -50,7 +50,6 @@ describe('Maker console lifecycle', () => {
   }
   function headers(server: Awaited<ReturnType<typeof start>>) {
     return {
-      Authorization: `Bearer ${server.token}`,
       Origin: server.origin,
       'Content-Type': 'application/json',
     };
@@ -96,7 +95,7 @@ describe('Maker console lifecycle', () => {
     const health = await fetch(server.origin + '/api/health', { headers: headers(server) });
     expect(health.status).toBe(200);
     expect(await health.json()).toMatchObject({ draining: false });
-    expect((await fetch(server.origin + '/api/health')).status).toBe(401);
+    expect((await fetch(server.origin + '/api/health')).status).toBe(200);
     const stop = await fetch(server.origin + '/api/shutdown', {
       method: 'POST',
       headers: headers(server),

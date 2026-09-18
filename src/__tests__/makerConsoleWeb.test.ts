@@ -6,7 +6,7 @@ function script(): string {
   return html.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? '';
 }
 
-function harness(hash = '#token=secret', search = '?project=alpha', storageAvailable = true) {
+function harness(hash = '', search = '?project=alpha', storageAvailable = true) {
   const storage = new Map<string, string>();
   const replaceState = jest.fn();
   const intervals = new Map<number, () => void>();
@@ -76,8 +76,13 @@ function harness(hash = '#token=secret', search = '?project=alpha', storageAvail
   if (!storageAvailable) context.sessionStorage = undefined as never;
   const exposed = script().replace(
     /\}\)\(\);\s*$/,
-    `return {api, previewActions, graphLayout, runAction, runProjectAction, loadProject, safePreviewUrl, taskPreviewUrl, healthLabel,
-      poll, pollState, sendActivity, startActivityLease, dispose, rememberTask, buildPresentation, buildFailureMessage,
+    `return {api, selectDialog, confirmQrcode, previewActions, graphLayout, runAction, runProjectAction, loadProject, safePreviewUrl, taskPreviewUrl, healthLabel,
+      qrcodeImageSource: typeof qrcodeImageSource === 'function' ? qrcodeImageSource : undefined,
+      clearConsoleLogs: typeof clearConsoleLogs === 'function' ? clearConsoleLogs : undefined,
+      consoleLogText, logView, tasksFor,
+      showQrcode: typeof showQrcode === 'function' ? showQrcode : undefined,
+      handleQrcodeCompletion: typeof handleQrcodeCompletion === 'function' ? handleQrcodeCompletion : undefined,
+      poll, pollState, sendActivity, startActivityLease, dispose, shutdownConsole, rememberTask, buildPresentation, buildFailureMessage,
       buildFailureDetails, luaLspPresentation, luaCheckBlocksBuild, runtimePresentation,
       previewPresentation: typeof previewPresentation === 'function' ? previewPresentation : undefined,
       previewStateLabel: typeof previewStateLabel === 'function' ? previewStateLabel : undefined,
@@ -89,20 +94,25 @@ function harness(hash = '#token=secret', search = '?project=alpha', storageAvail
       loadedState: () => loaded,
       acceptedCount: () => acceptedTasks.size,
       offline: () => offline,
-      current: () => selected, detail: () => detail,
-      setProjectQuery,
+      current: () => selected, detail: () => detail, chooseProject, busy,
+      setProjectQuery, projectKeyFromQuery,
       changeSelection: (key) => { selected = key; selectionEpoch++; },
       setup: (projects, hooks) => {
         state = {projects, tasks: []};
         updateChrome = hooks.render;
         updateBuild = hooks.render;
+        renderConsoleLogs = hooks.render;
         renderOverview = hooks.render;
+        render = hooks.render;
         refreshPreview = hooks.refresh;
         confirmAction = hooks.confirm;
+        if (hooks.confirmQrcode) confirmQrcode = hooks.confirmQrcode;
+        if (hooks.selectDialog) selectDialog = hooks.selectDialog;
         notify = hooks.notify;
         announce = hooks.announce;
         if (hooks.navigate) navigate = hooks.navigate;
         if (hooks.runAction) runAction = hooks.runAction;
+        if (hooks.loadProject) loadProject = hooks.loadProject;
       }
     };})();`
   );
@@ -111,6 +121,193 @@ function harness(hash = '#token=secret', search = '?project=alpha', storageAvail
 }
 
 describe('Maker console standalone UI', () => {
+  it('clears the selected log without stopping the task and shows subsequent output', () => {
+    const { api, fetch } = harness();
+    api.setup([], { render: jest.fn(), notify: jest.fn(), announce: jest.fn() });
+    const task = {
+      id: 'build-1',
+      projectKey: 'alpha',
+      action: 'build',
+      status: 'running',
+      output: 'old\n',
+    };
+    api.rememberTask(task);
+    api.clearConsoleLogs();
+    expect(api.consoleLogText()).toBe('日志已清理');
+    api.rememberTask({ ...task, output: 'old\nnew\n' });
+    expect(api.consoleLogText()).toBe('new\n');
+    api.changeSelection('beta');
+    expect(api.consoleLogText()).toBe('暂无日志');
+    api.changeSelection('alpha');
+    api.logView().tab = 'runtime';
+    api.logView().runtime = 'runtime old';
+    api.clearConsoleLogs();
+    expect(api.consoleLogText()).toBe('日志已清理');
+    api.logView().runtime = 'runtime old\nnew';
+    expect(api.consoleLogText()).toBe('\nnew');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('does not resurrect discarded task history from the local task cache', () => {
+    const { api } = harness();
+    api.setup([], { render: jest.fn(), notify: jest.fn(), announce: jest.fn() });
+    for (let i = 0; i < 15; i++)
+      api.rememberTask({
+        id: String(i),
+        projectKey: 'alpha',
+        status: 'succeeded',
+        action: 'build',
+        startedAt: new Date(i * 1000).toISOString(),
+      });
+    expect(api.tasksFor('alpha')).toHaveLength(10);
+    expect(api.tasksFor('alpha')[9].id).toBe('5');
+  });
+  const qrTask = (url = 'https://tapcode-sce.spark.xd.com/qrcode/game.png') => ({
+    id: 'qr-result',
+    projectKey: 'alpha',
+    projectName: 'Game',
+    action: 'qrcode',
+    status: 'succeeded',
+    result: {
+      ok: true,
+      result: { content: [{ type: 'text', text: `![测试二维码](${url} "扫描此二维码测试游戏")` }] },
+    },
+  });
+
+  it('extracts the actual remote Markdown QR image without rendering arbitrary Markdown images', () => {
+    const { api } = harness();
+    expect(api.qrcodeImageSource(qrTask())).toBe(
+      'https://tapcode-sce.spark.xd.com/qrcode/game.png'
+    );
+    for (const url of [
+      'http://127.0.0.1/qrcode/a.png',
+      'https://evil.example/qrcode/a.png',
+      'https://tapcode-sce.spark.xd.com.evil.example/qrcode/a.png',
+      'https://user:pass@tapcode-sce.spark.xd.com/qrcode/a.png',
+      'https://tapcode-sce.spark.xd.com/qrcode/a.svg',
+    ])
+      expect(api.qrcodeImageSource(qrTask(url))).toBeNull();
+    expect(api.qrcodeImageSource({ ...qrTask(), status: 'failed' })).toBeNull();
+  });
+
+  it('opens a large QR dialog and retries only the image after a loading error', () => {
+    const { api, context, fetch } = harness();
+    const elements = new Map<string, any>();
+    context.document.getElementById.mockImplementation(((id: string) => {
+      if (!elements.has(id))
+        elements.set(id, {
+          hidden: false,
+          open: false,
+          textContent: '',
+          src: '',
+          removeAttribute: jest.fn(),
+          showModal: jest.fn(),
+          close: jest.fn(),
+        });
+      return elements.get(id);
+    }) as never);
+    api.showQrcode(qrTask());
+    const image = elements.get('qrcode-result-image');
+    expect(image.src).toContain('/qrcode/game.png');
+    expect(elements.get('qrcode-result').showModal).toHaveBeenCalledTimes(1);
+    image.onerror();
+    expect(elements.get('qrcode-result-reload').hidden).toBe(false);
+    elements.get('qrcode-result-reload').onclick();
+    expect(image.src).toContain('/qrcode/game.png');
+    image.onload();
+    expect(elements.get('qrcode-result-status').hidden).toBe(true);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('opens a completed QR only once, without interrupting another project or dialog', () => {
+    const { api, context } = harness();
+    const modal = { open: false, hidden: false, showModal: jest.fn() };
+    context.document.getElementById.mockImplementation(() => modal as never);
+    api.setup([], { render: jest.fn(), notify: jest.fn(), announce: jest.fn() });
+    api.handleQrcodeCompletion({ ...qrTask(), projectKey: 'beta' });
+    expect(modal.showModal).not.toHaveBeenCalled();
+    api.handleQrcodeCompletion(qrTask());
+    api.handleQrcodeCompletion(qrTask());
+    expect(modal.showModal).toHaveBeenCalledTimes(1);
+    modal.open = true;
+    api.handleQrcodeCompletion({ ...qrTask(), id: 'next' });
+    expect(modal.showModal).toHaveBeenCalledTimes(1);
+  });
+
+  it('continues known developer prompts through confirmation but never retries unknown failures', () => {
+    const { api, fetch } = harness();
+    const runAction = jest.fn();
+    api.setup([], { render: jest.fn(), notify: jest.fn(), announce: jest.fn(), runAction });
+    api.handleQrcodeCompletion({ ...qrTask(), status: 'unknown' });
+    expect(runAction).not.toHaveBeenCalled();
+    const task = {
+      ...qrTask(),
+      id: 'needs-choice',
+      status: 'unknown',
+      interaction: {
+        kind: 'select_developer',
+        options: [{ value: 1, label: 'Studio' }],
+      },
+    };
+    api.handleQrcodeCompletion(task);
+    api.handleQrcodeCompletion(task);
+    expect(runAction).toHaveBeenCalledTimes(1);
+    expect(runAction).toHaveBeenCalledWith('qrcode', { sourceTaskId: 'needs-choice' });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('shows a failed preview entry message once and only for the selected project', () => {
+    const { api } = harness();
+    const notify = jest.fn();
+    api.setup([], { render: jest.fn(), notify });
+    const task = {
+      id: 'entry-failed',
+      projectKey: 'alpha',
+      action: 'preview.start',
+      status: 'failed',
+      error: '找不到本地预览入口 scripts/main.lua',
+    };
+    api.rememberTask(task);
+    api.rememberTask(task);
+    api.rememberTask({ ...task, id: 'other-project', projectKey: 'beta' });
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(task.error);
+  });
+
+  it.each([false, true])('only shuts down after confirmation=%s', async (confirmed) => {
+    const { api, fetch } = harness();
+    const confirm = jest.fn().mockResolvedValue(confirmed);
+    api.setup([], { render: jest.fn(), confirm, notify: jest.fn() });
+    await api.shutdownConsole();
+    expect(confirm).toHaveBeenCalledWith('console.shutdown');
+    expect(fetch).toHaveBeenCalledTimes(confirmed ? 1 : 0);
+    if (confirmed) {
+      expect(fetch.mock.calls[0][0]).toBe('/api/shutdown');
+      expect(fetch.mock.calls[0][1].method).toBe('POST');
+    }
+    expect(api.offline()).toBe(confirmed);
+  });
+
+  it('keeps the console available if shutdown is rejected by active tasks', async () => {
+    const { api, fetch } = harness();
+    const notify = jest.fn();
+    api.setup([], {
+      render: jest.fn(),
+      confirm: jest.fn().mockResolvedValue(true),
+      notify,
+    });
+    fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: async () => ({ error: 'Wait for active tasks before stopping the console.' }),
+    });
+    await api.shutdownConsole();
+    expect(api.offline()).toBe(false);
+    expect(notify).toHaveBeenCalled();
+    await api.api('/api/state');
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('reclaims failed plugin placeholders without destroying loaded or starting workspaces', () => {
     const { api } = harness();
     const remove = jest.fn();
@@ -138,7 +335,7 @@ describe('Maker console standalone UI', () => {
     expect(footer.indexOf('id="version"')).toBeGreaterThan(-1);
     expect(footer.indexOf('id="version"')).toBeLessThan(footer.indexOf('id="fortune-toggle"'));
     expect(footer.indexOf('id="fortune-toggle"')).toBeLessThan(footer.indexOf('id="footer-path"'));
-    expect(footer).toContain('id="fortune-corner" hidden');
+    expect(footer).not.toContain('id="fortune-corner" hidden');
     expect(footer).toContain('>独立游戏开发日签<');
     expect(styles).toContain('button#fortune-toggle{border:0;background:none;color:#f5e6a3;');
     expect(html).toContain('id="fortune-panel"');
@@ -147,11 +344,11 @@ describe('Maker console standalone UI', () => {
     expect(html).not.toContain('id="fortune-close"');
     expect(script()).toContain("theme=dungeon&mode=' + fortuneMode()");
     expect(script()).toContain('/gdev-fortune/?embed=1&theme=dungeon&mode=');
-    expect(script()).toContain('gdev-fortune:size');
-    expect(script()).toContain('function revealFortune()');
-    expect(script()).toContain("panel.classList.add('fortune-preload')");
+    expect(script()).toContain('https://liangdong-ttm.github.io/gdev-fortune/');
+    expect(script()).not.toContain('gdev-fortune:size');
+    expect(html).toContain('id="fortune-retry"');
     expect(script()).toContain('function fortuneIsOpen()');
-    expect(script()).toContain('if (!fortuneReady) return;');
+    expect(script()).not.toContain('if (!fortuneReady) return;');
     expect(script()).toContain("transformOrigin = 'left bottom'");
     expect(script()).toContain('scheduleCloseFortune');
     expect(script()).toContain(
@@ -388,44 +585,69 @@ describe('Maker console standalone UI', () => {
     expect(html).toContain('The MIT License (MIT)');
   });
 
-  it('stores the fragment token without removing the reload credential', () => {
-    const { api, storage, replaceState, fetch } = harness();
-    expect(storage.get('maker-console-token')).toBe('secret');
+  it('does not store credentials from legacy fragment URLs', () => {
+    const { api, storage, replaceState, fetch } = harness('#token=secret');
+    expect(storage.size).toBe(0);
     expect(replaceState).not.toHaveBeenCalled();
     expect(api.current()).toBe('alpha');
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('keeps the fragment token usable when session storage is unavailable', async () => {
-    const { api, replaceState, fetch } = harness('#token=secret', '?project=alpha', false);
+  it('opens a bare URL even when session storage is unavailable', async () => {
+    const { api, replaceState, fetch } = harness('', '', false);
     await api.api('/api/state');
     expect(replaceState).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledWith(
       '/api/state',
       expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer secret' }),
+        headers: { 'Content-Type': 'application/json' },
       })
     );
   });
 
-  it('preserves the fragment token while changing the selected project URL', () => {
+  it('changes the selected project URL without a token', () => {
     const { api, replaceState } = harness();
+    api.setup([{ key: 'beta', projectid: 'actual-project-id' }], { render: jest.fn() });
     api.changeSelection('beta');
     api.setProjectQuery();
-    expect(replaceState).toHaveBeenLastCalledWith(null, '', '/?project=beta#token=secret');
+    expect(replaceState).toHaveBeenLastCalledWith(null, '', '/?projectid=actual-project-id');
+  });
+
+  it('resolves actual project IDs and keeps duplicate checkout selection unambiguous', () => {
+    const { api, replaceState } = harness();
+    api.setup(
+      [
+        { key: 'alpha', projectid: 'shared-id' },
+        { key: 'beta', projectid: 'shared-id' },
+        { key: 'gamma', projectid: 'unique-id' },
+      ],
+      { render: jest.fn() }
+    );
+    expect(api.projectKeyFromQuery(new URLSearchParams('projectid=unique-id'))).toBe('gamma');
+    expect(api.projectKeyFromQuery(new URLSearchParams('projectid=shared-id'))).toBe('');
+    expect(api.projectKeyFromQuery(new URLSearchParams('projectid=shared-id&checkout=beta'))).toBe(
+      'beta'
+    );
+    expect(api.projectKeyFromQuery(new URLSearchParams('projectid=unique-id&checkout=beta'))).toBe(
+      ''
+    );
+    expect(api.projectKeyFromQuery(new URLSearchParams('project=alpha'))).toBe('alpha');
+    api.changeSelection('beta');
+    api.setProjectQuery();
+    expect(replaceState).toHaveBeenLastCalledWith(null, '', '/?projectid=shared-id&checkout=beta');
   });
 
   it('never chooses the first project when the URL has no project', () => {
     expect(harness('#token=secret', '').api.current()).toBe('');
   });
 
-  it('authenticates all API requests and does not send credentials elsewhere', async () => {
+  it('sends token-free API requests only to local API paths', async () => {
     const { api, fetch } = harness();
     await api.api('/api/tasks', { method: 'POST', body: { projectKey: 'alpha', action: 'build' } });
     expect(fetch).toHaveBeenCalledWith(
       '/api/tasks',
       expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer secret' }),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectKey: 'alpha', action: 'build' }),
         redirect: 'error',
       })
@@ -434,13 +656,13 @@ describe('Maker console standalone UI', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('does not request anything when authentication is absent', async () => {
+  it('requests state without credentials', async () => {
     const { api, fetch } = harness('');
-    await expect(api.api('/api/state')).rejects.toThrow();
-    expect(fetch).not.toHaveBeenCalled();
+    await expect(api.api('/api/state')).resolves.toEqual({ ok: true });
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('stops automatic requests after disconnect and does not retry mutations', async () => {
+  it('keeps local failures isolated and never retries mutations', async () => {
     const { api, fetch } = harness();
     fetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
     await expect(
@@ -448,15 +670,14 @@ describe('Maker console standalone UI', () => {
         method: 'POST',
         body: { projectKey: 'alpha', action: 'build' },
       })
-    ).rejects.toThrow('重新打开');
-    expect(api.offline()).toBe(true);
-    await api.poll();
-    await api.sendActivity();
-    await expect(api.api('/api/state')).rejects.toThrow();
-    expect(fetch).toHaveBeenCalledTimes(1);
+    ).rejects.toThrow('结果尚未确认');
+    expect(api.offline()).toBe(false);
+    await api.api('/api/state');
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1);
   });
 
-  it('also stops polling when the response body is interrupted after headers arrive', async () => {
+  it('allows another read after an interrupted response body', async () => {
     const { api, fetch } = harness();
     fetch.mockResolvedValueOnce({
       ok: true,
@@ -465,13 +686,28 @@ describe('Maker console standalone UI', () => {
         throw new TypeError('terminated');
       },
     } as never);
-    await expect(api.api('/api/state')).rejects.toThrow('重新打开');
-    expect(api.offline()).toBe(true);
-    await api.poll();
-    expect(fetch).toHaveBeenCalledTimes(1);
+    await expect(api.api('/api/state')).rejects.toThrow('请求失败');
+    expect(api.offline()).toBe(false);
+    await api.api('/api/state');
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it('does not restore connected UI from a late state response after another request disconnects', async () => {
+  it('does not disable other features after a service-unavailable response from one operation', async () => {
+    const { api, fetch } = harness();
+    fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: '弹窗不可用' }),
+    } as never);
+    await expect(
+      api.api('/api/projects/select-folder', { method: 'POST', body: {} })
+    ).rejects.toThrow('弹窗不可用');
+    expect(api.offline()).toBe(false);
+    await api.api('/api/state');
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not restore connected UI from a late state response after page teardown', async () => {
     const { api, fetch } = harness();
     let resolve!: (value: unknown) => void;
     fetch.mockImplementationOnce(
@@ -481,11 +717,9 @@ describe('Maker console standalone UI', () => {
         })
     );
     const pending = api.pollState();
-    fetch.mockRejectedValueOnce(new TypeError('disconnected'));
-    await expect(api.api('/api/state')).rejects.toThrow();
+    api.dispose();
     resolve({ ok: true, status: 200, json: async () => ({ projects: [], tasks: [] }) });
     await pending;
-    expect(api.offline()).toBe(true);
     expect(api.loadedState()).toBe(false);
   });
 
@@ -537,9 +771,10 @@ describe('Maker console standalone UI', () => {
 
   it('caps browser task retention during a long session', () => {
     const { api } = harness();
-    api.rememberTask({ id: 'running', status: 'running' });
-    for (let i = 0; i < 150; i++) api.rememberTask({ id: String(i), status: 'succeeded' });
-    expect(api.acceptedCount()).toBe(100);
+    api.rememberTask({ id: 'running', projectKey: 'alpha', status: 'running' });
+    for (let i = 0; i < 150; i++)
+      api.rememberTask({ id: String(i), projectKey: 'beta', status: 'succeeded' });
+    expect(api.acceptedCount()).toBe(11);
   });
 
   it('handles preview liveness strictly without starting unknown processes', () => {
@@ -628,10 +863,283 @@ describe('Maker console standalone UI', () => {
     ).toBe('Lua 检查未通过：1 个错误');
   });
 
-  it('renders the build-before-Lua-check option only beside the top-level build button', () => {
+  it('separates primary preview/build/QR actions from Lua checks and build status', () => {
     const source = script();
-    expect(source).toContain('const result = [local,build,luaCheckOption()]');
+    expect(source).toContain("primary.append(local,build,button('测试二维码'");
+    expect(source).toContain('secondary.append(luaCheckOption())');
+    expect(source).toContain('return [primary,secondary]');
     expect(source).not.toContain('checkActions.append(luaCheckOption())');
+    expect(getConsoleHtml()).toContain('<option value="puzzle">益智</option>');
+    expect(getConsoleHtml()).toContain('<option value="casual">休闲</option>');
+  });
+
+  it.each([null, { confirmedOrientation: 'portrait' }])(
+    'only dispatches a QR task after confirmation: %j',
+    async (choice) => {
+      const { api, fetch } = harness();
+      const confirmQrcode = jest.fn(async () => choice);
+      api.setup([{ key: 'alpha', name: 'A', valid: true }], {
+        render: jest.fn(),
+        confirmQrcode,
+        notify: jest.fn(),
+        announce: jest.fn(),
+      });
+      fetch.mockImplementation(async (url) => ({
+        ok: true,
+        status: 200,
+        json: async () =>
+          url === '/api/tasks'
+            ? { id: 'qr', projectKey: 'alpha', action: 'qrcode', status: 'succeeded' }
+            : { health: { canGenerateTestQrcode: true }, config: {} },
+      }));
+      await api.runAction('qrcode');
+      expect(confirmQrcode).toHaveBeenCalledTimes(1);
+      const mutations = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
+      expect(mutations).toHaveLength(choice ? 1 : 0);
+      if (choice)
+        expect(JSON.parse(mutations[0][1].body!)).toEqual({
+          projectKey: 'alpha',
+          action: 'qrcode',
+          confirmedOrientation: 'portrait',
+        });
+      expect(fetch.mock.calls.some(([url]) => url.includes('/preview'))).toBe(false);
+    }
+  );
+
+  it('allows missing publishing fields to be completed in QR confirmation', async () => {
+    const { api, fetch } = harness();
+    const notify = jest.fn(),
+      confirmQrcode = jest.fn(async () => null);
+    api.setup([{ key: 'alpha', name: 'A', valid: true }], {
+      render: jest.fn(),
+      confirmQrcode,
+      notify,
+      announce: jest.fn(),
+    });
+    fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ health: { canGenerateTestQrcode: false } }),
+    });
+    await api.runAction('qrcode');
+    expect(confirmQrcode).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls.every(([, options]) => options.method === 'GET')).toBe(true);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it.each(['needs_initialization', 'blocked'])(
+    'explains QR prerequisites before collecting choices or starting work: %s',
+    async (status) => {
+      const { api, fetch, context } = harness();
+      const confirmQrcode = jest.fn();
+      const modal = { open: false, showModal: jest.fn(), textContent: '' };
+      context.document.getElementById.mockImplementation(() => modal as never);
+      api.setup([{ key: 'alpha', name: 'A', valid: true }], {
+        render: jest.fn(),
+        confirmQrcode,
+        notify: jest.fn(),
+        announce: jest.fn(),
+      });
+      fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          config: {
+            qrcodeNeedsInitialization: status === 'needs_initialization',
+            qrcodePreparation: { status, message: '请先处理配置' },
+          },
+        }),
+      });
+      await api.runAction('qrcode');
+      expect(modal.showModal).toHaveBeenCalledTimes(1);
+      expect(confirmQrcode).not.toHaveBeenCalled();
+      expect(fetch.mock.calls.every(([, options]) => options.method === 'GET')).toBe(true);
+    }
+  );
+
+  it.each([
+    'cancel-select',
+    'cancel-confirm',
+    'switch-select',
+    'switch-confirm',
+    'confirm',
+    'direct',
+  ])('developer continuation stays bound to its source task: %s', async (mode) => {
+    const { api, fetch } = harness();
+    const selectDialog = jest.fn(async () => {
+      if (mode === 'switch-select') api.changeSelection('beta');
+      return mode === 'cancel-select' ? null : 123;
+    });
+    const confirmQrcode = jest.fn(async () => {
+      if (mode === 'switch-confirm') api.changeSelection('beta');
+      return mode === 'cancel-confirm' ? null : { confirmedBuild: true };
+    });
+    api.setup(
+      [
+        { key: 'alpha', name: 'A', valid: true },
+        { key: 'beta', name: 'B', valid: true },
+      ],
+      {
+        render: jest.fn(),
+        selectDialog,
+        confirmQrcode,
+        notify: jest.fn(),
+        announce: jest.fn(),
+      }
+    );
+    api.rememberTask({
+      id: 'source',
+      projectKey: 'alpha',
+      action: 'qrcode',
+      status: 'unknown',
+      interaction: {
+        kind: 'select_developer',
+        title: '选择开发者身份',
+        options: [{ value: 123, label: 'A' }],
+      },
+    });
+    fetch.mockImplementation(async (url) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        url === '/api/tasks'
+          ? { id: 'next', projectKey: 'alpha', action: 'qrcode', status: 'succeeded' }
+          : { config: { orientation: 'portrait', qrcodeNeedsTitle: mode !== 'direct' } },
+    }));
+    await api.runAction('qrcode');
+    expect(selectDialog).toHaveBeenCalledTimes(1);
+    const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
+    if (mode === 'confirm' || mode === 'direct') {
+      expect(posts).toHaveLength(1);
+      expect(JSON.parse(posts[0][1].body!)).toEqual({
+        projectKey: 'alpha',
+        action: 'qrcode',
+        sourceTaskId: 'source',
+        publication: { developer_id: 123 },
+        confirmedBuild: true,
+      });
+      if (mode === 'direct') expect(confirmQrcode).not.toHaveBeenCalled();
+      else
+        expect(confirmQrcode).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'A' }),
+          expect.objectContaining({ qrcodeNeedsSync: true, developerLabel: 'A' })
+        );
+    } else expect(posts).toHaveLength(0);
+  });
+
+  it('renders selection labels as text and requires a real choice and explicit confirmation', async () => {
+    const { api, context } = harness();
+    const elements = new Map<string, any>();
+    context.document.getElementById.mockImplementation(((id: string) => {
+      if (!elements.has(id))
+        elements.set(id, {
+          value: '',
+          disabled: false,
+          textContent: '',
+          append: jest.fn(),
+          replaceChildren: jest.fn(),
+          showModal: jest.fn(),
+          addEventListener: (_event: string, callback: () => void) => {
+            elements.get(id).close = callback;
+          },
+        });
+      return elements.get(id);
+    }) as never);
+    const choice = api.selectDialog('选择', '确认将同步所有本地改动', [
+      { value: 123, label: '<img src=x onerror=alert(1)>' },
+    ]);
+    const picker = elements.get('selection-options');
+    expect(picker.value).toBe('');
+    expect(elements.get('selection-accept').disabled).toBe(true);
+    expect(picker.append.mock.calls[0][0].textContent).toBe('<img src=x onerror=alert(1)>');
+    expect(picker.append.mock.calls[0][0].innerHTML).toBeUndefined();
+    picker.value = '456';
+    picker.onchange();
+    expect(elements.get('selection-accept').disabled).toBe(true);
+    picker.value = '123';
+    picker.onchange();
+    expect(elements.get('selection-accept').disabled).toBe(false);
+    elements.get('selection-dialog').returnValue = 'cancel';
+    elements.get('selection-dialog').close();
+    expect(await choice).toBeNull();
+  });
+
+  it.each([false, true])(
+    'QR dialog collects only missing fields and requires sync consent: %s',
+    async (missing) => {
+      const { api, context } = harness();
+      const elements = new Map<string, any>();
+      context.document.getElementById.mockImplementation(((id: string) => {
+        if (!elements.has(id))
+          elements.set(id, {
+            value: '',
+            hidden: false,
+            disabled: false,
+            textContent: '',
+            showModal: jest.fn(),
+            addEventListener: (_event: string, callback: () => void) => {
+              elements.get(id).close = callback;
+            },
+          });
+        return elements.get(id);
+      }) as never);
+      const result = api.confirmQrcode(
+        { name: 'Game' },
+        {
+          orientation: 'portrait',
+          qrcodeNeedsTitle: missing,
+          qrcodeNeedsCategory: missing,
+        }
+      );
+      expect(elements.get('qrcode-orientation-field').hidden).toBe(true);
+      expect(elements.get('qrcode-name-field').hidden).toBe(!missing);
+      expect(elements.get('qrcode-accept').disabled).toBe(missing);
+      if (missing) {
+        expect(elements.get('qrcode-effects').textContent).toContain('所有本地改动');
+        elements.get('qrcode-name').value = '拼豆';
+        elements.get('qrcode-name').oninput();
+        expect(elements.get('qrcode-accept').disabled).toBe(true);
+        elements.get('qrcode-category').value = 'puzzle';
+        elements.get('qrcode-category').onchange();
+        expect(elements.get('qrcode-accept').disabled).toBe(false);
+      }
+      elements.get('qrcode-confirm').returnValue = 'accept';
+      elements.get('qrcode-confirm').close();
+      expect(await result).toEqual({
+        confirmedOrientation: undefined,
+        confirmedBuild: missing,
+        ...(missing ? { publication: { title: '拼豆', category: 'puzzle' } } : {}),
+      });
+    }
+  );
+
+  it('keeps explicit sync confirmation on retry after saved QR configuration failed to build', async () => {
+    const { api, fetch } = harness();
+    const confirmQrcode = jest.fn(async () => null);
+    api.setup([{ key: 'alpha', name: 'A', valid: true }], {
+      render: jest.fn(),
+      confirmQrcode,
+      notify: jest.fn(),
+      announce: jest.fn(),
+    });
+    api.rememberTask({
+      id: 'qr-failed',
+      projectKey: 'alpha',
+      action: 'qrcode',
+      status: 'failed',
+      result: { ok: false, requiresSync: true },
+    });
+    fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ config: { orientation: 'portrait' } }),
+    });
+    await api.runAction('qrcode');
+    expect(confirmQrcode).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ qrcodeNeedsSync: true })
+    );
+    expect(fetch.mock.calls.every(([, options]) => options.method === 'GET')).toBe(true);
   });
 
   it('presents Runtime installation status with version, date fallback, and install action', () => {
@@ -731,6 +1239,20 @@ describe('Maker console standalone UI', () => {
   });
   const response = (data: unknown) => ({ ok: true, status: 200, json: async () => data });
 
+  it('allows switching away from a busy project without unlocking its task', () => {
+    const { api } = harness();
+    api.setup([project, { ...project, key: 'beta', name: 'B' }], {
+      ...hooks(),
+      loadProject: jest.fn(),
+    });
+    api.rememberTask({ id: 'running', projectKey: 'alpha', action: 'build', status: 'running' });
+    api.chooseProject('beta');
+    expect(api.current()).toBe('beta');
+    expect(api.busy('alpha')).toBe(true);
+    expect(api.busy('beta')).toBe(false);
+    expect(script()).toContain('picker.disabled = !loaded || offline;');
+  });
+
   it('discards a project detail response after the selection changes', async () => {
     const { api, fetch } = harness();
     const ui = hooks();
@@ -771,11 +1293,91 @@ describe('Maker console standalone UI', () => {
       action: 'lua-lsp.check',
     });
     api.changeSelection('beta');
+    fetch.mockResolvedValueOnce(
+      response({
+        id: 'task',
+        projectKey: 'alpha',
+        action: 'lua-lsp.check',
+        status: 'succeeded',
+      }) as never
+    );
+    fetch.mockResolvedValueOnce(
+      response({
+        id: 'build',
+        projectKey: 'alpha',
+        action: 'build',
+        status: 'succeeded',
+      }) as never
+    );
     resolve(
       response({ id: 'task', projectKey: 'alpha', action: 'lua-lsp.check', status: 'running' })
     );
     await running;
     expect(ui.announce).not.toHaveBeenCalled();
+    expect(JSON.parse(fetch.mock.calls[2][1].body!)).toEqual({
+      projectKey: 'alpha',
+      action: 'build',
+    });
+  });
+
+  it('continues preview in the original project after installation and a project switch', async () => {
+    const { api, fetch } = harness();
+    const ui = hooks();
+    api.setup([project], ui);
+    fetch.mockResolvedValueOnce(
+      response({ process_alive: false, install_state: 'missing' }) as never
+    );
+    fetch.mockImplementationOnce(async () => {
+      api.changeSelection('beta');
+      return response({
+        id: 'install',
+        projectKey: 'alpha',
+        action: 'preview.install',
+        status: 'succeeded',
+      });
+    });
+    fetch.mockResolvedValueOnce(
+      response({ process_alive: false, install_state: 'ready' }) as never
+    );
+    fetch.mockResolvedValueOnce(
+      response({
+        id: 'start',
+        projectKey: 'alpha',
+        action: 'preview.start',
+        status: 'succeeded',
+      }) as never
+    );
+    await api.runAction('preview.install', { startAfterInstall: true });
+    expect(ui.confirm).toHaveBeenCalledWith('preview.install', project.name, true);
+    expect(fetch.mock.calls[2][0]).toBe('/api/projects/alpha/preview?check_server_changes=1');
+    expect(JSON.parse(fetch.mock.calls[3][1].body!)).toEqual({
+      projectKey: 'alpha',
+      action: 'preview.start',
+    });
+    expect(api.current()).toBe('beta');
+  });
+
+  it('does not start preview after an independent install or failed installation', async () => {
+    for (const [startAfterInstall, status] of [
+      [false, 'succeeded'],
+      [true, 'failed'],
+    ] as const) {
+      const { api, fetch } = harness();
+      api.setup([project], hooks());
+      fetch.mockResolvedValueOnce(
+        response({ process_alive: false, install_state: 'missing' }) as never
+      );
+      fetch.mockResolvedValueOnce(
+        response({ id: 'install', projectKey: 'alpha', action: 'preview.install', status }) as never
+      );
+      await api.runAction('preview.install', { startAfterInstall });
+      expect(
+        fetch.mock.calls.filter(
+          ([url, options]) =>
+            url === '/api/tasks' && JSON.parse(options.body!).action === 'preview.start'
+        )
+      ).toHaveLength(0);
+    }
   });
 
   it('requires installation consent and performs no mutation when cancelled', async () => {
@@ -787,7 +1389,7 @@ describe('Maker console standalone UI', () => {
       response({ process_alive: false, install_state: 'missing' }) as never
     );
     await api.runAction('preview.install');
-    expect(ui.confirm).toHaveBeenCalledWith('preview.install', project.name);
+    expect(ui.confirm).toHaveBeenCalledWith('preview.install', project.name, false);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch.mock.calls[0][1].method).toBe('GET');
   });

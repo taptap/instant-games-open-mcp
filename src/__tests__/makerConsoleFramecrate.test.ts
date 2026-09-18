@@ -221,7 +221,7 @@ console.log(JSON.stringify({url, projectPath}));
       expect(closed).toBe(false);
       expect(instance.active).toBe(true);
       const health = await fetch(`${server.origin}/api/health`, {
-        headers: { Authorization: `Bearer ${server.token}` },
+        headers: {},
       });
       expect(await health.json()).toMatchObject({ draining: true });
       await Promise.all([closing, repeated, server.closed]);
@@ -300,7 +300,6 @@ console.log(JSON.stringify({url, projectPath}));
       const response = await fetch(`${server.origin}/api/shutdown`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${server.token}`,
           Origin: server.origin,
           'Content-Type': 'application/json',
         },
@@ -349,14 +348,13 @@ setTimeout(() => process.stdout.write(line.slice(10) + '\\n'), 20);
     });
     const route = `/api/projects/${item.key}/plugins/framecrate/open`;
     const headers = {
-      Authorization: `Bearer ${server.token}`,
       Origin: server.origin,
       'Content-Type': 'application/json',
     };
     const post = (pathname = route, requestHeaders = headers) =>
       fetch(server.origin + pathname, { method: 'POST', headers: requestHeaders, body: '{}' });
     try {
-      expect((await post(route, { ...headers, Authorization: '' })).status).toBe(401);
+      expect((await post(route, { 'Content-Type': 'application/json' })).status).toBe(403);
       expect((await post(route, { ...headers, Origin: 'https://evil.invalid' })).status).toBe(403);
       const badHost = await new Promise<number | undefined>((resolve, reject) => {
         const request = http.request(

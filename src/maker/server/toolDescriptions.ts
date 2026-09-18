@@ -122,7 +122,8 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
   ].join(' '),
   get_ad_config: [
     'For any ad-related request, read maker://ads-integration-guide first. After Maker project status confirms the primary local project configs are initialized, use this as the first remote step.',
-    'It is the source of truth for current ad activation and configuration, and synchronizes the result into .project/settings.json at @runtime.ad.',
+    'It is the source of truth for current ad activation and configuration; reported sync concerns the remote workspace .project/settings.json at @runtime.ad. The local proxy does not write local settings.',
+    'Use the same explicit target_dir as the verified project status. Request success and ad.status=1 do not prove local synchronization or playback; verify local configuration as directed by the guide before implementation.',
     'The local preflight does not call the remote tool while project.json or settings.json is missing. Missing local configs do not authorize an automatic build.',
     'Use maker_build_current_directory only for an explicit user build, submit, or remote Web preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically.',
     'Local window preview uses CLI and does not authorize commit or push.',

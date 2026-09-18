@@ -528,7 +528,7 @@ function validateProjectFields(
 
   const publishFieldSeverity = mode === 'qrcode' ? 'error' : 'warning';
   const title = publish.title;
-  if (!isConfiguredTitle(title)) {
+  if (!hasPublishedApp(publish) && !isConfiguredTitle(title)) {
     issues.push(
       issue(
         'invalid_publish_field',
@@ -539,7 +539,7 @@ function validateProjectFields(
     );
   }
   const category = publish.category;
-  if (!isConfiguredString(category)) {
+  if (!hasPublishedApp(publish) && !isConfiguredString(category)) {
     issues.push(
       issue(
         'invalid_publish_field',
@@ -570,7 +570,7 @@ function isConfiguredString(value: unknown): value is string {
   return isNonEmptyString(value) && !value.trim().startsWith('<') && !/[{}]/u.test(value);
 }
 
-function isConfiguredTitle(value: unknown): value is string {
+export function isConfiguredTitle(value: unknown): value is string {
   if (!isNonEmptyString(value)) {
     return false;
   }
@@ -578,6 +578,15 @@ function isConfiguredTitle(value: unknown): value is string {
   return !(
     (title.startsWith('<') && title.endsWith('>')) ||
     (title.startsWith('{') && title.endsWith('}'))
+  );
+}
+
+export function hasPublishedApp(publish: Record<string, unknown>): boolean {
+  return (
+    isConfiguredString(publish.app_id) ||
+    (typeof publish.app_id === 'number' &&
+      Number.isSafeInteger(publish.app_id) &&
+      publish.app_id > 0)
   );
 }
 
@@ -599,7 +608,10 @@ function canGenerateQrcode(
     return false;
   }
   const publish = project.taptap_publish;
-  if (!isConfiguredTitle(publish.title) || !isConfiguredString(publish.category)) {
+  if (
+    !hasPublishedApp(publish) &&
+    (!isConfiguredTitle(publish.title) || !isConfiguredString(publish.category))
+  ) {
     return false;
   }
 
