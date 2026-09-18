@@ -167,6 +167,11 @@ export class PreviewSession {
           if (this.runtime !== runtime || this.stopping) return;
           if (state === 'stopped' && this.record.state === 'reloading') return;
           this.setState(state);
+        },
+        undefined,
+        (pid) => {
+          this.record.runtime_launch_pending = pid === undefined;
+          this.setState(this.record.state);
         }
       );
       this.runtime = runtime;
@@ -490,6 +495,7 @@ export async function runPreviewSupervisor(project: string, sessionId?: string):
   record.port = address.port;
   record.supervisor_pid = process.pid;
   record.runtime_pid = 0;
+  record.runtime_launch_pending = false;
   writePrivateJson(path.join(previewDirectory(project), 'session.json'), record);
   const idleTimer = setInterval(() => {
     if (record.state === 'stopped') void shutdown();
@@ -551,10 +557,21 @@ export async function previewStatus(project: string): Promise<Record<string, unk
     // Legacy launches have no generation fence. A reboot is the only available
     // proof that an unrecorded process (including a delayed Windows wrapper) exited.
     const beforeBoot =
-      unpublished && Date.parse(record.started_at) < Date.now() - os.uptime() * 1000 - 60000;
+      record.state === 'starting' &&
+      Date.parse(record.started_at) < Date.now() - os.uptime() * 1000 - 60000 &&
+      (record.supervisor_pid === 0 || processPresence(record.supervisor_pid) === 'missing') &&
+      (runtimePid === 0 || processPresence(runtimePid) === 'missing');
+    const interruptedStartup =
+      record.state === 'starting' &&
+      record.port > 0 &&
+      record.supervisor_pid > 0 &&
+      record.runtime_launch_pending === false &&
+      processPresence(record.supervisor_pid) === 'missing' &&
+      (runtimePid === 0 || processPresence(runtimePid) === 'missing');
     const staleSessionRecovered =
       expiredLaunch ||
       beforeBoot ||
+      interruptedStartup ||
       (!retiredFailure &&
         (record.state === 'running' || record.state === 'failed') &&
         sameSupervisorEvidence(evidence, record) &&
@@ -574,7 +591,9 @@ export async function previewStatus(project: string): Promise<Record<string, unk
         stale_session_recovered: true,
         error: expiredLaunch
           ? '本地预览启动超时，未启动游戏。可以重新点击“本地预览”。'
-          : 'Previous preview processes are no longer running. The stale session was retired safely.',
+          : interruptedStartup
+            ? '本地预览启动已中断，已确认相关进程不存在。可以重新点击“本地预览”。'
+            : 'Previous preview processes are no longer running. The stale session was retired safely.',
       };
     }
     return {

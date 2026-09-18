@@ -31,7 +31,9 @@ describe('Maker console project isolation', () => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-console-test-'));
     registry = new ConsoleProjects(path.join(directory, 'registry.json'));
   });
-  afterEach(() => fs.rmSync(directory, { recursive: true, force: true }));
+  afterEach(() =>
+    fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+  );
 
   test('keeps and persists only the latest ten tasks per project including the active task', async () => {
     const a = registry.add(project('History A'));

@@ -27,6 +27,7 @@ export type PreviewRecord = PreviewIdentity & {
   supervisor_id: string;
   supervisor_pid: number;
   runtime_pid?: number;
+  runtime_launch_pending?: boolean;
   started_at: string;
   launch_deadline?: number;
   port: number;
@@ -69,6 +70,8 @@ export function readPreviewRecord(project: string): PreviewRecord | undefined {
     record.supervisor_pid < 0 ||
     (record.runtime_pid !== undefined &&
       (!Number.isInteger(record.runtime_pid) || record.runtime_pid < 0)) ||
+    (record.runtime_launch_pending !== undefined &&
+      typeof record.runtime_launch_pending !== 'boolean') ||
     !/^[0-9a-f-]{36}$/.test(record.session_id) ||
     !record.supervisor_id ||
     !Number.isSafeInteger(record.reload_id) ||
