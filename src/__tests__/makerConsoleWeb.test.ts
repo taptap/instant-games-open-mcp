@@ -335,7 +335,7 @@ describe('Maker console standalone UI', () => {
     expect(footer.indexOf('id="version"')).toBeGreaterThan(-1);
     expect(footer.indexOf('id="version"')).toBeLessThan(footer.indexOf('id="fortune-toggle"'));
     expect(footer.indexOf('id="fortune-toggle"')).toBeLessThan(footer.indexOf('id="footer-path"'));
-    expect(footer).not.toContain('id="fortune-corner" hidden');
+    expect(footer).toContain('id="fortune-corner" aria-label="开发者日签" hidden');
     expect(footer).toContain('>独立游戏开发日签<');
     expect(styles).toContain('button#fortune-toggle{border:0;background:none;color:#f5e6a3;');
     expect(html).toContain('id="fortune-panel"');
@@ -346,9 +346,19 @@ describe('Maker console standalone UI', () => {
     expect(script()).toContain('/gdev-fortune/?embed=1&theme=dungeon&mode=');
     expect(script()).toContain('https://liangdong-ttm.github.io/gdev-fortune/');
     expect(script()).not.toContain('gdev-fortune:size');
-    expect(html).toContain('id="fortune-retry"');
+    expect(html).not.toContain('id="fortune-retry"');
     expect(script()).toContain('function fortuneIsOpen()');
-    expect(script()).not.toContain('if (!fortuneReady) return;');
+    expect(script()).toContain('if (!fortuneReady) return;');
+    expect(script()).not.toContain('finishFortuneLoad');
+    expect(script()).not.toContain('fortuneLoadTimer');
+    expect(script()).not.toContain('fortune-retry');
+    expect(script()).not.toContain('fortune-status');
+    expect(script()).toContain("fortuneFrame.addEventListener('load'");
+    expect(script()).toContain("fortunePanel.classList.add('fortune-preload')");
+    expect(script()).toContain('if (!fortuneReady) return;');
+    expect(script()).toContain('function beginFortuneLoad(reload)');
+    expect(script()).not.toContain('setTimeout(revealFortune,3000)');
+    expect(script()).not.toContain('fortunePreloadTimer = setTimeout');
     expect(script()).toContain("transformOrigin = 'left bottom'");
     expect(script()).toContain('scheduleCloseFortune');
     expect(script()).toContain(

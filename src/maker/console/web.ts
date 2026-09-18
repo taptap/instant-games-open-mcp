@@ -52,13 +52,12 @@ export function getConsoleHtml(): string {
 <section id="plugin-views" aria-label="插件工作区" hidden></section>
 <div id="announcement" role="status" aria-live="polite" class="context" hidden></div>
 <footer><div class="footer-start"><span id="version">Maker 本地服务</span>
-<section id="fortune-corner" aria-label="开发者日签">
+<section id="fortune-corner" aria-label="开发者日签" hidden>
   <button id="fortune-toggle" type="button" aria-expanded="false" aria-controls="fortune-panel">独立游戏开发日签</button>
 </section>
 </div><span id="footer-path"></span></footer>
 <div id="fortune-panel" hidden>
-  <button id="fortune-retry" type="button" title="重新加载日签" aria-label="重新加载日签"></button>
-  <iframe id="fortune-frame" title="gDEV日签 · 独立游戏开发者老黄历" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer"></iframe>
+  <iframe id="fortune-frame" title="gDEV日签 · 独立游戏开发者老黄历" sandbox="allow-scripts allow-same-origin" loading="eager" referrerpolicy="no-referrer"></iframe>
 </div>
 <dialog id="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-message">
   <form method="dialog">

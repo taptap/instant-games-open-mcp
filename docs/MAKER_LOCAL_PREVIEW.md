@@ -79,6 +79,19 @@ Runtime 参数仅携带用户标识和测试服路由。停止只关闭本地 Ru
 
 ## 平台与排障
 
+### Node 来源与 Windows 启动排查
+
+Maker 启动本地预览时优先复用当前宿主进程的 Node.js；只有宿主 Node 不可用时才回退到系统
+Node.js。系统 Node 本身不是失败证据，不要仅因为路径来自系统或 WorkBuddy 之外就要求用户切换
+Node、修改 PATH 或重装环境。
+
+Windows 预览失败时，先按证据区分四层问题：Node 版本与直接执行能力、Runtime 文件与资源、
+supervisor/后台启动链路、Runtime 本体与游戏加载。依次核对实际 `process.execPath`、Node 版本、
+Runtime 可执行文件、`supervisor_log_path`、Runtime 日志和 control channel 结果；不要把
+“Runtime 文件存在”或“WMI 返回 PID/请求成功”当作 Runtime 已经真正启动。若 supervisor 日志为空
+且 control channel 超时，应优先记录为 Windows 后台启动链路的待确认问题，不要直接归因于游戏代码、
+Runtime 缺失或 Node 版本。
+
 - 后台进程已登记控制端点、但在启动完成前退出时，只有明确确认 supervisor 已退出，且
   Runtime 尚未尝试创建或已记录的 Runtime 也已退出，才允许重新启动。创建 Runtime 前先持久化
   启动意图，拿到 PID 后立即登记；如果中断发生在这两步之间，结果未知，不自动清理或重复启动。
