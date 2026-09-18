@@ -36,6 +36,36 @@ describe('Maker AI dev kit install', () => {
   let sourceDir: string;
   let targetDir: string;
 
+  test.each(['missing', 'failed', 'normal'])(
+    'fills .agents skills with a %s installer',
+    async (mode) => {
+      const sourceSkill = path.join(sourceDir, '.installer', 'skills', 'materials');
+      fs.mkdirSync(sourceSkill, { recursive: true });
+      fs.writeFileSync(path.join(sourceSkill, 'SKILL.md'), '# materials');
+      if (mode === 'missing') fs.rmSync(path.join(sourceDir, 'tools'), { recursive: true });
+      if (mode === 'failed')
+        fs.writeFileSync(path.join(sourceDir, 'tools', 'install-skills.sh'), 'exit 42\n');
+      await installAiDevKit({ sourceDir, targetDir });
+      const target = path.join(targetDir, '.agents', 'skills', 'materials', 'SKILL.md');
+      expect(fs.readFileSync(target, 'utf8')).toBe('# materials');
+      expect(inspectAiDevKitSkillInstallStatus(targetDir).targets).toContainEqual({
+        name: 'agents',
+        path: path.join(targetDir, '.agents', 'skills'),
+        present: true,
+        skillCount: 1,
+      });
+      const userSkill = path.join(targetDir, '.agents', 'skills', 'custom');
+      fs.mkdirSync(userSkill);
+      fs.writeFileSync(path.join(userSkill, 'SKILL.md'), '# user skill');
+      fs.rmSync(path.dirname(target), { recursive: true });
+      fs.mkdirSync(path.dirname(target));
+      fs.writeFileSync(target, '# user edited');
+      await installAiDevKit({ sourceDir, targetDir, replaceManagedEntries: true });
+      expect(fs.readFileSync(target, 'utf8')).toBe('# user edited');
+      expect(fs.readFileSync(path.join(userSkill, 'SKILL.md'), 'utf8')).toBe('# user skill');
+    }
+  );
+
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-dev-kit-'));
     sourceDir = path.join(tempDir, 'ai-dev-kit');
@@ -257,13 +287,14 @@ describe('Maker AI dev kit install', () => {
 
     const status = inspectAiDevKitSkillInstallStatus(targetDir);
 
-    expect(status.status).toBe('installed');
-    expect(status.summary).toBe('claude=1, codex=1, cursor=1, gemini=1');
+    expect(status.status).toBe('partial');
+    expect(status.summary).toBe('claude=1, codex=1, cursor=1, gemini=1, agents=0');
     expect(status.targets.map((target) => target.name)).toEqual([
       'claude',
       'codex',
       'cursor',
       'gemini',
+      'agents',
     ]);
   });
 

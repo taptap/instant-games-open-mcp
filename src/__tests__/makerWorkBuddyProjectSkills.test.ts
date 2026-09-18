@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { syncWorkBuddyProjectSkills } from '../maker/cli/workBuddyProjectSkills';
+import { syncProjectSkills } from '../maker/cli/projectSkills';
 
 describe('WorkBuddy Maker project skills', () => {
   let tempDir: string;
@@ -71,6 +72,38 @@ describe('WorkBuddy Maker project skills', () => {
       reason: 'source_not_found',
     });
     expect(fs.existsSync(path.join(tempDir, '.workbuddy'))).toBe(false);
+  });
+
+  test.each(['darwin', 'win32'] as const)(
+    'fills .agents without renaming skills on %s',
+    (platform) => {
+      addDevKitSkill('materials');
+      const result = syncProjectSkills(tempDir, { client: '.agents', platform });
+      expect(result.installedSkills).toEqual(['materials']);
+      const skillDir = path.join(tempDir, '.agents', 'skills', 'materials');
+      expect(fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8')).toContain('# materials');
+      expect(fs.readFileSync(path.join(skillDir, 'references', 'guide.md'), 'utf8')).toBe(
+        'materials reference\n'
+      );
+      expect(syncProjectSkills(tempDir, { client: '.agents', platform }).installedSkills).toEqual(
+        []
+      );
+    }
+  );
+
+  test('fills .agents using copies when links are unavailable', () => {
+    addDevKitSkill('materials');
+    const links = jest.spyOn(fs, 'symlinkSync').mockImplementation(() => {
+      throw new Error('links unavailable');
+    });
+    try {
+      syncProjectSkills(tempDir, { client: '.agents' });
+      const file = path.join(tempDir, '.agents', 'skills', 'materials', 'SKILL.md');
+      expect(fs.lstatSync(file).isSymbolicLink()).toBe(false);
+      expect(fs.readFileSync(file, 'utf8')).toContain('# materials');
+    } finally {
+      links.mockRestore();
+    }
   });
 
   test('uses Windows-safe copies and directory links for paths with spaces and Chinese text', () => {

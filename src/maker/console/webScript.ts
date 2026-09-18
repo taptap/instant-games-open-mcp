@@ -4,64 +4,32 @@ export const consoleScript = String.raw`
 (function(){
 'use strict';
 const iconNodes = ${JSON.stringify(consoleIcons)};
-let token = '';
-let authError = '';
-const fragment = location.hash.slice(1);
-const incoming = fragment.includes('=') ? new URLSearchParams(fragment).get('token') : fragment;
-token = incoming || '';
-try {
-  if (incoming) sessionStorage.setItem('maker-console-token', incoming);
-  const stored = sessionStorage.getItem('maker-console-token') || '';
-  token = incoming || stored;
-} catch (_) {
-  if (!token) authError = '无法访问会话存储。请从 Maker CLI 重新打开控制台。';
-}
-let selected = new URLSearchParams(location.search).get('project') || '';
+const initialQuery = new URLSearchParams(location.search);
+let projectid = initialQuery.get('projectid') || '';
+let selected = projectid ? '' : initialQuery.get('project') || '';
 let page = selected ? 'overview' : 'projects';
 let selectionEpoch = 0;
 let viewEpoch = 0;
 let state = {projects: [], tasks: []};
 let loaded = false;
 let fortuneTimer;
-let fortuneContentHeight = 0;
-let fortuneReady = false;
 function fortuneMode() {
   return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 }
 function fortuneUrl() {
-  return '/gdev-fortune/?embed=1&theme=dungeon&mode=' + fortuneMode();
-}
-function revealFortune() {
-  if (fortuneReady) return;
-  fortuneReady = true;
-  const corner = $('fortune-corner');
-  if (corner) corner.hidden = false;
+  return 'https://liangdong-ttm.github.io/gdev-fortune/?embed=1&theme=dungeon&mode=' + fortuneMode();
 }
 function fortuneIsOpen() {
   return $('fortune-toggle')?.getAttribute('aria-expanded') === 'true';
-}
-function applyFortuneSize(height) {
-  if (!Number.isFinite(height) || height < 120 || height > 1600) return;
-  fortuneContentHeight = Math.round(height);
-  revealFortune();
-  if (fortuneIsOpen()) positionFortune();
-  else {
-    const panel = $('fortune-panel');
-    if (panel) {
-      panel.classList.add('fortune-preload');
-      panel.hidden = true;
-    }
-  }
 }
 function positionFortune() {
   const toggle = $('fortune-toggle');
   const panel = $('fortune-panel');
   if (!toggle || !panel || !fortuneIsOpen()) return;
-  panel.classList.remove('fortune-preload');
   const anchor = toggle.getBoundingClientRect();
   const width = 320;
-  const height = fortuneContentHeight || 620;
-  const scale = Math.min(0.78, (window.innerWidth - 24) / width, (anchor.top - 12) / height, 1);
+  const height = 820;
+  const scale = Math.max(0.1, Math.min(0.78, (window.innerWidth - 24) / width, (anchor.top - 12) / height, 1));
   panel.style.width = width + 'px';
   panel.style.height = height + 'px';
   panel.style.transform = 'scale(' + scale + ')';
@@ -75,7 +43,6 @@ function closeFortune() {
   const panel = $('fortune-panel');
   if (panel) {
     panel.hidden = true;
-    panel.classList.add('fortune-preload');
   }
   $('fortune-toggle')?.setAttribute('aria-expanded','false');
 }
@@ -89,21 +56,16 @@ function loadFortuneFrame(reload) {
   if (!frame || !panel) return;
   if (!reload && frame.dataset.mode === fortuneMode() && frame.getAttribute('src')) return;
   if (panel.parentElement !== document.body) document.body.append(panel);
-  if (!fortuneReady) {
-    panel.hidden = false;
-    panel.classList.add('fortune-preload');
-  }
-  fortuneContentHeight = 0;
   frame.dataset.mode = fortuneMode();
   frame.src = fortuneUrl();
 }
 function openFortune() {
-  if (!fortuneReady) return;
   clearTimeout(fortuneTimer);
   const panel = $('fortune-panel');
   if (!panel) return;
   if (panel.parentElement !== document.body) document.body.append(panel);
   panel.hidden = false;
+  loadFortuneFrame();
   $('fortune-toggle').setAttribute('aria-expanded','true');
   positionFortune();
 }
@@ -342,7 +304,7 @@ let preview = null;
 let previewError = '';
 const logViews = new Map();
 function logView() {
-  if (!logViews.has(selected)) logViews.set(selected,{tab:'build',runtime:'',loading:false,wrap:false});
+  if (!logViews.has(selected)) logViews.set(selected,{tab:'build',runtime:'',loading:false,wrap:false,cleared:{}});
   return logViews.get(selected);
 }
 function selectLog(tab) {
@@ -350,14 +312,31 @@ function selectLog(tab) {
   renderConsoleLogs();
   $('console-logs')?.scrollIntoView({block:'nearest'});
 }
-function consoleLogText() {
+function consoleLogSnapshot() {
   const view = logView();
-  if (view.tab === 'runtime') return view.loading ? '正在读取运行时日志…' : view.runtime || '点击刷新读取运行时日志';
-  const task = tasksFor(selected).find(t => t.action === (view.tab === 'lua' ? 'lua-lsp.check' : 'build'));
-  if (!task) return '暂无日志';
+  if (view.tab === 'runtime') return {id:view.runtimeId || 'runtime',output:view.runtime,details:''};
+  const task = tasksFor(selected).find(t => t.action === (view.tab === 'lua' ? 'lua-lsp.check' : view.tab === 'qrcode' ? 'qrcode' : 'build'));
+  if (!task) return {id:'',output:'',details:''};
   const result = nestedResult(task);
-  return [task.output, Array.isArray(result?.issues) ? result.issues.join('\n') : '',
-    task.error, task.result ? text(task.result) : ''].filter(Boolean).join('\n\n') || '等待任务输出';
+  return {id:task.id,output:task.output || '',details:[Array.isArray(result?.issues) ? result.issues.join('\n') : '',
+    task.error, task.result ? text(task.result) : ''].filter(Boolean).join('\n\n')};
+}
+function clearConsoleLogs() {
+  const view = logView();
+  view.cleared[view.tab] = consoleLogSnapshot();
+  renderConsoleLogs();
+}
+function consoleLogText() {
+  const view = logView(), snapshot = consoleLogSnapshot(), cleared = view.cleared[view.tab];
+  if (view.tab === 'runtime' && view.loading) return '正在读取运行时日志…';
+  let {output,details} = snapshot;
+  if (cleared && cleared.id === snapshot.id) {
+    if (output.startsWith(cleared.output)) output = output.slice(cleared.output.length);
+    if (details === cleared.details) details = '';
+    return [output,details].filter(Boolean).join('\n\n') || '日志已清理';
+  }
+  return [output,details].filter(Boolean).join('\n\n') ||
+    (view.tab === 'runtime' ? '点击刷新读取运行时日志' : snapshot.id ? '等待任务输出' : '暂无日志');
 }
 function renderConsoleLogs() {
   const host = $('console-logs');
@@ -366,7 +345,7 @@ function renderConsoleLogs() {
   const toolbar = node('div',undefined,'console-log-toolbar');
   const tabs = node('div',undefined,'actions');
   tabs.setAttribute('role','tablist');
-  [['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志']].forEach(([id,label]) => {
+  [['build','构建日志'],['lua','Lua 检查'],['runtime','Runtime 日志'],['qrcode','二维码']].forEach(([id,label]) => {
     const tab = button(label,() => { view.tab = id; renderConsoleLogs(); if (id === 'runtime' && !view.runtime && !view.loading) void loadLogs(); });
     tab.setAttribute('role','tab'); tab.setAttribute('aria-selected',String(view.tab === id));
     tab.setAttribute('aria-controls','console-log-output'); tabs.append(tab);
@@ -376,6 +355,7 @@ function renderConsoleLogs() {
   const checkbox = node('input'); checkbox.type = 'checkbox'; checkbox.checked = view.wrap;
   checkbox.addEventListener('change',() => { view.wrap = checkbox.checked; renderConsoleLogs(); }); wrap.append(checkbox);
   actions.append(wrap,button('刷新',() => { if(view.tab === 'runtime') void loadLogs(); else void pollState().then(renderConsoleLogs).catch(e=>notify(e.message)); },{disabled:offline || view.loading}),
+    button('清理日志',clearConsoleLogs,{icon:'trash',disabled:view.loading}),
     button('复制',async () => { try { await navigator.clipboard.writeText(consoleLogText()); announce('日志已复制'); } catch (_) { notify('复制失败，请手动选择日志复制'); } }));
   toolbar.append(tabs,actions);
   const output = node('pre',consoleLogText(),'console-log-output' + (view.wrap ? ' wrap' : ''));
@@ -393,10 +373,11 @@ let pollTimer;
 let activityTimer;
 let polling = false;
 let offline = false;
+let shutdownPending = false;
 let disposed = false;
 let lastActivitySent = -Infinity;
 const requests = new Set();
-const offlineMessage = '控制台已离线或会话已过期，请通过 Maker 重新打开控制台。未确认的任务结果需要核对，不要重复提交。';
+const offlineMessage = '控制台已关闭，请通过 Maker 重新打开控制台。未确认的任务结果需要核对，不要重复提交。';
 let lastStateError = '';
 let buildChecksLua = true;
 try { buildChecksLua = localStorage.getItem('maker-console-build-lua-check') !== 'off'; } catch (_) {}
@@ -406,7 +387,15 @@ const pluginSessions = new Map();
 const acceptedTasks = new Map();
 const windowDrafts = new Map();
 function rememberTask(task) {
+  const previous = acceptedTasks.get(task.id);
   acceptedTasks.set(task.id,task);
+  const projectTasks = Array.from(acceptedTasks.values()).reverse()
+    .filter(item => item.projectKey === task.projectKey)
+    .sort((a,b) => String(b.startedAt).localeCompare(String(a.startedAt)));
+  projectTasks.slice(10).forEach(item => { if (item.status !== 'running') acceptedTasks.delete(item.id); });
+  if (task.projectKey === selected && task.status === 'failed' && previous?.status !== 'failed' &&
+      (task.action === 'preview.start' || task.action === 'preview.refresh'))
+    notify(text(nestedResult(task)?.error || task.error,'本地预览启动失败，请查看运行日志。'));
   while (acceptedTasks.size > 100) {
     const oldest = Array.from(acceptedTasks.values()).find(item => item.status !== 'running');
     if (!oldest) break;
@@ -414,7 +403,7 @@ function rememberTask(task) {
   }
 }
 const actionLabels = {
-  build: '构建', 'lua-lsp.check': 'Lua 检查', 'preview.start': '启动预览',
+  build: '构建', qrcode: '生成测试二维码', 'lua-lsp.check': 'Lua 检查', 'preview.start': '启动预览',
   'preview.refresh': '刷新预览', 'preview.stop': '停止预览', 'preview.install': '安装 Runtime'
 };
 const statusLabels = {running: '运行中', succeeded: '已完成', failed: '失败', unknown: '结果未知'};
@@ -470,7 +459,6 @@ function replace(target, children) {
 async function api(path, options = {}) {
   if (!path.startsWith('/api/') || path.includes('\\') || path.includes('#')) throw new Error('请求地址不受信任');
   if (offline || disposed) throw new Error(offlineMessage);
-  if (authError || !token) throw new Error(authError || '缺少访问令牌。请从 Maker CLI 重新打开控制台。');
   const controller = new AbortController();
   requests.add(controller);
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 20000);
@@ -478,35 +466,23 @@ async function api(path, options = {}) {
   try {
     const response = await fetch(path, {
       method: options.method || 'GET',
-      headers: {Authorization: 'Bearer ' + token, 'Content-Type':'application/json'},
+      headers: {'Content-Type':'application/json'},
       ...(options.body === undefined ? {} : {body:JSON.stringify(options.body)}),
       credentials:'omit', cache:'no-store', redirect:'error', signal:controller.signal
     });
-    if (response.status === 401 || response.status === 503) {
-      disconnect();
-      throw new Error(offlineMessage);
-    }
     const data = await response.json();
     received = true;
     if (!response.ok) throw new Error(text(data.error, '请求失败（HTTP ' + response.status + '）'));
     return data;
   } catch (error) {
     if (!received && !disposed) {
-      disconnect();
-      throw new Error(offlineMessage);
+      if (offline) throw new Error(offlineMessage);
+      throw new Error(options.method === 'POST'
+        ? '操作结果尚未确认，请查看任务状态后再决定是否重试。'
+        : '请求失败，请重试；控制台会继续检查连接。');
     }
     throw error;
   } finally { clearTimeout(timeout); requests.delete(controller); }
-}
-function disconnect() {
-  offline = true;
-  clearTimeout(pollTimer);
-  clearInterval(activityTimer);
-  activityTimer = undefined;
-  $('connection').textContent = '已离线';
-  $('connection').className = 'bad';
-  notify(offlineMessage);
-  if (loaded && currentProject()?.valid) { updateChrome(); updateBuild(); }
 }
 async function sendActivity(allowHidden = false) {
   if (offline || disposed || (!allowHidden && document.hidden) || Date.now() - lastActivitySent < 30000) return;
@@ -519,6 +495,7 @@ function startActivityLease() {
   activityTimer = setInterval(() => void sendActivity(true),60000);
 }
 function dispose() {
+  offline = true;
   disposed = true;
   clearTimeout(pollTimer);
   clearInterval(activityTimer);
@@ -532,7 +509,7 @@ function currentProject() { return state.projects.find(p => p.key === selected);
 function tasksFor(key) {
   const tasks = new Map(state.tasks.filter(t => t.projectKey === key).map(t => [t.id, t]));
   acceptedTasks.forEach(t => { if (t.projectKey === key && !tasks.has(t.id)) tasks.set(t.id, t); });
-  return Array.from(tasks.values()).sort((a,b) => String(b.startedAt).localeCompare(String(a.startedAt)));
+  return Array.from(tasks.values()).sort((a,b) => String(b.startedAt).localeCompare(String(a.startedAt))).slice(0,10);
 }
 function busy(key = selected) { return pending.has(key) || tasksFor(key).some(t => t.status === 'running'); }
 function selectionMatches(key, epoch) { return key === selected && epoch === selectionEpoch; }
@@ -547,12 +524,26 @@ function announce(message) {
 }
 function setProjectQuery() {
   const url = new URL(location.href);
-  if (selected) url.searchParams.set('project', selected);
-  else url.searchParams.delete('project');
+  url.searchParams.delete('project');
+  url.searchParams.delete('checkout');
+  projectid = currentProject()?.projectid || '';
+  if (projectid) {
+    url.searchParams.set('projectid',projectid);
+    if (state.projects.filter(p => p.projectid === projectid).length > 1)
+      url.searchParams.set('checkout',selected);
+  } else url.searchParams.delete('projectid');
   history.replaceState(null, '', url.pathname + url.search + url.hash);
 }
+function projectKeyFromQuery(query) {
+  const projectid = query.get('projectid');
+  if (!projectid) return query.get('project') || '';
+  const matches = state.projects.filter(p => p.projectid === projectid);
+  const checkout = query.get('checkout');
+  if (checkout) return matches.find(p => p.key === checkout)?.key || '';
+  return matches.length === 1 ? matches[0].key : '';
+}
 function chooseProject(key, updateUrl = true) {
-  if (busy()) { updateChrome(); return; }
+  if ($('qrcode-result')?.open) $('qrcode-result').close();
   const project = state.projects.find(p => p.key === key);
   selected = key;
   selectionEpoch++;
@@ -582,7 +573,7 @@ function updateChrome() {
     picker.dataset.signature = signature;
   }
   picker.value = currentProject() ? selected : '';
-  picker.disabled = !loaded || busy();
+  picker.disabled = !loaded || offline;
   $('context').textContent = currentProject() ? currentProject().name + ' / ' + text(detail?.git?.branch, '分支未提供') : '本地项目';
   $('footer-path').textContent = currentProject()?.path || '';
   document.querySelectorAll('nav [data-page]').forEach(b => {
@@ -614,9 +605,14 @@ function headingActionButtons() {
     {className:'primary build-button' + (presentation.active || checking ? ' is-building' : ''),
       icon:presentation.active || checking ? 'refresh' : 'hammer',disabled:offline || busy(),focus:'heading-build'});
   build.setAttribute('aria-busy',String(presentation.active || checking));
-  const result = [local,build,luaCheckOption()];
-  if (!presentation.active && task) result.push(node('span',presentation.label,'build-badge ' + presentation.tone));
-  return result;
+  const primary = node('div',undefined,'actions heading-primary');
+  primary.append(local,build,button('测试二维码',() => void runProjectAction('qrcode'),{
+    icon:'qrcode',disabled:offline || busy(),focus:'heading-qrcode'
+  }));
+  const secondary = node('div',undefined,'actions heading-secondary');
+  secondary.append(luaCheckOption());
+  if (!presentation.active && task) secondary.append(node('span',presentation.label,'build-badge ' + presentation.tone));
+  return [primary,secondary];
 }
 function luaCheckOption() {
   const label = node('label',undefined,'lua-check-option');
@@ -893,7 +889,7 @@ function renderProjects() {
     if (p.key === selected) label.append(node('span','当前项目','tag'));
     if (!p.valid) label.append(node('p', text(p.error,'项目不可用'), 'bad'));
     const actions = node('div', undefined, 'actions');
-    actions.append(button('打开', () => chooseProject(p.key), {disabled:busy() || !p.valid}));
+    actions.append(button('打开', () => chooseProject(p.key), {disabled:!p.valid}));
     actions.append(button('移除登记（保留项目文件）', () => void removeProject(p.key), {
       icon:'trash',iconOnly:true,className:'icon-button danger',disabled:busy() || busy(p.key),
       focus:'remove-' + p.key
@@ -1003,7 +999,39 @@ function renderOverview() {
   const recent = node('section',undefined,'task-history'); recent.id = 'overview-task';
   const latest = tasksFor(selected)[0];
   recent.append(node('h2','最近任务'),latest ? taskBlock(latest) : node('p','暂无控制台任务','muted'));
-  replace($('view'),[title,metrics,columns,recent]);
+  const serviceActions = node('div',undefined,'console-service-actions');
+  serviceActions.append(button('关闭Maker控制台',() => void shutdownConsole(),{
+    className:'console-shutdown',disabled:offline || shutdownPending,focus:'console-shutdown'
+  }));
+  replace($('view'),[title,metrics,columns,recent,serviceActions]);
+}
+async function shutdownConsole() {
+  if (shutdownPending || offline || disposed) return;
+  shutdownPending = true;
+  try {
+    if (!await confirmAction('console.shutdown')) return;
+    if (pending.size || state.tasks.some(task => task.status === 'running')) {
+      notify('仍有任务正在执行，请等待完成后再关闭控制台。','warning');
+      return;
+    }
+    await api('/api/shutdown',{method:'POST',body:{}});
+    dispose();
+    updateChrome();
+    $('connection').textContent = '正在关闭';
+    $('connection').className = 'muted';
+    $('plugin-views').hidden = true;
+    $('view').replaceChildren(
+      node('h1','Maker 控制台正在关闭'),
+      node('p','可以关闭此页面。再次使用时，请通过 Maker 重新打开控制台。','muted')
+    );
+  } catch (error) {
+    notify(error.message === 'Wait for active tasks before stopping the console.'
+      ? '仍有任务、更新或文件夹选择正在进行，请完成后再关闭控制台。'
+      : error.message);
+  } finally {
+    shutdownPending = false;
+    if (!disposed) render();
+  }
 }
 function luaLspPresentation(status) {
   if (!status) return {label:'待检测',status:'未提供',detail:'打开控制台后读取本机安装状态',tone:'muted'};
@@ -1040,6 +1068,72 @@ function safePreviewUrl(value) {
     const url = new URL(value);
     return ['http:','https:'].includes(url.protocol) && !url.username && !url.password ? url.href : null;
   } catch (_) { return null; }
+}
+function qrcodeImageSource(task) {
+  if (task?.action !== 'qrcode' || task.status !== 'succeeded' || task.result?.ok === false) return null;
+  const content = task.result?.result?.content;
+  for (const item of Array.isArray(content) ? content : []) {
+    if (item.type === 'image' && ['image/png','image/jpeg','image/webp'].includes(item.mimeType) &&
+        typeof item.data === 'string' && item.data.length < 2 * 1024 * 1024 && /^[A-Za-z0-9+/=\r\n]+$/.test(item.data))
+      return 'data:' + item.mimeType + ';base64,' + item.data;
+    if (item.type !== 'text' || typeof item.text !== 'string') continue;
+    // The QR tool returns a Markdown image, not an MCP image content block.
+    for (const match of item.text.matchAll(/!\[[^\]]*\]\(\s*(https:\/\/[^\s<>"')]+)(?:\s+"[^"]*")?\s*\)/g)) {
+      const safe = safePreviewUrl(match[1]);
+      if (!safe) continue;
+      const url = new URL(safe);
+      if (url.origin === 'https://tapcode-sce.spark.xd.com' && /^\/qrcode\/[^/]+\.(?:png|jpe?g|webp)$/i.test(url.pathname))
+        return url.href;
+    }
+  }
+  return null;
+}
+function consoleDialogOpen() {
+  return ['confirm','qrcode-confirm','selection-dialog','qrcode-result'].some(id => $(id)?.open);
+}
+function explainQrcode(title, message) {
+  if (consoleDialogOpen()) return;
+  $('confirm-title').textContent = title;
+  $('confirm-message').textContent = message;
+  $('confirm-accept').textContent = '知道了';
+  $('confirm').showModal();
+}
+function showQrcode(task) {
+  const source = qrcodeImageSource(task);
+  if (!source || task.projectKey !== selected || consoleDialogOpen()) return;
+  const dialog = $('qrcode-result'), image = $('qrcode-result-image'), status = $('qrcode-result-status');
+  const retry = $('qrcode-result-reload'), original = $('qrcode-result-original');
+  $('qrcode-result-project').textContent = '项目：' + task.projectName;
+  original.hidden = source.startsWith('data:');
+  if (!original.hidden) original.href = source;
+  else original.removeAttribute('href');
+  const loadImage = () => {
+    status.hidden = false; status.textContent = '正在加载二维码…'; status.className = 'muted';
+    retry.hidden = true; image.hidden = true;
+    image.onload = () => { image.hidden = false; status.hidden = true; };
+    image.onerror = () => {
+      status.hidden = false; status.textContent = '二维码图片加载失败，可重载图片或打开原图。';
+      status.className = 'pending'; retry.hidden = false;
+    };
+    image.src = source;
+  };
+  retry.onclick = loadImage;
+  loadImage();
+  dialog.showModal();
+}
+const handledQrcodeTasks = new Set();
+function handleQrcodeCompletion(task) {
+  if (task.action !== 'qrcode' || task.status === 'running' || task.projectKey !== selected ||
+      handledQrcodeTasks.has(task.id)) return;
+  handledQrcodeTasks.add(task.id);
+  while (handledQrcodeTasks.size > 100) handledQrcodeTasks.delete(handledQrcodeTasks.values().next().value);
+  if (consoleDialogOpen()) return;
+  if (task.status === 'succeeded') {
+    if (qrcodeImageSource(task)) showQrcode(task);
+    else notify('二维码工具已返回，请在任务结果中查看链接。','warning');
+  } else if (task.interaction?.kind === 'select_developer' && !busy(task.projectKey)) {
+    void runAction('qrcode',{sourceTaskId:task.id});
+  }
 }
 function taskPreviewUrl(task) {
   if (task.status !== 'succeeded' || task.result?.ok === false) return null;
@@ -1094,7 +1188,7 @@ function runtimePresentation(status, error = '') {
   return {label:'待检测',detail:'',tone:'muted'};
 }
 function taskStartsOpen(task, open = false) {
-  return Boolean(open || (task?.status === 'failed' && task?.action !== 'lua-lsp.check'));
+  return Boolean(open || task?.action === 'qrcode' || (task?.status === 'failed' && task?.action !== 'lua-lsp.check'));
 }
 function taskOutputText(task) {
   const output = text(task?.output,'').trim();
@@ -1115,12 +1209,22 @@ function taskBlock(task, open = false) {
   const summary = node('summary');
   summary.dataset.focus = 'task-' + task.id;
   summary.append(node('strong', actionLabels[task.action] || task.action),
-    node('span', statusLabels[task.status] || '结果未知',
+    node('span', task.interaction?.kind === 'select_developer' ? '待选择开发者' : statusLabels[task.status] || '结果未知',
       failed ? 'bad' : task.status === 'succeeded' ? 'good' : 'pending'),
     node('time',date(task.startedAt)));
   const meta = node('p','项目：' + text(task.projectName) + ' · 任务：' + text(task.id),'task-meta muted');
   d.append(summary,meta);
+  if (task.interaction?.kind === 'select_developer' && task.projectKey === selected &&
+      tasksFor(task.projectKey).find(item => item.action === 'qrcode')?.id === task.id) {
+    d.append(button('选择开发者并继续',() => void runAction('qrcode',{sourceTaskId:task.id}),{
+      disabled:offline || busy(task.projectKey)
+    }));
+  }
   if (task.finishedAt) d.append(node('p','结束：' + date(task.finishedAt),'task-meta muted'));
+  if (task.action === 'qrcode' && task.recovery?.kind === 'developer_unavailable')
+    d.append(node('p',task.recovery.message,'pending'));
+  if (task.action === 'qrcode' && task.status === 'unknown' && !task.interaction)
+    d.append(node('p','远端可能已完成上传。请先核实结果；再次生成可能上传新版本。','pending'));
   if (failed) {
     if (task.action === 'build') d.append(failureBanner(buildFailureTitle(task), buildFailureDetails(task)));
     else if (task.action !== 'lua-lsp.check') d.append(failureBanner(text(task.error,'操作失败'), ''));
@@ -1131,6 +1235,29 @@ function taskBlock(task, open = false) {
     link.href = previewUrl; link.target = '_blank'; link.rel = 'noopener noreferrer';
     link.referrerPolicy = 'no-referrer';
     d.append(link);
+  }
+  if (task.action === 'qrcode' && task.status === 'succeeded') {
+    const source = qrcodeImageSource(task);
+    if (source) d.append(button('查看二维码',() => showQrcode(task),{icon:'qrcode',disabled:task.projectKey !== selected}));
+    const content = task.result?.result?.content;
+    for (const item of Array.isArray(content) ? content : []) {
+      if (item.type === 'image' && ['image/png','image/jpeg','image/webp'].includes(item.mimeType) &&
+          typeof item.data === 'string' && /^[A-Za-z0-9+/=\r\n]+$/.test(item.data)) {
+        const image = node('img',undefined,'qrcode-image');
+        image.src = 'data:' + item.mimeType + ';base64,' + item.data;
+        image.alt = '手机测试二维码'; d.append(image);
+      } else if (item.type === 'text' && typeof item.text === 'string') {
+        d.append(node('pre',item.text,'qrcode-text'));
+        const urls = [...new Set(item.text.match(/https?:\/\/[^\s<>"')\]]+/g) || [])].slice(0,8);
+        for (const value of urls) {
+          const url = safePreviewUrl(value);
+          if (!url) continue;
+          const link = node('a','打开二维码结果链接','preview-link');
+          link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.referrerPolicy = 'no-referrer';
+          d.append(link);
+        }
+      }
+    }
   }
   const output = taskOutputText(task);
   if (output || task.status === 'running')
@@ -1312,7 +1439,8 @@ async function loadLogs() {
   entry.tab = 'runtime'; entry.loading = true; selectLog('runtime');
   try {
     const logs = await api(projectPath(key,'/preview/logs'));
-    entry.runtime = text(logs);
+    entry.runtimeId = String(logs.session_id || '') + ':' + String(logs.reload_id || 0);
+    entry.runtime = Array.isArray(logs.logs) ? logs.logs.map(row => text(row.text,'')).join('\n') : text(logs);
   } catch (error) {
     entry.runtime = '日志读取失败：' + error.message;
   } finally {
@@ -1320,16 +1448,84 @@ async function loadLogs() {
     if (selectionMatches(key,epoch) && view === viewEpoch) renderConsoleLogs();
   }
 }
-function confirmAction(action, name) {
+function confirmAction(action, name, startAfterInstall = false) {
   return new Promise(resolve => {
     const dialog = $('confirm');
     $('confirm-title').textContent = action === 'preview.install' ? '安装本地 Runtime？' : '刷新预览？';
     $('confirm-message').textContent = action === 'preview.install' ?
-      '项目：' + name + '\n将下载并安装 Runtime。完成后不会自动启动预览。' :
+      '项目：' + name + '\n将下载并安装 Runtime。' + (startAfterInstall ? '完成后继续启动此项目预览。' : '完成后不会自动启动预览。') :
       '项目：' + name + '\n刷新会重启预览并丢失当前内存状态。';
     $('confirm-accept').textContent = actionLabels[action];
+    if (action === 'console.shutdown') {
+      $('confirm-title').textContent = '关闭Maker控制台？';
+      $('confirm-message').textContent = '将关闭本机 Maker 控制台服务，所有已打开的控制台页面都会断开连接。不会删除项目文件；已启动的独立本地预览不受影响。';
+      $('confirm-accept').textContent = '确认关闭';
+    }
     dialog.returnValue = 'cancel';
     dialog.addEventListener('close',() => resolve(dialog.returnValue === 'accept'),{once:true});
+    dialog.showModal();
+  });
+}
+function selectDialog(title, message, options) {
+  return new Promise(resolve => {
+    const dialog = $('selection-dialog'), picker = $('selection-options'), accept = $('selection-accept');
+    if (dialog.open) { resolve(null); return; }
+    $('selection-title').textContent = title;
+    $('selection-message').textContent = message;
+    const placeholder = node('option','请选择'); placeholder.value = '';
+    picker.replaceChildren(placeholder);
+    for (const option of options) {
+      const element = node('option',option.label);
+      element.value = String(option.value); picker.append(element);
+    }
+    picker.value = ''; accept.disabled = true;
+    const choice = () => options.find(option => String(option.value) === picker.value);
+    picker.onchange = () => { accept.disabled = !choice(); };
+    dialog.returnValue = 'cancel';
+    dialog.addEventListener('close',() => {
+      resolve(dialog.returnValue === 'accept' ? choice()?.value ?? null : null);
+    },{once:true});
+    dialog.showModal();
+  });
+}
+function confirmQrcode(project, config = {}) {
+  return new Promise(resolve => {
+    const dialog = $('qrcode-confirm'), picker = $('qrcode-orientation');
+    const orientation = config.orientation;
+    const title = $('qrcode-name'), category = $('qrcode-category');
+    const needsTitle = config.qrcodeNeedsTitle === true, needsCategory = config.qrcodeNeedsCategory === true;
+    $('qrcode-name-field').hidden = !needsTitle;
+    $('qrcode-category-field').hidden = !needsCategory;
+    title.value = ''; category.value = '';
+    const configured = ['landscape','portrait'].includes(orientation);
+    const needsSync = needsTitle || needsCategory || !configured || config.qrcodeNeedsSync === true;
+    $('qrcode-effects').textContent = needsSync ?
+      '将保存配置，并提交、推送当前项目的所有本地改动。二维码工具随后构建并上传测试版本，必要时创建 TapTap 应用。' :
+      '将使用服务端项目生成二维码。远端会构建并上传测试版本，必要时创建 TapTap 应用；不会提交或推送当前本地改动。';
+    if (config.qrcodeResultUnknown)
+      $('qrcode-effects').textContent = '上次执行结果未知，可能已上传测试版本。请先核实；继续操作可能再次上传。\n\n' + $('qrcode-effects').textContent;
+    if (config.qrcodeRecovery)
+      $('qrcode-effects').textContent = config.qrcodeRecovery.message + '\n请确认已处理账号或权限问题后再试。\n\n' + $('qrcode-effects').textContent;
+    $('qrcode-accept').textContent = needsSync ? '保存并同步后生成' : '生成二维码';
+    $('qrcode-project').textContent = '项目：' + project.name;
+    $('qrcode-developer').hidden = !config.developerLabel;
+    $('qrcode-developer').textContent = config.developerLabel ? '开发者：' + config.developerLabel : '';
+    $('qrcode-orientation-field').hidden = configured;
+    $('qrcode-fixed-orientation').textContent = configured ?
+      '游戏方向：' + (orientation === 'portrait' ? '竖屏' : '横屏') : '此设置用于手机测试，与本地预览窗口方向无关。';
+    picker.value = '';
+    const validate = () => { $('qrcode-accept').disabled =
+      (!configured && !['landscape','portrait'].includes(picker.value)) ||
+      (needsTitle && (!title.value.trim() || /^[<{].*[>}]$/.test(title.value.trim()))) ||
+      (needsCategory && !category.value); };
+    picker.onchange = validate; title.oninput = validate; category.onchange = validate;
+    validate();
+    dialog.returnValue = 'cancel';
+    dialog.addEventListener('close',() => resolve(dialog.returnValue === 'accept' ?
+      {confirmedOrientation:configured ? undefined : picker.value, confirmedBuild:needsSync,
+        ...(needsTitle || needsCategory ? {publication:{
+          ...(needsTitle ? {title:title.value.trim()} : {}),
+          ...(needsCategory ? {category:category.value} : {})}} : {})} : null),{once:true});
     dialog.showModal();
   });
 }
@@ -1337,8 +1533,8 @@ async function startTask(action, key, epoch, project) {
   const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action}});
   if (task.projectKey !== key) throw new Error('任务项目与请求不一致，已停止更新。请检查任务状态。');
   rememberTask(task);
-  if (!selectionMatches(key,epoch)) return task;
-  announce(actionLabels[action] + ' · ' + project.name + ' · ' + (statusLabels[task.status] || '结果未知'));
+  if (selectionMatches(key,epoch))
+    announce(actionLabels[action] + ' · ' + project.name + ' · ' + (statusLabels[task.status] || '结果未知'));
   if (task.status === 'running') return await waitForTask(task.id,key,epoch) || task;
   return tasksFor(key).find(item => item.id === task.id) || task;
 }
@@ -1349,24 +1545,62 @@ function luaCheckBlocksBuild(task) {
   if (result?.ready === false) return false;
   return task.status === 'failed' || (result?.errorCount || 0) > 0;
 }
-async function runAction(action) {
+async function runAction(action, options = {}) {
   const key = selected, epoch = selectionEpoch;
   const project = currentProject();
   if (!project?.valid || busy(key) || !Object.hasOwn(actionLabels,action)) return;
   if (action === 'build' || action === 'lua-lsp.check') logView().tab = action === 'build' ? 'build' : 'lua';
   pending.add(key); pendingActions.set(key,action); updateChrome(); updateBuild();
   try {
+    if (action === 'qrcode') {
+      const info = await api(projectPath(key,''));
+      if (!selectionMatches(key,epoch)) return;
+      if (info.config?.qrcodePreparation && info.config.qrcodePreparation.status !== 'ready') {
+        explainQrcode(info.config.qrcodeNeedsInitialization ? '请先构建初始化' : '项目配置需要处理',
+          info.config.qrcodePreparation.message);
+        return;
+      }
+      const previous = tasksFor(key).find(task => task.action === 'qrcode');
+      if (options.sourceTaskId && previous?.id !== options.sourceTaskId) return;
+      const interaction = previous?.interaction;
+      let developerId;
+      if (interaction?.kind === 'select_developer') {
+        developerId = await selectDialog(interaction.title,
+          '项目：' + project.name + ' · 任务：' + previous.id +
+          '\n上次远端执行结果待确认，可能已上传测试版本。确认将保存所选开发者，并提交、推送此项目的所有当前本地改动。二维码工具随后构建并上传测试版本，必要时创建 TapTap 应用。',
+          interaction.options);
+        if (developerId === null || !selectionMatches(key,epoch)) return;
+      }
+      const needsFields = info.config?.qrcodeNeedsTitle === true || info.config?.qrcodeNeedsCategory === true ||
+        !['landscape','portrait'].includes(info.config?.orientation);
+      const choice = developerId !== undefined && !needsFields ? {confirmedBuild:true} : await confirmQrcode(project,{
+        ...info.config, qrcodeNeedsSync:developerId !== undefined || previous?.result?.requiresSync === true,
+        qrcodeResultUnknown:previous?.status === 'unknown' && !interaction,
+        qrcodeRecovery:previous?.recovery,
+        developerLabel:interaction?.options.find(option => option.value === developerId)?.label
+      });
+      if (!choice || !selectionMatches(key,epoch)) return;
+      if (developerId !== undefined) {
+        choice.publication = {...choice.publication,developer_id:developerId};
+        choice.confirmedBuild = true;
+        choice.sourceTaskId = previous.id;
+      }
+      if (selectionMatches(key,epoch)) logView().tab = 'qrcode';
+      const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action,...choice}});
+      if (task.projectKey !== key) throw new Error('任务项目与请求不一致，请检查任务状态。');
+      rememberTask(task);
+      void pollTask(task.id,key,epoch);
+      return;
+    }
     if (action !== 'build' && action !== 'lua-lsp.check') {
       const checkServerChanges = action === 'preview.start' || action === 'preview.refresh';
       const status = await api(projectPath(key,checkServerChanges ? '/preview?check_server_changes=1' : '/preview'));
-      if (!selectionMatches(key,epoch)) return;
-      preview = status;
+      if (selectionMatches(key,epoch)) preview = status;
       if (!previewActions(status).includes(action)) throw new Error(text(status.error,'预览状态已改变，请重新检测后操作。'));
       if (action === 'preview.install' || action === 'preview.refresh') {
-        if (!await confirmAction(action,project.name)) return;
-        if (!selectionMatches(key,epoch)) return;
+        if (!await confirmAction(action,project.name,options.startAfterInstall === true)) return;
       }
-      if (checkServerChanges && status.server_changes?.changed) {
+      if (selectionMatches(key,epoch) && checkServerChanges && status.server_changes?.changed) {
         notify('检测到本地有服务端代码修改，建议提交构建后再预览。本次本地预览仍会继续，但不会运行这些服务端改动。','warning');
       }
     }
@@ -1374,17 +1608,31 @@ async function runAction(action) {
       pendingActions.set(key,'lua-lsp.check');
       updateChrome(); updateBuild();
       const check = await startTask('lua-lsp.check',key,epoch,project);
-      if (!selectionMatches(key,epoch)) return;
       if (luaCheckBlocksBuild(check)) {
-        selectLog('lua');
-        notify(text(nestedResult(check)?.error || check?.error,'Lua 检查未通过，已停止构建。'));
+        if (selectionMatches(key,epoch)) {
+          selectLog('lua');
+          notify(text(nestedResult(check)?.error || check?.error,'Lua 检查未通过，已停止构建。'));
+        }
         return;
       }
-      if (check?.status === 'failed') notify(text(check.error,'Lua 检查不可用，仍继续构建。'));
+      if (selectionMatches(key,epoch) && check?.status === 'failed') notify(text(check.error,'Lua 检查不可用，仍继续构建。'));
       pendingActions.set(key,'build');
       updateChrome(); updateBuild();
     }
-    if (action === 'lua-lsp.check') await startTask(action,key,epoch,project);
+    if (action === 'preview.install' && options.startAfterInstall) {
+      const installed = await startTask(action,key,epoch,project);
+      if (installed?.status !== 'succeeded') return;
+      const status = await api(projectPath(key,'/preview?check_server_changes=1'));
+      if (selectionMatches(key,epoch)) preview = status;
+      if (!previewActions(status).includes('preview.start')) {
+        if (selectionMatches(key,epoch)) notify('Runtime 安装完成，请检查预览状态后启动。');
+        return;
+      }
+      if (selectionMatches(key,epoch) && status.server_changes?.changed)
+        notify('检测到本地有服务端代码修改，建议提交构建后再预览。','warning');
+      pendingActions.set(key,'preview.start');
+      await startTask('preview.start',key,epoch,project);
+    } else if (action === 'lua-lsp.check') await startTask(action,key,epoch,project);
     else {
       const task = await api('/api/tasks',{method:'POST',body:{projectKey:key,action}});
       if (task.projectKey !== key) throw new Error('任务项目与请求不一致，已停止更新。请检查任务状态。');
@@ -1403,7 +1651,7 @@ async function runAction(action) {
 }
 function runProjectAction(action) {
   navigate('build');
-  return runAction(action);
+  return runAction(action, {startAfterInstall:action === 'preview.install'});
 }
 async function pollTask(id,key,epoch) {
   try {
@@ -1418,12 +1666,13 @@ async function pollTask(id,key,epoch) {
     if (task.status !== 'running' && prior?.status === 'running') {
       announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
       await refreshPreview();
+      if (selectionMatches(key,epoch)) handleQrcodeCompletion(task);
     }
     return task;
   } catch (error) { if (selectionMatches(key,epoch)) notify(error.message); }
 }
 async function waitForTask(id,key,epoch) {
-  while (selectionMatches(key,epoch) && !offline && !disposed) {
+  while (!offline && !disposed) {
     const task = await pollTask(id,key,epoch);
     if (!task || task.status !== 'running') return task;
     await new Promise(resolve => setTimeout(resolve,1000));
@@ -1585,6 +1834,11 @@ async function pollState() {
   const priorProjects = JSON.stringify(state.projects);
   const priorLua = JSON.stringify(state.luaLsp);
   state = result; loaded = true;
+  if (first && projectid) {
+    selected = projectKeyFromQuery(initialQuery);
+    page = currentProject()?.valid ? 'overview' : 'projects';
+    if (!selected) notify('请从项目列表选择对应的本地目录：项目未登记或有多个本地副本。','warning');
+  }
   state.tasks.forEach(task => {
     const prior = acceptedTasks.get(task.id);
     if (prior?.status !== 'running' && task.status === 'running' && prior?.finishedAt) {
@@ -1592,6 +1846,7 @@ async function pollState() {
     } else if (prior) rememberTask(task);
     if (task.projectKey === selected && previousTasks.get(task.id) === 'running' && task.status !== 'running') {
       announce((actionLabels[task.action] || task.action) + ' · ' + text(task.projectName) + ' · ' + (statusLabels[task.status] || '结果未知'));
+      handleQrcodeCompletion(task);
     }
   });
   $('version').textContent = 'Maker ' + text(state.version) + ' · ' + text(state.distribution,'独立发行') + ' · ' + text(state.platform);
@@ -1653,11 +1908,12 @@ document.addEventListener('DOMContentLoaded',async () => {
     const value = theme.checked ? 'dark' : 'light';
     document.documentElement.dataset.theme = value;
     pluginSessions.forEach(session => sendPluginTheme(session));
-    if (fortuneReady) loadFortuneFrame(true);
+    if ($('fortune-frame').getAttribute('src')) loadFortuneFrame(true);
     try { localStorage.setItem('maker-console-theme',value); } catch (_) { notify('无法保存主题设置'); }
   });
   $('projects-button').append(icon('folder'));
-  loadFortuneFrame();
+  $('fortune-retry').append(icon('refresh'));
+  $('fortune-retry').addEventListener('click',() => loadFortuneFrame(true));
   bindFortuneHover($('fortune-toggle'));
   bindFortuneHover($('fortune-panel'));
   $('fortune-toggle').addEventListener('click',event => {
@@ -1666,19 +1922,13 @@ document.addEventListener('DOMContentLoaded',async () => {
   });
   window.addEventListener('resize',() => { if (!$('fortune-panel').hidden) positionFortune(); });
   document.addEventListener('keydown',event => { if (event.key === 'Escape') closeFortune(); });
-  window.addEventListener('message',event => {
-    if (event.origin !== location.origin || !event.data) return;
-    if (event.data.type === 'gdev-fortune:escape') closeFortune();
-    if (event.data.type === 'gdev-fortune:size') applyFortuneSize(Number(event.data.height));
-  });
   $('projects-button').addEventListener('click',() => navigate('projects'));
   $('project-picker').addEventListener('change',event => chooseProject(event.target.value));
   $('maker-version-picker').addEventListener('change',selectMakerVersion);
   $('dismiss').addEventListener('click',() => { $('feedback').hidden = true; });
   document.querySelectorAll('nav [data-page]').forEach(b => b.addEventListener('click',() => navigate(b.dataset.page)));
   window.addEventListener('popstate',() => {
-    if (busy()) { setProjectQuery(); return; }
-    chooseProject(new URLSearchParams(location.search).get('project') || '',false);
+    chooseProject(projectKeyFromQuery(new URLSearchParams(location.search)),false);
   });
   document.addEventListener('visibilitychange',() => {
     clearTimeout(pollTimer);

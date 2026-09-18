@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { buildWindowsBackgroundLaunchScripts } from '../maker/system/backgroundProcess';
 import { launchPreviewSupervisorProcess } from '../maker/preview/processLauncher';
 import { launchConsoleServerProcess } from '../maker/console/processLauncher';
 
@@ -10,6 +11,101 @@ jest.mock('node:child_process', () => ({
   ...jest.requireActual('node:child_process'),
   spawn: jest.fn(),
 }));
+
+test('keeps setup fail-fast and relaxes error handling only for native stderr', () => {
+  const scripts = buildWindowsBackgroundLaunchScripts({
+    command: 'C:\\Program Files\\node.exe',
+    args: ['C:\\Maker\\maker.js'],
+    cwd: "C:\\Maker's project",
+    logFile: "C:\\Maker's project\\stderr.log",
+    env: { HOME: "C:\\Maker's home" },
+  });
+  expect(scripts.process.split('\r\n')).toEqual([
+    "$ErrorActionPreference = 'Stop'",
+    "$env:HOME = 'C:\\Maker''s home'",
+    "Set-Location -LiteralPath 'C:\\Maker''s project'",
+    '$LASTEXITCODE = 1',
+    "$ErrorActionPreference = 'Continue'",
+    "& 'C:\\Program Files\\node.exe' 'C:\\Maker\\maker.js' 1> $null 2>> 'C:\\Maker''s project\\stderr.log'",
+    "$ErrorActionPreference = 'Stop'",
+    'exit $LASTEXITCODE',
+  ]);
+  expect(scripts.broker).toMatch(/^\$ErrorActionPreference = 'Stop'/);
+  const encoded = scripts.broker.match(/-EncodedCommand ([A-Za-z0-9+/=]+)/)![1];
+  expect(Buffer.from(encoded, 'base64').toString('utf16le')).toBe(scripts.process);
+});
+
+const windowsTest = process.platform === 'win32' ? test : test.skip;
+windowsTest.each([0, 7])('Windows PowerShell preserves stderr and native exit %i', (code) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "maker native's stderr-"));
+  try {
+    const probe = path.join(root, 'probe.cjs');
+    const logFile = path.join(root, 'stderr.log');
+    fs.writeFileSync(
+      probe,
+      `process.stderr.write('native-warning\\n'); setTimeout(() => process.exit(${code}), 100);`
+    );
+    fs.writeFileSync(logFile, Buffer.from('existing-log\r\n', 'utf16le'));
+    const scripts = buildWindowsBackgroundLaunchScripts({
+      command: process.execPath,
+      args: [probe],
+      cwd: root,
+      logFile,
+      env: {},
+    });
+    const result = spawnSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-EncodedCommand',
+        Buffer.from(scripts.process, 'utf16le').toString('base64'),
+      ],
+      { encoding: 'utf8', timeout: 10_000 }
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(code);
+    const log = fs.readFileSync(logFile).toString('utf16le');
+    expect(log).toContain('existing-log');
+    expect(log).toContain('native-warning');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+windowsTest('Windows setup failure stops before running the native command', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-native-setup-'));
+  try {
+    const marker = path.join(root, 'started');
+    const probe = path.join(root, 'probe.cjs');
+    fs.writeFileSync(
+      probe,
+      `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'started');`
+    );
+    const scripts = buildWindowsBackgroundLaunchScripts({
+      command: process.execPath,
+      args: [probe],
+      cwd: path.join(root, 'missing'),
+      logFile: path.join(root, 'stderr.log'),
+      env: {},
+    });
+    const result = spawnSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-EncodedCommand',
+        Buffer.from(scripts.process, 'utf16le').toString('base64'),
+      ],
+      { encoding: 'utf8', timeout: 10_000 }
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(fs.existsSync(marker)).toBe(false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test.each(['preview', 'console'])('%s uses the Windows broker at execution time', async (kind) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-broker-'));

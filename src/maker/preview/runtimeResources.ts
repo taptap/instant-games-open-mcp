@@ -43,9 +43,12 @@ export function ensurePreviewRuntimeResources(
   } = {}
 ): RuntimeResourcePreparation {
   const runtimeRoot = path.dirname(fs.realpathSync(executable));
-  const fonts = path.join(runtimeRoot, 'Data', 'Fonts');
+  // local_preview mounts loose Res only; Data/CoreData come from Autoload packages.
+  const fonts = path.join(runtimeRoot, 'Res', 'Fonts');
+  const legacyFonts = path.join(runtimeRoot, 'Data', 'Fonts');
   for (const directory of [
     path.join(runtimeRoot, 'Data', 'LuaScripts'),
+    legacyFonts,
     fonts,
     path.join(runtimeRoot, 'CoreData'),
   ]) {
@@ -56,7 +59,10 @@ export function ensurePreviewRuntimeResources(
   if (fs.existsSync(target)) return { fallbackFont: 'existing', warnings: [] };
 
   const platform = options.platform || process.platform;
-  const candidates = options.fontCandidates || defaultFontCandidates(platform);
+  const candidates = [
+    path.join(legacyFonts, FALLBACK_FONT),
+    ...(options.fontCandidates || defaultFontCandidates(platform)),
+  ];
   const copyErrors: string[] = [];
   for (const candidate of candidates) {
     if (!existingFile(candidate)) continue;

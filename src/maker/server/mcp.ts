@@ -459,7 +459,8 @@ export async function callRemoteProxyTool(options: {
   name: string;
   args: Record<string, unknown>;
   progressToken?: ProgressToken;
-  extra: RequestHandlerExtra<ServerRequest, ServerNotification>;
+  extra?: RequestHandlerExtra<ServerRequest, ServerNotification>;
+  onProgress?: (progress: { progress: number; total?: number; message?: string }) => void;
   manager?: MakerRemoteProxyManager;
 }): Promise<Awaited<ReturnType<Client['callTool']>>> {
   const createProxy = (): RemoteProxyContext =>
@@ -473,7 +474,13 @@ export async function callRemoteProxyTool(options: {
     targetDir: proxy.projectRoot,
     args: options.args,
   });
-  const requestOptions = createRemoteProxyCallToolOptions(options.progressToken, options.extra);
+  const requestOptions = options.extra
+    ? createRemoteProxyCallToolOptions(options.progressToken, options.extra)
+    : {
+        timeout: MAKER_TOOL_CALL_TIMEOUT_MS,
+        resetTimeoutOnProgress: true,
+        onprogress: options.onProgress || (() => {}),
+      };
   const callTool = options.manager
     ? async () => {
         proxy = createProxy();

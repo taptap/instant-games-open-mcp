@@ -388,6 +388,16 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 - 控制台复用 CLI 业务，不新增 MCP tool；操作必须显式绑定已校验的项目 realpath，
   不依赖全局当前项目或 cwd。项目登记共用 `src/maker/projectRegistry.ts`，
   登记失败不得改变 init/clone 的成功结果。
+  测试二维码复用 `qrcode` CLI 和现有远端工具及配置检查，不自动重试；
+  首次发布方向需用户确认，不能使用本地预览窗口默认值代替。控制台允许补齐名称和分类，
+  本地配置补齐须明确确认提交、推送全部本地改动，复用 push 同步远端工作区，不能仅写本地文件。
+  QR CLI 不额外调用 build；缺配置时先提示用户显式构建初始化，非法配置先修复，不循环构建。
+  远端二维码工具本身会构建上传测试版本，界面不得宣称整个流程“不构建”。
+  远端开发者选择通过已知返回格式转换为单选交互，复用通用弹窗；服务端核对源任务、
+  项目及候选 ID，不默认选择、不自动重试，不执行远端文本中夹带的发布或其它命令。
+  当前项目任务完成后可弹出选择或二维码大图，不重复弹出，不打断其它项目或已打开的弹窗。
+  仅识别 MCP 图片及二维码 CDN 的 Markdown 图片链接；加载失败只重载图片，不重复上传。
+  失效开发者保留原配置并提供诊断，不自动清空 ID 或猜测可用身份。
 - 控制台版本更新为用户级操作，固定查询 `@taptap/maker` 最近发布版本，只接受目录中精确版本，
   复用所选包的 `upgrade --launcher self --json`，不另写安装器。任何插件渠道禁止独立包更新；
   当前运行版本与已安装版本分开显示，不自动重启会话；更新期间防止重复执行及空闲退出。
@@ -398,8 +408,9 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 - Runtime 安装和记录位于 Maker user home 的 `runtime/`，所有项目共用；旧项目哈希目录中的有效
   安装会自动登记，不重复下载。项目哈希目录只保留项目会话、准备产物、日志和运行缓存。
   新安装和已登记 Runtime 启动前必须补齐 `Data/LuaScripts`、`Data/Fonts`、`CoreData`；缺少
-  `Data/Fonts/MiSans-Regular.ttf` 时从当前 macOS/Windows 系统字体复制通用中文兜底，但不覆盖
-  已有文件。项目字体只保留在各项目 `assets/Fonts` 和受管理项目副本中，不得汇总到共享 Runtime；
+  `Res/Fonts/MiSans-Regular.ttf` 时优先复用旧 `Data/Fonts` 字体，再从当前 macOS/Windows
+  系统字体复制通用中文兜底，不覆盖已有文件；local_preview 只挂载松散 `Res`，不能仅写入
+  `Data/Fonts`。项目字体只保留在各项目 `assets/Fonts` 和受管理项目副本中，不得汇总到共享 Runtime；
   显式 `--runtime` 指向的外部 Runtime 不得自动修改。
   项目页复用预览状态展示 Runtime 安装版本或时间，未安装时进入现有 `preview.install` 流程；
   顶部同时展示独立 maker-lua-lsp 安装状态和版本。构建页提供独立 Lua 检查；构建前默认勾选
@@ -417,7 +428,7 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   `allow-scripts allow-same-origin allow-downloads allow-modals`，不允许弹窗或顶层导航。
 - 仅从显式 `FRAMECRATE_STUDIO_DIR` 启动已安装的 Studio；固定 Node/tsx 入口携带
   `--project <realpath> --host-origin <控制台精确 loopback origin>`，不实施 ZIP 安装或市场。
-  Studio token 与控制台凭证隔离，嵌入 CSP 仅放行该宿主；通用消息使用
+  Studio 保留独立 token，控制台自身不使用访问 token，嵌入 CSP 仅放行该宿主；通用消息使用
   `protocolVersion: 1` 及 `maker-console:connect`、`maker-console:plugin-ready`、
   `maker-console:plugin-activity`、`maker-console:theme`，双方校验 origin 与窗口来源，
   主题仅接受 `light`/`dark` 并由插件跟随控制台，不传 PAT 或业务执行命令。
@@ -429,11 +440,23 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   同一 Maker 版本跨 Codex、WorkBuddy 和独立 CLI 复用用户级控制台，实例身份不得绑定插件路径或
   distribution。Windows 通过 PowerShell/CIM 系统代理启动服务，不能只依赖 Node detached/unref
   脱离 AI IDE 的受管进程树；启动命令不得转发 PAT、MAC token 或 client secret。
-  控制台 Bearer 保留在 URL fragment 中，支持浏览器恢复和新标签重建；fragment 不随 HTTP 请求或
-  Referrer 发送，页面仍保持 no-store、无远程依赖及 Host、Origin、Bearer 校验。
+  self runtime 必须复制 `package.json`，保留 ESM 声明；PowerShell 准备步骤保持 fail-fast，
+  仅 native 调用阶段允许 stderr 错误流继续写日志，使用真实退出码，不以警告判定失败。
+  控制台不生成、保存或校验访问 token，页面和 CLI 请求不携带 Bearer；
+  链接包含本机 origin 和可选 projectid（真实项目 ID），多副本时用 checkout 区分目录；
+  内部操作仍使用目录级登记标识。裸地址、刷新和新标签无需授权。
+  保留 no-store、Host/Origin 校验、跨站拒绝及写操作精确同源要求，不改 Maker PAT 或插件凭证。
   保留访问校验、空闲退出和有界资源管理。
   预览与控制台独立管理；只清理已确认所有权的进程和缓存，不把未知结果当作失败自动重试。
-- 本地预览只构建受管理副本，执行 Builder 前校验标准配置和版本路径，禁止配置回退绕过校验。
+- 本地预览只构建受管理副本；缺少配置的新项目仅在副本补齐预览默认值，入口默认 scripts/main.lua，
+  窗口未保存时默认横屏 1920×1080（已有项目方向优先）。执行 Builder 前仍校验配置与版本路径；
+  已有无效配置、JSONC/旧布局不得用默认值绕过，不写回项目或伪造平台身份。
+  联网项目由 `preview/network.ts` 读取受管理副本的 `@runtime` 配置与真实游戏 ID，
+  复用 PAT 鉴权，按引擎 CreateMultiDebugGame 契约申请 `test` 游戏；
+  Runtime 使用 skip_login 和 directConnectParams，server_port=0 强制 WebSocket。
+  PAT/MAC 与返回的 login_key 不进入 Runtime 参数或预览日志；不改引擎，
+  不自动远端构建、不连接 formal、不重放结果未知的申请。仅验证线上环境，
+  内部环境不得混用线上入口。Windows 实机验收独立于 macOS 验证。
   预览窗口设置由 `src/maker/preview/windowSettings.ts` 统一解析，按项目保存在用户预览缓存中；
   横竖屏默认跟随发布配置，缺失时横屏，允许手动覆盖；保存不自动重启，启动或刷新时应用，
   不得写回项目发布配置。控制台与 CLI 共用窗口设置，运行中尺寸以启动时的 preflight 为准。
@@ -505,11 +528,15 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - Maker CLI-first 重构后的正式说明在 `docs/MAKER.md`；完整环境变量契约在
   `docs/MAKER_ENVIRONMENT_VARIABLES.md`；面向团队介绍的功能总览在
   `docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`。上下文压缩或长时间中断后，先读这些文档再继续。
+- dev-kit Skill 安装统一在 `installAiDevKitSkills` 补齐 `.agents/skills`，使用
+  `projectSkills.ts` 的跨平台链接/复制逻辑，沿用源名称、跳过已有同名目录。
+  所有分发渠道都执行，脚本缺失或失败也尝试补齐；不得将整个 `.agents` 加入
+  dev-kit 替换删除清单，Git 忽略只收录对应 Skill 路径。
 - 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，由该 CLI 展示 app 列表并让用户选择已有 app 或 `0`/`new`。只有用户明确说“创建/新建项目或游戏”时，才使用 `taptap-maker init --create`。
 - `taptap-maker user-skills pull --target-dir <PROJECT_DIR>` 只用于用户明确要求拉取个人 Maker
   Skill 的边缘场景。正常开发、状态检查和初始化不得主动调用；该能力保持为 CLI，不得新增 MCP tool。
   命令只覆盖服务端 ZIP 中出现的 `.installer/skills/<skill-name>`，并以原始名称安装到项目内
-  `.codex/skills`、`.cursor/skills` 和 `.workbuddy/skills`；其它本地 Skill 保持不变，暂不接入
+  `.codex/skills`、`.cursor/skills`、`.workbuddy/skills` 和 `.agents/skills`；其它本地 Skill 保持不变，暂不接入
   `taptap-maker init`。客户端安装优先链接到 `.installer/skills`，链接不可用时回退复制，失败时
   回滚本次客户端替换。归档限制为下载 64 MiB、1000 个条目和解压后 128 MiB。
 - 如果本地没有当前环境的 Maker PAT，CLI 默认运行 CLI 登录：生成满足 `^[A-Za-z0-9_-]{16,128}$` 的临时 code，按需打开当前环境的 `/pat-tokens?code=<code>`，用户登录并点击“创建 token”后，CLI 轮询 `/api/v1/cli-auth/result?code=<code>`，拿到授权结果后完成本地鉴权配置。

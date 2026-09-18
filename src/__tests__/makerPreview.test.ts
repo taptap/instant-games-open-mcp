@@ -138,6 +138,18 @@ test('probe checks a file without executing it or requiring V1', async () => {
   await expect(probeRuntime(executable, abort.signal)).rejects.toThrow('CANCELLED');
 });
 
+test('a new project previews main.lua without publishing configuration', async () => {
+  fs.rmSync(path.join(project, '.project'), { recursive: true });
+  expect(projectEntry(project)).toBe('main.lua');
+  expect(await preflightPreview(executable, project)).toMatchObject({
+    entry: 'main.lua',
+    window: { width: 1920, height: 1080, orientation: 'landscape' },
+  });
+  expect(fs.existsSync(path.join(project, '.project'))).toBe(false);
+  fs.unlinkSync(path.join(project, 'scripts/main.lua'));
+  expect(() => projectEntry(project)).toThrow('scripts/main.lua');
+});
+
 test('preflight only checks local source and does not pretend dependencies are proven', async () => {
   expect(await preflightPreview(executable, project)).toMatchObject({
     entry: 'main.lua',
@@ -146,10 +158,10 @@ test('preflight only checks local source and does not pretend dependencies are p
 });
 
 test.each([
-  ['portrait', 540, 960, false],
-  ['landscape', 960, 540, false],
-  [undefined, 960, 540, true],
-  ['invalid', 960, 540, true],
+  ['portrait', 1080, 1920, false],
+  ['landscape', 1920, 1080, false],
+  [undefined, 1920, 1080, true],
+  ['invalid', 1920, 1080, true],
 ])('window dimensions follow project orientation %s', (orientation, width, height, defaulted) => {
   fs.writeFileSync(
     path.join(project, '.project', 'project.json'),
@@ -161,17 +173,17 @@ test.each([
 fixtureTest('refresh rereads orientation and passes explicit window dimensions', async () => {
   const session = await createSession();
   await session.start();
-  expect(await waitForLogs(session, 'ROUND_ONE')).toContain('-width=960');
+  expect(await waitForLogs(session, 'ROUND_ONE')).toContain('-width=1920');
   fs.writeFileSync(
     path.join(project, '.project', 'project.json'),
     JSON.stringify({ entry: 'main.lua', taptap_publish: { screen_orientation: 'portrait' } })
   );
   expect(await session.refresh()).toMatchObject({
-    preflight: { window: { width: 540, height: 960 } },
+    preflight: { window: { width: 1080, height: 1920 } },
   });
   const logs = await waitForLogs(session, 'ROUND_ONE');
-  expect(logs).toContain('-width=540');
-  expect(logs).toContain('-height=960');
+  expect(logs).toContain('-width=1080');
+  expect(logs).toContain('-height=1920');
 });
 
 fixtureTest('saved custom window reaches Runtime argv and changes only after refresh', async () => {

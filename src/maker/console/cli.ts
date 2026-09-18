@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { createServer } from 'node:net';
+import { claimRecoveryMutex as claimSharedRecoveryMutex } from '../system/recoveryMutex.js';
 import { getMakerHome } from '../storage.js';
 import {
   getMakerProjectRegistryPath,
@@ -19,11 +19,10 @@ import { ConsoleError } from './types.js';
 
 declare const __MAKER_VERSION__: string | undefined;
 const VERSION = typeof __MAKER_VERSION__ === 'undefined' ? 'dev' : __MAKER_VERSION__;
-const CONSOLE_PROTOCOL_VERSION = 1;
+const CONSOLE_PROTOCOL_VERSION = 2;
 type Session = {
   schema: 1;
   origin: string;
-  token: string;
   instanceId: string;
   launcher: string;
   pid: number;
@@ -70,7 +69,6 @@ function readSession(): Session | undefined {
     session.schema !== 1 ||
     !/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(session.origin) ||
     Number(new URL(session.origin).port) > 65535 ||
-    !/^[a-f0-9]{64}$/.test(session.token) ||
     !/^[a-f0-9-]{36}$/.test(session.instanceId) ||
     !Number.isInteger(session.pid) ||
     session.pid <= 0 ||
@@ -86,7 +84,6 @@ async function request(session: Session, route: string, body?: unknown, timeoutM
   const response = await fetch(session.origin + route, {
     method: body === undefined ? 'GET' : 'POST',
     headers: {
-      Authorization: `Bearer ${session.token}`,
       Origin: session.origin,
       'Content-Type': 'application/json',
     },
@@ -95,6 +92,11 @@ async function request(session: Session, route: string, body?: unknown, timeoutM
     redirect: 'error',
   });
   const value = (await response.json()) as Record<string, any>;
+  if (response.status === 401)
+    throw new ConsoleError(
+      'An older console requiring a token is still running. Close it from its console page or run console stop with the previous Maker version, then reopen this version.',
+      409
+    );
   if (!response.ok)
     throw new ConsoleError(value.error || `Console HTTP ${response.status}`, response.status);
   return value;
@@ -121,7 +123,6 @@ async function activeSession(
       latest.instanceId === session.instanceId &&
       latest.pid === session.pid &&
       latest.origin === session.origin &&
-      latest.token === session.token &&
       latest.launcher === session.launcher
     )
       return { ...latest, draining: true };
@@ -175,7 +176,6 @@ export async function runConsoleSupervisor(): Promise<void> {
     const record: Session = {
       schema: 1,
       origin: server.origin,
-      token: server.token,
       instanceId,
       pid: process.pid,
       launcher: launcherIdentity(),
@@ -276,30 +276,14 @@ async function claimOwnedLock(filename: string): Promise<() => void> {
 }
 
 function claimRecoveryMutex(filename: string): Promise<() => Promise<void>> {
-  // A deterministic loopback bind serializes recovery and is released by the OS
-  // on exit. Port collisions fail closed; never probe or stop the existing peer.
-  const port = 49152 + (createHash('sha256').update(filename).digest().readUInt16BE(0) % 16384);
-  const server = createServer((socket) => socket.destroy());
-  return new Promise((resolve, reject) => {
-    server.once('error', (error: NodeJS.ErrnoException) => {
-      reject(
-        error.code === 'EADDRINUSE'
-          ? new ConsoleError(
-              `Console ownership recovery is busy (loopback port ${port} is in use). Try again.`,
-              409
-            )
-          : error
-      );
-    });
-    server.listen({ host: '127.0.0.1', port, exclusive: true }, () => {
-      resolve(
-        () =>
-          new Promise<void>((done, fail) => {
-            server.close((error) => (error ? fail(error) : done()));
-          })
-      );
-    });
-  });
+  return claimSharedRecoveryMutex(
+    filename,
+    (port) =>
+      new ConsoleError(
+        `Console ownership recovery is busy (loopback port ${port} is in use). Try again.`,
+        409
+      )
+  );
 }
 
 function claimRecoveryGuard(filename: string, identity: string): void {
@@ -483,7 +467,17 @@ export async function runConsoleCli(
   const session = await ensureSession();
   const project = target ? await request(session, '/api/projects', { path: target }) : undefined;
   await request(session, '/api/activity', {});
-  const url = `${session.origin}/${project ? '?project=' + project.key : ''}#token=${session.token}`;
+  const query = new URLSearchParams();
+  if (project) {
+    query.set('projectid', project.projectid);
+    const state = await request(session, '/api/state');
+    if (
+      state.projects.filter((item: { projectid: string }) => item.projectid === project.projectid)
+        .length > 1
+    )
+      query.set('checkout', project.key);
+  }
+  const url = `${session.origin}/${project ? '?' + query : ''}`;
   if (options.no_open !== true) openBrowser(url);
   process.stdout.write(
     JSON.stringify(

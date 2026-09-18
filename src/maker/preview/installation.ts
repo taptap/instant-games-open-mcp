@@ -13,6 +13,8 @@ import { ensurePreviewRuntimeResources } from './runtimeResources.js';
 import { PREVIEW_INSTALLER_SOURCE } from './installerSource.js';
 import { runPreviewInstaller } from './installerProcess.js';
 import { trimPreviewCache, UNVERIFIED_CLEANUP_MARKER } from './cache.js';
+import { claimRecoveryMutex } from '../system/recoveryMutex.js';
+import { processPresence } from '../system/processPresence.js';
 
 export type PreviewInstallation = {
   install_state: 'missing' | 'ready';
@@ -125,12 +127,55 @@ async function withFileLock<T>(
 }
 
 export async function withPreviewLock<T>(project: string, action: () => Promise<T>): Promise<T> {
-  return withFileLock(
-    previewDirectory(project),
-    'operation.lock',
-    'Another preview operation is in progress.',
-    action
-  );
+  const directory = previewDirectory(project);
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const filename = path.join(fs.realpathSync(directory), 'operation.lock');
+  const busy = () =>
+    new Error('Another preview operation is in progress. Please retry after it finishes.');
+  // All new preview operations hold this OS-owned guard through release, so two
+  // recoverers cannot remove one another's replacement file.
+  const release = await claimRecoveryMutex(filename, busy);
+  const identity = JSON.stringify({
+    pid: process.pid,
+    created_at: new Date().toISOString(),
+    id: randomUUID(),
+  });
+  let owned = false;
+  try {
+    if (fs.existsSync(filename)) {
+      const previous = fs.readFileSync(filename, 'utf8');
+      let pid: unknown;
+      try {
+        pid = JSON.parse(previous).pid;
+      } catch {
+        /* Keep malformed ownership records. */
+      }
+      if (typeof pid !== 'number' || processPresence(pid) !== 'missing')
+        throw new Error(
+          'Preview operation ownership is still active or unverified. ' +
+            'Confirm the previous command has exited before removing only: ' +
+            filename
+        );
+      fs.unlinkSync(filename);
+    }
+    fs.writeFileSync(filename, identity, { flag: 'wx', mode: 0o600 });
+    owned = true;
+    return await action();
+  } finally {
+    try {
+      if (owned) removeOwnedPreviewLock(filename, identity);
+    } finally {
+      await release();
+    }
+  }
+}
+
+function removeOwnedPreviewLock(filename: string, identity: string): void {
+  try {
+    if (fs.readFileSync(filename, 'utf8') === identity) fs.unlinkSync(filename);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
 }
 
 export async function withRuntimeInstallLock<T>(action: () => Promise<T>): Promise<T> {

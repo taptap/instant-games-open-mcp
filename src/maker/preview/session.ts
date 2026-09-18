@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
+import os from 'node:os';
 import { timingSafeEqual } from 'node:crypto';
 import {
   previewDirectory,
@@ -347,10 +348,27 @@ export async function requestPreview(
   });
 }
 
-export async function runPreviewSupervisor(project: string): Promise<void> {
+export async function runPreviewSupervisor(project: string, sessionId?: string): Promise<void> {
   const record = readPreviewRecord(project);
   if (!record || record.port || record.supervisor_pid)
     throw new Error('No pending preview supervisor launch.');
+  const validateLaunch = (): void => {
+    const current = readPreviewRecord(project);
+    if (
+      !current ||
+      current.session_id !== record.session_id ||
+      current.supervisor_id !== record.supervisor_id ||
+      current.state !== 'starting' ||
+      current.port ||
+      current.supervisor_pid ||
+      (sessionId !== undefined && sessionId !== record.session_id) ||
+      (record.launch_deadline !== undefined && sessionId !== record.session_id)
+    )
+      throw new Error('Preview launch session was replaced or is no longer pending.');
+    if (record.launch_deadline !== undefined && Date.now() >= record.launch_deadline)
+      throw new Error('Preview supervisor launch expired; retry local preview.');
+  };
+  validateLaunch();
   const session = new PreviewSession(record);
   let shuttingDown = false;
   const shutdown = async (retireFailure = false): Promise<void> => {
@@ -461,6 +479,14 @@ export async function runPreviewSupervisor(project: string): Promise<void> {
   });
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Preview control channel failed.');
+  // listen() yields: a timed-out launch may have been replaced while it was opening.
+  // Recheck before publishing; no Runtime can start before this endpoint is published.
+  try {
+    validateLaunch();
+  } catch (error) {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    throw error;
+  }
   record.port = address.port;
   record.supervisor_pid = process.pid;
   record.runtime_pid = 0;
@@ -518,23 +544,37 @@ export async function previewStatus(project: string): Promise<Record<string, unk
       evidence.started_at === record.started_at &&
       evidence.executable === record.executable;
     const runtimePid = Number(record.runtime_pid || evidence.runtime_pid || 0);
+    const unpublished =
+      record.state === 'starting' && !record.port && !record.supervisor_pid && !record.runtime_pid;
+    const expiredLaunch =
+      unpublished && record.launch_deadline !== undefined && Date.now() >= record.launch_deadline;
+    // Legacy launches have no generation fence. A reboot is the only available
+    // proof that an unrecorded process (including a delayed Windows wrapper) exited.
+    const beforeBoot =
+      unpublished && Date.parse(record.started_at) < Date.now() - os.uptime() * 1000 - 60000;
     const staleSessionRecovered =
-      !retiredFailure &&
-      (record.state === 'running' || record.state === 'failed') &&
-      sameSupervisorEvidence(evidence, record) &&
-      processPresence(record.supervisor_pid) === 'missing' &&
-      runtimePid > 0 &&
-      processPresence(runtimePid) === 'missing';
+      expiredLaunch ||
+      beforeBoot ||
+      (!retiredFailure &&
+        (record.state === 'running' || record.state === 'failed') &&
+        sameSupervisorEvidence(evidence, record) &&
+        processPresence(record.supervisor_pid) === 'missing' &&
+        runtimePid > 0 &&
+        processPresence(runtimePid) === 'missing');
     if (staleSessionRecovered) {
       evidence = {
         ...evidence,
+        supervisor_id: record.supervisor_id,
+        supervisor_pid: record.supervisor_pid,
+        started_at: record.started_at,
         state: 'failed',
         process_alive: false,
         runtime_pid: 0,
         supervisor_retired: true,
         stale_session_recovered: true,
-        error:
-          'Previous preview processes are no longer running. The stale session was retired safely.',
+        error: expiredLaunch
+          ? '本地预览启动超时，未启动游戏。可以重新点击“本地预览”。'
+          : 'Previous preview processes are no longer running. The stale session was retired safely.',
       };
     }
     return {
@@ -555,7 +595,12 @@ export async function previewStatus(project: string): Promise<Record<string, unk
       error:
         stopped || retiredFailure || staleSessionRecovered
           ? evidence.error
-          : 'Preview supervisor is unreachable. Process ownership is unverified; no PID was killed and no session was restarted.',
+          : 'Preview supervisor is unreachable. Process ownership is unverified; no PID was killed and no session was restarted.' +
+            (unpublished
+              ? record.launch_deadline !== undefined
+                ? ' 启动仍在确认中，请稍后重新检测预览状态。'
+                : ' 这是旧版本遗留的启动记录；请重启电脑后重新打开控制台，系统将恢复启动入口，无需删除项目或重装 Runtime。'
+              : ''),
     };
   }
 }

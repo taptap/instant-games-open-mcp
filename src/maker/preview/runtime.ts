@@ -8,6 +8,7 @@ import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { preparePreviewProject, requireManifestPreviewPlatform } from './prepare.js';
 import { startPreviewAssetServer, type PreviewAssetServer } from './assets.js';
 import { previewWindow, type PreviewWindow } from './windowSettings.js';
+import { preparePreviewServer, previewNetworkArgs } from './network.js';
 export { previewWindow } from './windowSettings.js';
 
 export const PREVIEW_TIMEOUT_MS = 30000;
@@ -95,6 +96,13 @@ export class PreviewRuntime {
     if (this.stopping) throw new Error('CANCELLED');
     const source = String(this.preparation.source_directory);
     entry = String(this.preparation.entry);
+    const server = await preparePreviewServer(
+      source,
+      this.identity.project_realpath,
+      this.abort.signal
+    );
+    if (server) this.logs.append('已获取线上测试服连接信息，本地客户端将通过 WebSocket 直连。');
+    if (this.stopping) throw new Error('CANCELLED');
     let cacheRoot: string | undefined;
     if (this.launchMode === 'loopback_manifest') {
       this.assets = await startPreviewAssetServer(source, this.abort.signal);
@@ -123,6 +131,7 @@ export class PreviewRuntime {
           ...(this.assets ? ['-game_url=' + this.assets.url] : [entry, '-tapcode_dir=' + source]),
           ...(cacheRoot ? ['-game_path=' + cacheRoot] : []),
           '-skip_login',
+          ...(server ? previewNetworkArgs(server) : []),
           '-p=Res',
           '-w',
           '-width=' + window.width,

@@ -21,7 +21,7 @@ export type PreviewWindow = {
 };
 
 function defaults(): PreviewWindowSettings {
-  return { orientation: 'project', preset: '16:9', custom: { longEdge: 960, shortEdge: 540 } };
+  return { orientation: 'project', preset: 'custom', custom: { longEdge: 1920, shortEdge: 1080 } };
 }
 
 function validate(value: unknown): PreviewWindowSettings {

@@ -36,10 +36,10 @@ test.each(['darwin', 'win32'] as const)(
       fallbackFontSource: sourceFont,
       warnings: [],
     });
-    expect(fs.readFileSync(path.join(root, 'Data', 'Fonts', 'MiSans-Regular.ttf'), 'utf8')).toBe(
+    expect(fs.readFileSync(path.join(root, 'Res', 'Fonts', 'MiSans-Regular.ttf'), 'utf8')).toBe(
       'font-data'
     );
-    for (const directory of ['Data/LuaScripts', 'Data/Fonts', 'CoreData']) {
+    for (const directory of ['Data/LuaScripts', 'Data/Fonts', 'CoreData', 'Res/Fonts']) {
       expect(fs.statSync(path.join(root, ...directory.split('/'))).isDirectory()).toBe(true);
     }
   }
@@ -47,7 +47,7 @@ test.each(['darwin', 'win32'] as const)(
 
 test('preparation preserves an existing fallback font', () => {
   const executable = runtimeExecutable('darwin');
-  const fonts = path.join(root, 'Data', 'Fonts');
+  const fonts = path.join(root, 'Res', 'Fonts');
   fs.mkdirSync(fonts, { recursive: true });
   fs.writeFileSync(path.join(fonts, 'MiSans-Regular.ttf'), 'existing-font');
   const sourceFont = path.join(root, 'system-font.ttf');
@@ -73,7 +73,7 @@ test('preparation keeps Runtime usable and reports when no fallback font is avai
 
   expect(result.fallbackFont).toBe('missing');
   expect(result.warnings).toEqual([expect.stringContaining('Chinese fallback font was not found')]);
-  expect(fs.existsSync(path.join(root, 'Data', 'Fonts', 'MiSans-Regular.ttf'))).toBe(false);
+  expect(fs.existsSync(path.join(root, 'Res', 'Fonts', 'MiSans-Regular.ttf'))).toBe(false);
   expect(fs.statSync(path.join(root, 'CoreData')).isDirectory()).toBe(true);
 });
 
@@ -96,7 +96,56 @@ test('repeated preparation shares one Runtime fallback without project-specific 
       fontCandidates: [secondFont],
     }).fallbackFont
   ).toBe('existing');
-  expect(fs.readFileSync(path.join(root, 'Data', 'Fonts', 'MiSans-Regular.ttf'), 'utf8')).toBe(
+  expect(fs.readFileSync(path.join(root, 'Res', 'Fonts', 'MiSans-Regular.ttf'), 'utf8')).toBe(
     'first'
+  );
+});
+
+test.each(['darwin', 'win32'] as const)(
+  '%s packed Runtime exposes its legacy fallback through the local-preview Res root',
+  (platform) => {
+    const executable = runtimeExecutable(platform);
+    const legacyFont = path.join(root, 'Data', 'Fonts', 'MiSans-Regular.ttf');
+    fs.mkdirSync(path.dirname(legacyFont), { recursive: true });
+    fs.writeFileSync(legacyFont, 'legacy-font');
+    fs.mkdirSync(path.join(root, 'Autoload'));
+    fs.writeFileSync(path.join(root, 'Autoload', 'Data.pak'), 'unchanged-package');
+
+    const result = ensurePreviewRuntimeResources(executable, {
+      platform,
+      fontCandidates: [path.join(root, 'missing-system-font.ttf')],
+    });
+
+    expect(result).toEqual({
+      fallbackFont: 'copied',
+      fallbackFontSource: legacyFont,
+      warnings: [],
+    });
+    expect(fs.readFileSync(path.join(root, 'Res', 'Fonts', 'MiSans-Regular.ttf'), 'utf8')).toBe(
+      'legacy-font'
+    );
+    expect(fs.readFileSync(legacyFont, 'utf8')).toBe('legacy-font');
+    expect(fs.readFileSync(path.join(root, 'Autoload', 'Data.pak'), 'utf8')).toBe(
+      'unchanged-package'
+    );
+  }
+);
+
+test('Runtime fallback preparation neither imports nor overwrites project fonts', () => {
+  const executable = runtimeExecutable('darwin');
+  const projectFont = path.join(root, 'project', 'assets', 'Fonts', 'MiSans-Regular.ttf');
+  fs.mkdirSync(path.dirname(projectFont), { recursive: true });
+  fs.writeFileSync(projectFont, 'project-font');
+  const systemFont = path.join(root, 'system-font.ttf');
+  fs.writeFileSync(systemFont, 'system-font');
+
+  ensurePreviewRuntimeResources(executable, {
+    platform: 'darwin',
+    fontCandidates: [systemFont],
+  });
+
+  expect(fs.readFileSync(projectFont, 'utf8')).toBe('project-font');
+  expect(fs.readFileSync(path.join(root, 'Res', 'Fonts', 'MiSans-Regular.ttf'), 'utf8')).toBe(
+    'system-font'
   );
 });

@@ -85,6 +85,33 @@ describe('Maker console CLI adapters', () => {
     expect(result.error).toBe('unsupported platform');
   });
 
+  test('passes QR publishing choices and build consent as literal CLI arguments', async () => {
+    const fixture = path.join(directory, 'fixture.cjs');
+    fs.writeFileSync(fixture, 'console.log(JSON.stringify({ok:true,args:process.argv.slice(2)}))');
+    const result = await createConsoleExecutor({ entry: fixture, execArgv: [] })({
+      project: directory,
+      action: 'qrcode',
+      onOutput: () => {},
+      confirmedOrientation: 'portrait',
+      publication: { title: '拼豆 $(literal)', category: 'puzzle', developer_id: 123 },
+      confirmedBuild: true,
+    });
+    expect(result.args).toEqual([
+      'qrcode',
+      '--confirmed-screen-orientation',
+      'portrait',
+      '--confirmed-developer-id',
+      '123',
+      '--confirmed-title=拼豆 $(literal)',
+      '--confirmed-category',
+      'puzzle',
+      '--confirmed-build',
+      '--target-dir',
+      directory,
+      '--json',
+    ]);
+  });
+
   test('unknown child results never imply successful build', async () => {
     const fixture = path.join(directory, 'fixture.cjs');
     fs.writeFileSync(fixture, 'console.log("unexpected output")');
@@ -571,6 +598,53 @@ describe('Maker console CLI adapters', () => {
       }
     }
   );
+
+  test.each([false, true])('opens token-free URLs with legacy session field=%s', async (legacy) => {
+    const oldHome = process.env.TAPTAP_MAKER_HOME;
+    process.env.TAPTAP_MAKER_HOME = directory;
+    const entry = fs.realpathSync(process.argv[1]);
+    const instanceId = '11111111-1111-4111-8111-111111111111';
+    fs.mkdirSync(path.join(directory, 'console'));
+    fs.writeFileSync(
+      path.join(directory, 'console/session.json'),
+      JSON.stringify({
+        schema: 1,
+        origin: 'http://127.0.0.1:54321',
+        instanceId,
+        launcher: createConsoleLauncherIdentity('dev', {
+          entry,
+          mtimeMs: fs.statSync(entry).mtimeMs,
+        }),
+        pid: process.pid,
+        ...(legacy ? { token: 'unused-legacy-value' } : {}),
+      })
+    );
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ instanceId, draining: false }),
+    } as Response);
+    const output = jest.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      await runConsoleCli('open', { no_open: true, json: true });
+      expect(JSON.parse(String(output.mock.calls[0][0])).url).toBe('http://127.0.0.1:54321/');
+      await runConsoleCli('status', { json: true });
+      await runConsoleCli('stop', { json: true });
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://127.0.0.1:54321/api/shutdown',
+        expect.objectContaining({ method: 'POST' })
+      );
+      for (const [, init] of fetchMock.mock.calls) {
+        expect(init?.headers).not.toHaveProperty('Authorization');
+        expect(init?.headers).toHaveProperty('Origin', 'http://127.0.0.1:54321');
+      }
+    } finally {
+      fetchMock.mockRestore();
+      output.mockRestore();
+      if (oldHome === undefined) delete process.env.TAPTAP_MAKER_HOME;
+      else process.env.TAPTAP_MAKER_HOME = oldHome;
+    }
+  });
 
   test('keeps a received remote compilation failure distinct from a lost result', async () => {
     const error = createMakerRemoteBuildError({

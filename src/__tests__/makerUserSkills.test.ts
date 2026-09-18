@@ -83,7 +83,7 @@ describe('Maker user Skill pull', () => {
       )
     ).toContain('keep me');
 
-    for (const clientDir of ['.codex', '.cursor', '.workbuddy']) {
+    for (const clientDir of ['.codex', '.cursor', '.workbuddy', '.agents']) {
       expect(
         fs.readFileSync(path.join(projectDir, clientDir, 'skills', 'materials', 'SKILL.md'), 'utf8')
       ).toBe('# new materials\n');
@@ -142,7 +142,7 @@ describe('Maker user Skill pull', () => {
 
   test('restores every client Skill when a later client installation fails', async () => {
     addLocalSkill('materials', 'old source');
-    for (const clientDir of ['.codex', '.cursor', '.workbuddy']) {
+    for (const clientDir of ['.codex', '.cursor', '.workbuddy', '.agents']) {
       addClientSkill(clientDir, 'materials', `old ${clientDir}`);
     }
     const zip = await createZip({ 'materials/SKILL.md': '# new materials\n' });
@@ -174,7 +174,7 @@ describe('Maker user Skill pull', () => {
       copySpy.mockRestore();
     }
 
-    for (const clientDir of ['.codex', '.cursor', '.workbuddy']) {
+    for (const clientDir of ['.codex', '.cursor', '.workbuddy', '.agents']) {
       expect(
         fs.readFileSync(path.join(projectDir, clientDir, 'skills', 'materials', 'SKILL.md'), 'utf8')
       ).toContain(`old ${clientDir}`);
@@ -189,7 +189,7 @@ describe('Maker user Skill pull', () => {
 
   test('preserves source and client backups when rollback fails', async () => {
     addLocalSkill('materials', 'old source');
-    for (const clientDir of ['.codex', '.cursor', '.workbuddy']) {
+    for (const clientDir of ['.codex', '.cursor', '.workbuddy', '.agents']) {
       addClientSkill(clientDir, 'materials', `old ${clientDir}`);
     }
     const zip = await createZip({ 'materials/SKILL.md': '# new materials\n' });

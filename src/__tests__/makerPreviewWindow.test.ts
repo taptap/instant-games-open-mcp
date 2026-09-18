@@ -25,10 +25,10 @@ describe('local preview window settings', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
   test('defaults to landscape, follows project direction, and permits overrides both ways', () => {
-    expect(previewWindow(project)).toMatchObject({ width: 960, height: 540, defaulted: true });
+    expect(previewWindow(project)).toMatchObject({ width: 1920, height: 1080, defaulted: true });
     const config = '{"taptap_publish":{"screen_orientation":"portrait"}}';
     fs.writeFileSync(path.join(project, '.project/project.json'), config);
-    expect(previewWindow(project)).toMatchObject({ width: 540, height: 960, defaulted: false });
+    expect(previewWindow(project)).toMatchObject({ width: 1080, height: 1920, defaulted: false });
     savePreviewWindowSettings(project, {
       ...readPreviewWindowSettings(project).settings,
       orientation: 'landscape',
@@ -73,8 +73,8 @@ describe('local preview window settings', () => {
     });
     expect(previewWindow(project)).toMatchObject({ width: 1366, height: 1024 });
     expect(previewWindow(path.join(root, 'another-game'))).toMatchObject({
-      width: 960,
-      height: 540,
+      width: 1920,
+      height: 1080,
     });
   });
   test.each([0, -1, 99, 4097, 100.5, '1080', NaN])(

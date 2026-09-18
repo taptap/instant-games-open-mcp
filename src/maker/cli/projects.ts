@@ -13,6 +13,7 @@ import { getMakerEndpoints, requireMakerEndpoint } from '../config.js';
 import { ensureGitAvailable, getGitCommand } from '../system/git.js';
 import { finalizeStagedDevKitGitignore } from './devKit.js';
 import { registerMakerProject } from '../projectRegistry.js';
+import { withQrcodeFastForward } from './qrcodeSync.js';
 
 export interface CloneMakerProjectOptions {
   appId: string;
@@ -51,6 +52,7 @@ export interface PushMakerProjectOptions {
   pat?: string;
   forcePat?: boolean;
   onProgress?: MakerProjectProgressHandler;
+  preserveQrcodeChoices?: boolean;
 }
 
 export interface MakerProjectProgress {
@@ -545,10 +547,11 @@ export async function pushMakerProject(
       message: `Fast-forwarding Maker project from ${remoteSyncStatus.remoteRef}`,
     });
     try {
-      await runGit(['merge', '--ff-only', remoteSyncStatus.remoteRef], {
-        cwd,
-        stage: 'pull',
-      });
+      const fastForward = (revision: string) =>
+        runGit(['merge', '--ff-only', revision], { cwd, stage: 'pull' });
+      if (options.preserveQrcodeChoices)
+        await withQrcodeFastForward(cwd, remoteSyncStatus.remoteRef, fastForward);
+      else await fastForward(remoteSyncStatus.remoteRef);
     } catch (error) {
       const failure = toMakerGitFailure(error, 'pull');
       const failedBecauseLocalChangesWouldBeOverwritten =

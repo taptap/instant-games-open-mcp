@@ -8,6 +8,7 @@ import { ConsoleTasks } from '../maker/console/tasks';
 import { startConsoleServer } from '../maker/console/server';
 import type { ConsoleExecutor } from '../maker/console/types';
 import * as folderPicker from '../maker/console/folderPicker';
+import { ConsoleError } from '../maker/console/types';
 
 describe('Maker console project isolation', () => {
   let directory: string;
@@ -32,7 +33,301 @@ describe('Maker console project isolation', () => {
   });
   afterEach(() => fs.rmSync(directory, { recursive: true, force: true }));
 
-  test('folder selection requires authentication and handles cancellation, validation and concurrency', async () => {
+  test('keeps and persists only the latest ten tasks per project including the active task', async () => {
+    const a = registry.add(project('History A'));
+    const b = registry.add(project('History B'));
+    const history = path.join(directory, 'tasks.json');
+    const execute = jest.fn(async () => ({ ok: true }));
+    const tasks = new ConsoleTasks(registry, execute, history);
+    const first = tasks.start(a.key, 'build');
+    await tasks.settled();
+    tasks.start(b.key, 'build');
+    await tasks.settled();
+    for (let i = 0; i < 10; i++) {
+      tasks.start(a.key, 'build');
+      await tasks.settled();
+    }
+    expect(tasks.list().filter((task) => task.projectKey === a.key)).toHaveLength(10);
+    expect(tasks.list().filter((task) => task.projectKey === b.key)).toHaveLength(1);
+    expect(() => tasks.get(first.id)).toThrow('Task not found');
+    expect(JSON.parse(fs.readFileSync(history, 'utf8'))).toHaveLength(11);
+    const pending = tasks.start(a.key, 'build');
+    expect(tasks.get(pending.id).status).toBe('running');
+    expect(tasks.list().filter((task) => task.projectKey === a.key)).toHaveLength(10);
+    await tasks.settled();
+  });
+
+  test('prunes old on-disk history at startup', () => {
+    const history = path.join(directory, 'tasks.json');
+    fs.writeFileSync(
+      history,
+      JSON.stringify(
+        Array.from({ length: 15 }, (_, index) => ({
+          id: String(index),
+          projectKey: 'alpha',
+          action: 'build',
+          status: 'succeeded',
+          startedAt: new Date(index * 1000).toISOString(),
+          output: '',
+        }))
+      )
+    );
+    const tasks = new ConsoleTasks(registry, async () => ({ ok: true }), history);
+    expect(tasks.list().map((task) => task.id)).toEqual([
+      '14',
+      '13',
+      '12',
+      '11',
+      '10',
+      '9',
+      '8',
+      '7',
+      '6',
+      '5',
+    ]);
+    expect(JSON.parse(fs.readFileSync(history, 'utf8'))).toHaveLength(10);
+  });
+
+  test.each([undefined, '', '   ', '<game title, required>', ' <game title, required> '])(
+    'uses the directory name with an unpublished label for title=%s',
+    (title) => {
+      const root = project('PixelShooter3D');
+      const file = path.join(root, '.project/project.json');
+      const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+      config.taptap_publish.title = title;
+      const original = JSON.stringify(config);
+      fs.writeFileSync(file, original);
+      const item = registry.add(root);
+      expect(item.name).toBe('PixelShooter3D（未发布）');
+      expect(registry.list()[0].name).toBe(item.name);
+      expect(registry.resolve(item.key).name).toBe(item.name);
+      expect(fs.readFileSync(file, 'utf8')).toBe(original);
+    }
+  );
+
+  test('preserves an actual project title', () => {
+    const item = registry.add(project('我的游戏', 'real-project-id'));
+    expect(item.name).toBe('我的游戏');
+    expect(item.projectid).toBe('real-project-id');
+  });
+
+  test.each([290607, 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '290607'])(
+    'publishes only a safe numeric current developer identity: %s',
+    async (developerId) => {
+      const root = project('Developer');
+      const file = path.join(root, '.project/project.json');
+      const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+      config.taptap_publish.developer_id = developerId;
+      fs.writeFileSync(file, JSON.stringify(config));
+      expect((await registry.detail(registry.add(root).key)).config.developerId).toBe(
+        developerId === 290607 ? 290607 : null
+      );
+    }
+  );
+
+  test('project detail exposes missing initialization before showing editable QR fields', async () => {
+    const root = project('New project');
+    fs.rmSync(path.join(root, '.project'), { recursive: true });
+    expect((await registry.detail(registry.add(root).key)).config).toMatchObject({
+      qrcodeNeedsInitialization: true,
+      qrcodePreparation: { status: 'needs_initialization', action: 'build' },
+    });
+  });
+
+  test('historical unavailable identity exposes recovery but cannot authorize a replacement', async () => {
+    const item = registry.add(project('Unavailable developer'));
+    const history = path.join(directory, 'tasks.json');
+    fs.writeFileSync(
+      history,
+      JSON.stringify([
+        {
+          id: 'old-id',
+          projectKey: item.key,
+          action: 'qrcode',
+          status: 'failed',
+          error:
+            '配置的开发者 ID 290607 不可用。\n\n请重新运行发布命令，系统会列出当前可用的开发者。',
+        },
+      ])
+    );
+    const execute = jest.fn(async () => ({ ok: true }));
+    const tasks = new ConsoleTasks(registry, execute, history);
+    expect(tasks.get('old-id')).toMatchObject({
+      status: 'unknown',
+      recovery: { kind: 'developer_unavailable', developerId: 290607 },
+    });
+    expect(tasks.get('old-id').interaction).toBeUndefined();
+    expect(() =>
+      tasks.start(item.key, 'qrcode', undefined, { developer_id: 123 }, true, 'old-id')
+    ).toThrow();
+    expect(execute).not.toHaveBeenCalled();
+    tasks.start(item.key, 'qrcode', undefined, undefined, true);
+    await tasks.settled();
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  test('project detail requests missing QR metadata only for an unbound app', async () => {
+    const root = project('QR fields');
+    const file = path.join(root, '.project/project.json');
+    const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+    config.taptap_publish = { title: '', category: '', screen_orientation: 'portrait' };
+    fs.writeFileSync(file, JSON.stringify(config));
+    const item = registry.add(root);
+    expect((await registry.detail(item.key)).config).toMatchObject({
+      qrcodeNeedsTitle: true,
+      qrcodeNeedsCategory: true,
+    });
+    config.taptap_publish.app_id = '12345';
+    fs.writeFileSync(file, JSON.stringify(config));
+    expect((await registry.detail(item.key)).config).toMatchObject({
+      qrcodeNeedsTitle: false,
+      qrcodeNeedsCategory: false,
+    });
+  });
+
+  test('QR tasks retain the project and explicit orientation, and reject invalid input', async () => {
+    const item = registry.add(project('QR'));
+    const execute = jest.fn(async () => ({ ok: true }));
+    const tasks = new ConsoleTasks(registry, execute);
+    expect(() => tasks.start(item.key, 'qrcode', 'auto')).toThrow();
+    expect(() => tasks.start(item.key, 'build', 'portrait')).toThrow();
+    expect(() => tasks.start(item.key, 'qrcode', undefined, { category: 'sce' })).toThrow();
+    expect(() => tasks.start(item.key, 'qrcode', undefined, { title: '<game>' })).toThrow();
+    expect(() => tasks.start(item.key, 'build', undefined, { title: 'Game' })).toThrow();
+    expect(() => tasks.start(item.key, 'qrcode', undefined, undefined, 'true')).toThrow();
+    const task = tasks.start(
+      item.key,
+      'qrcode',
+      'portrait',
+      { title: 'QR', category: 'puzzle' },
+      true
+    );
+    await tasks.settled();
+    expect(task.status).toBe('succeeded');
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project: item.path,
+        action: 'qrcode',
+        confirmedOrientation: 'portrait',
+        publication: { title: 'QR', category: 'puzzle' },
+        confirmedBuild: true,
+      })
+    );
+  });
+
+  test('historical QR errors support only confirmed original-project source choices', async () => {
+    const item = registry.add(project('QR source'));
+    const other = registry.add(project('Other'));
+    const history = path.join(directory, 'tasks.json');
+    const error =
+      '生成测试二维码失败: 检测到多个可用的开发者身份，需要用户选择：\n\n' +
+      '  1. [个人] [未认证] A (ID: 123) ⭐ 推荐\n\n请按以下步骤操作：';
+    fs.writeFileSync(
+      history,
+      JSON.stringify([
+        {
+          id: 'historical',
+          projectKey: item.key,
+          projectName: item.name,
+          action: 'qrcode',
+          status: 'failed',
+          error,
+          output: '',
+          startedAt: '2026-09-18',
+        },
+      ])
+    );
+    const execute = jest.fn(async () => ({ ok: true }));
+    const tasks = new ConsoleTasks(registry, execute, history);
+    expect(tasks.list()[0]).toMatchObject({
+      status: 'unknown',
+      interaction: { kind: 'select_developer', options: [{ value: 123 }] },
+    });
+    expect(execute).not.toHaveBeenCalled();
+    for (const id of [0, -1, 1.5, 456, Number.MAX_SAFE_INTEGER + 1, '123']) {
+      expect(() =>
+        tasks.start(item.key, 'qrcode', undefined, { developer_id: id }, true, 'historical')
+      ).toThrow();
+    }
+    expect(() =>
+      tasks.start(other.key, 'qrcode', undefined, { developer_id: 123 }, true, 'historical')
+    ).toThrow();
+    expect(() =>
+      tasks.start(item.key, 'build', undefined, { developer_id: 123 }, true, 'historical')
+    ).toThrow();
+    expect(() =>
+      tasks.start(item.key, 'qrcode', undefined, { developer_id: 123 }, false, 'historical')
+    ).toThrow();
+    expect(() => tasks.start(item.key, 'qrcode', undefined, { developer_id: 123 }, true)).toThrow();
+    expect(execute).not.toHaveBeenCalled();
+    tasks.start(item.key, 'qrcode', undefined, { developer_id: 123 }, true, 'historical');
+    await tasks.settled();
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project: item.path,
+        publication: { developer_id: 123 },
+        confirmedBuild: true,
+      })
+    );
+    expect(() =>
+      tasks.start(item.key, 'qrcode', undefined, { developer_id: 123 }, true, 'historical')
+    ).toThrow();
+  });
+
+  test('retains a failed QR sync marker after task history reload', async () => {
+    const item = registry.add(project('QR reload'));
+    const history = path.join(directory, 'tasks.json');
+    const execute = jest.fn(async () => ({ ok: false, requiresSync: true }));
+    const tasks = new ConsoleTasks(registry, execute, history);
+    const task = tasks.start(item.key, 'qrcode', undefined, undefined, true);
+    await tasks.settled();
+    const reloaded = new ConsoleTasks(registry, execute, history);
+    expect(reloaded.get(task.id)).toMatchObject({
+      status: 'failed',
+      result: { ok: false, requiresSync: true },
+    });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps QR sync intent when the CLI exits without a verifiable result', async () => {
+    const item = registry.add(project('QR interrupted'));
+    const history = path.join(directory, 'tasks.json');
+    const execute = jest.fn(async () => ({ ok: false, unknown: true }));
+    const tasks = new ConsoleTasks(registry, execute, history);
+    const task = tasks.start(item.key, 'qrcode', undefined, undefined, true);
+    expect(new ConsoleTasks(registry, execute, history).get(task.id)).toMatchObject({
+      status: 'unknown',
+      result: { requiresSync: true },
+    });
+    await tasks.settled();
+    expect(new ConsoleTasks(registry, execute, history).get(task.id)).toMatchObject({
+      status: 'unknown',
+      result: { requiresSync: true },
+    });
+  });
+
+  test('clears QR sync intent when the CLI returns a verified successful result', async () => {
+    const item = registry.add(project('QR synced'));
+    const tasks = new ConsoleTasks(registry, async () => ({ ok: true }));
+    const task = tasks.start(item.key, 'qrcode', undefined, undefined, true);
+    await tasks.settled();
+    expect(task.result).toEqual({ ok: true });
+  });
+
+  test('preserves QR sync intent when a failed result is too large for history', async () => {
+    const item = registry.add(project('QR large failure'));
+    const tasks = new ConsoleTasks(registry, async () => ({
+      ok: false,
+      requiresSync: true,
+      output: 'x'.repeat(300 * 1024),
+    }));
+    const task = tasks.start(item.key, 'qrcode', undefined, undefined, true);
+    await tasks.settled();
+    expect(task.result).toMatchObject({ result_truncated: true, requiresSync: true });
+  });
+
+  test('folder selection requires same origin and handles cancellation, validation and concurrency', async () => {
     const picker = jest.spyOn(folderPicker, 'chooseProjectDirectory');
     const server = await startConsoleServer({
       registry,
@@ -40,22 +335,25 @@ describe('Maker console project isolation', () => {
       version: 'test',
       execute: async () => ({ ok: true }),
     });
-    const select = (authenticated = true) =>
+    const select = (sameOrigin = true) =>
       fetch(server.origin + '/api/projects/select-folder', {
         method: 'POST',
         headers: {
-          Origin: server.origin,
+          Origin: sameOrigin ? server.origin : 'https://evil.invalid',
           'Content-Type': 'application/json',
-          ...(authenticated ? { Authorization: `Bearer ${server.token}` } : {}),
         },
         body: '{}',
       });
     try {
-      expect((await select(false)).status).toBe(401);
+      expect((await select(false)).status).toBe(403);
       expect(picker).not.toHaveBeenCalled();
       picker.mockResolvedValueOnce(null);
       expect(await (await select()).json()).toEqual({ cancelled: true });
       expect(registry.list()).toHaveLength(0);
+      picker.mockRejectedValueOnce(new ConsoleError('文件夹选择窗口失败', 422));
+      expect((await select()).status).toBe(422);
+      picker.mockResolvedValueOnce(null);
+      expect(await (await select()).json()).toEqual({ cancelled: true });
       picker.mockResolvedValueOnce(directory);
       expect((await (await select()).json()).added).toBe(0);
       expect(registry.list()).toHaveLength(0);
@@ -156,7 +454,7 @@ describe('Maker console project isolation', () => {
       execute: async () => ({ ok: true, install_state: 'ready', process_alive: false }),
     });
     try {
-      const headers = { Authorization: `Bearer ${server.token}` };
+      const headers = {};
       const url = server.origin + '/api/projects/' + item.key + '/preview';
       await fetch(url, { headers });
       expect(check).not.toHaveBeenCalled();
@@ -181,7 +479,6 @@ describe('Maker console project isolation', () => {
     });
     try {
       const headers = {
-        Authorization: `Bearer ${server.token}`,
         Origin: server.origin,
         'Content-Type': 'application/json',
       };
@@ -193,7 +490,7 @@ describe('Maker console project isolation', () => {
       };
       expect(
         (await fetch(url + '/window', { method: 'POST', body: JSON.stringify(settings) })).status
-      ).toBe(401);
+      ).toBe(403);
       expect(
         (
           await fetch(url + '/window', {
@@ -401,7 +698,6 @@ describe('Maker console project isolation', () => {
           : Promise.resolve({ ok: true }),
     });
     const headers = {
-      Authorization: `Bearer ${server.token}`,
       Origin: server.origin,
       'Content-Type': 'application/json',
     };
@@ -427,7 +723,7 @@ describe('Maker console project isolation', () => {
     }
   });
 
-  test('requires bearer auth and same-origin writes, never infers current project', async () => {
+  test('allows token-free access but requires same-origin writes, never infers current project', async () => {
     const item = registry.add(project('A'));
     const server = await startConsoleServer({
       registry,
@@ -435,10 +731,14 @@ describe('Maker console project isolation', () => {
       version: 'test',
       execute: async () => ({ ok: true }),
     });
-    const auth = { Authorization: `Bearer ${server.token}` };
+    const auth = {};
     const write = { ...auth, Origin: server.origin, 'Content-Type': 'application/json' };
     try {
-      expect((await fetch(server.origin + '/api/state')).status).toBe(401);
+      expect((await fetch(server.origin + '/api/state')).status).toBe(200);
+      expect(
+        (await fetch(server.origin + '/api/state', { headers: { 'Sec-Fetch-Site': 'cross-site' } }))
+          .status
+      ).toBe(403);
       const state = await fetch(server.origin + '/api/state', { headers: auth });
       expect(state.status).toBe(200);
       const payload = (await state.json()) as {
@@ -514,7 +814,8 @@ describe('Maker console project isolation', () => {
       expect(badHost).toBe(403);
       const page = await fetch(server.origin);
       expect(page.headers.get('content-security-policy')).toContain("default-src 'none'");
-      expect(await page.text()).not.toContain(server.token);
+      expect(await page.text()).toBe('<html>console</html>');
+      expect(server).not.toHaveProperty('token');
       expect((await fetch(server.origin + '/favicon.ico')).status).toBe(204);
     } finally {
       await server.close();
@@ -537,7 +838,6 @@ describe('Maker console project isolation', () => {
           : Promise.resolve({ ok: true }),
     });
     const headers = {
-      Authorization: `Bearer ${server.token}`,
       Origin: server.origin,
       'Content-Type': 'application/json',
     };

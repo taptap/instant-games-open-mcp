@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { runPreviewInstaller } from '../maker/preview/installerProcess.js';
 import {
   installPreviewRuntime,
@@ -191,6 +192,101 @@ test('Runtime installation lock is machine-global and released on failure', asyn
     })
   ).rejects.toThrow('failure');
   expect(fs.existsSync(path.join(runtimeDirectory(), 'installation.lock'))).toBe(false);
+});
+
+test('preview recovers a lock whose owner has exited', async () => {
+  const filename = path.join(previewDirectory(root), 'operation.lock');
+  fs.mkdirSync(path.dirname(filename), { recursive: true });
+  fs.writeFileSync(
+    filename,
+    JSON.stringify({ pid: 2147483647, created_at: new Date().toISOString() })
+  );
+  await expect(withPreviewLock(root, async () => 'recovered')).resolves.toBe('recovered');
+  expect(fs.existsSync(filename)).toBe(false);
+});
+
+test('preview recovers the legacy lock after its owner is forcibly terminated', async () => {
+  const filename = path.join(previewDirectory(root), 'operation.lock');
+  fs.mkdirSync(path.dirname(filename), { recursive: true });
+  const child = spawnSync(
+    process.execPath,
+    [
+      '-e',
+      `
+    require('node:fs').writeFileSync(process.argv[1], JSON.stringify({pid:process.pid}));
+    process.kill(process.pid, 'SIGKILL');
+  `,
+      filename,
+    ],
+    { timeout: 5000 }
+  );
+  expect(child.error).toBeUndefined();
+  expect(child.status).not.toBe(0);
+  expect(fs.existsSync(filename)).toBe(true);
+  await expect(withPreviewLock(root, async () => 'recovered')).resolves.toBe('recovered');
+  expect(fs.existsSync(filename)).toBe(false);
+});
+
+test.each(['alive', 'unknown', 'invalid'])('preview preserves a %s lock', async (mode) => {
+  const filename = path.join(previewDirectory(root), 'operation.lock');
+  fs.mkdirSync(path.dirname(filename), { recursive: true });
+  const original = mode === 'invalid' ? '{bad json' : JSON.stringify({ pid: process.pid });
+  fs.writeFileSync(filename, original);
+  const denied =
+    mode === 'unknown'
+      ? jest.spyOn(process, 'kill').mockImplementation(() => {
+          throw Object.assign(new Error('denied'), { code: 'EPERM' });
+        })
+      : undefined;
+  try {
+    await expect(withPreviewLock(root, async () => 'must not run')).rejects.toThrow();
+    expect(fs.readFileSync(filename, 'utf8')).toBe(original);
+  } finally {
+    denied?.mockRestore();
+  }
+});
+
+test('concurrent preview recovery admits only one operation', async () => {
+  const filename = path.join(previewDirectory(root), 'operation.lock');
+  fs.mkdirSync(path.dirname(filename), { recursive: true });
+  fs.writeFileSync(filename, JSON.stringify({ pid: 2147483647 }));
+  let entered = 0;
+  let release!: () => void;
+  const hold = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const action = async () => {
+    entered++;
+    await hold;
+  };
+  const first = withPreviewLock(root, action);
+  const second = withPreviewLock(root, action);
+  const rejected = Promise.any([
+    first.then(
+      () => false,
+      () => true
+    ),
+    second.then(
+      () => false,
+      () => true
+    ),
+  ]);
+  try {
+    expect(await rejected).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(entered).toBe(1);
+  } finally {
+    release();
+    await Promise.allSettled([first, second]);
+  }
+});
+
+test('preview release preserves a replacement lock', async () => {
+  const filename = path.join(previewDirectory(root), 'operation.lock');
+  await withPreviewLock(root, async () => {
+    fs.writeFileSync(filename, 'replacement');
+  });
+  expect(fs.readFileSync(filename, 'utf8')).toBe('replacement');
 });
 
 test('Windows installation selects the exe artifact and Windows CDN target', async () => {

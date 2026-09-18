@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { writePrivateJson } from '../system/privateJson.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { ConsoleProjects } from './projects.js';
+import { validQrcodePublication, type MakerQrcodePublication } from '../qrcodePreflight.js';
+import { parseQrcodeInteraction, parseQrcodeRecovery } from '../qrcodeInteraction.js';
 import {
   CONSOLE_ACTIONS,
   ConsoleError,
@@ -36,22 +38,103 @@ export class ConsoleTasks {
         }
         this.tasks.set(task.id, task);
       }
+      const before = this.tasks.size;
+      this.pruneHistory();
+      if (this.tasks.size !== before) this.persist();
+    }
+  }
+  private pruneHistory(): void {
+    const counts = new Map<string, number>();
+    for (const task of Array.from(this.tasks.values()).reverse()) {
+      const count = (counts.get(task.projectKey) || 0) + 1;
+      counts.set(task.projectKey, count);
+      if (count > 10 && task.status !== 'running') this.tasks.delete(task.id);
+    }
+    while (this.tasks.size > 100) {
+      const old = Array.from(this.tasks.values()).find((task) => task.status !== 'running');
+      if (!old) break;
+      this.tasks.delete(old.id);
     }
   }
   list(): ConsoleTask[] {
-    return Array.from(this.tasks.values()).reverse();
+    return Array.from(this.tasks.values())
+      .reverse()
+      .map((task) => this.describe(task));
+  }
+  private describe(task: ConsoleTask): ConsoleTask {
+    const result = task.result as { error?: unknown } | undefined;
+    const interaction =
+      task.action === 'qrcode' && ['failed', 'unknown'].includes(task.status)
+        ? parseQrcodeInteraction(result?.error) || parseQrcodeInteraction(task.error)
+        : undefined;
+    const recovery =
+      task.action === 'qrcode' && ['failed', 'unknown'].includes(task.status)
+        ? parseQrcodeRecovery(result?.error) || parseQrcodeRecovery(task.error)
+        : undefined;
+    return {
+      ...task,
+      interaction,
+      recovery,
+      ...(interaction || recovery ? { status: 'unknown' as const } : {}),
+    };
   }
   get(id: string): ConsoleTask {
     const task = this.tasks.get(id);
     if (!task) throw new ConsoleError('Task not found.', 404);
-    return task;
+    return this.describe(task);
   }
   busy(key: string): boolean {
     return this.list().some((task) => task.projectKey === key && task.status === 'running');
   }
-  start(key: string, action: ConsoleAction): ConsoleTask {
+  start(
+    key: string,
+    action: ConsoleAction,
+    confirmedOrientation?: unknown,
+    publication?: unknown,
+    confirmedBuild?: unknown,
+    sourceTaskId?: unknown
+  ): ConsoleTask {
     if (!CONSOLE_ACTIONS.includes(action)) throw new ConsoleError('Unsupported console action.');
+    if (
+      confirmedOrientation !== undefined &&
+      (action !== 'qrcode' ||
+        typeof confirmedOrientation !== 'string' ||
+        !['landscape', 'portrait'].includes(confirmedOrientation))
+    )
+      throw new ConsoleError('Invalid confirmed screen orientation.');
+    if (publication !== undefined && (action !== 'qrcode' || !validQrcodePublication(publication)))
+      throw new ConsoleError('Invalid confirmed QR publishing fields.');
+    if (
+      confirmedBuild !== undefined &&
+      (action !== 'qrcode' || typeof confirmedBuild !== 'boolean')
+    )
+      throw new ConsoleError('Invalid QR build confirmation.');
     const project = this.projects.resolve(key);
+    if (
+      sourceTaskId !== undefined ||
+      (publication as MakerQrcodePublication)?.developer_id !== undefined
+    ) {
+      const source = typeof sourceTaskId === 'string' ? this.get(sourceTaskId) : undefined;
+      const latest = this.list().find(
+        (item) => item.projectKey === key && item.action === 'qrcode'
+      );
+      const developerId = (publication as MakerQrcodePublication)?.developer_id;
+      if (
+        action !== 'qrcode' ||
+        confirmedBuild !== true ||
+        !source ||
+        source.projectKey !== key ||
+        source.action !== 'qrcode' ||
+        !['failed', 'unknown'].includes(source.status) ||
+        latest?.id !== source.id ||
+        (source.projectPath !== undefined && source.projectPath !== project.path) ||
+        (source.projectid !== undefined && source.projectid !== project.projectid) ||
+        !source.interaction?.options.some((option) => option.value === developerId)
+      )
+        throw new ConsoleError(
+          'Invalid or stale developer selection. Reopen the original QR task.'
+        );
+    }
     if (this.busy(key))
       throw new ConsoleError('This project already has an operation in progress.', 409);
     if (this.running.size >= 4)
@@ -60,17 +143,16 @@ export class ConsoleTasks {
       id: randomUUID(),
       projectKey: key,
       projectName: project.name,
+      projectPath: project.path,
+      projectid: project.projectid,
+      ...(typeof sourceTaskId === 'string' ? { sourceTaskId } : {}),
       action,
       status: 'running',
       startedAt: new Date().toISOString(),
       output: '',
+      ...(action === 'qrcode' && confirmedBuild === true ? { result: { requiresSync: true } } : {}),
     };
     this.tasks.set(task.id, task);
-    while (this.tasks.size > 100) {
-      const old = Array.from(this.tasks.values()).find((item) => item.status !== 'running');
-      if (!old) break;
-      this.tasks.delete(old.id);
-    }
     try {
       this.persist();
     } catch (error) {
@@ -79,10 +161,15 @@ export class ConsoleTasks {
     }
     const operation = Promise.resolve().then(async () => {
       try {
-        this.projects.resolve(key);
+        const current = this.projects.resolve(key);
+        if (current.path !== project.path || current.projectid !== project.projectid)
+          throw new ConsoleError('Project binding changed before task execution.');
         const result = await this.execute({
           project: project.path,
           action,
+          confirmedOrientation: confirmedOrientation as 'landscape' | 'portrait' | undefined,
+          publication: publication as MakerQrcodePublication | undefined,
+          confirmedBuild: confirmedBuild as boolean | undefined,
           onOutput: (text) => {
             task.output = (task.output + String(sanitizeDiagnosticValue(text))).slice(-65536);
           },
@@ -95,11 +182,27 @@ export class ConsoleTasks {
             };
           },
         });
-        const sanitized = sanitizeDiagnosticValue(result);
+        // Retain sync intent if the child disappears before returning its sync outcome.
+        const requiresSync =
+          action === 'qrcode' &&
+          confirmedBuild === true &&
+          (!result.ok || result.unknown) &&
+          !Object.hasOwn(result, 'requiresSync');
+        const sanitized = sanitizeDiagnosticValue({
+          ...result,
+          ...(requiresSync ? { requiresSync: true } : {}),
+        });
         task.result =
           Buffer.byteLength(JSON.stringify(sanitized)) <= 256 * 1024
             ? sanitized
-            : { ok: result.ok, unknown: result.unknown, result_truncated: true };
+            : {
+                ok: result.ok,
+                unknown: result.unknown,
+                result_truncated: true,
+                ...((sanitized as { requiresSync?: boolean }).requiresSync === true
+                  ? { requiresSync: true }
+                  : {}),
+              };
         if ((task.result as { result_truncated?: boolean }).result_truncated)
           task.output = (task.output + '\nLarge CLI result omitted from console history.').slice(
             -65536
@@ -129,6 +232,7 @@ export class ConsoleTasks {
     await Promise.all(this.running);
   }
   private persist(): void {
+    this.pruneHistory();
     if (this.historyFile) {
       fs.mkdirSync(path.dirname(this.historyFile), { recursive: true, mode: 0o700 });
       while (
