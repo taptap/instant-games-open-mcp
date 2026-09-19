@@ -10,6 +10,12 @@ import { formatMakerSkillStatus } from '../maker/cli/skill';
 const INTERNAL_ENVIRONMENT_PATTERN = /\brnd\b|xdrnd|TAPTAP_MCP_ENV|--env/iu;
 
 describe('Maker public documentation', () => {
+  test('documents the official Maker console trigger in the local workflow skill', () => {
+    const skill = fs.readFileSync(path.resolve('skills/taptap-maker-local/SKILL.md'), 'utf8');
+
+    expect(skill).toContain('打开make mcp控制台');
+  });
+
   test('documents the Codex legacy MCP check before plugin installation', () => {
     const readme = fs.readFileSync(path.resolve('README.md'), 'utf8');
 

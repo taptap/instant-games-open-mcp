@@ -22,6 +22,44 @@
 **NPM**: [@taptap/instant-games-open-mcp](https://www.npmjs.com/package/@taptap/instant-games-open-mcp)
 **Maker NPM**: [@taptap/maker](https://www.npmjs.com/package/@taptap/maker)
 
+Maker 支持[本地控制台](docs/MAKER_CONSOLE.md)管理项目、构建和 Git 历史；项目页可查看所有项目
+共用的本机 Runtime 与独立 Lua LSP 安装状态，构建页可单独检查 Lua，构建前默认可选检查。构建失败信息
+默认展开。构建与本地预览快捷操作会自动切换到对应工作页。构建页按当前阶段显示真实进度，
+构建详情与 Runtime 日志使用整行宽度；
+[本地窗口预览](docs/MAKER_LOCAL_PREVIEW.md)会在启动 Runtime 前区分普通单机、联机/server
+和无配置新项目：不依赖资源索引的单机直接加载原目录；存在资源/构建配置、资源元数据、
+Windows 旧 dist、联机/server 或缺配置的项目使用受管理副本生成
+本轮 manifest。所有需要准备产物的项目在 Windows/macOS 均通过仅本机可访问的资源服务加载，
+统一读取配置和资源索引；单机不会因此申请测试服。Windows 使用每轮独立的短临时下载缓存，退出后清理。
+联网项目复用 Maker 登录，自动连接线上测试服，无需扫码；服务端改动仍需
+提交构建后生效，联机项目缺少构建产物时直接报错，不静默降级为离线窗口。
+新项目缺少发布配置也可预览：默认入口为 `scripts/main.lua`、窗口为横屏 1920×1080，
+仅在临时副本补齐缺省配置，不修改项目；已有方向和已保存窗口设置优先。
+“文档 / Skill”页按分类浏览 Maker 内置及当前项目资料，支持目录搜索与 Markdown 阅读。
+任务执行中可切换项目，日志和后续操作仍归属原项目；首次点击本地预览可在确认安装 Runtime 后继续启动。
+主操作区提供“测试二维码”，缺少名称、分类或首次发布方向时在确认框补齐；
+需要同步配置时明确确认提交、推送本地改动，再由二维码工具完成构建上传，不额外重复构建。
+Lua 检查开关与构建结果集中在远端构建区域，窗口设置默认折叠，通栏日志支持清理、复制与自动换行。
+任务列表默认显示摘要，最新失败与运行中任务展开；二维码结果及日志按项目展示。
+需要选择开发者时弹窗确认；成功后弹出大图二维码，关闭后可从任务中重新查看。取消不执行操作。
+本地预览异常可确认提交问题反馈，自动附带脱敏日志和环境信息，并按出错环节分类；
+自动上传复用现有 GitHub CLI，需本机已安装并登录；提交状态与 Issue 链接显示在原任务中。
+控制台链接无需 token，服务运行时直接打开本机地址即可使用，支持刷新、新标签和项目选择。
+标题旁提供 Maker MCP 版本选择，支持查看最近 5 个版本并确认更新；独立发行复用 CLI
+更新流程，插件发行仍通过插件市场更新，安装后重新连接 MCP 生效。
+控制台提供 16:9、21:9、4:3 窗口预设及可保存的自定义尺寸；横竖屏默认读取项目配置，
+未配置时使用横屏，也可随时手动选择。设置按项目保存，下次启动或刷新预览时生效，不修改发布配置。
+受管理 Runtime 在安装和启动时会自动补齐引擎所需目录与中文兜底字体；项目自带字体仍按项目隔离，
+不会写入所有项目共用的 Runtime。
+相同 Maker 版本从不同 AI IDE 打开时复用同一个用户级控制台；Windows 使用系统进程代理启动，
+避免 AI 命令结束时连带关闭控制台服务。本地预览 supervisor 共用该启动方式；
+意外断开后确认两个预览进程均已退出时，可直接重新启动，无需手动删除会话文件。
+FrameCrate 控制台集成已改为通用插件注册与持久内嵌标签页（2026-09-16，本地验证及独立复核完成），
+不再以独立浏览器标签作为控制台入口。显式设置 `FRAMECRATE_STUDIO_DIR` 指向已安装的
+framepacker Studio，按已登记项目嵌入完整本地编辑器与 AI 工作流；切换项目或标签应保留编辑现场。
+控制台不安装或下载 Studio，不提供 ZIP 安装或插件市场。协议与验收边界见
+[本地控制台文档](docs/MAKER_CONSOLE.md)。
+
 ## TapTap Maker 客户端插件
 
 [`plugins/taptap-maker`](plugins/taptap-maker) 是插件专属安装与下载页面。Codex 和 WorkBuddy
@@ -223,9 +261,11 @@ MCP 进程自身的 cwd 只作为最后兜底和诊断信息，不应通过重�
 和 `taptap-maker doctor` 会检查老项目 `AGENTS.md` 是否缺失或过期，并提示运行
 `taptap-maker agents update` 或 `taptap-maker upgrade`。
 `taptap-maker dev-kit update` 会检查当前环境可用的最新 AI dev kit 并更新当前目录。
+初始化及 dev-kit 更新会从 `.installer/skills` 自动补齐 `.agents/skills`，
+沿用原始 Skill 名称，已有同名目录不覆盖；链接不可用时回退复制。
 `taptap-maker user-skills pull` 是可选的边缘命令，仅在用户明确要求时从 Maker Server 下载个人
 Skill，并覆盖项目 `.installer/skills/` 中 ZIP 包含的同名目录，再以原始 Skill 名称安装到项目内
-`.codex/skills/`、`.cursor/skills/` 和 `.workbuddy/skills/`；其它本地 Skill 保持不变。
+`.codex/skills/`、`.cursor/skills/`、`.workbuddy/skills/` 和 `.agents/skills/`；其它本地 Skill 保持不变。
 归档下载限制为 64 MiB，最多 1000 个条目、解压后最多 128 MiB。
 该命令不属于正常开发或初始化流程，也不会增加 MCP tool。
 
@@ -602,6 +642,8 @@ AI dev kit 版本和 MCP 配置。`maker://status` 和 `maker_status_lite` 会�
 项目保持 `not_initialized` 且允许显式构建。`dist` 是构建产物，不参与源配置有效性判断。
 构建会在 commit/push 前阻断实际存在配置的明确路径或 JSON 错误，`generate_test_qrcode`、
 `get_ad_config` 和测试白名单会在远端调用前检查主配置，但不会自动搬运或覆盖本地文件。
+广告接入先读 `maker://ads-integration-guide`：确认项目 → 获取配置 → 核对远端/本地配置 →
+阅读 SDK → 实现 → 真机验证；远端同步成功不代表本机广告配置已更新。
 健康检查本身保持只读；需要修复时，AI 应优先从 Git 或完整的错位副本恢复文件。只有在
 `settings.json` 仍是可解析 object 时，才可恢复 `$schema` 和构建固定字段（资源 tag 仅从完整副本恢复），
 并保留 `@runtime` 与未知字段；不要凭默认值重建 `project_id`、入口、版本、发布信息或资源分组。

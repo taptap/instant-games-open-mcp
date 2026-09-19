@@ -382,6 +382,117 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
 
 ### Maker 本地开发（CLI-first / PAT-first）
 
+- 预览创建 Runtime 前必须持久化 runtime_launch_pending，取得 PID 后立即登记。
+  已发布端点的 starting 会话只有在 supervisor 确认不存在且 Runtime 创建结果明确时才能恢复；
+  缺少阶段标记的旧记录、创建结果未知和权限未知均不得凭零 PID 自动回收。
+  系统重启后，启动记录早于当前开机至少一分钟且所有已记录 PID 均确认不存在，才可恢复
+  遗留 starting 会话。创建后的登记失败必须收尾本轮子进程；状态写失败不得中断退出等待。
+
+- 只有不依赖资源索引的完整单机项目直接运行原目录。资源/构建配置、资源元数据、联机/server、
+  缺配置以及 Windows 原目录存在 dist/latest.json 均进入受管理副本。不得删除用户 dist、
+  创建 junction/软链接或为绕过路径限制改写游戏原目录。
+
+- 修改控制台前读 `docs/MAKER_CONSOLE.md`；修改 Runtime 安装或预览前读
+  `docs/MAKER_LOCAL_PREVIEW.md`。操作指引统一维护在 `skills/taptap-maker-local/SKILL.md`，
+  插件副本通过生成脚本同步，不手工维护。
+- 控制台复用 CLI 业务，不新增 MCP tool；操作必须显式绑定已校验的项目 realpath，
+  不依赖全局当前项目或 cwd。项目登记共用 `src/maker/projectRegistry.ts`，
+  登记失败不得改变 init/clone 的成功结果。
+- 控制台异常反馈仅在明确确认后，通过当前 CLI 子进程的 stdin 复用 `mcp report`；
+  使用 `MAKER_ISSUE_CATEGORIES` 分类，日志只读受管理固定文件并脱敏、有界截取。
+  不阻塞服务、不另造 GitHub 提交/登录流程；原任务结果不变，未知提交不自动重发。
+  测试二维码复用 `qrcode` CLI 和现有远端工具及配置检查，不自动重试；
+  首次发布方向需用户确认，不能使用本地预览窗口默认值代替。控制台允许补齐名称和分类，
+  本地配置补齐须明确确认提交、推送全部本地改动，复用 push 同步远端工作区，不能仅写本地文件。
+  QR CLI 不额外调用 build；缺配置时先提示用户显式构建初始化，非法配置先修复，不循环构建。
+  远端二维码工具本身会构建上传测试版本，界面不得宣称整个流程“不构建”。
+  远端开发者选择通过已知返回格式转换为单选交互，复用通用弹窗；服务端核对源任务、
+  项目及候选 ID，不默认选择、不自动重试，不执行远端文本中夹带的发布或其它命令。
+  当前项目任务完成后可弹出选择或二维码大图，不重复弹出，不打断其它项目或已打开的弹窗。
+  仅识别 MCP 图片及二维码 CDN 的 Markdown 图片链接；加载失败只重载图片，不重复上传。
+  失效开发者保留原配置并提供诊断，不自动清空 ID 或猜测可用身份。
+- 控制台版本更新为用户级操作，固定查询 `@taptap/maker` 最近发布版本，只接受目录中精确版本，
+  复用所选包的 `upgrade --launcher self --json`，不另写安装器。任何插件渠道禁止独立包更新；
+  当前运行版本与已安装版本分开显示，不自动重启会话；更新期间防止重复执行及空闲退出。
+- 控制台资料目录由 `console/documents.ts` 收录固定范围 Markdown，使用不透明 ID 读取；
+  项目由登记 realpath 校验，拒绝项目外符号链接，限制扫描深度、数量和文件大小。
+  Markdown 解析为 tokens 后以 DOM 安全渲染，禁止原始 HTML、脚本、远程图片及任意文件读取；
+  文档与 Skill 分页签，仅阅读不执行，不新增 MCP tool。
+- Runtime 安装和记录位于 Maker user home 的 `runtime/`，所有项目共用；旧项目哈希目录中的有效
+  安装会自动登记，不重复下载。项目哈希目录只保留项目会话、准备产物、日志和运行缓存。
+  新安装和已登记 Runtime 启动前必须补齐 `Data/LuaScripts`、`Data/Fonts`、`CoreData`；缺少
+  `Res/Fonts/MiSans-Regular.ttf` 时优先复用旧 `Data/Fonts` 字体，再从当前 macOS/Windows
+  系统字体复制通用中文兜底，不覆盖已有文件；local_preview 只挂载松散 `Res`，不能仅写入
+  `Data/Fonts`。项目字体只保留在各项目 `assets/Fonts` 和受管理项目副本中，不得汇总到共享 Runtime；
+  显式 `--runtime` 指向的外部 Runtime 不得自动修改。
+  项目页复用预览状态展示 Runtime 安装版本或时间，未安装时进入现有 `preview.install` 流程；
+  顶部同时展示独立 maker-lua-lsp 安装状态和版本。构建页提供独立 Lua 检查；构建前默认勾选
+  检查，发现 Lua 错误则停止，可取消勾选后直接构建。构建和本地预览快捷操作先切换到
+  “构建与测试”。构建进度只使用当前阶段的真实比例，无有效比例时显示不定进度，不合成跨阶段
+  总百分比；Git/服务端失败信息默认展开，任务详情和 Runtime 日志保持整行宽度。
+- 控制台紧凑布局把 Lua 检查放回构建区域，窗口设置默认折叠但保留按项目草稿；
+  轮询不得收起用户已展开的设置或丢失未保存值。历史任务默认摘要化，运行中及最新失败、
+  未知结果保持展开；二维码查看与开发者选择入口不得藏进原始结果。Markdown 实体只解码一次，
+  解码结果通过 textContent 插入，不作为 HTML 执行。日签保持在页脚版本旁的小号淡黄色入口，弹出区域只显示内嵌内容。
+- 控制台插件集成纠正（2026-09-16，本地验证及独立复核完成）：使用
+  `src/maker/console/plugins.ts` 的类型化可信注册表，FrameCrate 启动适配位于
+  `src/maker/console/integrations/framecrate.ts`。`GET /api/state` 只公开插件元数据，
+  `POST /api/projects/:key/plugins/:id/open` 校验已注册插件、项目 realpath 与绑定；
+  不提供任意命令、路径或 URL 启动接口，不新增 MCP tool。
+- FrameCrate 必须在控制台持久标签页中嵌入完整编辑器与 AI 工作流，不以新浏览器标签替代。
+  iframe 按项目与插件保存，最多 8 个；切换标签或项目仅切换可见性，保留 DOM，
+  达上限明确拒绝新增，禁止静默淘汰未保存编辑。sandbox 仅允许
+  `allow-scripts allow-same-origin allow-downloads allow-modals`，不允许弹窗或顶层导航。
+- 仅从显式 `FRAMECRATE_STUDIO_DIR` 启动已安装的 Studio；固定 Node/tsx 入口携带
+  `--project <realpath> --host-origin <控制台精确 loopback origin>`，不实施 ZIP 安装或市场。
+  Studio 可保留其自身内部 token，但控制台自身不使用访问 token，嵌入 CSP 仅放行该宿主；通用消息使用
+  `protocolVersion: 1` 及 `maker-console:connect`、`maker-console:plugin-ready`、
+  `maker-console:plugin-activity`、`maker-console:theme`，双方校验 origin 与窗口来源，
+  主题仅接受 `light`/`dark` 并由插件跟随控制台，不传 PAT 或业务执行命令。
+  用户显式关闭控制台只回收自己启动的 Studio，不修改 MCP 配置。
+  ready 子进程正常关闭等待 drain、不设强制超时；永久挂起时关闭持续等待，优先避免截断写入。
+  生命周期与真实 AI、计价、付费、Windows 未验收边界见 `docs/MAKER_CONSOLE.md`。
+- 本地服务仅监听 loopback；控制台页面存活时使用每分钟页面租约续期，焦点或可见性恢复时立即续期；
+  普通状态轮询和健康检查不续期。页面租约停止且无任务约 30 分钟后退出，不增加常驻唤醒进程。
+  同一 Maker 版本跨 Codex、WorkBuddy 和独立 CLI 复用用户级控制台，实例身份不得绑定插件路径或
+  distribution。Windows 通过 PowerShell/CIM 系统代理启动服务，不能只依赖 Node detached/unref
+  脱离 AI IDE 的受管进程树；启动命令不得转发 PAT、MAC token 或 client secret。
+  self runtime 必须复制 `package.json`，保留 ESM 声明；PowerShell 准备步骤保持 fail-fast，
+  仅 native 调用阶段允许 stderr 错误流继续写日志，使用真实退出码，不以警告判定失败。
+  控制台不生成、保存或校验访问 token，页面和 CLI 请求不携带 Bearer；loopback 地址只用于本机
+  访问，不应被描述为带凭证的远程会话链接；
+  链接包含本机 origin 和可选 projectid（真实项目 ID），多副本时用 checkout 区分目录；
+  内部操作仍使用目录级登记标识。裸地址、刷新和新标签无需授权。
+  保留 no-store、Host/Origin 校验、跨站拒绝及写操作精确同源要求，不改 Maker PAT 或插件凭证。
+  保留访问校验、空闲退出和有界资源管理。
+  预览与控制台独立管理；只清理已确认所有权的进程和缓存，不把未知结果当作失败自动重试。
+- 本地预览启动 Runtime 前必须先分类项目：满足前述直读条件的单机项目直接运行原目录；
+  `@runtime.multiplayer`、`@runtime.max_players`、持久世界配置、`entry@server`、
+  `scripts/server_main.lua` 或 `scripts/server.lua` 均进入受管理副本；缺少标准配置的新项目
+  也进入受管理副本，仅在副本补齐预览默认值。任何路径都不使用 junction、软链接或 `subst`，
+  不得改写游戏原目录。入口默认 `scripts/main.lua`，窗口未保存时默认横屏 1920×1080（已有项目方向优先）。
+  执行 Builder 前仍校验配置与版本路径；已有无效配置、JSONC/旧布局不得用默认值绕过，不写回项目
+  或伪造平台身份。
+  联网/server 项目由 `preview/network.ts` 读取受管理副本的 `@runtime` 配置与真实游戏 ID，
+  复用 PAT 鉴权，按引擎 CreateMultiDebugGame 契约申请 `test` 游戏；缺少构建产物或申请失败时
+  必须直接失败，不得静默降级成离线预览。
+  所有需要准备产物的项目在 Windows/macOS 统一通过受保护的 loopback client manifest 服务加载，
+  不把 -tapcode_dir 的松散源码挂载当成 manifest 加载成功；否则部分 Runtime 会跳过
+  settings.json，连接成功但 IsNetworkMode 为 false。资源加载方式只由是否需要准备产物决定，
+  不按操作系统或是否联网分流；测试服申请仍由 network_required 控制，简单单机保持原目录直读。
+  Windows 下载缓存使用每轮独占的 TEMP 短目录，不创建路径映射；确认 Runtime 退出后才清理，
+  缓存根目录被替换为链接时拒绝清理，不触及原项目或共享 Runtime 缓存。
+  Runtime 使用 skip_login 和 directConnectParams，server_port=0 强制 WebSocket。
+  PAT/MAC 与返回的 login_key 不进入 Runtime 参数或预览日志；不改引擎，
+  不自动远端构建、不连接 formal、不重放结果未知的申请。仅验证线上环境，
+  内部环境不得混用线上入口。Windows 实机验收独立于 macOS 验证。
+  预览窗口设置由 `src/maker/preview/windowSettings.ts` 统一解析，按项目保存在用户预览缓存中；
+  横竖屏默认跟随发布配置，缺失时横屏，允许手动覆盖；保存不自动重启，启动或刷新时应用，
+  不得写回项目发布配置。控制台与 CLI 共用窗口设置，运行中尺寸以启动时的 preflight 为准。
+  Windows 控制台与预览 supervisor 共用 `src/maker/system/backgroundProcess.ts` 的 CIM 启动器。
+  预览离线恢复必须确认会话证据匹配且两个进程都不存在；状态查询不写回会话，避免覆盖并发启动。
+  Builder 快照须逐字节匹配固定 Git 提交；不修改引擎、公共资源或游戏原目录来掩盖预览错误。
+
 Maker 本地开发的默认路径是 CLI-first + PAT-first：
 
 - Codex Maker plugin 位于 `plugins/taptap-maker`。Codex 和 WorkBuddy 插件共用独立插件版本，
@@ -414,8 +525,9 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `plugins/taptap-maker/README.md`；Codex 对外安装使用对应渠道的 GitHub Release 页面和 ZIP，
   WorkBuddy 对外安装使用官方插件市场。直接从仓库添加 marketplace 只用于源码或 develop 预览版
   验证，并且必须在添加前用生成目录中的 CLI 完成旧 MCP 检查。
-- DSH bundle 插件 `@taptap/dsh-maker` 位于 `packages/dsh-maker/`，使用独立版本并精确依赖
-  `@taptap/maker`。`Publish DSH Maker Plugin` 从 `develop` 只发布 GitHub prerelease，从 `main`
+- DSH bundle 插件 `@taptap/dsh-maker` 位于 `packages/dsh-maker/`，使用独立版本并精确依赖已核对
+  artifact 的 `@taptap/maker`。稳定包当前锁定 `@taptap/maker@0.0.32`；`Publish DSH Maker Plugin`
+  从 `develop` 只发布 GitHub prerelease，从 `main`
   同时发布 npm `latest` 和 GitHub Release；1024Store 使用 npm 包名作为市场入口。DSH 发布不得
   复用 Codex/WorkBuddy 插件版本、ZIP workflow 或 Maker 主包发布 workflow。DSH npm job 必须独占
   仅允许 `main` 的 `dsh_npm_publish` environment；不得复用需要支持 Maker develop beta 的
@@ -446,11 +558,15 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - Maker CLI-first 重构后的正式说明在 `docs/MAKER.md`；完整环境变量契约在
   `docs/MAKER_ENVIRONMENT_VARIABLES.md`；面向团队介绍的功能总览在
   `docs/MAKER_CLI_MCP_SKILL_REWORK_OVERVIEW.md`。上下文压缩或长时间中断后，先读这些文档再继续。
+- dev-kit Skill 安装统一在 `installAiDevKitSkills` 补齐 `.agents/skills`，使用
+  `projectSkills.ts` 的跨平台链接/复制逻辑，沿用源名称、跳过已有同名目录。
+  所有分发渠道都执行，脚本缺失或失败也尝试补齐；不得将整个 `.agents` 加入
+  dev-kit 替换删除清单，Git 忽略只收录对应 Skill 路径。
 - 用户说“我要开发maker游戏 / 本地maker开发 / 拉取maker游戏到本地 / 把maker游戏代码拉到本地 / clone maker项目 / 下载maker游戏代码 / 初始化maker开发目录 / 配置maker本地开发 / 继续开发maker项目”时，应触发 `taptap-maker init`，由该 CLI 展示 app 列表并让用户选择已有 app 或 `0`/`new`。只有用户明确说“创建/新建项目或游戏”时，才使用 `taptap-maker init --create`。
 - `taptap-maker user-skills pull --target-dir <PROJECT_DIR>` 只用于用户明确要求拉取个人 Maker
   Skill 的边缘场景。正常开发、状态检查和初始化不得主动调用；该能力保持为 CLI，不得新增 MCP tool。
   命令只覆盖服务端 ZIP 中出现的 `.installer/skills/<skill-name>`，并以原始名称安装到项目内
-  `.codex/skills`、`.cursor/skills` 和 `.workbuddy/skills`；其它本地 Skill 保持不变，暂不接入
+  `.codex/skills`、`.cursor/skills`、`.workbuddy/skills` 和 `.agents/skills`；其它本地 Skill 保持不变，暂不接入
   `taptap-maker init`。客户端安装优先链接到 `.installer/skills`，链接不可用时回退复制，失败时
   回滚本次客户端替换。归档限制为下载 64 MiB、1000 个条目和解压后 128 MiB。
 - 如果本地没有当前环境的 Maker PAT，CLI 默认运行 CLI 登录：生成满足 `^[A-Za-z0-9_-]{16,128}$` 的临时 code，按需打开当前环境的 `/pat-tokens?code=<code>`，用户登录并点击“创建 token”后，CLI 轮询 `/api/v1/cli-auth/result?code=<code>`，拿到授权结果后完成本地鉴权配置。
@@ -560,7 +676,7 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
 - 当前目录是已绑定 Maker 项目时，只要用户消息涉及广告（包括“广告”、激励视频、播放广告、广告 ID、广告位、`ShowRewardVideoAd`、广告配置、广告开通状态等），先阅读 `maker://ads-integration-guide`，再按其中流程检查 Maker 项目状态、调用 `get_ad_config` 并阅读项目内 `engine-docs/recipes/sdk.md`。主配置未初始化时，本地 preflight 会保持广告能力不可用且不调用远端 `get_ad_config`；仅在用户明确要求构建时调用 `maker_build_current_directory`。构建后本地配置仍缺失时直接说明当前已知限制，不要自动重复构建。配置就绪后再调用 `get_ad_config` 获取广告开通状态和配置；若返回缺少 `app_id` 或 `developer_id`，应调用 `generate_test_qrcode` 一次生成测试二维码元数据，再重试 `get_ad_config`。不要先查 `.maker-mcp/config.json` 或用运行回调推断广告是否开通，也不要为这个恢复流程调用发布类工具。
 - 当前目录是已绑定 Maker 项目时，只有用户明确询问当前 Maker 游戏的线上玩家反馈（包括玩家提交的游戏故障、真机游戏日志或截图），或指定游戏会话的服务端/Lua 日志时，才调用 Maker MCP tool `get_debug_feedbacks`；Cindy 等 AI 客户端、插件、通用开发工具或其它产品的问题反馈/问题上报不属于该工具。本地 runtime log 只用于当前本地构建/运行会话，不要用本地日志替代线上玩家提交的反馈。
 - `get_debug_feedbacks` 会拉取线上玩家反馈，并在可下载附件存在时保存日志和截图到当前 Maker 项目的 `logs/feed_back/feedback_<id>/`；调用后优先使用返回的 `local_dir`、`local_log_paths`、`local_screenshot_paths` 读取日志和查看截图。附件路径以 tool 返回的 `local_*` 字段为准；没有 `local_*` 字段时，不要把附件当成本地文件读取。
-- 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 预览 / 跑一下 / 查看结果 / 看看效果 / 验证游戏效果”时，都调用 `maker_build_current_directory`。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求构建、运行或预览 Maker 游戏。普通构建会先 push 再远端 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒 Maker 远端服务；push 成功后才远端 build。
+- 当前目录是已绑定 Maker 项目时，用户说“帮我提交 / 提交代码 / 提交并推送 / push / 构建 / 远端预览 / 远端跑一下 / 查看远端结果 / 看看远端效果 / 验证远端游戏效果”时，都调用 `maker_build_current_directory`。本地控制台或本地预览走对应 CLI，不提交、不推送、不启动远端构建。普通“验证代码 / 跑测试 / lint / 检查实现”不应自动触发 Maker 远端构建，除非用户明确要求远端构建、运行或预览。普通远端构建会先 push 再 build：本地有改动时提交改动，已有 ahead commit 时直接 push，本地干净且无 ahead commit 时创建 `chore: wake maker build server` 空提交来唤醒远端服务；push 成功后才远端 build。
 - 提交前发现本地仅落后于 Maker 远端时，`maker_build_current_directory` 会自动执行 `git merge --ff-only origin/main` 后继续；如果远端更新会覆盖本地未提交修改，则必须在创建 commit 前停止并保留本地文件。分叉、非 main、认证或网络失败不自动处理。
 - push 被拒绝、分叉、自动 fast-forward 失败、认证失败或存在冲突时，`maker_build_current_directory` 必须停止在 build 前，并返回 `submit_failed_before_build`、本地 commit/ahead 状态、stderr/stdout 和下一步建议；Agent 必须根据 `classification` 选择恢复路径：`remote_rejected` 才协助 pull/rebase，`branch_not_allowed` 切回 main 并迁移本地 commit，`forbidden_path` 按远端 forbidden pattern 从未推送 commit 移除禁止路径，`auth` 才刷新 PAT。
 - push 遇到 503、HTTP 5xx、超时或连接中断会自动重试；最终失败时要读取 `classification`、`retryable`、`retry_reason` 和 `retry_attempts`，按工具返回的恢复路径继续处理。

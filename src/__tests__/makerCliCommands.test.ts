@@ -22,6 +22,7 @@ import { syncWorkBuddyProjectSkills } from '../maker/cli/workBuddyProjectSkills'
 import { pullMakerUserSkills } from '../maker/cli/userSkills';
 import { formatMakerPackageUpdateStatus, getMakerPackageUpdateStatus } from '../maker/versionCheck';
 import { runMakerCli } from '../maker/cli/commands';
+import { runQrcodeCli } from '../maker/cli/qrcode';
 import {
   materializeMakerSelfLauncher,
   resolveMakerMcpLauncher,
@@ -56,6 +57,8 @@ function mockReadyPython(spawnSyncMock: jest.MockedFunction<typeof spawnSync>): 
     return { status: 0, stdout: 'help output', stderr: '' } as ReturnType<typeof spawnSync>;
   });
 }
+
+jest.mock('../maker/cli/qrcode', () => ({ runQrcodeCli: jest.fn() }));
 
 jest.mock('node:child_process', () => ({
   ...jest.requireActual('node:child_process'),
@@ -212,6 +215,29 @@ jest.mock('../maker/system/git', () => {
 });
 
 describe('Maker CLI commands', () => {
+  test('parses QR build consent as a boolean without consuming the following positional', async () => {
+    await runMakerCli([
+      'qrcode',
+      '--confirmed-build',
+      'unused',
+      '--target-dir',
+      '/project/a',
+      '--confirmed-title=--拼豆',
+      '--confirmed-category',
+      'puzzle',
+      '--confirmed-screen-orientation',
+      'portrait',
+      '--json',
+    ]);
+    expect(runQrcodeCli).toHaveBeenCalledWith({
+      confirmed_build: true,
+      target_dir: '/project/a',
+      confirmed_title: '--拼豆',
+      confirmed_category: 'puzzle',
+      confirmed_screen_orientation: 'portrait',
+      json: true,
+    });
+  });
   let tempDir: string;
   const originalHome = process.env.HOME;
   const originalMakerHome = process.env.TAPTAP_MAKER_HOME;
@@ -2081,6 +2107,22 @@ describe('Maker CLI commands', () => {
         targetDir: tempDir,
       })
     );
+    const registry = JSON.parse(
+      fs.readFileSync(path.join(process.env.TAPTAP_MAKER_HOME!, 'projects.json'), 'utf8')
+    );
+    expect(registry.projects).toEqual([
+      expect.objectContaining({ path: fs.realpathSync(tempDir), binding: 'app-1' }),
+    ]);
+  });
+
+  test('init warns on corrupt registry without failing a successful checkout', async () => {
+    fs.mkdirSync(process.env.TAPTAP_MAKER_HOME!, { recursive: true });
+    const registry = path.join(process.env.TAPTAP_MAKER_HOME!, 'projects.json');
+    fs.writeFileSync(registry, 'broken');
+    await runMakerCli(['init', '--app-id', 'app-1', '--target-dir', tempDir, '--skip-mcp-install']);
+    expect(stdoutSpy.mock.calls.join('')).toContain('Local project registry registration failed');
+    expect(stdoutSpy.mock.calls.join('')).toContain('TapTap Maker initialization completed');
+    expect(fs.readFileSync(registry, 'utf8')).toBe('broken');
   });
 
   test('init fails and records recovery state when MCP config installation is partial', async () => {
@@ -2485,6 +2527,7 @@ describe('Maker CLI commands', () => {
       ])
     ).rejects.toThrow('RPC failed');
 
+    expect(fs.existsSync(path.join(process.env.TAPTAP_MAKER_HOME!, 'projects.json'))).toBe(false);
     expect(loadProjectConfig(tempDir)).toEqual(
       expect.objectContaining({
         project_id: 'app-1',
@@ -3609,6 +3652,35 @@ describe('Maker CLI commands', () => {
     expect(spawnSyncMock).not.toHaveBeenCalledWith('gh', expect.any(Array), expect.any(Object));
   });
 
+  test('console reports reuse submission without launching another MCP verification', async () => {
+    const iterator = jest.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(() =>
+      (async function* () {
+        yield JSON.stringify({
+          source: 'console',
+          category: 'runtime',
+          summary: 'Preview timeout',
+          error_message: 'TIMEOUT: supervisor',
+        });
+      })()
+    );
+    try {
+      await runMakerCli([
+        'mcp',
+        'report',
+        '--target-dir',
+        tempDir,
+        '--context-stdin',
+        '--consent',
+        '--json',
+      ]);
+    } finally {
+      iterator.mockRestore();
+    }
+    const result = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+    expect(result.title).toBe('[UrhoX Runtime] Preview timeout');
+    expect(verifyMakerMcpLauncherMock).not.toHaveBeenCalled();
+    expect(result.body).toContain('not_applicable');
+  });
   test('mcp report never starts GitHub submission without explicit consent', async () => {
     const stdinIterator = jest.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(() =>
       (async function* () {

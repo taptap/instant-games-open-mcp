@@ -19,12 +19,52 @@ import {
   resolveDefaultAiDevKitUrl,
   writeAiDevKitVersionMetadata,
 } from '../maker/cli/devKit';
-import { MAKER_PROJECT_POLICY_ROUTING_INDEX } from '../maker/capabilityRouting';
+import {
+  MAKER_CAPABILITY_ROUTING_INDEX,
+  MAKER_PROJECT_POLICY_ROUTING_INDEX,
+} from '../maker/capabilityRouting';
+
+test('routes the official Maker console trigger through MCP and project policy', () => {
+  expect(MAKER_CAPABILITY_ROUTING_INDEX).toContain('打开make mcp控制台');
+  expect(MAKER_PROJECT_POLICY_ROUTING_INDEX).toContain('打开make mcp控制台');
+  expect(MAKER_CAPABILITY_ROUTING_INDEX).toContain('taptap-maker-local');
+  expect(MAKER_CAPABILITY_ROUTING_INDEX).toContain('console open');
+});
 
 describe('Maker AI dev kit install', () => {
   let tempDir: string;
   let sourceDir: string;
   let targetDir: string;
+
+  test.each(['missing', 'failed', 'normal'])(
+    'fills .agents skills with a %s installer',
+    async (mode) => {
+      const sourceSkill = path.join(sourceDir, '.installer', 'skills', 'materials');
+      fs.mkdirSync(sourceSkill, { recursive: true });
+      fs.writeFileSync(path.join(sourceSkill, 'SKILL.md'), '# materials');
+      if (mode === 'missing') fs.rmSync(path.join(sourceDir, 'tools'), { recursive: true });
+      if (mode === 'failed')
+        fs.writeFileSync(path.join(sourceDir, 'tools', 'install-skills.sh'), 'exit 42\n');
+      await installAiDevKit({ sourceDir, targetDir });
+      const target = path.join(targetDir, '.agents', 'skills', 'materials', 'SKILL.md');
+      expect(fs.readFileSync(target, 'utf8')).toBe('# materials');
+      expect(inspectAiDevKitSkillInstallStatus(targetDir).targets).toContainEqual({
+        name: 'agents',
+        path: path.join(targetDir, '.agents', 'skills'),
+        present: true,
+        skillCount: 1,
+      });
+      const userSkill = path.join(targetDir, '.agents', 'skills', 'custom');
+      fs.mkdirSync(userSkill);
+      fs.writeFileSync(path.join(userSkill, 'SKILL.md'), '# user skill');
+      fs.rmSync(path.dirname(target), { recursive: true });
+      fs.mkdirSync(path.dirname(target));
+      fs.writeFileSync(target, '# user edited');
+      await installAiDevKit({ sourceDir, targetDir, replaceManagedEntries: true });
+      expect(fs.readFileSync(target, 'utf8')).toBe('# user edited');
+      expect(fs.readFileSync(path.join(userSkill, 'SKILL.md'), 'utf8')).toBe('# user skill');
+    }
+  );
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-dev-kit-'));
@@ -118,7 +158,7 @@ describe('Maker AI dev kit install', () => {
     expect(claudeGuide).toBe('local agent docs\n');
     expect(claudeGuide).not.toContain('TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toMatch(
-      /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
+      /^<!-- >>> TapTap Maker managed AGENTS policy version=4 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toContain(MAKER_PROJECT_POLICY_ROUTING_INDEX);
@@ -185,7 +225,12 @@ describe('Maker AI dev kit install', () => {
     expect(agentsGuide).toContain('create_3d_asset');
     expect(agentsGuide).toContain('action="continue"');
     expect(agentsGuide).toContain('Do not infer ad readiness from local SDK docs');
-    expect(agentsGuide).toContain('Build only for an explicit user build/submit/preview request');
+    expect(agentsGuide).toContain(
+      'Build only for an explicit user build/submit/remote Web preview request'
+    );
+    expect(agentsGuide).toContain(
+      'Local window preview uses CLI and does not authorize commit or push.'
+    );
     expect(agentsGuide).toContain('do not rebuild');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');
     expect(agentsGuide).toContain('`ShowRewardVideoAd`');
@@ -242,13 +287,14 @@ describe('Maker AI dev kit install', () => {
 
     const status = inspectAiDevKitSkillInstallStatus(targetDir);
 
-    expect(status.status).toBe('installed');
-    expect(status.summary).toBe('claude=1, codex=1, cursor=1, gemini=1');
+    expect(status.status).toBe('partial');
+    expect(status.summary).toBe('claude=1, codex=1, cursor=1, gemini=1, agents=0');
     expect(status.targets.map((target) => target.name)).toEqual([
       'claude',
       'codex',
       'cursor',
       'gemini',
+      'agents',
     ]);
   });
 
@@ -305,6 +351,59 @@ describe('Maker AI dev kit install', () => {
         message: expect.stringContaining('Failed to install AI dev kit skills'),
       })
     );
+  });
+
+  test('preserves installer diagnostics when .agents synchronization also fails', () => {
+    const sourceSkill = path.join(targetDir, '.installer', 'skills', 'materials');
+    fs.mkdirSync(sourceSkill, { recursive: true });
+    fs.writeFileSync(path.join(sourceSkill, 'SKILL.md'), '# materials\n', 'utf8');
+    fs.mkdirSync(path.join(targetDir, 'tools'), { recursive: true });
+    const isWindows = process.platform === 'win32';
+    const scriptName = isWindows ? 'install-skills.ps1' : 'install-skills.sh';
+    fs.writeFileSync(
+      path.join(targetDir, 'tools', scriptName),
+      isWindows
+        ? [
+            'Write-Output "installer stdout detail"',
+            '[Console]::Error.WriteLine("installer stderr detail")',
+            'exit 42',
+            '',
+          ].join('\n')
+        : [
+            '#!/bin/sh',
+            'echo "installer stdout detail"',
+            'echo "installer stderr detail" >&2',
+            'exit 42',
+            '',
+          ].join('\n'),
+      'utf8'
+    );
+    if (!isWindows) {
+      fs.chmodSync(path.join(targetDir, 'tools', scriptName), 0o755);
+    }
+
+    const symlinkSpy = jest.spyOn(fs, 'symlinkSync').mockImplementation(() => {
+      throw new Error('links unavailable');
+    });
+    const copySpy = jest.spyOn(fs, 'cpSync').mockImplementation(() => {
+      throw new Error('copies unavailable');
+    });
+
+    try {
+      expect(() => installAiDevKitSkills(targetDir)).toThrow(
+        expect.objectContaining({
+          name: 'AiDevKitSkillInstallerError',
+          message: expect.stringMatching(/exit_status: 42[\s\S]*links unavailable/),
+          result: expect.objectContaining({
+            stdout: expect.stringContaining('installer stdout detail'),
+            stderr: expect.stringContaining('installer stderr detail'),
+          }),
+        })
+      );
+    } finally {
+      symlinkSpy.mockRestore();
+      copySpy.mockRestore();
+    }
   });
 
   test('stages skill installer output directories as local-only entries', async () => {
@@ -375,7 +474,7 @@ describe('Maker AI dev kit install', () => {
     const agentsGuide = fs.readFileSync(path.join(targetDir, 'AGENTS.md'), 'utf8');
     const claudeGuide = fs.readFileSync(path.join(targetDir, 'CLAUDE.md'), 'utf8');
     expect(agentsGuide).toMatch(
-      /^<!-- >>> TapTap Maker managed AGENTS policy version=3 hash=sha256:[0-9a-f]+ >>> -->/
+      /^<!-- >>> TapTap Maker managed AGENTS policy version=4 hash=sha256:[0-9a-f]+ >>> -->/
     );
     expect(agentsGuide).toContain('# TapTap Maker Project Asset Tool Policy');
     expect(agentsGuide).toContain(MAKER_PROJECT_POLICY_ROUTING_INDEX);
@@ -409,7 +508,12 @@ describe('Maker AI dev kit install', () => {
     );
     expect(agentsGuide).toContain('Local MCP does not transcode generated audio to OGG');
     expect(agentsGuide).toContain('`generate_test_qrcode` once');
-    expect(agentsGuide).toContain('Build only for an explicit user build/submit/preview request');
+    expect(agentsGuide).toContain(
+      'Build only for an explicit user build/submit/remote Web preview request'
+    );
+    expect(agentsGuide).toContain(
+      'Local window preview uses CLI and does not authorize commit or push.'
+    );
     expect(agentsGuide).toContain('do not rebuild');
     expect(claudeGuide).toBe('user edits\n');
     expect(fs.existsSync(path.join(targetDir, 'examples', 'README.md'))).toBe(true);

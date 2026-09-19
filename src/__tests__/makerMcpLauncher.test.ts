@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 import {
   classifyVerificationFailure,
@@ -135,6 +136,7 @@ describe('Maker MCP launcher', () => {
       const bundlePath = path.join(packageRoot, 'dist', 'maker.js');
       fs.mkdirSync(path.dirname(bundlePath), { recursive: true });
       fs.writeFileSync(bundlePath, '// maker bundle');
+      fs.writeFileSync(path.join(packageRoot, 'package.json'), '{"type":"module"}');
       for (const skill of [
         'taptap-maker-local',
         'taptap-maker-dev-kit-guide',
@@ -146,6 +148,9 @@ describe('Maker MCP launcher', () => {
       }
       const docsDir = path.join(packageRoot, 'docs');
       fs.mkdirSync(docsDir, { recursive: true });
+      for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+        fs.writeFileSync(path.join(docsDir, name), `# ${name}`);
+      }
       fs.writeFileSync(
         path.join(docsDir, 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
         '# Troubleshooting'
@@ -166,6 +171,11 @@ describe('Maker MCP launcher', () => {
         commandAndArgs: [process.execPath, stableBundle],
       });
       expect(fs.readFileSync(stableBundle, 'utf8')).toBe('// maker bundle');
+      for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+        expect(
+          fs.readFileSync(path.join(path.dirname(path.dirname(stableBundle)), 'docs', name), 'utf8')
+        ).toBe(`# ${name}`);
+      }
       expect(
         fs.readFileSync(
           path.join(
@@ -219,6 +229,60 @@ describe('Maker MCP launcher', () => {
     }
   });
 
+  test('copies ESM metadata and repairs an existing runtime without it', () => {
+    const fixture = createSelfRuntimeFixture('maker-self-esm-');
+    try {
+      fs.writeFileSync(
+        fixture.bundlePath,
+        "import fs from 'node:fs'; process.stdout.write(typeof fs.readFileSync);"
+      );
+      const options = {
+        version: '0.0.31',
+        bundleUrl: pathToFileURL(fixture.bundlePath).href,
+        makerHome: fixture.makerHome,
+      };
+      const runtimeRoot = path.join(fixture.makerHome, 'mcp-runtime', options.version);
+      fs.mkdirSync(path.join(runtimeRoot, 'dist'), { recursive: true });
+      fs.copyFileSync(fixture.bundlePath, path.join(runtimeRoot, 'dist', 'maker.js'));
+      const launcher = materializeMakerSelfLauncher(options);
+      expect(fs.readFileSync(path.join(runtimeRoot, 'package.json'), 'utf8')).toBe(
+        '{"type":"module"}'
+      );
+      const result = spawnSync(launcher.command, launcher.args, {
+        encoding: 'utf8',
+        env: { ...process.env, NODE_OPTIONS: '', NODE_NO_WARNINGS: '' },
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toBe('function');
+      expect(result.stderr).toBe('');
+      expect(
+        materializeMakerSelfLauncher({
+          ...options,
+          bundleUrl: pathToFileURL(launcher.args[0]).href,
+        })
+      ).toEqual(launcher);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  test('rejects a source missing package metadata before copying the runtime', () => {
+    const fixture = createSelfRuntimeFixture('maker-self-metadata-');
+    try {
+      fs.unlinkSync(path.join(path.dirname(path.dirname(fixture.bundlePath)), 'package.json'));
+      expect(() =>
+        materializeMakerSelfLauncher({
+          version: '0.0.31',
+          bundleUrl: pathToFileURL(fixture.bundlePath).href,
+          makerHome: fixture.makerHome,
+        })
+      ).toThrow(/source is incomplete: .*package\.json/);
+      expect(fs.existsSync(fixture.makerHome)).toBe(false);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   test('preserves unexpected recursive copy errors', () => {
     const fixture = createSelfRuntimeFixture('maker-self-launcher-copy-error-');
     const cpError = Object.assign(new Error('Unexpected recursive copy failure'), {
@@ -250,6 +314,7 @@ describe('Maker MCP launcher', () => {
       const bundlePath = path.join(packageRoot, 'dist', 'maker.js');
       fs.mkdirSync(path.dirname(bundlePath), { recursive: true });
       fs.writeFileSync(bundlePath, '// maker bundle');
+      fs.writeFileSync(path.join(packageRoot, 'package.json'), '{"type":"module"}');
       for (const skill of [
         'taptap-maker-local',
         'taptap-maker-dev-kit-guide',
@@ -261,6 +326,9 @@ describe('Maker MCP launcher', () => {
       }
       const docsDir = path.join(packageRoot, 'docs');
       fs.mkdirSync(docsDir, { recursive: true });
+      for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+        fs.writeFileSync(path.join(docsDir, name), `# ${name}`);
+      }
       fs.writeFileSync(
         path.join(docsDir, 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
         '# Troubleshooting'
@@ -302,6 +370,7 @@ function createSelfRuntimeFixture(prefix: string): {
   const bundlePath = path.join(packageRoot, 'dist', 'maker.js');
   fs.mkdirSync(path.dirname(bundlePath), { recursive: true });
   fs.writeFileSync(bundlePath, '// maker bundle', 'utf8');
+  fs.writeFileSync(path.join(packageRoot, 'package.json'), '{"type":"module"}');
   for (const skill of ['taptap-maker-local', 'taptap-maker-dev-kit-guide', 'update-taptap-mcp']) {
     const skillDir = path.join(packageRoot, 'skills', skill);
     fs.mkdirSync(skillDir, { recursive: true });
@@ -309,6 +378,9 @@ function createSelfRuntimeFixture(prefix: string): {
   }
   const docsDir = path.join(packageRoot, 'docs');
   fs.mkdirSync(docsDir, { recursive: true });
+  for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+    fs.writeFileSync(path.join(docsDir, name), `# ${name}`);
+  }
   fs.writeFileSync(
     path.join(docsDir, 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
     '# Troubleshooting',

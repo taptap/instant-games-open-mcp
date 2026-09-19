@@ -2,7 +2,8 @@
 name: taptap-maker
 description: >
   TapTap Maker WorkBuddy 本地游戏开发插件。用于创建或同步 Maker 项目、开发 UrhoX 游戏、
-  检查项目状态、提交构建、预览运行、生成游戏素材、接入广告、配置测试、查询玩家反馈、
+  使用“打开make mcp控制台”、检查项目状态、提交构建、预览运行、生成游戏素材、接入广告、配置测试、
+  查询玩家反馈、
   诊断 Maker MCP，以及管理插件更新和旧 MCP 迁移。
 ---
 
@@ -15,7 +16,7 @@ TapTap Maker WorkBuddy 插件为 WorkBuddy 提供完整的 TapTap Maker 游戏�
 ## 插件信息
 
 - 插件版本：`0.0.3`
-- 内置 Maker MCP 版本：`0.0.32`
+- 内置 Maker MCP 版本：`0.0.33`
 - 适用客户端：WorkBuddy
 - 支持平台：Windows、macOS、Linux
 - 内置 runtime：`dist/maker.js`
@@ -68,7 +69,7 @@ TapTap Maker WorkBuddy 插件为 WorkBuddy 提供完整的 TapTap Maker 游戏�
 可以检查项目绑定、配置文件、Git 状态、远端同步状态、开发环境、AI dev-kit、
 MCP runtime、workspace Roots 和当前项目上下文。
 
-### 提交、推送、构建和预览
+### 提交、推送、构建和远端 Web 预览
 
 `maker_build_current_directory` 提供完整的 Maker 开发闭环：
 
@@ -80,7 +81,22 @@ MCP runtime、workspace Roots 和当前项目上下文。
 - 构建成功后监听本地 runtime 日志
 - 返回 Git、鉴权、编译和构建失败的恢复信息
 
-用户提出提交、推送、构建、预览、运行或查看游戏效果时使用该 Tool。
+用户明确提出提交、推送、构建或远端 Web 预览时使用该 Tool。
+
+### 本地窗口预览
+
+按 `skills/taptap-maker-local/SKILL.md` 的 Local Window Preview 执行，
+使用本页 WorkBuddy launcher 调用插件内 CLI，不运行外部 npm/npx。
+本地预览不授权提交或推送；“预览／运行”有歧义时先澄清。
+macOS 使用 Runtime `game_url`，Windows 使用本地 manifest；平台限制和排障见
+`docs/MAKER_LOCAL_PREVIEW.md`。
+
+### 本地 Web 控制台
+
+使用本页 launcher 执行 `console open --target-dir <当前游戏绝对路径> --json`；
+未知项目时省略目录展示列表，不默认选择。打开页面不授权构建、安装或预览。
+`console status --json` 查询，`console stop --json` 停止；授权规则遵循共享 Skill 的
+Local Web Console，生命周期与恢复见 `docs/MAKER_CONSOLE.md`。
 
 ### 多人联机项目
 
@@ -211,7 +227,7 @@ SessionStart Hook 会只读检查 WorkBuddy 中是否仍启用了旧版独立 Ma
 - 创建或同步项目时必须使用空 workspace。
 - 项目和 app 必须由用户明确选择。
 - 插件模式初始化使用 `--skip-mcp-install`，不重复安装 MCP。
-- Maker 提交、推送、构建和预览统一使用 `maker_build_current_directory`。
+- Maker 提交、推送、构建和远端 Web 预览使用 `maker_build_current_directory`；本地预览使用 CLI。
 - 不使用通用 Git 分支或 PR 流程替代 Maker 构建流程。
 - 视频费用确认、角色声音选择、3D 审核继续、旧 MCP 迁移和故障上报需要用户明确同意。
 - 不删除或泄露 PAT、token、Maker 鉴权、项目绑定和用户游戏文件。

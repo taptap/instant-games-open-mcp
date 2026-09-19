@@ -20,6 +20,7 @@ import {
   fetchWithTimeout,
 } from '../fetchTimeout.js';
 import { MAKER_AGENTS_FILE, updateMakerAgentsPolicy } from './agentsPolicy.js';
+import { syncProjectSkills } from './projectSkills.js';
 
 export const AI_DEV_KIT_URLS: Record<MakerEnvironment, string> = {
   production: 'https://urhox-demo-platform.spark.xd.com/ai-dev-kit/pd/stable/ai-dev-kit.zip',
@@ -71,7 +72,7 @@ export const DEV_KIT_MANAGED_ENTRY_CANDIDATES = [
   'urhox-libs',
 ];
 const SKIPPED_TOP_LEVEL_ENTRIES = new Set(['scripts', '.DS_Store', 'ai-dev-kit.zip']);
-const SKILL_INSTALLER_OUTPUT_ENTRIES = ['.claude', '.codex', '.cursor', '.gemini'];
+const SKILL_INSTALLER_OUTPUT_ENTRIES = ['.claude', '.codex', '.cursor', '.gemini', '.agents'];
 
 export interface InstallAiDevKitOptions {
   targetDir?: string;
@@ -326,8 +327,13 @@ export async function checkAiDevKitUpdate(
 
 export function listPresentDevKitManagedEntries(targetDir: string): string[] {
   const resolvedTargetDir = path.resolve(targetDir);
-  return DEV_KIT_MANAGED_ENTRY_CANDIDATES.filter((entry) =>
-    fs.existsSync(path.join(resolvedTargetDir, entry))
+  return Array.from(
+    new Set([
+      ...DEV_KIT_MANAGED_ENTRY_CANDIDATES.filter((entry) =>
+        fs.existsSync(path.join(resolvedTargetDir, entry))
+      ),
+      ...listPresentSkillInstallerOutputEntries(resolvedTargetDir),
+    ])
   );
 }
 
@@ -580,6 +586,34 @@ export function installAiDevKitSkills(
   targetDir: string,
   options: { onStart?: (event: AiDevKitSkillInstallerStart) => void } = {}
 ): AiDevKitSkillInstallerResult {
+  let result: AiDevKitSkillInstallerResult;
+  try {
+    result = runAiDevKitSkillScript(targetDir, options);
+  } catch (error) {
+    try {
+      syncProjectSkills(targetDir, { client: '.agents' });
+    } catch (syncError) {
+      if (error instanceof Error) {
+        error.message = `${error.message}; .agents synchronization failed: ${formatError(syncError)}`;
+        throw error;
+      }
+      throw new Error(
+        `AI dev kit skill installer failed: ${formatError(error)}; ` +
+          `.agents synchronization failed: ${formatError(syncError)}`
+      );
+    }
+    throw error;
+  }
+
+  // Older dev kits do not know about .agents; also fill it when their script is absent.
+  syncProjectSkills(targetDir, { client: '.agents' });
+  return result;
+}
+
+function runAiDevKitSkillScript(
+  targetDir: string,
+  options: { onStart?: (event: AiDevKitSkillInstallerStart) => void }
+): AiDevKitSkillInstallerResult {
   const toolsDir = path.join(targetDir, 'tools');
   if (!fs.existsSync(toolsDir) || !fs.statSync(toolsDir).isDirectory()) {
     return {
@@ -669,7 +703,17 @@ function runDevKitSkillInstallerForInstall(
 function listPresentSkillInstallerOutputEntries(targetDir: string): string[] {
   return SKILL_INSTALLER_OUTPUT_ENTRIES.filter((entry) =>
     fs.existsSync(path.join(targetDir, entry))
-  );
+  ).flatMap((entry) => {
+    if (entry !== '.agents') return [entry];
+    const source = path.join(targetDir, '.installer', 'skills');
+    if (!fs.existsSync(source)) return [];
+    return fs
+      .readdirSync(source, { withFileTypes: true })
+      .filter(
+        (item) => item.isDirectory() && fs.existsSync(path.join(source, item.name, 'SKILL.md'))
+      )
+      .map((item) => path.join('.agents', 'skills', item.name));
+  });
 }
 
 function getAiDevKitVersionsUrl(environment: MakerEnvironment): string {
@@ -799,6 +843,10 @@ function formatSpawnFailure(result: ReturnType<typeof spawnSync>): string {
     String(result.stdout || '').trim() ||
     `exit status ${result.status ?? 'unknown'}`
   );
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function formatDevKitSkillInstallerFailure(options: {

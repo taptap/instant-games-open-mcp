@@ -15,7 +15,7 @@ export const MAKER_STATUS_LITE_PUBLIC_DESCRIPTION = [
 export const MAKER_BUILD_CURRENT_DIRECTORY_PUBLIC_DESCRIPTION = [
   'Submit and remotely build the current bound Maker project. First read maker://status or maker_status_lite and resolve exactly one bound Maker project.',
   '`Need to call maker_build_current_directory` is a normal project build prerequisite, not an MCP connectivity failure or issue-report trigger.',
-  'Use this tool for explicit Maker build, preview, submit, or push requests. Code tests and lint do not trigger this remote workflow unless the user also explicitly asks to build, run, or preview the Maker game.',
+  'Use this tool for explicit Maker build, remote Web preview, submit, or push requests. Local window preview uses taptap-maker preview CLI and never this commit/push workflow. Clarify ambiguous preview/run requests; code tests and lint do not trigger a remote build.',
   'Normal mode commits local changes when needed, pushes existing or new commits, and then starts the remote build; a clean workspace creates the required wake-up commit.',
   'When local main is only behind Maker remote, normal mode automatically fast-forwards before committing. Diverged history, a non-main branch, unavailable remote sync, or a fast-forward that would overwrite local changes stops before commit and push.',
   'A push failure stops before build, while a build failure after a successful push means the code is already on Maker remote; follow the structured result for recovery.',
@@ -122,9 +122,11 @@ const MAKER_REMOTE_PROXY_PUBLIC_DESCRIPTIONS: Readonly<Record<string, string>> =
   ].join(' '),
   get_ad_config: [
     'For any ad-related request, read maker://ads-integration-guide first. After Maker project status confirms the primary local project configs are initialized, use this as the first remote step.',
-    'It is the source of truth for current ad activation and configuration, and synchronizes the result into .project/settings.json at @runtime.ad.',
+    'It is the source of truth for current ad activation and configuration; reported sync concerns the remote workspace .project/settings.json at @runtime.ad. The local proxy does not write local settings.',
+    'Use the same explicit target_dir as the verified project status. Request success and ad.status=1 do not prove local synchronization or playback; verify local configuration as directed by the guide before implementation.',
     'The local preflight does not call the remote tool while project.json or settings.json is missing. Missing local configs do not authorize an automatic build.',
-    'Use maker_build_current_directory only for an explicit user build, submit, or preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically.',
+    'Use maker_build_current_directory only for an explicit user build, submit, or remote Web preview request, then check project status again. If configs remain missing, report the limitation and do not rebuild automatically.',
+    'Local window preview uses CLI and does not authorize commit or push.',
     'Do not infer ad readiness from local SDK docs, .maker-mcp/config.json, or runtime callbacks, and only implement or test ad behavior after the returned configuration is usable.',
     'If app_id or developer_id is missing, call generate_test_qrcode once and then retry this tool. If ad.status != 1, report warning and ad.url, follow the returned next_action, and retry only after the user completes that step.',
   ].join(' '),

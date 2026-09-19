@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { inspectMakerQrcodePreflight } from '../maker/qrcodePreflight';
+import {
+  inspectMakerQrcodePreflight,
+  inspectMakerQrcodePreparation,
+} from '../maker/qrcodePreflight';
 
 describe('Maker QR code orientation preflight', () => {
   let projectRoot: string;
@@ -15,12 +18,167 @@ describe('Maker QR code orientation preflight', () => {
     fs.rmSync(projectRoot, { recursive: true, force: true });
   });
 
+  test('reports missing project configuration without creating it', () => {
+    const result = inspectMakerQrcodePreflight(projectRoot, 'portrait', {
+      title: '拼豆',
+      category: 'puzzle',
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      message: expect.stringContaining('Restore or initialize .project/project.json'),
+    });
+    expect(fs.existsSync(path.join(projectRoot, '.project'))).toBe(false);
+  });
+
+  test('reports explicit initialization without creating missing configuration', () => {
+    expect(inspectMakerQrcodePreparation(projectRoot)).toMatchObject({
+      status: 'needs_initialization',
+      action: 'build',
+    });
+    expect(fs.readdirSync(projectRoot)).toEqual([]);
+  });
+
+  test.each(['invalid-json', 'misplaced', 'invalid-publish'])(
+    'blocks broken config without offering initialization: %s',
+    (mode) => {
+      writeProjectConfig(projectRoot);
+      const filename = path.join(projectRoot, '.project/project.json');
+      if (mode === 'invalid-json') fs.writeFileSync(filename, '{invalid');
+      if (mode === 'misplaced') {
+        const config = {
+          ...readProjectConfig(projectRoot),
+          project_id: 'app-1',
+          version: '1.0.0',
+          entry: 'scripts/main.lua',
+        };
+        fs.rmSync(filename);
+        fs.writeFileSync(path.join(projectRoot, 'project.json'), JSON.stringify(config));
+      }
+      if (mode === 'invalid-publish')
+        fs.writeFileSync(filename, JSON.stringify({ taptap_publish: [] }));
+      expect(inspectMakerQrcodePreparation(projectRoot)).toMatchObject({ status: 'blocked' });
+    }
+  );
+
+  test('allows missing editable fields once primary configuration is ready', () => {
+    fs.mkdirSync(path.join(projectRoot, '.project'));
+    fs.writeFileSync(
+      path.join(projectRoot, '.project/project.json'),
+      JSON.stringify({
+        project_id: 'app-1',
+        version: '1.0.0',
+        entry: 'scripts/main.lua',
+        taptap_publish: {},
+      })
+    );
+    fs.writeFileSync(path.join(projectRoot, '.project/resources.json'), '{}');
+    fs.writeFileSync(
+      path.join(projectRoot, '.project/settings.json'),
+      JSON.stringify({
+        $schema: '../schemas/settings.schema.json',
+        sources: {
+          engine: { tag: 'stable' },
+          'engine-res': { tag: 'stable' },
+          'official-res': { tag: 'stable' },
+        },
+        build: {
+          generate_fs_path: true,
+          output_dir: '../dist',
+          asset_dirs: ['../assets', '../scripts'],
+          asset_ignores: [],
+        },
+      })
+    );
+    expect(inspectMakerQrcodePreparation(projectRoot)).toEqual({ status: 'ready' });
+    fs.rmSync(path.join(projectRoot, '.project/settings.json'));
+    expect(inspectMakerQrcodePreparation(projectRoot)).toMatchObject({
+      status: 'needs_initialization',
+    });
+  });
+
+  test('saves a confirmed developer while preserving all other project fields', () => {
+    writeProjectConfig(projectRoot, 'portrait');
+    const before = readProjectConfig(projectRoot);
+    expect(inspectMakerQrcodePreflight(projectRoot, undefined, { developer_id: 123 }).ok).toBe(
+      true
+    );
+    expect(readProjectConfig(projectRoot)).toEqual({
+      ...before,
+      taptap_publish: { ...before.taptap_publish, developer_id: 123 },
+    });
+    expect(inspectMakerQrcodePreflight(projectRoot, undefined, { developer_id: 123 }).ok).toBe(
+      true
+    );
+    const saved = readProjectConfig(projectRoot);
+    expect(inspectMakerQrcodePreflight(projectRoot, undefined, { developer_id: 456 }).ok).toBe(
+      false
+    );
+    expect(readProjectConfig(projectRoot)).toEqual(saved);
+  });
+
+  test.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN, '123'])(
+    'rejects an invalid developer before modifying files: %s',
+    (developer_id) => {
+      writeProjectConfig(projectRoot, 'portrait');
+      const before = readProjectConfig(projectRoot);
+      expect(
+        inspectMakerQrcodePreflight(projectRoot, undefined, { developer_id } as never).ok
+      ).toBe(false);
+      expect(readProjectConfig(projectRoot)).toEqual(before);
+    }
+  );
+
   test('uses the configured orientation without asking the user again', () => {
     writeProjectConfig(projectRoot, 'portrait');
 
     const result = inspectMakerQrcodePreflight(projectRoot, undefined);
 
     expect(result).toEqual({ ok: true, orientation: 'portrait' });
+  });
+
+  test('saves explicit missing publication fields without changing existing orientation', () => {
+    writeProjectConfig(projectRoot, 'landscape');
+    const config = readProjectConfig(projectRoot);
+    config.taptap_publish.title = '';
+    config.taptap_publish.category = '';
+    fs.writeFileSync(path.join(projectRoot, '.project/project.json'), JSON.stringify(config));
+    expect(
+      inspectMakerQrcodePreflight(projectRoot, 'portrait', {
+        title: '拼豆',
+        category: 'puzzle',
+      })
+    ).toEqual({ ok: true, orientation: 'landscape' });
+    expect(readProjectConfig(projectRoot).taptap_publish).toMatchObject({
+      title: '拼豆',
+      category: 'puzzle',
+      screen_orientation: 'landscape',
+    });
+  });
+
+  test('preserves valid publication fields despite stale confirmation values', () => {
+    writeProjectConfig(projectRoot, 'portrait');
+    expect(
+      inspectMakerQrcodePreflight(projectRoot, undefined, {
+        title: 'Replacement',
+        category: 'puzzle',
+      }).ok
+    ).toBe(true);
+    expect(readProjectConfig(projectRoot).taptap_publish).toMatchObject({
+      title: 'Test game',
+      category: 'casual',
+    });
+  });
+
+  test('rejects invalid confirmed genre before changing any config', () => {
+    writeProjectConfig(projectRoot);
+    const original = readProjectConfig(projectRoot);
+    expect(
+      inspectMakerQrcodePreflight(projectRoot, 'portrait', {
+        title: 'Game',
+        category: 'sce',
+      }).ok
+    ).toBe(false);
+    expect(readProjectConfig(projectRoot)).toEqual(original);
   });
 
   test('asks for orientation only when project orientation is missing', () => {

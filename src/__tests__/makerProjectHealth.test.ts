@@ -591,6 +591,18 @@ describe('Maker project health check', () => {
     expect(health.issues).toEqual([]);
   });
 
+  test('existing apps do not require create-only title and category for QR', () => {
+    const project = validProjectJson();
+    project.taptap_publish = {
+      app_id: '12345',
+      title: '',
+      category: '',
+      screen_orientation: 'portrait',
+    };
+    writeProjectFiles({ project, resources: validResourcesJson(), settings: validSettingsJson() });
+    expect(inspectMakerProjectHealth(projectRoot, 'qrcode').canGenerateTestQrcode).toBe(true);
+  });
+
   test('accepts a game title containing non-placeholder braces', () => {
     const project = validProjectJson();
     project.taptap_publish = {

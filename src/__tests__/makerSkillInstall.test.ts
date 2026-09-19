@@ -79,7 +79,12 @@ describe('Maker bundled workflow skill documents', () => {
     expect(status.indexOf('maker://ads-integration-guide')).toBeLessThan(
       status.indexOf('get_ad_config')
     );
-    expect(status).toContain('Build only for an explicit user build/submit/preview request');
+    expect(status).toContain(
+      'Build only for an explicit user build/submit/remote Web preview request'
+    );
+    expect(status).toContain(
+      'Local window preview uses CLI and does not authorize commit or push.'
+    );
     expect(status).toContain('do not automatically rebuild');
     expect(status).toContain('call generate_test_qrcode once');
     expect(status).toContain('call get_debug_feedbacks');
@@ -189,7 +194,12 @@ describe('Maker bundled workflow skill documents', () => {
       skillText.indexOf('`get_ad_config`')
     );
     expect(skillText).toContain('Do not infer ad readiness from local SDK docs');
-    expect(skillText).toContain('Build only for an explicit user build/submit/preview request');
+    expect(skillText).toContain(
+      'Build only for an explicit user build/submit/remote Web preview request'
+    );
+    expect(skillText).toContain(
+      'Local window preview uses CLI and does not authorize commit or push.'
+    );
     expect(skillText).toContain('do not automatically rebuild');
     expect(skillText).toContain('call `generate_test_qrcode` once');
     expect(skillText).toContain('call the Maker proxy');

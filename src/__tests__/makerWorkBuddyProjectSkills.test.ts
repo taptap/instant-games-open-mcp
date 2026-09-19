@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { syncWorkBuddyProjectSkills } from '../maker/cli/workBuddyProjectSkills';
+import { syncProjectSkills } from '../maker/cli/projectSkills';
 
 describe('WorkBuddy Maker project skills', () => {
   let tempDir: string;
@@ -71,6 +72,117 @@ describe('WorkBuddy Maker project skills', () => {
       reason: 'source_not_found',
     });
     expect(fs.existsSync(path.join(tempDir, '.workbuddy'))).toBe(false);
+  });
+
+  test.each(['darwin', 'win32'] as const)(
+    'fills .agents without renaming skills on %s',
+    (platform) => {
+      addDevKitSkill('materials');
+      const result = syncProjectSkills(tempDir, { client: '.agents', platform });
+      expect(result.installedSkills).toEqual(['materials']);
+      const skillDir = path.join(tempDir, '.agents', 'skills', 'materials');
+      expect(fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8')).toContain('# materials');
+      expect(fs.readFileSync(path.join(skillDir, 'references', 'guide.md'), 'utf8')).toBe(
+        'materials reference\n'
+      );
+      expect(syncProjectSkills(tempDir, { client: '.agents', platform }).installedSkills).toEqual(
+        []
+      );
+    }
+  );
+
+  test('fills .agents using copies when links are unavailable', () => {
+    addDevKitSkill('materials');
+    const links = jest.spyOn(fs, 'symlinkSync').mockImplementation(() => {
+      throw new Error('links unavailable');
+    });
+    try {
+      syncProjectSkills(tempDir, { client: '.agents' });
+      const file = path.join(tempDir, '.agents', 'skills', 'materials', 'SKILL.md');
+      expect(fs.lstatSync(file).isSymbolicLink()).toBe(false);
+      expect(fs.readFileSync(file, 'utf8')).toContain('# materials');
+    } finally {
+      links.mockRestore();
+    }
+  });
+
+  test('rolls back newly installed skills when later installation fails and cleanup succeeds', () => {
+    addDevKitSkill('first');
+    addDevKitSkill('second');
+    const existingDir = path.join(tempDir, '.agents', 'skills', 'user-managed');
+    fs.mkdirSync(existingDir, { recursive: true });
+    fs.writeFileSync(path.join(existingDir, 'SKILL.md'), 'keep me\n', 'utf8');
+
+    const copyFile = fs.copyFileSync;
+    const copySpy = jest.spyOn(fs, 'copyFileSync').mockImplementation((source, target) => {
+      if (String(source).endsWith(path.join('second', 'SKILL.md'))) {
+        throw new Error('second skill failed');
+      }
+      copyFile(source, target);
+    });
+
+    try {
+      expect(() => syncProjectSkills(tempDir, { client: '.agents', platform: 'win32' })).toThrow(
+        'second skill failed'
+      );
+      expect(fs.existsSync(path.join(tempDir, '.agents', 'skills', 'first'))).toBe(false);
+      expect(fs.existsSync(path.join(tempDir, '.agents', 'skills', 'second'))).toBe(false);
+      expect(fs.readFileSync(path.join(existingDir, 'SKILL.md'), 'utf8')).toBe('keep me\n');
+    } finally {
+      copySpy.mockRestore();
+    }
+  });
+
+  test('preserves the primary failure and attempts every cleanup when rollback fails', () => {
+    addDevKitSkill('first');
+    addDevKitSkill('second');
+    const existingDir = path.join(tempDir, '.agents', 'skills', 'user-managed');
+    fs.mkdirSync(existingDir, { recursive: true });
+    fs.writeFileSync(path.join(existingDir, 'SKILL.md'), 'keep me\n', 'utf8');
+
+    const copyFile = fs.copyFileSync;
+    const originalFailure = new Error('second skill failed');
+    const firstDir = path.join(tempDir, '.agents', 'skills', 'first');
+    const secondDir = path.join(tempDir, '.agents', 'skills', 'second');
+    const cleanupAttempts: string[] = [];
+    const copySpy = jest.spyOn(fs, 'copyFileSync').mockImplementation((source, target) => {
+      if (String(source).endsWith(path.join('second', 'SKILL.md'))) {
+        throw originalFailure;
+      }
+      copyFile(source, target);
+    });
+    const originalRm = fs.rmSync;
+    const rmSpy = jest.spyOn(fs, 'rmSync').mockImplementation((target, options) => {
+      const targetPath = path.resolve(String(target));
+      cleanupAttempts.push(targetPath);
+      if (targetPath === secondDir) {
+        throw new Error('current skill cleanup failed');
+      }
+      if (targetPath === firstDir) {
+        throw new Error('rollback cleanup failed');
+      }
+      return originalRm(target, options);
+    });
+
+    try {
+      let caught: unknown;
+      try {
+        syncProjectSkills(tempDir, { client: '.agents', platform: 'win32' });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBe(originalFailure);
+      expect((caught as Error).message).toContain('second skill failed');
+      expect((caught as Error).message).toContain('current skill cleanup failed');
+      expect((caught as Error).message).toContain('rollback cleanup failed');
+      expect(cleanupAttempts).toEqual(expect.arrayContaining([firstDir, secondDir]));
+      expect(fs.existsSync(firstDir)).toBe(true);
+      expect(fs.existsSync(secondDir)).toBe(true);
+      expect(fs.readFileSync(path.join(existingDir, 'SKILL.md'), 'utf8')).toBe('keep me\n');
+    } finally {
+      copySpy.mockRestore();
+      rmSpy.mockRestore();
+    }
   });
 
   test('uses Windows-safe copies and directory links for paths with spaces and Chinese text', () => {

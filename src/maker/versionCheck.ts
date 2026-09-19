@@ -613,6 +613,12 @@ function isValidVersionString(value: unknown): value is string {
   return typeof value === 'string' && parseVersion(value) !== undefined;
 }
 
+export function compareMakerVersionStrings(left: string, right: string): number {
+  const a = parseVersion(left),
+    b = parseVersion(right);
+  return a && b ? compareVersions(a, b) : 0;
+}
+
 function parseVersion(version: string): ParsedVersion | undefined {
   const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(version.trim());
   if (!match) {
