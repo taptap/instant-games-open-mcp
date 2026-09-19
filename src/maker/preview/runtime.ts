@@ -113,7 +113,7 @@ export class PreviewRuntime {
     }
     if (this.stopping) throw new Error('CANCELLED');
     let cacheRoot: string | undefined;
-    if (requiresPreparation && (process.platform === 'darwin' || classification.network_required)) {
+    if (requiresPreparation) {
       this.assets = await startPreviewAssetServer(source, this.abort.signal);
       this.mode = 'loopback_manifest';
       try {

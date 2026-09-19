@@ -123,13 +123,13 @@ Runtime 缺失或 Node 版本。
   默认配置只写入副本。preflight 的 preparation_reason 说明本轮分流依据。
 
 - 符合直读条件的单机项目在 macOS 和 Windows 都由 Runtime 直接读取原项目目录。
-- 联网/server 项目在 Windows/macOS 均使用受管理副本生成的 client manifest 和受保护的
-  loopback asset server，通过 game_url 加载；Windows 单机准备链路保持本地加载，macOS
-  所有 prepare 项目仍使用 loopback 服务。联网路径不再依赖 Windows Runtime 对 tapcode_dir 的
+- 所有需要 prepare 的项目在 Windows/macOS 均使用受管理副本生成的 client manifest 和受保护的
+  loopback asset server，通过 game_url 加载；不按平台或单机/联机选择不同资源加载方式。
+  单机只加载资源，不申请测试服。准备路径不再依赖 Windows Runtime 对 tapcode_dir 的
   manifest 支持。仅挂载松散 scripts/assets 的 Runtime 会找不到生成的 settings.json，
   即使 WebSocket 已连接也可能返回 IsNetworkMode=false。两种平台都不使用 junction、
   软链接或 `subst`，不会改写游戏原目录。
-- Windows 联网预览使用每轮独占的 TEMP/maker-cache-* 下载缓存，避免项目哈希、会话 ID 和下载
+- Windows 所有需要 prepare 的预览使用每轮独占的 TEMP/maker-cache-\* 下载缓存，避免项目哈希、会话 ID 和下载
   临时文件名叠加超过 Runtime 路径限制。正常退出、刷新和启动失败时在确认进程退出后清理；
   无法确认退出或缓存根被替换时保留，不清理原项目或共享 Runtime 资源。每轮缓存不复用，
   公共资源可能需要重新下载；异常强杀 supervisor 时可能遗留临时缓存。
@@ -166,7 +166,9 @@ Runtime 缺失或 Node 版本。
 DirectConnect/Ready，运行时配置虽已存在于 manifest，Ready 仍找不到 settings.json。
 改用 loopback manifest 后，IsNetworkMode=true，MatchProbeClient 初始化并收到游戏服版本回包；
 启动、刷新均验证。世界杯足球夜也在启动、刷新后收到房间人数、玩家资料和聊天回包。
-Windows 单机入口保持原行为，铁壁要塞完成启动/停止回归，不以进程存活替代业务证据。
+该轮验证中 Windows 单机入口尚保持原行为，铁壁要塞完成启动/停止回归，不以进程存活替代业务证据。
+后续统一所有 prepare 项目的加载入口；Windows 缺配置新项目及资源索引单机需要补做
+启动、刷新、资源显示和停止后的缓存清理实机验收，不沿用此前单机入口的验收结论。
 
 仅切换 game_url 而保留深层缓存目录时，本机曾因 manifest 下载临时路径过长而写入失败；
 每轮短缓存解决该问题，并在停止后确认目录被移除。强制退出或特别长的 TEMP 仍需单独排查。

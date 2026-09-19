@@ -109,28 +109,37 @@ test.each(['darwin', 'win32'])(
   }
 );
 
-test('configured projects launch directly from the original project', async () => {
-  Object.defineProperty(process, 'platform', { value: 'win32' });
-  const instance = runtime();
-  await instance.start('main.lua', root, {
-    width: 1920,
-    height: 1080,
-    orientation: 'landscape',
-    defaulted: true,
-  });
+test.each(['win32', 'darwin'])(
+  '%s simple single player launches from the original project',
+  async (platform) => {
+    Object.defineProperty(process, 'platform', { value: platform });
+    jest.mocked(preparePreviewServer).mockResolvedValue(undefined);
+    const instance = runtime();
+    await instance.start('main.lua', root, {
+      width: 1920,
+      height: 1080,
+      orientation: 'landscape',
+      defaulted: true,
+    });
 
-  expect(preparePreviewProject).not.toHaveBeenCalled();
-  expect(jest.mocked(spawn).mock.calls.at(-1)![1]).toEqual(
-    expect.arrayContaining(['main.lua', '-tapcode_dir=' + root])
-  );
-  expect(jest.mocked(spawn).mock.calls.at(-1)![2]).toMatchObject({ cwd: root });
-  await instance.stop();
-});
+    expect(preparePreviewProject).not.toHaveBeenCalled();
+    expect(startPreviewAssetServer).not.toHaveBeenCalled();
+    expect(jest.mocked(spawn).mock.calls.at(-1)![1]).toEqual(
+      expect.arrayContaining(['main.lua', '-tapcode_dir=' + root])
+    );
+    expect(jest.mocked(spawn).mock.calls.at(-1)![2]).toMatchObject({ cwd: root });
+    await instance.stop();
+  }
+);
 
-test.each(['old-dist', 'resource-index'])(
-  'Windows single player %s launches fresh prepared output without requesting networking',
-  async (reason) => {
-    Object.defineProperty(process, 'platform', { value: 'win32' });
+test.each([
+  ['win32', 'old-dist'],
+  ['win32', 'resource-index'],
+  ['darwin', 'resource-index'],
+])(
+  '%s single player %s loads the prepared manifest without requesting networking',
+  async (platform, reason) => {
+    Object.defineProperty(process, 'platform', { value: platform });
     if (reason === 'old-dist') {
       fs.mkdirSync(path.join(root, 'dist'));
       fs.writeFileSync(path.join(root, 'dist/latest.json'), 'old');
@@ -157,9 +166,11 @@ test.each(['old-dist', 'resource-index'])(
         false
       );
       const args = jest.mocked(spawn).mock.calls.at(-1)![1] as string[];
-      expect(args).toContain('-tapcode_dir=' + prepared);
-      expect(startPreviewAssetServer).not.toHaveBeenCalled();
-      expect(args).not.toContain('-tapcode_dir=' + root);
+      expect(startPreviewAssetServer).toHaveBeenCalledWith(prepared, expect.any(AbortSignal));
+      expect(instance.launchMode).toBe('loopback_manifest');
+      expect(args).toContain('-game_url=http://127.0.0.1:12345/test-token/');
+      expect(args.some((arg) => arg.startsWith('-tapcode_dir='))).toBe(false);
+      expect(args).not.toContain('main.lua');
       expect(args.some((arg) => arg.startsWith('-directConnectParams='))).toBe(false);
       if (reason === 'old-dist')
         expect(fs.readFileSync(path.join(root, 'dist/latest.json'), 'utf8')).toBe('old');
@@ -169,23 +180,35 @@ test.each(['old-dist', 'resource-index'])(
   }
 );
 
-test('projects without standard configuration use the isolated preparation path', async () => {
-  Object.defineProperty(process, 'platform', { value: 'win32' });
-  fs.rmSync(path.join(root, '.project'), { recursive: true });
-  const instance = runtime();
-  await instance.start('main.lua', root, {
-    width: 1920,
-    height: 1080,
-    orientation: 'landscape',
-    defaulted: true,
-  });
-
-  expect(preparePreviewProject).toHaveBeenCalledWith(root, root, expect.any(AbortSignal));
-  expect(jest.mocked(spawn).mock.calls.at(-1)![1]).toEqual(
-    expect.arrayContaining(['main.lua', '-tapcode_dir=' + root])
-  );
-  await instance.stop();
-});
+test.each(['win32', 'darwin'])(
+  '%s projects without configuration load the prepared manifest',
+  async (platform) => {
+    Object.defineProperty(process, 'platform', { value: platform });
+    fs.rmSync(path.join(root, '.project'), { recursive: true });
+    jest.mocked(preparePreviewServer).mockResolvedValue(undefined);
+    const instance = runtime();
+    let cache: string | undefined;
+    try {
+      await instance.start('main.lua', root);
+      expect(preparePreviewProject).toHaveBeenCalledWith(root, root, expect.any(AbortSignal));
+      expect(preparePreviewServer).toHaveBeenCalledWith(root, root, expect.any(AbortSignal), false);
+      expect(startPreviewAssetServer).toHaveBeenCalledWith(root, expect.any(AbortSignal));
+      const args = jest.mocked(spawn).mock.calls.at(-1)![1] as string[];
+      expect(args).toContain('-game_url=http://127.0.0.1:12345/test-token/');
+      expect(args.some((arg) => arg.startsWith('-tapcode_dir='))).toBe(false);
+      expect(args.some((arg) => arg.startsWith('-directConnectParams='))).toBe(false);
+      cache = args.find((arg) => arg.startsWith('-game_path='))!.slice('-game_path='.length);
+      expect(fs.existsSync(cache)).toBe(true);
+      if (platform === 'win32') expect(path.basename(cache)).toMatch(/^maker-cache-/);
+    } finally {
+      await instance.stop();
+    }
+    if (platform === 'win32') expect(fs.existsSync(cache!)).toBe(false);
+    const server = await jest.mocked(startPreviewAssetServer).mock.results.at(-1)!.value;
+    expect(server.close).toHaveBeenCalled();
+    expect(fs.existsSync(path.join(root, '.project'))).toBe(false);
+  }
+);
 
 test.each(['win32', 'darwin'])(
   '%s network preparation loads the manifest before connecting and cleans only owned cache',
@@ -224,23 +247,31 @@ test.each(['win32', 'darwin'])(
   }
 );
 
-test('Windows prepared spawn failure closes the server and removes its temporary cache', async () => {
-  Object.defineProperty(process, 'platform', { value: 'win32' });
-  fs.writeFileSync(
-    path.join(root, '.project/settings.json'),
-    JSON.stringify({ '@runtime': { multiplayer: { enabled: true } } })
-  );
-  let cache = '';
-  jest.mocked(spawn).mockImplementationOnce((_command, args: any) => {
-    cache = args.find((arg: string) => arg.startsWith('-game_path=')).slice('-game_path='.length);
-    throw new Error('spawn rejected');
-  });
-  await expect(runtime().start('main.lua', root)).rejects.toThrow('spawn rejected');
-  expect(cache).not.toBe('');
-  expect(fs.existsSync(cache)).toBe(false);
-  const server = await jest.mocked(startPreviewAssetServer).mock.results.at(-1)!.value;
-  expect(server.close).toHaveBeenCalled();
-});
+test.each([false, true])(
+  'Windows prepared spawn failure cleans server and cache (network=%s)',
+  async (network) => {
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    if (network) {
+      fs.writeFileSync(
+        path.join(root, '.project/settings.json'),
+        JSON.stringify({ '@runtime': { multiplayer: { enabled: true } } })
+      );
+    } else {
+      fs.rmSync(path.join(root, '.project'), { recursive: true });
+      jest.mocked(preparePreviewServer).mockResolvedValue(undefined);
+    }
+    let cache = '';
+    jest.mocked(spawn).mockImplementationOnce((_command, args: any) => {
+      cache = args.find((arg: string) => arg.startsWith('-game_path=')).slice('-game_path='.length);
+      throw new Error('spawn rejected');
+    });
+    await expect(runtime().start('main.lua', root)).rejects.toThrow('spawn rejected');
+    expect(cache).not.toBe('');
+    expect(fs.existsSync(cache)).toBe(false);
+    const server = await jest.mocked(startPreviewAssetServer).mock.results.at(-1)!.value;
+    expect(server.close).toHaveBeenCalled();
+  }
+);
 
 test('allocation failure does not launch a misleading offline window', async () => {
   jest.mocked(preparePreviewServer).mockRejectedValue(new Error('allocation failed'));
