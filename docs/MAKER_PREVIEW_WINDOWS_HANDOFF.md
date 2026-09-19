@@ -6,13 +6,15 @@
   `preparation_reason`，不能仅凭配置存在或“是单机”就直接启动。
 - 简单、无资源索引需求的完整单机项目直接运行原目录。
 - 联机/server、缺配置、有资源/构建配置或 `.meta` 的项目，在受管理副本生成本轮产物。
+- 所有准备产物在 Windows/macOS 统一通过 `game_url` 加载 client manifest，不再给 Windows
+  单机使用另一套加载入口；是否申请测试服仍单独判断。Windows 复用每轮短临时缓存和退出清理。
 - Windows 原目录有 `dist/latest.json` 时也准备新产物，避免运行旧代码；不改原项目 dist。
 - 删除 junction/软链接路径映射，准备副本改用逐文件复制；复制输入含符号链接时明确拒绝。
 - 联机准备失败不得静默离线；不自动提交、推送或远端构建。服务端仍运行远端测试版本，
   本地 server 修改不会自动上传生效。
 
 主要源码：`src/maker/preview/configuration.ts`、`runtime.ts`、`prepare.ts`、`network.ts`。
-Codex/WorkBuddy 插件产物已同步。完整约束见 `MAKER_LOCAL_PREVIEW.md`。
+本轮验收使用下述源码构建的 CLI；插件需重新生成分发产物，不用旧插件包替代。完整约束见 `MAKER_LOCAL_PREVIEW.md`。
 
 ## 从本轮源码开始
 
@@ -46,6 +48,9 @@ node $cli preview stop --target-dir $project --json
 
 每类选一个即可，不需要跑遍所有游戏。可参考 `测试匹配` 和 `世界杯游戏主题` 的项目类型。
 联网测试使用已有合法登录；不要输出 PAT/token，不自动远端构建来掩盖错误。
+本轮重点补测缺配置新项目和依赖资源索引的单机：`launch_mode=loopback_manifest`，
+无测试服申请，启动/刷新后资源正常；停止后本轮 `maker-cache-*` 已清理，原目录不变。
+Windows 联机此前已验证同一加载方式，但不能代替这两类新增路径的实机验收。
 
 ## 已知边界，必须关注
 
