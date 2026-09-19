@@ -1,8 +1,10 @@
 # Maker 本地窗口预览
 
-本地预览使用官方 Runtime 和随包 ProjectBuilder，在受管理源码副本生成新产物。
-不提交、不上传、不远端构建，不修改游戏原目录，也不要求安装引擎源码。
-公共资源由 Runtime 下载和缓存，首次可能下载公共整包。
+本地预览优先使用官方 Runtime 直接加载项目原目录，不提交、不上传、不远端构建，
+也不要求安装引擎源码。缺配置、联机/server、声明构建或资源配置、包含资源元数据的项目使用
+随包 ProjectBuilder 在受管理副本生成本轮产物。Windows 原目录存在 `dist/latest.json`
+时也走准备链路，防止 Runtime 加载旧产物；不删除或覆盖原项目 dist。
+公共资源由 manifest 加载链路下载和缓存，首次可能下载公共整包。
 
 Runtime 按本机安装并由所有 Maker 项目共用，安装记录和新下载版本保存在
 `~/.taptap-maker/runtime/`。项目哈希目录只保存该项目的会话、准备产物、日志和运行缓存。
@@ -14,8 +16,8 @@ Runtime 按本机安装并由所有 Maker 项目共用，安装记录和新下�
 `Res/Fonts/MiSans-Regular.ttf`，优先复用旧 `Data/Fonts` 中的字体，否则从 macOS 或 Windows
 系统字体中复制。已有同名字体不会被覆盖；找不到可用字体时预览仍可启动，但会返回警告。
 这是本机 Runtime 的通用兜底，不会把任一项目的字体复制进共享 Runtime。各项目自己的字体仍放在
-项目 `assets/Fonts`，通过项目独立的受管理预览副本加载。显式 `--runtime` 指向的外部 Runtime
-不会被自动修改。
+项目 `assets/Fonts`，直读项目从原目录加载，需要构建的项目通过受管理预览副本加载。
+显式 `--runtime` 指向的外部 Runtime 不会被自动修改。
 
 ## 使用
 
@@ -32,7 +34,7 @@ taptap-maker preview stop --target-dir <PROJECT> --json
 ```
 
 安装使用 Python/curl，遵循宿主授权。已有 Runtime 可在 start 时传
-`--runtime <绝对可执行文件路径>`。start/refresh 自动 prepare；
+`--runtime <绝对可执行文件路径>`。start/refresh 根据项目加载需求选择原目录或自动 prepare；
 单独排查产物可运行 `preview prepare --target-dir <PROJECT> --json`。
 新项目缺少 `.project` 配置时，prepare 仅在受管理副本补齐 project/resources/settings，
 无需先远端构建或生成二维码。入口缺省 `scripts/main.lua`，不存在时明确提示；
@@ -41,19 +43,32 @@ taptap-maker preview stop --target-dir <PROJECT> --json
 已有配置及资源元数据保持优先；配置损坏不以默认值掩盖。
 不支持 JSONC/旧根目录配置或外部 `asset_dirs`。
 
-刷新会先关闭旧窗口，重新准备并启动，丢失内存状态；prepare 失败不运行旧 dist。
+刷新会先关闭旧窗口，重新读取原项目并启动，丢失内存状态；新项目 prepare 失败不启动
+Runtime，也不运行旧 dist。
 停止或手动关闭后不自动复活。`process_alive=true` 只证明进程存活，`check` 不代表玩法通过。
 截图、输入脚本、Server/云模拟和游戏存档隔离尚不支持，停止也不保证保存游戏。
 
 ## 联网项目
 
-读取 `.project/settings.json` 的 `@runtime.multiplayer`（或 `@runtime.max_players`）
-判断联网模式。联网项目启动/刷新时，Maker 使用已有 PAT 登录线上入口，为当前游戏申请测试服，
-再让原版 Runtime 以 `skip_login + directConnectParams` 通过 WebSocket 网关直连，无需扫码。
-客户端仍使用本轮本地构建的受管理副本；不会提交、上传或远端构建代码。
+启动 Runtime 前，Maker 先分类项目：
 
-需要有效 Maker 登录，以及已提交构建的游戏配置和测试版本。缺少登录时运行
-`taptap-maker login`；新联网项目缺少游戏配置时先提交构建并生成一次测试二维码。
+- 标准配置且没有联机/server 特征、资源/构建配置、资源元数据和 Windows dist 冲突的项目：
+  直接使用原项目目录，不复制、不 prepare。其它单机项目保留 manifest 准备链路；
+  不另写资源依赖解析器，也不把需要资源索引的单机项目误当成联网项目。
+- `@runtime.multiplayer`、`@runtime.max_players`、持久世界配置，或
+  `entry@server`、`scripts/server_main.lua`、`scripts/server.lua`：进入受管理副本，
+  先生成本轮 client manifest，再申请测试服。
+- 缺少标准配置的新项目：进入受管理副本，仅在副本补齐默认配置；如果同时发现 server 入口，
+  仍按联机/server 项目处理，不能伪装成单机项目。
+
+联网项目启动/刷新时，Maker 使用已有 PAT 登录线上入口，为当前游戏申请测试服，再让原版
+Runtime 以 `skip_login + directConnectParams` 通过 WebSocket 网关直连，无需扫码。
+这些流程都不会提交、上传或远端构建代码。
+
+需要联网能力时，项目必须存在有效 Maker 登录，以及本地准备副本中的 `dist/latest.json`
+指向已提交构建的测试版本；缺少登录时运行 `taptap-maker login`。标准联机/server 项目
+每次启动都会重新准备并校验 manifest，缺少构建产物、项目 ID 或配置时直接失败，不会静默
+启动离线窗口。
 **服务端运行远端已构建版本，本地 server 代码修改需提交构建后才生效。**
 申请游戏沿用引擎多开调试接口的 `test` 标签，不连接正式服；刷新会申请新的测试游戏，
 不是恢复原房间或加入已有房间。测试服中的存档等真实业务副作用不作隔离。
@@ -103,12 +118,14 @@ Runtime 缺失或 Node 版本。
   写入再次失败不会阻断退出等待和映射清理；无法确认子进程退出则保留资源并报告清理未确认，
   不把失败伪装成成功停止。
 
-- Windows Runtime 通过本轮独占的 TEMP 短路径 junction 访问受管理副本，避免较长的 Maker home
-  使 `scripts/main.lua` 超过 Runtime 的路径限制。停止并确认 Runtime 退出后只移除映射，
-  原项目、准备产物和日志保留；无法建立映射或 TEMP 本身过长时明确报错，不启动失效预览。
+- 直读项目在项目根目录启动 Runtime，使用 `<入口> -tapcode_dir=<项目根目录>
+-skip_login`；不复制项目、不创建 junction 或软链接。需要准备的项目使用受管理副本，
+  默认配置只写入副本。preflight 的 preparation_reason 说明本轮分流依据。
 
-- macOS 通过会话内本机只读资源服务，将本轮 client manifest 交给 Runtime 的 `game_url`；
-  Windows 使用本地 manifest 入口，仍需 Windows 实机验收。
+- 符合直读条件的单机项目在 macOS 和 Windows 都由 Runtime 直接读取原项目目录。
+- 需要 prepare 的项目在 Windows 使用受管理副本的本地 manifest；macOS 使用受管理副本
+  生成的 client manifest 和受保护的 loopback asset server。两种路径都不使用 junction、
+  软链接或 `subst`，不会改写游戏原目录。
 - Windows 预览 supervisor 与控制台复用 PowerShell/CIM 后台启动器，避免依赖 AI IDE
   短命令的进程生命周期；macOS/Linux 保留 detached 启动。状态中的 `supervisor_log_path`
   指向项目预览目录下的 supervisor 错误日志。

@@ -388,8 +388,9 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   系统重启后，启动记录早于当前开机至少一分钟且所有已记录 PID 均确认不存在，才可恢复
   遗留 starting 会话。创建后的登记失败必须收尾本轮子进程；状态写失败不得中断退出等待。
 
-- Windows 预览使用每轮独占的短路径 junction 访问受管理副本；Runtime 退出后仅移除经校验的
-  映射，不递归删除链接目标。不允许为绕过路径限制改写游戏原目录。
+- 只有不依赖资源索引的完整单机项目直接运行原目录。资源/构建配置、资源元数据、联机/server、
+  缺配置以及 Windows 原目录存在 dist/latest.json 均进入受管理副本。不得删除用户 dist、
+  创建 junction/软链接或为绕过路径限制改写游戏原目录。
 
 - 修改控制台前读 `docs/MAKER_CONSOLE.md`；修改 Runtime 安装或预览前读
   `docs/MAKER_LOCAL_PREVIEW.md`。操作指引统一维护在 `skills/taptap-maker-local/SKILL.md`，
@@ -465,11 +466,16 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   保留 no-store、Host/Origin 校验、跨站拒绝及写操作精确同源要求，不改 Maker PAT 或插件凭证。
   保留访问校验、空闲退出和有界资源管理。
   预览与控制台独立管理；只清理已确认所有权的进程和缓存，不把未知结果当作失败自动重试。
-- 本地预览只构建受管理副本；缺少配置的新项目仅在副本补齐预览默认值，入口默认 scripts/main.lua，
-  窗口未保存时默认横屏 1920×1080（已有项目方向优先）。执行 Builder 前仍校验配置与版本路径；
-  已有无效配置、JSONC/旧布局不得用默认值绕过，不写回项目或伪造平台身份。
-  联网项目由 `preview/network.ts` 读取受管理副本的 `@runtime` 配置与真实游戏 ID，
-  复用 PAT 鉴权，按引擎 CreateMultiDebugGame 契约申请 `test` 游戏；
+- 本地预览启动 Runtime 前必须先分类项目：满足前述直读条件的单机项目直接运行原目录；
+  `@runtime.multiplayer`、`@runtime.max_players`、持久世界配置、`entry@server`、
+  `scripts/server_main.lua` 或 `scripts/server.lua` 均进入受管理副本；缺少标准配置的新项目
+  也进入受管理副本，仅在副本补齐预览默认值。任何路径都不使用 junction、软链接或 `subst`，
+  不得改写游戏原目录。入口默认 `scripts/main.lua`，窗口未保存时默认横屏 1920×1080（已有项目方向优先）。
+  执行 Builder 前仍校验配置与版本路径；已有无效配置、JSONC/旧布局不得用默认值绕过，不写回项目
+  或伪造平台身份。
+  联网/server 项目由 `preview/network.ts` 读取受管理副本的 `@runtime` 配置与真实游戏 ID，
+  复用 PAT 鉴权，按引擎 CreateMultiDebugGame 契约申请 `test` 游戏；缺少构建产物或申请失败时
+  必须直接失败，不得静默降级成离线预览。
   Runtime 使用 skip_login 和 directConnectParams，server_port=0 强制 WebSocket。
   PAT/MAC 与返回的 login_key 不进入 Runtime 参数或预览日志；不改引擎，
   不自动远端构建、不连接 formal、不重放结果未知的申请。仅验证线上环境，

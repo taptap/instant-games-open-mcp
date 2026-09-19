@@ -38,9 +38,17 @@ test.each([
   expect(previewNetworkProject(directory)).toEqual({ projectId: 'p_test', version: '1.0.2' });
 });
 
-test('unbuilt multiplayer project explains required remote build', () => {
+test('unbuilt multiplayer project fails instead of silently starting offline', () => {
+  config('settings', { '@runtime': { multiplayer: { enabled: true } } });
+  config('project', { project_id: 'p_test' });
+  expect(() => previewNetworkProject(directory)).toThrow('构建产物');
+});
+
+test('malformed local build metadata still fails instead of silently connecting', () => {
   config('settings', { '@runtime': { multiplayer: { enabled: true } } });
   config('project', { project_id: 'local-uuid' });
+  fs.mkdirSync(path.join(directory, 'dist'));
+  fs.writeFileSync(path.join(directory, 'dist', 'latest.json'), '{"version":""}');
   expect(() => previewNetworkProject(directory)).toThrow('构建');
 });
 

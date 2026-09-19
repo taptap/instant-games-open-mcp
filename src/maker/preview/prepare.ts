@@ -45,6 +45,23 @@ function inside(root: string, relative: string): string {
   return filename;
 }
 
+function copyTree(source: string, target: string, signal?: AbortSignal): void {
+  if (signal?.aborted) throw new Error('CANCELLED');
+  const stat = fs.lstatSync(source);
+  if (stat.isSymbolicLink())
+    throw new Error(`Local prepare does not support symbolic links: ${source}`);
+  if (stat.isDirectory()) {
+    fs.mkdirSync(target, { recursive: true, mode: 0o700 });
+    for (const name of fs.readdirSync(source)) {
+      copyTree(path.join(source, name), path.join(target, name), signal);
+    }
+    return;
+  }
+  if (!stat.isFile()) throw new Error(`Local prepare does not support special files: ${source}`);
+  fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+  fs.copyFileSync(source, target);
+}
+
 function validateProjectVersion(source: string): void {
   const filename = path.join(source, '.project', 'project.json');
   if (!fs.existsSync(filename))
@@ -161,8 +178,7 @@ async function prepareProjectCopy(
   fs.mkdirSync(source, { recursive: true, mode: 0o700 });
   for (const name of ['scripts', 'assets', '.project']) {
     const original = path.join(project, name);
-    if (fs.existsSync(original))
-      fs.cpSync(original, path.join(source, name), { recursive: true, dereference: true });
+    if (fs.existsSync(original)) copyTree(original, path.join(source, name), signal);
   }
   const configDirectory = path.join(source, '.project');
   fs.mkdirSync(configDirectory, { recursive: true });
@@ -212,7 +228,7 @@ async function prepareProjectCopy(
   const args = [builder, '--project', source, '--force-enhanced-refs', '--no-7z', '--no-compress'];
   const cache = path.join(previewDirectory(project), 'public-index-cache');
   const roundCache = path.join(source, '.build', 'manifest_cache');
-  if (fs.existsSync(cache)) fs.cpSync(cache, roundCache, { recursive: true });
+  if (fs.existsSync(cache)) copyTree(cache, roundCache, signal);
   const log = path.join(directory, 'prepare.log');
   try {
     const output = await promisify(execFile)(python.python, args, {
@@ -230,7 +246,7 @@ async function prepareProjectCopy(
       throw new Error('Public source index download failed.');
     if (output.stdout.includes('[ERROR]')) throw new Error('ProjectBuilder reported an error.');
     const result = validatePreparedPreview(source);
-    if (fs.existsSync(roundCache)) fs.cpSync(roundCache, cache, { recursive: true });
+    if (fs.existsSync(roundCache)) copyTree(roundCache, cache, signal);
     return {
       ok: true,
       source_directory: source,

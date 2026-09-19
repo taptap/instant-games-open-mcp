@@ -98,9 +98,7 @@ export class PreviewSession {
       executable: this.record.executable,
       runtime_version: this.record.runtime.runtime_version,
       capabilities: this.record.runtime.capabilities,
-      launch_mode:
-        this.runtime?.launchMode ??
-        (process.platform === 'darwin' ? 'loopback_manifest' : 'local_manifest'),
+      launch_mode: this.runtime?.launchMode ?? 'local_manifest',
       preparation: this.runtime?.preparation,
       ready: false,
       screenshots_supported: false,
