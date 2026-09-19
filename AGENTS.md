@@ -476,6 +476,11 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   联网/server 项目由 `preview/network.ts` 读取受管理副本的 `@runtime` 配置与真实游戏 ID，
   复用 PAT 鉴权，按引擎 CreateMultiDebugGame 契约申请 `test` 游戏；缺少构建产物或申请失败时
   必须直接失败，不得静默降级成离线预览。
+  联网/server 项目在 Windows/macOS 统一通过受保护的 loopback client manifest 服务加载，
+  不把 -tapcode_dir 的松散源码挂载当成 manifest 加载成功；否则部分 Runtime 会跳过
+  settings.json，连接成功但 IsNetworkMode 为 false。Windows 单机准备链路及简单单机直读保持不变。
+  Windows 下载缓存使用每轮独占的 TEMP 短目录，不创建路径映射；确认 Runtime 退出后才清理，
+  缓存根目录被替换为链接时拒绝清理，不触及原项目或共享 Runtime 缓存。
   Runtime 使用 skip_login 和 directConnectParams，server_port=0 强制 WebSocket。
   PAT/MAC 与返回的 login_key 不进入 Runtime 参数或预览日志；不改引擎，
   不自动远端构建、不连接 formal、不重放结果未知的申请。仅验证线上环境，

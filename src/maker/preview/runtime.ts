@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import { projectEntry, type PreviewIdentity, type RuntimeInfo } from './protocol.js';
@@ -53,6 +54,7 @@ export class PreviewRuntime {
   private closed: Promise<void> = Promise.resolve();
   private assets?: PreviewAssetServer;
   private assetCache?: string;
+  private temporaryCache?: string;
   private mode: 'local_manifest' | 'loopback_manifest' = 'local_manifest';
   readonly errors: string[] = [];
   readonly logs: PreviewLogs;
@@ -110,11 +112,17 @@ export class PreviewRuntime {
       this.logs.append('已获取线上测试服连接信息，本地客户端将通过 WebSocket 直连。');
     }
     if (this.stopping) throw new Error('CANCELLED');
-    if (requiresPreparation && process.platform === 'darwin') {
+    let cacheRoot: string | undefined;
+    if (requiresPreparation && (process.platform === 'darwin' || classification.network_required)) {
       this.assets = await startPreviewAssetServer(source, this.abort.signal);
       this.mode = 'loopback_manifest';
-      const cacheRoot = path.join(_storage, 'runtime-cache');
       try {
+        cacheRoot =
+          process.platform === 'win32'
+            ? (this.temporaryCache = fs.realpathSync(
+                fs.mkdtempSync(path.join(os.tmpdir(), 'maker-cache-'))
+              ))
+            : path.join(_storage, 'runtime-cache');
         fs.mkdirSync(cacheRoot, { recursive: true, mode: 0o700 });
         this.assetCache = path.join(
           fs.realpathSync(cacheRoot),
@@ -123,6 +131,7 @@ export class PreviewRuntime {
       } catch (error) {
         await this.assets.close();
         this.assets = undefined;
+        this.clearAssetCache();
         throw error;
       }
     }
@@ -135,7 +144,7 @@ export class PreviewRuntime {
     try {
       this.launching();
       const runtimeArgs = this.assets
-        ? ['-game_url=' + this.assets.url, '-game_path=' + path.join(_storage, 'runtime-cache')]
+        ? ['-game_url=' + this.assets.url, '-game_path=' + cacheRoot!]
         : [entry, '-tapcode_dir=' + source];
       child = spawn(
         this.executable,
@@ -239,6 +248,23 @@ export class PreviewRuntime {
   }
 
   private clearAssetCache(): void {
+    if (this.temporaryCache) {
+      try {
+        if (fs.existsSync(this.temporaryCache)) {
+          if (
+            fs.lstatSync(this.temporaryCache).isSymbolicLink() ||
+            fs.realpathSync(this.temporaryCache) !== this.temporaryCache
+          )
+            throw new Error('Preview cache ownership changed.');
+          fs.rmSync(this.temporaryCache, { recursive: true, force: true });
+        }
+        this.temporaryCache = undefined;
+        this.assetCache = undefined;
+      } catch {
+        this.recordError('Could not remove this round of local preview download cache.');
+      }
+      return;
+    }
     if (!this.assetCache) return;
     try {
       const parent = path.dirname(this.assetCache);
