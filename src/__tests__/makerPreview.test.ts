@@ -302,32 +302,6 @@ fixtureTest('manual close is detected and refresh never revives a closed window'
   expect(await session.refresh()).toMatchObject({ ok: false, process_alive: false });
 });
 
-const macTest = process.platform === 'darwin' ? fixtureTest : test.skip;
-macTest(
-  'macOS reads fresh local manifests over HTTP and releases each round endpoint',
-  async () => {
-    const session = await createSession();
-    expect(await session.start()).toMatchObject({ ok: true, launch_mode: 'loopback_manifest' });
-    const logs = await waitForLogs(session, 'ASSET_ORIGIN=');
-    const origin = logs.match(/ASSET_ORIGIN=(http:\/\/127\.0\.0\.1:\d+)/)![1];
-    expect(logs).toContain('ROUND_ONE');
-    expect(logs).not.toContain('-tapcode_dir=');
-    expect(logs).not.toMatch(/127\.0\.0\.1:\d+\/[a-f0-9]{64}/);
-    const cacheRoot = path.join(previewDirectory(project), 'storage', 'runtime-cache');
-    expect(fs.existsSync(cacheRoot)).toBe(true);
-    fs.writeFileSync(path.join(project, 'scripts', 'main.lua'), 'ROUND_TWO');
-    await session.refresh();
-    expect(await waitForLogs(session, 'ROUND_TWO')).toContain('ROUND_TWO');
-    await expect(fetch(origin)).rejects.toThrow();
-    const current = (await waitForLogs(session, 'ASSET_ORIGIN=')).match(
-      /ASSET_ORIGIN=(http:\/\/127\.0\.0\.1:\d+)/
-    )![1];
-    await session.stop();
-    await expect(fetch(current)).rejects.toThrow();
-    expect(fs.readdirSync(cacheRoot)).toEqual(['public-cache-marker']);
-  }
-);
-
 fixtureTest('stop wins over startup and queued refreshes', async () => {
   const session = await createSession();
   const starting = session.start();

@@ -6,10 +6,10 @@ import { projectEntry, type PreviewIdentity, type RuntimeInfo } from './protocol
 import { PreviewLogs } from './evidence.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { preparePreviewProject, requireManifestPreviewPlatform } from './prepare.js';
+import { classifyPreviewProject } from './configuration.js';
 import { startPreviewAssetServer, type PreviewAssetServer } from './assets.js';
 import { previewWindow, type PreviewWindow } from './windowSettings.js';
 import { preparePreviewServer, previewNetworkArgs } from './network.js';
-import { createPreviewSourceAlias } from './sourceAlias.js';
 export { previewWindow } from './windowSettings.js';
 
 export const PREVIEW_TIMEOUT_MS = 30000;
@@ -39,7 +39,7 @@ export async function preflightPreview(
     entry: projectEntry(project),
     window: previewWindow(project),
     source_mode: false,
-    preparation_required: true,
+    ...classifyPreviewProject(project),
     dependencies_verified: false,
     warning:
       'Local client preview only. Cloud/server features and resource completeness are not verified.',
@@ -53,7 +53,7 @@ export class PreviewRuntime {
   private closed: Promise<void> = Promise.resolve();
   private assets?: PreviewAssetServer;
   private assetCache?: string;
-  private sourceAlias?: ReturnType<typeof createPreviewSourceAlias>;
+  private mode: 'local_manifest' | 'loopback_manifest' = 'local_manifest';
   readonly errors: string[] = [];
   readonly logs: PreviewLogs;
   readonly artifacts: Record<string, unknown>[] = [];
@@ -82,63 +82,65 @@ export class PreviewRuntime {
     return false;
   }
 
-  get launchMode(): 'loopback_manifest' | 'local_manifest' {
-    return process.platform === 'darwin' ? 'loopback_manifest' : 'local_manifest';
+  get launchMode(): 'local_manifest' | 'loopback_manifest' {
+    return this.mode;
   }
 
   async start(
     entry: string,
-    storage: string,
+    _storage: string,
     window: PreviewWindow = previewWindow(this.identity.project_realpath)
   ): Promise<void> {
     requireManifestPreviewPlatform();
-    this.preparation = await preparePreviewProject(
-      this.identity.project_realpath,
-      this.directory,
-      this.abort.signal
-    );
+    const project = this.identity.project_realpath;
+    const classification = classifyPreviewProject(project);
+    const requiresPreparation = classification.preparation_required;
+    if (requiresPreparation)
+      this.preparation = await preparePreviewProject(project, this.directory, this.abort.signal);
     if (this.stopping) throw new Error('CANCELLED');
-    const source = String(this.preparation.source_directory);
-    entry = String(this.preparation.entry);
+    const source = requiresPreparation ? String(this.preparation!.source_directory) : project;
+    if (requiresPreparation) entry = String(this.preparation!.entry);
     const server = await preparePreviewServer(
       source,
-      this.identity.project_realpath,
-      this.abort.signal
+      project,
+      this.abort.signal,
+      classification.network_required
     );
-    if (server) this.logs.append('已获取线上测试服连接信息，本地客户端将通过 WebSocket 直连。');
+    if (server) {
+      this.logs.append('已获取线上测试服连接信息，本地客户端将通过 WebSocket 直连。');
+    }
     if (this.stopping) throw new Error('CANCELLED');
-    let cacheRoot: string | undefined;
-    if (this.launchMode === 'loopback_manifest') {
+    if (requiresPreparation && process.platform === 'darwin') {
       this.assets = await startPreviewAssetServer(source, this.abort.signal);
-      cacheRoot = path.join(storage, 'runtime-cache');
+      this.mode = 'loopback_manifest';
+      const cacheRoot = path.join(_storage, 'runtime-cache');
       try {
         fs.mkdirSync(cacheRoot, { recursive: true, mode: 0o700 });
-        // Match the existing Runtime's RemoveUrlScheme cache mapping, inside our project storage only.
         this.assetCache = path.join(
           fs.realpathSync(cacheRoot),
           this.assets.url.slice('http://'.length).replace(':', '_')
         );
       } catch (error) {
         await this.assets.close();
+        this.assets = undefined;
         throw error;
       }
     }
     if (this.stopping) {
       await this.assets?.close();
+      this.clearAssetCache();
       throw new Error('CANCELLED');
     }
     let child: ChildProcessWithoutNullStreams;
     try {
-      this.sourceAlias = createPreviewSourceAlias(source);
-      const runtimeSource = this.sourceAlias.source;
       this.launching();
+      const runtimeArgs = this.assets
+        ? ['-game_url=' + this.assets.url, '-game_path=' + path.join(_storage, 'runtime-cache')]
+        : [entry, '-tapcode_dir=' + source];
       child = spawn(
         this.executable,
         [
-          ...(this.assets
-            ? ['-game_url=' + this.assets.url]
-            : [entry, '-tapcode_dir=' + runtimeSource]),
-          ...(cacheRoot ? ['-game_path=' + cacheRoot] : []),
+          ...runtimeArgs,
           '-skip_login',
           ...(server ? previewNetworkArgs(server) : []),
           '-p=Res',
@@ -146,11 +148,11 @@ export class PreviewRuntime {
           '-width=' + window.width,
           '-height=' + window.height,
         ],
-        { cwd: runtimeSource, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: false }
+        { cwd: source, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: false }
       );
     } catch (error) {
       await this.assets?.close();
-      this.clearSourceAlias();
+      this.clearAssetCache();
       throw error;
     }
     this.child = child;
@@ -159,11 +161,10 @@ export class PreviewRuntime {
         void (async () => {
           try {
             await this.assets?.close();
+            this.clearAssetCache();
           } catch (error) {
             this.recordError(String(error));
           }
-          this.clearAssetCache();
-          this.clearSourceAlias();
           try {
             this.changed(this.stopping || child.exitCode === 0 ? 'stopped' : 'failed');
           } catch (error) {
@@ -250,15 +251,6 @@ export class PreviewRuntime {
     }
   }
 
-  private clearSourceAlias(): void {
-    try {
-      this.sourceAlias?.close();
-      this.sourceAlias = undefined;
-    } catch (error) {
-      this.recordError(String(error));
-    }
-  }
-
   private consume(stream: NodeJS.ReadableStream): void {
     const decoder = new StringDecoder('utf8');
     let buffer = '';
@@ -299,6 +291,7 @@ export class PreviewRuntime {
     this.abort.abort();
     if (!this.processAlive) {
       await this.assets?.close();
+      this.clearAssetCache();
       return;
     }
     const child = this.child!;
@@ -320,7 +313,6 @@ export class PreviewRuntime {
     } finally {
       clearTimeout(force);
       clearTimeout(deadline);
-      await this.assets?.close();
     }
   }
 }

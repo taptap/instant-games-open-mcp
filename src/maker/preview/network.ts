@@ -11,19 +11,28 @@ interface NetworkProject {
   version: string;
 }
 
+export function previewNetworkConfigured(source: string): boolean {
+  const settings = readPreviewConfiguration(source, 'settings');
+  const runtime = settings?.['@runtime'];
+  const multiplayer = runtime?.multiplayer;
+  return Boolean(
+    multiplayer
+      ? multiplayer.enabled !== undefined
+        ? multiplayer.enabled
+        : multiplayer.max_players !== undefined
+          ? multiplayer.max_players > 0
+          : Boolean(multiplayer.persistent_world?.enabled)
+      : runtime?.max_players > 0
+  );
+}
+
 export interface PreviewServer {
   userId: number;
   connectInfo: { pod_ip: string; server_port: 0; ws_port: number };
 }
 
 export function previewNetworkProject(source: string): NetworkProject | undefined {
-  const settings = readPreviewConfiguration(source, 'settings');
-  const runtime = settings?.['@runtime'];
-  const multiplayer = runtime?.multiplayer;
-  const enabled = multiplayer
-    ? (multiplayer.enabled ?? multiplayer.max_players > 0)
-    : runtime?.max_players > 0;
-  if (!enabled) return undefined;
+  if (!previewNetworkConfigured(source)) return undefined;
   const project = readPreviewConfiguration(source, 'project');
   const latestPath = path.join(source, 'dist', 'latest.json');
   const latest = fs.existsSync(latestPath)
@@ -32,10 +41,13 @@ export function previewNetworkProject(source: string): NetworkProject | undefine
   if (
     typeof project?.project_id !== 'string' ||
     !project.project_id.trim() ||
-    project.author?.id === 'local-preview' ||
-    typeof latest?.version !== 'string' ||
-    !latest.version
+    project.author?.id === 'local-preview'
   )
+    throw new Error('联网预览缺少游戏配置，请先提交构建并生成一次测试二维码，再启动本地预览。');
+  if (!latest) {
+    throw new Error('联网预览缺少本地构建产物，请先完成本地准备并生成 latest.json。');
+  }
+  if (typeof latest.version !== 'string' || !/^[a-z0-9][a-z0-9._+-]{0,127}$/i.test(latest.version))
     throw new Error('联网预览缺少游戏配置，请先提交构建并生成一次测试二维码，再启动本地预览。');
   return { projectId: project.project_id, version: latest.version };
 }
@@ -52,10 +64,15 @@ export function previewNetworkArgs(server: PreviewServer): string[] {
 export async function preparePreviewServer(
   source: string,
   projectPath: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  networkRequired = false
 ): Promise<PreviewServer | undefined> {
   const project = previewNetworkProject(source);
-  if (!project) return undefined;
+  if (!project) {
+    if (networkRequired)
+      throw new Error('项目已识别为联机/server 项目，但准备副本未保留有效联机配置。');
+    return undefined;
+  }
   if (signal?.aborted) throw new Error('CANCELLED');
   // Never send credentials from an internal environment to the production entrance.
   if (getMakerEnvironment(undefined, projectPath) !== 'production')
