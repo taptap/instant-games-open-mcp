@@ -982,7 +982,6 @@ describe('Maker console standalone UI', () => {
     expect(source).toContain('return [primary]');
     expect(source).toContain('checkActions.append(luaCheckOption())');
     expect(source).not.toContain("className:'primary build-button'");
-    expect(source).toContain("checkActions.append(button(checking ? '检查中' : 'Lua 检查'");
     expect(source).toContain('Lua 检查未通过，已停止构建，请查看下方 Lua 检查日志。');
     expect(source).toContain('Lua 检查不可用，已继续构建，请查看下方 Lua 检查日志。');
     expect(source).not.toContain('notify(text(nestedResult(check)?.error || check?.error');

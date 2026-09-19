@@ -41,7 +41,6 @@ button#fortune-toggle{border:0;background:none;color:#b5aa78;font-size:11px;font
 :root[data-theme="light"] button#fortune-toggle{color:#c4a017}
 button#fortune-toggle:hover,button#fortune-toggle[aria-expanded="true"]{color:var(--yellow);background:none;border-color:transparent}
 #fortune-panel{position:fixed;z-index:30;overflow:hidden;border:0;border-radius:6px;background:transparent;box-shadow:0 8px 28px #0005}
-#fortune-panel.fortune-preload{opacity:0;pointer-events:none;left:0;top:0;width:1px;height:1px}
 #fortune-panel[hidden]{display:none!important}
 #fortune-panel.fortune-preload{opacity:0;pointer-events:none;left:0;top:0;width:1px;height:1px}
 #fortune-panel iframe{display:block;width:100%;height:100%;border:0}

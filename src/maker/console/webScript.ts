@@ -1541,14 +1541,13 @@ function updateBuild() {
   if (!previewActions(preview).includes('preview.stop'))
     actions.append(button('停止预览',() => {},{disabled:true}));
   previewActions(preview).filter(action => action !== 'preview.start').reverse().forEach(action => actions.append(button(
-    actionBusy(action) ? actionLabels[action] + '中' : actionLabels[action],
-    () => void runAction(action),{
-      loading:actionBusy(action),disabled:offline || busy(),focus:action,
-      ...(action === 'preview.refresh' ? {icon:'refresh'} : {})
-    })));
+    actionBusy(action) ? actionLabels[action] + '中' : actionLabels[action],() => void runAction(action),{
+    loading:actionBusy(action),disabled:offline || busy(),focus:action,
+    ...(action === 'preview.refresh' ? {icon:'refresh',iconOnly:true,className:'icon-button'} : {})
+  })));
   actions.append(button(previewLoading ? '检测中' : '检测预览状态',() => void refreshPreview(),{
-    icon:'refresh',iconOnly:true,className:'icon-button',loading:previewLoading,focus:'preview-status'}));
-  actions.append(button('查看运行日志',() => void loadLogs(),{focus:'preview-logs'}));
+    className:'link',loading:previewLoading,focus:'preview-status'}));
+  actions.append(button('查看运行日志',() => void loadLogs(),{className:'link',focus:'preview-logs'}));
   localChildren.push(actions);
   localChildren.push(renderWindowSettings());
   replace($('preview-panel'),localChildren);
