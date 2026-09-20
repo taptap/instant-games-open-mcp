@@ -357,6 +357,13 @@ async function main() {
     join(pluginRoot, 'docs', 'MAKER_MCP_CONNECTION_TROUBLESHOOTING.md'),
     'Maker MCP troubleshooting guide'
   );
+  for (const guide of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+    copyRequiredFile(
+      join(projectRoot, 'docs', guide),
+      join(pluginRoot, 'docs', guide),
+      `Maker guide ${guide}`
+    );
+  }
   copyRequiredFile(
     join(projectRoot, 'src', 'maker', 'assets', 'taptap-maker.png'),
     join(pluginRoot, 'assets', 'taptap-maker.png'),

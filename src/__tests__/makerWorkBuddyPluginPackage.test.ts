@@ -124,12 +124,19 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
       'skills/update-taptap-mcp/SKILL.md',
       'assets/taptap-maker.png',
       'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md',
+      'docs/MAKER_LOCAL_PREVIEW.md',
+      'docs/MAKER_CONSOLE.md',
       'README.md',
       'SKILL.md',
     ];
 
     for (const relativePath of requiredPaths) {
       expect(fs.existsSync(path.join(pluginRoot, relativePath))).toBe(true);
+    }
+    for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+      expect(fs.readFileSync(path.join(pluginRoot, 'docs', name), 'utf8')).toBe(
+        fs.readFileSync(path.join(projectRoot, 'docs', name), 'utf8')
+      );
     }
     expect(fs.readFileSync(path.join(pluginRoot, 'dist', 'maker.js'), 'utf8')).toContain(
       `// TapTap Maker MCP version: ${makerVersion}`
@@ -148,6 +155,7 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
     expect(readme).toContain('只补齐缺失项，不覆盖已有同名 Skill');
     const rootSkill = fs.readFileSync(path.join(pluginRoot, 'SKILL.md'), 'utf8');
     expect(rootSkill).toContain('name: taptap-maker');
+    expect(rootSkill).toContain('打开make mcp控制台');
     expect(rootSkill).toContain(`插件版本：\`${pluginVersion}\``);
     expect(rootSkill).toContain(`内置 Maker MCP 版本：\`${makerVersion}\``);
   });
@@ -158,7 +166,7 @@ describe('TapTap Maker WorkBuddy plugin package', () => {
       ['commands/sync-project.md', '将已有的 TapTap Maker 游戏同步到当前空工作区继续开发'],
       [
         'skills/taptap-maker-local/SKILL.md',
-        '指导 TapTap Maker 本地开发流程，包括初始化、同步项目、状态检查、提交构建和故障诊断。',
+        '指导 TapTap Maker 本地开发流程，支持“打开make mcp控制台”、初始化、同步项目、状态检查、提交构建和故障诊断。',
       ],
       [
         'skills/taptap-maker-dev-kit-guide/SKILL.md',

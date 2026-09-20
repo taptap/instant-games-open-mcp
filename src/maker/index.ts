@@ -6,6 +6,9 @@
 
 import { startMakerMcpServer } from './server/mcp.js';
 import { formatCliError, runMakerCli } from './cli/commands.js';
+import { runPreviewSupervisor } from './preview/session.js';
+import { runConsoleSupervisor } from './console/cli.js';
+import { previewProject } from './preview/protocol.js';
 import { appendMakerCrashLog } from './crashLog.js';
 import { loadConfig } from '../mcp-proxy/config.js';
 import { TapTapMCPProxy } from '../mcp-proxy/proxy.js';
@@ -21,6 +24,16 @@ installCrashLogging();
 
 async function main(): Promise<void> {
   const command = process.argv[2];
+
+  if (command === '__maker-console-server') {
+    await runConsoleSupervisor();
+    return;
+  }
+
+  if (command === '__maker-preview-supervisor') {
+    await runPreviewSupervisor(previewProject(process.argv[3] || ''), process.argv[4]);
+    return;
+  }
 
   if (!command) {
     await startMakerMcpServer();
@@ -76,6 +89,10 @@ function printHelp(): void {
       '    clearly asks to create a new Maker project; NAME is the requested project name.',
       '',
       '  taptap-maker doctor [--target-dir DIR] [--json]',
+      '  taptap-maker console open [--target-dir PROJECT_ABSOLUTE_PATH] [--no-open] [--json]',
+      '  taptap-maker console status|stop [--json]',
+      '  taptap-maker build --target-dir PROJECT_ABSOLUTE_PATH [--json]',
+      '  taptap-maker qrcode --target-dir PROJECT_ABSOLUTE_PATH [--confirmed-screen-orientation landscape|portrait] [--json]',
       '  taptap-maker python doctor [--json]',
       '  taptap-maker python setup [--json]',
       '  taptap-maker python path [--json]',
@@ -100,6 +117,11 @@ function printHelp(): void {
       '  taptap-maker dev-kit update [--target-dir DIR] [--json]',
       '  taptap-maker user-skills pull [--target-dir DIR] [--json]',
       '  taptap-maker logs watch [--target-dir DIR] [--interval 5s] [--reset] [--json]',
+      '  taptap-maker preview install|prepare|start|status|refresh|stop|logs|screenshot|check',
+      '                       --target-dir PROJECT_ABSOLUTE_PATH [--json]',
+      '                       [--runtime ABSOLUTE_EXECUTABLE] [--expectation TEXT] [--update]',
+      '                       [--cursor N --session-id ID --reload-id N] [--limit 1..500]',
+      '  Local preview never commits or remotely builds; refresh restarts and loses memory state.',
       '',
       'MCP install and verify default to a stable self runtime under the Maker home directory.',
       'Use --launcher npx only when npm startup is explicitly required; released builds pin',

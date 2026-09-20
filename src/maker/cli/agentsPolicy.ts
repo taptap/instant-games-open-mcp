@@ -8,7 +8,7 @@ import path from 'node:path';
 import { MAKER_PROJECT_POLICY_ROUTING_INDEX } from '../capabilityRouting.js';
 
 export const MAKER_AGENTS_FILE = 'AGENTS.md';
-const POLICY_VERSION = '3';
+const POLICY_VERSION = '4';
 const LEGACY_POLICY_BEGIN = '<!-- >>> TapTap Maker asset tool policy >>> -->';
 const LEGACY_POLICY_END = '<!-- <<< TapTap Maker asset tool policy <<< -->';
 const POLICY_END = '<!-- <<< TapTap Maker managed AGENTS policy <<< -->';
@@ -136,14 +136,23 @@ function createMakerAgentsPolicyBody(): string {
     '',
     'Maker build workflow:',
     '',
-    '- For user requests such as 构建, build, 预览, 跑一下, 查看结果, 看看效果, 验证游戏效果,',
+    '- For explicit remote requests such as 构建, build, 远端 Web 预览,',
     '  提交, 提交代码, 推送, or push, call `maker_build_current_directory`.',
     '- Do not tell the user to open the Maker web page and click a build button as the default flow.',
     '- Do not use generic Git commit, push, branch, PR, or MR workflows for Maker submit/build',
     '  requests. Follow the result returned by `maker_build_current_directory`.',
     '',
     'Generic code checks such as 验证代码, 跑测试, lint, or 检查实现 should not trigger a Maker',
-    'remote build unless the user explicitly asks to build, run, or preview the Maker game.',
+    'remote build unless the user explicitly requests the remote build workflow.',
+    '- Local preview uses taptap-maker preview with an explicit --target-dir and never commits or',
+    '  remotely builds. Read the taptap-maker-local Skill Local Window Preview workflow.',
+    '- After every related code/resource-edit batch, run preview status. If process_alive=true,',
+    '  automatically refresh, then fetch current logs/check. Never merely remind the user.',
+    '- Refresh restarts the window and loses memory state. Stopped/missing/unverified sessions must',
+    '  not be started automatically. Stop/cancel takes priority over queued refreshes.',
+    '- Clarify bare preview/run intent when local vs remote is ambiguous; never silently commit.',
+    '- Compare current evidence to explicit expectations; read the image before visual judgment.',
+    '  Missing evidence is UNDETERMINED. Only modify with authorization, at most two automatic fixes.',
     '- Preview, build, test, and local-development intent must never select or change the service',
     '  environment. Do not add environment parameters to Maker tool calls or user MCP config;',
     '  use the default Maker service configuration.',
@@ -233,16 +242,19 @@ function createMakerAgentsPolicyBody(): string {
     '',
     '- For any ad-related request or code touching ads, first read',
     '  `maker://ads-integration-guide`, then follow it to inspect Maker project status, call',
-    '  `get_ad_config`, and read the project engine document before editing ad code or testing',
-    '  ad behavior. Triggers include 广告, 激励视频,',
+    '  `get_ad_config`, verify remote/local configuration, and read the project engine document before',
+    '  editing or testing ads. Triggers include 广告, 激励视频,',
     '  播放广告, ad ID, ad placement, ad status, ad config, and `ShowRewardVideoAd`.',
     '- Treat `get_ad_config` as the source of truth for current project ad activation status and',
     '  ad config. Do not infer ad readiness from local SDK docs, `.maker-mcp/config.json`, or',
     '  runtime callbacks.',
+    '- Keep the same explicit `target_dir` throughout. Remote success does not update local settings;',
+    '  follow the guide before proceeding if local `@runtime.ad` is missing or differs.',
     '- If primary local project configs are missing, keep ad config unavailable and do not call the',
-    '  remote tool. Build only for an explicit user build/submit/preview request. If a successful',
+    '  remote tool. Build only for an explicit user build/submit/remote Web preview request. If a successful',
     '  build still leaves local configs missing, explain the known limitation and do not rebuild',
     '  automatically. Implement or test ad code only after the config is available.',
+    '- Local window preview uses CLI and does not authorize commit or push.',
     '- If `get_ad_config` reports missing `app_id` or `developer_id`, call',
     '  `generate_test_qrcode` once to generate test QR code metadata, then call `get_ad_config`',
     '  again. Do not use publish-only tools for this recovery path.',

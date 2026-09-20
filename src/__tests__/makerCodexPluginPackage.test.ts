@@ -161,11 +161,18 @@ describe('TapTap Maker Codex plugin package', () => {
       'skills/update-taptap-mcp/SKILL.md',
       'skills/taptap-maker-plugin-lifecycle/SKILL.md',
       'docs/MAKER_MCP_CONNECTION_TROUBLESHOOTING.md',
+      'docs/MAKER_LOCAL_PREVIEW.md',
+      'docs/MAKER_CONSOLE.md',
       'README.md',
     ];
 
     for (const relativePath of requiredPaths) {
       expect(fs.existsSync(path.join(pluginRoot, relativePath))).toBe(true);
+    }
+    for (const name of ['MAKER_LOCAL_PREVIEW.md', 'MAKER_CONSOLE.md']) {
+      expect(fs.readFileSync(path.join(pluginRoot, 'docs', name), 'utf8')).toBe(
+        fs.readFileSync(path.join(projectRoot, 'docs', name), 'utf8')
+      );
     }
     const bundledRuntime = fs.readFileSync(path.join(pluginRoot, 'dist', 'maker.js'), 'utf8');
     expect(bundledRuntime).toContain(`// TapTap Maker MCP version: ${makerVersion}`);
@@ -251,6 +258,10 @@ describe('TapTap Maker Codex plugin package', () => {
       const bundle = fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
       expect(bundle).toContain('Automatically disable an active legacy Codex Maker MCP');
       expect(bundle).toContain('Require explicit confirmation before disabling or restoring it');
+      expect(bundle).toContain('Legacy Runtime is usable, but its machine-wide registration');
+      expect(bundle).toContain('Another Runtime installation is in progress.');
+      expect(bundle).toContain('installation.lock');
+      expect(bundle).not.toContain('Another preview start/install is in progress.');
     }
   });
 
