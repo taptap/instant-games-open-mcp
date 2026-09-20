@@ -492,6 +492,9 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   Windows 控制台与预览 supervisor 共用 `src/maker/system/backgroundProcess.ts` 的 CIM 启动器。
   预览离线恢复必须确认会话证据匹配且两个进程都不存在；状态查询不写回会话，避免覆盖并发启动。
   Builder 快照须逐字节匹配固定 Git 提交；不修改引擎、公共资源或游戏原目录来掩盖预览错误。
+  Builder 多 source 重复引用仅由 preview/builderDiagnostics.ts 校验本轮精确 hash 对应的缓存索引后
+  降为警告：路径/UUID 一致，唯一真实资源，其余 source 明确转引该来源，内容元数据无冲突。
+  未知/截断错误、缺少证据、不同资源冲突、非零退出和无效产物继续阻止启动；保留原始 prepare.log。
 
 Maker 本地开发的默认路径是 CLI-first + PAT-first：
 

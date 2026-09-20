@@ -160,6 +160,18 @@ Runtime 缺失或 Node 版本。
 
 ## 维护约束
 
+### Builder 重复来源诊断
+
+公共索引可能同时在 engine-res 定义资源、在 official-res 通过 source=engine-res 转引它。
+固定 Builder 会为这类重复路径输出 ERROR，但仍继续生成产物。Maker 仅在完整诊断与本轮
+导入日志记录的精确 client/server hash 索引均可核验时，将同一路径、同 UUID、唯一真实来源且
+内容元数据一致的转引降为可见警告；不通过扫描旧缓存或只比较 UUID 放行。
+这包括 Techniques/PBR/PBRDiff.xml、Models/Plane.mdl，但实现不依赖这两个具体路径。
+
+原始 prepare.log 不改写，因此可能仍包含这些已核验的 ERROR；CLI 返回 warnings 标明核验结果。
+缺索引、诊断截断、不同 UUID/内容、多个独立定义、来源循环以及其他 stdout/stderr ERROR 仍失败。
+Builder 非零退出、manifest 或本地产物校验失败仍阻止启动。无需修改游戏引用、公共资源或 Builder 快照。
+
 ### Windows 联机兼容性验证
 
 本机同一个 Runtime、同一个“测试匹配”1.0.4 项目对照显示：原 tapcode_dir 启动只执行
