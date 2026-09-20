@@ -313,3 +313,81 @@ test('repeated failed standalone preparations retain only the latest three manag
   expect(retained).toHaveLength(3);
   expect(retained).toContain(path.basename(last));
 });
+
+test.each(['valid', 'missing-asset', 'nonzero-exit', 'stderr-error'])(
+  'duplicate-reference diagnostic handling preserves preparation safety: %s',
+  async (mode) => {
+    const project = path.join(root, 'project');
+    const output = path.join(root, 'output');
+    fs.mkdirSync(path.join(project, 'scripts'), { recursive: true });
+    fs.writeFileSync(path.join(project, 'scripts/main.lua'), 'abc');
+    jest.mocked(checkMakerPythonEnvironment).mockReturnValue({
+      ready: true,
+      python: '/python',
+    } as ReturnType<typeof checkMakerPythonEnvironment>);
+    jest.mocked(execFile).mockImplementation((...args: unknown[]) => {
+      const source = path.join(output, 'source');
+      const cache = path.join(source, '.build/manifest_cache');
+      fs.mkdirSync(cache, { recursive: true });
+      fs.mkdirSync(path.join(source, 'dist/1'), { recursive: true });
+      fs.mkdirSync(path.join(source, 'dist/assets'));
+      fs.writeFileSync(path.join(source, 'dist/latest.json'), '{"version":"1","client":"abcd"}');
+      fs.writeFileSync(
+        path.join(cache, 'engine-res-aa.json'),
+        JSON.stringify({
+          files: [
+            { uuid: 'plane', hash: 'ab', size: 336, ext: '.mdl', fs_path: 'Models/Plane.mdl' },
+          ],
+        })
+      );
+      fs.writeFileSync(
+        path.join(cache, 'official-res-bb.json'),
+        JSON.stringify({
+          files: [
+            { uuid: 'plane', source: 'engine-res', ext: '.mdl', fs_path: 'Models/Plane.mdl' },
+          ],
+        })
+      );
+      fs.writeFileSync(
+        path.join(source, 'dist/1/manifest-abcd.json'),
+        JSON.stringify({
+          target: 'client',
+          entry: 'main.lua',
+          sources: { 'engine-res': { base_url: 'https://example.test/' } },
+          files: [{ uuid: 'entry', hash: 'abc', ext: '.lua', size: 3 }],
+        })
+      );
+      if (mode !== 'missing-asset')
+        fs.writeFileSync(path.join(source, 'dist/assets/entry-abc.lua'), 'abc');
+      const stdout = [
+        '[INFO] 导入 1 个远端资源: engine-res (client=aa, server=aa)',
+        '[INFO] 导入 1 个远端资源: official-res (client=bb, server=bb)',
+        '[ERROR] 增强引用错误: 1 个远端路径匹配多个 source，已选择第一个',
+        '[ERROR] Models/Plane.mdl: multiple sources matched; selected engine-res=plane; candidates=engine-res=plane, official-res=plane',
+        '[INFO] 构建完成!',
+      ].join('\n');
+      const callback = args[args.length - 1] as (
+        error: Error | null,
+        output: { stdout: string; stderr: string }
+      ) => void;
+      callback(mode === 'nonzero-exit' ? new Error('builder exited with code 1') : null, {
+        stdout,
+        stderr: mode === 'stderr-error' ? '[ERROR] another failure' : '',
+      });
+      return {} as ReturnType<typeof execFile>;
+    });
+    const result = preparePreviewProject(project, output);
+    if (mode === 'valid') {
+      await expect(result).resolves.toMatchObject({
+        ok: true,
+        warnings: [
+          '[WARN] Verified duplicate public resource reference: Models/Plane.mdl -> engine-res=plane',
+        ],
+      });
+      expect(fs.readFileSync(path.join(output, 'prepare.log'), 'utf8')).toContain('[ERROR]');
+    } else {
+      await expect(result).rejects.toThrow('Local prepare failed; no Runtime was started.');
+    }
+    expect(fs.existsSync(path.join(project, 'dist'))).toBe(false);
+  }
+);

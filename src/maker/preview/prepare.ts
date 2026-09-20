@@ -15,6 +15,7 @@ import {
 } from './builderSource.js';
 import { sanitizeDiagnosticValue } from '../server/diagnosticRedaction.js';
 import { trimPreviewCache } from './cache.js';
+import { previewBuilderWarnings } from './builderDiagnostics.js';
 
 export function requireManifestPreviewPlatform(platform = process.platform): void {
   if (platform !== 'win32' && platform !== 'darwin')
@@ -244,17 +245,20 @@ async function prepareProjectCopy(
     });
     if (/加载远端来源.*失败|无法获取 version.json|无法下载 manifest/.test(output.stdout))
       throw new Error('Public source index download failed.');
-    if (output.stdout.includes('[ERROR]')) throw new Error('ProjectBuilder reported an error.');
+    const diagnosticWarnings = previewBuilderWarnings(source, output.stdout, output.stderr);
     const result = validatePreparedPreview(source);
     if (fs.existsSync(roundCache)) copyTree(roundCache, cache, signal);
     return {
       ok: true,
       source_directory: source,
       log_path: log,
-      warnings: output.stdout
-        .split(String.fromCharCode(10))
-        .filter((line) => line.includes('[WARN]'))
-        .slice(0, 30),
+      warnings: [
+        ...diagnosticWarnings,
+        ...output.stdout
+          .split(String.fromCharCode(10))
+          .filter((line) => line.includes('[WARN]'))
+          .slice(0, 30),
+      ],
       ...result,
     };
   } catch (error) {
