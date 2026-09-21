@@ -1,5 +1,5 @@
 /**
- * Remote Maker MAC expiry detection tests.
+ * 远端 Maker MAC 过期识别测试。
  */
 
 import { isMakerMacExpiredFailure } from '../maker/auth/macExpired';

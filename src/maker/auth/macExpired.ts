@@ -1,9 +1,9 @@
 /**
- * Detect remote Maker/TapTap MAC token expiry from proxy tool results.
+ * 识别远端 Maker/TapTap MAC token 过期。
  *
- * Observed remote shape from get_ad_config / tapRequest:
+ * get_ad_config / tapRequest 实测返回：
  * `{ "success": false, "error": "授权已失效" }`
- * when Tap Open API returns `data.error === "access_denied"`.
+ * 对应 Tap Open API 的 `data.error === "access_denied"`。
  */
 
 const MAC_EXPIRED_MESSAGE = '授权已失效';
@@ -11,8 +11,7 @@ const ACCESS_DENIED_CODE = 'access_denied';
 const PERMISSION_HINT = /permission|rbac|access denied/i;
 
 /**
- * Return whether a remote proxy tool result or thrown error means the local MAC
- * token was rejected and should be refreshed once.
+ * 判断远端 proxy 工具结果或抛错是否表示本地 MAC token 被拒绝，应刷新一次。
  */
 export function isMakerMacExpiredFailure(value: unknown): boolean {
   return inspectMakerMacExpired(value, 0);

@@ -565,8 +565,7 @@ export async function callRemoteProxyTool(options: {
     }
   }
 
-  // Remote MAC expiry is a local credential problem. Refresh once with PAT, then
-  // rebuild the proxy context so the retried call uses the new kid/mac_key.
+  // 远端 MAC 失效属于本地凭证问题。用 PAT 刷新一次后重建 proxy，重试请求使用新的 kid/mac_key。
   await requestTapAuthWithPat(undefined, getMakerEnvironment(undefined, proxy.projectRoot));
   const retried = await callTool();
   return await materialize(retried);
