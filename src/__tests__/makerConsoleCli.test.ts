@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
@@ -19,10 +18,11 @@ import {
   selectWindowsConsoleEnvironment,
 } from '../maker/console/processLauncher';
 import { createMakerRemoteBuildError } from '../maker/server/mcp';
+import { recoveryMutexPort } from '../maker/system/recoveryMutex';
 
-function mutexPort(directory: string): number {
+function mutexPort(directory: string, offset = 0): number {
   const filename = path.join(fs.realpathSync(directory), 'server.lock');
-  return 49152 + (createHash('sha256').update(filename).digest().readUInt16BE(0) % 16384);
+  return recoveryMutexPort(filename, offset);
 }
 
 describe('Maker console CLI adapters', () => {
@@ -520,7 +520,7 @@ describe('Maker console CLI adapters', () => {
     release();
   });
 
-  test('leaves an unrelated listener and lock files untouched when the mutex port is busy', async () => {
+  test('uses a nearby mutex port when the preferred port is busy without contacting the peer', async () => {
     const filename = path.join(fs.realpathSync(directory), 'server.lock');
     const port = mutexPort(directory);
     const peer = createServer((socket) => socket.destroy());
@@ -530,21 +530,17 @@ describe('Maker console CLI adapters', () => {
       peer.once('error', reject);
       peer.listen({ host: '127.0.0.1', port, exclusive: true }, resolve);
     });
-    fs.writeFileSync(filename, '2147483647:stale');
-    fs.writeFileSync(filename + '.recovery', '2147483647:abandoned');
     try {
-      await expect(claimConsoleServerLock(directory)).rejects.toMatchObject({ status: 409 });
+      const release = await claimConsoleServerLock(directory);
       expect(peer.listening).toBe(true);
       expect(connection).not.toHaveBeenCalled();
-      expect(fs.readFileSync(filename, 'utf8')).toBe('2147483647:stale');
-      expect(fs.readFileSync(filename + '.recovery', 'utf8')).toBe('2147483647:abandoned');
+      expect(fs.existsSync(filename)).toBe(true);
+      release();
     } finally {
       await new Promise<void>((resolve, reject) =>
         peer.close((error) => (error ? reject(error) : resolve()))
       );
     }
-    const release = await claimConsoleServerLock(directory);
-    release();
   });
 
   test('recovers after a process is killed while publishing its guard under the socket mutex', async () => {

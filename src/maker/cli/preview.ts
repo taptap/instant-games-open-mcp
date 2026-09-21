@@ -204,6 +204,14 @@ export async function runPreviewCli(
     process.exitCode = 1;
 }
 
+function windowsLaunchHint(logFile: string): string {
+  return (
+    'Inspect ' +
+    logFile +
+    '. An empty supervisor log usually means the Windows CIM Hidden PowerShell wrapper never reached Node, often because antivirus blocked EncodedCommand. Do not treat this as a missing Runtime or PATH problem. Read docs/MAKER_LOCAL_PREVIEW.md and skills/taptap-maker-local/SKILL.md.'
+  );
+}
+
 async function startPreview(
   project: string,
   options: Record<string, string | boolean>,
@@ -308,14 +316,14 @@ async function startPreview(
       }
       if (launch.exited())
         throw new Error(
-          'Preview supervisor exited before opening its control channel. Inspect ' +
-            previewSupervisorLogPath(project)
+          'Preview supervisor exited before opening its control channel. ' +
+            windowsLaunchHint(previewSupervisorLogPath(project))
         );
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     throw new Error(
-      'TIMEOUT: preview supervisor did not open its control channel. Inspect ' +
-        previewSupervisorLogPath(project)
+      'TIMEOUT: preview supervisor did not open its control channel. ' +
+        windowsLaunchHint(previewSupervisorLogPath(project))
     );
   } catch (error) {
     active = readPreviewRecord(project);
@@ -334,8 +342,8 @@ async function startPreview(
       } else {
         throw new Error(
           String(error) +
-            '; supervisor exit is unverified. Inspect ' +
-            previewSupervisorLogPath(project)
+            '; supervisor exit is unverified. ' +
+            windowsLaunchHint(previewSupervisorLogPath(project))
         );
       }
     }

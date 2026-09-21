@@ -280,7 +280,7 @@ function claimRecoveryMutex(filename: string): Promise<() => Promise<void>> {
     filename,
     (port) =>
       new ConsoleError(
-        `Console ownership recovery is busy (loopback port ${port} is in use). Try again.`,
+        `Console ownership recovery is busy (preferred loopback port ${port} and nearby ports are in use). Try again.`,
         409
       )
   );
@@ -402,8 +402,14 @@ async function ensureSession(): Promise<Session> {
     }
     // Reap only our unadvertised startup child. A published session may already
     // be serving another opener and must not be terminated on a probe failure.
-    if (!launch.expectedPid || readSession()?.pid !== launch.expectedPid) launch.stopUnpublished();
-    throw new ConsoleError('Console did not start. Inspect the Maker console server log.');
+    // Windows wrapper PID is not session.pid; never kill after session.json exists.
+    const published = readSession();
+    if (!published || (launch.expectedPid && published.pid !== launch.expectedPid)) {
+      launch.stopUnpublished();
+    }
+    throw new ConsoleError(
+      'Console did not start. Inspect the Maker console server log. An empty log usually means the Windows CIM Hidden PowerShell wrapper never reached Node, often because antivirus blocked EncodedCommand. Read docs/MAKER_CONSOLE.md and skills/taptap-maker-local/SKILL.md.'
+    );
   } finally {
     releaseLaunch();
   }

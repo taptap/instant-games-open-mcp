@@ -296,7 +296,7 @@ test('exit zero without a complete manifest still fails', async () => {
     return {} as ReturnType<typeof execFile>;
   });
   await expect(preparePreviewProject(project, path.join(root, 'output'))).rejects.toThrow(
-    'Local prepare failed'
+    /Local prepare failed[\s\S]*Read docs\/MAKER_LOCAL_PREVIEW.md/
   );
 });
 

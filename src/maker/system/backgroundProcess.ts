@@ -1,6 +1,7 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { processPresence } from './processPresence.js';
 
 const WINDOWS_ENV_KEYS = new Set([
   'APPDATA',
@@ -70,6 +71,7 @@ export function selectWindowsBackgroundEnvironment(env: NodeJS.ProcessEnv): Node
 export function buildWindowsBackgroundLaunchScripts(options: BackgroundProcessLaunchOptions): {
   broker: string;
   process: string;
+  encodedCommand: string;
 } {
   const environment = Object.entries(selectWindowsBackgroundEnvironment(options.env)).map(
     ([key, value]) => `$env:${key} = ${powershellLiteral(value as string)}`
@@ -97,7 +99,7 @@ export function buildWindowsBackgroundLaunchScripts(options: BackgroundProcessLa
     "if ([int]$result.ReturnValue -ne 0) { throw ('Win32_Process.Create failed: ' + $result.ReturnValue) }",
     '[Console]::Out.Write([string]$result.ProcessId)',
   ].join('\r\n');
-  return { broker, process: processScript };
+  return { broker, process: processScript, encodedCommand: encodedProcess };
 }
 
 export async function launchBackgroundProcess(
@@ -153,17 +155,45 @@ export async function launchBackgroundProcess(
     });
     if (options.signal?.aborted) cancel();
   });
-  const brokerPid = Number(stdout.trim());
-  if (!Number.isInteger(brokerPid) || brokerPid <= 0) {
+  const wrapperPid = Number(stdout.trim());
+  if (!Number.isInteger(wrapperPid) || wrapperPid <= 0) {
     throw new Error('Windows process broker did not return a valid process id.');
   }
   return {
+    // 不暴露 wrapper PID 作为 expectedPid：控制台 session.pid 是 Node，不是包装 PowerShell。
     failure: () => undefined,
-    exited: () => false,
-    // CIM returns the wrapper PID, not an owned ChildProcess handle. Never kill
-    // by this historical PID: it may already have exited and been reused.
-    stopUnpublished: () => false,
+    exited: () => processPresence(wrapperPid) === 'missing',
+    // CIM 只返回包装进程 PID。停止前必须核对该 PID 当前命令行仍是本次 EncodedCommand。
+    stopUnpublished: () => stopWindowsWrapperIfOwned(wrapperPid, scripts.encodedCommand),
   };
+}
+
+function windowsProcessCommandLine(pid: number): string | undefined {
+  const result = spawnSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `$p = Get-CimInstance Win32_Process -Filter "ProcessId=${pid}"; if ($p) { [Console]::Out.Write([string]$p.CommandLine) }`,
+    ],
+    { encoding: 'utf8', timeout: 5000, windowsHide: true, shell: false }
+  );
+  if (result.status !== 0) return undefined;
+  const commandLine = result.stdout?.trim();
+  return commandLine || undefined;
+}
+
+function stopWindowsWrapperIfOwned(pid: number, encodedCommand: string): boolean {
+  if (processPresence(pid) === 'missing') return true;
+  const commandLine = windowsProcessCommandLine(pid);
+  if (!commandLine || !commandLine.includes(`-EncodedCommand ${encodedCommand}`)) return false;
+  spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+    timeout: 5000,
+    windowsHide: true,
+    shell: false,
+  });
+  return processPresence(pid) === 'missing';
 }
 
 function directLaunch(options: BackgroundProcessLaunchOptions): BackgroundProcessLaunch {

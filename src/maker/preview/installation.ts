@@ -130,8 +130,12 @@ export async function withPreviewLock<T>(project: string, action: () => Promise<
   const directory = previewDirectory(project);
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   const filename = path.join(fs.realpathSync(directory), 'operation.lock');
-  const busy = () =>
-    new Error('Another preview operation is in progress. Please retry after it finishes.');
+  const busy = (port: number) =>
+    new Error(
+      'Another preview operation is in progress, or preferred loopback port ' +
+        port +
+        ' and nearby recovery ports are in use. Please retry after it finishes.'
+    );
   // All new preview operations hold this OS-owned guard through release, so two
   // recoverers cannot remove one another's replacement file.
   const release = await claimRecoveryMutex(filename, busy);

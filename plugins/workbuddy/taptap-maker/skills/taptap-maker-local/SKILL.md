@@ -1,6 +1,6 @@
 ---
 name: taptap-maker-local
-description: 指导 TapTap Maker 本地开发流程，支持“打开make mcp控制台”、初始化、同步项目、状态检查、提交构建和故障诊断。
+description: Guide TapTap Maker local development workflows, including the official trigger “打开make mcp控制台”, local web console, local preview, and automatic refresh after each related code-edit batch. Use for Maker initialization, clone, project status, console, preview start/refresh/stop and evidence, MCP diagnostics, pull, submit, push, or Git conflicts.
 ---
 
 # TapTap Maker Local Workflow
@@ -163,6 +163,46 @@ Runtime 已执行。若 supervisor 日志为空且 control channel 超时，先�
 的待确认问题；不要直接改 PATH、切换 Node、修改游戏代码，或把问题归因于 Runtime 文件缺失。
 Issue/反馈中附上上述脱敏证据，让后续处理基于实际环境，而不是把某一次 Windows 兼容性问题写死
 成所有项目的结论。
+
+### AI Local Preview Launch Playbook
+
+Goal: open the shared local `UrhoXRuntime` window for the current bound Maker project. Do not
+commit, push, or remote-build. Do not rewrite PATH, switch Node, or disable antivirus unless the
+collected evidence names that cause.
+
+Launch chain:
+
+1. Active-distribution CLI `taptap-maker preview start --target-dir <PROJECT> --json`.
+2. Windows only: CLI Node → PowerShell broker → CIM `Win32_Process.Create` → Hidden PowerShell
+   `-EncodedCommand` wrapper → `__maker-preview-supervisor`.
+3. Supervisor publishes a loopback control channel, then spawns `UrhoXRuntime.exe`.
+4. Projects that need prepare run managed Python `project_builder.py` before Runtime starts.
+
+Evidence files, all under Maker home preview/runtime directories returned by status/start JSON:
+
+- `supervisor.log`
+- current-round `prepare.log`
+- Runtime `logs/game` and `logs/lua`
+- `session.json` (`supervisor_pid`, `runtime_pid`, `runtime_launch_pending`, `port`)
+
+Classify from evidence, then act:
+
+| Evidence                                                         | Meaning                                                                   | Next action                                                                                                                                          |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `install_state: missing`                                         | Runtime not installed                                                     | Host-approved `preview install`, then start                                                                                                          |
+| `Local prepare failed` + Python/Builder/timeout in `prepare.log` | Manifest/copy failed; Runtime was not started                             | Read `prepare.log`. Retry `preview prepare --json`. Do not treat as CIM/antivirus. Public-index download and managed Python must be ready            |
+| Empty `supervisor.log` + control-channel TIMEOUT                 | Wrapper never reached Node; often antivirus blocked Hidden EncodedCommand | Retry start once. If it fails again, run the same Maker `node` + `maker.js` with `__maker-preview-supervisor <PROJECT_ABSOLUTE>`. Do not change PATH |
+| `supervisor exit is unverified`                                  | CIM wrapper PID could not be proven owned                                 | Do not taskkill by historical PID or process name. Inspect `supervisor.log` and status                                                               |
+| `preferred loopback port` / recovery ports in use                | Lock-recovery mutex collided with another local bind                      | Retry the same CLI. Do not kill the occupying process                                                                                                |
+| Runtime PID exists / window opened                               | Launch succeeded                                                          | Report process launch only; use `preview logs` / `preview check` for evidence                                                                        |
+
+Console open uses the same Windows CIM wrapper with `__maker-console-server`. An empty
+`server.log` plus “Console did not start” is the same wrapper/antivirus class, not a preview
+Runtime missing. Direct `node maker.js __maker-console-server` is a last-resort console recovery
+only; it does not start preview.
+
+Never kill by process name. Never use a stored PID without matching session identity. Stop with
+`preview stop` or `console stop`. Closing the browser or CLI does not stop an independent Runtime.
 
 Process launch and clean logs do not prove gameplay or visual correctness. Do not promise
 screenshots, input automation or cloud/server emulation; these are not supported.
