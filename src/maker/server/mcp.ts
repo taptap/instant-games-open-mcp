@@ -60,6 +60,7 @@ import {
   type MakerEnvironment,
 } from '../config.js';
 import { getUserIdFromMakerJwt } from '../auth/jwt.js';
+import { isMakerMacExpiredFailure } from '../auth/macExpired.js';
 import { requestTapAuthWithPat } from '../auth/patTap.js';
 import {
   MakerGitNotFoundError,
@@ -503,6 +504,7 @@ export async function callRemoteProxyTool(options: {
         }
       }
     : async () => {
+        proxy = createProxy();
         const transport = trackMakerChildTransport(
           new StdioClientTransport({
             command: proxy.command,
@@ -543,12 +545,31 @@ export async function callRemoteProxyTool(options: {
           await client.close().catch(() => {});
         }
       };
-  const result = await callTool();
-  return await materializeRemoteProxyToolAssets({
-    toolName: options.name,
-    targetDir: proxy.projectRoot,
-    result,
-  });
+  const materialize = async (
+    result: Awaited<ReturnType<Client['callTool']>>
+  ): Promise<Awaited<ReturnType<Client['callTool']>>> =>
+    await materializeRemoteProxyToolAssets({
+      toolName: options.name,
+      targetDir: proxy.projectRoot,
+      result,
+    });
+
+  try {
+    const result = await callTool();
+    if (!isMakerMacExpiredFailure(result)) {
+      return await materialize(result);
+    }
+  } catch (error) {
+    if (!isMakerMacExpiredFailure(error)) {
+      throw error;
+    }
+  }
+
+  // Remote MAC expiry is a local credential problem. Refresh once with PAT, then
+  // rebuild the proxy context so the retried call uses the new kid/mac_key.
+  await requestTapAuthWithPat(undefined, getMakerEnvironment(undefined, proxy.projectRoot));
+  const retried = await callTool();
+  return await materialize(retried);
 }
 
 export function createRemoteProxyProgressHandler(

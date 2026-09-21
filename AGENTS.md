@@ -707,8 +707,10 @@ Maker 本地开发的默认路径是 CLI-first + PAT-first：
   `remote_result` 和 MCP 错误码分类，业务错误不得重复发起构建；只有 `build` 可对明确的 proxy
   unavailable、连接关闭、请求超时和 HTTP 5xx 自动重试最多 5 次。build pending 请求重放期间再次
   断线时，保留未完成请求并进入下一轮退避重连。其它 Maker Proxy tools 固定单次调用，不进入本地
-  重试器，也不在 Proxy 重连后自动重放；派发前失败返回 `execution_state=not_executed`，派发后响应中断
-  返回 `execution_state=unknown`，并统一返回 `automatic_retry=false`。遇到 `unknown` 时必须先核对远端
+  重试器，也不在 Proxy 重连后自动重放。唯一例外是远端明确返回 MAC 失效（`授权已失效` 或
+  `data.error=access_denied`）：本地用现有 PAT 换一次新 MAC，并用新凭证重试原请求一次。
+  派发前失败返回 `execution_state=not_executed`，派发后响应中断返回 `execution_state=unknown`，
+  这两种情况和其它业务失败都返回 `automatic_retry=false`。遇到 `unknown` 时必须先核对远端
   产物、任务、状态和用量，再决定是否由用户显式重试。
 - 用户明确说不提交、直接构建云端版本时，才允许调用 `maker_build_current_directory` 并设置 `confirm_remote_build_without_submit=true`；这种模式只构建 Maker 远端已提交版本，不会自动打开 Maker 页面。
 - 构建时如果用户未指定入口且本地存在 `scripts/main.lua`，本地 Maker MCP 默认传 `scriptsPath="scripts"` 和 `entry="main.lua"`；用户显式传单机入口或多人入口时优先生效。

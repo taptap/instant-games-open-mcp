@@ -2294,6 +2294,129 @@ describe('maker build local-change guard', () => {
     }
   });
 
+  test('managed proxy tool refreshes MAC once after 授权已失效 and retries', async () => {
+    savePat({ token: 'maker-pat' });
+    saveTapAuth({
+      kid: 'stale-kid',
+      token: 'stale-token',
+      mac_key: 'stale-mac-key',
+    });
+    const expiredResult = {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ success: false, error: '授权已失效' }),
+        },
+      ],
+    };
+    const recoveredResult = {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ success: true, ad: { status: 0 } }),
+        },
+      ],
+    };
+    const callTool = jest
+      .fn()
+      .mockResolvedValueOnce(expiredResult)
+      .mockImplementationOnce(async (context: { proxyConfigJson: string }) => {
+        expect(JSON.parse(context.proxyConfigJson).auth).toMatchObject({
+          kid: 'fresh-kid',
+          mac_key: 'fresh-mac-key',
+        });
+        return recoveredResult;
+      });
+    const manager = {
+      callTool,
+      listTools: jest.fn(),
+      getCachedTools: jest.fn(),
+      closeAll: jest.fn(),
+    } as unknown as MakerRemoteProxyManager;
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          kid: 'fresh-kid',
+          mac_key: 'fresh-mac-key',
+          mac_algorithm: 'hmac-sha-1',
+        }),
+    } as Response);
+    const callRemoteProxyTool = (
+      makerMcp as typeof makerMcp & {
+        callRemoteProxyTool: (options: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).callRemoteProxyTool;
+
+    try {
+      await expect(
+        callRemoteProxyTool({
+          targetDir: tempDir,
+          name: 'get_ad_config',
+          args: {},
+          extra: { sendNotification: jest.fn() },
+          manager,
+        })
+      ).resolves.toEqual(recoveredResult);
+      expect(callTool).toHaveBeenCalledTimes(2);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test('managed proxy tool does not retry 授权已失效 after MAC refresh fails', async () => {
+    savePat({ token: 'maker-pat' });
+    saveTapAuth({
+      kid: 'stale-kid',
+      token: 'stale-token',
+      mac_key: 'stale-mac-key',
+    });
+    const expiredResult = {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ success: false, error: '授权已失效' }),
+        },
+      ],
+    };
+    const callTool = jest.fn().mockResolvedValue(expiredResult);
+    const manager = {
+      callTool,
+      listTools: jest.fn(),
+      getCachedTools: jest.fn(),
+      closeAll: jest.fn(),
+    } as unknown as MakerRemoteProxyManager;
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      text: async () => JSON.stringify({ code: 'UNAUTHORIZED' }),
+    } as Response);
+    const callRemoteProxyTool = (
+      makerMcp as typeof makerMcp & {
+        callRemoteProxyTool: (options: Record<string, unknown>) => Promise<unknown>;
+      }
+    ).callRemoteProxyTool;
+
+    try {
+      await expect(
+        callRemoteProxyTool({
+          targetDir: tempDir,
+          name: 'get_ad_config',
+          args: {},
+          extra: { sendNotification: jest.fn() },
+          manager,
+        })
+      ).rejects.toThrow(/TapTap token request failed/);
+      expect(callTool).toHaveBeenCalledTimes(1);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   test('marks managed proxy connection failures as not_executed', async () => {
     saveTapAuth({
       kid: 'rnd-kid',
