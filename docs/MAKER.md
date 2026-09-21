@@ -465,8 +465,11 @@ access token、refresh token、MAC key 和 URL 凭证，但保留 user_id、proj
   排查构建问题时先读取工具结果中的 `remote_result`，不要用 generic unavailable 覆盖原始编译错误，
   也不要重复发起同一次构建。
 - 其它 Maker Proxy tools（包括图片、视频、音频、3D、二维码和配置操作）固定为单次调用，不进入
-  本地重试器，也不会在 Proxy 重连后自动重放。派发前失败返回 `execution_state: not_executed`；请求
-  已派发但响应中断时返回 `execution_state: unknown`；两种情况都返回 `automatic_retry: false`。
+  本地重试器，也不会在 Proxy 重连后自动重放。唯一例外是远端明确返回 MAC 失效
+  （`授权已失效` 或 `data.error=access_denied`）：本地用现有 PAT 换一次新 MAC，并用新凭证重试
+  原请求一次。派发前失败返回 `execution_state: not_executed`；请求
+  已派发但响应中断时返回 `execution_state: unknown`；这两种情况以及其它业务失败都返回
+  `automatic_retry: false`。
   对 `unknown` 结果必须先核对远端产物、任务、状态和用量，再决定是否由用户显式重试。
 - Maker 内嵌代理会对 MCP Streamable HTTP 的可选 standalone SSE GET 返回规范允许的 `405`，
   远端 `tools/list`、tool call、响应和 progress 均继续使用 POST SSE。Node.js 26.4.0 对照测试中，

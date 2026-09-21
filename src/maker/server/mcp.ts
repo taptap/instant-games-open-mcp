@@ -60,6 +60,7 @@ import {
   type MakerEnvironment,
 } from '../config.js';
 import { getUserIdFromMakerJwt } from '../auth/jwt.js';
+import { isMakerMacExpiredFailure } from '../auth/macExpired.js';
 import { requestTapAuthWithPat } from '../auth/patTap.js';
 import {
   MakerGitNotFoundError,
@@ -503,6 +504,7 @@ export async function callRemoteProxyTool(options: {
         }
       }
     : async () => {
+        proxy = createProxy();
         const transport = trackMakerChildTransport(
           new StdioClientTransport({
             command: proxy.command,
@@ -543,12 +545,30 @@ export async function callRemoteProxyTool(options: {
           await client.close().catch(() => {});
         }
       };
-  const result = await callTool();
-  return await materializeRemoteProxyToolAssets({
-    toolName: options.name,
-    targetDir: proxy.projectRoot,
-    result,
-  });
+  const materialize = async (
+    result: Awaited<ReturnType<Client['callTool']>>
+  ): Promise<Awaited<ReturnType<Client['callTool']>>> =>
+    await materializeRemoteProxyToolAssets({
+      toolName: options.name,
+      targetDir: proxy.projectRoot,
+      result,
+    });
+
+  try {
+    const result = await callTool();
+    if (!isMakerMacExpiredFailure(result)) {
+      return await materialize(result);
+    }
+  } catch (error) {
+    if (!isMakerMacExpiredFailure(error)) {
+      throw error;
+    }
+  }
+
+  // 远端 MAC 失效属于本地凭证问题。用 PAT 刷新一次后重建 proxy，重试请求使用新的 kid/mac_key。
+  await requestTapAuthWithPat(undefined, getMakerEnvironment(undefined, proxy.projectRoot));
+  const retried = await callTool();
+  return await materialize(retried);
 }
 
 export function createRemoteProxyProgressHandler(
