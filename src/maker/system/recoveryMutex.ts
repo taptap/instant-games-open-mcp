@@ -6,7 +6,8 @@ const EPHEMERAL_PORT_COUNT = 16384;
 const MUTEX_PORT_ATTEMPTS = 8;
 
 /**
- * 锁恢复互斥口：由锁路径哈希落到 49152–65535，再在邻近口上重试。
+ * 锁恢复互斥口：由锁路径哈希落到 49152–65535。
+ * 仅在 EACCES 时改试邻近口；EADDRINUSE 视为互斥占用，fail closed。
  * 不探测、不关闭占用该口的其它进程。
  */
 export function recoveryMutexPort(filename: string, offset = 0): number {
@@ -17,8 +18,10 @@ export function recoveryMutexPort(filename: string, offset = 0): number {
   return EPHEMERAL_PORT_BASE + ((preferred - EPHEMERAL_PORT_BASE + shift) % EPHEMERAL_PORT_COUNT);
 }
 
-function isPortBusy(error: NodeJS.ErrnoException): boolean {
-  return error.code === 'EADDRINUSE' || error.code === 'EACCES';
+function isUnrelatedPortDenied(error: NodeJS.ErrnoException): boolean {
+  // EADDRINUSE 可能是本锁持有者，必须 fail closed，不能改邻近口。
+  // EACCES 才是代理等无关占用（Issue 507），同一锁的竞争者会一起改到同一个邻近口。
+  return error.code === 'EACCES';
 }
 
 /** OS-released mutex; collisions fail closed without probing or stopping the peer. */
@@ -32,11 +35,15 @@ export function claimRecoveryMutex(
     return new Promise((resolve, reject) => {
       server.once('error', (error: NodeJS.ErrnoException) => {
         server.close();
-        if (isPortBusy(error) && offset + 1 < MUTEX_PORT_ATTEMPTS) {
+        if (isUnrelatedPortDenied(error) && offset + 1 < MUTEX_PORT_ATTEMPTS) {
           resolve(tryPort(offset + 1));
           return;
         }
-        reject(isPortBusy(error) ? busyError(recoveryMutexPort(filename)) : error);
+        reject(
+          error.code === 'EADDRINUSE' || error.code === 'EACCES'
+            ? busyError(recoveryMutexPort(filename))
+            : error
+        );
       });
       server.listen({ host: '127.0.0.1', port, exclusive: true }, () => {
         resolve(

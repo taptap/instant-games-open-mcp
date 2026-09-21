@@ -14,7 +14,7 @@ test('recovery mutex ports stay in the ephemeral range and wrap nearby offsets',
   expect(recoveryMutexPort(filename, 16384)).toBe(preferred);
 });
 
-test('claimRecoveryMutex uses a nearby port when the preferred port is busy', async () => {
+test('claimRecoveryMutex fails closed when the preferred port is already listening', async () => {
   const filename = '/tmp/maker-recovery-mutex-' + process.pid;
   const preferred = recoveryMutexPort(filename);
   const peer = createServer((socket) => socket.destroy());
@@ -25,10 +25,11 @@ test('claimRecoveryMutex uses a nearby port when the preferred port is busy', as
     peer.listen({ host: '127.0.0.1', port: preferred, exclusive: true }, resolve);
   });
   try {
-    const release = await claimRecoveryMutex(filename, (port) => new Error('busy ' + port));
+    await expect(claimRecoveryMutex(filename, (port) => new Error('busy ' + port))).rejects.toThrow(
+      'busy ' + preferred
+    );
     expect(peer.listening).toBe(true);
     expect(connection).not.toHaveBeenCalled();
-    await release();
   } finally {
     await new Promise<void>((resolve, reject) =>
       peer.close((error) => (error ? reject(error) : resolve()))

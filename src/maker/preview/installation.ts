@@ -134,7 +134,7 @@ export async function withPreviewLock<T>(project: string, action: () => Promise<
     new Error(
       'Another preview operation is in progress, or preferred loopback port ' +
         port +
-        ' and nearby recovery ports are in use. Please retry after it finishes.'
+        ' is in use. Please retry after it finishes.'
     );
   // All new preview operations hold this OS-owned guard through release, so two
   // recoverers cannot remove one another's replacement file.

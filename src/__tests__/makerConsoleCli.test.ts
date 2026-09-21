@@ -520,7 +520,7 @@ describe('Maker console CLI adapters', () => {
     release();
   });
 
-  test('uses a nearby mutex port when the preferred port is busy without contacting the peer', async () => {
+  test('leaves an unrelated listener and lock files untouched when the mutex port is busy', async () => {
     const filename = path.join(fs.realpathSync(directory), 'server.lock');
     const port = mutexPort(directory);
     const peer = createServer((socket) => socket.destroy());
@@ -530,17 +530,21 @@ describe('Maker console CLI adapters', () => {
       peer.once('error', reject);
       peer.listen({ host: '127.0.0.1', port, exclusive: true }, resolve);
     });
+    fs.writeFileSync(filename, '2147483647:stale');
+    fs.writeFileSync(filename + '.recovery', '2147483647:abandoned');
     try {
-      const release = await claimConsoleServerLock(directory);
+      await expect(claimConsoleServerLock(directory)).rejects.toMatchObject({ status: 409 });
       expect(peer.listening).toBe(true);
       expect(connection).not.toHaveBeenCalled();
-      expect(fs.existsSync(filename)).toBe(true);
-      release();
+      expect(fs.readFileSync(filename, 'utf8')).toBe('2147483647:stale');
+      expect(fs.readFileSync(filename + '.recovery', 'utf8')).toBe('2147483647:abandoned');
     } finally {
       await new Promise<void>((resolve, reject) =>
         peer.close((error) => (error ? reject(error) : resolve()))
       );
     }
+    const release = await claimConsoleServerLock(directory);
+    release();
   });
 
   test('recovers after a process is killed while publishing its guard under the socket mutex', async () => {

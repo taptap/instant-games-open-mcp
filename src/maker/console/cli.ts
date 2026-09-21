@@ -280,7 +280,7 @@ function claimRecoveryMutex(filename: string): Promise<() => Promise<void>> {
     filename,
     (port) =>
       new ConsoleError(
-        `Console ownership recovery is busy (preferred loopback port ${port} and nearby ports are in use). Try again.`,
+        `Console ownership recovery is busy (preferred loopback port ${port} is in use). Try again.`,
         409
       )
   );

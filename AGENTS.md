@@ -491,7 +491,7 @@ TAPTAP_MCP_VERBOSE=true npm run serve:http   # HTTP 模式，启用日志
   不得写回项目发布配置。控制台与 CLI 共用窗口设置，运行中尺寸以启动时的 preflight 为准。
   Windows 控制台与预览 supervisor 共用 `src/maker/system/backgroundProcess.ts` 的 CIM 启动器。
   启动失败且控制通道未发布时，只回收命令行仍匹配本次 EncodedCommand 的包装进程，不按历史 PID 误杀。
-  锁恢复互斥口被占用或 EACCES 时改试邻近口，不关闭占用者。空 supervisor/server 日志加超时按
+  锁恢复互斥口 EACCES 时改试邻近口，EADDRINUSE 视为互斥占用。空 supervisor/server 日志加超时按
   CIM EncodedCommand 拦截处理，不改 PATH；AI 排障见 skills/taptap-maker-local/SKILL.md。
   预览离线恢复必须确认会话证据匹配且两个进程都不存在；状态查询不写回会话，避免覆盖并发启动。
   Builder 快照须逐字节匹配固定 Git 提交；不修改引擎、公共资源或游戏原目录来掩盖预览错误。
