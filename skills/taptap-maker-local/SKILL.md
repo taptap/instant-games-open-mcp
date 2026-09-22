@@ -198,8 +198,10 @@ Classify from evidence, then act:
 
 Console open uses the same Windows CIM wrapper with `__maker-console-server`. An empty
 `server.log` plus “Console did not start” is the same wrapper/antivirus class, not a preview
-Runtime missing. Retry `console open`. Direct `__maker-console-server` is only for reproducing
-the Node entry itself; it does not replace CIM launch or start preview.
+Runtime missing. Retry `console open` once. If CIM stays blocked and no session.json exists,
+run the same Maker `node` + `maker.js` with `__maker-console-server`; that entry starts the
+HTTP service and publishes a session that later `console open` can reuse. Do not change PATH.
+This console recovery does not start preview.
 
 Never kill by process name. Never use a stored PID without matching session identity. Stop with
 `preview stop` or `console stop`. Closing the browser or CLI does not stop an independent Runtime.
