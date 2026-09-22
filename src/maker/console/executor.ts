@@ -24,7 +24,7 @@ export function createConsoleExecutor(options: {
     if (action === 'issue.report' && !reportContext) throw new Error('Report context is required.');
     if (signal?.aborted) return { ok: false, error: 'Console query cancelled before launch.' };
     if (action === 'lua-lsp.check') {
-      const result = await checkMakerLuaLspProject(project);
+      const result = await checkMakerLuaLspProject(project, { signal });
       onOutput(result.summary);
       if (result.issues.length) onOutput('\n' + result.issues.join('\n'));
       return sanitizeDiagnosticValue({

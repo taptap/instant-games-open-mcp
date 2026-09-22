@@ -2,11 +2,12 @@
  * Maker Lua LSP setup helpers.
  */
 
-import { spawn, spawnSync, type SpawnSyncReturns } from 'node:child_process';
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { getMakerHome } from '../storage.js';
+import { queryMakerLuaDiagnostics } from './luaLspDiagnostics.js';
 import {
   checkMakerPythonEnvironment,
   setupMakerPythonEnvironment,
@@ -18,7 +19,6 @@ const LUA_LSP_PACKAGE = 'maker-lua-lsp';
 const LUA_LSP_IDES = 'codex,cursor,claude';
 const LUA_LSP_SETUP_TIMEOUT_MS = 120_000;
 const LUA_LSP_PROBE_TIMEOUT_MS = 5_000;
-const LUA_LSP_CHECK_TIMEOUT_MS = 120_000;
 const PYTHON_SCRIPTS_DIR_SCRIPT = [
   'import sysconfig',
   'print(sysconfig.get_path("scripts") or "")',
@@ -73,6 +73,8 @@ type SpawnRunner = (
 
 export interface MakerLuaLspRuntimeOptions extends MakerPythonRuntimeOptions {
   pythonEnvironment?: MakerPythonEnvironment;
+  diagnostics?: typeof queryMakerLuaDiagnostics;
+  signal?: AbortSignal;
 }
 
 interface LuaLspRuntimeConfig {
@@ -270,8 +272,7 @@ export function setupMakerLuaLspEnvironment(
 }
 
 /**
- * One-shot local Lua check for a Maker project scripts directory.
- * Uses the installed maker-lua-lsp CLI, not the IDE MCP session.
+ * Local Lua diagnostics through a project-scoped LSP MCP session.
  */
 export async function checkMakerLuaLspProject(
   project: string,
@@ -292,8 +293,9 @@ export async function checkMakerLuaLspProject(
     };
   }
   let scripts: string;
+  let root: string;
   try {
-    const root = fs.realpathSync(project);
+    root = fs.realpathSync(project);
     scripts = fs.realpathSync(path.join(root, 'scripts'));
     const relative = path.relative(root, scripts);
     if (
@@ -317,127 +319,45 @@ export async function checkMakerLuaLspProject(
     };
   }
   const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'maker-lua-lsp-check-'));
-  const args = ['--mode', 'check', '--path', scripts, '--output-dir', outputDir, '--quiet'];
   try {
-    const result = options.spawn
-      ? options.spawn(environment.command, args, {
-          encoding: 'utf8',
-          timeout: LUA_LSP_CHECK_TIMEOUT_MS,
-        })
-      : await spawnLuaCheck(environment.command, args);
-    return interpretLuaCheckResult(environment.version, result, outputDir);
+    const { errorCount, issues } = await (options.diagnostics || queryMakerLuaDiagnostics)({
+      command: environment.command,
+      project: root,
+      scripts,
+      outputDir,
+      signal: options.signal,
+    });
+    const failed = errorCount > 0;
+    const summary = failed ? 'Lua 检查未通过：' + errorCount + ' 个错误' : 'Lua 检查通过';
+    return {
+      ok: !failed,
+      ready: true,
+      status: failed ? 'failed' : 'passed',
+      version: environment.version,
+      errorCount,
+      summary,
+      issues,
+      ...(failed ? { error: [summary, ...issues.slice(0, 8)].join(String.fromCharCode(10)) } : {}),
+      nextAction: failed
+        ? '修复 Lua 错误后再构建，或取消“构建前检查 Lua”。'
+        : '本地 Lua 诊断通过。',
+    };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      ready: false,
+      status: 'unavailable',
+      version: environment.version,
+      errorCount: 0,
+      summary: 'Lua LSP 诊断未完成。',
+      issues: [],
+      error: detail,
+      nextAction:
+        '检查 LSP 错误后重试；不要安装 emmylua_check。必要时运行 taptap-maker lua-lsp setup 修复 LSP 环境。',
+    };
   } finally {
     fs.rmSync(outputDir, { recursive: true, force: true });
-  }
-}
-
-function spawnLuaCheck(command: string, args: string[]): Promise<SpawnSyncReturns<string>> {
-  return new Promise((resolve) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    const timer = setTimeout(() => child.kill('SIGTERM'), LUA_LSP_CHECK_TIMEOUT_MS);
-    child.stdout?.setEncoding('utf8');
-    child.stderr?.setEncoding('utf8');
-    child.stdout?.on('data', (chunk: string) => {
-      stdout = (stdout + chunk).slice(0, 64 * 1024);
-    });
-    child.stderr?.on('data', (chunk: string) => {
-      stderr = (stderr + chunk).slice(0, 64 * 1024);
-    });
-    child.on('error', (error) => {
-      clearTimeout(timer);
-      resolve({
-        pid: 0,
-        output: [null, stdout, stderr],
-        stdout,
-        stderr,
-        status: null,
-        signal: null,
-        error,
-      } as SpawnSyncReturns<string>);
-    });
-    child.on('close', (status, signal) => {
-      clearTimeout(timer);
-      resolve({
-        pid: child.pid || 0,
-        output: [null, stdout, stderr],
-        stdout,
-        stderr,
-        status,
-        signal,
-      } as SpawnSyncReturns<string>);
-    });
-  });
-}
-
-function interpretLuaCheckResult(
-  version: string | undefined,
-  result: SpawnSyncReturns<string>,
-  outputDir: string
-): MakerLuaLspCheckResult {
-  const log = readLuaCheckLog(path.join(outputDir, 'lua_errors.log'));
-  const issues = log
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => /^ERROR\s*\|/i.test(line))
-    .slice(0, 50);
-  const timedOut = Boolean(
-    result.error?.message?.includes('ETIMEDOUT') || result.signal === 'SIGTERM'
-  );
-  if (timedOut) {
-    return {
-      ok: false,
-      ready: true,
-      status: 'unavailable',
-      version,
-      errorCount: 0,
-      summary: 'Lua 检查超时。',
-      issues: [],
-      error: 'Lua 检查超时。',
-      nextAction: '稍后重试 Lua 检查，或取消“构建前检查 Lua”后再构建。',
-    };
-  }
-  if (result.status !== 0 && issues.length === 0) {
-    const detail = [result.error?.message, result.stderr?.trim(), result.stdout?.trim()]
-      .filter(Boolean)
-      .join('\n')
-      .slice(0, 1024);
-    return {
-      ok: false,
-      ready: true,
-      status: 'unavailable',
-      version,
-      errorCount: 0,
-      summary: detail || 'maker-lua-lsp 未能完成检查。',
-      issues: [],
-      error: detail || 'maker-lua-lsp 未能完成检查。',
-      nextAction: '查看错误后重试 Lua 检查。',
-    };
-  }
-  const failed = issues.length > 0;
-  return {
-    ok: !failed,
-    ready: true,
-    status: failed ? 'failed' : 'passed',
-    version,
-    errorCount: issues.length,
-    summary: failed ? `Lua 检查未通过：${issues.length} 个错误` : 'Lua 检查通过',
-    issues,
-    ...(failed
-      ? { error: [`Lua 检查未通过：${issues.length} 个错误`, ...issues.slice(0, 8)].join('\n') }
-      : {}),
-    nextAction: failed ? '修复 Lua 错误后再构建，或取消“构建前检查 Lua”。' : '本地 Lua 诊断通过。',
-  };
-}
-
-function readLuaCheckLog(filename: string): string {
-  try {
-    const stat = fs.statSync(filename);
-    if (!stat.isFile() || stat.size <= 0) return '';
-    return fs.readFileSync(filename, { encoding: 'utf8' }).slice(0, 64 * 1024);
-  } catch {
-    return '';
   }
 }
 
