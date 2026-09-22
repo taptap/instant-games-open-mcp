@@ -86,10 +86,15 @@ export async function runPreviewInstaller(
     let cleanupVerified = true;
     let cleanupAcknowledged = false;
     let stderrTail = '';
+    let pendingFinish: { code: number | null; error?: Error } | undefined;
     let force: NodeJS.Timeout | undefined;
     let deadline: NodeJS.Timeout | undefined;
     const finish = (code: number | null, error?: Error): void => {
       if (finished) return;
+      if (failure && !cleanupAcknowledged && !error) {
+        pendingFinish = { code, error };
+        return;
+      }
       append(stderrTail, false);
       stderrTail = '';
       finished = true;
@@ -111,7 +116,7 @@ export async function runPreviewInstaller(
               stdout,
               stderr,
               cleanupVerified:
-                cleanupVerified && code !== 131 && (grouped || cleanupAcknowledged || !child.pid),
+                cleanupVerified && code !== 131 && (cleanupAcknowledged || !child.pid),
             }
           )
         );
@@ -171,6 +176,11 @@ export async function runPreviewInstaller(
           if (stderrTail.includes(marker)) {
             cleanupAcknowledged = true;
             stderrTail = stderrTail.split(marker).join('');
+            if (pendingFinish) {
+              const pending = pendingFinish;
+              pendingFinish = undefined;
+              finish(pending.code, pending.error);
+            }
           }
           // Keep enough trailing text to recognize an acknowledgement split across chunks.
           const safeLength = Math.max(0, stderrTail.length - marker.length + 1);
