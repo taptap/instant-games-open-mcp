@@ -272,7 +272,7 @@ describe('Maker Lua LSP runtime', () => {
     );
   });
 
-  test('project check reports Lua errors from maker-lua-lsp logs', async () => {
+  test('project check reports Lua errors from LSP diagnostics', async () => {
     const python = path.join(tempDir, 'python', 'bin', 'python3');
     const scriptsDir = path.join(tempDir, 'maker-home', 'lua-lsp-venv', 'bin');
     const lspCommand = path.join(scriptsDir, 'maker-lua-lsp');
@@ -285,23 +285,60 @@ describe('Maker Lua LSP runtime', () => {
       if (command === lspCommand && args[0] === '--version') {
         return spawnResult(0, 'maker-lua-lsp 0.22.2\n');
       }
-      if (command === lspCommand && args.includes('--mode')) {
-        const outputDir = args[args.indexOf('--output-dir') + 1];
-        fs.writeFileSync(
-          path.join(outputDir, 'lua_errors.log'),
-          'ERROR | main.lua:3:1 | unexpected symbol [syntax-error]\n'
-        );
-        return spawnResult(0, '');
-      }
       return spawnResult(1, '', `unexpected command: ${command} ${args.join(' ')}`);
     };
+    const diagnostics = jest.fn(async () => ({
+      errorCount: 1,
+      issues: ['ERROR | main.lua:3:1 | unexpected symbol [syntax-error]'],
+    }));
     await expect(
-      checkMakerLuaLspProject(project, { pythonEnvironment: readyPython(python), spawn })
+      checkMakerLuaLspProject(project, {
+        pythonEnvironment: readyPython(python),
+        spawn,
+        diagnostics,
+      })
     ).resolves.toMatchObject({
       ok: false,
       status: 'failed',
       errorCount: 1,
       issues: ['ERROR | main.lua:3:1 | unexpected symbol [syntax-error]'],
+    });
+    expect(diagnostics).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: lspCommand,
+        project: fs.realpathSync(project),
+        scripts: fs.realpathSync(path.join(project, 'scripts')),
+      })
+    );
+    expect(spawn).toBeDefined();
+  });
+
+  test('project check stays unavailable when LSP diagnostics do not finish', async () => {
+    const python = path.join(tempDir, 'python', 'bin', 'python3');
+    const scriptsDir = path.join(tempDir, 'maker-home', 'lua-lsp-venv', 'bin');
+    const lspCommand = path.join(scriptsDir, 'maker-lua-lsp');
+    const project = path.join(tempDir, 'game');
+    fs.mkdirSync(scriptsDir, { recursive: true });
+    fs.mkdirSync(path.join(project, 'scripts'), { recursive: true });
+    fs.writeFileSync(lspCommand, '');
+    const spawn = (command: string, args: string[]) =>
+      command === lspCommand && args[0] === '--version'
+        ? spawnResult(0, 'maker-lua-lsp 0.22.2\n')
+        : spawnResult(1, '', 'unexpected');
+    await expect(
+      checkMakerLuaLspProject(project, {
+        pythonEnvironment: readyPython(python),
+        spawn,
+        diagnostics: async () => {
+          throw new Error('Lua check timed out');
+        },
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      ready: false,
+      status: 'unavailable',
+      errorCount: 0,
+      error: 'Lua check timed out',
     });
   });
 });

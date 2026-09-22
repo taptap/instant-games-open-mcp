@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
 import { createServer } from 'node:net';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
@@ -19,10 +18,11 @@ import {
   selectWindowsConsoleEnvironment,
 } from '../maker/console/processLauncher';
 import { createMakerRemoteBuildError } from '../maker/server/mcp';
+import { recoveryMutexPort } from '../maker/system/recoveryMutex';
 
-function mutexPort(directory: string): number {
+function mutexPort(directory: string, offset = 0): number {
   const filename = path.join(fs.realpathSync(directory), 'server.lock');
-  return 49152 + (createHash('sha256').update(filename).digest().readUInt16BE(0) % 16384);
+  return recoveryMutexPort(filename, offset);
 }
 
 describe('Maker console CLI adapters', () => {

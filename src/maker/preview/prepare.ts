@@ -271,10 +271,27 @@ async function prepareProjectCopy(
         ),
         { mode: 0o600 }
       );
-    throw new Error(
-      'Local prepare failed; no Runtime was started. ' + String(error) + ' Log: ' + log
-    );
+    throw new Error(classifyPrepareFailure(error, log));
   }
+}
+
+function classifyPrepareFailure(error: unknown, log: string): string {
+  const failure = error as Error & { killed?: boolean; code?: string };
+  const message = String(error);
+  const parts = ['Local prepare failed; no Runtime was started.'];
+  if (failure.killed || failure.code === 'ETIMEDOUT' || /timed out|ETIMEDOUT/i.test(message)) {
+    parts.push('Managed Python ProjectBuilder timed out before a complete manifest was written.');
+  } else if (message.includes('Could not prepare the managed Python environment')) {
+    parts.push('Managed Python is not ready.');
+  } else if (message.includes('Public source index download failed')) {
+    parts.push('Public source index download failed.');
+  } else if (message.includes('Command failed:')) {
+    parts.push('ProjectBuilder command failed.');
+  }
+  parts.push(message);
+  parts.push('Log: ' + log);
+  parts.push('Read docs/MAKER_LOCAL_PREVIEW.md and skills/taptap-maker-local/SKILL.md.');
+  return parts.join(' ');
 }
 
 export function previewPreparationDirectory(project: string): string {

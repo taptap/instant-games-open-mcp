@@ -32,6 +32,7 @@ test('keeps setup fail-fast and relaxes error handling only for native stderr', 
   ]);
   expect(scripts.broker).toMatch(/^\$ErrorActionPreference = 'Stop'/);
   const encoded = scripts.broker.match(/-EncodedCommand ([A-Za-z0-9+/=]+)/)![1];
+  expect(scripts.encodedCommand).toBe(encoded);
   expect(Buffer.from(encoded, 'base64').toString('utf16le')).toBe(scripts.process);
 });
 
@@ -140,7 +141,7 @@ test.each(['preview', 'console'])('%s uses the Windows broker at execution time'
     expect(settings).toMatchObject({ windowsHide: true, shell: false });
     expect(JSON.stringify(settings)).not.toContain('private-secret');
     expect(launch.failure()).toBeUndefined();
-    expect(launch.stopUnpublished()).toBe(false);
+    expect(launch.expectedPid).toBeUndefined();
     expect(fs.existsSync(options.logFile)).toBe(true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

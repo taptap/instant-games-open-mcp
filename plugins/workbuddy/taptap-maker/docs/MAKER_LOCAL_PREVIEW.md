@@ -105,7 +105,14 @@ supervisor/后台启动链路、Runtime 本体与游戏加载。依次核对实�
 Runtime 可执行文件、`supervisor_log_path`、Runtime 日志和 control channel 结果；不要把
 “Runtime 文件存在”或“WMI 返回 PID/请求成功”当作 Runtime 已经真正启动。若 supervisor 日志为空
 且 control channel 超时，应优先记录为 Windows 后台启动链路的待确认问题，不要直接归因于游戏代码、
-Runtime 缺失或 Node 版本。
+Runtime 缺失或 Node 版本。本地 AI 按 `skills/taptap-maker-local/SKILL.md` 的
+“AI Local Preview Launch Playbook”处理：目标是打开本机 `UrhoXRuntime`，不要改 PATH 或切 Node。
+`Local prepare failed` 只表示 Python/ProjectBuilder 未写出完整 manifest，Runtime 尚未启动，
+应读本轮 `prepare.log`。空 supervisor 日志加控制通道超时，通常是 CIM Hidden EncodedCommand
+被拦截；可重试 `preview start`。不要在 start 返回后再跑 `__maker-preview-supervisor`。
+锁恢复互斥口 `EACCES` 时改试邻近口，`EADDRINUSE` 视为互斥占用并 fail closed，不结束占用进程。
+启动失败且控制通道未发布时，Windows 只在当前 PID 命令行仍是本次 EncodedCommand 时回收包装进程，
+不按历史 PID 误杀。
 
 - 后台进程已登记控制端点、但在启动完成前退出时，只有明确确认 supervisor 已退出，且
   Runtime 尚未尝试创建或已记录的 Runtime 也已退出，才允许重新启动。创建 Runtime 前先持久化
